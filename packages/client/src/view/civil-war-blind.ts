@@ -12,7 +12,7 @@
  * Counts are never masked.
  */
 import type { AnyCard, EncounterSet } from "@mc/content";
-import type { GameState } from "@mc/engine";
+import type { GameEvent, GameState } from "@mc/engine";
 import type { SessionConfig } from "../engine/host.js";
 import type { InspectModel } from "./inspect-model.js";
 
@@ -123,3 +123,13 @@ export const setNamesOf = (sets: readonly EncounterSet[]): ((id: string) => stri
   const byId = new Map(sets.map((set) => [set.id as string, set.name]));
   return (id) => byId.get(id) ?? id;
 };
+
+/**
+ * Events as the log may show them in a blind game: the "stages chosen" announcement names stage 2, so it is dropped
+ * until the main scheme has advanced past stage 1. Applied to every batch folded into the log (a resumed game's whole
+ * history included), so no log surface can print it.
+ */
+export function eventsForBlindLog(events: readonly GameEvent[], reveal: BlindReveal | null): readonly GameEvent[] {
+  if (!reveal || reveal.stage2Reached) return events;
+  return events.filter((event) => event.type !== "mainSchemeStagesChosen");
+}

@@ -77,7 +77,7 @@ for (const size of SIZES) {
       await waitForBoardText(page, size.phone ? /^extra$/i : /^overpay only$/i, "overpay-only tag");
       await waitForBoardText(page, /Only to overpay/i, "the reason is on screen");
       await expectBarFits(page, size, "cost 1, nothing picked");
-      await page.screenshot({ path: `${SHOTS}/wave10-recheck-wm-${size.name}-held.png` });
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/wave10-recheck-wm-${size.name}-held.png` });
 
       await pressCard(page, size.phone, hollywood!);
       const spent = () =>
@@ -104,7 +104,7 @@ for (const size of SIZES) {
       // Payment-order tags (RRG p. 16 "Discard"): the event itself is discarded on top of its payment, so the last
       // pick is tagged "under <card>" (a phone: "2▼"). The desktop tile clips the card name: see the report.
       await waitForBoardText(page, size.phone ? /^[0-9][▲▼]$/ : /^spent/i, "the picks carry an order tag");
-      await page.screenshot({ path: `${SHOTS}/wave10-recheck-wm-${size.name}-overpaid.png` });
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/wave10-recheck-wm-${size.name}-overpaid.png` });
       const pay = await waitForBoardText(page, /^pay$/i, "Pay");
       await press(page, size.phone, pay.x, pay.y);
       await settle(page);
@@ -123,7 +123,7 @@ for (const size of SIZES) {
       await playFromHand(page, size.phone, altruism, async () => (await boardText(page, /^PAYING/i)) !== undefined);
       await settle(page, { quietMs: 400, maxMs: 2000 });
       const plain = await waitForBoardText(page, /^Play without overpaying$/i, "plain default at cost 0");
-      await page.screenshot({ path: `${SHOTS}/wave10-recheck-wm-${size.name}-plain.png` });
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/wave10-recheck-wm-${size.name}-plain.png` });
       await expectBarFits(page, size, "play without overpaying");
       expect(plain.x + plain.w).toBeLessThanOrEqual(size.width);
       await pressCard(page, size.phone, hollywood!);
@@ -158,7 +158,7 @@ for (const size of SIZES) {
       await press(page, size.phone, more.x + more.width / 2, more.y + more.height / 2);
       await settle(page, { quietMs: 300, maxMs: 1000 });
       expect(await picker(), "plus raised X").toBe(2);
-      await page.screenshot({ path: `${SHOTS}/wave10-recheck-wm-${size.name}-x2.png` });
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/wave10-recheck-wm-${size.name}-x2.png` });
       const less = (await focusRect(page, "xLess"))!;
       await press(page, size.phone, less.x + less.width / 2, less.y + less.height / 2);
       await settle(page, { quietMs: 300, maxMs: 1000 });

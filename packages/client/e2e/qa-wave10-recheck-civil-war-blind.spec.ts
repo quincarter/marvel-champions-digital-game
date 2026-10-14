@@ -80,7 +80,13 @@ const allTexts = async (page: Page): Promise<string> =>
 async function expectNothingHidden(page: Page, where: string, hidden: readonly string[]): Promise<void> {
   const text = await allTexts(page);
   for (const name of hidden) {
-    expect(text.includes(name.toLowerCase()), `${where}: "${name}" is on screen`).toBe(false);
+    // Pause's tutorial row names Spider-Man whatever the game ("a short scripted first game against Rhino with
+    // Spider-Man"), and a hidden set can be the one called Spider-Man: that fixed line gives nothing away.
+    const line = text
+      .split("\n")
+      .filter((l) => !l.includes("a short scripted first game against rhino"))
+      .find((l) => l.includes(name.toLowerCase()));
+    expect(line, `${where}: "${name}" is on screen`).toBeUndefined();
   }
 }
 
@@ -129,7 +135,7 @@ async function playBlindAndResume(page: Page, size: Size, pauseAfterResume: bool
       await seatTigraAndDeal(page);
       // Table setup lists the modular sets it will shuffle in: they must not be named here either.
       const setupText = await allTexts(page);
-      await page.screenshot({ path: `${SHOTS}/wave10-recheck-blind-${size.name}-setup.png` });
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/wave10-recheck-blind-${size.name}-setup.png` });
 
       await clickStop(page, "seed", "Setup");
       await page.keyboard.press("ControlOrMeta+A");
@@ -149,7 +155,12 @@ async function playBlindAndResume(page: Page, size: Size, pauseAfterResume: bool
       const setName = (id: string): string => offer.modularSets.find((s: any) => s.id === id).name;
       const hiddenIds = await stillHiddenSets(page, config.modularSetIds ?? []);
       expect(config.modularSetIds?.length).toBe(4);
-      const hidden = [stage2, ...hiddenIds.map(setName)];
+      let hidden = [stage2, ...hiddenIds.map(setName)];
+      // A set turns up as the game goes on, so the list is read again at each check made with a game on the table.
+      const nothingHiddenNow = async (where: string): Promise<void> => {
+        hidden = [stage2, ...(await stillHiddenSets(page, config.modularSetIds ?? [])).map(setName)];
+        await expectNothingHidden(page, where, hidden);
+      };
       expect(hidden.length).toBeGreaterThanOrEqual(2);
 
       // Table setup (read before the deal): nothing hidden.
@@ -157,7 +168,7 @@ async function playBlindAndResume(page: Page, size: Size, pauseAfterResume: bool
         expect(setupText.includes(name.toLowerCase()), `Table setup names "${name}"`).toBe(false);
       }
       await expectNothingHidden(page, "Board, round 1", hidden);
-      await page.screenshot({ path: `${SHOTS}/wave10-recheck-blind-${size.name}-board.png` });
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/wave10-recheck-blind-${size.name}-board.png` });
 
       // Pause: the scenario sheet and the full game log (the log holds every pick, the client masks it).
       await pressKey(page, "Escape");
@@ -167,14 +178,14 @@ async function playBlindAndResume(page: Page, size: Size, pauseAfterResume: bool
         8000,
       );
       await settle(page);
-      await expectNothingHidden(page, "Pause", hidden);
+      await nothingHiddenNow("Pause");
       expect(await allTexts(page), "Pause carries the hidden words").toMatch(/hidden/);
       if (size.width > 600) {
         await clickText(page, "Full game log", { sceneKey: "PauseOverlay" });
         await settle(page);
-        await expectNothingHidden(page, "Pause, Full game log", hidden);
+        await nothingHiddenNow("Pause, Full game log");
       }
-      await page.screenshot({ path: `${SHOTS}/wave10-recheck-blind-${size.name}-pause.png` });
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/wave10-recheck-blind-${size.name}-pause.png` });
 
       // Save & quit, then the Title's Continue row names the game without the hidden pieces.
       await clickStop(page, "save-quit", "PauseOverlay");
@@ -188,7 +199,7 @@ async function playBlindAndResume(page: Page, size: Size, pauseAfterResume: bool
       expect(titleText, "the Continue row names the Civil War game and says its pieces are hidden").toMatch(
         /Continue/i,
       );
-      await page.screenshot({ path: `${SHOTS}/wave10-recheck-blind-${size.name}-title.png` });
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/wave10-recheck-blind-${size.name}-title.png` });
       expect(titleText).toMatch(/hidden/i);
 
       // Reload (a closed tab), then resume.
@@ -202,7 +213,7 @@ async function playBlindAndResume(page: Page, size: Size, pauseAfterResume: bool
       const resumed = await sessionConfig(page);
       expect(resumed.blind, "blind survives the resume").toBe(true);
       expect(resumed.modularSetIds).toEqual(config.modularSetIds);
-      await expectNothingHidden(page, "Board after resume", hidden);
+      await nothingHiddenNow("Board after resume");
       await pressKey(page, "Escape");
       await waitFor(
         async () => ((await activeScenes(page)).includes("PauseOverlay") ? true : null),
@@ -210,17 +221,17 @@ async function playBlindAndResume(page: Page, size: Size, pauseAfterResume: bool
         8000,
       );
       await settle(page);
-      await page.screenshot({ path: `${SHOTS}/wave10-recheck-blind-${size.name}-resumed.png` });
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/wave10-recheck-blind-${size.name}-resumed.png` });
       if (pauseAfterResume) {
-        await expectNothingHidden(page, "Pause after resume", hidden);
+        await nothingHiddenNow("Pause after resume");
         if (size.width < 600) {
           // On a phone the log is the Board's own LOG tab.
           await pressKey(page, "Escape");
           await settle(page);
           await clickText(page, "LOG", { sceneKey: "Board" });
           await settle(page);
-          await page.screenshot({ path: `${SHOTS}/wave10-recheck-blind-${size.name}-logtab.png` });
-          await expectNothingHidden(page, "Log tab after resume", hidden);
+          if (SHOTS) await page.screenshot({ path: `${SHOTS}/wave10-recheck-blind-${size.name}-logtab.png` });
+          await nothingHiddenNow("Log tab after resume");
         }
       }
       expect(errors).toEqual([]);
@@ -251,7 +262,7 @@ for (const size of SIZES) {
     // FINDING (should-fix): after Save & quit and Continue, Pause's "Jump to a moment" log prints the line "Main scheme
     // stages for this game: <stage 1>, then <stage 2>" for a blind game, naming the hidden stage 2. Before the resume
     // the same panel does not show it. A player sees it by opening Pause on the resumed game.
-    test.fail("the resumed game's Pause does not name the hidden stage 2", async ({ page }) => {
+    test("the resumed game's Pause does not name the hidden stage 2", async ({ page }) => {
       await playBlindAndResume(page, size, true);
     });
   });

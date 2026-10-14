@@ -5,7 +5,7 @@
  */
 import { WAVE10_DEPS, playableScenarioOffer, randomCivilWarScenario, wave10Scenario } from "@mc/cards";
 import { WAVE10_CARDS, WAVE10_ENCOUNTER_SETS, type EncounterSet } from "@mc/content";
-import { createGame, type GameState, type InstanceId } from "@mc/engine";
+import { createGame, type GameEvent, type GameState, type InstanceId } from "@mc/engine";
 import { beforeAll, describe, expect, test } from "vitest";
 import type { SessionConfig } from "../engine/host.js";
 import {
@@ -14,6 +14,7 @@ import {
   HIDDEN_STAGE_TEXT,
   blindRevealOf,
   blindSheetLines,
+  eventsForBlindLog,
   maskSetRows,
 } from "./civil-war-blind.js";
 import { encounterDeckPreviewOf } from "./encounter-preview.js";
@@ -191,5 +192,25 @@ describe("a game started from a random blind pick", () => {
     expect(reveal.stage2Id).toBe(r.mainSchemeStageIds[1]);
     expect(reveal.modularSetIds).toEqual(r.modularSetIds);
     expect(reveal.revealedSetIds.size).toBe(0);
+  });
+});
+
+describe("the log of a blind game", () => {
+  const chosen = { type: "mainSchemeStagesChosen", schemeInstanceId: "s", order: [0, 1] } as unknown as GameEvent;
+  const other = { type: "roundStarted", round: 1 } as unknown as GameEvent;
+  const reveal = (stage2Reached: boolean) => ({
+    stage2Reached,
+    stage2Id: "x",
+    modularSetIds: [],
+    revealedSetIds: new Set<string>(),
+  });
+
+  test("drops the stages-chosen line (it names stage 2) until stage 2 is reached", () => {
+    expect(eventsForBlindLog([chosen, other], reveal(false))).toEqual([other]);
+    expect(eventsForBlindLog([chosen, other], reveal(true))).toEqual([chosen, other]);
+  });
+
+  test("a game that is not blind keeps it", () => {
+    expect(eventsForBlindLog([chosen, other], null)).toEqual([chosen, other]);
   });
 });

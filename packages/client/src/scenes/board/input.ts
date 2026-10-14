@@ -7,6 +7,7 @@
  */
 
 import type Phaser from "phaser";
+import { eventOnce } from "../../view/event-once.js";
 import { gamepadIntentFor, type GamepadIntent } from "../../view/gamepad.js";
 
 export interface IntentBinding {
@@ -27,7 +28,10 @@ export interface IntentBinding {
 export function bindKeyboard(scene: Phaser.Scene, binding: IntentBinding): void {
   const keyboard = scene.input.keyboard;
   if (!keyboard) return;
+  const firstDelivery = eventOnce();
   keyboard.on("keydown", (event: KeyboardEvent) => {
+    // Phaser replays a frame's queue on every key event, so a chord (Shift+Tab) arrives more than once.
+    if (!firstDelivery(event)) return;
     if (binding.blocked()) return;
     switch (event.key) {
       case "ArrowRight":

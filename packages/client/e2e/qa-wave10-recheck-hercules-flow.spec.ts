@@ -73,7 +73,7 @@ test("Hercules: a Labor revealed, finished, earns a Gift that cuts The Gift of B
   await settle(page, { quietMs: 600, maxMs: 4000 });
   const threatBefore = await facts(page, gameFacts.threatOf);
   expect(threatBefore.join(" "), "Bomb Scare is in play with the Labor on it").toMatch(/01109/);
-  await page.screenshot({ path: `${SHOTS}/wave10-recheck-hercules-labor.png` });
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/wave10-recheck-hercules-labor.png` });
 
   // The same action is now refused, and says why (Labor in play).
   await waitForBoardText(page, /Can't use: a Labor card is in play/i, "the refusal reason");
@@ -123,7 +123,7 @@ test("Hercules: a Labor revealed, finished, earns a Gift that cuts The Gift of B
     }
   }
   await settle(page, { quietMs: 600, maxMs: 4000 });
-  await page.screenshot({ path: `${SHOTS}/wave10-recheck-hercules-atonement.png` });
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/wave10-recheck-hercules-atonement.png` });
   expect(await facts(page, gameFacts.gifts), "Atonement put a Gift card into play").toEqual(["59005"]);
 
   // Hand fully drawn by Nemean Lion Skin (draw 4). The Gift of Battle: cost 3, one Gift controlled: the pay bar says 2.

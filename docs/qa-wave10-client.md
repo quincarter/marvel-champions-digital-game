@@ -100,3 +100,5 @@ New findings:
 - A first pass note to correct: the cost-0 "Play without overpaying" tap did work under these specs (`playFromHand` with Inspect's Play); the first pass's failure was its driver.
 
 Verification notes: the three pay-bar specs use the Wonder Man starter deck against Rhino with a staged hand; text bounds from the Phaser text objects are used for fit checks, with 4 px of slack because a text object is about 2 px wider than its glyphs, and overlap is only asserted at phone widths (desktop was checked on the screenshot). `oxlint` and `oxfmt --check` are clean on the new files.
+
+**Fixed the same day:** F13 (the log is filtered by `eventsForBlindLog` before any surface reads it; a resumed game's history included) and F14 (Phaser redelivered a chord's key events, so one Shift+Tab moved three stops on every screen using `bindKeyboard`; `eventOnce` takes each event once, and Preconstructed is a Tab stop only on the review step). Both pins are plain tests now. Two false alarms in the blind check were steadied: Pause's tutorial row always names Spider-Man, and the list of still-hidden sets is read again at each check.

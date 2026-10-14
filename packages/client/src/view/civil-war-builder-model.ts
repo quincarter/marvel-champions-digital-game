@@ -623,7 +623,8 @@ export function builderViewOf(draft: SetupDraft, ctx: BuilderContext): BuilderVi
     "civil:random",
     "civil:random-blind",
     ...(blind ? ["civil:blind:show"] : []),
-    "civil:preconstructed",
+    // Preconstructed is drawn on the review step only; a stop with no control on screen would be a ring on nothing.
+    ...(step === 5 ? ["civil:preconstructed"] : []),
     "civil:back",
     "civil:start",
   ];

@@ -9,7 +9,8 @@ export const SIZES = [
   { name: "1440x900", width: 1440, height: 900, phone: false },
 ] as const;
 
-export const SHOTS = "../../artifacts/qa";
+/** Where to write screenshots; empty (the default) writes none: `E2E_SHOTS=../../artifacts/qa`. */
+export const SHOTS = process.env.E2E_SHOTS ?? "";
 
 interface Store {
   start: (cfg: unknown) => Promise<void>;

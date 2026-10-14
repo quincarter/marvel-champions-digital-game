@@ -129,7 +129,7 @@ for (const size of [
         v.modular.sections.flatMap((s) => s.tiles).find((t) => t.id === into.id)?.selected,
         "Enter on a set tile picks it",
       ).toBe(true);
-      await page.screenshot({ path: `${SHOTS}/wave10-recheck-keyboard-${size.name}-sets.png` });
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/wave10-recheck-keyboard-${size.name}-sets.png` });
 
       // 5. Review, then Start by keyboard.
       await enterOn(page, "civil:step:5");
@@ -137,7 +137,7 @@ for (const size of [
       expect(v.step).toBe(5);
       expect(v.canStart).toBe(true);
       expect(v.summary.join(" | ")).toContain(otherLeader.name);
-      await page.screenshot({ path: `${SHOTS}/wave10-recheck-keyboard-${size.name}-review.png` });
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/wave10-recheck-keyboard-${size.name}-review.png` });
       await enterOn(page, "civil:start");
       test.info().annotations.push({ type: "presses", description: pressCounts.join(" ") });
       await waitFor(async () => ((await activeScenes(page)).includes("Seats") ? true : null), "Take your seats", 10000);
@@ -173,10 +173,9 @@ for (const size of [
       expect(await focused(page), "the focus is still on Start after a refused press").toBe("civil:start");
     });
 
-    // FINDING (should-fix): forward from Random the order is Random, Random and blind, Preconstructed, Back, Start, but
-    // Shift+Tab from Start lands on Random, skipping the three controls between, and then on a set tile. A keyboard
-    // player stepping back from Start cannot reach Back or Random and blind that way.
-    test.fail("Shift+Tab from Start steps back through Back, Preconstructed and Random and blind", async ({ page }) => {
+    // F14 (fixed): Phaser replays a frame's key queue on every key event, so Shift+Tab reached the scene three times and
+    // moved focus three stops back; `bindKeyboard` now takes each event once (`view/event-once.ts`).
+    test("Shift+Tab from Start steps back through Back, Preconstructed and Random and blind", async ({ page }) => {
       test.setTimeout(120_000);
       await openApp(page, "unlock=all&screen=civil-war-builder&entry=build", { landing: "CivilWarBuilder" });
       await waitFor(
@@ -185,10 +184,10 @@ for (const size of [
         10000,
       );
       await settle(page);
-      // On the sets step, where the grid of every set sits in the focus order.
-      await enterOn(page, "civil:step:4");
+      // On the review step, where Preconstructed is drawn (on the other steps it is not a control, so not a stop).
+      await enterOn(page, "civil:step:5");
       await tabTo(page, "civil:start");
-      await page.screenshot({ path: `${SHOTS}/wave10-recheck-keyboard-${size.name}-start-focus.png` });
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/wave10-recheck-keyboard-${size.name}-start-focus.png` });
       const back: string[] = [];
       for (let i = 0; i < 4; i++) {
         await page.keyboard.press("Shift+Tab");

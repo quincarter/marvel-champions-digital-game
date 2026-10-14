@@ -455,7 +455,13 @@ describe("12. focus order and the action strings", () => {
     expect(new Set(v.focusOrder).size).toBe(v.focusOrder.length);
     for (const a of v.focusOrder) expect(() => act(d, a)).not.toThrow();
     expect(v.focusOrder.slice(0, 5)).toEqual([1, 2, 3, 4, 5].map((n) => `civil:step:${n}`));
-    expect(v.focusOrder.slice(-3)).toEqual(["civil:preconstructed", "civil:back", "civil:start"]);
+    // Preconstructed is only drawn on the review step, so only there is it a stop.
+    expect(v.focusOrder.slice(-3)).toEqual(
+      step === 5
+        ? ["civil:preconstructed", "civil:back", "civil:start"]
+        : ["civil:random-blind", "civil:back", "civil:start"],
+    );
+    expect(v.focusOrder.includes("civil:preconstructed")).toBe(step === 5);
   });
 
   test("step 4 lists each over-count and other-side tile once (the other side once expanded)", () => {
