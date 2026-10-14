@@ -181,7 +181,7 @@ import { villainRecapOf } from "../view/villain-recap.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { VILLAIN_RECAP_PAUSE_MS, villainBeatIntervalMs } from "../settings.js";
 import { villainDockWidthFor, villainPresentationFor, type VillainDockKind } from "../view/villain-dock.js";
-import { villainRailLayout } from "../view/villain-rail-layout.js";
+import { villainBandLayout, villainRailLayout } from "../view/villain-rail-layout.js";
 import { encounterStripOf, type EncounterStrip } from "../view/villain-encounter-strip.js";
 import { drawVillainRailPanel, type RailBody } from "../ui/villain-rail-panel.js";
 
@@ -652,7 +652,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       recap: recapNow,
       peeking: false,
     });
-    if (kind === "rail" && boardScene) {
+    if ((kind === "rail" || kind === "band") && boardScene) {
       const inlineChoice = pausedInline ? (game.pendingChoice?.choiceId ?? null) : null;
       // A new decision of the player's own brings a hidden rail back: its answer controls live on the rail.
       if (this.#hidden && inlineChoice !== null && inlineChoice !== this.#hiddenChoice) {
@@ -664,10 +664,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         this.#drawHiddenHandle(width);
         return;
       }
-      boardScene.setVillainDock("rail", villainDockWidthFor(width));
+      boardScene.setVillainDock(kind, kind === "rail" ? villainDockWidthFor(width) : 0);
       const panel = boardScene.villainDockRects()?.panel;
       if (panel) {
-        this.#drawRail(panel, reveal, game, viewer, viewerId);
+        this.#drawRail(kind, panel, reveal, game, viewer, viewerId);
         return;
       }
     }
@@ -1600,16 +1600,25 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   }
 
   /**
-   * The docked rail (D1/D2): the phase on the right, the table and the hand live beside it. The press shield covers
+   * The docked rail (D1/D2), or the band across the villain row on a tablet in landscape (T1): the table and the hand
+   * stay live beside or below it. The press shield covers
    * the panel only, so the table keeps its presses, and there is no scrim: the table is there to be read.
    */
-  #drawRail(panel: Rect, reveal: Reveal, game: GameState, viewer: PlayerId | null, viewerId: PlayerId): void {
-    this.#presentation = "rail";
+  #drawRail(
+    kind: "rail" | "band",
+    panel: Rect,
+    reveal: Reveal,
+    game: GameState,
+    viewer: PlayerId | null,
+    viewerId: PlayerId,
+  ): void {
+    this.#presentation = kind;
     const pause = this.#walkthrough.pausedAt;
     const inline = pause && game.pendingChoice ? inlineInterruptFor(game.pendingChoice, viewer) : null;
     const strip = this.#encounterStrip(reveal, game, viewer);
     const revealing = reveal.steps[3]?.revealStatus === "active" && strip !== null && strip.tiles.length > 0;
-    const layout = villainRailLayout({ panel, revealing, interruptOptions: inline?.length ?? 0 });
+    const input = { panel, revealing, interruptOptions: inline?.length ?? 0 };
+    const layout = kind === "rail" ? villainRailLayout(input) : villainBandLayout(input);
 
     addPressShield(this, panel);
     const panelsFrom = this.children.list.length;

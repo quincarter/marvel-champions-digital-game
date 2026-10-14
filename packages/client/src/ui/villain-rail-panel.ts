@@ -92,8 +92,9 @@ export function drawVillainRailPanel(scene: Phaser.Scene, args: RailPanelArgs): 
 
   const g = scene.add.graphics();
   g.fillStyle(surface.ink.hex, 1).fillRect(panel.x, panel.y, panel.width, panel.height);
-  // The rule between the table and the phase (D1's paper line on the rail's left edge).
-  g.fillStyle(surface.paper.hex, 1).fillRect(panel.x, panel.y, border.object, panel.height);
+  // The rail is ruled off from the table on its left edge (D1); the band and the tab are framed (T1, T2).
+  if (layout.kind === "rail") g.fillStyle(surface.paper.hex, 1).fillRect(panel.x, panel.y, border.object, panel.height);
+  else g.lineStyle(border.object, surface.paper.hex, 1).strokeRect(panel.x, panel.y, panel.width, panel.height);
 
   const title = scene.add
     .text(
@@ -113,16 +114,7 @@ export function drawVillainRailPanel(scene: Phaser.Scene, args: RailPanelArgs): 
   button("skip", "Skip", layout.skip, args.onSkip);
   button("hide", "Hide ▸", layout.hide, args.onHide);
 
-  const subtitle = label(
-    scene,
-    layout.subtitle.x,
-    layout.subtitle.y + 4,
-    args.subtitle,
-    { ...typeRole.label, size: 11 },
-    surface.paper.hex,
-    ink.secondary,
-  );
-  fitText(subtitle, layout.subtitle.width, 11);
+  if (layout.subtitle.width > 0) drawSubtitle(scene, layout, args.subtitle);
 
   drawSteps(scene, layout, args.steps, args.paused);
   if (args.strip && layout.encounterLabel && layout.encounterStrip) {
@@ -135,6 +127,19 @@ export function drawVillainRailPanel(scene: Phaser.Scene, args: RailPanelArgs): 
   drawFooter(scene, layout, args.autoAdvance, args.onToggle);
   stops.set("toggle", { rect: layout.toggle, activate: args.onToggle });
   return stops;
+}
+
+function drawSubtitle(scene: Phaser.Scene, layout: VillainRailLayout, text: string): void {
+  const subtitle = label(
+    scene,
+    layout.subtitle.x,
+    layout.subtitle.y + 4,
+    text,
+    { ...typeRole.label, size: 11 },
+    surface.paper.hex,
+    ink.secondary,
+  );
+  fitText(subtitle, layout.subtitle.width, 11);
 }
 
 function chipColors(status: RevealedStep["revealStatus"]): { fill: number; alpha: number; text: number } {
@@ -227,7 +232,19 @@ const SHORT_TITLES: Record<string, string> = {
 const shortTitle = (kind: string): string => SHORT_TITLES[kind] ?? "";
 
 function drawStrip(scene: Phaser.Scene, labelRect: Rect, stripRect: Rect, strip: EncounterStrip): void {
-  label(
+  const counter = strip.position
+    ? scene.add
+        .text(
+          labelRect.x + labelRect.width,
+          labelRect.y + labelRect.height,
+          `${strip.position.index} OF ${strip.position.total}`,
+          textStyle({ ...typeRole.barTitle, size: 26 }, surface.paper.hex),
+        )
+        .setOrigin(1, 1)
+    : null;
+  const headingRoom = labelRect.width - (counter ? counter.width + 10 : 0);
+  // The full words where they fit; the tablet band's narrow column takes the short form.
+  const heading = label(
     scene,
     labelRect.x,
     labelRect.y + 6,
@@ -236,32 +253,25 @@ function drawStrip(scene: Phaser.Scene, labelRect: Rect, stripRect: Rect, strip:
     surface.paper.hex,
     ink.secondary,
   );
-  if (strip.position) {
-    scene.add
-      .text(
-        labelRect.x + labelRect.width,
-        labelRect.y + labelRect.height,
-        `${strip.position.index} OF ${strip.position.total}`,
-        textStyle({ ...typeRole.barTitle, size: 26 }, surface.paper.hex),
-      )
-      .setOrigin(1, 1);
-  }
-  const shown = Math.min(strip.tiles.length, 3);
-  if (shown === 0) return;
-  const gap = 12;
+  if (heading.width > headingRoom) heading.setText("ENCOUNTER CARDS");
+  if (heading.width > headingRoom) fitText(heading, headingRoom, 11);
+  if (strip.tiles.length === 0) return;
+  // A strip with room for two tiles or more stacks them (the tablet band's narrow column); otherwise they sit in a row.
+  const tileHeight = 48;
+  const vertical = stripRect.height >= tileHeight * 2 + 8;
+  const gap = vertical ? 8 : 12;
+  const room = vertical ? Math.floor((stripRect.height + gap) / (tileHeight + gap)) : 3;
+  const shown = Math.min(strip.tiles.length, Math.max(1, room));
   const more = strip.tiles.length - shown;
-  const moreWidth = more > 0 ? 44 : 0;
-  const tileWidth = (stripRect.width - moreWidth - gap * (shown - 1)) / shown;
-  // Keep the card being revealed in view: the window slides so "now" is never past the third tile.
+  const moreWidth = more > 0 && !vertical ? 44 : 0;
+  const tileWidth = vertical ? stripRect.width : (stripRect.width - moreWidth - gap * (shown - 1)) / shown;
+  // Keep the card being revealed in view: the window slides so "now" is never past the last tile shown.
   const nowIndex = strip.tiles.findIndex((tile) => tile.status === "now");
-  const start = Math.max(0, Math.min(strip.tiles.length - shown, nowIndex - 1));
+  const start = Math.max(0, Math.min(strip.tiles.length - shown, nowIndex - (shown - 1)));
   strip.tiles.slice(start, start + shown).forEach((tile, i) => {
-    const rect: Rect = {
-      x: stripRect.x + i * (tileWidth + gap),
-      y: stripRect.y,
-      width: tileWidth,
-      height: stripRect.height,
-    };
+    const rect: Rect = vertical
+      ? { x: stripRect.x, y: stripRect.y + i * (tileHeight + gap), width: tileWidth, height: tileHeight }
+      : { x: stripRect.x + i * (tileWidth + gap), y: stripRect.y, width: tileWidth, height: stripRect.height };
     const live = tile.status === "now";
     const g = scene.add.graphics();
     g.lineStyle(border.control, surface.paper.hex, live ? 1 : 0.45);
@@ -291,7 +301,7 @@ function drawStrip(scene: Phaser.Scene, labelRect: Rect, stripRect: Rect, strip:
       .setOrigin(0, 1);
     fitText(line, rect.x + rect.width - (swatch.x + swatch.width + 10) - 8, 13);
   });
-  if (more > 0) {
+  if (more > 0 && !vertical) {
     label(
       scene,
       stripRect.x + stripRect.width - moreWidth + 6,
@@ -643,18 +653,30 @@ function drawFooter(
 ): void {
   const { footer, toggle } = layout;
   const g = scene.add.graphics();
-  g.fillStyle(surface.paper.hex, 0.25).fillRect(footer.x + border.object, footer.y, footer.width - border.object, 1);
-  const x = layout.title.x;
-  label(scene, x, footer.y + 20, "Auto-advance", { ...typeRole.label, size: 12 }, surface.paper.hex, ink.body);
+  const text = layout.footerText;
+  if (text) {
+    g.fillStyle(surface.paper.hex, 0.25).fillRect(footer.x + border.object, footer.y, footer.width - border.object, 1);
+    drawFooterText(scene, text, mode);
+  }
+  drawToggle(scene, toggle, mode, onToggle);
+}
+
+function drawFooterText(scene: Phaser.Scene, rect: Rect, mode: VillainAutoAdvance): void {
+  const x = rect.x;
+  label(scene, x, rect.y + 6, "Auto-advance", { ...typeRole.label, size: 12 }, surface.paper.hex, ink.body);
   label(
     scene,
     x,
-    footer.y + 40,
+    rect.y + 26,
     mode === "off" ? "Off: the recap waits for you." : "On: the recap closes on its own.",
     { ...typeRole.body, size: 12, uppercase: false },
     surface.paper.hex,
     ink.secondary,
   );
+}
+
+/** AUTO-ADVANCE OFF | ON, the side in force filled in paper. */
+function drawToggle(scene: Phaser.Scene, toggle: Rect, mode: VillainAutoAdvance, onToggle: () => void): void {
   const on = mode !== "off";
   const half = toggle.width / 2;
   const tg = scene.add.graphics();

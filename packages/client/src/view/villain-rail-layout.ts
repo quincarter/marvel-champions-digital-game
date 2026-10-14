@@ -69,6 +69,8 @@ export interface VillainRailInterruptLayout {
 }
 
 export interface VillainRailLayout {
+  /** Which docked shape: the desktop rail (D1/D2), the tablet landscape band (T1) or the tabbed panel (P1/P2/T2). */
+  readonly kind: "rail" | "band" | "tab";
   readonly panel: Rect;
   readonly title: Rect;
   readonly skip: Rect;
@@ -92,6 +94,8 @@ export interface VillainRailLayout {
   readonly log: Rect;
   /** The footer band (top rule to the panel's foot). */
   readonly footer: Rect;
+  /** "AUTO-ADVANCE" and its one-line explanation beside the toggle; null where only the toggle fits. */
+  readonly footerText: Rect | null;
   /** The AUTO-ADVANCE OFF / ON toggle at the footer's right. */
   readonly toggle: Rect;
 }
@@ -101,6 +105,7 @@ export function villainRailInterruptLayout(frame: Rect, options: number): Villai
   const pad = 18;
   const inner = { x: frame.x + pad, width: frame.width - pad * 2 };
   const title: Rect = { x: inner.x, y: frame.y + 14, width: inner.width, height: 18 };
+  if (frame.height < INTERRUPT_HEIGHT_MIN) return shortInterruptLayout(frame, options, inner, title, pad);
   const buttonHeight = hit.primary + 12;
   const buttonsY = frame.y + frame.height - pad - buttonHeight;
   const extras = Math.max(0, Math.min(INTERRUPT_MAX_ROWS, options - 1));
@@ -131,6 +136,43 @@ export function villainRailInterruptLayout(frame: Rect, options: number): Villai
     extraRows,
     use: { x: inner.x, y: buttonsY, width: inner.width - resolveWidth - 12, height: buttonHeight },
     resolve: { x: inner.x + inner.width - resolveWidth, y: buttonsY, width: resolveWidth, height: buttonHeight },
+  };
+}
+
+/**
+ * A short window (the tablet band, T1): no height to stack the card over the buttons, so the card runs the window's
+ * full height on the left, and the text, any further options and the two buttons stand beside it.
+ */
+function shortInterruptLayout(
+  frame: Rect,
+  options: number,
+  inner: { readonly x: number; readonly width: number },
+  title: Rect,
+  pad: number,
+): VillainRailInterruptLayout {
+  const cardTop = title.y + title.height + 10;
+  const cardHeight = Math.max(0, frame.y + frame.height - pad - cardTop);
+  const cardWidth = Math.min(Math.round(cardHeight * CARD_RATIO), Math.round(inner.width * 0.3));
+  const card: Rect = { x: inner.x, y: cardTop, width: cardWidth, height: Math.round(cardWidth / CARD_RATIO) };
+  const right = { x: card.x + card.width + 14, width: Math.max(0, inner.x + inner.width - (card.x + card.width + 14)) };
+  const buttonsY = frame.y + frame.height - pad - hit.primary;
+  const extras = Math.max(0, Math.min(INTERRUPT_MAX_ROWS, options - 1));
+  const extraRows = Array.from({ length: extras }, (_, i) => ({
+    x: right.x,
+    y: buttonsY - 8 - (extras - i) * hit.target,
+    width: right.width,
+    height: hit.target - 4,
+  }));
+  const textBottom = (extraRows[0]?.y ?? buttonsY) - 8;
+  const resolveWidth = Math.round(right.width * 0.4);
+  return {
+    frame,
+    title,
+    card,
+    text: { x: right.x, y: cardTop, width: right.width, height: Math.max(0, textBottom - cardTop) },
+    extraRows,
+    use: { x: right.x, y: buttonsY, width: right.width - resolveWidth - 10, height: hit.primary },
+    resolve: { x: right.x + right.width - resolveWidth, y: buttonsY, width: resolveWidth, height: hit.primary },
   };
 }
 
@@ -226,6 +268,7 @@ export function villainRailLayout(input: VillainRailInput): VillainRailLayout {
   const log: Rect = { x, y: cursor, width, height: logHeight >= LOG_MIN ? logHeight : 0 };
 
   return {
+    kind: "rail",
     panel,
     title,
     skip,
@@ -241,6 +284,109 @@ export function villainRailLayout(input: VillainRailInput): VillainRailLayout {
     interrupt,
     log,
     footer,
+    footerText: { x, y: footer.y + 14, width: Math.max(0, toggle.x - 12 - x), height: FOOTER_HEIGHT - 28 },
+    toggle,
+  };
+}
+
+const BAND_PAD = 16;
+const BAND_HEADER = 44;
+
+/**
+ * Tablet landscape (T1): the phase takes the villain band, under the chrome and above the player's hero, play area and
+ * hand, which stay in view. One header row (title, the five step chips, SKIP and HIDE ▸), then columns: the body (the
+ * enemy or the revealed card), the interrupt window when one is open, and a narrow right column with the phase log
+ * (the encounter cards of the round while revealing) over the AUTO-ADVANCE toggle.
+ */
+export function villainBandLayout(input: VillainRailInput): VillainRailLayout {
+  const { panel, revealing } = input;
+  const x = panel.x + BAND_PAD;
+  const width = Math.max(0, panel.width - BAND_PAD * 2);
+  const top = panel.y + 12;
+  const bottom = panel.y + panel.height - 12;
+
+  const buttonWidth = 84;
+  const hide: Rect = { x: x + width - buttonWidth, y: top, width: buttonWidth, height: BAND_HEADER };
+  const skip: Rect = { x: hide.x - 8 - buttonWidth, y: top, width: buttonWidth, height: BAND_HEADER };
+  const title: Rect = { x, y: top, width: Math.round(width * 0.36), height: BAND_HEADER };
+  const chipsLeft = title.x + title.width + 12;
+  const chipsWidth = Math.max(0, skip.x - 16 - chipsLeft);
+  const gap = 6;
+  const chipWidth = (chipsWidth - gap * 4) / 5;
+  const chipHeight = 36;
+  const steps: Rect[] = Array.from({ length: 5 }, (_, i) => ({
+    x: chipsLeft + i * (chipWidth + gap),
+    y: top + (BAND_HEADER - chipHeight) / 2,
+    width: chipWidth,
+    height: chipHeight,
+  }));
+
+  const contentTop = top + BAND_HEADER + 12;
+  const contentHeight = Math.max(0, bottom - contentTop);
+  const rightWidth = Math.max(200, Math.round(width * 0.22));
+  const rightX = x + width - rightWidth;
+  const mainWidth = Math.max(0, rightX - 16 - x);
+  const interruptWidth = input.interruptOptions > 0 ? Math.round(mainWidth * 0.55) : 0;
+  const bodyWidth = interruptWidth > 0 ? mainWidth - interruptWidth - 16 : mainWidth;
+
+  const body: Rect = { x, y: contentTop, width: bodyWidth, height: contentHeight };
+  const artWidth = Math.min(Math.round(body.height * CARD_RATIO), Math.round(body.width * 0.42));
+  const bodyArt: Rect = { x, y: body.y, width: artWidth, height: Math.round(artWidth / CARD_RATIO) };
+  const bodyText: Rect = {
+    x: bodyArt.x + bodyArt.width + 14,
+    y: body.y,
+    width: Math.max(0, x + bodyWidth - (bodyArt.x + bodyArt.width + 14)),
+    height: body.height,
+  };
+
+  const interrupt =
+    interruptWidth > 0
+      ? villainRailInterruptLayout(
+          { x: x + bodyWidth + 16, y: contentTop, width: interruptWidth, height: contentHeight },
+          input.interruptOptions,
+        )
+      : null;
+
+  // The right column holds the phase log, or while revealing the encounter cards of the round, stacked: the band has
+  // no height to spare over the revealed card (#128).
+  const toggle: Rect = { x: rightX, y: bottom - hit.target, width: rightWidth, height: hit.target };
+  const columnHeight = Math.max(0, toggle.y - 12 - contentTop);
+  let encounterLabel: Rect | null = null;
+  let encounterStrip: Rect | null = null;
+  if (revealing) {
+    encounterLabel = { x: rightX, y: contentTop, width: rightWidth, height: STRIP_LABEL_HEIGHT };
+    encounterStrip = {
+      x: rightX,
+      y: contentTop + STRIP_LABEL_HEIGHT + 4,
+      width: rightWidth,
+      height: Math.max(0, columnHeight - STRIP_LABEL_HEIGHT - 4),
+    };
+  }
+  const log: Rect = {
+    x: rightX,
+    y: contentTop,
+    width: rightWidth,
+    height: !revealing && columnHeight >= LOG_MIN ? columnHeight : 0,
+  };
+
+  return {
+    kind: "band",
+    panel,
+    title,
+    skip,
+    hide,
+    subtitle: { x, y: top, width: 0, height: 0 },
+    steps,
+    stepMode: "chips",
+    encounterLabel,
+    encounterStrip,
+    body,
+    bodyArt,
+    bodyText,
+    interrupt,
+    log,
+    footer: toggle,
+    footerText: null,
     toggle,
   };
 }

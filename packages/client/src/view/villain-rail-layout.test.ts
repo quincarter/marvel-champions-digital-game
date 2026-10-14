@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { hit } from "../tokens.js";
 import type { Rect } from "./layout.js";
-import { villainRailLayout, type VillainRailInput } from "./villain-rail-layout.js";
+import { villainBandLayout, villainRailLayout, type VillainRailInput } from "./villain-rail-layout.js";
 
 const inside = (inner: Rect, outer: Rect): boolean =>
   inner.x >= outer.x - 0.5 &&
@@ -97,5 +97,53 @@ describe("villainRailLayout", () => {
     const layout = layoutOf(SHORT, { revealing: true, interruptOptions: 1 });
     expect(layout.log.height === 0 || layout.log.height >= 60).toBe(true);
     expect(layoutOf(TALL).log.height).toBeGreaterThanOrEqual(60);
+  });
+});
+
+/** A 1024×768 tablet in landscape: the band runs from under the chrome to the hero row. */
+const BAND: Rect = { x: 8, y: 44, width: 1008, height: 256 };
+
+describe("villainBandLayout", () => {
+  it.each([
+    ["nothing open", {}],
+    ["interrupt", { interruptOptions: 1 }],
+    ["revealing with interrupt", { revealing: true, interruptOptions: 1 }],
+    ["two options", { interruptOptions: 2 }],
+  ] as const)("keeps the header, columns and controls inside the band and apart (%s)", (_name, input) => {
+    const layout = villainBandLayout({ panel: BAND, revealing: false, interruptOptions: 0, ...input });
+    expect(layout.kind).toBe("band");
+    expect(layout.stepMode).toBe("chips");
+    const regions = [layout.title, layout.skip, layout.hide, ...layout.steps, layout.body, layout.toggle, layout.log];
+    for (const region of regions) expect(inside(region, BAND)).toBe(true);
+    for (const [a, b] of [
+      [layout.title, layout.steps[0]!],
+      [layout.steps[4]!, layout.skip],
+      [layout.skip, layout.hide],
+      [layout.body, layout.log],
+      [layout.log, layout.toggle],
+    ] as const) {
+      expect(overlaps(a, b)).toBe(false);
+    }
+    if (layout.interrupt) {
+      const w = layout.interrupt;
+      expect(inside(w.frame, BAND)).toBe(true);
+      expect(overlaps(w.frame, layout.body)).toBe(false);
+      expect(overlaps(w.frame, layout.log)).toBe(false);
+      expect(w.use.height).toBeGreaterThanOrEqual(hit.primary);
+      expect(inside(w.card, w.frame)).toBe(true);
+      expect(overlaps(w.card, w.use)).toBe(false);
+      expect(overlaps(w.text, w.use)).toBe(false);
+      for (const row of w.extraRows) expect(overlaps(row, w.use)).toBe(false);
+    }
+  });
+
+  it("puts the encounter cards in the right column while revealing and keeps the revealed card readable", () => {
+    const layout = villainBandLayout({ panel: BAND, revealing: true, interruptOptions: 1 });
+    expect(layout.encounterStrip).not.toBeNull();
+    expect(overlaps(layout.encounterStrip!, layout.body)).toBe(false);
+    expect(overlaps(layout.encounterStrip!, layout.interrupt!.frame)).toBe(false);
+    expect(overlaps(layout.encounterStrip!, layout.toggle)).toBe(false);
+    expect(layout.log.height).toBe(0);
+    expect(layout.bodyArt.height).toBeGreaterThanOrEqual(150);
   });
 });
