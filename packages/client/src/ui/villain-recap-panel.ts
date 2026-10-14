@@ -292,11 +292,13 @@ function drawEntry(
       };
       const c = scene.add.graphics();
       c.fillStyle(inkColor, 1).fillRect(r.x, r.y, r.width, r.height);
-      scene.add
+      const seat = scene.add
         .text(r.x + w / 2, r.y + h / 2, card.seat.toUpperCase(), textStyle(typeRole.label, surface.paper.hex))
         .setOrigin(0.5)
         .setWordWrapWidth(w - 4)
         .setAlign("center");
+      // A long hero name ("WONDER MAN") wraps by word, and a word wider than the chip ran past its edges: shrink it.
+      fitText(seat, w - 4, typeRole.label.size);
       thumbsBottom = Math.max(thumbsBottom, r.y + h);
     });
     thumbsRight = left;
