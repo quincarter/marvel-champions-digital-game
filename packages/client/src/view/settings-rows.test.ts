@@ -3,6 +3,8 @@ import {
   guideRowInfoOf,
   nextGuidePrefsAfterRow,
   nextSettingsAfterToggle,
+  nextSettingsAfterVillainRow,
+  villainRowInfoOf,
   settingsRowInfoOf,
   sharperTextTargetResolution,
   type GuideActionRowInfo,
@@ -19,6 +21,10 @@ const BASE: Settings = {
   sound: true,
   confirmBeforeEndTurn: true,
   sameNameHeroAllyConflict: true,
+  villainAutoAdvance: "off",
+  holdEncounterCards: true,
+  villainBeatSpeed: "normal",
+  villainDockTable: true,
 };
 
 describe("settingsRowInfoOf", () => {
@@ -30,6 +36,10 @@ describe("settingsRowInfoOf", () => {
       sound: false,
       confirmBeforeEndTurn: false,
       sameNameHeroAllyConflict: false,
+      villainAutoAdvance: "off",
+      holdEncounterCards: true,
+      villainBeatSpeed: "normal",
+      villainDockTable: true,
     });
     expect(rows.find((r) => r.id === "reduced-motion")?.on).toBe(true);
     expect(rows.find((r) => r.id === "sharper-text")?.on).toBe(true);
@@ -195,5 +205,26 @@ describe("nextSettingsAfterToggle", () => {
     expect(next.textResolution).toBe(BASE.textResolution);
     expect(next.largeCardText).toBe(BASE.largeCardText);
     expect(next.sound).toBe(BASE.sound);
+  });
+});
+
+describe("villain phase rows", () => {
+  test("reflect the settings and carry the mockup copy", () => {
+    const info = villainRowInfoOf({ ...BASE, villainAutoAdvance: "afterPause", villainBeatSpeed: "fast" });
+    expect(info.autoAdvance.selected).toBe("afterPause");
+    expect(info.autoAdvance.options.map((o) => o.label)).toEqual(["Off", "After a pause", "On"]);
+    expect(info.autoAdvance.options[1]!.detail).toBe("Recap closes itself after 6 seconds");
+    expect(info.beatSpeed.selected).toBe("fast");
+    expect(info.hold.on).toBe(true);
+    expect(info.dock.on).toBe(true);
+  });
+
+  test("toggles flip, choices set, and a bad value changes nothing", () => {
+    expect(nextSettingsAfterVillainRow(BASE, "villain-hold").holdEncounterCards).toBe(false);
+    expect(nextSettingsAfterVillainRow(BASE, "villain-dock").villainDockTable).toBe(false);
+    expect(nextSettingsAfterVillainRow(BASE, "villain-auto", "on").villainAutoAdvance).toBe("on");
+    expect(nextSettingsAfterVillainRow(BASE, "villain-speed", "slow").villainBeatSpeed).toBe("slow");
+    expect(nextSettingsAfterVillainRow(BASE, "villain-speed", "on")).toBe(BASE);
+    expect(nextSettingsAfterVillainRow(BASE, "villain-auto")).toBe(BASE);
   });
 });

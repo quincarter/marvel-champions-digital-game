@@ -166,3 +166,40 @@ describe("settingsLayout", () => {
     expect(layout.bodyViewport.height).toBe(layout.content.totalHeight);
   });
 });
+
+describe("settingsLayout villain group", () => {
+  const VILLAIN = {
+    auto: "What happens once the villain phase has nothing left for you to answer.",
+    hold: "Keep every revealed card on screen until you tap past it, even when you have no answer to it.",
+    speed: "How long each step stays up while the phase runs on its own.",
+    dock: "Desktop and tablet dock the villain phase on the right. Off draws it full screen, as now.",
+  };
+  for (const { name, width, height } of SIZES) {
+    test(`villain rows and tiles do not overlap each other or Guide at ${name}`, () => {
+      const { content } = settingsLayout({ x: 0, y: 0, width, height }, ROW_DETAILS, GUIDE_ROW_DETAILS, VILLAIN);
+      const v = content.villain!;
+      const stack = [v.heading, v.auto, v.hold, v.speed, v.dock, content.guideHeading];
+      for (let i = 0; i < stack.length - 1; i++) expect(rectsOverlap(stack[i]!, stack[i + 1]!)).toBe(false);
+      expect(v.heading.y).toBeGreaterThan(content.rows[content.rows.length - 1]!.y);
+      for (const tile of v.autoTiles) {
+        expect(tile.y).toBeGreaterThanOrEqual(v.auto.y);
+        expect(tile.y + tile.height).toBeLessThanOrEqual(v.auto.y + v.auto.height + 0.001);
+        expect(tile.x + tile.width).toBeLessThanOrEqual(v.auto.x + v.auto.width + 0.001);
+      }
+      expect(rectsOverlap(v.autoTiles[0]!, v.autoTiles[1]!)).toBe(false);
+      expect(rectsOverlap(v.autoTiles[1]!, v.autoTiles[2]!)).toBe(false);
+      expect(v.speedControl.x + v.speedControl.width).toBeLessThanOrEqual(v.speed.x + v.speed.width);
+    });
+  }
+
+  test("tiles sit side by side on desktop and stack on a phone", () => {
+    const desktop = settingsLayout({ x: 0, y: 0, width: 1440, height: 900 }, ROW_DETAILS, [], VILLAIN).content.villain!;
+    expect(new Set(desktop.autoTiles.map((t) => t.y)).size).toBe(1);
+    const phone = settingsLayout({ x: 0, y: 0, width: 390, height: 844 }, ROW_DETAILS, [], VILLAIN).content.villain!;
+    expect(new Set(phone.autoTiles.map((t) => t.y)).size).toBe(3);
+  });
+
+  test("no villain group without details", () => {
+    expect(settingsLayout({ x: 0, y: 0, width: 800, height: 600 }, ROW_DETAILS).content.villain).toBeNull();
+  });
+});

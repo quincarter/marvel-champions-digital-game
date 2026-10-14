@@ -15,7 +15,12 @@ import {
   type GuidePrefs,
   type SilencedWarningKey,
 } from "../guide/guide-prefs.js";
-import { SHARP_TEXT_RESOLUTION_CEILING, type Settings } from "../settings.js";
+import {
+  SHARP_TEXT_RESOLUTION_CEILING,
+  type Settings,
+  type VillainAutoAdvance,
+  type VillainBeatSpeed,
+} from "../settings.js";
 
 export type SettingsRowId =
   | "reduced-motion"
@@ -223,4 +228,96 @@ export function nextGuidePrefsAfterRow(prefs: GuidePrefs, id: GuideSettingsRowId
 /** The text an action or toggle row after "Guide level" actually renders — `row.unavailable ?? row.detail` for an action row (both scenes' own layout pass this to `settingsLayout`/`pauseLayout` to size the row), `row.detail` for a toggle. */
 export function guideRowDetailOf(row: GuideActionRowInfo | GuideToggleRowInfo): string {
   return row.kind === "action" ? (row.unavailable ?? row.detail) : row.detail;
+}
+
+// ---------------------------------------------------------------------------
+// The Villain phase group (settings mockup artifacts/design-screenshots/villain-phase/s1-...): a three-tile
+// "Auto-advance" choice, two toggles and a three-segment "Beat speed". Drawn only on the standalone Settings
+// screen, so it has its own info list rather than joining `settingsRowInfoOf` (which Pause's inline Table group shares).
+// ---------------------------------------------------------------------------
+
+export interface VillainOption<V extends string> {
+  readonly value: V;
+  readonly label: string;
+  readonly detail: string;
+}
+
+export const VILLAIN_AUTO_ADVANCE_OPTIONS: readonly VillainOption<VillainAutoAdvance>[] = [
+  { value: "off", label: "Off", detail: "Recap waits for Start player phase" },
+  { value: "afterPause", label: "After a pause", detail: "Recap closes itself after 6 seconds" },
+  { value: "on", label: "On", detail: "Straight to your turn, no recap" },
+];
+
+export const VILLAIN_BEAT_SPEED_OPTIONS: readonly VillainOption<VillainBeatSpeed>[] = [
+  { value: "slow", label: "Slow", detail: "Longest on screen" },
+  { value: "normal", label: "Normal", detail: "" },
+  { value: "fast", label: "Fast", detail: "Shortest on screen" },
+];
+
+export type VillainRowId = "villain-auto" | "villain-hold" | "villain-speed" | "villain-dock";
+
+export interface VillainRowsInfo {
+  readonly autoAdvance: {
+    readonly title: string;
+    readonly detail: string;
+    readonly options: readonly VillainOption<VillainAutoAdvance>[];
+    readonly selected: VillainAutoAdvance;
+  };
+  readonly hold: { readonly title: string; readonly detail: string; readonly on: boolean };
+  readonly beatSpeed: {
+    readonly title: string;
+    readonly detail: string;
+    readonly options: readonly VillainOption<VillainBeatSpeed>[];
+    readonly selected: VillainBeatSpeed;
+  };
+  readonly dock: { readonly title: string; readonly detail: string; readonly on: boolean };
+}
+
+export function villainRowInfoOf(settings: Settings): VillainRowsInfo {
+  return {
+    autoAdvance: {
+      title: "Auto-advance",
+      detail: "What happens once the villain phase has nothing left for you to answer.",
+      options: VILLAIN_AUTO_ADVANCE_OPTIONS,
+      selected: settings.villainAutoAdvance,
+    },
+    hold: {
+      title: "Hold each encounter card",
+      detail: "Keep every revealed card on screen until you tap past it, even when you have no answer to it.",
+      on: settings.holdEncounterCards,
+    },
+    beatSpeed: {
+      title: "Beat speed",
+      detail: "How long each step stays up while the phase runs on its own.",
+      options: VILLAIN_BEAT_SPEED_OPTIONS,
+      selected: settings.villainBeatSpeed,
+    },
+    dock: {
+      title: "Show the table beside it",
+      detail: "Desktop and tablet dock the villain phase on the right. Off draws it full screen, as now.",
+      on: settings.villainDockTable,
+    },
+  };
+}
+
+/** `settings` with one Villain phase control applied; `value` is read only for the two choice rows. */
+export function nextSettingsAfterVillainRow(
+  settings: Settings,
+  id: VillainRowId,
+  value?: VillainAutoAdvance | VillainBeatSpeed,
+): Settings {
+  switch (id) {
+    case "villain-auto":
+      return VILLAIN_AUTO_ADVANCE_OPTIONS.some((o) => o.value === value)
+        ? { ...settings, villainAutoAdvance: value as VillainAutoAdvance }
+        : settings;
+    case "villain-speed":
+      return VILLAIN_BEAT_SPEED_OPTIONS.some((o) => o.value === value)
+        ? { ...settings, villainBeatSpeed: value as VillainBeatSpeed }
+        : settings;
+    case "villain-hold":
+      return { ...settings, holdEncounterCards: !settings.holdEncounterCards };
+    case "villain-dock":
+      return { ...settings, villainDockTable: !settings.villainDockTable };
+  }
 }

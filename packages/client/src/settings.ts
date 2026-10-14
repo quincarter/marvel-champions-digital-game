@@ -38,6 +38,35 @@ export interface Settings {
    * with (`tableRulesOf`); a game already started or saved keeps the rules it was created with. Defaults on.
    */
   readonly sameNameHeroAllyConflict: boolean;
+  /** What happens once the villain phase has nothing left for the player to answer: wait on the recap, close it after `VILLAIN_RECAP_PAUSE_MS`, or go straight to the player phase. Defaults off. */
+  readonly villainAutoAdvance: VillainAutoAdvance;
+  /** Keep every revealed encounter card on screen until the player taps past it, even one with no answer to give. Defaults on. */
+  readonly holdEncounterCards: boolean;
+  /** How long each step stays up while the villain phase runs on its own (`villainBeatIntervalMs`). */
+  readonly villainBeatSpeed: VillainBeatSpeed;
+  /** Desktop and tablet dock the villain phase on the right with the table beside it; off draws it full screen. Defaults on. */
+  readonly villainDockTable: boolean;
+}
+
+export type VillainAutoAdvance = "off" | "afterPause" | "on";
+export const VILLAIN_AUTO_ADVANCE_VALUES: readonly VillainAutoAdvance[] = ["off", "afterPause", "on"];
+
+export type VillainBeatSpeed = "slow" | "normal" | "fast";
+export const VILLAIN_BEAT_SPEED_VALUES: readonly VillainBeatSpeed[] = ["slow", "normal", "fast"];
+
+/** How long the villain-phase recap stays before closing itself under `villainAutoAdvance: "afterPause"`. */
+export const VILLAIN_RECAP_PAUSE_MS = 6000;
+
+/** Milliseconds each villain-phase step stays up while the phase runs on its own, for a `villainBeatSpeed`. */
+export function villainBeatIntervalMs(speed: VillainBeatSpeed): number {
+  switch (speed) {
+    case "slow":
+      return 900;
+    case "normal":
+      return 550;
+    case "fast":
+      return 320;
+  }
 }
 
 /** The engine's table rules a new game is created with, from these settings; undefined when none is on (a game's setup then reads exactly as before the option existed). */
@@ -56,5 +85,9 @@ export function defaultSettings(): Settings {
     sound: true,
     confirmBeforeEndTurn: true,
     sameNameHeroAllyConflict: true,
+    villainAutoAdvance: "off",
+    holdEncounterCards: true,
+    villainBeatSpeed: "normal",
+    villainDockTable: true,
   };
 }

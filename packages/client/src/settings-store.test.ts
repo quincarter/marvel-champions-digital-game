@@ -46,6 +46,10 @@ describe("SettingsStore", () => {
     ["sound", false],
     ["confirmBeforeEndTurn", false],
     ["sameNameHeroAllyConflict", false],
+    ["villainAutoAdvance", "afterPause"],
+    ["holdEncounterCards", false],
+    ["villainBeatSpeed", "fast"],
+    ["villainDockTable", false],
   ])("%s survives a restart", (field, value) => {
     const storage = new MapStorage();
     const first = new SettingsStore(storage, device(false, 2));
@@ -133,6 +137,26 @@ describe("parseSettingsOverrides", () => {
         JSON.stringify({ version: 1, sound: false, largeCardText: "yes", textResolution: "big", extra: 1 }),
       ),
     ).toEqual({ sound: false });
+  });
+
+  test("villain phase fields: wrong types and unknown enum values fall back to default", () => {
+    expect(
+      parseSettingsOverrides(
+        JSON.stringify({
+          villainAutoAdvance: "sometimes",
+          villainBeatSpeed: 3,
+          holdEncounterCards: "no",
+          villainDockTable: 1,
+        }),
+      ),
+    ).toEqual({});
+    expect(
+      parseSettingsOverrides('{"villainAutoAdvance":"on","villainBeatSpeed":"slow","holdEncounterCards":false}'),
+    ).toEqual({
+      villainAutoAdvance: "on",
+      villainBeatSpeed: "slow",
+      holdEncounterCards: false,
+    });
   });
 
   test.each([null, "", "{nope", "42", "null", "[1]"])("%j is no record", (raw) => {

@@ -31,11 +31,16 @@ import {
   guideRowDetailOf,
   nextGuidePrefsAfterRow,
   nextSettingsAfterToggle,
+  nextSettingsAfterVillainRow,
   settingsRowInfoOf,
+  villainRowInfoOf,
   type GuideRowInfo,
   type SettingsRowInfo,
+  type VillainRowId,
+  type VillainRowsInfo,
 } from "../view/settings-rows.js";
 import type { GuideLevel } from "../guide/guide-prefs.js";
+import type { VillainAutoAdvance, VillainBeatSpeed } from "../settings.js";
 import { ink, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
 import { McButton, addRowTapZone, label, paintOnFrame } from "../ui/widgets.js";
@@ -71,6 +76,14 @@ type GuideNonLevelRow = Extract<GuideRowInfo, { kind: "action" | "toggle" }>;
 function isGuideNonLevelRow(row: GuideRowInfo): row is GuideNonLevelRow {
   return row.kind !== "segmented";
 }
+
+/** The Villain phase group's focus stop ids, in draw order: each auto-advance tile, hold, each speed segment, dock. */
+const VILLAIN_STOP_IDS = (villain: VillainRowsInfo): readonly string[] => [
+  ...villain.autoAdvance.options.map((o) => `villain-auto:${o.value}`),
+  "villain-hold",
+  ...villain.beatSpeed.options.map((o) => `villain-speed:${o.value}`),
+  "villain-dock",
+];
 
 export class SettingsOverlay extends Phaser.Scene {
   #buttons: McButton[] = [];
@@ -185,11 +198,18 @@ export class SettingsOverlay extends Phaser.Scene {
     const rows = settingsRowInfoOf(appSession().settings);
     const unlocksDetail = unlocksSummaryOf(unlocks());
     const guideRows = guideRowInfoOf(guidePrefs());
+    const villain = villainRowInfoOf(appSession().settings);
     const guideAfterLevel = guideRows.filter(isGuideNonLevelRow);
     const layout = settingsLayout(
       { x: 0, y: 0, width, height },
       [...rows.map((row) => row.unavailable ?? row.detail), unlocksDetail, SAVE_DATA_ROW_DETAIL, RULES_ROW_DETAIL],
       guideAfterLevel.map(guideRowDetailOf),
+      {
+        auto: villain.autoAdvance.detail,
+        hold: villain.hold.detail,
+        speed: villain.beatSpeed.detail,
+        dock: villain.dock.detail,
+      },
     );
 
     const scrim = this.add.graphics();
@@ -232,10 +252,25 @@ export class SettingsOverlay extends Phaser.Scene {
       })
       .setOrigin(0, 0.5);
 
-    const guideStopIds = this.#drawBody(layout.bodyViewport, layout.content, rows, unlocksDetail, guideRows, stops);
+    const guideStopIds = this.#drawBody(
+      layout.bodyViewport,
+      layout.content,
+      rows,
+      unlocksDetail,
+      guideRows,
+      villain,
+      stops,
+    );
 
     this.#route?.set(
-      settingsFocusOrder([...rows.map((row) => row.id), UNLOCKS_ROW, SAVE_DATA_ROW, RULES_ROW, ...guideStopIds]),
+      settingsFocusOrder([
+        ...rows.map((row) => row.id),
+        UNLOCKS_ROW,
+        SAVE_DATA_ROW,
+        RULES_ROW,
+        ...VILLAIN_STOP_IDS(villain),
+        ...guideStopIds,
+      ]),
       stops,
     );
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
@@ -274,6 +309,7 @@ export class SettingsOverlay extends Phaser.Scene {
     rows: readonly SettingsRowInfo[],
     unlocksDetail: string,
     guideRows: readonly GuideRowInfo[],
+    villain: VillainRowsInfo,
     stops: Map<string, FocusStop>,
   ): readonly string[] {
     const levelRow = guideRows.find((row) => row.kind === "segmented");
@@ -281,9 +317,11 @@ export class SettingsOverlay extends Phaser.Scene {
     // `contentSlotHeights`, not a plain `.map(r => r.height)`: each row's own gap to the next has to count toward
     // the scroll region's own total, or its offset math drifts away from where these rows are actually drawn the
     // further down it scrolls (`view/layout.ts`'s own doc comment).
+    const v = content.villain;
     const heights = contentSlotHeights([
       content.tableHeading,
       ...content.rows,
+      ...(v ? [v.heading, v.auto, v.hold, v.speed, v.dock] : []),
       content.guideHeading,
       content.guideLevelRow,
       ...content.guideRows,
@@ -329,7 +367,34 @@ export class SettingsOverlay extends Phaser.Scene {
       ),
     );
 
-    const guideHeadingIndex = rulesIndex + 1;
+    let guideHeadingIndex = rulesIndex + 1;
+    if (v) {
+      const base = guideHeadingIndex;
+      this.#captureInto(container, () =>
+        label(
+          this,
+          viewport.x,
+          viewport.y + v.heading.y + 2,
+          "Villain phase",
+          typeRole.label,
+          surface.paper.hex,
+          ink.secondary,
+        ),
+      );
+      this.#captureInto(container, () =>
+        this.#drawVillainAuto(toScreen(v.auto), v.autoTiles.map(toScreen), villain, base + 1, stops),
+      );
+      this.#captureInto(container, () =>
+        this.#drawVillainToggle(toScreen(v.hold), "villain-hold", villain.hold, base + 2, stops),
+      );
+      this.#captureInto(container, () =>
+        this.#drawVillainSpeed(toScreen(v.speed), toScreen(v.speedControl), villain, base + 3, stops),
+      );
+      this.#captureInto(container, () =>
+        this.#drawVillainToggle(toScreen(v.dock), "villain-dock", villain.dock, base + 4, stops),
+      );
+      guideHeadingIndex = base + 5;
+    }
     this.#captureInto(container, () =>
       label(
         this,
@@ -423,6 +488,147 @@ export class SettingsOverlay extends Phaser.Scene {
         .setWordWrapWidth(cellWidth - 16);
       stops.set(`row:guide-level:${option.value}`, this.#bodyStop(cellRect, index, activate));
     });
+  }
+
+  #setVillain(id: VillainRowId, value?: VillainAutoAdvance | VillainBeatSpeed): void {
+    appSession().settings = nextSettingsAfterVillainRow(appSession().settings, id, value);
+    this.#draw();
+  }
+
+  /** One selectable tile/segment: the button first (its quiet skin is opaque paper), then fill, border and text over it. Selected is filled accent (tile) or paper (segment) with ink text, never colour alone: the border weight and fill both change. */
+  #drawChoiceCell(
+    cell: Rect,
+    selected: boolean,
+    index: number,
+    stopId: string,
+    stops: Map<string, FocusStop>,
+    activate: () => void,
+    texts: { readonly label: string; readonly detail?: string; readonly fill: number },
+  ): void {
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "quiet",
+        label: "",
+        type: typeRole.label,
+        rect: cell,
+        onClick: activate,
+        clip: this.#bodyClip,
+        suppressClick: this.#bodySuppressClick,
+      }),
+    );
+    const g = this.add.graphics();
+    g.fillStyle(selected ? texts.fill : surface.ink.hex, 1).fillRect(cell.x, cell.y, cell.width, cell.height);
+    g.lineStyle(2, selected ? texts.fill : surface.paper.hex, 1).strokeRect(
+      cell.x + 1,
+      cell.y + 1,
+      cell.width - 2,
+      cell.height - 2,
+    );
+    const ink_ = selected ? surface.ink.hex : surface.paper.hex;
+    if (texts.detail === undefined) {
+      this.add
+        .text(
+          cell.x + cell.width / 2,
+          cell.y + cell.height / 2,
+          texts.label.toUpperCase(),
+          textStyle(typeRole.label, ink_),
+        )
+        .setFontSize(11)
+        .setOrigin(0.5);
+    } else {
+      this.add.text(cell.x + 10, cell.y + 8, texts.label, textStyle(typeRole.rowTitle, ink_)).setFontSize(12);
+      this.add
+        .text(cell.x + 10, cell.y + 26, texts.detail, textStyle(typeRole.body, ink_, selected ? 0.85 : 0.7))
+        .setFontSize(9)
+        .setWordWrapWidth(cell.width - 16);
+    }
+    stops.set(`row:${stopId}`, this.#bodyStop(cell, index, activate));
+  }
+
+  #drawVillainAuto(
+    rect: Rect,
+    tiles: readonly Rect[],
+    villain: VillainRowsInfo,
+    index: number,
+    stops: Map<string, FocusStop>,
+  ): void {
+    const { autoAdvance } = villain;
+    label(this, rect.x, rect.y + 2, autoAdvance.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(
+      12,
+    );
+    this.add
+      .text(rect.x, rect.y + 20, autoAdvance.detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
+      .setFontSize(10)
+      .setWordWrapWidth(rect.width);
+    autoAdvance.options.forEach((option, i) => {
+      this.#drawChoiceCell(
+        tiles[i]!,
+        autoAdvance.selected === option.value,
+        index,
+        `villain-auto:${option.value}`,
+        stops,
+        () => this.#setVillain("villain-auto", option.value),
+        { label: option.label, detail: option.detail, fill: signal.caution.hex },
+      );
+    });
+  }
+
+  #drawVillainSpeed(
+    rect: Rect,
+    control: Rect,
+    villain: VillainRowsInfo,
+    index: number,
+    stops: Map<string, FocusStop>,
+  ): void {
+    const { beatSpeed } = villain;
+    label(this, rect.x, rect.y + 2, beatSpeed.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
+    this.add
+      .text(rect.x, rect.y + 20, beatSpeed.detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
+      .setFontSize(10)
+      .setWordWrapWidth(rect.width - control.width - 16);
+    const cellWidth = control.width / beatSpeed.options.length;
+    beatSpeed.options.forEach((option, i) => {
+      this.#drawChoiceCell(
+        { x: control.x + i * cellWidth, y: control.y, width: cellWidth, height: control.height },
+        beatSpeed.selected === option.value,
+        index,
+        `villain-speed:${option.value}`,
+        stops,
+        () => this.#setVillain("villain-speed", option.value),
+        { label: option.label, fill: surface.paper.hex },
+      );
+    });
+  }
+
+  #drawVillainToggle(
+    rect: Rect,
+    id: "villain-hold" | "villain-dock",
+    row: { readonly title: string; readonly detail: string; readonly on: boolean },
+    index: number,
+    stops: Map<string, FocusStop>,
+  ): void {
+    label(this, rect.x, rect.y + 2, row.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
+    this.add
+      .text(rect.x, rect.y + 20, row.detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
+      .setFontSize(10)
+      .setWordWrapWidth(rect.width - 100);
+    const toggleRect: Rect = { x: rect.x + rect.width - 84, y: rect.y + (rect.height - 32) / 2, width: 84, height: 32 };
+    const activate = (): void => this.#setVillain(id);
+    addRowTapZone(this, rect, { onClick: activate, clip: this.#bodyClip, suppressClick: this.#bodySuppressClick });
+    this.#buttons.push(
+      new McButton(this, {
+        kind: row.on ? "secondary" : "quiet",
+        label: row.on ? "ON" : "OFF",
+        type: typeRole.label,
+        rect: toggleRect,
+        selected: row.on,
+        onClick: activate,
+        clip: this.#bodyClip,
+        suppressClick: this.#bodySuppressClick,
+      }),
+    );
+    if (row.on) paintOnFrame(this, toggleRect);
+    stops.set(`row:${id}`, this.#bodyStop(rect, index, activate));
   }
 
   #drawGuideRow(rect: Rect, row: GuideNonLevelRow, index: number, stops: Map<string, FocusStop>): void {
