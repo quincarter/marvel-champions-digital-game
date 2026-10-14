@@ -280,7 +280,8 @@ export type GameEvent =
       readonly paidAs: ResourcePool;
       readonly overpaidAs: ResourcePool;
     }
-  | { readonly type: "cardExhausted"; readonly instanceId: InstanceId }
+  /** `sourceInstanceId`: the card whose effect exhausted it, absent for a cost, attack, thwart or defense. */
+  | { readonly type: "cardExhausted"; readonly instanceId: InstanceId; readonly sourceInstanceId?: InstanceId }
   | { readonly type: "cardReadied"; readonly instanceId: InstanceId }
   /**
    * `fromHeroFormIndex` / `heroFormIndex` are the hero faces before and after (null for alter-ego), present only for an

@@ -4,6 +4,7 @@ import { CORE_DEPS } from "../index.js";
 import { coreScenario } from "../setup.js";
 import {
   answer,
+  applyOk,
   endTurn,
   firstLegal,
   identityOf,
@@ -66,6 +67,28 @@ describe("Klaw encounter set", () => {
     });
     const after = settle(answer(atPrompt, []));
     expect(inst(after, identityOf(after)).exhausted).toBe(true);
+  });
+
+  // Issue 136: a character an encounter card exhausts in the villain phase is still exhausted when the next player phase
+  // begins, since cards ready at the end of the player phase (RRG 1.8 "End of Player Phase", p. 18, step 3). The exhaust
+  // names Sonic Boom as its source, which is what the game log tells the player.
+  it("Sonic Boom's exhaust names Sonic Boom, and the hero stays exhausted into the next player phase", () => {
+    const atPrompt = settleUntil(run(stackEncounterDeck(vsKlaw(), "01186", "01123"), endTurn()), "spendResources");
+    const choice = atPrompt.pendingChoice!;
+    const declined = applyOk(atPrompt, {
+      type: "resolveChoice",
+      playerId: choice.playerId,
+      choiceId: choice.choiceId,
+      selectedOptionIds: [],
+    });
+    const exhausted = declined.events.find((e) => e.type === "cardExhausted");
+    expect(exhausted).toMatchObject({ instanceId: identityOf(declined.state) });
+    const source = exhausted?.type === "cardExhausted" ? exhausted.sourceInstanceId : undefined;
+    expect(source && inst(declined.state, source).cardId).toBe("01123");
+    const next = settle(declined.state);
+    expect(next.round).toBe(atPrompt.round + 1);
+    expect(next.step.phase).toBe("player");
+    expect(inst(next, identityOf(next)).exhausted).toBe(true);
   });
 
   it("Sonic Boom: paying [E][M][P] spends them and exhausts nothing", () => {

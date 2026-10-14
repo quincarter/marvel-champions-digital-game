@@ -30,7 +30,6 @@ const SILENT: ReadonlySet<string> = new Set([
   "cardDetached",
   "cardDiscardedFromDeck",
   "cardDrawn",
-  "cardExhausted",
   "cardFound",
   "cardTurnedFacedown",
   "cardTurnedFaceup",

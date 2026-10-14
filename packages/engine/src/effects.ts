@@ -209,9 +209,15 @@ export function shuffleZone(ctx: Ctx, zone: ZoneId, ids: readonly InstanceId[]):
   return order;
 }
 
-export function exhaustCard(ctx: Ctx, id: InstanceId): void {
+/**
+ * Exhausts a card. `sourceInstanceId` is the card whose effect exhausts it (Sonic Boom's "exhaust each character you
+ * control"), absent for a cost, an attack, a thwart or a defense the player chose: the log tells an exhaust the player
+ * did not choose, since a card exhausted in the villain phase stays exhausted through the next player phase (RRG 1.8
+ * "End of Player Phase", p. 18: cards ready at the end of the player phase, not the start).
+ */
+export function exhaustCard(ctx: Ctx, id: InstanceId, sourceInstanceId: InstanceId | null = null): void {
   updateInstance(ctx, id, (i) => ({ ...i, exhausted: true }));
-  emit(ctx, { type: "cardExhausted", instanceId: id });
+  emit(ctx, { type: "cardExhausted", instanceId: id, ...(sourceInstanceId ? { sourceInstanceId } : {}) });
 }
 
 /**

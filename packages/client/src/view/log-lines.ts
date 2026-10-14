@@ -21,6 +21,7 @@ import {
   getCard,
   getInstance,
   isOwnedEncounterCard,
+  playerCardOwnerOf,
   tuckLimitOf,
   type EngineDeps,
   type GameEvent,
@@ -1051,6 +1052,15 @@ function describe(
     }
     // A hero readied right after a card turned a card over or changed form (Phoenix Firebird readies the hero as the
     // form changes): the ordinary ready step has no line, so only a ready that follows one is told.
+    // A card an encounter card exhausts (Sonic Boom, Exhaustion, Melter's boost): the player did not choose it, and a card
+    // exhausted in the villain phase stays exhausted through the next player phase (RRG 1.8 "End of Player Phase", p. 18,
+    // readies at the end of the player phase), so without a line it reads as a card that failed to ready (issue 136).
+    // The player's own exhausts (costs, attacks, thwarts, defenses) stay quiet: the board shows them as they are made.
+    case "cardExhausted": {
+      const source = event.sourceInstanceId;
+      if (!source || source === event.instanceId || playerCardOwnerOf(state, source) !== null) return null;
+      return { text: `${card(source)} exhausts ${card(event.instanceId)}.`, voice: "villain" };
+    }
     case "cardReadied": {
       const cause = burst && burst.at > 0 ? burst.events[burst.at - 1] : undefined;
       if (cause?.type !== "formChanged" && cause?.type !== "cardFlipped") return null;

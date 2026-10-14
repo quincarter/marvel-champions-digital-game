@@ -1544,7 +1544,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     }
     case "exhaust":
-      for (const id of targets(effect.target)) exhaustCard(ctx, id);
+      for (const id of targets(effect.target)) exhaustCard(ctx, id, frame.selfInstanceId);
       return;
     case "ready":
       for (const id of targets(effect.target)) {

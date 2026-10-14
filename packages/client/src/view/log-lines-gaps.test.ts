@@ -8,6 +8,7 @@ import { POOL_DEPS, CARDS_BY_ID } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import { logLine, appendEvents, emptyLog } from "./log-lines.js";
+import { cardName } from "./names.js";
 
 let state: GameState;
 let me: PlayerId;
@@ -148,6 +149,23 @@ describe("a card flipped by a card, and its counters", () => {
     ];
     expect(lines(flipThenReady, as(handCard, "34002a", true))).toHaveLength(2);
     expect(lines([{ type: "cardReadied", instanceId: otherCard }])).toHaveLength(0);
+  });
+});
+
+describe("a card an encounter card exhausts (issue 136)", () => {
+  test("is told with its source; the player's own exhaust stays quiet", () => {
+    const hero = state.players[0]!.identity.instanceId;
+    const sonicBoom = as(otherCard, "01123");
+    const encounter = {
+      ...sonicBoom,
+      instances: { ...sonicBoom.instances, [otherCard]: { ...sonicBoom.instances[otherCard]!, ownerId: null } },
+    } as GameState;
+    expect(lines([{ type: "cardExhausted", instanceId: hero, sourceInstanceId: otherCard }], encounter)).toEqual([
+      `Sonic Boom exhausts ${cardName(encounter, hero)}.`,
+    ]);
+    // A cost, attack, thwart or defense carries no source; a player's own card exhausting something is their play.
+    expect(lines([{ type: "cardExhausted", instanceId: hero }], encounter)).toHaveLength(0);
+    expect(lines([{ type: "cardExhausted", instanceId: hero, sourceInstanceId: handCard }], encounter)).toHaveLength(0);
   });
 });
 
