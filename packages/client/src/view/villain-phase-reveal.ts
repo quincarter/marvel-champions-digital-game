@@ -97,3 +97,22 @@ export function stepCaptionOf(beats: readonly WalkthroughBeat[], pausedNow: bool
   }
   return "";
 }
+
+/**
+ * "Hold encounter cards" (S1, `settings.holdEncounterCards`): the reveal cursor stops on the last beat of each
+ * revealed encounter card until the player moves past it, so a card that resolved inside the same command as the next
+ * one still gets read (#128). Returns the card being held at `revealed` beats shown, or null when the cursor may move
+ * on: the next beat belongs to the same card, there is no next beat yet, or the player already released this card.
+ */
+export function encounterHoldAt(
+  beats: readonly WalkthroughBeat[],
+  revealed: number,
+  released: ReadonlySet<string>,
+): string | null {
+  const current = beats[revealed - 1];
+  const following = beats[revealed];
+  const card = current?.encounterInstanceId;
+  if (!card || !following) return null;
+  if (following.encounterInstanceId === card) return null;
+  return released.has(card) ? null : card;
+}

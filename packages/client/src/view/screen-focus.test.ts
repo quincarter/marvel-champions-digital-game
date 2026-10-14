@@ -14,6 +14,7 @@ import {
   titleFocusOrder,
   titleMenuFocusOrder,
   villainPhaseFocusOrder,
+  villainRailFocusOrder,
 } from "./screen-focus.js";
 
 describe("screen focus routes", () => {
@@ -359,6 +360,21 @@ describe("screen focus routes", () => {
   test("the inline interrupt window's own controls come right after Continue and before Skip", () => {
     expect(villainPhaseFocusOrder(false, ["a:1"])).toEqual(["interrupt:a:1", "resolve", "skip"]);
     expect(villainPhaseFocusOrder(false, [])).toEqual(["skip"]);
+  });
+
+  test("the docked rail puts the interrupt answer first, then Skip, Hide and the auto-advance toggle", () => {
+    expect(villainRailFocusOrder()).toEqual(["skip", "hide", "toggle"]);
+    expect(villainRailFocusOrder([], true)).toEqual(["next", "skip", "hide", "toggle"]);
+    expect(villainRailFocusOrder(["a:1"])).toEqual(["interrupt:a:1", "resolve", "skip", "hide", "toggle"]);
+    expect(villainRailFocusOrder(["a:1", "a:2"])).toEqual([
+      "interrupt:a:1",
+      "interrupt:a:2",
+      "confirm",
+      "resolve",
+      "skip",
+      "hide",
+      "toggle",
+    ]);
   });
 
   test("the guide strip's own controls (§3.10, §7 accessibility fix) come last, after Skip", () => {

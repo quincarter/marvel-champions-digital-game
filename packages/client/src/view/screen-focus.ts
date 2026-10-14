@@ -251,6 +251,25 @@ export function villainPhaseFocusOrder(
 }
 
 /**
+ * The docked villain phase (D1/D2 rail): the interrupt window's answer first when one is open (each option, the
+ * USE confirm when there are several to pick from, then LET IT RESOLVE), then Skip, Hide and the footer's
+ * AUTO-ADVANCE toggle. With one option its USE button is that option's own stop. A held encounter card's Next card
+ * comes first of all.
+ */
+export function villainRailFocusOrder(interruptOptionIds: readonly string[] = [], next = false): readonly string[] {
+  return [
+    // Next card, while the reveal is held on an encounter card: the one thing the screen is waiting on.
+    ...(next ? ["next"] : []),
+    ...interruptOptionIds.map((id) => `interrupt:${id}`),
+    ...(interruptOptionIds.length > 1 ? ["confirm"] : []),
+    ...(interruptOptionIds.length > 0 ? ["resolve"] : []),
+    "skip",
+    "hide",
+    "toggle",
+  ];
+}
+
+/**
  * Pause (docs/phase4-screen-gaps.md §3 "W4"; owner decision 2026-09-18 — see
  * `view/pause-layout.ts`'s own header). Two shapes, matching the layout's own
  * `kind`:

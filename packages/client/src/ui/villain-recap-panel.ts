@@ -7,6 +7,7 @@ import Phaser from "phaser";
 import type { GameState, InstanceId } from "@mc/engine";
 import { cardOf } from "@mc/engine";
 import { artFor } from "../art/art-source.js";
+import { faceOf } from "../view/board-model.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import type { FocusStop } from "../scenes/focus-route.js";
 import { SCENES } from "../scenes/keys.js";
@@ -384,7 +385,8 @@ function drawThumb(scene: Phaser.Scene, rect: Rect, instanceId: InstanceId, game
   fill.lineStyle(border.detail, surface.ink.hex, 1);
   fill.strokeRect(rect.x, rect.y, rect.width, rect.height);
   const card = cardOf(game, instanceId);
-  const key = cardArt(scene).request(scene, artFor(card, { kind: "front" }));
+  // The face in play: a villain's and a main scheme's picture lives on its stage or side, not on a "front".
+  const key = cardArt(scene).request(scene, artFor(card, faceOf(game, instanceId)));
   if (!drawArt(scene, key, rect)) {
     scene.add
       .text(

@@ -220,11 +220,13 @@ export class ChoiceOverlay extends Phaser.Scene {
    * the decision back after a short grace, instead of ignoring clicks until the game is reloaded.
    */
   override update(time: number): void {
-    // Under the villain phase's inline interrupt window the sheet is hidden *and* inert (`sheetIsCovered`).
+    // Under the villain phase's inline interrupt window the sheet is hidden *and* inert (`sheetIsCovered`). Hidden
+    // outright, not only drawn over: the docked phase leaves the table in view, and the sheet would show on it.
     const covered = this.#covered();
     if (covered !== this.#wasCovered) {
       this.#wasCovered = covered;
       this.input.enabled = !covered && !this.#motion.leaving;
+      this.sys.setVisible(!covered);
     }
     const state = appSession().store.state;
     const pendingChoiceId = state.game?.pendingChoice?.choiceId ?? null;
@@ -269,6 +271,9 @@ export class ChoiceOverlay extends Phaser.Scene {
   create(): void {
     this.#motion = new OverlayMotion();
     this.#idleSince = null;
+    // A relaunch starts uncovered and shown, whatever the last run left (`update` hides a covered sheet).
+    this.#wasCovered = false;
+    this.sys.setVisible(true);
     const { store } = appSession();
     this.#unsubscribe = store.subscribe(() => this.#rebuild());
     const onResize = (): void => this.#rebuild();

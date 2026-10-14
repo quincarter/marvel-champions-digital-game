@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { emptyEncounterTracking, type Walkthrough, type WalkthroughBeat } from "./villain-walkthrough.js";
-import { revealOf, stepCaptionOf } from "./villain-phase-reveal.js";
+import { encounterHoldAt, revealOf, stepCaptionOf } from "./villain-phase-reveal.js";
 
 const beat = (id: string, text: string): WalkthroughBeat => ({ id, text, pause: null, activation: null });
 
@@ -207,5 +207,24 @@ describe("stepCaptionOf", () => {
 
   test("a step that ends on a result shows it", () => {
     expect(stepCaptionOf([paused, result], false)).toBe("Sabretooth hit Phoenix for 2");
+  });
+});
+
+describe("encounterHoldAt", () => {
+  const beat = (id: string, encounterInstanceId: string | null): WalkthroughBeat =>
+    ({ id, text: id, pause: null, activation: null, encounterInstanceId }) as WalkthroughBeat;
+  const beats = [beat("deal", null), beat("a1", "a"), beat("a2", "a"), beat("b1", "b"), beat("pass", null)];
+
+  test("holds on a card's last beat before the next card or step", () => {
+    expect(encounterHoldAt(beats, 2, new Set())).toBeNull();
+    expect(encounterHoldAt(beats, 3, new Set())).toBe("a");
+    expect(encounterHoldAt(beats, 4, new Set())).toBe("b");
+  });
+
+  test("lets the cursor move once the card is released, before any reveal, and with nothing after it yet", () => {
+    expect(encounterHoldAt(beats, 3, new Set(["a"]))).toBeNull();
+    expect(encounterHoldAt(beats, 1, new Set())).toBeNull();
+    expect(encounterHoldAt(beats, 5, new Set())).toBeNull();
+    expect(encounterHoldAt(beats.slice(0, 3), 3, new Set())).toBeNull();
   });
 });
