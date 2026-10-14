@@ -1012,10 +1012,14 @@ export function boardModel(
 
   const schemes = schemesInPlay(state);
   // Every main scheme in play (Tower Defense has two, §3.2) is drawn as a main scheme, never again as a side scheme.
-  const mainSchemeIds = new Set([
-    state.mainScheme.instanceId,
-    ...(state.extraMainSchemes ?? []).map((scheme) => scheme.instanceId),
-  ]);
+  // A separate game area's own stage (The Master of Time's stage 3, `GameAreaState.mainScheme`) is a main scheme too:
+  // the engine's `mainSchemeStates` lists it, and it is neither `state.mainScheme` nor in `extraMainSchemes`, so it would fall
+  // through to the side scheme list and draw as the bare card ("Kang's Arrival", no threshold, wrong inspect face).
+  const otherMainSchemes = [
+    ...(state.extraMainSchemes ?? []),
+    ...state.gameAreas.flatMap((area) => (area.mainScheme ? [area.mainScheme] : [])),
+  ];
+  const mainSchemeIds = new Set([state.mainScheme.instanceId, ...otherMainSchemes.map((scheme) => scheme.instanceId)]);
   const sideSchemes = schemes.filter((id) => !mainSchemeIds.has(id)).map((id) => schemePanel(state, id, deps, false));
 
   return {
@@ -1028,7 +1032,7 @@ export function boardModel(
     villain: characterPanel(state, activeVillain(state).instanceId, deps),
     villains: villainPanels(state, deps),
     mainScheme: schemePanel(state, state.mainScheme.instanceId, deps, true),
-    extraMainSchemes: (state.extraMainSchemes ?? []).map((scheme) => schemePanel(state, scheme.instanceId, deps, true)),
+    extraMainSchemes: otherMainSchemes.map((scheme) => schemePanel(state, scheme.instanceId, deps, true)),
     sideSchemes,
     minions: minionsOf(state).map((id) => characterPanel(state, id, deps)),
     environments: state.villainArea
@@ -1359,7 +1363,12 @@ export function faceOf(state: GameState, instanceId: InstanceId, view?: ViewerCo
       // The B side is the one on the table: it carries the threat values shown,
       // and it is the side with a picture. Asking a main scheme for its "front"
       // gets nothing, because the schema puts the image on the stage.
-      return { kind: "mainSchemeStage", stageIndex: state.mainScheme.stageIndex, side: "B" };
+      // This instance's own stage: a game area's stage 3 is a second instance of the same card at another stage.
+      return {
+        kind: "mainSchemeStage",
+        stageIndex: (mainSchemeStateOf(state, instanceId) ?? state.mainScheme).stageIndex,
+        side: "B",
+      };
     default:
       // A flipped double-sided encounter card shows its other face, not its front (Criminal Enterprise once it
       // has become State of Madness). Without this the table keeps drawing the side that is no longer in play.
