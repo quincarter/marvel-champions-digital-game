@@ -333,6 +333,10 @@ describe("Kree Command Ship (16108.kree-command-ship-constant)", () => {
         // Every other prompt this test reaches (the resource-payment choice included) should pick something
         // rather than decline — `firstLegal` alone declines an optional 0-minimum prompt (like this one's own
         // "which card pays the resource" step), which would silently abort paying for the interrupt.
+        // A prompt that needs several answers (the Command Ship's hazard icon deals a second encounter card, and a
+        // later prompt asks for more than one pick) takes what `firstLegal` gives it.
+        const several = firstLegal(s);
+        if (several.length > 1) return several;
         return choice.options.length > 0 ? [choice.options[0]!.optionId] : [];
       },
       undefined,

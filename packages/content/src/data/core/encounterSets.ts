@@ -20,7 +20,12 @@ export const CORE_ENCOUNTER_SETS: readonly EncounterSet[] = [
     packCodes: [setCode("core")],
     nemesisOfIdentityId: cardId("01010a"),
   },
-  { id: encounterSetId("expert"), name: "Expert", packCodes: [setCode("core")] },
+  {
+    id: encounterSetId("expert"),
+    name: "Expert",
+    packCodes: [setCode("core")],
+    classification: "expert",
+  },
   {
     id: encounterSetId("iron_man_nemesis"),
     name: "Iron Man Nemesis",
@@ -43,7 +48,12 @@ export const CORE_ENCOUNTER_SETS: readonly EncounterSet[] = [
     packCodes: [setCode("core")],
     nemesisOfIdentityId: cardId("01001a"),
   },
-  { id: encounterSetId("standard"), name: "Standard", packCodes: [setCode("core")] },
+  {
+    id: encounterSetId("standard"),
+    name: "Standard",
+    packCodes: [setCode("core")],
+    classification: "standard",
+  },
   {
     id: encounterSetId("the_doomsday_chair"),
     name: "The Doomsday Chair",

@@ -810,7 +810,10 @@ export const NEBU_CARDS: readonly AnyCard[] = [
     traits: [trait("TEAM")],
     keywords: [],
     deckLimit: 3,
-    playRestrictions: { anyPlayerControl: true },
+    playRestrictions: {
+      anyPlayerControl: true,
+      maxWithTrait: { trait: trait("TEAM"), per: "player", max: 1 },
+    },
     text: {
       printed: "Play under any player's control. Max 1 team card per player.\nIf each of your characters has the guardian trait, this card gains: \"Response: After you play an upgrade on an ally, draw 1 card.\"",
       current: "Play under any player's control. Max 1 team card per player.\nIf each of your characters has the guardian trait, this card gains: \"Response: After you play an upgrade on an ally, draw 1 card.\"",

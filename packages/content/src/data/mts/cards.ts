@@ -4728,6 +4728,7 @@ export const MTS_CARDS: readonly AnyCard[] = [
     collectorNumber: "189B",
     quantityInSet: 1,
     unique: true,
+    schemeIcons: ["acceleration"],
     otherFaceId: cardId("21189a"),
     attachesTo: { kind: "namedVillain", name: "Loki" },
     encounterSetIds: [encounterSetId("mts_campaign")],

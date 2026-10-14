@@ -206,7 +206,8 @@ describe("a full MojoMania campaign: a real game at every node, the log checked 
 
 describe("a lost scenario is retried with the log intact (insert p. 4)", () => {
   it("scenario 2 really lost: nothing is checked off, the history keeps the loss, and the retry is a new real game", () => {
-    let log = newLog(STANDARD, SOLO_SEATS, 41);
+    // Seed 42 (41 until the hazard and acceleration icons of mojo 39036 and 39064 were counted: MaGog then won on 41).
+    let log = newLog(STANDARD, SOLO_SEATS, 42);
     const s1 = playNode(log, "magog");
     expect(s1.outcome).toBe("win");
     log = finish(s1.composed, resultOf(s1), recordLast).log;

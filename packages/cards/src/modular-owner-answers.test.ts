@@ -15,9 +15,12 @@ const inPiles = (state: GameState, code: string): InstanceId[] =>
 const revealedCodes = (events: readonly GameEvent[]): string[] =>
   events.flatMap((event) => (event.type === "encounterCardRevealed" ? [event.cardId as string] : []));
 const reveal = (state: GameState, code: string) => revealOnTurnEnd(state, inPiles(state, code)[0]!, { form: "hero" });
+/** Whether the card surged. Read from the surge itself: a hazard icon in play also deals a further card. */
 const surged = (events: readonly GameEvent[], code: string): boolean => {
-  const codes = revealedCodes(events);
-  return codes.length > codes.indexOf(code) + 1;
+  const ids = events.flatMap((event) =>
+    event.type === "encounterCardRevealed" && event.cardId === cardId(code) ? [event.instanceId] : [],
+  );
+  return events.some((event) => event.type === "surgeTriggered" && ids.includes(event.instanceId));
 };
 
 describe("Q-M1: an in-play card titled Ronan the Accuser counts, the Ronan villain included", () => {
@@ -37,7 +40,8 @@ describe("Q-M1: an in-play card titled Ronan the Accuser counts, the Ronan villa
   });
 
   it("Bring the Hammer Down (90004) at another villain with no Ronan in play: it gains surge", () => {
-    const run = reveal(startPairing("kree_fanatic", "sandman"), "90004");
+    const run = reveal(startPairing("kree_fanatic", "rhino"), "90004");
+    expect(revealedCodes(run.events)).toContain("90004");
     expect(surged(run.events, "90004")).toBe(true);
   });
 
