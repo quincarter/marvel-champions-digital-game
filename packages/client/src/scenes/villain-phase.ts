@@ -1935,6 +1935,15 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       const frame = this.add.graphics();
       frame.lineStyle(border.object, signal.caution.hex, 1);
       frame.strokeRect(layout.thumb.x, layout.thumb.y, layout.thumb.width, layout.thumb.height);
+      // Inspectable like every other card the phase shows: tap, hold or right-click.
+      const zone = this.add
+        .zone(layout.thumb.x, layout.thumb.y, layout.thumb.width, layout.thumb.height)
+        .setOrigin(0, 0)
+        .setInteractive({ useHandCursor: true });
+      const open = (): void => {
+        this.scene.launch(SCENES.inspect, { instanceId: thumbOf });
+      };
+      bindHoldTarget(this, zone, { key: `peek:${thumbOf}`, onTap: open, onInspect: open });
     }
     const textX = thumbOf ? layout.text.x : layout.thumb.x;
     const textWidth = layout.text.x + layout.text.width - textX;
