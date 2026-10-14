@@ -7,6 +7,7 @@
 - `individual/screens-desktop.dc/NN-sNN.png` — D01–D14 (`01-s01` Title, `02-s02` Scenario select, `03-s03` Hero select, `04-s04` Deck check, `05-s05` Table setup, `06-s06` Setup deal & mulligan, then `s08`–`s14`; `14-14-collection` is Decks & Collection). There is no `s07`.
 - `individual/screens-phone.dc/NN-pNN-<name>.png` — P01–P17, named (`04-p04-deck-check`, `12-p12-table-setup`, `16-p16-pause`, …).
 - `individual/screens-tablet.dc/NN-tNN-<name>.png` — T01–T08.
+- `villain-phase/` — the 2026-10-14 villain phase redesign (D1–D3, T1–T3, P1–P4, S1), static PNGs with no canvas behind them; its `README.md` indexes them. They supersede D11, P09 and L02.
 - `board-long-table.dc.png`, `board-phone.dc.png`, `components.dc.png` and the three `screens-*.dc.png` — each whole canvas as one tall image; `manifest.json` lists every capture.
 
 **The `Read` tool shows a PNG as an image.** Worktrees don't carry untracked files, so read these by absolute path from the main checkout. Open the screen you are building _before_ writing layout code, and put your own screenshot beside it at the end.
