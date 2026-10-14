@@ -1,3 +1,0 @@
-kind: Engine
-body: A Labor card that leaves play goes to the bottom of the Labor deck unless it goes to the victory display; one revealed with no valid target is discarded, logged as revealedCardDiscarded, and ends on the bottom of the deck (RRG 1.8 FAQ p. 65)
-time: 2026-10-12T07:04:49.89513-04:00

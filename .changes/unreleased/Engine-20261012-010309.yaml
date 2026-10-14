@@ -1,3 +1,0 @@
-kind: Engine
-body: wave10Scenario builds any legal Civil War scenario (leader, stages, modular sets, difficulty, game mode), playableScenario routes to it, and the scenario offer lists sides, leaders, stage options, set legality and game modes (spec 3.1b)
-time: 2026-10-12T01:03:09.8629037-04:00

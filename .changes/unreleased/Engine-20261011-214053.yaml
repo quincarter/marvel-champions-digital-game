@@ -1,3 +1,0 @@
-kind: Engine
-body: 'A game mode on setup (cooperative or competitive): competitive is refused with a ''coming soon'' message until it is built, and card scripts can already write their ''In competitive mode'' clauses'
-time: 2026-10-11T21:40:53.282745-04:00

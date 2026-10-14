@@ -1,3 +1,0 @@
-kind: Engine
-body: A script can reveal the top card of a separate deck (revealTopOfSeparateDeck) and count the cards left in it (separateDeckCountOf); an obligation enters its revealer's play area and an attachment with no attach line waits out of play for its own When Revealed
-time: 2026-10-12T07:04:47.7821391-04:00

@@ -1,3 +1,0 @@
-kind: Fixed
-body: A "choose one" no longer offers an option that has no valid target, such as removing threat when no scheme has any; an ability whose every option is like that cannot be used.
-time: 2026-10-13T16:20:53.8912236-04:00

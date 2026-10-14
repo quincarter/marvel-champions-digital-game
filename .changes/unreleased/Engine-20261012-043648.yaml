@@ -1,3 +1,0 @@
-kind: Engine
-body: 'RuleSpec attacksLoseKeywords: attacks do not have the named attack keywords against a matching character, whatever gave them (wave 10 spec 3.18).'
-time: 2026-10-12T04:36:48.1510591-04:00

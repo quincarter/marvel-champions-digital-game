@@ -1,3 +1,0 @@
-kind: Changed
-body: 'Release downloads spell out their OS, architecture and installer kind (MarvelChampions-<version>-Windows-x64-Setup.exe / -Windows-x64-AllUsers.msi, -macOS-AppleSilicon-arm64.dmg / -macOS-Intel-x64.dmg, -Linux-x64.deb / .rpm / .AppImage, -Android.apk), and release notes end with a "Which download do I need?" table'
-time: 2026-10-13T21:27:00.000000000Z

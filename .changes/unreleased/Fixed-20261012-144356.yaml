@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Ionic Physiology tucks its event only from the discard pile: an event that has left the pile is not tucked and nothing heals (`cardsFrom("discard", …)`)'
-time: 2026-10-12T14:43:56.827927-04:00

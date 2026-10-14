@@ -1,3 +1,0 @@
-kind: Engine
-body: A value that counts the cards in a player's hand, deck or discard pile matching a query, so an option that takes a card from the discard pile is offered only while one is there
-time: 2026-10-12T18:56:47.2809796-04:00

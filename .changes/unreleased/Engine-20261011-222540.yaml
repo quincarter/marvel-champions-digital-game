@@ -1,3 +1,0 @@
-kind: Engine
-body: Per player values (villain hit points, scheme threat, hinder, uses, minion hit points, printed cost and per player amounts in card text) are read through the team of the card they are printed on, ready for competitive mode; a cooperative game gives the same numbers as before.
-time: 2026-10-11T22:25:40.3629899-04:00

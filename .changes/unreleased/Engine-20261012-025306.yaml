@@ -1,3 +1,0 @@
-kind: Engine
-body: 'A response can hear a card revealed that gives heroes a trait: on.cardRevealedGranting(trait) with grantedTo(trait) for the cards given it (Hunting Rebel Heroes)'
-time: 2026-10-12T02:53:06.6524614-04:00

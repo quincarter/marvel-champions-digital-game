@@ -1,3 +1,0 @@
-kind: Fixed
-body: On a phone, a swipe across the Pause menu that lifts over a Quick reference row no longer opens it, and the Pause menu's Game log row (was "Jump into the log", greyed out) now shows the game log.
-time: 2026-10-14T02:28:00.000000+00:00

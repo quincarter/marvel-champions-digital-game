@@ -1,3 +1,0 @@
-kind: Engine
-body: An attack in progress records that it uses the attacker's ATK (usedStat), carried onto its damage and its overkill damage; Predicate attackUsedAtk and the usesAtk mark on attack and dealDamage (wave 10 spec 3.17).
-time: 2026-10-12T04:32:15.3776036-04:00

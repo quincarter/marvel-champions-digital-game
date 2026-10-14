@@ -1,3 +1,0 @@
-kind: Engine
-body: 'A leaves-play trigger can ask where the card went: `on.leavesPlay(who, { to: "victoryDisplay" })` hears a Victory card added to the victory display and not the same card discarded (Hercules'' Atonement; hero packs HT7)'
-time: 2026-10-12T09:35:06.3620668-04:00

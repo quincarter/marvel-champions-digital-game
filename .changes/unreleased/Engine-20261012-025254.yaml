@@ -1,3 +1,0 @@
-kind: Engine
-body: 'A defeated minion can be given to an enemy as a facedown boost card: setDefeatDestination(boostCardOf(enemy)), from an interrupt on the defeat or from the minion''s own When Defeated ability (Teamwork minions, Dangerous Recruits)'
-time: 2026-10-12T02:52:54.3108301-04:00

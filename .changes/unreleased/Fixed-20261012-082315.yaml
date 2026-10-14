@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Cosmic Flight: with two copies only one answers a big hit and is discarded; an interrupt to damage is checked again, and reads the new amount, after an earlier interrupt changes it'
-time: 2026-10-12T08:23:15.0763577-04:00

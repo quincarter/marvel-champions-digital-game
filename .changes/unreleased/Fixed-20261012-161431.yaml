@@ -1,3 +1,0 @@
-kind: Fixed
-body: A minion being revealed now resolves its When Revealed first, then Quickstrike and Teamwork (the first player picks the order when it has both); responses to it entering play, such as Widow's Bite, wait until after those.
-time: 2026-10-12T16:14:31.7650618-04:00

@@ -1,3 +1,0 @@
-kind: Engine
-body: 'Deck building: an identity may take off-aspect cards by printed resource (`OffAspectAllowance.printedResource`); Wonder Man''s deck may hold events with a printed energy resource icon from any aspect, in `validateDeck` and in the deck builder''s offer'
-time: 2026-10-12T08:04:44.2096066-04:00

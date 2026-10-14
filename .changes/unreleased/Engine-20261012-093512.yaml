@@ -1,3 +1,0 @@
-kind: Engine
-body: 'A find can choose among every matching card, in play or out, each offered with the area it is in, and can reveal the card or put it into play: `findCard` gains `choose`, `outOfPlay` and the destinations `"reveal"` and `"play"`; every deck a match could be in is shuffled (Hercules'' Labor cards; hero packs HT4)'
-time: 2026-10-12T09:35:12.3144404-04:00

@@ -1,3 +1,0 @@
-kind: Engine
-body: A cost can be reduced to 0 for a player's next matching card (`reduceNextCardCost(player, "toZero", …)`), and a reduction can be bound to the cards a search found, following each card until its next play (`reduceCostOfCards`; hero packs HT8, HT9)
-time: 2026-10-12T14:43:54.6117819-04:00
