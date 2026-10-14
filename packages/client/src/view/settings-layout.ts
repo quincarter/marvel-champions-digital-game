@@ -71,6 +71,7 @@ const TILE_HEIGHT = 52;
 const TILE_GAP = 8;
 const SPEED_CONTROL_WIDTH = 204;
 const CARD_HOVER_CONTROL_WIDTH = 280;
+const CARD_SIZE_CONTROL_WIDTH = 252;
 
 /** Every row this screen draws, in content space (`y` from the body's own top) — see this file's own doc comment. */
 export interface SettingsContentLayout {
@@ -81,6 +82,8 @@ export interface SettingsContentLayout {
   readonly villain: SettingsVillainLayout | null;
   /** The "Card size on hover" row and its five-segment control, after the Table rows; null when not given a detail or off desktop (no mouse popover elsewhere). */
   readonly cardHover: { readonly row: Rect; readonly control: Rect } | null;
+  /** The global "Card size" row and its three-segment control, after the hover row; null when not given a detail. On a narrow screen the control drops under the text. */
+  readonly cardSize: { readonly row: Rect; readonly control: Rect } | null;
   readonly guideHeading: Rect;
   readonly guideLevelRow: Rect;
   /** One rect per Guide row after the level row: "Play the tutorial", "Aspect lessons", then one per warning toggle. */
@@ -108,6 +111,7 @@ export function settingsLayout(
   guideRowDetails: readonly string[] = [],
   villainDetails?: SettingsVillainDetails,
   cardHoverDetail?: string,
+  cardSizeDetail?: string,
 ): SettingsLayout {
   const { panel, header, body } = overlayPanelLayout(bounds, HEADER_HEIGHT, 0);
   const contentX = body.x + 16;
@@ -142,6 +146,27 @@ export function settingsLayout(
         width: CARD_HOVER_CONTROL_WIDTH,
         height: 32,
       },
+    };
+    tableBottom = row.y + row.height;
+  }
+
+  let cardSize: SettingsContentLayout["cardSize"] = null;
+  if (cardSizeDetail !== undefined) {
+    // Side by side when the text still has room; otherwise the control sits under the text so nothing is cut off.
+    const beside = contentWidth >= CARD_SIZE_CONTROL_WIDTH + 260;
+    const textHeight = toggleRowHeight(
+      cardSizeDetail,
+      beside ? contentWidth - (CARD_SIZE_CONTROL_WIDTH - 84) : contentWidth,
+      onDesktop,
+    );
+    const height = beside ? Math.max(textHeight, 44) : textHeight + 40;
+    const row: Rect = { x: contentX, y: tableBottom + ROW_GAP, width: contentWidth, height };
+    const controlWidth = Math.min(CARD_SIZE_CONTROL_WIDTH, contentWidth - 4);
+    cardSize = {
+      row,
+      control: beside
+        ? { x: row.x + row.width - controlWidth - 2, y: row.y + (row.height - 32) / 2, width: controlWidth, height: 32 }
+        : { x: row.x + 2, y: row.y + row.height - 36, width: controlWidth, height: 32 },
     };
     tableBottom = row.y + row.height;
   }
@@ -226,7 +251,7 @@ export function settingsLayout(
     panel,
     header,
     bodyViewport,
-    content: { tableHeading, rows, villain, cardHover, guideHeading, guideLevelRow, guideRows, totalHeight },
+    content: { tableHeading, rows, villain, cardHover, cardSize, guideHeading, guideLevelRow, guideRows, totalHeight },
   };
 }
 

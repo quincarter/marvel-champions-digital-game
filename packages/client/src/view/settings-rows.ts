@@ -17,8 +17,10 @@ import {
 } from "../guide/guide-prefs.js";
 import {
   CARD_HOVER_SCALE_VALUES,
+  CARD_SIZE_VALUES,
   SHARP_TEXT_RESOLUTION_CEILING,
   type CardHoverScale,
+  type CardSize,
   type Settings,
   type VillainAutoAdvance,
   type VillainBeatSpeed,
@@ -357,4 +359,36 @@ export function cardHoverRowInfoOf(settings: Settings): CardHoverRowInfo {
 /** `settings` with the hover size set; a value that is not one of the five changes nothing. */
 export function nextSettingsAfterCardHover(settings: Settings, value: CardHoverScale): Settings {
   return CARD_HOVER_SCALE_VALUES.includes(value) ? { ...settings, cardHoverScale: value } : settings;
+}
+
+// ---------------------------------------------------------------------------
+// "Card size": how large every card is drawn on the Decks, deck builder, Rules and campaign card grids. A global
+// setting, shown on every form factor.
+// ---------------------------------------------------------------------------
+
+export const CARD_SIZE_LABELS: Readonly<Record<CardSize, string>> = {
+  standard: "Standard",
+  large: "Large",
+  xlarge: "Extra large",
+};
+
+export interface CardSizeRowInfo {
+  readonly title: string;
+  readonly detail: string;
+  readonly options: readonly { readonly value: CardSize; readonly label: string }[];
+  readonly selected: CardSize;
+}
+
+export function cardSizeRowInfoOf(settings: Settings): CardSizeRowInfo {
+  return {
+    title: "Card size",
+    detail: "Draws cards larger in the deck builder, collection and card lists so the text is easier to read.",
+    options: CARD_SIZE_VALUES.map((value) => ({ value, label: CARD_SIZE_LABELS[value] })),
+    selected: settings.cardSize,
+  };
+}
+
+/** `settings` with the card size set; a value that is not one of the three changes nothing. */
+export function nextSettingsAfterCardSize(settings: Settings, value: CardSize): Settings {
+  return CARD_SIZE_VALUES.includes(value) ? { ...settings, cardSize: value } : settings;
 }

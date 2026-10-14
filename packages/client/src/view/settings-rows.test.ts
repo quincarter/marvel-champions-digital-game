@@ -4,6 +4,8 @@ import {
   nextGuidePrefsAfterRow,
   nextSettingsAfterToggle,
   cardHoverRowInfoOf,
+  cardSizeRowInfoOf,
+  nextSettingsAfterCardSize,
   nextSettingsAfterCardHover,
   nextSettingsAfterVillainRow,
   villainRowInfoOf,
@@ -247,5 +249,19 @@ describe("card size on hover row", () => {
     expect(nextSettingsAfterCardHover(BASE, "off").cardHoverScale).toBe("off");
     expect(nextSettingsAfterCardHover(BASE, "5x").cardHoverScale).toBe("5x");
     expect(nextSettingsAfterCardHover(BASE, "9x" as never)).toBe(BASE);
+  });
+});
+
+describe("card size row", () => {
+  test("offers Standard, Large and Extra large with the selected one marked", () => {
+    const info = cardSizeRowInfoOf({ ...BASE, cardSize: "large" });
+    expect(info.title).toBe("Card size");
+    expect(info.options.map((o) => o.label)).toEqual(["Standard", "Large", "Extra large"]);
+    expect(info.selected).toBe("large");
+  });
+
+  test("a choice sets it, and a bad value changes nothing", () => {
+    expect(nextSettingsAfterCardSize(BASE, "xlarge").cardSize).toBe("xlarge");
+    expect(nextSettingsAfterCardSize(BASE, "huge" as never)).toBe(BASE);
   });
 });

@@ -235,3 +235,43 @@ describe("settingsLayout card hover row", () => {
     expect(settingsLayout({ x: 0, y: 0, width: 1440, height: 900 }, ROW_DETAILS).content.cardHover).toBeNull();
   });
 });
+
+describe("settingsLayout card size row", () => {
+  const DETAIL = "Draws cards larger in the deck builder, collection and card lists so the text is easier to read.";
+  test("is on every form factor, its control inside its row, below the Table rows and above the villain group", () => {
+    const villain = { auto: "a", hold: "h", speed: "s", dock: "d" };
+    for (const [width, height] of [
+      [390, 844],
+      [1024, 768],
+      [1440, 900],
+    ] as const) {
+      const { content } = settingsLayout({ x: 0, y: 0, width, height }, ROW_DETAILS, [], villain, undefined, DETAIL);
+      const size = content.cardSize!;
+      const last = content.rows[content.rows.length - 1]!;
+      expect(size.row.y).toBeGreaterThan(last.y);
+      expect(rectsOverlap(size.row, last)).toBe(false);
+      expect(rectsOverlap(size.row, content.villain!.heading)).toBe(false);
+      expect(content.villain!.heading.y).toBeGreaterThan(size.row.y);
+      expect(size.control.x).toBeGreaterThanOrEqual(size.row.x);
+      expect(size.control.x + size.control.width).toBeLessThanOrEqual(size.row.x + size.row.width);
+      expect(size.control.y + size.control.height).toBeLessThanOrEqual(size.row.y + size.row.height);
+    }
+  });
+
+  test("sits below the hover row on desktop without overlapping it", () => {
+    const { content } = settingsLayout(
+      { x: 0, y: 0, width: 1440, height: 900 },
+      ROW_DETAILS,
+      [],
+      undefined,
+      "hover",
+      DETAIL,
+    );
+    expect(rectsOverlap(content.cardHover!.row, content.cardSize!.row)).toBe(false);
+    expect(content.cardSize!.row.y).toBeGreaterThan(content.cardHover!.row.y);
+  });
+
+  test("absent without a detail", () => {
+    expect(settingsLayout({ x: 0, y: 0, width: 1440, height: 900 }, ROW_DETAILS).content.cardSize).toBeNull();
+  });
+});

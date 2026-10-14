@@ -31,19 +31,22 @@ import {
   guideRowDetailOf,
   nextGuidePrefsAfterRow,
   cardHoverRowInfoOf,
+  cardSizeRowInfoOf,
+  nextSettingsAfterCardSize,
   nextSettingsAfterCardHover,
   nextSettingsAfterToggle,
   nextSettingsAfterVillainRow,
   settingsRowInfoOf,
   villainRowInfoOf,
   type CardHoverRowInfo,
+  type CardSizeRowInfo,
   type GuideRowInfo,
   type SettingsRowInfo,
   type VillainRowId,
   type VillainRowsInfo,
 } from "../view/settings-rows.js";
 import type { GuideLevel } from "../guide/guide-prefs.js";
-import type { CardHoverScale, VillainAutoAdvance, VillainBeatSpeed } from "../settings.js";
+import type { CardHoverScale, CardSize, VillainAutoAdvance, VillainBeatSpeed } from "../settings.js";
 import { ink, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
 import { McButton, addRowTapZone, label, paintOnFrame } from "../ui/widgets.js";
@@ -203,6 +206,7 @@ export class SettingsOverlay extends Phaser.Scene {
     const guideRows = guideRowInfoOf(guidePrefs());
     const villain = villainRowInfoOf(appSession().settings);
     const cardHover = cardHoverRowInfoOf(appSession().settings);
+    const cardSize = cardSizeRowInfoOf(appSession().settings);
     const guideAfterLevel = guideRows.filter(isGuideNonLevelRow);
     const layout = settingsLayout(
       { x: 0, y: 0, width, height },
@@ -215,6 +219,7 @@ export class SettingsOverlay extends Phaser.Scene {
         dock: villain.dock.detail,
       },
       cardHover.detail,
+      cardSize.detail,
     );
 
     const scrim = this.add.graphics();
@@ -265,6 +270,7 @@ export class SettingsOverlay extends Phaser.Scene {
       guideRows,
       villain,
       cardHover,
+      cardSize,
       stops,
     );
 
@@ -275,6 +281,7 @@ export class SettingsOverlay extends Phaser.Scene {
         SAVE_DATA_ROW,
         RULES_ROW,
         ...(layout.content.cardHover ? cardHover.options.map((o) => `card-hover:${o.value}`) : []),
+        ...cardSize.options.map((o) => `card-size:${o.value}`),
         ...VILLAIN_STOP_IDS(villain),
         ...guideStopIds,
       ]),
@@ -318,6 +325,7 @@ export class SettingsOverlay extends Phaser.Scene {
     guideRows: readonly GuideRowInfo[],
     villain: VillainRowsInfo,
     cardHover: CardHoverRowInfo,
+    cardSize: CardSizeRowInfo,
     stops: Map<string, FocusStop>,
   ): readonly string[] {
     const levelRow = guideRows.find((row) => row.kind === "segmented");
@@ -331,6 +339,7 @@ export class SettingsOverlay extends Phaser.Scene {
       content.tableHeading,
       ...content.rows,
       ...(hover ? [hover.row] : []),
+      ...(content.cardSize ? [content.cardSize.row] : []),
       ...(v ? [v.heading, v.auto, v.hold, v.speed, v.dock] : []),
       content.guideHeading,
       content.guideLevelRow,
@@ -381,6 +390,13 @@ export class SettingsOverlay extends Phaser.Scene {
     if (hover) {
       this.#captureInto(container, () =>
         this.#drawCardHover(toScreen(hover.row), toScreen(hover.control), cardHover, guideHeadingIndex, stops),
+      );
+      guideHeadingIndex += 1;
+    }
+    const sizeRow = content.cardSize;
+    if (sizeRow) {
+      this.#captureInto(container, () =>
+        this.#drawCardSize(toScreen(sizeRow.row), toScreen(sizeRow.control), cardSize, guideHeadingIndex, stops),
       );
       guideHeadingIndex += 1;
     }
@@ -617,6 +633,33 @@ export class SettingsOverlay extends Phaser.Scene {
 
   #setCardHover(value: CardHoverScale): void {
     appSession().settings = nextSettingsAfterCardHover(appSession().settings, value);
+    this.#draw();
+  }
+
+  #drawCardSize(rect: Rect, control: Rect, info: CardSizeRowInfo, index: number, stops: Map<string, FocusStop>): void {
+    label(this, rect.x, rect.y + 2, info.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
+    // Beside the control the text stops short of it; stacked (control below the text) it runs the row.
+    const stacked = control.y > rect.y + 44;
+    this.add
+      .text(rect.x, rect.y + 20, info.detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
+      .setFontSize(10)
+      .setWordWrapWidth(stacked ? rect.width : rect.width - control.width - 16);
+    const cellWidth = control.width / info.options.length;
+    info.options.forEach((option, i) => {
+      this.#drawChoiceCell(
+        { x: control.x + i * cellWidth, y: control.y, width: cellWidth, height: control.height },
+        info.selected === option.value,
+        index,
+        `card-size:${option.value}`,
+        stops,
+        () => this.#setCardSize(option.value),
+        { label: option.label, fill: surface.paper.hex },
+      );
+    });
+  }
+
+  #setCardSize(value: CardSize): void {
+    appSession().settings = nextSettingsAfterCardSize(appSession().settings, value);
     this.#draw();
   }
 
