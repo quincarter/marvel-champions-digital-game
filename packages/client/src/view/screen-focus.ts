@@ -237,9 +237,12 @@ export function villainPhaseFocusOrder(
   finished: boolean,
   interruptOptionIds: readonly string[] = [],
   guideStrip?: { readonly hasPrimary: boolean },
+  recap: boolean = false,
 ): readonly string[] {
   return [
     ...(finished ? ["continue"] : []),
+    // The held-open recap's own controls (`view/villain-recap-layout.ts`): the auto-advance toggle and FULL LOG.
+    ...(finished && recap ? ["toggle", "full-log"] : []),
     ...interruptOptionIds.map((id) => `interrupt:${id}`),
     ...(interruptOptionIds.length > 0 ? ["resolve"] : []),
     "skip",

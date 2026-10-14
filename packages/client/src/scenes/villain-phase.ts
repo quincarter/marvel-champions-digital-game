@@ -18,14 +18,14 @@
  * ---------------------------------------------------------------------------
  * BOARD CONTRACT (read this before wiring the launch call)
  * ---------------------------------------------------------------------------
- * The Board scene must launch this overlay with a bare, payload-free call,
- * exactly once per villain phase:
+ * The Board scene launches this overlay exactly once per villain phase, passing the game from before the
+ * command that began it as `VillainPhaseLaunchData`:
  *
  *   if (
  *     !this.scene.isActive(SCENES.villainPhase) &&
  *     state.lastEvents.some((e) => e.type === "stepChanged" && e.to.phase === "villain" && e.to.kind === "placeThreat")
  *   ) {
- *     this.scene.launch(SCENES.villainPhase);
+ *     this.scene.launch(SCENES.villainPhase, { before });
  *   }
  *
  * That is the *only* thing Board needs to do. Why this exact condition:
@@ -45,8 +45,7 @@
  *    several `dispatch` calls one villain phase can span (a mid-phase pause
  *    means the phase resumes in a *later* command with its own `lastEvents`),
  *    noticing the phase ended, and closing itself — happens inside this scene
- *    by subscribing to the store directly. Board passes nothing and is told
- *    nothing back.
+ *    by subscribing to the store directly. Board is told nothing back.
  *
  * COEXISTENCE WITH THE PENDING-CHOICE OVERLAY (`scenes/choice.ts`)
  * ---------------------------------------------------------------------------
@@ -84,25 +83,23 @@
  * launch condition only fires on step one, skipping mid-phase does not get
  * this screen re-opened by a later step change in the same phase.
  *
- * SELF-CLOSING
+ * FINISHING: THE HELD-OPEN RECAP (#117)
  * ---------------------------------------------------------------------------
- * This scene watches the same store Board does. Once the walkthrough reports
- * `complete` and every beat it knows about has been revealed, the screen shows
- * a "Continue" button and, at normal motion, also closes itself after a short
- * pause (`#syncTiming`, `AUTO_CLOSE_DELAY_MS`) — so an unattended screen doesn't
- * sit there forever, but a player who wants the last word can still act on it
- * before the timer does. Under reduced motion there is no such timer (see REDUCED
- * MOTION below). Because a whole phase can
- * (and often does) finish revealing between two store updates — an activation
- * pausing on a decision that itself resolves the rest of the phase, the usual
- * case — `#syncTiming` re-checks and arms the close timer from the reveal
- * timer's own tick the moment it catches up, not only from a fresh store
- * update; the pre-2026-09-29 version of this scene armed it only from
- * `#onState`, so a phase that caught up between updates sat fully shown,
- * `complete`, and un-closing until Skip. Similarly, if `state.game` disappears
- * or the game ends (`state.game.outcome`), the scene stops itself without
- * waiting to be told.
+ * This scene watches the same store Board does. Once the walkthrough reports `complete` and every beat it knows
+ * about has been revealed, it draws the recap instead of the walkthrough panel (`ui/villain-recap-panel.ts`,
+ * `view/villain-recap.ts`; mockups D3/T3/P4): what changed, then every card of the five steps in the order it
+ * happened, with an AUTO-ADVANCE toggle, FULL LOG (opens Pause, which holds the game log) and START PLAYER PHASE.
+ * What happens next is `settings.villainAutoAdvance` (`#syncTiming`):
+ *  - "off" (default): nothing closes the recap on a timer; the player presses Start player phase (or Hide/Esc).
+ *  - "afterPause": the recap closes itself after `VILLAIN_RECAP_PAUSE_MS`.
+ *  - "on": no recap at all; the last beat gets one beat interval (`villainBeatIntervalMs`) and the screen closes.
+ * Beats are revealed one per `villainBeatIntervalMs(villainBeatSpeed)`. The "before" half of the "what changed"
+ * tiles is the game Board handed over at launch (`VillainPhaseLaunchData`). Because a whole phase can (and often
+ * does) finish revealing between two store updates, `#syncTiming` re-checks from the reveal timer's own tick the
+ * moment it catches up, not only from a fresh store update (a pre-2026-09-29 version hung there). Similarly, if
+ * `state.game` disappears or the game ends (`state.game.outcome`), the scene stops itself without waiting to be told.
  *
+ * ---------------------------------------------------------------------------
  * REDUCED MOTION
  * ---------------------------------------------------------------------------
  * The whole reason this screen exists is that the engine can hand over an
@@ -173,19 +170,15 @@ import type { BoardScene } from "./board.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion } from "../ui/transitions.js";
+import { RECAP_SCROLL_SLOTS, drawVillainRecapPanel } from "../ui/villain-recap-panel.js";
+import { villainRecapOf } from "../view/villain-recap.js";
+import { VariableListScroll } from "../view/variable-list-scroll.js";
+import { VILLAIN_RECAP_PAUSE_MS, villainBeatIntervalMs } from "../settings.js";
 
-/** How often a new beat is revealed while auto-advancing at normal motion. */
-const REVEAL_INTERVAL_MS = 550;
-/**
- * How long the finished screen waits before closing itself, at normal motion.
- *
- * Long enough to read the last beat that just landed: beats arrive every
- * `REVEAL_INTERVAL_MS`, so a tail shorter than a beat or two would take the
- * final one off the screen faster than the player was reading the ones before
- * it. Under reduced motion the screen does not auto-close at all — see
- * `#syncTiming`.
- */
-const AUTO_CLOSE_DELAY_MS = 2600;
+/** What Board hands over when it opens the walkthrough: the game as it stood before the command that began the phase. */
+export interface VillainPhaseLaunchData {
+  readonly before: GameState | null;
+}
 
 const totalBeatsOf = (walkthrough: Walkthrough): number =>
   walkthrough.steps.reduce((sum, step) => sum + step.beats.length, 0);
@@ -267,13 +260,19 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
   #motion = new OverlayMotion();
+  /** The game before the phase began, for the recap's "what changed" tiles. */
+  #before: GameState | null = null;
+  /** One scroll position per recap steps region, kept across redraws. */
+  #recapScrolls: VariableListScroll[] = Array.from({ length: RECAP_SCROLL_SLOTS }, () => new VariableListScroll());
 
   constructor() {
     super({ key: SCENES.villainPhase });
   }
 
-  create(): void {
+  create(data?: VillainPhaseLaunchData): void {
     this.#motion = new OverlayMotion();
+    this.#before = data?.before ?? null;
+    this.#recapScrolls.forEach((scroll) => scroll.reset());
     this.#walkthrough = emptyWalkthrough(1);
     this.#revealed = 0;
     this.#version = -2;
@@ -463,7 +462,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       this.#revealed = total;
     } else if (this.#revealed < total && !this.#revealTimer) {
       this.#revealTimer = this.time.addEvent({
-        delay: REVEAL_INTERVAL_MS,
+        delay: villainBeatIntervalMs(appSession().settings.villainBeatSpeed),
         loop: true,
         callback: () => {
           const currentTotal = totalBeatsOf(this.#walkthrough);
@@ -485,21 +484,53 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     }
 
     /**
-     * Reduced motion never auto-closes.
+     * What happens once the phase is complete and every beat is shown (`settings.villainAutoAdvance`):
+     *  - "off" (default): nothing. The recap stays up until the player starts the player phase (#117).
+     *  - "afterPause": the recap closes itself after `VILLAIN_RECAP_PAUSE_MS`.
+     *  - "on": no recap; the last beat gets one beat interval to be read, then the screen closes.
+     * Reduced motion never auto-closes, whatever the setting.
      *
-     * With no reveal timer the whole phase appears at once, so a close timer
-     * would give the player who asked for less motion the *least* time to read
-     * it — the screen would land complete and vanish a moment later. That is
-     * the opposite of this scene's stated reduced-motion contract ("the player
-     * reads at their own pace rather than a timer's"), so the only ways out
-     * here are the ones the player drives: Continue, Skip, or Esc.
+     * With no reveal timer the whole phase appears at once, so a close timer would give the player who asked for
+     * less motion the *least* time to read it. The only ways out are the ones the player drives: Start player
+     * phase, Hide (Skip), or Esc.
      */
-    if (!reducedMotion && readyToAutoClose(this.#walkthrough.complete, this.#revealed, total)) {
-      this.#closeTimer ??= this.time.delayedCall(AUTO_CLOSE_DELAY_MS, () => this.#close());
+    const mode = appSession().settings.villainAutoAdvance;
+    const delay =
+      mode === "on"
+        ? villainBeatIntervalMs(appSession().settings.villainBeatSpeed)
+        : mode === "afterPause"
+          ? VILLAIN_RECAP_PAUSE_MS
+          : null;
+    if (!reducedMotion && delay !== null && readyToAutoClose(this.#walkthrough.complete, this.#revealed, total)) {
+      this.#closeTimer ??= this.time.delayedCall(delay, () => this.#close());
     } else {
       this.#closeTimer?.remove();
       this.#closeTimer = null;
     }
+  }
+
+  /** True when the finished phase is shown as the held-open recap rather than the walkthrough panel. */
+  #recapShowing(reveal: Reveal): boolean {
+    if (!(this.#walkthrough.complete && reveal.caughtUp)) return false;
+    // "on" skips the recap, except under reduced motion where nothing may close on a timer.
+    return appSession().settings.villainAutoAdvance !== "on" || appSession().settings.reducedMotion;
+  }
+
+  /** The recap's AUTO-ADVANCE toggle: OFF to "afterPause", anything else back to "off". Saved like any setting. */
+  #toggleAutoAdvance(): void {
+    const settings = appSession().settings;
+    appSession().settings = {
+      ...settings,
+      villainAutoAdvance: settings.villainAutoAdvance === "off" ? "afterPause" : "off",
+    };
+    this.#syncTiming();
+    this.#draw();
+  }
+
+  /** FULL LOG: the board's full game log lives in Pause, so this opens Pause over the recap. */
+  #openFullLog(): void {
+    if (this.scene.isActive(SCENES.pause)) return;
+    this.scene.launch(SCENES.pause);
   }
 
   #draw(): void {
@@ -537,6 +568,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const stripHeight = guideStrip ? GUIDE_STRIP_HEIGHT : 0;
     const bounds: Rect = { x: guideRailWidth, y: 0, width: width - guideRailWidth, height: height - stripHeight };
     const layout = villainPhaseLayout(bounds, formFactor, boostCount);
+    const pausedInline =
+      this.#walkthrough.pausedAt && game.pendingChoice && inlineInterruptFor(game.pendingChoice, viewer);
 
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.ink.hex, 0.7).fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
@@ -547,6 +580,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // clear on purpose, stays live.
     addPressShield(this, { x: bounds.x, y: 0, width: bounds.width, height });
     const panelsFrom = this.children.list.length;
+
+    if (!pausedInline && this.#recapShowing(reveal)) {
+      this.#drawRecap(bounds, formFactor, game, viewer);
+      this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
+      return;
+    }
 
     const g = this.add.graphics();
     g.fillStyle(surface.ink.hex, 1).fillRect(layout.panel.x, layout.panel.y, layout.panel.width, layout.panel.height);
@@ -692,6 +731,32 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     }
 
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
+  }
+
+  /** The held-open recap (D3/T3/P4): `ui/villain-recap-panel.ts` paints it; this wires it to the scene. */
+  #drawRecap(bounds: Rect, formFactor: FormFactor, game: GameState, viewer: PlayerId | null): void {
+    const recap = villainRecapOf(this.#walkthrough, this.#before, game, viewer, POOL_DEPS);
+    const { layout, stops } = drawVillainRecapPanel(this, {
+      bounds,
+      formFactor,
+      recap,
+      game,
+      autoAdvance: appSession().settings.villainAutoAdvance,
+      scrolls: this.#recapScrolls,
+      buttons: this.#buttons,
+      onHide: () => this.#skip(),
+      onFullLog: () => this.#openFullLog(),
+      onToggle: () => this.#toggleAutoAdvance(),
+      onStart: () => this.#close(),
+    });
+    // The recap is finished by definition, so Start player phase is first in the route.
+    this.#route?.set(villainPhaseFocusOrder(true, [], undefined, true), stops);
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcVillainPhaseDebug?: unknown }).__mcVillainPhaseDebug = {
+        continueRect: () => layout.cta,
+        skipRect: () => layout.hide,
+      };
+    }
   }
 
   #subtitle(reveal: Reveal): string {

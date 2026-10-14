@@ -351,6 +351,11 @@ describe("screen focus routes", () => {
     expect(villainPhaseFocusOrder(true)).toEqual(["continue", "skip"]);
   });
 
+  test("the held-open recap adds its toggle and FULL LOG after Start player phase", () => {
+    expect(villainPhaseFocusOrder(true, [], undefined, true)).toEqual(["continue", "toggle", "full-log", "skip"]);
+    expect(villainPhaseFocusOrder(false, [], undefined, true)).toEqual(["skip"]);
+  });
+
   test("the inline interrupt window's own controls come right after Continue and before Skip", () => {
     expect(villainPhaseFocusOrder(false, ["a:1"])).toEqual(["interrupt:a:1", "resolve", "skip"]);
     expect(villainPhaseFocusOrder(false, [])).toEqual(["skip"]);

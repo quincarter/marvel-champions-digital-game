@@ -26,7 +26,8 @@
 import Phaser from "phaser";
 import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
 import type { AbilityId } from "@mc/content";
-import { cardOf, type GameEvent, type InstanceId, type PlayerId } from "@mc/engine";
+import { cardOf, type GameEvent, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import type { VillainPhaseLaunchData } from "./villain-phase.js";
 import { cardArt, type CardArt } from "../art/card-art.js";
 import { appSession } from "../session.js";
 import { dotGrid, surface } from "../tokens.js";
@@ -142,6 +143,8 @@ export class BoardScene extends Phaser.Scene {
   /** What the last draw left behind: hit rects, focus rects, and the widgets to destroy before the next one. */
   #frame: BoardFrame = emptyFrame();
   #version = -1;
+  /** The game from the previous fresh state; handed to the villain phase scene as its recap's "before". */
+  #previousGame: GameState | null = null;
   /**
    * The table log and card history as they stood at each command version, so a Back out (`SessionStore.rewindTo`)
    * restores them exactly instead of keeping lines for the play it undid.
@@ -290,6 +293,7 @@ export class BoardScene extends Phaser.Scene {
     appSession().gameLog = this.#log;
     this.#logPanel.reset();
     this.#version = -1;
+    this.#previousGame = null;
     this.#logAt.clear();
     this.#tabBadges.clear();
     this.#tabChanged.clear();
@@ -505,6 +509,9 @@ export class BoardScene extends Phaser.Scene {
 
     // Fold this command's events onto the log before the state replaces it.
     const fresh = state.version !== this.#version;
+    // The game as it stood before this command, for the villain phase recap's "what changed" tiles.
+    const previousGame = this.#previousGame;
+    if (fresh) this.#previousGame = state.game;
     // Back out rewound the game: put the log back as it was at that version, and skip this update's replay events.
     const rewound = fresh && state.version < this.#version ? this.#logAt.get(state.version) : undefined;
     if (rewound) {
@@ -593,7 +600,7 @@ export class BoardScene extends Phaser.Scene {
     }
     // Only a *new* command can start a villain phase; a plain redraw re-reads
     // the same `lastEvents` and must not re-open a walkthrough the player skipped.
-    if (fresh) this.#openVillainWalkthrough(state.lastEvents);
+    if (fresh) this.#openVillainWalkthrough(state.lastEvents, previousGame);
     if (fresh) this.#queueCampaignBeat(state);
     // Guided mode G8 part 2: only a *new* command's own events ever get folded into the round debrief's
     // accumulator — same reasoning as the villain-phase walkthrough just above (`fresh`'s own doc comment on
@@ -861,9 +868,9 @@ export class BoardScene extends Phaser.Scene {
    * Opens the villain-phase walkthrough when a villain phase begins.
    *
    * This is the whole of the Board's side of the contract documented at the top
-   * of `scenes/villain-phase.ts`: a bare, payload-free launch. The overlay
-   * subscribes to the store itself, accumulates the phase's beats across the
-   * several commands one phase can span, and closes itself when the phase ends.
+   * of `scenes/villain-phase.ts`: one launch carrying only the game as it stood before the command that began the
+   * phase (the recap's "what changed" tiles read it). The overlay subscribes to the store itself, accumulates the
+   * phase's beats across the several commands one phase can span, and shows its recap when the phase ends.
    *
    * `placeThreat` is villain-phase step one, so this fires exactly once per
    * phase and never on the later within-phase step changes — which is what lets
@@ -876,13 +883,13 @@ export class BoardScene extends Phaser.Scene {
    * reveal cursor mid-phase. (`run()` is no safer: a RUNNING scene falls through
    * its sleeping/paused branches to the same `start()`.)
    */
-  #openVillainWalkthrough(events: readonly GameEvent[]): void {
+  #openVillainWalkthrough(events: readonly GameEvent[], before: GameState | null): void {
     if (this.scene.isActive(SCENES.villainPhase)) return;
     const begins = events.some(
       (event) => event.type === "stepChanged" && event.to.phase === "villain" && event.to.kind === "placeThreat",
     );
     if (!begins) return;
-    this.scene.launch(SCENES.villainPhase);
+    this.scene.launch(SCENES.villainPhase, { before } satisfies VillainPhaseLaunchData);
     this.#walkthroughLaunching = true;
     // Cleared when the walkthrough has been created, not only when a draw happens to see it active: the Board's time
     // does not run while the walkthrough is up, so on a slow machine no draw may have seen it, and the flag then
