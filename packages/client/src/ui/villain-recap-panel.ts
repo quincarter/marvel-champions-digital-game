@@ -11,7 +11,8 @@ import { faceOf } from "../view/board-model.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import type { FocusStop } from "../scenes/focus-route.js";
 import { SCENES } from "../scenes/keys.js";
-import { VILLAIN_RECAP_PAUSE_MS, type VillainAutoAdvance } from "../settings.js";
+import { VILLAIN_RECAP_PAUSE_MS, cardSizeFactor, type VillainAutoAdvance } from "../settings.js";
+import { appSession } from "../session.js";
 import { accent, border, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import type { FormFactor, Rect } from "../view/layout.js";
 import type { VariableListScroll } from "../view/variable-list-scroll.js";
@@ -263,7 +264,9 @@ function drawEntry(
   const inkColor = surface.ink.hex;
   const left = slot.x + PAD;
   const innerWidth = slot.width - PAD * 2;
-  const thumbW = phone ? 44 : slot.width < 240 ? 48 : 56;
+  // The global Card size draws the recap's cards larger too, never wider than a third of the column.
+  const sized = (phone ? 44 : slot.width < 240 ? 48 : 56) * cardSizeFactor(appSession().settings.cardSize);
+  const thumbW = Math.round(Math.min(sized, slot.width / 3));
   const thumbH = Math.round(thumbW * 1.4);
   const boostW = Math.round(thumbW * 0.8);
   const boostH = Math.round(boostW * 1.4);

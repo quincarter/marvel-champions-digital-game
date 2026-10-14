@@ -204,3 +204,40 @@ describe("villainPeekLayout", () => {
     expect(overlaps(peek.text, peek.back)).toBe(false);
   });
 });
+
+describe("card size (the global Card size setting)", () => {
+  const scales = [1, 1.25, 1.5] as const;
+  it.each(scales)("keeps every docked shape whole at %s×: inside the panel, body and interrupt apart", (cardScale) => {
+    const shapes = [
+      villainRailLayout({ panel: SHORT, revealing: true, interruptOptions: 1, cardScale }),
+      villainRailLayout({ panel: TALL, revealing: false, interruptOptions: 2, cardScale }),
+      villainBandLayout({ panel: BAND, revealing: true, interruptOptions: 1, cardScale }),
+      villainTabLayout({ ...PHONE, revealing: true, interruptOptions: 1, cardScale }),
+      villainTabLayout({ ...PORTRAIT, revealing: false, interruptOptions: 1, cardScale }),
+    ];
+    for (const layout of shapes) {
+      expect(inside(layout.body, layout.panel)).toBe(true);
+      expect(inside(layout.bodyArt, layout.body)).toBe(true);
+      expect(layout.bodyText.width).toBeGreaterThan(0);
+      if (layout.interrupt) {
+        expect(inside(layout.interrupt.frame, layout.panel)).toBe(true);
+        expect(inside(layout.interrupt.card, layout.interrupt.frame)).toBe(true);
+        expect(overlaps(layout.interrupt.frame, layout.body)).toBe(false);
+        expect(layout.interrupt.text.width).toBeGreaterThan(0);
+        if (layout.kind === "rail") {
+          expect(layout.interrupt.frame.y + layout.interrupt.frame.height).toBeLessThanOrEqual(layout.footer.y + 0.5);
+        }
+      }
+      if (layout.log.height > 0) expect(inside(layout.log, layout.panel)).toBe(true);
+    }
+  });
+
+  it("draws the revealed card and the enemy larger where the panel has room", () => {
+    const at = (cardScale: number) =>
+      villainRailLayout({ panel: TALL, revealing: true, interruptOptions: 0, cardScale });
+    expect(at(1.5).bodyArt.width).toBeGreaterThan(at(1).bodyArt.width);
+    const happening = (cardScale: number) =>
+      villainRailLayout({ panel: TALL, revealing: false, interruptOptions: 0, cardScale });
+    expect(happening(1.5).bodyArt.width).toBeGreaterThan(happening(1).bodyArt.width);
+  });
+});

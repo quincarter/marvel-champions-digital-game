@@ -51,7 +51,15 @@ export interface VillainRailInput {
   readonly revealing: boolean;
   /** How many options the inline interrupt window offers; 0 when there is no window. */
   readonly interruptOptions: number;
+  /**
+   * The global Card size (`cardSizeFactor`: 1, 1.25, 1.5): the enemy, the revealed card and the interrupt card are
+   * drawn that much larger where the panel has the room, the log giving way first. Defaults to 1.
+   */
+  readonly cardScale?: number;
 }
+
+/** A share of a width scaled by the card size, never past `cap`. */
+const scaledShare = (share: number, scale: number, cap: number): number => Math.min(cap, share * scale);
 
 export interface VillainRailInterruptLayout {
   readonly frame: Rect;
@@ -101,11 +109,11 @@ export interface VillainRailLayout {
 }
 
 /** The interrupt window's inner geometry for `frame`, with `options` options (at least one). */
-export function villainRailInterruptLayout(frame: Rect, options: number): VillainRailInterruptLayout {
+export function villainRailInterruptLayout(frame: Rect, options: number, cardScale = 1): VillainRailInterruptLayout {
   const pad = 18;
   const inner = { x: frame.x + pad, width: frame.width - pad * 2 };
   const title: Rect = { x: inner.x, y: frame.y + 14, width: inner.width, height: 18 };
-  if (frame.height < INTERRUPT_HEIGHT_MIN) return shortInterruptLayout(frame, options, inner, title, pad);
+  if (frame.height < INTERRUPT_HEIGHT_MIN) return shortInterruptLayout(frame, options, inner, title, pad, cardScale);
   const buttonHeight = hit.primary + 12;
   const buttonsY = frame.y + frame.height - pad - buttonHeight;
   const extras = Math.max(0, Math.min(INTERRUPT_MAX_ROWS, options - 1));
@@ -113,7 +121,10 @@ export function villainRailInterruptLayout(frame: Rect, options: number): Villai
   const cardTop = title.y + title.height + 12;
   const cardBottom = buttonsY - 14 - extraHeight;
   const cardHeight = Math.max(0, cardBottom - cardTop);
-  const cardWidth = Math.min(Math.round(cardHeight * CARD_RATIO), Math.round(inner.width * 0.34));
+  const cardWidth = Math.min(
+    Math.round(cardHeight * CARD_RATIO),
+    Math.round(inner.width * scaledShare(0.34, cardScale, 0.46)),
+  );
   const card: Rect = { x: inner.x, y: cardTop, width: cardWidth, height: Math.round(cardWidth / CARD_RATIO) };
   const text: Rect = {
     x: card.x + card.width + 16,
@@ -149,10 +160,14 @@ function shortInterruptLayout(
   inner: { readonly x: number; readonly width: number },
   title: Rect,
   pad: number,
+  cardScale: number,
 ): VillainRailInterruptLayout {
   const cardTop = title.y + title.height + 10;
   const cardHeight = Math.max(0, frame.y + frame.height - pad - cardTop);
-  const cardWidth = Math.min(Math.round(cardHeight * CARD_RATIO), Math.round(inner.width * 0.3));
+  const cardWidth = Math.min(
+    Math.round(cardHeight * CARD_RATIO),
+    Math.round(inner.width * scaledShare(0.3, cardScale, 0.4)),
+  );
   const card: Rect = { x: inner.x, y: cardTop, width: cardWidth, height: Math.round(cardWidth / CARD_RATIO) };
   const right = { x: card.x + card.width + 14, width: Math.max(0, inner.x + inner.width - (card.x + card.width + 14)) };
   const buttonsY = frame.y + frame.height - pad - hit.primary;
@@ -198,7 +213,9 @@ export function villainRailLayout(input: VillainRailInput): VillainRailLayout {
   };
 
   const extras = Math.max(0, Math.min(INTERRUPT_MAX_ROWS, input.interruptOptions - 1));
-  const interruptPreferred = input.interruptOptions > 0 ? INTERRUPT_HEIGHT_ONE + extras * INTERRUPT_EXTRA_ROW : 0;
+  const scale = input.cardScale ?? 1;
+  const interruptPreferred =
+    input.interruptOptions > 0 ? Math.round(INTERRUPT_HEIGHT_ONE * scale) + extras * INTERRUPT_EXTRA_ROW : 0;
   const interruptFloor = input.interruptOptions > 0 ? INTERRUPT_HEIGHT_MIN + extras * INTERRUPT_EXTRA_ROW : 0;
   const stripHeight = revealing ? STRIP_LABEL_HEIGHT + 6 + STRIP_HEIGHT + SECTION_GAP : 0;
   const listHeight = 5 * STEP_ROW_HEIGHT + 4 * STEP_ROW_GAP + SECTION_GAP;
@@ -233,23 +250,23 @@ export function villainRailLayout(input: VillainRailInput): VillainRailLayout {
 
   // The body takes its full height first while the log still gets its floor; short of that the log goes, then the
   // interrupt window gives back down to its floor, then the body shrinks.
-  const bodyMax = revealing ? REVEAL_BODY_MAX : HAPPENING_BODY_MAX;
+  const bodyMax = Math.round((revealing ? REVEAL_BODY_MAX : HAPPENING_BODY_MAX) * scale);
   let interruptHeight = interruptPreferred;
   let bodyHeight: number;
   if (room - interruptHeight - bodyMax - SECTION_GAP >= LOG_MIN) bodyHeight = bodyMax;
   else {
-    bodyHeight = Math.min(bodyMax, Math.max(0, room - interruptHeight));
-    if (bodyHeight < bodyMax && interruptHeight > interruptFloor) {
-      const give = Math.min(interruptHeight - interruptFloor, bodyMax - bodyHeight);
-      interruptHeight -= give;
-      bodyHeight += give;
-    }
+    // The body takes what the interrupt window's floor leaves, up to its own full height; the window then takes the
+    // rest, up to its preferred height. The two never add up to more than the room.
+    bodyHeight = Math.min(bodyMax, Math.max(0, room - interruptFloor));
+    interruptHeight =
+      interruptPreferred > 0 ? Math.min(interruptPreferred, Math.max(interruptFloor, room - bodyHeight)) : 0;
   }
   const body: Rect = { x, y: cursor, width, height: Math.max(0, bodyHeight) };
   cursor = body.y + body.height + SECTION_GAP;
 
-  const artHeight = revealing ? body.height : Math.min(body.height, 170);
-  const artWidth = Math.min(Math.round(artHeight * CARD_RATIO), Math.round(width * (revealing ? 0.44 : 0.28)));
+  const artHeight = revealing ? body.height : Math.min(body.height, Math.round(170 * scale));
+  const artShare = revealing ? scaledShare(0.44, scale, 0.6) : scaledShare(0.28, scale, 0.4);
+  const artWidth = Math.min(Math.round(artHeight * CARD_RATIO), Math.round(width * artShare));
   const bodyArt: Rect = { x, y: body.y, width: artWidth, height: Math.round(artWidth / CARD_RATIO) };
   const bodyText: Rect = {
     x: bodyArt.x + bodyArt.width + 18,
@@ -260,7 +277,11 @@ export function villainRailLayout(input: VillainRailInput): VillainRailLayout {
 
   let interrupt: VillainRailInterruptLayout | null = null;
   if (interruptHeight > 0) {
-    interrupt = villainRailInterruptLayout({ x, y: cursor, width, height: interruptHeight }, input.interruptOptions);
+    interrupt = villainRailInterruptLayout(
+      { x, y: cursor, width, height: interruptHeight },
+      input.interruptOptions,
+      scale,
+    );
     cursor += interruptHeight + SECTION_GAP;
   }
 
@@ -330,7 +351,10 @@ export function villainBandLayout(input: VillainRailInput): VillainRailLayout {
   const bodyWidth = interruptWidth > 0 ? mainWidth - interruptWidth - 16 : mainWidth;
 
   const body: Rect = { x, y: contentTop, width: bodyWidth, height: contentHeight };
-  const artWidth = Math.min(Math.round(body.height * CARD_RATIO), Math.round(body.width * 0.42));
+  const artWidth = Math.min(
+    Math.round(body.height * CARD_RATIO),
+    Math.round(body.width * scaledShare(0.42, input.cardScale ?? 1, 0.56)),
+  );
   const bodyArt: Rect = { x, y: body.y, width: artWidth, height: Math.round(artWidth / CARD_RATIO) };
   const bodyText: Rect = {
     x: bodyArt.x + bodyArt.width + 14,
@@ -344,6 +368,7 @@ export function villainBandLayout(input: VillainRailInput): VillainRailLayout {
       ? villainRailInterruptLayout(
           { x: x + bodyWidth + 16, y: contentTop, width: interruptWidth, height: contentHeight },
           input.interruptOptions,
+          input.cardScale ?? 1,
         )
       : null;
 
@@ -437,10 +462,11 @@ export function villainTabLayout(input: VillainRailInput & { readonly footer: Re
   const extras = Math.max(0, Math.min(INTERRUPT_MAX_ROWS, input.interruptOptions - 1));
   const interruptHeight = input.interruptOptions > 0 ? (narrow ? 196 : 220) + extras * hit.target : 0;
   const room = Math.max(0, bottom - cursor - (interruptHeight > 0 ? interruptHeight + 10 : 0));
-  const bodyMax = revealing ? (narrow ? 250 : 380) : narrow ? 180 : 230;
+  const scale = input.cardScale ?? 1;
+  const bodyMax = Math.round((revealing ? (narrow ? 250 : 380) : narrow ? 180 : 230) * scale);
   const bodyHeight = Math.min(bodyMax, room);
   const body: Rect = { x, y: cursor, width, height: bodyHeight };
-  const artShare = revealing ? 0.42 : 0.3;
+  const artShare = revealing ? scaledShare(0.42, scale, 0.58) : scaledShare(0.3, scale, 0.42);
   const artWidth = Math.min(Math.round((body.height - 16) * CARD_RATIO), Math.round(width * artShare));
   const bodyArt: Rect = { x: x + 8, y: body.y + 8, width: artWidth, height: Math.round(artWidth / CARD_RATIO) };
   const bodyText: Rect = {
@@ -458,7 +484,10 @@ export function villainTabLayout(input: VillainRailInput & { readonly footer: Re
     const titleRect: Rect = { x: x + pad, y: frame.y + 12, width: width - pad * 2, height: 18 };
     const cardTop = titleRect.y + titleRect.height + 10;
     const cardBottom = frame.y + frame.height - pad - extras * hit.target;
-    const cardWidth = Math.min(Math.round((cardBottom - cardTop) * CARD_RATIO), Math.round(width * 0.3));
+    const cardWidth = Math.min(
+      Math.round((cardBottom - cardTop) * CARD_RATIO),
+      Math.round(width * scaledShare(0.3, scale, 0.42)),
+    );
     const card: Rect = { x: x + pad, y: cardTop, width: cardWidth, height: Math.round(cardWidth / CARD_RATIO) };
     const textX = card.x + card.width + 14;
     // The answer is the action bar's: USE / PLAY on the left, RESOLVE ▸ on the right, at the thumb.

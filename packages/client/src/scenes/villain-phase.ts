@@ -182,7 +182,7 @@ import { slideOffset, villainSlideEdge, type VillainReview } from "../view/villa
 import { RECAP_SCROLL_SLOTS, drawVillainRecapPanel } from "../ui/villain-recap-panel.js";
 import { villainRecapOf } from "../view/villain-recap.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
-import { VILLAIN_RECAP_PAUSE_MS, villainBeatIntervalMs } from "../settings.js";
+import { VILLAIN_RECAP_PAUSE_MS, cardSizeFactor, villainBeatIntervalMs } from "../settings.js";
 import { villainDockWidthFor, villainPresentationFor, type VillainDockKind } from "../view/villain-dock.js";
 import {
   villainBandLayout,
@@ -1748,7 +1748,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const inline = pause && game.pendingChoice ? inlineInterruptFor(game.pendingChoice, viewer) : null;
     const strip = this.#encounterStrip(reveal, game, viewer);
     const revealing = reveal.steps[3]?.revealStatus === "active" && strip !== null && strip.tiles.length > 0;
-    const input = { panel, revealing, interruptOptions: inline?.length ?? 0 };
+    const input = {
+      panel,
+      revealing,
+      interruptOptions: inline?.length ?? 0,
+      cardScale: cardSizeFactor(appSession().settings.cardSize),
+    };
     const layout =
       kind === "rail"
         ? villainRailLayout(input)
