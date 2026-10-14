@@ -4,9 +4,8 @@
  * in the box, newest first (a paused player is most likely looking for what
  * just happened, not the start of the round).
  *
- * The box has no scroll of its own — docs/phase4-screen-gaps.md S7's
- * read-only replay board hasn't landed, so a row here isn't clickable yet
- * either (`scenes/pause.ts` draws it plainly) — so this picks exactly as
+ * The box has no scroll of its own (only the lines Undo could get back to
+ * are tap targets, `scenes/pause.ts`'s `#drawUndoMoment`), so this picks exactly as
  * many lines as fit and stops there, the same "don't clip, don't overflow"
  * rule `view/layout.ts`'s `estimateWrappedLines` already serves for every
  * other wrapped-text row in this app.

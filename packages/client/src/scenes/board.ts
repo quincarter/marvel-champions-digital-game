@@ -1592,6 +1592,28 @@ export class BoardScene extends Phaser.Scene {
     this.#guide?.stop();
   }
 
+  /**
+   * The log moments Pause's "Jump to a moment" can rewind to, by log line id: for each point Undo could reach this
+   * turn (`BoardController.undoTargets`), the last line the log had at that point. Going back to it is pressing Undo
+   * that many times. A point whose log is not on record (from before a reload), or whose last line is the newest
+   * line now, is left out; two points that end on the same line keep the nearer one.
+   */
+  undoMoments(): ReadonlyMap<string, number> {
+    const moments = new Map<string, number>();
+    const newest = this.#log.lines.at(-1)?.id;
+    for (const target of this.#controller.undoTargets()) {
+      const line = this.#logAt.get(target)?.log.lines.at(-1);
+      if (!line || line.id === newest || moments.has(line.id)) continue;
+      moments.set(line.id, target);
+    }
+    return moments;
+  }
+
+  /** Rewinds to one of `undoMoments`' points, as repeated Undo would. */
+  undoTo(target: number): Promise<boolean> {
+    return this.#controller.undoTo(target);
+  }
+
   /** Spends `id` for the payment currently open, if it's one of its sources. See `BoardController#payWithCard`'s own comment. */
   payWithCard(id: InstanceId): boolean {
     return this.#controller.payWithCard(id);

@@ -416,3 +416,23 @@ export function undoneSummary(command: Command, cardName: (id: InstanceId) => st
       return "last move";
   }
 }
+
+/**
+ * Every point Undo could rewind to by pressing it again and again, newest first: the command count before each move
+ * `undoOf` would take back in turn, stopping where it would stop. The Pause log's "Jump to a moment" offers exactly
+ * these, so jumping back is pressing Undo several times at once and reaches nothing Undo couldn't.
+ */
+export function undoTargetsOf(
+  trail: readonly BackOutTrailEntry[],
+  game: Pick<GameState, "outcome" | "pendingChoice" | "step">,
+  perspectiveId: PlayerId,
+): readonly number[] {
+  const targets: number[] = [];
+  let rest = trail;
+  for (;;) {
+    const offer = undoOf(rest, game, perspectiveId);
+    if (offer?.kind !== "available") return targets;
+    targets.push(offer.target);
+    rest = rest.slice(0, offer.target);
+  }
+}

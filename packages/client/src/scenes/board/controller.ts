@@ -56,7 +56,7 @@ import {
 } from "../../view/in-play-cost-choice.js";
 import { inPlayCostPanelOf, seatOptionsOf, seatPanelOf } from "../../view/pick-panels.js";
 import { focusOrder, type FocusTarget } from "../../view/focus.js";
-import { undoOf, undoneSummary, UNDO_REASONS, type UndoOffer } from "../../view/undo.js";
+import { undoOf, undoTargetsOf, undoneSummary, UNDO_REASONS, type UndoOffer } from "../../view/undo.js";
 import {
   abilityActionsFor,
   legalEntriesOf,
@@ -1548,6 +1548,46 @@ export class BoardController {
       const { game } = appSession().store.state;
       const what = game ? undoneSummary(offer.command, (id) => cardName(game, id)) : "last move";
       if (await appSession().store.rewindTo(offer.target)) this.#noteUndo(`Undid: ${what}`);
+    } finally {
+      this.#undoing = false;
+      this.#undoSettledAt = Date.now();
+    }
+  }
+
+  /**
+   * Every point Undo could reach by pressing it again and again (`undoTargetsOf`), newest first: the Pause log's
+   * "Jump to a moment" offers these and nothing else. Empty whenever Undo itself isn't available.
+   */
+  undoTargets(): readonly number[] {
+    if (this.#readOnly || this.#guideGate.current !== null) return [];
+    if (this.undoOffer()?.kind !== "available") return [];
+    const { game, perspectiveId, commandTrail } = appSession().store.state;
+    if (!game || !perspectiveId) return [];
+    return undoTargetsOf(commandTrail, game, perspectiveId);
+  }
+
+  /**
+   * Undo pressed as many times as it takes to get back to `target` (one of `undoTargets`), in one rewind, with the
+   * same notice and the same one-at-a-time guard as Undo. False when `target` isn't reachable or nothing was undone.
+   */
+  async undoTo(target: number): Promise<boolean> {
+    const targets = this.undoTargets();
+    const steps = targets.indexOf(target) + 1;
+    if (steps === 0) return false;
+    if (this.#undoing || Date.now() < this.#undoSettledAt + UNDO_COOLDOWN_MS) return false;
+    this.#undoing = true;
+    try {
+      const offer = this.undoOffer();
+      const { game } = appSession().store.state;
+      const what =
+        steps > 1
+          ? `${steps} moves`
+          : game && offer?.kind === "available"
+            ? undoneSummary(offer.command, (id) => cardName(game, id))
+            : "last move";
+      if (!(await appSession().store.rewindTo(target))) return false;
+      this.#noteUndo(`Undid: ${what}`);
+      return true;
     } finally {
       this.#undoing = false;
       this.#undoSettledAt = Date.now();

@@ -85,6 +85,7 @@ export default defineConfig({
         "routed-tucked.spec.ts",
         "assault-thwart-preview.spec.ts",
         "undo.spec.ts",
+        "pause-undo-moment.spec.ts",
         "wave10-discard-sheet.spec.ts",
         "wave10-hunted-sheet.spec.ts",
         "wave10-x-stepper-phone.spec.ts",

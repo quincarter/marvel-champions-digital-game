@@ -4,7 +4,7 @@ import { LocalEngineHost } from "../engine/local-host.js";
 import type { SessionConfig } from "../engine/host.js";
 import { SessionStore } from "../store/session-store.js";
 import type { BackOutTrailEntry } from "./back-out.js";
-import { UNDO_REASONS, undoOf } from "./undo.js";
+import { UNDO_REASONS, undoOf, undoTargetsOf } from "./undo.js";
 
 const P1 = "p1" as PlayerId;
 const P2 = "p2" as PlayerId;
@@ -89,6 +89,24 @@ describe("undoOf", () => {
   test("never takes back a move that crossed a turn or step boundary", () => {
     const trail = [entry(command("basicAttack"), [event("stepChanged")])];
     expect(undoOf(trail, turnOf(P1), P1)).toEqual({ kind: "unavailable", reason: UNDO_REASONS.boundary });
+  });
+});
+
+describe("undoTargetsOf", () => {
+  test("lists every point repeated Undo reaches, newest first, and stops where Undo stops", () => {
+    const trail = [
+      entry(command("endTurn", P2), [event("turnStarted", { playerId: P1 })]),
+      entry(command("useAbility"), [event("cardDrawn", { playerId: P1, instanceId: "x" })]),
+      entry(command("basicThwart")),
+      entry(command("playCard")),
+      entry(command("resolveChoice")),
+    ];
+    expect(undoTargetsOf(trail, turnOf(P1), P1)).toEqual([3, 2]);
+  });
+
+  test("lists nothing when Undo isn't offered", () => {
+    expect(undoTargetsOf([entry(command("playCard"))], turnOf(P2), P1)).toEqual([]);
+    expect(undoTargetsOf([], turnOf(P1), P1)).toEqual([]);
   });
 });
 

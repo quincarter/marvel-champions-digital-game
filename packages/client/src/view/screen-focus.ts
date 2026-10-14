@@ -272,6 +272,8 @@ export type PauseFocusInput =
       readonly kind: "wide";
       /** The keyword/status cards actually shown (`PauseKeywordGrid.shown`'s own count), in grid order. */
       readonly keywordIds: readonly string[];
+      /** The log moments "Jump to a moment" can rewind to, by log line id, in draw order (newest first). */
+      readonly momentIds?: readonly string[];
       readonly confirmingConcede: boolean;
       /** §3.10, G5c part 3: true while a guided run is active, adding "Stop tutorial"/"Turn guide off" to the menu. */
       readonly guidedRunActive?: boolean;
@@ -279,6 +281,8 @@ export type PauseFocusInput =
   | {
       readonly kind: "phone";
       readonly quickReferenceIds: readonly string[];
+      /** As wide's: the log moments shown in place of Table/Guide while the Game log row is open. */
+      readonly momentIds?: readonly string[];
       readonly tableRowIds: readonly string[];
       /** The Guide group's own stop ids after "Table" (docs/guided-mode.md §4 G2b): `"guide-level:<value>"` for each segment, then each action/toggle row's own id, in draw order. */
       readonly guideRowIds?: readonly string[];
@@ -301,12 +305,14 @@ export function pauseFocusOrder(input: PauseFocusInput): readonly string[] {
       ...(input.guidedRunActive ? GUIDE_RUN_IDS : []),
       ...(input.confirmingConcede ? ["concede-confirm-yes", "concede-confirm-cancel"] : ["concede"]),
       ...input.keywordIds.map((id) => `keyword:${id}`),
+      ...(input.momentIds ?? []).map((id) => `moment:${id}`),
     ];
   }
   return [
     "close",
     "search",
     ...input.quickReferenceIds.map((id) => `quick:${id}`),
+    ...(input.momentIds ?? []).map((id) => `moment:${id}`),
     ...(input.guidedRunActive ? GUIDE_RUN_IDS : []),
     ...input.tableRowIds.map((id) => `table:${id}`),
     ...(input.guideRowIds ?? []).map((id) => `guide:${id}`),
