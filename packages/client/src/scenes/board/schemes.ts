@@ -116,6 +116,7 @@ function drawScrollingRows(
     onScroll: place,
   });
   ctx.frame.regions.push(region);
+  if (list.heights.reduce((sum, height) => sum + height, 0) > viewport.height) ctx.frame.innerScroll.push(viewport);
   const before = scene.children.list.length;
   for (const row of rows) drawScheme(ctx, row.rect, all[row.index]!);
   region.content.add(scene.children.list.slice(before));

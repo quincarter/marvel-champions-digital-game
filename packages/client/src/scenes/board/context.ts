@@ -49,6 +49,11 @@ export interface BoardFrame {
   readonly masks: Phaser.GameObjects.Graphics[];
   /** Scroll regions this draw made (the schemes column). They hold scene input listeners, so each is destroyed before the next draw. */
   readonly regions: { destroy(): void }[];
+  /**
+   * Screen areas where a wheel or a touch drag scrolls something of its own (the schemes column when it overflows, the
+   * log), so the table's own scroll at a larger Card size leaves them alone.
+   */
+  readonly innerScroll: Rect[];
 }
 
 export const emptyFrame = (): BoardFrame => ({
@@ -59,6 +64,7 @@ export const emptyFrame = (): BoardFrame => ({
   rings: [],
   masks: [],
   regions: [],
+  innerScroll: [],
 });
 
 /**

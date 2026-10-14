@@ -46,7 +46,17 @@ import { tabKeysTouchedBy } from "../view/tab-badges.js";
 import { playerName } from "../view/names.js";
 import type { GamepadIntent } from "../view/gamepad.js";
 import { sameTarget, stepFocus, type FocusTarget } from "../view/focus.js";
-import { boardLayout, formFactorFor, type BoardLayout, type PhoneTab, type Rect } from "../view/layout.js";
+import {
+  boardLayout,
+  formFactorFor,
+  scrollLayout,
+  type BoardLayout,
+  type PhoneTab,
+  type Rect,
+} from "../view/layout.js";
+import { cardSizeFactor } from "../settings.js";
+import { setTapOccluders } from "../ui/tap.js";
+import { TableDrag, clampScroll, fullyInWindow, revealScroll, wheelPixels } from "../view/table-scroll.js";
 import { villainDockRects, type VillainDockRects, type VillainDockRequest } from "../view/villain-dock.js";
 import { sameHandTags, type VillainHandTag } from "../view/villain-hand-tags.js";
 import { reviewHandleRect, showReviewHandle } from "../view/villain-review.js";
@@ -247,6 +257,18 @@ export class BoardScene extends Phaser.Scene {
   readonly #playAreaScroll = new PlayAreaScroll(() => this.#draw());
   readonly #logPanel = new LogPanel(() => this.#draw());
   readonly #motion = new BoardMotion(this);
+  /**
+   * How far the table is scrolled at a Card size above Standard (`LayoutOptions.cardScale`): the offset the next draw lays
+   * the table's zones out at. 0 at Standard, where nothing scrolls. Clamped to the layout's extent on every draw.
+   */
+  #tableScroll = 0;
+  /** A scroll (wheel, drag, reveal) asked for a redraw: `update` does it once a frame, however many events came. */
+  #scrollDirty = false;
+  readonly #tableDrag = new TableDrag();
+  /** The Card size the last draw used: a change (Settings opened from Pause) redraws the table at the new size. */
+  #drawnCardSize: string | null = null;
+  /** The target set a reveal last ran for, so a target prompt scrolls its first target into view once, not every draw. */
+  #revealedTargets: string | null = null;
 
   get #art(): CardArt {
     this.#artCache ??= cardArt(this);
@@ -271,6 +293,8 @@ export class BoardScene extends Phaser.Scene {
 
   /** The hand's flick coasts frame by frame; everything else on the table moves by tween or by redraw. */
   override update(_time: number, deltaMs: number): void {
+    // Settings can be opened over the board from Pause and change the Card size under it; a wheel or drag asked for a scroll.
+    if (this.#scrollDirty || (this.#model && appSession().settings.cardSize !== this.#drawnCardSize)) this.#draw();
     this.#hand.tick(deltaMs);
     this.#playAreaScroll.row.tick(deltaMs);
     // Checked every frame, not only on a store update: the villain-phase walkthrough and the pending-choice
@@ -303,6 +327,9 @@ export class BoardScene extends Phaser.Scene {
     // A fresh game has no villain phase to look back on yet.
     appSession().villainReview = null;
     this.#logPanel.reset();
+    this.#tableScroll = 0;
+    this.#scrollDirty = false;
+    this.#revealedTargets = null;
     this.#version = -1;
     this.#previousGame = null;
     this.#logAt.clear();
@@ -444,6 +471,13 @@ export class BoardScene extends Phaser.Scene {
     this.input.on("wheel", this.#playAreaScroll.row.onWheel, this.#playAreaScroll.row);
     // The same for the game log, which checks the pointer is over it.
     this.input.on("wheel", this.#logPanel.onWheel, this.#logPanel);
+    // At a larger Card size the table scrolls: a wheel over it (where no scroll region of its own takes the gesture) and a
+    // touch drag. Both only move `#tableScroll`; the next frame redraws.
+    this.input.on("wheel", this.#onTableWheel, this);
+    this.input.on(Phaser.Input.Events.POINTER_DOWN, this.#onTableDown, this);
+    this.input.on(Phaser.Input.Events.POINTER_MOVE, this.#onTableMove, this);
+    this.input.on(Phaser.Input.Events.POINTER_UP, this.#onTableUp, this);
+    this.input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, this.#onTableUp, this);
     // The Inspect overlay's "Play it" comes back here, because playing a card
     // is the board's job: the overlay only ever reports what the engine said.
     this.game.events.on("mc-play-card", this.#onInspectPlay, this);
@@ -465,6 +499,11 @@ export class BoardScene extends Phaser.Scene {
       this.input.off("wheel", this.#hand.onWheel, this.#hand);
       this.input.off("wheel", this.#playAreaScroll.row.onWheel, this.#playAreaScroll.row);
       this.input.off("wheel", this.#logPanel.onWheel, this.#logPanel);
+      this.input.off("wheel", this.#onTableWheel, this);
+      this.input.off(Phaser.Input.Events.POINTER_DOWN, this.#onTableDown, this);
+      this.input.off(Phaser.Input.Events.POINTER_MOVE, this.#onTableMove, this);
+      this.input.off(Phaser.Input.Events.POINTER_UP, this.#onTableUp, this);
+      this.input.off(Phaser.Input.Events.POINTER_UP_OUTSIDE, this.#onTableUp, this);
       /**
        * The overlays this scene launches run in parallel over it, so stopping
        * the Board doesn't stop them. When the game ends `#onState` hands off to
@@ -1090,13 +1129,23 @@ export class BoardScene extends Phaser.Scene {
     // underneath it (guided mode G5c, `scenes/board/guide-mount.ts`'s own header).
     const guideRail = this.#guide?.railOptionFor(viewport) ?? undefined;
     const dock = this.#villainDock;
-    const layout = boardLayout(viewport, {
+    // The Card size setting: above Standard the table is laid out taller than its window and scrolls (`scrollLayout`
+    // moves the table's zones to the current offset, so every rect below is a screen rect, scrolled or not).
+    const cardSize = appSession().settings.cardSize;
+    const cardScale = cardSizeFactor(cardSize);
+    this.#drawnCardSize = cardSize;
+    this.#scrollDirty = false;
+    const atRest = boardLayout(viewport, {
       playerCount: model.team.length + 1,
       neutralArea: model.scenarioPlayAreas.some((area) => area.neutral),
       activeTab: this.#activeTab,
       ...(guideRail ? { guideRail } : {}),
       ...(dock?.request === "rail" ? { villainDock: dock.width } : {}),
+      ...(cardScale > 1 ? { cardScale } : {}),
     });
+    const layout = scrollLayout(atRest, this.#tableScroll);
+    this.#tableScroll = layout.scrollY;
+    const scrolling = layout.maxScroll > 0;
     this.#layout = layout;
     this.#villainDockRects = dock ? villainDockRects(dock.request, layout, dock.width) : null;
 
@@ -1125,14 +1174,19 @@ export class BoardScene extends Phaser.Scene {
     paintDotGrid(this, { x: 0, y: 0, width, height }, "ink", dotGrid.onInk);
 
     const { zones } = layout;
-    drawChrome(this, zones.chrome!, model, {
-      notSaving: appSession().store.state.saveError !== null,
-      onMenu: () => this.#openPause(),
-      ...(this.#hasEvidence() ? { onEvidence: () => this.#openEvidence() } : {}),
-      buttons: this.#frame.buttons,
-      motion: this.#motion,
-    });
-    if (zones.tabs) this.#drawTabs(zones.tabs, model);
+    const drawTopBand = (): void => {
+      drawChrome(this, zones.chrome!, model, {
+        notSaving: appSession().store.state.saveError !== null,
+        onMenu: () => this.#openPause(),
+        ...(this.#hasEvidence() ? { onEvidence: () => this.#openEvidence() } : {}),
+        buttons: this.#frame.buttons,
+        motion: this.#motion,
+      });
+      if (zones.tabs) this.#drawTabs(zones.tabs, model);
+    };
+    // Scrolled content runs under the chrome and the tab row, so on a scrolling table they are drawn after it, over a
+    // ground; at Standard the order is what it always was.
+    if (!scrolling) drawTopBand();
     // A scenario play area (the mission area) takes the foot of the enemies zone; with none, the zone is whole. The
     // pod's neutral area (God of Lies) is the pod's shared threat: on a phone it takes the foot of the Threat tab, where
     // there is room for it, and elsewhere it shares the enemies zone's foot strip with any other area.
@@ -1173,6 +1227,14 @@ export class BoardScene extends Phaser.Scene {
     if (zones.me) drawCharacter(ctx, zones.me, model.me, { shape: "wide", playerId: model.perspectiveId });
     if (zones.playArea) drawPlayArea(ctx, zones.playArea, model);
     if (zones.team) drawTeam(ctx, zones.team, model);
+    if (zones.log && !logGate.locked) this.#frame.innerScroll.push(setAside?.log ?? zones.log);
+    if (zones.playArea && this.#playAreaScroll.row.canScroll) this.#frame.innerScroll.push(zones.playArea);
+    if (scrolling) {
+      this.#drawScrollBands(layout);
+      drawTopBand();
+    } else {
+      setTapOccluders(this, []);
+    }
     drawHand(ctx, zones.hand!, model);
     drawActionBar(ctx, zones.actionBar!, model);
     this.#drawTargetingPanel(ctx, { x: 0, y: 0, width, height });
@@ -1180,6 +1242,7 @@ export class BoardScene extends Phaser.Scene {
     if (searchedPick) drawSearchedPickSheet(ctx, { x: 0, y: 0, width, height }, searchedPick);
     this.#drawTargetRings();
     this.#drawFocusRing();
+    this.#revealTargets();
     // Turns the moves of a fresh state (if any landed) into travels, now that
     // this frame holds where every card ended up. A no-op on every other redraw.
     this.#motion.startTravels(previous, this.#frame, layout);
@@ -1255,6 +1318,7 @@ export class BoardScene extends Phaser.Scene {
       badges: this.#tabBadges,
       logGate: this.#guide?.logGate() ?? { locked: false, reason: null },
       onSelect: (tab) => {
+        if (tab !== this.#activeTab) this.#tableScroll = 0;
         this.#activeTab = tab;
         // Looking at a tab is what clears its badge.
         this.#tabBadges.delete(tab);
@@ -1301,6 +1365,8 @@ export class BoardScene extends Phaser.Scene {
     for (const target of selection.action.targets) {
       const rect = this.#cardRect(target);
       if (!rect) continue;
+      // A target scrolled under the chrome or the hand has no ring: it would be drawn over them.
+      if (this.#hiddenByScroll(target, rect)) continue;
       const ring = new McSelectionRing(this);
       ring.show(rect, "pulse", reduced);
       this.#frame.rings.push(ring);
@@ -1417,6 +1483,126 @@ export class BoardScene extends Phaser.Scene {
     // A greyed Undo says why while keyboard focus is on it (drawn by the next draw).
     this.#controller.setUndoFocus(this.#focus?.kind === "undo");
     this.#draw();
+    this.#revealFocus();
+  }
+
+  /** True when a table card's rect is not wholly in the window the scrolling table is seen through (the hand and the targeting panel are never scrolled). */
+  #hiddenByScroll(id: InstanceId, rect: Rect): boolean {
+    const layout = this.#layout;
+    if (!layout || layout.maxScroll <= 0) return false;
+    if (this.#controller.targetingPanel() || this.#controller.searchedPick()) return false;
+    if (this.#model?.hand.some((card) => card.instanceId === id)) return false;
+    return !fullyInWindow(rect, layout.tableWindow);
+  }
+
+  /** Keyboard or pad focus moved onto a table card that is scrolled out of view: scroll it in. */
+  #revealFocus(): void {
+    const layout = this.#layout;
+    const focus = this.#focus;
+    if (!layout || layout.maxScroll <= 0 || focus?.kind !== "card" || this.#focusRegion !== "board") return;
+    const rect = this.#frame.focusRects.get(focusKey(focus));
+    if (!rect || !this.#hiddenByScroll(focus.instanceId, rect)) return;
+    this.#scrollTableTo(revealScroll(layout.scrollY, rect, layout.tableWindow, layout.maxScroll));
+  }
+
+  /**
+   * A target prompt opened with every target out of view (scrolled away on a scrolling table): scroll the first one in,
+   * once per set of targets, the way the schemes column already does for its own rows.
+   */
+  #revealTargets(): void {
+    const layout = this.#layout;
+    const selection = this.#controller.selection;
+    const key = selection.kind === "targeting" ? selection.action.targets.join(",") : null;
+    if (key === this.#revealedTargets) return;
+    this.#revealedTargets = key;
+    if (key === null || !layout || layout.maxScroll <= 0 || selection.kind !== "targeting") return;
+    const placed = selection.action.targets.flatMap((id) => {
+      const rect = this.#cardRect(id);
+      return rect ? [{ id, rect }] : [];
+    });
+    if (placed.length === 0 || placed.some(({ id, rect }) => !this.#hiddenByScroll(id, rect))) return;
+    this.#scrollTableTo(revealScroll(layout.scrollY, placed[0]!.rect, layout.tableWindow, layout.maxScroll));
+  }
+
+  #scrollTableTo(next: number): void {
+    const layout = this.#layout;
+    if (!layout) return;
+    const clamped = clampScroll(next, layout.maxScroll);
+    if (clamped === layout.scrollY) return;
+    this.#tableScroll = clamped;
+    this.#scrollDirty = true;
+  }
+
+  /** Whether the table may take a wheel or a drag at `pointer`: it scrolls, nothing covers it, and no region of its own owns that spot. */
+  #tableTakes(pointer: Phaser.Input.Pointer): boolean {
+    const layout = this.#layout;
+    if (!layout || layout.maxScroll <= 0) return false;
+    const win = layout.tableWindow;
+    if (pointer.x < win.x || pointer.x > win.x + win.width || pointer.y < win.y || pointer.y > win.y + win.height)
+      return false;
+    if (this.#choiceOpen || this.#overlayCoversTable()) return false;
+    return !this.#frame.innerScroll.some(
+      (r) => pointer.x >= r.x && pointer.x <= r.x + r.width && pointer.y >= r.y && pointer.y <= r.y + r.height,
+    );
+  }
+
+  /** Any overlay that owns the screen over the table. The docked villain phase leaves the table beside it live. */
+  #overlayCoversTable(): boolean {
+    const docked = this.#villainDock?.request === "rail";
+    return (
+      (this.scene.isActive(SCENES.villainPhase) && !docked) ||
+      this.scene.isActive(SCENES.inspect) ||
+      this.scene.isActive(SCENES.pause) ||
+      this.scene.isActive(SCENES.rules) ||
+      this.scene.isActive(SCENES.settings) ||
+      this.scene.isActive(SCENES.roundDebrief) ||
+      this.scene.isActive(SCENES.campaignBeat) ||
+      this.scene.isActive(SCENES.teamUpSplash) ||
+      this.scene.isActive(SCENES.teamUpInfo) ||
+      this.scene.isActive(SCENES.evidence) ||
+      this.scene.isActive(SCENES.holdOn)
+    );
+  }
+
+  readonly #onTableWheel = (pointer: Phaser.Input.Pointer, _objects: unknown, _dx: number, dy: number): void => {
+    if (!this.#tableTakes(pointer)) return;
+    const mode = (pointer.event as WheelEvent | undefined)?.deltaMode ?? 0;
+    this.#scrollTableTo(this.#layout!.scrollY + wheelPixels(dy, mode));
+  };
+
+  readonly #onTableDown = (pointer: Phaser.Input.Pointer): void => {
+    if (pointer.wasTouch && this.#tableTakes(pointer)) this.#tableDrag.down(pointer.id, pointer.x, pointer.y);
+  };
+
+  readonly #onTableMove = (pointer: Phaser.Input.Pointer): void => {
+    if (!pointer.isDown || !pointer.wasTouch) return;
+    const delta = this.#tableDrag.move(pointer.id, pointer.x, pointer.y);
+    if (delta !== 0 && this.#layout) this.#scrollTableTo(this.#layout.scrollY + delta);
+  };
+
+  readonly #onTableUp = (pointer: Phaser.Input.Pointer): void => this.#tableDrag.up(pointer.id);
+
+  /**
+   * The ground and the input shield of the pinned bands on a scrolling table: scrolled content passes under the chrome
+   * (and the phone's tab row) above the window and the hand and action bar below it. Opaque, so nothing shows through,
+   * and interactive, so nothing under them hears a press: Phaser's own hit test stops at the shield, and the tap router
+   * is told the same (`setTapOccluders`). The pinned zones draw after this, on top.
+   */
+  #drawScrollBands(layout: BoardLayout): void {
+    const { width, height } = this.scale.gameSize;
+    const win = layout.tableWindow;
+    const bottomY = win.y + win.height;
+    const bands: Rect[] = [
+      { x: 0, y: 0, width, height: win.y },
+      { x: 0, y: bottomY, width, height: Math.max(0, height - bottomY) },
+    ];
+    for (const band of bands) {
+      if (band.height <= 0) continue;
+      this.add.graphics().fillStyle(surface.ink.hex, 1).fillRect(band.x, band.y, band.width, band.height);
+      paintDotGrid(this, band, "ink", dotGrid.onInk);
+      this.add.zone(band.x, band.y, band.width, band.height).setOrigin(0, 0).setInteractive();
+    }
+    setTapOccluders(this, bands);
   }
 
   #drawFocusRing(): void {

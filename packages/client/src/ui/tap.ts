@@ -21,6 +21,8 @@ interface TapEntry {
 class SceneTaps {
   readonly entries: TapEntry[] = [];
   readonly tracker = new TapTracker();
+  /** Screen areas that hide every control registered before them (`setTapOccluders`). */
+  occluders: { readonly rect: { x: number; y: number; width: number; height: number }; readonly after: number }[] = [];
   readonly #scene: Phaser.Scene;
   readonly #stop: () => void;
 
@@ -96,6 +98,17 @@ class SceneTaps {
       const entry = this.entries[i]!;
       if (!usable(entry.zone)) continue;
       if (id !== null && entry.id() !== id) continue;
+      if (
+        this.occluders.some(
+          (o) =>
+            i < o.after &&
+            x >= o.rect.x &&
+            x <= o.rect.x + o.rect.width &&
+            y >= o.rect.y &&
+            y <= o.rect.y + o.rect.height,
+        )
+      )
+        continue;
       const rect = worldRect(entry.zone);
       if (x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height) return entry;
     }
@@ -152,6 +165,24 @@ export function registerTap(
     const at = owner.entries.indexOf(entry);
     if (at >= 0) owner.entries.splice(at, 1);
   });
+}
+
+/**
+ * Hides the controls registered so far from a press inside `rects`: a scrolling table whose content runs under a
+ * pinned band (the chrome, the hand) has controls there that are drawn over by the band and must not hear a press
+ * through it. Controls registered after this call (the band's own) are unaffected. Replaces any earlier set; an empty
+ * list clears it. The Board calls it once per draw, after its scrolling zones and before its pinned ones.
+ */
+export function setTapOccluders(
+  scene: Phaser.Scene,
+  rects: readonly { x: number; y: number; width: number; height: number }[],
+): void {
+  const taps = ROUTERS.get(scene);
+  if (!taps) {
+    // No control has registered yet, so none can be hidden.
+    return;
+  }
+  taps.occluders = rects.map((rect) => ({ rect, after: taps.entries.length }));
 }
 
 /** An object handler pressed its control for this pointer's gesture: the router must not press it again. */
