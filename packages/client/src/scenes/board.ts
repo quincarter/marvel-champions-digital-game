@@ -46,6 +46,7 @@ import { playerName } from "../view/names.js";
 import type { GamepadIntent } from "../view/gamepad.js";
 import { sameTarget, stepFocus, type FocusTarget } from "../view/focus.js";
 import { boardLayout, type BoardLayout, type PhoneTab, type Rect } from "../view/layout.js";
+import { villainDockRects, type VillainDockRects, type VillainDockRequest } from "../view/villain-dock.js";
 import type { SessionState } from "../store/session-store.js";
 import { SCENES } from "./keys.js";
 import { syncSceneClock } from "../ui/scene-clock.js";
@@ -1030,13 +1031,16 @@ export class BoardScene extends Phaser.Scene {
     // Asked before laying out the rest of the table, so nothing the guide rail covers is also a drop target
     // underneath it (guided mode G5c, `scenes/board/guide-mount.ts`'s own header).
     const guideRail = this.#guide?.railOptionFor(viewport) ?? undefined;
+    const dock = this.#villainDock;
     const layout = boardLayout(viewport, {
       playerCount: model.team.length + 1,
       neutralArea: model.scenarioPlayAreas.some((area) => area.neutral),
       activeTab: this.#activeTab,
       ...(guideRail ? { guideRail } : {}),
+      ...(dock?.request === "rail" ? { villainDock: dock.width } : {}),
     });
     this.#layout = layout;
+    this.#villainDockRects = dock ? villainDockRects(dock.request, layout, dock.width) : null;
 
     const ctx: BoardDrawContext = {
       scene: this,
@@ -1497,6 +1501,27 @@ export class BoardScene extends Phaser.Scene {
    * become current while a banner is already mid-flight from something else entirely (a hero going down). */
   guideBannerClear(): boolean {
     return !this.scene.isActive(SCENES.villainPhase) && !this.#motion.isTransitioning();
+  }
+
+  #villainDock: { readonly request: VillainDockRequest; readonly width: number } | null = null;
+  #villainDockRects: VillainDockRects | null = null;
+
+  /**
+   * Lays the table out around the docked villain phase (`view/villain-dock.ts`), or back to the whole screen with
+   * null. The phase asks for this; the Board redraws at once, so `villainDockRects` answers for the new shape when this
+   * returns.
+   */
+  setVillainDock(request: VillainDockRequest | null, width: number = 0): void {
+    const current = this.#villainDock;
+    if (current?.request === request && (request !== "rail" || current.width === width)) return;
+    if (!current && request === null) return;
+    this.#villainDock = request === null ? null : { request, width };
+    this.#draw();
+  }
+
+  /** Where the docked villain phase draws, as of the Board's last draw; null when it is not docked. */
+  villainDockRects(): VillainDockRects | null {
+    return this.#villainDockRects;
   }
 
   /** Which phone tab is showing right now — off phone this is meaningless, but always some value (`view/layout.ts`'s own `boardLayout` treats `activeTab` the same way). */
