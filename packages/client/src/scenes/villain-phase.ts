@@ -188,6 +188,7 @@ import {
   villainTabLayout,
 } from "../view/villain-rail-layout.js";
 import { encounterStripOf, type EncounterStrip } from "../view/villain-encounter-strip.js";
+import { villainHandTagsOf } from "../view/villain-hand-tags.js";
 import { abilityName, drawInterruptAnswer, drawVillainRailPanel, type RailBody } from "../ui/villain-rail-panel.js";
 
 /** What Board hands over when it opens the walkthrough: the game as it stood before the command that began the phase. */
@@ -346,8 +347,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     });
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      // Give the table its whole width back, whatever closed the phase.
+      // Give the table its whole width and its own hand tags back, whatever closed the phase.
       this.#boardScene()?.setVillainDock(null);
+      this.#boardScene()?.setVillainHandTags(null);
       this.scale.off("resize", onResize, this);
       this.#unsubscribe?.();
       this.#unsubscribe = null;
@@ -377,8 +379,16 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #close(): void {
     this.#motion.exit(this, () => {
       this.#boardScene()?.setVillainDock(null);
+      this.#boardScene()?.setVillainHandTags(null);
       this.scene.stop();
     });
+  }
+
+  /** The hand's tags for the board: what the open window offers is PLAY NOW. */
+  #handTags(game: GameState, viewer: PlayerId | null): ReturnType<typeof villainHandTagsOf> {
+    const choice = this.#walkthrough.pausedAt ? game.pendingChoice : null;
+    const offered = choice ? (inlineInterruptFor(choice, viewer) ?? []) : [];
+    return villainHandTagsOf(game, viewer, POOL_DEPS, new Set(offered.map((option) => option.instanceId)));
   }
 
   /** PEEK AT TABLE ▾ / BACK ▴ (P3). */
@@ -667,6 +677,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       recap: recapNow || guideStrip !== null,
       peeking: this.#peeking,
     });
+    // The hand stays in view beside every docked shape, so it says when each card can answer (#129, #138).
+    const docked = kind !== "full" && !(this.#hidden && (kind === "rail" || kind === "band"));
+    boardScene?.setVillainHandTags(docked ? this.#handTags(game, viewer) : null);
     if ((kind === "rail" || kind === "band") && boardScene) {
       const inlineChoice = pausedInline ? (game.pendingChoice?.choiceId ?? null) : null;
       // A new decision of the player's own brings a hidden rail back: its answer controls live on the rail.

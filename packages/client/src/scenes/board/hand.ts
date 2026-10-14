@@ -21,6 +21,7 @@ import { FORCED_ACTION_CODE } from "../../view/forced-actions.js";
 import type { IllegalReason } from "../../view/highlights.js";
 import { DEFENSE_LOCKOUT_TAG, isDefenseBarMessage } from "../../view/defense-lockout.js";
 import { handRow, type HandRowLayout } from "../../view/hand-row.js";
+import type { VillainHandTagKind } from "../../view/villain-hand-tags.js";
 import type { Rect } from "../../view/layout.js";
 import { BAR_ROW } from "../../view/payment-bar-layout.js";
 import { isCompactTag, sourceTagText, spentTagText, type PaymentView } from "../../view/payment-model.js";
@@ -441,13 +442,17 @@ function paintHandSlot(
   const source = payment?.sources.find((candidate) => candidate.instanceId === card.instanceId);
   const spent = source?.spent ?? false;
   const subject = payment?.subject === card.instanceId;
-  const available = payment ? subject || source !== undefined : (ctx.marks?.playable.has(card.instanceId) ?? false);
+  // A card the villain phase's open window offers right now is live, whatever the player-phase marks say.
+  const answersNow = !payment && ctx.villainHandTags?.get(card.instanceId)?.kind === "now";
+  const available = payment
+    ? subject || source !== undefined
+    : answersNow || (ctx.marks?.playable.has(card.instanceId) ?? false);
   const alpha = available ? 1 : ink.illegal;
 
   const g = ctx.scene.add.graphics();
   paintPanel(g, slot, "card", subject ? "selected" : available ? "rest" : "unavailable");
-  if (subject) {
-    // The design's treatment for the card being paid for: the red ring.
+  if (subject || answersNow) {
+    // The design's treatment for the card being paid for, and for the card that answers the villain phase now: the red ring.
     const ring = new McSelectionRing(ctx.scene);
     ring.show(slot, "static", true);
     ctx.frame.rings.push(ring);
@@ -497,6 +502,9 @@ function drawHandCard(
           ? { text: "discarding", ground: surface.ink.hex }
           : null
       : (() => {
+          // The villain phase's own tag while it is up: when this card can answer it (D1/D2).
+          const villain = ctx.villainHandTags?.get(card.instanceId);
+          if (villain) return { text: villain.text, ground: villainTagGround(villain.kind) };
           const reason = ctx.marks?.unplayable.get(card.instanceId);
           if (reason) {
             const text = shortReason(reason, ctx.teamUpRoles?.get(card.instanceId) ?? null);
@@ -522,7 +530,7 @@ function drawHandCard(
         slot.x + slot.width - 3,
         atBottom ? slot.y + slot.height - 4 : inside ? slot.y + 4 : slot.y + 6,
         caseOf(typeRole.label, tag.text),
-        textStyle(typeRole.label, surface.paper.hex),
+        textStyle(typeRole.label, tag.ground === signal.caution.hex ? surface.ink.hex : surface.paper.hex),
       )
       .setOrigin(1, atBottom || !inside ? 1 : 0)
       .setAlign("right")
@@ -736,6 +744,21 @@ function drawHandCardFallback(scene: Phaser.Scene, slot: Rect, card: HandCardVie
       )
       .setOrigin(0.5);
   });
+}
+
+/** PLAY NOW in caution yellow (it is the decision), a trigger in the hero red, RESOURCE and YOUR TURN in ink. */
+function villainTagGround(kind: VillainHandTagKind): number {
+  switch (kind) {
+    case "now":
+      return signal.caution.hex;
+    case "hit":
+    case "treachery":
+    case "threat":
+    case "trigger":
+      return accent.heroRed.hex;
+    default:
+      return surface.ink.hex;
+  }
 }
 
 /**

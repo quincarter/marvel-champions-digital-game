@@ -7,6 +7,7 @@
  * through the controller.
  */
 
+import type { VillainHandTag } from "../../view/villain-hand-tags.js";
 import type { ReferenceCardView } from "../../view/reference-cards.js";
 import type Phaser from "phaser";
 import type { InstanceId, PlayerId } from "@mc/engine";
@@ -104,6 +105,8 @@ export interface BoardDrawContext {
   readonly teamUpRings?: TeamUpRings | undefined;
   /** What each hand card has to do with a Team-Up (`view/team-up-model.ts#teamUpRoleOf`): the tag on it. */
   readonly teamUpRoles?: ReadonlyMap<InstanceId, TeamUpRole> | undefined;
+  /** While the villain phase is up: when each hand card can answer it (`view/villain-hand-tags.ts`), set by that scene. */
+  readonly villainHandTags?: ReadonlyMap<InstanceId, VillainHandTag> | null | undefined;
   /**
    * Registers a card as a tap target: a tap acts (answering an open target or
    * payment prompt first, `onTap` otherwise), a hold or right-click inspects,

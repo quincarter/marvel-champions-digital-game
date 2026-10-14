@@ -48,6 +48,7 @@ import type { GamepadIntent } from "../view/gamepad.js";
 import { sameTarget, stepFocus, type FocusTarget } from "../view/focus.js";
 import { boardLayout, type BoardLayout, type PhoneTab, type Rect } from "../view/layout.js";
 import { villainDockRects, type VillainDockRects, type VillainDockRequest } from "../view/villain-dock.js";
+import { sameHandTags, type VillainHandTag } from "../view/villain-hand-tags.js";
 import type { SessionState } from "../store/session-store.js";
 import { SCENES } from "./keys.js";
 import { HoverPreview } from "./board/hover-preview.js";
@@ -1073,6 +1074,7 @@ export class BoardScene extends Phaser.Scene {
       motion: this.#motion,
       teamUpRings: this.#teamUpRings(layout.tabbed),
       teamUpRoles: this.#teamUpRoles(model),
+      villainHandTags: this.#villainHandTags,
       makeTapTarget: (rect, id, onTap, drag, onHover) => this.#makeTapTarget(rect, id, onTap, drag, onHover),
       inspect: (id, siblings) => this.#inspect(id, siblings),
       inspectReference: (reference) => this.scene.launch(SCENES.inspect, { reference }),
@@ -1533,6 +1535,18 @@ export class BoardScene extends Phaser.Scene {
     if (current?.request === request && (request !== "rail" || current.width === width)) return;
     if (!current && request === null) return;
     this.#villainDock = request === null ? null : { request, width };
+    this.#draw();
+  }
+
+  #villainHandTags: ReadonlyMap<InstanceId, VillainHandTag> | null = null;
+
+  /**
+   * The villain phase's hand tags (PLAY NOW, WHEN HIT, …; `view/villain-hand-tags.ts`), or null to go back to the
+   * hand's own tags. The phase sets them while the hand is in view beside it; the Board redraws when they change.
+   */
+  setVillainHandTags(tags: ReadonlyMap<InstanceId, VillainHandTag> | null): void {
+    if (sameHandTags(this.#villainHandTags, tags)) return;
+    this.#villainHandTags = tags;
     this.#draw();
   }
 
