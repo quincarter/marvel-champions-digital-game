@@ -97,7 +97,9 @@ import {
   paintPanel,
 } from "../ui/widgets.js";
 import { drawCostCurveBars, drawGroupedCardList } from "../ui/deck-stats-widgets.js";
-import { campaignService, deckStorage } from "../session.js";
+import { appSession, campaignService, deckStorage } from "../session.js";
+import { cardSizeFactor } from "../settings.js";
+import { deckBuilderRowSizes, type DeckBuilderRowSizes } from "../view/deck-builder-rows.js";
 import {
   campaignDeckContextWithGrants,
   campaignDeckEditModel,
@@ -143,14 +145,8 @@ export interface DeckBuilderSceneData {
   readonly campaign?: DeckBuilderCampaignData;
 }
 
-/** Tall enough for the hero's art to read beside the name. */
-const IDENTITY_ROW_HEIGHT = 64;
 /** The identity row's art window, wide for its height: a cover crop of the hero's face and shoulders. */
 const IDENTITY_THUMB_ASPECT = 1.5;
-/** Tall enough for the card's own picture and a few lines of what it does. */
-const CARD_ROW_HEIGHT = 104;
-/** The card picture's width in a pool row, at the printed card's own proportions (63 × 88 mm). */
-const CARD_THUMB_WIDTH = Math.round((CARD_ROW_HEIGHT - 6 - 12) * (63 / 88));
 /** The −, quantity and + at a pool row's right end. */
 const POOL_ROW_CONTROLS_WIDTH = 146;
 /** Lines of rules text a pool row shows before the ellipsis; Inspect has the rest. */
@@ -205,6 +201,8 @@ const TYPE_FILTERS: readonly {
 ).map((chip) => ({ ...chip, text: chip.label }));
 
 export class DeckBuilderScene extends Phaser.Scene {
+  /** Row sizes for the global Card size setting, read in `create()`. */
+  #rows: DeckBuilderRowSizes = deckBuilderRowSizes(1);
   #identity: HeroIdentityCard | null = null;
   #deck: Deck | null = null;
   #filter: PoolFilter = {};
@@ -255,6 +253,7 @@ export class DeckBuilderScene extends Phaser.Scene {
 
   create(data: DeckBuilderSceneData = {}): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
+    this.#rows = deckBuilderRowSizes(cardSizeFactor(appSession().settings.cardSize));
     this.#campaign = data.campaign ?? null;
     this.#deck = data.deck ?? null;
     this.#identity = this.#deck ? (IDENTITIES.find((i) => i.id === this.#deck!.identityCardId) ?? null) : null;
@@ -445,7 +444,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     // Everything above the pool search scrolls in its own region (`#drawNarrowDeckRegion`), capped so the pool
     // keeps `POOL_RESERVE` of the screen below it. A phone's column runs far taller than its screen, and drawn
     // flat the pool list started below the bottom edge with no way to scroll to it.
-    const poolReserve = 16 + hit.target + 16 + 16 + CARD_ROW_HEIGHT * NARROW_POOL_MIN_ROWS;
+    const poolReserve = 16 + hit.target + 16 + 16 + this.#rows.cardRowHeight * NARROW_POOL_MIN_ROWS;
     const maxRegionHeight = Math.max(hit.target * 3, height - top - pad - poolReserve);
     let y = this.#drawNarrowDeckRegion(left, top, column, maxRegionHeight, deck);
 
@@ -463,7 +462,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       ink.label,
     );
     y += 16;
-    const listRect: Rect = { x: left, y, width: column, height: Math.max(CARD_ROW_HEIGHT, height - y - pad) };
+    const listRect: Rect = { x: left, y, width: column, height: Math.max(this.#rows.cardRowHeight, height - y - pad) };
     this.#drawPoolList(listRect, deck, pool);
     return pool;
   }
@@ -593,7 +592,12 @@ export class DeckBuilderScene extends Phaser.Scene {
       ink.meta,
     );
     midY += 16;
-    const listRect: Rect = { x: midX, y: midY, width: midWidth, height: Math.max(CARD_ROW_HEIGHT, bottom - midY) };
+    const listRect: Rect = {
+      x: midX,
+      y: midY,
+      width: midWidth,
+      height: Math.max(this.#rows.cardRowHeight, bottom - midY),
+    };
     this.#drawPoolList(listRect, deck, pool);
     return pool;
   }
@@ -1205,7 +1209,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     const renderRow = (index: number, rect: Rect): VirtualListRow => this.#renderCardRow(rect, deck, pool[index]!);
     this.#list = new McVirtualList(this, {
       rect: listRect,
-      rowHeight: CARD_ROW_HEIGHT,
+      rowHeight: this.#rows.cardRowHeight,
       count: pool.length,
       renderRow,
       scroll: this.#listScroll,
@@ -1249,7 +1253,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     y += 16;
     const { height } = this.scale.gameSize;
     const pad = formFactorFor(this.scale.gameSize.width, height) === "phone" ? 16 : 40;
-    const rowHeight = IDENTITY_ROW_HEIGHT + 6;
+    const rowHeight = this.#rows.identityRowHeight + 6;
     const listRect: Rect = {
       x: left,
       y,
@@ -1269,8 +1273,13 @@ export class DeckBuilderScene extends Phaser.Scene {
     // baked small off the main thread; drawn over the button, which still takes the tap.
     const renderRow = (index: number, rect: Rect): VirtualListRow => {
       const identity = IDENTITIES[index]!;
-      const buttonRect: Rect = { x: rect.x + 6, y: rect.y + 6, width: rect.width - 12, height: IDENTITY_ROW_HEIGHT };
-      const thumbWidth = Math.round(IDENTITY_ROW_HEIGHT * IDENTITY_THUMB_ASPECT);
+      const buttonRect: Rect = {
+        x: rect.x + 6,
+        y: rect.y + 6,
+        width: rect.width - 12,
+        height: this.#rows.identityRowHeight,
+      };
+      const thumbWidth = Math.round(this.#rows.identityRowHeight * IDENTITY_THUMB_ASPECT);
       const button = new McButton(this, {
         kind: "secondary",
         label: qualifiedHeroName(identity),
@@ -1283,7 +1292,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       });
       const thumb = renderArtThumb(
         this,
-        { x: buttonRect.x + 4, y: buttonRect.y + 4, width: thumbWidth - 8, height: IDENTITY_ROW_HEIGHT - 8 },
+        { x: buttonRect.x + 4, y: buttonRect.y + 4, width: thumbWidth - 8, height: this.#rows.identityRowHeight - 8 },
         this.#identityArtUrl(identity),
       );
       return { objects: [button.container, thumb] };
@@ -1301,7 +1310,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#stops.set(`identity:${identity.id as string}`, {
         rect: () => {
           const row = list.rectFor(index);
-          return { x: row.x + 6, y: row.y + 6, width: row.width - 12, height: IDENTITY_ROW_HEIGHT };
+          return { x: row.x + 6, y: row.y + 6, width: row.width - 12, height: this.#rows.identityRowHeight };
         },
         activate: () => chooseAt(index),
         ensureVisible: () => list.scrollIntoView(index),
@@ -1320,7 +1329,7 @@ export class DeckBuilderScene extends Phaser.Scene {
   }
 
   #renderCardRow(rect: Rect, deck: Deck, card: AnyCard): VirtualListRow {
-    const row: Rect = { x: rect.x + 4, y: rect.y, width: rect.width - 8, height: CARD_ROW_HEIGHT - 6 };
+    const row: Rect = { x: rect.x + 4, y: rect.y, width: rect.width - 8, height: this.#rows.cardRowHeight - 6 };
     const objects: Phaser.GameObjects.GameObject[] = [];
     const g = this.add.graphics();
     paintPanel(g, row, "card", "rest");
@@ -1334,12 +1343,12 @@ export class DeckBuilderScene extends Phaser.Scene {
     objects.push(
       renderArtThumb(
         this,
-        { x: row.x + 6, y: row.y + 6, width: CARD_THUMB_WIDTH, height: row.height - 12 },
+        { x: row.x + 6, y: row.y + 6, width: this.#rows.cardThumbWidth, height: row.height - 12 },
         artFor(card, { kind: "front" })?.url ?? null,
         0,
       ),
     );
-    const textX = row.x + 6 + CARD_THUMB_WIDTH + 10;
+    const textX = row.x + 6 + this.#rows.cardThumbWidth + 10;
     const textWidth = row.x + row.width - POOL_ROW_CONTROLS_WIDTH - textX;
     const name = this.add.text(textX, row.y + 6, card.name, textStyle(typeRole.rowTitle, surface.ink.hex));
     fitText(name, textWidth);
