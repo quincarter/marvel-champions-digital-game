@@ -15,7 +15,7 @@
  * (docs/phase3-encounter-ai.md).
  */
 
-import type { AbilityId } from "@mc/content";
+import type { AbilityId, CardId } from "@mc/content";
 import { activeAbilityRefs, cardOf, ENEMY_TEAM_CHOICE_INSTRUCTION, ENEMY_TEAM_CHOICE_RULE } from "@mc/engine";
 import type {
   ChoiceBehalf,
@@ -150,7 +150,23 @@ export interface WalkthroughBeat {
   readonly pause: Pause | null;
   /** The activation this beat belongs to, as far as events have described it so far; null outside one. */
   readonly activation: ActivationBeat | null;
+  /**
+   * The encounter card being revealed when this beat was recorded (its reveal beat and every beat until the next
+   * reveal), so beats group per card; null/absent outside the reveal step and before the first reveal.
+   */
+  readonly encounterInstanceId?: InstanceId | null;
+  /** The engine event this beat narrates (absent on a pause beat), so a view can tell a response from narration. */
+  readonly eventType?: GameEvent["type"];
+  /** The seat the event is attributable to (its `playerId` / `controllerId`), or null when none is. */
+  readonly seatId?: PlayerId | null;
 }
+
+/** The seat an event names itself as belonging to, if it does. */
+const seatOfEvent = (event: GameEvent): PlayerId | null => {
+  if ("playerId" in event && typeof event.playerId === "string") return event.playerId;
+  if ("controllerId" in event && typeof event.controllerId === "string") return event.controllerId;
+  return null;
+};
 
 export type StepStatus = "done" | "active" | "pending";
 
@@ -163,8 +179,30 @@ export interface VillainStepView {
   readonly status: StepStatus;
 }
 
+/** The encounter cards of this villain phase, read off `cardMoved` (to `dealtEncounter`) and `encounterCardRevealed`. */
+export interface EncounterTracking {
+  /** Every card dealt this phase, in order (including those dealt by surge or other effects while revealing). */
+  readonly dealt: readonly {
+    readonly instanceId: InstanceId;
+    readonly playerId: PlayerId;
+    /** Dealt after the reveal step began (surge and similar), not by the deal step. */
+    readonly duringReveal: boolean;
+  }[];
+  /** The cards revealed so far, in order. */
+  readonly revealed: readonly {
+    readonly instanceId: InstanceId;
+    readonly cardId: CardId;
+    readonly playerId: PlayerId;
+  }[];
+  /** The card being revealed right now: the last revealed while the reveal step is active; null otherwise. */
+  readonly current: { readonly instanceId: InstanceId; readonly cardId: CardId; readonly playerId: PlayerId } | null;
+}
+
+export const emptyEncounterTracking = (): EncounterTracking => ({ dealt: [], revealed: [], current: null });
+
 export interface Walkthrough {
   readonly round: number;
+  readonly encounter: EncounterTracking;
   readonly steps: readonly VillainStepView[];
   /** The step the walkthrough is showing, 1–5, or null once the phase is done. */
   readonly activeStep: number | null;
@@ -182,6 +220,7 @@ export interface Walkthrough {
 
 export const emptyWalkthrough = (round: number): Walkthrough => ({
   round,
+  encounter: emptyEncounterTracking(),
   steps: VILLAIN_STEPS.map((kind, index) => ({
     kind,
     number: index + 1,
@@ -215,6 +254,8 @@ export function appendWalkthrough(
   let nextBeatId = working.nextBeatId;
   let complete = working.complete;
   let activation = working.activation;
+  let dealt = [...working.encounter.dealt];
+  let revealed = [...working.encounter.revealed];
   /**
    * The round this phase belongs to, frozen when the phase starts.
    *
@@ -233,9 +274,17 @@ export function appendWalkthrough(
   /** Inside the five steps: recording beats. Outside them, events are ignored. */
   const inPhase = (): boolean => activeIndex >= 0 && !complete;
 
-  const push = (text: string, pause: Pause | null): void => {
+  const push = (text: string, pause: Pause | null, event?: GameEvent): void => {
     if (!inPhase()) return;
-    beats[activeIndex]!.push({ id: `beat-${nextBeatId++}`, text, pause, activation });
+    const revealing = activeIndex === VILLAIN_STEPS.indexOf("revealEncounterCards") ? revealed.at(-1) : undefined;
+    beats[activeIndex]!.push({
+      id: `beat-${nextBeatId++}`,
+      text,
+      pause,
+      activation,
+      encounterInstanceId: revealing?.instanceId ?? null,
+      ...(event ? { eventType: event.type, seatId: seatOfEvent(event) } : {}),
+    });
   };
 
   for (const event of events) {
@@ -266,6 +315,8 @@ export function appendWalkthrough(
         complete = false;
         pausedAt = null;
         activation = null;
+        dealt = [];
+        revealed = [];
       }
       activeIndex = stepIndex;
       continue;
@@ -289,6 +340,18 @@ export function appendWalkthrough(
     // changes (`push` reads the closed-over `activation`), so a beat always
     // carries the activation exactly as it stood when that beat was recorded.
     switch (event.type) {
+      case "cardMoved":
+        if (event.to.kind === "dealtEncounter") {
+          dealt.push({
+            instanceId: event.instanceId,
+            playerId: event.to.playerId,
+            duringReveal: activeIndex >= VILLAIN_STEPS.indexOf("revealEncounterCards"),
+          });
+        }
+        break;
+      case "encounterCardRevealed":
+        revealed.push({ instanceId: event.instanceId, cardId: event.cardId, playerId: event.playerId });
+        break;
       case "enemyActivated":
         activation =
           event.activation === "attack"
@@ -387,11 +450,17 @@ export function appendWalkthrough(
     // Everything else reuses the log's wording, so the walkthrough and the log
     // never describe the same beat two different ways.
     const described = logLine(event, state, viewer, deps);
-    if (described) push(described.text, null);
+    if (described) push(described.text, null, event);
   }
 
   return {
     round,
+    encounter: {
+      dealt,
+      revealed,
+      current:
+        !complete && activeIndex === VILLAIN_STEPS.indexOf("revealEncounterCards") ? (revealed.at(-1) ?? null) : null,
+    },
     steps: working.steps.map((step, index) => ({
       ...step,
       beats: beats[index]!,

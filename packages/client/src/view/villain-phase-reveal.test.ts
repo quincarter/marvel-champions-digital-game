@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import type { Walkthrough, WalkthroughBeat } from "./villain-walkthrough.js";
+import { emptyEncounterTracking, type Walkthrough, type WalkthroughBeat } from "./villain-walkthrough.js";
 import { revealOf, stepCaptionOf } from "./villain-phase-reveal.js";
 
 const beat = (id: string, text: string): WalkthroughBeat => ({ id, text, pause: null, activation: null });
@@ -8,6 +8,7 @@ const beat = (id: string, text: string): WalkthroughBeat => ({ id, text, pause: 
 function completedWalkthrough(): Walkthrough {
   return {
     round: 3,
+    encounter: emptyEncounterTracking(),
     steps: [
       {
         kind: "placeThreat",
@@ -100,6 +101,7 @@ describe("revealOf", () => {
   test("a phase with no beats yet (just launched) reveals nothing and nothing is caught up prematurely", () => {
     const empty: Walkthrough = {
       round: 1,
+      encounter: emptyEncounterTracking(),
       steps: completedWalkthrough().steps.map((step) => ({ ...step, beats: [], status: "pending" })),
       activeStep: 1,
       pausedAt: null,
@@ -118,6 +120,7 @@ describe("revealOf", () => {
   test("a mid-phase pause stops the reveal at the pause's own beat", () => {
     const paused: Walkthrough = {
       round: 2,
+      encounter: emptyEncounterTracking(),
       steps: [
         {
           kind: "placeThreat",
