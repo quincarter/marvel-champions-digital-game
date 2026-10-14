@@ -29,6 +29,8 @@ import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import type { Rect } from "../view/layout.js";
+import { appSession } from "../session.js";
+import { cardSizeFactor } from "../settings.js";
 import {
   applyBuilderAction,
   builderViewOf,
@@ -269,7 +271,7 @@ export class CivilWarBuilderScene extends Phaser.Scene {
       return;
     }
     const { width, height } = this.scale.gameSize;
-    const layout = civilWarBuilderLayout({ width, height, ...view.layout });
+    const layout = civilWarBuilderLayout({ width, height, ...view.layout, cardScale: this.#cardScale() });
     this.#view = view;
     this.#layout = layout;
 
@@ -364,13 +366,18 @@ export class CivilWarBuilderScene extends Phaser.Scene {
     });
   }
 
+  /** The global Card size setting as a factor (1, 1.25 or 1.5). */
+  #cardScale(): number {
+    return cardSizeFactor(appSession().settings.cardSize);
+  }
+
   /** Draws every waiting picture whose baked face is on hand and whose slot is near what is on screen. */
   #fillThumbs(): void {
     const layout = this.#layout;
     if (!layout) return;
     const faces = cardFaces(this);
     const stepView = { top: layout.content.y + this.#scroll.offsetPx, height: layout.content.height };
-    const sheet = this.#sheet !== null ? setSheetLayout(this.scale.gameSize, 0) : null;
+    const sheet = this.#sheet !== null ? setSheetLayout(this.scale.gameSize, 0, this.#cardScale()) : null;
     const sheetView = sheet
       ? { top: sheet.body.y + this.#sheetScroll.offsetPx, height: sheet.body.height }
       : { top: 0, height: 0 };
@@ -953,7 +960,7 @@ export class CivilWarBuilderScene extends Phaser.Scene {
     const setId = this.#sheet!;
     const sheet = setSheetFor(this.#context(), setId);
     const { width, height } = this.scale.gameSize;
-    const L = setSheetLayout({ width, height }, sheet.cards.length);
+    const L = setSheetLayout({ width, height }, sheet.cards.length, this.#cardScale());
 
     this.add.rectangle(0, 0, width, height, surface.ink.hex, 0.62).setOrigin(0, 0);
     this.#zone({ x: 0, y: 0, width, height }, "civil:sheet:scrim", () => this.#closeSheet(), null, true);

@@ -377,3 +377,79 @@ describe("setSheetLayout", () => {
     expect(setSheetLayout({ width: 390, height: 844 }, 0).contentHeight).toBe(0);
   });
 });
+
+describe("the Card size factor", () => {
+  const SCALES = [1, 1.25, 1.5];
+  const WIDTHS = [
+    { width: 390, height: 844 },
+    { width: 768, height: 1024 },
+    { width: 1024, height: 768 },
+    { width: 1440, height: 900 },
+  ];
+
+  test("fewer grid columns and taller tiles as the factor grows", () => {
+    expect(builderGridColumns(664, "desktop", 1.5)).toBeLessThan(builderGridColumns(664, "desktop", 1));
+    expect(builderGridColumns(343, "phone", 1.5)).toBe(2);
+    expect(builderGridHeight(8, 3, 1.5)).toBeGreaterThan(builderGridHeight(8, 3, 1));
+    expect(builderGridHeight(8, 3)).toBe(builderGridHeight(8, 3, 1));
+  });
+
+  test("a tile's fan grows with the tile, and the parts still stack inside it", () => {
+    const small = setTileParts({ x: 0, y: 0, width: 160, height: 148 });
+    const big = setTileParts({ x: 0, y: 0, width: 240, height: 222 });
+    expect(small.fan.height).toBe(64);
+    expect(big.fan.height).toBeGreaterThan(small.fan.height);
+    expect(big.name.y + big.name.height).toBeLessThanOrEqual(big.strip.y);
+  });
+
+  for (const size of WIDTHS) {
+    for (const cardScale of SCALES) {
+      for (const step of STEPS) {
+        test(`${size.width}x${size.height} x${cardScale} step ${step}: nothing is cut off`, () => {
+          const l = civilWarBuilderLayout({ ...size, step, cardScale, setCounts: COUNTS, extraSets: 2 });
+          const rects: Rect[] =
+            step <= 2
+              ? [...l.choiceCards]
+              : step === 3
+                ? l.stageRows.flatMap((r) => r.cards)
+                : step === 4
+                  ? l.modularSections.flatMap((section) => section.tiles)
+                  : [];
+          for (const r of rects) {
+            expect(r.width).toBeGreaterThan(0);
+            expect(r.x).toBeGreaterThanOrEqual(l.content.x - 0.01);
+            expect(r.x + r.width).toBeLessThanOrEqual(l.content.x + l.content.width + 0.01);
+          }
+          // Content may scroll, so its height is allowed past the region; `scrollable` must say so.
+          const bottom = Math.max(0, ...rects.map((r) => r.y + r.height - l.content.y));
+          if (step !== 5 && bottom > l.content.height) expect(l.scrollable).toBe(true);
+          expect(l.start.y + l.start.height).toBeLessThanOrEqual(size.height);
+        });
+      }
+
+      test(`${size.width}x${size.height} x${cardScale}: set sheet cells fit the pane`, () => {
+        const l = setSheetLayout(size, 9, cardScale);
+        expect(inside(l.panel, { x: 0, y: 0, ...size })).toBe(true);
+        for (const c of l.cells) {
+          expect(c.x).toBeGreaterThanOrEqual(l.body.x - 0.01);
+          expect(c.x + c.width).toBeLessThanOrEqual(l.body.x + l.body.width + 0.01);
+        }
+      });
+    }
+  }
+
+  test("stage cards take fewer per line when the factor grows", () => {
+    const standard = civilWarBuilderLayout({ width: 1440, height: 900, step: 3, cardScale: 1 });
+    const xlarge = civilWarBuilderLayout({ width: 1440, height: 900, step: 3, cardScale: 1.5 });
+    const perLine = (l: BuilderLayout): number =>
+      l.stageRows[0]!.cards.filter((c) => c.y === l.stageRows[0]!.cards[0]!.y).length;
+    expect(perLine(xlarge)).toBeLessThan(perLine(standard));
+  });
+
+  test("the sheet's cards are bigger at Extra large", () => {
+    const standard = setSheetLayout({ width: 1440, height: 900 }, 9, 1);
+    const xlarge = setSheetLayout({ width: 1440, height: 900 }, 9, 1.5);
+    expect(xlarge.columns).toBeLessThan(standard.columns);
+    expect(xlarge.cells[0]!.width).toBeGreaterThan(standard.cells[0]!.width);
+  });
+});

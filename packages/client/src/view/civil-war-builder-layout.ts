@@ -50,6 +50,12 @@ export function stageCardHeight(width: number): number {
 export const READ_STRIP_HEIGHT = 32;
 /** A modular set tile: a fan of its cards, its name, and a strip with its card count that opens the set's sheet. */
 export const MODULAR_TILE_HEIGHT = 148;
+/** A modular set tile's height at the global Card size factor (`settings.ts`'s `cardSizeFactor`: 1, 1.25 or 1.5). */
+export const modularTileHeight = (cardScale = 1): number => Math.round(MODULAR_TILE_HEIGHT * safeScale(cardScale));
+/** A zero, negative or non-finite factor means Standard. */
+function safeScale(cardScale: number): number {
+  return Number.isFinite(cardScale) && cardScale > 0 ? cardScale : 1;
+}
 export const MODULAR_FAN_SIZE = 64;
 export const MODULAR_TILE_MIN_WIDTH = 150;
 export const MODULAR_MAX_COLUMNS = 5;
@@ -93,6 +99,8 @@ export interface BuilderLayoutInput {
   /** Tiles in the "Extra sets (not counted)" row under the grid. Default 0 (row absent). */
   readonly extraSets?: number;
   readonly insets?: Partial<BuilderInsets>;
+  /** The global Card size factor (1, 1.25 or 1.5); default 1. Larger: fewer, taller tiles, fewer stage cards per line. */
+  readonly cardScale?: number;
 }
 
 export interface StageRowLayout {
@@ -158,16 +166,16 @@ export interface BuilderLayout {
 }
 
 /** Tiles in a grid of `columns`: the height of `count` tiles laid out row by row. Grows with the count. */
-export function builderGridHeight(count: number, columns: number): number {
+export function builderGridHeight(count: number, columns: number, cardScale = 1): number {
   if (count <= 0) return 0;
   const rows = Math.ceil(count / columns);
-  return rows * MODULAR_TILE_HEIGHT + (rows - 1) * ROW_GAP;
+  return rows * modularTileHeight(cardScale) + (rows - 1) * ROW_GAP;
 }
 
 /** How many tiles wide the modular grid is in a region `width` wide. Phone is always two. */
-export function builderGridColumns(width: number, mode: BuilderMode): number {
+export function builderGridColumns(width: number, mode: BuilderMode, cardScale = 1): number {
   if (mode === "phone") return 2;
-  const fit = Math.floor((width + ROW_GAP) / (MODULAR_TILE_MIN_WIDTH + ROW_GAP));
+  const fit = Math.floor((width + ROW_GAP) / (MODULAR_TILE_MIN_WIDTH * safeScale(cardScale) + ROW_GAP));
   return Math.max(2, Math.min(MODULAR_MAX_COLUMNS, fit));
 }
 
@@ -184,13 +192,13 @@ export function builderLayoutRects(layout: BuilderLayout): readonly Rect[] {
   ];
 }
 
-const grid = (x: number, y: number, width: number, columns: number, count: number): Rect[] => {
+const grid = (x: number, y: number, width: number, columns: number, count: number, tileHeight: number): Rect[] => {
   const tileW = (width - (columns - 1) * ROW_GAP) / columns;
   return Array.from({ length: count }, (_, i) => ({
     x: x + (i % columns) * (tileW + ROW_GAP),
-    y: y + Math.floor(i / columns) * (MODULAR_TILE_HEIGHT + ROW_GAP),
+    y: y + Math.floor(i / columns) * (tileHeight + ROW_GAP),
     width: tileW,
-    height: MODULAR_TILE_HEIGHT,
+    height: tileHeight,
   }));
 };
 
@@ -295,7 +303,9 @@ export function civilWarBuilderLayout(input: BuilderLayoutInput): BuilderLayout 
   const choiceHeight = stacked ? choiceH * 2 + ROW_GAP : choiceH;
 
   // Step 3: two rows of four stage cards (one row on tablet / desktop, 2 by 2 on phone).
-  const perLine = cw >= 640 ? 4 : 2;
+  // A bigger card size asks for more room per card: four in a line from 640 wide at Standard, two from 240, else one.
+  const scale = safeScale(input.cardScale ?? 1);
+  const perLine = cw >= 640 * scale ? 4 : cw >= 240 * scale ? 2 : 1;
   const cardW = (cw - (perLine - 1) * ROW_GAP) / perLine;
   const stageH = stageCardHeight(cardW);
   let sy = content.y;
@@ -316,7 +326,8 @@ export function civilWarBuilderLayout(input: BuilderLayoutInput): BuilderLayout 
   const stagesHeight = stageSummary.y + stageSummary.height - content.y;
 
   // Step 4: counter line, then the sections.
-  const columns = builderGridColumns(cw, mode);
+  const columns = builderGridColumns(cw, mode, scale);
+  const tileHeight = modularTileHeight(scale);
   const counts = input.setCounts ?? { side: 8, other: 0, otherSide: 8 };
   const modularCounter: Rect = { x: cx, y: content.y, width: cw, height: SECTION_LABEL_HEIGHT };
   let my = modularCounter.y + modularCounter.height + ROW_GAP;
@@ -331,8 +342,8 @@ export function civilWarBuilderLayout(input: BuilderLayoutInput): BuilderLayout 
       return;
     }
     my += ROW_GAP;
-    const tiles = grid(cx, my, cw, columns, count);
-    my += builderGridHeight(count, columns) + SECTION_GAP;
+    const tiles = grid(cx, my, cw, columns, count, tileHeight);
+    my += builderGridHeight(count, columns, scale) + SECTION_GAP;
     modularSections.push({ key, label, tiles });
   };
   addSection("side", counts.side);
@@ -508,10 +519,12 @@ export interface SetTileParts {
 }
 
 export function setTileParts(rect: Rect): SetTileParts {
+  // The fan takes whatever height the tile has beyond its fixed lines (64 in the Standard 148 tall tile).
+  const fan = Math.max(MODULAR_FAN_SIZE, rect.height - (MODULAR_TILE_HEIGHT - MODULAR_FAN_SIZE));
   return {
     recommended: { x: rect.x + 8, y: rect.y + 4, width: rect.width - 40, height: 12 },
-    fan: { x: rect.x + 8, y: rect.y + 18, width: rect.width - 16, height: MODULAR_FAN_SIZE },
-    name: { x: rect.x + 8, y: rect.y + 18 + MODULAR_FAN_SIZE + 4, width: rect.width - 40, height: 30 },
+    fan: { x: rect.x + 8, y: rect.y + 18, width: rect.width - 16, height: fan },
+    name: { x: rect.x + 8, y: rect.y + 18 + fan + 4, width: rect.width - 40, height: 30 },
     strip: { x: rect.x, y: rect.y + rect.height - 30, width: rect.width, height: 30 },
   };
 }
@@ -589,7 +602,12 @@ export interface SetSheetLayout {
 /** Under each card: its name (up to two lines) and its type line. */
 const SHEET_CAPTION = 46;
 
-export function setSheetLayout(viewport: { width: number; height: number }, count: number): SetSheetLayout {
+export function setSheetLayout(
+  viewport: { width: number; height: number },
+  count: number,
+  cardScale = 1,
+): SetSheetLayout {
+  const scale = safeScale(cardScale);
   const margin = viewport.width < 520 ? 8 : 24;
   const width = Math.min(viewport.width - margin * 2, 760);
   const maxHeight = Math.min(viewport.height - margin * 2, 640);
@@ -597,7 +615,8 @@ export function setSheetLayout(viewport: { width: number; height: number }, coun
   const footerHeight = 68;
   const bodyWidth = width - 24;
   const gap = 10;
-  const columns = Math.max(2, Math.min(5, Math.floor((bodyWidth + gap) / (104 + gap))));
+  // Standard keeps at least two columns; a larger card size may go to one so a card is never squeezed below its minimum.
+  const columns = Math.max(scale > 1 ? 1 : 2, Math.min(5, Math.floor((bodyWidth + gap) / (104 * scale + gap))));
   const cellW = (bodyWidth - (columns - 1) * gap) / columns;
   const imageHeight = Math.round(cellW * 1.4);
   const cellH = imageHeight + SHEET_CAPTION;
