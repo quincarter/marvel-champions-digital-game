@@ -33,6 +33,22 @@ async function touchOrClick(page: Page, phone: boolean, x: number, y: number): P
   else await page.mouse.click(x, y);
 }
 
+/** One finger pressed at (x, fromY), dragged straight to toY in small steps, and lifted there. */
+async function touchSwipe(page: Page, x: number, fromY: number, toY: number): Promise<void> {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y: fromY }] });
+  const steps = 10;
+  for (let i = 1; i <= steps; i++) {
+    await page.waitForTimeout(16);
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x, y: fromY + ((toY - fromY) * i) / steps }],
+    });
+  }
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await cdp.detach();
+}
+
 const stopOf = async (page: Page, scene: string, key: string): Promise<Rect | null> =>
   (await routeStops(page, scene))?.stops.find((s) => s.key === key)?.rect ?? null;
 
@@ -159,6 +175,25 @@ test.describe("Pause menu", () => {
     await openPause(page, phone);
     await pressStop(page, phone, PAUSE, "save-quit", async () => (await activeScenes(page)).includes("Title"));
     expect(await activeScenes(page)).not.toContain("Board");
+  });
+
+  test("the phone's Game log row shows the log, and a swipe that lifts over a row doesn't open it", async ({
+    page,
+  }, info) => {
+    test.skip(!isPhone(info), "the Quick reference rows and the Game log row are the phone sheet's own");
+    test.setTimeout(180_000);
+    await newGame(page);
+    await openPause(page, true);
+
+    // A finger that presses one row, scrolls past the tap slop and lifts over the next row is a scroll, not a tap.
+    const from = (await stopOf(page, PAUSE, "quick:villainPhase"))!;
+    const to = (await stopOf(page, PAUSE, "quick:glossary"))!;
+    await touchSwipe(page, from.x + from.width / 2, from.y + from.height / 2, to.y + to.height / 2);
+    await settle(page);
+    expect(await activeScenes(page), "a swipe opened nothing").not.toContain("RulesOverlay");
+
+    await pressStop(page, true, PAUSE, "quick:jumpLog", () => hasText(page, "Round 1 begins", PAUSE));
+    await pressStop(page, true, PAUSE, "quick:jumpLog", async () => !(await hasText(page, "Round 1 begins", PAUSE)));
   });
 
   test("Concede, confirmed, ends the game for the table", async ({ page }, info) => {

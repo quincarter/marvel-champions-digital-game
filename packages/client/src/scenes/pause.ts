@@ -23,7 +23,8 @@
  * reference" chevron rows, the "Table" toggle rows (`scenes/settings.ts`'s
  * own shared row list — P16 draws Table inline, unlike D13, which sends it
  * to the standalone Settings screen instead), and a footer of Resume over
- * Save & quit / Concede side by side.
+ * Save & quit / Concede side by side. The "Game log" Quick reference row
+ * swaps the Table/Guide group for the same recent-log box wide draws.
  *
  * Launched over the Board by its own MENU/≡ chrome button, or by Escape when
  * nothing else (a target/payment mode, the choice sheet, Inspect, the villain
@@ -53,6 +54,7 @@ import {
   paintPanel,
 } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
+import { onTap } from "../ui/tap.js";
 import {
   pauseLayout,
   type PausePhoneLowerContent,
@@ -114,7 +116,7 @@ export class PauseOverlay extends Phaser.Scene {
   #query = "";
   #route: FocusRoute | null = null;
   #confirmingConcede = false;
-  /** Wide only: "Full game log" swaps the right panel's header/grid/jump-box group for the fuller retained log (`view/pause-layout.ts`'s own `rightContent`). */
+  /** Wide: "Full game log" swaps the right panel's header/grid/jump-box group for the fuller retained log (`view/pause-layout.ts`'s own `rightContent`). Phone: the "Game log" row swaps the Table/Guide group for the same log box. */
   #logExpanded = false;
   #motion = new OverlayMotion();
   /** Phone only — the Guide group's own scroll region (docs/guided-mode.md §4 G2b); `null` on a wide layout, which has no inline Guide group. */
@@ -273,9 +275,9 @@ export class PauseOverlay extends Phaser.Scene {
       },
       {
         id: "jumpLog",
-        title: "Jump into the log",
-        detail: "Undo back to an earlier command.",
-        unavailable: "Replay isn't built yet.",
+        title: "Game log",
+        detail: this.#logExpanded ? "Showing below, newest first. Tap again for Table." : "What has happened so far.",
+        open: () => this.#toggleFullGameLog(),
       },
     );
     return rows;
@@ -300,6 +302,8 @@ export class PauseOverlay extends Phaser.Scene {
     const guideRows = guideRowInfoOf(guidePrefs());
     const guideAfterLevel = guideRows.filter(isGuideNonLevelRow);
     const guidedRunActive = this.#guidedRunActive();
+    // Phone: the log takes the Table/Guide group's place, so neither group's rows are on screen to focus.
+    const phoneLogShown = this.#logExpanded;
 
     const blindLines = game && perspectiveId ? this.#blindSheet(game, perspectiveId, config) : [];
     const layout = pauseLayout(
@@ -363,10 +367,10 @@ export class PauseOverlay extends Phaser.Scene {
         pauseFocusOrder({
           kind: "phone",
           quickReferenceIds: quickReferenceRows.map((row) => row.id),
-          tableRowIds: tableRows.map((row) => row.id),
+          tableRowIds: phoneLogShown ? [] : tableRows.map((row) => row.id),
           guideRowIds,
           confirmingConcede: this.#confirmingConcede,
-          guidedRunActive,
+          guidedRunActive: guidedRunActive && !phoneLogShown,
         }),
         stops,
       );
@@ -627,7 +631,8 @@ export class PauseOverlay extends Phaser.Scene {
       .zone(rect.x, rect.y, rect.width, rect.height)
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
-    zone.on("pointerup", activate);
+    // A tap, not any release: a finger swiping the sheet that lifts over a card is a scroll (`ui/tap.ts`).
+    onTap(zone, activate, `keyword:${entry.id}`);
     stops.set(`keyword:${entry.id}`, { rect, activate });
   }
 
@@ -764,7 +769,9 @@ export class PauseOverlay extends Phaser.Scene {
       this.#drawQuickReferenceRow(layout.quickReferenceRows[index]!, row, stops),
     );
 
-    const guideStopIds = this.#drawLowerGroup(layout.lowerViewport, layout.lowerContent, tableRows, guideRows, stops);
+    let guideStopIds: readonly string[] = [];
+    if (this.#logExpanded) this.#drawLogBox(layout.lowerViewport);
+    else guideStopIds = this.#drawLowerGroup(layout.lowerViewport, layout.lowerContent, tableRows, guideRows, stops);
 
     if (this.#confirmingConcede) this.#drawPhoneConcedeConfirm(layout, stops);
     else {
@@ -912,7 +919,8 @@ export class PauseOverlay extends Phaser.Scene {
     stops.set(`quick:${row.id}`, { rect, activate });
     const zone = this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0);
     if (enabled) {
-      zone.setInteractive({ useHandCursor: true }).on("pointerup", activate);
+      // A tap, not any release: a finger swiping the sheet that lifts over a row is a scroll (`ui/tap.ts`).
+      onTap(zone.setInteractive({ useHandCursor: true }), activate, `quick:${row.id}`);
     }
   }
 

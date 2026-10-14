@@ -62,6 +62,7 @@ import {
 } from "../ui/widgets.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { McVariableList } from "../ui/variable-list.js";
+import { onTap } from "../ui/tap.js";
 import { ListScroll } from "../view/list-scroll.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { poolCellRect, poolColumnAt, poolGridGeometry } from "../view/deck-pool-grid.js";
@@ -448,7 +449,7 @@ export class RulesOverlay extends Phaser.Scene {
       .zone(rect.x, rect.y, rect.width, rect.height)
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
-    zone.on("pointerup", onClick);
+    onTap(zone, onClick, stopId);
     stops.set(stopId, { rect, activate: onClick });
   }
 
