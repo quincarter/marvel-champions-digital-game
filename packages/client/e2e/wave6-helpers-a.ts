@@ -391,6 +391,10 @@ export async function endTurnToNextRound(
           null,
       );
       if (rect) await pressAt(page, rect.x + rect.width / 2, rect.y + rect.height / 2);
+    } else if (scenes.includes("PileViewOverlay")) {
+      // A press meant for a sheet that was already leaving (a slow runner) landed on the board's discard pile under it:
+      // close the pile the way a player would, then carry on.
+      await pressKey(page, "Escape");
     } else if (scenes.includes("ChoiceOverlay")) {
       await answerChoiceSheet(page);
     } else if (scenes.includes("VillainPhaseOverlay")) {
