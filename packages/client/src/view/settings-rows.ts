@@ -382,7 +382,8 @@ export interface CardSizeRowInfo {
 export function cardSizeRowInfoOf(settings: Settings): CardSizeRowInfo {
   return {
     title: "Card size",
-    detail: "Draws cards larger in the deck builder, collection and card lists so the text is easier to read.",
+    detail:
+      "Draws cards larger everywhere: on the table (which then scrolls), in the villain phase, the deck builder, collection and card lists, so the text is easier to read.",
     options: CARD_SIZE_VALUES.map((value) => ({ value, label: CARD_SIZE_LABELS[value] })),
     selected: settings.cardSize,
   };

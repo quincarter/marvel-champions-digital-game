@@ -71,7 +71,7 @@ const TILE_HEIGHT = 52;
 const TILE_GAP = 8;
 const SPEED_CONTROL_WIDTH = 204;
 const CARD_HOVER_CONTROL_WIDTH = 280;
-const CARD_SIZE_CONTROL_WIDTH = 252;
+const CARD_SIZE_CONTROL_WIDTH = 360;
 
 /** Every row this screen draws, in content space (`y` from the body's own top) — see this file's own doc comment. */
 export interface SettingsContentLayout {
