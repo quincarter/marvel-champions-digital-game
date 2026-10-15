@@ -368,7 +368,7 @@ export function nextSettingsAfterCardHover(settings: Settings, value: CardHoverS
 // ---------------------------------------------------------------------------
 
 export const CARD_SIZE_LABELS: Readonly<Record<CardSize, string>> = {
-  standard: "Standard",
+  standard: "Fit to screen",
   large: "Large",
   xlarge: "Extra large",
 };
@@ -384,7 +384,7 @@ export function cardSizeRowInfoOf(settings: Settings): CardSizeRowInfo {
   return {
     title: "Card size",
     detail:
-      "Draws cards larger everywhere: on the table (which then scrolls), in the villain phase, the deck builder, collection and card lists, so the text is easier to read.",
+      "Fit to screen sizes every card to the screen it is on. Large and Extra large draw them bigger everywhere (the table, the villain phase, decks and card lists), which then scroll.",
     options: CARD_SIZE_VALUES.map((value) => ({ value, label: CARD_SIZE_LABELS[value] })),
     selected: settings.cardSize,
   };

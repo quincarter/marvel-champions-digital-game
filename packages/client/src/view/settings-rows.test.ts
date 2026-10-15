@@ -256,7 +256,7 @@ describe("card size row", () => {
   test("offers Standard, Large and Extra large with the selected one marked", () => {
     const info = cardSizeRowInfoOf({ ...BASE, cardSize: "large" });
     expect(info.title).toBe("Card size");
-    expect(info.options.map((o) => o.label)).toEqual(["Standard", "Large", "Extra large"]);
+    expect(info.options.map((o) => o.label)).toEqual(["Fit to screen", "Large", "Extra large"]);
     expect(info.selected).toBe("large");
   });
 
