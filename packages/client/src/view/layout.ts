@@ -182,6 +182,11 @@ export interface BoardLayout {
   readonly maxScroll: number;
   /** How far the zones have been scrolled (`scrollLayout`); 0 from `boardLayout`, whose zones are at rest. */
   readonly scrollY: number;
+  /**
+   * True when the player band is the compact row under a tall villain band (`LayoutOptions.villainBand`): `me` and
+   * `playArea` are short strips drawn as a mini identity and a thumbnail row. Absent otherwise.
+   */
+  readonly compactPlayerRow?: boolean;
 }
 
 export interface LayoutOptions {
@@ -208,6 +213,17 @@ export interface LayoutOptions {
    * the table and the hand stay in view and live beside the phase. Omitted or 0 lays the board out as usual.
    */
   readonly villainDock?: number;
+  /**
+   * The villain phase docked as the band over the long table (tablet landscape; `villainDockRects("band")`). With
+   * `tall` set (a defend decision or the recap, TB1/TB2) the band takes the villain band and most of the player
+   * band: the hero, the play area and the other seats shrink to one compact row (`BoardLayout.compactPlayerRow`)
+   * between the band and the hand. Omitted or `tall: false`: the player band keeps its usual height.
+   */
+  readonly villainBand?: {
+    readonly tall: boolean;
+    /** 0..1, how far the band has grown while it animates (1 when omitted); past half the row draws compact. */
+    readonly grow?: number;
+  };
   /**
    * The Card size setting's factor (`cardSizeFactor` in `settings.ts`: 1, 1.25 or 1.5), 1 when omitted. Above 1 the
    * table's zones are laid out that much taller than the room between the pinned bands, so the card slots in them
@@ -382,6 +398,7 @@ export function boardLayout(viewport: Rect, options: LayoutOptions): BoardLayout
     contentHeight: placed.contentHeight,
     maxScroll: Math.max(0, placed.contentHeight - placed.tableWindow.height),
     scrollY: 0,
+    ...(placed.compactPlayerRow ? { compactPlayerRow: true } : {}),
   };
 }
 
@@ -392,6 +409,7 @@ interface ZonesAndScroll {
   readonly zones: Zones;
   readonly tableWindow: Rect;
   readonly contentHeight: number;
+  readonly compactPlayerRow?: boolean;
 }
 
 /**
@@ -618,7 +636,18 @@ function longTableZones(
   // A neutral strip (label, a wide card, the line under it: 104) joins the villain and a two-row environment grid
   // (136) in the band on a table too short for both at 52%; the player band gives up the difference.
   const neutralFloor = options.neutralArea ? Math.min(Math.round(tableHeight * 0.6), 104 + 8 + 136 + 22) : 0;
-  const villainHeight = Math.max(Math.round(tableHeight * 0.52), neutralFloor);
+  // A tall docked villain band (TB1/TB2) leaves the player band one compact row: a mini identity, a thumbnail strip.
+  // `grow` (0..1) is how far the band has grown while it animates (`BoardScene.setVillainDock`); past half the row draws compact.
+  const grow =
+    formFactor === "tabletLandscape" && options.villainBand?.tall === true
+      ? Math.min(1, Math.max(0, options.villainBand.grow ?? 1))
+      : 0;
+  const compactRow = grow >= 0.5;
+  const compactHeight = Math.min(96, Math.max(72, Math.round(tableHeight * 0.17)));
+  const normalVillainHeight = Math.max(Math.round(tableHeight * 0.52), neutralFloor);
+  const villainHeight = Math.round(
+    normalVillainHeight + (tableHeight - compactHeight - gutter - normalVillainHeight) * grow,
+  );
   const playerTop = tableTop + villainHeight + gutter;
   const playerHeight = tableHeight - villainHeight - gutter;
 
@@ -640,9 +669,11 @@ function longTableZones(
   // under it or, past a point, the slot read as card-shaped and cropped it.
   // Capped at 30% so the play area keeps most of the band; past that the
   // card simply doesn't fill the height, which is the lesser loss.
-  const identityWidth = Math.round(
-    Math.min(Math.max(Math.min(300, usable * 0.24), widePanelWidthFor(playerHeight)), usable * 0.3),
+  const normalIdentityWidth = Math.min(
+    Math.max(Math.min(300, usable * 0.24), widePanelWidthFor(tableHeight - normalVillainHeight - gutter)),
+    usable * 0.3,
   );
+  const identityWidth = Math.round(normalIdentityWidth + (Math.min(300, usable * 0.34) - normalIdentityWidth) * grow);
   const playAreaWidth = usable - identityWidth - teamWidth - gutter * (teamWidth > 0 ? 2 : 1);
 
   // The log shares the encounter column, under the piles.
@@ -674,7 +705,12 @@ function longTableZones(
     hand,
     actionBar,
   };
-  return { zones, tableWindow, contentHeight: tableTop + tableHeight + gutter - tableWindow.y };
+  return {
+    zones,
+    tableWindow,
+    contentHeight: tableTop + tableHeight + gutter - tableWindow.y,
+    ...(compactRow ? { compactPlayerRow: true } : {}),
+  };
 }
 
 /** Below this a compact villain panel stops reading as a panel at all — no room for a thumb plus a name. */

@@ -1143,11 +1143,35 @@ export function drawScenarioPlayAreas(
   });
 }
 
-export function drawPlayArea(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {
+/** The width a compact play area's own caption takes, left of its thumbnails. */
+const COMPACT_PLAY_CAPTION = 84;
+
+export function drawPlayArea(
+  ctx: BoardDrawContext,
+  rect: Rect,
+  model: BoardModel,
+  options: { readonly compact?: boolean } = {},
+): void {
   const { scene } = ctx;
+  const compact = options.compact === true;
   const g = scene.add.graphics();
   paintPanel(g, rect, "rail", "rest");
-  label(scene, rect.x + 8, rect.y + 6, "your play area", typeRole.label, surface.ink.hex, ink.label);
+  if (compact) {
+    // The tall villain band's strip (TB1): the caption beside the thumbnails, not above them.
+    const caption = label(
+      scene,
+      rect.x + 10,
+      rect.y + rect.height / 2,
+      "play area",
+      typeRole.label,
+      surface.ink.hex,
+      ink.label,
+    );
+    caption.setOrigin(0, 0.5);
+    fitText(caption, COMPACT_PLAY_CAPTION - 10, typeRole.label.size);
+  } else {
+    label(scene, rect.x + 8, rect.y + 6, "your play area", typeRole.label, surface.ink.hex, ink.label);
+  }
 
   // A second deck the identity brings (Doctor Strange's Invocation deck) gets
   // its own column beside the play area, the way the encounter piles sit
@@ -1157,12 +1181,19 @@ export function drawPlayArea(ctx: BoardDrawContext, rect: Rect, model: BoardMode
   const hasSeparateDecks = model.separateDecks.length > 0;
   const separateWidth = hasSeparateDecks ? Math.min(150, Math.max(96, rect.width * 0.26)) : 0;
   const gap = hasSeparateDecks ? 8 : 0;
-  const inner: Rect = {
-    x: rect.x + 8,
-    y: rect.y + 22,
-    width: rect.width - 16 - separateWidth - gap,
-    height: rect.height - 30,
-  };
+  const inner: Rect = compact
+    ? {
+        x: rect.x + COMPACT_PLAY_CAPTION,
+        y: rect.y + 6,
+        width: rect.width - COMPACT_PLAY_CAPTION - 8 - separateWidth - gap,
+        height: rect.height - 12,
+      }
+    : {
+        x: rect.x + 8,
+        y: rect.y + 22,
+        width: rect.width - 16 - separateWidth - gap,
+        height: rect.height - 30,
+      };
   if (hasSeparateDecks) {
     const separateRect: Rect = {
       x: inner.x + inner.width + gap,
@@ -1185,6 +1216,7 @@ export function drawPlayArea(ctx: BoardDrawContext, rect: Rect, model: BoardMode
         textStyle(typeRole.body, surface.ink.hex, ink.meta),
       )
       .setOrigin(0.5);
+    // (a compact strip shows the same line, shortened by its caption)
     return;
   }
   // Past a readable floor the cards stop shrinking and the row scrolls sideways (issue #119, `view/play-area-row.ts`).
@@ -1201,9 +1233,18 @@ export function drawPlayArea(ctx: BoardDrawContext, rect: Rect, model: BoardMode
   );
   if (!row.canScroll) {
     model.myPlayArea.forEach((panel, index) => drawCharacter(ctx, slots[index]!, panel));
+    if (compact) drawCompactPlayNote(scene, inner, slots, model);
     return;
   }
-  const count = label(scene, 0, rect.y + 6, `${ids.length} cards`, typeRole.label, surface.ink.hex, ink.label);
+  const count = label(
+    scene,
+    0,
+    compact ? rect.y + 4 : rect.y + 6,
+    `${ids.length} cards`,
+    typeRole.label,
+    surface.ink.hex,
+    ink.label,
+  );
   count.setX(inner.x + inner.width - count.width);
 
   // Every tap target the cards register (the card, and each attachment strip on it), where it was drawn, so its focus
@@ -1260,6 +1301,21 @@ export function drawPlayArea(ctx: BoardDrawContext, rect: Rect, model: BoardMode
     hint(scrollX);
     ctx.onRegionScroll();
   });
+}
+
+/** The compact strip's one-line note, in the room right of its last thumbnail: how many cards are out, and how many are tapped. */
+function drawCompactPlayNote(scene: Phaser.Scene, inner: Rect, slots: readonly Rect[], model: BoardModel): void {
+  const last = slots[slots.length - 1];
+  if (!last) return;
+  const left = last.x + last.width + 10;
+  const room = inner.x + inner.width - left;
+  if (room < 60) return;
+  const exhausted = model.myPlayArea.filter((panel) => panel.exhausted).length;
+  const text = `${model.myPlayArea.length} in play${exhausted > 0 ? ` · ${exhausted} exhausted` : ""}`;
+  const note = scene.add
+    .text(left, inner.y + inner.height / 2, text, textStyle(typeRole.body, surface.ink.hex, ink.meta))
+    .setOrigin(0, 0.5);
+  fitText(note, room, typeRole.body.size);
 }
 
 /**

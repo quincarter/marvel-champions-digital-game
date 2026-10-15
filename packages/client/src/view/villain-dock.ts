@@ -55,6 +55,21 @@ export function villainDockWidthFor(viewportWidth: number): number {
   return Math.round(Math.min(600, Math.max(440, viewportWidth * 0.33)));
 }
 
+/**
+ * The rail's width while it is widened for a defend or the recap (B1/B2): about 53% of the window (760px at the 1440
+ * reference, where the design draws it), so the table keeps the rest. A small laptop gives the table at least
+ * `WIDE_DOCK_TABLE_MIN` px; an ultrawide caps the rail at `WIDE_DOCK_MAX` so the table gets the extra room. Never
+ * narrower than the ordinary rail.
+ */
+export function villainWideDockWidthFor(viewportWidth: number): number {
+  const proportional = Math.round(viewportWidth * WIDE_DOCK_SHARE);
+  return Math.max(440, Math.min(WIDE_DOCK_MAX, proportional, viewportWidth - WIDE_DOCK_TABLE_MIN));
+}
+
+const WIDE_DOCK_SHARE = 0.528;
+const WIDE_DOCK_MAX = 1100;
+const WIDE_DOCK_TABLE_MIN = 600;
+
 export interface VillainDockRects {
   /** Where the phase panel draws; null while peeking. */
   readonly panel: Rect | null;

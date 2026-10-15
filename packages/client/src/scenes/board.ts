@@ -58,6 +58,8 @@ import { cardSizeFactor } from "../settings.js";
 import { setTapOccluders } from "../ui/tap.js";
 import { TableDrag, clampScroll, fullyInWindow, revealScroll, wheelPixels } from "../view/table-scroll.js";
 import { villainDockRects, type VillainDockRects, type VillainDockRequest } from "../view/villain-dock.js";
+import { sameSeatNote, type VillainSeatNote } from "../view/villain-seat-note.js";
+import { drawCompactIdentity } from "./board/compact-identity.js";
 import { sameHandTags, type VillainHandTag } from "../view/villain-hand-tags.js";
 import { reviewHandleRect, showReviewHandle } from "../view/villain-review.js";
 import type { SessionState } from "../store/session-store.js";
@@ -132,6 +134,10 @@ const TEAM_UP_PAIRS = teamUpPairsOf(POOL_CARDS);
 
 /** The villain-phase review handle: over the table, under the round band (`motion.ts`, 1150). */
 const HANDLE_DEPTH = 950;
+
+/** Emitted on the Board's own `events` on every step of a dock resize (and when it snaps), with the current `VillainDockRects`. */
+export const VILLAIN_DOCK_CHANGED = "villain-dock-changed";
+const VILLAIN_DOCK_TWEEN_MS = 280;
 
 export class BoardScene extends Phaser.Scene {
   /** Team-Ups present in the latest state (relevant to this game, both characters in play in any form). */
@@ -1148,14 +1154,17 @@ export class BoardScene extends Phaser.Scene {
       neutralArea: model.scenarioPlayAreas.some((area) => area.neutral),
       activeTab: this.#activeTab,
       ...(guideRail ? { guideRail } : {}),
-      ...(dock?.request === "rail" ? { villainDock: dock.width } : {}),
+      ...(dock?.request === "rail" ? { villainDock: this.#dockShown.width } : {}),
+      ...(dock?.request === "band" && this.#dockShown.grow > 0
+        ? { villainBand: { tall: true, grow: this.#dockShown.grow } }
+        : {}),
       ...(cardScale > 1 ? { cardScale } : {}),
     });
     const layout = scrollLayout(atRest, this.#tableScroll);
     this.#tableScroll = layout.scrollY;
     const scrolling = layout.maxScroll > 0;
     this.#layout = layout;
-    this.#villainDockRects = dock ? villainDockRects(dock.request, layout, dock.width) : null;
+    this.#villainDockRects = dock ? villainDockRects(dock.request, layout, this.#dockShown.width) : null;
 
     const ctx: BoardDrawContext = {
       scene: this,
@@ -1234,8 +1243,10 @@ export class BoardScene extends Phaser.Scene {
     else this.#logPanel.hide();
     // Always the wide panel: the identity's attachments only show as chips
     // beside its card, and a tall window can give this slot a card-like shape.
-    if (zones.me) drawCharacter(ctx, zones.me, model.me, { shape: "wide", playerId: model.perspectiveId });
-    if (zones.playArea) drawPlayArea(ctx, zones.playArea, model);
+    const compactRow = layout.compactPlayerRow === true;
+    if (zones.me && compactRow) drawCompactIdentity(ctx, zones.me, model.me, this.#villainSeatNote);
+    else if (zones.me) drawCharacter(ctx, zones.me, model.me, { shape: "wide", playerId: model.perspectiveId });
+    if (zones.playArea) drawPlayArea(ctx, zones.playArea, model, compactRow ? { compact: true } : {});
     if (zones.team) drawTeam(ctx, zones.team, model);
     if (zones.log && !logGate.locked) this.#frame.innerScroll.push(setAside?.log ?? zones.log);
     this.#rowWheelRect = zones.playArea && this.#playAreaScroll.row.canScroll ? zones.playArea : null;
@@ -1769,7 +1780,11 @@ export class BoardScene extends Phaser.Scene {
     return !this.scene.isActive(SCENES.villainPhase) && !this.#motion.isTransitioning();
   }
 
-  #villainDock: { readonly request: VillainDockRequest; readonly width: number } | null = null;
+  #villainDock: { readonly request: VillainDockRequest; readonly width: number; readonly tall: boolean } | null = null;
+  #villainSeatNote: VillainSeatNote | null = null;
+  /** The dock as drawn this frame: `#villainDock` is where it is going, this is where an animated resize has got to. */
+  #dockShown: { readonly width: number; readonly grow: number } = { width: 0, grow: 0 };
+  #dockTween: Phaser.Tweens.Tween | null = null;
   #villainDockRects: VillainDockRects | null = null;
 
   /**
@@ -1777,12 +1792,58 @@ export class BoardScene extends Phaser.Scene {
    * null. The phase asks for this; the Board redraws at once, so `villainDockRects` answers for the new shape when this
    * returns.
    */
-  setVillainDock(request: VillainDockRequest | null, width: number = 0): void {
+  setVillainDock(
+    request: VillainDockRequest | null,
+    width: number = 0,
+    options: { readonly tall?: boolean } = {},
+  ): void {
     const current = this.#villainDock;
-    if (current?.request === request && (request !== "rail" || current.width === width)) return;
+    const tall = request === "band" && options.tall === true;
+    if (current?.request === request && (request !== "rail" || current.width === width) && current.tall === tall)
+      return;
     if (!current && request === null) return;
-    this.#villainDock = request === null ? null : { request, width };
-    this.#draw();
+    const from = this.#dockShown;
+    this.#dockTween?.stop();
+    this.#dockTween = null;
+    this.#villainDock = request === null ? null : { request, width, tall };
+    const to = { width, grow: tall ? 1 : 0 };
+    // Only a change of size inside the same shape animates; a new shape, or none, snaps.
+    const resize = current !== null && current.request === request && (request === "rail" || request === "band");
+    if (!resize || appSession().settings.reducedMotion || !this.scene.isActive()) {
+      this.#dockShown = to;
+      this.#draw();
+      this.events.emit(VILLAIN_DOCK_CHANGED, this.#villainDockRects);
+      return;
+    }
+    const step = (t: number): void => {
+      this.#dockShown = {
+        width: Math.round(from.width + (to.width - from.width) * t),
+        grow: from.grow + (to.grow - from.grow) * t,
+      };
+      this.#draw();
+      this.events.emit(VILLAIN_DOCK_CHANGED, this.#villainDockRects);
+    };
+    this.#dockTween = this.tweens.addCounter({
+      from: 0,
+      to: 1,
+      duration: VILLAIN_DOCK_TWEEN_MS,
+      ease: "Cubic.easeOut",
+      onUpdate: (tween) => step(tween.getValue() ?? 1),
+      onComplete: () => {
+        this.#dockTween = null;
+        step(1);
+      },
+    });
+  }
+
+  /**
+   * What the compact identity panel says while the band is tall (TB1): a status tag beside the hero's name and the HP
+   * bar's projected range. Null clears it. Only drawn while `setVillainDock("band", _, { tall: true })` is in force.
+   */
+  setVillainSeatNote(note: VillainSeatNote | null): void {
+    if (sameSeatNote(this.#villainSeatNote, note)) return;
+    this.#villainSeatNote = note;
+    if (this.#layout?.compactPlayerRow) this.#draw();
   }
 
   #villainHandTags: ReadonlyMap<InstanceId, VillainHandTag> | null = null;
