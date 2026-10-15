@@ -17,7 +17,7 @@ import { accent, border, ink, signal, surface, typeRole, type TypeSpec } from ".
 import type { FormFactor, Rect } from "../view/layout.js";
 import type { VariableListScroll } from "../view/variable-list-scroll.js";
 import type { RecapChange, RecapColumn, RecapEntry, RecapResponse, VillainRecap } from "../view/villain-recap.js";
-import { villainRecapLayout, type VillainRecapLayout } from "../view/villain-recap-layout.js";
+import { villainDockedRecapLayout, villainRecapLayout, type VillainRecapLayout } from "../view/villain-recap-layout.js";
 import { noteHoverCard } from "./card-hover-preview.js";
 import { drawSeatAvatar } from "./seat-avatar.js";
 import { bindHoldTarget } from "./hold-target.js";
@@ -40,6 +40,16 @@ export interface RecapPanelArgs {
   readonly onStart: () => void;
   /** The primary button's label: "Start player phase ▸", or "Close" when the recap is reopened for review. */
   readonly ctaLabel?: string;
+  /**
+   * Drawn in the docked panel (`bounds` is the panel): EXPAND takes Hide's place and opens the full-screen recap. On the
+   * rail and the band the steps lay out as the story strip (`villainDockedRecapLayout`); on a tab, as the ordinary
+   * layout over the panel.
+   */
+  readonly docked?: {
+    readonly kind: "rail" | "band" | "tab";
+    readonly expandLabel: string;
+    readonly onExpand: () => void;
+  };
 }
 
 export interface RecapPanelResult {
@@ -57,7 +67,11 @@ const sentence = (text: string): string => text.charAt(0).toUpperCase() + text.s
 export function drawVillainRecapPanel(scene: Phaser.Scene, args: RecapPanelArgs): RecapPanelResult {
   const { formFactor, recap } = args;
   const phone = formFactor === "phone";
-  const layout = villainRecapLayout(args.bounds, formFactor, recap.changes.length);
+  const dockedKind = args.docked?.kind;
+  const layout =
+    dockedKind === "rail" || dockedKind === "band"
+      ? villainDockedRecapLayout(args.bounds, dockedKind, recap.changes.length)
+      : villainRecapLayout(args.bounds, formFactor, recap.changes.length);
   const stops = new Map<string, FocusStop>();
 
   const g = scene.add.graphics();
@@ -98,7 +112,9 @@ export function drawVillainRecapPanel(scene: Phaser.Scene, args: RecapPanelArgs)
     args.buttons.push(new McButton(scene, { kind, label: text, type, rect, onClick }));
     stops.set(key, { rect, activate: onClick });
   };
-  button("skip", "Hide", layout.hide, "onInk", typeRole.label, args.onHide);
+  if (args.docked)
+    button("expand", args.docked.expandLabel, layout.hide, "onInk", typeRole.label, args.docked.onExpand);
+  else button("skip", "Hide", layout.hide, "onInk", typeRole.label, args.onHide);
   button("full-log", "Full log", layout.fullLog, "onInk", typeRole.label, args.onFullLog);
 
   // What changed.
@@ -122,7 +138,7 @@ export function drawVillainRecapPanel(scene: Phaser.Scene, args: RecapPanelArgs)
     const scroll = args.scrolls[regionIndex]!;
     recap.columns.forEach((column, stepIndex) => {
       if (layout.stepRegion[stepIndex] !== regionIndex) return;
-      y += drawColumn(scene, region, y, column, args.game, phone) + 12;
+      y += drawColumn(scene, region, y, column, args.game, phone, layout.regionAcross?.[regionIndex] ?? 1) + 12;
     });
     const objects = scene.children.list.slice(from);
     const scrollRegion = new McScrollRegion(scene, {
@@ -216,6 +232,7 @@ function drawColumn(
   column: RecapColumn,
   game: GameState,
   phone: boolean,
+  across: number = 1,
 ): number {
   const g = scene.add.graphics();
   const width = region.width - (phone ? 0 : 0);
@@ -240,6 +257,20 @@ function drawColumn(
       .text(region.x + 4, y, "Nothing this step.", textStyle(typeRole.body, surface.paper.hex, ink.meta))
       .setOrigin(0, 0);
     return y + 18 - top;
+  }
+  if (across > 1) {
+    // Side by side (the docked recap's step 4): rows of `across` entries, each a share of the width.
+    const gap = 10;
+    const cell = (width - gap * (across - 1)) / across;
+    for (let start = 0; start < column.entries.length; start += across) {
+      let rowHeight = 0;
+      column.entries.slice(start, start + across).forEach((entry, i) => {
+        const slot = { x: region.x + i * (cell + gap), y, width: cell };
+        rowHeight = Math.max(rowHeight, drawEntry(scene, slot, entry, column.number, game, phone));
+      });
+      y += rowHeight + 8;
+    }
+    return y - 8 - top;
   }
   for (const entry of column.entries) {
     y += drawEntry(scene, { x: region.x, y, width }, entry, column.number, game, phone) + 8;

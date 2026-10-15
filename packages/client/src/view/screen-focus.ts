@@ -238,11 +238,13 @@ export function villainPhaseFocusOrder(
   interruptOptionIds: readonly string[] = [],
   guideStrip?: { readonly hasPrimary: boolean },
   recap: boolean = false,
+  /** The docked recap's EXPAND (full-screen recap), after the toggle and FULL LOG. */
+  expand: boolean = false,
 ): readonly string[] {
   return [
     ...(finished ? ["continue"] : []),
     // The held-open recap's own controls (`view/villain-recap-layout.ts`): the auto-advance toggle and FULL LOG.
-    ...(finished && recap ? ["toggle", "full-log"] : []),
+    ...(finished && recap ? ["toggle", "full-log", ...(expand ? ["expand"] : [])] : []),
     ...interruptOptionIds.map((id) => `interrupt:${id}`),
     ...(interruptOptionIds.length > 0 ? ["resolve"] : []),
     "skip",
@@ -270,6 +272,14 @@ export function villainRailFocusOrder(interruptOptionIds: readonly string[] = []
     "hide",
     "toggle",
   ];
+}
+
+/**
+ * The docked defend decision (`ui/villain-defend-panel.ts`): each defender option in order, then CONFIRM, then EXPAND
+ * (the full-screen sheet instead).
+ */
+export function villainDefendFocusOrder(optionIds: readonly string[]): readonly string[] {
+  return [...optionIds.map((id) => `option:${id}`), "confirm", "expand"];
 }
 
 /**

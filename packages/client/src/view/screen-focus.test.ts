@@ -14,6 +14,7 @@ import {
   titleFocusOrder,
   titleMenuFocusOrder,
   villainPhaseFocusOrder,
+  villainDefendFocusOrder,
   villainRailFocusOrder,
 } from "./screen-focus.js";
 
@@ -821,5 +822,11 @@ describe("seatsFocusOrder with a Recommended shelf", () => {
     expect(
       seatsFocusOrder({ seatCount: 4, deckIds: ["a"], hasRecommended: true }).filter((k) => k.startsWith("hero-rec")),
     ).toEqual([]);
+  });
+});
+
+describe("villainDefendFocusOrder", () => {
+  it("walks the options, then CONFIRM, then EXPAND", () => {
+    expect(villainDefendFocusOrder(["decline", "i3"])).toEqual(["option:decline", "option:i3", "confirm", "expand"]);
   });
 });

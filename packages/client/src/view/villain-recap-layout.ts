@@ -23,6 +23,9 @@ const PAD_WIDE = 24;
 const GAP = 16;
 const COLUMN_WEIGHTS = [1, 1.8, 1, 1.6, 0.95];
 
+/** The margin the ordinary layout keeps around its panel: a docked tab panel is inflated by it, to fill the dock's own. */
+export const recapMarginFor = (formFactor: FormFactor): number => (formFactor === "phone" ? MARGIN_PHONE : MARGIN_WIDE);
+
 export interface VillainRecapLayout {
   readonly panel: Rect;
   readonly title: Rect;
@@ -44,6 +47,11 @@ export interface VillainRecapLayout {
   readonly hint: Rect;
   /** START PLAYER PHASE. */
   readonly cta: Rect;
+  /**
+   * How many entry cards sit side by side in each region (default 1, stacked): the docked recap's step 4 runs across
+   * the bottom (B2).
+   */
+  readonly regionAcross?: readonly number[];
 }
 
 const zero = (x: number, y: number): Rect => ({ x, y, width: 0, height: 0 });
@@ -200,5 +208,83 @@ export function villainRecapLayout(bounds: Rect, formFactor: FormFactor, tileCou
     toggle,
     hint,
     cta,
+  };
+}
+
+/**
+ * The recap docked beside the table (B2 desktop, TB2 tablet landscape): "the step-by-step strip". The panel is the
+ * dock's, which flexes with the window (about 440 to 1100 wide on desktop), so nothing here assumes a width. Header
+ * (title, subtitle, FULL LOG and EXPAND at the right), the "what changed" tiles in one row, then
+ * steps 1, 3 and 5 stacked compact in a left column with step 2's activations in a right column, step 4's reveals
+ * across the bottom, and the footer: the auto-advance toggle and START PLAYER PHASE.
+ *
+ * `hide` is EXPAND's rectangle here. Phones and tablets in portrait dock into the tab panel with the ordinary
+ * `villainRecapLayout` over the panel's bounds.
+ */
+export function villainDockedRecapLayout(panel: Rect, kind: "rail" | "band", tileCount: number): VillainRecapLayout {
+  const band = kind === "band";
+  const pad = band ? 16 : 20;
+  const x = panel.x + pad;
+  const width = Math.max(0, panel.width - pad * 2);
+  const right = x + width;
+  const bottom = panel.y + panel.height - pad;
+  const top = panel.y + pad;
+
+  const expand: Rect = { x: right - 116, y: top, width: 116, height: hit.target };
+  const fullLogWidth = 130;
+  const headerFullLog: Rect = { x: expand.x - 10 - fullLogWidth, y: top, width: fullLogWidth, height: hit.target };
+  const titleRight = headerFullLog.x;
+  const title: Rect = { x, y: top, width: Math.max(0, titleRight - 12 - x), height: 36 };
+  const subtitle: Rect = { x, y: top + 40, width: Math.max(0, titleRight - 12 - x), height: 18 };
+
+  const tilesTop = top + 66;
+  const tileGap = band ? 10 : 12;
+  const tileHeight = band ? 56 : 64;
+  const tileWidth = tileCount === 0 ? 0 : (width - tileGap * (tileCount - 1)) / tileCount;
+  const tiles = Array.from({ length: tileCount }, (_, i): Rect => {
+    return { x: x + i * (tileWidth + tileGap), y: tilesTop, width: tileWidth, height: tileHeight };
+  });
+
+  const ctaHeight = hit.primary;
+  const ctaWidth = Math.min(300, Math.round(width * 0.42));
+  const cta: Rect = { x: right - ctaWidth, y: bottom - ctaHeight, width: ctaWidth, height: ctaHeight };
+  const fullLog = headerFullLog;
+  const toggleRight = cta.x;
+  const toggle: Rect = {
+    x,
+    y: cta.y,
+    width: Math.max(0, Math.min(290, toggleRight - 12 - x)),
+    height: ctaHeight,
+  };
+
+  const areaTop = tilesTop + (tileCount > 0 ? tileHeight + 12 : 0);
+  const areaHeight = Math.max(0, cta.y - 12 - areaTop);
+  const bottomHeight = Math.min(areaHeight, Math.max(band ? 96 : 120, Math.round(areaHeight * (band ? 0.3 : 0.34))));
+  const upperHeight = Math.max(0, areaHeight - bottomHeight - 12);
+  const leftWidth = Math.round((width - 12) * 0.38);
+  const left: Rect = { x, y: areaTop, width: leftWidth, height: upperHeight };
+  const middle: Rect = {
+    x: x + leftWidth + 12,
+    y: areaTop,
+    width: Math.max(0, width - leftWidth - 12),
+    height: upperHeight,
+  };
+  const across = Math.max(1, Math.min(3, Math.floor((width + 12) / (260 + 12))));
+  const lower: Rect = { x, y: areaTop + upperHeight + 12, width, height: bottomHeight };
+
+  return {
+    panel,
+    title,
+    subtitle,
+    hide: expand,
+    fullLog,
+    tilesLabel: zero(x, areaTop),
+    tiles,
+    regions: [left, middle, lower],
+    stepRegion: [0, 1, 0, 2, 0],
+    toggle,
+    hint: zero(toggle.x, toggle.y),
+    cta,
+    regionAcross: [1, 1, across],
   };
 }
