@@ -196,20 +196,27 @@ function drawTile(scene: Phaser.Scene, rect: Rect, change: RecapChange, phone: b
     accentColor,
     change.highlight ? 1 : ink.secondary,
   );
-  // A narrow tile steps its label down a size before it cuts the name, and never cuts its "· YOU" tag (`fitTileLabel`).
+  // A narrow tile cuts the name only as a last resort, and never its "· YOU" tag (`fitTileLabel`). A tall tile first
+  // lets the label take a second line, with its letters closed up: "THE MASTER OF / TIME" reads where "THE MASTE…" does not.
   const labelRoom = rect.width - padX * 2;
-  const fitLabel = (): string =>
+  labelText.setText(
     fitTileLabel(change.label, (candidate) => {
       labelText.setText(candidate);
       return labelText.width <= labelRoom;
-    });
-  const fullSize = Number.parseFloat(String(labelText.style.fontSize));
-  let fitted = fitLabel();
-  if (fitted.includes("…") && fullSize > 9) {
-    labelText.setFontSize(9);
-    fitted = fitLabel();
+    }),
+  );
+  if (labelText.text.includes("…") && !phone && rect.height >= 70) {
+    labelText.setLetterSpacing(0).setWordWrapWidth(labelRoom).setText(change.label);
+    if (labelText.getWrappedText().length > 2) {
+      labelText.setLetterSpacing(typeRole.label.letterSpacing ?? 0).setWordWrapWidth(0);
+      labelText.setText(
+        fitTileLabel(change.label, (candidate) => {
+          labelText.setText(candidate);
+          return labelText.width <= labelRoom;
+        }),
+      );
+    }
   }
-  labelText.setText(fitted);
   const size = phone ? 18 : rect.height >= 70 ? 26 : 20;
   const numberY = rect.y + rect.height - size - (phone ? 6 : 10);
   const bigSpec = { ...typeRole.barTitle, size };
