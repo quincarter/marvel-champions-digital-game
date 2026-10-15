@@ -168,10 +168,11 @@ describe("parseSettingsOverrides", () => {
     expect(parseSettingsOverrides('{"cardSize":"huge"}')).toEqual({});
   });
 
-  test("cardHoverScale: only the five known values are read (a saved 4x or 5x falls back to the default)", () => {
+  test("cardHoverScale: only the five known values are read (a saved 5x falls back to the default)", () => {
     expect(parseSettingsOverrides('{"cardHoverScale":"1.5x"}')).toEqual({ cardHoverScale: "1.5x" });
     expect(parseSettingsOverrides('{"cardHoverScale":"off"}')).toEqual({ cardHoverScale: "off" });
     expect(parseSettingsOverrides('{"cardHoverScale":3}')).toEqual({});
+    expect(parseSettingsOverrides('{"cardHoverScale":"4x"}')).toEqual({ cardHoverScale: "4x" });
     expect(parseSettingsOverrides('{"cardHoverScale":"5x"}')).toEqual({});
   });
 

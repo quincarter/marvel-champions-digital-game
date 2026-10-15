@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   HOVER_MARGIN,
-  HOVER_MIN_WIDTH,
+  HOVER_BASE_LONG_SIDE,
   hoverArea,
   hoverCandidateAt,
   hoverCardSize,
@@ -86,34 +86,35 @@ describe("hoverCandidateAt", () => {
 
 describe("hoverCardSize", () => {
   const area = VIEWPORT;
-  const tableCard: Rect = { x: 0, y: 0, width: 120, height: 168 };
+  const handCard: Rect = { x: 0, y: 0, width: 120, height: 168 };
+  const heroPanel: Rect = { x: 0, y: 0, width: 175, height: 245 };
+  const chip: Rect = { x: 0, y: 0, width: 30, height: 42 };
 
-  test("scales the on-table size by the setting", () => {
-    const two = hoverCardSize(tableCard, 120 / 168, "2x", area);
-    const three = hoverCardSize(tableCard, 120 / 168, "3x", area);
-    expect(two.width).toBeCloseTo(240);
-    expect(three.width).toBeCloseTo(360);
-    expect(three.width / three.height).toBeCloseTo(120 / 168);
-    expect(hoverCardSize(tableCard, 120 / 168, "2.5x", area).width).toBeCloseTo(300);
+  test("every portrait card comes up at the same size, the base long side times the setting", () => {
+    for (const rect of [handCard, heroPanel, chip]) {
+      const size = hoverCardSize(rect, 120 / 168, "2.5x", area);
+      expect(size.height).toBeCloseTo(HOVER_BASE_LONG_SIDE * 2.5);
+      expect(size.width / size.height).toBeCloseTo(120 / 168);
+    }
+    expect(hoverCardSize(handCard, 120 / 168, "2x", area).height).toBeCloseTo(HOVER_BASE_LONG_SIDE * 2);
+    expect(hoverCardSize(handCard, 120 / 168, "4x", area).height).toBeCloseTo(
+      Math.min(HOVER_BASE_LONG_SIDE * 4, area.height - HOVER_MARGIN * 2),
+    );
   });
 
-  test("fits the scan inside a rect of another shape before scaling", () => {
-    const wide: Rect = { x: 0, y: 0, width: 300, height: 150 };
-    const size = hoverCardSize(wide, 0.7, "3x", area);
-    expect(size.height).toBeCloseTo(150 * 3);
+  test("a sideways card's long side is its width", () => {
+    const scheme: Rect = { x: 0, y: 0, width: 300, height: 214 };
+    const size = hoverCardSize(scheme, 168 / 120, "2x", area);
+    expect(size.width).toBeCloseTo(HOVER_BASE_LONG_SIDE * 2);
+    expect(size.height).toBeCloseTo(120 * 2);
   });
 
   test("never larger than the area, aspect kept", () => {
     const small: Rect = { x: 0, y: 0, width: 800, height: 500 };
-    const size = hoverCardSize(tableCard, 120 / 168, "3x", small);
+    const size = hoverCardSize(handCard, 120 / 168, "4x", small);
     expect(size.height).toBeLessThanOrEqual(500 - HOVER_MARGIN * 2 + 0.001);
     expect(size.width).toBeLessThanOrEqual(800 - HOVER_MARGIN * 2 + 0.001);
     expect(size.width / size.height).toBeCloseTo(120 / 168);
-  });
-
-  test("a tiny chip is lifted to a readable width", () => {
-    const chip: Rect = { x: 0, y: 0, width: 30, height: 42 };
-    expect(hoverCardSize(chip, 30 / 42, "2x", area).width).toBeCloseTo(HOVER_MIN_WIDTH);
   });
 });
 

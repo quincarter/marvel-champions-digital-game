@@ -337,6 +337,7 @@ export const CARD_HOVER_SCALE_LABELS: Readonly<Record<CardHoverScale, string>> =
   "2x": "2×",
   "2.5x": "2.5×",
   "3x": "3×",
+  "4x": "4×",
 };
 
 export interface CardHoverRowInfo {

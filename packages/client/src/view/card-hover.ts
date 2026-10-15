@@ -12,8 +12,6 @@ export const HOVER_DELAY_MS = 300;
 export const HOVER_CURSOR_OFFSET = 22;
 /** The popover never comes closer than this to the edge of its area. */
 export const HOVER_MARGIN = 8;
-/** A tiny on-table chip is never blown up to less than this wide, or "2x" of a thumbnail would still be unreadable. */
-export const HOVER_MIN_WIDTH = 220;
 
 export interface HoverGate {
   readonly formFactor: FormFactor;
@@ -120,9 +118,16 @@ export interface Size {
 }
 
 /**
- * The popover card's size: the scan fitted into the card's on-table rect, times the setting, never under
- * `HOVER_MIN_WIDTH` wide and never larger than the area (less its margins). `aspect` is the scan's width over height;
- * without one the on-table rect's own shape stands in.
+ * The long side of the card the setting multiplies: a desktop hand card's height. Every card blows up to the same
+ * size whatever it is drawn at on the table (the owner, 2026-10-14: the villain and the hero came up far larger than
+ * a hand card at the same setting, because their on-table size was what got multiplied).
+ */
+export const HOVER_BASE_LONG_SIDE = 168;
+
+/**
+ * The popover card's size: a card whose long side is `HOVER_BASE_LONG_SIDE` times the setting, in the scan's shape
+ * (a sideways scheme's long side is its width), never larger than the area less its margins. `aspect` is the scan's
+ * width over height; without one the on-table rect's own shape stands in.
  */
 export function hoverCardSize(
   cardRect: Rect,
@@ -133,8 +138,8 @@ export function hoverCardSize(
 ): Size {
   const factor = cardHoverFactor(scale) ?? 1;
   const ratio = aspect !== null && aspect > 0 ? aspect : cardRect.width / Math.max(1, cardRect.height);
-  const baseWidth = Math.min(cardRect.width, cardRect.height * ratio);
-  let width = Math.max(HOVER_MIN_WIDTH, baseWidth * factor);
+  const longSide = HOVER_BASE_LONG_SIDE * factor;
+  let width = ratio >= 1 ? longSide : longSide * ratio;
   let height = width / ratio;
   const maxWidth = Math.max(1, area.width - margin * 2);
   const maxHeight = Math.max(1, area.height - margin * 2);

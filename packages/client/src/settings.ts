@@ -48,7 +48,7 @@ export interface Settings {
   readonly villainDockTable: boolean;
   /**
    * How much larger than its on-table size a card is drawn in the hover popover (`scenes/board/hover-preview.ts`), or
-   * "off". Desktop with a mouse only: a phone or tablet has long-press Inspect instead, and ignores this. Defaults 2x.
+   * "off". Desktop with a mouse only: a phone or tablet has long-press Inspect instead, and ignores this. Defaults 2.5x.
    */
   readonly cardHoverScale: CardHoverScale;
   /**
@@ -67,9 +67,9 @@ export function cardSizeFactor(size: CardSize): number {
   return size === "xlarge" ? 1.5 : size === "large" ? 1.25 : 1;
 }
 
-/** Up to 3x: anything larger got in the way (the owner, 2026-10-14). */
-export type CardHoverScale = "off" | "1.5x" | "2x" | "2.5x" | "3x";
-export const CARD_HOVER_SCALE_VALUES: readonly CardHoverScale[] = ["off", "1.5x", "2x", "2.5x", "3x"];
+/** Up to 4x: anything larger got in the way (the owner, 2026-10-14). */
+export type CardHoverScale = "off" | "1.5x" | "2x" | "2.5x" | "3x" | "4x";
+export const CARD_HOVER_SCALE_VALUES: readonly CardHoverScale[] = ["off", "1.5x", "2x", "2.5x", "3x", "4x"];
 
 /** The size multiplier a `cardHoverScale` stands for; null for "off". */
 export function cardHoverFactor(scale: CardHoverScale): number | null {
@@ -117,7 +117,7 @@ export function defaultSettings(): Settings {
     holdEncounterCards: true,
     villainBeatSpeed: "normal",
     villainDockTable: true,
-    cardHoverScale: "2x",
+    cardHoverScale: "2.5x",
     cardSize: "standard",
   };
 }
