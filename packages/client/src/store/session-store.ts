@@ -93,9 +93,9 @@ export interface SessionState {
   /**
    * Every command this store has dispatched since the game started or was resumed, one entry per command, in
    * order — what `view/back-out.ts`'s `backOutTargetOf` reads to decide whether "Back out" applies to the choice
-   * on screen right now. Reset to empty on `start`/`resume` (a resumed game's earlier commands are gone from
-   * memory, so nothing from before a resume is ever offered a back-out — the safe default when this store can't
-   * see what those commands revealed). Truncated, not reset, by `rewindTo` itself, to the same length as the
+   * on screen right now. Reset to empty on `start`; on `resume` it is rebuilt from the replay (each
+   * command's events and RNG draw counts, `EngineUpdate.trail`), so it is as long as `version` and as accurate as a
+   * live game's (its turn boundaries and reveals stop Undo just the same). Truncated, not reset, by `rewindTo` itself, to the same length as the
    * rewound command count, so a second back-out right after the first still has an accurate trail.
    */
   readonly commandTrail: readonly BackOutTrailEntry[];
@@ -324,7 +324,9 @@ export class SessionStore {
       record: update.record,
       saveError: update.saveError,
       config: update.config,
-      commandTrail: options.commandTrail ?? this.#state.commandTrail,
+      // A resumed game's first update carries the replayed commands' own trail, so `commandTrail.length === version`
+      // holds from the first frame and a trail index is always a command count (`rewindTo`'s argument).
+      commandTrail: options.commandTrail ?? update.trail ?? this.#state.commandTrail,
     });
     void this.#findOffTurnSeats(update);
   }

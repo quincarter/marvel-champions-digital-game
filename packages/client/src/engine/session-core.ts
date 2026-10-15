@@ -46,6 +46,7 @@ import {
   type PlayerId,
   type SealedGameState,
 } from "@mc/engine";
+import type { BackOutTrailEntry } from "../view/back-out.js";
 import { sealForTable } from "../view/hidden-reverse.js";
 import { actingPlayer } from "./acting-player.js";
 import { emptyRecord, recordEvents, type GameRecord } from "./game-record.js";
@@ -77,6 +78,8 @@ export interface Snapshot {
   readonly saveError: string | null;
   /** A resumed game only: every event the replay produced (setup, then each command), so the board's log can show the game so far. Absent otherwise. */
   readonly history?: readonly GameEvent[];
+  /** A resumed game only: each replayed command with its events and RNG draw counts (`EngineUpdate.trail`). */
+  readonly trail?: readonly BackOutTrailEntry[];
 }
 
 export type CoreDispatch =
@@ -356,6 +359,7 @@ export class EngineSessionCore {
     let record = recordEvents(emptyRecord(), baseline.setupEvents, initialState);
     let state = initialState;
     const history: GameEvent[] = [...baseline.setupEvents];
+    const trail: BackOutTrailEntry[] = [];
     for (const [index, command] of stored.commands.entries()) {
       const result = applyCommand(state, command, POOL_DEPS);
       if (!result.ok) {
@@ -364,6 +368,12 @@ export class EngineSessionCore {
           `this saved game no longer replays (command ${index + 1} of ${stored.commands.length}: ${result.error.message})`,
         );
       }
+      trail.push({
+        playerId: command.playerId,
+        command,
+        events: result.events,
+        rngDraws: { before: state.rng.draws, after: result.state.rng.draws },
+      });
       state = result.state;
       record = recordEvents(record, result.events, state);
       history.push(...result.events);
@@ -377,7 +387,7 @@ export class EngineSessionCore {
     this.#writes = Promise.resolve();
     this.#saveError = null;
     // No events: a resumed game arrives at its position; it doesn't re-animate getting there.
-    return { cardPool: initialState.cardPool, snapshot: { ...this.#snapshot([]), history } };
+    return { cardPool: initialState.cardPool, snapshot: { ...this.#snapshot([]), history, trail } };
   }
 
   /**

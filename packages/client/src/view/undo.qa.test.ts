@@ -112,7 +112,7 @@ describe("Undo: exact restoration", () => {
     await store2.resume(gameId);
     expect(store2.state.version).toBe(versionBefore);
     expect(store2.state.game).toEqual(before);
-    // A resumed session has no trail, so nothing from before the resume can be undone (the safe default).
+    // Resumed at the start of the hero turn (the undone state): its replayed trail holds no move of this turn to take back.
     expect(undoOf(store2.state.commandTrail, store2.state.game!, me)).toEqual({
       kind: "unavailable",
       reason: UNDO_REASONS.nothing,

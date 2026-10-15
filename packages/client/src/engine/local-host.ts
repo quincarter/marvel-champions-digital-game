@@ -104,6 +104,7 @@ export class LocalEngineHost implements EngineHost {
       saveError: snapshot.saveError,
       config: snapshot.config,
       ...(snapshot.history ? { history: snapshot.history } : {}),
+      ...(snapshot.trail ? { trail: snapshot.trail } : {}),
     };
   }
 

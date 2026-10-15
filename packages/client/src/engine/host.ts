@@ -28,6 +28,7 @@ import type {
   SetupStack,
   TableRules,
 } from "@mc/engine";
+import type { BackOutTrailEntry } from "../view/back-out.js";
 import type { GameRecord } from "./game-record.js";
 import type { SaveMeta, SavedGuidedRun } from "./game-storage.js";
 
@@ -234,6 +235,12 @@ export interface EngineUpdate {
   readonly config: SessionConfig | null;
   /** A resumed game's first update only: every event the replay produced, oldest first, for the board's log. */
   readonly history?: readonly GameEvent[];
+  /**
+   * A resumed game's first update only: one entry per replayed command, with the events it produced and the RNG draw
+   * count around it, exactly what the store records live. It lets Undo and Back out read a resumed game's earlier
+   * moves (and stop at their turn boundaries) instead of treating its command count as an empty trail.
+   */
+  readonly trail?: readonly BackOutTrailEntry[];
 }
 
 export type DispatchResult =
