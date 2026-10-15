@@ -1,0 +1,3 @@
+kind: Fixed
+body: Villain phase decision notices show the prompt's own question and options, Breakout's pick reads "Choose the new active villain" and answers itself with one candidate, and an interrupt window names the hero when several are playing
+time: 2026-10-15T02:47:18.9153122-04:00
