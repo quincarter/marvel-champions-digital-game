@@ -1,0 +1,3 @@
+kind: Fixed
+body: A device whose WebGL cannot draw shows why in plain text (the error, the WebGL renderer and limits, the screen and browser) instead of a black page (#157)
+time: 2026-10-15T11:22:47.38732-04:00

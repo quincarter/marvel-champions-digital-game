@@ -82,6 +82,7 @@ import { CivilWarBuilderScene } from "./scenes/civil-war-builder.js";
 import { AspectLessonScene } from "./scenes/aspect-lesson.js";
 import { installDebugDump } from "./ui/debug-dump.js";
 import { installFrameGuard } from "./ui/frame-guard.js";
+import { installStartupWatchdog } from "./ui/startup-watchdog.js";
 import { installDesktopType, setDesktopType } from "./ui/desktop-type.js";
 import { formFactorFor } from "./view/layout.js";
 import { applyViewportFit } from "./platform/platform.js";
@@ -100,6 +101,9 @@ applyViewportFit();
 installLazyText();
 installDesktopType();
 setDesktopType(formFactorFor(window.innerWidth, window.innerHeight) === "desktop");
+
+// A device whose WebGL cannot draw gets a plain-text reason instead of a black page (`ui/startup-watchdog.ts`).
+const watchStartup = installStartupWatchdog();
 
 const game = new Phaser.Game({
   type: Phaser.WEBGL,
@@ -184,6 +188,8 @@ const game = new Phaser.Game({
     MusicScene,
   ],
 });
+watchStartup(game);
+
 // Registered before any scene's own resize listener, so a screen redrawing on resize already draws at the new size.
 game.scale.on("resize", (size: Phaser.Structs.Size) =>
   setDesktopType(formFactorFor(size.width, size.height) === "desktop"),
