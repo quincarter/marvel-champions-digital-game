@@ -71,6 +71,8 @@ import { HandScroll, type RowDrag } from "../view/hand-scroll.js";
 import type { Rect } from "../view/layout.js";
 import { openingHandLayout, openingHandThumb } from "../view/opening-hand-layout.js";
 import { setupMetrics } from "../view/setup-metrics.js";
+import { setChoiceDock } from "../view/choice-dock.js";
+import { setupDecisionDock } from "../view/setup-decision-dock.js";
 import { setupWalkthroughFocusOrder } from "../view/screen-focus.js";
 import {
   advanceSetupWalkthroughLog,
@@ -246,6 +248,7 @@ export class SetupDealScene extends Phaser.Scene {
       this.#unsubscribe?.();
       this.#unsubscribe = null;
       if (this.scene.isActive(SCENES.choice)) this.scene.stop(SCENES.choice);
+      setChoiceDock(null);
     });
 
     // `store.subscribe` above delivers the current state synchronously, so the first `#draw()` has
@@ -274,6 +277,16 @@ export class SetupDealScene extends Phaser.Scene {
     const choice = state.game.pendingChoice;
     const isMulligan = choice !== null && choice.prompt.kind === "mulligan";
 
+    if (isMulligan && choice.choiceId !== this.#choiceId) {
+      this.#choiceId = choice.choiceId;
+      this.#selected = [...initialChoiceSelection(choice)];
+      this.#focus = null;
+    } else if (!isMulligan) {
+      this.#choiceId = null;
+    }
+
+    // Drawn before the sheet opens, so the dock it docks in is already published.
+    this.#draw();
     // Any other decision that opens during setup (a forced trigger while the villain/scheme's own "Setup:" ability
     // resolves) isn't this scene's to answer — the generic sheet handles it, same as the Board does for every other
     // in-game choice (`BoardScene#syncChoiceOverlay`).
@@ -285,16 +298,6 @@ export class SetupDealScene extends Phaser.Scene {
       this.#choiceOpen = false;
       this.scene.stop(SCENES.choice);
     }
-
-    if (isMulligan && choice.choiceId !== this.#choiceId) {
-      this.#choiceId = choice.choiceId;
-      this.#selected = [...initialChoiceSelection(choice)];
-      this.#focus = null;
-    } else if (!isMulligan) {
-      this.#choiceId = null;
-    }
-
-    this.#draw();
   }
 
   #draw(): void {
@@ -338,6 +341,13 @@ export class SetupDealScene extends Phaser.Scene {
     this.#route = mulliganChoice
       ? setupWalkthroughFocusOrder({ optionIds: cardChoiceDisplayOrder(mulliganChoice.options, this.#selected) })
       : [];
+
+    // A decision beside the setup, not over it: the sheet docks in the right-hand column where there is room.
+    const hasDecision = choice !== null && choice.prompt.kind !== "mulligan";
+    const dock = hasDecision ? setupDecisionDock(layout, height - pad, setupMetrics(width, height).gap) : null;
+    if (setChoiceDock(dock) && this.#choiceOpen) {
+      (this.scene.get(SCENES.choice) as unknown as { refresh?: () => void }).refresh?.();
+    }
 
     if (layout.mode === "allSeats") this.#drawAllSeats(layout, view, mulliganChoice);
     else this.#drawFocus(layout, view, mulliganChoice);

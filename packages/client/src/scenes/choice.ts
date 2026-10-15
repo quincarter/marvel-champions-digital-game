@@ -13,6 +13,7 @@
  */
 
 import { triggerCaption, triggerOrdinal } from "../view/trigger-caption.js";
+import { choiceDock } from "../view/choice-dock.js";
 import { triggerWindowContextOf, type TriggerWindowContext } from "../view/trigger-window-context.js";
 import Phaser from "phaser";
 import {
@@ -361,6 +362,11 @@ export class ChoiceOverlay extends Phaser.Scene {
     return this.scene.get(SCENES.board) as BoardScene;
   }
 
+  /** A screen that hosts the sheet (the setup screen's dock) asks for a redraw after it moves the dock. */
+  refresh(): void {
+    this.#rebuild();
+  }
+
   #rebuild(): void {
     const { store } = appSession();
     const state = store.state;
@@ -460,7 +466,10 @@ export class ChoiceOverlay extends Phaser.Scene {
     // its own (MC27 p. 22's reputation node 9) still names itself on the frame it pushed (`choiceInstructionOf`),
     // so the panel slot shows that instruction's own text/citation instead of going blank.
     const instruction = sourcePanel ? null : choiceInstructionOf(state.game, choice);
-    const panelMode = sourcePanel || instruction ? sourcePanelModeFor(formFactor) : null;
+    // Docked beside the screen's own content (the setup screen offers its right-hand column): no scrim over the rest
+    // of the screen, no source rail, the same ink ground and paper border the villain phase's dock wears.
+    const docked = formFactor === "phone" ? null : choiceDock();
+    const panelMode = !docked && (sourcePanel || instruction) ? sourcePanelModeFor(formFactor) : null;
     const railWidth = panelMode === "rail" ? railReserve(formFactor) : 0;
     // The strip holds a setup instruction's whole rule, so it grows to the wrapped text (a card's stays the fixed strip).
     const stripWidthGuess = Math.max(280, Math.min(width - guideRailWidth - 16, asCards ? 1040 : 560));
@@ -477,12 +486,20 @@ export class ChoiceOverlay extends Phaser.Scene {
     const areaWidth = width - guideRailWidth;
     const areaHeight = height - stripHeight;
     const scrim = this.add.graphics();
-    scrim.fillStyle(surface.ink.hex, 0.7).fillRect(areaX, 0, areaWidth, areaHeight);
-    // Modal: a tap or right-click on no control of this sheet's own must not reach the board card underneath.
-    this.add.zone(areaX, 0, areaWidth, areaHeight).setOrigin(0, 0).setInteractive();
+    if (docked) {
+      // Only the dock itself is modal; the rest of the screen stays visible and is not covered.
+      this.add.zone(docked.x, docked.y, docked.width, docked.height).setOrigin(0, 0).setInteractive();
+    } else {
+      scrim.fillStyle(surface.ink.hex, 0.7).fillRect(areaX, 0, areaWidth, areaHeight);
+      // Modal: a tap or right-click on no control of this sheet's own must not reach the board card underneath.
+      this.add.zone(areaX, 0, areaWidth, areaHeight).setOrigin(0, 0).setInteractive();
+    }
     const panelsFrom = this.children.list.length;
 
-    const sheetWidth = Math.max(280, Math.min(areaWidth - (phone ? 16 : 80) - railWidth, asCards ? 1040 : 560));
+    const DOCK_INSET = 8;
+    const sheetWidth = docked
+      ? docked.width - DOCK_INSET * 2
+      : Math.max(280, Math.min(areaWidth - (phone ? 16 : 80) - railWidth, asCards ? 1040 : 560));
     // What the optional interrupt/response window is about, measured now so the sheet grows to hold it.
     const triggerContext = triggerWindowContextOf(
       state.game,
@@ -493,19 +510,29 @@ export class ChoiceOverlay extends Phaser.Scene {
     const contextHeight = triggerContext
       ? this.#drawTriggerContext(triggerContext, 0, 0, sheetWidth - 24, true) + 10
       : 0;
-    const sheetHeight = Math.min(areaHeight - (phone ? 16 : 80), (asCards ? 620 : 560) + extraHeight + contextHeight);
+    const sheetHeight = docked
+      ? docked.height - DOCK_INSET * 2
+      : Math.min(areaHeight - (phone ? 16 : 80), (asCards ? 620 : 560) + extraHeight + contextHeight);
     // In rail mode the rail and the sheet are centered together as one group — the same composition Inspect's D08
     // pair uses for its own card/rules panels (`view/inspect-layout.ts`) — rather than the sheet alone staying
     // centered and the rail hanging off whichever side has room.
     const groupWidth = sheetWidth + railWidth;
-    const sheet: Rect = {
-      x: areaX + (areaWidth - groupWidth) / 2 + railWidth,
-      y: (areaHeight - sheetHeight) / 2,
-      width: sheetWidth,
-      height: sheetHeight,
-    };
+    const sheet: Rect = docked
+      ? { x: docked.x + DOCK_INSET, y: docked.y + DOCK_INSET, width: sheetWidth, height: sheetHeight }
+      : {
+          x: areaX + (areaWidth - groupWidth) / 2 + railWidth,
+          y: (areaHeight - sheetHeight) / 2,
+          width: sheetWidth,
+          height: sheetHeight,
+        };
     const g = this.add.graphics();
+    if (docked) {
+      g.fillStyle(surface.ink.hex, 1).fillRect(docked.x, docked.y, docked.width, docked.height);
+      g.lineStyle(2, surface.paper.hex, 1).strokeRect(docked.x + 1, docked.y + 1, docked.width - 2, docked.height - 2);
+    }
     paintPanel(g, sheet, "card", "rest");
+    if (docked)
+      g.lineStyle(3, signal.caution.hex, 1).strokeRect(sheet.x + 1.5, sheet.y + 1.5, sheet.width - 3, sheet.height - 3);
 
     if (panelMode === "rail" && sourcePanel) {
       drawSourceCardPanel(this, sourceRailPlacement(sheet), sourcePanel, () =>
