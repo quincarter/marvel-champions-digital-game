@@ -398,6 +398,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     resetHoverCards(this);
     this.#hover = new HoverPreview(this, {
       cards: () => hoverCardsOf(this),
+      skipLarge: false,
       area: (pointer) => {
         const { width, height } = this.scale.gameSize;
         const overlays = Object.values(SCENES).filter(

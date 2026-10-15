@@ -11,12 +11,14 @@
  */
 
 import Phaser from "phaser";
-import { getInstance, type InstanceId } from "@mc/engine";
+import { cardOf, getInstance, type InstanceId } from "@mc/engine";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { POOL_DEPS } from "../content/pool.js";
 import { appSession } from "../session.js";
 import { surface, typeRole } from "../tokens.js";
 import { textStyle } from "./theme.js";
+import { paintThreatMeter } from "./widgets.js";
+import { schemePanel } from "../view/board-model.js";
 import {
   HOVER_DELAY_MS,
   hoverCandidateAt,
@@ -32,6 +34,8 @@ import type { Rect } from "../view/layout.js";
 /** Above every other thing the Board draws (the phase band is 1150). */
 const HOVER_DEPTH = 2000;
 const STRIP_GAP = 6;
+/** The scheme's threat meter under a scheme's popover: the board's own, a little taller to read at a glance. */
+const METER_HEIGHT = 26;
 const FADE_MS = 90;
 
 export interface HoverPreviewDeps {
@@ -42,6 +46,11 @@ export interface HoverPreviewDeps {
    * `hoverArea` for the table, `villainHoverArea` for the villain phase).
    */
   readonly area: (pointer: Phaser.Input.Pointer) => Rect | null;
+  /**
+   * Skip a card already drawn large (`hoverWorthShowing`): the table's hero panel. Off for the villain phase, whose
+   * revealed card is drawn in a portrait slot a sideways scheme only half fills (the owner wanted it hoverable).
+   */
+  readonly skipLarge?: boolean;
 }
 
 /** True when the pointer is a mouse (or pen): a touch has long-press Inspect instead. */
@@ -150,7 +159,8 @@ export class HoverPreview {
     );
     // A card already drawn large (the hero panel, the villain phase's revealed card) needs no larger copy.
     const rect = id === null ? undefined : this.deps.cards().get(id);
-    return rect && hoverWorthShowing(rect) ? id : null;
+    if (!rect) return null;
+    return this.deps.skipLarge === false || hoverWorthShowing(rect) ? id : null;
   }
 
   #update(pointer: Phaser.Input.Pointer, instant: boolean): void {
@@ -226,13 +236,18 @@ export class HoverPreview {
     // A facedown card or pile shows nothing the table doesn't: no popover.
     if (model.hidden) return null;
     const instance = getInstance(game, id);
+    // A scheme's threat is drawn as the board draws it, the red meter with its count (the owner, 2026-10-14), not
+    // as words in the strip.
+    const card0 = cardOf(game, id);
+    const isScheme = card0?.type === "main_scheme" || card0?.type === "side_scheme";
+    const scheme = isScheme ? schemePanel(game, id, POOL_DEPS, card0?.type === "main_scheme") : null;
     const lines = instance
       ? hoverStateLines({
           exhausted: instance.exhausted,
           damageNote: model.damageNote,
           damage: instance.damage,
-          threatNote: model.threatNote,
-          threat: instance.threat,
+          threatNote: scheme ? null : model.threatNote,
+          threat: scheme ? 0 : instance.threat,
           counterNote: model.counterNote,
           statuses: instance.statuses,
           attachments: model.attached?.attachments.length ?? 0,
@@ -248,13 +263,19 @@ export class HoverPreview {
     let size = hoverCardSize(onTable, aspect, scale, area);
     let strip: Phaser.GameObjects.Text | null = null;
     let stripHeight = 0;
+    const meterHeight = scheme ? METER_HEIGHT + 14 : 0;
+    if (scheme && lines.length === 0) {
+      const room: Rect = { ...area, height: Math.max(1, area.height - meterHeight - STRIP_GAP) };
+      const fitted = hoverCardSize(onTable, aspect, scale, room);
+      if (fitted.width < size.width) size = fitted;
+    }
     if (lines.length > 0) {
       strip = this.scene.add.text(0, 0, lines.join("  ·  "), {
         ...textStyle({ ...typeRole.body, size: 18, weight: 700 }, surface.paper.hex),
         wordWrap: { width: Math.max(1, size.width - 20) },
       });
       stripHeight = strip.height + 14;
-      const room: Rect = { ...area, height: Math.max(1, area.height - stripHeight - STRIP_GAP) };
+      const room: Rect = { ...area, height: Math.max(1, area.height - stripHeight - meterHeight - STRIP_GAP) };
       const fitted = hoverCardSize(onTable, aspect, scale, room);
       if (fitted.width < size.width) {
         size = fitted;
@@ -267,19 +288,31 @@ export class HoverPreview {
     const shadow = this.scene.add.graphics();
     shadow
       .fillStyle(surface.ink.hex, 0.35)
-      .fillRect(5, 6, size.width, size.height + (strip ? STRIP_GAP + stripHeight : 0));
+      .fillRect(5, 6, size.width, size.height + (strip || scheme ? STRIP_GAP + stripHeight + meterHeight : 0));
     container.add(shadow);
     const image = drawArt(this.scene, key, card);
     if (image) container.add(image);
     else container.add(this.#plainFrame(card, model));
-    if (strip) {
+    const bandTop = size.height + STRIP_GAP;
+    if (strip || scheme) {
       const bar = this.scene.add.graphics();
-      bar.fillStyle(surface.ink.hex, 1).fillRect(0, size.height + STRIP_GAP, size.width, stripHeight);
+      bar.fillStyle(surface.ink.hex, 1).fillRect(0, bandTop, size.width, stripHeight + meterHeight);
       container.add(bar);
-      strip.setPosition(10, size.height + STRIP_GAP + 7);
+    }
+    if (scheme && instance) {
+      const meter: Rect = { x: 10, y: bandTop + 7, width: size.width - 20, height: METER_HEIGHT };
+      const mg = this.scene.add.graphics();
+      const meterText = this.scene.add.text(0, 0, "", textStyle(typeRole.threatCount, surface.ink.hex));
+      paintThreatMeter(mg, meterText, meter, scheme, instance.threat);
+      meterText.setOrigin(0.5).setPosition(meter.x + meter.width / 2, meter.y + meter.height / 2);
+      container.add([mg, meterText]);
+    }
+    if (strip) {
+      strip.setPosition(10, bandTop + meterHeight + 7);
       container.add(strip);
     }
-    return { container, size: { width: size.width, height: size.height + (strip ? STRIP_GAP + stripHeight : 0) } };
+    const extra = strip || scheme ? STRIP_GAP + stripHeight + meterHeight : 0;
+    return { container, size: { width: size.width, height: size.height + extra } };
   }
 
   /** What stands in for a scan that has not arrived or does not exist: name, type line and rules text on paper. */
