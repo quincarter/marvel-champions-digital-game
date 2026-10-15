@@ -32,6 +32,8 @@ const BOOLEAN_FIELDS = [
   "sameNameHeroAllyConflict",
   "holdEncounterCards",
   "villainDockTable",
+  "hoverHeroCard",
+  "hoverVillainCard",
 ] as const;
 
 export function parseSettingsOverrides(raw: string | null): SettingsOverrides {

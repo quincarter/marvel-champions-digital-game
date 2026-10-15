@@ -31,6 +31,8 @@ const BASE: Settings = {
   villainDockTable: true,
   cardHoverScale: "2.5x",
   cardSize: "standard",
+  hoverHeroCard: true,
+  hoverVillainCard: true,
 };
 
 describe("settingsRowInfoOf", () => {
@@ -48,6 +50,8 @@ describe("settingsRowInfoOf", () => {
       villainDockTable: true,
       cardHoverScale: "2.5x",
       cardSize: "standard",
+      hoverHeroCard: true,
+      hoverVillainCard: true,
     });
     expect(rows.find((r) => r.id === "reduced-motion")?.on).toBe(true);
     expect(rows.find((r) => r.id === "sharper-text")?.on).toBe(true);

@@ -57,6 +57,10 @@ export interface Settings {
    * read them (2026-10-14). Defaults to standard, the size every screen was designed at.
    */
   readonly cardSize: CardSize;
+  /** The hover popover over a hero (or alter-ego) identity card. Defaults on (the owner, 2026-10-14). */
+  readonly hoverHeroCard: boolean;
+  /** The hover popover over a villain card. Defaults on. */
+  readonly hoverVillainCard: boolean;
 }
 
 /**
@@ -151,5 +155,7 @@ export function defaultSettings(): Settings {
     villainDockTable: true,
     cardHoverScale: "2.5x",
     cardSize: "standard",
+    hoverHeroCard: true,
+    hoverVillainCard: true,
   };
 }

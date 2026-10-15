@@ -32,7 +32,9 @@ export type SettingsRowId =
   | "large-card-text"
   | "sound"
   | "confirm-end-turn"
-  | "same-name-conflict";
+  | "same-name-conflict"
+  | "hover-hero"
+  | "hover-villain";
 
 export interface SettingsRowInfo {
   readonly id: SettingsRowId;
@@ -85,6 +87,18 @@ export function settingsRowInfoOf(settings: Settings): readonly SettingsRowInfo[
         "A hero and an ally with the same name can't both be in play. Applies to new games; the ally can still be spent as a resource.",
       on: settings.sameNameHeroAllyConflict,
     },
+    {
+      id: "hover-hero",
+      title: "Hero card popover",
+      detail: "With a mouse, resting on a hero card shows the larger popover. Off leaves hero cards as they are.",
+      on: settings.hoverHeroCard,
+    },
+    {
+      id: "hover-villain",
+      title: "Villain card popover",
+      detail: "With a mouse, resting on a villain card shows the larger popover. Off leaves villain cards as they are.",
+      on: settings.hoverVillainCard,
+    },
   ];
 }
 
@@ -115,6 +129,10 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
       return { ...settings, confirmBeforeEndTurn: !settings.confirmBeforeEndTurn };
     case "same-name-conflict":
       return { ...settings, sameNameHeroAllyConflict: !settings.sameNameHeroAllyConflict };
+    case "hover-hero":
+      return { ...settings, hoverHeroCard: !settings.hoverHeroCard };
+    case "hover-villain":
+      return { ...settings, hoverVillainCard: !settings.hoverVillainCard };
   }
 }
 

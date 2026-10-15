@@ -160,6 +160,12 @@ export class HoverPreview {
     // A card already drawn large (the hero panel, the villain phase's revealed card) needs no larger copy.
     const rect = id === null ? undefined : this.deps.cards().get(id);
     if (!rect) return null;
+    // The Hero card popover and Villain card popover settings turn those two kinds off.
+    const game = appSession().store.state.game;
+    const type = id !== null && game ? cardOf(game, id)?.type : undefined;
+    const settings = appSession().settings;
+    if (type === "hero_identity" && !settings.hoverHeroCard) return null;
+    if (type === "villain" && !settings.hoverVillainCard) return null;
     // Every popover is the same size now, so even the hero panel gets one (the owner, 2026-10-14); skipping a card
     // already drawn large is opt-in.
     return this.deps.skipLarge !== true || hoverWorthShowing(rect) ? id : null;
