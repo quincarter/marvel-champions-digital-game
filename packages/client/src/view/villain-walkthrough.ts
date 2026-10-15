@@ -30,7 +30,7 @@ import type {
   PlayerId,
 } from "@mc/engine";
 import { beatTextWithStatus, logLine } from "./log-lines.js";
-import { cardName, numberWord, optionLabelOf, playerName, seatName } from "./names.js";
+import { cardName, numberWord, optionLabelOf, playerName, shortSeatName } from "./names.js";
 
 /** The engine's own villain-phase steps, in RRG order. */
 export const VILLAIN_STEPS = [
@@ -562,7 +562,7 @@ function statusOf(index: number, activeIndex: number, complete: boolean): StepSt
  */
 export function decisionLabel(choice: ChoiceLike, state: GameState, viewer: PlayerId | null): string {
   const yours = choice.playerId === viewer;
-  const who = seatName(state, choice.playerId, viewer);
+  const who = shortSeatName(state, choice.playerId, viewer);
   switch (choice.authority) {
     // RRG "First Player": an encounter card names a target and several are
     // eligible, so the first player selects on the card's behalf.
@@ -613,7 +613,7 @@ const perilNote = (state: GameState, playerId: PlayerId): string =>
  */
 export function pauseFor(choice: ChoiceLike, state: GameState, viewer: PlayerId | null): Pause {
   const yours = choice.playerId === viewer;
-  const who = seatName(state, choice.playerId, viewer);
+  const who = shortSeatName(state, choice.playerId, viewer);
   const base =
     choice.authority === "player" && choice.prompt.kind !== "declareDefender"
       ? // The design canvas's exact phrase for an ordinary interrupt.

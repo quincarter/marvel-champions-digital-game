@@ -489,8 +489,10 @@ function drawHappening(
   const headline = scene.add
     .text(x, y + 18, body.headline.toUpperCase(), textStyle({ ...typeRole.barTitle, size: 30 }, surface.paper.hex))
     .setOrigin(0, 0);
-  // Up to three lines, shrinking before clipping: the target is the end of the sentence and must not be what is cut.
-  fitWrapped(headline, width, 3, 30);
+  // Up to three lines where the body has the height for them (the breakdown and the boost card go under), fewer where
+  // it does not, shrinking before clipping: the target ends the sentence and must not be what is cut.
+  const spare = height - 18 - 6 - (body.text ? 24 : 0) - (body.boostLine ? 40 : 0);
+  fitWrapped(headline, width, Math.max(2, Math.min(3, Math.floor(spare / 34))), 30);
   let cursor = headline.y + headline.height + 6;
   if (body.text) {
     const text = scene.add

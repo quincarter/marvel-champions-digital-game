@@ -196,14 +196,20 @@ function drawTile(scene: Phaser.Scene, rect: Rect, change: RecapChange, phone: b
     accentColor,
     change.highlight ? 1 : ink.secondary,
   );
-  // A narrow tile cuts the name, never its "· YOU" tag (`fitTileLabel`).
+  // A narrow tile steps its label down a size before it cuts the name, and never cuts its "· YOU" tag (`fitTileLabel`).
   const labelRoom = rect.width - padX * 2;
-  labelText.setText(
-    fitTileLabel(labelText.text, (candidate) => {
+  const fitLabel = (): string =>
+    fitTileLabel(change.label, (candidate) => {
       labelText.setText(candidate);
       return labelText.width <= labelRoom;
-    }),
-  );
+    });
+  const fullSize = Number.parseFloat(String(labelText.style.fontSize));
+  let fitted = fitLabel();
+  if (fitted.includes("…") && fullSize > 9) {
+    labelText.setFontSize(9);
+    fitted = fitLabel();
+  }
+  labelText.setText(fitted);
   const size = phone ? 18 : rect.height >= 70 ? 26 : 20;
   const numberY = rect.y + rect.height - size - (phone ? 6 : 10);
   const bigSpec = { ...typeRole.barTitle, size };
