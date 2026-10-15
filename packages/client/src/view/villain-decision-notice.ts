@@ -34,7 +34,7 @@ export function decisionNoticeOf(
   }
   lines.push(question);
   const labels = choice.options.map((option) => optionLabelOf(state, option));
-  const listed = labels.slice(0, MAX_LISTED).map((label, i) => (choice.ordered ? `${i + 1}. ${label}` : `• ${label}`));
+  const listed = labels.slice(0, MAX_LISTED).map((label) => `• ${label}`);
   lines.push(...listed);
   if (labels.length > listed.length) lines.push(`+${labels.length - listed.length} more`);
   return lines.join("\n");

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import type { ChoiceId, GameState, PendingChoice } from "@mc/engine";
+import type { ChoiceId, GameState, PendingChoice, PlayerId } from "@mc/engine";
 import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
@@ -78,5 +78,30 @@ describe("the decision notice", () => {
     expect(
       soleAnswerOf({ ...choice, authority: "firstPlayerTargets", prompt: { kind: "chooseTriggers" } } as PendingChoice),
     ).toBeNull();
+  });
+});
+
+describe("the notice for an ordering", () => {
+  test("lists the things to order as bullets, not as an order already chosen", async () => {
+    const found = await playUntil("breakout", () => true);
+    expect(found).not.toBeNull();
+    const choice = {
+      choiceId: "c1" as ChoiceId,
+      playerId: "p1",
+      prompt: { kind: "orderTriggers", event: { kind: "x" }, timing: "interrupt" },
+      minSelections: 2,
+      maxSelections: 2,
+      options: [
+        { optionId: "a", label: "Piledriver", ref: { kind: "card", instanceId: "i1" } },
+        { optionId: "b", label: "Bulldozer", ref: { kind: "card", instanceId: "i2" } },
+      ],
+      frameId: null,
+      ordered: true,
+      soleDecider: false,
+      authority: "firstPlayerOrders",
+    } as unknown as PendingChoice;
+    const lines = decisionNoticeOf(found!.game, choice, "p1" as PlayerId, POOL_DEPS).split("\n");
+    expect(lines[0]).toBe("As first player, you order these effects");
+    expect(lines.slice(-2)).toEqual(["• Piledriver", "• Bulldozer"]);
   });
 });

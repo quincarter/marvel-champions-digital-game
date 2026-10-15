@@ -489,20 +489,25 @@ function drawHappening(
   const headline = scene.add
     .text(x, y + 18, body.headline.toUpperCase(), textStyle({ ...typeRole.barTitle, size: 30 }, surface.paper.hex))
     .setOrigin(0, 0);
-  // Up to three lines where the body has the height for them (the breakdown and the boost card go under), fewer where
-  // it does not, shrinking before clipping: the target ends the sentence and must not be what is cut.
-  const spare = height - 18 - 6 - (body.text ? 24 : 0) - (body.boostLine ? 40 : 0);
+  // The breakdown goes under the headline, so it is measured first: the headline takes up to three lines of what the
+  // breakdown (all its lines) and the boost card leave, never fewer than two, and shrinks before it is clipped. The
+  // target ends the sentence and must not be what is cut, and the destination ends the breakdown.
+  const detail = body.text
+    ? scene.add
+        .text(x, y, body.text, textStyle({ ...typeRole.body, size: 14 }, surface.paper.hex, ink.secondary))
+        .setOrigin(0, 0)
+        .setWordWrapWidth(width)
+    : null;
+  const detailLines = detail ? Math.max(1, detail.getWrappedText(body.text).length) : 0;
+  const lineHeight = detail ? detail.height / detailLines : 0;
+  const spare = height - 18 - 6 - (detail ? detailLines * lineHeight + 8 : 0) - (body.boostLine ? 40 : 0);
   fitWrapped(headline, width, Math.max(2, Math.min(3, Math.floor(spare / 34))), 30);
   let cursor = headline.y + headline.height + 6;
-  if (body.text) {
-    const text = scene.add
-      .text(x, cursor, body.text, textStyle({ ...typeRole.body, size: 14 }, surface.paper.hex, ink.secondary))
-      .setOrigin(0, 0)
-      .setWordWrapWidth(width);
-    const lineHeight = text.height / Math.max(1, text.getWrappedText(body.text).length);
+  if (detail) {
+    detail.setY(cursor);
     const room = y + height - cursor - (body.boostLine ? 40 : 0);
-    text.setMaxLines(Math.max(1, Math.floor(room / lineHeight)));
-    cursor += Math.min(text.height, room) + 8;
+    detail.setMaxLines(Math.max(1, Math.floor(room / lineHeight)));
+    cursor += Math.min(detail.height, room) + 8;
   }
   if (body.boostLine && cursor + 30 <= y + height) {
     const box: Rect = { x, y: cursor, width: 26, height: 34 };
