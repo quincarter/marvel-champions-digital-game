@@ -610,7 +610,15 @@ function longTableZones(
   const gutter = GUTTER[formFactor];
   const chromeHeight = CHROME_HEIGHT[formFactor];
   const barHeight = actionBarHeight(formFactor);
-  const baseHandHeight = Math.min(220, Math.max(150, Math.round(viewport.height * 0.24)));
+  // `grow` (0..1) is how far the band has grown while it animates (`BoardScene.setVillainDock`); past half the row draws compact.
+  const grow =
+    formFactor === "tabletLandscape" && options.villainBand?.tall === true
+      ? Math.min(1, Math.max(0, options.villainBand.grow ?? 1))
+      : 0;
+  const usualHandHeight = Math.min(220, Math.max(150, Math.round(viewport.height * 0.24)));
+  // While the band is tall the hand gives up a third of its height: the panel is what the player is reading.
+  const tallHandHeight = Math.max(120, Math.round(usualHandHeight * 0.65));
+  const baseHandHeight = Math.round(usualHandHeight + (tallHandHeight - usualHandHeight) * grow);
   const scale = scaleOf(options);
   const handHeight = scaledHand(baseHandHeight, scale, viewport.height, 0.3);
 
@@ -637,11 +645,6 @@ function longTableZones(
   // (136) in the band on a table too short for both at 52%; the player band gives up the difference.
   const neutralFloor = options.neutralArea ? Math.min(Math.round(tableHeight * 0.6), 104 + 8 + 136 + 22) : 0;
   // A tall docked villain band (TB1/TB2) leaves the player band one compact row: a mini identity, a thumbnail strip.
-  // `grow` (0..1) is how far the band has grown while it animates (`BoardScene.setVillainDock`); past half the row draws compact.
-  const grow =
-    formFactor === "tabletLandscape" && options.villainBand?.tall === true
-      ? Math.min(1, Math.max(0, options.villainBand.grow ?? 1))
-      : 0;
   const compactRow = grow >= 0.5;
   const compactHeight = Math.min(96, Math.max(72, Math.round(tableHeight * 0.17)));
   const normalVillainHeight = Math.max(Math.round(tableHeight * 0.52), neutralFloor);

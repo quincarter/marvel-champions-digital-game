@@ -167,6 +167,7 @@ describe("the tall band (TB1/TB2)", () => {
       const panel = villainDockRects("band", tall, 0).panel!;
       const normalPanel = villainDockRects("band", normal, 0).panel!;
       expect(panel.height).toBeGreaterThan(normalPanel.height);
+      expect(panel.height).toBeGreaterThanOrEqual(430);
       for (const name of ["me", "playArea", "team", "hand", "actionBar"] as const) {
         const zone = tall.zones[name];
         if (zone) expect(overlaps(zone, panel), name).toBe(false);
