@@ -32,7 +32,7 @@ import { cardArt, type CardArt } from "../art/card-art.js";
 import { appSession } from "../session.js";
 import { accent, dotGrid, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
-import { McSelectionRing, McTabs, paintDotGrid } from "../ui/widgets.js";
+import { McSelectionRing, McTabs, fitText, paintDotGrid } from "../ui/widgets.js";
 import { boardModel, type BoardModel } from "../view/board-model.js";
 import { highlights, type Highlights } from "../view/highlights.js";
 import { withAttackBarWording } from "../view/attack-bar.js";
@@ -1782,23 +1782,27 @@ export class BoardScene extends Phaser.Scene {
     const game = appSession().store.state.game ?? null;
     if (!showReviewHandle(review, game) || this.#choiceOpen) return;
     if (this.scene.isActive(SCENES.villainPhase) || this.scene.isActive(SCENES.inspect)) return;
+    // Level with the play area (the owner, 2026-10-14), else between the chrome and the hand.
     const chrome = layout.zones.chrome;
-    const top = chrome ? chrome.y + chrome.height : viewport.y;
-    const bottom = layout.zones.hand?.y ?? viewport.y + viewport.height;
+    const play = layout.zones.playArea;
+    const top = play ? play.y : chrome ? chrome.y + chrome.height : viewport.y;
+    const bottom = play ? play.y + play.height : (layout.zones.hand?.y ?? viewport.y + viewport.height);
     const rect = reviewHandleRect(viewport, top, bottom);
     const g = this.add.graphics().setDepth(HANDLE_DEPTH);
     g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     g.lineStyle(2, accent.heroRed.hex, 1).strokeRect(rect.x + 1, rect.y + 1, rect.width, rect.height - 2);
-    this.add
+    const handleLabel = this.add
       .text(
         rect.x + rect.width / 2,
         rect.y + rect.height / 2,
         `◂ ROUND ${review!.round} VILLAIN PHASE`,
-        textStyle({ ...typeRole.label, size: 10 }, surface.paper.hex),
+        textStyle({ ...typeRole.label, size: 13 }, surface.paper.hex),
       )
       .setOrigin(0.5)
       .setAngle(-90)
       .setDepth(HANDLE_DEPTH);
+    // Turned on its side, its length runs along the handle's height.
+    fitText(handleLabel, rect.height - 16, 13);
     const zone = this.add
       .zone(rect.x, rect.y, rect.width, rect.height)
       .setOrigin(0, 0)

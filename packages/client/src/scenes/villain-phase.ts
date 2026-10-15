@@ -304,6 +304,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   /** One scroll position per recap steps region, kept across redraws. */
   #recapScrolls: VariableListScroll[] = Array.from({ length: RECAP_SCROLL_SLOTS }, () => new VariableListScroll());
   #hover: HoverPreview | null = null;
+  /** When the recap began sliding in, for a redraw mid-slide. */
+  #recapShownAt: number | null = null;
   /** When the docked phase began sliding in, for a redraw mid-slide (`ui/transitions.ts#slideIn`). */
   #slideStartedAt: number | null = null;
   /** Reopened from the Board's drawer handle: a finished phase's recap, read-only, with Close. */
@@ -347,6 +349,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#released = new Set();
     this.#peeking = false;
     this.#slideStartedAt = null;
+    this.#recapShownAt = null;
     this.#started = false;
     this.#answered = new Set();
     this.#noticeShownAt = new Map();
@@ -942,7 +945,16 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       // A review shows the phase as it ended, not the table as it is now.
       if (this.#review) this.#drawRecap(bounds, formFactor, this.#review.after, this.#review.viewer);
       else this.#drawRecap(bounds, formFactor, game, viewer);
-      this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
+      // In from the same edge it leaves by (the owner, 2026-10-14: it rose in from the bottom and slid out right).
+      this.#motion.enter(this, { scrim: [scrim], panels: [] });
+      this.#recapShownAt ??= this.time.now;
+      const viewport: Rect = { x: 0, y: 0, width, height };
+      slideIn(
+        this,
+        this.children.list.slice(panelsFrom),
+        slideOffset(villainSlideEdge(formFactor), viewport, viewport),
+        this.time.now - this.#recapShownAt,
+      );
       return;
     }
 
