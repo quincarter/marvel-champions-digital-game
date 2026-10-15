@@ -47,8 +47,8 @@ export interface HoverPreviewDeps {
    */
   readonly area: (pointer: Phaser.Input.Pointer) => Rect | null;
   /**
-   * Skip a card already drawn large (`hoverWorthShowing`): the table's hero panel. Off for the villain phase, whose
-   * revealed card is drawn in a portrait slot a sideways scheme only half fills (the owner wanted it hoverable).
+   * Skip a card already drawn large (`hoverWorthShowing`). Off unless set: every popover is one size, so a large card
+   * on the table (the hero panel) still gets a readable, same-size copy.
    */
   readonly skipLarge?: boolean;
 }
@@ -160,7 +160,9 @@ export class HoverPreview {
     // A card already drawn large (the hero panel, the villain phase's revealed card) needs no larger copy.
     const rect = id === null ? undefined : this.deps.cards().get(id);
     if (!rect) return null;
-    return this.deps.skipLarge === false || hoverWorthShowing(rect) ? id : null;
+    // Every popover is the same size now, so even the hero panel gets one (the owner, 2026-10-14); skipping a card
+    // already drawn large is opt-in.
+    return this.deps.skipLarge !== true || hoverWorthShowing(rect) ? id : null;
   }
 
   #update(pointer: Phaser.Input.Pointer, instant: boolean): void {
