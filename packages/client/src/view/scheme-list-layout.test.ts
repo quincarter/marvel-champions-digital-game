@@ -116,6 +116,18 @@ describe("the schemes column's rows", () => {
     expect(nominal.rows.map((row) => row.rect.height)).toEqual([92, 52, 52, 52]);
   });
 
+  test("a larger Card size grows every row by its factor, and a tall panel still fits them", () => {
+    const rect = { x: 0, y: 0, width: 420, height: 20 + 92 * 1.5 + 3 * 52 * 1.5 + 18 };
+    const scaled = schemeListLayout(rect, { mains: 1, sides: 3, tabbed: false, scale: 1.5 });
+    expect(scaled.scrolls).toBe(false);
+    expect(scaled.rows.map((row) => row.rect.height)).toEqual([138, 78, 78, 78]);
+    const grown = schemeListLayout(
+      { x: 0, y: 0, width: 420, height: 600 },
+      { mains: 1, sides: 0, tabbed: false, scale: 1.5 },
+    );
+    expect(grown.rows[0]!.rect.height).toBe(225);
+  });
+
   test("a panel too short to pin the main scheme scrolls the whole list, main scheme first", () => {
     const list = schemeListLayout({ x: 0, y: 0, width: 300, height: 120 }, { mains: 1, sides: 3, tabbed: false });
     expect(list.scrolls).toBe(true);

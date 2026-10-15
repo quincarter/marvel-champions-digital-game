@@ -79,6 +79,8 @@ import { sourceOverrideFor } from "../../view/guide-source-override.js";
 import { shouldFireRoundDebrief, splitAtRoundBoundary } from "../../view/round-debrief-trigger.js";
 import { waitingNoteKeyOf, waitingNoteVisible } from "../../view/guide-waiting-note.js";
 import { schemeMeterRect } from "./schemes.js";
+import { appSession } from "../../session.js";
+import { cardSizeFactor } from "../../settings.js";
 
 const RAIL_FORM_FACTORS: ReadonlySet<string> = new Set(["desktop", "tabletLandscape"]);
 const BLACK_CAT = cardId("01002");
@@ -986,7 +988,7 @@ export class BoardGuideMount {
     const rect = this.#scene.guideAnchorFrame().hitRects.get(scheme.instanceId);
     if (!rect) return;
 
-    const meter = schemeMeterRect(rect);
+    const meter = schemeMeterRect(rect, cardSizeFactor(appSession().settings.cardSize));
     const scene = this.#scene;
     const g = scene.add.graphics();
     g.fillStyle(surface.parchment.hex, 1).fillRect(meter.x, meter.y, meter.width, meter.height);

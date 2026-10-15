@@ -1172,6 +1172,7 @@ export class BoardScene extends Phaser.Scene {
       // Nothing reads as playable while the villain phase holds the table (`setVillainPhaseOpen`).
       marks: this.#controller.readOnly ? null : this.#marks,
       tabbed: layout.tabbed,
+      cardScale,
       controller: this.#controller,
       hand: this.#hand,
       schemeScroll: this.#schemeScroll,

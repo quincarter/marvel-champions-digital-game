@@ -48,6 +48,7 @@ export function drawSchemes(ctx: BoardDrawContext, rect: Rect, model: BoardModel
     mains: 1 + model.extraMainSchemes.length,
     sides: model.sideSchemes.length,
     tabbed: ctx.tabbed,
+    scale: ctx.cardScale,
   });
 
   const scrolling = list.rows.filter((row) => !row.pinned);
@@ -166,11 +167,20 @@ function drawScrollHint(ctx: BoardDrawContext, viewport: Rect, heights: readonly
  * (`scenes/board/guide-mount.ts`, `docs/guided-mode.md` §5.1 tile D01) can line an overlay up with the real meter
  * without duplicating this layout math or reaching into `drawScheme`'s own locals.
  */
-export function schemeMeterRect(rect: Rect): Rect {
-  const artWidth =
-    rect.width >= 170
-      ? Math.round(Math.min(Math.max(96, Math.round((rect.height - 6) * CARD_ASPECT)), rect.width * 0.3))
-      : 0;
+/**
+ * The art column's width in a scheme row, 0 when the row is too narrow for it. It widens with a taller row, so a grown
+ * row shows a bigger card. Above Fit to screen (`cardScale` > 1) the column takes the scheme's own sideways shape, so
+ * the larger Card size shows the whole card larger instead of fitting it into a portrait column.
+ */
+export function schemeArtWidth(rect: Rect, cardScale = 1): number {
+  if (rect.width < 170) return 0;
+  const grown = cardScale > 1;
+  const shaped = Math.round((rect.height - 6) * (grown ? 1 / CARD_ASPECT : CARD_ASPECT));
+  return Math.round(Math.min(Math.max(96, shaped), rect.width * (grown ? 0.5 : 0.3)));
+}
+
+export function schemeMeterRect(rect: Rect, cardScale = 1): Rect {
+  const artWidth = schemeArtWidth(rect, cardScale);
   const textLeft = rect.x + 8 + (artWidth > 0 ? artWidth + 6 : 0);
   const textWidth = rect.x + rect.width - 8 - textLeft;
   return { x: textLeft, y: rect.y + rect.height - 26, width: textWidth, height: 18 };
@@ -193,10 +203,7 @@ export function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePane
   // beside it. The old threshold was tuned for the long table and silently
   // dropped the main scheme's card on every narrower panel.
   // ...and the column widens with a taller row, so a grown row shows a bigger card, not the same 96px one.
-  const artWidth =
-    rect.width >= 170
-      ? Math.round(Math.min(Math.max(96, Math.round((rect.height - 6) * CARD_ASPECT)), rect.width * 0.3))
-      : 0;
+  const artWidth = schemeArtWidth(rect, ctx.cardScale);
   if (artWidth > 0) {
     const column: Rect = { x: rect.x + 3, y: rect.y + 3, width: artWidth, height: rect.height - 6 };
     const frame = scene.add.graphics();
@@ -225,7 +232,7 @@ export function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePane
     .setMaxLines(2);
   label(scene, textLeft, rect.y + 30, scheme.subtitle, typeRole.label, surface.ink.hex, ink.label * dim);
 
-  const meter = schemeMeterRect(rect);
+  const meter = schemeMeterRect(rect, ctx.cardScale);
 
   // A printed Hero/Alter-Ego Action or resource ability on the scheme itself
   // (The Grand Collection's "discard 1 card from The Collection", the Milano's
@@ -237,7 +244,7 @@ export function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePane
   // the tally that drives the scenario is on the table and not only in Inspect.
   let abilityTop = rect.y + 48;
   const counterText = counterNote(scheme.counters);
-  if (counterText && abilityTop + 14 <= schemeMeterRect(rect).y - 2) {
+  if (counterText && abilityTop + 14 <= schemeMeterRect(rect, ctx.cardScale).y - 2) {
     label(scene, textLeft, abilityTop, counterText, typeRole.label, surface.ink.hex, ink.meta * dim);
     abilityTop += 14;
   }

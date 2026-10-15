@@ -24,6 +24,11 @@ export const MAIN_SCHEME_MAX_HEIGHT = 150;
 export const MAIN_COMPACT_HEIGHT = 72;
 export const SIDE_SCHEME_HEIGHT = 52;
 export const SIDE_SCHEME_MAX_HEIGHT = 80;
+const BASE_MAIN_HEIGHT = MAIN_SCHEME_HEIGHT;
+const BASE_MAIN_MAX_HEIGHT = MAIN_SCHEME_MAX_HEIGHT;
+const BASE_MAIN_COMPACT = MAIN_COMPACT_HEIGHT;
+const BASE_SIDE_HEIGHT = SIDE_SCHEME_HEIGHT;
+const BASE_SIDE_MAX_HEIGHT = SIDE_SCHEME_MAX_HEIGHT;
 /** The panel's inner padding and the gap between rows. */
 export const SCHEME_PANEL_PADDING = 10;
 export const SCHEME_ROW_GAP = 6;
@@ -62,12 +67,23 @@ export interface SchemeListInput {
   readonly sides: number;
   /** The phone's tabbed board keeps its rows at their normal size instead of growing into a tall zone. */
   readonly tabbed: boolean;
+  /**
+   * The Card size setting's factor (1 when omitted): every row height is multiplied by it, so a larger Card size shows a
+   * larger scheme card, the way it does every other card on the table.
+   */
+  readonly scale?: number;
 }
 
 const sum = (values: readonly number[]): number => values.reduce((total, value) => total + value, 0);
 
 export function schemeListLayout(rect: Rect, input: SchemeListInput): SchemeListLayout {
   const { mains, sides, tabbed } = input;
+  const k = Math.max(1, input.scale ?? 1);
+  const MAIN_SCHEME_HEIGHT = Math.round(BASE_MAIN_HEIGHT * k);
+  const MAIN_SCHEME_MAX_HEIGHT = Math.round(BASE_MAIN_MAX_HEIGHT * k);
+  const MAIN_COMPACT_HEIGHT = Math.round(BASE_MAIN_COMPACT * k);
+  const SIDE_SCHEME_HEIGHT = Math.round(BASE_SIDE_HEIGHT * k);
+  const SIDE_SCHEME_MAX_HEIGHT = Math.round(BASE_SIDE_MAX_HEIGHT * k);
   const pad = SCHEME_PANEL_PADDING;
   const gap = SCHEME_ROW_GAP;
   const x = rect.x + pad;

@@ -94,6 +94,8 @@ export interface BoardDrawContext {
   readonly marks: Highlights | null;
   /** Whether this draw lays the board out as phone tabs. */
   readonly tabbed: boolean;
+  /** The Card size setting's factor this draw was laid out at (1 at Fit to screen); the scheme rows grow with it. */
+  readonly cardScale: number;
   readonly controller: BoardController;
   readonly hand: HandScroll;
   /** The schemes column's scroll position, kept across draws like the hand's (`schemes.ts`). */
