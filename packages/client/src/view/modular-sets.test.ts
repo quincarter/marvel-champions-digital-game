@@ -5,6 +5,7 @@ import {
   descriptorForSet,
   groupStartsOpen,
   modularCardLabel,
+  modularDealBlockOf,
   modularGroupsOf,
   modularSectionsFor,
   modularSetCandidateIdsFor,
@@ -13,8 +14,8 @@ import {
   requiredEncounterSetsFor,
   toggleModularSet,
 } from "./modular-sets.js";
-import { initialSetupDraft } from "./setup-draft.js";
-import { CARDS_BY_ID, POOL_SCENARIOS } from "../content/pool.js";
+import { initialSetupDraft, toSessionConfig } from "./setup-draft.js";
+import { buildScenario, CARDS_BY_ID, POOL_SCENARIOS } from "../content/pool.js";
 
 const rhino = POOL_SCENARIOS.find((s) => (s.id as string) === "rhino")!;
 const riskyBusiness = POOL_SCENARIOS.find((s) => (s.id as string) === "risky-business")!;
@@ -134,6 +135,42 @@ describe("toggleModularSet", () => {
   test("Breakout (cap 0) never gains a modular set from a toggle", () => {
     const draft = toggleModularSet(draftFor("breakout"), breakout, "bomb_scare");
     expect(modularSetOptionsFor(draft, breakout, CARDS_BY_ID).some((o) => o.selected)).toBe(false);
+  });
+});
+
+describe("modularDealBlockOf (#161)", () => {
+  const fourHorsemen = POOL_SCENARIOS.find((s) => (s.id as string) === "four-horsemen")!;
+  const mojo = POOL_SCENARIOS.find((s) => (s.id as string) === "mojo")!;
+  const builds = (draft: ReturnType<typeof draftFor>, scenario: typeof rhino) => () =>
+    buildScenario(
+      scenario.id as string,
+      toSessionConfig(draft, [{ starterDeckId: "core-spider-man-justice" }], scenario),
+    );
+
+  test("the recommendation deals", () => {
+    expect(modularDealBlockOf(draftFor("rhino"), rhino)).toBeNull();
+    expect(modularDealBlockOf(draftFor("four-horsemen"), fourHorsemen)).toBeNull();
+  });
+
+  test("deselecting Rhino's one set holds the deal, which the game builder would refuse", () => {
+    const cleared = toggleModularSet(draftFor("rhino"), rhino, "bomb_scare");
+    expect(modularDealBlockOf(cleared, rhino)).toBe("Pick 1 more modular set to deal it out");
+    expect(builds(cleared, rhino)).toThrow(/uses 1 modular set/);
+  });
+
+  test("a two-set scenario short one set holds the deal until a set is picked back", () => {
+    const [first] = fourHorsemen.recommendedModularSetIds;
+    const short = toggleModularSet(draftFor("four-horsemen"), fourHorsemen, first as string);
+    expect(modularDealBlockOf(short, fourHorsemen)).toBe("Pick 1 more modular set to deal it out");
+    expect(builds(short, fourHorsemen)).toThrow(/uses 2 modular set/);
+    const refilled = toggleModularSet(short, fourHorsemen, first as string);
+    expect(modularDealBlockOf(refilled, fourHorsemen)).toBeNull();
+    expect(builds(refilled, fourHorsemen)).not.toThrow();
+  });
+
+  test("a pooled scenario (MojoMania) never holds the deal: a half-made pick is not sent", () => {
+    const [first] = mojo.recommendedModularSetIds;
+    expect(modularDealBlockOf(toggleModularSet(draftFor("mojo"), mojo, first as string), mojo)).toBeNull();
   });
 });
 

@@ -73,6 +73,8 @@ export function modularHeaderRightLabel(
     if (pickedCount === count) return `${required} · ${count} chosen`;
     return `${required} · ${pickedCount} of ${count} chosen, or pick Random`;
   }
+  // A deselected pick leaves the table short until another is picked (#161): the label says so.
+  if (pickedCount < count) return `${required} · ${pickedCount} of ${count} chosen`;
   return `${required} · ${count} chosen`;
 }
 

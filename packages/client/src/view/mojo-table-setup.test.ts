@@ -106,6 +106,8 @@ describe("MojoMania's Set the table and Scenario select labels", () => {
     expect(modularHeaderRightLabel(scenarioOf("spiral"), 1, 1, 2)).toBe("1 required · 2 of 3 chosen, or pick Random");
     expect(modularHeaderRightLabel(scenarioOf("magog"), 1, 1, 0)).toBe("1 required · 1 random");
     expect(modularHeaderRightLabel(scenarioOf("rhino"), 1, 1, 1)).toBe("1 required · 1 chosen");
+    expect(modularHeaderRightLabel(scenarioOf("rhino"), 1, 1, 0)).toBe("1 required · 0 of 1 chosen");
+    expect(modularHeaderRightLabel(scenarioOf("four-horsemen"), 1, 1, 1)).toBe("1 required · 1 of 2 chosen");
   });
 
   test("Encounter deck summary says Mojo's set joins at setup", () => {

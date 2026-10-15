@@ -221,6 +221,24 @@ export function modularPickStatus(scenario: Scenario, picked: number, playerCoun
   };
 }
 
+/**
+ * Why "Deal it out" waits on the modular picks ("Pick 1 more modular set to deal it out"), or null when the picks make a
+ * game. Deselecting a chosen set leaves the draft short of the scenario's count, and the game builder refuses a short
+ * pick, so Table setup draws no preview and holds the deal until the count is back (#161). A pooled scenario never
+ * waits: a half-made pick there is not sent (`toSessionConfig`), so its sets come at random.
+ */
+export function modularDealBlockOf(
+  draft: SetupDraft,
+  scenario: Scenario,
+  playerCount: number = draft.seats.length,
+): string | null {
+  if (scenario.modularSetPool) return null;
+  const status = modularPickStatus(scenario, effectiveModularSetIds(draft, scenario).length, playerCount);
+  if (status.problem === null) return null;
+  if (status.needed === 0) return status.problem;
+  return `Pick ${status.needed} more modular set${status.needed === 1 ? "" : "s"} to deal it out`;
+}
+
 /** Every candidate, with its display name, real card count/descriptor, and whether it's currently chosen. Listed group by group. */
 export function modularSetOptionsFor(
   draft: SetupDraft,

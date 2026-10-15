@@ -46,6 +46,7 @@ import {
   effectiveModularSetIds,
   groupStartsOpen,
   modularCardLabel,
+  modularDealBlockOf,
   modularGroupsOf,
   modularSectionsFor,
   type ModularGroupSummary,
@@ -207,6 +208,10 @@ export class TableSetupScene extends Phaser.Scene {
   #stops = new Map<string, FocusStop>();
   #seedInput: McTextInput | null = null;
   #status: Phaser.GameObjects.Text | null = null;
+  /** Why "Deal it out" waits on the modular picks (`modularDealBlockOf`), or null when it can deal; set each rebuild. */
+  #dealBlocked: string | null = null;
+  /** What the status line reads with no seed error: the wide sidebar's deal hold, or nothing (the phone's footer says it). */
+  #statusIdle = "";
   #starting = false;
   #route: FocusRoute | null = null;
   /** Phone's own scroll position (`tableSetupCompactLayout`, the 2026-09-18 correction) — persists across rebuilds like every other scroll owner in the app (`ListScroll`/`VariableListScroll` convention), reset fresh only in `create()`. */
@@ -286,7 +291,7 @@ export class TableSetupScene extends Phaser.Scene {
     this.#seedText = value;
     const parsed = parseSeed(value);
     if (parsed !== null) this.#draft = setSeed(this.#draft, parsed);
-    this.#status?.setText(value.length > 0 && parsed === null ? "seed must be a whole number" : "");
+    this.#status?.setText(value.length > 0 && parsed === null ? "seed must be a whole number" : this.#statusIdle);
   };
 
   #rebuild(): void {
@@ -320,6 +325,8 @@ export class TableSetupScene extends Phaser.Scene {
       ? this.#cwSummary.rows.length + 1
       : requiredSets.length + modularOptions.length;
     const modularCap = scenario.modularSetCount ?? 1;
+    // A deselected pick leaves the draft short of the scenario's count: no game builds from it, so no preview either.
+    this.#dealBlocked = this.#cwSummary ? null : modularDealBlockOf(this.#draft, scenario);
 
     // The setup options this scenario offers under the draft's difficulty and modular picks (`playableScenarioOffer`).
     const allOptionRows = setupOptionRowsOf(this.#draft, POOL_SET_NAMES);
@@ -339,7 +346,7 @@ export class TableSetupScene extends Phaser.Scene {
     let encounterDeckSize = 0;
     let preview: TableSetupPreview | null = null;
     let previewStartStageIndex: number | undefined;
-    if (players.length > 0) {
+    if (players.length > 0 && this.#dealBlocked === null) {
       const sessionOptions = toSessionConfig(
         this.#draft,
         players,
@@ -420,6 +427,7 @@ export class TableSetupScene extends Phaser.Scene {
     // The scrolling page (P12's own, 2026-09-18 correction) — a whole different composition from the wide one, not
     // a squeeze of it, so it's a separate draw path rather than a branch inside the one below. Every touch form
     // factor gets it, and a wide window too short to keep two tile rows and two panel rows (Piece 14, D1).
+    this.#statusIdle = layout.scrollsPage ? "" : (this.#dealBlocked ?? "");
     if (layout.scrollsPage) {
       this.#drawCompact(
         width,
@@ -640,7 +648,7 @@ export class TableSetupScene extends Phaser.Scene {
       this.#draft = rerollSeed(this.#draft);
       this.#seedText = String(this.#draft.seed);
       this.#seedInput?.setValue(this.#seedText);
-      this.#status?.setText("");
+      this.#status?.setText(this.#statusIdle);
     };
     this.#buttons.push(
       new McButton(this, {
@@ -670,7 +678,7 @@ export class TableSetupScene extends Phaser.Scene {
         label: this.#starting ? "Dealing it out…" : "Deal it out",
         type: typeRole.barTitle,
         rect: layout.dealItOut,
-        enabled: !this.#starting,
+        enabled: !this.#starting && this.#dealBlocked === null,
         onClick: () => void this.#start(players),
       }),
     );
@@ -679,7 +687,7 @@ export class TableSetupScene extends Phaser.Scene {
     this.#status = this.add.text(
       layout.dealItOut.x,
       layout.dealItOut.y - 20,
-      "",
+      this.#statusIdle,
       textStyle(typeRole.body, surface.paper.hex),
     );
 
@@ -1388,7 +1396,7 @@ export class TableSetupScene extends Phaser.Scene {
       this.#draft = rerollSeed(this.#draft);
       this.#seedText = String(this.#draft.seed);
       this.#seedInput?.setValue(this.#seedText);
-      this.#status?.setText("");
+      this.#status?.setText(this.#statusIdle);
     };
     this.#buttons.push(
       new McButton(this, {
@@ -1464,9 +1472,11 @@ export class TableSetupScene extends Phaser.Scene {
     // The villain's starting stage reads "Stage II", never a bare numeral beside the difficulty (it read as the Standard set chip).
     const villainLabel = preview ? `${villainName} · Stage ${preview.villainStageLabel}` : villainName;
     const heroCount = players.length;
-    const summary = preview
-      ? `${villainLabel} · ${this.#draft.difficulty} · ${heroCount} hero${heroCount === 1 ? "" : "es"} · ${chosenModularCount} modular${chosenModularCount === 1 ? "" : "s"}`
-      : `${villainName} · ${this.#draft.difficulty}`;
+    const summary = this.#dealBlocked
+      ? this.#dealBlocked
+      : preview
+        ? `${villainLabel} · ${this.#draft.difficulty} · ${heroCount} hero${heroCount === 1 ? "" : "es"} · ${chosenModularCount} modular${chosenModularCount === 1 ? "" : "s"}`
+        : `${villainName} · ${this.#draft.difficulty}`;
     const summaryText = label(
       this,
       layout.footerSummary.x,
@@ -1484,7 +1494,7 @@ export class TableSetupScene extends Phaser.Scene {
         label: this.#starting ? "Dealing it out…" : "Deal it out",
         type: typeRole.barTitle,
         rect: layout.dealItOut,
-        enabled: !this.#starting,
+        enabled: !this.#starting && this.#dealBlocked === null,
         onClick: () => void this.#start(players),
       }),
     );
@@ -1502,7 +1512,7 @@ export class TableSetupScene extends Phaser.Scene {
     this.#status = this.add.text(
       layout.footerSummary.x,
       layout.footer.y - 20,
-      "",
+      this.#statusIdle,
       textStyle(typeRole.body, surface.ink.hex),
     );
   }
@@ -2434,6 +2444,7 @@ export class TableSetupScene extends Phaser.Scene {
 
   async #start(players: readonly ReturnType<typeof corePlayerForSeat>[]): Promise<void> {
     if (this.#starting) return;
+    if (this.#dealBlocked !== null) return;
     if (parseSeed(this.#seedText) === null) {
       this.#status?.setText("seed must be a whole number");
       return;
