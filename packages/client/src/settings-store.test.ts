@@ -50,7 +50,7 @@ describe("SettingsStore", () => {
     ["holdEncounterCards", false],
     ["villainBeatSpeed", "fast"],
     ["villainDockTable", false],
-    ["cardHoverScale", "5x"],
+    ["cardHoverScale", "2.5x"],
     ["cardHoverScale", "off"],
   ])("%s survives a restart", (field, value) => {
     const storage = new MapStorage();
@@ -168,11 +168,11 @@ describe("parseSettingsOverrides", () => {
     expect(parseSettingsOverrides('{"cardSize":"huge"}')).toEqual({});
   });
 
-  test("cardHoverScale: only the five known values are read", () => {
-    expect(parseSettingsOverrides('{"cardHoverScale":"2x"}')).toEqual({ cardHoverScale: "2x" });
+  test("cardHoverScale: only the five known values are read (a saved 4x or 5x falls back to the default)", () => {
+    expect(parseSettingsOverrides('{"cardHoverScale":"1.5x"}')).toEqual({ cardHoverScale: "1.5x" });
     expect(parseSettingsOverrides('{"cardHoverScale":"off"}')).toEqual({ cardHoverScale: "off" });
     expect(parseSettingsOverrides('{"cardHoverScale":3}')).toEqual({});
-    expect(parseSettingsOverrides('{"cardHoverScale":"6x"}')).toEqual({});
+    expect(parseSettingsOverrides('{"cardHoverScale":"5x"}')).toEqual({});
   });
 
   test.each([null, "", "{nope", "42", "null", "[1]"])("%j is no record", (raw) => {

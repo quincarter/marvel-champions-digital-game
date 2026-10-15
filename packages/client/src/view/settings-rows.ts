@@ -333,10 +333,10 @@ export function nextSettingsAfterVillainRow(
 
 export const CARD_HOVER_SCALE_LABELS: Readonly<Record<CardHoverScale, string>> = {
   off: "Off",
+  "1.5x": "1.5×",
   "2x": "2×",
+  "2.5x": "2.5×",
   "3x": "3×",
-  "4x": "4×",
-  "5x": "5×",
 };
 
 export interface CardHoverRowInfo {

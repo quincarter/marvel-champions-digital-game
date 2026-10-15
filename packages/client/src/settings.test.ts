@@ -24,7 +24,7 @@ describe("villain phase settings", () => {
     expect(settings.holdEncounterCards).toBe(true);
     expect(settings.villainBeatSpeed).toBe("normal");
     expect(settings.villainDockTable).toBe(true);
-    expect(settings.cardHoverScale).toBe("3x");
+    expect(settings.cardHoverScale).toBe("2x");
     expect(settings.cardSize).toBe("standard");
   });
 
@@ -36,7 +36,8 @@ describe("villain phase settings", () => {
 
   test("cardHoverFactor reads the multiplier, off is none", () => {
     expect(cardHoverFactor("off")).toBeNull();
-    expect(cardHoverFactor("2x")).toBe(2);
-    expect(cardHoverFactor("5x")).toBe(5);
+    expect(cardHoverFactor("1.5x")).toBe(1.5);
+    expect(cardHoverFactor("2.5x")).toBe(2.5);
+    expect(cardHoverFactor("3x")).toBe(3);
   });
 });

@@ -29,7 +29,7 @@ const BASE: Settings = {
   holdEncounterCards: true,
   villainBeatSpeed: "normal",
   villainDockTable: true,
-  cardHoverScale: "3x",
+  cardHoverScale: "2x",
   cardSize: "standard",
 };
 
@@ -46,7 +46,7 @@ describe("settingsRowInfoOf", () => {
       holdEncounterCards: true,
       villainBeatSpeed: "normal",
       villainDockTable: true,
-      cardHoverScale: "3x",
+      cardHoverScale: "2x",
       cardSize: "standard",
     });
     expect(rows.find((r) => r.id === "reduced-motion")?.on).toBe(true);
@@ -238,16 +238,16 @@ describe("villain phase rows", () => {
 });
 
 describe("card size on hover row", () => {
-  test("offers off then 2x to 5x with the selected one marked", () => {
-    const info = cardHoverRowInfoOf({ ...BASE, cardHoverScale: "4x" });
+  test("offers off then 1.5x to 3x with the selected one marked", () => {
+    const info = cardHoverRowInfoOf({ ...BASE, cardHoverScale: "2.5x" });
     expect(info.title).toBe("Card size on hover");
-    expect(info.options.map((o) => o.label)).toEqual(["Off", "2×", "3×", "4×", "5×"]);
-    expect(info.selected).toBe("4x");
+    expect(info.options.map((o) => o.label)).toEqual(["Off", "1.5×", "2×", "2.5×", "3×"]);
+    expect(info.selected).toBe("2.5x");
   });
 
   test("a choice sets it, and a bad value changes nothing", () => {
     expect(nextSettingsAfterCardHover(BASE, "off").cardHoverScale).toBe("off");
-    expect(nextSettingsAfterCardHover(BASE, "5x").cardHoverScale).toBe("5x");
+    expect(nextSettingsAfterCardHover(BASE, "1.5x").cardHoverScale).toBe("1.5x");
     expect(nextSettingsAfterCardHover(BASE, "9x" as never)).toBe(BASE);
   });
 });

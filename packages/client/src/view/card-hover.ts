@@ -12,7 +12,7 @@ export const HOVER_DELAY_MS = 300;
 export const HOVER_CURSOR_OFFSET = 22;
 /** The popover never comes closer than this to the edge of its area. */
 export const HOVER_MARGIN = 8;
-/** A tiny on-table chip is never blown up to less than this wide, or "3x" of a thumbnail would still be unreadable. */
+/** A tiny on-table chip is never blown up to less than this wide, or "2x" of a thumbnail would still be unreadable. */
 export const HOVER_MIN_WIDTH = 220;
 
 export interface HoverGate {

@@ -82,10 +82,11 @@ describe("hoverCardSize", () => {
 
   test("scales the on-table size by the setting", () => {
     const two = hoverCardSize(tableCard, 120 / 168, "2x", area);
-    const four = hoverCardSize(tableCard, 120 / 168, "4x", area);
+    const three = hoverCardSize(tableCard, 120 / 168, "3x", area);
     expect(two.width).toBeCloseTo(240);
-    expect(four.width).toBeCloseTo(480);
-    expect(four.width / four.height).toBeCloseTo(120 / 168);
+    expect(three.width).toBeCloseTo(360);
+    expect(three.width / three.height).toBeCloseTo(120 / 168);
+    expect(hoverCardSize(tableCard, 120 / 168, "2.5x", area).width).toBeCloseTo(300);
   });
 
   test("fits the scan inside a rect of another shape before scaling", () => {
@@ -96,7 +97,7 @@ describe("hoverCardSize", () => {
 
   test("never larger than the area, aspect kept", () => {
     const small: Rect = { x: 0, y: 0, width: 800, height: 500 };
-    const size = hoverCardSize(tableCard, 120 / 168, "5x", small);
+    const size = hoverCardSize(tableCard, 120 / 168, "3x", small);
     expect(size.height).toBeLessThanOrEqual(500 - HOVER_MARGIN * 2 + 0.001);
     expect(size.width).toBeLessThanOrEqual(800 - HOVER_MARGIN * 2 + 0.001);
     expect(size.width / size.height).toBeCloseTo(120 / 168);
