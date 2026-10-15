@@ -28,6 +28,15 @@ describe("villain phase settings", () => {
     expect(settings.cardSize).toBe("standard");
   });
 
+  test("cardSizeFactor: same size everywhere scales a phone and a tablet up to a desktop's card", () => {
+    expect(cardSizeFactor("same", 390, 844)).toBe(1.5);
+    expect(cardSizeFactor("same", 844, 390)).toBe(1.5);
+    expect(cardSizeFactor("same", 768, 1024)).toBe(1.25);
+    expect(cardSizeFactor("same", 1024, 768)).toBe(1.25);
+    expect(cardSizeFactor("same", 1440, 900)).toBe(1);
+    expect(cardSizeFactor("standard", 390, 844)).toBe(1);
+  });
+
   test("cardSizeFactor: standard 1, large 1.25, extra large 1.5", () => {
     expect(cardSizeFactor("standard")).toBe(1);
     expect(cardSizeFactor("large")).toBe(1.25);

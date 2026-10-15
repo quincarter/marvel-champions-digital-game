@@ -59,12 +59,44 @@ export interface Settings {
   readonly cardSize: CardSize;
 }
 
-export type CardSize = "standard" | "large" | "xlarge";
-export const CARD_SIZE_VALUES: readonly CardSize[] = ["standard", "large", "xlarge"];
+/**
+ * "standard" is Fit to screen (each screen's own sizing). "same" is Same size everywhere: a card comes out about the
+ * size a desktop draws it on every device, so a phone and a tablet scale up and scroll (the owner, 2026-10-14).
+ */
+export type CardSize = "standard" | "same" | "large" | "xlarge";
+export const CARD_SIZE_VALUES: readonly CardSize[] = ["standard", "same", "large", "xlarge"];
 
-/** The multiplier a `cardSize` stands for: 1, 1.25 or 1.5. */
-export function cardSizeFactor(size: CardSize): number {
-  return size === "xlarge" ? 1.5 : size === "large" ? 1.25 : 1;
+/**
+ * How much larger than a desktop a screen of this size already draws nothing: the factor that brings its cards up to
+ * a desktop card's size. A phone's slots run about two thirds of a desktop's, a tablet's about four fifths.
+ */
+export function sameSizeFactor(width: number, height: number): number {
+  const short = Math.min(width, height);
+  const long = Math.max(width, height);
+  if (short < 500) return 1.5;
+  if (long < 1280) return 1.25;
+  return 1;
+}
+
+/**
+ * The multiplier a `cardSize` stands for on a screen of this size (CSS px, the game's own size): 1 for Fit to screen,
+ * the screen's own `sameSizeFactor` for Same size everywhere, 1.25 and 1.5 for Large and Extra large.
+ */
+export function cardSizeFactor(
+  size: CardSize,
+  width: number = globalThis.innerWidth ?? 1440,
+  height: number = globalThis.innerHeight ?? 900,
+): number {
+  switch (size) {
+    case "xlarge":
+      return 1.5;
+    case "large":
+      return 1.25;
+    case "same":
+      return sameSizeFactor(width, height);
+    default:
+      return 1;
+  }
 }
 
 /** Up to 4x: anything larger got in the way (the owner, 2026-10-14). */
