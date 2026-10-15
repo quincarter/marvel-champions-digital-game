@@ -436,7 +436,8 @@ function splitRows(
   for (const beat of beats) {
     if (beat.activeChange) {
       rows.push({ move: beat.activeChange });
-      open = null;
+      // Under a card the counter moving ends the card's own activation; in step 2 the activation goes on around it.
+      if (inReveal) open = null;
       aftermath = false;
       continue;
     }

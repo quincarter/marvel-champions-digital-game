@@ -105,6 +105,26 @@ describe("the recap's rows", () => {
     expect(rows[1]!.cardInstanceId).toBe(second ?? enemy);
   });
 
+  test("the counter moving in the middle of an activation does not split it in two", async () => {
+    const game = await table();
+    const [enemy, other] = game.villains.map((v) => v.instanceId) as [InstanceId, InstanceId];
+    const p1 = game.players[0]!.playerId;
+    const open = attackOn(enemy, p1, false);
+    const done = attackOn(enemy, p1, true);
+    const beats = [
+      beat("b1", "attacks", { eventType: "enemyActivated", activation: open, startsActivation: true }),
+      beat("b2", "The active villain is now X.", {
+        eventType: "activeVillainChanged",
+        activation: open,
+        activeChange: { from: enemy, to: other, reason: "effect", via: null },
+      }),
+      beat("b3", "Hit you.", { eventType: "attackResolved", activation: done }),
+    ];
+    const rows = villainRecapOf(walk([[], beats]), null, game, p1, POOL_DEPS).columns[1]!.entries;
+    expect(rows.map((row) => row.kind)).toEqual(["activation", "activeVillain"]);
+    expect(rows[0]!.detail).toBe("ATK 3 + boost 1 = 4");
+  });
+
   test("an activation an encounter card starts is a row of its own, not a line of the card's text", async () => {
     const game = await table();
     const enemy = game.villains[0]!.instanceId;
