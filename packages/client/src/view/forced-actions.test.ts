@@ -101,7 +101,7 @@ describe("a Forced Action owed on the board", () => {
       me,
       POOL_DEPS,
     );
-    expect(owed?.text).toBe("Forced Action owed, You: Kiss of Temptation. Use it to end the phase.");
+    expect(owed?.text).toBe("Forced Action owed, you: Kiss of Temptation. Use it to end the phase.");
     const limit = logLine(
       { type: "countersNotPlaced", instanceId: kiss, counterType: "synergy", amount: 2, reason: "limit" },
       game,

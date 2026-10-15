@@ -72,7 +72,7 @@ describe("a minion an environment holds", () => {
       me,
       POOL_DEPS,
     );
-    expect(released?.text).toBe(`${panel.name} leaves Thunderbolt Backup and engages You.`);
+    expect(released?.text).toBe(`${panel.name} leaves Thunderbolt Backup and engages you.`);
   }, 120_000);
 
   test("a captive ally on a card is tagged the same way, as a captive", async () => {

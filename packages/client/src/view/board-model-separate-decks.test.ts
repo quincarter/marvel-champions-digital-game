@@ -194,7 +194,7 @@ describe("the Labor card's route in the log", () => {
         me,
         DEPS,
       )?.text,
-    ).toBe(`${named(id)} had nothing to attach to when You revealed it, so it is discarded.`);
+    ).toBe(`${named(id)} had nothing to attach to when you revealed it, so it is discarded.`);
     expect(
       logLine(
         {

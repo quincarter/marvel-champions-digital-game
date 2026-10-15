@@ -84,7 +84,7 @@ describe("choiceResolved on the enemy team's behalf (MC56 p. 6)", () => {
 
   test("names who decided and what the enemy team chose", () => {
     const done = resolved(["a"]);
-    expect(line(done, [requested(), done])).toBe("The enemy team (decided by You) chose Stark Tower.");
+    expect(line(done, [requested(), done])).toBe("The enemy team (decided by you) chose Stark Tower.");
     const other = resolved(["a", "b"], "player-ana" as PlayerId);
     expect(line(other, [requested(), other])).toBe(
       "The enemy team (decided by player-ana) chose Stark Tower and Avengers Mansion.",
@@ -92,7 +92,7 @@ describe("choiceResolved on the enemy team's behalf (MC56 p. 6)", () => {
   });
 
   test("without the request in view, only who decided", () => {
-    expect(text(resolved(["a"]))).toBe("The enemy team's choice was decided by You.");
+    expect(text(resolved(["a"]))).toBe("The enemy team's choice was decided by you.");
   });
 
   test("an ordinary choice resolving is not logged", () => {
@@ -266,7 +266,7 @@ describe("hero pack and box hero events (docs/phase7-wave10-hero-packs.md, -box-
         me,
         POOL_DEPS,
       )?.text,
-    ).toBe(`${named(a)} had nothing to attach to when You revealed it, so it is discarded.`);
+    ).toBe(`${named(a)} had nothing to attach to when you revealed it, so it is discarded.`);
     expect(
       logLine(
         {
