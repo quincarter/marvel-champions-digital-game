@@ -82,11 +82,11 @@ import { CivilWarBuilderScene } from "./scenes/civil-war-builder.js";
 import { AspectLessonScene } from "./scenes/aspect-lesson.js";
 import { installDebugDump } from "./ui/debug-dump.js";
 import { installFrameGuard } from "./ui/frame-guard.js";
-import { installStartupWatchdog } from "./ui/startup-watchdog.js";
+import { installStartupWatchdog, probeWebgl } from "./ui/startup-watchdog.js";
 import { installDesktopType, setDesktopType } from "./ui/desktop-type.js";
 import { formFactorFor } from "./view/layout.js";
 import { applyViewportFit } from "./platform/platform.js";
-import { rendererOptionsOf } from "./platform/renderer-options.js";
+import { isAndroidEdge, rendererOptionsOf } from "./platform/renderer-options.js";
 
 // The one `Settings` instance for the whole app (`appSession().settings`), not a
 // second copy: `scenes/settings.ts` mutates that same object, and every text
@@ -105,7 +105,13 @@ setDesktopType(formFactorFor(window.innerWidth, window.innerHeight) === "desktop
 
 // A device whose WebGL cannot draw gets a plain-text reason instead of a black page (`ui/startup-watchdog.ts`).
 const watchStartup = installStartupWatchdog();
-const rendererOptions = rendererOptionsOf(window.location.search);
+// Edge on Android reads its WebGL renderer first: on ANGLE's Vulkan backend its multisampled canvas shows black (#157).
+const rendererOptions = rendererOptionsOf(
+  window.location.search,
+  isAndroidEdge(navigator.userAgent)
+    ? { userAgent: navigator.userAgent, webglRenderer: probeWebgl()?.renderer ?? null }
+    : null,
+);
 
 const game = new Phaser.Game({
   // `?renderer=canvas` and `?gl=…` test links for a device whose WebGL shows black (`platform/renderer-options.ts`).

@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Edge on Android no longer shows a black screen: on a device whose WebGL runs on ANGLE''s Vulkan backend the game asks for a single-sampled canvas, which Edge displays; every other browser keeps the usual one (#157)'
+time: 2026-10-15T16:24:48.0076026-04:00

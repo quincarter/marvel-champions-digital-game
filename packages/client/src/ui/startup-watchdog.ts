@@ -109,7 +109,8 @@ function showDiagnostics(game: Phaser.Game): void {
     `diag ${window.location.search} · ${gl ? "WebGL" : "Canvas"} renderer · ${info ? `${info.version} ${info.renderer}` : "no WebGL"}`,
     `canvas ${game.canvas.width}x${game.canvas.height} · css ${game.canvas.clientWidth}x${game.canvas.clientHeight}` +
       (gl ? ` · buffer ${gl.drawingBufferWidth}x${gl.drawingBufferHeight}` : "") +
-      ` · dpr ${window.devicePixelRatio}`,
+      ` · dpr ${window.devicePixelRatio}` +
+      (gl ? ` · multisampled ${game.config.antialiasGL ? "yes" : "no"}` : ""),
     `centre pixel ${centrePixel(game) ?? "n/a"} · ${navigator.userAgent}`,
   ].join("\n");
   strip.addEventListener("click", () => strip.remove());
