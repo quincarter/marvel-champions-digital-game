@@ -11,6 +11,11 @@
  *  - no frame rendered at all `FIRST_FRAME_MS` after the page started.
  *
  * It reads and reports; it never changes the game. Errors also go to `recordError`, so Ctrl+Shift+D carries them.
+ *
+ * It also moves `window.__mcBoot.stage` along (module, game, frame, screen) for the plain script in `index.html`,
+ * which reports a start that never got that far, a module that never ran included. `?diag=1` adds a strip across the
+ * top once a screen is up: the renderer, the canvas and drawing-buffer sizes, and the colour of the centre pixel as
+ * WebGL drew it, so a device that draws but shows black (Edge on Android, #157) can be told from one that never drew.
  */
 import type Phaser from "phaser";
 import { SCENES } from "../scenes/keys.js";
@@ -75,6 +80,42 @@ export function probeWebgl(doc: Document = document): WebglInfo | null {
   }
 }
 
+type BootStage = "module" | "game" | "frame" | "screen";
+
+/** Moves the `index.html` watchdog's stage along. */
+function reach(stage: BootStage): void {
+  const boot = (window as { __mcBoot?: { stage: string } }).__mcBoot;
+  if (boot) boot.stage = stage;
+}
+
+/** The centre pixel of the frame just drawn, as WebGL holds it ("rgba(14,12,10,255)"); null under Canvas. */
+function centrePixel(game: Phaser.Game): string | null {
+  const gl = (game.renderer as { gl?: WebGLRenderingContext }).gl;
+  if (!gl) return null;
+  const pixel = new Uint8Array(4);
+  gl.readPixels(gl.drawingBufferWidth >> 1, gl.drawingBufferHeight >> 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+  return `rgba(${pixel.join(",")})`;
+}
+
+/** `?diag=1`'s strip: one line over the top of the game, removed by a tap. */
+function showDiagnostics(game: Phaser.Game): void {
+  const gl = (game.renderer as { gl?: WebGLRenderingContext }).gl;
+  const info = probeWebgl();
+  const strip = document.createElement("div");
+  strip.style.cssText =
+    "position:fixed;top:0;left:0;right:0;z-index:11;padding:6px 8px;background:rgba(0,0,0,0.85);color:#f3ead8;" +
+    "font:12px/1.4 ui-monospace,monospace;white-space:pre-wrap;word-break:break-word";
+  strip.textContent = [
+    `diag · ${gl ? "WebGL" : "Canvas"} renderer · ${info ? `${info.version} ${info.renderer}` : "no WebGL"}`,
+    `canvas ${game.canvas.width}x${game.canvas.height} · css ${game.canvas.clientWidth}x${game.canvas.clientHeight}` +
+      (gl ? ` · buffer ${gl.drawingBufferWidth}x${gl.drawingBufferHeight}` : "") +
+      ` · dpr ${window.devicePixelRatio}`,
+    `centre pixel ${centrePixel(game) ?? "n/a"} · ${navigator.userAgent}`,
+  ].join("\n");
+  strip.addEventListener("click", () => strip.remove());
+  document.body.append(strip);
+}
+
 const describe = (cause: unknown): string =>
   cause instanceof Error ? `${cause.name}: ${cause.message}` : typeof cause === "string" ? cause : String(cause);
 
@@ -83,6 +124,8 @@ const describe = (cause: unknown): string =>
  * game to the returned function once it exists.
  */
 export function installStartupWatchdog(): (game: Phaser.Game) => void {
+  reach("module");
+  const diagnose = new URLSearchParams(window.location.search).get("diag") === "1";
   const errors: string[] = [];
   let started = false;
   let rendered = false;
@@ -128,7 +171,9 @@ export function installStartupWatchdog(): (game: Phaser.Game) => void {
   }, FIRST_FRAME_MS);
 
   return (game) => {
+    reach("game");
     game.events.once("postrender", () => {
+      reach("frame");
       rendered = true;
       window.clearTimeout(firstFrame);
     });
@@ -136,7 +181,10 @@ export function installStartupWatchdog(): (game: Phaser.Game) => void {
     const reachedScreen = (): void => {
       if (!game.scene.getScenes(true).some((scene) => !BOOT_SCENES.has(scene.scene.key))) return;
       started = true;
+      reach("screen");
       game.events.off("poststep", reachedScreen);
+      // Read in the frame after the screen first draws, while its drawing buffer still holds it.
+      if (diagnose) window.setTimeout(() => game.events.once("postrender", () => showDiagnostics(game)), 2000);
     };
     game.events.on("poststep", reachedScreen);
     const watchCanvas = (): void => {

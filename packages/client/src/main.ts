@@ -106,7 +106,8 @@ setDesktopType(formFactorFor(window.innerWidth, window.innerHeight) === "desktop
 const watchStartup = installStartupWatchdog();
 
 const game = new Phaser.Game({
-  type: Phaser.WEBGL,
+  // `?renderer=canvas` tries the Canvas renderer on a device whose WebGL draws black (issue #157).
+  type: new URLSearchParams(window.location.search).get("renderer") === "canvas" ? Phaser.CANVAS : Phaser.WEBGL,
   parent: "game",
   backgroundColor: cssOf(surface.void.hex),
   // Off by default in Phaser 4; the Board's focus route is otherwise wired

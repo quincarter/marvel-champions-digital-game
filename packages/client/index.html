@@ -55,6 +55,41 @@
   </head>
   <body>
     <div id="game"></div>
+    <!--
+      Issue #157: the last-resort report when the game never reaches a screen. A plain script, written for the oldest
+      browser, so it runs even when the game's module cannot load or parse; `ui/startup-watchdog.ts` moves
+      `__mcBoot.stage` along (page, module, game, frame, screen) and covers the failures it can see itself.
+    -->
+    <script>
+      (function () {
+        var boot = (window.__mcBoot = { stage: "page", errors: [] });
+        window.addEventListener("error", function (event) {
+          boot.errors.push(String((event.error && event.error.message) || event.message));
+        });
+        setTimeout(function () {
+          if (boot.stage === "screen" || document.getElementById("mc-startup-failure")) return;
+          var panel = document.createElement("div");
+          panel.id = "mc-startup-failure";
+          panel.setAttribute("role", "alert");
+          panel.style.cssText =
+            "position:fixed;top:0;right:0;bottom:0;left:0;z-index:10;overflow:auto;padding:24px 16px;" +
+            "background:#0e0c0a;color:#f3ead8;font:14px/1.5 monospace;white-space:pre-wrap;word-break:break-word";
+          panel.textContent = [
+            "The game did not start.",
+            "Reached: " + boot.stage,
+            boot.errors.length ? "Errors: " + boot.errors.slice(-5).join(" | ") : "Errors: none",
+            "Screen: " +
+              window.innerWidth +
+              "x" +
+              window.innerHeight +
+              " at device pixel ratio " +
+              window.devicePixelRatio,
+            "Browser: " + navigator.userAgent,
+          ].join("\n");
+          document.body.appendChild(panel);
+        }, 30000);
+      })();
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
