@@ -22,6 +22,7 @@
  *   --wait <ms>            After load, before actions (default 5000 — the board, its art and fonts)
  *   --click <x,y>          Left-click, then wait 300 ms. Repeatable, in order with the other actions.
  *   --rightclick <x,y>     Right-click (opens Inspect on a card), then wait 300 ms.
+ *   --hover <x,y>          Move the mouse there and leave it (a desktop hover popover), then wait 300 ms.
  *   --hold <x,y>           Press for 600 ms then release (the touch "hold to inspect"), then wait 300 ms.
  *   --key <Key>            Press a key (Escape, Enter, Tab, ArrowRight, i, …), then wait 300 ms.
  *   --settle <ms>          Wait this long after the last action before capturing (default 700; use 0 with --frames)
@@ -86,6 +87,7 @@ function parse(argv) {
         break;
       case "click":
       case "rightclick":
+      case "hover":
       case "hold":
       case "key":
         options.actions.push({ kind: key, value });
@@ -141,6 +143,9 @@ async function main() {
     } else if (action.kind === "rightclick") {
       const { x, y } = point(action.value);
       await page.mouse.click(x, y, { button: "right" });
+    } else if (action.kind === "hover") {
+      const { x, y } = point(action.value);
+      await page.mouse.move(x, y);
     } else if (action.kind === "hold") {
       const { x, y } = point(action.value);
       await page.mouse.move(x, y);

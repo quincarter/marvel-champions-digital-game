@@ -20,6 +20,8 @@ import { McButton, fitText } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import { addPressShield } from "../ui/press-shield.js";
 import { onTap } from "../ui/tap.js";
+import { HoverPreview, resetHoverCards, screenHoverArea } from "../ui/card-hover-preview.js";
+import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import type { Rect } from "../view/layout.js";
@@ -61,6 +63,9 @@ export class SetCardsOverlay extends Phaser.Scene {
   #thumbs: Thumb[] = [];
   #stops = new Map<string, FocusStop>();
   readonly #scroll = new VariableListScroll();
+  /** The desktop hover popover over the card pictures (`ui/card-hover-preview.ts`), as in the Civil War builder. */
+  #hover: HoverPreview | null = null;
+  #hoverFaces: { readonly face: FaceRef; readonly rect: Rect }[] = [];
 
   constructor() {
     super(SCENES.setCards);
@@ -79,12 +84,18 @@ export class SetCardsOverlay extends Phaser.Scene {
     }
     this.scale.on("resize", this.#draw, this);
     const offBaked = cardFaces(this).onBaked(() => this.#fillThumbs());
+    this.#hover = new HoverPreview(this, {
+      cardIds: () => this.#hoverCardIds(),
+      area: (pointer) => screenHoverArea(this, pointer),
+    });
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.inspect),
       onCancel: () => this.#close(),
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       offBaked();
+      this.#hover?.destroy();
+      this.#hover = null;
       this.scale.off("resize", this.#draw, this);
       this.#clear();
       if (from) {
@@ -102,6 +113,23 @@ export class SetCardsOverlay extends Phaser.Scene {
     this.#buttons = [];
     this.#thumbs = [];
     this.#stops = new Map();
+  }
+
+  /** The card pictures on screen now, each clipped to the scrolled body. */
+  #hoverCardIds(): ReadonlyMap<string, HoverCardIdRect> {
+    const found = new Map<string, HoverCardIdRect>();
+    const body = this.#layoutNow().body;
+    this.#hoverFaces.forEach(({ face, rect }, index) => {
+      const shown = clipHoverRect({ ...rect, y: rect.y - this.#scroll.offsetPx }, body);
+      if (shown)
+        found.set(hoverSlotOf(face.cardId, `face${index}`), {
+          ...shown,
+          cardId: face.cardId,
+          face: face.face,
+          through: true,
+        });
+    });
+    return found;
   }
 
   #close(): void {
@@ -157,6 +185,8 @@ export class SetCardsOverlay extends Phaser.Scene {
 
   #draw(): void {
     this.#clear();
+    resetHoverCards(this);
+    this.#hoverFaces = [];
     destroyChildren(this);
     const { setId, action } = this.#data;
     const sheet = setSheetFor({ cards: CARDS_BY_ID, encounterSets: POOL_ENCOUNTER_SETS }, setId);
@@ -203,6 +233,7 @@ export class SetCardsOverlay extends Phaser.Scene {
     sheet.cards.forEach((card, i) => {
       const cell = L.cells[i]!;
       const image: Rect = { x: cell.x, y: cell.y, width: cell.width, height: L.imageHeight };
+      this.#hoverFaces.push({ face: card.face, rect: image });
       const frame = this.add.graphics();
       frame.fillStyle(surface.parchment.hex, 1).fillRect(image.x, image.y, image.width, image.height);
       frame
@@ -291,5 +322,6 @@ export class SetCardsOverlay extends Phaser.Scene {
     order.push("set-cards:close");
     this.#route?.set(order, this.#stops);
     this.#fillThumbs();
+    this.#hover?.onDraw();
   }
 }

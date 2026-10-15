@@ -37,7 +37,9 @@ import { McScrollRegion } from "../ui/scroll-region.js";
 import { artFor } from "../art/art-source.js";
 import { cardFaces } from "../art/card-face-baker.js";
 import { artThumbSpec } from "./roster-panel.js";
-import { cardsBySet, setFacesOf } from "../view/civil-war-builder-art.js";
+import { HoverPreview, resetHoverCards, screenHoverArea } from "../ui/card-hover-preview.js";
+import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
+import { cardsBySet, setFacesOf, type FaceRef } from "../view/civil-war-builder-art.js";
 import { offersRandomModularSets, withRandomModularSets } from "../view/modular-random.js";
 import { SET_CARDS_ACTION_EVENT, type SetCardsData } from "./set-cards.js";
 import { progressionScope } from "../progression/progression-scope.js";
@@ -242,6 +244,9 @@ export class TableSetupScene extends Phaser.Scene {
   #dealBlocked: string | null = null;
   /** The modular tiles' pictures still waiting for a baked face (refilled as faces arrive, rebuilt each draw). */
   #thumbs: ThumbSlot[] = [];
+  /** The desktop hover popover over the modular tiles' pictures (`ui/card-hover-preview.ts`). */
+  #hover: HoverPreview | null = null;
+  #hoverFaces: { readonly face: FaceRef; readonly rect: Rect; readonly phone: boolean }[] = [];
   /** What the status line reads with no seed error: the wide sidebar's deal hold, or nothing (the phone's footer says it). */
   #statusIdle = "";
   #starting = false;
@@ -284,9 +289,15 @@ export class TableSetupScene extends Phaser.Scene {
     this.scale.on("resize", this.#rebuild, this);
     // A face baked off the main thread arrives: fill the pictures waiting for it, never a whole rebuild.
     const offBaked = cardFaces(this).onBaked(() => this.#fillThumbs());
+    this.#hover = new HoverPreview(this, {
+      cardIds: () => this.#hoverCardIds(),
+      area: (pointer) => screenHoverArea(this, pointer),
+    });
     this.game.events.on(SET_CARDS_ACTION_EVENT, this.#onSetCardsAction, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       offBaked();
+      this.#hover?.destroy();
+      this.#hover = null;
       this.game.events.off(SET_CARDS_ACTION_EVENT, this.#onSetCardsAction, this);
       this.scale.off("resize", this.#rebuild, this);
       this.#seedInput?.destroy();
@@ -336,6 +347,8 @@ export class TableSetupScene extends Phaser.Scene {
 
   #rebuild(): void {
     this.#thumbs = [];
+    resetHoverCards(this);
+    this.#hoverFaces = [];
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#stops = new Map();
@@ -755,6 +768,7 @@ export class TableSetupScene extends Phaser.Scene {
       this.#stops,
     );
     this.#fillThumbs();
+    this.#hover?.onDraw();
   }
 
   // -----------------------------------------------------------------------------------------------------------
@@ -916,6 +930,7 @@ export class TableSetupScene extends Phaser.Scene {
       this.#stops,
     );
     this.#fillThumbs();
+    this.#hover?.onDraw();
   }
 
   /** Runs `draw`, then reparents everything it just added to the scene's top-level display list into `container` — the "eagerly draw, then move into the scrolled/masked layer" trick `McScrollRegion` relies on (its own doc comment), since `this.add.graphics()`/`new McButton(this, …)` always land at the top level first. */
@@ -2351,6 +2366,8 @@ export class TableSetupScene extends Phaser.Scene {
       .lineStyle(1.5, surface.ink.hex, ink.label)
       .strokeRect(picture.x + 0.75, picture.y + 0.75, picture.width - 1.5, picture.height - 1.5);
     const url = this.#setPictureUrl(option.id);
+    const face = this.#setFace(option.id);
+    if (face) this.#hoverFaces.push({ face, rect: picture, phone: at.phone });
     const parent = at.phone ? (this.#compactRegion?.content ?? null) : (this.#modularRegion?.content ?? null);
     if (url) this.#thumbs.push({ rect: picture, url, parent, alpha, done: false });
     const caption = this.add
@@ -2364,9 +2381,33 @@ export class TableSetupScene extends Phaser.Scene {
     fitText(caption, tab.width, typeRole.label.size);
   }
 
+  /** A set's most recognizable card (`setFacesOf`), the one its tile pictures; null for a set with no cards on hand. */
+  #setFace(setId: string): FaceRef | null {
+    return setFacesOf(cardsBySet(CARDS_BY_ID).get(setId) ?? [], 1)[0] ?? null;
+  }
+
+  /** The tile pictures on screen now, each clipped to the region it scrolls in (the phone's page, or the wide grid). */
+  #hoverCardIds(): ReadonlyMap<string, HoverCardIdRect> {
+    const found = new Map<string, HoverCardIdRect>();
+    this.#hoverFaces.forEach(({ face, rect, phone }, index) => {
+      const view = phone ? this.#compactRegion?.rect : this.#modularRegion?.rect;
+      const offset = phone ? this.#compactScroll.offsetPx : this.#modularRegion ? this.#modularScroll.offsetPx : 0;
+      const at = { ...rect, y: rect.y - offset };
+      const shown = view ? clipHoverRect(at, view) : at;
+      if (shown)
+        found.set(hoverSlotOf(face.cardId, `modular${index}`), {
+          ...shown,
+          cardId: face.cardId,
+          face: face.face,
+          through: true,
+        });
+    });
+    return found;
+  }
+
   /** The scan of a set's most recognizable card, or null when the content has no art for it (the frame stays empty). */
   #setPictureUrl(setId: string): string | null {
-    const face = setFacesOf(cardsBySet(CARDS_BY_ID).get(setId) ?? [], 1)[0];
+    const face = this.#setFace(setId);
     if (!face) return null;
     return artFor(CARDS_BY_ID.get(face.cardId as string), face.face)?.url ?? null;
   }
