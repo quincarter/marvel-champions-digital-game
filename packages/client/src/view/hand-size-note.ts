@@ -62,10 +62,13 @@ export function smallHandSizeConfirmOf(state: GameState, playerId: PlayerId, dep
   const note = handSizeNoteOf(state, playerId, deps);
   if (!note || note.handSize >= SMALL_HAND_SIZE) return null;
   const name = seatFormName(state, playerId);
+  // RRG 1.8 "End of Player Phase" (p. 18) step 1 comes first: a hand over its size is discarded down to it.
   const draws =
-    note.willDraw === 0
-      ? `you hold ${note.held}, so the end-of-turn draw adds nothing`
-      : `you hold ${note.held}, so the end-of-turn draw adds ${note.willDraw}`;
+    note.held > note.handSize
+      ? `you hold ${note.held}, so you will discard down to ${note.handSize} and draw nothing`
+      : note.willDraw === 0
+        ? `you hold ${note.held}, so the end-of-turn draw adds nothing`
+        : `you hold ${note.held}, so the end-of-turn draw adds ${note.willDraw}`;
   return `${name}'s hand size is only ${note.handSize}: ${draws}.\n${note.why.join("\n")}`;
 }
 

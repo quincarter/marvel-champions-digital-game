@@ -102,6 +102,13 @@ describe("Iron Man's hand size, explained (issue #150)", () => {
     );
   });
 
+  test("holding more than the hand size: the discard down to it comes first", async () => {
+    const state = holding(await heroTurn("core-iron-man-aggression"), 3);
+    expect(smallHandSizeConfirmOf(state, state.players[0]!.playerId, POOL_DEPS)).toMatch(
+      /^Iron Man's hand size is only 1: you hold 3, so you will discard down to 1 and draw nothing\./,
+    );
+  });
+
   test("a third makes it 4: no confirm", async () => {
     let state = await heroTurn("core-iron-man-aggression");
     state = intoPlay(intoPlay(intoPlay(state, "01035"), "01039"), "01037");
