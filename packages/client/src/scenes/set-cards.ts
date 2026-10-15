@@ -11,11 +11,11 @@
 import Phaser from "phaser";
 import type { CardId } from "@mc/content";
 import { CARDS_BY_ID, POOL_ENCOUNTER_SETS } from "../content/pool.js";
-import { surface, typeRole, type TypeSpec } from "../tokens.js";
+import { accent, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { artFor } from "../art/art-source.js";
 import { cardFaces } from "../art/card-face-baker.js";
 import { artThumbSpec } from "./roster-panel.js";
-import { textStyle } from "../ui/theme.js";
+import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, fitText } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import { addPressShield } from "../ui/press-shield.js";
@@ -28,8 +28,8 @@ import type { Rect } from "../view/layout.js";
 import { appSession } from "../session.js";
 import { cardSizeFactor } from "../settings.js";
 import { setSheetFor } from "../view/civil-war-builder-model.js";
-import { setSheetLayout } from "../view/civil-war-builder-layout.js";
-import { rectsNearViewport, type FaceRef } from "../view/civil-war-builder-art.js";
+import { sectionedSheetLayout, type SectionedSheetLayout } from "../view/set-cards-layout.js";
+import { rectsNearViewport, type FaceRef, type SetSheetView } from "../view/civil-war-builder-art.js";
 import { setCardCaption, setCardsSubtitle } from "../view/set-cards.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
@@ -41,6 +41,25 @@ export interface SetCardsData {
   readonly action?: { readonly label: string; readonly enabled: boolean };
   /** The scene under the sheet, whose input is held off while the sheet is open (default: none besides the scrim). */
   readonly from?: string;
+  /** The line under the title, in place of the card count. */
+  readonly subtitle?: string;
+  /** The sheet's title in place of the set's name (a sectioned sheet: "Standard sets"). */
+  readonly title?: string;
+  /**
+   * Several sets in one sheet, each under its own heading (Table setup's Standard sets: I, II and III with where each
+   * comes from). Absent: the one set `setId` names, with no heading.
+   */
+  readonly sections?: readonly SetCardsSection[];
+}
+
+export interface SetCardsSection {
+  readonly setId: string;
+  /** The heading's first line: the set's name ("Standard II · chosen"). */
+  readonly heading: string;
+  /** The heading's second line: where the set comes from. */
+  readonly note: string;
+  /** The chosen set: its heading is drawn in Hero Red. */
+  readonly chosen: boolean;
 }
 
 /** Event emitted on `game.events` when the footer button is pressed; the payload is the set id. */
@@ -63,6 +82,8 @@ export class SetCardsOverlay extends Phaser.Scene {
   #thumbs: Thumb[] = [];
   #stops = new Map<string, FocusStop>();
   readonly #scroll = new VariableListScroll();
+  /** Header room for a subtitle that wraps past one line (measured each draw). */
+  #extraHeader = 0;
   /** The desktop hover popover over the card pictures (`ui/card-hover-preview.ts`), as in the Civil War builder. */
   #hover: HoverPreview | null = null;
   #hoverFaces: { readonly face: FaceRef; readonly rect: Rect }[] = [];
@@ -177,10 +198,27 @@ export class SetCardsOverlay extends Phaser.Scene {
     }
   }
 
-  #layoutNow(): ReturnType<typeof setSheetLayout> {
-    const sheet = setSheetFor({ cards: CARDS_BY_ID, encounterSets: POOL_ENCOUNTER_SETS }, this.#data.setId);
+  /** The sets this sheet shows: its sections, or the one set with no heading. */
+  #sections(): readonly { readonly section: SetCardsSection | null; readonly sheet: SetSheetView }[] {
+    const ctx = { cards: CARDS_BY_ID, encounterSets: POOL_ENCOUNTER_SETS };
+    const { sections, setId } = this.#data;
+    if (!sections || sections.length === 0) return [{ section: null, sheet: setSheetFor(ctx, setId) }];
+    return sections.map((section) => ({ section, sheet: setSheetFor(ctx, section.setId) }));
+  }
+
+  #layoutNow(): SectionedSheetLayout {
+    const groups = this.#sections();
     const { width, height } = this.scale.gameSize;
-    return setSheetLayout({ width, height }, sheet.cards.length, this.#cardScale());
+    return sectionedSheetLayout(
+      { width, height },
+      groups.map((g) => g.sheet.cards.length),
+      this.#cardScale(),
+      {
+        headed: groups.some((g) => g.section !== null),
+        extraHeader: this.#extraHeader,
+        footer: Boolean(this.#data.action),
+      },
+    );
   }
 
   #draw(): void {
@@ -189,9 +227,22 @@ export class SetCardsOverlay extends Phaser.Scene {
     this.#hoverFaces = [];
     destroyChildren(this);
     const { setId, action } = this.#data;
-    const sheet = setSheetFor({ cards: CARDS_BY_ID, encounterSets: POOL_ENCOUNTER_SETS }, setId);
+    const groups = this.#sections();
+    const sheet = groups[0]!.sheet;
     const { width, height } = this.scale.gameSize;
-    const L = setSheetLayout({ width, height }, sheet.cards.length, this.#cardScale());
+    const subtitleText = this.#data.subtitle ?? setCardsSubtitle(sheet.totalCards, sheet.cards.length);
+    // A long subtitle (the Standard sets' explanation on a phone) wraps: the header grows by the extra lines.
+    this.#extraHeader = 0;
+    const probe = this.#text(
+      0,
+      0,
+      subtitleText,
+      typeRole.body,
+      this.#layoutNow().close.x - this.#layoutNow().header.x - 32,
+    );
+    this.#extraHeader = Math.max(0, Math.ceil(probe.height) - 18);
+    probe.destroy();
+    const L = this.#layoutNow();
 
     // The scrim takes every press, so nothing under the sheet answers while it is open; a tap on it closes.
     const shield = addPressShield(this, { x: 0, y: 0, width, height });
@@ -204,17 +255,9 @@ export class SetCardsOverlay extends Phaser.Scene {
     this.add.zone(L.panel.x, L.panel.y, L.panel.width, L.panel.height).setOrigin(0, 0).setInteractive();
 
     const textWidth = L.close.x - L.header.x - 32;
-    const title = this.#text(L.header.x + 16, L.header.y + 8, sheet.name, typeRole.barTitle);
+    const title = this.#text(L.header.x + 16, L.header.y + 8, this.#data.title ?? sheet.name, typeRole.barTitle);
     fitText(title, textWidth, 22);
-    this.#text(
-      L.header.x + 16,
-      L.header.y + 36,
-      setCardsSubtitle(sheet.totalCards, sheet.cards.length),
-      typeRole.body,
-      textWidth,
-      undefined,
-      0.7,
-    );
+    this.#text(L.header.x + 16, L.header.y + 36, subtitleText, typeRole.body, textWidth, undefined, 0.7);
     const close = (): void => this.#close();
     this.#buttons.push(
       new McButton(this, { kind: "secondary", label: "Close", type: typeRole.rowTitle, rect: L.close, onClick: close }),
@@ -230,7 +273,17 @@ export class SetCardsOverlay extends Phaser.Scene {
     });
     this.#region = region;
     const order: string[] = [];
-    sheet.cards.forEach((card, i) => {
+    groups.forEach(({ section }, s) => {
+      if (!section) return;
+      const at = L.headings[s]!;
+      const heading = this.#text(at.x, at.y + 2, section.heading, typeRole.rowTitle);
+      if (section.chosen) heading.setColor(cssOf(accent.heroRed.hex));
+      fitText(heading, at.width, typeRole.rowTitle.size);
+      const note = this.#text(at.x, at.y + 22, section.note, typeRole.label, at.width, 1, 0.7);
+      region.content.add([heading, note]);
+    });
+    const cards = groups.flatMap((g) => g.sheet.cards);
+    cards.forEach((card, i) => {
       const cell = L.cells[i]!;
       const image: Rect = { x: cell.x, y: cell.y, width: cell.width, height: L.imageHeight };
       this.#hoverFaces.push({ face: card.face, rect: image });

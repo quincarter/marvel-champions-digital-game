@@ -5,6 +5,7 @@
  * hero scan when there is no picture; a plain ink square while either loads.
  */
 import type Phaser from "phaser";
+import type { AnyCard } from "@mc/content";
 import type { GameState, PlayerId } from "@mc/engine";
 import { cardOf } from "@mc/engine";
 import { artFor } from "../art/art-source.js";
@@ -30,10 +31,24 @@ export function drawSeatAvatar(
   frameColor: number = surface.paper.hex,
   alpha = 1,
 ): void {
-  const g = scene.add.graphics();
-  g.fillStyle(signal.spent.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
   const player = game.players.find((candidate) => candidate.playerId === playerId);
   const identity = player ? cardOf(game, player.identity.instanceId) : undefined;
+  drawHeroAvatar(scene, rect, identity, frameColor, alpha);
+}
+
+/**
+ * Draws a hero identity's picture into `rect`, framed in `frameColor`: the same face a seat shows, for screens before a
+ * game exists (Set the table's seats). An unknown identity draws the plain ink square.
+ */
+export function drawHeroAvatar(
+  scene: Phaser.Scene,
+  rect: Rect,
+  identity: AnyCard | undefined,
+  frameColor: number = surface.paper.hex,
+  alpha = 1,
+): void {
+  const g = scene.add.graphics();
+  g.fillStyle(signal.spent.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
   const picture = identity ? heroArtForIdentity(HERO_ART, identity.id, POOL_CARDS, () => 0) : null;
   let drawn = false;
   if (picture) {
