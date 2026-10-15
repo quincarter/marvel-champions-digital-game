@@ -147,7 +147,7 @@ for (const c of CASES) {
       board.some((t) => t.scene === "Board" && t.text.trim().toLowerCase() === villain.toLowerCase()),
       `the villain "${villain}" is named on the board`,
     ).toBe(true);
-    const hand = board.map((t) => /^HAND (\d+)$/.exec(t.text.trim())).find((m) => m !== null);
+    const hand = board.map((t) => /^HAND (\d+) · SIZE \d+$/.exec(t.text.trim())).find((m) => m !== null);
     expect(hand, "the board shows the hand count").toBeTruthy();
     expect(Number(hand![1]), "the opening hand is not empty").toBeGreaterThan(0);
     expect(await boardRound(page), "round 1").toBe(1);
