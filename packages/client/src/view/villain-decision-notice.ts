@@ -7,7 +7,7 @@
  * the target was for, which of two effects was first, or what the options were.
  */
 import type { EngineDeps, GameState, PendingChoice, PlayerId } from "@mc/engine";
-import { choiceHeaderText, promptTitleOf } from "./choice-source.js";
+import { choiceHeaderText, choosesActiveVillain, promptTitleOf } from "./choice-source.js";
 import { optionLabelOf } from "./names.js";
 import { decisionLabel } from "./villain-walkthrough.js";
 
@@ -49,13 +49,16 @@ const SINGLE_PICKS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * The one option id to answer with when the encounter side's pick has only one candidate (the first player "picks" the
- * target when exactly one is eligible), else null. The player never decides anything here, so the phase answers it
+ * The one option id to answer with when the first player's pick of the new active villain has only one candidate, else
+ * null. The player never decides anything here, so the phase answers it
  * itself, through the same `resolveChoice` an answered sheet would use; the engine still checks it.
  */
-export function soleAnswerOf(choice: PendingChoice): string | null {
+export function soleAnswerOf(state: GameState, choice: PendingChoice, deps: EngineDeps): string | null {
   if (choice.authority === "player") return null;
   if (!SINGLE_PICKS.has(choice.prompt.kind)) return null;
+  // Only the first player's pick of the new active villain answers itself: any other pick, even with one candidate, is
+  // a card's own question the players should see (Zemo's secret counters on the one bare environment).
+  if (!choosesActiveVillain(state, choice, deps)) return null;
   if (choice.options.length !== 1 || choice.minSelections !== 1 || choice.maxSelections !== 1) return null;
   return choice.options[0]!.optionId;
 }

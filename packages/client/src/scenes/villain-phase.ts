@@ -619,7 +619,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const choice = this.#latest?.game?.pendingChoice;
     if (!choice || this.#review || this.#soleAnswered.has(choice.choiceId)) return;
     if (this.#waitingToStart() || !this.#decisionDue() || this.#guideActive()) return;
-    const only = soleAnswerOf(choice);
+    const game = this.#latest?.game;
+    if (!game) return;
+    const only = soleAnswerOf(game, choice, POOL_DEPS);
     if (only === null) return;
     this.#soleAnswered.add(choice.choiceId);
     this.#resolve([only]);

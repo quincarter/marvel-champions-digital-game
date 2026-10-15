@@ -53,32 +53,24 @@ describe("the decision notice", () => {
 
   test("a pick with one candidate is answered with it; one with several is not", async () => {
     const one = await playUntil("breakout", (c) => pickingVillain(c) && c.options.length === 1);
-    if (one) expect(soleAnswerOf(one.choice)).toBe(one.choice.options[0]!.optionId);
+    if (one) expect(soleAnswerOf(one.game, one.choice, POOL_DEPS)).toBe(one.choice.options[0]!.optionId);
     const many = await playUntil("breakout", (c) => pickingVillain(c) && c.options.length > 1);
     expect(many).not.toBeNull();
-    expect(soleAnswerOf(many!.choice)).toBeNull();
+    expect(soleAnswerOf(many!.game, many!.choice, POOL_DEPS)).toBeNull();
   }, 90_000);
 
-  test("only the encounter side's picks are answered for the player", () => {
-    const choice = {
-      choiceId: "c1" as ChoiceId,
-      playerId: "p1",
-      prompt: { kind: "chooseTarget", slot: "x", abilityId: null },
-      minSelections: 1,
-      maxSelections: 1,
-      options: [{ optionId: "only", label: "Only", ref: { kind: "card", instanceId: "i1" } }],
-      frameId: null,
-      ordered: false,
-      soleDecider: false,
-      authority: "player",
-    } as unknown as PendingChoice;
-    expect(soleAnswerOf(choice)).toBeNull();
-    expect(soleAnswerOf({ ...choice, authority: "firstPlayerTargets" })).toBe("only");
-    expect(soleAnswerOf({ ...choice, authority: "firstPlayerTargets", minSelections: 0 })).toBeNull();
-    expect(
-      soleAnswerOf({ ...choice, authority: "firstPlayerTargets", prompt: { kind: "chooseTriggers" } } as PendingChoice),
-    ).toBeNull();
-  });
+  test("only the active-villain pick answers itself: any other one-candidate pick is left to the players", async () => {
+    const found = await playUntil("breakout", pickingVillain);
+    expect(found).not.toBeNull();
+    const { game, choice } = found!;
+    const lone = { ...choice, options: [choice.options[0]!], authority: "firstPlayerTargets" } as PendingChoice;
+    expect(soleAnswerOf(game, lone, POOL_DEPS)).toBe(choice.options[0]!.optionId);
+    expect(soleAnswerOf(game, { ...lone, authority: "player" }, POOL_DEPS)).toBeNull();
+    expect(soleAnswerOf(game, { ...lone, minSelections: 0 }, POOL_DEPS)).toBeNull();
+    // A pick no card asks for the active villain (Zemo's counters on the one bare environment) is not answered.
+    const other = { ...lone, prompt: { ...lone.prompt, slot: "not-the-villain-slot" } } as PendingChoice;
+    expect(soleAnswerOf(game, other, POOL_DEPS)).toBeNull();
+  }, 60_000);
 });
 
 describe("the notice for an ordering", () => {
