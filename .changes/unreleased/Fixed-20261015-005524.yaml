@@ -1,0 +1,3 @@
+kind: Fixed
+body: Log lines read "against you" mid-sentence instead of "against You", and status lines say the status ("Pestilence is stunned.") instead of ending at "is"
+time: 2026-10-15T00:55:24.6544081-04:00
