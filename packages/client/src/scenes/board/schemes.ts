@@ -12,7 +12,7 @@ import { countTween } from "../../ui/bound-tween.js";
 import { McScrollRegion } from "../../ui/scroll-region.js";
 import { ink, surface, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
-import { label, paintPanel, paintThreatMeter } from "../../ui/widgets.js";
+import { fitWrapped, label, paintPanel, paintThreatMeter } from "../../ui/widgets.js";
 import { counterNote, type BoardModel, type SchemePanel } from "../../view/board-model.js";
 import { CARD_ASPECT, type Rect } from "../../view/layout.js";
 import { fullyVisible, schemeListLayout, visibleSlice, type SchemeListLayout } from "../../view/scheme-list-layout.js";
@@ -174,7 +174,9 @@ function drawScrollHint(ctx: BoardDrawContext, viewport: Rect, heights: readonly
  */
 export function schemeArtWidth(rect: Rect, cardScale = 1): number {
   if (rect.width < 170) return 0;
-  const grown = cardScale > 1;
+  // Also a row 160px tall or more (an ultrawide's tall column; the 1440x900 table tops out at 150): a 120px portrait strip
+  // beside a card-sized row wastes the room.
+  const grown = cardScale > 1 || rect.height >= 160;
   const shaped = Math.round((rect.height - 6) * (grown ? 1 / CARD_ASPECT : CARD_ASPECT));
   return Math.round(Math.min(Math.max(96, shaped), rect.width * (grown ? 0.5 : 0.3)));
 }
@@ -183,7 +185,24 @@ export function schemeMeterRect(rect: Rect, cardScale = 1): Rect {
   const artWidth = schemeArtWidth(rect, cardScale);
   const textLeft = rect.x + 8 + (artWidth > 0 ? artWidth + 6 : 0);
   const textWidth = rect.x + rect.width - 8 - textLeft;
+  // A short row (a side scheme at 52px) keeps a slimmer meter so its name and "SIDE SCHEME · WRECKER" stay above it.
+  if (schemeRowIsCompact(rect, cardScale)) {
+    return {
+      x: textLeft,
+      y: rect.y + rect.height - COMPACT_METER_HEIGHT - 4,
+      width: textWidth,
+      height: COMPACT_METER_HEIGHT,
+    };
+  }
   return { x: textLeft, y: rect.y + rect.height - 26, width: textWidth, height: 18 };
+}
+
+/** The slim meter of a compact row. */
+const COMPACT_METER_HEIGHT = 14;
+
+/** A row too short for a name, its subtitle and the full-size meter one above the other (56px at Fit to screen). */
+export function schemeRowIsCompact(rect: Rect, cardScale = 1): boolean {
+  return rect.height < 60 * Math.max(1, cardScale);
 }
 
 /**
@@ -226,13 +245,26 @@ export function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePane
 
   const textLeft = rect.x + 8 + (artWidth > 0 ? artWidth + 6 : 0);
   const textWidth = rect.x + rect.width - 8 - textLeft;
-  scene.add
-    .text(textLeft, rect.y + 6, scheme.name, textStyle(typeRole.rowTitle, surface.ink.hex, dim))
-    .setWordWrapWidth(textWidth)
-    .setMaxLines(2);
-  label(scene, textLeft, rect.y + 30, scheme.subtitle, typeRole.label, surface.ink.hex, ink.label * dim);
-
   const meter = schemeMeterRect(rect, ctx.cardScale);
+  const compact = schemeRowIsCompact(rect, ctx.cardScale);
+  // The name and the subtitle (with whose game area it is in, Kang's per-player areas) stack above the meter: each wraps
+  // whole words into the room that is left, and the subtitle starts under however many lines the name took, so a long
+  // name never lands on "MAIN SCHEME 2" and the meter never covers "SIDE SCHEME · WRECKER".
+  const nameText = scene.add
+    .text(textLeft, rect.y + (compact ? 3 : 6), scheme.name, textStyle(typeRole.rowTitle, surface.ink.hex, dim))
+    .setWordWrapWidth(textWidth);
+  fitWrapped(nameText, textWidth, rect.height >= 78 * Math.max(1, ctx.cardScale) ? 2 : 1, typeRole.rowTitle.size);
+  const subtitleTop = nameText.y + Math.ceil(nameText.height) + 1;
+  const subtitleText = label(
+    scene,
+    textLeft,
+    subtitleTop,
+    scheme.areaLabel ? `${scheme.subtitle} · ${scheme.areaLabel}` : scheme.subtitle,
+    typeRole.label,
+    surface.ink.hex,
+    ink.label * dim,
+  );
+  fitWrapped(subtitleText, textWidth, meter.y - 1 - subtitleTop >= 26 ? 2 : 1, typeRole.label.size);
 
   // A printed Hero/Alter-Ego Action or resource ability on the scheme itself
   // (The Grand Collection's "discard 1 card from The Collection", the Milano's
@@ -242,7 +274,7 @@ export function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePane
   const abilityLine = ctx.controller.abilityLine(scheme.instanceId);
   // Counters the scheme itself holds (En Sabah Nur's Pyramid: "place 1 power counter here") get their own line, so
   // the tally that drives the scenario is on the table and not only in Inspect.
-  let abilityTop = rect.y + 48;
+  let abilityTop = Math.max(rect.y + 48, subtitleTop + Math.ceil(subtitleText.height) + 2);
   const counterText = counterNote(scheme.counters);
   if (counterText && abilityTop + 14 <= schemeMeterRect(rect, ctx.cardScale).y - 2) {
     label(scene, textLeft, abilityTop, counterText, typeRole.label, surface.ink.hex, ink.meta * dim);
@@ -300,7 +332,8 @@ export function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePane
   // Redrawn as a whole from `threat` each time this is called, so a `threatPlaced`/`threatRemoved` tween's
   // `onUpdate` (below) can slide the fill and count the number together the same way `McHpPlate.update()` re-runs
   // its own `redraw()`.
-  const paintMeter = (threat: number): void => paintThreatMeter(mg, meterText, meter, scheme, threat, dim);
+  const paintMeter = (threat: number): void =>
+    paintThreatMeter(mg, meterText, meter, scheme, threat, dim, null, compact ? 10 : undefined);
 
   const tick = ctx.motion.threatTick(scheme.instanceId);
   if (tick) {

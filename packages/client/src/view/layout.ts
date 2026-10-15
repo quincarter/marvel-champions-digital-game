@@ -16,6 +16,7 @@
 
 import { desktopTypeSize } from "./desktop-type.js";
 import { hit } from "../tokens.js";
+import { villainRowPlan, villainRowSlotsFor } from "./villain-tile-layout.js";
 
 export interface Rect {
   readonly x: number;
@@ -615,7 +616,12 @@ function longTableZones(
     formFactor === "tabletLandscape" && options.villainBand?.tall === true
       ? Math.min(1, Math.max(0, options.villainBand.grow ?? 1))
       : 0;
-  const usualHandHeight = Math.min(220, Math.max(150, Math.round(viewport.height * 0.24)));
+  // 220 is the 1440x900 hand. A viewport well past that (an ultrawide's 1440 rows) lets it grow with the screen, so a
+  // hand card is not a thumbnail beside a play area card two and a half times its size.
+  const usualHandHeight = Math.min(
+    viewport.height > 1100 ? Math.min(380, Math.round(viewport.height * 0.24)) : 220,
+    Math.max(150, Math.round(viewport.height * 0.24)),
+  );
   // While the band is tall the hand gives up a third of its height: the panel is what the player is reading.
   const tallHandHeight = Math.max(120, Math.round(usualHandHeight * 0.65));
   const baseHandHeight = Math.round(usualHandHeight + (tallHandHeight - usualHandHeight) * grow);
@@ -716,38 +722,18 @@ function longTableZones(
   };
 }
 
-/** Below this a compact villain panel stops reading as a panel at all — no room for a thumb plus a name. */
-const VILLAIN_COMPACT_MIN_WIDTH = 74;
-/** A compact villain panel's own minimum height, once wrapping into more than one row shrinks it. */
-const VILLAIN_COMPACT_MIN_HEIGHT = 56;
-
 /**
- * Where each villain's compact panel sits in the enemies band — The Wrecking Crew's four villains, or any later
+ * Where each villain's compact tile sits in the enemies band — The Wrecking Crew's four villains, or any later
  * scenario with more than one (`BoardModel.villains`). A single villain never calls this: `zones.ts` keeps its own
  * unchanged, full-size panel for that case, so every scenario before The Wrecking Crew looks exactly as it did.
  *
- * As many as fit across one row at `VILLAIN_COMPACT_MIN_WIDTH`; past that it wraps into more rows rather than
- * shrinking panels below where a name and its stats stop being legible — the same "crowd, don't vanish" rule
- * `cardRow` uses for the minions under it. Rows split as evenly as the count allows (four villains at three per row
- * would leave one alone on its own row for no reason), so a phone's narrow width and a tabletop's short height each
- * still get a legible grid instead of one badly-fit line or an unreadable four-wide squeeze.
+ * `view/villain-tile-layout.ts` decides how the tiles share the rect: as many rows as give the largest scan at a tile
+ * no narrower than `VILLAIN_TILE_MIN_WIDTH`, split evenly (six tiles are three and three), every tile inside `rect`.
+ * The same "crowd, don't vanish" rule `cardRow` uses for the minions under it.
  */
 export function villainRowSlots(rect: Rect, count: number, gap = 8): readonly Rect[] {
   if (count <= 0) return [];
-  const perRow = Math.max(1, Math.min(count, Math.floor((rect.width + gap) / (VILLAIN_COMPACT_MIN_WIDTH + gap))));
-  const rows = Math.ceil(count / perRow);
-  const rowHeight = Math.max(VILLAIN_COMPACT_MIN_HEIGHT, (rect.height - gap * (rows - 1)) / rows);
-
-  const slots: Rect[] = [];
-  for (let row = 0; row < rows; row++) {
-    const rowStart = row * perRow;
-    const inRow = Math.min(perRow, count - rowStart);
-    const width = (rect.width - gap * (inRow - 1)) / inRow;
-    for (let col = 0; col < inRow; col++) {
-      slots.push({ x: rect.x + col * (width + gap), y: rect.y + row * (rowHeight + gap), width, height: rowHeight });
-    }
-  }
-  return slots;
+  return villainRowSlotsFor(rect, count, villainRowPlan(rect.width, count, rect.height, rect.height, gap), gap);
 }
 
 /**

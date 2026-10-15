@@ -643,9 +643,11 @@ describe("villainRowSlots", () => {
   test("slots never overlap within a row", () => {
     const rect: Rect = { x: 0, y: 0, width: 300, height: 200 };
     const slots = villainRowSlots(rect, 3);
-    const sorted = [...slots].sort((a, b) => a.x - b.x);
-    for (let i = 1; i < sorted.length; i++) {
-      expect(sorted[i]!.x).toBeGreaterThanOrEqual(sorted[i - 1]!.x + sorted[i - 1]!.width - 0.001);
+    for (const y of new Set(slots.map((slot) => slot.y))) {
+      const sorted = slots.filter((slot) => slot.y === y).sort((a, b) => a.x - b.x);
+      for (let i = 1; i < sorted.length; i++) {
+        expect(sorted[i]!.x).toBeGreaterThanOrEqual(sorted[i - 1]!.x + sorted[i - 1]!.width - 0.001);
+      }
     }
   });
 });

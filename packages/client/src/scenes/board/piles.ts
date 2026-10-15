@@ -105,7 +105,15 @@ function drawDeckTop(ctx: BoardDrawContext, box: Rect, count: number, shown: Dec
  * piles (Doctor Strange's Invocation deck), which are drawn the same way —
  * a stack with a count, whether its top card happens to be visible or not.
  */
-export function drawPile(ctx: BoardDrawContext, box: Rect, name: string, count: number, art: ArtSource | null): void {
+export function drawPile(
+  ctx: BoardDrawContext,
+  box: Rect,
+  name: string,
+  count: number,
+  art: ArtSource | null,
+  /** "foot" puts the name in the count's chip at the pile's foot, clear of the card name along the top of its art. */
+  caption: "top" | "foot" = "top",
+): void {
   const { scene } = ctx;
   const g = scene.add.graphics();
   if (count === 0) {
@@ -132,7 +140,10 @@ export function drawPile(ctx: BoardDrawContext, box: Rect, name: string, count: 
     color,
     count === 0 ? ink.meta : 1,
   ).setOrigin(0.5, 0);
-  if (drawn) title.setPadding(4, 2, 4, 2).setBackgroundColor(cssOf(surface.ink.hex, 0.85));
+  // At the foot the name rides in the count's chip instead (below), so the pile's top card keeps its own title in view.
+  const atFoot = caption === "foot" && drawn;
+  if (atFoot) title.setVisible(false);
+  if (drawn && !atFoot) title.setPadding(4, 2, 4, 2).setBackgroundColor(cssOf(surface.ink.hex, 0.85));
   fitText(title, box.width - 8, nameRole.size);
 
   const chipHeight = Math.min(22, Math.max(16, Math.round(box.height * 0.22)));
@@ -150,4 +161,9 @@ export function drawPile(ctx: BoardDrawContext, box: Rect, name: string, count: 
     )
     .setOrigin(0.5);
   fitText(number, chip.width - 4, chipHeight < 20 ? typeRole.statSmall.size : typeRole.stat.size);
+  if (atFoot) {
+    // "DECK" at the chip's left, the count where it always is: the chip is on ink, the words in paper.
+    const tag = label(scene, chip.x + 5, chip.y + chip.height / 2, name, typeRole.label, color, 1).setOrigin(0, 0.5);
+    fitText(tag, Math.max(10, chip.width / 2 - number.width / 2 - 8), typeRole.label.size);
+  }
 }

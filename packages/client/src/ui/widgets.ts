@@ -124,6 +124,8 @@ export function paintThreatMeter(
   threat: number,
   alpha = 1,
   projected: number | null = null,
+  /** A slim meter's own ceiling for the count's size (the board's compact side scheme row). */
+  maxFontSize: number = typeRole.threatCount.size,
 ): void {
   const dim = alpha;
   mg.clear();
@@ -158,7 +160,7 @@ export function paintThreatMeter(
   const face = fontFamilyOf(typeRole.threatCount);
   if (meterText.style.fontFamily !== face) meterText.setFontFamily(face).setFontStyle(`${typeRole.threatCount.weight}`);
   meterText.setLetterSpacing(typeRole.threatCount.letterSpacing);
-  fitText(meterText, meter.width - 12, typeRole.threatCount.size);
+  fitText(meterText, meter.width - 12, maxFontSize);
   // Ink on the red fill is hard to read, so the count sits on a parchment chip across the bar (the HP plate's
   // own parchment ground): legible over both the filled and the empty part, with the fill still showing either side.
   const chipWidth = Math.min(meter.width - 4, meterText.width + 10);

@@ -80,7 +80,11 @@ export function schemeListLayout(rect: Rect, input: SchemeListInput): SchemeList
   const { mains, sides, tabbed } = input;
   const k = Math.max(1, input.scale ?? 1);
   const MAIN_SCHEME_HEIGHT = Math.round(BASE_MAIN_HEIGHT * k);
-  const MAIN_SCHEME_MAX_HEIGHT = Math.round(BASE_MAIN_MAX_HEIGHT * k);
+  // A tall zone (an ultrawide's 600px column) lets the main scheme grow past the 1440x900 ceiling, so its card is not
+  // a 96px strip in a panel that size; the usual ceiling stands wherever the panel is no taller than that.
+  const MAIN_SCHEME_MAX_HEIGHT = Math.round(
+    Math.max(BASE_MAIN_MAX_HEIGHT * k, Math.min(240 * k, (rect.height - SCHEME_PANEL_PADDING * 2) * 0.36)),
+  );
   const MAIN_COMPACT_HEIGHT = Math.round(BASE_MAIN_COMPACT * k);
   const SIDE_SCHEME_HEIGHT = Math.round(BASE_SIDE_HEIGHT * k);
   const SIDE_SCHEME_MAX_HEIGHT = Math.round(BASE_SIDE_MAX_HEIGHT * k);

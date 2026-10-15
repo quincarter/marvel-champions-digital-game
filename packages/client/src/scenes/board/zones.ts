@@ -24,13 +24,13 @@ import type {
   VillainPanel,
 } from "../../view/board-model.js";
 import { hpFraction, hpRatio } from "../../view/hp-format.js";
+import { villainRowPlan, villainRowSlotsFor, villainTileLayout } from "../../view/villain-tile-layout.js";
 import {
   CARD_ASPECT,
   PANEL_TEXT_INSETS,
   PANEL_TEXT_MIN_WIDTH,
   cardRow,
   minionSlots,
-  villainRowSlots,
   type Rect,
 } from "../../view/layout.js";
 import { drawCharacter, drawFootStrip, type DrawCharacterOptions } from "./character-panel.js";
@@ -239,10 +239,11 @@ function villainBandHeight(
   max: number,
   floor: number,
   below = 0,
+  growTabbed = false,
 ): number {
   // A short zone gives the band's height back before the minion row loses its own (`view/enemies-band.ts`).
   const base = bandHeightWithMinions(rect.height, unsqueezed, floor, model.minions.length);
-  if (ctx.tabbed) return base;
+  if (ctx.tabbed && !growTabbed) return base;
   const reserve = model.minions.length > 0 ? MINION_ROW_RESERVE : 0;
   const share = Math.round(rect.height * (model.minions.length > 0 ? 0.5 : 0.75));
   return Math.max(base, Math.min(share, rect.height - 20 - reserve - below, max));
@@ -345,23 +346,35 @@ function drawVillainRow(ctx: BoardDrawContext, rect: Rect, model: BoardModel): n
       ? environmentStripRoom({ x: rect.x + 10, y: 0 }, rect.width - 20, model.environments.length)
       : null;
   const stripHeight = stripRoom ? stripRoom.height + 8 : 0;
-  const unsqueezed = Math.min(128, Math.max(64, Math.round(rect.height * 0.42)));
-  const bandHeight = villainBandHeight(
-    ctx,
-    rect,
-    model,
-    Math.max(56, Math.min(unsqueezed, rect.height - 20 - stripHeight)),
-    VILLAIN_ROW_MAX_HEIGHT,
-    56,
-    stripHeight,
-  );
-  const bandRect: Rect = { x: rect.x + 10, y: rect.y + 10, width: rect.width - 20, height: bandHeight };
-  const slots = villainRowSlots(bandRect, model.villains.length);
+  // Card size grows the row with everything else on the table (the zone is already that much taller).
+  const scale = Math.max(1, ctx.cardScale);
+  const unsqueezed = Math.min(Math.round(128 * scale), Math.max(64, Math.round(rect.height * 0.42)));
+  // A phone's Enemies tab is as tall as the table scrolls, and villains alone fill it (no blank panel to scroll into).
+  const fillsTab = ctx.tabbed && scale > 1 && model.minions.length === 0;
+  const bandHeight = fillsTab
+    ? Math.max(56, rect.height - 20 - stripHeight)
+    : villainBandHeight(
+        ctx,
+        rect,
+        model,
+        Math.max(56, Math.min(unsqueezed, rect.height - 20 - stripHeight)),
+        Math.round(VILLAIN_ROW_MAX_HEIGHT * scale),
+        56,
+        stripHeight,
+        scale > 1,
+      );
+  // Rows that would be shorter than a tile needs to hold its scan and its words grow into the room under the band,
+  // never past what a minion row (when there is one) and the environment strip need.
+  const reserve = model.minions.length > 0 ? MINION_ROW_RESERVE : 0;
+  const room = Math.max(bandHeight, rect.height - 20 - reserve - stripHeight);
+  const plan = villainRowPlan(rect.width - 20, model.villains.length, bandHeight, room);
+  const bandRect: Rect = { x: rect.x + 10, y: rect.y + 10, width: rect.width - 20, height: plan.height };
+  const slots = villainRowSlotsFor(bandRect, model.villains.length, plan);
   model.villains.forEach((villain, index) => {
     const slot = slots[index];
     if (slot) drawCompactVillain(ctx, slot, villain);
   });
-  let bottom = Math.max(bandRect.y + bandRect.height, ...slots.map((slot) => slot.y + slot.height));
+  let bottom = bandRect.y + bandRect.height;
 
   if (model.environments.length > 0) {
     // Tiles wrap into more rows under the row of villains rather than ever being dropped (`environmentStripRoom`).
@@ -373,11 +386,32 @@ function drawVillainRow(ctx: BoardDrawContext, rect: Rect, model: BoardModel): n
   return bottom;
 }
 
+/** A small word chip (ACTIVE, ORDER 3, VS SPIDER-MAN) in `fill`; returns its width. Words, never a color alone. */
+function drawTileChip(
+  scene: Phaser.Scene,
+  at: { readonly x: number; readonly y: number },
+  words: string,
+  maxWidth: number,
+  fill: number,
+  textColor: number,
+  dim: number,
+): number {
+  const text = label(scene, 0, 0, words, typeRole.label, textColor, dim);
+  text.setFontSize(9).setLetterSpacing(0.6);
+  fitTight(text, maxWidth - 8, 9);
+  const width = Math.min(maxWidth, Math.ceil(text.width) + 8);
+  const g = scene.add.graphics();
+  g.fillStyle(fill, dim).fillRect(at.x, at.y, width, 14);
+  scene.children.bringToTop(text);
+  text.setPosition(at.x + (width - text.width) / 2, at.y + (14 - text.height) / 2);
+  return width;
+}
+
 /**
- * One villain's compact panel: a thumbnail, its name and stage, ATK/SCH as plain numbers (no room here for the
- * full starburst badges the single-villain panel uses), a thin HP bar, and — the design's rule that a status can
- * never be color alone — an explicit "ACTIVE" text tag rather than a highlight border, and a struck "DEFEATED"
- * slot rather than just a dimmed one.
+ * One villain's compact tile, art first (`view/villain-tile-layout.ts` decides the shape and the rects): the scan, the
+ * name and stage wrapped whole, ATK/SCH as plain numbers, a thin HP bar, and — the design's rule that a status can
+ * never be color alone — explicit "ACTIVE", "ORDER n" and "VS <player>" chips rather than a highlight border, and a
+ * struck "DEFEATED" slot rather than just a dimmed one.
  *
  * Registered as a tap target and hit rect exactly like any other card (`ctx.makeTapTarget`/`ctx.frame.hitRects`),
  * so targeting a non-active villain with a basic attack, keyboard/gamepad focus order, and long-press Inspect all
@@ -399,17 +433,18 @@ function drawCompactVillain(ctx: BoardDrawContext, rect: Rect, villain: VillainP
   const g = scene.add.graphics();
   paintPanel(g, rect, "card", targetState(controller.selection, panel.instanceId));
 
-  const artWidth = rect.width >= 96 ? Math.round(Math.min(rect.width * 0.36, rect.height - 6)) : 0;
-  const textLeft = rect.x + 4 + (artWidth > 0 ? artWidth + 5 : 0);
-  const textWidth = Math.max(24, rect.x + rect.width - 4 - textLeft);
-  if (artWidth > 0) {
-    const artRect: Rect = { x: rect.x + 3, y: rect.y + 3, width: artWidth, height: rect.height - 6 };
+  const tile = villainTileLayout(rect);
+  if (tile.art) {
     const frame = scene.add.graphics();
-    frame.fillStyle(surface.parchment.hex, dim).fillRect(artRect.x, artRect.y, artRect.width, artRect.height);
-    drawArt(scene, ctx.art.request(scene, panel.art), artRect, { fit: "cover", alpha: dim });
+    frame.fillStyle(surface.parchment.hex, dim).fillRect(tile.art.x, tile.art.y, tile.art.width, tile.art.height);
+    drawArt(scene, ctx.art.request(scene, panel.art), tile.art, { fit: "cover", alpha: dim });
+    frame.lineStyle(1, surface.ink.hex, dim).strokeRect(tile.art.x, tile.art.y, tile.art.width, tile.art.height);
   }
 
-  let top = rect.y + 3;
+  const textLeft = tile.text.x;
+  const textWidth = tile.text.width;
+  const bottom = tile.hpLine.y - 1;
+  let top = tile.text.y;
   const nameText = scene.add
     .text(textLeft, top, panel.name, textStyle(typeRole.rowTitle, surface.ink.hex, dim))
     .setWordWrapWidth(textWidth);
@@ -417,44 +452,67 @@ function drawCompactVillain(ctx: BoardDrawContext, rect: Rect, villain: VillainP
   fitWrapped(nameText, textWidth, 2, typeRole.rowTitle.size);
   top += Math.max(14, Math.ceil(nameText.height) + 1);
 
-  if (rect.height >= 76) {
-    // "VILLAIN · STAGE II" is wrapped, never cut to "VILLAIN · ST…": the stage is the part the player is reading.
+  // "VILLAIN · STAGE II" is wrapped, never cut to "VILLAIN · ST…": the stage is the part the player is reading.
+  if (bottom - top >= 24) {
     const subtitle = label(scene, textLeft, top, panel.subtitle, typeRole.label, surface.ink.hex, ink.label * dim);
     fitWrapped(subtitle, textWidth, 2, typeRole.label.size);
     top += Math.max(12, Math.ceil(subtitle.height) + 1);
   }
 
-  // The one marker the design calls out as text, never color alone: a pulsing ring or a tinted border reads fine
-  // for sighted players but says nothing to anyone relying on shape or a screen reader.
-  if (villain.active) {
-    const chip: Rect = { x: textLeft, y: top, width: Math.min(textWidth, 54), height: 14 };
-    const cg = scene.add.graphics();
-    cg.fillStyle(signal.heal.hex, dim).fillRect(chip.x, chip.y, chip.width, chip.height);
-    scene.add
-      .text(chip.x + chip.width / 2, chip.y + chip.height / 2, "ACTIVE", {
-        ...textStyle(typeRole.label, surface.paper.hex, dim),
-        fontSize: "9px",
-      })
-      .setOrigin(0.5)
-      .setLetterSpacing(0.6);
-    top += 17;
+  // The markers the design calls out as text, never color alone: a pulsing ring or a tinted border reads fine for
+  // sighted players but says nothing to anyone relying on shape or a screen reader. They wrap onto a second row.
+  const chips: { readonly words: string; readonly fill: number; readonly color: number }[] = [];
+  if (villain.active) chips.push({ words: "ACTIVE", fill: signal.heal.hex, color: surface.paper.hex });
+  if (villain.activationOrder !== null)
+    chips.push({ words: `ORDER ${villain.activationOrder}`, fill: surface.ink.hex, color: surface.paper.hex });
+  if (villain.areaLabel)
+    chips.push({ words: villain.areaLabel.toUpperCase(), fill: surface.ink.hex, color: surface.paper.hex });
+  let chipX = textLeft;
+  let chipsDrawn = 0;
+  for (const chip of chips) {
+    if (top + 14 > bottom) break;
+    const wanted = Math.ceil(chip.words.length * 6.4) + 8;
+    if (chipX > textLeft && chipX + wanted > textLeft + textWidth) {
+      chipX = textLeft;
+      top += 17;
+      if (top + 14 > bottom) break;
+    }
+    const width = drawTileChip(
+      scene,
+      { x: chipX, y: top },
+      chip.words,
+      textLeft + textWidth - chipX,
+      chip.fill,
+      chip.color,
+      dim,
+    );
+    chipX += width + 4;
+    chipsDrawn += 1;
   }
+  if (chipsDrawn > 0) top += 17;
 
-  const statLine = panel.stats
-    .filter((tile) => tile.label !== "HP")
-    .map((tile) => `${tile.label} ${tile.value}`)
-    .join("  ");
-  if (statLine && rect.height - (top - rect.y) >= 24) {
-    const statText = label(scene, textLeft, top, statLine, typeRole.label, surface.ink.hex, ink.body * dim);
-    fitText(statText, textWidth, typeRole.label.size);
-    // The note below starts under this line, not on top of it.
+  // A narrow column stacks the numbers ("ATK 2" over "SCH 2") instead of cutting the second one.
+  const stats = panel.stats.filter((tile) => tile.label !== "HP").map((tile) => `${tile.label} ${tile.value}`);
+  if (stats.length > 0 && bottom - top >= 12) {
+    const stacked = textWidth < 120;
+    const statText = label(
+      scene,
+      textLeft,
+      top,
+      stats.join(stacked ? "\n" : "  "),
+      typeRole.label,
+      surface.ink.hex,
+      ink.body * dim,
+    );
+    fitWrapped(statText, textWidth, stacked ? stats.length : 1, typeRole.label.size);
+    // The note below starts under these lines, not on top of them.
     top += Math.max(12, Math.ceil(statText.height) + 2);
   }
 
-  // Statuses and attachments (War stunned, with a Golden Horse): the compact tile's one-line form of what the
-  // single-villain panel draws as chips. Wrapped into whatever room is left above the HP bar; Inspect has the rest.
+  // Statuses and attachments (War stunned, with a Golden Horse): the compact tile's wrapped form of what the
+  // single-villain panel draws as chips, in whatever room is left above the HP line; Inspect has the rest.
   const note = compactVillainNote(panel);
-  const noteRoom = rect.y + rect.height - 20 - top;
+  const noteRoom = bottom - top;
   if (note && noteRoom >= 11) {
     const noteText = label(scene, textLeft, top, note, typeRole.label, surface.ink.hex, ink.body * dim);
     fitWrapped(noteText, textWidth, Math.max(1, Math.min(3, Math.floor(noteRoom / 11))), typeRole.label.size);
@@ -462,13 +520,7 @@ function drawCompactVillain(ctx: BoardDrawContext, rect: Rect, villain: VillainP
 
   // A thin HP bar pinned to the foot, the compact panel's stand-in for the full panel's `McHpPlate`.
   if (panel.hp) {
-    const barHeight = 7;
-    const barRect: Rect = {
-      x: rect.x + 4,
-      y: rect.y + rect.height - barHeight - 3,
-      width: rect.width - 8,
-      height: barHeight,
-    };
+    const barRect = tile.bar;
     const ratio = hpRatio(panel.hp.current, panel.hp.max);
     const bar = scene.add.graphics();
     bar.fillStyle(surface.parchment.hex, dim).fillRect(barRect.x, barRect.y, barRect.width, barRect.height);
@@ -477,11 +529,13 @@ function drawCompactVillain(ctx: BoardDrawContext, rect: Rect, villain: VillainP
     bar.fillStyle(signal.heal.hex, dim).fillRect(barRect.x, barRect.y, barRect.width * ratio, barRect.height);
     bar.lineStyle(1.5, surface.ink.hex, dim).strokeRect(barRect.x, barRect.y, barRect.width, barRect.height);
     scene.add
-      .text(barRect.x + barRect.width / 2, barRect.y - 7, hpFraction(panel.hp.current, panel.hp.max), {
-        ...textStyle(typeRole.label, surface.ink.hex, dim),
-        fontSize: "9px",
-      })
-      .setOrigin(0.5, 1);
+      .text(
+        tile.hpLine.x + tile.hpLine.width,
+        tile.hpLine.y + tile.hpLine.height,
+        hpFraction(panel.hp.current, panel.hp.max),
+        { ...textStyle(typeRole.label, surface.ink.hex, dim), fontSize: "10px" },
+      )
+      .setOrigin(1, 1);
   }
 
   ctx.makeTapTarget(rect, panel.instanceId, () => controller.onCharacterTap(panel.instanceId));
@@ -1396,11 +1450,11 @@ function drawSeparateDecks(
     const deckBox: Rect = { x: row.x, y: boxTop, width: boxWidth, height: boxHeight };
     const discardBox: Rect = { x: row.x + boxWidth + 6, y: boxTop, width: boxWidth, height: boxHeight };
 
-    drawPile(ctx, deckBox, "deck", deck.deckCount, deck.topArt);
+    drawPile(ctx, deckBox, "deck", deck.deckCount, deck.topArt, "foot");
     ctx.frame.pileRects.set(pileKey("separateDeck", perspectiveId, deck.name), deckBox);
     // A deck whose cards never reach a discard pile (Weather, Labor, Gift) has no discard box and no count to draw.
     if (deck.hasDiscard) {
-      drawPile(ctx, discardBox, "disc.", deck.discardCount, deck.discardTopArt);
+      drawPile(ctx, discardBox, "disc.", deck.discardCount, deck.discardTopArt, "foot");
       ctx.frame.pileRects.set(pileKey("separateDiscard", perspectiveId, deck.name), discardBox);
     }
     deck.outside.slice(0, lineCount).forEach((card, at) => {

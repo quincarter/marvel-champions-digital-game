@@ -393,6 +393,11 @@ export interface SchemePanel {
    */
   readonly meterMax: number | null;
   readonly isMain: boolean;
+  /**
+   * "vs Spider-Man": whose game area this scheme belongs to (Kang's per-player areas), null for a scheme every player
+   * shares and in every scenario with one game area.
+   */
+  readonly areaLabel?: string | null;
   readonly crisis: boolean;
   readonly accelerationTokens: number;
   /**
@@ -457,6 +462,10 @@ export interface VillainPanel {
   /** Whether this is the villain the active counter is on: the one that activates, and whose deck is "the encounter deck" (`state.activeVillainId`). */
   readonly active: boolean;
   readonly defeated: boolean;
+  /** The villain's printed "Activation Order N" (The Sinister Six), null for a villain without one. */
+  readonly activationOrder: number | null;
+  /** "vs Spider-Man": whose game area this villain is in (Kang's per-player areas); null when it is every player's. */
+  readonly areaLabel: string | null;
   /** Null for a villain with no signature side scheme (every scenario before The Wrecking Crew). */
   readonly signatureScheme: VillainSchemeLink | null;
   /** This villain's own encounter deck (`VillainState.encounterDeckId`) — every villain shares one deck outside The Wrecking Crew. */
@@ -960,6 +969,23 @@ export function ownedEncounterLabel(state: GameState, id: InstanceId, short = fa
 }
 
 /**
+ * "vs Spider-Man" for a villain or scheme that sits in a separate game area (Kang's per-player areas), naming the area's
+ * players; null for anything outside one, so a scenario with a single game area labels nothing.
+ */
+export function areaLabelOf(state: GameState, id: InstanceId): string | null {
+  const area = state.gameAreas.find(
+    (candidate) =>
+      candidate.mainScheme?.instanceId === id ||
+      candidate.villainIds.includes(id) ||
+      candidate.sideSchemeIds.includes(id),
+  );
+  if (!area || area.playerIds.length === 0) return null;
+  // "Spider-Man (Peter Parker)" is "Spider-Man" here: the chip is a short line on a tile, and the hero is who is meant.
+  const names = area.playerIds.map((player) => playerName(state, player).replace(/\s*\([^)]*\)\s*$/, ""));
+  return `vs ${names.join(" + ")}`;
+}
+
+/**
  * Every villain of the scenario, printed order, defeated ones included — The Wrecking Crew's Breakout has four;
  * every other scenario so far has one. Built from `state.villains`/`state.activeVillainId` directly rather than
  * from `activeVillain(state)`, which only ever names the one with the active counter.
@@ -984,6 +1010,11 @@ function villainPanels(state: GameState, deps: EngineDeps): readonly VillainPane
         panel: characterPanel(state, villain.instanceId, deps),
         active: villain.instanceId === state.activeVillainId,
         defeated: villain.defeated,
+        activationOrder: (() => {
+          const card = cardOf(state, villain.instanceId);
+          return card?.type === "villain" ? (card.activationOrder ?? null) : null;
+        })(),
+        areaLabel: areaLabelOf(state, villain.instanceId),
         signatureScheme: villain.signatureSideSchemeId
           ? {
               scheme: schemePanel(state, villain.signatureSideSchemeId, deps, false),
@@ -1614,6 +1645,7 @@ export function schemePanel(state: GameState, id: InstanceId, deps: EngineDeps, 
         : mainSchemeValue(state, "targetThreat", deps, scheme),
       ...(stage.dashedValues?.includes("targetThreat") ? { targetDashed: true } : {}),
       isMain: true,
+      areaLabel: areaLabelOf(state, id),
       // Crisis is a printed (or gained) icon in the threat box (RRG "Crisis Icon"), not a keyword; `iconsOn` reads
       // 0 while the scheme's text box is blanked.
       crisis: iconsOn(state, deps, id, "crisis") > 0,
@@ -1651,6 +1683,7 @@ export function schemePanel(state: GameState, id: InstanceId, deps: EngineDeps, 
     target: null,
     meterMax: card?.type === "side_scheme" ? Math.max(scaleIn(state, card.startingThreat), instance.threat) : null,
     isMain: false,
+    areaLabel: areaLabelOf(state, id),
     crisis,
     accelerationTokens: 0,
     tuckedCount: instance.tucked.length,
