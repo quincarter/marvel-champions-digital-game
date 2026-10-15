@@ -58,6 +58,11 @@ export interface VillainDefendLayout {
    * then leaves the choice to the full-screen sheet, which scrolls.
    */
   readonly fits: boolean;
+  /**
+   * The most compact shape: one short row per option, the matchup left out (the title already says who attacks whom).
+   * Used when the options would not otherwise fit, so a phone holds a defend with three or four defenders docked.
+   */
+  readonly dense: boolean;
 }
 
 const CARD_RATIO = 63 / 88;
@@ -73,6 +78,7 @@ const TOP_CELL_MIN = 170;
 const LEFT_CELL_MIN = 300;
 const TOP_OPTION = { pref: 262, min: 196 } as const;
 const LEFT_OPTION = { pref: 116, min: 84 } as const;
+const DENSE_OPTION = { pref: 84, min: 64 } as const;
 
 const clamp = (value: number, low: number, high: number): number => Math.max(low, Math.min(high, value));
 
@@ -104,27 +110,34 @@ export function villainDefendLayout(input: VillainDefendInput): VillainDefendLay
 
   // How many options go across, and which way each card reads, depends on what fits: the picture over the text where
   // the width allows several across and the height allows their taller card, else rows with the picture beside the text.
-  const plan = (orientation: "top" | "left", withStack: boolean) => {
+  const plan = (orientation: "top" | "left", withStack: boolean, dense = false, noMatchup = false) => {
     const across =
       orientation === "top"
         ? clamp(Math.floor((width + GAP) / (TOP_CELL_MIN + GAP)), 1, count)
         : clamp(Math.floor((width + GAP) / (LEFT_CELL_MIN + GAP)), 1, count);
     const rows = Math.ceil(count / across);
-    const spec = orientation === "top" ? TOP_OPTION : LEFT_OPTION;
+    const spec = dense ? DENSE_OPTION : orientation === "top" ? TOP_OPTION : LEFT_OPTION;
     const rowsHeight = (rowHeight: number): number => rows * rowHeight + (rows - 1) * GAP;
     const lower = bottom - bottomRowFor(withStack) - (bottomRowFor(withStack) > 0 ? 12 : 0);
     const room = lower - optionsTop0;
     const fixed = 12 + LABEL_HEIGHT + 6; // gaps either side of the label, and the label
-    const matchupPref = MATCHUP_CARD_PREF[kind] + MATCHUP_CHROME;
-    const matchupMin = MATCHUP_CARD_MIN + MATCHUP_CHROME;
+    const matchupPref = noMatchup ? 0 : MATCHUP_CARD_PREF[kind] + MATCHUP_CHROME;
+    const matchupMin = noMatchup ? 0 : MATCHUP_CARD_MIN + MATCHUP_CHROME;
     const matchupHeight = clamp(room - fixed - rowsHeight(spec.pref), matchupMin, matchupPref);
     const optionHeight = clamp((room - fixed - matchupHeight - (rows - 1) * GAP) / rows, spec.min, spec.pref);
     const used = matchupHeight + fixed + rowsHeight(optionHeight);
-    return { orientation, across, matchupHeight, optionHeight, fits: used <= room + 0.5, withStack };
+    return { orientation, across, matchupHeight, optionHeight, fits: used <= room + 0.5, withStack, dense };
   };
-  const candidates = [plan("top", true), plan("left", true), plan("top", false), plan("left", false)];
-  // The first that fits; short of that, the rows form without the stack, which gives back the most.
-  const chosen = candidates.find((candidate) => candidate.fits) ?? candidates[3]!;
+  const candidates = [
+    plan("top", true),
+    plan("left", true),
+    plan("top", false),
+    plan("left", false),
+    plan("left", false, true),
+    plan("left", false, true, true),
+  ];
+  // The first that fits; short of that, the densest rows, which give back the most.
+  const chosen = candidates.find((candidate) => candidate.fits) ?? candidates[candidates.length - 1]!;
   const { orientation, across, withStack } = chosen;
   const fit = chosen;
 
@@ -177,6 +190,7 @@ export function villainDefendLayout(input: VillainDefendInput): VillainDefendLay
     confirm,
     confirmInFooter,
     fits: chosen.fits,
+    dense: chosen.dense,
   };
 }
 

@@ -116,6 +116,31 @@ describe("villainDefendLayout", () => {
     expect(phone.orientation).toBe("left");
   });
 
+  it("docks a defend with four or five defenders on a phone, in the dense shape, instead of handing it to the sheet", () => {
+    const phone = CASES.find((c) => c.name === "tab phone 390x844")!;
+    for (const count of [4, 5]) {
+      const layout = villainDefendLayout({
+        panel: phone.panel,
+        kind: "tab",
+        optionCount: count,
+        footer: phone.footer ?? null,
+      });
+      expect(layout.fits).toBe(true);
+      expect(layout.dense).toBe(true);
+      expect(layout.options).toHaveLength(count);
+      for (const option of layout.options) expect(inside(option, phone.panel)).toBe(true);
+      for (let i = 1; i < count; i++) {
+        const prev = layout.options[i - 1]!;
+        expect(layout.options[i]!.y).toBeGreaterThanOrEqual(prev.y + prev.height);
+      }
+    }
+  });
+
+  it("keeps the ordinary shapes undense when they fit", () => {
+    const rail = villainDefendLayout({ panel: { x: 0, y: 0, width: 760, height: 836 }, kind: "rail", optionCount: 3 });
+    expect(rail.dense).toBe(false);
+  });
+
   it("draws the picture beside the text on the band and over it on the rail", () => {
     const band = villainDefendLayout({ panel: { x: 0, y: 0, width: 1008, height: 470 }, kind: "band", optionCount: 3 });
     expect(band.orientation).toBe("left");

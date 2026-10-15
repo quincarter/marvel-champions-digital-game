@@ -32,6 +32,8 @@ export interface DefendPanelArgs {
   /** The action bar's rectangle when CONFIRM is drawn there (a tabbed layout): painted as ink under the button. */
   readonly footer?: Rect | null;
   readonly buttons: McButton[];
+  /** The deciding seat, named in the header when more than one seat is playing (hot-seat: "your" is whoever holds the device). */
+  readonly decider?: string | null;
 }
 
 /** "Villain phase · step 2 — the villain activates" as the mockups set it: "VILLAIN PHASE · STEP 2 · THE VILLAIN ACTIVATES". */
@@ -61,7 +63,7 @@ export function drawVillainDefendPanel(scene: Phaser.Scene, args: DefendPanelArg
     scene,
     layout.eyebrow.x,
     layout.eyebrow.y,
-    defendEyebrowOf(cause.eyebrow),
+    args.decider ? `${args.decider.toUpperCase()} · ${defendEyebrowOf(cause.eyebrow)}` : defendEyebrowOf(cause.eyebrow),
     { ...typeRole.label, size: compact ? 9 : 11 },
     cause.kind === "cardEffect" ? signal.caution.hex : surface.paper.hex,
     1,
@@ -88,7 +90,7 @@ export function drawVillainDefendPanel(scene: Phaser.Scene, args: DefendPanelArg
   );
   stops.set("expand", { rect: layout.expand, activate: args.onExpand });
 
-  drawMatchup(scene, layout, view, game);
+  if (layout.matchup.height > 0) drawMatchup(scene, layout, view, game);
 
   label(
     scene,
@@ -262,6 +264,10 @@ function drawOption(
 
   const text = parts.text;
   const small = slot.height < 150;
+  if (layout.dense) {
+    drawDenseOption(scene, text, option, selected);
+    return;
+  }
   let y = text.y;
   const title = scene.add.text(
     text.x,
@@ -313,6 +319,55 @@ function drawOption(
       .text(text.x, y + 2, rest.join(" "), textStyle({ ...typeRole.body, size: 11 }, surface.ink.hex, ink.secondary))
       .setWordWrapWidth(text.width)
       .setMaxLines(room);
+  }
+}
+
+/** The dense shape: the title and the damage on one line, what it exhausts and the HP left under it. */
+function drawDenseOption(scene: Phaser.Scene, text: Rect, option: DefendOptionView, selected: boolean): void {
+  const damage = scene.add
+    .text(
+      text.x + text.width,
+      text.y,
+      defendDamageOf(option.damageHeadline),
+      textStyle(typeRole.stat, accent.heroRed.hex),
+    )
+    .setOrigin(1, 0);
+  fitText(damage, text.width * 0.4, 20);
+  const title = scene.add.text(
+    text.x,
+    text.y,
+    selected ? `${option.title} ✓` : option.title,
+    textStyle({ ...typeRole.rowTitle, size: 13 }, surface.ink.hex),
+  );
+  fitText(title, Math.max(1, text.width - damage.width - 8), 13);
+  const costLine =
+    option.kind === "decline"
+      ? "Stays ready."
+      : `Exhausts ${option.exhaustsNames.join(", ")}${option.defenseReduction > 0 ? ` · DEF ${option.defenseReduction}` : ""}.`;
+  const cost = scene.add
+    .text(
+      text.x,
+      text.y + Math.max(title.height, damage.height) + 2,
+      costLine,
+      textStyle({ ...typeRole.body, size: 11 }, surface.ink.hex, ink.secondary),
+    )
+    .setWordWrapWidth(text.width)
+    .setMaxLines(1);
+  const hp = [
+    ...(option.hpAfter ? [defendHpLeftOf(option.hpAfter)] : []),
+    ...(option.defeatAt !== null ? [`DEFEATED AT ${option.defeatAt}+`] : []),
+  ].join(" · ");
+  if (hp) {
+    const hpText = label(
+      scene,
+      text.x,
+      cost.y + cost.height + 2,
+      hp,
+      { ...typeRole.label, size: 9 },
+      surface.ink.hex,
+      ink.secondary,
+    );
+    fitText(hpText, text.width, 9);
   }
 }
 

@@ -31,6 +31,22 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
   const g = scene.add.graphics();
   g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
 
+  // The villain phase is still replaying: the engine is already past it, so End turn and Undo would act on a game the
+  // table is not yet showing. They come back when the phase closes.
+  if (ctx.actionsHeld) {
+    scene.add
+      .text(
+        rect.x + 10,
+        rect.y + rect.height / 2,
+        "Villain phase · the table waits until it finishes",
+        textStyle(typeRole.barTitle, signal.caution.hex),
+      )
+      .setOrigin(0, 0.5)
+      .setWordWrapWidth(Math.max(1, rect.width - 20))
+      .setMaxLines(2);
+    return;
+  }
+
   // Acting for a seat whose turn it is not (an Action, RRG "Player Turn" pp. 34-35): the bar says whose cards these
   // are and offers the way back; the basic powers and End turn are the active player's alone, so they are not drawn.
   if (appSession().store.state.offTurnSeat !== null) {

@@ -27,7 +27,7 @@ import Phaser from "phaser";
 import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
 import type { AbilityId } from "@mc/content";
 import { cardOf, type GameEvent, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
-import type { VillainPhaseLaunchData } from "./villain-phase.js";
+import type { VillainPhaseLaunchData, VillainPhaseOverlay } from "./villain-phase.js";
 import { cardArt, type CardArt } from "../art/card-art.js";
 import { appSession } from "../session.js";
 import { accent, dotGrid, surface, typeRole } from "../tokens.js";
@@ -62,6 +62,7 @@ import { sameSeatNote, type VillainSeatNote } from "../view/villain-seat-note.js
 import { drawCompactIdentity } from "./board/compact-identity.js";
 import { sameHandTags, type VillainHandTag } from "../view/villain-hand-tags.js";
 import { reviewHandleRect, showReviewHandle } from "../view/villain-review.js";
+import type { TableHold } from "../view/villain-replay.js";
 import type { SessionState } from "../store/session-store.js";
 import { SCENES } from "./keys.js";
 import { HoverPreview, isMousePointer } from "../ui/card-hover-preview.js";
@@ -324,6 +325,8 @@ export class BoardScene extends Phaser.Scene {
 
   create(): void {
     this.#walkthroughLaunching = false;
+    this.#outcomeHeld = false;
+    this.#villainReplay = null;
     // Phaser reuses this one instance for every game — "Run it back" and
     // "Continue" start this same scene again — so everything about *a game*
     // starts over here. The log didn't, and a rematch was dealt under the
@@ -698,6 +701,14 @@ export class BoardScene extends Phaser.Scene {
     this.#pendingSplashes.push(...seen.announce.filter((pair) => teamUpArtFor(TEAM_UP_ART, pair.names)?.splash));
 
     if (state.game.outcome) {
+      // The engine finished the game inside the command; the rail may still be replaying the beats that ended it, so the
+      // outcome waits for it (`releaseOutcome`). A command that ran the whole villain phase to the end opens it too.
+      if (fresh) this.#openVillainWalkthrough(state.lastEvents, previousGame);
+      if (this.#villainReplayHoldsOutcome()) {
+        this.#outcomeHeld = true;
+        this.#draw();
+        return;
+      }
       goToScreen(this, SCENES.gameOver);
       return;
     }
@@ -1120,8 +1131,11 @@ export class BoardScene extends Phaser.Scene {
   }
 
   #draw(): void {
-    const model = this.#model;
-    if (!model) return;
+    const live = this.#model;
+    if (!live) return;
+    const hold = this.#villainReplay?.hold ?? null;
+    // The table's chrome says the phase the rail is on, not the one the engine has already reached.
+    const model: BoardModel = hold ? { ...live, round: hold.round, phase: "villain", stepLabel: hold.stepLabel } : live;
 
     // The positions cards held under whatever was drawn last — the only place
     // "where a card came from" can still be read once this redraw rebuilds
@@ -1184,6 +1198,7 @@ export class BoardScene extends Phaser.Scene {
       teamUpRings: this.#teamUpRings(layout.tabbed),
       teamUpRoles: this.#teamUpRoles(model),
       villainHandTags: this.#villainHandTags,
+      actionsHeld: this.#villainReplay !== null,
       makeTapTarget: (rect, id, onTap, drag, onHover) => this.#makeTapTarget(rect, id, onTap, drag, onHover),
       inspect: (id, siblings) => this.#inspect(id, siblings),
       openPile: (name, ids) => this.#openPile(name, ids),
@@ -1845,6 +1860,42 @@ export class BoardScene extends Phaser.Scene {
     if (sameSeatNote(this.#villainSeatNote, note)) return;
     this.#villainSeatNote = note;
     if (this.#layout?.compactPlayerRow) this.#draw();
+  }
+
+  /** The villain phase is replaying (not a review): its table chrome while it is behind the engine, null once it has caught up. */
+  #villainReplay: { readonly hold: TableHold | null } | null = null;
+  /** The game ended while the villain phase was still replaying; Game Over waits for `releaseOutcome`. */
+  #outcomeHeld = false;
+
+  /**
+   * While the villain phase replays, the engine has already run to its end: the table would show the next round and
+   * "Your turn". Told by the phase, the table keeps the villain phase's round and step in its chrome while the rail is
+   * behind, and has no End turn or Undo until the phase closes. Null when no replay is open.
+   */
+  setVillainReplay(replay: { readonly hold: TableHold | null } | null): void {
+    const was = this.#villainReplay;
+    const same =
+      (was === null) === (replay === null) &&
+      was?.hold?.round === replay?.hold?.round &&
+      was?.hold?.stepLabel === replay?.hold?.stepLabel &&
+      (was?.hold === null) === (replay?.hold === null);
+    if (same) return;
+    this.#villainReplay = replay;
+    this.#draw();
+  }
+
+  /** Whether a villain phase replay is (or is about to be) open over this game, so its outcome should wait. */
+  #villainReplayHoldsOutcome(): boolean {
+    if (this.#walkthroughLaunching) return true;
+    if (!this.scene.isActive(SCENES.villainPhase)) return false;
+    return !(this.scene.get(SCENES.villainPhase) as VillainPhaseOverlay).isReview();
+  }
+
+  /** The villain phase has shown everything (or closed): the held Game Over can come up. */
+  releaseOutcome(): void {
+    if (!this.#outcomeHeld) return;
+    this.#outcomeHeld = false;
+    if (appSession().store.state.game?.outcome) goToScreen(this, SCENES.gameOver);
   }
 
   #villainHandTags: ReadonlyMap<InstanceId, VillainHandTag> | null = null;

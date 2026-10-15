@@ -113,6 +113,8 @@ export interface BoardDrawContext {
   readonly teamUpRings?: TeamUpRings | undefined;
   /** What each hand card has to do with a Team-Up (`view/team-up-model.ts#teamUpRoleOf`): the tag on it. */
   readonly teamUpRoles?: ReadonlyMap<InstanceId, TeamUpRole> | undefined;
+  /** A villain phase is replaying: the action bar has no End turn or Undo to offer until it closes. */
+  readonly actionsHeld?: boolean;
   /** While the villain phase is up: when each hand card can answer it (`view/villain-hand-tags.ts`), set by that scene. */
   readonly villainHandTags?: ReadonlyMap<InstanceId, VillainHandTag> | null | undefined;
   /**
