@@ -160,6 +160,11 @@ export class HoverPreview {
     });
   }
 
+  /** The key of the card the popover is showing, or null: for the e2e debug hooks. */
+  get shownKey(): string | null {
+    return this.#visual ? this.#shownId : null;
+  }
+
   /** Called at the end of every Board draw: the draw destroyed the popover with the rest of the scene, so it is rebuilt where the pointer still is. */
   onDraw(): void {
     if (this.#destroyed) return;
@@ -489,10 +494,16 @@ const HOVER_CARD_IDS_KEY = "mc-hover-card-ids";
  * `noteHoverCard`, emptied by the same `resetHoverCards`. Cards inside a scrolling list are not noted at draw time
  * (the list scrolls without a draw); the scene returns them from `HoverPreviewDeps.cardIds` instead.
  */
-export function noteHoverCardId(scene: Phaser.Scene, cardId: string, rect: Rect, through = false): void {
+export function noteHoverCardId(
+  scene: Phaser.Scene,
+  cardId: string,
+  rect: Rect,
+  through = false,
+  face?: CardFace,
+): void {
   (scene.data?.get(HOVER_CARD_IDS_KEY) as Map<string, HoverCardIdRect> | undefined)?.set(
     hoverSlotOf(cardId, `${Math.round(rect.x)},${Math.round(rect.y)}`),
-    { ...rect, cardId, ...(through ? { through: true } : {}) },
+    { ...rect, cardId, ...(through ? { through: true } : {}), ...(face ? { face } : {}) },
   );
 }
 

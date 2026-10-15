@@ -126,6 +126,15 @@ import type { BoardScene } from "./board.js";
 import { SCENES } from "./keys.js";
 import { bindHoldTarget } from "../ui/hold-target.js";
 import {
+  HoverPreview,
+  hoverCardIdsOf,
+  hoverCardsOf,
+  noteHoverCard,
+  noteHoverCardId,
+  resetHoverCards,
+  screenHoverArea,
+} from "../ui/card-hover-preview.js";
+import {
   COLLECTION_CAPTION,
   collectionGrid,
   collectionPage,
@@ -269,6 +278,10 @@ export class ChoiceOverlay extends Phaser.Scene {
   }
 
   #wasCovered = false;
+  /** The desktop hover popover over the sheet's cards: the source card, the options, the defend matchup (issue #149). */
+  #hover: HoverPreview | null = null;
+  /** Option cards drawn inside the scrolling grid: their noted rects move with its scroll. */
+  #hoverScrolled = new Set<InstanceId>();
 
   /** True while the villain-phase walkthrough is drawn over this sheet to answer the decision itself. */
   #covered(): boolean {
@@ -319,7 +332,22 @@ export class ChoiceOverlay extends Phaser.Scene {
     };
     bindKeyboard(this, binding);
     bindGamepad(this, binding);
+    // The table's popover is off while this sheet is up, so the sheet has its own over the cards it draws. Off while
+    // Inspect (opened from here) or the villain phase covers it; the villain phase running beneath it does not count.
+    resetHoverCards(this);
+    this.#hover?.destroy();
+    this.#hover = new HoverPreview(this, {
+      cards: () => this.#hoverCards(),
+      cardIds: () => hoverCardIdsOf(this),
+      area: (pointer) =>
+        screenHoverArea(this, pointer, {
+          beneath: [SCENES.villainPhase],
+          blocked: () => this.#motion.leaving || this.#covered(),
+        }),
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#hover?.destroy();
+      this.#hover = null;
       this.#focusRing?.destroy();
       this.#focusRing = null;
       this.scale.off("resize", onResize, this);
@@ -343,6 +371,8 @@ export class ChoiceOverlay extends Phaser.Scene {
         allRects: () =>
           this.#covered() ? [] : [...this.#focusRects.keys()].map((key) => [key, this.#screenRect(key)] as const),
         scrollOffset: () => this.#optionScroll.offsetPx,
+        hoverRects: () => [...this.#hoverCards()],
+        hoverShown: () => this.#hover?.shownKey ?? null,
       };
     }
   }
@@ -367,7 +397,26 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.#rebuild();
   }
 
+  /** The option cards' rects as they are on screen now: the ones in the scrolling grid move with it. */
+  #hoverCards(): ReadonlyMap<InstanceId, Rect> {
+    const noted = hoverCardsOf(this);
+    if (this.#hoverScrolled.size === 0) return noted;
+    const offset = this.#optionScroll.offsetPx;
+    const onScreen = new Map<InstanceId, Rect>();
+    for (const [id, rect] of noted)
+      onScreen.set(id, this.#hoverScrolled.has(id) ? { ...rect, y: rect.y - offset } : rect);
+    return onScreen;
+  }
+
   #rebuild(): void {
+    resetHoverCards(this);
+    this.#hoverScrolled.clear();
+    this.#draw();
+    // The draw destroyed the popover with the rest of the sheet: it comes back where the pointer still is.
+    this.#hover?.onDraw();
+  }
+
+  #draw(): void {
     const { store } = appSession();
     const state = store.state;
     const choice = state.game?.pendingChoice ? shownDivideChoice(state.game.pendingChoice) : undefined;
@@ -1141,6 +1190,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     );
     this.#drawScan(game, view.summary.attackerInstanceId, matchup.attacker);
     this.#drawScan(game, view.summary.targetInstanceId, matchup.target);
+    this.#readableScan(view.summary.attackerInstanceId, matchup.attacker);
+    this.#readableScan(view.summary.targetInstanceId, matchup.target);
     summaryG
       .lineStyle(3, accent.heroRed.hex, 1)
       .strokeRect(matchup.target.x - 2, matchup.target.y - 2, matchup.target.width + 4, matchup.target.height + 4);
@@ -1479,6 +1530,24 @@ export class ChoiceOverlay extends Phaser.Scene {
   }
 
   /** A card's scan at its current face, with a plain ink plate until (or unless) the image arrives. */
+  /**
+   * A card drawn on the sheet on its own (the defend matchup's attacker and target): tap, hold or right-click reads it
+   * in Inspect, and the desktop hover popover opens on it, as on the table.
+   */
+  #readableScan(instanceId: InstanceId, rect: Rect): void {
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const zone = this.add
+      .zone(rect.x, rect.y, rect.width, rect.height)
+      .setOrigin(0, 0)
+      .setInteractive({ useHandCursor: true });
+    const inspect = (): void => {
+      this.scene.launch(SCENES.inspect, { instanceId });
+      this.scene.bringToTop(SCENES.inspect);
+    };
+    bindHoldTarget(this, zone, { key: `scan:${instanceId}`, onTap: inspect, onInspect: inspect });
+    noteHoverCard(this, instanceId, rect);
+  }
+
   #drawScan(game: GameState, instanceId: InstanceId, rect: Rect): void {
     const source = artFor(cardOf(game, instanceId), faceOf(game, instanceId));
     const key = source ? cardArt(this).request(this, source) : null;
@@ -1647,8 +1716,11 @@ export class ChoiceOverlay extends Phaser.Scene {
         const slot = gridSlots[index];
         if (!slot) return;
         this.#drawCardOption(slot, option, choice.ordered);
-        if (region)
+        if (region) {
           this.#scrolledRows.set(choiceFocusKey({ kind: "option", optionId: option.optionId }), layout.rowOf[index]!);
+          const id = refInstanceId(option.ref);
+          if (id) this.#hoverScrolled.add(id);
+        }
       });
       if (region) {
         region.content.add(this.children.list.slice(drawnFrom));
@@ -2103,6 +2175,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       .zone(slot.x, slot.y, slot.width, slot.height)
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
+    noteHoverCardId(this, row.cardId, slot, false, row.face);
     bindHoldTarget(this, zone, {
       key: row.optionId,
       onTap: () => this.#toggle(row.optionId, this.#maxSelections),
@@ -2308,6 +2381,8 @@ export class ChoiceOverlay extends Phaser.Scene {
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
 
+    // A keyword tile is words, not a picture of the card: nothing to blow up.
+    if (instanceId && !keywordTile) noteHoverCard(this, instanceId, slot);
     bindHoldTarget(this, zone, {
       key: option.optionId as string,
       // A card that is only being looked at (`isAcknowledgeOnly`) can't be picked, so a tap reads it too, and the

@@ -1,0 +1,3 @@
+kind: Fixed
+body: Resting the mouse on a card in a decision sheet (the source card, the option cards, the defend matchup) opens the card hover popover, as it does on the table (#149).
+time: 2026-10-15T08:00:13.4493525-04:00

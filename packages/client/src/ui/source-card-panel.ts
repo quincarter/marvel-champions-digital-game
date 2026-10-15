@@ -18,6 +18,7 @@ import { instructionHeaderName } from "../view/choice-source.js";
 import { setupCallCopyFor } from "../campaign/story.js";
 import type { SourcePanelPlacement } from "../view/choice-source-panel-layout.js";
 import { RULES_TEXT_TABLE_LINES, ink, surface, typeRole, type TypeSpec } from "../tokens.js";
+import { noteHoverCard } from "./card-hover-preview.js";
 import { bindHoldTarget } from "./hold-target.js";
 import { textStyle } from "./theme.js";
 import { fitText, label, paintPanel } from "./widgets.js";
@@ -60,6 +61,17 @@ export function drawSourceCardPanel(
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
     bindHoldTarget(scene, zone, { key: `source:${panel.instanceId}`, onTap: onInspect, onInspect });
+    // The art is a target of its own over the panel's, so the desktop hover popover (`ui/card-hover-preview.ts`)
+    // finds a card-shaped target under the pointer and opens on it, as it does on the table (issue #149). A press on
+    // it does what a press anywhere on the panel does.
+    if (art.width > 0 && art.height > 0) {
+      const artZone = scene.add
+        .zone(art.x, art.y, art.width, art.height)
+        .setOrigin(0, 0)
+        .setInteractive({ useHandCursor: true });
+      bindHoldTarget(scene, artZone, { key: `source-art:${panel.instanceId}`, onTap: onInspect, onInspect });
+      noteHoverCard(scene, panel.instanceId, art);
+    }
   }
 
   const { x: textX, y: textY, width: textWidth, height: textHeight } = placement.text;
