@@ -127,6 +127,8 @@ export interface BoardDrawContext {
   ): void;
   /** Opens a card. `siblings` is the list ◂ ▸ steps through; without it, the hand when the card is in it. */
   inspect(id: InstanceId, siblings?: readonly InstanceId[]): void;
+  /** Fans a pile out (`scenes/pile-view.ts`): every card in it, most recent first. */
+  openPile(name: string, ids: readonly InstanceId[]): void;
   /** Opens one of the scenario's printed rules cards (`Scenario.referenceCards`), which has no instance. */
   inspectReference(reference: ReferenceCardView): void;
 }

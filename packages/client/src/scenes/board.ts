@@ -100,6 +100,7 @@ import { LogPanel } from "./board/log.js";
 import { setAsideFooterHeight, setAsideLines, splitSetAside } from "../view/encounter-pile-layout.js";
 import { TEAM_UP_ART, teamUpArtFor } from "../art/team-up-art.js";
 import { evidenceInputOf } from "../view/evidence-model.js";
+import type { PileViewData } from "./pile-view.js";
 import type { TeamUpSplashData } from "./team-up-splash.js";
 import type { TeamUpInfoData } from "./team-up-info.js";
 import type { TeamUpBadge, TeamUpRings } from "./board/team-up-badge.js";
@@ -432,6 +433,7 @@ export class BoardScene extends Phaser.Scene {
         this.scene.isActive(SCENES.teamUpSplash) ||
         this.scene.isActive(SCENES.teamUpInfo) ||
         this.scene.isActive(SCENES.evidence) ||
+        this.scene.isActive(SCENES.pileView) ||
         // "Hold on!" owns Escape (it dismisses with nothing sent); without this the board's own Escape opened Pause
         // on top of it.
         this.scene.isActive(SCENES.holdOn),
@@ -518,6 +520,7 @@ export class BoardScene extends Phaser.Scene {
       for (const overlay of [
         SCENES.choice,
         SCENES.inspect,
+        SCENES.pileView,
         SCENES.villainPhase,
         SCENES.pause,
         SCENES.rules,
@@ -723,6 +726,7 @@ export class BoardScene extends Phaser.Scene {
     return (
       this.#choiceOpen ||
       this.scene.isActive(SCENES.inspect) ||
+      this.scene.isActive(SCENES.pileView) ||
       this.scene.isActive(SCENES.villainPhase) ||
       this.scene.isActive(SCENES.pause) ||
       this.scene.isActive(SCENES.rules) ||
@@ -1169,6 +1173,7 @@ export class BoardScene extends Phaser.Scene {
       villainHandTags: this.#villainHandTags,
       makeTapTarget: (rect, id, onTap, drag, onHover) => this.#makeTapTarget(rect, id, onTap, drag, onHover),
       inspect: (id, siblings) => this.#inspect(id, siblings),
+      openPile: (name, ids) => this.#openPile(name, ids),
       inspectReference: (reference) => this.scene.launch(SCENES.inspect, { reference }),
     };
 
@@ -1564,6 +1569,7 @@ export class BoardScene extends Phaser.Scene {
       this.scene.isActive(SCENES.teamUpSplash) ||
       this.scene.isActive(SCENES.teamUpInfo) ||
       this.scene.isActive(SCENES.evidence) ||
+      this.scene.isActive(SCENES.pileView) ||
       this.scene.isActive(SCENES.holdOn)
     );
   }
@@ -1679,6 +1685,12 @@ export class BoardScene extends Phaser.Scene {
       instanceId: id,
       ...(list.includes(id) ? { siblings: list } : {}),
     });
+  }
+
+  /** Fans a discard pile out in the pile overlay; an empty pile opens nothing. */
+  #openPile(name: string, ids: readonly InstanceId[]): void {
+    if (ids.length === 0 || this.scene.isActive(SCENES.pileView)) return;
+    this.scene.launch(SCENES.pileView, { from: SCENES.board, name, ids } satisfies PileViewData);
   }
 
   #onInspectPlay(instanceId: InstanceId): void {

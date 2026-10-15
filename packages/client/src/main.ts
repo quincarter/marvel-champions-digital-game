@@ -64,6 +64,7 @@ import { CampaignBeatOverlay } from "./scenes/campaign/beat.js";
 import { TeamUpSplashOverlay } from "./scenes/team-up-splash.js";
 import { TeamUpInfoOverlay } from "./scenes/team-up-info.js";
 import { EvidenceOverlay } from "./scenes/evidence.js";
+import { PileViewOverlay } from "./scenes/pile-view.js";
 import { MusicScene } from "./audio/music-controller.js";
 import { ExtrasScene } from "./scenes/extras.js";
 import { ExtrasViewerScene } from "./scenes/extras-viewer.js";
@@ -178,6 +179,7 @@ const game = new Phaser.Game({
     TeamUpSplashOverlay,
     TeamUpInfoOverlay,
     EvidenceOverlay,
+    PileViewOverlay,
     ExtrasViewerScene,
     MusicScene,
   ],

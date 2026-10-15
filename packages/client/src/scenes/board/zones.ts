@@ -850,7 +850,7 @@ export function drawEncounter(
       count: model.encounterPiles.discard,
       art: model.encounterDiscardTop,
       instanceId: model.encounterDiscardTopInstanceId,
-      siblings: [],
+      siblings: model.encounterDiscard,
     },
     // Cards dealt to the players facedown (Expert setup): a pile with a count and no tap target, since nobody reads them.
     ...(model.dealtFacedown > 0
@@ -978,7 +978,11 @@ export function drawEncounter(
     if (count > 0 && instanceId) {
       ctx.frame.hitRects.set(instanceId, box);
       const open = (): void => ctx.inspect(instanceId, siblings.length > 0 ? siblings : undefined);
-      addTapTarget(scene, box, { onTap: open, onInspect: open });
+      // A discard pile fans out; a hold still reads the top card.
+      addTapTarget(scene, box, {
+        onTap: kind === "encounterDiscard" ? () => ctx.openPile("Encounter discard", siblings) : open,
+        onInspect: open,
+      });
     }
   });
 }

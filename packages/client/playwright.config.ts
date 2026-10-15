@@ -90,6 +90,7 @@ export default defineConfig({
         "uncanny-controller.spec.ts",
         "any-number-cost.spec.ts",
         "tap-redraw.spec.ts",
+        "discard-pile-view.spec.ts",
         "break-time.spec.ts",
         "angel-form.spec.ts",
         "off-turn-action.spec.ts",

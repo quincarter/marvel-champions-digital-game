@@ -768,6 +768,8 @@ export interface BoardModel {
   readonly encounterDeckTop: EncounterTopView | null;
   /** The encounter discard's own top card, for Inspect — faceup, since a discard pile is open information. Null with an empty pile. */
   readonly encounterDiscardTopInstanceId: InstanceId | null;
+  /** Every card in the encounter discard, most recent first, for the pile overlay. */
+  readonly encounterDiscard: readonly InstanceId[];
   /**
    * A second deck your identity brings besides your player deck — Doctor
    * Strange's Invocation deck (`HeroIdentityCard.separateDecks`) — one entry
@@ -1084,6 +1086,7 @@ export function boardModel(
     encounterDeckTopArt: encounterDeckTopArt(state, deps),
     encounterDeckTop: encounterDeckTopView(state, deps),
     encounterDiscardTopInstanceId: activeEncounterDeck(state).discard[0] ?? null,
+    encounterDiscard: activeEncounterDeck(state).discard,
     separateDecks: separateDeckPiles(state, me),
     team: state.players
       .filter((player) => player.playerId !== perspectiveId)

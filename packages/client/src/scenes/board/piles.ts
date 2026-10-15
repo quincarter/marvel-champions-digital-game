@@ -39,8 +39,12 @@ export function drawMyPiles(ctx: BoardDrawContext, row: HandRowLayout, model: Bo
 
   const top = model.myDiscard[0];
   if (top) {
-    const open = (): void => ctx.inspect(top, model.myDiscard);
-    addTapTarget(scene, row.discard, { onTap: open, onInspect: open });
+    // The top card's rect is registered so the desktop hover popover reads it, as it does the encounter piles.
+    ctx.frame.hitRects.set(top, row.discard);
+    addTapTarget(scene, row.discard, {
+      onTap: () => ctx.openPile("Discard pile", model.myDiscard),
+      onInspect: () => ctx.inspect(top, model.myDiscard),
+    });
   }
 }
 

@@ -114,6 +114,8 @@ export const SCENES = {
   teamUpInfo: "TeamUpInfoOverlay",
   /** Baron Zemo's evidence: the envelopes, the faceup cards and the combination grid (`scenes/evidence.ts`), over the Board. */
   evidence: "EvidenceOverlay",
+  /** A pile fanned out: every card in your discard (or the encounter discard) at once (`scenes/pile-view.ts`). */
+  pileView: "PileViewOverlay",
   /** Background soundtrack controller running across screen transitions. */
   music: "MusicScene",
 } as const;
