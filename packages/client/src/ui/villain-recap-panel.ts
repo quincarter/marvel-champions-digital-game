@@ -17,7 +17,13 @@ import { accent, border, ink, signal, surface, typeRole, type TypeSpec } from ".
 import type { FormFactor, Rect } from "../view/layout.js";
 import type { VariableListScroll } from "../view/variable-list-scroll.js";
 import type { RecapChange, RecapColumn, RecapEntry, RecapResponse, VillainRecap } from "../view/villain-recap.js";
-import { villainDockedRecapLayout, villainRecapLayout, type VillainRecapLayout } from "../view/villain-recap-layout.js";
+import {
+  RECAP_ENTRY_PAD,
+  recapNamePlacement,
+  villainDockedRecapLayout,
+  villainRecapLayout,
+  type VillainRecapLayout,
+} from "../view/villain-recap-layout.js";
 import { noteHoverCard } from "./card-hover-preview.js";
 import { drawSeatAvatar } from "./seat-avatar.js";
 import { bindHoldTarget } from "./hold-target.js";
@@ -60,7 +66,7 @@ export interface RecapPanelResult {
 /** How many scroll positions the scene must keep: the most regions any form factor draws. */
 export const RECAP_SCROLL_SLOTS = 5;
 
-const PAD = 10;
+const PAD = RECAP_ENTRY_PAD;
 
 const sentence = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
 
@@ -356,21 +362,25 @@ function drawEntry(
       .setWordWrapWidth(width);
 
   const typeWord = entry.cardType ? entry.cardType.replace(/_/g, " ") : null;
+  const headlineText = step === 4 && typeWord ? `${entry.headline} · ${typeWord}` : sentence(entry.headline);
+  const headlineStyle = textStyle({ ...typeRole.rowTitle, size: phone ? 13 : 14 }, inkColor);
   let headX = textX;
+  let stacked = false;
   if (step === 4 && entry.seat) {
-    const c = chip(scene, textX, y, entry.seat, entry.seatIsViewer);
-    headX = textX + c + 8;
+    const c = chip(scene, textX, y, entry.seat, entry.seatIsViewer, textWidth);
+    // The name beside the chip when both fit on one line; under it when the chip would squeeze it to a sliver.
+    const nameWidth = scene.add.text(0, 0, headlineText, headlineStyle).setVisible(false);
+    const measured = nameWidth.width;
+    nameWidth.destroy();
+    stacked = recapNamePlacement(c, measured, textWidth) === "below";
+    if (stacked) y += 17 + 4;
+    else headX = textX + c + 8;
   }
   const headline = scene.add
-    .text(
-      headX,
-      y,
-      step === 4 && typeWord ? `${entry.headline} · ${typeWord}` : sentence(entry.headline),
-      textStyle({ ...typeRole.rowTitle, size: phone ? 13 : 14 }, inkColor),
-    )
+    .text(headX, y, headlineText, headlineStyle)
     .setOrigin(0, 0)
     .setWordWrapWidth(textWidth - (headX - textX));
-  y += Math.max(headline.height, step === 4 && entry.seat ? 18 : 0) + 3;
+  y += Math.max(headline.height, step === 4 && entry.seat && !stacked ? 18 : 0) + 3;
   if (entry.detail) y += body(entry.detail, inkColor, ink.secondary).height + 3;
   for (const effect of entry.effects) y += body(sentence(effect)).height + 3;
   for (const response of entry.responses) y += drawResponse(scene, textX, y, textWidth, response, phone) + 3;
@@ -383,12 +393,24 @@ function drawEntry(
   return bottom - slot.y;
 }
 
-/** A seat chip: black for the viewer, blue for another hero. Returns its width. */
-function chip(scene: Phaser.Scene, x: number, y: number, text: string, isViewer: boolean): number {
+/**
+ * A seat chip: black for the viewer, blue for another hero. Returns its width. A hero name that will not fit even alone
+ * loses its parenthetical ("SPIDER-MAN (PETER PARKER)" is "SPIDER-MAN"), then steps down in size.
+ */
+function chip(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  text: string,
+  isViewer: boolean,
+  maxWidth: number = Number.POSITIVE_INFINITY,
+): number {
   const bg = scene.add.graphics();
   const t = scene.add
     .text(x + 6, y + 2, text.toUpperCase(), textStyle({ ...typeRole.label, size: 9 }, surface.paper.hex))
     .setOrigin(0, 0);
+  if (t.width + 12 > maxWidth) t.setText(text.replace(/\s*\([^)]*\)/, "").toUpperCase());
+  if (t.width + 12 > maxWidth) fitText(t, Math.max(20, maxWidth - 12), 9);
   const width = t.width + 12;
   bg.fillStyle(isViewer ? surface.ink.hex : signal.cost.hex, 1).fillRect(x, y, width, 17);
   return width;

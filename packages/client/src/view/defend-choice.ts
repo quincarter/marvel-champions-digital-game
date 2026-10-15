@@ -50,6 +50,8 @@ export interface DefendOptionView {
   readonly damageHeadline: string;
   /** "12 of 16 HP" / "8–12 of 16 HP", or null when the target's HP isn't modeled (shouldn't happen for a character). */
   readonly hpAfter: string | null;
+  /** The same range as numbers, `low` to `high` hit points left, for the compact identity panel (TB1's "10 → 8–10"). */
+  readonly hpAfterRange: { readonly low: number; readonly high: number } | null;
   /** The lowest damage at which this option's target is defeated ("DEFEATED AT 2+"), or null when no band defeats it. */
   readonly defeatAt: number | null;
   /** Defeat threshold, Tough, Overkill, Retaliate — only the ones that actually apply to this option. */
@@ -117,6 +119,17 @@ export function damageHeadline(bands: readonly DefendBand[]): string {
 }
 
 /** "8–12 of 16 HP" — pure over the bands and the two numbers the engine's own HP query already reports. */
+/** The range `hpAfterFrom` words, as numbers; null with no bands. */
+export function hpRangeFrom(
+  current: number,
+  bands: readonly DefendBand[],
+): { readonly low: number; readonly high: number } | null {
+  const first = bands[0];
+  const last = bands[bands.length - 1];
+  if (!first || !last) return null;
+  return { low: Math.max(0, current - last.damageTaken), high: Math.max(0, current - first.damageTaken) };
+}
+
 export function hpAfterFrom(current: number, max: number, bands: readonly DefendBand[]): string | null {
   const first = bands[0];
   const last = bands[bands.length - 1];
@@ -132,6 +145,15 @@ function hpAfterLine(state: GameState, preview: DefendOptionPreview, deps: Engin
   const current = remainingHitPoints(state, preview.targetInstanceId, deps);
   if (max === undefined || current === undefined) return null;
   return hpAfterFrom(current, max, preview.bands);
+}
+
+function hpAfterRange(
+  state: GameState,
+  preview: DefendOptionPreview,
+  deps: EngineDeps,
+): { readonly low: number; readonly high: number } | null {
+  const current = remainingHitPoints(state, preview.targetInstanceId, deps);
+  return current === undefined ? null : hpRangeFrom(current, preview.bands);
 }
 
 /**
@@ -235,6 +257,7 @@ function optionViewOf(
     defenseReduction: preview.defenseReduction,
     damageHeadline: damageHeadline(preview.bands),
     hpAfter: hpAfterLine(state, preview, deps),
+    hpAfterRange: hpAfterRange(state, preview, deps),
     defeatAt: bandFactsOf(preview.bands).defeatAt,
     consequences: consequenceLines(state, attackerInstanceId, preview),
   };

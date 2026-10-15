@@ -20,7 +20,7 @@ const MARGIN_PHONE = 8;
 const MARGIN_WIDE = 28;
 const PAD_PHONE = 12;
 const PAD_WIDE = 24;
-const GAP = 16;
+const GAP = 20;
 const COLUMN_WEIGHTS = [1, 1.8, 1, 1.6, 0.95];
 
 /** The margin the ordinary layout keeps around its panel: a docked tab panel is inflated by it, to fill the dock's own. */
@@ -235,11 +235,11 @@ export function villainDockedRecapLayout(panel: Rect, kind: "rail" | "band", til
   const headerFullLog: Rect = { x: expand.x - 10 - fullLogWidth, y: top, width: fullLogWidth, height: hit.target };
   const titleRight = headerFullLog.x;
   const title: Rect = { x, y: top, width: Math.max(0, titleRight - 12 - x), height: 36 };
-  const subtitle: Rect = { x, y: top + 40, width: Math.max(0, titleRight - 12 - x), height: 18 };
+  const subtitle: Rect = { x, y: top + 44, width: Math.max(0, titleRight - 12 - x), height: 18 };
 
-  const tilesTop = top + 66;
+  const tilesTop = top + 70;
   const tileGap = band ? 10 : 12;
-  const tileHeight = band ? 56 : 64;
+  const tileHeight = band ? 52 : 64;
   const tileWidth = tileCount === 0 ? 0 : (width - tileGap * (tileCount - 1)) / tileCount;
   const tiles = Array.from({ length: tileCount }, (_, i): Rect => {
     return { x: x + i * (tileWidth + tileGap), y: tilesTop, width: tileWidth, height: tileHeight };
@@ -259,14 +259,37 @@ export function villainDockedRecapLayout(panel: Rect, kind: "rail" | "band", til
 
   const areaTop = tilesTop + (tileCount > 0 ? tileHeight + 12 : 0);
   const areaHeight = Math.max(0, cta.y - 12 - areaTop);
-  const bottomHeight = Math.min(areaHeight, Math.max(band ? 96 : 120, Math.round(areaHeight * (band ? 0.3 : 0.34))));
+  if (band) {
+    // TB2: steps 1, 3 and 5 stacked on the left, step 2 in the middle, step 4 on the right, each the area's full height.
+    const colGap = 16;
+    const colWidth = (width - colGap * 2) / 3;
+    const columns = [0, 1, 2].map((i): Rect => {
+      return { x: x + i * (colWidth + colGap), y: areaTop, width: colWidth, height: areaHeight };
+    });
+    return {
+      panel,
+      title,
+      subtitle,
+      hide: expand,
+      fullLog,
+      tilesLabel: zero(x, areaTop),
+      tiles,
+      regions: columns,
+      stepRegion: [0, 1, 0, 2, 0],
+      toggle,
+      hint: zero(toggle.x, toggle.y),
+      cta,
+      regionAcross: [1, 1, 1],
+    };
+  }
+  const bottomHeight = Math.min(areaHeight, Math.max(120, Math.round(areaHeight * 0.34)));
   const upperHeight = Math.max(0, areaHeight - bottomHeight - 12);
-  const leftWidth = Math.round((width - 12) * 0.38);
+  const leftWidth = Math.round((width - 16) * 0.38);
   const left: Rect = { x, y: areaTop, width: leftWidth, height: upperHeight };
   const middle: Rect = {
-    x: x + leftWidth + 12,
+    x: x + leftWidth + 16,
     y: areaTop,
-    width: Math.max(0, width - leftWidth - 12),
+    width: Math.max(0, width - leftWidth - 16),
     height: upperHeight,
   };
   const across = Math.max(1, Math.min(3, Math.floor((width + 12) / (260 + 12))));
@@ -287,4 +310,20 @@ export function villainDockedRecapLayout(panel: Rect, kind: "rail" | "band", til
     cta,
     regionAcross: [1, 1, across],
   };
+}
+
+/** The inner padding of one recap entry, on every side: text never touches the entry's edge. */
+export const RECAP_ENTRY_PAD = 12;
+
+/**
+ * Where a step-4 entry's card name goes against its seat chip: beside it when both fit on one line, under it when the
+ * chip would squeeze the name (a long hero name in a narrow column). Pure over the measured widths.
+ */
+export function recapNamePlacement(
+  chipWidth: number,
+  nameWidth: number,
+  available: number,
+  gap = 8,
+): "inline" | "below" {
+  return chipWidth + gap + nameWidth <= available ? "inline" : "below";
 }

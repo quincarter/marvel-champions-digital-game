@@ -173,7 +173,7 @@ import { villainDefendFocusOrder, villainPhaseFocusOrder, villainRailFocusOrder 
 import { appSession } from "../session.js";
 import type { SessionState } from "../store/session-store.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
-import type { BoardScene } from "./board.js";
+import { VILLAIN_DOCK_CHANGED, type BoardScene } from "./board.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion, slideIn, slideOut } from "../ui/transitions.js";
@@ -191,7 +191,8 @@ import {
   villainWideDockWidthFor,
   type VillainDockKind,
 } from "../view/villain-dock.js";
-import { defendChoiceViewOf } from "../view/defend-choice.js";
+import { defendChoiceViewOf, type DefendChoiceView } from "../view/defend-choice.js";
+import type { VillainSeatNote } from "../view/villain-seat-note.js";
 import { villainDefendLayout } from "../view/villain-defend-layout.js";
 import { drawVillainDefendPanel } from "../ui/villain-defend-panel.js";
 import {
@@ -294,8 +295,11 @@ function breakdownLineOf(activation: ActivationBeat): string | null {
     .join(" ");
 }
 
-/** The Board scene's event for each step of the docked phase's animated width change. */
-const VILLAIN_DOCK_CHANGED = "villain-dock-changed";
+/** The shortest band the docked recap's story strip reads in; shorter, the table was too short to grow it. */
+const RECAP_BAND_MIN_HEIGHT = 360;
+
+/** How long a growing dock may stay too small for the docked defend before the sheet takes the decision. */
+const DOCK_GROW_GRACE_MS = 600;
 
 /** Below this height the inline interrupt panel lays out sideways (`#drawInterrupt`). */
 const INTERRUPT_SHORT_PANEL = 300;
@@ -442,8 +446,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       },
     });
     // The Board tweens the dock's width as it widens for a defend or the recap, and says so on each step: the panel is
-    // redrawn against the rectangle it has now, so it grows with the table. Not every Board announces it, so this
-    // is a no-op where it does not (nothing is redrawn; the dock simply snaps).
+    // redrawn against the rectangle it has now, so it grows with the table (no slide-in again: that is keyed to when the
+    // phase first appeared).
     const board = this.#boardScene();
     const onDockStep = (): void => {
       if (!this.#motion.leaving) this.#draw();
@@ -456,6 +460,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       // Give the table its whole width, its own hand tags and its actions back, whatever closed the phase.
       this.#boardScene()?.setVillainPhaseOpen(false);
       this.#boardScene()?.setVillainDock(null);
+      this.#boardScene()?.setVillainSeatNote(null);
       this.#boardScene()?.setVillainHandTags(null);
       this.scale.off("resize", onResize, this);
       this.events.off(SEAT_AVATAR_READY, onResize);
@@ -678,7 +683,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     if (choice.playerId !== state.perspectiveId || this.#expanded.has(choice.choiceId)) return null;
     const { width, height } = this.scale.gameSize;
     const formFactor = formFactorFor(width, height);
-    if (isTabbed(formFactor) && this.#boardScene()?.guideStripContent()) return null;
+    // A lesson narrates the sheet's own options (the guide's GUIDE PICK stamp): it keeps the sheet.
+    if (this.#guideActive()) return null;
     const kind = villainPresentationFor({
       formFactor,
       dockTable: appSession().settings.villainDockTable,
@@ -688,6 +694,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     if (kind === "full") return null;
     if (this.#gateEligible()) return this.#started && this.#answered.has(choice.choiceId) ? choice.choiceId : null;
     return choice.choiceId;
+  }
+
+  /** A guided lesson is running: the Board's guide rail (desktop, tablet) or its bottom strip (tabbed layouts) is up. */
+  #guideActive(): boolean {
+    const board = this.#boardScene();
+    return (board?.guideRailWidth() ?? 0) > 0 || board?.guideStripContent() != null;
   }
 
   /** EXPAND on the docked defend: the full-screen sheet comes up over the phase, as ANSWER does for any other decision. */
@@ -927,6 +939,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   }
 
   #drawing = false;
+  /** When the docked defend first found its panel too small for the options (`#drawDefend`). */
+  #unfitSince: number | null = null;
 
   /** Every draw empties the card rects the hover popover reads, draws, then lets the popover rebuild where the pointer is. */
   #draw(): void {
@@ -994,7 +1008,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       peeking: false,
     });
     // A tutorial's bottom guide strip lives inside the full-screen panel on a tabbed layout, so a lesson keeps it.
-    const dockedRecap = recapNow && !this.#recapExpanded && guideStrip === null && dockedBase !== "full";
+    const dockedRecap =
+      recapNow && !this.#recapExpanded && guideStrip === null && guideRailWidth === 0 && dockedBase !== "full";
     const kind = villainPresentationFor({
       formFactor,
       dockTable: settings.villainDockTable,
@@ -1005,6 +1020,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const docked = kind !== "full" && !(this.#hidden && (kind === "rail" || kind === "band"));
     boardScene?.setVillainHandTags(docked ? this.#handTags(game, viewer) : null);
     const wide = dockedDefendId !== null || dockedRecap;
+    // The tall band's compact hero row says who is defending only while a defend is up (`#drawDefend` sets it).
+    if (!(dockedDefendId !== null && kind === "band")) boardScene?.setVillainSeatNote(null);
     if ((kind === "rail" || kind === "band") && boardScene) {
       const inlineChoice = pausedInline ? (game.pendingChoice?.choiceId ?? null) : dockedDefendId;
       // A new decision of the player's own brings a hidden rail back: its answer controls live on the rail. So does
@@ -1232,10 +1249,40 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   ): boolean {
     if (defendId !== null) return this.#drawDefend(kind, panel, footer, game, viewer);
     if (recap) {
+      // A band that did not grow tall (a table too short for it) has no room for the story strip: the full-screen
+      // recap takes over once the grace is up.
+      if (kind === "band" && panel.height < RECAP_BAND_MIN_HEIGHT) {
+        if (!this.#dockStillGrowing(panel)) {
+          this.#recapExpanded = true;
+          this.time.delayedCall(0, () => this.#draw());
+        }
+        return true;
+      }
+      this.#unfitSince = null;
       this.#drawDockedRecap(kind, panel, footer, game, viewer);
       return true;
     }
     return false;
+  }
+
+  /**
+   * The dock grows into its wide shape over a few hundred milliseconds, so a panel that does not hold the defend (or
+   * the recap) yet is not one that never will: it waits, an empty ink ground, and is asked again when the grace is up.
+   * True while it waits; false once it has waited long enough, when the full-screen sheet or recap takes over.
+   */
+  #dockStillGrowing(panel: Rect): boolean {
+    const now = this.time.now;
+    this.#unfitSince ??= now;
+    if (now - this.#unfitSince >= DOCK_GROW_GRACE_MS) {
+      this.#unfitSince = null;
+      return false;
+    }
+    const ground = this.add.graphics();
+    ground.fillStyle(surface.ink.hex, 1).fillRect(panel.x, panel.y, panel.width, panel.height);
+    addPressShield(this, panel);
+    this.time.delayedCall(DOCK_GROW_GRACE_MS, () => this.#draw());
+    this.#motion.enter(this, { scrim: [], panels: [] });
+    return true;
   }
 
   /**
@@ -1255,12 +1302,15 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const picked = this.#defendPick?.choiceId === choice.choiceId ? this.#defendPick.optionId : null;
     const view = defendChoiceViewOf(game, choice, POOL_DEPS, viewer, picked ? [picked] : []);
     const layout = view ? villainDefendLayout({ panel, kind, optionCount: view.options.length, footer }) : null;
-    if (!view || !layout?.fits) {
+    if (view && layout?.fits) this.#unfitSince = null;
+    else {
+      if (view && this.#dockStillGrowing(panel)) return true;
       this.#expanded.add(choice.choiceId);
       this.#orderAgainstChoice();
       return false;
     }
     this.#presentation = kind;
+    if (kind === "band") this.#boardScene()?.setVillainSeatNote(this.#seatNoteOf(view, picked));
     addPressShield(this, panel);
     if (layout.confirmInFooter && footer) addPressShield(this, footer);
     const choiceId = choice.choiceId;
@@ -1291,6 +1341,21 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     }
     this.#motion.enter(this, { scrim: [], panels: [] });
     return true;
+  }
+
+  /**
+   * What the tall band's compact hero row says (TB1): "DEFENDING" with the hit points the hero could end on, read off
+   * the picked option's own engine range. Another character defending leaves the hero READY; nothing picked yet, only
+   * the attack on them.
+   */
+  #seatNoteOf(view: DefendChoiceView, picked: string | null): VillainSeatNote {
+    const option = view.options.find((candidate) => candidate.optionId === picked);
+    if (!option) return { tag: "ATTACKED" };
+    const hero = view.summary.targetInstanceId;
+    const range = option.hpAfterRange;
+    if (option.kind === "decline") return range ? { tag: "ATTACKED", hpAfter: range } : { tag: "ATTACKED" };
+    if (option.defenderInstanceId === hero) return range ? { tag: "DEFENDING", hpAfter: range } : { tag: "DEFENDING" };
+    return { tag: "READY" };
   }
 
   /** The recap in the dock (B2/TB2): the step-by-step strip, with the table and hand in view. EXPAND is today's full-screen recap. */

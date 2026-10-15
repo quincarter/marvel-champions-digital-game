@@ -1,7 +1,13 @@
 import { describe, expect, test } from "vitest";
 import type { FormFactor, Rect } from "./layout.js";
 import { formFactorFor, rectsOverlap } from "./layout.js";
-import { villainDockedRecapLayout, villainRecapLayout, type VillainRecapLayout } from "./villain-recap-layout.js";
+import {
+  RECAP_ENTRY_PAD,
+  recapNamePlacement,
+  villainDockedRecapLayout,
+  villainRecapLayout,
+  type VillainRecapLayout,
+} from "./villain-recap-layout.js";
 
 const VIEWPORTS = [
   { name: "phone 390x844", width: 390, height: 844 },
@@ -101,12 +107,17 @@ describe("villainDockedRecapLayout", () => {
           }
         });
 
-        test("steps 1, 3 and 5 stack left, step 2 sits right, step 4 runs across the bottom", () => {
+        test("steps 1, 3 and 5 stack left and step 2 sits right of them; step 4 is across the bottom (rail) or last (band)", () => {
           expect(layout.stepRegion).toEqual([0, 1, 0, 2, 0]);
-          const [left, right, lower] = layout.regions as [Rect, Rect, Rect];
-          expect(left.x).toBeLessThan(right.x);
-          expect(lower.y).toBeGreaterThanOrEqual(left.y + left.height);
-          expect(lower.width).toBeGreaterThan(left.width + right.width);
+          const [left, middle, last] = layout.regions as [Rect, Rect, Rect];
+          expect(left.x).toBeLessThan(middle.x);
+          if (kind === "rail") {
+            expect(last.y).toBeGreaterThanOrEqual(left.y + left.height);
+            expect(last.width).toBeGreaterThan(left.width + middle.width);
+          } else {
+            expect(last.x).toBeGreaterThan(middle.x);
+            expect(last.height).toBe(left.height);
+          }
         });
 
         test("controls are at least 44 tall", () => {
@@ -117,4 +128,16 @@ describe("villainDockedRecapLayout", () => {
       });
     }
   }
+});
+
+describe("recapNamePlacement", () => {
+  test("keeps the name beside a short chip and drops it under a chip that would squeeze it", () => {
+    expect(recapNamePlacement(60, 120, 260)).toBe("inline");
+    // "SPIDER-MAN (PETER PARKER)" and "Weapons Runner · minion" in a 220 wide entry.
+    expect(recapNamePlacement(150, 150, 220)).toBe("below");
+  });
+
+  test("every entry keeps at least 12px inside its edge", () => {
+    expect(RECAP_ENTRY_PAD).toBeGreaterThanOrEqual(12);
+  });
 });
