@@ -106,7 +106,7 @@ function showDiagnostics(game: Phaser.Game): void {
     "position:fixed;top:0;left:0;right:0;z-index:11;padding:6px 8px;background:rgba(0,0,0,0.85);color:#f3ead8;" +
     "font:12px/1.4 ui-monospace,monospace;white-space:pre-wrap;word-break:break-word";
   strip.textContent = [
-    `diag · ${gl ? "WebGL" : "Canvas"} renderer · ${info ? `${info.version} ${info.renderer}` : "no WebGL"}`,
+    `diag ${window.location.search} · ${gl ? "WebGL" : "Canvas"} renderer · ${info ? `${info.version} ${info.renderer}` : "no WebGL"}`,
     `canvas ${game.canvas.width}x${game.canvas.height} · css ${game.canvas.clientWidth}x${game.canvas.clientHeight}` +
       (gl ? ` · buffer ${gl.drawingBufferWidth}x${gl.drawingBufferHeight}` : "") +
       ` · dpr ${window.devicePixelRatio}`,

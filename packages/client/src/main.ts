@@ -86,6 +86,7 @@ import { installStartupWatchdog } from "./ui/startup-watchdog.js";
 import { installDesktopType, setDesktopType } from "./ui/desktop-type.js";
 import { formFactorFor } from "./view/layout.js";
 import { applyViewportFit } from "./platform/platform.js";
+import { rendererOptionsOf } from "./platform/renderer-options.js";
 
 // The one `Settings` instance for the whole app (`appSession().settings`), not a
 // second copy: `scenes/settings.ts` mutates that same object, and every text
@@ -104,10 +105,17 @@ setDesktopType(formFactorFor(window.innerWidth, window.innerHeight) === "desktop
 
 // A device whose WebGL cannot draw gets a plain-text reason instead of a black page (`ui/startup-watchdog.ts`).
 const watchStartup = installStartupWatchdog();
+const rendererOptions = rendererOptionsOf(window.location.search);
 
 const game = new Phaser.Game({
-  // `?renderer=canvas` tries the Canvas renderer on a device whose WebGL draws black (issue #157).
-  type: new URLSearchParams(window.location.search).get("renderer") === "canvas" ? Phaser.CANVAS : Phaser.WEBGL,
+  // `?renderer=canvas` and `?gl=…` test links for a device whose WebGL shows black (`platform/renderer-options.ts`).
+  type: rendererOptions.canvas ? Phaser.CANVAS : Phaser.WEBGL,
+  ...(rendererOptions.transparent ? { transparent: true } : {}),
+  render: {
+    ...(rendererOptions.preserveDrawingBuffer ? { preserveDrawingBuffer: true } : {}),
+    ...(rendererOptions.antialiasGL === false ? { antialiasGL: false } : {}),
+    ...(rendererOptions.powerPreference ? { powerPreference: rendererOptions.powerPreference } : {}),
+  },
   parent: "game",
   backgroundColor: cssOf(surface.void.hex),
   // Off by default in Phaser 4; the Board's focus route is otherwise wired
