@@ -453,8 +453,8 @@ function paintHandSlot(
 
   const g = ctx.scene.add.graphics();
   paintPanel(g, slot, "card", subject ? "selected" : available ? "rest" : "unavailable");
-  if (subject || answersNow) {
-    // The design's treatment for the card being paid for, and for the card that answers the villain phase now: the red ring.
+  if (subject) {
+    // The design's treatment for the card being paid for: the red ring.
     const ring = new McSelectionRing(ctx.scene);
     ring.show(slot, "static", true);
     ctx.frame.rings.push(ring);
@@ -487,6 +487,13 @@ function drawHandCard(
   const key = ctx.art.request(scene, card.art);
   const drawn = drawArt(scene, key, inner, { fit: "cover", alpha });
   if (!drawn) drawHandCardFallback(scene, inner, card, alpha);
+  // The card that answers the villain phase right now is outlined in caution yellow, as the D1/D2 mockups draw it
+  // (the owner, 2026-10-14): over the scan, so the frame reads at a glance.
+  if (!payment && !discard && ctx.villainHandTags?.get(card.instanceId)?.kind === "now") {
+    const glow = scene.add.graphics();
+    glow.lineStyle(8, signal.caution.hex, 0.35).strokeRect(slot.x - 2, slot.y - 2, slot.width + 4, slot.height + 4);
+    glow.lineStyle(4, signal.caution.hex, 1).strokeRect(slot.x + 1, slot.y + 1, slot.width - 2, slot.height - 2);
+  }
 
   // Chrome the scan cannot carry, because it is about this game rather than
   // this card: what the engine will not let you do with it right now, and
