@@ -10,6 +10,7 @@
 
 import type { AbilityId, Aspect, AnyCard, ResourceIconType } from "@mc/content";
 import {
+  handSize,
   cardOf,
   cardsInPlay,
   characterProfile,
@@ -747,6 +748,8 @@ export interface BoardModel {
   readonly myPlayArea: readonly CharacterPanel[];
   readonly hand: readonly HandCardView[];
   readonly handLimit: number;
+  /** My hand size now (`handSize`): the caption prints it beside the count, so a full hand of 1 reads as full (#150). */
+  readonly myHandSize: number;
   readonly myPiles: PileCounts;
   /** My deck's faceup top card, when the engine shows one; null while the deck is facedown. */
   readonly myDeckTop: DeckTopView | null;
@@ -1103,6 +1106,7 @@ export function boardModel(
       })),
     ],
     handLimit: me.hand.length,
+    myHandSize: handSize(state, perspectiveId, deps),
     myPiles: { deck: me.deck.length, discard: me.discard.length },
     myDeckTop: myDeckTopView(state, perspectiveId, deps, actions),
     encounterPiles: {

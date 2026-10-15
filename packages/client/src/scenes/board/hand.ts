@@ -126,7 +126,8 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
       rect.y + 4,
       // The deck and discard counts moved onto the piles themselves (`piles.ts`).
       // `handLimit` is the real hand; the strip can also carry cards played "as if in your hand" (`HandCardView.from`).
-      `hand ${model.handLimit}`,
+      // The hand size beside it, so a hand already at a small hand size (Iron Man's 1) reads as full (#150).
+      `hand ${model.handLimit} · size ${model.myHandSize}`,
       typeRole.label,
       surface.paper.hex,
       ink.label,

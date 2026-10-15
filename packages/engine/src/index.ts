@@ -555,6 +555,7 @@ export {
   hitPointFloor,
   ignoredAbilities,
   explainQuery,
+  handCountTowardHandSize,
   isCaptiveAlly,
   isAttackTarget,
   isHeldMinion,

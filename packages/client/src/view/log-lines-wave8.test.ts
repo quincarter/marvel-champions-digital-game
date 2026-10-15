@@ -367,6 +367,18 @@ describe("starting hand credit, surge, ownership and defenders", () => {
     );
   });
 
+  test("the end-of-phase draw, a full hand too, so a small hand size never reads as a missed draw (issue #150)", () => {
+    expect(textOf({ type: "handRefilled", playerId: me, drawn: 0, handSize: 1 })).toBe(
+      "You draw nothing: the hand is already at its hand size of 1.",
+    );
+    expect(textOf({ type: "handRefilled", playerId: me, drawn: 1, handSize: 5 })).toBe(
+      "You draw 1 card up to a hand size of 5.",
+    );
+    expect(textOf({ type: "handRefilled", playerId: me, drawn: 4, handSize: 6 })).toBe(
+      "You draw 4 cards up to a hand size of 6.",
+    );
+  });
+
   test("surge from a card's ability reads as plainly as surge from a rule", () => {
     expect(textOf({ type: "surgeGranted", instanceId: villain, playerId: me })).toBe(`${name(villain)} gains surge.`);
   });

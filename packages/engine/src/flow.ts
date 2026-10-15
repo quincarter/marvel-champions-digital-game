@@ -596,7 +596,13 @@ export function afterDiscardChoice(ctx: Ctx, playerId: PlayerId): void {
 
 function executeEndPhaseDraw(ctx: Ctx): void {
   for (const player of playerOrder(ctx.state)) {
+    const before = ctx.events.length;
     drawUpTo(ctx, player.playerId, () => handSize(ctx.state, player.playerId, ctx.deps));
+    const drawn = ctx.events
+      .slice(before)
+      .filter((event) => event.type === "cardDrawn" && event.playerId === player.playerId).length;
+    const size = handSize(ctx.state, player.playerId, ctx.deps);
+    emit(ctx, { type: "handRefilled", playerId: player.playerId, drawn, handSize: size });
   }
   setStep(ctx, { phase: "player", kind: "endPhaseReady" });
 }

@@ -1278,6 +1278,16 @@ function describe(
         text: `${who(event.playerId)} ${verb(event.playerId, "draw", "draws")} ${event.drawn} for a hand of ${event.handSize}; ${event.credit} already counted.`,
         voice: "player",
       };
+    // RRG 1.8 "End of Player Phase" (p. 18) step 2, said for a full hand too, so a hand size of 1 (Iron Man with no
+    // Tech upgrades) does not read as a draw that never happened (issue #150).
+    case "handRefilled":
+      return {
+        text:
+          event.drawn === 0
+            ? `${who(event.playerId)} ${verb(event.playerId, "draw", "draws")} nothing: the hand is already at its hand size of ${event.handSize}.`
+            : `${who(event.playerId)} ${verb(event.playerId, "draw", "draws")} ${event.drawn} card${event.drawn === 1 ? "" : "s"} up to a hand size of ${event.handSize}.`,
+        voice: "player",
+      };
     // RRG 1.8 "Ownership and Control" (p. 31): a player became a card's owner by taking it.
     case "ownershipChanged":
       return {

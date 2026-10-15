@@ -1,0 +1,3 @@
+kind: Engine
+body: The end-of-phase draw reports each player's refill (handRefilled), a full hand too, and the log says so, so a small hand size no longer reads as a missed draw (#150)
+time: 2026-10-15T08:28:35.5922608-04:00

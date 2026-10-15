@@ -174,6 +174,7 @@ export const UNDO_EVENT_VERDICTS: Readonly<Record<GameEvent["type"], readonly [V
   gameCreated: [STOPS, "setup"],
   gameEnded: [STOPS, "the game ended"],
   groupChosen: [ALLOWED, "a choice among public options"],
+  handRefilled: [ALLOWED, "rules bookkeeping, nothing hidden"],
   healBlocked: [ALLOWED, "damage and healing, face up"],
   hiddenPileCardsGained: [STOPS, "a hidden pile changed"],
   hiddenPileRevealed: [STOPS, "a hidden pile revealed"],

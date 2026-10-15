@@ -239,7 +239,7 @@ export class BoardScene extends Phaser.Scene {
       const pair = this.#teamUps.find((candidate) => candidate.key === pairKey);
       if (pair) this.#openTeamUpInfo(pair);
     },
-    confirmEndTurn: (sentence, onConfirm) => askToEndTurn(this, sentence, onConfirm),
+    confirmEndTurn: (sentence, onConfirm, title) => askToEndTurn(this, sentence, onConfirm, title),
     // A "Hold on!" warning never second-guesses an active guide step: while a lesson is telling the player what to
     // do (e.g. an aspect Try-it lesson's stacked payment), the guide's own instruction wins and the command goes out.
     holdOn: (hint, actions) =>

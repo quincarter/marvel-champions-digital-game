@@ -43,6 +43,7 @@ import {
   type DiscardChoiceView,
 } from "../../view/discard-choice-model.js";
 import { endTurnConfirmOf } from "../../view/end-turn-confirm.js";
+import { smallHandSizeConfirmOf } from "../../view/hand-size-note.js";
 import {
   advanceInPlayCostChoice,
   beginInPlayCostChoice,
@@ -125,7 +126,8 @@ export interface BoardControllerHost {
    * Asks "End your turn? You can still: …" (Settings ▸ "Confirm before ending turn",
    * `view/end-turn-confirm.ts`), and calls `onConfirm` only if the player says End turn.
    */
-  confirmEndTurn(sentence: string, onConfirm: () => void): void;
+  /** `title` replaces "End your turn?" (the small-hand-size confirm asks "Are you sure?"). */
+  confirmEndTurn(sentence: string, onConfirm: () => void, title?: string): void;
   /**
    * Guided mode's "Hold on!" safety net (`docs/guided-mode.md` §4 G9b, `scenes/hold-on.ts`): shown instead of
    * sending the command `hint` was raised against. Calls exactly one of `onSafe`/`onAnyway` if the player picks
@@ -1622,11 +1624,19 @@ export class BoardController {
    * separate" — both can show in sequence, neither replaces the other).
    */
   async #finishEndTurn(kind: BasicAction, entry: LegalAction): Promise<void> {
-    if (kind === "endTurn" && appSession().settings.confirmBeforeEndTurn) {
+    if (kind === "endTurn") {
       const { game, legal } = appSession().store.state;
-      const confirm = game && legal ? endTurnConfirmOf(game, legal.actions, legal.playerId) : null;
-      if (confirm) {
-        this.#host.confirmEndTurn(confirm.sentence, () => void this.#dispatch(entry.example));
+      // A hand size under 4 always asks (issue #150); what's still open asks only with the setting on.
+      const smallHand = game && legal ? smallHandSizeConfirmOf(game, legal.playerId, POOL_DEPS) : null;
+      const confirm =
+        game && legal && appSession().settings.confirmBeforeEndTurn
+          ? endTurnConfirmOf(game, legal.actions, legal.playerId)
+          : null;
+      if (smallHand || confirm) {
+        const sentence = [smallHand, confirm?.sentence].filter((part) => part).join("\n\n");
+        const send = (): void => void this.#dispatch(entry.example);
+        if (smallHand) this.#host.confirmEndTurn(sentence, send, "Are you sure?");
+        else this.#host.confirmEndTurn(sentence, send);
         return;
       }
     }

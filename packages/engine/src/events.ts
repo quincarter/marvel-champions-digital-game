@@ -1445,6 +1445,12 @@ export type GameEvent =
       readonly credit: number;
       readonly drawn: number;
     }
+  /**
+   * RRG 1.8 "End of Player Phase" (p. 18) step 2: `playerId` drew `drawn` cards to refill to `handSize`, read once the
+   * drawing stopped. Logged for every player still in the game, a full hand (`drawn: 0`) too, so a small hand size
+   * (Iron Man's 1 with no Tech upgrades) does not read as a missed draw (issue #150).
+   */
+  | { readonly type: "handRefilled"; readonly playerId: PlayerId; readonly drawn: number; readonly handSize: number }
   | { readonly type: "playerEliminated"; readonly playerId: PlayerId }
   /**
    * `EffectSpec sitOutScenario` during setup, after that player's `playerEliminated`: the player never started the

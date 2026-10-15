@@ -221,3 +221,51 @@ describe("End turn's schemeFinish hint", () => {
     expect(host.confirmEndTurn).not.toHaveBeenCalled();
   });
 });
+
+describe("End turn on a small hand size asks first (issue #150)", () => {
+  /** Rhino, solo Iron Man, past setup and flipped to hero: hand size 1 with no Tech upgrade out. */
+  async function ironManHeroTurn(): Promise<{ game: GameState; player: PlayerId }> {
+    const store = new SessionStore(new LocalEngineHost());
+    await store.start({ ...RHINO_SOLO, players: [{ starterDeckId: "core-iron-man-aggression" }] });
+    for (let step = 0; step < 12 && store.state.legal?.actions.kind === "choice"; step++) {
+      const { choice } = store.state.legal.actions as {
+        choice: { options: readonly { optionId: string }[]; minSelections: number };
+      };
+      await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((option) => option.optionId));
+    }
+    const legal = store.state.legal?.actions;
+    const flip = legal?.kind === "turn" ? legal.legal.find((entry) => entry.action.kind === "changeForm") : undefined;
+    if (flip) await store.dispatch(flip.example);
+    return { game: store.state.game!, player: store.state.perspectiveId! };
+  }
+
+  test('"Are you sure?" with the hand size explained, even with "Confirm before ending turn" off', async () => {
+    const { game, player } = await ironManHeroTurn();
+    appSession().settings = { ...defaultSettings(), confirmBeforeEndTurn: false };
+    const stub = installStubStore(game, player);
+    const host = stubHost();
+
+    await new BoardController(host).dispatchExample("endTurn");
+
+    expect(host.confirmEndTurn).toHaveBeenCalledTimes(1);
+    const [sentence, , title] = host.confirmEndTurn.mock.calls[0]!;
+    expect(title).toBe("Are you sure?");
+    expect(sentence).toMatch(/^Iron Man's hand size is only 1: /);
+    expect(sentence).toContain("for each Tech upgrade you control");
+    // The stub host confirms at once, so the turn still ends.
+    expect(stub.dispatch).toHaveBeenCalledTimes(1);
+    const command = stub.dispatch.mock.calls[0]?.[0] as Command;
+    expect(command.type).toBe("endTurn");
+  });
+
+  test("a hand size of 4 or more with the setting off ends the turn without asking", async () => {
+    appSession().settings = { ...defaultSettings(), confirmBeforeEndTurn: false };
+    const stub = installStubStore(base, me);
+    const host = stubHost();
+
+    await new BoardController(host).dispatchExample("endTurn");
+
+    expect(host.confirmEndTurn).not.toHaveBeenCalled();
+    expect(stub.dispatch).toHaveBeenCalledTimes(1);
+  });
+});

@@ -17,6 +17,8 @@ const buttonType = { ...typeRole.label, size: 13 };
 
 export interface EndTurnConfirmData {
   readonly sentence: string;
+  /** "End your turn?" unless given ("Are you sure?" over a small hand size, `view/hand-size-note.ts`). */
+  readonly title?: string;
   /** The scene that asked: its pointer input is off while this is up. */
   readonly from: string;
   readonly onConfirm: () => void;
@@ -66,7 +68,7 @@ export class EndTurnConfirmOverlay extends Phaser.Scene {
     const textWidth = boxWidth - 40;
     const ground = this.add.graphics();
     const title = this.add
-      .text(0, 0, "End your turn?", textStyle(typeRole.barTitle, surface.ink.hex))
+      .text(0, 0, this.#data.title ?? "End your turn?", textStyle(typeRole.barTitle, surface.ink.hex))
       .setWordWrapWidth(textWidth);
     const body = this.add
       .text(0, 0, this.#data.sentence, textStyle(typeRole.body, surface.ink.hex, 0.9))
@@ -125,10 +127,11 @@ export class EndTurnConfirmOverlay extends Phaser.Scene {
 }
 
 /** Asks "End your turn?" over `scene`, and calls `onConfirm` only if the player says End turn. */
-export function askToEndTurn(scene: Phaser.Scene, sentence: string, onConfirm: () => void): void {
+export function askToEndTurn(scene: Phaser.Scene, sentence: string, onConfirm: () => void, title?: string): void {
   if (scene.scene.isActive(SCENES.endTurnConfirm)) return;
   scene.scene.launch(SCENES.endTurnConfirm, {
     sentence,
+    ...(title ? { title } : {}),
     from: scene.scene.key,
     onConfirm,
   } satisfies EndTurnConfirmData);
