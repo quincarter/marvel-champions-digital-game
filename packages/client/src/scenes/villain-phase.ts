@@ -194,6 +194,7 @@ import {
 import { encounterStripOf, type EncounterStrip } from "../view/villain-encounter-strip.js";
 import { villainHandTagsOf } from "../view/villain-hand-tags.js";
 import { SEAT_AVATAR_READY } from "../ui/seat-avatar.js";
+import { endOfTurnDrawsOf, endOfTurnLine, type EndOfTurnDraws } from "../view/villain-end-of-turn.js";
 import {
   abilityName,
   drawInterruptAnswer,
@@ -318,6 +319,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
    * on its five steps and waits for the player before anything plays (`#gateEligible`).
    */
   #started = false;
+  /** Who drew what as the player phase ended, read off the command that began this phase. */
+  #endOfTurn: EndOfTurnDraws | null = null;
   /** Decisions the player chose to answer from the phase's notice (ANSWER ▸): their sheet may come up. */
   #answered = new Set<string>();
   /** When each held decision's notice first appeared, for its slide in. */
@@ -347,6 +350,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#started = false;
     this.#answered = new Set();
     this.#noticeShownAt = new Map();
+    this.#endOfTurn = null;
     this.#review = data?.review ?? null;
     if (this.#review) {
       // A finished phase, read back: everything shown, nothing paced, nothing more to collect.
@@ -483,7 +487,20 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // Before START nothing is on offer yet: the window is not shown.
     const choice = this.#walkthrough.pausedAt && !this.#waitingToStart() ? game.pendingChoice : null;
     const offered = choice ? (inlineInterruptFor(choice, viewer) ?? []) : [];
-    return villainHandTagsOf(game, viewer, POOL_DEPS, new Set(offered.map((option) => option.instanceId)));
+    // The cards the player drew as their turn ended read "New · …" for the whole phase.
+    const fresh = new Set(viewer ? (this.#endOfTurn?.bySeat.get(viewer) ?? []) : []);
+    return villainHandTagsOf(game, viewer, POOL_DEPS, new Set(offered.map((option) => option.instanceId)), fresh);
+  }
+
+  /** "You drew 3 cards: …", from the draws that ended the player phase; empty when nobody drew. */
+  #endOfTurnText(game: GameState, viewer: PlayerId | null): string {
+    if (!this.#endOfTurn) return "";
+    return endOfTurnLine(
+      this.#endOfTurn,
+      viewer,
+      (playerId) => seatName(game, playerId, viewer),
+      (instanceId) => cardName(game, instanceId),
+    );
   }
 
   /** PEEK AT TABLE ▾ / BACK ▴ (P3). */
@@ -523,6 +540,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
     if (state.version !== this.#version) {
       this.#version = state.version;
+      // The command that began the phase also ended the player phase: keep who drew what (the draw up to hand size).
+      if (!this.#review) this.#endOfTurn = endOfTurnDrawsOf(state.lastEvents) ?? this.#endOfTurn;
       const before = totalBeatsOf(this.#walkthrough);
       this.#walkthrough = appendWalkthrough(
         this.#walkthrough,
@@ -666,7 +685,11 @@ export class VillainPhaseOverlay extends Phaser.Scene {
    * decision's notice. Null when neither waits.
    */
   #gate(game: GameState, viewer: PlayerId | null, subject: InstanceId | null): RailGate | null {
-    if (this.#waitingToStart()) return { kind: "start", onPress: () => this.#start() };
+    if (this.#waitingToStart()) {
+      // "End of your turn: you drew 1 card: Energy." reads on from the gate's own lead-in.
+      const lead = this.#endOfTurnText(game, viewer).replace(/^You /, "you ");
+      return { kind: "start", lead, onPress: () => this.#start() };
+    }
     const id = this.#heldChoiceId();
     const choice = game.pendingChoice;
     if (id === null || !choice) return null;
@@ -1896,7 +1919,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       : this.#happeningBody(reveal, game, viewer, inline !== null);
 
     const all = reveal.steps.flatMap((step) => step.beats.map((beat) => ({ step: step.number, text: beat.text })));
-    const log = all.slice(0, Math.max(0, all.length - 1)).reverse();
+    const draws = this.#endOfTurnText(game, viewer);
+    // The draw that ended the player phase is the log's first line, so it is said even with Auto-advance on.
+    const log: { step: number | string; text: string }[] = [
+      ...all.slice(0, Math.max(0, all.length - 1)).reverse(),
+      ...(draws ? [{ step: "Draw ·", text: draws }] : []),
+    ];
 
     const stops = drawVillainRailPanel(this, {
       layout,

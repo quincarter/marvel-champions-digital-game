@@ -2,13 +2,25 @@ import { describe, expect, it } from "vitest";
 import type { AbilityId } from "@mc/content";
 import type { AbilityTriggerSpec } from "@mc/engine";
 import { POOL_DEPS } from "../content/pool.js";
-import { triggerTagKindOf, villainHandTagOf } from "./villain-hand-tags.js";
+import type { InstanceId } from "@mc/engine";
+import { sameHandTags, triggerTagKindOf, villainHandTagOf } from "./villain-hand-tags.js";
 
 const triggerOf = (id: string): AbilityTriggerSpec => {
   const trigger = POOL_DEPS.abilities[id as AbilityId]?.trigger;
   if (!trigger) throw new Error(`no ability ${id}`);
   return trigger;
 };
+
+describe("villain hand tags: fresh draws", () => {
+  it("sameHandTags tells a newly drawn card's tag from the same tag without it", () => {
+    const tag = { kind: "turn" as const, text: "Your turn", ring: false };
+    const id = "i1" as InstanceId;
+    expect(sameHandTags(new Map([[id, tag]]), new Map([[id, { ...tag, text: "New · Your turn", fresh: true }]]))).toBe(
+      false,
+    );
+    expect(sameHandTags(new Map([[id, tag]]), new Map([[id, { ...tag }]]))).toBe(true);
+  });
+});
 
 describe("villain hand tags", () => {
   it("reads what a real Core card's interrupt waits for off its trigger", () => {

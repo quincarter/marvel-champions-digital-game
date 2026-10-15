@@ -22,6 +22,8 @@ export interface VillainHandTag {
   readonly text: string;
   /** Ring the card on the table: it answers what is happening now. */
   readonly ring: boolean;
+  /** Drawn as the player phase ended (`view/villain-end-of-turn.ts`): the tag reads "New · …". */
+  readonly fresh?: boolean;
 }
 
 const TEXT: Record<VillainHandTagKind, string> = {
@@ -86,7 +88,10 @@ export function sameHandTags(
 ): boolean {
   if (a === b) return true;
   if (!a || !b || a.size !== b.size) return false;
-  for (const [id, tag] of a) if (b.get(id)?.kind !== tag.kind) return false;
+  for (const [id, tag] of a) {
+    const other = b.get(id);
+    if (other?.kind !== tag.kind || Boolean(other.fresh) !== Boolean(tag.fresh)) return false;
+  }
   return true;
 }
 
@@ -96,6 +101,7 @@ export function villainHandTagsOf(
   viewer: PlayerId | null,
   deps: EngineDeps,
   playableNow: ReadonlySet<InstanceId>,
+  fresh: ReadonlySet<InstanceId> = new Set(),
 ): ReadonlyMap<InstanceId, VillainHandTag> {
   const tags = new Map<InstanceId, VillainHandTag>();
   const player = state.players.find((candidate) => candidate.playerId === viewer);
@@ -105,7 +111,8 @@ export function villainHandTagsOf(
       const trigger = deps.abilities[ref.id]?.trigger;
       return trigger ? [trigger] : [];
     });
-    tags.set(id, villainHandTagOf(triggers, cardOf(state, id)?.type === "resource", playableNow.has(id)));
+    const tag = villainHandTagOf(triggers, cardOf(state, id)?.type === "resource", playableNow.has(id));
+    tags.set(id, fresh.has(id) ? { ...tag, text: `New · ${tag.text}`, fresh: true } : tag);
   }
   return tags;
 }

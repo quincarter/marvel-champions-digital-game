@@ -69,7 +69,12 @@ export interface RailInterrupt {
  * (a revealed card's choice, a defender) announced with ANSWER, which opens its sheet. Never both.
  */
 export type RailGate =
-  | { readonly kind: "start"; readonly onPress: () => void }
+  | {
+      readonly kind: "start";
+      /** What ended the player phase ("You drew 3 cards: …"), said first; empty when nothing did. */
+      readonly lead: string;
+      readonly onPress: () => void;
+    }
   | {
       readonly kind: "decision";
       /** "SONIC BOOM · CAPTAIN MARVEL DECIDES". */
@@ -98,7 +103,8 @@ export interface RailPanelArgs {
   /** Hears the objects the gate drew, so the scene can slide a decision's notice in. */
   readonly onGateDrawn?: (objects: readonly Phaser.GameObjects.GameObject[]) => void;
   /** The phase log, most recent first: step number and text. */
-  readonly log: readonly { readonly step: number; readonly text: string }[];
+  /** The phase log, most recent first; `step` is the step's number, or a word for what came before step 1 ("Draw"). */
+  readonly log: readonly { readonly step: number | string; readonly text: string }[];
   /** Next card, while the reveal is held on an encounter card ("Hold encounter cards"); null otherwise. */
   readonly onNext: (() => void) | null;
   readonly autoAdvance: VillainAutoAdvance;
@@ -723,7 +729,7 @@ function drawGate(
     : { ...layout.text, x: layout.card.x, width: layout.text.x + layout.text.width - layout.card.x };
   const body =
     gate.kind === "start"
-      ? "Threat goes on, the villain and minions activate, then the encounter cards are dealt and revealed. Start when you have read the table."
+      ? `${gate.lead ? `End of your turn: ${gate.lead} ` : ""}Next, threat goes on, the villain and minions activate, then the encounter cards are dealt and revealed.`
       : gate.text;
   const text = scene.add
     .text(textRect.x, textRect.y, body, textStyle({ ...typeRole.body, size: 14 }, surface.paper.hex))
@@ -767,11 +773,18 @@ function drawLog(scene: Phaser.Scene, rect: Rect, log: RailPanelArgs["log"]): vo
   let y = rect.y + 22;
   for (const entry of log) {
     if (y + 18 > rect.y + rect.height) break;
-    label(scene, rect.x, y, `${entry.step} ·`, { ...typeRole.label, size: 11 }, surface.paper.hex, ink.meta);
+    const tagText = typeof entry.step === "number" ? `${entry.step} ·` : entry.step;
+    const tag = label(scene, rect.x, y, tagText, { ...typeRole.label, size: 11 }, surface.paper.hex, ink.meta);
+    const indent = Math.max(24, tag.width + 8);
     const line = scene.add
-      .text(rect.x + 24, y - 1, entry.text, textStyle({ ...typeRole.body, size: 13 }, surface.paper.hex, ink.secondary))
+      .text(
+        rect.x + indent,
+        y - 1,
+        entry.text,
+        textStyle({ ...typeRole.body, size: 13 }, surface.paper.hex, ink.secondary),
+      )
       .setOrigin(0, 0)
-      .setWordWrapWidth(rect.width - 24)
+      .setWordWrapWidth(rect.width - indent)
       .setMaxLines(2);
     if (line.y + line.height > rect.y + rect.height) {
       line.setMaxLines(1);
