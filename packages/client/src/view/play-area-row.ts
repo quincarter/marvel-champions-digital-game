@@ -26,10 +26,16 @@ export interface PlayAreaRow {
   readonly scrolls: boolean;
 }
 
-export function playAreaRow(inner: Rect, count: number): PlayAreaRow {
+/**
+ * `cardScale` is the Card size setting's factor (1 at Fit to screen). Above it a card is never squeezed below the zone's
+ * full height to fit the row: a bigger setting must not make the play area's cards smaller than Fit to screen draws
+ * them, so the row scrolls sideways sooner instead.
+ */
+export function playAreaRow(inner: Rect, count: number, cardScale = 1): PlayAreaRow {
   if (count <= 0) return { slots: [], scrolls: false };
   const fitted = cardRow(inner, count, { gap: PLAY_AREA_GAP, maxHeight: inner.height });
-  const floor = Math.min(inner.height, Math.max(MIN_HEIGHT_PX, inner.height * MIN_HEIGHT_SHARE));
+  const share = cardScale > 1 ? 1 : MIN_HEIGHT_SHARE;
+  const floor = Math.min(inner.height, Math.max(MIN_HEIGHT_PX, inner.height * share));
   if (fitted[0]!.height >= floor - 0.5) return { slots: fitted, scrolls: false };
 
   const width = floor * CARD_ASPECT;
@@ -100,4 +106,21 @@ export class PlayAreaScroll {
       if (wanted.length > 0 && !shown) this.row.reveal(wanted[0]!);
     }
   }
+}
+
+/**
+ * The column beside the play area that holds a second deck and its discard (Doctor Strange's Invocation). It grows with the
+ * card size, and with a tall zone (an ultrawide window's play area is 500px tall: two 100px piles beside 500px cards
+ * read as thumbnails), but never takes more than 30% of the zone.
+ */
+export function separateColumnWidth(zoneWidth: number, zoneHeight: number, cardScale = 1): number {
+  const base = Math.min(150, Math.max(96, zoneWidth * 0.26));
+  return Math.min(Math.round(Math.max(base * cardScale, zoneHeight * 0.8)), Math.round(zoneWidth * 0.3));
+}
+
+/** One second-deck row's height: its two piles at card proportions across the column, within the room the column has. */
+export function separateRowHeight(columnHeight: number, rows: number, columnWidth: number): number {
+  const room = (columnHeight - (rows - 1) * 8) / Math.max(1, rows);
+  const natural = Math.round((columnWidth - 6) / 2 / CARD_ASPECT + 14);
+  return Math.min(natural, Math.max(70, room));
 }

@@ -46,7 +46,11 @@ export function engagedChipWords(name: string, tileWidth: number): string {
   const room = Math.max(ENGAGED_CHIP_MIN_ROOM, tileWidth - 14);
   const whole = `vs ${name}`;
   if (whole.length * ENGAGED_CHAR_WIDTH <= room) return whole;
-  const parts = name.split(/([\s-]+)/);
+  // An alter-ego seat reads "Spider-Man (Peter Parker)": the other name is dropped before any initials are made, so the
+  // chip never reads "S.-M. (. PARKER)".
+  const base = name.replace(/\s*\([^)]*\)\s*$/, "") || name;
+  if (base !== name && `vs ${base}`.length * ENGAGED_CHAR_WIDTH <= room) return `vs ${base}`;
+  const parts = base.split(/([\s-]+)/);
   const lastWord = parts.length - 1;
   const short = parts
     .map((part, index) => (index < lastWord && index % 2 === 0 && part !== "" ? `${part[0]}.` : part))

@@ -6,6 +6,7 @@ import {
   boardLayout,
   cardChoiceSlots,
   cardRow,
+  minionSlots,
   cardStatColumn,
   CARD_ASPECT,
   contentSlotHeights,
@@ -771,5 +772,30 @@ describe("a neutral play area (God of Lies)", () => {
     [1920, 1080],
   ])("a %i by %i table is laid out as it always was", (width, height) => {
     expect(villainBand(width, height, true)).toEqual(villainBand(width, height, false));
+  });
+});
+
+describe("minionSlots", () => {
+  const phone = { x: 0, y: 0, width: 374, height: 420 };
+
+  test("at Fit to screen it is exactly the single row", () => {
+    expect(minionSlots(phone, 4, 1, 8, 14)).toEqual(cardRow(phone, 4, { gap: 8, maxHeight: 420 }));
+  });
+
+  test("above it, four minions on a narrow, tall area go to two rows of bigger tiles that stay inside the area", () => {
+    const row = cardRow(phone, 4, { gap: 8, maxHeight: 420 });
+    const grid = minionSlots(phone, 4, 1.5, 8, 14);
+    expect(grid[0]!.height).toBeGreaterThan(row[0]!.height * 1.2);
+    expect(grid[2]!.y).toBeGreaterThanOrEqual(grid[0]!.y + grid[0]!.height + 8 + 14 - 0.5);
+    for (const slot of grid) {
+      expect(slot.x).toBeGreaterThanOrEqual(0);
+      expect(slot.x + slot.width).toBeLessThanOrEqual(374.5);
+      expect(slot.y + slot.height).toBeLessThanOrEqual(420.5);
+    }
+  });
+
+  test("a wide area where the row is already height-bound keeps its row", () => {
+    const wide = { x: 0, y: 0, width: 1200, height: 160 };
+    expect(minionSlots(wide, 4, 1.5, 8, 14)).toEqual(cardRow(wide, 4, { gap: 8, maxHeight: 160 }));
   });
 });

@@ -6,7 +6,14 @@
 import { describe, expect, test, vi } from "vitest";
 import type { InstanceId } from "@mc/engine";
 import { CARD_ASPECT, type Rect } from "./layout.js";
-import { PLAY_AREA_GAP, PlayAreaScroll, playAreaRow, sliceWithin } from "./play-area-row.js";
+import {
+  PLAY_AREA_GAP,
+  PlayAreaScroll,
+  playAreaRow,
+  separateColumnWidth,
+  separateRowHeight,
+  sliceWithin,
+} from "./play-area-row.js";
 
 /** Roughly the long table's play area at 1920×1280 with one player. */
 const AREA: Rect = { x: 500, y: 700, width: 1000, height: 240 };
@@ -46,6 +53,14 @@ describe("playAreaRow", () => {
   test("a short zone keeps its cards at least 120px tall, or its own height when it has less", () => {
     expect(playAreaRow({ ...AREA, height: 150 }, 20).slots[0]!.height).toBe(120);
     expect(playAreaRow({ ...AREA, height: 90 }, 20).slots[0]!.height).toBe(90);
+  });
+
+  test("above Fit to screen a crowded row keeps the zone's full height and scrolls, never smaller cards than Fit to screen", () => {
+    const standard = playAreaRow({ ...AREA, height: 200, width: 700 }, 5);
+    const large = playAreaRow({ ...AREA, height: 300, width: 700 }, 5, 1.5);
+    expect(large.slots[0]!.height).toBe(300);
+    expect(large.slots[0]!.height).toBeGreaterThanOrEqual(standard.slots[0]!.height);
+    expect(large.scrolls).toBe(true);
   });
 
   test("no cards, no slots", () => {
@@ -140,5 +155,18 @@ describe("PlayAreaScroll", () => {
     expect(scroll.row.scrollX).toBe(0);
     scroll.row.onWheel({ x: 900, y: 800 }, [], 0, 120);
     expect(scroll.row.scrollX).toBe(120);
+  });
+});
+
+describe("a second deck's column (Doctor Strange's Invocation)", () => {
+  test("grows with the card size and with a tall zone, within its share of the width", () => {
+    expect(separateColumnWidth(900, 250, 1.5)).toBeGreaterThan(separateColumnWidth(900, 250, 1));
+    expect(separateColumnWidth(2500, 500, 1)).toBeGreaterThan(separateColumnWidth(2500, 200, 1));
+    expect(separateColumnWidth(300, 500, 2)).toBeLessThanOrEqual(90);
+  });
+
+  test("its piles keep card proportions across the column, and never exceed the room", () => {
+    expect(separateRowHeight(600, 1, 400)).toBeGreaterThan(separateRowHeight(600, 1, 150));
+    expect(separateRowHeight(100, 1, 400)).toBe(100);
   });
 });

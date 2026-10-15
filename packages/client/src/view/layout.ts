@@ -828,6 +828,46 @@ export function cardRow(
 }
 
 /**
+ * A row of minion tiles, or, above Fit to screen (`cardScale` > 1), a grid of rows when a single row is limited by the
+ * area's width and a grid gives clearly bigger tiles (four minions on a phone: one row is four 80px tiles under a table
+ * that scrolls a screen tall). Each row after the first leaves `rowExtra` more than the gap, for the chips that hang
+ * above a tile. At Fit to screen it is exactly `cardRow`.
+ */
+export function minionSlots(
+  area: Rect,
+  count: number,
+  cardScale: number,
+  gap: number,
+  rowExtra: number,
+): readonly CardSlot[] {
+  const single = cardRow(area, count, { gap, maxHeight: area.height });
+  if (cardScale <= 1 || count < 2 || single.length === 0) return single;
+  let best: { rows: number; cols: number; height: number } | null = null;
+  for (let rows = 2; rows <= Math.min(count, 3); rows++) {
+    const cols = Math.ceil(count / rows);
+    const slotHeight = (area.height - (rows - 1) * (gap + rowExtra)) / rows;
+    const height = Math.min(slotHeight, (area.width - (cols - 1) * gap) / cols / CARD_ASPECT);
+    if (height > 0 && (!best || height > best.height)) best = { rows, cols, height };
+  }
+  if (!best || best.height < single[0]!.height * 1.2) return single;
+  const width = best.height * CARD_ASPECT;
+  const used = best.rows * best.height + (best.rows - 1) * (gap + rowExtra);
+  const top = area.y + (area.height - used) / 2;
+  return Array.from({ length: count }, (_unused, index): CardSlot => {
+    const row = Math.floor(index / best.cols);
+    const inRow = row === best.rows - 1 ? count - best.cols * row : best.cols;
+    const rowWidth = inRow * width + (inRow - 1) * gap;
+    return {
+      x: area.x + (area.width - rowWidth) / 2 + (index - row * best.cols) * (width + gap),
+      y: top + row * (best.height + gap + rowExtra),
+      width,
+      height: best.height,
+      kind: "full",
+    };
+  });
+}
+
+/**
  * Card slots for a choice sheet: one row while the cards stay a readable, tappable size, otherwise a grid. A single
  * row of six on a phone overlaps its cards into slivers (QA C9, B-2); a 3x2 grid keeps each one whole and under a
  * thumb. Picks whichever of the row and the grids gives the larger card, so a wide sheet keeps its row.

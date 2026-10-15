@@ -29,6 +29,7 @@ import {
   PANEL_TEXT_INSETS,
   PANEL_TEXT_MIN_WIDTH,
   cardRow,
+  minionSlots,
   villainRowSlots,
   type Rect,
 } from "../../view/layout.js";
@@ -72,7 +73,7 @@ import { pileKey, type BoardDrawContext } from "./context.js";
 import { drawPile } from "./piles.js";
 import { addTapTarget } from "./tap-target.js";
 import { dimAlpha, focusKey, targetState } from "./selection.js";
-import { playAreaRow, sliceWithin } from "../../view/play-area-row.js";
+import { playAreaRow, separateColumnWidth, separateRowHeight, sliceWithin } from "../../view/play-area-row.js";
 import { setMask } from "../../ui/rex.js";
 import { clipToViewport } from "../../ui/scroll-clip.js";
 
@@ -143,7 +144,7 @@ export function drawEnemies(ctx: BoardDrawContext, rect: Rect, model: BoardModel
     }
   }
   if (model.minions.length > 0 && minionArea.height > 40) {
-    const slots = cardRow(minionArea, model.minions.length, { gap: 8, maxHeight: minionArea.height });
+    const slots = minionSlots(minionArea, model.minions.length, ctx.cardScale, 8, Math.max(0, chipRoom - 8));
     model.minions.forEach((minion, index) => drawCharacter(ctx, slots[index]!, minion, minionOptions(minion)));
     model.minions.forEach((minion, index) =>
       drawEngagedChip(ctx, slots[index]!, minion, dropped.get(minion.instanceId), chipRows),
@@ -1179,7 +1180,7 @@ export function drawPlayArea(
   // every other hero's play area is unchanged (PLAN.md Phase 7: "the board
   // has no Invocation deck; the client never mentions `separateDeck`").
   const hasSeparateDecks = model.separateDecks.length > 0;
-  const separateWidth = hasSeparateDecks ? Math.min(150, Math.max(96, rect.width * 0.26)) : 0;
+  const separateWidth = hasSeparateDecks ? separateColumnWidth(rect.width, rect.height - 30, ctx.cardScale) : 0;
   const gap = hasSeparateDecks ? 8 : 0;
   const inner: Rect = compact
     ? {
@@ -1220,7 +1221,7 @@ export function drawPlayArea(
     return;
   }
   // Past a readable floor the cards stop shrinking and the row scrolls sideways (issue #119, `view/play-area-row.ts`).
-  const { slots } = playAreaRow(inner, model.myPlayArea.length);
+  const { slots } = playAreaRow(inner, model.myPlayArea.length, ctx.cardScale);
   const ids = model.myPlayArea.map((panel) => panel.instanceId);
   const selection = ctx.controller.selection;
   const { row } = ctx.playAreaScroll;
@@ -1380,7 +1381,7 @@ function drawSeparateDecks(
   perspectiveId: PlayerId,
 ): void {
   const { scene } = ctx;
-  const rowHeight = Math.min(120, Math.max(70, (rect.height - (decks.length - 1) * 8) / Math.max(1, decks.length)));
+  const rowHeight = separateRowHeight(rect.height, decks.length, rect.width);
   decks.forEach((deck, index) => {
     const row: Rect = { x: rect.x, y: rect.y + index * (rowHeight + 8), width: rect.width, height: rowHeight };
     if (row.y + row.height > rect.y + rect.height) return;

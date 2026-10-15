@@ -44,6 +44,12 @@ describe("engagedChipWords", () => {
     expect(engagedChipWords("Doctor Strange", 360 / 4)).toBe("vs D. Strange");
   });
 
+  it("drops an alter ego's parenthetical before shortening", () => {
+    expect(engagedChipWords("Spider-Man (Peter Parker)", 120)).toBe("vs Spider-Man");
+    expect(engagedChipWords("Spider-Man (Peter Parker)", 85)).toBe("vs S.-Man");
+    expect(engagedChipWords("Spider-Man (Peter Parker)", 360)).toBe("vs Spider-Man (Peter Parker)");
+  });
+
   it("reaches the row only through the tile width", () => {
     const rows = engagedChipRows({ ...free, engagedName: "Wonder Man" }, Infinity, 85);
     expect(rows[0]).toMatchObject({ words: "vs W. Man", bounded: false });
