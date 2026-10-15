@@ -9,7 +9,7 @@
 
 import type Phaser from "phaser";
 import { cardOf, type GameEvent, type InstanceId, type PlayerId, type ZoneId } from "@mc/engine";
-import { artFor, type ArtSource } from "../../art/art-source.js";
+import { artFor, CARD_BACKS, type ArtSource } from "../../art/art-source.js";
 import { drawArt } from "../../art/card-art.js";
 import { appSession } from "../../session.js";
 import { accent, motion, signal, surface, typeRole } from "../../tokens.js";
@@ -35,7 +35,7 @@ import {
 } from "../../view/phase-wipe.js";
 import { statusGhostsFrom, statusStampsFrom, type StatusName } from "../../view/status-motion.js";
 import { threatTicksFrom, type ThreatTick } from "../../view/threat-motion.js";
-import { travelsFrom, type Travel } from "../../view/travel.js";
+import { DRAW_SPREAD_MAX_MS, handArrivalsFrom, travelsFrom, type Travel } from "../../view/travel.js";
 import { pileKey, type BoardFrame } from "./context.js";
 
 /** A status pip/tag just stamped on or fading off — `character-panel.ts` reads this to animate in place. */
@@ -103,6 +103,16 @@ export class BoardMotion {
    * cleared by `startTravels`.
    */
   #pendingMoves: readonly GameEvent[] = [];
+  /**
+   * Hand cards whose ghost has not landed yet, by when it does: their slot stays empty until then (`isArriving`), so a
+   * drawn card is seen to come from the deck rather than to be there already. Set when the command lands, before the
+   * first draw that could show them, and tightened to the real landing time by `startTravels`.
+   */
+  #arriving = new Map<InstanceId, number>();
+  /** The last clock reading `needsRedraw` looked at: a ghost starting or landing between two readings wants a redraw. */
+  #lastWake = 0;
+  /** A draw whose ghost could not be placed let its card go: the hand redraws once so the slot is not left empty. */
+  #wakeNow = false;
   /** Travels still in flight, with when each started — the same trick as beats, so a redraw mid-flight re-derives the ghost's position instead of losing it. */
   #travels: { readonly travel: Travel; readonly startedAt: number }[] = [];
 
@@ -198,6 +208,7 @@ export class BoardMotion {
     this.#beats = [];
     this.#pendingMoves = [];
     this.#travels = [];
+    this.#arriving.clear();
     this.#banners = [];
     this.#bannerPoll?.remove();
     this.#bannerPoll = null;
@@ -306,6 +317,7 @@ export class BoardMotion {
     const now = this.#scene.time.now;
     this.#beats = beatsFrom(events).map((beat) => ({ beat, startedAt: now }));
     this.#pendingMoves = events;
+    this.#holdDrawnCards(events, now);
 
     const transition = phaseTransitionFrom(events);
     if (transition) {
@@ -612,6 +624,46 @@ export class BoardMotion {
   }
 
   /**
+   * Holds each card drawn into the player's hand out of its slot until its ghost lands. The latest a ghost can land is
+   * known now (the draw's whole spread plus one flight), which is all the first draw needs; `startTravels` replaces it
+   * with the real time, or lets the card go if no ghost could be placed. Nothing is held under reduced motion.
+   */
+  #holdDrawnCards(events: readonly GameEvent[], now: number): void {
+    const perspectiveId = appSession().store.state.perspectiveId;
+    if (perspectiveId === null || appSession().settings.reducedMotion) return;
+    for (const instanceId of handArrivalsFrom(events, perspectiveId))
+      this.#arriving.set(instanceId, now + DRAW_SPREAD_MAX_MS + motion.cardDrawMs);
+  }
+
+  /** Whether this hand card is still in flight from the deck: the hand leaves its slot empty and the ghost fills it. */
+  isArriving(instanceId: InstanceId): boolean {
+    const landsAt = this.#arriving.get(instanceId);
+    return landsAt !== undefined && landsAt > this.#scene.time.now && !appSession().settings.reducedMotion;
+  }
+
+  /**
+   * Whether a ghost started or landed since the last look, so the board redraws to start it or to show the card it was
+   * carrying. Ghosts are redrawn from their own clock (`renderTravels`) but nothing else asks for that redraw.
+   */
+  needsRedraw(): boolean {
+    const now = this.#scene.time.now;
+    const last = this.#lastWake;
+    this.#lastWake = now;
+    if (this.#wakeNow) {
+      this.#wakeNow = false;
+      return true;
+    }
+    const crossed = (at: number): boolean => at > last && at <= now;
+    for (const [instanceId, landsAt] of this.#arriving) {
+      if (landsAt <= now) this.#arriving.delete(instanceId);
+    }
+    return this.#travels.some(
+      ({ travel, startedAt }) =>
+        crossed(startedAt + travel.delayMs) || crossed(startedAt + travel.delayMs + travelMs(travel)),
+    );
+  }
+
+  /**
    * Consumes the pending moves (if this is the first draw since they landed)
    * and turns them into travels, using `previous` for "where a card was" and
    * `current` for "where it is now". A no-op — cheaply, since nothing is
@@ -641,9 +693,20 @@ export class BoardMotion {
     };
 
     const now = this.#scene.time.now;
-    this.#travels.push(
-      ...travelsFrom(events, anchorBefore, anchorAfter, artOf).map((travel) => ({ travel, startedAt: now })),
-    );
+    const travels = travelsFrom(events, anchorBefore, anchorAfter, artOf);
+    this.#travels.push(...travels.map((travel) => ({ travel, startedAt: now })));
+    this.#lastWake = now;
+    for (const travel of travels) {
+      if (this.#arriving.has(travel.instanceId))
+        this.#arriving.set(travel.instanceId, now + travel.delayMs + travelMs(travel));
+    }
+    // A card held for a ghost that could not be drawn (its slot is off screen, a teammate's hand) is let go now.
+    const flown = new Set(travels.map((travel) => travel.instanceId));
+    for (const instanceId of handArrivalsFrom(events, perspectiveId)) {
+      if (!flown.has(instanceId) && this.#arriving.delete(instanceId)) {
+        this.#wakeNow = true;
+      }
+    }
   }
 
   /**
@@ -690,6 +753,14 @@ export class BoardMotion {
     });
   }
 
+  /** A draw's rects as of this frame: the slot it is flying to and the deck it leaves, where either is drawn. */
+  #retargeted(travel: Travel, live: BoardFrame, perspectiveId: PlayerId | null): Travel {
+    const to = live.hitRects.get(travel.instanceId) ?? travel.to;
+    const from =
+      (perspectiveId !== null ? live.pileRects.get(pileKey("deck", perspectiveId)) : undefined) ?? travel.from;
+    return { ...travel, from, to };
+  }
+
   /**
    * Draws every live travel as a ghost panel morphing from its "from" rect to
    * its "to" rect, then lets it go. Reduced motion drops the flight entirely —
@@ -702,17 +773,26 @@ export class BoardMotion {
    * frame's ghost along with everything else, so this recreates it already
    * partway along its path rather than snapping it back to `from`.
    */
-  renderTravels(): void {
+  renderTravels(live: BoardFrame): void {
     const scene = this.#scene;
+    const perspectiveId = appSession().store.state.perspectiveId;
     const now = scene.time.now;
-    this.#travels = this.#travels.filter((entry) => now - entry.startedAt < motion.cardMoveMs);
+    this.#travels = this.#travels.filter(
+      (entry) => now - entry.startedAt < entry.travel.delayMs + travelMs(entry.travel),
+    );
     if (appSession().settings.reducedMotion) return;
 
-    for (const { travel, startedAt } of this.#travels) {
-      const elapsed = now - startedAt;
-      const remaining = motion.cardMoveMs - elapsed;
+    for (const { travel: planned, startedAt } of this.#travels) {
+      // A draw is aimed at where its slot and its deck are *now*: the hand moves when the villain phase docks beside
+      // the table, and a ghost flown to the slot's old place would land beside the card it carries.
+      const travel = planned.draw ? this.#retargeted(planned, live, perspectiveId) : planned;
+      // A draw waits its turn in the line: its card is still on the deck, and its slot stays empty meanwhile.
+      const elapsed = now - startedAt - travel.delayMs;
+      if (elapsed < 0) continue;
+      const duration = travelMs(travel);
+      const remaining = duration - elapsed;
       if (remaining <= 0) continue;
-      const progress = elapsed / motion.cardMoveMs;
+      const progress = elapsed / duration;
 
       const fromCenter = { x: travel.from.x + travel.from.width / 2, y: travel.from.y + travel.from.height / 2 };
       const toCenter = { x: travel.to.x + travel.to.width / 2, y: travel.to.y + travel.to.height / 2 };
@@ -723,17 +803,22 @@ export class BoardMotion {
       // The card's own face when it's already on hand, so a travel reads as
       // "that card" rather than as a generic parchment tile; the plain
       // rectangle is the fallback for everything else — see `view/travel.ts`.
-      const image = travel.art
-        ? drawArt(
-            scene,
-            travel.art.key,
-            { x: -halfW, y: -halfH, width: travel.from.width, height: travel.from.height },
-            { fit: "cover" },
-          )
-        : null;
+      // A draw comes off the top of a facedown deck, so it flies as the card back; its face shows once it lands.
+      const backKey = travel.draw && this.#scene.textures.exists(CARD_BACKS.player.key) ? CARD_BACKS.player.key : null;
+      const image =
+        (backKey ?? travel.art?.key)
+          ? drawArt(
+              scene,
+              (backKey ?? travel.art?.key)!,
+              { x: -halfW, y: -halfH, width: travel.from.width, height: travel.from.height },
+              { fit: "cover" },
+            )
+          : null;
       const ghost = scene.add.graphics();
       if (!image)
-        ghost.fillStyle(surface.parchment.hex, 0.55).fillRect(-halfW, -halfH, travel.from.width, travel.from.height);
+        ghost
+          .fillStyle(surface.parchment.hex, travel.draw ? 1 : 0.55)
+          .fillRect(-halfW, -halfH, travel.from.width, travel.from.height);
       ghost.lineStyle(3, accent.heroRed.hex, 0.85).strokeRect(-halfW, -halfH, travel.from.width, travel.from.height);
 
       const container = scene.add.container(
@@ -756,6 +841,11 @@ export class BoardMotion {
       });
     }
   }
+}
+
+/** How long one travel's flight runs: a draw takes a beat longer than a card moving between two zones. */
+function travelMs(travel: Travel): number {
+  return travel.draw ? motion.cardDrawMs : motion.cardMoveMs;
 }
 
 /**

@@ -298,6 +298,8 @@ export class BoardScene extends Phaser.Scene {
   override update(_time: number, deltaMs: number): void {
     // Settings can be opened over the board from Pause and change the Card size under it; a wheel or drag asked for a scroll.
     if (this.#scrollDirty || (this.#model && appSession().settings.cardSize !== this.#drawnCardSize)) this.#draw();
+    // A drawn card's ghost starting or landing: the ghost is redrawn from its own clock, so something has to ask.
+    else if (this.#model && this.#motion.needsRedraw()) this.#draw();
     this.#hand.tick(deltaMs);
     this.#playAreaScroll.row.tick(deltaMs);
     // Checked every frame, not only on a store update: the villain-phase walkthrough and the pending-choice
@@ -1263,7 +1265,7 @@ export class BoardScene extends Phaser.Scene {
         ...this.#frame.hitRects,
       ]),
     );
-    this.#motion.renderTravels();
+    this.#motion.renderTravels(this.#frame);
     // Held while the villain-phase walkthrough or the round debrief covers the table: the walkthrough stays up
     // into the next player phase until the player continues or skips it, and every round after the first the
     // ROUND N · PLAYER PHASE band used to spend itself behind it (owner report, 2026-09-29).

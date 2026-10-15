@@ -294,6 +294,8 @@ export const guideTag = {
 export const motion = {
   /** A ghost card traveling between two zones (`view/travel.ts`). */
   cardMoveMs: 220,
+  /** A card flying from the deck into the hand (`view/travel.ts`): longer than a move, so the deal is seen. */
+  cardDrawMs: 340,
   /** A damage or heal beat, and the HP number counting to its new value. */
   damageMs: 260,
   /** The threat meter's fill sliding to its new length. */

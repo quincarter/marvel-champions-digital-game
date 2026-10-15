@@ -40,6 +40,10 @@ export interface Travel {
   readonly instanceId: InstanceId;
   readonly from: Rect;
   readonly to: Rect;
+  /** How long after the command landed the flight begins: a hand refill deals its cards one by one. 0 for every other move. */
+  readonly delayMs: number;
+  /** A draw from a deck into the hand: it flies longer, and its hand slot stays empty until it lands (`handArrivalsFrom`). */
+  readonly draw: boolean;
   /** The card's own face, when the scene already has it cached — the ghost draws the scan instead of a plain parchment rectangle. Null falls back to the rectangle, the same as before this existed. */
   readonly art: ArtSource | null;
 }
@@ -88,6 +92,29 @@ function rectsEqual(a: Rect, b: Rect): boolean {
   return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
 }
 
+/** The gap between two cards of one draw, so a refill reads as cards dealt one by one. */
+export const DRAW_STAGGER_MS = 100;
+/** The latest a card of one draw may start, so a ten-card draw does not take two seconds. */
+export const DRAW_SPREAD_MAX_MS = 600;
+
+/** Whether a move is a card leaving a player's deck for their hand: a draw (or a search that adds to hand). */
+function isDraw(from: ZoneId, to: ZoneId): boolean {
+  return from.kind === "deck" && to.kind === "hand";
+}
+
+/**
+ * The cards of one command that arrive in `playerId`'s hand from their deck — the slots the hand holds empty until
+ * each card's ghost lands. A teammate's draw has no hand on screen, so it is not here.
+ */
+export function handArrivalsFrom(events: readonly GameEvent[], playerId: string): readonly InstanceId[] {
+  const ids: InstanceId[] = [];
+  for (const event of events) {
+    if (event.type !== "cardMoved" || !isDraw(event.from, event.to)) continue;
+    if (event.to.kind === "hand" && event.to.playerId === playerId) ids.push(event.instanceId);
+  }
+  return ids;
+}
+
 /**
  * Travels for one command's `cardMoved` events, in order.
  *
@@ -113,7 +140,21 @@ export function travelsFrom(
     const to = anchorAfter(event.instanceId, event.to);
     if (!from || !to || rectsEqual(from, to)) return;
 
-    travels.push({ id: `travel-${index}`, instanceId: event.instanceId, from, to, art: artOf(event.instanceId) });
+    travels.push({
+      id: `travel-${index}`,
+      instanceId: event.instanceId,
+      from,
+      to,
+      delayMs: 0,
+      draw: isDraw(event.from, event.to),
+      art: artOf(event.instanceId),
+    });
   });
-  return travels;
+  // Deal the draws one after another, in the order the engine drew them.
+  const draws = travels.filter((travel) => travel.draw);
+  const gap = draws.length > 1 ? Math.min(DRAW_STAGGER_MS, DRAW_SPREAD_MAX_MS / (draws.length - 1)) : 0;
+  return travels.map((travel) => {
+    const order = draws.indexOf(travel);
+    return order > 0 ? { ...travel, delayMs: Math.round(order * gap) } : travel;
+  });
 }

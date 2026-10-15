@@ -174,7 +174,9 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
   const before = scene.children.list.length;
   model.hand.forEach((card, index) => {
     const slot = slots[index];
-    if (slot) drawHandCard(ctx, { ...slot, x: slot.x - drawnAt }, card, payment, discard);
+    // A card still flying in from the deck leaves its slot empty; its ghost fills it (`BoardMotion#isArriving`).
+    if (slot && !ctx.motion.isArriving(card.instanceId))
+      drawHandCard(ctx, { ...slot, x: slot.x - drawnAt }, card, payment, discard);
   });
   if (tabbed) {
     // Everything the cards just added (frames, scans, tags, rings, tap zones), reparented into one clipped strip —
