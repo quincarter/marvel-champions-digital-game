@@ -195,9 +195,8 @@ describe("villainTabLayout", () => {
 });
 
 describe("villainPeekLayout", () => {
-  it("sits the banner just above the action bar, with BACK inside it at a touch target's size", () => {
-    const peek = villainPeekLayout(PHONE.footer);
-    expect(peek.banner.y + peek.banner.height).toBeLessThanOrEqual(PHONE.footer.y);
+  it("lays BACK, the thumbnail and the text inside the banner, BACK at a touch target's size", () => {
+    const peek = villainPeekLayout({ x: 8, y: 110, width: 374, height: 112 });
     expect(inside(peek.back, peek.banner)).toBe(true);
     expect(inside(peek.thumb, peek.banner)).toBe(true);
     expect(peek.back.height).toBeGreaterThanOrEqual(hit.target);

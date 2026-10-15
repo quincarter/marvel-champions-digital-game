@@ -100,6 +100,15 @@ export async function reachVillainRecap(page: Page, phone: boolean): Promise<voi
       // The recap's last step comes first: a response that opened with the player phase is already pending behind it
       // (its sheet is running), and answering it here would skip the very thing under test.
       if (await continueRect(page)) return true;
+      // Auto-advance off: the docked phase waits on START VILLAIN PHASE, then holds each decision behind ANSWER.
+      for (const gate of ["startRect", "answerRect"]) {
+        const rect = await villainDebugRect(page, gate);
+        if (rect) {
+          if (phone) await page.touchscreen.tap(rect.x + rect.width / 2, rect.y + rect.height / 2);
+          else await pressAt(page, rect.x + rect.width / 2, rect.y + rect.height / 2);
+          return null;
+        }
+      }
       // "Hold encounter cards" (motion on): the docked phase waits on Next card before it moves to the next card.
       const next = await villainDebugRect(page, "nextRect");
       if (next) {

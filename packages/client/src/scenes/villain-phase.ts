@@ -115,7 +115,7 @@
 
 import Phaser from "phaser";
 import { addPressShield } from "../ui/press-shield.js";
-import { cardOf, type GameState, type PlayerId } from "@mc/engine";
+import { cardOf, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { POOL_DEPS } from "../content/pool.js";
@@ -148,6 +148,7 @@ import { queuedActivationsOf, type QueuedSeat } from "../view/villain-queue.js";
 import { teamStatusOf, type TeamStatusRow } from "../view/villain-team-status.js";
 import {
   advanceReveal,
+  decisionLabel,
   appendWalkthrough,
   emptyWalkthrough,
   defenderLineOf,
@@ -192,7 +193,14 @@ import {
 } from "../view/villain-rail-layout.js";
 import { encounterStripOf, type EncounterStrip } from "../view/villain-encounter-strip.js";
 import { villainHandTagsOf } from "../view/villain-hand-tags.js";
-import { abilityName, drawInterruptAnswer, drawVillainRailPanel, type RailBody } from "../ui/villain-rail-panel.js";
+import { SEAT_AVATAR_READY } from "../ui/seat-avatar.js";
+import {
+  abilityName,
+  drawInterruptAnswer,
+  drawVillainRailPanel,
+  type RailBody,
+  type RailGate,
+} from "../ui/villain-rail-panel.js";
 
 /** What Board hands over when it opens the walkthrough: the game as it stood before the command that began the phase. */
 export interface VillainPhaseLaunchData {
@@ -305,6 +313,15 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #hiddenChoice: string | null = null;
   /** How the phase was drawn last (`view/villain-dock.ts`), for the debug hook and the dump. */
   #presentation: VillainDockKind | "hidden" = "full";
+  /**
+   * START VILLAIN PHASE has been pressed (the owner's call, 2026-10-14): with Auto-advance off, the docked phase opens
+   * on its five steps and waits for the player before anything plays (`#gateEligible`).
+   */
+  #started = false;
+  /** Decisions the player chose to answer from the phase's notice (ANSWER ▸): their sheet may come up. */
+  #answered = new Set<string>();
+  /** When each held decision's notice first appeared, for its slide in. */
+  #noticeShownAt = new Map<string, number>();
   /** PEEK AT TABLE on a phone or tablet in portrait (P3): the board's tabs show, the phase keeps a banner. */
   #peeking = false;
   /** Encounter cards the player has moved past under "Hold encounter cards" (`#heldCard`). */
@@ -327,6 +344,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#released = new Set();
     this.#peeking = false;
     this.#slideStartedAt = null;
+    this.#started = false;
+    this.#answered = new Set();
+    this.#noticeShownAt = new Map();
     this.#review = data?.review ?? null;
     if (this.#review) {
       // A finished phase, read back: everything shown, nothing paced, nothing more to collect.
@@ -342,6 +362,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // first draw; without this the panel stays blank until something else
     // happens to redraw the scene.
     const artOff = cardArt(this).onArrived(() => this.#draw());
+    // A hero picture for a seat's avatar (`ui/seat-avatar.ts`) arrives the same way.
+    this.events.on(SEAT_AVATAR_READY, onResize);
     /**
      * The resize listener MUST be removed on shutdown.
      *
@@ -395,6 +417,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       this.#boardScene()?.setVillainDock(null);
       this.#boardScene()?.setVillainHandTags(null);
       this.scale.off("resize", onResize, this);
+      this.events.off(SEAT_AVATAR_READY, onResize);
       this.#unsubscribe?.();
       this.#unsubscribe = null;
       artOff();
@@ -457,7 +480,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
   /** The hand's tags for the board: what the open window offers is PLAY NOW. */
   #handTags(game: GameState, viewer: PlayerId | null): ReturnType<typeof villainHandTagsOf> {
-    const choice = this.#walkthrough.pausedAt ? game.pendingChoice : null;
+    // Before START nothing is on offer yet: the window is not shown.
+    const choice = this.#walkthrough.pausedAt && !this.#waitingToStart() ? game.pendingChoice : null;
     const offered = choice ? (inlineInterruptFor(choice, viewer) ?? []) : [];
     return villainHandTagsOf(game, viewer, POOL_DEPS, new Set(offered.map((option) => option.instanceId)));
   }
@@ -581,7 +605,80 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       pending: !!choice,
       inline: !!choice && !!state && inlineInterruptFor(choice, state.perspectiveId) !== null,
       finished: readyToAutoClose(this.#walkthrough.complete, this.#revealed, totalBeatsOf(this.#walkthrough)),
+      held: this.#heldChoiceId() !== null,
     });
+  }
+
+  /**
+   * Whether this phase waits on the player (the owner's call, 2026-10-14): docked beside the table, with Auto-advance
+   * off. Then it opens on START VILLAIN PHASE, and a decision someone has to make (a revealed card's choice, a defender)
+   * comes up as a notice with ANSWER instead of a sheet jumping over the cards. Full screen, a review, a tutorial's
+   * guide strip, or Auto-advance on run as before.
+   */
+  #gateEligible(): boolean {
+    if (this.#review) return false;
+    const settings = appSession().settings;
+    if (settings.villainAutoAdvance !== "off") return false;
+    const { width, height } = this.scale.gameSize;
+    const formFactor = formFactorFor(width, height);
+    if (isTabbed(formFactor) && this.#boardScene()?.guideStripContent()) return false;
+    const kind = villainPresentationFor({
+      formFactor,
+      dockTable: settings.villainDockTable,
+      recap: false,
+      peeking: false,
+    });
+    return kind !== "full";
+  }
+
+  #waitingToStart(): boolean {
+    return !this.#started && this.#gateEligible();
+  }
+
+  /** The open decision the phase is holding back (its sheet hidden under the phase), or null. */
+  #heldChoiceId(): string | null {
+    const state = this.#latest;
+    const choice = state?.game?.pendingChoice;
+    if (!state || !choice || !this.#gateEligible()) return null;
+    if (!this.#started) return choice.choiceId;
+    // The player's own interrupt is answered on the panel itself; anything else waits for ANSWER.
+    if (inlineInterruptFor(choice, state.perspectiveId) !== null) return null;
+    return this.#answered.has(choice.choiceId) ? null : choice.choiceId;
+  }
+
+  /** START VILLAIN PHASE: the beats start playing and any decision already open gets its notice. */
+  #start(): void {
+    if (this.#started) return;
+    this.#started = true;
+    this.#syncTiming();
+    this.#draw();
+  }
+
+  /** ANSWER ▸ on a held decision's notice: its sheet comes up over the phase (`#orderAgainstChoice`). */
+  #answer(choiceId: string): void {
+    this.#answered.add(choiceId);
+    this.#orderAgainstChoice();
+    this.#draw();
+  }
+
+  /**
+   * The gate the docked phase draws where its interrupt window goes: START before the phase begins, or a held
+   * decision's notice. Null when neither waits.
+   */
+  #gate(game: GameState, viewer: PlayerId | null, subject: InstanceId | null): RailGate | null {
+    if (this.#waitingToStart()) return { kind: "start", onPress: () => this.#start() };
+    const id = this.#heldChoiceId();
+    const choice = game.pendingChoice;
+    if (id === null || !choice) return null;
+    const who = seatName(game, choice.playerId, viewer);
+    const about = subject ? cardName(game, subject) : "The villain phase";
+    return {
+      kind: "decision",
+      title: `${about} · ${who === "You" ? "your decision" : `${who} decides`}`,
+      text: decisionLabel(choice, game, viewer),
+      cardInstanceId: subject,
+      onPress: () => this.#answer(id),
+    };
   }
 
   /** For the Ctrl+Shift+D diagnostic dump (`ui/debug-dump.ts`). */
@@ -603,6 +700,13 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #syncTiming(): void {
     // A review never paces or closes itself: the player opened it and closes it.
     if (this.#review) return;
+    // Nothing plays before START VILLAIN PHASE.
+    if (this.#waitingToStart()) {
+      this.#revealTimer?.remove();
+      this.#revealTimer = null;
+      this.#revealed = 0;
+      return;
+    }
     const reducedMotion = appSession().settings.reducedMotion;
     const total = totalBeatsOf(this.#walkthrough);
 
@@ -794,7 +898,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         return;
       }
       if (rects?.footer && kind === "peek") {
-        this.#drawPeek(rects.footer, reveal, game, viewer, viewerId);
+        this.#drawPeek(rects.footer, rects.banner ?? rects.footer, reveal, game, viewer, viewerId);
         return;
       }
     }
@@ -1745,13 +1849,17 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   ): void {
     this.#presentation = kind;
     const pause = this.#walkthrough.pausedAt;
-    const inline = pause && game.pendingChoice ? inlineInterruptFor(game.pendingChoice, viewer) : null;
+    let inline = pause && game.pendingChoice ? inlineInterruptFor(game.pendingChoice, viewer) : null;
     const strip = this.#encounterStrip(reveal, game, viewer);
     const revealing = reveal.steps[3]?.revealStatus === "active" && strip !== null && strip.tiles.length > 0;
+    const subject = (revealing ? strip?.current : null) ?? this.#walkthrough.activation?.enemyInstanceId ?? null;
+    // Before START, even the player's own interrupt waits: the gate takes the window's place.
+    const gate = this.#gate(game, viewer, subject);
+    if (gate?.kind === "start") inline = null;
     const input = {
       panel,
       revealing,
-      interruptOptions: inline?.length ?? 0,
+      interruptOptions: inline?.length ?? (gate ? 1 : 0),
       cardScale: cardSizeFactor(appSession().settings.cardSize),
     };
     const layout =
@@ -1763,17 +1871,20 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
     addPressShield(this, panel);
     // On a phone the answer takes the action bar's place: the bar underneath must not take the press.
-    if (kind === "tab" && footer && inline) addPressShield(this, footer);
+    if (kind === "tab" && footer && (inline || gate)) addPressShield(this, footer);
     const panelsFrom = this.children.list.length;
 
     const active = reveal.steps.find((step) => step.revealStatus === "active");
-    const subtitle = pause
-      ? pause.label
-      : this.#walkthrough.complete && reveal.caughtUp
-        ? "Villain phase complete."
-        : active
-          ? `Step ${active.number} of ${reveal.steps.length} · ${active.title}`
-          : "The villain phase is starting…";
+    const subtitle =
+      gate?.kind === "start"
+        ? "Waiting for you to start"
+        : pause
+          ? pause.label
+          : this.#walkthrough.complete && reveal.caughtUp
+            ? "Villain phase complete."
+            : active
+              ? `Step ${active.number} of ${reveal.steps.length} · ${active.title}`
+              : "The villain phase is starting…";
 
     const current = revealing ? strip.current : null;
     const body: RailBody = current
@@ -1807,6 +1918,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
               onResolve: (ids) => this.#resolve(ids),
             }
           : null,
+      gate,
+      onGateDrawn: (objects) => this.#slideNotice(objects, panel),
       log,
       onNext: this.#heldCard() !== null ? () => this.#nextCard() : null,
       autoAdvance: appSession().settings.villainAutoAdvance,
@@ -1828,7 +1941,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         presentation: () => this.#presentation,
         useRect: () => layout.interrupt?.use ?? null,
         nextRect: () => stops.get("next")?.rect ?? null,
-        resolveRect: () => layout.interrupt?.resolve ?? null,
+        resolveRect: () => (inline ? (layout.interrupt?.resolve ?? null) : null),
+        startRect: () => stops.get("start")?.rect ?? null,
+        answerRect: () => stops.get("answer")?.rect ?? null,
       };
     }
     // Slides in from its edge as the phase begins (the right on desktop, the top on a tablet in landscape, the bottom
@@ -1890,13 +2005,23 @@ export class VillainPhaseOverlay extends Phaser.Scene {
    * the board with what it waits on and BACK, and, when the decision is the player's own, its two answers in the
    * action bar's place.
    */
-  #drawPeek(footer: Rect, reveal: Reveal, game: GameState, viewer: PlayerId | null, viewerId: PlayerId): void {
+  #drawPeek(
+    footer: Rect,
+    banner: Rect,
+    reveal: Reveal,
+    game: GameState,
+    viewer: PlayerId | null,
+    viewerId: PlayerId,
+  ): void {
     this.#presentation = "peek";
-    const layout = villainPeekLayout(footer);
+    const layout = villainPeekLayout(banner);
     const pause = this.#walkthrough.pausedAt;
-    const inline = pause && game.pendingChoice ? inlineInterruptFor(game.pendingChoice, viewer) : null;
+    let inline = pause && game.pendingChoice ? inlineInterruptFor(game.pendingChoice, viewer) : null;
+    const peekStrip = this.#encounterStrip(reveal, game, viewer);
+    const gate = this.#gate(game, viewer, peekStrip?.current ?? this.#walkthrough.activation?.enemyInstanceId ?? null);
+    if (gate?.kind === "start") inline = null;
     addPressShield(this, layout.banner);
-    if (inline) addPressShield(this, footer);
+    if (inline || gate) addPressShield(this, footer);
     const panelsFrom = this.children.list.length;
     const stops = new Map<string, FocusStop>();
 
@@ -1957,9 +2082,14 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       1,
     );
     fitText(headingText, textWidth, 11);
-    const line = inline
-      ? `${subject ? cardName(game, subject) : "The villain phase"} waits on your answer`
-      : (reveal.current?.text ?? "The villain phase is running.");
+    const line =
+      gate?.kind === "start"
+        ? "The villain phase waits for you to start it"
+        : gate?.kind === "decision"
+          ? gate.title.replace(/ · /, ": ")
+          : inline
+            ? `${subject ? cardName(game, subject) : "The villain phase"} waits on your answer`
+            : (reveal.current?.text ?? "The villain phase is running.");
     const main = this.add
       .text(textX, layout.text.y + 20, line, textStyle({ ...typeRole.rowTitle, size: 16 }, surface.paper.hex))
       .setOrigin(0, 0)
@@ -1990,7 +2120,27 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     );
     stops.set("back", { rect: layout.back, activate: back });
 
-    if (inline && pause) {
+    if (gate) {
+      const rect: Rect = {
+        x: footer.x + 8,
+        y: footer.y + 6,
+        width: footer.width - 16,
+        height: Math.max(hit.target, footer.height - 12),
+      };
+      const ground = this.add.graphics();
+      ground.fillStyle(surface.ink.hex, 1).fillRect(footer.x, footer.y, footer.width, footer.height);
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "primary",
+          label: gate.kind === "start" ? "Start villain phase ▸" : "Answer ▸",
+          type: { ...typeRole.barTitle, size: 22 },
+          rect,
+          tint: { fill: signal.caution.hex, ink: surface.ink.hex },
+          onClick: gate.onPress,
+        }),
+      );
+      stops.set(gate.kind === "start" ? "start" : "answer", { rect, activate: gate.onPress });
+    } else if (inline && pause) {
       const resolveWidth = Math.round((footer.width - 24) * 0.38);
       const height = Math.max(hit.target, footer.height - 12);
       drawInterruptAnswer(
@@ -2013,7 +2163,17 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       );
     }
 
-    this.#route?.set([...villainRailFocusOrder(inline?.map((o) => o.optionId) ?? []), "back"], stops);
+    this.#route?.set(
+      [
+        ...villainRailFocusOrder(inline?.map((o) => o.optionId) ?? []).filter(
+          (key) => key !== "start" && key !== "answer",
+        ),
+        "start",
+        "answer",
+        "back",
+      ],
+      stops,
+    );
     if (import.meta.env.DEV) {
       (window as unknown as { __mcVillainPhaseDebug?: unknown }).__mcVillainPhaseDebug = {
         continueRect: () => null,
@@ -2022,9 +2182,20 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         presentation: () => this.#presentation,
         useRect: () => stops.get(`interrupt:${inline?.[0]?.optionId}`)?.rect ?? stops.get("confirm")?.rect ?? null,
         resolveRect: () => stops.get("resolve")?.rect ?? null,
+        startRect: () => stops.get("start")?.rect ?? null,
+        answerRect: () => stops.get("answer")?.rect ?? null,
       };
     }
     this.#motion.enter(this, { scrim: [], panels: this.children.list.slice(panelsFrom) });
+  }
+
+  /** A held decision's notice slides in from the panel's right edge the first time it is drawn, like a notification. */
+  #slideNotice(objects: readonly Phaser.GameObjects.GameObject[], panel: Rect): void {
+    const id = this.#heldChoiceId();
+    if (id === null || !this.#started) return;
+    const shownAt = this.#noticeShownAt.get(id) ?? this.time.now;
+    this.#noticeShownAt.set(id, shownAt);
+    slideIn(this, objects, { dx: panel.width, dy: 0 }, this.time.now - shownAt);
   }
 
   /** The rail while hidden: a handle at the table's right edge that brings it back. */

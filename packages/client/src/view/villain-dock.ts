@@ -60,7 +60,15 @@ export interface VillainDockRects {
   readonly panel: Rect | null;
   /** The thumb strip for the phase's own buttons on tabbed layouts (the action bar's place); null elsewhere. */
   readonly footer: Rect | null;
+  /**
+   * Where the peek banner sits (P3): under the chrome and the board's tab rail, so the hand stays in view (the owner
+   * found the first version, over the action bar, covering the hand). Null outside peek.
+   */
+  readonly banner: Rect | null;
 }
+
+/** The peek banner's height. */
+export const PEEK_BANNER_HEIGHT = 112;
 
 /**
  * The rectangles for `request`, read off the layout the Board drew with it (`rail` must have been laid out with
@@ -81,6 +89,7 @@ export function villainDockRects(
       return {
         panel: { x: viewport.x + viewport.width - dockWidth, y: top, width: dockWidth, height: bottom - top },
         footer: null,
+        banner: null,
       };
     case "band": {
       // Down to the player band: the hero and the play area are what the player answers with.
@@ -89,6 +98,7 @@ export function villainDockRects(
       return {
         panel: { x: left, y: top, width: viewport.x + viewport.width - left, height: Math.max(0, playerTop - 8 - top) },
         footer: null,
+        banner: null,
       };
     }
     case "tab":
@@ -96,9 +106,15 @@ export function villainDockRects(
       const x = hand?.x ?? viewport.x;
       const width = hand?.width ?? viewport.width;
       const handTop = hand?.y ?? bottom;
+      const tabs = zones.tabs;
+      const bannerTop = tabs ? tabs.y + tabs.height + 8 : top + 8;
       return {
         panel: request === "tab" ? { x, y: top, width, height: Math.max(0, handTop - top) } : null,
         footer: zones.actionBar ?? null,
+        banner:
+          request === "peek"
+            ? { x: x + 8, y: bannerTop, width: Math.max(0, width - 16), height: PEEK_BANNER_HEIGHT }
+            : null,
       };
     }
   }

@@ -32,6 +32,7 @@ import {
   type Pause,
 } from "../view/villain-walkthrough.js";
 import { noteHoverCard } from "./card-hover-preview.js";
+import { drawSeatAvatar } from "./seat-avatar.js";
 import { bindHoldTarget } from "./hold-target.js";
 import { textStyle } from "./theme.js";
 import { McButton, fitText, label } from "./widgets.js";
@@ -62,6 +63,24 @@ export interface RailInterrupt {
   readonly onResolve: (optionIds: readonly string[]) => void;
 }
 
+/**
+ * The window in the interrupt window's place while the phase waits on the player for something that is not an
+ * interrupt (the owner's call, 2026-10-14): START VILLAIN PHASE before anything plays, or a decision someone has to make
+ * (a revealed card's choice, a defender) announced with ANSWER, which opens its sheet. Never both.
+ */
+export type RailGate =
+  | { readonly kind: "start"; readonly onPress: () => void }
+  | {
+      readonly kind: "decision";
+      /** "SONIC BOOM · CAPTAIN MARVEL DECIDES". */
+      readonly title: string;
+      /** What there is to decide, in the pause's own words. */
+      readonly text: string;
+      /** The card the decision is about (the revealed card, the attacking enemy); null when there is none. */
+      readonly cardInstanceId: InstanceId | null;
+      readonly onPress: () => void;
+    };
+
 export interface RailPanelArgs {
   readonly layout: VillainRailLayout;
   readonly game: GameState;
@@ -74,6 +93,10 @@ export interface RailPanelArgs {
   readonly strip: EncounterStrip | null;
   readonly body: RailBody;
   readonly interrupt: RailInterrupt | null;
+  /** START or ANSWER, drawn where the interrupt window goes (`layout.interrupt`); null when neither waits. */
+  readonly gate?: RailGate | null;
+  /** Hears the objects the gate drew, so the scene can slide a decision's notice in. */
+  readonly onGateDrawn?: (objects: readonly Phaser.GameObjects.GameObject[]) => void;
   /** The phase log, most recent first: step number and text. */
   readonly log: readonly { readonly step: number; readonly text: string }[];
   /** Next card, while the reveal is held on an encounter card ("Hold encounter cards"); null otherwise. */
@@ -120,11 +143,16 @@ export function drawVillainRailPanel(scene: Phaser.Scene, args: RailPanelArgs): 
 
   drawSteps(scene, layout, args.steps, args.paused);
   if (args.strip && layout.encounterLabel && layout.encounterStrip) {
-    drawStrip(scene, layout.encounterLabel, layout.encounterStrip, args.strip);
+    drawStrip(scene, layout.encounterLabel, layout.encounterStrip, args.strip, args.game);
   }
   if (args.body.kind === "reveal") drawReveal(scene, layout, args, args.body, stops);
   else drawHappening(scene, layout, args, args.body);
   if (args.interrupt && layout.interrupt) drawInterrupt(scene, layout.interrupt, args, args.interrupt, stops);
+  else if (args.gate && layout.interrupt) {
+    const from = scene.children.list.length;
+    drawGate(scene, layout.interrupt, args, args.gate, stops);
+    args.onGateDrawn?.(scene.children.list.slice(from));
+  }
   drawLog(scene, layout.log, args.log);
   drawFooter(scene, layout, args.autoAdvance, args.onToggle);
   if (layout.toggle.width > 0) stops.set("toggle", { rect: layout.toggle, activate: args.onToggle });
@@ -233,7 +261,13 @@ const SHORT_TITLES: Record<string, string> = {
 };
 const shortTitle = (kind: string): string => SHORT_TITLES[kind] ?? "";
 
-function drawStrip(scene: Phaser.Scene, labelRect: Rect, stripRect: Rect, strip: EncounterStrip): void {
+function drawStrip(
+  scene: Phaser.Scene,
+  labelRect: Rect,
+  stripRect: Rect,
+  strip: EncounterStrip,
+  game: GameState,
+): void {
   const counter = strip.position
     ? scene.add
         .text(
@@ -278,19 +312,14 @@ function drawStrip(scene: Phaser.Scene, labelRect: Rect, stripRect: Rect, strip:
     const g = scene.add.graphics();
     g.lineStyle(border.control, surface.paper.hex, live ? 1 : 0.45);
     g.strokeRect(rect.x, rect.y, rect.width, rect.height);
-    const swatch: Rect = { x: rect.x + 10, y: rect.y + 10, width: 28, height: rect.height - 20 };
-    if (tile.status === "facedown" || tile.status === "next") {
-      g.lineStyle(border.detail, surface.paper.hex, 0.6);
-      g.strokeRect(swatch.x, swatch.y, swatch.width, swatch.height);
-    } else {
-      g.fillStyle(live ? accent.heroRed.hex : signal.spent.hex, 1).fillRect(
-        swatch.x,
-        swatch.y,
-        swatch.width,
-        swatch.height,
-      );
+    // Whose card it is, as the hero's face: a hero's name did not fit a tile on a phone (the owner, 2026-10-14).
+    const side = Math.max(0, rect.height - 12);
+    const swatch: Rect = { x: rect.x + 6, y: rect.y + 6, width: side, height: side };
+    const frame = live ? accent.heroRed.hex : tile.status === "done" ? surface.paper.hex : surface.paper.hex;
+    drawSeatAvatar(scene, swatch, game, tile.playerId, frame, tile.status === "facedown" ? 0.6 : 1);
+    if (tile.isViewer) {
+      label(scene, swatch.x + swatch.width + 10, rect.y + 10, "YOU", typeRole.label, surface.paper.hex, ink.label);
     }
-    label(scene, swatch.x + swatch.width + 10, rect.y + 10, tile.seat, typeRole.label, surface.paper.hex, ink.label);
     const status =
       tile.status === "now" ? "now" : tile.status === "next" ? "next" : tile.status === "done" ? "done" : "";
     const line = scene.add
@@ -652,6 +681,78 @@ export function drawInterruptAnswer(
     }),
   );
   stops.set("resolve", { rect: rects.resolve, activate: letItResolve });
+}
+
+/** START VILLAIN PHASE, or a decision's notice with ANSWER, in the interrupt window's frame. */
+function drawGate(
+  scene: Phaser.Scene,
+  layout: VillainRailInterruptLayout,
+  args: RailPanelArgs,
+  gate: RailGate,
+  stops: Map<string, FocusStop>,
+): void {
+  const { frame } = layout;
+  const g = scene.add.graphics();
+  g.fillStyle(surface.ink.hex, 1).fillRect(frame.x, frame.y, frame.width, frame.height);
+  g.lineStyle(border.object, signal.caution.hex, 1).strokeRect(frame.x, frame.y, frame.width, frame.height);
+  const title = gate.kind === "start" ? "Ready when you are" : gate.title;
+  const heading = label(
+    scene,
+    layout.title.x,
+    layout.title.y,
+    title,
+    { ...typeRole.label, size: 11 },
+    signal.caution.hex,
+    1,
+  );
+  fitText(heading, layout.title.width, 11);
+  const cardId = gate.kind === "decision" ? gate.cardInstanceId : null;
+  if (cardId) {
+    drawCard(
+      scene,
+      layout.card,
+      args.game,
+      cardId,
+      args.onInspect,
+      `gate:${cardId}`,
+      inspectModel(args.game, cardId, null, args.viewerId, POOL_DEPS).art,
+    );
+  }
+  const textRect = cardId
+    ? layout.text
+    : { ...layout.text, x: layout.card.x, width: layout.text.x + layout.text.width - layout.card.x };
+  const body =
+    gate.kind === "start"
+      ? "Threat goes on, the villain and minions activate, then the encounter cards are dealt and revealed. Start when you have read the table."
+      : gate.text;
+  const text = scene.add
+    .text(textRect.x, textRect.y, body, textStyle({ ...typeRole.body, size: 14 }, surface.paper.hex))
+    .setOrigin(0, 0)
+    .setWordWrapWidth(Math.max(1, textRect.width));
+  const lineHeight = text.height / Math.max(1, text.getWrappedText(body).length);
+  text.setMaxLines(Math.max(1, Math.floor(textRect.height / lineHeight)));
+
+  // One wide button: the use and resolve rects together.
+  const left = Math.min(layout.use.x, layout.resolve.x);
+  const right = Math.max(layout.use.x + layout.use.width, layout.resolve.x + layout.resolve.width);
+  const rect: Rect = { x: left, y: layout.use.y, width: right - left, height: layout.use.height };
+  if (args.layout.kind === "tab") {
+    // The action bar's place: cover the bar underneath, as the interrupt's answers do.
+    const ground = scene.add.graphics();
+    ground.fillStyle(surface.ink.hex, 1).fillRect(rect.x - 8, rect.y - 6, rect.width + 16, rect.height + 12);
+  }
+  const key = gate.kind === "start" ? "start" : "answer";
+  args.buttons.push(
+    new McButton(scene, {
+      kind: "primary",
+      label: gate.kind === "start" ? "Start villain phase ▸" : "Answer ▸",
+      type: { ...typeRole.barTitle, size: args.layout.kind === "tab" ? 22 : 26 },
+      rect,
+      tint: { fill: signal.caution.hex, ink: surface.ink.hex },
+      onClick: gate.onPress,
+    }),
+  );
+  stops.set(key, { rect, activate: gate.onPress });
 }
 
 /** "Spider-Sense": the printed name of the ability on offer, else the card's. */

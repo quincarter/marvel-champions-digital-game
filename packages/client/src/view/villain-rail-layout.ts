@@ -552,9 +552,8 @@ export interface VillainPeekLayout {
   readonly back: Rect;
 }
 
-export function villainPeekLayout(footer: Rect): VillainPeekLayout {
-  const height = 112;
-  const banner: Rect = { x: footer.x + 8, y: footer.y - height - 8, width: footer.width - 16, height };
+export function villainPeekLayout(banner: Rect): VillainPeekLayout {
+  const height = banner.height;
   const thumbHeight = height - 24;
   const thumb: Rect = {
     x: banner.x + 12,

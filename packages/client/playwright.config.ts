@@ -30,6 +30,19 @@ export default defineConfig({
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL: `http://localhost:${PORT}`,
+    // Auto-advance on for the suite (2026-10-14): with it off (the game's default) the docked villain phase waits on
+    // START VILLAIN PHASE and holds each decision behind ANSWER, which every spec that plays through a villain phase
+    // would have to press. `villain-phase-gate.spec.ts` plays the default, gated flow itself; a spec that sets
+    // `mc-settings` on its own replaces this.
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: `http://localhost:${PORT}`,
+          localStorage: [{ name: "mc-settings", value: JSON.stringify({ version: 1, villainAutoAdvance: "on" }) }],
+        },
+      ],
+    },
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "off",
@@ -94,6 +107,7 @@ export default defineConfig({
         "payment-order.spec.ts",
         "qa-v0200-client.spec.ts",
         "card-size-scroll.spec.ts",
+        "villain-phase-gate.spec.ts",
       ],
     },
   ],

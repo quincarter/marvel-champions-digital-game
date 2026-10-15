@@ -363,10 +363,11 @@ describe("screen focus routes", () => {
   });
 
   test("the docked rail puts the interrupt answer first, then Skip, Hide and the auto-advance toggle", () => {
-    expect(villainRailFocusOrder()).toEqual(["skip", "hide", "toggle"]);
-    expect(villainRailFocusOrder([], true)).toEqual(["next", "skip", "hide", "toggle"]);
-    expect(villainRailFocusOrder(["a:1"])).toEqual(["interrupt:a:1", "resolve", "skip", "hide", "toggle"]);
-    expect(villainRailFocusOrder(["a:1", "a:2"])).toEqual([
+    expect(villainRailFocusOrder().slice(0, 2)).toEqual(["start", "answer"]);
+    expect(villainRailFocusOrder().slice(2)).toEqual(["skip", "hide", "toggle"]);
+    expect(villainRailFocusOrder([], true).slice(2)).toEqual(["next", "skip", "hide", "toggle"]);
+    expect(villainRailFocusOrder(["a:1"]).slice(2)).toEqual(["interrupt:a:1", "resolve", "skip", "hide", "toggle"]);
+    expect(villainRailFocusOrder(["a:1", "a:2"]).slice(2)).toEqual([
       "interrupt:a:1",
       "interrupt:a:2",
       "confirm",

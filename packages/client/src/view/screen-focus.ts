@@ -258,6 +258,9 @@ export function villainPhaseFocusOrder(
  */
 export function villainRailFocusOrder(interruptOptionIds: readonly string[] = [], next = false): readonly string[] {
   return [
+    // START VILLAIN PHASE, or a held decision's ANSWER: whichever the phase is waiting on (only one is ever drawn).
+    "start",
+    "answer",
     // Next card, while the reveal is held on an encounter card: the one thing the screen is waiting on.
     ...(next ? ["next"] : []),
     ...interruptOptionIds.map((id) => `interrupt:${id}`),

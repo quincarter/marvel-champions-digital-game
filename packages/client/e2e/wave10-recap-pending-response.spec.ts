@@ -69,6 +69,11 @@ test("the recap's CONTINUE closes it and shows the response that opened with the
   test.setTimeout(240_000);
   const phone = info.project.name === "phone";
   const errors = trackErrors(page);
+  // The game's default (the suite runs with Auto-advance on): the recap is held open, and the docked phase waits on
+  // START and ANSWER on the way to it.
+  await page.addInitScript(() =>
+    localStorage.setItem("mc-settings", JSON.stringify({ version: 1, villainAutoAdvance: "off" })),
+  );
   await installWave6Helpers(page);
   await openApp(page);
   await setup(page);

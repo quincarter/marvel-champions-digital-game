@@ -19,6 +19,7 @@ import type { VariableListScroll } from "../view/variable-list-scroll.js";
 import type { RecapChange, RecapColumn, RecapEntry, RecapResponse, VillainRecap } from "../view/villain-recap.js";
 import { villainRecapLayout, type VillainRecapLayout } from "../view/villain-recap-layout.js";
 import { noteHoverCard } from "./card-hover-preview.js";
+import { drawSeatAvatar } from "./seat-avatar.js";
 import { bindHoldTarget } from "./hold-target.js";
 import { McScrollRegion } from "./scroll-region.js";
 import { textStyle } from "./theme.js";
@@ -296,15 +297,13 @@ function drawEntry(
         width: w,
         height: h,
       };
-      const c = scene.add.graphics();
-      c.fillStyle(inkColor, 1).fillRect(r.x, r.y, r.width, r.height);
-      const seat = scene.add
-        .text(r.x + w / 2, r.y + h / 2, card.seat.toUpperCase(), textStyle(typeRole.label, surface.paper.hex))
-        .setOrigin(0.5)
-        .setWordWrapWidth(w - 4)
-        .setAlign("center");
-      // A long hero name ("WONDER MAN") wraps by word, and a word wider than the chip ran past its edges: shrink it.
-      fitText(seat, w - 4, typeRole.label.size);
+      // The recipient as the hero's face (a name did not fit the chip on a phone), "YOU" across the foot of your own.
+      drawSeatAvatar(scene, r, game, card.playerId, inkColor);
+      if (card.seat.toUpperCase() === "YOU") {
+        const band = scene.add.graphics();
+        band.fillStyle(inkColor, 0.85).fillRect(r.x, r.y + h - 16, w, 16);
+        scene.add.text(r.x + w / 2, r.y + h - 8, "YOU", textStyle(typeRole.label, surface.paper.hex)).setOrigin(0.5);
+      }
       thumbsBottom = Math.max(thumbsBottom, r.y + h);
     });
     thumbsRight = left;

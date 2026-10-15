@@ -777,8 +777,13 @@ export function recapPlacementFor(input: {
   readonly pending: boolean;
   readonly inline: boolean;
   readonly finished: boolean;
+  /**
+   * The docked phase is holding the decision back (the owner's call, 2026-10-14): before the player started the phase,
+   * or until they press ANSWER on its notice. The sheet stays hidden under the phase until then.
+   */
+  readonly held?: boolean;
 }): RecapPlacement {
   if (!input.pending) return { recapOnTop: true, recapTakesInput: true };
-  const onTop = input.inline || input.finished;
+  const onTop = input.inline || input.finished || input.held === true;
   return { recapOnTop: onTop, recapTakesInput: onTop };
 }

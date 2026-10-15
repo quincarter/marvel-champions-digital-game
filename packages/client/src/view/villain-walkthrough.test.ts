@@ -832,6 +832,16 @@ describe("enemy team choices (MC56 p. 6, the grim rule)", () => {
   });
 });
 
+describe("recapPlacementFor: a decision the docked phase holds back", () => {
+  test("held, the phase stays on top and takes the clicks (its START or ANSWER is the way on)", () => {
+    expect(recapPlacementFor({ pending: true, inline: false, finished: false, held: true })).toEqual({
+      recapOnTop: true,
+      recapTakesInput: true,
+    });
+    expect(recapPlacementFor({ pending: true, inline: false, finished: false, held: false }).recapOnTop).toBe(false);
+  });
+});
+
 describe("recapPlacementFor: the recap against an open decision (click-through F1)", () => {
   test("with nothing open the recap takes its own clicks", () => {
     expect(recapPlacementFor({ pending: false, inline: false, finished: false })).toEqual({
