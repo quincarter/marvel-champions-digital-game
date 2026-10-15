@@ -578,6 +578,19 @@ async function startDevTipsGame(): Promise<void> {
 async function startDevSetupGame(): Promise<void> {
   const { store } = appSession();
   if (store.state.game) return;
+  // `?screen=setup-deal&scenario=klaw&deck=core-she-hulk-aggression`: a one-seat setup of a chosen scenario and
+  // precon, to look at a setup-time decision (the owner's I Object! report, a Setup ability that asks something).
+  const params = new URLSearchParams(window.location.search);
+  const pickedDeck = params.get("deck");
+  if (pickedDeck) {
+    await store.start({
+      scenarioId: params.get("scenario") ?? "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: pickedDeck }],
+      seed: Number(params.get("seed") ?? 1),
+    });
+    return;
+  }
   const scenario = POOL_SCENARIOS[0]!;
   const options = deckOptionsOf([], POOL_CARDS, POOL_VERSION, POOL_DEPS);
   const seats = options

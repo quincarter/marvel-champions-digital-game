@@ -13,6 +13,7 @@
  */
 
 import { triggerCaption, triggerOrdinal } from "../view/trigger-caption.js";
+import { triggerWindowContextOf, type TriggerWindowContext } from "../view/trigger-window-context.js";
 import Phaser from "phaser";
 import {
   cardOf,
@@ -482,7 +483,17 @@ export class ChoiceOverlay extends Phaser.Scene {
     const panelsFrom = this.children.list.length;
 
     const sheetWidth = Math.max(280, Math.min(areaWidth - (phone ? 16 : 80) - railWidth, asCards ? 1040 : 560));
-    const sheetHeight = Math.min(areaHeight - (phone ? 16 : 80), (asCards ? 620 : 560) + extraHeight);
+    // What the optional interrupt/response window is about, measured now so the sheet grows to hold it.
+    const triggerContext = triggerWindowContextOf(
+      state.game,
+      choice,
+      state.perspectiveId ?? choice.playerId,
+      POOL_DEPS,
+    );
+    const contextHeight = triggerContext
+      ? this.#drawTriggerContext(triggerContext, 0, 0, sheetWidth - 24, true) + 10
+      : 0;
+    const sheetHeight = Math.min(areaHeight - (phone ? 16 : 80), (asCards ? 620 : 560) + extraHeight + contextHeight);
     // In rail mode the rail and the sheet are centered together as one group — the same composition Inspect's D08
     // pair uses for its own card/rules panels (`view/inspect-layout.ts`) — rather than the sheet alone staying
     // centered and the rail hanging off whichever side has room.
@@ -598,6 +609,10 @@ export class ChoiceOverlay extends Phaser.Scene {
     // The compact strip (phone, phone landscape, tablet portrait): there's no width to spare beside the sheet at
     // these sizes, so the source card sits inside it instead, just under the title bar and above everything else.
     let bodyTop = bar.y + bar.height;
+    if (triggerContext) {
+      this.#drawTriggerContext(triggerContext, sheet.x + 12, bodyTop + 8, sheet.width - 24, false);
+      bodyTop += contextHeight;
+    }
     if (panelMode === "strip" && (sourcePanel || instruction)) {
       const stripArea: Rect = { x: sheet.x, y: bodyTop, width: sheet.width, height: extraHeight - 10 };
       if (sourcePanel) {
@@ -1802,6 +1817,37 @@ export class ChoiceOverlay extends Phaser.Scene {
   #canCommit(choice: PendingChoice): boolean {
     const payment = this.#paymentSheet(choice);
     return payment ? payment.canConfirm : canConfirmChoice(choice, this.#selected.length);
+  }
+
+  /**
+   * An optional interrupt/response window's plain-words context (`view/trigger-window-context.ts`): the headline
+   * (what is about to happen or just happened), why now, and what confirming does. Returns the height used;
+   * `measureOnly` builds and destroys the text so the sheet can be sized to fit it.
+   */
+  #drawTriggerContext(
+    context: TriggerWindowContext,
+    x: number,
+    y: number,
+    width: number,
+    measureOnly: boolean,
+  ): number {
+    const made: Phaser.GameObjects.Text[] = [];
+    let cursor = y;
+    const add = (text: string, size: number, weight: "bold" | "normal", color: number, alpha: number): void => {
+      const object = this.add
+        .text(x, cursor, text, textStyle(typeRole.body, color, alpha))
+        .setFontSize(size)
+        .setFontStyle(weight)
+        .setWordWrapWidth(width);
+      made.push(object);
+      cursor += object.height + 4;
+    };
+    add(context.headline, 18, "bold", surface.ink.hex, 1);
+    if (context.whyNow) add(context.whyNow, 13, "normal", surface.ink.hex, ink.secondary);
+    for (const effect of context.effects) add(`If you confirm: ${effect}`, 13, "bold", surface.ink.hex, 1);
+    const used = cursor - y;
+    if (measureOnly) made.forEach((object) => object.destroy());
+    return used;
   }
 
   /** One red commit, plus a quiet alternative when declining is legal. */
