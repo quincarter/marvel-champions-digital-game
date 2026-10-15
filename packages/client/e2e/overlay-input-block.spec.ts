@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { activeScenes, pressAt, settle } from "./helpers.js";
-import { gameMarks, overlayControls, reachVillainRecap } from "./overlay-helpers.js";
+import { activeScenes, pressAt, settle, waitFor } from "./helpers.js";
+import { gameMarks, overlayControls, reachVillainRecap, villainDebugRect } from "./overlay-helpers.js";
 import { installWave6Helpers, trackErrors } from "./wave6-helpers-a.js";
 import { declineMulligans, openApp, startGame, type Rect } from "./wave6-helpers-b.js";
 
@@ -60,6 +60,20 @@ test.describe("Villain-phase recap blocks the table", () => {
 
     await reachVillainRecap(page, phone);
     expect(await activeScenes(page)).toContain("VillainPhaseOverlay");
+
+    // Docked beside the table the recap leaves the table in view and laid out in what is left, so the spots read above
+    // no longer sit where they did.
+    // EXPAND for the full-screen recap, which covers the table entirely: nothing behind it answers a press.
+    const expand = await villainDebugRect(page, "expandRect");
+    if (expand) {
+      if (phone) await page.touchscreen.tap(expand.x + expand.width / 2, expand.y + expand.height / 2);
+      else await pressAt(page, expand.x + expand.width / 2, expand.y + expand.height / 2);
+      await waitFor(
+        async () => ((await villainDebugRect(page, "expandRect")) ? null : true),
+        "the full-screen recap",
+        10_000,
+      );
+    }
 
     const scenesBefore = await activeScenes(page);
     const tabBefore = await tabOf(page);

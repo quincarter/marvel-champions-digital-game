@@ -10,7 +10,7 @@ import {
   trackPageErrors,
   waitFor,
 } from "./helpers.js";
-import { continueRect, gameMarks, reachVillainRecap } from "./overlay-helpers.js";
+import { continueRect, gameMarks, reachVillainRecap, villainDebugRect } from "./overlay-helpers.js";
 import { installWave6Helpers, routeStops } from "./wave6-helpers-a.js";
 import { declineMulligans, openApp, startGame, type Rect } from "./wave6-helpers-b.js";
 
@@ -268,6 +268,15 @@ test.describe("Villain-phase recap", () => {
     const phone = isPhone(info);
     await newGame(page);
     await reachVillainRecap(page, phone);
+    // The recap is docked beside the table (EXPAND); Hide is on the full-screen recap it opens.
+    const expand = await villainDebugRect(page, "expandRect");
+    expect(expand, "the docked recap draws EXPAND").not.toBeNull();
+    await touchOrClick(page, phone, expand!.x + expand!.width / 2, expand!.y + expand!.height / 2);
+    await waitFor(
+      async () => ((await villainDebugRect(page, "expandRect")) ? null : true),
+      "the full-screen recap",
+      10_000,
+    );
     const skip = await page.evaluate(
       () =>
         (

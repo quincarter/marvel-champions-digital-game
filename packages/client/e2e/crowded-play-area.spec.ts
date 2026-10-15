@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { activeScenes, settle, waitFor, zoneRect } from "./helpers.js";
+import { activeScenes, pressAt, settle, waitFor, zoneRect } from "./helpers.js";
 import { installWave6Helpers, skipVillainPhase, visibleTexts } from "./wave6-helpers-a.js";
 import { declineMulligans, hook, type Rect } from "./wave6-helpers-b.js";
 import {
@@ -161,7 +161,17 @@ test("issue #125: a defend option's lines all sit inside its card, at every wind
   while (Date.now() - began < 90_000 && !onSheet) {
     const scenes = await activeScenes(page);
     if (scenes.includes("GameOver")) break;
-    if (scenes.includes("EndTurnConfirmOverlay")) {
+    // The defend is answered in the docked villain phase; this test is about the full-screen sheet, so EXPAND opens it.
+    const expand = await page.evaluate(
+      () =>
+        (
+          window as unknown as { __mcVillainPhaseDebug?: { expandRect?: () => Rect | null } }
+        ).__mcVillainPhaseDebug?.expandRect?.() ?? null,
+    );
+    if (expand) {
+      await pressAt(page, expand.x + expand.width / 2, expand.y + expand.height / 2);
+      await settle(page, { quietMs: 400, maxMs: 2000 });
+    } else if (scenes.includes("EndTurnConfirmOverlay")) {
       await pressBoardText(page, false, /^end turn$/i, "EndTurnConfirmOverlay");
     } else if (scenes.includes("ChoiceOverlay")) {
       await settle(page, { quietMs: 500, maxMs: 2500 });

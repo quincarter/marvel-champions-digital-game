@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { activeScenes, clickText, focusRect, settle, waitFor } from "./helpers.js";
 import {
+  answerDockedDefend,
   installWave6Helpers,
   screens,
   skipVillainPhase,
@@ -142,6 +143,11 @@ async function answerWhatIsUp(page: Page, phone: boolean, log: string[]): Promis
       await settle(page, { quietMs: 300, maxMs: 1500 });
       return true;
     }
+  }
+  // A defend decision is answered on the docked villain phase's own panel (the first defender, then Confirm).
+  if (scenes.includes("VillainPhaseOverlay") && (await answerDockedDefend(page))) {
+    log.push("villain-phase declared the first defender (docked)");
+    return true;
   }
   if (scenes.includes("ChoiceOverlay") || scenes.includes("VillainPhaseOverlay")) {
     await settle(page, { quietMs: 400, maxMs: 2000 });
