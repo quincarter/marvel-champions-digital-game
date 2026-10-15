@@ -20,12 +20,15 @@ import { type FormFactor, type Rect } from "./layout.js";
 export type SourcePanelMode = "rail" | "strip";
 
 /**
- * Rail on desktop and tablet landscape, where a decision sheet already sits well short of the viewport's width;
- * strip everywhere shorter or narrower — phone, a phone on its side, and tablet portrait — where the sheet itself
- * is already close to the full width and there is nothing to put beside it.
+ * Rail on desktop, tablet landscape and a phone on its side: a wide sheet already sits short of the viewport's width,
+ * and a phone held sideways has width to spare but no height (about 390 px), where a strip above the options would
+ * leave them no room at all. Strip on a portrait phone and tablet portrait, where the sheet is close to the full
+ * width and there is nothing to put beside it.
  */
 export function sourcePanelModeFor(formFactor: FormFactor): SourcePanelMode {
-  return formFactor === "desktop" || formFactor === "tabletLandscape" ? "rail" : "strip";
+  return formFactor === "desktop" || formFactor === "tabletLandscape" || formFactor === "phoneLandscape"
+    ? "rail"
+    : "strip";
 }
 
 export const SOURCE_RAIL_WIDTH = 240;

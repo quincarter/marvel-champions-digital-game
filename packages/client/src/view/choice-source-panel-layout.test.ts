@@ -18,9 +18,12 @@ describe("sourcePanelModeFor", () => {
     expect(sourcePanelModeFor("tabletLandscape")).toBe("rail");
   });
 
-  test("strip everywhere shorter or narrower", () => {
+  test("a phone on its side has width to spare and no height: a rail", () => {
+    expect(sourcePanelModeFor("phoneLandscape")).toBe("rail");
+  });
+
+  test("strip where the sheet fills the width", () => {
     expect(sourcePanelModeFor("phone")).toBe("strip");
-    expect(sourcePanelModeFor("phoneLandscape")).toBe("strip");
     expect(sourcePanelModeFor("tabletPortrait")).toBe("strip");
   });
 });
