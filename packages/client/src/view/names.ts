@@ -39,8 +39,12 @@ export function cardName(state: GameState, id: InstanceId, view?: ViewerContext)
     return "a facedown card";
   }
   // A flipped card reads as the side now up: the Trance of Greed that was the Hypnotic Gaze (its name is public once it flips).
+  // A main scheme reads as the stage it is at, not the card's stage-1 name: `currentName` covers the central scheme,
+  // extra main schemes and every game area's own.
+  const schemeStage = cardOf(state, id)?.type === "main_scheme" ? currentName(state, id) : undefined;
   return (
     identityNameOf(state, id) ??
+    schemeStage ??
     (instance.flipped ? currentName(state, id) : undefined) ??
     cardOf(state, id)?.name ??
     "a card"

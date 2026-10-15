@@ -120,7 +120,7 @@ export function appendEvents(
       id: `line-${nextId++}`,
       ref: `R${round}.${beat}`,
       round,
-      text: described.text,
+      text: lowerMidSentenceYou(described.text),
       tags: described.tags ?? [],
       voice: described.voice,
     });
@@ -148,7 +148,23 @@ export function logLine(
   faceNames?: ReadonlyMap<InstanceId, string>,
   burst?: Burst,
 ): Beat | null {
-  return describe(event, state, perspectiveId, deps, redirected, faceNames, burst);
+  const beat = describe(event, state, perspectiveId, deps, redirected, faceNames, burst);
+  return beat ? { ...beat, text: lowerMidSentenceYou(beat.text) } : beat;
+}
+
+/**
+ * "Wrecker schemes against You." becomes "...against you.": the viewer's seat is named "You", which stays capital
+ * only at the start of a sentence. A "You" after a lowercase word and a space is mid-sentence.
+ */
+export function lowerMidSentenceYou(text: string): string {
+  return text.replace(/(?<=[a-z,;] )You\b/g, "you");
+}
+
+/** A beat's text with its status tags written as words, for a surface that draws no chips (the rail, the recap). */
+export function beatTextWithStatus(beat: { readonly text: string; readonly tags?: readonly LogTag[] }): string {
+  const tags = beat.tags ?? [];
+  if (tags.length === 0 || /[.!]$/.test(beat.text)) return beat.text;
+  return `${beat.text} ${tags.map((tag) => tag.status).join(" and ")}.`;
 }
 
 /**

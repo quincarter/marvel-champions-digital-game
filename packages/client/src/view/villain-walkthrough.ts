@@ -29,7 +29,7 @@ import type {
   PendingChoice,
   PlayerId,
 } from "@mc/engine";
-import { logLine } from "./log-lines.js";
+import { beatTextWithStatus, logLine } from "./log-lines.js";
 import { cardName, numberWord, optionLabelOf, playerName, seatName } from "./names.js";
 
 /** The engine's own villain-phase steps, in RRG order. */
@@ -450,7 +450,7 @@ export function appendWalkthrough(
     // Everything else reuses the log's wording, so the walkthrough and the log
     // never describe the same beat two different ways.
     const described = logLine(event, state, viewer, deps);
-    if (described) push(described.text, null, event);
+    if (described) push(beatTextWithStatus(described), null, event);
   }
 
   return {

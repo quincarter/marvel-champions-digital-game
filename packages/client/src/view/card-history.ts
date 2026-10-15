@@ -32,7 +32,7 @@ import {
   type InstanceId,
   type PlayerId,
 } from "@mc/engine";
-import { logLine } from "./log-lines.js";
+import { beatTextWithStatus, logLine } from "./log-lines.js";
 import { cardName, identityFaceName } from "./names.js";
 
 export interface CardHistoryEntry {
@@ -227,7 +227,7 @@ export function cardHistoryOf(
           : undefined;
       const text =
         siblingWording(event, entry.events, state) ??
-        logLine(event, state, perspectiveId, deps, false, faceNames)?.text ??
+        statusWords(logLine(event, state, perspectiveId, deps, false, faceNames)) ??
         null;
       if (text && !parts.includes(text)) parts.push(text);
     }
@@ -240,4 +240,9 @@ export function cardHistoryOf(
     });
   }
   return lines;
+}
+
+/** A logged beat as words alone (this surface draws no status chips), or undefined when the event logs nothing. */
+function statusWords(beat: ReturnType<typeof logLine>): string | undefined {
+  return beat ? beatTextWithStatus(beat) : undefined;
 }
