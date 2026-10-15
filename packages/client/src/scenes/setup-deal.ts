@@ -73,6 +73,15 @@ import { openingHandLayout, openingHandThumb } from "../view/opening-hand-layout
 import { setupMetrics } from "../view/setup-metrics.js";
 import { setChoiceDock } from "../view/choice-dock.js";
 import { cardSizeFactor } from "../settings.js";
+import {
+  HoverPreview,
+  hoverCardsOf,
+  isMousePointer,
+  noteHoverCard,
+  resetHoverCards,
+} from "../ui/card-hover-preview.js";
+import { villainHoverArea } from "../view/card-hover.js";
+import { formFactorFor } from "../view/layout.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { setupDecisionDock } from "../view/setup-decision-dock.js";
@@ -201,6 +210,10 @@ export class SetupDealScene extends Phaser.Scene {
   #bodyScroll = new VariableListScroll();
   /** The Card size factor this draw uses (`cardSizeFactor`; 1 for Fit to screen). */
   #cardScale = 1;
+  /** The desktop hover popover over the hand and the revealed setup card (`ui/card-hover-preview.ts`); takes no input. */
+  #hover: HoverPreview | null = null;
+  /** How far the body is scrolled, for the hover rects noted in content space; 0 when it is not in a scroll region. */
+  #bodyShift = 0;
 
   get #art(): CardArt {
     return cardArt(this);
@@ -225,6 +238,34 @@ export class SetupDealScene extends Phaser.Scene {
     this.#focus = null;
     this.#hand = new HandScroll(() => this.#draw());
     this.#bodyScroll = new VariableListScroll();
+    resetHoverCards(this);
+    this.#hover = new HoverPreview(this, {
+      // Rects were noted in content space; a scrolled body has moved them.
+      cards: () => {
+        const shift = this.#bodyShift > 0 ? this.#bodyScroll.offsetPx : 0;
+        if (shift === 0) return hoverCardsOf(this);
+        return new Map([...hoverCardsOf(this)].map(([id, rect]) => [id, { ...rect, y: rect.y - shift }]));
+      },
+      area: (pointer) => {
+        const { width, height } = this.scale.gameSize;
+        // Desktop and mouse only, and nothing over the scene except the docked choice.
+        const overlays = Object.values(SCENES).filter(
+          (key) =>
+            key !== SCENES.setupDeal &&
+            key !== SCENES.board &&
+            key !== SCENES.music &&
+            key !== SCENES.choice &&
+            this.scene.isActive(key),
+        );
+        return villainHoverArea({
+          formFactor: formFactorFor(width, height),
+          mouse: isMousePointer(pointer),
+          scale: appSession().settings.cardHoverScale,
+          overlays,
+          viewport: { x: 0, y: 0, width, height },
+        });
+      },
+    });
     this.cameras.main.setBackgroundColor(cssOf(surface.void.hex));
     appSession().music?.playSetup(appSession().store.state.config?.scenarioId);
 
@@ -257,6 +298,8 @@ export class SetupDealScene extends Phaser.Scene {
       this.#unsubscribe = null;
       if (this.scene.isActive(SCENES.choice)) this.scene.stop(SCENES.choice);
       setChoiceDock(null);
+      this.#hover?.destroy();
+      this.#hover = null;
     });
 
     // `store.subscribe` above delivers the current state synchronously, so the first `#draw()` has
@@ -319,6 +362,8 @@ export class SetupDealScene extends Phaser.Scene {
     destroyChildren(this);
     this.#stripMask?.destroy();
     this.#stripMask = null;
+    resetHoverCards(this);
+    this.#bodyShift = 0;
 
     const { width, height } = this.scale.gameSize;
     this.#cardScale = Math.max(1, cardSizeFactor(appSession().settings.cardSize, width, height));
@@ -363,6 +408,7 @@ export class SetupDealScene extends Phaser.Scene {
     else this.#drawFocusScrolled(layout, view, mulliganChoice);
 
     this.#drawFocusRing();
+    this.#hover?.onDraw();
   }
 
   /** Title inline with "Step N of M · …" (fidelity pass): the caption follows the title's own measured width, so it always sits right beside it rather than a fixed far-corner box. */
@@ -484,6 +530,7 @@ export class SetupDealScene extends Phaser.Scene {
     });
     const before = this.children.list.length;
     // A phone's commit row is pinned under the body, so it is drawn after the region, outside its clip.
+    this.#bodyShift = 1;
     this.#drawFocus(layout, view, mulliganChoice, !layout.commitSticky);
     const drawn = this.children.list.slice(before);
     region.content.add(drawn);
@@ -690,6 +737,7 @@ export class SetupDealScene extends Phaser.Scene {
   #drawMulliganCard(slot: Rect, card: HandCardView, drag?: RowDrag): void {
     const picked = this.#selected.includes(card.instanceId);
     this.#focusRects.set(`option:${card.instanceId}`, slot);
+    noteHoverCard(this, card.instanceId, slot);
 
     const g = this.add.graphics();
     paintPanel(g, slot, "card", picked ? "selected" : "rest");
@@ -828,6 +876,7 @@ export class SetupDealScene extends Phaser.Scene {
       return;
     }
     const card = view.revealedCard;
+    noteHoverCard(this, card.instanceId, rect);
     const nameY = rect.y + 8 + 16;
     const name = this.add.text(rect.x + 10, nameY, card.name, textStyle(typeRole.barTitle, surface.ink.hex));
     fitText(name, rect.width - 20, typeRole.barTitle.size);
