@@ -7,6 +7,7 @@ import {
   hoverCardSize,
   hoverPlacement,
   hoverStateLines,
+  hoverWorthShowing,
   type HoverGate,
 } from "./card-hover.js";
 import type { Rect } from "./layout.js";
@@ -21,6 +22,13 @@ const GATE: HoverGate = {
   dockPanel: null,
   viewport: VIEWPORT,
 };
+
+describe("hoverWorthShowing", () => {
+  test("a table-sized card gets the popover; one already drawn large (the hero panel) does not", () => {
+    expect(hoverWorthShowing({ x: 0, y: 0, width: 120, height: 168 })).toBe(true);
+    expect(hoverWorthShowing({ x: 0, y: 0, width: 175, height: 245 })).toBe(false);
+  });
+});
 
 describe("hoverArea", () => {
   test("the whole viewport on a desktop with a mouse and nothing over the table", () => {

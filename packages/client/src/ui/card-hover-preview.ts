@@ -20,6 +20,7 @@ import { textStyle } from "./theme.js";
 import {
   HOVER_DELAY_MS,
   hoverCandidateAt,
+  hoverWorthShowing,
   hoverCardSize,
   hoverPlacement,
   hoverStateLines,
@@ -141,12 +142,15 @@ export class HoverPreview {
     input.sortGameObjects(over, pointer);
     const top = over[0];
     const bounds = top ? (top as Phaser.GameObjects.Zone).getBounds() : null;
-    return hoverCandidateAt(
+    const id = hoverCandidateAt(
       x,
       y,
       this.deps.cards(),
       bounds ? { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height } : null,
     );
+    // A card already drawn large (the hero panel, the villain phase's revealed card) needs no larger copy.
+    const rect = id === null ? undefined : this.deps.cards().get(id);
+    return rect && hoverWorthShowing(rect) ? id : null;
   }
 
   #update(pointer: Phaser.Input.Pointer, instant: boolean): void {

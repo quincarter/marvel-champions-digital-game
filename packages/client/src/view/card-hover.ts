@@ -65,6 +65,17 @@ export function villainHoverArea(gate: {
   return gate.overlays.length > 0 ? null : gate.viewport;
 }
 
+/**
+ * A card shown at least this tall on the table is readable as it is: no popover (the owner, 2026-10-14, on the hero
+ * card, "HUGE on desktop as a full sized card"). The same goes for the villain phase's revealed card.
+ */
+export const HOVER_SKIP_HEIGHT = 230;
+
+/** Whether a card drawn at `onTable` is small enough to be worth a larger copy. */
+export function hoverWorthShowing(onTable: Rect): boolean {
+  return onTable.height < HOVER_SKIP_HEIGHT;
+}
+
 export function rectContains(rect: Rect, x: number, y: number): boolean {
   return x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height;
 }
