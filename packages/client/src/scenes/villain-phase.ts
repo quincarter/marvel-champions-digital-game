@@ -362,6 +362,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       this.#before = this.#review.before;
     }
 
+    // The table takes no game action until the player starts the player phase (or skips).
+    this.#boardScene()?.setVillainPhaseOpen(true);
     const { store } = appSession();
     this.#unsubscribe = store.subscribe((state) => this.#onState(state));
     const onResize = (): void => this.#draw();
@@ -421,7 +423,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#hover?.destroy();
       this.#hover = null;
-      // Give the table its whole width and its own hand tags back, whatever closed the phase.
+      // Give the table its whole width, its own hand tags and its actions back, whatever closed the phase.
+      this.#boardScene()?.setVillainPhaseOpen(false);
       this.#boardScene()?.setVillainDock(null);
       this.#boardScene()?.setVillainHandTags(null);
       this.scale.off("resize", onResize, this);

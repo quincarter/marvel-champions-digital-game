@@ -220,7 +220,7 @@ export class BoardScene extends Phaser.Scene {
 
   readonly #controller = new BoardController({
     model: () => this.#model,
-    marks: () => this.#marks,
+    marks: () => (this.#controller.readOnly ? null : this.#marks),
     tabbed: () => this.#layout?.tabbed ?? false,
     redraw: () => this.#draw(),
     inspect: (id) => this.#inspect(id),
@@ -1160,7 +1160,8 @@ export class BoardScene extends Phaser.Scene {
     const ctx: BoardDrawContext = {
       scene: this,
       art: this.#art,
-      marks: this.#marks,
+      // Nothing reads as playable while the villain phase holds the table (`setVillainPhaseOpen`).
+      marks: this.#controller.readOnly ? null : this.#marks,
       tabbed: layout.tabbed,
       controller: this.#controller,
       hand: this.#hand,
@@ -1785,6 +1786,17 @@ export class BoardScene extends Phaser.Scene {
   }
 
   #villainHandTags: ReadonlyMap<InstanceId, VillainHandTag> | null = null;
+
+  /**
+   * While the villain phase is open, docked beside the table or not, the table takes no game action (the owner,
+   * 2026-10-14: a hand card played beside the docked phase while it was still stepping through the round's
+   * encounter cards). The engine may already be in the next player phase, but the player has not started it yet:
+   * Start player phase (or Skip) closes the phase and gives the table back. Inspect and the hover popover still work;
+   * decisions are answered on the phase or its sheet, never through the board.
+   */
+  setVillainPhaseOpen(open: boolean): void {
+    this.#controller.setReadOnly(open);
+  }
 
   /**
    * The last villain phase, tucked away (the owner's request, 2026-10-14): through the next player phase a drawer
