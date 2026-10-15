@@ -112,8 +112,8 @@ describe("Home by Dawn (Ms. Marvel's obligation)", () => {
   });
 
   it("discards a controlled Persona support (no surge); with none, gains surge and discards itself", () => {
-    // With a Persona support (Aamir Khan) in play, the discard is mandatory-in-effect (only 1 candidate) and no
-    // surge is gained.
+    // With a Persona support (Aamir Khan) in play, it must be discarded (#148: `firstLegal` picks as little as
+    // a choice allows) and no surge is gained.
     const withAamir = (() => {
       const start = stackEncounterDeck(msmVsRhino(), ADVANCE, "05025");
       const given = moveToHand(start, P1, "05006");
@@ -130,12 +130,7 @@ describe("Home by Dawn (Ms. Marvel's obligation)", () => {
     })();
     const atChoice = settleUntil(runMsm(withAamir.state, endTurn()), "chooseOption", firstLegal, MSM_DEPS); // already alter-ego: no flip offer
     expect(atChoice.pendingChoice?.options).toHaveLength(2);
-    const after = settle(
-      answer(atChoice, ["1"], MSM_DEPS),
-      (s) => (s.pendingChoice?.prompt.kind === "chooseCards" ? picking(withAamir.aamir)(s) : firstLegal(s)),
-      undefined,
-      MSM_DEPS,
-    );
+    const after = settle(answer(atChoice, ["1"], MSM_DEPS), firstLegal, undefined, MSM_DEPS);
     expect(playerOf(after, P1).discard).toContain(withAamir.aamir);
     const obligation = instancesOf(after, "05025")[0]!;
     expect(activeEncounterDeck(after).discard).toContain(obligation);

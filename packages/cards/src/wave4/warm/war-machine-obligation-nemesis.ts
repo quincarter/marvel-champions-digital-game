@@ -63,7 +63,7 @@ export const WAR_MACHINE_OBLIGATION_NEMESIS = defineAbilities({
   // Laser Strike (treachery ×3, 23031) — When Revealed: Discard an upgrade you control. If you cannot, this card
   // gains surge.
   "23031.when-revealed": whenRevealed(
-    chooseCards("discarded", cards(each(query("upgrade", { controller: "you" }))), { min: 0, max: 1 }),
+    chooseCards("discarded", cards(each(query("upgrade", { controller: "you" }))), { min: 1, max: 1 }),
     moveCards(cards(chosen("discarded")), "discard", "moved"),
     ifThen(valueEquals(varOf("moved.count"), 0), surge()),
   ),

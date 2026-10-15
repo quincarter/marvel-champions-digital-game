@@ -237,20 +237,14 @@ describe("War Machine's nemesis set (Living Laser, Deadly Light Show, Laser Stri
     expect(events.some((e) => e.type === "surgeTriggered")).toBe(true);
   });
 
-  it("Laser Strike (23031.when-revealed): with an upgrade to discard, it discards one instead of gaining surge", () => {
+  it("Laser Strike (23031.when-revealed): with an upgrade to discard, it must discard one and does not gain surge (#148)", () => {
     const hero = toHeroSettled(warMachineVsRhino(1));
     // Gauntlet Gun (23005) is an upgrade War Machine controls once played.
     const { state: withGun, id: gun } = playFromHand(hero, "23005", 2);
     const staged = stageNemesisCardForReveal(withGun, "23031", P1, 1);
-    // "Discard an upgrade you control" is an optional `chooseCards` (min 0, max 1); `firstLegal` alone would decline
-    // it (choosing nothing), so pick the option naming the gun whenever it's offered.
-    const pickGun: Picker = (state) => {
-      const choice = state.pendingChoice;
-      if (!choice) return [];
-      const hit = choice.options.find((o) => o.ref && o.ref.kind === "card" && o.ref.instanceId === gun);
-      return hit ? [hit.optionId] : firstLegal(state);
-    };
-    const { state: after, events } = driveEventsWith(staged, pickGun, { type: "endTurn", playerId: P1 });
+    // "Discard an upgrade you control" is not optional: `firstLegal` picks as little as a choice allows, and the gun
+    // is still discarded.
+    const { state: after, events } = driveEventsWith(staged, firstLegal, { type: "endTurn", playerId: P1 });
     expect(playerOf(after, P1).discard).toContain(gun);
     expect(events.some((e) => e.type === "surgeTriggered")).toBe(false);
   });

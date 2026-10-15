@@ -18,6 +18,7 @@ import {
   firstLegal,
   identityOf,
   inst,
+  instancesOf,
   moveToHand,
   P1,
   P2,
@@ -28,6 +29,7 @@ import {
   playerOf,
   runWith,
   settle,
+  stackEncounterDeck,
   type Picker,
   use,
 } from "../../../testing/harness.js";
@@ -515,6 +517,26 @@ describe("Cyclops supports, upgrades and allies", () => {
       );
       expect(inst(control, minion).attachments).not.toContain(weakness);
       expect(playerOf(control, P1).discard).toContain(weakness);
+    });
+
+    it("leaves Rhino's own attachments alone: none is temporary, so all stay attached as the round ends (#148)", () => {
+      const nextRound = (state: GameState, round: number) =>
+        settle(
+          runWith(WAVE6_DEPS, state, endTurn(P1)),
+          firstLegal,
+          (s) => s.round === round && s.step.phase === "player",
+          WAVE6_DEPS,
+        );
+      // Armored Rhino Suit, Charge, Enhanced Ivory Horn. Advance is the boost card; Cyclops is in alter-ego form, so
+      // Rhino schemes and Charge is not spent on an attack.
+      for (const code of ["01098", "01099", "01100"]) {
+        const round2 = nextRound(stackEncounterDeck(alterEgo(), "01186", code), 2);
+        const rhino = villainId(round2);
+        const attachment = instancesOf(round2, code).find((id) => inst(round2, id).attachedTo === rhino)!;
+        expect(attachment).toBeDefined();
+        const { state: armed } = attachFromHand(round2, "33004", heroId(round2));
+        expect(inst(nextRound(armed, 3), rhino).attachments).toContain(attachment);
+      }
     });
   });
 

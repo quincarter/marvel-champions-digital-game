@@ -14,6 +14,7 @@ import {
 } from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
+import { driveEventsPicking } from "../../testing/staging.js";
 
 const redSkullVsHeroes = () =>
   startWave2Game(wave2Scenario("red-skull", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
@@ -281,6 +282,41 @@ describe("Red Skull scenario", () => {
     );
     expect(inst(settled, scheme).home.kind).not.toBe("encounterDeck"); // left play (defeated)
     expect(playerOf(settled, P1).playArea.length).toBe(before + 1); // the found ally entered play
+  });
+
+  it("Hydra Flame-Soldier: after it makes an undefended attack against you, you discard a support you control (#148)", () => {
+    const withMinion = settle(
+      runWave2(stackEncounterDeck(redSkullVsHeroes(), ADVANCE, "04145"), toHero(), endTurn()),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    const minion = instancesOf(withMinion, "04145").find((id) => cardsInPlay(withMinion).includes(id)) as InstanceId;
+    expect(minion).toBeDefined();
+    const isSupport = (state: GameState, id: InstanceId) =>
+      state.cardPool[state.instances[id]!.cardId]?.type === "support";
+    // A support Hawkeye controls, put in play by surgery so no cost or ability gets in the way.
+    const support = playerOf(withMinion, P1).deck.find((id) => isSupport(withMinion, id))!;
+    expect(support).toBeDefined();
+    const staged = {
+      ...withMinion,
+      players: withMinion.players.map((p) =>
+        p.playerId === P1 ? { ...p, deck: p.deck.filter((i) => i !== support), playArea: [...p.playArea, support] } : p,
+      ),
+    };
+    // An exhausted hero with no ally cannot defend, so the minion's attack is undefended. Advance is the villain's boost
+    // card, so only the minion's own ability can discard the support.
+    const exhausted = patchInstance(stackEncounterDeck(staged, ADVANCE), identityOf(staged), { exhausted: true });
+    const { events } = driveEventsPicking(WAVE2_DEPS, exhausted, firstLegal, endTurn());
+    const resolved = events.findIndex(
+      (e) => e.type === "abilityResolved" && e.instanceId === minion && String(e.abilityId).startsWith("04145.hydra"),
+    );
+    expect(resolved).toBeGreaterThanOrEqual(0);
+    // The support goes to the discard pile as the ability resolves, before anything else this villain phase.
+    const discarded = events.findIndex(
+      (e, i) => i > resolved && "instanceId" in e && e.instanceId === support && /discard/i.test(e.type),
+    );
+    expect(discarded).toBeGreaterThan(resolved);
   });
 
   it("Hydra Reinforcements: when defeated, the defeating player discards a non-Elite minion", () => {

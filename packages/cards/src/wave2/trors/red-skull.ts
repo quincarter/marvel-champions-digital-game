@@ -283,10 +283,10 @@ export const RED_SKULL_SET = defineAbilities({
   "04145.hydra-flame-soldier-forced-response": forcedResponse(
     {
       on: "enemyAttack",
-      sourceIs: { hostOfSelf: true },
+      sourceIs: { self: true },
       playerIs: "controller",
       usesAttackedPlayer: true,
-      requireResults: { damage: 1, undefended: 1 },
+      requireResults: { undefended: 1 },
     },
     chooseTarget("support", query("support", { controller: "you" })),
     ifThen({ kind: "exists", query: query("support", { controller: "you" }) }, discard(chosen("support"))),
