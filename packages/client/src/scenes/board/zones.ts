@@ -24,7 +24,12 @@ import type {
   VillainPanel,
 } from "../../view/board-model.js";
 import { hpFraction, hpRatio } from "../../view/hp-format.js";
-import { villainRowPlan, villainRowSlotsFor, villainTileLayout } from "../../view/villain-tile-layout.js";
+import {
+  bindStageWords,
+  villainRowPlan,
+  villainRowSlotsFor,
+  villainTileLayout,
+} from "../../view/villain-tile-layout.js";
 import {
   CARD_ASPECT,
   PANEL_TEXT_INSETS,
@@ -454,7 +459,15 @@ function drawCompactVillain(ctx: BoardDrawContext, rect: Rect, villain: VillainP
 
   // "VILLAIN · STAGE II" is wrapped, never cut to "VILLAIN · ST…": the stage is the part the player is reading.
   if (bottom - top >= 24) {
-    const subtitle = label(scene, textLeft, top, panel.subtitle, typeRole.label, surface.ink.hex, ink.label * dim);
+    const subtitle = label(
+      scene,
+      textLeft,
+      top,
+      bindStageWords(panel.subtitle),
+      typeRole.label,
+      surface.ink.hex,
+      ink.label * dim,
+    );
     fitWrapped(subtitle, textWidth, 2, typeRole.label.size);
     top += Math.max(12, Math.ceil(subtitle.height) + 1);
   }

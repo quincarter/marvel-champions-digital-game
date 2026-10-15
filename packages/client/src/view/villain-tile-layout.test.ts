@@ -3,6 +3,7 @@ import {
   VILLAIN_TEXT_MIN_WIDTH,
   VILLAIN_TILE_MIN_HEIGHT,
   VILLAIN_TILE_MIN_WIDTH,
+  bindStageWords,
   villainRowPlan,
   villainRowSlotsFor,
   villainTileLayout,
@@ -90,5 +91,16 @@ describe("villainRowPlan", () => {
     const slots = villainRowSlotsFor(band, 5, plan);
     expect(slots).toHaveLength(5);
     for (const slot of slots) expect(inside(slot, band)).toBe(true);
+  });
+});
+
+describe("bindStageWords", () => {
+  test("joins the stage word to its numeral, so a wrap cannot put them on different lines", () => {
+    expect(bindStageWords("Villain · Stage I")).toBe("Villain · Stage I");
+    expect(bindStageWords("Villain · Side A · Victory 1/3")).toBe("Villain · Side A · Victory 1/3");
+  });
+
+  test("leaves a subtitle with no stage alone", () => {
+    expect(bindStageWords("Minion · Hydra")).toBe("Minion · Hydra");
   });
 });

@@ -225,3 +225,11 @@ export function villainRowSlotsFor(
   }
   return slots;
 }
+
+/**
+ * "Villain · Stage I" with the stage's word and its number joined by a no-break space, so a narrow text column wraps
+ * after "VILLAIN ·" and never between "STAGE" and "I" (or "SIDE" and "A"), which read as two unrelated lines.
+ */
+export function bindStageWords(subtitle: string): string {
+  return subtitle.replace(/\b(stage|side)\s+(\S+)/gi, "$1 $2");
+}
