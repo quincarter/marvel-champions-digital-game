@@ -59,8 +59,12 @@ export function windowTimingOf(choice: { readonly prompt: ChoicePrompt }): Windo
   return timing === "response" ? "response" : "interrupt";
 }
 
-/** "Your interrupt window" / "Your response window", as the overlay heads the inline panel. */
-export const windowTitleOf = (timing: WindowTimingName): string => `Your ${timing} window`;
+/**
+ * "Your interrupt window" / "Your response window", as the overlay heads the inline panel. With more than one seat
+ * playing, the seat is named first ("She-Hulk — Your interrupt window"): on a shared screen "your" is whoever holds it.
+ */
+export const windowTitleOf = (timing: WindowTimingName, seat: string | null = null): string =>
+  seat ? `${seat} — Your ${timing} window` : `Your ${timing} window`;
 
 export interface Pause {
   readonly playerId: PlayerId;
@@ -141,7 +145,21 @@ export type ActivationBeat =
       readonly playerId: PlayerId;
       readonly boosts: readonly BoostCardBeat[];
       readonly resolved: SchemeBreakdown | null;
+      /**
+       * An activation an effect started (an encounter card's "Wrecker schemes"): the engine announces no `enemyActivated`
+       * for it, so its first boost card starts it as a scheme until its resolution says which it was.
+       */
+      readonly provisional?: true;
     };
+
+/** The active counter moving to another villain (`activeVillainChanged`), as a beat of its own. */
+export interface ActiveVillainChange {
+  readonly from: InstanceId;
+  readonly to: InstanceId;
+  readonly reason: Extract<GameEvent, { type: "activeVillainChanged" }>["reason"];
+  /** The encounter card being revealed when it moved, when one was; null when a stage or the engine moved it. */
+  readonly via: InstanceId | null;
+}
 
 export interface WalkthroughBeat {
   readonly id: string;
@@ -155,8 +173,15 @@ export interface WalkthroughBeat {
    * reveal), so beats group per card; null/absent outside the reveal step and before the first reveal.
    */
   readonly encounterInstanceId?: InstanceId | null;
+  /** The beat where an activation began: the engine's `enemyActivated`, or, for one an effect started, its first event. */
+  readonly startsActivation?: true;
   /** The engine event this beat narrates (absent on a pause beat), so a view can tell a response from narration. */
   readonly eventType?: GameEvent["type"];
+  /**
+   * Set on the beat that narrates the active counter moving (`activeVillainChanged`): who holds it now, why, and the
+   * encounter card being revealed when it moved (Buddy System), so the rail and the recap can give it a beat of its own.
+   */
+  readonly activeChange?: ActiveVillainChange;
   /** The seat the event is attributable to (its `playerId` / `controllerId`), or null when none is. */
   readonly seatId?: PlayerId | null;
 }
@@ -254,6 +279,8 @@ export function appendWalkthrough(
   let nextBeatId = working.nextBeatId;
   let complete = working.complete;
   let activation = working.activation;
+  /** Set when an event starts an activation, and stamped on the next beat pushed (an event with no wording pushes none). */
+  let startsActivation = false;
   let dealt = [...working.encounter.dealt];
   let revealed = [...working.encounter.revealed];
   /**
@@ -271,6 +298,10 @@ export function appendWalkthrough(
   let round = working.round;
   let liveRound = state.round - events.reduce((n, event) => n + (event.type === "roundStarted" ? 1 : 0), 0);
 
+  /** The activation in hand is `enemyId`'s and has not resolved yet: the next event about that enemy belongs to it. */
+  const ongoing = (enemyId: InstanceId): boolean =>
+    activation !== null && activation.enemyInstanceId === enemyId && activation.resolved === null;
+
   /** Inside the five steps: recording beats. Outside them, events are ignored. */
   const inPhase = (): boolean => activeIndex >= 0 && !complete;
 
@@ -284,6 +315,10 @@ export function appendWalkthrough(
       activation,
       encounterInstanceId: revealing?.instanceId ?? null,
       ...(event ? { eventType: event.type, seatId: seatOfEvent(event) } : {}),
+      ...(startsActivation ? { startsActivation: true as const } : {}),
+      ...(event?.type === "activeVillainChanged"
+        ? { activeChange: { from: event.from, to: event.to, reason: event.reason, via: revealing?.instanceId ?? null } }
+        : {}),
     });
   };
 
@@ -370,16 +405,29 @@ export function appendWalkthrough(
                 boosts: [],
                 resolved: null,
               };
+        startsActivation = true;
         break;
       case "boostCardFlipped":
-        if (activation && activation.enemyInstanceId === event.enemyInstanceId) {
+        if (ongoing(event.enemyInstanceId)) {
           activation = {
-            ...activation,
+            ...activation!,
             boosts: [
-              ...activation.boosts,
+              ...activation!.boosts,
               { instanceId: event.instanceId, boostIcons: event.boostIcons, cancelled: null },
             ],
           };
+        } else {
+          // An activation an effect started has no `enemyActivated`: its first boost card begins it, as a scheme until
+          // its resolution says which it was.
+          activation = {
+            kind: "scheme",
+            enemyInstanceId: event.enemyInstanceId,
+            playerId: revealed.at(-1)?.playerId ?? state.firstPlayerId,
+            boosts: [{ instanceId: event.instanceId, boostIcons: event.boostIcons, cancelled: null }],
+            resolved: null,
+            provisional: true,
+          };
+          startsActivation = true;
         }
         break;
       case "boostCancelled":
@@ -415,34 +463,55 @@ export function appendWalkthrough(
           activation = { ...activation, defender: { instanceId: null, declined: true } };
         }
         break;
-      case "attackResolved":
-        if (activation?.kind === "attack" && activation.enemyInstanceId === event.enemyInstanceId) {
+      case "attackResolved": {
+        const resolved: AttackBreakdown = {
+          targetInstanceId: event.targetInstanceId,
+          baseAtk: event.baseAtk,
+          boostIcons: event.boostIcons,
+          defenseReduction: event.defenseReduction,
+          damageDealt: event.damageDealt,
+        };
+        if (activation?.kind === "attack" && ongoing(event.enemyInstanceId)) {
+          activation = { ...activation, resolved };
+        } else {
+          // An effect's attack (no `enemyActivated`): the seat is whoever's identity it hit, else the revealing seat.
+          const hit = state.players.find((seat) => seat.identity.instanceId === event.targetInstanceId);
+          const carried = ongoing(event.enemyInstanceId) ? activation!.boosts : [];
           activation = {
-            ...activation,
-            resolved: {
-              targetInstanceId: event.targetInstanceId,
-              baseAtk: event.baseAtk,
-              boostIcons: event.boostIcons,
-              defenseReduction: event.defenseReduction,
-              damageDealt: event.damageDealt,
-            },
+            kind: "attack",
+            enemyInstanceId: event.enemyInstanceId,
+            attackedPlayerId: hit?.playerId ?? revealed.at(-1)?.playerId ?? state.firstPlayerId,
+            boosts: carried,
+            defender: null,
+            resolved,
           };
+          if (carried.length === 0) startsActivation = true;
         }
         break;
-      case "schemeResolved":
-        if (activation?.kind === "scheme" && activation.enemyInstanceId === event.enemyInstanceId) {
+      }
+      case "schemeResolved": {
+        const resolved: SchemeBreakdown = {
+          schemeInstanceId: event.schemeInstanceId,
+          baseSch: event.baseSch,
+          boostIcons: event.boostIcons,
+          threatBonus: event.threatBonus,
+          threatPlaced: event.threatPlaced,
+        };
+        if (activation?.kind === "scheme" && ongoing(event.enemyInstanceId)) {
+          const { provisional: _provisional, ...settled } = activation;
+          activation = { ...settled, resolved };
+        } else {
           activation = {
-            ...activation,
-            resolved: {
-              schemeInstanceId: event.schemeInstanceId,
-              baseSch: event.baseSch,
-              boostIcons: event.boostIcons,
-              threatBonus: event.threatBonus,
-              threatPlaced: event.threatPlaced,
-            },
+            kind: "scheme",
+            enemyInstanceId: event.enemyInstanceId,
+            playerId: revealed.at(-1)?.playerId ?? state.firstPlayerId,
+            boosts: [],
+            resolved,
           };
+          startsActivation = true;
         }
         break;
+      }
       default:
         break;
     }
@@ -450,7 +519,10 @@ export function appendWalkthrough(
     // Everything else reuses the log's wording, so the walkthrough and the log
     // never describe the same beat two different ways.
     const described = logLine(event, state, viewer, deps);
-    if (described) push(beatTextWithStatus(described), null, event);
+    if (described) {
+      push(beatTextWithStatus(described), null, event);
+      startsActivation = false;
+    }
   }
 
   return {

@@ -381,6 +381,8 @@ export function playDestinationTitleOf(
 
 /** The end-of-phase prompt for a Forced Action that is still owed: nothing else can be done until one is used. */
 export const FORCED_ACTION_TITLE = "Forced Action: you must use one";
+/** A target pick that moves the active counter (Breakout stage 1B, Buddy System). */
+export const CHOOSE_ACTIVE_VILLAIN_TITLE = "Choose the new active villain";
 
 /**
  * The design's overlay titles for every `PendingChoice.prompt` kind (`scenes/choice.ts`'s own overlay header, moved
@@ -505,10 +507,11 @@ export function choiceHeaderText(
   state: GameState,
   choice: PendingChoice,
   deps: EngineDeps,
-  genericTitle: string,
+  genericTitleIn: string,
 ): string {
   // The options are the cards that owe the action: the title says so, with no one card named as the asker.
-  if (choice.prompt.kind === "chooseOption" && choice.prompt.forcedAction) return genericTitle;
+  if (choice.prompt.kind === "chooseOption" && choice.prompt.forcedAction) return genericTitleIn;
+  const genericTitle = choosesActiveVillain(state, choice, deps) ? CHOOSE_ACTIVE_VILLAIN_TITLE : genericTitleIn;
   const source = choiceSourceOf(state, choice);
   const instruction = source ? null : choiceInstructionOf(state, choice);
   let named: string;
@@ -600,4 +603,30 @@ export function discardCountNoteOf(
   if (counts.minSelections <= 0) return "select any number to discard";
   const more = counts.maxSelections > counts.minSelections ? " · you may discard more" : "";
   return `select at least ${counts.minSelections}${more}`;
+}
+
+/** True when `node`, anywhere in an ability's effect tree, is a `setActiveVillain` that reads the answer bound to `slot`. */
+function setsActiveVillainFrom(node: unknown, slot: string): boolean {
+  if (Array.isArray(node)) return node.some((child) => setsActiveVillainFrom(child, slot));
+  if (typeof node !== "object" || node === null) return false;
+  const record = node as Record<string, unknown>;
+  const villain = record.villain as { kind?: unknown; slot?: unknown } | undefined;
+  if (record.kind === "setActiveVillain" && villain?.kind === "slot" && villain.slot === slot) return true;
+  return Object.values(record).some((child) => setsActiveVillainFrom(child, slot));
+}
+
+/**
+ * True when a `chooseTarget` is the pick that decides the new active villain (Breakout's stage 1B, Buddy System): the
+ * asking card's ability moves the active counter to whatever this slot was answered with. Read off the ability's own
+ * effects, so the prompt can say so without the client knowing any card.
+ */
+export function choosesActiveVillain(state: GameState, choice: PendingChoice, deps: EngineDeps): boolean {
+  const prompt = choice.prompt;
+  if (prompt.kind !== "chooseTarget") return false;
+  const source = choiceSourceOf(state, choice);
+  if (!source) return false;
+  const abilityIds = source.abilityId
+    ? [source.abilityId]
+    : activeAbilityRefs(state, source.instanceId, deps).map((ref) => ref.id);
+  return abilityIds.some((id) => setsActiveVillainFrom(deps.abilities[id], prompt.slot));
 }

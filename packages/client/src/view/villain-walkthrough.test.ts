@@ -711,6 +711,9 @@ describe("window timing", () => {
     expect(windowTitleOf(windowTimingOf(response))).toBe("Your response window");
     expect(windowTitleOf(windowTimingOf(interrupt))).toBe("Your interrupt window");
     expect(windowTitleOf(windowTimingOf(other))).toBe("Your interrupt window");
+    // With more than one seat playing, the window names whose it is.
+    expect(windowTitleOf("interrupt", "She-Hulk")).toBe("She-Hulk — Your interrupt window");
+    expect(windowTitleOf("response", null)).toBe("Your response window");
   });
 });
 

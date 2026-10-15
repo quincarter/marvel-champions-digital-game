@@ -32,6 +32,7 @@ import {
   type Pause,
 } from "../view/villain-walkthrough.js";
 import { noteHoverCard } from "./card-hover-preview.js";
+import { shortSeatName } from "../view/names.js";
 import { drawSeatAvatar } from "./seat-avatar.js";
 import { bindHoldTarget } from "./hold-target.js";
 import { textStyle } from "./theme.js";
@@ -152,7 +153,7 @@ export function drawVillainRailPanel(scene: Phaser.Scene, args: RailPanelArgs): 
     drawStrip(scene, layout.encounterLabel, layout.encounterStrip, args.strip, args.game);
   }
   if (args.body.kind === "reveal") drawReveal(scene, layout, args, args.body, stops);
-  else drawHappening(scene, layout, args, args.body);
+  else drawHappening(scene, layout, args, args.body, stops);
   if (args.interrupt && layout.interrupt) drawInterrupt(scene, layout.interrupt, args, args.interrupt, stops);
   else if (args.gate && layout.interrupt) {
     const from = scene.children.list.length;
@@ -472,6 +473,7 @@ function drawHappening(
   layout: VillainRailLayout,
   args: RailPanelArgs,
   body: Extract<RailBody, { kind: "happening" }>,
+  stops: Map<string, FocusStop>,
 ): void {
   if (layout.body.height <= 0) return;
   const hasArt = body.enemyInstanceId !== null && layout.bodyArt.width > 0;
@@ -523,6 +525,15 @@ function drawHappening(
       .setWordWrapWidth(width - box.width - 10)
       .setMaxLines(2);
   }
+  // Held on an encounter card whose last beat is this one (the active counter moving): the way on is still NEXT CARD.
+  const next = args.onNext;
+  if (next) {
+    const rect: Rect = { x, y: y + height - hit.target, width: Math.min(width, 200), height: hit.target };
+    args.buttons.push(
+      new McButton(scene, { kind: "onInk", label: "Next card ▸", type: typeRole.label, rect, onClick: next }),
+    );
+    stops.set("next", { rect, activate: next });
+  }
 }
 
 function drawInterrupt(
@@ -537,15 +548,18 @@ function drawInterrupt(
   const g = scene.add.graphics();
   g.fillStyle(surface.ink.hex, 1).fillRect(frame.x, frame.y, frame.width, frame.height);
   g.lineStyle(border.object, signal.caution.hex, 1).strokeRect(frame.x, frame.y, frame.width, frame.height);
-  label(
+  // With more than one seat the window names whose it is: "your" is whoever holds the shared screen.
+  const seat = game.players.length > 1 ? shortSeatName(game, interrupt.pause.playerId, null) : null;
+  const windowTitle = label(
     scene,
     layout.title.x,
     layout.title.y,
-    windowTitleOf(interrupt.pause.timing),
+    windowTitleOf(interrupt.pause.timing, seat),
     { ...typeRole.label, size: 11 },
     signal.caution.hex,
     ink.body,
   );
+  fitText(windowTitle, layout.title.width, 11);
 
   const { options } = interrupt;
   const multi = !inlineSingle(options);

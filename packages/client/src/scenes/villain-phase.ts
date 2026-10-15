@@ -148,6 +148,8 @@ import {
   tableHoldOf,
 } from "../view/villain-replay.js";
 import { activationHeadline, breakdownLineOf, breakdownOf, type Breakdown } from "../view/villain-breakdown.js";
+import { activeVillainWording } from "../view/villain-active-change.js";
+import { decisionNoticeOf, soleAnswerOf } from "../view/villain-decision-notice.js";
 import { villainPhaseLayout } from "../view/villain-phase-layout.js";
 import { boostCardsLayout } from "../view/villain-phase-boosts.js";
 import { interruptCardsLayout } from "../view/villain-phase-interrupts.js";
@@ -156,7 +158,6 @@ import { queuedActivationsOf, type QueuedSeat } from "../view/villain-queue.js";
 import { teamStatusOf, type TeamStatusRow } from "../view/villain-team-status.js";
 import {
   advanceReveal,
-  decisionLabel,
   appendWalkthrough,
   emptyWalkthrough,
   defenderLineOf,
@@ -292,6 +293,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #endOfTurn: EndOfTurnDraws | null = null;
   /** Decisions the player chose to answer from the phase's notice (ANSWER ▸): their sheet may come up. */
   #answered = new Set<string>();
+  /** Decisions with one candidate the phase has already answered itself (`#autoAnswerSole`). */
+  #soleAnswered = new Set<string>();
   /** When each held decision's notice first appeared, for its slide in. */
   #noticeShownAt = new Map<string, number>();
   /** PEEK AT TABLE on a phone or tablet in portrait (P3): the board's tabs show, the phase keeps a banner. */
@@ -328,6 +331,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#recapShownAt = null;
     this.#started = false;
     this.#answered = new Set();
+    this.#soleAnswered = new Set();
     this.#noticeShownAt = new Map();
     this.#endOfTurn = null;
     this.#review = data?.review ?? null;
@@ -606,7 +610,23 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     else if (!inline && theirs < mine) this.scene.moveAbove(SCENES.villainPhase, SCENES.choice);
   }
 
+  /**
+   * A pick the encounter side hands the first player with only one candidate (Breakout's "pick the target" with a
+   * single villain eligible) has nothing to decide: once the replay has reached it, the phase answers it itself through
+   * the same `resolveChoice`, and the engine checks it like any other answer.
+   */
+  #autoAnswerSole(): void {
+    const choice = this.#latest?.game?.pendingChoice;
+    if (!choice || this.#review || this.#soleAnswered.has(choice.choiceId)) return;
+    if (this.#waitingToStart() || !this.#decisionDue() || this.#guideActive()) return;
+    const only = soleAnswerOf(choice);
+    if (only === null) return;
+    this.#soleAnswered.add(choice.choiceId);
+    this.#resolve([only]);
+  }
+
   override update(): void {
+    this.#autoAnswerSole();
     this.#orderAgainstChoice();
     // While the choice sheet owns the decision (every pause except the inline interrupt this screen answers itself),
     // the walkthrough takes no clicks at all: it is only narrating, the sheet is drawn over it, and nothing on it may
@@ -783,7 +803,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         activation: activation ? activationHeadline(activation, game, choice.playerId) : null,
         subject: subject ? cardName(game, subject) : null,
       }),
-      text: decisionLabel(choice, game, viewer),
+      text: decisionNoticeOf(game, choice, viewer, POOL_DEPS),
       cardInstanceId: subject,
       onPress: () => this.#answer(id),
     };
@@ -1973,7 +1993,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       this,
       rect.x + 14,
       rect.y + 12,
-      windowTitleOf(pause.timing).toUpperCase(),
+      windowTitleOf(
+        pause.timing,
+        state.players.length > 1 ? shortSeatName(state, pause.playerId, null) : null,
+      ).toUpperCase(),
       typeRole.label,
       surface.ink.hex,
       ink.label,
@@ -2232,7 +2255,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
               ? `Step ${active.number} of ${reveal.steps.length} · ${active.title}`
               : "The villain phase is starting…";
 
-    const current = revealing ? strip.current : null;
+    // The active counter moving is a beat of its own, even while a card is being revealed (Buddy System).
+    const moved = reveal.current?.activeChange !== undefined && inline === null;
+    const current = revealing && !moved ? strip.current : null;
     const body: RailBody = current
       ? {
           kind: "reveal",
@@ -2310,6 +2335,17 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
   /** "Happening now" on the rail: the activation (the live one while paused, so the window never names a stale beat), else the latest narration. */
   #happeningBody(reveal: Reveal, game: GameState, viewer: PlayerId | null, paused: boolean): RailBody {
+    const change = paused ? undefined : reveal.current?.activeChange;
+    if (change) {
+      const wording = activeVillainWording(change, game);
+      return {
+        kind: "happening",
+        enemyInstanceId: change.to,
+        headline: wording.headline,
+        text: wording.detail,
+        boostLine: null,
+      };
+    }
     const activation = paused ? this.#walkthrough.activation : (reveal.current?.activation ?? null);
     if (!activation) {
       return {
