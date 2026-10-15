@@ -72,6 +72,9 @@ import type { Rect } from "../view/layout.js";
 import { openingHandLayout, openingHandThumb } from "../view/opening-hand-layout.js";
 import { setupMetrics } from "../view/setup-metrics.js";
 import { setChoiceDock } from "../view/choice-dock.js";
+import { cardSizeFactor } from "../settings.js";
+import { McScrollRegion } from "../ui/scroll-region.js";
+import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { setupDecisionDock } from "../view/setup-decision-dock.js";
 import { setupWalkthroughFocusOrder } from "../view/screen-focus.js";
 import {
@@ -194,6 +197,10 @@ export class SetupDealScene extends Phaser.Scene {
   #hand = new HandScroll(() => this.#draw());
   /** The strip's clip shape — off the display list, so `children.removeAll` never reaches it and `#draw` destroys it by hand. */
   #stripMask: Phaser.GameObjects.Graphics | null = null;
+  /** The body's vertical scroll while enlarged cards make it taller than the screen; kept across redraws. */
+  #bodyScroll = new VariableListScroll();
+  /** The Card size factor this draw uses (`cardSizeFactor`; 1 for Fit to screen). */
+  #cardScale = 1;
 
   get #art(): CardArt {
     return cardArt(this);
@@ -217,6 +224,7 @@ export class SetupDealScene extends Phaser.Scene {
     this.#choiceId = null;
     this.#focus = null;
     this.#hand = new HandScroll(() => this.#draw());
+    this.#bodyScroll = new VariableListScroll();
     this.cameras.main.setBackgroundColor(cssOf(surface.void.hex));
     appSession().music?.playSetup(appSession().store.state.config?.scenarioId);
 
@@ -313,6 +321,7 @@ export class SetupDealScene extends Phaser.Scene {
     this.#stripMask = null;
 
     const { width, height } = this.scale.gameSize;
+    this.#cardScale = Math.max(1, cardSizeFactor(appSession().settings.cardSize, width, height));
     const otherSeatCount = view.decidingPlayerId ? view.seats.length - 1 : view.seats.length;
     const { pad } = setupMetrics(width, height);
     // Five labels ("Villain & main scheme placed", "Setup cards revealed — N", …) truncate at phone width in one
@@ -329,6 +338,7 @@ export class SetupDealScene extends Phaser.Scene {
       seatCount: view.seats.length,
       checklistRows: checklistRows.length,
       hasRevealedCard: view.revealedCard !== null,
+      cardScale: this.#cardScale,
     });
 
     paintDotGrid(this, { x: 0, y: 0, width, height }, "ink", dotGrid.onInk);
@@ -350,7 +360,7 @@ export class SetupDealScene extends Phaser.Scene {
     }
 
     if (layout.mode === "allSeats") this.#drawAllSeats(layout, view, mulliganChoice);
-    else this.#drawFocus(layout, view, mulliganChoice);
+    else this.#drawFocusScrolled(layout, view, mulliganChoice);
 
     this.#drawFocusRing();
   }
@@ -441,7 +451,55 @@ export class SetupDealScene extends Phaser.Scene {
   }
 
   /** Phone/tablet-portrait/desktop: the deciding seat's own hand, other seats collapsed, a sidebar (folded on phone). */
-  #drawFocus(layout: SetupWalkthroughLayout, view: SetupWalkthroughView, mulliganChoice: PendingChoice | null): void {
+  /**
+   * `#drawFocus`, inside a vertical scroll region when enlarged cards make the body taller than its viewport (the
+   * region translates what was drawn; nothing is cut off, it scrolls). The opening-hand strip's own clip moves with it.
+   */
+  #drawFocusScrolled(
+    layout: SetupWalkthroughLayout,
+    view: SetupWalkthroughView,
+    mulliganChoice: PendingChoice | null,
+  ): void {
+    const body = layout.body;
+    if (!body || body.contentHeight <= body.viewport.height + 0.5) {
+      this.#bodyScroll.reset();
+      this.#drawFocus(layout, view, mulliganChoice);
+      return;
+    }
+    const heights = [body.contentHeight];
+    const region = new McScrollRegion(this, {
+      rect: body.viewport,
+      heights,
+      scroll: this.#bodyScroll,
+      onScroll: (offset) => this.#stripMask?.setY(-offset),
+      // The wheel over a scrolling hand strip belongs to the strip.
+      enabled: () => {
+        const pointer = this.input.activePointer;
+        const hand = layout.handRow;
+        const top = hand.y - this.#bodyScroll.offsetPx;
+        const over =
+          pointer.x >= hand.x && pointer.x <= hand.x + hand.width && pointer.y >= top && pointer.y <= top + hand.height;
+        return !(over && this.#hand.canScroll);
+      },
+    });
+    const before = this.children.list.length;
+    // A phone's commit row is pinned under the body, so it is drawn after the region, outside its clip.
+    this.#drawFocus(layout, view, mulliganChoice, !layout.commitSticky);
+    const drawn = this.children.list.slice(before);
+    region.content.add(drawn);
+    this.#stripMask?.setY(-this.#bodyScroll.offsetPx);
+    region.refresh();
+    const decider = view.seats.find((seat) => seat.playerId === view.decidingPlayerId) ?? null;
+    if (layout.commitSticky && decider && mulliganChoice)
+      this.#drawCommit(layout.commitRow, decider, mulliganChoice, true);
+  }
+
+  #drawFocus(
+    layout: SetupWalkthroughLayout,
+    view: SetupWalkthroughView,
+    mulliganChoice: PendingChoice | null,
+    withCommit = true,
+  ): void {
     const decider = view.seats.find((seat) => seat.playerId === view.decidingPlayerId) ?? null;
     const others = view.seats.filter((seat) => seat.playerId !== view.decidingPlayerId);
 
@@ -453,7 +511,7 @@ export class SetupDealScene extends Phaser.Scene {
         `Your opening hand — ${decider.name}`,
       );
       this.#drawOpeningHand(layout.handRow, decider);
-      this.#drawCommit(layout.commitRow, decider, mulliganChoice, layout.formFactor === "phone");
+      if (withCommit) this.#drawCommit(layout.commitRow, decider, mulliganChoice, layout.formFactor === "phone");
     } else {
       this.#sectionHeader(
         layout.handLabel.x,
@@ -585,7 +643,7 @@ export class SetupDealScene extends Phaser.Scene {
    * carries a thin indicator under it so the player can see there is more hand to the right.
    */
   #drawOpeningHand(rect: Rect, decider: SetupSeatStatus): void {
-    const layout = openingHandLayout(rect, decider.hand.length);
+    const layout = openingHandLayout(rect, decider.hand.length, this.#cardScale > 1);
     if (layout.mode === "row") {
       decider.hand.forEach((card, index) => {
         const slot = layout.slots[index];
@@ -719,15 +777,16 @@ export class SetupDealScene extends Phaser.Scene {
       seat.state === "waiting" ? ink.secondary : 1,
     );
 
+    const scale = rect.height > 96 ? this.#cardScale : 1;
     const slotsTop = monoRect.y + monoRect.height + 10;
     const count = Math.max(0, seat.handSize);
     const gap = 3;
     const available = rect.width - 16;
     const slotWidth =
       count > 0
-        ? Math.max(9, Math.min(OTHER_SEAT_SLOT_WIDTH, (available - gap * (count - 1)) / count))
-        : OTHER_SEAT_SLOT_WIDTH;
-    const slotHeight = Math.min(OTHER_SEAT_SLOT_HEIGHT, rect.y + rect.height - slotsTop - 4);
+        ? Math.max(9, Math.min(OTHER_SEAT_SLOT_WIDTH * scale, (available - gap * (count - 1)) / count))
+        : OTHER_SEAT_SLOT_WIDTH * scale;
+    const slotHeight = Math.min(OTHER_SEAT_SLOT_HEIGHT * scale, rect.y + rect.height - slotsTop - 4);
     if (slotHeight > 8) {
       const redrawn = seat.state === "mulliganed" ? (seat.mulliganedCount ?? 0) : 0;
       for (let i = 0; i < count; i++) {
@@ -773,7 +832,7 @@ export class SetupDealScene extends Phaser.Scene {
     const name = this.add.text(rect.x + 10, nameY, card.name, textStyle(typeRole.barTitle, surface.ink.hex));
     fitText(name, rect.width - 20, typeRole.barTitle.size);
     let y = nameY + name.height + 4;
-    const artHeight = Math.min((rect.y + rect.height - y) * 0.5, 90);
+    const artHeight = Math.min((rect.y + rect.height - y) * 0.5, 90 * this.#cardScale);
     if (artHeight > 30) {
       const artRect: Rect = { x: rect.x + 10, y, width: rect.width - 20, height: artHeight };
       const key = this.#art.request(this, card.art);

@@ -73,6 +73,12 @@ export interface SetupWalkthroughLayoutInput {
   readonly checklistRows?: number;
   /** Whether a setup card has been revealed yet — the empty state is short, not a big empty panel. Defaults true. */
   readonly hasRevealedCard?: boolean;
+  /**
+   * The global Card size setting (`cardSizeFactor`): 1 for Fit to screen. Above 1 the opening-hand row, the seat cards
+   * and the revealed setup card grow by it and the squeeze-to-fit rules stand down; what no longer fits scrolls
+   * (`body`). Tablet landscape draws every hand as text rows, not cards, so it ignores it.
+   */
+  readonly cardScale?: number;
 }
 
 export interface SetupWalkthroughLayout {
@@ -99,6 +105,13 @@ export interface SetupWalkthroughLayout {
   readonly seatColumns: readonly Rect[];
   readonly footerNote: Rect | null;
   readonly footerCommit: Rect | null;
+
+  /**
+   * "focus" mode: the area under the checklist that scrolls vertically when the (possibly enlarged) cards do not fit.
+   * `viewport` is where the body shows (above the pinned commit row on a phone); `contentHeight` is how tall everything
+   * in it is, from `viewport.y`. The content scrolls only when it is taller than the viewport. Null in "allSeats".
+   */
+  readonly body: { readonly viewport: Rect; readonly contentHeight: number } | null;
 }
 
 export function setupWalkthroughLayoutRects(layout: SetupWalkthroughLayout): readonly Rect[] {
@@ -159,6 +172,7 @@ export function setupWalkthroughLayout(input: SetupWalkthroughLayoutInput): Setu
     gap,
     otherSeatCount: Math.max(0, input.otherSeatCount),
     hasRevealedCard,
+    cardScale: Math.max(1, input.cardScale ?? 1),
   });
 }
 
@@ -186,11 +200,11 @@ const MIN_HAND_STRIP_HEIGHT = 180;
 const MIN_REVEALED_HEIGHT_STACKED = 70;
 
 function focusLayoutAt(
-  shared: Shared & { readonly otherSeatCount: number; readonly hasRevealedCard: boolean },
+  shared: Shared & { readonly otherSeatCount: number; readonly hasRevealedCard: boolean; readonly cardScale: number },
   handRowHeightOverride?: number,
   revealedHeightOverride?: number,
 ): SetupWalkthroughLayout {
-  const { width, height, formFactor, bodyTop, pad, gap, otherSeatCount, hasRevealedCard } = shared;
+  const { width, height, formFactor, bodyTop, pad, gap, otherSeatCount, hasRevealedCard, cardScale } = shared;
   const split = formFactor !== "phone";
   const commitSticky = formFactor === "phone";
 
@@ -206,7 +220,7 @@ function focusLayoutAt(
     : { x: 0, y: 0, width: 0, height: 0 }; // placed below, once `by` reaches it in normal flow.
 
   let by = bodyTop + SECTION_HEADER_ROOM;
-  const handRowHeight = handRowHeightOverride ?? Math.min(260, Math.max(160, height * 0.28));
+  const handRowHeight = handRowHeightOverride ?? Math.min(260, Math.max(160, height * 0.28)) * cardScale;
   const handLabel: Rect = { x: bodyLeft, y: bodyTop, width: bodyWidth, height: SECTION_HEADER_ROOM };
   const handRow: Rect = { x: bodyLeft, y: by, width: bodyWidth, height: handRowHeight };
   by += handRowHeight + gap;
@@ -223,15 +237,16 @@ function focusLayoutAt(
   // stacked full-width rows only on phone, where a row of three would be too narrow to read.
   let otherSeats: Rect[];
   if (split) {
+    const seatHeight = OTHER_SEAT_CARD_HEIGHT * cardScale;
     const cols = Math.max(1, otherSeatCount);
     const colWidth = (bodyWidth - OTHER_SEAT_GAP * (cols - 1)) / cols;
     otherSeats = Array.from({ length: otherSeatCount }, (_unused, index) => ({
       x: bodyLeft + index * (colWidth + OTHER_SEAT_GAP),
       y: by,
       width: colWidth,
-      height: OTHER_SEAT_CARD_HEIGHT,
+      height: seatHeight,
     }));
-    if (otherSeatCount > 0) by += OTHER_SEAT_CARD_HEIGHT + gap;
+    if (otherSeatCount > 0) by += seatHeight + gap;
   } else {
     otherSeats = Array.from({ length: otherSeatCount }, (_unused, index) => ({
       x: bodyLeft,
@@ -251,16 +266,24 @@ function focusLayoutAt(
   if (split) {
     const revealedHeight = !hasRevealedCard
       ? REVEALED_EMPTY_HEIGHT
-      : (revealedHeightOverride ?? Math.min(230, Math.max(160, height * 0.28)));
+      : (revealedHeightOverride ?? Math.min(230, Math.max(160, height * 0.28)) * cardScale);
     revealedPanel = { x: sidebarLeft, y: bodyTop, width: sidebarWidth, height: revealedHeight };
     const logTop = revealedPanel.y + revealedPanel.height + gap;
     logPanel = { x: sidebarLeft, y: logTop, width: sidebarWidth, height: Math.max(80, height - pad - logTop) };
   } else {
-    const revealedHeight = !hasRevealedCard ? REVEALED_EMPTY_HEIGHT : (revealedHeightOverride ?? 120);
+    const revealedHeight = !hasRevealedCard ? REVEALED_EMPTY_HEIGHT : (revealedHeightOverride ?? 120 * cardScale);
     revealedPanel = { x: bodyLeft, y: by + gap, width: bodyWidth, height: revealedHeight };
     const logTop = revealedPanel.y + revealedPanel.height + gap;
     logPanel = { x: bodyLeft, y: logTop, width: bodyWidth, height: Math.max(60, floor - logTop) };
   }
+
+  const rects = [handLabel, handRow, resolvedCommitRow, otherSeatsLabel, ...otherSeats, revealedPanel, logPanel];
+  const contentBottom = Math.max(...rects.filter((rect) => rect.width > 0).map((rect) => rect.y + rect.height));
+  const viewportBottom = commitSticky ? resolvedCommitRow.y - gap : height - pad;
+  const body = {
+    viewport: { x: 0, y: bodyTop, width, height: Math.max(0, viewportBottom - bodyTop) },
+    contentHeight: contentBottom - bodyTop,
+  };
 
   return {
     formFactor: shared.formFactor,
@@ -280,6 +303,7 @@ function focusLayoutAt(
     seatColumns: [],
     footerNote: null,
     footerCommit: null,
+    body,
   };
 }
 
@@ -295,9 +319,11 @@ function focusLayoutAt(
  * — never the checklist, the commit row's 44px+ touch targets, or the log panel's own floor.
  */
 function focusLayout(
-  shared: Shared & { readonly otherSeatCount: number; readonly hasRevealedCard: boolean },
+  shared: Shared & { readonly otherSeatCount: number; readonly hasRevealedCard: boolean; readonly cardScale: number },
 ): SetupWalkthroughLayout {
   const trial = focusLayoutAt(shared);
+  // Enlarged cards scroll rather than squeeze: the squeeze below is for Fit to screen.
+  if (shared.cardScale > 1) return trial;
   if (!trial.logPanel) return trial;
   const floor = trial.commitSticky ? trial.commitRow.y - shared.gap : shared.height;
   const overflow = trial.logPanel.y + trial.logPanel.height - floor;
@@ -359,5 +385,6 @@ function allSeatsLayout(shared: Shared & { readonly seatCount: number }): SetupW
     seatColumns,
     footerNote,
     footerCommit,
+    body: null,
   };
 }

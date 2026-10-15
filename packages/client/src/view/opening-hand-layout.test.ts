@@ -90,3 +90,17 @@ describe("openingHandThumb", () => {
     expect(over.x + over.width).toBe(track.x + track.width);
   });
 });
+
+describe("openingHandLayout at full size (an enlarged Card size)", () => {
+  test("a hand that no longer fits in one row at full height scrolls sideways instead of shrinking", () => {
+    const rect = { x: 0, y: 0, width: 800, height: 390 };
+    expect(openingHandLayout(rect, 6).mode).toBe("row");
+    const layout = openingHandLayout(rect, 6, true);
+    expect(layout.mode).toBe("strip");
+    for (const slot of layout.slots) expect(slot.height).toBeCloseTo(layout.viewport.height);
+  });
+
+  test("a hand that fits at full height stays one row", () => {
+    expect(openingHandLayout({ x: 0, y: 0, width: 1200, height: 200 }, 4, true).mode).toBe("row");
+  });
+});

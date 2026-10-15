@@ -214,3 +214,55 @@ describe("setupWalkthroughLayout", () => {
     expect(layout.titleRow.y + layout.titleRow.height).toBeLessThanOrEqual(layout.headerBar.height);
   });
 });
+
+describe("setupWalkthroughLayout at an enlarged Card size", () => {
+  for (const cardScale of [1, 1.25, 1.5]) {
+    for (const size of SIZES) {
+      for (const otherSeatCount of [0, 1, 3]) {
+        test(`x${cardScale} at ${size.width}x${size.height}, ${otherSeatCount} other seat(s): nothing overlaps and no card is cut off`, () => {
+          const layout = setupWalkthroughLayout({
+            ...size,
+            otherSeatCount,
+            seatCount: otherSeatCount + 1,
+            cardScale,
+          });
+          // A phone's pinned commit row sits over the scrolling body by design.
+          const rects = setupWalkthroughLayoutRects(layout).filter(
+            (rect) => !(layout.commitSticky && rect === layout.commitRow),
+          );
+          for (let i = 0; i < rects.length; i++) {
+            for (let j = i + 1; j < rects.length; j++) {
+              expect(rectsOverlap(rects[i]!, rects[j]!), `${i}/${j}`).toBe(false);
+            }
+          }
+          if (!layout.body) return; // tablet landscape: text rows, no cards to scale
+          const { viewport, contentHeight } = layout.body;
+          expect(viewport.y + viewport.height).toBeLessThanOrEqual(size.height);
+          for (const rect of [layout.handRow, ...layout.otherSeats, layout.revealedPanel!, layout.logPanel!]) {
+            expect(rect.x).toBeGreaterThanOrEqual(0);
+            expect(rect.x + rect.width).toBeLessThanOrEqual(size.width + 0.5);
+            // Every card either sits inside the body's content or the body scrolls to it.
+            expect(rect.y + rect.height - viewport.y).toBeLessThanOrEqual(contentHeight + 0.5);
+          }
+          // At Fit to screen nothing needs scrolling (the squeeze-to-fit rules hold, as before).
+          if (cardScale === 1 && layout.formFactor !== "phone") {
+            expect(contentHeight).toBeLessThanOrEqual(viewport.height + 0.5);
+          }
+        });
+      }
+    }
+  }
+
+  test("the hand row, seat cards and revealed card grow with the scale on a desktop", () => {
+    const at = (cardScale: number) =>
+      setupWalkthroughLayout({ width: 1440, height: 900, otherSeatCount: 1, seatCount: 2, cardScale });
+    expect(at(1.5).handRow.height).toBeCloseTo(at(1).handRow.height * 1.5);
+    expect(at(1.5).otherSeats[0]!.height).toBeCloseTo(at(1).otherSeats[0]!.height * 1.5);
+    expect(at(1.5).revealedPanel!.height).toBeGreaterThan(at(1).revealedPanel!.height);
+  });
+
+  test("an enlarged body that is taller than the screen reports it, so the scene scrolls it", () => {
+    const layout = setupWalkthroughLayout({ width: 390, height: 844, otherSeatCount: 3, seatCount: 4, cardScale: 1.5 });
+    expect(layout.body!.contentHeight).toBeGreaterThan(layout.body!.viewport.height);
+  });
+});

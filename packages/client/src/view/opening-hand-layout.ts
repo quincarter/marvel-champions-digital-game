@@ -11,7 +11,7 @@
  *
  * Nothing here imports Phaser: the scene draws what this returns and subtracts the scroll offset itself.
  */
-import { cardRow, type Rect } from "./layout.js";
+import { CARD_ASPECT, cardRow, type Rect } from "./layout.js";
 
 /** Below this card width, a single row no longer reads (the cost pip and title line are the first to go). */
 export const READABLE_CARD_WIDTH = 90;
@@ -37,9 +37,15 @@ export interface OpeningHandLayout {
   readonly indicator: Rect | null;
 }
 
-export function openingHandLayout(rect: Rect, count: number): OpeningHandLayout {
+/**
+ * `fullSize` (an enlarged Card size setting): the cards keep the row's full height and the hand scrolls sideways as
+ * soon as they no longer fit in one row, instead of shrinking to fit as far as a card still reads.
+ */
+export function openingHandLayout(rect: Rect, count: number, fullSize = false): OpeningHandLayout {
   const row = cardRow(rect, count, { gap: CARD_GAP, maxHeight: rect.height });
-  if (count <= 4 || (row[0]?.width ?? 0) >= READABLE_CARD_WIDTH) {
+  const needed = rect.height * CARD_ASPECT * count + CARD_GAP * (count - 1);
+  const fitsAsRow = fullSize ? needed <= rect.width : count <= 4 || (row[0]?.width ?? 0) >= READABLE_CARD_WIDTH;
+  if (fitsAsRow) {
     const right = row.reduce((max, slot) => Math.max(max, slot.x + slot.width), rect.x);
     return { mode: "row", slots: row, viewport: rect, contentWidth: right - rect.x, indicator: null };
   }
