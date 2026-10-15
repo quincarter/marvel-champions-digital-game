@@ -50,6 +50,8 @@ export interface DefendOptionView {
   readonly damageHeadline: string;
   /** "12 of 16 HP" / "8–12 of 16 HP", or null when the target's HP isn't modeled (shouldn't happen for a character). */
   readonly hpAfter: string | null;
+  /** The lowest damage at which this option's target is defeated ("DEFEATED AT 2+"), or null when no band defeats it. */
+  readonly defeatAt: number | null;
   /** Defeat threshold, Tough, Overkill, Retaliate — only the ones that actually apply to this option. */
   readonly consequences: readonly string[];
 }
@@ -233,6 +235,7 @@ function optionViewOf(
     defenseReduction: preview.defenseReduction,
     damageHeadline: damageHeadline(preview.bands),
     hpAfter: hpAfterLine(state, preview, deps),
+    defeatAt: bandFactsOf(preview.bands).defeatAt,
     consequences: consequenceLines(state, attackerInstanceId, preview),
   };
 }
