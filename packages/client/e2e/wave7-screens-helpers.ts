@@ -357,6 +357,52 @@ export async function playPayingWithOthers(
  * when one is offered) and then Confirm, both through the controls the sheet publishes. False when it is not up.
  */
 export async function declareDefender(page: Page, phone: boolean, pick: number): Promise<boolean> {
+  // The docked villain phase answers a defend on its own panel, over a sheet that stays inert underneath: its options
+  // and Confirm come from the phase's debug hook, not the sheet's.
+  const docked = await page.evaluate(() => {
+    type Rect = { x: number; y: number; width: number; height: number };
+    const dbg = (
+      window as unknown as {
+        __mcVillainPhaseDebug?: {
+          confirmRect?: () => Rect | null;
+          defendOptionIds?: () => string[];
+          defendOptionRect?: (id: string) => Rect | null;
+        };
+      }
+    ).__mcVillainPhaseDebug;
+    const ids = dbg?.defendOptionIds?.() ?? [];
+    if (!dbg?.confirmRect || ids.length === 0) return null;
+    return { ids, count: ids.length };
+  });
+  if (docked) {
+    const id = docked.ids.at(pick)!;
+    const rectOf = (which: "option" | "confirm") =>
+      page.evaluate(
+        ([w, optionId]) => {
+          const dbg = (
+            window as unknown as {
+              __mcVillainPhaseDebug: {
+                confirmRect: () => { x: number; y: number; width: number; height: number } | null;
+                defendOptionRect: (id: string) => { x: number; y: number; width: number; height: number } | null;
+              };
+            }
+          ).__mcVillainPhaseDebug;
+          return w === "option" ? dbg.defendOptionRect(optionId!) : dbg.confirmRect();
+        },
+        [which, id] as const,
+      );
+    const option = await rectOf("option");
+    if (option) {
+      await press(page, phone, option.x + option.width / 2, option.y + option.height / 2);
+      await settle(page, { quietMs: 300, maxMs: 1500 });
+      const confirm = await rectOf("confirm");
+      if (confirm) {
+        await press(page, phone, confirm.x + confirm.width / 2, confirm.y + confirm.height / 2);
+        await settle(page, { quietMs: 300, maxMs: 1500 });
+        return true;
+      }
+    }
+  }
   const rects = await choiceRects(page);
   const options = rects.filter(([key]) => key.startsWith("option:"));
   const confirm = rects.find(([key]) => key === "confirm");

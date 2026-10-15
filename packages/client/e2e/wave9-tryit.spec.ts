@@ -4,7 +4,6 @@ import {
   clickFocus,
   clickText,
   guideStepId,
-  pressAt,
   pressEndTurn,
   settle,
   trackPageErrors,
@@ -37,10 +36,9 @@ async function playUntilStep(page: Page, id: string): Promise<void> {
   await waitFor(
     async () => {
       if ((await guideStepId(page)) === id) return true;
-      // Silk Sense is offered as a response window (a button, "Use Silk Sense"): take it, never skip past it.
-      const offer = (await findVisibleText(page, "Use Silk Sense"))[0];
-      if (offer) await pressAt(page, offer.x, offer.y);
-      else if (await on(page, "ChoiceOverlay")) await answerChoice(page, 0);
+      // A lesson keeps the decision sheet for Silk Sense's offer (its option is picked already): confirm it, never skip
+      // past it. The sheet's own text names "Use Silk Sense", so the sheet is answered before any text is searched.
+      if (await on(page, "ChoiceOverlay")) await answerChoice(page, 0);
       else if (await on(page, "VillainPhaseOverlay")) await skipVillainPhase(page);
       await settle(page, { quietMs: 250, maxMs: 1500 });
       return null;

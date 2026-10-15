@@ -115,7 +115,7 @@
 
 import Phaser from "phaser";
 import { addPressShield } from "../ui/press-shield.js";
-import { cardOf, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import { cardOf, type GameState, type InstanceId, type PendingChoice, type PlayerId } from "@mc/engine";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { POOL_DEPS } from "../content/pool.js";
@@ -528,7 +528,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #handTags(game: GameState, viewer: PlayerId | null): ReturnType<typeof villainHandTagsOf> {
     // Before START nothing is on offer yet: the window is not shown.
     const choice = this.#walkthrough.pausedAt && !this.#waitingToStart() ? game.pendingChoice : null;
-    const offered = choice ? (inlineInterruptFor(choice, viewer) ?? []) : [];
+    const offered = choice ? (this.#inlineFor(choice, viewer) ?? []) : [];
     // The cards the player drew as their turn ended read "New · …" for the whole phase.
     const fresh = new Set(viewer ? (this.#endOfTurn?.bySeat.get(viewer) ?? []) : []);
     return villainHandTagsOf(game, viewer, POOL_DEPS, new Set(offered.map((option) => option.instanceId)), fresh);
@@ -665,7 +665,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const choice = state?.game?.pendingChoice;
     return recapPlacementFor({
       pending: !!choice,
-      inline: !!choice && !!state && inlineInterruptFor(choice, state.perspectiveId) !== null,
+      inline: !!choice && !!state && this.#inlineFor(choice, state.perspectiveId) !== null,
       finished: readyToAutoClose(this.#walkthrough.complete, this.#revealed, totalBeatsOf(this.#walkthrough)),
       held: this.#heldChoiceId() !== null || this.#dockedDefendId() !== null,
     });
@@ -694,6 +694,14 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     if (kind === "full") return null;
     if (this.#gateEligible()) return this.#started && this.#answered.has(choice.choiceId) ? choice.choiceId : null;
     return choice.choiceId;
+  }
+
+  /**
+   * The viewer's own interrupt or response window this screen answers on the rail, or null. A guided lesson keeps the
+   * choice sheet for it (the lesson's GUIDE PICK stamp and spotlight live there), as it does for the docked defend.
+   */
+  #inlineFor(choice: PendingChoice, viewer: PlayerId | null): ReturnType<typeof inlineInterruptFor> {
+    return this.#guideActive() ? null : inlineInterruptFor(choice, viewer);
   }
 
   /** A guided lesson is running: the Board's guide rail (desktop, tablet) or its bottom strip (tabbed layouts) is up. */
@@ -740,7 +748,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     if (settings.villainAutoAdvance !== "off") return false;
     const { width, height } = this.scale.gameSize;
     const formFactor = formFactorFor(width, height);
-    if (isTabbed(formFactor) && this.#boardScene()?.guideStripContent()) return false;
+    // A lesson narrates the sheet's own options (its GUIDE PICK stamp and spotlight), so it keeps the sheet on top.
+    if (this.#guideActive()) return false;
     const kind = villainPresentationFor({
       formFactor,
       dockTable: settings.villainDockTable,
@@ -761,7 +770,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     if (!state || !choice || !this.#gateEligible()) return null;
     if (!this.#started) return choice.choiceId;
     // The player's own interrupt is answered on the panel itself; anything else waits for ANSWER.
-    if (inlineInterruptFor(choice, state.perspectiveId) !== null) return null;
+    if (this.#inlineFor(choice, state.perspectiveId) !== null) return null;
     return this.#answered.has(choice.choiceId) ? null : choice.choiceId;
   }
 
@@ -993,7 +1002,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const bounds: Rect = { x: guideRailWidth, y: 0, width: width - guideRailWidth, height: height - stripHeight };
     const layout = villainPhaseLayout(bounds, formFactor, boostCount);
     const pausedInline =
-      this.#walkthrough.pausedAt && game.pendingChoice && inlineInterruptFor(game.pendingChoice, viewer);
+      this.#walkthrough.pausedAt && game.pendingChoice && this.#inlineFor(game.pendingChoice, viewer);
 
     // Docked beside the table (D1/D2) unless the player turned the docked table off, or this form factor's docked
     // shape is not drawn yet; then the full-screen panel below. The recap and the viewer's own defend dock too
@@ -1141,7 +1150,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // phone Spider-Sense prompt during a busy villain-phase beat sequence could sit that way for over a second on
     // the first frame it appeared, tappable only once the cursor happened to catch up on its own.
     const pause = this.#walkthrough.pausedAt;
-    const inline = pause && game.pendingChoice ? inlineInterruptFor(game.pendingChoice, viewer) : null;
+    const inline = pause && game.pendingChoice ? this.#inlineFor(game.pendingChoice, viewer) : null;
 
     const stops = new Map<string, FocusStop>([["skip", { rect: layout.skip, activate: () => this.#skip() }]]);
     let finished: boolean;
@@ -2195,7 +2204,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   ): void {
     this.#presentation = kind;
     const pause = this.#walkthrough.pausedAt;
-    let inline = pause && game.pendingChoice ? inlineInterruptFor(game.pendingChoice, viewer) : null;
+    let inline = pause && game.pendingChoice ? this.#inlineFor(game.pendingChoice, viewer) : null;
     const strip = this.#encounterStrip(reveal, game, viewer);
     const revealing = reveal.steps[3]?.revealStatus === "active" && strip !== null && strip.tiles.length > 0;
     const subject = (revealing ? strip?.current : null) ?? this.#walkthrough.activation?.enemyInstanceId ?? null;
@@ -2367,7 +2376,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#presentation = "peek";
     const layout = villainPeekLayout(banner);
     const pause = this.#walkthrough.pausedAt;
-    let inline = pause && game.pendingChoice ? inlineInterruptFor(game.pendingChoice, viewer) : null;
+    let inline = pause && game.pendingChoice ? this.#inlineFor(game.pendingChoice, viewer) : null;
     const peekStrip = this.#encounterStrip(reveal, game, viewer);
     const gate = this.#gate(game, viewer, peekStrip?.current ?? this.#walkthrough.activation?.enemyInstanceId ?? null);
     if (gate?.kind === "start") inline = null;
