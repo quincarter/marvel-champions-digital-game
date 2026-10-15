@@ -83,6 +83,8 @@ import { formFactorFor, type Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
+import { HoverPreview, hoverCardIdsOf, resetHoverCards, screenHoverArea } from "../ui/card-hover-preview.js";
+import { clipHoverRect, hoverSlotOf, visibleRowRange, type HoverCardIdRect } from "../view/card-hover.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
@@ -234,6 +236,13 @@ export class DeckBuilderScene extends Phaser.Scene {
   /** The wide rail's "Your deck" list scrolls in its own region once it outgrows the rail; its offset persists. */
   #yourDeckRegion: McScrollRegion | null = null;
   #yourDeckScroll = new VariableListScroll();
+  /** The desktop hover popover over the pool rows, the identity picker and the "Your deck" lines. */
+  #hover: HoverPreview | null = null;
+  /** Each scrolling list's on-screen card rects, computed on demand from its scroll (a scroll draws nothing). */
+  #hoverLists: (() => readonly (readonly [string, HoverCardIdRect])[])[] = [];
+  /** The "Your deck" lines as drawn at zero scroll, and the scroll region (if any) that moves them. */
+  #deckLines: { readonly cardId: string; readonly rect: Rect; readonly region: "none" | "narrow" | "rail" }[] = [];
+  #yourDeckRect: Rect | null = null;
   /** Where `#drawNameField` last placed the name field, at zero scroll. */
   #nameFieldRect: Rect | null = null;
   /** Which aspect button's inline tip (G10b) is open, if any. */
@@ -267,8 +276,15 @@ export class DeckBuilderScene extends Phaser.Scene {
 
     const onResize = (): void => this.#rebuild();
     this.scale.on("resize", onResize, this);
+    resetHoverCards(this);
+    this.#hover = new HoverPreview(this, {
+      cardIds: () => this.#hoverCardIds(),
+      area: (pointer) => screenHoverArea(this, pointer),
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
+      this.#hover?.destroy();
+      this.#hover = null;
       this.#nameInput?.destroy();
       this.#nameInput = null;
       this.#filterInput?.destroy();
@@ -290,7 +306,26 @@ export class DeckBuilderScene extends Phaser.Scene {
     fadeScreenIn(this);
   }
 
+  /** Every plain card the popover may open on: the lists' (clipped to their windows) and the "Your deck" lines. */
+  #hoverCardIds(): ReadonlyMap<string, HoverCardIdRect> {
+    const all = new Map(hoverCardIdsOf(this));
+    for (const provider of this.#hoverLists) for (const [slot, rect] of provider()) all.set(slot, rect);
+    this.#deckLines.forEach(({ cardId, rect, region }, index) => {
+      const view = region === "narrow" ? this.#deckRegionRect : region === "rail" ? this.#yourDeckRect : null;
+      const offset =
+        region === "narrow" ? this.#deckScroll.offsetPx : region === "rail" ? this.#yourDeckScroll.offsetPx : 0;
+      const at = { ...rect, y: rect.y - offset };
+      const shown = view ? clipHoverRect(at, view) : at;
+      if (shown) all.set(hoverSlotOf(cardId, `line${index}`), { ...shown, cardId, through: true });
+    });
+    return all;
+  }
+
   #rebuild(): void {
+    resetHoverCards(this);
+    this.#hoverLists = [];
+    this.#deckLines = [];
+    this.#yourDeckRect = null;
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#stops = new Map();
@@ -370,6 +405,7 @@ export class DeckBuilderScene extends Phaser.Scene {
         }),
         this.#stops,
       );
+      this.#hover?.onDraw();
       return;
     }
 
@@ -396,6 +432,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       }),
       this.#stops,
     );
+    this.#hover?.onDraw();
   }
 
   /** Cards this screen must never offer to *add*: RRG 1.8 p. 29 removals from the campaign this deck belongs to. A line already in the deck from before a removal still shows (in "your deck" and, so a player can remove it, in the pool list) via `#campaignModel`'s own `refused` mark — this only narrows what browsing turns up. `null` outside campaign mode. */
@@ -1060,10 +1097,17 @@ export class DeckBuilderScene extends Phaser.Scene {
       noteOf,
       onInspectOf,
       drawRemove,
+      (entry, lineRect) =>
+        this.#deckLines.push({
+          cardId: entry.cardId as string,
+          rect: lineRect,
+          region: maxHeight === undefined ? "narrow" : "rail",
+        }),
     );
     if (maxHeight === undefined || bottom - top <= maxHeight) return bottom;
     const rect: Rect = { x: left, y: top + 16, width: column, height: Math.max(hit.target * 2, maxHeight - 16) };
     const added = this.children.list.slice(before);
+    this.#yourDeckRect = rect;
     const region = new McScrollRegion(this, {
       rect,
       heights: [bottom - rect.y],
@@ -1223,6 +1267,24 @@ export class DeckBuilderScene extends Phaser.Scene {
     });
     const list = this.#list;
     list.onDestroy(cardFaces(this).onBaked(() => list.layout(list.rect)));
+    // A pool row is hovered over its picture and text, not its -/+ column. The rows have no zone of their own, so the
+    // cards are `through`, and only the part inside the list's window counts.
+    this.#hoverLists.push(() => {
+      const found: (readonly [string, HoverCardIdRect])[] = [];
+      const view = list.rect;
+      const height = this.#rows.cardRowHeight;
+      const { start, end } = visibleRowRange(view.y - list.rectFor(0).y, height, view.height, pool.length);
+      for (let index = start; index < end; index++) {
+        const at = list.rectFor(index);
+        const rect = clipHoverRect(
+          { x: at.x + 4, y: at.y, width: at.width - 8 - POOL_ROW_CONTROLS_WIDTH, height: height - 6 },
+          view,
+        );
+        const cardId = pool[index]!.id as string;
+        if (rect) found.push([hoverSlotOf(cardId, `row${index}`), { ...rect, cardId, through: true }]);
+      }
+      return found;
+    });
     pool.forEach((card, index) => {
       const cardId = card.id as string;
       this.#stops.set(`card:${cardId}`, {
@@ -1306,6 +1368,27 @@ export class DeckBuilderScene extends Phaser.Scene {
     });
     const list = this.#list;
     list.onDestroy(cardFaces(this).onBaked(() => list.layout(list.rect)));
+    // The identity rows are buttons holding their hero thumbnail, so the thumbnail is `through` to its own button.
+    this.#hoverLists.push(() => {
+      const found: (readonly [string, HoverCardIdRect])[] = [];
+      const view = list.rect;
+      const { start, end } = visibleRowRange(view.y - list.rectFor(0).y, rowHeight, view.height, IDENTITIES.length);
+      for (let index = start; index < end; index++) {
+        const at = list.rectFor(index);
+        const rect = clipHoverRect(
+          {
+            x: at.x + 10,
+            y: at.y + 10,
+            width: Math.round(this.#rows.identityRowHeight * IDENTITY_THUMB_ASPECT) - 8,
+            height: this.#rows.identityRowHeight - 8,
+          },
+          view,
+        );
+        const cardId = IDENTITIES[index]!.id as string;
+        if (rect) found.push([hoverSlotOf(cardId, `identity${index}`), { ...rect, cardId, through: true }]);
+      }
+      return found;
+    });
     IDENTITIES.forEach((identity, index) => {
       this.#stops.set(`identity:${identity.id as string}`, {
         rect: () => {

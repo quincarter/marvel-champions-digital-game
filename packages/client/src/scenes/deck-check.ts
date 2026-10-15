@@ -98,6 +98,14 @@ import { CHIP_GAP, splitInfoSegment, wrapChipsToRows } from "../view/chip-layout
 import type { Rect } from "../view/layout.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { McVariableList } from "../ui/variable-list.js";
+import {
+  HoverPreview,
+  hoverCardIdsOf,
+  noteHoverCardId,
+  resetHoverCards,
+  screenHoverArea,
+} from "../ui/card-hover-preview.js";
+import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import type { VirtualListRow } from "../ui/virtual-list.js";
 import { accent, border, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
@@ -208,6 +216,10 @@ export class DeckCheckScene extends Phaser.Scene {
   #stops = new Map<string, FocusStop>();
   /** Which aspect tile's inline tip (G10b) is open, if any — wide only, the rail's own aspect tiles. */
   #aspectTipOpen: CoreAspect | null = null;
+  /** The desktop hover popover over the card grid's cells and the panel's "Your deck" lines. */
+  #hover: HoverPreview | null = null;
+  /** The card grid's on-screen cells, computed on demand from its scroll (a scroll draws nothing). */
+  #gridHover: (() => readonly (readonly [string, HoverCardIdRect])[]) | null = null;
 
   constructor() {
     super(SCENES.deckCheck);
@@ -225,9 +237,20 @@ export class DeckCheckScene extends Phaser.Scene {
     const onResize = (): void => this.#rebuild();
     this.scale.on("resize", onResize, this);
     const artOff = cardArt(this).onArrived(() => this.#rebuild());
+    resetHoverCards(this);
+    this.#hover = new HoverPreview(this, {
+      cardIds: () => {
+        const all = new Map(hoverCardIdsOf(this));
+        for (const [slot, rect] of this.#gridHover?.() ?? []) all.set(slot, rect);
+        return all;
+      },
+      area: (pointer) => screenHoverArea(this, pointer),
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
       artOff();
+      this.#hover?.destroy();
+      this.#hover = null;
       this.#tabs?.destroy();
       this.#tabs = null;
       this.#cardList?.destroy();
@@ -250,6 +273,8 @@ export class DeckCheckScene extends Phaser.Scene {
   }
 
   #rebuild(): void {
+    resetHoverCards(this);
+    this.#gridHover = null;
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#stops = new Map();
@@ -378,6 +403,7 @@ export class DeckCheckScene extends Phaser.Scene {
       deckCheckFocusOrder({ wide: layout.wide, activeTab: this.#activeTab, cardIds, filterChipIds }),
       this.#stops,
     );
+    this.#hover?.onDraw();
   }
 
   // ------------------------------------------------------------------------------------------------------------
@@ -576,7 +602,20 @@ export class DeckCheckScene extends Phaser.Scene {
     const left = rect.x + 16;
     const column = rect.width - 32;
     label(this, left, rect.y + 16, "Your deck", typeRole.label, surface.paper.hex, ink.secondary);
-    drawGroupedCardList(this, left, rect.y + 36, column, groups, PANEL_LIST_ENTRY_CAP, true);
+    // The panel's lines have no zone of their own, so each line's card is `through` to nothing under the pointer.
+    drawGroupedCardList(
+      this,
+      left,
+      rect.y + 36,
+      column,
+      groups,
+      PANEL_LIST_ENTRY_CAP,
+      true,
+      undefined,
+      undefined,
+      undefined,
+      (entry, lineRect) => noteHoverCardId(this, entry.cardId as string, lineRect, true),
+    );
 
     const openEdit = (): void => {
       goToScreen(this, SCENES.deckBuilder, { deck: editableCopyOf(this.#deck) } satisfies DeckBuilderSceneData);
@@ -773,6 +812,27 @@ export class DeckCheckScene extends Phaser.Scene {
       background: false,
     });
     const list = this.#cardList;
+    this.#gridHover = () => {
+      const found: (readonly [string, HoverCardIdRect])[] = [];
+      const view = list.rect;
+      slots.forEach((slot, index) => {
+        if (slot.kind !== "gridRow") return;
+        const at = list.rectFor(index);
+        if (at.y + at.height <= view.y || at.y >= view.y + view.height) return;
+        for (let col = 0; col < slot.count; col++) {
+          const entry = slot.group.entries[slot.startIndex + col];
+          if (!entry) continue;
+          const cell = poolCellRect(geometry, at, col);
+          const rect = clipHoverRect(
+            { x: cell.x + 4, y: cell.y + 2, width: cell.width - 8, height: cell.height - 4 },
+            view,
+          );
+          const cardId = entry.cardId as string;
+          if (rect) found.push([hoverSlotOf(cardId, `cell${index}.${col}`), { ...rect, cardId, through: true }]);
+        }
+      });
+      return found;
+    };
 
     const cardIds: string[] = [];
     slots.forEach((slot, index) => {

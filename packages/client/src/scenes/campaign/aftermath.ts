@@ -37,6 +37,14 @@ import { artFor } from "../../art/art-source.js";
 import { cardArt, drawArt } from "../../art/card-art.js";
 import { accent, ink, signal, surface, typeRole } from "../../tokens.js";
 import { McVirtualList, type VirtualListRow } from "../../ui/virtual-list.js";
+import {
+  HoverPreview,
+  hoverCardIdsOf,
+  noteHoverCardId,
+  resetHoverCards,
+  screenHoverArea,
+} from "../../ui/card-hover-preview.js";
+import { clipHoverRect, hoverSlotOf, visibleRowRange, type HoverCardIdRect } from "../../view/card-hover.js";
 import { ListScroll } from "../../view/list-scroll.js";
 import { poolCellRect, poolColumnAt, poolGridGeometry } from "../../view/deck-pool-grid.js";
 import { cardSizeFactor } from "../../settings.js";
@@ -139,6 +147,10 @@ export class CampaignAftermathScene extends Phaser.Scene {
   #pickerListScroll = new ListScroll();
   #pickerList: McVirtualList | null = null;
   #pickerSearchInput: McTextInput | null = null;
+  /** The desktop hover popover over the option rows' cards and the collection picker's grid. */
+  #hover: HoverPreview | null = null;
+  /** The picker grid's on-screen cells, computed on demand from its scroll (a scroll draws nothing). */
+  #pickerHover: (() => readonly (readonly [string, HoverCardIdRect])[]) | null = null;
 
   constructor() {
     super(SCENES.campaignAftermath);
@@ -170,7 +182,18 @@ export class CampaignAftermathScene extends Phaser.Scene {
     this.#spotPan = new SpotlightAutoPan(this, () => this.#draw());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.#spotPan?.destroy());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.#cinematic.destroy());
+    resetHoverCards(this);
+    this.#hover = new HoverPreview(this, {
+      cardIds: () => {
+        const all = new Map(hoverCardIdsOf(this));
+        for (const [slot, rect] of this.#pickerHover?.() ?? []) all.set(slot, rect);
+        return all;
+      },
+      area: (pointer) => screenHoverArea(this, pointer),
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#hover?.destroy();
+      this.#hover = null;
       this.#pickerSearchInput?.destroy();
       this.#pickerSearchInput = null;
       this.#pickerList?.destroy();
@@ -378,6 +401,8 @@ export class CampaignAftermathScene extends Phaser.Scene {
   }
 
   #draw(): void {
+    resetHoverCards(this);
+    this.#pickerHover = null;
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#pickerList?.destroy();
@@ -426,6 +451,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
 
     this.#route = this.#route ?? new FocusRoute(this);
     this.#route.set(order, stops);
+    this.#hover?.onDraw();
   }
 
   /** The comic-based summary phase (C05, page-based boxes): the aftermath's own guided read, the fold's real log
@@ -951,6 +977,31 @@ export class CampaignAftermathScene extends Phaser.Scene {
       background: false,
     });
     const list = this.#pickerList;
+    // The grid has no zone of its own (a tap is read by position), so each cell is `through` to nothing under the pointer.
+    this.#pickerHover = () => {
+      const found: (readonly [string, HoverCardIdRect])[] = [];
+      const view = list.rect;
+      const { start, end } = visibleRowRange(
+        view.y - list.rectFor(0).y,
+        geometry.cellHeight,
+        view.height,
+        geometry.rows,
+      );
+      for (let rowIndex = start; rowIndex < end; rowIndex++) {
+        const at = list.rectFor(rowIndex);
+        const inRow = Math.min(geometry.columns, filtered.length - rowIndex * geometry.columns);
+        for (let col = 0; col < inRow; col++) {
+          const cardId = filtered[rowIndex * geometry.columns + col]!.cardId as string;
+          const cell = poolCellRect(geometry, at, col);
+          const rect = clipHoverRect(
+            { x: cell.x + 4, y: cell.y + 2, width: cell.width - 8, height: cell.height - 4 },
+            view,
+          );
+          if (rect) found.push([hoverSlotOf(cardId, `cell${rowIndex}.${col}`), { ...rect, cardId, through: true }]);
+        }
+      }
+      return found;
+    };
     filtered.forEach((row, index) => {
       const rowIndex = Math.floor(index / geometry.columns);
       const col = index % geometry.columns;
@@ -1158,6 +1209,8 @@ export class CampaignAftermathScene extends Phaser.Scene {
     const card = CARDS_BY_ID.get(row.option.cardId as string);
     const artKey = cardArt(this).request(this, artFor(card, { kind: "front" }));
     const art = drawArt(this, artKey, artRect);
+    // The row's own zone (when it is editable) holds the picture, so the card is `through` to it.
+    noteHoverCardId(this, row.option.cardId as string, artRect, true);
     if (art) {
       art.setAlpha(taken ? 0.6 : 1);
     } else {

@@ -295,6 +295,11 @@ export function drawGroupedCardList(
    * end (the caller draws and tracks its own button there). Omitted by every other caller, so their lines are unchanged.
    */
   drawRemove?: (entry: DeckListEntry, rect: Rect) => void,
+  /**
+   * Called once per entry line with the line's rect, remove control excluded, after the line is drawn: the desktop hover
+   * popover's target (`ui/card-hover-preview.ts`). Omitted by a caller with no popover.
+   */
+  onLine?: (entry: DeckListEntry, rect: Rect) => void,
 ): number {
   const bodyColor = onDark ? surface.paper.hex : surface.ink.hex;
   let y = top;
@@ -338,6 +343,7 @@ export function drawGroupedCardList(
           .setWordWrapWidth(column);
         y += Math.max(14, noteLine.height + 2);
       }
+      onLine?.(entry, { x: left, y: rowTop, width: column - removeWidth - 4, height: y - rowTop });
       const onInspect = onInspectOf?.(entry) ?? null;
       if (onInspect) {
         const zone = scene.add

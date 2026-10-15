@@ -12,8 +12,10 @@
 
 import Phaser from "phaser";
 import { cardOf, getInstance, type InstanceId } from "@mc/engine";
+import { defaultFaceFor, type CardFace } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
-import { POOL_DEPS } from "../content/pool.js";
+import { CARDS_BY_ID, POOL_DEPS } from "../content/pool.js";
+import { SCENES } from "../scenes/keys.js";
 import { appSession } from "../session.js";
 import { surface, typeRole } from "../tokens.js";
 import { textStyle } from "./theme.js";
@@ -21,15 +23,21 @@ import { paintThreatMeter } from "./widgets.js";
 import { schemePanel } from "../view/board-model.js";
 import {
   HOVER_DELAY_MS,
+  slotOfHoverKey,
   hoverCandidateAt,
+  hoverCardIdAt,
+  hoverKeyOfCardId,
+  hoverSlotOf,
+  type HoverCardIdRect,
   hoverWorthShowing,
   hoverCardSize,
+  villainHoverArea,
   hoverPlacement,
   hoverStateLines,
   type Size,
 } from "../view/card-hover.js";
-import { inspectModel, type InspectModel } from "../view/inspect-model.js";
-import type { Rect } from "../view/layout.js";
+import { cardInspectModel, inspectModel, type InspectModel } from "../view/inspect-model.js";
+import { formFactorFor, type Rect } from "../view/layout.js";
 
 /** Above every other thing the Board draws (the phase band is 1150). */
 const HOVER_DEPTH = 2000;
@@ -39,8 +47,14 @@ const METER_HEIGHT = 26;
 const FADE_MS = 90;
 
 export interface HoverPreviewDeps {
-  /** Each card's rect as the scene last drew it, by instance. */
-  readonly cards: () => ReadonlyMap<InstanceId, Rect>;
+  /** Each game card's rect as the scene last drew it, by instance. Absent on a screen with no game (the deck screens). */
+  readonly cards?: () => ReadonlyMap<InstanceId, Rect>;
+  /**
+   * Plain cards by card id, for a screen with no game behind it (Decks, the deck builder, Rules): the popover is the
+   * card's scan with no state strip. Called on every pointer move, so a scrolling list computes its on-screen rects
+   * here from its own scroll and clips them to its viewport (`clipHoverRect`) rather than noting them at draw time.
+   */
+  readonly cardIds?: () => ReadonlyMap<string, HoverCardIdRect>;
   /**
    * The area the popover may use for this pointer, or null when it must not show at all (`view/card-hover.ts`
    * `hoverArea` for the table, `villainHoverArea` for the villain phase).
@@ -57,18 +71,73 @@ export interface HoverPreviewDeps {
 export const isMousePointer = (pointer: Phaser.Input.Pointer): boolean =>
   !pointer.wasTouch && (pointer.event as PointerEvent | undefined)?.pointerType !== "touch";
 
+/**
+ * Scenes that run over a screen and take its input. Not "any active scene": a screen opened from the Board or Pause
+ * (Rules) has scenes beneath it that are active too, and scene order does not say which is on top (Inspect is
+ * registered before Rules but sits over it).
+ */
+const COVERING_SCENES: readonly string[] = [
+  SCENES.inspect,
+  SCENES.choice,
+  SCENES.pause,
+  SCENES.rules,
+  SCENES.settings,
+  SCENES.unlocks,
+  SCENES.saveData,
+  SCENES.unlockConfirm,
+  SCENES.nameConflict,
+  SCENES.endTurnConfirm,
+  SCENES.tutorialResumeConfirm,
+  SCENES.holdOn,
+  SCENES.extrasViewer,
+  SCENES.campaignBeat,
+  SCENES.teamUpSplash,
+  SCENES.teamUpInfo,
+  SCENES.evidence,
+  SCENES.pileView,
+  SCENES.roundDebrief,
+  SCENES.villainPhase,
+];
+
+/**
+ * The popover's area for a whole-screen scene (the deck screens, Rules, the Aftermath picker): the whole screen on a
+ * desktop with a mouse, and nothing while a covering scene (Inspect, Settings, a confirm) is running over this one.
+ * `beneath` names covering scenes that sit under this one (Pause under Rules); `blocked` adds the scene's own modals.
+ */
+export function screenHoverArea(
+  scene: Phaser.Scene,
+  pointer: Phaser.Input.Pointer,
+  options: { readonly beneath?: readonly string[]; readonly blocked?: () => boolean } = {},
+): Rect | null {
+  if (options.blocked?.()) return null;
+  const { width, height } = scene.scale.gameSize;
+  const overlays = COVERING_SCENES.filter(
+    (key) => key !== scene.scene.key && !options.beneath?.includes(key) && scene.scene.manager.isActive(key),
+  );
+  return villainHoverArea({
+    formFactor: formFactorFor(width, height),
+    mouse: isMousePointer(pointer),
+    scale: appSession().settings.cardHoverScale,
+    overlays,
+    viewport: { x: 0, y: 0, width, height },
+  });
+}
+
 export class HoverPreview {
   #pointer: Phaser.Input.Pointer | null = null;
   /** The card the delay is running for. */
-  #pendingId: InstanceId | null = null;
+  #pendingId: string | null = null;
   #timer: Phaser.Time.TimerEvent | null = null;
   /** The card the popover is showing. */
-  #shownId: InstanceId | null = null;
+  #shownId: string | null = null;
   #visual: Phaser.GameObjects.Container | null = null;
   #size: Size = { width: 0, height: 0 };
   /** A card pressed or scrolled over stays quiet until the pointer moves to another one. */
-  #suppressed: InstanceId | null = null;
+  #suppressed: string | null = null;
   #destroyed = false;
+  /** The scan the shown popover is waiting for (a plain frame stands in until it arrives), if any. */
+  #waitingKey: string | null = null;
+  readonly #artOff: () => void;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -80,6 +149,15 @@ export class HoverPreview {
     input.on(Phaser.Input.Events.GAME_OUT, this.#onOut, this);
     input.on("wheel", this.#onWheel, this);
     scene.events.on(Phaser.Scenes.Events.UPDATE, this.#onUpdate, this);
+    // A scan that arrives while its popover shows the plain frame replaces it, rather than waiting for the next draw.
+    this.#artOff = cardArt(scene).onArrived(() => {
+      const key = this.#waitingKey;
+      if (this.#destroyed || key === null || !scene.textures.exists(key)) return;
+      this.#waitingKey = null;
+      const pointer = this.#pointer;
+      this.#clear();
+      if (pointer) this.#update(pointer, true);
+    });
   }
 
   /** Called at the end of every Board draw: the draw destroyed the popover with the rest of the scene, so it is rebuilt where the pointer still is. */
@@ -95,6 +173,7 @@ export class HoverPreview {
   destroy(): void {
     if (this.#destroyed) return;
     this.#destroyed = true;
+    this.#artOff();
     this.#clear();
     const { input } = this.scene;
     input.off(Phaser.Input.Events.POINTER_MOVE, this.#onMove, this);
@@ -142,8 +221,8 @@ export class HoverPreview {
     return pointer ? this.deps.area(pointer) : null;
   }
 
-  /** The card the pointer is resting on, or null: outside the area, not over a card, or something else drawn on top. */
-  #candidate(pointer: Phaser.Input.Pointer, area: Rect): InstanceId | null {
+  /** The popover's key for the card the pointer is resting on, or null: outside the area, not over a card, or something else drawn on top. */
+  #candidate(pointer: Phaser.Input.Pointer, area: Rect): string | null {
     const { x, y } = pointer;
     if (x < area.x || x > area.x + area.width || y < area.y || y > area.y + area.height) return null;
     const { input } = this.scene;
@@ -151,24 +230,31 @@ export class HoverPreview {
     input.sortGameObjects(over, pointer);
     const top = over[0];
     const bounds = top ? (top as Phaser.GameObjects.Zone).getBounds() : null;
-    const id = hoverCandidateAt(
-      x,
-      y,
-      this.deps.cards(),
-      bounds ? { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height } : null,
-    );
-    // A card already drawn large (the hero panel, the villain phase's revealed card) needs no larger copy.
-    const rect = id === null ? undefined : this.deps.cards().get(id);
-    if (!rect) return null;
-    // The Hero card popover and Villain card popover settings turn those two kinds off.
-    const game = appSession().store.state.game;
-    const type = id !== null && game ? cardOf(game, id)?.type : undefined;
+    const topmost = bounds ? { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height } : null;
     const settings = appSession().settings;
+    const cards = this.deps.cards?.() ?? EMPTY_RECTS;
+    const id = hoverCandidateAt(x, y, cards, topmost);
+    if (id !== null) {
+      const rect = cards.get(id);
+      if (!rect) return null;
+      // The Hero card popover and Villain card popover settings turn those two kinds off.
+      const game = appSession().store.state.game;
+      const type = game ? cardOf(game, id)?.type : undefined;
+      if (type === "hero_identity" && !settings.hoverHeroCard) return null;
+      if (type === "villain" && !settings.hoverVillainCard) return null;
+      // Every popover is the same size now, so even the hero panel gets one (the owner, 2026-10-14); skipping a card
+      // already drawn large is opt-in.
+      return this.deps.skipLarge !== true || hoverWorthShowing(rect) ? id : null;
+    }
+    const plain = this.deps.cardIds?.();
+    if (!plain) return null;
+    const slot = hoverCardIdAt(x, y, plain, topmost);
+    const cardId = slot === null ? undefined : plain.get(slot)?.cardId;
+    if (slot === null || cardId === undefined) return null;
+    const type = CARDS_BY_ID.get(cardId)?.type;
     if (type === "hero_identity" && !settings.hoverHeroCard) return null;
     if (type === "villain" && !settings.hoverVillainCard) return null;
-    // Every popover is the same size now, so even the hero panel gets one (the owner, 2026-10-14); skipping a card
-    // already drawn large is opt-in.
-    return this.deps.skipLarge !== true || hoverWorthShowing(rect) ? id : null;
+    return hoverKeyOfCardId(slot);
   }
 
   #update(pointer: Phaser.Input.Pointer, instant: boolean): void {
@@ -192,7 +278,7 @@ export class HoverPreview {
     else this.#timer = this.scene.time.delayedCall(HOVER_DELAY_MS, () => this.#show(id));
   }
 
-  #show(id: InstanceId): void {
+  #show(id: string): void {
     this.#timer = null;
     const pointer = this.#pointer;
     const area = this.#area();
@@ -200,14 +286,21 @@ export class HoverPreview {
       this.#clear();
       return;
     }
-    const rect = this.deps.cards().get(id);
-    const built = rect ? this.#build(id, rect, area) : null;
+    const slot = slotOfHoverKey(id);
+    const plain = slot === null ? undefined : this.deps.cardIds?.().get(slot);
+    const rect = slot === null ? this.deps.cards?.().get(id as InstanceId) : plain;
+    const built = !rect
+      ? null
+      : plain
+        ? this.#buildPlain(plain.cardId, plain.face, rect, area)
+        : this.#build(id as InstanceId, rect, area);
     if (!built) {
       this.#clear();
       return;
     }
     this.#pendingId = null;
     this.#shownId = id;
+    this.#waitingKey = built.waitingFor;
     this.#visual = built.container;
     this.#size = built.size;
     this.#place(pointer, area);
@@ -229,6 +322,7 @@ export class HoverPreview {
     // Already gone when a Board draw destroyed the scene's children; destroying twice is a no-op.
     this.#visual?.destroy();
     this.#visual = null;
+    this.#waitingKey = null;
   }
 
   /** The popover for one card: its scan (or a plain frame when the scan is missing) with the state strip under it. */
@@ -236,7 +330,11 @@ export class HoverPreview {
     id: InstanceId,
     onTable: Rect,
     area: Rect,
-  ): { readonly container: Phaser.GameObjects.Container; readonly size: Size } | null {
+  ): {
+    readonly container: Phaser.GameObjects.Container;
+    readonly size: Size;
+    readonly waitingFor: string | null;
+  } | null {
     const state = appSession().store.state;
     const game = state.game;
     if (!game || state.perspectiveId === null) return null;
@@ -320,7 +418,39 @@ export class HoverPreview {
       container.add(strip);
     }
     const extra = strip || scheme ? STRIP_GAP + stripHeight + meterHeight : 0;
-    return { container, size: { width: size.width, height: size.height + extra } };
+    return {
+      container,
+      size: { width: size.width, height: size.height + extra },
+      waitingFor: image ? null : (model.art?.key ?? null),
+    };
+  }
+
+  /** The popover for a plain card on a deck screen: its scan (or the plain frame) and nothing else, there being no state. */
+  #buildPlain(
+    cardId: string,
+    face: CardFace | undefined,
+    onScreen: Rect,
+    area: Rect,
+  ): {
+    readonly container: Phaser.GameObjects.Container;
+    readonly size: Size;
+    readonly waitingFor: string | null;
+  } | null {
+    const card = CARDS_BY_ID.get(cardId);
+    if (!card) return null;
+    const model = cardInspectModel(card, face ?? defaultFaceFor(card));
+    const key = cardArt(this.scene).request(this.scene, model.art);
+    const source = key && this.scene.textures.exists(key) ? this.scene.textures.get(key).getSourceImage() : null;
+    const aspect = source && source.width > 0 && source.height > 0 ? source.width / source.height : null;
+    const size = hoverCardSize(onScreen, aspect, appSession().settings.cardHoverScale, area);
+    const container = this.scene.add.container(0, 0).setDepth(HOVER_DEPTH);
+    const rect: Rect = { x: 0, y: 0, width: size.width, height: size.height };
+    const shadow = this.scene.add.graphics();
+    shadow.fillStyle(surface.ink.hex, 0.35).fillRect(5, 6, size.width, size.height);
+    container.add(shadow);
+    const image = drawArt(this.scene, key, rect);
+    container.add(image ?? this.#plainFrame(rect, model));
+    return { container, size, waitingFor: image ? null : (model.art?.key ?? null) };
   }
 
   /** What stands in for a scan that has not arrived or does not exist: name, type line and rules text on paper. */
@@ -350,7 +480,26 @@ export class HoverPreview {
   }
 }
 
+const EMPTY_RECTS: ReadonlyMap<InstanceId, Rect> = new Map();
 const HOVER_CARDS_KEY = "mc-hover-cards";
+const HOVER_CARD_IDS_KEY = "mc-hover-card-ids";
+
+/**
+ * A plain card (by card id) a deck screen drew at `rect`, for a screen with no game: the plain-card twin of
+ * `noteHoverCard`, emptied by the same `resetHoverCards`. Cards inside a scrolling list are not noted at draw time
+ * (the list scrolls without a draw); the scene returns them from `HoverPreviewDeps.cardIds` instead.
+ */
+export function noteHoverCardId(scene: Phaser.Scene, cardId: string, rect: Rect, through = false): void {
+  (scene.data?.get(HOVER_CARD_IDS_KEY) as Map<string, HoverCardIdRect> | undefined)?.set(
+    hoverSlotOf(cardId, `${Math.round(rect.x)},${Math.round(rect.y)}`),
+    { ...rect, cardId, ...(through ? { through: true } : {}) },
+  );
+}
+
+/** The plain cards noted since the last `resetHoverCards`. */
+export function hoverCardIdsOf(scene: Phaser.Scene): ReadonlyMap<string, HoverCardIdRect> {
+  return (scene.data.get(HOVER_CARD_IDS_KEY) as Map<string, HoverCardIdRect> | undefined) ?? new Map();
+}
 
 /**
  * The card rects a scene's popover reads, kept on the scene itself so a drawing helper several calls deep (the
@@ -363,6 +512,9 @@ export function noteHoverCard(scene: Phaser.Scene, id: InstanceId, rect: Rect): 
 
 /** The scene's hover card map, created empty on first use and emptied on every later call: call it before a draw. */
 export function resetHoverCards(scene: Phaser.Scene): Map<InstanceId, Rect> {
+  const ids = scene.data.get(HOVER_CARD_IDS_KEY) as Map<string, HoverCardIdRect> | undefined;
+  if (ids) ids.clear();
+  else scene.data.set(HOVER_CARD_IDS_KEY, new Map<string, HoverCardIdRect>());
   const existing = scene.data.get(HOVER_CARDS_KEY) as Map<InstanceId, Rect> | undefined;
   if (existing) {
     existing.clear();

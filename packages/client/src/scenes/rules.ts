@@ -62,6 +62,8 @@ import {
 } from "../ui/widgets.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { McVariableList } from "../ui/variable-list.js";
+import { HoverPreview, resetHoverCards, screenHoverArea } from "../ui/card-hover-preview.js";
+import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import { onTap } from "../ui/tap.js";
 import { ListScroll } from "../view/list-scroll.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
@@ -159,6 +161,10 @@ export class RulesOverlay extends Phaser.Scene {
   #cardListList: McVariableList | null = null;
   #cardListScroll = new VariableListScroll();
   #motion = new OverlayMotion();
+  /** The desktop hover popover over the Card list tab's cards. */
+  #hover: HoverPreview | null = null;
+  /** The Card list's on-screen cells, computed on demand from its scroll (a scroll draws nothing). */
+  #cardListHover: (() => readonly (readonly [string, HoverCardIdRect])[]) | null = null;
 
   constructor() {
     super(SCENES.rules);
@@ -183,8 +189,17 @@ export class RulesOverlay extends Phaser.Scene {
       onPage: (direction) => this.#activeList()?.scrollByPage(direction),
       onHomeEnd: (edge) => (edge === "home" ? this.#activeList()?.scrollToStart() : this.#activeList()?.scrollToEnd()),
     });
+    resetHoverCards(this);
+    this.#hover = new HoverPreview(this, {
+      cardIds: () => new Map(this.#cardListHover?.() ?? []),
+      // Pause sits under Rules when it was opened from there; it is not over it.
+      area: (pointer) =>
+        screenHoverArea(this, pointer, { beneath: [SCENES.pause, SCENES.villainPhase, SCENES.roundDebrief] }),
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
+      this.#hover?.destroy();
+      this.#hover = null;
       artOff();
       this.#searchInput?.destroy();
       this.#searchInput = null;
@@ -252,6 +267,8 @@ export class RulesOverlay extends Phaser.Scene {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#destroyLists();
+    this.#cardListHover = null;
+    resetHoverCards(this);
     const kept = this.#searchInput ? [this.#searchInput.gameObject] : [];
     for (const node of kept) this.children.remove(node);
     destroyChildren(this);
@@ -424,6 +441,7 @@ export class RulesOverlay extends Phaser.Scene {
     );
 
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
+    this.#hover?.onDraw();
   }
 
   /** One "All rules" / "On your table" segment — see `#draw`'s own comment on why this isn't a `McButton`. */
@@ -888,6 +906,27 @@ export class RulesOverlay extends Phaser.Scene {
       onRowActivate,
     });
     const list = this.#cardListList;
+    this.#cardListHover = () => {
+      const found: (readonly [string, HoverCardIdRect])[] = [];
+      const view = list.rect;
+      slots.forEach((slot, index) => {
+        if (slot.kind !== "gridRow") return;
+        const at = list.rectFor(index);
+        if (at.y + at.height <= view.y || at.y >= view.y + view.height) return;
+        for (let col = 0; col < slot.count; col++) {
+          const card = slot.group.cards[slot.startIndex + col];
+          if (!card) continue;
+          const cell = poolCellRect(geometry, at, col);
+          const rect = clipHoverRect(
+            { x: cell.x + 4, y: cell.y + 2, width: cell.width - 8, height: cell.height - 4 },
+            view,
+          );
+          const cardId = card.cardId as string;
+          if (rect) found.push([hoverSlotOf(cardId, `cell${index}.${col}`), { ...rect, cardId, through: true }]);
+        }
+      });
+      return found;
+    };
 
     const rowIds: string[] = [];
     slots.forEach((slot, index) => {

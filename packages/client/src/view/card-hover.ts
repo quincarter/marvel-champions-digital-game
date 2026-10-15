@@ -4,6 +4,7 @@
  * draws what this decides. It reads state and never changes it: the popover takes no input.
  */
 import { cardHoverFactor, type CardHoverScale } from "../settings.js";
+import type { CardFace } from "../art/art-source.js";
 import type { FormFactor, Rect } from "./layout.js";
 
 /** How long the pointer rests on a card before the popover opens, so sweeping across the table flashes nothing. */
@@ -110,6 +111,90 @@ export function hoverCandidateAt<Id>(
     }
   }
   return best;
+}
+
+/**
+ * A plain card on a deck screen (no game, no instance) noted for the popover. `through` marks a card shown inside a
+ * host that is itself the tap target: a pool grid cell inside a list that handles the tap by pointer position (no
+ * interactive object at all), or a deck row's thumbnail inside the row's own button. Its popover opens when nothing
+ * interactive is under the pointer, or when the topmost interactive thing is a host holding the whole card.
+ */
+export interface HoverCardIdRect extends Rect {
+  /** The card shown. The map is keyed by a unique slot (`hoverSlotOf`), not by card id: one hero fills several deck rows. */
+  readonly cardId: string;
+  /** The face to show when it is not the card's default (`defaultFaceFor`): a villain stage, a scheme's B side. */
+  readonly face?: CardFace;
+  readonly through?: boolean;
+}
+
+/** A slot key for one place a card is drawn: stable across redraws and scrolls when `where` is (a row index, a grid index). */
+export const hoverSlotOf = (cardId: string, where: string | number): string => `${cardId}@${where}`;
+
+/** The popover's own key for a plain-card slot: it must never equal an instance id, so the two share one pending/shown slot. */
+const CARD_KEY_PREFIX = "card-id:";
+export const hoverKeyOfCardId = (slot: string): string => `${CARD_KEY_PREFIX}${slot}`;
+/** The slot a `hoverKeyOfCardId` key names, or null for an instance key. */
+export const slotOfHoverKey = (key: string): string | null =>
+  key.startsWith(CARD_KEY_PREFIX) ? key.slice(CARD_KEY_PREFIX.length) : null;
+
+/**
+ * The part of a card's rect that is inside the viewport of the scrolling list (or region) it sits in, or null when none
+ * of it is: a card scrolled out of the list's window, or only its overscan row, has no popover, and the pointer is
+ * only "over" the part the player can see.
+ */
+export function clipHoverRect(rect: Rect, viewport: Rect): Rect | null {
+  const x = Math.max(rect.x, viewport.x);
+  const y = Math.max(rect.y, viewport.y);
+  const right = Math.min(rect.x + rect.width, viewport.x + viewport.width);
+  const bottom = Math.min(rect.y + rect.height, viewport.y + viewport.height);
+  return right > x && bottom > y ? { x, y, width: right - x, height: bottom - y } : null;
+}
+
+/**
+ * The indexes of a uniform-row list's rows with any pixel inside its viewport, given its scroll `offset`: what a list
+ * walks to build its on-screen card rects on each pointer move without visiting all of a large pool. Half-open.
+ */
+export function visibleRowRange(
+  offset: number,
+  rowHeight: number,
+  viewHeight: number,
+  count: number,
+): { readonly start: number; readonly end: number } {
+  if (rowHeight <= 0 || count <= 0 || viewHeight <= 0) return { start: 0, end: 0 };
+  const start = Math.max(0, Math.floor(offset / rowHeight));
+  const end = Math.min(count, Math.ceil((offset + viewHeight) / rowHeight));
+  return { start, end: Math.max(start, end) };
+}
+
+/** Whether a `through` card may be hovered under the topmost interactive bounds: nothing there, or a host that holds it. */
+export function hoverThroughHost(card: Rect, topmost: Rect | null, slack = 2): boolean {
+  if (!topmost) return true;
+  return (
+    topmost.x <= card.x + slack &&
+    topmost.y <= card.y + slack &&
+    topmost.x + topmost.width >= card.x + card.width - slack &&
+    topmost.y + topmost.height >= card.y + card.height - slack
+  );
+}
+
+/**
+ * The slot of the plain card under the pointer. Cards that are their own tap target follow `hoverCandidateAt`'s shape rule; `through`
+ * cards (see `HoverCardIdRect`) are allowed to sit under their host's zone or under no zone at all.
+ */
+export function hoverCardIdAt(
+  x: number,
+  y: number,
+  cards: ReadonlyMap<string, HoverCardIdRect>,
+  topmost: Rect | null,
+): string | null {
+  const own = new Map<string, Rect>();
+  for (const [id, rect] of cards) if (!rect.through) own.set(id, rect);
+  const found = hoverCandidateAt(x, y, own, topmost);
+  if (found !== null) return found;
+  for (const [id, rect] of cards) {
+    if (rect.through && rectContains(rect, x, y) && hoverThroughHost(rect, topmost)) return id;
+  }
+  return null;
 }
 
 export interface Size {

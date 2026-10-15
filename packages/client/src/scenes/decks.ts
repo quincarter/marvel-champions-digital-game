@@ -139,6 +139,8 @@ import { deckKeyToString, resultsHistoryOf, type DeckKey, type ResultsHistory } 
 import { CHIP_GAP, chipsFitBesideHeading, minChipCellWidth } from "../view/chip-layout.js";
 import { estimateWrappedLines, type Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
+import { HoverPreview, hoverCardIdsOf, resetHoverCards, screenHoverArea } from "../ui/card-hover-preview.js";
+import { clipHoverRect, hoverSlotOf, visibleRowRange, type HoverCardIdRect } from "../view/card-hover.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { accent, border, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, cssOf, textStyle } from "../ui/theme.js";
@@ -332,6 +334,12 @@ export class DecksScene extends Phaser.Scene {
     readonly offers: readonly CommunityOffer[];
   } | null = null;
   #focusedOnce = false;
+  /** The desktop hover popover over the pool grid's cards and the deck rows' thumbnails (`ui/card-hover-preview.ts`). */
+  #hover: HoverPreview | null = null;
+  /** Each scrolling list's on-screen card rects, computed on demand from its scroll (a scroll draws nothing). */
+  #hoverLists: (() => readonly (readonly [string, HoverCardIdRect])[])[] = [];
+  /** Where each deck row's thumbnail sits inside its row, by deck id, recorded as the row draws. */
+  readonly #thumbInRow = new Map<string, Rect>();
   /** The deck an import just added: the next list draw scrolls to it, once. */
   #scrollToDeckId: string | null = null;
   /** True while the selected row is only the first one, standing in for a `focusDeckId` deck not loaded yet. */
@@ -370,9 +378,16 @@ export class DecksScene extends Phaser.Scene {
     this.scale.on("resize", onResize, this);
     appSession().music?.playTitle();
     const artOff = cardArt(this).onArrived(() => this.#rebuild());
+    resetHoverCards(this);
+    this.#hover = new HoverPreview(this, {
+      cardIds: () => this.#hoverCardIds(),
+      area: (pointer) => screenHoverArea(this, pointer),
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
       artOff();
+      this.#hover?.destroy();
+      this.#hover = null;
       this.#pasteInput?.destroy();
       this.#pasteInput = null;
       this.#marvelcdbInput?.destroy();
@@ -458,7 +473,17 @@ export class DecksScene extends Phaser.Scene {
   /** The compact control row's height this draw: 44px on a touch layout, the small desktop row otherwise. */
   #row: number = COMPACT_ROW;
 
+  /** Every plain card the popover may open on: those noted at draw time plus each list's, clipped to its viewport. */
+  #hoverCardIds(): ReadonlyMap<string, HoverCardIdRect> {
+    const all = new Map(hoverCardIdsOf(this));
+    for (const provider of this.#hoverLists) for (const [slot, rect] of provider()) all.set(slot, rect);
+    return all;
+  }
+
   #rebuild(): void {
+    resetHoverCards(this);
+    this.#hoverLists = [];
+    this.#thumbInRow.clear();
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#stops = new Map();
@@ -676,6 +701,7 @@ export class DecksScene extends Phaser.Scene {
         this.#stops,
       );
     }
+    this.#hover?.onDraw();
   }
 
   #setTab(tab: DecksTab): void {
@@ -809,6 +835,25 @@ export class DecksScene extends Phaser.Scene {
     });
     const list = this.#list;
     list.onDestroy(cardFaces(this).onBaked(() => list.layout(list.rect)));
+    // A deck row's thumbnail opens its hero's card. The rows have no zone of their own, so the pointer is over
+    // nothing interactive: the cards are `through`, and only the part inside the list's window counts.
+    this.#hoverLists.push(() => {
+      const found: (readonly [string, HoverCardIdRect])[] = [];
+      const view = list.rect;
+      const { start, end } = visibleRowRange(view.y - list.rectFor(0).y, ROW_HEIGHT, view.height, rows.length);
+      for (let index = start; index < end; index++) {
+        const row = rows[index];
+        if (row?.kind !== "deck") continue;
+        const rel = this.#thumbInRow.get(row.option.deck.id as string);
+        if (!rel) continue;
+        const at = list.rectFor(index);
+        const rect = clipHoverRect({ x: at.x + rel.x, y: at.y + rel.y, width: rel.width, height: rel.height }, view);
+        if (!rect) continue;
+        const cardId = row.option.deck.identityCardId as string;
+        found.push([hoverSlotOf(cardId, `row${index}`), { ...rect, cardId, through: true }]);
+      }
+      return found;
+    });
     if (!this.#focusedOnce && this.#data.focusDeckId) {
       const index = rows.findIndex(
         (row) => row.kind === "deck" && (row.option.deck.id as string) === this.#data.focusDeckId,
@@ -1072,6 +1117,12 @@ export class DecksScene extends Phaser.Scene {
       { x: card.x + 6, y: card.y + 6, width: thumbWidth, height: thumbHeight },
       this.#deckArtUrl(option.deck.identityCardId as string),
     );
+    this.#thumbInRow.set(option.deck.id as string, {
+      x: card.x + 6 - rect.x,
+      y: card.y + 6 - rect.y,
+      width: thumbWidth,
+      height: thumbHeight,
+    });
     if (dim < 1) (thumb as unknown as Phaser.GameObjects.Components.Alpha).setAlpha?.(dim);
     objects.push(thumb);
     const textX = card.x + 6 + thumbWidth + 10;
@@ -1362,6 +1413,30 @@ export class DecksScene extends Phaser.Scene {
       background: false,
     });
     const list = this.#poolList;
+    // The pool grid's cells, from the list's scroll on each pointer move; a cell is hovered over its picture and caption.
+    this.#hoverLists.push(() => {
+      const found: (readonly [string, HoverCardIdRect])[] = [];
+      const view = list.rect;
+      const rowsShown = visibleRowRange(view.y - list.rectFor(0).y, geometry.cellHeight, view.height, geometry.rows);
+      for (let rowIndex = rowsShown.start; rowIndex < rowsShown.end; rowIndex++) {
+        const at = list.rectFor(rowIndex);
+        const inRow = Math.min(geometry.columns, cards.length - rowIndex * geometry.columns);
+        for (let col = 0; col < inRow; col++) {
+          const card = cards[rowIndex * geometry.columns + col]!;
+          const cell = poolCellRect(geometry, at, col);
+          const rect = clipHoverRect(
+            { x: cell.x + 4, y: cell.y + 2, width: cell.width - 8, height: cell.height - 4 },
+            view,
+          );
+          if (rect)
+            found.push([
+              hoverSlotOf(card.id as string, `cell${rowIndex}.${col}`),
+              { ...rect, cardId: card.id as string, through: true },
+            ]);
+        }
+      }
+      return found;
+    });
     cards.forEach((card, index) => {
       const rowIndex = Math.floor(index / geometry.columns);
       const col = index % geometry.columns;

@@ -2,6 +2,13 @@ import { describe, expect, test } from "vitest";
 import {
   HOVER_MARGIN,
   HOVER_BASE_LONG_SIDE,
+  clipHoverRect,
+  hoverCardIdAt,
+  hoverKeyOfCardId,
+  hoverSlotOf,
+  hoverThroughHost,
+  slotOfHoverKey,
+  visibleRowRange,
   hoverArea,
   hoverCandidateAt,
   hoverCardSize,
@@ -185,5 +192,83 @@ describe("hoverStateLines", () => {
     expect(
       hoverStateLines({ ...NONE, damage: 3, damageNote: "3/5 damage", threat: 2, threatNote: "2 threat here" }),
     ).toEqual(["3/5 damage", "2 threat here"]);
+  });
+});
+
+describe("plain-card hover keys", () => {
+  test("a slot key round-trips and never reads as an instance key", () => {
+    const slot = hoverSlotOf("01001a", "row3");
+    expect(slotOfHoverKey(hoverKeyOfCardId(slot))).toBe(slot);
+    expect(slotOfHoverKey("instance-12")).toBeNull();
+  });
+
+  test("the same card in two places is two slots", () => {
+    expect(hoverSlotOf("01001a", "row1")).not.toBe(hoverSlotOf("01001a", "row2"));
+  });
+});
+
+describe("clipHoverRect", () => {
+  const view: Rect = { x: 100, y: 100, width: 300, height: 200 };
+
+  test("keeps only the part inside the list's window", () => {
+    expect(clipHoverRect({ x: 120, y: 80, width: 100, height: 60 }, view)).toEqual({
+      x: 120,
+      y: 100,
+      width: 100,
+      height: 40,
+    });
+  });
+
+  test("a card scrolled out of the window, above or below, has no rect", () => {
+    expect(clipHoverRect({ x: 120, y: 20, width: 100, height: 60 }, view)).toBeNull();
+    expect(clipHoverRect({ x: 120, y: 300, width: 100, height: 60 }, view)).toBeNull();
+    expect(clipHoverRect({ x: 120, y: 60, width: 100, height: 40 }, view)).toBeNull();
+  });
+});
+
+describe("visibleRowRange", () => {
+  test("rows with any pixel in the view", () => {
+    expect(visibleRowRange(0, 100, 250, 20)).toEqual({ start: 0, end: 3 });
+    expect(visibleRowRange(150, 100, 250, 20)).toEqual({ start: 1, end: 4 });
+  });
+
+  test("clamps to the list and survives an empty one", () => {
+    expect(visibleRowRange(1900, 100, 250, 20)).toEqual({ start: 19, end: 20 });
+    expect(visibleRowRange(0, 100, 250, 0)).toEqual({ start: 0, end: 0 });
+    expect(visibleRowRange(0, 0, 250, 5)).toEqual({ start: 0, end: 0 });
+  });
+});
+
+describe("hoverThroughHost", () => {
+  const card: Rect = { x: 50, y: 50, width: 60, height: 80 };
+
+  test("nothing interactive under the pointer is fine", () => {
+    expect(hoverThroughHost(card, null)).toBe(true);
+  });
+
+  test("a host holding the whole card is fine; a button over part of it is not", () => {
+    expect(hoverThroughHost(card, { x: 0, y: 40, width: 400, height: 100 })).toBe(true);
+    expect(hoverThroughHost(card, { x: 100, y: 60, width: 40, height: 30 })).toBe(false);
+  });
+});
+
+describe("hoverCardIdAt", () => {
+  const cell: Rect = { x: 10, y: 10, width: 100, height: 140 };
+  const cards = new Map([["a@1", { ...cell, cardId: "a", through: true }]]);
+
+  test("a through card opens over no zone and under a zone that holds it", () => {
+    expect(hoverCardIdAt(50, 50, cards, null)).toBe("a@1");
+    expect(hoverCardIdAt(50, 50, cards, { x: 0, y: 0, width: 400, height: 400 })).toBe("a@1");
+  });
+
+  test("not under a button that covers part of it, nor outside the card", () => {
+    expect(hoverCardIdAt(50, 50, cards, { x: 40, y: 40, width: 30, height: 30 })).toBeNull();
+    expect(hoverCardIdAt(300, 50, cards, null)).toBeNull();
+  });
+
+  test("a card that is its own tap target follows the shape rule", () => {
+    const own = new Map([["b@1", { ...cell, cardId: "b" }]]);
+    expect(hoverCardIdAt(50, 50, own, null)).toBeNull();
+    expect(hoverCardIdAt(50, 50, own, cell)).toBe("b@1");
   });
 });
