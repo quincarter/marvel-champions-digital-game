@@ -175,6 +175,15 @@ export type TriggerEventBody =
       readonly sourceInstanceId: InstanceId | null;
       readonly parentFrameId?: FrameId | null;
       /**
+       * The threat a card enters play with (a side scheme's or player side scheme's starting threat, hinder, a flip's
+       * new side scheme face): it lands on the card as one event, but no threat is "placed", so no interrupt, response
+       * or "each time" effect answers it (FAQ "Jennifer Walters (#19B)", RRG 1.8 Appendix IV: "Side schemes enter play
+       * with threat already on them, meaning threat is not 'placed' at this point"). A When Revealed that places more
+       * threat on the scheme ("Place an additional 1 per hero threat here") is a placement of its own, without this.
+       * Absent on every placement.
+       */
+      readonly entering?: true;
+      /**
        * Villain phase step one with several main schemes (docs/phase7-wave5.md §4.1 Q71): every scheme's threat lands
        * before any completion is checked. `"deferred"`: this placement skips the completion check; `"closing"`: the
        * last placement of the batch checks every main scheme, even if its own amount was prevented to 0 or it was

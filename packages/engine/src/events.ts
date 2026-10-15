@@ -874,6 +874,8 @@ export type GameEvent =
       readonly schemeInstanceId: InstanceId;
       readonly amount: number;
       readonly sourceInstanceId: InstanceId | null;
+      /** The threat the scheme entered play with, not a placement (`TriggerEvent placeThreat.entering`). */
+      readonly entering?: true;
     }
   | {
       readonly type: "threatRemoved";

@@ -41,6 +41,7 @@ import {
   triggeringPlayers,
   uncontrolledYouOf,
   isCaptiveAlly,
+  isPlayerCard,
 } from "../select.js";
 import type { TargetQuery } from "../spec.js";
 import { snapshotTitledAs } from "../titles.js";
@@ -583,7 +584,10 @@ const abilityResolving = (state: GameState, id: InstanceId, ability: AbilityId):
  *   the amount dealt.
  */
 const nothingToAnswer = (event: TriggerEvent, timing: WindowTiming): boolean => {
-  if (event.kind === "placeThreat") return event.amount <= 0;
+  // A scheme entering play with its starting threat (and hinder) has that threat on it as it enters: none is "placed",
+  // so nothing that answers a placement hears it (FAQ "Jennifer Walters (#19B)", RRG 1.8 Appendix IV: "Side schemes
+  // enter play with threat already on them, meaning threat is not 'placed' at this point"; `placeThreat.entering`).
+  if (event.kind === "placeThreat") return event.amount <= 0 || event.entering === true;
   if (event.kind !== "dealDamage") return false;
   return (timing === "interrupt" ? event.amount : (event.dealt ?? event.amount)) <= 0;
 };
@@ -719,13 +723,23 @@ function gatherCandidates(
       found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId: acting, definition }, forced));
     }
   }
-  found.push(...keywordCandidates(state, deps, event, timing, forced));
+  const keywords = keywordCandidates(state, deps, event, timing, forced);
+  const inPlayCount = found.length;
   found.push(...spentCardCandidates(state, deps, event, timing, forced));
   found.push(...leftCardCandidates(state, deps, event, timing, forced));
   found.push(...deckDiscardCandidates(state, deps, event, timing, forced));
   found.push(...tuckedDiscardCandidates(state, deps, event, timing, forced));
   found.push(...inHandCandidates(state, deps, event, timing, forced));
-  return found;
+  // RRG 1.8 "Ability" (p. 4): "Player card abilities cannot resolve during game setup, unless prefaced by a 'Setup'
+  // timing trigger" (FAQ "Jennifer Walters (#19B)": no "I Object!" on threat placed during setup). So no interrupt or
+  // response on a player card, forced or optional, in play, in hand or out of play, from the first setup step until
+  // the first player phase begins; a "Setup" ability is its own trigger kind and never gathered here. Keywords are
+  // kept: "entering play during setup triggers Toughness" (ruling, April 30, 2026 (3) #2).
+  const settled =
+    state.step.phase === "setup" ? found.filter((candidate) => !isPlayerCard(state, candidate.instanceId)) : found;
+  // In the order they have always been gathered: the in-play abilities, the keywords, then the out-of-play ones.
+  const inPlay = settled.filter((candidate) => found.indexOf(candidate) < inPlayCount);
+  return [...inPlay, ...keywords, ...settled.slice(inPlay.length)];
 }
 
 /**

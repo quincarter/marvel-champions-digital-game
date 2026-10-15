@@ -131,6 +131,7 @@ export function flipToOtherFace(
       schemeInstanceId: id,
       amount: startingThreatOf(ctx.state, id, deps) + keywordTotal(ctx.state, id, "hinder", deps),
       sourceInstanceId: null,
+      entering: true,
     });
   }
   events.push(...engagedEvent(ctx, id));

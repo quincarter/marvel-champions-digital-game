@@ -102,7 +102,8 @@ function placeHinder(ctx: Ctx, id: InstanceId): void {
   const type = cardOf(ctx.state, id)?.type;
   if (type === "main_scheme" || type === "side_scheme" || type === "player_side_scheme") return;
   const amount = keywordTotal(ctx.state, id, "hinder", ctx.deps);
-  if (amount > 0) pushEvent(ctx, { kind: "placeThreat", schemeInstanceId: id, amount, sourceInstanceId: null });
+  if (amount > 0)
+    pushEvent(ctx, { kind: "placeThreat", schemeInstanceId: id, amount, sourceInstanceId: null, entering: true });
 }
 
 /**
@@ -405,6 +406,7 @@ export function playerSideSchemeEntersPlay(
     schemeInstanceId: id,
     amount: schemeEntryThreat(ctx, id),
     sourceInstanceId: null,
+    entering: true,
   });
 }
 

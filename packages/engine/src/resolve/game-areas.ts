@@ -316,7 +316,7 @@ export function placeInScenarioPlayArea(
   // RRG 1.8 "Hinder X" (p. 22): one placement, starting threat and hinder together, as for any entry (`reveal.ts`).
   if (card.type === "side_scheme") {
     const amount = schemeEntryThreat(ctx, id);
-    pushEvent(ctx, { kind: "placeThreat", schemeInstanceId: id, amount, sourceInstanceId: null });
+    pushEvent(ctx, { kind: "placeThreat", schemeInstanceId: id, amount, sourceInstanceId: null, entering: true });
   }
   return "entered";
 }

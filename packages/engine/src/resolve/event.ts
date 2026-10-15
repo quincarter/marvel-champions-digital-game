@@ -2009,6 +2009,7 @@ function applyPlaceThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "placeT
     schemeInstanceId: event.schemeInstanceId,
     amount: event.amount,
     sourceInstanceId: event.sourceInstanceId,
+    ...(event.entering ? { entering: true as const } : {}),
   });
   addFrameVars(ctx, frameId, { amount: event.amount });
   addFrameVars(ctx, event.parentFrameId, { threatPlaced: event.amount });

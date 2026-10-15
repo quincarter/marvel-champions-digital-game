@@ -21,11 +21,13 @@ const FOUR_PLAYERS: readonly (readonly [string, number, string, number, number[]
     1,
     "allPlayersDefeated",
     4,
+    // Re-pinned 2026-10-14: She-Hulk's I Object! is no longer offered during setup (RRG 1.8 p. 4), so the game differs
+    // from round 1 on.
     [
-      [1, 0, 8, 0, 7, 8],
+      [1, 0, 7, 0, 7, 8],
       [2, 0, 7, 0, 14, 18],
       [3, 0, 4, 0, 0, 26],
-      [4, 0, 5, 0, 1, 14],
+      [4, 0, 5, 0, 1, 15],
     ],
   ],
   [
@@ -46,11 +48,12 @@ const FOUR_PLAYERS: readonly (readonly [string, number, string, number, number[]
     1,
     "cardAbility",
     4,
+    // Re-pinned 2026-10-14, as Klaw's.
     [
-      [1, 0, 5, 0, 6, 12],
-      [2, 0, 5, 0, 4, 18],
-      [3, 0, 5, 0, 3, 15],
-      [4, 0, 8, 0, 1, 20],
+      [1, 0, 4, 0, 6, 12],
+      [2, 0, 5, 0, 4, 20],
+      [3, 0, 5, 0, 3, 24],
+      [4, 0, 14, 0, 1, 11],
     ],
   ],
   [

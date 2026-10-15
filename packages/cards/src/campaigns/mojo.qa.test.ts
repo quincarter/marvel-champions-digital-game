@@ -260,7 +260,8 @@ describe("the expert campaign, from a real game (insert p. 5)", () => {
         const hit = choice?.options.find((o) => o.label === label);
         return hit ? [hit.optionId] : campaignPlayer(state);
       };
-    const kept = settle(built.state, labeled("Decline"), (s) => s.step.phase === "player", WAVE6_DEPS);
+    // MojoMania's own option is "Don't heal" (`mojo.ts`), not the shared helpers' "Decline".
+    const kept = settle(built.state, labeled("Don't heal"), (s) => s.step.phase === "player", WAVE6_DEPS);
     // "Set each player's hit points to their remaining hit point value recorded in the campaign log": a player who
     // recorded 0 (defeated) cannot decline, and is healed.
     if (real > 0) expect(remainingHitPoints(kept, identity2, WAVE6_DEPS)).toBe(real);

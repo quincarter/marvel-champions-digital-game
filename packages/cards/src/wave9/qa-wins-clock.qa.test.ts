@@ -43,10 +43,16 @@ describe("the printed clock of each main scheme, one to four players", () => {
   for (const [scenario, start, target, escalation] of PRINTED)
     for (const n of [1, 2, 3, 4])
       it(`${scenario}, ${n} player(s): ${start * n} threat of ${target * n}, then +${escalation * n} (and +1 per acceleration icon in play) in the first villain phase`, () => {
-        // The starting threat is read straight after createGame, before the scenario's own Setup resolves.
+        // The starting threat is the first threat placed on the main scheme, before the scenario's own Setup resolves
+        // (M.O.D.O.K.'s four Adaptoids add theirs during setup, which no player card ability interrupts: RRG 1.8 p. 4).
         const created = createGame(wave9Scenario(scenario, { players: SEATS.slice(0, n), seed: 1 }), DEPS);
         if (!created.ok) throw new Error(created.error.message);
-        expect(created.state.instances[created.state.mainScheme.instanceId]!.threat, "starting threat").toBe(start * n);
+        const startingPlacement = created.events.find(
+          (e) => e.type === "threatPlaced" && e.schemeInstanceId === created.state.mainScheme.instanceId,
+        );
+        expect(startingPlacement?.type === "threatPlaced" ? startingPlacement.amount : 0, "starting threat").toBe(
+          start * n,
+        );
         const initial = openScenario(scenario, n);
         const main: InstanceId = initial.mainScheme.instanceId;
         expect(targetThreatOf(initial), "target threat").toBe(target * n);

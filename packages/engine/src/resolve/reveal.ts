@@ -770,6 +770,7 @@ export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId):
         schemeInstanceId: id,
         amount: schemeEntryThreat(ctx, id),
         sourceInstanceId: null,
+        entering: true,
       });
       break;
     case "environment":

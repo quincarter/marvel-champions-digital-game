@@ -153,6 +153,7 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
               schemeInstanceId: frame.instanceId,
               amount: schemeEntryThreat(ctx, frame.instanceId),
               sourceInstanceId: null,
+              entering: true,
             });
             break;
           }
