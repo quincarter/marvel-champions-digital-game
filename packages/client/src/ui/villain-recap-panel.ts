@@ -24,6 +24,7 @@ import {
   villainRecapLayout,
   type VillainRecapLayout,
 } from "../view/villain-recap-layout.js";
+import { fitTileLabel, tileTailVariants } from "../view/villain-recap-tile.js";
 import { noteHoverCard } from "./card-hover-preview.js";
 import { drawSeatAvatar } from "./seat-avatar.js";
 import { bindHoldTarget } from "./hold-target.js";
@@ -185,18 +186,24 @@ function drawTile(scene: Phaser.Scene, rect: Rect, change: RecapChange, phone: b
   const g = scene.add.graphics();
   g.lineStyle(border.control, accentColor, 1);
   g.strokeRect(rect.x, rect.y, rect.width, rect.height);
-  const padX = phone ? 8 : 14;
+  const padX = phone || rect.width < 130 ? 8 : 14;
   const labelText = label(
     scene,
     rect.x + padX,
     rect.y + (phone ? 6 : 10),
-    // "SPIDER-MAN (PETER PARKER) · YOU" loses its parenthetical so the "· YOU" survives a narrow tile.
-    change.label.replace(/\s*\([^)]*\)/, ""),
+    change.label,
     typeRole.label,
     accentColor,
     change.highlight ? 1 : ink.secondary,
   );
-  labelText.setWordWrapWidth(rect.width - padX * 2).setMaxLines(1);
+  // A narrow tile cuts the name, never its "· YOU" tag (`fitTileLabel`).
+  const labelRoom = rect.width - padX * 2;
+  labelText.setText(
+    fitTileLabel(labelText.text, (candidate) => {
+      labelText.setText(candidate);
+      return labelText.width <= labelRoom;
+    }),
+  );
   const size = phone ? 18 : rect.height >= 70 ? 26 : 20;
   const numberY = rect.y + rect.height - size - (phone ? 6 : 10);
   const bigSpec = { ...typeRole.barTitle, size };
@@ -212,22 +219,21 @@ function drawTile(scene: Phaser.Scene, rect: Rect, change: RecapChange, phone: b
   const main =
     unchanged && change.kind !== "threat" ? `${change.to ?? "–"}` : `${change.from ?? "–"} → ${change.to ?? "–"}`;
   const bigText = scene.add.text(rect.x + padX, numberY, main, textStyle(bigSpec, surface.paper.hex)).setOrigin(0, 0);
-  const tailParts: string[] = [];
-  if (change.max !== null) tailParts.push(`/${change.max}${change.kind === "threat" && !phone ? " THREAT" : ""}`);
-  if (change.note && !phone) tailParts.push(change.note);
   const room = rect.width - padX * 2;
+  // The figures keep their size: the words after them give way first ("/12 THREAT" to "/12" to nothing), and only
+  // when the figures alone are too wide do they shrink.
+  fitText(bigText, room, size);
   const tailText = scene.add
     .text(
       bigText.x + bigText.width + 6,
       numberY + size - small.size - 1,
-      tailParts.join(" · "),
+      "",
       textStyle(small, surface.paper.hex, ink.secondary),
     )
     .setOrigin(0, 0);
-  if (bigText.width + 6 + tailText.width > room) {
-    fitText(bigText, Math.max(20, room - tailText.width - 6), size);
-    tailText.setX(bigText.x + bigText.width + 6);
-    if (tailText.x + tailText.width > rect.x + rect.width - padX) tailText.setVisible(false);
+  for (const variant of tileTailVariants(change, phone)) {
+    tailText.setText(variant);
+    if (variant === "" || bigText.width + 6 + tailText.width <= room) break;
   }
 }
 
@@ -250,8 +256,16 @@ function drawColumn(
       textStyle({ ...typeRole.rowTitle, size: 11, letterSpacing: 1.2 }, surface.paper.hex),
     )
     .setOrigin(0, 0)
-    .setWordWrapWidth(width - 20)
-    .setMaxLines(2);
+    .setWordWrapWidth(width - 20);
+  // One line where it reads at 10px or more (step 5 is the last row of a short column); otherwise two.
+  const singleLine = (): boolean => {
+    for (let size = 11; size >= 10; size--) {
+      headerText.setFontSize(size);
+      if (headerText.getWrappedText().length <= 1) return true;
+    }
+    return false;
+  };
+  if (!singleLine()) headerText.setFontSize(11).setMaxLines(2);
   const headerHeight = Math.max(30, headerText.height + 16);
   g.fillStyle(signal.heal.hex, 1).fillRect(region.x, top, width, headerHeight);
   g.lineStyle(border.control, surface.paper.hex, 1);
@@ -343,8 +357,15 @@ function drawEntry(
       }
       thumbsBottom = Math.max(thumbsBottom, r.y + h);
     });
-    thumbsRight = left;
-    thumbsBottom += 8;
+    // One row of faces with room left beside it keeps the sentence on their line; more, or a narrow column, puts it under.
+    const rowWidth = Math.min(entry.dealt.length, perRow) * (w + 6);
+    const roomBeside = slot.width - PAD - (left + rowWidth + 4 - slot.x) - PAD;
+    if (entry.dealt.length <= perRow && roomBeside >= 110) {
+      thumbsRight = left + rowWidth + 4;
+    } else {
+      thumbsRight = left;
+      thumbsBottom += 8;
+    }
   }
 
   // Beside the thumbs when there is room for a readable line, under them when there is not.
@@ -362,11 +383,14 @@ function drawEntry(
       .setWordWrapWidth(width);
 
   const typeWord = entry.cardType ? entry.cardType.replace(/_/g, " ") : null;
-  const headlineText = step === 4 && typeWord ? `${entry.headline} · ${typeWord}` : sentence(entry.headline);
+  // A revealed card reads "Name · type" with the seat it was dealt to; the activation or the active counter moving it started reads as itself.
+  const cardEntry = entry.kind === "card";
+  const headlineText =
+    step === 4 && cardEntry && typeWord ? `${entry.headline} · ${typeWord}` : sentence(entry.headline);
   const headlineStyle = textStyle({ ...typeRole.rowTitle, size: phone ? 13 : 14 }, inkColor);
   let headX = textX;
   let stacked = false;
-  if (step === 4 && entry.seat) {
+  if (step === 4 && cardEntry && entry.seat) {
     const c = chip(scene, textX, y, entry.seat, entry.seatIsViewer, textWidth);
     // The name beside the chip when both fit on one line; under it when the chip would squeeze it to a sliver.
     const nameWidth = scene.add.text(0, 0, headlineText, headlineStyle).setVisible(false);
@@ -380,11 +404,11 @@ function drawEntry(
     .text(headX, y, headlineText, headlineStyle)
     .setOrigin(0, 0)
     .setWordWrapWidth(textWidth - (headX - textX));
-  y += Math.max(headline.height, step === 4 && entry.seat && !stacked ? 18 : 0) + 3;
+  y += Math.max(headline.height, step === 4 && cardEntry && entry.seat && !stacked ? 18 : 0) + 3;
   if (entry.detail) y += body(entry.detail, inkColor, ink.secondary).height + 3;
   for (const effect of entry.effects) y += body(sentence(effect)).height + 3;
   for (const response of entry.responses) y += drawResponse(scene, textX, y, textWidth, response, phone) + 3;
-  if (step === 4 && entry.responses.length === 0) {
+  if (step === 4 && cardEntry && entry.responses.length === 0) {
     y += body("No responses", inkColor, ink.meta).height + 3;
   }
 

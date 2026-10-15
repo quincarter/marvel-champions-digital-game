@@ -105,6 +105,6 @@ describe("villainRecapOf", () => {
   });
 
   test("step 5 words the token pass as old to new", () => {
-    expect(recap.columns[4]!.entries[0]).toMatchObject({ headline: "Token passes", detail: "you → you" });
+    expect(recap.columns[4]!.entries[0]).toMatchObject({ headline: "Token passes: you → you", detail: null });
   });
 });

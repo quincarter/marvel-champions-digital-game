@@ -7,12 +7,13 @@
  * (`mainSchemeCalloutOf`, `seatRow`), read from the state before and after the phase. Nothing is computed that the
  * engine does not already say, and no card text is invented.
  */
-import { cardOf, getCard, getInstance, getPlayer } from "@mc/engine";
+import { cardOf, getCard, getInstance, getPlayer, mainSchemeStateOf, schemesInPlay } from "@mc/engine";
 import type { EngineDeps, GameState, InstanceId, PlayerId } from "@mc/engine";
-import { seatRow } from "./board-model.js";
-import { cardName, playerName } from "./names.js";
+import { schemePanel, seatRow } from "./board-model.js";
+import { cardName, shortSeatName } from "./names.js";
+import { activeVillainWording } from "./villain-active-change.js";
 import { mainSchemeCalloutOf } from "./villain-main-scheme.js";
-import type { ActivationBeat, Walkthrough, WalkthroughBeat } from "./villain-walkthrough.js";
+import type { ActiveVillainChange, ActivationBeat, Walkthrough, WalkthroughBeat } from "./villain-walkthrough.js";
 
 /** One "WHAT CHANGED" tile. */
 export interface RecapChange {
@@ -43,6 +44,11 @@ export interface RecapResponse {
 }
 
 export interface RecapEntry {
+  /**
+   * What the entry is: a `card` (a revealed card, the threat placed, the deal, the token), an `activation` (a villain or
+   * minion acting, whether in step 2 or started by an encounter card), or `activeVillain` (the active counter moving).
+   */
+  readonly kind: "card" | "activation" | "activeVillain";
   readonly headline: string;
   /** "ATK 2 + boost 1 = 3", "No hazard icons"-style secondary line; null when there is none. */
   readonly detail: string | null;
@@ -89,14 +95,19 @@ const isResponse = (beat: WalkthroughBeat): boolean =>
   beat.eventType !== undefined && RESPONSE_EVENTS.has(beat.eventType);
 
 export function villainRecapOf(
-  walkthrough: Walkthrough,
+  full: Walkthrough,
   before: GameState | null,
   after: GameState,
   viewer: PlayerId | null,
   deps: EngineDeps,
 ): VillainRecap {
+  // "Auto-advance paused…" beats narrate the screen's own stop, not anything that happened: the recap leaves them out.
+  const walkthrough: Walkthrough = {
+    ...full,
+    steps: full.steps.map((step) => ({ ...step, beats: step.beats.filter((beat) => !beat.pause) })),
+  };
   const seatLabel = (playerId: PlayerId | null | undefined): string | null =>
-    playerId == null ? null : playerId === viewer ? "YOU" : playerName(after, playerId);
+    playerId == null ? null : playerId === viewer ? "YOU" : shortSeatName(after, playerId, viewer);
   const respond = (beat: WalkthroughBeat): RecapResponse => ({
     seat: seatLabel(beat.seatId),
     isViewer: beat.seatId != null && beat.seatId === viewer,
@@ -110,7 +121,11 @@ export function villainRecapOf(
     columns: walkthrough.steps.map((step) => {
       switch (step.kind) {
         case "placeThreat":
-          return { number: step.number, title: step.title, entries: threatEntries(step.beats, after, respond) };
+          return {
+            number: step.number,
+            title: step.title,
+            entries: threatEntries(step.beats, after, respond),
+          };
         case "enemyActivations":
           return {
             number: step.number,
@@ -127,7 +142,7 @@ export function villainRecapOf(
           return {
             number: step.number,
             title: step.title,
-            entries: revealEntries(walkthrough, step.beats, after, seatLabel, respond),
+            entries: revealEntries(walkthrough, step.beats, after, viewer, seatLabel, respond),
           };
         default:
           return {
@@ -141,6 +156,7 @@ export function villainRecapOf(
 }
 
 const blank = (): RecapEntry => ({
+  kind: "card",
   headline: "",
   detail: null,
   cardInstanceId: null,
@@ -154,6 +170,59 @@ const blank = (): RecapEntry => ({
 });
 
 // ---- WHAT CHANGED ----
+
+type TileFactory = (partial: Partial<RecapChange> & Pick<RecapChange, "kind" | "label">) => RecapChange;
+
+/** The most extra scheme tiles drawn one by one; past this they fold into a single tile holding the sums. */
+export const MAX_SCHEME_TILES = 2;
+
+/**
+ * The schemes other than the central main scheme that got threat this phase: a villain's own side scheme (Breakout),
+ * each main scheme of Tower Defense or Kang's areas, a side scheme that came into play. The central main scheme's tile
+ * says nothing about where most of a Wrecking Crew round's threat went.
+ */
+function otherSchemeTiles(
+  before: GameState | null,
+  after: GameState,
+  deps: EngineDeps,
+  tile: TileFactory,
+): RecapChange[] {
+  const central = after.mainScheme.instanceId;
+  const moved: { readonly name: string; readonly from: number; readonly to: number; readonly max: number | null }[] =
+    [];
+  for (const id of schemesInPlay(after)) {
+    if (id === central) continue;
+    const to = getInstance(after, id)?.threat ?? 0;
+    const from = before ? (getInstance(before, id)?.threat ?? 0) : to;
+    if (from === to) continue;
+    const isMain = mainSchemeStateOf(after, id) !== undefined;
+    const panel = schemePanel(after, id, deps, isMain);
+    moved.push({ name: panel.name, from, to, max: isMain ? panel.target : null });
+  }
+  if (moved.length <= MAX_SCHEME_TILES) {
+    return moved.map((scheme) =>
+      tile({
+        kind: "threat",
+        label: scheme.name.toUpperCase(),
+        from: scheme.from,
+        to: scheme.to,
+        max: scheme.max,
+        note: scheme.max === null ? "THREAT" : null,
+      }),
+    );
+  }
+  const sum = (pick: (scheme: (typeof moved)[number]) => number): number =>
+    moved.reduce((total, scheme) => total + pick(scheme), 0);
+  return [
+    tile({
+      kind: "threat",
+      label: `${moved.length} SCHEMES`,
+      from: sum((scheme) => scheme.from),
+      to: sum((scheme) => scheme.to),
+      note: "THREAT",
+    }),
+  ];
+}
 
 function changesOf(
   before: GameState | null,
@@ -185,6 +254,8 @@ function changesOf(
     }),
   );
 
+  changes.push(...otherSchemeTiles(before, after, deps, tile));
+
   const seats = [...after.players].sort((a, b) => a.seatIndex - b.seatIndex);
   const ordered = [...seats.filter((p) => p.playerId === viewer), ...seats.filter((p) => p.playerId !== viewer)];
   for (const player of ordered) {
@@ -192,7 +263,7 @@ function changesOf(
     const was = before && getPlayer(before, player.playerId) ? seatRow(before, player.playerId, deps) : null;
     const to = now.hp?.current ?? null;
     const from = was?.hp?.current ?? to;
-    const name = now.name.toUpperCase();
+    const name = shortSeatName(after, player.playerId, null).toUpperCase();
     changes.push(
       tile({
         kind: "hp",
@@ -227,7 +298,7 @@ function changesOf(
     tile({
       kind: "firstPlayer",
       label: "FIRST PLAYER",
-      text: first === viewer ? "NOW YOU" : playerName(after, first),
+      text: first === viewer ? "NOW YOU" : shortSeatName(after, first, viewer),
       highlight: true,
       playerId: first,
     }),
@@ -237,31 +308,167 @@ function changesOf(
 
 // ---- columns ----
 
+/** The row for the active counter moving: the new active villain's card, "Active villain → Piledriver (Buddy System)". */
+function activeVillainEntry(change: ActiveVillainChange, after: GameState): RecapEntry {
+  return {
+    ...blank(),
+    kind: "activeVillain",
+    headline: activeVillainWording(change, after).line,
+    cardInstanceId: change.to,
+  };
+}
+
 function threatEntries(
   beats: readonly WalkthroughBeat[],
   after: GameState,
   respond: (beat: WalkthroughBeat) => RecapResponse,
 ): RecapEntry[] {
-  const placed = beats.filter((beat) => beat.eventType === "threatPlaced");
-  if (placed.length === 0 && beats.length === 0) return [];
-  const responses = beats.filter(isResponse).map(respond);
-  const [first, ...rest] = placed;
+  const moves = beats.filter((beat) => beat.activeChange !== undefined);
+  const rest = beats.filter((beat) => beat.activeChange === undefined);
+  const placed = rest.filter((beat) => beat.eventType === "threatPlaced");
+  const moved = moves.map((beat) => activeVillainEntry(beat.activeChange!, after));
+  if (rest.length === 0) return moved;
+  const responses = rest.filter(isResponse).map(respond);
+  const [first, ...others] = placed;
   return [
     {
       ...blank(),
-      headline: first?.text ?? beats[0]!.text,
-      effects: rest.map((beat) => beat.text),
+      headline: first?.text ?? rest[0]!.text,
+      effects: others.map((beat) => beat.text),
       cardInstanceId: after.mainScheme.instanceId,
       cardType: "main_scheme",
       responses,
     },
+    ...moved,
   ];
 }
 
-function sameActivation(a: ActivationBeat, b: ActivationBeat): boolean {
-  if (a.kind !== b.kind || a.enemyInstanceId !== b.enemyInstanceId) return false;
-  // A fresh `enemyActivated` for the same enemy starts with nothing resolved after one that had resolved.
-  return !(a.resolved && !b.resolved);
+/** One villain or minion acting, from the beats of its activation: who it hit or schemed against, and the sum. */
+function activationEntryOf(
+  activation: ActivationBeat,
+  members: readonly WalkthroughBeat[],
+  after: GameState,
+  viewer: PlayerId | null,
+  respond: (beat: WalkthroughBeat) => RecapResponse,
+): RecapEntry {
+  const target = activation.kind === "attack" ? activation.attackedPlayerId : activation.playerId;
+  const enemy = cardName(after, activation.enemyInstanceId);
+  const against = target === viewer ? "you" : shortSeatName(after, target, viewer);
+  const isMinion = cardOf(after, activation.enemyInstanceId)?.type === "minion";
+  let detail: string | null = null;
+  if (activation.kind === "attack" && activation.resolved) {
+    const r = activation.resolved;
+    detail =
+      isMinion && activation.boosts.length === 0
+        ? `ATK ${r.baseAtk} · minions take no boost`
+        : `ATK ${r.baseAtk} + boost ${r.boostIcons} = ${r.baseAtk + r.boostIcons}`;
+  } else if (activation.kind === "scheme" && activation.resolved) {
+    const r = activation.resolved;
+    const bonus = r.threatBonus > 0 ? ` + ${r.threatBonus}` : "";
+    detail =
+      isMinion && activation.boosts.length === 0
+        ? `SCH ${r.baseSch} · minions take no boost`
+        : `SCH ${r.baseSch} + boost ${r.boostIcons}${bonus} = ${r.baseSch + r.boostIcons + r.threatBonus}`;
+    // Which scheme took the threat: a villain's own side scheme, one of two main schemes.
+    detail += ` → ${cardName(after, r.schemeInstanceId)}`;
+  }
+  return {
+    ...blank(),
+    kind: "activation",
+    headline: activation.kind === "attack" ? `${enemy} attacks ${against}` : `${enemy} schemes against ${against}`,
+    detail,
+    cardInstanceId: activation.enemyInstanceId,
+    cardType: cardOf(after, activation.enemyInstanceId)?.type ?? null,
+    seat: target === viewer ? "YOU" : shortSeatName(after, target, viewer),
+    seatIsViewer: target === viewer,
+    boostInstanceIds: activation.boosts.map((boost) => boost.instanceId),
+    responses: members.filter(isResponse).map(respond),
+  };
+}
+
+interface ActivationGroup {
+  activation: ActivationBeat;
+  beats: WalkthroughBeat[];
+}
+type RowItem = ActivationGroup | { readonly move: ActiveVillainChange };
+
+function rowOf(
+  item: RowItem,
+  after: GameState,
+  viewer: PlayerId | null,
+  respond: (beat: WalkthroughBeat) => RecapResponse,
+): RecapEntry {
+  return "move" in item
+    ? activeVillainEntry(item.move, after)
+    : activationEntryOf(item.activation, item.beats, after, viewer, respond);
+}
+
+/** What an activation's resolution leaves behind: its damage and threat, already in the activation's own sum. */
+const AFTERMATH: ReadonlySet<string> = new Set([
+  "damageDealt",
+  "damagePlaced",
+  "damagePrevented",
+  "damageCapped",
+  "damageDoubled",
+  "damageIncreased",
+  "damageBeyondZeroLost",
+  "overkillSpilled",
+  "threatPlaced",
+  "threatRemoved",
+  "threatPrevented",
+]);
+
+/**
+ * Splits a step's beats into the activation rows and the active counter moving, in the order they happened, and (in the
+ * reveal step) the beats that stay the card's own. An activation begins at the beat that `startsActivation` (the
+ * engine's `enemyActivated`, or, for one an effect started, its first boost or its resolution); in step 2 everything
+ * after it belongs to it until the next begins, while under an encounter card it ends with its own sum and the damage or
+ * threat that sum placed, so the card's remaining text stays the card's.
+ */
+function splitRows(
+  beats: readonly WalkthroughBeat[],
+  inReveal: boolean,
+): { readonly own: readonly WalkthroughBeat[]; readonly rows: readonly RowItem[] } {
+  const own: WalkthroughBeat[] = [];
+  const rows: RowItem[] = [];
+  let open: ActivationGroup | null = null;
+  let aftermath = false;
+  for (const beat of beats) {
+    if (beat.activeChange) {
+      rows.push({ move: beat.activeChange });
+      open = null;
+      aftermath = false;
+      continue;
+    }
+    if (aftermath && open && beat.eventType && AFTERMATH.has(beat.eventType)) {
+      open.beats.push(beat);
+      continue;
+    }
+    // Under a card the resolution ends the activation: what follows is the card going on with its text.
+    if (aftermath) open = null;
+    aftermath = false;
+    if (beat.startsActivation && beat.activation) {
+      open = { activation: beat.activation, beats: [beat] };
+      rows.push(open);
+      continue;
+    }
+    if (open && beat.activation && beat.activation.enemyInstanceId === open.activation.enemyInstanceId) {
+      open.activation = beat.activation;
+      open.beats.push(beat);
+      if (inReveal && (beat.eventType === "attackResolved" || beat.eventType === "schemeResolved")) {
+        aftermath = true;
+      }
+      continue;
+    }
+    if (inReveal) {
+      open = null;
+      own.push(beat);
+    } else if (beat.activation) {
+      open = { activation: beat.activation, beats: [beat] };
+      rows.push(open);
+    }
+  }
+  return { own, rows };
 }
 
 function activationEntries(
@@ -270,48 +477,7 @@ function activationEntries(
   viewer: PlayerId | null,
   respond: (beat: WalkthroughBeat) => RecapResponse,
 ): RecapEntry[] {
-  const groups: { activation: ActivationBeat; beats: WalkthroughBeat[] }[] = [];
-  for (const beat of beats) {
-    if (!beat.activation) continue;
-    const last = groups.at(-1);
-    if (last && sameActivation(last.activation, beat.activation)) {
-      last.activation = beat.activation;
-      last.beats.push(beat);
-    } else groups.push({ activation: beat.activation, beats: [beat] });
-  }
-
-  return groups.map(({ activation, beats: members }) => {
-    const target = activation.kind === "attack" ? activation.attackedPlayerId : activation.playerId;
-    const enemy = cardName(after, activation.enemyInstanceId);
-    const against = target === viewer ? "you" : playerName(after, target);
-    const isMinion = cardOf(after, activation.enemyInstanceId)?.type === "minion";
-    let detail: string | null = null;
-    if (activation.kind === "attack" && activation.resolved) {
-      const r = activation.resolved;
-      detail =
-        isMinion && activation.boosts.length === 0
-          ? `ATK ${r.baseAtk} · minions take no boost`
-          : `ATK ${r.baseAtk} + boost ${r.boostIcons} = ${r.baseAtk + r.boostIcons}`;
-    } else if (activation.kind === "scheme" && activation.resolved) {
-      const r = activation.resolved;
-      const bonus = r.threatBonus > 0 ? ` + ${r.threatBonus}` : "";
-      detail =
-        isMinion && activation.boosts.length === 0
-          ? `SCH ${r.baseSch} · minions take no boost`
-          : `SCH ${r.baseSch} + boost ${r.boostIcons}${bonus} = ${r.baseSch + r.boostIcons + r.threatBonus}`;
-    }
-    return {
-      ...blank(),
-      headline: activation.kind === "attack" ? `${enemy} attacks ${against}` : `${enemy} schemes against ${against}`,
-      detail,
-      cardInstanceId: activation.enemyInstanceId,
-      cardType: cardOf(after, activation.enemyInstanceId)?.type ?? null,
-      seat: target === viewer ? "YOU" : playerName(after, target),
-      seatIsViewer: target === viewer,
-      boostInstanceIds: activation.boosts.map((boost) => boost.instanceId),
-      responses: members.filter(isResponse).map(respond),
-    };
-  });
+  return splitRows(beats, false).rows.map((item) => rowOf(item, after, viewer, respond));
 }
 
 function dealEntries(
@@ -327,7 +493,7 @@ function dealEntries(
   const even = values.length > 0 && values.every((n) => n === values[0]);
   const headline = even
     ? `${values[0]} card${values[0] === 1 ? "" : "s"} each, facedown`
-    : [...counts].map(([id, n]) => `${playerName(after, id)}: ${n}`).join(" · ") || "No cards dealt";
+    : [...counts].map(([id, n]) => `${shortSeatName(after, id, null)}: ${n}`).join(" · ") || "No cards dealt";
   return [
     {
       ...blank(),
@@ -341,34 +507,43 @@ function dealEntries(
   ];
 }
 
+/**
+ * One entry per revealed card, then, in the order it happened, a row of its own for each activation the card started
+ * ("Each Masters of Evil minion attacks you") and for the active counter moving (Buddy System). They used to be folded
+ * into the card's own text lines, where an attack read as one more sentence of the card's effect.
+ */
 function revealEntries(
   walkthrough: Walkthrough,
   beats: readonly WalkthroughBeat[],
   after: GameState,
+  viewer: PlayerId | null,
   seatLabel: (id: PlayerId) => string | null,
   respond: (beat: WalkthroughBeat) => RecapResponse,
 ): RecapEntry[] {
-  return walkthrough.encounter.revealed.map((card) => {
+  return walkthrough.encounter.revealed.flatMap((card) => {
     const under = beats.filter((beat) => beat.encounterInstanceId === card.instanceId);
     const printed = getCard(after, card.cardId);
-    return {
+    const { own, rows: follow } = splitRows(under, true);
+    const entry: RecapEntry = {
       ...blank(),
       headline: getInstance(after, card.instanceId) ? cardName(after, card.instanceId) : (printed?.name ?? "a card"),
       cardInstanceId: card.instanceId,
       cardType: printed?.type ?? null,
       seat: seatLabel(card.playerId),
       seatIsViewer: seatLabel(card.playerId) === "YOU",
-      effects: under
+      effects: own
         .filter((beat) => beat.eventType !== "encounterCardRevealed" && !isResponse(beat))
         .map((beat) => beat.text),
-      responses: under.filter(isResponse).map(respond),
+      responses: own.filter(isResponse).map(respond),
     };
+    return [entry, ...follow.map((item) => rowOf(item, after, viewer, respond))];
   });
 }
 
 function passEntry(before: GameState | null, after: GameState, viewer: PlayerId | null): RecapEntry {
-  const word = (id: PlayerId): string => (id === viewer ? "you" : playerName(after, id));
+  const word = (id: PlayerId): string => (id === viewer ? "you" : shortSeatName(after, id, viewer));
   const to = after.firstPlayerId;
   const from = before?.firstPlayerId ?? to;
-  return { ...blank(), headline: "Token passes", detail: `${word(from)} → ${word(to)}` };
+  // One line: the token's whole move, so the last row of the left column is not a header with its text below the fold.
+  return { ...blank(), headline: `Token passes: ${word(from)} → ${word(to)}` };
 }
