@@ -158,7 +158,7 @@ import type { DecksSceneData } from "./decks.js";
 import type { SeatsData } from "./seats.js";
 import type { ScenarioIntroData } from "./scenario-intro.js";
 import { scenarioIntroFor } from "../campaign/scenario-intros.js";
-import { ART_CATALOG, introArtFor } from "../art/scenario-art.js";
+import { ART_CATALOG, introArtFor, villainArtFor } from "../art/scenario-art.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 
@@ -759,6 +759,17 @@ export class TableSetupScene extends Phaser.Scene {
         .setWordWrapWidth(layout.seedHelper.width)
         .setMaxLines(Math.max(1, Math.floor(layout.seedHelper.height / 15)));
     }
+    // The villain this table faces, as a picture in the sidebar's free space between the seed and "Deal it out".
+    if (!this.#cwSummary)
+      this.#drawVillainPicture(
+        {
+          x: layout.seedHelper.x,
+          y: layout.seedHelper.y + 64,
+          width: layout.seedHelper.width,
+          height: layout.dealItOut.y - 30 - (layout.seedHelper.y + 64),
+        },
+        scenario,
+      );
 
     this.#buttons.push(
       new McButton(this, {
@@ -1680,7 +1691,7 @@ export class TableSetupScene extends Phaser.Scene {
         cardRect.x + 10,
         cardRect.y + 8,
         card.name,
-        textStyle({ ...typeRole.sectionHeader, size: 18 }, surface.ink.hex, selected ? 1 : ink.disabled),
+        textStyle({ ...typeRole.sectionHeader, size: 18 }, surface.ink.hex),
       );
       fitText(name, cardRect.width - 20, 18);
       this.add
@@ -1688,7 +1699,7 @@ export class TableSetupScene extends Phaser.Scene {
           cardRect.x + 10,
           cardRect.y + 8 + 22,
           card.description,
-          textStyle(typeRole.body, surface.ink.hex, selected ? ink.secondary : ink.disabled),
+          textStyle(typeRole.body, surface.ink.hex, ink.secondary),
         )
         .setWordWrapWidth(cardRect.width - 20)
         .setMaxLines(Math.max(1, Math.floor((cardRect.height - 34) / 14)));
@@ -1732,12 +1743,7 @@ export class TableSetupScene extends Phaser.Scene {
       stopFor(`option:${control.action}`, rect, onClick);
       this.#cardFrame(rect, row.active);
       this.#cardName(rect.x + 10, rect.y + 8, rect.width - 20, row.name, dim);
-      this.add.text(
-        rect.x + 10,
-        rect.y + 8 + 22,
-        row.meta,
-        textStyle(typeRole.body, surface.ink.hex, row.active ? ink.secondary : ink.disabled),
-      );
+      this.add.text(rect.x + 10, rect.y + 8 + 22, row.meta, textStyle(typeRole.body, surface.ink.hex, ink.secondary));
       return;
     }
 
@@ -1756,7 +1762,7 @@ export class TableSetupScene extends Phaser.Scene {
           rect.x + 10,
           rect.y + 8 + name.height + 2,
           row.meta,
-          textStyle(typeRole.body, surface.ink.hex, row.active ? ink.secondary : ink.disabled),
+          textStyle(typeRole.body, surface.ink.hex, ink.secondary),
         )
         .setWordWrapWidth(nameWidth - 6);
     const zone: Rect = stacked
@@ -2052,7 +2058,7 @@ export class TableSetupScene extends Phaser.Scene {
       rect.x + 10,
       rect.y + 8,
       "Black Order's initial attack",
-      textStyle({ ...typeRole.sectionHeader, size: 18 }, surface.ink.hex, selected ? 1 : ink.disabled),
+      textStyle({ ...typeRole.sectionHeader, size: 18 }, surface.ink.hex),
     );
     fitText(name, rect.width - 20, 18);
     this.add.text(
@@ -2061,7 +2067,7 @@ export class TableSetupScene extends Phaser.Scene {
       selected
         ? `Chosen · place ${perHero} damage per hero on Avengers Tower`
         : `Off · Avengers Tower starts undamaged (${perHero} per hero suggested)`,
-      textStyle(typeRole.body, surface.ink.hex, selected ? ink.secondary : ink.disabled),
+      textStyle(typeRole.body, surface.ink.hex, ink.secondary),
     );
   }
 
@@ -2199,7 +2205,7 @@ export class TableSetupScene extends Phaser.Scene {
     this.#buttons.push(new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect, onClick }));
     this.#stops.set(`hoodSet:${option.id}`, { rect, activate: onClick });
     this.#cardFrame(rect, option.included);
-    const dim = option.included ? 1 : ink.disabled;
+    const dim = 1;
     const name = this.add.text(
       rect.x + 10,
       rect.y + 8,
@@ -2210,23 +2216,20 @@ export class TableSetupScene extends Phaser.Scene {
     const metaText = option.included
       ? modularCardLabel({ selected: true, cardCount: option.cardCount, descriptor: option.descriptor })
       : `Set aside · ${option.cardCount} card${option.cardCount === 1 ? "" : "s"}`;
-    this.#drawModularCardLabel(
-      rect,
-      rect.y + 8 + name.height + 4,
-      metaText.toUpperCase(),
-      surface.ink.hex,
-      option.included ? ink.label : ink.disabled,
-    );
+    this.#drawModularCardLabel(rect, rect.y + 8 + name.height + 4, metaText.toUpperCase(), surface.ink.hex, ink.label);
   }
 
-  /** A card's white ground and border — 4px Hero Red when selected, a thin dim ink outline otherwise. Never a fill besides "Deal it out". */
+  /**
+   * A card's white ground and border — 4px Hero Red when selected, a thin ink outline otherwise. Never a fill besides
+   * "Deal it out". An unchosen card is drawn at full strength: it is a choice, and a faded one read as unavailable.
+   */
   #cardFrame(rect: Rect, selected: boolean): void {
     const g = this.add.graphics();
     g.fillStyle(surface.card.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     if (selected)
       g.lineStyle(4, accent.heroRed.hex, 1).strokeRect(rect.x + 2, rect.y + 2, rect.width - 4, rect.height - 4);
     else
-      g.lineStyle(1.5, surface.ink.hex, ink.disabled).strokeRect(
+      g.lineStyle(1.5, surface.ink.hex, ink.label).strokeRect(
         rect.x + 0.75,
         rect.y + 0.75,
         rect.width - 1.5,
@@ -2371,7 +2374,8 @@ export class TableSetupScene extends Phaser.Scene {
           },
     );
     this.#cardFrame(rect, option.selected);
-    const dim = option.selected ? 1 : ink.disabled;
+    // Only a set this scenario may not use is faded; an unchosen one is a choice like any other.
+    const dim = option.disabledReason === null || option.selected ? 1 : ink.disabled;
     // The set's picture on the left: it and the "Cards" tab on the right open the set's cards, the rest toggles.
     if (pictureAt) this.#drawSetPicture(pictureAt, option);
     const picture = pictureAt?.picture ?? null;
@@ -2396,7 +2400,7 @@ export class TableSetupScene extends Phaser.Scene {
       rect.y + 8 + name.height + 4,
       modularCardLabel(option).toUpperCase(),
       surface.ink.hex,
-      option.selected ? ink.label : ink.disabled,
+      dim === 1 ? ink.label : ink.disabled,
     );
   }
 
@@ -2443,7 +2447,7 @@ export class TableSetupScene extends Phaser.Scene {
   /** The picture's frame (its baked face fills in by `#fillThumbs`) and the "Cards ▸" caption. */
   #drawSetPicture(at: SetPictureLayout, option: ModularSetOption): void {
     const { picture, tab } = at;
-    const alpha = option.selected || at.phone ? 1 : 0.6;
+    const alpha = option.disabledReason === null || option.selected || at.phone ? 1 : 0.6;
     const frame = this.add.graphics();
     frame.fillStyle(surface.parchment.hex, alpha).fillRect(picture.x, picture.y, picture.width, picture.height);
     frame
@@ -2461,14 +2465,46 @@ export class TableSetupScene extends Phaser.Scene {
     const parent = at.phone ? (this.#compactRegion?.content ?? null) : (this.#modularRegion?.content ?? null);
     if (url) this.#thumbs.push({ rect: picture, url, parent, alpha, done: false });
     const caption = this.add
-      .text(
-        tab.x + tab.width / 2,
-        tab.y + tab.height / 2,
-        "CARDS ▸",
-        textStyle(typeRole.label, surface.ink.hex, option.selected || at.phone ? 1 : ink.label),
-      )
+      .text(tab.x + tab.width / 2, tab.y + tab.height / 2, "CARDS ▸", textStyle(typeRole.label, surface.ink.hex, 1))
       .setOrigin(0.5);
     fitText(caption, tab.width, typeRole.label.size);
+  }
+
+  /**
+   * The scenario's villain: its own artwork (`art/scenarios/<id>/villain.*`), else its stage I card, cover-cropped
+   * under a "VILLAIN · NAME" caption, at most as tall as it is wide; skipped when the space is too short to read.
+   * On desktop it opens the villain card's hover popover.
+   */
+  #drawVillainPicture(space: Rect, scenario: Scenario): void {
+    if (space.height < 120 || space.width < 120) return;
+    const caption = label(
+      this,
+      space.x,
+      space.y,
+      `Villain · ${scenarioDetailOf(scenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS).displayName}`,
+      typeRole.label,
+      surface.paper.hex,
+      ink.label,
+    );
+    fitText(caption, space.width, typeRole.label.size);
+    const top = space.y + 18;
+    const picture: Rect = {
+      x: space.x,
+      y: top,
+      width: space.width,
+      height: Math.min(space.width, space.y + space.height - top),
+    };
+    const g = this.add.graphics();
+    g.fillStyle(surface.parchment.hex, 0.15).fillRect(picture.x, picture.y, picture.width, picture.height);
+    const villainId = scenario.villainCardId as string;
+    const url =
+      villainArtFor(ART_CATALOG, scenario.id as string, () => 0)?.url ??
+      artFor(CARDS_BY_ID.get(villainId), { kind: "villainStage", sideIndex: 0, stageIndex: 0 })?.url ??
+      null;
+    if (url) this.#thumbs.push({ rect: picture, url, parent: null, alpha: 1, done: false });
+    const frame = this.add.graphics();
+    frame.lineStyle(2, surface.paper.hex, 1).strokeRect(picture.x, picture.y, picture.width, picture.height);
+    this.#hoverFaces.push({ cardId: villainId, rect: picture, region: "none" });
   }
 
   /** A seat's hero picture; on desktop it opens the identity card's hover popover like any card picture. */
@@ -2614,7 +2650,7 @@ export class TableSetupScene extends Phaser.Scene {
       this.#stops.set(`first-player:${cell.id}`, { rect: cellRect, activate: cell.onClick });
       const g = this.add.graphics();
       g.fillStyle(surface.card.hex, 1).fillRect(cellRect.x, cellRect.y, cellRect.width, cellRect.height);
-      g.lineStyle(1.5, surface.ink.hex, cell.selected ? 1 : ink.disabled).strokeRect(
+      g.lineStyle(1.5, surface.ink.hex, cell.selected ? 1 : ink.label).strokeRect(
         cellRect.x + 0.75,
         cellRect.y + 0.75,
         cellRect.width - 1.5,
@@ -2625,7 +2661,7 @@ export class TableSetupScene extends Phaser.Scene {
       const dotCx = cellRect.x + 10 + dotSize / 2;
       const dotCy = cellRect.y + cellRect.height / 2;
       const dot = this.add.graphics();
-      dot.lineStyle(2, surface.ink.hex, cell.selected ? 1 : ink.disabled).strokeCircle(dotCx, dotCy, dotSize / 2);
+      dot.lineStyle(2, surface.ink.hex, cell.selected ? 1 : ink.label).strokeCircle(dotCx, dotCy, dotSize / 2);
       if (cell.selected) dot.fillStyle(signal.caution.hex, 1).fillCircle(dotCx, dotCy, dotSize / 2 - 3);
 
       // The seat's hero, so the table reads as people rather than text boxes.
