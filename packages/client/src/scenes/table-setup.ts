@@ -34,6 +34,12 @@ import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTextInput, dashedRect, fitText, label, paintDotGrid, sectionHeader } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
+import { artFor } from "../art/art-source.js";
+import { cardFaces } from "../art/card-face-baker.js";
+import { artThumbSpec } from "./roster-panel.js";
+import { cardsBySet, setFacesOf } from "../view/civil-war-builder-art.js";
+import { offersRandomModularSets, withRandomModularSets } from "../view/modular-random.js";
+import { SET_CARDS_ACTION_EVENT, type SetCardsData } from "./set-cards.js";
 import { progressionScope } from "../progression/progression-scope.js";
 import { blindRevealOf } from "../view/civil-war-blind.js";
 import { estimateWrappedLines, type Rect } from "../view/layout.js";
@@ -200,6 +206,30 @@ interface CompactRowData {
 /** A Horseman's name beside its A/B pair: wide enough for "Pestilence" at the label size. */
 const HORSEMAN_LABEL_WIDTH = 72;
 
+/** A modular tile's picture waiting for its baked face (`#fillThumbs`), in the container it scrolls with. */
+interface ThumbSlot {
+  readonly rect: Rect;
+  readonly url: string;
+  readonly parent: Phaser.GameObjects.Container | null;
+  readonly alpha: number;
+  done: boolean;
+}
+
+/** The modular tiles' pictures: the set's most recognizable card, framed from the top. */
+const SET_PICTURE_FOCUS_Y = 0.12;
+/** The Random button beside the Modular sets header. */
+const MODULAR_RANDOM_WIDTH = 90;
+/** Where a modular tile's picture, "Cards ▸" caption and the buttons that open its cards go (`#setPictureLayout`). */
+interface SetPictureLayout {
+  readonly phone: boolean;
+  readonly picture: Rect;
+  readonly tab: Rect;
+  readonly hitAreas: readonly Rect[];
+}
+
+/** The "Cards ▸" tab in a wide modular tile's bottom-right corner. */
+const SET_CARDS_TAB_WIDTH = 64;
+
 export class TableSetupScene extends Phaser.Scene {
   #draft!: SetupDraft;
   #savedDecks: readonly Deck[] = [];
@@ -210,6 +240,8 @@ export class TableSetupScene extends Phaser.Scene {
   #status: Phaser.GameObjects.Text | null = null;
   /** Why "Deal it out" waits on the modular picks (`modularDealBlockOf`), or null when it can deal; set each rebuild. */
   #dealBlocked: string | null = null;
+  /** The modular tiles' pictures still waiting for a baked face (refilled as faces arrive, rebuilt each draw). */
+  #thumbs: ThumbSlot[] = [];
   /** What the status line reads with no seed error: the wide sidebar's deal hold, or nothing (the phone's footer says it). */
   #statusIdle = "";
   #starting = false;
@@ -250,7 +282,12 @@ export class TableSetupScene extends Phaser.Scene {
     this.#modularScroll = new VariableListScroll();
     this.#openGroups = new Map();
     this.scale.on("resize", this.#rebuild, this);
+    // A face baked off the main thread arrives: fill the pictures waiting for it, never a whole rebuild.
+    const offBaked = cardFaces(this).onBaked(() => this.#fillThumbs());
+    this.game.events.on(SET_CARDS_ACTION_EVENT, this.#onSetCardsAction, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      offBaked();
+      this.game.events.off(SET_CARDS_ACTION_EVENT, this.#onSetCardsAction, this);
       this.scale.off("resize", this.#rebuild, this);
       this.#seedInput?.destroy();
       this.#seedInput = null;
@@ -260,7 +297,10 @@ export class TableSetupScene extends Phaser.Scene {
       this.#modularRegion = null;
     });
     this.#route = new FocusRoute(this, {
-      blocked: () => this.scene.isActive(SCENES.inspect) || (this.#seedInput?.focused ?? false),
+      blocked: () =>
+        this.scene.isActive(SCENES.inspect) ||
+        this.scene.isActive(SCENES.setCards) ||
+        (this.#seedInput?.focused ?? false),
       onCancel: () => this.#back(),
     });
     this.#starting = false;
@@ -295,6 +335,7 @@ export class TableSetupScene extends Phaser.Scene {
   };
 
   #rebuild(): void {
+    this.#thumbs = [];
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#stops = new Map();
@@ -542,11 +583,21 @@ export class TableSetupScene extends Phaser.Scene {
     }
 
     const modularRight = this.#modularRightLabel(scenario, requiredSets.length, modularOptions).toUpperCase();
+    const modularRandom = !this.#cwSummary && offersRandomModularSets(scenario, this.#draft.seats.length);
+    if (modularRandom) {
+      const header = layout.modularHeader;
+      this.#drawModularRandom({
+        x: header.x + header.width - MODULAR_RANDOM_WIDTH,
+        y: header.y,
+        width: MODULAR_RANDOM_WIDTH,
+        height: header.height,
+      });
+    }
     sectionHeader(
       this,
       layout.modularHeader.x,
       layout.modularHeader.y,
-      layout.modularHeader.width,
+      layout.modularHeader.width - (modularRandom ? MODULAR_RANDOM_WIDTH + 10 : 0),
       this.#cwSummary ? SUMMARY_SECTION_TITLE : "Modular sets",
       bodyColor,
       modularRight,
@@ -696,12 +747,14 @@ export class TableSetupScene extends Phaser.Scene {
         difficulties: difficultyCards.map((c) => c.id),
         optionActions: optionActionsOf(allOptionRows),
         hasTowerDefenseSetupDamage: towerDefenseSetupDamageOffered,
+        hasModularRandom: !this.#cwSummary && offersRandomModularSets(scenario, this.#draft.seats.length),
         modularSetIds: modularOptions.map((o) => o.id),
         hoodSetIds: hoodOptions.map((o) => o.id),
         firstPlayerOptionIds: [...seatCells.map((c) => c.id), "random"],
       }),
       this.#stops,
     );
+    this.#fillThumbs();
   }
 
   // -----------------------------------------------------------------------------------------------------------
@@ -852,6 +905,7 @@ export class TableSetupScene extends Phaser.Scene {
         difficulties: difficultyCards.map((c) => c.id),
         optionActions: optionActionsOf([...setChoices, ...optionRows]),
         hasTowerDefenseSetupDamage: towerDefenseSetupDamageOffered,
+        hasModularRandom: !this.#cwSummary && offersRandomModularSets(scenario, this.#draft.seats.length),
         modularSetIds: cw ? [EDIT_SCENARIO_ID] : modularOptions.map((o) => o.id),
         modularStopIds: cw
           ? [`modular:${EDIT_SCENARIO_ID}`]
@@ -861,6 +915,7 @@ export class TableSetupScene extends Phaser.Scene {
       }),
       this.#stops,
     );
+    this.#fillThumbs();
   }
 
   /** Runs `draw`, then reparents everything it just added to the scene's top-level display list into `container` — the "eagerly draw, then move into the scrolled/masked layer" trick `McScrollRegion` relies on (its own doc comment), since `this.add.graphics()`/`new McButton(this, …)` always land at the top level first. */
@@ -929,10 +984,22 @@ export class TableSetupScene extends Phaser.Scene {
     }
     if (id === "header:modular") {
       const sectionTitle = data.civilWarSummary ? SUMMARY_SECTION_TITLE : "Modular sets";
+      const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId)!;
+      const random = !data.civilWarSummary && offersRandomModularSets(scenario, this.#draft.seats.length);
+      const titleWidth = rect.width - (random ? MODULAR_RANDOM_WIDTH + 10 : 0);
+      if (random) {
+        const button: Rect = {
+          x: rect.x + rect.width - MODULAR_RANDOM_WIDTH,
+          y: rect.y,
+          width: MODULAR_RANDOM_WIDTH,
+          height: 30,
+        };
+        this.#drawModularRandom(button, true);
+      }
       if (!layout.modularHeaderStacked) {
-        sectionHeader(this, rect.x, rect.y + 2, rect.width, sectionTitle, surface.ink.hex, data.modularRightLabel);
+        sectionHeader(this, rect.x, rect.y + 2, titleWidth, sectionTitle, surface.ink.hex, data.modularRightLabel);
       } else {
-        sectionHeader(this, rect.x, rect.y + 2, rect.width, sectionTitle, surface.ink.hex);
+        sectionHeader(this, rect.x, rect.y + 2, titleWidth, sectionTitle, surface.ink.hex);
         // 26px: the Bangers heading's own line height at this size (`sectionHeader`'s own font size, 19px) — the
         // stacked right label sits directly under it, inside this row's own taller height (`modularHeaderStacked`).
         // Wraps to a second line (the row is taller for it, `stackedHeaderLabelLines`) instead of running off the
@@ -1188,13 +1255,20 @@ export class TableSetupScene extends Phaser.Scene {
         suppressClick: this.#compactSuppressClick,
       }),
     );
-    this.#stops.set(`modular:${option.id}`, this.#compactStop(cellRect, onClick, `modular:${option.id}`));
+    const pictureAt = option.kind === "random" ? null : this.#setPictureLayout(cellRect, "right");
+    if (pictureAt) this.#setPictureButtons(pictureAt, option, true);
+    this.#stops.set(`modular:${option.id}`, {
+      ...this.#compactStop(cellRect, onClick, `modular:${option.id}`),
+      ...(option.kind === "random" ? {} : { inspect: () => this.#openSetCards(option) }),
+    });
     const g = this.add.graphics();
     g.fillStyle(surface.card.hex, 1).fillRect(rect.x, rect.y, rect.width, h);
     g.lineStyle(2.5, surface.ink.hex, 1).strokeRect(rect.x + 1.25, rect.y + 1.25, rect.width - 2.5, h - 2.5);
     const boxRect = this.#drawCompactCheckbox(rect, h, option.selected, surface.ink.hex);
+    if (pictureAt) this.#drawSetPicture(pictureAt, option);
+    const picture = pictureAt?.picture ?? null;
     const textX = boxRect.x + boxRect.width + 11;
-    const textWidth = rect.x + rect.width - textX - 10;
+    const textWidth = (picture ? picture.x - 8 : rect.x + rect.width - 10) - textX;
     const name = this.add.text(
       textX,
       rect.y + 11,
@@ -2179,13 +2253,18 @@ export class TableSetupScene extends Phaser.Scene {
         ...(scrollItem !== null ? { clip: this.#modularClip, suppressClick: this.#modularSuppressClick } : {}),
       }),
     );
+    const pictureAt = option.kind === "random" ? null : this.#setPictureLayout(rect, "left");
+    if (pictureAt) this.#setPictureButtons(pictureAt, option, scrollItem !== null);
+    // The keyboard's Inspect key opens the set's cards, as a tap on its picture does.
+    const inspect = option.kind === "random" ? {} : { inspect: () => this.#openSetCards(option) };
     this.#stops.set(
       `modular:${option.id}`,
       scrollItem === null
-        ? { rect, activate: onClick }
+        ? { rect, activate: onClick, ...inspect }
         : {
             rect: () => ({ ...rect, y: rect.y - this.#modularScroll.offsetPx }),
             activate: onClick,
+            ...inspect,
             ensureVisible: () => {
               const row = this.#modularRowOfItem[scrollItem];
               if (row !== undefined) this.#modularRegion?.scrollIntoView(row);
@@ -2194,19 +2273,164 @@ export class TableSetupScene extends Phaser.Scene {
     );
     this.#cardFrame(rect, option.selected);
     const dim = option.selected ? 1 : ink.disabled;
+    // The set's picture on the left: it and the "Cards" tab on the right open the set's cards, the rest toggles.
+    if (pictureAt) this.#drawSetPicture(pictureAt, option);
+    const picture = pictureAt?.picture ?? null;
+    const textX = picture ? picture.x + picture.width + 8 : rect.x + 10;
     const name = this.add.text(
-      rect.x + 10,
+      textX,
       rect.y + 8,
       option.name,
       textStyle({ ...typeRole.sectionHeader, size: 15 }, surface.ink.hex, dim),
     );
-    fitText(name, rect.width - 20, 15);
+    fitText(name, rect.x + rect.width - 10 - textX, 15);
+    const labelRect: Rect = picture
+      ? {
+          x: textX - 10,
+          y: rect.y,
+          width: rect.x + rect.width - (textX - 10) - SET_CARDS_TAB_WIDTH,
+          height: rect.height,
+        }
+      : rect;
     this.#drawModularCardLabel(
-      rect,
+      labelRect,
       rect.y + 8 + name.height + 4,
       modularCardLabel(option).toUpperCase(),
       surface.ink.hex,
       option.selected ? ink.label : ink.disabled,
+    );
+  }
+
+  /**
+   * Where a modular set's picture goes in its tile (its most recognizable card, `setFacesOf`) and what opens its cards:
+   * on a wide tile the picture on the left and a "Cards ▸" tab in the bottom-right corner, on a phone row the picture
+   * at the row's right end with "Cards ▸" under it.
+   */
+  #setPictureLayout(tile: Rect, side: "left" | "right"): SetPictureLayout {
+    const phone = side === "right";
+    const height = phone ? tile.height - 20 : tile.height - 10;
+    const width = Math.round((height * 5) / 7);
+    const picture: Rect = phone
+      ? { x: tile.x + tile.width - width - 22, y: tile.y + 4, width, height }
+      : { x: tile.x + 6, y: tile.y + 5, width, height };
+    const tab: Rect = phone
+      ? { x: picture.x - 14, y: picture.y + picture.height + 1, width: picture.width + 28, height: 12 }
+      : {
+          x: tile.x + tile.width - SET_CARDS_TAB_WIDTH,
+          y: tile.y + tile.height - 22,
+          width: SET_CARDS_TAB_WIDTH - 4,
+          height: 18,
+        };
+    const hitAreas: readonly Rect[] = phone
+      ? [{ x: picture.x - 14, y: tile.y, width: tile.x + tile.width - (picture.x - 14), height: tile.height }]
+      : [{ x: tile.x, y: tile.y, width: picture.x + picture.width + 4 - tile.x, height: tile.height }, tab];
+    return { phone, picture, tab, hitAreas };
+  }
+
+  /** The picture's and tab's own buttons. Made right after the tile's button (on top of it, so a press there opens the cards rather than toggling the set) and before anything is drawn, so the tile's look covers their rest stroke. */
+  #setPictureButtons(at: SetPictureLayout, option: ModularSetOption, scrolls: boolean): void {
+    const open = (): void => this.#openSetCards(option);
+    const clip = at.phone
+      ? { clip: this.#compactClip, suppressClick: this.#compactSuppressClick }
+      : scrolls
+        ? { clip: this.#modularClip, suppressClick: this.#modularSuppressClick }
+        : {};
+    for (const rect of at.hitAreas)
+      this.#buttons.push(
+        new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect, onClick: open, ...clip }),
+      );
+  }
+
+  /** The picture's frame (its baked face fills in by `#fillThumbs`) and the "Cards ▸" caption. */
+  #drawSetPicture(at: SetPictureLayout, option: ModularSetOption): void {
+    const { picture, tab } = at;
+    const alpha = option.selected || at.phone ? 1 : 0.6;
+    const frame = this.add.graphics();
+    frame.fillStyle(surface.parchment.hex, alpha).fillRect(picture.x, picture.y, picture.width, picture.height);
+    frame
+      .lineStyle(1.5, surface.ink.hex, ink.label)
+      .strokeRect(picture.x + 0.75, picture.y + 0.75, picture.width - 1.5, picture.height - 1.5);
+    const url = this.#setPictureUrl(option.id);
+    const parent = at.phone ? (this.#compactRegion?.content ?? null) : (this.#modularRegion?.content ?? null);
+    if (url) this.#thumbs.push({ rect: picture, url, parent, alpha, done: false });
+    const caption = this.add
+      .text(
+        tab.x + tab.width / 2,
+        tab.y + tab.height / 2,
+        "CARDS ▸",
+        textStyle(typeRole.label, surface.ink.hex, option.selected || at.phone ? 1 : ink.label),
+      )
+      .setOrigin(0.5);
+    fitText(caption, tab.width, typeRole.label.size);
+  }
+
+  /** The scan of a set's most recognizable card, or null when the content has no art for it (the frame stays empty). */
+  #setPictureUrl(setId: string): string | null {
+    const face = setFacesOf(cardsBySet(CARDS_BY_ID).get(setId) ?? [], 1)[0];
+    if (!face) return null;
+    return artFor(CARDS_BY_ID.get(face.cardId as string), face.face)?.url ?? null;
+  }
+
+  /** Draws every waiting picture whose baked face is on hand. */
+  #fillThumbs(): void {
+    const faces = cardFaces(this);
+    for (const slot of this.#thumbs) {
+      if (slot.done) continue;
+      const rect = { ...slot.rect, width: Math.round(slot.rect.width), height: Math.round(slot.rect.height) };
+      const key = faces.request(artThumbSpec(rect, slot.url, SET_PICTURE_FOCUS_Y, "cover"));
+      if (!key) continue;
+      const image = this.add
+        .image(rect.x, rect.y, key)
+        .setOrigin(0, 0)
+        .setDisplaySize(rect.width, rect.height)
+        .setAlpha(slot.alpha);
+      faces.hold(key, image);
+      slot.parent?.add(image);
+      slot.done = true;
+    }
+  }
+
+  /** The "cards in this set" sheet over this screen, with "Add this set" / "Remove this set" at its foot. */
+  #openSetCards(option: ModularSetOption): void {
+    const barred = option.disabledReason !== null && !option.selected;
+    this.scene.launch(SCENES.setCards, {
+      setId: option.id,
+      action: { label: option.selected ? "Remove this set" : "Add this set", enabled: !barred },
+      from: SCENES.setup,
+    } satisfies SetCardsData);
+    this.scene.bringToTop(SCENES.setCards);
+  }
+
+  /** The sheet's "Add this set" / "Remove this set": the same toggle a tap on the tile makes. */
+  #onSetCardsAction(setId: string): void {
+    if (!this.sys.isActive()) return;
+    const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId)!;
+    this.#draft = toggleModularSet(this.#draft, scenario, setId);
+    this.#rebuild();
+  }
+
+  /** The Modular sets header's Random button: a random legal draw for the scenario's count (`modular-random.ts`). */
+  #drawModularRandom(rect: Rect, compact = false): void {
+    const roll = (): void => {
+      const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId)!;
+      this.#draft = withRandomModularSets(this.#draft, scenario, CARDS_BY_ID, Math.random, {
+        scope: progressionScope(),
+      });
+      this.#rebuild();
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "quiet",
+        label: "Random",
+        type: typeRole.label,
+        rect,
+        onClick: roll,
+        ...(compact ? { clip: this.#compactClip, suppressClick: this.#compactSuppressClick } : {}),
+      }),
+    );
+    this.#stops.set(
+      "modular:random-draw",
+      compact ? this.#compactStop(rect, roll, "header:modular") : { rect, activate: roll },
     );
   }
 

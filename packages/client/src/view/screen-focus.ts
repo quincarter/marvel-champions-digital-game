@@ -508,6 +508,8 @@ export interface TableSetupFocusInput {
   readonly hoodSetIds?: readonly string[];
   /** One stop per seat index plus "Random" (`view/seed.ts`'s `rollFirstPlayerIndex`). */
   readonly firstPlayerOptionIds: readonly string[];
+  /** The Modular sets header's Random button is up (a scenario without a pool of its own). */
+  readonly hasModularRandom?: boolean;
 }
 
 /** Table setup (D05): Back, difficulty, (the setup options when offered,) the modular set picker, (The Hood's own set-aside picker, when offered,) seating/first player, the seed field, Reroll, then "Deal it out". */
@@ -517,6 +519,7 @@ export function tableSetupFocusOrder(input: TableSetupFocusInput): readonly stri
     ...input.difficulties.map((id) => `difficulty:${id}`),
     ...(input.optionActions ?? []).map((action) => `option:${action}`),
     ...(input.hasTowerDefenseSetupDamage ? ["towerDefenseSetupDamage"] : []),
+    ...(input.hasModularRandom ? ["modular:random-draw"] : []),
     ...(input.modularStopIds ?? input.modularSetIds.map((id) => `modular:${id}`)),
     ...(input.hoodSetIds ?? []).map((id) => `hoodSet:${id}`),
     ...input.firstPlayerOptionIds.map((id) => `first-player:${id}`),

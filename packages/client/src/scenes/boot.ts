@@ -32,6 +32,7 @@ import { enterBuilder } from "../view/civil-war-entry.js";
 import type { BuilderStep } from "../view/civil-war-builder-layout.js";
 import type { SeatsData } from "./seats.js";
 import type { TableSetupData } from "./table-setup.js";
+import type { SetCardsData } from "./set-cards.js";
 import { goToScreen } from "../ui/transitions.js";
 import { refreshUnlocks } from "../progression/progression.js";
 import type { ExtrasTab } from "../progression/extras.js";
@@ -120,7 +121,7 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
   const screen = params.get("screen");
   if (!screen) return null;
 
-  if (screen === "scenario-select" || screen === "seats" || screen === "table-setup") {
+  if (screen === "scenario-select" || screen === "seats" || screen === "table-setup" || screen === "set-cards") {
     // `&scenario=<id>&deck=<precon deck id>`: which scenario/precon this dev jump seats, for screenshotting a
     // specific setup screen (Standard II/Expert II, The Hood's own modular choice) without clicking through
     // Scenario select/Seats by hand. Falls back to the original fixed Rhino/first-precon draft when either param
@@ -660,6 +661,15 @@ export class BootScene extends Phaser.Scene {
           this.scene.start(jump.key, jump.data);
         }
         const params = new URLSearchParams(location.search);
+        // `?screen=set-cards[&set=<encounter set id>]`: Table setup (Rhino) with the set-cards sheet open over it.
+        if (params.get("screen") === "set-cards") {
+          this.scene.launch(SCENES.setCards, {
+            setId: params.get("set") ?? "bomb_scare",
+            action: { label: "Add this set", enabled: true },
+            from: SCENES.setup,
+          } satisfies SetCardsData);
+          this.scene.bringToTop(SCENES.setCards);
+        }
         if (params.get("screen") === "pause") this.scene.launch(SCENES.pause);
         if (params.get("screen") === "board" && params.get("guidedemo") === "1") {
           this.scene.launch(SCENES.guideSpotlightDemo);
