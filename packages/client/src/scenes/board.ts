@@ -40,7 +40,7 @@ import { withForcedActions } from "../view/forced-actions.js";
 import { withDefenseLockout } from "../view/defense-lockout.js";
 import { appendCardHistory, emptyCardHistoryLog, type CardHistoryLog } from "../view/card-history.js";
 import { blindRevealOf, eventsForBlindLog } from "../view/civil-war-blind.js";
-import { appendEvents, emptyLog, type LogState } from "../view/log-lines.js";
+import { appendEvents, withSeedLine, emptyLog, type LogState } from "../view/log-lines.js";
 import type { PaymentView } from "../view/payment-model.js";
 import { tabKeysTouchedBy } from "../view/tab-badges.js";
 import { playerName } from "../view/names.js";
@@ -631,6 +631,8 @@ export class BoardScene extends Phaser.Scene {
       // A resumed game arrives mid-round with no events saying which round, so
       // an empty log starts counting from the state's round rather than "R0".
       if (this.#log.round === 0) this.#log = { ...this.#log, round: state.game.round };
+      // The log opens on the game's seed, so a bug report or a replay can name it.
+      if (state.config) this.#log = withSeedLine(this.#log, state.config.seed);
       // A resumed game's first state carries the whole game so far: fold it first, so the panel opens on the recent lines.
       // A blind game's log never names the hidden stage 2 (`eventsForBlindLog`).
       const blind = blindRevealOf(state.config, state.game);

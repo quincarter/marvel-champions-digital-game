@@ -76,6 +76,26 @@ interface Beat {
   readonly voice: LogVoice;
 }
 
+/** The id of the log's opening "Seed …" line (`withSeedLine`). */
+export const SEED_LINE_ID = "line-seed";
+
+/**
+ * The log with its opening line naming the game's seed, for replaying a game exactly and for bug reports. Added once,
+ * before anything else: a log that already has lines (or the seed line) is returned as it is.
+ */
+export function withSeedLine(log: LogState, seed: number): LogState {
+  if (log.lines.length > 0) return log;
+  const line: LogLine = {
+    id: SEED_LINE_ID,
+    ref: "SEED",
+    round: 0,
+    text: `Seed ${seed}. The same seed and the same moves replay this game exactly.`,
+    tags: [],
+    voice: "scenario",
+  };
+  return { ...log, lines: [line] };
+}
+
 /**
  * Folds a command's events onto the log. `state` is the state *after* the
  * command, which is what the client holds; names are resolved from its card

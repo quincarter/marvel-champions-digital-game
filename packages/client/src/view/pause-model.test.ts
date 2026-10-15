@@ -4,7 +4,7 @@ import { POOL_ENCOUNTER_SETS, POOL_SCENARIOS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import type { SessionConfig } from "../engine/host.js";
 import { SessionStore } from "../store/session-store.js";
-import { blindSheetNamesOf, pauseStatusOf } from "./pause-model.js";
+import { blindSheetNamesOf, pauseStatusOf, seedSuffixOf } from "./pause-model.js";
 
 const KLAW_TWO: SessionConfig = {
   scenarioId: "klaw",
@@ -27,6 +27,8 @@ describe("pauseStatusOf", () => {
     expect(status.round).toBe(game!.round);
     expect(["Setup", "Player phase", "Villain phase"]).toContain(status.phaseLabel);
     expect(status.seatLabel.length).toBeGreaterThan(0);
+    expect(status.seed).toBe(5);
+    expect(seedSuffixOf(status)).toBe(" · Seed 5");
   });
 
   test("falls back to a placeholder scenario name and an em-dash difficulty when there is no config", async () => {
@@ -36,6 +38,7 @@ describe("pauseStatusOf", () => {
     const status = pauseStatusOf(game!, perspectiveId!, null, POOL_SCENARIOS);
     expect(status.scenarioName).toBe("This game");
     expect(status.difficultyLabel).toBe("—");
+    expect(seedSuffixOf(status)).toBe("");
   });
 });
 

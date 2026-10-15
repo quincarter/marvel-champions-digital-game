@@ -50,6 +50,8 @@ export function debugSnapshot(game: Phaser.Game): Record<string, unknown> {
       inFlight: state.inFlight,
       error: state.error,
       perspectiveId: state.perspectiveId,
+      /** The game's seed: with the commands in the game log, it replays the game exactly. */
+      seed: state.config?.seed ?? null,
       round: state.game?.round ?? null,
       step: state.game?.step ?? null,
       stack: state.game?.stack.map((frame) => frame.kind) ?? null,

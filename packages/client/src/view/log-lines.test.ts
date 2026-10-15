@@ -9,7 +9,7 @@ import type { GameEvent, GameState, PlayerId } from "@mc/engine";
 import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
-import { appendEvents, emptyLog, logLine, type LogState } from "./log-lines.js";
+import { appendEvents, emptyLog, logLine, SEED_LINE_ID, withSeedLine, type LogState } from "./log-lines.js";
 import { cardName } from "./names.js";
 
 /** Plays a real Rhino solo game far enough to produce a villain phase. */
@@ -489,5 +489,15 @@ describe("wave 8 rows 79 and 82 log lines", () => {
       ],
     });
     expect(text).toMatch(/attacks .* 2, .* 1\./);
+  });
+});
+
+describe("withSeedLine", () => {
+  test("opens an empty log on the seed, once", () => {
+    const log = withSeedLine(emptyLog(), 54472);
+    expect(log.lines.map((line) => [line.id, line.ref, line.text])).toEqual([
+      [SEED_LINE_ID, "SEED", "Seed 54472. The same seed and the same moves replay this game exactly."],
+    ]);
+    expect(withSeedLine(log, 1)).toBe(log);
   });
 });

@@ -62,7 +62,7 @@ import {
   type PauseWideLayout,
 } from "../view/pause-layout.js";
 import { logLineWords, recentLogMoments } from "../view/pause-log-window.js";
-import { blindSheetNamesOf, pauseStatusOf } from "../view/pause-model.js";
+import { blindSheetNamesOf, pauseStatusOf, seedSuffixOf } from "../view/pause-model.js";
 import { rulesGlossaryOf, type RulesEntry } from "../view/rules-reference.js";
 import { scenarioCardListOf } from "../view/scenario-card-list.js";
 import {
@@ -922,7 +922,7 @@ export class PauseOverlay extends Phaser.Scene {
     config: SessionState["config"],
   ): string {
     const s = pauseStatusOf(game, perspectiveId, config, POOL_SCENARIOS);
-    return `${s.scenarioName} · ${s.difficultyLabel} · Round ${s.round} · ${s.phaseLabel} · ${s.seatLabel}`;
+    return `${s.scenarioName} · ${s.difficultyLabel} · Round ${s.round} · ${s.phaseLabel} · ${s.seatLabel}${seedSuffixOf(s)}`;
   }
 
   /**
@@ -938,7 +938,8 @@ export class PauseOverlay extends Phaser.Scene {
     config: SessionState["config"],
   ): string {
     const s = pauseStatusOf(game, perspectiveId, config, POOL_SCENARIOS);
-    return `Round ${s.round} · ${s.phaseLabel.toLowerCase()} · ${s.seatLabel}`;
+    // The seed before the seat: the seat name is the part that gives way when the column is too narrow for both.
+    return `Round ${s.round} · ${s.phaseLabel.toLowerCase()}${seedSuffixOf(s)} · ${s.seatLabel}`;
   }
 
   #drawQuickReferenceRow(rect: Rect, row: QuickReferenceRow, stops: Map<string, FocusStop>): void {
