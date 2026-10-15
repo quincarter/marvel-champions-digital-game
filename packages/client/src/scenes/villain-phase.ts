@@ -128,7 +128,7 @@ import type { FormFactor, Rect } from "../view/layout.js";
 import { formFactorFor, isTabbed } from "../view/layout.js";
 import { drawGuideStrip, GUIDE_STRIP_HEIGHT } from "../ui/guide-strip.js";
 import { abilityFaceOf } from "../view/board-model.js";
-import { cardName, playerName, seatName } from "../view/names.js";
+import { cardName, playerName, seatName, shortSeatName } from "../view/names.js";
 import { abilityFirst, sourceCardPanelFor } from "../view/choice-source-panel.js";
 import { triggerLabel } from "../view/inspect-model.js";
 import { SOURCE_STRIP_HEIGHT, sourceStripPlacement } from "../view/choice-source-panel-layout.js";
@@ -147,7 +147,7 @@ import {
   seatHeadingName,
   tableHoldOf,
 } from "../view/villain-replay.js";
-import { boostCell } from "../view/villain-breakdown.js";
+import { activationHeadline, breakdownLineOf, breakdownOf, type Breakdown } from "../view/villain-breakdown.js";
 import { villainPhaseLayout } from "../view/villain-phase-layout.js";
 import { boostCardsLayout } from "../view/villain-phase-boosts.js";
 import { interruptCardsLayout } from "../view/villain-phase-interrupts.js";
@@ -231,14 +231,6 @@ export interface VillainPhaseLaunchData {
 const totalBeatsOf = (walkthrough: Walkthrough): number =>
   walkthrough.steps.reduce((sum, step) => sum + step.beats.length, 0);
 
-/** "Klaw attacks Captain Marvel" / "Klaw schemes against Black Panther" — read straight off the activation the events named. */
-function activationHeadline(activation: ActivationBeat, state: GameState, viewer: PlayerId | null): string {
-  const enemy = cardName(state, activation.enemyInstanceId);
-  return activation.kind === "attack"
-    ? `${enemy} attacks ${seatName(state, activation.attackedPlayerId, viewer)}`
-    : `${enemy} schemes against ${seatName(state, activation.playerId, viewer)}`;
-}
-
 /** Which seat the current activation is aimed at ("SEAT 3 · TARGETED", L02) — null outside an activation. */
 function activationTargetOf(activation: ActivationBeat | null): PlayerId | null {
   if (!activation) return null;
@@ -251,55 +243,7 @@ function queuedSeatLine(seat: QueuedSeat, state: GameState, viewer: PlayerId | n
     const name = cardName(state, a.instanceId);
     return a.cancelledBy ? `${name} (will be cancelled by ${a.cancelledBy})` : name;
   });
-  return `${seatName(state, seat.playerId, viewer)} — ${parts.join(" · ")}`;
-}
-
-interface BreakdownCell {
-  readonly label: string;
-  readonly value: string;
-  readonly emphasis?: boolean;
-}
-
-/** `base + boost − defense = damage`, or `SCH + boost (± threat mod) = threat` — every number `resolved`'s own. */
-function breakdownOf(
-  activation: ActivationBeat,
-): { readonly cells: readonly BreakdownCell[]; readonly ops: readonly string[] } | null {
-  if (activation.kind === "attack") {
-    const r = activation.resolved;
-    if (!r) return null;
-    return {
-      cells: [
-        { label: "BASE", value: String(r.baseAtk) },
-        { ...boostCell(activation.boosts.length, r.boostIcons) },
-        { label: "DEFENSE", value: String(r.defenseReduction) },
-        { label: "DAMAGE", value: String(r.damageDealt), emphasis: true },
-      ],
-      ops: ["+", "−", "="],
-    };
-  }
-  const r = activation.resolved;
-  if (!r) return null;
-  const cells: BreakdownCell[] = [
-    { label: "SCH", value: String(r.baseSch) },
-    { ...boostCell(activation.boosts.length, r.boostIcons) },
-  ];
-  const ops: string[] = ["+"];
-  if (r.threatBonus !== 0) {
-    cells.push({ label: "THREAT MOD", value: `${r.threatBonus > 0 ? "+" : "−"}${Math.abs(r.threatBonus)}` });
-    ops.push(r.threatBonus > 0 ? "+" : "−");
-  }
-  cells.push({ label: "THREAT", value: String(r.threatPlaced), emphasis: true });
-  ops.push("=");
-  return { cells, ops };
-}
-
-/** The breakdown as one line for the docked rail: "ATK 2 + BOOST 1 − DEFENSE 3 = DAMAGE 0". */
-function breakdownLineOf(activation: ActivationBeat): string | null {
-  const breakdown = breakdownOf(activation);
-  if (!breakdown) return null;
-  return breakdown.cells
-    .map((cell, i) => `${cell.label} ${cell.value}${i < breakdown.ops.length ? ` ${breakdown.ops[i]}` : ""}`)
-    .join(" ");
+  return `${shortSeatName(state, seat.playerId, viewer)} — ${parts.join(" · ")}`;
 }
 
 /** The shortest band the docked recap's story strip reads in; shorter, the table was too short to grow it. */
@@ -1686,12 +1630,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   }
 
   /** Returns the vertical room the row used, so the caller can stack something under it. */
-  #drawBreakdownRow(
-    x: number,
-    y: number,
-    width: number,
-    breakdown: { readonly cells: readonly BreakdownCell[]; readonly ops: readonly string[] },
-  ): number {
+  #drawBreakdownRow(x: number, y: number, width: number, breakdown: Breakdown): number {
     const { cells, ops } = breakdown;
     const opWidth = 22;
     const cellWidth = Math.max(1, (width - opWidth * ops.length) / cells.length);
@@ -2382,7 +2321,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       };
     }
     const boosts = activation.boosts.map((boost) => cardName(game, boost.instanceId));
-    const breakdown = breakdownLineOf(activation);
+    const breakdown = breakdownLineOf(activation, game);
     const defender = defenderLineOf(game, activation);
     return {
       kind: "happening",
@@ -2408,7 +2347,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       shown,
       viewer,
       (instanceId) => cardName(game, instanceId),
-      (playerId) => seatName(game, playerId, viewer),
+      (playerId) => shortSeatName(game, playerId, viewer),
     );
   }
 

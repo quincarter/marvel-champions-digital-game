@@ -35,7 +35,7 @@ import { noteHoverCard } from "./card-hover-preview.js";
 import { drawSeatAvatar } from "./seat-avatar.js";
 import { bindHoldTarget } from "./hold-target.js";
 import { textStyle } from "./theme.js";
-import { McButton, fitText, label } from "./widgets.js";
+import { McButton, fitText, fitWrapped, label } from "./widgets.js";
 
 /** What the body shows: the encounter card being revealed (D2), or the activation / narration happening now (D1). */
 export type RailBody =
@@ -486,10 +486,9 @@ function drawHappening(
   label(scene, x, y, "Happening now", { ...typeRole.label, size: 11 }, surface.paper.hex, ink.secondary);
   const headline = scene.add
     .text(x, y + 18, body.headline.toUpperCase(), textStyle({ ...typeRole.barTitle, size: 30 }, surface.paper.hex))
-    .setOrigin(0, 0)
-    .setWordWrapWidth(width)
-    .setMaxLines(2);
-  fitText(headline, width, 30);
+    .setOrigin(0, 0);
+  // Up to three lines, shrinking before clipping: the target is the end of the sentence and must not be what is cut.
+  fitWrapped(headline, width, 3, 30);
   let cursor = headline.y + headline.height + 6;
   if (body.text) {
     const text = scene.add

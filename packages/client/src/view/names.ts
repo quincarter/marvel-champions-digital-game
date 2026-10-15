@@ -85,6 +85,41 @@ export function optionLabelOf(
   return identityNameOf(state, option.ref.instanceId) ?? option.label;
 }
 
+/**
+ * A hero's short name for a headline or a tag: "Spider-Man", not "Spider-Man (Peter Parker)". The qualifier only exists
+ * to tell two heroes who share a printed name apart, so it stays when another seat in this game is that hero too.
+ */
+function shortHeroName(state: GameState, playerId: PlayerId): string | null {
+  const player = getPlayer(state, playerId);
+  const card = player ? cardOf(state, player.identity.instanceId) : undefined;
+  if (!player || card?.type !== "hero_identity") return null;
+  const short = card.hero.faceName;
+  const clash = state.players.some((other) => {
+    if (other.playerId === playerId) return false;
+    const otherCard = cardOf(state, other.identity.instanceId);
+    return otherCard?.type === "hero_identity" && otherCard.hero.faceName === short;
+  });
+  return clash ? qualifiedHeroName(card, short) : short;
+}
+
+/** `identityNameOf`, with the hero side in its short form ("Spider-Man") unless another seat shares the name. */
+export function shortIdentityNameOf(state: GameState, id: InstanceId): string | null {
+  const full = identityNameOf(state, id);
+  const player = state.players.find((seat) => seat.identity.instanceId === id);
+  if (!full || !player) return full;
+  return identityFace(state, player).form === "hero" ? (shortHeroName(state, player.playerId) ?? full) : full;
+}
+
+/** `faceUpName` with an identity's hero side in its short form. */
+export function shortFaceUpName(state: GameState, id: InstanceId): string {
+  return shortIdentityNameOf(state, id) ?? faceUpName(state, id);
+}
+
+/** `seatName` with the hero's short name ("You" for the viewer): for a headline or a tag, where the width is tight. */
+export function shortSeatName(state: GameState, id: PlayerId, perspectiveId: PlayerId | null): string {
+  return id === perspectiveId ? "You" : (shortHeroName(state, id) ?? playerName(state, id));
+}
+
 /** The name printed on one face of a hero identity: the (qualified) hero name, or the alter-ego's. */
 export function identityFaceName(card: HeroIdentityCard, form: Form): string {
   return form === "hero" ? heroFaceDisplayName(card) : card.alterEgo.faceName;

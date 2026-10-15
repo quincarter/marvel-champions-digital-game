@@ -29,7 +29,7 @@ import {
   type Vars,
 } from "@mc/engine";
 import { defenseLockoutOf } from "./defense-lockout.js";
-import { cardName, faceUpName, seatName } from "./names.js";
+import { cardName, faceUpName, shortFaceUpName, shortSeatName } from "./names.js";
 import { triggerEventWords } from "./trigger-event-words.js";
 import { decisionLabel } from "./villain-walkthrough.js";
 
@@ -400,6 +400,15 @@ export function defendCauseFrom(
   return { kind: "attack", eyebrow: "Enemy attack", sourceInstanceId: null };
 }
 
+/**
+ * The tag under the target's scan: "Attacking you — Spider-Man", "Attacking Spider-Man" (the seat and the character are
+ * one name, so it is said once), "Attacking Ana — Peter Parker". Short names throughout: the tag has a card's width.
+ */
+export function targetCaptionOf(targetSeat: string, targetCardName: string): string {
+  if (targetSeat === "You") return `Attacking you — ${targetCardName}`;
+  return targetSeat === targetCardName ? `Attacking ${targetSeat}` : `Attacking ${targetSeat} — ${targetCardName}`;
+}
+
 /** "Declare your defender · other players may still respond after the attack resolves." / "· Peril — nobody else may act." */
 function waitingOnLine(choice: PendingChoice, state: GameState, viewerId: PlayerId | null): string {
   const reason = decisionLabel(choice, state, viewerId);
@@ -429,16 +438,15 @@ export function defendChoiceViewOf(
   const targetCharacterInstanceId = choice.prompt.attack.targetCharacterInstanceId;
   const forcedEntry = stackEntries(state).find((entry) => entry.kind === "event" && entry.eventKind === "enemyAttack");
 
-  const targetSeat = seatName(state, choice.prompt.attack.targetPlayerId, viewerId);
-  const targetCardName = faceUpName(state, targetCharacterInstanceId);
+  const targetSeat = shortSeatName(state, choice.prompt.attack.targetPlayerId, viewerId);
+  const targetCardName = shortFaceUpName(state, targetCharacterInstanceId);
   const summary: DefendAttackSummaryView = {
     attackerName: faceUpName(state, attackerInstanceId),
     targetName: targetSeat === "You" ? "you" : targetCardName,
     attackerInstanceId,
     targetInstanceId: targetCharacterInstanceId,
     targetCardName,
-    targetCaption:
-      targetSeat === "You" ? `Attacking you — ${targetCardName}` : `Attacking ${targetSeat} — ${targetCardName}`,
+    targetCaption: targetCaptionOf(targetSeat, targetCardName),
     cause: defendCauseFrom(
       stackEntries(state),
       attackerInstanceId,

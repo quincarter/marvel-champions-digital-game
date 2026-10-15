@@ -36,6 +36,9 @@ export interface DefendPanelArgs {
   readonly decider?: string | null;
 }
 
+/** Below this a caption is not read at a glance across a phone; the tag then says less, larger. */
+const TAG_READABLE_SIZE = 12;
+
 /** "Villain phase · step 2 — the villain activates" as the mockups set it: "VILLAIN PHASE · STEP 2 · THE VILLAIN ACTIVATES". */
 export const defendEyebrowOf = (eyebrow: string): string => eyebrow.replace(/\s+—\s+/, " · ").toUpperCase();
 
@@ -169,18 +172,20 @@ function drawMatchup(scene: Phaser.Scene, layout: VillainDefendLayout, view: Def
     parts.attackerCaption.width,
     typeRole.rowTitle.size,
   );
-  fitText(
-    scene.add
-      .text(
-        parts.targetCaption.x + parts.targetCaption.width,
-        parts.targetCaption.y,
-        summary.targetCaption,
-        textStyle(typeRole.rowTitle, accent.heroRed.hex),
-      )
-      .setOrigin(1, 0),
-    parts.targetCaption.width,
-    typeRole.rowTitle.size,
-  );
+  const targetTag = scene.add
+    .text(
+      parts.targetCaption.x + parts.targetCaption.width,
+      parts.targetCaption.y,
+      summary.targetCaption,
+      textStyle(typeRole.rowTitle, accent.heroRed.hex),
+    )
+    .setOrigin(1, 0);
+  fitText(targetTag, parts.targetCaption.width, typeRole.rowTitle.size);
+  // A tag that only fits by shrinking below a readable size says the character alone ("Spider-Man") at full size.
+  if (Number.parseFloat(String(targetTag.style.fontSize)) < TAG_READABLE_SIZE) {
+    targetTag.setText(summary.targetCardName);
+    fitText(targetTag, parts.targetCaption.width, typeRole.rowTitle.size);
+  }
 
   const mid = parts.middle;
   const midX = mid.x + mid.width / 2;
