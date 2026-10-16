@@ -36,7 +36,7 @@ mod win {
     DEVMODEW, DISP_CHANGE_SUCCESSFUL, DM_DISPLAYFREQUENCY, DM_PELSHEIGHT, DM_PELSWIDTH, ENUM_REGISTRY_SETTINGS,
     MONITORINFO, MONITORINFOEXW, MONITOR_DEFAULTTONEAREST,
   };
-  use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, SetWindowPos, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOZORDER};
+  use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowRect, SetWindowPos, SWP_NOACTIVATE, SWP_NOZORDER};
 
   /// The monitor switched (its device name) and the mode it was switched to, while one is in effect or wanted.
   struct State {
@@ -156,7 +156,8 @@ mod win {
     }
   }
 
-  const FIT_AFTER_MS: u64 = 300;
+  /// After the mode has settled, then once more a little later (each a wait from the one before).
+  const FIT_CHECKS_MS: [u64; 2] = [300, 900];
 
   fn fit(hwnd: isize) {
     let place = move || unsafe {
@@ -164,8 +165,14 @@ mod win {
       let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
       let mut info: MONITORINFO = std::mem::zeroed();
       info.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
-      if GetMonitorInfoW(monitor, &mut info) != 0 {
+      let mut now: windows_sys::Win32::Foundation::RECT = std::mem::zeroed();
+      if GetMonitorInfoW(monitor, &mut info) != 0 && GetWindowRect(hwnd, &mut now) != 0 {
         let r = info.rcMonitor;
+        // Already in place: moving it again would only repaint (the tearing the owner saw on Alt+Tab).
+        if (now.left, now.top, now.right, now.bottom) == (r.left, r.top, r.right, r.bottom) {
+          return;
+        }
+        log::info!("display mode: refit {}x{} to {}x{}", now.right - now.left, now.bottom - now.top, r.right - r.left, r.bottom - r.top);
         SetWindowPos(
           hwnd,
           std::ptr::null_mut(),
@@ -173,13 +180,18 @@ mod win {
           r.top,
           r.right - r.left,
           r.bottom - r.top,
-          SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+          SWP_NOZORDER | SWP_NOACTIVATE,
         );
       }
     };
     std::thread::spawn(move || {
-      std::thread::sleep(std::time::Duration::from_millis(FIT_AFTER_MS));
-      place();
+      // The shell can put its own (pre-switch) fullscreen size back after focus returns, which left a 3440-wide game on
+      // a 1920 x 1080 screen now and then (the owner, 2026-10-16); the later check catches that, and moves nothing
+      // when the window is already right.
+      for delay in FIT_CHECKS_MS {
+        std::thread::sleep(std::time::Duration::from_millis(delay));
+        place();
+      }
     });
   }
 
