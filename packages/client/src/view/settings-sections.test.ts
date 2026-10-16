@@ -87,7 +87,7 @@ describe("the desktop app's Window section", () => {
       (t) => t.id === "display",
     )!;
     expect(display.sections.map((s) => s.id)).toEqual(["window", "motion", "sound"]);
-    expect(display.sections[0]!.items).toEqual(["display-mode", "window-size"]);
+    expect(display.sections[0]!.items).toEqual(["display-mode", "resolution"]);
   });
 
   test("the web and the phone apps don't show it", () => {

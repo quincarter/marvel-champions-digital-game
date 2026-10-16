@@ -12,7 +12,7 @@ export type SettingsItemId =
   | "card-hover"
   | "token-motion"
   | "display-mode"
-  | "window-size"
+  | "resolution"
   | "villain-auto"
   | "villain-hold"
   | "villain-speed"
@@ -55,7 +55,7 @@ export function settingsSectionsOf(input: {
       ],
     },
     ...(input.desktopWindow
-      ? [{ id: "window", title: "Window", items: ["display-mode", "window-size"] } satisfies SettingsSection]
+      ? [{ id: "window", title: "Window", items: ["display-mode", "resolution"] } satisfies SettingsSection]
       : []),
     { id: "motion", title: "Animation and display", items: ["reduced-motion", "token-motion", "sharper-text"] },
     { id: "sound", title: "Sound", items: ["sound"] },

@@ -17,9 +17,9 @@ import {
   VILLAIN_AUTO_ADVANCE_VALUES,
   VILLAIN_BEAT_SPEED_VALUES,
   defaultSettings,
-  windowSizePixelsOf,
+  resolutionPixelsOf,
   type Settings,
-  type WindowSize,
+  type Resolution,
 } from "./settings.js";
 
 export const SETTINGS_KEY = "mc-settings";
@@ -69,9 +69,12 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   if (tokenMotionValue !== undefined) out.firstPlayerTokenMotion = tokenMotionValue;
   const displayModeValue = DISPLAY_MODE_VALUES.find((value) => value === source["displayMode"]);
   if (displayModeValue !== undefined) out.displayMode = displayModeValue;
-  const windowSize = source["windowSize"];
-  if (windowSize === "default" || (typeof windowSize === "string" && windowSizePixelsOf(windowSize) !== null)) {
-    out.windowSize = windowSize as WindowSize;
+  const drawResolution = source["resolution"];
+  if (
+    drawResolution === "native" ||
+    (typeof drawResolution === "string" && resolutionPixelsOf(drawResolution) !== null)
+  ) {
+    out.resolution = drawResolution as Resolution;
   }
   const resolution = source["textResolution"];
   if (typeof resolution === "number" && Number.isFinite(resolution)) {

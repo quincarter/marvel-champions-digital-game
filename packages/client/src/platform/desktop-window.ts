@@ -1,38 +1,48 @@
 /**
- * The desktop app's window mode and size (Settings > Display > Window). Tauri only: a browser tab and the phone apps
- * never offer or apply them.
+ * The desktop app's window mode and resolution (Settings > Display > Window). Tauri only: a browser tab and the phone
+ * apps never offer or apply them.
  *
- * Tauri can't change the monitor's real resolution (it has no exclusive fullscreen), so the choices are:
- *  - Windowed: a normal window at the chosen size, centred, or the 1440 x 900 window `tauri.conf.json` opens at.
- *  - Borderless fullscreen: an undecorated window placed over the whole current monitor, at its own resolution.
- *  - Fullscreen: the OS's own fullscreen (its own Space on macOS; over the taskbar on Windows and Linux).
- * Sizes are in the monitor's own (physical) pixels, the numbers a player knows as a resolution. The list offers only
- * sizes smaller than the current monitor and no smaller than the window's minimum, so every choice fits.
+ * The OS's own display resolution is never changed, so closing the game (or a crash) leaves nothing to put back. A
+ * resolution is what the game draws at instead, in the monitor's own (physical) pixels, the numbers a player knows:
+ *  - Borderless fullscreen: an undecorated window over the whole current monitor. Native draws at the monitor's own
+ *    resolution; any other draws at that size and is scaled to fit the screen (up from a lower one, down from a
+ *    higher one), with black bars where the shapes differ (`renderSizeOf`; `ui/render-resolution.ts` does the drawing).
+ *  - Fullscreen: the OS's own fullscreen (its own Space on macOS; over the taskbar on Windows and Linux), resolution
+ *    as in Borderless.
+ *  - Windowed: a normal window. A resolution is the window's own size, centred; Native is a window drawn 1:1 at
+ *    whatever size it is, opening at the 1440 x 900 `tauri.conf.json` gives it.
+ * The list offers resolutions from 480p up to 4K, none under the window's minimum, and in Windowed none larger than
+ * the current monitor.
  *
- * The pure half (which sizes to offer, what a saved size comes to) is tested; `applyDesktopWindow` only drives the
- * Tauri window API, and `src-tauri/capabilities/default.json` allows the setters it calls.
+ * The pure half (which sizes to offer, what a saved one comes to, what the game draws at) is tested;
+ * `applyDesktopWindow` only drives the Tauri window API, and `src-tauri/capabilities/default.json` allows the setters
+ * it calls.
  */
-import { windowSizePixelsOf, type DisplayMode, type WindowSize } from "../settings.js";
+import { resolutionPixelsOf, type DisplayMode, type Resolution } from "../settings.js";
 import { detectPlatform } from "./platform.js";
 
 /** The window `tauri.conf.json` opens at, and its minimum, in logical pixels. */
 export const DEFAULT_WINDOW_LOGICAL = { width: 1440, height: 900 } as const;
-export const MIN_WINDOW_LOGICAL = { width: 960, height: 600 } as const;
+export const MIN_WINDOW_LOGICAL = { width: 640, height: 360 } as const;
 
-/** The most sizes the Window size row offers besides Default, so its segments stay readable. */
-const MAX_SIZE_OPTIONS = 5;
-
-/** Common 16:9 and 16:10 resolutions, smallest first. */
-export const WINDOW_SIZE_CANDIDATES: readonly WindowSize[] = [
+/** Common resolutions (4:3, 5:4, 16:9, 16:10, 21:9), smallest first. */
+export const RESOLUTION_CANDIDATES: readonly Resolution[] = [
+  "854x480",
+  "800x600",
+  "1024x768",
   "1280x720",
   "1280x800",
+  "1366x768",
+  "1280x1024",
+  "1440x900",
   "1600x900",
   "1680x1050",
   "1920x1080",
   "1920x1200",
+  "2560x1080",
   "2560x1440",
   "2560x1600",
-  "3200x1800",
+  "3440x1440",
   "3840x2160",
 ];
 
@@ -43,39 +53,61 @@ export interface MonitorInfo {
   readonly scaleFactor: number;
 }
 
-/** Whether a physical size fits as a window on this monitor: smaller than the screen, no smaller than the minimum. */
-function fitsWindowed(width: number, height: number, monitor: MonitorInfo): boolean {
+/**
+ * Whether a physical size is worth offering on this monitor in `mode`: not the screen's own size (that is Native), no
+ * smaller than the window's minimum, and in Windowed no larger than the screen. Borderless and Fullscreen also offer
+ * resolutions above native, drawn at that size and scaled down to fit.
+ */
+function offeredOn(width: number, height: number, monitor: MonitorInfo, mode: DisplayMode): boolean {
   const scale = monitor.scaleFactor > 0 ? monitor.scaleFactor : 1;
-  return (
-    width < monitor.width &&
-    height < monitor.height &&
-    width / scale >= MIN_WINDOW_LOGICAL.width &&
-    height / scale >= MIN_WINDOW_LOGICAL.height
-  );
+  if (width === monitor.width && height === monitor.height) return false;
+  if (width / scale < MIN_WINDOW_LOGICAL.width || height / scale < MIN_WINDOW_LOGICAL.height) return false;
+  return mode !== "windowed" || (width <= monitor.width && height <= monitor.height);
+}
+
+/** The resolutions to offer on this monitor besides Native, smallest first. */
+export function resolutionOptionsFor(monitor: MonitorInfo, mode: DisplayMode = "windowed"): readonly Resolution[] {
+  return RESOLUTION_CANDIDATES.filter((size) => {
+    const px = resolutionPixelsOf(size)!;
+    return offeredOn(px.width, px.height, monitor, mode);
+  });
+}
+
+/** The resolution a saved choice comes to on this monitor in `mode`: itself when it is offered, otherwise "native". */
+export function effectiveResolution(
+  size: Resolution,
+  monitor: MonitorInfo | null,
+  mode: DisplayMode = "windowed",
+): Resolution {
+  if (size === "native" || monitor === null) return size;
+  return resolutionOptionsFor(monitor, mode).includes(size) ? size : "native";
 }
 
 /**
- * The sizes to offer on this monitor, smallest first: the candidates that fit, those with the monitor's own shape
- * (16:9 or 16:10) when at least two of them fit, and at most the largest `MAX_SIZE_OPTIONS`.
+ * The size the game draws at, in CSS pixels, when it is scaled to fit the screen: a fullscreen mode at a resolution
+ * other than native. The bars then follow the shapes: a 4:3 resolution on a 21:9 screen gets them left and right, a
+ * 21:9 one on a 16:9 screen top and bottom. Null means the game fills its window 1:1 (Windowed, Native, or no monitor read yet).
  */
-export function windowSizeOptionsFor(monitor: MonitorInfo): readonly WindowSize[] {
-  const fitting = WINDOW_SIZE_CANDIDATES.filter((size) => {
-    const px = windowSizePixelsOf(size)!;
-    return fitsWindowed(px.width, px.height, monitor);
-  });
-  const aspect = monitor.width / monitor.height;
-  const sameShape = fitting.filter((size) => {
-    const px = windowSizePixelsOf(size)!;
-    return Math.abs(px.width / px.height - aspect) < 0.02;
-  });
-  const offered = sameShape.length >= 2 ? sameShape : fitting;
-  return offered.slice(-MAX_SIZE_OPTIONS);
+export function renderSizeOf(
+  mode: DisplayMode,
+  resolution: Resolution,
+  monitor: MonitorInfo | null,
+): { readonly width: number; readonly height: number } | null {
+  if (mode === "windowed" || monitor === null) return null;
+  const px = resolutionPixelsOf(effectiveResolution(resolution, monitor, mode));
+  if (px === null) return null;
+  const scale = monitor.scaleFactor > 0 ? monitor.scaleFactor : 1;
+  return { width: Math.round(px.width / scale), height: Math.round(px.height / scale) };
 }
 
-/** The size a saved choice comes to on this monitor: itself when it is offered, otherwise "default". */
-export function effectiveWindowSize(size: WindowSize, monitor: MonitorInfo | null): WindowSize {
-  if (size === "default" || monitor === null) return size;
-  return windowSizeOptionsFor(monitor).includes(size) ? size : "default";
+/** What draws the game at a fixed size scaled to fill the window, or back at the window's own size (null). */
+export type RenderSizeHandler = (size: { readonly width: number; readonly height: number } | null) => void;
+
+let renderSizeHandler: RenderSizeHandler | null = null;
+
+/** `main.ts` registers the Phaser side (`ui/render-resolution.ts`) once the game exists. */
+export function setRenderSizeHandler(handler: RenderSizeHandler): void {
+  renderSizeHandler = handler;
 }
 
 /** True when this build can change its own window: the desktop app. */
@@ -109,14 +141,17 @@ export async function refreshDesktopMonitor(): Promise<MonitorInfo | null> {
 /** Calls are chained so two quick changes (a click while the last one is still applying) land in order. */
 let applying: Promise<void> = Promise.resolve();
 
-/** Puts the window into `mode`, at `size` when windowed. Does nothing off desktop. */
-export function applyDesktopWindow(mode: DisplayMode, size: WindowSize): Promise<void> {
+/** Puts the window into `mode` and draws the game at `size`. Does nothing off desktop. */
+export function applyDesktopWindow(mode: DisplayMode, size: Resolution): Promise<void> {
   if (!hasDesktopWindow()) return Promise.resolve();
-  applying = applying.then(() => applyNow(mode, size)).catch(() => {});
+  applying = applying
+    .then(() => applyNow(mode, size))
+    .catch(() => {})
+    .then(() => renderSizeHandler?.(renderSizeOf(mode, size, monitor)));
   return applying;
 }
 
-async function applyNow(mode: DisplayMode, size: WindowSize): Promise<void> {
+async function applyNow(mode: DisplayMode, size: Resolution): Promise<void> {
   const { getCurrentWindow, currentMonitor, LogicalSize, PhysicalPosition, PhysicalSize } =
     await import("@tauri-apps/api/window");
   const window = getCurrentWindow();
@@ -137,10 +172,12 @@ async function applyNow(mode: DisplayMode, size: WindowSize): Promise<void> {
       await window.setPosition(new PhysicalPosition(current.position.x, current.position.y));
       await window.setSize(new PhysicalSize(current.size.width, current.size.height));
     }
+    // Windows only lifts the taskbar out of the way of a screen-sized window that has focus.
+    await window.setFocus();
     return;
   }
   await window.setDecorations(true);
-  const pixels = windowSizePixelsOf(effectiveWindowSize(size, monitor));
+  const pixels = resolutionPixelsOf(effectiveResolution(size, monitor));
   await window.setSize(
     pixels === null
       ? new LogicalSize(DEFAULT_WINDOW_LOGICAL.width, DEFAULT_WINDOW_LOGICAL.height)
@@ -150,10 +187,10 @@ async function applyNow(mode: DisplayMode, size: WindowSize): Promise<void> {
 }
 
 /** At launch: applies the saved choice, unless it is the window the app already opens as. */
-export function applyDesktopWindowOnLaunch(settings: { displayMode: DisplayMode; windowSize: WindowSize }): void {
-  if (settings.displayMode === "windowed" && settings.windowSize === "default") {
+export function applyDesktopWindowOnLaunch(settings: { displayMode: DisplayMode; resolution: Resolution }): void {
+  if (settings.displayMode === "windowed" && settings.resolution === "native") {
     void refreshDesktopMonitor();
     return;
   }
-  void applyDesktopWindow(settings.displayMode, settings.windowSize);
+  void applyDesktopWindow(settings.displayMode, settings.resolution);
 }

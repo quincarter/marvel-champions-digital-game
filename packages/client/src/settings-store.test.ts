@@ -171,11 +171,11 @@ describe("parseSettingsOverrides", () => {
     expect(parseSettingsOverrides('{"displayMode":"exclusive"}')).toEqual({});
   });
 
-  test("windowSize: 'default' or a width x height is read, anything else is not", () => {
-    expect(parseSettingsOverrides('{"windowSize":"1920x1080"}')).toEqual({ windowSize: "1920x1080" });
-    expect(parseSettingsOverrides('{"windowSize":"default"}')).toEqual({ windowSize: "default" });
-    expect(parseSettingsOverrides('{"windowSize":"big"}')).toEqual({});
-    expect(parseSettingsOverrides('{"windowSize":1920}')).toEqual({});
+  test("resolution: 'default' or a width x height is read, anything else is not", () => {
+    expect(parseSettingsOverrides('{"resolution":"1920x1080"}')).toEqual({ resolution: "1920x1080" });
+    expect(parseSettingsOverrides('{"resolution":"native"}')).toEqual({ resolution: "native" });
+    expect(parseSettingsOverrides('{"resolution":"big"}')).toEqual({});
+    expect(parseSettingsOverrides('{"resolution":1920}')).toEqual({});
   });
 
   test("cardSize: only the three known values are read", () => {

@@ -21,7 +21,7 @@ import {
   DISPLAY_MODE_VALUES,
   FIRST_PLAYER_TOKEN_MOTION_VALUES,
   SHARP_TEXT_RESOLUTION_CEILING,
-  windowSizePixelsOf,
+  resolutionPixelsOf,
   type CardHoverScale,
   type CardSize,
   type DisplayMode,
@@ -29,7 +29,7 @@ import {
   type Settings,
   type VillainAutoAdvance,
   type VillainBeatSpeed,
-  type WindowSize,
+  type Resolution,
 } from "../settings.js";
 import { FIRST_PLAYER_TOKEN_MOTION_LABELS } from "./first-player-token-motion.js";
 
@@ -453,7 +453,7 @@ export function nextSettingsAfterTokenMotion(settings: Settings, value: FirstPla
 }
 
 // ---------------------------------------------------------------------------
-// "Window mode" and "Window size": the desktop app's window (`platform/desktop-window.ts`). Desktop (Tauri) only; the
+// "Window mode" and "Resolution": the desktop app's window (`platform/desktop-window.ts`). Desktop (Tauri) only; the
 // Settings screen leaves both rows out on the web and the phone apps.
 // ---------------------------------------------------------------------------
 
@@ -485,37 +485,46 @@ export function nextSettingsAfterDisplayMode(settings: Settings, value: DisplayM
   return DISPLAY_MODE_VALUES.includes(value) ? { ...settings, displayMode: value } : settings;
 }
 
-export interface WindowSizeRowInfo {
+export interface ResolutionRowInfo {
   readonly title: string;
   readonly detail: string;
-  readonly options: readonly { readonly value: WindowSize; readonly label: string }[];
-  readonly selected: WindowSize;
+  readonly options: readonly { readonly value: Resolution; readonly label: string }[];
+  readonly selected: Resolution;
 }
 
-/** "1920x1080" as "1920 × 1080". */
-export function windowSizeLabelOf(size: WindowSize): string {
-  const px = windowSizePixelsOf(size);
-  return px === null ? "Default" : `${px.width} × ${px.height}`;
+/** "1920x1080" as "1920 × 1080"; Native as "Native", or "Native · 3440 × 1440" once the monitor's size is known. */
+export function resolutionLabelOf(
+  size: Resolution,
+  native: { readonly width: number; readonly height: number } | null = null,
+): string {
+  const px = resolutionPixelsOf(size);
+  if (px !== null) return `${px.width} × ${px.height}`;
+  return native === null ? "Native" : `Native · ${native.width} × ${native.height}`;
 }
 
 /**
- * `offered` is the sizes that fit the current monitor (`windowSizeOptionsFor`), after Default. A saved size this
- * monitor doesn't offer shows as Default, which is what the window gets.
+ * `offered` is the resolutions the current monitor offers in this mode (`resolutionOptionsFor`), listed after Native;
+ * `native` is the monitor's own resolution. A saved resolution this monitor doesn't offer shows as Native, which is what
+ * the game then draws at.
  */
-export function windowSizeRowInfoOf(settings: Settings, offered: readonly WindowSize[]): WindowSizeRowInfo {
-  const values: readonly WindowSize[] = ["default", ...offered];
-  const windowed = settings.displayMode === "windowed";
+export function resolutionRowInfoOf(
+  settings: Settings,
+  offered: readonly Resolution[],
+  native: { readonly width: number; readonly height: number } | null = null,
+): ResolutionRowInfo {
+  const values: readonly Resolution[] = ["native", ...offered];
   return {
-    title: "Window size",
-    detail: windowed
-      ? "The window's size in pixels; Default is the window the game opens at. Only sizes that fit this screen are listed. The game can't change your screen's own resolution."
-      : "Used in Windowed mode. Borderless and Fullscreen always fill the screen at its own resolution.",
-    options: values.map((value) => ({ value, label: windowSizeLabelOf(value) })),
-    selected: values.includes(settings.windowSize) ? settings.windowSize : "default",
+    title: "Resolution",
+    detail:
+      settings.displayMode === "windowed"
+        ? "In a window, the window's own size; Native draws at whatever size the window is. Your computer's display resolution is never changed."
+        : "Other than native, the game draws at that resolution and is scaled to fit the screen, with black bars where the shapes differ. Your computer's display resolution is never changed.",
+    options: values.map((value) => ({ value, label: resolutionLabelOf(value, native) })),
+    selected: values.includes(settings.resolution) ? settings.resolution : "native",
   };
 }
 
-/** `settings` with the window size set; a malformed size changes nothing. */
-export function nextSettingsAfterWindowSize(settings: Settings, value: WindowSize): Settings {
-  return value === "default" || windowSizePixelsOf(value) !== null ? { ...settings, windowSize: value } : settings;
+/** `settings` with the resolution set; a malformed one changes nothing. */
+export function nextSettingsAfterResolution(settings: Settings, value: Resolution): Settings {
+  return value === "native" || resolutionPixelsOf(value) !== null ? { ...settings, resolution: value } : settings;
 }

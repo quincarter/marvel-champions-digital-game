@@ -72,22 +72,23 @@ export interface Settings {
    */
   readonly displayMode: DisplayMode;
   /**
-   * The desktop app's window size in Windowed mode, in the monitor's own pixels, or "default" for the 1440 x 900
-   * window the app opens at. A webview can't change the monitor's real resolution, so this sizes the window; the
-   * fullscreen modes always fill the monitor at its own resolution. Desktop (Tauri) only.
+   * The resolution the desktop app draws at, in the monitor's own pixels, or "native" for the monitor's own. In
+   * Borderless and Fullscreen a lower one is drawn at that size and scaled to fill the screen, black bars where the
+   * shapes differ; in Windowed it is the window's size (native: a maximized window). The OS's own display resolution
+   * is never changed, so closing the game has nothing to put back. Desktop (Tauri) only.
    */
-  readonly windowSize: WindowSize;
+  readonly resolution: Resolution;
 }
 
 export type DisplayMode = "windowed" | "borderless" | "fullscreen";
 export const DISPLAY_MODE_VALUES: readonly DisplayMode[] = ["windowed", "borderless", "fullscreen"];
 
-/** "default", or a width and height in physical pixels such as "1920x1080". */
-export type WindowSize = "default" | `${number}x${number}`;
+/** "native", or a width and height in physical pixels such as "1920x1080". */
+export type Resolution = "native" | `${number}x${number}`;
 
-/** The width and height a `WindowSize` names; null for "default" or anything malformed. */
-export function windowSizePixelsOf(
-  size: WindowSize | string,
+/** The width and height a `Resolution` names; null for "native" or anything malformed. */
+export function resolutionPixelsOf(
+  size: Resolution | string,
 ): { readonly width: number; readonly height: number } | null {
   const match = /^(\d{3,5})x(\d{3,5})$/.exec(size);
   if (match === null) return null;
@@ -199,6 +200,6 @@ export function defaultSettings(): Settings {
     hoverVillainCard: true,
     firstPlayerTokenMotion: "toss",
     displayMode: "windowed",
-    windowSize: "default",
+    resolution: "native",
   };
 }

@@ -35,8 +35,8 @@ import {
   displayModeRowInfoOf,
   nextSettingsAfterCardSize,
   nextSettingsAfterDisplayMode,
-  nextSettingsAfterWindowSize,
-  windowSizeRowInfoOf,
+  nextSettingsAfterResolution,
+  resolutionRowInfoOf,
   nextSettingsAfterCardHover,
   nextSettingsAfterTokenMotion,
   tokenMotionRowInfoOf,
@@ -58,14 +58,14 @@ import type {
   Settings,
   VillainAutoAdvance,
   VillainBeatSpeed,
-  WindowSize,
+  Resolution,
 } from "../settings.js";
 import {
   applyDesktopWindow,
   desktopMonitor,
   hasDesktopWindow,
   refreshDesktopMonitor,
-  windowSizeOptionsFor,
+  resolutionOptionsFor,
 } from "../platform/desktop-window.js";
 import { ink, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
@@ -107,8 +107,10 @@ type GuideNonLevelRow = Extract<GuideRowInfo, { kind: "action" | "toggle" }>;
 const SPEED_CONTROL_WIDTH = 204;
 const CARD_HOVER_CONTROL_WIDTH = 280;
 const CARD_SIZE_CONTROL_WIDTH = 520;
-const DISPLAY_MODE_CONTROL_WIDTH = 330;
-const WINDOW_SIZE_CONTROL_WIDTH = 560;
+const DISPLAY_MODE_CONTROL_WIDTH = 360;
+/** Resolution is a stepper (◀ 1920 × 1080 ▶): up to seventeen sizes is too many segments. */
+const RESOLUTION_CONTROL_WIDTH = 260;
+const STEPPER_ARROW_WIDTH = 44;
 
 /**
  * A toggle or door row's 84px control, right-aligned and centred on the row. Held 2px in from the row's right edge,
@@ -151,7 +153,7 @@ export class SettingsOverlay extends Phaser.Scene {
   create(): void {
     this.#motion = new OverlayMotion();
     this.input.enabled = true;
-    // In the desktop app a resize can also be a move to another monitor, whose sizes the Window size row lists.
+    // In the desktop app a resize can also be a move to another monitor, whose sizes the Resolution row lists.
     const onResize = (): void => {
       this.#draw();
       if (hasDesktopWindow()) void refreshDesktopMonitor().then(() => this.#redrawIfOpen());
@@ -387,13 +389,25 @@ export class SettingsOverlay extends Phaser.Scene {
     segmented("token-motion", tokenMotionRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => this.#setTokenMotion(v));
     if (hasDesktopWindow()) {
       const monitor = desktopMonitor();
-      const sizes = monitor === null ? [] : windowSizeOptionsFor(monitor);
+      const sizes = monitor === null ? [] : resolutionOptionsFor(monitor, settings.displayMode);
       segmented("display-mode", displayModeRowInfoOf(settings), DISPLAY_MODE_CONTROL_WIDTH, (v) =>
         this.#setWindow(nextSettingsAfterDisplayMode(appSession().settings, v)),
       );
-      segmented("window-size", windowSizeRowInfoOf(settings, sizes), WINDOW_SIZE_CONTROL_WIDTH, (v: WindowSize) =>
-        this.#setWindow(nextSettingsAfterWindowSize(appSession().settings, v)),
-      );
+      const sizeInfo = resolutionRowInfoOf(settings, sizes, monitor);
+      items.set("resolution", {
+        spec: {
+          kind: "segmented",
+          id: "resolution",
+          detail: sizeInfo.detail,
+          controlWidth: RESOLUTION_CONTROL_WIDTH,
+        },
+        draw: (item, stops) => {
+          this.#drawStepperRow(item, sizeInfo, "resolution", stops, (v: Resolution) =>
+            this.#setWindow(nextSettingsAfterResolution(appSession().settings, v)),
+          );
+          return ["resolution:prev", "resolution:next"];
+        },
+      });
     }
 
     const villain = villainRowInfoOf(settings);
@@ -715,7 +729,68 @@ export class SettingsOverlay extends Phaser.Scene {
   #setWindow(next: Settings): void {
     appSession().settings = next;
     this.#draw();
-    void applyDesktopWindow(next.displayMode, next.windowSize).then(() => this.#redrawIfOpen());
+    void applyDesktopWindow(next.displayMode, next.resolution).then(() => this.#redrawIfOpen());
+  }
+
+  /** A row with a title, its detail, and a ◂ value ▸ stepper through `info.options` (no wrap at either end). */
+  #drawStepperRow<V extends string>(
+    item: SettingsItemLayout,
+    info: SegmentedInfo<V>,
+    stopPrefix: string,
+    stops: Map<string, FocusStop>,
+    choose: (value: V) => void,
+  ): void {
+    const rect = item.row;
+    const control = item.control!;
+    label(this, rect.x, rect.y + 2, info.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
+    this.add
+      .text(rect.x, rect.y + 20, info.detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
+      .setFontSize(10)
+      .setWordWrapWidth(item.stacked ? rect.width : rect.width - control.width - 16);
+    const index = Math.max(
+      0,
+      info.options.findIndex((option) => option.value === info.selected),
+    );
+    const arrow = (dir: "prev" | "next", x: number): void => {
+      const target = info.options[dir === "prev" ? index - 1 : index + 1];
+      const cell: Rect = { x, y: control.y, width: STEPPER_ARROW_WIDTH, height: control.height };
+      const activate = (): void => {
+        if (target !== undefined) choose(target.value);
+      };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: dir === "prev" ? "◀" : "▶",
+          type: typeRole.label,
+          rect: cell,
+          enabled: target !== undefined,
+          onClick: activate,
+          clip: this.#bodyClip,
+          suppressClick: this.#bodySuppressClick,
+        }),
+      );
+      stops.set(`row:${stopPrefix}:${dir}`, this.#bodyStop(cell, item.slot, activate));
+    };
+    arrow("prev", control.x);
+    arrow("next", control.x + control.width - STEPPER_ARROW_WIDTH);
+    const middle: Rect = {
+      x: control.x + STEPPER_ARROW_WIDTH + 4,
+      y: control.y,
+      width: control.width - 2 * STEPPER_ARROW_WIDTH - 8,
+      height: control.height,
+    };
+    const g = this.add.graphics();
+    g.fillStyle(surface.paper.hex, 1).fillRect(middle.x, middle.y, middle.width, middle.height);
+    const value = this.add
+      .text(
+        middle.x + middle.width / 2,
+        middle.y + middle.height / 2,
+        (info.options[index]?.label ?? "").toUpperCase(),
+        textStyle(typeRole.label, surface.ink.hex),
+      )
+      .setFontSize(12)
+      .setOrigin(0.5);
+    fitText(value, middle.width - 8, 12);
   }
 
   #setTokenMotion(value: FirstPlayerTokenMotion): void {

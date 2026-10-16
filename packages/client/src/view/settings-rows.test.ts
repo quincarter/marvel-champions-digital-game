@@ -2,8 +2,8 @@ import { describe, expect, test } from "vitest";
 import {
   displayModeRowInfoOf,
   nextSettingsAfterDisplayMode,
-  nextSettingsAfterWindowSize,
-  windowSizeRowInfoOf,
+  nextSettingsAfterResolution,
+  resolutionRowInfoOf,
   guideRowInfoOf,
   nextGuidePrefsAfterRow,
   nextSettingsAfterToggle,
@@ -41,7 +41,7 @@ const BASE: Settings = {
   hoverVillainCard: true,
   firstPlayerTokenMotion: "toss",
   displayMode: "windowed",
-  windowSize: "default",
+  resolution: "native",
 };
 
 describe("settingsRowInfoOf", () => {
@@ -63,7 +63,7 @@ describe("settingsRowInfoOf", () => {
       hoverVillainCard: true,
       firstPlayerTokenMotion: "toss",
       displayMode: "windowed",
-      windowSize: "default",
+      resolution: "native",
     });
     expect(rows.find((r) => r.id === "reduced-motion")?.on).toBe(true);
     expect(rows.find((r) => r.id === "sharper-text")?.on).toBe(true);
@@ -302,7 +302,7 @@ describe("first player token row", () => {
   });
 });
 
-describe("Window mode and Window size (desktop app)", () => {
+describe("Window mode and Resolution (desktop app)", () => {
   test("Window mode offers Windowed, Borderless and Fullscreen, Windowed by default", () => {
     const info = displayModeRowInfoOf(defaultSettings());
     expect(info.options.map((o) => o.label)).toEqual(["Windowed", "Borderless", "Fullscreen"]);
@@ -310,20 +310,26 @@ describe("Window mode and Window size (desktop app)", () => {
     expect(nextSettingsAfterDisplayMode(defaultSettings(), "borderless").displayMode).toBe("borderless");
   });
 
-  test("Window size offers Default first, then the sizes that fit, labelled width × height", () => {
-    const info = windowSizeRowInfoOf(defaultSettings(), ["1280x720", "1600x900"]);
-    expect(info.options.map((o) => o.label)).toEqual(["Default", "1280 × 720", "1600 × 900"]);
-    expect(info.selected).toBe("default");
+  test("Resolution defaults to Native, labelled with the monitor's own size, then the sizes below it", () => {
+    const info = resolutionRowInfoOf(defaultSettings(), ["1280x720", "1920x1080"], { width: 3440, height: 1440 });
+    expect(info.options.map((o) => o.label)).toEqual(["Native · 3440 × 1440", "1280 × 720", "1920 × 1080"]);
+    expect(info.selected).toBe("native");
   });
 
-  test("a saved size this screen doesn't offer shows as Default", () => {
-    const settings = nextSettingsAfterWindowSize(defaultSettings(), "2560x1440");
-    expect(settings.windowSize).toBe("2560x1440");
-    expect(windowSizeRowInfoOf(settings, ["1280x720", "1600x900"]).selected).toBe("default");
+  test("before the monitor is read, Native is just Native", () => {
+    expect(resolutionRowInfoOf(defaultSettings(), []).options[0]!.label).toBe("Native");
   });
 
-  test("in the fullscreen modes the size row says it applies to Windowed only", () => {
+  test("a saved resolution this screen doesn't offer shows as Native", () => {
+    const settings = nextSettingsAfterResolution(defaultSettings(), "3840x2160");
+    expect(settings.resolution).toBe("3840x2160");
+    expect(resolutionRowInfoOf(settings, ["1280x720", "1600x900"]).selected).toBe("native");
+  });
+
+  test("in the fullscreen modes the row explains the black bars; it never claims to change the OS resolution", () => {
     const settings = nextSettingsAfterDisplayMode(defaultSettings(), "fullscreen");
-    expect(windowSizeRowInfoOf(settings, []).detail).toMatch(/^Used in Windowed mode/);
+    const detail = resolutionRowInfoOf(settings, []).detail;
+    expect(detail).toMatch(/black bars/);
+    expect(detail).toMatch(/display resolution is never changed/);
   });
 });
