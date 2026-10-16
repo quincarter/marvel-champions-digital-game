@@ -447,6 +447,16 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
     return { key: SCENES.board, data: {} };
   }
 
+  // `?screen=villain-boost-interrupt`: a real Scarlet Witch game paused on Chaos Control's boost-count window ("When
+  // boost icons on an encounter card would be counted"), the interrupt panel showing the counted boost card (#172).
+  if (screen === "villain-boost-interrupt") {
+    const finish = await startDevBoostInterruptGame();
+    // The villain phase starts a command or two before the window, and the walkthrough only collects beats while
+    // Board is mounted: those last commands run once Board is up.
+    window.setTimeout(() => void finish(), 1500);
+    return { key: SCENES.board, data: {} };
+  }
+
   // `?screen=alliance`: a real two-seat hot-seat game on War Machine's own turn with Cosmic Alliance (an alliance
   // card) in hand and Star-Lord's hand free to help pay — the per-helper approval bar (wave 4 Q10,
   // `scenes/board/controller.ts`'s `confirmingAllianceHelp`) is one play and one pick of a Star-Lord card away.
@@ -607,6 +617,41 @@ async function startDevVillainInterruptGame(): Promise<void> {
     if (!end) break;
     await store.dispatch(end.example);
   }
+}
+
+/**
+ * A seeded solo Rhino/Scarlet Witch game: hero form, then her turn ends, which stops on the end-of-turn discard. The
+ * returned function answers that and whatever else comes first with the fewest picks, and stops on Chaos Control's
+ * `chooseTriggers` for the boost card Rhino's attack turned faceup (traced with seed 1).
+ */
+async function startDevBoostInterruptGame(): Promise<() => Promise<void>> {
+  const { store } = appSession();
+  const answerUntilBoostCount = async (): Promise<void> => {
+    for (let step = 0; step < 20; step++) {
+      const actions = store.state.legal?.actions;
+      if (actions?.kind !== "choice") return;
+      const prompt = actions.choice.prompt;
+      if (prompt.kind === "chooseTriggers" && prompt.event.kind === "boostIconsCounting") return;
+      await store.resolveChoice(actions.choice.options.slice(0, actions.choice.minSelections).map((o) => o.optionId));
+    }
+  };
+  if (gameRunning(store)) return answerUntilBoostCount;
+  await store.start({
+    scenarioId: "rhino",
+    difficulty: "standard",
+    players: [{ starterDeckId: "scw-justice" }],
+    seed: 1,
+  });
+  if (store.state.game?.pendingChoice) await store.resolveChoice([]);
+  const legal = store.state.legal?.actions;
+  if (legal?.kind === "turn") {
+    const flip = legal.legal.find((entry) => entry.action.kind === "changeForm");
+    if (flip) await store.dispatch(flip.example);
+  }
+  const turn = store.state.legal?.actions;
+  const end = turn?.kind === "turn" ? turn.legal.find((entry) => entry.action.kind === "endTurn") : undefined;
+  if (end) await store.dispatch(end.example);
+  return answerUntilBoostCount;
 }
 
 async function startDevAllianceGame(): Promise<void> {
