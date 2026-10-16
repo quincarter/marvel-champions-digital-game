@@ -1057,7 +1057,15 @@ function settleDefenseCost(
   return true;
 }
 
-/** RRG 1.8 "Activation" (p. 6): an enemy that left play mid-activation ends it; nothing further resolves. */
+/**
+ * RRG 1.8 "Activation" (p. 6): an enemy that left play mid-activation ends it; nothing further resolves.
+ *
+ * Unresolved, kept pending FFG (owner decision 2026-10-16, rules audit finding 19): p. 9 says "after [enemy] attacks"
+ * abilities can still resolve when an enemy attack ends before damage is dealt, while p. 6 ends the activation at once
+ * when the activating enemy leaves play. Which applies when the attacker leaves play while its attack is being
+ * initiated (so whether that attack's after-attack response window opens) is not settled. This keeps the p. 6 reading
+ * and opens no window; it is provisional, not confirmed correct.
+ */
 function endedByLeavingPlay(
   ctx: Ctx,
   frame: Frame<"enemyAttack"> | Frame<"enemyScheme">,
