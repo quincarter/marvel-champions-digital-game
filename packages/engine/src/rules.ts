@@ -1277,6 +1277,18 @@ export const canDivideBasicPower = (
     ({ rule, context }) => rule.power === power && matchesQuery(state, id, rule.target, context),
   );
 
+/** Whether a `divideBasicPower` rule over this character is a mandatory even split (`evenly`, Bombshell). */
+export const evenlyDividesBasicPower = (
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  power: "attack" | "thwart",
+): boolean =>
+  activeRules(state, deps, "divideBasicPower").some(
+    ({ rule, context }) =>
+      rule.power === power && rule.evenly === true && matchesQuery(state, id, rule.target, context),
+  );
+
 /**
  * "This card cannot leave play while …" (`cannotLeavePlay`). `sourceCardId`: the card whose ability, or whose ability's
  * cost, would move it, as `permanentStopsLeaving` reads it; none for a move the game's rules make. A rule limited to

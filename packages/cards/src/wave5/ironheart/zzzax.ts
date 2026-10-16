@@ -61,14 +61,12 @@ import {
  * `nova`'s own precedent distinguishes the two), summed together.
  *
  * **Bombshell (29033)** — "Divide damage from Bombshell's attack among each enemy as evenly as possible."
- * docs/phase7-wave5.md §3.32 marks this "reusable as is" via the existing `divideBasicPower` rule (Wasp's Giant
- * form precedent, `wave2/wsp/kit.ts`): the engine already lets a matching character's controller split its basic
- * ATK across several enemies of their choosing when they use it to attack; this constant only grants Bombshell that
- * capacity (`target: { self: true }`, not an identity). The January 11, 2026 (4) ruling ("You resolve Bombshell's
- * ability by dividing her attack as evenly as possible among valid targets… the villain is not a valid target due
- * to Guard, so the villain is ignored") is about *which* targets are legal (the basic attack's own existing target
- * validity check, unchanged) and the even split itself, both of which the printed instruction leaves to whoever
- * performs the attack to carry out correctly — there is no separate "automatic even split" primitive to build.
+ * The `divideBasicPower` rule (Wasp's Giant form precedent, `wave2/wsp/kit.ts`) with `evenly: true`, so the split is
+ * mandatory (`target: { self: true }`, not an identity). Ruling Jan 11, 2026 R4: the damage is divided as evenly as
+ * possible among the valid targets (a Guard-protected villain is not one, so it is ignored). The engine refuses her
+ * basic attack when two or more enemies are attackable and it is not divided among all of them with shares differing
+ * by at most 1; the player still picks who takes a remainder. Not enforced when a card has her attack on its
+ * instruction (`BasicPowerBy.instructed`), which keeps the optional split.
  *
  * **Wasp (29034)** — "Wasp ignores the guard keyword, patrol keyword, and crisis icon." `characterIgnores`
  * (`ignores`, wave 4 §3.24, Evasive Maneuvering/Nebula's own precedent) targeted at herself, not an identity, so no
@@ -125,7 +123,9 @@ const discardEnergyOrTakeDamageThenDiscardSelf = () =>
 export const IRONHEART_ZZZAX = defineAbilities({
   // Bombshell (29033) — [star] Divide damage from Bombshell's attack among each enemy as evenly as possible
   // (module docblock; ruling Jan 11, 2026 (4)).
-  "29033.bombshell-constant": constant(rule({ kind: "divideBasicPower", power: "attack", target: { self: true } })),
+  "29033.bombshell-constant": constant(
+    rule({ kind: "divideBasicPower", power: "attack", target: { self: true }, evenly: true }),
+  ),
 
   // Wasp (29034) — Wasp ignores the guard keyword, patrol keyword, and crisis icon.
   "29034.wasp-constant": constant(ignores({ self: true }, ["guard", "patrol", "crisis"])),

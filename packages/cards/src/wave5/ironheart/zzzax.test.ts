@@ -202,6 +202,52 @@ describe("Bombshell (29033)", () => {
     expect(inst(after, zzzax.id).damage).toBe(2);
   });
 
+  it("ruling 2026-01-11 R4: with two enemies her attack must be divided among both, not put on one", () => {
+    const hero = asHero(ironheartVsRhinoWithExtras(1, ["29033"]));
+    const played = playFromHand(hero, "29033", 4);
+    const villain = activeVillain(played.state).instanceId;
+    const zzzax = engagedMinion(played.state, "29037");
+    const attack = (divide?: { targetInstanceId: InstanceId; amount: number }[]) =>
+      applyCommand(
+        zzzax.state,
+        {
+          type: "basicAttack",
+          playerId: P1,
+          attackerInstanceId: played.id,
+          targetInstanceId: villain,
+          ...(divide ? { divide } : {}),
+        },
+        WAVE5_DEPS,
+      );
+    expect(attack([{ targetInstanceId: villain, amount: 3 }]).ok).toBe(false);
+    expect(
+      attack([
+        { targetInstanceId: villain, amount: 2 },
+        { targetInstanceId: zzzax.id, amount: 1 },
+      ]).ok,
+    ).toBe(true);
+  });
+
+  it("ruling 2026-01-11 R4: the plain basic attack is offered and splits itself, the remainder on the declared target", () => {
+    const hero = asHero(ironheartVsRhinoWithExtras(1, ["29033"]));
+    const played = playFromHand(hero, "29033", 4);
+    const villain = activeVillain(played.state).instanceId;
+    const zzzax = engagedMinion(played.state, "29037");
+    const actions = legalActions(zzzax.state, P1, WAVE5_DEPS);
+    expect(
+      actions.kind === "turn" &&
+        actions.legal.some((a) => a.action.kind === "basicAttack" && a.action.instanceId === played.id),
+    ).toBe(true);
+    const { state: after } = driveEvents(WAVE5_DEPS, zzzax.state, {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: played.id,
+      targetInstanceId: villain,
+    });
+    expect(inst(after, villain).damage).toBe(2);
+    expect(inst(after, zzzax.id).damage).toBe(1);
+  });
+
   it("negative: an ally without the rule (Falcon) cannot divide her attack", () => {
     const hero = asHero(ironheartVsRhino(1));
     const played = playFromHand(hero, "29015", 4);
