@@ -4,7 +4,16 @@ import { TRORS_STORY } from "../campaign/stories/trors.js";
 import { CARDS_BY_ID, POOL_CARDS, POOL_VERSION } from "../content/pool.js";
 import { aspectStampOf } from "./aspect-stamp.js";
 import { preconDecks } from "./deck-list-model.js";
-import { pickerEntriesOf, preconRosterOf, rosterDeckOptions, rosterModelOf } from "./campaign-roster-model.js";
+import {
+  PICKER_RECOMMENDED_LIMIT,
+  pickerEntriesOf,
+  pickerHeroNameOf,
+  pickerRecommendationsOf,
+  preconRosterOf,
+  rosterDeckOptions,
+  rosterModelOf,
+  type PickerEntry,
+} from "./campaign-roster-model.js";
 import { pairCatalogOf } from "./seat-recommendations.js";
 import { DEFAULT_UNLOCK_PREFS, NO_PROGRESS, Unlocks } from "../progression/unlocks.js";
 
@@ -132,48 +141,75 @@ describe("rosterDeckOptions with the real unlocks", () => {
 
 describe("pickerEntriesOf", () => {
   const catalog = pairCatalogOf(CARDS_BY_ID);
-  const deck = (slug: string): Deck => preconDecks(POOL_VERSION).find((d) => (d.id as string) === `precon:${slug}`)!;
-  const entries = (seats: (Deck | null)[], seatNumber: number) =>
-    pickerEntriesOf(seats, seatNumber, rosterDeckOptions(seats, seatNumber, [], POOL_VERSION), CARDS_BY_ID, catalog);
+  const deck = (slug: string): Deck => precons.find((d) => (d.id as string) === `precon:${slug}`)!;
+  const entries = (seats: (Deck | null)[], seatNumber: number, query = "") => {
+    const options = rosterDeckOptions(seats, seatNumber, [], POOL_VERSION);
+    const recs = pickerRecommendationsOf(seats, seatNumber, options, CARDS_BY_ID, catalog);
+    return { options, list: pickerEntriesOf(seatNumber, options, recs, CARDS_BY_ID, query) };
+  };
+  const nameOf = (options: ReturnType<typeof rosterDeckOptions>, e: PickerEntry): string =>
+    e.kind === "option" ? pickerHeroNameOf(options[e.optionIndex]!, CARDS_BY_ID) : `[${e.text}]`;
+  const sortedAZ = (names: readonly string[]): boolean =>
+    names.every((name, i) => i === 0 || names[i - 1]!.localeCompare(name, undefined, { sensitivity: "base" }) <= 0);
 
-  test("seat 1's picker is the plain list, with no headings", () => {
-    const list = entries([deck("gambit-justice"), deck("rogue-protection"), null, null], 1);
+  test("seat 1's picker is every deck once, A to Z by hero, with no headings", () => {
+    const { options, list } = entries([deck("gambit-justice"), deck("rogue-protection"), null, null], 1);
     expect(list.every((e) => e.kind === "option" && !e.recommended)).toBe(true);
+    expect(list).toHaveLength(options.length);
+    expect(sortedAZ(list.map((e) => nameOf(options, e)))).toBe(true);
   });
 
-  test("seat 3 with Gambit and Rogue seated: a Recommended group first, then the whole list under its own heading", () => {
-    const seats = [deck("gambit-justice"), deck("rogue-protection"), null, null];
-    const list = entries(seats, 3);
+  test("seat 3 with Gambit and Rogue seated: a top 5 group, then every other hero once, both A to Z", () => {
+    const { options, list } = entries([deck("gambit-justice"), deck("rogue-protection"), null, null], 3);
     expect(list[0]).toEqual({ kind: "heading", text: "Recommended for seat #3" });
     const second = list.findIndex((e, i) => i > 0 && e.kind === "heading");
-    expect(list[second]).toEqual({ kind: "heading", text: "All heroes" });
+    expect(list[second]).toEqual({ kind: "heading", text: "Other heroes" });
     const group = list.slice(1, second);
-    expect(group.length).toBeGreaterThan(0);
+    expect(group).toHaveLength(PICKER_RECOMMENDED_LIMIT);
     expect(group.every((e) => e.kind === "option" && e.recommended && e.rec !== null)).toBe(true);
-    // The full list is unchanged: every option, once, in the options' own order.
-    const full = list.slice(second + 1);
-    expect(full.map((e) => (e.kind === "option" ? e.optionIndex : -1))).toEqual(
-      rosterDeckOptions(seats, 3, [], POOL_VERSION).map((_, i) => i),
-    );
+    expect(sortedAZ(group.map((e) => nameOf(options, e)))).toBe(true);
+    const rest = list.slice(second + 1);
+    expect(rest.every((e) => e.kind === "option" && !e.recommended)).toBe(true);
+    expect(sortedAZ(rest.map((e) => nameOf(options, e)))).toBe(true);
+    // Every deck exactly once across the two groups.
+    const indexes = [...group, ...rest].map((e) => (e.kind === "option" ? e.optionIndex : -1)).sort((a, b) => a - b);
+    expect(indexes).toEqual(options.map((_, i) => i));
   });
 
-  test("Team-Up partners lead the group, and an already-seated hero is never in it", () => {
+  test("Team-Up partners are in the group, and an already-seated hero is never in it", () => {
     const seats = [deck("phoenix-justice"), deck("core-spider-man-justice"), null, null];
-    const options = rosterDeckOptions(seats, 3, [], POOL_VERSION);
-    const list = pickerEntriesOf(seats, 3, options, CARDS_BY_ID, catalog);
+    const { options, list } = entries(seats, 3);
     const group = list.slice(
       1,
       list.findIndex((e, i) => i > 0 && e.kind === "heading"),
     );
-    const names = group.map((e) => (e.kind === "option" ? options[e.optionIndex]!.deck.id : ""));
-    // Phoenix's partner Cyclops and Spider-Man's partner Silk (cycle 9) lead.
-    expect(names.slice(0, 2).sort()).toEqual(["precon:cyclops-leadership", "precon:silk-protection"]);
-    expect(names).not.toContain("precon:phoenix-justice");
-    expect(names).not.toContain("precon:core-spider-man-justice");
+    const ids = group.map((e) => (e.kind === "option" ? options[e.optionIndex]!.deck.id : ""));
+    // Phoenix's partner Cyclops and Spider-Man's partner Silk (cycle 9).
+    expect(ids).toContain("precon:cyclops-leadership");
+    expect(ids).toContain("precon:silk-protection");
+    expect(ids).not.toContain("precon:phoenix-justice");
+    expect(ids).not.toContain("precon:core-spider-man-justice");
   });
 
   test("with nobody else seated there is nothing to recommend against", () => {
-    const list = entries([null, null, null, null], 2);
+    const { list } = entries([null, null, null, null], 2);
     expect(list.every((e) => e.kind === "option" && !e.recommended)).toBe(true);
+  });
+
+  test("a search keeps matching heroes in both groups and drops a group it empties, heading and all", () => {
+    const seats = [deck("phoenix-justice"), deck("core-spider-man-justice"), null, null];
+    const { options, list } = entries(seats, 3, "cyc");
+    expect(list[0]).toEqual({ kind: "heading", text: "Recommended for seat #3" });
+    expect(list.filter((e) => e.kind === "heading")).toHaveLength(1);
+    expect(list.slice(1).every((e) => nameOf(options, e).toLowerCase().includes("cyc"))).toBe(true);
+  });
+
+  test("a search reads the deck's aspects and is blind to case and accents", () => {
+    const { options, list } = entries([null, null, null, null], 1, "PROTECTION");
+    expect(list.length).toBeGreaterThan(0);
+    expect(list.every((e) => e.kind === "option" && options[e.optionIndex]!.deck.aspects.includes("protection"))).toBe(
+      true,
+    );
+    expect(entries([null, null, null, null], 1, "zzzz-no-hero").list).toEqual([]);
   });
 });

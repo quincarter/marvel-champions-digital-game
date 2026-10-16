@@ -27,12 +27,15 @@ import { ASPECT_CHIP_LINE_STEP, aspectChipLines, drawAspectChips } from "../../u
 import { campaignActionButton } from "../../ui/campaign-buttons-a.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { cssOf, skin, textStyle } from "../../ui/theme.js";
-import { clampLines, dashedRect, fitText, McButton } from "../../ui/widgets.js";
+import { clampLines, dashedRect, fitText, McButton, type McTextInput } from "../../ui/widgets.js";
+import { HoverPreview, screenHoverArea } from "../../ui/card-hover-preview.js";
+import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../../view/card-hover.js";
+import { drawSearchField } from "../roster-panel.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import { McVirtualList } from "../../ui/virtual-list.js";
 import { deckStorage, campaignService } from "../../session.js";
 import { rollSeed } from "../../view/seed.js";
-import { estimateWrappedLines, type Rect } from "../../view/layout.js";
+import type { Rect } from "../../view/layout.js";
 import { ListScroll } from "../../view/list-scroll.js";
 import { TEAM_UP_ART, teamUpArtFor } from "../../art/team-up-art.js";
 import { drawRingImage } from "../board/team-up-badge.js";
@@ -41,12 +44,14 @@ import { PAIR_ROW_HEIGHT } from "../../view/seats-layout.js";
 import {
   ROSTER_SEAT_COUNT,
   pickerEntriesOf,
+  pickerRecommendationsOf,
   preconRosterOf,
   rosterDeckOptions,
   rosterModelOf,
   type PickerEntry,
   type RosterModel,
 } from "../../view/campaign-roster-model.js";
+import type { SeatRecommendation } from "../../view/seat-recommendations.js";
 import { storyFor } from "../../campaign/story.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
@@ -69,9 +74,8 @@ const rosterPairCatalog = (): ReturnType<typeof pairCatalogOf> => (pairCatalog ?
 
 /** A heading in the seat picker's list ("Recommended for seat #2", "All heroes"): a compact band, not a full row. */
 const PICKER_HEADING_HEIGHT = 22;
-/** The picker's 11 px reason line: roughly one character's width, and one extra line's height. */
-const PICKER_REASON_CHAR_WIDTH = 5.4;
-const PICKER_REASON_LINE = 13;
+/** How long a burst of hero pictures arriving is gathered into one redraw. */
+const ART_REDRAW_MS = 80;
 
 const CAST_NOTE =
   "These two ship in this box, so their story beats are written for them. Other heroes get the same beats with narrator captions.";
@@ -87,6 +91,26 @@ export class CampaignRosterScene extends Phaser.Scene {
   #pickerSeat: number | null = null;
   #pickerScroll = new ListScroll();
   #pickerList: McVirtualList | null = null;
+  /** The picker's search text, and its field (kept across rebuilds so typing keeps focus). Cleared when it closes. */
+  #pickerQuery = "";
+  #pickerSearch: McTextInput | null = null;
+  /** The open picker's recommendations, worked out once per seat line-up rather than on every keystroke. */
+  #pickerRecs: { readonly key: string; readonly recs: readonly SeatRecommendation[] } | null = null;
+  /** Redraws only the picker's visible rows (a row picture arrived); null while the picker is closed. */
+  #redrawPickerRows: (() => void) | null = null;
+  /** The thumbnails of the picker's option rows, for the desktop hover popover; null while the picker is closed. */
+  #pickerHoverCards: (() => ReadonlyMap<string, HoverCardIdRect>) | null = null;
+  /** Where the search field sits while the picker is open: a DOM field draws over the canvas, popover included. */
+  #pickerSearchRect: Rect | null = null;
+  #hover: HoverPreview | null = null;
+  /**
+   * A redraw asked for by arriving art and not yet run: "list" redraws the picker's visible rows, "all" the screen.
+   * Every picture used to call the full rebuild itself, and every rebuild queued another waiter on the pictures still
+   * loading, so the rebuilds multiplied while the picker's art streamed in until the screen froze (#177).
+   */
+  #artQueued: "none" | "list" | "all" = "none";
+  readonly #onSceneArt = (): void => this.#queueArtRedraw("all");
+  readonly #onRowArt = (): void => this.#queueArtRedraw("list");
   /** Dev e2e hook only (see `#drawPicker`): the picker rows drawn since it opened. */
   #pickerRowsDebug = new Map<number, { name: string; picture: boolean; badges: { label: string; fill: number }[] }>();
   #heroArtCache = new Map<string, Picture | null>();
@@ -116,9 +140,17 @@ export class CampaignRosterScene extends Phaser.Scene {
       this.scale.off("resize", this.#rebuild, this);
       for (const mask of this.#masks) mask.destroy();
       this.#masks = [];
+      this.#pickerSearch?.destroy();
+      this.#pickerSearch = null;
+      this.#hover?.destroy();
+      this.#hover = null;
+    });
+    this.#hover = new HoverPreview(this, {
+      cardIds: () => this.#pickerHoverCards?.() ?? new Map(),
+      area: (pointer) => this.#hoverArea(pointer),
     });
     this.#route = new FocusRoute(this, {
-      blocked: () => this.scene.isActive(SCENES.nameConflict),
+      blocked: () => this.scene.isActive(SCENES.nameConflict) || (this.#pickerSearch?.focused ?? false),
       onCancel: () => this.#onCancel(),
       onPage: (direction) => this.#pickerList?.scrollByPage(direction),
       onHomeEnd: (edge) => (edge === "home" ? this.#pickerList?.scrollToStart() : this.#pickerList?.scrollToEnd()),
@@ -132,6 +164,9 @@ export class CampaignRosterScene extends Phaser.Scene {
     this.#pickerSeat = null;
     this.#pickerScroll.reset();
     this.#pickerList = null;
+    this.#pickerQuery = "";
+    this.#pickerRecs = null;
+    this.#artQueued = "none";
     this.#signing = false;
     this.#error = null;
     this.#swaps = [];
@@ -198,12 +233,46 @@ export class CampaignRosterScene extends Phaser.Scene {
     void this.#sign();
   }
 
+  /** The popover's area: the whole screen on desktop, kept below the picker's search field so the field never covers it. */
+  #hoverArea(pointer: Phaser.Input.Pointer): Rect | null {
+    const area = screenHoverArea(this, pointer);
+    const field = this.#pickerSearchRect;
+    if (!area || !field) return area;
+    const top = field.y + field.height;
+    return { ...area, y: top, height: area.y + area.height - top };
+  }
+
+  #queueArtRedraw(kind: "list" | "all"): void {
+    const queued = this.#artQueued;
+    if (queued !== "all") this.#artQueued = kind === "all" ? "all" : "list";
+    if (queued !== "none") return;
+    this.time.delayedCall(ART_REDRAW_MS, () => {
+      const wanted = this.#artQueued;
+      this.#artQueued = "none";
+      if (!this.sys.isActive()) return;
+      if (wanted === "list" && this.#redrawPickerRows) this.#redrawPickerRows();
+      else this.#rebuild();
+    });
+  }
+
   #rebuild(): void {
     this.#pickerList?.destroy();
     this.#pickerList = null;
+    this.#redrawPickerRows = null;
+    this.#pickerHoverCards = null;
+    this.#pickerSearchRect = null;
     for (const mask of this.#masks) mask.destroy();
     this.#masks = [];
+    if (this.#pickerSeat === null && this.#pickerSearch) {
+      this.#pickerSearch.destroy();
+      this.#pickerSearch = null;
+      this.#pickerQuery = "";
+      this.#pickerRecs = null;
+    }
+    const kept = this.#pickerSearch ? [this.#pickerSearch.gameObject] : [];
+    for (const node of kept) this.children.remove(node);
     destroyChildren(this);
+    for (const node of kept) this.children.add(node);
     this.#stops = new Map();
     this.#model = rosterModelOf(this.#seats, POOL_CARDS);
 
@@ -306,6 +375,7 @@ export class CampaignRosterScene extends Phaser.Scene {
       ...[...this.#stops.keys()].filter((k) => k.startsWith("pick-")),
     ].filter((key) => this.#stops.has(key));
     this.#route?.set(order, this.#stops);
+    this.#hover?.onDraw();
   }
 
   // ---- Seat grids -------------------------------------------------------------------------------------------
@@ -372,7 +442,7 @@ export class CampaignRosterScene extends Phaser.Scene {
           { key: pair.pair.key, cx: left + ringSize / 2 + 1, cy: y, radius: ringSize / 2 - 1 },
           art,
           this.#masks,
-          () => this.#rebuild(),
+          this.#onSceneArt,
         );
         textX = left + ringSize + 6;
       }
@@ -387,6 +457,8 @@ export class CampaignRosterScene extends Phaser.Scene {
     const open = (): void => {
       this.#pickerSeat = seatNumber;
       this.#pickerScroll.reset();
+      this.#pickerQuery = "";
+      this.#pickerRecs = null;
       this.#rebuild();
     };
     if (!deck) {
@@ -415,7 +487,7 @@ export class CampaignRosterScene extends Phaser.Scene {
     border.lineStyle(3, surface.ink.hex, 1).strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
 
     const picture = heroPicture(deck.identityCardId as string);
-    if (picture) drawPicture(this, picture, artRect, () => this.#rebuild(), { focusY: 0.1 });
+    if (picture) drawPicture(this, picture, artRect, this.#onSceneArt, { focusY: 0.1 });
     else this.add.rectangle(artRect.x, artRect.y, artRect.width, artRect.height, surface.parchment.hex).setOrigin(0, 0);
 
     const tagLabel = this.add.text(0, 0, `#${seatNumber}`, textStyle(bangers(14, 1), surface.paper.hex));
@@ -566,6 +638,27 @@ export class CampaignRosterScene extends Phaser.Scene {
     const options = rosterDeckOptions(this.#seats, seatNumber, this.#savedDecks, POOL_VERSION, (deck) =>
       unlocks().deckLock(deck),
     );
+
+    if (options.length > 0) {
+      const searchRect: Rect = { x: panelRect.x + 20, y, width: rowWidth, height: 40 };
+      this.#pickerSearch = drawSearchField(
+        this,
+        searchRect,
+        "pick-search",
+        this.#pickerQuery,
+        "Search heroes, aspects, decks…",
+        (value) => {
+          this.#pickerQuery = value;
+          this.#pickerScroll.reset();
+          this.#rebuild();
+        },
+        this.#pickerSearch,
+        this.#stops,
+      );
+      this.#pickerSearchRect = searchRect;
+      y += 50;
+    }
+
     const listRect: Rect = { x: panelRect.x + 20, y, width: rowWidth, height: panelRect.y + panelRect.height - 16 - y };
     const gap = 8;
 
@@ -577,26 +670,48 @@ export class CampaignRosterScene extends Phaser.Scene {
       return;
     }
 
-    // From seat 2 on, with someone else seated: a pinned "Recommended" group, then the whole list under its heading.
-    const entries = pickerEntriesOf(this.#seats, seatNumber, options, CARDS_BY_ID, rosterPairCatalog());
-    const hasGroup = entries.some((entry) => entry.kind === "heading");
+    // From seat 2 on, with someone else seated: a pinned "Recommended" group, then everyone else; both A to Z.
+    const recsKey = [seatNumber, ...this.#seats.map((deck) => deck?.id ?? "-"), options.length].join("|");
+    if (this.#pickerRecs?.key !== recsKey) {
+      const recs = pickerRecommendationsOf(this.#seats, seatNumber, options, CARDS_BY_ID, rosterPairCatalog());
+      this.#pickerRecs = { key: recsKey, recs };
+    }
+    const entries = pickerEntriesOf(seatNumber, options, this.#pickerRecs.recs, CARDS_BY_ID, this.#pickerQuery);
+    if (entries.length === 0) {
+      this.add.text(listRect.x, listRect.y + 4, "No hero matches this search.", {
+        ...textStyle(typeRole.body, surface.ink.hex, ink.secondary),
+        wordWrap: { width: rowWidth, useAdvancedWrap: true },
+      });
+      return;
+    }
+    const hasGroup = this.#pickerRecs.recs.length > 0;
     // A recommended row has a third line for its reason, so a list with the group is a little taller throughout.
     const rowHeight = hasGroup ? 78 : 64;
     // A heading is a compact band, not a full row; a row whose aspect badges wrap to a second line grows by that line.
     const thumbSide = rowHeight - 16;
     const chipRoom = rowWidth - 8 - thumbSide - 12 - 12;
+    // The reason line is measured with the very style and wrap the row draws it with (an estimate from a nominal
+    // character width came up a line short, and the second line ran off the row's bottom).
+    const reasonStyle = { ...textStyle(typeRole.body, 0), fontSize: "11px" };
+    const probe = this.make.text({ x: 0, y: 0, text: "Ag", style: reasonStyle }, false);
+    const oneLine = probe.height;
+    const reasonExtraOf = (reason: string): number => {
+      probe.setWordWrapWidth(null).setText(reason).setWordWrapWidth(chipRoom, true);
+      clampLines(probe, 2);
+      return Math.max(0, probe.height - oneLine);
+    };
     const optionHeightOf = (entry: PickerEntry): number => {
       if (entry.kind !== "option") return PICKER_HEADING_HEIGHT;
       const stamps = options[entry.optionIndex]!.stamps;
       const reason = entry.rec?.reason ?? "";
-      const reasonLines = reason ? Math.min(2, estimateWrappedLines(reason, chipRoom, PICKER_REASON_CHAR_WIDTH)) : 0;
       return (
         rowHeight +
         (aspectChipLines(this, stamps, chipRoom) - 1) * ASPECT_CHIP_LINE_STEP +
-        Math.max(0, reasonLines - 1) * PICKER_REASON_LINE
+        (reason ? reasonExtraOf(reason) : 0)
       );
     };
     const heights = entries.map(optionHeightOf);
+    probe.destroy();
 
     const selectAt = (index: number): void => {
       const option = options[index];
@@ -655,7 +770,7 @@ export class CampaignRosterScene extends Phaser.Scene {
         height: thumbSide,
       };
       const picture = this.#heroPictureFor(option.identityId);
-      const image = drawPicture(this, picture, thumb, () => this.#rebuild(), { focusY: 0.2 });
+      const image = drawPicture(this, picture, thumb, this.#onRowArt, { focusY: 0.2 });
       if (image) {
         parts.push(image);
       } else {
@@ -716,9 +831,7 @@ export class CampaignRosterScene extends Phaser.Scene {
           title.setWordWrapWidth(Math.max(40, textWidth - tag.width - 8));
           fitText(title, Math.max(40, textWidth - tag.width - 8), 16);
         }
-        reasonText = this.add
-          .text(textX, lineY + extraLines + 22, rec.reason, { ...textStyle(typeRole.body, 0), fontSize: "11px" })
-          .setOrigin(0, 0);
+        reasonText = this.add.text(textX, lineY + extraLines + 22, rec.reason, reasonStyle).setOrigin(0, 0);
         // Wrapped to two lines (the row has grown for the second, `optionHeightOf`), never cut to one with an ellipsis.
         reasonText.setWordWrapWidth(textWidth, true);
         clampLines(reasonText, 2);
@@ -768,6 +881,23 @@ export class CampaignRosterScene extends Phaser.Scene {
       },
     });
     this.#pickerList = list;
+    this.#redrawPickerRows = () => list.update(entries.length, renderRow);
+    // Each option row's thumbnail opens the hover popover with the hero's identity card (desktop mouse only).
+    this.#pickerHoverCards = () => {
+      const found = new Map<string, HoverCardIdRect>();
+      entries.forEach((entry, entryIndex) => {
+        if (entry.kind !== "option") return;
+        const row = list.rectFor(entryIndex);
+        const thumb = clipHoverRect({ x: row.x + 8, y: row.y + 8, width: thumbSide, height: thumbSide }, listRect);
+        if (thumb)
+          found.set(hoverSlotOf(options[entry.optionIndex]!.identityId, `pick${entryIndex}`), {
+            ...thumb,
+            cardId: options[entry.optionIndex]!.identityId,
+            through: true,
+          });
+      });
+      return found;
+    };
   }
 
   async #sign(): Promise<void> {
