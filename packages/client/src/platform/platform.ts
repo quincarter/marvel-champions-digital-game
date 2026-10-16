@@ -54,15 +54,43 @@ export function applyViewportFit(doc: Document = document): void {
   if (meta !== null && !meta.content.includes("viewport-fit")) meta.content += ", viewport-fit=cover";
 }
 
+/** How `openExternal` reaches outside the game on each shell. */
+export type ExternalOpener = "window" | "tauri-opener" | "android-browser";
+
+export function externalOpenerFor(platform: Platform, userAgent: string): ExternalOpener {
+  if (platform === "tauri") return "tauri-opener";
+  if (platform === "capacitor" && /android/i.test(userAgent)) return "android-browser";
+  return "window";
+}
+
+interface ExternalBrowserPlugin {
+  open(options: { url: string }): Promise<void>;
+}
+
+// Capacitor warns on a second registration, so the plugin's proxy is made once.
+let externalBrowser: Promise<ExternalBrowserPlugin> | null = null;
+
 /**
- * Opens `url` outside the game: a new browser tab on the web. Capacitor hands a navigation away from the app's own
- * origin to the system browser. A Tauri webview ignores `window.open`, so there the opener plugin asks the OS for
- * the default browser; `src-tauri/capabilities/default.json` lists the sites it may open.
+ * Opens `url` outside the game: a new browser tab on the web, and on iOS, where Capacitor hands a navigation away
+ * from the app's own origin to Safari. A Tauri webview ignores `window.open`, so there the opener plugin asks the OS
+ * for the default browser; `src-tauri/capabilities/default.json` lists the sites it may open. On Android Capacitor's
+ * own hand-off is a plain intent that the GitHub app answers for github.com, opening release downloads in its in-app
+ * tab where they stall; the app's `ExternalBrowser` plugin (`android/.../ExternalBrowserPlugin.java`) sends the link
+ * to the browser instead, and the plain hand-off is the fallback.
  */
 export function openExternal(url: string): void {
-  if (detectPlatform() === "tauri") {
-    void import("@tauri-apps/plugin-opener").then(({ openUrl }) => openUrl(url)).catch(() => {});
-    return;
+  const viaWindow = (): void => void globalThis.open?.(url, "_blank", "noopener,noreferrer");
+  switch (externalOpenerFor(detectPlatform(), globalThis.navigator?.userAgent ?? "")) {
+    case "tauri-opener":
+      void import("@tauri-apps/plugin-opener").then(({ openUrl }) => openUrl(url)).catch(() => {});
+      return;
+    case "android-browser":
+      externalBrowser ??= import("@capacitor/core").then(({ registerPlugin }) =>
+        registerPlugin<ExternalBrowserPlugin>("ExternalBrowser"),
+      );
+      void externalBrowser.then((plugin) => plugin.open({ url })).catch(viaWindow);
+      return;
+    case "window":
+      viaWindow();
   }
-  globalThis.open?.(url, "_blank", "noopener,noreferrer");
 }
