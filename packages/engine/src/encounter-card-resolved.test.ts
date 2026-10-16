@@ -152,8 +152,10 @@ describe("encounterCardResolved (RRG 1.8 'Resolve', p. 37)", () => {
     expect(mustInstance(state, s.listener).attachments).toEqual([]);
   });
 
-  // Q22: the surge's card is dealt facedown and not revealed here; the response still comes before that deal.
-  it("a keyword counts: a treachery with only surge resolved, and its response runs before the surge card is dealt (RRG 1.8 'Surge', p. 42)", () => {
+  // Q22: the surge's card is dealt facedown and not revealed here. The deal is the surge's When Revealed, in reveal
+  // step 3, so the response to the resolved treachery comes after it (RRG v1.8 p.42, p.38; owner decision 2026-10-16
+  // (audit finding 16); this test had the response first until then).
+  it("a keyword counts: a treachery with only surge resolved, and its response runs after the surge card is dealt (RRG 1.8 'Surge', p. 42)", () => {
     const s = staged(SURGE_ONLY.card.id);
     const { state, events } = reveal(s);
     const id = revealedId(state, SURGE_ONLY.card.id);
@@ -163,7 +165,8 @@ describe("encounterCardResolved (RRG 1.8 'Resolve', p. 37)", () => {
     );
     const surgeDealtAt = events.findIndex((e) => e.type === "surgeTriggered");
     expect(attachedAt).toBeGreaterThan(-1);
-    expect(surgeDealtAt).toBeGreaterThan(attachedAt);
+    expect(surgeDealtAt).toBeGreaterThan(-1);
+    expect(attachedAt).toBeGreaterThan(surgeDealtAt);
     expect(events.filter((e) => e.type === "encounterCardRevealed")).toHaveLength(1);
     expect(mustPlayer(state, P1).dealtEncounter).toHaveLength(1);
   });

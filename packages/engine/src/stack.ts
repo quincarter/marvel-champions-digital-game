@@ -784,6 +784,10 @@ export type StackFrame =
        * frame saved in it records whom the minion engaged (`engagedPlayerId`) and goes on to `whenRevealed`, so its
        * keywords resolve at `keywords` like any other reveal's.
        *
+       * `surge`: the last of step 3. The card's incite and printed When Revealed abilities have resolved; its surge
+       * keyword, printed or gained, resolves now as the When Revealed it is and deals its card facedown, to be revealed
+       * later in the player's queue (RRG 1.8 "Surge", p. 42; owner decision 2026-10-16, audit finding 16).
+       *
        * `finish`: steps 1 to 3 are done; step 4 discards a treachery (RRG 1.8 "Reveal", p. 38).
        *
        * `keywords`: every step of the reveal is done, and the minion's engagement keywords resolve, one at a time, each
@@ -792,7 +796,7 @@ export type StackFrame =
        * (p. 43, the same sentence). Skipped when neither applies.
        *
        * `responses`: the keywords are done; the responses to the reveal are announced (`cardRevealed` with the held
-       * responses, `encounterCardResolved`, `minionEngaged`), then surge.
+       * responses, `encounterCardResolved`, `minionEngaged`). The surge's card was already dealt at `surge`.
        */
       readonly stage:
         | "faceup"
@@ -803,6 +807,7 @@ export type StackFrame =
         | "quickstrike"
         | "whenRevealed"
         | "settleAttach"
+        | "surge"
         | "finish"
         | "keywords"
         | "responses"

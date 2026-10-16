@@ -45,6 +45,7 @@ const HOLDING: ReadonlySet<Frame<"reveal">["stage"]> = new Set<Frame<"reveal">["
   "quickstrike",
   "whenRevealed",
   "settleAttach",
+  "surge",
   "finish",
 ]);
 

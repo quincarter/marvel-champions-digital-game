@@ -14,8 +14,9 @@
  * a card put into play without being revealed resolves no When Revealed, and its quickstrike answers the engagement
  * at once (p. 36, p. 18).
  *
- * So one reveal runs: faceup, enters play (interrupts), When Revealed, toughness, quickstrike and teamwork, the
- * responses to everything that happened during it and to it being revealed, those to it engaging, then surge.
+ * So one reveal runs: faceup, enters play (interrupts), When Revealed (the surge deal last among them: RRG v1.8 p.42;
+ * owner decision 2026-10-16 (audit finding 16)), toughness, quickstrike and teamwork, the responses to everything that
+ * happened during it and to it being revealed, then those to it engaging.
  *
  * The second list of 2026-10-12: 35B, the "Reveal" sentence holds the enters-play responses of every revealed card
  * that enters play (a side scheme, an attachment, an environment), not only a minion's; 36B, teamwork activates
@@ -605,17 +606,20 @@ describe("responses to a revealed minion entering play wait for the reveal (RRG 
     expect(marked(events, "revealed")).toBeLessThan(marked(events, "bite"));
   });
 
-  it("the whole order: When Revealed, quickstrike, teamwork, enters-play response, 'after you engage' response, surge (p. 36, p. 38, p. 42, p. 43)", () => {
+  // The surge deal is a When Revealed ability (RRG v1.8 p.42), so it comes with them in step 3, before quickstrike
+  // (p. 36: "after any 'When Revealed' abilities") and before every response (p. 38); owner decision 2026-10-16 (audit
+  // finding 16). Until then this engine dealt it last, after the responses.
+  it("the whole order: When Revealed, surge deal, quickstrike, teamwork, enters-play response, 'after you engage' response (p. 36, p. 38, p. 42, p. 43)", () => {
     const { state, events } = play(withSupports(game(CAPTAIN, [MATE]), BITE, GREET), SCOUT);
     const captain = idOf(state, CAPTAIN);
     const steps = [
       marked(events, "revealed"),
+      events.findIndex((e) => e.type === "surgeTriggered"),
       attack(events, "initiated", captain),
       attack(events, "resolved", captain),
       events.findIndex((e) => e.type === "keywordResolved" && e.keyword === "teamwork"),
       marked(events, "bite"),
       marked(events, "greet"),
-      events.findIndex((e) => e.type === "surgeTriggered"),
     ];
     expect(steps.every((at) => at >= 0)).toBe(true);
     expect(steps).toEqual([...steps].sort((a, b) => a - b));

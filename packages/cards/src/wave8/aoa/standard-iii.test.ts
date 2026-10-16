@@ -403,25 +403,34 @@ describe("Sinister Strike (45077)", () => {
     expect(discarded(run.events, DARK_DESIGNS)).toBe(1);
   });
 
-  // RRG v1.8 p.38; owner decision 2026-10-16 (audit finding 18), reversing Q2 = A.
-  it("WHEN REVEALED (Alter-Ego): the counter that will reset the card still gives it surge, and the reset resolves before the surge card (RRG v1.8 p.38, p.42)", () => {
+  // RRG v1.8 p.38; owner decision 2026-10-16 (audit finding 18), reversing Q2 = A. RRG v1.8 p.42; owner decision
+  // 2026-10-16 (audit finding 16): the surge deal is a When Revealed, so it precedes the held reset; until then this
+  // test had the reset first and surge dealing from the deck side B had shuffled.
+  it("WHEN REVEALED (Alter-Ego): the counter that will reset the card still gives it surge; surge deals before the reset, whose cards are revealed before the surge card (RRG v1.8 p.38, p.42)", () => {
     const run = round(withCounters(setupGame(), 3), { dealt: [SINISTER_STRIKE, DARK_DESIGNS] });
-    // 'Then, if it has any counters' found 4: surge. The counter was placed inside the When Revealed; the reset waited
-    // for the end of the reveal and resolved before surge did (RRG v1.8 p.42: the original card and the responses to
-    // it come first).
+    // 'Then, if it has any counters' found 4: surge. The counter was placed inside the When Revealed; the surge's card
+    // was dealt in the same step (reveal step 3), and the reset waited for the end of the reveal.
     const placed = run.events.findIndex((e) => e.type === "counterAdded" && e.counterType === "pursuit");
+    const surgeAt = firstAt(run.events, "surgeTriggered");
+    const flipAt = firstAt(run.events, "cardFlipped");
     expect(placed).toBeGreaterThanOrEqual(0);
-    expect(placed).toBeLessThan(firstAt(run.events, "cardFlipped"));
-    expect(firstAt(run.events, "cardFlipped")).toBeLessThan(firstAt(run.events, "surgeTriggered"));
-    // Sinister Strike's own surge: the first one, after side B (the reset's flip) has revealed the nemesis minion and
-    // side scheme. Side B shuffled the rest of the nemesis set into the encounter deck, so which card surge deals from
-    // there is the shuffle's.
+    expect(placed).toBeLessThan(surgeAt);
+    expect(surgeAt).toBeLessThan(flipAt);
     const strike = run.events.flatMap((e) =>
       e.type === "encounterCardRevealed" && e.cardId === SINISTER_STRIKE ? [e.instanceId] : [],
     );
     const surges = run.events.flatMap((e) => (e.type === "surgeTriggered" ? [e.instanceId] : []));
     expect(strike).toHaveLength(1);
     expect(surges[0]).toBe(strike[0]);
+    // Dealt before side B shuffled the nemesis set in: the card under Sinister Strike, Dark Designs. Side B's own
+    // reveals (the nemesis minion and side scheme) come first; Dark Designs waits its turn in the queue.
+    const dealtBySurge = run.events
+      .slice(0, surgeAt)
+      .findLast((e) => e.type === "cardMoved" && e.to.kind === "dealtEncounter");
+    const dealtId = dealtBySurge?.type === "cardMoved" ? dealtBySurge.instanceId : undefined;
+    expect(dealtId && run.state.instances[dealtId]?.cardId).toBe(DARK_DESIGNS);
+    const dealtRevealAt = run.events.findIndex((e) => e.type === "encounterCardRevealed" && e.instanceId === dealtId);
+    expect(dealtRevealAt).toBeGreaterThan(flipAt);
     expect(count(run.events, "encounterCardRevealed")).toBeGreaterThanOrEqual(4);
   });
 

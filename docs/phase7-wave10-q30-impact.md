@@ -56,6 +56,10 @@ Revealed; the code does not do that today (section 2).
 | 6   | Reveal finished: responses           | Forced, then optional responses to the card being revealed, to the minion engaging, to a treachery resolving.                                                         | none (already here) |
 | 7   | Surge                                | The surge deal, last.                                                                                                                                                 | none                |
 
+**Superseded for row 7** (RRG v1.8 p.42; owner decision 2026-10-16 (audit finding 16)): surge is a When Revealed
+ability, so its card is dealt in row 3, after the incite and the printed When Revealed abilities, before the keywords
+and every response; the dealt card is still revealed later, in the player's queue (`resolve/reveal.ts`, stage `surge`).
+
 "The reveal process finishes" means steps 1 to 4 of p. 38 are done for that one card. Consequences:
 
 | Case                                                               | Under the new order                                                                                                                                                                                                  |
