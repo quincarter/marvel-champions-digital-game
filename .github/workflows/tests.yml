@@ -3,8 +3,8 @@
 # it. Nothing after it needs to run a test again.
 #
 # The jobs run side by side on their own runners: a typecheck, and the Vitest suites split by
-# scripts/ci-test-plan.mjs into one job per wave of the cards package, three for the cards tests outside the wave
-# folders (the shared tests, and two for the slowest soak files), and up to two for the other packages. The suites
+# scripts/ci-test-plan.mjs into one job per wave of the cards package, one for the cards tests outside the wave
+# folders and one for each of their slowest soak files, and up to two for the other packages. The suites
 # need about an hour of CPU and a runner has four cores, so one runner took 20 to 50 minutes; split, the slowest job
 # takes about 11 (2026-10-09). On a pull request, jobs the changed files can't affect are left out
 # (scripts/lib/test-plan.mjs has the rule); a push, a tag and a manual run have no list of changed files and run them
