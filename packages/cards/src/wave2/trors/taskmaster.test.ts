@@ -5,6 +5,7 @@ import {
   firstLegal,
   identityOf,
   inst,
+  patchInstance,
   P1,
   payWith,
   play,
@@ -146,6 +147,33 @@ describe("Taskmaster scenario", () => {
     expect(inst(attacked, identity).damage).toBeGreaterThan(identityDamageBefore);
     // An encounter card (home: the encounter deck) discards to the *encounter* discard pile, not the player's own
     // (docs/phase7-wave1-scripting.md "Test conventions").
+    expect(activeEncounterDeck(attacked).discard).toContain(start.card);
+  });
+
+  it("Photographic Reflexes: heard on the attack, so a tough status card on Taskmaster does not pre-empt it (RRG 1.8 p. 14; audit finding 17)", () => {
+    const start = withPhotographicReflexes(taskmasterVsHeroes());
+    const hero = runWave2(start.state, toHero());
+    const villain = hero.villains[0]!.instanceId;
+    const identity = identityOf(hero);
+    const toughVillain = patchInstance(hero, villain, {
+      statuses: { ...inst(hero, villain).statuses, tough: 1 },
+    });
+    const identityDamageBefore = inst(toughVillain, identity).damage;
+    const attacked = settle(
+      runWave2(toughVillain, {
+        type: "basicAttack",
+        playerId: P1,
+        attackerInstanceId: identity,
+        targetInstanceId: villain,
+      }),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    // The damage was prevented, not absorbed: the tough status card is still there and the attacker took the hit.
+    expect(inst(attacked, villain).damage).toBe(0);
+    expect(inst(attacked, villain).statuses.tough).toBe(1);
+    expect(inst(attacked, identity).damage).toBeGreaterThan(identityDamageBefore);
     expect(activeEncounterDeck(attacked).discard).toContain(start.card);
   });
 

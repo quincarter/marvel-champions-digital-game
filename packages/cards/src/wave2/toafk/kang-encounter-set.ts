@@ -44,7 +44,6 @@ import {
   forEachPlayer,
   gets,
   giveTough,
-  identityOf,
   ifThen,
   inPlay,
   instead,
@@ -55,9 +54,7 @@ import {
   not,
   on,
   option,
-  ownerOf,
   placeThreat,
-  preventDamage,
   printedCostOf,
   putIntoPlay,
   query,
@@ -213,14 +210,16 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
   ),
 
   // Temporal Shield — Attach to Kang. Forced Interrupt: When Kang is attacked, discard Temporal Shield → prevent
-  // all damage from this attack and deal 1 damage to the attacker. "(Max 1 per attack.)" is a narrow edge case (two
-  // copies attached to Kang at once, both interrupting the same attack) this DSL's `AbilityLimit.period` ("turn" |
-  // "phase" | "round") can't express "per attack"; not modeled — the primary effect is exact either way.
+  // all damage from this attack and deal 1 damage to the attacker. Heard on the attack ("when Kang is attacked"), not
+  // on the damage, so a tough status card on Kang cannot absorb the hit first (RRG 1.8 "Damage", p. 14; audit finding
+  // 17, owner decision 2026-10-16). "(Max 1 per attack.)" is a narrow edge case (two copies attached to Kang at once,
+  // both interrupting the same attack) this DSL's `AbilityLimit.period` ("turn" | "phase" | "round") can't express
+  // "per attack"; not modeled — the primary effect is exact either way.
   "11014.temporal-shield-forced-interrupt": forcedInterrupt(
-    when.damage("host", { fromAttack: true }),
+    when.attacks(query(["identity", "ally"]), { target: { hostOfSelf: true } }),
     { cost: discardThis },
-    preventDamage(),
-    dealDamage(1, identityOf(ownerOf(eventSource))),
+    modifyAttack({ preventAllDamage: true }),
+    dealDamage(1, eventSource),
   ),
 
   // Future Weapon — Attach to Kang. [star] Forced Interrupt: When Kang attacks, the attack gains overkill. If this
