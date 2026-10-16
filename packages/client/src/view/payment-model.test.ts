@@ -21,6 +21,7 @@ import {
   togglePayment,
 } from "./payment-model.js";
 import type { PaymentState } from "./payment-model.js";
+import { requiredLabelOf } from "./payment-model.js";
 
 const SPIDER_MAN_SOLO: SessionConfig = {
   scenarioId: "rhino",
@@ -322,5 +323,15 @@ describe("allianceHelpersOf", () => {
     const payment = paymentNaming(myHand[0] ?? other.hand[0]!, [other.hand[0]!]);
     const helpers = allianceHelpersOf(localState, me2, payment);
     expect(helpers).toEqual([{ playerId: other.playerId, instanceIds: [other.hand[0]] }]);
+  });
+});
+
+// Issue #174: Nebula's Ship's "spend up to 2 resources" read "PAYING 0 / 0".
+describe("the pay bar's denominator", () => {
+  test("is the fixed cost, or a range when the player chooses how many resources to spend", () => {
+    expect(requiredLabelOf(3, null)).toBe("3");
+    expect(requiredLabelOf(0, { min: 1, max: 2 })).toBe("1–2");
+    expect(requiredLabelOf(1, { min: 1, max: null })).toBe("2+");
+    expect(requiredLabelOf(0, { min: 2, max: 2 })).toBe("2");
   });
 });

@@ -5,7 +5,9 @@ import {
   characterProfile,
   damageTakenAfterConstants,
   hasKeyword,
+  legalActions,
   mainSchemeValue,
+  paymentFor,
   type GameState,
   type InstanceId,
 } from "@mc/engine";
@@ -169,6 +171,38 @@ describe("Nebula's Ship (16093)", () => {
     );
     expect(inst(used, milano!).exhausted).toBe(true);
     expect(inst(used, ship!).counters.evasion).toBe(5 - paying.length);
+  });
+
+  // Issue #174: "up to 2" needs at least one resource (RRG 1.8 "Cost", p. 14), so the action has a pay step, and the
+  // command `legalActions` suggests (what the client sends when it skips that step) removes a counter.
+  it('"Shoot the Thrusters!" opens the pay step and its suggested payment removes a counter (issue #174)', () => {
+    const state = nebula();
+    const [ship] = instancesOf(state, "16093");
+    const [milano] = instancesOf(state, "16142");
+    const withCounters = patchInstance(state, ship!, { counters: { evasion: 3 } });
+    const actions = legalActions(withCounters, P1, WAVE3_DEPS);
+    if (actions.kind !== "turn") throw new Error(actions.kind);
+    const legal = actions.legal.find(
+      (a) => a.action.kind === "useAbility" && a.action.abilityId === "16093.nebulas-ship-constant",
+    );
+    expect(legal?.needsPayment).toBe(true);
+    // The Milano is exhausted by the cost, so its own resource ability is not offered to pay the rest of it.
+    const query = paymentFor(withCounters, P1, legal!.action, {}, WAVE3_DEPS);
+    expect(query?.sources.length).toBeGreaterThan(0);
+    expect(query?.sources.some((source) => source.instanceId === milano)).toBe(false);
+    const used = runWave3(withCounters, legal!.example);
+    expect(inst(used, milano!).exhausted).toBe(true);
+    expect(inst(used, ship!).counters.evasion).toBe(2);
+  });
+
+  it('"Shoot the Thrusters!" refuses an empty payment: "up to 2" needs at least one resource', () => {
+    const state = nebula();
+    const [ship] = instancesOf(state, "16093");
+    const [milano] = instancesOf(state, "16142");
+    const withCounters = patchInstance(state, ship!, { counters: { evasion: 3 } });
+    expect(() =>
+      runWave3(withCounters, use(P1, ship!, "16093.nebulas-ship-constant", [], { exhausted: [milano!] })),
+    ).toThrow();
   });
 });
 

@@ -1,0 +1,3 @@
+kind: Fixed
+body: Nebula's Ship "Shoot the Thrusters!" and Machine Man's "spend up to" costs open the pay step again and need at least one resource; the pay bar shows the 1–2 range and no longer offers the Milano to pay its own cost (#174)
+time: 2026-10-16T08:28:58.0856751-04:00

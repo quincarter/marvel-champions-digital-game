@@ -54,7 +54,7 @@ export function drawPaymentBar(ctx: BoardDrawContext, rect: Rect, payment: Payme
       .text(
         count.x,
         count.y + count.height / 2,
-        `PAYING ${payment.paid} / ${payment.required}`,
+        `PAYING ${payment.paid} / ${payment.requiredLabel}`,
         textStyle(typeRole.barTitle, surface.paper.hex),
       )
       .setOrigin(0, 0.5)

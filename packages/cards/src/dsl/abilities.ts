@@ -2087,10 +2087,13 @@ export const spendX = (resourceType: TypedResource, bind = "x", min = 1): Abilit
 });
 /**
  * "Spend up to N resources of any type →" (Nebula's Ship, `gmw` 16093; docs/phase7-wave3.md §3.25): unlike `spendX`
- * (a named type, at least `min`), this is any type, capped at `max`, with none required — RRG 1.8 "Cost" (p. 13):
- * overpaying is legal, so X is capped rather than the payment refused. `bind` is 0 if nothing is spent this way.
+ * (a named type), this is any type, 1 to `max` (RRG 1.8 "Cost", p. 14: "up to" needs at least one, as `spendChosen`,
+ * issue #174: with 0 allowed the engine offered no pay step and the Milano exhausted for nothing). Overpaying is legal
+ * (p. 13), so X is capped at `max` rather than the payment refused.
  */
-export const spendUpTo = (max: number, bind = "x"): AbilityCost => ({ resourcesX: { resource: "any", bind, max } });
+export const spendUpTo = (max: number, bind = "x"): AbilityCost => ({
+  resourcesX: { resource: "any", bind, min: 1, max },
+});
 /**
  * "Spend up to 3 resources → if you spent at least 1: [energy] … [mental] … [physical] …" (Husk, `jubilee` 47012;
  * docs/phase7-wave8.md §3.62): `spendChosen(3)` is a resource cost whose size the payer chooses, 1 to `max` resources
