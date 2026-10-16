@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Test links for a device whose WebGL shows black: ?renderer=canvas, ?gl=alpha|preserve|noaa|lowpower, and ?diag=1''s readout of what WebGL drew (#157)'
-time: 2026-10-15T15:47:12.1919222-04:00

@@ -1,3 +1,0 @@
-kind: Added
-body: 'Ending a turn on a hand size under 4 asks "Are you sure?" and explains the hand size: the printed value, what changes it (Iron Man''s +1 per Tech upgrade) and the other face''s value; the hand caption shows the hand size beside the count (#150)'
-time: 2026-10-15T08:28:33.7537654-04:00

@@ -1,3 +1,0 @@
-kind: Added
-body: Optional interrupt and response windows say what is about to happen (or just happened), why now, and what confirming does; a decision during table setup docks beside the setup card; Setting up the table honors Card size and has the card hover popover
-time: 2026-10-14T22:22:12.2456873-04:00

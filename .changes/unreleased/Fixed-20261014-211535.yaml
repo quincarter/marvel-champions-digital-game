@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Undo no longer rewinds a resumed game to round 1: a resumed game rebuilds its command history, so Undo and Back out stop at the start of the turn as in an uninterrupted game'
-time: 2026-10-14T21:15:35.0746736-04:00
