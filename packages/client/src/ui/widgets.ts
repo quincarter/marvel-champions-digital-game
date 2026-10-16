@@ -1219,6 +1219,21 @@ export class McTextInput {
     scene.events.on("update", syncCovered);
     this.#input.once("destroy", () => scene.events.off("update", syncCovered));
 
+    /**
+     * The same reason again for the screen fade (`ui/transitions.ts`): the camera's fade to the void is drawn in the
+     * canvas, so the field stayed at full strength over a black screen, a bright bar across every New game page turn
+     * (2026-10-15 report). It fades with the camera instead.
+     */
+    const syncFade = (): void => {
+      // `alpha` is the fade's own cover (0 clear, 1 the void), public at runtime but left out of Phaser's typings.
+      const fade = scene.cameras.main?.fadeEffect as unknown as { readonly alpha: number } | undefined;
+      const opacity = fade ? 1 - Math.min(1, Math.max(0, fade.alpha)) : 1;
+      if (Math.abs(this.#input.alpha - opacity) > 0.01) this.#input.setAlpha(opacity);
+    };
+    syncFade();
+    scene.events.on("update", syncFade);
+    this.#input.once("destroy", () => scene.events.off("update", syncFade));
+
     this.#input.on("textchange", () => {
       const raw = this.#input.text;
       const filtered = this.#numeric ? raw.replace(/[^0-9]/g, "") : raw;
