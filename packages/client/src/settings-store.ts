@@ -11,12 +11,15 @@
 import {
   CARD_HOVER_SCALE_VALUES,
   CARD_SIZE_VALUES,
+  DISPLAY_MODE_VALUES,
   FIRST_PLAYER_TOKEN_MOTION_VALUES,
   SHARP_TEXT_RESOLUTION_CEILING,
   VILLAIN_AUTO_ADVANCE_VALUES,
   VILLAIN_BEAT_SPEED_VALUES,
   defaultSettings,
+  windowSizePixelsOf,
   type Settings,
+  type WindowSize,
 } from "./settings.js";
 
 export const SETTINGS_KEY = "mc-settings";
@@ -64,6 +67,12 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   if (cardSizeValue !== undefined) out.cardSize = cardSizeValue;
   const tokenMotionValue = FIRST_PLAYER_TOKEN_MOTION_VALUES.find((value) => value === source["firstPlayerTokenMotion"]);
   if (tokenMotionValue !== undefined) out.firstPlayerTokenMotion = tokenMotionValue;
+  const displayModeValue = DISPLAY_MODE_VALUES.find((value) => value === source["displayMode"]);
+  if (displayModeValue !== undefined) out.displayMode = displayModeValue;
+  const windowSize = source["windowSize"];
+  if (windowSize === "default" || (typeof windowSize === "string" && windowSizePixelsOf(windowSize) !== null)) {
+    out.windowSize = windowSize as WindowSize;
+  }
   const resolution = source["textResolution"];
   if (typeof resolution === "number" && Number.isFinite(resolution)) {
     out.textResolution = Math.min(SHARP_TEXT_RESOLUTION_CEILING, Math.max(1, resolution));

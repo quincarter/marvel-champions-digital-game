@@ -1,5 +1,9 @@
 import { describe, expect, test } from "vitest";
 import {
+  displayModeRowInfoOf,
+  nextSettingsAfterDisplayMode,
+  nextSettingsAfterWindowSize,
+  windowSizeRowInfoOf,
   guideRowInfoOf,
   nextGuidePrefsAfterRow,
   nextSettingsAfterToggle,
@@ -36,6 +40,8 @@ const BASE: Settings = {
   hoverHeroCard: true,
   hoverVillainCard: true,
   firstPlayerTokenMotion: "toss",
+  displayMode: "windowed",
+  windowSize: "default",
 };
 
 describe("settingsRowInfoOf", () => {
@@ -56,6 +62,8 @@ describe("settingsRowInfoOf", () => {
       hoverHeroCard: true,
       hoverVillainCard: true,
       firstPlayerTokenMotion: "toss",
+      displayMode: "windowed",
+      windowSize: "default",
     });
     expect(rows.find((r) => r.id === "reduced-motion")?.on).toBe(true);
     expect(rows.find((r) => r.id === "sharper-text")?.on).toBe(true);
@@ -291,5 +299,31 @@ describe("first player token row", () => {
   test("a choice sets it, and a bad value changes nothing", () => {
     expect(nextSettingsAfterTokenMotion(BASE, "bounce").firstPlayerTokenMotion).toBe("bounce");
     expect(nextSettingsAfterTokenMotion(BASE, "juggle" as never)).toBe(BASE);
+  });
+});
+
+describe("Window mode and Window size (desktop app)", () => {
+  test("Window mode offers Windowed, Borderless and Fullscreen, Windowed by default", () => {
+    const info = displayModeRowInfoOf(defaultSettings());
+    expect(info.options.map((o) => o.label)).toEqual(["Windowed", "Borderless", "Fullscreen"]);
+    expect(info.selected).toBe("windowed");
+    expect(nextSettingsAfterDisplayMode(defaultSettings(), "borderless").displayMode).toBe("borderless");
+  });
+
+  test("Window size offers Default first, then the sizes that fit, labelled width × height", () => {
+    const info = windowSizeRowInfoOf(defaultSettings(), ["1280x720", "1600x900"]);
+    expect(info.options.map((o) => o.label)).toEqual(["Default", "1280 × 720", "1600 × 900"]);
+    expect(info.selected).toBe("default");
+  });
+
+  test("a saved size this screen doesn't offer shows as Default", () => {
+    const settings = nextSettingsAfterWindowSize(defaultSettings(), "2560x1440");
+    expect(settings.windowSize).toBe("2560x1440");
+    expect(windowSizeRowInfoOf(settings, ["1280x720", "1600x900"]).selected).toBe("default");
+  });
+
+  test("in the fullscreen modes the size row says it applies to Windowed only", () => {
+    const settings = nextSettingsAfterDisplayMode(defaultSettings(), "fullscreen");
+    expect(windowSizeRowInfoOf(settings, []).detail).toMatch(/^Used in Windowed mode/);
   });
 });

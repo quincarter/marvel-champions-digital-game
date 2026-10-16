@@ -32,7 +32,11 @@ import {
   nextGuidePrefsAfterRow,
   cardHoverRowInfoOf,
   cardSizeRowInfoOf,
+  displayModeRowInfoOf,
   nextSettingsAfterCardSize,
+  nextSettingsAfterDisplayMode,
+  nextSettingsAfterWindowSize,
+  windowSizeRowInfoOf,
   nextSettingsAfterCardHover,
   nextSettingsAfterTokenMotion,
   tokenMotionRowInfoOf,
@@ -54,7 +58,15 @@ import type {
   Settings,
   VillainAutoAdvance,
   VillainBeatSpeed,
+  WindowSize,
 } from "../settings.js";
+import {
+  applyDesktopWindow,
+  desktopMonitor,
+  hasDesktopWindow,
+  refreshDesktopMonitor,
+  windowSizeOptionsFor,
+} from "../platform/desktop-window.js";
 import { ink, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
 import { McButton, McTabs, addRowTapZone, fitText, label, paintOnFrame, sectionHeader } from "../ui/widgets.js";
@@ -95,6 +107,8 @@ type GuideNonLevelRow = Extract<GuideRowInfo, { kind: "action" | "toggle" }>;
 const SPEED_CONTROL_WIDTH = 204;
 const CARD_HOVER_CONTROL_WIDTH = 280;
 const CARD_SIZE_CONTROL_WIDTH = 520;
+const DISPLAY_MODE_CONTROL_WIDTH = 330;
+const WINDOW_SIZE_CONTROL_WIDTH = 560;
 
 /**
  * A toggle or door row's 84px control, right-aligned and centred on the row. Held 2px in from the row's right edge,
@@ -137,7 +151,11 @@ export class SettingsOverlay extends Phaser.Scene {
   create(): void {
     this.#motion = new OverlayMotion();
     this.input.enabled = true;
-    const onResize = (): void => this.#draw();
+    // In the desktop app a resize can also be a move to another monitor, whose sizes the Window size row lists.
+    const onResize = (): void => {
+      this.#draw();
+      if (hasDesktopWindow()) void refreshDesktopMonitor().then(() => this.#redrawIfOpen());
+    };
     this.scale.on("resize", onResize, this);
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.unlocks) || this.scene.isActive(SCENES.saveData),
@@ -157,6 +175,11 @@ export class SettingsOverlay extends Phaser.Scene {
       this.#bodyRegion = null;
     });
     this.#draw();
+    if (hasDesktopWindow()) void refreshDesktopMonitor().then(() => this.#redrawIfOpen());
+  }
+
+  #redrawIfOpen(): void {
+    if (this.sys.isActive()) this.#draw();
   }
 
   #openUnlocks(): void {
@@ -250,6 +273,7 @@ export class SettingsOverlay extends Phaser.Scene {
     const tabs = settingsTabsOf({
       guideRowIds: guideRows.map((row) => row.id),
       cardHover: formFactorFor(width, height) === "desktop",
+      desktopWindow: hasDesktopWindow(),
     });
     const active = tabs.find((tab) => tab.id === lastTab) ?? tabs[0]!;
     const layout = settingsLayout(
@@ -361,6 +385,16 @@ export class SettingsOverlay extends Phaser.Scene {
     segmented("card-hover", cardHoverRowInfoOf(settings), CARD_HOVER_CONTROL_WIDTH, (v) => this.#setCardHover(v));
     segmented("card-size", cardSizeRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => this.#setCardSize(v));
     segmented("token-motion", tokenMotionRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => this.#setTokenMotion(v));
+    if (hasDesktopWindow()) {
+      const monitor = desktopMonitor();
+      const sizes = monitor === null ? [] : windowSizeOptionsFor(monitor);
+      segmented("display-mode", displayModeRowInfoOf(settings), DISPLAY_MODE_CONTROL_WIDTH, (v) =>
+        this.#setWindow(nextSettingsAfterDisplayMode(appSession().settings, v)),
+      );
+      segmented("window-size", windowSizeRowInfoOf(settings, sizes), WINDOW_SIZE_CONTROL_WIDTH, (v: WindowSize) =>
+        this.#setWindow(nextSettingsAfterWindowSize(appSession().settings, v)),
+      );
+    }
 
     const villain = villainRowInfoOf(settings);
     items.set("villain-auto", {
@@ -675,6 +709,13 @@ export class SettingsOverlay extends Phaser.Scene {
         { label: option.label, fill: surface.paper.hex },
       );
     });
+  }
+
+  /** Saves a Window mode or size change and puts the window into it; redraws again once it lands (a new monitor). */
+  #setWindow(next: Settings): void {
+    appSession().settings = next;
+    this.#draw();
+    void applyDesktopWindow(next.displayMode, next.windowSize).then(() => this.#redrawIfOpen());
   }
 
   #setTokenMotion(value: FirstPlayerTokenMotion): void {

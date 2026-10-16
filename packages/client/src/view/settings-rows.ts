@@ -18,14 +18,18 @@ import {
 import {
   CARD_HOVER_SCALE_VALUES,
   CARD_SIZE_VALUES,
+  DISPLAY_MODE_VALUES,
   FIRST_PLAYER_TOKEN_MOTION_VALUES,
   SHARP_TEXT_RESOLUTION_CEILING,
+  windowSizePixelsOf,
   type CardHoverScale,
   type CardSize,
+  type DisplayMode,
   type FirstPlayerTokenMotion,
   type Settings,
   type VillainAutoAdvance,
   type VillainBeatSpeed,
+  type WindowSize,
 } from "../settings.js";
 import { FIRST_PLAYER_TOKEN_MOTION_LABELS } from "./first-player-token-motion.js";
 
@@ -446,4 +450,72 @@ export function tokenMotionRowInfoOf(settings: Settings): TokenMotionRowInfo {
 /** `settings` with the token's motion set; a value that is not one of the five changes nothing. */
 export function nextSettingsAfterTokenMotion(settings: Settings, value: FirstPlayerTokenMotion): Settings {
   return FIRST_PLAYER_TOKEN_MOTION_VALUES.includes(value) ? { ...settings, firstPlayerTokenMotion: value } : settings;
+}
+
+// ---------------------------------------------------------------------------
+// "Window mode" and "Window size": the desktop app's window (`platform/desktop-window.ts`). Desktop (Tauri) only; the
+// Settings screen leaves both rows out on the web and the phone apps.
+// ---------------------------------------------------------------------------
+
+const DISPLAY_MODE_LABELS: Readonly<Record<DisplayMode, string>> = {
+  windowed: "Windowed",
+  borderless: "Borderless",
+  fullscreen: "Fullscreen",
+};
+
+export interface DisplayModeRowInfo {
+  readonly title: string;
+  readonly detail: string;
+  readonly options: readonly { readonly value: DisplayMode; readonly label: string }[];
+  readonly selected: DisplayMode;
+}
+
+export function displayModeRowInfoOf(settings: Settings): DisplayModeRowInfo {
+  return {
+    title: "Window mode",
+    detail:
+      "Windowed is a normal window. Borderless fills the screen with a window you can switch away from at once. Fullscreen is your computer's own full screen.",
+    options: DISPLAY_MODE_VALUES.map((value) => ({ value, label: DISPLAY_MODE_LABELS[value] })),
+    selected: settings.displayMode,
+  };
+}
+
+/** `settings` with the window mode set; a value that is not one of the three changes nothing. */
+export function nextSettingsAfterDisplayMode(settings: Settings, value: DisplayMode): Settings {
+  return DISPLAY_MODE_VALUES.includes(value) ? { ...settings, displayMode: value } : settings;
+}
+
+export interface WindowSizeRowInfo {
+  readonly title: string;
+  readonly detail: string;
+  readonly options: readonly { readonly value: WindowSize; readonly label: string }[];
+  readonly selected: WindowSize;
+}
+
+/** "1920x1080" as "1920 × 1080". */
+export function windowSizeLabelOf(size: WindowSize): string {
+  const px = windowSizePixelsOf(size);
+  return px === null ? "Default" : `${px.width} × ${px.height}`;
+}
+
+/**
+ * `offered` is the sizes that fit the current monitor (`windowSizeOptionsFor`), after Default. A saved size this
+ * monitor doesn't offer shows as Default, which is what the window gets.
+ */
+export function windowSizeRowInfoOf(settings: Settings, offered: readonly WindowSize[]): WindowSizeRowInfo {
+  const values: readonly WindowSize[] = ["default", ...offered];
+  const windowed = settings.displayMode === "windowed";
+  return {
+    title: "Window size",
+    detail: windowed
+      ? "The window's size in pixels; Default is the window the game opens at. Only sizes that fit this screen are listed. The game can't change your screen's own resolution."
+      : "Used in Windowed mode. Borderless and Fullscreen always fill the screen at its own resolution.",
+    options: values.map((value) => ({ value, label: windowSizeLabelOf(value) })),
+    selected: values.includes(settings.windowSize) ? settings.windowSize : "default",
+  };
+}
+
+/** `settings` with the window size set; a malformed size changes nothing. */
+export function nextSettingsAfterWindowSize(settings: Settings, value: WindowSize): Settings {
+  return value === "default" || windowSizePixelsOf(value) !== null ? { ...settings, windowSize: value } : settings;
 }

@@ -89,6 +89,7 @@ import { installStartupWatchdog, probeWebgl } from "./ui/startup-watchdog.js";
 import { installDesktopType, setDesktopType } from "./ui/desktop-type.js";
 import { formFactorFor } from "./view/layout.js";
 import { applyViewportFit } from "./platform/platform.js";
+import { applyDesktopWindowOnLaunch } from "./platform/desktop-window.js";
 import { isAndroidEdge, rendererOptionsOf } from "./platform/renderer-options.js";
 
 // The one `Settings` instance for the whole app (`appSession().settings`), not a
@@ -102,6 +103,8 @@ setTextResolution(settings.textResolution);
 
 // Before the canvas first takes its parent's size, which depends on whether #game is inset by the safe area.
 applyViewportFit();
+// The desktop app's saved window mode and size (Settings > Display > Window); nothing off desktop.
+applyDesktopWindowOnLaunch(settings);
 installLazyText();
 installDesktopType();
 setDesktopType(formFactorFor(window.innerWidth, window.innerHeight) === "desktop");

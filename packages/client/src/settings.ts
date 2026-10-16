@@ -66,6 +66,32 @@ export interface Settings {
    * (`view/first-player-token-motion.ts`). Defaults to a toss (the owner, 2026-10-16). Reduced motion places it instead.
    */
   readonly firstPlayerTokenMotion: FirstPlayerTokenMotion;
+  /**
+   * The desktop app's window: a normal window, an undecorated window over the whole monitor, or the OS's own
+   * fullscreen (`platform/desktop-window.ts`). Desktop (Tauri) only; the web and the phone apps ignore it.
+   */
+  readonly displayMode: DisplayMode;
+  /**
+   * The desktop app's window size in Windowed mode, in the monitor's own pixels, or "default" for the 1440 x 900
+   * window the app opens at. A webview can't change the monitor's real resolution, so this sizes the window; the
+   * fullscreen modes always fill the monitor at its own resolution. Desktop (Tauri) only.
+   */
+  readonly windowSize: WindowSize;
+}
+
+export type DisplayMode = "windowed" | "borderless" | "fullscreen";
+export const DISPLAY_MODE_VALUES: readonly DisplayMode[] = ["windowed", "borderless", "fullscreen"];
+
+/** "default", or a width and height in physical pixels such as "1920x1080". */
+export type WindowSize = "default" | `${number}x${number}`;
+
+/** The width and height a `WindowSize` names; null for "default" or anything malformed. */
+export function windowSizePixelsOf(
+  size: WindowSize | string,
+): { readonly width: number; readonly height: number } | null {
+  const match = /^(\d{3,5})x(\d{3,5})$/.exec(size);
+  if (match === null) return null;
+  return { width: Number(match[1]), height: Number(match[2]) };
 }
 
 export type FirstPlayerTokenMotion = "toss" | "slide" | "bounce" | "spin" | "instant";
@@ -172,5 +198,7 @@ export function defaultSettings(): Settings {
     hoverHeroCard: true,
     hoverVillainCard: true,
     firstPlayerTokenMotion: "toss",
+    displayMode: "windowed",
+    windowSize: "default",
   };
 }

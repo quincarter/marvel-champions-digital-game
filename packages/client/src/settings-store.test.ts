@@ -166,6 +166,18 @@ describe("parseSettingsOverrides", () => {
     expect(parseSettingsOverrides('{"firstPlayerTokenMotion":"juggle"}')).toEqual({});
   });
 
+  test("displayMode: only the three window modes are read", () => {
+    expect(parseSettingsOverrides('{"displayMode":"borderless"}')).toEqual({ displayMode: "borderless" });
+    expect(parseSettingsOverrides('{"displayMode":"exclusive"}')).toEqual({});
+  });
+
+  test("windowSize: 'default' or a width x height is read, anything else is not", () => {
+    expect(parseSettingsOverrides('{"windowSize":"1920x1080"}')).toEqual({ windowSize: "1920x1080" });
+    expect(parseSettingsOverrides('{"windowSize":"default"}')).toEqual({ windowSize: "default" });
+    expect(parseSettingsOverrides('{"windowSize":"big"}')).toEqual({});
+    expect(parseSettingsOverrides('{"windowSize":1920}')).toEqual({});
+  });
+
   test("cardSize: only the three known values are read", () => {
     expect(parseSettingsOverrides('{"cardSize":"xlarge"}')).toEqual({ cardSize: "xlarge" });
     expect(parseSettingsOverrides('{"cardSize":"large"}')).toEqual({ cardSize: "large" });
