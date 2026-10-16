@@ -1,7 +1,9 @@
 # Contributing
 
 Thanks for helping build Marvel Champions: Digital Edition. This guide covers setting up the repo, the checks a change
-has to pass, and the conventions the project follows. The roadmap and current status are in the [README](README.md);
+has to pass, and the conventions the project follows. The roadmap is in the [README](README.md#roadmap), what is playable in
+[Current status](docs/project/current-status.md) and how the packages fit together in
+[Architecture](docs/project/architecture.md);
 the full plan is in [PLAN.md](PLAN.md), and the engineering conventions in [CLAUDE.md](CLAUDE.md).
 
 ## Reporting issues

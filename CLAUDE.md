@@ -50,7 +50,7 @@ This repo defines specialized subagents under `.claude/agents/` that model the r
 | `rules-qa-engineer`            | Regression tests tied to specific rulings/FAQ entries, scenario replay testing, drift detection |
 | `content-release-tracker`      | Keeping the card pool current as new packs/cycles/errata/taboo changes release                  |
 
-See [PLAN.md](PLAN.md) for the build roadmap and current phase, and [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks, CI and the release flow (the README keeps the player-facing status and roadmap).
+See [PLAN.md](PLAN.md) for the build roadmap and current phase, and [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks, CI and the release flow (the README is kept slim: overview, tech stack, community and roadmap, linking out to `docs/project/` for current status, architecture and downloads).
 
 ### How to split work across agents (decided 2026-09-26)
 
