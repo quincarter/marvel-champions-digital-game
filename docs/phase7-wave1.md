@@ -757,6 +757,10 @@ Quantities are MarvelCDB `quantity`.
 
 - **Trigger event `boostCardTurnedFaceup { enemyInstanceId, boostInstanceId, activation: "attack" | "scheme" }`**, with interrupts and responses before the boost ability resolves.
   - Confirm the step order against RRG 1.8 "Attack (Enemy Activation)" (pp. 8–10) and "Boost" (p. 11) before coding.
+  - The RRG 1.8 timing chart (p. 5) puts Boost abilities before Responses. FFG's ruling of June 16, 2022 (Alex Werner, on
+    Hall of Heroes' official rulings page) keeps Target Acquired's Response before the Boost ability it cancels, so this
+    order stays (owner decision 2026-10-16, rules audit finding 10, option A). Whether other responses to this event,
+    such as Swordsman's, also precede the Boost ability is unconfirmed.
 - **Effects:** `cancelBoostIcons { bind }` (no valid target at 0 icons) and `cancelBoostAbility`.
 - **Boost-icon modifier:** a constant on the boost card read when icons are counted.
 - **Delayed effect `atEndOfActivation`**, the counterpart of `atEndOfAttack`.

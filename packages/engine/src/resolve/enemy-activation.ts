@@ -357,6 +357,13 @@ function stepBoostCard(
         ...(ignored ? { ignored: true as const } : {}),
       },
     });
+    // This event's interrupts *and responses* resolve before the card's Boost ability (the `window` step below), not
+    // Boost first as the RRG 1.8 "Simultaneous Timing Priority" chart (p. 5) would have it. FFG ruled (June 16, 2022,
+    // Alex Werner, Hall of Heroes' official rulings page) that Target Acquired's printed Response ("After a boost card
+    // is turned faceup … cancel that card's boost ability", `bkw` 08024) resolves after the card is turned faceup and
+    // before its Boost ability; the strict p. 5 order would make it cancel nothing. Owner decision, 2026-10-16 (audit
+    // finding 10, option A): keep this order until FFG says otherwise. Open: no ruling confirms that other responses
+    // here, such as Swordsman's defend (`wonder_man`), also come before the Boost ability.
     pushEvent(ctx, {
       kind: "boostCardTurnedFaceup",
       enemyInstanceId: frame.enemyInstanceId,
