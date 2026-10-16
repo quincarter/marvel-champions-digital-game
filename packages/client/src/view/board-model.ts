@@ -70,6 +70,7 @@ import { breakPointOf } from "./break-point.js";
 import { giftReaderNote, giftSeatNote } from "./gift-count.js";
 import { counterGoalsOf } from "./counter-goal.js";
 import { counterLimitsOf } from "./counter-limit.js";
+import { threatGoalOf } from "./threat-goal.js";
 import { otherFaceVisible } from "./hidden-reverse.js";
 import { keywordLabel } from "./keyword-label.js";
 import { faceVisible } from "./visibility.js";
@@ -534,9 +535,16 @@ export interface EnvironmentPanel {
   /**
    * Every counter kind on the card, with its count: `[{ name: "infamy", count: 4 }]`. A kind the card's own text caps
    * (`counterLimitsOf`: "Max 1 [per player] synergy counters here") is listed at 0 too and carries its `limit`, so
-   * the table reads "0/1" rather than nothing.
+   * the table reads "0/1" rather than nothing. Threat on the environment leads the list as a "threat" entry, with
+   * the line its own text waits for as its `limit` ("3/4": Alert Level, issue 182), and `danger` when reaching
+   * that line loses the game.
    */
-  readonly counters: readonly { readonly name: string; readonly count: number; readonly limit?: number }[];
+  readonly counters: readonly {
+    readonly name: string;
+    readonly count: number;
+    readonly limit?: number;
+    readonly danger?: true;
+  }[];
   readonly art: ArtSource | null;
   /**
    * Damage placed on this environment (Avengers Tower, Tower Defense's own "Forced Response: After damage is
@@ -1918,7 +1926,24 @@ export function environmentPanel(state: GameState, id: InstanceId, deps: EngineD
   const tucked = tuckedCardsUnder(state, id);
   const limits = counterLimitsOf(state, id, deps);
   const held = countersOf(state, id);
+  const threat = threatOnCard(state, id);
+  const goal = threatGoalOf(state, id, deps);
+  const threatEntry =
+    goal !== null || threat > 0
+      ? [
+          {
+            name: "threat",
+            count: threat,
+            ...(goal ? { limit: goal.goal } : {}),
+            ...(goal?.outcome === "loss" ? { danger: true as const } : {}),
+          },
+        ]
+      : [];
+  // "Lose at 4" / "Flips at 4" (the chip below says threat): the same number means a flip on one face and the game on the other.
+  const goalNote =
+    goal?.outcome === "loss" ? `Lose at ${goal.goal}` : goal?.outcome === "flip" ? `Flips at ${goal.goal}` : null;
   const counters = [
+    ...threatEntry,
     ...held.map((counter) => (counter.name in limits ? { ...counter, limit: limits[counter.name]! } : counter)),
     ...Object.entries(limits)
       .filter(([name]) => !held.some((counter) => counter.name === name))
@@ -1929,7 +1954,7 @@ export function environmentPanel(state: GameState, id: InstanceId, deps: EngineD
     // `currentName`, not `card.name`: a flipped card is a different card as far as the table is concerned.
     name: currentName(state, id) ?? card?.name ?? "Environment",
     // "Environment · 4/9 damage": Avengers Tower flips at 9[per_hero], and the table should see how close it is.
-    subtitle: note ? `Environment · ${note}` : "Environment",
+    subtitle: [goalNote ?? "Environment", note].filter((part) => part !== null).join(" · "),
     counters,
     art: artFor(card, faceOf(state, id)),
     damage,

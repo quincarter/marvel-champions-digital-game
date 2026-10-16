@@ -1752,7 +1752,12 @@ export type GameEvent =
    * from another card's ability naming it (`EffectSpec gainSurge.target`).
    */
   | { readonly type: "surgeGranted"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
-  | { readonly type: "optionChosen"; readonly label: string; readonly index: number }
+  /**
+   * A "choose one" resolved. `onlyOption`: nobody was asked, because every other option could not be chosen (an
+   * exhausted character cannot be exhausted, Security Cameras `aos` 50097; RRG 1.8 "Choose (Option)", p. 12), so the
+   * log can say why the remaining one happened on its own (issue 182).
+   */
+  | { readonly type: "optionChosen"; readonly label: string; readonly index: number; readonly onlyOption?: true }
   /**
    * `EffectSpec basicPowerBy` (docs/phase7-wave8.md §3.64): the card `sourceInstanceId` had `playerId` make a basic
    * power, and this is the one they chose. Logged just before the power is declared; what the power then does is

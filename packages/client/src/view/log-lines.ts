@@ -589,8 +589,18 @@ function describe(
       };
     case "interruptsPreempted":
       return { text: `Toughness has interrupt priority — no other interrupt fires first.`, voice: "scenario" };
-    case "threatPlaced":
-      return { text: `${event.amount} threat placed on ${card(event.schemeInstanceId)}.`, voice: "scenario" };
+    case "threatPlaced": {
+      // Issue 182: Security Cameras on an exhausted character places the threat with no prompt, and a bare "2 threat
+      // placed on Alert Level." reads as threat from nowhere.
+      const forced = onlyOptionBefore(burst);
+      const why =
+        forced === undefined
+          ? ""
+          : forced === null
+            ? " (the only option left)"
+            : ` (the only option left for ${card(forced)})`;
+      return { text: `${event.amount} threat placed on ${card(event.schemeInstanceId)}${why}.`, voice: "scenario" };
+    }
     case "threatRemoved":
       return { text: `${event.amount} threat removed from ${card(event.schemeInstanceId)}.`, voice: "player" };
     case "threatRemovalBlocked":
@@ -1568,6 +1578,26 @@ function whatItJustDid(burst: Burst | undefined, id: InstanceId): "attacking" | 
     if (earlier.type === "roundStarted") return null;
   }
   return null;
+}
+
+/** Bookkeeping events that sit between an effect and the one it caused without changing what happened. */
+const isFrameEvent = (event: GameEvent): boolean =>
+  event.type === "framePushed" || event.type === "framePopped" || event.type === "triggerEvent";
+
+/**
+ * When the event being described comes straight from a "choose one" that asked nobody (`optionChosen.onlyOption`):
+ * the card that pass of a "for each" was about (its `targetChosen` just before), or null when there was none.
+ * Undefined when the event did not come from such a choice.
+ */
+function onlyOptionBefore(burst: Burst | undefined): InstanceId | null | undefined {
+  if (!burst) return undefined;
+  let i = burst.at - 1;
+  while (i >= 0 && isFrameEvent(burst.events[i]!)) i--;
+  const chosen = burst.events[i];
+  if (chosen?.type !== "optionChosen" || chosen.onlyOption !== true) return undefined;
+  for (i--; i >= 0 && isFrameEvent(burst.events[i]!); i--);
+  const target = burst.events[i];
+  return target?.type === "targetChosen" && target.instanceIds.length === 1 ? target.instanceIds[0]! : null;
 }
 
 /** The cards a blanking lasting effect from `source`'s card was just placed on, in this command. */
