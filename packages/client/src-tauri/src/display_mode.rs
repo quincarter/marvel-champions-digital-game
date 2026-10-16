@@ -36,9 +36,12 @@ mod win {
     DEVMODEW, DISP_CHANGE_SUCCESSFUL, DM_DISPLAYFREQUENCY, DM_PELSHEIGHT, DM_PELSWIDTH, ENUM_REGISTRY_SETTINGS,
     MONITORINFO, MONITORINFOEXW, MONITOR_DEFAULTTONEAREST,
   };
+  use windows_sys::Win32::UI::WindowsAndMessaging::{SetWindowPos, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOZORDER};
 
   /// The monitor switched (its device name) and the mode it was switched to, while one is in effect or wanted.
   struct State {
+    /// The game window, as an integer so the state can sit in a static.
+    hwnd: isize,
     device: Vec<u16>,
     mode: Mode,
     active: bool,
@@ -128,6 +131,37 @@ mod win {
     }
   }
 
+  /// Lays the window over its monitor's whole new area. A fullscreen window keeps the size it had when the monitor
+  /// changed mode, so without this the game showed a 3440-wide corner on an 800 x 600 screen (the owner, 2026-10-16).
+  /// The mode change settles asynchronously, so the fit is repeated shortly after.
+  fn fit(hwnd: isize) {
+    let place = move || unsafe {
+      let hwnd = hwnd as *mut core::ffi::c_void;
+      let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+      let mut info: MONITORINFO = std::mem::zeroed();
+      info.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+      if GetMonitorInfoW(monitor, &mut info) != 0 {
+        let r = info.rcMonitor;
+        SetWindowPos(
+          hwnd,
+          std::ptr::null_mut(),
+          r.left,
+          r.top,
+          r.right - r.left,
+          r.bottom - r.top,
+          SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+        );
+      }
+    };
+    place();
+    std::thread::spawn(move || {
+      for delay in [200, 600] {
+        std::thread::sleep(std::time::Duration::from_millis(delay));
+        place();
+      }
+    });
+  }
+
   /// Switches now when the game has focus; otherwise (a locked screen, another app in front) only once it gets focus.
   pub fn set(hwnd: *mut core::ffi::c_void, mode: Mode, focused: bool) -> Result<(), String> {
     let device = device_of(hwnd).ok_or("no monitor for the window")?;
@@ -139,8 +173,9 @@ mod win {
     }
     if focused {
       switch(&device, mode)?;
+      fit(hwnd as isize);
     }
-    *state = Some(State { device, mode, active: focused });
+    *state = Some(State { hwnd: hwnd as isize, device, mode, active: focused });
     Ok(())
   }
 
@@ -157,12 +192,17 @@ mod win {
   /// Alt+Tab and back: the user's own mode while the game is in the background, the chosen one again on return.
   pub fn on_focus(focused: bool) {
     let mut state = STATE.lock().unwrap();
+    log::info!("display mode: focus {focused}, state {:?}", state.as_ref().map(|s| (s.mode.width, s.mode.height, s.active)));
     if let Some(current) = state.as_mut() {
       if focused && !current.active {
-        current.active = switch(&current.device, current.mode).is_ok();
+        let result = switch(&current.device, current.mode);
+        log::info!("display mode: switch back {result:?}");
+        current.active = result.is_ok();
+        fit(current.hwnd);
       } else if !focused && current.active {
         restore_device(&current.device);
         current.active = false;
+        fit(current.hwnd);
       }
     }
   }
