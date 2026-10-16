@@ -190,7 +190,12 @@ export const EBONY_MAW = defineAbilities({
   // [energy][physical] resources → discard this card.
   "21083.restrained-constant": forcedResponse(on.entersPlay("self"), exhaust(host)),
   "21083.restrained-constant-2": constant(rule({ kind: "cannotReady", target: { hostOfSelf: true } })),
-  "21083.restrained-action": heroAction({ cost: spend({ energy: 1, physical: 1 }) }, discard(self)),
+  // Its text has no "you"/"your", so any player may use the action wherever it is attached (FFG ruling July 13, 2023 -
+  // Ruling 48; RRG 1.8 "Ability", p. 4, over the "Attachment" bullet of p. 8).
+  "21083.restrained-action": heroAction(
+    { cost: spend({ energy: 1, physical: 1 }), triggerableBy: eachPlayer },
+    discard(self),
+  ),
 
   // Reactor Overload (21084, side scheme) — When Revealed: each player must choose to either take 2 damage or
   // place 2 threat here.

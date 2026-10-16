@@ -94,10 +94,10 @@ describe("audit 37.13 Restrained (21083): any player can use its hero action (ru
     expect(result.ok ? "" : result.error.message).toBe("");
   });
 
-  it.fails("another player can use it on a teammate's identity", () => {
+  it("another player can use it on a teammate's identity", () => {
     const { state, id, pay } = staged(P2);
     const result = applyCommand(state, use(P2, id, "21083.restrained-action", pay), WAVE4_DEPS);
-    // Today: ok === false, "only the player it is attached to can use that card".
+    // Fixed: `triggerableBy: eachPlayer` replaces the attachment rule of RRG 1.8 p. 8 for this card.
     expect(result.ok ? "" : result.error.message).toBe("");
   });
 });
