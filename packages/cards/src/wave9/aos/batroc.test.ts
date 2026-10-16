@@ -1298,6 +1298,16 @@ describe("Security Cameras (50097)", () => {
     expect(asked).toEqual([]);
     expect(inst(state, hero).exhausted).toBe(true);
     expect(threat(state, alertOf(state))).toBe(2);
+    // Issue 182: the choice asked nobody, and says so, so the log can tell the player why the threat appeared. The
+    // client's log reads the pass's card from the `targetChosen` before it, with only frame bookkeeping in between.
+    const frameOnly = (from: number, to: number) =>
+      events.slice(from + 1, to).filter((e) => !["framePushed", "framePopped", "triggerEvent"].includes(e.type));
+    const chosen = events.findIndex((e) => e.type === "optionChosen");
+    expect(events[chosen]).toMatchObject({ type: "optionChosen", label: THREAT, onlyOption: true });
+    const pass = events.findLastIndex((e, i) => i < chosen && e.type === "targetChosen");
+    const placed = events.findIndex((e, i) => i > chosen && e.type === "threatPlaced");
+    expect(frameOnly(pass, chosen)).toEqual([]);
+    expect(frameOnly(chosen, placed)).toEqual([]);
   });
 
   it("Hero, an exhausted hero and a ready ally: only the ally is offered the exhaust; exhausting it leaves 0 -> 1 -> 2", () => {

@@ -598,6 +598,16 @@ function drawDefeatedVillainSlot(scene: Phaser.Scene, rect: Rect, name: string):
 const counterFraction = (counter: { readonly count: number; readonly limit?: number }): string =>
   counter.limit === undefined ? String(counter.count) : `${counter.count}/${counter.limit}`;
 
+type EnvironmentCounter = EnvironmentPanel["counters"][number];
+/**
+ * The threat line ("3/4 THREAT", Alert Level; issue 182) is the number a player watches to stay alive, so its count
+ * keeps the full stat size where other "0/1" counts step down.
+ */
+const isThreatChip = (counter: EnvironmentCounter): boolean => counter.name === "threat";
+/** A line that loses the game when reached is striped red, and wider; every other counter keeps the caution stripe. */
+const chipStripe = (counter: EnvironmentCounter): number => (counter.danger ? accent.heroRed.hex : signal.caution.hex);
+const chipStripeWidth = (counter: EnvironmentCounter): number => (counter.danger ? 5 : 3);
+
 /**
  * One environment card: its scan, its name, and its counters.
  *
@@ -641,14 +651,18 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
     wash.fillStyle(surface.ink.hex, dim).fillRect(titleBox.x, titleBox.y, titleBox.width, titleBox.height);
     scene.children.bringToTop(nameText);
   }
-  label(
-    scene,
-    titleBox.x + 6,
-    titleBox.y + 3 + Math.ceil(nameText.height),
-    environment.subtitle,
-    typeRole.label,
-    onArt,
-    ink.label * dim,
+  fitText(
+    label(
+      scene,
+      titleBox.x + 6,
+      titleBox.y + 3 + Math.ceil(nameText.height),
+      environment.subtitle,
+      typeRole.label,
+      onArt,
+      ink.label * dim,
+    ),
+    titleBox.width - 12,
+    typeRole.label.size,
   );
 
   // Each counter kind as its own chip along the bottom: the number big, the kind spelled out beside it, so
@@ -686,7 +700,7 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
     };
     const cg = scene.add.graphics();
     cg.fillStyle(surface.ink.hex, 0.88 * dim).fillRect(chip.x, chip.y, chip.width, chip.height);
-    cg.fillStyle(signal.caution.hex, dim).fillRect(chip.x, chip.y, 3, chip.height);
+    cg.fillStyle(chipStripe(counter), dim).fillRect(chip.x, chip.y, chipStripeWidth(counter), chip.height);
     const count = scene.add
       .text(
         chip.x + 9,
@@ -696,7 +710,7 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
       )
       .setOrigin(0, 0.5);
     // "0/1" is three glyphs: a step smaller keeps the kind's name beside it whole.
-    if (counter.limit !== undefined)
+    if (counter.limit !== undefined && !isThreatChip(counter))
       count.setFontSize(Math.round(Number.parseFloat(String(count.style.fontSize)) * 0.7));
     fitText(
       label(
@@ -818,7 +832,7 @@ function drawCompactEnvironmentText(
   environment.counters.slice(0, layout.counters.length).forEach((counter, index) => {
     const chip = layout.counters[index]!;
     bg.fillStyle(surface.ink.hex, 0.9 * dim).fillRect(chip.x, chip.y, chip.width, chip.height);
-    bg.fillStyle(signal.caution.hex, dim).fillRect(chip.x, chip.y, 3, chip.height);
+    bg.fillStyle(chipStripe(counter), dim).fillRect(chip.x, chip.y, chipStripeWidth(counter), chip.height);
     const count = scene.add
       .text(
         chip.x + 8,
@@ -828,7 +842,7 @@ function drawCompactEnvironmentText(
       )
       .setOrigin(0, 0.5);
     // "0/1" is three glyphs: a step smaller keeps the kind's name beside it whole on a short tile.
-    if (counter.limit !== undefined)
+    if (counter.limit !== undefined && !isThreatChip(counter))
       count.setFontSize(Math.round(Number.parseFloat(String(count.style.fontSize)) * 0.7));
     fitText(
       label(

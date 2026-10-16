@@ -1,0 +1,3 @@
+kind: Fixed
+body: Batroc's Alert Level shows its threat against the line it waits for ("2/4 THREAT", solo), with "Flips at 4" on the Low side and "Lose at 4" with a red stripe on the High side, instead of "no counters" printed over the card (#182).
+time: 2026-10-16T11:11:56.7289867-04:00
