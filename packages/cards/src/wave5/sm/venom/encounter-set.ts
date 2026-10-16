@@ -85,6 +85,7 @@ export const VENOM_ENCOUNTER_SET = defineAbilities({
   // `forcedInterrupt` (docs/phase7-wave5.md §4.1 Q8: the attacking player chooses, or the first player).
   "27077a.bell-tower-interrupt": interrupt(
     when.damage(query("villain", VENOM), { fromAttack: true }),
+    { wouldBeDealt: true },
     instead(addCounters("chime", eventAmount), ...flipBellTowerIfThreshold()),
   ),
 
@@ -100,6 +101,7 @@ export const VENOM_ENCOUNTER_SET = defineAbilities({
   // so `preventDamage` is computed before `removeCountersFrom` changes it.
   "27077b.bell-tower-forced-interrupt": forcedInterrupt(
     { ...when.damage(query("identity"), { fromAttack: true }), sourceIs: query("villain", VENOM) },
+    { wouldBeDealt: true },
     preventDamage(min(eventAmount, countersOn(self, "chime"))),
     removeCountersFrom(self, "chime", eventAmount),
     ...flipBellTowerIfThreshold(),

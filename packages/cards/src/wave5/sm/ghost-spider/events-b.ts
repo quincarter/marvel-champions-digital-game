@@ -63,11 +63,14 @@ import {
  * discard a treachery. Reveal that treachery → deal 5 damage to the villain." `discardEncounterUntil` +
  * `revealCard` (the Core Standard set's own Rampage idiom, `wave1/thor/kit.ts`'s "Defender of the Nine Realms"
  * precedent for the same "discard until X, then act" shape) then a real `attack(5, theVillain)` under the
- * "(attack)" label — not a bare `dealDamage`, so Retaliate/Guard/a Stunned attacker are read the normal way. Ruling
- * Apr 30, 2026 (2): paying this cost can Stun the hero (the revealed treachery's own "When Revealed" resolves as
- * part of `revealCard`, same as any other reveal) or let a Guard minion engage, in which case Step 6's real attack
- * effect fizzles the same way Core's basic attack/thwart actions already do — no extra scripting needed here, the
- * same reasoning `wave1/thor/kit.ts`'s own docblock gives for "Defender of the Nine Realms".
+ * "(attack)" label — not a bare `dealDamage`, so Retaliate/Guard/a Stunned attacker are read the normal way. The
+ * discard and the reveal are the printed cost (before the arrow), marked `costEffects: 2` as Defender of the Nine
+ * Realms' are, so the engine pays them in step 5 and begins the attack in step 6 (RRG 1.8 "Initiating Abilities",
+ * p. 24). Ruling April 30, 2026 - Ruling 2: paying this cost can stun the hero (the revealed treachery's "When
+ * Revealed" resolves as part of `revealCard`), and then "the Stun card is discarded in Step 6 instead of dealing
+ * damage"; the cards discarded and the treachery revealed stay done. Owner decision 2026-10-16 (audit finding 13)
+ * supersedes the 2026-10-08 behavior, where the attack began before the cost and the stun stayed. A Guard minion
+ * engaged by the cost stops the attack on the villain as the `attack` instruction applies.
  *
  * **What Doesn't Kill Me (27016)**: "Requirement ([physical])" is schema-level data (Web Binding's own precedent,
  * `events-a.ts`) — no ability ref needed for it. "Hero Action: Heal 2 damage from your hero → ready your hero." is
@@ -152,7 +155,7 @@ export const GHOST_SPIDER_EVENTS_B = defineAbilities({
   ),
 
   "27015.return-the-favor-action": heroAction(
-    { label: "attack" },
+    { label: "attack", costEffects: 2 },
     discardEncounterUntil(query("treachery"), "found"),
     revealCard(chosen("found")),
     attack(5, theVillain),

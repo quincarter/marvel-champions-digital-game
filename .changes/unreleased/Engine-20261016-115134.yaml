@@ -1,0 +1,3 @@
+kind: Engine
+body: Every response triggered while an encounter card is being revealed (incite or When Revealed threat, damage, cards entering play, discards, status cards) now waits until the reveal has finished, and a revealed character's toughness arrives after its When Revealed (RRG v1.8 p.38, p.45).
+time: 2026-10-16T11:51:34.0280681-04:00

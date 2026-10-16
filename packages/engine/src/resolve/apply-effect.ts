@@ -791,6 +791,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             attackerInstanceId: attacker,
             targetInstanceId: target,
             sourceInstanceId: frame.selfInstanceId,
+            ...(effect.boost && frame.controllerId ? { boostPlayerId: frame.controllerId } : {}),
           },
         ],
         reportTo(effect.bind),
@@ -953,7 +954,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         }
       }
       // "Damage from that attack is dealt to the chosen enemy instead of you" (§3.36): a different enemy in play, read
-      // at the attack's damage step. A scheme activation ignores it.
+      // at the attack's damage step. Or an ally in play: "deal that damage to [this ally]", from an interrupt at the
+      // damage step (`TriggerEvent enemyAttackDamageStep`). A scheme activation ignores it.
       if (effect.damageTo) {
         const attackFrame = ctx.state.stack.find((f) => f.frameId === activation);
         const attacker =
@@ -961,10 +963,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             ? attackFrame.event.enemyInstanceId
             : null;
         const inPlay = cardsInPlay(ctx.state);
-        const [enemy] = targets(effect.damageTo).filter(
-          (id) => id !== attacker && inPlay.includes(id) && categoriesOf(ctx.state, id).includes("enemy"),
-        );
-        if (attacker && enemy) addFrameSlots(ctx, activation, { damageTo: [enemy] });
+        const [character] = targets(effect.damageTo).filter((id) => {
+          const categories = categoriesOf(ctx.state, id);
+          return (
+            id !== attacker && inPlay.includes(id) && (categories.includes("enemy") || categories.includes("ally"))
+          );
+        });
+        if (attacker && character) addFrameSlots(ctx, activation, { damageTo: [character] });
       }
       // "That attack removes threat from the main scheme instead of dealing damage" (`removesThreatFrom`): the scheme,
       // the card whose removal it is and, for a "(thwart)" ability, the thwarting identity, read at the attack's

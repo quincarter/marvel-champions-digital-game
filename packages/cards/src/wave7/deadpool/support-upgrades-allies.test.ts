@@ -741,6 +741,69 @@ describe("Headpool (44014): after he attacks and damages a minion, that minion a
   });
 });
 
+/**
+ * FFG ruling January 26, 2026 (4): "Headpool's controller resolves the minion's boost card"; owner decision 2026-10-16
+ * (audit finding 14). The minion's attack gets its normal boost card (RRG 1.8 "Attack (Enemy Activation)" step 1, p. 8),
+ * which only a villain or a Villainous minion is dealt (p. 47), and its icons add to the damage. Staged with Monarch
+ * Starstalker (16075, Villainous, ATK 2, 7 hit points) and Crowd Control (01108, 2 boost icons, no boost ability) on top
+ * of the encounter deck. Headpool's own amplify icon makes the card count one more (RRG 1.8 "Amplify Icon", p. 7).
+ */
+describe("Headpool (44014): the minion's attack gets a boost card, resolved by Headpool's controller (ruling 2026-01-26; owner decision 2026-10-16, audit finding 14)", () => {
+  const STARSTALKER = "16075"; // Villainous
+  const CROWD_CONTROL = "01108"; // 2 boost icons, no boost ability
+  const TAIL_SWEEP = "02040"; // [star] Boost: You are stunned.
+  /** The top card of the active encounter deck becomes `code`. */
+  const withBoostOnTop = (state: GameState, code: string): GameState => {
+    const deckId = activeEncounterDeckId(state);
+    const pile = state.encounterDecks[deckId]!;
+    const top = pile.deck.find((id) => codeOf(state, id) !== "44037")!;
+    const patched = patchInstance(state, top, { cardId: code as never });
+    return {
+      ...patched,
+      encounterDecks: {
+        ...patched.encounterDecks,
+        [deckId]: { deck: [top, ...pile.deck.filter((id) => id !== top)], discard: pile.discard },
+      },
+    };
+  };
+  const setup = (code: string, boost: string, players?: readonly Seat[], engagedWith: PlayerId = P1) => {
+    const head = put(baseGame(players), HEADPOOL_CARD, 3);
+    const attacker = minion(head.state, code, { player: engagedWith });
+    return { head: head.id, attacker: attacker.id, state: withBoostOnTop(attacker.state, boost) };
+  };
+  const hit = (g: ReturnType<typeof setup>) => {
+    const villain = villainOf(g.state);
+    return {
+      villain,
+      ...drive(
+        withoutTough(g.state, villain),
+        answering(accept("headpool-response"), target(villain)),
+        basicAttack(P1, g.head, g.attacker),
+      ),
+    };
+  };
+
+  it("a Villainous minion is dealt a boost card: 2 printed icons and Headpool's amplify icon add 3 to its 2 ATK", () => {
+    const g = setup(STARSTALKER, CROWD_CONTROL);
+    const { villain, state, events: run } = hit(g);
+    expect(events(run, "boostCardDealt")).toHaveLength(1);
+    expect(events(run, "boostCardFlipped").map((e) => e.boostIcons)).toEqual([3]);
+    expect(hitsOf(state, villain)).toBe(5);
+  });
+  it("control: a minion without Villainous is dealt no boost card and deals its plain 2 ATK", () => {
+    const g = setup(SHOCKER, CROWD_CONTROL);
+    const { villain, state, events: run } = hit(g);
+    expect(events(run, "boostCardFlipped")).toHaveLength(0);
+    expect(hitsOf(state, villain)).toBe(2);
+  });
+  it("its boost ability resolves for Headpool's controller ('You are stunned' stuns player 1, not the engaged player 2)", () => {
+    const g = setup(STARSTALKER, TAIL_SWEEP, [DEADPOOL_SEAT, SPIDER_SEAT], P2);
+    const { state } = hit(g);
+    expect(inst(state, identityOf(state, P1)).statuses.stunned).toBe(1);
+    expect(inst(state, identityOf(state, P2)).statuses.stunned).toBe(0);
+  });
+});
+
 describe("Kidpool (44015): his attacks gain piercing", () => {
   it("his basic attack discards the tough status card first and then deals its 2 damage", () => {
     const kid = put(baseGame(), KIDPOOL_CARD, 3);

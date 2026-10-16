@@ -47,13 +47,16 @@ const FOUR_PLAYERS: readonly (readonly [string, number, string, number, number[]
     "sabretooth",
     1,
     "cardAbility",
-    4,
-    // Re-pinned 2026-10-14, as Klaw's.
+    5,
+    // Re-pinned 2026-10-14, as Klaw's. Re-pinned 2026-10-16: RRG v1.8 p.38; owner decision 2026-10-16 (audit finding
+    // 18): responses triggered during a reveal wait until it has finished, so round 4 differs and the game lasts a round
+    // longer.
     [
       [1, 0, 4, 0, 6, 12],
       [2, 0, 5, 0, 4, 20],
       [3, 0, 5, 0, 3, 24],
-      [4, 0, 14, 0, 1, 11],
+      [4, 0, 15, 0, 1, 10],
+      [5, 0, 7, 0, 0, 7],
     ],
   ],
   [

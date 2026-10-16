@@ -3,8 +3,23 @@
 import { placeAttachment } from "./imminent-attach.js";
 import { displayNameOf } from "../visibility.js";
 import type { AnyCard, AttachmentHost } from "@mc/content";
-import { type Ctx, emit, moveCard, popFrame, pushFrames, requestChoice, setFrame, updateInstance } from "../ctx.js";
-import { dealEncounterCardOrAnnounce, dealEncounterCardTo, encounterDealAwaitingInterrupt } from "../effects.js";
+import {
+  type Ctx,
+  emit,
+  findFrame,
+  moveCard,
+  popFrame,
+  pushFrames,
+  requestChoice,
+  setFrame,
+  updateInstance,
+} from "../ctx.js";
+import {
+  applyToughness,
+  dealEncounterCardOrAnnounce,
+  dealEncounterCardTo,
+  encounterDealAwaitingInterrupt,
+} from "../effects.js";
 import { type FrameId, type InstanceId, instanceId as asInstanceId, type PlayerId } from "../ids.js";
 import { hasKeyword, keywordTotal } from "../keywords.js";
 import {
@@ -124,6 +139,7 @@ export function replaceRevealInProgress(
   const at = history.map((r) => r.instanceId === reveal.instanceId && r.playerId === reveal.playerId).lastIndexOf(true);
   if (at >= 0) ctx.state = { ...ctx.state, revealedThisRound: history.filter((_, index) => index !== at) };
   setFrame(ctx, { ...reveal, stage: "done" });
+  releaseHeld(ctx, reveal.frameId);
   emit(ctx, {
     type: "revealReplaced",
     instanceId: reveal.instanceId,
@@ -185,6 +201,9 @@ function turnedAwayByUniqueRule(ctx: Ctx, frame: Frame<"reveal">, card: AnyCard)
   // cards already waiting; anywhere else, at the next one. Announced as every deal is, and open to a "would be
   // dealt an encounter card" interrupt. Before Q38 this engine revealed it at once.
   dealEncounterCardOrAnnounce(ctx, frame.playerId, "uniqueRule", frame.instanceId);
+  // Its reveal is over: what else it held opens now, the responses to its own entering play aside ("any effects of it
+  // entering play are ignored").
+  releaseHeld(ctx, frame.frameId, frame.instanceId);
   return true;
 }
 
@@ -249,6 +268,7 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
           setFrame(ctx, { ...frame, stage: "done" });
           const next = dealEncounterCardTo(ctx, frame.playerId, null);
           if (next) pushFrames(ctx, [revealFrame(ctx, frame.playerId, next)]);
+          releaseHeld(ctx, frame.frameId);
           return;
         }
         const revealer = owner && linked ? owner.playerId : frame.playerId;
@@ -380,9 +400,9 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
         !frame.attachInstructed &&
         card.type === "attachment" &&
         card.attachesTo === undefined;
-      const next = selfAttaching ? "settleAttach" : "finish";
+      const next = selfAttaching ? "settleAttach" : "surge";
       setFrame(ctx, { ...frame, stage: next });
-      // Incite and surge are "When Revealed" effects too (RRG "Incite X", "Surge").
+      // Incite and surge are "When Revealed" effects too (RRG "Incite X", "Surge"); surge resolves at `surge`.
       if (frame.whenRevealedCancelled) return;
       const revealed: TriggerEvent = {
         kind: "cardRevealed",
@@ -395,7 +415,7 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       // "Resolve each 'When Revealed' ability that you reveal 1 additional time" (Media Coverage). Incite is one of
       // them (RRG 1.8 "Incite X", p. 24), so it repeats with the card's printed ones: each pass resolves the incite,
       // then the printed When Revealed abilities, the first pass in the order a reveal always has. Surge, the other
-      // keyword that is a When Revealed ability, repeats where it resolves (`announceRevealFinished`).
+      // keyword that is a When Revealed ability, repeats where it resolves (the `surge` stage, next).
       const times = whenRevealedTimes(ctx, frame.playerId);
       const frames: StackFrame[] = [];
       for (let i = 0; i < times; i++) {
@@ -408,10 +428,13 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
     }
     case "settleAttach": {
       // Its When Revealed attached it: it enters play now. Otherwise `finish` discards it.
-      setFrame(ctx, { ...frame, stage: "finish" });
+      setFrame(ctx, { ...frame, stage: "surge" });
       if (getInstance(ctx.state, frame.instanceId)?.attachedTo) enterPlay(ctx, frame.instanceId, frame.playerId);
       return;
     }
+    case "surge":
+      resolveSurgeKeyword(ctx, frame);
+      return;
     case "finish": {
       // A revealed player event (a Cosmic Entity whose effects left it where it was) is discarded like a treachery,
       // to its encounter discard pile (docs/phase7-wave4.md §3.14).
@@ -525,8 +548,11 @@ const REVEAL_KEYWORD_LABELS: Readonly<Record<RevealKeyword, string>> = {
  * teamwork checks its condition as it always does (`resolveTeamwork`).
  * A minion its When Revealed moved to another player has only teamwork live here (`revealKeywordApplies`), so nobody
  * is asked (answer 37A): teamwork activates it against its new player.
+ *
+ * Toughness held by this reveal comes first (`placeHeldToughness`).
  */
-function stepRevealKeywords(ctx: Ctx, frame: Frame<"reveal">): void {
+function stepRevealKeywords(ctx: Ctx, held: Frame<"reveal">): void {
+  const frame = placeHeldToughness(ctx, held);
   const { keywordOrder, ...bare } = frame;
   let order = keywordOrder;
   if (order === undefined) {
@@ -569,7 +595,7 @@ function stepRevealKeywords(ctx: Ctx, frame: Frame<"reveal">): void {
   if (resolving) pushFrames(ctx, [resolving]);
 }
 
-/** The `responses` stage: everything that answers a finished reveal is announced, then its surge. */
+/** The `responses` stage: everything that answers a finished reveal is announced. */
 function announceRevealFinished(ctx: Ctx, frame: Frame<"reveal">, card: AnyCard): void {
   const { heldResponses: held = [], ...rest } = frame;
   setFrame(ctx, { ...rest, stage: "done" });
@@ -584,11 +610,10 @@ function announceRevealFinished(ctx: Ctx, frame: Frame<"reveal">, card: AnyCard)
       ...(Object.keys(granted).length > 0 ? { grantedTo: granted } : {}),
     },
   ];
-  const surgeLive = !frame.effectsCancelled && !frame.whenRevealedCancelled;
-  const surges = surgeLive && (frame.surgeGained || hasKeyword(ctx.state, frame.instanceId, "surge", ctx.deps));
   // "After you resolve a treachery" (`encounterCardResolved`): a treachery or event one or more of whose abilities
-  // resolved, surge included (RRG 1.8 "Resolve", p. 37; FAQ "Spider-Man Noir (#15)", p. 63).
-  const resolved = !frame.effectsCancelled && (frame.abilityResolved === true || surges);
+  // resolved, surge included (RRG 1.8 "Resolve", p. 37; FAQ "Spider-Man Noir (#15)", p. 63; the `surge` stage marks
+  // `abilityResolved` for a live surge).
+  const resolved = !frame.effectsCancelled && frame.abilityResolved === true;
   if (resolved && (card.type === "treachery" || card.type === "event")) {
     const where = locateCard(ctx.state, frame.instanceId)?.kind ?? null;
     const done: TriggerEvent = {
@@ -607,30 +632,92 @@ function announceRevealFinished(ctx: Ctx, frame: Frame<"reveal">, card: AnyCard)
   const engaged = frame.foundInPlay ? frame.engagedByReveal === true : !frame.newFace;
   if (!frame.effectsCancelled && engaged && card.type === "minion") events.push(...engagedEvent(ctx, frame.instanceId));
   const frames: StackFrame[] = events.map((event) => eventFrame(ctx, event));
-  // Responses to the card entering play waited for the end of the reveal (`heldResponses`; RRG 1.8 "Reveal",
-  // p. 38; the owner's answers 32B and 35B): they share the window of the `cardRevealed` announcement, the first.
+  // Every response window triggered while the card was being revealed waited for the end of the reveal
+  // (`heldResponses`; RRG 1.8 "Reveal", p. 38; owner decision 2026-10-16, audit finding 18, generalising answers 32B
+  // and 35B): they share the window of the `cardRevealed` announcement, the first (answer 39A), forced ones first.
   const [announcement] = frames;
   if (announcement?.kind === "event" && held.length > 0) frames[0] = { ...announcement, joinedResponses: held };
-  // RRG 1.8 "Surge" (p. 42): the keyword deals its player a facedown encounter card, queued last so the original
-  // card and the responses to its reveal are done first. Always on its own frame (`resolveSurge`), where "when
-  // the surge keyword … would be resolved" (Espionage) has its window. Nothing is revealed here
-  // (docs/phase7-wave9.md §4.1 Q22).
-  // Surge is a When Revealed ability (RRG 1.8 "Surge", p. 42: "When Revealed: Deal yourself 1 facedown encounter
-  // card"; ruling Aug 3, 2026 (3): "Surge is treated as a When Revealed ability"), so "resolve each 'When Revealed'
-  // ability that you reveal 1 additional time" (Media Coverage) resolves it again: one more card dealt, each surge on
-  // its own frame with its own window.
-  if (surges) {
-    for (let i = 0; i < whenRevealedTimes(ctx, frame.playerId); i++)
-      frames.push(eventFrame(ctx, { kind: "surgeResolving", instanceId: frame.instanceId, playerId: frame.playerId }));
-  }
   pushFrames(ctx, frames);
+}
+
+/**
+ * The `surge` stage, the last of reveal step 3: the surge keyword, printed or gained, resolves as the When Revealed
+ * ability it is, after the incite and the card's printed When Revealed abilities (so a "this card gains surge" they
+ * resolved counts), and its card is dealt now, facedown. Revealing that card is a separate, later operation: it waits
+ * in the player's queue of dealt encounter cards (`resolveSurge`, docs/phase7-wave9.md §4.1 Q22).
+ *
+ * RRG 1.8 "Surge" (p. 42): "The surge keyword is equivalent to the following triggered ability: 'When Revealed: Deal
+ * yourself 1 facedown encounter card.' Complete the process of resolving the original card, as well as any response
+ * abilities that are triggered by that card being revealed, before revealing the additional card." "Reveal" (p. 38)
+ * step 3: "Resolve each 'When Revealed' ability on that card (including those provided by keywords)". So the deal is
+ * part of step 3, and the responses to the reveal, which wait for every step (`heldResponses`), come after it: a
+ * response that looks at, reorders or discards the top of the encounter deck can no longer change which card the
+ * surge dealt (owner decision 2026-10-16, audit finding 16; before it, this engine dealt the card after the responses
+ * to the reveal).
+ *
+ * Engine call where no official source answers: step 3 gives no order among a card's When Revealed abilities; the
+ * surge comes last, after the incite and the printed ones (and after a self-attaching attachment's settle), so that
+ * surge gained by the printed text ("If no enemy activated this way, this card gains surge") is dealt the same way.
+ *
+ * Each surge is on its own frame (`TriggerEvent surgeResolving`), where "when the surge keyword … would be resolved"
+ * (Espionage) has its window. A cancelled When Revealed cancels it too (ruling Aug 3, 2026 (3): "Surge is treated as a
+ * When Revealed ability and can be cancelled"). "Resolve each 'When Revealed' ability that you reveal 1 additional
+ * time" (Media Coverage) resolves it again: one more card dealt, each surge on its own frame with its own window.
+ */
+function resolveSurgeKeyword(ctx: Ctx, frame: Frame<"reveal">): void {
+  const live = !frame.effectsCancelled && !frame.whenRevealedCancelled;
+  const surges = live && (frame.surgeGained || hasKeyword(ctx.state, frame.instanceId, "surge", ctx.deps));
+  setFrame(ctx, { ...frame, stage: "finish", ...(surges ? { abilityResolved: true as const } : {}) });
+  if (!surges) return;
+  const frames: StackFrame[] = [];
+  for (let i = 0; i < whenRevealedTimes(ctx, frame.playerId); i++)
+    frames.push(eventFrame(ctx, { kind: "surgeResolving", instanceId: frame.instanceId, playerId: frame.playerId }));
+  pushFrames(ctx, frames);
+}
+
+/**
+ * The tough status cards this reveal held (`Frame<"reveal">.heldToughness`): each character that entered play with
+ * toughness while the card was being revealed, and is still in play, is given one now that every step of the reveal
+ * is done. Toughness is "Forced Response: After this character enters play, give it a tough status card" (RRG 1.8
+ * "Toughness", p. 45), held like every response to a step of the reveal (RRG 1.8 "Reveal", p. 38; owner decision
+ * 2026-10-16, audit finding 18, superseding answer 33A). Returns the frame as it now stands.
+ *
+ * Engine call where no official source answers: it resolves first in the end-of-reveal window, before a revealed
+ * minion's quickstrike and teamwork. All three are forced responses to step 2, so RRG 1.8 "Forced" (p. 20) would have
+ * the first player order them; keywords have timing priority over Response abilities (FAQ "Widow's Bite (#10)",
+ * p. 60), and toughness is a keyword with nothing to choose, so it is placed first rather than asked.
+ */
+function placeHeldToughness(ctx: Ctx, frame: Frame<"reveal">): Frame<"reveal"> {
+  const { heldToughness: held, ...rest } = frame;
+  if (held === undefined) return frame;
+  setFrame(ctx, rest);
+  for (const id of held) if (cardsInPlay(ctx.state).includes(id)) applyToughness(ctx, id);
+  return rest;
+}
+
+/**
+ * A reveal that ended before its last step (turned away by the unique rule, an obligation removed from the game, a
+ * reveal replaced): the tough status cards and response windows it held are released now, in one window as at a
+ * finished reveal's end (`announceRevealFinished`). `ignoring`: the turned-away card, whose own entering play is
+ * ignored (RRG 1.8 "Unique Icon", pp. 45-46: "any effects of it entering play are ignored").
+ */
+function releaseHeld(ctx: Ctx, frameId: FrameId, ignoring?: InstanceId): void {
+  const found = findFrame(ctx.state, frameId);
+  if (found?.kind !== "reveal") return;
+  const { heldResponses: held = [], ...rest } = placeHeldToughness(ctx, found);
+  if (held.length === 0) return;
+  setFrame(ctx, rest);
+  const events = held.filter((e) => !(e.kind === "cardEntersPlay" && e.instanceId === ignoring));
+  const last = events[events.length - 1];
+  if (last && events.some((event) => hasCandidates(ctx.state, ctx.deps, event, "response")))
+    pushWindow(ctx, last, "response", null, events.slice(0, -1));
 }
 
 /**
  * How many times each When Revealed ability `playerId` reveals resolves: once, plus each "resolve each 'When
  * Revealed' ability that you reveal 1 additional time" (Media Coverage) in play for them (`RuleSpec
  * repeatWhenRevealed`). Read as the abilities resolve, the incite and printed ones at the `whenRevealed` stage and the
- * surge at the end of the reveal (`announceRevealFinished`).
+ * surge at the `surge` stage (`resolveSurgeKeyword`).
  */
 const whenRevealedTimes = (ctx: Ctx, playerId: PlayerId): number =>
   1 + whenRevealedRepeats(ctx.state, ctx.deps, playerId);

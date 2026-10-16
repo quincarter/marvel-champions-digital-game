@@ -330,6 +330,24 @@ const DAZED_HIT = event("dazed-hit", [
   { kind: "giveStatus", target: yourIdentity, status: "stunned" },
   attack(3, theVillain),
 ]);
+/** An "(attack)" event whose first `costEffects` instructions are its printed cost (`AbilityDefinition.costEffects`). */
+const costEvent = (id: string, effects: readonly EffectSpec[], costEffects: number) => {
+  const ability = stubAbility(`${id}.action`, {
+    trigger: { kind: "action" },
+    label: ["attack" as const],
+    effects,
+    costEffects,
+  });
+  return { card: stubEvent({ id, cost: 0, abilities: [ability.ref] }), ability };
+};
+/** "Hero Action (attack): You are stunned → deal 3 damage to the villain." (the stun is the printed cost) */
+const STUN_COST_HIT = costEvent(
+  "stun-cost-hit",
+  [{ kind: "giveStatus", target: yourIdentity, status: "stunned" }, attack(3, theVillain)],
+  1,
+);
+/** "Hero Action (attack): Place 1 counter on Prep → deal 3 damage to the villain." */
+const PREP_COST_HIT = costEvent("prep-cost-hit", [prepare, attack(3, theVillain)], 1);
 /** "Hero Action (attack): Place 1 counter on Prep. Deal 3 damage to the villain. This attack gains ranged." */
 const PREP_SHOT: ReturnType<typeof event> = event("prep-shot", [
   prepare,
@@ -347,6 +365,8 @@ const EVENTS = [
   PREP_EITHER,
   PREP_OR_HIT,
   DAZED_HIT,
+  STUN_COST_HIT,
+  PREP_COST_HIT,
   PREP_SHOT,
   RECKLESS,
   JAB_THEN_PREP,
@@ -794,6 +814,49 @@ describe("Row 73 (A1, second half): an ability with an attack effect begins its 
     expect(after.events.some((e) => e.type === "statusRemoved")).toBe(false);
     expect(amountsTo(after.events, t.villain)).toEqual([3]);
     expect(mustInstance(after.state, t.hero).statuses.stunned).toBe(1);
+  });
+
+  // Ruling 2026-04-30 (April 30, 2026 - Ruling 2, on Return the Favor): "Costs are paid in Step 5 of Initiating
+  // Abilities; effects initiate in Step 6. … If a treachery revealed in Step 5 Stuns the hero, the Stun card is
+  // discarded in Step 6 instead of dealing damage." RRG 1.8 pp. 24, 26. Owner decision 2026-10-16 (audit finding 13):
+  // a cost written as effects is paid before the attack begins, superseding the 2026-10-08 reading in which the attack
+  // began before it and the stun stayed (the interpretation just above still holds for instructions of the effect).
+  it("a stun gained while paying the cost is discarded in step 6 instead of the attack; the cost stays paid (ruling 2026-04-30; owner decision 2026-10-16 (audit finding 13))", () => {
+    const t = table(PLAIN_V, [FOLLOW_UP_S]);
+    const after = play(t, STUN_COST_HIT);
+    const stunnedAt = at(after.events, (e) => e.type === "statusGiven" && e.status === "stunned");
+    const discardedAt = at(
+      after.events,
+      (e) => e.type === "statusRemoved" && e.instanceId === t.hero && e.reason === "cancelledAttack",
+    );
+    // The cost was paid (the stun was given), then the stunned card was discarded instead of the attack.
+    expect(stunnedAt).toBeGreaterThanOrEqual(0);
+    expect(discardedAt).toBeGreaterThan(stunnedAt);
+    expect(mustInstance(after.state, t.hero).statuses.stunned).toBe(0);
+    expect(attacksOf(after.events, "initiated")).toEqual([]);
+    expect(taken(after.events)).toEqual([]);
+    expect(counters(after.state, t.supports[0]!, "attacks")).toBe(0);
+    expect(after.state.stack).toEqual([]);
+  });
+
+  it("control: a cost that stuns nobody is paid, then the attack begins and deals its damage (ruling 2026-04-30)", () => {
+    const t = table(PLAIN_V, [PREP_S, FOLLOW_UP_S]);
+    const after = play(t, PREP_COST_HIT);
+    expect(counters(after.state, t.supports[0]!, "prep")).toBe(1);
+    // The attack begins in step 6, after the cost: its window follows the counter (unlike PREP_HIT's, before it).
+    expect(at(after.events, prepared)).toBeLessThan(at(after.events, begins));
+    expect(amountsTo(after.events, t.villain)).toEqual([3]);
+    expect(counters(after.state, t.supports[1]!, "attacks")).toBe(1);
+    expect(after.state.stack).toEqual([]);
+  });
+
+  it("already stunned: the cost written as effects is still paid, then the stunned card cancels the rest (RRG 1.8 p. 26: 'except for its costs')", () => {
+    const t = stunnedTable(table(PLAIN_V, [PREP_S]));
+    const after = play(t, PREP_COST_HIT);
+    expect(counters(after.state, t.supports[0]!, "prep")).toBe(1);
+    expect(mustInstance(after.state, t.hero).statuses.stunned).toBe(0);
+    expect(attacksOf(after.events, "initiated")).toEqual([]);
+    expect(taken(after.events)).toEqual([]);
   });
 
   it("a cancel in the window that opened early: the earlier instruction still resolves, the attack instruction deals nothing (row 65)", () => {

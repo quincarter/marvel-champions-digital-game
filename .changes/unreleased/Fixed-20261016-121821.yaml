@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Robert Kelly now takes an undefended attack''s damage even when your identity has a tough status card: his interrupt resolves at the attack''s damage step, before any damage is dealt, so the tough card stays.'
+time: 2026-10-16T12:18:21.4418889-04:00

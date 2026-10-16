@@ -13,7 +13,7 @@ import { McScrollRegion } from "../../ui/scroll-region.js";
 import { ink, surface, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
 import { fitWrapped, label, paintPanel, paintThreatMeter } from "../../ui/widgets.js";
-import { counterNote, type BoardModel, type SchemePanel } from "../../view/board-model.js";
+import { counterNote, scenarioAreaTag, type BoardModel, type SchemePanel } from "../../view/board-model.js";
 import { CARD_ASPECT, type Rect } from "../../view/layout.js";
 import { fullyVisible, schemeListLayout, visibleSlice, type SchemeListLayout } from "../../view/scheme-list-layout.js";
 import { VariableListScroll } from "../../view/variable-list-scroll.js";
@@ -23,6 +23,7 @@ import { FOOT_STRIP_HEIGHT, footStripLayout } from "../../view/foot-strip-layout
 import type { BoardDrawContext } from "./context.js";
 import { dimAlpha, focusKey, targetState } from "./selection.js";
 import { drawTuckedRow } from "./tucked-row.js";
+import { addTapTarget } from "./tap-target.js";
 import type { InstanceId } from "@mc/engine";
 
 /**
@@ -49,6 +50,8 @@ export function drawSchemes(ctx: BoardDrawContext, rect: Rect, model: BoardModel
     sides: model.sideSchemes.length,
     tabbed: ctx.tabbed,
     scale: ctx.cardScale,
+    // Room for the scenario area lines (`SchemeAreaNote`) between the subtitle and the meter.
+    mainExtra: (model.mainScheme.areaNotes?.length ?? 0) * (FOOT_STRIP_HEIGHT + 3),
   });
 
   const scrolling = list.rows.filter((row) => !row.pinned);
@@ -280,6 +283,22 @@ export function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePane
     label(scene, textLeft, abilityTop, counterText, typeRole.label, surface.ink.hex, ink.meta * dim);
     abilityTop += 14;
   }
+  // A scenario area the scheme loses on (The Grand Collection's "at least 5 per hero cards in The Collection"): its
+  // count against that limit, here beside the scheme rather than only on the encounter piles' column, which a phone
+  // keeps on another tab. It comes before the ability line, which gives way when the row is short. Tapping it opens
+  // the area's cards.
+  const areaTargets: (() => void)[] = [];
+  for (const note of scheme.areaNotes ?? []) {
+    if (abilityTop + FOOT_STRIP_HEIGHT > meter.y - 2) break;
+    const strip: Rect = { x: textLeft, y: abilityTop, width: textWidth, height: FOOT_STRIP_HEIGHT };
+    drawFootStrip(scene, strip, note.caption, note.urgent ? "threat" : "note", dim, scenarioAreaTag(note));
+    abilityTop += FOOT_STRIP_HEIGHT + 3;
+    const first = note.instanceIds[0];
+    // Not a card's own target (`makeTapTarget`): the pile tile keeps the card's focus ring, and a target prompt
+    // answers on the cards themselves, not on this line.
+    const open = first ? (): void => ctx.inspect(first, note.instanceIds) : null;
+    if (open) areaTargets.push(() => addTapTarget(scene, strip, { onTap: open, onInspect: open }));
+  }
   // Cards tucked under the scheme (Negative Zone Prison's defeated allies): the engine's target, then a row of card
   // backs under their label, or the label alone as a strip where the panel has no room for the row. Each back opens
   // Inspect (which follows the engine's visibility answer); the strip opens the first.
@@ -350,5 +369,6 @@ export function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePane
 
   ctx.makeTapTarget(rect, scheme.instanceId, () => ctx.controller.onCharacterTap(scheme.instanceId));
   tuckedTargets?.();
+  for (const target of areaTargets) target();
   return rect.y + rect.height;
 }

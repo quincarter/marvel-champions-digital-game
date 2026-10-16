@@ -172,7 +172,7 @@ export const FALCON_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilities({
 
   "53008.aerial-evacuation-interrupt": heroInterrupt(
     on.damage(query(["identity", "ally"], { excluding: yourIdentity })),
-    { cost: discardThis },
+    { cost: discardThis, wouldBeDealt: true },
     preventDamage(),
     changeForm(you, "alterEgo"),
     ifThen(refMatches(eventTarget, query("hero")), changeForm(controllerOf(eventTarget), "alterEgo")),

@@ -297,7 +297,8 @@ describe("Paladin (56117)", () => {
   });
 
   // RRG 1.8 "Quickstrike" (p. 36): revealed, his Quickstrike resolves after his When Revealed (the owner's answer 30B,
-  // 2026-10-12). "Toughness" (p. 45) is not moved (answer 33A): he has his tough status card from entering play.
+  // 2026-10-12). "Toughness" (p. 45) is a forced response held to the end of the reveal (RRG v1.8 p.38; owner decision
+  // 2026-10-16 (audit finding 18), superseding answer 33A) and placed before his Quickstrike: he attacks holding it.
   it("WHEN REVEALED resolves before his Quickstrike (RRG p. 36): the card is gone from your hand when his attack initiates, and he attacks holding his tough card", () => {
     const start = game();
     const claws = handOf(start).find((i) => codeOf(start, i) === "56007")!;

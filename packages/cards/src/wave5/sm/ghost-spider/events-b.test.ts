@@ -1,4 +1,4 @@
-import { cardsInPlay } from "@mc/engine";
+import { activeEncounterDeck, cardsInPlay } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   answer,
@@ -21,7 +21,8 @@ import {
   toHero,
   type Picker,
 } from "../../../testing/harness.js";
-import { moveToDiscard, withDamage } from "../../../testing/staging.js";
+import { conjure, playOut, rhino } from "../../../testing/qa-bench.js";
+import { moveToDiscard, stackSetAside, withDamage } from "../../../testing/staging.js";
 import { playFromHand, startWave5Game, WAVE5_DEPS } from "../../testing.js";
 import { ghostSpiderScenario } from "./support.js";
 
@@ -100,6 +101,52 @@ describe("Ghost-Spider's events, part B (27013–27019)", () => {
     );
     expect(inst(after, villain).damage).toBe(damageBefore + 5);
     expect(playerOf(after, P1).discard).toContain(card);
+  });
+
+  // Ruling 2026-04-30 (April 30, 2026 - Ruling 2): "If a treachery revealed in Step 5 Stuns the hero, the Stun card is
+  // discarded in Step 6 instead of dealing damage." RRG 1.8 "Initiating Abilities" (p. 24), "Labeled Ability" (p. 26).
+  // Owner decision 2026-10-16 (audit finding 13), superseding the 2026-10-08 behavior (the attack began before the
+  // cost, so the stun stayed and the 5 damage was dealt). Real cards: Core Spider-Man's Sweeping Swoop (01168, "When
+  // Revealed: Stun your hero"), set aside in a Rhino game and put on top of the encounter deck.
+  it("27015.return-the-favor-action: a treachery revealed by the cost stuns the hero, so the stun is discarded instead of the 5 damage; the cost stays paid (ruling 2026-04-30; owner decision 2026-10-16 (audit finding 13))", () => {
+    const given = conjure(stackSetAside(rhino(), "01168"), "27015");
+    const hero = identityOf(given.state);
+    const villain = given.state.activeVillainId!;
+    const swoop = activeEncounterDeck(given.state).deck[0]!;
+    const damageBefore = inst(given.state, villain).damage;
+    const done = playOut(given.state, given.id, 0);
+    expect(done.accepted).toBe(true);
+    const stunned = done.events.findIndex(
+      (e) => e.type === "statusGiven" && e.instanceId === hero && e.status === "stunned",
+    );
+    const discarded = done.events.findIndex(
+      (e) => e.type === "statusRemoved" && e.instanceId === hero && e.reason === "cancelledAttack",
+    );
+    expect(stunned).toBeGreaterThanOrEqual(0);
+    expect(discarded).toBeGreaterThan(stunned);
+    expect(inst(done.state, hero).statuses.stunned).toBe(0);
+    expect(inst(done.state, villain).damage).toBe(damageBefore);
+    expect(
+      done.events.some((e) => e.type === "triggerEvent" && e.phase === "initiated" && e.event.kind === "attack"),
+    ).toBe(false);
+    // The cost is not undone: Sweeping Swoop was discarded and revealed, and stays in the encounter discard pile.
+    expect(activeEncounterDeck(done.state).discard).toContain(swoop);
+    expect(activeEncounterDeck(done.state).deck).not.toContain(swoop);
+    expect(playerOf(done.state, P1).discard).toContain(given.id);
+  });
+
+  it("27015.return-the-favor-action, control: a treachery that stuns nobody (Advance) is revealed, then the 5 damage is dealt", () => {
+    // No threat on the main scheme, so Advance's "the villain schemes" does not complete it and end the game.
+    const start = rhino();
+    const calm = patchInstance(start, start.mainScheme.instanceId, { threat: 0 });
+    const given = conjure(stackEncounterDeck(calm, "01186"), "27015");
+    const hero = identityOf(given.state);
+    const villain = given.state.activeVillainId!;
+    const damageBefore = inst(given.state, villain).damage;
+    const done = playOut(given.state, given.id, 0);
+    expect(done.accepted).toBe(true);
+    expect(inst(done.state, hero).statuses.stunned).toBe(0);
+    expect(inst(done.state, villain).damage).toBe(damageBefore + 5);
   });
 
   it("27016.what-doesnt-kill-me-action: heals 2 damage from your hero, then readies it", () => {

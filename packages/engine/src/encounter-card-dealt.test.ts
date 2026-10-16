@@ -12,8 +12,9 @@
  * The surge keyword's card is a deal too (the owner's decision, docs/phase7-wave9.md §4.1 Q19 = B): RRG 1.8 "Surge"
  * (p. 42), "the player resolving the card deals themself a facedown encounter card from the top of the encounter deck",
  * the keyword being "equivalent to … 'When Revealed: Deal yourself 1 facedown encounter card.'" (ruling August 3, 2026,
- * Ruling 3, treats it as a When Revealed ability). Its event carries `source: "surge"` and its window opens once the
- * card is dealt, in or out of the villain phase, once per surge of a chain. The card is then a dealt card like any
+ * Ruling 3, treats it as a When Revealed ability). Its event carries `source: "surge"` and its responses come once the
+ * surging card's reveal finishes (the deal is part of its step 3: RRG v1.8 p.38, p.42; audit findings 16 and 18), before
+ * the dealt card is revealed, in or out of the villain phase, once per surge of a chain. The card is then a dealt card like any
  * other, revealed by step four (§4.1 Q22 = B; `surge-deals-facedown.test.ts`); a card swapped into its place in that
  * window is the card step four reveals there.
  *
@@ -142,9 +143,17 @@ const deals = (events: readonly GameEvent[]): readonly (readonly [PlayerId, stri
       ? [[e.event.playerId, e.event.source] as const]
       : [],
   );
+/**
+ * Whether a response window includes a deal among its triggering conditions. A surge deals its card in step 3 of the
+ * surging card's reveal (RRG v1.8 p.42; owner decision 2026-10-16 (audit finding 16)), so the responses to that deal
+ * wait for the reveal to finish and share the window of "after this card is revealed" (RRG v1.8 p.38; audit finding
+ * 18): still before the dealt card is revealed (§4.1 Q19).
+ */
+const dealWindow = (e: GameEvent): boolean =>
+  e.type === "windowOpened" &&
+  (e.event.kind === "encounterCardDealt" || (e.alsoEvents ?? []).some((also) => also.kind === "encounterCardDealt"));
 /** The response windows opened for a deal. */
-const windows = (events: readonly GameEvent[]) =>
-  events.filter((e) => e.type === "windowOpened" && e.event.kind === "encounterCardDealt").length;
+const windows = (events: readonly GameEvent[]) => events.filter(dealWindow).length;
 const counted = (state: GameState, witness: InstanceId) => mustInstance(state, witness).counters.dealt ?? 0;
 const moved = (events: readonly GameEvent[]) =>
   events.filter((e) => e.type === "cardMoved" && e.to.kind === "dealtEncounter").length;
@@ -280,8 +289,7 @@ describe("encounterCardDealt: after a player is dealt an encounter card", () => 
     events.flatMap((e, index) => (match(e) ? [index] : []));
   const dealMoves = (events: readonly GameEvent[]) =>
     indexes(events, (e) => e.type === "cardMoved" && e.to.kind === "dealtEncounter");
-  const dealWindows = (events: readonly GameEvent[]) =>
-    indexes(events, (e) => e.type === "windowOpened" && e.event.kind === "encounterCardDealt");
+  const dealWindows = (events: readonly GameEvent[]) => indexes(events, dealWindow);
   const reveals = (events: readonly GameEvent[]) => indexes(events, (e) => e.type === "encounterCardRevealed");
 
   it("1 surge in step four: 1 more event and 1 more window, after the surge card is dealt and before it is revealed", () => {

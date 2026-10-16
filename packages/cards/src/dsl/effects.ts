@@ -725,8 +725,14 @@ export const basicPowerBy = (
 export const enemyAttacksEnemy = (
   attacker: TargetRef,
   target: TargetRef,
-  opts: { readonly bind?: string } = {},
-): EffectSpec => ({ kind: "enemyAttacksEnemy", attacker, target, ...withBind(opts.bind) });
+  opts: { readonly bind?: string; readonly boost?: true } = {},
+): EffectSpec => ({
+  kind: "enemyAttacksEnemy",
+  attacker,
+  target,
+  ...(opts.boost ? { boost: true as const } : {}),
+  ...withBind(opts.bind),
+});
 /**
  * "Choose a minion. That minion attacks another enemy of your choice." — both choices, then the attack. The first
  * choice only offers a card with another enemy it could attack (`canAttackOneOf`), so an ability with none has no
@@ -736,7 +742,12 @@ export const enemyAttacksEnemy = (
  */
 export const enemyToAttack = (
   attackers: TargetQuery,
-  opts: { readonly attackerSlot?: string; readonly targetSlot?: string; readonly bind?: string } = {},
+  opts: {
+    readonly attackerSlot?: string;
+    readonly targetSlot?: string;
+    readonly bind?: string;
+    readonly boost?: true;
+  } = {},
 ): EffectSpec[] => {
   const attackerSlot = opts.attackerSlot ?? "attacker";
   const targetSlot = opts.targetSlot ?? "attacked";
@@ -744,7 +755,14 @@ export const enemyToAttack = (
   return [
     chooseTarget(attackerSlot, { ...attackers, canAttackOneOf: { categories: ["enemy"] } }),
     chooseTarget(targetSlot, { categories: ["enemy"], attackableBy: who, excluding: who }),
-    enemyAttacksEnemy(who, { kind: "slot", slot: targetSlot }, opts.bind ? { bind: opts.bind } : {}),
+    enemyAttacksEnemy(
+      who,
+      { kind: "slot", slot: targetSlot },
+      {
+        ...(opts.bind ? { bind: opts.bind } : {}),
+        ...(opts.boost ? { boost: true as const } : {}),
+      },
+    ),
   ];
 };
 /** The `while` for `enemyToAttack`: some card `attackers` matches has another enemy it could attack. */
@@ -787,6 +805,8 @@ export const modifyAttack = (change: {
    * "Damage from that attack is dealt to the chosen enemy instead of you" (Psychic Misdirection 34033;
    * docs/phase7-wave6.md §3.36), from an interrupt to the enemy attack: the first enemy the ref names, other than the
    * attacker, takes the attack's damage instead, as attack damage from the attacker without being attacked (§4.1 Q18).
+   * An ally the ref names is taken the same way ("deal that damage to Robert Kelly", from an interrupt at the attack's
+   * damage step: `on.enemyAttacks(…, { atDamage: true })`).
    */
   readonly damageTo?: TargetRef;
   /**

@@ -179,6 +179,7 @@ export const MOJO_SCENARIO_ABILITIES = defineAbilities({
   // least 5 damage here, discard Stinger Tail (the way Armored Rhino Suit does, `core/scenarios/rhino.ts`).
   "39028.stinger-tail-forced-interrupt": forcedInterrupt(
     when.damage("host"),
+    { wouldBeDealt: true },
     instead(placeDamage(eventAmount, self), andThen(ifThen(damagedAtLeast(self, 5), discard(self)))),
   ),
   // [star] Boost: Attach this card to Mojo.

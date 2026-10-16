@@ -154,6 +154,7 @@ export const MISTER_SINISTER: AbilityRegistry = defineAbilities({
   // controller, so damage no player deals (an encounter card's) never triggers it.
   "40144.sinister-disguise-forced-interrupt": forcedInterrupt(
     { ...on.damage("host"), sourceIs: query([], { controller: "other" }) },
+    { wouldBeDealt: true },
     chooseOneBy(
       controllerOf(eventSource),
       option(

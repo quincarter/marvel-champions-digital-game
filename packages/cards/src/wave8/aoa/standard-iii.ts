@@ -72,9 +72,10 @@ export const STANDARD_III_SKIPPED: Readonly<Record<string, string>> = {};
  * Standard III (Age of Apocalypse, docs/phase7-wave8.md §2.5, §3.6, §4.1 Q2, Q3), an alternative to the Standard set.
  *
  * Pursued by the Past counts pursuit counters. "You" is the player whose card placed the counter (the one revealing
- * the treachery, the one a boost card's activation is against, the one whose turn began for Drawing Near). The
- * Forced Response resolves when the counter is placed, before the treachery's "Then" sentence (Q2 = A), so a reset
- * leaves no counters and the "Then" is false. "The number of players" is the players in the game now (Q3 = A).
+ * the treachery, the one a boost card's activation is against, the one whose turn began for Drawing Near). A counter a
+ * treachery's When Revealed places is placed there and then, but the Forced Response to it waits until the reveal has
+ * finished (RRG v1.8 p.38; owner decision 2026-10-16 (audit finding 18), reversing Q2 = A), so the treachery's "Then,
+ * if it has any counters" finds the counter and the reset follows the reveal. "The number of players" is the players in the game now (Q3 = A).
  * Placing several counters at once is one placement and one check. The "remove each counter" arrow is read as the
  * first effect: it is always payable, since the Forced Response only runs with at least 3 more counters than players.
  *

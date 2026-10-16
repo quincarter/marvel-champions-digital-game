@@ -1947,6 +1947,13 @@ export type EffectSpec =
       readonly kind: "enemyAttacksEnemy";
       readonly attacker: TargetRef;
       readonly target: TargetRef;
+      /**
+       * The attacker is dealt its boost card for this attack (a villain or villainous minion; RRG 1.8 "Attack (Enemy
+       * Activation)" step 1, p. 8), turned faceup and resolved with the effect's controller as "you": FFG ruling
+       * January 26, 2026 (4), "Headpool's controller resolves the minion's boost card"; owner decision 2026-10-16 (audit
+       * finding 14). Its icons add to the ATK dealt. Absent (Moondragon, §4 Q12): no boost card.
+       */
+      readonly boost?: true;
       readonly bind?: string;
     }
   /**
@@ -2181,6 +2188,11 @@ export type EffectSpec =
        * attacked"), and the attack's piercing, overkill and "prevent N damage from this attack" budget are not applied
        * to it. The attacked character is still attacked (it is announced as such) and takes none. Logged on
        * `attackResolved` as `damageTo`.
+       *
+       * The ref may name an ally in play instead, with the same reading: "When an enemy resolves an undefended attack
+       * against you, deal that damage to Robert Kelly" (`mut_gen` 32066), from an interrupt at the attack's damage step
+       * (`TriggerEvent enemyAttackDamageStep`), so the ally takes the attack's damage as the attacker's, and the
+       * attacked identity takes none and uses no tough status card.
        */
       readonly damageTo?: TargetRef;
       /**

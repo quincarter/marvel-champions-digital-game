@@ -128,6 +128,19 @@ describe("the schemes column's rows", () => {
     expect(grown.rows[0]!.rect.height).toBe(225);
   });
 
+  test("a main scheme with a line of its own (The Collection, #173) grows by that much, on a phone too", () => {
+    const rect = { x: 0, y: 0, width: 370, height: 500 };
+    const phone = schemeListLayout(rect, { mains: 1, sides: 1, tabbed: true, mainExtra: 21 });
+    expect(phone.rows.map((row) => row.rect.height)).toEqual([113, 52]);
+    // A row already grown past that keeps its size.
+    const tall = schemeListLayout({ x: 0, y: 0, width: 420, height: 600 }, { mains: 1, sides: 0, tabbed: false });
+    const tallWithLine = schemeListLayout(
+      { x: 0, y: 0, width: 420, height: 600 },
+      { mains: 1, sides: 0, tabbed: false, mainExtra: 21 },
+    );
+    expect(tallWithLine.rows[0]!.rect.height).toBe(tall.rows[0]!.rect.height);
+  });
+
   test("a panel too short to pin the main scheme scrolls the whole list, main scheme first", () => {
     const list = schemeListLayout({ x: 0, y: 0, width: 300, height: 120 }, { mains: 1, sides: 3, tabbed: false });
     expect(list.scrolls).toBe(true);

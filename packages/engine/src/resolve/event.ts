@@ -74,7 +74,6 @@ import {
 } from "../rules.js";
 import {
   actingCharacterOf,
-  canAttack,
   cannotBeDefeatedAgain,
   cardsInPlay,
   characterIgnores,
@@ -118,7 +117,12 @@ import {
   settleActiveCounter,
 } from "./defeat.js";
 import { openDefeatedTogetherInterrupts, withDefeatedMember } from "./defeated-together.js";
-import { dashedStatSkipsActivation, pushEnemyAttackFrame, pushEnemySchemeFrame } from "./enemy-activation.js";
+import {
+  applyEnemyAttacksEnemy,
+  dashedStatSkipsActivation,
+  pushEnemyAttackFrame,
+  pushEnemySchemeFrame,
+} from "./enemy-activation.js";
 import { applyEnterPlayKeywords, engagingAsItEnters } from "./enter-play.js";
 import {
   addFrameSlots,
@@ -260,9 +264,16 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         engaging !== null ||
         hasCandidates(ctx.state, ctx.deps, frame.event, "interrupt") ||
         companions.some((companion) => hasCandidates(ctx.state, ctx.deps, companion.event, "interrupt"));
-      // A tough status resolves first and prevents all the damage, so no "would take damage" interrupt gets a window
-      // (docs/phase7-wave3.md §3.12).
-      if (interrupts && frame.event.kind === "dealDamage" && toughResolvesFirst(ctx, frame.event, frame.frameId)) {
+      // A tough status resolves before "would take damage" interrupts and prevents all the damage, so none of them gets
+      // a window (docs/phase7-wave3.md §3.12). "Would deal / be dealt" interrupts come before it (RRG v1.8 p. 14, steps
+      // 1-3; owner decision 2026-10-16 (audit finding 17)): when one answers, the window opens with them as its earlier
+      // tier, and `toughEndsDamageWindow` closes it after that tier if the tough card still stops what is left.
+      if (
+        interrupts &&
+        frame.event.kind === "dealDamage" &&
+        toughResolvesFirst(ctx, frame.event, frame.frameId) &&
+        !answeredAsWouldBeDealt(ctx, frame.event)
+      ) {
         emit(ctx, { type: "interruptsPreempted", event: frame.event, reason: "tough" });
         return;
       }
@@ -431,8 +442,8 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         );
         return;
       }
-      // A card that enters play by being revealed: the responses to its entering wait for the end of its reveal.
-      if (holdResponsesForReveal(ctx, frame, event)) return;
+      // While an encounter card is being revealed, `pushWindow` hands this response window to the reveal, which opens
+      // it once every step of the reveal is done (RRG 1.8 "Reveal", p. 38; `reveal-hold.ts`).
       // How many forced responses this event triggers, reported to a `bind` ("If that scheme's 'Forced Response'
       // ability is not triggered this way"). Only recorded when there are some, so other results are unchanged.
       const forcedResponses = candidatesFor(ctx.state, ctx.deps, event, "response", true).length;
@@ -659,42 +670,6 @@ function stepDeferredResponses(ctx: Ctx, frame: Frame<"event">): boolean {
   const { deferredResponses: _opened, ...rest } = frame;
   setFrame(ctx, rest);
   openDeferredResponses(ctx, frame, deferred);
-  return true;
-}
-
-/**
- * The response window of a card's `cardEntersPlay` waits while that card is being revealed: the resolved event is
- * handed to its reveal frame (`Frame<"reveal">.heldResponses`), which opens the window once every step of the reveal
- * is done and, for a minion, its quickstrike and teamwork have resolved (`announceRevealFinished`). False, with
- * nothing done, for any other event, and for a card that enters play with no reveal of its own in progress (put into
- * play, a cost's entry, a flip), whose window opens as it always did.
- *
- * RRG 1.8 "Reveal" (p. 38): "Responses (both forced and non-forced) to any step of the revealing of an encounter card
- * are not resolved until after all steps of the reveal process have been completed." FAQ "Widow's Bite (#10)" (p. 60):
- * "Quickstrike and the 'Response' on Widow's Bite have the same timing trigger. Keywords have timing priority over
- * 'Response' abilities, so Quickstrike resolves first." The owner's answer 32B (2026-10-12) built this for a minion;
- * answer 35B (same day) for every card a reveal puts into play, since the sentence is about "an encounter card": a
- * side scheme, an environment, an attachment (whenever in its reveal it attaches), an obligation, and a player card
- * revealed off the encounter deck.
- *
- * Not moved: the event's interrupts ("when a minion would enter play / engage"), which resolved before this; its apply
- * step, where toughness places its tough status card as the minion enters play (RRG 1.8 "Toughness", p. 45; the
- * owner's answer 33A); and lasting "each time …" effects, which are not Response abilities and resolve here as before.
- */
-function holdResponsesForReveal(ctx: Ctx, frame: Frame<"event">, event: TriggerEvent): boolean {
-  if (event.kind !== "cardEntersPlay" || frame.responsesWith !== undefined) return false;
-  if ((frame.joinedResponses ?? []).length > 0) return false;
-  const reveal = ctx.state.stack.find(
-    (f) => f.kind === "reveal" && f.instanceId === event.instanceId && !f.newFace && f.stage !== "done",
-  );
-  if (!reveal) return false;
-  setFrame(ctx, { ...frame, event, stage: "done" });
-  updateFrame(ctx, reveal.frameId, (f) =>
-    f.kind === "reveal" ? { ...f, heldResponses: [...(f.heldResponses ?? []), event] } : f,
-  );
-  for (const effect of [...eachTimeEffectsFor(ctx.state, ctx.deps, event)].reverse()) {
-    pushEffects(ctx, { effects: effect.effects, ...effect.scope, event, eventFrameId: frame.frameId });
-  }
   return true;
 }
 
@@ -1263,6 +1238,32 @@ function toughResolvesFirst(ctx: Ctx, event: Extract<TriggerEvent, { kind: "deal
       damageSourceInfo(ctx, event),
     ) > 0
   );
+}
+
+/** Whether some "would deal / be dealt damage" interrupt (`trigger.wouldBeDealt`; RRG v1.8 p. 14, step 1) answers it. */
+function answeredAsWouldBeDealt(ctx: Ctx, event: Extract<TriggerEvent, { kind: "dealDamage" }>): boolean {
+  return [true, false].some((forced) =>
+    candidatesFor(ctx.state, ctx.deps, event, "interrupt", forced).some((candidate) => {
+      const trigger = ctx.deps.abilities[candidate.abilityId]?.trigger;
+      return trigger?.kind === "interrupt" && trigger.wouldBeDealt === true;
+    }),
+  );
+}
+
+/**
+ * A damage interrupt window whose "would deal / be dealt" tier has resolved (`resolve/window.ts`): RRG v1.8 "Damage"
+ * (p. 14) puts tough status cards (step 2) next, before "would take" interrupts (step 3). If the damage is still to be
+ * dealt and a tough status card will stop it (`toughResolvesFirst`, read now, on the damage as that tier left it: one
+ * that prevented part of it or all of it has had its say), the window ends here, logged as `interruptsPreempted`, and
+ * the damage step uses the tough card. Owner decision 2026-10-16 (audit finding 17).
+ */
+export function toughEndsDamageWindow(ctx: Ctx, eventFrameId: FrameId | null): boolean {
+  if (eventFrameId === null) return false;
+  const frame = findFrame(ctx.state, eventFrameId);
+  if (frame?.kind !== "event" || frame.cancelled || frame.event.kind !== "dealDamage") return false;
+  if (!toughResolvesFirst(ctx, frame.event, frame.frameId)) return false;
+  emit(ctx, { type: "interruptsPreempted", event: frame.event, reason: "tough" });
+  return true;
 }
 
 /**
@@ -2382,79 +2383,6 @@ function abortForLeftTarget(ctx: Ctx, frameId: FrameId, characterId: InstanceId,
   if (pending.kind === "event" && (pending.vars[`${kind}.made`] ?? 0) > 0) return;
   ctx.state = { ...ctx.state, stack: stack.filter((f) => f.frameId !== pending.frameId) };
   emit(ctx, { type: "framePopped", frameId: pending.frameId, frame: pending.kind });
-}
-
-/**
- * One enemy attacks another (`EffectSpec enemyAttacksEnemy`; docs/phase7-wave3.md §3.23, §4 Q12 as the user decided it
- * on 2026-09-23): an attack, not an activation, so there is no boost step and no defense step — the target is an enemy,
- * with no controller to defend it. What is left of RRG 1.8 "Attack (Enemy Activation)" (p. 9) is steps 4–6: the
- * attacker's ATK (modifiers included) is dealt to the target as attack damage, and the attack finishes with the
- * `characterAttacked` event that retaliate hangs off. The damage is the same `dealDamage` a player's attack pushes, so
- * the target's tough status, its damage reductions, piercing, and overkill (RRG 1.8 "Overkill", p. 31: a defeated
- * minion's excess goes to the villain, whoever attacked it) all apply exactly as they do anywhere else.
- *
- * Re-checked here because the interrupt window may have changed things: an attacker or target that left play ends the
- * attack (RRG 1.8 "Activation", p. 6's rule for a minion leaving mid-activation, applied to this attack), and so does a
- * `cannotAttack` rule now in force. Guard never does (`canAttack`: an enemy's attack is nobody's; RRG 1.8 "Guard", p. 21).
- */
-function applyEnemyAttacksEnemy(
-  ctx: Ctx,
-  event: Extract<TriggerEvent, { kind: "enemyAttacksEnemy" }>,
-  frameId: FrameId,
-): boolean | void {
-  const { attackerInstanceId: attacker, targetInstanceId: target } = event;
-  const skip = (reason: "leftPlay" | "cannotAttack" | "dashedStat"): false => {
-    emit(ctx, {
-      type: "enemyAttackedEnemy",
-      attackerInstanceId: attacker,
-      targetInstanceId: target,
-      damageDealt: 0,
-      skipped: reason,
-    });
-    return false;
-  };
-  const inPlay = cardsInPlay(ctx.state);
-  if (!inPlay.includes(attacker) || !inPlay.includes(target)) return skip("leftPlay");
-  if (!canAttack(ctx.state, attacker, target, ctx.deps)) return skip("cannotAttack");
-  const profile = characterProfile(ctx.state, attacker, ctx.deps);
-  if (!profile || profile.missing.includes("atk")) return skip("dashedStat");
-  const attackFrame = findFrame(ctx.state, frameId);
-  const keywords = attackKeywordsOf(ctx.state, ctx.deps, {
-    attackerInstanceId: attacker,
-    ...(attackFrame?.kind === "event" ? { vars: attackFrame.vars } : {}),
-    targetInstanceId: target,
-  });
-  const amount = Math.max(0, profile.atk + (attackFrame?.kind === "event" ? (attackFrame.vars.atkBonus ?? 0) : 0));
-  emit(ctx, {
-    type: "enemyAttackedEnemy",
-    attackerInstanceId: attacker,
-    targetInstanceId: target,
-    damageDealt: amount,
-  });
-  pushEventsJoiningResponses(
-    ctx,
-    [
-      {
-        kind: "dealDamage",
-        targetInstanceId: target,
-        amount,
-        sourceInstanceId: attacker,
-        fromAttack: true,
-        parentFrameId: frameId,
-        overkill: keywords.includes("overkill"),
-        ...(keywords.includes("piercing") ? { piercing: true } : {}),
-        ...(keywords.includes("ranged") ? { ranged: true as const } : {}),
-      },
-      {
-        kind: "characterAttacked",
-        attackerInstanceId: attacker,
-        targetInstanceId: target,
-        playerId: null,
-        ...(keywords.includes("ranged") ? { ranged: true } : {}),
-      },
-    ],
-    frameId,
-  );
 }
 
 /** A basic recovery's healing: the identity heals damage equal to its current REC (RRG 1.8 "Recover", p. 36). */

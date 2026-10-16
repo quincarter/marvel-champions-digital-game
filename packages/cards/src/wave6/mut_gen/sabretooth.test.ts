@@ -596,6 +596,60 @@ describe("Robert Kelly (32066)", () => {
     expect(inst(attackPhase(after).state, kellyOf(after)).damage).toBe(2);
   });
 
+  // Owner decision 2026-10-16: an attack-triggered interrupt is scripted on the attack, at its damage step (RRG 1.8
+  // "Attack (Enemy Activation)", pp. 8-9: after the defender is declared and the boost cards resolved, before step 4's
+  // damage), not on the damage it deals. A tough status card prevents damage as it is dealt (RRG 1.8 "Damage", p. 14),
+  // so it no longer pre-empts the redirect: the damage is never dealt to the identity at all.
+  describe("32066.robert-kelly-forced-interrupt resolves at the attack's damage step (RRG 1.8 pp. 8-9, p. 14)", () => {
+    const KELLY_INTERRUPT = "32066.robert-kelly-forced-interrupt";
+    const resolvedKelly = (events: readonly GameEvent[]) =>
+      events.filter((e) => e.type === "abilityResolved" && (e.abilityId as string) === KELLY_INTERRUPT);
+    const tough = (state: GameState, id: InstanceId) =>
+      patchInstance(state, id, { statuses: { ...inst(state, id).statuses, tough: 1 } });
+
+    it("undefended, with a tough status card on the identity: all the damage goes to Robert Kelly, the tough card stays", () => {
+      const after = detached();
+      const me = identityOf(after);
+      const { state, events } = attackPhase(tough(after, me));
+      expect(resolvedKelly(events)).toHaveLength(1);
+      expect(inst(state, kellyOf(state)).damage).toBe(2);
+      expect(inst(state, me).damage).toBe(0);
+      expect(inst(state, me).statuses.tough).toBe(1);
+      expect(events.filter((e) => e.type === "statusRemoved" && e.instanceId === me)).toEqual([]);
+      expect(events.filter((e) => e.type === "interruptsPreempted")).toEqual([]);
+      // Nothing was ever dealt to the identity: the attack's damage went straight to Robert Kelly, as Sabretooth's.
+      expect(damageTo(events, me)).toEqual([]);
+      expect(damageTo(events, kellyOf(state))).toMatchObject([{ sourceInstanceId: villain(state), amount: 2 }]);
+      expect(attacks(events)).toMatchObject([{ targetInstanceId: me, damageTo: kellyOf(state) }]);
+    });
+
+    it("undefended, no tough card: the same redirect, from the damage-step window", () => {
+      const after = detached();
+      const me = identityOf(after);
+      const { state, events } = attackPhase(after);
+      expect(resolvedKelly(events)).toHaveLength(1);
+      expect(inst(state, kellyOf(state)).damage).toBe(2);
+      expect(inst(state, me).damage).toBe(0);
+      const window = events.findIndex(
+        (e) => e.type === "triggerEvent" && e.event.kind === "enemyAttackDamageStep" && e.event.undefended === 1,
+      );
+      const dealt = events.findIndex((e) => e.type === "damageDealt" && e.targetInstanceId === kellyOf(state));
+      expect(window).toBeGreaterThanOrEqual(0);
+      expect(window).toBeLessThan(dealt);
+    });
+
+    it("a defended attack does not trigger it: the defender keeps its tough card and Robert Kelly takes nothing", () => {
+      const after = detached();
+      const me = identityOf(after);
+      const { state, events } = attackPhase(tough(after, me), defendWith(me));
+      expect(resolvedKelly(events)).toEqual([]);
+      expect(inst(state, kellyOf(state)).damage).toBe(0);
+      // Spider-Man's DEF 3 absorbs the whole 2 ATK, so no damage is dealt and the tough card is not used.
+      expect(inst(state, me).damage).toBe(0);
+      expect(inst(state, me).statuses.tough).toBe(1);
+    });
+  });
+
   it("Q4: an undefended attack against another player is not redirected, only his controller's is", () => {
     // Both players are in hero form and decline to defend: player one controls Robert Kelly, so only that attack goes
     // to him; player two's hits player two.

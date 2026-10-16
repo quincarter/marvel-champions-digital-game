@@ -188,7 +188,7 @@ export const ON_THE_RUN: AbilityRegistry = defineAbilities({
   // starting a second attack would instead leave damage on a card that is leaving, which protects the enemy for nothing.
   "40106.hidden-in-the-clutter-forced-interrupt": forcedInterrupt(
     on.damage("host"),
-    { notWhileResolving: true },
+    { notWhileResolving: true, wouldBeDealt: true },
     instead(
       placeDamage(eventAmount, self),
       andThen(

@@ -175,7 +175,17 @@ function resolveAbility(ctx: Ctx, frame: Frame<"ability">): void {
   // "… would thwart or attack, discard this card instead" replaced this use (docs/phase7-wave10.md §3.21): none of
   // its effects resolve. Its costs are paid and its limit counted above, as for a use a status card cancels.
   if (frame.wouldAct === "replaced") return;
-  if (definition.label && frame.controllerId && labelCancels(ctx, frame.controllerId, definition.label)) return;
+  // A printed cost written as the leading effects (`costEffects`) is paid in step 5, before the label's status check,
+  // which its effects frame makes once that cost is paid (`beginEffectAfterCost`; ruling April 30, 2026 - Ruling 2).
+  const costEffects = keyword ? 0 : Math.min(definition.costEffects ?? 0, definition.effects.length);
+  const labelAfterCost = costEffects > 0 && definition.label !== undefined && definition.label.length > 0;
+  if (
+    !labelAfterCost &&
+    definition.label &&
+    frame.controllerId &&
+    labelCancels(ctx, frame.controllerId, definition.label)
+  )
+    return;
   // RRG 1.8 "Defend, Defense" (p. 15): from here no other player resolves a defense-labeled ability for this attack.
   if (definition.label?.includes("defense") && frame.controllerId) recordDefenseLabel(ctx, frame.controllerId);
   // An ability that itself declares a defender ("declare it the defender for this attack", Mutant Protectors) leaves
@@ -213,6 +223,11 @@ function resolveAbility(ctx: Ctx, frame: Frame<"ability">): void {
       ? { returnBindingsTo: frame.returnBindingsTo.frameId, returnBindingsPrefix: frame.returnBindingsTo.prefix }
       : {}),
   });
+  if (labelAfterCost) {
+    const pushed = ctx.state.stack[0];
+    if (pushed?.kind === "effects" && pushed.selfInstanceId === frame.instanceId && pushed.cursor === 0)
+      setFrame(ctx, { ...pushed, costEffectsPending: definition.effects.length - costEffects });
+  }
 }
 
 /**
@@ -242,7 +257,7 @@ export function announceAbilityResolved(ctx: Ctx, frame: Frame<"effects">): void
  * unlabeled "your identity thwarts") is caught as that effect applies
  * (`thwart` in `apply-effect.ts`); a cancelled ability never gets that far.
  */
-function labelCancels(ctx: Ctx, playerId: PlayerId, labels: readonly string[]): boolean {
+export function labelCancels(ctx: Ctx, playerId: PlayerId, labels: readonly string[]): boolean {
   const identity = mustPlayer(ctx.state, playerId).identity.instanceId;
   const cancelling = statusesCancelling(ctx, identity, labels);
   announceStatusDiscarded(

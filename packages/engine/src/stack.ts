@@ -584,6 +584,19 @@ export type StackFrame =
        * docs/phase7-wave9.md §4.1 Q4 = A, provisional).
        */
       readonly attackRetargeted?: { readonly frameId: FrameId; readonly from: InstanceId; readonly to: InstanceId };
+      /**
+       * On the root frame of a labeled ability whose printed cost is written as its leading effects
+       * (`AbilityDefinition.costEffects`), while that cost is being paid: how many of the frame's last instructions are
+       * the ability's effect. RRG 1.8 "Initiating Abilities" (p. 24): costs are paid in step 5, effects resolve in step
+       * 6; "Labeled Ability" (p. 26): the labeled effect is performed "when the labeled ability begins resolving (after
+       * costs have been paid)". So the status cards that cancel the label are read, and an "(attack)" ability's attack
+       * begins, only when the cursor reaches the effect (`beginEffectAfterCost`, `resolve/effects-frame.ts`; ruling
+       * April 30, 2026 - Ruling 2). Counted from the end because a choice inserted while paying lands before the
+       * effect. Absent once the cost is paid, and on every other frame.
+       */
+      readonly costEffectsPending?: number;
+      /** With `costEffects`: the cursor at which the effect began, once the cost has been paid (step 6). */
+      readonly effectBeganAt?: number;
     })
   /** RRG "Attack (Enemy Activation)" steps 1–5; step 6 is the event frame's response window. */
   | (FrameBase & {
@@ -610,12 +623,23 @@ export type StackFrame =
       /** No boost card for this attack (`TriggerEvent.noBoost`). */
       readonly noBoost?: boolean;
       /**
+       * An enemy attacking another enemy with a boost card (`enemyAttacksEnemy.boost`; Headpool, FFG ruling January 26,
+       * 2026 (4)). `eventFrameId` is its `enemyAttacksEnemy` event frame, `attackedPlayerId` and `targetPlayerId` the
+       * player who resolves the boost card, `targetInstanceId` the enemy attacked. There is no Declare Defender step.
+       */
+      readonly versusEnemy?: true;
+      /**
        * How many boost cards the give-boost step has given so far, in a game where an ability hears each one
        * (`TriggerEvent boostCardGiven`, docs/phase7-wave9.md §3.44): the step is then taken one card at a time.
        * Absent in every other game, and once the step is over.
        */
       readonly boostsGiven?: number;
       readonly boost?: BoostInProgress | null;
+      /**
+       * The damage step has announced `TriggerEvent enemyAttackDamageStep`, so on its next run it deals the damage.
+       * Absent in a game where nothing listens for that event (the step deals the damage on its first run).
+       */
+      readonly damageStepAnnounced?: true;
     })
   /** RRG "Scheme (Enemy Activation)". */
   | (FrameBase & {
@@ -709,14 +733,22 @@ export type StackFrame =
        */
       readonly engagedPlayerId?: PlayerId;
       /**
-       * `cardEntersPlay` events of this card that resolved while it was being revealed, oldest first: their response
-       * windows wait for the end of the reveal (RRG 1.8 "Reveal", p. 38: "Responses (both forced and non-forced) to
-       * any step of the revealing of an encounter card are not resolved until after all steps of the reveal process
-       * have been completed"; FAQ "Widow's Bite (#10)", p. 60; the owner's answers 32B and, for a card that is not a
-       * minion, 35B). They share the window of the reveal's own `cardRevealed` announcement, after a minion's
-       * quickstrike and teamwork.
+       * The conditions of every response window triggered while this card was being revealed, oldest first: incite's
+       * and its When Revealed's threat, cards entering play (this one included), damage, status cards, draws and
+       * discards. They wait for the end of the reveal (RRG 1.8 "Reveal", p. 38: "Responses (both forced and non-forced)
+       * to any step of the revealing of an encounter card are not resolved until after all steps of the reveal process
+       * have been completed"; owner decision 2026-10-16, audit finding 18, generalising the owner's answers 32B and 35B
+       * of 2026-10-12) and share the window of the reveal's own `cardRevealed` announcement, after a minion's
+       * quickstrike and teamwork (`resolve/reveal-hold.ts`).
        */
       readonly heldResponses?: readonly TriggerEvent[];
+      /**
+       * Characters that entered play with toughness while this card was being revealed, oldest first: each is given its
+       * tough status card once the reveal's steps are done, before quickstrike and teamwork (RRG 1.8 "Toughness",
+       * p. 45, a forced response to entering play; "Reveal", p. 38; owner decision 2026-10-16, audit finding 18,
+       * superseding answer 33A).
+       */
+      readonly heldToughness?: readonly InstanceId[];
       /**
        * With `stage: "keywords"`: the engagement keywords still to resolve, in the order they resolve. Absent until the
        * order is known (a minion with both asks the first player, the owner's answer 34B).
@@ -752,6 +784,10 @@ export type StackFrame =
        * frame saved in it records whom the minion engaged (`engagedPlayerId`) and goes on to `whenRevealed`, so its
        * keywords resolve at `keywords` like any other reveal's.
        *
+       * `surge`: the last of step 3. The card's incite and printed When Revealed abilities have resolved; its surge
+       * keyword, printed or gained, resolves now as the When Revealed it is and deals its card facedown, to be revealed
+       * later in the player's queue (RRG 1.8 "Surge", p. 42; owner decision 2026-10-16, audit finding 16).
+       *
        * `finish`: steps 1 to 3 are done; step 4 discards a treachery (RRG 1.8 "Reveal", p. 38).
        *
        * `keywords`: every step of the reveal is done, and the minion's engagement keywords resolve, one at a time, each
@@ -760,7 +796,7 @@ export type StackFrame =
        * (p. 43, the same sentence). Skipped when neither applies.
        *
        * `responses`: the keywords are done; the responses to the reveal are announced (`cardRevealed` with the held
-       * enters-play responses, `encounterCardResolved`, `minionEngaged`), then surge.
+       * responses, `encounterCardResolved`, `minionEngaged`). The surge's card was already dealt at `surge`.
        */
       readonly stage:
         | "faceup"
@@ -771,6 +807,7 @@ export type StackFrame =
         | "quickstrike"
         | "whenRevealed"
         | "settleAttach"
+        | "surge"
         | "finish"
         | "keywords"
         | "responses"

@@ -2,6 +2,7 @@ import { applyCommand, cardOf, type GameState, type InstanceId } from "@mc/engin
 import {
   endTurn,
   firstLegal,
+  inst,
   instancesOf,
   moveToHand,
   P1,
@@ -357,5 +358,58 @@ describe("Kang / Temporal encounter set (kang-encounter-set.ts)", () => {
 
     // "You cannot attack Kang" (11049.fear-of-kang-constant) is not scripted — see this module's own docblock and
     // `fear-of-kang-constant.test.ts` for the two-player scoping proof behind that decision.
+  });
+
+  describe("Temporal Shield (11014): 'When Kang is attacked' is heard on the attack, not on the damage (audit finding 17)", () => {
+    /** Temporal Shield attached directly to Kang (test-only surgery, as wave1's `forceAttachToVillain`), Kang optionally tough. */
+    const shielded = (tough: boolean) => {
+      const start = kangVsHeroes();
+      const kang = start.villains[0]!.instanceId;
+      const shield = Object.values(start.instances).find(
+        (i) => i.cardId === "11014" && i.attachedTo === null,
+      )!.instanceId;
+      const attached = {
+        ...start,
+        instances: {
+          ...start.instances,
+          [shield]: { ...start.instances[shield]!, attachedTo: kang, faceup: true },
+          [kang]: {
+            ...start.instances[kang]!,
+            attachments: [...start.instances[kang]!.attachments, shield],
+            statuses: { ...start.instances[kang]!.statuses, tough: tough ? 1 : 0 },
+          },
+        },
+      };
+      return { state: runWave2(attached, toHero()), kang, shield };
+    };
+    const attackKang = (state: GameState, kang: InstanceId) => {
+      const identity = playerOf(state, P1).identity.instanceId;
+      return {
+        identity,
+        after: settle(
+          runWave2(state, { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: kang }),
+          firstLegal,
+          undefined,
+          WAVE2_DEPS,
+        ),
+      };
+    };
+
+    it("normal case: the attack deals Kang no damage, the attacker takes 1 and the shield is discarded", () => {
+      const { state, kang, shield } = shielded(false);
+      const { identity, after } = attackKang(state, kang);
+      expect(inst(after, kang).damage).toBe(0);
+      expect(inst(after, identity).damage).toBe(inst(state, identity).damage + 1);
+      expect(inst(after, shield).attachedTo).toBeNull();
+    });
+
+    it("with a tough status card on Kang the interrupt still fires: nothing is absorbed, the card stays, the attacker takes 1", () => {
+      const { state, kang, shield } = shielded(true);
+      const { identity, after } = attackKang(state, kang);
+      expect(inst(after, kang).damage).toBe(0);
+      expect(inst(after, kang).statuses.tough).toBe(1);
+      expect(inst(after, identity).damage).toBe(inst(state, identity).damage + 1);
+      expect(inst(after, shield).attachedTo).toBeNull();
+    });
   });
 });

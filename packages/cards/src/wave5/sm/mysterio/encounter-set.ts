@@ -65,6 +65,7 @@ export const MYSTERIO_ENCOUNTER_SET = defineAbilities({
   // id ("-constant") names what is printed as a Forced Interrupt — `@mc/content`'s own naming, not this file's.
   "27090.masterful-mirage-constant": forcedInterrupt(
     when.damage(query("villain", { name: "Mysterio" })),
+    { wouldBeDealt: true },
     instead(moveCards(zone("deck", controllerOf(eventSource), { top: 4 }), "discard")),
     discard(self),
   ),

@@ -2,6 +2,9 @@ import { trait } from "@mc/content";
 import {
   amount,
   andThen,
+  atEndOfAttack,
+  attackPreventedAmount,
+  modifyAttack,
   chooseOneBy,
   chooseTarget,
   chosen,
@@ -20,7 +23,6 @@ import {
   encounterCards,
   enemyAttack,
   enemyScheme,
-  eventAmount,
   eventPlayer,
   eventSource,
   eventTarget,
@@ -41,7 +43,6 @@ import {
   option,
   ownerOf,
   placeThreat,
-  preventDamage,
   putIntoPlay,
   query,
   removeThreat,
@@ -205,17 +206,18 @@ export const TASKMASTER_SET = defineAbilities({
   ),
 
   // Photographic Reflexes — Attach to Taskmaster. Forced Interrupt: when a player attacks Taskmaster, prevent all
-  // damage that would be dealt to him and deal an equal amount to that player's identity instead, then discard.
-  // (Reading: "prevent all damage that would be dealt" is the damage step — `when.damage`, interruptible — not the
-  // attack's own initiation, which is announcement-only for the reason Mockingbird's interrupt is skipped in
-  // `hawkeye-kit.ts`; here the printed text names the *damage* directly, so this card needs no such workaround.)
-  // `preventDamage`/`dealDamage` always fully resolve, so `andThen` around the "then discard" is the faithful
-  // reading (RRG 1.8 "'Then'", p. 44) without changing behavior today.
+  // damage that would be dealt to him and deal an equal amount to that player's identity instead. Then discard.
+  // Heard on the attack itself ("when a player attacks"), not on the damage: a tough status card on Taskmaster would
+  // otherwise absorb the hit before a damage interrupt ran (RRG 1.8 "Damage", p. 14; audit finding 17, owner decision
+  // 2026-10-16). `preventAllDamage` rides the attack to its damage step; the amount it stopped (`bind`) is read at the
+  // attack's end, when the equal damage is dealt to the attacker's player's identity, then the card is discarded.
   "04104.photographic-reflexes-forced-interrupt": forcedInterrupt(
-    when.damage("host", { fromAttack: true }),
-    preventDamage(),
-    dealDamage(eventAmount, identityOf(ownerOf(eventSource))),
-    andThen(discard(self)),
+    when.attacks(query(["identity", "ally"]), { target: { hostOfSelf: true } }),
+    modifyAttack({ preventAllDamage: true, bind: "reflexes" }),
+    atEndOfAttack(
+      dealDamage(attackPreventedAmount("reflexes"), identityOf(ownerOf(eventSource))),
+      andThen(discard(self)),
+    ),
   ),
 
   // Mimicry — When Revealed (Alter-Ego): discard the top 5 cards of your deck; if a Thwart card was discarded,

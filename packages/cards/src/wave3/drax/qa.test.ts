@@ -62,8 +62,9 @@ test("Rhino (expert), solo: Venom", () => {
  * `EffectSpec enemyAttacksEnemy`). This was the pin the rules-QA pass left as a `test.skip` while the question was
  * open; it is now the real assertion, on real cards:
  *
- * - Monarch Starstalker (`gmw` 16075, villainous) gets no boost card, although a villainous minion's own activation
- *   always does (RRG 1.8 "Villainous", p. 47);
+ * - Monarch Starstalker (`gmw` 16075, villainous) is dealt a boost card, as a villainous minion's activation is
+ *   (RRG 1.8 "Villainous", p. 47): ruling 2026-01-26 (4); owner decision 2026-10-16 (Moondragon matches Headpool),
+ *   which reversed the original no-boost half of Q12;
  * - Tiger Shark (Core 01131, "Forced Response: After Tiger Shark attacks, give him a tough status card") does not get
  *   his tough status card: that ability answers his attack *activation*, which this is not.
  */
@@ -86,7 +87,7 @@ describe("§4 Q12 (decided 2026-09-23): Moondragon's attack is an attack, not an
   const encounterCardsLeft = (state: GameState) =>
     Object.values(state.encounterDecks).reduce((sum, piles) => sum + piles.deck.length, 0);
 
-  test("a villainous minion made to attack gets no boost card", () => {
+  test("a villainous minion made to attack is dealt a boost card (ruling 2026-01-26 (4); owner decision 2026-10-16, Moondragon matches Headpool)", () => {
     const { state, id } = moondragonReady();
     const staged = engageMinion(engageMinion(state, MONARCH_STARSTALKER, "q12-monarch"), TIGER_SHARK, "q12-shark");
     const before = encounterCardsLeft(staged);
@@ -96,9 +97,10 @@ describe("§4 Q12 (decided 2026-09-23): Moondragon's attack is an attack, not an
       undefined,
       WAVE3_DEPS,
     );
-    expect(inst(after, "q12-shark" as InstanceId).damage).toBe(2);
-    expect(inst(after, "q12-monarch" as InstanceId).boostCards).toEqual([]);
-    expect(encounterCardsLeft(after)).toBe(before);
+    // 2 ATK plus whatever boost icons the dealt card carries.
+    expect(inst(after, "q12-shark" as InstanceId).damage).toBeGreaterThanOrEqual(2);
+    expect(inst(after, "q12-monarch" as InstanceId).boostCards).toEqual([]); // resolved and discarded
+    expect(encounterCardsLeft(after)).toBe(before - 1);
   });
 
   test("'After Tiger Shark attacks' does not fire: it answers his activation, and this is not one", () => {

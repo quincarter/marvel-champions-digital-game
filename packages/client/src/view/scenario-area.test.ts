@@ -10,7 +10,7 @@ import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import type { SessionConfig } from "../engine/host.js";
 import { POOL_DEPS } from "../content/pool.js";
-import { boardModel, scenarioAreaPanels } from "./board-model.js";
+import { boardModel, scenarioAreaPanels, scenarioAreaTag, schemeAreaNote } from "./board-model.js";
 
 const ROCKET_VS_BADOON: SessionConfig = {
   scenarioId: "infiltrate-the-museum",
@@ -59,5 +59,51 @@ describe("scenarioAreaPanels", () => {
     const { state, me } = await intoTurn(ROCKET_VS_BADOON);
     const model = boardModel(state, me, POOL_DEPS);
     expect(model.scenarioAreas).toHaveLength(1);
+  });
+});
+
+// Issue #173: The Grand Collection 1B loses at "at least 5[per_hero] cards in The Collection", and the phone keeps the
+// pile tile on another tab from the scheme, so the count and its limit ride on the main scheme too.
+describe("The Collection's limit", () => {
+  test("is read from the main scheme's own text at 5 per hero", async () => {
+    const { state, me } = await intoTurn(ROCKET_VS_BADOON);
+    const model = boardModel(state, me, POOL_DEPS);
+    expect(model.scenarioAreas[0]).toMatchObject({ count: 1, limit: 5 });
+    expect(scenarioAreaTag(model.scenarioAreas[0]!)).toBe("1/5");
+  });
+
+  test("scales with the player count", async () => {
+    const { state, me } = await intoTurn({
+      ...ROCKET_VS_BADOON,
+      players: [{ starterDeckId: "rocket-raccoon-aggression" }, { starterDeckId: "core-spider-man-justice" }],
+    });
+    const model = boardModel(state, me, POOL_DEPS);
+    expect(model.scenarioAreas[0]).toMatchObject({ count: 2, limit: 10 });
+  });
+
+  test("the main scheme carries a line for it; no other scheme does", async () => {
+    const { state, me } = await intoTurn(ROCKET_VS_BADOON);
+    const model = boardModel(state, me, POOL_DEPS);
+    expect(model.mainScheme.areaNotes).toEqual([
+      expect.objectContaining({ count: 1, limit: 5, caption: "The Collection · lose at 5", urgent: false }),
+    ]);
+    expect(model.mainScheme.areaNotes![0]!.instanceIds).toEqual(model.scenarioAreas[0]!.instanceIds);
+    for (const side of model.sideSchemes) expect(side.areaNotes).toBeUndefined();
+  });
+
+  test("turns urgent one card short of the limit", () => {
+    const area = { name: "The Collection", instanceIds: [], topArt: null };
+    expect(schemeAreaNote({ ...area, count: 3, limit: 5 }).urgent).toBe(false);
+    expect(schemeAreaNote({ ...area, count: 4, limit: 5 }).urgent).toBe(true);
+    expect(schemeAreaNote({ ...area, count: 4, limit: null })).toMatchObject({
+      urgent: false,
+      caption: "The Collection",
+    });
+    expect(scenarioAreaTag({ count: 4, limit: null })).toBe("4");
+  });
+
+  test("a scheme with no scenario area has no line", async () => {
+    const { state, me } = await intoTurn(CORE_RHINO);
+    expect(boardModel(state, me, POOL_DEPS).mainScheme.areaNotes).toBeUndefined();
   });
 });

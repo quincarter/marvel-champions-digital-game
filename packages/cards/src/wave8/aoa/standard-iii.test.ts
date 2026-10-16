@@ -93,7 +93,6 @@ function setupGame(players: Seats = [SPIDER_MAN]): GameState {
 const codeOf = (s: GameState, id: InstanceId): string => s.instances[id]!.cardId as string;
 const piles = (s: GameState) => Object.values(s.encounterDecks)[0]!;
 const inEncounterDiscard = (s: GameState, code: string) => piles(s).discard.filter((id) => codeOf(s, id) === code);
-const inEncounterDeck = (s: GameState, code: string) => piles(s).deck.filter((id) => codeOf(s, id) === code);
 const inVillainArea = (s: GameState, code: string) => s.villainArea.filter((id) => codeOf(s, id) === code);
 const inPlayArea = (s: GameState, p: PlayerId, code: string) =>
   playerOf(s, p).playArea.filter((id) => codeOf(s, id) === code);
@@ -108,6 +107,20 @@ const discarded = (events: readonly GameEvent[], code: string) =>
   events.filter((e) => e.type === "cardMoved" && e.cardId === code && e.to.kind === "encounterDiscard").length;
 const count = (events: readonly GameEvent[], type: GameEvent["type"]) => events.filter((e) => e.type === type).length;
 const schemes = (events: readonly GameEvent[]) => count(events, "schemeResolved");
+/** Where the first event of `type` was logged (the event log orders effects and responses). */
+const firstAt = (events: readonly GameEvent[], type: GameEvent["type"]) => events.findIndex((e) => e.type === type);
+/**
+ * Q2 = A reversed (RRG v1.8 p.38; owner decision 2026-10-16 (audit finding 18)): Pursued by the Past's Forced Response
+ * waits until the reveal has finished, but the counter itself is placed at its own timing point, inside the When
+ * Revealed. So the treachery's "Then, if it has any counters" finds it, and the reset comes after the reveal: the
+ * counter is placed, then the "Then" effect (`thenAt`) resolves, then the card flips.
+ */
+function expectCounterBeforeThenBeforeReset(events: readonly GameEvent[], thenAt: number): void {
+  const placed = events.findIndex((e) => e.type === "counterAdded" && e.counterType === "pursuit");
+  expect(placed).toBeGreaterThanOrEqual(0);
+  expect(placed).toBeLessThan(thenAt);
+  expect(thenAt).toBeLessThan(firstAt(events, "cardFlipped"));
+}
 
 /** A player's set-aside nemesis set, by card type. */
 function nemesisOf(s: GameState, p: PlayerId) {
@@ -289,7 +302,8 @@ describe("Pursued by the Past (45075a/b)", () => {
 
   // The flip names the player whose effect flipped the card (`cardFlipped.playerId`), so side B's "you" is the player
   // whose card placed the fourth counter.
-  it("side B: reveals the nemesis minion and side scheme, shuffles the rest into the encounter deck and flips back; the villain does not scheme (Q2)", () => {
+  // RRG v1.8 p.38; owner decision 2026-10-16 (audit finding 18), reversing Q2 = A.
+  it("side B: reveals the nemesis minion and side scheme, shuffles the rest into the encounter deck and flips back; the villain schemes first (RRG v1.8 p.38)", () => {
     const s = withCounters(setupGame(), 3);
     const nemesis = nemesisOf(s, P1);
     const run = round(s, { reveals: [DARK_DESIGNS] });
@@ -301,8 +315,11 @@ describe("Pursued by the Past (45075a/b)", () => {
     const rest = nemesis.all.filter((id) => id !== nemesis.minion && id !== nemesis.scheme);
     for (const id of rest) expect(piles(run.state).deck).toContain(id);
     expect(nemesisOf(run.state, P1).all).toHaveLength(0);
-    // Rhino's own scheme only: Dark Designs' "Then, if it has any counters on it" found none.
-    expect(schemes(run.events)).toBe(1);
+    // Rhino's own scheme and Dark Designs': its "Then, if it has any counters on it" found the fourth counter, because
+    // the reset (the Forced Response) waited for the end of the reveal.
+    expect(schemes(run.events)).toBe(2);
+    const darkDesignsScheme = run.events.findLastIndex((e) => e.type === "schemeResolved");
+    expectCounterBeforeThenBeforeReset(run.events, darkDesignsScheme);
   });
 
   it("side B, 2 players: 'you' is the player whose card placed the counter. Player 2 reveals it, so player 2's nemesis set comes in and player 1's stays set aside", () => {
@@ -347,9 +364,15 @@ describe("Dark Designs (45076)", () => {
     expect(schemes(run.events)).toBe(2);
   });
 
-  it("WHEN REVEALED: when its counter resets the card, 'Then, if it has any counters on it' is false and the villain does not scheme (Q2)", () => {
+  // RRG v1.8 p.38; owner decision 2026-10-16 (audit finding 18), reversing Q2 = A.
+  it("WHEN REVEALED: the counter that will reset the card is there for 'Then, if it has any counters on it', so the villain schemes; the reset follows the reveal (RRG v1.8 p.38)", () => {
     const run = round(withCounters(setupGame(), 3), { reveals: [DARK_DESIGNS] });
-    expect(schemes(run.events)).toBe(1);
+    expect(schemes(run.events)).toBe(2);
+    expectCounterBeforeThenBeforeReset(
+      run.events,
+      run.events.findLastIndex((e) => e.type === "schemeResolved"),
+    );
+    expect(counters(run.state)).toBe(0);
   });
 
   it("BOOST: after Rhino's scheme resolves, one pursuit counter (and the card is discarded)", () => {
@@ -380,14 +403,35 @@ describe("Sinister Strike (45077)", () => {
     expect(discarded(run.events, DARK_DESIGNS)).toBe(1);
   });
 
-  it("WHEN REVEALED (Alter-Ego): without surge the card behind it stays in the deck", () => {
-    // 3 counters: Sinister Strike's counter resets the card, so 'Then' is false and there is no surge.
+  // RRG v1.8 p.38; owner decision 2026-10-16 (audit finding 18), reversing Q2 = A. RRG v1.8 p.42; owner decision
+  // 2026-10-16 (audit finding 16): the surge deal is a When Revealed, so it precedes the held reset; until then this
+  // test had the reset first and surge dealing from the deck side B had shuffled.
+  it("WHEN REVEALED (Alter-Ego): the counter that will reset the card still gives it surge; surge deals before the reset, whose cards are revealed before the surge card (RRG v1.8 p.38, p.42)", () => {
     const run = round(withCounters(setupGame(), 3), { dealt: [SINISTER_STRIKE, DARK_DESIGNS] });
-    expect(counters(run.state)).toBe(0);
-    // Sinister Strike, then the nemesis minion and side scheme side B reveals; Dark Designs is never revealed.
-    expect(count(run.events, "encounterCardRevealed")).toBe(3);
-    expect(discarded(run.events, DARK_DESIGNS)).toBe(0);
-    expect(inEncounterDeck(run.state, DARK_DESIGNS)).toHaveLength(1);
+    // 'Then, if it has any counters' found 4: surge. The counter was placed inside the When Revealed; the surge's card
+    // was dealt in the same step (reveal step 3), and the reset waited for the end of the reveal.
+    const placed = run.events.findIndex((e) => e.type === "counterAdded" && e.counterType === "pursuit");
+    const surgeAt = firstAt(run.events, "surgeTriggered");
+    const flipAt = firstAt(run.events, "cardFlipped");
+    expect(placed).toBeGreaterThanOrEqual(0);
+    expect(placed).toBeLessThan(surgeAt);
+    expect(surgeAt).toBeLessThan(flipAt);
+    const strike = run.events.flatMap((e) =>
+      e.type === "encounterCardRevealed" && e.cardId === SINISTER_STRIKE ? [e.instanceId] : [],
+    );
+    const surges = run.events.flatMap((e) => (e.type === "surgeTriggered" ? [e.instanceId] : []));
+    expect(strike).toHaveLength(1);
+    expect(surges[0]).toBe(strike[0]);
+    // Dealt before side B shuffled the nemesis set in: the card under Sinister Strike, Dark Designs. Side B's own
+    // reveals (the nemesis minion and side scheme) come first; Dark Designs waits its turn in the queue.
+    const dealtBySurge = run.events
+      .slice(0, surgeAt)
+      .findLast((e) => e.type === "cardMoved" && e.to.kind === "dealtEncounter");
+    const dealtId = dealtBySurge?.type === "cardMoved" ? dealtBySurge.instanceId : undefined;
+    expect(dealtId && run.state.instances[dealtId]?.cardId).toBe(DARK_DESIGNS);
+    const dealtRevealAt = run.events.findIndex((e) => e.type === "encounterCardRevealed" && e.instanceId === dealtId);
+    expect(dealtRevealAt).toBeGreaterThan(flipAt);
+    expect(count(run.events, "encounterCardRevealed")).toBeGreaterThanOrEqual(4);
   });
 
   it("WHEN REVEALED (Hero): at 0 counters it places one and the villain attacks the player (Rhino's attack and the card's)", () => {
@@ -398,14 +442,19 @@ describe("Sinister Strike (45077)", () => {
     expect(count(run.events, "encounterCardRevealed")).toBe(1);
   });
 
-  it("WHEN REVEALED (Hero): a reset it causes leaves no counters, so the villain does not attack", () => {
+  // RRG v1.8 p.38; owner decision 2026-10-16 (audit finding 18), reversing Q2 = A.
+  it("WHEN REVEALED (Hero): the counter that will reset the card is there for 'Then', so the villain attacks; the reset follows the reveal (RRG v1.8 p.38)", () => {
     const s = withCounters(setupGame(), 3);
     const run = round(s, { reveals: [SINISTER_STRIKE], hero: true });
     expect(counters(run.state)).toBe(0);
-    // Rhino's own attack only. (Side B reveals Vulture, whose quickstrike is the other attack of the phase.)
+    // Rhino's own attack and the card's. (Side B reveals Vulture, whose quickstrike is the third attack of the phase.)
     const rhino = s.villains[0]!.instanceId;
-    expect(run.events.filter((e) => e.type === "attackResolved" && e.enemyInstanceId === rhino)).toHaveLength(1);
-    expect(count(run.events, "attackResolved")).toBe(2);
+    const rhinoAttacks = run.events.flatMap((e, i) =>
+      e.type === "attackResolved" && e.enemyInstanceId === rhino ? [i] : [],
+    );
+    expect(rhinoAttacks).toHaveLength(2);
+    expectCounterBeforeThenBeforeReset(run.events, rhinoAttacks[1]!);
+    expect(count(run.events, "attackResolved")).toBe(3);
   });
 });
 
@@ -490,11 +539,16 @@ describe("Nowhere is Safe (45079)", () => {
     expect(discarded(run.events, NOWHERE)).toBe(1);
   });
 
-  it("WHEN REVEALED: a reset it causes leaves no counters, so 'Then, if it has any counters' is false and nothing is discarded", () => {
+  // RRG v1.8 p.38; owner decision 2026-10-16 (audit finding 18), reversing Q2 = A.
+  it("WHEN REVEALED: the counter that will reset the card is there for 'Then, if it has any counters', so the upgrade is discarded; the reset follows the reveal (RRG v1.8 p.38)", () => {
     const { state, upgrade } = withUpgrade();
     const run = round(withCounters(state, 3), { reveals: [NOWHERE] });
     expect(counters(run.state)).toBe(0);
-    expect(playerOf(run.state, P1).discard).not.toContain(upgrade);
+    expect(playerOf(run.state, P1).discard).toContain(upgrade);
+    const upgradeGone = run.events.findIndex(
+      (e) => e.type === "cardMoved" && e.instanceId === upgrade && e.to.kind === "discard",
+    );
+    expectCounterBeforeThenBeforeReset(run.events, upgradeGone);
   });
 
   it("BOOST: after Rhino's scheme resolves, one pursuit counter", () => {

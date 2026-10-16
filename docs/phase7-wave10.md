@@ -907,12 +907,22 @@ FFG ruling on these cards: 28A is the stronger rules conclusion, 29B a well-supp
 - **33A.** Toughness on a revealed minion stays where it is: the tough status card is given as the minion enters play,
   before its When Revealed (RRG 1.8 "Toughness", p. 45, is worded as a Forced Response; the owner keeps the built
   order).
+  **Superseded 2026-10-16** (rules audit finding 18): under the user's order of rules authority (CLAUDE.md), RRG 1.8
+  "Toughness" (p. 45: "Forced Response: After this character enters play, give it a tough status card") and "Reveal"
+  (p. 38) win, so a character entering play while a card is being revealed gets its tough status card once the
+  reveal's steps are done, after its When Revealed and before Quickstrike and Teamwork (an engine call: the RRG would
+  have the first player order these forced responses; toughness has nothing to choose, so it goes first). With no
+  reveal in progress it is still placed as the card enters play (38A).
 - **34B.** A minion with both Quickstrike and Teamwork: the first player chooses which resolves first.
 
 **Answered 2026-10-12, second list** (`35B 36B 37A 38A 39A 40A 41A 42B 43B`; the questions are in the PR's top table):
 
 - **35B.** Every revealed encounter card that enters play, not only a minion, holds the responses to its entering play
   until its reveal has finished (RRG 1.8 "Reveal", p. 38).
+  **Generalised 2026-10-16** (rules audit finding 18; with 32B): every response window triggered while a card is being
+  revealed waits for the end of the reveal, whatever the occurrence (threat placed by incite or a When Revealed, any
+  card entering play, damage, status cards, draws, discards), and opens in 39A's first window. Interrupts are not held.
+  Peril still bars the other players' optional responses in that window (`resolve/reveal-hold.ts`).
 - **36B.** Teamwork resolving after a When Revealed that moved the minion activates against the player the minion is
   engaged with as it resolves (RRG 1.8 "Teamwork", p. 43). Quickstrike stays on the player engaged by the reveal.
 - **37A.** The first player is asked to order Quickstrike and Teamwork only when both would do something.
