@@ -32,7 +32,7 @@ import {
   giveTough,
   hasStatus,
   ifThen,
-  modifyAttack,
+  extraBoostCardsForVillain,
   moveCards,
   named,
   on,
@@ -305,7 +305,7 @@ export const NEBULA = defineAbilities({
   // "Give the villain 1 additional boost card for this activation" is `modifyAttack({ extraBoostCards })`, not
   // `giveBoostCard` (which deals a facedown card *outside* an activation, flipped next time — the validator
   // rejects `giveBoostCard` inside a Boost ability for exactly this reason; `dsl/effects.ts`'s own docblock).
-  "16138.boost": boost(modifyAttack({ extraBoostCards: 1 })),
+  "16138.boost": boost(extraBoostCardsForVillain()),
 
   // Pirate Lackey — Quickstrike (data). Forced Response: After this minion attacks and damages you, remove the top
   // card of your deck from the game. [star] Boost: Give the villain 1 additional boost card for this activation.
@@ -313,7 +313,7 @@ export const NEBULA = defineAbilities({
     on.enemyAttacks("self", { damages: true }),
     moveCards(topOfDeck(1, you), "removedFromGame"),
   ),
-  "16139.boost": boost(modifyAttack({ extraBoostCards: 1 })),
+  "16139.boost": boost(extraBoostCardsForVillain()),
 
   // Sound the Alarms — Each enemy gets +1 ATK. [star] Boost: Reveal this card.
   "16140.sound-the-alarms-constant": constant(gets("atk", 1, query("enemy"))),

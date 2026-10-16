@@ -19,7 +19,7 @@ import {
   host,
   ifThen,
   inPlay,
-  modifyAttack,
+  extraBoostCardsForVillain,
   moveCards,
   not,
   oncePerRoundPerPlayer,
@@ -145,5 +145,5 @@ export const GOBLIN_GEAR = defineAbilities({
     ifThen(inPlay("Advanced Glider"), enemyActivates(theVillain, { against: you })),
     ifThen(not(inPlay("Advanced Glider")), searchAndReveal("Advanced Glider")),
   ),
-  "27141.boost": boost(modifyAttack({ extraBoostCards: 2 })),
+  "27141.boost": boost(extraBoostCardsForVillain(2)),
 });

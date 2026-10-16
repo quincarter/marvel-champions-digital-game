@@ -28,12 +28,14 @@ import type {
 } from "@mc/engine";
 import { abilityId, type EvidenceCombination, type KeywordInstance, type Trait } from "@mc/content";
 import {
+  activatingEnemy,
   amount,
   chosen,
   eachPlayer,
   firstPlayer,
   query,
   readsAtkOf,
+  refMatches,
   self,
   TRAIT,
   you,
@@ -861,6 +863,17 @@ export const modifyAttack = (change: {
   ...(change.boostIconsEach !== undefined ? { boostIconsEach: amount(change.boostIconsEach) } : {}),
   ...(change.noBoost ? { noBoost: true } : {}),
 });
+/**
+ * "Give the villain N additional boost cards for this activation": the extra cards go to the villain only while the
+ * villain is the activating enemy; a minion activating gets nothing extra (ruling, February 28, 2026 (6), Pirate Lackey:
+ * "Because the villain is not activating, do not give it a boost card"). For "this enemy" / "the activating enemy"
+ * wording use plain `modifyAttack({ extraBoostCards })`. With `name`, only that named villain (Mansion Attack, Masterful Mirage).
+ */
+export const extraBoostCardsForVillain = (count: Amount = 1, name?: string): EffectSpec =>
+  ifThen(
+    refMatches(activatingEnemy, query("villain", name === undefined ? {} : { name })),
+    modifyAttack({ extraBoostCards: count }),
+  );
 /**
  * "That thwart removes 1 additional threat" (Operative Skill, `gambit` 37013; docs/phase7-wave6.md §3.55), from an
  * interrupt to a thwart in progress (`on.thwarts(...)`): the thwart (basic, "(thwart)" ability or event) removes N more

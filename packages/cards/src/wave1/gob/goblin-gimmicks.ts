@@ -9,7 +9,7 @@ import {
   heroAction,
   ifThen,
   made,
-  modifyAttack,
+  extraBoostCardsForVillain,
   not,
   scaled,
   self,
@@ -51,7 +51,7 @@ export const GOBLIN_GIMMICKS = defineAbilities({
   // [star] Boost: Give the villain 1 additional boost card for this activation. Not `giveBoostCard`: this is "for
   // this activation" (`modifyAttack.extraBoostCards`), the validator-enforced distinction `giveBoostCard`'s own doc
   // comment names.
-  "02035.boost": boost(modifyAttack({ extraBoostCards: 1 })),
+  "02035.boost": boost(extraBoostCardsForVillain()),
 
   // Regenerative Healing — When Revealed: The villain heals X damage, X = double the villain's stage number. If no
   // damage was healed this way, this card gains surge. [star] Boost: The villain heals 2 damage.

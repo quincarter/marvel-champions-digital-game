@@ -7,7 +7,7 @@ import {
   defineAbilities,
   each,
   gets,
-  modifyAttack,
+  extraBoostCardsForVillain,
   query,
   resolveSpecialsOf,
   rule,
@@ -81,5 +81,5 @@ export const SINISTER_SIX_ENCOUNTER_ATTACHMENTS = defineAbilities({
   // Identical text to Goblin Gimmicks' Intimidation (`gob` 02035): `modifyAttack({ extraBoostCards: 1 })`, not
   // `giveBoostCard`, applies "for this activation" (attack or scheme alike — a boost card resolving during a scheme
   // activation harmlessly no-ops the attack-only fields `modifyAttack` also carries).
-  "27107.boost": boost(modifyAttack({ extraBoostCards: 1 })),
+  "27107.boost": boost(extraBoostCardsForVillain()),
 });

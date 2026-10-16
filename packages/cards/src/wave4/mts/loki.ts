@@ -20,7 +20,7 @@ import {
   giveTough,
   hasStatus,
   ifThen,
-  modifyAttack,
+  extraBoostCardsForVillain,
   moveCards,
   on,
   placeThreat,
@@ -227,5 +227,5 @@ export const LOKI = defineAbilities({
   // activates against you (attacks in hero form, schemes in alter-ego, §4.1 Q67). [star] Boost: Give Loki an
   // additional boost card and a tough status card.
   "21176.when-revealed": whenRevealed(swapVillain(), enemyActivates(theVillain, { against: you })),
-  "21176.boost": boost(modifyAttack({ extraBoostCards: 1 }), giveTough(theVillain)),
+  "21176.boost": boost(extraBoostCardsForVillain(1, "Loki"), giveTough(theVillain)),
 });

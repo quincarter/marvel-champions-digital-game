@@ -4,7 +4,7 @@ import {
   defineAbilities,
   exhaust,
   ifThen,
-  modifyAttack,
+  extraBoostCardsForVillain,
   moveCards,
   not,
   option,
@@ -45,12 +45,12 @@ export const BADOON_HEADHUNTER = defineAbilities({
       option("Discard 1 card at random from your hand", moveCards(zone("hand", you, { random: 1 }), "discard")),
     ),
   ),
-  "16184.boost": boost(modifyAttack({ extraBoostCards: 1 })),
+  "16184.boost": boost(extraBoostCardsForVillain()),
 
   // Dead to Rights (16185, treachery) — Surge (data). When Revealed: Exhaust your identity. If you cannot, place
   // 2 threat on the main scheme. [star] Boost: Give the villain 1 additional boost card for this activation.
   "16185.when-revealed": whenRevealed(
     ifThen(not(refMatches(yourIdentity, { exhausted: true })), exhaust(yourIdentity), placeThreat(2, theMainScheme)),
   ),
-  "16185.boost": boost(modifyAttack({ extraBoostCards: 1 })),
+  "16185.boost": boost(extraBoostCardsForVillain()),
 });

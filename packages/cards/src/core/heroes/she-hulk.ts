@@ -30,7 +30,7 @@ import {
   ifThen,
   interrupt,
   made,
-  modifyAttack,
+  extraBoostCardsForVillain,
   moveCards,
   named,
   not,
@@ -134,5 +134,5 @@ export const SHE_HULK_NEMESIS = defineAbilities({
     ifThen(not(made("fury")), [heal(damageOn(named(TITANIA)), named(TITANIA)), surge()]),
   ),
   // [star] Boost: Give the villain 1 additional boost card for this activation.
-  "01164.boost": boost(modifyAttack({ extraBoostCards: 1 })),
+  "01164.boost": boost(extraBoostCardsForVillain()),
 });

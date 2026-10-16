@@ -30,6 +30,7 @@ import {
   ifThen,
   interrupt,
   made,
+  extraBoostCardsForVillain,
   modifyAttack,
   moveCards,
   named,
@@ -245,7 +246,7 @@ export const RONAN = defineAbilities({
   // attacks you with +1 ATK. [star] Boost: Give the villain 1 additional boost card for this activation.
   "16116.when-revealed-alter-ego": whenRevealedAlterEgo(enemyScheme(theVillain, { schBonus: 1 })),
   "16116.when-revealed-hero": whenRevealedHero(enemyAttack(theVillain, { against: you, atkBonus: 1 })),
-  "16116.boost": boost(modifyAttack({ extraBoostCards: 1 })),
+  "16116.boost": boost(extraBoostCardsForVillain()),
 
   // Kree Militants (modular: 16131–16134) ----------------------------------------------------------------------
 

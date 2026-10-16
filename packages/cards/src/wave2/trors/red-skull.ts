@@ -59,7 +59,7 @@ import {
   yourIdentity,
   zone,
 } from "../../dsl/index.js";
-import { cards, modifyAttack } from "../../dsl/effects.js";
+import { cards, extraBoostCardsForVillain, modifyAttack } from "../../dsl/effects.js";
 import { cardName } from "../names.js";
 
 const WEAPON = trait("WEAPON");
@@ -154,7 +154,7 @@ export const RED_SKULL_SET = defineAbilities({
   // card. "Another boost card" reads as one more for *this* activation (`modifyAttack.extraBoostCards`), since
   // this card is itself resolving as a boost card during one — the validator refuses `giveBoostCard` (a *future*
   // boost, waiting facedown) inside a Boost ability for exactly this reason (`dsl/validate.ts`).
-  "04131.boost": boost(giveTough(theVillain), modifyAttack({ extraBoostCards: 1 })),
+  "04131.boost": boost(giveTough(theVillain), extraBoostCardsForVillain()),
 
   // Red Skull's Luger — Attach to Red Skull (data). [star] his attacks gain piercing and ranged. Hero Action:
   // spend [E][M][P] → discard. [star] Boost: attach to Red Skull.

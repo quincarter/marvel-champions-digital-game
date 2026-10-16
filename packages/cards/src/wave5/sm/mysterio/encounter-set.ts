@@ -20,7 +20,7 @@ import {
   heroAction,
   ifThen,
   instead,
-  modifyAttack,
+  extraBoostCardsForVillain,
   moveCards,
   moveCardsInto,
   option,
@@ -70,7 +70,7 @@ export const MYSTERIO_ENCOUNTER_SET = defineAbilities({
   ),
   // [star] Boost: Give Mysterio 1 additional boost card this activation — the validator's own "inside a Boost
   // ability" shape for "1 additional boost card for this activation" (`dsl/validate.ts`).
-  "27090.boost": boost(modifyAttack({ extraBoostCards: 1 })),
+  "27090.boost": boost(extraBoostCardsForVillain(1, "Mysterio")),
 
   // Shifting Apparition (27091, minion; Guard/HP/ATK/SCH/boostIcons are data) — When Defeated: If this minion was
   // defeated with excess damage, the defeating player shuffles the top card of the encounter deck into their deck.
