@@ -13,6 +13,8 @@ import { surface, typeRole, WEB_FONTS } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS, POOL_VERSION } from "../content/pool.js";
 import { deckOptionsOf, preconDecks } from "../view/deck-list-model.js";
+import { replacementCandidatesOf } from "../view/replacement-candidates.js";
+import { applyDeckSwaps } from "../view/name-conflicts.js";
 import { corePlayerForSeat } from "../view/deck-seat.js";
 import { tableRulesOf } from "../settings.js";
 import { addSeat, initialSetupDraft, toSessionConfig } from "../view/setup-draft.js";
@@ -146,6 +148,50 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
     return { key: SCENES.setup, data: { draft } satisfies TableSetupData };
   }
 
+  // `?screen=name-conflict`: the "Cards that can't be played" sheet over Take your seats for Quicksilver (Order and
+  // Chaos swapped out for a legal filler, so a Team-Up card can replace his Scarlet Witch ally; RRG 1.8 p. 50) beside
+  // Scarlet Witch. Add `&noteam=1` to keep the starter's own Order and Chaos (the row then offers only Keep).
+  if (screen === "name-conflict") {
+    const all = preconDecks(POOL_VERSION);
+    const quicksilver = all.find((d) => (d.id as string) === "precon:qsv-protection");
+    const scarletWitch = all.find((d) => (d.id as string) === "precon:scw-justice");
+    const identity = POOL_CARDS.find((c) => c.id === quicksilver?.identityCardId);
+    if (!quicksilver || !scarletWitch || identity?.type !== "hero_identity") return null;
+    const filler =
+      new URLSearchParams(location.search).get("noteam") === "1"
+        ? undefined
+        : replacementCandidatesOf({
+            deck: quicksilver,
+            fromCardId: "14018",
+            seatedHeroes: [identity],
+            identity,
+            pool: POOL_CARDS,
+          })[0]?.card.id;
+    const decks = [
+      filler
+        ? applyDeckSwaps(quicksilver, [{ deckId: quicksilver.id as string, from: "14018", to: filler as string }])
+        : quicksilver,
+      scarletWitch,
+    ];
+    const draft = initialSetupDraft({
+      scenarioId: POOL_SCENARIOS[0]!.id as string,
+      seatDeckId: quicksilver.id as string,
+      seed: rollSeed(),
+    });
+    return {
+      key: SCENES.nameConflict,
+      data: {
+        backdrop: { draft } satisfies SeatsData,
+        decks,
+        swaps: [],
+        kept: [],
+        tableRules: tableRulesOf(appSession().settings),
+        continueLabel: "Play",
+        onChange: () => undefined,
+        onContinue: () => undefined,
+      },
+    };
+  }
   // `?screen=civil-war-builder[&scenario=<leader scenario id>][&entry=build][&step=1..5]`: the Civil War scenario builder on
   // the cards package's own `cw` data (the scenarios are not in the client pool until the box is scripted). Default is
   // "Customize" on Iron Man (the review step); `entry=build` is the "Build your own" tile (the side step).
@@ -661,7 +707,11 @@ export class BootScene extends Phaser.Scene {
         // exactly like a real pause — `scene.launch`, never `scene.start`,
         // so Board keeps drawing (`scenes/pause.ts`'s own doc comment: "the
         // board keeps running underneath, exactly like every other overlay").
-        if (jump.key === SCENES.rules || jump.key === SCENES.settings || jump.key === SCENES.inspect) {
+        if (jump.key === SCENES.nameConflict) {
+          const { backdrop, ...sheet } = jump.data as { backdrop: SeatsData } & Record<string, unknown>;
+          this.scene.start(SCENES.seats, backdrop);
+          this.scene.launch(SCENES.nameConflict, { ...sheet, from: SCENES.seats });
+        } else if (jump.key === SCENES.rules || jump.key === SCENES.settings || jump.key === SCENES.inspect) {
           this.scene.start(SCENES.board);
           this.scene.launch(jump.key, jump.data);
         } else {

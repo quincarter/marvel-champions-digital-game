@@ -21,9 +21,11 @@ import { unlocks } from "../progression/progression.js";
 import { hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { bindHoldTarget } from "../ui/hold-target.js";
 import { textStyle } from "../ui/theme.js";
+import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { McButton, clampLines, fitText } from "../ui/widgets.js";
+import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import { aspectStampOf } from "../view/aspect-stamp.js";
 import type { Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
@@ -33,6 +35,7 @@ import {
   type DeckSwap,
   type KeptConflict,
   type NameConflict,
+  ownCardMark,
   sheetSubtitle,
 } from "../view/name-conflicts.js";
 import {
@@ -72,6 +75,7 @@ const SHEET_ROW_HEIGHT = 128;
 const PICK_ROW_HEIGHT = 90;
 const BUTTON_TYPE = { ...typeRole.label, size: 12 };
 const GAP = 8;
+const THUMB_WIDTH = 52;
 
 /** The picker's own state: which entry is being replaced, the legal cards best first and the one selected. */
 interface Picker {
@@ -91,6 +95,9 @@ export class NameConflictOverlay extends Phaser.Scene {
   #route: FocusRoute | null = null;
   #sheetScroll = new ListScroll();
   #pickerScroll = new ListScroll();
+  /** The desktop hover popover over the picker's card pictures. */
+  #hover: HoverPreview | null = null;
+  #candidateCache = new Map<string, readonly ReplacementCandidate[]>();
 
   constructor() {
     super(SCENES.nameConflict);
@@ -101,6 +108,7 @@ export class NameConflictOverlay extends Phaser.Scene {
     this.#swaps = [...data.swaps];
     this.#kept = [...data.kept];
     this.#picker = null;
+    this.#candidateCache.clear();
     this.#sheetScroll = new ListScroll();
     // The list is taken from the decks as they stand, so every card that still clashes shows, including the ones the
     // player already kept on an earlier visit; a card already replaced is gone from its deck and is not listed.
@@ -112,12 +120,18 @@ export class NameConflictOverlay extends Phaser.Scene {
     this.input.enabled = true;
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
+    this.#hover = new HoverPreview(this, {
+      cardIds: () => this.#hoverCards(),
+      area: (pointer) => screenHoverArea(this, pointer, { blocked: () => this.scene.isActive(SCENES.inspect) }),
+    });
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.inspect),
       onCancel: () => (this.#picker ? this.#closePicker() : this.#close()),
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
+      this.#hover?.destroy();
+      this.#hover = null;
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
       this.#list?.destroy();
@@ -144,6 +158,7 @@ export class NameConflictOverlay extends Phaser.Scene {
   }
 
   #changed(): void {
+    this.#candidateCache.clear();
     this.#data.onChange([...this.#swaps], [...this.#kept]);
   }
 
@@ -166,10 +181,34 @@ export class NameConflictOverlay extends Phaser.Scene {
     this.#draw();
   }
 
+  /** Who can replace this row's card, best first; computed by the view model from the engine's deck rules, once per answer. */
+  #candidatesFor(entry: Entry): readonly ReplacementCandidate[] {
+    const key = `${entry.conflict.deckId}|${entry.conflict.cardId}`;
+    let found = this.#candidateCache.get(key);
+    if (!found) {
+      found = this.#computeCandidates(entry);
+      this.#candidateCache.set(key, found);
+    }
+    return found;
+  }
+
+  /** A hero's own card is replaceable only when a Team-Up card qualifies (RRG 1.8 p. 50); any other card always is. */
+  #canReplace(entry: Entry): boolean {
+    return !entry.conflict.identitySpecific || this.#candidatesFor(entry).length > 0;
+  }
+
   #openPicker(entry: Entry): void {
+    if (!this.#canReplace(entry)) return;
+    const candidates = this.#candidatesFor(entry);
+    this.#picker = { entry, candidates, selected: recommendedReplacementOf(candidates) as string | null };
+    this.#pickerScroll = new ListScroll();
+    this.#draw();
+  }
+
+  #computeCandidates(entry: Entry): readonly ReplacementCandidate[] {
     const { conflict } = entry;
     const base = this.#data.decks.find((deck) => (deck.id as string) === conflict.deckId);
-    if (!base) return;
+    if (!base) return [];
     // The deck as it stands without this card's own replacement, so choosing again swaps from the original card.
     const others = this.#swaps.filter((s) => !(s.deckId === conflict.deckId && s.from === conflict.cardId));
     const deck = applyDeckSwaps(base, others);
@@ -178,7 +217,7 @@ export class NameConflictOverlay extends Phaser.Scene {
       .map((d) => CARDS_BY_ID.get(d.identityCardId as string))
       .filter((card): card is HeroIdentityCard => card?.type === "hero_identity");
     const identity = CARDS_BY_ID.get(deck.identityCardId as string);
-    if (identity?.type !== "hero_identity") return;
+    if (identity?.type !== "hero_identity") return [];
     const unscripted = new Map<string, boolean>();
     const playable = (card: AnyCard): boolean => {
       let known = unscripted.get(card.id as string);
@@ -192,7 +231,7 @@ export class NameConflictOverlay extends Phaser.Scene {
       }
       return !known;
     };
-    const candidates = replacementCandidatesOf({
+    return replacementCandidatesOf({
       deck,
       fromCardId: conflict.cardId,
       seatedHeroes: heroes,
@@ -203,9 +242,6 @@ export class NameConflictOverlay extends Phaser.Scene {
       isUnlocked: (card) => unlocks().waveLock(card.cycleId as string | undefined) === null,
       isPlayable: playable,
     });
-    this.#picker = { entry, candidates, selected: recommendedReplacementOf(candidates) as string | null };
-    this.#pickerScroll = new ListScroll();
-    this.#draw();
   }
 
   #closePicker(): void {
@@ -273,7 +309,10 @@ export class NameConflictOverlay extends Phaser.Scene {
         0,
         picker
           ? `In ${picker.entry.conflict.heroName}'s deck. Right-click or hold a card to inspect it.`
-          : sheetSubtitle(this.#entries.map((entry) => entry.conflict.identitySpecific)),
+          : sheetSubtitle(
+              this.#entries.map((entry) => entry.conflict.identitySpecific),
+              this.#entries.map((entry) => entry.conflict.identitySpecific && this.#canReplace(entry)),
+            ),
         textStyle(typeRole.body, surface.ink.hex, ink.secondary),
       )
       .setFontSize(13)
@@ -333,6 +372,23 @@ export class NameConflictOverlay extends Phaser.Scene {
     }
     this.#route?.set(order, stops);
     this.#publish();
+    this.#hover?.onDraw();
+  }
+
+  /** The picker's card pictures as they sit now (the list scrolls without a draw), clipped to the list's window. */
+  #hoverCards(): ReadonlyMap<string, HoverCardIdRect> {
+    const found = new Map<string, HoverCardIdRect>();
+    const picker = this.#picker;
+    const list = this.#list;
+    if (!picker || !list) return found;
+    picker.candidates.forEach(({ card }, index) => {
+      const at = list.rectFor(index);
+      const thumb = { x: at.x + 4 + 6, y: at.y + 6, width: THUMB_WIDTH, height: PICK_ROW_HEIGHT - 6 - 12 };
+      const rect = clipHoverRect(thumb, list.rect);
+      const cardId = card.id as string;
+      if (rect) found.set(hoverSlotOf(cardId, `pick${index}`), { ...rect, cardId, through: true });
+    });
+    return found;
   }
 
   #addButton(
@@ -367,11 +423,11 @@ export class NameConflictOverlay extends Phaser.Scene {
     const entries = this.#entries;
     const clip = (): Rect | null => this.#list?.rect ?? null;
     const suppressClick = (): boolean => this.#list?.isDragSuppressingClick ?? false;
-    const buttonRects = (rect: Rect, rowIsOwnCard: boolean): { replace: Rect; keep: Rect } => {
+    const buttonRects = (rect: Rect, keepOnly: boolean): { replace: Rect; keep: Rect } => {
       const w = (rect.width - ROW_PAD * 2 - GAP) / 2;
       const y = rect.y + SHEET_ROW_HEIGHT - 6 - ROW_PAD - hit.target;
-      // A hero's own card cannot be swapped: no Replace at all, one full-width acknowledgment.
-      if (rowIsOwnCard) {
+      // A hero's own card with no qualifying Team-Up cannot be swapped: no Replace, one full-width acknowledgment.
+      if (keepOnly) {
         const full = { x: rect.x + ROW_PAD, y, width: rect.width - ROW_PAD * 2, height: hit.target };
         return { replace: full, keep: full };
       }
@@ -400,7 +456,7 @@ export class NameConflictOverlay extends Phaser.Scene {
       objects.push(line);
       const mark =
         status === "pending" && entry.conflict.identitySpecific
-          ? `${entry.conflict.heroName}'s own card · can only be spent as a resource`
+          ? ownCardMark(entry.conflict.heroName, this.#canReplace(entry))
           : status === "replaced"
             ? `✓ Replaced with ${this.#replacementNameOf(entry)}`
             : status === "kept"
@@ -418,12 +474,13 @@ export class NameConflictOverlay extends Phaser.Scene {
       );
       fitText(statusText, textWidth, typeRole.emphasis.size + 1);
       objects.push(statusText);
-      const ownCard = entry.conflict.identitySpecific;
-      const rects = buttonRects({ ...row, y: rect.y }, ownCard);
-      if (!ownCard) {
+      const canReplace = this.#canReplace(entry);
+      const rects = buttonRects({ ...row, y: rect.y }, !canReplace);
+      if (canReplace) {
         const replace = new McButton(this, {
           kind: status === "replaced" ? "secondary" : "primary",
-          label: status === "replaced" ? "Change" : "Replace",
+          label:
+            status === "replaced" ? "Change" : entry.conflict.identitySpecific ? "Replace with Team-Up" : "Replace",
           type: BUTTON_TYPE,
           rect: rects.replace,
           onClick: () => this.#openPicker(entry),
@@ -458,9 +515,9 @@ export class NameConflictOverlay extends Phaser.Scene {
       const keepKey = `keep:${index}`;
       const place = (which: "replace" | "keep") => (): Rect => {
         const row = list.rectFor(index);
-        return buttonRects({ ...row, width: row.width - 8 }, entry.conflict.identitySpecific)[which];
+        return buttonRects({ ...row, width: row.width - 8 }, !this.#canReplace(entry))[which];
       };
-      if (!entry.conflict.identitySpecific)
+      if (this.#canReplace(entry))
         stops.set(replaceKey, {
           rect: place("replace"),
           activate: () => this.#openPicker(entry),
@@ -471,7 +528,7 @@ export class NameConflictOverlay extends Phaser.Scene {
         activate: () => this.#keep(entry),
         ensureVisible: () => list.scrollIntoView(index),
       });
-      if (!entry.conflict.identitySpecific) order.push(replaceKey);
+      if (this.#canReplace(entry)) order.push(replaceKey);
       order.push(keepKey);
     });
   }
@@ -524,7 +581,8 @@ export class NameConflictOverlay extends Phaser.Scene {
   }
 
   #renderPickRow(rect: Rect, picker: Picker, index: number): VirtualListRow {
-    const { card } = picker.candidates[index]!;
+    const candidate = picker.candidates[index]!;
+    const { card } = candidate;
     const cardId = card.id as string;
     const selected = picker.selected === cardId;
     const row: Rect = { x: rect.x + 4, y: rect.y, width: rect.width - 12, height: PICK_ROW_HEIGHT - 6 };
@@ -535,7 +593,7 @@ export class NameConflictOverlay extends Phaser.Scene {
     g.lineStyle(selected ? 5 : 2, surface.ink.hex, 1).strokeRect(row.x, row.y, row.width, row.height);
     objects.push(g);
 
-    const thumbWidth = 52;
+    const thumbWidth = THUMB_WIDTH;
     objects.push(
       renderArtThumb(
         this,
@@ -555,7 +613,9 @@ export class NameConflictOverlay extends Phaser.Scene {
     );
     fitText(name, textWidth, 15);
     objects.push(name);
-    const meta = [card.type.replace(/_/g, " "), index === 0 ? "recommended" : ""].filter(Boolean).join(" · ");
+    const meta = [card.type.replace(/_/g, " "), candidate.teamUp ? "Team-Up" : "", index === 0 ? "recommended" : ""]
+      .filter(Boolean)
+      .join(" · ");
     const metaText = this.add.text(
       textX,
       name.y + name.height + 4,

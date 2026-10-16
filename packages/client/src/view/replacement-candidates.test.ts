@@ -76,3 +76,54 @@ describe("replacementCandidatesOf", () => {
     expect(three.some(({ card }) => card.name === "Wolverine")).toBe(false);
   });
 });
+
+describe("replacementCandidatesOf: Team-Up replacement of a hero's own card (RRG 1.8 p. 50, Appendix I)", () => {
+  const quicksilver = precon("qsv-protection");
+  const scarletWitch = precon("scw-justice");
+  const SW_ALLY = "14002";
+  const ORDER_AND_CHAOS = "14018";
+  // The starter already holds Order and Chaos (max 1 per deck); a player who built without it, with a legal card in
+  // its place (the first the picker itself offers for it), can swap it in for the Scarlet Witch ally.
+  const filler = replacementCandidatesOf({
+    deck: quicksilver,
+    fromCardId: ORDER_AND_CHAOS,
+    seatedHeroes: [hero(quicksilver)],
+    identity: hero(quicksilver),
+    pool: POOL_CARDS,
+  })[0]!.card.id as string;
+  const noTeamUp = applyDeckSwaps(quicksilver, [
+    { deckId: quicksilver.id as string, from: ORDER_AND_CHAOS, to: filler },
+  ]);
+  const base = {
+    deck: noTeamUp,
+    fromCardId: SW_ALLY,
+    seatedHeroes: [hero(quicksilver), hero(scarletWitch)],
+    identity: hero(quicksilver),
+    pool: POOL_CARDS,
+  };
+
+  it("offers only the Team-Up card naming both seated identities, and the swapped deck validates", () => {
+    const found = replacementCandidatesOf(base);
+    expect(found.map((c) => c.card.id as string)).toEqual([ORDER_AND_CHAOS]);
+    expect(found[0]!.teamUp).toBe(true);
+    const swapped = applyDeckSwaps(noTeamUp, [{ deckId: noTeamUp.id as string, from: SW_ALLY, to: ORDER_AND_CHAOS }]);
+    expect(validateDeck(swapped, POOL_CARDS, { otherSeatIdentityIds: [hero(scarletWitch).id as string] }).ok).toBe(
+      true,
+    );
+    expect(validateDeck(swapped, POOL_CARDS).ok, "only the Team-Up rule makes it legal").toBe(false);
+  });
+
+  it("offers nothing when the other identity is not seated", () => {
+    expect(replacementCandidatesOf({ ...base, seatedHeroes: [hero(quicksilver)] })).toEqual([]);
+    expect(replacementCandidatesOf({ ...base, seatedHeroes: [hero(quicksilver), hero(shadowcat)] })).toEqual([]);
+  });
+
+  it("offers nothing when the deck already holds its one Team-Up copy (a second would break the deck limit)", () => {
+    expect(replacementCandidatesOf({ ...base, deck: quicksilver })).toEqual([]);
+  });
+
+  it("offers nothing when no Team-Up card names both identities", () => {
+    // Colossus is seated beside Quicksilver; the Scarlet Witch ally matches no seated hero, so no Team-Up applies.
+    expect(replacementCandidatesOf({ ...base, seatedHeroes: [hero(quicksilver), hero(colossus)] })).toEqual([]);
+  });
+});

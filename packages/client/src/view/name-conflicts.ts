@@ -39,9 +39,9 @@ export interface NameConflict {
   readonly againstSeat: number;
   /**
    * The card is one of the hero's own identity-specific cards (the deck must hold it: `validateDeck` requires the whole
-   * identity set), so it cannot be replaced by an ordinary card and the sheet offers only Keep. The RRG's Team-Up
-   * replacement for such a card (Appendix I, RRG 1.8 p. 50) is legal in the engine (`validateDeck` with
-   * `otherSeatIdentityIds`; `replacementCandidatesOf` offers it), but the sheet does not offer Replace on these rows yet.
+   * identity set), so it cannot be replaced by an ordinary card. The sheet offers only Keep, unless the RRG's Team-Up
+   * replacement (Appendix I, RRG 1.8 p. 50; `replacementCandidatesOf` asks the engine's `validateDeck` with
+   * `otherSeatIdentityIds`) has a qualifying Team-Up card for the row: then it also offers "Replace with Team-Up".
    */
   readonly identitySpecific: boolean;
   /** True when the match exists only because of the table option; FFG's rule alone would let the card be played. */
@@ -159,12 +159,27 @@ export function withKept(kept: readonly KeptConflict[], choice: KeptConflict): r
 
 /**
  * The sheet's one-line instruction, matched to what its rows offer: a hero's own cards can only be kept, so the line
- * never promises a Replace that no row has.
+ * never promises a Replace that no row has. `teamUp[i]` is true when row i is a hero's own card that a Team-Up card
+ * can replace (it then counts as a row with a Replace).
  */
-export function sheetSubtitle(ownCard: readonly boolean[]): string {
-  if (ownCard.length > 0 && ownCard.every(Boolean)) {
+export function sheetSubtitle(ownCard: readonly boolean[], teamUp: readonly boolean[] = []): string {
+  const keepOnly = ownCard.map((own, i) => own && !teamUp[i]);
+  if (keepOnly.length > 0 && keepOnly.every(Boolean)) {
     return "These are the heroes' own cards, so they stay. Each can still be spent as a resource.";
   }
-  if (ownCard.some(Boolean)) return "Replace a card, or keep it as a resource. A hero's own cards can only be kept.";
+  if (keepOnly.some(Boolean) && teamUp.some(Boolean)) {
+    return "Replace or keep each card. A hero's own card stays, unless a Team-Up card can replace it.";
+  }
+  if (keepOnly.some(Boolean)) return "Replace a card, or keep it as a resource. A hero's own cards can only be kept.";
+  if (teamUp.some(Boolean)) {
+    return "Replace a card, or keep it as a resource. A hero's own card can only be replaced by a Team-Up card.";
+  }
   return "Replace each one, or keep it to spend as a resource.";
+}
+
+/** The status line of an unanswered row: a hero's own card says what can be done with it. */
+export function ownCardMark(heroName: string, teamUpReplaceable: boolean): string {
+  return teamUpReplaceable
+    ? `${heroName}'s own card · a Team-Up card can replace it`
+    : `${heroName}'s own card · can only be spent as a resource`;
 }

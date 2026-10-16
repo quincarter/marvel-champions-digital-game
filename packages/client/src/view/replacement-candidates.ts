@@ -10,6 +10,11 @@
  * Ranking: allies of the same aspect as the old card first (basic for a basic card), then the other legal allies,
  * then every other legal card; within a tier the nearest cost first, then by name. The first row is the recommended
  * default.
+ *
+ * A hero's own identity-specific card (`aspect` "hero:...") can only be replaced by a Team-Up card (RRG 1.8 p. 50,
+ * Appendix I). That is still the engine's call: a card is offered only when it carries the Team-Up keyword, the swapped
+ * deck validates with the other seated identities, and the same deck does NOT validate without them (so the engine
+ * accepted the missing card because of the Team-Up rule). Nothing here compares the names a Team-Up card carries.
  */
 import type { AnyCard, CardId, Deck, HeroIdentityCard } from "@mc/content";
 import { cardsMatch, entersPlayWhenPlayed, validateDeck, type TableRules } from "@mc/engine";
@@ -20,6 +25,8 @@ export interface ReplacementCandidate {
   readonly card: AnyCard;
   /** 0 = same-aspect ally, 1 = other ally, 2 = any other card. */
   readonly tier: 0 | 1 | 2;
+  /** A Team-Up card standing in for a hero's own identity-specific card. */
+  readonly teamUp: boolean;
 }
 
 export interface ReplacementInput {
@@ -39,6 +46,11 @@ export interface ReplacementInput {
 }
 
 const costOf = (card: AnyCard): number => ("cost" in card && typeof card.cost === "number" ? card.cost : 0);
+const hasTeamUp = (card: AnyCard): boolean =>
+  "keywords" in card && (card.keywords as readonly { name: string }[]).some((k) => k.name === "teamUp");
+/** A card of the hero's own identity set (its aspect is the identity's set, "hero:..."). */
+export const isIdentitySpecificCard = (card: AnyCard): boolean =>
+  "aspect" in card && String((card as { aspect: string }).aspect).startsWith("hero:");
 const aspectOf = (card: AnyCard): string => ("aspect" in card ? String((card as { aspect: string }).aspect) : "");
 
 /** The legal replacements for one card, best first. */
@@ -48,17 +60,21 @@ export function replacementCandidatesOf(input: ReplacementInput): readonly Repla
   const copies = deck.cards.filter((e) => (e.cardId as string) === fromCardId).reduce((n, e) => n + e.quantity, 0);
   if (!from || copies === 0) return [];
   const others = seatedHeroes.filter((hero) => hero.id !== identity.id);
+  const otherSeatIdentityIds = others.map((hero) => hero.id as string);
+  const ownCard = isIdentitySpecificCard(from);
   const result: ReplacementCandidate[] = [];
   for (const card of browsablePool(pool, identity, deck.aspects)) {
     if (card.name === from.name || (card.id as string) === fromCardId) continue;
+    if (ownCard && !hasTeamUp(card)) continue;
     if (input.isUnlocked && !input.isUnlocked(card)) continue;
     if (input.isPlayable && !input.isPlayable(card)) continue;
     if (entersPlayWhenPlayed(card) && others.some((hero) => cardsMatch(card, hero, input.tableRules))) continue;
     const swapped = applyDeckSwaps(deck, [{ deckId: deck.id as string, from: fromCardId, to: card.id as string }]);
     // The seated heroes let a Team-Up card replace one of the hero's own matching cards (RRG 1.8 p. 50).
-    if (!validateDeck(swapped, pool, { otherSeatIdentityIds: others.map((hero) => hero.id as string) }).ok) continue;
+    if (!validateDeck(swapped, pool, { otherSeatIdentityIds }).ok) continue;
+    if (ownCard && validateDeck(swapped, pool).ok) continue;
     const tier = card.type === "ally" ? (aspectOf(card) === aspectOf(from) ? 0 : 1) : 2;
-    result.push({ card, tier });
+    result.push({ card, tier, teamUp: ownCard });
   }
   const target = costOf(from);
   return result.sort(

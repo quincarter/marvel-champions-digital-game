@@ -6,6 +6,7 @@ import {
   applyDeckSwaps,
   conflictNoticeOf,
   nameConflictsOf,
+  ownCardMark,
   sheetSubtitle,
   unresolvedConflicts,
   withKept,
@@ -217,5 +218,22 @@ describe("the sheet's instruction matches what its rows offer", () => {
   it("a mix says both, and all replaceable keeps the short line", () => {
     expect(sheetSubtitle([true, false])).toMatch(/Replace a card.*own cards can only be kept/);
     expect(sheetSubtitle([false, false])).toBe("Replace each one, or keep it to spend as a resource.");
+  });
+});
+
+describe("Team-Up rows (RRG 1.8 p. 50)", () => {
+  it("Quicksilver + Scarlet Witch: the Scarlet Witch ally is an identity-specific conflict", () => {
+    const found = nameConflictsOf([{ deck: precon("qsv-protection") }, { deck: precon("scw-justice") }], CARDS_BY_ID);
+    const ally = found.find((c) => c.cardId === "14002");
+    expect(ally?.identitySpecific).toBe(true);
+  });
+
+  it("the subtitle and mark say a Team-Up card can replace a hero's own card when one qualifies", () => {
+    expect(sheetSubtitle([true], [true])).toMatch(/replaced by a Team-Up card/);
+    expect(sheetSubtitle([true], [false])).toMatch(/stay/);
+    expect(sheetSubtitle([true, false], [true, false])).toMatch(/Team-Up/);
+    expect(sheetSubtitle([true, true], [true, false])).toMatch(/own card stays, unless a Team-Up card can replace it/);
+    expect(ownCardMark("Quicksilver", true)).toBe("Quicksilver's own card · a Team-Up card can replace it");
+    expect(ownCardMark("Quicksilver", false)).toBe("Quicksilver's own card · can only be spent as a resource");
   });
 });
