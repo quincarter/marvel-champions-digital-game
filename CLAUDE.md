@@ -50,7 +50,7 @@ This repo defines specialized subagents under `.claude/agents/` that model the r
 | `rules-qa-engineer`            | Regression tests tied to specific rulings/FAQ entries, scenario replay testing, drift detection |
 | `content-release-tracker`      | Keeping the card pool current as new packs/cycles/errata/taboo changes release                  |
 
-See [PLAN.md](PLAN.md) for the build roadmap and current phase.
+See [PLAN.md](PLAN.md) for the build roadmap and current phase, and [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks, CI and the release flow (the README keeps the player-facing status and roadmap).
 
 ### How to split work across agents (decided 2026-09-26)
 
@@ -120,6 +120,6 @@ section current so any session can resume from GitHub alone.
   it fails or if the working tree differs from the commit. `pnpm e2e:verify` runs the same gate ahead of time. Do not
   push past it with `--no-verify` to get around a failure: fix the game or the spec. An agent's own specs passing is
   not the suite passing; run the whole suite before the last push of a piece of client work.
-- **Changelog (changie).** Every change that lands on `main` carries an unreleased changelog fragment: run `changie new -k <Kind> -b "<one line>"` (kinds in `.changie.yaml`: Added, Changed, Fixed, Engine, Content, Docs) and commit the `.changes/unreleased/*.yaml` it writes with the code. Wait a second between two `changie new` calls — fragments are named by kind and timestamp to the second, and a second call in the same second overwrites the first. Releases batch the fragments into `CHANGELOG.md` (README.md covers the release flow).
+- **Changelog (changie).** Every change that lands on `main` carries an unreleased changelog fragment: run `changie new -k <Kind> -b "<one line>"` (kinds in `.changie.yaml`: Added, Changed, Fixed, Engine, Content, Docs) and commit the `.changes/unreleased/*.yaml` it writes with the code. Wait a second between two `changie new` calls — fragments are named by kind and timestamp to the second, and a second call in the same second overwrites the first. Releases batch the fragments into `CHANGELOG.md` ([CONTRIBUTING.md](CONTRIBUTING.md#releases) covers the release flow).
 - Favor explicit, inspectable game state over cleverness — this is the kind of system where a bug means a card behaves wrong in a way a real player will notice ("why didn't Toughness stop that damage?"), so state and effect resolution should be easy to log and step through.
 - When implementing a card or keyword, cite the RRG section or FAQ ruling being followed in code comments only when the behavior is non-obvious from the card text alone (e.g. an interaction order that isn't intuitive).
