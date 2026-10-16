@@ -2188,6 +2188,11 @@ export type EffectSpec =
        * attacked"), and the attack's piercing, overkill and "prevent N damage from this attack" budget are not applied
        * to it. The attacked character is still attacked (it is announced as such) and takes none. Logged on
        * `attackResolved` as `damageTo`.
+       *
+       * The ref may name an ally in play instead, with the same reading: "When an enemy resolves an undefended attack
+       * against you, deal that damage to Robert Kelly" (`mut_gen` 32066), from an interrupt at the attack's damage step
+       * (`TriggerEvent enemyAttackDamageStep`), so the ally takes the attack's damage as the attacker's, and the
+       * attacked identity takes none and uses no tough status card.
        */
       readonly damageTo?: TargetRef;
       /**

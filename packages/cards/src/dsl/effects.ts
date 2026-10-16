@@ -805,6 +805,8 @@ export const modifyAttack = (change: {
    * "Damage from that attack is dealt to the chosen enemy instead of you" (Psychic Misdirection 34033;
    * docs/phase7-wave6.md §3.36), from an interrupt to the enemy attack: the first enemy the ref names, other than the
    * attacker, takes the attack's damage instead, as attack damage from the attacker without being attacked (§4.1 Q18).
+   * An ally the ref names is taken the same way ("deal that damage to Robert Kelly", from an interrupt at the attack's
+   * damage step: `on.enemyAttacks(…, { atDamage: true })`).
    */
   readonly damageTo?: TargetRef;
   /**

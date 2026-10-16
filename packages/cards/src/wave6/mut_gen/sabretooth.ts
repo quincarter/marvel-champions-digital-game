@@ -25,7 +25,6 @@ import {
   encounterSetAside,
   enemyAttack,
   enemyScheme,
-  eventAmount,
   eventDealt,
   eventTarget,
   exhaust,
@@ -38,11 +37,11 @@ import {
   heroAction,
   heroResponse,
   ifElse,
-  instead,
   ifThen,
   advanceMainScheme,
   isAttached,
   isHero,
+  modifyAttack,
   named,
   not,
   on,
@@ -63,7 +62,6 @@ import {
   theMainScheme,
   theVillain,
   threatOn,
-  undefendedAttack,
   valueAtLeast,
   varOf,
   when,
@@ -195,9 +193,11 @@ export const SABRETOOTH_ABILITIES = defineAbilities({
   ),
   // Forced Interrupt: When an enemy resolves an undefended attack against you, deal that damage to Robert Kelly.
   "32066.robert-kelly-forced-interrupt": forcedInterrupt(
-    when.damage(YOUR_IDENTITY_QUERY, { fromAttack: true }),
-    // The damage is still the attacker's: the log reads "Robert Kelly took 2 damage from Sabretooth".
-    ifThen(undefendedAttack, instead(dealDamage(eventAmount, self, { sourceFromEvent: true }))),
+    // At the attack's damage step, not on its damage, so a tough status card on the identity does not pre-empt it
+    // (owner decision 2026-10-16; RRG 1.8 "Attack (Enemy Activation)", pp. 8-9, "Damage", p. 14). The damage is
+    // still the attacker's: the log reads "Robert Kelly took 2 damage from Sabretooth".
+    when.enemyAttacks(query("enemy"), { againstYou: true, atDamage: true, undefended: true }),
+    modifyAttack({ damageTo: self }),
   ),
 
   // Adamantium Claws (32067) — Attach to Sabretooth (data). [star] Sabretooth's attacks gain piercing. Hero Action:

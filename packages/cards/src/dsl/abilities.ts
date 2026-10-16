@@ -2801,16 +2801,49 @@ const pattern = (
  */
 const againstYou: Partial<EventPattern> = { playerIs: "controller", usesAttackedPlayer: true };
 
-const enemyAttacks = (
-  by: Who,
-  opts: { readonly againstYou?: boolean; readonly damages?: boolean } = {},
-): EventPattern =>
-  pattern(
-    "enemyAttack",
-    asSource(by),
-    opts.againstYou ? againstYou : {},
-    opts.damages ? { requireResults: { damage: 1 } } : {},
-  );
+/** The options of `on.enemyAttacks` / `on.villainAttacks`. */
+export interface EnemyAttackOptions {
+  readonly againstYou?: boolean;
+  /** "After [enemy] attacks and deals damage": the attack's `damage` result (a response). */
+  readonly damages?: boolean;
+  /**
+   * "When an enemy **resolves** an attack": the interrupt window at the attack's damage step (`TriggerEvent
+   * enemyAttackDamageStep`), once the defender is declared and the boost cards have resolved, before any damage is
+   * dealt, so before a tough status card would discard (RRG 1.8 "Attack (Enemy Activation)", pp. 8-9; "Damage", p. 14;
+   * owner decision 2026-10-16). `againstYou` then reads the attack's target player at that step. An interrupt there
+   * changes the damage with `modifyAttack` (`damageTo`).
+   */
+  readonly atDamage?: boolean;
+  /**
+   * "An **undefended** attack": nobody defends it. With `atDamage`, read at the damage step; otherwise the finished
+   * attack's `undefended` result, so a response ("After an enemy makes an undefended attack").
+   */
+  readonly undefended?: boolean;
+}
+
+/**
+ * "When an enemy resolves an undefended attack against you, deal that damage to Robert Kelly" is
+ * `forcedInterrupt(on.enemyAttacks({ categories: ["enemy"] }, { againstYou: true, atDamage: true, undefended: true }),
+ * modifyAttack({ damageTo: self }))`.
+ */
+const enemyAttacks = (by: Who, opts: EnemyAttackOptions = {}): EventPattern =>
+  opts.atDamage
+    ? pattern(
+        "enemyAttackDamageStep",
+        asSource(by),
+        opts.againstYou ? { playerIs: "controller" } : {},
+        opts.undefended ? { eventAtLeast: { undefended: 1 } } : {},
+      )
+    : pattern(
+        "enemyAttack",
+        asSource(by),
+        opts.againstYou ? againstYou : {},
+        opts.damages || opts.undefended
+          ? {
+              requireResults: { ...(opts.damages ? { damage: 1 } : {}), ...(opts.undefended ? { undefended: 1 } : {}) },
+            }
+          : {},
+      );
 
 /** A basic power, as `basicPowerUsing`/`basicPowerUsed` name it. */
 type BasicPowerName = "attack" | "thwart" | "defense" | "recover";
@@ -2831,8 +2864,7 @@ export const on = {
   /** "When/After [enemy] attacks (you)" — `by: "self"` for the card's own attacks, `"host"` for the attached enemy. */
   enemyAttacks,
   /** "When the villain (initiates an) attack(s) (against you)". */
-  villainAttacks: (opts: { readonly againstYou?: boolean; readonly damages?: boolean } = {}): EventPattern =>
-    enemyAttacks({ categories: ["villain"] }, opts),
+  villainAttacks: (opts: EnemyAttackOptions = {}): EventPattern => enemyAttacks({ categories: ["villain"] }, opts),
   /** "When/After [enemy] schemes". */
   enemySchemes: (by: Who): EventPattern => pattern("enemyScheme", asSource(by)),
   /** "After [enemy] schemes or attacks". */

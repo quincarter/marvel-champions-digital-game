@@ -372,6 +372,30 @@ export type TriggerEventBody =
       /** "That attack does not get a boost card" (Escaped Convict, I See You): step 1 deals nothing. */
       readonly noBoost?: boolean;
     }
+  /**
+   * An enemy attack has reached its damage step (RRG 1.8 "Attack (Enemy Activation)", pp. 8-9: step 2 has declared
+   * the defender, step 3 has resolved the boost cards, a defending ally that left play has made the attack undefended
+   * (step 5), and step 4's damage is not yet dealt). An interrupt: "When an enemy resolves an undefended attack against
+   * you, deal that damage to [this ally]" (`on.enemyAttacks(…, { atDamage: true, undefended: true })`). RRG 1.8
+   * "Interrupt" (p. 25) resolves it before the damage, so ahead of the attack's `dealDamage` and of the tough status
+   * card that damage would discard (RRG 1.8 "Damage", p. 14; owner decision 2026-10-16: attack-triggered interrupts
+   * are scripted on the attack, not on its damage, so a tough card does not pre-empt them). An interrupt's
+   * `modifyAttack` (`damageTo`, `atkBonus`, …) changes the damage this step then deals.
+   *
+   * `undefended` is 1 when nobody defends the attack now (the attack's `undefended` result), else 0, so a pattern
+   * narrows by it with `eventAtLeast` / `eventAtMost`. `targetPlayerId` ("you") and `targetInstanceId` are the attack's
+   * target as the damage step reads them: the defending player and the defender, or the attacked player's identity
+   * when undefended. Pushed only when an ability could react (`heard`), so other games resolve as before.
+   */
+  | {
+      readonly kind: "enemyAttackDamageStep";
+      readonly enemyInstanceId: InstanceId;
+      readonly attackedPlayerId: PlayerId;
+      readonly targetPlayerId: PlayerId;
+      readonly targetInstanceId: InstanceId;
+      readonly defenderInstanceId: InstanceId | null;
+      readonly undefended: 0 | 1;
+    }
   | {
       readonly kind: "enemyScheme";
       readonly enemyInstanceId: InstanceId;
@@ -2033,6 +2057,8 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "boostCardTurnedFaceup":
     // "When boost icons on an encounter card would be counted" (docs/phase7-wave2.md §3.6): the count is still to come.
     case "boostIconsCounting":
+    // "When an enemy resolves an undefended attack against you": the attack's damage is still to come.
+    case "enemyAttackDamageStep":
     // "When attached character would ready" (docs/phase7-wave2.md §3.11): the ready is still to come.
     case "cardReadying":
     // "When you use one of your hero's basic powers" (§17.4): the power is still to come.
@@ -2158,6 +2184,10 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       );
     case "enemyAttack":
       return of([event.enemyInstanceId], [event.targetInstanceId], [event.attackedPlayerId, event.targetPlayerId]);
+    // "Against you" at the damage step is the attack's target player as it stands now (the defending player, or the
+    // attacked player when undefended).
+    case "enemyAttackDamageStep":
+      return of([event.enemyInstanceId], [event.targetInstanceId], [event.targetPlayerId]);
     case "enemyScheme":
       return of([event.enemyInstanceId], [], [event.playerId]);
     case "characterAttacked":

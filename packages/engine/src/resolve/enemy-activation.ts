@@ -1270,6 +1270,25 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
       // The hero took over a labeled defense: its `defended` announcement resolves first, then this step runs again.
       if (current === null) return;
       frame = current;
+      // The interrupt window at the damage step (`TriggerEvent enemyAttackDamageStep`): the defender is known, the
+      // boost cards have resolved, and nothing is dealt yet (RRG 1.8 "Attack (Enemy Activation)", pp. 8-9; "Interrupt",
+      // p. 25). Only when an ability could react; the step runs again once the event has resolved.
+      if (!frame.damageStepAnnounced) {
+        const damageStep: TriggerEvent = {
+          kind: "enemyAttackDamageStep",
+          enemyInstanceId: frame.enemyInstanceId,
+          attackedPlayerId: frame.attackedPlayerId,
+          targetPlayerId: frame.targetPlayerId,
+          targetInstanceId: frame.targetInstanceId,
+          defenderInstanceId: frame.defenderInstanceId,
+          undefended: (activationVars(ctx, frame.eventFrameId).undefended ?? 0) > 0 ? 1 : 0,
+        };
+        if (heard(ctx.state, ctx.deps, damageStep)) {
+          setFrame(ctx, { ...frame, damageStepAnnounced: true });
+          pushEvent(ctx, damageStep);
+          return;
+        }
+      }
       setFrame(ctx, { ...frame, stage: "done" });
       // RRG 1.8 step 4 (p. 9). The arithmetic and the two rules around it live in `defend-preview.ts`, so the defend
       // prompt's damage ranges and the damage actually dealt can never drift apart.

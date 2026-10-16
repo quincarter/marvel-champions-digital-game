@@ -635,6 +635,11 @@ export type StackFrame =
        */
       readonly boostsGiven?: number;
       readonly boost?: BoostInProgress | null;
+      /**
+       * The damage step has announced `TriggerEvent enemyAttackDamageStep`, so on its next run it deals the damage.
+       * Absent in a game where nothing listens for that event (the step deals the damage on its first run).
+       */
+      readonly damageStepAnnounced?: true;
     })
   /** RRG "Scheme (Enemy Activation)". */
   | (FrameBase & {
