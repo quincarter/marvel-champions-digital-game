@@ -14,6 +14,7 @@ import {
   isMarketPendingChoice,
   MARKET_TIER_CAP,
   marketCatalogOf,
+  marketTiersOf,
   marketViewOf,
   type CardOf,
   type MarketCartItem,
@@ -141,12 +142,12 @@ describe("marketViewOf", () => {
     expect(view.receipt).toEqual([{ heroName: wallet.heroName, cardName: cardOf(oneUnit)!.name, price, inCart: true }]);
   });
 
-  test("a card priced above the running balance (before minus the cart) reads `unaffordable` with `need` its price", async () => {
+  test("a card priced above the running balance (before minus the cart) reads `unaffordable` with `need` the shortfall", async () => {
     const { record, pending } = await firstMarketChoice();
     const view = marketViewOf(record.seats, pending, [], [], catalog, cardOf, heroNameOf(record), catalog.length);
     const active = view.wallets.find((wallet) => wallet.active)!;
     const pricey = view.shelf.find((row) => row.price > active.after && row.state.kind !== "taken");
-    if (pricey) expect(pricey.state).toEqual({ kind: "unaffordable", need: pricey.price });
+    if (pricey) expect(pricey.state).toEqual({ kind: "unaffordable", need: pricey.price - active.after });
   });
 
   test("a card bought by a teammate (a committed answer) reads as `taken` with their name, never as this seat's own cart", async () => {
@@ -242,5 +243,30 @@ describe("checkout: a cart spanning tiers 1, 2 and 3 against the real runner", (
     const grantedIds = finalSeat.grants.map((grant) => grant.cardId as string);
     expect(grantedIds).toEqual(expect.arrayContaining([oneUnit, twoUnit, threeUnit]));
     expect((finalSeat.fields.units as { readonly kind: "number"; readonly value: number }).value).toBe(0); // 6 - (1+2+3)
+  });
+});
+
+describe("marketTiersOf", () => {
+  test("groups the whole stall by price, cheapest first, and labels each card with its ability's trait", async () => {
+    const { record, pending } = await firstMarketChoice();
+    const view = marketViewOf(record.seats, pending, [], [], catalog, cardOf, heroNameOf(record), catalog.length);
+    const tiers = marketTiersOf(view.shelf);
+    expect(tiers.map((tier) => tier.price)).toEqual([...tiers.map((tier) => tier.price)].sort((a, b) => a - b));
+    expect(tiers.flatMap((tier) => tier.cards).length).toBe(view.shelf.length);
+    for (const tier of tiers) for (const card of tier.cards) expect(card.price).toBe(tier.price);
+    const thwart = view.shelf.find((card) => card.detail.startsWith("Hero Action (thwart)"));
+    if (thwart) expect(thwart.kindLabel).toBe(`${thwart.typeLabel} · THWART`);
+  });
+
+  test("only what the seat can afford keeps live and in-cart cards, and drops a tier left empty", async () => {
+    const { record, pending } = await firstMarketChoice();
+    const oneUnit = pending.options[0] as string;
+    const cart: MarketCartItem[] = [{ cardId: oneUnit, price: 1 }];
+    const view = marketViewOf(record.seats, pending, [], cart, catalog, cardOf, heroNameOf(record), catalog.length);
+    const tiers = marketTiersOf(view.shelf, true);
+    const kept = tiers.flatMap((tier) => tier.cards);
+    expect(kept.every((card) => card.state.kind === "live" || card.state.kind === "inCart")).toBe(true);
+    expect(kept.some((card) => card.cardId === oneUnit)).toBe(true);
+    expect(tiers.every((tier) => tier.cards.length > 0)).toBe(true);
   });
 });

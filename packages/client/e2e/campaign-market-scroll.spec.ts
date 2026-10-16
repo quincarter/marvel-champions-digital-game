@@ -10,9 +10,10 @@ import {
 } from "./wave6-helpers-a.js";
 
 /**
- * The campaign Market (#175): with the whole stall open, the shelf runs far past the screen, so it scrolls (a swipe
- * on a phone, the wheel on a desktop) and the last card on it can be reached and put in the cart. Before the fix the
- * shelf was drawn at fixed positions with nothing to scroll it, and a phone held sideways could not reach it at all.
+ * The campaign Market (#175): the whole stall is one list of price tiers that runs far past the screen, so it scrolls
+ * (a swipe on a phone, the wheel on a desktop), the price chips jump to a tier, and the last card can be reached and
+ * put in the cart. Before the fix the shelf was drawn at fixed positions with nothing to scroll it, and a phone held
+ * sideways could not reach it at all.
  */
 
 interface Stop {
@@ -69,7 +70,9 @@ async function scrollTo(page: Page, isMobile: boolean, pick: (stops: readonly St
     const back = stops.find((stop) => stop.key === "back")!.rect;
     const done = stops.find((stop) => stop.key === "done")!.rect;
     const top = back.y + back.height + 16;
-    const bottom = done.y - 32;
+    // The scrolling area ends at the bar: its top row is Receipt on a phone, Done elsewhere.
+    const receipt = stops.find((stop) => stop.key === "receipt")?.rect;
+    const bottom = Math.min(done.y, receipt?.y ?? done.y) - 24;
     if (rect.y >= top && rect.y + rect.height <= bottom) return target!;
     // At least 30px, so a drag never reads as a tap on the card under it.
     const wanted = rect.y < top ? rect.y - top - 8 : rect.y + rect.height - bottom + 8;
@@ -85,40 +88,58 @@ async function openMarket(page: Page): Promise<string[]> {
   await page.goto("/?screen=campaign-market&units=20");
   await waitForScene(page, "CampaignMarket", 60_000);
   await expect
-    .poll(async () => (await stopsOf(page)).some((stop) => stop.key === "full-stall"), { timeout: 60_000 })
+    .poll(async () => (await stopsOf(page)).some((stop) => stop.key === "done"), { timeout: 60_000 })
     .toBe(true);
   await settle(page, { quietMs: 400, maxMs: 3000 });
   return errors;
 }
 
+const marketTexts = async (page: Page): Promise<string[]> =>
+  (await visibleTexts(page)).filter((text) => text.scene === "CampaignMarket").map((text) => text.text);
+
+/** Scrolls the stall by hand to its last card and puts it in the cart. */
 async function buyTheLastCard(page: Page, isMobile: boolean): Promise<void> {
-  await scrollTo(page, isMobile, (stops) => stops.find((stop) => stop.key === "full-stall"));
-  await clickStop(page, "full-stall", "CampaignMarket");
-  await settle(page, { quietMs: 400, maxMs: 2000 });
   const cards = (await stopsOf(page)).filter((stop) => stop.key.startsWith("cart:"));
-  expect(cards.length, "the whole stall is on the shelf").toBeGreaterThan(10);
+  expect(cards.length, "the whole stall is on the shelf").toBeGreaterThanOrEqual(28);
   const lastKey = cards.at(-1)!.key;
   await scrollTo(page, isMobile, (stops) => stops.find((stop) => stop.key === lastKey));
   await clickStop(page, lastKey, "CampaignMarket");
   await settle(page, { quietMs: 400, maxMs: 2000 });
-  const texts = (await visibleTexts(page)).filter((text) => text.scene === "CampaignMarket").map((text) => text.text);
-  expect(texts, "the last card went into the cart").toContain("IN YOUR CART");
+  expect(await marketTexts(page), "the last card went into the cart").toContain("IN YOUR CART");
+  expect(await marketTexts(page), "the cart counts it").toContain("1 CARD · 7U");
 }
 
-test("the full stall scrolls and its last card can be bought", async ({ page, isMobile }) => {
+test("the stall scrolls by hand and its last card can be bought", async ({ page, isMobile }) => {
   test.setTimeout(180_000);
   const errors = await openMarket(page);
   await buyTheLastCard(page, isMobile);
   expect(errors).toEqual([]);
 });
 
+test("a price chip jumps to its tier", async ({ page }) => {
+  test.setTimeout(180_000);
+  const errors = await openMarket(page);
+  const before = (await stopsOf(page)).filter((stop) => stop.key.startsWith("cart:")).at(-1)!;
+  await clickStop(page, "price:7", "CampaignMarket");
+  await settle(page, { quietMs: 400, maxMs: 2000 });
+  const after = (await stopsOf(page)).find((stop) => stop.key === before.key)!;
+  expect(after.rect.y, "the 7-unit tier moved up into view").toBeLessThan(before.rect.y);
+  const done = (await stopsOf(page)).find((stop) => stop.key === "done")!.rect;
+  expect(after.rect.y + after.rect.height, "its last card is on screen").toBeLessThanOrEqual(done.y);
+  expect(errors).toEqual([]);
+});
+
 test.describe("a phone held sideways", () => {
   test.use({ viewport: { width: 844, height: 390 } });
 
-  test("the shelf is reachable and the full stall scrolls", async ({ page, isMobile }) => {
+  test("the stall scrolls beside the wallets and its last card can be bought", async ({ page, isMobile }) => {
     test.setTimeout(180_000);
     const errors = await openMarket(page);
     await buyTheLastCard(page, isMobile);
+    await clickStop(page, "receipt", "CampaignMarket");
+    await settle(page, { quietMs: 300, maxMs: 1500 });
+    expect(await marketTexts(page), "the receipt sheet opens").toContain("Receipt");
+    await clickStop(page, "receipt-close", "CampaignMarket");
     expect(errors).toEqual([]);
   });
 });
