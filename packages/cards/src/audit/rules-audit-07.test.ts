@@ -65,13 +65,13 @@ describe("Green Goblin (02014) 'attacks and damages you' (FFG rulings 225-226, J
     expect(responses(events)).toHaveLength(1);
   });
 
-  it.fails("an ally defends and takes all the damage: the identity was not damaged, so the response does not resolve", () => {
+  it("an ally defends and takes all the damage: the identity was not damaged, so the response does not resolve", () => {
     const { events, state } = goblinAttacks(true);
     const firstAttack = firstAttackOf(events);
     const hits = firstAttack.filter((e) => e.type === "damageDealt").map((e) => e.targetInstanceId);
     expect(hits).toHaveLength(1);
     expect(hits).not.toContain(identityOf(state, P1));
-    // Actual: it resolves once, off the ally's damage.
+    // Before the fix: it resolved once, off the ally's damage.
     expect(responses(events)).toHaveLength(0);
   });
 });

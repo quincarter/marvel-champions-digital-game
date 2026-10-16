@@ -46,7 +46,7 @@ export const RUNNING_INTERFERENCE = defineAbilities({
   // docs/phase7-wave1-scripting.md §6) is the OR over resource types this needed; `chooseCards`'s own `min: 1`
   // simply finds no candidates and skips when the hand has neither, which is "if able" (RRG "cannot" default).
   "02047.tombstone-forced-response": forcedResponse(
-    after.enemyAttacks("self", { againstYou: true, damages: true }),
+    after.enemyAttacks("self", { damagesYou: true }),
     chooseCards("tossed", zone("hand", you, { filter: { anyPrintedResource: ["mental", "physical"] } }), {
       min: 1,
       max: 1,

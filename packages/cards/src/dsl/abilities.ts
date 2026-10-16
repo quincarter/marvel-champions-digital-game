@@ -2824,9 +2824,18 @@ const againstYou: Partial<EventPattern> = { playerIs: "controller", usesAttacked
 
 /** The options of `on.enemyAttacks` / `on.villainAttacks`. */
 export interface EnemyAttackOptions {
+  /** "Attacks you": the attacked player. */
   readonly againstYou?: boolean;
-  /** "After [enemy] attacks and deals damage": the attack's `damage` result (a response). */
+  /**
+   * "After [enemy] attacks and deals damage": the attack's `damage` result (a response). With `againstYou`, to a
+   * character you control (Toad's "attacks and damages a character you control").
+   */
   readonly damages?: boolean;
+  /**
+   * "Attacks and damages you", where "you" is your identity (RRG 1.8 "You, Your", p. 49; FFG rulings 225.1 and 226,
+   * July 18, 2024): a defending ally's damage is not heard (`EventPattern.youAreIdentity`).
+   */
+  readonly damagesYou?: boolean;
   /**
    * "When an enemy **resolves** an attack": the interrupt window at the attack's damage step (`TriggerEvent
    * enemyAttackDamageStep`), once the defender is declared and the boost cards have resolved, before any damage is
@@ -2858,12 +2867,16 @@ const enemyAttacks = (by: Who, opts: EnemyAttackOptions = {}): EventPattern =>
     : pattern(
         "enemyAttack",
         asSource(by),
-        opts.againstYou ? againstYou : {},
-        opts.damages || opts.undefended
+        opts.againstYou || opts.damagesYou ? againstYou : {},
+        opts.damages || opts.damagesYou || opts.undefended
           ? {
-              requireResults: { ...(opts.damages ? { damage: 1 } : {}), ...(opts.undefended ? { undefended: 1 } : {}) },
+              requireResults: {
+                ...(opts.damages || opts.damagesYou ? { damage: 1 } : {}),
+                ...(opts.undefended ? { undefended: 1 } : {}),
+              },
             }
           : {},
+        opts.damagesYou ? { youAreIdentity: true } : {},
       );
 
 /** A basic power, as `basicPowerUsing`/`basicPowerUsed` name it. */

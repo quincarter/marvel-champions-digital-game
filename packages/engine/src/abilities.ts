@@ -47,6 +47,18 @@ export interface EventPattern {
    * the attacked player when nobody else defended (RRG 1.8 "Defend, Defense", pp. 15-16; `attackYouOf`).
    */
   readonly usesAttackedPlayer?: boolean;
+  /**
+   * With `playerIs: "controller"`: "you" is that player's **identity** (RRG 1.8 "You, Your", p. 49: "if the word
+   * 'you' can be resolved as referring to the player's identity, it must be resolved as such"), so the character the
+   * attack is against must be it. "After [enemy] attacks and damages you" (FFG rulings 225.1 and 226, July 18, 2024:
+   * it "checks if the attacked player's identity was damaged", i.e. "after X damages you with an attack"): a
+   * defending ally's damage is not heard, and an overkill spill onto the identity is (its own condition, ruling
+   * January 11, 2026 (2)). "When a boost card on an enemy attacking you would be turned faceup" (Defiance; ruling 151,
+   * March 15, 2024: not while your ally defends). Read on `enemyAttack` (its target character) and on an attack's
+   * `boostCardTurnedFaceup`; any other event never matches. The p. 49 exception, "after [enemy] attacks you" (the
+   * attacked player even when an ally defended), is `usesAttackedPlayer` without this.
+   */
+  readonly youAreIdentity?: boolean;
   readonly targetIs?: TargetQuery;
   /** The event's source must match: "When Rhino attacks" → `{ categories: ["villain"] }`; "When attached enemy attacks" → `{ hostOfSelf: true }`. */
   readonly sourceIs?: TargetQuery;

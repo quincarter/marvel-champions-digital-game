@@ -87,7 +87,7 @@ describe("Ruling 150, Mar 15, 2024: Deadpool ally healing 3 from excess conseque
 });
 
 describe("Ruling 151, Mar 15, 2024: Defiance (26018) cannot be played while an ally defends ('you' is the identity; RRG 1.8 'You, Your' p. 49)", () => {
-  it.fails("an ally defends Rhino's attack, Defiance in hand: it is not played", () => {
+  it("an ally defends Rhino's attack, Defiance in hand: it is not played", () => {
     const base = rhino(1, "core-black-panther-protection");
     const ally = intoPlay(base, "01058");
     const given = conjure(ally.state, "26018");
@@ -96,7 +96,7 @@ describe("Ruling 151, Mar 15, 2024: Defiance (26018) cannot be played while an a
     });
     const done = drive(staged, endTurn(P1), { defend: ally.id, use: ["26018.defiance-interrupt"] });
     expect(done.events.some((e) => e.type === "defenderDeclared")).toBe(true);
-    // Actual: Defiance is played and discards the boost card.
+    // Before the fix: Defiance was played and discarded the boost card.
     expect(done.events.some((e) => e.type === "boostCancelled" && e.scope === "discarded")).toBe(false);
     expect(playerOf(done.state, P1).discard).not.toContain(given.id);
   });

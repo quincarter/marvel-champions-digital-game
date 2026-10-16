@@ -457,6 +457,11 @@ export type TriggerEventBody =
       readonly boostIcons: number;
       /** The player the activation is against ("you"). */
       readonly playerId: PlayerId;
+      /**
+       * An attack's target character as the card is turned faceup (the defender, once declared): "an enemy attacking
+       * **you**" names the identity (`EventPattern.youAreIdentity`). Absent on a scheme's boost card.
+       */
+      readonly targetInstanceId?: InstanceId;
     }
   /**
    * An enemy attacks another enemy ("That minion attacks another enemy of your choice", Moondragon; `EffectSpec

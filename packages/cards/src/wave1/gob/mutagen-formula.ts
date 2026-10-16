@@ -79,7 +79,7 @@ const GOBLIN_MINION = query(["minion"], { trait: GOBLIN_TRAIT });
 export const MUTAGEN_FORMULA = defineAbilities({
   // Green Goblin (I) — [star] Forced Response: After Green Goblin attacks and damages you, place 1 threat on the main scheme.
   "02014.green-goblin-forced-response": forcedResponse(
-    after.villainAttacks({ againstYou: true, damages: true }),
+    after.villainAttacks({ damagesYou: true }),
     placeThreat(1, theMainScheme),
   ),
   // Green Goblin (II) — When Revealed: Deal 2 encounter cards to each player. Same Forced Response as (I).
@@ -87,7 +87,7 @@ export const MUTAGEN_FORMULA = defineAbilities({
     forEachPlayer(eachPlayer, dealEncounterCard(thatPlayer), dealEncounterCard(thatPlayer)),
   ),
   "02015.green-goblin-forced-response": forcedResponse(
-    after.villainAttacks({ againstYou: true, damages: true }),
+    after.villainAttacks({ damagesYou: true }),
     placeThreat(1, theMainScheme),
   ),
   // Green Goblin (III) — When Revealed: Deal 3 encounter cards to each player. Forced Response: place 2 threat.
@@ -100,7 +100,7 @@ export const MUTAGEN_FORMULA = defineAbilities({
     ),
   ),
   "02016.green-goblin-forced-response": forcedResponse(
-    after.villainAttacks({ againstYou: true, damages: true }),
+    after.villainAttacks({ damagesYou: true }),
     placeThreat(2, theMainScheme),
   ),
 

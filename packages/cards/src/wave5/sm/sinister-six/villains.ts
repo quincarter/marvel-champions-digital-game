@@ -58,7 +58,7 @@ import {
  */
 export function sinisterSixVillain(effect: EffectArg): readonly [AbilityDefinition, AbilityDefinition] {
   const forcedResponseAbility = forcedResponse(
-    after.enemyAttacks("self", { againstYou: true, damages: true }),
+    after.enemyAttacks("self", { damagesYou: true }),
     effect,
     moveActiveCounterToNextVillain,
   );

@@ -84,7 +84,7 @@ export const NEBULA_OBLIGATION_NEMESIS = defineAbilities({
   // discard an upgrade you control. "You" is whoever this minion is engaged with, so an ordinary "against you"
   // enemy-attack pattern already reads it correctly (RRG 1.8 "You, Your", p. 49).
   "22028.gamora-forced-response": forcedResponse(
-    on.enemyAttacks("self", { againstYou: true, damages: true }),
+    on.enemyAttacks("self", { damagesYou: true }),
     chooseTarget("upgrade", query("upgrade", { controller: "you" })),
     discard(chosen("upgrade")),
   ),

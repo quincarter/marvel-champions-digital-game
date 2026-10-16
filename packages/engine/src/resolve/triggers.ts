@@ -243,6 +243,7 @@ function matchesOwnFields(
       if (acting === null) return false;
       const named = uncontrolledYouOf(state, selfId);
       if (named !== null && acting !== named) return false;
+      if (pattern.youAreIdentity === true && !attackIsAgainstIdentityOf(state, event, acting)) return false;
       return matchesRest(state, pattern, event, selfId, null, deps);
     }
     // "[enemy] attacks you": the attack's "you" at this timing, whichever of the player's characters was attacked.
@@ -253,6 +254,7 @@ function matchesOwnFields(
     } else if (!subjects.players.includes(controller)) {
       return false;
     }
+    if (pattern.youAreIdentity === true && !attackIsAgainstIdentityOf(state, event, controller)) return false;
   }
   return matchesRest(state, pattern, event, selfId, controller, deps);
 }
@@ -514,6 +516,17 @@ export function asksTraitGrants(deps: EngineDeps): boolean {
  */
 function attackYouOf(event: Extract<TriggerEvent, { kind: "enemyAttack" }>, timing: WindowTiming): PlayerId {
   return timing === "response" ? event.targetPlayerId : event.attackedPlayerId;
+}
+
+/**
+ * `EventPattern.youAreIdentity`: the attack's target character (the defender once one is declared; an overkill spill's
+ * condition names the character it damaged) is `you`'s identity. RRG 1.8 "You, Your" (p. 49); FFG rulings 225.1 and
+ * 226 (July 18, 2024) and 151 (March 15, 2024).
+ */
+function attackIsAgainstIdentityOf(state: GameState, event: TriggerEvent, you: PlayerId): boolean {
+  const character =
+    event.kind === "enemyAttack" || event.kind === "boostCardTurnedFaceup" ? (event.targetInstanceId ?? null) : null;
+  return character !== null && character === getPlayer(state, you)?.identity.instanceId;
 }
 
 /** Who "you" is when an encounter card's ability triggers on an event. */
