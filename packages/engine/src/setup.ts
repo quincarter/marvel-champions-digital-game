@@ -667,7 +667,10 @@ export function illegalDecksOf(
   pool: Readonly<Record<string, AnyCard>> = Object.fromEntries(config.cards.map((card) => [card.id, card])),
 ): readonly IllegalDeck[] {
   return config.players.flatMap((setup, seatIndex) => {
-    const context = config.campaign ? campaignDeckContextOf(config.campaign, seatIndex, pool) : undefined;
+    // The other seats' identities, for Appendix I's Team-Up replacement (RRG 1.8 p. 50; `DeckContext`).
+    const otherSeatIdentityIds = config.players.flatMap((other, i) => (i === seatIndex ? [] : [other.identityCardId]));
+    const campaign = config.campaign ? campaignDeckContextOf(config.campaign, seatIndex, pool) : undefined;
+    const context = otherSeatIdentityIds.length > 0 ? { ...campaign, otherSeatIdentityIds } : campaign;
     const verdict = validateDeck(deckContentsOf(setup), pool, context);
     return verdict.ok ? [] : [{ seatIndex, playerId: playerId(`p${seatIndex + 1}`), problems: verdict.problems }];
   });

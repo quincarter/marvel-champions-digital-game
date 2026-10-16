@@ -177,6 +177,14 @@ export type DeckValidation = { readonly ok: true } | { readonly ok: false; reado
  */
 export interface DeckContext {
   readonly campaign?: CampaignDeckContext;
+  /**
+   * The identity card ids the **other** players chose at setup, when the deck is judged for a known table. RRG 1.8
+   * Appendix I (p. 50): "If a player's deck includes an identity-specific card that is considered to 'match' ... an
+   * identity chosen by another player during setup, that player may replace the matching card in their deck with a
+   * card with the Team-Up keyword that names both their own identity and the other player's identity." Absent or
+   * empty: no replacement is recognized, and the verdict is exactly what it was without a table.
+   */
+  readonly otherSeatIdentityIds?: readonly string[];
 }
 
 /**
@@ -532,11 +540,11 @@ export function cardOfferedToDeck(
  * repeat an earlier problem are skipped. For example, a deck whose aspect choice is
  * itself illegal is not also told that each of its aspect cards is off-aspect.
  *
- * Not checked here, because it is a table-level rule rather than a property of one deck:
  * Appendix I's Team-Up replacement ("If a player's deck includes an identity-specific card
  * that ... match[es] an identity chosen by another player during setup, that player may
  * replace the matching card in their deck with a card with the Team-Up keyword that names
- * both their own identity and the other player's identity").
+ * both their own identity and the other player's identity") is a table-level rule: it is
+ * recognized only when `context.otherSeatIdentityIds` says who else is seated.
  */
 export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckContext): DeckValidation {
   const cards = indexPool(pool);
@@ -971,6 +979,47 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
       }
     }
     const inDeck = new Map(lines.map((line) => [line.card.id as string, line.quantity]));
+    // Appendix I's Team-Up replacement (RRG 1.8 p. 50): a copy of an identity-set card that matches (uniqueness rules,
+    // `cardsMatch`, no table option) an identity another player chose may be missing, when the deck holds a Team-Up
+    // card naming both this identity and that one in its place. Each Team-Up copy stands in for one missing copy.
+    const self: HeroIdentityCard = identity;
+    const otherIdentities = (context?.otherSeatIdentityIds ?? []).flatMap((id) => {
+      const other = cards.get(id);
+      return other?.type === "hero_identity" && other.id !== self.id ? [other] : [];
+    });
+    const teamUpCopiesLeft = new Map<string, number>();
+    const teamUpNames = new Map<string, readonly [string, string]>();
+    for (const line of lines) {
+      const names = teamUpOf(line.card)?.names;
+      if (!names || otherIdentities.length === 0) continue;
+      teamUpCopiesLeft.set(line.card.id, line.quantity);
+      teamUpNames.set(line.card.id, names);
+    }
+    const namesBoth = (names: readonly [string, string], other: HeroIdentityCard): boolean =>
+      (identityCardTitledAs(self, names[0]) && identityCardTitledAs(other, names[1])) ||
+      (identityCardTitledAs(self, names[1]) && identityCardTitledAs(other, names[0]));
+    /**
+     * Whether Team-Up cards in the deck replace all `missing` copies of `card`. Spends those Team-Up copies only when
+     * they do, so a shortfall leaves them for another card.
+     */
+    const replacedByTeamUp = (card: AnyCard, missing: number): boolean => {
+      const uses = new Map<string, number>();
+      let replaced = 0;
+      for (const other of otherIdentities) {
+        if (!cardsMatch(card, other)) continue;
+        for (const [teamUpId, left] of teamUpCopiesLeft) {
+          const names = teamUpNames.get(teamUpId);
+          const free = left - (uses.get(teamUpId) ?? 0);
+          if (replaced >= missing || free <= 0 || !names || !namesBoth(names, other)) continue;
+          const used = Math.min(free, missing - replaced);
+          uses.set(teamUpId, (uses.get(teamUpId) ?? 0) + used);
+          replaced += used;
+        }
+      }
+      if (replaced < missing) return false;
+      for (const [teamUpId, used] of uses) teamUpCopiesLeft.set(teamUpId, (teamUpCopiesLeft.get(teamUpId) ?? 0) - used);
+      return true;
+    };
     // Membership is `identitySetMembers`, which `requiredIdentitySet` also uses, so the deck
     // builder's starting deck and this check agree on what the set requires.
     for (const card of identitySetMembers(identity, cards)) {
@@ -1003,6 +1052,7 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
       }
       const have = inDeck.get(card.id) ?? 0;
       if (have === need) continue;
+      if (have < need && replacedByTeamUp(card, need - have)) continue;
       add(
         "identity_set_mismatch",
         have === 0

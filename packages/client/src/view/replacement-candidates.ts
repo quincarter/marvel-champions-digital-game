@@ -55,7 +55,8 @@ export function replacementCandidatesOf(input: ReplacementInput): readonly Repla
     if (input.isPlayable && !input.isPlayable(card)) continue;
     if (entersPlayWhenPlayed(card) && others.some((hero) => cardsMatch(card, hero, input.tableRules))) continue;
     const swapped = applyDeckSwaps(deck, [{ deckId: deck.id as string, from: fromCardId, to: card.id as string }]);
-    if (!validateDeck(swapped, pool).ok) continue;
+    // The seated heroes let a Team-Up card replace one of the hero's own matching cards (RRG 1.8 p. 50).
+    if (!validateDeck(swapped, pool, { otherSeatIdentityIds: others.map((hero) => hero.id as string) }).ok) continue;
     const tier = card.type === "ally" ? (aspectOf(card) === aspectOf(from) ? 0 : 1) : 2;
     result.push({ card, tier });
   }

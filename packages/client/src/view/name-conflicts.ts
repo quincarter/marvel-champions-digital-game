@@ -39,8 +39,9 @@ export interface NameConflict {
   readonly againstSeat: number;
   /**
    * The card is one of the hero's own identity-specific cards (the deck must hold it: `validateDeck` requires the whole
-   * identity set), so it cannot be replaced by another card and can only be kept as a resource. The RRG's Team-Up
-   * replacement for such a card (Appendix I) is a table-level rule the engine does not build decks with yet.
+   * identity set), so it cannot be replaced by an ordinary card and the sheet offers only Keep. The RRG's Team-Up
+   * replacement for such a card (Appendix I, RRG 1.8 p. 50) is legal in the engine (`validateDeck` with
+   * `otherSeatIdentityIds`; `replacementCandidatesOf` offers it), but the sheet does not offer Replace on these rows yet.
    */
   readonly identitySpecific: boolean;
   /** True when the match exists only because of the table option; FFG's rule alone would let the card be played. */
