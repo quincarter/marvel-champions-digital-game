@@ -392,10 +392,14 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       // RRG "Incite X" is itself a "When Revealed: place X threat on the main scheme". Its "the main scheme" is the
       // revealing player's area's, when the players are split (§3.1).
       const inciteScheme = mainSchemeFor(ctx.state, areaOfPlayer(ctx.state, frame.playerId))?.instanceId;
-      const frames: StackFrame[] = [...inciteFrames(ctx, frame.instanceId, inciteScheme)];
-      // "Resolve each 'When Revealed' ability that you reveal 1 additional time" (Media Coverage).
-      const times = 1 + whenRevealedRepeats(ctx.state, ctx.deps, frame.playerId);
+      // "Resolve each 'When Revealed' ability that you reveal 1 additional time" (Media Coverage). Incite is one of
+      // them (RRG 1.8 "Incite X", p. 24), so it repeats with the card's printed ones: each pass resolves the incite,
+      // then the printed When Revealed abilities, the first pass in the order a reveal always has. Surge, the other
+      // keyword that is a When Revealed ability, repeats where it resolves (`announceRevealFinished`).
+      const times = whenRevealedTimes(ctx, frame.playerId);
+      const frames: StackFrame[] = [];
       for (let i = 0; i < times; i++) {
+        frames.push(...inciteFrames(ctx, frame.instanceId, inciteScheme));
         frames.push(...gameAbilityFrames(ctx, frame.instanceId, ["whenRevealed"], revealed, undefined, frame.playerId));
       }
       if (frames.length > 0) setFrame(ctx, { ...frame, stage: next, abilityResolved: true });
@@ -611,10 +615,25 @@ function announceRevealFinished(ctx: Ctx, frame: Frame<"reveal">, card: AnyCard)
   // card and the responses to its reveal are done first. Always on its own frame (`resolveSurge`), where "when
   // the surge keyword … would be resolved" (Espionage) has its window. Nothing is revealed here
   // (docs/phase7-wave9.md §4.1 Q22).
-  if (surges)
-    frames.push(eventFrame(ctx, { kind: "surgeResolving", instanceId: frame.instanceId, playerId: frame.playerId }));
+  // Surge is a When Revealed ability (RRG 1.8 "Surge", p. 42: "When Revealed: Deal yourself 1 facedown encounter
+  // card"; ruling Aug 3, 2026 (3): "Surge is treated as a When Revealed ability"), so "resolve each 'When Revealed'
+  // ability that you reveal 1 additional time" (Media Coverage) resolves it again: one more card dealt, each surge on
+  // its own frame with its own window.
+  if (surges) {
+    for (let i = 0; i < whenRevealedTimes(ctx, frame.playerId); i++)
+      frames.push(eventFrame(ctx, { kind: "surgeResolving", instanceId: frame.instanceId, playerId: frame.playerId }));
+  }
   pushFrames(ctx, frames);
 }
+
+/**
+ * How many times each When Revealed ability `playerId` reveals resolves: once, plus each "resolve each 'When
+ * Revealed' ability that you reveal 1 additional time" (Media Coverage) in play for them (`RuleSpec
+ * repeatWhenRevealed`). Read as the abilities resolve, the incite and printed ones at the `whenRevealed` stage and the
+ * surge at the end of the reveal (`announceRevealFinished`).
+ */
+const whenRevealedTimes = (ctx: Ctx, playerId: PlayerId): number =>
+  1 + whenRevealedRepeats(ctx.state, ctx.deps, playerId);
 
 /**
  * The placement step of a minion revealed "and attach[ed] … here" (`EffectSpec revealCard.heldBy`, `Frame<"reveal">
