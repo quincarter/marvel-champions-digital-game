@@ -503,7 +503,7 @@ export function resolutionLabelOf(
 }
 
 /**
- * `offered` is the resolutions the current monitor offers in this mode (`resolutionOptionsFor`), listed after Native;
+ * `offered` is the resolutions the current monitor offers in this mode (`resolutionOptionsFor`), listed with Native largest first;
  * `native` is the monitor's own resolution. A saved resolution this monitor doesn't offer shows as Native, which is what
  * the game then draws at.
  */
@@ -512,7 +512,16 @@ export function resolutionRowInfoOf(
   offered: readonly Resolution[],
   native: { readonly width: number; readonly height: number } | null = null,
 ): ResolutionRowInfo {
-  const values: readonly Resolution[] = ["native", ...offered];
+  // Largest first, Native among them at its own size (the owner, 2026-10-16); first when the size isn't known yet.
+  const sizeOf = (value: Resolution): { readonly width: number; readonly height: number } | null =>
+    value === "native" ? native : resolutionPixelsOf(value);
+  const area = (value: Resolution): number => {
+    const px = sizeOf(value);
+    return px === null ? Number.POSITIVE_INFINITY : px.width * px.height;
+  };
+  const values: readonly Resolution[] = (["native", ...offered] as Resolution[]).sort(
+    (a, b) => area(b) - area(a) || (sizeOf(b)?.width ?? 0) - (sizeOf(a)?.width ?? 0),
+  );
   return {
     title: "Resolution",
     detail:

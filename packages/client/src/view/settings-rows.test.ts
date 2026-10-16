@@ -310,10 +310,19 @@ describe("Window mode and Resolution (desktop app)", () => {
     expect(nextSettingsAfterDisplayMode(defaultSettings(), "borderless").displayMode).toBe("borderless");
   });
 
-  test("Resolution defaults to Native, labelled with the monitor's own size, then the sizes below it", () => {
+  test("Resolution defaults to Native, labelled with the monitor's own size, the list largest first", () => {
     const info = resolutionRowInfoOf(defaultSettings(), ["1280x720", "1920x1080"], { width: 3440, height: 1440 });
-    expect(info.options.map((o) => o.label)).toEqual(["Native · 3440 × 1440", "1280 × 720", "1920 × 1080"]);
+    expect(info.options.map((o) => o.label)).toEqual(["Native · 3440 × 1440", "1920 × 1080", "1280 × 720"]);
     expect(info.selected).toBe("native");
+  });
+
+  test("Native sits at its own size among the rest: on a 1440p screen in Fullscreen, under 4K", () => {
+    const fullscreen = nextSettingsAfterDisplayMode(defaultSettings(), "fullscreen");
+    const info = resolutionRowInfoOf(fullscreen, ["1920x1080", "3840x2160", "3440x1440"], {
+      width: 2560,
+      height: 1440,
+    });
+    expect(info.options.map((o) => o.value)).toEqual(["3840x2160", "3440x1440", "native", "1920x1080"]);
   });
 
   test("before the monitor is read, Native is just Native", () => {
