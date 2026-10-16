@@ -1,5 +1,5 @@
 /**
- * "Report an issue" (#176): opened by the Report tab on the screen's right edge (`scenes/report-tab.ts`), over
+ * "Report an issue" (#176): opened by the Report button in the top bar (`scenes/report-button.ts`), over
  * whatever screen or overlay is up, in a game or not.
  *
  * Three steps, in the order a report needs them: snap a screenshot (this device's shortcut, and a button that hides
@@ -62,14 +62,14 @@ export class ReportIssueOverlay extends Phaser.Scene {
     this.#feedback = "";
     this.#disabled = this.scene.manager
       .getScenes(true)
-      .filter((scene) => scene !== this && scene.scene.key !== SCENES.reportTab && scene.input)
+      .filter((scene) => scene !== this && scene.scene.key !== SCENES.reportButton && scene.input)
       .map((scene) => ({ scene, pointer: scene.input.enabled, keyboard: scene.input.keyboard?.enabled === true }))
       .filter(({ pointer, keyboard }) => pointer || keyboard);
     for (const { scene, pointer, keyboard } of this.#disabled) {
       if (pointer) scene.input.enabled = false;
       if (keyboard && scene.input.keyboard) scene.input.keyboard.enabled = false;
     }
-    this.scene.get(SCENES.reportTab)?.sys.setVisible(false);
+    this.scene.get(SCENES.reportButton)?.sys.setVisible(false);
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     this.#route = new FocusRoute(this, { onCancel: () => this.scene.stop() });
@@ -85,7 +85,7 @@ export class ReportIssueOverlay extends Phaser.Scene {
         if (keyboard && scene.input.keyboard) scene.input.keyboard.enabled = true;
       }
       this.#disabled = [];
-      this.scene.get(SCENES.reportTab)?.sys.setVisible(true);
+      this.scene.get(SCENES.reportButton)?.sys.setVisible(true);
     });
     this.#draw();
   }
@@ -101,7 +101,7 @@ export class ReportIssueOverlay extends Phaser.Scene {
       formFactor: formFactorFor(width, height),
       screens: this.scene.manager
         .getScenes(true)
-        .filter((scene) => scene !== this && scene.sys.settings.visible && scene.scene.key !== SCENES.reportTab)
+        .filter((scene) => scene !== this && scene.sys.settings.visible && scene.scene.key !== SCENES.reportButton)
         .map((scene) => scene.scene.key),
       at: new Date().toISOString(),
     };
@@ -149,7 +149,7 @@ export class ReportIssueOverlay extends Phaser.Scene {
     openExternal(newIssueUrl(this.#environment()));
   }
 
-  /** Hides the panel (and the tab) so a screenshot shows the screen underneath; back after `HIDE_MS` or a tap. */
+  /** Hides the panel (and the Report button) so a screenshot shows the screen underneath; back after `HIDE_MS` or a tap. */
   #hideForScreenshot(): void {
     if (this.#hideTimer) return;
     this.sys.setVisible(false);

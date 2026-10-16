@@ -1212,7 +1212,7 @@ export class McTextInput {
       // Only a scene that *draws* covers this field. `MusicScene` (`audio/music-controller.ts`) is registered
       // last and runs, invisible, for the whole session — counted, it sat "above" every screen and hid every
       // search field in the app (the 2026-09-21 "there's no search filter anymore?" report).
-      // The Report tab (#176) runs above every screen too, but it only draws a strip on the edge: chrome, never a cover.
+      // The Report button (#176) runs above every screen too, but it only draws one icon in a top bar: never a cover.
       const covered = running
         .slice(running.indexOf(scene) + 1)
         .some((other) => other.sys.settings.visible && !CHROME_SCENES.has(other.scene.key));
