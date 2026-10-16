@@ -1,3 +1,3 @@
 kind: Added
-body: 'Desktop app: Settings > Display > Window picks Windowed, Borderless or Fullscreen and a resolution from 480p to 4K (Native by default); other than native, the game draws at that resolution and scales to fit, with black bars where the shapes differ. Saved and applied at launch; the OS display resolution is never changed.'
+body: 'Desktop app: Settings > Display > Window picks Windowed, Borderless or Fullscreen and, from a dropdown with Apply, a resolution from 480p to 4K (Native by default); other than native, the game draws at that resolution and scales to fit, with black bars where the shapes differ. Saved and applied at launch; the OS display resolution is never changed.'
 time: 2026-10-16T18:21:10.3875262-04:00

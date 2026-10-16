@@ -121,6 +121,8 @@ export interface TitleMenuLayoutInput {
   readonly update?: boolean;
   /** The Civil War box is open: a "Civil War!" row directly under Campaign. */
   readonly civilWar?: boolean;
+  /** The desktop app: a "Quit to desktop" row under Settings. */
+  readonly quit?: boolean;
 }
 
 export interface TitleMenuLayout {
@@ -151,6 +153,8 @@ export interface TitleMenuLayout {
   /** "How to play" (guided mode G6c, `docs/guided-mode.md` §4): opens the learning hub. */
   readonly howToPlay: Rect;
   readonly settings: Rect;
+  /** "Quit to desktop", under Settings; null outside the desktop app. */
+  readonly quit: Rect | null;
   readonly footer: Rect;
 }
 
@@ -165,6 +169,7 @@ export function titleMenuLayoutRects(layout: TitleMenuLayout): readonly Rect[] {
     layout.extras,
     layout.howToPlay,
     layout.settings,
+    ...(layout.quit ? [layout.quit] : []),
     layout.footer,
   ];
 }
@@ -259,6 +264,11 @@ function titleMenuLayoutAt(
   y += hit.target + gap;
   const settings: Rect = { x: left, y, width: column, height: hit.target };
   y += hit.target + gap;
+  let quit: Rect | null = null;
+  if (input.quit === true) {
+    quit = { x: left, y, width: column, height: hit.target };
+    y += hit.target + gap;
+  }
 
   const footerY = Math.max(y, menuPanel.y + menuPanel.height - pad - hit.target);
   const fits = footerY + hit.target <= menuPanel.y + menuPanel.height;
@@ -285,6 +295,7 @@ function titleMenuLayoutAt(
     extras,
     howToPlay,
     settings,
+    quit,
     footer,
   };
 }

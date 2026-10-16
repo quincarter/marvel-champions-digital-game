@@ -4,11 +4,12 @@
  *
  * The OS's own display resolution is never changed, so closing the game (or a crash) leaves nothing to put back. A
  * resolution is what the game draws at instead, in the monitor's own (physical) pixels, the numbers a player knows:
- *  - Borderless fullscreen: an undecorated window over the whole current monitor. Native draws at the monitor's own
+ *  - Borderless fullscreen: the shell's own borderless fullscreen over the current monitor (taskbar too). Native draws at the monitor's own
  *    resolution; any other draws at that size and is scaled to fit the screen (up from a lower one, down from a
  *    higher one), with black bars where the shapes differ (`renderSizeOf`; `ui/render-resolution.ts` does the drawing).
- *  - Fullscreen: the OS's own fullscreen (its own Space on macOS; over the taskbar on Windows and Linux), resolution
- *    as in Borderless.
+ *  - Fullscreen: the OS's own fullscreen, resolution as in Borderless. On macOS it gets its own Space; on Windows and
+ *    Linux the shell has only the one (borderless) fullscreen, so it matches Borderless there. Switching the monitor's
+ *    real display mode (exclusive fullscreen) is not something Tauri offers.
  *  - Windowed: a normal window. A resolution is the window's own size, centred; Native is a window drawn 1:1 at
  *    whatever size it is, opening at the 1440 x 900 `tauri.conf.json` gives it.
  * The list offers resolutions from 480p up to 4K, none under the window's minimum, and in Windowed none larger than
@@ -138,6 +139,8 @@ export async function refreshDesktopMonitor(): Promise<MonitorInfo | null> {
   return monitor;
 }
 
+const isMac = (): boolean => /Mac/.test(globalThis.navigator?.platform ?? globalThis.navigator?.userAgent ?? "");
+
 /** Calls are chained so two quick changes (a click while the last one is still applying) land in order. */
 let applying: Promise<void> = Promise.resolve();
 
@@ -152,30 +155,33 @@ export function applyDesktopWindow(mode: DisplayMode, size: Resolution): Promise
 }
 
 async function applyNow(mode: DisplayMode, size: Resolution): Promise<void> {
-  const { getCurrentWindow, currentMonitor, LogicalSize, PhysicalPosition, PhysicalSize } =
-    await import("@tauri-apps/api/window");
+  const { getCurrentWindow, currentMonitor, LogicalSize, PhysicalSize } = await import("@tauri-apps/api/window");
   const window = getCurrentWindow();
   const current = await currentMonitor();
   if (current !== null) {
     monitor = { width: current.size.width, height: current.size.height, scaleFactor: current.scaleFactor };
   }
+  // Borderless is the shell's own borderless fullscreen: on Windows and Linux that is `setFullscreen` itself (a
+  // window over the whole monitor, taskbar included, that Alt+Tab leaves at once), on macOS a full-screen window
+  // without its own Space. A window merely sized to the screen left the Windows taskbar showing over it.
+  if (mode === "borderless") {
+    if (isMac()) {
+      if (await window.isFullscreen()) await window.setFullscreen(false);
+      await window.setSimpleFullscreen(true);
+    } else {
+      await window.setFullscreen(true);
+    }
+    await window.setFocus();
+    return;
+  }
+  if (isMac()) await window.setSimpleFullscreen(false);
   if (mode === "fullscreen") {
-    await window.setDecorations(true);
     await window.setFullscreen(true);
+    await window.setFocus();
     return;
   }
   if (await window.isFullscreen()) await window.setFullscreen(false);
   if (await window.isMaximized()) await window.unmaximize();
-  if (mode === "borderless") {
-    await window.setDecorations(false);
-    if (current !== null) {
-      await window.setPosition(new PhysicalPosition(current.position.x, current.position.y));
-      await window.setSize(new PhysicalSize(current.size.width, current.size.height));
-    }
-    // Windows only lifts the taskbar out of the way of a screen-sized window that has focus.
-    await window.setFocus();
-    return;
-  }
   await window.setDecorations(true);
   const pixels = resolutionPixelsOf(effectiveResolution(size, monitor));
   await window.setSize(
@@ -193,4 +199,11 @@ export function applyDesktopWindowOnLaunch(settings: { displayMode: DisplayMode;
     return;
   }
   void applyDesktopWindow(settings.displayMode, settings.resolution);
+}
+
+/** Closes the desktop app's one window, which ends the app. Does nothing off desktop. */
+export async function quitToDesktop(): Promise<void> {
+  if (!hasDesktopWindow()) return;
+  const { getCurrentWindow } = await import("@tauri-apps/api/window");
+  await getCurrentWindow().close();
 }

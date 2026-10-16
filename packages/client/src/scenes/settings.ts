@@ -107,10 +107,13 @@ type GuideNonLevelRow = Extract<GuideRowInfo, { kind: "action" | "toggle" }>;
 const SPEED_CONTROL_WIDTH = 204;
 const CARD_HOVER_CONTROL_WIDTH = 280;
 const CARD_SIZE_CONTROL_WIDTH = 520;
-const DISPLAY_MODE_CONTROL_WIDTH = 360;
-/** Resolution is a stepper (◀ 1920 × 1080 ▶): up to seventeen sizes is too many segments. */
-const RESOLUTION_CONTROL_WIDTH = 260;
-const STEPPER_ARROW_WIDTH = 44;
+/** Room for each mode's label with padding either side (the owner, 2026-10-16). */
+const DISPLAY_MODE_CONTROL_WIDTH = 480;
+/** Resolution is a dropdown and an Apply button: up to seventeen sizes is too many segments. */
+const RESOLUTION_CONTROL_WIDTH = 320;
+const APPLY_WIDTH = 88;
+const LIST_ROW_HEIGHT = 36;
+const LIST_VISIBLE_ROWS = 8;
 
 /**
  * A toggle or door row's 84px control, right-aligned and centred on the row. Held 2px in from the row's right edge,
@@ -145,6 +148,14 @@ export class SettingsOverlay extends Phaser.Scene {
   /** The active tab's own scroll region (docs/guided-mode.md §4 G2b): its sections all draw into it. */
   #bodyRegion: McScrollRegion | null = null;
   #bodyScroll = new VariableListScroll();
+  /** The Resolution the player picked in the dropdown, not yet applied; null when nothing is pending. */
+  #pendingResolution: Resolution | null = null;
+  #resolutionListOpen = false;
+  #resolutionListScroll = new VariableListScroll();
+  #listRegion: McScrollRegion | null = null;
+  /** Where the Resolution field was last drawn (screen space) and what it lists, for the open list. */
+  #resolutionField: Rect | null = null;
+  #resolutionInfo: SegmentedInfo<Resolution> | null = null;
 
   constructor() {
     super(SCENES.settings);
@@ -161,7 +172,7 @@ export class SettingsOverlay extends Phaser.Scene {
     this.scale.on("resize", onResize, this);
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.unlocks) || this.scene.isActive(SCENES.saveData),
-      onCancel: () => this.#close(),
+      onCancel: () => (this.#resolutionListOpen ? this.#closeResolutionList() : this.#close()),
     });
     // Another scene (Pause's own inline Guide group) can change the same live prefs while this overlay is open
     // behind it — redraw so this one never shows a stale level/toggle.
@@ -266,6 +277,8 @@ export class SettingsOverlay extends Phaser.Scene {
     this.#tabs = null;
     this.#bodyRegion?.destroy();
     this.#bodyRegion = null;
+    this.#listRegion?.destroy();
+    this.#listRegion = null;
     destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
@@ -350,6 +363,7 @@ export class SettingsOverlay extends Phaser.Scene {
     });
 
     const stopIds = this.#drawBody(layout.bodyViewport, layout.content, items, stops);
+    if (this.#resolutionListOpen) this.#drawResolutionList({ x: 0, y: 0, width, height });
     this.#route?.set(["back", ...tabs.map((tab) => `tab:${tab.id}`), ...stopIds.map((id) => `row:${id}`)], stops);
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
   }
@@ -390,9 +404,10 @@ export class SettingsOverlay extends Phaser.Scene {
     if (hasDesktopWindow()) {
       const monitor = desktopMonitor();
       const sizes = monitor === null ? [] : resolutionOptionsFor(monitor, settings.displayMode);
-      segmented("display-mode", displayModeRowInfoOf(settings), DISPLAY_MODE_CONTROL_WIDTH, (v) =>
-        this.#setWindow(nextSettingsAfterDisplayMode(appSession().settings, v)),
-      );
+      segmented("display-mode", displayModeRowInfoOf(settings), DISPLAY_MODE_CONTROL_WIDTH, (v) => {
+        this.#pendingResolution = null;
+        this.#setWindow(nextSettingsAfterDisplayMode(appSession().settings, v));
+      });
       const sizeInfo = resolutionRowInfoOf(settings, sizes, monitor);
       items.set("resolution", {
         spec: {
@@ -402,10 +417,8 @@ export class SettingsOverlay extends Phaser.Scene {
           controlWidth: RESOLUTION_CONTROL_WIDTH,
         },
         draw: (item, stops) => {
-          this.#drawStepperRow(item, sizeInfo, "resolution", stops, (v: Resolution) =>
-            this.#setWindow(nextSettingsAfterResolution(appSession().settings, v)),
-          );
-          return ["resolution:prev", "resolution:next"];
+          this.#drawResolutionRow(item, sizeInfo, stops);
+          return ["resolution:field", "resolution:apply"];
         },
       });
     }
@@ -510,6 +523,8 @@ export class SettingsOverlay extends Phaser.Scene {
       heights: content.slotHeights,
       scroll: this.#bodyScroll,
       clipInteractive: true,
+      // The open Resolution list scrolls on its own.
+      enabled: () => !this.#resolutionListOpen,
     });
     const container = this.#bodyRegion.content;
     const toScreen = (rect: Rect): Rect => ({ ...rect, y: viewport.y + rect.y });
@@ -732,14 +747,12 @@ export class SettingsOverlay extends Phaser.Scene {
     void applyDesktopWindow(next.displayMode, next.resolution).then(() => this.#redrawIfOpen());
   }
 
-  /** A row with a title, its detail, and a ◂ value ▸ stepper through `info.options` (no wrap at either end). */
-  #drawStepperRow<V extends string>(
-    item: SettingsItemLayout,
-    info: SegmentedInfo<V>,
-    stopPrefix: string,
-    stops: Map<string, FocusStop>,
-    choose: (value: V) => void,
-  ): void {
+  /**
+   * The Resolution row: a dropdown field showing the resolution picked (pending, until applied) and an Apply button
+   * that is live only while the pick differs from what is in effect. The open list draws over everything
+   * (`#drawResolutionList`), from the field's own position on screen.
+   */
+  #drawResolutionRow(item: SettingsItemLayout, info: SegmentedInfo<Resolution>, stops: Map<string, FocusStop>): void {
     const rect = item.row;
     const control = item.control!;
     label(this, rect.x, rect.y + 2, info.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
@@ -747,50 +760,142 @@ export class SettingsOverlay extends Phaser.Scene {
       .text(rect.x, rect.y + 20, info.detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
       .setFontSize(10)
       .setWordWrapWidth(item.stacked ? rect.width : rect.width - control.width - 16);
-    const index = Math.max(
-      0,
-      info.options.findIndex((option) => option.value === info.selected),
+    const picked = this.#pendingResolution ?? info.selected;
+    const field: Rect = { x: control.x, y: control.y, width: control.width - APPLY_WIDTH - 8, height: control.height };
+    const apply: Rect = { x: field.x + field.width + 8, y: control.y, width: APPLY_WIDTH, height: control.height };
+    // Where the field is on screen right now, for the list: content space less the body's scroll.
+    this.#resolutionField = { ...field, y: field.y - this.#bodyScroll.offsetPx };
+    this.#resolutionInfo = info;
+    const open = (): void => {
+      this.#resolutionListOpen = true;
+      this.#resolutionListScroll = new VariableListScroll();
+      this.#draw();
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "quiet",
+        label: "",
+        type: typeRole.label,
+        rect: field,
+        onClick: open,
+        clip: this.#bodyClip,
+        suppressClick: this.#bodySuppressClick,
+      }),
     );
-    const arrow = (dir: "prev" | "next", x: number): void => {
-      const target = info.options[dir === "prev" ? index - 1 : index + 1];
-      const cell: Rect = { x, y: control.y, width: STEPPER_ARROW_WIDTH, height: control.height };
-      const activate = (): void => {
-        if (target !== undefined) choose(target.value);
-      };
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "secondary",
-          label: dir === "prev" ? "◀" : "▶",
-          type: typeRole.label,
-          rect: cell,
-          enabled: target !== undefined,
-          onClick: activate,
-          clip: this.#bodyClip,
-          suppressClick: this.#bodySuppressClick,
-        }),
-      );
-      stops.set(`row:${stopPrefix}:${dir}`, this.#bodyStop(cell, item.slot, activate));
-    };
-    arrow("prev", control.x);
-    arrow("next", control.x + control.width - STEPPER_ARROW_WIDTH);
-    const middle: Rect = {
-      x: control.x + STEPPER_ARROW_WIDTH + 4,
-      y: control.y,
-      width: control.width - 2 * STEPPER_ARROW_WIDTH - 8,
-      height: control.height,
-    };
     const g = this.add.graphics();
-    g.fillStyle(surface.paper.hex, 1).fillRect(middle.x, middle.y, middle.width, middle.height);
+    g.fillStyle(surface.paper.hex, 1).fillRect(field.x, field.y, field.width, field.height);
     const value = this.add
       .text(
-        middle.x + middle.width / 2,
-        middle.y + middle.height / 2,
-        (info.options[index]?.label ?? "").toUpperCase(),
+        field.x + 12,
+        field.y + field.height / 2,
+        info.options.find((option) => option.value === picked)?.label ?? "",
         textStyle(typeRole.label, surface.ink.hex),
       )
       .setFontSize(12)
-      .setOrigin(0.5);
-    fitText(value, middle.width - 8, 12);
+      .setOrigin(0, 0.5);
+    fitText(value, field.width - 40, 12);
+    this.add
+      .text(field.x + field.width - 12, field.y + field.height / 2, "▼", textStyle(typeRole.label, surface.ink.hex))
+      .setFontSize(10)
+      .setOrigin(1, 0.5);
+    stops.set("row:resolution:field", this.#bodyStop(field, item.slot, open));
+
+    const pending = this.#pendingResolution !== null && this.#pendingResolution !== info.selected;
+    const activateApply = (): void => {
+      if (this.#pendingResolution === null) return;
+      const next = nextSettingsAfterResolution(appSession().settings, this.#pendingResolution);
+      this.#pendingResolution = null;
+      this.#setWindow(next);
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: pending ? "primary" : "secondary",
+        label: "Apply",
+        type: typeRole.label,
+        rect: apply,
+        enabled: pending,
+        onClick: activateApply,
+        clip: this.#bodyClip,
+        suppressClick: this.#bodySuppressClick,
+      }),
+    );
+    stops.set("row:resolution:apply", this.#bodyStop(apply, item.slot, activateApply));
+  }
+
+  #closeResolutionList(): void {
+    this.#resolutionListOpen = false;
+    this.#draw();
+  }
+
+  /**
+   * The open Resolution list: up to `LIST_VISIBLE_ROWS` rows under the field (over it when there's no room below),
+   * scrolling for the rest. A press anywhere else closes it without a change; picking a row makes it the pending
+   * choice, which Apply then puts into effect.
+   */
+  #drawResolutionList(bounds: Rect): void {
+    const field = this.#resolutionField;
+    const info = this.#resolutionInfo;
+    if (field === null || info === null) return;
+    this.add
+      .zone(0, 0, bounds.width, bounds.height)
+      .setOrigin(0, 0)
+      .setInteractive()
+      .on("pointerup", () => this.#closeResolutionList());
+    const visible = Math.min(info.options.length, LIST_VISIBLE_ROWS);
+    const height = visible * LIST_ROW_HEIGHT + 4;
+    const below = field.y + field.height + height <= bounds.y + bounds.height - 8;
+    const box: Rect = {
+      x: field.x,
+      y: below ? field.y + field.height + 2 : field.y - height - 2,
+      width: field.width,
+      height,
+    };
+    const g = this.add.graphics();
+    g.fillStyle(surface.ink.hex, 1).fillRect(box.x, box.y, box.width, box.height);
+    g.lineStyle(2, surface.paper.hex, 1).strokeRect(box.x + 1, box.y + 1, box.width - 2, box.height - 2);
+    // Swallows presses on the box's own border so they don't close it.
+    this.add.zone(box.x, box.y, box.width, box.height).setOrigin(0, 0).setInteractive();
+    const viewport: Rect = { x: box.x + 2, y: box.y + 2, width: box.width - 4, height: box.height - 4 };
+    this.#listRegion = new McScrollRegion(this, {
+      rect: viewport,
+      heights: info.options.map(() => LIST_ROW_HEIGHT),
+      scroll: this.#resolutionListScroll,
+      clipInteractive: true,
+    });
+    const region = this.#listRegion;
+    const picked = this.#pendingResolution ?? info.selected;
+    const pickedIndex = Math.max(
+      0,
+      info.options.findIndex((option) => option.value === picked),
+    );
+    info.options.forEach((option, i) => {
+      const row: Rect = {
+        x: viewport.x,
+        y: viewport.y + i * LIST_ROW_HEIGHT,
+        width: viewport.width - 8,
+        height: LIST_ROW_HEIGHT,
+      };
+      const selected = option.value === picked;
+      this.#captureInto(region.content, () => {
+        this.#buttons.push(
+          new McButton(this, {
+            kind: selected ? "secondary" : "quiet",
+            label: option.label,
+            type: typeRole.label,
+            rect: row,
+            selected,
+            onClick: () => {
+              this.#pendingResolution = option.value === info.selected ? null : option.value;
+              this.#closeResolutionList();
+            },
+            clip: () => region.rect,
+            suppressClick: () => region.isDragSuppressingClick,
+          }),
+        );
+      });
+    });
+    region.syncInteractivity();
+    region.scrollIntoView(pickedIndex);
   }
 
   #setTokenMotion(value: FirstPlayerTokenMotion): void {

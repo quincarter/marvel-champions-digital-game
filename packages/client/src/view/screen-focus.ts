@@ -397,6 +397,8 @@ export function titleMenuFocusOrder(input: {
   readonly continuable: boolean;
   /** The Civil War box is open: "civil-war" follows Campaign. */
   readonly civilWar?: boolean;
+  /** The desktop app: "quit" follows Settings. */
+  readonly quit?: boolean;
   /** The update banner's link buttons, when it is drawn; last, so the menu's own first stop stays first. Its close button follows them. */
   readonly updateActions?: readonly string[];
 }): readonly string[] {
@@ -409,6 +411,7 @@ export function titleMenuFocusOrder(input: {
     "extras",
     "how-to-play",
     "settings",
+    ...(input.quit ? ["quit"] : []),
     "release-notes",
     ...(input.updateActions && input.updateActions.length > 0 ? [...input.updateActions, UPDATE_DISMISS_ID] : []),
   ];

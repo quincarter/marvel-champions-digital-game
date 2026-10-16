@@ -63,6 +63,7 @@ import { startAspectTryItGame } from "../guide/start-aspect-tryit.js";
 import { startMechanicTryItGame } from "../guide/start-mechanic-tryit.js";
 import { askToResumeTutorial } from "./tutorial-resume-confirm.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
+import { hasDesktopWindow, quitToDesktop } from "../platform/desktop-window.js";
 import { SCENES } from "./keys.js";
 import type { ScenarioSelectData } from "./scenario-select.js";
 import type { SeatsData } from "./seats.js";
@@ -170,6 +171,7 @@ export class TitleScene extends Phaser.Scene {
       continuable: this.#continuable !== null,
       update: this.#update !== null,
       civilWar: civilWar !== null,
+      quit: hasDesktopWindow(),
     });
     // The Report button's slot (#176): level with the eyebrow, at the menu column's right edge.
     const reportSize = layout.split ? 44 : 40;
@@ -378,6 +380,21 @@ export class TitleScene extends Phaser.Scene {
       activate: openSettings,
     });
 
+    // The desktop app has no browser tab to close, so it offers its own way out (the owner, 2026-10-16).
+    if (layout.quit) {
+      const quit = (): void => void quitToDesktop();
+      this.#buttons.push(
+        new McButton(this, {
+          kind: menuKind,
+          label: "Quit to desktop",
+          type: typeRole.menuButton,
+          rect: layout.quit,
+          onClick: quit,
+        }),
+      );
+      this.#stops.set("quit", { rect: layout.quit, activate: quit });
+    }
+
     const coverage = cardPoolCoverageOf(POOL_CARDS, POOL_DEPS);
     this.add.text(
       layout.footer.x,
@@ -426,6 +443,7 @@ export class TitleScene extends Phaser.Scene {
       titleMenuFocusOrder({
         continuable: this.#continuable !== null,
         civilWar: civilWar !== null,
+        quit: layout.quit !== null,
         updateActions: bannerStops,
       }),
       this.#stops,
