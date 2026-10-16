@@ -17,6 +17,7 @@ import {
   type Ctx,
   emit,
   moveCard,
+  perilResolverId,
   popFrame,
   pushFrames,
   requestChoice,
@@ -812,7 +813,11 @@ export function legalDefenders(
   attackerId: InstanceId | null = null,
 ): readonly InstanceId[] {
   const defenders: InstanceId[] = [];
+  // RRG 1.8 "Peril" (p. 32): while a player resolves a peril card, only that player's characters may defend (ruling
+  // Jul 9, 2026 (3) #5, Hull Breach: other players cannot defend).
+  const perilResolver = perilResolverId(state, deps);
   for (const player of playerOrder(state)) {
+    if (perilResolver !== null && player.playerId !== perilResolver) continue;
     // Ready, or under a rule that has it defend without exhausting (`RuleSpec defendsWithoutExhausting`,
     // docs/phase7-wave9.md §3.47; RRG 1.8 "Defend, Defense", p. 15: such an ability "can be used on an exhausted hero").
     const canDeclare = (id: InstanceId, exhausted: boolean): boolean =>

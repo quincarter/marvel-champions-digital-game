@@ -20,7 +20,7 @@ import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { runCommandsPicking } from "./testing/drive.js";
 import { defaultPick, giveCard } from "./testing/scenario.js";
-import { stubEvent, stubMainScheme, stubSupport, stubTreachery, stubVillain } from "./testing/fixtures.js";
+import { stubAlly, stubEvent, stubMainScheme, stubSupport, stubTreachery, stubVillain } from "./testing/fixtures.js";
 import { copiesOf, gameAtFirstTurn, onTopOfEncounterDeck, P1, P2, playerCardIntoPlay } from "./testing/wave3.js";
 
 const one = { kind: "const", value: 1 } as const;
@@ -67,17 +67,31 @@ const SCHEME = stubMainScheme({
   stages: [{ startingThreat: flat(0), targetThreat: flat(99), acceleration: flat(0) }],
 });
 
-const deps: EngineDeps = depsOf(ZAP, WATCH_INTERRUPT, WATCH_RESPONSE, ALARM_RESPONSE, REVEAL_ACTION);
+/** "When Revealed: The villain attacks you." */
+const ASSAULT = stubAbility("assault.when-revealed", {
+  trigger: { kind: "whenRevealed" },
+  effects: [{ kind: "enemyAttack", enemies: theVillain, against: { kind: "controller" } }],
+});
+const PERILOUS_ASSAULT = stubTreachery({
+  id: "perilous-assault",
+  boostIcons: 0,
+  keywords: [{ name: "peril" }],
+  abilities: [ASSAULT.ref],
+});
+const PLAIN_ASSAULT = stubTreachery({ id: "plain-assault", boostIcons: 0, abilities: [ASSAULT.ref] });
+const BUDDY = stubAlly({ id: "buddy", cost: 0, atk: 1, thw: 1, hp: 5 });
+
+const deps: EngineDeps = depsOf(ZAP, WATCH_INTERRUPT, WATCH_RESPONSE, ALARM_RESPONSE, REVEAL_ACTION, ASSAULT);
 
 function table(): GameState {
   let state = gameAtFirstTurn({
-    cards: [PERILOUS, PLAIN, FILLER, WATCH, ALARM, REVEAL],
+    cards: [PERILOUS, PLAIN, FILLER, WATCH, ALARM, REVEAL, PERILOUS_ASSAULT, PLAIN_ASSAULT, BUDDY],
     deps,
     players: 2,
     villain: VILLAIN,
     mainScheme: SCHEME,
-    deck: [WATCH.id, ALARM.id, REVEAL.id, REVEAL.id],
-    encounter: [PERILOUS.id, PLAIN.id, ...copiesOf(FILLER.id, 20)],
+    deck: [WATCH.id, ALARM.id, REVEAL.id, REVEAL.id, BUDDY.id],
+    encounter: [PERILOUS.id, PLAIN.id, PERILOUS_ASSAULT.id, PLAIN_ASSAULT.id, ...copiesOf(FILLER.id, 20)],
   });
   state = playerCardIntoPlay(state, WATCH.id, P1).state;
   state = playerCardIntoPlay(state, WATCH.id, P2).state;
@@ -150,5 +164,37 @@ describe("peril: other players cannot trigger abilities (RRG v1.8 p.32; ruling 2
       "watch.response",
     ]);
     expect(counters(state, "alarm")).toBe(2);
+  });
+
+  // Ruling 2026-07-09 R3 (5), Hull Breach: "Can other players defend?" "No."
+  describe("defending an attack the peril card makes", () => {
+    /** Each player has an ally in play; P1 reveals `card` and the defenders offered to them are recorded. */
+    const defendersOffered = (card: CardId): readonly string[] => {
+      let state = table();
+      const p1Ally = playerCardIntoPlay(state, BUDDY.id, P1);
+      const p2Ally = playerCardIntoPlay(p1Ally.state, BUDDY.id, P2);
+      state = p2Ally.state;
+      const offered: string[] = [];
+      playRevealPicking(onTopOfEncounterDeck(state, card), (current) => {
+        const choice = current.pendingChoice;
+        if (choice?.prompt.kind === "declareDefender") {
+          offered.push(
+            ...choice.options.map((option) =>
+              option.optionId === p1Ally.id ? "p1-ally" : option.optionId === p2Ally.id ? "p2-ally" : option.optionId,
+            ),
+          );
+        }
+        return defaultPick(current);
+      });
+      return offered;
+    };
+
+    it("without peril, P2's ally may defend P1 (control)", () => {
+      expect(defendersOffered(PLAIN_ASSAULT.id)).toEqual(["decline", "p1-ally", "p2-ally"]);
+    });
+
+    it("while P1 resolves a peril card, only P1's characters may defend", () => {
+      expect(defendersOffered(PERILOUS_ASSAULT.id)).toEqual(["decline", "p1-ally"]);
+    });
   });
 });
