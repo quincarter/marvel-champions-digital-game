@@ -405,6 +405,8 @@ Nova Prime (`stld` 17002): "Response: After you play Nova Prime from your hand, 
 
 **Behavior to know:** a constant reduction that brings the damage to 0 keeps the tough card but does not suppress the "would take damage" window; an interrupt there sees a damage event whose taken amount will be 0.
 
+**Amended 2026-10-16 (owner decision, audit finding 17; RRG v1.8 "Damage", p. 14):** tough pre-empts the "would take" interrupts only. An interrupt marked `trigger.wouldBeDealt` ("when … would deal / be dealt any amount of damage", step 1) resolves first, in the window's earlier tier; if it replaces or fully prevents the damage the tough card is kept, and otherwise `toughEndsDamageWindow` ends the window before the "would take" tier when the tough card still stops what is left. Tested in `packages/engine/src/damage-stage-order.test.ts`.
+
 ### 3.13 A card the first player controls, and "First Player" abilities (the Milano)
 
 > **Status: landed (2026-09-22),** tested in `packages/engine/src/first-player-control.test.ts` (4 tests, one replayed
@@ -522,6 +524,7 @@ Moondragon (19013): "Action: Exhaust and discard Moondragon → choose a minion.
 
 The rules, with the reading for each:
 
+- **Headpool is the exception on the boost card** (ruling 2026-01-26 (4): "Headpool's controller resolves the minion's boost card"; owner decision 2026-10-16, audit finding 14). `enemyAttacksEnemy` takes `boost: true`: a villain or Villainous minion is then dealt a boost card (RRG 1.8 p. 8 step 1) through an `enemyAttack` procedure marked `versusEnemy` (no Declare Defender step), with the effect's controller as "you" for it, and its icons add to the ATK dealt. Moondragon stays without one; whether FFG would rule the same for him is unasked.
 - **No boost card, no activation abilities, no defense** (§4 Q12, the user's decision). Villainous doesn't apply either, and Tiger Shark's "After Tiger Shark attacks" doesn't fire. That follows from the ruling: such abilities answer the minion's attack activation, and this is not one.
 - **Attack damage.** The target's tough status card, its damage reductions and its retaliate apply as they would to any attack (RRG 1.8 "Retaliate X", p. 38: "After a character with the retaliate X keyword is attacked, deal X damage to the attacker"). Ranged on the attacker skips retaliate, and piercing discards tough, as usual.
 - **Overkill follows RRG 1.8 "Overkill" (p. 31) as written.** "If a minion is defeated by an attack with the overkill keyword, deal any damage on that minion beyond its hit points to the villain." The rule doesn't care who attacks, so a minion with overkill that defeats another minion spills the excess onto the villain. With more than one villain, the one with the active counter takes it (RRG 1.8 FAQ, p. 62). A villain target spills nowhere, because the rule names only an ally or a minion. This is the RRG's own text applied to a case it didn't foresee, and it helps the players, so it is flagged but not left open.

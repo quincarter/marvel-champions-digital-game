@@ -436,6 +436,11 @@ export type TriggerEventBody =
       readonly targetInstanceId: InstanceId;
       /** The card whose ability made the attack (Moondragon), for the log. */
       readonly sourceInstanceId: InstanceId | null;
+      /**
+       * The attacker is dealt and resolves a boost card for this attack, this player resolving it (Headpool's
+       * controller; FFG ruling January 26, 2026 (4); owner decision 2026-10-16, audit finding 14). Absent: no boost.
+       */
+      readonly boostPlayerId?: PlayerId;
     }
   /**
    * "After [character] is attacked", named after the attack's damage resolves so

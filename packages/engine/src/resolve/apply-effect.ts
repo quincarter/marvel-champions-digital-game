@@ -791,6 +791,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             attackerInstanceId: attacker,
             targetInstanceId: target,
             sourceInstanceId: frame.selfInstanceId,
+            ...(effect.boost && frame.controllerId ? { boostPlayerId: frame.controllerId } : {}),
           },
         ],
         reportTo(effect.bind),

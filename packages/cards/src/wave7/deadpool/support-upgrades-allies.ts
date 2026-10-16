@@ -123,7 +123,9 @@ export const DEADPOOL_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilities
     // Damaged and still standing: a minion his attack defeated is out of play and attacks nothing.
     { ...on.attacks("self", { target: query("minion"), damages: true }), resultsAtMost: { defeated: 0 } },
     chooseTarget("attacked", { categories: ["enemy"], attackableBy: eventTarget, excluding: eventTarget }),
-    enemyAttacksEnemy(eventTarget, chosen("attacked")),
+    // FFG ruling January 26, 2026 (4): "Headpool's controller resolves the minion's boost card", so this attack, unlike
+    // Moondragon's (docs/phase7-wave3.md §4 Q12), gets a boost card; owner decision 2026-10-16 (audit finding 14).
+    enemyAttacksEnemy(eventTarget, chosen("attacked"), { boost: true }),
   ),
   "44015.kidpool-constant": constant(attacksGainKeywords(["piercing"], { attacker: { self: true } })),
   "44016.when-defeated": whenDefeated(

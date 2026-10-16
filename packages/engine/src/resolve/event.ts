@@ -74,7 +74,6 @@ import {
 } from "../rules.js";
 import {
   actingCharacterOf,
-  canAttack,
   cannotBeDefeatedAgain,
   cardsInPlay,
   characterIgnores,
@@ -118,7 +117,12 @@ import {
   settleActiveCounter,
 } from "./defeat.js";
 import { openDefeatedTogetherInterrupts, withDefeatedMember } from "./defeated-together.js";
-import { dashedStatSkipsActivation, pushEnemyAttackFrame, pushEnemySchemeFrame } from "./enemy-activation.js";
+import {
+  applyEnemyAttacksEnemy,
+  dashedStatSkipsActivation,
+  pushEnemyAttackFrame,
+  pushEnemySchemeFrame,
+} from "./enemy-activation.js";
 import { applyEnterPlayKeywords, engagingAsItEnters } from "./enter-play.js";
 import {
   addFrameSlots,
@@ -2382,79 +2386,6 @@ function abortForLeftTarget(ctx: Ctx, frameId: FrameId, characterId: InstanceId,
   if (pending.kind === "event" && (pending.vars[`${kind}.made`] ?? 0) > 0) return;
   ctx.state = { ...ctx.state, stack: stack.filter((f) => f.frameId !== pending.frameId) };
   emit(ctx, { type: "framePopped", frameId: pending.frameId, frame: pending.kind });
-}
-
-/**
- * One enemy attacks another (`EffectSpec enemyAttacksEnemy`; docs/phase7-wave3.md §3.23, §4 Q12 as the user decided it
- * on 2026-09-23): an attack, not an activation, so there is no boost step and no defense step — the target is an enemy,
- * with no controller to defend it. What is left of RRG 1.8 "Attack (Enemy Activation)" (p. 9) is steps 4–6: the
- * attacker's ATK (modifiers included) is dealt to the target as attack damage, and the attack finishes with the
- * `characterAttacked` event that retaliate hangs off. The damage is the same `dealDamage` a player's attack pushes, so
- * the target's tough status, its damage reductions, piercing, and overkill (RRG 1.8 "Overkill", p. 31: a defeated
- * minion's excess goes to the villain, whoever attacked it) all apply exactly as they do anywhere else.
- *
- * Re-checked here because the interrupt window may have changed things: an attacker or target that left play ends the
- * attack (RRG 1.8 "Activation", p. 6's rule for a minion leaving mid-activation, applied to this attack), and so does a
- * `cannotAttack` rule now in force. Guard never does (`canAttack`: an enemy's attack is nobody's; RRG 1.8 "Guard", p. 21).
- */
-function applyEnemyAttacksEnemy(
-  ctx: Ctx,
-  event: Extract<TriggerEvent, { kind: "enemyAttacksEnemy" }>,
-  frameId: FrameId,
-): boolean | void {
-  const { attackerInstanceId: attacker, targetInstanceId: target } = event;
-  const skip = (reason: "leftPlay" | "cannotAttack" | "dashedStat"): false => {
-    emit(ctx, {
-      type: "enemyAttackedEnemy",
-      attackerInstanceId: attacker,
-      targetInstanceId: target,
-      damageDealt: 0,
-      skipped: reason,
-    });
-    return false;
-  };
-  const inPlay = cardsInPlay(ctx.state);
-  if (!inPlay.includes(attacker) || !inPlay.includes(target)) return skip("leftPlay");
-  if (!canAttack(ctx.state, attacker, target, ctx.deps)) return skip("cannotAttack");
-  const profile = characterProfile(ctx.state, attacker, ctx.deps);
-  if (!profile || profile.missing.includes("atk")) return skip("dashedStat");
-  const attackFrame = findFrame(ctx.state, frameId);
-  const keywords = attackKeywordsOf(ctx.state, ctx.deps, {
-    attackerInstanceId: attacker,
-    ...(attackFrame?.kind === "event" ? { vars: attackFrame.vars } : {}),
-    targetInstanceId: target,
-  });
-  const amount = Math.max(0, profile.atk + (attackFrame?.kind === "event" ? (attackFrame.vars.atkBonus ?? 0) : 0));
-  emit(ctx, {
-    type: "enemyAttackedEnemy",
-    attackerInstanceId: attacker,
-    targetInstanceId: target,
-    damageDealt: amount,
-  });
-  pushEventsJoiningResponses(
-    ctx,
-    [
-      {
-        kind: "dealDamage",
-        targetInstanceId: target,
-        amount,
-        sourceInstanceId: attacker,
-        fromAttack: true,
-        parentFrameId: frameId,
-        overkill: keywords.includes("overkill"),
-        ...(keywords.includes("piercing") ? { piercing: true } : {}),
-        ...(keywords.includes("ranged") ? { ranged: true as const } : {}),
-      },
-      {
-        kind: "characterAttacked",
-        attackerInstanceId: attacker,
-        targetInstanceId: target,
-        playerId: null,
-        ...(keywords.includes("ranged") ? { ranged: true } : {}),
-      },
-    ],
-    frameId,
-  );
 }
 
 /** A basic recovery's healing: the identity heals damage equal to its current REC (RRG 1.8 "Recover", p. 36). */

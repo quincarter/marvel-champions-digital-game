@@ -1947,6 +1947,13 @@ export type EffectSpec =
       readonly kind: "enemyAttacksEnemy";
       readonly attacker: TargetRef;
       readonly target: TargetRef;
+      /**
+       * The attacker is dealt its boost card for this attack (a villain or villainous minion; RRG 1.8 "Attack (Enemy
+       * Activation)" step 1, p. 8), turned faceup and resolved with the effect's controller as "you": FFG ruling
+       * January 26, 2026 (4), "Headpool's controller resolves the minion's boost card"; owner decision 2026-10-16 (audit
+       * finding 14). Its icons add to the ATK dealt. Absent (Moondragon, §4 Q12): no boost card.
+       */
+      readonly boost?: true;
       readonly bind?: string;
     }
   /**

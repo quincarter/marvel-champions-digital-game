@@ -16,6 +16,7 @@ import {
 import {
   type Ctx,
   emit,
+  findFrame,
   moveCard,
   perilResolverId,
   popFrame,
@@ -56,7 +57,7 @@ import {
   cannotDefend,
   defendsWithoutExhausting,
 } from "../rules.js";
-import { cardsInPlay, controllerOf, DEFENDER_SLOT, evaluate, isAlly } from "../select.js";
+import { canAttack, cardsInPlay, controllerOf, DEFENDER_SLOT, evaluate, isAlly } from "../select.js";
 import { currentActivationFrameId, type Vars } from "../stack.js";
 import type { BoostGiven, GameState, ZoneId } from "../state.js";
 import { type SchemeThreatDivert, TOTAL_ATK_RESULT, type TriggerEvent } from "../trigger-events.js";
@@ -612,7 +613,7 @@ export function recordDefenseLabel(ctx: Ctx, playerId: PlayerId): void {
 /** RRG "Defend, Defense": a (defense) ability makes the identity the defender if the current attack has none. */
 export function declareLabeledDefense(ctx: Ctx, playerId: PlayerId): void {
   const identity = mustPlayer(ctx.state, playerId).identity.instanceId;
-  const attack = ctx.state.stack.find((f): f is Frame<"enemyAttack"> => f.kind === "enemyAttack");
+  const attack = ctx.state.stack.find((f): f is Frame<"enemyAttack"> => f.kind === "enemyAttack" && !f.versusEnemy);
   // A character that cannot defend is not made the defender by a "(defense)" ability either (§3.31 of wave 4).
   const attackerOf = attack?.enemyInstanceId ?? null;
   if (cannotDefend(ctx.state, ctx.deps, identity, attackerOf)) return;
@@ -664,7 +665,7 @@ export function declareDefenderByLabeledEffect(
   if (defenderId === null) return;
   declareDefenderByEffect(ctx, defenderId, exhaust);
   if (hero === null || defenderId === hero) return;
-  const attack = ctx.state.stack.find((f): f is Frame<"enemyAttack"> => f.kind === "enemyAttack");
+  const attack = ctx.state.stack.find((f): f is Frame<"enemyAttack"> => f.kind === "enemyAttack" && !f.versusEnemy);
   addFrameSlots(ctx, attack?.eventFrameId ?? currentActivationFrameId(ctx.state.stack), {
     [LABELED_DEFENSE_HERO_SLOT]: [hero],
   });
@@ -690,7 +691,7 @@ export function declareDefenderByEffect(ctx: Ctx, defenderId: InstanceId, exhaus
   if (defenseBarFor(ctx.state, defenderPlayer) !== null) return;
   const basic = cardOf(ctx.state, defenderId)?.type === "hero_identity";
   if (exhaust) exhaustCard(ctx, defenderId);
-  const procedure = ctx.state.stack.find((f): f is Frame<"enemyAttack"> => f.kind === "enemyAttack");
+  const procedure = ctx.state.stack.find((f): f is Frame<"enemyAttack"> => f.kind === "enemyAttack" && !f.versusEnemy);
   // The log's `defenderDeclared`, as the Declare Defender step logs its own (RRG 1.8 "Defend, Defense", p. 15: an
   // ability's declaration makes the character the defender just as the step's does), marked `byEffect`.
   const logDeclared = (enemyInstanceId: InstanceId): void =>
@@ -828,6 +829,108 @@ export function pushEnemyAttackFrame(
       ...(event.noBoost ? { noBoost: true } : {}),
     },
   ]);
+}
+
+/**
+ * One enemy attacks another (`EffectSpec enemyAttacksEnemy`; docs/phase7-wave3.md §3.23, §4 Q12 as the user decided it
+ * on 2026-09-23): an attack, not an activation, so there is no defense step — the target is an enemy, with no
+ * controller to defend it. What is left of RRG 1.8 "Attack (Enemy Activation)" (p. 9) is steps 4–6: the attacker's ATK
+ * (modifiers included) is dealt to the target as attack damage, and the attack finishes with the `characterAttacked`
+ * event that retaliate hangs off. The damage is the same `dealDamage` a player's attack pushes, so the target's tough
+ * status, its damage reductions, piercing, and overkill (RRG 1.8 "Overkill", p. 31: a defeated minion's excess goes to
+ * the villain, whoever attacked it) all apply exactly as they do anywhere else.
+ *
+ * Without `boostPlayerId` there is no boost card (Moondragon, Q12). With it (Headpool; FFG ruling January 26, 2026 (4):
+ * "Headpool's controller resolves the minion's boost card"; owner decision 2026-10-16, audit finding 14) the checks
+ * below are made, then an `enemyAttack` procedure marked `versusEnemy` deals and flips the boost card (step 1 and 3,
+ * with that player as "you") and comes back here with the icons counted (`boostIcons`) to deal the damage. Attacks told
+ * not to get a boost card (`noBoost`) are not this path: they are `enemyAttack` events with their own flag.
+ *
+ * Re-checked here because the interrupt window may have changed things: an attacker or target that left play ends the
+ * attack (RRG 1.8 "Activation", p. 6's rule for a minion leaving mid-activation, applied to this attack), and so does a
+ * `cannotAttack` rule now in force. Guard never does (`canAttack`: an enemy's attack is nobody's; RRG 1.8 "Guard", p. 21).
+ */
+export function applyEnemyAttacksEnemy(
+  ctx: Ctx,
+  event: Extract<TriggerEvent, { kind: "enemyAttacksEnemy" }>,
+  frameId: FrameId,
+  boostIcons?: number,
+): boolean | void {
+  const { attackerInstanceId: attacker, targetInstanceId: target } = event;
+  const skip = (reason: "leftPlay" | "cannotAttack" | "dashedStat"): false => {
+    emit(ctx, {
+      type: "enemyAttackedEnemy",
+      attackerInstanceId: attacker,
+      targetInstanceId: target,
+      damageDealt: 0,
+      skipped: reason,
+    });
+    return false;
+  };
+  const inPlay = cardsInPlay(ctx.state);
+  if (!inPlay.includes(attacker) || !inPlay.includes(target)) return skip("leftPlay");
+  if (!canAttack(ctx.state, attacker, target, ctx.deps)) return skip("cannotAttack");
+  const profile = characterProfile(ctx.state, attacker, ctx.deps);
+  if (!profile || profile.missing.includes("atk")) return skip("dashedStat");
+  if (boostIcons === undefined && event.boostPlayerId) {
+    pushFrames(ctx, [
+      {
+        ...base(ctx),
+        kind: "enemyAttack",
+        enemyInstanceId: attacker,
+        attackedPlayerId: event.boostPlayerId,
+        targetPlayerId: event.boostPlayerId,
+        targetInstanceId: target,
+        defenderInstanceId: null,
+        basicDefense: false,
+        boostIcons: 0,
+        stage: "giveBoost",
+        eventFrameId: frameId,
+        versusEnemy: true,
+      },
+    ]);
+    return;
+  }
+  const attackFrame = findFrame(ctx.state, frameId);
+  const keywords = attackKeywordsOf(ctx.state, ctx.deps, {
+    attackerInstanceId: attacker,
+    ...(attackFrame?.kind === "event" ? { vars: attackFrame.vars } : {}),
+    targetInstanceId: target,
+  });
+  const amount = Math.max(
+    0,
+    profile.atk + (attackFrame?.kind === "event" ? (attackFrame.vars.atkBonus ?? 0) : 0) + (boostIcons ?? 0),
+  );
+  emit(ctx, {
+    type: "enemyAttackedEnemy",
+    attackerInstanceId: attacker,
+    targetInstanceId: target,
+    damageDealt: amount,
+  });
+  pushEventsJoiningResponses(
+    ctx,
+    [
+      {
+        kind: "dealDamage",
+        targetInstanceId: target,
+        amount,
+        sourceInstanceId: attacker,
+        fromAttack: true,
+        parentFrameId: frameId,
+        overkill: keywords.includes("overkill"),
+        ...(keywords.includes("piercing") ? { piercing: true } : {}),
+        ...(keywords.includes("ranged") ? { ranged: true as const } : {}),
+      },
+      {
+        kind: "characterAttacked",
+        attackerInstanceId: attacker,
+        targetInstanceId: target,
+        playerId: null,
+        ...(keywords.includes("ranged") ? { ranged: true } : {}),
+      },
+    ],
+    frameId,
+  );
 }
 
 /**
@@ -1025,7 +1128,7 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
   if (endedByLeavingPlay(ctx, frame, "attack")) return;
   switch (frame.stage) {
     case "giveBoost":
-      return giveBoostStep(ctx, frame, "declareDefender", "attack");
+      return giveBoostStep(ctx, frame, frame.versusEnemy ? "flipBoosts" : "declareDefender", "attack");
     case "declareDefender": {
       // A declared defender whose defense has an additional cost (`RuleSpec additionalPowerCost`,
       // docs/phase7-wave9.md §3.31): the cost is settled first, and the declaration below is made only once it is paid,
@@ -1154,6 +1257,15 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
       return;
     }
     case "dealDamage": {
+      if (frame.versusEnemy) {
+        // Headpool's attack on an enemy: no defender, so step 4 is the plain enemy-on-enemy damage plus the boost icons.
+        setFrame(ctx, { ...frame, stage: "done" });
+        const attack = frame.eventFrameId ? findFrame(ctx.state, frame.eventFrameId) : undefined;
+        if (attack?.kind === "event" && attack.event.kind === "enemyAttacksEnemy") {
+          applyEnemyAttacksEnemy(ctx, attack.event, attack.frameId, frame.boostIcons);
+        }
+        return;
+      }
       const current = defenderLeftPlay(ctx, frame);
       // The hero took over a labeled defense: its `defended` announcement resolves first, then this step runs again.
       if (current === null) return;

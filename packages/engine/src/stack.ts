@@ -610,6 +610,12 @@ export type StackFrame =
       /** No boost card for this attack (`TriggerEvent.noBoost`). */
       readonly noBoost?: boolean;
       /**
+       * An enemy attacking another enemy with a boost card (`enemyAttacksEnemy.boost`; Headpool, FFG ruling January 26,
+       * 2026 (4)). `eventFrameId` is its `enemyAttacksEnemy` event frame, `attackedPlayerId` and `targetPlayerId` the
+       * player who resolves the boost card, `targetInstanceId` the enemy attacked. There is no Declare Defender step.
+       */
+      readonly versusEnemy?: true;
+      /**
        * How many boost cards the give-boost step has given so far, in a game where an ability hears each one
        * (`TriggerEvent boostCardGiven`, docs/phase7-wave9.md §3.44): the step is then taken one card at a time.
        * Absent in every other game, and once the step is over.

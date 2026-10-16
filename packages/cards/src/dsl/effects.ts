@@ -725,8 +725,14 @@ export const basicPowerBy = (
 export const enemyAttacksEnemy = (
   attacker: TargetRef,
   target: TargetRef,
-  opts: { readonly bind?: string } = {},
-): EffectSpec => ({ kind: "enemyAttacksEnemy", attacker, target, ...withBind(opts.bind) });
+  opts: { readonly bind?: string; readonly boost?: true } = {},
+): EffectSpec => ({
+  kind: "enemyAttacksEnemy",
+  attacker,
+  target,
+  ...(opts.boost ? { boost: true as const } : {}),
+  ...withBind(opts.bind),
+});
 /**
  * "Choose a minion. That minion attacks another enemy of your choice." — both choices, then the attack. The first
  * choice only offers a card with another enemy it could attack (`canAttackOneOf`), so an ability with none has no
