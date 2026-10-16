@@ -136,6 +136,26 @@ mod win {
   /// It runs once, after the mode change has settled (it lands asynchronously), so the only flash the player sees is
   /// the monitor's own re-sync: placing the window straight away and again later showed as extra tearing on Alt+Tab
   /// (the owner, 2026-10-16).
+  /// The process that owns the foreground window, for the debug log.
+  fn foreground_name() -> String {
+    use windows_sys::Win32::System::Threading::{OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION};
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId;
+    unsafe {
+      let hwnd = GetForegroundWindow();
+      let mut pid = 0u32;
+      GetWindowThreadProcessId(hwnd, &mut pid);
+      let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+      if process.is_null() {
+        return format!("pid {pid}");
+      }
+      let mut buf = [0u16; 260];
+      let mut len = buf.len() as u32;
+      QueryFullProcessImageNameW(process, 0, buf.as_mut_ptr(), &mut len);
+      windows_sys::Win32::Foundation::CloseHandle(process);
+      String::from_utf16_lossy(&buf[..len as usize])
+    }
+  }
+
   const FIT_AFTER_MS: u64 = 300;
 
   fn fit(hwnd: isize) {
@@ -185,11 +205,14 @@ mod win {
   }
 
   /// Leaves exclusive fullscreen for good: the user's own mode back, nothing wanted any more.
-  pub fn restore() {
+  pub fn restore(refit: bool) {
     let mut state = STATE.lock().unwrap();
     if let Some(previous) = state.take() {
       if previous.active {
         restore_device(&previous.device);
+        if refit {
+          fit(previous.hwnd);
+        }
       }
     }
   }
@@ -197,7 +220,7 @@ mod win {
   /// Alt+Tab and back: the user's own mode while the game is in the background, the chosen one again on return.
   pub fn on_focus(focused: bool) {
     let mut state = STATE.lock().unwrap();
-    log::info!("display mode: focus {focused}, state {:?}", state.as_ref().map(|s| (s.mode.width, s.mode.height, s.active)));
+    log::info!("display mode: focus {focused}, foreground {}, state {:?}", foreground_name(), state.as_ref().map(|s| (s.mode.width, s.mode.height, s.active)));
     if let Some(current) = state.as_mut() {
       if focused && !current.active {
         let result = switch(&current.device, current.mode);
@@ -242,13 +265,17 @@ pub fn set_display_mode(window: tauri::WebviewWindow, width: u32, height: u32) -
 }
 
 #[tauri::command]
-pub fn restore_display_mode() {
-  restore();
+/// `fit`: lay the window over the monitor's restored area (staying fullscreen, as Borderless); false when the game is
+/// about to become a window of its own size.
+pub fn restore_display_mode(fit: bool) {
+  restore(fit);
 }
 
-pub fn restore() {
+pub fn restore(fit: bool) {
   #[cfg(windows)]
-  win::restore();
+  win::restore(fit);
+  #[cfg(not(windows))]
+  let _ = fit;
 }
 
 pub fn on_focus(focused: bool) {

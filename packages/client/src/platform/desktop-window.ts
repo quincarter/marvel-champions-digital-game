@@ -211,20 +211,20 @@ async function applyNow(mode: DisplayMode, size: Resolution): Promise<void> {
   const { invoke } = await import("@tauri-apps/api/core");
   const window = getCurrentWindow();
   monitor = (await monitorFrom(await currentMonitor())) ?? monitor;
-  // Real Fullscreen: leave fullscreen, switch the monitor (or put the user's own mode back), and enter it again so the
-  // window fits the monitor's new size. Every other choice starts from the user's own mode.
+  // Real Fullscreen: switch the monitor (or put the user's own mode back); the shell lays the window over the
+  // monitor's new area itself. The window is never taken out of fullscreen around a switch: doing so took focus from
+  // it for a moment, which put the user's own mode straight back (the owner, 2026-10-16). Every other choice starts
+  // from the user's own mode.
   if (switchesDisplayMode(mode, size, monitor)) {
     const px = resolutionPixelsOf(effectiveResolution(size, monitor, mode))!;
-    if (await window.isFullscreen()) await window.setFullscreen(false);
+    if (!(await window.isFullscreen())) await window.setFullscreen(true);
+    await window.setFocus();
     await invoke("set_display_mode", { width: px.width, height: px.height });
     displaySwitched = true;
-    await window.setFullscreen(true);
-    await window.setFocus();
     return;
   }
   if (displaySwitched) {
-    if (await window.isFullscreen()) await window.setFullscreen(false);
-    await invoke("restore_display_mode");
+    await invoke("restore_display_mode", { fit: mode !== "windowed" });
     displaySwitched = false;
   }
   // Borderless is the shell's own borderless fullscreen: on Windows and Linux that is `setFullscreen` itself (a

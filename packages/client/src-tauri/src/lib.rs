@@ -82,7 +82,7 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
     .run(|_, event| {
       // The user's own display mode back on the way out (Windows would also restore it once the process ends).
       if let tauri::RunEvent::Exit = event {
-        display_mode::restore();
+        display_mode::restore(false);
       }
     });
 }
