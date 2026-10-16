@@ -108,6 +108,7 @@ export default defineConfig({
         "payment-order.spec.ts",
         "qa-v0200-client.spec.ts",
         "card-size-scroll.spec.ts",
+        "campaign-market-scroll.spec.ts",
         "settings-close-after-card-size.spec.ts",
         "villain-phase-gate.spec.ts",
       ],

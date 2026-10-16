@@ -39,8 +39,13 @@ import {
   speechBubble,
   stamp,
 } from "../../ui/campaign-chrome.js";
+import { HoverPreview, screenHoverArea } from "../../ui/card-hover-preview.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
+import { captureIntoRegion } from "../../ui/scroll-capture.js";
+import { McScrollRegion } from "../../ui/scroll-region.js";
 import { textStyle } from "../../ui/theme.js";
+import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../../view/card-hover.js";
+import { VariableListScroll } from "../../view/variable-list-scroll.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import { McButton, fitText, label } from "../../ui/widgets.js";
 import {
@@ -80,6 +85,18 @@ export class CampaignMarketScene extends Phaser.Scene {
   #cartSeatNumber: number | null = null;
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
+  /**
+   * Phone: one region holds everything between the top bar and the action bar. Wider screens: the shelf scrolls under
+   * the wallets and the receipt column scrolls on its own. Offsets live here so a redraw (a cart toggle, a resize)
+   * keeps the player where they were.
+   */
+  #regions: McScrollRegion[] = [];
+  #phoneScroll = new VariableListScroll();
+  #shelfScroll = new VariableListScroll();
+  #receiptScroll = new VariableListScroll();
+  /** Every shelf card drawn this pass, in content space, with the region it scrolls in. */
+  #shelfCards: { readonly cardId: string; readonly rect: Rect; readonly region: McScrollRegion }[] = [];
+  #hover: HoverPreview | null = null;
 
   constructor() {
     super(SCENES.campaignMarket);
@@ -95,12 +112,27 @@ export class CampaignMarketScene extends Phaser.Scene {
     this.#showFullStall = false;
     this.#cart = [];
     this.#cartSeatNumber = null;
+    this.#regions = [];
+    this.#phoneScroll = new VariableListScroll();
+    this.#shelfScroll = new VariableListScroll();
+    this.#receiptScroll = new VariableListScroll();
+    this.#shelfCards = [];
   }
 
   create(): void {
     this.cameras.main.setBackgroundColor(0xf2ece0);
     this.scale.on("resize", this.#draw, this);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", this.#draw, this));
+    this.#hover = new HoverPreview(this, {
+      cardIds: () => this.#hoverCardIds(),
+      area: (pointer) => screenHoverArea(this, pointer),
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off("resize", this.#draw, this);
+      this.#hover?.destroy();
+      this.#hover = null;
+      for (const region of this.#regions) region.destroy();
+      this.#regions = [];
+    });
     void this.#load();
     fadeScreenIn(this);
   }
@@ -209,7 +241,15 @@ export class CampaignMarketScene extends Phaser.Scene {
   #draw(): void {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
+    for (const region of this.#regions) region.destroy();
+    this.#regions = [];
+    this.#shelfCards = [];
     destroyChildren(this);
+    this.#drawScreen();
+    this.#hover?.onDraw();
+  }
+
+  #drawScreen(): void {
     const record = this.#record;
     const { width, height, phone, gutter } = campaignFrame(this);
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
@@ -251,11 +291,12 @@ export class CampaignMarketScene extends Phaser.Scene {
     if (this.#cartSeatNumber !== pending.seatNumber) {
       this.#cart = [];
       this.#cartSeatNumber = pending.seatNumber;
+      this.#phoneScroll = new VariableListScroll();
+      this.#shelfScroll = new VariableListScroll();
+      this.#receiptScroll = new VariableListScroll();
     }
 
-    // Phone has no room for a sixth row below the fixed action bar without a scrolling list (out of scope this
-    // pass) — one fewer card keeps "See the full stall" itself on screen instead of clipped behind the CTA.
-    const pageSize = this.#showFullStall ? CATALOG.length : phone ? 3 : 5;
+    const pageSize = this.#showFullStall ? CATALOG.length : 5;
     const view = marketViewOf(
       record.seats,
       pending,
@@ -268,11 +309,16 @@ export class CampaignMarketScene extends Phaser.Scene {
     );
 
     if (phone) {
-      this.#drawPhone(
-        { x: gutter, y: top.height + 16, width: width - gutter * 2, height: contentBottom - top.height - 16 },
-        afterIssueNumber,
-        view,
-        stops,
+      const viewport: Rect = { x: 0, y: top.height, width, height: actionBar.y - top.height };
+      this.#scrolled(viewport, this.#phoneScroll, stops, (region) =>
+        this.#drawPhone(
+          { x: gutter, y: top.height + 16, width: width - gutter * 2, height: contentBottom - top.height - 16 },
+          afterIssueNumber,
+          view,
+          stops,
+          height,
+          region,
+        ),
       );
     } else {
       const leftWidth = Math.round((width - gutter * 2 - 64) * 0.3);
@@ -291,14 +337,30 @@ export class CampaignMarketScene extends Phaser.Scene {
         height: leftRect.height,
       };
       this.#drawArtPanel(leftRect, afterIssueNumber, view);
-      let y = this.#drawWallets(midRect, view);
-      this.#drawShelf(
-        { x: midRect.x, y: y + 16, width: midRect.width, height: midRect.y + midRect.height - y - 16 },
-        view,
+      const walletsBottom = this.#drawWallets(midRect, view);
+      // Each region reaches a little past its column into the gap beside it, so its scrollbar never sits on a card.
+      const shelfTop = walletsBottom + 8;
+      this.#scrolled(
+        { x: midRect.x, y: shelfTop, width: midRect.width + 16, height: actionBar.y - shelfTop },
+        this.#shelfScroll,
         stops,
+        (region) =>
+          this.#drawShelf({ x: midRect.x, y: shelfTop + 8, width: midRect.width, height: 0 }, view, stops, region),
       );
-      y = this.#drawReceipt(rightRect, view);
-      this.#drawNotes({ x: rightRect.x, y: y + 20, width: rightRect.width, height: 0 }, view, false);
+      this.#scrolled(
+        {
+          x: rightRect.x,
+          y: rightRect.y,
+          width: rightRect.width + Math.min(16, gutter),
+          height: actionBar.y - rightRect.y,
+        },
+        this.#receiptScroll,
+        stops,
+        () => {
+          const y = this.#drawReceipt(rightRect, view);
+          return this.#drawNotes({ x: rightRect.x, y: y + 20, width: rightRect.width, height: 0 }, view, false);
+        },
+      );
     }
 
     const doneRect = actionBarCta(actionBar, phone);
@@ -318,19 +380,71 @@ export class CampaignMarketScene extends Phaser.Scene {
     this.#route.set([...stops.keys()], stops);
   }
 
-  #drawPhone(rect: Rect, issueNumber: number, view: MarketView, stops: Map<string, FocusStop>): void {
+  /**
+   * Draws `draw`'s content into a new scroll region over `viewport`: the content is drawn at the top level as it would
+   * be without scrolling, then moved into the region, sized to the bottom `draw` returns. Controls in it take
+   * input only while wholly in view, and their focus stops scroll themselves into view.
+   */
+  #scrolled(
+    viewport: Rect,
+    scroll: VariableListScroll,
+    stops: Map<string, FocusStop>,
+    draw: (region: McScrollRegion) => number,
+  ): void {
+    // A placeholder until the content is drawn, so a kept offset survives the region's first layout.
+    const heights: number[] = [1_000_000];
+    const region = new McScrollRegion(this, { rect: viewport, heights, scroll, clipInteractive: true });
+    this.#regions.push(region);
+    const fromIndex = this.children.list.length;
+    const stopsBefore = new Set(stops.keys());
+    const bottom = draw(region);
+    captureIntoRegion(this, {
+      region,
+      heights,
+      scroll,
+      fromIndex,
+      stops,
+      stopsBefore,
+      viewportTop: viewport.y,
+      viewportBottom: viewport.y + viewport.height,
+      bottom,
+    });
+  }
+
+  /** The shelf cards on screen now, each clipped to the region it scrolls in: what the desktop hover popover reads. */
+  #hoverCardIds(): ReadonlyMap<string, HoverCardIdRect> {
+    const found = new Map<string, HoverCardIdRect>();
+    this.#shelfCards.forEach(({ cardId, rect, region }, index) => {
+      const shown = clipHoverRect({ ...rect, y: rect.y + region.content.y }, region.rect);
+      if (shown) found.set(hoverSlotOf(cardId, index), { ...shown, cardId, through: true });
+    });
+    return found;
+  }
+
+  #drawPhone(
+    rect: Rect,
+    issueNumber: number,
+    view: MarketView,
+    stops: Map<string, FocusStop>,
+    screenHeight: number,
+    region: McScrollRegion,
+  ): number {
     let y = rect.y;
-    const artRect: Rect = { x: rect.x, y, width: rect.width, height: 150 };
-    this.#drawArt(artRect, issueNumber);
-    y += artRect.height + 14;
+    // A phone held sideways (844x390) has room for little more than the action bar: the art panel goes, so the
+    // shelf starts on the first screen instead of a scroll below a decoration.
+    if (screenHeight >= 600) {
+      const artRect: Rect = { x: rect.x, y, width: rect.width, height: 150 };
+      this.#drawArt(artRect, issueNumber);
+      y += artRect.height + 14;
+    }
     const { rect: bubbleRect } = speechBubble(this, rect.x, y, rect.width, view.promptText, {
       speaker: `The Market · ${view.citation}`,
       tail: "bottom",
     });
     y = bubbleRect.y + bubbleRect.height + 16;
     y = this.#drawWallets({ x: rect.x, y, width: rect.width, height: 0 }, view);
-    y = this.#drawShelf({ x: rect.x, y: y + 16, width: rect.width, height: 999 }, view, stops);
-    this.#drawNotes({ x: rect.x, y: y + 16, width: rect.width, height: 0 }, view, true);
+    y = this.#drawShelf({ x: rect.x, y: y + 16, width: rect.width, height: 0 }, view, stops, region);
+    return this.#drawNotes({ x: rect.x, y: y + 16, width: rect.width, height: 0 }, view, true);
   }
 
   #drawArt(rect: Rect, issueNumber: number): void {
@@ -404,7 +518,7 @@ export class CampaignMarketScene extends Phaser.Scene {
     return rect.y + rowHeight;
   }
 
-  #drawShelf(rect: Rect, view: MarketView, stops: Map<string, FocusStop>): number {
+  #drawShelf(rect: Rect, view: MarketView, stops: Map<string, FocusStop>, region: McScrollRegion): number {
     let y = ruleHeading(this, rect.x, rect.y, rect.width, "On the shelf", surface.ink.hex, 18);
     const cols = 2;
     const gap = 12;
@@ -422,6 +536,7 @@ export class CampaignMarketScene extends Phaser.Scene {
         height: cellHeight,
       };
       this.#drawShelfCard(cellRect, card, stops);
+      this.#shelfCards.push({ cardId: card.cardId as string, rect: cellRect, region });
     });
     const rows = Math.ceil(view.shelf.length / cols);
     let bottom = rowTop(rows);
@@ -621,7 +736,7 @@ export class CampaignMarketScene extends Phaser.Scene {
     return boxTop + boxHeight;
   }
 
-  #drawNotes(rect: Rect, view: MarketView, phone: boolean): void {
+  #drawNotes(rect: Rect, view: MarketView, phone: boolean): number {
     const notes: { readonly icon: string; readonly title: string; readonly detail: string }[] = [
       {
         icon: "✓",
@@ -654,7 +769,7 @@ export class CampaignMarketScene extends Phaser.Scene {
       y += title.height + 2 + detail.height + 14;
     }
     void phone;
-    this.add
+    const footer = this.add
       .text(
         rect.x,
         y,
@@ -664,5 +779,6 @@ export class CampaignMarketScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setFontSize(11)
       .setWordWrapWidth(rect.width);
+    return y + footer.height;
   }
 }

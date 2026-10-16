@@ -466,6 +466,26 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
     return { key: SCENES.campaignDossier, data: { runId: record.id } };
   }
 
+  // `?screen=campaign-market[&units=N]`: The Galaxy's Most Wanted (Groot and Rocket) after issue #1, on the Market
+  // before issue #2. `units` sets both wallets so the whole shelf can be priced as affordable. Dev builds only.
+  if (screen === "campaign-market" && import.meta.env.DEV) {
+    const fixtures = await import("../campaign/dev-fixtures.js");
+    const service = campaignService();
+    let record = await fixtures.seedGmwRun(service, "afterIssue1");
+    const units = Number(params.get("units"));
+    if (Number.isFinite(units) && units > 0) {
+      record = {
+        ...record,
+        seats: record.seats.map((seat) => ({
+          ...seat,
+          fields: { ...seat.fields, units: { kind: "number", value: units } },
+        })),
+      };
+      await service.storage.put(record);
+    }
+    return { key: SCENES.campaignMarket, data: { runId: record.id } };
+  }
+
   return null;
 }
 
