@@ -68,6 +68,7 @@ import type { ScenarioSelectData } from "./scenario-select.js";
 import type { SeatsData } from "./seats.js";
 import type { Deck } from "@mc/content";
 import { destroyChildren } from "../ui/destroy-children.js";
+import { setReportSlot } from "../ui/report-slot.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 
 /**
@@ -169,6 +170,14 @@ export class TitleScene extends Phaser.Scene {
       continuable: this.#continuable !== null,
       update: this.#update !== null,
       civilWar: civilWar !== null,
+    });
+    // The Report button's slot (#176): level with the eyebrow, at the menu column's right edge.
+    const reportSize = layout.split ? 44 : 40;
+    setReportSlot(this.scene.key, {
+      x: layout.left + layout.column - reportSize,
+      y: Math.max(8, Math.round(layout.eyebrow.y + layout.eyebrow.height / 2 - reportSize / 2)),
+      width: reportSize,
+      height: reportSize,
     });
 
     // Ground: split desktop/tablet (ink art panel left, red rule, paper menu panel right); one ink ground on phone.

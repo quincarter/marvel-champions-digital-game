@@ -1001,6 +1001,7 @@ function evaluate(
       needsPayment:
         payment.length > 0 ||
         printsX(state, action) ||
+        ("playerId" in example && choosesSpendSize(state, deps, example.playerId, action)) ||
         ("playerId" in example && overpayMatters(state, deps, example.playerId, action)),
       ...(costBranches ? { costBranches } : {}),
       ...(costHelp.length > 0 ? { costHelp } : {}),
@@ -1886,6 +1887,16 @@ function overpayMatters(state: GameState, deps: EngineDeps, playerId: PlayerId, 
   );
 }
 
+/**
+ * An ability whose cost spends a number of resources the player chooses ("spend X", "spend up to N"): the pay step is
+ * where that number is chosen, so it opens even when the least payment is empty (issue #174, Nebula's Ship).
+ */
+function choosesSpendSize(state: GameState, deps: EngineDeps, playerId: PlayerId, action: ActionRef): boolean {
+  if (action.kind !== "useAbility") return false;
+  const cost = costAsDetermined(state, deps, action.instanceId, playerId, deps.abilities[action.abilityId]?.cost);
+  return cost?.resourcesX !== undefined || resourcesChoiceOf(cost) !== null;
+}
+
 /** Whether the played card prints an X cost (`specialCost: "X"`), which the player names in the pay step (`PaymentContext.x`). */
 function printsX(state: GameState, action: ActionRef): boolean {
   if (action.kind !== "playCard") return false;
@@ -1936,6 +1947,12 @@ export function paymentFor(
   if (!payable.spendable && action.kind !== "playCard") return null;
   const ctx = createCtx(state, deps);
   const discardTop = getPlayer(state, playerId)?.discard[0] ?? null;
+  // Cards the cost's own picks already use (Nebula's Ship exhausts the Milano): their resource abilities cannot pay
+  // the rest of it (RRG 1.8 "Cost", p. 13: one card cannot pay two parts of a cost), so they are not offered.
+  const bare = payable.build([]);
+  const claimed = new Set<InstanceId>(
+    "costChoices" in bare && bare.costChoices ? Object.values(bare.costChoices).flat() : [],
+  );
   const sources = paymentOptions(ctx, playerId, payable.excludeInstanceId, payable.payingFor).flatMap<PaymentSource>(
     (option) => {
       if (option.ref.kind === "card") {
@@ -1996,6 +2013,7 @@ export function paymentFor(
           },
         ];
       }
+      if (claimed.has(option.ref.instanceId)) return [];
       const use = paymentsFromOptionIds([option.optionId]).find((entry) => "ability" in entry);
       const costChoices = use && "ability" in use ? use.ability.costChoices : undefined;
       const costSelection = use && "ability" in use ? use.ability.costSelection : undefined;

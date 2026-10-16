@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { FormFactor, Rect } from "./layout.js";
 import { formFactorFor, rectsOverlap } from "./layout.js";
+import { boostCardsLayout } from "./villain-phase-boosts.js";
 import { villainPhaseLayout, type VillainPhaseLayout } from "./villain-phase-layout.js";
 
 /** docs/phase4-screen-gaps.md §3 "W7": checked at phone, both tablet orientations and desktop. */
@@ -158,9 +159,26 @@ describe("villainPhaseLayout", () => {
       test("more revealed boost cards never shrink the reserved boosts height (a fixed panel, tiled by the boosts sub-layout)", () => {
         const one = villainPhaseLayout(bounds, formFactor, 1);
         const many = villainPhaseLayout(bounds, formFactor, 4);
-        expect(many.boosts.height).toBe(one.boosts.height);
+        if (phone) expect(many.boosts.height).toBeGreaterThanOrEqual(one.boosts.height);
+        else expect(many.boosts.height).toBe(one.boosts.height);
         expect(many.boosts.width).toBe(one.boosts.width);
       });
+
+      if (phone) {
+        test("two boost cards on phone get two rows, both shown as cards, with nothing overlapping (issue #172)", () => {
+          const layout = villainPhaseLayout(bounds, formFactor, 2);
+          const tiles = boostCardsLayout(layout.boosts, 2, formFactor);
+          expect(tiles.slots).toHaveLength(2);
+          expect(tiles.overflow).toBe(0);
+          const rects = leafRects(layout);
+          for (let i = 0; i < rects.length; i++) {
+            for (let j = i + 1; j < rects.length; j++) {
+              expect(rectsOverlap(rects[i]!, rects[j]!), `rect ${i} overlaps rect ${j}`).toBe(false);
+            }
+          }
+          expect(layout.queued.y + layout.queued.height).toBeLessThanOrEqual(layout.footer.y + 0.001);
+        });
+      }
     });
   }
 });

@@ -10,6 +10,7 @@ import type { BoardModel } from "../../view/board-model.js";
 import { lerp } from "../../view/motion-math.js";
 import { PHONE_TABS, type PhoneTab, type Rect } from "../../view/layout.js";
 import type { BoardMotion, StatusStampState } from "./motion.js";
+import { setReportSlot } from "../../ui/report-slot.js";
 
 /** The phone board's "≡" menu icon (see `drawChrome`'s own comment for why this isn't `typeRole.label`). */
 const MENU_ICON_TYPE: TypeSpec = { ...typeRole.label, size: 20, letterSpacing: 0, uppercase: false };
@@ -36,6 +37,8 @@ export interface ChromeOptions {
  * `notSaving` puts a standing "NOT SAVING" chip at the right edge, ahead of
  * the 1st-player mark, which it displaces: once a save has failed the game
  * may not survive a refresh, and that stays true for the rest of the session.
+ *
+ * The Report button (#176) has its slot just left of MENU (and EVIDENCE); `scenes/report-button.ts` draws it there.
  *
  * The menu button sits at the very right edge, ahead of even the "NOT SAVING"
  * chip and the 1st-player mark — pausing has to stay reachable regardless of
@@ -86,8 +89,17 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, o
       }),
     );
   }
-  // Where the standing chips on the right edge stop: MENU, or the Evidence button when there is one.
-  const anchorX = evidenceRect ? evidenceRect.x - 2 : menuRect.x;
+  // The Report button's slot (#176), just left of those: `scenes/report-button.ts` draws it, above every overlay.
+  const reportWidth = wide ? 44 : 40;
+  const reportRect: Rect = {
+    x: (evidenceRect ?? menuRect).x - 8 - reportWidth,
+    y: menuRect.y,
+    width: reportWidth,
+    height: menuRect.height,
+  };
+  setReportSlot(scene.scene.key, reportRect);
+  // Where the standing chips on the right edge stop: the Report button's slot.
+  const anchorX = reportRect.x - 2;
 
   // The live round chip is the one red besides the forward action.
   const chip: Rect = { x: rect.x + 8, y: rect.y + 5, width: 54, height: rect.height - 10 };

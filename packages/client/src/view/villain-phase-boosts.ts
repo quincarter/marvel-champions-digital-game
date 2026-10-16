@@ -22,6 +22,7 @@
  * Pure function of the rect, the count and the form factor — no text
  * measurement, matching every other layout module's own rule.
  */
+import type { InstanceId } from "@mc/engine";
 import { CARD_ASPECT, type FormFactor, type Rect } from "./layout.js";
 
 /** Gap between cards, and between a card's own art and text. */
@@ -118,4 +119,101 @@ export function boostCardsLayout(rect: Rect, count: number, formFactor: FormFact
   }
 
   return { slots, overflow };
+}
+
+/** Below this width the interrupt panel stacks the enemy's strip and the counted boost card's strip instead of pairing them. */
+const SOURCE_STRIPS_SIDE_BY_SIDE = 560;
+const SOURCE_STRIPS_GAP = 8;
+
+export interface InterruptSourceStrips {
+  /** The enemy whose activation the window belongs to; null when there is none. */
+  readonly enemy: Rect | null;
+  /** The boost card whose icons a boost-count window is about (Chaos Control, Scarlet Witch's Crest); null otherwise. */
+  readonly boost: Rect | null;
+  /** Where the panel's body text starts below the strips (`area.y` when neither is drawn). */
+  readonly bottom: number;
+}
+
+/**
+ * The inline interrupt panel's source strips. The panel replaces the boost panel while a decision is open, so a
+ * boost-count window shows the counted card here, beside the enemy on a wide panel and under it on a narrow one (a
+ * phone, a tablet in portrait), each at the full strip height `stripHeight` (issue #172).
+ */
+export function interruptSourceStrips(
+  area: Rect,
+  enemy: boolean,
+  boost: boolean,
+  stripHeight: number,
+): InterruptSourceStrips {
+  if (!enemy && !boost) return { enemy: null, boost: null, bottom: area.y };
+  const strip = (x: number, y: number, width: number): Rect => ({ x, y, width, height: stripHeight });
+  if (enemy && boost) {
+    if (area.width >= SOURCE_STRIPS_SIDE_BY_SIDE) {
+      const half = (area.width - SOURCE_STRIPS_GAP) / 2;
+      return {
+        enemy: strip(area.x, area.y, half),
+        boost: strip(area.x + half + SOURCE_STRIPS_GAP, area.y, half),
+        bottom: area.y + stripHeight,
+      };
+    }
+    const second = area.y + stripHeight + SOURCE_STRIPS_GAP;
+    return {
+      enemy: strip(area.x, area.y, area.width),
+      boost: strip(area.x, second, area.width),
+      bottom: second + stripHeight,
+    };
+  }
+  const only = strip(area.x, area.y, area.width);
+  return { enemy: enemy ? only : null, boost: boost ? only : null, bottom: area.y + stripHeight };
+}
+
+/** The docked panel's boost card thumbnails under "happening now": as tall as this, or what the panel has left. */
+export const BOOST_THUMB_HEIGHT = 70;
+/** Shorter than this a thumbnail is a tint, not a card: the panel keeps its facedown "?" box instead. */
+const BOOST_THUMB_MIN_HEIGHT = 34;
+const BOOST_THUMB_GAP = 6;
+/** The boost line beside the thumbnails keeps at least this much width. */
+const BOOST_LINE_MIN_WIDTH = 90;
+
+export interface BoostThumbs {
+  readonly cards: readonly { readonly instanceId: InstanceId; readonly rect: Rect }[];
+  /** Where the boost line starts, right of the last thumbnail. */
+  readonly textX: number;
+  readonly height: number;
+}
+
+/**
+ * The faceup boost cards as a row of card thumbnails, left to right in flip order, starting at (`x`, `y`) within
+ * `width` and `room` of height. When they don't all fit beside the line, the latest flips stay: a boost-count window is
+ * always about the newest one. A landscape card (a side scheme) lies on its side. Null when there is no room for a
+ * readable card (issue #172).
+ */
+export function boostThumbsLayout(
+  x: number,
+  y: number,
+  width: number,
+  room: number,
+  ids: readonly InstanceId[],
+  landscape: (instanceId: InstanceId) => boolean = () => false,
+): BoostThumbs | null {
+  const height = Math.min(BOOST_THUMB_HEIGHT, room);
+  if (ids.length === 0 || height < BOOST_THUMB_MIN_HEIGHT) return null;
+  const widthOf = (instanceId: InstanceId): number =>
+    Math.round(landscape(instanceId) ? height / CARD_ASPECT : height * CARD_ASPECT);
+  // Newest first until the row would leave the line less than its minimum; the newest always shows.
+  const shown: InstanceId[] = [];
+  let used = 0;
+  for (const instanceId of [...ids].reverse()) {
+    const next = used + widthOf(instanceId) + BOOST_THUMB_GAP;
+    if (shown.length > 0 && next > width - BOOST_LINE_MIN_WIDTH + BOOST_THUMB_GAP) break;
+    shown.unshift(instanceId);
+    used = next;
+  }
+  let cursor = x;
+  const cards = shown.map((instanceId) => {
+    const rect = { x: cursor, y, width: widthOf(instanceId), height };
+    cursor += rect.width + BOOST_THUMB_GAP;
+    return { instanceId, rect };
+  });
+  return { cards, textX: cursor + 4, height };
 }

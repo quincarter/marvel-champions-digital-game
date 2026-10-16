@@ -10,8 +10,9 @@
 import type { AnyCard, CardId, CoreAspect, Deck } from "@mc/content";
 import { type CardPool, validateDeck } from "@mc/engine";
 import { preconDecks } from "./deck-list-model.js";
-import { type AspectStamp, aspectStampsOf } from "./aspect-stamp.js";
+import { type AspectStamp, aspectName, aspectStampsOf } from "./aspect-stamp.js";
 import { cardDisplayName } from "./hero-names.js";
+import { matchesSearch } from "./roster-filter.js";
 import { seatInsightsOf, type PairCatalog, type SeatRecommendation } from "./seat-recommendations.js";
 
 export const ROSTER_SEAT_COUNT = 4;
@@ -145,49 +146,78 @@ export type PickerEntry =
       readonly rec: SeatRecommendation | null;
     };
 
-/** How many heroes the pinned group holds, at most. */
-export const PICKER_RECOMMENDED_LIMIT = 6;
+/** How many heroes the pinned group holds, at most (the owner, 2026-10-16: "a recommended top 5"). */
+export const PICKER_RECOMMENDED_LIMIT = 5;
 
 /**
- * The picker's rows for seat `seatNumber`: from the second seat on, and only once someone else is seated, a
- * "Recommended" group (Team-Up partners first, then aspect coverage, `seat-recommendations.ts`) pinned above the full
- * list, which follows unchanged under its own heading. Seat 1's picker is the plain list: nobody to recommend against.
- * A hero whose row is blocked (already seated, locked) is never recommended.
+ * The heroes pinned above seat `seatNumber`'s list: from the second seat on, and only once someone else is seated, the
+ * best few by score (Team-Up partners first, then aspect coverage, `seat-recommendations.ts`). Seat 1 has nobody to
+ * recommend against. A hero whose row is blocked (already seated, locked) is never recommended. Worked out once per
+ * picker, not per keystroke: the search only filters what this returns.
  */
-export function pickerEntriesOf(
+export function pickerRecommendationsOf(
   seats: readonly (Deck | null)[],
   seatNumber: number,
   options: readonly RosterDeckOption[],
   pool: ReadonlyMap<string, AnyCard>,
   catalog: PairCatalog,
-): readonly PickerEntry[] {
-  const all: PickerEntry[] = options.map((_, optionIndex) => ({
-    kind: "option",
-    optionIndex,
-    recommended: false,
-    rec: null,
-  }));
+): readonly SeatRecommendation[] {
   const others = seats.filter((deck, index): deck is Deck => deck !== null && index + 1 !== seatNumber);
-  if (seatNumber < 2 || others.length === 0) return all;
-  const insights = seatInsightsOf({
+  if (seatNumber < 2 || others.length === 0) return [];
+  return seatInsightsOf({
     seated: others,
     activeSeatIndex: -1,
     candidates: options.map((option) => ({ deck: option.deck, shown: !option.blocked })),
     pool,
     catalog,
     limit: PICKER_RECOMMENDED_LIMIT,
-  });
-  if (insights.recommended.length === 0) return all;
-  const indexOf = new Map(options.map((option, index) => [option.deck.id as string, index]));
+  }).recommended;
+}
+
+/** The hero's name as every row shows it, for sorting and searching. */
+export function pickerHeroNameOf(option: RosterDeckOption, pool: ReadonlyMap<string, AnyCard>): string {
+  const card = pool.get(option.identityId);
+  return card ? cardDisplayName(card) : option.identityId;
+}
+
+/**
+ * The picker's rows for seat `seatNumber`: the recommended heroes under their own heading, then every other hero under
+ * "Other heroes" (a recommended hero is not listed twice), each group A to Z by hero name, then deck name. With no
+ * recommendation the list has no headings. `query` keeps the decks whose hero, deck name, aspect or source matches it;
+ * a group it empties loses its heading.
+ */
+export function pickerEntriesOf(
+  seatNumber: number,
+  options: readonly RosterDeckOption[],
+  recommendations: readonly SeatRecommendation[],
+  pool: ReadonlyMap<string, AnyCard>,
+  query = "",
+): readonly PickerEntry[] {
+  const names = options.map((option) => pickerHeroNameOf(option, pool));
+  const shown = options
+    .map((option, index) => index)
+    .filter((index) => {
+      const option = options[index]!;
+      return matchesSearch(
+        [names[index], option.deck.name, option.sourceLabel, ...option.deck.aspects.map(aspectName)],
+        query,
+      );
+    });
+  const byName = (a: number, b: number): number =>
+    names[a]!.localeCompare(names[b]!, undefined, { sensitivity: "base" }) ||
+    options[a]!.deck.name.localeCompare(options[b]!.deck.name, undefined, { sensitivity: "base" }) ||
+    a - b;
+  const recOf = new Map(recommendations.map((rec) => [rec.deckId, rec]));
+  const recommended = shown.filter((index) => recOf.has(options[index]!.deck.id as string)).sort(byName);
+  const rest = shown.filter((index) => !recOf.has(options[index]!.deck.id as string)).sort(byName);
+  const row = (index: number): PickerEntry => {
+    const rec = recOf.get(options[index]!.deck.id as string) ?? null;
+    return { kind: "option", optionIndex: index, recommended: rec !== null, rec };
+  };
+  if (recommended.length === 0) return rest.map(row);
   return [
     { kind: "heading", text: `Recommended for seat #${seatNumber}` },
-    ...insights.recommended.map((rec): PickerEntry => ({
-      kind: "option",
-      optionIndex: indexOf.get(rec.deckId)!,
-      recommended: true,
-      rec,
-    })),
-    { kind: "heading", text: "All heroes" },
-    ...all,
+    ...recommended.map(row),
+    ...(rest.length > 0 ? [{ kind: "heading", text: "Other heroes" } as const, ...rest.map(row)] : []),
   ];
 }

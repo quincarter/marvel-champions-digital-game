@@ -81,6 +81,8 @@ import { HowToPlayScene } from "./scenes/how-to-play.js";
 import { NewInBoxScene } from "./scenes/new-in-box.js";
 import { CivilWarBuilderScene } from "./scenes/civil-war-builder.js";
 import { AspectLessonScene } from "./scenes/aspect-lesson.js";
+import { ReportIssueOverlay } from "./scenes/report-issue.js";
+import { ReportButtonScene } from "./scenes/report-button.js";
 import { installDebugDump } from "./ui/debug-dump.js";
 import { installFrameGuard } from "./ui/frame-guard.js";
 import { installStartupWatchdog, probeWebgl } from "./ui/startup-watchdog.js";
@@ -203,6 +205,9 @@ const game = new Phaser.Game({
     PileViewOverlay,
     ExtrasViewerScene,
     MusicScene,
+    // Last, so they draw above every screen and overlay (#176): the panel, and the tab that opens it above that.
+    ReportIssueOverlay,
+    ReportButtonScene,
   ],
 });
 watchStartup(game);

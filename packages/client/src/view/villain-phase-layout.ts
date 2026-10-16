@@ -48,6 +48,12 @@ const MAIN_SCHEME_HEIGHT = 92;
 const BOOSTS_HEIGHT_WIDE = 240;
 /** Sized so a single boost card's thumbnail lands close to the design's ~90px-wide phone thumb (`villain-phase-boosts.ts`'s own padding math). */
 const BOOSTS_HEIGHT_PHONE = 142;
+/**
+ * Two boost cards or more on phone: two stacked rows (`villain-phase-boosts.ts` stacks phone cards one per row), so a
+ * second boost card is a card on screen rather than "+1 more" (issue #172). Only where the phone's column still has
+ * room for the main scheme, queued and the phase log's minimums; otherwise the one-row height stays.
+ */
+const BOOSTS_HEIGHT_PHONE_TWO_ROWS = 232;
 const MIN_QUEUED_HEIGHT = 60;
 const MIN_LOG_HEIGHT = 40;
 
@@ -135,8 +141,11 @@ export function villainPhaseLayout(bounds: Rect, formFactor: FormFactor, boostCo
 
   if (phone) {
     const nowHeight = 128;
-    const boostsHeight = boostsHeightPhone;
     const mainSchemeHeight = 56;
+    const spare =
+      bodyBottom - (y + nowHeight + 8) - 8 - (mainSchemeHeight + 8) - (MIN_QUEUED_HEIGHT + 8) - MIN_LOG_HEIGHT;
+    const boostsHeight =
+      boostCount >= 2 && spare >= BOOSTS_HEIGHT_PHONE_TWO_ROWS ? BOOSTS_HEIGHT_PHONE_TWO_ROWS : boostsHeightPhone;
     const happeningNow: Rect = { x: contentX, y, width: contentWidth, height: nowHeight };
     y += nowHeight + 8;
     const boosts: Rect = { x: contentX, y, width: contentWidth, height: boostsHeight };

@@ -447,6 +447,16 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
     return { key: SCENES.board, data: {} };
   }
 
+  // `?screen=villain-boost-interrupt`: a real Scarlet Witch game paused on Chaos Control's boost-count window ("When
+  // boost icons on an encounter card would be counted"), the interrupt panel showing the counted boost card (#172).
+  if (screen === "villain-boost-interrupt") {
+    const finish = await startDevBoostInterruptGame();
+    // The villain phase starts a command or two before the window, and the walkthrough only collects beats while
+    // Board is mounted: those last commands run once Board is up.
+    window.setTimeout(() => void finish(), 1500);
+    return { key: SCENES.board, data: {} };
+  }
+
   // `?screen=alliance`: a real two-seat hot-seat game on War Machine's own turn with Cosmic Alliance (an alliance
   // card) in hand and Star-Lord's hand free to help pay — the per-helper approval bar (wave 4 Q10,
   // `scenes/board/controller.ts`'s `confirmingAllianceHelp`) is one play and one pick of a Star-Lord card away.
@@ -464,6 +474,26 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
     const record = await fixtures.seedHiddenEvidenceFixture(campaignService(), params.get("revealed") === "1");
     if (params.get("view") === "briefing") return { key: SCENES.campaignBriefing, data: { runId: record.id } };
     return { key: SCENES.campaignDossier, data: { runId: record.id } };
+  }
+
+  // `?screen=campaign-market[&units=N]`: The Galaxy's Most Wanted (Groot and Rocket) after issue #1, on the Market
+  // before issue #2. `units` sets both wallets so the whole shelf can be priced as affordable. Dev builds only.
+  if (screen === "campaign-market" && import.meta.env.DEV) {
+    const fixtures = await import("../campaign/dev-fixtures.js");
+    const service = campaignService();
+    let record = await fixtures.seedGmwRun(service, "afterIssue1");
+    const units = Number(params.get("units"));
+    if (Number.isFinite(units) && units > 0) {
+      record = {
+        ...record,
+        seats: record.seats.map((seat) => ({
+          ...seat,
+          fields: { ...seat.fields, units: { kind: "number", value: units } },
+        })),
+      };
+      await service.storage.put(record);
+    }
+    return { key: SCENES.campaignMarket, data: { runId: record.id } };
   }
 
   return null;
@@ -609,6 +639,41 @@ async function startDevVillainInterruptGame(): Promise<void> {
   }
 }
 
+/**
+ * A seeded solo Rhino/Scarlet Witch game: hero form, then her turn ends, which stops on the end-of-turn discard. The
+ * returned function answers that and whatever else comes first with the fewest picks, and stops on Chaos Control's
+ * `chooseTriggers` for the boost card Rhino's attack turned faceup (traced with seed 1).
+ */
+async function startDevBoostInterruptGame(): Promise<() => Promise<void>> {
+  const { store } = appSession();
+  const answerUntilBoostCount = async (): Promise<void> => {
+    for (let step = 0; step < 20; step++) {
+      const actions = store.state.legal?.actions;
+      if (actions?.kind !== "choice") return;
+      const prompt = actions.choice.prompt;
+      if (prompt.kind === "chooseTriggers" && prompt.event.kind === "boostIconsCounting") return;
+      await store.resolveChoice(actions.choice.options.slice(0, actions.choice.minSelections).map((o) => o.optionId));
+    }
+  };
+  if (gameRunning(store)) return answerUntilBoostCount;
+  await store.start({
+    scenarioId: "rhino",
+    difficulty: "standard",
+    players: [{ starterDeckId: "scw-justice" }],
+    seed: 1,
+  });
+  if (store.state.game?.pendingChoice) await store.resolveChoice([]);
+  const legal = store.state.legal?.actions;
+  if (legal?.kind === "turn") {
+    const flip = legal.legal.find((entry) => entry.action.kind === "changeForm");
+    if (flip) await store.dispatch(flip.example);
+  }
+  const turn = store.state.legal?.actions;
+  const end = turn?.kind === "turn" ? turn.legal.find((entry) => entry.action.kind === "endTurn") : undefined;
+  if (end) await store.dispatch(end.example);
+  return answerUntilBoostCount;
+}
+
 async function startDevAllianceGame(): Promise<void> {
   const { store } = appSession();
   if (gameRunning(store)) return;
@@ -692,6 +757,8 @@ export class BootScene extends Phaser.Scene {
     void Promise.all([this.#awaitFonts(), refreshUnlocks().catch(() => false)])
       .then(() => devScreenJump())
       .then((jump) => {
+        // The Report button (#176), from here on: it draws in the top bar of each screen that leaves it a slot.
+        this.scene.launch(SCENES.reportButton);
         if (!jump) {
           // Boot's own normal hand-off (no `?screen=` dev jump): a plain fade, same as every other
           // screen-to-screen move. The dev jumps below stay hard cuts — they're QA/screenshot entry

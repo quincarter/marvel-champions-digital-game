@@ -151,12 +151,13 @@ import { activationHeadline, breakdownLineOf, breakdownOf, type Breakdown } from
 import { activeVillainWording } from "../view/villain-active-change.js";
 import { decisionNoticeOf, soleAnswerOf } from "../view/villain-decision-notice.js";
 import { villainPhaseLayout } from "../view/villain-phase-layout.js";
-import { boostCardsLayout } from "../view/villain-phase-boosts.js";
+import { boostCardsLayout, interruptSourceStrips } from "../view/villain-phase-boosts.js";
 import { interruptCardsLayout } from "../view/villain-phase-interrupts.js";
 import { mainSchemeCalloutOf, type MainSchemeCallout } from "../view/villain-main-scheme.js";
 import { queuedActivationsOf, type QueuedSeat } from "../view/villain-queue.js";
 import { teamStatusOf, type TeamStatusRow } from "../view/villain-team-status.js";
 import {
+  activationBoostLineOf,
   advanceReveal,
   appendWalkthrough,
   emptyWalkthrough,
@@ -186,7 +187,13 @@ import { VILLAIN_DOCK_CHANGED, type BoardScene } from "./board.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion, slideIn, slideOut } from "../ui/transitions.js";
-import { HoverPreview, hoverCardHitsOf, isMousePointer, resetHoverCards } from "../ui/card-hover-preview.js";
+import {
+  HoverPreview,
+  hoverCardHitsOf,
+  isMousePointer,
+  noteHoverCard,
+  resetHoverCards,
+} from "../ui/card-hover-preview.js";
 import { villainHoverArea } from "../view/card-hover.js";
 import { slideOffset, villainSlideEdge, type VillainReview } from "../view/villain-review.js";
 import { RECAP_SCROLL_SLOTS, drawVillainRecapPanel } from "../ui/villain-recap-panel.js";
@@ -1754,6 +1761,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
           this.scene.launch(SCENES.inspect, { instanceId: boost.instanceId });
         };
         bindHoldTarget(this, zone, { key: boost.instanceId as string, onTap: openInspect, onInspect: openInspect });
+        // The desktop hover popover, as on every other card picture this screen draws.
+        noteHoverCard(this, boost.instanceId, slot.art);
       }
 
       if (slot.text.width <= 0) return;
@@ -2035,28 +2044,40 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // why the villain phase sources this from the walkthrough's tracked activation instead). Skipped on the
     // shortest panel (a phone on its side) — there is no height to spare there even for a compact strip.
     let bodyTop = rect.y + 28;
-    if (activation && !short) {
+    // A boost-count window (Chaos Control, Scarlet Witch's Crest) is a decision about the faceup boost card, and this
+    // panel stands in for the boost panel while it is open: the card goes in a strip of its own (issue #172).
+    const counted = pause.countedBoost ?? null;
+    if ((activation || counted) && !short) {
       // The same height `scenes/choice.ts` reserves for its own strip: a thumbnail any shorter reads as a
       // featureless colored square rather than a recognizable card (found reading a screenshot at this scale —
       // 52px tall left a ~26×36px thumbnail, too small to show anything more than a tint).
-      const strip = sourceStripPlacement({
-        x: rect.x + 14,
-        y: bodyTop,
-        width: rect.width - 28,
+      const strips = interruptSourceStrips(
+        { x: rect.x + 14, y: bodyTop, width: rect.width - 28, height: 0 },
+        activation !== null,
+        counted !== null,
         // Taller than the choice sheet's strip: this one carries a headline and a whole Forced Response.
-        height: SOURCE_STRIP_HEIGHT + 24,
-      });
-      const sourcePanel = sourceCardPanelFor(
-        state,
-        activation.enemyInstanceId,
-        viewerId,
-        POOL_DEPS,
-        activationHeadline(activation, state, viewerId),
+        SOURCE_STRIP_HEIGHT + 24,
       );
-      drawSourceCardPanel(this, strip, sourcePanel, () =>
-        this.scene.launch(SCENES.inspect, { instanceId: activation.enemyInstanceId }),
-      );
-      bodyTop = strip.strip.y + strip.strip.height + 8;
+      if (activation && strips.enemy) {
+        const sourcePanel = sourceCardPanelFor(
+          state,
+          activation.enemyInstanceId,
+          viewerId,
+          POOL_DEPS,
+          activationHeadline(activation, state, viewerId),
+        );
+        drawSourceCardPanel(this, sourceStripPlacement(strips.enemy), sourcePanel, () =>
+          this.scene.launch(SCENES.inspect, { instanceId: activation.enemyInstanceId }),
+        );
+      }
+      if (counted && strips.boost) {
+        const icons = counted.icons === null ? "" : ` · ${counted.icons} boost icon${counted.icons === 1 ? "" : "s"}`;
+        const boostPanel = sourceCardPanelFor(state, counted.instanceId, viewerId, POOL_DEPS, `Being counted${icons}`);
+        drawSourceCardPanel(this, sourceStripPlacement(strips.boost), boostPanel, () =>
+          this.scene.launch(SCENES.inspect, { instanceId: counted.instanceId }),
+        );
+      }
+      bodyTop = strips.bottom + 8;
     }
 
     const bodyText = this.add
@@ -2377,20 +2398,18 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         boostLine: null,
       };
     }
-    const boosts = activation.boosts.map((boost) => cardName(game, boost.instanceId));
     const breakdown = breakdownLineOf(activation, game);
     const defender = defenderLineOf(game, activation);
+    // While a boost-count window (Chaos Control, Scarlet Witch's Crest) is open, the card being counted (issue #172).
+    const counted = paused ? (this.#shownPause()?.countedBoost ?? null) : null;
     return {
       kind: "happening",
       enemyInstanceId: activation.enemyInstanceId,
       headline: activationHeadline(activation, game, viewer),
       text: [breakdown ?? (paused ? "" : (reveal.current?.text ?? "")), defender ?? ""].filter(Boolean).join(" "),
-      boostLine:
-        boosts.length > 0
-          ? `Boost: ${boosts.join(", ")}`
-          : activation.resolved
-            ? null
-            : "Boost card facedown · flips after interrupts",
+      boostLine: activationBoostLineOf(activation, counted, game),
+      boosts: activation.boosts.map((boost) => boost.instanceId),
+      countedBoostId: counted?.instanceId ?? null,
     };
   }
 

@@ -18,6 +18,8 @@ import { abilityFaceOf } from "../view/board-model.js";
 import { abilityFirst } from "../view/choice-source-panel.js";
 import { inspectModel, triggerLabel } from "../view/inspect-model.js";
 import type { Rect } from "../view/layout.js";
+import { BOOST_THUMB_HEIGHT, boostThumbsLayout } from "../view/villain-phase-boosts.js";
+import { isLandscapeCard } from "../view/civil-war-builder-art.js";
 import type { RevealedStep } from "../view/villain-phase-reveal.js";
 import { stepCaptionOf } from "../view/villain-phase-reveal.js";
 import type { EncounterStrip } from "../view/villain-encounter-strip.js";
@@ -54,6 +56,10 @@ export type RailBody =
       readonly text: string;
       /** Boost cards flipped so far, by name ("1 boost card, facedown — flips after interrupts" before any). */
       readonly boostLine: string | null;
+      /** The faceup boost cards flipped so far, drawn as cards beside the boost line (issue #172). */
+      readonly boosts?: readonly InstanceId[];
+      /** The one a boost-count window (Chaos Control, Scarlet Witch's Crest) is counting, framed; null otherwise. */
+      readonly countedBoostId?: InstanceId | null;
     };
 
 export interface RailInterrupt {
@@ -500,37 +506,69 @@ function drawHappening(
     : null;
   const detailLines = detail ? Math.max(1, detail.getWrappedText(body.text).length) : 0;
   const lineHeight = detail ? detail.height / detailLines : 0;
-  const spare = height - 18 - 6 - (detail ? detailLines * lineHeight + 8 : 0) - (body.boostLine ? 40 : 0);
+  // A faceup boost card is drawn as the card (tap or hover to read it), so the row is taller than the facedown "?".
+  const faceup = body.boosts ?? [];
+  const boostRow = body.boostLine ? (faceup.length > 0 ? BOOST_THUMB_HEIGHT + 6 : 40) : 0;
+  const spare = height - 18 - 6 - (detail ? detailLines * lineHeight + 8 : 0) - boostRow;
   fitWrapped(headline, width, Math.max(2, Math.min(3, Math.floor(spare / 34))), 30);
   let cursor = headline.y + headline.height + 6;
   if (detail) {
     detail.setY(cursor);
-    const room = y + height - cursor - (body.boostLine ? 40 : 0);
+    const room = y + height - cursor - boostRow;
     detail.setMaxLines(Math.max(1, Math.floor(room / lineHeight)));
     cursor += Math.min(detail.height, room) + 8;
   }
   if (body.boostLine && cursor + 30 <= y + height) {
-    const box: Rect = { x, y: cursor, width: 26, height: 34 };
-    const g = scene.add.graphics();
-    g.lineStyle(border.detail, surface.paper.hex, 0.7).strokeRect(box.x, box.y, box.width, box.height);
+    const landscape = (id: InstanceId): boolean => {
+      const card = cardOf(args.game, id);
+      return card ? isLandscapeCard(card) : false;
+    };
+    const thumbs =
+      faceup.length > 0 ? boostThumbsLayout(x, cursor, width, y + height - cursor, faceup, landscape) : null;
+    let textX = x;
+    let textMid = cursor + 17;
+    if (thumbs) {
+      for (const { instanceId, rect } of thumbs.cards) {
+        const art = inspectModel(args.game, instanceId, null, args.viewerId, POOL_DEPS).art;
+        drawCard(scene, rect, args.game, instanceId, args.onInspect, `boost:${instanceId}`, art);
+        if (instanceId === body.countedBoostId) {
+          scene.add
+            .graphics()
+            .lineStyle(border.object, signal.caution.hex, 1)
+            .strokeRect(rect.x, rect.y, rect.width, rect.height);
+        }
+      }
+      textX = thumbs.textX;
+      textMid = cursor + thumbs.height / 2;
+    } else {
+      const box: Rect = { x, y: cursor, width: 26, height: 34 };
+      const g = scene.add.graphics();
+      g.lineStyle(border.detail, surface.paper.hex, 0.7).strokeRect(box.x, box.y, box.width, box.height);
+      scene.add
+        .text(
+          box.x + box.width / 2,
+          box.y + box.height / 2,
+          "?",
+          textStyle({ ...typeRole.barTitle, size: 18 }, surface.paper.hex),
+        )
+        .setOrigin(0.5);
+      textX = box.x + box.width + 10;
+    }
+    const counting = body.countedBoostId != null;
     scene.add
       .text(
-        box.x + box.width / 2,
-        box.y + box.height / 2,
-        "?",
-        textStyle({ ...typeRole.barTitle, size: 18 }, surface.paper.hex),
-      )
-      .setOrigin(0.5);
-    scene.add
-      .text(
-        box.x + box.width + 10,
-        box.y + box.height / 2,
+        textX,
+        textMid,
         body.boostLine.toUpperCase(),
-        textStyle({ ...typeRole.label, size: 10 }, surface.paper.hex, ink.secondary),
+        textStyle(
+          { ...typeRole.label, size: counting ? 11 : 10 },
+          counting ? signal.caution.hex : surface.paper.hex,
+          counting ? ink.body : ink.secondary,
+        ),
       )
       .setOrigin(0, 0.5)
-      .setWordWrapWidth(width - box.width - 10)
-      .setMaxLines(2);
+      .setWordWrapWidth(Math.max(40, x + width - textX))
+      .setMaxLines(thumbs ? Math.max(2, Math.floor(thumbs.height / 14)) : 2);
   }
   // Held on an encounter card whose last beat is this one (the active counter moving): the way on is still NEXT CARD.
   const next = args.onNext;

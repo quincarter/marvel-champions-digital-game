@@ -1,279 +1,205 @@
 /**
- * Settings' own layout (docs/phase4-screen-gaps.md §3 "W4"; fidelity pass
- * 2026-09-17): an ink title bar ("Settings" + a boxed ✕, matching Pause's own
- * header) over a "Table" heading and one fixed-height toggle row per setting,
- * stacked — the same row shape Pause's inline "Table" column now uses, so a
- * player who opens either screen reads the identical group. `rowCount` is the
- * number of *real* toggle rows this build draws (reduced motion, sharper text,
- * large card text, sound-drawn-unavailable) — kept a parameter rather than a
- * hardcoded 4 so a later setting doesn't need this module touched to grow.
+ * Settings' own layout (docs/phase4-screen-gaps.md §3 "W4"): an ink title bar ("Settings" + a boxed ✕, matching
+ * Pause's own header), a tab rail under it (owner, 2026-10-16: one tab at a time rather than one long scroll), and
+ * the active tab's sections (issue #169, `view/settings-sections.ts`) below, each a heading with a rule beside it and
+ * its rows stacked under. A section with no title (a tab's only section, already named by its tab) draws no heading.
  *
- * **The whole body is one scroll region (docs/guided-mode.md §4 G2b, fixed
- * 2026-09-26).** Table, Unlocks and Guide used to be two pieces — the Table/
- * Unlocks rows stacked directly into the panel, only the Guide group (below
- * them) in its own bounded, scrollable viewport — so on a real phone height,
- * where the Table group and Unlocks row alone already use most of the panel,
- * the Guide group's own six rows either scrolled in a cramped little box of
- * their own or (found in browser verification, 2026-09-26) ran straight off
- * the bottom of the panel with nothing to scroll them into view. Every row
- * below the fixed header — `tableHeading` through the last Guide row — is now
- * one `content` block in content space (`y` measured from the content's own
- * top, `0`), and `bodyViewport` is the one scrollable window onto it, the
- * same convention `ui/scroll-region.ts`'s own doc comment states. The scene
- * draws every row into one `McScrollRegion` at `bodyViewport`, the way
- * `scenes/table-setup.ts`'s compact layout already does for its own
- * taller-than-the-screen content — never a second, nested scroll box for the
- * Guide group alone, at any width.
+ * Rows come in four shapes, each sized to fit its own wrapped detail text (`toggleRowHeight`, shared with Pause's
+ * inline "Table" column) rather than one fixed height only the shortest description fit:
+ * - `toggle`: title, detail and an 84px control on the right (a toggle or an "Open ▸" door).
+ * - `segmented`: a segmented control beside the text when there is room, otherwise under it so nothing is cut off.
+ * - `tiles`: the detail runs the full width with a row of option tiles under it, stacked at phone width.
+ * - `level`: the "Guide level" segment, a fixed two-line-per-cell height.
+ *
+ * **The whole body is one scroll region (docs/guided-mode.md §4 G2b).** Every heading and row below the fixed header
+ * is in content space (`y` measured from the content's own top, `0`), and `bodyViewport` is the one scrollable window
+ * onto it, the convention `ui/scroll-region.ts`'s own doc comment states. `slots` lists every heading and row in draw
+ * order for the region's `heights`; each heading and item carries its own index into it for `scrollIntoView`.
  */
+import { hit } from "../tokens.js";
 import { formFactorFor, toggleRowHeight, type Rect } from "./layout.js";
 import { overlayPanelLayout } from "./overlay-layout.js";
 
 const HEADER_HEIGHT = 60;
-const HEADING_HEIGHT = 20;
+const TABS_HEIGHT = hit.target;
+/** Space above and below the tab rail. */
+const TABS_GAP = 12;
+/** A section heading's band: the label, then its rule at the bottom. */
+export const SECTION_HEADING_HEIGHT = 26;
 const ROW_GAP = 10;
-const GROUP_GAP = 16;
+/** Space between the tab rail and the first heading or row. */
+const CONTENT_INSET = 14;
+/**
+ * Space under the last row once scrolled to the bottom (owner, 2026-10-16), so the last row never sits against the
+ * panel's bottom edge.
+ */
+const BOTTOM_PADDING = 32;
+/** Space above every section heading after the first, so each section reads as its own block. */
+const SECTION_GAP = 26;
 /** The "Guide level" segmented row: a fixed two-line-per-cell height, not sized off wrapped text like the toggle rows. */
 export const GUIDE_LEVEL_ROW_HEIGHT = 52;
+
+/** Narrower than this and a row of tiles stacks instead of sitting side by side. */
+const STACK_TILES_BELOW = 560;
+const TILE_HEIGHT = 52;
+const TILE_GAP = 8;
+/** A segmented control sits beside its text only when the text keeps at least this much width. */
+const SEGMENTED_TEXT_MIN = 260;
+
+export type SettingsItemSpec =
+  | { readonly kind: "toggle"; readonly id: string; readonly detail: string }
+  | { readonly kind: "segmented"; readonly id: string; readonly detail: string; readonly controlWidth: number }
+  | { readonly kind: "tiles"; readonly id: string; readonly detail: string; readonly count: number }
+  | { readonly kind: "level"; readonly id: string };
+
+export interface SettingsSectionSpec {
+  readonly id: string;
+  readonly title: string;
+  readonly items: readonly SettingsItemSpec[];
+}
+
+/** One placed row, in content space. */
+export interface SettingsItemLayout {
+  readonly id: string;
+  readonly kind: SettingsItemSpec["kind"];
+  readonly row: Rect;
+  /** A segmented row's control; null for every other shape. */
+  readonly control: Rect | null;
+  /** A segmented row whose control sits under its text, or a tiles row whose tiles stack. */
+  readonly stacked: boolean;
+  /** A tiles row's tiles, side by side or stacked; empty for every other shape. */
+  readonly tiles: readonly Rect[];
+  /** This row's index into `SettingsContentLayout.slots`. */
+  readonly slot: number;
+}
+
+export interface SettingsSectionLayout {
+  readonly id: string;
+  readonly title: string;
+  /** Null for an untitled section, which draws no heading. */
+  readonly heading: Rect | null;
+  /** The heading's index into `slots`; -1 with no heading. */
+  readonly headingSlot: number;
+  readonly items: readonly SettingsItemLayout[];
+}
+
+/** Every heading and row this screen draws, in content space (`y` from the body's own top). */
+export interface SettingsContentLayout {
+  readonly sections: readonly SettingsSectionLayout[];
+  /** Every heading and row rect in draw order, for `McScrollRegion`'s `heights` (`contentSlotHeights`). */
+  readonly slots: readonly Rect[];
+  /**
+   * The scroll region's `heights`, one per slot: each from its slot's top to the next one's, the first also taking
+   * the space above it and the last the padding below it, so they sum to `totalHeight` and the region can scroll
+   * the last row fully into view. (`contentSlotHeights(slots)` alone leaves both insets out, which clipped the last
+   * row at phone height.)
+   */
+  readonly slotHeights: readonly number[];
+  /** The content's own total height, for the scroll region's clamp. */
+  readonly totalHeight: number;
+}
 
 export interface SettingsLayout {
   readonly panel: Rect;
   readonly header: Rect;
-  /** The one scroll region under the fixed header — screen space; everything in `content` draws inside it. */
+  /** The tab rail, under the header. */
+  readonly tabs: Rect;
+  /** The one scroll region under the tab rail — screen space; everything in `content` draws inside it. */
   readonly bodyViewport: Rect;
   readonly content: SettingsContentLayout;
 }
 
-/** The Villain phase group's rects (content space). Each choice row's own title/detail sit in `auto`/`speed`; tiles/segments are laid out below or beside them. */
-export interface SettingsVillainLayout {
-  readonly heading: Rect;
-  /** The whole "Auto-advance" row: title, detail and the tiles. */
-  readonly auto: Rect;
-  /** One rect per auto-advance tile; side by side, or stacked at phone width. */
-  readonly autoTiles: readonly Rect[];
-  readonly hold: Rect;
-  /** The "Beat speed" row; its three-segment control is `speedControl`, right-aligned inside it. */
-  readonly speed: Rect;
-  readonly speedControl: Rect;
-  readonly dock: Rect;
-}
-
-/** The text the Villain phase group's rows size themselves off. */
-export interface SettingsVillainDetails {
-  readonly auto: string;
-  readonly hold: string;
-  readonly speed: string;
-  readonly dock: string;
-}
-
-/** Narrower than this and the three auto-advance tiles stack instead of sitting side by side. */
-const STACK_TILES_BELOW = 560;
-const TILE_HEIGHT = 52;
-const TILE_GAP = 8;
-const SPEED_CONTROL_WIDTH = 204;
-const CARD_HOVER_CONTROL_WIDTH = 280;
-const CARD_SIZE_CONTROL_WIDTH = 520;
-
-/** Every row this screen draws, in content space (`y` from the body's own top) — see this file's own doc comment. */
-export interface SettingsContentLayout {
-  readonly tableHeading: Rect;
-  /** One rect per Table toggle row, then one more for the Unlocks row at the end — `rowDetails`'s own order. */
-  readonly rows: readonly Rect[];
-  /** The Villain phase group, between the Table rows and Guide; absent when `settingsLayout` was given no villain details. */
-  readonly villain: SettingsVillainLayout | null;
-  /** The "Card size on hover" row and its five-segment control, after the Table rows; null when not given a detail or off desktop (no mouse popover elsewhere). */
-  readonly cardHover: { readonly row: Rect; readonly control: Rect } | null;
-  /** The global "Card size" row and its three-segment control, after the hover row; null when not given a detail. On a narrow screen the control drops under the text. */
-  readonly cardSize: { readonly row: Rect; readonly control: Rect } | null;
-  /** The "First player token" row and its five-segment control, after Card size; null when not given a detail. Placed like Card size. */
-  readonly tokenMotion: { readonly row: Rect; readonly control: Rect } | null;
-  readonly guideHeading: Rect;
-  readonly guideLevelRow: Rect;
-  /** One rect per Guide row after the level row: "Play the tutorial", "Aspect lessons", then one per warning toggle. */
-  readonly guideRows: readonly Rect[];
-  /** The content's own total height, for `McScrollRegion`'s `heights` (`view/layout.ts`'s `contentSlotHeights`) and its clamp. */
-  readonly totalHeight: number;
-}
-
-/**
- * `rowDetails[i]` is that row's own rendered detail text (`row.unavailable ??
- * row.detail`, plus the Unlocks row's own summary line at the end) — each row
- * is sized to fit it (`toggleRowHeight`, shared with Pause's inline "Table"
- * column, `view/pause-layout.ts`) rather than every row sharing one fixed
- * height that only the *shortest* description actually fit. Fidelity pass,
- * 2026-09-17: at phone width "Reduced motion"'s three-line detail used to run
- * into "Sharper text"'s own heading below it.
- *
- * `guideRowDetails[i]` is the Guide group's own row-after-the-level-row detail text (`row.unavailable ??
- * row.detail`), in draw order: "Play the tutorial", "Aspect lessons", then one per warning toggle
- * (`guideRowInfoOf` minus its own `"guide-level"` entry) — sized the same way `rowDetails` is.
- */
-export function settingsLayout(
-  bounds: Rect,
-  rowDetails: readonly string[],
-  guideRowDetails: readonly string[] = [],
-  villainDetails?: SettingsVillainDetails,
-  cardHoverDetail?: string,
-  cardSizeDetail?: string,
-  tokenMotionDetail?: string,
-): SettingsLayout {
+export function settingsLayout(bounds: Rect, sections: readonly SettingsSectionSpec[]): SettingsLayout {
   const { panel, header, body } = overlayPanelLayout(bounds, HEADER_HEIGHT, 0);
-  const contentX = body.x + 16;
-  const contentWidth = Math.max(0, body.width - 32);
+  const x = body.x + 16;
+  const width = Math.max(0, body.width - 32);
+  const tabs: Rect = { x, y: body.y + TABS_GAP, width, height: TABS_HEIGHT };
+  const bodyTop = tabs.y + tabs.height + TABS_GAP / 2;
   const onDesktop = formFactorFor(bounds.width, bounds.height) === "desktop";
 
-  // Content space: everything below starts at its own y=0, translated into the viewport by the scroll region.
-  const tableHeading: Rect = { x: contentX, y: 0, width: contentWidth, height: HEADING_HEIGHT };
-  const rowsTop = tableHeading.y + tableHeading.height + 6;
-  const rows: Rect[] = [];
-  let y = rowsTop;
-  for (const detail of rowDetails) {
-    const height = toggleRowHeight(detail, contentWidth, onDesktop);
-    rows.push({ x: contentX, y, width: contentWidth, height });
-    y += height + ROW_GAP;
+  const slots: Rect[] = [];
+  const placed: SettingsSectionLayout[] = [];
+  let y = CONTENT_INSET;
+  for (const section of sections) {
+    if (section.items.length === 0) continue;
+    if (placed.length > 0) y += SECTION_GAP;
+    const heading: Rect | null = section.title ? { x, y, width, height: SECTION_HEADING_HEIGHT } : null;
+    const headingSlot = heading ? slots.push(heading) - 1 : -1;
+    if (heading) y += SECTION_HEADING_HEIGHT + 8;
+    const items: SettingsItemLayout[] = [];
+    for (const spec of section.items) {
+      const item = placeItem(spec, x, y, width, onDesktop, slots.length);
+      slots.push(item.row);
+      items.push(item);
+      y = item.row.y + item.row.height + ROW_GAP;
+    }
+    y -= ROW_GAP;
+    placed.push({ id: section.id, title: section.title, heading, headingSlot, items });
   }
-  const rowsBottom = rows.length > 0 ? rows[rows.length - 1]!.y + rows[rows.length - 1]!.height : rowsTop;
+  const totalHeight = Math.max(0, y + BOTTOM_PADDING);
+  const slotHeights = slots.map(
+    (rect, i) => (i + 1 < slots.length ? slots[i + 1]!.y : totalHeight) - (i === 0 ? 0 : rect.y),
+  );
 
-  let cardHover: SettingsContentLayout["cardHover"] = null;
-  let tableBottom = rowsBottom;
-  if (cardHoverDetail !== undefined && onDesktop) {
-    const height = Math.max(
-      toggleRowHeight(cardHoverDetail, contentWidth - (CARD_HOVER_CONTROL_WIDTH - 84), onDesktop),
-      44,
-    );
-    const row: Rect = { x: contentX, y: rowsBottom + ROW_GAP, width: contentWidth, height };
-    cardHover = {
-      row,
-      control: {
-        x: row.x + row.width - CARD_HOVER_CONTROL_WIDTH - 2,
-        y: row.y + (row.height - 32) / 2,
-        width: CARD_HOVER_CONTROL_WIDTH,
-        height: 32,
-      },
-    };
-    tableBottom = row.y + row.height;
-  }
-
-  // Card size and First player token share one shape: a segmented control beside its text when there is room,
-  // otherwise under it so nothing is cut off.
-  const segmentedRow = (detail: string): { readonly row: Rect; readonly control: Rect } => {
-    const beside = contentWidth >= CARD_SIZE_CONTROL_WIDTH + 260;
-    const textHeight = toggleRowHeight(
-      detail,
-      beside ? contentWidth - (CARD_SIZE_CONTROL_WIDTH - 84) : contentWidth,
-      onDesktop,
-    );
-    const height = beside ? Math.max(textHeight, 44) : textHeight + 40;
-    const row: Rect = { x: contentX, y: tableBottom + ROW_GAP, width: contentWidth, height };
-    const controlWidth = Math.min(CARD_SIZE_CONTROL_WIDTH, contentWidth - 4);
-    tableBottom = row.y + row.height;
-    return {
-      row,
-      control: beside
-        ? { x: row.x + row.width - controlWidth - 2, y: row.y + (row.height - 32) / 2, width: controlWidth, height: 32 }
-        : { x: row.x + 2, y: row.y + row.height - 36, width: controlWidth, height: 32 },
-    };
-  };
-  const cardSize: SettingsContentLayout["cardSize"] =
-    cardSizeDetail !== undefined ? segmentedRow(cardSizeDetail) : null;
-  const tokenMotion: SettingsContentLayout["tokenMotion"] =
-    tokenMotionDetail !== undefined ? segmentedRow(tokenMotionDetail) : null;
-
-  let villain: SettingsVillainLayout | null = null;
-  let afterRowsBottom = tableBottom;
-  if (villainDetails) {
-    const heading: Rect = { x: contentX, y: tableBottom + GROUP_GAP, width: contentWidth, height: HEADING_HEIGHT };
-    const autoTop = heading.y + heading.height + 6;
-    const stacked = contentWidth < STACK_TILES_BELOW;
-    // The auto-advance detail runs the full row width (no control beside it), so size it as a toggle row with the
-    // control's 100px reservation given back; its tiles then follow it.
-    const autoTextHeight = toggleRowHeight(villainDetails.auto, contentWidth + 100, onDesktop) - 8;
-    const tilesTop = autoTop + autoTextHeight + 4;
-    const tileWidth = stacked ? contentWidth : (contentWidth - 2 - TILE_GAP * 2) / 3;
-    const autoTiles: Rect[] = [0, 1, 2].map((i) => ({
-      x: stacked ? contentX : contentX + i * (tileWidth + TILE_GAP),
-      y: stacked ? tilesTop + i * (TILE_HEIGHT + TILE_GAP) : tilesTop,
-      width: tileWidth,
-      height: TILE_HEIGHT,
-    }));
-    const autoBottom = autoTiles[2]!.y + TILE_HEIGHT;
-    const auto: Rect = { x: contentX, y: autoTop, width: contentWidth, height: autoBottom - autoTop };
-    const holdRowTop = autoBottom + ROW_GAP;
-    const hold: Rect = {
-      x: contentX,
-      y: holdRowTop,
-      width: contentWidth,
-      height: toggleRowHeight(villainDetails.hold, contentWidth, onDesktop),
-    };
-    // The speed control is wider than a toggle, so its row reserves that width for its detail text instead.
-    const speedHeight = Math.max(
-      toggleRowHeight(villainDetails.speed, contentWidth - (SPEED_CONTROL_WIDTH - 84), onDesktop),
-      44,
-    );
-    const speed: Rect = { x: contentX, y: hold.y + hold.height + ROW_GAP, width: contentWidth, height: speedHeight };
-    const speedControl: Rect = {
-      x: speed.x + speed.width - SPEED_CONTROL_WIDTH - 2,
-      y: speed.y + (speed.height - 32) / 2,
-      width: SPEED_CONTROL_WIDTH,
-      height: 32,
-    };
-    const dock: Rect = {
-      x: contentX,
-      y: speed.y + speed.height + ROW_GAP,
-      width: contentWidth,
-      height: toggleRowHeight(villainDetails.dock, contentWidth, onDesktop),
-    };
-    villain = { heading, auto, autoTiles, hold, speed, speedControl, dock };
-    afterRowsBottom = dock.y + dock.height;
-  }
-
-  const guideHeading: Rect = {
-    x: contentX,
-    y: afterRowsBottom + GROUP_GAP,
-    width: contentWidth,
-    height: HEADING_HEIGHT,
-  };
-  const guideLevelRow: Rect = {
-    x: contentX,
-    y: guideHeading.y + guideHeading.height + 6,
-    width: contentWidth,
-    height: GUIDE_LEVEL_ROW_HEIGHT,
-  };
-  const guideRows: Rect[] = [];
-  let gy = guideLevelRow.y + guideLevelRow.height + ROW_GAP;
-  for (const detail of guideRowDetails) {
-    const height = toggleRowHeight(detail, contentWidth, onDesktop);
-    guideRows.push({ x: contentX, y: gy, width: contentWidth, height });
-    gy += height + ROW_GAP;
-  }
-  const totalHeight = Math.max(0, gy - ROW_GAP);
-
-  const viewportTop = body.y;
   // Never taller than the content itself (no dead scroll space when it already fits, as on a roomy desktop), and
-  // never taller than what's actually left in the panel (the phone case this group exists for).
-  const available = Math.max(0, body.y + body.height - viewportTop);
-  const viewportHeight = Math.min(totalHeight, available);
-  const bodyViewport: Rect = { x: contentX, y: viewportTop, width: contentWidth, height: viewportHeight };
+  // never taller than what's actually left in the panel (the phone case this region exists for).
+  const viewportHeight = Math.min(totalHeight, Math.max(0, body.y + body.height - bodyTop));
+  const bodyViewport: Rect = { x, y: bodyTop, width, height: viewportHeight };
 
-  return {
-    panel,
-    header,
-    bodyViewport,
-    content: {
-      tableHeading,
-      rows,
-      villain,
-      cardHover,
-      cardSize,
-      tokenMotion,
-      guideHeading,
-      guideLevelRow,
-      guideRows,
-      totalHeight,
-    },
-  };
+  return { panel, header, tabs, bodyViewport, content: { sections: placed, slots, slotHeights, totalHeight } };
 }
 
-/** Every rect this layout places, for a no-overlap test — the content's own rects are in a separate coordinate space (see `SettingsContentLayout`), so only the one viewport onto them is checked here. */
+function placeItem(
+  spec: SettingsItemSpec,
+  x: number,
+  y: number,
+  width: number,
+  onDesktop: boolean,
+  slot: number,
+): SettingsItemLayout {
+  const base = { id: spec.id, kind: spec.kind, control: null, stacked: false, tiles: [] as readonly Rect[], slot };
+  switch (spec.kind) {
+    case "toggle":
+      return { ...base, row: { x, y, width, height: toggleRowHeight(spec.detail, width, onDesktop) } };
+    case "level":
+      return { ...base, row: { x, y, width, height: GUIDE_LEVEL_ROW_HEIGHT } };
+    case "segmented": {
+      const beside = width >= spec.controlWidth + SEGMENTED_TEXT_MIN;
+      // `toggleRowHeight` reserves 100px for an 84px control: a wider control beside the text takes the rest, and text
+      // with the control under it gets the whole width back.
+      const textHeight = toggleRowHeight(
+        spec.detail,
+        beside ? width - (spec.controlWidth - 84) : width + 100,
+        onDesktop,
+      );
+      const height = beside ? Math.max(textHeight, 44) : textHeight + 40;
+      const controlWidth = Math.min(spec.controlWidth, width - 4);
+      const control: Rect = beside
+        ? { x: x + width - controlWidth - 2, y: y + (height - 32) / 2, width: controlWidth, height: 32 }
+        : { x: x + 2, y: y + height - 36, width: controlWidth, height: 32 };
+      return { ...base, row: { x, y, width, height }, control, stacked: !beside };
+    }
+    case "tiles": {
+      const stacked = width < STACK_TILES_BELOW;
+      // The detail runs the full row width (no control beside it), so size it as a toggle row with the control's
+      // 100px reservation given back; the tiles then follow it.
+      const textHeight = toggleRowHeight(spec.detail, width + 100, onDesktop) - 8;
+      const tilesTop = y + textHeight + 4;
+      const count = Math.max(1, spec.count);
+      const tileWidth = stacked ? width : (width - 2 - TILE_GAP * (count - 1)) / count;
+      const tiles: Rect[] = Array.from({ length: count }, (_, i) => ({
+        x: stacked ? x : x + i * (tileWidth + TILE_GAP),
+        y: stacked ? tilesTop + i * (TILE_HEIGHT + TILE_GAP) : tilesTop,
+        width: tileWidth,
+        height: TILE_HEIGHT,
+      }));
+      const bottom = tiles[tiles.length - 1]!.y + TILE_HEIGHT;
+      return { ...base, row: { x, y, width, height: bottom - y }, tiles, stacked };
+    }
+  }
+}
+
+/** Every rect this layout places in screen space, for a no-overlap test — the content's own rects are in a separate coordinate space (see `SettingsContentLayout`), so only the one viewport onto them is checked here. */
 export function settingsLayoutRects(layout: SettingsLayout): readonly Rect[] {
-  return [layout.header, layout.bodyViewport];
+  return [layout.header, layout.tabs, layout.bodyViewport];
 }

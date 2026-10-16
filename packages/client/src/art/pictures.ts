@@ -78,7 +78,9 @@ export function ensurePictureLoaded(scene: Phaser.Scene, picture: Picture, onRea
   }
   const waiting = loads.get(picture.key);
   if (waiting) {
-    waiting.push({ scene, onReady });
+    // A scene that redraws while the picture loads asks again with the same callback: wait once, not once per redraw.
+    if (!waiting.some((waiter) => waiter.scene === scene && waiter.onReady === onReady))
+      waiting.push({ scene, onReady });
     return null;
   }
   const waiters: Waiter[] = [{ scene, onReady }];

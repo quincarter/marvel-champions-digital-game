@@ -13,6 +13,7 @@ import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import { revealOf } from "./villain-phase-reveal.js";
 import {
+  activationBoostLineOf,
   advanceReveal,
   appendWalkthrough,
   authorityTagOf,
@@ -26,6 +27,7 @@ import {
   recapPlacementFor,
   readyToAutoClose,
   VILLAIN_STEPS,
+  type ActivationBeat,
   type Walkthrough,
 } from "./villain-walkthrough.js";
 
@@ -438,6 +440,48 @@ describe("pauseFor", () => {
   test("a defend prompt says so instead of calling it an interrupt", () => {
     expect(pauseFor(choice("player", "declareDefender"), played.state, played.viewer).label).toContain(
       "declare your defender",
+    );
+  });
+
+  // Issue #172: Chaos Control / Scarlet Witch's Crest open while the interrupt panel hides the boost panel.
+  test("a boost-count window names the card being counted and its icons, and carries it for the panel", () => {
+    const villain = activeVillain(played.state);
+    const boostId = played.state.players[0]!.identity.instanceId;
+    const counting = {
+      ...choice("player"),
+      prompt: {
+        kind: "chooseTriggers",
+        event: { kind: "boostIconsCounting", enemyInstanceId: villain.instanceId, cardInstanceId: boostId },
+        timing: "interrupt",
+      } as unknown as ChoicePrompt,
+    };
+    const activation: ActivationBeat = {
+      kind: "scheme",
+      enemyInstanceId: villain.instanceId,
+      playerId: played.viewer,
+      boosts: [{ instanceId: boostId, boostIcons: 2, cancelled: null }],
+      resolved: null,
+    };
+    const name = cardName(played.state, boostId);
+
+    const pause = pauseFor(counting, played.state, played.viewer, activation);
+    expect(pause.label).toBe(`Your interrupt: counting the boost icons on ${name} (2 icons)`);
+    expect(pause.countedBoost).toEqual({ instanceId: boostId, name, icons: 2 });
+
+    // Without the activation's beats the card is still named, just without a count.
+    expect(pauseFor(counting, played.state, played.viewer).label).toBe(
+      `Your interrupt: counting the boost icons on ${name}`,
+    );
+    // Any other window has no counted card.
+    expect(pauseFor(choice("player"), played.state, played.viewer).countedBoost).toBeUndefined();
+
+    // The docked panel's boost line says which card is being counted while the window is open, else names the flips.
+    expect(activationBoostLineOf(activation, pause.countedBoost!, played.state)).toBe(
+      `Counting ${name} · 2 boost icons`,
+    );
+    expect(activationBoostLineOf(activation, null, played.state)).toBe(`Boost: ${name}`);
+    expect(activationBoostLineOf({ ...activation, boosts: [] }, null, played.state)).toBe(
+      "Boost card facedown · flips after interrupts",
     );
   });
 
