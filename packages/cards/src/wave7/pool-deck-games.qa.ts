@@ -15,6 +15,9 @@
  *   input) and it plays what the stock driver never does (Break Time costs 3 so its event rule skips it; a player side
  *   scheme is not scored at all), always from `legalActions`.
  * - `POOL_SCAN=1` prints the table; `QA_FULL=1` plays seeds 1-12 of every pairing with the invariants.
+ *
+ * Run as three files that Vitest runs in parallel (`./pool-deck-games-<part>.qa.test.ts`): parts 1 and 2 split the
+ * pinned table, part 3 has the rest. As one file it took about ten minutes on a CI runner (2026-10-16).
  */
 import { describe, expect, it } from "vitest";
 import {
@@ -748,13 +751,30 @@ const playPin = (pin: Pin): void => {
 };
 const pinName = (pin: Pin) => ({ ...pin, name: `${pin.fixture} / ${pin.scenario} / seed ${pin.seed}` });
 
-describe("'Pool deck solo games: the pinned table", () => {
-  it.each(PINS.map(pinName))("$name ends $verdict in $rounds rounds", playPin, 120_000);
-});
+/** The tests after the pinned table, declared by part 3. */
+const DEFER: (() => void)[] = [];
+const restOfPoolDeckGames = () => DEFER.forEach((declare) => declare());
 
-describe.skipIf(env.QA_FULL !== "1")("'Pool deck solo games: the longest losses of the scan (QA_FULL=1)", () => {
-  it.each(LONG_PINS.map(pinName))("$name ends $verdict in $rounds rounds", playPin, 600_000);
-});
+/** Declares this part's tests: 1 and 2 split the pinned table, 3 is everything else. */
+export function poolDeckGames(part: 1 | 2 | 3): void {
+  if (part === 3) {
+    restOfPoolDeckGames();
+    return;
+  }
+  describe(`'Pool deck solo games: the pinned table, part ${part} of 2`, () => {
+    it.each(PINS.map(pinName).filter((_, index) => index % 2 === part - 1))(
+      "$name ends $verdict in $rounds rounds",
+      playPin,
+      120_000,
+    );
+  });
+}
+
+DEFER.push(() =>
+  describe.skipIf(env.QA_FULL !== "1")("'Pool deck solo games: the longest losses of the scan (QA_FULL=1)", () => {
+    it.each(LONG_PINS.map(pinName))("$name ends $verdict in $rounds rounds", playPin, 600_000);
+  }),
+);
 
 // ---------------------------------------------------------------------------------------------------------------
 // Scans
@@ -762,92 +782,96 @@ describe.skipIf(env.QA_FULL !== "1")("'Pool deck solo games: the longest losses 
 
 const SCAN = env.POOL_SCAN === "1";
 
-describe.skipIf(!SCAN)("scan (POOL_SCAN=1)", () => {
-  const seeds = Number(env.POOL_SCAN_SEEDS ?? 12);
-  const explores = (env.POOL_SCAN_EXPLORE ?? "0,1,2,3").split(",").map(Number);
-  const only = env.POOL_SCAN_ONLY?.split(",");
-  const scenarios = (env.POOL_SCAN_SCENARIOS?.split(",") ?? [...SCENARIOS]) as Scenario[];
-  const cases = POOL_FIXTURE_DECKS.flatMap((d) => scenarios.map((scenario) => ({ fixture: d.id, scenario }))).filter(
-    (c) => !only || only.includes(c.fixture),
-  );
-  it.each(cases)(
-    "$fixture / $scenario",
-    ({ fixture, scenario }) => {
-      let wins = 0;
-      let games = 0;
-      let firstWin = "";
-      let longest = { rounds: -1, commands: -1, key: "" };
-      let shortest = { commands: Infinity, key: "" };
-      const reasons: Record<string, number> = {};
-      const tags: Record<string, string> = {};
-      const tagCounts: Record<string, number> = {};
-      for (const defense of (env.POOL_SCAN_DEFENSE?.split(",") ?? ["hero-ready", "balanced"]) as DefenseMode[])
-        for (const explore of explores)
-          for (let seed = 1; seed <= seeds; seed++) {
-            const tagsHere = new Set<string>();
-            const played = drive(buildGame(fixture, scenario, seed), `${fixture}/${scenario}/${seed}`, {
-              defense,
-              explore,
-              stopAt: 700,
-              onStep: (_b, _c, _a, events) => {
-                for (const e of events) {
-                  if (
-                    e.type === "encounterCardRevealed" &&
-                    ["44037", "44038", "44039", "44032"].includes(e.cardId as string)
-                  )
-                    tagsHere.add(`revealed${e.cardId}`);
-                  if (e.type === "characterDefeated" && e.cardId === "44038") tagsHere.add("dreadpoolDefeated");
-                  if (e.type === "abilityResolved" && e.abilityId === "44001a.the-regeneratin-degenerate")
-                    tagsHere.add("regen");
-                  if (e.type === "abilityResolved" && e.abilityId === "44028.git-gud-forced-interrupt")
-                    tagsHere.add("gitGudInterrupt");
-                  if (e.type === "cardPlayed" && ["44046", "44028", "44024"].includes(e.cardId as string))
-                    tagsHere.add(`played${e.cardId}`);
-                  if (e.type === "factReported") tagsHere.add(`fact:${e.fact}=${e.amount}`);
-                }
-              },
-            });
-            const v = verdictOf(played);
-            for (const t of tagsHere) if (!tags[t]) tags[t] = `seed ${seed}, ${defense}, explore ${explore}`;
-            for (const t of tagsHere) tagCounts[t] = (tagCounts[t] ?? 0) + 1;
-            games++;
-            reasons[v] = (reasons[v] ?? 0) + 1;
-            const key = `seed ${seed}, ${defense}, explore ${explore}: ${v} in ${played.rounds}`;
-            if (v === "win") {
-              wins++;
-              if (!firstWin) firstWin = key;
-            } else if (played.outcome && played.commands < shortest.commands) {
-              shortest = { commands: played.commands, key };
+DEFER.push(() =>
+  describe.skipIf(!SCAN)("scan (POOL_SCAN=1)", () => {
+    const seeds = Number(env.POOL_SCAN_SEEDS ?? 12);
+    const explores = (env.POOL_SCAN_EXPLORE ?? "0,1,2,3").split(",").map(Number);
+    const only = env.POOL_SCAN_ONLY?.split(",");
+    const scenarios = (env.POOL_SCAN_SCENARIOS?.split(",") ?? [...SCENARIOS]) as Scenario[];
+    const cases = POOL_FIXTURE_DECKS.flatMap((d) => scenarios.map((scenario) => ({ fixture: d.id, scenario }))).filter(
+      (c) => !only || only.includes(c.fixture),
+    );
+    it.each(cases)(
+      "$fixture / $scenario",
+      ({ fixture, scenario }) => {
+        let wins = 0;
+        let games = 0;
+        let firstWin = "";
+        let longest = { rounds: -1, commands: -1, key: "" };
+        let shortest = { commands: Infinity, key: "" };
+        const reasons: Record<string, number> = {};
+        const tags: Record<string, string> = {};
+        const tagCounts: Record<string, number> = {};
+        for (const defense of (env.POOL_SCAN_DEFENSE?.split(",") ?? ["hero-ready", "balanced"]) as DefenseMode[])
+          for (const explore of explores)
+            for (let seed = 1; seed <= seeds; seed++) {
+              const tagsHere = new Set<string>();
+              const played = drive(buildGame(fixture, scenario, seed), `${fixture}/${scenario}/${seed}`, {
+                defense,
+                explore,
+                stopAt: 700,
+                onStep: (_b, _c, _a, events) => {
+                  for (const e of events) {
+                    if (
+                      e.type === "encounterCardRevealed" &&
+                      ["44037", "44038", "44039", "44032"].includes(e.cardId as string)
+                    )
+                      tagsHere.add(`revealed${e.cardId}`);
+                    if (e.type === "characterDefeated" && e.cardId === "44038") tagsHere.add("dreadpoolDefeated");
+                    if (e.type === "abilityResolved" && e.abilityId === "44001a.the-regeneratin-degenerate")
+                      tagsHere.add("regen");
+                    if (e.type === "abilityResolved" && e.abilityId === "44028.git-gud-forced-interrupt")
+                      tagsHere.add("gitGudInterrupt");
+                    if (e.type === "cardPlayed" && ["44046", "44028", "44024"].includes(e.cardId as string))
+                      tagsHere.add(`played${e.cardId}`);
+                    if (e.type === "factReported") tagsHere.add(`fact:${e.fact}=${e.amount}`);
+                  }
+                },
+              });
+              const v = verdictOf(played);
+              for (const t of tagsHere) if (!tags[t]) tags[t] = `seed ${seed}, ${defense}, explore ${explore}`;
+              for (const t of tagsHere) tagCounts[t] = (tagCounts[t] ?? 0) + 1;
+              games++;
+              reasons[v] = (reasons[v] ?? 0) + 1;
+              const key = `seed ${seed}, ${defense}, explore ${explore}: ${v} in ${played.rounds}`;
+              if (v === "win") {
+                wins++;
+                if (!firstWin) firstWin = key;
+              } else if (played.outcome && played.commands < shortest.commands) {
+                shortest = { commands: played.commands, key };
+              }
+              if (
+                v !== "win" &&
+                (played.rounds > longest.rounds ||
+                  (played.rounds === longest.rounds && played.commands > longest.commands))
+              )
+                longest = { rounds: played.rounds, commands: played.commands, key };
             }
-            if (
-              v !== "win" &&
-              (played.rounds > longest.rounds ||
-                (played.rounds === longest.rounds && played.commands > longest.commands))
-            )
-              longest = { rounds: played.rounds, commands: played.commands, key };
-          }
-      say(
-        `SCAN ${fixture} ${scenario}: ${wins}/${games} wins; first win [${firstWin}]; longest loss [${longest.key}]; shortest loss [${shortest.key}] (${shortest.commands} commands); ${JSON.stringify(reasons)}`,
-      );
-      say(
-        `TAGS ${fixture} ${scenario}: ${JSON.stringify(Object.fromEntries(Object.entries(tags).map(([t, w]) => [t, `${tagCounts[t]} (first ${w})`])))}`,
-      );
-    },
-    3_600_000,
-  );
-});
+        say(
+          `SCAN ${fixture} ${scenario}: ${wins}/${games} wins; first win [${firstWin}]; longest loss [${longest.key}]; shortest loss [${shortest.key}] (${shortest.commands} commands); ${JSON.stringify(reasons)}`,
+        );
+        say(
+          `TAGS ${fixture} ${scenario}: ${JSON.stringify(Object.fromEntries(Object.entries(tags).map(([t, w]) => [t, `${tagCounts[t]} (first ${w})`])))}`,
+        );
+      },
+      3_600_000,
+    );
+  }),
+);
 
-describe.skipIf(env.QA_FULL !== "1")("'Pool deck solo games: the wide scan (QA_FULL=1)", () => {
-  const cases = POOL_FIXTURE_DECKS.flatMap((d) => SCENARIOS.map((scenario) => ({ fixture: d.id, scenario })));
-  it.each(cases)(
-    "$fixture / $scenario: seeds 1-12 hold the invariants",
-    ({ fixture, scenario }) => {
-      for (let seed = 1; seed <= 12; seed++)
-        drive(buildGame(fixture, scenario, seed), `${fixture}/${scenario}/${seed}`, { checkInvariants: true });
-    },
-    3_600_000,
-  );
-});
+DEFER.push(() =>
+  describe.skipIf(env.QA_FULL !== "1")("'Pool deck solo games: the wide scan (QA_FULL=1)", () => {
+    const cases = POOL_FIXTURE_DECKS.flatMap((d) => SCENARIOS.map((scenario) => ({ fixture: d.id, scenario })));
+    it.each(cases)(
+      "$fixture / $scenario: seeds 1-12 hold the invariants",
+      ({ fixture, scenario }) => {
+        for (let seed = 1; seed <= 12; seed++)
+          drive(buildGame(fixture, scenario, seed), `${fixture}/${scenario}/${seed}`, { checkInvariants: true });
+      },
+      3_600_000,
+    );
+  }),
+);
 
 // ---------------------------------------------------------------------------------------------------------------
 // Staged games: the 'Pool-specific behaviors, seen in play
@@ -926,252 +950,263 @@ const instancesOf = (s: GameState, code: string): InstanceId[] =>
 const inPlayOf = (s: GameState, code: string): InstanceId[] =>
   instancesOf(s, code).filter((id) => cardsInPlay(s).includes(id));
 
-describe("'Pool behaviors in play (staged games, every command checked, every log replayed)", () => {
-  // Crisis of Infinite Deadpools 44037: "Reveal the set-aside Dreadpool minion and Dreadful Deeds side scheme ... Remove
-  // this card from the game" (RRG 1.8 FAQ p. 64). Dreadpool 44038: "Dreadpool engages the first player. When Defeated:
-  // Deal Dreadpool to the player who defeated him as a facedown encounter card." Dreadful Deeds 44039: "Place 2 threat
-  // here for each player who controls 1 or more 'Pool (pink) cards."
-  it("Crisis is drawn from the encounter deck, reveals Dreadpool and Dreadful Deeds; Deadpool controls 'Pool cards, so 2 threat is placed", () => {
-    const { steps } = trace(
-      stackedGame("deadpool-pool-break-time", "rhino", DREADPOOL_SEED, ["44043", "44013"], ["44037"]),
-      "crisis",
-      {
-        nudge: HUNT_DREADPOOL,
-      },
-    );
-    const reveal = firstStep(steps, (e) => e.type === "encounterCardRevealed" && e.cardId === "44037")!;
-    expect(reveal).toBeDefined();
-    const crisis = instancesOf(reveal.after, "44037")[0]!;
-    expect(reveal.after.removedFromGame).toContain(crisis);
-    const dreadpool = inPlayOf(reveal.after, "44038")[0]!;
-    expect(reveal.after.instances[dreadpool]!.engagedWith).toBe(P1);
-    const deeds = instancesOf(reveal.after, "44039")[0]!;
-    expect(reveal.after.villainArea).toContain(deeds);
-    // The allies played this turn are still in play when the villain phase reveals the card.
-    const poolControlled = reveal.before.players[0]!.playArea.some(
-      (id) => aspectOfCode(codeOf(reveal.before, id)) === "pool",
-    );
-    expect(poolControlled).toBe(true);
-    const placed = reveal.events
-      .filter((e) => e.type === "threatPlaced" && e.schemeInstanceId === deeds)
-      .reduce((n, e) => n + (e as { amount: number }).amount, 0);
-    expect(placed).toBe(2 + 2); // the printed starting threat, plus 2 for the one player controlling a 'Pool card
-    expect(reveal.after.instances[deeds]!.threat).toBe(4);
-    // Defeated by the player (the hunt), Dreadpool is dealt to them facedown, revealed again, and engages them again at full hit points.
-    const defeated = firstStep(steps, (e) => e.type === "characterDefeated" && e.cardId === "44038")!;
-    expect(defeated).toBeDefined();
-    expect(defeated.after.players[0]!.dealtEncounter.map((id) => codeOf(defeated.after, id))).toContain("44038");
-    const again = steps.find(
-      (st) =>
-        st.events.some((e) => e.type === "encounterCardRevealed" && e.cardId === "44038" && e.playerId === P1) &&
-        steps.indexOf(st) > steps.indexOf(defeated),
-    )!;
-    expect(again).toBeDefined();
-    const back = inPlayOf(again.after, "44038")[0]!;
-    expect(again.after.instances[back]!.engagedWith).toBe(P1);
-    expect(again.after.instances[back]!.damage).toBe(0);
-  }, 120_000);
-
-  it("Dreadful Deeds places nothing extra when the player controls no 'Pool card (the hero passed round 1)", () => {
-    const { steps } = trace(
-      stackedGame("deadpool-pool-break-time", "rhino", DREADPOOL_SEED, ["44043", "44013"], ["44037"]),
-      "crisis-idle",
-      { idleRounds: 1 },
-    );
-    const reveal = firstStep(steps, (e) => e.type === "encounterCardRevealed" && e.cardId === "44037")!;
-    expect(
-      reveal.before.players[0]!.playArea.filter((id) => aspectOfCode(codeOf(reveal.before, id)) === "pool"),
-    ).toEqual([]);
-    const deeds = instancesOf(reveal.after, "44039")[0]!;
-    const placed = reveal.events
-      .filter((e) => e.type === "threatPlaced" && e.schemeInstanceId === deeds)
-      .reduce((n, e) => n + (e as { amount: number }).amount, 0);
-    expect(placed).toBe(2); // the printed starting threat only: nobody controls a 'Pool card
-    expect(reveal.after.instances[deeds]!.threat).toBe(2);
-  }, 120_000);
-});
-
-describe("'Pool behaviors in play: cards that ask the player, cost, and play from the hand", () => {
-  // Break Time 44046: "Alter-Ego Action: ... heal 1 damage from each identity for every minute you were away"; cost 3 per
-  // player (RRG 1.8 "Per Player", 3 x the one player at this table); the player reports the minutes (an outside fact, answered 3).
-  it("Break Time: asks the minutes (3), heals each identity that much (a 5-damage Wade Wilson goes to 2), costs 3 at one player", () => {
-    const start = withDamage(
-      stackedGame("deadpool-pool-break-time", "rhino", 1, ["44046", "44043", "44013", "44017", "44021"]),
-      identityOf(stackedGame("deadpool-pool-break-time", "rhino", 1, [])),
-      5,
-    );
-    expect(start.players[0]!.identity.form).toBe("alterEgo");
-    const { steps } = trace(start, "break-time", { nudge: POOL_NUDGE });
-    const play = firstStep(steps, (e) => e.type === "cardPlayed" && e.cardId === "44046")!;
-    expect(play).toBeDefined();
-    const cast = play.events.find((e) => e.type === "cardPlayed" && e.cardId === "44046") as { resourcesPaid: number };
-    expect(cast.resourcesPaid).toBe(3);
-    // The prompt is a whole-number report (no options); the step that answers it carries the fact and the healing.
-    const answered = firstStep(steps, (e) => e.type === "factReported" && e.fact === "minutesAway")!;
-    expect(answered.before.pendingChoice?.prompt).toMatchObject({
-      kind: "reportFact",
-      fact: "minutesAway",
-      answer: "wholeNumber",
-    });
-    expect(answered.before.pendingChoice?.playerId).toBe(P1);
-    expect(answered.events).toContainEqual(
-      expect.objectContaining({ type: "factReported", amount: MINUTES, bind: "break" }),
-    );
-    const healed = answered.events
-      .filter((e) => e.type === "damageHealed")
-      .reduce((n, e) => n + (e as { amount: number }).amount, 0);
-    expect(healed).toBe(MINUTES);
-    expect(answered.after.instances[identityOf(answered.after)]!.damage).toBe(5 - MINUTES);
-  }, 120_000);
-
-  // Git Gud 44028: "Reduce the cost to play Git Gud by 2 if you did not win your previous game of Marvel Champions."
-  // Printed cost 2; an absent outside fact means "did not win" (docs/phase7-wave7.md Q48).
-  it.each([
-    { wonPreviousGame: undefined, paid: 0 },
-    { wonPreviousGame: true, paid: 2 },
-  ])(
-    "Git Gud with wonPreviousGame=$wonPreviousGame costs $paid",
-    ({ wonPreviousGame, paid }) => {
-      const start = stackedGame("deadpool-pool-break-time", "rhino", 1, ["44028", "44043"], [], {
-        ...(wonPreviousGame ? { wonPreviousGame } : {}),
-      });
-      expect(start.players[0]!.outsideFacts?.wonPreviousGame).toBe(wonPreviousGame);
-      const { steps } = trace(start, `git-gud-${String(wonPreviousGame)}`, { nudge: POOL_NUDGE });
-      const cast = playedCards(steps, "44028");
-      expect(cast.length).toBeGreaterThanOrEqual(1);
-      expect(cast[0]!.resourcesPaid).toBe(paid);
-    },
-    120_000,
-  );
-
-  // The Merc with the Mouth 44032: "Forced Response: After the player phase ends, if you have not talked this phase,
-  // discard this card." The client asks; the answer is a recorded fact.
-  it.each([
-    { talked: "no" as const, discarded: true },
-    { talked: "yes" as const, discarded: false },
-  ])(
-    "the Merc with the Mouth asks, and answered '$talked' it is discarded: $discarded",
-    ({ talked, discarded }) => {
+DEFER.push(() =>
+  describe("'Pool behaviors in play (staged games, every command checked, every log replayed)", () => {
+    // Crisis of Infinite Deadpools 44037: "Reveal the set-aside Dreadpool minion and Dreadful Deeds side scheme ... Remove
+    // this card from the game" (RRG 1.8 FAQ p. 64). Dreadpool 44038: "Dreadpool engages the first player. When Defeated:
+    // Deal Dreadpool to the player who defeated him as a facedown encounter card." Dreadful Deeds 44039: "Place 2 threat
+    // here for each player who controls 1 or more 'Pool (pink) cards."
+    it("Crisis is drawn from the encounter deck, reveals Dreadpool and Dreadful Deeds; Deadpool controls 'Pool cards, so 2 threat is placed", () => {
       const { steps } = trace(
-        stackedGame("deadpool-pool-break-time", "rhino", 5, ["44043"], ["44032"]),
-        `merc-${talked}`,
-        { talked },
+        stackedGame("deadpool-pool-break-time", "rhino", DREADPOOL_SEED, ["44043", "44013"], ["44037"]),
+        "crisis",
+        {
+          nudge: HUNT_DREADPOOL,
+        },
       );
-      const asked = steps.filter(
+      const reveal = firstStep(steps, (e) => e.type === "encounterCardRevealed" && e.cardId === "44037")!;
+      expect(reveal).toBeDefined();
+      const crisis = instancesOf(reveal.after, "44037")[0]!;
+      expect(reveal.after.removedFromGame).toContain(crisis);
+      const dreadpool = inPlayOf(reveal.after, "44038")[0]!;
+      expect(reveal.after.instances[dreadpool]!.engagedWith).toBe(P1);
+      const deeds = instancesOf(reveal.after, "44039")[0]!;
+      expect(reveal.after.villainArea).toContain(deeds);
+      // The allies played this turn are still in play when the villain phase reveals the card.
+      const poolControlled = reveal.before.players[0]!.playArea.some(
+        (id) => aspectOfCode(codeOf(reveal.before, id)) === "pool",
+      );
+      expect(poolControlled).toBe(true);
+      const placed = reveal.events
+        .filter((e) => e.type === "threatPlaced" && e.schemeInstanceId === deeds)
+        .reduce((n, e) => n + (e as { amount: number }).amount, 0);
+      expect(placed).toBe(2 + 2); // the printed starting threat, plus 2 for the one player controlling a 'Pool card
+      expect(reveal.after.instances[deeds]!.threat).toBe(4);
+      // Defeated by the player (the hunt), Dreadpool is dealt to them facedown, revealed again, and engages them again at full hit points.
+      const defeated = firstStep(steps, (e) => e.type === "characterDefeated" && e.cardId === "44038")!;
+      expect(defeated).toBeDefined();
+      expect(defeated.after.players[0]!.dealtEncounter.map((id) => codeOf(defeated.after, id))).toContain("44038");
+      const again = steps.find(
         (st) =>
-          st.before.pendingChoice?.prompt.kind === "reportFact" &&
-          st.before.pendingChoice.prompt.fact === "talkedThisPhase",
-      );
-      expect(asked.length).toBeGreaterThanOrEqual(1);
-      expect(asked[0]!.before.pendingChoice!.prompt).toMatchObject({ answer: "yesNo" });
-      expect(asked[0]!.events).toContainEqual(
-        expect.objectContaining({ type: "factReported", fact: "talkedThisPhase", amount: talked === "yes" ? 1 : 0 }),
-      );
-      const merc = instancesOf(asked[0]!.after, "44032")[0]!;
-      expect(cardsInPlay(asked[0]!.after).includes(merc)).toBe(!discarded);
-      if (discarded)
-        expect(Object.values(asked[0]!.after.encounterDecks).some((d) => d.discard.includes(merc))).toBe(true);
-      // Answered yes it stays and the question comes again every player phase it is still there.
-      if (!discarded) expect(asked.length).toBeGreaterThanOrEqual(2);
-    },
-    120_000,
-  );
+          st.events.some((e) => e.type === "encounterCardRevealed" && e.cardId === "44038" && e.playerId === P1) &&
+          steps.indexOf(st) > steps.indexOf(defeated),
+      )!;
+      expect(again).toBeDefined();
+      const back = inPlayOf(again.after, "44038")[0]!;
+      expect(again.after.instances[back]!.engagedWith).toBe(P1);
+      expect(again.after.instances[back]!.damage).toBe(0);
+    }, 120_000);
 
-  // Live Dangerously 44024: "Victory 0. Each identity gets +2 hand size." A player side scheme: at most
-  // one in play at a table of one player (RRG 1.8 "Player Side Scheme", p. 34); Cable's text lets a Leadership deck hold it.
-  it.each(["cable-leadership-live-dangerously", "domino-pool"])(
-    "%s plays Live Dangerously: +2 hand size, 3 threat, within the limit",
-    (fixture) => {
-      const { steps } = trace(stackedGame(fixture, "rhino", 1, ["44024"]), `live-dangerously-${fixture}`, {
-        nudge: POOL_NUDGE,
-      });
-      const play = firstStep(steps, (e) => e.type === "cardPlayed" && e.cardId === "44024")!;
+    it("Dreadful Deeds places nothing extra when the player controls no 'Pool card (the hero passed round 1)", () => {
+      const { steps } = trace(
+        stackedGame("deadpool-pool-break-time", "rhino", DREADPOOL_SEED, ["44043", "44013"], ["44037"]),
+        "crisis-idle",
+        { idleRounds: 1 },
+      );
+      const reveal = firstStep(steps, (e) => e.type === "encounterCardRevealed" && e.cardId === "44037")!;
+      expect(
+        reveal.before.players[0]!.playArea.filter((id) => aspectOfCode(codeOf(reveal.before, id)) === "pool"),
+      ).toEqual([]);
+      const deeds = instancesOf(reveal.after, "44039")[0]!;
+      const placed = reveal.events
+        .filter((e) => e.type === "threatPlaced" && e.schemeInstanceId === deeds)
+        .reduce((n, e) => n + (e as { amount: number }).amount, 0);
+      expect(placed).toBe(2); // the printed starting threat only: nobody controls a 'Pool card
+      expect(reveal.after.instances[deeds]!.threat).toBe(2);
+    }, 120_000);
+  }),
+);
+
+DEFER.push(() =>
+  describe("'Pool behaviors in play: cards that ask the player, cost, and play from the hand", () => {
+    // Break Time 44046: "Alter-Ego Action: ... heal 1 damage from each identity for every minute you were away"; cost 3 per
+    // player (RRG 1.8 "Per Player", 3 x the one player at this table); the player reports the minutes (an outside fact, answered 3).
+    it("Break Time: asks the minutes (3), heals each identity that much (a 5-damage Wade Wilson goes to 2), costs 3 at one player", () => {
+      const start = withDamage(
+        stackedGame("deadpool-pool-break-time", "rhino", 1, ["44046", "44043", "44013", "44017", "44021"]),
+        identityOf(stackedGame("deadpool-pool-break-time", "rhino", 1, [])),
+        5,
+      );
+      expect(start.players[0]!.identity.form).toBe("alterEgo");
+      const { steps } = trace(start, "break-time", { nudge: POOL_NUDGE });
+      const play = firstStep(steps, (e) => e.type === "cardPlayed" && e.cardId === "44046")!;
       expect(play).toBeDefined();
-      const scheme = instancesOf(play.after, "44024")[0]!;
-      expect(play.after.villainArea).toContain(scheme);
-      expect(handSize(play.after, P1, DEPS)).toBe(handSize(play.before, P1, DEPS) + 2);
-      expect(play.after.instances[scheme]!.threat).toBe(3); // 3 per player, one player
-      const sideSchemes = (s: GameState) => s.villainArea.filter((id) => cardOf(s, id).type === "player_side_scheme");
-      expect(playerSideSchemeLimit(play.after)).toBe(1); // RRG 1.8 p. 34: one or two players started: the limit is one
-      if (sideSchemes(play.before).length === 0) {
-        expect(sideSchemes(play.after)).toHaveLength(1);
-      } else {
-        // Cable starts with his own player side scheme (40006) in play: a second one is allowed to be played, and the
-        // first player must then choose one to discard (RRG p. 34), which is not a defeat.
-        expect(sideSchemes(play.before).map((id) => codeOf(play.before, id))).toEqual(["40006"]);
-        expect(play.after.pendingChoice?.prompt.kind).toBe("discardOverPlayerSideSchemeLimit");
-        const next = steps[steps.indexOf(play) + 1]!;
-        expect(sideSchemes(next.after)).toHaveLength(1);
-        expect(next.after.victoryDisplay.map((id) => codeOf(next.after, id))).not.toContain("44024");
-        expect(next.after.victoryDisplay.map((id) => codeOf(next.after, id))).not.toContain("40006");
-      }
-    },
-    120_000,
-  );
+      const cast = play.events.find((e) => e.type === "cardPlayed" && e.cardId === "44046") as {
+        resourcesPaid: number;
+      };
+      expect(cast.resourcesPaid).toBe(3);
+      // The prompt is a whole-number report (no options); the step that answers it carries the fact and the healing.
+      const answered = firstStep(steps, (e) => e.type === "factReported" && e.fact === "minutesAway")!;
+      expect(answered.before.pendingChoice?.prompt).toMatchObject({
+        kind: "reportFact",
+        fact: "minutesAway",
+        answer: "wholeNumber",
+      });
+      expect(answered.before.pendingChoice?.playerId).toBe(P1);
+      expect(answered.events).toContainEqual(
+        expect.objectContaining({ type: "factReported", amount: MINUTES, bind: "break" }),
+      );
+      const healed = answered.events
+        .filter((e) => e.type === "damageHealed")
+        .reduce((n, e) => n + (e as { amount: number }).amount, 0);
+      expect(healed).toBe(MINUTES);
+      expect(answered.after.instances[identityOf(answered.after)]!.damage).toBe(5 - MINUTES);
+    }, 120_000);
 
-  // Adam Warlock's four aspects (RRG 1.8 FAQ p. 64: 'Pool takes Aggression's place): cards of each aspect are played.
-  it("Adam Warlock plays a card of each of his four aspects, 'Pool included", () => {
-    const { steps } = trace(stackedGame("adam-warlock-pool", "rhino", 1, ["44043", "21062", "21058", "21051"]), "adam");
-    const aspects = new Set(playedCards(steps).map((e) => aspectOfCode(e.cardId as string)));
-    for (const aspect of ["pool", "justice", "leadership", "protection"]) expect(aspects, aspect).toContain(aspect);
-  }, 120_000);
-
-  // Deadpool 44001a, Forced Interrupt: when he would be defeated, instead his hit point dial goes to 1, he changes to
-  // alter-ego form and 1 acceleration token is added to the main scheme.
-  it("Deadpool's would-be-defeated ability fires in a real game: dial to 1, alter-ego, one more acceleration token", () => {
-    const { steps } = trace(buildGame(REGEN.fixture, REGEN.scenario, REGEN.seed), "regen", {
-      defense: REGEN.defense,
-      explore: REGEN.explore,
-    });
-    const fired = firstStep(
-      steps,
-      (e) => e.type === "abilityResolved" && e.abilityId === "44001a.the-regeneratin-degenerate",
-    )!;
-    expect(fired).toBeDefined();
-    expect(fired.events.some((e) => e.type === "accelerationTokenAdded")).toBe(true);
-    expect(fired.events.some((e) => e.type === "formChanged")).toBe(true);
-    expect(fired.events.some((e) => e.type === "characterDefeated" && e.instanceId === identityOf(fired.after))).toBe(
-      false,
+    // Git Gud 44028: "Reduce the cost to play Git Gud by 2 if you did not win your previous game of Marvel Champions."
+    // Printed cost 2; an absent outside fact means "did not win" (docs/phase7-wave7.md Q48).
+    it.each([
+      { wonPreviousGame: undefined, paid: 0 },
+      { wonPreviousGame: true, paid: 2 },
+    ])(
+      "Git Gud with wonPreviousGame=$wonPreviousGame costs $paid",
+      ({ wonPreviousGame, paid }) => {
+        const start = stackedGame("deadpool-pool-break-time", "rhino", 1, ["44028", "44043"], [], {
+          ...(wonPreviousGame ? { wonPreviousGame } : {}),
+        });
+        expect(start.players[0]!.outsideFacts?.wonPreviousGame).toBe(wonPreviousGame);
+        const { steps } = trace(start, `git-gud-${String(wonPreviousGame)}`, { nudge: POOL_NUDGE });
+        const cast = playedCards(steps, "44028");
+        expect(cast.length).toBeGreaterThanOrEqual(1);
+        expect(cast[0]!.resourcesPaid).toBe(paid);
+      },
+      120_000,
     );
-    expect(fired.after.players[0]!.identity.form).toBe("alterEgo");
-    expect(fired.after.players[0]!.eliminated).toBeFalsy();
-  }, 120_000);
-});
 
-describe("findings fixed (each was pinned with it.fails while the defect existed)", () => {
-  // F1. domino-pool / Morlock Siege / seed 9 / hero-ready / explore 2 never ended: after 3000 commands the game was still
-  // in round 4 with the same prompt open. Lady Deadpool (44016, "When Defeated: Defeat a non-ELITE minion.") is under
-  // 'Pool-ized (44041), so she is a minion engaged with Domino, and Domino's basic attack defeats her. Her When Defeated
-  // resolves while she is still in play (RRG 1.8 "When Defeated Abilities", p. 48: "A defeated card leaves play after its
-  // When Defeated ability is resolved"), she was the only non-ELITE minion, so she was offered as her own target; choosing
-  // her defeated her again, which triggered her When Defeated again, for ever. Fixed in the engine: a card already
-  // defeated cannot be defeated again and is no target for a defeat (`alreadyDefeated`, RRG 1.8 "Defeat", p. 15).
-  it("Lady Deadpool, a 'Pool-ized minion defeated by an attack, resolves her When Defeated once per defeat and the game ends", () => {
-    let run = 0;
-    let longest = 0;
-    const defeated = new Map<string, number>();
-    const resolved = new Map<string, number>();
-    const played = drive(buildGame("domino-pool", "morlock-siege", 9), "lady-deadpool-loop", {
-      defense: "hero-ready",
-      explore: 2,
-      checkInvariants: true,
-      onStep: (before, _command, _after, events) => {
-        const prompt = before.pendingChoice?.prompt;
-        run = prompt?.kind === "chooseTarget" && prompt.slot === "minion" ? run + 1 : 0;
-        longest = Math.max(longest, run);
-        for (const event of events) {
-          if (event.type === "characterDefeated" && event.cardId === "44016")
-            defeated.set(event.instanceId, (defeated.get(event.instanceId) ?? 0) + 1);
-          if (event.type === "abilityResolved" && event.abilityId === "44016.when-defeated")
-            resolved.set(event.instanceId, (resolved.get(event.instanceId) ?? 0) + 1);
+    // The Merc with the Mouth 44032: "Forced Response: After the player phase ends, if you have not talked this phase,
+    // discard this card." The client asks; the answer is a recorded fact.
+    it.each([
+      { talked: "no" as const, discarded: true },
+      { talked: "yes" as const, discarded: false },
+    ])(
+      "the Merc with the Mouth asks, and answered '$talked' it is discarded: $discarded",
+      ({ talked, discarded }) => {
+        const { steps } = trace(
+          stackedGame("deadpool-pool-break-time", "rhino", 5, ["44043"], ["44032"]),
+          `merc-${talked}`,
+          { talked },
+        );
+        const asked = steps.filter(
+          (st) =>
+            st.before.pendingChoice?.prompt.kind === "reportFact" &&
+            st.before.pendingChoice.prompt.fact === "talkedThisPhase",
+        );
+        expect(asked.length).toBeGreaterThanOrEqual(1);
+        expect(asked[0]!.before.pendingChoice!.prompt).toMatchObject({ answer: "yesNo" });
+        expect(asked[0]!.events).toContainEqual(
+          expect.objectContaining({ type: "factReported", fact: "talkedThisPhase", amount: talked === "yes" ? 1 : 0 }),
+        );
+        const merc = instancesOf(asked[0]!.after, "44032")[0]!;
+        expect(cardsInPlay(asked[0]!.after).includes(merc)).toBe(!discarded);
+        if (discarded)
+          expect(Object.values(asked[0]!.after.encounterDecks).some((d) => d.discard.includes(merc))).toBe(true);
+        // Answered yes it stays and the question comes again every player phase it is still there.
+        if (!discarded) expect(asked.length).toBeGreaterThanOrEqual(2);
+      },
+      120_000,
+    );
+
+    // Live Dangerously 44024: "Victory 0. Each identity gets +2 hand size." A player side scheme: at most
+    // one in play at a table of one player (RRG 1.8 "Player Side Scheme", p. 34); Cable's text lets a Leadership deck hold it.
+    it.each(["cable-leadership-live-dangerously", "domino-pool"])(
+      "%s plays Live Dangerously: +2 hand size, 3 threat, within the limit",
+      (fixture) => {
+        const { steps } = trace(stackedGame(fixture, "rhino", 1, ["44024"]), `live-dangerously-${fixture}`, {
+          nudge: POOL_NUDGE,
+        });
+        const play = firstStep(steps, (e) => e.type === "cardPlayed" && e.cardId === "44024")!;
+        expect(play).toBeDefined();
+        const scheme = instancesOf(play.after, "44024")[0]!;
+        expect(play.after.villainArea).toContain(scheme);
+        expect(handSize(play.after, P1, DEPS)).toBe(handSize(play.before, P1, DEPS) + 2);
+        expect(play.after.instances[scheme]!.threat).toBe(3); // 3 per player, one player
+        const sideSchemes = (s: GameState) => s.villainArea.filter((id) => cardOf(s, id).type === "player_side_scheme");
+        expect(playerSideSchemeLimit(play.after)).toBe(1); // RRG 1.8 p. 34: one or two players started: the limit is one
+        if (sideSchemes(play.before).length === 0) {
+          expect(sideSchemes(play.after)).toHaveLength(1);
+        } else {
+          // Cable starts with his own player side scheme (40006) in play: a second one is allowed to be played, and the
+          // first player must then choose one to discard (RRG p. 34), which is not a defeat.
+          expect(sideSchemes(play.before).map((id) => codeOf(play.before, id))).toEqual(["40006"]);
+          expect(play.after.pendingChoice?.prompt.kind).toBe("discardOverPlayerSideSchemeLimit");
+          const next = steps[steps.indexOf(play) + 1]!;
+          expect(sideSchemes(next.after)).toHaveLength(1);
+          expect(next.after.victoryDisplay.map((id) => codeOf(next.after, id))).not.toContain("44024");
+          expect(next.after.victoryDisplay.map((id) => codeOf(next.after, id))).not.toContain("40006");
         }
       },
-    });
-    expect(played.outcome).toBeTruthy();
-    expect(longest).toBeLessThan(5);
-    const defeats = [...defeated.values()].reduce((sum, count) => sum + count, 0);
-    const resolutions = [...resolved.values()].reduce((sum, count) => sum + count, 0);
-    expect(defeats).toBeGreaterThanOrEqual(1);
-    expect(resolutions).toBe(defeats);
-  }, 120_000);
-});
+      120_000,
+    );
+
+    // Adam Warlock's four aspects (RRG 1.8 FAQ p. 64: 'Pool takes Aggression's place): cards of each aspect are played.
+    it("Adam Warlock plays a card of each of his four aspects, 'Pool included", () => {
+      const { steps } = trace(
+        stackedGame("adam-warlock-pool", "rhino", 1, ["44043", "21062", "21058", "21051"]),
+        "adam",
+      );
+      const aspects = new Set(playedCards(steps).map((e) => aspectOfCode(e.cardId as string)));
+      for (const aspect of ["pool", "justice", "leadership", "protection"]) expect(aspects, aspect).toContain(aspect);
+    }, 120_000);
+
+    // Deadpool 44001a, Forced Interrupt: when he would be defeated, instead his hit point dial goes to 1, he changes to
+    // alter-ego form and 1 acceleration token is added to the main scheme.
+    it("Deadpool's would-be-defeated ability fires in a real game: dial to 1, alter-ego, one more acceleration token", () => {
+      const { steps } = trace(buildGame(REGEN.fixture, REGEN.scenario, REGEN.seed), "regen", {
+        defense: REGEN.defense,
+        explore: REGEN.explore,
+      });
+      const fired = firstStep(
+        steps,
+        (e) => e.type === "abilityResolved" && e.abilityId === "44001a.the-regeneratin-degenerate",
+      )!;
+      expect(fired).toBeDefined();
+      expect(fired.events.some((e) => e.type === "accelerationTokenAdded")).toBe(true);
+      expect(fired.events.some((e) => e.type === "formChanged")).toBe(true);
+      expect(fired.events.some((e) => e.type === "characterDefeated" && e.instanceId === identityOf(fired.after))).toBe(
+        false,
+      );
+      expect(fired.after.players[0]!.identity.form).toBe("alterEgo");
+      expect(fired.after.players[0]!.eliminated).toBeFalsy();
+    }, 120_000);
+  }),
+);
+
+DEFER.push(() =>
+  describe("findings fixed (each was pinned with it.fails while the defect existed)", () => {
+    // F1. domino-pool / Morlock Siege / seed 9 / hero-ready / explore 2 never ended: after 3000 commands the game was still
+    // in round 4 with the same prompt open. Lady Deadpool (44016, "When Defeated: Defeat a non-ELITE minion.") is under
+    // 'Pool-ized (44041), so she is a minion engaged with Domino, and Domino's basic attack defeats her. Her When Defeated
+    // resolves while she is still in play (RRG 1.8 "When Defeated Abilities", p. 48: "A defeated card leaves play after its
+    // When Defeated ability is resolved"), she was the only non-ELITE minion, so she was offered as her own target; choosing
+    // her defeated her again, which triggered her When Defeated again, for ever. Fixed in the engine: a card already
+    // defeated cannot be defeated again and is no target for a defeat (`alreadyDefeated`, RRG 1.8 "Defeat", p. 15).
+    it("Lady Deadpool, a 'Pool-ized minion defeated by an attack, resolves her When Defeated once per defeat and the game ends", () => {
+      let run = 0;
+      let longest = 0;
+      const defeated = new Map<string, number>();
+      const resolved = new Map<string, number>();
+      const played = drive(buildGame("domino-pool", "morlock-siege", 9), "lady-deadpool-loop", {
+        defense: "hero-ready",
+        explore: 2,
+        checkInvariants: true,
+        onStep: (before, _command, _after, events) => {
+          const prompt = before.pendingChoice?.prompt;
+          run = prompt?.kind === "chooseTarget" && prompt.slot === "minion" ? run + 1 : 0;
+          longest = Math.max(longest, run);
+          for (const event of events) {
+            if (event.type === "characterDefeated" && event.cardId === "44016")
+              defeated.set(event.instanceId, (defeated.get(event.instanceId) ?? 0) + 1);
+            if (event.type === "abilityResolved" && event.abilityId === "44016.when-defeated")
+              resolved.set(event.instanceId, (resolved.get(event.instanceId) ?? 0) + 1);
+          }
+        },
+      });
+      expect(played.outcome).toBeTruthy();
+      expect(longest).toBeLessThan(5);
+      const defeats = [...defeated.values()].reduce((sum, count) => sum + count, 0);
+      const resolutions = [...resolved.values()].reduce((sum, count) => sum + count, 0);
+      expect(defeats).toBeGreaterThanOrEqual(1);
+      expect(resolutions).toBe(defeats);
+    }, 120_000);
+  }),
+);

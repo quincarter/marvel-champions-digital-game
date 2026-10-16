@@ -62,7 +62,7 @@ const soakExcludes = SOAKS.flatMap((soak) => soak.paths)
 // Waves 6 to 10 have no single slow file but 15 to 28 CPU-minutes of 70 to 120 files each, which made them the slowest
 // jobs once the soaks moved out (11 to 19 minutes, 2026-10-16). Vitest's `--shard` splits them by file count; with
 // that many files of similar length the parts come out about even. About eight CPU-minutes a job.
-const WAVE_SHARDS = { 6: 2, 7: 2, 8: 3, 9: 3, 10: 2 };
+const WAVE_SHARDS = { 6: 2, 7: 3, 8: 3, 9: 3, 10: 2 };
 // The client's one slow file, a two-hero Breakout soak (5 to 6 minutes), runs alone; the other ~490 files are mostly
 // import time (Phaser) and split in two. The client job took 10 to 13 minutes as one (2026-10-16).
 const CLIENT_SOAK = "packages/client/src/view/breakout-two-hero-soak.test.ts";

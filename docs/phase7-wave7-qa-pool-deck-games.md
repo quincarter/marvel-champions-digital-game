@@ -2,7 +2,7 @@
 
 `rules-qa-engineer`, 2026-10-07, branch `feature/wave-7`. The seven fixtures of `wave7/fixtures/pool-decks/` seated through `playableScenario`
 (one seat, standard) against Rhino (Bomb Scare; the Dreadpool set joins exactly when the seat chose 'Pool), Morlock Siege and Mister Sinister, driven by
-`qa-solo-driver.ts`. Test: `packages/cards/src/wave7/pool-deck-games.qa.test.ts` (33 tests, about 80 s). No engine, card or client file was touched.
+`qa-solo-driver.ts`. Test: `packages/cards/src/wave7/pool-deck-games.qa.ts`, run as `pool-deck-games-{1,2,3}.qa.test.ts` (33 tests). No engine, card or client file was touched.
 
 ## 1. Results (W = wins / games; seeds 1-12 x explore x defense modes)
 
