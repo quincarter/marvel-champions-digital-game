@@ -2407,7 +2407,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     }
     case "removeAccelerationToken":
-      removeAccelerationToken(ctx);
+      for (const from of effect.target ? targets(effect.target) : []) removeAccelerationToken(ctx, from);
       return;
     case "grantAdditionalMulligans": {
       // MC27 p. 22 node 5 (docs/phase7-wave5.md §3.27): read by the mulligan step (§3.26) when it reaches the player.

@@ -764,17 +764,15 @@ export function addAccelerationToken(ctx: Ctx, requested?: InstanceId): void {
 /** The counter an acceleration token is on a card that is not a main scheme (docs/phase7-wave5.md §3.4). */
 export const ACCELERATION_COUNTER = "acceleration";
 
-export function removeAccelerationToken(ctx: Ctx): void {
-  // RRG "Acceleration Token": tokens on the main scheme cannot be removed from play.
-  if (ctx.state.mainScheme.accelerationTokens <= 0) return;
-  ctx.state = {
-    ...ctx.state,
-    mainScheme: {
-      ...ctx.state.mainScheme,
-      accelerationTokens: ctx.state.mainScheme.accelerationTokens - 1,
-    },
-  };
-  emit(ctx, { type: "accelerationTokenAdded", total: ctx.state.mainScheme.accelerationTokens });
+/**
+ * "Remove an acceleration token from play": takes one from `from`'s `acceleration` counter. RRG 1.8 "Acceleration
+ * Token" (p. 5): "Acceleration tokens on the main scheme cannot be removed from play", so a main scheme stage (any of
+ * them) keeps its tokens and nothing happens.
+ */
+export function removeAccelerationToken(ctx: Ctx, from: InstanceId): void {
+  if (mainSchemeStates(ctx.state).some((scheme) => scheme.instanceId === from)) return;
+  if (!cardsInPlay(ctx.state).includes(from)) return;
+  removeCounters(ctx, from, ACCELERATION_COUNTER, 1);
 }
 
 const LISTENS_FOR_ENCOUNTER_DEALT = new WeakMap<EngineDeps, boolean>();

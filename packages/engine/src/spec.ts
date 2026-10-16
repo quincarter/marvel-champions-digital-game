@@ -4420,7 +4420,11 @@ export type EffectSpec =
    * A constant `accelerationTokenDestination` rule may redirect it before it lands (docs/phase7-wave2.md §10.3).
    */
   | { readonly kind: "addAccelerationToken"; readonly target?: TargetRef; readonly count?: ValueSpec }
-  | { readonly kind: "removeAccelerationToken" }
+  /**
+   * "Remove an acceleration token from play": one from each card `target` names. Tokens on a main scheme cannot be
+   * removed from play (RRG 1.8 "Acceleration Token", p. 5), so a main scheme target, or no target, does nothing.
+   */
+  | { readonly kind: "removeAccelerationToken"; readonly target?: TargetRef }
   /**
    * "During the Resolve Mulligans step of game setup, each player may take 1 additional mulligan" (MC27 p. 22
    * reputation node 5, as errata'd by RRG 1.8 p. 67; docs/phase7-wave5.md §3.27): adds `amount` to every player's
