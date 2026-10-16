@@ -31,7 +31,17 @@ import {
 import { inPlayPicksOf, resourcesChoiceOf } from "../abilities.js";
 import type { ChoiceOption } from "../choices.js";
 import type { CostChoices, CostSelection } from "../commands.js";
-import { type Ctx, emit, findFrame, popFrame, pushFrames, requestChoice, setFrame, updateFrame } from "../ctx.js";
+import {
+  type Ctx,
+  emit,
+  findFrame,
+  perilBarsTrigger,
+  popFrame,
+  pushFrames,
+  requestChoice,
+  setFrame,
+  updateFrame,
+} from "../ctx.js";
 import { candidateDefenseBar, windowDefenseBar } from "../defense-claim.js";
 
 import { EngineInvariantError } from "../errors.js";
@@ -106,10 +116,22 @@ function windowCandidates(
     ctx,
     frame,
     [...shared, ...candidatesFor(ctx.state, ctx.deps, frame.event, frame.timing, forced)].filter(
-      (candidate) => isWould(ctx.deps, candidate) === would && stillImminent(ctx, frame, candidate),
+      (candidate) =>
+        isWould(ctx.deps, candidate) === would &&
+        stillImminent(ctx, frame, candidate) &&
+        (forced || !perilBarred(ctx, candidate)),
     ),
   );
 }
+
+/**
+ * An optional candidate peril keeps from its player (`perilBarsTrigger`; RRG 1.8 "Peril", p. 32; ruling Jul 9, 2026
+ * (3) #5). Read as a window gathers and again as it asks, so one gathered before a peril card went on the stack is not
+ * offered while it resolves. Forced ones are triggered by the game, not by a player, and still resolve.
+ */
+const perilBarred = (ctx: Ctx, candidate: TriggerCandidate): boolean =>
+  !candidate.forced &&
+  perilBarsTrigger(ctx.state, ctx.deps, candidate.controllerId ?? ctx.state.firstPlayerId, candidate.instanceId);
 
 /**
  * "After you discard cards" (`EventPattern.together`): an ability whose pattern answers the occurrence once is one
@@ -565,7 +587,8 @@ function askNextController(ctx: Ctx, frame: Frame<"window">): void {
       (c.controllerId ?? ctx.state.firstPlayerId) === current &&
       stillImminent(ctx, frame, c) &&
       conditionStillMet(ctx, frame, c) &&
-      windowDefenseBar(ctx.state, ctx.deps, frame.queue, c) === null,
+      windowDefenseBar(ctx.state, ctx.deps, frame.queue, c) === null &&
+      !perilBarred(ctx, c),
   );
   if (mine.length === 0) {
     setFrame(ctx, { ...frame, askingPlayerIds: rest });

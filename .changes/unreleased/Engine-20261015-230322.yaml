@@ -1,0 +1,3 @@
+kind: Engine
+body: Peril now stops other players from triggering optional interrupts and responses, including (defense) events, while a player resolves a peril card, and from triggering abilities on a peril card in another player's area; forced abilities still resolve (RRG v1.8 p.32; ruling July 9, 2026 R3).
+time: 2026-10-15T23:03:22.1064623-04:00

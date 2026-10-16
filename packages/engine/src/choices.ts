@@ -533,8 +533,9 @@ export interface PendingChoice {
   /**
    * RRG "Peril": a peril card is on the stack, so only `playerId` may decide —
    * no table talk, and no other player may play cards or trigger abilities
-   * while this choice is open. The engine only marks it; clients and netcode
-   * enforce the social half.
+   * while this choice is open. The engine keeps other players' optional
+   * abilities out of its windows (`perilBarsTrigger`); this flag carries the
+   * social half (no consulting), which clients and netcode enforce.
    */
   readonly soleDecider: boolean;
   /** Whose decision this is by rule; anything but `player` is made on the encounter side's behalf. */

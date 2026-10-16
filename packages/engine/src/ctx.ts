@@ -433,6 +433,55 @@ const perilOnStack = (state: GameState, deps: EngineDeps): boolean =>
     return id !== null && hasKeyword(state, id, "peril", deps);
   });
 
+/** The player a frame resolves its card for: the revealing player, or the one playing or controlling it. */
+function frameResolverId(frame: StackFrame): PlayerId | null {
+  switch (frame.kind) {
+    case "reveal":
+    case "playCard":
+      return frame.playerId;
+    case "ability":
+      return frame.controllerId;
+    case "effects":
+      return frame.controllerId ?? frame.scopedPlayerId;
+    default:
+      return null;
+  }
+}
+
+/**
+ * The player resolving a peril card on the stack (the outermost one), or null when none is (`perilOnStack` reads the
+ * same frames). RRG 1.8 "Peril" (p. 32): "While a player is resolving this card, … other players cannot trigger
+ * abilities"; ruling Jul 9, 2026 (3) #5: "Peril prohibits other players from acting or playing cards."
+ */
+export function perilResolverId(state: GameState, deps: EngineDeps): PlayerId | null {
+  for (const frame of state.stack) {
+    const id = frameCardId(frame);
+    if (id === null || !hasKeyword(state, id, "peril", deps)) continue;
+    const resolver = frameResolverId(frame);
+    if (resolver !== null) return resolver;
+  }
+  return null;
+}
+
+/**
+ * Whether peril keeps `playerId` from triggering the ability on `instanceId` (RRG 1.8 "Peril", p. 32): another player
+ * is resolving a peril card, or the card has peril and is in another player's play area ("While this card is in a
+ * player's play area, other players cannot trigger abilities on this card"). Only abilities a player triggers are
+ * barred: forced abilities are "triggered by the game" (RRG 1.8 "Ability", p. 4), so callers ask this of optional ones.
+ */
+export function perilBarsTrigger(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  instanceId: InstanceId,
+): boolean {
+  const resolver = perilResolverId(state, deps);
+  if (resolver !== null && resolver !== playerId) return true;
+  if (!hasKeyword(state, instanceId, "peril", deps)) return false;
+  const area = state.players.find((player) => player.playArea.includes(instanceId));
+  return area !== undefined && area.playerId !== playerId;
+}
+
 /**
  * What a choice with the `enemyTeam` authority is made on behalf of (`ChoiceBehalf`). The addressed player is
  * `enemyTeamDecider`, a player of the enemy team, so that team is theirs; the player it is made against is the one the
