@@ -20,9 +20,20 @@ test.use({
 
 async function openAsAndroidApp(page: Page, assetUrls: readonly string[], version = "999.0.0"): Promise<void> {
   await page.addInitScript(() => {
-    const shell = window as unknown as { Capacitor: object; __opened: string[] };
-    shell.Capacitor = { isNativePlatform: () => true };
+    const shell = window as unknown as { Capacitor: object; __opened: string[]; __viaBrowserPlugin: string[] };
     shell.__opened = [];
+    shell.__viaBrowserPlugin = [];
+    // The app's native ExternalBrowser plugin (android/.../ExternalBrowserPlugin.java), as its bridge announces it.
+    shell.Capacitor = {
+      isNativePlatform: () => true,
+      PluginHeaders: [{ name: "ExternalBrowser", methods: [{ name: "open", rtype: "promise" }] }],
+      nativePromise: (plugin: string, method: string, options: { url: string }) => {
+        if (plugin !== "ExternalBrowser" || method !== "open") return Promise.reject(new Error("no such plugin"));
+        shell.__viaBrowserPlugin.push(options.url);
+        shell.__opened.push(options.url);
+        return Promise.resolve();
+      },
+    };
     window.open = (url) => {
       shell.__opened.push(String(url));
       return null;
@@ -66,6 +77,10 @@ test("an Android install is offered a newer release: its changelog and its APK",
   expect(await findText(page, "Version 999.0.0", "Title")).toHaveLength(1);
 
   expect(await pressBanner(page, "Download")).toEqual([APK_URL]);
+  // Through the browser plugin, so the GitHub app can't claim the link and download it in its in-app tab.
+  expect(
+    await page.evaluate(() => (window as unknown as { __viaBrowserPlugin: string[] }).__viaBrowserPlugin),
+  ).toContain(APK_URL);
   expect(await pressBanner(page, "What's new")).toEqual([NOTES_URL]);
   expect(errors).toEqual([]);
 });
