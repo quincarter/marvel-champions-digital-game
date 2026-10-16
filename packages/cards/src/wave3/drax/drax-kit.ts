@@ -77,8 +77,9 @@ import {
  * "Consequential Damage", p. 13), so the fresh tough status card arrives after that damage and cannot absorb it.
  *
  * **`19013.moondragon-action`** ("That minion attacks another enemy of your choice") — docs/phase7-wave3.md §3.23,
- * with §4 Q12 decided by the user (2026-09-23): an attack, not an activation (`enemyAttacksEnemy`). No boost card, no
- * defense, no "when this minion attacks" abilities; the minion's ATK is attack damage, so the target's tough and
+ * with §4 Q12 decided by the user (2026-09-23): an attack, not an activation (`enemyAttacksEnemy`). The minion gets a
+ * boost card (ruling 2026-01-26 (4); owner decision 2026-10-16, Moondragon matches Headpool), but no defense and no
+ * "when this minion attacks" abilities; the minion's ATK is attack damage, so the target's tough and
  * retaliate apply and the minion's overkill spills a defeated minion's excess onto the villain (RRG 1.8 "Overkill",
  * p. 31). Guard does not stop it (RRG 1.8 "Guard", p. 21: a player's attacks only). The action needs a minion with
  * another enemy it may attack, else it has no valid target (RRG 1.8 "Target", pp. 42–43) and cannot be initiated.
@@ -198,7 +199,9 @@ export const DRAX_KIT = defineAbilities({
   // that could attack anything.
   "19013.moondragon-action": action(
     { cost: [exhaustThis, discardThis], while: enemyCanAttackAnother(query("minion")) },
-    ...enemyToAttack(query("minion")),
+    // FFG ruling January 26, 2026 (4): the controller resolves the minion's boost card; owner decision 2026-10-16
+    // (Moondragon matches Headpool, 44014), superseding the no-boost half of §4 Q12.
+    ...enemyToAttack(query("minion"), { boost: true }),
   ),
 
   // Deflection — Hero Interrupt: When an identity would take any amount of damage from an attack, prevent up to 5

@@ -742,7 +742,12 @@ export const enemyAttacksEnemy = (
  */
 export const enemyToAttack = (
   attackers: TargetQuery,
-  opts: { readonly attackerSlot?: string; readonly targetSlot?: string; readonly bind?: string } = {},
+  opts: {
+    readonly attackerSlot?: string;
+    readonly targetSlot?: string;
+    readonly bind?: string;
+    readonly boost?: true;
+  } = {},
 ): EffectSpec[] => {
   const attackerSlot = opts.attackerSlot ?? "attacker";
   const targetSlot = opts.targetSlot ?? "attacked";
@@ -750,7 +755,14 @@ export const enemyToAttack = (
   return [
     chooseTarget(attackerSlot, { ...attackers, canAttackOneOf: { categories: ["enemy"] } }),
     chooseTarget(targetSlot, { categories: ["enemy"], attackableBy: who, excluding: who }),
-    enemyAttacksEnemy(who, { kind: "slot", slot: targetSlot }, opts.bind ? { bind: opts.bind } : {}),
+    enemyAttacksEnemy(
+      who,
+      { kind: "slot", slot: targetSlot },
+      {
+        ...(opts.bind ? { bind: opts.bind } : {}),
+        ...(opts.boost ? { boost: true as const } : {}),
+      },
+    ),
   ];
 };
 /** The `while` for `enemyToAttack`: some card `attackers` matches has another enemy it could attack. */
