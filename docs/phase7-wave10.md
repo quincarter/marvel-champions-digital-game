@@ -899,6 +899,8 @@ FFG ruling on these cards: 28A is the stronger rules conclusion, 29B a well-supp
   (February 8, 2026 – Ruling 2: 6 dealt to a 3-hit-point minion that takes 1 less, heals 3). The excess overkill spills
   and every other reader of "excess damage" stays on damage taken (RRG 1.8 "Overkill", p. 31; owner decision
   2026-09-25).
+  **Superseded 2026-10-16** (rules audit finding 15): under the user's order of rules authority (CLAUDE.md), RRG 1.8
+  "Overkill" (p. 31) wins over the ruling, so Prince of Power heals for the excess **taken** (2 in the ruling's example).
 - **32B.** A Response or Forced Response to a minion entering play, when the minion is being revealed, waits until the
   reveal has finished: after its When Revealed, Quickstrike and Teamwork (RRG 1.8 "Reveal", p. 38; FAQ #10 "Widow's
   Bite", p. 60).

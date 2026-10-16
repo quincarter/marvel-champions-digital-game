@@ -789,8 +789,9 @@ export const eventResult = (key: string): ValueSpec => ({ kind: "eventResult", k
  */
 export const attackTotalAtk: ValueSpec = eventResult(TOTAL_ATK_RESULT);
 /**
- * "For each point of excess damage dealt to that enemy by that attack", for a card ruled to count the damage **dealt**
- * (Prince of Power, `hercules` 59017; February 8, 2026 - Ruling 2, owner answer 31B in docs/phase7-wave10.md §4.0):
+ * "For each point of excess damage dealt to that enemy by that attack", for a card ruled to count the damage **dealt**.
+ * No card reads it now: Prince of Power (`hercules` 59017), which did under February 8, 2026 - Ruling 2 and owner answer
+ * 31B, counts the damage taken since RRG 1.8 p. 31 superseded that ruling (the user's order of rules authority, 2026-10-16).
  * the amount the attack dealt beyond the enemy's remaining hit points, before a reduction of the damage it takes, a
  * tough status card or a prevention (engine `excessAsDealtOf`). Read on an `after.attacks` response. Every other
  * "excess damage" reads `eventResult("excessDealt")` / `varOf("<bind>.excessDealt")`, the excess of the damage taken

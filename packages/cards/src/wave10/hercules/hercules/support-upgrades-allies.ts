@@ -6,7 +6,7 @@ import {
   after,
   defineAbilities,
   draw,
-  attackExcessAsDealt,
+  eventResult,
   exhaustThis,
   forcedInterrupt,
   gainKeywordUntil,
@@ -74,12 +74,11 @@ import { giftCardsYouControl } from "./identity.js";
  *
  * **59017.prince-of-power-response**: "Hero Response: After Hercules attacks and defeats an enemy, exhaust Prince of
  * Power -> heal 1 damage from Hercules for each point of excess damage dealt to that enemy by that attack." The excess
- * is counted on the damage **dealt**: what the attack dealt past the enemy's remaining hit points, before a reduction
- * of the damage the enemy takes (`attackExcessAsDealt`, engine `excessAsDealtOf`). February 8, 2026 - Ruling 2 names
- * this card: 6 dealt to a 3-hit-point minion that takes 1 less is 5 taken, 2 overkill to the villain and 3 healed.
- * Owner answer 31B (2026-10-12, docs/phase7-wave10.md §4.0) follows the ruling for this card only; the excess overkill
- * spills, and every other card that counts excess damage, stays on the damage taken (RRG 1.8 "Overkill", p. 31; owner
- * decision 2026-09-25, engine `excessDamageOf`).
+ * is the damage **taken** past the enemy's remaining hit points, the amount overkill spills (RRG 1.8 "Overkill", p. 31).
+ * That supersedes February 8, 2026 - Ruling 2 (which counted the damage dealt, 3 healed in its Thumbelina example)
+ * under the user's order of rules authority (2026-10-16, CLAUDE.md): the latest RRG wins where an earlier ruling
+ * conflicts with it. 6 dealt to a 3-hit-point minion that takes 1 less is 5 taken, 2 overkill and 2 healed. This
+ * replaces owner answer 31B (2026-10-12, docs/phase7-wave10.md §4.0).
  */
 export const HERCULES_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilities({
   "59008.amadeus-cho-forced-interrupt": forcedInterrupt(
@@ -118,7 +117,7 @@ export const HERCULES_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilities
   "59017.prince-of-power-response": heroResponse(
     after.attacks(YOUR_IDENTITY, { defeats: true }),
     { cost: exhaustThis },
-    heal(attackExcessAsDealt, yourIdentity),
+    heal(eventResult("excessDealt"), yourIdentity),
   ),
 });
 

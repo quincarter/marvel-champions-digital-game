@@ -58,7 +58,7 @@ vi.setConfig({ testTimeout: 120_000 });
  *
  * Sources: February 8, 2026 - Ruling 2 (Golden Mace and Prince of Power against a 3-hit-point minion that reduces damage
  * taken by 1, with three Gift cards: 6 dealt, 5 taken, 2 overkill to the villain, 3 healed; the test uses Thumbelina and
- * the ruling's numbers); RRG 1.8 "Attacks Against Allies" (p. 10), "Defend, Defense" (p. 15), "Keywords" (p. 25), "Overkill"
+ * the ruling's numbers, but heals 2: RRG 1.8 p. 31 supersedes the heal under the user's order of rules authority); RRG 1.8 "Attacks Against Allies" (p. 10), "Defend, Defense" (p. 15), "Keywords" (p. 25), "Overkill"
  * (p. 31), "Retaliate".
  *
  * How a game gets its Gift cards: they are arranged with the staging the Gift and Labor tests use (`withGift`: the card
@@ -679,15 +679,15 @@ describe("59017 Prince of Power", () => {
   const attack = (s: GameState, offered: string[] = [], take: readonly string[] = [PRINCE_REF, MACE_REF]) =>
     run(s, basicAttack(herc(s), MINION), policy({ take }, offered));
 
-  // The ruling's own numbers. Overkill spills the excess of the damage taken (5 - 3 = 2; RRG 1.8 "Overkill", p. 31),
-  // and Prince of Power heals the excess of the damage dealt (6 - 3 = 3): owner answer 31B, 2026-10-12
-  // (docs/phase7-wave10.md §4.0; engine `excessAsDealtOf`).
-  it("February 8, 2026 - Ruling 2: 6 dealt (3 ATK + 3 Gift) to Thumbelina (3 hit points, reduces damage by 1), 5 taken, 2 overkill to the villain, Prince of Power heals 3", () => {
+  // The ruling's own numbers, with RRG 1.8 "Overkill" (p. 31) superseding its heal of 3: the excess is the damage taken
+  // past the remaining hit points (5 - 3 = 2), for overkill and Prince of Power alike (the user's order of rules
+  // authority, 2026-10-16; replaces owner answer 31B).
+  it("RRG v1.8 p.31 over February 8, 2026 - Ruling 2: 6 dealt (3 ATK + 3 Gift) to Thumbelina (3 hit points, reduces damage by 1), 5 taken, 2 overkill to the villain, Prince of Power heals 2", () => {
     const { state, prince } = setup(THUMBELINA, 0, 5, true);
     const { state: after } = attack(state);
     expect(locateCard(after, MINION)?.kind).not.toBe("playArea");
     expect(inst(after, after.activeVillainId!).damage).toBe(2);
-    expect(inst(after, herc(after)).damage).toBe(2);
+    expect(inst(after, herc(after)).damage).toBe(3);
     expect(inst(after, prince).exhausted).toBe(true);
   });
 
@@ -711,12 +711,14 @@ describe("59017 Prince of Power", () => {
       return { healed: 5 - inst(after, herc(after)).damage, spilled: inst(after, after.activeVillainId!).damage };
     }
 
-    it("control, without it: Prince of Power heals the 1 excess dealt, and nothing spills", () => {
-      expect(fourDealt(false)).toEqual({ healed: 1, spilled: 0 });
+    // Prince of Power now counts the excess taken (RRG 1.8 p. 31), so with no excess taken neither case heals: the
+    // excess dealt that answer 50A raises no longer shows on the board.
+    it("control, without it: no excess was taken, so Prince of Power heals nothing and nothing spills", () => {
+      expect(fourDealt(false)).toEqual({ healed: 0, spilled: 0 });
     });
 
-    it("with it: the excess dealt is 2, so Prince of Power heals 2; no excess was taken, so still nothing spills", () => {
-      expect(fourDealt(true)).toEqual({ healed: 2, spilled: 0 });
+    it("with it: still no excess taken, so nothing is healed and nothing spills", () => {
+      expect(fourDealt(true)).toEqual({ healed: 0, spilled: 0 });
     });
   });
 
