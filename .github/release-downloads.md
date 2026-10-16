@@ -12,4 +12,5 @@
 | Android phone or tablet                       | `MarvelChampions-VERSION-Android.apk`                                                                              |
 
 Not sure which Mac you have? Apple menu → About This Mac: "Chip" means Apple chip, "Processor" means Intel.
+Each installer is also here without the version in its name (`MarvelChampions-Windows-x64-Setup.exe` and so on): the same file, so a link to `releases/latest/download/<that name>` always gets the newest.
 `SHA256SUMS.txt` lists every file's checksum. The `.app.tar.gz` files are the bare macOS apps; most players want the `.dmg`.

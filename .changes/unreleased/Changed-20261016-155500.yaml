@@ -1,0 +1,3 @@
+kind: Changed
+body: 'Each release also carries its installers without the version in their names, so the README download buttons always fetch the newest one; plus a View all releases button'
+time: 2026-10-16T15:55:00.000000-04:00

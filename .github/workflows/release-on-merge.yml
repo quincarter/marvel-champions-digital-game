@@ -446,6 +446,11 @@ jobs:
           if [ -f "$APK_FILE" ]; then
             echo "Uploading ${APK_FILE} to release ${TAG}..."
             gh release upload "${TAG}" "${APK_FILE}" --clobber
+            # The same APK under its versionless name, for releases/latest/download/ (latestAssetName in
+            # scripts/lib/release-collector.mjs).
+            mkdir -p release-latest
+            cp "${APK_FILE}" release-latest/MarvelChampions-Android.apk
+            gh release upload "${TAG}" release-latest/MarvelChampions-Android.apk --clobber
           else
             echo "ERROR: Release APK not found."
             exit 1
