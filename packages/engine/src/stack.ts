@@ -584,6 +584,19 @@ export type StackFrame =
        * docs/phase7-wave9.md §4.1 Q4 = A, provisional).
        */
       readonly attackRetargeted?: { readonly frameId: FrameId; readonly from: InstanceId; readonly to: InstanceId };
+      /**
+       * On the root frame of a labeled ability whose printed cost is written as its leading effects
+       * (`AbilityDefinition.costEffects`), while that cost is being paid: how many of the frame's last instructions are
+       * the ability's effect. RRG 1.8 "Initiating Abilities" (p. 24): costs are paid in step 5, effects resolve in step
+       * 6; "Labeled Ability" (p. 26): the labeled effect is performed "when the labeled ability begins resolving (after
+       * costs have been paid)". So the status cards that cancel the label are read, and an "(attack)" ability's attack
+       * begins, only when the cursor reaches the effect (`beginEffectAfterCost`, `resolve/effects-frame.ts`; ruling
+       * April 30, 2026 - Ruling 2). Counted from the end because a choice inserted while paying lands before the
+       * effect. Absent once the cost is paid, and on every other frame.
+       */
+      readonly costEffectsPending?: number;
+      /** With `costEffects`: the cursor at which the effect began, once the cost has been paid (step 6). */
+      readonly effectBeganAt?: number;
     })
   /** RRG "Attack (Enemy Activation)" steps 1–5; step 6 is the event frame's response window. */
   | (FrameBase & {

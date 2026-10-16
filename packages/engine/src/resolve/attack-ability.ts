@@ -214,7 +214,16 @@
  *   `labelCancels`), so the `attack` instruction that takes a begun attack over does not read the status again and
  *   the stunned card stays for the next attack. An attack that begins at its own instruction reads it there, as
  *   before. (Alternative: the instruction discards the stunned card and deals nothing, which is what happened before
- *   row 73 when "that enemy attacks you" stunned the hero before "deal 5 damage to that enemy".)
+ *   row 73 when "that enemy attacks you" stunned the hero before "deal 5 damage to that enemy".) This covers
+ *   instructions of the effect only, not a cost (next point).
+ * - **A printed cost written as effects is not part of the attack** (`AbilityDefinition.costEffects`; official: RRG
+ *   1.8 "Initiating Abilities", p. 24, costs in step 5 and effects in step 6, p. 26's "after costs have been paid",
+ *   and ruling April 30, 2026 - Ruling 2 on Return the Favor: "If a treachery revealed in Step 5 Stuns the hero, the
+ *   Stun card is discarded in Step 6 instead of dealing damage"; owner decision 2026-10-16, audit finding 13, which
+ *   supersedes reading the 2026-10-08 rule ahead of the cost). The ability begins resolving when the cursor reaches
+ *   its first instruction after the cost (`beginEffectAfterCost` in `effects-frame.ts`, `effectBeganAt`): the status
+ *   check of p. 26 is made there, so a stun gained while paying is discarded and cancels the effect, the cost staying
+ *   paid, and only then does the attack begin. Nothing of the attack is read while the cost is paid.
  * - **An attack that began and whose instruction is never reached, or names no enemy it may attack by then**, is the
  *   label-only case above: it attacked the enemies its other damage instructions named, or nobody.
  *
@@ -958,10 +967,14 @@ export function beginLabelAttack(
   if (effect.kind === "chooseTarget" || frame.answer !== null) return false;
   if (frame.controllerId === null || frame.labelAttackMade || !isAttackLabeled(ctx.deps, frame)) return false;
   if (abilityRootFrameId(ctx.state, frame) !== frame.frameId) return false;
+  // A printed cost written as leading effects is paid first (step 5): the ability begins resolving after it, in step 6
+  // (file header, "A printed cost written as effects").
+  if (frame.costEffectsPending !== undefined) return false;
   const labelOnly = isLabelOnlyAttack(ctx.deps, frame);
   // An ability with an `attack` effect begins an attack here only as it begins resolving: each attack it makes after
   // that begins at its own instruction (file header, "An ability that makes several separate attacks").
-  if (!labelOnly && !frame.effects.slice(0, frame.cursor).every((earlier) => earlier.kind === "chooseTarget"))
+  const began = frame.effectBeganAt ?? 0;
+  if (!labelOnly && !frame.effects.slice(began, frame.cursor).every((earlier) => earlier.kind === "chooseTarget"))
     return false;
   const playerId = frame.controllerId;
   const identity = ctx.state.players.find((player) => player.playerId === playerId)?.identity.instanceId;
@@ -1126,7 +1139,7 @@ export function openLabelAttack(
   if (frame.controllerId === null || !isLabelOnlyAttack(ctx.deps, frame)) return false;
   const rootId = abilityRootFrameId(ctx.state, frame);
   const root = findFrame(ctx.state, rootId);
-  if (root?.kind !== "effects" || root.labelAttackMade) return false;
+  if (root?.kind !== "effects" || root.labelAttackMade || root.costEffectsPending !== undefined) return false;
   const playerId = frame.controllerId;
   const identity = ctx.state.players.find((player) => player.playerId === playerId)?.identity.instanceId;
   if (identity === undefined) return false;
