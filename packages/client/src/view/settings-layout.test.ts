@@ -139,6 +139,16 @@ describe("settingsLayout", () => {
     }
   });
 
+  for (const { name, width, height } of SIZES) {
+    test(`the scroll heights cover the whole content, padding included, so the last row scrolls fully into view, at ${name}`, () => {
+      const { content } = settingsLayout({ x: 0, y: 0, width, height }, SECTIONS);
+      expect(content.slotHeights).toHaveLength(content.slots.length);
+      expect(content.slotHeights.reduce((a, b) => a + b, 0)).toBeCloseTo(content.totalHeight);
+      const last = content.slots[content.slots.length - 1]!;
+      expect(content.totalHeight - (last.y + last.height)).toBeGreaterThanOrEqual(24);
+    });
+  }
+
   test("an untitled section draws no heading and takes no slot for one", () => {
     const { content } = settingsLayout({ x: 0, y: 0, width: 1440, height: 900 }, [
       { id: "cards", title: "", items: [{ kind: "toggle", id: "t", detail: "Detail." }] },

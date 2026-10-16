@@ -27,8 +27,13 @@ const TABS_GAP = 12;
 /** A section heading's band: the label, then its rule at the bottom. */
 export const SECTION_HEADING_HEIGHT = 26;
 const ROW_GAP = 10;
-/** Space between the title bar and the first heading, and under the last row. */
+/** Space between the tab rail and the first heading or row. */
 const CONTENT_INSET = 14;
+/**
+ * Space under the last row once scrolled to the bottom (owner, 2026-10-16), so the last row never sits against the
+ * panel's bottom edge.
+ */
+const BOTTOM_PADDING = 32;
 /** Space above every section heading after the first, so each section reads as its own block. */
 const SECTION_GAP = 26;
 /** The "Guide level" segmented row: a fixed two-line-per-cell height, not sized off wrapped text like the toggle rows. */
@@ -83,6 +88,13 @@ export interface SettingsContentLayout {
   readonly sections: readonly SettingsSectionLayout[];
   /** Every heading and row rect in draw order, for `McScrollRegion`'s `heights` (`contentSlotHeights`). */
   readonly slots: readonly Rect[];
+  /**
+   * The scroll region's `heights`, one per slot: each from its slot's top to the next one's, the first also taking
+   * the space above it and the last the padding below it, so they sum to `totalHeight` and the region can scroll
+   * the last row fully into view. (`contentSlotHeights(slots)` alone leaves both insets out, which clipped the last
+   * row at phone height.)
+   */
+  readonly slotHeights: readonly number[];
   /** The content's own total height, for the scroll region's clamp. */
   readonly totalHeight: number;
 }
@@ -124,14 +136,17 @@ export function settingsLayout(bounds: Rect, sections: readonly SettingsSectionS
     y -= ROW_GAP;
     placed.push({ id: section.id, title: section.title, heading, headingSlot, items });
   }
-  const totalHeight = Math.max(0, y + CONTENT_INSET);
+  const totalHeight = Math.max(0, y + BOTTOM_PADDING);
+  const slotHeights = slots.map(
+    (rect, i) => (i + 1 < slots.length ? slots[i + 1]!.y : totalHeight) - (i === 0 ? 0 : rect.y),
+  );
 
   // Never taller than the content itself (no dead scroll space when it already fits, as on a roomy desktop), and
   // never taller than what's actually left in the panel (the phone case this region exists for).
   const viewportHeight = Math.min(totalHeight, Math.max(0, body.y + body.height - bodyTop));
   const bodyViewport: Rect = { x, y: bodyTop, width, height: viewportHeight };
 
-  return { panel, header, tabs, bodyViewport, content: { sections: placed, slots, totalHeight } };
+  return { panel, header, tabs, bodyViewport, content: { sections: placed, slots, slotHeights, totalHeight } };
 }
 
 function placeItem(

@@ -65,7 +65,7 @@ import {
   type SettingsItemLayout,
   type SettingsItemSpec,
 } from "../view/settings-layout.js";
-import { contentSlotHeights, formFactorFor, type Rect } from "../view/layout.js";
+import { formFactorFor, type Rect } from "../view/layout.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { appSession } from "../session.js";
 import { guidePrefs, onGuidePrefsChange, setGuidePrefs } from "../guide/guide-store.js";
@@ -455,7 +455,7 @@ export class SettingsOverlay extends Phaser.Scene {
     // win the press on the ✕ above it (its own `clip` then drops the click, so nothing happened at all).
     this.#bodyRegion = new McScrollRegion(this, {
       rect: viewport,
-      heights: contentSlotHeights(content.slots),
+      heights: content.slotHeights,
       scroll: this.#bodyScroll,
       clipInteractive: true,
     });
