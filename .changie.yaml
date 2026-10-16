@@ -49,26 +49,26 @@ replacements:
   # The README's version badge and the release it links to.
   - path: README.md
     find: 'badge/version-v[0-9]+\.[0-9]+\.[0-9]+-'
-    replace: 'badge/version-{{.Version}}-'
+    replace: "badge/version-{{.Version}}-"
   - path: README.md
     find: 'releases/tag/v[0-9]+\.[0-9]+\.[0-9]+\)'
-    replace: 'releases/tag/{{.Version}})'
+    replace: "releases/tag/{{.Version}})"
   # The README's download buttons: each link names the release's files, and each button shows its version.
   - path: README.md
     find: 'releases/download/v[0-9]+\.[0-9]+\.[0-9]+/MarvelChampions-[0-9]+\.[0-9]+\.[0-9]+-'
-    replace: 'releases/download/{{.Version}}/MarvelChampions-{{.VersionNoPrefix}}-'
+    replace: "releases/download/{{.Version}}/MarvelChampions-{{.VersionNoPrefix}}-"
   - path: .github/assets/readme/download-windows.svg
     find: 'v[0-9]+\.[0-9]+\.[0-9]+'
-    replace: '{{.Version}}'
+    replace: "{{.Version}}"
   - path: .github/assets/readme/download-macos-apple-silicon.svg
     find: 'v[0-9]+\.[0-9]+\.[0-9]+'
-    replace: '{{.Version}}'
+    replace: "{{.Version}}"
   - path: .github/assets/readme/download-macos-intel.svg
     find: 'v[0-9]+\.[0-9]+\.[0-9]+'
-    replace: '{{.Version}}'
+    replace: "{{.Version}}"
   - path: .github/assets/readme/download-linux.svg
     find: 'v[0-9]+\.[0-9]+\.[0-9]+'
-    replace: '{{.Version}}'
+    replace: "{{.Version}}"
   - path: .github/assets/readme/download-android.svg
     find: 'v[0-9]+\.[0-9]+\.[0-9]+'
-    replace: '{{.Version}}'
+    replace: "{{.Version}}"
