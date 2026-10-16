@@ -102,7 +102,10 @@ export const BKW_PACK_CARDS = defineAbilities({
   "08023.quincarrier-resource": resource({ wild: 1 }, { cost: exhaustThis }),
 
   // Target Acquired — Hero Response: After a boost card is turned faceup, discard Target Acquired → cancel that
-  // card's boost ability. (Max 1 per player is card data.)
+  // card's boost ability. (Max 1 per player is card data.) Owner decision 2026-10-16 (audit finding 10, option B):
+  // RRG v1.8 p. 5 resolves the Boost ability before the responses to the card being turned faceup, superseding FFG's
+  // June 16, 2022 ruling for this card, so the ability has always resolved by now and this Response, having nothing to
+  // cancel, is not offered (`cancelHasNoTarget` in `packages/engine/src/resolve/triggers.ts`).
   "08024.target-acquired-response": heroResponse(
     onBoostCardTurnedFaceup(),
     { cost: discardThis },

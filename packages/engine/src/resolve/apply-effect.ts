@@ -1351,7 +1351,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (boost.ignored || boostIgnored(ctx.state, ctx.deps, procedure.enemyInstanceId, procedure.eventFrameId))
         return report(0);
       if (effect.kind === "cancelBoostAbility") {
-        // Its ability resolves as soon as the turned-faceup windows close; after that there is nothing to cancel.
+        // Its ability resolves as soon as the turned-faceup interrupts close, before the responses (RRG 1.8 p. 5);
+        // after that there is nothing to cancel.
         if (boost.step !== "window" || boost.abilityCancelled) return report(0);
         setFrame(ctx, { ...procedure, boost: { ...boost, abilityCancelled: true } });
         return report(1);
@@ -1423,7 +1424,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         f.kind === "event"
           ? f.event.kind === "boostIconsCounting" && f.event.enemyInstanceId === null && f.stage === "apply"
           : (f.kind === "enemyAttack" || f.kind === "enemyScheme") &&
-            (f.boost?.step === "count" || f.boost?.step === "ability"),
+            (f.boost?.step === "count" || f.boost?.step === "ability" || f.boost?.step === "responses"),
       );
       // Inside a borrowed Boost ability: the boost cards whose count its gained icons join (often none).
       const borrowedFor = effect.kind === "adjustBoostCount" ? context.bindings[BORROWED_BOOST_ICONS_SLOT] : undefined;

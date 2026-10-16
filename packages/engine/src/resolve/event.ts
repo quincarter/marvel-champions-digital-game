@@ -346,6 +346,8 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         if (frame.endedEarly && pushEndEffects(ctx, frame)) return;
         // RRG "Cancel": the canceled effect is not considered to have occurred, so no responses.
         emit(ctx, { type: "triggerEvent", event: frame.event, phase: "cancelled" });
+        // Nor does the later frame that would have announced them (`responsesLater`) follow it.
+        if (frame.responsesLater) noLaterResponses(ctx, frame.frameId);
         // A replaced discard from a hand or a deck did not discard its card (docs/phase7-wave9.md §4.1 Q20).
         if (frame.event.kind === "cardBeingDiscarded") wouldDiscardNotMade(ctx, frame.event);
         // A replaced attack or thwart of a labeled ability: the ability waiting beneath resolves no effect
@@ -383,6 +385,10 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       if (!happened) {
         // The event found nothing to do (a defeat whose character was healed first):
         // it didn't happen, so nothing responds to it.
+        updateFrame(ctx, frame.frameId, (f) => (f.kind === "event" ? { ...f, stage: "done" } : f));
+        if (frame.responsesLater) noLaterResponses(ctx, frame.frameId);
+      } else if (frame.responsesLater) {
+        // Its responses are a later frame's (`responsesLater`): this one ends here.
         updateFrame(ctx, frame.frameId, (f) => (f.kind === "event" ? { ...f, stage: "done" } : f));
       }
       return;
@@ -477,6 +483,20 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       // is pushed first and resolves after the moves `announceAfterward` reports.
       announceKeywordsIgnored(ctx, frame);
       announceAfterward(ctx, frame);
+      return;
+    }
+  }
+}
+
+/**
+ * A `responsesLater` event did not occur (cancelled in its interrupt window, or it found nothing to do), so the later
+ * frame that would announce its responses is not pushed. Its one user is a boost card's `boostCardTurnedFaceup`
+ * (`stepBoostCard`), whose activation frame records it.
+ */
+function noLaterResponses(ctx: Ctx, eventFrameId: FrameId): void {
+  for (const f of ctx.state.stack) {
+    if ((f.kind === "enemyAttack" || f.kind === "enemyScheme") && f.boost?.turnedFrameId === eventFrameId) {
+      setFrame(ctx, { ...f, boost: { ...f.boost, turnedCancelled: true } });
       return;
     }
   }

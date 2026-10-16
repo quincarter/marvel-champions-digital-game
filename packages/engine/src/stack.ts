@@ -100,8 +100,10 @@ export interface ReportTarget {
 }
 
 /**
- * The boost card an activation is resolving (RRG 1.8 "Boost", p. 11): `window` while its `boostCardTurnedFaceup` event
- * resolves, `ability` while its "Boost" ability resolves. Its icons are added and it is discarded after that.
+ * The boost card an activation is resolving (RRG 1.8 "Boost", p. 11): `window` while the interrupts to its
+ * `boostCardTurnedFaceup` event resolve, `ability` while its "Boost" ability resolves, `responses` while that event's
+ * responses resolve (RRG 1.8 "Simultaneous Timing Priority", p. 5: interrupts, then the Boost ability, then responses).
+ * Its icons are added and it is discarded after that.
  */
 export interface BoostInProgress {
   readonly instanceId: InstanceId;
@@ -109,7 +111,7 @@ export interface BoostInProgress {
    * `count`: its icons are about to be counted (`boostIconsCounting`; docs/phase7-wave2.md §3.6). `resolved`: counted
    * (`icons`), its `boostCardResolved` response window open before the discard (docs/phase7-wave5.md §3.5).
    */
-  readonly step: "window" | "ability" | "count" | "resolved";
+  readonly step: "window" | "ability" | "responses" | "count" | "resolved";
   /** With `step: "resolved"`: the icons it adds. */
   readonly icons?: number;
   readonly iconsCancelled: boolean;
@@ -119,6 +121,12 @@ export interface BoostInProgress {
    * and its ability does not resolve, neither being canceled. Set when the rule is first seen to cover the card.
    */
   readonly ignored?: true;
+  /** The boost icons its `boostCardTurnedFaceup` event announced at the flip, announced again to its responses. */
+  readonly turnedIcons?: number;
+  /** The event frame of its `boostCardTurnedFaceup` interrupts (`responsesLater`), while they resolve. */
+  readonly turnedFrameId?: FrameId;
+  /** That event was cancelled in its interrupt window: not considered to have occurred, so no responses follow it. */
+  readonly turnedCancelled?: true;
   /** "Increase or decrease the number of boost icons on that card by 1 for this count" (`adjustBoostCount`). */
   readonly countAdjust?: number;
   /** "Count the number of boost icons on that card instead" (`replaceBoostCount`): the card whose icons are counted. */
@@ -231,6 +239,14 @@ export type StackFrame =
        * opening its own window. Its interrupt window, apply step and "each time" effects are its own.
        */
       readonly responsesWith?: FrameId;
+      /**
+       * Only this event's interrupt window and apply step are this frame's: its responses are announced by a later
+       * frame for the same event, pushed at `stage: "responses"` once something else has resolved in between. A boost
+       * card turned faceup is the one user: its interrupts, then its "Boost" ability, then its responses (RRG 1.8
+       * "Simultaneous Timing Priority", p. 5; owner decision, 2026-10-16, audit finding 10 B; `stepBoostCard`). The
+       * frame ends after its apply step, with no "resolved" line, no response window and no "each time" effects.
+       */
+      readonly responsesLater?: true;
       /** Events handed over by frames whose `responsesWith` is this one; this frame's response window gathers them. */
       readonly joinedResponses?: readonly TriggerEvent[];
       /**

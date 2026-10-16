@@ -67,9 +67,27 @@ import { enteredPlaySince } from "../entered-since.js";
  * reveal cancel sits.
  */
 function cancelHasNoTarget(state: GameState, deps: EngineDeps, definition: AbilityDefinition, event: TriggerEvent) {
+  if (event.kind === "boostCardTurnedFaceup") return boostAbilityCancelGone(state, definition, event.boostInstanceId);
   if (event.kind !== "encounterCardRevealing") return false;
   const cancels = definition.effects.some((e) => e.kind === "cancelWhenRevealed" || e.kind === "cancelRevealedCard");
   return cancels && revealCannotBeCanceled(state, deps, event.instanceId);
+}
+
+/**
+ * An ability whose only effect is "cancel that card's boost ability", once that ability can no longer be cancelled: it
+ * has resolved (a Response to the card being turned faceup comes after it, RRG 1.8 "Simultaneous Timing Priority",
+ * p. 5; owner decision, 2026-10-16, audit finding 10 B), is already cancelled, or is ignored. As for a reveal cancel
+ * above, the cancel has no valid target, so it can't be initiated (RRG 1.8 "Initiating Abilities", p. 24, step 2) and
+ * no cost is paid (Target Acquired, `bkw` 08024). An ability with any other effect is still offered for that one.
+ */
+function boostAbilityCancelGone(state: GameState, definition: AbilityDefinition, boostId: InstanceId): boolean {
+  if (definition.effects.length === 0 || !definition.effects.every((e) => e.kind === "cancelBoostAbility"))
+    return false;
+  const procedure = state.stack.find(
+    (f) => (f.kind === "enemyAttack" || f.kind === "enemyScheme") && f.boost?.instanceId === boostId,
+  );
+  const boost = procedure?.kind === "enemyAttack" || procedure?.kind === "enemyScheme" ? procedure.boost : null;
+  return !boost || boost.step !== "window" || boost.abilityCancelled || boost.ignored === true;
 }
 
 /**

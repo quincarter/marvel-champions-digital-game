@@ -1,5 +1,6 @@
 import { PLAYABLE_CARDS, cardId, type AnyCard } from "@mc/content";
 import {
+  activeEncounterDeckId,
   applyCommand,
   characterProfile,
   cardsInPlay,
@@ -7,6 +8,7 @@ import {
   type GameState,
   type InstanceId,
   type PlayerSetup,
+  statusActive,
 } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { PLAYABLE_DEPS, playableScenario } from "../../playable/index.js";
@@ -94,6 +96,23 @@ function openHandFor(
   const ready = options.alterEgo ? opening : toHeroFirst(opening);
   const { state, ids } = moveToHand(ready, P1, code);
   return { state, id: ids[0]! };
+}
+
+/** Moves P1's set-aside `code` to the top of the encounter deck, above `ADVANCE` (the villain phase's reveal). */
+function withSetAsideOnTop(state: GameState, code: string): GameState {
+  const id = playerOf(state, P1).setAside.find((i) => state.instances[i]?.cardId === cardId(code));
+  if (!id) throw new Error(`no ${code} set aside`);
+  const moved: GameState = {
+    ...state,
+    players: state.players.map((p) => (p.playerId === P1 ? { ...p, setAside: p.setAside.filter((i) => i !== id) } : p)),
+  };
+  const deckId = activeEncounterDeckId(moved);
+  const stacked = stackEncounterDeck(moved, ADVANCE, "01104");
+  const piles = stacked.encounterDecks[deckId]!;
+  return {
+    ...stacked,
+    encounterDecks: { ...stacked.encounterDecks, [deckId]: { ...piles, deck: [id, ...piles.deck] } },
+  };
 }
 
 /** Moves `n` non-resource cards (never `exclude`) from P1's hand/deck into hand and returns their ids (payment). */
@@ -251,19 +270,27 @@ describe("Black Widow's basic cards, from a Core hero's own deck", () => {
     expect(inst(after, id).exhausted).toBe(true);
   });
 
-  it("08024.target-acquired-response: after a boost card is turned faceup, discards to cancel its boost ability", () => {
-    // Caught Off Guard (01188) boost: "If the villain is making an undefended attack, choose and discard an upgrade."
+  // RRG v1.8 p.5; owner decision 2026-10-16, audit finding 10 B: a boost card's Boost ability resolves before the
+  // responses to its being turned faceup (superseding FFG's June 16, 2022 Target Acquired ruling). Its "cancel that
+  // card's boost ability" then has nothing to cancel, so Target Acquired is not offered and stays in play.
+  it("08024.target-acquired-response: comes after the Boost ability has resolved, so it is not offered", () => {
+    // Sweeping Swoop (01168, Spider-Man's nemesis set, set aside) as the villain's boost card: "[star] Boost: If this
+    // activation deals damage to a friendly character, stun that character."
     const { state: opened, id: ta } = openHandFor("08024", SPIDER_MAN, { extraDeck: [] });
     const identity = identityOf(opened);
-    const withWeb = moveToHand(opened, P1, "01008"); // Web-Shooter: the canary upgrade
-    const [web] = withWeb.ids as readonly [InstanceId];
-    const webIn = playPaid(withWeb.state, web, firstLegal, identity);
-    const armed = playPaid(webIn, ta, firstLegal, identity);
-    expect(inst(armed, web).attachedTo).toBe(identity);
-    const stacked = stackEncounterDeck(armed, "01188", ADVANCE, "01104");
-    const after = throughVillainPhase(stacked, accepting("08024.target-acquired-response"));
-    expect(playerOf(after, P1).discard).toContain(ta);
-    expect(inst(after, web).attachedTo).toBe(identity); // the boost's upgrade discard was cancelled
+    const armed = playPaid(opened, ta, firstLegal, identity);
+    const stacked = withSetAsideOnTop(armed, "01168");
+    const offered: string[] = [];
+    const pick: Picker = (st) => {
+      const choice = st.pendingChoice;
+      if (choice?.prompt.kind === "chooseTriggers") offered.push(...choice.options.map((o) => o.optionId));
+      if (choice?.prompt.kind === "declareDefender") return ["decline"]; // the hero takes the attack's damage
+      return accepting("08024.target-acquired-response")(st);
+    };
+    const after = throughVillainPhase(stacked, pick);
+    expect(offered.some((id) => id.includes("08024.target-acquired-response"))).toBe(false);
+    expect(inst(after, ta).attachedTo).toBe(identity);
+    expect(statusActive(after, identity, "stunned", PLAYABLE_DEPS)).toBe(true); // the Boost ability resolved
   });
 });
 

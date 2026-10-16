@@ -755,12 +755,16 @@ Quantities are MarvelCDB `quantity`.
 
 **Model:**
 
-- **Trigger event `boostCardTurnedFaceup { enemyInstanceId, boostInstanceId, activation: "attack" | "scheme" }`**, with interrupts and responses before the boost ability resolves.
+- **Trigger event `boostCardTurnedFaceup { enemyInstanceId, boostInstanceId, activation: "attack" | "scheme" }`**: its interrupts, then the boost ability, then its responses.
   - Confirm the step order against RRG 1.8 "Attack (Enemy Activation)" (pp. 8–10) and "Boost" (p. 11) before coding.
-  - The RRG 1.8 timing chart (p. 5) puts Boost abilities before Responses. FFG's ruling of June 16, 2022 (Alex Werner, on
-    Hall of Heroes' official rulings page) keeps Target Acquired's Response before the Boost ability it cancels, so this
-    order stays (owner decision 2026-10-16, rules audit finding 10, option A). Whether other responses to this event,
-    such as Swordsman's, also precede the Boost ability is unconfirmed.
+  - The RRG 1.8 timing chart (p. 5) puts Boost abilities before Responses, and p. 8 attack step 3 reads "a. Flip …
+    b. Resolve any Boost abilities". The engine follows it strictly: interrupts, then the Boost ability, then responses
+    (owner decision 2026-10-16, rules audit finding 10, option B: the latest RRG wins where an older ruling conflicts).
+    This supersedes FFG's ruling of June 16, 2022 (Alex Werner, on Hall of Heroes' official rulings page), which put
+    Target Acquired's Response before the Boost ability it cancels. Target Acquired now has nothing to cancel and is
+    not offered. Swordsman's defend (`wonder_man`) also comes after the Boost ability, so a Boost ability that checks
+    "undefended" sees the attack undefended. The event is split into an interrupts-only frame (`responsesLater`) and
+    a responses frame pushed once the Boost ability has resolved (`stepBoostCard`).
 - **Effects:** `cancelBoostIcons { bind }` (no valid target at 0 icons) and `cancelBoostAbility`.
 - **Boost-icon modifier:** a constant on the boost card read when icons are counted.
 - **Delayed effect `atEndOfActivation`**, the counterpart of `atEndOfAttack`.

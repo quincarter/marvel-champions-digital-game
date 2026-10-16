@@ -95,11 +95,14 @@ const CANCEL_ICONS_ABILITY = stubAbility(
     ],
   }),
 );
-/** The same for the "Boost" ability. */
+/**
+ * The same for the "Boost" ability. An interrupt: a response to the card being turned faceup comes after its Boost
+ * ability has resolved (RRG v1.8 p.5; owner decision 2026-10-16, audit finding 10 B), with nothing left to cancel.
+ */
 const CANCEL_ABILITY_ABILITY = stubAbility(
-  "cancel-ability.response",
+  "cancel-ability.interrupt",
   def({
-    trigger: { kind: "response", forced: true, on: { on: "boostCardTurnedFaceup" } },
+    trigger: { kind: "interrupt", forced: true, on: { on: "boostCardTurnedFaceup" } },
     effects: [
       { kind: "cancelBoostAbility", bind: "ability" },
       {

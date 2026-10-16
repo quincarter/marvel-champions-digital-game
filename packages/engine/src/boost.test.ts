@@ -104,6 +104,16 @@ const DEFY_INTERRUPT = stubAbility("defy.interrupt", {
   effects: [{ kind: "discardBoostCard" }],
 });
 const DEFY = stubSupport({ id: "defy", cost: 0, abilities: [DEFY_INTERRUPT.ref] });
+/** An interrupt and a response to the same flip, each leaving a counter on the villain so their order shows. */
+const WHEN_INTERRUPT = stubAbility("when.interrupt", {
+  trigger: { kind: "interrupt", forced: true, on: { on: "boostCardTurnedFaceup", activation: "attack" } },
+  effects: [{ kind: "addCounters", target: theVillain, counterType: "interrupted", amount: one }],
+});
+const AFTER_RESPONSE = stubAbility("after.response", {
+  trigger: { kind: "response", forced: true, on: { on: "boostCardTurnedFaceup", activation: "attack" } },
+  effects: [{ kind: "addCounters", target: theVillain, counterType: "responded", amount: one }],
+});
+const BOTH = stubSupport({ id: "both", cost: 0, abilities: [WHEN_INTERRUPT.ref, AFTER_RESPONSE.ref] });
 
 const deps: EngineDeps = depsOf(
   BOOSTED,
@@ -115,8 +125,10 @@ const deps: EngineDeps = depsOf(
   FOIL_INTERRUPT,
   TARGET_RESPONSE,
   DEFY_INTERRUPT,
+  WHEN_INTERRUPT,
+  AFTER_RESPONSE,
 );
-const SUPPORTS: readonly AnyCard[] = [ACRO, FOIL, TARGET, DEFY];
+const SUPPORTS: readonly AnyCard[] = [ACRO, FOIL, TARGET, DEFY, BOTH];
 
 /** p1's first turn; `top` is the first encounter card (the villain's first boost card), `supports` are in p1's play area. */
 function game(top: AnyCard, supports: readonly AnyCard[] = []): GameState {
@@ -206,12 +218,34 @@ describe("§3.9 boost cards as events", () => {
     ]);
   });
 
-  it("'After a boost card is turned faceup … cancel that card's boost ability': its icons still count", () => {
+  // RRG v1.8 p.5; owner decision 2026-10-16, audit finding 10 B: the Boost ability resolves before the responses to
+  // its card being turned faceup, so "After a boost card is turned faceup … cancel that card's boost ability" comes
+  // too late. With nothing left to cancel it is not initiated at all, and the ability and icons both count.
+  it("'After a boost card is turned faceup … cancel that card's boost ability': the ability has already resolved", () => {
     const { state, events } = runCommands(game(TWO, [TARGET]), deps, toHero, endTurn);
     const villain = villainId(state);
-    expect(mustInstance(state, villain).counters.boosted).toBeUndefined();
+    expect(mustInstance(state, villain).counters.boosted).toBe(1);
     expect(villainAttack(events, villain)).toEqual([expect.objectContaining({ boostIcons: 2, damageDealt: 3 })]);
-    expect(ofType(events, "boostCancelled")).toEqual([expect.objectContaining({ scope: "ability" })]);
+    expect(ofType(events, "boostCancelled")).toEqual([]);
+    expect(ofType(events, "abilityResolved").filter((e) => e.abilityId === TARGET_RESPONSE.ref.id)).toEqual([]);
+  });
+
+  it("a boost card turned faceup: interrupts, then its Boost ability, then responses (RRG v1.8 p.5)", () => {
+    const { state, events } = runCommands(game(TWO, [BOTH]), deps, toHero, endTurn);
+    const added = (counterType: string) =>
+      events.findIndex((e) => e.type === "counterAdded" && e.counterType === counterType);
+    const interrupted = added("interrupted");
+    const boosted = added("boosted");
+    const responded = added("responded");
+    expect(interrupted).toBeGreaterThanOrEqual(0);
+    expect(boosted).toBeGreaterThan(interrupted);
+    expect(responded).toBeGreaterThan(boosted);
+    // One turned-faceup event: initiated once (its interrupts), resolved once (its responses).
+    const turned = (phase: string) =>
+      events.filter((e) => e.type === "triggerEvent" && e.event.kind === "boostCardTurnedFaceup" && e.phase === phase);
+    expect(turned("initiated")).toHaveLength(1);
+    expect(turned("resolved")).toHaveLength(1);
+    expect(mustInstance(state, villainId(state)).counters).toMatchObject({ interrupted: 1, boosted: 1, responded: 1 });
   });
 
   it("a Boost ability resolves before its card is discarded (RRG 1.8 'Boost', p. 11)", () => {

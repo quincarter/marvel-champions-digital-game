@@ -65,6 +65,7 @@ import {
   addFrameVars,
   announce,
   base,
+  eventFrame,
   type Frame,
   gameAbilityFrames,
   pushEffects,
@@ -347,24 +348,14 @@ function stepBoostCard(
       boostIcons: icons,
     });
     if (ignored) emit(ctx, { type: "boostIgnored", enemyInstanceId: frame.enemyInstanceId, instanceId: boostId });
-    setFrame(ctx, {
-      ...frame,
-      boost: {
-        instanceId: boostId,
-        step: "window",
-        iconsCancelled: false,
-        abilityCancelled: false,
-        ...(ignored ? { ignored: true as const } : {}),
-      },
-    });
-    // This event's interrupts *and responses* resolve before the card's Boost ability (the `window` step below), not
-    // Boost first as the RRG 1.8 "Simultaneous Timing Priority" chart (p. 5) would have it. FFG ruled (June 16, 2022,
-    // Alex Werner, Hall of Heroes' official rulings page) that Target Acquired's printed Response ("After a boost card
-    // is turned faceup … cancel that card's boost ability", `bkw` 08024) resolves after the card is turned faceup and
-    // before its Boost ability; the strict p. 5 order would make it cancel nothing. Owner decision, 2026-10-16 (audit
-    // finding 10, option A): keep this order until FFG says otherwise. Open: no ruling confirms that other responses
-    // here, such as Swordsman's defend (`wonder_man`), also come before the Boost ability.
-    pushEvent(ctx, {
+    // RRG 1.8 "Simultaneous Timing Priority" (p. 5) and "Attack (Enemy Activation)" step 3 (p. 8: "a. Flip … b. Resolve
+    // any Boost abilities"): the interrupts to the card being turned faceup, then its Boost ability, then the responses.
+    // So this frame opens only the interrupt window (`responsesLater`); the responses are announced by a second frame
+    // for the same event once the Boost ability has resolved (the `ability` step below). Owner decision, 2026-10-16
+    // (audit finding 10, option B): the latest RRG wins where an older ruling conflicts, so FFG's June 16, 2022 Target
+    // Acquired ruling (its Response before the Boost ability) is superseded; Target Acquired's "cancel that card's boost
+    // ability" now finds nothing to cancel and is not offered (`cancelHasNoTarget`, `resolve/triggers.ts`).
+    const turnedFrame = eventFrame(ctx, {
       kind: "boostCardTurnedFaceup",
       enemyInstanceId: frame.enemyInstanceId,
       boostInstanceId: boostId,
@@ -372,6 +363,19 @@ function stepBoostCard(
       boostIcons: icons,
       playerId,
     });
+    setFrame(ctx, {
+      ...frame,
+      boost: {
+        instanceId: boostId,
+        step: "window",
+        iconsCancelled: false,
+        abilityCancelled: false,
+        turnedIcons: icons,
+        turnedFrameId: turnedFrame.frameId,
+        ...(ignored ? { ignored: true as const } : {}),
+      },
+    });
+    pushFrames(ctx, [turnedFrame.kind === "event" ? { ...turnedFrame, responsesLater: true } : turnedFrame]);
     return "busy";
   }
   let boost = turned;
@@ -391,6 +395,8 @@ function stepBoostCard(
     return boost.icons ?? 0;
   }
   if (boost.step === "window") {
+    const { turnedFrameId: _interruptsDone, ...rest } = boost;
+    boost = rest;
     setFrame(ctx, { ...frame, boost: { ...boost, step: "ability" } });
     if (boost.abilityCancelled) emit(ctx, { type: "boostCancelled", instanceId: boost.instanceId, scope: "ability" });
     else if (!boost.ignored)
@@ -398,6 +404,23 @@ function stepBoostCard(
     return "busy";
   }
   if (boost.step === "ability") {
+    // The Boost ability has resolved: now the responses to the card being turned faceup (RRG 1.8 p. 5), unless the
+    // event was cancelled in its interrupt window. The event announces the icons as they stand: none once cancelled.
+    setFrame(ctx, { ...frame, boost: { ...boost, step: "responses" } });
+    if (!boost.turnedCancelled) {
+      const responses = eventFrame(ctx, {
+        kind: "boostCardTurnedFaceup",
+        enemyInstanceId: frame.enemyInstanceId,
+        boostInstanceId: boost.instanceId,
+        activation,
+        boostIcons: boost.iconsCancelled || boost.ignored ? 0 : (boost.turnedIcons ?? 0),
+        playerId,
+      });
+      pushFrames(ctx, [responses.kind === "event" ? { ...responses, stage: "responses" } : responses]);
+      return "busy";
+    }
+  }
+  if (boost.step === "ability" || boost.step === "responses") {
     // The icons are about to be counted: a window only when something could react (docs/phase7-wave2.md §3.6).
     setFrame(ctx, { ...frame, boost: { ...boost, step: "count" } });
     const counting: TriggerEvent = {
