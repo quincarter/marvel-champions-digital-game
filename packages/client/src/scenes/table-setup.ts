@@ -2288,12 +2288,17 @@ export class TableSetupScene extends Phaser.Scene {
       return;
     }
     this.#modularViewportRect = rect;
+    // A tile scrolled out of the panel stays in the display list over whatever it scrolled under (the difficulty
+    // cards above, the seats below): `clip` only drops its click, while its zone still takes the press and the
+    // cursor. `clipInteractive` holds every tile not wholly inside the panel inert instead.
     this.#modularRegion = new McScrollRegion(this, {
       rect,
       heights: plan.rowHeights,
       scroll: this.#modularScroll,
+      clipInteractive: true,
     });
     this.#captureInto(this.#modularRegion.content, draw);
+    this.#modularRegion.syncInteractivity();
   }
 
   #modularClip = (): Rect | null => this.#modularRegion?.rect ?? null;
