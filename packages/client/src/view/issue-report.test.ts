@@ -1,5 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
+  DECK_REQUEST_URL,
+  FEATURE_REQUEST_URL,
   issueReportFileName,
   issuePlatformOf,
   issueReportText,
@@ -68,6 +70,15 @@ describe("issueReportText", () => {
     expect(text).toContain("Seed: unknown");
     expect(text).toContain("(empty)");
   });
+});
+
+test("the feature and deck buttons open the repo's own forms", () => {
+  expect(FEATURE_REQUEST_URL).toBe(
+    "https://github.com/quincarter/marvel-champions-digital-game/issues/new?template=feature_request.yml",
+  );
+  expect(DECK_REQUEST_URL).toBe(
+    "https://github.com/quincarter/marvel-champions-digital-game/issues/new?template=tested_deck_request.yml",
+  );
 });
 
 test("the file name is the player's local date and time", () => {

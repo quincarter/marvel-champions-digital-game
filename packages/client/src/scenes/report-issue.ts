@@ -20,6 +20,8 @@ import { destroyChildren } from "../ui/destroy-children.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import { appVersionText, buildCommit } from "../view/app-version.js";
 import {
+  DECK_REQUEST_URL,
+  FEATURE_REQUEST_URL,
   issueReportFileName,
   issueReportText,
   newIssueUrl,
@@ -38,7 +40,7 @@ const BUTTON_TYPE: TypeSpec = { ...typeRole.label, size: 12 };
 /** How long "Hide for a screenshot" keeps the panel away. A tap anywhere brings it back sooner. */
 const HIDE_MS = 5_000;
 
-type StopId = "close" | "hide" | "copy" | "download" | "github";
+type StopId = "close" | "hide" | "copy" | "download" | "github" | "feature" | "deck";
 
 export class ReportIssueOverlay extends Phaser.Scene {
   #buttons: McButton[] = [];
@@ -212,7 +214,7 @@ export class ReportIssueOverlay extends Phaser.Scene {
     const layColumn = (
       x: number,
       top: number,
-      steps: readonly { title: string; body: string; buttons: readonly Button[] }[],
+      steps: readonly { title: string; body: string; rows: readonly (readonly Button[])[] }[],
     ): number => {
       let y = top;
       steps.forEach((step, index) => {
@@ -224,11 +226,14 @@ export class ReportIssueOverlay extends Phaser.Scene {
         body.setPosition(x, y);
         y += body.height + 10;
         const gap = 10;
-        const each = (columnWidth - gap * (step.buttons.length - 1)) / step.buttons.length;
-        step.buttons.forEach((button, at) => {
-          buttons.push({ button, rect: { x: x + at * (each + gap), y, width: each, height: buttonHeight } });
+        step.rows.forEach((row, rowIndex) => {
+          if (rowIndex > 0) y += gap;
+          const each = (columnWidth - gap * (row.length - 1)) / row.length;
+          row.forEach((button, at) => {
+            buttons.push({ button, rect: { x: x + at * (each + gap), y, width: each, height: buttonHeight } });
+          });
+          y += buttonHeight;
         });
-        y += buttonHeight;
       });
       return y;
     };
@@ -238,24 +243,37 @@ export class ReportIssueOverlay extends Phaser.Scene {
       {
         title: "1 · Snap a screenshot",
         body: `${tip} Hide this panel first so the picture shows the problem.`,
-        buttons: [
-          { id: "hide", label: "Hide for a screenshot", kind: "secondary", run: () => this.#hideForScreenshot() },
+        rows: [
+          [{ id: "hide", label: "Hide for a screenshot", kind: "secondary", run: () => this.#hideForScreenshot() }],
         ],
       },
       {
         title: "2 · Save the log",
         body: "The log has this game's moves and your device details, so we can replay what you saw.",
-        buttons: [
-          { id: "copy", label: "Copy log", kind: "secondary", run: () => this.#copy() },
-          { id: "download", label: "Download log", kind: "secondary", run: () => this.#download() },
+        rows: [
+          [
+            { id: "copy", label: "Copy log", kind: "secondary", run: () => this.#copy() },
+            { id: "download", label: "Download log", kind: "secondary", run: () => this.#download() },
+          ],
         ],
       },
       {
-        title: "3 · Tell us what happened",
-        body: "Opens a new GitHub issue with your device details filled in. Add your screenshot and the log there.",
-        buttons: [{ id: "github", label: "Open a GitHub issue ↗", kind: "primary", run: () => this.#openIssue() }],
+        title: "3 · Tell us about it",
+        body: "Report a bug opens GitHub's bug form with your device details filled in: add your screenshot and the log there.",
+        rows: [
+          [{ id: "github", label: "Report a bug ↗", kind: "primary", run: () => this.#openIssue() }],
+          [
+            {
+              id: "feature",
+              label: "Suggest a feature ↗",
+              kind: "secondary",
+              run: () => openExternal(FEATURE_REQUEST_URL),
+            },
+            { id: "deck", label: "Request a deck ↗", kind: "secondary", run: () => openExternal(DECK_REQUEST_URL) },
+          ],
+        ],
       },
-    ] satisfies { title: string; body: string; buttons: Button[] }[];
+    ] satisfies { title: string; body: string; rows: Button[][] }[];
 
     // Measured in place at a provisional origin, then the whole box is centred and everything moved with it.
     const title = this.add.text(0, 0, "Report an issue", textStyle(typeRole.barTitle, surface.ink.hex));
@@ -320,7 +338,7 @@ export class ReportIssueOverlay extends Phaser.Scene {
       );
       placed.push({ id: button.id, rect: moved, activate: button.run });
     }
-    const order: StopId[] = ["hide", "copy", "download", "github", "close"];
+    const order: StopId[] = ["hide", "copy", "download", "github", "feature", "deck", "close"];
     const stops = new Map<string, FocusStop>(
       placed.map((stop) => [stop.id, { rect: stop.rect, activate: stop.activate }]),
     );

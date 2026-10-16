@@ -15,6 +15,10 @@ import { logLineWords } from "./pause-log-window.js";
 
 export const ISSUE_REPO = "quincarter/marvel-champions-digital-game";
 
+/** The repo's other issue forms (`.github/ISSUE_TEMPLATE/`), for a report that is not a bug. */
+export const FEATURE_REQUEST_URL = `https://github.com/${ISSUE_REPO}/issues/new?template=feature_request.yml`;
+export const DECK_REQUEST_URL = `https://github.com/${ISSUE_REPO}/issues/new?template=tested_deck_request.yml`;
+
 /** Where the player is and what they are running, as the report's header and the issue's environment block. */
 export interface ReportEnvironment {
   /** `v0.21.1+9211646` (`view/app-version.ts`). */
