@@ -78,6 +78,7 @@ import {
 } from "../rules.js";
 import {
   activeRules,
+  attackerForbiddenEveryAttack,
   canAttack,
   evaluate,
   isAttackTarget,
@@ -906,10 +907,18 @@ export function abilityTargetFault(
     if (identity && statusActive(state, identity, "confused", deps)) return null;
   }
   // RRG 1.8 "Stun, Stunned" (p. 41): "A stunned character can attempt to attack or use an attack ability even if it has
-  // no valid target for an attack." The attempt discards the stunned card (`labelCancels`, `resolve/ability.ts`).
+  // no valid target for an attack." The attempt discards the stunned card (`labelCancels`, `resolve/ability.ts`). Only
+  // the target is waived: a character that cannot attack at all makes no attempt (RRG 1.8 "'Cannot'", p. 11; FFG ruling
+  // Jan 18, 2023, Vision in Intangible form), so its ability is judged as any other. A basic-only rule does not bind it.
   if (definition.label?.includes("attack") && playerId !== null) {
     const identity = getPlayer(state, playerId)?.identity.instanceId;
-    if (identity && statusActive(state, identity, "stunned", deps)) return null;
+    if (
+      identity &&
+      statusActive(state, identity, "stunned", deps) &&
+      attackerForbiddenEveryAttack(state, identity, deps) === null
+    ) {
+      return null;
+    }
   }
   const context: EffectContext = {
     selfInstanceId: sourceId,
@@ -1407,7 +1416,12 @@ function namesStunnedAttacker(
   return effects.some((effect) => {
     if (effect.kind !== "attack") return false;
     const attacker = attackerOf(state, effect, context);
-    return attacker !== null && statusActive(state, attacker, "stunned", deps);
+    // A stunned character that cannot attack at all makes no attempt (FFG ruling Jan 18, 2023; `abilityTargetFault`).
+    return (
+      attacker !== null &&
+      statusActive(state, attacker, "stunned", deps) &&
+      attackerForbiddenEveryAttack(state, attacker, deps) === null
+    );
   });
 }
 
