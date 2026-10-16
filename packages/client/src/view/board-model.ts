@@ -69,6 +69,7 @@ import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
 import { breakPointOf } from "./break-point.js";
 import { giftReaderNote, giftSeatNote } from "./gift-count.js";
 import { counterGoalsOf } from "./counter-goal.js";
+import { scenarioAreaLimitsOf } from "./scenario-area-limit.js";
 import { counterLimitsOf } from "./counter-limit.js";
 import { otherFaceVisible } from "./hidden-reverse.js";
 import { keywordLabel } from "./keyword-label.js";
@@ -431,6 +432,8 @@ export interface SchemePanel {
   readonly attachments: readonly AttachmentChip[];
   /** Counters on the scheme card itself (En Sabah Nur's Pyramid collects power counters). Empty draws nothing. */
   readonly counters: readonly { readonly name: string; readonly count: number }[];
+  /** Each scenario area, on the central main scheme only (`SchemeAreaNote`); absent on every other scheme. */
+  readonly areaNotes?: readonly SchemeAreaNote[];
 }
 
 /**
@@ -564,6 +567,27 @@ export interface ScenarioAreaPanel {
   /** The topmost card's art, for the pile's own face — null when the area is empty. */
   readonly topArt: ArtSource | null;
   readonly count: number;
+  /**
+   * The count a main scheme's own text acts at (The Grand Collection 1B: "at least 5[per_hero] cards in The
+   * Collection" loses the game), for the current player count; null when no scheme reads this area
+   * (`scenarioAreaLimitsOf`).
+   */
+  readonly limit: number | null;
+}
+
+/**
+ * A scenario area as a line on the main scheme's own panel, so the tally the scheme loses on sits beside the scheme
+ * and not only in the encounter piles' column (a phone keeps that column on another tab). Tapping it opens the cards.
+ */
+export interface SchemeAreaNote {
+  readonly name: string;
+  readonly count: number;
+  readonly limit: number | null;
+  readonly instanceIds: readonly InstanceId[];
+  /** "The Collection · lose at 5": the strip's caption, with `scenarioAreaTag` as its right-edge tag. */
+  readonly caption: string;
+  /** True once one more card would reach the limit: the strip turns red. */
+  readonly urgent: boolean;
 }
 
 /**
@@ -1056,6 +1080,7 @@ export function boardModel(
     ...state.gameAreas.flatMap((area) => (area.mainScheme ? [area.mainScheme] : [])),
   ];
   const mainSchemeIds = new Set([state.mainScheme.instanceId, ...otherMainSchemes.map((scheme) => scheme.instanceId)]);
+  const scenarioAreas = scenarioAreaPanels(state, deps, [...mainSchemeIds]);
   const sideSchemes = schemes.filter((id) => !mainSchemeIds.has(id)).map((id) => schemePanel(state, id, deps, false));
 
   return {
@@ -1067,14 +1092,14 @@ export function boardModel(
     perspectiveId,
     villain: characterPanel(state, activeVillain(state).instanceId, deps),
     villains: villainPanels(state, deps),
-    mainScheme: schemePanel(state, state.mainScheme.instanceId, deps, true),
+    mainScheme: withAreaNotes(schemePanel(state, state.mainScheme.instanceId, deps, true), scenarioAreas),
     extraMainSchemes: otherMainSchemes.map((scheme) => schemePanel(state, scheme.instanceId, deps, true)),
     sideSchemes,
     minions: minionsOf(state).map((id) => characterPanel(state, id, deps)),
     environments: state.villainArea
       .filter((id) => cardOf(state, id)?.type === "environment")
       .map((id) => environmentPanel(state, id, deps)),
-    scenarioAreas: scenarioAreaPanels(state),
+    scenarioAreas,
     scenarioPlayAreas: scenarioPlayAreaPanels(state, deps),
     setAside: setAsidePanel(state, deps),
     scenarioDecks: scenarioDeckPanels(state),
@@ -1809,13 +1834,41 @@ export function scenarioDeckPanels(state: GameState): readonly ScenarioDeckPanel
   });
 }
 
-export function scenarioAreaPanels(state: GameState): readonly ScenarioAreaPanel[] {
+/** `schemeIds` are the main schemes whose own text may set a limit; without `deps` no limit is read. */
+export function scenarioAreaPanels(
+  state: GameState,
+  deps?: EngineDeps,
+  schemeIds: readonly InstanceId[] = [state.mainScheme.instanceId],
+): readonly ScenarioAreaPanel[] {
+  const limits = deps ? scenarioAreaLimitsOf(state, schemeIds, deps) : {};
   return Object.entries(state.scenarioAreas ?? {}).map(([name, instanceIds]) => ({
     name,
     instanceIds,
     topArt: instanceIds[0] ? artFor(cardOf(state, instanceIds[0]), faceOf(state, instanceIds[0])) : null,
     count: instanceIds.length,
+    limit: limits[name] ?? null,
   }));
+}
+
+/** The main scheme's panel with a line per scenario area (`SchemeAreaNote`); the panel as it was when there is none. */
+function withAreaNotes(scheme: SchemePanel, areas: readonly ScenarioAreaPanel[]): SchemePanel {
+  return areas.length === 0 ? scheme : { ...scheme, areaNotes: areas.map(schemeAreaNote) };
+}
+
+export function schemeAreaNote(area: ScenarioAreaPanel): SchemeAreaNote {
+  return {
+    name: area.name,
+    count: area.count,
+    limit: area.limit,
+    instanceIds: area.instanceIds,
+    caption: area.limit === null ? area.name : `${area.name} · lose at ${area.limit}`,
+    urgent: area.limit !== null && area.count >= area.limit - 1,
+  };
+}
+
+/** "3/5", or a bare "3" when nothing sets a limit: the count the scheme's strip and the pile tile show. */
+export function scenarioAreaTag(area: { readonly count: number; readonly limit: number | null }): string {
+  return area.limit === null ? String(area.count) : `${area.count}/${area.limit}`;
 }
 
 /**

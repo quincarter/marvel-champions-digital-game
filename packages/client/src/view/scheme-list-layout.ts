@@ -72,6 +72,11 @@ export interface SchemeListInput {
    * larger scheme card, the way it does every other card on the table.
    */
   readonly scale?: number;
+  /**
+   * Pixels the main scheme row needs past its normal height for lines of its own (The Collection's count, issue #173),
+   * added to the normal height; a row grown past that already has the room, and a compact main row does without.
+   */
+  readonly mainExtra?: number;
 }
 
 const sum = (values: readonly number[]): number => values.reduce((total, value) => total + value, 0);
@@ -79,11 +84,13 @@ const sum = (values: readonly number[]): number => values.reduce((total, value) 
 export function schemeListLayout(rect: Rect, input: SchemeListInput): SchemeListLayout {
   const { mains, sides, tabbed } = input;
   const k = Math.max(1, input.scale ?? 1);
-  const MAIN_SCHEME_HEIGHT = Math.round(BASE_MAIN_HEIGHT * k);
+  const extra = input.mainExtra ?? 0;
+  const MAIN_SCHEME_HEIGHT = Math.round(BASE_MAIN_HEIGHT * k) + extra;
   // A tall zone (an ultrawide's 600px column) lets the main scheme grow past the 1440x900 ceiling, so its card is not
   // a 96px strip in a panel that size; the usual ceiling stands wherever the panel is no taller than that.
-  const MAIN_SCHEME_MAX_HEIGHT = Math.round(
-    Math.max(BASE_MAIN_MAX_HEIGHT * k, Math.min(240 * k, (rect.height - SCHEME_PANEL_PADDING * 2) * 0.36)),
+  const MAIN_SCHEME_MAX_HEIGHT = Math.max(
+    MAIN_SCHEME_HEIGHT,
+    Math.round(Math.max(BASE_MAIN_MAX_HEIGHT * k, Math.min(240 * k, (rect.height - SCHEME_PANEL_PADDING * 2) * 0.36))),
   );
   const MAIN_COMPACT_HEIGHT = Math.round(BASE_MAIN_COMPACT * k);
   const SIDE_SCHEME_HEIGHT = Math.round(BASE_SIDE_HEIGHT * k);

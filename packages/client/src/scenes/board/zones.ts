@@ -42,7 +42,12 @@ import { drawCharacter, drawFootStrip, type DrawCharacterOptions } from "./chara
 import { drawScheme } from "./schemes.js";
 import { missionSlots, neutralRow, neutralStack } from "../../view/mission-area-layout.js";
 import type { ReferenceCardView } from "../../view/reference-cards.js";
-import { compactVillainNote, counterNote, type ScenarioPlayAreaPanel } from "../../view/board-model.js";
+import {
+  compactVillainNote,
+  counterNote,
+  scenarioAreaTag,
+  type ScenarioPlayAreaPanel,
+} from "../../view/board-model.js";
 import { FOOT_STRIP_HEIGHT, footStripLayout } from "../../view/foot-strip-layout.js";
 import {
   CHIP_GAP,
@@ -869,6 +874,8 @@ export function drawEncounter(
       | "scenarioDiscard";
     readonly name: string;
     readonly count: number;
+    /** What the count chip reads when it is not the bare count: a scenario area's "3/5" against its limit. */
+    readonly countLabel?: string;
     readonly art: ArtSource | null;
     readonly instanceId: InstanceId | null;
     /** Every card in the pile, for a tap to open browsable through — only a scenario area needs more than one. */
@@ -938,6 +945,7 @@ export function drawEncounter(
       kind: "scenarioArea",
       name: area.name.toUpperCase(),
       count: area.count,
+      countLabel: scenarioAreaTag(area),
       art: area.topArt,
       instanceId: area.instanceIds[0] ?? null,
       siblings: area.instanceIds,
@@ -947,7 +955,7 @@ export function drawEncounter(
   // the piles keep the column whole.
   const slots = encounterPileSlots(rect, piles.length);
   if (model.setAside && setAsideBox) drawSetAside(scene, setAsideBox, model.setAside);
-  piles.forEach(({ kind, name, count, art, instanceId, siblings }, index) => {
+  piles.forEach(({ kind, name, count, countLabel, art, instanceId, siblings }, index) => {
     const box: Rect = slots[index]!;
     // A card revealed from the deck or discarded to the pile travels from or to this box itself, not the whole
     // column. A scenario area or scenario deck is not a travel-animation anchor yet — no printed effect moves a
@@ -1003,7 +1011,7 @@ export function drawEncounter(
       .text(
         chips.count.x + chips.count.width / 2,
         chips.count.y + chips.count.height / 2,
-        String(count),
+        countLabel ?? String(count),
         textStyle(countRole, drawn ? surface.paper.hex : surface.ink.hex),
       )
       .setOrigin(0.5);
