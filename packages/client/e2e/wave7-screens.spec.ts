@@ -461,7 +461,13 @@ for (const vp of Object.keys(VIEWPORTS) as Vp[]) {
       await waitForScene(page, "Extras");
       await settle(page, { quietMs: 600, maxMs: 3000 });
       await shot(page, "c-jukebox");
-      const stops = ((await routeStops(page, "Extras"))?.stops ?? []).filter((x) => x.key.startsWith("tile:"));
+      const route = (await routeStops(page, "Extras"))?.stops ?? [];
+      const stops = route.filter((x) => x.key.startsWith("tile:"));
+      // The Music tab's player (#191) sits between the tab bar and the list: a row must clear its lowest control.
+      const listTop = Math.max(
+        130,
+        ...route.filter((x) => x.key.startsWith("player:")).map((x) => x.rect.y + x.rect.height + 16),
+      );
       expect(stops.length, "the Jukebox lists every track").toBeGreaterThan(90);
       const missing: string[] = [];
       let played = 0;
@@ -471,8 +477,8 @@ for (const vp of Object.keys(VIEWPORTS) as Vp[]) {
           missing.push(`${title} (${file})`);
           continue;
         }
-        // The tab bar ends near y 115: a row whose top sits above that is clipped and a click on it lands on the bar.
-        await scrollStopIntoView(page, stop.key, "Extras", 130);
+        // A row whose top sits above the list's is clipped, and a click on it lands on the player or the tab bar.
+        await scrollStopIntoView(page, stop.key, "Extras", listTop);
         const listed = (await visibleTexts(page)).some((t) => t.scene === "Extras" && t.text.trim() === title);
         if (!listed) missing.push(`${title}: title not drawn`);
         await clickStop(page, stop.key, "Extras");

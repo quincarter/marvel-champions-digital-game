@@ -5,7 +5,8 @@
  *
  * Each time a new song starts it says so. On a tablet or desktop the button opens out to its left into "Now playing"
  * and the song's title, holds, and folds back into the note. On a phone, where the bar has no room, a notification
- * slides down from the top instead. Either one opens the player when tapped. Reduced motion shows and hides them
+ * slides down from the top instead. Neither takes a tap: a tap lands on what is under it, so the notification never
+ * swallows a press meant for the table (the note itself opens the player). Reduced motion shows and hides them
  * without the movement.
  *
  * Like the Report button it runs for the whole session from Boot as chrome: kept just under the Report button, above
@@ -59,7 +60,6 @@ export class MusicButtonScene extends Phaser.Scene {
   /** The announcement on screen: its pieces, and how far it has opened (0 folded, 1 open). */
   #shown: {
     container: Phaser.GameObjects.Container;
-    zone: Phaser.GameObjects.Zone;
     redraw: (p: number) => void;
   } | null = null;
   #progress = 0;
@@ -224,8 +224,6 @@ export class MusicButtonScene extends Phaser.Scene {
       .text(0, 0, title, textStyle(typeRole.rowTitle, surface.paper.hex))
       .setFontSize(phone ? 15 : 13);
     container.add([ground, label, name]);
-    const zone = this.add.zone(0, 0, 1, 1).setOrigin(0, 0).setDepth(1).setInteractive({ useHandCursor: true });
-    zone.on("pointerup", () => this.#togglePlayer());
 
     let redraw: (p: number) => void;
     if (phone) {
@@ -247,8 +245,6 @@ export class MusicButtonScene extends Phaser.Scene {
           .strokeRect(banner.x + 1, banner.y + 1, banner.width - 2, banner.height - 2);
         note.clear();
         drawMusicIcon(note, banner.x + 14 + noteSize / 2, banner.y + banner.height / 2, noteSize, surface.paper.hex);
-        zone.setPosition(banner.x, banner.y + container.y).setSize(banner.width, banner.height);
-        zone.input?.hitArea.setTo(0, 0, banner.width, banner.height);
       };
     } else {
       const textWidth = Math.max(label.width, name.width);
@@ -276,11 +272,9 @@ export class MusicButtonScene extends Phaser.Scene {
         const words = Phaser.Math.Clamp((p - 0.55) / 0.45, 0, 1);
         label.setAlpha(words);
         name.setAlpha(words);
-        zone.setPosition(right - w, pill.y).setSize(w, pill.height);
-        zone.input?.hitArea.setTo(0, 0, w, pill.height);
       };
     }
-    this.#shown = { container, zone, redraw };
+    this.#shown = { container, redraw };
     this.#animateTo(1, () => {
       this.#holdTimer = this.time.delayedCall(NOW_PLAYING_HOLD_MS, () => {
         this.#holdTimer = null;
@@ -331,7 +325,6 @@ export class MusicButtonScene extends Phaser.Scene {
     this.#tween?.stop();
     this.#tween = null;
     this.#shown.container.destroy();
-    this.#shown.zone.destroy();
     this.#shown = null;
     this.#progress = 0;
   }
