@@ -711,6 +711,26 @@ describe("Hawkeye's obligation and nemesis (Criminal Past, Crossfire)", () => {
     expect(playerOf(settled, P1).deck).not.toContain(mockingbird);
   });
 
+  it("Marked for Death: searches only for Clint's own identity-specific Mockingbird, never Core's basic one (ruling 2026-02-28 R7(1))", () => {
+    // Relabel one of P1's deck cards as Core's basic Mockingbird (01083) and put her in hand, ahead of the real
+    // 04004 still in the deck: a title search would offer her, and this picker takes her whenever she is offered.
+    const base = hawkeyeVsRhino();
+    const impostor = playerOf(base, P1).deck.find((id) => inst(base, id).cardId !== cardId("04004"))!;
+    const relabelled = patchInstance(base, impostor, { cardId: cardId("01083") });
+    const staged0: GameState = {
+      ...relabelled,
+      players: relabelled.players.map((p) =>
+        p.playerId === P1 ? { ...p, deck: p.deck.filter((i) => i !== impostor), hand: [impostor, ...p.hand] } : p,
+      ),
+    };
+    const staged = stackSetAsideBehindBoost(staged0, "04028");
+    const settled = settle(runWave2(staged, endTurn()), picking(impostor), undefined, WAVE2_DEPS);
+    const marked = instancesOf(settled, "04028").find((id) => settled.villainArea.includes(id));
+    if (!marked) throw new Error("Marked for Death never entered play");
+    const tucked = inst(settled, marked).tucked;
+    expect(tucked.map((id) => inst(settled, id).cardId)).toEqual([cardId("04004")]);
+  });
+
   it("Marked for Death: finds Mockingbird already in play, takes her out of it, and tucks the resulting instance", () => {
     const hero = runWave2(hawkeyeVsRhino(), toHero());
     const given = moveToHand(hero, P1, "04004");

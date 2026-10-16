@@ -30,11 +30,12 @@ import {
   yourIdentity,
   zone,
 } from "../../dsl/index.js";
+import { cardId } from "@mc/content";
 import { obligation } from "../../core/obligations.js";
 import { cardName } from "../names.js";
 
 const BOW_NAME = cardName("04002");
-const MOCKINGBIRD_NAME = cardName("04004");
+const CLINTS_MOCKINGBIRD = cardId("04004");
 
 /**
  * Criminal Past (04026), Hawkeye's obligation, and his nemesis set: Crossfire (04027), Marked for Death (04028),
@@ -88,13 +89,14 @@ export const HAWKEYE_OBLIGATION_NEMESIS = defineAbilities({
   // Marked for Death — When Revealed (errata, RRG 1.8 p. 66): the Clint Barton player searches their hand, deck,
   // discard pile and play area for Mockingbird and tucks her faceup beneath this card (module docblock — `eventPlayer`
   // is provably the Clint Barton player here, and `anyOf` unions the out-of-play zones with the play area into one
-  // pool and one choice).
+  // pool and one choice). Only Clint's own identity-specific Mockingbird (04004) qualifies, never Core's basic one
+  // (01083) or another player's (ruling 2026-02-28 R7(1)), so the search matches the printed card, not the title.
   "04028.when-revealed": whenRevealed(
     chooseCards(
       "mockingbird",
       anyOfCards(
-        zone(["hand", "deck", "discard"], eventPlayer, { filter: { name: MOCKINGBIRD_NAME } }),
-        cards(each(query("ally", { controller: "any" })), { name: MOCKINGBIRD_NAME }),
+        zone(["hand", "deck", "discard"], eventPlayer, { filter: { printedId: CLINTS_MOCKINGBIRD } }),
+        cards(each(query("ally", { controller: "any" })), { printedId: CLINTS_MOCKINGBIRD }),
       ),
       { min: 1, max: 1, chooser: eventPlayer },
     ),
