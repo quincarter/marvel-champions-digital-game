@@ -971,12 +971,15 @@ export type GameEvent =
    * A player's attack ended before dealing damage because its attacker left play first (docs/phase7-wave4.md §4 Q20,
    * user decision 2026-09-25: Speed Demon's "(Resolve Speed Demon's attack first.)" defeating the attacking ally). No
    * damage is dealt and nothing hangs off it (no `characterAttacked`, so no retaliate).
+   *
+   * `targetLeftPlay`: a basic attack whose target left play first (RRG 1.8 "Consequential Damage", p. 13, its Iron Fist
+   * example). The attacker is not considered to have attacked, and an ally takes no consequential damage.
    */
   | {
       readonly type: "playerAttackEnded";
       readonly attackerInstanceId: InstanceId;
       readonly targetInstanceId: InstanceId;
-      readonly reason: "attackerLeftPlay";
+      readonly reason: "attackerLeftPlay" | "targetLeftPlay";
     }
   /**
    * `outsideActivation`: a card ability dealt this one, not the activation procedure ("give the villain 1 facedown

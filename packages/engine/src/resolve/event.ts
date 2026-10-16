@@ -2174,7 +2174,11 @@ function applySchemeDefeated(ctx: Ctx, event: Extract<TriggerEvent, { kind: "sch
  * pointer: BoardGameGeek ruling thread, Mar 23 2023 — not an FFG ruling). A villain whose stage is defeated and
  * advances mid-attack is the same character still in play, so its attack is unaffected (`enemy-activation.ts`).
  */
-function applyPlayerAttack(ctx: Ctx, attack: Extract<TriggerEvent, { kind: "attack" }>, frameId: FrameId): void {
+function applyPlayerAttack(
+  ctx: Ctx,
+  attack: Extract<TriggerEvent, { kind: "attack" }>,
+  frameId: FrameId,
+): boolean | void {
   const target = attack.targetInstanceId;
   if (!cardsInPlay(ctx.state).includes(attack.attackerInstanceId)) {
     // A label-only attack that began before any enemy was named (`beginLabelAttack`) has no target to log an end
@@ -2202,6 +2206,19 @@ function applyPlayerAttack(ctx: Ctx, attack: Extract<TriggerEvent, { kind: "atta
   const event = { ...attack, targetInstanceId: target };
   const profile = characterProfile(ctx.state, event.attackerInstanceId, ctx.deps);
   if (!getInstance(ctx.state, event.targetInstanceId)) return;
+  // RRG 1.8 "Consequential Damage" (p. 13), with its Iron Fist example: the target of a basic attack that left play in
+  // the attack's interrupt window aborts the attack. The attacker still exhausted, but it is not considered to have
+  // attacked (no damage, no `characterAttacked`, no response window) and an ally takes no consequential damage.
+  if (event.basic === true && !cardsInPlay(ctx.state).includes(event.targetInstanceId)) {
+    emit(ctx, {
+      type: "playerAttackEnded",
+      attackerInstanceId: event.attackerInstanceId,
+      targetInstanceId: event.targetInstanceId,
+      reason: "targetLeftPlay",
+    });
+    abortForLeftTarget(ctx, frameId, event.attackerInstanceId, "attack");
+    return false;
+  }
   if (profile?.missing.includes("atk")) return;
   // The attacked character, reported as `<bind>.target` and to the attacker's consequential damage as slot
   // `attack.target` whether or not the attack damages it ("each ally takes -1 consequential damage when attacking
@@ -2306,6 +2323,45 @@ function applyPlayerAttack(ctx: Ctx, attack: Extract<TriggerEvent, { kind: "atta
   // every forced "after … attacks / is attacked" ability (retaliate first, in `characterAttacked`'s apply step) before
   // any non-forced one, "after … deals/takes damage" included (`pushEventsJoiningResponses`).
   pushEventsJoiningResponses(ctx, [damage, attacked], frameId);
+}
+
+/**
+ * The target of a basic attack or thwart left play before the power resolved (RRG 1.8 "Consequential Damage", p. 13).
+ * The power reports now that it was not made (`<prefix>.made` 0), and reports nothing more when its frame finishes.
+ * The character's waiting consequential damage (`pushConsequentialDamage`, pushed beneath the power) is taken off the
+ * stack before its interrupt window, unless another share of the same divided power (Wasp, FAQ "Wasp (#1C)") is still
+ * to resolve or was made: that ally did attack or thwart another target.
+ */
+function abortForLeftTarget(ctx: Ctx, frameId: FrameId, characterId: InstanceId, kind: "attack" | "thwart"): void {
+  const frame = findFrame(ctx.state, frameId);
+  if (frame?.kind !== "event") return;
+  reportResults(ctx, frame, false);
+  updateFrame(ctx, frameId, (f) => (f.kind === "event" ? { ...f, reportTo: null } : f));
+  const stack = ctx.state.stack;
+  const at = stack.findIndex((f) => f.frameId === frameId);
+  const powerOfCharacter = (f: StackFrame): boolean =>
+    f.kind === "event" &&
+    !f.cancelled &&
+    ((kind === "attack" && f.event.kind === "attack" && f.event.attackerInstanceId === characterId) ||
+      (kind === "thwart" && f.event.kind === "thwart" && f.event.thwarterInstanceId === characterId));
+  const offset = stack
+    .slice(at + 1)
+    .findIndex(
+      (f) =>
+        f.kind === "event" &&
+        f.stage === "interrupts" &&
+        f.event.kind === "dealDamage" &&
+        f.event.consequential === true &&
+        f.event.consequentialFrom === kind &&
+        f.event.targetInstanceId === characterId,
+    );
+  if (offset < 0) return;
+  const index = at + 1 + offset;
+  const pending = stack[index]!;
+  if (stack.slice(at + 1, index).some(powerOfCharacter)) return;
+  if (pending.kind === "event" && (pending.vars[`${kind}.made`] ?? 0) > 0) return;
+  ctx.state = { ...ctx.state, stack: stack.filter((f) => f.frameId !== pending.frameId) };
+  emit(ctx, { type: "framePopped", frameId: pending.frameId, frame: pending.kind });
 }
 
 /**
@@ -2528,6 +2584,13 @@ function applyPlayerThwart(
     addFrameSlots(ctx, frameId, { target: [event.schemeInstanceId] });
     addFrameVars(ctx, event.reducesThreatPlaced.activationFrameId, { threatBonus: -event.reducesThreatPlaced.amount });
     return;
+  }
+  // RRG 1.8 "Consequential Damage" (p. 13): the scheme of a basic thwart that left play in the thwart's interrupt
+  // window aborts the thwart, as a basic attack's target leaving aborts the attack (`applyPlayerAttack`): no threat
+  // removed, not considered to have thwarted, and no consequential damage.
+  if (event.basic === true && !cardsInPlay(ctx.state).includes(event.schemeInstanceId)) {
+    abortForLeftTarget(ctx, frameId, event.thwarterInstanceId, "thwart");
+    return false;
   }
   const computed = thwartAmount(ctx.state, ctx.deps, event);
   if (computed === undefined) return;

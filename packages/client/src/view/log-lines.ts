@@ -728,7 +728,7 @@ function describe(
     // docs/phase7-wave4.md §4 Q20): without this line the attack silently does nothing.
     case "playerAttackEnded":
       return {
-        text: `${card(event.attackerInstanceId)}'s attack on ${card(event.targetInstanceId)} ends — ${card(event.attackerInstanceId)} left play first.`,
+        text: `${card(event.attackerInstanceId)}'s attack on ${card(event.targetInstanceId)} ends — ${card(event.reason === "targetLeftPlay" ? event.targetInstanceId : event.attackerInstanceId)} left play first.`,
         voice: "player",
       };
     // An "(attack)" ability's damage instruction skipped an enemy its player cannot attack (guard): without this line

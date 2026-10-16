@@ -204,3 +204,18 @@ describe("a Special that blanks a text box", () => {
     expect(out.at(-1)).toBe("Blizzard — Special: Rhino has a blank text box.");
   });
 });
+
+describe("a player's attack that ends early", () => {
+  test("names the card that left play: the attacker, or the target (RRG v1.8 p.13)", () => {
+    const ended = (reason: "attackerLeftPlay" | "targetLeftPlay") =>
+      logLine(
+        { type: "playerAttackEnded", attackerInstanceId: handCard, targetInstanceId: villain, reason },
+        state,
+        me,
+        POOL_DEPS,
+      )!.text;
+    const target = cardName(state, villain);
+    expect(ended("attackerLeftPlay").endsWith(`${target} left play first.`)).toBe(false);
+    expect(ended("targetLeftPlay").endsWith(`— ${target} left play first.`)).toBe(true);
+  });
+});
