@@ -45,7 +45,7 @@ import {
   artNote,
   bangers,
   campaignFrame,
-  campaignPagePicture,
+  artboardPicture,
   drawPicture,
   drawTopBar,
   stamp,
@@ -1222,19 +1222,21 @@ export class CampaignMarketScene extends Phaser.Scene {
   }
 
   /**
-   * The box's own Market panel (`CampaignStory.marketArt`: GMW's Knowhere skyline), cropped from its comic page; a
-   * placeholder while it loads or for a box with none. `small` letters a label instead of the full picture note.
+   * The box's own Market artboard (`CampaignStory.marketArt`: GMW's Knowhere stall), cover-cropped; a placeholder
+   * while it loads or for a box with none. `small` letters a label instead of the full picture note.
    */
   #drawArtBox(rect: Rect, note: string, small = false): void {
     const g = this.add.graphics();
     g.fillStyle(0xe4dcc9, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-    const panel = this.#marketPanel();
-    const image = panel
-      ? drawPicture(this, campaignPagePicture(panel.campaignId, panel.file), rect, () => this.#redrawOnce(), {
-          region: panel.region,
-          focusY: 0.35,
-        })
-      : null;
+    const record = this.#record;
+    const art = record ? storyFor(record.campaignId as string)?.marketArt : undefined;
+    // Focused high: the shopkeeper's face and the shelves behind him, not the counter.
+    const image =
+      record && art
+        ? drawPicture(this, artboardPicture(record.campaignId as string, art.name), rect, () => this.#redrawOnce(), {
+            focusY: 0.2,
+          })
+        : null;
     const frame = this.add.graphics();
     frame.lineStyle(border.object, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
     if (image) return;
@@ -1249,24 +1251,6 @@ export class CampaignMarketScene extends Phaser.Scene {
       return;
     }
     artNote(this, rect, note);
-  }
-
-  #marketPanel(): {
-    readonly campaignId: string;
-    readonly file: string;
-    readonly region: { x: number; y: number; w: number; h: number; pageWidth: number; pageHeight: number };
-  } | null {
-    const record = this.#record;
-    const story = record ? storyFor(record.campaignId as string) : undefined;
-    const ref = story?.marketArt;
-    const page = ref ? story?.pages?.find((candidate) => candidate.file === ref.page) : undefined;
-    const beat = ref ? page?.beats[ref.beatIndex] : undefined;
-    if (!record || !page || !beat) return null;
-    return {
-      campaignId: record.campaignId as string,
-      file: page.file,
-      region: { ...beat.panel, pageWidth: page.width, pageHeight: page.height },
-    };
   }
 
   /** A picture that finished loading redraws the screen once (several arriving together share one redraw). */

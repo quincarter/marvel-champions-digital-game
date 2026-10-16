@@ -316,8 +316,8 @@ export interface CampaignStory {
   readonly issues: readonly IssueStory[];
   /** Set only for a box told as comic pages (`art/README.md`); its issues' `comicBeats` index into this. */
   readonly pages?: readonly ComicPage[];
-  /** The Market screen's panel art (a box with a Market, told as comic pages): one beat's panel, cropped in. */
-  readonly marketArt?: ComicBeatRef;
+  /** The Market screen's panel art (a box with a Market): an artboard of the stall. */
+  readonly marketArt?: Extract<PanelArt, { readonly kind: "artboard" }>;
   /**
    * A campaign-pool box's own short voice for each pool field (`view/campaign-pool-model.ts`'s `PoolCopy`), keyed
    * by the box's own `CampaignDefinition` log field id ("cosmoInPool"). Unset for a box with no pool at all; a pool
