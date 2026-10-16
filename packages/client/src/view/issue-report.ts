@@ -7,8 +7,8 @@
  * (the setup and every command, which with the seed reproduce it), and the Ctrl+Shift+D debug snapshot
  * (`ui/debug-dump.ts`) for the bugs a refresh erases.
  *
- * The GitHub link carries only the short environment block: a URL has a length limit and a full game's commands do
- * not fit, so the issue template asks the player to paste or attach the log instead.
+ * The GitHub link opens the repo's Bug report form with the device details filled in. It carries no log: a URL has a
+ * length limit and a full game's commands do not fit, so the form asks the player to paste or attach it instead.
  */
 import type { LogLine } from "./log-lines.js";
 import { logLineWords } from "./pause-log-window.js";
@@ -94,25 +94,39 @@ export function issueReportFileName(at: Date): string {
   return `mc-report-${day}-${two(at.getHours())}${two(at.getMinutes())}.txt`;
 }
 
-/** A prefilled new-issue page: the environment, and room for what happened, the screenshot and the log. */
+/**
+ * The Bug report form's own platform choices (`.github/ISSUE_TEMPLATE/bug_report.yml`'s `platform` dropdown), so the
+ * form opens with this device already picked.
+ */
+export function issuePlatformOf(environment: ReportEnvironment): string {
+  const ua = environment.userAgent;
+  if (environment.platform === "capacitor")
+    return /iPhone|iPad|iPod/i.test(ua) ? "Mobile app (iOS)" : "Mobile app (Android)";
+  if (environment.platform === "tauri") {
+    if (/Windows/i.test(ua)) return "Desktop app (Windows)";
+    if (/Macintosh|Mac OS X/i.test(ua)) return "Desktop app (macOS)";
+    return "Desktop app (Linux)";
+  }
+  return environment.formFactor === "desktop" ? "Web browser (desktop)" : "Web browser (phone or tablet)";
+}
+
+/**
+ * The repo's Bug report form (blank issues are off), prefilled by its field ids: the platform, the version and
+ * device line, and the screenshots-and-log box with what to drop in it and where the player was.
+ */
 export function newIssueUrl(environment: ReportEnvironment): string {
-  const body = [
-    "**What happened?**",
-    "",
-    "",
-    "**What did you expect to happen?**",
-    "",
-    "",
-    "**Screenshot**",
-    "Drag your screenshot here.",
-    "",
-    "**Log**",
-    "Paste the copied log here, or drag in the downloaded `mc-report-….txt` file.",
-    "",
-    "**Environment**",
-    ...environmentLines(environment).map((line) => `- ${line}`),
-  ].join("\n");
-  const query = new URLSearchParams({ title: "Bug: ", body, labels: "bug" });
+  const { viewport } = environment;
+  const query = new URLSearchParams({
+    template: "bug_report.yml",
+    platform: issuePlatformOf(environment),
+    environment: `${environment.version}, ${environment.formFactor} ${viewport.width}x${viewport.height}, ${environment.userAgent}`,
+    screenshots: [
+      "Drag your screenshot here, then paste the copied log or drag in the downloaded mc-report-….txt file.",
+      "",
+      `Screen: ${environment.screens.length > 0 ? environment.screens.join(" > ") : "unknown"}`,
+      `Reported: ${environment.at}`,
+    ].join("\n"),
+  });
   return `https://github.com/${ISSUE_REPO}/issues/new?${query.toString()}`;
 }
 

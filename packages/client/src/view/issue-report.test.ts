@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   issueReportFileName,
+  issuePlatformOf,
   issueReportText,
   newIssueUrl,
   screenshotDeviceOf,
@@ -74,20 +75,41 @@ test("the file name is the player's local date and time", () => {
 });
 
 describe("newIssueUrl", () => {
-  test("a new issue on this repo, labeled bug, with the environment in the body", () => {
+  test("the repo's Bug report form, prefilled by its field ids", () => {
     const url = new URL(newIssueUrl(environment));
     expect(url.origin + url.pathname).toBe("https://github.com/quincarter/marvel-champions-digital-game/issues/new");
-    expect(url.searchParams.get("labels")).toBe("bug");
-    expect(url.searchParams.get("title")).toBe("Bug: ");
-    const body = url.searchParams.get("body") ?? "";
-    expect(body).toContain("- Version: v0.21.1+9211646");
-    expect(body).toContain("Drag your screenshot here.");
-    expect(body).toContain("mc-report-");
+    expect(url.searchParams.get("template")).toBe("bug_report.yml");
+    expect(url.searchParams.get("platform")).toBe("Web browser (phone or tablet)");
+    expect(url.searchParams.get("environment")).toBe(
+      "v0.21.1+9211646, phone 390x844, Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/129",
+    );
+    const box = url.searchParams.get("screenshots") ?? "";
+    expect(box).toContain("Drag your screenshot here");
+    expect(box).toContain("mc-report-");
+    expect(box).toContain("Screen: Board > ChoiceOverlay");
   });
 
   test("short enough for GitHub to accept", () => {
     expect(newIssueUrl(environment).length).toBeLessThan(4000);
   });
+});
+
+test.each([
+  [{ platform: "web", formFactor: "desktop" }, "Web browser (desktop)"],
+  [{ platform: "web", formFactor: "tabletLandscape" }, "Web browser (phone or tablet)"],
+  [{ platform: "capacitor", formFactor: "phone" }, "Mobile app (Android)"],
+  [
+    { platform: "capacitor", formFactor: "phone", userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)" },
+    "Mobile app (iOS)",
+  ],
+  [{ platform: "tauri", formFactor: "desktop", userAgent: "Mozilla/5.0 (Windows NT 10.0)" }, "Desktop app (Windows)"],
+  [
+    { platform: "tauri", formFactor: "desktop", userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)" },
+    "Desktop app (macOS)",
+  ],
+  [{ platform: "tauri", formFactor: "desktop", userAgent: "Mozilla/5.0 (X11; Linux x86_64)" }, "Desktop app (Linux)"],
+])("the form's platform for %j is %s", (overrides, expected) => {
+  expect(issuePlatformOf({ ...environment, ...overrides })).toBe(expected);
 });
 
 describe("screenshot tips", () => {
