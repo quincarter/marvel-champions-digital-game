@@ -36,7 +36,7 @@ mod win {
     DEVMODEW, DISP_CHANGE_SUCCESSFUL, DM_DISPLAYFREQUENCY, DM_PELSHEIGHT, DM_PELSWIDTH, ENUM_REGISTRY_SETTINGS,
     MONITORINFO, MONITORINFOEXW, MONITOR_DEFAULTTONEAREST,
   };
-  use windows_sys::Win32::UI::WindowsAndMessaging::{SetWindowPos, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOZORDER};
+  use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, SetWindowPos, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOZORDER};
 
   /// The monitor switched (its device name) and the mode it was switched to, while one is in effect or wanted.
   struct State {
@@ -164,7 +164,11 @@ mod win {
   }
 
   /// Switches now when the game has focus; otherwise (a locked screen, another app in front) only once it gets focus.
-  pub fn set(hwnd: *mut core::ffi::c_void, mode: Mode, focused: bool) -> Result<(), String> {
+  pub fn set(hwnd: *mut core::ffi::c_void, mode: Mode) -> Result<(), String> {
+    // The foreground window, not the webview's focus flag: that reads false for a moment while the window leaves
+    // fullscreen just before this call, which left the monitor at native after Apply (the owner, 2026-10-16).
+    let focused = unsafe { GetForegroundWindow() } == hwnd;
+    log::info!("display mode: set {}x{}, in front {focused}", mode.width, mode.height);
     let device = device_of(hwnd).ok_or("no monitor for the window")?;
     let mut state = STATE.lock().unwrap();
     if let Some(previous) = state.as_ref() {
@@ -228,8 +232,7 @@ pub fn set_display_mode(window: tauri::WebviewWindow, width: u32, height: u32) -
   #[cfg(windows)]
   {
     let hwnd = window.hwnd().map_err(|e| e.to_string())?;
-    let focused = window.is_focused().unwrap_or(true);
-    win::set(hwnd.0 as *mut core::ffi::c_void, Mode { width, height }, focused)
+    win::set(hwnd.0 as *mut core::ffi::c_void, Mode { width, height })
   }
   #[cfg(not(windows))]
   {
