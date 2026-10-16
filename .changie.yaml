@@ -46,3 +46,22 @@ replacements:
   - path: packages/content/src/index.ts
     find: 'export const SCHEMA_VERSION = ".*";'
     replace: 'export const SCHEMA_VERSION = "{{.VersionNoPrefix}}";'
+  # The README's download buttons: each link names the release's files, and each button shows its version.
+  - path: README.md
+    find: 'releases/download/v[0-9]+\.[0-9]+\.[0-9]+/MarvelChampions-[0-9]+\.[0-9]+\.[0-9]+-'
+    replace: 'releases/download/{{.Version}}/MarvelChampions-{{.VersionNoPrefix}}-'
+  - path: .github/assets/readme/download-windows.svg
+    find: 'v[0-9]+\.[0-9]+\.[0-9]+'
+    replace: '{{.Version}}'
+  - path: .github/assets/readme/download-macos-apple-silicon.svg
+    find: 'v[0-9]+\.[0-9]+\.[0-9]+'
+    replace: '{{.Version}}'
+  - path: .github/assets/readme/download-macos-intel.svg
+    find: 'v[0-9]+\.[0-9]+\.[0-9]+'
+    replace: '{{.Version}}'
+  - path: .github/assets/readme/download-linux.svg
+    find: 'v[0-9]+\.[0-9]+\.[0-9]+'
+    replace: '{{.Version}}'
+  - path: .github/assets/readme/download-android.svg
+    find: 'v[0-9]+\.[0-9]+\.[0-9]+'
+    replace: '{{.Version}}'

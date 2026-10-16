@@ -76,33 +76,6 @@ export function desktopAssetName(fileName, fullPath, version) {
 }
 
 /**
- * The same asset under a name without its version, e.g. `MarvelChampions-Windows-x64-Setup.exe`. The release uploads a
- * copy of each installer under this name too, so `releases/latest/download/<name>` always fetches the newest one (the
- * README's download buttons link there). Null for a name with no version in it, and for the bare macOS
- * `.app.tar.gz`, which the buttons don't offer.
- */
-export function latestAssetName(name) {
-  if (name.endsWith(".app.tar.gz")) return null;
-  const latest = name.replace(new RegExp(String.raw`^${ASSET_PREFIX}-\d+\.\d+\.\d+-`), `${ASSET_PREFIX}-`);
-  return latest === name ? null : latest;
-}
-
-/**
- * Copies each staged installer in the release directory to its versionless name (latestAssetName).
- * @returns {string[]} the names written
- */
-export function stageLatestCopies(releaseDir = defaultReleaseDir) {
-  const written = [];
-  for (const entry of fs.readdirSync(releaseDir, { withFileTypes: true })) {
-    const latest = entry.isFile() ? latestAssetName(entry.name) : null;
-    if (latest === null) continue;
-    fs.copyFileSync(path.join(releaseDir, entry.name), path.join(releaseDir, latest));
-    written.push(latest);
-  }
-  return written;
-}
-
-/**
  * Computes sha256 of a file.
  */
 export function computeSha256(filePath) {

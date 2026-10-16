@@ -20,14 +20,14 @@ to be a genuinely playable video game driven by a deterministic rules engine.
 </p>
 
 <p align="center">
-  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/latest/download/MarvelChampions-Windows-x64-Setup.exe"><img src=".github/assets/readme/download-windows.svg" alt="Download for Windows" height="48"></a>
-  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/latest/download/MarvelChampions-macOS-AppleSilicon-arm64.dmg"><img src=".github/assets/readme/download-macos-apple-silicon.svg" alt="Download for a Mac with Apple silicon" height="48"></a>
-  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/latest/download/MarvelChampions-macOS-Intel-x64.dmg"><img src=".github/assets/readme/download-macos-intel.svg" alt="Download for an Intel Mac" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.21.1/MarvelChampions-0.21.1-Windows-x64-Setup.exe"><img src=".github/assets/readme/download-windows.svg" alt="Download for Windows" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.21.1/MarvelChampions-0.21.1-macOS-AppleSilicon-arm64.dmg"><img src=".github/assets/readme/download-macos-apple-silicon.svg" alt="Download for a Mac with Apple silicon" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.21.1/MarvelChampions-0.21.1-macOS-Intel-x64.dmg"><img src=".github/assets/readme/download-macos-intel.svg" alt="Download for an Intel Mac" height="48"></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/latest/download/MarvelChampions-Linux-x64.AppImage"><img src=".github/assets/readme/download-linux.svg" alt="Download for Linux (AppImage)" height="48"></a>
-  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/latest/download/MarvelChampions-Android.apk"><img src=".github/assets/readme/download-android.svg" alt="Download for Android" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.21.1/MarvelChampions-0.21.1-Linux-x64.AppImage"><img src=".github/assets/readme/download-linux.svg" alt="Download for Linux (AppImage)" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.21.1/MarvelChampions-0.21.1-Android.apk"><img src=".github/assets/readme/download-android.svg" alt="Download for Android" height="48"></a>
   <a href="https://github.com/quincarter/marvel-champions-digital-game/releases"><img src=".github/assets/readme/all-releases.svg" alt="View all releases" height="48"></a>
 </p>
 
@@ -42,7 +42,7 @@ to be a genuinely playable video game driven by a deterministic rules engine.
   <a href="CONTRIBUTING.md"><img src=".github/assets/readme/contributing.svg" alt="Contributing" height="48"></a>
 </p>
 
-<p align="center"><sub>The download buttons fetch the newest release's installer. For the all-users Windows <code>.msi</code>, a Linux <code>.deb</code> or <code>.rpm</code>, or an older version, see <a href="https://github.com/quincarter/marvel-champions-digital-game/releases">all releases</a>. Not sure which issue type fits? Use the <a href="https://github.com/quincarter/marvel-champions-digital-game/issues/new/choose">issue chooser</a>.</sub></p>
+<p align="center"><sub>Each download button names the release it fetches and is updated by every release. For the all-users Windows <code>.msi</code>, a Linux <code>.deb</code> or <code>.rpm</code>, or an older version, see <a href="https://github.com/quincarter/marvel-champions-digital-game/releases">all releases</a>. Not sure which issue type fits? Use the <a href="https://github.com/quincarter/marvel-champions-digital-game/issues/new/choose">issue chooser</a>.</sub></p>
 
 > [!NOTE]
 > This is a fan-made, non-commercial project. _Marvel Champions: The Card Game_, card text, artwork, and characters are
