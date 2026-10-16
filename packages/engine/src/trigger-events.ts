@@ -1809,6 +1809,15 @@ export type TriggerEvent = TriggerEventBody & {
 export const TOTAL_ATK_RESULT = "totalAtk";
 
 /**
+ * The result key an attack records "the damage dealt by this attack" under: every point of damage the attacked
+ * characters took from it plus every point its overkill spilled onto another character (RRG 1.8 "Overkill", p. 31: the
+ * spill "is considered damage from an attack"). Beside `damage`, which counts the attacked characters' damage only
+ * (the condition "attacks and damages" answers, one per damaged character: ruling January 11, 2026 (2)). Read by a
+ * response to the attack as a whole ("after X attacks you, ... for each point of damage dealt by this attack").
+ */
+export const ATTACK_DAMAGE_RESULT = "attackDamage";
+
+/**
  * The result key a damage event, and the attack it belongs to, record the excess of the damage **dealt** under: the
  * amount dealt beyond the target's remaining hit points, before anything that changes the damage taken (a constant
  * reduction, a tough status card, a prevention; `excessAsDealtOf`, `resolve/event.ts`, which says what "dealt" is in

@@ -475,6 +475,7 @@ export type {
   TuckHostKind,
 } from "./trigger-events.js";
 export {
+  ATTACK_DAMAGE_RESULT,
   BASIC_POWER_STAT,
   carriedByEvent,
   damageTakenKey,

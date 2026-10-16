@@ -103,7 +103,7 @@ import {
   recordKeywordsIgnored,
   thwartBlockersIgnored,
 } from "./keyword-ignored.js";
-import { damageTakenKey, eventSubjects, EXCESS_AS_DEALT_RESULT } from "../trigger-events.js";
+import { ATTACK_DAMAGE_RESULT, damageTakenKey, eventSubjects, EXCESS_AS_DEALT_RESULT } from "../trigger-events.js";
 import type { AttackKeyword, DefeatFollowUp, DefeatPlacement, EffectSpec, Predicate } from "../spec.js";
 import {
   alreadyDefeated,
@@ -1782,6 +1782,10 @@ function recordDamageTaken(
   // The attack's `damage`/`damaged` totals count the attacked character's damage ("after an enemy attack damages
   // you"), so damage redirected to another enemy (`notAttacked`, §3.36) reports only its per-character key, as a spill.
   if (event.notAttacked !== true) addFrameVars(ctx, event.parentFrameId, { damage: taken, damaged: 1 });
+  // The whole attack's damage, its overkill spill included (`ATTACK_DAMAGE_RESULT`, RRG 1.8 "Overkill", p. 31).
+  if (event.notAttacked !== true) {
+    addFrameVars(ctx, event.parentFrameId ?? event.spilledFromFrameId, { [ATTACK_DAMAGE_RESULT]: taken });
+  }
   // Per-character damage taken (docs/phase7-wave5.md §4.1 Q65): "if your identity takes any amount of damage from that
   // attack" when an indirect attack's damage was divided among several characters, or overkill spilled onto the
   // identity. Only damage actually taken lands here (prevented, reduced to 0 or absorbed by tough returned above).

@@ -25,7 +25,7 @@ import {
   endGame,
   enemyScheme,
   eventAmount,
-  eventResult,
+  attackDamageDealt,
   eventTarget,
   exhaustCardsCost,
   firstPlayer,
@@ -166,10 +166,7 @@ export const MOJO_SCENARIO_ABILITIES = defineAbilities({
 
   // Major Domo (39027) — Attach to Mojo (data; +1 ATK, +1 SCH). [star] Forced Response: After Mojo attacks, discard
   // cards from the encounter deck equal to the amount of damage dealt by that attack.
-  "39027.major-domo-forced-response": forcedResponse(
-    on.enemyAttacks("host"),
-    discardEncounterCards(eventResult("damage")),
-  ),
+  "39027.major-domo-forced-response": forcedResponse(on.enemyAttacks("host"), discardEncounterCards(attackDamageDealt)),
   // Hero Action: Spend [energy][mental][physical] resources → discard this card.
   "39027.major-domo-action": heroAction({ cost: spend({ energy: 1, mental: 1, physical: 1 }) }, discard(self)),
 
