@@ -152,14 +152,16 @@ test.describe("Same-name hero and ally conflicts", () => {
     ]);
     expect(entries.map((e) => e.status)).toEqual(["pending", "pending"]);
     expect(await findVisibleText(page, "Keep as a resource", SHEET)).not.toHaveLength(0);
-    // Continue does nothing while a card is unanswered; the Shadowcat ally is Colossus's own card, so it has no Replace.
+    // Continue does nothing while a card is unanswered. The Shadowcat ally is Colossus's own card, but a Team-Up card
+    // naming both heroes (Shadow and Steel, `mut_gen`) may replace it with Shadowcat seated (RRG 1.8 p. 50), so it
+    // offers Replace with Team-Up too; this test keeps it.
     await clickStop(page, "continue", SHEET);
     await settle(page);
     expect((await activeScenes(page)).includes(SHEET), "the sheet stays open").toBe(true);
-    expect(await hasStop(page, "replace:0", SHEET), "a hero's own card offers no Replace").toBe(false);
+    expect(await hasStop(page, "replace:0", SHEET), "a Team-Up card can replace the hero's own card").toBe(true);
     expect(await hasStop(page, "replace:1", SHEET), "the basic Colossus ally does").toBe(true);
 
-    // Colossus's Shadowcat ally is one of his own cards: kept as a resource.
+    // Colossus's Shadowcat ally is kept as a resource.
     await clickStop(page, "keep:0", SHEET);
     await waitFor(
       async () => ((await sheet.entries(page))[0]?.status === "kept" ? true : null),
