@@ -19,16 +19,24 @@ async function openSettings(page: Page): Promise<void> {
   await settle(page);
 }
 
+/** The Settings tab each row this spec presses sits on. */
+const TAB_OF: Record<string, string> = { "confirm-end-turn": "gameplay", "large-card-text": "cards" };
+
 /**
  * Clicks a Settings row's own control, found by its focus stop (`row:<id>`) rather than a screen position, so the
- * spec doesn't depend on where the row sits in its section. Wheels the body first while the row is scrolled out of
- * view, then clicks until `done` reads true.
+ * spec doesn't depend on where the row sits. Opens the row's tab when another tab is showing, wheels the body while
+ * the row is scrolled out of view, then clicks until `done` reads true.
  */
 async function pressRow(page: Page, id: string, done: () => Promise<boolean>): Promise<void> {
   const view = page.viewportSize()!;
   for (let attempt = 0; attempt < 30; attempt++) {
-    const rect = (await routeStops(page, "SettingsOverlay"))?.stops.find((s) => s.key === `row:${id}`)?.rect;
-    if (rect) {
+    const stops = (await routeStops(page, "SettingsOverlay"))?.stops ?? [];
+    const rect = stops.find((s) => s.key === `row:${id}`)?.rect;
+    if (!rect) {
+      // The row is on another tab: open that tab first.
+      const tab = stops.find((s) => s.key === `tab:${TAB_OF[id]}`)?.rect;
+      if (tab) await page.mouse.click(tab.x + tab.width / 2, tab.y + tab.height / 2);
+    } else {
       const middle = rect.y + rect.height / 2;
       if (middle < 110 || middle > view.height - 40) {
         await page.mouse.move(view.width / 2, view.height / 2);

@@ -87,6 +87,14 @@ const cardSize = (page: Page): Promise<string> =>
 
 /** Picks `size` and closes Settings with its ✕. */
 async function pickSizeThenClose(page: Page, phone: boolean, size: string): Promise<void> {
+  // Card size is on the Cards tab; Settings reopens on the last tab it showed, so this is a no-op after the first.
+  await pressStop(
+    page,
+    phone,
+    SETTINGS,
+    "tab:cards",
+    async () => (await stopOf(page, SETTINGS, `row:card-size:${size}`)) !== null,
+  );
   await scrollToCardSize(page, phone, size);
   await pressStop(page, phone, SETTINGS, `row:card-size:${size}`, async () => (await cardSize(page)) === size);
   await settle(page, { quietMs: 400, maxMs: 3000 });

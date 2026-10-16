@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { defaultGuidePrefs } from "../guide/guide-prefs.js";
 import { defaultSettings } from "../settings.js";
 import { guideRowInfoOf, settingsRowInfoOf } from "./settings-rows.js";
-import { settingsSectionsOf } from "./settings-sections.js";
+import { settingsSectionsOf, settingsTabsOf } from "./settings-sections.js";
 
 const guideRowIds = guideRowInfoOf(defaultGuidePrefs).map((row) => row.id);
 
@@ -54,5 +54,29 @@ describe("settingsSectionsOf", () => {
     const guide = settingsSectionsOf({ guideRowIds, cardHover: true }).find((s) => s.id === "guide")!;
     expect(guide.items).toEqual(guideRowIds);
     expect(guide.items[0]).toBe("guide-level");
+  });
+});
+
+describe("settingsTabsOf", () => {
+  test("five tabs, left to right: Game, Cards, Display, Guide, More", () => {
+    expect(settingsTabsOf({ guideRowIds, cardHover: true }).map((tab) => tab.label)).toEqual([
+      "Game",
+      "Cards",
+      "Display",
+      "Guide",
+      "More",
+    ]);
+  });
+
+  test("every section shows on exactly one tab, in section order", () => {
+    const sections = settingsSectionsOf({ guideRowIds, cardHover: true });
+    const onTabs = settingsTabsOf({ guideRowIds, cardHover: true }).flatMap((tab) => tab.sections);
+    expect(onTabs).toEqual(sections);
+  });
+
+  test("Villain phase sits on the Gameplay tab, and Sound on Display with the animation settings", () => {
+    const tabs = settingsTabsOf({ guideRowIds, cardHover: true });
+    expect(tabs.find((t) => t.id === "gameplay")!.sections.map((s) => s.id)).toEqual(["gameplay", "villain"]);
+    expect(tabs.find((t) => t.id === "display")!.sections.map((s) => s.id)).toEqual(["motion", "sound"]);
   });
 });

@@ -45,7 +45,7 @@ import {
   type VillainRowId,
   type VillainRowsInfo,
 } from "../view/settings-rows.js";
-import { settingsSectionsOf, type SettingsItemId } from "../view/settings-sections.js";
+import { settingsTabsOf, type SettingsItemId, type SettingsTabId } from "../view/settings-sections.js";
 import type { GuideLevel } from "../guide/guide-prefs.js";
 import type {
   CardHoverScale,
@@ -57,7 +57,7 @@ import type {
 } from "../settings.js";
 import { ink, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
-import { McButton, addRowTapZone, fitText, label, paintOnFrame, sectionHeader } from "../ui/widgets.js";
+import { McButton, McTabs, addRowTapZone, fitText, label, paintOnFrame, sectionHeader } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import {
   settingsLayout,
@@ -65,7 +65,6 @@ import {
   type SettingsItemLayout,
   type SettingsItemSpec,
 } from "../view/settings-layout.js";
-import { settingsFocusOrder } from "../view/screen-focus.js";
 import { contentSlotHeights, formFactorFor, type Rect } from "../view/layout.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { appSession } from "../session.js";
@@ -119,11 +118,15 @@ interface SettingsItem {
   readonly draw: (item: SettingsItemLayout, stops: Map<string, FocusStop>) => readonly string[];
 }
 
+/** The tab Settings last showed, so reopening it in the same session lands where the player left off. */
+let lastTab: SettingsTabId = "gameplay";
+
 export class SettingsOverlay extends Phaser.Scene {
   #buttons: McButton[] = [];
+  #tabs: McTabs | null = null;
   #route: FocusRoute | null = null;
   #motion = new OverlayMotion();
-  /** The whole body's own scroll region (docs/guided-mode.md §4 G2b) — Table, Unlocks and Guide all draw into it. */
+  /** The active tab's own scroll region (docs/guided-mode.md §4 G2b): its sections all draw into it. */
   #bodyRegion: McScrollRegion | null = null;
   #bodyScroll = new VariableListScroll();
 
@@ -148,6 +151,8 @@ export class SettingsOverlay extends Phaser.Scene {
       unsubscribeGuide();
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
+      this.#tabs?.destroy();
+      this.#tabs = null;
       this.#bodyRegion?.destroy();
       this.#bodyRegion = null;
     });
@@ -218,12 +223,22 @@ export class SettingsOverlay extends Phaser.Scene {
     this.#draw();
   }
 
+  /** Shows another tab, from its top. */
+  #setTab(id: SettingsTabId): void {
+    if (id === lastTab) return;
+    lastTab = id;
+    this.#bodyScroll = new VariableListScroll();
+    this.#draw();
+  }
+
   #draw(): void {
     // Already fading out for the ✕/Escape close — a redraw mid-fade (a toggle
     // fired just before it, a resize) would only flash new chrome under it.
     if (this.#motion.leaving) return;
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
+    this.#tabs?.destroy();
+    this.#tabs = null;
     this.#bodyRegion?.destroy();
     this.#bodyRegion = null;
     destroyChildren(this);
@@ -232,15 +247,17 @@ export class SettingsOverlay extends Phaser.Scene {
     const settings = appSession().settings;
     const guideRows = guideRowInfoOf(guidePrefs());
     const items = this.#itemsOf(settings, guideRows);
-    const sections = settingsSectionsOf({
+    const tabs = settingsTabsOf({
       guideRowIds: guideRows.map((row) => row.id),
       cardHover: formFactorFor(width, height) === "desktop",
     });
+    const active = tabs.find((tab) => tab.id === lastTab) ?? tabs[0]!;
     const layout = settingsLayout(
       { x: 0, y: 0, width, height },
-      sections.map((section) => ({
+      active.sections.map((section) => ({
         id: section.id,
-        title: section.title,
+        // A tab's only section is already named by the tab itself.
+        title: active.sections.length > 1 ? section.title : "",
         items: section.items.flatMap((id) => {
           const item = items.get(id);
           return item ? [item.spec] : [];
@@ -288,8 +305,22 @@ export class SettingsOverlay extends Phaser.Scene {
       })
       .setOrigin(0, 0.5);
 
+    this.#tabs = new McTabs(this, {
+      rect: layout.tabs,
+      tabs: tabs.map((tab) => ({ id: tab.id, label: tab.label })),
+      activeId: active.id,
+      onSelect: (id) => this.#setTab(id as SettingsTabId),
+    });
+    const cellWidth = layout.tabs.width / tabs.length;
+    tabs.forEach((tab, index) => {
+      stops.set(`tab:${tab.id}`, {
+        rect: { x: layout.tabs.x + index * cellWidth, y: layout.tabs.y, width: cellWidth, height: layout.tabs.height },
+        activate: () => this.#setTab(tab.id),
+      });
+    });
+
     const stopIds = this.#drawBody(layout.bodyViewport, layout.content, items, stops);
-    this.#route?.set(settingsFocusOrder(stopIds), stops);
+    this.#route?.set(["back", ...tabs.map((tab) => `tab:${tab.id}`), ...stopIds.map((id) => `row:${id}`)], stops);
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
   }
 
@@ -433,16 +464,12 @@ export class SettingsOverlay extends Phaser.Scene {
 
     const stopIds: string[] = [];
     for (const section of content.sections) {
-      this.#captureInto(container, () =>
-        sectionHeader(
-          this,
-          viewport.x,
-          viewport.y + section.heading.y,
-          viewport.width - 2,
-          section.title,
-          surface.paper.hex,
-        ),
-      );
+      const heading = section.heading;
+      if (heading) {
+        this.#captureInto(container, () =>
+          sectionHeader(this, viewport.x, viewport.y + heading.y, viewport.width - 2, section.title, surface.paper.hex),
+        );
+      }
       for (const item of section.items) {
         const entry = items.get(item.id as SettingsItemId);
         if (!entry) continue;

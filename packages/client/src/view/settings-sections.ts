@@ -56,3 +56,34 @@ export function settingsSectionsOf(input: {
     { id: "more", title: "More", items: ["unlocks", "save-data", "rules"] },
   ];
 }
+
+export type SettingsTabId = "gameplay" | "cards" | "display" | "guide" | "more";
+
+export interface SettingsTab {
+  readonly id: SettingsTabId;
+  readonly label: string;
+  readonly sections: readonly SettingsSection[];
+}
+
+/** Which sections each tab shows, left to right. Labels stay short enough for five tabs across a phone ("Game", not "Gameplay"). A tab with two sections heads each one; a tab with one doesn't repeat its own name. */
+const TAB_SECTIONS: readonly {
+  readonly id: SettingsTabId;
+  readonly label: string;
+  readonly sections: readonly SettingsSectionId[];
+}[] = [
+  { id: "gameplay", label: "Game", sections: ["gameplay", "villain"] },
+  { id: "cards", label: "Cards", sections: ["cards"] },
+  { id: "display", label: "Display", sections: ["motion", "sound"] },
+  { id: "guide", label: "Guide", sections: ["guide"] },
+  { id: "more", label: "More", sections: ["more"] },
+];
+
+/** The Settings panel's tabs (owner, 2026-10-16: one tab at a time instead of one long scroll), built from `settingsSectionsOf`'s sections. */
+export function settingsTabsOf(input: Parameters<typeof settingsSectionsOf>[0]): readonly SettingsTab[] {
+  const sections = settingsSectionsOf(input);
+  return TAB_SECTIONS.map((tab) => ({
+    id: tab.id,
+    label: tab.label,
+    sections: tab.sections.map((id) => sections.find((s) => s.id === id)!),
+  }));
+}

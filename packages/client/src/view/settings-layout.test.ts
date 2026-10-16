@@ -89,7 +89,7 @@ const SECTIONS: readonly SettingsSectionSpec[] = [
 ];
 
 const contentRects = (layout: ReturnType<typeof settingsLayout>): Rect[] =>
-  layout.content.sections.flatMap((s) => [s.heading, ...s.items.map((i) => i.row)]);
+  layout.content.sections.flatMap((s) => [...(s.heading ? [s.heading] : []), ...s.items.map((i) => i.row)]);
 
 describe("settingsLayout", () => {
   for (const { name, width, height } of SIZES) {
@@ -102,10 +102,13 @@ describe("settingsLayout", () => {
       }
     });
 
-    test(`the header and the body viewport don't overlap and stay inside the panel, at ${name}`, () => {
+    test(`the header, the tab rail and the body viewport stack without overlapping inside the panel, at ${name}`, () => {
       const layout = settingsLayout({ x: 0, y: 0, width, height }, SECTIONS);
-      const [header, body] = settingsLayoutRects(layout);
-      expect(rectsOverlap(header!, body!)).toBe(false);
+      const [header, tabs, body] = settingsLayoutRects(layout);
+      expect(rectsOverlap(header!, tabs!)).toBe(false);
+      expect(rectsOverlap(tabs!, body!)).toBe(false);
+      expect(tabs!.y).toBeGreaterThanOrEqual(header!.y + header!.height);
+      expect(body!.y).toBeGreaterThanOrEqual(tabs!.y + tabs!.height);
       expect(body!.y + body!.height).toBeLessThanOrEqual(layout.panel.y + layout.panel.height + 0.001);
     });
 
@@ -131,9 +134,19 @@ describe("settingsLayout", () => {
     const { content } = settingsLayout({ x: 0, y: 0, width: 1440, height: 900 }, SECTIONS);
     expect(content.slots).toEqual(contentRects(settingsLayout({ x: 0, y: 0, width: 1440, height: 900 }, SECTIONS)));
     for (const section of content.sections) {
-      expect(content.slots[section.headingSlot]).toBe(section.heading);
+      if (section.heading) expect(content.slots[section.headingSlot]).toBe(section.heading);
       for (const item of section.items) expect(content.slots[item.slot]).toBe(item.row);
     }
+  });
+
+  test("an untitled section draws no heading and takes no slot for one", () => {
+    const { content } = settingsLayout({ x: 0, y: 0, width: 1440, height: 900 }, [
+      { id: "cards", title: "", items: [{ kind: "toggle", id: "t", detail: "Detail." }] },
+    ]);
+    expect(content.sections[0]!.heading).toBeNull();
+    expect(content.sections[0]!.headingSlot).toBe(-1);
+    expect(content.slots).toEqual([content.sections[0]!.items[0]!.row]);
+    expect(content.sections[0]!.items[0]!.slot).toBe(0);
   });
 
   test("a longer detail makes a taller toggle row, so nothing runs into the row below it", () => {

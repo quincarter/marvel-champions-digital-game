@@ -1,7 +1,8 @@
 /**
  * Settings' own layout (docs/phase4-screen-gaps.md §3 "W4"): an ink title bar ("Settings" + a boxed ✕, matching
- * Pause's own header) over labeled sections (issue #169, `view/settings-sections.ts`), each a heading with a rule
- * under it and its rows stacked below.
+ * Pause's own header), a tab rail under it (owner, 2026-10-16: one tab at a time rather than one long scroll), and
+ * the active tab's sections (issue #169, `view/settings-sections.ts`) below, each a heading with a rule beside it and
+ * its rows stacked under. A section with no title (a tab's only section, already named by its tab) draws no heading.
  *
  * Rows come in four shapes, each sized to fit its own wrapped detail text (`toggleRowHeight`, shared with Pause's
  * inline "Table" column) rather than one fixed height only the shortest description fit:
@@ -15,10 +16,14 @@
  * onto it, the convention `ui/scroll-region.ts`'s own doc comment states. `slots` lists every heading and row in draw
  * order for the region's `heights`; each heading and item carries its own index into it for `scrollIntoView`.
  */
+import { hit } from "../tokens.js";
 import { formFactorFor, toggleRowHeight, type Rect } from "./layout.js";
 import { overlayPanelLayout } from "./overlay-layout.js";
 
 const HEADER_HEIGHT = 60;
+const TABS_HEIGHT = hit.target;
+/** Space above and below the tab rail. */
+const TABS_GAP = 12;
 /** A section heading's band: the label, then its rule at the bottom. */
 export const SECTION_HEADING_HEIGHT = 26;
 const ROW_GAP = 10;
@@ -66,7 +71,9 @@ export interface SettingsItemLayout {
 export interface SettingsSectionLayout {
   readonly id: string;
   readonly title: string;
-  readonly heading: Rect;
+  /** Null for an untitled section, which draws no heading. */
+  readonly heading: Rect | null;
+  /** The heading's index into `slots`; -1 with no heading. */
   readonly headingSlot: number;
   readonly items: readonly SettingsItemLayout[];
 }
@@ -83,7 +90,9 @@ export interface SettingsContentLayout {
 export interface SettingsLayout {
   readonly panel: Rect;
   readonly header: Rect;
-  /** The one scroll region under the fixed header — screen space; everything in `content` draws inside it. */
+  /** The tab rail, under the header. */
+  readonly tabs: Rect;
+  /** The one scroll region under the tab rail — screen space; everything in `content` draws inside it. */
   readonly bodyViewport: Rect;
   readonly content: SettingsContentLayout;
 }
@@ -92,6 +101,8 @@ export function settingsLayout(bounds: Rect, sections: readonly SettingsSectionS
   const { panel, header, body } = overlayPanelLayout(bounds, HEADER_HEIGHT, 0);
   const x = body.x + 16;
   const width = Math.max(0, body.width - 32);
+  const tabs: Rect = { x, y: body.y + TABS_GAP, width, height: TABS_HEIGHT };
+  const bodyTop = tabs.y + tabs.height + TABS_GAP / 2;
   const onDesktop = formFactorFor(bounds.width, bounds.height) === "desktop";
 
   const slots: Rect[] = [];
@@ -100,9 +111,9 @@ export function settingsLayout(bounds: Rect, sections: readonly SettingsSectionS
   for (const section of sections) {
     if (section.items.length === 0) continue;
     if (placed.length > 0) y += SECTION_GAP;
-    const heading: Rect = { x, y, width, height: SECTION_HEADING_HEIGHT };
-    const headingSlot = slots.push(heading) - 1;
-    y += SECTION_HEADING_HEIGHT + 8;
+    const heading: Rect | null = section.title ? { x, y, width, height: SECTION_HEADING_HEIGHT } : null;
+    const headingSlot = heading ? slots.push(heading) - 1 : -1;
+    if (heading) y += SECTION_HEADING_HEIGHT + 8;
     const items: SettingsItemLayout[] = [];
     for (const spec of section.items) {
       const item = placeItem(spec, x, y, width, onDesktop, slots.length);
@@ -117,10 +128,10 @@ export function settingsLayout(bounds: Rect, sections: readonly SettingsSectionS
 
   // Never taller than the content itself (no dead scroll space when it already fits, as on a roomy desktop), and
   // never taller than what's actually left in the panel (the phone case this region exists for).
-  const viewportHeight = Math.min(totalHeight, Math.max(0, body.height));
-  const bodyViewport: Rect = { x, y: body.y, width, height: viewportHeight };
+  const viewportHeight = Math.min(totalHeight, Math.max(0, body.y + body.height - bodyTop));
+  const bodyViewport: Rect = { x, y: bodyTop, width, height: viewportHeight };
 
-  return { panel, header, bodyViewport, content: { sections: placed, slots, totalHeight } };
+  return { panel, header, tabs, bodyViewport, content: { sections: placed, slots, totalHeight } };
 }
 
 function placeItem(
@@ -175,5 +186,5 @@ function placeItem(
 
 /** Every rect this layout places in screen space, for a no-overlap test — the content's own rects are in a separate coordinate space (see `SettingsContentLayout`), so only the one viewport onto them is checked here. */
 export function settingsLayoutRects(layout: SettingsLayout): readonly Rect[] {
-  return [layout.header, layout.bodyViewport];
+  return [layout.header, layout.tabs, layout.bodyViewport];
 }
