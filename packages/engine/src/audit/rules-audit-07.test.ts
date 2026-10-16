@@ -85,9 +85,8 @@ describe("a 'Hero form only' card put into play by an effect (RRG 1.8 pp. 20, 32
     expect(mustInstance(state, hostIdentityId).attachments).toEqual([rage]);
   });
 
-  it.fails("in alter-ego form it cannot be put into play: it stays where it was", () => {
+  it("in alter-ego form it cannot be put into play: it stays where it was", () => {
     const { state, rage, hostIdentityId } = fetchWith("alter_ego");
-    // Actual: the upgrade is attached to the alter-ego identity.
     expect(mustInstance(state, hostIdentityId).attachments).toEqual([]);
     expect(mustInstance(state, rage).attachedTo).toBeNull();
   });

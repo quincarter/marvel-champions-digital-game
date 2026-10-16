@@ -663,6 +663,12 @@ function describe(
           text: `${card(event.instanceId)} stays where it was: no one can control another copy (max per player).`,
           voice: "player",
         };
+      // RRG 1.8 "Play, Put into Play" (p. 32): a "[type] form only" card needs its player in that form.
+      if (event.reason === "wrongForm")
+        return {
+          text: `${card(event.instanceId)} stays where it was: its player is in the wrong form.`,
+          voice: "player",
+        };
       return { text: `${card(event.instanceId)} has nothing to attach to and stays where it was.`, voice: "player" };
     case "statusGiven":
       return { text: `${card(event.instanceId)} is`, tags: [{ status: event.status, spent: false }], voice: "player" };

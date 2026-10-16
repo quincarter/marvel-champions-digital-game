@@ -114,6 +114,7 @@ import {
   canHaveAttached,
   cannotEnterPlay,
   damageUsedStat,
+  formOnlyFault,
   maxPerPlayerReached,
   cannotFlip,
   canTakePlayerAttack,
@@ -1447,6 +1448,9 @@ export function explainQuery(
             putIntoPlayHostCandidates(state, deps, id, forPlayer).length === 0
           : maxPerPlayerReached(state, id, forPlayer) !== null;
       if (overMax) return "cannotEnterPlay";
+      // Nor a "[type] form only" card while that player's identity is in another form (RRG 1.8 "Play, Put into Play",
+      // p. 32), as the effect refuses it (`admitFormOnly`).
+      if (formOnlyFault(state, id, forPlayer) !== null) return "cannotEnterPlay";
     }
   }
   if (query.canFlip && cannotFlip(state, context.deps ?? DEFAULT_DEPS, id)) return "cannotFlip";

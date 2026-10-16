@@ -82,6 +82,7 @@ import { groupVar, podGroupIds, type GroupId } from "../pod.js";
 import {
   cannotChangeForm,
   formChangeCostsFor,
+  formOnlyFault,
   grantedLabeledAbilities,
   playDestinationsOf,
   type FormChangeCost,
@@ -520,6 +521,8 @@ function askPutIntoPlayHost(
   for (const id of resolveRef(ctx.state, effect.card, context)) {
     const slot = putIntoPlayHostSlot(id);
     if (frame.bindings[slot] || inPlay.includes(id)) continue;
+    // A "[type] form only" card the effect will refuse (`admitFormOnly`) has no host to ask about.
+    if (formOnlyFault(ctx.state, id, controller) !== null) continue;
     const hosts = putIntoPlayHostCandidates(ctx.state, ctx.deps, id, controller);
     if (hosts.length < 2) continue;
     if (frame.answer === null) {

@@ -1849,8 +1849,10 @@ export type GameEvent =
        * `maxPerPlayer`: `playerId`, or the player who controls every host it could attach to, already controls as
        * many copies as its "Max N per player" allows (RRG 1.8 "Max, Maximum", p. 28: "A player cannot take control of
        * another copy of a 'Max 1 per player' card they already control"; docs/phase7-wave9.md §4.1 Q37 = A).
+       * `wrongForm`: a "[type] form only" card and `playerId`'s identity is in another form (RRG 1.8 "Play, Put into
+       * Play", p. 32).
        */
-      readonly reason: "noLegalHost" | "noSuchArea" | "cardType" | "cannotEnterPlay" | "maxPerPlayer";
+      readonly reason: "noLegalHost" | "noSuchArea" | "cardType" | "cannotEnterPlay" | "maxPerPlayer" | "wrongForm";
     }
   /**
    * A played upgrade whose host is the card its additional cost to play put into play (`additionalCostToPlay

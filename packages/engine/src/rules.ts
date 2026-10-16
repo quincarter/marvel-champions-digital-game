@@ -18,6 +18,7 @@ import {
   currentName,
   encounterFace,
   getInstance,
+  getPlayer,
   identityFace,
   isPlayerCardType,
   mainSchemeFor,
@@ -712,6 +713,19 @@ export const leavingPlayLoses = (state: GameState, deps: EngineDeps, id: Instanc
   // A rule is always read off a card in play; the leaving card stands in if a context ever lacks one.
   return found ? (found.context.selfInstanceId ?? id) : null;
 };
+
+/**
+ * The form a "[type] form only" card needs that `playerId`'s identity is not in, or null. RRG 1.8 "Play, Put into Play"
+ * (p. 32) and "Form, Change Form" (p. 21): "Cards with the text '[type] form only' can only be played or put into play
+ * by a player whose identity is in the specified form." Unlike the other play restrictions, a put into play does not
+ * bypass it, so an effect that puts the card into play reads it too (`resolve/apply-effect.ts admitFormOnly`).
+ */
+export function formOnlyFault(state: GameState, id: InstanceId, playerId: PlayerId): Form | null {
+  const card = cardOf(state, id);
+  const form = card && "playRestrictions" in card ? card.playRestrictions?.form : undefined;
+  if (form === undefined) return null;
+  return getPlayer(state, playerId)?.identity.form === form ? null : form;
+}
 
 /**
  * The card's printed "Max N per player" when `controllerId` already controls that many copies of it in play, or null

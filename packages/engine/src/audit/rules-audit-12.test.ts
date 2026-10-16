@@ -75,7 +75,7 @@ describe("a 'Hero Form only' upgrade put into play (RRG 1.8 'Play, Put into Play
     expect(mustInstance(state, rage).attachedTo).toBe(mustPlayer(state, P1).identity.instanceId);
   });
 
-  it.fails("an alter-ego player cannot: it stays out of play", () => {
+  it("an alter-ego player cannot: it stays out of play", () => {
     const { state, rage } = runFetch("alterEgo");
     expect(mustInstance(state, rage).attachedTo).toBeNull();
   });
