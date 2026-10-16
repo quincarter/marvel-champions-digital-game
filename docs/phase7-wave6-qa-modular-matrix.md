@@ -48,12 +48,12 @@ Campaign Challenge is campaign-only in the data with the override removed, and T
 | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | [`testing/modular-matrix.ts`](../packages/cards/src/testing/modular-matrix.ts)             | Derives the lists from content data; `pairingFor` / `buildPairing` (with a staged workaround for builder pool gaps); `revealOnTurnEnd`; `startPairing` |
 | [`modular-matrix.test.ts`](../packages/cards/src/modular-matrix.test.ts)                   | Pins both lists (inline snapshots), the matrix shape, every pairing built (deck contents, ability refs, setup cards), F1-F3                            |
-| [`modular-matrix-soak.test.ts`](../packages/cards/src/modular-matrix-soak.test.ts)         | Seeded greedy soak: 140-game rotating sample by default, every buildable pairing with `QA_MODULAR_FULL=1`                                              |
+| [`testing/modular-soak.ts`](../packages/cards/src/testing/modular-soak.ts)                 | Seeded greedy soak: 140-game rotating sample by default, every buildable pairing with `QA_MODULAR_FULL=1`; run as `modular-matrix-soak-{1..4}.test.ts` |
 | [`modular-matrix-reveal.test.ts`](../packages/cards/src/modular-matrix-reveal.test.ts)     | Deals every card of every modular set to Rhino, Tower Defense or Kang, alter-ego and hero form (all three hosts with `QA_MODULAR_FULL=1`)              |
 | [`modular-matrix-targeted.test.ts`](../packages/cards/src/modular-matrix-targeted.test.ts) | Cards that name a home villain, scheme, attachment or card, in a scenario without it; "the villain" in multi-villain hosts; F4-F7                      |
 
 Run: `pnpm --filter @mc/cards exec vitest run src/modular-matrix` (about 3 minutes on an idle machine); the full matrix is
-`QA_MODULAR_FULL=1 pnpm --filter @mc/cards exec vitest run src/modular-matrix-soak.test.ts src/modular-matrix-reveal.test.ts`.
+`QA_MODULAR_FULL=1 pnpm --filter @mc/cards exec vitest run src/modular-matrix-soak src/modular-matrix-reveal.test.ts`.
 
 ## 1. The lists
 

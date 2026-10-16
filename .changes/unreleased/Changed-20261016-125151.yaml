@@ -1,0 +1,3 @@
+kind: Changed
+body: The slowest card test files (the modular set soak, now four files, and the deck soaks) run in CI jobs of their own instead of whichever shard their path hashed into, so the cards tests no longer wait on one 20-to-30-minute shard
+time: 2026-10-16T12:51:51.3516833-04:00

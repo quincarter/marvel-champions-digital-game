@@ -34,7 +34,7 @@
  *   (36 games). About 1,600 games in this pass and about 830 before it: no win in any box.
  *
  *   The repository's own greedy-driver soaks say the same without recording it: `playable/random-decks.test.ts` asserts only
- *   "reaches an outcome or the round cap, replays deep-equal" and `modular-matrix-soak.test.ts` counts outcomes by reason
+ *   "reaches an outcome or the round cap, replays deep-equal" and `testing/modular-soak.ts` counts outcomes by reason
  *   (its Sabretooth losses by his own card ability are the same ones seen here); neither tallies wins. Eight earlier QA
  *   reports record that the greedy driver never wins unaided (docs/phase7-wave3-qa.md line 45, wave5-qa-sm-scenarios-1.md
  *   line 67, wave6-qa-colossus-shadowcat.md line 54, wave6-qa-mojo.md line 31, wave7-qa-cable-domino.md line 110, among them).

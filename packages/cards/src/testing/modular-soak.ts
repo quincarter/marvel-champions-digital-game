@@ -15,17 +15,20 @@
  *
  * Matrix. Default: a rotating sample of two games per modular set (70 sets), the scenario chosen each time as the
  * eligible one used least so far, so every set meets two scenarios and every scenario that takes a modular set is
- * hit at least twice (asserted). One game in five is expert, one in seven has two players. Finishes in about a minute
- * on an idle machine. `QA_MODULAR_FULL=1` plays every buildable pairing solo and standard, and a rotating tenth of
- * them again with two players and expert:
- * `QA_MODULAR_FULL=1 pnpm --filter @mc/cards exec vitest run src/modular-matrix-soak.test.ts`.
+ * hit at least twice (asserted). One game in five is expert, one in seven has two players. `QA_MODULAR_FULL=1` plays
+ * every buildable pairing solo and standard, and a rotating tenth of them again with two players and expert:
+ * `QA_MODULAR_FULL=1 pnpm --filter @mc/cards exec vitest run src/modular-matrix-soak`.
  * Rounds are bounded by a command cap (about ten commands a round), not by the clock, so the run is deterministic.
+ *
+ * The games are dealt round-robin over `SOAK_PARTS` test files (`../modular-matrix-soak-<part>.test.ts`), which Vitest
+ * runs in parallel workers: as one file the sample took 23 to 27 minutes on a CI runner (2026-10-16), the slowest file
+ * in the cards package. CI gives the parts a job of their own (scripts/ci-test-plan.mjs).
  */
 import { createGame, replay, type GameOutcome } from "@mc/engine";
 import { afterAll, describe, expect, it } from "vitest";
-import { PLAYABLE_DEPS } from "./playable/index.js";
-import { playToOutcome } from "./testing/driver.js";
-import { MATRIX_HEROES, MODULAR_SETS, PLAYABLE_SCENARIOS, buildPairing, pairingFor } from "./testing/modular-matrix.js";
+import { PLAYABLE_DEPS } from "../playable/index.js";
+import { playToOutcome } from "./driver.js";
+import { MATRIX_HEROES, MODULAR_SETS, PLAYABLE_SCENARIOS, buildPairing, pairingFor } from "./modular-matrix.js";
 
 const FULL =
   (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.QA_MODULAR_FULL === "1";
@@ -44,6 +47,10 @@ interface Game {
   readonly expert: boolean;
   readonly seed: number;
 }
+/** How many test files share the soak; each `modular-matrix-soak-<part>.test.ts` passes its part, 1 to `SOAK_PARTS`. */
+export const SOAK_PARTS = 4;
+const inPart = (index: number, part: number) => index % SOAK_PARTS === part - 1;
+
 const label = (g: Game) =>
   `${g.set} in ${g.scenario}${g.seats.length > 1 ? " (2 players)" : ""}${g.expert ? " (expert)" : ""}`;
 
@@ -152,72 +159,78 @@ function check(r: Result): void {
   ).toBe(true);
 }
 
-describe(`modular set soak (${FULL ? "full matrix" : "rotating sample; QA_MODULAR_FULL=1 for all"})`, () => {
-  afterAll(() => {
-    if (!FULL) return;
-    const reasons: Record<string, number> = {};
-    for (const { outcome } of results) {
-      const key = outcome ? `${outcome.result}:${outcome.reason}` : "unfinished";
-      reasons[key] = (reasons[key] ?? 0) + 1;
-    }
-    console.log(`modular soak: ${results.length} games`, reasons);
-    const losses: Record<string, number> = {};
-    for (const r of results) {
-      if (r.outcome?.result !== "loss" || r.outcome.reason !== "cardAbility") continue;
-      const key = `${r.game.scenario}: ${r.lossSource ?? "no source card"}`;
-      losses[key] = (losses[key] ?? 0) + 1;
-    }
-    console.log("losses by a card ability", losses);
-  });
+/** Declares this part's share of the soak: every `SOAK_PARTS`-th game of the sample (or scenario of the full matrix). */
+export function modularSoak(part: number): void {
+  describe(`modular set soak, part ${part} of ${SOAK_PARTS} (${FULL ? "full matrix" : "rotating sample; QA_MODULAR_FULL=1 for all"})`, () => {
+    afterAll(() => {
+      if (!FULL) return;
+      const reasons: Record<string, number> = {};
+      for (const { outcome } of results) {
+        const key = outcome ? `${outcome.result}:${outcome.reason}` : "unfinished";
+        reasons[key] = (reasons[key] ?? 0) + 1;
+      }
+      console.log(`modular soak: ${results.length} games`, reasons);
+      const losses: Record<string, number> = {};
+      for (const r of results) {
+        if (r.outcome?.result !== "loss" || r.outcome.reason !== "cardAbility") continue;
+        const key = `${r.game.scenario}: ${r.lossSource ?? "no source card"}`;
+        losses[key] = (losses[key] ?? 0) + 1;
+      }
+      console.log("losses by a card ability", losses);
+    });
 
-  if (!FULL) {
-    const games = sample();
-    it("has the sample it says it has: every set twice, every scenario that takes a modular set at least twice", () => {
-      expect(games).toHaveLength(MODULAR_SETS.length * 2);
-      for (const set of MODULAR_SETS)
-        expect(games.filter((g) => g.set === set.id).length, `${set.id} games`).toBeGreaterThanOrEqual(2);
-      const takers = PLAYABLE_SCENARIOS.filter((scenario) =>
-        MODULAR_SETS.some((set) => pairingFor(set.id, scenario).kind === "build"),
-      );
-      // 50 with wave 9's five Agents of S.H.I.E.L.D. scenarios and Trickster Takeover's Enchantress and God of Lies in the
-      // playable pool.
-      expect(takers.map((scenario) => scenario.id)).toHaveLength(50);
-      for (const scenario of takers)
-        expect(games.filter((g) => g.scenario === scenario.id).length, `${scenario.id} games`).toBeGreaterThanOrEqual(
-          2,
-        );
-      // The restricted scenarios (Breakout, The Hood, Sinister Six) take no modular set: soaked by their own tests.
-      expect(
-        PLAYABLE_SCENARIOS.filter((scenario) => !takers.includes(scenario)).map((scenario) => scenario.id),
-      ).toEqual(["breakout", "the-hood", "sinister-six"]);
-      expect(games.some((g) => g.expert)).toBe(true);
-      expect(games.some((g) => g.seats.length === 2)).toBe(true);
-    });
-    games.forEach((g) => {
-      it(label(g), () => check(play(g)), TIMEOUT);
-    });
-  } else {
-    // One test per scenario keeps the reporter readable; a failing game names itself in the thrown message.
-    const games = fullMatrix();
-    PLAYABLE_SCENARIOS.forEach((scenario) => {
-      if (ONLY && !ONLY.split(",").includes(scenario.id)) return;
-      const mine = games.filter((g) => g.scenario === scenario.id);
-      if (mine.length === 0) return;
-      it(
-        `${scenario.id}: ${mine.length} games`,
-        () => {
-          const failures: string[] = [];
-          for (const g of mine) {
-            try {
-              check(play(g));
-            } catch (error) {
-              failures.push(`${label(g)}: ${(error as Error).message.split("\n")[0]}`);
+    if (!FULL) {
+      const games = sample();
+      if (part === 1)
+        it("has the sample it says it has: every set twice, every scenario that takes a modular set at least twice", () => {
+          expect(games).toHaveLength(MODULAR_SETS.length * 2);
+          for (const set of MODULAR_SETS)
+            expect(games.filter((g) => g.set === set.id).length, `${set.id} games`).toBeGreaterThanOrEqual(2);
+          const takers = PLAYABLE_SCENARIOS.filter((scenario) =>
+            MODULAR_SETS.some((set) => pairingFor(set.id, scenario).kind === "build"),
+          );
+          // 50 with wave 9's five Agents of S.H.I.E.L.D. scenarios and Trickster Takeover's Enchantress and God of Lies in the
+          // playable pool.
+          expect(takers.map((scenario) => scenario.id)).toHaveLength(50);
+          for (const scenario of takers)
+            expect(
+              games.filter((g) => g.scenario === scenario.id).length,
+              `${scenario.id} games`,
+            ).toBeGreaterThanOrEqual(2);
+          // The restricted scenarios (Breakout, The Hood, Sinister Six) take no modular set: soaked by their own tests.
+          expect(
+            PLAYABLE_SCENARIOS.filter((scenario) => !takers.includes(scenario)).map((scenario) => scenario.id),
+          ).toEqual(["breakout", "the-hood", "sinister-six"]);
+          expect(games.some((g) => g.expert)).toBe(true);
+          expect(games.some((g) => g.seats.length === 2)).toBe(true);
+        });
+      games.forEach((g, index) => {
+        if (inPart(index, part)) it(label(g), () => check(play(g)), TIMEOUT);
+      });
+    } else {
+      // One test per scenario keeps the reporter readable; a failing game names itself in the thrown message.
+      const games = fullMatrix();
+      PLAYABLE_SCENARIOS.forEach((scenario, index) => {
+        if (!inPart(index, part)) return;
+        if (ONLY && !ONLY.split(",").includes(scenario.id)) return;
+        const mine = games.filter((g) => g.scenario === scenario.id);
+        if (mine.length === 0) return;
+        it(
+          `${scenario.id}: ${mine.length} games`,
+          () => {
+            const failures: string[] = [];
+            for (const g of mine) {
+              try {
+                check(play(g));
+              } catch (error) {
+                failures.push(`${label(g)}: ${(error as Error).message.split("\n")[0]}`);
+              }
             }
-          }
-          expect(failures).toEqual([]);
-        },
-        FULL_TIMEOUT,
-      );
-    });
-  }
-});
+            expect(failures).toEqual([]);
+          },
+          FULL_TIMEOUT,
+        );
+      });
+    }
+  });
+}
