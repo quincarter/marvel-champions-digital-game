@@ -9,11 +9,29 @@
 A digital, rules-accurate implementation of **Marvel Champions: The Card Game** (Fantasy Flight Games / Marvel), built
 to be a genuinely playable video game driven by a deterministic rules engine.
 
-**[Play in your browser](https://marvel-champions-digital-game.netlify.app/)** ·
-**[Download for Windows, macOS, Linux or Android](https://github.com/quincarter/marvel-champions-digital-game/releases/latest)** ·
-**[Report a bug or request a feature](https://github.com/quincarter/marvel-champions-digital-game/issues/new/choose)** ·
-**[Discord (invite coming soon)](#community)** ·
-**[Contributing](CONTRIBUTING.md)**
+<p align="center">
+  <a href="https://marvel-champions-digital-game.netlify.app/"><img src=".github/assets/readme/play-in-browser.svg" alt="Play in your browser" height="48"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/latest"><img src=".github/assets/readme/download-windows.svg" alt="Download for Windows" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/latest"><img src=".github/assets/readme/download-macos.svg" alt="Download for macOS" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/latest"><img src=".github/assets/readme/download-linux.svg" alt="Download for Linux" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/latest"><img src=".github/assets/readme/download-android.svg" alt="Download for Android" height="48"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/issues/new?template=bug_report.yml"><img src=".github/assets/readme/report-a-bug.svg" alt="Report a bug" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/issues/new?template=feature_request.yml"><img src=".github/assets/readme/request-a-feature.svg" alt="Request a feature" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/issues/new?template=tested_deck_request.yml"><img src=".github/assets/readme/request-a-deck.svg" alt="Request a tested deck" height="48"></a>
+</p>
+
+<p align="center">
+  <a href="#community"><img src=".github/assets/readme/discord.svg" alt="Discord (invite coming soon)" height="48"></a> <!-- TODO: point this at the Discord invite once the server exists. -->
+  <a href="CONTRIBUTING.md"><img src=".github/assets/readme/contributing.svg" alt="Contributing" height="48"></a>
+</p>
+
+<p align="center"><sub>Downloads open the <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/latest">latest release</a>; pick your installer from its "Which download do I need?" table. Not sure which issue type fits? Use the <a href="https://github.com/quincarter/marvel-champions-digital-game/issues/new/choose">issue chooser</a>.</sub></p>
 
 > [!NOTE]
 > This is a fan-made, non-commercial project. _Marvel Champions: The Card Game_, card text, artwork, and characters are

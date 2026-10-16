@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="165" height="48" viewBox="0 0 165 48" role="img" aria-label="Report a bug: Something broke">
+  <title>Report a bug: Something broke</title>
+  <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c2410c"/><stop offset="1" stop-color="#9a3412"/></linearGradient></defs>
+  <rect width="165" height="48" rx="10" fill="url(#g)"/>
+  <rect x="0.5" y="0.5" width="164" height="47" rx="9.5" fill="none" stroke="#ffffff" stroke-opacity="0.18"/>
+  <g transform="translate(26 24)"><ellipse cx="0" cy="2" rx="5.5" ry="7" fill="#fff"/><circle cx="0" cy="-6" r="3.2" fill="#fff"/><path d="M-5.5 -1 H-10 M5.5 -1 H10 M-5.5 4 H-10 M5.5 4 H10 M-4.5 8 L-8 10.5 M4.5 8 L8 10.5 M-2 -8.5 L-4 -11 M2 -8.5 L4 -11" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/><path d="M0 -3 V9" stroke="#9a3412" stroke-width="1.2"/></g>
+  <text x="48" y="21" fill="#ffffff" font-family="'Segoe UI',-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif" font-size="15" font-weight="700">Report a bug</text>
+  <text x="48" y="37" fill="#ffffff" fill-opacity="0.8" font-family="'Segoe UI',-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif" font-size="11.5">Something broke</text>
+</svg>
