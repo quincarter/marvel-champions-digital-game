@@ -2256,15 +2256,8 @@ function attackForbidden(
   basic: boolean,
 ): { readonly byInstanceId: InstanceId | null; readonly basicOnly: boolean } | null {
   const forbidding = activeRules(state, deps, "cannotAttack").find((active) => {
-    const { player, target, attacker } = active.rule;
-    // "You cannot make basic attacks" (`basicOnly`, docs/phase7-wave9.md §3.72): only a basic attack is asked.
-    if (active.rule.basicOnly === true && !basic) return false;
-    if (attacker && !matchesQuery(state, attackerId, attacker, active.context)) return false;
-    if (player) {
-      if (attackerPlayerId === null || !rulePlayers(state, { player }, active).includes(attackerPlayerId)) {
-        return false;
-      }
-    }
+    if (!bindsAttacker(state, active, attackerId, attackerPlayerId, basic)) return false;
+    const { target } = active.rule;
     // The target is matched against what the card is. A card players attack "as if it were a minion" (`RuleSpec
     // attackableAsMinion`, docs/phase7-wave9.md §3.50) is no enemy (RRG 1.8 "Enemy", p. 18: "a minion or villain"),
     // so "cannot attack enemies other than this card" on one copy does not forbid attacking another copy. Two readings
@@ -2275,6 +2268,53 @@ function attackForbidden(
     if (forbidsEveryAttack(target) && isAttackTarget(state, targetId, deps)) return true;
     return matchesQuery(state, targetId, target, { ...active.context, prohibitingAttack: true });
   });
+  return forbidding
+    ? { byInstanceId: forbidding.context.selfInstanceId, basicOnly: forbidding.rule.basicOnly === true }
+    : null;
+}
+
+/**
+ * Whether a `cannotAttack` rule binds this attacker, whatever it attacks: its `attacker` query matches the character,
+ * its `player` names the attacker's controller, and a `basicOnly` rule is asked only of a basic attack.
+ */
+function bindsAttacker(
+  state: GameState,
+  active: ActiveRule<"cannotAttack">,
+  attackerId: InstanceId,
+  attackerPlayerId: PlayerId | null,
+  basic: boolean,
+): boolean {
+  const { player, attacker } = active.rule;
+  // "You cannot make basic attacks" (`basicOnly`, docs/phase7-wave9.md §3.72): only a basic attack is asked.
+  if (active.rule.basicOnly === true && !basic) return false;
+  if (attacker && !matchesQuery(state, attackerId, attacker, active.context)) return false;
+  if (player && (attackerPlayerId === null || !rulePlayers(state, { player }, active).includes(attackerPlayerId))) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * A `cannotAttack` rule in force that forbids this character every attack, whatever the target: the printed "cannot
+ * attack" ("Vision cannot attack or defend", Intangible) or "you cannot make basic attacks" (`basicOnly`, asked only
+ * when `basic`). Every rule is asked, and a `basicOnly` one is reported first so its refusal names it. Null when none
+ * does; a rule scoped to some targets ("cannot attack minions", guard) is a matter of the target and is not reported.
+ *
+ * What a stunned character's attempt to attack is still refused by: the RRG waives only the target (RRG 1.8 "Stun,
+ * Stunned", p. 41), and "cannot" is absolute (RRG 1.8 "'Cannot'", p. 11; FFG ruling Jan 18, 2023, Vision in Intangible
+ * form: "No attack attempt can be made that removing Stunned would replace").
+ */
+export function attackerForbiddenEveryAttack(
+  state: GameState,
+  attackerId: InstanceId,
+  deps: EngineDeps = DEFAULT_DEPS,
+  basic = false,
+): { readonly byInstanceId: InstanceId | null; readonly basicOnly: boolean } | null {
+  const controller = controllerOf(state, attackerId);
+  const binding = activeRules(state, deps, "cannotAttack").filter(
+    (active) => forbidsEveryAttack(active.rule.target) && bindsAttacker(state, active, attackerId, controller, basic),
+  );
+  const forbidding = binding.find((active) => active.rule.basicOnly === true) ?? binding[0];
   return forbidding
     ? { byInstanceId: forbidding.context.selfInstanceId, basicOnly: forbidding.rule.basicOnly === true }
     : null;
