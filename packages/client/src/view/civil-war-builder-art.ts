@@ -47,10 +47,24 @@ const TYPE_WORD: Readonly<Record<string, string>> = {
   treachery: "Treachery",
   environment: "Environment",
   obligation: "Obligation",
+  ally: "Ally",
 };
 export const typeWordOf = (card: AnyCard): string => TYPE_WORD[card.type] ?? card.type;
 
 const indexes = new WeakMap<ReadonlyMap<string, AnyCard>, ReadonlyMap<string, readonly AnyCard[]>>();
+
+/**
+ * The sets a card belongs to: its encounter sets, and the set a scenario-specific player card is printed for. Longshot's
+ * one card (39071) is an ally tied to its extra modular set by `specificTo`, not an encounter card, so its set read as
+ * empty (no picture, "0 cards") until this counted it.
+ */
+function setIdsOf(card: AnyCard): readonly string[] {
+  const ids = "encounterSetIds" in card ? [...(card.encounterSetIds as readonly string[])] : [];
+  const specific = "specificTo" in card ? card.specificTo : undefined;
+  if (specific?.kind === "scenario" && !ids.includes(specific.encounterSetId as string))
+    ids.push(specific.encounterSetId as string);
+  return ids;
+}
 
 /** Every card of each encounter set, built once per pool (the builder asks for ~120 sets on every redraw). */
 export function cardsBySet(cards: ReadonlyMap<string, AnyCard>): ReadonlyMap<string, readonly AnyCard[]> {
@@ -58,8 +72,7 @@ export function cardsBySet(cards: ReadonlyMap<string, AnyCard>): ReadonlyMap<str
   if (cached) return cached;
   const built = new Map<string, AnyCard[]>();
   for (const card of cards.values()) {
-    if (!("encounterSetIds" in card)) continue;
-    for (const setId of card.encounterSetIds as readonly string[]) {
+    for (const setId of setIdsOf(card)) {
       const list = built.get(setId) ?? [];
       list.push(card);
       built.set(setId, list);
