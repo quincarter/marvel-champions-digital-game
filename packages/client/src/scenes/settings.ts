@@ -265,6 +265,10 @@ export class SettingsOverlay extends Phaser.Scene {
       })),
     );
 
+    // Swallows every press that lands on no control of this overlay's own. Without it, lifting a finger after a
+    // touch scroll over the panel's blank space reached Title underneath and opened its releases link (owner,
+    // 2026-10-16), and the same went for Pause or the Board.
+    this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.void.hex, 0.7).fillRect(0, 0, width, height);
     const panelsFrom = this.children.list.length;

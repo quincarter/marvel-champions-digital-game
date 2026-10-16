@@ -281,6 +281,10 @@ export class RulesOverlay extends Phaser.Scene {
     // Full-screen ground: an opaque void backdrop (nothing from Pause/the board can show through
     // a full-bleed screen, by construction — the owner's "layering" complaint's other half), then
     // the ink chrome, then the paper body with its felt dot grid underneath everything drawn on it.
+    // Swallows every press that lands on no control of this overlay's own. Without it, lifting a finger after a
+    // touch scroll over the panel's blank space reached Title underneath and opened its releases link (owner,
+    // 2026-10-16), and the same went for Pause or the Board.
+    this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.void.hex, 1).fillRect(0, 0, width, height);
     const panelsFrom = this.children.list.length;
