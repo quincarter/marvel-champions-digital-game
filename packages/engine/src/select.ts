@@ -4093,7 +4093,7 @@ export function constantAbilityRefs(
  * A facedown card and a card treated as another type still have none: neither is a text box "treated as if it were
  * blank", so a `textBoxCannotBeBlanked` rule (§3.31 of wave 5) does not bring them back.
  */
-function unblankedAbilityRefs(state: GameState, id: InstanceId): readonly AbilityReference[] {
+export function unblankedAbilityRefs(state: GameState, id: InstanceId): readonly AbilityReference[] {
   const card = cardOf(state, id);
   if (!card) return [];
   // A facedown card's own text is blank while it is facedown, and so is a card whose text box is treated as blank

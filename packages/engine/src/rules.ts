@@ -36,6 +36,7 @@ import {
   activeRules,
   cardsInPlay,
   categoriesOf,
+  constantYouOf,
   focusedMainSchemeId,
   gliderMainSchemeId,
   type GrantedAbility,
@@ -47,6 +48,7 @@ import {
   isPlayerCard,
   matchesQuery,
   printedAbilityRefs,
+  reachOf,
   resolvePlayers,
   resolveRef,
   resolveValue,
@@ -55,6 +57,7 @@ import {
   textBoxBlankFor,
   timingWordOf,
   traitsOf,
+  unblankedAbilityRefs,
   type ActiveRule,
   type EffectContext,
   type LastKnownCard,
@@ -702,14 +705,61 @@ export const entersRevealersPlayArea = (state: GameState, deps: EngineDeps, id: 
   );
 
 /**
+ * The rules of this kind printed on cards in play whose text box is blank, which `activeRules` does not see. An
+ * alternate win or loss condition is read past the blank: RRG 1.8 "Winning the Game" (p. 48), "Alternate win or loss
+ * conditions cannot be blanked or canceled"; FFG ruling 115 (Nov 29, 2023), a Hope Summers treated as a minion with a
+ * blank text box still loses the game when she leaves play. A card treated as another type keeps its own printed text
+ * for this read; a facedown card has none.
+ */
+function blankedConditionRules<K extends RuleSpec["kind"]>(
+  state: GameState,
+  deps: EngineDeps,
+  kind: K,
+): readonly ActiveRule<K>[] {
+  const found: ActiveRule<K>[] = [];
+  for (const sourceId of cardsInPlay(state)) {
+    const instance = getInstance(state, sourceId);
+    if (!instance || instance.facedownAs) continue;
+    const card = cardOf(state, sourceId);
+    const printed = instance.treatedAs
+      ? card && "abilities" in card
+        ? card.abilities
+        : []
+      : unblankedAbilityRefs(state, sourceId);
+    if (printed.length === 0) continue;
+    const live = activeAbilityRefs(state, sourceId, deps);
+    for (const ref of printed) {
+      if (live.some((other) => other.id === ref.id)) continue;
+      const definition = deps.abilities[ref.id];
+      if (definition?.trigger.kind !== "constant") continue;
+      for (const rule of definition.trigger.rules ?? []) {
+        if (rule.kind !== kind) continue;
+        const context: EffectContext = {
+          selfInstanceId: sourceId,
+          controllerId: constantYouOf(state, sourceId),
+          event: null,
+          bindings: {},
+          deps,
+          ...reachOf(definition),
+        };
+        if ("while" in rule && rule.while && !evaluate(state, rule.while, context)) continue;
+        found.push({ rule: rule as Extract<RuleSpec, { kind: K }>, context, speakerId: context.controllerId });
+      }
+    }
+  }
+  return found;
+}
+
+/**
  * "If Odin leaves play, the players lose the game." (`leavingPlayLoses`, docs/phase7-wave4.md §3.8), read before it
  * goes: the card whose rule says so (the first in play order when several do), or null when `id` leaving loses nothing.
  * The outcome records it (`GameOutcome.sourceInstanceId`), so the caller never ends the game without naming a card.
  */
 export const leavingPlayLoses = (state: GameState, deps: EngineDeps, id: InstanceId): InstanceId | null => {
-  const found = activeRules(state, deps, "leavingPlayLoses").find(({ rule, context }) =>
-    matchesQuery(state, id, rule.target, context),
-  );
+  const found = [
+    ...activeRules(state, deps, "leavingPlayLoses"),
+    ...blankedConditionRules(state, deps, "leavingPlayLoses"),
+  ].find(({ rule, context }) => matchesQuery(state, id, rule.target, context));
   // A rule is always read off a card in play; the leaving card stands in if a context ever lacks one.
   return found ? (found.context.selfInstanceId ?? id) : null;
 };

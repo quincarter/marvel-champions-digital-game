@@ -127,7 +127,7 @@ const _context = (state: GameState) => ({
 });
 
 describe("audit 39.10 an alternate loss condition cannot be blanked", () => {
-  it.fails("a blanked (treated-as-minion) Hope/Odin that is defeated still loses the game (RRG 1.8 p. 48; Ruling 115)", () => {
+  it("a blanked (treated-as-minion) Hope/Odin that is defeated still loses the game (RRG 1.8 p. 48; Ruling 115)", () => {
     const detached = playFree(start(), deps, NASTROND.card.id).state;
     const odin = odinId(detached);
     const blanked: GameState = {
