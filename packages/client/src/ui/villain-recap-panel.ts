@@ -25,7 +25,7 @@ import {
   type VillainRecapLayout,
 } from "../view/villain-recap-layout.js";
 import { fitTileLabel, tileTailVariants } from "../view/villain-recap-tile.js";
-import { noteHoverCard } from "./card-hover-preview.js";
+import { hoverCardMark, noteHoverCard, scrollHoverCards } from "./card-hover-preview.js";
 import { drawSeatAvatar } from "./seat-avatar.js";
 import { bindHoldTarget } from "./hold-target.js";
 import { McScrollRegion } from "./scroll-region.js";
@@ -141,6 +141,7 @@ export function drawVillainRecapPanel(scene: Phaser.Scene, args: RecapPanelArgs)
   // Steps.
   layout.regions.forEach((region, regionIndex) => {
     const from = scene.children.list.length;
+    const hoverMark = hoverCardMark(scene);
     let y = region.y;
     const scroll = args.scrolls[regionIndex]!;
     recap.columns.forEach((column, stepIndex) => {
@@ -156,6 +157,9 @@ export function drawVillainRecapPanel(scene: Phaser.Scene, args: RecapPanelArgs)
     });
     scrollRegion.content.add(objects);
     scrollRegion.syncInteractivity();
+    // The region scrolls without a redraw: the thumbnails' hover rects follow it (a card scrolled up from under the
+    // footer bar hovers where it now is).
+    scrollHoverCards(scene, hoverMark, scrollRegion.content, region);
   });
 
   drawToggle(scene, layout.toggle, args.autoAdvance, args.onToggle, phone);

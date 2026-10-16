@@ -186,7 +186,7 @@ import { VILLAIN_DOCK_CHANGED, type BoardScene } from "./board.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion, slideIn, slideOut } from "../ui/transitions.js";
-import { HoverPreview, hoverCardsOf, isMousePointer, resetHoverCards } from "../ui/card-hover-preview.js";
+import { HoverPreview, hoverCardHitsOf, isMousePointer, resetHoverCards } from "../ui/card-hover-preview.js";
 import { villainHoverArea } from "../view/card-hover.js";
 import { slideOffset, villainSlideEdge, type VillainReview } from "../view/villain-review.js";
 import { RECAP_SCROLL_SLOTS, drawVillainRecapPanel } from "../ui/villain-recap-panel.js";
@@ -379,7 +379,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // recap's thumbnails), as on the table: the cards' rects are noted as they are drawn (`noteHoverCard`).
     resetHoverCards(this);
     this.#hover = new HoverPreview(this, {
-      cards: () => hoverCardsOf(this),
+      // One entry per picture: the recap shows the villain once per attack, and its steps scroll without a redraw.
+      hits: () => hoverCardHitsOf(this),
       skipLarge: false,
       area: (pointer) => {
         const { width, height } = this.scale.gameSize;
@@ -400,6 +401,21 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         });
       },
     });
+    if (import.meta.env.DEV) {
+      // The e2e hover check: every card picture the popover can open over, and which one it shows.
+      (window as unknown as { __mcVillainHoverDebug?: unknown }).__mcVillainHoverDebug = {
+        hits: () => {
+          const { game, perspectiveId } = appSession().store.state;
+          // A facedown card has no popover (it shows nothing the table doesn't), so the check skips it.
+          return hoverCardHitsOf(this).map((hit) => ({
+            ...hit,
+            hidden:
+              !game || perspectiveId === null || inspectModel(game, hit.id, null, perspectiveId, POOL_DEPS).hidden,
+          }));
+        },
+        shown: () => this.#hover?.shownKey ?? null,
+      };
+    }
     // The Board tweens the dock's width as it widens for a defend or the recap, and says so on each step: the panel is
     // redrawn against the rectangle it has now, so it grows with the table (no slide-in again: that is keyed to when the
     // phase first appeared).
@@ -431,7 +447,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       this.#closeTimer = null;
       // Clear the headless click-through hook with the scene — otherwise a script that polls
       // `__mcVillainPhaseDebug` after this overlay closes would keep reading the last frame's rects.
-      if (import.meta.env.DEV) delete (window as unknown as { __mcVillainPhaseDebug?: unknown }).__mcVillainPhaseDebug;
+      if (import.meta.env.DEV) {
+        delete (window as unknown as { __mcVillainPhaseDebug?: unknown }).__mcVillainPhaseDebug;
+        delete (window as unknown as { __mcVillainHoverDebug?: unknown }).__mcVillainHoverDebug;
+      }
     });
   }
 

@@ -28,6 +28,7 @@ import {
   hoverCardIdAt,
   hoverKeyOfCardId,
   hoverSlotOf,
+  clipHoverRect,
   type HoverCardIdRect,
   hoverWorthShowing,
   hoverCardSize,
@@ -49,6 +50,12 @@ const FADE_MS = 90;
 export interface HoverPreviewDeps {
   /** Each game card's rect as the scene last drew it, by instance. Absent on a screen with no game (the deck screens). */
   readonly cards?: () => ReadonlyMap<InstanceId, Rect>;
+  /**
+   * Each game card as the scene shows it now, one entry per picture (`hoverCardHitsOf`): read instead of `cards` when
+   * given, for a screen that shows one card more than once (the recap's "Ultron attacks …" rows) or inside a region
+   * that scrolls without a redraw.
+   */
+  readonly hits?: () => readonly HoverCardHit[];
   /**
    * Plain cards by card id, for a screen with no game behind it (Decks, the deck builder, Rules): the popover is the
    * card's scan with no state strip. Called on every pointer move, so a scrolling list computes its on-screen rects
@@ -127,6 +134,8 @@ export class HoverPreview {
   #pointer: Phaser.Input.Pointer | null = null;
   /** The card the delay is running for. */
   #pendingId: string | null = null;
+  /** The rect of the picture `#candidate` last found, for the popover's size: one card can be shown in several places. */
+  #candidateRect: Rect | null = null;
   #timer: Phaser.Time.TimerEvent | null = null;
   /** The card the popover is showing. */
   #shownId: string | null = null;
@@ -237,11 +246,10 @@ export class HoverPreview {
     const bounds = top ? (top as Phaser.GameObjects.Zone).getBounds() : null;
     const topmost = bounds ? { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height } : null;
     const settings = appSession().settings;
-    const cards = this.deps.cards?.() ?? EMPTY_RECTS;
-    const id = hoverCandidateAt(x, y, cards, topmost);
-    if (id !== null) {
-      const rect = cards.get(id);
-      if (!rect) return null;
+    const found = this.#gameCardAt(x, y, topmost);
+    if (found !== null) {
+      const { id, rect } = found;
+      this.#candidateRect = rect;
       // The Hero card popover and Villain card popover settings turn those two kinds off.
       const game = appSession().store.state.game;
       const type = game ? cardOf(game, id)?.type : undefined;
@@ -260,6 +268,19 @@ export class HoverPreview {
     if (type === "hero_identity" && !settings.hoverHeroCard) return null;
     if (type === "villain" && !settings.hoverVillainCard) return null;
     return hoverKeyOfCardId(slot);
+  }
+
+  /** The game card under the pointer, with the rect of the very picture it is in. */
+  #gameCardAt(x: number, y: number, topmost: Rect | null): { readonly id: InstanceId; readonly rect: Rect } | null {
+    if (this.deps.hits) {
+      const hits = this.deps.hits();
+      const at = hoverCandidateAt(x, y, new Map(hits.map((hit, i) => [i, hit.rect])), topmost);
+      return at === null ? null : hits[at]!;
+    }
+    const cards = this.deps.cards?.() ?? EMPTY_RECTS;
+    const id = hoverCandidateAt(x, y, cards, topmost);
+    const rect = id === null ? undefined : cards.get(id);
+    return id === null || !rect ? null : { id, rect };
   }
 
   #update(pointer: Phaser.Input.Pointer, instant: boolean): void {
@@ -293,7 +314,7 @@ export class HoverPreview {
     }
     const slot = slotOfHoverKey(id);
     const plain = slot === null ? undefined : this.deps.cardIds?.().get(slot);
-    const rect = slot === null ? this.deps.cards?.().get(id as InstanceId) : plain;
+    const rect = slot === null ? this.#candidateRect : plain;
     const built = !rect
       ? null
       : plain
@@ -487,6 +508,7 @@ export class HoverPreview {
 
 const EMPTY_RECTS: ReadonlyMap<InstanceId, Rect> = new Map();
 const HOVER_CARDS_KEY = "mc-hover-cards";
+const HOVER_HITS_KEY = "mc-hover-hits";
 const HOVER_CARD_IDS_KEY = "mc-hover-card-ids";
 
 /**
@@ -519,10 +541,62 @@ export function hoverCardIdsOf(scene: Phaser.Scene): ReadonlyMap<string, HoverCa
  */
 export function noteHoverCard(scene: Phaser.Scene, id: InstanceId, rect: Rect): void {
   (scene.data?.get(HOVER_CARDS_KEY) as Map<InstanceId, Rect> | undefined)?.set(id, rect);
+  (scene.data?.get(HOVER_HITS_KEY) as NotedHit[] | undefined)?.push({ id, rect });
+}
+
+/** One picture of a game card the popover can open over, in screen coordinates as it is now. */
+export interface HoverCardHit {
+  readonly id: InstanceId;
+  readonly rect: Rect;
+}
+
+interface NotedHit {
+  readonly id: InstanceId;
+  readonly rect: Rect;
+  /** A scrolling region's content and viewport: the card moves with the content and only its visible part counts. */
+  scroll?: { readonly content: Phaser.GameObjects.Container; readonly viewport: Rect };
+}
+
+/** How many card pictures have been noted since the last `resetHoverCards`: pass it to `scrollHoverCards` later. */
+export function hoverCardMark(scene: Phaser.Scene): number {
+  return (scene.data?.get(HOVER_HITS_KEY) as NotedHit[] | undefined)?.length ?? 0;
+}
+
+/**
+ * The cards noted since `mark` were drawn into a scrolling region's `content` (`McScrollRegion`), which scrolls
+ * without a redraw: their rects follow the content's offset and are clipped to `viewport`.
+ */
+export function scrollHoverCards(
+  scene: Phaser.Scene,
+  mark: number,
+  content: Phaser.GameObjects.Container,
+  viewport: Rect,
+): void {
+  const hits = scene.data?.get(HOVER_HITS_KEY) as NotedHit[] | undefined;
+  if (!hits) return;
+  for (let i = mark; i < hits.length; i++) hits[i]!.scroll = { content, viewport };
+}
+
+/** Every card picture noted since the last `resetHoverCards`, where it is on screen now (`HoverPreviewDeps.hits`). */
+export function hoverCardHitsOf(scene: Phaser.Scene): readonly HoverCardHit[] {
+  const hits = (scene.data?.get(HOVER_HITS_KEY) as NotedHit[] | undefined) ?? [];
+  const out: HoverCardHit[] = [];
+  for (const { id, rect, scroll } of hits) {
+    if (!scroll) {
+      out.push({ id, rect });
+      continue;
+    }
+    if (!scroll.content.active) continue;
+    const moved = { ...rect, x: rect.x + scroll.content.x, y: rect.y + scroll.content.y };
+    const shown = clipHoverRect(moved, scroll.viewport);
+    if (shown) out.push({ id, rect: shown });
+  }
+  return out;
 }
 
 /** The scene's hover card map, created empty on first use and emptied on every later call: call it before a draw. */
 export function resetHoverCards(scene: Phaser.Scene): Map<InstanceId, Rect> {
+  scene.data.set(HOVER_HITS_KEY, [] as NotedHit[]);
   const ids = scene.data.get(HOVER_CARD_IDS_KEY) as Map<string, HoverCardIdRect> | undefined;
   if (ids) ids.clear();
   else scene.data.set(HOVER_CARD_IDS_KEY, new Map<string, HoverCardIdRect>());
