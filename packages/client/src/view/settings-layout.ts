@@ -84,6 +84,8 @@ export interface SettingsContentLayout {
   readonly cardHover: { readonly row: Rect; readonly control: Rect } | null;
   /** The global "Card size" row and its three-segment control, after the hover row; null when not given a detail. On a narrow screen the control drops under the text. */
   readonly cardSize: { readonly row: Rect; readonly control: Rect } | null;
+  /** The "First player token" row and its five-segment control, after Card size; null when not given a detail. Placed like Card size. */
+  readonly tokenMotion: { readonly row: Rect; readonly control: Rect } | null;
   readonly guideHeading: Rect;
   readonly guideLevelRow: Rect;
   /** One rect per Guide row after the level row: "Play the tutorial", "Aspect lessons", then one per warning toggle. */
@@ -112,6 +114,7 @@ export function settingsLayout(
   villainDetails?: SettingsVillainDetails,
   cardHoverDetail?: string,
   cardSizeDetail?: string,
+  tokenMotionDetail?: string,
 ): SettingsLayout {
   const { panel, header, body } = overlayPanelLayout(bounds, HEADER_HEIGHT, 0);
   const contentX = body.x + 16;
@@ -150,26 +153,30 @@ export function settingsLayout(
     tableBottom = row.y + row.height;
   }
 
-  let cardSize: SettingsContentLayout["cardSize"] = null;
-  if (cardSizeDetail !== undefined) {
-    // Side by side when the text still has room; otherwise the control sits under the text so nothing is cut off.
+  // Card size and First player token share one shape: a segmented control beside its text when there is room,
+  // otherwise under it so nothing is cut off.
+  const segmentedRow = (detail: string): { readonly row: Rect; readonly control: Rect } => {
     const beside = contentWidth >= CARD_SIZE_CONTROL_WIDTH + 260;
     const textHeight = toggleRowHeight(
-      cardSizeDetail,
+      detail,
       beside ? contentWidth - (CARD_SIZE_CONTROL_WIDTH - 84) : contentWidth,
       onDesktop,
     );
     const height = beside ? Math.max(textHeight, 44) : textHeight + 40;
     const row: Rect = { x: contentX, y: tableBottom + ROW_GAP, width: contentWidth, height };
     const controlWidth = Math.min(CARD_SIZE_CONTROL_WIDTH, contentWidth - 4);
-    cardSize = {
+    tableBottom = row.y + row.height;
+    return {
       row,
       control: beside
         ? { x: row.x + row.width - controlWidth - 2, y: row.y + (row.height - 32) / 2, width: controlWidth, height: 32 }
         : { x: row.x + 2, y: row.y + row.height - 36, width: controlWidth, height: 32 },
     };
-    tableBottom = row.y + row.height;
-  }
+  };
+  const cardSize: SettingsContentLayout["cardSize"] =
+    cardSizeDetail !== undefined ? segmentedRow(cardSizeDetail) : null;
+  const tokenMotion: SettingsContentLayout["tokenMotion"] =
+    tokenMotionDetail !== undefined ? segmentedRow(tokenMotionDetail) : null;
 
   let villain: SettingsVillainLayout | null = null;
   let afterRowsBottom = tableBottom;
@@ -251,7 +258,18 @@ export function settingsLayout(
     panel,
     header,
     bodyViewport,
-    content: { tableHeading, rows, villain, cardHover, cardSize, guideHeading, guideLevelRow, guideRows, totalHeight },
+    content: {
+      tableHeading,
+      rows,
+      villain,
+      cardHover,
+      cardSize,
+      tokenMotion,
+      guideHeading,
+      guideLevelRow,
+      guideRows,
+      totalHeight,
+    },
   };
 }
 

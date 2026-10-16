@@ -34,6 +34,8 @@ import {
   cardSizeRowInfoOf,
   nextSettingsAfterCardSize,
   nextSettingsAfterCardHover,
+  nextSettingsAfterTokenMotion,
+  tokenMotionRowInfoOf,
   nextSettingsAfterToggle,
   nextSettingsAfterVillainRow,
   settingsRowInfoOf,
@@ -42,11 +44,18 @@ import {
   type CardSizeRowInfo,
   type GuideRowInfo,
   type SettingsRowInfo,
+  type TokenMotionRowInfo,
   type VillainRowId,
   type VillainRowsInfo,
 } from "../view/settings-rows.js";
 import type { GuideLevel } from "../guide/guide-prefs.js";
-import type { CardHoverScale, CardSize, VillainAutoAdvance, VillainBeatSpeed } from "../settings.js";
+import type {
+  CardHoverScale,
+  CardSize,
+  FirstPlayerTokenMotion,
+  VillainAutoAdvance,
+  VillainBeatSpeed,
+} from "../settings.js";
 import { ink, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
 import { McButton, addRowTapZone, label, paintOnFrame } from "../ui/widgets.js";
@@ -207,6 +216,7 @@ export class SettingsOverlay extends Phaser.Scene {
     const villain = villainRowInfoOf(appSession().settings);
     const cardHover = cardHoverRowInfoOf(appSession().settings);
     const cardSize = cardSizeRowInfoOf(appSession().settings);
+    const tokenMotion = tokenMotionRowInfoOf(appSession().settings);
     const guideAfterLevel = guideRows.filter(isGuideNonLevelRow);
     const layout = settingsLayout(
       { x: 0, y: 0, width, height },
@@ -220,6 +230,7 @@ export class SettingsOverlay extends Phaser.Scene {
       },
       cardHover.detail,
       cardSize.detail,
+      tokenMotion.detail,
     );
 
     const scrim = this.add.graphics();
@@ -271,6 +282,7 @@ export class SettingsOverlay extends Phaser.Scene {
       villain,
       cardHover,
       cardSize,
+      tokenMotion,
       stops,
     );
 
@@ -282,6 +294,7 @@ export class SettingsOverlay extends Phaser.Scene {
         RULES_ROW,
         ...(layout.content.cardHover ? cardHover.options.map((o) => `card-hover:${o.value}`) : []),
         ...cardSize.options.map((o) => `card-size:${o.value}`),
+        ...tokenMotion.options.map((o) => `token-motion:${o.value}`),
         ...VILLAIN_STOP_IDS(villain),
         ...guideStopIds,
       ]),
@@ -326,6 +339,7 @@ export class SettingsOverlay extends Phaser.Scene {
     villain: VillainRowsInfo,
     cardHover: CardHoverRowInfo,
     cardSize: CardSizeRowInfo,
+    tokenMotion: TokenMotionRowInfo,
     stops: Map<string, FocusStop>,
   ): readonly string[] {
     const levelRow = guideRows.find((row) => row.kind === "segmented");
@@ -340,6 +354,7 @@ export class SettingsOverlay extends Phaser.Scene {
       ...content.rows,
       ...(hover ? [hover.row] : []),
       ...(content.cardSize ? [content.cardSize.row] : []),
+      ...(content.tokenMotion ? [content.tokenMotion.row] : []),
       ...(v ? [v.heading, v.auto, v.hold, v.speed, v.dock] : []),
       content.guideHeading,
       content.guideLevelRow,
@@ -404,6 +419,21 @@ export class SettingsOverlay extends Phaser.Scene {
     if (sizeRow) {
       this.#captureInto(container, () =>
         this.#drawCardSize(toScreen(sizeRow.row), toScreen(sizeRow.control), cardSize, guideHeadingIndex, stops),
+      );
+      guideHeadingIndex += 1;
+    }
+    const tokenRow = content.tokenMotion;
+    if (tokenRow) {
+      this.#captureInto(container, () =>
+        this.#drawSegmentedRow(
+          toScreen(tokenRow.row),
+          toScreen(tokenRow.control),
+          tokenMotion,
+          "token-motion",
+          guideHeadingIndex,
+          stops,
+          (value) => this.#setTokenMotion(value),
+        ),
       );
       guideHeadingIndex += 1;
     }
@@ -668,6 +698,46 @@ export class SettingsOverlay extends Phaser.Scene {
 
   #setCardSize(value: CardSize): void {
     appSession().settings = nextSettingsAfterCardSize(appSession().settings, value);
+    this.#draw();
+  }
+
+  /** A row with a title, its detail, and one segmented choice beside or (stacked) under the text — Card size's own shape. */
+  #drawSegmentedRow<V extends string>(
+    rect: Rect,
+    control: Rect,
+    info: {
+      readonly title: string;
+      readonly detail: string;
+      readonly options: readonly { readonly value: V; readonly label: string }[];
+      readonly selected: V;
+    },
+    stopPrefix: string,
+    index: number,
+    stops: Map<string, FocusStop>,
+    choose: (value: V) => void,
+  ): void {
+    label(this, rect.x, rect.y + 2, info.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
+    const stacked = control.y > rect.y + 44;
+    this.add
+      .text(rect.x, rect.y + 20, info.detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
+      .setFontSize(10)
+      .setWordWrapWidth(stacked ? rect.width : rect.width - control.width - 16);
+    const cellWidth = control.width / info.options.length;
+    info.options.forEach((option, i) => {
+      this.#drawChoiceCell(
+        { x: control.x + i * cellWidth, y: control.y, width: cellWidth, height: control.height },
+        info.selected === option.value,
+        index,
+        `${stopPrefix}:${option.value}`,
+        stops,
+        () => choose(option.value),
+        { label: option.label, fill: surface.paper.hex },
+      );
+    });
+  }
+
+  #setTokenMotion(value: FirstPlayerTokenMotion): void {
+    appSession().settings = nextSettingsAfterTokenMotion(appSession().settings, value);
     this.#draw();
   }
 

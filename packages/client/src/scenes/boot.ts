@@ -8,13 +8,14 @@
  */
 
 import Phaser from "phaser";
+import { ensureFirstPlayerTokenTexture } from "../ui/first-player-token.js";
 import { surface, typeRole, WEB_FONTS } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS, POOL_VERSION } from "../content/pool.js";
 import { deckOptionsOf, preconDecks } from "../view/deck-list-model.js";
 import { corePlayerForSeat } from "../view/deck-seat.js";
 import { tableRulesOf } from "../settings.js";
-import { initialSetupDraft, toSessionConfig } from "../view/setup-draft.js";
+import { addSeat, initialSetupDraft, toSessionConfig } from "../view/setup-draft.js";
 import { rollSeed } from "../view/seed.js";
 import { appSession, campaignService, registerDevCampaignDefinition } from "../session.js";
 import type { SessionStore } from "../store/session-store.js";
@@ -129,11 +130,15 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
     const scenario = POOL_SCENARIOS.find((s) => s.id === params.get("scenario")) ?? POOL_SCENARIOS[0]!;
     const decks = preconDecks(POOL_VERSION);
     const deck = decks.find((d) => (d.id as string) === params.get("deck")) ?? decks[0]!;
-    const draft = initialSetupDraft({
-      scenarioId: scenario.id as string,
-      seatDeckId: deck.id as string,
-      seed: rollSeed(),
-    });
+    // `&players=<2-4>` seats the next precons too, for the first player row with more than one seat.
+    const players = Math.min(4, Math.max(1, Number(params.get("players")) || 1));
+    const draft = decks
+      .filter((d) => d !== deck)
+      .slice(0, players - 1)
+      .reduce(
+        (seated, extra) => addSeat(seated, extra.id as string),
+        initialSetupDraft({ scenarioId: scenario.id as string, seatDeckId: deck.id as string, seed: rollSeed() }),
+      );
     if (screen === "scenario-select")
       return { key: SCENES.scenarioSelect, data: { draft } satisfies ScenarioSelectData };
     if (screen === "seats") return { key: SCENES.seats, data: { draft } satisfies SeatsData };
@@ -633,6 +638,8 @@ export class BootScene extends Phaser.Scene {
     this.add.text(width / 2, height / 2, "LOADING", textStyle(typeRole.label, surface.paper.hex, 0.6)).setOrigin(0.5);
 
     this.scene.launch(SCENES.music);
+    // The first player token's art, rasterized now so Set the table and the board have it on first draw.
+    ensureFirstPlayerTokenTexture(this);
 
     // Progress is read before Title so no screen draws a hero or scenario locked that the player has earned.
     void Promise.all([this.#awaitFonts(), refreshUnlocks().catch(() => false)])

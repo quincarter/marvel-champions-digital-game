@@ -61,7 +61,21 @@ export interface Settings {
   readonly hoverHeroCard: boolean;
   /** The hover popover over a villain card. Defaults on. */
   readonly hoverVillainCard: boolean;
+  /**
+   * How the first player token travels to a new first player, on the Set the table screen and around the table
+   * (`view/first-player-token-motion.ts`). Defaults to a toss (the owner, 2026-10-16). Reduced motion places it instead.
+   */
+  readonly firstPlayerTokenMotion: FirstPlayerTokenMotion;
 }
+
+export type FirstPlayerTokenMotion = "toss" | "slide" | "bounce" | "spin" | "instant";
+export const FIRST_PLAYER_TOKEN_MOTION_VALUES: readonly FirstPlayerTokenMotion[] = [
+  "toss",
+  "slide",
+  "bounce",
+  "spin",
+  "instant",
+];
 
 /**
  * "standard" is Fit to screen (each screen's own sizing). "same" is Same size everywhere: a card comes out about the
@@ -157,5 +171,6 @@ export function defaultSettings(): Settings {
     cardSize: "standard",
     hoverHeroCard: true,
     hoverVillainCard: true,
+    firstPlayerTokenMotion: "toss",
   };
 }

@@ -275,3 +275,37 @@ describe("settingsLayout card size row", () => {
     expect(settingsLayout({ x: 0, y: 0, width: 1440, height: 900 }, ROW_DETAILS).content.cardSize).toBeNull();
   });
 });
+
+describe("settingsLayout's First player token row", () => {
+  const DETAIL =
+    "How the token moves to a new first player: tossed, slid, bounced or spun across the table, or placed at once.";
+  test("follows Card size on every form factor, its control inside its row, above the villain group", () => {
+    const villain = { auto: "a", hold: "h", speed: "s", dock: "d" };
+    for (const [width, height] of [
+      [390, 844],
+      [1024, 768],
+      [1440, 900],
+    ] as const) {
+      const { content } = settingsLayout(
+        { x: 0, y: 0, width, height },
+        ROW_DETAILS,
+        [],
+        villain,
+        undefined,
+        "size",
+        DETAIL,
+      );
+      const token = content.tokenMotion!;
+      expect(token.row.y).toBeGreaterThan(content.cardSize!.row.y);
+      expect(rectsOverlap(token.row, content.cardSize!.row)).toBe(false);
+      expect(content.villain!.heading.y).toBeGreaterThan(token.row.y);
+      expect(token.control.x).toBeGreaterThanOrEqual(token.row.x);
+      expect(token.control.x + token.control.width).toBeLessThanOrEqual(token.row.x + token.row.width);
+      expect(token.control.y + token.control.height).toBeLessThanOrEqual(token.row.y + token.row.height);
+    }
+  });
+
+  test("absent without a detail", () => {
+    expect(settingsLayout({ x: 0, y: 0, width: 1440, height: 900 }, ROW_DETAILS).content.tokenMotion).toBeNull();
+  });
+});

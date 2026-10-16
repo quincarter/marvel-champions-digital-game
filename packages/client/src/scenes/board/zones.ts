@@ -1637,7 +1637,9 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow, rowStyle:
   );
   // "turn done" sits at the right of this line, and a Team-Up ring takes the row's right edge: when the line does not
   // fit, it drops its least important part first (the hand count, then the form) rather than shrink to nothing.
-  const room = row.width - 12 - (seat.done ? 84 : 0);
+  // The first player token takes the row's top right corner (`board/first-player-token.ts`), so "turn done" sits left of it.
+  const tokenReserve = seat.isFirstPlayer ? 40 : 0;
+  const room = row.width - 12 - (seat.done ? 84 : 0) - tokenReserve;
   const detail = label(scene, row.x + 6, row.y + offsets.detail, "", typeRole.label, surface.ink.hex, ink.label * dim);
   // A row too short for the status pips below spells its statuses out on this line instead, so "stunned" is never lost.
   const flags = row.height < 52 ? seat.statuses.map((entry) => `${entry.status} \u00b7 `).join("") : "";
@@ -1648,21 +1650,11 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow, rowStyle:
     if (detail.width <= room) break;
   }
   fitText(detail, room, typeRole.label.size);
-  if (seat.isFirstPlayer) {
-    label(
-      scene,
-      row.x + row.width - 6,
-      row.y + offsets.name,
-      "1st player",
-      typeRole.label,
-      signal.caution.hex,
-      ink.body,
-    ).setOrigin(1, 0);
-  }
+  // The first player token itself sits at the right of the name line (`board/first-player-token.ts`).
   if (seat.done) {
     label(
       scene,
-      row.x + row.width - 6,
+      row.x + row.width - 6 - tokenReserve,
       row.y + offsets.detail,
       "turn done",
       typeRole.label,

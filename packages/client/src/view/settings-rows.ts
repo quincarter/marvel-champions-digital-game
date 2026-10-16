@@ -18,13 +18,16 @@ import {
 import {
   CARD_HOVER_SCALE_VALUES,
   CARD_SIZE_VALUES,
+  FIRST_PLAYER_TOKEN_MOTION_VALUES,
   SHARP_TEXT_RESOLUTION_CEILING,
   type CardHoverScale,
   type CardSize,
+  type FirstPlayerTokenMotion,
   type Settings,
   type VillainAutoAdvance,
   type VillainBeatSpeed,
 } from "../settings.js";
+import { FIRST_PLAYER_TOKEN_MOTION_LABELS } from "./first-player-token-motion.js";
 
 export type SettingsRowId =
   | "reduced-motion"
@@ -412,4 +415,35 @@ export function cardSizeRowInfoOf(settings: Settings): CardSizeRowInfo {
 /** `settings` with the card size set; a value that is not one of the three changes nothing. */
 export function nextSettingsAfterCardSize(settings: Settings, value: CardSize): Settings {
   return CARD_SIZE_VALUES.includes(value) ? { ...settings, cardSize: value } : settings;
+}
+
+// ---------------------------------------------------------------------------
+// "First player token": how the token travels to a new first player (`view/first-player-token-motion.ts`). A
+// five-segment choice after Card size, shown on every form factor.
+// ---------------------------------------------------------------------------
+
+export interface TokenMotionRowInfo {
+  readonly title: string;
+  readonly detail: string;
+  readonly options: readonly { readonly value: FirstPlayerTokenMotion; readonly label: string }[];
+  readonly selected: FirstPlayerTokenMotion;
+}
+
+export function tokenMotionRowInfoOf(settings: Settings): TokenMotionRowInfo {
+  return {
+    title: "First player token",
+    detail: settings.reducedMotion
+      ? "How the token moves to a new first player. Reduced motion is on, so it is placed without moving."
+      : "How the token moves to a new first player: tossed, slid, bounced or spun across the table, or placed at once.",
+    options: FIRST_PLAYER_TOKEN_MOTION_VALUES.map((value) => ({
+      value,
+      label: FIRST_PLAYER_TOKEN_MOTION_LABELS[value],
+    })),
+    selected: settings.firstPlayerTokenMotion,
+  };
+}
+
+/** `settings` with the token's motion set; a value that is not one of the five changes nothing. */
+export function nextSettingsAfterTokenMotion(settings: Settings, value: FirstPlayerTokenMotion): Settings {
+  return FIRST_PLAYER_TOKEN_MOTION_VALUES.includes(value) ? { ...settings, firstPlayerTokenMotion: value } : settings;
 }

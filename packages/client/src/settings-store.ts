@@ -11,6 +11,7 @@
 import {
   CARD_HOVER_SCALE_VALUES,
   CARD_SIZE_VALUES,
+  FIRST_PLAYER_TOKEN_MOTION_VALUES,
   SHARP_TEXT_RESOLUTION_CEILING,
   VILLAIN_AUTO_ADVANCE_VALUES,
   VILLAIN_BEAT_SPEED_VALUES,
@@ -61,6 +62,8 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   if (hoverScaleValue !== undefined) out.cardHoverScale = hoverScaleValue;
   const cardSizeValue = CARD_SIZE_VALUES.find((value) => value === source["cardSize"]);
   if (cardSizeValue !== undefined) out.cardSize = cardSizeValue;
+  const tokenMotionValue = FIRST_PLAYER_TOKEN_MOTION_VALUES.find((value) => value === source["firstPlayerTokenMotion"]);
+  if (tokenMotionValue !== undefined) out.firstPlayerTokenMotion = tokenMotionValue;
   const resolution = source["textResolution"];
   if (typeof resolution === "number" && Number.isFinite(resolution)) {
     out.textResolution = Math.min(SHARP_TEXT_RESOLUTION_CEILING, Math.max(1, resolution));

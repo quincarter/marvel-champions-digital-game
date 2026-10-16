@@ -161,6 +161,11 @@ describe("parseSettingsOverrides", () => {
     });
   });
 
+  test("firstPlayerTokenMotion: only the five known styles are read", () => {
+    expect(parseSettingsOverrides('{"firstPlayerTokenMotion":"spin"}')).toEqual({ firstPlayerTokenMotion: "spin" });
+    expect(parseSettingsOverrides('{"firstPlayerTokenMotion":"juggle"}')).toEqual({});
+  });
+
   test("cardSize: only the three known values are read", () => {
     expect(parseSettingsOverrides('{"cardSize":"xlarge"}')).toEqual({ cardSize: "xlarge" });
     expect(parseSettingsOverrides('{"cardSize":"large"}')).toEqual({ cardSize: "large" });

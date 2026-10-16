@@ -8,6 +8,8 @@ import {
   nextSettingsAfterCardSize,
   nextSettingsAfterCardHover,
   nextSettingsAfterVillainRow,
+  nextSettingsAfterTokenMotion,
+  tokenMotionRowInfoOf,
   villainRowInfoOf,
   settingsRowInfoOf,
   sharperTextTargetResolution,
@@ -33,6 +35,7 @@ const BASE: Settings = {
   cardSize: "standard",
   hoverHeroCard: true,
   hoverVillainCard: true,
+  firstPlayerTokenMotion: "toss",
 };
 
 describe("settingsRowInfoOf", () => {
@@ -52,6 +55,7 @@ describe("settingsRowInfoOf", () => {
       cardSize: "standard",
       hoverHeroCard: true,
       hoverVillainCard: true,
+      firstPlayerTokenMotion: "toss",
     });
     expect(rows.find((r) => r.id === "reduced-motion")?.on).toBe(true);
     expect(rows.find((r) => r.id === "sharper-text")?.on).toBe(true);
@@ -267,5 +271,25 @@ describe("card size row", () => {
   test("a choice sets it, and a bad value changes nothing", () => {
     expect(nextSettingsAfterCardSize(BASE, "xlarge").cardSize).toBe("xlarge");
     expect(nextSettingsAfterCardSize(BASE, "huge" as never)).toBe(BASE);
+  });
+});
+
+describe("first player token row", () => {
+  test("offers the five styles, toss by default", () => {
+    const info = tokenMotionRowInfoOf(BASE);
+    expect(info.title).toBe("First player token");
+    expect(info.options.map((o) => o.label)).toEqual(["Toss", "Slide", "Bounce", "Spin", "Instant"]);
+    expect(info.selected).toBe("toss");
+    expect(defaultSettings().firstPlayerTokenMotion).toBe("toss");
+  });
+
+  test("says when Reduced motion places the token instead", () => {
+    expect(tokenMotionRowInfoOf({ ...BASE, reducedMotion: true }).detail).toContain("Reduced motion is on");
+    expect(tokenMotionRowInfoOf(BASE).detail).not.toContain("Reduced motion");
+  });
+
+  test("a choice sets it, and a bad value changes nothing", () => {
+    expect(nextSettingsAfterTokenMotion(BASE, "bounce").firstPlayerTokenMotion).toBe("bounce");
+    expect(nextSettingsAfterTokenMotion(BASE, "juggle" as never)).toBe(BASE);
   });
 });

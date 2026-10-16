@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Red speech bubble with three exclamation marks</title>
+  <desc id="desc">A hand-drawn alert icon: a cream speech bubble with a red outline and three red exclamation marks.</desc>
+  <defs>
+    <filter id="soft-shadow" x="-20%" y="-20%" width="140%" height="145%">
+      <feDropShadow dx="1.8" dy="3.2" stdDeviation="2.3" flood-color="#172d3b" flood-opacity=".35"/>
+    </filter>
+    <linearGradient id="blue-rim" x1="36" y1="43" x2="218" y2="211" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#cdeaf9"/>
+      <stop offset=".45" stop-color="#80b9d5"/>
+      <stop offset="1" stop-color="#d5effb"/>
+    </linearGradient>
+    <radialGradient id="paper" cx=".52" cy=".37" r=".72">
+      <stop stop-color="#fffdf4"/>
+      <stop offset=".72" stop-color="#fff7df"/>
+      <stop offset="1" stop-color="#f4d9b6"/>
+    </radialGradient>
+    <linearGradient id="red" x1="71" y1="78" x2="186" y2="169" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ef4d4b"/>
+      <stop offset="1" stop-color="#cf312f"/>
+    </linearGradient>
+    <pattern id="dots" width="8" height="8" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.1" fill="#a61f2c" opacity=".22"/>
+    </pattern>
+  </defs>
+  <path d="M28.5 118.1C28.5 75 66.7 42.4 117.7 39.1c52.5-3.7 96.2 14.1 109.8 51.1 15.3 41.8-5.4 83.8-41.8 99.7-24 10.4-55.2 11.9-88.3 6.5l-36.4 19.9c-3.4 1.9-7.2-1.6-5.4-5.1l11.4-23.9C41.9 176.7 28.5 151.8 28.5 118.1Z" fill="url(#blue-rim)" stroke="#99c9df" stroke-width="5" stroke-linejoin="round" filter="url(#soft-shadow)"/>
+  <path d="M31.8 117C31.8 79.4 65.5 51.3 118.3 47.1c51.1-4.1 91.8 12.6 103.6 46.4 13 37.3-5.5 73-38.8 87.6-24.2 10.6-54.8 11.1-85.9 4.6l-31.7 19.7 10-24.3C47.6 170.4 31.8 147.1 31.8 117Z" fill="url(#red)" stroke="#671a20" stroke-width="3.7" stroke-linejoin="round"/>
+  <path d="M31.8 117C31.8 79.4 65.5 51.3 118.3 47.1c51.1-4.1 91.8 12.6 103.6 46.4 13 37.3-5.5 73-38.8 87.6-24.2 10.6-54.8 11.1-85.9 4.6l-31.7 19.7 10-24.3C47.6 170.4 31.8 147.1 31.8 117Z" fill="url(#dots)" opacity=".85"/>
+  <path d="M53.4 116.3c1.6-26.1 25.8-46.1 64-51.5 38.2-5.5 73.2 5.2 85.3 29.4 12.8 25.7.6 55.5-26.6 70.8-20.2 11.4-49.2 14.9-78.2 8.3l-23.2 14.7 7.1-18.5c-18.8-11.4-29.8-29.7-28.4-53.2Z" fill="url(#paper)" stroke="#4e191b" stroke-width="3.6" stroke-linejoin="round"/>
+  <path d="M57.2 113.7c2.7-24.2 27.4-42.5 61.6-47.1" fill="none" stroke="#fffdf5" stroke-width="2.2" stroke-linecap="round" opacity=".9"/>
+  <g fill="url(#red)" stroke="#5b171c" stroke-width="3.4" stroke-linejoin="round">
+    <path d="M81.6 91.6q1.1-3.1 5.4-3.8l16.8-2.2q5.8-.3 4.4 6l-12 45.1q-1.7 6.4-7.2 5.7l-7.6-1q-6.1-.8-4.3-7.2Z"/>
+    <path d="M123.9 80.4q1.8-3.3 6.1-2.2l16.2 4.8q5.5 2 2.4 7.7l-20.8 42q-3 5.9-8.3 4.5l-7.3-2q-5.8-1.5-3.1-7.5Z"/>
+    <path d="M165.9 88.8q2.8-2.6 6.5-.3l18.4 11.6q5.1 3.4 1 8.2l-31.5 35.7q-4.2 4.8-8.7 1.1l-6.3-5.2q-4.8-4-1-8.3Z"/>
+  </g>
+  <g fill="#e84b45" stroke="#5b171c" stroke-width="3.3">
+    <ellipse cx="84.7" cy="151.2" rx="9.3" ry="7.6"/>
+    <ellipse cx="116.2" cy="149.1" rx="9.3" ry="7.6"/>
+    <ellipse cx="146.8" cy="154.5" rx="9.3" ry="7.6"/>
+  </g>
+  <g fill="#ff9b76" opacity=".6">
+    <ellipse cx="82.4" cy="149.2" rx="3.3" ry="2.4"/>
+    <ellipse cx="113.8" cy="147.1" rx="3.3" ry="2.4"/>
+    <ellipse cx="144.6" cy="152.4" rx="3.3" ry="2.4"/>
+  </g>
+</svg>

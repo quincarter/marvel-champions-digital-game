@@ -47,6 +47,7 @@ import { playerName } from "../view/names.js";
 import type { GamepadIntent } from "../view/gamepad.js";
 import { sameTarget, stepFocus, type FocusTarget } from "../view/focus.js";
 import {
+  PHONE_TABS,
   boardLayout,
   formFactorFor,
   scrollLayout,
@@ -81,6 +82,7 @@ import { MECHANIC_TRYITS, mechanicLessonDoneKey } from "../guide/mechanic-tryits
 import { drawActionBar } from "./board/action-bar.js";
 import { drawCharacter } from "./board/character-panel.js";
 import { drawChrome, drawPhoneTabs } from "./board/chrome.js";
+import { BoardFirstPlayerToken } from "./board/first-player-token.js";
 import { emptyFrame, type BoardDrawContext, type BoardFrame } from "./board/context.js";
 import { BoardController, type SourceChoiceView } from "./board/controller.js";
 import type { GuideGate } from "./board/guide-gate.js";
@@ -265,6 +267,9 @@ export class BoardScene extends Phaser.Scene {
   readonly #playAreaScroll = new PlayAreaScroll(() => this.#draw());
   readonly #logPanel = new LogPanel(() => this.#draw());
   readonly #motion = new BoardMotion(this);
+  readonly #firstPlayerToken = new BoardFirstPlayerToken();
+  /** Dev e2e hook only: who the token is drawn for in place of the game's first player, to see a pass without a round. */
+  #debugFirstPlayer: PlayerId | null = null;
   /**
    * How far the table is scrolled at a Card size above Standard (`LayoutOptions.cardScale`): the offset the next draw lays
    * the table's zones out at. 0 at Standard, where nothing scrolls. Clamped to the layout's extent on every draw.
@@ -307,6 +312,13 @@ export class BoardScene extends Phaser.Scene {
     if (this.#scrollDirty || (this.#model && appSession().settings.cardSize !== this.#drawnCardSize)) this.#draw();
     // A drawn card's ghost starting or landing: the ghost is redrawn from its own clock, so something has to ask.
     else if (this.#model && this.#motion.needsRedraw()) this.#draw();
+    // The first player token passed while the table was covered: its flight starts the moment the table is back.
+    else if (
+      this.#model &&
+      this.#firstPlayerToken.waiting(this.#debugFirstPlayer ?? this.#model.firstPlayerId) &&
+      !this.#tokenCovered()
+    )
+      this.#draw();
     this.#hand.tick(deltaMs);
     this.#playAreaScroll.row.tick(deltaMs);
     // Checked every frame, not only on a store update: the villain-phase walkthrough and the pending-choice
@@ -335,6 +347,8 @@ export class BoardScene extends Phaser.Scene {
     // timed from it (`ui/scene-clock.ts`).
     syncSceneClock(this);
     this.#motion.reset();
+    this.#firstPlayerToken.reset();
+    this.#debugFirstPlayer = null;
     this.#log = emptyLog();
     this.#cardHistory = emptyCardHistoryLog();
     appSession().gameLog = this.#log;
@@ -573,6 +587,14 @@ export class BoardScene extends Phaser.Scene {
         tipDisplayed: () => this.#tip?.displayed?.id ?? null,
         tipRects: () => this.#tip?.debugRects() ?? null,
         activeTab: () => this.#activeTab,
+        // The first player token: where it is and who holds it; `passFirstPlayerToken` draws it for another seat.
+        firstPlayerToken: () => this.#firstPlayerToken.debugState(),
+        seatIds: () =>
+          this.#model ? [this.#model.perspectiveId, ...this.#model.team.map((seat) => seat.playerId)] : [],
+        passFirstPlayerToken: (playerId: string) => {
+          this.#debugFirstPlayer = playerId as PlayerId;
+          this.#draw();
+        },
         // Each Team-Up ring's click target and whether its hover label is showing (dev e2e hook).
         teamUpRings: () =>
           this.children.list
@@ -1281,6 +1303,7 @@ export class BoardScene extends Phaser.Scene {
     if (searchedPick) drawSearchedPickSheet(ctx, { x: 0, y: 0, width, height }, searchedPick);
     this.#drawTargetRings();
     this.#drawFocusRing();
+    this.#drawFirstPlayerToken(model, layout);
     this.#revealTargets();
     // Turns the moves of a fresh state (if any landed) into travels, now that
     // this frame holds where every card ended up. A no-op on every other redraw.
@@ -1349,6 +1372,49 @@ export class BoardScene extends Phaser.Scene {
     this.#focusRegion = "board";
     this.#guideFocusOwner = null;
     this.#drawFocusRing();
+  }
+
+  /** The first player token, on the first player's identity card (or the top bar while that card is on another tab). */
+  #drawFirstPlayerToken(model: BoardModel, layout: BoardLayout): void {
+    // On a phone the first player's card can be on another tab: the token then sits on that tab (Me or Team).
+    const chrome = layout.zones.chrome;
+    const tabs = layout.zones.tabs;
+    const tabIds = PHONE_TABS.filter((tab) => tab !== "team" || model.team.length > 0);
+    const holderTab = tabIds.indexOf(
+      (this.#debugFirstPlayer ?? model.firstPlayerId) === model.perspectiveId ? "me" : "team",
+    );
+    const fallback: Rect =
+      tabs && holderTab >= 0
+        ? {
+            x: tabs.x + ((holderTab + 1) * tabs.width) / tabIds.length - 22,
+            y: tabs.y - 11,
+            width: 24,
+            height: 30,
+          }
+        : chrome
+          ? { x: chrome.x + chrome.width * 0.5 - 20, y: chrome.y, width: 40, height: chrome.height }
+          : { x: 8, y: 8, width: 40, height: 40 };
+    this.#firstPlayerToken.draw(
+      this,
+      this.#debugFirstPlayer ?? model.firstPlayerId,
+      (playerId) => {
+        if (playerId === model.perspectiveId) return this.#frame.hitRects.get(model.me.instanceId) ?? null;
+        const seat = model.team.find((row) => row.playerId === playerId);
+        return seat ? (this.#frame.hitRects.get(seat.identityInstanceId) ?? null) : null;
+      },
+      fallback,
+      this.#tokenCovered(),
+    );
+  }
+
+  /**
+   * Whether the token's pass should wait: while the villain phase replays its steps on the docked table (the engine has
+   * already passed it; the replay shows it at its own last step), or while something covers the table outright.
+   */
+  #tokenCovered(): boolean {
+    if (this.#villainReplay !== null) return true;
+    const docked = this.#villainDock !== null && this.scene.isActive(SCENES.villainPhase);
+    return !docked && this.#tableCoveredForBand();
   }
 
   #drawTabs(rect: Rect, model: BoardModel): void {

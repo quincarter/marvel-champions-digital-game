@@ -30,7 +30,7 @@ import {
   POOL_SCENARIOS,
   POOL_VERSION,
 } from "../content/pool.js";
-import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
+import { accent, dotGrid, hit, ink, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTextInput, dashedRect, fitText, label, paintDotGrid, sectionHeader } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
@@ -141,13 +141,21 @@ import type { BuilderContext } from "../view/civil-war-builder-model.js";
 import type { CivilWarBuilderData } from "./civil-war-builder.js";
 import { SCENES } from "./keys.js";
 import { appSession, deckStorage } from "../session.js";
-import { tableRulesOf } from "../settings.js";
+import { tableRulesOf, type FirstPlayerTokenMotion } from "../settings.js";
 import type { DecksSceneData } from "./decks.js";
 import type { SeatsData } from "./seats.js";
 import type { ScenarioIntroData } from "./scenario-intro.js";
 import { scenarioIntroFor } from "../campaign/scenario-intros.js";
 import { ART_CATALOG, introArtFor } from "../art/scenario-art.js";
 import { destroyChildren } from "../ui/destroy-children.js";
+import {
+  FIRST_PLAYER_TOKEN_TEXTURE,
+  FirstPlayerTokenView,
+  ensureFirstPlayerTokenTexture,
+  flyFirstPlayerToken,
+} from "../ui/first-player-token.js";
+import { effectiveTokenMotion, tokenMotionDurationMs } from "../view/first-player-token-motion.js";
+import { clampedProgress } from "../view/motion-math.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 
 /** Every encounter set's printed name, for the Standard and Expert chips. */
@@ -233,6 +241,15 @@ export class TableSetupScene extends Phaser.Scene {
   #compactViewport: Rect | null = null;
   /** The current compact layout, kept for `ensureVisible` callbacks built at draw time but resolved at focus time (`#compactScrollIntoView`), and for `#syncCompactSeedInput`. */
   #compactLayout: TableSetupCompactLayout | null = null;
+  /** Where the first player token was drawn last, and for which seat: a new first player's token flies from here. */
+  #tokenAt: { readonly index: number; readonly x: number; readonly y: number } | null = null;
+  #tokenView: FirstPlayerTokenView | null = null;
+  #tokenFlight: {
+    readonly from: { readonly x: number; readonly y: number };
+    readonly index: number;
+    readonly style: FirstPlayerTokenMotion;
+    readonly startMs: number;
+  } | null = null;
 
   constructor() {
     super(SCENES.setup);
@@ -249,6 +266,9 @@ export class TableSetupScene extends Phaser.Scene {
     this.#compactScroll = new VariableListScroll();
     this.#modularScroll = new VariableListScroll();
     this.#openGroups = new Map();
+    this.#tokenAt = null;
+    this.#tokenView = null;
+    this.#tokenFlight = null;
     this.scale.on("resize", this.#rebuild, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.#rebuild, this);
@@ -395,6 +415,11 @@ export class TableSetupScene extends Phaser.Scene {
         modularHeader: () => this.#modularRightLabel(scenario, requiredSets.length, modularOptions),
         encounterDeckSize: () => encounterDeckSize,
         summary: () => gameSummaryRows.map((r) => [r.label, r.value]),
+        // The first player token: which seat it rests on, where it is drawn now, and where it is headed.
+        firstPlayerToken: () =>
+          this.#tokenView?.active && this.#tokenAt
+            ? { index: this.#tokenAt.index, x: this.#tokenView.body.x, y: this.#tokenView.body.y, at: this.#tokenAt }
+            : null,
       };
     }
 
@@ -1335,6 +1360,13 @@ export class TableSetupScene extends Phaser.Scene {
         .setOrigin(0.5);
       fitText(bottom, cellRect.width - 8, typeRole.label.size);
     });
+    // The token sits on the first player's chip, over its top right corner; drawn after every chip so it is on top.
+    const tokenSize = 34;
+    cells.forEach((cell, index) => {
+      if (!cell.selected) return;
+      const x = rect.x + index * (cellWidth + gap) + cellWidth - tokenSize * 0.3;
+      this.#drawFirstPlayerToken(index, { x, y: rect.y + tokenSize * 0.3 }, tokenSize);
+    });
     const randomRect: Rect = { x: rect.x + cells.length * (cellWidth + gap), y: rect.y, width: cellWidth, height: h };
     const roll = (): void => {
       this.#draft = setFirstPlayerIndex(this.#draft, rollFirstPlayerIndex(this.#draft.seed, this.#draft.seats.length));
@@ -2210,6 +2242,39 @@ export class TableSetupScene extends Phaser.Scene {
     );
   }
 
+  /** The first player token at `at`; a new first player's token flies there from where it was last drawn, in the player's chosen style. */
+  #drawFirstPlayerToken(index: number, at: { readonly x: number; readonly y: number }, size: number): void {
+    const from = this.#tokenAt;
+    const now = this.time.now;
+    // A new first player starts a flight from wherever the token is now (mid-flight included); a redraw while it is
+    // flying (the saved decks arriving, a resize) picks the same flight up where it was rather than dropping it.
+    if (from && from.index !== index) {
+      const drawn = this.#tokenView?.active ? this.#tokenView.body : null;
+      this.#tokenFlight = {
+        from: drawn ? { x: drawn.x, y: drawn.y } : from,
+        index,
+        style: effectiveTokenMotion(appSession().settings),
+        startMs: now,
+      };
+    }
+    this.#tokenAt = { index, x: at.x, y: at.y };
+    const view = new FirstPlayerTokenView(this, at, size);
+    this.#tokenView = view;
+    if (!this.textures.exists(FIRST_PLAYER_TOKEN_TEXTURE)) ensureFirstPlayerTokenTexture(this, () => this.#rebuild());
+    const flight = this.#tokenFlight;
+    if (!flight || flight.index !== index) {
+      this.#tokenFlight = null;
+      return;
+    }
+    const progress = clampedProgress(now - flight.startMs, tokenMotionDurationMs(flight.style, flight.from, at));
+    flyFirstPlayerToken(this, view, flight.from, at, flight.style, {
+      startProgress: progress,
+      onLanded: () => {
+        if (this.#tokenFlight === flight) this.#tokenFlight = null;
+      },
+    });
+  }
+
   /** One seat cell per seated deck — a radio dot (filled amber for the first player), the hero's name, and a small "FIRST PLAYER"/"SEAT N" label (wide/tablet portrait) or a compact "YOU"/"S2" chip (`chipLabel`, phone). */
   #seatCells(deckOptions: readonly DeckOption[]): readonly SeatCell[] {
     return this.#draft.seats.map((deckId, index) => {
@@ -2256,12 +2321,15 @@ export class TableSetupScene extends Phaser.Scene {
         cellRect.height - 1.5,
       );
 
-      const dotSize = Math.min(16, cellRect.height * 0.28);
+      // The first player token's spot: the token itself on the first player (drawn after every cell, on top), an
+      // empty dashed spot where it could go on everyone else.
+      const dotSize = Math.min(30, cellRect.height * 0.5);
       const dotCx = cellRect.x + 10 + dotSize / 2;
       const dotCy = cellRect.y + cellRect.height / 2;
-      const dot = this.add.graphics();
-      dot.lineStyle(2, surface.ink.hex, cell.selected ? 1 : ink.disabled).strokeCircle(dotCx, dotCy, dotSize / 2);
-      if (cell.selected) dot.fillStyle(signal.caution.hex, 1).fillCircle(dotCx, dotCy, dotSize / 2 - 3);
+      if (!cell.selected) {
+        const spot = this.add.graphics();
+        spot.lineStyle(1.5, surface.ink.hex, ink.disabled).strokeCircle(dotCx, dotCy, dotSize / 2 - 2);
+      }
 
       const textX = dotCx + dotSize / 2 + 8;
       const textWidth = cellRect.x + cellRect.width - textX - 6;
@@ -2282,6 +2350,13 @@ export class TableSetupScene extends Phaser.Scene {
         ink.label,
       );
       fitText(meta, textWidth, typeRole.label.size);
+    });
+    cells.forEach((cell, index) => {
+      if (!cell.selected) return;
+      const dotSize = Math.min(30, rect.height * 0.5);
+      const at = { x: rect.x + index * (cellWidth + gap) + 10 + dotSize / 2, y: rect.y + rect.height / 2 };
+      // A little larger than its spot, so it reads as a token sitting on the seat.
+      this.#drawFirstPlayerToken(index, at, dotSize * 1.35);
     });
     if (includeRandom) {
       const randomRect: Rect = {
