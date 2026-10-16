@@ -1,0 +1,3 @@
+kind: Docs
+body: 'CLAUDE.md now sets the order of rules authority: the latest RRG, then errata, then rulings after v1.8, then older rulings where v1.8 doesn''t contradict them, then engine interpretations.'
+time: 2026-10-16T00:00:13.5890254-04:00
