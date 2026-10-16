@@ -51,7 +51,7 @@ export function settingsSectionsOf(input: {
       ],
     },
     { id: "motion", title: "Animation and display", items: ["reduced-motion", "token-motion", "sharper-text"] },
-    { id: "sound", title: "Sound", items: ["sound"] },
+    { id: "sound", title: "Sound", items: ["sound", "music-shuffle"] },
     { id: "guide", title: "Guide", items: input.guideRowIds },
     { id: "more", title: "More", items: ["unlocks", "save-data", "rules"] },
   ];

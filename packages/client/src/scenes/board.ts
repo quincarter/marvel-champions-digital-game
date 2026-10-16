@@ -65,7 +65,7 @@ import { sameHandTags, type VillainHandTag } from "../view/villain-hand-tags.js"
 import { reviewHandleRect, showReviewHandle } from "../view/villain-review.js";
 import type { TableHold } from "../view/villain-replay.js";
 import type { SessionState } from "../store/session-store.js";
-import { SCENES } from "./keys.js";
+import { CHROME_SCENES, SCENES } from "./keys.js";
 import { HoverPreview, isMousePointer } from "../ui/card-hover-preview.js";
 import { hoverArea } from "../view/card-hover.js";
 import { sheetIsCovered } from "../view/choice-sheet-sync.js";
@@ -396,6 +396,7 @@ export class BoardScene extends Phaser.Scene {
           (key) =>
             key !== SCENES.board &&
             key !== SCENES.music &&
+            !CHROME_SCENES.has(key) &&
             !(key === SCENES.choice && sheetCovered) &&
             this.scene.isActive(key),
         );

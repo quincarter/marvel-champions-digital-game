@@ -124,9 +124,13 @@ export const SCENES = {
   reportIssue: "ReportIssueOverlay",
   /** The Report button (`scenes/report-button.ts`): a bug icon in a screen's top bar, drawn above every overlay. */
   reportButton: "ReportButton",
+  /** The music button (#191, `scenes/music-button.ts`): a note beside the Report button, announcing each new song. */
+  musicButton: "MusicButton",
+  /** The music player (#191, `scenes/music-player.ts`), opened from the music button. */
+  musicPlayer: "MusicPlayerOverlay",
 } as const;
 
 /** Scenes that run above every screen but draw only an edge control, so they never count as covering a screen (`ui/widgets.ts`). */
-export const CHROME_SCENES: ReadonlySet<string> = new Set([SCENES.reportButton]);
+export const CHROME_SCENES: ReadonlySet<string> = new Set([SCENES.reportButton, SCENES.musicButton]);
 
 export type SceneKey = (typeof SCENES)[keyof typeof SCENES];

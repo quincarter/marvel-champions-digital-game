@@ -67,6 +67,8 @@ import { TeamUpInfoOverlay } from "./scenes/team-up-info.js";
 import { EvidenceOverlay } from "./scenes/evidence.js";
 import { PileViewOverlay } from "./scenes/pile-view.js";
 import { MusicScene } from "./audio/music-controller.js";
+import { MusicButtonScene } from "./scenes/music-button.js";
+import { MusicPlayerOverlay } from "./scenes/music-player.js";
 import { ExtrasScene } from "./scenes/extras.js";
 import { ExtrasViewerScene } from "./scenes/extras-viewer.js";
 import { ExtrasReaderScene } from "./scenes/extras-reader.js";
@@ -205,7 +207,10 @@ const game = new Phaser.Game({
     PileViewOverlay,
     ExtrasViewerScene,
     MusicScene,
-    // Last, so they draw above every screen and overlay (#176): the panel, and the tab that opens it above that.
+    // Last, so they draw above every screen and overlay (#176, #191): the music player and its button, then the report
+    // panel and the tab that opens it above that.
+    MusicPlayerOverlay,
+    MusicButtonScene,
     ReportIssueOverlay,
     ReportButtonScene,
   ],

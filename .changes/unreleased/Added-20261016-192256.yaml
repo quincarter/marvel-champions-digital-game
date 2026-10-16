@@ -1,0 +1,3 @@
+kind: Added
+body: 'Music player (#191): a music button in the table''s and Title''s top bar announces each new song with a Now playing pill (a notification on phones) and opens a player with your earned songs, Shuffle and Next; Extras'' Music tab gains an expanded player with a progress bar; Settings ▸ Sound adds Shuffle earned music.'
+time: 2026-10-16T19:22:56.3563737-04:00

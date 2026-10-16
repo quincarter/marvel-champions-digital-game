@@ -19,6 +19,8 @@ export const KEEPS_REPORT_SLOT: ReadonlySet<string> = new Set([
   "MusicScene",
   "ReportButton",
   "ReportIssueOverlay",
+  "MusicButton",
+  "MusicPlayerOverlay",
 ]);
 
 export interface RunningScene {

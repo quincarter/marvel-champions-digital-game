@@ -759,6 +759,8 @@ export class BootScene extends Phaser.Scene {
       .then((jump) => {
         // The Report button (#176), from here on: it draws in the top bar of each screen that leaves it a slot.
         this.scene.launch(SCENES.reportButton);
+        // The music button (#191), beside it.
+        this.scene.launch(SCENES.musicButton);
         if (!jump) {
           // Boot's own normal hand-off (no `?screen=` dev jump): a plain fade, same as every other
           // screen-to-screen move. The dev jumps below stay hard cuts — they're QA/screenshot entry

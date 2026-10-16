@@ -1044,7 +1044,7 @@ export class PauseOverlay extends Phaser.Scene {
     const { settings } = appSession();
     const next = nextSettingsAfterToggle(settings, row.id, globalThis.devicePixelRatio || 1);
     if (row.id === "sharper-text") setTextResolution(next.textResolution);
-    if (row.id === "sound") appSession().music?.syncSettings(next);
+    if (row.id === "sound" || row.id === "music-shuffle") appSession().music?.syncSettings(next);
     appSession().settings = next;
     this.#draw();
   }

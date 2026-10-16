@@ -69,6 +69,8 @@ import type { SeatsData } from "./seats.js";
 import type { Deck } from "@mc/content";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { setReportSlot } from "../ui/report-slot.js";
+import { setMusicSlot } from "../ui/music-slot.js";
+import { musicSlotBeside } from "../view/music-player.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 
 /**
@@ -173,12 +175,15 @@ export class TitleScene extends Phaser.Scene {
     });
     // The Report button's slot (#176): level with the eyebrow, at the menu column's right edge.
     const reportSize = layout.split ? 44 : 40;
-    setReportSlot(this.scene.key, {
+    const reportRect = {
       x: layout.left + layout.column - reportSize,
       y: Math.max(8, Math.round(layout.eyebrow.y + layout.eyebrow.height / 2 - reportSize / 2)),
       width: reportSize,
       height: reportSize,
-    });
+    };
+    setReportSlot(this.scene.key, reportRect);
+    // The music button's (#191), just left of it.
+    setMusicSlot(this.scene.key, musicSlotBeside(reportRect));
 
     // Ground: split desktop/tablet (ink art panel left, red rule, paper menu panel right); one ink ground on phone.
     if (layout.split) {

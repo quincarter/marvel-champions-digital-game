@@ -10,6 +10,8 @@
  *  - Looping playback with smooth cross-fades between tracks.
  *  - Browser autoplay policy handling (Phaser WebAudioSoundManager queues sound until unlocked).
  *  - Syncing mute state with `settings.sound`.
+ *  - Shuffling the songs earned in Extras (#191, `settings.musicShuffle` or the music player's Shuffle), one after
+ *    another, in place of each screen's own music; and telling the music button when a song starts.
  */
 
 import Phaser from "phaser";
@@ -27,6 +29,8 @@ import {
   pickTrack,
   villainTracksFor,
 } from "./music-catalog.js";
+import { extras } from "../progression/progression.js";
+import { earnedSongsOf, nextShuffled } from "../view/music-player.js";
 
 /** Default BGM volume when unmuted (0.0 to 1.0). Sits cleanly under UI sound. */
 export const DEFAULT_MUSIC_VOLUME = 0.45;
@@ -56,10 +60,21 @@ export interface MusicController {
    * once and carried across those screens. Leaves what is playing alone when the campaign has none.
    */
   playInterlude(campaignId: string): void;
-  /** Extras' jukebox: one chosen track, looped until another screen asks for its own music. */
+  /**
+   * Extras' jukebox and the music player: one chosen track, looped until another screen asks for its own music. With
+   * shuffle on, the shuffle goes on from it instead.
+   */
   playTrack(track: Track): void;
-  /** The track the jukebox was last asked for, while it is still the one playing; else null. */
+  /** The track the jukebox or the music player was last asked for, while it is still the one playing; else null. */
   jukeboxKey(): string | null;
+  /** The music player's Next: the next earned song, shuffled. */
+  next(): void;
+  /** The song playing now (or loading to play next), or null in silence. */
+  nowPlaying(): Track | null;
+  /** How far into the playing song, in seconds, for the expanded player's progress bar; null in silence. */
+  progress(): { readonly seek: number; readonly duration: number } | null;
+  /** Calls `listener` each time a song starts; returns the way to stop. */
+  onTrackStart(listener: (track: Track) => void): () => void;
   syncSettings(settings: Settings): void;
   stop(fadeDurationMs?: number): void;
 }
@@ -69,8 +84,15 @@ export class MusicScene extends Phaser.Scene implements MusicController {
   #currentKey: string | null = null;
   #targetKey: string | null = null;
   #lastTitleKey: string | null = null;
-  #mode: "title" | "battle" | "outcome" | "interlude" | "finale" | "jukebox" | "stopped" = "stopped";
+  #targetTrack: Track | null = null;
+  #mode: "title" | "battle" | "outcome" | "interlude" | "finale" | "jukebox" | "shuffle" | "stopped" = "stopped";
   #targetVolume = DEFAULT_MUSIC_VOLUME;
+  #shuffleOn = false;
+  /** The shuffle's songs still to come this round. */
+  #queue: Track[] = [];
+  /** The current screen's own music request, made again when shuffle is turned off. */
+  #ambient: (() => void) | null = null;
+  readonly #listeners = new Set<(track: Track) => void>();
 
   constructor() {
     super(SCENES.music);
@@ -81,10 +103,17 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     // running above its own, and this one runs above every screen for the whole session (`ui/widgets.ts`).
     this.sys.setVisible(false);
     appSession().music = this;
+    this.#shuffleOn = appSession().settings.musicShuffle;
     this.syncSettings(appSession().settings);
   }
 
   playTitle(): void {
+    this.#ambient = () => this.playTitle();
+    if (this.#shuffleAmbient()) return;
+    this.#title();
+  }
+
+  #title(): void {
     if (this.#mode === "title" && (this.#currentSound?.isPlaying || this.#targetKey !== null)) {
       return;
     }
@@ -103,6 +132,8 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     readonly campaignId?: string | undefined;
     readonly packCode?: string | undefined;
   }): void {
+    this.#ambient = () => this.playBattle(context);
+    if (this.#shuffleAmbient()) return;
     // An issue opener already started this villain's theme: keep it rather than cutting to another pick.
     if (context.scenarioId && this.#isPlayingOneOf(villainTracksFor(MUSIC_CATALOG, context.scenarioId))) {
       this.#mode = "battle";
@@ -137,8 +168,10 @@ export class MusicScene extends Phaser.Scene implements MusicController {
   }
 
   playSetup(scenarioId: string | undefined): void {
+    this.#ambient = () => this.playSetup(scenarioId);
     if (scenarioId && this.#isPlayingOneOf(villainTracksFor(MUSIC_CATALOG, scenarioId))) return;
-    this.playTitle();
+    if (this.#shuffleAmbient()) return;
+    this.#title();
   }
 
   /** Whether one of `tracks` is playing now, or is the one being loaded to play next. */
@@ -154,6 +187,8 @@ export class MusicScene extends Phaser.Scene implements MusicController {
   }
 
   playInterlude(campaignId: string): void {
+    this.#ambient = () => this.playInterlude(campaignId);
+    if (this.#shuffleAmbient()) return;
     const track = interludeToStart(MUSIC_CATALOG, campaignId, this.#targetKey);
     if (!track) {
       // Already up (or the box has none): only take the mode over when it is already the interlude playing.
@@ -168,21 +203,85 @@ export class MusicScene extends Phaser.Scene implements MusicController {
   }
 
   playTrack(track: Track): void {
-    this.#mode = "jukebox";
+    this.#mode = this.#shuffleOn ? "shuffle" : "jukebox";
+    this.#queue = this.#queue.filter((queued) => queued.key !== track.key);
     this.#requestTrack(track);
   }
 
   jukeboxKey(): string | null {
-    return this.#mode === "jukebox" ? this.#targetKey : null;
+    return this.#mode === "jukebox" || this.#mode === "shuffle" ? this.#targetKey : null;
+  }
+
+  next(): void {
+    this.#mode = this.#shuffleOn ? "shuffle" : "jukebox";
+    this.#advance();
+  }
+
+  nowPlaying(): Track | null {
+    return this.#targetTrack;
+  }
+
+  progress(): { readonly seek: number; readonly duration: number } | null {
+    // `seek` is on both of Phaser's real sound classes (Web Audio and HTML5), not on `BaseSound`.
+    const sound = this.#currentSound as (Phaser.Sound.BaseSound & { readonly seek?: number }) | null;
+    if (!sound?.isPlaying) return null;
+    return { seek: sound.seek ?? 0, duration: sound.duration };
+  }
+
+  onTrackStart(listener: (track: Track) => void): () => void {
+    this.#listeners.add(listener);
+    return () => this.#listeners.delete(listener);
   }
 
   syncSettings(settings: Settings): void {
     this.sound.mute = !settings.sound;
+    const was = this.#shuffleOn;
+    this.#shuffleOn = settings.musicShuffle;
+    if (was === this.#shuffleOn) return;
+    if (this.#shuffleOn) {
+      // A story moment keeps its song; anything else gives way to the shuffle now.
+      if (this.#mode !== "outcome" && this.#mode !== "finale") this.#startShuffle();
+    } else if (this.#mode === "shuffle") {
+      // Back to the screen's own music. A screen with none to give (a campaign with no interlude) keeps the song, looping.
+      this.#ambient?.();
+      if (this.#mode === "shuffle") this.#mode = "jukebox";
+    }
+  }
+
+  /** The earned songs: the shuffle's pool. */
+  #pool(): Track[] {
+    return earnedSongsOf(extras()).map((song) => song.track);
+  }
+
+  /** With shuffle on, a screen's own music request keeps the shuffle going, or starts it. False: play as asked. */
+  #shuffleAmbient(): boolean {
+    if (!this.#shuffleOn) return false;
+    if (this.#mode === "shuffle" && this.#targetKey !== null) return true;
+    return this.#startShuffle();
+  }
+
+  /** Starts the shuffle on its next song; false when nothing is earned to shuffle. */
+  #startShuffle(): boolean {
+    const next = nextShuffled(this.#queue, this.#pool(), this.#targetKey);
+    if (!next.track) return false;
+    this.#mode = "shuffle";
+    this.#queue = next.queue;
+    this.#requestTrack(next.track);
+    return true;
+  }
+
+  /** The next shuffled song, in whichever of the player's modes is on. */
+  #advance(): void {
+    const next = nextShuffled(this.#queue, this.#pool(), this.#targetKey);
+    if (!next.track) return;
+    this.#queue = next.queue;
+    this.#requestTrack(next.track);
   }
 
   stop(fadeDurationMs = CROSSFADE_DURATION_MS): void {
     this.#mode = "stopped";
     this.#targetKey = null;
+    this.#targetTrack = null;
     if (!this.#currentSound) return;
 
     const sound = this.#currentSound;
@@ -214,6 +313,7 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     }
 
     this.#targetKey = track.key;
+    this.#targetTrack = track;
 
     if (this.cache.audio.exists(track.key)) {
       this.#startTrack(track);
@@ -261,10 +361,18 @@ export class MusicScene extends Phaser.Scene implements MusicController {
       }
     }
 
-    // Start new track.
-    const newSound = this.sound.add(track.key, { loop: true, volume: duration > 0 ? 0 : this.#targetVolume });
+    // Start new track. A shuffled song plays once and hands on to the next; any other loops.
+    const shuffling = this.#mode === "shuffle";
+    const newSound = this.sound.add(track.key, { loop: !shuffling, volume: duration > 0 ? 0 : this.#targetVolume });
+    newSound.once(Phaser.Sound.Events.COMPLETE, () => {
+      if (this.#currentSound !== newSound) return;
+      // Shuffle was turned off while the song played: it loops on as the jukebox's.
+      if (this.#mode === "shuffle") this.#advance();
+      else newSound.play();
+    });
     newSound.play();
     this.#currentSound = newSound;
+    for (const listener of this.#listeners) listener(track);
 
     if (duration > 0) {
       this.tweens.add({

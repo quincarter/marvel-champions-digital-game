@@ -11,7 +11,7 @@
  * - **Rulebooks** open the reader (`scenes/extras-reader.ts`): the book as plain text, with links to its PDFs.
  * - **Heroes, Villains, Artwork** open the viewer overlay (`scenes/extras-viewer.ts`) over this screen.
  * - **Music** plays the song through the music controller's jukebox, until Title (or any other screen) asks for its
- *   own music again.
+ *   own music again. With shuffle on (#191) the shuffle carries on from it instead.
  */
 import Phaser from "phaser";
 import { accent, ink, surface, typeRole } from "../tokens.js";
@@ -20,6 +20,8 @@ import { destroyChildren } from "../ui/destroy-children.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTabs, fitText } from "../ui/widgets.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
+import { drawNowPlayingPanel, type NowPlayingPanel } from "../ui/now-playing-panel.js";
+import { earnedSongsOf } from "../view/music-player.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { ListScroll } from "../view/list-scroll.js";
 import type { Rect } from "../view/layout.js";
@@ -61,9 +63,16 @@ export class ExtrasScene extends Phaser.Scene {
   #redrawQueued = false;
   /** Between `create` and shutdown. Not `sys.isActive()`, which is still false while `create` itself draws. */
   #alive = false;
+  /** The Music tab's expanded player (#191), whose progress bar moves every frame. */
+  #player: NowPlayingPanel | null = null;
+  #unsubscribe: (() => void) | null = null;
 
   constructor() {
     super(SCENES.extras);
+  }
+
+  override update(): void {
+    this.#player?.tick();
   }
 
   create(data: ExtrasSceneData = {}): void {
@@ -77,9 +86,13 @@ export class ExtrasScene extends Phaser.Scene {
       onCancel: () => this.#back(),
       onPage: (direction) => this.#list?.scrollByPage(direction),
     });
+    // A new song (the shuffle moving on, or Next) redraws the Music tab's player and its playing row.
+    this.#unsubscribe = appSession().music?.onTrackStart(() => this.#requestRedraw()) ?? null;
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
       this.scale.off("resize", this.#draw, this);
+      this.#unsubscribe?.();
+      this.#unsubscribe = null;
       this.#destroyWidgets();
     });
     this.#draw();
@@ -138,8 +151,11 @@ export class ExtrasScene extends Phaser.Scene {
     }
     if (content.kind === "track") {
       const music = appSession().music;
-      if (music?.jukeboxKey() === content.track.key) music.playTitle();
-      else music?.playTrack(content.track);
+      // The song playing again: stop it (back to Title's music), or with shuffle on, skip to the next song.
+      if (music?.jukeboxKey() === content.track.key) {
+        if (appSession().settings.musicShuffle) music.next();
+        else music.playTitle();
+      } else music?.playTrack(content.track);
       this.#draw();
       return;
     }
@@ -153,6 +169,7 @@ export class ExtrasScene extends Phaser.Scene {
     this.#tabs = null;
     this.#list?.destroy();
     this.#list = null;
+    this.#player = null;
   }
 
   #draw(): void {
@@ -191,7 +208,26 @@ export class ExtrasScene extends Phaser.Scene {
       });
     });
 
-    const listTop = tabRect.y + tabRect.height + 14;
+    let listTop = tabRect.y + tabRect.height + 14;
+    // The Music tab opens on the expanded player: what is playing, how far in, Shuffle and Next.
+    const playerStops: string[] = [];
+    if (this.#tab === "music") {
+      const player = drawNowPlayingPanel(this, {
+        x: gutter,
+        y: listTop,
+        width: width - gutter * 2,
+        expanded: true,
+        songs: earnedSongsOf(current),
+        onChange: () => this.#draw(),
+      });
+      this.#player = player;
+      this.#buttons.push(...player.buttons);
+      for (const stop of player.stops) {
+        stops.set(`player:${stop.id}`, { rect: stop.rect, activate: stop.activate });
+        playerStops.push(`player:${stop.id}`);
+      }
+      listTop += player.height + 14;
+    }
     const listRect: Rect = {
       x: gutter,
       y: listTop,
@@ -203,7 +239,7 @@ export class ExtrasScene extends Phaser.Scene {
     const grid = extrasGridOf(gridWidth, this.#tab, phone);
     const tiles = extrasTilesOf(current, this.#tab);
     const rows = extrasRowCount(tiles.length, grid);
-    const playing = appSession().music?.jukeboxKey() ?? null;
+    const playing = appSession().music?.nowPlaying()?.key ?? null;
 
     let list: McVirtualList;
     list = new McVirtualList(this, {
@@ -220,7 +256,7 @@ export class ExtrasScene extends Phaser.Scene {
     });
     this.#list = list;
 
-    const order = [...(bar.backRect ? ["back"] : []), ...EXTRAS_TABS.map((tab) => `tab:${tab.id}`)];
+    const order = [...(bar.backRect ? ["back"] : []), ...EXTRAS_TABS.map((tab) => `tab:${tab.id}`), ...playerStops];
     tiles.forEach((tile, index) => {
       const rowIndex = Math.floor(index / grid.columns);
       order.push(`tile:${tile.id}`);

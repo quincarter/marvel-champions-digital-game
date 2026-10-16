@@ -184,7 +184,7 @@ import { appSession } from "../session.js";
 import type { SessionState } from "../store/session-store.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { VILLAIN_DOCK_CHANGED, type BoardScene } from "./board.js";
-import { SCENES } from "./keys.js";
+import { CHROME_SCENES, SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion, slideIn, slideOut } from "../ui/transitions.js";
 import {
@@ -395,6 +395,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
           (key) =>
             key !== SCENES.board &&
             key !== SCENES.music &&
+            !CHROME_SCENES.has(key) &&
             key !== SCENES.villainPhase &&
             key !== SCENES.choice &&
             this.scene.isActive(key),

@@ -30,7 +30,7 @@ import { formFactorFor, type Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
 import { pileCell, pileTitle, pileViewLayout, type PileViewLayout } from "../view/pile-view-layout.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
-import { SCENES } from "./keys.js";
+import { CHROME_SCENES, SCENES } from "./keys.js";
 
 export interface PileViewData {
   /** The scene that asked: its pointer and keys are off while this is up. */
@@ -82,6 +82,7 @@ export class PileViewOverlay extends Phaser.Scene {
           (key) =>
             key !== SCENES.board &&
             key !== SCENES.music &&
+            !CHROME_SCENES.has(key) &&
             key !== SCENES.pileView &&
             key !== SCENES.choice &&
             this.scene.isActive(key),

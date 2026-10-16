@@ -34,6 +34,7 @@ export type SettingsRowId =
   | "sharper-text"
   | "large-card-text"
   | "sound"
+  | "music-shuffle"
   | "confirm-end-turn"
   | "same-name-conflict"
   | "hover-hero"
@@ -75,6 +76,13 @@ export function settingsRowInfoOf(settings: Settings): readonly SettingsRowInfo[
       title: "Sound",
       detail: "Background music and audio across menus and games.",
       on: settings.sound,
+    },
+    {
+      id: "music-shuffle",
+      title: "Shuffle earned music",
+      detail:
+        "Plays the songs you've earned in Extras, shuffled, in menus and games. Openers, Game over and finales keep their own.",
+      on: settings.musicShuffle,
     },
     {
       id: "confirm-end-turn",
@@ -128,6 +136,8 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
       return { ...settings, largeCardText: !settings.largeCardText };
     case "sound":
       return { ...settings, sound: !settings.sound };
+    case "music-shuffle":
+      return { ...settings, musicShuffle: !settings.musicShuffle };
     case "confirm-end-turn":
       return { ...settings, confirmBeforeEndTurn: !settings.confirmBeforeEndTurn };
     case "same-name-conflict":

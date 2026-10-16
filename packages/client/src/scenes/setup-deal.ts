@@ -105,7 +105,7 @@ import type { SessionState } from "../store/session-store.js";
 import { appSession } from "../session.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
 import { addTapTarget } from "./board/tap-target.js";
-import { SCENES } from "./keys.js";
+import { CHROME_SCENES, SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 
@@ -254,6 +254,7 @@ export class SetupDealScene extends Phaser.Scene {
             key !== SCENES.setupDeal &&
             key !== SCENES.board &&
             key !== SCENES.music &&
+            !CHROME_SCENES.has(key) &&
             key !== SCENES.choice &&
             this.scene.isActive(key),
         );

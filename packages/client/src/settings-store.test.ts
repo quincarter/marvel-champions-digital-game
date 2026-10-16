@@ -44,6 +44,7 @@ describe("SettingsStore", () => {
     ["textResolution", 1],
     ["largeCardText", true],
     ["sound", false],
+    ["musicShuffle", true],
     ["confirmBeforeEndTurn", false],
     ["sameNameHeroAllyConflict", false],
     ["villainAutoAdvance", "afterPause"],

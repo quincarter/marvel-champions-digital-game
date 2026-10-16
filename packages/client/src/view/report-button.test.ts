@@ -17,6 +17,11 @@ describe("reportButtonSlot", () => {
     }
   });
 
+  test("stays on the Board under the music player and its button", () => {
+    const running = [scene("Board"), scene("MusicPlayerOverlay"), scene("MusicButton"), scene("ReportButton")];
+    expect(reportButtonSlot(running, slots)?.key).toBe("Board");
+  });
+
   test("hidden under Pause, Settings or Game over, which draw their own top bar over it", () => {
     for (const overlay of ["PauseOverlay", "SettingsOverlay", "GameOver"]) {
       expect(reportButtonSlot([scene("Board"), scene(overlay), scene("ReportButton")], slots)).toBeNull();

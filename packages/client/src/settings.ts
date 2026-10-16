@@ -27,6 +27,11 @@ export interface Settings {
    */
   readonly sound: boolean;
   /**
+   * Shuffle the songs earned in Extras (#191) in place of each screen's own music: menus, Setup and every game. A
+   * story moment (a campaign opener's villain theme, Game over, the Finale) still plays its own song. Defaults off.
+   */
+  readonly musicShuffle: boolean;
+  /**
    * Ask before an End turn that would still leave a basic attack, thwart or recover open
    * (`view/end-turn-confirm.ts`). Defaults on: ending a turn with something meaningful left is
    * usually a misclick, not a choice. Off restores the old immediate-end behavior.
@@ -161,6 +166,7 @@ export function defaultSettings(): Settings {
     textResolution: Math.min(SHARP_TEXT_RESOLUTION_CEILING, Math.max(1, globalThis.devicePixelRatio || 1)),
     largeCardText: false,
     sound: true,
+    musicShuffle: false,
     confirmBeforeEndTurn: true,
     sameNameHeroAllyConflict: true,
     villainAutoAdvance: "off",

@@ -503,6 +503,12 @@ function fallbackTitle(path: string): string {
   return `${owner} — ${slot}`;
 }
 
+/** A track's song title, as the jukebox and the music player name it: "Nothing Stops the Rhino". */
+export function trackTitleOf(track: Track): string {
+  const path = trackPath(track);
+  return TRACK_TITLES[path] ?? fallbackTitle(path);
+}
+
 interface SlottedTrack {
   readonly track: Track;
   readonly where: string;
@@ -557,8 +563,7 @@ function slottedTracks(catalog: MusicCatalog): SlottedTrack[] {
 export function musicEntriesOf(catalog: MusicCatalog = MUSIC_CATALOG): ExtrasEntry[] {
   const bySong = new Map<string, SlottedTrack[]>();
   for (const slotted of slottedTracks(catalog)) {
-    const path = trackPath(slotted.track);
-    const title = TRACK_TITLES[path] ?? fallbackTitle(path);
+    const title = trackTitleOf(slotted.track);
     bySong.set(title, [...(bySong.get(title) ?? []), slotted]);
   }
   return [...bySong].map(([title, slots]) => ({
