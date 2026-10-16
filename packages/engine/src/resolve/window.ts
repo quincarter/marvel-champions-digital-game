@@ -49,7 +49,7 @@ import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { cardOf, deckDiscardStillThere, getInstance, mustPlayer, playerOrder, printedCostOf } from "../query.js";
 import { combineRequirements, requirementTotal, satisfies } from "../resources.js";
 import type { TriggerCandidate, WindowTiming } from "../stack.js";
-import type { EngineDeps } from "../abilities.js";
+import type { AbilityTriggerSpec, EngineDeps } from "../abilities.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { simultaneousOrderer } from "../villain/authority.js";
@@ -59,6 +59,7 @@ import { pushPlayCardFrame } from "./play-card.js";
 import { activeAbilityRefs, cardsInPlay } from "../select.js";
 import { keywordAbilityOf } from "../keyword-abilities.js";
 import { candidatesFor, hearerKey, hearersOf, stillAnswers, stillOffered } from "./triggers.js";
+import { toughEndsDamageWindow } from "./event.js";
 
 export function pushWindow(
   ctx: Ctx,
@@ -217,11 +218,15 @@ function turnedFaceupCandidates(ctx: Ctx, frame: Frame<"window">, would: boolean
   );
 }
 
-/** Whether the candidate's interrupt reads "would" (`trigger.would`): the window's earlier tier. */
-const isWould = (deps: EngineDeps, candidate: TriggerCandidate): boolean => {
-  const trigger = deps.abilities[candidate.abilityId]?.trigger;
-  return trigger?.kind === "interrupt" && trigger.would === true;
-};
+/**
+ * Whether the candidate's interrupt belongs to the window's earlier tier: it reads "would" (`trigger.would`, RRG 1.8
+ * "'Would'", p. 48), or it is a damage interrupt to damage that "would be dealt" (`trigger.wouldBeDealt`, RRG 1.8
+ * "Damage", p. 14, step 1, ahead of tough status cards and "would take" interrupts).
+ */
+const earlierTier = (trigger: AbilityTriggerSpec | undefined): boolean =>
+  trigger?.kind === "interrupt" && (trigger.would === true || trigger.wouldBeDealt === true);
+const isWould = (deps: EngineDeps, candidate: TriggerCandidate): boolean =>
+  earlierTier(deps.abilities[candidate.abilityId]?.trigger);
 
 /** The event kinds some `would` interrupt in the registry answers, read once per registry. */
 const WOULD_KINDS = new WeakMap<EngineDeps, ReadonlySet<string>>();
@@ -231,7 +236,7 @@ const wouldKindsOf = (deps: EngineDeps): ReadonlySet<string> => {
     const found = new Set<string>();
     for (const definition of Object.values(deps.abilities)) {
       const trigger = definition.trigger;
-      if (trigger.kind !== "interrupt" || trigger.would !== true) continue;
+      if (trigger.kind !== "interrupt" || !earlierTier(trigger)) continue;
       for (const kind of typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on) found.add(kind);
     }
     kinds = found;
@@ -438,6 +443,16 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
       return;
     }
     if (would) {
+      // RRG v1.8 "Damage" (p. 14): tough status cards (step 2) come between the "would deal / be dealt" interrupts
+      // that were this tier and the "would take" ones still to gather (step 3).
+      if (
+        frame.timing === "interrupt" &&
+        frame.event.kind === "dealDamage" &&
+        toughEndsDamageWindow(ctx, frame.eventFrameId)
+      ) {
+        popFrame(ctx);
+        return;
+      }
       const {
         wouldTier: _done,
         optionalAtOpen: _wouldOptional,

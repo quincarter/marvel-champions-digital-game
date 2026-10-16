@@ -659,19 +659,19 @@ describe("Hidden in the Clutter (40106)", () => {
       expect(resolved(run.events, "attackResolved", riptide)).toEqual([]);
     });
 
-    // Owner ruling 2026-10-06 (docs/phase7-wave7.md 4.1, "Tough and other status cards against 'would be dealt'
-    // abilities"): status cards resolve first, as the engine builds it (`toughResolvesFirst`, resolve/event.ts). The
-    // tough status card is spent on the hit, so no damage is dealt and the card's interrupt never gets a window.
-    it("a toughened enemy: the tough card is spent first, so no damage reaches the card and it stays", () => {
+    // RRG v1.8 p. 14; owner decision 2026-10-16 (audit finding 17), superseding the 2026-10-06 "status cards first"
+    // row of docs/phase7-wave7.md 4.1: "would be dealt" abilities (step 1) resolve before tough status cards (step 2),
+    // so the hit is placed on the card instead and the enemy keeps its tough status card.
+    it("a toughened enemy: the damage is placed on the card instead, and the enemy keeps its tough card", () => {
       const { state, id, riptide } = setup();
       const toughened = patchInstance(state, riptide, { statuses: { stunned: 0, confused: 0, tough: 1 } });
       const run = drive(toughened, {}, basicAttack(toughened, P1, riptide));
-      expect(toughOn(run.state, riptide)).toBe(0);
+      expect(toughOn(run.state, riptide)).toBe(1);
       expect(inst(run.state, riptide).damage).toBe(0);
-      expect(inst(run.state, id).damage).toBe(0);
+      expect(inst(run.state, id).damage).toBe(2);
       expect(inst(run.state, id).attachedTo).toBe(riptide);
-      expect(events(run.events, "damagePlaced")).toEqual([]);
-      expect(events(run.events, "damagePrevented")).toHaveLength(1);
+      expect(events(run.events, "damagePlaced").map((e) => e.amount)).toEqual([2]);
+      expect(events(run.events, "damagePrevented")).toEqual([]);
       expect(resolved(run.events, "attackResolved", riptide)).toEqual([]);
     });
 

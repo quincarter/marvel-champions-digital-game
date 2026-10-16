@@ -70,6 +70,7 @@ export const SANDMAN_ENCOUNTER_SET = defineAbilities({
   // damage to Sandman, discard Sand Form instead → resolve the "Surging Sands" ability on City Streets.
   "27066.sand-form-forced-interrupt": forcedInterrupt(
     when.damage("host"),
+    { wouldBeDealt: true },
     instead(discard(self)),
     resolveSpecialsOf(CITY_STREETS),
   ),

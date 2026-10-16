@@ -623,6 +623,13 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
   if ((trigger.kind === "interrupt" || trigger.kind === "response") && trigger.on)
     problems.push(...unlistedAlternativeKinds(trigger.on));
   if (trigger.kind === "response" && trigger.on) problems.push(...unreadDamage(trigger.on));
+  // "Would deal / be dealt damage" (RRG v1.8 "Damage", p. 14, step 1) is a stage of a damage interrupt only.
+  if (trigger.kind === "interrupt" && trigger.wouldBeDealt && !patternKinds(trigger.on).includes("dealDamage"))
+    problems.push("wouldBeDealt marks a damage interrupt: its pattern must hear dealDamage");
+  if (trigger.kind === "interrupt" && trigger.wouldBeDealt && trigger.would)
+    problems.push(
+      'wouldBeDealt and would: a damage interrupt is staged by wouldBeDealt alone ("would take" is unmarked)',
+    );
   // An additional cost to play (box-heroes B3.1) is the one constant with a cost, and with effects: they resolve as its
   // card enters play.
   const additionalPlayCost = trigger.kind === "constant" ? trigger.additionalCostToPlay : undefined;

@@ -73,6 +73,7 @@ export const CROSSFIRE_CREW = defineAbilities({
   // would deal any amount of damage to a character, increase that amount by that character's ATK.
   "24024.controller-forced-interrupt": forcedInterrupt(
     { on: "dealDamage", selfIs: "source", fromAttack: true },
+    { wouldBeDealt: true },
     increaseDamage(statOf(eventTarget, "atk")),
   ),
 

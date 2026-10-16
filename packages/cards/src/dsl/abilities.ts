@@ -90,6 +90,14 @@ export interface AbilityOptions {
    */
   readonly would?: boolean;
   /**
+   * On a damage interrupt whose printed condition is "when [character] would deal / be dealt any amount of damage"
+   * (Armored Rhino Suit: "When any amount of damage would be dealt to Rhino, place it here instead"), not "would take".
+   * RRG v1.8 "Damage" (p. 14) resolves those before tough status cards, which come before "would take" interrupts, so
+   * an "instead" or a prevention here keeps the tough card (the engine trigger's `wouldBeDealt`; owner decision
+   * 2026-10-16, audit finding 17). Leave it off on "would take" and "takes".
+   */
+  readonly wouldBeDealt?: boolean;
+  /**
    * On an interrupt or response that must not trigger again while an earlier use of it by the same card is still
    * resolving (the engine trigger's `notWhileResolving`): Hidden in the Clutter's "attached enemy attacks … Then,
    * discard this card" makes one attack, whatever damage that attack sends back at the enemy (owner ruling
@@ -360,6 +368,7 @@ const triggered =
         ...(options.firstPlayerOnly ? { firstPlayerOnly: true } : {}),
         ...(options.triggerableBy ? { triggerableBy: options.triggerableBy } : {}),
         ...(kind === "interrupt" && options.would ? { would: true } : {}),
+        ...(kind === "interrupt" && options.wouldBeDealt ? { wouldBeDealt: true } : {}),
         ...(options.notWhileResolving ? { notWhileResolving: true } : {}),
       },
       options,

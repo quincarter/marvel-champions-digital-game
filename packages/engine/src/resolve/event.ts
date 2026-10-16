@@ -264,9 +264,16 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         engaging !== null ||
         hasCandidates(ctx.state, ctx.deps, frame.event, "interrupt") ||
         companions.some((companion) => hasCandidates(ctx.state, ctx.deps, companion.event, "interrupt"));
-      // A tough status resolves first and prevents all the damage, so no "would take damage" interrupt gets a window
-      // (docs/phase7-wave3.md §3.12).
-      if (interrupts && frame.event.kind === "dealDamage" && toughResolvesFirst(ctx, frame.event, frame.frameId)) {
+      // A tough status resolves before "would take damage" interrupts and prevents all the damage, so none of them gets
+      // a window (docs/phase7-wave3.md §3.12). "Would deal / be dealt" interrupts come before it (RRG v1.8 p. 14, steps
+      // 1-3; owner decision 2026-10-16 (audit finding 17)): when one answers, the window opens with them as its earlier
+      // tier, and `toughEndsDamageWindow` closes it after that tier if the tough card still stops what is left.
+      if (
+        interrupts &&
+        frame.event.kind === "dealDamage" &&
+        toughResolvesFirst(ctx, frame.event, frame.frameId) &&
+        !answeredAsWouldBeDealt(ctx, frame.event)
+      ) {
         emit(ctx, { type: "interruptsPreempted", event: frame.event, reason: "tough" });
         return;
       }
@@ -1267,6 +1274,32 @@ function toughResolvesFirst(ctx: Ctx, event: Extract<TriggerEvent, { kind: "deal
       damageSourceInfo(ctx, event),
     ) > 0
   );
+}
+
+/** Whether some "would deal / be dealt damage" interrupt (`trigger.wouldBeDealt`; RRG v1.8 p. 14, step 1) answers it. */
+function answeredAsWouldBeDealt(ctx: Ctx, event: Extract<TriggerEvent, { kind: "dealDamage" }>): boolean {
+  return [true, false].some((forced) =>
+    candidatesFor(ctx.state, ctx.deps, event, "interrupt", forced).some((candidate) => {
+      const trigger = ctx.deps.abilities[candidate.abilityId]?.trigger;
+      return trigger?.kind === "interrupt" && trigger.wouldBeDealt === true;
+    }),
+  );
+}
+
+/**
+ * A damage interrupt window whose "would deal / be dealt" tier has resolved (`resolve/window.ts`): RRG v1.8 "Damage"
+ * (p. 14) puts tough status cards (step 2) next, before "would take" interrupts (step 3). If the damage is still to be
+ * dealt and a tough status card will stop it (`toughResolvesFirst`, read now, on the damage as that tier left it: one
+ * that prevented part of it or all of it has had its say), the window ends here, logged as `interruptsPreempted`, and
+ * the damage step uses the tough card. Owner decision 2026-10-16 (audit finding 17).
+ */
+export function toughEndsDamageWindow(ctx: Ctx, eventFrameId: FrameId | null): boolean {
+  if (eventFrameId === null) return false;
+  const frame = findFrame(ctx.state, eventFrameId);
+  if (frame?.kind !== "event" || frame.cancelled || frame.event.kind !== "dealDamage") return false;
+  if (!toughResolvesFirst(ctx, frame.event, frame.frameId)) return false;
+  emit(ctx, { type: "interruptsPreempted", event: frame.event, reason: "tough" });
+  return true;
 }
 
 /**

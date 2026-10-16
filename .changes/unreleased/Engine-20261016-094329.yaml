@@ -1,0 +1,3 @@
+kind: Engine
+body: 'Damage now resolves in RRG v1.8 p.14 order: "would be dealt" abilities such as Armored Rhino Suit resolve before tough status cards, so Rhino keeps his tough card while the suit takes the hit, and "would take" abilities still lose to tough.'
+time: 2026-10-16T09:43:29.135501-04:00

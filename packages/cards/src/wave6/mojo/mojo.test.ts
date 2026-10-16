@@ -876,6 +876,11 @@ describe("Mojo's attachments, Undercover Mojo and the insert p. 18 fixtures", ()
     });
   });
 
+  // CONFLICT, flagged for the owner: the MojoMania insert (p. 18, bullet 3) has the first player pick which of the two
+  // replaces Mojo's damage. RRG v1.8 "Damage" (p. 14) orders "would be dealt" abilities (Stinger Tail, step 1) before
+  // "would take" ones (Undercover Mojo, step 3), and the owner's authority order puts the latest RRG over older FFG
+  // material, so Stinger Tail always resolves first and there is no ordering prompt between them. RRG v1.8 p. 14; owner
+  // decision 2026-10-16 (audit finding 17).
   describe("insert p. 18: Stinger Tail and Undercover Mojo in play together", () => {
     const both = () => {
       const staged = run(quiet(), toHero(P1));
@@ -883,34 +888,16 @@ describe("Mojo's attachments, Undercover Mojo and the insert p. 18 fixtures", ()
       const undercover = encounterCardInVillainArea(tail.state, "39031", 9);
       return { state: undercover.state, tail: tail.id, undercover: undercover.id };
     };
-    const putting =
-      (first: InstanceId): Picker =>
-      (s) => {
-        const choice = s.pendingChoice;
-        if (choice?.prompt.kind !== "orderTriggers") return firstLegal(s);
-        const ids = choice.options.map((o) => o.optionId);
-        return [...ids.filter((id) => id.startsWith(`${first}:`)), ...ids.filter((id) => !id.startsWith(`${first}:`))];
-      };
 
-    it("the first player orders them: Stinger Tail first takes the damage, and Undercover Mojo has nothing left to replace", () => {
+    it("Stinger Tail ('would be dealt') resolves first with no ordering prompt, and Undercover Mojo has nothing left to replace", () => {
       const { state, tail, undercover } = both();
       const dealt = heroAttack();
-      const { state: after, events } = attackMojo(state, putting(tail));
-      expect(events.some((e) => e.type === "choiceRequested" && e.choice.prompt.kind === "orderTriggers")).toBe(true);
+      const { state: after, events } = attackMojo(state);
+      expect(events.some((e) => e.type === "choiceRequested" && e.choice.prompt.kind === "orderTriggers")).toBe(false);
       expect(inst(after, tail).damage).toBe(dealt);
       expect(threat(after, undercover)).toBe(9);
       expect(inst(after, mojoOf(after)).damage).toBe(0);
       expect(threatRemovedFrom(events, undercover)).toEqual([]);
-    });
-
-    it("Undercover Mojo first removes the threat, and Stinger Tail has nothing left to take", () => {
-      const { state, tail, undercover } = both();
-      const dealt = heroAttack();
-      const { state: after, events } = attackMojo(state, putting(undercover));
-      expect(threat(after, undercover)).toBe(9 - dealt);
-      expect(inst(after, tail).damage).toBe(0);
-      expect(inst(after, mojoOf(after)).damage).toBe(0);
-      expect(threatRemovedFrom(events, undercover)).toEqual([dealt]);
     });
   });
 });

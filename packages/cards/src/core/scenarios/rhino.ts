@@ -53,6 +53,9 @@ export const RHINO = defineAbilities({
   // Then, if there is at least 5 damage here, discard Armored Rhino Suit.
   "01098.armored-rhino-suit-forced-interrupt": forcedInterrupt(
     when.damage(query("villain")),
+    // "Would be dealt": before a tough status card on Rhino, so the suit takes it all and the tough card is kept
+    // (RRG v1.8 "Damage", p. 14, steps 1-2; owner decision 2026-10-16 (audit finding 17); FFG ruling July 20, 2023).
+    { wouldBeDealt: true },
     // The pre-"then" text is the placement, which always resolves; the threshold "if" is post-"then" text and gates
     // itself (RRG 1.8 "'Then'", p. 44).
     instead(placeDamage(eventAmount, self), andThen(ifThen(damagedAtLeast(self, 5), discard(self)))),

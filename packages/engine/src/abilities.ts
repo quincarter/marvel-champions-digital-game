@@ -392,10 +392,23 @@ export type AbilityTriggerSpec =
        * (docs/phase7-wave7.md §4.1, owner ruling 2026-10-06). Off by default, and set by the scripts whose text reads
        * "would attack", "would scheme" or "would be defeated" (the entry's own example is a defeat; "is defeated"
        * interrupts are the later tier). Damage and threat placement are left unmarked: every interrupt to them reads
-       * "would", so they have one tier either way, after the status cards (`toughResolvesFirst`). "Would activate" is
-       * its own earlier event (`enemyActivating`) and needs no marker.
+       * "would" (damage's own two stages are `wouldBeDealt`). "Would activate" is its own earlier event
+       * (`enemyActivating`) and needs no marker.
        */
       readonly would?: boolean;
+      /**
+       * A `dealDamage` interrupt whose printed condition is "when [character] would deal / be dealt any amount of
+       * damage" ("When any amount of damage would be dealt to Rhino, place it here instead", Armored Rhino Suit 01098),
+       * as against "would take". RRG 1.8 "Damage" (p. 14) orders them: (1) "would deal/be dealt" abilities, (2) tough
+       * status cards, (3) "would take" abilities, (4) "takes" abilities. So these resolve in the window's earlier tier
+       * (the one `would` uses, forced then optional), before a tough status card is checked; if one replaces or
+       * prevents the damage the tough card is kept, and if the tough card will still stop what is left, the window
+       * ends there and no "would take" interrupt is gathered (General FAQ, RRG 1.8 p. 58, which governs the "would be
+       * taken" stage only). RRG v1.8 p. 14; owner decision 2026-10-16 (audit finding 17), which supersedes the
+       * 2026-10-06 "status cards first" row of docs/phase7-wave7.md §4.1. Off by default: an unmarked damage
+       * interrupt is a "would take" one.
+       */
+      readonly wouldBeDealt?: boolean;
       /**
        * This ability does not trigger again while an earlier use of it by the same card is still resolving: while that
        * use's effects are on the stack, the card is not gathered for it, forced or not. Off by default, because the

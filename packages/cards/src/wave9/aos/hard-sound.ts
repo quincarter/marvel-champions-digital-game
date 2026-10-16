@@ -83,6 +83,7 @@ export const HARD_SOUND: AbilityRegistry = defineAbilities({
 
   "50146.sonic-bubble-forced-interrupt": forcedInterrupt(
     on.damage(query("enemy")),
+    { wouldBeDealt: true },
     instead(removeThreat(eventAmount, self)),
   ),
 

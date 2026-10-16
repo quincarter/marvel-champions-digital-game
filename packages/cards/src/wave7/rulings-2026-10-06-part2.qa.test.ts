@@ -474,7 +474,7 @@ describe("7. The 'you' reader reads the player the context names", () => {
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
-// 8. Hidden in the Clutter 40106 (tough first; a stun keeps it), and the trait split (S.H.I.E.L.D. Soldier is two traits)
+// 8. Hidden in the Clutter 40106 (before tough, finding 17; a stun keeps it), and the trait split (S.H.I.E.L.D. Soldier is two traits)
 // ---------------------------------------------------------------------------------------------------------------------
 
 describe("8a. Hidden in the Clutter 40106 per the owner's rulings", () => {
@@ -496,18 +496,15 @@ describe("8a. Hidden in the Clutter 40106 per the owner's rulings", () => {
     return { state: s, minion: minion.id, clutter: clutter.id, attack };
   }
 
-  it("tough is spent before any damage reaches the card: a tough minion's first hit leaves 0 damage on Hidden in the Clutter", () => {
+  // RRG v1.8 p. 14; owner decision 2026-10-16 (audit finding 17), superseding the 2026-10-06 "tough first" ruling this
+  // test pinned: "would be dealt" abilities (step 1) resolve before tough status cards (step 2).
+  it("the card resolves before tough: a tough minion's first hit is placed on Hidden in the Clutter and the minion keeps its tough card", () => {
     const g = clutterTable({ held: 0, tough: 1 });
     const run = drive(g.state, {}, g.attack);
-    expect(inst(run.state, g.minion).statuses.tough).toBe(0);
-    expect(damageOn(run.state, g.clutter)).toBe(0);
+    expect(inst(run.state, g.minion).statuses.tough).toBe(1);
+    expect(damageOn(run.state, g.clutter)).toBe(2);
     expect(damageOn(run.state, g.minion)).toBe(0);
     expect(inst(run.state, g.clutter).attachedTo).toBe(g.minion);
-    // The next hit (P2 readied by surgery) is redirected onto the card: Black Panther's ATK 2 is placed there.
-    const again = patchInstance(run.state, identityOf(run.state, P2), { exhausted: false });
-    const second = drive(again, {}, g.attack);
-    expect(damageOn(second.state, g.clutter)).toBe(2);
-    expect(damageOn(second.state, g.minion)).toBe(0);
   });
 
   it("2 damage held and P2 hits for 2: 4 is at least 3, so the minion attacks P2 (the player who dealt it) and the card is discarded", () => {
