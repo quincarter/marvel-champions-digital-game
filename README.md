@@ -20,10 +20,15 @@ to be a genuinely playable video game driven by a deterministic rules engine.
 </p>
 
 <p align="center">
-  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/latest"><img src=".github/assets/readme/download-windows.svg" alt="Download for Windows" height="48"></a>
-  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/latest"><img src=".github/assets/readme/download-macos.svg" alt="Download for macOS" height="48"></a>
-  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/latest"><img src=".github/assets/readme/download-linux.svg" alt="Download for Linux" height="48"></a>
-  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/latest"><img src=".github/assets/readme/download-android.svg" alt="Download for Android" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/latest/download/MarvelChampions-Windows-x64-Setup.exe"><img src=".github/assets/readme/download-windows.svg" alt="Download for Windows" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/latest/download/MarvelChampions-macOS-AppleSilicon-arm64.dmg"><img src=".github/assets/readme/download-macos-apple-silicon.svg" alt="Download for a Mac with Apple silicon" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/latest/download/MarvelChampions-macOS-Intel-x64.dmg"><img src=".github/assets/readme/download-macos-intel.svg" alt="Download for an Intel Mac" height="48"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/latest/download/MarvelChampions-Linux-x64.AppImage"><img src=".github/assets/readme/download-linux.svg" alt="Download for Linux (AppImage)" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/latest/download/MarvelChampions-Android.apk"><img src=".github/assets/readme/download-android.svg" alt="Download for Android" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases"><img src=".github/assets/readme/all-releases.svg" alt="View all releases" height="48"></a>
 </p>
 
 <p align="center">
@@ -37,7 +42,7 @@ to be a genuinely playable video game driven by a deterministic rules engine.
   <a href="CONTRIBUTING.md"><img src=".github/assets/readme/contributing.svg" alt="Contributing" height="48"></a>
 </p>
 
-<p align="center"><sub>Downloads open the <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/latest">latest release</a>; pick your installer from its "Which download do I need?" table. Not sure which issue type fits? Use the <a href="https://github.com/quincarter/marvel-champions-digital-game/issues/new/choose">issue chooser</a>.</sub></p>
+<p align="center"><sub>The download buttons fetch the newest release's installer. For the all-users Windows <code>.msi</code>, a Linux <code>.deb</code> or <code>.rpm</code>, or an older version, see <a href="https://github.com/quincarter/marvel-champions-digital-game/releases">all releases</a>. Not sure which issue type fits? Use the <a href="https://github.com/quincarter/marvel-champions-digital-game/issues/new/choose">issue chooser</a>.</sub></p>
 
 > [!NOTE]
 > This is a fan-made, non-commercial project. _Marvel Champions: The Card Game_, card text, artwork, and characters are
@@ -181,7 +186,10 @@ flow are covered in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Every merge of a release pull request publishes a
 [GitHub release](https://github.com/quincarter/marvel-champions-digital-game/releases/latest) with installers. Each
-release's notes end with a "Which download do I need?" table.
+release's notes end with a "Which download do I need?" table. Each installer is also uploaded without the version in its name
+(`MarvelChampions-Windows-x64-Setup.exe` and so on), so
+`https://github.com/quincarter/marvel-champions-digital-game/releases/latest/download/<name>` always fetches the newest
+one; the buttons at the top link there.
 
 - **Windows 11**: `-Windows-x64-Setup.exe` (per user, no admin rights) or `-Windows-x64-AllUsers.msi`.
 - **macOS**: `-macOS-AppleSilicon-arm64.dmg` or `-macOS-Intel-x64.dmg`. If the build is unsigned, macOS blocks it on
