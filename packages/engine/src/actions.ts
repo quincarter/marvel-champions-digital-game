@@ -6313,6 +6313,12 @@ function basicAttackPaying(
     by.instructed === true,
   );
   if ("code" in shares) return shares;
+  // RRG 1.8 "Stun, Stunned" (p. 41): "A stunned character can attempt to attack or use an attack ability even if it has
+  // no valid target for an attack." The attempt still names an enemy, but none of the checks below that make an enemy
+  // an invalid target (its area, guard or a target-scoped "cannot attack", "cannot take damage") refuse it: the stunned
+  // status card is removed instead of attacking (below). What forbids the power itself still does ("you cannot make
+  // basic attacks", a printed '—' ATK), and so does an additional cost to attack that enemy that cannot be paid.
+  const stunnedAttempt = statusActive(ctx.state, command.attackerInstanceId, "stunned", ctx.deps);
   // Every target is checked now, when the power is used (FAQ "Wasp (#1C)", RRG 1.8 p. 61).
   for (const { targetInstanceId } of shares) {
     const targetCard = cardOf(ctx.state, targetInstanceId);
@@ -6322,6 +6328,22 @@ function basicAttackPaying(
       // "Any player can attack this card as if it were a minion" (`RuleSpec attackableAsMinion`, wave 9 §3.50).
       attackableAsMinion(ctx.state, targetInstanceId, ctx.deps);
     if (!targetIsEnemy) return engineError("no_valid_target", "basic attacks target enemies", command);
+    if (stunnedAttempt) {
+      const forbidden = attackForbiddenBy(ctx.state, command.attackerInstanceId, targetInstanceId, ctx.deps, true);
+      if (forbidden?.basicOnly) {
+        const name = forbidden.byInstanceId ? cardOf(ctx.state, forbidden.byInstanceId)?.name : undefined;
+        return engineError("no_valid_target", `${name ?? "a card"}: you cannot make basic attacks`, command);
+      }
+      const unpayable = unpayableAttackCostSource(ctx.state, ctx.deps, command.attackerInstanceId, targetInstanceId);
+      if (unpayable !== null) {
+        return engineError(
+          "insufficient_resources",
+          `${cardOf(ctx.state, unpayable)?.name ?? "a card"}: you cannot pay the additional cost to attack that enemy`,
+          command,
+        );
+      }
+      continue;
+    }
     // An enemy in a closed in-play scenario area (the mission area, docs/phase7-wave8.md §3.33) is out of reach of a
     // basic attack: MC45 pp. 5–6 deal damage there only from a mission attempt's pool. See `inClosedScenarioPlayArea`.
     if (inClosedScenarioPlayArea(ctx.state, targetInstanceId)) {
