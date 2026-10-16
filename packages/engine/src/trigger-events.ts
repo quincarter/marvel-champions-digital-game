@@ -296,6 +296,16 @@ export type TriggerEventBody =
        * `[targetInstanceId]`, so a one-target attack reads as it always has; always present on a `labeled` attack.
        */
       readonly attacked?: readonly InstanceId[];
+      /**
+       * A condition derived from this attack for one character its overkill damaged other than the attacked one (the
+       * identity of a defeated ally's controller, the villain beyond a defeated minion): `targetInstanceId` is that
+       * character and `results` its damage alone. It shares the attack's response window (`overkillSpillConditions`,
+       * `resolve/event.ts`) and is heard only by "attacks and damages" (`requireResults` `damage`/`damaged`): FFG ruling
+       * January 11, 2026 (2), "if Jigsaw attacks with overkill and damages both an ally and an identity, his Forced
+       * Response triggers twice"; RRG 1.8 "Overkill" (p. 31): the spill "is considered damage from an attack, but does
+       * not constitute an attack against that character".
+       */
+      readonly overkillSpill?: true;
     }
   | {
       readonly kind: "thwart";
@@ -371,6 +381,8 @@ export type TriggerEventBody =
       readonly additionalResolution?: boolean;
       /** "That attack does not get a boost card" (Escaped Convict, I See You): step 1 deals nothing. */
       readonly noBoost?: boolean;
+      /** As on `attack`: a condition derived for a character this attack's overkill damaged. */
+      readonly overkillSpill?: true;
     }
   /**
    * An enemy attack has reached its damage step (RRG 1.8 "Attack (Enemy Activation)", pp. 8-9: step 2 has declared

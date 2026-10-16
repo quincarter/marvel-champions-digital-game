@@ -166,8 +166,8 @@ describe("'After [enemy] attacks and damages ...' with overkill damaging an ally
     return mustInstance(after, after.mainScheme.instanceId).counters["toad"] ?? 0;
   }
 
-  it.fails("the villain's attack damages the ally (3) and, by overkill, the identity (1): the response resolves twice", () => {
-    // Actual: once (the attack event is announced once, whoever it damaged).
+  it("the villain's attack damages the ally (3) and, by overkill, the identity (1): the response resolves twice", () => {
+    // Before the fix: once (the attack event was announced once, whoever it damaged).
     expect(overkillAttack()).toBe(2);
   });
 });
