@@ -303,6 +303,13 @@ describe("first player token row", () => {
 });
 
 describe("Window mode and Resolution (desktop app)", () => {
+  test("where Fullscreen really switches the screen (Windows), the row says so and that it comes back", () => {
+    const fullscreen = nextSettingsAfterDisplayMode(defaultSettings(), "fullscreen");
+    const detail = resolutionRowInfoOf(fullscreen, [], { width: 3440, height: 1440 }, true).detail;
+    expect(detail).toMatch(/switches your screen/);
+    expect(detail).toMatch(/comes back/);
+  });
+
   test("Window mode offers Windowed, Borderless and Fullscreen, Windowed by default", () => {
     const info = displayModeRowInfoOf(defaultSettings());
     expect(info.options.map((o) => o.label)).toEqual(["Windowed", "Borderless", "Fullscreen"]);

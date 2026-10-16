@@ -142,3 +142,12 @@ export class SettingsStore {
     }
   }
 }
+
+/** What the player has explicitly set, read straight from storage (the desktop app's launch checks, `main.ts`). */
+export function storedSettingsOverrides(storage: SettingsStorage | null = browserStorage()): SettingsOverrides {
+  try {
+    return parseSettingsOverrides(storage?.getItem(SETTINGS_KEY) ?? null);
+  } catch {
+    return {};
+  }
+}

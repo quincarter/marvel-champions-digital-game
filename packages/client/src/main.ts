@@ -89,7 +89,8 @@ import { installStartupWatchdog, probeWebgl } from "./ui/startup-watchdog.js";
 import { installDesktopType, setDesktopType } from "./ui/desktop-type.js";
 import { formFactorFor } from "./view/layout.js";
 import { applyViewportFit } from "./platform/platform.js";
-import { applyDesktopWindowOnLaunch, setRenderSizeHandler } from "./platform/desktop-window.js";
+import { applyDesktopWindowOnLaunch, desktopLaunchSettings, setRenderSizeHandler } from "./platform/desktop-window.js";
+import { storedSettingsOverrides } from "./settings-store.js";
 import { applyRenderSize } from "./ui/render-resolution.js";
 import { isAndroidEdge, rendererOptionsOf } from "./platform/renderer-options.js";
 
@@ -213,9 +214,13 @@ const game = new Phaser.Game({
   ],
 });
 
-// The desktop app's saved window mode and resolution (Settings > Display > Window); nothing off desktop.
+// The desktop app's saved window mode and resolution (Settings > Display > Window); nothing off desktop. A Steam
+// Deck or Bazzite starts in Fullscreen until the player picks a window mode of their own.
 setRenderSizeHandler((size) => applyRenderSize(game, size));
-applyDesktopWindowOnLaunch(settings);
+void desktopLaunchSettings(settings, storedSettingsOverrides().displayMode !== undefined).then((launch) => {
+  if (launch !== settings) appSession().settings = launch;
+  applyDesktopWindowOnLaunch(launch);
+});
 watchStartup(game);
 
 // Registered before any scene's own resize listener, so a screen redrawing on resize already draws at the new size.

@@ -1,5 +1,12 @@
 import { describe, expect, test } from "vitest";
-import { effectiveResolution, renderSizeOf, resolutionOptionsFor } from "./desktop-window.js";
+import {
+  HANDHELD_DISPLAY,
+  effectiveResolution,
+  isHandheldLinux,
+  renderSizeOf,
+  resolutionOptionsFor,
+  switchesDisplayMode,
+} from "./desktop-window.js";
 
 describe("resolutionOptionsFor", () => {
   test("a 4K monitor offers every size from 480p and 800 x 600 up to 1440p; 4K itself is Native", () => {
@@ -90,5 +97,56 @@ describe("renderSizeOf", () => {
       width: 1280,
       height: 720,
     });
+  });
+});
+
+describe("real Fullscreen where the monitor can switch modes (Windows)", () => {
+  const switching = {
+    width: 3440,
+    height: 1440,
+    scaleFactor: 1,
+    displayModes: ["3440x1440", "2560x1440", "1920x1080", "1280x720", "800x600", "640x480"] as const,
+  };
+
+  test("Fullscreen lists the monitor's own modes (not native, none under the minimum); the other modes keep the usual list", () => {
+    expect(resolutionOptionsFor(switching, "fullscreen")).toEqual([
+      "2560x1440",
+      "1920x1080",
+      "1280x720",
+      "800x600",
+      "640x480",
+    ]);
+    expect(resolutionOptionsFor(switching, "borderless")).toContain("3840x2160");
+  });
+
+  test("Fullscreen below native switches the monitor and draws 1:1; Borderless still scales", () => {
+    expect(switchesDisplayMode("fullscreen", "1920x1080", switching)).toBe(true);
+    expect(renderSizeOf("fullscreen", "1920x1080", switching)).toBeNull();
+    expect(switchesDisplayMode("borderless", "1920x1080", switching)).toBe(false);
+    expect(renderSizeOf("borderless", "1920x1080", switching)).toEqual({ width: 1920, height: 1080 });
+  });
+
+  test("Native, or a mode this monitor doesn't report, switches nothing", () => {
+    expect(switchesDisplayMode("fullscreen", "native", switching)).toBe(false);
+    expect(switchesDisplayMode("fullscreen", "3840x2160", switching)).toBe(false);
+  });
+
+  test("without the monitor's modes (macOS, Linux), Fullscreen scales like Borderless", () => {
+    const plain = { width: 3440, height: 1440, scaleFactor: 1 };
+    expect(switchesDisplayMode("fullscreen", "1920x1080", plain)).toBe(false);
+    expect(renderSizeOf("fullscreen", "1920x1080", plain)).toEqual({ width: 1920, height: 1080 });
+  });
+});
+
+describe("Steam Deck and Bazzite", () => {
+  test("SteamOS and Bazzite count, by ID or ID_LIKE; other distributions don't", () => {
+    expect(isHandheldLinux(["steamos", "arch"])).toBe(true);
+    expect(isHandheldLinux(["bazzite", "fedora"])).toBe(true);
+    expect(isHandheldLinux(["ubuntu", "debian"])).toBe(false);
+    expect(isHandheldLinux([])).toBe(false);
+  });
+
+  test("they start in Fullscreen at native", () => {
+    expect(HANDHELD_DISPLAY).toEqual({ displayMode: "fullscreen", resolution: "native" });
   });
 });

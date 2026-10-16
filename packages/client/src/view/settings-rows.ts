@@ -511,6 +511,8 @@ export function resolutionRowInfoOf(
   settings: Settings,
   offered: readonly Resolution[],
   native: { readonly width: number; readonly height: number } | null = null,
+  /** Fullscreen here really switches the monitor's display mode (Windows). */
+  switchesDisplayMode = false,
 ): ResolutionRowInfo {
   // Largest first, Native among them at its own size (the owner, 2026-10-16); first when the size isn't known yet.
   const sizeOf = (value: Resolution): { readonly width: number; readonly height: number } | null =>
@@ -525,9 +527,11 @@ export function resolutionRowInfoOf(
   return {
     title: "Resolution",
     detail:
-      settings.displayMode === "windowed"
-        ? "In a window, the window's own size; Native draws at whatever size the window is. Your computer's display resolution is never changed."
-        : "Other than native, the game draws at that resolution and is scaled to fit the screen, with black bars where the shapes differ. Your computer's display resolution is never changed.",
+      settings.displayMode === "fullscreen" && switchesDisplayMode
+        ? "Fullscreen switches your screen to this resolution. Your own comes back when you leave Fullscreen, switch to another app, or quit."
+        : settings.displayMode === "windowed"
+          ? "In a window, the window's own size; Native draws at whatever size the window is. Your computer's display resolution is never changed."
+          : "Other than native, the game draws at that resolution and is scaled to fit the screen, with black bars where the shapes differ. Your computer's display resolution is never changed.",
     options: values.map((value) => ({ value, label: resolutionLabelOf(value, native) })),
     selected: values.includes(settings.resolution) ? settings.resolution : "native",
   };

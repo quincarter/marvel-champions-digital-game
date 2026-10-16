@@ -1,3 +1,5 @@
+mod display_mode;
+
 // The context (and with it all of dist/, embedded) is generated in main.rs, not
 // here: expanded in this lib crate, the embedded assets were also written into
 // its crate metadata at ~4x their size, and the resulting .rlib passed 4 GB,
@@ -50,7 +52,19 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
     // default browser: the webview ignores `window.open`. Also scoped in
     // capabilities/default.json.
     .plugin(tauri_plugin_opener::init())
-    .invoke_handler(tauri::generate_handler![installer_kind])
+    .invoke_handler(tauri::generate_handler![
+      installer_kind,
+      display_mode::display_modes,
+      display_mode::set_display_mode,
+      display_mode::restore_display_mode,
+      display_mode::linux_distro
+    ])
+    // Exclusive fullscreen gives the monitor back while the game is in the background (display_mode.rs).
+    .on_window_event(|_, event| {
+      if let tauri::WindowEvent::Focused(focused) = event {
+        display_mode::on_focus(*focused);
+      }
+    })
     // No card-art code here on purpose: the scans are bundled into `dist/` at
     // build time (vite-card-art.ts) and load as ordinary same-origin files.
     .setup(|app| {
@@ -63,6 +77,12 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
       }
       Ok(())
     })
-    .run(context)
-    .expect("error while running tauri application");
+    .build(context)
+    .expect("error while building tauri application")
+    .run(|_, event| {
+      // The user's own display mode back on the way out (Windows would also restore it once the process ends).
+      if let tauri::RunEvent::Exit = event {
+        display_mode::restore();
+      }
+    });
 }

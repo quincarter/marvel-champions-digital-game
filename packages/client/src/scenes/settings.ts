@@ -63,7 +63,9 @@ import type {
 import {
   applyDesktopWindow,
   desktopMonitor,
+  HANDHELD_DISPLAY,
   hasDesktopWindow,
+  onHandheldLinux,
   refreshDesktopMonitor,
   resolutionOptionsFor,
 } from "../platform/desktop-window.js";
@@ -99,6 +101,10 @@ const SAVE_DATA_ROW = "save-data";
 /** The Rules reference row: a door to `scenes/rules.ts`'s glossary, right after Save data (owner, 2026-10-01). */
 const RULES_ROW = "rules";
 const RULES_ROW_TITLE = "Rules reference";
+/** The Steam Deck row (SteamOS and Bazzite only): back to the display a Deck starts with. */
+const STEAM_DECK_DETAIL =
+  "Fullscreen at the screen's own resolution (1280 × 800 on the Deck), what this device starts with.";
+
 const RULES_ROW_DETAIL = "Look up any keyword, rule or ruling, with the cards it applies to.";
 
 type GuideNonLevelRow = Extract<GuideRowInfo, { kind: "action" | "toggle" }>;
@@ -289,6 +295,7 @@ export class SettingsOverlay extends Phaser.Scene {
       guideRowIds: guideRows.map((row) => row.id),
       cardHover: formFactorFor(width, height) === "desktop",
       desktopWindow: hasDesktopWindow(),
+      steamDeck: onHandheldLinux(),
     });
     const active = tabs.find((tab) => tab.id === lastTab) ?? tabs[0]!;
     const layout = settingsLayout(
@@ -408,7 +415,7 @@ export class SettingsOverlay extends Phaser.Scene {
         this.#pendingResolution = null;
         this.#setWindow(nextSettingsAfterDisplayMode(appSession().settings, v));
       });
-      const sizeInfo = resolutionRowInfoOf(settings, sizes, monitor);
+      const sizeInfo = resolutionRowInfoOf(settings, sizes, monitor, monitor?.displayModes !== undefined);
       items.set("resolution", {
         spec: {
           kind: "segmented",
@@ -482,6 +489,17 @@ export class SettingsOverlay extends Phaser.Scene {
     door(UNLOCKS_ROW, "Unlocks", unlocksSummaryOf(unlocks()), () => this.#openUnlocks());
     door(SAVE_DATA_ROW, SAVE_DATA_ROW_TITLE, SAVE_DATA_ROW_DETAIL, () => this.#openSaveData());
     door(RULES_ROW, RULES_ROW_TITLE, RULES_ROW_DETAIL, () => this.#openRules());
+    items.set("steam-deck", {
+      spec: { kind: "toggle", id: "steam-deck", detail: STEAM_DECK_DETAIL },
+      draw: (item, stops) => {
+        const use = (): void => {
+          this.#pendingResolution = null;
+          this.#setWindow({ ...appSession().settings, ...HANDHELD_DISPLAY });
+        };
+        this.#drawDoorRow(item.row, "steam-deck", "Steam Deck", STEAM_DECK_DETAIL, item.slot, stops, use, "Use");
+        return ["steam-deck"];
+      },
+    });
     return items;
   }
 
@@ -998,6 +1016,7 @@ export class SettingsOverlay extends Phaser.Scene {
     index: number,
     stops: Map<string, FocusStop>,
     activate: () => void,
+    buttonLabel = "Open ▸",
   ): void {
     label(this, rect.x, rect.y + 2, title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
     this.add
@@ -1008,7 +1027,7 @@ export class SettingsOverlay extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: "secondary",
-        label: "Open ▸",
+        label: buttonLabel,
         type: typeRole.label,
         rect: openRect,
         onClick: activate,

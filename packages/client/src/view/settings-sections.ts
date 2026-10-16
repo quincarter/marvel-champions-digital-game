@@ -13,6 +13,7 @@ export type SettingsItemId =
   | "token-motion"
   | "display-mode"
   | "resolution"
+  | "steam-deck"
   | "villain-auto"
   | "villain-hold"
   | "villain-speed"
@@ -39,6 +40,8 @@ export function settingsSectionsOf(input: {
   readonly guideRowIds: readonly GuideSettingsRowId[];
   readonly cardHover: boolean;
   readonly desktopWindow?: boolean;
+  /** SteamOS or Bazzite: a Steam Deck row in the Window section. */
+  readonly steamDeck?: boolean;
 }): readonly SettingsSection[] {
   return [
     { id: "gameplay", title: "Gameplay", items: ["confirm-end-turn", "same-name-conflict"] },
@@ -55,7 +58,13 @@ export function settingsSectionsOf(input: {
       ],
     },
     ...(input.desktopWindow
-      ? [{ id: "window", title: "Window", items: ["display-mode", "resolution"] } satisfies SettingsSection]
+      ? [
+          {
+            id: "window",
+            title: "Window",
+            items: ["display-mode", "resolution", ...(input.steamDeck ? (["steam-deck"] as const) : [])],
+          } satisfies SettingsSection,
+        ]
       : []),
     { id: "motion", title: "Animation and display", items: ["reduced-motion", "token-motion", "sharper-text"] },
     { id: "sound", title: "Sound", items: ["sound"] },
