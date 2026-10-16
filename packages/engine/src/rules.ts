@@ -1479,7 +1479,7 @@ export function maxSustainedDamageOf(state: GameState, deps: EngineDeps, targetI
 
 /**
  * How much more damage this character can take before `maxSustainedDamage` stops it (never below 0, so a character
- * already above the cap takes nothing and is not healed), or null when no cap applies. Sustained damage is `damage`
+ * already above the cap takes nothing; the state check between frames lowers it to the cap), or null when no cap applies. Sustained damage is `damage`
  * (RRG 1.8 "Sustained Damage", p. 42: maximum minus remaining hit points, or the damage tokens).
  */
 export function sustainedDamageAllowance(state: GameState, deps: EngineDeps, targetId: InstanceId): number | null {

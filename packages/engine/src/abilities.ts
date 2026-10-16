@@ -1920,7 +1920,8 @@ export type RuleSpec =
    * `amount` (read live from the rule's card); with several rules the lowest wins. Damage placed (not dealt) is held to
    * it too. Damage above the cap is neither taken nor prevented (§4.1 Q9): it announces no `damagePrevented` and uses
    * no tough card, and it yields no excess damage (measured on damage taken, RRG 1.8 "Overkill", p. 31). It never heals and never changes maximum hit
-   * points.
+   * points, but a character found above it between frames is lowered to it (`damageAboveCapRemoved`, a rules
+   * correction rather than a heal; ruling 69.114, October 10, 2025).
    */
   | {
       readonly kind: "maxSustainedDamage";

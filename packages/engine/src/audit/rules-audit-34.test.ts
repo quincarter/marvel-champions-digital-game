@@ -218,9 +218,8 @@ describe("audit 34: M.U.S.I.C. defeated in Tower Defense moves the threat to the
  * effect, it will immediately affect the amount of sustained damage Magneto has, possibly resulting in less damage on
  * Magneto." RRG 1.8 "Sustained Damage" (p. 42) is silent on a cap coming back after damage was placed.
  *
- * The engine holds the cap only as damage is dealt (`maxSustainedDamage`, `max-sustained-damage.test.ts` › "the cap
- * does not stop healing, and does not heal a villain already above it" pins 8 damage staying 8 under a 6 cap), so
- * damage taken while the scheme was blanked stays once the blank ends.
+ * The engine held the cap only as damage was dealt, so damage taken while the scheme was blanked stayed once the blank
+ * ended. Fixed: `applySustainedDamageCaps` (`resolve/state-checks.ts`) lowers it between frames.
  */
 import { stubSideScheme as stubSide2, stubVillain as stubVillain2 } from "../testing/fixtures.js";
 import {
@@ -255,7 +254,7 @@ const HIT_5 = act2("hit-5", [{ kind: "dealDamage", target: { kind: "villain" }, 
 const deps3 = depsOf(CAP, BLANK_IT.ability, HIT_5.ability);
 
 describe("audit 34: a sustained-damage cap that comes back after a blank applies at once (ruling Oct 10, 2025, 69.114)", () => {
-  it.fails("5 + 5 damage dealt while blanked drops to the 6 cap when the blank ends", () => {
+  it("5 + 5 damage dealt while blanked drops to the 6 cap when the blank ends", () => {
     const base = gameAtFirstTurn2({
       cards: [MAGNETO2, BOARDING2, BLANK_IT.card, HIT_5.card],
       deps: deps3,
