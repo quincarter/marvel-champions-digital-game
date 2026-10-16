@@ -27,6 +27,7 @@ import {
   POOL_CARDS,
   POOL_DEPS,
   POOL_ENCOUNTER_SETS,
+  packNameOf,
   POOL_SCENARIOS,
   POOL_VERSION,
 } from "../content/pool.js";
@@ -34,6 +35,17 @@ import { accent, dotGrid, hit, ink, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTextInput, dashedRect, fitText, label, paintDotGrid, sectionHeader } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
+import { artFor } from "../art/art-source.js";
+import { cardFaces } from "../art/card-face-baker.js";
+import { artThumbSpec } from "./roster-panel.js";
+import { HoverPreview, resetHoverCards, screenHoverArea } from "../ui/card-hover-preview.js";
+import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
+import { cardsBySet, setFacesOf, type FaceRef } from "../view/civil-war-builder-art.js";
+import { offersRandomModularSets, withRandomModularSets } from "../view/modular-random.js";
+import { SET_CARDS_ACTION_EVENT, type SetCardsData } from "./set-cards.js";
+import { drawHeroAvatar, SEAT_AVATAR_READY } from "../ui/seat-avatar.js";
+import { difficultySetLine, difficultySetSections, difficultySetsSubtitle } from "../view/difficulty-sets.js";
+import { setSheetFor } from "../view/civil-war-builder-model.js";
 import { progressionScope } from "../progression/progression-scope.js";
 import { blindRevealOf } from "../view/civil-war-blind.js";
 import { estimateWrappedLines, type Rect } from "../view/layout.js";
@@ -146,7 +158,7 @@ import type { DecksSceneData } from "./decks.js";
 import type { SeatsData } from "./seats.js";
 import type { ScenarioIntroData } from "./scenario-intro.js";
 import { scenarioIntroFor } from "../campaign/scenario-intros.js";
-import { ART_CATALOG, introArtFor } from "../art/scenario-art.js";
+import { ART_CATALOG, introArtFor, villainArtFor } from "../art/scenario-art.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import {
   FIRST_PLAYER_TOKEN_TEXTURE,
@@ -175,6 +187,8 @@ interface SeatCell {
   readonly chipLabel: string;
   readonly selected: boolean;
   readonly onClick: () => void;
+  /** The seated deck's hero identity card, for the seat's picture; undefined when the deck does not resolve. */
+  readonly identityCardId: string | undefined;
 }
 
 /** What the Civil War summary reads: the pool, which now holds the Civil War cards, sets and scenarios. */
@@ -208,6 +222,36 @@ interface CompactRowData {
 /** A Horseman's name beside its A/B pair: wide enough for "Pestilence" at the label size. */
 const HORSEMAN_LABEL_WIDTH = 72;
 
+/** A modular tile's picture waiting for its baked face (`#fillThumbs`), in the container it scrolls with. */
+interface ThumbSlot {
+  readonly rect: Rect;
+  readonly url: string;
+  readonly parent: Phaser.GameObjects.Container | null;
+  readonly alpha: number;
+  done: boolean;
+}
+
+/** The modular tiles' pictures: the set's most recognizable card, framed from the top. */
+const SET_PICTURE_FOCUS_Y = 0.12;
+/** The product a Standard or Expert set comes from ("Core Set", "The Hood"), by the set's own pack. */
+const setProductName = (setId: string): string => {
+  const code = POOL_ENCOUNTER_SETS.find((set) => (set.id as string) === setId)?.packCodes[0];
+  return code ? packNameOf(code as string) : setId;
+};
+
+/** The Random button beside the Modular sets header. */
+const MODULAR_RANDOM_WIDTH = 90;
+/** Where a modular tile's picture, "Cards ▸" caption and the buttons that open its cards go (`#setPictureLayout`). */
+interface SetPictureLayout {
+  readonly phone: boolean;
+  readonly picture: Rect;
+  readonly tab: Rect;
+  readonly hitAreas: readonly Rect[];
+}
+
+/** The "Cards ▸" tab in a wide modular tile's bottom-right corner. */
+const SET_CARDS_TAB_WIDTH = 64;
+
 export class TableSetupScene extends Phaser.Scene {
   #draft!: SetupDraft;
   #savedDecks: readonly Deck[] = [];
@@ -218,6 +262,19 @@ export class TableSetupScene extends Phaser.Scene {
   #status: Phaser.GameObjects.Text | null = null;
   /** Why "Deal it out" waits on the modular picks (`modularDealBlockOf`), or null when it can deal; set each rebuild. */
   #dealBlocked: string | null = null;
+  /** The modular tiles' pictures still waiting for a baked face (refilled as faces arrive, rebuilt each draw). */
+  #thumbs: ThumbSlot[] = [];
+  /** This draw's Standard/Expert set rows, for the one sheet that shows every set they offer. */
+  #setChoiceRows: readonly SetupOptionRow[] = [];
+  /** The desktop hover popover over the modular tiles' pictures (`ui/card-hover-preview.ts`). */
+  #hover: HoverPreview | null = null;
+  #hoverFaces: {
+    readonly cardId: string;
+    readonly face?: FaceRef["face"];
+    readonly rect: Rect;
+    /** The region the rect scrolls in: the phone's page, the wide modular grid, or none (wide seats). */
+    readonly region: "page" | "grid" | "none";
+  }[] = [];
   /** What the status line reads with no seed error: the wide sidebar's deal hold, or nothing (the phone's footer says it). */
   #statusIdle = "";
   #starting = false;
@@ -270,7 +327,21 @@ export class TableSetupScene extends Phaser.Scene {
     this.#tokenView = null;
     this.#tokenFlight = null;
     this.scale.on("resize", this.#rebuild, this);
+    // A face baked off the main thread arrives: fill the pictures waiting for it, never a whole rebuild.
+    const offBaked = cardFaces(this).onBaked(() => this.#fillThumbs());
+    this.#hover = new HoverPreview(this, {
+      cardIds: () => this.#hoverCardIds(),
+      area: (pointer) => screenHoverArea(this, pointer),
+    });
+    this.game.events.on(SET_CARDS_ACTION_EVENT, this.#onSetCardsAction, this);
+    // A seat's hero picture loads after the first draw: draw again to show it.
+    this.events.on(SEAT_AVATAR_READY, this.#rebuild, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      offBaked();
+      this.events.off(SEAT_AVATAR_READY, this.#rebuild, this);
+      this.#hover?.destroy();
+      this.#hover = null;
+      this.game.events.off(SET_CARDS_ACTION_EVENT, this.#onSetCardsAction, this);
       this.scale.off("resize", this.#rebuild, this);
       this.#seedInput?.destroy();
       this.#seedInput = null;
@@ -280,7 +351,10 @@ export class TableSetupScene extends Phaser.Scene {
       this.#modularRegion = null;
     });
     this.#route = new FocusRoute(this, {
-      blocked: () => this.scene.isActive(SCENES.inspect) || (this.#seedInput?.focused ?? false),
+      blocked: () =>
+        this.scene.isActive(SCENES.inspect) ||
+        this.scene.isActive(SCENES.setCards) ||
+        (this.#seedInput?.focused ?? false),
       onCancel: () => this.#back(),
     });
     this.#starting = false;
@@ -315,6 +389,9 @@ export class TableSetupScene extends Phaser.Scene {
   };
 
   #rebuild(): void {
+    this.#thumbs = [];
+    resetHoverCards(this);
+    this.#hoverFaces = [];
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#stops = new Map();
@@ -352,6 +429,7 @@ export class TableSetupScene extends Phaser.Scene {
     const allOptionRows = setupOptionRowsOf(this.#draft, POOL_SET_NAMES);
     // The Standard / Expert set chips are folded into the difficulty row; the rest are cards under it.
     const { setChoices, cards: optionRows } = splitOptionRows(allOptionRows);
+    this.#setChoiceRows = setChoices;
     // Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): offered only for Tower Defense itself.
     const towerDefenseSetupDamageOffered = hasTowerDefenseSetupDamageOption(scenario);
     // The Hood's own "choose 7 modular encounter sets and set them aside" (§2.3, §3.18): empty for every other scenario.
@@ -567,11 +645,21 @@ export class TableSetupScene extends Phaser.Scene {
     }
 
     const modularRight = this.#modularRightLabel(scenario, requiredSets.length, modularOptions).toUpperCase();
+    const modularRandom = !this.#cwSummary && offersRandomModularSets(scenario, this.#draft.seats.length);
+    if (modularRandom) {
+      const header = layout.modularHeader;
+      this.#drawModularRandom({
+        x: header.x + header.width - MODULAR_RANDOM_WIDTH,
+        y: header.y,
+        width: MODULAR_RANDOM_WIDTH,
+        height: header.height,
+      });
+    }
     sectionHeader(
       this,
       layout.modularHeader.x,
       layout.modularHeader.y,
-      layout.modularHeader.width,
+      layout.modularHeader.width - (modularRandom ? MODULAR_RANDOM_WIDTH + 10 : 0),
       this.#cwSummary ? SUMMARY_SECTION_TITLE : "Modular sets",
       bodyColor,
       modularRight,
@@ -696,6 +784,17 @@ export class TableSetupScene extends Phaser.Scene {
         .setWordWrapWidth(layout.seedHelper.width)
         .setMaxLines(Math.max(1, Math.floor(layout.seedHelper.height / 15)));
     }
+    // The villain this table faces, as a picture in the sidebar's free space between the seed and "Deal it out".
+    if (!this.#cwSummary)
+      this.#drawVillainPicture(
+        {
+          x: layout.seedHelper.x,
+          y: layout.seedHelper.y + 64,
+          width: layout.seedHelper.width,
+          height: layout.dealItOut.y - 30 - (layout.seedHelper.y + 64),
+        },
+        scenario,
+      );
 
     this.#buttons.push(
       new McButton(this, {
@@ -721,12 +820,15 @@ export class TableSetupScene extends Phaser.Scene {
         difficulties: difficultyCards.map((c) => c.id),
         optionActions: optionActionsOf(allOptionRows),
         hasTowerDefenseSetupDamage: towerDefenseSetupDamageOffered,
+        hasModularRandom: !this.#cwSummary && offersRandomModularSets(scenario, this.#draft.seats.length),
         modularSetIds: modularOptions.map((o) => o.id),
         hoodSetIds: hoodOptions.map((o) => o.id),
         firstPlayerOptionIds: [...seatCells.map((c) => c.id), "random"],
       }),
       this.#stops,
     );
+    this.#fillThumbs();
+    this.#hover?.onDraw();
   }
 
   // -----------------------------------------------------------------------------------------------------------
@@ -877,6 +979,7 @@ export class TableSetupScene extends Phaser.Scene {
         difficulties: difficultyCards.map((c) => c.id),
         optionActions: optionActionsOf([...setChoices, ...optionRows]),
         hasTowerDefenseSetupDamage: towerDefenseSetupDamageOffered,
+        hasModularRandom: !this.#cwSummary && offersRandomModularSets(scenario, this.#draft.seats.length),
         modularSetIds: cw ? [EDIT_SCENARIO_ID] : modularOptions.map((o) => o.id),
         modularStopIds: cw
           ? [`modular:${EDIT_SCENARIO_ID}`]
@@ -886,6 +989,8 @@ export class TableSetupScene extends Phaser.Scene {
       }),
       this.#stops,
     );
+    this.#fillThumbs();
+    this.#hover?.onDraw();
   }
 
   /** Runs `draw`, then reparents everything it just added to the scene's top-level display list into `container` — the "eagerly draw, then move into the scrolled/masked layer" trick `McScrollRegion` relies on (its own doc comment), since `this.add.graphics()`/`new McButton(this, …)` always land at the top level first. */
@@ -954,10 +1059,22 @@ export class TableSetupScene extends Phaser.Scene {
     }
     if (id === "header:modular") {
       const sectionTitle = data.civilWarSummary ? SUMMARY_SECTION_TITLE : "Modular sets";
+      const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId)!;
+      const random = !data.civilWarSummary && offersRandomModularSets(scenario, this.#draft.seats.length);
+      const titleWidth = rect.width - (random ? MODULAR_RANDOM_WIDTH + 10 : 0);
+      if (random) {
+        const button: Rect = {
+          x: rect.x + rect.width - MODULAR_RANDOM_WIDTH,
+          y: rect.y,
+          width: MODULAR_RANDOM_WIDTH,
+          height: 30,
+        };
+        this.#drawModularRandom(button, true);
+      }
       if (!layout.modularHeaderStacked) {
-        sectionHeader(this, rect.x, rect.y + 2, rect.width, sectionTitle, surface.ink.hex, data.modularRightLabel);
+        sectionHeader(this, rect.x, rect.y + 2, titleWidth, sectionTitle, surface.ink.hex, data.modularRightLabel);
       } else {
-        sectionHeader(this, rect.x, rect.y + 2, rect.width, sectionTitle, surface.ink.hex);
+        sectionHeader(this, rect.x, rect.y + 2, titleWidth, sectionTitle, surface.ink.hex);
         // 26px: the Bangers heading's own line height at this size (`sectionHeader`'s own font size, 19px) — the
         // stacked right label sits directly under it, inside this row's own taller height (`modularHeaderStacked`).
         // Wraps to a second line (the row is taller for it, `stackedHeaderLabelLines`) instead of running off the
@@ -1213,13 +1330,20 @@ export class TableSetupScene extends Phaser.Scene {
         suppressClick: this.#compactSuppressClick,
       }),
     );
-    this.#stops.set(`modular:${option.id}`, this.#compactStop(cellRect, onClick, `modular:${option.id}`));
+    const pictureAt = option.kind === "random" ? null : this.#setPictureLayout(cellRect, "right");
+    if (pictureAt) this.#setPictureButtons(pictureAt, option, true);
+    this.#stops.set(`modular:${option.id}`, {
+      ...this.#compactStop(cellRect, onClick, `modular:${option.id}`),
+      ...(option.kind === "random" ? {} : { inspect: () => this.#openSetCards(option) }),
+    });
     const g = this.add.graphics();
     g.fillStyle(surface.card.hex, 1).fillRect(rect.x, rect.y, rect.width, h);
     g.lineStyle(2.5, surface.ink.hex, 1).strokeRect(rect.x + 1.25, rect.y + 1.25, rect.width - 2.5, h - 2.5);
     const boxRect = this.#drawCompactCheckbox(rect, h, option.selected, surface.ink.hex);
+    if (pictureAt) this.#drawSetPicture(pictureAt, option);
+    const picture = pictureAt?.picture ?? null;
     const textX = boxRect.x + boxRect.width + 11;
-    const textWidth = rect.x + rect.width - textX - 10;
+    const textWidth = (picture ? picture.x - 8 : rect.x + rect.width - 10) - textX;
     const name = this.add.text(
       textX,
       rect.y + 11,
@@ -1341,24 +1465,35 @@ export class TableSetupScene extends Phaser.Scene {
         cellRect.height - 2.5,
       );
       const tone = cell.selected ? surface.paper.hex : surface.ink.hex;
+      // A chip wide enough (one or two seats) shows the seat's hero on its left and centers its text in the rest.
+      const avatarSize = cellRect.height - 12;
+      const withAvatar = cellRect.width >= avatarSize + 80;
+      if (withAvatar)
+        this.#drawSeatAvatar(
+          { x: cellRect.x + 6, y: cellRect.y + 6, width: avatarSize, height: avatarSize },
+          cell,
+          true,
+        );
+      const textLeft = withAvatar ? cellRect.x + avatarSize + 12 : cellRect.x;
+      const textSpan = cellRect.x + cellRect.width - textLeft;
       const top = this.add
         .text(
-          cellRect.x + cellRect.width / 2,
+          textLeft + textSpan / 2,
           cellRect.y + cellRect.height * 0.36,
           cell.chipLabel,
           textStyle({ ...typeRole.sectionHeader, size: 15 }, tone),
         )
         .setOrigin(0.5);
-      fitText(top, cellRect.width - 8, 15);
+      fitText(top, textSpan - 8, 15);
       const bottom = this.add
         .text(
-          cellRect.x + cellRect.width / 2,
+          textLeft + textSpan / 2,
           cellRect.y + cellRect.height * 0.72,
           cell.name,
           textStyle(typeRole.label, tone, ink.label),
         )
         .setOrigin(0.5);
-      fitText(bottom, cellRect.width - 8, typeRole.label.size);
+      fitText(bottom, textSpan - 8, typeRole.label.size);
     });
     // The token sits on the first player's chip, over its top right corner; drawn after every chip so it is on top.
     const tokenSize = 34;
@@ -1588,7 +1723,7 @@ export class TableSetupScene extends Phaser.Scene {
         cardRect.x + 10,
         cardRect.y + 8,
         card.name,
-        textStyle({ ...typeRole.sectionHeader, size: 18 }, surface.ink.hex, selected ? 1 : ink.disabled),
+        textStyle({ ...typeRole.sectionHeader, size: 18 }, surface.ink.hex),
       );
       fitText(name, cardRect.width - 20, 18);
       this.add
@@ -1596,7 +1731,7 @@ export class TableSetupScene extends Phaser.Scene {
           cardRect.x + 10,
           cardRect.y + 8 + 22,
           card.description,
-          textStyle(typeRole.body, surface.ink.hex, selected ? ink.secondary : ink.disabled),
+          textStyle(typeRole.body, surface.ink.hex, ink.secondary),
         )
         .setWordWrapWidth(cardRect.width - 20)
         .setMaxLines(Math.max(1, Math.floor((cardRect.height - 34) / 14)));
@@ -1640,12 +1775,7 @@ export class TableSetupScene extends Phaser.Scene {
       stopFor(`option:${control.action}`, rect, onClick);
       this.#cardFrame(rect, row.active);
       this.#cardName(rect.x + 10, rect.y + 8, rect.width - 20, row.name, dim);
-      this.add.text(
-        rect.x + 10,
-        rect.y + 8 + 22,
-        row.meta,
-        textStyle(typeRole.body, surface.ink.hex, row.active ? ink.secondary : ink.disabled),
-      );
+      this.add.text(rect.x + 10, rect.y + 8 + 22, row.meta, textStyle(typeRole.body, surface.ink.hex, ink.secondary));
       return;
     }
 
@@ -1664,7 +1794,7 @@ export class TableSetupScene extends Phaser.Scene {
           rect.x + 10,
           rect.y + 8 + name.height + 2,
           row.meta,
-          textStyle(typeRole.body, surface.ink.hex, row.active ? ink.secondary : ink.disabled),
+          textStyle(typeRole.body, surface.ink.hex, ink.secondary),
         )
         .setWordWrapWidth(nameWidth - 6);
     const zone: Rect = stacked
@@ -1762,17 +1892,23 @@ export class TableSetupScene extends Phaser.Scene {
       card,
       rows.some((row) => row.active),
     );
-    setChoiceRowRects(card, rows.length, inline).forEach((rects, index) => {
+    const rowRects = setChoiceRowRects(card, rows.length, inline);
+    rowRects.forEach((rects, index) => {
       const row = rows[index];
       if (!row || row.control.kind !== "groups") return;
       const size = inline ? 16 : 14;
+      // Inline, the name sits at the top of its slot with "Cards ▸" under it; stacked, "Cards ▸" ends the label line.
+      const cardsRect: Rect = inline
+        ? { x: rects.name.x + 2, y: rects.name.y + 22, width: 74, height: 20 }
+        : { x: rects.name.x + rects.name.width - 70, y: rects.name.y - 2, width: 70, height: 16 };
+      if (index === 0) this.#difficultySetCardsButton(cardsRect);
       const name = this.add.text(
         rects.name.x + 2,
-        rects.name.y + (inline ? (rects.name.height - size) / 2 - 2 : -2),
+        rects.name.y + (inline ? 0 : -2),
         row.name,
         textStyle({ ...typeRole.sectionHeader, size }, surface.ink.hex, row.active ? 1 : ink.secondary),
       );
-      fitText(name, rects.name.width - 4, size);
+      fitText(name, rects.name.width - 4 - (inline ? 0 : cardsRect.width + 6), size);
       const chips = row.control.groups[0]!.chips;
       const gap = 6;
       const chipWidth = Math.min(80, (rects.chips.width - gap * (chips.length - 1)) / chips.length);
@@ -1787,6 +1923,54 @@ export class TableSetupScene extends Phaser.Scene {
         );
       });
     });
+    // Under the last row, when the card has room: what the set is and where each chip's set comes from.
+    const last = rowRects[rowRects.length - 1];
+    if (last && rows.length === 1) {
+      const top = last.chips.y + last.chips.height + 3;
+      if (card.y + card.height - top >= 14) {
+        const line = label(
+          this,
+          card.x + 10,
+          top,
+          difficultySetLine(rows[0]!),
+          typeRole.label,
+          surface.ink.hex,
+          ink.label,
+        );
+        fitText(line, card.width - 20, typeRole.label.size);
+      }
+    }
+  }
+
+  /**
+   * "Cards ▸" on a Standard/Expert set row: one sheet with every set the rows offer (Standard I, II, III; in Expert mode
+   * the Expert sets too), each under a heading saying where it comes from, the chosen ones marked.
+   */
+  #difficultySetCardsButton(rect: Rect, compact = false): void {
+    const rows = this.#setChoiceRows;
+    const open = (): void => {
+      const ctx = { cards: CARDS_BY_ID, encounterSets: POOL_ENCOUNTER_SETS };
+      const sections = difficultySetSections(rows, setProductName, (id) => setSheetFor(ctx, id).totalCards);
+      if (sections.length === 0) return;
+      this.scene.launch(SCENES.setCards, {
+        setId: sections[0]!.setId,
+        title: rows.length > 1 ? "Standard & Expert sets" : "Standard sets",
+        subtitle: difficultySetsSubtitle(rows),
+        sections,
+        from: SCENES.setup,
+      } satisfies SetCardsData);
+      this.scene.bringToTop(SCENES.setCards);
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "quiet",
+        label: "Cards ▸",
+        type: typeRole.label,
+        rect,
+        onClick: open,
+        ...(compact ? { clip: this.#compactClip, suppressClick: this.#compactSuppressClick } : {}),
+      }),
+    );
   }
 
   /**
@@ -1851,13 +2035,8 @@ export class TableSetupScene extends Phaser.Scene {
     if (row.control.kind !== "groups") return;
     this.#cardFrame(card, row.active);
     const nameWidth = SETS_INLINE_NAME_WIDTH;
-    const name = this.#cardName(
-      card.x + 10,
-      card.y + (card.height - 22) / 2,
-      nameWidth - 10,
-      row.name,
-      row.active ? 1 : ink.secondary,
-    );
+    this.#difficultySetCardsButton({ x: card.x + 10, y: card.y + card.height - 24, width: 74, height: 18 }, true);
+    const name = this.#cardName(card.x + 10, card.y + 4, nameWidth - 10, row.name, row.active ? 1 : ink.secondary);
     name.setFontSize(16);
     fitText(name, nameWidth - 10, 16);
     const chips = row.control.groups[0]!.chips;
@@ -1911,7 +2090,7 @@ export class TableSetupScene extends Phaser.Scene {
       rect.x + 10,
       rect.y + 8,
       "Black Order's initial attack",
-      textStyle({ ...typeRole.sectionHeader, size: 18 }, surface.ink.hex, selected ? 1 : ink.disabled),
+      textStyle({ ...typeRole.sectionHeader, size: 18 }, surface.ink.hex),
     );
     fitText(name, rect.width - 20, 18);
     this.add.text(
@@ -1920,7 +2099,7 @@ export class TableSetupScene extends Phaser.Scene {
       selected
         ? `Chosen · place ${perHero} damage per hero on Avengers Tower`
         : `Off · Avengers Tower starts undamaged (${perHero} per hero suggested)`,
-      textStyle(typeRole.body, surface.ink.hex, selected ? ink.secondary : ink.disabled),
+      textStyle(typeRole.body, surface.ink.hex, ink.secondary),
     );
   }
 
@@ -2058,7 +2237,7 @@ export class TableSetupScene extends Phaser.Scene {
     this.#buttons.push(new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect, onClick }));
     this.#stops.set(`hoodSet:${option.id}`, { rect, activate: onClick });
     this.#cardFrame(rect, option.included);
-    const dim = option.included ? 1 : ink.disabled;
+    const dim = 1;
     const name = this.add.text(
       rect.x + 10,
       rect.y + 8,
@@ -2069,23 +2248,20 @@ export class TableSetupScene extends Phaser.Scene {
     const metaText = option.included
       ? modularCardLabel({ selected: true, cardCount: option.cardCount, descriptor: option.descriptor })
       : `Set aside · ${option.cardCount} card${option.cardCount === 1 ? "" : "s"}`;
-    this.#drawModularCardLabel(
-      rect,
-      rect.y + 8 + name.height + 4,
-      metaText.toUpperCase(),
-      surface.ink.hex,
-      option.included ? ink.label : ink.disabled,
-    );
+    this.#drawModularCardLabel(rect, rect.y + 8 + name.height + 4, metaText.toUpperCase(), surface.ink.hex, ink.label);
   }
 
-  /** A card's white ground and border — 4px Hero Red when selected, a thin dim ink outline otherwise. Never a fill besides "Deal it out". */
+  /**
+   * A card's white ground and border — 4px Hero Red when selected, a thin ink outline otherwise. Never a fill besides
+   * "Deal it out". An unchosen card is drawn at full strength: it is a choice, and a faded one read as unavailable.
+   */
   #cardFrame(rect: Rect, selected: boolean): void {
     const g = this.add.graphics();
     g.fillStyle(surface.card.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     if (selected)
       g.lineStyle(4, accent.heroRed.hex, 1).strokeRect(rect.x + 2, rect.y + 2, rect.width - 4, rect.height - 4);
     else
-      g.lineStyle(1.5, surface.ink.hex, ink.disabled).strokeRect(
+      g.lineStyle(1.5, surface.ink.hex, ink.label).strokeRect(
         rect.x + 0.75,
         rect.y + 0.75,
         rect.width - 1.5,
@@ -2144,12 +2320,17 @@ export class TableSetupScene extends Phaser.Scene {
       return;
     }
     this.#modularViewportRect = rect;
+    // A tile scrolled out of the panel stays in the display list over whatever it scrolled under (the difficulty
+    // cards above, the seats below): `clip` only drops its click, while its zone still takes the press and the
+    // cursor. `clipInteractive` holds every tile not wholly inside the panel inert instead.
     this.#modularRegion = new McScrollRegion(this, {
       rect,
       heights: plan.rowHeights,
       scroll: this.#modularScroll,
+      clipInteractive: true,
     });
     this.#captureInto(this.#modularRegion.content, draw);
+    this.#modularRegion.syncInteractivity();
   }
 
   #modularClip = (): Rect | null => this.#modularRegion?.rect ?? null;
@@ -2211,13 +2392,18 @@ export class TableSetupScene extends Phaser.Scene {
         ...(scrollItem !== null ? { clip: this.#modularClip, suppressClick: this.#modularSuppressClick } : {}),
       }),
     );
+    const pictureAt = option.kind === "random" ? null : this.#setPictureLayout(rect, "left");
+    if (pictureAt) this.#setPictureButtons(pictureAt, option, scrollItem !== null);
+    // The keyboard's Inspect key opens the set's cards, as a tap on its picture does.
+    const inspect = option.kind === "random" ? {} : { inspect: () => this.#openSetCards(option) };
     this.#stops.set(
       `modular:${option.id}`,
       scrollItem === null
-        ? { rect, activate: onClick }
+        ? { rect, activate: onClick, ...inspect }
         : {
             rect: () => ({ ...rect, y: rect.y - this.#modularScroll.offsetPx }),
             activate: onClick,
+            ...inspect,
             ensureVisible: () => {
               const row = this.#modularRowOfItem[scrollItem];
               if (row !== undefined) this.#modularRegion?.scrollIntoView(row);
@@ -2225,20 +2411,239 @@ export class TableSetupScene extends Phaser.Scene {
           },
     );
     this.#cardFrame(rect, option.selected);
-    const dim = option.selected ? 1 : ink.disabled;
+    // Only a set this scenario may not use is faded; an unchosen one is a choice like any other.
+    const dim = option.disabledReason === null || option.selected ? 1 : ink.disabled;
+    // The set's picture on the left: it and the "Cards" tab on the right open the set's cards, the rest toggles.
+    if (pictureAt) this.#drawSetPicture(pictureAt, option);
+    const picture = pictureAt?.picture ?? null;
+    const textX = picture ? picture.x + picture.width + 8 : rect.x + 10;
     const name = this.add.text(
-      rect.x + 10,
+      textX,
       rect.y + 8,
       option.name,
       textStyle({ ...typeRole.sectionHeader, size: 15 }, surface.ink.hex, dim),
     );
-    fitText(name, rect.width - 20, 15);
+    fitText(name, rect.x + rect.width - 10 - textX, 15);
+    const labelRect: Rect = picture
+      ? {
+          x: textX - 10,
+          y: rect.y,
+          width: rect.x + rect.width - (textX - 10) - SET_CARDS_TAB_WIDTH,
+          height: rect.height,
+        }
+      : rect;
     this.#drawModularCardLabel(
-      rect,
+      labelRect,
       rect.y + 8 + name.height + 4,
       modularCardLabel(option).toUpperCase(),
       surface.ink.hex,
-      option.selected ? ink.label : ink.disabled,
+      dim === 1 ? ink.label : ink.disabled,
+    );
+  }
+
+  /**
+   * Where a modular set's picture goes in its tile (its most recognizable card, `setFacesOf`) and what opens its cards:
+   * on a wide tile the picture on the left and a "Cards ▸" tab in the bottom-right corner, on a phone row the picture
+   * at the row's right end with "Cards ▸" under it.
+   */
+  #setPictureLayout(tile: Rect, side: "left" | "right"): SetPictureLayout {
+    const phone = side === "right";
+    const height = phone ? tile.height - 20 : tile.height - 10;
+    const width = Math.round((height * 5) / 7);
+    const picture: Rect = phone
+      ? { x: tile.x + tile.width - width - 22, y: tile.y + 4, width, height }
+      : { x: tile.x + 6, y: tile.y + 5, width, height };
+    const tab: Rect = phone
+      ? { x: picture.x - 14, y: picture.y + picture.height + 1, width: picture.width + 28, height: 12 }
+      : {
+          x: tile.x + tile.width - SET_CARDS_TAB_WIDTH,
+          y: tile.y + tile.height - 22,
+          width: SET_CARDS_TAB_WIDTH - 4,
+          height: 18,
+        };
+    const hitAreas: readonly Rect[] = phone
+      ? [{ x: picture.x - 14, y: tile.y, width: tile.x + tile.width - (picture.x - 14), height: tile.height }]
+      : [{ x: tile.x, y: tile.y, width: picture.x + picture.width + 4 - tile.x, height: tile.height }, tab];
+    return { phone, picture, tab, hitAreas };
+  }
+
+  /** The picture's and tab's own buttons. Made right after the tile's button (on top of it, so a press there opens the cards rather than toggling the set) and before anything is drawn, so the tile's look covers their rest stroke. */
+  #setPictureButtons(at: SetPictureLayout, option: ModularSetOption, scrolls: boolean): void {
+    const open = (): void => this.#openSetCards(option);
+    const clip = at.phone
+      ? { clip: this.#compactClip, suppressClick: this.#compactSuppressClick }
+      : scrolls
+        ? { clip: this.#modularClip, suppressClick: this.#modularSuppressClick }
+        : {};
+    for (const rect of at.hitAreas)
+      this.#buttons.push(
+        new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect, onClick: open, ...clip }),
+      );
+  }
+
+  /** The picture's frame (its baked face fills in by `#fillThumbs`) and the "Cards ▸" caption. */
+  #drawSetPicture(at: SetPictureLayout, option: ModularSetOption): void {
+    const { picture, tab } = at;
+    const alpha = option.disabledReason === null || option.selected || at.phone ? 1 : 0.6;
+    const frame = this.add.graphics();
+    frame.fillStyle(surface.parchment.hex, alpha).fillRect(picture.x, picture.y, picture.width, picture.height);
+    frame
+      .lineStyle(1.5, surface.ink.hex, ink.label)
+      .strokeRect(picture.x + 0.75, picture.y + 0.75, picture.width - 1.5, picture.height - 1.5);
+    const url = this.#setPictureUrl(option.id);
+    const face = this.#setFace(option.id);
+    if (face)
+      this.#hoverFaces.push({
+        cardId: face.cardId,
+        face: face.face,
+        rect: picture,
+        region: at.phone ? "page" : "grid",
+      });
+    const parent = at.phone ? (this.#compactRegion?.content ?? null) : (this.#modularRegion?.content ?? null);
+    if (url) this.#thumbs.push({ rect: picture, url, parent, alpha, done: false });
+    const caption = this.add
+      .text(tab.x + tab.width / 2, tab.y + tab.height / 2, "CARDS ▸", textStyle(typeRole.label, surface.ink.hex, 1))
+      .setOrigin(0.5);
+    fitText(caption, tab.width, typeRole.label.size);
+  }
+
+  /**
+   * The scenario's villain: its own artwork (`art/scenarios/<id>/villain.*`), else its stage I card, cover-cropped
+   * under a "VILLAIN · NAME" caption, at most as tall as it is wide; skipped when the space is too short to read.
+   * On desktop it opens the villain card's hover popover.
+   */
+  #drawVillainPicture(space: Rect, scenario: Scenario): void {
+    if (space.height < 120 || space.width < 120) return;
+    const caption = label(
+      this,
+      space.x,
+      space.y,
+      `Villain · ${scenarioDetailOf(scenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS).displayName}`,
+      typeRole.label,
+      surface.paper.hex,
+      ink.label,
+    );
+    fitText(caption, space.width, typeRole.label.size);
+    const top = space.y + 18;
+    const picture: Rect = {
+      x: space.x,
+      y: top,
+      width: space.width,
+      height: Math.min(space.width, space.y + space.height - top),
+    };
+    const g = this.add.graphics();
+    g.fillStyle(surface.parchment.hex, 0.15).fillRect(picture.x, picture.y, picture.width, picture.height);
+    const villainId = scenario.villainCardId as string;
+    const url =
+      villainArtFor(ART_CATALOG, scenario.id as string, () => 0)?.url ??
+      artFor(CARDS_BY_ID.get(villainId), { kind: "villainStage", sideIndex: 0, stageIndex: 0 })?.url ??
+      null;
+    if (url) this.#thumbs.push({ rect: picture, url, parent: null, alpha: 1, done: false });
+    const frame = this.add.graphics();
+    frame.lineStyle(2, surface.paper.hex, 1).strokeRect(picture.x, picture.y, picture.width, picture.height);
+    this.#hoverFaces.push({ cardId: villainId, rect: picture, region: "none" });
+  }
+
+  /** A seat's hero picture; on desktop it opens the identity card's hover popover like any card picture. */
+  #drawSeatAvatar(rect: Rect, cell: SeatCell, phone: boolean): void {
+    const identity = cell.identityCardId ? CARDS_BY_ID.get(cell.identityCardId) : undefined;
+    drawHeroAvatar(this, rect, identity, surface.ink.hex);
+    if (cell.identityCardId)
+      this.#hoverFaces.push({ cardId: cell.identityCardId, rect, region: phone ? "page" : "none" });
+  }
+
+  /** A set's most recognizable card (`setFacesOf`), the one its tile pictures; null for a set with no cards on hand. */
+  #setFace(setId: string): FaceRef | null {
+    return setFacesOf(cardsBySet(CARDS_BY_ID).get(setId) ?? [], 1)[0] ?? null;
+  }
+
+  /** The tile pictures on screen now, each clipped to the region it scrolls in (the phone's page, or the wide grid). */
+  #hoverCardIds(): ReadonlyMap<string, HoverCardIdRect> {
+    const found = new Map<string, HoverCardIdRect>();
+    this.#hoverFaces.forEach(({ cardId, face, rect, region }, index) => {
+      const view =
+        region === "page" ? this.#compactRegion?.rect : region === "grid" ? this.#modularRegion?.rect : undefined;
+      const offset =
+        region === "page"
+          ? this.#compactScroll.offsetPx
+          : region === "grid" && this.#modularRegion
+            ? this.#modularScroll.offsetPx
+            : 0;
+      const at = { ...rect, y: rect.y - offset };
+      const shown = view ? clipHoverRect(at, view) : at;
+      if (shown)
+        found.set(hoverSlotOf(cardId, `card${index}`), { ...shown, cardId, ...(face ? { face } : {}), through: true });
+    });
+    return found;
+  }
+
+  /** The scan of a set's most recognizable card, or null when the content has no art for it (the frame stays empty). */
+  #setPictureUrl(setId: string): string | null {
+    const face = this.#setFace(setId);
+    if (!face) return null;
+    return artFor(CARDS_BY_ID.get(face.cardId as string), face.face)?.url ?? null;
+  }
+
+  /** Draws every waiting picture whose baked face is on hand. */
+  #fillThumbs(): void {
+    const faces = cardFaces(this);
+    for (const slot of this.#thumbs) {
+      if (slot.done) continue;
+      const rect = { ...slot.rect, width: Math.round(slot.rect.width), height: Math.round(slot.rect.height) };
+      const key = faces.request(artThumbSpec(rect, slot.url, SET_PICTURE_FOCUS_Y, "cover"));
+      if (!key) continue;
+      const image = this.add
+        .image(rect.x, rect.y, key)
+        .setOrigin(0, 0)
+        .setDisplaySize(rect.width, rect.height)
+        .setAlpha(slot.alpha);
+      faces.hold(key, image);
+      slot.parent?.add(image);
+      slot.done = true;
+    }
+  }
+
+  /** The "cards in this set" sheet over this screen, with "Add this set" / "Remove this set" at its foot. */
+  #openSetCards(option: ModularSetOption): void {
+    const barred = option.disabledReason !== null && !option.selected;
+    this.scene.launch(SCENES.setCards, {
+      setId: option.id,
+      action: { label: option.selected ? "Remove this set" : "Add this set", enabled: !barred },
+      from: SCENES.setup,
+    } satisfies SetCardsData);
+    this.scene.bringToTop(SCENES.setCards);
+  }
+
+  /** The sheet's "Add this set" / "Remove this set": the same toggle a tap on the tile makes. */
+  #onSetCardsAction(setId: string): void {
+    if (!this.sys.isActive()) return;
+    const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId)!;
+    this.#draft = toggleModularSet(this.#draft, scenario, setId);
+    this.#rebuild();
+  }
+
+  /** The Modular sets header's Random button: a random legal draw for the scenario's count (`modular-random.ts`). */
+  #drawModularRandom(rect: Rect, compact = false): void {
+    const roll = (): void => {
+      const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId)!;
+      this.#draft = withRandomModularSets(this.#draft, scenario, CARDS_BY_ID, Math.random, {
+        scope: progressionScope(),
+      });
+      this.#rebuild();
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "quiet",
+        label: "Random",
+        type: typeRole.label,
+        rect,
+        onClick: roll,
+        ...(compact ? { clip: this.#compactClip, suppressClick: this.#compactSuppressClick } : {}),
+      }),
+    );
+    this.#stops.set(
+      "modular:random-draw",
+      compact ? this.#compactStop(rect, roll, "header:modular") : { rect, activate: roll },
     );
   }
 
@@ -2287,6 +2692,7 @@ export class TableSetupScene extends Phaser.Scene {
             ? "First player"
             : `Seat ${index + 1}`,
         chipLabel: index === 0 ? "YOU" : `S${index + 1}`,
+        identityCardId: option?.deck.identityCardId as string | undefined,
         selected: this.#draft.firstPlayerIndex === index || (this.#draft.firstPlayerIndex === null && index === 0),
         onClick: () => {
           this.#draft = setFirstPlayerIndex(this.#draft, index);
@@ -2314,7 +2720,7 @@ export class TableSetupScene extends Phaser.Scene {
       this.#stops.set(`first-player:${cell.id}`, { rect: cellRect, activate: cell.onClick });
       const g = this.add.graphics();
       g.fillStyle(surface.card.hex, 1).fillRect(cellRect.x, cellRect.y, cellRect.width, cellRect.height);
-      g.lineStyle(1.5, surface.ink.hex, cell.selected ? 1 : ink.disabled).strokeRect(
+      g.lineStyle(1.5, surface.ink.hex, cell.selected ? 1 : ink.label).strokeRect(
         cellRect.x + 0.75,
         cellRect.y + 0.75,
         cellRect.width - 1.5,
@@ -2328,10 +2734,14 @@ export class TableSetupScene extends Phaser.Scene {
       const dotCy = cellRect.y + cellRect.height / 2;
       if (!cell.selected) {
         const spot = this.add.graphics();
-        spot.lineStyle(1.5, surface.ink.hex, ink.disabled).strokeCircle(dotCx, dotCy, dotSize / 2 - 2);
+        spot.lineStyle(1.5, surface.ink.hex, ink.label).strokeCircle(dotCx, dotCy, dotSize / 2 - 2);
       }
 
-      const textX = dotCx + dotSize / 2 + 8;
+      // The seat's hero, so the table reads as people rather than text boxes.
+      const avatarSize = cellRect.height - 12;
+      const avatar: Rect = { x: dotCx + dotSize / 2 + 8, y: cellRect.y + 6, width: avatarSize, height: avatarSize };
+      this.#drawSeatAvatar(avatar, cell, false);
+      const textX = avatar.x + avatar.width + 10;
       const textWidth = cellRect.x + cellRect.width - textX - 6;
       const name = this.add.text(
         textX,

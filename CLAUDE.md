@@ -100,6 +100,10 @@ section current so any session can resume from GitHub alone.
   - **Persistence:** local-only save/resume via serialized engine state until Phase 5; the engine's state is plain serializable data specifically so a backend can be added later without redesign.
   - Run `pnpm test` / `pnpm typecheck` from the root to exercise every package.
   - **Lint and format (added 2026-09-21): oxlint and oxfmt.** `pnpm lint` (`.oxlintrc.json`: the correctness category plus `no-unused-vars` with a `_` escape hatch; `unicorn/no-thenable` is off because the ability DSL's `then:` branches are not promises, and `unicorn/no-useless-spread` is off because the engine's `for (const x of [...list])` loops snapshot a collection on purpose), `pnpm fmt` / `pnpm fmt:check` (`.oxfmtrc.json`: 120 columns, otherwise Prettier defaults; generated card data, the design canvases, the generated card reference, the rulings transcript and changie's own output (`.changes/`, `CHANGELOG.md`, which the release workflow's `fmt:check` gate would otherwise reject) are ignored). `pnpm check` runs both before typecheck, tests and build, and the versioned pre-commit hook in `.githooks/` (installed by `pnpm install` through the root `prepare` script) runs them on the staged files via lint-staged. Write code to the width; don't reflow by hand.
+- **Card hover everywhere (the user, 2026-10-15, standing rule):** anywhere the client shows a card face or a card
+  picture (tiles, sheets, fans, summaries), mouseover on desktop opens the card hover popover. Wire `HoverPreview`
+  (`ui/card-hover-preview.ts`) with `hoverSlotOf` / `clipHoverRect` (`view/card-hover.ts`) as `scenes/set-cards.ts` and
+  `scenes/civil-war-builder.ts` do, and show the hover in the PR's screenshots (`scripts/shoot-app.mjs --hover x,y`).
 - **E2e is a local gate, not a CI check (the user, 2026-10-05).** Pull requests run only lint and format
   (`.github/workflows/checks.yml`) and the Netlify workflow, which typechecks, runs the unit tests, builds the client
   and deploys the preview. The Playwright suite

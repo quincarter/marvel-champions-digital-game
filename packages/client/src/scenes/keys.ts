@@ -78,6 +78,8 @@ export const SCENES = {
   // Overlays.
   choice: "ChoiceOverlay",
   inspect: "InspectOverlay",
+  /** "Cards in this modular set" (`scenes/set-cards.ts`): any screen opens it over itself; below Inspect. */
+  setCards: "SetCardsOverlay",
   villainPhase: "VillainPhaseOverlay",
   /** Launched over the Board by its own MENU/≡ chrome button or Escape (`scenes/pause.ts`). */
   pause: "PauseOverlay",

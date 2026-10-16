@@ -30,6 +30,7 @@ import { ScenarioIntroScene } from "./scenes/scenario-intro.js";
 import { BoardScene } from "./scenes/board.js";
 import { ChoiceOverlay } from "./scenes/choice.js";
 import { InspectOverlay } from "./scenes/inspect.js";
+import { SetCardsOverlay } from "./scenes/set-cards.js";
 import { VillainPhaseOverlay } from "./scenes/villain-phase.js";
 import { GameOverScene } from "./scenes/game-over.js";
 import { DecksScene } from "./scenes/decks.js";
@@ -180,6 +181,7 @@ const game = new Phaser.Game({
     CivilWarBuilderScene,
     AspectLessonScene,
     ChoiceOverlay,
+    SetCardsOverlay,
     InspectOverlay,
     VillainPhaseOverlay,
     GameOverScene,
