@@ -11,6 +11,8 @@ const reportTitle = process.env.GITHUB_ACTIONS ? process.env.TEST_REPORT_TITLE :
 export default defineConfig({
   test: {
     projects: ["packages/*/vitest.config.ts"],
-    ...(reportTitle ? { reporters: ["default", ["github-actions", { jobSummary: { title: reportTitle } }]] } : {}),
+    // "verbose" on CI: the default reporter prints a file's tests only when the whole file ends, so a soak file that
+    // runs for 13 minutes left its job's log silent until then.
+    ...(reportTitle ? { reporters: ["verbose", ["github-actions", { jobSummary: { title: reportTitle } }]] } : {}),
   },
 });

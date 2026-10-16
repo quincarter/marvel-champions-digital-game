@@ -4,9 +4,9 @@
  *
  * **The catalog is the fixture files themselves.** Each `fixtures/**` JSON under `playable/` and under any `wave<N>/`
  * folder is one saved `GET https://marvelcdb.com/api/public/decklist/<id>.json` response, and the same files are what
- * the tests read: `marvelcdb-decklists.test.ts` proves every catalog entry (imports against the playable pool, legal
- * under `validateDeck`, plays a seeded game to an outcome that replays deep-equal), so a deck cannot be listed here
- * without being tested there.
+ * the tests read: `marvelcdb-decklists.ts` (run as `marvelcdb-decklists-<part>.test.ts`) proves every catalog entry
+ * (imports against the playable pool, legal under `validateDeck`, plays a seeded game to an outcome that replays
+ * deep-equal), so a deck cannot be listed here without being tested there.
  *
  * **Adding a deck is dropping its fixture into a wave's `fixtures/` folder.** A new wave's folder joins through the
  * `../wave*` pattern with no change here. The saved JSON carries the author's MarvelCDB user id but not their name,

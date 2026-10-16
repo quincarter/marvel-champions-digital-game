@@ -20,6 +20,10 @@
  * blocks here keep the two in step: every catalog deck this file's table does not name (waves 5 to 7, whose own
  * tests play them in their own wave's pool, and any later fixture) gets the same three proofs against the playable
  * pool, and every catalog deck is one this file proved.
+ *
+ * The decks are dealt round-robin over `DECKLIST_PARTS` test files (`./marvelcdb-decklists-<part>.test.ts`), which
+ * run in parallel: as one file they took 13 to 17 minutes on a CI runner (2026-10-16). CI runs them in jobs of their
+ * own (scripts/ci-test-plan.mjs).
  */
 import { createGame, replay, validateDeck } from "@mc/engine";
 import { PLAYABLE_CARDS, parseMarvelCdbDeckJsonText, type CoreAspect, type DeckContents } from "@mc/content";
@@ -170,59 +174,68 @@ function playsAndReplays(contents: DeckContents, scenario: (typeof SCENARIOS)[nu
   if (replayed.ok) expect(replayed.state).toEqual(result.session.state);
 }
 
-describe.each(
-  DECKLISTS.map(
-    ([hero, identity, id, aspects], index) =>
-      [hero, identity, id, aspects, SCENARIOS[index % SCENARIOS.length]!] as const,
-  ),
-)("%s: MarvelCDB decklist %s/%i", (hero, identity, id, aspects, scenario) => {
-  test("imports against the playable pool", () => {
-    const result = parse(id);
-    expect(result.contents.identityCardId).toBe(identity);
-    expect([...result.contents.aspects].sort()).toEqual([...aspects].sort());
-    expect(result.heroName).toBe(hero);
-  });
-
-  test("is legal under validateDeck", () => {
-    expect(validateDeck(parse(id).contents, PLAYABLE_CARDS)).toEqual({ ok: true });
-  });
-
-  test(`plays a seeded greedy game against ${scenario} that replays deep-equal`, () => {
-    playsAndReplays(parse(id).contents, scenario);
-  }, 120_000);
-});
-
 const TABLE_IDS = new Set(DECKLISTS.map((row) => row[2]));
 /** Catalog decks the table above does not name. */
 const REST_OF_CATALOG: readonly CommunityDeck[] = communityDecks().filter((deck) => !TABLE_IDS.has(deck.marvelcdbId));
 
-describe.each(
-  REST_OF_CATALOG.map(
-    (deck, index) => [deck.heroName, deck.marvelcdbId, deck, SCENARIOS[index % SCENARIOS.length]!] as const,
-  ),
-)("%s: community deck %i", (_hero, _id, deck, scenario) => {
-  test("is legal under validateDeck against the playable pool", () => {
-    expect(validateDeck(deck.contents, PLAYABLE_CARDS)).toEqual({ ok: true });
+/** How many test files share the decks; each `marvelcdb-decklists-<part>.test.ts` passes its part, 1 to `DECKLIST_PARTS`. */
+export const DECKLIST_PARTS = 4;
+/** Deck `index` (the table's rows, then the rest of the catalog) runs in part `index % DECKLIST_PARTS + 1`. */
+const inPart = (index: number, part: number) => index % DECKLIST_PARTS === part - 1;
+
+/** Declares this part's decks; the catalog checks run in part 1. */
+export function marvelcdbDecklists(part: number): void {
+  describe.each(
+    DECKLISTS.map(
+      ([hero, identity, id, aspects], index) =>
+        [hero, identity, id, aspects, SCENARIOS[index % SCENARIOS.length]!] as const,
+    ).filter((_, index) => inPart(index, part)),
+  )("%s: MarvelCDB decklist %s/%i", (hero, identity, id, aspects, scenario) => {
+    test("imports against the playable pool", () => {
+      const result = parse(id);
+      expect(result.contents.identityCardId).toBe(identity);
+      expect([...result.contents.aspects].sort()).toEqual([...aspects].sort());
+      expect(result.heroName).toBe(hero);
+    });
+
+    test("is legal under validateDeck", () => {
+      expect(validateDeck(parse(id).contents, PLAYABLE_CARDS)).toEqual({ ok: true });
+    });
+
+    test(`plays a seeded greedy game against ${scenario} that replays deep-equal`, () => {
+      playsAndReplays(parse(id).contents, scenario);
+    }, 120_000);
   });
 
-  test(`plays a seeded greedy game against ${scenario} that replays deep-equal`, () => {
-    playsAndReplays(deck.contents, scenario);
-  }, 120_000);
-});
+  describe.each(
+    REST_OF_CATALOG.map(
+      (deck, index) => [deck.heroName, deck.marvelcdbId, deck, SCENARIOS[index % SCENARIOS.length]!] as const,
+    ).filter((_, index) => inPart(DECKLISTS.length + index, part)),
+  )("%s: community deck %i", (_hero, _id, deck, scenario) => {
+    test("is legal under validateDeck against the playable pool", () => {
+      expect(validateDeck(deck.contents, PLAYABLE_CARDS)).toEqual({ ok: true });
+    });
 
-describe("the community-deck catalog", () => {
-  test("lists every decklist in the table above, with the contents this file proved", () => {
-    const catalog = new Map(communityDecks().map((deck) => [deck.marvelcdbId, deck]));
-    for (const [hero, identity, id] of DECKLISTS) {
-      const entry = catalog.get(id);
-      expect(entry, `${hero}'s decklist ${id} is in the catalog`).toBeDefined();
-      expect(entry!.identityCardId).toBe(identity);
-      expect(entry!.contents).toEqual(parse(id).contents);
-    }
+    test(`plays a seeded greedy game against ${scenario} that replays deep-equal`, () => {
+      playsAndReplays(deck.contents, scenario);
+    }, 120_000);
   });
 
-  test("has no deck this file did not prove", () => {
-    const proved = new Set([...TABLE_IDS, ...REST_OF_CATALOG.map((deck) => deck.marvelcdbId)]);
-    expect(communityDecks().filter((deck) => !proved.has(deck.marvelcdbId))).toEqual([]);
-  });
-});
+  if (part === 1)
+    describe("the community-deck catalog", () => {
+      test("lists every decklist in the table above, with the contents this file proved", () => {
+        const catalog = new Map(communityDecks().map((deck) => [deck.marvelcdbId, deck]));
+        for (const [hero, identity, id] of DECKLISTS) {
+          const entry = catalog.get(id);
+          expect(entry, `${hero}'s decklist ${id} is in the catalog`).toBeDefined();
+          expect(entry!.identityCardId).toBe(identity);
+          expect(entry!.contents).toEqual(parse(id).contents);
+        }
+      });
+
+      test("has no deck this file did not prove", () => {
+        const proved = new Set([...TABLE_IDS, ...REST_OF_CATALOG.map((deck) => deck.marvelcdbId)]);
+        expect(communityDecks().filter((deck) => !proved.has(deck.marvelcdbId))).toEqual([]);
+      });
+    });
+}

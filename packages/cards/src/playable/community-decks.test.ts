@@ -1,6 +1,7 @@
 /**
  * The community-deck catalog's own shape: every saved decklist is listed once, credited and linked. That each one
- * imports, is legal and plays to an outcome is `marvelcdb-decklists.test.ts`'s job (it iterates this same catalog).
+ * imports, is legal and plays to an outcome is the job of `marvelcdb-decklists.ts` (run as
+ * `marvelcdb-decklists-<part>.test.ts`), which iterates this same catalog.
  */
 import { PLAYABLE_CARDS } from "@mc/content";
 import { describe, expect, test } from "vitest";

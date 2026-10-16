@@ -36,10 +36,22 @@ const SOAKS = [
     title: "Modular set soak, parts 3 and 4",
     paths: ["packages/cards/src/modular-matrix-soak-3.test.ts", "packages/cards/src/modular-matrix-soak-4.test.ts"],
   },
+  // The MarvelCDB decklist games, dealt over four files the same way (./playable/marvelcdb-decklists.ts).
   {
-    name: "MarvelCDB decklists",
-    title: "MarvelCDB decklist soak",
-    paths: ["packages/cards/src/playable/marvelcdb-decklists.test.ts"],
+    name: "MarvelCDB decklists 1-2",
+    title: "MarvelCDB decklists, parts 1 and 2",
+    paths: [
+      "packages/cards/src/playable/marvelcdb-decklists-1.test.ts",
+      "packages/cards/src/playable/marvelcdb-decklists-2.test.ts",
+    ],
+  },
+  {
+    name: "MarvelCDB decklists 3-4",
+    title: "MarvelCDB decklists, parts 3 and 4",
+    paths: [
+      "packages/cards/src/playable/marvelcdb-decklists-3.test.ts",
+      "packages/cards/src/playable/marvelcdb-decklists-4.test.ts",
+    ],
   },
   { name: "random decks", title: "Random deck soak", paths: ["packages/cards/src/playable/random-decks.test.ts"] },
   { name: "modular matrix", title: "Modular matrix pairings", paths: ["packages/cards/src/modular-matrix.test.ts"] },
