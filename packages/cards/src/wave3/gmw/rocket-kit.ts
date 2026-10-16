@@ -34,6 +34,7 @@ import {
   modifyAttack,
   modifyStat,
   moveCards,
+  moveCounters,
   ofTeamUpSet,
   on,
   option,
@@ -42,7 +43,6 @@ import {
   query,
   ready,
   removeCounter,
-  removeCountersFrom,
   removeThreat,
   response,
   rule,
@@ -121,14 +121,14 @@ export const ROCKET_KIT = defineAbilities({
   ),
 
   // Battery Pack — Enters play with 2 charge counters on it. Action: Exhaust Battery Pack → move a charge counter
-  // from this card to another tech upgrade you control.
+  // from this card to another tech upgrade you control. A move, so the counter takes the type the destination defines
+  // (a reflection counter on Energy Barrier): RRG 1.8 "All-Purpose Counter" p. 6, Battery Pack FAQ p. 62.
   "16034.battery-pack-constant": forcedResponse(on.entersPlay("self"), addCounters(CHARGE, 2, self)),
   "16034.battery-pack-action": action(
     { cost: exhaustThis },
     bindTargets("battery", self),
     chooseTarget("target", query("upgrade", { controller: "you", trait: TECH, excludeSlots: ["battery"] })),
-    removeCountersFrom(self, CHARGE, 1),
-    addCounters(CHARGE, 1, chosen("target")),
+    moveCounters(self, chosen("target"), CHARGE, 1),
   ),
 
   // Cybernetic Skeleton — You get +3 hit points. While in hero form, Rocket Raccoon gets +1 ATK.
