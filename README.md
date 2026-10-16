@@ -1,4 +1,4 @@
-# Marvel Champions: Digital Edition
+# Marvel Champions: Digital Edition (Unofficial Fan Game)
 
 [![Latest release](https://img.shields.io/github/v/release/quincarter/marvel-champions-digital-game?label=version&sort=semver)](https://github.com/quincarter/marvel-champions-digital-game/releases/latest)
 [![CI](https://github.com/quincarter/marvel-champions-digital-game/actions/workflows/netlify-deploy.yml/badge.svg?branch=main)](https://github.com/quincarter/marvel-champions-digital-game/actions/workflows/netlify-deploy.yml?query=branch%3Amain)
