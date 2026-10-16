@@ -345,11 +345,13 @@ describe("errata and rulings", () => {
     });
   });
 
-  describe("Ruling Feb 28, 2026 (1) #2: abilities triggered by an ongoing attack resolve before a new attack begins", () => {
-    // "All abilities triggered by an ongoing attack (including Responses and Retaliate) resolve before a newly
-    // initiated attack begins." Assassination Attempt (37029) makes two Guild Assassins attack in turn: the first one's
-    // Forced Response (an ally it defeats, 1 threat on the main scheme) must come before the second attack resolves.
-    it("the first Guild Assassin's threat is placed before the second Guild Assassin's attack resolves", () => {
+  describe("Ruling Feb 28, 2026 (1) #2, superseded for attacks made by a When Revealed (RRG v1.8 p.38)", () => {
+    // The ruling: "All abilities triggered by an ongoing attack (including Responses and Retaliate) resolve before a
+    // newly initiated attack begins." Assassination Attempt (37029) makes two Guild Assassins attack in turn from its
+    // When Revealed, so both attacks are steps of its reveal, and RRG v1.8 p.38 holds every response to a step of a
+    // reveal until the reveal has finished. RRG v1.8 p.38; owner decision 2026-10-16 (audit finding 18): the first
+    // Guild Assassin's Forced Response (an ally it defeats, 1 threat on the main scheme) lands after the second attack.
+    it("the first Guild Assassin's threat is placed after the second Guild Assassin's attack; the ally's defeat is not deferred", () => {
       // Alter-ego form: the confused Assassins lose their ordinary scheme, so only the treachery's attacks are seen.
       const hero0 = gambitGame("rhino", { seed: 1 });
       const dazzlerId = playerOf(hero0, P1).deck.find((i) => hero0.instances[i]!.cardId === DAZZLER)!;
@@ -404,9 +406,12 @@ describe("errata and rulings", () => {
       const placed = events.flatMap((e, index) =>
         e.type === "threatPlaced" && e.sourceInstanceId === one.enemy ? [index] : [],
       );
-      expect(events.some((e) => e.type === "characterDefeated" && e.instanceId === dazzlerId)).toBe(true);
+      const defeated = events.findIndex((e) => e.type === "characterDefeated" && e.instanceId === dazzlerId);
+      expect(defeated).toBeGreaterThanOrEqual(0);
       expect(placed).toHaveLength(1);
-      expect(placed[0]!).toBeLessThan(two.index);
+      // Only the response waits: the ally is defeated during the first attack, before the second one resolves.
+      expect(defeated).toBeLessThan(two.index);
+      expect(placed[0]!).toBeGreaterThan(two.index);
     });
   });
 });

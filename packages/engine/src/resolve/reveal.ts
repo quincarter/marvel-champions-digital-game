@@ -3,8 +3,23 @@
 import { placeAttachment } from "./imminent-attach.js";
 import { displayNameOf } from "../visibility.js";
 import type { AnyCard, AttachmentHost } from "@mc/content";
-import { type Ctx, emit, moveCard, popFrame, pushFrames, requestChoice, setFrame, updateInstance } from "../ctx.js";
-import { dealEncounterCardOrAnnounce, dealEncounterCardTo, encounterDealAwaitingInterrupt } from "../effects.js";
+import {
+  type Ctx,
+  emit,
+  findFrame,
+  moveCard,
+  popFrame,
+  pushFrames,
+  requestChoice,
+  setFrame,
+  updateInstance,
+} from "../ctx.js";
+import {
+  applyToughness,
+  dealEncounterCardOrAnnounce,
+  dealEncounterCardTo,
+  encounterDealAwaitingInterrupt,
+} from "../effects.js";
 import { type FrameId, type InstanceId, instanceId as asInstanceId, type PlayerId } from "../ids.js";
 import { hasKeyword, keywordTotal } from "../keywords.js";
 import {
@@ -124,6 +139,7 @@ export function replaceRevealInProgress(
   const at = history.map((r) => r.instanceId === reveal.instanceId && r.playerId === reveal.playerId).lastIndexOf(true);
   if (at >= 0) ctx.state = { ...ctx.state, revealedThisRound: history.filter((_, index) => index !== at) };
   setFrame(ctx, { ...reveal, stage: "done" });
+  releaseHeld(ctx, reveal.frameId);
   emit(ctx, {
     type: "revealReplaced",
     instanceId: reveal.instanceId,
@@ -185,6 +201,9 @@ function turnedAwayByUniqueRule(ctx: Ctx, frame: Frame<"reveal">, card: AnyCard)
   // cards already waiting; anywhere else, at the next one. Announced as every deal is, and open to a "would be
   // dealt an encounter card" interrupt. Before Q38 this engine revealed it at once.
   dealEncounterCardOrAnnounce(ctx, frame.playerId, "uniqueRule", frame.instanceId);
+  // Its reveal is over: what else it held opens now, the responses to its own entering play aside ("any effects of it
+  // entering play are ignored").
+  releaseHeld(ctx, frame.frameId, frame.instanceId);
   return true;
 }
 
@@ -249,6 +268,7 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
           setFrame(ctx, { ...frame, stage: "done" });
           const next = dealEncounterCardTo(ctx, frame.playerId, null);
           if (next) pushFrames(ctx, [revealFrame(ctx, frame.playerId, next)]);
+          releaseHeld(ctx, frame.frameId);
           return;
         }
         const revealer = owner && linked ? owner.playerId : frame.playerId;
@@ -525,8 +545,11 @@ const REVEAL_KEYWORD_LABELS: Readonly<Record<RevealKeyword, string>> = {
  * teamwork checks its condition as it always does (`resolveTeamwork`).
  * A minion its When Revealed moved to another player has only teamwork live here (`revealKeywordApplies`), so nobody
  * is asked (answer 37A): teamwork activates it against its new player.
+ *
+ * Toughness held by this reveal comes first (`placeHeldToughness`).
  */
-function stepRevealKeywords(ctx: Ctx, frame: Frame<"reveal">): void {
+function stepRevealKeywords(ctx: Ctx, held: Frame<"reveal">): void {
+  const frame = placeHeldToughness(ctx, held);
   const { keywordOrder, ...bare } = frame;
   let order = keywordOrder;
   if (order === undefined) {
@@ -607,8 +630,9 @@ function announceRevealFinished(ctx: Ctx, frame: Frame<"reveal">, card: AnyCard)
   const engaged = frame.foundInPlay ? frame.engagedByReveal === true : !frame.newFace;
   if (!frame.effectsCancelled && engaged && card.type === "minion") events.push(...engagedEvent(ctx, frame.instanceId));
   const frames: StackFrame[] = events.map((event) => eventFrame(ctx, event));
-  // Responses to the card entering play waited for the end of the reveal (`heldResponses`; RRG 1.8 "Reveal",
-  // p. 38; the owner's answers 32B and 35B): they share the window of the `cardRevealed` announcement, the first.
+  // Every response window triggered while the card was being revealed waited for the end of the reveal
+  // (`heldResponses`; RRG 1.8 "Reveal", p. 38; owner decision 2026-10-16, audit finding 18, generalising answers 32B
+  // and 35B): they share the window of the `cardRevealed` announcement, the first (answer 39A), forced ones first.
   const [announcement] = frames;
   if (announcement?.kind === "event" && held.length > 0) frames[0] = { ...announcement, joinedResponses: held };
   // RRG 1.8 "Surge" (p. 42): the keyword deals its player a facedown encounter card, queued last so the original
@@ -624,6 +648,44 @@ function announceRevealFinished(ctx: Ctx, frame: Frame<"reveal">, card: AnyCard)
       frames.push(eventFrame(ctx, { kind: "surgeResolving", instanceId: frame.instanceId, playerId: frame.playerId }));
   }
   pushFrames(ctx, frames);
+}
+
+/**
+ * The tough status cards this reveal held (`Frame<"reveal">.heldToughness`): each character that entered play with
+ * toughness while the card was being revealed, and is still in play, is given one now that every step of the reveal
+ * is done. Toughness is "Forced Response: After this character enters play, give it a tough status card" (RRG 1.8
+ * "Toughness", p. 45), held like every response to a step of the reveal (RRG 1.8 "Reveal", p. 38; owner decision
+ * 2026-10-16, audit finding 18, superseding answer 33A). Returns the frame as it now stands.
+ *
+ * Engine call where no official source answers: it resolves first in the end-of-reveal window, before a revealed
+ * minion's quickstrike and teamwork. All three are forced responses to step 2, so RRG 1.8 "Forced" (p. 20) would have
+ * the first player order them; keywords have timing priority over Response abilities (FAQ "Widow's Bite (#10)",
+ * p. 60), and toughness is a keyword with nothing to choose, so it is placed first rather than asked.
+ */
+function placeHeldToughness(ctx: Ctx, frame: Frame<"reveal">): Frame<"reveal"> {
+  const { heldToughness: held, ...rest } = frame;
+  if (held === undefined) return frame;
+  setFrame(ctx, rest);
+  for (const id of held) if (cardsInPlay(ctx.state).includes(id)) applyToughness(ctx, id);
+  return rest;
+}
+
+/**
+ * A reveal that ended before its last step (turned away by the unique rule, an obligation removed from the game, a
+ * reveal replaced): the tough status cards and response windows it held are released now, in one window as at a
+ * finished reveal's end (`announceRevealFinished`). `ignoring`: the turned-away card, whose own entering play is
+ * ignored (RRG 1.8 "Unique Icon", pp. 45-46: "any effects of it entering play are ignored").
+ */
+function releaseHeld(ctx: Ctx, frameId: FrameId, ignoring?: InstanceId): void {
+  const found = findFrame(ctx.state, frameId);
+  if (found?.kind !== "reveal") return;
+  const { heldResponses: held = [], ...rest } = placeHeldToughness(ctx, found);
+  if (held.length === 0) return;
+  setFrame(ctx, rest);
+  const events = held.filter((e) => !(e.kind === "cardEntersPlay" && e.instanceId === ignoring));
+  const last = events[events.length - 1];
+  if (last && events.some((event) => hasCandidates(ctx.state, ctx.deps, event, "response")))
+    pushWindow(ctx, last, "response", null, events.slice(0, -1));
 }
 
 /**

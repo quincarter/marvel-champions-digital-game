@@ -1900,6 +1900,8 @@ trigger.
 
 - Placing several counters at once (Evil Alliance's 3; Drawing Near's one per icon) is one placement and one check.
 - The Forced Response resolves after the placement and before the treachery's "Then" sentence (§4.2 Q2).
+  **Superseded 2026-10-16** (RRG v1.8 p.38; owner decision, audit finding 18): on a revealed treachery it waits until
+  the reveal has finished, so "Then" finds the counter. Test 2 below now has the villain scheme before the reset.
 - "The number of players": §4.2 Q3.
 - "Your nemesis minion" is the acting player's own (`nemesisMinionOf: you`). In play engaged with someone else, it
   still "activates against you". With no nemesis set in the game (`usesIdentityEncounterSets: false`), 45075a's

@@ -52,15 +52,21 @@ import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { announce, base, eventFrame, pushEvent } from "./frames.js";
 import { eachTimeEffectsFor, hasCandidates, heard } from "./triggers.js";
+import { holdToughnessForReveal } from "./reveal-hold.js";
 
 /**
  * The keywords that resolve as a card enters play: toughness places a tough
  * status card, uses places its all-purpose counters, and restricted makes the
  * controller check that they still control at most two restricted cards.
+ *
+ * Toughness is a forced response to entering play (RRG 1.8 "Toughness", p. 45), so while an encounter card is being
+ * revealed it waits for the end of that reveal like any other response (RRG 1.8 "Reveal", p. 38; owner decision
+ * 2026-10-16, audit finding 18, superseding answer 33A; `holdToughnessForReveal`). With no reveal in progress it is
+ * placed here, as the card enters play (answer 38A).
  */
 export function applyEnterPlayKeywords(ctx: Ctx, id: InstanceId): void {
   for (const keyword of keywordsOf(ctx.state, id, ctx.deps)) {
-    if (keyword.name === "toughness") applyToughness(ctx, id);
+    if (keyword.name === "toughness" && !holdToughnessForReveal(ctx, id)) applyToughness(ctx, id);
     if (keyword.name === "uses") addCounters(ctx, id, keyword.counterType, usesAmount(ctx.state, id, keyword));
   }
   // A card with the keyword, or one that "counts as N restricted cards" (docs/phase7-wave7.md §3.82).

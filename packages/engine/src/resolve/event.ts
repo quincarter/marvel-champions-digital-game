@@ -442,8 +442,8 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         );
         return;
       }
-      // A card that enters play by being revealed: the responses to its entering wait for the end of its reveal.
-      if (holdResponsesForReveal(ctx, frame, event)) return;
+      // While an encounter card is being revealed, `pushWindow` hands this response window to the reveal, which opens
+      // it once every step of the reveal is done (RRG 1.8 "Reveal", p. 38; `reveal-hold.ts`).
       // How many forced responses this event triggers, reported to a `bind` ("If that scheme's 'Forced Response'
       // ability is not triggered this way"). Only recorded when there are some, so other results are unchanged.
       const forcedResponses = candidatesFor(ctx.state, ctx.deps, event, "response", true).length;
@@ -670,42 +670,6 @@ function stepDeferredResponses(ctx: Ctx, frame: Frame<"event">): boolean {
   const { deferredResponses: _opened, ...rest } = frame;
   setFrame(ctx, rest);
   openDeferredResponses(ctx, frame, deferred);
-  return true;
-}
-
-/**
- * The response window of a card's `cardEntersPlay` waits while that card is being revealed: the resolved event is
- * handed to its reveal frame (`Frame<"reveal">.heldResponses`), which opens the window once every step of the reveal
- * is done and, for a minion, its quickstrike and teamwork have resolved (`announceRevealFinished`). False, with
- * nothing done, for any other event, and for a card that enters play with no reveal of its own in progress (put into
- * play, a cost's entry, a flip), whose window opens as it always did.
- *
- * RRG 1.8 "Reveal" (p. 38): "Responses (both forced and non-forced) to any step of the revealing of an encounter card
- * are not resolved until after all steps of the reveal process have been completed." FAQ "Widow's Bite (#10)" (p. 60):
- * "Quickstrike and the 'Response' on Widow's Bite have the same timing trigger. Keywords have timing priority over
- * 'Response' abilities, so Quickstrike resolves first." The owner's answer 32B (2026-10-12) built this for a minion;
- * answer 35B (same day) for every card a reveal puts into play, since the sentence is about "an encounter card": a
- * side scheme, an environment, an attachment (whenever in its reveal it attaches), an obligation, and a player card
- * revealed off the encounter deck.
- *
- * Not moved: the event's interrupts ("when a minion would enter play / engage"), which resolved before this; its apply
- * step, where toughness places its tough status card as the minion enters play (RRG 1.8 "Toughness", p. 45; the
- * owner's answer 33A); and lasting "each time …" effects, which are not Response abilities and resolve here as before.
- */
-function holdResponsesForReveal(ctx: Ctx, frame: Frame<"event">, event: TriggerEvent): boolean {
-  if (event.kind !== "cardEntersPlay" || frame.responsesWith !== undefined) return false;
-  if ((frame.joinedResponses ?? []).length > 0) return false;
-  const reveal = ctx.state.stack.find(
-    (f) => f.kind === "reveal" && f.instanceId === event.instanceId && !f.newFace && f.stage !== "done",
-  );
-  if (!reveal) return false;
-  setFrame(ctx, { ...frame, event, stage: "done" });
-  updateFrame(ctx, reveal.frameId, (f) =>
-    f.kind === "reveal" ? { ...f, heldResponses: [...(f.heldResponses ?? []), event] } : f,
-  );
-  for (const effect of [...eachTimeEffectsFor(ctx.state, ctx.deps, event)].reverse()) {
-    pushEffects(ctx, { effects: effect.effects, ...effect.scope, event, eventFrameId: frame.frameId });
-  }
   return true;
 }
 

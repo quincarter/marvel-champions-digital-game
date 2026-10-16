@@ -242,25 +242,39 @@ describe("Scarlet Witch's obligation and nemesis (Slipping Sanity, The Next Evol
     expect(activeEncounterDeck(after).discard.map((id) => after.instances[id]?.cardId)).toContain("01104");
   });
 
+  // RRG v1.8 p.38; owner decision 2026-10-16 (audit finding 18): Luminous's own Forced Response to that activation
+  // waits until Chaos Manipulation's reveal has finished, after its last effect shuffles the encounter deck, so what it
+  // discards is the shuffle's and this test does not read it.
   it("Chaos Manipulation: 2 or more boost icons discarded this way makes Luminous attack the revealing player in hero form (docs/phase7-wave5.md §4.1 Q67)", () => {
     const hero = runWave2(scwVsRhino(), toHero());
     const identity = identityOf(hero);
-    const damageBefore = inst(hero, identity).damage;
-    // Luminous is already engaged with P1 from Chaos Manipulation's own search half (a separate, already-verified
-    // ref); Shadow of the Past (01190, 2 icons) is what Chaos Manipulation's own follow-up discard reads. That
-    // triggers her own "activates against you" — an ability-triggered attack that draws its own boost card in turn
-    // (Hard to Keep Down, 01104, 0 icons) — which then *also* satisfies her own printed Forced Response ("after
-    // Luminous activates against you, discard the top card…"), reading one more (01105, 0 icons, kept under the
-    // threshold so this test isolates only the attack itself, not a second cascading "deal yourself" card).
+    // Luminous is engaged with P1 by Chaos Manipulation's own search half; Shadow of the Past (01190, 2 icons) is what
+    // its follow-up discard reads, so Luminous "activates against you": in hero form, an attack (Q67). Her attack's
+    // own boost card is Hard to Keep Down (01104, 0 icons).
     const staged = stageChaosManipulation(hero);
     // `stackEncounterDeck`'s own reordering finds a card already in the deck by its own code, so Chaos Manipulation
     // (just staged to the deck by `stageChaosManipulation`) can be placed explicitly in this exact order.
-    const stacked = stackEncounterDeck(staged, "01186", "15027", "01190", "01104", "01105");
-    const after = settle(runWave2(stacked, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    const stacked = stackEncounterDeck(staged, "01186", "15027", "01190", "01104");
+    const { state: after, events } = driveEvents(WAVE2_DEPS, stacked, endTurn());
     const luminous = cardsInPlay(after).find((id) => after.instances[id]?.cardId === "15025")!;
     expect(inst(after, luminous).engagedWith).toBe(P1);
-    // Rhino's own printed ATK 2 (undefended) plus Luminous's own printed ATK 2 (also undefended, boosted by 0).
-    expect(inst(after, identity).damage).toBe(damageBefore + 4);
+    // Her attack against the revealing player, undefended, for her printed ATK 2 boosted by 0: the activation is an
+    // attack because P1 is in hero form, not a scheme (Q67).
+    const hers = events.filter((e) => e.type === "attackResolved" && e.enemyInstanceId === luminous);
+    expect(hers).toHaveLength(1);
+    expect(events.some((e) => e.type === "schemeResolved" && e.enemyInstanceId === luminous)).toBe(false);
+    const hit = events.flatMap((e) =>
+      e.type === "damageDealt" && e.sourceInstanceId === luminous && e.targetInstanceId === identity ? [e.amount] : [],
+    );
+    expect(hit).toEqual([2]);
+    // Her Forced Response ("after Luminous activates against you") answers it once, after the reveal's shuffle.
+    const shuffled = events.findIndex((e) => e.type === "deckShuffled");
+    const answered = events.flatMap((e, i) =>
+      e.type === "abilityResolved" && e.abilityId === "15025.luminous-forced-response" ? [i] : [],
+    );
+    expect(answered).toHaveLength(1);
+    expect(shuffled).toBeGreaterThanOrEqual(0);
+    expect(shuffled).toBeLessThan(answered[0]!);
   });
 
   it("Chaos Manipulation: 2 or more boost icons discarded this way makes Luminous scheme against the revealing player in alter-ego form (docs/phase7-wave5.md §4.1 Q67)", () => {

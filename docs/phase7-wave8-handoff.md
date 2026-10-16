@@ -247,6 +247,9 @@ committed. Nine follow the proposed default; **Q9 does not**.
   apply the mode's amount silently.
 - **Q2 = A.** Pursued by the Past's Forced Response resolves when the counter is placed and removes every counter
   before the treachery reaches "Then, if it has any counters".
+  **Superseded 2026-10-16** (owner decision, rules audit finding 18): RRG v1.8 p.38 holds every response to a step of
+  a reveal until the reveal has finished. The counter a treachery's When Revealed places is still placed at once, so
+  "Then, if it has any counters" finds it; the Forced Response (the reset) resolves after the reveal.
 - **Q3 = A.** "The number of players" is the players in the game now; nothing snapshots the starting count.
 - **Q4 = A.** A stun or confuse replaces the activation, so the villain did not activate and the active counter stays.
 - **Q5 = A, firm.** The owner cites an FFG ruling (Hall of Heroes "Latest FFG Rulings post RRG 1.5", a page that is

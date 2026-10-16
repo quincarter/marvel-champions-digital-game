@@ -174,7 +174,10 @@ describe("Equipment Malfunction (23028), War Machine's obligation", () => {
     expect(events.some((e) => e.type === "surgeTriggered" && e.instanceId === obligation)).toBe(false);
   });
 
-  it("(23028.obligation): flipping to alter-ego first discards every ammo counter, so 'remove all ammo' finds none and gains surge", () => {
+  // RRG v1.8 p.38; owner decision 2026-10-16 (audit finding 18): James Rhodes's "Forced Response: After you change to
+  // this form, discard each ammo counter" answers a flip made while the obligation is being revealed, so it waits
+  // until the reveal has finished. The flip itself is not deferred.
+  it("(23028.obligation): flipping to alter-ego holds James Rhodes's ammo discard to the end of the reveal, so 'remove all ammo' removes 5 and there is no surge", () => {
     const hero = toHeroSettled(warMachineVsRhino(2));
     const identity = identityOf(hero, P1);
     expect(inst(hero, identity).counters.ammo).toBe(5);
@@ -184,8 +187,23 @@ describe("Equipment Malfunction (23028), War Machine's obligation", () => {
       type: "endTurn",
       playerId: P1,
     });
+    expect(playerOf(revealed, P1).identity.form).toBe("alterEgo");
     expect(inst(revealed, identity).counters.ammo).toBe(0);
-    expect(events.some((e) => e.type === "surgeTriggered" && e.instanceId === obligation)).toBe(true);
+    expect(events.some((e) => e.type === "surgeTriggered" && e.instanceId === obligation)).toBe(false);
+    // The flip happened inside the reveal, before the obligation removed the 5 counters; James Rhodes's response came
+    // after the reveal and found none to discard.
+    const flipped = events.findIndex((e) => e.type === "formChanged" && e.playerId === P1);
+    const removed = events.flatMap((e, i) =>
+      e.type === "counterRemoved" && e.instanceId === identity && e.counterType === "ammo" ? [i] : [],
+    );
+    const rhodes = events.findIndex(
+      (e) => e.type === "abilityResolved" && e.abilityId === "23001b.james-rhodes-forced-response",
+    );
+    expect(flipped).toBeGreaterThanOrEqual(0);
+    expect(removed).toHaveLength(1);
+    expect(events[removed[0]!]).toMatchObject({ type: "counterRemoved", amount: 5 });
+    expect(flipped).toBeLessThan(removed[0]!);
+    expect(removed[0]!).toBeLessThan(rhodes);
   });
 
   it("(23028.obligation): with 2 or fewer ammo counters removed, the card gains surge instead", () => {

@@ -728,14 +728,22 @@ export type StackFrame =
        */
       readonly engagedPlayerId?: PlayerId;
       /**
-       * `cardEntersPlay` events of this card that resolved while it was being revealed, oldest first: their response
-       * windows wait for the end of the reveal (RRG 1.8 "Reveal", p. 38: "Responses (both forced and non-forced) to
-       * any step of the revealing of an encounter card are not resolved until after all steps of the reveal process
-       * have been completed"; FAQ "Widow's Bite (#10)", p. 60; the owner's answers 32B and, for a card that is not a
-       * minion, 35B). They share the window of the reveal's own `cardRevealed` announcement, after a minion's
-       * quickstrike and teamwork.
+       * The conditions of every response window triggered while this card was being revealed, oldest first: incite's
+       * and its When Revealed's threat, cards entering play (this one included), damage, status cards, draws and
+       * discards. They wait for the end of the reveal (RRG 1.8 "Reveal", p. 38: "Responses (both forced and non-forced)
+       * to any step of the revealing of an encounter card are not resolved until after all steps of the reveal process
+       * have been completed"; owner decision 2026-10-16, audit finding 18, generalising the owner's answers 32B and 35B
+       * of 2026-10-12) and share the window of the reveal's own `cardRevealed` announcement, after a minion's
+       * quickstrike and teamwork (`resolve/reveal-hold.ts`).
        */
       readonly heldResponses?: readonly TriggerEvent[];
+      /**
+       * Characters that entered play with toughness while this card was being revealed, oldest first: each is given its
+       * tough status card once the reveal's steps are done, before quickstrike and teamwork (RRG 1.8 "Toughness",
+       * p. 45, a forced response to entering play; "Reveal", p. 38; owner decision 2026-10-16, audit finding 18,
+       * superseding answer 33A).
+       */
+      readonly heldToughness?: readonly InstanceId[];
       /**
        * With `stage: "keywords"`: the engagement keywords still to resolve, in the order they resolve. Absent until the
        * order is known (a minion with both asks the first player, the owner's answer 34B).
@@ -779,7 +787,7 @@ export type StackFrame =
        * (p. 43, the same sentence). Skipped when neither applies.
        *
        * `responses`: the keywords are done; the responses to the reveal are announced (`cardRevealed` with the held
-       * enters-play responses, `encounterCardResolved`, `minionEngaged`), then surge.
+       * responses, `encounterCardResolved`, `minionEngaged`), then surge.
        */
       readonly stage:
         | "faceup"

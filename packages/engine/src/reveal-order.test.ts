@@ -7,13 +7,15 @@
  * sentence. "Reveal" (p. 38): "Responses (both forced and non-forced) to any step of the revealing of an encounter
  * card are not resolved until after all steps of the reveal process have been completed." FAQ "Widow's Bite (#10)"
  * (p. 60): "Keywords have timing priority over 'Response' abilities, so Quickstrike resolves first." "Toughness"
- * (p. 45): the tough status card is placed as the character enters play (33A keeps it there). "Forced" (p. 20): the
+ * (p. 45) is a Forced Response to entering play, so on a revealed card it waits for the end of the reveal (RRG v1.8
+ * p.38; owner decision 2026-10-16 (audit finding 18), superseding 33A, which kept it as the minion entered play).
+ * "Forced" (p. 20): the
  * first player orders forced abilities that would initiate at the same moment (34B). "When Revealed Abilities" (p. 48):
  * a card put into play without being revealed resolves no When Revealed, and its quickstrike answers the engagement
  * at once (p. 36, p. 18).
  *
- * So one reveal runs: faceup, enters play (interrupts, toughness), When Revealed, quickstrike and teamwork, the
- * responses to it entering play, being revealed and engaging, then surge.
+ * So one reveal runs: faceup, enters play (interrupts), When Revealed, toughness, quickstrike and teamwork, the
+ * responses to everything that happened during it and to it being revealed, those to it engaging, then surge.
  *
  * The second list of 2026-10-12: 35B, the "Reveal" sentence holds the enters-play responses of every revealed card
  * that enters play (a side scheme, an attachment, an environment), not only a minion's; 36B, teamwork activates
@@ -522,13 +524,17 @@ describe("a revealed minion: When Revealed, then quickstrike (RRG 1.8 p. 36, p. 
     expect(damageOn(state)).toBe(2);
   });
 
-  it("toughness is not moved (answer 33A, RRG p. 45): the tough card is on the minion before its When Revealed", () => {
+  // RRG v1.8 p.38; owner decision 2026-10-16 (audit finding 18). Supersedes answer 33A, which kept the tough card as
+  // the minion entered play, so its When Revealed's damage was prevented (damage 0, tough 0).
+  it("(c) toughness on a revealed minion arrives after its When Revealed (RRG v1.8 p.38, p.45), before quickstrike", () => {
     const { state, events } = play(game(SHELL), SCOUT);
     const shell = idOf(state, SHELL);
-    // Its own When Revealed dealt it 1 damage: the tough card placed as it entered play took it.
-    expect(mustInstance(state, shell).damage).toBe(0);
-    expect(mustInstance(state, shell).statuses.tough).toBe(0);
-    expect(marked(events, "revealed")).toBeLessThan(attack(events, "initiated"));
+    // Its own When Revealed dealt it 1 damage with no tough card yet; the tough card came once the reveal was done.
+    expect(mustInstance(state, shell).damage).toBe(1);
+    expect(mustInstance(state, shell).statuses.tough).toBe(1);
+    const tough = events.findIndex((e) => e.type === "statusGiven" && e.status === "tough" && e.instanceId === shell);
+    expect(marked(events, "revealed")).toBeLessThan(tough);
+    expect(tough).toBeLessThan(attack(events, "initiated"));
     expect(damageOn(state)).toBe(2);
   });
 
@@ -835,6 +841,16 @@ describe("a minion put into play without being revealed is unchanged (RRG 1.8 p.
     expect(schemeCounter(state, "revealed")).toBe(0);
     expect(attacks(events)).toHaveLength(1);
     expect(damageOn(state)).toBe(2);
+  });
+
+  it("(e) toughness is placed as it enters play, before its enters-play responses and quickstrike (answer 38A; RRG v1.8 p.38 holds nothing without a reveal)", () => {
+    const { state, events } = play(withSupports(game(SHELL), BITE), AMBUSH);
+    const shell = idOf(state, SHELL);
+    const tough = events.findIndex((e) => e.type === "statusGiven" && e.status === "tough" && e.instanceId === shell);
+    expect(tough).toBeGreaterThanOrEqual(0);
+    expect(tough).toBeLessThan(marked(events, "bite"));
+    expect(marked(events, "bite")).toBeLessThan(attack(events, "initiated"));
+    expect(mustInstance(state, shell).statuses.tough).toBe(1);
   });
 
   it("a response to it entering play is not held: no reveal is in progress, and it keeps its place", () => {

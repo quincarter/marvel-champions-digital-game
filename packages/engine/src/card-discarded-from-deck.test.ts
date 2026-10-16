@@ -327,9 +327,12 @@ const logged = (events: readonly GameEvent[]) => events.flatMap((e) => (e.type =
 const notCounted = (events: readonly GameEvent[]): readonly InstanceId[] =>
   events.flatMap((e) => (e.type === "deckDiscardNotCounted" ? [e.instanceId] : []));
 /** The response windows opened for deck discards, each as its candidates' ability ids. */
+/** The response windows that answer a discard from a deck: as their own event or as one sharing the window. */
 const windows = (events: readonly GameEvent[]): readonly (readonly string[])[] =>
   events.flatMap((e) =>
-    e.type === "windowOpened" && e.timing === "response" && e.event.kind === "cardDiscardedFromDeck"
+    e.type === "windowOpened" &&
+    e.timing === "response" &&
+    [e.event, ...(e.alsoEvents ?? [])].some((each) => each.kind === "cardDiscardedFromDeck")
       ? [e.candidates.map((c) => `${c.abilityId}`)]
       : [],
   );
@@ -429,6 +432,16 @@ describe("§3.55 every discard from a player's deck is announced once per card (
     const drain = state.encounterDecks[state.encounterDeckOrder[0]!]!.deck[0]!;
     const result = run({ ...table, state }, defaultPick, { type: "endTurn", playerId: P1 });
     expect(heardDiscards(result.events)).toEqual(table.top.map((id) => discarded(id, drain)));
+    // Still one window, now the end-of-reveal one the discards' responses wait for, shared with "after this card is
+    // revealed" (RRG v1.8 p.38; owner decision 2026-10-16 (audit finding 18)).
+    const held = result.events.filter(
+      (e) =>
+        e.type === "windowOpened" &&
+        e.timing === "response" &&
+        e.event.kind === "cardRevealed" &&
+        (e.alsoEvents ?? []).filter((each) => each.kind === "cardDiscardedFromDeck").length === 5,
+    );
+    expect(held).toHaveLength(1);
     expect(windows(result.events)).toHaveLength(1);
     expect(counters(result.state, table.inPlay.tally, "seen")).toBe(5);
     expectReplays(result);

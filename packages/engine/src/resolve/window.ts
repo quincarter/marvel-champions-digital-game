@@ -60,6 +60,7 @@ import { activeAbilityRefs, cardsInPlay } from "../select.js";
 import { keywordAbilityOf } from "../keyword-abilities.js";
 import { candidatesFor, hearerKey, hearersOf, stillAnswers, stillOffered } from "./triggers.js";
 import { toughEndsDamageWindow } from "./event.js";
+import { holdResponsesForReveal } from "./reveal-hold.js";
 
 export function pushWindow(
   ctx: Ctx,
@@ -71,6 +72,9 @@ export function pushWindow(
   /** Their event frames, by index, when they are still to apply (a shared interrupt window). */
   alsoEventFrameIds: readonly (FrameId | null)[] = [],
 ): void {
+  // A response window triggered while an encounter card is being revealed waits for the end of that reveal (RRG 1.8
+  // "Reveal", p. 38; owner decision 2026-10-16, audit finding 18; `reveal-hold.ts`). Interrupts never wait.
+  if (timing === "response" && holdResponsesForReveal(ctx, [...alsoEvents, event])) return;
   pushFrames(ctx, [
     {
       ...base(ctx),

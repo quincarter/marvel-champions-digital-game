@@ -10,9 +10,14 @@
  * written as that module can write them. The discarded cards are the deck's own: Shapeshifter Strike 56037 (energy),
  * Defensive Conditioning 56046 (physical), "I Can Do This All Day" 56047 (mental).
  *
- * Owner decision, 2026-10-11, box-heroes question 14 = A (provisional): the discarding ability still counts the cards
- * it discarded, reading their printed icons, though Skrull Business has taken them. RRG 1.8 "Triggering Condition"
- * (p. 45), "Tuck" (p. 45).
+ * Owner decision, 2026-10-11, box-heroes question 14 = A (provisional; kept 2026-10-16): the discarding ability still
+ * counts the cards it discarded, reading their printed icons, though Skrull Business has taken them. RRG 1.8
+ * "Triggering Condition" (p. 45), "Tuck" (p. 45).
+ *
+ * RRG v1.8 p.38; owner decision 2026-10-16 (audit finding 18): when the discarding ability is a revealed card's When
+ * Revealed, Skrull Business's Forced Response waits until the reveal has finished, so the count is made before the
+ * cards are taken and question 14 does not come up. Its case is shown with the same two sentences resolving outside a
+ * reveal, as a test stand-in hero action (`OUTSIDE_REVEAL`).
  */
 
 import { cardId } from "@mc/content";
@@ -26,6 +31,8 @@ import {
   inst,
   instancesOf,
   patchInstance,
+  payWith,
+  play,
   playerOf,
   putOnTopOfDeck,
 } from "../testing/harness.js";
@@ -59,6 +66,17 @@ const SCRIPTS = defineAbilities({
   "56058.when-revealed-hero": REVEALED_HERO,
 });
 const deps: EngineDeps = { ...WAVE10_DEPS, abilities: { ...WAVE10_DEPS.abilities, ...SCRIPTS } };
+/**
+ * Test stand-in: Shapeshifter Strike 56037's script replaced by You're Coming With Me!'s two sentences as a hero
+ * action, so the same discard and count resolve on a player's turn with no reveal in progress.
+ */
+const OUTSIDE_REVEAL = defineAbilities({
+  "56037.shapeshifter-strike-action": heroAction(
+    moveCards(topOfDeck(3), "discard", "discarded"),
+    takeDamage(resourceTypesOf(chosen("discarded"))),
+  ),
+});
+const outsideDeps: EngineDeps = { ...deps, abilities: { ...deps.abilities, ...OUTSIDE_REVEAL } };
 
 /** Surgery: player 1's set-aside Skrull Business in the villain's play area with 5 threat. */
 function withSkrullBusiness(state: GameState): { readonly state: GameState; readonly id: InstanceId } {
@@ -97,6 +115,23 @@ function revealedOver(top: readonly string[], opts: { readonly scheme: boolean }
   const run = driveEventsPicking(deps, staged, firstLegal, endTurn());
   return { ...run, scheme: scheme?.id ?? null, top: stacked.ids, treachery: treachery! };
 }
+/** The stand-in hero action played by player 1 over `top`, with Skrull Business in play. */
+function playedOver(top: readonly string[]) {
+  const start = withSkrullBusiness(hulklingHeroGame({ deps: outsideDeps }));
+  const stacked = putOnTopOfDeck(start.state, P1, ...top);
+  const id = playerOf(stacked.state, P1).deck.find(
+    (i) => stacked.state.instances[i]?.cardId === cardId(STRIKE) && !stacked.ids.includes(i),
+  );
+  if (!id) throw new Error("no other Shapeshifter Strike in the deck");
+  const inHand: GameState = {
+    ...stacked.state,
+    players: stacked.state.players.map((p) =>
+      p.playerId === P1 ? { ...p, deck: p.deck.filter((i) => i !== id), hand: [...p.hand, id] } : p,
+    ),
+  };
+  const run = driveEventsPicking(outsideDeps, inHand, firstLegal, play(P1, id, payWith(inHand, P1, 2, [id])));
+  return { ...run, scheme: start.id, top: stacked.ids, played: id };
+}
 const damageFrom = (events: readonly GameEvent[], source: InstanceId) =>
   events.reduce((sum, e) => (e.type === "damageDealt" && e.sourceInstanceId === source ? sum + e.amount : sum), 0);
 const responses = (events: readonly GameEvent[]) =>
@@ -130,14 +165,34 @@ describe("B3.3 Skrull Business 56056 with You're Coming With Me! 56058, Hulkling
     expect(playerOf(run.state, P1).discard.filter((id) => run.top.includes(id))).toEqual([]);
   });
 
-  it("question 14 = A: energy, physical and mental under the scheme still deal Hulkling 3 damage", () => {
+  // RRG v1.8 p.38; owner decision 2026-10-16 (audit finding 18).
+  it("revealed: the response waits for the end of the reveal, so the 3 damage is counted from the discard pile and the cards are tucked afterwards (RRG v1.8 p.38)", () => {
     const run = revealedOver([STRIKE, CONDITIONING, ALL_DAY], { scheme: true });
     expect(damageFrom(run.events, run.treachery)).toBe(3);
+    // Nothing had taken the cards when they were counted: question 14 does not come up.
+    expect(run.events.filter((e) => e.type === "deckDiscardStillCounted")).toEqual([]);
+    expect(run.events.filter((e) => e.type === "deckDiscardNotCounted")).toEqual([]);
+    // The discard itself is not deferred: the cards left the deck before the damage; only the tuck waited.
+    const discardedAt = run.events.findIndex((e) => e.type === "cardMoved" && e.instanceId === run.top[0]);
+    const damagedAt = run.events.findIndex((e) => e.type === "damageDealt" && e.sourceInstanceId === run.treachery);
+    const respondedAt = run.events.findIndex(
+      (e) => e.type === "abilityResolved" && e.abilityId === "56056.skrull-business-forced-response",
+    );
+    expect(discardedAt).toBeLessThan(damagedAt);
+    expect(damagedAt).toBeLessThan(respondedAt);
+  });
+
+  it("question 14 = A, outside a reveal: energy, physical and mental under the scheme still deal Hulkling 3 damage", () => {
+    const run = playedOver([STRIKE, CONDITIONING, ALL_DAY]);
+    expect(run.events.some((e) => e.type === "encounterCardRevealed")).toBe(false);
+    expect(responses(run.events)).toHaveLength(1);
+    expect(inst(run.state, run.scheme).tucked).toEqual(run.top);
+    expect(damageFrom(run.events, run.played)).toBe(3);
     expect(run.events.filter((e) => e.type === "deckDiscardStillCounted").map((e) => e.instanceId)).toEqual(run.top);
     expect(run.events.filter((e) => e.type === "deckDiscardNotCounted")).toEqual([]);
   });
 
-  it("question 14 = A: three energy cards under the scheme deal 1 damage", () => {
+  it("three energy cards under the scheme deal 1 damage", () => {
     const run = revealedOver([STRIKE, STRIKE, STRIKE], { scheme: true });
     expect(inst(run.state, run.scheme!).tucked).toEqual(run.top);
     expect(damageFrom(run.events, run.treachery)).toBe(1);
