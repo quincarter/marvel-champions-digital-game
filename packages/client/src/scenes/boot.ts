@@ -692,6 +692,8 @@ export class BootScene extends Phaser.Scene {
     void Promise.all([this.#awaitFonts(), refreshUnlocks().catch(() => false)])
       .then(() => devScreenJump())
       .then((jump) => {
+        // The Report tab (#176), on every screen from here on; after the fonts, so its label draws in its own face.
+        this.scene.launch(SCENES.reportTab);
         if (!jump) {
           // Boot's own normal hand-off (no `?screen=` dev jump): a plain fade, same as every other
           // screen-to-screen move. The dev jumps below stay hard cuts — they're QA/screenshot entry
