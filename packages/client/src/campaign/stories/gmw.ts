@@ -236,6 +236,8 @@ export const GMW_STORY: CampaignStory = {
   rosterBanner: "Whoever signs here spends the Collection with the rest of the crew. Choose wisely — it's shared.",
   castIdentityIds: ["16001a", "16029a"],
   pages: PAGES,
+  // Knowhere's skyline from the observation deck: the black-market port every Market visit stands in.
+  marketArt: { page: "04-knowhere", beatIndex: 0 },
   issues: [
     {
       nodeId: "brotherhood-of-badoon",

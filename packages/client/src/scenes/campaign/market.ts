@@ -34,12 +34,23 @@
 import Phaser from "phaser";
 import type { AnyCard } from "@mc/content";
 import type { CampaignChoiceAnswer, CampaignPendingChoice, LogValue } from "@mc/engine";
+import { artFor, defaultFaceFor } from "../../art/art-source.js";
+import { cardFaces } from "../../art/card-face-baker.js";
 import { CARDS_BY_ID, POOL_CARDS } from "../../content/pool.js";
 import { cardDisplayName } from "../../view/hero-names.js";
 import type { CampaignRecord } from "../../engine/campaign-storage.js";
 import { campaignService } from "../../session.js";
 import { border, ink, signal, surface, typeRole, type TypeSpec } from "../../tokens.js";
-import { artNote, bangers, campaignFrame, drawTopBar, stamp } from "../../ui/campaign-chrome.js";
+import {
+  artNote,
+  bangers,
+  campaignFrame,
+  campaignPagePicture,
+  drawPicture,
+  drawTopBar,
+  stamp,
+} from "../../ui/campaign-chrome.js";
+import { storyFor } from "../../campaign/story.js";
 import { HoverPreview, screenHoverArea } from "../../ui/card-hover-preview.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { captureIntoRegion } from "../../ui/scroll-capture.js";
@@ -65,6 +76,7 @@ import type { FormFactor, Rect } from "../../view/layout.js";
 import { VariableListScroll } from "../../view/variable-list-scroll.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
+import { artThumbSpec } from "../roster-panel.js";
 import type { CampaignMarketData } from "./routes.js";
 
 const cardOf = (id: string): AnyCard | undefined => CARDS_BY_ID.get(id);
@@ -83,10 +95,13 @@ type MarketLayout = "phone" | "phoneLandscape" | "tabletPortrait" | "wide";
 const layoutOf = (formFactor: FormFactor): MarketLayout =>
   formFactor === "phone" || formFactor === "phoneLandscape" || formFactor === "tabletPortrait" ? formFactor : "wide";
 
-/** How a shelf cell lays out: on a phone the blurb sits beside the price badge, on wider screens under it. */
+/** Card pictures this far (px) outside the scrolled view still load, so a flick does not scroll into blank slots. */
+const THUMB_LOAD_MARGIN = 240;
+
+/** How a shelf cell lays out: on a phone the card's text sits beside its picture, on wider screens under it. */
 interface CellStyle {
-  readonly height: number;
-  readonly badge: number;
+  /** The picture's width; its height keeps a card's own 63:88. */
+  readonly thumb: number;
   readonly pad: number;
   readonly bodyBeside: boolean;
   /** "EVENT · THWART" over the name. */
@@ -99,8 +114,7 @@ interface CellStyle {
 
 const CELL: Readonly<Record<MarketLayout, CellStyle>> = {
   phone: {
-    height: 92,
-    badge: 44,
+    thumb: 60,
     pad: 12,
     bodyBeside: true,
     showKind: true,
@@ -109,8 +123,7 @@ const CELL: Readonly<Record<MarketLayout, CellStyle>> = {
     bodySize: 12,
   },
   phoneLandscape: {
-    height: 68,
-    badge: 38,
+    thumb: 46,
     pad: 10,
     bodyBeside: true,
     showKind: false,
@@ -119,8 +132,7 @@ const CELL: Readonly<Record<MarketLayout, CellStyle>> = {
     bodySize: 11,
   },
   tabletPortrait: {
-    height: 124,
-    badge: 40,
+    thumb: 60,
     pad: 14,
     bodyBeside: false,
     showKind: true,
@@ -129,8 +141,7 @@ const CELL: Readonly<Record<MarketLayout, CellStyle>> = {
     bodySize: 13,
   },
   wide: {
-    height: 124,
-    badge: 40,
+    thumb: 56,
     pad: 14,
     bodyBeside: false,
     showKind: true,
@@ -189,6 +200,17 @@ export class CampaignMarketScene extends Phaser.Scene {
   /** Every shelf card drawn this pass, in content space, with the region it scrolls in. */
   #shelfCards: { readonly cardId: string; readonly rect: Rect; readonly region: McScrollRegion }[] = [];
   #hover: HoverPreview | null = null;
+  #redrawQueued = false;
+  /** Card pictures waiting for their scans, drawn as their cells come near the view (`#fillThumbs`). */
+  #thumbs: {
+    readonly rect: Rect;
+    readonly url: string;
+    readonly alpha: number;
+    /** The parchment slot the picture goes just above, under the price stamp. */
+    readonly under: Phaser.GameObjects.GameObject;
+    readonly region: McScrollRegion;
+    done: boolean;
+  }[] = [];
 
   constructor() {
     super(SCENES.campaignMarket);
@@ -217,7 +239,9 @@ export class CampaignMarketScene extends Phaser.Scene {
       cardIds: () => this.#hoverCardIds(),
       area: (pointer) => screenHoverArea(this, pointer, { blocked: () => this.#receiptOpen }),
     });
+    const offBaked = cardFaces(this).onBaked(() => this.#fillThumbs());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      offBaked();
       this.scale.off("resize", this.#draw, this);
       this.#hover?.destroy();
       this.#hover = null;
@@ -355,9 +379,11 @@ export class CampaignMarketScene extends Phaser.Scene {
     this.#shelfRegion = null;
     this.#shelfCards = [];
     this.#tierTops = [];
+    this.#thumbs = [];
     this.#chips = [];
     destroyChildren(this);
     this.#drawScreen();
+    this.#fillThumbs();
     this.#hover?.onDraw();
   }
 
@@ -511,8 +537,8 @@ export class CampaignMarketScene extends Phaser.Scene {
       const w = paneWidth - 28;
       let y = body.y + 14;
       for (const wallet of view.wallets) {
-        this.#drawWallet({ x, y, width: w, height: 48 }, wallet.heroName, wallet.before, wallet.after, wallet.active);
-        y += 48 + 10;
+        this.#drawWallet({ x, y, width: w, height: 56 }, wallet.heroName, wallet.before, wallet.after, wallet.active);
+        y += 56 + 10;
       }
       y += 10;
       label(this, x, y, "Jump to price", { ...typeRole.label, size: 11 }, surface.ink.hex, ink.secondary);
@@ -665,7 +691,7 @@ export class CampaignMarketScene extends Phaser.Scene {
     const phone = chipLabel !== null;
     const perRow = phone ? 2 : Math.min(4, Math.max(1, view.wallets.length));
     const walletGap = phone ? 12 : 16;
-    const walletHeight = phone ? 50 : 56;
+    const walletHeight = phone ? 62 : 56;
     const walletWidth = (rect.width - walletGap * (perRow - 1)) / perRow;
     const walletRows = Math.ceil(view.wallets.length / perRow);
     const chipSize = phone ? 44 : 48;
@@ -772,6 +798,13 @@ export class CampaignMarketScene extends Phaser.Scene {
         textStyle({ ...typeRole.rowTitle, size: 15 }, surface.ink.hex, alpha),
       )
       .setOrigin(0, 0.5);
+    if (name.width + value.width + 40 > rect.width) {
+      // A long name ("ROCKET RACCOON") beside the balance would be cut: the name goes on its own line over it.
+      name.setPosition(rect.x + 12, rect.y + 8).setOrigin(0, 0);
+      fitText(name, rect.width - 24, 15);
+      value.setPosition(rect.x + rect.width - 12, rect.y + rect.height - 6).setOrigin(1, 1);
+      return;
+    }
     fitText(name, rect.width - value.width - 40, 15);
   }
 
@@ -884,7 +917,10 @@ export class CampaignMarketScene extends Phaser.Scene {
 
   // ── The stall ──────────────────────────────────────────────────────────────────────────────────────────────────
 
-  /** Every tier as a "N UNITS · K CARDS" heading over a grid of cells. Returns the last row's bottom. */
+  /**
+   * Every tier as a "N UNITS · K CARDS" heading over a grid of cells. A cell is as tall as its card's whole text, and
+   * a row as tall as its tallest cell, so nothing is cut off. Returns the last row's bottom.
+   */
   #drawStall(
     rect: Rect,
     layout: MarketLayout,
@@ -931,38 +967,45 @@ export class CampaignMarketScene extends Phaser.Scene {
       y += heading.height + 6;
       this.add.rectangle(rect.x, y, rect.width, border.control, surface.ink.hex).setOrigin(0, 0);
       y += border.control + (style.tagInside ? 14 : 24);
-      tier.cards.forEach((card, index) => {
-        const col = index % cols;
-        const row = Math.floor(index / cols);
-        const cellRect: Rect = {
+      for (let start = 0; start < tier.cards.length; start += cols) {
+        const row = tier.cards.slice(start, start + cols).map((card, col) => ({
+          card,
           x: rect.x + col * (cellWidth + colGap),
-          y: y + row * (style.height + rowGap),
-          width: cellWidth,
-          height: style.height,
-        };
-        this.#drawCell(cellRect, card, style, stops);
-        this.#shelfCards.push({ cardId: card.cardId as string, rect: cellRect, region });
-      });
-      const rows = Math.ceil(tier.cards.length / cols);
-      y += rows * style.height + (rows - 1) * rowGap;
+          cell: this.#drawCell(rect.x + col * (cellWidth + colGap), y, cellWidth, card, style, stops, region),
+        }));
+        const rowHeight = Math.max(...row.map((entry) => entry.cell.height));
+        for (const { card, x, cell } of row) {
+          const cellRect: Rect = { x, y, width: cellWidth, height: rowHeight };
+          cell.finish(rowHeight);
+          this.#shelfCards.push({ cardId: card.cardId as string, rect: cellRect, region });
+        }
+        y += rowHeight + (start + cols < tier.cards.length ? rowGap : 0);
+      }
     });
     return y;
   }
 
-  #drawCell(rect: Rect, card: MarketShelfCard, style: CellStyle, stops: Map<string, FocusStop>): void {
+  /**
+   * One shelf card: its picture with the price stamped on its corner, then its type, name and whole text beside it
+   * (a phone) or the text under the picture row (wider screens). Drawn at the cell's top-left; `finish` frames it at
+   * the row's height and makes it a control. Returns the height the card needs.
+   */
+  #drawCell(
+    x: number,
+    y: number,
+    width: number,
+    card: MarketShelfCard,
+    style: CellStyle,
+    stops: Map<string, FocusStop>,
+    region: McScrollRegion,
+  ): { readonly height: number; readonly finish: (height: number) => void } {
     const { kind } = card.state;
     const inCart = kind === "inCart";
     const live = kind === "live";
     const dim = !live && !inCart;
-    const g = this.add.graphics();
-    g.fillStyle(dim ? surface.paper.hex : surface.card.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-    if (inCart) g.lineStyle(4, signal.caution.hex, 1);
-    else if (live) g.lineStyle(border.object, surface.ink.hex, 1);
-    else g.lineStyle(border.control, surface.ink.hex, 0.3);
-    const inset = inCart ? 2 : 1.5;
-    g.strokeRect(rect.x + inset, rect.y + inset, rect.width - inset * 2, rect.height - inset * 2);
+    // The frame goes in first so everything else draws over it; it is painted once the row's height is known.
+    const frame = this.add.graphics();
 
-    // The state tag: inside the corner on a phone, straddling the top edge on wider screens.
     const tagText =
       kind === "inCart"
         ? "In your cart"
@@ -974,6 +1017,7 @@ export class CampaignMarketScene extends Phaser.Scene {
               ? `Need ${card.state.need}`
               : null;
     let tagWidth = 0;
+    let tagBottom = y;
     if (tagText) {
       const t = this.add
         .text(
@@ -984,8 +1028,8 @@ export class CampaignMarketScene extends Phaser.Scene {
         )
         .setOrigin(0, 0);
       const tag: Rect = {
-        x: rect.x + rect.width - t.width - 16 - (style.tagInside ? 6 : 12),
-        y: style.tagInside ? rect.y + 10 : rect.y - 10,
+        x: x + width - t.width - 16 - (style.tagInside ? 6 : 12),
+        y: style.tagInside ? y + 8 : y - 10,
         width: t.width + 16,
         height: t.height + 8,
       };
@@ -999,62 +1043,74 @@ export class CampaignMarketScene extends Phaser.Scene {
       if (inCart) tg.lineStyle(1.5, surface.ink.hex, 1).strokeRect(tag.x, tag.y, tag.width, tag.height);
       t.setPosition(tag.x + 8, tag.y + 4);
       this.children.bringToTop(t);
-      tagWidth = style.tagInside ? tag.width + 8 : 0;
+      tagWidth = style.tagInside ? tag.width + 10 : 0;
+      if (style.tagInside) tagBottom = tag.y + tag.height;
     }
 
-    const alpha = dim ? ink.disabled : 1;
+    // The picture, a card's own proportions, with a parchment slot under it until its scan arrives.
+    const thumb: Rect = {
+      x: x + style.pad,
+      y: y + style.pad,
+      width: style.thumb,
+      height: Math.round((style.thumb * 88) / 63),
+    };
+    const slot = this.add.graphics();
+    slot.fillStyle(surface.parchment.hex, 1).fillRect(thumb.x, thumb.y, thumb.width, thumb.height);
+    slot.lineStyle(1.5, surface.ink.hex, 0.5).strokeRect(thumb.x, thumb.y, thumb.width, thumb.height);
+    const source = cardOf(card.cardId as string);
+    const url = artFor(source, defaultFaceFor(source))?.url ?? null;
+    if (url) this.#thumbs.push({ rect: thumb, url, alpha: dim ? 0.45 : 1, under: slot, region, done: false });
+    // The price, stamped over the picture's corner.
+    const badgeSize = style.thumb >= 56 ? 28 : 24;
     const badge: Rect = {
-      x: rect.x + style.pad,
-      y: style.bodyBeside ? rect.y + (rect.height - style.badge) / 2 : rect.y + style.pad + 2,
-      width: style.badge,
-      height: style.badge,
+      x: thumb.x - 4,
+      y: thumb.y + thumb.height - badgeSize + 4,
+      width: badgeSize + 8,
+      height: badgeSize,
     };
     const bg = this.add.graphics();
-    bg.fillStyle(signal.cost.hex, dim ? 0.4 : 1).fillRect(badge.x, badge.y, badge.width, badge.height);
-    bg.lineStyle(border.control, surface.ink.hex, dim ? 0.3 : 1).strokeRect(
-      badge.x,
-      badge.y,
-      badge.width,
-      badge.height,
-    );
+    bg.fillStyle(signal.cost.hex, dim ? 0.55 : 1).fillRect(badge.x, badge.y, badge.width, badge.height);
+    bg.lineStyle(border.detail, surface.ink.hex, 1).strokeRect(badge.x, badge.y, badge.width, badge.height);
     this.add
       .text(
         badge.x + badge.width / 2,
         badge.y + badge.height / 2 + 1,
         `${card.price}U`,
-        textStyle(bangers(style.badge >= 42 ? 24 : 21), surface.paper.hex),
+        textStyle(bangers(badgeSize >= 28 ? 19 : 17), surface.paper.hex),
       )
       .setOrigin(0.5, 0.5);
 
-    const textX = badge.x + badge.width + 12;
-    const textWidth = rect.x + rect.width - style.pad - textX;
-    let y = style.bodyBeside ? rect.y + (style.showKind ? 10 : 9) : badge.y;
+    const textX = thumb.x + thumb.width + 12;
+    const textWidth = x + width - style.pad - textX;
+    const alpha = dim ? ink.disabled : 1;
+    let textY = y + style.pad - 2;
     if (style.showKind) {
       const kindText = this.add
         .text(
           textX,
-          y,
+          textY,
           card.kindLabel,
           textStyle({ ...typeRole.label, size: 10 }, surface.ink.hex, dim ? ink.disabled : ink.secondary),
         )
         .setOrigin(0, 0);
       fitText(kindText, textWidth - tagWidth, 10);
-      y += kindText.height + 2;
+      textY += Math.max(kindText.height, tagWidth > 0 ? 18 : 0) + 3;
     }
+    // With no kind line to sit beside it, a tag in the corner takes the first line: the name starts under it.
+    if (!style.showKind) textY = Math.max(textY, tagBottom + 4);
     const nameSpec: TypeSpec = { ...typeRole.rowTitle, size: style.nameSize, lineHeight: 1.15 };
     const name = this.add
-      .text(textX, y, card.name.toUpperCase(), {
+      .text(textX, textY, card.name.toUpperCase(), {
         ...textStyle(nameSpec, surface.ink.hex, alpha),
-        ...(style.bodyBeside ? {} : { wordWrap: { width: textWidth }, maxLines: 2 }),
+        wordWrap: { width: textWidth },
       })
       .setOrigin(0, 0);
-    if (style.bodyBeside) fitText(name, textWidth - (style.showKind ? 0 : tagWidth), style.nameSize);
-    y += name.height + 4;
+    textY += name.height + 4;
 
-    const bodyX = style.bodyBeside ? textX : rect.x + style.pad;
-    const bodyWidth = style.bodyBeside ? textWidth : rect.width - style.pad * 2;
-    const bodyY = style.bodyBeside ? y : Math.max(badge.y + badge.height, y) + 10;
-    this.add
+    const bodyX = style.bodyBeside ? textX : x + style.pad;
+    const bodyWidth = style.bodyBeside ? textWidth : width - style.pad * 2;
+    const bodyY = style.bodyBeside ? textY : Math.max(thumb.y + thumb.height, textY) + 10;
+    const body = this.add
       .text(bodyX, bodyY, card.detail, {
         ...textStyle(
           { ...typeRole.body, size: style.bodySize, lineHeight: 1.35 },
@@ -1062,19 +1118,46 @@ export class CampaignMarketScene extends Phaser.Scene {
           dim ? ink.disabled : ink.secondary,
         ),
         wordWrap: { width: bodyWidth },
-        maxLines: 2,
       })
       .setOrigin(0, 0);
+    const contentBottom = Math.max(thumb.y + thumb.height, body.y + (card.detail ? body.height : 0));
+    const height = Math.ceil(contentBottom + style.pad - y);
 
-    if (live || inCart) {
-      const zone = this.add
-        .zone(rect.x, rect.y, rect.width, rect.height)
-        .setOrigin(0, 0)
-        .setInteractive({ useHandCursor: true });
+    const finish = (rowHeight: number): void => {
+      frame.fillStyle(dim ? surface.paper.hex : surface.card.hex, 1).fillRect(x, y, width, rowHeight);
+      if (inCart) frame.lineStyle(4, signal.caution.hex, 1);
+      else if (live) frame.lineStyle(border.object, surface.ink.hex, 1);
+      else frame.lineStyle(border.control, surface.ink.hex, 0.3);
+      const inset = inCart ? 2 : 1.5;
+      frame.strokeRect(x + inset, y + inset, width - inset * 2, rowHeight - inset * 2);
+      if (!live && !inCart) return;
+      const rect: Rect = { x, y, width, height: rowHeight };
+      const zone = this.add.zone(x, y, width, rowHeight).setOrigin(0, 0).setInteractive({ useHandCursor: true });
       const cardId = card.cardId as string;
       const price = card.price;
       zone.on("pointerup", () => this.#toggleCart(cardId, price));
       stops.set(`cart:${cardId}`, { rect, activate: () => this.#toggleCart(cardId, price) });
+    };
+    return { height, finish };
+  }
+
+  /** Draws every waiting card picture whose baked scan is on hand and whose cell is near the scrolled view. */
+  #fillThumbs(): void {
+    const faces = cardFaces(this);
+    for (const slot of this.#thumbs) {
+      if (slot.done || !slot.region.content.active) continue;
+      const top = slot.rect.y + slot.region.content.y;
+      const view = slot.region.rect;
+      if (top + slot.rect.height < view.y - THUMB_LOAD_MARGIN || top > view.y + view.height + THUMB_LOAD_MARGIN)
+        continue;
+      const key = faces.request(artThumbSpec(slot.rect, slot.url, 0.12, "contain"));
+      if (!key) continue;
+      const image = this.add.image(slot.rect.x, slot.rect.y, key).setOrigin(0, 0).setAlpha(slot.alpha);
+      image.setDisplaySize(slot.rect.width, slot.rect.height);
+      faces.hold(key, image);
+      // Just over its parchment slot, so the price stamped over the corner stays on top.
+      slot.region.content.addAt(image, slot.region.content.getIndex(slot.under) + 1);
+      slot.done = true;
     }
   }
 
@@ -1138,11 +1221,23 @@ export class CampaignMarketScene extends Phaser.Scene {
     return bottom;
   }
 
-  /** A placeholder art panel; `small` letters a label instead of the full picture note. */
+  /**
+   * The box's own Market panel (`CampaignStory.marketArt`: GMW's Knowhere skyline), cropped from its comic page; a
+   * placeholder while it loads or for a box with none. `small` letters a label instead of the full picture note.
+   */
   #drawArtBox(rect: Rect, note: string, small = false): void {
     const g = this.add.graphics();
     g.fillStyle(0xe4dcc9, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-    g.lineStyle(border.object, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
+    const panel = this.#marketPanel();
+    const image = panel
+      ? drawPicture(this, campaignPagePicture(panel.campaignId, panel.file), rect, () => this.#redrawOnce(), {
+          region: panel.region,
+          focusY: 0.35,
+        })
+      : null;
+    const frame = this.add.graphics();
+    frame.lineStyle(border.object, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
+    if (image) return;
     if (small) {
       this.add
         .text(rect.x + rect.width / 2, rect.y + rect.height / 2, note.toUpperCase(), {
@@ -1154,6 +1249,34 @@ export class CampaignMarketScene extends Phaser.Scene {
       return;
     }
     artNote(this, rect, note);
+  }
+
+  #marketPanel(): {
+    readonly campaignId: string;
+    readonly file: string;
+    readonly region: { x: number; y: number; w: number; h: number; pageWidth: number; pageHeight: number };
+  } | null {
+    const record = this.#record;
+    const story = record ? storyFor(record.campaignId as string) : undefined;
+    const ref = story?.marketArt;
+    const page = ref ? story?.pages?.find((candidate) => candidate.file === ref.page) : undefined;
+    const beat = ref ? page?.beats[ref.beatIndex] : undefined;
+    if (!record || !page || !beat) return null;
+    return {
+      campaignId: record.campaignId as string,
+      file: page.file,
+      region: { ...beat.panel, pageWidth: page.width, pageHeight: page.height },
+    };
+  }
+
+  /** A picture that finished loading redraws the screen once (several arriving together share one redraw). */
+  #redrawOnce(): void {
+    if (this.#redrawQueued) return;
+    this.#redrawQueued = true;
+    this.time.delayedCall(0, () => {
+      this.#redrawQueued = false;
+      if (this.sys.isActive()) this.#draw();
+    });
   }
 
   #promptBoxHeight(width: number, view: MarketView): number {
@@ -1471,7 +1594,9 @@ export class CampaignMarketScene extends Phaser.Scene {
       clipInteractive: true,
       enabled: () => !this.#receiptOpen,
       onScroll: () => {
-        if (region !== null && region === this.#shelfRegion) this.#syncActivePrice();
+        if (region === null || region !== this.#shelfRegion) return;
+        this.#syncActivePrice();
+        this.#fillThumbs();
       },
     });
     this.#regions.push(region);

@@ -428,16 +428,34 @@ export function drawPicture(
     readonly focusY?: number;
     readonly grayscale?: boolean;
     readonly alpha?: number;
+    /**
+     * Only this part of the picture (a comic page's panel), in the page's own measured pixel size (`pageWidth` ×
+     * `pageHeight`, `ComicPage.width`/`height`): cover-fitted into `rect` on its own.
+     */
+    readonly region?: {
+      readonly x: number;
+      readonly y: number;
+      readonly w: number;
+      readonly h: number;
+      readonly pageWidth: number;
+      readonly pageHeight: number;
+    };
   } = {},
 ): Phaser.GameObjects.Image | null {
   if (!picture || rect.width <= 0 || rect.height <= 0) return null;
   const key = ensurePictureLoaded(scene, picture, onReady);
   if (!key) return null;
-  const source = scene.textures.get(key).getSourceImage() as { width: number; height: number };
+  const full = scene.textures.get(key).getSourceImage() as { width: number; height: number };
+  const region = options.region;
+  const sx = region ? full.width / region.pageWidth : 1;
+  const sy = region ? full.height / region.pageHeight : 1;
+  const origin = region ? { x: region.x * sx, y: region.y * sy } : { x: 0, y: 0 };
+  const source = region ? { width: region.w * sx, height: region.h * sy } : full;
   const fit = coverFit(source, rect);
   const focusY = options.focusY ?? 0.5;
-  const cropY = Math.max(0, Math.min(source.height - fit.cropHeight, (source.height - fit.cropHeight) * focusY));
-  const cropX = (source.width - fit.cropWidth) * (options.focusX ?? 0.5);
+  const cropY =
+    origin.y + Math.max(0, Math.min(source.height - fit.cropHeight, (source.height - fit.cropHeight) * focusY));
+  const cropX = origin.x + (source.width - fit.cropWidth) * (options.focusX ?? 0.5);
   const image = scene.add
     .image(rect.x - cropX * fit.scale, rect.y - cropY * fit.scale, key)
     .setOrigin(0, 0)
