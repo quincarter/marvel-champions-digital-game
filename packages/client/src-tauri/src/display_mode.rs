@@ -133,7 +133,11 @@ mod win {
 
   /// Lays the window over its monitor's whole new area. A fullscreen window keeps the size it had when the monitor
   /// changed mode, so without this the game showed a 3440-wide corner on an 800 x 600 screen (the owner, 2026-10-16).
-  /// The mode change settles asynchronously, so the fit is repeated shortly after.
+  /// It runs once, after the mode change has settled (it lands asynchronously), so the only flash the player sees is
+  /// the monitor's own re-sync: placing the window straight away and again later showed as extra tearing on Alt+Tab
+  /// (the owner, 2026-10-16).
+  const FIT_AFTER_MS: u64 = 300;
+
   fn fit(hwnd: isize) {
     let place = move || unsafe {
       let hwnd = hwnd as *mut core::ffi::c_void;
@@ -153,12 +157,9 @@ mod win {
         );
       }
     };
-    place();
     std::thread::spawn(move || {
-      for delay in [200, 600] {
-        std::thread::sleep(std::time::Duration::from_millis(delay));
-        place();
-      }
+      std::thread::sleep(std::time::Duration::from_millis(FIT_AFTER_MS));
+      place();
     });
   }
 
