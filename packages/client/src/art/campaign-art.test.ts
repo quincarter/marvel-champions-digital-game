@@ -94,6 +94,7 @@ describe("the real art/campaigns folder", () => {
         for (const panel of issue.opener) collect(panel.art);
         collect(issue.aftermathArt);
       }
+      collect(story.marketArt);
       for (const page of story.pages ?? []) if (page.artboard) named.add(page.file);
       const dir = join(root, story.campaignId, "artboards");
       const onDisk = readdirSync(dir)

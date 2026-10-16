@@ -85,6 +85,20 @@ export interface Pause {
    * unexplained wall.
    */
   readonly offer: string;
+  /**
+   * A boost-count window (Chaos Control, Scarlet Witch's Crest: "when boost icons on an encounter card would be
+   * counted"): the faceup boost card whose icons are about to be counted. The interrupt panel takes the place of the
+   * boost panel while it is open, so it shows this card itself (issue #172). Absent for every other decision.
+   */
+  readonly countedBoost?: CountedBoost;
+}
+
+/** The boost card a boost-count window is about (`Pause.countedBoost`). */
+export interface CountedBoost {
+  readonly instanceId: InstanceId;
+  readonly name: string;
+  /** The icons its flip reported (0 once cancelled); null when this activation's beats never saw it flip. */
+  readonly icons: number | null;
 }
 
 /** One boost card revealed during the activation this beat belongs to (`boostCardFlipped`/`boostCancelled`). */
@@ -360,7 +374,7 @@ export function appendWalkthrough(
     if (!inPhase()) continue;
 
     if (event.type === "choiceRequested") {
-      const pause = pauseFor(event.choice, state, viewer);
+      const pause = pauseFor(event.choice, state, viewer, activation);
       pausedAt = pause;
       push(pause.label, pause);
       continue;
@@ -611,11 +625,21 @@ const perilNote = (state: GameState, playerId: PlayerId): string =>
  * this screen says "auto-advance paused", because only this screen auto-
  * advances — the overlay uses `decisionLabel` instead.
  */
-export function pauseFor(choice: ChoiceLike, state: GameState, viewer: PlayerId | null): Pause {
+export function pauseFor(
+  choice: ChoiceLike,
+  state: GameState,
+  viewer: PlayerId | null,
+  activation: ActivationBeat | null = null,
+): Pause {
   const yours = choice.playerId === viewer;
   const who = shortSeatName(state, choice.playerId, viewer);
-  const base =
-    choice.authority === "player" && choice.prompt.kind !== "declareDefender"
+  const counted = countedBoostOf(choice, state, activation);
+  const base = counted
+    ? // Names the card being counted: nothing else on screen does while the interrupt panel is up (issue #172).
+      `${yours ? "Your" : `${who}'s`} ${windowTimingOf(choice)}: counting the boost icons on ${counted.name}${
+        counted.icons === null ? "" : ` (${counted.icons} icon${counted.icons === 1 ? "" : "s"})`
+      }`
+    : choice.authority === "player" && choice.prompt.kind !== "declareDefender"
       ? // The design canvas's exact phrase for an ordinary interrupt.
         yours
         ? `Auto-advance paused for your ${windowTimingOf(choice)}`
@@ -630,7 +654,43 @@ export function pauseFor(choice: ChoiceLike, state: GameState, viewer: PlayerId 
     label: choice.soleDecider ? `${base}${perilNote(state, choice.playerId)}` : base,
     soleDecider: choice.soleDecider,
     offer: offerFor(choice, state),
+    ...(counted ? { countedBoost: counted } : {}),
   };
+}
+
+/**
+ * The boost card a "boost icons would be counted" window is about, off the window's own event
+ * (`boostIconsCounting.cardInstanceId`), with the icon count its flip reported in this activation's beats.
+ */
+export function countedBoostOf(
+  choice: ChoiceLike,
+  state: GameState,
+  activation: ActivationBeat | null,
+): CountedBoost | null {
+  if (choice.prompt.kind !== "chooseTriggers" || choice.prompt.event?.kind !== "boostIconsCounting") return null;
+  const instanceId = choice.prompt.event.cardInstanceId;
+  const beat = activation?.boosts.find((boost) => boost.instanceId === instanceId);
+  const icons = beat ? (beat.cancelled === "icons" ? 0 : beat.boostIcons) : null;
+  return { instanceId, name: cardName(state, instanceId), icons };
+}
+
+/**
+ * The docked panel's boost line under "happening now": the card a boost-count window is counting, with its icons, while
+ * one is open; else the boost cards flipped so far by name; else that one is still facedown.
+ */
+export function activationBoostLineOf(
+  activation: ActivationBeat,
+  counted: CountedBoost | null,
+  state: GameState,
+): string | null {
+  if (counted) {
+    const icons = counted.icons === null ? "" : ` · ${counted.icons} boost icon${counted.icons === 1 ? "" : "s"}`;
+    return `Counting ${counted.name}${icons}`;
+  }
+  if (activation.boosts.length > 0) {
+    return `Boost: ${activation.boosts.map((boost) => cardName(state, boost.instanceId)).join(", ")}`;
+  }
+  return activation.resolved ? null : "Boost card facedown · flips after interrupts";
 }
 
 /**

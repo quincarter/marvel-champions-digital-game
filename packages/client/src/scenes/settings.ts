@@ -40,29 +40,32 @@ import {
   nextSettingsAfterVillainRow,
   settingsRowInfoOf,
   villainRowInfoOf,
-  type CardHoverRowInfo,
-  type CardSizeRowInfo,
   type GuideRowInfo,
   type SettingsRowInfo,
-  type TokenMotionRowInfo,
   type VillainRowId,
   type VillainRowsInfo,
 } from "../view/settings-rows.js";
+import { settingsTabsOf, type SettingsItemId, type SettingsTabId } from "../view/settings-sections.js";
 import type { GuideLevel } from "../guide/guide-prefs.js";
 import type {
   CardHoverScale,
   CardSize,
   FirstPlayerTokenMotion,
+  Settings,
   VillainAutoAdvance,
   VillainBeatSpeed,
 } from "../settings.js";
 import { ink, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
-import { McButton, addRowTapZone, label, paintOnFrame } from "../ui/widgets.js";
+import { McButton, McTabs, addRowTapZone, fitText, label, paintOnFrame, sectionHeader } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
-import { settingsLayout, type SettingsContentLayout } from "../view/settings-layout.js";
-import { settingsFocusOrder } from "../view/screen-focus.js";
-import { contentSlotHeights, type Rect } from "../view/layout.js";
+import {
+  settingsLayout,
+  type SettingsContentLayout,
+  type SettingsItemLayout,
+  type SettingsItemSpec,
+} from "../view/settings-layout.js";
+import { formFactorFor, type Rect } from "../view/layout.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { appSession } from "../session.js";
 import { guidePrefs, onGuidePrefsChange, setGuidePrefs } from "../guide/guide-store.js";
@@ -88,23 +91,42 @@ const RULES_ROW_DETAIL = "Look up any keyword, rule or ruling, with the cards it
 
 type GuideNonLevelRow = Extract<GuideRowInfo, { kind: "action" | "toggle" }>;
 
-function isGuideNonLevelRow(row: GuideRowInfo): row is GuideNonLevelRow {
-  return row.kind !== "segmented";
+/** The control widths of the rows that draw a segmented choice. */
+const SPEED_CONTROL_WIDTH = 204;
+const CARD_HOVER_CONTROL_WIDTH = 280;
+const CARD_SIZE_CONTROL_WIDTH = 520;
+
+/**
+ * A toggle or door row's 84px control, right-aligned and centred on the row. Held 2px in from the row's right edge,
+ * which is also the scroll region's mask edge, so the control's own border isn't clipped away.
+ */
+function controlRectOf(row: Rect): Rect {
+  return { x: row.x + row.width - 86, y: row.y + (row.height - 32) / 2, width: 84, height: 32 };
 }
 
-/** The Villain phase group's focus stop ids, in draw order: each auto-advance tile, hold, each speed segment, dock. */
-const VILLAIN_STOP_IDS = (villain: VillainRowsInfo): readonly string[] => [
-  ...villain.autoAdvance.options.map((o) => `villain-auto:${o.value}`),
-  "villain-hold",
-  ...villain.beatSpeed.options.map((o) => `villain-speed:${o.value}`),
-  "villain-dock",
-];
+/** What a segmented row draws: its title and detail, and the option it shows chosen. */
+interface SegmentedInfo<V extends string> {
+  readonly title: string;
+  readonly detail: string;
+  readonly options: readonly { readonly value: V; readonly label: string }[];
+  readonly selected: V;
+}
+
+/** One row the body can draw: how `settingsLayout` sizes it, and how to draw it once placed (screen space). */
+interface SettingsItem {
+  readonly spec: SettingsItemSpec;
+  readonly draw: (item: SettingsItemLayout, stops: Map<string, FocusStop>) => readonly string[];
+}
+
+/** The tab Settings last showed, so reopening it in the same session lands where the player left off. */
+let lastTab: SettingsTabId = "gameplay";
 
 export class SettingsOverlay extends Phaser.Scene {
   #buttons: McButton[] = [];
+  #tabs: McTabs | null = null;
   #route: FocusRoute | null = null;
   #motion = new OverlayMotion();
-  /** The whole body's own scroll region (docs/guided-mode.md §4 G2b) — Table, Unlocks and Guide all draw into it. */
+  /** The active tab's own scroll region (docs/guided-mode.md §4 G2b): its sections all draw into it. */
   #bodyRegion: McScrollRegion | null = null;
   #bodyScroll = new VariableListScroll();
 
@@ -129,6 +151,8 @@ export class SettingsOverlay extends Phaser.Scene {
       unsubscribeGuide();
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
+      this.#tabs?.destroy();
+      this.#tabs = null;
       this.#bodyRegion?.destroy();
       this.#bodyRegion = null;
     });
@@ -199,40 +223,52 @@ export class SettingsOverlay extends Phaser.Scene {
     this.#draw();
   }
 
+  /** Shows another tab, from its top. */
+  #setTab(id: SettingsTabId): void {
+    if (id === lastTab) return;
+    lastTab = id;
+    this.#bodyScroll = new VariableListScroll();
+    this.#draw();
+  }
+
   #draw(): void {
     // Already fading out for the ✕/Escape close — a redraw mid-fade (a toggle
     // fired just before it, a resize) would only flash new chrome under it.
     if (this.#motion.leaving) return;
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
+    this.#tabs?.destroy();
+    this.#tabs = null;
     this.#bodyRegion?.destroy();
     this.#bodyRegion = null;
     destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
-    const rows = settingsRowInfoOf(appSession().settings);
-    const unlocksDetail = unlocksSummaryOf(unlocks());
+    const settings = appSession().settings;
     const guideRows = guideRowInfoOf(guidePrefs());
-    const villain = villainRowInfoOf(appSession().settings);
-    const cardHover = cardHoverRowInfoOf(appSession().settings);
-    const cardSize = cardSizeRowInfoOf(appSession().settings);
-    const tokenMotion = tokenMotionRowInfoOf(appSession().settings);
-    const guideAfterLevel = guideRows.filter(isGuideNonLevelRow);
+    const items = this.#itemsOf(settings, guideRows);
+    const tabs = settingsTabsOf({
+      guideRowIds: guideRows.map((row) => row.id),
+      cardHover: formFactorFor(width, height) === "desktop",
+    });
+    const active = tabs.find((tab) => tab.id === lastTab) ?? tabs[0]!;
     const layout = settingsLayout(
       { x: 0, y: 0, width, height },
-      [...rows.map((row) => row.unavailable ?? row.detail), unlocksDetail, SAVE_DATA_ROW_DETAIL, RULES_ROW_DETAIL],
-      guideAfterLevel.map(guideRowDetailOf),
-      {
-        auto: villain.autoAdvance.detail,
-        hold: villain.hold.detail,
-        speed: villain.beatSpeed.detail,
-        dock: villain.dock.detail,
-      },
-      cardHover.detail,
-      cardSize.detail,
-      tokenMotion.detail,
+      active.sections.map((section) => ({
+        id: section.id,
+        // A tab's only section is already named by the tab itself.
+        title: active.sections.length > 1 ? section.title : "",
+        items: section.items.flatMap((id) => {
+          const item = items.get(id);
+          return item ? [item.spec] : [];
+        }),
+      })),
     );
 
+    // Swallows every press that lands on no control of this overlay's own. Without it, lifting a finger after a
+    // touch scroll over the panel's blank space reached Title underneath and opened its releases link (owner,
+    // 2026-10-16), and the same went for Pause or the Board.
+    this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.void.hex, 0.7).fillRect(0, 0, width, height);
     const panelsFrom = this.children.list.length;
@@ -273,34 +309,119 @@ export class SettingsOverlay extends Phaser.Scene {
       })
       .setOrigin(0, 0.5);
 
-    const guideStopIds = this.#drawBody(
-      layout.bodyViewport,
-      layout.content,
-      rows,
-      unlocksDetail,
-      guideRows,
-      villain,
-      cardHover,
-      cardSize,
-      tokenMotion,
-      stops,
-    );
+    this.#tabs = new McTabs(this, {
+      rect: layout.tabs,
+      tabs: tabs.map((tab) => ({ id: tab.id, label: tab.label })),
+      activeId: active.id,
+      onSelect: (id) => this.#setTab(id as SettingsTabId),
+    });
+    const cellWidth = layout.tabs.width / tabs.length;
+    tabs.forEach((tab, index) => {
+      stops.set(`tab:${tab.id}`, {
+        rect: { x: layout.tabs.x + index * cellWidth, y: layout.tabs.y, width: cellWidth, height: layout.tabs.height },
+        activate: () => this.#setTab(tab.id),
+      });
+    });
 
-    this.#route?.set(
-      settingsFocusOrder([
-        ...rows.map((row) => row.id),
-        UNLOCKS_ROW,
-        SAVE_DATA_ROW,
-        RULES_ROW,
-        ...(layout.content.cardHover ? cardHover.options.map((o) => `card-hover:${o.value}`) : []),
-        ...cardSize.options.map((o) => `card-size:${o.value}`),
-        ...tokenMotion.options.map((o) => `token-motion:${o.value}`),
-        ...VILLAIN_STOP_IDS(villain),
-        ...guideStopIds,
-      ]),
-      stops,
-    );
+    const stopIds = this.#drawBody(layout.bodyViewport, layout.content, items, stops);
+    this.#route?.set(["back", ...tabs.map((tab) => `tab:${tab.id}`), ...stopIds.map((id) => `row:${id}`)], stops);
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
+  }
+
+  /**
+   * Every row this screen can draw, keyed by its id in `view/settings-sections.ts`: the shape `settingsLayout` sizes
+   * it by, and how to draw it once placed. Each `draw` registers its own focus stops and returns their ids in order.
+   */
+  #itemsOf(settings: Settings, guideRows: readonly GuideRowInfo[]): ReadonlyMap<SettingsItemId, SettingsItem> {
+    const items = new Map<SettingsItemId, SettingsItem>();
+    for (const row of settingsRowInfoOf(settings)) {
+      items.set(row.id, {
+        spec: { kind: "toggle", id: row.id, detail: row.unavailable ?? row.detail },
+        draw: (item, stops) => {
+          this.#drawRow(item.row, row, item.slot, stops);
+          return [row.id];
+        },
+      });
+    }
+
+    const segmented = <V extends string>(
+      id: SettingsItemId,
+      info: SegmentedInfo<V>,
+      controlWidth: number,
+      choose: (value: V) => void,
+    ): void => {
+      items.set(id, {
+        spec: { kind: "segmented", id, detail: info.detail, controlWidth },
+        draw: (item, stops) => {
+          this.#drawSegmentedRow(item, info, id, stops, choose);
+          return info.options.map((o) => `${id}:${o.value}`);
+        },
+      });
+    };
+    segmented("card-hover", cardHoverRowInfoOf(settings), CARD_HOVER_CONTROL_WIDTH, (v) => this.#setCardHover(v));
+    segmented("card-size", cardSizeRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => this.#setCardSize(v));
+    segmented("token-motion", tokenMotionRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => this.#setTokenMotion(v));
+
+    const villain = villainRowInfoOf(settings);
+    items.set("villain-auto", {
+      spec: {
+        kind: "tiles",
+        id: "villain-auto",
+        detail: villain.autoAdvance.detail,
+        count: villain.autoAdvance.options.length,
+      },
+      draw: (item, stops) => {
+        this.#drawVillainAuto(item, villain, stops);
+        return villain.autoAdvance.options.map((o) => `villain-auto:${o.value}`);
+      },
+    });
+    segmented("villain-speed", villain.beatSpeed, SPEED_CONTROL_WIDTH, (v) => this.#setVillain("villain-speed", v));
+    for (const [id, row] of [
+      ["villain-hold", villain.hold],
+      ["villain-dock", villain.dock],
+    ] as const) {
+      items.set(id, {
+        spec: { kind: "toggle", id, detail: row.detail },
+        draw: (item, stops) => {
+          this.#drawVillainToggle(item.row, id, row, item.slot, stops);
+          return [id];
+        },
+      });
+    }
+
+    for (const row of guideRows) {
+      if (row.kind === "segmented") {
+        items.set(row.id, {
+          spec: { kind: "level", id: row.id },
+          draw: (item, stops) => {
+            this.#drawGuideLevelRow(item.row, row, item.slot, stops);
+            return row.options.map((option) => `guide-level:${option.value}`);
+          },
+        });
+      } else {
+        items.set(row.id, {
+          spec: { kind: "toggle", id: row.id, detail: guideRowDetailOf(row) },
+          draw: (item, stops) => {
+            this.#drawGuideRow(item.row, row, item.slot, stops);
+            return [row.id];
+          },
+        });
+      }
+    }
+
+    const door = (id: SettingsItemId, title: string, detail: string, open: () => void): void => {
+      items.set(id, {
+        spec: { kind: "toggle", id, detail },
+        draw: (item, stops) => {
+          this.#drawDoorRow(item.row, id, title, detail, item.slot, stops, open);
+          return [id];
+        },
+      });
+    };
+    door(UNLOCKS_ROW, "Unlocks", unlocksSummaryOf(unlocks()), () => this.#openUnlocks());
+    door(SAVE_DATA_ROW, SAVE_DATA_ROW_TITLE, SAVE_DATA_ROW_DETAIL, () => this.#openSaveData());
+    door(RULES_ROW, RULES_ROW_TITLE, RULES_ROW_DETAIL, () => this.#openRules());
+    return items;
   }
 
   /** Runs `draw`, then reparents everything it just added to the scene's top-level display list into `container` — the "eagerly draw, then move into the scrolled/masked layer" trick `McScrollRegion` relies on (its own doc comment), same as `scenes/table-setup.ts`'s own `#captureInto`. */
@@ -324,170 +445,47 @@ export class SettingsOverlay extends Phaser.Scene {
   #bodySuppressClick = (): boolean => this.#bodyRegion?.isDragSuppressingClick ?? false;
 
   /**
-   * The whole body — "Table" heading + its rows, the Unlocks row, then "Guide" heading, the "Guide level" segment
-   * and one row per `guideAfterLevel` entry — all inside one scroll region (docs/guided-mode.md §4 G2b; see
-   * `view/settings-layout.ts`'s own doc comment for why this is one region rather than a second, nested one for
-   * the Guide group alone). Returns the Guide group's own stop ids, in focus order; the Table and Unlocks rows
-   * register themselves under their existing `row:${id}` keys directly.
+   * The whole body — every section's heading and rows (`view/settings-sections.ts`) — inside one scroll region
+   * (docs/guided-mode.md §4 G2b; `view/settings-layout.ts`'s own doc comment says why it's one region). Returns every
+   * focus stop id in draw order.
    */
   #drawBody(
     viewport: Rect,
     content: SettingsContentLayout,
-    rows: readonly SettingsRowInfo[],
-    unlocksDetail: string,
-    guideRows: readonly GuideRowInfo[],
-    villain: VillainRowsInfo,
-    cardHover: CardHoverRowInfo,
-    cardSize: CardSizeRowInfo,
-    tokenMotion: TokenMotionRowInfo,
+    items: ReadonlyMap<SettingsItemId, SettingsItem>,
     stops: Map<string, FocusStop>,
   ): readonly string[] {
-    const levelRow = guideRows.find((row) => row.kind === "segmented");
-    const afterLevel = guideRows.filter(isGuideNonLevelRow);
-    // `contentSlotHeights`, not a plain `.map(r => r.height)`: each row's own gap to the next has to count toward
-    // the scroll region's own total, or its offset math drifts away from where these rows are actually drawn the
-    // further down it scrolls (`view/layout.ts`'s own doc comment).
-    const v = content.villain;
-    const hover = content.cardHover;
-    const heights = contentSlotHeights([
-      content.tableHeading,
-      ...content.rows,
-      ...(hover ? [hover.row] : []),
-      ...(content.cardSize ? [content.cardSize.row] : []),
-      ...(content.tokenMotion ? [content.tokenMotion.row] : []),
-      ...(v ? [v.heading, v.auto, v.hold, v.speed, v.dock] : []),
-      content.guideHeading,
-      content.guideLevelRow,
-      ...content.guideRows,
-    ]);
     // `clipInteractive`: a mask hides pixels, not hit areas, so a row scrolled up under the title bar would still
     // win the press on the ✕ above it (its own `clip` then drops the click, so nothing happened at all).
     this.#bodyRegion = new McScrollRegion(this, {
       rect: viewport,
-      heights,
+      heights: content.slotHeights,
       scroll: this.#bodyScroll,
       clipInteractive: true,
     });
     const container = this.#bodyRegion.content;
-    const toScreen = (contentRect: Rect): Rect => ({ ...contentRect, y: viewport.y + contentRect.y });
+    const toScreen = (rect: Rect): Rect => ({ ...rect, y: viewport.y + rect.y });
 
-    this.#captureInto(container, () =>
-      label(
-        this,
-        viewport.x,
-        viewport.y + content.tableHeading.y,
-        "Table",
-        typeRole.label,
-        surface.paper.hex,
-        ink.secondary,
-      ),
-    );
-    rows.forEach((row, index) => {
-      this.#captureInto(container, () => this.#drawRow(toScreen(content.rows[index]!), row, index + 1, stops));
-    });
-    const unlocksIndex = rows.length + 1;
-    this.#captureInto(container, () =>
-      this.#drawUnlocksRow(toScreen(content.rows[rows.length]!), unlocksDetail, unlocksIndex, stops),
-    );
-
-    const saveDataIndex = unlocksIndex + 1;
-    this.#captureInto(container, () =>
-      this.#drawSaveDataRow(toScreen(content.rows[rows.length + 1]!), saveDataIndex, stops),
-    );
-
-    const rulesIndex = saveDataIndex + 1;
-    this.#captureInto(container, () =>
-      this.#drawDoorRow(
-        toScreen(content.rows[rows.length + 2]!),
-        RULES_ROW,
-        RULES_ROW_TITLE,
-        RULES_ROW_DETAIL,
-        rulesIndex,
-        stops,
-        () => this.#openRules(),
-      ),
-    );
-
-    let guideHeadingIndex = rulesIndex + 1;
-    if (hover) {
-      this.#captureInto(container, () =>
-        this.#drawCardHover(toScreen(hover.row), toScreen(hover.control), cardHover, guideHeadingIndex, stops),
-      );
-      guideHeadingIndex += 1;
-    }
-    const sizeRow = content.cardSize;
-    if (sizeRow) {
-      this.#captureInto(container, () =>
-        this.#drawCardSize(toScreen(sizeRow.row), toScreen(sizeRow.control), cardSize, guideHeadingIndex, stops),
-      );
-      guideHeadingIndex += 1;
-    }
-    const tokenRow = content.tokenMotion;
-    if (tokenRow) {
-      this.#captureInto(container, () =>
-        this.#drawSegmentedRow(
-          toScreen(tokenRow.row),
-          toScreen(tokenRow.control),
-          tokenMotion,
-          "token-motion",
-          guideHeadingIndex,
-          stops,
-          (value) => this.#setTokenMotion(value),
-        ),
-      );
-      guideHeadingIndex += 1;
-    }
-    if (v) {
-      const base = guideHeadingIndex;
-      this.#captureInto(container, () =>
-        label(
-          this,
-          viewport.x,
-          viewport.y + v.heading.y + 2,
-          "Villain phase",
-          typeRole.label,
-          surface.paper.hex,
-          ink.secondary,
-        ),
-      );
-      this.#captureInto(container, () =>
-        this.#drawVillainAuto(toScreen(v.auto), v.autoTiles.map(toScreen), villain, base + 1, stops),
-      );
-      this.#captureInto(container, () =>
-        this.#drawVillainToggle(toScreen(v.hold), "villain-hold", villain.hold, base + 2, stops),
-      );
-      this.#captureInto(container, () =>
-        this.#drawVillainSpeed(toScreen(v.speed), toScreen(v.speedControl), villain, base + 3, stops),
-      );
-      this.#captureInto(container, () =>
-        this.#drawVillainToggle(toScreen(v.dock), "villain-dock", villain.dock, base + 4, stops),
-      );
-      guideHeadingIndex = base + 5;
-    }
-    this.#captureInto(container, () =>
-      label(
-        this,
-        viewport.x,
-        viewport.y + content.guideHeading.y + 2,
-        "Guide",
-        typeRole.label,
-        surface.paper.hex,
-        ink.secondary,
-      ),
-    );
     const stopIds: string[] = [];
-    if (levelRow && levelRow.kind === "segmented") {
-      this.#captureInto(container, () =>
-        this.#drawGuideLevelRow(toScreen(content.guideLevelRow), levelRow, guideHeadingIndex + 1, stops),
-      );
-      stopIds.push(...levelRow.options.map((option) => `guide-level:${option.value}`));
+    for (const section of content.sections) {
+      const heading = section.heading;
+      if (heading) {
+        this.#captureInto(container, () =>
+          sectionHeader(this, viewport.x, viewport.y + heading.y, viewport.width - 2, section.title, surface.paper.hex),
+        );
+      }
+      for (const item of section.items) {
+        const entry = items.get(item.id as SettingsItemId);
+        if (!entry) continue;
+        const onScreen: SettingsItemLayout = {
+          ...item,
+          row: toScreen(item.row),
+          control: item.control ? toScreen(item.control) : null,
+          tiles: item.tiles.map(toScreen),
+        };
+        this.#captureInto(container, () => stopIds.push(...entry.draw(onScreen, stops)));
+      }
     }
-    afterLevel.forEach((row, index) => {
-      this.#captureInto(container, () =>
-        this.#drawGuideRow(toScreen(content.guideRows[index]!), row, guideHeadingIndex + 2 + index, stops),
-      );
-      stopIds.push(row.id);
-    });
     this.#bodyRegion?.syncInteractivity();
     return stopIds;
   }
@@ -596,7 +594,7 @@ export class SettingsOverlay extends Phaser.Scene {
     );
     const ink_ = selected ? surface.ink.hex : surface.paper.hex;
     if (texts.detail === undefined) {
-      this.add
+      const cellLabel = this.add
         .text(
           cell.x + cell.width / 2,
           cell.y + cell.height / 2,
@@ -605,6 +603,8 @@ export class SettingsOverlay extends Phaser.Scene {
         )
         .setFontSize(11)
         .setOrigin(0.5);
+      // A long label ("Extra large") on a narrow phone segment shrinks to fit rather than running past its cell.
+      fitText(cellLabel, cell.width - 8, 11);
     } else {
       this.add.text(cell.x + 10, cell.y + 8, texts.label, textStyle(typeRole.rowTitle, ink_)).setFontSize(12);
       this.add
@@ -615,14 +615,9 @@ export class SettingsOverlay extends Phaser.Scene {
     stops.set(`row:${stopId}`, this.#bodyStop(cell, index, activate));
   }
 
-  #drawVillainAuto(
-    rect: Rect,
-    tiles: readonly Rect[],
-    villain: VillainRowsInfo,
-    index: number,
-    stops: Map<string, FocusStop>,
-  ): void {
+  #drawVillainAuto(item: SettingsItemLayout, villain: VillainRowsInfo, stops: Map<string, FocusStop>): void {
     const { autoAdvance } = villain;
+    const rect = item.row;
     label(this, rect.x, rect.y + 2, autoAdvance.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(
       12,
     );
@@ -632,39 +627,13 @@ export class SettingsOverlay extends Phaser.Scene {
       .setWordWrapWidth(rect.width);
     autoAdvance.options.forEach((option, i) => {
       this.#drawChoiceCell(
-        tiles[i]!,
+        item.tiles[i]!,
         autoAdvance.selected === option.value,
-        index,
+        item.slot,
         `villain-auto:${option.value}`,
         stops,
         () => this.#setVillain("villain-auto", option.value),
         { label: option.label, detail: option.detail, fill: signal.caution.hex },
-      );
-    });
-  }
-
-  #drawCardHover(
-    rect: Rect,
-    control: Rect,
-    info: CardHoverRowInfo,
-    index: number,
-    stops: Map<string, FocusStop>,
-  ): void {
-    label(this, rect.x, rect.y + 2, info.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
-    this.add
-      .text(rect.x, rect.y + 20, info.detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
-      .setFontSize(10)
-      .setWordWrapWidth(rect.width - control.width - 16);
-    const cellWidth = control.width / info.options.length;
-    info.options.forEach((option, i) => {
-      this.#drawChoiceCell(
-        { x: control.x + i * cellWidth, y: control.y, width: cellWidth, height: control.height },
-        info.selected === option.value,
-        index,
-        `card-hover:${option.value}`,
-        stops,
-        () => this.#setCardHover(option.value),
-        { label: option.label, fill: surface.paper.hex },
       );
     });
   }
@@ -674,60 +643,32 @@ export class SettingsOverlay extends Phaser.Scene {
     this.#draw();
   }
 
-  #drawCardSize(rect: Rect, control: Rect, info: CardSizeRowInfo, index: number, stops: Map<string, FocusStop>): void {
-    label(this, rect.x, rect.y + 2, info.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
-    // Beside the control the text stops short of it; stacked (control below the text) it runs the row.
-    const stacked = control.y > rect.y + 44;
-    this.add
-      .text(rect.x, rect.y + 20, info.detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
-      .setFontSize(10)
-      .setWordWrapWidth(stacked ? rect.width : rect.width - control.width - 16);
-    const cellWidth = control.width / info.options.length;
-    info.options.forEach((option, i) => {
-      this.#drawChoiceCell(
-        { x: control.x + i * cellWidth, y: control.y, width: cellWidth, height: control.height },
-        info.selected === option.value,
-        index,
-        `card-size:${option.value}`,
-        stops,
-        () => this.#setCardSize(option.value),
-        { label: option.label, fill: surface.paper.hex },
-      );
-    });
-  }
-
   #setCardSize(value: CardSize): void {
     appSession().settings = nextSettingsAfterCardSize(appSession().settings, value);
     this.#draw();
   }
 
-  /** A row with a title, its detail, and one segmented choice beside or (stacked) under the text — Card size's own shape. */
+  /** A row with a title, its detail, and one segmented choice beside or (stacked) under the text. */
   #drawSegmentedRow<V extends string>(
-    rect: Rect,
-    control: Rect,
-    info: {
-      readonly title: string;
-      readonly detail: string;
-      readonly options: readonly { readonly value: V; readonly label: string }[];
-      readonly selected: V;
-    },
+    item: SettingsItemLayout,
+    info: SegmentedInfo<V>,
     stopPrefix: string,
-    index: number,
     stops: Map<string, FocusStop>,
     choose: (value: V) => void,
   ): void {
+    const rect = item.row;
+    const control = item.control!;
     label(this, rect.x, rect.y + 2, info.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
-    const stacked = control.y > rect.y + 44;
     this.add
       .text(rect.x, rect.y + 20, info.detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
       .setFontSize(10)
-      .setWordWrapWidth(stacked ? rect.width : rect.width - control.width - 16);
+      .setWordWrapWidth(item.stacked ? rect.width : rect.width - control.width - 16);
     const cellWidth = control.width / info.options.length;
     info.options.forEach((option, i) => {
       this.#drawChoiceCell(
         { x: control.x + i * cellWidth, y: control.y, width: cellWidth, height: control.height },
         info.selected === option.value,
-        index,
+        item.slot,
         `${stopPrefix}:${option.value}`,
         stops,
         () => choose(option.value),
@@ -739,33 +680,6 @@ export class SettingsOverlay extends Phaser.Scene {
   #setTokenMotion(value: FirstPlayerTokenMotion): void {
     appSession().settings = nextSettingsAfterTokenMotion(appSession().settings, value);
     this.#draw();
-  }
-
-  #drawVillainSpeed(
-    rect: Rect,
-    control: Rect,
-    villain: VillainRowsInfo,
-    index: number,
-    stops: Map<string, FocusStop>,
-  ): void {
-    const { beatSpeed } = villain;
-    label(this, rect.x, rect.y + 2, beatSpeed.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
-    this.add
-      .text(rect.x, rect.y + 20, beatSpeed.detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
-      .setFontSize(10)
-      .setWordWrapWidth(rect.width - control.width - 16);
-    const cellWidth = control.width / beatSpeed.options.length;
-    beatSpeed.options.forEach((option, i) => {
-      this.#drawChoiceCell(
-        { x: control.x + i * cellWidth, y: control.y, width: cellWidth, height: control.height },
-        beatSpeed.selected === option.value,
-        index,
-        `villain-speed:${option.value}`,
-        stops,
-        () => this.#setVillain("villain-speed", option.value),
-        { label: option.label, fill: surface.paper.hex },
-      );
-    });
   }
 
   #drawVillainToggle(
@@ -780,7 +694,7 @@ export class SettingsOverlay extends Phaser.Scene {
       .text(rect.x, rect.y + 20, row.detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
       .setFontSize(10)
       .setWordWrapWidth(rect.width - 100);
-    const toggleRect: Rect = { x: rect.x + rect.width - 84, y: rect.y + (rect.height - 32) / 2, width: 84, height: 32 };
+    const toggleRect = controlRectOf(rect);
     const activate = (): void => this.#setVillain(id);
     addRowTapZone(this, rect, { onClick: activate, clip: this.#bodyClip, suppressClick: this.#bodySuppressClick });
     this.#buttons.push(
@@ -811,12 +725,7 @@ export class SettingsOverlay extends Phaser.Scene {
       .setFontSize(10)
       .setWordWrapWidth(rect.width - 100);
 
-    const controlRect: Rect = {
-      x: rect.x + rect.width - 84,
-      y: rect.y + (rect.height - 32) / 2,
-      width: 84,
-      height: 32,
-    };
+    const controlRect = controlRectOf(rect);
     const activate = (): void => this.#activateGuideRow(row);
     const unavailable = row.kind === "action" ? row.unavailable : undefined;
     addRowTapZone(this, rect, {
@@ -859,35 +768,7 @@ export class SettingsOverlay extends Phaser.Scene {
     this.#draw();
   }
 
-  #drawUnlocksRow(rect: Rect, detail: string, index: number, stops: Map<string, FocusStop>): void {
-    label(this, rect.x, rect.y + 2, "Unlocks", typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
-    this.add
-      .text(rect.x, rect.y + 20, detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
-      .setFontSize(10)
-      .setWordWrapWidth(rect.width - 100);
-    const openRect: Rect = { x: rect.x + rect.width - 84, y: rect.y + (rect.height - 32) / 2, width: 84, height: 32 };
-    const activate = (): void => this.#openUnlocks();
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: "Open ▸",
-        type: typeRole.label,
-        rect: openRect,
-        onClick: activate,
-        clip: this.#bodyClip,
-        suppressClick: this.#bodySuppressClick,
-      }),
-    );
-    stops.set(`row:${UNLOCKS_ROW}`, this.#bodyStop(rect, index, activate));
-  }
-
-  #drawSaveDataRow(rect: Rect, index: number, stops: Map<string, FocusStop>): void {
-    this.#drawDoorRow(rect, SAVE_DATA_ROW, SAVE_DATA_ROW_TITLE, SAVE_DATA_ROW_DETAIL, index, stops, () =>
-      this.#openSaveData(),
-    );
-  }
-
-  /** A title, a detail line and an "Open ▸" button that opens another screen — the Save data and Rules rows. */
+  /** A title, a detail line and an "Open ▸" button that opens another screen — the Unlocks, Save data and Rules rows. */
   #drawDoorRow(
     rect: Rect,
     id: string,
@@ -902,7 +783,7 @@ export class SettingsOverlay extends Phaser.Scene {
       .text(rect.x, rect.y + 20, detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
       .setFontSize(10)
       .setWordWrapWidth(rect.width - 100);
-    const openRect: Rect = { x: rect.x + rect.width - 84, y: rect.y + (rect.height - 32) / 2, width: 84, height: 32 };
+    const openRect = controlRectOf(rect);
     this.#buttons.push(
       new McButton(this, {
         kind: "secondary",
@@ -929,7 +810,7 @@ export class SettingsOverlay extends Phaser.Scene {
       .setFontSize(10)
       .setWordWrapWidth(rect.width - 100);
 
-    const toggleRect: Rect = { x: rect.x + rect.width - 84, y: rect.y + (rect.height - 32) / 2, width: 84, height: 32 };
+    const toggleRect = controlRectOf(rect);
     const activate = (): void => this.#toggle(row);
     addRowTapZone(this, rect, {
       onClick: activate,

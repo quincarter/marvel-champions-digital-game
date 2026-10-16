@@ -2224,7 +2224,13 @@ function executeChooseOne(
   setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
   const chosen = effect.options[pickedIndex];
   if (!chosen) return;
-  emit(ctx, { type: "optionChosen", label: chosen.label, index: pickedIndex });
+  const onlyOption = frame.answer === null && available.length === 1 && effect.options.length > 1;
+  emit(ctx, {
+    type: "optionChosen",
+    label: chosen.label,
+    index: pickedIndex,
+    ...(onlyOption ? { onlyOption: true as const } : {}),
+  });
   pushEffects(ctx, {
     effects: chosen.effects,
     selfInstanceId: frame.selfInstanceId,

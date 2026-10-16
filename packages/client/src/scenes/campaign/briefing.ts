@@ -34,7 +34,7 @@ import { McButton, STAMP_CHIP_TYPE, fitText, label } from "../../ui/widgets.js";
 import { McVariableList } from "../../ui/variable-list.js";
 import { VariableListScroll } from "../../view/variable-list-scroll.js";
 import { McScrollRegion } from "../../ui/scroll-region.js";
-import { revealDelta } from "../../view/scroll-reveal.js";
+import { bottomOfDrawn, captureIntoRegion } from "../../ui/scroll-capture.js";
 import type { VirtualListRow } from "../../ui/virtual-list.js";
 import {
   BUTTON_HEIGHT,
@@ -831,13 +831,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
 
   /** The lowest edge of everything drawn at the top level since `fromIndex`, graphics aside (they only frame text). */
   #bottomOf(fromIndex: number, toIndex?: number): number {
-    let bottom = 0;
-    for (const object of this.children.list.slice(fromIndex, toIndex)) {
-      if (object.type === "Graphics") continue;
-      const bounds = (object as Phaser.GameObjects.Text).getBounds();
-      bottom = Math.max(bottom, bounds.bottom);
-    }
-    return bottom;
+    return bottomOfDrawn(this, fromIndex, toIndex);
   }
 
   /**
@@ -855,28 +849,17 @@ export class CampaignBriefingScene extends Phaser.Scene {
     scroll: VariableListScroll = this.#briefingScroll,
     toIndex?: number,
   ): void {
-    const bottom = this.#bottomOf(fromIndex, toIndex);
-    const added = this.children.list.slice(fromIndex, toIndex);
-    if (added.length > 0) region.content.add(added);
-    // The scroll math reads this one entry as the content's height, measured from the viewport's top.
-    heights[0] = Math.max(0, bottom + 16 - viewportTop);
-    for (const [key, stop] of stops) {
-      if (stopsBefore.has(key) || typeof stop.rect === "function") continue;
-      const rect = stop.rect;
-      stops.set(key, {
-        ...stop,
-        rect: () => ({ ...rect, y: rect.y - scroll.offsetPx }),
-        ensureVisible: () => {
-          const offset = scroll.offsetPx;
-          const delta = revealDelta(
-            { top: viewportTop, bottom: viewportBottom },
-            { top: rect.y - offset, bottom: rect.y + rect.height - offset },
-          );
-          if (delta !== 0) region.scrollByPx(delta);
-        },
-      });
-    }
-    region.refresh();
+    captureIntoRegion(this, {
+      region,
+      heights,
+      scroll,
+      fromIndex,
+      ...(toIndex === undefined ? {} : { toIndex }),
+      stops,
+      stopsBefore,
+      viewportTop,
+      viewportBottom,
+    });
   }
 
   /** The round portrait + speech bubble: whoever the story's briefing line speaks as, or the first seat. */

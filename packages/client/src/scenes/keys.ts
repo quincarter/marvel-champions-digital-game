@@ -120,6 +120,13 @@ export const SCENES = {
   pileView: "PileViewOverlay",
   /** Background soundtrack controller running across screen transitions. */
   music: "MusicScene",
+  /** "Report an issue" (#176, `scenes/report-issue.ts`): copy or download the log, a screenshot tip, a GitHub link. */
+  reportIssue: "ReportIssueOverlay",
+  /** The Report button (`scenes/report-button.ts`): a bug icon in a screen's top bar, drawn above every overlay. */
+  reportButton: "ReportButton",
 } as const;
+
+/** Scenes that run above every screen but draw only an edge control, so they never count as covering a screen (`ui/widgets.ts`). */
+export const CHROME_SCENES: ReadonlySet<string> = new Set([SCENES.reportButton]);
 
 export type SceneKey = (typeof SCENES)[keyof typeof SCENES];

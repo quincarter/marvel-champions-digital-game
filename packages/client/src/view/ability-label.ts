@@ -97,6 +97,13 @@ export function abilityShortLabelOf(
   return costPhrase(determined);
 }
 
+/** "Spend X [energy]", or with a cap "spend up to 2 resources" (Nebula's Ship, issue #174), never "spend X any". */
+function chosenSpendPhrase(x: NonNullable<AbilityCost["resourcesX"]>): string {
+  const kind = x.resource === "any" ? "" : ` ${x.resource}`;
+  if (x.max === undefined) return `spend X${kind || " resources"}`;
+  return `spend up to ${x.max}${kind} resource${x.max === 1 ? "" : "s"}`;
+}
+
 /**
  * The cost in the engine's own terms, comma-joined in the order `AbilityCost`
  * declares its fields. Never a made-up verb: each phrase names exactly the
@@ -116,7 +123,7 @@ function costPhrase(cost: AbilityCost | undefined): string | null {
   if (everyone) parts.push(everyone);
   const resources = resourcePhrase(cost.resources);
   if (resources) parts.push(resources);
-  if (cost.resourcesX) parts.push(`spend X ${cost.resourcesX.resource}`);
+  if (cost.resourcesX) parts.push(chosenSpendPhrase(cost.resourcesX));
   if (cost.spendCounters) {
     const { amount, counterType } = cost.spendCounters;
     parts.push(`remove ${amount} ${counterType} counter${amount === 1 ? "" : "s"}`);

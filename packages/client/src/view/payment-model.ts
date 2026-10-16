@@ -42,6 +42,7 @@ import {
   tryReducedPlay,
   type CostReductionOption,
 } from "./cost-reduction-model.js";
+import { actionAbilityCost } from "./cost-choice-model.js";
 import { costHelpLines } from "./cost-help-model.js";
 import { cardName, faceUpName } from "./names.js";
 
@@ -174,6 +175,11 @@ export interface PaymentView {
   readonly paid: number;
   /** Resources the action costs. The bar's denominator. */
   readonly required: number;
+  /**
+   * The denominator as the bar prints it: `required`, or a range when the player chooses how many to spend ("spend up
+   * to 2 resources": "1–2"), where `required` alone read "PAYING 0 / 0" (issue #174, Nebula's Ship).
+   */
+  readonly requiredLabel: string;
   /**
    * Why the denominator isn't the number printed on the card — "Steve Rogers: 3 → 2" — or null when it is.
    *
@@ -545,6 +551,7 @@ export function paymentView(
     subject,
     paid,
     required: poolTotal(requirement),
+    requiredLabel: requiredLabelOf(poolTotal(requirement), chosenSpendRange(state, deps, playerId, payment)),
     priceNote:
       payment.destinationNote ??
       (subject !== null && action.kind === "playCard" ? priceNoteFor(state, playerId, subject, deps) : null),
@@ -609,6 +616,32 @@ export interface AllianceHelper {
  * every payment on a card without the alliance keyword, and for an alliance payment that only spends the payer's
  * own cards.
  */
+/** How many resources the player chooses to spend on top of the fixed cost ("spend up to 2", "spend X"), or null. */
+function chosenSpendRange(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  payment: PaymentState,
+): { readonly min: number; readonly max: number | null } | null {
+  const chosen = payment.query.chosenResources;
+  if (chosen) return chosen;
+  if (payment.action.kind !== "useAbility") return null;
+  const x = actionAbilityCost(state, deps, playerId, payment.action)?.resourcesX;
+  return x ? { min: x.min ?? 0, max: x.max ?? null } : null;
+}
+
+/** The bar's denominator: the fixed cost, or the fixed cost plus a chosen spend's range ("1–2", "1+"). */
+export function requiredLabelOf(
+  fixed: number,
+  range: { readonly min: number; readonly max: number | null } | null,
+): string {
+  if (!range) return `${fixed}`;
+  const least = fixed + range.min;
+  if (range.max === null) return `${least}+`;
+  const most = fixed + range.max;
+  return least === most ? `${most}` : `${least}–${most}`;
+}
+
 export function allianceHelpersOf(
   state: GameState,
   payerId: PlayerId,

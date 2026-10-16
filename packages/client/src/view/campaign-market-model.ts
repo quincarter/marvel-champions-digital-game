@@ -150,7 +150,7 @@ export type MarketCardState =
   | { readonly kind: "inCart" }
   /** Already granted to some seat — a prior visit's purchase, or a purchase checked out just now. */
   | { readonly kind: "taken"; readonly heroName: string }
-  /** Priced above the active seat's remaining balance (after the cart's own running total). `need` is the price. */
+  /** Priced above the active seat's remaining balance (after the cart's own running total). `need` is the shortfall. */
   | { readonly kind: "unaffordable"; readonly need: number }
   /** Affordable, but this price tier's 4 physical copies are already spoken for by the active seat's own cart. */
   | { readonly kind: "capped" };
@@ -159,6 +159,8 @@ export interface MarketShelfCard {
   readonly cardId: CardId;
   readonly name: string;
   readonly typeLabel: string;
+  /** The type plus the trait its ability names: "EVENT · THWART" from "Hero Action (thwart): …". */
+  readonly kindLabel: string;
   readonly price: number;
   readonly detail: string;
   readonly state: MarketCardState;
@@ -274,11 +276,12 @@ export function marketViewOf(
             ? { kind: "live" }
             : cartTierCountOf(cart, price) >= MARKET_TIER_CAP && price <= activeBeforeCart - cartTotal
               ? { kind: "capped" }
-              : { kind: "unaffordable", need: price };
+              : { kind: "unaffordable", need: Math.max(1, price - (activeBeforeCart - cartTotal)) };
     return {
       cardId: id as CardId,
       name: card?.name ?? id,
       typeLabel: (card?.type ?? "card").toUpperCase(),
+      kindLabel: kindLabelOf(card),
       price,
       detail: detailOf(card),
       state,
@@ -317,4 +320,32 @@ function detailOf(card: AnyCard | undefined): string {
   if (!card || !("text" in card)) return "";
   const text = (card as { readonly text?: { readonly current?: string } }).text?.current ?? "";
   return text.replace(/^unit cost \d+\.\s*/i, "").trim();
+}
+
+/** "EVENT · THWART": the card's type, plus the trait its first ability names in parentheses, when it names one. */
+function kindLabelOf(card: AnyCard | undefined): string {
+  const type = (card?.type ?? "card").toUpperCase();
+  const trait = /^Hero (?:Action|Interrupt|Response)\s*\(([a-z]+)\)/i.exec(detailOf(card))?.[1];
+  return trait ? `${type} · ${trait.toUpperCase()}` : type;
+}
+
+/** One price tier of the shelf, cheapest first: what the Market draws as a "2 UNITS · 4 CARDS" section. */
+export interface MarketTier {
+  readonly price: number;
+  readonly cards: readonly MarketShelfCard[];
+}
+
+/**
+ * The shelf grouped by price, cheapest first. With `onlyAffordable` it keeps only what the active seat can act on
+ * right now (a card it can add, or one already in its cart), and a tier left empty drops out.
+ */
+export function marketTiersOf(shelf: readonly MarketShelfCard[], onlyAffordable = false): readonly MarketTier[] {
+  const byPrice = new Map<number, MarketShelfCard[]>();
+  for (const card of shelf) {
+    if (onlyAffordable && card.state.kind !== "live" && card.state.kind !== "inCart") continue;
+    const tier = byPrice.get(card.price) ?? [];
+    tier.push(card);
+    byPrice.set(card.price, tier);
+  }
+  return [...byPrice.entries()].sort(([a], [b]) => a - b).map(([price, cards]) => ({ price, cards }));
 }

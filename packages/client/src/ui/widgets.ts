@@ -41,6 +41,7 @@ import { noteTapFired, registerTap, tapId } from "./tap.js";
 import { bindHoldTarget } from "./hold-target.js";
 import { addInputText, addTextArea, addTextAreaInput } from "./rex.js";
 import { caseOf, cssOf, fontFamilyOf, skin, textStyle, type WidgetKind, type WidgetState } from "./theme.js";
+import { CHROME_SCENES } from "../scenes/keys.js";
 
 /** Draws a rect with the design's border model into an existing Graphics. */
 export function paintPanel(g: Phaser.GameObjects.Graphics, rect: Rect, kind: WidgetKind, state: WidgetState): void {
@@ -1211,7 +1212,10 @@ export class McTextInput {
       // Only a scene that *draws* covers this field. `MusicScene` (`audio/music-controller.ts`) is registered
       // last and runs, invisible, for the whole session — counted, it sat "above" every screen and hid every
       // search field in the app (the 2026-09-21 "there's no search filter anymore?" report).
-      const covered = running.slice(running.indexOf(scene) + 1).some((other) => other.sys.settings.visible);
+      // The Report button (#176) runs above every screen too, but it only draws one icon in a top bar: never a cover.
+      const covered = running
+        .slice(running.indexOf(scene) + 1)
+        .some((other) => other.sys.settings.visible && !CHROME_SCENES.has(other.scene.key));
       if (this.#coveredByOtherScene === covered) return;
       this.#coveredByOtherScene = covered;
       this.#applyVisibility();

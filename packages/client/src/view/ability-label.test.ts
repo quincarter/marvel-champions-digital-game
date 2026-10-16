@@ -125,6 +125,26 @@ describe("abilityLabelOf", () => {
     );
   });
 
+  // Nebula's Ship (16093) read "spend X any" (issue #174).
+  test('reads a capped any-type spend as "spend up to 2 resources", a typed X as "spend X energy"', () => {
+    const deps = {
+      abilities: {
+        "test.up-to": {
+          trigger: { kind: "action" },
+          cost: { resourcesX: { resource: "any", bind: "x", min: 1, max: 2 } },
+          effects: [],
+        } as AbilityDefinition,
+        "test.typed-x": {
+          trigger: { kind: "action" },
+          cost: { resourcesX: { resource: "energy", bind: "x", min: 1 } },
+          effects: [],
+        } as AbilityDefinition,
+      },
+    };
+    expect(abilityShortLabelOf(state, identityId, abilityId("test.up-to"), deps)).toBe("spend up to 2 resources");
+    expect(abilityShortLabelOf(state, identityId, abilityId("test.typed-x"), deps)).toBe("spend X energy");
+  });
+
   // Wolverine's Claws (35002): "take damage equal to its printed cost" is a computed amount, a value spec rather than a
   // number, and the label printed it as "take [object Object] damage" (wave 6 QA playthrough A).
   test("a computed damage cost reads without a figure, never as [object Object] (Wolverine's Claws shape)", () => {
