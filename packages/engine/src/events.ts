@@ -1499,6 +1499,8 @@ export type GameEvent =
   | {
       readonly type: "windowOpened";
       readonly event: TriggerEvent;
+      /** The other triggering conditions sharing this window (`Frame<"window">.alsoEvents`, RRG 1.8 p. 45), if any. */
+      readonly alsoEvents?: readonly TriggerEvent[];
       readonly timing: WindowTiming;
       /** The "would" interrupts' earlier tier of this window (`trigger.would`, RRG 1.8 "'Would'", p. 48). */
       readonly would?: true;

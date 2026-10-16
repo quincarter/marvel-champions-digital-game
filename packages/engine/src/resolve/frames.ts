@@ -226,6 +226,30 @@ export function pushEventsSharingResponses(ctx: Ctx, events: readonly TriggerEve
   return frames.map((frame) => frame.frameId);
 }
 
+/**
+ * Events pushed above an event frame already on the stack (`leader`), resolved in the order listed, whose responses
+ * all wait for and join `leader`'s own response window (`responsesWith`), as `pushEventsSharingResponses` does for a
+ * batch. An attack's damage and its `characterAttacked` join the attack's event: RRG 1.8 "Attack (Enemy Activation)"
+ * step 6 (p. 9) and "Attack (Player Ability Type)" items 7–8 (p. 9) resolve every forced "after … attacks / is attacked
+ * / defends / takes or deals damage" ability before any non-forced one, so they share one window tiered forced first.
+ * Each event keeps its own interrupt window and apply step (retaliate applies in `characterAttacked`'s, before the
+ * window). With no `leader`, or one that has left the stack by the time an event reaches its responses, each event opens
+ * its own window, as `pushEvents`.
+ */
+export function pushEventsJoiningResponses(
+  ctx: Ctx,
+  events: readonly TriggerEvent[],
+  leader: FrameId | null,
+): readonly FrameId[] {
+  if (leader === null) return pushEvents(ctx, events);
+  const frames = events.map((event) => eventFrame(ctx, event));
+  pushFrames(
+    ctx,
+    frames.map((frame) => (frame.kind === "event" ? { ...frame, responsesWith: leader } : frame)),
+  );
+  return frames.map((frame) => frame.frameId);
+}
+
 /** An event whose state change has already happened; only responses can fire. */
 export const announce = (ctx: Ctx, event: TriggerEvent): FrameId => pushEvent(ctx, event);
 

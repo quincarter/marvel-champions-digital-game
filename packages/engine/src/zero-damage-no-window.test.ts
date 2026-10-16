@@ -298,8 +298,11 @@ const of = <T extends GameEvent["type"]>(events: readonly GameEvent[], type: T) 
   events.filter((e): e is Extract<GameEvent, { type: T }> => e.type === type);
 /** The timing windows opened for a damage event. */
 const damageWindows = (events: readonly GameEvent[], timing?: "interrupt" | "response") =>
+  // An attack's damage response window is the attack's step 6 window, shared with it (`alsoEvents`, RRG 1.8 p. 9).
   of(events, "windowOpened").filter(
-    (e) => e.event.kind === "dealDamage" && (timing === undefined || e.timing === timing),
+    (e) =>
+      [e.event, ...(e.alsoEvents ?? [])].some((each) => each.kind === "dealDamage") &&
+      (timing === undefined || e.timing === timing),
   );
 const counter = (state: GameState, id: InstanceId, name: string) => mustInstance(state, id).counters[name] ?? 0;
 /** The damage observers' counters on one character. */

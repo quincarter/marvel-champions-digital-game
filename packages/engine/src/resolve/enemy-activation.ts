@@ -69,6 +69,7 @@ import {
   pushEffects,
   pushEvent,
   pushEvents,
+  pushEventsJoiningResponses,
 } from "./frames.js";
 import { heard } from "./triggers.js";
 
@@ -1162,6 +1163,27 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
         // The attacked character is still attacked, so it is announced as before (retaliate, "after … attacks you").
         // The removal resolves first, where the damage would have: a "(thwart)" ability's as a thwart by its identity
         // (crisis, patrol and `cannotThwart` are read as it removes), else as the card's own removal (crisis only).
+        // The attacked character's `characterAttacked` joins the attack's step 6 window (`pushEventsJoiningResponses`);
+        // the removal is not one of step 6's triggers, so it keeps its own window. Pushed beneath it, the removal on top.
+        pushEventsJoiningResponses(
+          ctx,
+          [
+            {
+              kind: "characterAttacked",
+              attackerInstanceId: frame.enemyInstanceId,
+              targetInstanceId: frame.targetInstanceId,
+              playerId: frame.attackedPlayerId,
+              ...(attackKeywordsOf(ctx.state, ctx.deps, {
+                attackerInstanceId: frame.enemyInstanceId,
+                vars,
+                targetInstanceId: frame.targetInstanceId,
+              }).includes("ranged")
+                ? { ranged: true }
+                : {}),
+            },
+          ],
+          frame.eventFrameId,
+        );
         pushEvents(ctx, [
           thwarterInstanceId && thwartingPlayer
             ? {
@@ -1181,19 +1203,6 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
                 playerId: removerInstanceId ? controllerOf(ctx.state, removerInstanceId) : null,
                 parentFrameId: frame.eventFrameId,
               },
-          {
-            kind: "characterAttacked",
-            attackerInstanceId: frame.enemyInstanceId,
-            targetInstanceId: frame.targetInstanceId,
-            playerId: frame.attackedPlayerId,
-            ...(attackKeywordsOf(ctx.state, ctx.deps, {
-              attackerInstanceId: frame.enemyInstanceId,
-              vars,
-              targetInstanceId: frame.targetInstanceId,
-            }).includes("ranged")
-              ? { ranged: true }
-              : {}),
-          },
         ]);
         return;
       }
@@ -1221,39 +1230,47 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
       // retaliate). The attacked character is still attacked, so it is announced as before, and takes nothing. If
       // the chosen enemy has left play by now the damage is replaced all the same and dealt to nobody.
       if (damageTo) {
-        pushEvents(ctx, [
-          {
-            kind: "dealDamage",
-            targetInstanceId: damageTo,
-            amount: planned.damage,
-            sourceInstanceId: frame.enemyInstanceId,
-            fromAttack: true,
-            parentFrameId: frame.eventFrameId,
-            notAttacked: true,
-          },
-          {
-            kind: "characterAttacked",
-            attackerInstanceId: frame.enemyInstanceId,
-            targetInstanceId: frame.targetInstanceId,
-            playerId: frame.attackedPlayerId,
-            ...(keywords.includes("ranged") ? { ranged: true } : {}),
-          },
-        ]);
+        pushEventsJoiningResponses(
+          ctx,
+          [
+            {
+              kind: "dealDamage",
+              targetInstanceId: damageTo,
+              amount: planned.damage,
+              sourceInstanceId: frame.enemyInstanceId,
+              fromAttack: true,
+              parentFrameId: frame.eventFrameId,
+              notAttacked: true,
+            },
+            {
+              kind: "characterAttacked",
+              attackerInstanceId: frame.enemyInstanceId,
+              targetInstanceId: frame.targetInstanceId,
+              playerId: frame.attackedPlayerId,
+              ...(keywords.includes("ranged") ? { ranged: true } : {}),
+            },
+          ],
+          frame.eventFrameId,
+        );
         return;
       }
       // "Starshark's attacks deal indirect damage" (RRG 1.8 "Indirect Damage", p. 24; docs/phase7-wave3.md §3.16): step
       // four deals the attack's damage as indirect damage to the player it targets, who assigns it; only the defender
       // (or the identity) is attacked, so `characterAttacked` still names it and resolves after the damage.
       if (attacksDealIndirectDamage(ctx.state, ctx.deps, frame.enemyInstanceId)) {
-        pushEvents(ctx, [
-          {
-            kind: "characterAttacked",
-            attackerInstanceId: frame.enemyInstanceId,
-            targetInstanceId: frame.targetInstanceId,
-            playerId: frame.attackedPlayerId,
-            ...(keywords.includes("ranged") ? { ranged: true } : {}),
-          },
-        ]);
+        pushEventsJoiningResponses(
+          ctx,
+          [
+            {
+              kind: "characterAttacked",
+              attackerInstanceId: frame.enemyInstanceId,
+              targetInstanceId: frame.targetInstanceId,
+              playerId: frame.attackedPlayerId,
+              ...(keywords.includes("ranged") ? { ranged: true } : {}),
+            },
+          ],
+          frame.eventFrameId,
+        );
         pushEffects(ctx, {
           effects: [
             {
@@ -1276,15 +1293,19 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
       // target"). The card names nobody to place the leftover points, so the first player does (RRG 1.8 "First
       // Player", p. 19: a choice an encounter card requires "but does not specify which player should act").
       if (attacksDividedEvenly(ctx.state, ctx.deps, frame.enemyInstanceId)) {
-        pushEvents(ctx, [
-          {
-            kind: "characterAttacked",
-            attackerInstanceId: frame.enemyInstanceId,
-            targetInstanceId: frame.targetInstanceId,
-            playerId: frame.attackedPlayerId,
-            ...(keywords.includes("ranged") ? { ranged: true } : {}),
-          },
-        ]);
+        pushEventsJoiningResponses(
+          ctx,
+          [
+            {
+              kind: "characterAttacked",
+              attackerInstanceId: frame.enemyInstanceId,
+              targetInstanceId: frame.targetInstanceId,
+              playerId: frame.attackedPlayerId,
+              ...(keywords.includes("ranged") ? { ranged: true } : {}),
+            },
+          ],
+          frame.eventFrameId,
+        );
         pushEffects(ctx, {
           effects: [
             {
@@ -1302,27 +1323,31 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
         });
         return;
       }
-      pushEvents(ctx, [
-        {
-          kind: "dealDamage",
-          targetInstanceId: frame.targetInstanceId,
-          amount: planned.damage,
-          sourceInstanceId: frame.enemyInstanceId,
-          fromAttack: true,
-          parentFrameId: frame.eventFrameId,
-          // Every source of the keyword, a constant "each enemy attack gains overkill" rule included.
-          overkill: keywords.includes("overkill"),
-          ...(keywords.includes("piercing") ? { piercing: true } : {}),
-          ...(keywords.includes("ranged") ? { ranged: true as const } : {}),
-        },
-        {
-          kind: "characterAttacked",
-          attackerInstanceId: frame.enemyInstanceId,
-          targetInstanceId: frame.targetInstanceId,
-          playerId: frame.attackedPlayerId,
-          ...(keywords.includes("ranged") ? { ranged: true } : {}),
-        },
-      ]);
+      pushEventsJoiningResponses(
+        ctx,
+        [
+          {
+            kind: "dealDamage",
+            targetInstanceId: frame.targetInstanceId,
+            amount: planned.damage,
+            sourceInstanceId: frame.enemyInstanceId,
+            fromAttack: true,
+            parentFrameId: frame.eventFrameId,
+            // Every source of the keyword, a constant "each enemy attack gains overkill" rule included.
+            overkill: keywords.includes("overkill"),
+            ...(keywords.includes("piercing") ? { piercing: true } : {}),
+            ...(keywords.includes("ranged") ? { ranged: true as const } : {}),
+          },
+          {
+            kind: "characterAttacked",
+            attackerInstanceId: frame.enemyInstanceId,
+            targetInstanceId: frame.targetInstanceId,
+            playerId: frame.attackedPlayerId,
+            ...(keywords.includes("ranged") ? { ranged: true } : {}),
+          },
+        ],
+        frame.eventFrameId,
+      );
       return;
     }
     case "done":

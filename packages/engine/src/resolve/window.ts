@@ -312,9 +312,13 @@ const stillImminent = (ctx: Ctx, frame: Frame<"window">, candidate: TriggerCandi
 const optionIdOf = (candidate: TriggerCandidate, among: readonly TriggerCandidate[] = []): string => {
   const plain = `${candidate.instanceId}:${candidate.abilityId}`;
   if (!candidate.sharedEvent) return plain;
+  // Another condition, not the same one offered to another player (`triggerableBy` makes a candidate per player).
   const twinned = among.some(
     (other) =>
-      other !== candidate && other.instanceId === candidate.instanceId && other.abilityId === candidate.abilityId,
+      other !== candidate &&
+      other.instanceId === candidate.instanceId &&
+      other.abilityId === candidate.abilityId &&
+      other.sharedEvent?.index !== candidate.sharedEvent?.index,
   );
   return twinned ? `${plain}@${candidate.sharedEvent.index}` : plain;
 };
@@ -377,6 +381,7 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
     emit(ctx, {
       type: "windowOpened",
       event: frame.event,
+      ...(frame.alsoEvents && frame.alsoEvents.length > 0 ? { alsoEvents: frame.alsoEvents } : {}),
       timing: frame.timing,
       ...(frame.wouldTier !== undefined ? { would: true as const } : {}),
       candidates: remaining.map((c) => ({ instanceId: c.instanceId, abilityId: c.abilityId, forced: c.forced })),
@@ -397,6 +402,7 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
       emit(ctx, {
         type: "windowOpened",
         event: frame.event,
+        ...(frame.alsoEvents && frame.alsoEvents.length > 0 ? { alsoEvents: frame.alsoEvents } : {}),
         timing: frame.timing,
         ...(would ? { would: true as const } : {}),
         candidates: late.map((c) => ({ instanceId: c.instanceId, abilityId: c.abilityId, forced: c.forced })),
@@ -475,6 +481,7 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
   emit(ctx, {
     type: "windowOpened",
     event: frame.event,
+    ...(frame.alsoEvents && frame.alsoEvents.length > 0 ? { alsoEvents: frame.alsoEvents } : {}),
     timing: frame.timing,
     ...(would ? { would: true as const } : {}),
     candidates: candidates.map((c) => ({ instanceId: c.instanceId, abilityId: c.abilityId, forced: c.forced })),

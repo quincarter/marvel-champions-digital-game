@@ -130,11 +130,12 @@ import {
   pushEffects,
   pushEvent,
   pushEvents,
+  pushEventsJoiningResponses,
 } from "./frames.js";
 import { finishTurn, pushPhaseEndDelayed } from "../flow.js";
 import { continueActivation } from "../villain/phase.js";
 import { applyEncounterCardBeingDealt, resolveSurge } from "./reveal.js";
-import { candidatesFor, eachTimeEffectsFor, hasCandidates, heard } from "./triggers.js";
+import { answeredByNoResponse, candidatesFor, eachTimeEffectsFor, hasCandidates, heard } from "./triggers.js";
 import { pushWindow } from "./window.js";
 import { markPreThenUnresolved } from "./then.js";
 import {
@@ -429,10 +430,18 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       // How many forced responses this event triggers, reported to a `bind` ("If that scheme's 'Forced Response'
       // ability is not triggered this way"). Only recorded when there are some, so other results are unchanged.
       const forcedResponses = candidatesFor(ctx.state, ctx.deps, event, "response", true).length;
-      // The conditions earlier frames of the same occurrence handed over share this window (RRG 1.8 p. 45).
-      const { joinedResponses: joined = [], ...unjoined } = frame;
+      // The conditions earlier frames of the same occurrence handed over share this window (RRG 1.8 p. 45): for an
+      // attack, its damage and `characterAttacked` (`pushEventsJoiningResponses`). So do the "after … defends"
+      // responses the attack's activation holds (`deferredResponses`): RRG 1.8 "Attack (Enemy Activation)" step 6
+      // (p. 9) resolves every forced "after … attacks / is attacked / defends / takes or deals damage" ability before
+      // any non-forced one, so they are one window tiered forced first, not a window each.
+      const { joinedResponses: handed = [], deferredResponses: held = [], ...unjoined } = frame;
+      const joinsLater =
+        frame.responsesWith !== undefined && findFrame(ctx.state, frame.responsesWith)?.kind === "event";
+      const joined = joinsLater ? handed : [...handed, ...held.map((deferred) => withResults(deferred, frame.vars))];
       setFrame(ctx, {
         ...unjoined,
+        ...(joinsLater && held.length > 0 ? { deferredResponses: held } : {}),
         event,
         stage: "done",
         ...(forcedResponses > 0 ? { vars: { ...frame.vars, forcedResponses } } : {}),
@@ -452,15 +461,10 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       return;
     }
     case "done": {
-      // Step 6 of the attack first: the abilities that trigger after the attack ends, which is where a deferred
-      // "after a character defends" response belongs (RRG 1.8 p. 9 step 6, p. 16). This frame's own response window
-      // has already run, so the order within the attack's end is: the attack's own "after" abilities, then the
-      // defense's, then "at the end of this attack" delayed effects (RRG 1.8 "Delayed Effect", p. 16) below.
-      //
-      // Open question, flagged rather than hidden: p. 9 step 6 orders *all* of these by forced (6a) before non-forced
-      // (6b), across every trigger it lists. The engine tiers forced-before-optional inside each window, but these are
-      // separate windows per event, so a forced defend-response resolves after an optional "after [enemy] attacks you"
-      // response. It only shows up when one attack triggers both, with opposite forcedness.
+      // Step 6 of the attack (RRG 1.8 p. 9 step 6, p. 16): the "after … defends" responses the activation holds
+      // normally joined its own response window in the `responses` stage, tiered forced first with the attack's other
+      // step 6 triggers. Any still held here (a frame whose responses joined a later frame's) open now, together, and
+      // then "at the end of this attack" delayed effects (RRG 1.8 "Delayed Effect", p. 16) below.
       if (stepDeferredResponses(ctx, frame)) return;
       // Handed-over conditions this frame's own response window never gathered (it found nothing to do, or deferred).
       if (openJoinedResponses(ctx, frame)) return;
@@ -617,19 +621,24 @@ const defersResponsesToActivation = (event: TriggerEvent): boolean =>
  * defending identity must "take no damage during step 4 of the enemy attack", so damage from a "Boost" ability
  * during the same attack does not count).
  */
-function openDeferredResponse(ctx: Ctx, frame: Frame<"event">, deferred: TriggerEvent): void {
-  const event = withResults(deferred, frame.vars);
+function openDeferredResponses(ctx: Ctx, frame: Frame<"event">, deferred: readonly TriggerEvent[]): void {
+  const [first, ...rest] = deferred.map((each) => withResults(each, frame.vars));
   // Triggering conditions are checked when the window opens, not when the defense happened.
-  if (!hasCandidates(ctx.state, ctx.deps, event, "response")) return;
-  pushWindow(ctx, event, "response", frame.frameId);
+  if (!first || ![first, ...rest].some((event) => hasCandidates(ctx.state, ctx.deps, event, "response"))) return;
+  // One window for all of them, tiered forced first (RRG 1.8 "Attack (Enemy Activation)" step 6, p. 9).
+  pushWindow(ctx, first, "response", frame.frameId, rest);
 }
 
-/** Takes the next deferred response window off `frame` and opens it; false when none is left. */
+/**
+ * Takes the deferred responses still held on `frame` (an attack that ended before it resolved, or one whose own window
+ * joined a later frame's) and opens them in one window; false when none is left.
+ */
 function stepDeferredResponses(ctx: Ctx, frame: Frame<"event">): boolean {
-  const [deferred, ...rest] = frame.deferredResponses ?? [];
-  if (!deferred) return false;
-  setFrame(ctx, { ...frame, deferredResponses: rest });
-  openDeferredResponse(ctx, frame, deferred);
+  const deferred = frame.deferredResponses ?? [];
+  if (deferred.length === 0) return false;
+  const { deferredResponses: _opened, ...rest } = frame;
+  setFrame(ctx, rest);
+  openDeferredResponses(ctx, frame, deferred);
   return true;
 }
 
@@ -677,6 +686,9 @@ function holdResponsesForReveal(ctx: Ctx, frame: Frame<"event">, event: TriggerE
 function joinLaterResponses(ctx: Ctx, frame: Frame<"event">, event: TriggerEvent): boolean {
   const leader = frame.responsesWith;
   if (leader === undefined || findFrame(ctx.state, leader)?.kind !== "event") return false;
+  // Damage of 0 (a 0 ATK attack, one a defense covered) opens no window (`nothingToAnswer`): it is not handed over, so
+  // the shared window it would have joined neither lists it nor offers anything for it.
+  if (answeredByNoResponse(event)) return true;
   updateFrame(ctx, leader, (f) =>
     f.kind === "event" ? { ...f, joinedResponses: [...(f.joinedResponses ?? []), event] } : f,
   );
@@ -2290,7 +2302,10 @@ function applyPlayerAttack(ctx: Ctx, attack: Extract<TriggerEvent, { kind: "atta
     pushEvents(ctx, [damage]);
     return;
   }
-  pushEvents(ctx, [damage, attacked]);
+  // Both join the attack's own response window: items 7–8 of RRG 1.8 "Attack (Player Ability Type)" (p. 9) resolve
+  // every forced "after … attacks / is attacked" ability (retaliate first, in `characterAttacked`'s apply step) before
+  // any non-forced one, "after … deals/takes damage" included (`pushEventsJoiningResponses`).
+  pushEventsJoiningResponses(ctx, [damage, attacked], frameId);
 }
 
 /**
@@ -2340,26 +2355,30 @@ function applyEnemyAttacksEnemy(
     targetInstanceId: target,
     damageDealt: amount,
   });
-  pushEvents(ctx, [
-    {
-      kind: "dealDamage",
-      targetInstanceId: target,
-      amount,
-      sourceInstanceId: attacker,
-      fromAttack: true,
-      parentFrameId: frameId,
-      overkill: keywords.includes("overkill"),
-      ...(keywords.includes("piercing") ? { piercing: true } : {}),
-      ...(keywords.includes("ranged") ? { ranged: true as const } : {}),
-    },
-    {
-      kind: "characterAttacked",
-      attackerInstanceId: attacker,
-      targetInstanceId: target,
-      playerId: null,
-      ...(keywords.includes("ranged") ? { ranged: true } : {}),
-    },
-  ]);
+  pushEventsJoiningResponses(
+    ctx,
+    [
+      {
+        kind: "dealDamage",
+        targetInstanceId: target,
+        amount,
+        sourceInstanceId: attacker,
+        fromAttack: true,
+        parentFrameId: frameId,
+        overkill: keywords.includes("overkill"),
+        ...(keywords.includes("piercing") ? { piercing: true } : {}),
+        ...(keywords.includes("ranged") ? { ranged: true as const } : {}),
+      },
+      {
+        kind: "characterAttacked",
+        attackerInstanceId: attacker,
+        targetInstanceId: target,
+        playerId: null,
+        ...(keywords.includes("ranged") ? { ranged: true } : {}),
+      },
+    ],
+    frameId,
+  );
 }
 
 /** A basic recovery's healing: the identity heals damage equal to its current REC (RRG 1.8 "Recover", p. 36). */

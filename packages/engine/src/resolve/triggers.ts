@@ -592,6 +592,9 @@ const nothingToAnswer = (event: TriggerEvent, timing: WindowTiming): boolean => 
   return (timing === "interrupt" ? event.amount : (event.dealt ?? event.amount)) <= 0;
 };
 
+/** Whether nothing can ever respond to `event` (`nothingToAnswer`): 0 damage dealt, 0 threat placed. */
+export const answeredByNoResponse = (event: TriggerEvent): boolean => nothingToAnswer(event, "response");
+
 export function candidatesFor(
   state: GameState,
   deps: EngineDeps,
