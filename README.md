@@ -4,7 +4,7 @@
 
 # Marvel Champions: Digital Edition (Unofficial Fan Game)
 
-[![Latest release](https://img.shields.io/github/v/release/quincarter/marvel-champions-digital-game?label=version&sort=semver)](https://github.com/quincarter/marvel-champions-digital-game/releases/latest)
+[![Latest release](https://img.shields.io/badge/version-v0.21.1-e8730c)](https://github.com/quincarter/marvel-champions-digital-game/releases/tag/v0.21.1)
 [![Tests and build on main](https://img.shields.io/github/actions/workflow/status/quincarter/marvel-champions-digital-game/netlify-deploy.yml?branch=main&event=push&label=tests%20%26%20build&logo=github)](https://github.com/quincarter/marvel-champions-digital-game/actions/workflows/netlify-deploy.yml?query=branch%3Amain)
 [![Release](https://github.com/quincarter/marvel-champions-digital-game/actions/workflows/release-on-merge.yml/badge.svg?branch=main)](https://github.com/quincarter/marvel-champions-digital-game/actions/workflows/release-on-merge.yml?query=branch%3Amain)
 [![Netlify Status](https://api.netlify.com/api/v1/badges/487c224e-254f-42a0-a2b3-a6192b9e70c8/deploy-status)](https://app.netlify.com/projects/marvel-champions-digital-game/deploys)

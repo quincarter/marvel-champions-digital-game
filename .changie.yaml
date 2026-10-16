@@ -46,6 +46,13 @@ replacements:
   - path: packages/content/src/index.ts
     find: 'export const SCHEMA_VERSION = ".*";'
     replace: 'export const SCHEMA_VERSION = "{{.VersionNoPrefix}}";'
+  # The README's version badge and the release it links to.
+  - path: README.md
+    find: 'badge/version-v[0-9]+\.[0-9]+\.[0-9]+-'
+    replace: 'badge/version-{{.Version}}-'
+  - path: README.md
+    find: 'releases/tag/v[0-9]+\.[0-9]+\.[0-9]+\)'
+    replace: 'releases/tag/{{.Version}})'
   # The README's download buttons: each link names the release's files, and each button shows its version.
   - path: README.md
     find: 'releases/download/v[0-9]+\.[0-9]+\.[0-9]+/MarvelChampions-[0-9]+\.[0-9]+\.[0-9]+-'
