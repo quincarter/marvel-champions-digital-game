@@ -2624,8 +2624,8 @@ export const discardTuckedCost = (
 };
 /**
  * "Deal 1 damage to a [Web-Warrior] character you control →" (Thwip Thwip!, `spdr` 31017; Quick Quip, `silk` 52034):
- * the picked character takes `amount` damage from this card, and the cost is payable only while a candidate could take
- * all of it (`AbilityCost.damageCards`). Same picking rules as `exhaustCardsCost`; the cards are bound to `"damaged"`.
+ * the picked character is dealt `amount` damage from this card, and the cost is paid even if some or all of it is
+ * prevented (`AbilityCost.damageCards`; RRG 1.8 "Cost", p. 14; ruling 2026-06-25 R6 and 2026-07-09 R2). Same picking rules as `exhaustCardsCost`; the cards are bound to `"damaged"`.
  */
 export const damageCardsCost = (q: TargetQuery, amount: number, opts: InPlayCostOptions = {}): AbilityCost => ({
   damageCards: { ...inPlayPick(q, opts, "damaged"), amount },
@@ -2690,7 +2690,7 @@ export const additionalCostToPlay = (
  * "… and deal 2 damage to that character →" (Energy Transfer; docs/phase7-wave6.md §3.49): `n` damage from this card to
  * each card `target` names, read with the cost's own picks bound (`chosen(slot)` of an `attachCost`), before the
  * effects. Dealing damage as a cost is paid even if the damage is prevented (RRG 1.8 "Cost", p. 14), so nothing about
- * the target's toughness is checked; unlike `damageCardsCost`, whose characters must *take* all of it.
+ * the target's toughness is checked (as for `damageCardsCost`, which picks the character it is dealt to).
  * `AbilityCost.dealDamage`.
  */
 export const dealDamageCost = (target: TargetRef, n: number): AbilityCost => ({ dealDamage: { target, amount: n } });

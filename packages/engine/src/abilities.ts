@@ -1301,6 +1301,12 @@ export type RuleSpec =
       readonly kind: "divideBasicPower";
       readonly power: "attack" | "thwart";
       readonly target: TargetQuery;
+      /**
+       * Mandatory: "Divide damage from Bombshell's attack among each enemy as evenly as possible" (ruling 2026-01-11
+       * R4). With two or more attackable enemies the command must divide among all of them, shares differing by at
+       * most 1 (the player picks who takes a remainder); a command that does not is refused.
+       */
+      readonly evenly?: true;
       readonly while?: Predicate;
     }
   /** "When a character thwarts this side scheme, they may use their ATK instead of their THW" (The Red House): `basicThwart.useAtk`. */
@@ -2957,15 +2963,16 @@ export interface AbilityCost {
    * "Deal 1 damage to a [Web-Warrior] character you control →" (Thwip Thwip!, `spdr` 31017; Quick Quip, `silk` 52034):
    * the picked character(s) each take `amount` damage from this card as the cost. See `InPlayCostPick` for the pick.
    *
-   * - **Payable only if the pick can take it all.** RRG 1.8 "Cost" (p. 14): "If taking damage is a cost, that cost is
-   *   not considered paid unless all of that damage was taken." So a candidate is a character that could take every
-   *   point right now (`canTakeCostDamage`): not one that cannot take damage from this card, one a "prevent all damage"
-   *   constant covers, one a constant reduction would bring short, or one holding a tough status card (the Focused
-   *   Rage FAQ entry, RRG 1.8 p. 57: a cost tough would prevent "cannot be paid"). With no candidate the ability is not
-   *   offered (RRG 1.8 "Initiating Abilities", p. 24, steps 3 and 5).
-   * - **Not all taken, not paid.** The damage resolves above the ability's frame before its effects ("Cost Arrow Icon",
-   *   p. 14); prevented as it is taken (an interrupt the check could not know of), the cost is unpaid and the ability's
-   *   effects do not resolve (`settleCostDamage`), as for `indirectDamage`.
+   * - **Dealing, not taking: paid whatever is prevented.** RRG 1.8 "Cost" (p. 14): "If dealing damage is a cost, that
+   *   cost is considered paid even if some or all of that damage is prevented"; ruling 2026-06-25 R6 and 2026-07-09 R2
+   *   (Clarity of Purpose): damage dealt as a cost can be reduced or prevented, even to 0, and the cost remains paid.
+   *   So toughness, a tough status card, a "prevent all damage" constant or a reduction do not stop the pick, and the
+   *   ability's effects resolve however much of the damage is prevented as it is dealt (nothing settles it).
+   * - **Not a character that cannot take damage from this card** (`canBeDealtCostDamage`): a cost is part of its
+   *   ability and subject to the targeting rules (ruling 2026-01-26 R1, Nova's Ms. Marvel), and dealing damage is all
+   *   this cost does to the picked card. With no candidate the ability is not offered (RRG 1.8 "Initiating
+   *   Abilities", p. 24, steps 3 and 5).
+   * - Unlike `damageSelf` and `indirectDamage` ("take N damage"), which are not paid unless all of it is taken.
    */
   readonly damageCards?: DamageCostPick;
   /**
@@ -2985,9 +2992,9 @@ export interface AbilityCost {
    *
    * - **Dealing, not taking.** RRG 1.8 "Cost" (p. 14): "If dealing damage is a cost, that cost is considered paid even
    *   if some or all of that damage is prevented." So nothing about the target's toughness, tough status card or
-   *   "cannot take damage" is checked, and the effects resolve whatever is prevented (unlike `damageCards`, `damageSelf`
-   *   and `indirectDamage`, which are damage the payer's characters *take*: "not considered paid unless all of that
-   *   damage was taken").
+   *   "cannot take damage" is checked, and the effects resolve whatever is prevented, as for `damageCards` (unlike
+   *   `damageSelf` and `indirectDamage`, which are damage the payer's characters *take*: "not considered paid unless
+   *   all of that damage was taken").
    * - **Payable while it names a card in play.** With none, the cost cannot be paid (RRG 1.8 "Cost", p. 13).
    * - **Before the effects.** One `dealDamage` event per target, pushed above the frame being paid for (RRG 1.8 "Cost
    *   Arrow Icon", p. 14), after the rest of the cost is paid (so after an `attach` in the same cost).
@@ -3167,7 +3174,7 @@ export interface EncounterSearchIntoPlayCost {
   readonly zones: readonly ("deck" | "discard")[];
 }
 
-/** `AbilityCost.damageCards`: an `InPlayCostPick` whose picks each take `amount` damage. */
+/** `AbilityCost.damageCards`: an `InPlayCostPick` whose picks are each dealt `amount` damage. */
 export interface DamageCostPick extends InPlayCostPick {
   readonly amount: number;
 }

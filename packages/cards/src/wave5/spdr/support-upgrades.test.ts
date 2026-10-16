@@ -647,6 +647,35 @@ describe("SP//dr's supports, upgrades and resources (31007-31013, 31018-31020, 3
       expect(inst(after, identity).damage).toBe(damageBefore + 1);
     });
 
+    // RRG v1.8 p.14 "Cost"; ruling 2026-06-25 R6 / 2026-07-09 R2 (Luke Cage + Clarity of Purpose + Metal Bracelet):
+    // damage dealt as a cost can be prevented or reduced to 0 and the cost is still paid.
+    it("the attached character's tough status card prevents the 1 damage, yet the [wild] resource is generated", () => {
+      const hero = runWave5(spdrWithClarityInDeck(), toHero(P1));
+      const identity = identityOf(hero, P1);
+      const { state: withClarity, id: clarity } = playAttachedTo(hero, "31029", 1, identity);
+      const damageBefore = inst(withClarity, identity).damage;
+      const toughAndExhausted = patchInstance(withClarity, identity, {
+        exhausted: true,
+        statuses: { ...inst(withClarity, identity).statuses, tough: 1 },
+      });
+      const given = moveToHand(toughAndExhausted, P1, "31023");
+      const [stamina] = given.ids as [InstanceId];
+      const after = settle(
+        runWave5(
+          given.state,
+          play(P1, stamina, [], { abilities: [resourceAbility(clarity, "31029.clarity-of-purpose-resource")] }),
+        ),
+        firstLegal,
+        undefined,
+        WAVE5_DEPS,
+      );
+      expect(inst(after, identity).statuses.tough).toBe(0); // it took the cost's damage
+      expect(inst(after, identity).damage).toBe(damageBefore);
+      expect(inst(after, clarity).exhausted).toBe(true);
+      expect(playerOf(after, P1).discard).toContain(stamina); // paid for with the generated [wild] resource
+      expect(inst(after, identity).exhausted).toBe(false);
+    });
+
     it("an already-exhausted Clarity of Purpose cannot pay", () => {
       const hero = runWave5(spdrWithClarityInDeck(), toHero(P1));
       const identity = identityOf(hero, P1);

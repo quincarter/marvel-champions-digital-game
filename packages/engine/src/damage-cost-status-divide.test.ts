@@ -2,9 +2,9 @@
  * Two primitives Thwip Thwip! (`spdr` 31017) and Quick Quip (`silk` 52034) need, on synthetic cards:
  *
  * - `AbilityCost.damageCards`: "Deal 1 damage to a [Web-Warrior] character you control →", a cost that deals damage to
- *   a picked character. RRG 1.8 "Cost" (p. 14): "If taking damage is a cost, that cost is not considered paid unless
- *   all of that damage was taken"; "Initiating Abilities" (p. 24, steps 3 and 5); the Focused Rage FAQ entry (p. 57: a
- *   damage cost a tough status card would prevent cannot be paid).
+ *   a picked character. RRG 1.8 "Cost" (p. 14): "If dealing damage is a cost, that cost is considered paid even if
+ *   some or all of that damage is prevented" (ruling 2026-06-25 R6 and 2026-07-09 R2); "Initiating Abilities" (p. 24,
+ *   steps 3 and 5); a character that cannot take damage is still no candidate (ruling 2026-01-26 R1).
  * - `EffectSpec divide` of status cards with `maxTargets`: "place a total of 2 stun status cards on up to 2 enemies".
  *   RRG 1.8 "Status Cards" (p. 41: one of each type per character, a second stunned or confused with steady); ruling,
  *   Mar 6, 2026 (2) (Quick Quip on two non-steady enemies may place a card on just one).
@@ -158,9 +158,7 @@ describe("`AbilityCost.damageCards`: deal 1 damage to a Web-Warrior character yo
     expect(mustInstance(after, plain).damage).toBe(0);
     expect(mustInstance(after, identity).damage).toBe(0);
     expect(handSize(after)).toBe(hand - 1 + 2);
-    expect(events).toContainEqual(
-      expect.objectContaining({ type: "costDamageSettled", amount: 1, taken: 1, paid: true }),
-    );
+    expect(events.some((e) => e.type === "costDamageSettled")).toBe(false); // dealing damage is never settled
     const damaged = events.findIndex((e) => e.type === "damageDealt" && e.targetInstanceId === web);
     expect(damaged).toBeGreaterThanOrEqual(0);
     expect(damaged).toBeLessThan(resolvedAt(events, ABILITY));
@@ -184,7 +182,7 @@ describe("`AbilityCost.damageCards`: deal 1 damage to a Web-Warrior character yo
     expect(applyCommand(given.state, playCmd(given.id), deps).ok).toBe(false);
   });
 
-  it("a matching character that can't take all of it can't pay: tough status card (Focused Rage FAQ), cannot take damage", () => {
+  it("a tough status card does not stop the pick (dealing damage is paid if prevented); cannot take damage does", () => {
     const { state: withAlly, ids } = inPlay(start(), WEB_ALLY.id);
     const web = ids[0]!;
     const tough: GameState = {
@@ -195,27 +193,30 @@ describe("`AbilityCost.damageCards`: deal 1 damage to a Web-Warrior character yo
       },
     };
     const toughHand = giveCard(tough, P1, WEB_DRAW.card.id);
-    expect(offered(toughHand.state, toughHand.id)).toBe(false);
-    expect(applyCommand(toughHand.state, playCmd(toughHand.id), deps).ok).toBe(false);
+    expect(offered(toughHand.state, toughHand.id)).toBe(true);
+    const hand = handSize(toughHand.state);
+    const { state: after, events } = run(toughHand.state, playCmd(toughHand.id));
+    expect(mustInstance(after, web).statuses.tough).toBe(0);
+    expect(mustInstance(after, web).damage).toBe(0);
+    expect(handSize(after)).toBe(hand - 1 + 2);
+    expect(resolvedAt(events, ABILITY)).toBeGreaterThanOrEqual(0);
 
+    // Ruling 2026-01-26 R1: the cost is subject to targeting, so a character that cannot take damage is no pick.
     const warded = inPlay(withAlly, WARD.id).state;
     const wardHand = giveCard(warded, P1, WEB_DRAW.card.id);
     expect(offered(wardHand.state, wardHand.id)).toBe(false);
   });
 
-  it("damage prevented as it is taken means the cost was not paid: the effect does not resolve", () => {
+  it("damage prevented as it is dealt still pays the cost: the effect resolves", () => {
     const { state: withAlly, ids } = inPlay(start(), WEB_ALLY.id, SHIELD.id);
     const web = ids[0]!;
     const given = giveCard(withAlly, P1, WEB_DRAW.card.id);
-    expect(offered(given.state, given.id)).toBe(true); // an interrupt can't be known before paying
+    expect(offered(given.state, given.id)).toBe(true);
     const hand = handSize(given.state);
     const { state: after, events } = run(given.state, playCmd(given.id));
     expect(mustInstance(after, web).damage).toBe(0);
-    expect(handSize(after)).toBe(hand - 1); // the event left hand, no draw
-    expect(events).toContainEqual(
-      expect.objectContaining({ type: "costDamageSettled", amount: 1, taken: 0, paid: false }),
-    );
-    expect(resolvedAt(events, ABILITY)).toBe(-1);
+    expect(handSize(after)).toBe(hand - 1 + 2);
+    expect(resolvedAt(events, ABILITY)).toBeGreaterThanOrEqual(0);
   });
 });
 

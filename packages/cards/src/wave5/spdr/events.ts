@@ -76,9 +76,9 @@ const SYNC_RATIO = "31001a.sync-ratio";
  * control → place a total of 2 stun status cards on up to 2 enemies." The cost is `damageCardsCost(query(["identity",
  * "ally"], { trait: WEB_WARRIOR, controller: "you" }), 1)` (`AbilityCost.damageCards`): one Web-Warrior character
  * the player controls (SP//dr's hero form, or a Web-Warrior ally), picked as the cost is paid and dealt exactly 1
- * damage before the effect. It is payable only while such a character could take all of it (RRG 1.8 "Cost", p. 14;
- * the Focused Rage FAQ, p. 57: not one with a tough status card), and damage prevented as it is taken leaves the cost
- * unpaid, so no stun is placed. The effect is `divide("stunned", 2, query("enemy"), { maxTargets: 2 })`: at least one
+ * damage before the effect. Dealing damage as a cost is paid even if it is prevented (RRG 1.8 "Cost", p. 14; ruling
+ * 2026-06-25 R6 and 2026-07-09 R2), so a character with a tough status card can pay it and the stuns are still placed;
+ * only a character that cannot take damage from this card is no candidate. The effect is `divide("stunned", 2, query("enemy"), { maxTargets: 2 })`: at least one
  * enemy, at most two, each given only what it can hold (RRG 1.8 "Status Cards", p. 41). So a non-steady enemy takes
  * one stun card, never both: two non-steady enemies split 1 + 1, and choosing just one of them stuns only it (ruling,
  * Mar 6, 2026 (2), on the same text of Quick Quip). Both on one enemy happens only on a steady enemy, which can hold

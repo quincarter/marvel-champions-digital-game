@@ -1,13 +1,16 @@
 /**
  * "Take N indirect damage →" as an ability cost (`AbilityCost.indirectDamage`; Kinetic Armor, `sm` 27149), "Deal N
  * damage to a [chosen] character you control →" (`AbilityCost.damageCards`; Thwip Thwip!, `spdr` 31017) and "Take N
- * damage →" (`AbilityCost.damageSelf`; Focused Rage, `01027`): whether a player could take it all, and the step that
- * settles it once taken.
+ * damage →" (`AbilityCost.damageSelf`; Focused Rage, `01027`): whether a player could pay it, and the step that
+ * settles a taken one once taken.
  *
  * RRG 1.8 "Cost" (p. 14): "If taking damage is a cost, that cost is not considered paid unless all of that damage was
- * taken. (If any of the damage is prevented, then the cost has not been paid.)" "Initiating Abilities" (p. 24) checks
- * the player's ability to pay at step 3, before anything is paid. The damage itself is assigned and dealt by the same
- * `dealIndirectDamage` effect a card's "take 3 indirect damage" effect uses, pushed above the ability's own frame by
+ * taken. (If any of the damage is prevented, then the cost has not been paid.)" and "If dealing damage is a cost, that
+ * cost is considered paid even if some or all of that damage is prevented." So the two "take" costs are settled
+ * (`settleCostDamage`) and the "deal" cost is not (ruling 2026-06-25 R6 and 2026-07-09 R2, Clarity of Purpose: damage
+ * dealt as a cost can be reduced or prevented, even to 0, and the cost remains paid). "Initiating Abilities" (p. 24)
+ * checks the player's ability to pay at step 3, before anything is paid. The damage itself is assigned and dealt by the
+ * same `dealIndirectDamage` / `dealDamage` effect a card's effect uses, pushed above the ability's own frame by
  * `payCost`, so it resolves (with its interrupt and response windows) before the ability's effects; the RRG's
  * "Responses to the text preceding the cost arrow icon resolve before the text following the icon resolves" ("Cost
  * Arrow Icon", p. 14).
@@ -73,11 +76,12 @@ export function costDamageEffects(amount: number, paidFor: Frame<"ability"> | Fr
 }
 
 /**
- * Whether `id` could take all `amount` damage from `sourceId` as a cost right now (`AbilityCost.damageCards`): RRG 1.8
- * "Cost" (p. 14), a damage cost is paid only if all of it is taken. So not a character that cannot take damage from the
- * source, one a "prevent all damage" constant covers, one a constant reduction would bring short of `amount`, or one
- * holding a tough status card (the Focused Rage FAQ entry, RRG 1.8 p. 57). Damage past its remaining hit points is still
- * taken (it is then defeated), so hit points do not limit it.
+ * Whether `id` could take all `amount` damage from `sourceId` as a cost right now (a "take N damage →" cost,
+ * `AbilityCost.damageSelf`, and each player's share of `each-player-cost.ts`): RRG 1.8 "Cost" (p. 14), a cost of taking
+ * damage is paid only if all of it is taken. So not a character that cannot take damage from the source, one a
+ * "prevent all damage" constant covers, one a constant reduction would bring short of `amount`, or one holding a tough
+ * status card (the Focused Rage FAQ entry, RRG 1.8 p. 57). Damage past its remaining hit points is still taken (it is
+ * then defeated), so hit points do not limit it.
  */
 export function canTakeCostDamage(
   state: GameState,
@@ -95,20 +99,33 @@ export function canTakeCostDamage(
 }
 
 /**
- * The effects `payCost` pushes for a "deal N damage to a [chosen] character →" cost (`AbilityCost.damageCards`): the
- * damage to each picked card, bound in `slot` on the pushed frame, then `settleCostDamage` for all of it.
+ * Whether `id` can be picked for a "deal N damage to a [chosen] character →" cost (`AbilityCost.damageCards`) of
+ * `sourceId`'s ability: a character, and not one that cannot take damage from the source.
+ *
+ * Dealing damage as a cost is paid even if some or all of it is prevented (RRG 1.8 "Cost", p. 14; ruling 2026-06-25
+ * R6 and 2026-07-09 R2), so toughness, a tough status card, a "prevent all damage" constant or a reduction do not stop
+ * the pick. A character that cannot take damage still does: a cost is part of its ability and subject to the targeting
+ * rules (ruling 2026-01-26 R1, Nova's Ms. Marvel: the "Target" rule bars targeting a character that cannot take damage
+ * with an ability that only deals damage to it), and dealing damage is all this cost does to the picked card.
  */
-export function pickedCostDamageEffects(
-  slot: string,
-  picks: number,
-  amount: number,
-  paidFor: Frame<"ability"> | Frame<"playCard"> | null,
-): EffectSpec[] {
-  const bind = "costDamage";
-  return [
-    { kind: "dealDamage", target: { kind: "slot", slot }, amount: { kind: "const", value: amount }, bind },
-    { kind: "settleCostDamage", amount: amount * picks, bind, paidFor: paidFor?.frameId ?? null },
-  ];
+export function canBeDealtCostDamage(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  sourceId: InstanceId | null,
+): boolean {
+  if (!getInstance(state, id) || characterProfile(state, id, deps) === undefined) return false;
+  return !cannotTakeDamage(state, deps, id, [sourceId]);
+}
+
+/**
+ * The effects `payCost` pushes for a "deal N damage to a [chosen] character →" cost (`AbilityCost.damageCards`): the
+ * damage to each picked card, bound in `slot` on the pushed frame. Never settled: the cost is paid whatever of it is
+ * prevented or reduced (RRG 1.8 "Cost", p. 14; ruling 2026-06-25 R6 and 2026-07-09 R2), as `AbilityCost.dealDamage`
+ * (`attach-cost.ts`) is.
+ */
+export function pickedCostDamageEffects(slot: string, amount: number): EffectSpec[] {
+  return [{ kind: "dealDamage", target: { kind: "slot", slot }, amount: { kind: "const", value: amount } }];
 }
 
 /**

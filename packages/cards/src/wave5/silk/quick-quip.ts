@@ -9,8 +9,8 @@ const WEB_WARRIOR = trait("WEB-WARRIOR");
  *
  * The Silk pack is not in any wave's pool yet; this one card is scripted here, in wave 5, because it is the same shape
  * as SP//dr's Thwip Thwip! (`spdr` 31017, `../spdr/events.ts`) with confused for stunned, and shares its primitives:
- * the `damageCards` cost (payable only while a Web-Warrior character you control could take all of the damage, RRG
- * 1.8 "Cost", p. 14) and a status `divide` over at most 2 enemies. A non-steady enemy takes one confused card, and
+ * the `damageCards` cost (dealing damage as a cost: paid even if it is prevented, RRG 1.8 "Cost", p. 14; ruling
+ * 2026-06-25 R6 and 2026-07-09 R2) and a status `divide` over at most 2 enemies. A non-steady enemy takes one confused card, and
  * choosing just one of two enemies is allowed (ruling, Mar 6, 2026 (2), on this card). The Requirement keyword is
  * read from the card data by the engine. When the Silk pack is wired, this module moves under its own pack folder.
  */

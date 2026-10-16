@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SILK_CARDS } from "@mc/content";
-import { activeEncounterDeckId, applyCommand, legalActions, type GameState, type InstanceId } from "@mc/engine";
+import { activeEncounterDeckId, legalActions, type GameState, type InstanceId } from "@mc/engine";
 import {
   firstLegal,
   identityOf,
@@ -71,16 +71,19 @@ describe("Quick Quip (silk 52034), scripted in wave 5 beside Thwip Thwip!", () =
     expect(offered).toEqual([`${villain}#1`, `${minion}#1`]); // one confused card each, at most
   });
 
-  it("52034.quick-quip-action: not offered, and refused, while SP//dr holds a tough status card (no one can take the damage)", () => {
+  it("52034.quick-quip-action: SP//dr's tough status card prevents the cost's damage, yet the cost is paid (RRG v1.8 p.14; ruling 2026-06-25 R6 / 2026-07-09 R2)", () => {
     const hero = spdrWithQuickQuip();
     const identity = identityOf(hero, P1);
+    const villain = hero.villains[0]!.instanceId;
     const tough = patchInstance(hero, identity, { statuses: { ...inst(hero, identity).statuses, tough: 1 } });
     const { state: given, id, pay } = inHandWithPayment(tough);
-    const refused = applyCommand(given, play(P1, id, pay), WAVE5_DEPS);
-    expect(refused.ok).toBe(false);
-    if (!refused.ok) expect(refused.error.message).toMatch(/cannot take all of this cost's damage/); // the cost, not the payment
+    const before = inst(given, identity).damage;
     const actions = legalActions(given, P1, WAVE5_DEPS);
     if (actions.kind !== "turn") throw new Error(`expected a turn, got ${actions.kind}`);
-    expect(actions.legal.some((a) => a.action.kind === "playCard" && a.action.instanceId === id)).toBe(false);
+    expect(actions.legal.some((a) => a.action.kind === "playCard" && a.action.instanceId === id)).toBe(true);
+    const state = settle(runWith(WAVE5_DEPS, given, play(P1, id, pay)), firstLegal, undefined, WAVE5_DEPS);
+    expect(inst(state, identity).damage).toBe(before);
+    expect(inst(state, identity).statuses.tough).toBe(0);
+    expect(inst(state, villain).statuses.confused).toBe(1);
   });
 });

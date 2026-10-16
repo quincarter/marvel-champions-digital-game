@@ -326,18 +326,25 @@ describe("SP//dr's events (31004-31006, 31016, 31017, 31023)", () => {
       expect(inst(state, state.villains[0]!.instanceId).statuses.stunned).toBe(1); // the only enemy
     });
 
-    it("is not offered, and refused, when no Web-Warrior character you control can take the damage (SP//dr holds a tough status card)", () => {
+    it("a tough status card on SP//dr prevents the 1 damage, yet the cost is paid and the stun placed (RRG v1.8 p.14; ruling 2026-06-25 R6 / 2026-07-09 R2)", () => {
       const hero = runWave5(spdrVsRhino(), toHero(P1));
       const identity = identityOf(hero, P1);
       const tough = patchInstance(hero, identity, { statuses: { ...inst(hero, identity).statuses, tough: 1 } });
       const given = moveToHand(tough, P1, "31017");
       const [id] = given.ids as [InstanceId];
-      const result = applyCommand(given.state, play(P1, id, payWith(given.state, P1, 2, [id])), WAVE5_DEPS);
-      expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.error.message).toMatch(/cannot take all of this cost's damage/); // the cost, not the payment
+      const before = inst(given.state, identity).damage;
       const actions = legalActions(given.state, P1, WAVE5_DEPS);
       if (actions.kind !== "turn") throw new Error(`expected a turn, got ${actions.kind}`);
-      expect(actions.legal.some((a) => a.action.kind === "playCard" && a.action.instanceId === id)).toBe(false);
+      expect(actions.legal.some((a) => a.action.kind === "playCard" && a.action.instanceId === id)).toBe(true);
+      const state = settle(
+        runWith(WAVE5_DEPS, given.state, play(P1, id, payWith(given.state, P1, 2, [id]))),
+        firstLegal,
+        undefined,
+        WAVE5_DEPS,
+      );
+      expect(inst(state, identity).damage).toBe(before);
+      expect(inst(state, identity).statuses.tough).toBe(0);
+      expect(inst(state, state.villains[0]!.instanceId).statuses.stunned).toBe(1);
     });
   });
 

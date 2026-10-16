@@ -155,7 +155,8 @@ const WEB_WARRIOR = trait("WEB-WARRIOR");
  * { hostOfSelf: true }), 1)` (Thwip Thwip!'s own docblock names this exact `AbilityCost.damageCards` shape;
  * `hostOfSelf` auto-picks the one attached character the same way Sync Ratio's own `exhaustCardsCost` auto-picks a
  * single candidate, `identity.ts`'s own docblock), paired with `exhaustThis`, generating `{ wild: 1 }`
- * (`heroResource`, Enhanced Reflexes's own shape, `msm` 05024).
+ * (`heroResource`, Enhanced Reflexes's own shape, `msm` 05024). The cost is paid even if the attached character's
+ * damage is reduced or prevented to 0 (Luke Cage with Metal Bracelet; ruling 2026-06-25 R6 and 2026-07-09 R2).
  */
 
 export const SPDR_SUPPORT_UPGRADES = defineAbilities({

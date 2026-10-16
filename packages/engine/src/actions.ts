@@ -106,6 +106,7 @@ import {
 import { instanceId as asInstanceId, type FrameId, type InstanceId, type PlayerId } from "./ids.js";
 import { attackKeywordsOf, canTakeStatus, hasKeyword, statusActive } from "./keywords.js";
 import {
+  canBeDealtCostDamage,
   canTakeCostDamage,
   chosenSelfCostDamageEffects,
   DAMAGE_SELF_MAX_VAR,
@@ -188,6 +189,7 @@ import {
   sameGameArea,
   mustInstance,
   mustPlayer,
+  undefeatedVillains,
   showingResources,
   turnInProgress,
   villainOf,
@@ -3327,8 +3329,8 @@ export function planCost(
   }
   // "Take 1 damage →" can be paid only if all of it can be taken (RRG 1.8 "Cost", p. 14): not by an identity holding a
   // tough status card (FAQ "Focused Rage (#27)", p. 57: "you cannot attempt to pay the cost of Focused Rage's ability
-  // just to remove She-Hulk's tough status card"), nor one that cannot take damage or a constant would reduce it. The
-  // same check as `damageCards`; an interrupt that prevents it is found out as it is paid (`settleCostDamage`).
+  // just to remove She-Hulk's tough status card"), nor one that cannot take damage or a constant would reduce it. (Not
+  // so for `damageCards`, a cost of *dealing* damage, paid whatever is prevented.) An interrupt that prevents it is found out as it is paid (`settleCostDamage`).
   const damageSelf = costDamageSelf(cost, vars);
   if (damageSelf > 0 && !canTakeCostDamage(state, deps, damaged.identity.instanceId, sourceId, damageSelf)) {
     return {
@@ -3625,7 +3627,7 @@ function eligibleForInPlayPick(
 
 /**
  * Whether a card in play can pay an `InPlayCostPick` of this ability (`sourceId`): ready, to exhaust it; able to take
- * all of the damage, to deal it damage (`canTakeCostDamage`); able to leave play, to discard or return it. A cost is paid in full or not at all (RRG 1.8 "Cost", p. 13; "Initiating Abilities",
+ * damage from the source, to deal it damage (`canBeDealtCostDamage`; prevention does not matter, RRG 1.8 "Cost", p. 14); able to leave play, to discard or return it. A cost is paid in full or not at all (RRG 1.8 "Cost", p. 13; "Initiating Abilities",
  * p. 24), so a card the payment could not move is no option: one that "cannot leave play", or a permanent card that the
  * source card's ability is not of its set (`permanentStopsLeaving`, RRG 1.8 "Permanent", p. 32; `payCost` pays with the
  * same source card; docs/phase7-wave5.md §4.1 Q46).
@@ -3643,7 +3645,7 @@ function canPayInPlayPick(
   const instance = mustInstance(state, id);
   if (mode === "exhaust") return !instance.exhausted;
   if (mode === "ready") return canPayReadyCost(state, deps, id, sourceId);
-  if (mode === "damage") return canTakeCostDamage(state, deps, id, sourceId, (pick as DamageCostPick).amount);
+  if (mode === "damage") return canBeDealtCostDamage(state, deps, id, sourceId);
   const sourceCardId = getInstance(state, sourceId)?.cardId;
   // "Cannot be discarded" (docs/phase7-wave8.md §3.35) stops the discard cost only; a return to hand is not one.
   if (cannotLeavePlay(state, deps, id, sourceCardId, mode === "discard")) return false;
@@ -3688,7 +3690,7 @@ function planInPlayPick(
         : mode === "ready"
           ? { code: "no_valid_target", message: `${id} is already ready, or cannot ready` }
           : mode === "damage"
-            ? { code: "no_valid_target", message: `${id} cannot take all of this cost's damage` }
+            ? { code: "no_valid_target", message: `${id} cannot take damage from this card` }
             : { code: "no_valid_target", message: `${id} cannot leave play` };
   if (pick.each) {
     // "Exhaust … each support you control →" (`InPlayCostPick.each`): every matching card, or the cost is not paid.
@@ -4208,10 +4210,10 @@ export function payCost(
       }
     } else if (mode === "damage") {
       // "Deal 1 damage to a [Web-Warrior] character you control →" (`damageCards`, `cost-damage.ts`): dealt above the
-      // ability's own frame, so it resolves first; if not all of it is taken, that frame's effects don't.
+      // ability's own frame, so it resolves first; paid even if prevented (RRG 1.8 "Cost", p. 14), so never settled.
       if (ids.length > 0) {
         pushEffects(ctx, {
-          effects: pickedCostDamageEffects(pick.slot, ids.length, (pick as DamageCostPick).amount, paidFor),
+          effects: pickedCostDamageEffects(pick.slot, (pick as DamageCostPick).amount),
           selfInstanceId: sourceId,
           controllerId: playerId,
           bindings: { [pick.slot]: ids },
@@ -6306,6 +6308,7 @@ function basicAttackPaying(
     "attack",
     "atk",
     command.divide,
+    by.instructed === true,
   );
   if ("code" in shares) return shares;
   // Every target is checked now, when the power is used (FAQ "Wasp (#1C)", RRG 1.8 p. 61).
@@ -6709,6 +6712,19 @@ function makeBasicThwart(
   announceBasicPowerUsing(ctx, command.thwarterInstanceId, "thwart", command.playerId, thwartStat);
 }
 
+/** The enemies a mandatory even split (`divideBasicPower.evenly`) spreads over: each one the attacker may attack. */
+function evenSplitTargets(ctx: Ctx, playerId: PlayerId, characterId: InstanceId): readonly InstanceId[] {
+  return [
+    ...undefeatedVillains(ctx.state).map((villain) => villain.instanceId),
+    ...cardsInPlay(ctx.state).filter((id) => isMinion(ctx.state, id)),
+  ].filter(
+    (id) =>
+      canAttack(ctx.state, characterId, id, ctx.deps, true) &&
+      !inClosedScenarioPlayArea(ctx.state, id) &&
+      sameGameArea(areaOfPlayer(ctx.state, playerId), areaOfCard(ctx.state, id)),
+  );
+}
+
 /**
  * The targets of a basic power: the one target, or a divided power's shares (docs/phase7-wave2.md §3.7). A division
  * needs the character's `divideBasicPower` rule, distinct targets starting with the command's own, whole shares of at
@@ -6723,7 +6739,36 @@ function dividedShares(
   power: "attack" | "thwart",
   stat: "atk" | "thw",
   divide: readonly BasicPowerShare[] | undefined,
+  /** Made on a card's instruction (`BasicPowerBy.instructed`): a mandatory even split is not enforced there. */
+  instructed = false,
 ): readonly BasicPowerShare[] | EngineError {
+  const evenly =
+    !instructed && power === "attack" && evenlyDividesBasicPower(ctx.state, ctx.deps, characterId, power)
+      ? evenSplitTargets(ctx, command.playerId, characterId)
+      : null;
+  if (evenly !== null && evenly.length > 1) {
+    // Bombshell (ruling 2026-01-11 R4): the damage is divided as evenly as possible among each valid enemy, and the
+    // player cannot opt out. Who takes the remainder is the player's to choose.
+    if (!divide) return engineError("no_valid_target", "this attack must be divided among each enemy", command);
+    const value = dividedBasicPowerValue(
+      ctx.state,
+      ctx.deps,
+      command.playerId,
+      characterId,
+      power,
+      stat,
+      divide.map((share) => share.targetInstanceId),
+    );
+    const amounts = divide.map((share) => share.amount);
+    const parts = Math.min(evenly.length, value);
+    const even =
+      divide.length === parts &&
+      divide.every((share) => evenly.includes(share.targetInstanceId)) &&
+      Math.max(...amounts) - Math.min(...amounts) <= 1 &&
+      amounts.reduce((sum, amount) => sum + amount, 0) === value;
+    if (!even)
+      return engineError("no_valid_target", "the damage must be divided as evenly as possible among each enemy", command);
+  }
   if (!divide) return [{ targetInstanceId: firstTarget, amount: 0 }];
   if (!canDivideBasicPower(ctx.state, ctx.deps, characterId, power))
     return engineError("no_valid_target", `this ${power} cannot be divided`, command);
