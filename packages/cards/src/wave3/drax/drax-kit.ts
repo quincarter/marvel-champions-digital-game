@@ -90,8 +90,11 @@ export const DRAX_KIT = defineAbilities({
   // Drax — Response: After the villain attacks Drax, place 1 vengeance counter here (to a maximum of 3). If you
   // cannot, draw 1 card. Aug 3, 2026 (4) #4: "(to a maximum of 3)" is local to this placement — Drax can still
   // hold more than 3 vengeance counters if something else adds them; `addCounters`'s `upTo` is scoped the same way.
+  // "Attacks Drax" names the character, not "you": it is not the "after [enemy] attacks you" exception that also
+  // hears an attack on your ally (ruling Dec 17, 2025 (3)), so an attack Drax's ally defends, whose target is then the
+  // ally (RRG 1.8 "Defend, Defense", p. 15), does not trigger it.
   "19001a.drax-response": response(
-    after.villainAttacks({ againstYou: true }),
+    { ...after.villainAttacks(), selfIs: "target" },
     addCounters("vengeance", 1, yourIdentity, { upTo: 3, bind: "placed" }),
     ifThen(valueEquals(varOf("placed.amount"), 0), draw(1)),
   ),

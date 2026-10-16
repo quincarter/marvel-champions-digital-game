@@ -91,6 +91,30 @@ describe("Drax's identity (19001a/b)", () => {
     expect(inst(after, identity).counters.vengeance ?? 0).toBe(1);
   });
 
+  it("Response: not offered when Drax's ally defends, since the villain then attacks the ally, not Drax (ruling 2025-12-17 R3; RRG v1.8 p.15)", () => {
+    const hero = runWith(WAVE3_DEPS, draxVsRhino(), toHero());
+    const identity = identityOf(hero);
+    const given = moveToHand(hero, P1, "19013");
+    const [moondragon] = given.ids as [InstanceId];
+    const withAlly: GameState = {
+      ...given.state,
+      players: given.state.players.map((p) =>
+        p.playerId === P1
+          ? { ...p, hand: p.hand.filter((i) => i !== moondragon), playArea: [...p.playArea, moondragon] }
+          : p,
+      ),
+    };
+    const reached = toDeclareDefender(withAlly);
+    let offered = false;
+    const watching: Picker = (state) => {
+      if (state.pendingChoice?.options.some((o) => o.optionId.endsWith("19001a.drax-response"))) offered = true;
+      return accepting("19001a.drax-response")(state);
+    };
+    const after = settle(answer(reached, [moondragon], WAVE3_DEPS), watching, undefined, WAVE3_DEPS);
+    expect(offered).toBe(false);
+    expect(inst(after, identity).counters.vengeance ?? 0).toBe(0);
+  });
+
   it("If you cannot place a vengeance counter (already at 3), draw 1 card instead (19001a.drax-response)", () => {
     const hero = runWith(WAVE3_DEPS, draxVsRhino(2), toHero());
     const identity = identityOf(hero);
