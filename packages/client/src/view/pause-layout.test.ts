@@ -1,3 +1,4 @@
+import { hit } from "../tokens.js";
 import { describe, expect, test } from "vitest";
 import { rectsOverlap } from "./layout.js";
 import { pauseLayout, pauseLayoutRects, PAUSE_PHONE_MAX_WIDTH, type PauseLayoutInput } from "./pause-layout.js";
@@ -194,12 +195,22 @@ describe("pauseLayout", () => {
       expect(layout.lowerViewport.height).toBeLessThan(layout.lowerContent.totalHeight);
     });
 
+    test("Card size is the first Table setting: under the heading, above the toggles, at a full touch height", () => {
+      const layout = pauseLayout({ x: 0, y: 0, width: 390, height: 844 }, input(0));
+      if (layout.kind !== "phone") throw new Error("expected phone");
+      const { tableHeading, cardSizeRow, tableRows } = layout.lowerContent;
+      expect(cardSizeRow.y).toBeGreaterThanOrEqual(tableHeading.y + tableHeading.height);
+      expect(cardSizeRow.y + cardSizeRow.height).toBeLessThanOrEqual(tableRows[0]!.y);
+      expect(cardSizeRow.height - 22).toBeGreaterThanOrEqual(hit.target);
+    });
+
     test("no content row ever draws outside the lower group's own [0, totalHeight] span", () => {
       const layout = pauseLayout({ x: 0, y: 0, width: 390, height: 844 }, input(0));
       if (layout.kind !== "phone") throw new Error("expected phone");
       const { lowerContent } = layout;
       const all = [
         lowerContent.tableHeading,
+        lowerContent.cardSizeRow,
         ...lowerContent.tableRows,
         lowerContent.guideHeading,
         lowerContent.guideLevelRow,

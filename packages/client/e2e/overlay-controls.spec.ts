@@ -196,11 +196,21 @@ test.describe("Pause menu", () => {
     await pressStop(page, true, PAUSE, "quick:jumpLog", async () => !(await hasText(page, "Round 1 begins", PAUSE)));
   });
 
-  test("the phone's All settings row opens the full Settings screen", async ({ page }, info) => {
+  test("the phone's sheet sets Card size in place, and Show all settings opens the full Settings screen", async ({
+    page,
+  }, info) => {
     test.skip(!isPhone(info), "the Quick reference rows are the phone sheet's own; wide mode's menu has Settings");
     test.setTimeout(120_000);
     await newGame(page);
     await openPause(page, true);
+    const cardSize = (): Promise<string> =>
+      page.evaluate(async () => {
+        const { appSession } = (await import("/src/session.ts")) as unknown as {
+          appSession: () => { settings: { cardSize: string } };
+        };
+        return appSession().settings.cardSize;
+      });
+    await pressStop(page, true, PAUSE, "table:card-size:large", async () => (await cardSize()) === "large");
     await pressStop(page, true, PAUSE, "quick:settings", async () =>
       (await activeScenes(page)).includes("SettingsOverlay"),
     );

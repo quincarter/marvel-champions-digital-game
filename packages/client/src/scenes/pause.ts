@@ -39,6 +39,7 @@
  */
 import Phaser from "phaser";
 import { addPressShield } from "../ui/press-shield.js";
+import type { CardSize } from "../settings.js";
 import { playableScenarioOffer } from "@mc/cards";
 import { POOL_DEPS, POOL_ENCOUNTER_SETS, POOL_SCENARIOS } from "../content/pool.js";
 import { accent, hit, ink, signal, status, surface, typeRole, type TypeSpec } from "../tokens.js";
@@ -69,6 +70,8 @@ import {
   guideRowDetailOf,
   guideRowInfoOf,
   nextGuidePrefsAfterRow,
+  cardSizeRowInfoOf,
+  nextSettingsAfterCardSize,
   nextSettingsAfterToggle,
   settingsRowInfoOf,
   type GuideRowInfo,
@@ -285,7 +288,7 @@ export class PauseOverlay extends Phaser.Scene {
       // on the standalone Settings screen, which wide mode's menu links to and the phone had no way to reach.
       {
         id: "settings",
-        title: "All settings",
+        title: "Show all settings",
         detail: "Sound, card size, villain phase and more.",
         open: () => this.scene.launch(SCENES.settings),
       },
@@ -380,7 +383,12 @@ export class PauseOverlay extends Phaser.Scene {
           kind: "phone",
           quickReferenceIds: quickReferenceRows.map((row) => row.id),
           momentIds: this.#momentIds,
-          tableRowIds: phoneLogShown ? [] : tableRows.map((row) => row.id),
+          tableRowIds: phoneLogShown
+            ? []
+            : [
+                ...cardSizeRowInfoOf(appSession().settings).options.map((option) => `card-size:${option.value}`),
+                ...tableRows.map((row) => row.id),
+              ],
           guideRowIds,
           confirmingConcede: this.#confirmingConcede,
           guidedRunActive: guidedRunActive && !phoneLogShown,
@@ -1108,6 +1116,7 @@ export class PauseOverlay extends Phaser.Scene {
     const heights = contentSlotHeights([
       ...content.guideRunRows,
       content.tableHeading,
+      content.cardSizeRow,
       ...content.tableRows,
       content.guideHeading,
       content.guideLevelRow,
@@ -1156,9 +1165,10 @@ export class PauseOverlay extends Phaser.Scene {
         ink.secondary,
       ),
     );
+    this.#captureInto(container, () => this.#drawCardSizeRow(toScreen(content.cardSizeRow), runOffset + 1, stops));
     tableRows.forEach((row, index) => {
       this.#captureInto(container, () =>
-        this.#drawTableRow(toScreen(content.tableRows[index]!), row, runOffset + index + 1, stops),
+        this.#drawTableRow(toScreen(content.tableRows[index]!), row, runOffset + index + 2, stops),
       );
     });
 
@@ -1174,7 +1184,7 @@ export class PauseOverlay extends Phaser.Scene {
       ),
     );
     const stopIds: string[] = [];
-    const guideBaseIndex = runOffset + 1 + tableRows.length + 1; // guide-run rows + tableHeading + every table row + guideHeading
+    const guideBaseIndex = runOffset + 2 + tableRows.length + 1; // guide-run rows + tableHeading + Card size + every table row + guideHeading
     if (levelRow && levelRow.kind === "segmented") {
       this.#captureInto(container, () =>
         this.#drawGuideLevelRow(toScreen(content.guideLevelRow), levelRow, guideBaseIndex, stops),
@@ -1188,6 +1198,65 @@ export class PauseOverlay extends Phaser.Scene {
       stopIds.push(row.id);
     });
     return stopIds;
+  }
+
+  /**
+   * Card size, as a quick setting on the phone's sheet (the owner: the cards were too small to read and the phone had
+   * no way to change it mid-game). Its title, then one segment per size, the selected one in guide yellow.
+   */
+  #drawCardSizeRow(rect: Rect, index: number, stops: Map<string, FocusStop>): void {
+    const info = cardSizeRowInfoOf(appSession().settings);
+    label(this, rect.x, rect.y, info.title.toUpperCase(), typeRole.rowTitle, surface.paper.hex, 1);
+    const gap = 4;
+    const EDGE_INSET = 2;
+    const top = rect.y + 22;
+    const height = rect.height - 22;
+    const cellWidth = (rect.width - EDGE_INSET - gap * (info.options.length - 1)) / info.options.length;
+    info.options.forEach((option, i) => {
+      const cellRect: Rect = { x: rect.x + i * (cellWidth + gap), y: top, width: cellWidth, height };
+      const selected = info.selected === option.value;
+      const activate = (): void => this.#setCardSize(option.value);
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "quiet",
+          label: "",
+          type: typeRole.label,
+          rect: cellRect,
+          onClick: activate,
+          clip: this.#lowerClip,
+          suppressClick: this.#lowerSuppressClick,
+        }),
+      );
+      const g = this.add.graphics();
+      g.fillStyle(selected ? signal.caution.hex : surface.ink.hex, 1).fillRect(
+        cellRect.x,
+        cellRect.y,
+        cellRect.width,
+        cellRect.height,
+      );
+      g.lineStyle(2, selected ? signal.caution.hex : surface.paper.hex, 1).strokeRect(
+        cellRect.x + 1,
+        cellRect.y + 1,
+        cellRect.width - 2,
+        cellRect.height - 2,
+      );
+      const text = this.add
+        .text(
+          cellRect.x + cellRect.width / 2,
+          cellRect.y + cellRect.height / 2,
+          option.label,
+          textStyle(typeRole.label, selected ? surface.ink.hex : surface.paper.hex),
+        )
+        .setOrigin(0.5);
+      fitText(text, cellRect.width - 8, typeRole.label.size);
+      stops.set(`table:card-size:${option.value}`, this.#lowerStop(cellRect, index, activate));
+    });
+  }
+
+  /** A card size picked on the phone's sheet: the table behind it redraws at the new size, as Settings does. */
+  #setCardSize(value: CardSize): void {
+    appSession().settings = nextSettingsAfterCardSize(appSession().settings, value);
+    this.#draw();
   }
 
   #drawGuideLevelRow(

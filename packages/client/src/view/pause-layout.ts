@@ -361,6 +361,9 @@ const PHONE_GUIDE_LEVEL_ROW_HEIGHT = 52;
  * under either, just the label and its button, `scenes/pause.ts`'s own draw). */
 const PHONE_GUIDE_RUN_ROW_HEIGHT = hit.target;
 
+/** Card size's row: its title line, then the segments at a full touch height. */
+const PHONE_CARD_SIZE_ROW_HEIGHT = 22 + hit.target;
+
 /** The "Table" and "Guide" groups' own rows, in content space (`y` from the group's own top) — see `PausePhoneLayout.lowerContent`. */
 export interface PausePhoneLowerContent {
   /**
@@ -370,6 +373,8 @@ export interface PausePhoneLowerContent {
    */
   readonly guideRunRows: readonly Rect[];
   readonly tableHeading: Rect;
+  /** Card size, the owner's reason to want settings mid-game on a phone: first under "Table", one segment per size. */
+  readonly cardSizeRow: Rect;
   readonly tableRows: readonly Rect[];
   readonly guideHeading: Rect;
   readonly guideLevelRow: Rect;
@@ -392,7 +397,13 @@ function lowerContentOf(
       ? guideRunRows[guideRunRows.length - 1]!.y + guideRunRows[guideRunRows.length - 1]!.height + PHONE_GROUP_GAP
       : 0;
   const tableHeading: Rect = { x, y: guideRunBottom, width, height: PHONE_HEADING_HEIGHT };
-  const tableTop = tableHeading.y + tableHeading.height + 8;
+  const cardSizeRow: Rect = {
+    x,
+    y: tableHeading.y + tableHeading.height + 8,
+    width,
+    height: PHONE_CARD_SIZE_ROW_HEIGHT,
+  };
+  const tableTop = cardSizeRow.y + cardSizeRow.height + PHONE_ROW_GAP;
   const tableHeights = tableDetails.map((detail) => toggleRowHeight(detail, width));
   const tableRows = stackedRowsOf(tableTop, x, width, tableHeights, PHONE_ROW_GAP);
   const tableBottom =
@@ -415,6 +426,7 @@ function lowerContentOf(
   return {
     guideRunRows,
     tableHeading,
+    cardSizeRow,
     tableRows,
     guideHeading,
     guideLevelRow,
