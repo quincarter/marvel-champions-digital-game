@@ -13,7 +13,6 @@
  * every screen and the music player, never covering a search field (`CHROME_SCENES`).
  */
 import Phaser from "phaser";
-import extrasChimeUrl from "../audio/sfx/extras-unlocked.mp3?url";
 import type { Track } from "../audio/music-catalog.js";
 import { signal, surface, typeRole } from "../tokens.js";
 import { textStyle } from "../ui/theme.js";
@@ -49,8 +48,6 @@ const ABOVE_SCREENS: ReadonlySet<string> = new Set([
 const EXTRAS_CHECK_MS = 1000;
 const EXTRAS_NOTICE_HOLD_MS = 4200;
 const EXTRAS_NOTICE_SLIDE_MS = 320;
-const EXTRAS_CHIME_KEY = "sfx:extras-unlocked";
-const EXTRAS_CHIME_VOLUME = 0.7;
 /** The widest the pill opens out on a tablet or desktop, so it never runs the length of the bar. */
 const PILL_MAX_WIDTH = 360;
 
@@ -194,7 +191,7 @@ export class MusicButtonScene extends Phaser.Scene {
   /** The notice: top right on a tablet or desktop, sliding in from the edge; across the top on a phone, sliding down. */
   #noticeExtras(items: readonly ExtrasNewsItem[]): void {
     const { label, title } = extrasNewsHeadline(items);
-    this.#tink();
+    appSession().music?.playEffect("extras-unlocked");
     this.#notice?.container.destroy();
     this.#notice = null;
     const { width, height } = this.scale.gameSize;
@@ -258,23 +255,6 @@ export class MusicButtonScene extends Phaser.Scene {
         });
       },
     });
-  }
-
-  /**
-   * The unlock chime (the owner's pick, 2026-10-17), loaded on first use. It lives in `audio/sfx/`, outside `music/`,
-   * so the jukebox never lists it. It plays through the sound manager, so Sound off mutes it like the music.
-   */
-  #tink(): void {
-    if (!appSession().settings.sound) return;
-    if (this.cache.audio.exists(EXTRAS_CHIME_KEY)) {
-      this.sound.play(EXTRAS_CHIME_KEY, { volume: EXTRAS_CHIME_VOLUME });
-      return;
-    }
-    this.load.audio(EXTRAS_CHIME_KEY, extrasChimeUrl);
-    this.load.once(`filecomplete-audio-${EXTRAS_CHIME_KEY}`, () =>
-      this.sound.play(EXTRAS_CHIME_KEY, { volume: EXTRAS_CHIME_VOLUME }),
-    );
-    if (!this.load.isLoading()) this.load.start();
   }
 
   #togglePlayer(): void {

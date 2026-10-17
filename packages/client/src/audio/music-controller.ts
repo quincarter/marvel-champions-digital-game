@@ -31,6 +31,14 @@ import {
 } from "./music-catalog.js";
 import { extras } from "../progression/progression.js";
 import { earnedSongsOf, nextShuffled } from "../view/music-player.js";
+import { SOUND_EFFECT_VOLUME, type SoundEffect } from "../view/sound-effects.js";
+import extrasUnlockedUrl from "./sfx/extras-unlocked.mp3?url";
+import handRefillUrl from "./sfx/hand-refill.mp3?url";
+
+const SOUND_EFFECT_URLS: Readonly<Record<SoundEffect, string>> = {
+  "extras-unlocked": extrasUnlockedUrl,
+  "hand-refill": handRefillUrl,
+};
 
 /** Default BGM volume when unmuted (0.0 to 1.0). Sits cleanly under UI sound. */
 export const DEFAULT_MUSIC_VOLUME = 0.45;
@@ -75,6 +83,8 @@ export interface MusicController {
   progress(): { readonly seek: number; readonly duration: number } | null;
   /** Calls `listener` each time a song starts; returns the way to stop. */
   onTrackStart(listener: (track: Track) => void): () => void;
+  /** A sound effect over the music (`view/sound-effects.ts`), loaded on first use; muted with the music. */
+  playEffect(effect: SoundEffect): void;
   syncSettings(settings: Settings): void;
   stop(fadeDurationMs?: number): void;
 }
@@ -226,6 +236,21 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     const sound = this.#currentSound as (Phaser.Sound.BaseSound & { readonly seek?: number }) | null;
     if (!sound?.isPlaying) return null;
     return { seek: sound.seek ?? 0, duration: sound.duration };
+  }
+
+  playEffect(effect: SoundEffect): void {
+    if (!appSession().settings.sound) return;
+    const key = `sfx:${effect}`;
+    const play = (): void => {
+      this.sound.play(key, { volume: SOUND_EFFECT_VOLUME[effect] });
+    };
+    if (this.cache.audio.exists(key)) {
+      play();
+      return;
+    }
+    this.load.audio(key, SOUND_EFFECT_URLS[effect]);
+    this.load.once(`filecomplete-audio-${key}`, play);
+    if (!this.load.isLoading()) this.load.start();
   }
 
   onTrackStart(listener: (track: Track) => void): () => void {

@@ -66,6 +66,7 @@ import { reviewHandleRect, showReviewHandle } from "../view/villain-review.js";
 import type { TableHold } from "../view/villain-replay.js";
 import type { SessionState } from "../store/session-store.js";
 import { CHROME_SCENES, SCENES } from "./keys.js";
+import { refilledHand } from "../view/sound-effects.js";
 import { HoverPreview, isMousePointer } from "../ui/card-hover-preview.js";
 import { hoverArea } from "../view/card-hover.js";
 import { sheetIsCovered } from "../view/choice-sheet-sync.js";
@@ -670,6 +671,9 @@ export class BoardScene extends Phaser.Scene {
       appSession().gameLog = this.#log;
       this.#noteTabChanges(state);
       this.#motion.land(state.lastEvents);
+      // The end-of-turn draw up to hand size gets its own sound, as the cards are dealt (not for a resumed game's past).
+      if (state.resumedHistory.length === 0 && refilledHand(state.lastEvents))
+        appSession().music?.playEffect("hand-refill");
       // A hero going down is the one change nobody may miss. The last one
       // standing falling is the game ending instead, and Game Over says that.
       if (!state.game.outcome) {
