@@ -68,11 +68,9 @@ so the same code is not tested twice. `pnpm e2e:verify` runs the same gate ahead
 
 ### What CI runs
 
-- **Checks** (`.github/workflows/checks.yml`): lint and format on every pull request.
-- **CI** (`.github/workflows/netlify-deploy.yml`): typecheck, the unit tests in shards, a client build, and a Netlify
-  deploy: a preview for each pull request, production for `main`.
-  Its "Tests / All tests" job waits for every test job and is the one check the branch ruleset requires; a ruleset
-  can't match check names with a wildcard, and a pull request skips the test jobs it can't affect.
+- **CI** (`.github/workflows/netlify-deploy.yml`): lint and format, typecheck, the unit tests in shards, a client
+  build, and a Netlify deploy: a preview for each pull request, production for `main`. Its "All checks" job passes
+  when everything but the deploy passes, and is the one check the branch ruleset requires.
 - **Release on Merge to Main** (`.github/workflows/release-on-merge.yml`): keeps the release pull request current and
   publishes the release when it merges.
 - **E2E** (`.github/workflows/e2e.yml`): dispatch only.

@@ -78,39 +78,3 @@ jobs:
         env:
           # Heads this job's report on the run's summary page (vitest.config.ts).
           TEST_REPORT_TITLE: ${{ matrix.title }}
-
-  # The one check a branch ruleset requires ("Tests / All tests"). A ruleset can't match check names with a wildcard,
-  # and the planner leaves out unit-test jobs a pull request can't affect, so a required "Unit tests (engine)" would
-  # wait forever on a pull request that doesn't touch the engine. This job reports on every run instead: it waits for
-  # every job above (a matrix job's result covers all its entries) and fails if any of them failed or was cancelled.
-  # A skipped job passes. Its first step fails if a job is added to this file without being added to `needs`, so the
-  # list can't go stale.
-  gate:
-    name: All tests
-    needs: [typecheck, plan, unit]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          sparse-checkout: .github/workflows
-      - name: Check that every job is gated
-        run: |
-          f=.github/workflows/tests.yml
-          jobs=$(yq -r '.jobs | keys | .[] | select(. != "gate")' "$f" | sort)
-          needs=$(yq -r '.jobs.gate.needs[]' "$f" | sort)
-          missing=$(comm -23 <(echo "$jobs") <(echo "$needs"))
-          if [ -n "$missing" ]; then
-            echo "::error::Add these jobs to the gate's needs in tests.yml: $missing"
-            exit 1
-          fi
-      - name: Check the results
-        env:
-          NEEDS: ${{ toJSON(needs) }}
-        run: |
-          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
-          bad=$(echo "$NEEDS" | jq -r 'to_entries[] | select(.value.result == "failure" or .value.result == "cancelled") | .key')
-          if [ -n "$bad" ]; then
-            echo "::error::Failed or cancelled: $bad"
-            exit 1
-          fi
