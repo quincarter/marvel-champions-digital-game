@@ -67,8 +67,9 @@ interface ExternalBrowserPlugin {
   open(options: { url: string }): Promise<void>;
 }
 
-// Capacitor warns on a second registration, so the plugin's proxy is made once.
-let externalBrowser: Promise<ExternalBrowserPlugin> | null = null;
+// Capacitor warns on a second registration, so the plugin's proxy is made once. It is boxed: the proxy answers every
+// property, `then` included, so a promise resolved with it bare would call it as a thenable and never settle.
+let externalBrowser: Promise<{ readonly plugin: ExternalBrowserPlugin }> | null = null;
 
 /**
  * Opens `url` outside the game: a new browser tab on the web, and on iOS, where Capacitor hands a navigation away
@@ -85,10 +86,10 @@ export function openExternal(url: string): void {
       void import("@tauri-apps/plugin-opener").then(({ openUrl }) => openUrl(url)).catch(() => {});
       return;
     case "android-browser":
-      externalBrowser ??= import("@capacitor/core").then(({ registerPlugin }) =>
-        registerPlugin<ExternalBrowserPlugin>("ExternalBrowser"),
-      );
-      void externalBrowser.then((plugin) => plugin.open({ url })).catch(viaWindow);
+      externalBrowser ??= import("@capacitor/core").then(({ registerPlugin }) => ({
+        plugin: registerPlugin<ExternalBrowserPlugin>("ExternalBrowser"),
+      }));
+      void externalBrowser.then(({ plugin }) => plugin.open({ url })).catch(viaWindow);
       return;
     case "window":
       viaWindow();
