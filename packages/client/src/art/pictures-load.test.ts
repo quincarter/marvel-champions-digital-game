@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type Phaser from "phaser";
-import { ensurePictureLoaded, type Picture } from "./pictures.js";
+import { ensurePictureLoaded, PICTURE_BATCH_MS, type Picture } from "./pictures.js";
 
 /** A stand-in for the DOM `Image`: the test settles each one by hand. */
 class FakeImage {
@@ -177,5 +177,44 @@ describe("ensurePictureLoaded decodes off the main thread where it can", () => {
     FakeImage.all[0]!.onload?.();
     await settled();
     expect(textures.added).toEqual(["wallpaper"]);
+  });
+});
+
+describe("ensurePictureLoaded holds arrivals until the batch is in", () => {
+  test("pictures loading together tell a scene once, after the last one arrives", async () => {
+    const textures = new FakeTextures();
+    const scene = new FakeScene(textures);
+    let redraws = 0;
+    const redraw = (): void => {
+      redraws++;
+    };
+    const covers: Picture[] = [1, 2, 3].map((n) => ({ key: `cover-${n}`, url: `/cover-${n}.png` }));
+    for (const cover of covers) ensurePictureLoaded(scene.asScene, cover, redraw);
+    FakeImage.all[0]!.onload?.();
+    FakeImage.all[1]!.onload?.();
+    await settled();
+    expect(redraws).toBe(0);
+    expect(textures.added).toEqual(["cover-1", "cover-2"]);
+    FakeImage.all[2]!.onload?.();
+    await settled();
+    expect(redraws).toBe(1);
+  });
+
+  test("a picture that never arrives holds the others only so long", async () => {
+    vi.useFakeTimers();
+    try {
+      const textures = new FakeTextures();
+      const scene = new FakeScene(textures);
+      let redraws = 0;
+      ensurePictureLoaded(scene.asScene, { key: "fast", url: "/fast.png" }, () => redraws++);
+      ensurePictureLoaded(scene.asScene, { key: "slow", url: "/slow.png" }, () => redraws++);
+      FakeImage.all[0]!.onload?.();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(redraws).toBe(0);
+      await vi.advanceTimersByTimeAsync(PICTURE_BATCH_MS);
+      expect(redraws).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -88,12 +88,52 @@ export function ensurePictureLoaded(scene: Phaser.Scene, picture: Picture, onRea
   loads.set(picture.key, waiters);
   const settle = (source: HTMLImageElement | HTMLCanvasElement | null): void => {
     loads.delete(picture.key);
-    if (!source) return;
-    if (!textures.exists(picture.key)) textures.addImage(picture.key, source as HTMLImageElement);
-    for (const waiter of waiters) if (waiter.scene.sys.isActive()) waiter.onReady();
+    if (source && !textures.exists(picture.key)) textures.addImage(picture.key, source as HTMLImageElement);
+    notify(textures, loads, source ? waiters : []);
   };
   decodedPicture(picture.url).then(settle, () => settle(null));
   return null;
+}
+
+/** How long arrived pictures wait for the rest of their batch before their scenes are told anyway. */
+export const PICTURE_BATCH_MS = 300;
+
+interface Notices {
+  readonly waiters: Waiter[];
+  timer: ReturnType<typeof setTimeout> | null;
+}
+const notices = new WeakMap<Phaser.Textures.TextureManager, Notices>();
+
+/**
+ * Tells the waiters a picture is ready, once every picture still loading has arrived too (or `PICTURE_BATCH_MS` has
+ * passed). A screen redraws whole when art arrives, so the Saga's ten covers landing one by one redrew it ten times,
+ * about 21 s of frozen frames at Chrome's 6x CPU slowdown (#223); held together, they cost one redraw. A scene that
+ * passes the same callback for every picture is told once per batch.
+ */
+function notify(
+  textures: Phaser.Textures.TextureManager,
+  loads: ReadonlyMap<string, Waiter[]>,
+  arrived: readonly Waiter[],
+): void {
+  let pending = notices.get(textures);
+  if (!pending) {
+    pending = { waiters: [], timer: null };
+    notices.set(textures, pending);
+  }
+  for (const waiter of arrived) {
+    if (!pending.waiters.some((other) => other.scene === waiter.scene && other.onReady === waiter.onReady))
+      pending.waiters.push(waiter);
+  }
+  const batch = pending;
+  if (loads.size === 0) flushNotices(batch);
+  else if (batch.waiters.length > 0 && batch.timer === null)
+    batch.timer = setTimeout(() => flushNotices(batch), PICTURE_BATCH_MS);
+}
+
+function flushNotices(pending: Notices): void {
+  if (pending.timer !== null) clearTimeout(pending.timer);
+  pending.timer = null;
+  for (const waiter of pending.waiters.splice(0)) if (waiter.scene.sys.isActive()) waiter.onReady();
 }
 
 /**

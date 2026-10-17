@@ -18,6 +18,8 @@
  *   --quiet <ms>        How long without a long task counts as settled (default 3000)
  *   --click <x,y>       After load settles, click there and measure until quiet again. Repeatable.
  *   --label <name>      Names the preceding --click in the report
+ *   --after <ms>        Frames are counted for at least this long after each click (default 4000)
+ *   --shot <path>       Screenshot the page at the end of the last run
  *   --cpuprofile <path> Also write a CPU profile of the last run (open it in DevTools' Performance panel)
  *   --json <path>       Write the full result as JSON
  *   --seed <n>          Seeds Math.random, so every run (and a before/after pair) picks the same title art (default 1)
@@ -38,6 +40,8 @@ function parse(argv) {
     cpuprofile: null,
     json: null,
     seed: 1,
+    after: 4000,
+    shot: null,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -70,6 +74,12 @@ function parse(argv) {
         break;
       case "--cpuprofile":
         options.cpuprofile = value;
+        break;
+      case "--after":
+        options.after = Number(value);
+        break;
+      case "--shot":
+        options.shot = value;
         break;
       case "--seed":
         options.seed = Number(value);
@@ -198,8 +208,14 @@ async function run(browser, base, options, profilePath) {
   for (const click of options.clicks) {
     const from = await page.evaluate(() => performance.now());
     await page.mouse.click(click.x, click.y);
-    const end = await settle(page, from, options.quiet);
+    // A screen can stutter without one long task (many 40 ms frames), so its frames are counted for at least `after`.
+    await page.waitForTimeout(options.after);
+    const end = Math.max(await settle(page, from, options.quiet), from + options.after);
     result.screens.push({ label: click.label, ...(await window_(page, from, end)) });
+  }
+  if (options.shot) {
+    await mkdir(path.dirname(options.shot), { recursive: true });
+    await page.screenshot({ path: options.shot });
   }
   if (profilePath) {
     const { profile } = await cdp.send("Profiler.stop");

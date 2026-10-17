@@ -300,8 +300,19 @@ const isPlayerDeckCard = (card: AnyCard): card is PlayerCard => PLAYER_DECK_TYPE
 
 const isCardList = (pool: CardPool): pool is readonly AnyCard[] => Array.isArray(pool);
 
-const indexPool = (pool: CardPool): ReadonlyMap<string, AnyCard> =>
-  isCardList(pool) ? new Map(pool.map((card) => [card.id as string, card])) : new Map(Object.entries(pool));
+/**
+ * Indexes are kept per pool object: a pool is never edited once built, and the deck list checks every deck against the
+ * same pool, so re-indexing all its cards for each deck was most of the cost of opening Decks & Collection (#223).
+ */
+const poolIndexes = new WeakMap<object, ReadonlyMap<string, AnyCard>>();
+const indexPool = (pool: CardPool): ReadonlyMap<string, AnyCard> => {
+  let index = poolIndexes.get(pool);
+  if (!index) {
+    index = isCardList(pool) ? new Map(pool.map((card) => [card.id as string, card])) : new Map(Object.entries(pool));
+    poolIndexes.set(pool, index);
+  }
+  return index;
+};
 
 const copies = (n: number): string => (n === 1 ? "1 copy" : `${n} copies`);
 
