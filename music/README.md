@@ -4,8 +4,10 @@ The game's soundtrack. It is laid out the same way as [`art/`](../art/README.md)
 the folder a track sits in says where it plays, so **adding a file to the right
 folder is all it should take**. Formats: `mp3`, `ogg`, `m4a`.
 
-> The client does not play music yet. This is the layout the audio code is to
-> glob when it lands; until then these folders only hold the files.
+> Sound effects (a punch, a card played, the "New song earned" chime) do not go
+> here: every file in `music/` is a song the jukebox lists and the shuffle can
+> pick. They live in [`packages/client/src/audio/sfx/`](../packages/client/src/audio/sfx/README.md),
+> whose README says how to add one.
 
 | Put it in                 | Named                 | Plays                                                                                                            |
 | ------------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------- |

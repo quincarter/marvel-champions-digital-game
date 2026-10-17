@@ -120,6 +120,9 @@ section current so any session can resume from GitHub alone.
   it fails or if the working tree differs from the commit. `pnpm e2e:verify` runs the same gate ahead of time. Do not
   push past it with `--no-verify` to get around a failure: fix the game or the spec. An agent's own specs passing is
   not the suite passing; run the whole suite before the last push of a piece of client work.
+- **Sound effects (the user, 2026-10-17):** short game sounds live in `packages/client/src/audio/sfx/`, never in
+  `music/` (the jukebox lists everything there). That folder's README says how to add one, give a card its own sound
+  (`CARD_SOUNDS`), and trim a long file (`scripts/trim-mp3.mjs`).
 - **Changelog (changie).** Every change that lands on `main` carries an unreleased changelog fragment: run `changie new -k <Kind> -b "<one line>"` (kinds in `.changie.yaml`: Added, Changed, Fixed, Engine, Content, Docs) and commit the `.changes/unreleased/*.yaml` it writes with the code. Wait a second between two `changie new` calls — fragments are named by kind and timestamp to the second, and a second call in the same second overwrites the first. Releases batch the fragments into `CHANGELOG.md` ([CONTRIBUTING.md](CONTRIBUTING.md#releases) covers the release flow).
 - Favor explicit, inspectable game state over cleverness — this is the kind of system where a bug means a card behaves wrong in a way a real player will notice ("why didn't Toughness stop that damage?"), so state and effect resolution should be easy to log and step through.
 - When implementing a card or keyword, cite the RRG section or FAQ ruling being followed in code comments only when the behavior is non-obvious from the card text alone (e.g. an interaction order that isn't intuitive).
