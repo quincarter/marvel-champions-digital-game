@@ -1,0 +1,5 @@
+# Code owners: GitHub asks these people to review any pull request that touches matching paths.
+# Later lines win over earlier ones. Personal-account repositories can't use GitHub teams; if this repository moves
+# to an organization, replace @quincarter with that organization's team (for example @<org>/maintainers).
+
+* @quincarter
