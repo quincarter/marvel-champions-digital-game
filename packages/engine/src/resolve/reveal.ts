@@ -31,6 +31,7 @@ import {
   areaOfPlayer,
   mainSchemeFor,
   cardBackOf,
+  sameGameArea,
 } from "../query.js";
 import { cardsInPlay, enemyTeamDecider, traitGrantReach, type EffectContext } from "../select.js";
 import type { RevealKeyword, RevealSource, StackFrame } from "../stack.js";
@@ -262,7 +263,11 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
           const identity = cardOf(ctx.state, p.identity.instanceId);
           return identity?.type === "hero_identity" && identity.obligationCardId === card.id;
         });
-        if (linked && (!owner || owner.eliminated)) {
+        // An owner in another game area than the revealer (Kang Stage 2B) is treated as eliminated (FFG ruling Sep 21,
+        // 2023, post-RRG 1.5 #89; RRG 1.8 "Obligation", p. 30: "cannot be given to the specified player for any reason").
+        const unreachable =
+          !!owner && !sameGameArea(areaOfPlayer(ctx.state, owner.playerId), areaOfPlayer(ctx.state, frame.playerId));
+        if (linked && (!owner || owner.eliminated || unreachable)) {
           // Can't be given: ignore its ability, remove it from the game, reveal another card.
           moveCard(ctx, frame.instanceId, { kind: "removedFromGame" });
           setFrame(ctx, { ...frame, stage: "done" });

@@ -22,7 +22,7 @@ import {
 } from "../actions.js";
 import { createCtx } from "../ctx.js";
 import { candidateDefenseBar, type DefenseBar } from "../defense-claim.js";
-import { addPools, EMPTY_POOL, requirementTotal, satisfies } from "../resources.js";
+import { addPools, EMPTY_POOL, requirementTotal, satisfies, satisfiesPrinted } from "../resources.js";
 import type { AbilityId } from "@mc/content";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { cardOf, deckDiscardStillThere, getPlayer, playerOrder } from "../query.js";
@@ -168,7 +168,7 @@ function costPayable(
     const pool = priceOrNull(ctx, playerId, [source], exclude, payingFor);
     if (pool) most = addPools(most, pool);
   }
-  return satisfies(most, requirement);
+  return (plan.cost ?? cost)?.printedResourcesOnly ? satisfiesPrinted(most, requirement) : satisfies(most, requirement);
 }
 
 function matchesPattern(
@@ -182,6 +182,7 @@ function matchesPattern(
   /** Who controls `selfId` when that is not `controllerOf` (a spent card out of play, `spentCardCandidates`). */
   controllerOverride?: PlayerId,
 ): boolean {
+  if (spillUnheard(pattern, event)) return false;
   if (!matchesOwnFields(state, pattern, event, timing, selfId, deps, controllerOverride)) return false;
   // "After [this] or [that]" (`EventPattern.anyOf`): one whole alternative must match as well.
   return (
@@ -190,6 +191,22 @@ function matchesPattern(
       matchesPattern(state, alternative, event, timing, selfId, deps, controllerOverride),
     )
   );
+}
+
+/**
+ * An attack's overkill-spill condition (`overkillSpill`, `resolve/event.ts` `overkillSpillConditions`) is heard only by
+ * "attacks and damages" (a `damage` or `damaged` result required, here or in an alternative): the spill is damage from
+ * the attack but not an attack against that character (RRG 1.8 "Overkill", p. 31), so "after X attacks", "after X is
+ * attacked" and the attack's other conditions answer the attack once.
+ */
+function spillUnheard(pattern: EventPattern, event: TriggerEvent): boolean {
+  if ((event.kind !== "attack" && event.kind !== "enemyAttack") || event.overkillSpill !== true) return false;
+  if (pattern.selfIs === "target" || pattern.selfIs === "either") return true;
+  const asksDamage = (one: EventPattern): boolean =>
+    (one.requireResults?.damage ?? 0) > 0 ||
+    (one.requireResults?.damaged ?? 0) > 0 ||
+    (one.anyOf ?? []).some((alternative) => asksDamage(alternative));
+  return !asksDamage(pattern);
 }
 
 /** A pattern's own fields, without its `anyOf` alternatives. */
@@ -226,6 +243,7 @@ function matchesOwnFields(
       if (acting === null) return false;
       const named = uncontrolledYouOf(state, selfId);
       if (named !== null && acting !== named) return false;
+      if (pattern.youAreIdentity === true && !attackIsAgainstIdentityOf(state, event, acting)) return false;
       return matchesRest(state, pattern, event, selfId, null, deps);
     }
     // "[enemy] attacks you": the attack's "you" at this timing, whichever of the player's characters was attacked.
@@ -236,6 +254,7 @@ function matchesOwnFields(
     } else if (!subjects.players.includes(controller)) {
       return false;
     }
+    if (pattern.youAreIdentity === true && !attackIsAgainstIdentityOf(state, event, controller)) return false;
   }
   return matchesRest(state, pattern, event, selfId, controller, deps);
 }
@@ -497,6 +516,17 @@ export function asksTraitGrants(deps: EngineDeps): boolean {
  */
 function attackYouOf(event: Extract<TriggerEvent, { kind: "enemyAttack" }>, timing: WindowTiming): PlayerId {
   return timing === "response" ? event.targetPlayerId : event.attackedPlayerId;
+}
+
+/**
+ * `EventPattern.youAreIdentity`: the attack's target character (the defender once one is declared; an overkill spill's
+ * condition names the character it damaged) is `you`'s identity. RRG 1.8 "You, Your" (p. 49); FFG rulings 225.1
+ * (undated), 226 (July 18, 2024) and 151 (March 15, 2024).
+ */
+function attackIsAgainstIdentityOf(state: GameState, event: TriggerEvent, you: PlayerId): boolean {
+  const character =
+    event.kind === "enemyAttack" || event.kind === "boostCardTurnedFaceup" ? (event.targetInstanceId ?? null) : null;
+  return character !== null && character === getPlayer(state, you)?.identity.instanceId;
 }
 
 /** Who "you" is when an encounter card's ability triggers on an event. */

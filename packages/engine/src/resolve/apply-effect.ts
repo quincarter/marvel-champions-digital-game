@@ -163,6 +163,7 @@ import {
   cannotActivate,
   cannotChangeForm,
   cannotEnterPlay,
+  formOnlyFault,
   maxPerPlayerReached,
   cannotFlip,
   cannotThwart,
@@ -348,6 +349,22 @@ function admitUnderPlayerMax(ctx: Ctx, ids: readonly InstanceId[], forPlayer: Pl
         : maxPerPlayerReached(ctx.state, id, forPlayer) !== null;
     if (refused) emit(ctx, { type: "putIntoPlayRefused", instanceId: id, playerId: forPlayer, reason: "maxPerPlayer" });
     return !refused;
+  });
+}
+
+/**
+ * RRG 1.8 "Play, Put into Play" (p. 32): "Cards with the text '[type] form only' can only be played or put into play by
+ * a player whose identity is in the specified form." The player is the one the card would enter play under. A refused
+ * card stays where it was, logged `putIntoPlayRefused { reason: "wrongForm" }`. A card already in play is not entering,
+ * and one put into play facedown is exempt (contributor's rules call 2026-10-16 (bluefireF5ran): a facedown card shows
+ * no text, and no official source addresses it). Returns the ids that may proceed.
+ */
+function admitFormOnly(ctx: Ctx, ids: readonly InstanceId[], forPlayer: PlayerId): readonly InstanceId[] {
+  const inPlay = cardsInPlay(ctx.state);
+  return ids.filter((id) => {
+    if (inPlay.includes(id) || formOnlyFault(ctx.state, id, forPlayer) === null) return true;
+    emit(ctx, { type: "putIntoPlayRefused", instanceId: id, playerId: forPlayer, reason: "wrongForm" });
+    return false;
   });
 }
 
@@ -1886,7 +1903,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         // The unique rule is about entering play (RRG 1.8 "Unique Icon", pp. 45–46): a card moved there was in play.
         const admitted = admitUniqueEntry(
           ctx,
-          named.filter((id) => !alreadyInPlay.includes(id)),
+          admitFormOnly(
+            ctx,
+            named.filter((id) => !alreadyInPlay.includes(id)),
+            controller,
+          ),
           controller,
           frame.selfInstanceId,
         );
@@ -1918,7 +1939,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         for (const id of entered) enterPlay(ctx, id, controller);
         return;
       }
-      const unmatched = admitUniqueEntry(ctx, targets(effect.card), controller, frame.selfInstanceId);
+      const named =
+        effect.facedown === true ? targets(effect.card) : admitFormOnly(ctx, targets(effect.card), controller);
+      const unmatched = admitUniqueEntry(ctx, named, controller, frame.selfInstanceId);
       // A card put into play facedown shows no title, so it is no copy of anything ("copies … by title", p. 28).
       const admitted = effect.facedown === true ? unmatched : admitUnderPlayerMax(ctx, unmatched, controller);
       const placed: InstanceId[] = [];
@@ -2385,7 +2408,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     }
     case "removeAccelerationToken":
-      removeAccelerationToken(ctx);
+      for (const from of effect.target ? targets(effect.target) : []) removeAccelerationToken(ctx, from);
       return;
     case "grantAdditionalMulligans": {
       // MC27 p. 22 node 5 (docs/phase7-wave5.md §3.27): read by the mulligan step (§3.26) when it reaches the player.

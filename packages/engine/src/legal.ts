@@ -68,6 +68,7 @@ import { createCtx } from "./ctx.js";
 import { areaCostReductionFor } from "./effects.js";
 import { applyCommand } from "./engine.js";
 import { attachCostCard, attachCostHosts, dealDamageCostChoices } from "./attach-cost.js";
+import { removeThreatCostChoices } from "./remove-threat-cost.js";
 import { encounterSearchCostCandidates } from "./encounter-search-cost.js";
 import { resolveAbilityCostCandidates } from "./resolve-ability-cost.js";
 import { encounterDiscardCostRange } from "./encounter-discard-cost.js";
@@ -811,7 +812,19 @@ function damageChoiceSets(
   cost: AbilityCost | undefined,
   given: readonly CostChoiceSet[],
 ): readonly CostChoiceSet[] {
-  const sets = healChoiceSets(state, deps, playerId, source, cost, dealToChoiceSets(state, cost, given));
+  const base = healChoiceSets(state, deps, playerId, source, cost, dealToChoiceSets(state, cost, given));
+  // "Remove 3 threat from a scheme →" (`AbilityCost.removeThreat.choose`): one variant per card that can pay.
+  const threat = cost?.removeThreat;
+  const threatCards = threat?.choose ? removeThreatCostChoices(state, deps, source, playerId, threat) : [];
+  const sets =
+    threat?.choose && threatCards.length > 0
+      ? base.flatMap(({ costChoices, target }) =>
+          threatCards.map((card) => ({
+            costChoices: { ...costChoices, [threat.choose!.slot]: [card] },
+            target: target ?? card,
+          })),
+        )
+      : base;
   const choose = cost?.dealDamage?.choose;
   if (!choose) return sets;
   const candidates = dealDamageCostChoices(state, deps, source, playerId, choose);

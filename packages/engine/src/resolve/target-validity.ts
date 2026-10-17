@@ -55,11 +55,15 @@
  * "Choose (Option)", p. 12; `optionLacksValidTarget`). A printed cost scripted as leading effects is no part of the
  * effect (`AbilityDefinition.costEffects`; RRG 1.8 "Cost", p. 13).
  *
+ * A character that cannot be healed by the ability (`RuleSpec cannotBeHealed`) is no target for its heal: healing damage
+ * is one of the listed effects on a target (p. 42), and moving damage off a character heals it (ruling, Dec 8, 2023,
+ * Ruling 125: "you cannot target him with Tic-Tac-Toe while Protect the Senator is in play").
+ *
  * An effect that names the chosen slot and is not one of the judged kinds (`thwart`, `removeThreat`, `dealDamage`,
- * `attack`, `discardFromPlay`, `flipCard`, `defeat` aimed straight at the slot, `moveThreat` from it) is assumed able to affect
+ * `attack`, `discardFromPlay`, `flipCard`, `defeat`, `heal` aimed straight at the slot, `moveThreat` from it) is assumed able to affect
  * the target: the "multiple effects" bullet makes the target valid if any one effect can, so an effect this module
  * cannot judge never makes a target invalid. An attack that also stuns its target keeps a target that cannot take its
- * damage.
+ * damage, and so does a piercing attack on a target with a tough card (`attackPiercesTough`; ruling Jul 11, 2025).
  */
 
 import type { AbilityDefinition, EngineDeps } from "../abilities.js";
@@ -69,10 +73,12 @@ import { permanentStopsLeaving } from "../effects.js";
 import { areaOfPlayer, getInstance, getPlayer, isScheme } from "../query.js";
 import { tuckRoom } from "../tuck-limit.js";
 import {
+  cannotBeHealed,
   cannotFlip,
   cannotLeavePlay,
   cannotTakeDamage,
   iconsInPlay,
+  lostAttackKeywords,
   patrolledBy,
   schemeActivationDestination,
 } from "../rules.js";
@@ -89,7 +95,7 @@ import {
   selectTargets,
   reachOf,
 } from "../select.js";
-import type { CardSelector, EffectSpec, TargetRef } from "../spec.js";
+import type { AttackKeyword, CardSelector, EffectSpec, TargetRef } from "../spec.js";
 import type { GameState } from "../state.js";
 import { carriedByEvent, type TriggerEvent } from "../trigger-events.js";
 import { createCtx } from "../ctx.js";
@@ -174,7 +180,7 @@ const isSlotRef = (ref: TargetRef, slot: string): boolean => ref.kind === "slot"
 
 type JudgedEffect = Extract<
   EffectSpec,
-  { kind: "thwart" | "removeThreat" | "dealDamage" | "attack" | "discardFromPlay" | "flipCard" | "defeat" }
+  { kind: "thwart" | "removeThreat" | "dealDamage" | "attack" | "discardFromPlay" | "flipCard" | "defeat" | "heal" }
 >;
 
 const isJudged = (effect: EffectSpec): effect is JudgedEffect =>
@@ -184,7 +190,8 @@ const isJudged = (effect: EffectSpec): effect is JudgedEffect =>
   effect.kind === "attack" ||
   effect.kind === "discardFromPlay" ||
   effect.kind === "flipCard" ||
-  effect.kind === "defeat";
+  effect.kind === "defeat" ||
+  effect.kind === "heal";
 
 /**
  * Whether this card can be discarded from play by an ability of `source`: no `cannotLeavePlay` (one limited to card
@@ -203,6 +210,24 @@ export const canDiscardFromPlay = (
   const sourceCardId = source === null ? undefined : getInstance(state, source)?.cardId;
   return !permanentStopsLeaving(state, deps, id, sourceCardId) && !cannotLeavePlay(state, deps, id, sourceCardId, true);
 };
+
+/**
+ * Whether an attack with these keywords would discard a tough status card from `id`, the character it attacks: it has
+ * piercing (not lost against `id`, `attacksLoseKeywords`) and `id` has a tough card. RRG 1.8 "Piercing" (p. 32) discards
+ * them "before this attack deals damage", so piercing is an effect of the attack on its target besides its damage, and
+ * one the target "cannot take damage" does not stop: ruling July 11, 2025 (Ruling 69.76), "Piercing Strike's alteration
+ * effect makes it so that an enemy with Tough can still be its target, even if that same enemy 'cannot take damage,'
+ * resulting in the Tough status card being removed" (RRG 1.8 "Target", p. 43: valid if any part can affect it).
+ */
+export const attackPiercesTough = (
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  keywords: readonly AttackKeyword[],
+): boolean =>
+  keywords.includes("piercing") &&
+  !lostAttackKeywords(state, deps, id).includes("piercing") &&
+  statusActive(state, id, "tough", deps);
 
 /** The character an `attack` effect attacks with: its `attacker`, else the controller's identity (`apply-effect.ts`). */
 const attackerOf = (
@@ -240,6 +265,8 @@ function attackCanDamage(
     basic: false,
     ...(effect.keywords ? { keywords: effect.keywords } : {}),
   });
+  // Piercing that would discard the target's tough card affects it whether or not it can take the damage.
+  if (attackPiercesTough(state, deps, id, has)) return true;
   return !cannotTakeDamage(state, deps, id, [attacker, via], {
     attackerInstanceId: attacker,
     cardInstanceId: via,
@@ -333,6 +360,8 @@ function judgedCanAffect(
   if (effect.kind === "discardFromPlay") return canDiscardFromPlay(state, deps, id, context.selfInstanceId);
   // "You cannot flip …" (docs/phase7-wave7.md §3.64): a card a `cannotFlip` rule names is no target for a flip.
   if (effect.kind === "flipCard") return !cannotFlip(state, deps, id);
+  // A card a `cannotBeHealed` rule names for this source is no target for its heal (Ruling 125, Dec 8, 2023).
+  if (effect.kind === "heal") return !cannotBeHealed(state, deps, id, context.selfInstanceId);
   // A card already defeated, in play only while its When Defeated abilities resolve, cannot be defeated again
   // (`alreadyDefeated`; RRG 1.8 "When Defeated Abilities", p. 48). The rules that stop a defeat as it applies
   // ("cannot be defeated", Permanent) are not judged here, as before.
@@ -487,7 +516,7 @@ function partCanAffect(
 /**
  * Whether anything in play could make a judged effect unable to affect its target right now: a patrol minion engaged
  * with `playerId`, a crisis icon in their game area, a `threatCannotBeRemoved`, `cannotThwart`, `cannotTakeDamage`,
- * `cannotLeavePlay` or `cannotFlip` rule, a Permanent card in play, or a defeated card still in play for its When
+ * `cannotLeavePlay`, `cannotFlip` or `cannotBeHealed` rule, a Permanent card in play, or a defeated card still in play for its When
  * Defeated abilities. The
  * common case (none of them) skips judging each candidate, which the offer paths (`legalActions`, every trigger
  * window) ask about constantly.
@@ -502,6 +531,7 @@ function targetsCanBeInvalid(state: GameState, deps: EngineDeps, playerId: Playe
     activeRules(state, deps, "cannotTakeDamage").length > 0 ||
     activeRules(state, deps, "cannotLeavePlay").length > 0 ||
     activeRules(state, deps, "cannotFlip").length > 0 ||
+    activeRules(state, deps, "cannotBeHealed").length > 0 ||
     anyAlreadyDefeated(state) ||
     cardsInPlay(state).some((id) => isPermanent(state, id, deps))
   );
@@ -1250,7 +1280,7 @@ function holdsAttackInstruction(value: unknown): boolean {
  * The ability cannot be initiated when it has at least one such instruction and none of them is valid: one with another
  * enemy it may attack ("Deal 2 damage to the villain. Deal 1 damage to each minion", with the guard minion engaged)
  * still initiates, and the villain is skipped as it resolves (Q49). Nothing is refused on a guess: an instruction
- * inside a branch or an option (the ability may resolve without attacking, as `openLabelAttack` allows), one whose
+ * inside a branch or an option (the ability may resolve without damaging an enemy: an attack on nobody), one whose
  * target or attacker reads a binding, one that could also name a card that is not an enemy, and an effect container
  * this module does not open all count as valid. A stunned identity never reaches here (`abilityTargetFault`).
  */

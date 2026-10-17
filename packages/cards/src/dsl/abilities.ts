@@ -1839,8 +1839,9 @@ export const keepsExhausted = (target: TargetQuery, opts: { readonly while?: Pre
  * "You can control 1 additional [X] upgrade that has the restricted keyword." (Venom / Flash Thompson, `vnm`
  * 20001a/b; Side Holster, 20021; docs/phase7-wave3.md §3.22). RRG 1.8 "Restricted" (p. 38) fixes the base limit at
  * two; each rule raises it by `amount` for `player` (absent: the rule's own speaker, the card's controller —
- * "you can control", not "any player can"). `cards` scopes the extra room to matching held cards only ("1
- * additional **[Weapon]** upgrade"); omit it for an unscoped raise.
+ * "you can control", not "any player can"). `cards` scopes the extra room to matching cards that weigh on the limit
+ * ("1 additional **[Weapon]** upgrade"; a "Counts as 2 restricted cards" Weapon matches, FFG ruling 152, Mar 22,
+ * 2024); omit it for an unscoped raise.
  */
 export const restrictedLimit = (
   amount: number,
@@ -2080,6 +2081,14 @@ export const flipThis: AbilityCost = { flipSelf: true };
 /** "Spend a [energy] resource" → `spend({ energy: 1 })`; "Spend [E][M][P]" → one of each. */
 export const spend = (resources: ResourceRequirement | number): AbilityCost => ({ resources });
 /**
+ * "Spend [energy][mental][physical] printed resources →" (We Are One, `sm` 27120): RRG 1.8 "Printed" (p. 35), a wild
+ * resource cannot be spent as another type for such a cost, so each typed slot takes a resource of that type.
+ */
+export const spendPrinted = (resources: ResourceRequirement | number): AbilityCost => ({
+  resources,
+  printedResourcesOnly: true,
+});
+/**
  * "Spend 3 resources of the same type →" (Kree Combat Armor, `gmw` 16131; docs/phase7-wave3.md §3.43): `n` resources,
  * all of one type the payer chooses. A wild counts as any type; a two-type card may give one icon and overpay the other.
  */
@@ -2309,6 +2318,15 @@ export const removeThreatCost = (from: TargetRef, n = 1): AbilityCost => ({ remo
  */
 export const removeThreatUpToCost = (from: TargetRef, max: number): AbilityCost => ({
   removeThreat: { from, amount: { choose: { min: 1, max } } },
+});
+/**
+ * "Remove 3 threat from a scheme … →" (Cosmic Awareness, `mts` 21039): the payer picks the card, one matching `query`
+ * that holds all `n` threat (and that threat can come off), bound to `slot` for the effects after the arrow
+ * ("remove 1 additional threat from that scheme" is `chosen(slot)`). With none the cost cannot be paid, so the ability
+ * is not offered (RRG 1.8 "Cost", p. 13; FFG ruling November 29, 2023 #114).
+ */
+export const removeThreatFromChosenCost = (slot: string, query: TargetQuery, n: number): AbilityCost => ({
+  removeThreat: { from: { kind: "slot", slot }, amount: n, choose: { slot, query } },
 });
 /**
  * "Choose to either exhaust your hero or spend 2 resources of any type →" (The Grand Collection 1B, `gmw` 16073b;
@@ -2806,9 +2824,18 @@ const againstYou: Partial<EventPattern> = { playerIs: "controller", usesAttacked
 
 /** The options of `on.enemyAttacks` / `on.villainAttacks`. */
 export interface EnemyAttackOptions {
+  /** "Attacks you": the attacked player. */
   readonly againstYou?: boolean;
-  /** "After [enemy] attacks and deals damage": the attack's `damage` result (a response). */
+  /**
+   * "After [enemy] attacks and deals damage": the attack's `damage` result (a response). With `againstYou`, to a
+   * character you control (Toad's "attacks and damages a character you control").
+   */
   readonly damages?: boolean;
+  /**
+   * "Attacks and damages you", where "you" is your identity (RRG 1.8 "You, Your", p. 49; FFG rulings 225.1 (undated)
+   * and 226 (July 18, 2024)): a defending ally's damage is not heard (`EventPattern.youAreIdentity`).
+   */
+  readonly damagesYou?: boolean;
   /**
    * "When an enemy **resolves** an attack": the interrupt window at the attack's damage step (`TriggerEvent
    * enemyAttackDamageStep`), once the defender is declared and the boost cards have resolved, before any damage is
@@ -2840,12 +2867,16 @@ const enemyAttacks = (by: Who, opts: EnemyAttackOptions = {}): EventPattern =>
     : pattern(
         "enemyAttack",
         asSource(by),
-        opts.againstYou ? againstYou : {},
-        opts.damages || opts.undefended
+        opts.againstYou || opts.damagesYou ? againstYou : {},
+        opts.damages || opts.damagesYou || opts.undefended
           ? {
-              requireResults: { ...(opts.damages ? { damage: 1 } : {}), ...(opts.undefended ? { undefended: 1 } : {}) },
+              requireResults: {
+                ...(opts.damages || opts.damagesYou ? { damage: 1 } : {}),
+                ...(opts.undefended ? { undefended: 1 } : {}),
+              },
             }
           : {},
+        opts.damagesYou ? { youAreIdentity: true } : {},
       );
 
 /** A basic power, as `basicPowerUsing`/`basicPowerUsed` name it. */

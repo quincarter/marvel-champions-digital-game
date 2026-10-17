@@ -35,7 +35,6 @@ import {
   heal,
   heroAction,
   heroResponse,
-  instead,
   moveCards,
   not,
   option,
@@ -221,7 +220,10 @@ export const NEXT_EVOL_PRECON_CABLE_DECK: AbilityRegistry = defineAbilities({
   "40024.deadpool-forced-interrupt": forcedInterrupt(
     when.defeated("self", { consequential: true }),
     { would: true },
-    instead(heal(3, self), addAccelerationToken()),
+    // Not `instead(...)`: that cancels the defeat outright. Heal and let the defeat re-check hit points, so 3 healed
+    // from 6 damage on 3 hit points still defeats him (FFG ruling #150, 2024-03-15; RRG 1.8 "Damage", p. 14).
+    heal(3, self),
+    addAccelerationToken(),
   ),
 
   "40025.deathlok-response": heroResponse(

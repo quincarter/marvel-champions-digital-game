@@ -8,6 +8,7 @@ import {
   defineAbilities,
   discard,
   draw,
+  eachPlayer,
   forcedInterrupt,
   gets,
   heal,
@@ -38,17 +39,13 @@ import {
  * to your identity" (16123, 16125: `attachesTo: { kind: "yourIdentity" }`). Only each card's own printed Hero
  * Action (and Obedience Potion's stat penalty, The Poison's Forced Interrupt) needs scripting here.
  *
- * **"Any player can do this" (Obedience Potion 16123, The Poison 16125) needed no new primitive.** An attachment
- * entering play (`resolve/reveal.ts`'s `case "attachment"`) never sets `controllerId`, so it stays `null` — the
- * scenario controls it (RRG 1.8 "Ownership and Control", p. 31). `actionAbilities` (`packages/engine/src/
- * legal.ts`) offers a card's own "action" trigger to every player when `controllerOf` is `null`
- * (`controller !== null && controller !== playerId` only excludes a player when the card *has* a controller), so
- * a Hero Action on an unowned attachment is already usable by any hero-form player. Cloak of Hercules/The
- * Beyonder's Blazer/Vandarian Power Stone (16122/16124/16126, attached to an enemy, no such clause printed) get
- * the same reach for the same reason — attaching to an enemy carries no single-player "your" reading to begin
- * with, so the printed clause on the identity-attached pair is what *restores* the default the engine already
- * gives every unowned encounter card, not something narrower that needs suppressing elsewhere. No card in this
- * set is scripted as if it belonged to one player only.
+ * **"Any player can do this" (Obedience Potion 16123, The Poison 16125) is `triggerableBy: eachPlayer`.** The errata
+ * (RRG 1.8 p. 66, "Changed reminder text to rules text") makes it rules text, which replaces the attachment rule of
+ * RRG 1.8 p. 8 ("Only the player who controls the card to which that attachment is attached can trigger abilities or
+ * pay costs on that attachment"), as `triggerableBy` replaces it in `useAbility`. The triggering player pays the cost,
+ * so "Take 1 damage" is taken by that player's identity (`damageSelf`). Cloak of Hercules/The Beyonder's
+ * Blazer/Vandarian Power Stone (16122/16124/16126) attach to an enemy, which no player controls, so any player may
+ * already use them.
  *
  * **The Poison's "Forced Interrupt: When your turn begins" (16125)** is `forcedInterrupt(on.yourTurnBegins(), …)`. A
  * turn beginning opens an interrupt window before its response window (docs/phase7-wave3.md §3.46, RRG 1.8
@@ -67,7 +64,10 @@ export const GALACTIC_ARTIFACTS = defineAbilities({
     gets("atk", -1, { hostOfSelf: true }),
     gets("def", -1, { hostOfSelf: true }),
   ),
-  "16123.obedience-potion-action": heroAction({ cost: [takeDamageCost(1), spend({ mental: 2 })] }, discard(self)),
+  "16123.obedience-potion-action": heroAction(
+    { cost: [takeDamageCost(1), spend({ mental: 2 })], triggerableBy: eachPlayer },
+    discard(self),
+  ),
 
   // The Beyonder's Blazer (16124) — Attach to the enemy with the highest SCH (data). Hero Action: Place 2 threat
   // on the main scheme and spend 2 resources → discard.
@@ -85,7 +85,10 @@ export const GALACTIC_ARTIFACTS = defineAbilities({
   // Hero Action: Spend 3 resources of different types → discard. Any player can do this (see module docblock).
   // "3 resources of different types" is one of each typed resource — the same total as any other 3-resource cost,
   // just unable to be paid from a single type (RRG 1.8 "Resource Type", p. 37).
-  "16125.the-poison-action": heroAction({ cost: spend({ physical: 1, mental: 1, energy: 1 }) }, discard(self)),
+  "16125.the-poison-action": heroAction(
+    { cost: spend({ physical: 1, mental: 1, energy: 1 }), triggerableBy: eachPlayer },
+    discard(self),
+  ),
 
   // Vandarian Power Stone (16126) — Attach to the enemy with the lowest SCH (data). Hero Action: Spend [E][E][E] → discard.
   "16126.vandarian-power-stone-action": heroAction({ cost: spend({ energy: 3 }) }, discard(self)),

@@ -79,9 +79,10 @@ export const HLK_PACK_CARDS = defineAbilities({
   // for each damage you took from the attack (to a maximum of 5). `eventResult("damage")` reads the villain
   // attack's own dealt-damage result (`applyDamage`'s `addFrameVars(event.parentFrameId, { damage: … })` in
   // `packages/engine/src/resolve/event.ts`), the same key `when.villainAttacks({ damages: true })`'s
-  // `requireResults: { damage: 1 }` gates on.
+  // `requireResults: { damage: 1 }` gates on. "Damage you took" is your identity's (RRG 1.8 "You, Your", p. 49), so
+  // `damagesYou`: an ally's damage is not counted, and an overkill spill onto your identity is its own condition.
   "10016.youll-pay-for-that-response": response(
-    when.villainAttacks({ againstYou: true, damages: true }),
+    when.villainAttacks({ damagesYou: true }),
     { label: "thwart" },
     removeThreatFromAScheme(scaled(eventResult("damage"), { max: 5 })),
   ),

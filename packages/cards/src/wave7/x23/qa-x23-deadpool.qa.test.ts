@@ -963,8 +963,9 @@ describe("Armed to the Teeth (44009): swapping with a card of the same title, an
     expect(restrictedStanding(r.state, WAVE7_DEPS, P1).load).toBe(1);
   });
 
-  // Q52 = B: Laser Swords counts 2 toward the limit and has no Restricted keyword itself, so only Restricted cards can be
-  // discarded to meet it. Katana (1) + Bazooka (1) fill the limit of 2; swapping Laser Swords in for Bazooka makes 3.
+  // Laser Swords counts 2 toward the limit and is itself one of the restricted cards that may be discarded to meet it
+  // (contributor's rules call 2026-10-16 (bluefireF5ran), reverses upstream Q52 = B); this picker discards the Katana.
+  // Katana (1) + Bazooka (1) fill the limit of 2; swapping Laser Swords in for Bazooka makes 3.
   it("swapping in Laser Swords (weight 2) over a Bazooka beside a Katana overfills the limit: the Katana is discarded to meet it", () => {
     let s = game([withExtra("deadpool-pool", BAZOOKA)]);
     const katana = inPlay(s, P1, KATANA);

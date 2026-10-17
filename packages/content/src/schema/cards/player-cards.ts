@@ -161,8 +161,9 @@ interface PlayerCardCommon extends BaseCard {
    * "Counts as N restricted cards." (Laser Swords 44055, Kurt's Cutlasses 48004; docs/phase7-wave7.md §3.82): how much
    * this card weighs on its controller's restricted limit (RRG 1.8 "Restricted", p. 38) while it is in play faceup.
    * An integer of at least 2; absent for every other card. The card does not have the restricted keyword, and
-   * `validateCard` refuses the two together: text that names "restricted cards" does not see it, and it is never a
-   * card discarded for the limit (§4.1 Q52 = B).
+   * `validateCard` refuses the two together. It is still one of its controller's restricted cards (a single card):
+   * text that names "restricted cards" sees it, and it may be discarded for the limit, freeing its whole weight (fork
+   * contributor's rules call 2026-10-16 (bluefireF5ran), reversing upstream §4.1 Q52 = B).
    */
   readonly restrictedWeight?: number;
 }

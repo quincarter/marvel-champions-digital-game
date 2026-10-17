@@ -1418,16 +1418,17 @@ describe("Laser Swords (44055): +1 ATK per encounter icon in play (to +4); count
     );
   });
 
-  describe("the restricted limit (it counts as 2, Q52 = B: it is not itself a restricted card)", () => {
+  // contributor's rules call 2026-10-16 (bluefireF5ran), reverses upstream Q52 = B: it is one restricted card weighing 2.
+  describe("the restricted limit (it counts as 2 and is itself a restricted card)", () => {
     const inPlayUpgrade = (s: GameState, id: InstanceId) => inst(s, identityOf(s)).attachments.includes(id);
     it("beside no restricted card it is played and stays (2 of the limit 2)", () => {
       const r = playCard(heroGame(), "44055", 3);
       expect(inPlayUpgrade(r.state, r.id)).toBe(true);
       expect(profile(r.state, identityOf(r.state)).atk).toBe(3);
     });
-    // Playing over the limit is legal (RRG 1.8 "Restricted", p. 38); the cards discarded for it carry the keyword
-    // (Q52 = B), so the Bazooka is the only card offered either way.
-    it("beside one restricted card (Bazooka) it is played, making 3: the Bazooka is discarded and the Swords stay", () => {
+    // Playing over the limit is legal (RRG 1.8 "Restricted", p. 38); the Swords are offered beside the Bazooka (fork
+    // contributor's rules call 2026-10-16 (bluefireF5ran), reverses upstream Q52 = B), and here the Bazooka is chosen.
+    it("beside one restricted card (Bazooka) it is played, making 3: either may go; the Bazooka is discarded", () => {
       const bazooka = attached(heroGame(), "44052");
       expect(playRefused(bazooka.state, "44055", 3)).toBe(false);
       const offered: string[][] = [];
@@ -1435,14 +1436,14 @@ describe("Laser Swords (44055): +1 ATK per encounter icon in play (to +4); count
         bazooka.state,
         "44055",
         3,
-        discardingRestricted((options) => options, offered),
+        discardingRestricted(() => [bazooka.id], offered),
       );
-      expect(offered).toEqual([[bazooka.id]]);
+      expect(offered).toEqual([[bazooka.id, r.id].sort()]);
       expect(inPlayUpgrade(r.state, r.id)).toBe(true);
       expect(inPlayUpgrade(r.state, bazooka.id)).toBe(false);
       expect(playerOf(r.state, P1).discard).toContain(bazooka.id);
     });
-    it("a Bazooka played after Laser Swords is played and discarded at once: the Swords hold both restricted places", () => {
+    it("a Bazooka played after Laser Swords is played: either may go; discarding the Bazooka keeps the Swords", () => {
       const g = swords(heroGame());
       expect(playRefused(g.state, "44052", 2)).toBe(false);
       const offered: string[][] = [];
@@ -1450,9 +1451,10 @@ describe("Laser Swords (44055): +1 ATK per encounter icon in play (to +4); count
         g.state,
         "44052",
         2,
-        discardingRestricted((options) => options, offered),
+        discardingRestricted((options) => options.filter((id) => id !== g.id), offered),
       );
-      expect(offered).toEqual([[r.id]]);
+      // contributor's rules call 2026-10-16 (bluefireF5ran), reverses upstream Q52 = B: the Swords are offered too.
+      expect(offered).toEqual([[g.id, r.id].sort()]);
       expect(inPlayUpgrade(r.state, g.id)).toBe(true);
       expect(inPlayUpgrade(r.state, r.id)).toBe(false);
       expect(playerOf(r.state, P1).discard).toContain(r.id);

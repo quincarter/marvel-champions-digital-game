@@ -468,16 +468,15 @@ describe("§3.49 AbilityCost.attach: attach as a cost", () => {
     expect(mustPlayer(state, p2).discard).toContain(charmOf(state, p2));
   });
 
-  it("the charm's current host is a legal pick: it stays, no move, and the cost is paid", () => {
+  // Ruling May 10, 2024 (post-RRG 1.5 #182): "an upgrade can't attach to a character it's already attached to".
+  it("the charm's current host is not a legal pick: the cost cannot be paid by naming it", () => {
     const { state: start, goon } = board();
     const charm = charmOf(start);
     const { state: onGoon } = play(start, TO_GOON.card);
-    const { state, events } = play(onGoon, TRANSFER.card, { host: [goon] });
-    expect(typed(events, "cardFound")[0]).toMatchObject({ alreadyThere: true, deckShuffled: false });
-    expect(typed(events, "cardMoved").filter((e) => e.instanceId === charm)).toEqual([]);
-    expect(mustInstance(state, goon).attachments).toEqual([charm]);
-    expect(mustInstance(state, goon).damage).toBe(2);
-    expect(mustInstance(state, identityId(state)).counters.paid).toBe(1);
+    expect(mustInstance(onGoon, goon).attachments).toEqual([charm]);
+    expect(offeredHosts(onGoon, TRANSFER.card) ?? []).not.toContain(goon);
+    const { result } = attempt(onGoon, TRANSFER.card, { host: [goon] });
+    expect(result.ok).toBe(false);
   });
 
   it("dealing damage is paid even when it is all prevented (RRG 1.8 'Cost', p. 14): the effects still resolve", () => {

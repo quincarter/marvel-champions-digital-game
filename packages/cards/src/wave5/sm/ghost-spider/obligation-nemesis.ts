@@ -11,6 +11,7 @@ import {
   defineAbilities,
   each,
   enemyAttack,
+  find,
   exhaustYourHero,
   forcedInterrupt,
   gainsTrait,
@@ -99,7 +100,15 @@ export const GHOST_SPIDER_OBLIGATION_NEMESIS = defineAbilities({
   // Stacy to your hand. (Module docblock: George Stacy is moved to hand before Worried Father is removed.)
   "27025.worried-father-action": alterEgoAction(
     { cost: exhaustYourHero },
-    moveCards(cards(each(query("support", { host: self, facedown: true }))), "hand"),
+    // Ruling May 10, 2024 (180): George Stacy comes to hand from wherever he is: attached here (facedown, so a
+    // name query cannot see him) or, when the search failed, anywhere else.
+    moveCards(
+      anyOfCards(
+        cards(each(query("support", { host: self, facedown: true }))),
+        cards(find({ name: "George Stacy" }, { owner: you })),
+      ),
+      "hand",
+    ),
     moveCards(cards(self), "removedFromGame"),
   ),
 

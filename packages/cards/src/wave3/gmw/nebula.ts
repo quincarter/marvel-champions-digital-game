@@ -299,7 +299,7 @@ export const NEBULA = defineAbilities({
   // card at random in your hand from the game. [star] Boost: Give the villain 1 additional boost card for this
   // activation.
   "16138.pirate-commander-forced-response": forcedResponse(
-    on.enemyAttacks("self", { damages: true }),
+    on.enemyAttacks("self", { damagesYou: true }),
     moveCards(zone("hand", you, { random: 1 }), "removedFromGame"),
   ),
   // "Give the villain 1 additional boost card for this activation" is `modifyAttack({ extraBoostCards })`, not
@@ -310,7 +310,7 @@ export const NEBULA = defineAbilities({
   // Pirate Lackey — Quickstrike (data). Forced Response: After this minion attacks and damages you, remove the top
   // card of your deck from the game. [star] Boost: Give the villain 1 additional boost card for this activation.
   "16139.pirate-lackey-forced-response": forcedResponse(
-    on.enemyAttacks("self", { damages: true }),
+    on.enemyAttacks("self", { damagesYou: true }),
     moveCards(topOfDeck(1, you), "removedFromGame"),
   ),
   "16139.boost": boost(extraBoostCardsForVillain()),

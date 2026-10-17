@@ -114,6 +114,7 @@ import {
   canHaveAttached,
   cannotEnterPlay,
   damageUsedStat,
+  formOnlyFault,
   maxPerPlayerReached,
   cannotFlip,
   canTakePlayerAttack,
@@ -1447,6 +1448,9 @@ export function explainQuery(
             putIntoPlayHostCandidates(state, deps, id, forPlayer).length === 0
           : maxPerPlayerReached(state, id, forPlayer) !== null;
       if (overMax) return "cannotEnterPlay";
+      // Nor a "[type] form only" card while that player's identity is in another form (RRG 1.8 "Play, Put into Play",
+      // p. 32), as the effect refuses it (`admitFormOnly`).
+      if (formOnlyFault(state, id, forPlayer) !== null) return "cannotEnterPlay";
     }
   }
   if (query.canFlip && cannotFlip(state, context.deps ?? DEFAULT_DEPS, id)) return "cannotFlip";
@@ -4089,7 +4093,7 @@ export function constantAbilityRefs(
  * A facedown card and a card treated as another type still have none: neither is a text box "treated as if it were
  * blank", so a `textBoxCannotBeBlanked` rule (§3.31 of wave 5) does not bring them back.
  */
-function unblankedAbilityRefs(state: GameState, id: InstanceId): readonly AbilityReference[] {
+export function unblankedAbilityRefs(state: GameState, id: InstanceId): readonly AbilityReference[] {
   const card = cardOf(state, id);
   if (!card) return [];
   // A facedown card's own text is blank while it is facedown, and so is a card whose text box is treated as blank
@@ -4159,16 +4163,18 @@ export function mainSchemeASideRefs(state: GameState): readonly AbilityReference
 }
 
 /**
- * RRG "Restricted": the limit is two per *player*, across every card they control. The cards with the keyword: what
- * text naming "restricted cards" sees, and what is discarded for the limit (docs/phase7-wave7.md §4.1 Q52 = B). What
- * the limit is compared with is `restrictedLoadOf`.
+ * RRG "Restricted": the limit is two per *player*, across every card they control. A player's restricted cards: every
+ * card in play they control that weighs on the limit (`restrictedWeightOf` > 0), the keyword cards and a card that
+ * "counts as N restricted cards" alike. What text naming "restricted cards" sees, and what is offered for the discard
+ * when over the limit. The weighted card is one card here; what the limit is compared with is `restrictedLoadOf`.
+ * Contributor's rules call 2026-10-16 (bluefireF5ran), reversing upstream Q52 = B.
  */
 export const restrictedCardsOf = (
   state: GameState,
   playerId: PlayerId,
   deps: EngineDeps = DEFAULT_DEPS,
 ): readonly InstanceId[] =>
-  cardsInPlay(state).filter((id) => controllerOf(state, id) === playerId && hasKeyword(state, id, "restricted", deps));
+  cardsInPlay(state).filter((id) => controllerOf(state, id) === playerId && restrictedWeightOf(state, id, deps) > 0);
 
 /**
  * How much one card weighs on its controller's restricted limit (docs/phase7-wave7.md §3.82): the N of a printed

@@ -8,6 +8,9 @@ import {
   chooseCards,
   chooseOne,
   chooseTarget,
+  dealDamageToChosenCost,
+  discardUpToTopOfDeckCost,
+  removeThreatFromChosenCost,
   chosen,
   constant,
   costModifier,
@@ -39,7 +42,6 @@ import {
   self,
   spend,
   statOf,
-  sum,
   theMainScheme,
   theVillain,
   thwart,
@@ -94,20 +96,27 @@ const discardUpTo = (max: number, effectFor: (n: number) => EffectArg) =>
  */
 export const ADAM_WARLOCK_PACK_CARDS = defineAbilities({
   // Karmic Blast (21038) — Hero Action (attack): Deal 4 damage to an enemy and discard up to 4 cards from the top
-  // of your deck → deal 1 additional damage for each different aspect discarded this way (the exact composition
-  // docs/phase7-wave4.md §3.12/`dsl/wave4-primitives.test.ts` gives for this card).
+  // of your deck → deal 1 additional damage for each different aspect discarded this way. The 4 damage and the
+  // discard are the cost, so a stunned hero still pays them and only the additional damage is replaced (FFG ruling
+  // May 18, 2023 (8); RRG 1.8 "Cost Arrow Icon", p. 14).
   "21038.karmic-blast-action": heroAction(
-    { label: "attack" },
-    chooseTarget("enemy", query("enemy")),
-    discardUpTo(4, () => attack(sum(4, distinctAspectsOf(chosen("discarded"))), chosen("enemy"))),
+    {
+      label: "attack",
+      cost: [dealDamageToChosenCost(query("enemy"), 4, "enemy"), discardUpToTopOfDeckCost(4, "discarded")],
+    },
+    attack(distinctAspectsOf(chosen("discarded")), chosen("enemy")),
   ),
 
   // Cosmic Awareness (21039) — Hero Action (thwart): Remove 3 threat from a scheme and discard up to 4 cards from
-  // the top of your deck → remove 1 additional threat for each different aspect discarded this way.
+  // the top of your deck → remove 1 additional threat for each different aspect discarded this way. The 3 threat is
+  // part of the cost, so a scheme needs 3 threat to be chosen (FFG ruling November 29, 2023 #114) and a confused hero
+  // still removes it (ruling May 18, 2023 (8)).
   "21039.cosmic-awareness-action": heroAction(
-    { label: "thwart" },
-    chooseTarget("scheme", query("scheme")),
-    discardUpTo(4, () => thwart(sum(3, distinctAspectsOf(chosen("discarded"))), chosen("scheme"))),
+    {
+      label: "thwart",
+      cost: [removeThreatFromChosenCost("scheme", query("scheme"), 3), discardUpToTopOfDeckCost(4, "discarded")],
+    },
+    thwart(distinctAspectsOf(chosen("discarded")), chosen("scheme")),
   ),
 
   // Quantum Magic (21040) — Action: Choose a card in your discard pile → add that card to your hand.

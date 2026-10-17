@@ -1159,6 +1159,20 @@ export type GameEvent =
       readonly damage: number;
     }
   /**
+   * A character in play had more sustained damage than a `maxSustainedDamage` cap now allows (the cap came back after a
+   * blank, a [per_hero] amount fell, the card entered play over a damaged character): `amount` damage is removed,
+   * leaving `damage`, the cap. Ruling 69.114 (October 10, 2025): "once Boarding Party's ability is back in effect, it
+   * will immediately affect the amount of sustained damage Magneto has, possibly resulting in less damage on Magneto."
+   * Not a heal: no `damageHealed`, nothing a "when healed" ability answers, and "cannot be healed" does not stop it.
+   */
+  | {
+      readonly type: "damageAboveCapRemoved";
+      readonly instanceId: InstanceId;
+      readonly cardId: CardId;
+      readonly amount: number;
+      readonly damage: number;
+    }
+  /**
    * The card now showing faceup on top of `playerId`'s deck under a `topOfDeckFaceup` rule (docs/phase7-wave8.md
    * §3.48): logged when the rule turns on over a deck with a card in it, and each time the top card changes while it
    * holds (a draw, a discard, a swap, a shuffle, a deck reset, a card put on top), one card at a time. The card is
@@ -1849,8 +1863,10 @@ export type GameEvent =
        * `maxPerPlayer`: `playerId`, or the player who controls every host it could attach to, already controls as
        * many copies as its "Max N per player" allows (RRG 1.8 "Max, Maximum", p. 28: "A player cannot take control of
        * another copy of a 'Max 1 per player' card they already control"; docs/phase7-wave9.md §4.1 Q37 = A).
+       * `wrongForm`: a "[type] form only" card and `playerId`'s identity is in another form (RRG 1.8 "Play, Put into
+       * Play", p. 32).
        */
-      readonly reason: "noLegalHost" | "noSuchArea" | "cardType" | "cannotEnterPlay" | "maxPerPlayer";
+      readonly reason: "noLegalHost" | "noSuchArea" | "cardType" | "cannotEnterPlay" | "maxPerPlayer" | "wrongForm";
     }
   /**
    * A played upgrade whose host is the card its additional cost to play put into play (`additionalCostToPlay

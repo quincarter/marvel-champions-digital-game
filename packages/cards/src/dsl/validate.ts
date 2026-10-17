@@ -510,6 +510,7 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
     ...(cost.attach ? [cost.attach.to.slot, ...(cost.attach.bind ? [cost.attach.bind] : [])] : []),
     ...(cost.searchEncounterIntoPlay ? [cost.searchEncounterIntoPlay.slot] : []),
     ...(cost.dealDamage?.choose ? [cost.dealDamage.choose.slot] : []),
+    ...(cost.removeThreat?.choose ? [cost.removeThreat.choose.slot] : []),
     ...(cost.dealEncounterCardsTo ? [cost.dealEncounterCardsTo.slot] : []),
     ...(cost.healCharacter ? [cost.healCharacter.slot] : []),
     ...inPlayPicksOf(cost).flatMap(({ pick }) => [pick.slot, ...(pick.bindHosts ? [pick.bindHosts] : [])]),
@@ -1887,6 +1888,7 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
     if (cost.damageSelf !== undefined && typeof cost.damageSelf !== "number") scope.vars.add("cost.damageSelf");
     // "Remove [up to] N threat from [a card] →" records how much it removed (docs/phase7-wave9.md §3.7 (b)).
     if (cost.removeThreat) scope.vars.add("cost.removeThreat");
+    if (cost.removeThreat?.choose) scope.slots.add(cost.removeThreat.choose.slot);
     // A chosen "discard up to N cards from the top of your deck →" records how many it discarded (wave 8 §3.55).
     if (typeof cost.discardFromDeck === "object" && "choose" in cost.discardFromDeck)
       scope.vars.add("cost.discardFromDeck");

@@ -773,6 +773,14 @@ describe("Restricted limit with Kurt's Cutlasses (counts as 2) and Prehensile Ta
   }
   const here = (s: GameState, ids: readonly InstanceId[]): boolean[] => ids.map((id) => cardsInPlay(s).includes(id));
   const held = (s: GameState): InstanceId[] => inPlayIds(s, PISTOL);
+  // The Cutlasses are one restricted card weighing 2 and are offered for the limit like Laser Swords (contributor's
+  // rules call 2026-10-16 (bluefireF5ran), reversing upstream Q52 = B); these tests discard a Pistol when one is offered.
+  const keepCutlasses: Rule = (s) => {
+    const c = s.pendingChoice;
+    if (c?.prompt.kind !== "discardRestricted") return undefined;
+    const pistol = c.options.find((o) => inPlayIds(s, PISTOL).includes(o.optionId as InstanceId));
+    return pistol ? [pistol.optionId] : undefined;
+  };
 
   it("Plasma Pistol is a restricted upgrade; the Cutlasses and the Tail are not (no keyword)", () => {
     for (const code of [CUTLASSES, TAIL]) {
@@ -783,8 +791,8 @@ describe("Restricted limit with Kurt's Cutlasses (counts as 2) and Prehensile Ta
     );
   });
 
-  it("the Cutlasses alone fill the limit: a Pistol played beside them is the only choice and is discarded", () => {
-    const { state, ids } = playAll(start(), [CUTLASSES, PISTOL]);
+  it("the Cutlasses alone fill the limit: a Pistol played beside them is offered with them and is discarded", () => {
+    const { state, ids } = playAll(start(), [CUTLASSES, PISTOL], picker(keepCutlasses));
     expect(here(state, ids)).toEqual([true, false]);
     expect(discardCodes(state)).toContain(PISTOL);
     expect(held(state)).toEqual([]);
@@ -828,9 +836,9 @@ describe("Restricted limit with Kurt's Cutlasses (counts as 2) and Prehensile Ta
     expect(here(state, ids)).toEqual([true, true, true]);
   });
 
-  it("the Cutlasses, the Tail, a Pistol and a second Pistol: load 4 of 3, one Pistol goes (his choice), never the Cutlasses or the Tail", () => {
+  it("the Cutlasses, the Tail, a Pistol and a second Pistol: load 4 of 3, one Pistol goes (his choice), never the Tail", () => {
     const first = playAll(start(), [CUTLASSES, TAIL, PISTOL]);
-    const spied = spy(firstLegal);
+    const spied = spy(picker(keepCutlasses));
     const second = playAll(first.state, [PISTOL], spied.pick);
     const pistols = held(second.state);
     expect(pistols).toHaveLength(1);
@@ -839,8 +847,8 @@ describe("Restricted limit with Kurt's Cutlasses (counts as 2) and Prehensile Ta
     expect([cut.length, tail.length]).toEqual([1, 1]);
     const ask = spied.seen.find((p) => p.options.includes(first.ids[2]!));
     expect(ask).toBeDefined();
-    expect([...ask!.options].sort()).toEqual([first.ids[2]!, second.ids[0]!].sort());
-    expect(ask!.options).not.toContain(first.ids[0]!);
+    // contributor's rules call 2026-10-16 (bluefireF5ran), reverses upstream Q52 = B: the Cutlasses are offered too.
+    expect([...ask!.options].sort()).toEqual([first.ids[0]!, first.ids[2]!, second.ids[0]!].sort());
     expect(ask!.options).not.toContain(first.ids[1]!);
   });
 
@@ -849,7 +857,7 @@ describe("Restricted limit with Kurt's Cutlasses (counts as 2) and Prehensile Ta
     const keepOld = (s: GameState) => {
       const c = s.pendingChoice;
       if (!c || c.prompt.kind === "chooseTriggers") return undefined;
-      const wanted = c.options.find((o) => o.optionId !== first.ids[2]);
+      const wanted = c.options.find((o) => o.optionId !== first.ids[2] && o.optionId !== first.ids[0]);
       return wanted ? [wanted.optionId] : undefined;
     };
     const again = playAll(first.state, [PISTOL], picker(keepOld));
@@ -860,7 +868,7 @@ describe("Restricted limit with Kurt's Cutlasses (counts as 2) and Prehensile Ta
     const placed = playAll(start(), [CUTLASSES, TAIL, PISTOL]);
     // Caught Off Guard (Standard): "discard an upgrade or support you control", dealt to him at the end of the round.
     const tail = placed.ids[1]!;
-    const pickTail = picker(take(tail));
+    const pickTail = picker(take(tail), keepCutlasses);
     const base = stackEncounterDeck(placed.state, ADVANCE, CAUGHT_OFF_GUARD);
     const { state } = driveEventsPicking(DEPS, base, pickTail, endTurn());
     expect(cardsInPlay(state)).not.toContain(tail);

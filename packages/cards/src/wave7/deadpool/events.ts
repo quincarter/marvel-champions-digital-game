@@ -8,6 +8,7 @@ import {
   attackAnEnemy,
   cancelRevealedCard,
   chooseOne,
+  chooseOptions,
   chooseTarget,
   chosen,
   confuse,
@@ -71,7 +72,7 @@ import {
  * - **Barely a Scratch (44017), Da Bomb (44019), 'Pool Inspection (44023)**: the four encounter icons counted across
  *   every card in play (§3.77). Da Bomb and 'Pool Inspection read the count once, after their first sentence.
  * - **"I Got This" (44021)**: the four icon lines are the body of the one Hero Action (the data emits them as four
- *   constant refs, a card-data fix, see coverage.test.ts), in printed order, each resolved if able.
+ *   constant refs, a card-data fix, see coverage.test.ts), resolved in the order the player chooses (ruling #176).
  * - **Not my Responsibility (44022)**: "you or your ally" is a choice among the controller's identity and the allies
  *   the controller controls; `taken` so that no "additional damage" bonus applies (nothing deals it).
  */
@@ -147,14 +148,25 @@ export const DEADPOOL_EVENTS: AbilityRegistry = defineAbilities({
     modifyStat("atk", 1, chosen("ally"), "endOfPhase"),
   ),
 
+  // Ruling #176 (post-RRG 1.5): the icons are checked as the card is played (each bullet is an option offered only
+  // for an icon in play then), and the player resolves the offered bullets in the order they choose. An icon that
+  // leaves play meanwhile does not skip its bullet.
   "44021.i-got-this-action": heroAction(
-    ifThen(valueAtLeast(encounterIconsInPlay(["crisis"]), 1), damageAnEnemy(3)),
-    ifThen(valueAtLeast(encounterIconsInPlay(["acceleration"]), 1), removeThreatFromAScheme(2)),
-    ifThen(valueAtLeast(encounterIconsInPlay(["amplify"]), 1), [
-      chooseTarget("ally", query("ally", { controller: "you" })),
-      ready(chosen("ally")),
+    chooseOptions(4, [
+      option("Crisis: deal 3 damage to an enemy", { when: valueAtLeast(encounterIconsInPlay(["crisis"]), 1) }, [
+        damageAnEnemy(3),
+      ]),
+      option(
+        "Acceleration: remove 2 threat from a scheme",
+        { when: valueAtLeast(encounterIconsInPlay(["acceleration"]), 1) },
+        [removeThreatFromAScheme(2)],
+      ),
+      option("Amplify: ready an ally you control", { when: valueAtLeast(encounterIconsInPlay(["amplify"]), 1) }, [
+        chooseTarget("ally", query("ally", { controller: "you" })),
+        ready(chosen("ally")),
+      ]),
+      option("Hazard: draw 1 card", { when: valueAtLeast(encounterIconsInPlay(["hazard"]), 1) }, [draw(1)]),
     ]),
-    ifThen(valueAtLeast(encounterIconsInPlay(["hazard"]), 1), draw(1)),
   ),
 
   "44022.not-my-responsibility-interrupt": interrupt(

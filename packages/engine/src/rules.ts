@@ -18,6 +18,7 @@ import {
   currentName,
   encounterFace,
   getInstance,
+  getPlayer,
   identityFace,
   isPlayerCardType,
   mainSchemeFor,
@@ -35,6 +36,7 @@ import {
   activeRules,
   cardsInPlay,
   categoriesOf,
+  constantYouOf,
   focusedMainSchemeId,
   gliderMainSchemeId,
   type GrantedAbility,
@@ -46,15 +48,16 @@ import {
   isPlayerCard,
   matchesQuery,
   printedAbilityRefs,
+  reachOf,
   resolvePlayers,
   resolveRef,
   resolveValue,
-  restrictedCardsOf,
-  restrictedLoadOf,
+  restrictedWeightOf,
   rulePlayers,
   textBoxBlankFor,
   timingWordOf,
   traitsOf,
+  unblankedAbilityRefs,
   type ActiveRule,
   type EffectContext,
   type LastKnownCard,
@@ -702,17 +705,77 @@ export const entersRevealersPlayArea = (state: GameState, deps: EngineDeps, id: 
   );
 
 /**
+ * The rules of this kind printed on cards in play whose text box is blank, which `activeRules` does not see. An
+ * alternate win or loss condition is read past the blank: RRG 1.8 "Winning the Game" (p. 48), "Alternate win or loss
+ * conditions cannot be blanked or canceled"; FFG ruling 115 (Nov 29, 2023), a Hope Summers treated as a minion with a
+ * blank text box still loses the game when she leaves play. A card treated as another type keeps its own printed text
+ * for this read; a facedown card has none.
+ */
+function blankedConditionRules<K extends RuleSpec["kind"]>(
+  state: GameState,
+  deps: EngineDeps,
+  kind: K,
+): readonly ActiveRule<K>[] {
+  const found: ActiveRule<K>[] = [];
+  for (const sourceId of cardsInPlay(state)) {
+    const instance = getInstance(state, sourceId);
+    if (!instance || instance.facedownAs) continue;
+    const card = cardOf(state, sourceId);
+    const printed = instance.treatedAs
+      ? card && "abilities" in card
+        ? card.abilities
+        : []
+      : unblankedAbilityRefs(state, sourceId);
+    if (printed.length === 0) continue;
+    const live = activeAbilityRefs(state, sourceId, deps);
+    for (const ref of printed) {
+      if (live.some((other) => other.id === ref.id)) continue;
+      const definition = deps.abilities[ref.id];
+      if (definition?.trigger.kind !== "constant") continue;
+      for (const rule of definition.trigger.rules ?? []) {
+        if (rule.kind !== kind) continue;
+        const context: EffectContext = {
+          selfInstanceId: sourceId,
+          controllerId: constantYouOf(state, sourceId),
+          event: null,
+          bindings: {},
+          deps,
+          ...reachOf(definition),
+        };
+        if ("while" in rule && rule.while && !evaluate(state, rule.while, context)) continue;
+        found.push({ rule: rule as Extract<RuleSpec, { kind: K }>, context, speakerId: context.controllerId });
+      }
+    }
+  }
+  return found;
+}
+
+/**
  * "If Odin leaves play, the players lose the game." (`leavingPlayLoses`, docs/phase7-wave4.md §3.8), read before it
  * goes: the card whose rule says so (the first in play order when several do), or null when `id` leaving loses nothing.
  * The outcome records it (`GameOutcome.sourceInstanceId`), so the caller never ends the game without naming a card.
  */
 export const leavingPlayLoses = (state: GameState, deps: EngineDeps, id: InstanceId): InstanceId | null => {
-  const found = activeRules(state, deps, "leavingPlayLoses").find(({ rule, context }) =>
-    matchesQuery(state, id, rule.target, context),
-  );
+  const found = [
+    ...activeRules(state, deps, "leavingPlayLoses"),
+    ...blankedConditionRules(state, deps, "leavingPlayLoses"),
+  ].find(({ rule, context }) => matchesQuery(state, id, rule.target, context));
   // A rule is always read off a card in play; the leaving card stands in if a context ever lacks one.
   return found ? (found.context.selfInstanceId ?? id) : null;
 };
+
+/**
+ * The form a "[type] form only" card needs that `playerId`'s identity is not in, or null. RRG 1.8 "Play, Put into Play"
+ * (p. 32) and "Form, Change Form" (p. 21): "Cards with the text '[type] form only' can only be played or put into play
+ * by a player whose identity is in the specified form." Unlike the other play restrictions, a put into play does not
+ * bypass it, so an effect that puts the card into play reads it too (`resolve/apply-effect.ts admitFormOnly`).
+ */
+export function formOnlyFault(state: GameState, id: InstanceId, playerId: PlayerId): Form | null {
+  const card = cardOf(state, id);
+  const form = card && "playRestrictions" in card ? card.playRestrictions?.form : undefined;
+  if (form === undefined) return null;
+  return getPlayer(state, playerId)?.identity.form === form ? null : form;
+}
 
 /**
  * The card's printed "Max N per player" when `controllerId` already controls that many copies of it in play, or null
@@ -1416,7 +1479,7 @@ export function maxSustainedDamageOf(state: GameState, deps: EngineDeps, targetI
 
 /**
  * How much more damage this character can take before `maxSustainedDamage` stops it (never below 0, so a character
- * already above the cap takes nothing and is not healed), or null when no cap applies. Sustained damage is `damage`
+ * already above the cap takes nothing; the state check between frames lowers it to the cap), or null when no cap applies. Sustained damage is `damage`
  * (RRG 1.8 "Sustained Damage", p. 42: maximum minus remaining hit points, or the damage tokens).
  */
 export function sustainedDamageAllowance(state: GameState, deps: EngineDeps, targetId: InstanceId): number | null {
@@ -1574,6 +1637,7 @@ export const BASE_RESTRICTED_LIMIT = 2;
 /**
  * How many restricted cards `playerId` may control if they held exactly `held` (docs/phase7-wave3.md §3.22): two, plus
  * each `restrictedLimit` rule for that player — a rule with `cards` adds room only for as many of `held` as match it.
+ * `held` lists every card weighing on the limit, a weighted card once per unit of weight (`restrictedStanding`).
  */
 export function restrictedLimitFor(
   state: GameState,
@@ -1596,21 +1660,33 @@ export function restrictedLimitFor(
 
 /**
  * Where a player stands against the restricted limit (docs/phase7-wave7.md §3.82), counting what they control in play.
- * `load` is `restrictedLoadOf`; `held` is the cards with the keyword, the only ones a `restrictedLimit` rule's `cards`
- * makes room for and the only ones discarded for the limit (§4.1 Q52 = B: a card that "counts as 2 restricted cards"
- * weighs on the limit and is not itself a restricted card). The player is over the limit when `load > limit`.
+ * `load` is `restrictedLoadOf`; `held` is `restrictedCardsOf`, the cards offered for the discard, a weighted card among
+ * them (contributor's rules call (bluefireF5ran) 2026-10-16, reversing upstream Q52 = B). A `restrictedLimit` rule's `cards` makes room
+ * for every card that weighs on the limit, a card that "counts as N restricted cards" counted N times: FFG ruling 152
+ * (March 22, 2024), "Laser Swords counts as two Restricted Weapon cards, so it does interact with Side Holster" (fork
+ * owner's decision, overriding upstream Q52 = B on this point).
+ * The player is over the limit when `load > limit`.
  */
 export function restrictedStanding(
   state: GameState,
   deps: EngineDeps,
   playerId: PlayerId,
 ): { readonly load: number; readonly limit: number; readonly held: readonly InstanceId[] } {
-  const held = restrictedCardsOf(state, playerId, deps);
-  return {
-    load: restrictedLoadOf(state, playerId, deps),
-    limit: restrictedLimitFor(state, deps, playerId, held),
-    held,
-  };
+  // One reading of each controlled card's weight (the same answer `restrictedCardsOf` and `restrictedLoadOf` give, each of
+  // which reads it again): a weight needs the card's keywords with every grant, the engine's hottest read, and this runs
+  // between every two frames of a game whose registry can grant `restricted`.
+  const held: InstanceId[] = [];
+  const weighing: InstanceId[] = [];
+  let load = 0;
+  for (const id of cardsInPlay(state)) {
+    if (controllerOf(state, id) !== playerId) continue;
+    const weight = restrictedWeightOf(state, id, deps);
+    if (weight === 0) continue;
+    held.push(id);
+    load += weight;
+    for (let n = weight; n > 0; n--) weighing.push(id);
+  }
+  return { load, limit: restrictedLimitFor(state, deps, playerId, weighing), held };
 }
 
 /** "Ronan the Accuser cannot be stunned." (`cannotHaveStatus`; docs/phase7-wave3.md §3.7). */

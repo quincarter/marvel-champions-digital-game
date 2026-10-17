@@ -363,6 +363,7 @@ function stepBoostCard(
       activation,
       boostIcons: icons,
       playerId,
+      ...(frame.kind === "enemyAttack" ? { targetInstanceId: frame.targetInstanceId } : {}),
     });
     setFrame(ctx, {
       ...frame,

@@ -92,7 +92,11 @@ export function attachCostCard(
   return named.find((id) => id !== sourceId && payerMayUse(state, id, playerId)) ?? null;
 }
 
-/** The cards in play the payer may attach `card` to: matching `attach.to.query`, and able to take it (`canAttachTo`). */
+/**
+ * The cards in play the payer may attach `card` to: matching `attach.to.query`, able to take it (`canAttachTo`), and
+ * not the card it is already attached to: "an upgrade can't attach to a character it's already attached to" (ruling
+ * May 10, 2024, post-RRG 1.5 #182, on Energy Transfer), so that host would pay nothing.
+ */
 export function attachCostHosts(
   state: GameState,
   deps: EngineDeps,
@@ -102,8 +106,10 @@ export function attachCostHosts(
   card: InstanceId,
 ): readonly InstanceId[] {
   const context = costContext(sourceId, playerId, deps, attach.bind ? { [attach.bind]: [card] } : {});
+  const current = state.instances[card]?.attachedTo ?? null;
   return cardsInPlay(state).filter(
-    (host) => matchesQuery(state, host, attach.to.query, context) && canAttachTo(state, deps, card, host),
+    (host) =>
+      host !== current && matchesQuery(state, host, attach.to.query, context) && canAttachTo(state, deps, card, host),
   );
 }
 
@@ -189,8 +195,8 @@ export function dealDamageCostTargets(
 
 /**
  * Pays an attach cost as planned: a find is logged `cardFound` (RRG 1.8 "Find", p. 19), the card is attached
- * (`attachCard`; a card already on that host stays), then each deck the find searched is shuffled (RRG 1.8 "Search",
- * p. 39; `decksSearchedByFind`).
+ * (`attachCard`; never to the host it is already on, `attachCostHosts`), then each deck the find searched is shuffled
+ * (RRG 1.8 "Search", p. 39; `decksSearchedByFind`).
  */
 export function payAttachCost(
   ctx: Ctx,

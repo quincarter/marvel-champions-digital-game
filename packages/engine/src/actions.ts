@@ -166,6 +166,7 @@ import {
   REMOVE_THREAT_VAR,
   removeThreatCostEffects,
   removeThreatCostPlan,
+  planRemoveThreatChoice,
 } from "./remove-threat-cost.js";
 import { dealBoostCard } from "./resolve/enemy-activation.js";
 import {
@@ -214,7 +215,12 @@ import {
 } from "./resolve/index.js";
 import { limitReached } from "./resolve/ability.js";
 import { thwartBlockedOn } from "./resolve/event.js";
-import { abilityLacksValidTarget, abilityTargetFault, TARGET_FAULT_MESSAGE } from "./resolve/target-validity.js";
+import {
+  abilityLacksValidTarget,
+  abilityTargetFault,
+  attackPiercesTough,
+  TARGET_FAULT_MESSAGE,
+} from "./resolve/target-validity.js";
 import { moveCardsTo } from "./resolve/cards.js";
 import { addFrameSlots, eventFrame } from "./resolve/frames.js";
 import {
@@ -223,6 +229,7 @@ import {
   countUsableAs,
   EMPTY_POOL,
   payableWithOneType,
+  satisfiesPrinted,
   canBePaidFor,
   declaredPool,
   paidSetsAsDeclared,
@@ -3315,6 +3322,21 @@ export function planCost(
   // "Remove up to 3 threat from here →" (`remove-threat-cost.ts`, docs/phase7-wave9.md §3.7 (b)): the card and the
   // range the payer will pick from as the cost is paid, read now with the picks above bound.
   if (cost.removeThreat) {
+    // "Remove 3 threat from a scheme →" (`removeThreat.choose`): the payer's pick, bound for the plan and the effects.
+    if (cost.removeThreat.choose) {
+      const picked = planRemoveThreatChoice(
+        state,
+        deps,
+        sourceId,
+        playerId,
+        cost.removeThreat,
+        choices,
+        bindings,
+        vars,
+      );
+      if (isFault(picked)) return picked;
+      Object.assign(bindings, picked);
+    }
     const planned = removeThreatCostPlan(state, deps, sourceId, playerId, cost.removeThreat, bindings, vars);
     if ("fault" in planned) return { code: "insufficient_resources", message: planned.fault };
     // The amount named up front (`CostSelection.removeThreat`) is a range of one number, which is not asked.
@@ -3846,6 +3868,13 @@ export function resourceVars(
     if (!payableWithOneType(pool, count, requirement)) {
       return { code: "insufficient_resources", message: `spend ${count} resources of the same type` };
     }
+  }
+  if (cost?.printedResourcesOnly && !satisfiesPrinted(pool, requirement)) {
+    // RRG 1.8 "Printed" (p. 35): wild resources cannot be spent as other types for a printed-resources cost.
+    return {
+      code: "insufficient_resources",
+      message: `Needs ${describeRequirement(requirement)} printed resources; a wild cannot be spent as another type.`,
+    };
   }
   if (cost?.distinctResourceTypes !== undefined) {
     if (distinctTypeCount(pool) < cost.distinctResourceTypes) {
@@ -6397,7 +6426,12 @@ function basicAttackPaying(
       cardInstanceId: null,
       keywords: attackKeywordsOf(ctx.state, ctx.deps, { attackerInstanceId: command.attackerInstanceId, basic: true }),
     };
-    if (cannotTakeDamage(ctx.state, ctx.deps, targetInstanceId, [command.attackerInstanceId], attack)) {
+    // A piercing attack on a character with a tough card affects it through piercing (`attackPiercesTough`; ruling
+    // July 11, 2025, Ruling 69.76), so that target stays valid.
+    if (
+      !attackPiercesTough(ctx.state, ctx.deps, targetInstanceId, attack.keywords) &&
+      cannotTakeDamage(ctx.state, ctx.deps, targetInstanceId, [command.attackerInstanceId], attack)
+    ) {
       return engineError("no_valid_target", "that enemy cannot take damage from this attack", command);
     }
   }
@@ -6622,9 +6656,15 @@ function basicThwartWith(
   ) {
     return engineError("no_valid_target", "this thwart cannot use ATK", command);
   }
+  const missingStats = characterProfile(ctx.state, command.thwarterInstanceId, ctx.deps)?.missing ?? [];
+  // Ruling 69.62 (June 17, 2025; RRG 1.8 "Dash (Value)", p. 15): a triggered "may use their ATK instead" applies only
+  // once the character can initiate a basic thwart, which a '—' THW forbids. Assault (always in effect) is exempt.
+  if (command.useAtk && !assault && missingStats.includes("thw")) {
+    return engineError("no_valid_target", "a character with a printed '—' THW cannot initiate a thwart", command);
+  }
   const useAtk = assault || command.useAtk === true;
   const thwartStat = useAtk ? "atk" : "thw";
-  if (characterProfile(ctx.state, command.thwarterInstanceId, ctx.deps)?.missing.includes(thwartStat)) {
+  if (missingStats.includes(thwartStat)) {
     return engineError(
       "no_valid_target",
       `a character with a printed '—' ${thwartStat.toUpperCase()} cannot thwart this way`,

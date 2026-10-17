@@ -22,6 +22,7 @@ import {
   encounterCards,
   eventTarget,
   exhaustThis,
+  forEachCard,
   FRIENDLY_CHARACTER,
   giveTough,
   heroAction,
@@ -98,11 +99,12 @@ const A_CHARACTER = query("character");
  * identical sentence shape, rather than two separate damage effects.
  *
  * **Hex Bolt (15004)** — "Discard the top 3 cards of the encounter deck. For each card discarded this way that has
- * boost icons equal to: 0/1/2/3+, …" is `discardEncounterCards(3, { forEachDiscarded })`: FAQ "Hex Bolt (#4)" (RRG
- * 1.8 p. 61) — "resolve the first sentence of Hex Bolt entirely, without interruption. Then, determine and resolve
- * the appropriate bulleted abilities based off of what was discarded" — is exactly `forEachDiscarded`'s own shape
- * ("every discard happens first … one pass per discarded card, in discard order", `resolve/apply-effect.ts`), so no
- * extra sequencing was needed beyond using the primitive as documented. "Place a status card on a character" names
+ * boost icons equal to: 0/1/2/3+, …" is `discardEncounterCards(3, { bind })` then a `forEachCard` over the discarded
+ * cards: FAQ "Hex Bolt (#4)" (RRG 1.8 p. 61) — "resolve the first sentence of Hex Bolt entirely, without
+ * interruption. Then, determine and resolve the appropriate bulleted abilities based off of what was discarded" — and
+ * FFG ruling #106 (Oct 26, 2023) — "you can choose which order to resolve the cards discarded by Hex Bolt" (The Next
+ * Evolution's extra icons end the moment it leaves play, so each card's icons are counted as its own pass starts).
+ * `forEachCard` asks the player which waiting card resolves next, and each pass counts its own card's icons. "Place a status card on a character" names
  * no type, so it is scripted as a player choice among the three (RRG 1.8 gives no default for an unspecified status
  * card), the same reading `wave1/drs`'s Vapors of Valtorr already uses. Its four extra ability refs
  * (`.hex-bolt-constant` through `-constant-4`) are the parser's own per-bullet split (the same ingestion artifact
@@ -147,31 +149,29 @@ export const SCW_KIT = defineAbilities({
   // has boost icons equal to: 0, deal 2 damage to an enemy. / 1, remove 2 threat from a scheme. / 2, draw 1 card. /
   // 3+, place a status card on a character (module docblock).
   "15004.hex-bolt-action": heroAction(
-    discardEncounterCards(3, {
-      forEachDiscarded: {
-        slot: "card",
-        effects: [
-          countBoostIcons(chosen("card"), "card"),
-          ifThen(valueEquals(varOf("card.boostIcons"), 0), [
-            chooseTarget("enemy", query("enemy")),
-            dealDamage(2, chosen("enemy")),
-          ]),
-          ifThen(valueEquals(varOf("card.boostIcons"), 1), [
-            chooseTarget("scheme", query("scheme")),
-            removeThreat(2, chosen("scheme")),
-          ]),
-          ifThen(valueEquals(varOf("card.boostIcons"), 2), draw(1)),
-          ifThen(valueAtLeast(varOf("card.boostIcons"), 3), [
-            chooseTarget("target", A_CHARACTER),
-            chooseOne(
-              option("Stun", stun(chosen("target"))),
-              option("Confuse", confuse(chosen("target"))),
-              option("Give a tough status card", giveTough(chosen("target"))),
-            ),
-          ]),
-        ],
-      },
-    }),
+    discardEncounterCards(3, { bind: "discarded" }),
+    forEachCard(
+      "card",
+      chosen("discarded"),
+      countBoostIcons(chosen("card"), "card"),
+      ifThen(valueEquals(varOf("card.boostIcons"), 0), [
+        chooseTarget("enemy", query("enemy")),
+        dealDamage(2, chosen("enemy")),
+      ]),
+      ifThen(valueEquals(varOf("card.boostIcons"), 1), [
+        chooseTarget("scheme", query("scheme")),
+        removeThreat(2, chosen("scheme")),
+      ]),
+      ifThen(valueEquals(varOf("card.boostIcons"), 2), draw(1)),
+      ifThen(valueAtLeast(varOf("card.boostIcons"), 3), [
+        chooseTarget("target", A_CHARACTER),
+        chooseOne(
+          option("Stun", stun(chosen("target"))),
+          option("Confuse", confuse(chosen("target"))),
+          option("Give a tough status card", giveTough(chosen("target"))),
+        ),
+      ]),
+    ),
   ),
   "15004.hex-bolt-constant": coveredByEngineRule(),
   "15004.hex-bolt-constant-2": coveredByEngineRule(),

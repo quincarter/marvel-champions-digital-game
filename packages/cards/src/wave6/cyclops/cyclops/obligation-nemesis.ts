@@ -32,6 +32,7 @@ import {
   theMainScheme,
   tuckCards,
   tuckedUnder,
+  find,
   when,
   whenDefeated,
   whenRevealed,
@@ -82,7 +83,9 @@ export const CYCLOPS_OBLIGATION_NEMESIS = defineAbilities({
   // from the game.
   "33027.lost-visor-action": alterEgoAction(
     { cost: exhaustYourHero },
-    moveCards(tuckedUnder(self), "hand"),
+    // Ruling May 10, 2024 (180): the visor comes to hand from wherever it is (tucked here, or elsewhere when the
+    // search failed). Tucked here it is facedown, so a name query cannot see it.
+    moveCards(anyOfCards(tuckedUnder(self), cards(find({ name: "Ruby Quartz Visor" }, { owner: you }))), "hand"),
     moveCards(cards(self), "removedFromGame"),
   ),
 

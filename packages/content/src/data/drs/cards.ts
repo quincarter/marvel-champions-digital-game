@@ -543,7 +543,7 @@ export const DRS_CARDS: readonly AnyCard[] = [
     cost: 0,
     resourceIcons: { physical: 1 },
     aspect: "basic",
-    traits: [trait("DEFENSE")],
+    traits: [],
     keywords: [],
     deckLimit: 3,
     text: {

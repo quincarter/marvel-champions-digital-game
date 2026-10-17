@@ -88,8 +88,8 @@ export const SPECTRUM_GRANTED_RESPONSE = "53018.spectrum-granted-response";
 /** Spectrum herself, for her own constant. */
 const SPECTRUM_SELF = query("ally", { self: true });
 /** "If that card's printed resource has [type]", and "[wild] – All of the above": a card tucked under her prints it. */
-const tuckedPrints = (type: "mental" | "physical" | "energy") =>
-  valueAtLeast(tuckedCount(self, { anyPrintedResource: [type, "wild"] }), 1);
+const tuckedPrints = (type: "mental" | "physical" | "energy" | "wild") =>
+  valueAtLeast(tuckedCount(self, { anyPrintedResource: [type] }), 1);
 
 /** "If each of your allies has the Aerial trait": true with no allies, as Avengers Tower 03024 reads the same wording. */
 const EACH_OF_YOUR_ALLIES_IS_AERIAL = not(exists(query("ally", { controller: "you", withoutTrait: AERIAL })));
@@ -238,6 +238,11 @@ export const FALCON_ASPECT_BASIC: AbilityRegistry = defineAbilities({
     gets("thw", 2, SPECTRUM_SELF, { while: tuckedPrints("mental") }),
     gets("atk", 2, SPECTRUM_SELF, { while: tuckedPrints("physical") }),
     gets("hp", 2, SPECTRUM_SELF, { while: tuckedPrints("energy") }),
+    // FFG ruling Aug 22, 2025 (69.95): each matching icon adds its bonus, so a [mental] + [wild] card gives +4 THW.
+    // [wild] is "all of the above", so it adds one bonus of each kind on top of any matching specific icon.
+    gets("thw", 2, SPECTRUM_SELF, { while: tuckedPrints("wild") }),
+    gets("atk", 2, SPECTRUM_SELF, { while: tuckedPrints("wild") }),
+    gets("hp", 2, SPECTRUM_SELF, { while: tuckedPrints("wild") }),
     gainsAbility(SPECTRUM_GRANTED_RESPONSE),
   ),
   [SPECTRUM_GRANTED_RESPONSE]: response(

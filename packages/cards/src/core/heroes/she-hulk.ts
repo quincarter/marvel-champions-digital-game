@@ -1,6 +1,7 @@
 import {
   action,
   addAccelerationToken,
+  allOf,
   after,
   alterEgoAction,
   andThen,
@@ -8,6 +9,7 @@ import {
   boost,
   cards,
   changeForm,
+  canTakeStatus,
   constant,
   damageAnEnemy,
   damageOn,
@@ -19,6 +21,7 @@ import {
   drawUpTo,
   each,
   enemyAttack,
+  eventDealt,
   eventTarget,
   exhaustThis,
   exists,
@@ -98,11 +101,16 @@ export const SHE_HULK_KIT = defineAbilities({
   "01027.focused-rage-action": heroAction({ cost: [exhaustThis, takeDamageCost(1)] }, draw(1)),
   // Superhuman Strength — She-Hulk gets +2 ATK.
   "01028.superhuman-strength-constant": constant(gets("atk", 2, YOUR_HERO)),
-  // Forced Response: After She-Hulk attacks, discard Superhuman Strength → stun the attacked enemy (if it's still in play).
+  // Forced Response: After She-Hulk attacks, discard Superhuman Strength → stun the attacked enemy. The cost needs a
+  // valid target for the effect (RRG 1.8 "Cost" p. 14, FAQ #28 p. 57; FFG rulings May 25/30, 2023): an enemy that is
+  // gone (defeated), already stunned or stalwart can't take the status, so the ability doesn't resolve and the upgrade stays.
   "01028.superhuman-strength-forced-response": forcedResponse(
     after.attacks(YOUR_HERO),
-    { cost: discardThis },
-    ifThen(refMatches(eventTarget, query("enemy")), stun(eventTarget)),
+    {
+      cost: discardThis,
+      while: allOf(not(eventDealt("defeated")), refMatches(eventTarget, query("enemy", canTakeStatus("stunned")))),
+    },
+    stun(eventTarget),
   ),
 });
 

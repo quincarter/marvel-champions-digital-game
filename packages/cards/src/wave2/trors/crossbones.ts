@@ -212,6 +212,7 @@ export const CROSSBONES_SET = defineAbilities({
         playerIs: "controller",
         usesAttackedPlayer: true,
         requireResults: { damage: 1 },
+        youAreIdentity: true,
       },
     },
     effects: [discardFromHand(1)],

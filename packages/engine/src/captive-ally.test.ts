@@ -14,7 +14,8 @@
 import { flat, type AllyCard } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { EngineDeps, RuleSpec } from "./abilities.js";
-import { replay, startSession } from "./engine.js";
+import type { Command } from "./commands.js";
+import { applyCommand, replay, startSession } from "./engine.js";
 import type { InstanceId } from "./ids.js";
 import { locateCard, mustInstance } from "./query.js";
 import { cardsInPlay, explainQuery, selectTargets } from "./select.js";
@@ -22,7 +23,7 @@ import type { EffectSpec, TargetRef } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { stubAlly, stubAttachment, stubEvent, stubMainScheme } from "./testing/fixtures.js";
-import { DEFAULT_CARDS, DEFAULT_DECK, HERO, TREACHERY } from "./testing/scenario.js";
+import { DEFAULT_CARDS, DEFAULT_DECK, giveCard, HERO, TREACHERY } from "./testing/scenario.js";
 import { copiesOf, P1, playFree } from "./testing/wave3.js";
 import { createGame } from "./setup.js";
 import { driveSession } from "./testing/drive.js";
@@ -206,8 +207,19 @@ describe("§3.75 an ally attached to a card is still a character in play", () =>
 
   it("'cannot be healed by player card effects' still stops a player card's heal while he is attached", () => {
     const state = hurt(start(), 3);
-    const mended = playFree(state, SEALED, MEND.card.id).state;
-    expect(mustInstance(mended, odinId(state)).damage).toBe(3);
+    // RRG 1.8 "Target" (pp. 42-43), ruling Dec 8, 2023 (Ruling 125): he is no valid target for its heal, so a heal
+    // whose only possible target is him cannot be played.
+    const given = giveCard(state, P1, MEND.card.id);
+    const command: Command = {
+      type: "playCard",
+      playerId: P1,
+      cardInstanceId: given.id,
+      payment: [],
+      attachToInstanceId: null,
+    };
+    const result = applyCommand(given.state, command, SEALED);
+    expect(result.ok ? null : result.error.message).toBe("this event has no valid target");
+    expect(mustInstance(state, odinId(state)).damage).toBe(3);
   });
 
   it("below lethal he stays attached; a controlled ally in a play area is defeated as before", () => {

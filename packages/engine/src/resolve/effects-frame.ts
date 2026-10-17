@@ -82,6 +82,7 @@ import { groupVar, podGroupIds, type GroupId } from "../pod.js";
 import {
   cannotChangeForm,
   formChangeCostsFor,
+  formOnlyFault,
   grantedLabeledAbilities,
   playDestinationsOf,
   type FormChangeCost,
@@ -182,7 +183,6 @@ import {
   mayAttackWith,
   noteAttackedByAbility,
   beginLabelAttack,
-  openLabelAttack,
   skipForCancelledAttack,
   skipUnattackable,
   withMovedAttackTarget,
@@ -251,6 +251,14 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
         const vars: Record<string, number> = { ...parent.vars };
         for (const [key, amount] of Object.entries(frame.vars))
           vars[`${prefix}.${key}`] = (vars[`${prefix}.${key}`] ?? 0) + amount;
+        // `<prefix>.resolved`: the cards whose Special resolved. One a stunned/confused status card or an interrupt
+        // replaced never reaches its effects, and one cut short after its cost (`beginEffectAfterCost`) lost its
+        // announcement, so neither is listed ("each technique upgrade resolved this way"; FFG ruling Oct 18, 2024,
+        // post-RRG 1.6 #26 (3)).
+        if (frame.announceResolved && frame.selfInstanceId)
+          bindings[`${prefix}.resolved`] = [
+            ...new Set([...(bindings[`${prefix}.resolved`] ?? []), frame.selfInstanceId]),
+          ];
         return { ...parent, bindings, vars };
       });
     } else if (frame.returnBindingsTo) {
@@ -303,11 +311,9 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   // RRG 1.8 "Vulnerable" (p. 48): a status card that discards a vulnerable character resolves ahead of damage the same
   // instruction deals to it.
   if (statusAheadOfDamage(ctx, frame, effect, context)) return;
-  // An "(attack)" ability with no attack effect is still one attack (owner ruling Q48). It begins as the ability
-  // begins resolving, before its first instruction (RRG 1.8 "Labeled Ability", p. 26; owner decision, 2026-10-08,
-  // row 61); one whose damage instructions are all inside a branch makes it as the branch reaches the first.
+  // Every "(attack)" ability is an attack by its identity, begun as the ability begins resolving, before its first
+  // instruction, whether or not it then deals damage (RRG 1.8 "Labeled Ability", p. 26; owner decision, 2026-10-15).
   if (beginLabelAttack(ctx, frame, effect, context)) return;
-  if (openLabelAttack(ctx, frame, effect, context)) return;
   if (effect.kind === "chooseCards") return executeChooseCards(ctx, frame, effect, context);
   // docs/phase7-wave10-hero-packs.md H3.4: a find that chooses among every card that matches.
   if (effect.kind === "findCard" && effect.choose) return executeFindWithChoice(ctx, frame, effect, context);
@@ -515,6 +521,8 @@ function askPutIntoPlayHost(
   for (const id of resolveRef(ctx.state, effect.card, context)) {
     const slot = putIntoPlayHostSlot(id);
     if (frame.bindings[slot] || inPlay.includes(id)) continue;
+    // A "[type] form only" card the effect will refuse (`admitFormOnly`) has no host to ask about.
+    if (formOnlyFault(ctx.state, id, controller) !== null) continue;
     const hosts = putIntoPlayHostCandidates(ctx.state, ctx.deps, id, controller);
     if (hosts.length < 2) continue;
     if (frame.answer === null) {

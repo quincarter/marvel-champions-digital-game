@@ -4,8 +4,9 @@ import { validateCard } from "./index.js";
 import type { UpgradeCard } from "./index.js";
 
 /**
- * docs/phase7-wave7.md §3.82, §4.1 Q52 = B: `PlayerCard.restrictedWeight`, "Counts as 2 restricted cards." on a card
- * that does not have the restricted keyword (Laser Swords, `deadpool` 44055).
+ * docs/phase7-wave7.md §3.82: `PlayerCard.restrictedWeight`, "Counts as 2 restricted cards." on a card that does not
+ * have the restricted keyword (Laser Swords, `deadpool` 44055). The engine treats it as one restricted card weighing 2
+ * (contributor's rules call 2026-10-16 (bluefireF5ran), reverses upstream Q52 = B).
  *
  * Sources: RRG 1.8 "Restricted" (p. 38).
  */

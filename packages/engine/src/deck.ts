@@ -1132,10 +1132,19 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
       );
     }
     if (identity && rules?.equalCardsPerAspect && chosen.length > 1) {
+      // An identity-specific card that also prints an aspect (`printedAspect`) counts toward that aspect: FFG ruling
+      // March 22, 2024 (#153, post-RRG 1.5), "Spider-Woman's identity-specific cards count as cards of their indicated
+      // aspect", so Pheromones (x2, Leadership) makes 10 Leadership + 12 'Pool an equal split.
+      const countsAs = (line: Line): CoreAspect | undefined =>
+        line.classification.kind === "aspect"
+          ? line.classification.aspect
+          : line.classification.kind === "identity" && "printedAspect" in line.card
+            ? line.card.printedAspect
+            : undefined;
       const counts = chosen.map((aspect) =>
         lines.reduce(
           (n, line) =>
-            line.classification.kind === "aspect" && line.classification.aspect === aspect
+            countsAs(line) === aspect
               ? // Granted copies are not the player's own deckbuilding (MC32 p. 5's role-building, MC27 p. 22's Aspect
                 // Advantage), so the equal-count requirement judges only the copies the player chose.
                 n + line.quantity - Math.min(line.quantity, grantedCopies(line.card.id))

@@ -47,6 +47,18 @@ export interface EventPattern {
    * the attacked player when nobody else defended (RRG 1.8 "Defend, Defense", pp. 15-16; `attackYouOf`).
    */
   readonly usesAttackedPlayer?: boolean;
+  /**
+   * With `playerIs: "controller"`: "you" is that player's **identity** (RRG 1.8 "You, Your", p. 49: "if the word
+   * 'you' can be resolved as referring to the player's identity, it must be resolved as such"), so the character the
+   * attack is against must be it. "After [enemy] attacks and damages you" (FFG rulings 225.1 (undated) and 226 (July 18, 2024):
+   * it "checks if the attacked player's identity was damaged", i.e. "after X damages you with an attack"): a
+   * defending ally's damage is not heard, and an overkill spill onto the identity is (its own condition, ruling
+   * January 11, 2026 (2)). "When a boost card on an enemy attacking you would be turned faceup" (Defiance; ruling 151,
+   * March 15, 2024: not while your ally defends). Read on `enemyAttack` (its target character) and on an attack's
+   * `boostCardTurnedFaceup`; any other event never matches. The p. 49 exception, "after [enemy] attacks you" (the
+   * attacked player even when an ally defended), is `usesAttackedPlayer` without this.
+   */
+  readonly youAreIdentity?: boolean;
   readonly targetIs?: TargetQuery;
   /** The event's source must match: "When Rhino attacks" → `{ categories: ["villain"] }`; "When attached enemy attacks" → `{ hostOfSelf: true }`. */
   readonly sourceIs?: TargetQuery;
@@ -1908,7 +1920,8 @@ export type RuleSpec =
    * `amount` (read live from the rule's card); with several rules the lowest wins. Damage placed (not dealt) is held to
    * it too. Damage above the cap is neither taken nor prevented (§4.1 Q9): it announces no `damagePrevented` and uses
    * no tough card, and it yields no excess damage (measured on damage taken, RRG 1.8 "Overkill", p. 31). It never heals and never changes maximum hit
-   * points.
+   * points, but a character found above it between frames is lowered to it (`damageAboveCapRemoved`, a rules
+   * correction rather than a heal; ruling 69.114, October 10, 2025).
    */
   | {
       readonly kind: "maxSustainedDamage";
@@ -2443,6 +2456,14 @@ export interface DeckDiscardChoice {
 export interface RemoveThreatCost {
   readonly from: TargetRef;
   readonly amount: number | { readonly choose: { readonly min: number; readonly max: number } };
+  /**
+   * "Remove 3 threat from **a scheme** … →" (Cosmic Awareness 21039): the payer picks the card, one in play matching
+   * `query` that can pay in full (it holds at least the amount and threat can be removed from it), bound to `slot`
+   * for the effects ("remove 1 additional threat from that scheme") and read as `from` when `from` is that slot.
+   * With none that can pay the cost cannot be paid and the ability is not offered (RRG 1.8 "Cost", p. 13).
+   * `legalActions` offers one variant per candidate; the pick is forced with one candidate.
+   */
+  readonly choose?: { readonly slot: string; readonly query: TargetQuery };
 }
 
 /** "Take any amount of damage up to … →": the payer's choice of a `damageSelf` cost's amount (`AbilityCost.damageSelf`). */
@@ -2923,6 +2944,13 @@ export interface AbilityCost {
    * `legalActions` offers the ability only when the player's resources can pay it.
    */
   readonly sameResourceType?: true;
+  /**
+   * "Spend [energy][mental][physical] printed resources →" (We Are One, `sm` 27120): RRG 1.8 "Printed" (p. 35), "Wild
+   * resources cannot be spent as other resource types for such a cost". Each typed slot is paid by a resource of that
+   * type only; a wild never fills it (it still pays a generic or a `wild` slot). Checked wherever the payment is
+   * (`resourceVars`) and when `legalActions` decides whether the ability can be offered.
+   */
+  readonly printedResourcesOnly?: true;
   /**
    * "Exhaust Captain America's Shield →" (min 1, max 1) / "Exhaust any number of allies you control →" (min 1, no
    * max): exhaust cards in play, other than this ability's own card (`exhaustSelf`) or your identity

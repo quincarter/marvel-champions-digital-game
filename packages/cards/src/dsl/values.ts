@@ -1,5 +1,6 @@
 import { cardId, trait, type Trait } from "@mc/content";
 import {
+  ATTACK_DAMAGE_RESULT,
   attackPreventedVars,
   labeledResolvedVar,
   PAID_CARDS_SLOT,
@@ -798,6 +799,13 @@ export const attackTotalAtk: ValueSpec = eventResult(TOTAL_ATK_RESULT);
  * that overkill spills (RRG 1.8 "Overkill", p. 31): do not use this one without a ruling for the card.
  */
 export const attackExcessAsDealt: ValueSpec = eventResult(EXCESS_AS_DEALT_RESULT);
+/**
+ * "Each point of damage dealt by this attack", read on a response to the attack as a whole ("after X attacks [you]"):
+ * the damage the attacked characters took plus what its overkill spilled (RRG 1.8 "Overkill", p. 31: "considered
+ * damage from an attack"). `eventResult("damage")` is the attacked characters' damage alone, the per-character amount
+ * an "attacks and damages" condition reads (ruling January 11, 2026 (2)).
+ */
+export const attackDamageDealt: ValueSpec = eventResult(ATTACK_DAMAGE_RESULT);
 export const handSizeOf = (player: PlayerRef = you, printed = false): ValueSpec =>
   printed ? { kind: "handSize", player, printed } : { kind: "handSize", player };
 /**

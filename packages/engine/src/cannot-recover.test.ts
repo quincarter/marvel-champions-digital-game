@@ -165,14 +165,17 @@ describe("§3.14 'cannot recover' (Wrapped in Metal)", () => {
     ]);
   });
 
-  it("with §3.12 'cannot be healed' too, the heal is blocked by that rule", () => {
+  it("with §3.12 'cannot be healed' too, the heal is refused by that rule", () => {
     const { state } = wrap(start(1, SEALED.id), P1);
-    const identity = identityOf(state, P1);
-    const { state: after, events } = playMend(state);
-    expect(mustInstance(after, identity).damage).toBe(4);
-    expect(events.filter((e) => e.type === "healBlocked")).toEqual([
-      { type: "healBlocked", targetInstanceId: identity, sourceInstanceId: expect.any(String), amount: 2 },
-    ]);
+    // RRG 1.8 "Target" (pp. 42-43), ruling Dec 8, 2023 (Ruling 125): an identity that cannot be healed is no valid
+    // target for a heal, so the event cannot be played.
+    const given = giveCard(state, P1, MEND.id);
+    const played = applyCommand(
+      given.state,
+      { type: "playCard", playerId: P1, cardInstanceId: given.id, payment: [], attachToInstanceId: null },
+      deps,
+    );
+    expect(played.ok ? null : played.error.message).toBe("this event has no valid target");
     // Both rules refuse the recovery; "cannot recover" is checked first.
     const result = applyCommand(state, recover(P1), deps);
     expect(result.ok ? null : result.error.message).toBe("you cannot recover");

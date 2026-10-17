@@ -833,7 +833,18 @@ export function validateVillainCard(card: VillainCard): ValidationResult {
   // Every side is a face of the same stage cards (see `VillainSide`).
   const numbers = (stages: readonly { stageNumber: number }[] | undefined): string =>
     (stages ?? []).map((s) => s.stageNumber).join(",");
-  if (others.some((side) => numbers(first.stages) !== numbers(side.stages))) {
+  // Exception: a face printing infinite hit points that a card text flips to (Hela's A2) is "just like advancing to
+  // the next villain stage" (MC21 p. 20), and FFG numbers it one stage higher (Sep 5, 2024 ruling 11), so its stage
+  // numbers may differ from the front's.
+  const advancesStage = (side: { stages?: readonly { infiniteHp?: boolean }[] }): boolean =>
+    (side.stages ?? []).some((s) => s.infiniteHp === true);
+  if (
+    others.some(
+      (side) =>
+        (first.stages ?? []).length !== (side.stages ?? []).length ||
+        (!advancesStage(side) && numbers(first.stages) !== numbers(side.stages)),
+    )
+  ) {
     errors.push(
       "a villain's sides are the faces of the same stage cards, so every side must list the same stage numbers",
     );

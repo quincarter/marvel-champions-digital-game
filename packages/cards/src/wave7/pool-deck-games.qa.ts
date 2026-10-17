@@ -470,29 +470,29 @@ const LONG_PINS: readonly Pin[] = [
   {
     fixture: "spider-woman-pool-justice",
     scenario: "rhino",
-    seed: 10,
-    defense: "hero-ready",
-    explore: 3,
-    verdict: "loss:mainSchemeCompleted",
-    rounds: 23,
+    seed: 12,
+    defense: "balanced",
+    explore: 1,
+    verdict: "loss:allPlayersDefeated",
+    rounds: 15,
   },
   {
     fixture: "spider-woman-pool-justice",
     scenario: "morlock-siege",
-    seed: 5,
+    seed: 1,
     defense: "hero-ready",
-    explore: 3,
-    verdict: "loss:mainSchemeCompleted",
-    rounds: 10,
+    explore: 2,
+    verdict: "loss:cardAbility",
+    rounds: 13,
   },
   {
     fixture: "spider-woman-pool-justice",
     scenario: "mister-sinister",
-    seed: 8,
-    defense: "balanced",
+    seed: 9,
+    defense: "hero-ready",
     explore: 1,
-    verdict: "loss:mainSchemeCompleted",
-    rounds: 17,
+    verdict: "loss:cardAbility",
+    rounds: 8,
   },
 ];
 
@@ -667,28 +667,28 @@ const PINS: readonly Pin[] = [
   {
     fixture: "spider-woman-pool-justice",
     scenario: "rhino",
-    seed: 6,
+    seed: 9,
     defense: "hero-ready",
     explore: 1,
+    verdict: "loss:mainSchemeCompleted",
+    rounds: 4,
+  },
+  {
+    fixture: "spider-woman-pool-justice",
+    scenario: "morlock-siege",
+    seed: 7,
+    defense: "hero-ready",
+    explore: 0,
     verdict: "loss:mainSchemeCompleted",
     rounds: 5,
   },
   {
     fixture: "spider-woman-pool-justice",
-    scenario: "morlock-siege",
-    seed: 9,
-    defense: "hero-ready",
-    explore: 2,
-    verdict: "loss:cardAbility",
-    rounds: 4,
-  },
-  {
-    fixture: "spider-woman-pool-justice",
     scenario: "mister-sinister",
-    seed: 10,
+    seed: 8,
     defense: "hero-ready",
     explore: 1,
-    verdict: "loss:cardAbility",
+    verdict: "loss:allPlayersDefeated",
     rounds: 2,
   },
 ];
@@ -982,14 +982,23 @@ DEFER.push(() =>
         .reduce((n, e) => n + (e as { amount: number }).amount, 0);
       expect(placed).toBe(2 + 2); // the printed starting threat, plus 2 for the one player controlling a 'Pool card
       expect(reveal.after.instances[deeds]!.threat).toBe(4);
-      // Defeated by the player (the hunt), Dreadpool is dealt to them facedown, revealed again, and engages them again at full hit points.
+      // Defeated by the player (his hero's hunt, or his ally's Retaliate while Dreadpool attacks), Dreadpool is dealt to them
+      // facedown, revealed again, and engages them again at full hit points. Where the defeat falls decides whether the same
+      // command also reaches the reveal: a defeat in the villain phase's enemy activations (this line of play since "I Got
+      // This" is no longer playable with no icon in play, ruling #176) is dealt before the step's own encounter card and
+      // revealed first, "one card at a time in the order in which they were dealt" (RRG 1.8 "Villain Phase" step 4, p. 47),
+      // all in the one command that resolves the defense. So the deal is read from its event, not from where the card
+      // happens to sit when the command ends.
       const defeated = firstStep(steps, (e) => e.type === "characterDefeated" && e.cardId === "44038")!;
       expect(defeated).toBeDefined();
-      expect(defeated.after.players[0]!.dealtEncounter.map((id) => codeOf(defeated.after, id))).toContain("44038");
+      const dealtFacedown = defeated.events.find(
+        (e) => e.type === "cardMoved" && e.cardId === "44038" && e.to.kind === "dealtEncounter",
+      ) as { to: { playerId: PlayerId } } | undefined;
+      expect(dealtFacedown?.to.playerId).toBe(P1);
       const again = steps.find(
         (st) =>
           st.events.some((e) => e.type === "encounterCardRevealed" && e.cardId === "44038" && e.playerId === P1) &&
-          steps.indexOf(st) > steps.indexOf(defeated),
+          steps.indexOf(st) >= steps.indexOf(defeated),
       )!;
       expect(again).toBeDefined();
       const back = inPlayOf(again.after, "44038")[0]!;

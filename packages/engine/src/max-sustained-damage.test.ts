@@ -216,9 +216,10 @@ describe("§3.3 maxSustainedDamage: 'Magneto cannot have more than 6[per_hero] s
     ]);
   });
 
-  it("the cap does not stop healing, and does not heal a villain already above it", () => {
+  it("the cap does not stop healing, and lowers a villain already above it to the cap", () => {
     const above = start([BOARDING.id]);
-    expect(villainDamage(playFree(withDamage(above, 8), deps, ZAP_4.card.id).state)).toBe(8);
+    // Ruling 69.114 (Oct 10, 2025, https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-6/): a cap in effect "will immediately affect the amount of sustained damage Magneto has".
+    expect(villainDamage(playFree(withDamage(above, 8), deps, ZAP_4.card.id).state)).toBe(6);
     expect(villainDamage(playFree(withDamage(above, 6), deps, HEAL_3.card.id).state)).toBe(3);
   });
 

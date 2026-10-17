@@ -84,7 +84,8 @@ describe("Seduced (attachment, 21179)", () => {
       },
     };
     const villain = attached.villains[0]!.instanceId;
-    expect(canAttack(attached, identity, villain, WAVE4_DEPS)).toBe(false);
+    // Only the basic attack is barred; an ability's attack is not (RRG 1.8 "Basic Power", p. 10).
+    expect(canAttack(attached, identity, villain, WAVE4_DEPS, true)).toBe(false);
     const alterEgo = withForm(attached, "alterEgo");
     // Energy (21023) and Genius (21024), the two basic [energy]/[mental] resource cards, cover Seduced's own cost.
     const given = moveToHand(alterEgo, P1, "21023", "21024");

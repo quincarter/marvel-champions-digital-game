@@ -296,6 +296,16 @@ export type TriggerEventBody =
        * `[targetInstanceId]`, so a one-target attack reads as it always has; always present on a `labeled` attack.
        */
       readonly attacked?: readonly InstanceId[];
+      /**
+       * A condition derived from this attack for one character its overkill damaged other than the attacked one (the
+       * identity of a defeated ally's controller, the villain beyond a defeated minion): `targetInstanceId` is that
+       * character and `results` its damage alone. It shares the attack's response window (`overkillSpillConditions`,
+       * `resolve/event.ts`) and is heard only by "attacks and damages" (`requireResults` `damage`/`damaged`): FFG ruling
+       * January 11, 2026 (2), "if Jigsaw attacks with overkill and damages both an ally and an identity, his Forced
+       * Response triggers twice"; RRG 1.8 "Overkill" (p. 31): the spill "is considered damage from an attack, but does
+       * not constitute an attack against that character".
+       */
+      readonly overkillSpill?: true;
     }
   | {
       readonly kind: "thwart";
@@ -371,6 +381,8 @@ export type TriggerEventBody =
       readonly additionalResolution?: boolean;
       /** "That attack does not get a boost card" (Escaped Convict, I See You): step 1 deals nothing. */
       readonly noBoost?: boolean;
+      /** As on `attack`: a condition derived for a character this attack's overkill damaged. */
+      readonly overkillSpill?: true;
     }
   /**
    * An enemy attack has reached its damage step (RRG 1.8 "Attack (Enemy Activation)", pp. 8-9: step 2 has declared
@@ -445,6 +457,11 @@ export type TriggerEventBody =
       readonly boostIcons: number;
       /** The player the activation is against ("you"). */
       readonly playerId: PlayerId;
+      /**
+       * An attack's target character as the card is turned faceup (the defender, once declared): "an enemy attacking
+       * **you**" names the identity (`EventPattern.youAreIdentity`). Absent on a scheme's boost card.
+       */
+      readonly targetInstanceId?: InstanceId;
     }
   /**
    * An enemy attacks another enemy ("That minion attacks another enemy of your choice", Moondragon; `EffectSpec
@@ -1790,6 +1807,15 @@ export type TriggerEvent = TriggerEventBody & {
  * cancelled attack. The result `damage` is what the attack then dealt.
  */
 export const TOTAL_ATK_RESULT = "totalAtk";
+
+/**
+ * The result key an attack records "the damage dealt by this attack" under: every point of damage the attacked
+ * characters took from it plus every point its overkill spilled onto another character (RRG 1.8 "Overkill", p. 31: the
+ * spill "is considered damage from an attack"). Beside `damage`, which counts the attacked characters' damage only
+ * (the condition "attacks and damages" answers, one per damaged character: ruling January 11, 2026 (2)). Read by a
+ * response to the attack as a whole ("after X attacks you, ... for each point of damage dealt by this attack").
+ */
+export const ATTACK_DAMAGE_RESULT = "attackDamage";
 
 /**
  * The result key a damage event, and the attack it belongs to, record the excess of the damage **dealt** under: the
