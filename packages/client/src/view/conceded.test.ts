@@ -20,6 +20,7 @@ import { EngineSessionCore } from "../engine/session-core.js";
 import { boardModel } from "./board-model.js";
 import { gameOverModel } from "./game-over-model.js";
 import { logLine } from "./log-lines.js";
+import { pauseStatusOf } from "./pause-model.js";
 
 const RHINO_SOLO: SessionConfig = {
   scenarioId: "rhino",
@@ -68,6 +69,10 @@ describe("a conceded game", () => {
   test("the board's step label says conceded", () => {
     const model = boardModel(state, viewer, POOL_DEPS);
     expect(model.stepLabel).toBe("Conceded");
+  });
+
+  test("the pause menu's status line says conceded, not defeat", () => {
+    expect(pauseStatusOf(state, viewer, null, []).phaseLabel).toBe("Conceded");
   });
 
   test("game over presents a concession, not a defeat", () => {

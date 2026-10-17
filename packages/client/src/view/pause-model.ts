@@ -82,15 +82,12 @@ const DIFFICULTY_LABEL: Record<SessionConfig["difficulty"], string> = {
 
 /**
  * Mirrors `board-model.ts`'s own `phaseOf` switch, worded for a status line rather
- * than a step label.
- *
- * `GameOutcome` has no `"conceded"` result yet (docs/phase4-screen-gaps.md §2 "S5.9"
- * — the engine's `concede` command is landing in a parallel worktree). Once it does,
- * this switch needs a third arm; see `scenes/pause.ts`'s own concede note for where
- * that lands alongside it.
+ * than a step label. A concession reads as one, never as a defeat (`conceded.test.ts`).
  */
 function phaseLabelOf(state: GameState): string {
-  if (state.outcome) return state.outcome.result === "win" ? "Victory" : "Defeat";
+  if (state.outcome) {
+    return state.outcome.result === "win" ? "Victory" : state.outcome.result === "conceded" ? "Conceded" : "Defeat";
+  }
   switch (state.step.phase) {
     case "setup":
       return "Setup";
