@@ -239,11 +239,18 @@ test("Campaign roster: the deck picker's rows each show a hero picture and color
   await clickRouteStop(page, "seat-1", "CampaignRoster");
   await settle(page);
 
-  const rows = (await hook<{ name: string; picture: boolean; badges: { label: string; fill: number }[] }[]>(
-    page,
-    "__mcRosterPickerDebug",
-    "rows",
-  ))!;
+  type Row = { name: string; picture: boolean; badges: { label: string; fill: number }[] };
+  const readRows = async (): Promise<Row[]> => (await hook<Row[]>(page, "__mcRosterPickerDebug", "rows")) ?? [];
+  // The hero pictures arrive as their art loads: under a full suite's load the first read can come before the last one.
+  await waitFor(
+    async () => {
+      const read = await readRows();
+      return read.length >= 3 && read.every((row) => row.picture) ? true : null;
+    },
+    "every row's hero picture",
+    20_000,
+  ).catch(() => null);
+  const rows = await readRows();
   expect(rows.length, "the picker draws rows").toBeGreaterThanOrEqual(3);
   for (const row of rows) {
     expect(row.picture, `${row.name} has a picture`).toBe(true);
