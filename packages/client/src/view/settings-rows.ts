@@ -18,14 +18,18 @@ import {
 import {
   CARD_HOVER_SCALE_VALUES,
   CARD_SIZE_VALUES,
+  DISPLAY_MODE_VALUES,
   FIRST_PLAYER_TOKEN_MOTION_VALUES,
   SHARP_TEXT_RESOLUTION_CEILING,
+  resolutionPixelsOf,
   type CardHoverScale,
   type CardSize,
+  type DisplayMode,
   type FirstPlayerTokenMotion,
   type Settings,
   type VillainAutoAdvance,
   type VillainBeatSpeed,
+  type Resolution,
 } from "../settings.js";
 import { FIRST_PLAYER_TOKEN_MOTION_LABELS } from "./first-player-token-motion.js";
 
@@ -456,4 +460,94 @@ export function tokenMotionRowInfoOf(settings: Settings): TokenMotionRowInfo {
 /** `settings` with the token's motion set; a value that is not one of the five changes nothing. */
 export function nextSettingsAfterTokenMotion(settings: Settings, value: FirstPlayerTokenMotion): Settings {
   return FIRST_PLAYER_TOKEN_MOTION_VALUES.includes(value) ? { ...settings, firstPlayerTokenMotion: value } : settings;
+}
+
+// ---------------------------------------------------------------------------
+// "Window mode" and "Resolution": the desktop app's window (`platform/desktop-window.ts`). Desktop (Tauri) only; the
+// Settings screen leaves both rows out on the web and the phone apps.
+// ---------------------------------------------------------------------------
+
+const DISPLAY_MODE_LABELS: Readonly<Record<DisplayMode, string>> = {
+  windowed: "Windowed",
+  borderless: "Borderless",
+  fullscreen: "Fullscreen",
+};
+
+export interface DisplayModeRowInfo {
+  readonly title: string;
+  readonly detail: string;
+  readonly options: readonly { readonly value: DisplayMode; readonly label: string }[];
+  readonly selected: DisplayMode;
+}
+
+export function displayModeRowInfoOf(settings: Settings): DisplayModeRowInfo {
+  return {
+    title: "Window mode",
+    detail:
+      "Windowed is a normal window. Borderless fills the screen with a window you can switch away from at once. Fullscreen is your computer's own full screen.",
+    options: DISPLAY_MODE_VALUES.map((value) => ({ value, label: DISPLAY_MODE_LABELS[value] })),
+    selected: settings.displayMode,
+  };
+}
+
+/** `settings` with the window mode set; a value that is not one of the three changes nothing. */
+export function nextSettingsAfterDisplayMode(settings: Settings, value: DisplayMode): Settings {
+  return DISPLAY_MODE_VALUES.includes(value) ? { ...settings, displayMode: value } : settings;
+}
+
+export interface ResolutionRowInfo {
+  readonly title: string;
+  readonly detail: string;
+  readonly options: readonly { readonly value: Resolution; readonly label: string }[];
+  readonly selected: Resolution;
+}
+
+/** "1920x1080" as "1920 × 1080"; Native as "Native", or "Native · 3440 × 1440" once the monitor's size is known. */
+export function resolutionLabelOf(
+  size: Resolution,
+  native: { readonly width: number; readonly height: number } | null = null,
+): string {
+  const px = resolutionPixelsOf(size);
+  if (px !== null) return `${px.width} × ${px.height}`;
+  return native === null ? "Native" : `Native · ${native.width} × ${native.height}`;
+}
+
+/**
+ * `offered` is the resolutions the current monitor offers in this mode (`resolutionOptionsFor`), listed with Native largest first;
+ * `native` is the monitor's own resolution. A saved resolution this monitor doesn't offer shows as Native, which is what
+ * the game then draws at.
+ */
+export function resolutionRowInfoOf(
+  settings: Settings,
+  offered: readonly Resolution[],
+  native: { readonly width: number; readonly height: number } | null = null,
+  /** Fullscreen here really switches the monitor's display mode (Windows). */
+  switchesDisplayMode = false,
+): ResolutionRowInfo {
+  // Largest first, Native among them at its own size (the owner, 2026-10-16); first when the size isn't known yet.
+  const sizeOf = (value: Resolution): { readonly width: number; readonly height: number } | null =>
+    value === "native" ? native : resolutionPixelsOf(value);
+  const area = (value: Resolution): number => {
+    const px = sizeOf(value);
+    return px === null ? Number.POSITIVE_INFINITY : px.width * px.height;
+  };
+  const values: readonly Resolution[] = (["native", ...offered] as Resolution[]).sort(
+    (a, b) => area(b) - area(a) || (sizeOf(b)?.width ?? 0) - (sizeOf(a)?.width ?? 0),
+  );
+  return {
+    title: "Resolution",
+    detail:
+      settings.displayMode === "fullscreen" && switchesDisplayMode
+        ? "Fullscreen switches your screen to this resolution. Your own comes back when you leave Fullscreen, switch to another app, or quit."
+        : settings.displayMode === "windowed"
+          ? "In a window, the window's own size; Native draws at whatever size the window is. Your computer's display resolution is never changed."
+          : "Other than native, the game draws at that resolution and is scaled to fit the screen, with black bars where the shapes differ. Your computer's display resolution is never changed.",
+    options: values.map((value) => ({ value, label: resolutionLabelOf(value, native) })),
+    selected: values.includes(settings.resolution) ? settings.resolution : "native",
+  };
+}
+
+/** `settings` with the resolution set; a malformed one changes nothing. */
+export function nextSettingsAfterResolution(settings: Settings, value: Resolution): Settings {
+  return value === "native" || resolutionPixelsOf(value) !== null ? { ...settings, resolution: value } : settings;
 }

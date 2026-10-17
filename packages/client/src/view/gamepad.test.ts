@@ -4,14 +4,15 @@
  */
 
 import { describe, expect, test } from "vitest";
-import { GAMEPAD_BUTTON, gamepadIntentFor, type GamepadIntent } from "./gamepad.js";
+import { GAMEPAD_BUTTON, directionOf, gamepadIntentFor, linearIntent, type GamepadIntent } from "./gamepad.js";
 
 describe("gamepadIntentFor", () => {
-  test("maps the D-pad to next/previous", () => {
-    expect(gamepadIntentFor(GAMEPAD_BUTTON.dpadRight)).toBe("next");
-    expect(gamepadIntentFor(GAMEPAD_BUTTON.dpadDown)).toBe("next");
-    expect(gamepadIntentFor(GAMEPAD_BUTTON.dpadLeft)).toBe("previous");
-    expect(gamepadIntentFor(GAMEPAD_BUTTON.dpadUp)).toBe("previous");
+  // Issue #206: the D-pad moves the way it points, like the arrow keys, instead of walking the route like Tab.
+  test("maps the D-pad to its four directions", () => {
+    expect(gamepadIntentFor(GAMEPAD_BUTTON.dpadRight)).toBe("right");
+    expect(gamepadIntentFor(GAMEPAD_BUTTON.dpadDown)).toBe("down");
+    expect(gamepadIntentFor(GAMEPAD_BUTTON.dpadLeft)).toBe("left");
+    expect(gamepadIntentFor(GAMEPAD_BUTTON.dpadUp)).toBe("up");
   });
 
   test("maps A to activate, Y to inspect, B to cancel", () => {
@@ -42,8 +43,10 @@ describe("gamepadIntentFor", () => {
     expect(intents).toHaveLength(10);
     expect(new Set(intents)).toEqual(
       new Set<GamepadIntent>([
-        "next",
-        "previous",
+        "up",
+        "down",
+        "left",
+        "right",
         "activate",
         "inspect",
         "cancel",
@@ -52,5 +55,20 @@ describe("gamepadIntentFor", () => {
         "toggleGuide",
       ]),
     );
+  });
+
+  test("directionOf names only the four direction intents", () => {
+    expect(directionOf("up")).toBe("up");
+    expect(directionOf("right")).toBe("right");
+    expect(directionOf("next")).toBeNull();
+    expect(directionOf("activate")).toBeNull();
+  });
+
+  test("linearIntent folds a direction back onto the route for a surface with no layout to move through", () => {
+    expect(linearIntent("right")).toBe("next");
+    expect(linearIntent("down")).toBe("next");
+    expect(linearIntent("left")).toBe("previous");
+    expect(linearIntent("up")).toBe("previous");
+    expect(linearIntent("activate")).toBe("activate");
   });
 });

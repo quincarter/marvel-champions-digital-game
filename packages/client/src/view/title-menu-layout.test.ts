@@ -59,6 +59,14 @@ describe("titleMenuLayout", () => {
     expect(titleMenuLayoutRects(closed)).toHaveLength(titleMenuLayoutRects(open).length - 1);
   });
 
+  test("Quit to desktop is one more row under Settings in the desktop app, absent (null) elsewhere", () => {
+    const web = titleMenuLayout({ width: 1440, height: 900, continuable: false });
+    const desktop = titleMenuLayout({ width: 1440, height: 900, continuable: false, quit: true });
+    expect(web.quit).toBeNull();
+    expect(desktop.quit!.y).toBeGreaterThan(desktop.settings.y + desktop.settings.height - 1);
+    expect(desktop.footer.y).toBeGreaterThanOrEqual(desktop.quit!.y + desktop.quit!.height);
+  });
+
   for (const size of [
     { width: 390, height: 844 },
     { width: 360, height: 800 },

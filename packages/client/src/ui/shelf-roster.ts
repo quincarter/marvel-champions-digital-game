@@ -255,7 +255,8 @@ export class McShelfRoster<T> {
     const shelfTop = this.#rect.y + (this.#tops().tops[shelfIndex] ?? 0) - this.#verticalScroll.offsetPx;
     const shelf = this.#shelves[shelfIndex];
     const hOffset = shelf ? this.#horizontalScrollFor(shelf.id).offsetPx : 0;
-    const x = this.#rect.x + itemIndex * (m.cardWidth + m.cardGap) - hOffset;
+    // Cards start after the left chevron's gutter, as `#syncCards` draws them; without it the ring sat one gutter to the left.
+    const x = this.#rect.x + CHEVRON_WIDTH + itemIndex * (m.cardWidth + m.cardGap) - hOffset;
     const y = shelfTop + m.headerHeight + m.headerToCardsGap;
     return { x, y, width: m.cardWidth, height: m.cardHeight };
   }

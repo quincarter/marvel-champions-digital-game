@@ -515,7 +515,8 @@ export class NameConflictOverlay extends Phaser.Scene {
       const keepKey = `keep:${index}`;
       const place = (which: "replace" | "keep") => (): Rect => {
         const row = list.rectFor(index);
-        return buttonRects({ ...row, width: row.width - 8 }, !this.#canReplace(entry))[which];
+        // The same inset `renderRow` draws the row at, so the ring frames the button rather than sitting 4px left of it.
+        return buttonRects({ ...row, x: row.x + 4, width: row.width - 12 }, !this.#canReplace(entry))[which];
       };
       if (this.#canReplace(entry))
         stops.set(replaceKey, {

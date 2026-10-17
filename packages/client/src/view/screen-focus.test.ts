@@ -558,6 +558,11 @@ describe("screen focus routes", () => {
     ]);
   });
 
+  test("the desktop app's Quit to desktop follows Settings", () => {
+    const order = titleMenuFocusOrder({ continuable: false, quit: true });
+    expect(order.slice(order.indexOf("settings"), order.indexOf("settings") + 2)).toEqual(["settings", "quit"]);
+  });
+
   test('the Title menu: "civil-war" follows Campaign once the Civil War box is open, and is absent before', () => {
     expect(titleMenuFocusOrder({ continuable: false })).not.toContain("civil-war");
     expect(titleMenuFocusOrder({ continuable: false, civilWar: false })).not.toContain("civil-war");

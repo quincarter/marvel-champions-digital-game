@@ -45,7 +45,8 @@ import { appendEvents, withSeedLine, emptyLog, type LogState } from "../view/log
 import type { PaymentView } from "../view/payment-model.js";
 import { tabKeysTouchedBy } from "../view/tab-badges.js";
 import { playerName } from "../view/names.js";
-import type { GamepadIntent } from "../view/gamepad.js";
+import { linearIntent, type GamepadIntent } from "../view/gamepad.js";
+import { spatialStep, type FocusDirection } from "../view/spatial-nav.js";
 import { sameTarget, stepFocus, type FocusTarget } from "../view/focus.js";
 import {
   PHONE_TABS,
@@ -1525,6 +1526,14 @@ export class BoardScene extends Phaser.Scene {
         if (this.#focusRegion === "guide") this.#moveGuideFocus(-1);
         else this.#moveFocus(-1);
         break;
+      case "up":
+      case "down":
+      case "left":
+      case "right":
+        // The guide surface is a short list of its own controls: the arrows step it like Tab does.
+        if (this.#focusRegion === "guide") this.#moveGuideFocus(linearIntent(intent) === "next" ? 1 : -1);
+        else this.#moveFocusToward(intent);
+        break;
       case "activate":
         if (this.#focusRegion === "guide") this.#activateGuideFocus();
         else if (this.#focus) this.#controller.activate(this.#focus);
@@ -1613,7 +1622,21 @@ export class BoardScene extends Phaser.Scene {
     const order = this.#controller.focusOrder();
     const at = order.findIndex((target) => sameTarget(target, this.#focus));
     const next = stepFocus(order, at, delta);
-    this.#focus = next >= 0 ? (order[next] ?? null) : null;
+    this.#setFocus(next >= 0 ? (order[next] ?? null) : null);
+  }
+
+  /** An arrow or D-pad press: the nearest focus stop drawn that way on the table (`view/spatial-nav.ts`). */
+  #moveFocusToward(direction: FocusDirection): void {
+    const order = this.#controller.focusOrder();
+    const keys = order.map(focusKey);
+    const current =
+      this.#focus && order.some((target) => sameTarget(target, this.#focus)) ? focusKey(this.#focus) : null;
+    const next = spatialStep(keys, (key) => this.#frame.focusRects.get(key), current, direction);
+    this.#setFocus(next === null ? null : (order[keys.indexOf(next)] ?? null));
+  }
+
+  #setFocus(focus: FocusTarget | null): void {
+    this.#focus = focus;
     // A greyed Undo says why while keyboard focus is on it (drawn by the next draw).
     this.#controller.setUndoFocus(this.#focus?.kind === "undo");
     this.#draw();

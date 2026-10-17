@@ -11,6 +11,9 @@ export type SettingsItemId =
   | "card-size"
   | "card-hover"
   | "token-motion"
+  | "display-mode"
+  | "resolution"
+  | "steam-deck"
   | "villain-auto"
   | "villain-hold"
   | "villain-speed"
@@ -20,7 +23,7 @@ export type SettingsItemId =
   | "save-data"
   | "rules";
 
-export type SettingsSectionId = "gameplay" | "villain" | "cards" | "motion" | "sound" | "guide" | "more";
+export type SettingsSectionId = "gameplay" | "villain" | "cards" | "window" | "motion" | "sound" | "guide" | "more";
 
 export interface SettingsSection {
   readonly id: SettingsSectionId;
@@ -30,11 +33,15 @@ export interface SettingsSection {
 
 /**
  * The sections, top to bottom. `guideRowIds` is the Guide group's rows in draw order (`guideRowInfoOf`), which grows
- * with the hint warnings. `cardHover` is false off desktop, where there is no mouse popover to size.
+ * with the hint warnings. `cardHover` is false off desktop, where there is no mouse popover to size. `desktopWindow` is
+ * true only in the desktop app, the one build that can change its own window; the Window section is left out elsewhere.
  */
 export function settingsSectionsOf(input: {
   readonly guideRowIds: readonly GuideSettingsRowId[];
   readonly cardHover: boolean;
+  readonly desktopWindow?: boolean;
+  /** SteamOS or Bazzite: a Steam Deck row in the Window section. */
+  readonly steamDeck?: boolean;
 }): readonly SettingsSection[] {
   return [
     { id: "gameplay", title: "Gameplay", items: ["confirm-end-turn", "same-name-conflict"] },
@@ -50,6 +57,15 @@ export function settingsSectionsOf(input: {
         "large-card-text",
       ],
     },
+    ...(input.desktopWindow
+      ? [
+          {
+            id: "window",
+            title: "Window",
+            items: ["display-mode", "resolution", ...(input.steamDeck ? (["steam-deck"] as const) : [])],
+          } satisfies SettingsSection,
+        ]
+      : []),
     { id: "motion", title: "Animation and display", items: ["reduced-motion", "token-motion", "sharper-text"] },
     { id: "sound", title: "Sound", items: ["sound", "music-shuffle"] },
     { id: "guide", title: "Guide", items: input.guideRowIds },
@@ -73,7 +89,7 @@ const TAB_SECTIONS: readonly {
 }[] = [
   { id: "gameplay", label: "Game", sections: ["gameplay", "villain"] },
   { id: "cards", label: "Cards", sections: ["cards"] },
-  { id: "display", label: "Display", sections: ["motion", "sound"] },
+  { id: "display", label: "Display", sections: ["window", "motion", "sound"] },
   { id: "guide", label: "Guide", sections: ["guide"] },
   { id: "more", label: "More", sections: ["more"] },
 ];
@@ -84,6 +100,6 @@ export function settingsTabsOf(input: Parameters<typeof settingsSectionsOf>[0]):
   return TAB_SECTIONS.map((tab) => ({
     id: tab.id,
     label: tab.label,
-    sections: tab.sections.map((id) => sections.find((s) => s.id === id)!),
+    sections: tab.sections.flatMap((id) => sections.filter((s) => s.id === id)),
   }));
 }

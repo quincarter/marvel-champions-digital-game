@@ -80,3 +80,25 @@ describe("settingsTabsOf", () => {
     expect(tabs.find((t) => t.id === "display")!.sections.map((s) => s.id)).toEqual(["motion", "sound"]);
   });
 });
+
+describe("the desktop app's Window section", () => {
+  test("it heads the Display tab with Window mode then Window size, in the desktop app only", () => {
+    const display = settingsTabsOf({ guideRowIds, cardHover: true, desktopWindow: true }).find(
+      (t) => t.id === "display",
+    )!;
+    expect(display.sections.map((s) => s.id)).toEqual(["window", "motion", "sound"]);
+    expect(display.sections[0]!.items).toEqual(["display-mode", "resolution"]);
+  });
+
+  test("on SteamOS or Bazzite it ends with a Steam Deck row", () => {
+    const window = settingsSectionsOf({ guideRowIds, cardHover: true, desktopWindow: true, steamDeck: true }).find(
+      (s) => s.id === "window",
+    )!;
+    expect(window.items).toEqual(["display-mode", "resolution", "steam-deck"]);
+  });
+
+  test("the web and the phone apps don't show it", () => {
+    const sections = settingsSectionsOf({ guideRowIds, cardHover: true, desktopWindow: false });
+    expect(sections.map((s) => s.id)).not.toContain("window");
+  });
+});

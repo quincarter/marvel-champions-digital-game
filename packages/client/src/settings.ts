@@ -71,6 +71,33 @@ export interface Settings {
    * (`view/first-player-token-motion.ts`). Defaults to a toss (the owner, 2026-10-16). Reduced motion places it instead.
    */
   readonly firstPlayerTokenMotion: FirstPlayerTokenMotion;
+  /**
+   * The desktop app's window: a normal window, an undecorated window over the whole monitor, or the OS's own
+   * fullscreen (`platform/desktop-window.ts`). Desktop (Tauri) only; the web and the phone apps ignore it.
+   */
+  readonly displayMode: DisplayMode;
+  /**
+   * The resolution the desktop app draws at, in the monitor's own pixels, or "native" for the monitor's own. In
+   * Borderless and Fullscreen a lower one is drawn at that size and scaled to fill the screen, black bars where the
+   * shapes differ; in Windowed it is the window's size (native: a maximized window). The OS's own display resolution
+   * is never changed, so closing the game has nothing to put back. Desktop (Tauri) only.
+   */
+  readonly resolution: Resolution;
+}
+
+export type DisplayMode = "windowed" | "borderless" | "fullscreen";
+export const DISPLAY_MODE_VALUES: readonly DisplayMode[] = ["windowed", "borderless", "fullscreen"];
+
+/** "native", or a width and height in physical pixels such as "1920x1080". */
+export type Resolution = "native" | `${number}x${number}`;
+
+/** The width and height a `Resolution` names; null for "native" or anything malformed. */
+export function resolutionPixelsOf(
+  size: Resolution | string,
+): { readonly width: number; readonly height: number } | null {
+  const match = /^(\d{3,5})x(\d{3,5})$/.exec(size);
+  if (match === null) return null;
+  return { width: Number(match[1]), height: Number(match[2]) };
 }
 
 export type FirstPlayerTokenMotion = "toss" | "slide" | "bounce" | "spin" | "instant";
@@ -178,5 +205,7 @@ export function defaultSettings(): Settings {
     hoverHeroCard: true,
     hoverVillainCard: true,
     firstPlayerTokenMotion: "toss",
+    displayMode: "windowed",
+    resolution: "native",
   };
 }

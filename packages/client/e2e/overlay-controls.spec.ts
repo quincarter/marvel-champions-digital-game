@@ -216,6 +216,30 @@ test.describe("Pause menu", () => {
       20_000,
     );
   });
+
+  test("Concede while the villain phase waits for START goes on to Game Over", async ({ page }, info) => {
+    // Regression: the unstarted phase reveals no beats, so it held the concession's Game Over forever, leaving the
+    // pause menu reading DEFEAT over a round that never ended.
+    test.setTimeout(120_000);
+    const phone = isPhone(info);
+    const errors = trackPageErrors(page);
+    await page.addInitScript(() =>
+      localStorage.setItem("mc-settings", JSON.stringify({ version: 1, villainAutoAdvance: "off" })),
+    );
+    await installWave6Helpers(page);
+    await page.goto("/?screen=villain-interrupt");
+    await waitFor(() => villainDebugRect(page, "startRect"), "START VILLAIN PHASE", 30_000);
+    await openPause(page, phone);
+    await pressStop(page, phone, PAUSE, "concede", stopShown(page, PAUSE, "concede-confirm-yes"));
+    await pressStop(page, phone, PAUSE, "concede-confirm-yes", sceneGone(page, PAUSE));
+    await waitFor(
+      async () => ((await isSceneUp(page, "GameOver")) ? true : null),
+      "Game Over comes up after conceding over the unstarted villain phase",
+      20_000,
+    );
+    expect(await isSceneUp(page, "VillainPhaseOverlay")).toBe(false);
+    expect(errors).toEqual([]);
+  });
 });
 
 test.describe("Pause menu during a guided run (the Guide rail is showing)", () => {

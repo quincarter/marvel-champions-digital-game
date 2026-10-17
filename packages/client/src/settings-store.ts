@@ -11,12 +11,15 @@
 import {
   CARD_HOVER_SCALE_VALUES,
   CARD_SIZE_VALUES,
+  DISPLAY_MODE_VALUES,
   FIRST_PLAYER_TOKEN_MOTION_VALUES,
   SHARP_TEXT_RESOLUTION_CEILING,
   VILLAIN_AUTO_ADVANCE_VALUES,
   VILLAIN_BEAT_SPEED_VALUES,
   defaultSettings,
+  resolutionPixelsOf,
   type Settings,
+  type Resolution,
 } from "./settings.js";
 
 export const SETTINGS_KEY = "mc-settings";
@@ -65,6 +68,15 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   if (cardSizeValue !== undefined) out.cardSize = cardSizeValue;
   const tokenMotionValue = FIRST_PLAYER_TOKEN_MOTION_VALUES.find((value) => value === source["firstPlayerTokenMotion"]);
   if (tokenMotionValue !== undefined) out.firstPlayerTokenMotion = tokenMotionValue;
+  const displayModeValue = DISPLAY_MODE_VALUES.find((value) => value === source["displayMode"]);
+  if (displayModeValue !== undefined) out.displayMode = displayModeValue;
+  const drawResolution = source["resolution"];
+  if (
+    drawResolution === "native" ||
+    (typeof drawResolution === "string" && resolutionPixelsOf(drawResolution) !== null)
+  ) {
+    out.resolution = drawResolution as Resolution;
+  }
   const resolution = source["textResolution"];
   if (typeof resolution === "number" && Number.isFinite(resolution)) {
     out.textResolution = Math.min(SHARP_TEXT_RESOLUTION_CEILING, Math.max(1, resolution));
@@ -129,5 +141,14 @@ export class SettingsStore {
     } catch {
       // Private mode or a full quota: the choice still holds for this session.
     }
+  }
+}
+
+/** What the player has explicitly set, read straight from storage (the desktop app's launch checks, `main.ts`). */
+export function storedSettingsOverrides(storage: SettingsStorage | null = browserStorage()): SettingsOverrides {
+  try {
+    return parseSettingsOverrides(storage?.getItem(SETTINGS_KEY) ?? null);
+  } catch {
+    return {};
   }
 }

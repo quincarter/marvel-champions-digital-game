@@ -1,5 +1,9 @@
 import { describe, expect, test } from "vitest";
 import {
+  displayModeRowInfoOf,
+  nextSettingsAfterDisplayMode,
+  nextSettingsAfterResolution,
+  resolutionRowInfoOf,
   guideRowInfoOf,
   nextGuidePrefsAfterRow,
   nextSettingsAfterToggle,
@@ -37,6 +41,8 @@ const BASE: Settings = {
   hoverHeroCard: true,
   hoverVillainCard: true,
   firstPlayerTokenMotion: "toss",
+  displayMode: "windowed",
+  resolution: "native",
 };
 
 describe("settingsRowInfoOf", () => {
@@ -58,6 +64,8 @@ describe("settingsRowInfoOf", () => {
       hoverHeroCard: true,
       hoverVillainCard: true,
       firstPlayerTokenMotion: "toss",
+      displayMode: "windowed",
+      resolution: "native",
     });
     expect(rows.find((r) => r.id === "reduced-motion")?.on).toBe(true);
     expect(rows.find((r) => r.id === "sharper-text")?.on).toBe(true);
@@ -294,5 +302,53 @@ describe("first player token row", () => {
   test("a choice sets it, and a bad value changes nothing", () => {
     expect(nextSettingsAfterTokenMotion(BASE, "bounce").firstPlayerTokenMotion).toBe("bounce");
     expect(nextSettingsAfterTokenMotion(BASE, "juggle" as never)).toBe(BASE);
+  });
+});
+
+describe("Window mode and Resolution (desktop app)", () => {
+  test("where Fullscreen really switches the screen (Windows), the row says so and that it comes back", () => {
+    const fullscreen = nextSettingsAfterDisplayMode(defaultSettings(), "fullscreen");
+    const detail = resolutionRowInfoOf(fullscreen, [], { width: 3440, height: 1440 }, true).detail;
+    expect(detail).toMatch(/switches your screen/);
+    expect(detail).toMatch(/comes back/);
+  });
+
+  test("Window mode offers Windowed, Borderless and Fullscreen, Windowed by default", () => {
+    const info = displayModeRowInfoOf(defaultSettings());
+    expect(info.options.map((o) => o.label)).toEqual(["Windowed", "Borderless", "Fullscreen"]);
+    expect(info.selected).toBe("windowed");
+    expect(nextSettingsAfterDisplayMode(defaultSettings(), "borderless").displayMode).toBe("borderless");
+  });
+
+  test("Resolution defaults to Native, labelled with the monitor's own size, the list largest first", () => {
+    const info = resolutionRowInfoOf(defaultSettings(), ["1280x720", "1920x1080"], { width: 3440, height: 1440 });
+    expect(info.options.map((o) => o.label)).toEqual(["Native · 3440 × 1440", "1920 × 1080", "1280 × 720"]);
+    expect(info.selected).toBe("native");
+  });
+
+  test("Native sits at its own size among the rest: on a 1440p screen in Fullscreen, under 4K", () => {
+    const fullscreen = nextSettingsAfterDisplayMode(defaultSettings(), "fullscreen");
+    const info = resolutionRowInfoOf(fullscreen, ["1920x1080", "3840x2160", "3440x1440"], {
+      width: 2560,
+      height: 1440,
+    });
+    expect(info.options.map((o) => o.value)).toEqual(["3840x2160", "3440x1440", "native", "1920x1080"]);
+  });
+
+  test("before the monitor is read, Native is just Native", () => {
+    expect(resolutionRowInfoOf(defaultSettings(), []).options[0]!.label).toBe("Native");
+  });
+
+  test("a saved resolution this screen doesn't offer shows as Native", () => {
+    const settings = nextSettingsAfterResolution(defaultSettings(), "3840x2160");
+    expect(settings.resolution).toBe("3840x2160");
+    expect(resolutionRowInfoOf(settings, ["1280x720", "1600x900"]).selected).toBe("native");
+  });
+
+  test("in the fullscreen modes the row explains the black bars; it never claims to change the OS resolution", () => {
+    const settings = nextSettingsAfterDisplayMode(defaultSettings(), "fullscreen");
+    const detail = resolutionRowInfoOf(settings, []).detail;
+    expect(detail).toMatch(/black bars/);
+    expect(detail).toMatch(/display resolution is never changed/);
   });
 });

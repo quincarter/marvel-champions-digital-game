@@ -15,8 +15,8 @@
         "title": "Marvel Champions",
         "width": 1440,
         "height": 900,
-        "minWidth": 960,
-        "minHeight": 600,
+        "minWidth": 640,
+        "minHeight": 360,
         "resizable": true,
         "fullscreen": false,
         "backgroundColor": "#0e0c0a"

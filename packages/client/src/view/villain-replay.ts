@@ -6,6 +6,7 @@
  * Everything here is a plain function of the walkthrough and the reveal cursor, so the scene can hold each of those back
  * until the rail reaches them (the QA of 2026-10-15: the board showed round 2 and "Your turn" over round 1's step 2).
  */
+import type { GameOutcome } from "@mc/engine";
 import { revealOf } from "./villain-phase-reveal.js";
 import { VILLAIN_STEPS, type Walkthrough } from "./villain-walkthrough.js";
 
@@ -46,6 +47,14 @@ export function tableHoldOf(walkthrough: Walkthrough, revealed: number): TableHo
 
 /** Whether a finished game's outcome screen may replace the rail: every beat has been shown (or there is nothing to show). */
 export const outcomeReleasable = (revealed: number, total: number): boolean => revealed >= total;
+
+/**
+ * Whether an outcome ends the replay on the spot instead of waiting for the rail. A win or a defeat came out of the
+ * phase's own beats, so the rail plays them out first; a concession came from the pause menu, not from the phase, and
+ * the beats still to play (or a phase not yet started) have nothing to do with it. Waiting there hung the game: a
+ * phase parked on "Start villain phase" never reveals a beat, so its outcome was never released.
+ */
+export const outcomeEndsReplay = (outcome: GameOutcome): boolean => outcome.result === "conceded";
 
 /**
  * The heading over a held decision: who decides and what it is about. With one seat it is "Your decision"; with

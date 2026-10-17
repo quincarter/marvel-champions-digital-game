@@ -8,7 +8,8 @@
  * The *order* is still stated by the screen (`view/screen-focus.ts`, or a
  * screen's own action list), never taken from the order of its draw calls.
  *
- * Same conventions as everywhere else: arrows and Tab walk the route, Enter or
+ * Same conventions as everywhere else: Tab walks the route, the arrows move to
+ * the nearest stop that way on screen (`view/spatial-nav.ts`), Enter or
  * Space presses, `I` reads (where a stop has something to read), Escape backs
  * out, and the ring is the selection ring drawn static — a pulse means "the game
  * is waiting for you", and focus is not a prompt.
@@ -19,6 +20,7 @@ import { McSelectionRing } from "../ui/widgets.js";
 import { stepKey } from "../view/focus.js";
 import type { GamepadIntent } from "../view/gamepad.js";
 import type { Rect } from "../view/layout.js";
+import { spatialStep } from "../view/spatial-nav.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
 
 export interface FocusStop {
@@ -128,10 +130,13 @@ export class FocusRoute {
     switch (intent) {
       case "next":
       case "previous":
-        this.#focus = stepKey(this.#order, this.#focus, intent === "next" ? 1 : -1);
-        if (this.#focus) this.#stops.get(this.#focus)?.ensureVisible?.();
-        this.#drawRing();
-        this.#onFocusChange?.(this.#focus);
+        this.#moveTo(stepKey(this.#order, this.#focus, intent === "next" ? 1 : -1));
+        break;
+      case "up":
+      case "down":
+      case "left":
+      case "right":
+        this.#moveTo(spatialStep(this.#order, (key) => this.#rectOf(key), this.#focus, intent));
         break;
       case "activate":
         if (this.#focus) this.#stops.get(this.#focus)?.activate();
@@ -158,6 +163,19 @@ export class FocusRoute {
         }
         break;
     }
+  }
+
+  #moveTo(key: string | null): void {
+    this.#focus = key;
+    if (this.#focus) this.#stops.get(this.#focus)?.ensureVisible?.();
+    this.#drawRing();
+    this.#onFocusChange?.(this.#focus);
+  }
+
+  #rectOf(key: string): Rect | null {
+    const rect = this.#stops.get(key)?.rect;
+    if (!rect) return null;
+    return typeof rect === "function" ? rect() : rect;
   }
 
   #drawRing(): void {
