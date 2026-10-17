@@ -622,7 +622,8 @@ export class ChoiceOverlay extends Phaser.Scene {
       : 0;
     // On a tabbed layout PEEK AT TABLE takes a thumb strip under the sheet: the title bar sits where the Now playing
     // toast slides in, which covered it there.
-    const peekStrip = canPeek && isTabbed(formFactor) ? CHOICE_PEEK_STRIP : 0;
+    // Portrait only: a phone on its side has no height to spare under the sheet, so it keeps the title bar's control.
+    const peekStrip = canPeek && (formFactor === "phone" || formFactor === "tabletPortrait") ? CHOICE_PEEK_STRIP : 0;
     const sheetHeight = docked
       ? docked.height - DOCK_INSET * 2
       : Math.min(areaHeight - (phone ? 16 : 80) - peekStrip, (asCards ? 620 : 560) + extraHeight + contextHeight);

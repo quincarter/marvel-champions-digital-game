@@ -110,7 +110,8 @@ async function newGame(page: Page): Promise<void> {
 async function flipRows(page: Page, phone: boolean, scene: string, keyOf: (id: string) => string): Promise<void> {
   // The phone's lower group scrolls and draws only the rows on screen; flip the ones that are there.
   let flipped = 0;
-  for (const id of ["reduced-motion", "large-card-text", "confirm-end-turn", "same-name-conflict"]) {
+  // Sharper text sits right under Card size on the phone sheet, so two toggles are on screen above the footer.
+  for (const id of ["reduced-motion", "sharper-text", "large-card-text", "confirm-end-turn", "same-name-conflict"]) {
     // A row's rect keeps its scrolled position under the phone's footer buttons; only a row clear of them is a target.
     const rect = await stopOf(page, scene, keyOf(id));
     if (!rect || rect.y + rect.height / 2 > page.viewportSize()!.height - 150) continue;
