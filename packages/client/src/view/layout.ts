@@ -232,6 +232,12 @@ export interface LayoutOptions {
    * usable window. Width does not change.
    */
   readonly cardScale?: number;
+  /**
+   * The villain review handle's width while it shows on the table's right edge (`view/villain-review.ts`). On the tabbed
+   * board (phones, tablet portrait) the play area runs to that edge, so it stops this much short: no card sits under
+   * the handle (#227). Ignored on the long table. Omitted or 0: the play area keeps its full width.
+   */
+  readonly reviewHandle?: number;
 }
 
 /** The scale a layout is built at: 1 when omitted, never below 1 and never past 2 (a layout only ever grows). */
@@ -473,6 +479,7 @@ function phoneZones(viewport: Rect, options: LayoutOptions, fullViewport: Rect =
   const playArea = on("me", {
     ...content,
     y: content.y + identityHeight + gutter,
+    width: content.width - (options.reviewHandle ?? 0),
     height: content.height - identityHeight - gutter,
   });
 
@@ -567,7 +574,7 @@ function phoneLandscapeZones(viewport: Rect, options: LayoutOptions, fullViewpor
   const playArea = on("me", {
     ...content,
     x: content.x + identityWidth + gutter,
-    width: content.width - identityWidth - gutter,
+    width: content.width - identityWidth - gutter - (options.reviewHandle ?? 0),
   });
 
   const pileWidth = Math.min(150, Math.round(content.width * 0.2));

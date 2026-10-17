@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { hit } from "../tokens.js";
+import { REVIEW_HANDLE_WIDTH, reviewHandleRect } from "./villain-review.js";
 import {
   BADGE_MAX,
   badgeExtent,
@@ -141,6 +142,19 @@ describe("boardLayout", () => {
     const playArea = layout.zones.playArea!;
     expect(playArea.y).toBeGreaterThanOrEqual(me.y + me.height);
     expect(playArea.y + playArea.height).toBeLessThanOrEqual(layout.zones.hand!.y);
+  });
+
+  test("issue #227: with the villain review handle showing, the play area stops short of it on the tabbed board", () => {
+    for (const viewport of [REFERENCE_VIEWPORTS.phone, { width: 844, height: 390 }]) {
+      const view = rectOf(viewport);
+      const plain = boardLayout(view, { playerCount: 1, activeTab: "me" }).zones.playArea!;
+      const handled = boardLayout(view, { playerCount: 1, activeTab: "me", reviewHandle: REVIEW_HANDLE_WIDTH }).zones
+        .playArea!;
+      const handle = reviewHandleRect(view, handled.y, handled.y + handled.height);
+      expect(handled.x + handled.width).toBeLessThanOrEqual(handle.x);
+      expect(handled.width).toBe(plain.width - REVIEW_HANDLE_WIDTH);
+      expect({ ...handled, width: 0 }).toEqual({ ...plain, width: 0 });
+    }
   });
 
   test("the Enemies tab carries the encounter piles above the enemies", () => {

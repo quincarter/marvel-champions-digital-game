@@ -53,9 +53,12 @@ export function slideOffset(edge: SlideEdge, rect: Rect, viewport: Rect): { read
   }
 }
 
+/** How wide the drawer handle is; a phone's play area stops this far short of the edge while it shows (#227). */
+export const REVIEW_HANDLE_WIDTH = 36;
+
 /** The drawer handle at the table's right edge, centered on the height between the chrome and the hand. */
 export function reviewHandleRect(viewport: Rect, top: number, bottom: number): Rect {
-  const width = 36;
+  const width = REVIEW_HANDLE_WIDTH;
   const height = Math.min(260, Math.max(150, (bottom - top) * 0.8));
   return { x: viewport.x + viewport.width - width, y: Math.round((top + bottom - height) / 2), width, height };
 }

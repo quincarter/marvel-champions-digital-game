@@ -58,13 +58,13 @@ import {
   type Rect,
 } from "../view/layout.js";
 import { cardSizeFactor } from "../settings.js";
-import { setTapOccluders } from "../ui/tap.js";
+import { onTap, setTapOccluders } from "../ui/tap.js";
 import { TableDrag, clampScroll, fullyInWindow, revealScroll, wheelPixels } from "../view/table-scroll.js";
 import { villainDockRects, type VillainDockRects, type VillainDockRequest } from "../view/villain-dock.js";
 import { sameSeatNote, type VillainSeatNote } from "../view/villain-seat-note.js";
 import { drawCompactIdentity } from "./board/compact-identity.js";
 import { sameHandTags, type VillainHandTag } from "../view/villain-hand-tags.js";
-import { reviewHandleRect, showReviewHandle } from "../view/villain-review.js";
+import { REVIEW_HANDLE_WIDTH, reviewHandleRect, showReviewHandle } from "../view/villain-review.js";
 import type { TableHold } from "../view/villain-replay.js";
 import type { SessionState } from "../store/session-store.js";
 import { CHROME_SCENES, SCENES } from "./keys.js";
@@ -1227,6 +1227,7 @@ export class BoardScene extends Phaser.Scene {
         ? { villainBand: { tall: true, grow: this.#dockShown.grow } }
         : {}),
       ...(cardScale > 1 ? { cardScale } : {}),
+      ...(this.#reviewHandleShown() ? { reviewHandle: REVIEW_HANDLE_WIDTH } : {}),
     });
     const layout = scrollLayout(atRest, this.#tableScroll);
     this.#tableScroll = layout.scrollY;
@@ -2037,10 +2038,8 @@ export class BoardScene extends Phaser.Scene {
    * decision or the villain phase itself is up.
    */
   #drawVillainReviewHandle(layout: BoardLayout, viewport: Rect): void {
+    if (!this.#reviewHandleShown()) return;
     const review = appSession().villainReview;
-    const game = appSession().store.state.game ?? null;
-    if (!showReviewHandle(review, game) || this.#choiceOpen) return;
-    if (this.scene.isActive(SCENES.villainPhase) || this.scene.isActive(SCENES.inspect)) return;
     // Level with the play area (the owner, 2026-10-14), else between the chrome and the hand.
     const chrome = layout.zones.chrome;
     const play = layout.zones.playArea;
@@ -2067,11 +2066,23 @@ export class BoardScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true })
       .setDepth(HANDLE_DEPTH);
-    zone.on("pointerup", () => {
-      if (this.scene.isActive(SCENES.villainPhase)) return;
-      this.scene.launch(SCENES.villainPhase, { before: null, review: review! } satisfies VillainPhaseLaunchData);
-    });
+    // A tap, not any release over it: a sideways swipe of the play area that lifted on the handle opened the recap (#227).
+    onTap(
+      zone,
+      () => {
+        if (this.scene.isActive(SCENES.villainPhase)) return;
+        this.scene.launch(SCENES.villainPhase, { before: null, review: review! } satisfies VillainPhaseLaunchData);
+      },
+      "villain-review",
+    );
     this.#frame.focusRects.set("villain-review", rect);
+  }
+
+  /** Whether the review handle is drawn this frame: the layout keeps a phone's play area out from under it. */
+  #reviewHandleShown(): boolean {
+    const game = appSession().store.state.game ?? null;
+    if (!showReviewHandle(appSession().villainReview, game) || this.#choiceOpen) return false;
+    return !this.scene.isActive(SCENES.villainPhase) && !this.scene.isActive(SCENES.inspect);
   }
 
   /**
