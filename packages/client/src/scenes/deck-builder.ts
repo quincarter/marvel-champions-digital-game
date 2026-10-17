@@ -79,7 +79,6 @@ import {
   poolTypeLine,
   identityOptions,
   legalityOf,
-  newDeck,
   removeCard,
   resetToIdentitySet,
   resetToPrecon,
