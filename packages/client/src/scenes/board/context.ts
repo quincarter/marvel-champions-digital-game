@@ -54,12 +54,15 @@ export interface BoardFrame {
    * log), so the table's own scroll at a larger Card size leaves them alone.
    */
   readonly innerScroll: Rect[];
+  /** The tabbed hand's clipped strip this draw (empty elsewhere): where a hand card shows and takes presses. */
+  readonly handStrip: Rect[];
 }
 
 export const emptyFrame = (): BoardFrame => ({
   hitRects: new Map(),
   focusRects: new Map(),
   pileRects: new Map(),
+  handStrip: [],
   buttons: [],
   rings: [],
   masks: [],

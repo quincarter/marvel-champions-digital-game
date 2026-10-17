@@ -177,6 +177,7 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
   const strip: Rect | null = tabbed
     ? { x: row.cardArea.x, y: rect.y, width: row.cardArea.width, height: rect.height }
     : null;
+  if (strip) ctx.frame.handStrip.push(strip);
   model.hand.forEach((card, index) => {
     const slot = slots[index];
     // A card still flying in from the deck leaves its slot empty; its ghost fills it (`BoardMotion#isArriving`).

@@ -588,6 +588,7 @@ export class BoardScene extends Phaser.Scene {
         hitRect: (id: string) => this.#frame.hitRects.get(id as InstanceId) ?? null,
         allFocusRects: () => [...this.#frame.focusRects.entries()],
         allPileRects: () => [...this.#frame.pileRects.entries()],
+        handStrip: () => this.#frame.handStrip[0] ?? null,
         paymentView: () => this.paymentView(),
         phaseBand: () => this.#motion.debugPhaseBand(),
         phaseBandLog: () => this.#motion.debugPhaseBandLog(),
