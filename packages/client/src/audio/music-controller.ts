@@ -38,6 +38,8 @@ import basicAttackUrl from "./sfx/basic-attack.mp3?url";
 import basicThwartUrl from "./sfx/basic-thwart.mp3?url";
 import cardPlayedUrl from "./sfx/card-played.mp3?url";
 import spellCastUrl from "./sfx/spell-cast.mp3?url";
+import cloakOfLevitationUrl from "./sfx/cloak-of-levitation.mp3?url";
+import shieldTossUrl from "./sfx/shield-toss.mp3?url";
 
 /** The longest one sound effect holds the next back. */
 const EFFECT_GAP_MAX_MS = 600;
@@ -49,6 +51,8 @@ const SOUND_EFFECT_URLS: Readonly<Record<SoundEffect, string>> = {
   "basic-thwart": basicThwartUrl,
   "card-played": cardPlayedUrl,
   "spell-cast": spellCastUrl,
+  "cloak-of-levitation": cloakOfLevitationUrl,
+  "shield-toss": shieldTossUrl,
 };
 
 /** Default BGM volume when unmuted (0.0 to 1.0). Sits cleanly under UI sound. */

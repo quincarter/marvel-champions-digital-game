@@ -12,7 +12,9 @@ export type SoundEffect =
   | "basic-attack"
   | "basic-thwart"
   | "card-played"
-  | "spell-cast";
+  | "spell-cast"
+  | "cloak-of-levitation"
+  | "shield-toss";
 
 /** How loud each one plays, under the music's own level. */
 export const SOUND_EFFECT_VOLUME: Readonly<Record<SoundEffect, number>> = {
@@ -22,6 +24,17 @@ export const SOUND_EFFECT_VOLUME: Readonly<Record<SoundEffect, number>> = {
   "basic-thwart": 0.7,
   "card-played": 0.6,
   "spell-cast": 0.7,
+  "cloak-of-levitation": 0.7,
+  "shield-toss": 0.7,
+};
+
+/**
+ * A card's own sound, by its name: played when the card is played (in place of the card or Spell sound) or when one of
+ * its abilities is used. Doctor Strange's Cloak of Levitation, Captain America's Shield Toss.
+ */
+export const CARD_SOUNDS: Readonly<Record<string, SoundEffect>> = {
+  "Cloak of Levitation": "cloak-of-levitation",
+  "Shield Toss": "shield-toss",
 };
 
 /** True when a command's events refilled a hand at the end of the player phase (RRG 1.8 p. 18, step 2). */
@@ -57,24 +70,44 @@ export function cardEnteredPlay(events: readonly GameEvent[]): boolean {
   );
 }
 
+export interface CardSoundInfo {
+  readonly name: string;
+  readonly traits: readonly string[];
+}
+
 /**
  * The sounds one or more commands make on the table, in the order they play (the owner, 2026-10-17: the card first,
  * then its attack or thwart):
  *
- * 1. A card played (an event too) or a card entering play: the spell sound when a played card is a Spell (Doctor
- *    Strange's, Adam Warlock's, any hero's), else the card sound.
- * 2. A basic attack, then a basic thwart.
- * 3. The end-of-turn draw up to hand size.
+ * 1. A card played (an event too) or a card entering play: the card's own sound (`CARD_SOUNDS`), else the spell sound
+ *    when it is a Spell (Doctor Strange's, Adam Warlock's, any hero's), else the card sound.
+ * 2. An ability used on a card with its own sound (Cloak of Levitation).
+ * 3. A basic attack, then a basic thwart.
+ * 4. The end-of-turn draw up to hand size.
+ *
+ * `cardOf` names a card by id; `abilityCardOf` names the card a `useAbility` command used, by its instance.
  */
 export function tableSoundsOf(
   entries: readonly { readonly command: Command | undefined; readonly events: readonly GameEvent[] }[],
-  traitsOf: (cardId: CardId) => readonly string[],
+  cardOf: (cardId: CardId) => CardSoundInfo | null,
+  abilityCardOf: (command: Command & { readonly type: "useAbility" }) => string | null = () => null,
 ): SoundEffect[] {
   const events = entries.flatMap((entry) => entry.events);
-  const played = events.flatMap((event) => (event.type === "cardPlayed" ? [event.cardId] : []));
+  const played = events.flatMap((event) => {
+    const card = event.type === "cardPlayed" ? cardOf(event.cardId) : null;
+    return card ? [card] : [];
+  });
   const sounds: SoundEffect[] = [];
-  if (played.some((cardId) => traitsOf(cardId).includes("Spell"))) sounds.push("spell-cast");
+  const own = played.map((card) => CARD_SOUNDS[card.name]).find((sound) => sound !== undefined);
+  if (own) sounds.push(own);
+  else if (played.some((card) => card.traits.includes("Spell"))) sounds.push("spell-cast");
   else if (played.length > 0 || cardEnteredPlay(events)) sounds.push("card-played");
+  for (const entry of entries) {
+    if (entry.command?.type !== "useAbility") continue;
+    const name = abilityCardOf(entry.command);
+    const sound = name ? CARD_SOUNDS[name] : undefined;
+    if (sound && !sounds.includes(sound)) sounds.push(sound);
+  }
   if (entries.some((entry) => madeBasicAttack(entry.command, entry.events))) sounds.push("basic-attack");
   if (entries.some((entry) => madeBasicThwart(entry.command, entry.events))) sounds.push("basic-thwart");
   if (refilledHand(events)) sounds.push("hand-refill");

@@ -1,7 +1,14 @@
 import { describe, expect, test } from "vitest";
 import type { CardId } from "@mc/content";
 import type { Command, GameEvent, PlayerId } from "@mc/engine";
-import { cardEnteredPlay, madeBasicAttack, madeBasicThwart, refilledHand, tableSoundsOf } from "./sound-effects.js";
+import {
+  cardEnteredPlay,
+  madeBasicAttack,
+  madeBasicThwart,
+  refilledHand,
+  tableSoundsOf,
+  type CardSoundInfo,
+} from "./sound-effects.js";
 
 const P1 = "p1" as PlayerId;
 const refill = (drawn: number): GameEvent => ({ type: "handRefilled", playerId: P1, drawn, handSize: 6 }) as GameEvent;
@@ -10,7 +17,12 @@ const moved = (from: string, to: string): GameEvent =>
 const played = (cardId: string): GameEvent => ({ type: "cardPlayed", playerId: P1, cardId }) as unknown as GameEvent;
 const instructed = (power: "attack" | "thwart"): GameEvent =>
   ({ type: "basicPowerInstructed", power }) as unknown as GameEvent;
-const traitsOf = (cardId: CardId): readonly string[] => ((cardId as string) === "shield-of-seraphim" ? ["Spell"] : []);
+const NAMES: Record<string, CardSoundInfo> = {
+  "shield-of-seraphim": { name: "Shield of the Seraphim", traits: ["Spell"] },
+  "shield-toss": { name: "Shield Toss", traits: [] },
+  "swinging-web-kick": { name: "Swinging Web Kick", traits: [] },
+};
+const traitsOf = (cardId: CardId): CardSoundInfo | null => NAMES[cardId as string] ?? null;
 
 describe("basic powers", () => {
   test("the Attack button, or a card that has a character make one", () => {
@@ -67,5 +79,20 @@ describe("tableSoundsOf", () => {
 
   test("nothing on the table, nothing to hear", () => {
     expect(tableSoundsOf([{ command: { type: "basicRecover" } as Command, events: [] }], traitsOf)).toEqual([]);
+  });
+});
+
+describe("a card's own sound", () => {
+  test("Shield Toss plays its own in place of the card sound", () => {
+    const entry = { command: undefined, events: [played("shield-toss"), moved("hand", "resolving")] };
+    expect(tableSoundsOf([entry], traitsOf)).toEqual(["shield-toss"]);
+  });
+
+  test("using Cloak of Levitation", () => {
+    const use = { type: "useAbility", cardInstanceId: "i9" } as unknown as Command;
+    const cloak = (command: Command & { readonly type: "useAbility" }): string | null =>
+      (command.cardInstanceId as string) === "i9" ? "Cloak of Levitation" : null;
+    expect(tableSoundsOf([{ command: use, events: [] }], traitsOf, cloak)).toEqual(["cloak-of-levitation"]);
+    expect(tableSoundsOf([{ command: use, events: [] }], traitsOf)).toEqual([]);
   });
 });

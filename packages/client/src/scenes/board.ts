@@ -67,7 +67,7 @@ import { reviewHandleRect, showReviewHandle } from "../view/villain-review.js";
 import type { TableHold } from "../view/villain-replay.js";
 import type { SessionState } from "../store/session-store.js";
 import { CHROME_SCENES, SCENES } from "./keys.js";
-import { tableSoundsOf } from "../view/sound-effects.js";
+import { tableSoundsOf, type CardSoundInfo } from "../view/sound-effects.js";
 import { HoverPreview, isMousePointer } from "../ui/card-hover-preview.js";
 import { hoverArea } from "../view/card-hover.js";
 import { sheetIsCovered } from "../view/choice-sheet-sync.js";
@@ -144,10 +144,12 @@ const HANDLE_DEPTH = 950;
 export const VILLAIN_DOCK_CHANGED = "villain-dock-changed";
 const VILLAIN_DOCK_TWEEN_MS = 280;
 
-/** A card's traits, for the spell sound (`view/sound-effects.ts`). An identity's sit on its faces and never count. */
-function traitsOfCard(cardId: CardId): readonly string[] {
-  const card = CARDS_BY_ID.get(cardId as string) as { readonly traits?: readonly string[] } | undefined;
-  return card?.traits ?? [];
+/** A card's name and traits, for its sound (`view/sound-effects.ts`). An identity's traits sit on its faces and never count. */
+function soundInfoOfCard(cardId: CardId): CardSoundInfo | null {
+  const card = CARDS_BY_ID.get(cardId as string) as
+    | { readonly name: string; readonly traits?: readonly string[] }
+    | undefined;
+  return card ? { name: card.name, traits: card.traits ?? [] } : null;
 }
 
 export class BoardScene extends Phaser.Scene {
@@ -650,7 +652,14 @@ export class BoardScene extends Phaser.Scene {
     // or a resumed game's past plays nothing.
     const trail = state.commandTrail;
     if (this.#soundTrail >= 0 && trail.length > this.#soundTrail) {
-      appSession().music?.playEffects(tableSoundsOf(trail.slice(this.#soundTrail), traitsOfCard));
+      const game = state.game;
+      appSession().music?.playEffects(
+        tableSoundsOf(
+          trail.slice(this.#soundTrail),
+          soundInfoOfCard,
+          (command) => cardOf(game, command.cardInstanceId)?.name ?? null,
+        ),
+      );
     }
     this.#soundTrail = trail.length;
     this.#syncGuide(state);
