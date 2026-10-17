@@ -198,16 +198,20 @@ export function effectLineOf(name: string, paragraph: string): string {
 }
 
 /**
- * A response that takes a card away after another card's ability discarded it from a deck (Jackpot! shuffling itself
- * back, Digging Deep to hand, The Painted Lady): the discarding ability no longer counts that card. RRG v1.8 p. 24 lets
- * the response initiate before that ability finishes; ruling April 30, 2026 - Ruling 4 (1) says the card "does not
- * count", which the engine applies to every deck discard (wave 7 §4.1 Q32 = B). The card text says none of this.
+ * A response that takes a card away after a mission attempt discarded it from a deck (Digging Deep to hand): the card
+ * no longer counts for the attempt (ruling April 30, 2026 - Ruling 4, answer 1), which the card text does not say. Any
+ * other deck discard keeps counting a card taken away (Jackpot! shuffled back still counts for Luck Be a Lady;
+ * docs/phase7-wave7.md §4.1 Q32 = A), so nothing is said there. The attempt's set is marked `takenAwayNotCounted`.
  */
 export function deckDiscardWarningOf(state: GameState, event: TriggerEvent): string | null {
   if (event.kind !== "cardDiscardedFromDeck" || event.at !== "discard") return null;
   const source = event.sourceInstanceId;
   if (source === null || source === event.instanceId) return null;
-  return `Heads up: ${cardName(state, event.instanceId)} would leave the discard pile, so ${cardName(state, source)} won't count its resources. Decline to keep them.`;
+  const dropped = (state.deckDiscardWindows ?? []).some((window) =>
+    window.discards.some((d) => d.instanceId === event.instanceId && d.boundOn?.takenAwayNotCounted === true),
+  );
+  if (!dropped) return null;
+  return `Heads up: if ${cardName(state, event.instanceId)} leaves the discard pile, it won't count for ${cardName(state, source)}. Decline to keep it counted.`;
 }
 
 /**

@@ -3246,8 +3246,16 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const [into] = effect.into ? resolvePlayers(ctx.state, effect.into, context) : [];
       if (effect.into && !into) return;
       // A card this discards from a player's deck is announced as that (docs/phase7-wave7.md §3.55), discarded by this
-      // frame's card, and counted in `bind` unless a response takes it away (§4.1 Q32).
-      const boundOn = effect.bind ? { boundOn: { frameId: frame.frameId, slot: effect.bind } } : {};
+      // frame's card, and counted in `bind`, even once a response takes it away unless `takenAwayNotCounted` (§4.1 Q32).
+      const boundOn = effect.bind
+        ? {
+            boundOn: {
+              frameId: frame.frameId,
+              slot: effect.bind,
+              ...(effect.takenAwayNotCounted ? { takenAwayNotCounted: true as const } : {}),
+            },
+          }
+        : {};
       const sourceCardId = leaveSourceOf(ctx, frame);
       // A card of a hand or a deck this would discard is announced first when an ability hears that ("when … would
       // discard a card you control", docs/phase7-wave9.md §4.1 Q20; `resolve/would-discard.ts`): its discard waits

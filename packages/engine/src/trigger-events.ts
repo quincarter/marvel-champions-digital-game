@@ -2351,6 +2351,14 @@ export function hearsEncounterDeckDiscard(pattern: EventPattern): boolean {
 export const TAKEN_AWAY_SUFFIX = ".takenAway";
 
 /**
+ * The suffix of the slot that keeps, beside a set of cards "discarded this way" from a player's deck, the cards a
+ * response took away that the ability still counts (docs/phase7-wave7.md §4.1 Q32 = A, `settleDeckDiscards`):
+ * `<slot>.countedAway`. They are out of the set, so the ability's later effects ("add them to your hand") do not move
+ * them again, and their icons still count (`<slot>.*` totals, `ValueSpec totalPrintedResources` over the slot).
+ */
+export const COUNTED_AWAY_SUFFIX = ".countedAway";
+
+/**
  * The slots an ability hands to the abilities that answer its resolution (`abilityResolved.carried`,
  * docs/phase7-wave9.md §3.43 (c)): its own, each set of discarded cards whole again (`TAKEN_AWAY_SUFFIX`).
  * Undefined when it holds none.
@@ -2360,8 +2368,12 @@ export function slotsCarriedByResolved(
 ): Readonly<Record<string, readonly InstanceId[]>> | undefined {
   const carried: Record<string, readonly InstanceId[]> = {};
   for (const [slot, ids] of Object.entries(bindings)) {
-    if (slot.endsWith(TAKEN_AWAY_SUFFIX)) continue;
-    carried[slot] = [...ids, ...(bindings[`${slot}${TAKEN_AWAY_SUFFIX}`] ?? [])];
+    if (slot.endsWith(TAKEN_AWAY_SUFFIX) || slot.endsWith(COUNTED_AWAY_SUFFIX)) continue;
+    carried[slot] = [
+      ...ids,
+      ...(bindings[`${slot}${TAKEN_AWAY_SUFFIX}`] ?? []),
+      ...(bindings[`${slot}${COUNTED_AWAY_SUFFIX}`] ?? []),
+    ];
   }
   return Object.keys(carried).length > 0 ? carried : undefined;
 }

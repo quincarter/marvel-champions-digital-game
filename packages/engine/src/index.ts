@@ -484,6 +484,7 @@ export {
   isAnnouncement,
   MOMENT_PREFIX,
   TAKEN_AWAY_SUFFIX,
+  COUNTED_AWAY_SUFFIX,
   TOTAL_ATK_RESULT,
 } from "./trigger-events.js";
 

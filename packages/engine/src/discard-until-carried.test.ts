@@ -242,6 +242,8 @@ const resolved = (events: readonly GameEvent[]): readonly string[] =>
   events.flatMap((event) => (event.type === "abilityResolved" ? [`${event.abilityId}`] : []));
 const notCounted = (events: readonly GameEvent[]) =>
   events.flatMap((event) => (event.type === "deckDiscardNotCounted" ? [[event.instanceId, event.slot]] : []));
+const stillCounted = (events: readonly GameEvent[]) =>
+  events.flatMap((event) => (event.type === "deckDiscardStillCounted" ? [[event.instanceId, event.slot]] : []));
 const shuffles = (events: readonly GameEvent[]): number =>
   events.filter((event) => event.type === "deckShuffled" && event.zone.kind === "deck").length;
 /** A bound set's vars, as `raiseMoment.carry` stamps them. */
@@ -300,17 +302,18 @@ describe("§3.71 discardDeckUntil.bindAll: every card discarded, the match inclu
     expect(raisedLog(after.events)[0]?.carriedVars).toEqual({});
   });
 
-  it("drops a card a response to its own discard took away, from the set and from its totals (wave 7 Q32)", () => {
+  it("drops a card a response to its own discard took away from the set, but its totals still count it (wave 7 Q32 = A)", () => {
     const at = table(["body", "echo", "match", "mind"]);
     const [body, echo, match] = at.deck;
     const after = run(at);
     expect(resolved(after.events)).toEqual([PULL.ref.id, ECHO_RESPONSE.ref.id]);
     expect(seat(after.state).hand).toEqual(expect.arrayContaining([echo, match]));
-    // Echo sat in the set of every card discarded only (it was no match), so it is dropped from that one slot.
-    expect(notCounted(after.events)).toEqual([[echo, "pulled"]]);
-    expect(counter(after.state, at.puller, "pulled")).toBe(2);
+    // Echo sat in the set of every card discarded only (it was no match), so it leaves that one slot, still counted.
+    expect(stillCounted(after.events)).toEqual([[echo, "pulled"]]);
+    expect(notCounted(after.events)).toEqual([]);
+    expect(counter(after.state, at.puller, "pulled")).toBe(3);
     expect(raisedLog(after.events)[0]?.carried).toEqual({ pulled: [body, match] });
-    expect(raisedLog(after.events)[0]?.carriedVars).toEqual(totals(2, { physical: 1, energy: 1 }));
+    expect(raisedLog(after.events)[0]?.carriedVars).toEqual(totals(3, { physical: 1, energy: 1, wild: 1 }));
   });
 
   it("keeps that card when its response is declined", () => {

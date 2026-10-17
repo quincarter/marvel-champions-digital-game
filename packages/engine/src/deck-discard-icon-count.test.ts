@@ -425,29 +425,29 @@ describe("§3.56 the rule is its identity's, about its player's deck, while its 
   });
 });
 
-describe("§3.56 with §4.1 Q32 = B: a card a response took away is not counted", () => {
-  it("an effect's discard taken back to hand contributes 0, rule or not", () => {
+describe("§3.56 with §4.1 Q32 = A: a card a response took away still counts", () => {
+  it("an effect's discard taken back to hand still contributes its icons, doubled by the rule", () => {
     const table = start(["taken"], { using: hearingDeps });
     const result = run(table, MILL_1, hearingDeps, takingBack);
     expect(mustPlayer(result.state, P1).hand).toContain(table.top[0]);
-    expect(counted(result.state, table)).toEqual([0, 0, 0, 0, 0]);
-    expect(reported(result.state, table)).toEqual([0, 0, 0, 0]);
+    expect(counted(result.state, table)).toEqual([2, 0, 0, 0, 2]);
+    expect(reported(result.state, table)).toEqual([0, 0, 0, 2]);
     expectReplays(result, hearingDeps);
   });
 
-  it("a cost's discard taken back to hand contributes 0", () => {
+  it("a cost's discard taken back to hand still contributes its icons", () => {
     const table = start(["taken"], { using: hearingDeps });
     const result = run(table, PAY_1, hearingDeps, takingBack);
     expect(mustPlayer(result.state, P1).hand).toContain(table.top[0]);
-    expect(counted(result.state, table)).toEqual([0, 0, 0, 0, 0]);
+    expect(counted(result.state, table)).toEqual([2, 0, 0, 0, 2]);
   });
 
-  it("the cards left are counted with the rule: taken (0) + wild (2) + wild and physical (3) = 5", () => {
+  it("every card is counted with the rule: taken (2) + wild (2) + wild and physical (3) = 7", () => {
     const table = start(["taken", "wild", "duo"], { using: hearingDeps });
     const result = run(table, MILL_3, hearingDeps, takingBack);
     expect(mustPlayer(result.state, P1).hand).toContain(table.top[0]);
-    expect(counted(result.state, table)).toEqual([5, 1, 0, 0, 4]);
-    expect(reported(result.state, table)).toEqual([1, 0, 0, 4]);
+    expect(counted(result.state, table)).toEqual([7, 1, 0, 0, 6]);
+    expect(reported(result.state, table)).toEqual([1, 0, 0, 6]);
   });
 
   it("left in the discard pile (the response declined), the card counts twice like any other", () => {

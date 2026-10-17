@@ -470,9 +470,9 @@ export interface EncounterFromDeck {
  * A card discarded from a player's deck (`TriggerEvent cardDiscardedFromDeck`, docs/phase7-wave7.md §3.55), whose
  * fields these are. `boundOn`: the discarding ability's set of the cards "discarded this way", as the slot `slot` of
  * frame `frameId` (the effects frame of a `moveCards` or `discardDeckUntil` with a `bind`, the frame a
- * `discardFromDeckSlot` cost was paid for), which drops the card if a response takes it away (§4.1 Q32,
- * `settleDeckDiscards`). `also`: further slots of that frame holding the card (`discardDeckUntil.bindAll`,
- * docs/phase7-wave8.md §3.71), which drop it the same way.
+ * `discardFromDeckSlot` cost was paid for), which keeps counting the card if a response takes it away, unless the set
+ * says otherwise (§4.1 Q32 = A, `settleDeckDiscards`). `also`: further slots of that frame holding the card (`discardDeckUntil.bindAll`,
+ * docs/phase7-wave8.md §3.71), which hold it the same way.
  *
  * A card discarded from the top of an encounter deck is one too (docs/phase7-wave9.md §3.43 (b)): `playerId` is null
  * (the deck is no player's), `encounterDeckId` names the deck, `how` says whether an effect or a cost discarded it and
@@ -486,7 +486,13 @@ export interface DeckDiscard {
   readonly encounterDeckId?: EncounterDeckId;
   readonly by?: LeaveCauseSide;
   readonly how?: "effect" | "cost";
-  readonly boundOn?: { readonly frameId: FrameId; readonly slot: string; readonly also?: readonly string[] };
+  readonly boundOn?: {
+    readonly frameId: FrameId;
+    readonly slot: string;
+    readonly also?: readonly string[];
+    /** The set drops a card a response takes away (`EffectSpec moveCards.takenAwayNotCounted`, a mission attempt). */
+    readonly takenAwayNotCounted?: true;
+  };
   /**
    * On a discard a response window is watching (`DeckDiscardWindow`), once a response has moved the card from where
    * its discard left it: the card that response's ability is on, and whether that ability leaves the card counted by

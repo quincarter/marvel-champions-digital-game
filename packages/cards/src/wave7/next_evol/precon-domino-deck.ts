@@ -51,6 +51,9 @@ import {
   zone,
   discardTopOfDeckCost,
   cards,
+  cardsFrom,
+  selectCards,
+  varAtLeast,
 } from "../../dsl/index.js";
 import { SPIDERHAM_EVENTS } from "../../wave5/spiderham/events.js";
 import { SPIDERHAM_SUPPORT_UPGRADES } from "../../wave5/spiderham/support-upgrades.js";
@@ -77,14 +80,22 @@ const NAMEABLE_CARD_TYPES: ReadonlyArray<readonly [string, ReturnType<typeof que
   ["Player side scheme", query("sideScheme")],
 ];
 
-/** Wolfsbane after she names `type`: the discard, then the optional add if the card is of the named type. */
+/**
+ * Wolfsbane after she names `type`: the discard, then the optional add if the card is of the named type and still in
+ * the discard pile. A card a response took away (Digging Deep to hand, Jackpot! into the deck) is still one she
+ * discarded (§4.1 Q32 = A), but "add it to your hand" can only take it from where the discard left it.
+ */
 const wolfsbaneDiscard = (type: ReturnType<typeof query>): EffectSpec[] => [
   discardTopOfDeck,
+  selectCards("stillDiscarded", cardsFrom("discard", chosen("milled"))),
   ifThen(
-    refMatches(chosen("milled"), type, { anywhere: true }),
-    chooseOne(
-      option("Add it to your hand", moveCards(cards(chosen("milled")), "hand")),
-      option("Leave it in your discard pile"),
+    varAtLeast("stillDiscarded.count", 1),
+    ifThen(
+      refMatches(chosen("stillDiscarded"), type, { anywhere: true }),
+      chooseOne(
+        option("Add it to your hand", moveCards(cards(chosen("stillDiscarded")), "hand")),
+        option("Leave it in your discard pile"),
+      ),
     ),
   ),
 ];
@@ -98,7 +109,7 @@ const wolfsbaneDiscard = (type: ReturnType<typeof query>): EffectSpec[] => [
  * - **Feral (40050)**: after she thwarts, discard the top card of her controller's deck; 1 damage (not an attack) to the
  *   villain per resource icon (a printed wild counts twice for Domino, §3.56).
  * - **Wolfsbane (40051)**: the type is named first (six types, player side scheme included), then the discard; a card a
- *   response already took away (Digging Deep) is not in the `milled` slot, so nothing is offered.
+ *   response already took away (Digging Deep) is no longer in the discard pile, so nothing is offered.
  * - **Team Investigation (40053)**: Alliance and `costPerPlayer` are data; plain removal of threat, not a thwart.
  * - **Take Out the Guards (40054), Superpower Training (40059)**: player side schemes, Victory 0 is data. When Defeated,
  *   each player (in player order) may act: discard a non-ELITE minion in play (a discard, not a defeat); search the deck

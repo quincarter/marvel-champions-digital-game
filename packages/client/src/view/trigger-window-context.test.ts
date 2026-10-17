@@ -162,21 +162,40 @@ describe("a deck discard answered by a response (issue #222: Jackpot! and Luck B
     );
   });
 
-  test("taking the response warns that the discarding card won't count it", () => {
-    expect(deckDiscardWarningOf(atWindow(), discarded(named("Luck Be a Lady")))).toBe(
-      "Heads up: Jackpot! would leave the discard pile, so Luck Be a Lady won't count its resources. Decline to keep them.",
-    );
+  test("no warning for an ordinary deck discard: Jackpot! still counts once shuffled back (Q32 = A)", () => {
+    expect(deckDiscardWarningOf(atWindow(), discarded(named("Luck Be a Lady")))).toBeNull();
   });
 
-  test("no warning when nothing counts the card: no source, or the deck reset already took it", () => {
+  test("a mission attempt's discard warns that a card taken away won't count for it", () => {
     const game = atWindow();
-    expect(deckDiscardWarningOf(game, discarded(null))).toBeNull();
-    expect(deckDiscardWarningOf(game, discarded(named("Luck Be a Lady"), "deck"))).toBeNull();
+    const event = discarded(named("Luck Be a Lady"));
+    const watched = {
+      ...game,
+      deckDiscardWindows: [
+        {
+          frameId: "f1",
+          discards: [
+            {
+              playerId: game.players[0]!.playerId,
+              instanceId: named("Jackpot!"),
+              sourceInstanceId: named("Luck Be a Lady"),
+              at: "discard",
+              boundOn: { frameId: "f0", slot: "discarded", takenAwayNotCounted: true },
+            },
+          ],
+        },
+      ],
+    } as unknown as GameState;
+    expect(deckDiscardWarningOf(watched, event)).toBe(
+      "Heads up: if Jackpot! leaves the discard pile, it won't count for Luck Be a Lady. Decline to keep it counted.",
+    );
+    expect(deckDiscardWarningOf(watched, discarded(null))).toBeNull();
+    expect(deckDiscardWarningOf(watched, discarded(named("Luck Be a Lady"), "deck"))).toBeNull();
   });
 });
 
 describe("the real Jackpot! window after Luck Be a Lady (issue #222)", () => {
-  test("the sheet says what was discarded, by what, and what taking the response costs", async () => {
+  test("the sheet says what was discarded and by what, with no warning: it still counts (Q32 = A)", async () => {
     const store = new SessionStore(new LocalEngineHost());
     await playToJackpotWindow(store);
     const game = store.state.game!;
@@ -184,8 +203,6 @@ describe("the real Jackpot! window after Luck Be a Lady (issue #222)", () => {
     expect(choice.prompt.kind).toBe("chooseTriggers");
     const context = triggerWindowContextOf(game, choice, choice.playerId, POOL_DEPS)!;
     expect(context.headline).toBe("Jackpot! was discarded from the top of your deck by Luck Be a Lady");
-    expect(context.warning).toBe(
-      "Heads up: Jackpot! would leave the discard pile, so Luck Be a Lady won't count its resources. Decline to keep them.",
-    );
+    expect(context.warning).toBeNull();
   }, 60_000);
 });

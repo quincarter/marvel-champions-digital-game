@@ -2685,6 +2685,13 @@ export type EffectSpec =
        * that card in your discard pile"). docs/phase7-wave5.md §3.5.
        */
       readonly into?: PlayerRef;
+      /**
+       * A card in `bind` that a response to its own discard takes away (Digging Deep to hand) stops counting for this
+       * ability, as the ruling of April 30, 2026 - Ruling 4, answer 1 says of a mission attempt. Without it, a card
+       * "discarded this way" keeps counting wherever a response then moves it (docs/phase7-wave7.md §4.1 Q32 = A,
+       * `settleDeckDiscards`).
+       */
+      readonly takenAwayNotCounted?: true;
     }
   /**
    * "Find Touched and set it aside" / "find Touched and attach it to another character" (Rogue, `rogue` 38001, 38007;
