@@ -178,8 +178,20 @@ mod win {
   /// After the mode has settled, then once more a little later (each a wait from the one before).
   const FIT_CHECKS_MS: [u64; 2] = [300, 900];
 
+  /// Bumped by every fit and every restore: a fit still waiting from an earlier switch must not move a window that has
+  /// since become something else (it blew a fresh 1440 x 900 window up to the whole screen).
+  static FIT_GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+  fn cancel_fits() {
+    FIT_GENERATION.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+  }
+
   fn fit(hwnd: isize) {
+    let generation = FIT_GENERATION.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
     let place = move || unsafe {
+      if FIT_GENERATION.load(std::sync::atomic::Ordering::SeqCst) != generation {
+        return;
+      }
       let hwnd = hwnd as *mut core::ffi::c_void;
       let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
       let mut info: MONITORINFO = std::mem::zeroed();
@@ -243,6 +255,7 @@ mod win {
 
   /// Leaves exclusive fullscreen for good: the user's own mode back, nothing wanted any more.
   pub fn restore(refit: bool) {
+    cancel_fits();
     let mut state = STATE.lock().unwrap();
     if let Some(previous) = state.take() {
       if previous.active {

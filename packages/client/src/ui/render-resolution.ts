@@ -26,9 +26,12 @@ export function applyRenderSize(
     scale.scaleMode = Phaser.Scale.RESIZE;
     scale.autoCenter = Phaser.Scale.NO_CENTER;
     scale.displaySize.setAspectMode(Phaser.Structs.Size.NONE);
-    // FIT's centring is a margin on the canvas; RESIZE never sets one, so it would stay behind.
+    // FIT sizes and centres the canvas with inline styles; RESIZE never writes them, so they would stay behind and
+    // keep the game stretched to the old fit (a 1920 x 1080 canvas drawn 2560 wide after Borderless).
     game.canvas.style.marginLeft = "";
     game.canvas.style.marginTop = "";
+    game.canvas.style.width = "";
+    game.canvas.style.height = "";
     if (parent !== null) parent.style.background = "";
     scale.refresh();
     return;
