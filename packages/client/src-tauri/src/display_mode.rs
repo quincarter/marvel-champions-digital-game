@@ -45,6 +45,25 @@ mod win {
     device: Vec<u16>,
     mode: Mode,
     active: bool,
+    /// When the monitor last switched to `mode`: Explorer takes the foreground for a moment after a display change.
+    switched_at: Option<std::time::Instant>,
+  }
+
+  /// How long after a switch Explorer taking the foreground is the display change, not the player.
+  const SHELL_GRACE: std::time::Duration = std::time::Duration::from_secs(4);
+
+  fn foreground_is_shell() -> bool {
+    foreground_name().to_ascii_lowercase().ends_with("\\explorer.exe")
+  }
+
+  /// Gives the game the foreground back (after Explorer took it in reaction to the display change).
+  fn reclaim(hwnd: isize) {
+    std::thread::spawn(move || {
+      std::thread::sleep(std::time::Duration::from_millis(150));
+      unsafe {
+        windows_sys::Win32::UI::WindowsAndMessaging::SetForegroundWindow(hwnd as *mut core::ffi::c_void);
+      }
+    });
   }
 
   static STATE: Mutex<Option<State>> = Mutex::new(None);
@@ -212,7 +231,13 @@ mod win {
       switch(&device, mode)?;
       fit(hwnd as isize);
     }
-    *state = Some(State { hwnd: hwnd as isize, device, mode, active: focused });
+    *state = Some(State {
+      hwnd: hwnd as isize,
+      device,
+      mode,
+      active: focused,
+      switched_at: focused.then(std::time::Instant::now),
+    });
     Ok(())
   }
 
@@ -238,8 +263,19 @@ mod win {
         let result = switch(&current.device, current.mode);
         log::info!("display mode: switch back {result:?}");
         current.active = result.is_ok();
+        if current.active {
+          current.switched_at = Some(std::time::Instant::now());
+        }
         fit(current.hwnd);
       } else if !focused && current.active {
+        // Explorer reacts to the display change by taking the foreground a second or two later; that is not the
+        // player switching away, which put their own mode straight back (the owner, 2026-10-16).
+        let just_switched = current.switched_at.is_some_and(|at| at.elapsed() < SHELL_GRACE);
+        if just_switched && foreground_is_shell() {
+          log::info!("display mode: Explorer took the foreground after the switch; taking it back");
+          reclaim(current.hwnd);
+          return;
+        }
         restore_device(&current.device);
         current.active = false;
         fit(current.hwnd);
