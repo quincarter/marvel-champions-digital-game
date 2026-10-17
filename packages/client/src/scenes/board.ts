@@ -24,8 +24,9 @@
  */
 
 import Phaser from "phaser";
-import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
+import { CARDS_BY_ID, POOL_CARDS, POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
 import type { AbilityId } from "@mc/content";
+import type { CardId } from "@mc/content";
 import { cardOf, type GameEvent, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
 import type { VillainPhaseLaunchData, VillainPhaseOverlay } from "./villain-phase.js";
 import { cardArt, type CardArt } from "../art/card-art.js";
@@ -66,7 +67,7 @@ import { reviewHandleRect, showReviewHandle } from "../view/villain-review.js";
 import type { TableHold } from "../view/villain-replay.js";
 import type { SessionState } from "../store/session-store.js";
 import { CHROME_SCENES, SCENES } from "./keys.js";
-import { madeBasicAttack, refilledHand } from "../view/sound-effects.js";
+import { tableSoundsOf } from "../view/sound-effects.js";
 import { HoverPreview, isMousePointer } from "../ui/card-hover-preview.js";
 import { hoverArea } from "../view/card-hover.js";
 import { sheetIsCovered } from "../view/choice-sheet-sync.js";
@@ -143,6 +144,12 @@ const HANDLE_DEPTH = 950;
 export const VILLAIN_DOCK_CHANGED = "villain-dock-changed";
 const VILLAIN_DOCK_TWEEN_MS = 280;
 
+/** A card's traits, for the spell sound (`view/sound-effects.ts`). An identity's sit on its faces and never count. */
+function traitsOfCard(cardId: CardId): readonly string[] {
+  const card = CARDS_BY_ID.get(cardId as string) as { readonly traits?: readonly string[] } | undefined;
+  return card?.traits ?? [];
+}
+
 export class BoardScene extends Phaser.Scene {
   /** Team-Ups present in the latest state (relevant to this game, both characters in play in any form). */
   #teamUps: readonly TeamUpPair[] = [];
@@ -172,7 +179,7 @@ export class BoardScene extends Phaser.Scene {
   /** What the last draw left behind: hit rects, focus rects, and the widgets to destroy before the next one. */
   #frame: BoardFrame = emptyFrame();
   #version = -1;
-  /** How much of the command trail the punch has heard; -1 until the first state, which is never played. */
+  /** How much of the command trail the table's sounds have played; -1 until the first state, which is never played. */
   #soundTrail = -1;
   /** The game from the previous fresh state; handed to the villain phase scene as its recap's "before". */
   #previousGame: GameState | null = null;
@@ -638,12 +645,12 @@ export class BoardScene extends Phaser.Scene {
 
   #onState(state: SessionState): void {
     if (!state.game || state.perspectiveId === null) return;
-    // A basic attack lands with a punch: the Attack button's, or one a card instructed. Read off the command trail,
-    // which the store appends a beat after the command's state lands, so a back out or a resumed game plays nothing.
+    // The table's sounds (`view/sound-effects.ts`): a card played, then its attack or thwart, then the end-of-turn
+    // refill. Read off the command trail, which the store appends a beat after the command's state lands, so a back out
+    // or a resumed game's past plays nothing.
     const trail = state.commandTrail;
     if (this.#soundTrail >= 0 && trail.length > this.#soundTrail) {
-      const attacked = trail.slice(this.#soundTrail).some((entry) => madeBasicAttack(entry.command, entry.events));
-      if (attacked) appSession().music?.playEffect("basic-attack");
+      appSession().music?.playEffects(tableSoundsOf(trail.slice(this.#soundTrail), traitsOfCard));
     }
     this.#soundTrail = trail.length;
     this.#syncGuide(state);
@@ -682,9 +689,6 @@ export class BoardScene extends Phaser.Scene {
       appSession().gameLog = this.#log;
       this.#noteTabChanges(state);
       this.#motion.land(state.lastEvents);
-      // The end-of-turn draw up to hand size gets its own sound, as the cards are dealt (not for a resumed game's past).
-      if (state.resumedHistory.length === 0 && refilledHand(state.lastEvents))
-        appSession().music?.playEffect("hand-refill");
       // A hero going down is the one change nobody may miss. The last one
       // standing falling is the game ending instead, and Game Over says that.
       if (!state.game.outcome) {

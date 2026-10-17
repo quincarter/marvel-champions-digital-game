@@ -35,11 +35,20 @@ import { SOUND_EFFECT_VOLUME, type SoundEffect } from "../view/sound-effects.js"
 import extrasUnlockedUrl from "./sfx/extras-unlocked.mp3?url";
 import handRefillUrl from "./sfx/hand-refill.mp3?url";
 import basicAttackUrl from "./sfx/basic-attack.mp3?url";
+import basicThwartUrl from "./sfx/basic-thwart.mp3?url";
+import cardPlayedUrl from "./sfx/card-played.mp3?url";
+import spellCastUrl from "./sfx/spell-cast.mp3?url";
+
+/** The longest one sound effect holds the next back. */
+const EFFECT_GAP_MAX_MS = 600;
 
 const SOUND_EFFECT_URLS: Readonly<Record<SoundEffect, string>> = {
   "extras-unlocked": extrasUnlockedUrl,
   "hand-refill": handRefillUrl,
   "basic-attack": basicAttackUrl,
+  "basic-thwart": basicThwartUrl,
+  "card-played": cardPlayedUrl,
+  "spell-cast": spellCastUrl,
 };
 
 /** Default BGM volume when unmuted (0.0 to 1.0). Sits cleanly under UI sound. */
@@ -87,6 +96,8 @@ export interface MusicController {
   onTrackStart(listener: (track: Track) => void): () => void;
   /** A sound effect over the music (`view/sound-effects.ts`), loaded on first use; muted with the music. */
   playEffect(effect: SoundEffect): void;
+  /** Several, one after another: each starts as the one before it ends (or `EFFECT_GAP_MAX_MS` in, for a long one). */
+  playEffects(effects: readonly SoundEffect[]): void;
   syncSettings(settings: Settings): void;
   stop(fadeDurationMs?: number): void;
 }
@@ -241,10 +252,22 @@ export class MusicScene extends Phaser.Scene implements MusicController {
   }
 
   playEffect(effect: SoundEffect): void {
-    if (!appSession().settings.sound) return;
+    this.playEffects([effect]);
+  }
+
+  playEffects(effects: readonly SoundEffect[]): void {
+    const [effect, ...rest] = effects;
+    if (!effect || !appSession().settings.sound) return;
     const key = `sfx:${effect}`;
     const play = (): void => {
-      this.sound.play(key, { volume: SOUND_EFFECT_VOLUME[effect] });
+      const sound = this.sound.add(key, { volume: SOUND_EFFECT_VOLUME[effect] });
+      sound.once(Phaser.Sound.Events.COMPLETE, () => sound.destroy());
+      sound.play();
+      // The next one comes in as this one ends, or sooner for a long one: the card, then its attack.
+      if (rest.length > 0) {
+        const gap = sound.duration > 0 ? Math.min(EFFECT_GAP_MAX_MS, sound.duration * 1000) : EFFECT_GAP_MAX_MS;
+        this.time.delayedCall(gap, () => this.playEffects(rest));
+      }
     };
     if (this.cache.audio.exists(key)) {
       play();
