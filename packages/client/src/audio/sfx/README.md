@@ -22,8 +22,10 @@ card's sound, then its attack or thwart, then the refill (`tableSoundsOf` in `vi
 ## Adding one
 
 1. **The file.** Put the MP3 here, named for what it is (`kebab-case.mp3`). Keep it short: if the source runs on
-   past the sound, trim it with `node scripts/trim-mp3.mjs <in.mp3> <out.mp3> <seconds>`, which cuts by whole MP3
-   frames with no re-encoding. Pick a cut where the sound has died away.
+   past the sound, trim it with `node scripts/trim-mp3.mjs <in.mp3> <out.mp3> <seconds> [startSeconds]`, which cuts
+   by whole MP3 frames with no re-encoding. Pick a cut where the sound has died away. **Trim silence off the front
+   too** (`startSeconds`, about 40 ms before the sound starts): a sound that waits before it starts lands late on the
+   action (the owner, 2026-10-17, on the punch). Every file here starts within about 60 ms.
 2. **Its name.** Add it to `SoundEffect` and `SOUND_EFFECT_VOLUME` in `view/sound-effects.ts` (volumes sit around
    0.6–0.7, under the music).
 3. **Its file.** Import it with `?url` in `audio/music-controller.ts` and add it to `SOUND_EFFECT_URLS`.
