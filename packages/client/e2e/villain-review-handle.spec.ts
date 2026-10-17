@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { activeScenes, pressAt, settle, waitFor, zoneRect } from "./helpers.js";
 import { continueRect, reachVillainRecap } from "./overlay-helpers.js";
 import { installWave6Helpers, trackErrors } from "./wave6-helpers-a.js";
-import { declineMulligans, openApp, startGame, type Rect } from "./wave6-helpers-b.js";
+import { declineMulligans, hook, openApp, startGame, type Rect } from "./wave6-helpers-b.js";
 import { SHOT } from "./x-men-helpers.js";
 
 /**
@@ -61,10 +61,24 @@ test("issue #227: a swipe that lifts on the villain review handle leaves the rec
     "the villain review handle on the table",
     30_000,
   );
+  // A crowded play area, as in the report: the row scrolls sideways.
+  await hook(page, "__mcBoardDebug", "setBoardPad", { playArea: 8 });
   await settle(page);
   const play = (await zoneRect(page, "playArea"))!;
-  if (phone) expect(play.x + play.width, "no play area card sits under the handle").toBeLessThanOrEqual(handle.x);
-  if (SHOT) await page.screenshot({ path: `${SHOT}/villain-review-handle-${info.project.name}.png` });
+  if (phone) {
+    expect(play.x + play.width, "the play area stops short of the handle").toBeLessThanOrEqual(handle.x);
+    const cards = ((await hook<[string, Rect][]>(page, "__mcBoardDebug", "allFocusRects")) ?? []).filter(([key]) =>
+      key.startsWith("card:padp-"),
+    );
+    expect(cards.length).toBeGreaterThan(0);
+    for (const [key, rect] of cards)
+      expect(rect.x + rect.width, `${key} is clear of the handle`).toBeLessThanOrEqual(handle.x);
+  }
+  if (SHOT) {
+    // Past the player phase banner, so the shot shows the row beside the handle.
+    await page.waitForTimeout(3000);
+    await page.screenshot({ path: `${SHOT}/villain-review-handle-${info.project.name}.png` });
+  }
 
   // A sideways swipe that starts in the play area and lifts on the handle.
   const y = handle.y + handle.height / 2;
