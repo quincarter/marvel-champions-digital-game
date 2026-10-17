@@ -151,3 +151,17 @@ describe("villainDefendLayout", () => {
     expect(railParts.picture!.y + railParts.picture!.height).toBeLessThanOrEqual(railParts.text.y);
   });
 });
+
+describe("villainDefendLayout: HIDE or PEEK AT TABLE (#231)", () => {
+  for (const c of CASES) {
+    it(`${c.name}: the tuck control is full size and clear of EXPAND, CONFIRM and the title`, () => {
+      const layout = villainDefendLayout({ panel: c.panel, kind: c.kind, optionCount: 2, footer: c.footer ?? null });
+      expect(layout.tuck.height).toBeGreaterThanOrEqual(hit.target);
+      for (const other of [layout.expand, layout.confirm, layout.title, layout.eyebrow])
+        expect(overlaps(layout.tuck, other)).toBe(false);
+      if (layout.confirmInFooter && c.footer)
+        expect(inside(layout.tuck, c.footer), "beside CONFIRM at the thumb").toBe(true);
+      else expect(inside(layout.tuck, c.panel)).toBe(true);
+    });
+  }
+});

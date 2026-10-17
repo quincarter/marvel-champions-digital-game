@@ -197,7 +197,7 @@ import {
 } from "../ui/card-hover-preview.js";
 import { villainHoverArea } from "../view/card-hover.js";
 import { slideOffset, villainSlideEdge, type VillainReview } from "../view/villain-review.js";
-import { setChoiceDock } from "../view/choice-dock.js";
+import { setChoiceDock, setChoiceSheetHost, type ChoiceSheetHost } from "../view/choice-dock.js";
 import {
   decisionOptionIsCard,
   dockableDecision,
@@ -323,6 +323,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #decisionDock: Rect | null = null;
   /** Defend decisions the player sent to the full-screen sheet (EXPAND) instead of the docked panel. */
   #expanded = new Set<string>();
+  /** The decisions the player sent to the full-screen sheet with EXPAND (not ones too big for the dock): COLLAPSE brings them back. */
+  #userExpanded = new Set<string>();
   /** The defender picked so far in the docked defend panel, for the decision it belongs to. */
   #defendPick: { readonly choiceId: string; readonly optionId: string } | null = null;
   /** EXPAND on the docked recap: today's full-screen recap instead. */
@@ -344,6 +346,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#presentation = "full";
     this.#released = new Set();
     this.#expanded = new Set();
+    this.#userExpanded = new Set();
     this.#defendPick = null;
     this.#recapExpanded = false;
     this.#peeking = false;
@@ -455,9 +458,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       this.#boardScene()?.setVillainDock(null);
       this.#boardScene()?.setVillainSeatNote(null);
       this.#boardScene()?.setVillainHandTags(null);
-      // An open decision goes back to the full-screen sheet with the phase gone.
+      // An open decision goes back to the full-screen sheet with the phase gone, and nothing to collapse back into.
       this.#decisionDock = null;
       this.#publishDecisionDock();
+      setChoiceSheetHost(null);
       // A game that ended while the phase was replaying goes on to its outcome screen now.
       this.#boardScene()?.releaseOutcome();
       this.scale.off("resize", onResize, this);
@@ -755,7 +759,11 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
   /** A docked decision tucked away (HIDE on the rail, PEEK AT TABLE on a phone): its sheet stays hidden under the phase. */
   #decisionTucked(): boolean {
-    return (this.#hidden || this.#peeking) && this.#dockedDecisionId() !== null;
+    if (!(this.#hidden || this.#peeking)) return false;
+    const state = this.#latest;
+    const choice = state?.game?.pendingChoice;
+    if (!state || !choice || choice.playerId !== state.perspectiveId) return false;
+    return inlineInterruptFor(choice, state.perspectiveId) === null;
   }
 
   /** A guided lesson is running: the Board's guide rail (desktop, tablet) or its bottom strip (tabbed layouts) is up. */
@@ -767,6 +775,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   /** EXPAND on the docked defend: the full-screen sheet comes up over the phase, as ANSWER does for any other decision. */
   #expandDefend(choiceId: string): void {
     this.#expanded.add(choiceId);
+    this.#userExpanded.add(choiceId);
     this.#orderAgainstChoice();
     this.#draw();
   }
@@ -873,7 +882,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     }
     const held = this.#heldChoiceId();
     // Peeking at the table from a docked decision (#231): the banner keeps the decision, and ANSWER goes back to it.
-    const peekedAt = held === null && this.#peeking ? this.#dockedDecisionId() : null;
+    const peekedAt =
+      held === null && this.#peeking && this.#decisionTucked() ? (game.pendingChoice?.choiceId ?? null) : null;
     const id = held ?? peekedAt;
     const choice = game.pendingChoice;
     if (id === null || !choice) return null;
@@ -1056,6 +1066,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       this.#decisionDock = null;
       this.#drawNow();
       this.#publishDecisionDock();
+      this.#publishSheetHost();
       this.#hover?.onDraw();
     } finally {
       this.#drawing = false;
@@ -1124,7 +1135,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       formFactor,
       dockTable: settings.villainDockTable,
       recap: (recapNow && !dockedRecap) || guideStrip !== null,
-      peeking: this.#peeking && dockedDefendId === null && !dockedRecap,
+      // A defend peeks too (#231): the banner's ANSWER brings its docked panel back.
+      peeking: this.#peeking && !dockedRecap,
     });
     // The hand stays in view beside every docked shape, so it says when each card can answer (#129, #138).
     const docked = kind !== "full" && !(this.#hidden && (kind === "rail" || kind === "band"));
@@ -1137,7 +1149,11 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // The tall band's compact hero row says who is defending only while a defend is up (`#drawDefend` sets it).
     if (!(dockedDefendId !== null && kind === "band")) boardScene?.setVillainSeatNote(null);
     if ((kind === "rail" || kind === "band") && boardScene) {
-      const inlineChoice = pausedInline ? (game.pendingChoice?.choiceId ?? null) : (dockedDefendId ?? dockedDecisionId);
+      // Any decision of the player's own: one the dock answers, or one the full-screen sheet takes over the phase.
+      const ownDecision = this.#sheetOverPhase() ? (game.pendingChoice?.choiceId ?? null) : null;
+      const inlineChoice = pausedInline
+        ? (game.pendingChoice?.choiceId ?? null)
+        : (dockedDefendId ?? dockedDecisionId ?? ownDecision);
       // A new decision of the player's own brings a hidden rail back: its answer controls live on the rail. So does
       // the recap, which used to take the whole screen whatever the rail was doing.
       if (this.#hidden && ((inlineChoice !== null && inlineChoice !== this.#hiddenChoice) || dockedRecap)) {
@@ -1477,9 +1493,83 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     (this.scene.get(SCENES.choice) as unknown as { refresh?: () => void }).refresh?.();
   }
 
+  /**
+   * COLLAPSE and PEEK AT TABLE for the full-screen sheet of a decision the player EXPANDed out of the dock (#231): the
+   * owner found no way back down. COLLAPSE docks it again; PEEK AT TABLE docks it tucked away (HIDE on the rail and the
+   * band, PEEK on a phone's tab), so the table is in view and the phase's handle or banner brings the decision back.
+   */
+  #publishSheetHost(): void {
+    const state = this.#latest;
+    const choice = state?.game?.pendingChoice;
+    let next: ChoiceSheetHost | null = null;
+    if (choice && state && this.#sheetOverPhase()) {
+      const { width, height } = this.scale.gameSize;
+      const kind = villainPresentationFor({
+        formFactor: formFactorFor(width, height),
+        dockTable: appSession().settings.villainDockTable,
+        recap: false,
+        peeking: false,
+      });
+      if (kind !== "full") {
+        const id = choice.choiceId;
+        const expanded = this.#userExpanded.has(id);
+        next = {
+          key: `${id}|${kind}|${expanded}`,
+          ...(expanded ? { collapse: () => this.#collapse(id, false) } : {}),
+          peek: () => this.#collapse(id, true),
+        };
+      }
+    }
+    if (!setChoiceSheetHost(next) || !this.scene.isActive(SCENES.choice)) return;
+    (this.scene.get(SCENES.choice) as unknown as { refresh?: () => void }).refresh?.();
+  }
+
+  /**
+   * The viewer's own decision is up on the full-screen sheet over the docked phase: EXPANDed, too big for the dock (a
+   * defend with many defenders on a phone), or a kind that never docks. Not before ANSWER, not the inline interrupt.
+   */
+  #sheetOverPhase(): boolean {
+    const state = this.#latest;
+    const choice = state?.game?.pendingChoice;
+    if (!state || !choice || this.#review || this.#guideActive() || this.#motion.leaving) return false;
+    if (choice.playerId !== state.perspectiveId || inlineInterruptFor(choice, state.perspectiveId) !== null)
+      return false;
+    if (this.#heldChoiceId() !== null || this.#decisionAhead()) return false;
+    return this.#dockedDefendId() === null && this.#dockedDecisionId() === null;
+  }
+
+  /**
+   * COLLAPSE or PEEK AT TABLE on the sheet over the docked phase. COLLAPSE docks an EXPANDed decision again; PEEK tucks
+   * the phase away (HIDE on the rail and the band, PEEK on a phone's tab) with the sheet hidden under it, and an
+   * EXPANDed decision comes back docked when the player returns to it.
+   */
+  #collapse(choiceId: string, tucked: boolean): void {
+    if (this.#userExpanded.has(choiceId)) {
+      this.#expanded.delete(choiceId);
+      this.#userExpanded.delete(choiceId);
+    }
+    if (tucked) {
+      const { width, height } = this.scale.gameSize;
+      const kind = villainPresentationFor({
+        formFactor: formFactorFor(width, height),
+        dockTable: appSession().settings.villainDockTable,
+        recap: false,
+        peeking: false,
+      });
+      if (kind === "tab" || kind === "peek") this.#peeking = true;
+      else {
+        this.#hidden = true;
+        this.#hiddenChoice = choiceId;
+      }
+    }
+    this.#orderAgainstChoice();
+    this.#draw();
+  }
+
   /** EXPAND on a docked decision: the full-screen sheet comes up over the phase, as it does for a defend. */
   #expandDecision(choiceId: string): void {
     this.#expanded.add(choiceId);
+    this.#userExpanded.add(choiceId);
     this.#orderAgainstChoice();
     this.#draw();
   }
@@ -1542,6 +1632,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       onConfirm: () => this.#confirmDefender(choiceId),
       onExpand: () => this.#expandDefend(choiceId),
       expandLabel: kind === "rail" ? "Expand ▸" : "Expand ▾",
+      onTuck: () => this.#collapse(choiceId, true),
+      tuckLabel: villainDecisionTuckLabel(kind),
       footer,
       buttons: this.#buttons,
       decider: game.players.length > 1 ? seatHeadingName(playerName(game, choice.playerId)) : null,
@@ -1555,6 +1647,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         presentation: () => this.#presentation,
         confirmRect: () => layout.confirm,
         expandRect: () => layout.expand,
+        tuckRect: () => layout.tuck,
         defendOptionRect: (optionId: string) => stops.get(`option:${optionId}`)?.rect ?? null,
         defendOptionIds: () => view.options.map((option) => option.optionId),
       };

@@ -61,6 +61,7 @@ import { cardSizeFactor } from "../settings.js";
 import { onTap, setTapOccluders } from "../ui/tap.js";
 import { TableDrag, clampScroll, fullyInWindow, revealScroll, wheelPixels } from "../view/table-scroll.js";
 import { choiceDock } from "../view/choice-dock.js";
+import { choicePeeking } from "../view/choice-peek.js";
 import { villainDockRects, type VillainDockRects, type VillainDockRequest } from "../view/villain-dock.js";
 import { sameSeatNote, type VillainSeatNote } from "../view/villain-seat-note.js";
 import { drawCompactIdentity } from "./board/compact-identity.js";
@@ -413,7 +414,7 @@ export class BoardScene extends Phaser.Scene {
             key !== SCENES.music &&
             !CHROME_SCENES.has(key) &&
             // Docked in the villain phase's panel, the sheet leaves the table beside it to read (#231).
-            !(key === SCENES.choice && (sheetCovered || choiceDock() !== null)) &&
+            !(key === SCENES.choice && (sheetCovered || choiceDock() !== null || choicePeeking())) &&
             this.scene.isActive(key),
         );
         return hoverArea({

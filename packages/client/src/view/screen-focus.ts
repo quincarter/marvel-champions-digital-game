@@ -288,7 +288,7 @@ export function villainRailFocusOrder(interruptOptionIds: readonly string[] = []
  * (the full-screen sheet instead).
  */
 export function villainDefendFocusOrder(optionIds: readonly string[]): readonly string[] {
-  return [...optionIds.map((id) => `option:${id}`), "confirm", "expand"];
+  return [...optionIds.map((id) => `option:${id}`), "confirm", "tuck", "expand"];
 }
 
 /**

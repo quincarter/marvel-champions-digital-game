@@ -13,7 +13,16 @@
  */
 
 import { triggerCaption, triggerOrdinal } from "../view/trigger-caption.js";
-import { choiceDock, choiceDockOptions } from "../view/choice-dock.js";
+import { choiceDock, choiceDockOptions, choiceSheetHost } from "../view/choice-dock.js";
+import {
+  CHOICE_PEEK_STRIP,
+  choicePeekBannerLayout,
+  choiceCollapseButtonRect,
+  defendHeaderControls,
+  choicePeekButtonRect,
+  choicePeekLabel,
+  setChoicePeeking,
+} from "../view/choice-peek.js";
 import { triggerWindowContextOf, type TriggerWindowContext } from "../view/trigger-window-context.js";
 import Phaser from "phaser";
 import {
@@ -29,6 +38,7 @@ import { CARDS_BY_ID, POOL_DEPS } from "../content/pool.js";
 import { accent, guideTag, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
+import { onTap } from "../ui/tap.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import {
   McButton,
@@ -45,7 +55,7 @@ import { CARD_BACKS, artFor } from "../art/art-source.js";
 import { abilityFaceOf, characterPanel, faceOf } from "../view/board-model.js";
 import type { Rect } from "../view/layout.js";
 import { CHOICE_MIN_CARD_HEIGHT, choiceCardLayout, choiceRowLayout } from "../view/choice-options-layout.js";
-import { cardChoiceSlots, formFactorFor, isTabbed } from "../view/layout.js";
+import { cardChoiceSlots, formFactorFor, isTabbed, type FormFactor } from "../view/layout.js";
 import { authorityTagOf, decisionLabel, enemyTeamNoticeOf } from "../view/villain-walkthrough.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
 import { choiceTileBarsOf, type TileBar } from "../view/choice-tile-bars.js";
@@ -239,6 +249,8 @@ export class ChoiceOverlay extends Phaser.Scene {
 
   /** When this sheet began sitting "answered" on an unchanged, idle decision (`stuckSheetShouldRecover`); null otherwise. */
   #idleSince: number | null = null;
+  /** The decision whose sheet stepped aside for PEEK AT TABLE's banner (`view/choice-peek.ts`); a new one shows its sheet. */
+  #peekingAt: string | null = null;
 
   constructor() {
     super({ key: SCENES.choice });
@@ -318,6 +330,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.#idleSince = null;
     // A relaunch starts uncovered and shown, whatever the last run left (`update` hides a covered sheet).
     this.#wasCovered = false;
+    this.#peekingAt = null;
+    setChoicePeeking(false);
     this.sys.setVisible(true);
     const { store } = appSession();
     this.#unsubscribe = store.subscribe(() => this.#rebuild());
@@ -361,6 +375,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         }),
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      setChoicePeeking(false);
       this.#hover?.destroy();
       this.#hover = null;
       this.#focusRing?.destroy();
@@ -456,6 +471,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     // A new choice clears the previous selection.
     if (key !== this.#choiceId) {
       this.#choiceId = key;
+      this.#peekingAt = null;
       const report = reportNumberEntryOf(choice);
       this.#selected = report ? [...reportAnswerOf(report, report.start)] : [...initialChoiceSelection(choice)];
       this.#focus = isBreakChoice(choice) ? { kind: "confirm" } : null;
@@ -536,6 +552,25 @@ export class ChoiceOverlay extends Phaser.Scene {
     // The villain phase docks the sheet in its own panel on a phone too, and keeps the asking card in view as a strip.
     const dockOptions = choiceDockOptions();
     const docked = formFactor === "phone" && !dockOptions.onPhone ? null : choiceDock();
+    // PEEK AT TABLE: a full-screen sheet can step aside for a banner, so the player can look the table over first. A
+    // docked sheet leaves the table in view already, and the villain phase's own panel has its own way to the table.
+    // Over the docked villain phase, peeking and collapsing are the phase's to do (`ChoiceSheetHost`): it tucks itself
+    // away to show the table, or docks an EXPANDed decision again.
+    const host = docked ? null : choiceSheetHost();
+    const canPeek = !docked && (!this.scene.isActive(SCENES.villainPhase) || host?.peek !== undefined);
+    const collapse = host?.collapse ?? null;
+    const peekingNow = canPeek && this.#peekingAt === key;
+    setChoicePeeking(peekingNow);
+    if (peekingNow) {
+      const question = choiceHeaderOf(
+        state.game,
+        choice,
+        POOL_DEPS,
+        promptTitleOf(choice.prompt, POOL_DEPS, choice, state.game),
+      ).title;
+      this.#drawPeekBanner(question, width, height, formFactor);
+      return;
+    }
     const panelMode = docked
       ? dockOptions.sourceStrip && (sourcePanel || instruction)
         ? "strip"
@@ -585,9 +620,12 @@ export class ChoiceOverlay extends Phaser.Scene {
     const contextHeight = triggerContext
       ? this.#drawTriggerContext(triggerContext, 0, 0, sheetWidth - 24, true) + 10
       : 0;
+    // On a tabbed layout PEEK AT TABLE takes a thumb strip under the sheet: the title bar sits where the Now playing
+    // toast slides in, which covered it there.
+    const peekStrip = canPeek && isTabbed(formFactor) ? CHOICE_PEEK_STRIP : 0;
     const sheetHeight = docked
       ? docked.height - DOCK_INSET * 2
-      : Math.min(areaHeight - (phone ? 16 : 80), (asCards ? 620 : 560) + extraHeight + contextHeight);
+      : Math.min(areaHeight - (phone ? 16 : 80) - peekStrip, (asCards ? 620 : 560) + extraHeight + contextHeight);
     // In rail mode the rail and the sheet are centered together as one group — the same composition Inspect's D08
     // pair uses for its own card/rules panels (`view/inspect-layout.ts`) — rather than the sheet alone staying
     // centered and the rail hanging off whichever side has room.
@@ -596,7 +634,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       ? { x: docked.x + DOCK_INSET, y: docked.y + DOCK_INSET, width: sheetWidth, height: sheetHeight }
       : {
           x: areaX + (areaWidth - groupWidth) / 2 + railWidth,
-          y: (areaHeight - sheetHeight) / 2,
+          y: (areaHeight - peekStrip - sheetHeight) / 2,
           width: sheetWidth,
           height: sheetHeight,
         };
@@ -651,6 +689,34 @@ export class ChoiceOverlay extends Phaser.Scene {
       backOutRect = { x: bar.x + bar.width - w - 10, y: bar.y + (bar.height - h) / 2, width: w, height: h };
       barRight = backOutRect.x - 8;
     }
+    let peekRect: Rect | null = null;
+    let collapseRect: Rect | null = null;
+    if (canPeek) {
+      if (peekStrip > 0) {
+        // COLLAPSE shares the thumb strip with it, on the right.
+        const collapseWidth = collapse ? Math.round(sheet.width * 0.38) : 0;
+        peekRect = {
+          x: sheet.x,
+          y: sheet.y + sheet.height + 8,
+          width: sheet.width - (collapse ? collapseWidth + 8 : 0),
+          height: peekStrip - 8,
+        };
+        if (collapse)
+          collapseRect = {
+            x: sheet.x + sheet.width - collapseWidth,
+            y: peekRect.y,
+            width: collapseWidth,
+            height: peekRect.height,
+          };
+      } else {
+        peekRect = choicePeekButtonRect(bar, barRight, phone);
+        barRight = peekRect.x - 8;
+      }
+    }
+    if (collapse && !collapseRect) {
+      collapseRect = choiceCollapseButtonRect(bar, barRight);
+      barRight = collapseRect.x - 8;
+    }
     let titleRight = barRight;
     if (seat) {
       // The identity card itself, so the seat is recognizable at a glance
@@ -694,6 +760,43 @@ export class ChoiceOverlay extends Phaser.Scene {
     if (header.subtitle) {
       const source = label(this, titleLeft, bar.y + 36, header.subtitle, typeRole.label, surface.paper.hex, ink.meta);
       fitText(source, Math.max(60, titleRight - titleLeft), typeRole.label.size);
+    }
+
+    if (import.meta.env.DEV) {
+      const shownPeek = peekRect;
+      const shownCollapse = collapseRect;
+      (window as unknown as { __mcChoicePeekDebug?: unknown }).__mcChoicePeekDebug = {
+        peeking: () => false,
+        peekRect: () => shownPeek,
+        collapseRect: () => shownCollapse,
+        backRect: () => null,
+        bannerRect: () => null,
+      };
+    }
+    if (peekRect) {
+      const peekKey = key;
+      this.#buttons.push(
+        new McButton(this, {
+          ...(peekStrip > 0
+            ? { kind: "primary" as const, tint: { fill: signal.caution.hex, ink: surface.ink.hex } }
+            : { kind: "onInk" as const }),
+          label: choicePeekLabel(peekStrip === 0 && phone),
+          type: typeRole.label,
+          rect: peekRect,
+          onClick: () => (host?.peek ? host.peek() : this.#setPeek(peekKey)),
+        }),
+      );
+    }
+    if (collapseRect && collapse) {
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "onInk",
+          label: "Collapse",
+          type: typeRole.label,
+          rect: collapseRect,
+          onClick: collapse,
+        }),
+      );
     }
 
     if (backOutRect) {
@@ -963,6 +1066,70 @@ export class ChoiceOverlay extends Phaser.Scene {
    * words, so no state rests on color. Which pairs are allowed, which match and how many the restriction lets
    * through are the engine's (`view/pair-cards-model.ts`); Confirm may go with cards left over.
    */
+  /** PEEK AT TABLE, or back to the decision (null). */
+  #setPeek(choiceKey: string | null): void {
+    this.#peekingAt = choiceKey;
+    this.#rebuild();
+  }
+
+  /**
+   * The sheet stepped aside (PEEK AT TABLE): a banner at the foot of the screen with the question and BACK TO DECISION,
+   * and nothing else of this scene, so the table above it takes the presses (its tabs, Inspect) and the mouse's hover.
+   */
+  #drawPeekBanner(question: string, width: number, height: number, formFactor: FormFactor): void {
+    const layout = choicePeekBannerLayout({ x: 0, y: 0, width, height }, formFactor);
+    this.add
+      .zone(layout.banner.x, layout.banner.y, layout.banner.width, layout.banner.height)
+      .setOrigin(0, 0)
+      .setInteractive();
+    const panelsFrom = this.children.list.length;
+    const g = this.add.graphics();
+    g.fillStyle(surface.ink.hex, 1).fillRect(
+      layout.banner.x,
+      layout.banner.y,
+      layout.banner.width,
+      layout.banner.height,
+    );
+    g.lineStyle(3, signal.caution.hex, 1).strokeRect(
+      layout.banner.x + 1.5,
+      layout.banner.y + 1.5,
+      layout.banner.width - 3,
+      layout.banner.height - 3,
+    );
+    label(this, layout.text.x, layout.text.y, "Your decision", { ...typeRole.label, size: 11 }, signal.caution.hex, 1);
+    const line = this.add
+      .text(
+        layout.text.x,
+        layout.text.y + 18,
+        question,
+        textStyle({ ...typeRole.rowTitle, size: 15 }, surface.paper.hex),
+      )
+      .setOrigin(0, 0)
+      .setWordWrapWidth(layout.text.width)
+      .setMaxLines(2);
+    fitWrapped(line, layout.text.width, 2, 15);
+    const back = (): void => this.#setPeek(null);
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "primary",
+        label: "Back to decision ▴",
+        type: typeRole.label,
+        rect: layout.back,
+        tint: { fill: signal.caution.hex, ink: surface.ink.hex },
+        onClick: back,
+      }),
+    );
+    this.#focusRects.set("peek-back", layout.back);
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcChoicePeekDebug?: unknown }).__mcChoicePeekDebug = {
+        peeking: () => true,
+        backRect: () => layout.back,
+        bannerRect: () => layout.banner,
+      };
+    }
+    this.#motion.enter(this, { scrim: [], panels: this.children.list.slice(panelsFrom) });
+  }
+
   #drawPairSheet(area: Rect, game: GameState, pairing: PairingState, canDecline: boolean): void {
     const view = pairingView(game, pairing);
     const gap = 8;
@@ -1168,16 +1335,58 @@ export class ChoiceOverlay extends Phaser.Scene {
     headerG
       .fillStyle(surface.ink.hex, 1)
       .fillRect(layout.header.x, layout.header.y, layout.header.width, layout.header.height);
+    // Over the docked villain phase: PEEK AT TABLE and, after EXPAND, COLLAPSE (#231), at the header's right end.
+    const host = choiceSheetHost();
+    const headerControls = defendHeaderControls(layout.header, {
+      peek: host?.peek !== undefined,
+      collapse: host?.collapse !== undefined,
+      phone: layout.formFactor === "phone",
+    });
+    if (headerControls.peek && host?.peek) {
+      const peek = host.peek;
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "primary",
+          label: choicePeekLabel(layout.formFactor === "phone"),
+          type: typeRole.label,
+          rect: headerControls.peek,
+          tint: { fill: signal.caution.hex, ink: surface.ink.hex },
+          onClick: () => peek(),
+        }),
+      );
+    }
+    if (headerControls.collapse && host?.collapse) {
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "onInk",
+          label: "Collapse",
+          type: typeRole.label,
+          rect: headerControls.collapse,
+          onClick: host.collapse,
+        }),
+      );
+    }
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcChoicePeekDebug?: unknown }).__mcChoicePeekDebug = {
+        peeking: () => false,
+        peekRect: () => headerControls.peek,
+        collapseRect: () => headerControls.collapse,
+        backRect: () => null,
+        bannerRect: () => null,
+      };
+    }
     const authorityTag = authorityTagOf(choice);
-    label(
-      this,
-      layout.header.x + layout.header.width - 12,
-      layout.header.y + layout.header.height / 2 + 10,
-      authorityTag,
-      typeRole.label,
-      surface.paper.hex,
-      ink.secondary,
-    ).setOrigin(1, 0.5);
+    // The authority tag gives way to the controls on a phone, where the header has no room for both.
+    if (headerControls.left === null || layout.formFactor !== "phone")
+      label(
+        this,
+        (headerControls.left ?? layout.header.x + layout.header.width) - 12,
+        layout.header.y + layout.header.height / 2 + 10,
+        authorityTag,
+        typeRole.label,
+        surface.paper.hex,
+        ink.secondary,
+      ).setOrigin(1, 0.5);
     // Why this is happening, above what is happening: a villain-phase activation and a card's effect read the same
     // in "X attacks you" alone, and they are not the same moment of the round.
     label(
@@ -1199,7 +1408,13 @@ export class ChoiceOverlay extends Phaser.Scene {
       )
       .setOrigin(0, 0.5)
       .setLetterSpacing(2);
-    fitText(headerTitle, layout.header.width - 140, typeRole.barTitle.size);
+    fitText(
+      headerTitle,
+      (headerControls.left ?? layout.header.x + layout.header.width) -
+        layout.header.x -
+        (headerControls.left ? 24 : 140),
+      typeRole.barTitle.size,
+    );
 
     // Incoming attack: the attacker's scan, what it swings with, and the character it is aimed at.
     const summaryG = this.add.graphics();
@@ -1506,11 +1721,12 @@ export class ChoiceOverlay extends Phaser.Scene {
         )
         .setOrigin(0, 0.5);
       fitText(text, rect.width - 12, 11);
-      this.add
-        .zone(rect.x, rect.y, rect.width, rect.height)
-        .setOrigin(0, 0)
-        .setInteractive({ useHandCursor: true })
-        .on("pointerup", () => inspectCard(card.cardId));
+      // A tap, not any release: a finger dragging the sheet that lifts here is a scroll (`ui/tap.ts`).
+      onTap(
+        this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setInteractive({ useHandCursor: true }),
+        () => inspectCard(card.cardId),
+        `inspect:${card.cardId}`,
+      );
       const key = `inspect:${card.cardId}`;
       if (!this.#focusRects.has(choiceFocusKey({ kind: "option", optionId: key }))) {
         this.#focusRects.set(choiceFocusKey({ kind: "option", optionId: key }), rect);
@@ -1662,7 +1878,8 @@ export class ChoiceOverlay extends Phaser.Scene {
       .zone(slot.x, slot.y, slot.width, slot.height)
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
-    zone.on("pointerup", () => this.#toggle(option.optionId, 1));
+    // A tap, not any release (#231): a finger dragging the defend sheet that lifted on an option picked it.
+    onTap(zone, () => this.#toggle(option.optionId, 1), `defend:${option.optionId}`);
   }
 
   /**

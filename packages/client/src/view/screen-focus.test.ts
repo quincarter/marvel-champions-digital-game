@@ -831,7 +831,13 @@ describe("seatsFocusOrder with a Recommended shelf", () => {
 });
 
 describe("villainDefendFocusOrder", () => {
-  it("walks the options, then CONFIRM, then EXPAND", () => {
-    expect(villainDefendFocusOrder(["decline", "i3"])).toEqual(["option:decline", "option:i3", "confirm", "expand"]);
+  it("walks the options, then CONFIRM, then HIDE or PEEK AT TABLE, then EXPAND", () => {
+    expect(villainDefendFocusOrder(["decline", "i3"])).toEqual([
+      "option:decline",
+      "option:i3",
+      "confirm",
+      "tuck",
+      "expand",
+    ]);
   });
 });

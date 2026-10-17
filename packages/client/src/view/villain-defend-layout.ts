@@ -42,6 +42,11 @@ export interface VillainDefendLayout {
   readonly eyebrow: Rect;
   readonly title: Rect;
   readonly expand: Rect;
+  /**
+   * HIDE ▸ (rail, band) or PEEK AT TABLE ▾ (a phone's tab) to see the whole table (#231): left of EXPAND in the header,
+   * or beside CONFIRM in a phone's thumb strip, clear of the Now playing toast that slides in under the chrome.
+   */
+  readonly tuck: Rect;
   readonly matchup: Rect;
   readonly matchupParts: DefendMatchupLayout;
   readonly optionsLabel: Rect;
@@ -94,7 +99,11 @@ export function villainDefendLayout(input: VillainDefendInput): VillainDefendLay
   // Header.
   const expandWidth = compact ? 104 : 116;
   const expand: Rect = { x: x + width - expandWidth, y: panel.y + pad, width: expandWidth, height: hit.target };
-  const eyebrow: Rect = { x, y: panel.y + pad, width: Math.max(0, expand.x - 12 - x), height: 16 };
+  const footerTuck = kind === "tab" && (input.footer ?? null) !== null;
+  const tuckWidth = compact ? 96 : 112;
+  const headerTuck: Rect = { x: expand.x - 8 - tuckWidth, y: expand.y, width: tuckWidth, height: hit.target };
+  const headerRight = footerTuck ? expand.x : headerTuck.x;
+  const eyebrow: Rect = { x, y: panel.y + pad, width: Math.max(0, headerRight - 12 - x), height: 16 };
   const titleHeight = compact ? 28 : 36;
   const title: Rect = { x, y: eyebrow.y + 20, width: eyebrow.width, height: titleHeight };
   const headerBottom = Math.max(title.y + title.height, expand.y + expand.height);
@@ -160,10 +169,19 @@ export function villainDefendLayout(input: VillainDefendInput): VillainDefendLay
       ? {
           x: footer.x + 8,
           y: footer.y + 6,
-          width: footer.width - 16,
+          width: Math.round((footer.width - 24) * 0.62),
           height: Math.max(hit.target, footer.height - 12),
         }
       : { x: x + width - confirmWidth, y: bottom - confirmHeight, width: confirmWidth, height: confirmHeight };
+  const tuck: Rect =
+    confirmInFooter && footer
+      ? {
+          x: confirm.x + confirm.width + 8,
+          y: confirm.y,
+          width: footer.x + footer.width - 8 - (confirm.x + confirm.width + 8),
+          height: confirm.height,
+        }
+      : headerTuck;
   const stackHeight = withStack ? STACK_HEIGHT : 0;
   const stack: Rect = confirmInFooter
     ? { x, y: bottom - stackHeight, width, height: stackHeight }
@@ -181,6 +199,7 @@ export function villainDefendLayout(input: VillainDefendInput): VillainDefendLay
     eyebrow,
     title,
     expand,
+    tuck,
     matchup,
     matchupParts,
     optionsLabel,

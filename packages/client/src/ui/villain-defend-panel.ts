@@ -29,6 +29,9 @@ export interface DefendPanelArgs {
   /** EXPAND: the full-screen sheet instead. */
   readonly onExpand: () => void;
   readonly expandLabel: string;
+  /** HIDE ▸ or PEEK AT TABLE ▾: the phase tucked away so the whole table shows (#231). */
+  readonly onTuck: () => void;
+  readonly tuckLabel: string;
   /** The action bar's rectangle when CONFIRM is drawn there (a tabbed layout): painted as ink under the button. */
   readonly footer?: Rect | null;
   readonly buttons: McButton[];
@@ -137,6 +140,17 @@ export function drawVillainDefendPanel(scene: Phaser.Scene, args: DefendPanelArg
     }),
   );
   stops.set("confirm", { rect: layout.confirm, activate: args.onConfirm });
+  // After the footer's ink ground, which a phone's PEEK AT TABLE shares with CONFIRM.
+  args.buttons.push(
+    new McButton(scene, {
+      kind: "onInk",
+      label: args.tuckLabel,
+      type: typeRole.label,
+      rect: layout.tuck,
+      onClick: args.onTuck,
+    }),
+  );
+  stops.set("tuck", { rect: layout.tuck, activate: args.onTuck });
   return stops;
 }
 

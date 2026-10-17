@@ -115,6 +115,7 @@ export default defineConfig({
         "discard-stale-pick.spec.ts",
         "villain-review-handle.spec.ts",
         "villain-decision-dock.spec.ts",
+        "choice-peek.spec.ts",
       ],
     },
   ],

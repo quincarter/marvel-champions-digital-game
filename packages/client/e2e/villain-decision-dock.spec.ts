@@ -43,6 +43,15 @@ const sheetOptionRects = (page: Page): Promise<Rect[]> =>
       .map(([, rect]) => rect as Rect);
   });
 
+/** The full-screen sheet's own PEEK AT TABLE and COLLAPSE (`view/choice-peek.ts`). */
+const sheetControl = (page: Page, name: "peekRect" | "collapseRect"): Promise<Rect | null> =>
+  page.evaluate(
+    (n) =>
+      ((window as unknown as { __mcChoicePeekDebug?: Record<string, () => unknown> }).__mcChoicePeekDebug?.[n]?.() ??
+        null) as Rect | null,
+    name,
+  );
+
 const pendingChoiceId = (page: Page): Promise<string | null> =>
   page.evaluate(
     () =>
@@ -153,7 +162,9 @@ test("issue #231: a revealed card's decision docks beside the table, tucks away 
   expect(errors).toEqual([]);
 });
 
-test("issue #231: EXPAND on a docked decision brings the full-screen sheet", async ({ page }, info) => {
+test("issue #231: EXPAND on a docked decision brings the full-screen sheet, and COLLAPSE or PEEK AT TABLE goes back", async ({
+  page,
+}, info) => {
   test.setTimeout(150_000);
   const phone = info.project.name === "phone";
   const errors = trackErrors(page);
@@ -168,7 +179,83 @@ test("issue #231: EXPAND on a docked decision brings the full-screen sheet", asy
   // Full screen: the sheet's options are no longer confined to the phase's panel.
   const options = await sheetOptionRects(page);
   expect(options.length).toBeGreaterThanOrEqual(2);
+  if (SHOT) await page.screenshot({ path: `${SHOT}/villain-decision-expanded-${info.project.name}.png` });
+
+  // COLLAPSE (the owner: no way back down after EXPAND, on any screen): the decision docks again.
+  await press(page, phone, (await sheetControl(page, "collapseRect"))!);
+  await waitFor(() => villainDebugRect(page, "decisionDockRect"), "the decision docked again", 10_000);
+  await waitFor(async () => ((await sheetShown(page)) ? true : null), "the sheet in the dock", 10_000);
+
+  // EXPAND again, then PEEK AT TABLE from the full-screen sheet: the phase tucks away with the sheet hidden.
+  await press(page, phone, (await villainDebugRect(page, "expandRect"))!);
+  await press(page, phone, (await waitFor(() => sheetControl(page, "peekRect"), "PEEK on the full sheet", 10_000))!);
+  await waitFor(
+    async () => ((await presentation(page)) === (phone ? "peek" : "hidden") ? true : null),
+    "the table in view",
+    10_000,
+  );
+  expect(await sheetShown(page), "the sheet hides with the phase").toBe(false);
+  const back = await waitFor(
+    () => villainDebugRect(page, phone ? "answerRect" : "showRect"),
+    "the way back to the decision",
+    10_000,
+  );
+  await press(page, phone, back);
+  await waitFor(() => villainDebugRect(page, "decisionDockRect"), "back in the dock", 10_000);
   await answerChoiceSheet(page);
+  expect(errors).toEqual([]);
+});
+
+test("issue #231: the docked defend hides or peeks to show the table, and a drag that lifts on a sheet option picks nothing", async ({
+  page,
+}, info) => {
+  test.setTimeout(150_000);
+  const phone = info.project.name === "phone";
+  const errors = trackErrors(page);
+  await page.addInitScript(() =>
+    localStorage.setItem("mc-settings", JSON.stringify({ version: 1, villainAutoAdvance: "off" })),
+  );
+  await installWave6Helpers(page);
+  await page.goto("/?screen=villain-interrupt");
+  await press(page, phone, await waitFor(() => villainDebugRect(page, "startRect"), "START", 30_000));
+  await press(page, phone, await waitFor(() => villainDebugRect(page, "resolveRect"), "the interrupt", 15_000));
+  await press(page, phone, await waitFor(() => villainDebugRect(page, "answerRect"), "the defend notice", 15_000));
+  const tuck = await waitFor(() => villainDebugRect(page, "tuckRect"), "HIDE or PEEK on the docked defend", 10_000);
+  await waitFor(() => villainDebugRect(page, "confirmRect"), "the docked defend", 10_000);
+  await press(page, phone, tuck);
+  await waitFor(
+    async () => ((await presentation(page)) === (phone ? "peek" : "hidden") ? true : null),
+    "the table in view",
+    10_000,
+  );
+  const back = await waitFor(
+    () => villainDebugRect(page, phone ? "answerRect" : "showRect"),
+    "the way back to the defend",
+    10_000,
+  );
+  await press(page, phone, back);
+  await waitFor(() => villainDebugRect(page, "confirmRect"), "the docked defend again", 10_000);
+
+  // The full-screen defend sheet: a drag that ends on an option is a scroll, not a pick (the owner's report).
+  await press(page, phone, (await villainDebugRect(page, "expandRect"))!);
+  await waitFor(async () => ((await sheetShown(page)) ? true : null), "the full-screen defend sheet", 10_000);
+  const option = await waitFor(async () => (await sheetOptionRects(page))[0] ?? null, "a defend option", 10_000);
+  const selected = (): Promise<string[]> =>
+    page.evaluate(() =>
+      (
+        window as unknown as {
+          __mcGame: { scene: { getScene(k: string): { debugState(): { selected: string[] } } } };
+        }
+      ).__mcGame.scene
+        .getScene("ChoiceOverlay")
+        .debugState()
+        .selected.slice(),
+    );
+  const before = await selected();
+  const to = { x: option.x + option.width / 2, y: option.y + option.height / 2 };
+  await drag(page, phone, { x: to.x, y: Math.max(10, to.y - 160) }, to);
+  await settle(page);
+  expect(await selected(), "a drag that lifted on an option picked nothing").toEqual(before);
   expect(errors).toEqual([]);
 });
 

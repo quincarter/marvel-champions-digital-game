@@ -41,3 +41,27 @@ export function choiceDock(): Rect | null {
 export function choiceDockOptions(): ChoiceDockOptions {
   return options;
 }
+
+/**
+ * What a screen hosting the full-screen sheet offers it (#231): the docked villain phase, after the player pressed
+ * EXPAND, gives the sheet COLLAPSE (back into the dock) and PEEK AT TABLE (back into the dock, tucked away to show the
+ * table). The sheet draws a control for each one given. `key` says when it changed, so the host redraws the sheet.
+ */
+export interface ChoiceSheetHost {
+  readonly key: string;
+  readonly collapse?: () => void;
+  readonly peek?: () => void;
+}
+
+let host: ChoiceSheetHost | null = null;
+
+/** True when the host changed (by key), so the publisher knows to ask an open sheet to redraw. */
+export function setChoiceSheetHost(next: ChoiceSheetHost | null): boolean {
+  const changed = (host?.key ?? null) !== (next?.key ?? null);
+  host = next;
+  return changed;
+}
+
+export function choiceSheetHost(): ChoiceSheetHost | null {
+  return host;
+}
