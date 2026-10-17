@@ -128,6 +128,8 @@ export interface BoardDrawContext {
     onTap?: () => void,
     drag?: RowDrag,
     onHover?: (over: boolean) => void,
+    /** The clipped strip the card sits in (the phone's hand): presses outside it are not the card's. */
+    clip?: Rect,
   ): void;
   /** Opens a card. `siblings` is the list ◂ ▸ steps through; without it, the hand when the card is in it. */
   inspect(id: InstanceId, siblings?: readonly InstanceId[]): void;
