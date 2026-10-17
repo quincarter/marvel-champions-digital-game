@@ -57,7 +57,12 @@ import {
   type PaymentSheetView,
 } from "../view/payment-sheet.js";
 import { choiceHeaderOf, choiceInstructionOf, discardCountNoteOf, promptTitleOf } from "../view/choice-source.js";
-import { choiceSheetAction, sheetIsCovered, stuckSheetShouldRecover } from "../view/choice-sheet-sync.js";
+import {
+  choiceSheetAction,
+  choiceSheetKey,
+  sheetIsCovered,
+  stuckSheetShouldRecover,
+} from "../view/choice-sheet-sync.js";
 import { keywordOrderTilesOf } from "../view/keyword-order-choice.js";
 import { choiceSourcePanelOf } from "../view/choice-source-panel.js";
 import {
@@ -176,6 +181,7 @@ export class ChoiceOverlay extends Phaser.Scene {
   #breakTick: Phaser.Time.TimerEvent | null = null;
   #buttons: McButton[] = [];
   #unsubscribe: (() => void) | null = null;
+  /** The decision this sheet last drew, by `choiceSheetKey` (a bare choice id comes back after an undo). */
   #choiceId: string | null = null;
   #maxSelections = 1;
   /** The pairing under way for a `pairCards` choice (`view/pair-cards-model.ts`), and the card picked up to place. */
@@ -256,7 +262,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     }
     this.#wasCovered = covered;
     const state = appSession().store.state;
-    const pendingChoiceId = state.game?.pendingChoice?.choiceId ?? null;
+    const pending = state.game?.pendingChoice;
+    const pendingChoiceId = pending ? choiceSheetKey(shownDivideChoice(pending)) : null;
     const idle =
       this.#motion.leaving && !state.inFlight && pendingChoiceId !== null && pendingChoiceId === this.#choiceId;
     if (!idle) {
@@ -301,6 +308,11 @@ export class ChoiceOverlay extends Phaser.Scene {
 
   create(): void {
     this.#motion = new OverlayMotion();
+    // Phaser keeps this instance across stop and launch: a launch is a fresh sheet, with nothing of the last one
+    // still picked or revealed.
+    this.#choiceId = null;
+    this.#selected = [];
+    this.#revealedChoiceId = null;
     this.#idleSince = null;
     // A relaunch starts uncovered and shown, whatever the last run left (`update` hides a covered sheet).
     this.#wasCovered = false;
@@ -421,10 +433,11 @@ export class ChoiceOverlay extends Phaser.Scene {
     const { store } = appSession();
     const state = store.state;
     const choice = state.game?.pendingChoice ? shownDivideChoice(state.game.pendingChoice) : undefined;
+    const key = choice ? choiceSheetKey(choice) : null;
     const action = choiceSheetAction({
       leaving: this.#motion.leaving,
       shownChoiceId: this.#choiceId,
-      pendingChoiceId: choice?.choiceId ?? null,
+      pendingChoiceId: key,
     });
     // Answered and fading out (`#confirm`) with that same decision still in the state: the Board stops this scene
     // once the state catches up, and a redraw here would only flash the sheet back in under the outgoing one.
@@ -439,8 +452,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     }
 
     // A new choice clears the previous selection.
-    if (choice.choiceId !== this.#choiceId) {
-      this.#choiceId = choice.choiceId;
+    if (key !== this.#choiceId) {
+      this.#choiceId = key;
       const report = reportNumberEntryOf(choice);
       this.#selected = report ? [...reportAnswerOf(report, report.start)] : [...initialChoiceSelection(choice)];
       this.#focus = isBreakChoice(choice) ? { kind: "confirm" } : null;
@@ -749,7 +762,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     const listHeight = commitTop - listTop - 8;
 
     const gate = lookAtGateOf(state.game, choice);
-    if (gate && this.#revealedChoiceId !== choice.choiceId) {
+    if (gate && this.#revealedChoiceId !== choiceSheetKey(choice)) {
       // The looked-at cards are not drawn at all until the looking player taps: a cover over them would still
       // leave their art and names in the scene.
       const cover: Rect = {
@@ -2460,7 +2473,7 @@ export class ChoiceOverlay extends Phaser.Scene {
 
   #reveal(choice: PendingChoice): void {
     if (this.#motion.leaving) return;
-    this.#revealedChoiceId = choice.choiceId;
+    this.#revealedChoiceId = choiceSheetKey(choice);
     this.#focus = null;
     this.#rebuild();
   }

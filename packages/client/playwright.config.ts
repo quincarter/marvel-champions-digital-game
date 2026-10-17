@@ -112,6 +112,7 @@ export default defineConfig({
         "campaign-market-scroll.spec.ts",
         "settings-close-after-card-size.spec.ts",
         "villain-phase-gate.spec.ts",
+        "discard-stale-pick.spec.ts",
       ],
     },
   ],

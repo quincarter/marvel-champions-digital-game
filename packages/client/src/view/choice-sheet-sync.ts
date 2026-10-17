@@ -18,7 +18,26 @@
  * So a leaving sheet still watches the choice *id*: the same id means its own
  * answer is still in flight (hold); a different id means a new decision has
  * arrived, and the sheet restarts its entrance on it as if freshly launched.
+ * The "id" it watches is `choiceSheetKey`, not the bare choice id.
  */
+
+import type { PendingChoice } from "@mc/engine";
+
+/**
+ * What the sheet knows a decision by, wherever it compares "the one I drew" with "the one the store carries": its
+ * picks, its privacy cover's reveal and its own answer-in-flight hold all belong to one decision.
+ *
+ * The choice id alone does not name one. Ids count up with the engine's `nextChoiceSeq`, which Undo and Back out
+ * (`SessionStore.rewindTo`) rewind with the rest of the state, and which starts again in every new game. So the next
+ * decision after an undo can carry the very id of the one undone: a target picked on the undone sheet (the villain)
+ * stayed picked under the end-of-turn discard that took its id, invisible and counted, and the hand's last card could
+ * not be picked (issue #211). The seat, the question and its options tell two such decisions apart.
+ */
+export function choiceSheetKey(choice: Pick<PendingChoice, "choiceId" | "playerId" | "prompt" | "options">): string {
+  return [choice.choiceId, choice.playerId, choice.prompt.kind, choice.options.map((o) => o.optionId).join(",")].join(
+    "|",
+  );
+}
 
 export interface ChoiceSheetSyncInput {
   /** `OverlayMotion.leaving`: an answer was dispatched and the sheet is fading out. */
