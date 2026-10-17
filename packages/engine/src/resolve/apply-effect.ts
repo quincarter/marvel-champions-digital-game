@@ -356,7 +356,8 @@ function admitUnderPlayerMax(ctx: Ctx, ids: readonly InstanceId[], forPlayer: Pl
  * RRG 1.8 "Play, Put into Play" (p. 32): "Cards with the text '[type] form only' can only be played or put into play by
  * a player whose identity is in the specified form." The player is the one the card would enter play under. A refused
  * card stays where it was, logged `putIntoPlayRefused { reason: "wrongForm" }`. A card already in play is not entering,
- * and one put into play facedown shows no text to restrict it. Returns the ids that may proceed.
+ * and one put into play facedown is exempt (contributor's rules call 2026-10-16 (bluefireF5ran): a facedown card shows
+ * no text, and no official source addresses it). Returns the ids that may proceed.
  */
 function admitFormOnly(ctx: Ctx, ids: readonly InstanceId[], forPlayer: PlayerId): readonly InstanceId[] {
   const inPlay = cardsInPlay(ctx.state);
