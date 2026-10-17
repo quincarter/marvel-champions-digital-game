@@ -46,6 +46,7 @@ import type { SessionConfig } from "../engine/host.js";
 import { appSession, campaignService } from "../session.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
+import type { MusicButtonScene } from "./music-button.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { Unlocks, newsBetween, withWin, type UnlockNews } from "../progression/unlocks.js";
@@ -118,6 +119,8 @@ export class GameOverScene extends Phaser.Scene {
         { everything: before.everything },
       );
       this.#extrasNews = extrasNewsBetween(before, after);
+      // "New song earned" (#191): the tink and notice for what this result opened, as the result lands.
+      (this.scene.get(SCENES.musicButton) as MusicButtonScene | null)?.extrasOpened(after);
       if (game.outcome.result !== "win") void refreshUnlocks().catch(() => false);
     }
     if (game?.outcome?.result === "win" && config) {

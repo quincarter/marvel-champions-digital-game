@@ -31,6 +31,9 @@ import {
   nowPlayingTitleOf,
 } from "../view/music-player.js";
 import { appSession } from "../session.js";
+import { extras } from "../progression/progression.js";
+import type { Extras } from "../progression/extras.js";
+import { extrasNewsHeadline, newExtrasOf, openExtrasOf, type ExtrasNewsItem } from "../view/extras-news.js";
 import { SCENES } from "./keys.js";
 
 /** The scenes that sort themselves above the screens: this one, its player, the Report button and panel, and Music. */
@@ -41,6 +44,10 @@ const ABOVE_SCREENS: ReadonlySet<string> = new Set([
   SCENES.reportIssue,
   SCENES.music,
 ]);
+/** How often the notice looks for something newly open in Extras, how long it stays up, and how long it slides. */
+const EXTRAS_CHECK_MS = 1000;
+const EXTRAS_NOTICE_HOLD_MS = 4200;
+const EXTRAS_NOTICE_SLIDE_MS = 320;
 /** The widest the pill opens out on a tablet or desktop, so it never runs the length of the bar. */
 const PILL_MAX_WIDTH = 360;
 
@@ -102,6 +109,13 @@ export class MusicButtonScene extends Phaser.Scene {
    * overlay to the top), with the music player above the screens and under this, so the note stays tappable over its
    * own player.
    */
+  /** Every Extras entry and picture this scene has seen open, for "New song earned". */
+  readonly #known = new Set<string>();
+  #primed = false;
+  #everything = false;
+  #lastExtrasCheck = 0;
+  #notice: { readonly label: string; readonly container: Phaser.GameObjects.Container } | null = null;
+
   override update(time: number): void {
     const manager = this.scene.manager;
     const screens = manager.getScenes(true).filter((scene) => !ABOVE_SCREENS.has(scene.scene.key));
@@ -141,11 +155,135 @@ export class MusicButtonScene extends Phaser.Scene {
     } else if (pending && time - pending.at > NOW_PLAYING_LATE_MS) {
       this.#pending = null;
     }
+
+    if (time - this.#lastExtrasCheck >= EXTRAS_CHECK_MS) {
+      this.#lastExtrasCheck = time;
+      this.extrasOpened(extras());
+    }
   }
 
   /** Read by the debug snapshot (`ui/debug-dump.ts`) and the e2e specs. */
   debugState(): Record<string, unknown> {
-    return { rect: this.#rect, announcing: this.#shown !== null, progress: this.#progress };
+    return {
+      rect: this.#rect,
+      announcing: this.#shown !== null,
+      progress: this.#progress,
+      extrasNotice: this.#notice?.label ?? null,
+    };
+  }
+
+  /**
+   * "New song earned" (#191): anything `current` has open in Extras that this scene had not seen yet gets a tink and
+   * a notice. Read every second from stored progress, and handed Game over's own reckoning (`scenes/game-over.ts`) so
+   * the notice comes with the result rather than whenever storage catches up. The first look only learns what is
+   * already open, and so does turning on Settings ▸ Unlocks' "Unlock everything" (hundreds of notices in one).
+   */
+  extrasOpened(current: Pick<Extras, "isOpen" | "openSlides" | "everything">): void {
+    const open = openExtrasOf(current);
+    const quiet = !this.#primed || (current.everything && !this.#everything);
+    const fresh = quiet ? [] : newExtrasOf(this.#known, open);
+    for (const id of open.keys()) this.#known.add(id);
+    this.#primed = true;
+    this.#everything = current.everything;
+    if (fresh.length > 0) this.#noticeExtras(fresh);
+  }
+
+  /** The notice: top right on a tablet or desktop, sliding in from the edge; across the top on a phone, sliding down. */
+  #noticeExtras(items: readonly ExtrasNewsItem[]): void {
+    const { label, title } = extrasNewsHeadline(items);
+    this.#tink();
+    this.#notice?.container.destroy();
+    this.#notice = null;
+    const { width, height } = this.scale.gameSize;
+    const formFactor = formFactorFor(width, height);
+    const phone = formFactor === "phone" || formFactor === "phoneLandscape";
+    const rect: Rect = phone
+      ? { x: 8, y: 8, width: width - 16, height: 62 }
+      : { x: width - 16 - Math.min(380, width - 32), y: 60, width: Math.min(380, width - 32), height: 62 };
+    const container = this.add.container(0, 0).setDepth(3);
+    const ground = this.add.graphics();
+    ground.fillStyle(surface.ink.hex, 0.97).fillRect(rect.x, rect.y, rect.width, rect.height);
+    ground.fillStyle(signal.caution.hex, 1).fillRect(rect.x, rect.y, 6, rect.height);
+    ground.lineStyle(2, surface.paper.hex, 1).strokeRect(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2);
+    const mark = this.add.graphics();
+    if (items.some((item) => item.tab === "music")) {
+      drawMusicIcon(mark, rect.x + 34, rect.y + rect.height / 2, 26, signal.caution.hex);
+    } else {
+      // A star for anything else that opened.
+      mark.fillStyle(signal.caution.hex, 1).fillPoints(starPoints(rect.x + 34, rect.y + rect.height / 2, 14, 6), true);
+    }
+    const textX = rect.x + 60;
+    const heading = this.add.text(
+      textX,
+      rect.y + 12,
+      label.toUpperCase(),
+      textStyle(typeRole.label, signal.caution.hex),
+    );
+    const name = this.add
+      .text(textX, rect.y + 29, title, textStyle(typeRole.rowTitle, surface.paper.hex))
+      .setFontSize(phone ? 15 : 16);
+    fitText(heading, rect.x + rect.width - 12 - textX, typeRole.label.size);
+    fitText(name, rect.x + rect.width - 12 - textX, phone ? 15 : 16);
+    container.add([ground, mark, heading, name]);
+    const notice = { label, container };
+    this.#notice = notice;
+
+    const away = phone ? { y: -(rect.y + rect.height + 12) } : { x: width - rect.x + 12 };
+    const remove = (): void => {
+      container.destroy();
+      if (this.#notice === notice) this.#notice = null;
+    };
+    if (appSession().settings.reducedMotion) {
+      this.time.delayedCall(EXTRAS_NOTICE_HOLD_MS, remove);
+      return;
+    }
+    container.setPosition(away.x ?? 0, away.y ?? 0);
+    this.tweens.add({
+      targets: container,
+      x: 0,
+      y: 0,
+      duration: EXTRAS_NOTICE_SLIDE_MS,
+      ease: "Back.easeOut",
+      onComplete: () => {
+        this.tweens.add({
+          targets: container,
+          ...away,
+          delay: EXTRAS_NOTICE_HOLD_MS,
+          duration: EXTRAS_NOTICE_SLIDE_MS,
+          ease: "Quad.easeIn",
+          onComplete: remove,
+        });
+      },
+    });
+  }
+
+  /**
+   * A short bright *tink*: two sine partials, a fifth apart, struck and left to ring out, synthesized on the sound
+   * manager's own Web Audio graph so it follows the game's mute. Silent with Sound off, or before the browser lets the
+   * page make sound.
+   */
+  #tink(): void {
+    if (!appSession().settings.sound) return;
+    const manager = this.sound as unknown as { context?: AudioContext; destination?: AudioNode };
+    const context = manager.context;
+    if (!context || context.state !== "running") return;
+    const start = context.currentTime + 0.01;
+    for (const [frequency, delay, peak] of [
+      [1760, 0, 0.16],
+      [2637, 0.06, 0.1],
+    ] as const) {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.value = frequency;
+      const at = start + delay;
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.exponentialRampToValueAtTime(peak, at + 0.006);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.5);
+      oscillator.connect(gain).connect(manager.destination ?? context.destination);
+      oscillator.start(at);
+      oscillator.stop(at + 0.55);
+    }
   }
 
   #togglePlayer(): void {
@@ -328,4 +466,13 @@ export class MusicButtonScene extends Phaser.Scene {
     this.#shown = null;
     this.#progress = 0;
   }
+}
+
+/** A five-pointed star's corners around (`cx`, `cy`). */
+function starPoints(cx: number, cy: number, outer: number, inner: number): Phaser.Math.Vector2[] {
+  return Array.from({ length: 10 }, (_, index) => {
+    const radius = index % 2 === 0 ? outer : inner;
+    const angle = -Math.PI / 2 + (index * Math.PI) / 5;
+    return new Phaser.Math.Vector2(cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius);
+  });
 }
