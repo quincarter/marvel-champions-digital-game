@@ -112,6 +112,13 @@ section current so any session can resume from GitHub alone.
   picture (tiles, sheets, fans, summaries), mouseover on desktop opens the card hover popover. Wire `HoverPreview`
   (`ui/card-hover-preview.ts`) with `hoverSlotOf` / `clipHoverRect` (`view/card-hover.ts`) as `scenes/set-cards.ts` and
   `scenes/civil-war-builder.ts` do, and show the hover in the PR's screenshots (`scripts/shoot-app.mjs --hover x,y`).
+- **No tap on finger lift (the user, 2026-10-17, standing rule; issue #227):** on a phone, the end of a scroll or swipe
+  must never press whatever control the finger lifts over. Every press control uses `onTap` / `McButton` / a row tap
+  zone (`ui/tap.ts`: the press and the release both on the control, within the tap slop), never a bare `pointerup`
+  listener, and no control sits on top of a scrolling region (a card row, a list, a shelf). When adding content or
+  touching a screen, check its controls for this and fix any you find; a new or changed control next to a scrolling
+  region gets a phone e2e spec that swipes the region, lifts over the control and expects nothing to fire
+  (`e2e/villain-review-handle.spec.ts` shows how, with a real touch sequence over CDP).
 - **E2e is a local gate, not a CI check (the user, 2026-10-05).** Pull requests run only lint and format
   (`.github/workflows/checks.yml`) and the Netlify workflow, which typechecks, runs the unit tests, builds the client
   and deploys the preview. The Playwright suite
