@@ -1,0 +1,3 @@
+kind: Changed
+body: Pull requests from forks now run the typecheck and unit tests on CI; only the Netlify preview deploy still skips them.
+time: 2026-10-16T22:39:56.5034956-04:00
