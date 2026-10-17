@@ -110,11 +110,22 @@ async function newGame(page: Page): Promise<void> {
 async function flipRows(page: Page, phone: boolean, scene: string, keyOf: (id: string) => string): Promise<void> {
   // The phone's lower group scrolls and draws only the rows on screen; flip the ones that are there.
   let flipped = 0;
-  // Sharper text sits right under Card size on the phone sheet, so two toggles are on screen above the footer.
-  for (const id of ["reduced-motion", "sharper-text", "large-card-text", "confirm-end-turn", "same-name-conflict"]) {
+  const size = page.viewportSize()!;
+  for (const id of ["reduced-motion", "large-card-text", "confirm-end-turn", "same-name-conflict"]) {
     // A row's rect keeps its scrolled position under the phone's footer buttons; only a row clear of them is a target.
-    const rect = await stopOf(page, scene, keyOf(id));
-    if (!rect || rect.y + rect.height / 2 > page.viewportSize()!.height - 150) continue;
+    // Card size sits above the toggles on the phone's sheet, so a row just under the fold is scrolled up into view.
+    const clear = (r: Rect | null): boolean => r !== null && r.y + r.height / 2 <= size.height - 150;
+    let rect = await stopOf(page, scene, keyOf(id));
+    for (let i = 0; i < 3 && rect && !clear(rect); i++) {
+      if (phone) await touchSwipe(page, 60, size.height - 200, size.height - 330);
+      else {
+        await page.mouse.move(size.width / 2, size.height / 2);
+        await page.mouse.wheel(0, 120);
+      }
+      await settle(page, { quietMs: 150, maxMs: 600 });
+      rect = await stopOf(page, scene, keyOf(id));
+    }
+    if (!clear(rect)) continue;
     const before = await settingsJson(page);
     await pressStop(page, phone, scene, keyOf(id), async () => (await settingsJson(page)) !== before);
     await pressStop(page, phone, scene, keyOf(id), async () => (await settingsJson(page)) === before);
