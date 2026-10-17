@@ -1666,11 +1666,21 @@ export const findCard = (
   ...(opts.outOfPlay ? { outOfPlay: true as const } : {}),
   ...(opts.perPlayerAs !== undefined ? { perPlayerAs: opts.perPlayerAs } : {}),
 });
-export const moveCards = (from: CardSelector, to: CardDestination, bind?: string): EffectSpec => ({
+/**
+ * `options.takenAwayNotCounted`: a card in `bind` that a response to its discard takes away stops counting (a mission
+ * attempt; `EffectSpec moveCards.takenAwayNotCounted`). By default it keeps counting (docs/phase7-wave7.md §4.1 Q32 = A).
+ */
+export const moveCards = (
+  from: CardSelector,
+  to: CardDestination,
+  bind?: string,
+  options: { readonly takenAwayNotCounted?: true } = {},
+): EffectSpec => ({
   kind: "moveCards",
   cards: from,
   to,
   ...withBind(bind),
+  ...(options.takenAwayNotCounted ? { takenAwayNotCounted: true as const } : {}),
 });
 /**
  * "Each player shuffles 1 copy of Shawarma into their deck" (Save the Shawarma Place, `mts` 21182a): `from` is an

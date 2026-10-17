@@ -29,6 +29,8 @@ export interface TriggerWindowContext {
   readonly whyNow: string | null;
   /** What saying yes does, one line per offered ability. */
   readonly effects: readonly string[];
+  /** What saying yes costs that the card text does not say; null when there is nothing to warn about. */
+  readonly warning: string | null;
 }
 
 const count = (n: number, word: string): string => `${n} ${word}`;
@@ -104,6 +106,17 @@ export function triggerHeadlineOf(
     case "attack": {
       const attacker = cardName(state, event.attackerInstanceId);
       return before ? `${attacker} is about to attack` : `${attacker} attacked`;
+    }
+    case "cardDiscardedFromDeck": {
+      const card = cardName(state, event.instanceId);
+      const deck =
+        event.playerId === null
+          ? "the encounter deck"
+          : event.playerId === viewer
+            ? "your deck"
+            : `${playerName(state, event.playerId)}'s deck`;
+      const by = event.sourceInstanceId === null ? "" : ` by ${cardName(state, event.sourceInstanceId)}`;
+      return `${card} was discarded from the top of ${deck}${by}`;
     }
     case "thwart": {
       const thwarter = cardName(state, event.thwarterInstanceId);
@@ -185,6 +198,23 @@ export function effectLineOf(name: string, paragraph: string): string {
 }
 
 /**
+ * A response that takes a card away after a mission attempt discarded it from a deck (Digging Deep to hand): the card
+ * no longer counts for the attempt (ruling April 30, 2026 - Ruling 4, answer 1), which the card text does not say. Any
+ * other deck discard keeps counting a card taken away (Jackpot! shuffled back still counts for Luck Be a Lady;
+ * docs/phase7-wave7.md §4.1 Q32 = A), so nothing is said there. The attempt's set is marked `takenAwayNotCounted`.
+ */
+export function deckDiscardWarningOf(state: GameState, event: TriggerEvent): string | null {
+  if (event.kind !== "cardDiscardedFromDeck" || event.at !== "discard") return null;
+  const source = event.sourceInstanceId;
+  if (source === null || source === event.instanceId) return null;
+  const dropped = (state.deckDiscardWindows ?? []).some((window) =>
+    window.discards.some((d) => d.instanceId === event.instanceId && d.boundOn?.takenAwayNotCounted === true),
+  );
+  if (!dropped) return null;
+  return `Heads up: if ${cardName(state, event.instanceId)} leaves the discard pile, it won't count for ${cardName(state, source)}. Decline to keep it counted.`;
+}
+
+/**
  * The context for a `chooseTriggers` prompt, or null for any other prompt. `effects` has one line per distinct
  * offered ability.
  */
@@ -210,5 +240,6 @@ export function triggerWindowContextOf(
     headline: triggerHeadlineOf(state, prompt.event, prompt.timing, viewer),
     whyNow: triggerWhyNowOf(state, prompt.event),
     effects,
+    warning: prompt.timing === "response" ? deckDiscardWarningOf(state, prompt.event) : null,
   };
 }

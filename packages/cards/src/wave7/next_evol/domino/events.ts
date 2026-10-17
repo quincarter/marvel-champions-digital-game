@@ -53,7 +53,8 @@ const perCount = (bound: string, effects: () => readonly EffectSpec[]): EffectSp
  *
  * - **A Good Workout (40040), Hero Action (attack)**: choose an enemy, discard the top card of the deck, then one attack
  *   of 4 damage plus 1 per resource icon discarded (Domino's wild counts twice). Q34 = B: all the additional damage goes
- *   to the enemy the 4 damage was dealt to. Q32 = B: a card a response took away (Digging Deep) does not count.
+ *   to the enemy the 4 damage was dealt to. Q32 = A (engine interpretation, owner decision 2026-10-17, issue #222): a
+ *   card a response took away (Jackpot! shuffled back, Digging Deep to hand) still counts; no ruling uses this wording.
  * - **Luck Be a Lady (40041), Hero Action**: discard the top card; for each counted icon, [energy] heals 2 from a
  *   character, [mental] removes 2 threat from a scheme, [physical] deals 3 damage to an enemy, [wild] chooses one of
  *   those (a Domino-doubled wild is two choices). Resolved energy, then mental, then physical, then wild. The three

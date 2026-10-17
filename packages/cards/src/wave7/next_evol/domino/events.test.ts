@@ -179,9 +179,9 @@ describe("A Good Workout (40040): 4 damage and 1 more per icon discarded, an att
     expect(discardCodes(state)).toContain(TRIO);
   });
 
-  it("Jackpot! shuffled back by its own response does not count (Q32 B: a card a response took away)", () => {
+  it("Jackpot! shuffled back by its own response still counts its three icons (Q32 = A: counted at the discard)", () => {
     const { state } = playEvent(stacked(withoutTough(heroGame()), [TRIO, PHYSICAL]), "40040", 2, answering("Jackpot!"));
-    expect(damageOn(state)).toBe(4);
+    expect(damageOn(state)).toBe(7);
     expect(discardCodes(state)).not.toContain(TRIO);
     expect(deckCodes(state)).toContain(TRIO);
   });
@@ -226,10 +226,10 @@ describe("Right Place, Right Time (40042): 3 threat and 1 more per icon discarde
     expect(deckCodes(state)[0]).toBe(PHYSICAL);
   });
 
-  it("Jackpot! counts 3 when declined (6 threat) and nothing when it shuffles itself back (3)", () => {
+  it("Jackpot! counts 3 (6 threat), declined or shuffled back (Q32 = A)", () => {
     const base = patchInstance(heroGame(), mainOf(heroGame()), { threat: 20 });
     expect(threatOn(thwartWith([TRIO], declineResponses, base).state)).toBe(14);
-    expect(threatOn(thwartWith([TRIO], answering("Jackpot!"), base).state)).toBe(17);
+    expect(threatOn(thwartWith([TRIO], answering("Jackpot!"), base).state)).toBe(14);
   });
 
   it("is a thwart: it can remove the threat from a side scheme and leaves the main scheme alone", () => {

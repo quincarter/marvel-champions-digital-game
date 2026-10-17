@@ -150,7 +150,7 @@ import type {
 import { characterTitledAs, identityCardTitledAs, sharesTitleWithAny } from "./titles.js";
 import { STATUS_NAMES, type Form, type GameAreaState, type GameState, type ZoneId } from "./state.js";
 import type { TriggerEvent } from "./trigger-events.js";
-import { damageTakenKey, eventSubjects } from "./trigger-events.js";
+import { COUNTED_AWAY_SUFFIX, damageTakenKey, eventSubjects } from "./trigger-events.js";
 
 /**
  * The hero identity cards of the players a ref names, read live from each player's identity instance: the source of
@@ -2896,7 +2896,7 @@ export function resolveValue(
     }
     case "resourceTypes": {
       const seen = new Set<string>();
-      for (const id of resolveRef(state, value.cards, context)) {
+      for (const id of [...resolveRef(state, value.cards, context), ...countedAwayOf(value.cards, context)]) {
         const pool = printedResourcesOf(state, id, deps);
         for (const type of ["physical", "mental", "energy", "wild"] as const) if (pool[type] > 0) seen.add(type);
       }
@@ -3018,7 +3018,9 @@ export function resolveValue(
       // is already in the discard pile by the time the ability's effects resolve. An icon of a card this ability
       // discarded from a deck may count more than once (`countedResourcesOf`, docs/phase7-wave7.md §3.56).
       const types = value.types ?? RESOURCE_TYPES;
-      return resolveRef(state, value.cards, context).reduce((sum, id) => {
+      // A set of cards discarded from a deck also counts the ones a response took away (docs/phase7-wave7.md §4.1 Q32
+      // = A, `COUNTED_AWAY_SUFFIX`).
+      return [...resolveRef(state, value.cards, context), ...countedAwayOf(value.cards, context)].reduce((sum, id) => {
         const pool = countedResourcesOf(state, id, printedResourcesOf(state, id, deps), context.bindings, deps);
         return sum + types.reduce((total, type) => total + pool[type], 0);
       }, 0);
@@ -4219,4 +4221,12 @@ function compareStat(own: number, op: StatComparison["op"], against: number): bo
     case "gt":
       return own > against;
   }
+}
+
+/**
+ * The cards a response took away from a set "discarded this way" that the set still counts (docs/phase7-wave7.md §4.1
+ * Q32 = A, `COUNTED_AWAY_SUFFIX`), read by the values that count a set's icons and types. None for any other ref.
+ */
+function countedAwayOf(ref: TargetRef, context: EffectContext): readonly InstanceId[] {
+  return ref.kind === "slot" ? (context.bindings[`${ref.slot}${COUNTED_AWAY_SUFFIX}`] ?? []) : [];
 }

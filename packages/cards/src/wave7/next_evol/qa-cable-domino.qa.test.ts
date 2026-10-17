@@ -654,8 +654,8 @@ describe("Domino: two responses to the same top-of-deck discard", () => {
     return found;
   }
 
-  // Q31 (any deck discard counts), Q32 = B (a card a response took away is not counted by the ability that discarded it)
-  // and Q33. Jackpot! (shuffle itself back) and The Painted Lady (attach it) both want the same card.
+  // Q31 (any deck discard counts), Q32 = A (a card a response took away still counts for the ability that discarded it;
+  // owner decision 2026-10-17, issue #222) and Q33. Jackpot! (shuffle itself back) and The Painted Lady (attach it) both want the same card.
   it("control: with both responses declined Jackpot! lies in the discard pile and Pistol counts its 3 icons", () => {
     const g = setup();
     const r = fire(g);
@@ -663,18 +663,18 @@ describe("Domino: two responses to the same top-of-deck discard", () => {
     expect(damageOf(r.state, villainOf(r.state))).toBe(3);
   });
 
-  it("Jackpot! alone shuffles itself back into the deck; Pistol then counts nothing (Q32 = B)", () => {
+  it("Jackpot! alone shuffles itself back into the deck; Pistol still counts its 3 icons (Q32 = A)", () => {
     const g = setup();
     const r = fire(g, JACKPOT_RESPONSE);
     expect(whereIs(r.state, g.jackpot)).toEqual(["deck"]);
-    expect(damageOf(r.state, villainOf(r.state))).toBe(0);
+    expect(damageOf(r.state, villainOf(r.state))).toBe(3);
   });
 
-  it("The Painted Lady alone attaches it facedown; Pistol then counts nothing (Q32 = B)", () => {
+  it("The Painted Lady alone attaches it facedown; Pistol still counts its 3 icons (Q32 = A)", () => {
     const g = setup();
     const r = fire(g, LADY_RESPONSE);
     expect(whereIs(r.state, g.jackpot)).toEqual(["attached:40045"]);
-    expect(damageOf(r.state, villainOf(r.state))).toBe(0);
+    expect(damageOf(r.state, villainOf(r.state))).toBe(3);
   });
 
   it("both accepted: the card ends up in exactly one place, and the response that lost it is not resolved on it", () => {

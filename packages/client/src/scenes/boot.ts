@@ -359,6 +359,13 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
   }
 
   // `&fixture=grounded`: Jubilee on round 2 with Grounded in play, for Flip to hero's additional cost.
+  // `?screen=board&fixture=jackpot`: Domino paused on Jackpot!'s response to Luck Be a Lady's discard (#222).
+  if (screen === "board" && params.get("fixture") === "jackpot") {
+    const { startDevJackpotGame } = await import("../store/dev-jackpot-game.js");
+    await startDevJackpotGame();
+    return { key: SCENES.board, data: {} };
+  }
+
   if (screen === "board" && params.get("fixture") === "grounded") {
     const { startDevGroundedGame } = await import("../store/dev-mission-game.js");
     await startDevGroundedGame();

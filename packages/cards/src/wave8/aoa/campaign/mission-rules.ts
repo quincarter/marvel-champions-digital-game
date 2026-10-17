@@ -86,7 +86,9 @@ const participants = chosen(`${PAIRING}.matched`);
  * answers.
  */
 export const missionAttempt = (): readonly EffectSpec[] => [
-  moveCards(topOfDeck(countOf(ALLY_AT_THE_MISSION), you), "discard", DISCARDED),
+  // Ruling April 30, 2026 – Ruling 4 (1): a card its own Response takes away "does not count for the mission attempt",
+  // unlike other deck discards (docs/phase7-wave7.md §4.1 Q32 = A).
+  moveCards(topOfDeck(countOf(ALLY_AT_THE_MISSION), you), "discard", DISCARDED, { takenAwayNotCounted: true }),
   pairCards(chosen(DISCARDED), ALLY_AT_THE_MISSION, PAIRING),
   dealPoolOneAtATime(totalStatOf(participants, "atk"), MINION_AT_THE_MISSION),
   removeThreat(totalStatOf(participants, "thw"), theMission),

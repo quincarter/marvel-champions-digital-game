@@ -428,12 +428,12 @@ describe("Feral (40050): after she thwarts, discard the top card; 1 damage to th
     expect(damageOn(state, villainOf(state))).toBe(0);
   });
 
-  it("Jackpot! discarded counts its three icons when declined, and nothing when it shuffles itself back", () => {
+  it("Jackpot! discarded counts its three icons, declined or shuffled back (Q32 = A)", () => {
     const { state: staged, feral } = ready([TRIO, PHYSICAL]);
     const declined = thwart(staged, feral, accepting([FERAL_REF]));
     expect(damageOn(declined.state, villainOf(declined.state))).toBe(3);
     const answered = thwart(staged, feral, accepting([FERAL_REF, "40043.jackpot-response"]));
-    expect(damageOn(answered.state, villainOf(answered.state))).toBe(0);
+    expect(damageOn(answered.state, villainOf(answered.state))).toBe(3);
     expect(deckCodes(answered.state)).toContain(TRIO);
   });
 
@@ -904,14 +904,14 @@ describe("White Fox (40057) and Digging Deep (40060): after being discarded from
     return put(base, "40040", 2, { pick });
   }
 
-  it("White Fox enters play under her owner's control when the response is taken", () => {
+  it("White Fox enters play under her owner's control when the response is taken, and her icon still counts (Q32 = A)", () => {
     const { state } = workout([WHITE_FOX, PHYSICAL], accepting([FOX_REF]));
     expect(playCodes(state)).toContain(WHITE_FOX);
     expect(discardCodes(state)).not.toContain(WHITE_FOX);
     const fox = only(state, WHITE_FOX);
     expect(inst(state, fox).controllerId).toBe(P1);
     expect(inst(state, fox).exhausted).toBe(false);
-    expect(damageOn(state, villainOf(state))).toBe(4);
+    expect(damageOn(state, villainOf(state))).toBe(5);
   });
 
   it("declined, she stays in the discard pile and her icon counts (energy: 1 more damage)", () => {
@@ -948,11 +948,11 @@ describe("White Fox (40057) and Digging Deep (40060): after being discarded from
     expect(prompts).toContain("discardOverAllyLimit");
   });
 
-  it("Digging Deep returns to hand when the response is taken, and its icon does not count (Q32 B, April 30, 2026 Ruling 4)", () => {
+  it("Digging Deep returns to hand when the response is taken, and still counts as a wild twice (Q32 = A; the April 30, 2026 ruling is for mission attempts)", () => {
     const { state } = workout([DIGGING_DEEP, PHYSICAL], accepting([DEEP_REF]));
     expect(handCodes(state)).toContain(DIGGING_DEEP);
     expect(discardCodes(state)).not.toContain(DIGGING_DEEP);
-    expect(damageOn(state, villainOf(state))).toBe(4);
+    expect(damageOn(state, villainOf(state))).toBe(6);
   });
 
   it("declined, Digging Deep stays in the discard pile and counts as a wild twice (6 damage)", () => {
