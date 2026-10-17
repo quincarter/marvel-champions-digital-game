@@ -16,6 +16,7 @@
  * shim for one function).
  */
 import type Phaser from "phaser";
+import { canvasOf } from "./bitmap-canvas.js";
 
 /** The formats a picture may be in. Kept in step with the glob patterns, which must be literals. */
 export const PICTURE_EXTENSIONS = ["png", "jpg", "jpeg", "webp", "avif"] as const;
@@ -57,8 +58,8 @@ export function pickPicture(
  * its parent share a cover) must not both load it: the second logs "Texture key already in use" and, in the e2e
  * suite, fails the run. A scene's own loader is the wrong tool: when the scene shuts down mid-load the loader is reset,
  * but its in-flight file still completes and adds the texture, so a scene that then asked again (a restart, the next
- * screen) added it a second time. So the picture is fetched with a plain `Image` that outlives every scene, the
- * request stays registered until that image settles, and the texture is added once, guarded by `exists`. Waiters
+ * screen) added it a second time. So the picture is fetched and decoded outside every scene (`decodedPicture`), the
+ * request stays registered until that settles, and the texture is added once, guarded by `exists`. Waiters
  * (every scene that asked meanwhile) get their own `onReady` if still active; a file that fails to load is forgotten,
  * so a later request tries again.
  */
@@ -85,17 +86,78 @@ export function ensurePictureLoaded(scene: Phaser.Scene, picture: Picture, onRea
   }
   const waiters: Waiter[] = [{ scene, onReady }];
   loads.set(picture.key, waiters);
-  const image = new Image();
-  const settle = (ok: boolean): void => {
+  const settle = (source: HTMLImageElement | HTMLCanvasElement | null): void => {
     loads.delete(picture.key);
-    if (!ok) return;
-    if (!textures.exists(picture.key)) textures.addImage(picture.key, image);
-    for (const waiter of waiters) if (waiter.scene.sys.isActive()) waiter.onReady();
+    if (source && !textures.exists(picture.key)) textures.addImage(picture.key, source as HTMLImageElement);
+    notify(textures, loads, source ? waiters : []);
   };
-  image.onload = () => settle(true);
-  image.onerror = () => settle(false);
-  image.src = picture.url;
+  decodedPicture(picture.url).then(settle, () => settle(null));
   return null;
+}
+
+/** How long arrived pictures wait for the rest of their batch before their scenes are told anyway. */
+export const PICTURE_BATCH_MS = 300;
+
+interface Notices {
+  readonly waiters: Waiter[];
+  timer: ReturnType<typeof setTimeout> | null;
+}
+const notices = new WeakMap<Phaser.Textures.TextureManager, Notices>();
+
+/**
+ * Tells the waiters a picture is ready, once every picture still loading has arrived too (or `PICTURE_BATCH_MS` has
+ * passed). A screen redraws whole when art arrives, so the Saga's ten covers landing one by one redrew it ten times,
+ * about 21 s of frozen frames at Chrome's 6x CPU slowdown (#223); held together, they cost one redraw. A scene that
+ * passes the same callback for every picture is told once per batch.
+ */
+function notify(
+  textures: Phaser.Textures.TextureManager,
+  loads: ReadonlyMap<string, Waiter[]>,
+  arrived: readonly Waiter[],
+): void {
+  let pending = notices.get(textures);
+  if (!pending) {
+    pending = { waiters: [], timer: null };
+    notices.set(textures, pending);
+  }
+  for (const waiter of arrived) {
+    if (!pending.waiters.some((other) => other.scene === waiter.scene && other.onReady === waiter.onReady))
+      pending.waiters.push(waiter);
+  }
+  const batch = pending;
+  if (loads.size === 0) flushNotices(batch);
+  else if (batch.waiters.length > 0 && batch.timer === null)
+    batch.timer = setTimeout(() => flushNotices(batch), PICTURE_BATCH_MS);
+}
+
+function flushNotices(pending: Notices): void {
+  if (pending.timer !== null) clearTimeout(pending.timer);
+  pending.timer = null;
+  for (const waiter of pending.waiters.splice(0)) if (waiter.scene.sys.isActive()) waiter.onReady();
+}
+
+/**
+ * The picture, decoded before it reaches the main thread. Handing WebGL a freshly loaded `Image` makes the upload
+ * decode it first, on the main thread, in the middle of a frame: one title wallpaper froze the Title for about 3 s at
+ * Chrome's 6x CPU slowdown (#223). `createImageBitmap` on the fetched file decodes on the browser's own image-decoding
+ * threads instead, so the frame only pays for the upload. Where that can't run (no `createImageBitmap`, a fetch the
+ * shell refuses), the picture loads as a plain `Image` as before.
+ */
+async function decodedPicture(url: string): Promise<HTMLImageElement | HTMLCanvasElement | null> {
+  if (typeof createImageBitmap === "function" && typeof fetch === "function") {
+    try {
+      const response = await fetch(url);
+      if (response.ok) return canvasOf(await createImageBitmap(await response.blob()));
+    } catch {
+      // Fall through to the plain image.
+    }
+  }
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = url;
+  });
 }
 
 /**

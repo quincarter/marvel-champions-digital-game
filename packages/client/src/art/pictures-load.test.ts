@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type Phaser from "phaser";
-import { ensurePictureLoaded, type Picture } from "./pictures.js";
+import { ensurePictureLoaded, PICTURE_BATCH_MS, type Picture } from "./pictures.js";
 
 /** A stand-in for the DOM `Image`: the test settles each one by hand. */
 class FakeImage {
@@ -42,10 +42,13 @@ class FakeTextures {
   }
 }
 
+/** Lets a settled image reach the texture manager (the load resolves through a promise). */
+const settled = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
 const PIC: Picture = { key: "wallpaper", url: "/wallpaper.png" };
 
 describe("ensurePictureLoaded across scenes", () => {
-  test("two scenes asking at once load the picture once, and both are told when it arrives", () => {
+  test("two scenes asking at once load the picture once, and both are told when it arrives", async () => {
     const textures = new FakeTextures();
     const a = new FakeScene(textures);
     const b = new FakeScene(textures);
@@ -55,12 +58,13 @@ describe("ensurePictureLoaded across scenes", () => {
     expect(ensurePictureLoaded(b.asScene, PIC, () => readyB++)).toBeNull();
     expect(FakeImage.all.map((i) => i.src)).toEqual(["/wallpaper.png"]);
     FakeImage.all[0]!.onload?.();
+    await settled();
     expect([readyA, readyB]).toEqual([1, 1]);
     expect(textures.added).toEqual(["wallpaper"]);
     expect(ensurePictureLoaded(b.asScene, PIC, () => readyB++)).toBe("wallpaper");
   });
 
-  test("a waiting scene that has closed is not told", () => {
+  test("a waiting scene that has closed is not told", async () => {
     const textures = new FakeTextures();
     const a = new FakeScene(textures);
     const b = new FakeScene(textures);
@@ -69,10 +73,11 @@ describe("ensurePictureLoaded across scenes", () => {
     ensurePictureLoaded(b.asScene, PIC, () => readyB++);
     b.active = false;
     FakeImage.all[0]!.onload?.();
+    await settled();
     expect(readyB).toBe(0);
   });
 
-  test("the loading scene closing mid-load neither drops the load nor lets a later request start a second one", () => {
+  test("the loading scene closing mid-load neither drops the load nor lets a later request start a second one", async () => {
     const textures = new FakeTextures();
     const a = new FakeScene(textures);
     const b = new FakeScene(textures);
@@ -83,33 +88,133 @@ describe("ensurePictureLoaded across scenes", () => {
     ensurePictureLoaded(b.asScene, PIC, () => readyB++);
     expect(FakeImage.all).toHaveLength(1);
     FakeImage.all[0]!.onload?.();
+    await settled();
     expect(textures.added).toEqual(["wallpaper"]);
     expect(readyB).toBe(1);
   });
 
-  test("the texture is added at most once even if it appeared meanwhile", () => {
+  test("the texture is added at most once even if it appeared meanwhile", async () => {
     const textures = new FakeTextures();
     const a = new FakeScene(textures);
     ensurePictureLoaded(a.asScene, PIC, () => undefined);
     textures.shared.add("wallpaper");
     FakeImage.all[0]!.onload?.();
+    await settled();
     expect(textures.added).toEqual([]);
   });
 
-  test("a load that fails is forgotten, so a later request tries again", () => {
+  test("a load that fails is forgotten, so a later request tries again", async () => {
     const textures = new FakeTextures();
     const a = new FakeScene(textures);
     ensurePictureLoaded(a.asScene, PIC, () => undefined);
     FakeImage.all[0]!.onerror?.();
+    await settled();
     ensurePictureLoaded(a.asScene, PIC, () => undefined);
     expect(FakeImage.all).toHaveLength(2);
   });
 
-  test("different texture managers are independent", () => {
+  test("different texture managers are independent", async () => {
     const a = new FakeScene(new FakeTextures());
     const b = new FakeScene(new FakeTextures());
     ensurePictureLoaded(a.asScene, PIC, () => undefined);
     ensurePictureLoaded(b.asScene, PIC, () => undefined);
     expect(FakeImage.all).toHaveLength(2);
+  });
+});
+
+describe("ensurePictureLoaded decodes off the main thread where it can", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.stubGlobal("Image", FakeImage);
+  });
+
+  test("the fetched file is decoded by createImageBitmap and handed over as a canvas, not an Image", async () => {
+    const bitmap = { width: 640, height: 360, close: vi.fn() };
+    const transferred: unknown[] = [];
+    const canvas = {
+      width: 0,
+      height: 0,
+      getContext: () => ({ transferFromImageBitmap: (b: unknown) => transferred.push(b) }),
+    };
+    const fetchMock = vi.fn(async () => ({ ok: true, blob: async () => "blob" }));
+    const decode = vi.fn(async () => bitmap);
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("createImageBitmap", decode);
+    vi.stubGlobal("document", { createElement: () => canvas });
+    const sources: unknown[] = [];
+    const textures = new FakeTextures();
+    textures.addImage = (key: string, source?: unknown) => {
+      textures.added.push(key);
+      textures.shared.add(key);
+      sources.push(source);
+    };
+    const scene = new FakeScene(textures);
+    let ready = 0;
+    expect(ensurePictureLoaded(scene.asScene, PIC, () => ready++)).toBeNull();
+    await settled();
+    expect(fetchMock).toHaveBeenCalledWith("/wallpaper.png");
+    expect(decode).toHaveBeenCalledWith("blob");
+    expect(FakeImage.all).toHaveLength(0);
+    expect(sources).toEqual([canvas]);
+    expect([canvas.width, canvas.height]).toEqual([640, 360]);
+    expect(transferred).toEqual([bitmap]);
+    expect(ready).toBe(1);
+  });
+
+  test("a fetch that fails falls back to a plain Image", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("refused");
+      }),
+    );
+    vi.stubGlobal("createImageBitmap", vi.fn());
+    const textures = new FakeTextures();
+    const scene = new FakeScene(textures);
+    ensurePictureLoaded(scene.asScene, PIC, () => undefined);
+    await settled();
+    expect(FakeImage.all.map((image) => image.src)).toEqual(["/wallpaper.png"]);
+    FakeImage.all[0]!.onload?.();
+    await settled();
+    expect(textures.added).toEqual(["wallpaper"]);
+  });
+});
+
+describe("ensurePictureLoaded holds arrivals until the batch is in", () => {
+  test("pictures loading together tell a scene once, after the last one arrives", async () => {
+    const textures = new FakeTextures();
+    const scene = new FakeScene(textures);
+    let redraws = 0;
+    const redraw = (): void => {
+      redraws++;
+    };
+    const covers: Picture[] = [1, 2, 3].map((n) => ({ key: `cover-${n}`, url: `/cover-${n}.png` }));
+    for (const cover of covers) ensurePictureLoaded(scene.asScene, cover, redraw);
+    FakeImage.all[0]!.onload?.();
+    FakeImage.all[1]!.onload?.();
+    await settled();
+    expect(redraws).toBe(0);
+    expect(textures.added).toEqual(["cover-1", "cover-2"]);
+    FakeImage.all[2]!.onload?.();
+    await settled();
+    expect(redraws).toBe(1);
+  });
+
+  test("a picture that never arrives holds the others only so long", async () => {
+    vi.useFakeTimers();
+    try {
+      const textures = new FakeTextures();
+      const scene = new FakeScene(textures);
+      let redraws = 0;
+      ensurePictureLoaded(scene.asScene, { key: "fast", url: "/fast.png" }, () => redraws++);
+      ensurePictureLoaded(scene.asScene, { key: "slow", url: "/slow.png" }, () => redraws++);
+      FakeImage.all[0]!.onload?.();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(redraws).toBe(0);
+      await vi.advanceTimersByTimeAsync(PICTURE_BATCH_MS);
+      expect(redraws).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

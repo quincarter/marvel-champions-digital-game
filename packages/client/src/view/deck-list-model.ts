@@ -55,13 +55,39 @@ export function shortWarningOf(warning: string | null): string | null {
   return warning !== null && warning.startsWith("Playable, but") ? "Partly playable" : warning;
 }
 
-/** Every precon deck, freshly derived from `POOL_STARTER_DECKS` (Core's six plus wave 1's six) — never stored, since a precon is data, not something a player edits. */
+/** The same deck objects every time, so `deckOptionOf` can remember their status. */
+const precons = new Map<string, readonly Deck[]>();
+
+/** Every precon deck, derived from `POOL_STARTER_DECKS` (Core's six plus wave 1's six) — never saved, since a precon is data, not something a player edits. Built once per pool version. */
 export function preconDecks(poolVersion: string = POOL_VERSION): readonly Deck[] {
-  return POOL_STARTER_DECKS.map((starter) => deckFromStarterDeck(starter, poolVersion));
+  let decks = precons.get(poolVersion);
+  if (!decks) {
+    decks = POOL_STARTER_DECKS.map((starter) => deckFromStarterDeck(starter, poolVersion));
+    precons.set(poolVersion, decks);
+  }
+  return decks;
 }
+
+/**
+ * Each deck's status, kept until the deck, pool, version or registry changes. A deck is replaced, never edited, when it
+ * is saved, and checking every deck afresh on each redraw of Decks & Collection froze its first visit for seconds on a
+ * slow device (#223).
+ */
+const options = new WeakMap<
+  Deck,
+  { readonly pool: CardPool; readonly version: string; readonly deps: EngineDeps; readonly option: DeckOption }
+>();
 
 /** One deck's full status. `pool` is a real card pool (a list or `GameState.cardPool`-shaped record); `currentPoolVersion` is today's `POOL_VERSION` (or whatever the app is running). */
 export function deckOptionOf(deck: Deck, pool: CardPool, currentPoolVersion: string, deps: EngineDeps): DeckOption {
+  const known = options.get(deck);
+  if (known && known.pool === pool && known.version === currentPoolVersion && known.deps === deps) return known.option;
+  const option = checkDeck(deck, pool, currentPoolVersion, deps);
+  options.set(deck, { pool, version: currentPoolVersion, deps, option });
+  return option;
+}
+
+function checkDeck(deck: Deck, pool: CardPool, currentPoolVersion: string, deps: EngineDeps): DeckOption {
   const verdict = validateDeck(deck, pool);
   const legal = verdict.ok;
   const problems = verdict.ok ? [] : verdict.problems;

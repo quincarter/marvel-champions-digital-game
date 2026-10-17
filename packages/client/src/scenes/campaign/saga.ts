@@ -68,6 +68,19 @@ export class CampaignSagaScene extends Phaser.Scene {
   #confirmAbandon = false;
   #listScroll = new ListScroll();
   #phoneList: McVirtualList | null = null;
+  #rebuildQueued = false;
+  /**
+   * One callback for every cover, so a batch of covers arriving together (`art/pictures.ts`) redraws the screen once
+   * rather than once per cover (#223).
+   */
+  readonly #onArt = (): void => {
+    if (this.#rebuildQueued) return;
+    this.#rebuildQueued = true;
+    this.time.delayedCall(0, () => {
+      this.#rebuildQueued = false;
+      this.#rebuild();
+    });
+  };
 
   constructor() {
     super(SCENES.campaignSaga);
@@ -194,7 +207,7 @@ export class CampaignSagaScene extends Phaser.Scene {
       chip: this.#gridChip(tileRow),
       status: tileRow.status,
       art,
-      onArtReady: () => this.#rebuild(),
+      onArtReady: this.#onArt,
       selected: tileRow.volume.number === this.#featured,
       onClick: () => this.#feature(tileRow.volume.number),
     });
@@ -504,7 +517,7 @@ export class CampaignSagaScene extends Phaser.Scene {
   #drawFeaturedArt(rect: Rect, row: SagaVolumeRow): void {
     const picture = volumeArtOf(row.volume.campaignId);
     if (picture) {
-      const image = drawPicture(this, picture, rect, () => this.#rebuild(), { focusY: 0.15 });
+      const image = drawPicture(this, picture, rect, this.#onArt, { focusY: 0.15 });
       void image;
       return;
     }
