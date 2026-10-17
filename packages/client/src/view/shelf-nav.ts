@@ -6,21 +6,10 @@
  * and Page Up/Down move by shelf. Pure over shelf *shapes* (how many cards
  * each one holds), so it's testable without a live roster or a canvas.
  *
- * **Not wired into live keyboard input this pass.** `scenes/board/input.ts`'s
- * `bindKeyboard` — shared by every screen in the app — maps every arrow key
- * (Left/Right/Up/Down) to the same flat "next"/"previous" intent, and
- * `view/gamepad.ts`'s `GamepadIntent` has no left/right vs up/down distinction
- * either. Teaching those two shared files a real axis would touch input
- * handling for every other screen in the client, not just these two, and
- * doing that safely needs its own pass with its own regression coverage —
- * flagged here rather than done as a side effect of this workstream. Until
- * then, `scenes/scenario-select.ts`/`scenes/seats.ts` wire the shelves into
- * the existing flat `FocusRoute` in reading order (shelf by shelf, left to
- * right within a shelf), so every card is still a real, reachable focus stop
- * and Tab/Shift+Tab and the pad's next/previous both work — they just don't
- * get this module's up/down-to-nearest-shelf shortcut. `moveShelfFocus`
- * exists so that wiring is a later, isolated change: give it the real per-key
- * intent once one exists, and nothing here has to be rewritten.
+ * **Not wired into live keyboard input.** Since issue #206 the arrows and the D-pad move focus spatially on every
+ * screen (`view/spatial-nav.ts`, over each stop's on-screen rect), which already gives the shelves Left/Right within a
+ * shelf and Up/Down to the nearest card in the shelf above or below; `scenes/scenario-select.ts`/`scenes/seats.ts`
+ * still list the cards in reading order for Tab. This module is kept for its Home/End and Page Up/Down rules.
  */
 
 export interface ShelfShape {

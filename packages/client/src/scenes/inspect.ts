@@ -104,7 +104,7 @@ import {
   type InspectPayment,
 } from "../view/inspect-model.js";
 import { tuckedSiblings, type CardLink } from "../view/inspect-notes.js";
-import type { GamepadIntent } from "../view/gamepad.js";
+import { linearIntent, type GamepadIntent } from "../view/gamepad.js";
 import { PressArm } from "../view/press-arm.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
@@ -387,7 +387,8 @@ export class InspectOverlay extends Phaser.Scene {
   #onIntent(intent: GamepadIntent): void {
     // The overlay is on its way out — a second Escape, or a stray Enter during the fade, does nothing.
     if (this.#motion.leaving) return;
-    switch (intent) {
+    // Inspect has one control row and the ◂ ▸ card stepper: the arrows step cards, as they always did.
+    switch (linearIntent(intent)) {
       case "next":
         this.#step(1);
         break;

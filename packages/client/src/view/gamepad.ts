@@ -12,6 +12,8 @@
  * focus order, targeting or dispatch lives here or there.
  */
 
+import type { FocusDirection } from "./spatial-nav.js";
+
 /**
  * What the keyboard binding already distinguishes (`scenes/board/input.ts#bindKeyboard`).
  *
@@ -22,8 +24,14 @@
  * a screen with nothing to read.
  */
 export type GamepadIntent =
+  /** Tab / Shift+Tab: the screen's stated route, in order. */
   | "next"
   | "previous"
+  /** The arrow keys and the D-pad: the nearest stop that way on screen (`view/spatial-nav.ts`, issue #206). */
+  | "up"
+  | "down"
+  | "left"
+  | "right"
   | "activate"
   | "inspect"
   | "cancel"
@@ -58,10 +66,11 @@ export const GAMEPAD_BUTTON = {
 } as const;
 
 const INTENT_BY_BUTTON: Readonly<Record<number, GamepadIntent>> = {
-  [GAMEPAD_BUTTON.dpadRight]: "next",
-  [GAMEPAD_BUTTON.dpadDown]: "next",
-  [GAMEPAD_BUTTON.dpadLeft]: "previous",
-  [GAMEPAD_BUTTON.dpadUp]: "previous",
+  // The D-pad moves the way it points, like the arrow keys (issue #206); it used to walk the route like Tab.
+  [GAMEPAD_BUTTON.dpadRight]: "right",
+  [GAMEPAD_BUTTON.dpadDown]: "down",
+  [GAMEPAD_BUTTON.dpadLeft]: "left",
+  [GAMEPAD_BUTTON.dpadUp]: "up",
   // A is the face button in the position a controller's own "confirm" always
   // sits, the same reasoning that makes Enter/Space the keyboard's activate.
   [GAMEPAD_BUTTON.a]: "activate",
@@ -82,4 +91,19 @@ const INTENT_BY_BUTTON: Readonly<Record<number, GamepadIntent>> = {
 /** The intent one button press means, or `null` for a button this board doesn't use. */
 export function gamepadIntentFor(buttonIndex: number): GamepadIntent | null {
   return INTENT_BY_BUTTON[buttonIndex] ?? null;
+}
+
+/** The direction an arrow or D-pad intent points, or null for every other intent. */
+export function directionOf(intent: GamepadIntent): FocusDirection | null {
+  return intent === "up" || intent === "down" || intent === "left" || intent === "right" ? intent : null;
+}
+
+/**
+ * The route step a direction falls back to on a surface with no on-screen layout to move through (Inspect's ◂ ▸
+ * card stepper): Right and Down are "next", Left and Up are "previous". Every other intent is returned as it is.
+ */
+export function linearIntent(intent: GamepadIntent): GamepadIntent {
+  if (intent === "right" || intent === "down") return "next";
+  if (intent === "left" || intent === "up") return "previous";
+  return intent;
 }
