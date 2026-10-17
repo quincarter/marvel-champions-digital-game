@@ -84,7 +84,13 @@ import {
 } from "@mc/content";
 import { communityDecks } from "@mc/cards";
 import { DECK_MIN_CARDS } from "@mc/engine";
-import { POOL_CARDS, POOL_DEPS, POOL_VERSION } from "../content/pool.js";
+import { POOL_CARDS, POOL_DEPS, POOL_HERO_SHELF_PACKS, POOL_VERSION, packNameOf } from "../content/pool.js";
+import { aspectLabelOf } from "../view/seat-slots.js";
+import { heroPacksOf } from "../view/hero-deck-groups.js";
+import { DeckSearchClient } from "../view/deck-search-client.js";
+import type { SearchDocument } from "../view/deck-search.js";
+import { cardSearchDocumentOf } from "../view/card-search-document.js";
+import { testedCatalog } from "../view/seatable-decks.js";
 import { cardArt } from "../art/card-art.js";
 import { artFor } from "../art/art-source.js";
 import { cardFaces } from "../art/card-face-baker.js";
@@ -107,6 +113,8 @@ import {
   communityMetaCandidates,
   communityNotesOf,
   communityOfferMatches,
+  testedEntryOf,
+  testedSearchFieldsOf,
   communityOffers,
   communityStatusText,
   communityPublishedText,
@@ -124,8 +132,6 @@ import {
 } from "../view/deck-stats.js";
 import { deckStatusOf } from "../view/deck-status.js";
 import { cardTitleOf, deckAspectsText, deckMetaCandidates, SOURCE_LABEL } from "../view/deck-title.js";
-import { cardInspectModel } from "../view/inspect-model.js";
-import { filterBySearch, searchHaystack } from "../view/pool-search.js";
 import { decksLayout, type DecksTab } from "../view/decks-layout.js";
 import { poolCellRect, poolColumnAt, poolGridGeometry, type PoolGridGeometry } from "../view/deck-pool-grid.js";
 import { cardSizeFactor } from "../settings.js";
@@ -306,8 +312,15 @@ export class DecksScene extends Phaser.Scene {
   /** The card pool pane's own text search (name, traits, type, rules text), kept across rebuilds like `#searchInput`. */
   #poolSearchInput: McTextInput | null = null;
   #poolSearchText = "";
-  /** `searchHaystack` per card id: the rules text is built once, not on every keystroke. */
-  readonly #poolHaystacks = new Map<string, string>();
+  /** Both text searches run in a worker (view/deck-search-client.ts); each ranking is the last answer, shown until the next arrives. Null when no search is active. */
+  readonly #deckSearch = new DeckSearchClient();
+  #deckRanking: ReadonlyMap<string, number> | null = null;
+  #deckDocsVersion: string | null = null;
+  readonly #poolSearch = new DeckSearchClient();
+  #poolRanking: ReadonlyMap<string, number> | null = null;
+  #poolDocsVersion: string | null = null;
+  /** `cardSearchDocumentOf` per card id: the rules text is built once, not per selected deck. */
+  readonly #poolDocs = new Map<string, SearchDocument>();
   /** The deck whose Delete was pressed once and awaits its confirming second press. */
   #deleteArmedId: string | null = null;
   #filter: RosterFilter = { text: "" };
@@ -373,6 +386,12 @@ export class DecksScene extends Phaser.Scene {
     this.#poolAspectFilter = null;
     this.#poolSortByCost = false;
     this.#poolSearchText = "";
+    this.#deckSearch.cancel();
+    this.#deckRanking = null;
+    this.#deckDocsVersion = null;
+    this.#poolSearch.cancel();
+    this.#poolRanking = null;
+    this.#poolDocsVersion = null;
     this.#deleteArmedId = null;
     this.#selectedDeckId = data.focusDeckId ?? null;
     this.#activeTab = "decks";
@@ -399,6 +418,8 @@ export class DecksScene extends Phaser.Scene {
       artOff();
       this.#hover?.destroy();
       this.#hover = null;
+      this.#deckSearch.destroy();
+      this.#poolSearch.destroy();
       this.#pasteInput?.destroy();
       this.#pasteInput = null;
       this.#marvelcdbInput?.destroy();
@@ -771,7 +792,7 @@ export class DecksScene extends Phaser.Scene {
         placeholder: "search decks…",
         onChange: (value) => {
           this.#filter = { ...this.#filter, text: value };
-          this.#rebuild();
+          this.#requestDeckSearch(value);
         },
       });
     }
@@ -825,6 +846,7 @@ export class DecksScene extends Phaser.Scene {
     const listHeight = Math.max(ROW_HEIGHT, rect.y + rect.height - boxHeight - 12 - listTop);
     const listRect: Rect = { x: left, y: listTop, width: column, height: listHeight };
 
+    this.#syncDeckDocuments(allOptions);
     const rows = this.#buildRows(allOptions, offers);
     const deckIds = rows
       .filter((r): r is Extract<DeckRow, { kind: "deck" }> => r.kind === "deck")
@@ -1011,6 +1033,74 @@ export class DecksScene extends Phaser.Scene {
     return defs;
   }
 
+  /** What the deck search looks in for each deck (view/deck-search.ts): names first, then aspects, source, pack, author and tags, and a community deck's write-up last. */
+  #deckDocumentOf(option: DeckOption, heroPack: string | undefined): SearchDocument {
+    const deck = option.deck;
+    const identity = CARDS_BY_ID.get(deck.identityCardId as string);
+    const hero = identity?.type === "hero_identity" ? identity : undefined;
+    const entry = testedEntryOf(deck, testedCatalog());
+    const sourceWords =
+      deck.source.kind === "precon"
+        ? ["precon", "preconstructed"]
+        : deck.source.kind === "imported"
+          ? ["imported"]
+          : ["built", "mine"];
+    const packs = heroPack
+      ? [packNameOf(heroPack), POOL_HERO_SHELF_PACKS.find((p) => p.code === heroPack)?.cycleName]
+      : [];
+    return {
+      id: deck.id as string,
+      primary: [deck.name, option.identityName, hero?.hero.faceName, hero?.alterEgo.faceName, entry?.heroName].filter(
+        (t): t is string => typeof t === "string",
+      ),
+      secondary: [
+        ...deck.aspects.map((a) => aspectLabelOf([a])),
+        ...sourceWords,
+        ...packs.filter((t): t is string => typeof t === "string"),
+        ...testedSearchFieldsOf(deck, testedCatalog()),
+        ...(entry?.tags ?? []),
+      ],
+      notes: entry ? [entry.description] : [],
+    };
+  }
+
+  /** Hands the worker the deck list when it has changed (by id, name and aspects), and re-asks the open query. */
+  #syncDeckDocuments(allOptions: readonly DeckOption[]): void {
+    const version =
+      POOL_VERSION +
+      ":" +
+      allOptions.map((o) => `${o.deck.id as string}~${o.deck.name}~${o.deck.aspects.join(",")}`).join("|");
+    if (version === this.#deckDocsVersion) return;
+    this.#deckDocsVersion = version;
+    const heroPacks = heroPacksOf(
+      allOptions,
+      (option) => option.deck.identityCardId as string,
+      (option) => (option.deck.source.kind === "precon" ? (option.deck.source.packCode as string) : null),
+    );
+    this.#deckSearch.setDocuments(
+      allOptions.map((option) => this.#deckDocumentOf(option, heroPacks.get(option.deck.identityCardId as string))),
+      version,
+    );
+    const text = this.#filter.text;
+    // After this redraw, not inside it: the answer redraws again.
+    if (text.trim() !== "") queueMicrotask(() => this.sys.isActive() && this.#requestDeckSearch(text));
+  }
+
+  /** Asks the worker to rank the decks; the screen redraws when the newest answer arrives. An empty text clears the search at once. */
+  #requestDeckSearch(text: string): void {
+    if (text.trim() === "") {
+      this.#deckSearch.cancel();
+      this.#deckRanking = null;
+      this.#rebuild();
+      return;
+    }
+    this.#deckSearch.search(text, (ranked) => {
+      if (!this.sys.isActive()) return;
+      this.#deckRanking = new Map(ranked.map((r) => [r.id, r.score]));
+      this.#rebuild();
+    });
+  }
+
   /**
    * `allOptions` grouped into Preconstructed / Your decks (recently changed first), filtered by search + chips,
    * with the selected deck pinned into view even if the filter would otherwise hide it. A group's label rides on its own first card (`groupLabel`) rather
@@ -1019,8 +1109,15 @@ export class DecksScene extends Phaser.Scene {
   #buildRows(allOptions: readonly DeckOption[], offers: readonly CommunityOffer[]): readonly DeckRow[] {
     const identityOf = (option: DeckOption): AnyCard | undefined =>
       CARDS_BY_ID.get(option.deck.identityCardId as string);
+    // The text part of the search is the worker's ranking; the chips stay here.
+    const chips: RosterFilter = { ...this.#filter, text: "" };
+    const ranking = this.#deckRanking;
+    const ranked = (option: DeckOption): boolean => ranking === null || ranking.has(option.deck.id as string);
+    const scoreOf = (option: DeckOption): number => ranking?.get(option.deck.id as string) ?? 0;
+    const byScore = <T>(items: readonly T[], optionOf: (item: T) => DeckOption): readonly T[] =>
+      ranking === null ? items : [...items].sort((a, b) => scoreOf(optionOf(b)) - scoreOf(optionOf(a)));
     const matches = (option: DeckOption): boolean =>
-      heroRosterMatches(option.deck, identityOf(option), this.#filter, option.blockedReason);
+      ranked(option) && heroRosterMatches(option.deck, identityOf(option), chips, option.blockedReason);
     const isSelected = (option: DeckOption): boolean => (option.deck.id as string) === this.#selectedDeckId;
 
     // "Community" narrows the list to the community group; a source chip (Precon, Imported, Built) narrows it to the
@@ -1028,18 +1125,22 @@ export class DecksScene extends Phaser.Scene {
     const own = this.#communityOnly ? [] : allOptions;
     const precons = own.filter((o) => o.deck.source.kind === "precon");
     const saved = own.filter((o) => o.deck.source.kind !== "precon");
-    const community = withSelectionPinned(
-      this.#filter.source ? [] : offers,
-      (offer) =>
-        communityOfferMatches(offer, {
-          text: this.#filter.text,
-          aspect: this.#filter.aspect ?? null,
-          availableOnly: this.#filter.playableOnly === true,
-        }),
-      (offer) => isSelected(offer.option),
+    const community = byScore(
+      withSelectionPinned(
+        this.#filter.source ? [] : offers,
+        (offer) =>
+          ranked(offer.option) &&
+          communityOfferMatches(offer, {
+            text: "",
+            aspect: this.#filter.aspect ?? null,
+            availableOnly: this.#filter.playableOnly === true,
+          }),
+        (offer) => isSelected(offer.option),
+      ),
+      (offer) => offer.option,
     );
-    const filteredPrecons = withSelectionPinned(precons, matches, isSelected);
-    const filteredSaved = withSelectionPinned(saved, matches, isSelected);
+    const filteredPrecons = byScore(withSelectionPinned(precons, matches, isSelected), (o) => o);
+    const filteredSaved = byScore(withSelectionPinned(saved, matches, isSelected), (o) => o);
 
     const rows: DeckRow[] = [];
     filteredPrecons.forEach((option, index) =>
@@ -1412,14 +1513,14 @@ export class DecksScene extends Phaser.Scene {
         placeholder: "Search cards: name, trait, text",
         onChange: (value) => {
           this.#poolSearchText = value;
-          this.#poolListScroll.reset();
-          this.#rebuild();
+          this.#requestPoolSearch(value);
         },
       });
     }
     this.#stops.set("pool-search", { rect: poolSearchRect, activate: () => this.#poolSearchInput?.focus() });
     y += this.#row + 10;
 
+    this.#syncPoolDocuments(selected.deck, identity);
     const cards = this.#poolCards(selected.deck, identity, deckListOnly);
     if (cards.length === 0) {
       const searched = this.#poolSearchText.trim();
@@ -1603,28 +1704,51 @@ export class DecksScene extends Phaser.Scene {
     const browsable = browsablePool(POOL_CARDS, identity, deck.aspects, filter);
     const inDeck = new Set(deck.cards.map((entry) => entry.cardId as string));
     const inScope = deckListOnly ? browsable.filter((card) => inDeck.has(card.id as string)) : browsable;
-    const pool = filterBySearch(inScope, this.#poolSearchText, (card) => this.#haystackOf(card));
+    const ranking = this.#poolSearchText.trim() === "" ? null : this.#poolRanking;
+    const found = ranking ? inScope.filter((card) => ranking.has(card.id as string)) : inScope;
+    const pool = ranking
+      ? [...found].sort((a, b) => (ranking.get(b.id as string) ?? 0) - (ranking.get(a.id as string) ?? 0))
+      : found;
     if (!this.#poolSortByCost) return pool;
     const costOf = (card: AnyCard): number =>
       "cost" in card ? (card as unknown as { cost: number }).cost : Number.POSITIVE_INFINITY;
     return [...pool].sort((a, b) => costOf(a) - costOf(b) || a.name.localeCompare(b.name));
   }
 
-  /** A card's searchable text: name, traits, type and the same rules text the deck builder searches. */
-  #haystackOf(card: AnyCard): string {
-    const key = card.id as string;
-    let haystack = this.#poolHaystacks.get(key);
-    if (haystack === undefined) {
-      const model = cardInspectModel(card, { kind: "front" });
-      haystack = searchHaystack({
-        name: card.name,
-        traits: model.traits,
-        type: `${card.type} ${model.typeLine}`,
-        rulesText: model.rulesText,
-      });
-      this.#poolHaystacks.set(key, haystack);
+  /** Hands the pool worker the selected deck's browsable cards when its hero or aspects change, and re-asks the open query. */
+  #syncPoolDocuments(deck: Deck, identity: HeroIdentityCard): void {
+    const version = `${POOL_VERSION}:${identity.id as string}:${deck.aspects.join(",")}`;
+    if (version === this.#poolDocsVersion) return;
+    this.#poolDocsVersion = version;
+    const documents = browsablePool(POOL_CARDS, identity, deck.aspects, {}).map((card) => {
+      const key = card.id as string;
+      let doc = this.#poolDocs.get(key);
+      if (!doc) {
+        doc = cardSearchDocumentOf(card, packNameOf(card.setCode as string));
+        this.#poolDocs.set(key, doc);
+      }
+      return doc;
+    });
+    this.#poolSearch.setDocuments(documents, version);
+    const text = this.#poolSearchText;
+    if (text.trim() !== "") queueMicrotask(() => this.sys.isActive() && this.#requestPoolSearch(text));
+  }
+
+  /** Asks the worker to rank the pool for the text; the grid redraws when the newest answer arrives. An empty text clears at once. */
+  #requestPoolSearch(text: string): void {
+    if (text.trim() === "") {
+      this.#poolSearch.cancel();
+      this.#poolRanking = null;
+      this.#poolListScroll.reset();
+      this.#rebuild();
+      return;
     }
-    return haystack;
+    this.#poolSearch.search(text, (ranked) => {
+      if (!this.sys.isActive()) return;
+      this.#poolRanking = new Map(ranked.map((r) => [r.id, r.score]));
+      this.#poolListScroll.reset();
+      this.#rebuild();
+    });
   }
 
   #renderPoolRow(
