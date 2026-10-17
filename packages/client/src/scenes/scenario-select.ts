@@ -9,7 +9,14 @@
  */
 import Phaser from "phaser";
 import type { CardId, Scenario } from "@mc/content";
-import { CARDS_BY_ID, POOL_ENCOUNTER_SETS, POOL_PACKS, POOL_SCENARIOS, packNameOf } from "../content/pool.js";
+import {
+  CARDS_BY_ID,
+  POOL_ENCOUNTER_SETS,
+  POOL_PACKS,
+  POOL_SCENARIOS,
+  POOL_VERSION,
+  packNameOf,
+} from "../content/pool.js";
 import { ART_CATALOG, packCoverFor, villainArtFor } from "../art/scenario-art.js";
 import type { Picture } from "../art/pictures.js";
 import { artFor } from "../art/art-source.js";
@@ -31,6 +38,9 @@ import { formatScaling } from "../view/scaling-text.js";
 import { selectionAmongVisible } from "../view/scenario-selection.js";
 import { scenarioProductsOf, withSelectionPinned } from "../view/roster-filter.js";
 import { packCompactChipsToRows } from "../view/chip-layout.js";
+import { DeckSearchClient } from "../view/deck-search-client.js";
+import { rankShelvesByScore } from "../view/deck-search.js";
+import { scenarioSearchDocumentOf } from "../view/scenario-search.js";
 import { shelvesOf, flattenShelves, type Shelf, type ShelfCandidate } from "../view/roster-shelves.js";
 import { ALL_PACKS, drillIntoPack, drillOut, type ShelfDrillState } from "../view/shelf-drill.js";
 import { resultsHistoryOf, type ScenarioRecord } from "../view/results-history.js";
@@ -99,6 +109,9 @@ export class ScenarioSelectScene extends Phaser.Scene {
   /** Narrow only: whether the search field is shown (`ScenarioSelectLayout.searchToggle`). Off by default — the roster gets the row. */
   #searchOpen = false;
   #searchInput: McTextInput | null = null;
+  /** Text search runs in a worker (view/deck-search-client.ts); #ranking is its last answer, shown until the next one arrives. Null when no search is active. */
+  readonly #search = new DeckSearchClient();
+  #ranking: ReadonlyMap<string, number> | null = null;
   #roster: McShelfRoster<RosterEntry> | null = null;
   #grid: McVirtualList | null = null;
   /** Narrow only: the sideways-scrolling product chip rail (`ScenarioSelectLayout.chipsScroll`). Null on wide, where the chips wrap. */
@@ -153,6 +166,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.#rebuild, this);
       artOff();
+      this.#search.destroy();
       this.#searchInput?.destroy();
       this.#searchInput = null;
       this.#roster?.destroy();
@@ -179,7 +193,12 @@ export class ScenarioSelectScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.game.events.off("mc-choice-toggle", this.#onInspectChoose, this);
     });
+    this.#search.setDocuments(
+      POOL_SCENARIOS.map((s) => scenarioSearchDocumentOf(s, CARDS_BY_ID, POOL_ENCOUNTER_SETS, packNameOf)),
+      POOL_VERSION + ":scenarios",
+    );
     this.#rebuild();
+    if (this.#draft.scenarioFilter.text.trim() !== "") this.#requestSearch(this.#draft.scenarioFilter.text);
     fadeScreenIn(this);
     void refreshUnlocks().then((changed) => {
       if (changed && this.sys.isActive()) this.#rebuild();
@@ -516,7 +535,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
         "search scenarios, villains, packs…",
         (value) => {
           this.#draft = setScenarioFilter(this.#draft, { ...this.#draft.scenarioFilter, text: value });
-          this.#rebuild();
+          this.#requestSearch(value);
         },
         this.#searchInput,
         this.#stops,
@@ -553,12 +572,29 @@ export class ScenarioSelectScene extends Phaser.Scene {
     }
   }
 
+  /** Asks the worker to rank the scenarios for the text; the screen redraws when the newest answer arrives. An empty text clears the search at once. */
+  #requestSearch(text: string): void {
+    if (text.trim() === "") {
+      this.#search.cancel();
+      this.#ranking = null;
+      this.#rebuild();
+      return;
+    }
+    this.#search.search(text, (ranked) => {
+      if (!this.sys.isActive()) return;
+      this.#ranking = new Map(ranked.map((r) => [r.id, r.score]));
+      this.#rebuild();
+    });
+  }
+
   #toggleSearch(): void {
     this.#searchOpen = !this.#searchOpen;
     // Shutting the field also clears its text: a filter whose field you can no longer see must not keep hiding
     // scenarios. The product chips are their own visible controls and stay as they were.
     if (!this.#searchOpen && this.#draft.scenarioFilter.text) {
       this.#draft = setScenarioFilter(this.#draft, { ...this.#draft.scenarioFilter, text: "" });
+      this.#search.cancel();
+      this.#ranking = null;
     }
     this.#rebuild();
     if (this.#searchOpen) this.#searchInput?.focus();
@@ -871,28 +907,31 @@ export class ScenarioSelectScene extends Phaser.Scene {
   }
 
   #shelves(): readonly Shelf<RosterEntry>[] {
+    const ranking = this.#ranking;
     const candidates: ShelfCandidate<Scenario>[] = withSelectionPinned(
       POOL_SCENARIOS,
       () => true,
       (s) => this.#draft.scenarioId === (s.id as string),
     ).map((s) => {
-      const villain = CARDS_BY_ID.get(s.villainCardId as string);
       const passesChips =
-        !this.#draft.scenarioFilter.product || (s.packCode as string) === this.#draft.scenarioFilter.product;
+        (!this.#draft.scenarioFilter.product || (s.packCode as string) === this.#draft.scenarioFilter.product) &&
+        (ranking === null || ranking.has(s.id as string));
       return {
         item: s,
         packCode: s.packCode as string,
-        searchHaystacks: [s.name, villain?.name, s.packCode as string],
+        searchHaystacks: [],
         passesChips,
       };
     });
+    const shelves = shelvesOf(
+      candidates,
+      POOL_PACKS.map((p) => p.code as string),
+      packNameOf,
+      "",
+    );
+    // A search puts the best match first, within each shelf and among the shelves.
     return shelvesWithBuilderTile(
-      shelvesOf(
-        candidates,
-        POOL_PACKS.map((p) => p.code as string),
-        packNameOf,
-        this.#draft.scenarioFilter.text,
-      ),
+      ranking ? rankShelvesByScore(shelves, (s) => ranking.get(s.id as string) ?? 0) : shelves,
     );
   }
 
