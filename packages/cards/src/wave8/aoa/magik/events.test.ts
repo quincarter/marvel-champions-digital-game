@@ -1,6 +1,8 @@
 import { AOA_CARDS, AOA_STARTER_DECKS, CORE_CARDS, cardId } from "@mc/content";
 import {
   createGame,
+  defendPreview,
+  type DefendOptionPreview,
   getInstance,
   type EngineDeps,
   type GameEvent,
@@ -361,19 +363,31 @@ describe("Magic Barrier (45040): prevent 3 damage from the attack; 3 damage to t
     // The stacked top card must still be on top after the hand cards were put back on the deck.
     const topId = putOnTopOfDeck(arranged, P1, top);
     const stacked = stackEncounterDeck(topId.state, boost, DEAL);
+    // What the defend prompt showed when it opened (issue #212: the range must already count the prevention).
+    const previews: (readonly DefendOptionPreview[])[] = [];
     const pick: Picker = (s) => {
       const choice = s.pendingChoice!;
       if (choice.prompt.kind === "chooseTriggers") {
         const own = choice.options.find((o) => o.optionId.endsWith(REF.barrier));
         return take && own ? [own.optionId] : [];
       }
-      if (choice.prompt.kind === "declareDefender") return ["decline"];
+      if (choice.prompt.kind === "declareDefender") {
+        previews.push(defendPreview(s, DEPS)!);
+        return ["decline"];
+      }
       if (choice.prompt.kind === "payForCard") return choice.options.slice(0, 1).map((o) => o.optionId);
       return firstLegal(s);
     };
     const run = driveEventsPicking(DEPS, stacked, pick, endTurn(P1));
-    return { before: stacked, state: run.state, events: run.events, card: ids[0]! };
+    return { before: stacked, state: run.state, events: run.events, card: ids[0]!, previews };
   }
+  /** The undefended option's bands as the prompt showed them: [boost icons, damage dealt, damage taken]. */
+  const declineBands = (previews: readonly (readonly DefendOptionPreview[])[]) =>
+    previews[0]!
+      .find((o) => o.optionId === "decline")!
+      .bands.flatMap((b) =>
+        Array.from({ length: b.boostTo - b.boostFrom + 1 }, (_, i) => [b.boostFrom + i, b.damageDealt, b.damageTaken]),
+      );
 
   it("control: undefended, an attack of 4 (ATK 2 + 2 icons) deals 4 and Rhino takes nothing", () => {
     const run = defend(CLOBBER, BOOST_2, false);
@@ -400,5 +414,17 @@ describe("Magic Barrier (45040): prevent 3 damage from the attack; 3 damage to t
     const run = defend(ARMOR, BOOST_0);
     expect(damageOf(run.state)).toBe(0);
     expect(inst(run.state, rhinoOf(run.state)).damage).toBe(3);
+  });
+  it("the defend prompt's damage range already takes the 3 off (issue #212), and the damage taken lands in it", () => {
+    const without = declineBands(defend(CLOBBER, BOOST_2, false).previews);
+    const run = defend(CLOBBER, BOOST_2);
+    const barred = declineBands(run.previews);
+    // The same attack either way: ATK 2 plus whatever the facedown card adds.
+    expect(barred.map(([icons, dealt]) => [icons, dealt])).toEqual(without.map(([icons, dealt]) => [icons, dealt]));
+    for (const [, dealt, taken] of without) expect(taken).toBe(dealt);
+    for (const [, dealt, taken] of barred) expect(taken).toBe(Math.max(0, dealt! - 3));
+    // The boost card flipped 2 icons: 4 dealt, 1 taken, as the prompt said.
+    expect(barred.find(([icons]) => icons === 2)?.[2]).toBe(1);
+    expect(damageOf(run.state)).toBe(1);
   });
 });
