@@ -81,7 +81,7 @@ export function executeDamageGroupFrame(ctx: Ctx, frame: Frame<"damageGroup">): 
         const maxHp = characterProfile(ctx.state, target, ctx.deps)?.maxHp;
         const inPlay = cardsInPlay(ctx.state).includes(target);
         // Its response window (stage three) reads the member's event: the target as it took the damage.
-        const event = asDamaged(ctx.state, withUsedStat(ctx.state, member.event));
+        const event = asDamaged(ctx, withUsedStat(ctx.state, member.event));
         stampAttackTarget(ctx, event);
         applyDamage(ctx, event, frame.frameId, false);
         const vars: Record<string, number> = {};

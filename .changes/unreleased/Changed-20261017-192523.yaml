@@ -1,0 +1,3 @@
+kind: Changed
+body: "CI: one \"All checks\" check covers lint, format, typecheck, the unit tests and the client build, so the branch ruleset can require it alone; lint moved from checks.yml into the CI workflow"
+time: 2026-10-17T19:25:23.9744723-04:00

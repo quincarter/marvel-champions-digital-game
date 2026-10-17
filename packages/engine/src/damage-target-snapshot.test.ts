@@ -160,7 +160,8 @@ describe("a damage event carries its target as it took the damage", () => {
     // Read after the replacement, when the card shows its alter-ego side: the event says who took it.
     expect(counters(after.state, t.ledger)).toEqual({ titled: 1, named: 1, other: 0 });
     const [damage] = resolvedDamage(after.events);
-    expect(damage?.targetAsDamaged).toEqual({ name: HERO_NAME, titles: [HERO_NAME], statuses: NONE });
+    // `was` (what the card was, issue #228) is checked by its own tests (`ultron-drone-responses.test.ts`).
+    expect(damage?.targetAsDamaged).toMatchObject({ name: HERO_NAME, titles: [HERO_NAME], statuses: NONE });
     const replayed = replay(after.session.log, deps);
     if (!replayed.ok) throw new Error(replayed.error.message);
     expect(replayed.state).toEqual(after.state);
@@ -170,7 +171,7 @@ describe("a damage event carries its target as it took the damage", () => {
     const t = table("alterEgo");
     const after = playing(t.state, BLAST_4.card.id);
     expect(counters(after.state, t.ledger)).toEqual({ titled: 0, named: 0, other: 1 });
-    expect(resolvedDamage(after.events)[0]?.targetAsDamaged).toEqual({
+    expect(resolvedDamage(after.events)[0]?.targetAsDamaged).toMatchObject({
       name: ALTER_EGO_NAME,
       titles: [ALTER_EGO_NAME],
       statuses: NONE,

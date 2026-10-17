@@ -28,7 +28,13 @@ import {
   type Vars,
   type UndeclaredWilds,
 } from "../stack.js";
-import { carriedByEvent, eventSubjects, isAnnouncement, type TriggerEvent } from "../trigger-events.js";
+import {
+  carriedByEvent,
+  eventSubjects,
+  isAnnouncement,
+  type DefeatedSnapshot,
+  type TriggerEvent,
+} from "../trigger-events.js";
 import { placeExhausted } from "../effects.js";
 import { entersPlayExhausted } from "../rules.js";
 import { hasCandidates } from "./triggers.js";
@@ -104,6 +110,24 @@ const interruptibleFlip = (ctx: Ctx, event: TriggerEvent): boolean =>
   hasCandidates(ctx.state, ctx.deps, event, "interrupt");
 
 /**
+ * What a character in play is now, read before it leaves play (`DefeatedSnapshot`): its categories (with any a
+ * `countsAs` rule adds), its traits and whether it is facedown as something else. A card that is a minion only while
+ * in play (a facedown Drone, an ally treated as a minion) is its printed self once it has left. Undefined for a card
+ * with no instance.
+ */
+export function defeatedSnapshotOf(ctx: Ctx, id: InstanceId): DefeatedSnapshot | undefined {
+  const instance = ctx.state.instances[id];
+  if (instance === undefined) return undefined;
+  return {
+    categories: [
+      ...new Set([...categoriesOf(ctx.state, id), ...(countsAsExtras(ctx.state, ctx.deps).get(id)?.categories ?? [])]),
+    ],
+    traits: traitsOf(ctx.state, id, ctx.deps),
+    facedown: instance.facedownAs !== null,
+  };
+}
+
+/**
  * A defeat carries what was attached to the character when it was initiated (`characterDefeated.attachedInstanceIds`,
  * docs/phase7-wave4.md §3.22), so a response after the character has left play can still ask "the enemy with Death-Glow
  * attached". Taken once, when the event goes on the stack; an event that already has one keeps it.
@@ -121,23 +145,8 @@ function withDefeatSnapshot(ctx: Ctx, event: TriggerEvent): TriggerEvent {
     event.villainStageNumber === undefined && villainOf(ctx.state, event.instanceId)
       ? { ...event, villainStageNumber: villainStageOf(ctx.state, event.instanceId).stageNumber }
       : event;
-  const defeated = ctx.state.instances[event.instanceId];
-  const staged =
-    numbered.asDefeated === undefined && defeated !== undefined
-      ? {
-          ...numbered,
-          asDefeated: {
-            categories: [
-              ...new Set([
-                ...categoriesOf(ctx.state, event.instanceId),
-                ...(countsAsExtras(ctx.state, ctx.deps).get(event.instanceId)?.categories ?? []),
-              ]),
-            ],
-            traits: traitsOf(ctx.state, event.instanceId, ctx.deps),
-            facedown: defeated.facedownAs !== null,
-          },
-        }
-      : numbered;
+  const asDefeated = numbered.asDefeated === undefined ? defeatedSnapshotOf(ctx, event.instanceId) : undefined;
+  const staged = asDefeated !== undefined ? { ...numbered, asDefeated } : numbered;
   if (staged.attachedInstanceIds) return staged;
   const attached = ctx.state.instances[event.instanceId]?.attachments ?? [];
   return attached.length === 0 ? staged : { ...staged, attachedInstanceIds: [...attached] };
