@@ -11,6 +11,7 @@ import {
   screens,
   skipVillainPhase,
   hasStop,
+  seatDeckThroughTile,
   installWave6Helpers,
   trackErrors,
   visibleTexts,
@@ -131,16 +132,9 @@ test("Psylocke's MarvelCDB deck 32089: imported on Decks, seated for Morlock Sie
   await clickStop(page, "next", "ScenarioSelect");
   await waitForScene(page, "Seats", 15000);
   await settle(page);
-  // Going back to Scenario select rebuilt the draft with the default seat; seat the imported deck by its own tile.
-  const deckTile = await waitFor(
-    async () =>
-      ((await hook<{ key: string }[]>(page, "__mcSeatsDebug", "stops")) ?? []).find((s) =>
-        s.key.startsWith(`hero:${deck.id}`),
-      ) ?? null,
-    "the imported deck's tile on Take your seats",
-    15000,
-  );
-  await press(page, "__mcSeatsDebug", deckTile.key);
+  // Going back to Scenario select rebuilt the draft with the default seat; seat the imported deck through Psylocke's
+  // tile (she has the precon, tested community decks and this import, so the tile opens "Pick a deck").
+  await seatDeckThroughTile(page, deck.id, { search: "Ten Percent Luck" });
   await settle(page);
   const seatTexts = (await visibleTexts(page)).filter((t) => t.scene === "Seats").map((t) => t.text);
   // The seat card names the hero and aspect (the deck's own name is on its tile, which is the one pressed above).

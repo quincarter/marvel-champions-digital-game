@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { findVisibleText } from "./wave6-helpers-b.js";
 import {
   FOCUS_ONLY_STOP,
   activeScenes,
@@ -441,4 +442,84 @@ export async function scrollStopIntoView(
     await settle(page);
   }
   throw new Error(`could not scroll "${key}" into view on ${sceneKey}`);
+}
+
+/**
+ * Seats a deck the way a player does on Take your seats: tap its hero's tile and, when the hero has several decks, pick
+ * this one on the "Pick a deck" sheet. `deckId` is the deck's id (`precon:core-she-hulk-aggression`, `community:103`).
+ * A hero's tile stands for its first deck, so a deck that is not that one has no tile of its own until it is searched
+ * for: pass `search` (typed into the hero search) to make each matching deck a tile. Works whether the tile seats at a
+ * tap (one deck) or opens the sheet, and whether or not the worker's answer has arrived yet.
+ */
+export async function seatDeckThroughTile(
+  page: Page,
+  deckId: string,
+  opts: { search?: string; timeoutMs?: number } = {},
+): Promise<void> {
+  const timeoutMs = opts.timeoutMs ?? 20000;
+  if (opts.search !== undefined) {
+    await clickStop(page, "hero-search", "Seats");
+    await settle(page);
+    await page.keyboard.press("ControlOrMeta+A");
+    await page.keyboard.type(opts.search);
+  }
+  if (opts.search !== undefined) {
+    // The search runs in a worker: the shelf reshapes when its answer lands, so aim only once the tiles hold still.
+    let held = 0;
+    let last = "";
+    await waitFor(
+      async () => {
+        const now = ((await routeStops(page, "Seats"))?.stops ?? [])
+          .filter((s) => s.key.startsWith("hero"))
+          .map((s) => `${s.key}@${Math.round(s.rect.y)}`)
+          .join(",");
+        held = now === last ? held + 1 : 0;
+        last = now;
+        return held >= 4 ? true : null;
+      },
+      "the search results to settle",
+      timeoutMs,
+    );
+  }
+  // The hero's tile on the full list is the one a player taps; a Team-Up partner's Recommended tile is the fallback.
+  const tileKey = await waitFor(
+    async () => {
+      const keys = new Set(((await routeStops(page, "Seats"))?.stops ?? []).map((s) => s.key));
+      return [`hero:${deckId}`, `hero-rec:${deckId}`].find((k) => keys.has(k)) ?? null;
+    },
+    `a hero tile for ${deckId}`,
+    timeoutMs,
+  );
+  await scrollStopIntoView(page, tileKey, "Seats").catch(() => undefined);
+  // Filling or replacing the active seat moves the picker on: some "seat" caption on screen changes.
+  const seatsFilled = async (): Promise<string> =>
+    (await findVisibleText(page, "seat", "Seats")).map((t) => t.text).join("|");
+  const before = await seatsFilled();
+  // A press can be lost when the search's answer redraws the shelf under it, so a tap that neither opened the sheet
+  // nor filled a seat is repeated.
+  let sheetUp = false;
+  for (let attempt = 0; attempt < 3 && !sheetUp; attempt++) {
+    await clickStop(page, tileKey, "Seats");
+    await settle(page);
+    for (const start = Date.now(); Date.now() - start < 4000 && !sheetUp;) {
+      sheetUp = (await activeScenes(page)).includes("HeroDecksSheet");
+      if (!sheetUp && (await seatsFilled()) !== before) return;
+      if (!sheetUp) await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+  if (!sheetUp) throw new Error(`tapping ${tileKey} neither opened the Pick a deck sheet nor filled a seat`);
+  const rowKey = `deck:${deckId}`;
+  await waitFor(
+    async () => ((await routeStops(page, "HeroDecksSheet"))?.stops.some((s) => s.key === rowKey) ? true : null),
+    `${deckId} on the Pick a deck sheet`,
+    timeoutMs,
+  );
+  await scrollStopIntoView(page, rowKey, "HeroDecksSheet", 0).catch(() => undefined);
+  await clickStop(page, rowKey, "HeroDecksSheet");
+  await waitFor(
+    async () => (!(await activeScenes(page)).includes("HeroDecksSheet") ? true : null),
+    "the Pick a deck sheet closes",
+    timeoutMs,
+  );
+  await settle(page);
 }

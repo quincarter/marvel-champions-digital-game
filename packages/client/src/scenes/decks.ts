@@ -846,7 +846,8 @@ export class DecksScene extends Phaser.Scene {
     const listHeight = Math.max(ROW_HEIGHT, rect.y + rect.height - boxHeight - 12 - listTop);
     const listRect: Rect = { x: left, y: listTop, width: column, height: listHeight };
 
-    this.#syncDeckDocuments(allOptions);
+    // The community decks are searched too (by name, author and tags), so the worker holds them with the player's own.
+    this.#syncDeckDocuments([...allOptions, ...offers.map((offer) => offer.option)]);
     const rows = this.#buildRows(allOptions, offers);
     const deckIds = rows
       .filter((r): r is Extract<DeckRow, { kind: "deck" }> => r.kind === "deck")

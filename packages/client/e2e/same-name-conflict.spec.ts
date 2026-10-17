@@ -10,7 +10,15 @@ import {
   trackPageErrors,
   waitFor,
 } from "./helpers.js";
-import { clickStop, driveToBoard, hasStop, installWave6Helpers, routeStops, waitForScene } from "./wave6-helpers-a.js";
+import {
+  clickStop,
+  driveToBoard,
+  hasStop,
+  installWave6Helpers,
+  routeStops,
+  seatDeckThroughTile,
+  waitForScene,
+} from "./wave6-helpers-a.js";
 import { findVisibleText, gameFacts, handRectFor, hook, inspectAt, openApp } from "./wave6-helpers-b.js";
 
 /**
@@ -62,13 +70,8 @@ async function seatHeroes(page: Page, heroes: readonly (readonly [string, string
   await waitForScene(page, "Seats");
   await waitFor(async () => (await hasStop(page, "hero-search", "Seats")) || null, "hero search", 10000);
   for (const [name, deck] of heroes) {
-    await clickStop(page, "hero-search", "Seats");
-    await settle(page);
-    await page.keyboard.press("ControlOrMeta+A");
-    await page.keyboard.type(name);
-    // A Team-Up partner is also on the Recommended shelf, which sits above the full list and is on screen.
-    const recommended = `hero-rec:precon:${deck}`;
-    await clickStop(page, (await hasStop(page, recommended, "Seats")) ? recommended : `hero:precon:${deck}`, "Seats");
+    // A hero with several decks opens "Pick a deck" from its tile; the helper picks the named precon there.
+    await seatDeckThroughTile(page, `precon:${deck}`, { search: name });
     await settle(page);
   }
 }

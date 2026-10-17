@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { activeScenes, clickText, pressHookStop, settle, trackPageErrors, waitFor } from "./helpers.js";
 import { dealToFirstTurn, findVisibleText, gameFacts, hook, openApp, type Rect } from "./wave6-helpers-b.js";
-import { scrollStopIntoView } from "./wave6-helpers-a.js";
+import { clickStop, routeStops, scrollStopIntoView, seatDeckThroughTile } from "./wave6-helpers-a.js";
 
 /**
  * Take your seats: the tested MarvelCDB community decks behind the TESTED chip (and under BUILT). A new player turns the
@@ -64,10 +64,26 @@ test.describe("Take your seats: tested community decks", () => {
     await settle(page);
     await shot(page, "01-seats");
 
-    // Without a chip, the list is the precons and the community decks together.
+    // Without a chip, the list is the precons and the community decks together: one tile per hero, and the community
+    // decks sit behind their hero's tile (its "Pick a deck" sheet), so the Spider-Man tile opens a sheet listing both.
     const all = await heroStops(page);
     expect(all.some((k) => k.startsWith("hero:precon:"))).toBe(true);
-    expect(all).toContain(SPIDER_MAN);
+    await scrollStopIntoView(page, "hero:precon:core-spider-man-justice", "Seats");
+    await press(page, "hero:precon:core-spider-man-justice");
+    await waitFor(
+      async () => ((await activeScenes(page)).includes("HeroDecksSheet") ? true : null),
+      "Pick a deck",
+      15000,
+    );
+    const sheetDecks = ((await routeStops(page, "HeroDecksSheet"))?.stops ?? []).map((s) => s.key);
+    expect(sheetDecks).toContain("deck:precon:core-spider-man-justice");
+    expect(sheetDecks).toContain(SPIDER_MAN.replace("hero:", "deck:"));
+    await clickStop(page, "back", "HeroDecksSheet");
+    await waitFor(
+      async () => (!(await activeScenes(page)).includes("HeroDecksSheet") ? true : null),
+      "sheet closed",
+      15000,
+    );
 
     // TESTED: only community decks.
     await press(page, "hero-chip:source:tested");
@@ -93,7 +109,7 @@ test.describe("Take your seats: tested community decks", () => {
 
     // Pick it for seat 1: the panel credits the author, and the seat is filled with that deck.
     await scrollStopIntoView(page, SPIDER_MAN, "Seats");
-    await press(page, SPIDER_MAN);
+    await seatDeckThroughTile(page, SPIDER_MAN.replace("hero:", ""));
     expect(await shows(page, "by nungunz", "Seats")).toBe(true);
     await shot(page, "03-picked");
 

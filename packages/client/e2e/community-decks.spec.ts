@@ -76,11 +76,31 @@ async function search(page: Page, text: string): Promise<void> {
   await settle(page);
 }
 
+/**
+ * Presses a deck row and waits for `done`. The search runs in a worker and the list redraws when its answer lands, which
+ * can swallow a press made just before, so the press is repeated (every few seconds) until the screen shows the result.
+ */
+async function pressDeckRow(page: Page, key: string, done: () => Promise<boolean>): Promise<void> {
+  let last = 0;
+  await waitFor(
+    async () => {
+      if (await done()) return true;
+      if (Date.now() - last > 2500) {
+        last = Date.now();
+        await pressHookStop(page, "__mcDecksDebug", key);
+        await settle(page);
+      }
+      return null;
+    },
+    `${key} pressed`,
+    30000,
+  );
+}
+
 /** Finds a community deck by search and selects its row. */
 async function selectCommunityDeck(page: Page, deck: { id: number; name: string }, searchText: string): Promise<void> {
   await search(page, searchText);
-  await pressHookStop(page, "__mcDecksDebug", `deck:community:${deck.id}`);
-  await waitFor(async () => ((await offer(page, deck.id)).selected ? true : null), `${deck.name} is selected`, 10000);
+  await pressDeckRow(page, `deck:community:${deck.id}`, async () => (await offer(page, deck.id)).selected);
   await settle(page);
 }
 
@@ -165,7 +185,9 @@ test.describe("Decks & Collection: community decks", () => {
 
     // Seat the copy and deal a game with it.
     await search(page, "Spider-Man and Friends");
-    await pressHookStop(page, "__mcDecksDebug", `deck:${copy!.id}`);
+    await pressDeckRow(page, `deck:${copy!.id}`, async () =>
+      ((await hook<DeckRow[]>(page, "__mcDecksDebug", "decks")) ?? []).some((d) => d.id === copy!.id && d.selected),
+    );
     await settle(page);
     await clickText(page, "Play this deck", { sceneKey: "Decks", timeoutMs: 30000 });
     await waitFor(async () => ((await activeScenes(page)).includes("Seats") ? true : null), "Take your seats", 30000);
@@ -223,10 +245,16 @@ test.describe("Decks & Collection: community decks", () => {
     await selectCommunityDeck(page, MAGNETO, MAGNETO.author);
     expect(await findVisibleText(page, `by ${MAGNETO.author}`, "Decks")).not.toHaveLength(0);
     await shot(page, "07-wave8-deck-author-search");
-    const listed = (await stops(page)).filter((s) => s.key.startsWith("deck:community:")).length;
-    expect(listed, "only that author's decks are listed").toBe(
-      (await offers(page)).filter((o) => o.author === MAGNETO.author).length,
+    const byAuthor = (await offers(page)).filter((o) => o.author === MAGNETO.author).length;
+    const listedCount = async (): Promise<number> =>
+      (await stops(page)).filter((s) => s.key.startsWith("deck:community:")).length;
+    // The worker's answer narrows the list; read it once it has.
+    await waitFor(
+      async () => ((await listedCount()) === byAuthor ? true : null),
+      "only that author's decks are listed",
+      15000,
     );
+    expect(await listedCount(), "only that author's decks are listed").toBe(byAuthor);
 
     // The recommendation takes nothing away: "+ New deck", paste, the MarvelCDB link field and export are all there.
     await search(page, "");
