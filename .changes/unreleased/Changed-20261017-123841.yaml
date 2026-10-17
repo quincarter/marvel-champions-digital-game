@@ -1,0 +1,3 @@
+kind: Changed
+body: Every search filter (Take your seats, Scenario select, Decks & Collection, the deck builder and the campaign roster and collection) ranks its matches in a background worker, fuzzy and by relevance, and the worker shuts down when idle.
+time: 2026-10-17T12:38:41.5413392-04:00
