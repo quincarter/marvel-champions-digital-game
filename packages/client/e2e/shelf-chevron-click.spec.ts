@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { activeScenes, pressHookStop, settle, trackPageErrors, waitFor, type TextMatch } from "./helpers.js";
+import { activeScenes, settle, trackPageErrors, waitFor, type TextMatch } from "./helpers.js";
 import { findVisibleText, hook, openApp, type Rect } from "./wave6-helpers-b.js";
 
 /**
@@ -39,12 +39,11 @@ async function seatTexts(page: Page): Promise<string[]> {
 test.describe("Take your seats: shelf chevrons", () => {
   test("a chevron press scrolls its shelf and picks no card", async ({ page }) => {
     const errors = trackPageErrors(page);
+    // A tablet-wide window: each pack shelf (one tile per hero, #219) is then long enough that a chevron press never
+    // reaches its end, so a card always slides in under the chevron.
+    await page.setViewportSize({ width: 1024, height: 900 });
     await openApp(page, "screen=seats", { landing: "Seats" });
     await waitFor(async () => ((await heroStops(page)).length > 0 ? true : null), "the hero list", 30000);
-    await settle(page);
-    // Only the tested community decks: shelves long enough that a chevron press never reaches the end, so a card
-    // always slides in under the chevron.
-    await pressHookStop(page, "__mcSeatsDebug", "hero-chip:source:tested");
     await settle(page);
 
     // Scroll the roster until a shelf shows its right chevron in the middle of the screen, clear of the header and
