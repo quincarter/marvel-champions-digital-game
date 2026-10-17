@@ -119,9 +119,9 @@ section current so any session can resume from GitHub alone.
   touching a screen, check its controls for this and fix any you find; a new or changed control next to a scrolling
   region gets a phone e2e spec that swipes the region, lifts over the control and expects nothing to fire
   (`e2e/villain-review-handle.spec.ts` shows how, with a real touch sequence over CDP).
-- **E2e is a local gate, not a CI check (the user, 2026-10-05).** Pull requests run only lint and format
-  (`.github/workflows/checks.yml`) and the Netlify workflow, which typechecks, runs the unit tests, builds the client
-  and deploys the preview. The Playwright suite
+- **E2e is a local gate, not a CI check (the user, 2026-10-05).** Pull requests run only the CI workflow
+  (`.github/workflows/netlify-deploy.yml`), which lints, format-checks, typechecks, runs the unit tests, builds the
+  client and deploys the preview; its "All checks" job is the one required check. The Playwright suite
   (`packages/client/e2e/`) does not run in CI (`e2e.yml` is dispatch-only); the versioned pre-push hook in `.githooks/`
   runs it on what is being pushed whenever the push changes `packages/` or `pnpm-lock.yaml`, and refuses the push if
   it fails or if the working tree differs from the commit. `pnpm e2e:verify` runs the same gate ahead of time. Do not

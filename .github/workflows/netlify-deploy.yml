@@ -9,7 +9,13 @@
 #
 # Either way the tests stage (tests.yml: a typecheck and the unit tests, in parallel on their own runners) runs first,
 # and the deploy job starts only once all of it passes. The deploy job itself only installs, builds the client and
-# uploads it.
+# uploads it. Lint and format run beside the tests.
+#
+# "All checks" is the one check the branch ruleset requires. A ruleset can't match check names with a wildcard, and on
+# a pull request the tests stage leaves out the unit-test jobs the changed files can't affect, so a required job such
+# as "Tests / Unit tests (engine)" would wait forever. "All checks" reports on every run: it passes when lint and
+# format, the tests stage (every job in it, whatever tests.yml grows) and the client build pass. The deploy itself
+# isn't required.
 #
 # Needs two repository secrets: NETLIFY_AUTH_TOKEN (a Netlify personal access token) and NETLIFY_SITE_ID (the site's
 # Project ID, under Project configuration -> General). Netlify's own builds stay off ("Stop builds" in the site's
@@ -33,6 +39,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lint:
+    name: Lint and format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm fmt:check
+
   # Typecheck and the unit tests, in parallel (tests.yml). They need no secrets, so they run on fork PRs too.
   tests:
     name: Tests
@@ -43,8 +63,9 @@ jobs:
     runs-on: ubuntu-latest
     # Runs no checks of its own: it waits for the tests stage, and a failure there deploys nothing.
     needs: tests
-    # Fork PRs get no secrets, so they can't deploy.
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    outputs:
+      # The gate needs the build to pass, not the deploy.
+      build: ${{ steps.build.outcome }}
     env:
       NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
       NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
@@ -59,10 +80,13 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # Each job is a fresh runner, so the install repeats; the pnpm store comes from the cache, so it takes seconds.
-      - run: pnpm --filter @mc/client build
+      - id: build
+        run: pnpm --filter @mc/client build
 
       - name: Deploy
         id: deploy
+        # Fork PRs get no secrets, so they build but can't deploy.
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
         run: |
           if [ -z "$NETLIFY_AUTH_TOKEN" ] || [ -z "$NETLIFY_SITE_ID" ]; then
             echo "::error::NETLIFY_AUTH_TOKEN and NETLIFY_SITE_ID repository secrets are required"
@@ -83,7 +107,7 @@ jobs:
           echo "Deployed $message to $url" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Comment the preview URL
-        if: github.event_name == 'pull_request'
+        if: steps.deploy.outcome == 'success' && github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
           URL: ${{ steps.deploy.outputs.url }}
@@ -98,4 +122,41 @@ jobs:
             gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$body" > /dev/null
           else
             gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -f body="$body" > /dev/null
+          fi
+
+  # A needed job's result covers every job inside it, so `tests` stands for the whole of tests.yml, matrix shards
+  # included. The first step fails if a job is added to this file without being added to `needs`.
+  gate:
+    name: All checks
+    needs: [lint, tests, deploy]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/workflows
+      - name: Check that every job is gated
+        run: |
+          f=.github/workflows/netlify-deploy.yml
+          jobs=$(yq -r '.jobs | keys | .[] | select(. != "gate")' "$f" | sort)
+          needs=$(yq -r '.jobs.gate.needs[]' "$f" | sort)
+          missing=$(comm -23 <(echo "$jobs") <(echo "$needs"))
+          if [ -n "$missing" ]; then
+            echo "::error::Add these jobs to the gate's needs in netlify-deploy.yml: $missing"
+            exit 1
+          fi
+      - name: Check the results
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          # The deploy job's own result counts only through its build step; a skipped job passes.
+          bad=$(echo "$NEEDS" | jq -r '
+            to_entries[]
+            | select(if .key == "deploy" then .value.outputs.build != "success"
+                     else .value.result == "failure" or .value.result == "cancelled" end)
+            | .key')
+          if [ -n "$bad" ]; then
+            echo "::error::Failed or cancelled: $bad"
+            exit 1
           fi
