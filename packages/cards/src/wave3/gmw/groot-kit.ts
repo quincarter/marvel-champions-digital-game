@@ -12,7 +12,6 @@ import {
   chosen,
   constant,
   countersOn,
-  damageOn,
   defineAbilities,
   draw,
   eventAmount,
@@ -33,6 +32,7 @@ import {
   modifyStat,
   moveCards,
   ofTeamUpSet,
+  printedHpOf,
   on,
   option,
   preventDamage,
@@ -49,6 +49,7 @@ import {
   theMainScheme,
   theVillain,
   thwart,
+  valueAtLeast,
   valueEquals,
   varAtLeast,
   varOf,
@@ -188,20 +189,22 @@ export const GROOT_KIT = defineAbilities({
   // `../reprints.ts`, not scripted here.
 
   // Fighting Fit — Hero Action (attack): Deal 2 damage to the villain (5 damage instead if your hero's remaining
-  // hit points are equal to or greater than your hero's starting hit points). "Remaining >= starting" is exactly
-  // "undamaged": remainingHp = maxHp - damage, so the comparison holds iff damage is 0.
+  // hit points are equal to or greater than your hero's starting hit points). Starting hit points is the printed
+  // value (RRG 1.8 p. 22 "Hit Points"), so +HP upgrades can keep this true while damaged: compare, don't test damage 0.
   "16014.fighting-fit-action": heroAction(
     { label: "attack" },
-    attack(ifElse(valueEquals(damageOn(GROOT), 0), 5, 2), theVillain),
+    attack(ifElse(valueAtLeast(remainingHpOf(GROOT), printedHpOf(GROOT)), 5, 2), theVillain),
   ),
 
   // The Power of Protection (16015) reprints Core's own 01079 verbatim — aliased by `../reprints.ts`.
 
   // Dauntless — Play under any player's control. Max 1 per player (data). While your hero's remaining hit points
-  // are equal to or greater than your hero's starting hit points, your hero gains retaliate 1. Same "undamaged"
-  // reading as Fighting Fit above.
+  // are equal to or greater than your hero's starting hit points, your hero gains retaliate 1. Starting = printed,
+  // as for Fighting Fit above.
   "16016.dauntless-constant": constant(
-    gainsKeyword({ name: "retaliate", value: 1 }, YOUR_HERO, { while: valueEquals(damageOn(GROOT), 0) }),
+    gainsKeyword({ name: "retaliate", value: 1 }, YOUR_HERO, {
+      while: valueAtLeast(remainingHpOf(GROOT), printedHpOf(GROOT)),
+    }),
   ),
 
   // Hard to Ignore — Hero Response: After your hero defends against an attack and takes no damage, exhaust Hard

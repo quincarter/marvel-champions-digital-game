@@ -1,11 +1,11 @@
 import {
   action,
   after,
-  allOf,
   anAttackableEnemy,
   anyOf,
   attack,
   attackAnEnemy,
+  chooseOptions,
   chosen,
   constant,
   damageAnEnemy,
@@ -22,6 +22,7 @@ import {
   heroAction,
   ifThen,
   moveCards,
+  option,
   paidWith,
   partOf,
   query,
@@ -44,10 +45,16 @@ export const AGGRESSION = defineAbilities({
   "01050.hulk-forced-response": forcedResponse(
     after.attacks("self"),
     moveCards(topOfDeck(1), "discard", "hulk"),
-    ifThen(hulkMilled("physical"), damageAnEnemy(2)),
-    ifThen(hulkMilled("energy"), dealDamage(1, each(query("character")))),
-    // His own [energy] damage may already have defeated him.
-    ifThen(allOf(hulkMilled("mental"), exists({ self: true })), discard(self)),
+    // RRG 1.8 p. 61 FAQ "Salvage (#33)": the printed resources are checked at once, so the player who controls Hulk
+    // chooses the order of the results that apply (a [wild] card applies all three). One option per applying result.
+    chooseOptions(3, [
+      option("Physical: deal 2 damage to an enemy", { when: hulkMilled("physical") }, [damageAnEnemy(2)]),
+      option("Energy: deal 1 damage to each character", { when: hulkMilled("energy") }, [
+        dealDamage(1, each(query("character"))),
+      ]),
+      // His own [energy] damage may already have defeated him.
+      option("Mental: discard Hulk", { when: hulkMilled("mental") }, [ifThen(exists({ self: true }), discard(self))]),
+    ]),
   ),
   // The four result lines are ingested as separate refs; their behavior is the forced response above.
   "01050.hulk-constant": partOf("01050.hulk-forced-response"),

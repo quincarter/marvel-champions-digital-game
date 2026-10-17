@@ -128,7 +128,7 @@ describe("Valkyrie's nemesis set: Enchantress, Beguiled, Seduced", () => {
       },
     };
     const villain = attached.villains[0]!.instanceId;
-    expect(canAttack(attached, identity, villain, WAVE4_DEPS)).toBe(false);
+    expect(canAttack(attached, identity, villain, WAVE4_DEPS, true)).toBe(false); // basic only (RRG p. 10)
     const alterEgo = withForm(attached, "alterEgo");
     const given = moveToHand(alterEgo, P1, "25021", "25022");
     const state = settle(

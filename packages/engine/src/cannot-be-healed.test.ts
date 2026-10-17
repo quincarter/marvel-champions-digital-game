@@ -69,6 +69,18 @@ const MEND_ACTION = stubAbility(
   def({ trigger: { kind: "action" }, effects: [{ kind: "heal", target: kelly, amount: n(2) }] }),
 );
 const MEND = stubEvent({ id: "mend", cost: 0, abilities: [MEND_ACTION.ref] });
+/** "Heal 2 damage from kelly and draw 1 card": the draw is a part of its own, so the event can be played. */
+const MEND_DRAW_ACTION = stubAbility(
+  "menddraw.action",
+  def({
+    trigger: { kind: "action" },
+    effects: [
+      { kind: "heal", target: kelly, amount: n(2) },
+      { kind: "draw", player: { kind: "controller" }, amount: n(1) },
+    ],
+  }),
+);
+const MEND_DRAW = stubEvent({ id: "menddraw", cost: 0, abilities: [MEND_DRAW_ACTION.ref] });
 const MEND_AIDE_ACTION = stubAbility(
   "mendaide.action",
   def({ trigger: { kind: "action" }, effects: [{ kind: "heal", target: aide, amount: n(2) }] }),
@@ -105,12 +117,22 @@ const deps = depsOf(
   LOCKED.ability,
   MEDICAL_RESPONSE,
   MEND_ACTION,
+  MEND_DRAW_ACTION,
   MEND_AIDE_ACTION,
   SIGNAL_ACTION,
   NURSE_ACTION,
   KIT_ACTION,
 );
-const PLAYER_CARDS: readonly CardId[] = [MEND.id, MEND_AIDE.id, SIGNAL.id, NURSE.id, KIT.id, KELLY.id, AIDE.id];
+const PLAYER_CARDS: readonly CardId[] = [
+  MEND.id,
+  MEND_DRAW.id,
+  MEND_AIDE.id,
+  SIGNAL.id,
+  NURSE.id,
+  KIT.id,
+  KELLY.id,
+  AIDE.id,
+];
 
 function damaged(state: GameState, amounts: Readonly<Record<InstanceId, number>>): GameState {
   return {
@@ -133,6 +155,7 @@ function start(...rules: readonly CardId[]) {
       MEDICAL,
       GUARD,
       MEND,
+      MEND_DRAW,
       MEND_AIDE,
       SIGNAL,
       NURSE,
@@ -169,28 +192,51 @@ function run(state: GameState, commands: readonly Command[]) {
   return { state: driven.session.state, events: driven.events };
 }
 const damageOf = (state: GameState, id: InstanceId) => mustInstance(state, id).damage;
+/** The message a refused `playCard` of `card` gets, or null when it is accepted. */
+function refusedPlay(state: GameState, card: CardId): string | null {
+  const given = giveCard(state, P1, card);
+  const command: Command = {
+    type: "playCard",
+    playerId: P1,
+    cardInstanceId: given.id,
+    payment: [],
+    attachToInstanceId: null,
+  };
+  const result = applyCommand(given.state, command, deps);
+  return result.ok ? null : result.error.message;
+}
+/** The message a refused `useAbility` of `card` (put into play first) gets, or null when it is accepted. */
+function refusedUse(state: GameState, card: CardId, abilityId: (typeof NURSE_ACTION)["ref"]["id"]): string | null {
+  const placed = playerCardIntoPlay(state, card);
+  const command: Command = { type: "useAbility", playerId: P1, cardInstanceId: placed.id, abilityId, payment: [] };
+  const result = applyCommand(placed.state, command, deps);
+  return result.ok ? null : result.error.message;
+}
 
 describe("§3.12 'cannot be healed by player card effects' (Protect the Senator)", () => {
-  it("a player event's heal heals 0 and logs healBlocked", () => {
+  it("a player event whose only part is his heal cannot be played; one with another part heals him 0", () => {
     const game = start(SENATOR.card.id);
-    const { state, events } = play(game.state, MEND.id);
+    // RRG 1.8 "Target" (pp. 42-43) and ruling Dec 8, 2023 (Ruling 125): he is no valid target for the heal.
+    expect(refusedPlay(game.state, MEND.id)).toBe("this event has no valid target");
+    const { state, events } = play(game.state, MEND_DRAW.id);
     expect(damageOf(state, game.kelly)).toBe(3);
     const blocked = events.flatMap((e) => (e.type === "healBlocked" ? [e] : []));
     expect(blocked).toEqual([
       { type: "healBlocked", targetInstanceId: game.kelly, sourceInstanceId: expect.any(String), amount: 2 },
     ]);
-    expect(mustInstance(state, blocked[0]!.sourceInstanceId!).cardId).toBe(MEND.id);
+    expect(mustInstance(state, blocked[0]!.sourceInstanceId!).cardId).toBe(MEND_DRAW.id);
     expect(events.some((e) => e.type === "damageHealed")).toBe(false);
   });
 
-  it("an ally's ability and a support's ability heal 0", () => {
+  it("an ally's ability and a support's ability that only heal him cannot be used", () => {
     const game = start(SENATOR.card.id);
-    const nurse = use(game.state, NURSE.id, NURSE_ACTION.ref.id);
-    expect(damageOf(nurse.state, game.kelly)).toBe(3);
-    expect(nurse.events.filter((e) => e.type === "healBlocked")).toHaveLength(1);
-    const kit = use(nurse.state, KIT.id, KIT_ACTION.ref.id);
-    expect(damageOf(kit.state, game.kelly)).toBe(3);
-    expect(kit.events.filter((e) => e.type === "healBlocked")).toHaveLength(1);
+    // RRG 1.8 "Target" (pp. 42-43), "Cost" (p. 13), ruling Dec 8, 2023 (Ruling 125): no valid target, no cost paid.
+    expect(refusedUse(game.state, NURSE.id, NURSE_ACTION.ref.id)).toBe("that ability has no valid target");
+    expect(refusedUse(game.state, KIT.id, KIT_ACTION.ref.id)).toBe("that ability has no valid target");
+    // Without the rule both are used and heal him.
+    const free = start();
+    const nurse = use(free.state, NURSE.id, NURSE_ACTION.ref.id);
+    expect(damageOf(nurse.state, free.kelly)).toBe(2);
   });
 
   it("an encounter card's heal still heals him", () => {
@@ -214,13 +260,13 @@ describe("§3.12 'cannot be healed by player card effects' (Protect the Senator)
   it("the rule's `while` ending lifts it", () => {
     const game = start(GUARDED.card.id);
     const guard = minionEngagedWith(game.state, GUARD.id);
-    const blocked = play(guard.state, MEND.id);
-    expect(damageOf(blocked.state, game.kelly)).toBe(3);
+    // RRG 1.8 "Target" (pp. 42-43), ruling Dec 8, 2023 (Ruling 125): while the rule holds he is no valid target.
+    expect(refusedPlay(guard.state, MEND.id)).toBe("this event has no valid target");
     // Surgery: the guard leaves play.
-    const seat = mustPlayer(blocked.state, P1);
+    const seat = mustPlayer(guard.state, P1);
     const gone: GameState = {
-      ...blocked.state,
-      players: blocked.state.players.map((p) =>
+      ...guard.state,
+      players: guard.state.players.map((p) =>
         p.playerId === P1 ? { ...p, playArea: seat.playArea.filter((id) => id !== guard.id) } : p,
       ),
     };
@@ -238,7 +284,8 @@ describe("§3.12 'cannot be healed' (no `bySource`)", () => {
     expect(events.filter((e) => e.type === "healBlocked")).toEqual([
       { type: "healBlocked", targetInstanceId: game.kelly, sourceInstanceId: expect.any(String), amount: 2 },
     ]);
-    expect(damageOf(play(state, MEND.id).state, game.kelly)).toBe(3);
+    // RRG 1.8 "Target" (pp. 42-43): no valid target for a player card's heal either.
+    expect(refusedPlay(state, MEND.id)).toBe("this event has no valid target");
   });
 });
 

@@ -39,7 +39,6 @@ import {
   attached,
   inPlayArea,
   takes,
-  fewest,
   takesAll,
   drive,
   refusal,
@@ -101,13 +100,29 @@ describe("1. Restricted is a state limit: the play resolves, then the player dis
     expect(discardCodes(run.state)).toContain(KATANA);
   });
 
-  it("Laser Swords (counts as 2) played beside Katana and Bazooka: the two restricted-keyword cards are discarded, the Swords stay", () => {
+  it("Laser Swords (counts as 2) played beside Katana and Bazooka: the two restricted-keyword cards are discarded one at a time, the Swords stay", () => {
     const withTwo = attached(attached(deadpoolGame(), KATANA).state, BAZOOKA);
-    const run = playCard(withTwo.state, SWORDS, 3, { [DISCARD_RESTRICTED]: fewest });
-    // Load 4 -> discard until 2; only cards with the keyword are offered (Q52 = B), the Swords alone make 2.
-    expect(run.prompts.filter((p) => p.kind === DISCARD_RESTRICTED)).toHaveLength(1);
+    const notSwords = (s: GameState, o: readonly string[]) => [o.find((id) => codeOf(s, id as InstanceId) !== SWORDS)!];
+    const run = playCard(withTwo.state, SWORDS, 3, { [DISCARD_RESTRICTED]: notSwords });
+    // Load 4 -> discard until 2, one card at a time with the Swords on offer; contributor's rules call 2026-10-16
+    // (bluefireF5ran), reversing upstream Q52 = B.
+    const offers = run.prompts.filter((p) => p.kind === DISCARD_RESTRICTED);
+    expect(offers).toHaveLength(2);
+    expect(offers[0]!.options.map((o) => codeOf(run.state, o as InstanceId)).sort()).toEqual(
+      [BAZOOKA, KATANA, SWORDS].sort(),
+    );
     expect(attachedCodes(run.state, identityOf(run.state))).toEqual([SWORDS]);
     expect(discardCodes(run.state).sort()).toEqual(expect.arrayContaining([BAZOOKA, KATANA]));
+  });
+
+  it("Laser Swords played beside Katana and Bazooka: discarding the Swords alone frees 2 and the other two stay", () => {
+    // contributor's rules call 2026-10-16 (bluefireF5ran), reverses upstream Q52 = B
+    const withTwo = attached(attached(deadpoolGame(), KATANA).state, BAZOOKA);
+    const theSwords = (s: GameState, o: readonly string[]) => [o.find((id) => codeOf(s, id as InstanceId) === SWORDS)!];
+    const run = playCard(withTwo.state, SWORDS, 3, { [DISCARD_RESTRICTED]: theSwords });
+    expect(run.prompts.filter((p) => p.kind === DISCARD_RESTRICTED)).toHaveLength(1);
+    expect(attachedCodes(run.state, identityOf(run.state)).sort()).toEqual([BAZOOKA, KATANA].sort());
+    expect(discardCodes(run.state)).toContain(SWORDS);
   });
 
   it("Side Holster raises the limit to 3 and then leaves play (Caught Off Guard): the player is asked to discard one restricted card", () => {

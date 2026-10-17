@@ -1,4 +1,4 @@
-import type { AbilityRegistry, EffectSpec } from "@mc/engine";
+import type { AbilityRegistry, EffectSpec, PlayerRef } from "@mc/engine";
 import {
   aScheme,
   anEnemy,
@@ -13,6 +13,7 @@ import {
   dealDamage,
   defineAbilities,
   each,
+  eachPlayer,
   exists,
   heroAction,
   ifThen,
@@ -35,7 +36,8 @@ const ANY_TARGET = query("enemy", { attackableBy: yourIdentity });
 const FROSTBITTEN_TARGET = query("enemy", { attackableBy: yourIdentity, hasAttachment: FROSTBITE });
 
 /** One copy of the owner's set-aside Frostbite, bound to `slot` (nothing bound, count 0, when none is set aside). */
-const takeCopy = (slot: string): EffectSpec => selectCards(slot, oneCopyOf(setAside(you, FROSTBITE)));
+const takeCopy = (slot: string, from: PlayerRef = you): EffectSpec =>
+  selectCards(slot, oneCopyOf(setAside(from, FROSTBITE)));
 const haveCopy = (slot: string) => valueAtLeast(varOf(`${slot}.count`), 1);
 
 /**
@@ -119,7 +121,8 @@ export const ICEMAN_EVENTS: AbilityRegistry = defineAbilities({
     { label: "thwart" },
     aScheme("scheme"),
     thwart(3, chosen("scheme")),
-    takeCopy("copy"),
+    // Ruling 216 answer 2 (June 20, 2024): another player (Rogue) playing this takes Iceman's set-aside copy.
+    takeCopy("copy", eachPlayer),
     ifThen(haveCopy("copy"), [anEnemy("enemy"), attachCard(chosen("copy"), chosen("enemy"))]),
   ),
 });

@@ -56,10 +56,14 @@ const LEAST_THREAT_SCHEMES = superlative("lowest", each(query("mainScheme")), th
  * "Move the glider counter [and each acceleration token] from `from` to the main scheme with the least threat", a tie
  * broken by the first player (MC27 p. 21 FAQ). With no `counterType`, `moveCounters` moves every counter `from`
  * holds; the villain's Forced Responses pass `"glider"`.
+ *
+ * The least-threat schemes are found first, then `from` is struck from them: an element cannot move to its current
+ * placement (RRG 1.8 "Move", p. 30), so a tie with another scheme forces the move there, and `from` alone at the
+ * least leaves nothing to choose and the counter stays (post-RRG 1.5 ruling 36.2, July 2, 2023).
  */
 export const moveToLeastThreatScheme = (from: TargetRef, counterType?: string): readonly EffectSpec[] => [
   bindTargets("leastThreat", LEAST_THREAT_SCHEMES),
-  chooseTarget("gliderTo", { inSlot: "leastThreat" }, { chooser: firstPlayer }),
+  chooseTarget("gliderTo", { inSlot: "leastThreat", excluding: from }, { chooser: firstPlayer }),
   moveCounters(from, chosen("gliderTo"), counterType),
 ];
 

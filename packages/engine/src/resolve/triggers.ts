@@ -22,7 +22,7 @@ import {
 } from "../actions.js";
 import { createCtx } from "../ctx.js";
 import { candidateDefenseBar, type DefenseBar } from "../defense-claim.js";
-import { addPools, EMPTY_POOL, requirementTotal, satisfies } from "../resources.js";
+import { addPools, EMPTY_POOL, requirementTotal, satisfies, satisfiesPrinted } from "../resources.js";
 import type { AbilityId } from "@mc/content";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { cardOf, deckDiscardStillThere, getPlayer, playerOrder } from "../query.js";
@@ -168,7 +168,7 @@ function costPayable(
     const pool = priceOrNull(ctx, playerId, [source], exclude, payingFor);
     if (pool) most = addPools(most, pool);
   }
-  return satisfies(most, requirement);
+  return (plan.cost ?? cost)?.printedResourcesOnly ? satisfiesPrinted(most, requirement) : satisfies(most, requirement);
 }
 
 function matchesPattern(

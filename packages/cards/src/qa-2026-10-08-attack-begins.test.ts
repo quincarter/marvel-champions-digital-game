@@ -166,14 +166,22 @@ describe("Tackle (05015): 'Stun an enemy. If you paid for this card using a [phy
     expect(done.state.stack).toEqual([]);
   });
 
-  it("not paid with [physical]: the branch is not taken, so no attack is made; the enemy is stunned", () => {
+  // the "Every (attack) ability is an attack" fix (contributor's rules call, RRG 1.8 p. 26): an "(attack)" ability is an attack from when it begins
+  // resolving, whether or not damage is dealt; here the attack is made with no damage and no target.
+  it("not paid with [physical]: the attack is still made (begun, no target, no damage); the enemy is stunned", () => {
     const minion = withMinion(rhino(), { hp: 9, retaliate: 1 });
     const given = tackle(minion.state, false);
     const hero = identityOf(given.state);
     const done = playOut(given.state, given.id, costOf(given.state, "05015"), { target: minion.id });
     expect(done.accepted).toBe(true);
     // The hand's first cards hold no [physical] resource in this seed; if they did, this would be the case above.
-    expect(begun(done.events)).toEqual([]);
+    expect(begun(done.events)).toHaveLength(1);
+    expect(begun(done.events)[0]).toMatchObject({
+      begun: true,
+      attackerInstanceId: hero,
+      targetInstanceId: null,
+      amount: 0,
+    });
     expect(takenBy(done.events, minion.id)).toEqual([]);
     expect(takenBy(done.events, hero)).toEqual([]);
     expect(inst(done.state, minion.id).statuses.stunned).toBe(1);
@@ -317,18 +325,19 @@ describe("Swift Retribution (15014): 'The villain schemes. Deal 4 damage to the 
 });
 
 describe("Karmic Blast (21038): 'Deal 4 damage to an enemy and discard up to 4 cards from the top of your deck → 1 additional damage for each different aspect discarded this way'", () => {
-  // Before: the number was chosen and the cards discarded, then the attack began. Now: every choice of how many to
-  // discard makes the attack, so it begins before that choice, against the enemy already chosen.
-  it("the attack begins before the discard, whatever number is chosen", () => {
+  // the "Cost-arrow events" fix (FFG ruling May 18, 2023 #8; RRG 1.8 p. 26): the 4 damage and the deck discard are Karmic Blast's COST,
+  // paid before the labeled effect begins: the 4 damage and the discard come first, then the attack begins (its own
+  // damage is only the aspect bonus, 0 here or more).
+  it("the 4 damage and the discard are paid first; the attack begins after them", () => {
     const given = conjure(rhino(), "21038");
     const villain = villainOf(given.state);
     const done = playOut(given.state, given.id, costOf(given.state, "21038"), { target: villain });
     expect(done.accepted).toBe(true);
     expect(begun(done.events)).toHaveLength(1);
-    expect(begun(done.events)[0]).toMatchObject({ begun: true, targetInstanceId: villain });
+    expect(begun(done.events)[0]).toMatchObject({ targetInstanceId: villain });
     const asked = index(done.events, (e) => e.type === "choiceRequested" && e.choice.prompt.kind !== "chooseTarget");
-    expect(index(done.events, begins)).toBeLessThan(asked);
-    expect(asked).toBeLessThan(index(done.events, damageTo(villain)));
+    expect(index(done.events, damageTo(villain))).toBeLessThan(asked);
+    expect(asked).toBeLessThan(index(done.events, begins));
     expect(takenBy(done.events, villain)).toHaveLength(1);
     expect(takenBy(done.events, villain)[0]!).toBeGreaterThanOrEqual(4);
     expect(resolved(done.events)).toHaveLength(1);

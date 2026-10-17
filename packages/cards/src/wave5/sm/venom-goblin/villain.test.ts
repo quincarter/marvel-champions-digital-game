@@ -162,8 +162,9 @@ describe("Venom Goblin (I) (27113): Infest the City — [star] Forced Response",
     const upper = schemeNamed(base, "Upper Manhattan");
     const pickLower = driveEventsPicking(WAVE5_DEPS, base, picking(lower, "1"), endTurn(P1));
     expect(gliderOn(pickLower.state)).toBe("Lower Manhattan");
+    // Upper is not offered: the glider cannot move to its current placement (RRG 1.8 p. 30; ruling Jul 2, 2023).
     const pickUpper = driveEventsPicking(WAVE5_DEPS, base, picking(upper, "1"), endTurn(P1));
-    expect(gliderOn(pickUpper.state)).toBe("Upper Manhattan");
+    expect(gliderOn(pickUpper.state)).toBe("Lower Manhattan");
   });
 
   it('the "place 2 threat" branch places threat instead of resolving the Special', () => {

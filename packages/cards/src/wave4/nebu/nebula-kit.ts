@@ -78,14 +78,13 @@ export const NEBULA_KIT = defineAbilities({
   // Nebula (hero, 22001a) — Combat Protocols, Forced Response: After your turn begins, resolve the "Special"
   // ability on each technique upgrade you control, then discard each technique upgrade resolved this way (module
   // docblock).
-  // `resolveSpecialsOf` on an empty set of technique upgrades is vacuously true (mirroring `16088.nebula-forced-
-  // interrupt`'s own reading), so it always fully resolves with the current engine; `andThen` is the faithful
-  // reading of the printed "then" (RRG 1.8 "'Then'", p. 44) without changing behavior today.
+  // Only upgrades whose Special resolved (`done.resolved`) are discarded; one a stunned status card replaced stays: RRG 1.8
+  // "Then", p. 44; FFG ruling Oct 18, 2024 (post-RRG 1.6 #26 (3)).
   "22001a.nebula-constant": forcedResponse(
     after.yourTurnBegins(),
     selectCards("techs", cards(each(YOUR_TECHNIQUE_UPGRADES))),
-    resolveSpecialsOf(chosen("techs")),
-    andThen(discard(chosen("techs"))),
+    resolveSpecialsOf(chosen("techs"), undefined, { bind: "done" }),
+    andThen(discard(chosen("done.resolved"))),
   ),
 
   // Nebula (alter-ego, 22001b) — Cybernetic Upgrades, Response: After you play a technique upgrade, draw 2 cards.

@@ -109,8 +109,10 @@ import { NEXT_EVOL_PRECON_CABLE_DECK } from "../next_evol/precon-cable-deck.js";
  *   player may trigger this ability.") is part of the Action. An aspect card includes 'Pool (spec §3.73).
  * - **Ambush (44051), Distraction (44054)**: crisis icon and "Max 1 per ..." are data.
  * - **Bazooka (44052)**: Restricted is data; discarding it is the cost, the icons are read as the attack resolves.
- * - **Laser Swords (44055)**: "Counts as 2 restricted cards" is `restrictedWeight` (data, Q52 = B). The ATK line is
- *   live (a stat bonus's amount stays live) and capped at +4.
+ * - **Laser Swords (44055)**: "Counts as 2 restricted cards" is `restrictedWeight` (data). It is one restricted card
+ *   weighing 2: text naming restricted cards sees it, and over the limit it is offered for the discard beside the
+ *   keyword cards, freeing 2 (contributor's rules call 2026-10-16 (bluefireF5ran), reverses upstream Q52 = B). The ATK line
+ *   is live (a stat bonus's amount stays live) and capped at +4.
  * - **Blackout (44053), Tic-Tac-Toe (44057)**: spaces are counters on the card (§3.84). One Action offers one option
  *   per resource type (the spend names its type, so a wild resource is spent as that type: Q51 = A); a type is offered
  *   only while a space of it is empty and a source exists. The move is a removal of threat or healing of damage, never

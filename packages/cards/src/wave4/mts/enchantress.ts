@@ -16,6 +16,7 @@ import {
   ifThen,
   moveCards,
   query,
+  cannotMakeBasicAttacks,
   rule,
   self,
   shuffleEncounterDeck,
@@ -77,7 +78,7 @@ export const ENCHANTRESS = defineAbilities({
   // Seduced (attachment x2, 21179) — Attach to your identity (data). You cannot make basic attacks or play Attack
   // events. Alter-Ego Action: Spend [energy][mental] resources → discard this card.
   "21179.seduced-constant": constant(
-    rule({ kind: "cannotAttack", target: query("enemy"), attacker: { hostOfSelf: true } }),
+    cannotMakeBasicAttacks(),
     rule({ kind: "cannotPlay", player: you, cards: query("event", { trait: ATTACK }) }),
   ),
   "21179.seduced-action": alterEgoAction({ cost: spend({ energy: 1, mental: 1 }) }, moveCards(cards(self), "discard")),

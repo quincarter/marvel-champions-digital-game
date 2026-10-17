@@ -163,6 +163,16 @@ export function satisfies(pool: ResourcePool, requirement: number | ResourceRequ
 }
 
 /**
+ * A "printed resources" cost (RRG 1.8 "Printed", p. 35): `satisfies`, except that a wild never backfills a typed slot
+ * ("Wild resources cannot be spent as other resource types for such a cost"), so each typed slot needs a resource of
+ * its own type.
+ */
+export function satisfiesPrinted(pool: ResourcePool, requirement: number | ResourceRequirement | undefined): boolean {
+  const req = requirementOf(requirement);
+  return TYPED_RESOURCES.every((type) => pool[type] >= req[type]) && satisfies(pool, req);
+}
+
+/**
  * "Spend 3 resources of the same type" (Kree Combat Armor, `gmw` 16131; docs/phase7-wave3.md §3.43): can `pool` pay
  * `requirement` with `count` of its generic resources all of one type? Each type is tried: that many of the type are set
  * aside (its own resources first, then wilds declared as it), and the rest of the pool must still pay the rest of the

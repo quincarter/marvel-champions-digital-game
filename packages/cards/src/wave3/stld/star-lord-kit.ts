@@ -66,6 +66,7 @@ import {
   spend,
   theMainScheme,
   topOfDeck,
+  valueAtLeast,
   varOf,
   when,
   you,
@@ -73,6 +74,7 @@ import {
   YOUR_IDENTITY,
   yourIdentity,
   zone,
+  zoneCountOf,
 } from "../../dsl/index.js";
 
 const GUARDIAN = trait("Guardian");
@@ -86,6 +88,30 @@ const refMatchesAnywhere = (ref: TargetRef, q: TargetQuery): Predicate => ({
   query: q,
   anywhere: true,
 });
+
+/** A player-card classification: every player card prints one, no encounter card does (RRG 1.8 p. 12). */
+const PLAYER_CLASSIFIED: TargetQuery = {
+  anyOf: [{ classification: "identitySpecific" }, { classification: "aspect" }, { classification: "basic" }],
+};
+/** Card types Cosmo can name for a player's deck: the player card types (RRG 1.8 "Card Types", p. 12). */
+const PLAYER_CARD_TYPES: readonly (readonly [string, TargetQuery])[] = [
+  ["ally", query("ally")],
+  ["event", query("event")],
+  ["upgrade", query("upgrade")],
+  ["support", query("support")],
+  ["resource", query("resource")],
+  ["playerSideScheme", query("sideScheme", PLAYER_CLASSIFIED)],
+];
+/** Card types Cosmo can name for the encounter deck: the encounter card types that sit in a deck. */
+const ENCOUNTER_CARD_TYPES: readonly (readonly [string, TargetQuery])[] = [
+  ["minion", query("minion")],
+  ["sideScheme", query("sideScheme", { not: PLAYER_CLASSIFIED })],
+  ["attachment", query("attachment")],
+  ["treachery", query("treachery")],
+  ["obligation", query("obligation")],
+  ["environment", query("environment")],
+];
+const ANY_ENCOUNTER_CARD: TargetQuery = { anyOf: ENCOUNTER_CARD_TYPES.map(([, q]) => q) };
 
 /** "Each guardian character you control" (Leader of the Guardians, C.I.T.T.): hero/alter-ego or ally. */
 const GUARDIAN_CHARACTERS_YOU_CONTROL: TargetQuery = query(["identity", "ally"], {
@@ -333,7 +359,10 @@ export const STAR_LORD_KIT = defineAbilities({
   // Cosmo — Interrupt: When Cosmo attacks or thwarts, name a card type, then discard the top card of a player
   // deck or the encounter deck. If that card is of the named type, Cosmo does not take consequential damage for
   // this use. Naming the type and choosing the source both fold into one `chooseOne` tree (docs/phase7-wave3.md
-  // §3.21): a branch per source, then a branch per named type within it.
+  // §3.21): a branch per source, then a branch per named type within it. A player's deck offers the player card
+  // types (player side scheme included); the encounter deck offers the encounter types (environment included); a
+  // player's deck also offers the encounter types while it holds an encounter card (a Mysterio-style villain
+  // shuffled one in). Contributor's rules call (bluefireF5ran); RRG 1.8 p. 12, errata p. 66.
   "17020.cosmo-interrupt": interrupt(
     when.attacksOrThwarts("self"),
     chooseOne(
@@ -341,11 +370,19 @@ export const STAR_LORD_KIT = defineAbilities({
         "A player's deck",
         choosePlayer("owner"),
         chooseOne(
-          ...(["ally", "event", "upgrade", "support", "resource"] as const).map((category) =>
+          ...PLAYER_CARD_TYPES.map(([label, q]) =>
             option(
-              category,
+              label,
               moveCards(topOfDeck(1, chosenPlayer("owner")), "discard", "named"),
-              ifThen(refMatchesAnywhere(chosen("named"), query(category)), cancelConsequentialDamage()),
+              ifThen(refMatchesAnywhere(chosen("named"), q), cancelConsequentialDamage()),
+            ),
+          ),
+          ...ENCOUNTER_CARD_TYPES.map(([label, q]) =>
+            option(
+              label,
+              { when: valueAtLeast(zoneCountOf("deck", chosenPlayer("owner"), ANY_ENCOUNTER_CARD), 1) },
+              moveCards(topOfDeck(1, chosenPlayer("owner")), "discard", "named"),
+              ifThen(refMatchesAnywhere(chosen("named"), q), cancelConsequentialDamage()),
             ),
           ),
         ),
@@ -353,11 +390,11 @@ export const STAR_LORD_KIT = defineAbilities({
       option(
         "The encounter deck",
         chooseOne(
-          ...(["minion", "sideScheme", "attachment", "treachery", "obligation"] as const).map((category) =>
+          ...ENCOUNTER_CARD_TYPES.map(([label, q]) =>
             option(
-              category,
+              label,
               moveCards(encounterCards(["deck"], undefined, 1), "discard", "named"),
-              ifThen(refMatchesAnywhere(chosen("named"), query(category)), cancelConsequentialDamage()),
+              ifThen(refMatchesAnywhere(chosen("named"), q), cancelConsequentialDamage()),
             ),
           ),
         ),

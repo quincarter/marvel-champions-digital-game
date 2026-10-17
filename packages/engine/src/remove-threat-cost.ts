@@ -21,7 +21,9 @@ import type { InstanceId, PlayerId } from "./ids.js";
 import { getInstance } from "./query.js";
 import { threatRemovalBlocked } from "./resolve/event.js";
 import { addFrameVars, type Frame, pushEvents } from "./resolve/frames.js";
-import { cardsInPlay, type EffectContext, resolveRef } from "./select.js";
+import type { CostChoices } from "./commands.js";
+import type { EngineErrorCode } from "./errors.js";
+import { cardsInPlay, type EffectContext, matchesQuery, resolveRef } from "./select.js";
 import type { EffectSpec } from "./spec.js";
 import type { Bindings } from "./stack.js";
 import type { GameState } from "./state.js";
@@ -79,6 +81,66 @@ export function removeThreatCostPlan(
     threatRemovalBlocked(state, deps, fromId, sourceId, false, false, null, null, false, false, playerId) !== null;
   if (blocked && min > 0) return { fault: "threat cannot be removed from that card" };
   return { fromId, min, max: blocked ? 0 : max };
+}
+
+/**
+ * The cards a `removeThreat` cost with `choose` lets the payer pick: matching its query and able to pay as the plan
+ * reads them (enough threat, threat removable from them), so a scheme holding less than the amount is not offered.
+ */
+export function removeThreatCostChoices(
+  state: GameState,
+  deps: EngineDeps,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+  cost: RemoveThreatCost,
+  bindings: Bindings = {},
+  vars: Readonly<Record<string, number>> = {},
+): readonly InstanceId[] {
+  const choose = cost.choose;
+  if (!choose) return [];
+  const context: EffectContext = {
+    selfInstanceId: sourceId,
+    controllerId: playerId,
+    event: null,
+    bindings,
+    vars,
+    deps,
+  };
+  return cardsInPlay(state).filter(
+    (id) =>
+      matchesQuery(state, id, choose.query, context) &&
+      !(
+        "fault" in
+        removeThreatCostPlan(state, deps, sourceId, playerId, cost, { ...bindings, [choose.slot]: [id] }, vars)
+      ),
+  );
+}
+
+/**
+ * Checks a `removeThreat` cost's `choose` against the command's pick (`choices[slot]`; forced with one candidate) and
+ * returns the binding for it, or the reason it cannot be paid. Nothing is paid.
+ */
+export function planRemoveThreatChoice(
+  state: GameState,
+  deps: EngineDeps,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+  cost: RemoveThreatCost,
+  choices: CostChoices,
+  bindings: Bindings,
+  vars: Readonly<Record<string, number>>,
+): Bindings | { readonly code: EngineErrorCode; readonly message: string } {
+  const slot = cost.choose?.slot ?? "";
+  const candidates = removeThreatCostChoices(state, deps, sourceId, playerId, cost, bindings, vars);
+  if (candidates.length === 0)
+    return { code: "insufficient_resources", message: `no card in play has the threat this cost removes for ${slot}` };
+  const named = choices[slot] ?? (candidates.length === 1 ? candidates : undefined);
+  if (!named) return { code: "invalid_choice", message: `choose what to remove this cost's threat from for ${slot}` };
+  const [pick, ...extra] = named;
+  if (!pick || extra.length > 0) return { code: "invalid_choice", message: `choose exactly one card for ${slot}` };
+  if (!candidates.includes(pick))
+    return { code: "no_valid_target", message: `${pick} is not a legal choice for ${slot}` };
+  return { [slot]: [pick] };
 }
 
 /**

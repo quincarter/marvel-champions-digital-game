@@ -4159,16 +4159,18 @@ export function mainSchemeASideRefs(state: GameState): readonly AbilityReference
 }
 
 /**
- * RRG "Restricted": the limit is two per *player*, across every card they control. The cards with the keyword: what
- * text naming "restricted cards" sees, and what is discarded for the limit (docs/phase7-wave7.md §4.1 Q52 = B). What
- * the limit is compared with is `restrictedLoadOf`.
+ * RRG "Restricted": the limit is two per *player*, across every card they control. A player's restricted cards: every
+ * card in play they control that weighs on the limit (`restrictedWeightOf` > 0), the keyword cards and a card that
+ * "counts as N restricted cards" alike. What text naming "restricted cards" sees, and what is offered for the discard
+ * when over the limit. The weighted card is one card here; what the limit is compared with is `restrictedLoadOf`.
+ * Contributor's rules call 2026-10-16 (bluefireF5ran), reversing upstream Q52 = B.
  */
 export const restrictedCardsOf = (
   state: GameState,
   playerId: PlayerId,
   deps: EngineDeps = DEFAULT_DEPS,
 ): readonly InstanceId[] =>
-  cardsInPlay(state).filter((id) => controllerOf(state, id) === playerId && hasKeyword(state, id, "restricted", deps));
+  cardsInPlay(state).filter((id) => controllerOf(state, id) === playerId && restrictedWeightOf(state, id, deps) > 0);
 
 /**
  * How much one card weighs on its controller's restricted limit (docs/phase7-wave7.md §3.82): the N of a printed

@@ -25,7 +25,7 @@ import {
   resolveSpecialsOf,
   revealCard,
   self,
-  spend,
+  spendPrinted,
   superlative,
   threatOn,
   whenRevealed,
@@ -40,22 +40,24 @@ const symbioteEnvironmentInPlay = exists(query("environment", { trait: SYMBIOTE 
  * When Revealed, `sm` 27121/27125): the mirror of `main-scheme.ts`'s own `moveToLeastThreatScheme`, kept local to
  * this module rather than exported from there (this agent's brief: don't touch `main-scheme.ts`). Ties broken by the
  * first player (MC27 p. 21 FAQ, docs/phase7-wave5.md §3.3's own "ties are the first player's"), the same as the
- * least-threat case. Returns the effects plus the `"gliderTo"` slot so a caller can read "that scheme" afterward
- * (Symbiotic Berserker's own "Place 1 threat on that scheme", Joy Ride's own "Resolve that scheme's 'Special'
- * ability").
+ * least-threat case. The glider's own scheme is struck from the tied schemes: it cannot move to its current placement
+ * (RRG 1.8 "Move", p. 30; post-RRG 1.5 ruling 36.2, July 2, 2023), so alone at the most it stays put. "That scheme"
+ * afterward (Symbiotic Berserker's own "Place 1 threat on that scheme", Joy Ride's own "Resolve that scheme's
+ * 'Special' ability") is the scheme with the glider counter once the move is done, moved or not (ruling 39, July 2,
+ * 2023: the next sentence still resolves when the counter stays).
  */
 const MOST_THREAT_SCHEMES = superlative("highest", each(query("mainScheme")), threatOn(chosen("candidate")), {
   ties: "all",
 });
-const moveGliderToMostThreatScheme = (): readonly EffectSpec[] => [
-  bindTargets("mostThreat", MOST_THREAT_SCHEMES),
-  chooseTarget("gliderTo", { inSlot: "mostThreat" }, { chooser: firstPlayer }),
-  moveCounters(each(query("mainScheme", { hasCounter: "glider" })), chosen("gliderTo"), "glider"),
-];
-const gliderTo: TargetRef = chosen("gliderTo");
-
 /** "The scheme with the glider counter" (Spreading Panic 27126, and Joy Ride 27125 after it moves the counter). */
 const SCHEME_WITH_GLIDER = each(query("mainScheme", { hasCounter: "glider" }));
+const moveGliderToMostThreatScheme = (): readonly EffectSpec[] => [
+  bindTargets("mostThreat", MOST_THREAT_SCHEMES),
+  chooseTarget("gliderTo", { inSlot: "mostThreat", excluding: SCHEME_WITH_GLIDER }, { chooser: firstPlayer }),
+  moveCounters(SCHEME_WITH_GLIDER, chosen("gliderTo"), "glider"),
+];
+/** "That scheme": read after the move, so it is the destination, or the glider's own scheme when it could not move. */
+const gliderTo: TargetRef = SCHEME_WITH_GLIDER;
 
 /**
  * Venom Goblin's own encounter set (`sm` 27120–27126, MC27 p. 17, docs/phase7-wave5.md §1.1/§2.2/§3.3/§3.4/§3.9):
@@ -65,8 +67,8 @@ const SCHEME_WITH_GLIDER = each(query("mainScheme", { hasCounter: "glider" }));
 export const VENOM_GOBLIN_ENCOUNTER_SET = defineAbilities({
   // We Are One (27120, attachment to Venom Goblin; +3 ATK/+3 SCH and "Attach to Venom Goblin" are data) — Hero
   // Action: Spend [energy][mental][physical] printed resources → discard this card (Improvised Weapons's own
-  // precedent, `wave5/sm/venom/symbiotic-strength.ts` 27164).
-  "27120.we-are-one-action": heroAction({ cost: spend({ energy: 1, mental: 1, physical: 1 }) }, discard(self)),
+  // precedent, `wave5/sm/venom/symbiotic-strength.ts` 27164, which says "resources", not "printed"; RRG 1.8 p. 35).
+  "27120.we-are-one-action": heroAction({ cost: spendPrinted({ energy: 1, mental: 1, physical: 1 }) }, discard(self)),
 
   // Symbiotic Berserker (27121, minion; ATK 3 is data) — [star] While a [Symbiote] environment is in play, Symbiotic
   // Berserker gains quickstrike.

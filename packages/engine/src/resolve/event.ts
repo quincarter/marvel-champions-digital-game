@@ -1145,13 +1145,13 @@ const attackLost = (ctx: Ctx, event: DamageEvent, keyword: AttackKeyword): boole
  * character", unless the attack "would deal no damage to the attacked character". Whether the damage is then *taken*
  * does not matter: ruling January 17, 2026 (3) #1, "Effects that 'prevent damage' prevent damage taken, not dealt. If
  * Rogue plays Bulletproof Belle and gains a Tough status card, an attack with Piercing that still deals damage to her
- * will remove that Tough status card". So this runs ahead of every prevention; the one thing ahead of it is "cannot
- * take damage", kept as it was (not covered by the ruling).
+ * will remove that Tough status card". So this runs ahead of every prevention, "cannot take damage" included: ruling
+ * July 11, 2025 (Ruling 69.76), an enemy with Tough that "cannot take damage" is still Piercing Strike's target,
+ * "resulting in the Tough status card being removed".
  */
 function pierceForDamage(ctx: Ctx, event: DamageEvent): readonly StatusDiscarded[] {
   if (event.amount <= 0 || !attackPierces(ctx, event)) return [];
   if (!cardsInPlay(ctx.state).includes(event.targetInstanceId)) return [];
-  if (damageCannotBeTaken(ctx, event)) return [];
   return pierceTough(ctx, event.targetInstanceId);
 }
 
@@ -1526,7 +1526,8 @@ export function applyDamage(
 
   // RRG "Cannot": "cannot take damage" beats everything, including tough (which then isn't used). RRG 1.8 "Tough"
   // (p. 44) replaces damage the character "would take", and one that cannot take it would take none, so the status
-  // card stays, piercing discards none (above) and nothing is excess (docs/phase7-wave7.md §3.30).
+  // card stays and nothing is excess (docs/phase7-wave7.md §3.30). Piercing (above) still discarded its tough cards:
+  // the damage is dealt though not taken (ruling July 11, 2025, Ruling 69.76).
   if (damageCannotBeTaken(ctx, event)) {
     emit(ctx, {
       type: "damagePrevented",

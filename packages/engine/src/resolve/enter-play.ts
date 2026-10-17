@@ -326,8 +326,10 @@ export function checkPlayerSideSchemeLimit(ctx: Ctx, entering: InstanceId | null
  * (`checkPlayerSideSchemeLimit`). Returns true when it asked the player.
  *
  * A card that "counts as N restricted cards" (docs/phase7-wave7.md §3.82) adds N to the load compared with the limit
- * and is not offered either (§4.1 Q52 = B: the cards discarded for the limit carry the keyword). Each card offered
- * weighs 1, so the number to discard is the load over the limit.
+ * and is offered like any restricted card; discarding it frees all N (contributor's rules call 2026-10-16 (bluefireF5ran),
+ * reversing upstream Q52 = B). When every card offered weighs 1, the number to discard is the load over the limit. When
+ * one weighs more, the player discards one card at a time ("until they have only two in play"): one is chosen, and the
+ * standing check (`checkRestrictedLimits`, between frames) asks again while they are still over.
  */
 function checkRestricted(ctx: Ctx, playerId: PlayerId | null): boolean {
   if (!playerId || ctx.state.pendingChoice) return false;
@@ -351,7 +353,8 @@ function checkRestricted(ctx: Ctx, playerId: PlayerId | null): boolean {
       !permanentStopsLeaving(ctx.state, ctx.deps, id, undefined) &&
       !cannotLeavePlay(ctx.state, ctx.deps, id, undefined, true),
   );
-  const over = Math.min(load - limit, options.length);
+  const weighted = options.some((id) => restrictedWeightOf(ctx.state, id, ctx.deps) > 1);
+  const over = weighted ? 1 : Math.min(load - limit, options.length);
   if (over === 0) return false;
   requestChoice(ctx, {
     playerId,

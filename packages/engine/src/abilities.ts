@@ -2443,6 +2443,14 @@ export interface DeckDiscardChoice {
 export interface RemoveThreatCost {
   readonly from: TargetRef;
   readonly amount: number | { readonly choose: { readonly min: number; readonly max: number } };
+  /**
+   * "Remove 3 threat from **a scheme** … →" (Cosmic Awareness 21039): the payer picks the card, one in play matching
+   * `query` that can pay in full (it holds at least the amount and threat can be removed from it), bound to `slot`
+   * for the effects ("remove 1 additional threat from that scheme") and read as `from` when `from` is that slot.
+   * With none that can pay the cost cannot be paid and the ability is not offered (RRG 1.8 "Cost", p. 13).
+   * `legalActions` offers one variant per candidate; the pick is forced with one candidate.
+   */
+  readonly choose?: { readonly slot: string; readonly query: TargetQuery };
 }
 
 /** "Take any amount of damage up to … →": the payer's choice of a `damageSelf` cost's amount (`AbilityCost.damageSelf`). */
@@ -2923,6 +2931,13 @@ export interface AbilityCost {
    * `legalActions` offers the ability only when the player's resources can pay it.
    */
   readonly sameResourceType?: true;
+  /**
+   * "Spend [energy][mental][physical] printed resources →" (We Are One, `sm` 27120): RRG 1.8 "Printed" (p. 35), "Wild
+   * resources cannot be spent as other resource types for such a cost". Each typed slot is paid by a resource of that
+   * type only; a wild never fills it (it still pays a generic or a `wild` slot). Checked wherever the payment is
+   * (`resourceVars`) and when `legalActions` decides whether the ability can be offered.
+   */
+  readonly printedResourcesOnly?: true;
   /**
    * "Exhaust Captain America's Shield →" (min 1, max 1) / "Exhaust any number of allies you control →" (min 1, no
    * max): exhaust cards in play, other than this ability's own card (`exhaustSelf`) or your identity

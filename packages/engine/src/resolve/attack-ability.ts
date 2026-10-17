@@ -34,7 +34,7 @@
  *   effects lasting "for this attack" end.
  *
  * Unchanged: a basic attack, an attack by another character (an ally's), an attack an unlabeled ability makes, and an
- * "(attack)" ability's attack that was never made (no frame waits, so its later damage is plain damage).
+ * "(attack)" ability's attack that was never made because a status card cancelled the ability (p. 26; no frame waits).
  * An ability with several `attack` effects still makes one `attack` event each; each waits and finishes in order.
  * When each begins is below ("An ability with an `attack` effect begins its attack the same way").
  *
@@ -106,9 +106,9 @@
  * an `attack` event by that identity (`attack.labeled`) with its "when … attacks" interrupt window, which deals no
  * damage of its own and goes straight to waiting beneath the ability's root frame. Its damage instructions then
  * resolve, and their damage is that attack's, exactly as above. The root frame remembers the attack was made
- * (`labelAttackMade`), so there is one per resolution. An ability whose damage is only to its player's own characters
- * attacks nothing and makes no attack. Covered instructions: `dealDamage` and `divide` of damage; no shipped
- * "(attack)" ability uses another.
+ * (`labelAttackMade`), so there is one per resolution. An ability that deals no damage to an enemy (its damage is only
+ * to its player's own characters, a branch it does not take, nothing to attack) is still an attack, on nobody (below).
+ * Covered instructions: `dealDamage` and `divide` of damage; no shipped "(attack)" ability uses another.
  *
  * **When a label-only attack begins.** Official rule, RRG 1.8 "Labeled Ability" (p. 26): "The identity of the player
  * using the labeled ability is considered to be performing the labeled effect when the labeled ability begins
@@ -139,16 +139,18 @@
  *   `target-validity.ts`; RRG 1.8 "Target", p. 43: "A target that cannot be attacked is not a valid target for an
  *   attack-labeled ability"; owner decision, 2026-10-08, row 64). So this case is left to an ability whose enemies
  *   are not known as it is initiated (a branch, "each minion" with none in play) or become guarded as it resolves.
- * - **An attack is begun only by an ability that can attack an enemy.** It begins when one of the ability's damage
- *   instructions on the path it is about to resolve could name an enemy: its target is not known yet, or it names
- *   one now. An ability whose damage instructions name only its player's own characters makes no attack, as before.
- *   One whose damage instructions sit inside a branch not decided as it begins ("place a counter here; if there is a
- *   counter here, deal 2 damage to an enemy"), or reached with nothing resolving before them, makes its attack as the
- *   branch reaches the instruction (`openLabelAttack`), so a resolution that never takes the branch makes none, as
- *   before. What "decided as it begins" reads is stated with row 73 below (`attackAhead`), and since row 73 a damage
- *   instruction in a branch already decided, after another instruction, begins the attack with the ability.
- *   (Alternative: every "(attack)" ability attacks from its start whatever it then does, which p. 26 read alone
- *   supports; not adopted, to keep those two behaviors.)
+ * - **Every "(attack)" ability begins an attack, damage or no damage** (official rule, p. 26, read as written; FFG
+ *   ruling 69.67, June 26, 2025, on Multitalented: "Regardless of which resources were paid or which effects were
+ *   resolved, Multitalented is still labeled as an 'attack' … and by playing it your hero is considered to have
+ *   'attacked'"; contributor's rules call (bluefireF5ran), 2026-10-15, which reverses upstream rows 61/73 and Q48's "with no damage there
+ *   is no attack"). The attack begins as the ability begins resolving, whatever its instructions then do: one whose
+ *   damage sits in a branch not taken ("if you paid with [physical], deal 2 damage to an enemy", paid otherwise), one
+ *   whose damage names only its player's own characters, one whose every enemy is guarded or gone. It resolves with no
+ *   target and an empty `attack.attacked`: nothing retaliates (no enemy was attacked, p. 10), "after you attack"
+ *   with no target clause answers it, "after you attack [an enemy]" does not, and "when you attack [an enemy]" did not
+ *   hear its window. Damage to a card that is not an enemy is plain damage, never the attack's. The only "(attack)"
+ *   abilities that make no attack are those a status card cancels (p. 26, `labelCancels`, `beginEffectAfterCost`: the
+ *   costs are paid first, then the stun replaces the whole attack).
  *
  * **An ability with an `attack` effect begins its attack the same way** (owner decision, 2026-10-08,
  * docs/phase7-wave8.md §4.1 row 73, rules check A1, second half: "Fix all affected older cards so the attack begins
@@ -180,14 +182,14 @@
  *   text as resolving, a choice among options only when every option offered leads to an attack ("discard up to 4
  *   cards → deal …"). The attack begins with the ability when that path reaches an instruction that makes an attack
  *   (an `attack` instruction by the identity, or a damage instruction able to name an enemy) and something resolves
- *   before it. A branch not taken makes no attack, as before. An attack reached only through something not decided
- *   yet (a branch whose condition does not hold yet, a loop, one option of several) begins as its instruction is
- *   reached, as before. An attack whose own instruction is the first to resolve begins there, which is the same
- *   moment. (Alternatives: every "(attack)" ability attacks from its start whatever it then does, which p. 26 read
- *   alone supports, declined with row 61 to keep "a branch not taken makes no attack"; or never read into a branch,
- *   which leaves "Stun an enemy. If you paid with [physical], deal 3 damage to that enemy" beginning its attack after
- *   the stun.) The same reading now applies to a label-only attack: one whose damage sits in a branch already decided
- *   as the ability begins, after another instruction, begins with the ability instead of at that damage instruction.
+ *   before it. An attack reached only through something not decided yet (a branch whose condition does not hold yet,
+ *   a loop, one option of several) begins with the ability too, with no target, and the `attack` instruction takes it
+ *   over if it is reached; a branch not taken leaves it an attack on nobody (owner decision, 2026-10-15). An attack
+ *   whose own `attack` instruction is the first to resolve begins there, which is the same moment, unless that
+ *   instruction would make no event (no enemy it may attack, no damage to move): then it begins with the ability, on
+ *   nobody. What is read ahead only decides the target the window hears. (Alternative: never read into a branch,
+ *   which leaves "Stun an enemy. If you paid with [physical], deal 3 damage to that enemy" beginning its attack with
+ *   no target.)
  * - **What its window hears.** The target is read as for a label-only attack: the first enemy the identity may
  *   attack that an instruction of the attack names, taken in order (a damage instruction before the `attack`
  *   instruction first), or none (`null`) when it is chosen later. The keywords and overkill are the `attack`
@@ -794,6 +796,11 @@ interface AttackMaker {
   readonly attackEffect: boolean;
   readonly overkill: boolean;
   readonly keywords: AttackKeywords;
+  /**
+   * An `attack` instruction that would make no event if it resolved now: it names no enemy the identity may attack
+   * ("each minion" with none, every enemy guarded) or moves damage from a card holding none.
+   */
+  readonly makesNoEvent?: true;
 }
 
 /** What `attackAhead` has read so far along the path the ability will resolve. */
@@ -839,11 +846,21 @@ function attackAhead(
           ahead.preceded = true;
           break;
         }
+        const [moveFrom] = instruction.moveDamageFrom ? resolveRef(state, instruction.moveDamageFrom, context) : [];
+        const named = resolveRef(state, instruction.target, context);
+        // A target chosen later (a slot not bound yet) is not known to be missing: the choice offers an enemy.
+        const chosenLater =
+          instruction.target.kind === "slot" && context.bindings[instruction.target.slot] === undefined;
+        const makesNoEvent =
+          (!chosenLater && !named.some((id) => isEnemy(id) && canAttack(state, identity, id, context.deps))) ||
+          (instruction.moveDamageFrom !== undefined &&
+            (moveFrom === undefined || (state.instances[moveFrom]?.damage ?? 0) <= 0));
         found({
-          named: resolveRef(state, instruction.target, context),
+          named,
           attackEffect: true,
           overkill: instruction.overkill === true,
           keywords: instruction.keywords ?? [],
+          ...(makesNoEvent ? { makesNoEvent: true as const } : {}),
         });
         // A later `attack` instruction is another attack, which begins as it is reached.
         ahead.done = true;
@@ -883,6 +900,8 @@ function attackAhead(
           attackEffect: firsts.every((maker) => maker.attackEffect),
           overkill: firsts.every((maker) => maker.overkill),
           keywords: first.keywords.filter((keyword) => firsts.every((maker) => maker.keywords.includes(keyword))),
+          // An option whose attack would make no event: the attack begins with the ability instead.
+          ...(firsts.some((maker) => maker.makesNoEvent) ? { makesNoEvent: true as const } : {}),
         });
         ahead.done = true;
         break;
@@ -943,19 +962,19 @@ function pushLabelAttack(
 
 /**
  * An "(attack)" ability's attack begins as the ability begins resolving (official rule: RRG 1.8 "Labeled Ability",
- * p. 26; owner decisions, 2026-10-08, rows 61 and 73): called before each effect of an effects frame resolves. On the
- * root frame of an "(attack)" ability that has begun no attack this way yet, at its first instruction that is not an
- * opening target choice, this pushes an `attack` event on top of the frame and returns true without advancing it. The
- * attack's interrupt window resolves, it deals nothing, and it waits beneath the frame; the frame then resolves the
- * same instruction.
+ * p. 26; owner decisions, 2026-10-08, rows 61 and 73, and 2026-10-15, every "(attack)" ability): called before each
+ * effect of an effects frame resolves. On the root frame of an "(attack)" ability that has begun no attack this way
+ * yet, at its first instruction that is not an opening target choice (after its costs, `effectBeganAt`), this
+ * pushes an `attack` event on top of the frame and returns true without advancing it. The attack's interrupt window
+ * resolves, it deals nothing, and it waits beneath the frame; the frame then resolves the same instruction.
  *
  * - An ability with no `attack` effect: its one attack (`attack.labeled`), whose damage is the ability's damage
- *   instructions'.
- * - An ability with an `attack` effect that another instruction resolves before: that attack, begun early
- *   (`attack.begun`), which the `attack` instruction takes over when it is reached (`resumeBegunAttack`). When the
- *   `attack` instruction is itself the first to resolve nothing is pushed here: the instruction makes its event now.
+ *   instructions', made whether or not any of them is ever reached or names an enemy.
+ * - An ability with an `attack` effect: that attack, begun early (`attack.begun`), which the `attack` instruction
+ *   takes over if it is reached (`resumeBegunAttack`). When the `attack` instruction is itself the first to resolve
+ *   nothing is pushed here: the instruction makes its event now, the same moment.
  *
- * The rules it follows (what is read ahead, the target it begins with) are interpretations, stated in the file header.
+ * The target it begins with (the first enemy read ahead, or none) is an interpretation, stated in the file header.
  */
 export function beginLabelAttack(
   ctx: Ctx,
@@ -982,16 +1001,15 @@ export function beginLabelAttack(
   const ahead: AttackAhead = { makers: [], preceded: false, firstPreceded: false, done: false };
   attackAhead(ctx.state, frame.effects.slice(frame.cursor), context, identity, ahead);
   const [first] = ahead.makers;
-  if (first === undefined) return false;
-  if (!ahead.firstPreceded) {
-    // Nothing resolves before the attack's own instruction. An `attack` instruction makes its event now, as it always
-    // has; a damage instruction reached through a branch makes the attack as it is reached (`openLabelAttack`).
-    if (first.attackEffect || namedByAttackInstruction(ctx.state, effect, context) === null) return false;
-  }
   const inPlay = cardsInPlay(ctx.state);
   const mayAttack = (id: InstanceId): boolean =>
     inPlay.includes(id) && isAttackTarget(ctx.state, id, ctx.deps) && canAttack(ctx.state, identity, id, ctx.deps);
-  // The first enemy the identity may attack that an instruction of the attack names, in order.
+  // Nothing resolves before the ability's own `attack` instruction: it makes its event now, as it always has, when it
+  // can (an enemy it may attack, damage to move). One that would make none (no minion for "each minion", every enemy
+  // guarded, no damage to move) begins the attack here instead, so the ability is still an attack, on nobody.
+  if (first?.attackEffect === true && !ahead.firstPreceded && !first.makesNoEvent) return false;
+  // The first enemy the identity may attack that an instruction of the attack names, in order; none when no
+  // instruction read ahead names one (its enemy is chosen later, it sits in a branch not decided yet, or there is none).
   const target = ahead.makers.flatMap((maker) => maker.named.filter(mayAttack))[0] ?? null;
   const instruction = ahead.makers.find((maker) => maker.attackEffect);
   pushLabelAttack(
@@ -1117,45 +1135,6 @@ export function resumeBegunAttack(
     overkill: made.overkill,
     keywords: made.keywords,
   });
-}
-
-/**
- * A label-only attack that did not begin with its ability (`beginLabelAttack`: its damage instructions are all inside
- * a branch) is made as the first of them that names an enemy its player's identity may attack is reached (owner
- * ruling Q48). This pushes the ability's one `attack` event on top of the frame and returns true without advancing
- * it; the frame then resolves the same instruction, whose damage is that attack's.
- */
-export function openLabelAttack(
-  ctx: Ctx,
-  frame: Frame<"effects">,
-  effect: EffectSpec,
-  context: EffectContext,
-): boolean {
-  if (effect.kind === "dealDamage") {
-    if (!isAttackInstruction(effect)) return false;
-  } else if (effect.kind !== "defeat") {
-    if (effect.kind !== "divide" || effect.what !== "damage" || frame.answer !== null) return false;
-  }
-  if (frame.controllerId === null || !isLabelOnlyAttack(ctx.deps, frame)) return false;
-  const rootId = abilityRootFrameId(ctx.state, frame);
-  const root = findFrame(ctx.state, rootId);
-  if (root?.kind !== "effects" || root.labelAttackMade || root.costEffectsPending !== undefined) return false;
-  const playerId = frame.controllerId;
-  const identity = ctx.state.players.find((player) => player.playerId === playerId)?.identity.instanceId;
-  if (identity === undefined) return false;
-  const inPlay = cardsInPlay(ctx.state);
-  const named =
-    effect.kind === "dealDamage" || effect.kind === "defeat"
-      ? resolveRef(ctx.state, effect.target, context)
-      : selectTargets(ctx.state, effect.among, context);
-  const [first] = named.filter(
-    (id) =>
-      inPlay.includes(id) && isAttackTarget(ctx.state, id, ctx.deps) && canAttack(ctx.state, identity, id, ctx.deps),
-  );
-  // No enemy to attack: damage to the player's own characters only, or every enemy named is guarded.
-  if (first === undefined) return false;
-  pushLabelAttack(ctx, frame, rootId, identity, playerId, first);
-  return true;
 }
 
 /**

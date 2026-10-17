@@ -28,3 +28,9 @@ playwright-report/
 test-results/
 blob-report/
 .vitest/
+
+# Local Discord exports (other people's messages; never commit)
+research/discord-raw/
+research/discord-work/
+research/rules-audit/chunks/
+research/rules-audit/sources/

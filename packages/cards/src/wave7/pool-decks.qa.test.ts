@@ -78,7 +78,8 @@ const EXPECTED: Readonly<
   "domino-pool": { aspects: ["pool"], counted: 40, pool: 25, hero: 15 },
   "adam-warlock-pool": { aspects: ["pool", "justice", "leadership", "protection"], counted: 40, pool: 6, hero: 15 },
   "cable-leadership-live-dangerously": { aspects: ["leadership"], counted: 40, pool: 1, hero: 15 },
-  "spider-woman-pool-justice": { aspects: ["pool", "justice"], counted: 40, pool: 11, hero: 15 },
+  // Inconspicuous (x2) counts toward Justice in the equal split (FFG ruling Mar 22, 2024, #153): 13 'Pool, 11 + 2.
+  "spider-woman-pool-justice": { aspects: ["pool", "justice"], counted: 42, pool: 13, hero: 15 },
 };
 
 describe("the fixtures: legal decks, with their aspects, size and copies asserted", () => {
@@ -147,10 +148,12 @@ describe("the fixtures: legal decks, with their aspects, size and copies asserte
     expect(aspectLines(contents, "aggression")).toEqual([]);
   });
 
-  test("deck 5b: Spider-Woman's two aspects hold eleven cards each", () => {
+  test("deck 5b: Spider-Woman's two aspects hold thirteen cards each, her 2 Inconspicuous counting as Justice", () => {
+    // Identity-specific cards count toward their printed aspect (FFG ruling Mar 22, 2024, #153).
     const contents = contentsOf(SPIDER_WOMAN_POOL_JUSTICE);
-    expect(quantityOf(aspectLines(contents, "pool"))).toBe(11);
+    expect(quantityOf(aspectLines(contents, "pool"))).toBe(13);
     expect(quantityOf(aspectLines(contents, "justice"))).toBe(11);
+    expect(contents.cards.find((l) => l.cardId === "04038")?.quantity).toBe(2); // Inconspicuous (Justice)
   });
 });
 
