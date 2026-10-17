@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { cardId, cycleId, setCode } from "../schema/ids.js";
 import type { AnyCard } from "../schema/cards/index.js";
 import { CORE_CARDS } from "./core/cards.js";
-import { CORE_POOL_VERSION, poolVersionOf } from "./pool-version.js";
+import { CORE_POOL_VERSION, poolVersionOf, stableStringify } from "./pool-version.js";
 
 const stub = (overrides: Partial<AnyCard> = {}): AnyCard =>
   ({
@@ -55,5 +55,40 @@ describe("poolVersionOf", () => {
 
   test("CORE_POOL_VERSION is non-empty and looks like a version string, not a card list", () => {
     expect(CORE_POOL_VERSION).toMatch(/^v1-[0-9a-f]{8}$/);
+  });
+});
+
+/** The original serializer: `JSON.stringify` with a replacer rebuilding each object with sorted keys. */
+const viaReplacer = (value: unknown): string =>
+  JSON.stringify(value, (_key, val: unknown) => {
+    if (val && typeof val === "object" && !Array.isArray(val)) {
+      const sorted: Record<string, unknown> = {};
+      for (const key of Object.keys(val as Record<string, unknown>).sort()) {
+        sorted[key] = (val as Record<string, unknown>)[key];
+      }
+      return sorted;
+    }
+    return val;
+  });
+
+describe("stableStringify", () => {
+  test("writes every real card exactly as the replacer it replaced did, so saved decks' versions don't move", () => {
+    for (const card of CORE_CARDS) expect(stableStringify(card)).toBe(viaReplacer(card));
+  });
+
+  test("matches it on the awkward cases too", () => {
+    const awkward = {
+      z: 1,
+      "10": "ten",
+      "2": "two",
+      a: [undefined, () => 0, NaN, -0, 1e21, null, { b: undefined, c: Infinity }],
+      skipped: undefined,
+      quote: 'he said "hi"\n\u2028',
+      nested: { y: [{ "01": 1, "1": 2, x: true }], w: false },
+      date: new Date(0),
+    };
+    expect(stableStringify(awkward)).toBe(viaReplacer(awkward));
+    expect(stableStringify([])).toBe(viaReplacer([]));
+    expect(stableStringify({})).toBe(viaReplacer({}));
   });
 });

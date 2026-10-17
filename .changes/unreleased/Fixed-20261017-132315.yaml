@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'First load no longer freezes for seconds on older devices: release builds skip the card-script check, title and story art decode off the main thread, and the card-pool fingerprint is computed faster (#223)'
+time: 2026-10-17T13:23:15.0909551-04:00

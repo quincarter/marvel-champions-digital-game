@@ -1930,11 +1930,20 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
 const ABILITY_ID = /^\d{5}[a-z]?\.[a-z0-9-]+$/;
 
 /**
+ * True in a production bundle: Vite replaces `import.meta.env` there, Vitest and the dev server say false, and plain
+ * Node has no `env`. Checking every ability as its module loads was the largest single cost of the app's first load,
+ * about 4 s of a 9 s main-thread freeze at Chrome's 6x CPU slowdown (#223, `scripts/profile-first-load.mjs`). Every
+ * card module is loaded, and so checked, by the unit tests and the dev server before a build ships.
+ */
+const SKIP_CHECKS = (import.meta as ImportMeta & { readonly env?: { readonly PROD?: boolean } }).env?.PROD === true;
+
+/**
  * Defines a module of card abilities keyed by their `AbilityReference` ids
  * (`<cardCode>.<slug>`). Throws on the first import if any definition is
  * malformed, so a broken card fails loudly in every test that loads it.
  */
 export function defineAbilities<const T extends Readonly<Record<string, AbilityDefinition>>>(definitions: T): T {
+  if (SKIP_CHECKS) return definitions;
   const problems: string[] = [];
   for (const [id, definition] of Object.entries(definitions)) {
     if (!ABILITY_ID.test(id)) problems.push(`${id}: not a <cardCode>.<slug> ability id`);

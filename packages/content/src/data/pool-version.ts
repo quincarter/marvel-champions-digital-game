@@ -42,20 +42,61 @@ function fnv1a(input: string): string {
  * order, so two structurally-equal cards hash the same regardless of the
  * order their fields were constructed in, and so a changed field (a
  * corrected stat, an errata'd text string, a new keyword) changes the hash.
- * `JSON.stringify`'s replacer runs per-object and receives already-stringified
- * child values, so this recurses correctly through nested arrays/objects.
+ *
+ * The output is exactly what `JSON.stringify` gives with a replacer that rebuilds
+ * each object with its keys sorted (saved decks hold versions made that way, so
+ * it must not move), written by hand because that replacer was the slowest part
+ * of the app's first load after the ability checks (#223). A rebuilt object
+ * lists integer-like keys first, ascending, so this does too.
  */
-function stableStringify(value: unknown): string {
-  return JSON.stringify(value, (_key, val: unknown) => {
-    if (val && typeof val === "object" && !Array.isArray(val)) {
-      const sorted: Record<string, unknown> = {};
-      for (const key of Object.keys(val as Record<string, unknown>).sort()) {
-        sorted[key] = (val as Record<string, unknown>)[key];
-      }
-      return sorted;
+export function stableStringify(value: unknown): string {
+  return write(value) ?? "undefined";
+}
+
+const ARRAY_INDEX = /^(?:0|[1-9]\d*)$/;
+const isArrayIndex = (key: string): boolean => ARRAY_INDEX.test(key) && Number(key) < 4294967295;
+
+function write(value: unknown): string | undefined {
+  if (value === null) return "null";
+  switch (typeof value) {
+    case "string":
+      return JSON.stringify(value);
+    case "number":
+      return Number.isFinite(value) ? JSON.stringify(value) : "null";
+    case "boolean":
+      return value ? "true" : "false";
+    case "object":
+      break;
+    default:
+      // undefined, functions and symbols: dropped from an object, `null` in an array, as `JSON.stringify` does.
+      return undefined;
+  }
+  const toJSON = (value as { toJSON?: () => unknown }).toJSON;
+  if (typeof toJSON === "function") return write(toJSON.call(value));
+  if (Array.isArray(value)) {
+    let out = "[";
+    for (let index = 0; index < value.length; index++) {
+      if (index > 0) out += ",";
+      out += write(value[index]) ?? "null";
     }
-    return val;
-  });
+    return out + "]";
+  }
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record).sort();
+  const indices = keys.filter(isArrayIndex);
+  const ordered =
+    indices.length === 0
+      ? keys
+      : [...indices.sort((a, b) => Number(a) - Number(b)), ...keys.filter((key) => !isArrayIndex(key))];
+  let out = "{";
+  let first = true;
+  for (const key of ordered) {
+    const written = write(record[key]);
+    if (written === undefined) continue;
+    out += (first ? "" : ",") + JSON.stringify(key) + ":" + written;
+    first = false;
+  }
+  return out + "}";
 }
 
 /**
