@@ -66,7 +66,8 @@ import { cardArt, drawArt, type CardArt } from "../art/card-art.js";
 import { canConfirmChoice, cardChoiceDisplayOrder, initialChoiceSelection } from "../view/choice-focus.js";
 import { wrapChipsToRows } from "../view/chip-layout.js";
 import { stepFocus } from "../view/focus.js";
-import type { GamepadIntent } from "../view/gamepad.js";
+import { directionOf, type GamepadIntent } from "../view/gamepad.js";
+import { spatialStep } from "../view/spatial-nav.js";
 import { HandScroll, type RowDrag } from "../view/hand-scroll.js";
 import type { Rect } from "../view/layout.js";
 import { openingHandLayout, openingHandThumb } from "../view/opening-hand-layout.js";
@@ -1024,10 +1025,20 @@ export class SetupDealScene extends Phaser.Scene {
     if (!choice || choice.prompt.kind !== "mulligan") return;
     switch (intent) {
       case "next":
-      case "previous": {
-        const at = this.#route.indexOf(this.#focus ?? "");
-        const next = stepFocus(this.#route, at, intent === "next" ? 1 : -1);
-        this.#focus = next >= 0 ? (this.#route[next] ?? null) : null;
+      case "previous":
+      case "up":
+      case "down":
+      case "left":
+      case "right": {
+        const direction = directionOf(intent);
+        if (direction) {
+          // The arrows and the D-pad: the nearest card or button that way (issue #206).
+          this.#focus = spatialStep(this.#route, (key) => this.#focusRects.get(key), this.#focus, direction);
+        } else {
+          const at = this.#route.indexOf(this.#focus ?? "");
+          const next = stepFocus(this.#route, at, intent === "next" ? 1 : -1);
+          this.#focus = next >= 0 ? (this.#route[next] ?? null) : null;
+        }
         // A card off the edge of the hand strip comes on screen before it is ringed (a redraw, which re-registers
         // every focus rect at the new offset); the ring is drawn either way.
         const focused = this.#focus ? this.#focusRects.get(this.#focus) : undefined;

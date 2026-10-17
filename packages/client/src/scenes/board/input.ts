@@ -19,7 +19,8 @@ export interface IntentBinding {
 /**
  * Keyboard navigation.
  *
- * Arrows and Tab walk `focusOrder`, Enter and Space act on what is focused,
+ * Tab and Shift+Tab walk `focusOrder`, the arrows move to the nearest stop in
+ * their direction (`view/spatial-nav.ts`), Enter and Space act on what is focused,
  * `I` inspects it, and Escape backs out of a mode. A canvas has no focus of
  * its own, so all of this is ours to state — including the visible ring,
  * which is the selection ring drawn static rather than pulsing (a pulse means
@@ -34,16 +35,26 @@ export function bindKeyboard(scene: Phaser.Scene, binding: IntentBinding): void 
     if (!firstDelivery(event)) return;
     if (binding.blocked()) return;
     switch (event.key) {
-      case "ArrowRight":
-      case "ArrowDown":
       case "Tab":
         event.preventDefault();
-        binding.onIntent(event.shiftKey && event.key === "Tab" ? "previous" : "next");
+        binding.onIntent(event.shiftKey ? "previous" : "next");
+        break;
+      // The arrows move the way they point, to the nearest stop on screen (issue #206); Tab keeps the route order.
+      case "ArrowRight":
+        event.preventDefault();
+        binding.onIntent("right");
         break;
       case "ArrowLeft":
+        event.preventDefault();
+        binding.onIntent("left");
+        break;
+      case "ArrowDown":
+        event.preventDefault();
+        binding.onIntent("down");
+        break;
       case "ArrowUp":
         event.preventDefault();
-        binding.onIntent("previous");
+        binding.onIntent("up");
         break;
       case "Enter":
       case " ":

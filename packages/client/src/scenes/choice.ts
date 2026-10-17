@@ -108,7 +108,8 @@ import {
 import { breakAnswerAt, breakReadout, breakStartedAt, clearBreakStart, isBreakChoice } from "../view/break-timer.js";
 import { LOOK_AT_CAPTION, lookAtAdvisoryOf, lookAtGateOf, lookAtTitleOf } from "../view/look-at-choice.js";
 import { stepFocus } from "../view/focus.js";
-import type { GamepadIntent } from "../view/gamepad.js";
+import { directionOf, type GamepadIntent } from "../view/gamepad.js";
+import { spatialStep } from "../view/spatial-nav.js";
 import {
   assign,
   beginPairing,
@@ -2416,10 +2417,26 @@ export class ChoiceOverlay extends Phaser.Scene {
     if (!choice) return;
     switch (intent) {
       case "next":
-      case "previous": {
-        const at = this.#route.findIndex((target) => sameChoiceTarget(target, this.#focus));
-        const next = stepFocus(this.#route, at, intent === "next" ? 1 : -1);
-        this.#focus = next >= 0 ? (this.#route[next] ?? null) : null;
+      case "previous":
+      case "up":
+      case "down":
+      case "left":
+      case "right": {
+        const direction = directionOf(intent);
+        if (direction) {
+          // The arrows and the D-pad: the nearest option or button that way on the sheet (issue #206).
+          const keys = this.#route.map(choiceFocusKey);
+          const current =
+            this.#focus && this.#route.some((t) => sameChoiceTarget(t, this.#focus))
+              ? choiceFocusKey(this.#focus)
+              : null;
+          const next = spatialStep(keys, (key) => this.#screenRect(key), current, direction);
+          this.#focus = next === null ? null : (this.#route[keys.indexOf(next)] ?? null);
+        } else {
+          const at = this.#route.findIndex((target) => sameChoiceTarget(target, this.#focus));
+          const next = stepFocus(this.#route, at, intent === "next" ? 1 : -1);
+          this.#focus = next >= 0 ? (this.#route[next] ?? null) : null;
+        }
         // A card scrolled out of the options area comes into view before the ring is drawn on it.
         if (this.#focus?.kind === "option") {
           const row = this.#scrolledRows.get(choiceFocusKey(this.#focus));

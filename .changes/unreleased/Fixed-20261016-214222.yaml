@@ -1,0 +1,3 @@
+kind: Fixed
+body: The keyboard and controller focus ring now frames the scenario and hero cards it selects (it sat one gutter to the left on both setup screens).
+time: 2026-10-16T21:42:22.820876-04:00
