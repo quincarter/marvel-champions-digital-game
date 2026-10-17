@@ -34,10 +34,12 @@ import { earnedSongsOf, nextShuffled } from "../view/music-player.js";
 import { SOUND_EFFECT_VOLUME, type SoundEffect } from "../view/sound-effects.js";
 import extrasUnlockedUrl from "./sfx/extras-unlocked.mp3?url";
 import handRefillUrl from "./sfx/hand-refill.mp3?url";
+import basicAttackUrl from "./sfx/basic-attack.mp3?url";
 
 const SOUND_EFFECT_URLS: Readonly<Record<SoundEffect, string>> = {
   "extras-unlocked": extrasUnlockedUrl,
   "hand-refill": handRefillUrl,
+  "basic-attack": basicAttackUrl,
 };
 
 /** Default BGM volume when unmuted (0.0 to 1.0). Sits cleanly under UI sound. */

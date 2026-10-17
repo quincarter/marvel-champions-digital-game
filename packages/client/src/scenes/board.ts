@@ -66,7 +66,7 @@ import { reviewHandleRect, showReviewHandle } from "../view/villain-review.js";
 import type { TableHold } from "../view/villain-replay.js";
 import type { SessionState } from "../store/session-store.js";
 import { CHROME_SCENES, SCENES } from "./keys.js";
-import { refilledHand } from "../view/sound-effects.js";
+import { madeBasicAttack, refilledHand } from "../view/sound-effects.js";
 import { HoverPreview, isMousePointer } from "../ui/card-hover-preview.js";
 import { hoverArea } from "../view/card-hover.js";
 import { sheetIsCovered } from "../view/choice-sheet-sync.js";
@@ -172,6 +172,8 @@ export class BoardScene extends Phaser.Scene {
   /** What the last draw left behind: hit rects, focus rects, and the widgets to destroy before the next one. */
   #frame: BoardFrame = emptyFrame();
   #version = -1;
+  /** How much of the command trail the punch has heard; -1 until the first state, which is never played. */
+  #soundTrail = -1;
   /** The game from the previous fresh state; handed to the villain phase scene as its recap's "before". */
   #previousGame: GameState | null = null;
   /**
@@ -360,6 +362,7 @@ export class BoardScene extends Phaser.Scene {
     this.#scrollDirty = false;
     this.#revealedTargets = null;
     this.#version = -1;
+    this.#soundTrail = -1;
     this.#previousGame = null;
     this.#logAt.clear();
     this.#tabBadges.clear();
@@ -635,6 +638,14 @@ export class BoardScene extends Phaser.Scene {
 
   #onState(state: SessionState): void {
     if (!state.game || state.perspectiveId === null) return;
+    // A basic attack lands with a punch: the Attack button's, or one a card instructed. Read off the command trail,
+    // which the store appends a beat after the command's state lands, so a back out or a resumed game plays nothing.
+    const trail = state.commandTrail;
+    if (this.#soundTrail >= 0 && trail.length > this.#soundTrail) {
+      const attacked = trail.slice(this.#soundTrail).some((entry) => madeBasicAttack(entry.command, entry.events));
+      if (attacked) appSession().music?.playEffect("basic-attack");
+    }
+    this.#soundTrail = trail.length;
     this.#syncGuide(state);
 
     // Fold this command's events onto the log before the state replaces it.
