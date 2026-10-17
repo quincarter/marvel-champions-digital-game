@@ -45,7 +45,9 @@ const SECONDARY_SCALE = 0.6;
 const NOTES_SCALE = 0.2;
 
 export function normalizeText(text: string): string {
+  // Periods go entirely, so "S.H.I.E.L.D." reads "shield" (and a query of either spelling finds it).
   return text
+    .replace(/\./g, "")
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase();

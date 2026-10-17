@@ -72,7 +72,6 @@ import {
   editableDeckOf,
   hasUnsavedChanges,
   preconsFor,
-  searchTermsOf,
   startingDeckOf,
   touch,
   poolRowNote,
@@ -140,6 +139,9 @@ import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { drawAspectInfoSegment, drawAspectTipPanel } from "../ui/aspect-tip.js";
 import { aspectTipContentOf, type AspectTipContent } from "../view/aspect-tip-model.js";
 import { aspectStampOf } from "../view/aspect-stamp.js";
+import { DeckSearchClient } from "../view/deck-search-client.js";
+import type { SearchDocument } from "../view/deck-search.js";
+import { cardSearchDocumentOf } from "../view/card-search-document.js";
 
 /** How the pool is shown: card pictures in a grid, or the text rows with each card's rules. Kept for the app session. */
 type PoolView = "grid" | "list";
@@ -184,6 +186,26 @@ const NARROW_POOL_MIN_ROWS = 3;
 const NARROW_SCROLLBAR_GUTTER = 10;
 const POOL: readonly AnyCard[] = POOL_CARDS;
 const IDENTITIES: readonly HeroIdentityCard[] = identityOptions(POOL);
+
+/** `filter` with its text dropped: the search worker answers the text part. */
+function withoutText(filter: PoolFilter): PoolFilter {
+  const { text: _text, ...rest } = filter;
+  return rest;
+}
+
+/** Built on first search and kept: the documents the search worker ranks (every card; every hero). */
+let poolSearchDocuments: readonly SearchDocument[] | null = null;
+const POOL_SEARCH_DOCUMENTS = (): readonly SearchDocument[] =>
+  (poolSearchDocuments ??= POOL.map((card) =>
+    cardSearchDocumentOf(card, PACK_INFOS.find((pack) => pack.code === (card.setCode as string))?.name),
+  ));
+let heroSearchDocuments: readonly SearchDocument[] | null = null;
+const HERO_SEARCH_DOCUMENTS = (): readonly SearchDocument[] =>
+  (heroSearchDocuments ??= IDENTITIES.map((identity) => ({
+    id: identity.id as string,
+    primary: [qualifiedHeroName(identity), identity.name, identity.alterEgo.faceName],
+    secondary: [...identity.hero.traits, ...identity.alterEgo.traits],
+  })));
 
 /** Every pack the pool knows, in release order, with its cycle — what the Pack/Cycle filter and the "pack" sort read. */
 const PACK_INFOS: readonly PackInfo[] = POOL_PACKS.map((pack) => ({
@@ -249,6 +271,12 @@ export class DeckBuilderScene extends Phaser.Scene {
   #startFor: HeroIdentityCard | null = null;
   #identitySearch = "";
   #identityInput: McTextInput | null = null;
+  /** The pool search and the hero search, ranked off the main thread (`view/deck-search-client.ts`); new per visit. */
+  #poolSearch: DeckSearchClient | null = null;
+  #heroSearch: DeckSearchClient | null = null;
+  /** The newest answer to the pool search (card id → score); null with no search text. */
+  #poolRanking: ReadonlyMap<string, number> | null = null;
+  #heroRanking: ReadonlyMap<string, number> | null = null;
   /** Unsubscribes the Start from step's wait for its hero picture. */
   #bannerBaked: (() => void) | null = null;
   #busy = false;
@@ -312,6 +340,10 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#poolView = lastPoolView;
     this.#startFor = null;
     this.#identitySearch = "";
+    this.#poolRanking = null;
+    this.#heroRanking = null;
+    this.#poolSearch = new DeckSearchClient();
+    this.#heroSearch = new DeckSearchClient();
     this.#identity = this.#deck ? (IDENTITIES.find((i) => i.id === this.#deck!.identityCardId) ?? null) : null;
     this.#filter = {};
     this.#filterText = "";
@@ -354,6 +386,10 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#identityInput = null;
       this.#bannerBaked?.();
       this.#bannerBaked = null;
+      this.#poolSearch?.destroy();
+      this.#poolSearch = null;
+      this.#heroSearch?.destroy();
+      this.#heroSearch = null;
       this.#list?.destroy();
       this.#list = null;
       this.#deckRegion?.destroy();
@@ -553,7 +589,22 @@ export class DeckBuilderScene extends Phaser.Scene {
     // A card the deck already holds stays listed even if its rules now refuse it (so its "-" can remove it); campaign
     // mode keeps its own marks for that (`#campaignModel`), and its granted lines are never browsable.
     const held = this.#campaign ? new Set<string>() : new Set(deck.cards.map((line) => line.cardId as string));
-    const pool = browsablePool(POOL, this.#identity!, deck.aspects, this.#filter, this.#sort, PACK_INFOS, held);
+    const listed = browsablePool(
+      POOL,
+      this.#identity!,
+      deck.aspects,
+      withoutText(this.#filter),
+      this.#sort,
+      PACK_INFOS,
+      held,
+    );
+    // The text search is ranked by the search worker: only its matches, best first.
+    const ranking = this.#filterText.trim() ? this.#poolRanking : null;
+    const pool = ranking
+      ? listed
+          .filter((card) => ranking.has(card.id as string))
+          .sort((a, b) => ranking.get(b.id as string)! - ranking.get(a.id as string)!)
+      : listed;
     const removed = this.#removedFromCampaignIds();
     const prohibited = this.#prohibitedCampaignIds();
     if (!removed && !prohibited) return pool;
@@ -1368,9 +1419,8 @@ export class DeckBuilderScene extends Phaser.Scene {
     const filterRect: Rect = { x: left, y: top, width: fieldWidth, height: hit.target };
     const applyText = (value: string): void => {
       this.#filterText = value;
-      this.#filter = { ...this.#filter, text: value };
       this.#listScroll.reset();
-      this.#rebuild();
+      this.#requestPoolSearch(value);
     };
     if (this.#filterInput) this.#filterInput.layout(filterRect);
     else {
@@ -1691,19 +1741,18 @@ export class DeckBuilderScene extends Phaser.Scene {
         onChange: (value) => {
           this.#identitySearch = value;
           this.#listScroll.reset();
-          this.#rebuild();
+          this.#requestHeroSearch(value);
         },
       });
     }
     this.#stops.set("identity-search", { rect: searchRect, activate: () => this.#identityInput?.focus() });
     y += hit.target + 12;
-    const terms = searchTermsOf(this.#identitySearch);
-    const shown = IDENTITIES.filter((identity) => {
-      const haystack = [qualifiedHeroName(identity), identity.name, ...identity.alterEgo.traits]
-        .join(" ")
-        .toLowerCase();
-      return terms.every((term) => haystack.includes(term));
-    });
+    const heroRanking = this.#identitySearch.trim() ? this.#heroRanking : null;
+    const shown = heroRanking
+      ? IDENTITIES.filter((identity) => heroRanking.has(identity.id as string)).sort(
+          (a, b) => heroRanking.get(b.id as string)! - heroRanking.get(a.id as string)!,
+        )
+      : IDENTITIES;
     if (shown.length === 0) {
       this.add
         .text(
@@ -1827,6 +1876,49 @@ export class DeckBuilderScene extends Phaser.Scene {
       });
     });
     return shown;
+  }
+
+  /**
+   * Asks the search worker to rank the pool for `text`; the list redraws when the newest answer arrives, and keeps the
+   * previous results until then. Every card is a document (sent once per visit): the pool's other filters still apply
+   * on this side, so a ranking never needs redoing when an aspect or chip changes.
+   */
+  #requestPoolSearch(text: string): void {
+    const search = this.#poolSearch;
+    if (!search) return;
+    if (text.trim() === "") {
+      search.cancel();
+      this.#poolRanking = null;
+      this.#rebuild();
+      return;
+    }
+    search.setDocuments(POOL_SEARCH_DOCUMENTS(), POOL_VERSION);
+    search.search(text, (ranked) => {
+      if (!this.sys.isActive()) return;
+      this.#poolRanking = new Map(ranked.map((r) => [r.id, r.score]));
+      this.#listScroll.reset();
+      this.#rebuild();
+    });
+    this.#rebuild();
+  }
+
+  /** The hero picker's search, ranked the same way: names first, then traits. */
+  #requestHeroSearch(text: string): void {
+    const search = this.#heroSearch;
+    if (!search) return;
+    if (text.trim() === "") {
+      search.cancel();
+      this.#heroRanking = null;
+      this.#rebuild();
+      return;
+    }
+    search.setDocuments(HERO_SEARCH_DOCUMENTS(), POOL_VERSION);
+    search.search(text, (ranked) => {
+      if (!this.sys.isActive()) return;
+      this.#heroRanking = new Map(ranked.map((r) => [r.id, r.score]));
+      this.#listScroll.reset();
+      this.#rebuild();
+    });
   }
 
   /** Opens the builder on `identity`'s new deck: empty (its signature cards) or a copy of `starter`. */
