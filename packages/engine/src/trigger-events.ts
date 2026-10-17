@@ -27,8 +27,8 @@ import type { DeckDiscard, MainSchemeAdvancedBy, StatusCounts, ZoneId } from "./
  * attachedInstanceIds`). A response reads the game as its triggering condition happened: the clauses of the query this
  * carries are matched against it, every other clause against the card as it now is (`resolve/triggers.ts`).
  *
- * Carried: the names and the status cards. An absent field falls back to the live card, so events stamped before a
- * field existed stay valid.
+ * Carried: the names, the status cards and what the card was (`was`). An absent field falls back to the live card, so
+ * events stamped before a field existed stay valid.
  */
 export interface TargetSnapshot {
   /** The name it was showing (`currentName`; `TargetQuery.name`). Absent for a card with none. */
@@ -42,6 +42,14 @@ export interface TargetSnapshot {
    * tough card this damage is about to use is counted, and one a piercing attack discarded first is not.
    */
   readonly statuses?: StatusCounts;
+  /**
+   * What it was as the damage was dealt (`TargetQuery.categories`, `trait`, `withoutTrait`, `anyTrait`, `facedown`),
+   * the same read as `characterDefeated.asDefeated`: "After your hero attacks and defeats a minion" (Battle Fury,
+   * `thor` 06018) still finds a minion when the attack defeated a Drone, a player card facedown as a minion that is its
+   * printed self again in its owner's discard pile by the response window (issue #228). The same holds for every card
+   * that is a minion only while in play (a Controlled minion facedown, an ally a Beguiled-style attachment turns).
+   */
+  readonly was?: DefeatedSnapshot;
 }
 
 /**
