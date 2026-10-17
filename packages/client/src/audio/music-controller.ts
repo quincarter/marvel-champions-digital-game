@@ -120,6 +120,8 @@ export class MusicScene extends Phaser.Scene implements MusicController {
   /** The current screen's own music request, made again when shuffle is turned off. */
   #ambient: (() => void) | null = null;
   readonly #listeners = new Set<(track: Track) => void>();
+  /** Sound effects handed to the loader already, so a second play while one loads does not queue it twice. */
+  readonly #effectsQueued = new Set<SoundEffect>();
 
   constructor() {
     super(SCENES.music);
@@ -132,6 +134,10 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     appSession().music = this;
     this.#shuffleOn = appSession().settings.musicShuffle;
     this.syncSettings(appSession().settings);
+    // The sound effects are small (a few hundred KB in all): load them now, so the first punch or deal of a session is
+    // not late while its file loads and decodes (the owner, 2026-10-17: "a bit delayed").
+    for (const effect of Object.keys(SOUND_EFFECT_URLS) as SoundEffect[]) this.#queueEffect(effect);
+    this.load.start();
   }
 
   playTitle(): void {
@@ -277,9 +283,15 @@ export class MusicScene extends Phaser.Scene implements MusicController {
       play();
       return;
     }
-    this.load.audio(key, SOUND_EFFECT_URLS[effect]);
+    // Still loading from `create`'s preload: play it the moment it arrives.
     this.load.once(`filecomplete-audio-${key}`, play);
+    if (!this.#effectsQueued.has(effect)) this.#queueEffect(effect);
     if (!this.load.isLoading()) this.load.start();
+  }
+
+  #queueEffect(effect: SoundEffect): void {
+    this.#effectsQueued.add(effect);
+    this.load.audio(`sfx:${effect}`, SOUND_EFFECT_URLS[effect]);
   }
 
   onTrackStart(listener: (track: Track) => void): () => void {
