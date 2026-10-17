@@ -281,6 +281,14 @@ export class PauseOverlay extends Phaser.Scene {
         detail: this.#logExpanded ? "Showing below, newest first. Tap again for Table." : "What has happened so far.",
         open: () => this.#toggleFullGameLog(),
       },
+      // The Table rows below are only a few of them: the rest (music, card size, the villain phase, accessibility) are
+      // on the standalone Settings screen, which wide mode's menu links to and the phone had no way to reach.
+      {
+        id: "settings",
+        title: "All settings",
+        detail: "Sound, card size, villain phase and more.",
+        open: () => this.scene.launch(SCENES.settings),
+      },
     );
     return rows;
   }

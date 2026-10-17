@@ -196,6 +196,16 @@ test.describe("Pause menu", () => {
     await pressStop(page, true, PAUSE, "quick:jumpLog", async () => !(await hasText(page, "Round 1 begins", PAUSE)));
   });
 
+  test("the phone's All settings row opens the full Settings screen", async ({ page }, info) => {
+    test.skip(!isPhone(info), "the Quick reference rows are the phone sheet's own; wide mode's menu has Settings");
+    test.setTimeout(120_000);
+    await newGame(page);
+    await openPause(page, true);
+    await pressStop(page, true, PAUSE, "quick:settings", async () =>
+      (await activeScenes(page)).includes("SettingsOverlay"),
+    );
+  });
+
   test("Concede, confirmed, ends the game for the table", async ({ page }, info) => {
     test.setTimeout(120_000);
     const phone = isPhone(info);
