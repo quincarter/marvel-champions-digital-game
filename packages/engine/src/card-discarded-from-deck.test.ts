@@ -148,7 +148,12 @@ const ELSEWHERE = event("elsewhere", [
   { kind: "moveCards", cards: { kind: "ref", ref: { kind: "named", name: GUARD.name } }, to: "discard" },
   { kind: "discardEncounterCards", count: constant(2) },
 ]);
-const EVENTS = [MILL_1, MILL_3, MILL_5, UNTIL, ELSEWHERE];
+// A mission attempt's wording: a card a response takes away does not count (April 30, 2026 - Ruling 4, answer 1).
+const ATTEMPT = event("attempt", [
+  { kind: "moveCards", cards: topOfDeck(3), to: "discard", bind: "milled", takenAwayNotCounted: true },
+  ...readSet("milled"),
+]);
+const EVENTS = [MILL_1, MILL_3, MILL_5, UNTIL, ELSEWHERE, ATTEMPT];
 // "Action: Discard the top 2 cards of your deck → …", the discarded cards bound for its effects.
 const COSTLY_ACTION = stubAbility(
   "costly.action",
@@ -326,6 +331,8 @@ const heardDiscards = (events: readonly GameEvent[]): readonly TriggerEvent[] =>
 const logged = (events: readonly GameEvent[]) => events.flatMap((e) => (e.type === "cardDiscardedFromDeck" ? [e] : []));
 const notCounted = (events: readonly GameEvent[]): readonly InstanceId[] =>
   events.flatMap((e) => (e.type === "deckDiscardNotCounted" ? [e.instanceId] : []));
+const stillCounted = (events: readonly GameEvent[]): readonly InstanceId[] =>
+  events.flatMap((e) => (e.type === "deckDiscardStillCounted" ? [e.instanceId] : []));
 /** The response windows opened for deck discards, each as its candidates' ability ids. */
 /** The response windows that answer a discard from a deck: as their own event or as one sharing the window. */
 const windows = (events: readonly GameEvent[]): readonly (readonly string[])[] =>
@@ -572,16 +579,18 @@ describe("§3.55 'attach that card facedown here (to a maximum of 3)'", () => {
   });
 });
 
-describe("§4.1 Q32 = B: a card a response took away is not counted by the ability that discarded it", () => {
-  it("an effect's bound set drops the cards taken to hand and shuffled back, before its next effect reads it", () => {
+describe("§4.1 Q32 = A: a card a response took away still counts for the ability that discarded it, but is out of its set", () => {
+  it("an effect's bound set drops the cards taken to hand and shuffled back, but its totals still count them", () => {
     const table = start(["hand", "filler", "back"]);
     const [hand, filler, back] = table.top;
     const result = play(table, MILL_3, triggering(HAND_RESPONSE, BACK_RESPONSE));
     expect(seat(result.state).setAside).toEqual([filler]);
-    expect(counters(result.state, table.inPlay.meter, "count")).toBe(1);
-    // `filler` prints no icon; the two resource cards, 1 wild icon each, are no longer counted.
-    expect(counters(result.state, table.inPlay.meter, "wild")).toBe(0);
-    expect(notCounted(result.events)).toEqual([hand, back]);
+    // The totals keep what the discard gave: `filler` prints no icon, the two resource cards 1 wild each.
+    expect(counters(result.state, table.inPlay.meter, "count")).toBe(3);
+    expect(counters(result.state, table.inPlay.meter, "wild")).toBe(2);
+    // Out of the set: the effect that moves "them" to set aside did not reach the two taken away again.
+    expect(stillCounted(result.events)).toEqual([hand, back]);
+    expect(notCounted(result.events)).toEqual([]);
     expect(seat(result.state).hand).toContain(hand);
     expect(seat(result.state).deck).toContain(back);
     expectReplays(result);
@@ -596,15 +605,16 @@ describe("§4.1 Q32 = B: a card a response took away is not counted by the abili
     expect(notCounted(result.events)).toEqual([]);
   });
 
-  it("a card another card's response took away is not counted either", () => {
+  it("a card another card's response took away still counts, and is not moved again", () => {
     const table = start(["filler", "filler"], { inPlay: ["lady"] });
     const result = play(table, MILL_1, triggering(LADY_RESPONSE));
     expect(seat(result.state).setAside).toEqual([]);
-    expect(counters(result.state, table.inPlay.meter, "count")).toBe(0);
-    expect(notCounted(result.events)).toEqual([table.top[0]]);
+    expect(counters(result.state, table.inPlay.meter, "count")).toBe(1);
+    expect(stillCounted(result.events)).toEqual([table.top[0]]);
+    expect(notCounted(result.events)).toEqual([]);
   });
 
-  it("a cost's slot drops the card before the ability's effects resolve", () => {
+  it("a cost's slot drops the card before the ability's effects resolve, though it was counted", () => {
     const table = start(["hand", "filler", "filler"], { inPlay: ["costly"] });
     const result = run(table, triggering(HAND_RESPONSE), {
       type: "useAbility",
@@ -616,16 +626,32 @@ describe("§4.1 Q32 = B: a card a response took away is not counted by the abili
     expect(seat(result.state).hand).toContain(table.top[0]);
     expect(seat(result.state).setAside).toEqual([table.top[1]]);
     expect(counters(result.state, table.inPlay.meter, "count")).toBe(1);
-    expect(notCounted(result.events)).toEqual([table.top[0]]);
+    expect(stillCounted(result.events)).toEqual([table.top[0]]);
+    expect(notCounted(result.events)).toEqual([]);
     expectReplays(result);
   });
 
-  it("a 'discard until' match taken away is no longer the card found", () => {
+  it("a 'discard until' match taken away still counts as the card found", () => {
     const found = start(["match", "filler"], { inPlay: ["lady"] });
     const result = play(found, UNTIL, triggering(LADY_RESPONSE));
     expect(mustInstance(result.state, found.inPlay.lady!).attachments).toEqual([found.top[0]]);
-    expect(counters(result.state, found.inPlay.meter, "count")).toBe(0);
-    expect(notCounted(result.events)).toEqual([found.top[0]]);
+    expect(counters(result.state, found.inPlay.meter, "count")).toBe(1);
+    expect(stillCounted(result.events)).toEqual([found.top[0]]);
+    expect(notCounted(result.events)).toEqual([]);
+  });
+});
+
+describe("§4.1 Q32 exception: a moveCards with takenAwayNotCounted (the mission attempt, April 30, 2026 - Ruling 4, answer 1)", () => {
+  it("still drops a card a response took away from the set and from its totals", () => {
+    const table = start(["hand", "filler", "back"]);
+    const [hand, filler, back] = table.top;
+    const result = play(table, ATTEMPT, triggering(HAND_RESPONSE, BACK_RESPONSE));
+    expect(seat(result.state).setAside).toEqual([filler]);
+    expect(counters(result.state, table.inPlay.meter, "count")).toBe(1);
+    expect(counters(result.state, table.inPlay.meter, "wild")).toBe(0);
+    expect(notCounted(result.events)).toEqual([hand, back]);
+    expect(stillCounted(result.events)).toEqual([]);
+    expectReplays(result);
   });
 });
 
@@ -653,7 +679,8 @@ describe("§4.1 Q33 = A: the deck's last card resets the deck, and the response 
     expect(seat(result.state).deck).toHaveLength(4);
     expect(seat(result.state).discard).toEqual([result.played]);
     expect(shuffles(result.events)).toBe(1);
-    expect(notCounted(result.events)).toEqual([table.top[0]]);
+    expect(stillCounted(result.events)).toEqual([table.top[0]]);
+    expect(notCounted(result.events)).toEqual([]);
     expectReplays(result);
   });
 

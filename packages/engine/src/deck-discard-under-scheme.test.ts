@@ -6,9 +6,9 @@
  * scheme without the mark (the Pit), and cards that discard from a deck and read what they discarded.
  *
  * Owner decision, 2026-10-11, box-heroes question 14 = A (provisional): the discarding ability still counts the cards
- * it discarded and reads their printed icons, though the scheme has taken them. Wave 7's question 32 (ruling April 30,
- * 2026 - Ruling 4, answer 1: a card a response took away is not counted) stays the rule for a response without the
- * mark. RRG 1.8 "Triggering Condition" (p. 45: one occurrence, one window), "Tuck" (p. 45: tucked cards are not in
+ * it discarded and reads their printed icons, though the scheme has taken them. Wave 7's question 32 = A (owner, 2026-10-17,
+ * issue #222; a card a response took away still counts for the ability that discarded it, but leaves its set) is the
+ * rule for a response without the mark. RRG 1.8 "Triggering Condition" (p. 45: one occurrence, one window), "Tuck" (p. 45: tucked cards are not in
  * play, and are discarded to their owners' piles when the host leaves play), "Player Deck" (p. 33).
  */
 
@@ -63,7 +63,7 @@ const underThis = (definition: Partial<AbilityDefinition> = {}) =>
 /** "… place those cards facedown under this scheme", the discarding ability still counting them. */
 const VAULT_RESPONSE = stubAbility("vault.response", underThis({ discardsStayCounted: true }));
 const VAULT = stubSideScheme({ id: "vault", startingThreat: 5, boostIcons: 0, abilities: [VAULT_RESPONSE.ref] });
-/** The same sentence without the mark: wave 7's question 32 as it stands. */
+/** The same sentence without the mark: wave 7's question 32 = A. */
 const PIT_RESPONSE = stubAbility("pit.response", underThis());
 const PIT = stubSideScheme({ id: "pit", startingThreat: 5, boostIcons: 0, abilities: [PIT_RESPONSE.ref] });
 
@@ -280,13 +280,14 @@ describe("box-heroes B3.3: cards discarded from the top of any player's deck go 
     expect(notCounted(run.events)).toEqual([]);
   });
 
-  it("the same sentence without the mark is wave 7's question 32: under the scheme, and none of them counted", () => {
+  it("the same sentence without the mark is wave 7's question 32 = A: under the scheme, and all of them still counted", () => {
     const table = start(["energy", "mental", "double"], { scheme: PIT });
     const run = play(table.state, MILL);
     expect(under(run.state, table.scheme)).toEqual(table.top);
-    expect(counters(run.state, table.meter)).toEqual({});
-    expect(notCounted(run.events)).toEqual(table.top);
-    expect(stillCounted(run.events)).toEqual([]);
+    // Out of the set, still counted: the vars, totalPrintedResources and resourceTypes read the away cards too.
+    expect(counters(run.state, table.meter)).toEqual({ count: 3, energy: 3, types: 2 });
+    expect(notCounted(run.events)).toEqual([]);
+    expect(stillCounted(run.events)).toEqual(table.top);
   });
 
   it("with no scheme in play the cards stay in the discard pile and are counted as always", () => {

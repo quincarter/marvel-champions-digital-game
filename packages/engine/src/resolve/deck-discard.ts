@@ -11,7 +11,7 @@ import { addPools, EMPTY_POOL, type ResourcePool } from "../resources.js";
 import { countedResourcesOf, DECK_DISCARDS_PREFIX } from "../select.js";
 import type { Bindings } from "../stack.js";
 import type { DeckDiscard } from "../state.js";
-import { TAKEN_AWAY_SUFFIX, type TriggerEvent } from "../trigger-events.js";
+import { COUNTED_AWAY_SUFFIX, TAKEN_AWAY_SUFFIX, type TriggerEvent } from "../trigger-events.js";
 import { addFrameSlots, type Frame, pushEventsSharingResponses } from "./frames.js";
 import { heard } from "./triggers.js";
 
@@ -163,10 +163,17 @@ export function noteDeckDiscardsTaken(ctx: Ctx, frame: Frame<"effects">): void {
 /**
  * Closes each deck-discard response window whose opening frame has left the stack (`GameState.deckDiscardWindows`):
  * every response to those discards has resolved. A card no longer where its discard left it was taken away by a
- * response, its own or another card's, and is dropped from the discarding ability's bound set before that ability
- * resolves any further. Owner decision, 2026-10-05 (docs/phase7-wave7.md §4.1 Q32), applying the ruling of April 30,
- * 2026 - Ruling 4, answer 1 generally: "You can trigger Digging Deep's Response to add it to your hand; if you do, it
- * does not count for the mission attempt".
+ * response, its own or another card's.
+ *
+ * **Engine interpretation (owner decision 2026-10-17, issue #222; docs/phase7-wave7.md §4.1 Q32 = A).** Such a card
+ * still counts for the ability that discarded it: it was discarded, which is what let its response trigger (RRG 1.8
+ * "Discard", p. 16: "Responses to the discarding of any of those cards are resolved after all discards are made"), so
+ * "discarded this way" is fixed at the discard (Jackpot! shuffled back still gives Luck Be a Lady its three icons). No
+ * ruling answers this with Domino's wording; this reads the flow of play, and it is how her deck is built to be
+ * played (Jackpot!, Digging Deep, White Fox, The Painted Lady). It does not go against the one ruling there is, April
+ * 30, 2026 - Ruling 4, answer 1 ("You can trigger Digging Deep's Response to add it to your hand; if you do, it does
+ * not count for the mission attempt"): a mission attempt's set says `takenAwayNotCounted`, and a card taken from it is
+ * dropped before that ability resolves any further. Q32 was B (drop it everywhere) from 2026-10-05 to 2026-10-17.
  *
  * A card the deck's reset shuffled into the new deck (`at: "deck"`) and no response moved stays in the set, as it did
  * before these events existed (docs/phase7-wave3.md §4 Q18). The set's `moveCards` totals are read again from the cards
@@ -183,8 +190,27 @@ export function settleDeckDiscards(ctx: Ctx): void {
   for (const discard of closed.flatMap((window) => window.discards)) {
     if (!discard.boundOn || deckDiscardStillThere(ctx.state, discard)) continue;
     const { frameId } = discard.boundOn;
-    // Taken by a response that leaves it counted (`AbilityDefinition.discardsStayCounted`, box-heroes B3.3,
-    // question 14 = A): the set and its totals are untouched.
+    // Taken by a response: the set and its totals are untouched (Q32 = A, a player's deck), unless the set drops what
+    // is taken away (a mission attempt) or the deck is an encounter deck (docs/phase7-wave9.md §3.43 (b), unchanged),
+    // and the response does not leave it counted (`AbilityDefinition.discardsStayCounted`,
+    // box-heroes B3.3, question 14 = A).
+    const keptByRule = discard.playerId !== null && !discard.boundOn.takenAwayNotCounted;
+    // Q32 = A: out of the set (the ability's later effects act on the cards still where the discard left them), and
+    // still counted (`COUNTED_AWAY_SUFFIX`; the totals are left as they were).
+    if (discard.takenBy && !discard.takenBy.stillCounted && keptByRule) {
+      for (const slot of [discard.boundOn.slot, ...(discard.boundOn.also ?? [])]) {
+        if (!dropFromBoundSet(ctx, frameId, slot, discard.instanceId, { keepCounted: true })) continue;
+        addFrameSlots(ctx, frameId, { [`${slot}${COUNTED_AWAY_SUFFIX}`]: [discard.instanceId] });
+        emit(ctx, {
+          type: "deckDiscardStillCounted",
+          playerId: discard.playerId,
+          instanceId: discard.instanceId,
+          slot,
+          takenByInstanceId: discard.takenBy.instanceId,
+        });
+      }
+      continue;
+    }
     if (discard.takenBy?.stillCounted) {
       const takenByInstanceId = discard.takenBy.instanceId;
       for (const slot of [discard.boundOn.slot, ...(discard.boundOn.also ?? [])]) {
@@ -223,12 +249,28 @@ export function settleDeckDiscards(ctx: Ctx): void {
  * discard left it (`settleDeckDiscards`) and for one whose discard was replaced before it happened
  * (`resolve/would-discard.ts`).
  */
-export function dropFromBoundSet(ctx: Ctx, frameId: FrameId, slot: string, instanceId: InstanceId): boolean {
+export function dropFromBoundSet(
+  ctx: Ctx,
+  frameId: FrameId,
+  slot: string,
+  instanceId: InstanceId,
+  options: { readonly keepCounted?: boolean } = {},
+): boolean {
   const frame = findFrame(ctx.state, frameId);
   if (!frame || (frame.kind !== "effects" && frame.kind !== "ability" && frame.kind !== "playCard")) return false;
   const bound = frame.bindings[slot];
   if (!bound?.includes(instanceId)) return false;
   const left = bound.filter((id) => id !== instanceId);
+  // Still counted (Q32 = A): only the set changes; the totals and the frame's record of its deck discards (which an
+  // icon counted twice reads, `countedResourcesOf`) stay as they were.
+  if (options.keepCounted) {
+    updateFrame(ctx, frameId, (f) =>
+      f.kind === "effects" || f.kind === "ability" || f.kind === "playCard"
+        ? { ...f, bindings: { ...f.bindings, [slot]: left } }
+        : f,
+    );
+    return true;
+  }
   // The card is no longer one the frame discarded from a deck either (`deckDiscardsSlot`).
   const bindings: Record<string, readonly InstanceId[]> = { ...frame.bindings, [slot]: left };
   for (const [key, ids] of Object.entries(bindings)) {
