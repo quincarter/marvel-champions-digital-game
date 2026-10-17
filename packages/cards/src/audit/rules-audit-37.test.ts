@@ -8,6 +8,10 @@
  * attachment that uses the word 'you' or 'your' can trigger abilities or pay costs on that attachment."
  * The engine (`actions.ts` useAbility, "only the player it is attached to can use that card") refuses every other
  * player for every encounter attachment on a player's card (RRG 1.8 p. 8 "Attachment", last bullet, read alone).
+ * RRG 1.8 conflicts with itself here: p. 8 has no "you"/"your" limit, p. 4 does. FFG ruling December 17, 2025, Ruling 1
+ * (https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-7/) says any player can trigger an Action on an encounter
+ * card "with the exception of certain attachments and obligations", which fits p. 4. Contributor's rules call
+ * 2026-10-16 (bluefireF5ran): follow p. 4 and the rulings (https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-5/).
  * Findings for the same root cause: chunk-02 (flag) and chunk-22 (22.3 / 22.4, errata cards).
  */
 import {

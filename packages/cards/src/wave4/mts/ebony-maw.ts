@@ -190,8 +190,12 @@ export const EBONY_MAW = defineAbilities({
   // [energy][physical] resources → discard this card.
   "21083.restrained-constant": forcedResponse(on.entersPlay("self"), exhaust(host)),
   "21083.restrained-constant-2": constant(rule({ kind: "cannotReady", target: { hostOfSelf: true } })),
-  // Its text has no "you"/"your", so any player may use the action wherever it is attached (FFG ruling July 13, 2023 -
-  // Ruling 48; RRG 1.8 "Ability", p. 4, over the "Attachment" bullet of p. 8).
+  // Its text has no "you"/"your", so any player may use the action wherever it is attached (FFG ruling July 13, 2023,
+  // post-RRG 1.5 Ruling 48; FFG ruling December 17, 2025, Ruling 1: any player can trigger an Action on an encounter
+  // card "with the exception of certain attachments and obligations"). RRG 1.8 conflicts with itself here: "Ability"
+  // (p. 4) limits the attachment exception to attachments that use "you" or "your", while the last bullet of
+  // "Attachment" (p. 8) lets only the controller of the card an attachment is attached to trigger it, with no such
+  // limit. Contributor's rules call 2026-10-16 (bluefireF5ran): follow p. 4 and the two rulings.
   "21083.restrained-action": heroAction(
     { cost: spend({ energy: 1, physical: 1 }), triggerableBy: eachPlayer },
     discard(self),
