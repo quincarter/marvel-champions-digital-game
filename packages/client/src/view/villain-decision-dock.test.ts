@@ -44,6 +44,20 @@ describe("villainDecisionDockLayout: the docked phase's header over the choice s
     expect(sheet.y + sheet.height).toBe(panel.y + panel.height);
   });
 
+  test("a phone's controls sit in the thumb strip, clear of the top where the Now playing toast slides in", () => {
+    const panel: Rect = { x: 0, y: 100, width: 390, height: 470 };
+    const footer: Rect = { x: 0, y: 760, width: 390, height: 72 };
+    const layout = villainDecisionDockLayout(panel, "tab", footer);
+    expect(layout.sheet).toEqual(panel);
+    for (const rect of [layout.tuck, layout.expand]) {
+      expect(inside(rect, footer)).toBe(true);
+      expect(rect.height).toBeGreaterThanOrEqual(hit.target);
+      expect(overlaps(rect, panel)).toBe(false);
+    }
+    expect(overlaps(layout.tuck, layout.expand)).toBe(false);
+    expect(layout.tuck.width, "PEEK AT TABLE is the wider of the two").toBeGreaterThan(layout.expand.width);
+  });
+
   test("a phone's tab leaves the title too narrow to draw: the chrome already names the phase", () => {
     const { title } = villainDecisionDockLayout({ x: 0, y: 44, width: 390, height: 530 }, "tab");
     expect(title.width).toBeLessThan(160);

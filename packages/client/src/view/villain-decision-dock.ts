@@ -24,7 +24,25 @@ export interface VillainDecisionDockLayout {
 const PAD = 12;
 const GAP = 8;
 
-export function villainDecisionDockLayout(panel: Rect, kind: VillainDecisionDockKind): VillainDecisionDockLayout {
+/**
+ * `footer` is the phone's thumb strip (the action bar's place, `VillainDockRects.footer`): on the tab the controls go
+ * there, as the phase's own phone buttons do, and the sheet takes the whole panel. A header under the chrome sat where
+ * the "Now playing" toast slides in, which covered PEEK AT TABLE whenever a track started.
+ */
+export function villainDecisionDockLayout(
+  panel: Rect,
+  kind: VillainDecisionDockKind,
+  footer: Rect | null = null,
+): VillainDecisionDockLayout {
+  if (kind === "tab" && footer) {
+    const y = footer.y + 6;
+    const height = Math.max(hit.target, footer.height - 12);
+    const inner = footer.width - PAD * 2 - GAP;
+    const tuckWidth = Math.round(inner * 0.6);
+    const tuck: Rect = { x: footer.x + PAD, y, width: tuckWidth, height };
+    const expand: Rect = { x: tuck.x + tuckWidth + GAP, y, width: inner - tuckWidth, height };
+    return { title: { x: panel.x, y: panel.y, width: 0, height: 0 }, expand, tuck, sheet: panel };
+  }
   const narrow = panel.width < 520;
   const tuckWidth = kind === "tab" ? (narrow ? 132 : 170) : 112;
   const expandWidth = narrow ? 104 : 120;

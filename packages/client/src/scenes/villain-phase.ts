@@ -1378,7 +1378,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   ): boolean {
     if (defendId !== null) return this.#drawDefend(kind, panel, footer, game, viewer);
     if (decisionId !== null) {
-      this.#drawDockedDecision(kind, panel, decisionId);
+      this.#drawDockedDecision(kind, panel, footer, decisionId);
       return true;
     }
     if (recap) {
@@ -1403,14 +1403,19 @@ export class VillainPhaseOverlay extends Phaser.Scene {
    * TABLE to see the whole table), and below it the choice sheet itself, docked without a scrim (`view/choice-dock.ts`)
    * so the table and the hand beside it stay readable while the player decides.
    */
-  #drawDockedDecision(kind: VillainDecisionDockKind, panel: Rect, choiceId: string): void {
+  #drawDockedDecision(kind: VillainDecisionDockKind, panel: Rect, footer: Rect | null, choiceId: string): void {
     this.#presentation = kind;
-    const layout = villainDecisionDockLayout(panel, kind);
+    const layout = villainDecisionDockLayout(panel, kind, footer);
     addPressShield(this, panel);
     const g = this.add.graphics();
     g.fillStyle(surface.ink.hex, 1).fillRect(panel.x, panel.y, panel.width, panel.height);
+    // On a phone the controls take the action bar's place, at the thumb: the bar underneath must not take the press.
+    if (kind === "tab" && footer) {
+      addPressShield(this, footer);
+      g.fillStyle(surface.ink.hex, 1).fillRect(footer.x, footer.y, footer.width, footer.height);
+    }
     // A phone's header has no room left for the title; its chrome already says "Villain phase · step N".
-    if (layout.title.width >= DOCKED_DECISION_TITLE_MIN) {
+    if (layout.title.width >= DOCKED_DECISION_TITLE_MIN && layout.title.height > 0) {
       const title = this.add
         .text(
           layout.title.x,
@@ -1433,7 +1438,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         onClick: expand,
       }),
       new McButton(this, {
-        kind: "onInk",
+        // At the thumb on a phone, in the caution yellow the peek banner's ANSWER wears: the way to the table and back.
+        ...(kind === "tab"
+          ? { kind: "primary" as const, tint: { fill: signal.caution.hex, ink: surface.ink.hex } }
+          : { kind: "onInk" as const }),
         label: villainDecisionTuckLabel(kind),
         type: typeRole.label,
         rect: layout.tuck,

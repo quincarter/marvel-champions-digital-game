@@ -126,6 +126,9 @@ test("issue #231: a revealed card's decision docks beside the table, tucks away 
 
   // HIDE ▸ (desktop) or PEEK AT TABLE ▾ (phone): the whole table, the sheet hidden, a way back.
   const tuck = (await villainDebugRect(page, "tuckRect"))!;
+  // On a phone PEEK AT TABLE sits at the thumb, under the dock: a header under the chrome sat where the Now playing
+  // toast slides in, and the toast covered it.
+  if (phone) expect(tuck.y, "PEEK AT TABLE below the docked sheet").toBeGreaterThanOrEqual(dock.y + dock.height);
   await press(page, phone, tuck);
   await waitFor(
     async () => ((await presentation(page)) === (phone ? "peek" : "hidden") ? true : null),
