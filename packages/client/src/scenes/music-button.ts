@@ -13,6 +13,7 @@
  * every screen and the music player, never covering a search field (`CHROME_SCENES`).
  */
 import Phaser from "phaser";
+import extrasChimeUrl from "../audio/sfx/extras-unlocked.mp3?url";
 import type { Track } from "../audio/music-catalog.js";
 import { signal, surface, typeRole } from "../tokens.js";
 import { textStyle } from "../ui/theme.js";
@@ -48,6 +49,8 @@ const ABOVE_SCREENS: ReadonlySet<string> = new Set([
 const EXTRAS_CHECK_MS = 1000;
 const EXTRAS_NOTICE_HOLD_MS = 4200;
 const EXTRAS_NOTICE_SLIDE_MS = 320;
+const EXTRAS_CHIME_KEY = "sfx:extras-unlocked";
+const EXTRAS_CHIME_VOLUME = 0.7;
 /** The widest the pill opens out on a tablet or desktop, so it never runs the length of the bar. */
 const PILL_MAX_WIDTH = 360;
 
@@ -258,32 +261,20 @@ export class MusicButtonScene extends Phaser.Scene {
   }
 
   /**
-   * A short bright *tink*: two sine partials, a fifth apart, struck and left to ring out, synthesized on the sound
-   * manager's own Web Audio graph so it follows the game's mute. Silent with Sound off, or before the browser lets the
-   * page make sound.
+   * The unlock chime (the owner's pick, 2026-10-17), loaded on first use. It lives in `audio/sfx/`, outside `music/`,
+   * so the jukebox never lists it. It plays through the sound manager, so Sound off mutes it like the music.
    */
   #tink(): void {
     if (!appSession().settings.sound) return;
-    const manager = this.sound as unknown as { context?: AudioContext; destination?: AudioNode };
-    const context = manager.context;
-    if (!context || context.state !== "running") return;
-    const start = context.currentTime + 0.01;
-    for (const [frequency, delay, peak] of [
-      [1760, 0, 0.16],
-      [2637, 0.06, 0.1],
-    ] as const) {
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
-      oscillator.type = "sine";
-      oscillator.frequency.value = frequency;
-      const at = start + delay;
-      gain.gain.setValueAtTime(0.0001, at);
-      gain.gain.exponentialRampToValueAtTime(peak, at + 0.006);
-      gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.5);
-      oscillator.connect(gain).connect(manager.destination ?? context.destination);
-      oscillator.start(at);
-      oscillator.stop(at + 0.55);
+    if (this.cache.audio.exists(EXTRAS_CHIME_KEY)) {
+      this.sound.play(EXTRAS_CHIME_KEY, { volume: EXTRAS_CHIME_VOLUME });
+      return;
     }
+    this.load.audio(EXTRAS_CHIME_KEY, extrasChimeUrl);
+    this.load.once(`filecomplete-audio-${EXTRAS_CHIME_KEY}`, () =>
+      this.sound.play(EXTRAS_CHIME_KEY, { volume: EXTRAS_CHIME_VOLUME }),
+    );
+    if (!this.load.isLoading()) this.load.start();
   }
 
   #togglePlayer(): void {
