@@ -60,6 +60,7 @@ import {
 import { cardSizeFactor } from "../settings.js";
 import { onTap, setTapOccluders } from "../ui/tap.js";
 import { TableDrag, clampScroll, fullyInWindow, revealScroll, wheelPixels } from "../view/table-scroll.js";
+import { choiceDock } from "../view/choice-dock.js";
 import { villainDockRects, type VillainDockRects, type VillainDockRequest } from "../view/villain-dock.js";
 import { sameSeatNote, type VillainSeatNote } from "../view/villain-seat-note.js";
 import { drawCompactIdentity } from "./board/compact-identity.js";
@@ -411,7 +412,8 @@ export class BoardScene extends Phaser.Scene {
             key !== SCENES.board &&
             key !== SCENES.music &&
             !CHROME_SCENES.has(key) &&
-            !(key === SCENES.choice && sheetCovered) &&
+            // Docked in the villain phase's panel, the sheet leaves the table beside it to read (#231).
+            !(key === SCENES.choice && (sheetCovered || choiceDock() !== null)) &&
             this.scene.isActive(key),
         );
         return hoverArea({
@@ -586,6 +588,7 @@ export class BoardScene extends Phaser.Scene {
       (window as unknown as { __mcBoardDebug?: unknown }).__mcBoardDebug = {
         focusRect: (key: string) => this.#frame.focusRects.get(key) ?? null,
         hitRect: (id: string) => this.#frame.hitRects.get(id as InstanceId) ?? null,
+        hoverShown: () => this.#hover?.shownKey ?? null,
         allFocusRects: () => [...this.#frame.focusRects.entries()],
         allPileRects: () => [...this.#frame.pileRects.entries()],
         paymentView: () => this.paymentView(),

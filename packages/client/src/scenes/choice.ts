@@ -13,7 +13,7 @@
  */
 
 import { triggerCaption, triggerOrdinal } from "../view/trigger-caption.js";
-import { choiceDock } from "../view/choice-dock.js";
+import { choiceDock, choiceDockOptions } from "../view/choice-dock.js";
 import { triggerWindowContextOf, type TriggerWindowContext } from "../view/trigger-window-context.js";
 import Phaser from "phaser";
 import {
@@ -67,6 +67,8 @@ import { keywordOrderTilesOf } from "../view/keyword-order-choice.js";
 import { choiceSourcePanelOf } from "../view/choice-source-panel.js";
 import {
   railReserve,
+  SOURCE_STRIP_GAP,
+  SOURCE_STRIP_HEIGHT,
   sourcePanelModeFor,
   sourceRailPlacement,
   sourceStripPlacement,
@@ -531,8 +533,16 @@ export class ChoiceOverlay extends Phaser.Scene {
     const instruction = sourcePanel ? null : choiceInstructionOf(state.game, choice);
     // Docked beside the screen's own content (the setup screen offers its right-hand column): no scrim over the rest
     // of the screen, no source rail, the same ink ground and paper border the villain phase's dock wears.
-    const docked = formFactor === "phone" ? null : choiceDock();
-    const panelMode = !docked && (sourcePanel || instruction) ? sourcePanelModeFor(formFactor) : null;
+    // The villain phase docks the sheet in its own panel on a phone too, and keeps the asking card in view as a strip.
+    const dockOptions = choiceDockOptions();
+    const docked = formFactor === "phone" && !dockOptions.onPhone ? null : choiceDock();
+    const panelMode = docked
+      ? dockOptions.sourceStrip && (sourcePanel || instruction)
+        ? "strip"
+        : null
+      : sourcePanel || instruction
+        ? sourcePanelModeFor(formFactor)
+        : null;
     const railWidth = panelMode === "rail" ? railReserve(formFactor) : 0;
     // The strip holds a setup instruction's whole rule, so it grows to the wrapped text (a card's stays the fixed strip).
     const stripWidthGuess = Math.max(280, Math.min(width - guideRailWidth - 16, asCards ? 1040 : 560));
@@ -540,7 +550,9 @@ export class ChoiceOverlay extends Phaser.Scene {
       panelMode === "strip"
         ? instruction
           ? instructionStripHeight(this, instruction, stripWidthGuess, stripReserve(formFactor) - 10) + 10
-          : stripReserve(formFactor)
+          : docked
+            ? SOURCE_STRIP_HEIGHT + SOURCE_STRIP_GAP
+            : stripReserve(formFactor)
         : 0;
 
     // The 70%-ink scrim — clear of the guide rail's own reserved width and the bottom guide strip's own height,

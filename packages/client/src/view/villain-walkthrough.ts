@@ -914,8 +914,13 @@ export function recapPlacementFor(input: {
    * or until they press ANSWER on its notice. The sheet stays hidden under the phase until then.
    */
   readonly held?: boolean;
+  /**
+   * The decision's sheet is docked in the phase's own panel (#231): the sheet is above the phase but covers only its
+   * dock, so the phase's header (EXPAND, HIDE, PEEK AT TABLE) still takes presses beside it.
+   */
+  readonly docked?: boolean;
 }): RecapPlacement {
   if (!input.pending) return { recapOnTop: true, recapTakesInput: true };
   const onTop = input.inline || input.finished || input.held === true;
-  return { recapOnTop: onTop, recapTakesInput: onTop };
+  return { recapOnTop: onTop, recapTakesInput: onTop || input.docked === true };
 }

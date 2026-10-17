@@ -464,6 +464,15 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
     return { key: SCENES.board, data: {} };
   }
 
+  // `?screen=villain-decision`: a real Spider-Man game whose round-one villain phase reveals an encounter card that asks
+  // the player to choose (`chooseOption`, seed 17), for the decision docked beside the table (#231).
+  if (screen === "villain-decision") {
+    const finish = await startDevVillainDecisionGame();
+    // As with the boost window: the walkthrough only collects beats while Board is mounted.
+    window.setTimeout(() => void finish(), 1500);
+    return { key: SCENES.board, data: {} };
+  }
+
   // `?screen=alliance`: a real two-seat hot-seat game on War Machine's own turn with Cosmic Alliance (an alliance
   // card) in hand and Star-Lord's hand free to help pay — the per-helper approval bar (wave 4 Q10,
   // `scenes/board/controller.ts`'s `confirmingAllianceHelp`) is one play and one pick of a Star-Lord card away.
@@ -679,6 +688,42 @@ async function startDevBoostInterruptGame(): Promise<() => Promise<void>> {
   const end = turn?.kind === "turn" ? turn.legal.find((entry) => entry.action.kind === "endTurn") : undefined;
   if (end) await store.dispatch(end.example);
   return answerUntilBoostCount;
+}
+
+/**
+ * A seeded solo Rhino/Spider-Man game in hero form. The returned function ends the turn and answers whatever comes
+ * first with the fewest picks, and stops on the encounter card revealed in round one's villain phase that makes the
+ * player choose (traced with seed 17).
+ */
+async function startDevVillainDecisionGame(): Promise<() => Promise<void>> {
+  const { store } = appSession();
+  const endTurnAndAnswer = async (): Promise<void> => {
+    const turn = store.state.legal?.actions;
+    const end = turn?.kind === "turn" ? turn.legal.find((entry) => entry.action.kind === "endTurn") : undefined;
+    if (end) await store.dispatch(end.example);
+    for (let step = 0; step < 20; step++) {
+      const game = store.state.game;
+      const actions = store.state.legal?.actions;
+      if (!game || actions?.kind !== "choice") return;
+      const kind = actions.choice.prompt.kind;
+      if (game.step.phase === "villain" && kind !== "chooseTriggers" && kind !== "declareDefender") return;
+      await store.resolveChoice(actions.choice.options.slice(0, actions.choice.minSelections).map((o) => o.optionId));
+    }
+  };
+  if (gameRunning(store)) return endTurnAndAnswer;
+  await store.start({
+    scenarioId: "rhino",
+    difficulty: "standard",
+    players: [{ starterDeckId: "core-spider-man-justice" }],
+    seed: 17,
+  });
+  if (store.state.game?.pendingChoice) await store.resolveChoice([]);
+  const legal = store.state.legal?.actions;
+  if (legal?.kind === "turn") {
+    const flip = legal.legal.find((entry) => entry.action.kind === "changeForm");
+    if (flip) await store.dispatch(flip.example);
+  }
+  return endTurnAndAnswer;
 }
 
 async function startDevAllianceGame(): Promise<void> {

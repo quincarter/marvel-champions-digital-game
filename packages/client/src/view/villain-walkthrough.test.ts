@@ -887,6 +887,20 @@ describe("recapPlacementFor: a decision the docked phase holds back", () => {
     });
     expect(recapPlacementFor({ pending: true, inline: false, finished: false, held: false }).recapOnTop).toBe(false);
   });
+
+  test("docked in the phase's panel (#231), the sheet is above it but the phase's header still takes presses", () => {
+    expect(recapPlacementFor({ pending: true, inline: false, finished: false, docked: true })).toEqual({
+      recapOnTop: false,
+      recapTakesInput: true,
+    });
+  });
+
+  test("a docked decision tucked away (HIDE, PEEK AT TABLE) is held: the phase is on top and the sheet hidden", () => {
+    expect(recapPlacementFor({ pending: true, inline: false, finished: false, held: true, docked: true })).toEqual({
+      recapOnTop: true,
+      recapTakesInput: true,
+    });
+  });
 });
 
 describe("recapPlacementFor: the recap against an open decision (click-through F1)", () => {
