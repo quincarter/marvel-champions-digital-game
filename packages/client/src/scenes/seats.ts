@@ -40,6 +40,7 @@ import {
   POOL_ENCOUNTER_SETS,
   POOL_HERO_SHELF_PACKS,
   POOL_VERSION,
+  packNameOf,
 } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
@@ -50,6 +51,19 @@ import { McShelfRoster } from "../ui/shelf-roster.js";
 import { McChipRail } from "../ui/chip-rail.js";
 import { McVirtualList } from "../ui/virtual-list.js";
 import { shortWarningOf, type DeckOption } from "../view/deck-list-model.js";
+import {
+  deckCountTagOf,
+  heroGroupKeyOf,
+  groupShelvesByHero,
+  heroDeckRowOf,
+  heroPacksOf,
+  type HeroDeckGroup,
+} from "../view/hero-deck-groups.js";
+import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
+import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
+import { DeckSearchClient } from "../view/deck-search-client.js";
+import { rankShelvesByScore, type SearchDocument } from "../view/deck-search.js";
+import type { HeroDecksSheetData } from "./hero-decks-sheet.js";
 import { seatableDeckOptionsOf, testedCatalog } from "../view/seatable-decks.js";
 import {
   testedDeckLockOf,
@@ -58,13 +72,7 @@ import {
   testedSubtitleOf,
   testedEntryOf,
 } from "../view/community-decks-model.js";
-import {
-  heroAspectsOf,
-  heroSourceMatches,
-  matchesSearch,
-  withSelectionPinned,
-  type HeroSourceFilter,
-} from "../view/roster-filter.js";
+import { heroAspectsOf, heroSourceMatches, withSelectionPinned, type HeroSourceFilter } from "../view/roster-filter.js";
 import { packCompactChipsToRows, type ChipInfoToggle } from "../view/chip-layout.js";
 import {
   azShelvesOf,
@@ -177,6 +185,19 @@ function deckLockOf(deck: Deck): string | null {
 let pairCatalog: PairCatalog | null = null;
 const seatPairCatalog = (): PairCatalog => (pairCatalog ??= pairCatalogOf(CARDS_BY_ID));
 
+/** "Precon + Tested": the kinds of deck a multi-deck hero tile stands for, each once. */
+function sourceWordsOf(options: readonly DeckOption[]): string {
+  const word = (option: DeckOption): string =>
+    isCommunityDeckId(option.deck.id as string)
+      ? "Tested"
+      : option.deck.source.kind === "precon"
+        ? "Precon"
+        : option.deck.source.kind === "imported"
+          ? "Imported"
+          : "Built";
+  return [...new Set(options.map(word))].join(", ");
+}
+
 /** The Recommended shelf: the first shelf of the roster, at most this many tiles. */
 const REC_LIMIT = 6;
 /** The Recommended shelf's id among the roster's shelves: always the first, and only while there is someone to recommend. */
@@ -277,6 +298,19 @@ export class SeatsScene extends Phaser.Scene {
   #insightArea: Rect | null = null;
   readonly #gridScroll = new ListScroll();
   readonly #chipScroll = new RailScroll();
+  /** Each hero shown, with the decks that pass the filters (`view/hero-deck-groups.ts`); rebuilt with the shelves. */
+  #heroGroups: ReadonlyMap<string, HeroDeckGroup<DeckOption>> = new Map();
+  /** The desktop card hover popover over the hero tiles (`ui/card-hover-preview.ts`). */
+  #hover: HoverPreview | null = null;
+  /** Where the tiles are visible (the shelves' area), and whether the Recommended shelf is folded away: what the hover reads. */
+  #hoverViewport: Rect | null = null;
+  #hoverRecHidden = false;
+  /** Each deck's hero identity card, for the hover popover's picture. */
+  #identityOfDeck = new Map<string, string>();
+  /** Text search runs in a worker (view/deck-search-client.ts); #ranking is its last answer, shown until the next one arrives. Null when no search is active. */
+  readonly #search = new DeckSearchClient();
+  #ranking: ReadonlyMap<string, number> | null = null;
+  #searchDocsFor: readonly DeckOption[] | null = null;
 
   constructor() {
     super(SCENES.seats);
@@ -321,6 +355,15 @@ export class SeatsScene extends Phaser.Scene {
       this.#masks = [];
     });
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.#onPointerMove(pointer));
+    this.#hover = new HoverPreview(this, {
+      cardIds: () => this.#hoverCards(),
+      area: (pointer) => screenHoverArea(this, pointer, { blocked: () => this.#searchInput?.focused ?? false }),
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#hover?.destroy();
+      this.#hover = null;
+      this.#search.destroy();
+    });
     this.#route = new FocusRoute(this, {
       onFocusChange: (key) => {
         this.#focusDeckId = key === null ? null : deckIdOfStop(key);
@@ -330,6 +373,7 @@ export class SeatsScene extends Phaser.Scene {
         this.scene.isActive(SCENES.inspect) ||
         this.scene.isActive(SCENES.unlockConfirm) ||
         this.scene.isActive(SCENES.nameConflict) ||
+        this.scene.isActive(SCENES.heroDecks) ||
         (this.#searchInput?.focused ?? false),
       onCancel: () => (this.#drill.packId !== null ? this.#drillOut() : this.#back()),
       onPage: (direction) => (this.#grid ?? this.#roster)?.scrollByPage(direction),
@@ -472,6 +516,8 @@ export class SeatsScene extends Phaser.Scene {
       deckOptions[0]?.deck.id as string,
     );
 
+    this.#identityOfDeck = new Map(deckOptions.map((o) => [o.deck.id as string, o.deck.identityCardId as string]));
+    this.#syncSearchDocuments(deckOptions);
     const chipDefs = this.#heroChipDefs(deckOptions);
 
     const activeDeckId = this.#draft.seats[this.#draft.activeSeatIndex];
@@ -628,7 +674,7 @@ export class SeatsScene extends Phaser.Scene {
         "search heroes, aspects, decks…",
         (value) => {
           this.#draft = setHeroFilter(this.#draft, { ...this.#draft.heroFilter, text: value });
-          this.#rebuild();
+          this.#requestSearch(value);
         },
         this.#searchInput,
         this.#stops,
@@ -670,17 +716,13 @@ export class SeatsScene extends Phaser.Scene {
       this.#drawAspectTipPanelAt(open ? (infoRects.get(open.id) ?? null) : null, { x: 0, y: 0, width, height });
     }
 
-    const active = new Map(
-      activeSeatRosterOf(
-        this.#seatOptionsExcludingActive(deckOptions),
-        this.#draft.seats,
-        this.#draft.activeSeatIndex,
-      ).map((e) => [e.deckId, e]),
-    );
+    const active = this.#activeRoster(deckOptions);
     const packShelves = this.#shelves(deckOptions, seating, active);
     const cardMetrics = this.#cardMetrics(layout.shelves);
     let cardIds: readonly string[];
     this.#hoverBounds = [layout.shelves];
+    this.#hoverViewport = layout.shelves;
+    this.#hoverRecHidden = recCollapsed;
     let recIds: readonly string[] = [];
 
     if (this.#drill.packId !== null) {
@@ -724,7 +766,7 @@ export class SeatsScene extends Phaser.Scene {
         focusPrefix: "hero",
         idOf: (o) => o.deck.id as string,
         renderCard: (option, _index, rect) => this.#renderHeroCard(option, active, rect),
-        onCardActivate: (option) => this.#pickHero(option, active),
+        onCardActivate: (option) => this.#onHeroTile(option, active),
         inspect: (option) => this.#inspectOption(option, active),
         onClear: () => this.#drillOut(),
         buttons: this.#buttons,
@@ -783,7 +825,8 @@ export class SeatsScene extends Phaser.Scene {
               ),
         renderCard: (option, shelfIndex, _itemIndex, rect) =>
           this.#renderHeroCard(option, active, rect, shelves[shelfIndex]?.id === REC_SHELF_ID),
-        onCardActivate: (option) => this.#pickHero(option, active),
+        onCardActivate: (option, shelfIndex) =>
+          shelves[shelfIndex]?.id === REC_SHELF_ID ? this.#pickHero(option, active) : this.#onHeroTile(option, active),
         onHeaderActivate: (shelf) => {
           if (shelf.id === REC_SHELF_ID) {
             toggleRecommended();
@@ -796,7 +839,7 @@ export class SeatsScene extends Phaser.Scene {
         onClear: () => {
           this.#draft = clearHeroFilter(this.#draft);
           this.#searchInput?.setValue("");
-          this.#rebuild();
+          this.#requestSearch("");
         },
         buttons: this.#buttons,
         stops: this.#stops,
@@ -922,6 +965,7 @@ export class SeatsScene extends Phaser.Scene {
       }),
       this.#stops,
     );
+    this.#hover?.onDraw();
   }
 
   /** Narrow only: the one line the details disclosure shows while shut — enough to know what's in the seat without opening it. */
@@ -939,9 +983,168 @@ export class SeatsScene extends Phaser.Scene {
     // heroes. The aspect/source chips are their own visible controls and stay as they were.
     if (!this.#searchOpen && this.#draft.heroFilter.text) {
       this.#draft = setHeroFilter(this.#draft, { ...this.#draft.heroFilter, text: "" });
+      this.#search.cancel();
+      this.#ranking = null;
     }
     this.#rebuild();
     if (this.#searchOpen) this.#searchInput?.focus();
+  }
+
+  /** The roster's per-deck seating facts for the active seat, as the shelves and the deck submenu read them. */
+  #activeRoster(deckOptions: readonly DeckOption[]): ReadonlyMap<string, ActiveSeatRosterEntry> {
+    return new Map(
+      activeSeatRosterOf(
+        this.#seatOptionsExcludingActive(deckOptions),
+        this.#draft.seats,
+        this.#draft.activeSeatIndex,
+      ).map((e) => [e.deckId, e]),
+    );
+  }
+
+  /** The key a deck's tile groups under: its hero, or the deck itself while a search is typed (`heroGroupKeyOf`). */
+  #groupKeyOf(option: DeckOption): string {
+    return heroGroupKeyOf(this.#ranking !== null, option.deck.identityCardId as string, option.deck.id as string);
+  }
+
+  #groupOf(option: DeckOption): HeroDeckGroup<DeckOption> | undefined {
+    return this.#heroGroups.get(this.#groupKeyOf(option));
+  }
+
+  /**
+   * What the search looks in for each deck (view/deck-search.ts): names first, then aspects, source, pack, author and
+   * tags, and a community deck's write-up last. Sent to the worker only when the deck list changes.
+   */
+  #searchDocumentOf(option: DeckOption, heroPack: string | undefined): SearchDocument {
+    const deck = option.deck;
+    const identity = CARDS_BY_ID.get(deck.identityCardId as string);
+    const hero = identity?.type === "hero_identity" ? identity : undefined;
+    const entry = testedEntryOf(deck, testedCatalog());
+    const sourceWords =
+      deck.source.kind === "precon"
+        ? ["precon", "preconstructed"]
+        : deck.source.kind === "imported"
+          ? ["imported"]
+          : ["built", "mine"];
+    const packs = heroPack
+      ? [packNameOf(heroPack), POOL_HERO_SHELF_PACKS.find((p) => p.code === heroPack)?.cycleName]
+      : [];
+    return {
+      id: deck.id as string,
+      primary: [deck.name, option.identityName, hero?.hero.faceName, hero?.alterEgo.faceName, entry?.heroName].filter(
+        (t): t is string => typeof t === "string",
+      ),
+      secondary: [
+        ...deck.aspects.map((a) => aspectLabelOf([a])),
+        ...sourceWords,
+        ...packs.filter((t): t is string => typeof t === "string"),
+        ...testedSearchFieldsOf(deck, testedCatalog()),
+        ...(entry?.tags ?? []),
+      ],
+      notes: entry ? [entry.description] : [],
+    };
+  }
+
+  /** Hands the worker the deck list when it has changed, and re-asks the open query of the new list. */
+  #syncSearchDocuments(deckOptions: readonly DeckOption[]): void {
+    if (this.#searchDocsFor === deckOptions) return;
+    this.#searchDocsFor = deckOptions;
+    const heroPacks = heroPacksOf(
+      deckOptions,
+      (option) => option.deck.identityCardId as string,
+      (option) => (option.deck.source.kind === "precon" ? (option.deck.source.packCode as string) : null),
+    );
+    const documents = deckOptions.map((option) =>
+      this.#searchDocumentOf(option, heroPacks.get(option.deck.identityCardId as string)),
+    );
+    this.#search.setDocuments(documents, POOL_VERSION + ":" + deckOptions.map((o) => o.deck.id as string).join("|"));
+    const text = this.#draft.heroFilter.text;
+    // After this redraw, not inside it: the answer redraws again.
+    if (text.trim() !== "") queueMicrotask(() => this.sys.isActive() && this.#requestSearch(text));
+  }
+
+  /** Asks the worker to rank the decks for the text; the screen redraws when the newest answer arrives. An empty text clears the search at once. */
+  #requestSearch(text: string): void {
+    if (text.trim() === "") {
+      this.#search.cancel();
+      this.#ranking = null;
+      this.#rebuild();
+      return;
+    }
+    this.#search.search(text, (ranked) => {
+      if (!this.sys.isActive()) return;
+      this.#ranking = new Map(ranked.map((r) => [r.id, r.score]));
+      this.#rebuild();
+    });
+  }
+
+  /** A hero tile tapped: one matching deck seats as it always did; several open the deck submenu. */
+  #onHeroTile(option: DeckOption, active: ReadonlyMap<string, ActiveSeatRosterEntry>): void {
+    const group = this.#groupOf(option);
+    if (group && group.decks.length > 1) {
+      this.#openDeckSheet(group);
+      return;
+    }
+    this.#pickHero(option, active);
+  }
+
+  /** "Pick a deck" (`scenes/hero-decks-sheet.ts`): a row per matching deck; a pick runs `#pickHero`, the code a single tile's tap runs. */
+  #openDeckSheet(group: HeroDeckGroup<DeckOption>): void {
+    if (this.scene.isActive(SCENES.heroDecks)) return;
+    const deckOptions = this.#deckOptions();
+    const active = this.#activeRoster(deckOptions);
+    const identity = CARDS_BY_ID.get(group.rep.deck.identityCardId as string);
+    const picture = this.#heroPictureFor(group.rep.deck.identityCardId as string);
+    const rows = group.decks.map((option) => {
+      const entry = active.get(option.deck.id as string);
+      const deck = option.deck;
+      return {
+        row: heroDeckRowOf({
+          deckId: deck.id as string,
+          name: titleWithoutAspects(deck.name.split(" — ")[0]!, deck.aspects),
+          sourceKind: deck.source.kind,
+          testedCredit: testedSubtitleOf(deck, testedCatalog()),
+          cardCount: deck.cards.reduce((sum, card) => sum + card.quantity, 0),
+          blockedBy: entry?.blockedBy ?? option.blockedReason,
+          lock: deckLockOf(deck),
+          warning: shortWarningOf(entry?.warning ?? option.warning),
+          activeSeat: entry?.isActiveSeat ?? false,
+          otherSeat:
+            entry?.seatIndex !== null && entry?.seatIndex !== undefined && !entry.isActiveSeat
+              ? entry.seatIndex + 1
+              : null,
+        }),
+        stamps: aspectStampsOf(deck.aspects),
+      };
+    });
+    this.scene.launch(SCENES.heroDecks, {
+      from: this.scene.key,
+      heroName: group.rep.identityName ?? group.rep.deck.name,
+      identityCardId: group.rep.deck.identityCardId as string,
+      artUrl: picture?.url ?? (identity ? artFor(identity, { kind: "hero" }) : null)?.url ?? null,
+      rows,
+      onPick: (deckId) => {
+        if (!this.sys.isActive()) return;
+        const options = this.#deckOptions();
+        const option = options.find((o) => (o.deck.id as string) === deckId);
+        if (option) this.#pickHero(option, this.#activeRoster(options));
+      },
+    } satisfies HeroDecksSheetData);
+  }
+
+  /** The hero pictures on screen, for the hover popover: read from the focus stops, which know where each tile is now. */
+  #hoverCards(): ReadonlyMap<string, HoverCardIdRect> {
+    const found = new Map<string, HoverCardIdRect>();
+    const viewport = this.#hoverViewport;
+    if (!viewport) return found;
+    for (const [key, stop] of this.#stops) {
+      const deckId = deckIdOfStop(key);
+      if (!deckId || (this.#hoverRecHidden && key.startsWith("hero-rec:"))) continue;
+      const cardId = this.#identityOfDeck.get(deckId);
+      if (!cardId) continue;
+      const rect = clipHoverRect(typeof stop.rect === "function" ? stop.rect() : stop.rect, viewport);
+      if (rect) found.set(hoverSlotOf(cardId, key), { ...rect, cardId, face: { kind: "hero" }, through: true });
+    }
+    return found;
   }
 
   #pickHero(option: DeckOption, active: ReadonlyMap<string, ActiveSeatRosterEntry>): void {
@@ -1263,6 +1466,11 @@ export class SeatsScene extends Phaser.Scene {
     // full reason is still one Inspect away (`#inspectOption`'s own `note`).
     const blockedBy = seatedElsewhere ? null : (entry?.blockedBy ?? null);
     const lock = seatedElsewhere ? null : deckLockOf(option.deck);
+    // A hero with several matching decks is one tile: the hero's name, every aspect its decks wear, "N decks".
+    const decks = recommended ? [option] : (this.#groupOf(option)?.decks ?? [option]);
+    const several = decks.length > 1;
+    const countTag = deckCountTagOf(decks.length, decks.filter((d) => d.deck.source.kind !== "precon").length);
+    const aspects = [...new Set(decks.flatMap((d) => d.deck.aspects))];
     const tag = entry?.isActiveSeat
       ? `SEAT ${this.#draft.activeSeatIndex + 1}`
       : seatedElsewhere
@@ -1271,16 +1479,23 @@ export class SeatsScene extends Phaser.Scene {
           ? "LOCKED"
           : blockedBy
             ? "AT THE TABLE"
-            : null;
+            : countTag;
     const rec = this.#insights?.analysis.get(option.deck.id as string);
     const card = renderShelfCard(this, rect, {
       artUrl,
       titleRole: typeRole.barTitle,
-      title: titleWithoutAspects(option.deck.name.split(" — ")[0]!, option.deck.aspects),
+      title: several
+        ? (option.identityName ?? option.deck.name)
+        : titleWithoutAspects(option.deck.name.split(" — ")[0]!, option.deck.aspects),
       // A recommended tile says *why* in the line a normal tile uses for its source.
       subtitle:
-        recommended && rec?.caption ? rec.caption : `${sourceText} · ${option.identityName ?? "unknown identity"}`,
-      stamps: aspectStampsOf(option.deck.aspects),
+        recommended && rec?.caption
+          ? rec.caption
+          : several
+            ? `${decks.length} decks
+${sourceWordsOf(decks)}`
+            : `${sourceText} · ${option.identityName ?? "unknown identity"}`,
+      stamps: aspectStampsOf(several ? aspects : option.deck.aspects),
       blockedBy,
       // Locked: the free way (the villain to beat) and the paid one (tap it to spend points), side by side.
       warning: seatedElsewhere
@@ -1399,7 +1614,7 @@ export class SeatsScene extends Phaser.Scene {
     const seated = this.#draft.seats
       .map((id) => deckOptions.find((o) => (o.deck.id as string) === id)?.deck)
       .filter((deck): deck is Deck => deck !== undefined);
-    const text = this.#draft.heroFilter.text;
+    const ranking = this.#ranking;
     const candidates = deckOptions
       // Only a hero the player could actually take: legal, unlocked, not already at the table.
       .filter((option) => option.seatable && !seating.get(option.deck.id as string)?.blockedBy)
@@ -1408,7 +1623,7 @@ export class SeatsScene extends Phaser.Scene {
       .filter((option) => this.#draft.heroFilter.source === "tested" || !isCommunityDeckId(option.deck.id as string))
       .map((option) => ({
         deck: option.deck,
-        shown: this.#heroPassesChips(option, null) && matchesSearch(this.#haystacksOf(option), text),
+        shown: this.#heroPassesChips(option, null) && (ranking === null || ranking.has(option.deck.id as string)),
       }));
     return seatInsightsOf({
       seated,
@@ -1418,20 +1633,6 @@ export class SeatsScene extends Phaser.Scene {
       catalog: seatPairCatalog(),
       limit: REC_LIMIT,
     });
-  }
-
-  /** What the search box looks in for a hero deck: its name, both faces, aspects and source. */
-  #haystacksOf(option: DeckOption): readonly (string | null | undefined)[] {
-    const identity = CARDS_BY_ID.get(option.deck.identityCardId as string);
-    const hero = identity?.type === "hero_identity" ? identity : undefined;
-    return [
-      option.deck.name,
-      hero?.hero.faceName,
-      hero?.alterEgo.faceName,
-      ...option.deck.aspects,
-      option.deck.source.kind,
-      ...testedSearchFieldsOf(option.deck, testedCatalog()),
-    ];
   }
 
   /**
@@ -1541,18 +1742,24 @@ export class SeatsScene extends Phaser.Scene {
     seating: ReadonlyMap<string, SeatOption>,
     active: ReadonlyMap<string, ActiveSeatRosterEntry>,
   ): readonly Shelf<DeckOption>[] {
+    const heroPacks = heroPacksOf(
+      deckOptions,
+      (option) => option.deck.identityCardId as string,
+      (option) => (option.deck.source.kind === "precon" ? (option.deck.source.packCode as string) : null),
+    );
     const candidates: ShelfCandidate<DeckOption>[] = withSelectionPinned(
       deckOptions,
       () => true,
       (option) => active.get(option.deck.id as string)?.isActiveSeat ?? false,
     ).map((option) => {
-      const packCode = option.deck.source.kind === "precon" ? (option.deck.source.packCode as string) : null;
+      // A hero's saved and community decks sit on the shelf of the hero's own pack, beside its precons: one tile per hero.
+      const packCode = heroPacks.get(option.deck.identityCardId as string) ?? null;
       const chipsOk = this.#heroPassesChips(option, seating.get(option.deck.id as string)?.blockedBy ?? null);
       return {
         item: option,
         packCode,
-        searchHaystacks: this.#haystacksOf(option),
-        passesChips: chipsOk,
+        searchHaystacks: [],
+        passesChips: chipsOk && (this.#ranking === null || this.#ranking.has(option.deck.id as string)),
       };
     });
     // "By wave" (default): one shelf per release wave (Core, Wave 1, The Rise of Red Skull, The Galaxy's Most
@@ -1564,12 +1771,29 @@ export class SeatsScene extends Phaser.Scene {
       this.#draft.heroSortMode === "az"
         ? azShelvesOf(
             candidates,
-            this.#draft.heroFilter.text,
+            "",
             (option) => option.identityName ?? option.deck.name,
             (option) => option.deck.name,
           )
-        : cycleShelvesOf(candidates, POOL_HERO_SHELF_PACKS, this.#draft.heroFilter.text);
-    return withTestedShelf(shelves, (option) => isCommunityDeckId(option.deck.id as string));
+        : cycleShelvesOf(candidates, POOL_HERO_SHELF_PACKS, "");
+    // One tile per hero: the decks that pass the filters fold into it, and a tap on it opens them (`#onHeroTile`).
+    const grouped = groupShelvesByHero(
+      withTestedShelf(shelves, (option) => isCommunityDeckId(option.deck.id as string)),
+      (option) => this.#groupKeyOf(option),
+      (option) => {
+        const entry = active.get(option.deck.id as string);
+        if (entry?.isActiveSeat) return 4;
+        if (entry?.seatIndex !== null && entry?.seatIndex !== undefined) return 3;
+        const lock = deckLockOf(option.deck);
+        return !entry?.blockedBy && !lock ? 2 : !lock ? 1 : 0;
+      },
+    );
+    this.#heroGroups = grouped.groups;
+    // A search puts the best match first, within each shelf and among the shelves.
+    const ranking = this.#ranking;
+    return ranking
+      ? rankShelvesByScore(grouped.shelves, (option) => ranking.get(option.deck.id as string) ?? 0)
+      : grouped.shelves;
   }
 
   #heroPassesChips(option: DeckOption, blockedBy: string | null): boolean {
@@ -1703,6 +1927,11 @@ export class SeatsScene extends Phaser.Scene {
   #onInspectChoose(rowId: string): void {
     const deckOptions = this.#deckOptions();
     const option = deckOptions.find((o) => (o.deck.id as string) === rowId);
+    const group = option ? this.#groupOf(option) : undefined;
+    if (group && group.decks.length > 1) {
+      this.#openDeckSheet(group);
+      return;
+    }
     if (option && this.#offerUnlock(option)) return;
     const seating = new Map(this.#seatOptionsExcludingActive(deckOptions).map((o) => [o.deckId, o]));
     if (option && !seating.get(rowId)?.blockedBy) {
@@ -1720,7 +1949,11 @@ export class SeatsScene extends Phaser.Scene {
         : {
             choice: {
               optionId: option.deck.id as string,
-              label: entry?.isActiveSeat ? "Already this seat's pick" : "Take this seat",
+              label: entry?.isActiveSeat
+                ? "Already this seat's pick"
+                : (this.#groupOf(option)?.decks.length ?? 1) > 1
+                  ? "Pick a deck"
+                  : "Take this seat",
             },
           }),
     });

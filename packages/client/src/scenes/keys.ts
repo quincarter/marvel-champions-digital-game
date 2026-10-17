@@ -98,6 +98,8 @@ export const SCENES = {
   unlockConfirm: "UnlockConfirmOverlay",
   /** "Cards that can't be played" (`scenes/name-conflict.ts`): a same-name clash between seated heroes and decks, over either seat screen. */
   nameConflict: "NameConflictOverlay",
+  /** "Pick a deck" (`scenes/hero-decks-sheet.ts`): a hero with several decks, over Take your seats. */
+  heroDecks: "HeroDecksSheet",
   /** "End your turn? You can still: …" (`scenes/end-turn-confirm.ts`), over the Board. */
   endTurnConfirm: "EndTurnConfirmOverlay",
   /** "Resume the tutorial at lesson N?" (guided mode §3.12, `scenes/tutorial-resume-confirm.ts`), over Title. */
