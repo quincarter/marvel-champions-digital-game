@@ -143,6 +143,7 @@ import {
 import {
   decisionReached,
   decisionTitleOf,
+  outcomeEndsReplay,
   outcomeReleasable,
   seatHeadingName,
   tableHoldOf,
@@ -557,8 +558,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   }
 
   #onState(state: SessionState): void {
-    if (!state.game || (state.game.outcome && this.#review)) {
-      // No game, or a review of an earlier phase while the game ended: nothing more to show.
+    if (!state.game || (state.game.outcome && (this.#review || outcomeEndsReplay(state.game.outcome)))) {
+      // No game, a review of an earlier phase while the game ended, or a concession: nothing more to show.
       this.#close();
       return;
     }

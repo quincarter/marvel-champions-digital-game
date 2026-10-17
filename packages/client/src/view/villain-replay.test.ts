@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import type { PlayerId } from "@mc/engine";
 import {
   decisionReached,
   decisionTitleOf,
+  outcomeEndsReplay,
   outcomeReleasable,
   seatHeadingName,
   tableHoldOf,
@@ -56,6 +58,16 @@ describe("outcomeReleasable", () => {
     expect(outcomeReleasable(5, 9)).toBe(false);
     expect(outcomeReleasable(9, 9)).toBe(true);
     expect(outcomeReleasable(0, 0)).toBe(true);
+  });
+});
+
+describe("outcomeEndsReplay", () => {
+  it("ends the replay at once for a concession, not for an outcome the phase's own beats produced", () => {
+    expect(outcomeEndsReplay({ result: "conceded", reason: "playerConceded", byPlayerId: "p1" as PlayerId })).toBe(
+      true,
+    );
+    expect(outcomeEndsReplay({ result: "loss", reason: "allPlayersDefeated" })).toBe(false);
+    expect(outcomeEndsReplay({ result: "win", reason: "villainDefeated" })).toBe(false);
   });
 });
 
