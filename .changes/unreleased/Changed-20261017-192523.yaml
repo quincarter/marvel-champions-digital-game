@@ -1,0 +1,3 @@
+kind: Changed
+body: 'CI: one "Tests / All tests" check reports on every run, so the branch ruleset can require it instead of each test job'
+time: 2026-10-17T19:25:23.9744723-04:00
