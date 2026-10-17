@@ -1,6 +1,9 @@
 [build]
 command = "pnpm --filter @mc/client build"
 publish = "packages/client/dist"
+# Our own pushes and PRs deploy from GitHub Actions (netlify-deploy.yml), which costs no Netlify build minutes. Netlify
+# builds only deploy previews for PRs from forks, which get no Actions secrets. Exit 0 skips the build.
+ignore = "node -e \"if(process.env.PULL_REQUEST!=='true')process.exit(0);fetch('https://api.github.com/repos/quincarter/marvel-champions-digital-game/pulls/'+process.env.REVIEW_ID).then(r=>r.json()).then(p=>process.exit(p.head&&p.head.repo&&p.head.repo.fork?1:0)).catch(()=>process.exit(0))\""
 
 [build.environment]
 NODE_VERSION = "24"
