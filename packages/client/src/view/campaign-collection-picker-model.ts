@@ -11,6 +11,7 @@
  * `AftermathOption` never carried (no other Aftermath choice needed it).
  */
 import type { AnyCard, CardId, CoreAspect } from "@mc/content";
+import type { SearchDocument } from "./deck-search.js";
 
 export interface CollectionPickerRow {
   readonly cardId: CardId;
@@ -64,7 +65,37 @@ export function collectionPickerAspects(
   return ASPECT_ORDER.filter((aspect) => present.has(aspect));
 }
 
+/**
+ * What the picker's search looks in for each offered card (view/deck-search.ts), sent to the worker when the option
+ * list changes: the card's name, then its aspect, type and traits, and its rules text last.
+ */
+export function collectionPickerSearchDocumentsOf(
+  optionIds: readonly string[],
+  cardsById: ReadonlyMap<string, AnyCard>,
+): readonly SearchDocument[] {
+  const documents: SearchDocument[] = [];
+  for (const id of optionIds) {
+    const card = cardsById.get(id);
+    if (!card) continue;
+    const text = "text" in card ? (card.text as unknown) : null;
+    const current = typeof text === "string" ? text : ((text as { readonly current?: string } | null)?.current ?? "");
+    documents.push({
+      id,
+      primary: [card.name],
+      secondary: [
+        aspectOf(card) ?? "",
+        card.type.replace(/_/g, " "),
+        ...("traits" in card ? (card.traits as readonly string[]) : []),
+      ].filter((t) => t !== ""),
+      notes: current === "" ? [] : [current.replace(/[[\]]/g, " ").replace(/_/g, " ")],
+    });
+  }
+  return documents;
+}
+
 export interface CollectionPickerFilter {
+  /** Card id to score from the search worker: when given, only these cards stay, best first, and `text` is ignored. */
+  readonly ranking?: ReadonlyMap<string, number> | null;
   readonly text?: string;
   readonly aspect?: CoreAspect | "basic" | "identity" | null;
 }
@@ -75,9 +106,10 @@ export function filterCollectionPicker(
   filter: CollectionPickerFilter,
 ): readonly CollectionPickerRow[] {
   const text = filter.text?.trim().toLowerCase();
-  return rows
+  const ranking = filter.ranking;
+  const kept = rows
     .filter((row) => !filter.aspect || row.aspect === filter.aspect)
-    .filter((row) => !text || row.name.toLowerCase().includes(text))
-    .slice()
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .filter((row) => (ranking ? ranking.has(row.cardId) : !text || row.name.toLowerCase().includes(text)));
+  if (ranking) return kept.sort((a, b) => (ranking.get(b.cardId) ?? 0) - (ranking.get(a.cardId) ?? 0));
+  return kept.sort((a, b) => a.name.localeCompare(b.name));
 }

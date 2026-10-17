@@ -4,9 +4,11 @@ import { CampaignService } from "../campaign/campaign-service.js";
 import { seedSmWonGame } from "../campaign/dev-fixtures.js";
 import { CARDS_BY_ID, POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import { MemoryCampaignStorage } from "../engine/campaign-storage.js";
+import { DeckSearchHost } from "./deck-search.js";
 import {
   collectionPickerAspects,
   collectionPickerRows,
+  collectionPickerSearchDocumentsOf,
   filterCollectionPicker,
 } from "./campaign-collection-picker-model.js";
 
@@ -68,5 +70,20 @@ describe("campaign-collection-picker-model, against MC27 node 9's real collectio
 
     const bySearch = filterCollectionPicker(rows, { text: "shield" });
     expect(bySearch.every((row) => row.name.toLowerCase().includes("shield"))).toBe(true);
+  }, 30_000);
+
+  test("search documents and a worker ranking narrow the list best first", async () => {
+    const { options } = await foldToAspectAdvantage();
+    const docs = collectionPickerSearchDocumentsOf(options, CARDS_BY_ID);
+    expect(docs).toHaveLength(options.length);
+    const host = new DeckSearchHost();
+    host.setDocuments(docs);
+    const ranked = host.search("shield");
+    const ranking = new Map(ranked.map((r) => [r.id, r.score]));
+    const rows = collectionPickerRows(options, CARDS_BY_ID);
+    const filtered = filterCollectionPicker(rows, { ranking });
+    expect(filtered.map((row) => row.cardId)).toEqual(
+      ranked.map((r) => r.id).filter((id) => rows.some((r) => r.cardId === id)),
+    );
   }, 30_000);
 });

@@ -1,3 +1,4 @@
+import { DeckSearchHost } from "./deck-search.js";
 import { describe, expect, test } from "vitest";
 import type { CardId, Deck } from "@mc/content";
 import { TRORS_STORY } from "../campaign/stories/trors.js";
@@ -7,6 +8,7 @@ import { preconDecks } from "./deck-list-model.js";
 import {
   PICKER_RECOMMENDED_LIMIT,
   pickerEntriesOf,
+  pickerSearchDocumentsOf,
   pickerHeroNameOf,
   pickerRecommendationsOf,
   preconRosterOf,
@@ -211,5 +213,21 @@ describe("pickerEntriesOf", () => {
       true,
     );
     expect(entries([null, null, null, null], 1, "zzzz-no-hero").list).toEqual([]);
+  });
+});
+
+describe("pickerSearchDocumentsOf", () => {
+  test("ranks decks by hero name and keeps only the ranked ones, best first", () => {
+    const options = rosterDeckOptions([null, null, null, null], 1, [], POOL_VERSION);
+    const docs = pickerSearchDocumentsOf(options, CARDS_BY_ID);
+    expect(docs).toHaveLength(options.length);
+    const host = new DeckSearchHost();
+    host.setDocuments(docs);
+    const ranked = host.search("gambit");
+    expect(ranked.length).toBeGreaterThan(0);
+    const ranking = new Map(ranked.map((r) => [r.id, r.score]));
+    const list = pickerEntriesOf(1, options, [], CARDS_BY_ID, "", ranking);
+    expect(list.length).toBe(ranked.length);
+    expect(list.every((e) => e.kind === "option" && ranking.has(options[e.optionIndex]!.deck.id as string))).toBe(true);
   });
 });

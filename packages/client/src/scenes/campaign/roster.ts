@@ -30,6 +30,7 @@ import { cssOf, skin, textStyle } from "../../ui/theme.js";
 import { clampLines, dashedRect, fitText, McButton, type McTextInput } from "../../ui/widgets.js";
 import { HoverPreview, screenHoverArea } from "../../ui/card-hover-preview.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../../view/card-hover.js";
+import { DeckSearchClient } from "../../view/deck-search-client.js";
 import { drawSearchField } from "../roster-panel.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import { McVirtualList } from "../../ui/virtual-list.js";
@@ -44,6 +45,8 @@ import { PAIR_ROW_HEIGHT } from "../../view/seats-layout.js";
 import {
   ROSTER_SEAT_COUNT,
   pickerEntriesOf,
+  pickerSearchDocumentsOf,
+  type RosterDeckOption,
   pickerRecommendationsOf,
   preconRosterOf,
   rosterDeckOptions,
@@ -94,6 +97,10 @@ export class CampaignRosterScene extends Phaser.Scene {
   /** The picker's search text, and its field (kept across rebuilds so typing keeps focus). Cleared when it closes. */
   #pickerQuery = "";
   #pickerSearch: McTextInput | null = null;
+  /** Ranks the picker's decks for the query off the main thread; `#pickerRanking` is its latest answer (null: no query). */
+  readonly #search = new DeckSearchClient();
+  #pickerRanking: ReadonlyMap<string, number> | null = null;
+  #searchDocsKey = "";
   /** The open picker's recommendations, worked out once per seat line-up rather than on every keystroke. */
   #pickerRecs: { readonly key: string; readonly recs: readonly SeatRecommendation[] } | null = null;
   /** Redraws only the picker's visible rows (a row picture arrived); null while the picker is closed. */
@@ -142,6 +149,7 @@ export class CampaignRosterScene extends Phaser.Scene {
       this.#masks = [];
       this.#pickerSearch?.destroy();
       this.#pickerSearch = null;
+      this.#search.destroy();
       this.#hover?.destroy();
       this.#hover = null;
     });
@@ -165,6 +173,8 @@ export class CampaignRosterScene extends Phaser.Scene {
     this.#pickerScroll.reset();
     this.#pickerList = null;
     this.#pickerQuery = "";
+    this.#pickerRanking = null;
+    this.#search.cancel();
     this.#pickerRecs = null;
     this.#artQueued = "none";
     this.#signing = false;
@@ -175,6 +185,32 @@ export class CampaignRosterScene extends Phaser.Scene {
     void this.#loadSavedDecks();
     this.#rebuild();
     fadeScreenIn(this);
+  }
+
+  /** Hands the worker the picker's decks when the list changes, and re-asks the open query of the new list. */
+  #syncSearchDocuments(options: readonly RosterDeckOption[]): void {
+    const key = POOL_VERSION + ":" + options.map((option) => option.deck.id as string).join("|");
+    if (key === this.#searchDocsKey) return;
+    this.#searchDocsKey = key;
+    this.#search.setDocuments(pickerSearchDocumentsOf(options, CARDS_BY_ID), key);
+    const text = this.#pickerQuery;
+    // After this redraw, not inside it: the answer redraws again.
+    if (text.trim() !== "") queueMicrotask(() => this.sys.isActive() && this.#requestSearch(text));
+  }
+
+  /** Asks the worker to rank the decks for the text; the picker redraws when the newest answer arrives. An empty text clears at once. */
+  #requestSearch(text: string): void {
+    if (text.trim() === "") {
+      this.#search.cancel();
+      this.#pickerRanking = null;
+      this.#rebuild();
+      return;
+    }
+    this.#search.search(text, (ranked) => {
+      if (!this.sys.isActive()) return;
+      this.#pickerRanking = new Map(ranked.map((r) => [r.id, r.score]));
+      this.#rebuild();
+    });
   }
 
   async #loadSavedDecks(): Promise<void> {
@@ -267,6 +303,8 @@ export class CampaignRosterScene extends Phaser.Scene {
       this.#pickerSearch.destroy();
       this.#pickerSearch = null;
       this.#pickerQuery = "";
+      this.#pickerRanking = null;
+      this.#search.cancel();
       this.#pickerRecs = null;
     }
     const kept = this.#pickerSearch ? [this.#pickerSearch.gameObject] : [];
@@ -458,6 +496,8 @@ export class CampaignRosterScene extends Phaser.Scene {
       this.#pickerSeat = seatNumber;
       this.#pickerScroll.reset();
       this.#pickerQuery = "";
+      this.#pickerRanking = null;
+      this.#search.cancel();
       this.#pickerRecs = null;
       this.#rebuild();
     };
@@ -650,7 +690,7 @@ export class CampaignRosterScene extends Phaser.Scene {
         (value) => {
           this.#pickerQuery = value;
           this.#pickerScroll.reset();
-          this.#rebuild();
+          this.#requestSearch(value);
         },
         this.#pickerSearch,
         this.#stops,
@@ -676,7 +716,15 @@ export class CampaignRosterScene extends Phaser.Scene {
       const recs = pickerRecommendationsOf(this.#seats, seatNumber, options, CARDS_BY_ID, rosterPairCatalog());
       this.#pickerRecs = { key: recsKey, recs };
     }
-    const entries = pickerEntriesOf(seatNumber, options, this.#pickerRecs.recs, CARDS_BY_ID, this.#pickerQuery);
+    this.#syncSearchDocuments(options);
+    const entries = pickerEntriesOf(
+      seatNumber,
+      options,
+      this.#pickerRecs.recs,
+      CARDS_BY_ID,
+      "",
+      this.#pickerQuery.trim() === "" ? null : this.#pickerRanking,
+    );
     if (entries.length === 0) {
       this.add.text(listRect.x, listRect.y + 4, "No hero matches this search.", {
         ...textStyle(typeRole.body, surface.ink.hex, ink.secondary),

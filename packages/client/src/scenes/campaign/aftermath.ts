@@ -23,7 +23,8 @@ import type { CardId, CoreAspect } from "@mc/content";
 import type { CampaignChoiceAnswer, CampaignDefinition } from "@mc/engine";
 import Phaser from "phaser";
 import { issueNumberOf, issueStoryFor, storyFor, type IssueStory } from "../../campaign/story.js";
-import { CARDS_BY_ID } from "../../content/pool.js";
+import { CARDS_BY_ID, POOL_VERSION } from "../../content/pool.js";
+import { DeckSearchClient } from "../../view/deck-search-client.js";
 import { cardDisplayName } from "../../view/hero-names.js";
 
 const heroNameOfCard = (id: string): string | undefined => {
@@ -51,6 +52,7 @@ import { cardSizeFactor } from "../../settings.js";
 import {
   collectionPickerAspects,
   collectionPickerRows,
+  collectionPickerSearchDocumentsOf,
   filterCollectionPicker,
   type CollectionPickerRow,
 } from "../../view/campaign-collection-picker-model.js";
@@ -143,6 +145,10 @@ export class CampaignAftermathScene extends Phaser.Scene {
    * keeps its own (`scenes/decks.ts`'s `#poolFilterInput`/`#poolListScroll`). Reset whenever a fresh group starts
    * (`#advance`/`#commit`), so a stale filter from a previous seat's turn doesn't carry over to the next one. */
   #pickerSearchText = "";
+  /** Ranks the collection picker's cards for the query off the main thread; `#pickerRanking` is its latest answer. */
+  readonly #search = new DeckSearchClient();
+  #pickerRanking: ReadonlyMap<string, number> | null = null;
+  #searchDocsKey = "";
   #pickerAspectFilter: CoreAspect | "basic" | "identity" | null = null;
   #pickerListScroll = new ListScroll();
   #pickerList: McVirtualList | null = null;
@@ -172,7 +178,10 @@ export class CampaignAftermathScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.ink.hex));
     this.scale.on("resize", this.#draw, this);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", this.#draw, this));
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off("resize", this.#draw, this);
+      this.#search.destroy();
+    });
     // Every card scan drawn here (`#drawCollectionPicker`, `#drawOptionRow`) is requested from a synchronous
     // `#draw()`, so the first pass usually finds the texture not loaded yet and falls back to the empty frame —
     // this scene never redrew once the scan actually arrived, unlike every other screen that draws card art
@@ -253,10 +262,38 @@ export class CampaignAftermathScene extends Phaser.Scene {
   #optionOf = (cardId: Parameters<typeof aftermathOptionOf>[0]): ReturnType<typeof aftermathOptionOf> =>
     aftermathOptionOf(cardId, CARDS_BY_ID);
 
+  /** Hands the worker the picker's cards when the offered list changes, and re-asks the open query of the new list. */
+  #syncSearchDocuments(optionIds: readonly string[]): void {
+    const key = POOL_VERSION + ":" + optionIds.join("|");
+    if (key === this.#searchDocsKey) return;
+    this.#searchDocsKey = key;
+    this.#search.setDocuments(collectionPickerSearchDocumentsOf(optionIds, CARDS_BY_ID), key);
+    const text = this.#pickerSearchText;
+    // After this redraw, not inside it: the answer redraws again.
+    if (text.trim() !== "") queueMicrotask(() => this.sys.isActive() && this.#requestSearch(text));
+  }
+
+  /** Asks the worker to rank the cards for the text; the picker redraws when the newest answer arrives. An empty text clears at once. */
+  #requestSearch(text: string): void {
+    if (text.trim() === "") {
+      this.#search.cancel();
+      this.#pickerRanking = null;
+      this.#draw();
+      return;
+    }
+    this.#search.search(text, (ranked) => {
+      if (!this.sys.isActive()) return;
+      this.#pickerRanking = new Map(ranked.map((r) => [r.id, r.score]));
+      this.#draw();
+    });
+  }
+
   /** `startAftermathGroup`, plus resetting the collection picker's own search/filter — a fresh group (a new
    * choice, or the next seat's turn on the same one) starts with no stale filter carried over from before. */
   #startGroup(pending: Parameters<typeof startAftermathGroup>[0]): AftermathChoiceGroup {
     this.#pickerSearchText = "";
+    this.#pickerRanking = null;
+    this.#search.cancel();
     this.#pickerAspectFilter = null;
     this.#pickerListScroll = new ListScroll();
     return startAftermathGroup(pending, this.#seats, this.#optionOf);
@@ -395,6 +432,8 @@ export class CampaignAftermathScene extends Phaser.Scene {
     // A fresh turn either way (the next seat's own real prompt, or a brand-new choice): the picker's own filter
     // shouldn't carry over from whatever the last seat happened to be searching for.
     this.#pickerSearchText = "";
+    this.#pickerRanking = null;
+    this.#search.cancel();
     this.#pickerAspectFilter = null;
     this.#pickerListScroll.reset();
     this.#draw();
@@ -877,7 +916,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
         onChange: (value) => {
           this.#pickerSearchText = value;
           this.#pickerListScroll.reset();
-          this.#draw();
+          this.#requestSearch(value);
         },
       });
     }
@@ -890,6 +929,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
       CARDS_BY_ID,
     );
     const aspects = collectionPickerAspects(rowsAll);
+    this.#syncSearchDocuments(group.catalog.map((option) => option.cardId as string));
     const chipHeight = 32;
     const chipGap = 6;
     const chipCount = aspects.length + 1; // "ALL" plus one per aspect actually offered.
@@ -939,7 +979,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
     y += chipHeight + 12;
 
     const filtered = filterCollectionPicker(rowsAll, {
-      text: this.#pickerSearchText,
+      ranking: this.#pickerSearchText.trim() === "" ? null : this.#pickerRanking,
       aspect: this.#pickerAspectFilter,
     });
     if (filtered.length === 0) {

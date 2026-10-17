@@ -13,6 +13,7 @@ import { preconDecks } from "./deck-list-model.js";
 import { type AspectStamp, aspectName, aspectStampsOf } from "./aspect-stamp.js";
 import { cardDisplayName } from "./hero-names.js";
 import { matchesSearch } from "./roster-filter.js";
+import type { SearchDocument } from "./deck-search.js";
 import { seatInsightsOf, type PairCatalog, type SeatRecommendation } from "./seat-recommendations.js";
 
 export const ROSTER_SEAT_COUNT = 4;
@@ -181,10 +182,32 @@ export function pickerHeroNameOf(option: RosterDeckOption, pool: ReadonlyMap<str
 }
 
 /**
+ * What the picker's search looks in for each deck (view/deck-search.ts), sent to the worker when the option list
+ * changes: hero and deck names first, then the alter ego, aspects and where the deck came from.
+ */
+export function pickerSearchDocumentsOf(
+  options: readonly RosterDeckOption[],
+  pool: ReadonlyMap<string, AnyCard>,
+): readonly SearchDocument[] {
+  return options.map((option) => {
+    const identity = pool.get(option.identityId);
+    const hero = identity?.type === "hero_identity" ? identity : undefined;
+    return {
+      id: option.deck.id as string,
+      primary: [pickerHeroNameOf(option, pool), option.deck.name, hero?.hero.faceName, hero?.alterEgo.faceName].filter(
+        (t): t is string => typeof t === "string" && t !== "",
+      ),
+      secondary: [...option.deck.aspects.map(aspectName), option.sourceLabel, ...(hero?.hero.traits ?? [])],
+    };
+  });
+}
+
+/**
  * The picker's rows for seat `seatNumber`: the recommended heroes under their own heading, then every other hero under
  * "Other heroes" (a recommended hero is not listed twice), each group A to Z by hero name, then deck name. With no
  * recommendation the list has no headings. `query` keeps the decks whose hero, deck name, aspect or source matches it;
- * a group it empties loses its heading.
+ * a group it empties loses its heading. `ranking` (deck id to score, from the search worker) replaces `query`: only the
+ * ranked decks stay, best first within each group.
  */
 export function pickerEntriesOf(
   seatNumber: number,
@@ -192,18 +215,23 @@ export function pickerEntriesOf(
   recommendations: readonly SeatRecommendation[],
   pool: ReadonlyMap<string, AnyCard>,
   query = "",
+  ranking: ReadonlyMap<string, number> | null = null,
 ): readonly PickerEntry[] {
   const names = options.map((option) => pickerHeroNameOf(option, pool));
   const shown = options
     .map((option, index) => index)
     .filter((index) => {
       const option = options[index]!;
+      if (ranking) return ranking.has(option.deck.id as string);
       return matchesSearch(
         [names[index], option.deck.name, option.sourceLabel, ...option.deck.aspects.map(aspectName)],
         query,
       );
     });
   const byName = (a: number, b: number): number =>
+    (ranking
+      ? (ranking.get(options[b]!.deck.id as string) ?? 0) - (ranking.get(options[a]!.deck.id as string) ?? 0)
+      : 0) ||
     names[a]!.localeCompare(names[b]!, undefined, { sensitivity: "base" }) ||
     options[a]!.deck.name.localeCompare(options[b]!.deck.name, undefined, { sensitivity: "base" }) ||
     a - b;
