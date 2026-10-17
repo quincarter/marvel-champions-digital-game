@@ -1,3 +1,0 @@
-kind: Changed
-body: Netlify builds deploy previews only for pull requests from forks; everything else still deploys from GitHub Actions.
-time: 2026-10-16T22:49:37.2911391-04:00

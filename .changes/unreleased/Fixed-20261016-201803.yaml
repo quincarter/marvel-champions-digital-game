@@ -1,3 +1,0 @@
-kind: Fixed
-body: Conceding from the pause menu while the villain phase waits for Start now ends the game and goes to Game Over, instead of leaving the round stuck behind a menu reading Defeat.
-time: 2026-10-16T20:18:03.26753-04:00
