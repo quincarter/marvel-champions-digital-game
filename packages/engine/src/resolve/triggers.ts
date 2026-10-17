@@ -326,13 +326,15 @@ function matchesRest(
       // "After Deadpool takes damage": who the target was as it took the damage (`TargetSnapshot`), since the damage
       // may have turned an identity to its other side before this is read (RRG 1.8 "Identity", p. 23: a title names
       // only the side showing it). "After Cypher attacks and damages a confused enemy": the status cards it held as
-      // the attack damaged it, since its defeat took them out of play (owner ruling 2026-10-06). Only the top-level
-      // name and status clauses are read from the snapshot; the rest, and a clause inside `anyOf`/`not`, read the card
-      // as it now is.
+      // the attack damaged it, since its defeat took them out of play (owner ruling 2026-10-06). "After your hero
+      // attacks and defeats a minion": what it was as it was damaged, since a defeated Drone is a player card again
+      // (issue #228). The top-level name, status, category, trait and facedown clauses are read from the snapshot; the
+      // rest, and a clause inside `anyOf`/`not`, read the card as it now is.
       const was = event.targetAsDamaged;
-      const id = event.targetInstanceId;
+      // The card the snapshot was taken of: an "(attack)" ability's attack may since have named another target.
+      const id = was.instanceId ?? event.targetInstanceId;
       const asDamaged = (): boolean => {
-        const { name, titled, hasStatus, hasAnyStatus, ...live } = query;
+        const { name, titled, hasStatus, hasAnyStatus, ...afterStatuses } = query;
         if (name !== undefined && was.name !== name) return false;
         if (
           titled !== undefined &&
@@ -345,6 +347,19 @@ function matchesRest(
           if (hasAnyStatus !== undefined && STATUS_NAMES.some((status) => held[status] > 0) !== hasAnyStatus)
             return false;
         }
+        // "After your hero attacks and defeats a minion" when the attack defeated a facedown Drone (issue #228): what
+        // the target was as it was damaged, as `characterDefeated.asDefeated` is read above. A snapshot stamped before
+        // it carried this reads the live card.
+        const { categories, trait, withoutTrait, anyTrait, facedown, ...afterWas } = afterStatuses;
+        const as = was.was;
+        if (as !== undefined) {
+          if (categories && !categories.some((category) => as.categories.includes(category))) return false;
+          if (trait && !as.traits.includes(trait)) return false;
+          if (withoutTrait && as.traits.includes(withoutTrait)) return false;
+          if (anyTrait && !anyTrait.some((wanted) => as.traits.includes(wanted))) return false;
+          if (facedown !== undefined && as.facedown !== facedown) return false;
+        }
+        const live: TargetQuery = as !== undefined ? afterWas : afterStatuses;
         // A snapshot stamped before it carried statuses: those clauses read the live card with the rest.
         const rest: TargetQuery =
           held !== undefined
@@ -357,8 +372,8 @@ function matchesRest(
         return matchesQuery(state, id, rest, context);
       };
       // An "(attack)" ability's attack attacked every enemy it targeted (`attack.attacked`, owner ruling Q50): "after
-      // you attack a minion" is satisfied by any of them. Only the first target has a snapshot; the others are read
-      // as they now are.
+      // you attack a minion" is satisfied by any of them. Only the card the snapshot was taken of reads it; the others
+      // are read as they now are.
       const others = event.kind === "attack" ? subjects.targets.filter((target) => target !== id) : [];
       const first = subjects.targets.includes(id) && asDamaged();
       if (!first && !others.some((target) => matchesQuery(state, target, query, context))) return false;

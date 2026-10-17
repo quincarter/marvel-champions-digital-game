@@ -132,6 +132,7 @@ import {
   type Frame,
   gameAbilityFrames,
   pushEffects,
+  defeatedSnapshotOf,
   pushEvent,
   pushEvents,
   pushEventsJoiningResponses,
@@ -730,7 +731,7 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
   switch (event.kind) {
     case "dealDamage": {
       // The response window reads the frame's event: it carries the target as it took the damage.
-      const stamped = asDamaged(ctx.state, withUsedStat(ctx.state, event));
+      const stamped = asDamaged(ctx, withUsedStat(ctx.state, event));
       if (stamped !== event)
         updateFrame(ctx, frame.frameId, (f) => (f.kind === "event" ? { ...f, event: stamped } : f));
       stampAttackTarget(ctx, stamped);
@@ -1436,19 +1437,23 @@ export function excessAsDealtOf(
  * response window, after a replacement on the defeat it causes may have turned the target to another face. Unchanged
  * for damage that is not dealt (0 as it would be dealt, or a target that has left play).
  */
-export function asDamaged(state: GameState, event: DamageEvent): DamageEvent {
+export function asDamaged(ctx: Ctx, event: DamageEvent): DamageEvent {
+  const { state } = ctx;
   // Damage an interrupt prevented in full was still dealt (`dealt`), and its "after X is dealt damage" responses read
   // the target as it was dealt to; damage of 0 as it would be dealt (`amount` 0, no `dealt`) is not.
   const dealt = event.dealt ?? event.amount;
   if (dealt <= 0 || event.targetAsDamaged || !cardsInPlay(state).includes(event.targetInstanceId)) return event;
   const name = currentName(state, event.targetInstanceId);
   const statuses = getInstance(state, event.targetInstanceId)?.statuses;
+  const was = defeatedSnapshotOf(ctx, event.targetInstanceId);
   return {
     ...event,
     targetAsDamaged: {
+      instanceId: event.targetInstanceId,
       ...(name !== undefined ? { name } : {}),
       titles: titlesNaming(state, event.targetInstanceId),
       ...(statuses !== undefined ? { statuses: { ...statuses } } : {}),
+      ...(was !== undefined ? { was } : {}),
     },
   };
 }
