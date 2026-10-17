@@ -1,0 +1,3 @@
+kind: Fixed
+body: The defend prompt's damage range now counts prevention already on the attack, such as Magic Barrier's "prevent 3" (#212).
+time: 2026-10-17T09:50:05.4139587-04:00

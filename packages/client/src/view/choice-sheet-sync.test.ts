@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   choiceSheetAction,
+  choiceSheetKey,
   sheetIsCovered,
   STUCK_SHEET_GRACE_MS,
   stuckSheetShouldRecover,
@@ -54,5 +55,37 @@ describe("sheetIsCovered", () => {
     expect(sheetIsCovered({ coverActive: true, coverIndex: 5, sheetIndex: 4 })).toBe(true);
     expect(sheetIsCovered({ coverActive: true, coverIndex: 3, sheetIndex: 4 })).toBe(false);
     expect(sheetIsCovered({ coverActive: false, coverIndex: 5, sheetIndex: 4 })).toBe(false);
+  });
+});
+
+describe("choiceSheetKey", () => {
+  const option = (id: string) => ({ optionId: id, label: id, ref: { kind: "card", instanceId: id } }) as never;
+  const target = {
+    choiceId: "c9",
+    playerId: "p1",
+    prompt: { kind: "chooseTarget" },
+    options: [option("i1"), option("i116")],
+  } as never;
+  const discard = {
+    choiceId: "c9",
+    playerId: "p1",
+    prompt: { kind: "discardDownToHandSize", handSize: 5 },
+    options: [option("i70"), option("i64"), option("i55"), option("i85"), option("i82")],
+  } as never;
+
+  test("an undone decision and the one that takes its id after the undo are two decisions (issue #211)", () => {
+    // Rhino picked as the target, the play undone, then the end-of-turn discard raised as c9 again.
+    expect(choiceSheetKey(target)).not.toBe(choiceSheetKey(discard));
+    expect(
+      choiceSheetAction({
+        leaving: true,
+        shownChoiceId: choiceSheetKey(target),
+        pendingChoiceId: choiceSheetKey(discard),
+      }),
+    ).toBe("restart");
+  });
+
+  test("the same decision redrawn keeps its key", () => {
+    expect(choiceSheetKey(discard)).toBe(choiceSheetKey({ ...(discard as object) } as never));
   });
 });

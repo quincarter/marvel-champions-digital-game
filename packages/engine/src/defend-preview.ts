@@ -158,7 +158,7 @@ export interface DefendBand {
   readonly boostTo: number;
   /** After DEF (RRG 1.8 p. 9 step 4). */
   readonly damageDealt: number;
-  /** After a tough status (p. 44). */
+  /** After a tough status (p. 44) and the attack's own "prevent [N|all] damage from this attack" (p. 35). */
   readonly damageTaken: number;
   readonly toughSpent: boolean;
   readonly defeated: boolean;
@@ -318,8 +318,15 @@ function outcomeAt(
   // RRG 1.8 "Tough" (p. 44): the damage is prevented and the status card is discarded — except that a hero making a
   // basic defense reduces by DEF first and *keeps* the tough if the result is 0 (p. 9 step 5), which the resolver
   // gets right by returning before any of this when the amount is 0 or less.
-  const hasTough = (target?.statuses.tough ?? 0) > 0;
-  const damageTaken = damageDealt <= 0 || hasTough ? 0 : damageDealt;
+  // The attack's own prevention, in the order `applyDamage` (resolve/event.ts) applies it: "prevent all damage from
+  // this attack" comes before tough, so the status card stays; "prevent N damage from this attack" (Magic Barrier,
+  // Brazen Defense; `modifyAttack.preventDamage`) comes after it, so a tough card that took the damage leaves the
+  // budget unspent. Prevented damage is dealt but not taken (RRG 1.8 "Prevent", p. 35).
+  const vars = activationVarsOf(state, frame.eventFrameId);
+  const preventsAll = (vars.preventAllDamage ?? 0) > 0;
+  const preventBudget = Math.max(0, (vars.preventDamage ?? 0) - (vars.preventDamageUsed ?? 0));
+  const hasTough = !preventsAll && (target?.statuses.tough ?? 0) > 0;
+  const damageTaken = damageDealt <= 0 || hasTough || preventsAll ? 0 : Math.max(0, damageDealt - preventBudget);
   const toughSpent = damageDealt > 0 && hasTough;
 
   const defeated = damageTaken > 0 && already + damageTaken >= maxHp;

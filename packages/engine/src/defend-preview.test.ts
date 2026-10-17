@@ -285,6 +285,71 @@ test("a tough hero keeps the status in the band where the damage reduces to 0, a
   expect(hit.damageTaken).toBe(0);
 });
 
+// ---------------------------------------------------------------------------
+// The attack's own prevention (`modifyAttack`), set before the defender is declared. RRG 1.8 "Prevent" (p. 35):
+// prevented damage is dealt but not taken. Issue #212: Magic Barrier's "prevent 3" was missing from the range.
+// ---------------------------------------------------------------------------
+
+/** The table with the attack's event frame carrying `vars`, as a `modifyAttack` played on the attack leaves it. */
+const withAttackVars = (at: AtDefense, vars: Record<string, number>): GameState => {
+  const attack = at.state.stack.find((frame) => frame.kind === "enemyAttack");
+  if (attack?.kind !== "enemyAttack" || !attack.eventFrameId) throw new Error("expected an attack with an event frame");
+  return {
+    ...at.state,
+    stack: at.state.stack.map((frame) =>
+      frame.frameId === attack.eventFrameId && frame.kind === "event"
+        ? { ...frame, vars: { ...frame.vars, ...vars } }
+        : frame,
+    ),
+  };
+};
+
+test("prevent 3 damage from this attack comes off the damage taken in every band, never below 0", () => {
+  // ATK 4 plus 0–3 icons: undefended, 4–7 dealt, so 1–4 taken.
+  const at = atDefense();
+  const options = defendPreview(withAttackVars(at, { preventDamage: 3 }), at.deps)!;
+  const decline = options.find((option) => option.defenderInstanceId === null)!;
+  for (const band of decline.bands) expect(band.damageTaken).toBe(Math.max(0, band.damageDealt - 3));
+  expect(decline.bands[0]!.damageTaken).toBe(1);
+  expect(decline.bands[decline.bands.length - 1]!.damageTaken).toBe(4);
+  // The hero's basic defense reduces first, then the budget.
+  const hero = options.find((option) => option.defenderInstanceId === at.hero)!;
+  for (const band of hero.bands) expect(band.damageTaken).toBe(Math.max(0, band.damageDealt - 3));
+});
+
+test("only what is left of the budget comes off, once the attack has spent some of it", () => {
+  const at = atDefense();
+  const options = defendPreview(withAttackVars(at, { preventDamage: 3, preventDamageUsed: 2 }), at.deps)!;
+  const decline = options.find((option) => option.defenderInstanceId === null)!;
+  for (const band of decline.bands) expect(band.damageTaken).toBe(band.damageDealt - 1);
+});
+
+test("a tough card takes the damage before the prevent budget, which is then left unspent", () => {
+  const at = atDefense();
+  const state = patch(withAttackVars(at, { preventDamage: 3 }), at.hero, {
+    statuses: { stunned: 0, confused: 0, tough: 1 },
+  });
+  const decline = defendPreview(state, at.deps)!.find((option) => option.defenderInstanceId === null)!;
+  for (const band of decline.bands) {
+    expect(band.toughSpent).toBe(true);
+    expect(band.damageTaken).toBe(0);
+  }
+});
+
+test("prevent all damage from this attack: nothing is taken, nobody is defeated, and a tough card stays", () => {
+  const at = atDefense();
+  const state = patch(withAttackVars(at, { preventAllDamage: 1 }), at.hero, {
+    statuses: { stunned: 0, confused: 0, tough: 1 },
+  });
+  for (const option of defendPreview(state, at.deps)!) {
+    for (const band of option.bands) {
+      expect(band.damageTaken).toBe(0);
+      expect(band.toughSpent).toBe(false);
+      expect(band.defeated).toBe(false);
+    }
+  }
+});
+
 test("retaliate is the same in every band the defender survives, and 0 where it doesn't", () => {
   const retaliator = stubAlly({
     id: "spiky",
