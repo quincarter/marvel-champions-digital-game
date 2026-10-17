@@ -1,0 +1,3 @@
+kind: Fixed
+body: Clicking a shelf's scroll arrow (Take your seats, Choose a scenario, Extras, campaign shelves) no longer also picks the card that slides in under it (#218)
+time: 2026-10-17T12:12:42.8440116-04:00

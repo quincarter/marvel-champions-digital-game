@@ -119,6 +119,8 @@ export class McShelfRoster<T> {
   readonly #drag = new AxisDragGesture();
   readonly #momentum = new Momentum();
   #dragShelfId: string | null = null;
+  /** The press in progress went down on a shelf's chevron: its release is the chevron's click, never a card tap. */
+  #pressOnChevron = false;
   #rect: Rect;
   #shelves: readonly Shelf<T>[];
   readonly #metrics: ShelfRosterMetrics;
@@ -525,9 +527,25 @@ export class McShelfRoster<T> {
     if (this.#scrollByPx(dy)) this.#sync();
   }
 
+  /** Whether a live chevron is drawn at this screen point. */
+  #chevronAt(x: number, y: number): boolean {
+    const at = this.#shelfAt(y - this.#rect.y + this.#verticalScroll.offsetPx);
+    const live = at ? this.#live.get(at.index) : undefined;
+    if (!at || !live) return false;
+    const m = this.#metrics;
+    const chevronTop = m.headerHeight + m.headerToCardsGap + (m.cardHeight - CHEVRON_HEIGHT) / 2;
+    if (at.within < chevronTop || at.within > chevronTop + CHEVRON_HEIGHT) return false;
+    if (live.chevronLeft && x >= this.#rect.x && x <= this.#rect.x + CHEVRON_WIDTH) return true;
+    const right = this.#rect.x + this.#rect.width;
+    return live.chevronRight !== null && x >= right - CHEVRON_WIDTH && x <= right;
+  }
+
   #onPointerDown(pointer: Phaser.Input.Pointer): void {
     if (!pointInRect(pointer.x, pointer.y, this.#rect)) return;
     this.#momentum.stop();
+    // Judged at the press: the chevron's own click (which runs before this roster's scene-level release) scrolls the
+    // shelf and may remove the chevron, and the card that slid under it must not take the same click (#218).
+    this.#pressOnChevron = this.#chevronAt(pointer.x, pointer.y);
     this.#dragShelfId = null;
     const shelfIndex = this.#shelfIndexAtY(pointer.y);
     if (shelfIndex !== null) this.#dragShelfId = this.#shelves[shelfIndex]?.id ?? null;
@@ -560,8 +578,10 @@ export class McShelfRoster<T> {
   #onPointerUp(pointer: Phaser.Input.Pointer): void {
     const result = this.#drag.end(pointer.id, this.#scene.time.now);
     if (!result) return;
+    const onChevron = this.#pressOnChevron;
+    this.#pressOnChevron = false;
     if (result.wasTap) {
-      if (!pointInRect(pointer.x, pointer.y, this.#rect)) return;
+      if (onChevron || !pointInRect(pointer.x, pointer.y, this.#rect)) return;
       const at = this.#shelfAt(pointer.y - this.#rect.y + this.#verticalScroll.offsetPx);
       if (!at) return;
       const shelfIndex = at.index;
