@@ -110,7 +110,7 @@ describe("F7 and F8", () => {
   });
 });
 
-describe("F5: search reads traits and type, name matches first", () => {
+describe("F5: search reads traits, type and rules text (issue #217), name matches first", () => {
   test("S.H.I.E.L.D. and Soldier find cards by trait", () => {
     const justice = hero("01001a");
     expect(ids(browsablePool(POOL_CARDS, justice, ["justice"], { text: "S.H.I.E.L.D." }))).toContain("08011");
@@ -121,7 +121,8 @@ describe("F5: search reads traits and type, name matches first", () => {
       soldiers.every(
         (c) =>
           c.name.toLowerCase().includes("soldier") ||
-          ("traits" in c && c.traits.some((t) => String(t).toLowerCase().includes("soldier"))),
+          ("traits" in c && c.traits.some((t) => String(t).toLowerCase().includes("soldier"))) ||
+          ("text" in c && c.text.current.toLowerCase().includes("soldier")),
       ),
     ).toBe(true);
   });
