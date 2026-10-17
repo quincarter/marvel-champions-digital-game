@@ -1,10 +1,17 @@
-import type { InstanceId, TriggerEvent } from "@mc/engine";
+import { cardOf, type GameState, type InstanceId, type TriggerEvent } from "@mc/engine";
 import { beforeAll, describe, expect, test } from "vitest";
 import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
+import { playToJackpotWindow } from "../store/dev-jackpot-game.js";
 import { SessionStore } from "../store/session-store.js";
 import { cardName } from "./names.js";
-import { effectLineOf, triggerHeadlineOf, triggerWhyNowOf, triggerWindowContextOf } from "./trigger-window-context.js";
+import {
+  deckDiscardWarningOf,
+  effectLineOf,
+  triggerHeadlineOf,
+  triggerWhyNowOf,
+  triggerWindowContextOf,
+} from "./trigger-window-context.js";
 
 describe("effectLineOf", () => {
   test("reads I Object! as an instruction", () => {
@@ -100,4 +107,85 @@ describe("effectLineOf, plain names", () => {
       ),
     ).toBe("Use Spider-Sense to draw 1 card");
   });
+});
+
+describe("a deck discard answered by a response (issue #222: Jackpot! and Luck Be a Lady)", () => {
+  let store: SessionStore;
+  beforeAll(async () => {
+    store = new SessionStore(new LocalEngineHost());
+    await store.start({
+      scenarioId: "klaw",
+      difficulty: "standard",
+      players: [{ starterDeckId: "domino-justice" }],
+      seed: 1,
+    });
+  }, 60_000);
+
+  const named = (name: string): InstanceId => {
+    const game = store.state.game!;
+    return Object.keys(game.instances).find((id) => cardOf(game, id as InstanceId)?.name === name)! as InstanceId;
+  };
+  /** The table as the response window sees it: both cards face up in Domino's discard pile. */
+  const atWindow = (): GameState => {
+    const game = store.state.game!;
+    const moved = [named("Jackpot!"), named("Luck Be a Lady")];
+    return {
+      ...game,
+      players: game.players.map((p, i) =>
+        i === 0
+          ? {
+              ...p,
+              deck: p.deck.filter((id) => !moved.includes(id)),
+              hand: p.hand.filter((id) => !moved.includes(id)),
+              discard: [...moved, ...p.discard],
+            }
+          : p,
+      ),
+    };
+  };
+  const discarded = (sourceInstanceId: InstanceId | null, at: "discard" | "deck" = "discard"): TriggerEvent =>
+    ({
+      kind: "cardDiscardedFromDeck",
+      instanceId: named("Jackpot!"),
+      playerId: store.state.game!.players[0]!.playerId,
+      deck: "player",
+      fromTop: true,
+      sourceInstanceId,
+      at,
+    }) as TriggerEvent;
+
+  test("the headline names the card, the deck and the card that discarded it", () => {
+    const game = atWindow();
+    const viewer = game.players[0]!.playerId;
+    expect(triggerHeadlineOf(game, discarded(named("Luck Be a Lady")), "response", viewer)).toBe(
+      "Jackpot! was discarded from the top of your deck by Luck Be a Lady",
+    );
+  });
+
+  test("taking the response warns that the discarding card won't count it", () => {
+    expect(deckDiscardWarningOf(atWindow(), discarded(named("Luck Be a Lady")))).toBe(
+      "Heads up: Jackpot! would leave the discard pile, so Luck Be a Lady won't count its resources. Decline to keep them.",
+    );
+  });
+
+  test("no warning when nothing counts the card: no source, or the deck reset already took it", () => {
+    const game = atWindow();
+    expect(deckDiscardWarningOf(game, discarded(null))).toBeNull();
+    expect(deckDiscardWarningOf(game, discarded(named("Luck Be a Lady"), "deck"))).toBeNull();
+  });
+});
+
+describe("the real Jackpot! window after Luck Be a Lady (issue #222)", () => {
+  test("the sheet says what was discarded, by what, and what taking the response costs", async () => {
+    const store = new SessionStore(new LocalEngineHost());
+    await playToJackpotWindow(store);
+    const game = store.state.game!;
+    const choice = game.pendingChoice!;
+    expect(choice.prompt.kind).toBe("chooseTriggers");
+    const context = triggerWindowContextOf(game, choice, choice.playerId, POOL_DEPS)!;
+    expect(context.headline).toBe("Jackpot! was discarded from the top of your deck by Luck Be a Lady");
+    expect(context.warning).toBe(
+      "Heads up: Jackpot! would leave the discard pile, so Luck Be a Lady won't count its resources. Decline to keep them.",
+    );
+  }, 60_000);
 });

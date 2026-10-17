@@ -29,6 +29,8 @@ export interface TriggerWindowContext {
   readonly whyNow: string | null;
   /** What saying yes does, one line per offered ability. */
   readonly effects: readonly string[];
+  /** What saying yes costs that the card text does not say; null when there is nothing to warn about. */
+  readonly warning: string | null;
 }
 
 const count = (n: number, word: string): string => `${n} ${word}`;
@@ -104,6 +106,17 @@ export function triggerHeadlineOf(
     case "attack": {
       const attacker = cardName(state, event.attackerInstanceId);
       return before ? `${attacker} is about to attack` : `${attacker} attacked`;
+    }
+    case "cardDiscardedFromDeck": {
+      const card = cardName(state, event.instanceId);
+      const deck =
+        event.playerId === null
+          ? "the encounter deck"
+          : event.playerId === viewer
+            ? "your deck"
+            : `${playerName(state, event.playerId)}'s deck`;
+      const by = event.sourceInstanceId === null ? "" : ` by ${cardName(state, event.sourceInstanceId)}`;
+      return `${card} was discarded from the top of ${deck}${by}`;
     }
     case "thwart": {
       const thwarter = cardName(state, event.thwarterInstanceId);
@@ -185,6 +198,19 @@ export function effectLineOf(name: string, paragraph: string): string {
 }
 
 /**
+ * A response that takes a card away after another card's ability discarded it from a deck (Jackpot! shuffling itself
+ * back, Digging Deep to hand, The Painted Lady): the discarding ability no longer counts that card. RRG v1.8 p. 24 lets
+ * the response initiate before that ability finishes; ruling April 30, 2026 - Ruling 4 (1) says the card "does not
+ * count", which the engine applies to every deck discard (wave 7 §4.1 Q32 = B). The card text says none of this.
+ */
+export function deckDiscardWarningOf(state: GameState, event: TriggerEvent): string | null {
+  if (event.kind !== "cardDiscardedFromDeck" || event.at !== "discard") return null;
+  const source = event.sourceInstanceId;
+  if (source === null || source === event.instanceId) return null;
+  return `Heads up: ${cardName(state, event.instanceId)} would leave the discard pile, so ${cardName(state, source)} won't count its resources. Decline to keep them.`;
+}
+
+/**
  * The context for a `chooseTriggers` prompt, or null for any other prompt. `effects` has one line per distinct
  * offered ability.
  */
@@ -210,5 +236,6 @@ export function triggerWindowContextOf(
     headline: triggerHeadlineOf(state, prompt.event, prompt.timing, viewer),
     whyNow: triggerWhyNowOf(state, prompt.event),
     effects,
+    warning: prompt.timing === "response" ? deckDiscardWarningOf(state, prompt.event) : null,
   };
 }

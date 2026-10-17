@@ -1958,6 +1958,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     add(context.headline, 18, "bold", surface.ink.hex, 1);
     if (context.whyNow) add(context.whyNow, 13, "normal", surface.ink.hex, ink.secondary);
     for (const effect of context.effects) add(`If you confirm: ${effect}`, 13, "bold", surface.ink.hex, 1);
+    if (context.warning) add(context.warning, 13, "bold", surface.ink.hex, 1);
     const used = cursor - y;
     if (measureOnly) made.forEach((object) => object.destroy());
     return used;
