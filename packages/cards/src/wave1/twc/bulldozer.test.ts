@@ -136,8 +136,8 @@ describe("Bulldozer's Helmet (07049) with overkill spilling past a defending all
 
   it("'After Bulldozer attacks you' resolves once, discarding 1 card per damage the whole attack dealt", () => {
     // RRG 1.8 "You, Your" (p. 49): "attacks you" is the attacked player, attacked once; "Overkill" (p. 31): the spill
-    // is damage from the attack but not another attack. Ruling January 11, 2026 (2) makes "attacks and damages" a
-    // condition per damaged character, which "attacks you" is not.
+    // is damage from the attack but not another attack. Ruling January 11, 2026 (2) (https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-7/)
+    // makes "attacks and damages" a condition per damaged character, which "attacks you" is not.
     const { events, state } = bulldozerAttacksBlackCat();
     const attack = firstAttackOf(events);
     const hits = attack.filter((e) => e.type === "damageDealt");

@@ -1,7 +1,10 @@
 /**
  * Audit fix `you-means-identity`: "After [enemy] attacks and damages you" checks the attacked player's identity (RRG 1.8
- * "You, Your", p. 49; FFG rulings 225.1 and 226, July 18, 2024), so a defending ally's damage is not heard, and an
- * overkill spill onto the identity is (ruling January 11, 2026 (2): each damaged character is its own condition), once.
+ * "You, Your", p. 49; FFG rulings 225.1 (undated) and 226 (July 18, 2024)), so a defending ally's damage is not
+ * heard, and an overkill spill onto the identity is (ruling January 11, 2026 (2): each damaged character is its own
+ * condition), once.
+ * Rulings: https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-5/ (225.1, 226, 151) and
+ * https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-7/ (January 11, 2026, Ruling 2).
  * The response here is Green Goblin's shape (02014, an encounter card with no controller), on a stub villain.
  */
 import { flat } from "@mc/content";

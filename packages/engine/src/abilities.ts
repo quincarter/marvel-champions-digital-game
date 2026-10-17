@@ -50,7 +50,7 @@ export interface EventPattern {
   /**
    * With `playerIs: "controller"`: "you" is that player's **identity** (RRG 1.8 "You, Your", p. 49: "if the word
    * 'you' can be resolved as referring to the player's identity, it must be resolved as such"), so the character the
-   * attack is against must be it. "After [enemy] attacks and damages you" (FFG rulings 225.1 and 226, July 18, 2024:
+   * attack is against must be it. "After [enemy] attacks and damages you" (FFG rulings 225.1 (undated) and 226 (July 18, 2024):
    * it "checks if the attacked player's identity was damaged", i.e. "after X damages you with an attack"): a
    * defending ally's damage is not heard, and an overkill spill onto the identity is (its own condition, ruling
    * January 11, 2026 (2)). "When a boost card on an enemy attacking you would be turned faceup" (Defiance; ruling 151,

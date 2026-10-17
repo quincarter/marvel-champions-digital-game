@@ -520,8 +520,8 @@ function attackYouOf(event: Extract<TriggerEvent, { kind: "enemyAttack" }>, timi
 
 /**
  * `EventPattern.youAreIdentity`: the attack's target character (the defender once one is declared; an overkill spill's
- * condition names the character it damaged) is `you`'s identity. RRG 1.8 "You, Your" (p. 49); FFG rulings 225.1 and
- * 226 (July 18, 2024) and 151 (March 15, 2024).
+ * condition names the character it damaged) is `you`'s identity. RRG 1.8 "You, Your" (p. 49); FFG rulings 225.1
+ * (undated), 226 (July 18, 2024) and 151 (March 15, 2024).
  */
 function attackIsAgainstIdentityOf(state: GameState, event: TriggerEvent, you: PlayerId): boolean {
   const character =

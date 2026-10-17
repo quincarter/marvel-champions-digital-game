@@ -2832,8 +2832,8 @@ export interface EnemyAttackOptions {
    */
   readonly damages?: boolean;
   /**
-   * "Attacks and damages you", where "you" is your identity (RRG 1.8 "You, Your", p. 49; FFG rulings 225.1 and 226,
-   * July 18, 2024): a defending ally's damage is not heard (`EventPattern.youAreIdentity`).
+   * "Attacks and damages you", where "you" is your identity (RRG 1.8 "You, Your", p. 49; FFG rulings 225.1 (undated)
+   * and 226 (July 18, 2024)): a defending ally's damage is not heard (`EventPattern.youAreIdentity`).
    */
   readonly damagesYou?: boolean;
   /**

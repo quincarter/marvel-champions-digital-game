@@ -5,6 +5,7 @@
  * new encounter card to replace it. (Otherwise, play with the obligation as normal.)" RRG 1.8 "Obligation" (p. 30): "If
  * an obligation cannot be given to the specified player for any reason, ignore the card's ability, remove it from the
  * game, and reveal an additional encounter card."
+ * Ruling: https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-5/ (September 21, 2023, Ruling 89).
  */
 
 import { flat, type CardId } from "@mc/content";
