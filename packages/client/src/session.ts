@@ -12,7 +12,10 @@ import type { CampaignDefinition } from "@mc/engine";
 import type { AspectTryItId } from "./guide/aspect-tryit-config.js";
 import type { MechanicTryItId } from "./guide/mechanic-tryits.js";
 import { CampaignService } from "./campaign/campaign-service.js";
-import { POOL_CARDS, POOL_DEPS } from "./content/pool.js";
+import { POOL_CARDS, POOL_DEPS, POOL_STARTER_DECKS, POOL_VERSION } from "./content/pool.js";
+import { deckFromStarterDeck } from "@mc/content";
+import { RepairingDeckStorage } from "./engine/precon-edit-repair.js";
+import { repairedStoredDeck } from "./view/deck-builder-model.js";
 import { MemoryCampaignStorage } from "./engine/campaign-storage.js";
 import { createEngineHost } from "./engine/create-host.js";
 import { IdbCampaignStorage } from "./engine/idb-campaign-storage.js";
@@ -145,7 +148,20 @@ export function useDevHost(host: EngineHost): void {
 let decks: DeckStorage | null = null;
 
 export function deckStorage(): DeckStorage {
-  decks ??= typeof indexedDB !== "undefined" ? new IdbDeckStorage() : new MemoryDeckStorage();
+  decks ??= new RepairingDeckStorage(
+    typeof indexedDB !== "undefined" ? new IdbDeckStorage() : new MemoryDeckStorage(),
+    (deck) => {
+      if (deck.source.kind !== "precon") return deck;
+      const starterDeckId = deck.source.starterDeckId;
+      const starter = POOL_STARTER_DECKS.find((s) => s.id === starterDeckId);
+      return repairedStoredDeck(
+        deck,
+        starter ? deckFromStarterDeck(starter, POOL_VERSION) : null,
+        `deck-${crypto.randomUUID()}`,
+        new Date().toISOString(),
+      );
+    },
+  );
   return decks;
 }
 

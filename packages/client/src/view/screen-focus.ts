@@ -147,6 +147,12 @@ export interface DeckBuilderFocusInput {
   readonly showPreconClear?: boolean;
   /** Campaign deck-edit mode's rewards strip: one stop per reward's in/out toggle, by the id the scene registers it under. */
   readonly rewardIds?: readonly string[];
+  /** Before an identity is chosen: stops drawn ahead of the hero rows (the hero search, a "Start from" step's choices). */
+  readonly identityExtraIds?: readonly string[];
+  /** A deck already saved can be deleted from the builder: its Delete button follows Clear. */
+  readonly showDelete?: boolean;
+  /** Stops drawn on the pool search's own row after the field (its clear button, the grid/list view toggle). */
+  readonly filterExtraIds?: readonly string[];
 }
 
 /**
@@ -159,7 +165,8 @@ export interface DeckBuilderFocusInput {
  * stop each).
  */
 export function deckBuilderFocusOrder(input: DeckBuilderFocusInput): readonly string[] {
-  if (!input.identityChosen) return ["back", ...input.identityIds.map((id) => `identity:${id}`)];
+  if (!input.identityChosen)
+    return ["back", ...(input.identityExtraIds ?? []), ...input.identityIds.map((id) => `identity:${id}`)];
   return [
     "back",
     ...input.aspectIds.map((id) => `aspect:${id}`),
@@ -172,9 +179,11 @@ export function deckBuilderFocusOrder(input: DeckBuilderFocusInput): readonly st
     "pack:sort",
     ...((input.showName ?? true) ? ["name"] : []),
     ...((input.showPreconClear ?? true) ? ["preconstructed", "clear"] : []),
+    ...(input.showDelete ? ["delete"] : []),
     ...(input.rewardIds ?? []).map((id) => `reward:${id}`),
     "save",
     "filter-text",
+    ...(input.filterExtraIds ?? []),
     ...input.poolCardIds.map((id) => `card:${id}`),
   ];
 }

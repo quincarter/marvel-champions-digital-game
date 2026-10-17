@@ -145,17 +145,27 @@ export function duplicateDeck(deck: Deck, id: string, now: string, existingNames
   };
 }
 
-/** The words a text search reads on a card besides its name: its traits and its type ("event", "player side scheme"). */
+/** The words a text search reads on a card besides its name: its traits, its type ("event", "player side scheme") and its rules text. */
 const searchWordsOf = (card: AnyCard): readonly string[] => [
   ...("traits" in card ? (card.traits as readonly string[]) : []),
   card.type.replace(/_/g, " "),
+  ...("text" in card && card.text ? [rulesTextOf(card.text)] : []),
 ];
 
+/** A card's current rules text, as plain words: "[thwart]" reads "thwart", "S.H.I.E.L.D._Agent" reads "S.H.I.E.L.D. Agent". */
+function rulesTextOf(text: unknown): string {
+  const current = typeof text === "string" ? text : ((text as { readonly current?: string } | null)?.current ?? "");
+  return current.replace(/[[\]]/g, " ").replace(/_/g, " ");
+}
+
+/** The search's words: whitespace-separated, lowercased; a card must match every one of them. */
+export function searchTermsOf(text: string | undefined): readonly string[] {
+  return (text ?? "").trim().toLowerCase().split(/\s+/).filter(Boolean);
+}
+
 const textMatch = (card: AnyCard, text: string): boolean => {
-  const needle = text.trim().toLowerCase();
-  return (
-    card.name.toLowerCase().includes(needle) || searchWordsOf(card).some((word) => word.toLowerCase().includes(needle))
-  );
+  const haystack = [card.name, ...searchWordsOf(card)].join(" | ").toLowerCase();
+  return searchTermsOf(text).every((term) => haystack.includes(term));
 };
 
 const matchesFilter = (card: AnyCard, filter: PoolFilter): boolean => {
@@ -218,10 +228,10 @@ export function browsablePool(
 
 /** With a text search, cards whose name matches come before cards matching only by trait or type (order kept within each). */
 function nameMatchesFirst(cards: readonly AnyCard[], text: string | undefined): readonly AnyCard[] {
-  const needle = text?.trim().toLowerCase();
-  if (!needle) return cards;
-  const byName = cards.filter((card) => card.name.toLowerCase().includes(needle));
-  return [...byName, ...cards.filter((card) => !card.name.toLowerCase().includes(needle))];
+  const terms = searchTermsOf(text);
+  if (terms.length === 0) return cards;
+  const nameMatches = (card: AnyCard): boolean => terms.every((term) => card.name.toLowerCase().includes(term));
+  return [...cards.filter(nameMatches), ...cards.filter((card) => !nameMatches(card))];
 }
 
 const costOf = (card: AnyCard): number => ("cost" in card && typeof card.cost === "number" ? card.cost : Infinity);
@@ -372,6 +382,89 @@ export function resetToPrecon(
     ...deck,
     aspects: [...starter.aspects],
     cards: starter.cards.map(({ cardId: id, quantity }) => ({ cardId: id, quantity })),
+  };
+}
+
+/** Every published precon for `identity`, in `starterDecks` order: Captain Marvel has two (Leadership, Aggression). */
+export function preconsFor(identity: HeroIdentityCard, starterDecks: readonly StarterDeck[]): readonly StarterDeck[] {
+  return starterDecks.filter((s) => (s.identityCardId as string) === (identity.id as string));
+}
+
+/**
+ * New deck's "Start from" step: `starter` null is an empty deck (the identity's own signature set, `newDeck`), else
+ * the player's own copy of that precon — its aspects and cards under a fresh id and the precon's name, `userBuilt`,
+ * so saving it never touches the precon (issue #217).
+ */
+export function startingDeckOf(
+  identity: HeroIdentityCard,
+  starter: StarterDeck | null,
+  pool: CardPool,
+  id: string,
+  poolVersion: string,
+  now: string,
+): Deck {
+  const deck = newDeck(identity, pool, id, poolVersion, now);
+  if (!starter) return deck;
+  return {
+    ...deck,
+    name: copyNameOf(starter.name),
+    aspects: [...starter.aspects],
+    cards: starter.cards.map(({ cardId, quantity }) => ({ cardId, quantity })),
+  };
+}
+
+/**
+ * What the builder edits when it is handed `deck` (issue #217). A precon is never edited in place: it is derived
+ * fresh from its `StarterDeck` every load, keyed and seated by its starter id, so a saved "edit" kept the precon's id
+ * and source, and seats, Decks and the seat list all went on reading the published list under it. The builder
+ * instead edits the player's own copy (`duplicateDeck`: a fresh id, `userBuilt`, "(copy)" in its name). Any other
+ * deck is edited as it is.
+ */
+export function editableDeckOf(deck: Deck, id: string, now: string): Deck {
+  return deck.source.kind === "precon" ? duplicateDeck(deck, id, now) : deck;
+}
+
+/** Two card lists hold the same cards, whatever their order. */
+function sameCards(a: readonly DeckCardEntry[], b: readonly DeckCardEntry[]): boolean {
+  const count = (cards: readonly DeckCardEntry[]): Map<string, number> => {
+    const counts = new Map<string, number>();
+    for (const { cardId, quantity } of cards)
+      counts.set(cardId as string, (counts.get(cardId as string) ?? 0) + quantity);
+    return counts;
+  };
+  const left = count(a);
+  const right = count(b);
+  return left.size === right.size && [...left].every(([cardId, quantity]) => right.get(cardId) === quantity);
+}
+
+/** True when the deck the builder holds differs from `saved` in anything a Save would write (name, aspects, cards). */
+export function hasUnsavedChanges(deck: Deck, saved: Deck | null): boolean {
+  if (!saved) return true;
+  return (
+    deck.name !== saved.name ||
+    deck.aspects.length !== saved.aspects.length ||
+    deck.aspects.some((aspect, at) => saved.aspects[at] !== aspect) ||
+    !sameCards(deck.cards, saved.cards)
+  );
+}
+
+/**
+ * Repairs a deck stored by the builder before issue #217's fix: a precon "edit" saved under the precon's own id and
+ * `precon` source. One identical to its precon (same name, aspects and cards) was never really edited and is dropped
+ * (`null`); any other becomes the player's own deck under `id`, `userBuilt`, keeping the cards it was saved with
+ * (seats read the published precon instead, so those edits were never played). A deck with any other source comes
+ * back unchanged.
+ */
+export function repairedStoredDeck(deck: Deck, precon: Deck | null, id: string, now: string): Deck | null {
+  if (deck.source.kind !== "precon") return deck;
+  if (precon && !hasUnsavedChanges(deck, precon)) return null;
+  const createdAt = deck.updatedAt ?? now;
+  return {
+    ...deck,
+    id: deckId(id),
+    name: precon && deck.name === precon.name ? copyNameOf(deck.name) : deck.name,
+    source: { kind: "userBuilt", createdAt },
+    updatedAt: createdAt,
   };
 }
 

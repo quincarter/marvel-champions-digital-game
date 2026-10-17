@@ -43,6 +43,7 @@ import { UnlocksOverlay } from "./scenes/unlocks.js";
 import { SaveDataOverlay } from "./scenes/save-data.js";
 import { UnlockConfirmOverlay } from "./scenes/unlock-confirm.js";
 import { NameConflictOverlay } from "./scenes/name-conflict.js";
+import { HeroDecksSheet } from "./scenes/hero-decks-sheet.js";
 import { EndTurnConfirmOverlay } from "./scenes/end-turn-confirm.js";
 import { TutorialResumeConfirmOverlay } from "./scenes/tutorial-resume-confirm.js";
 import { HoldOnOverlay } from "./scenes/hold-on.js";
@@ -198,6 +199,7 @@ const game = new Phaser.Game({
     UnlocksOverlay,
     UnlockConfirmOverlay,
     NameConflictOverlay,
+    HeroDecksSheet,
     SaveDataOverlay,
     EndTurnConfirmOverlay,
     TutorialResumeConfirmOverlay,

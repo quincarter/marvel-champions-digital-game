@@ -1,0 +1,3 @@
+kind: Added
+body: Take your seats shows one tile per hero with a count of its decks and a Pick a deck submenu; search matches deck names, authors and notes, ranked by relevance and run in a background worker (#219).
+time: 2026-10-17T12:33:55.5174262-04:00

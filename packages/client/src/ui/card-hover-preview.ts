@@ -93,6 +93,7 @@ const COVERING_SCENES: readonly string[] = [
   SCENES.saveData,
   SCENES.unlockConfirm,
   SCENES.nameConflict,
+  SCENES.heroDecks,
   SCENES.endTurnConfirm,
   SCENES.tutorialResumeConfirm,
   SCENES.holdOn,
