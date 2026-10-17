@@ -31,6 +31,12 @@ import type { DeckDiscard, MainSchemeAdvancedBy, StatusCounts, ZoneId } from "./
  * events stamped before a field existed stay valid.
  */
 export interface TargetSnapshot {
+  /**
+   * The card this snapshot is of. An "(attack)" ability's attack begun against the first enemy an instruction names
+   * keeps that enemy's snapshot when it later names another as its target (`attack.targetInstanceId`), so the snapshot
+   * is read only for the card it was taken of. Absent on a snapshot stamped before it carried this: the event's target.
+   */
+  readonly instanceId?: InstanceId;
   /** The name it was showing (`currentName`; `TargetQuery.name`). Absent for a card with none. */
   readonly name?: string;
   /** The titles (and subtitle) naming it (`titlesNaming`; `TargetQuery.titled`). */

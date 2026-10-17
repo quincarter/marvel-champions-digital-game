@@ -331,7 +331,8 @@ function matchesRest(
       // (issue #228). The top-level name, status, category, trait and facedown clauses are read from the snapshot; the
       // rest, and a clause inside `anyOf`/`not`, read the card as it now is.
       const was = event.targetAsDamaged;
-      const id = event.targetInstanceId;
+      // The card the snapshot was taken of: an "(attack)" ability's attack may since have named another target.
+      const id = was.instanceId ?? event.targetInstanceId;
       const asDamaged = (): boolean => {
         const { name, titled, hasStatus, hasAnyStatus, ...afterStatuses } = query;
         if (name !== undefined && was.name !== name) return false;
@@ -371,8 +372,8 @@ function matchesRest(
         return matchesQuery(state, id, rest, context);
       };
       // An "(attack)" ability's attack attacked every enemy it targeted (`attack.attacked`, owner ruling Q50): "after
-      // you attack a minion" is satisfied by any of them. Only the first target has a snapshot; the others are read
-      // as they now are.
+      // you attack a minion" is satisfied by any of them. Only the card the snapshot was taken of reads it; the others
+      // are read as they now are.
       const others = event.kind === "attack" ? subjects.targets.filter((target) => target !== id) : [];
       const first = subjects.targets.includes(id) && asDamaged();
       if (!first && !others.some((target) => matchesQuery(state, target, query, context))) return false;

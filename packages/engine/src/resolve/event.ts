@@ -1449,6 +1449,7 @@ export function asDamaged(ctx: Ctx, event: DamageEvent): DamageEvent {
   return {
     ...event,
     targetAsDamaged: {
+      instanceId: event.targetInstanceId,
       ...(name !== undefined ? { name } : {}),
       titles: titlesNaming(state, event.targetInstanceId),
       ...(statuses !== undefined ? { statuses: { ...statuses } } : {}),
