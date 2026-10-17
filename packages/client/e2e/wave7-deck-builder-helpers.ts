@@ -111,6 +111,27 @@ export async function typeInto(page: Page, scene: string, key: string, value: st
   for (let i = 0; i < 40; i++) await page.keyboard.press("Backspace");
   await page.keyboard.type(value);
   await settle(page, { quietMs: 200, maxMs: 800 });
+  if (key === "filter-text" && scene === "DeckBuilder") await poolSettled(page);
+}
+
+/**
+ * The pool search runs in a Web Worker: the previous results stay until its answer arrives. Waits until the drawn card
+ * list has read the same on three polls 150 ms apart (a stale list that had not changed yet is the only false positive,
+ * and the worker answers well inside that window).
+ */
+async function poolSettled(page: Page): Promise<void> {
+  let last = "";
+  let same = 0;
+  for (let i = 0; i < 100 && same < 3; i++) {
+    await page.waitForTimeout(150);
+    const now = (await stopsOf(page, "DeckBuilder"))
+      .map((x) => x.key)
+      .filter((k) => k.startsWith("card:"))
+      .join(",");
+    same = now === last ? same + 1 : 0;
+    last = now;
+  }
+  await settle(page, { quietMs: 120, maxMs: 400 });
 }
 
 export interface DeckRow {
@@ -136,8 +157,20 @@ export async function startNewDeck(page: Page, identityId: string): Promise<void
   await waitForScene(page, "DeckBuilder", 15000);
   await settle(page);
   await press(page, "DeckBuilder", `identity:${identityId}`);
+  // A hero with a published precon first asks "Start from": these flows begin from the empty deck (hero cards only).
+  await waitFor(
+    async () =>
+      (await stopOf(page, "DeckBuilder", "save")) || (await stopOf(page, "DeckBuilder", "start:empty")) ? true : null,
+    "builder or start step",
+    15000,
+  );
+  if (await stopOf(page, "DeckBuilder", "start:empty")) await press(page, "DeckBuilder", "start:empty");
   await waitFor(async () => ((await stopOf(page, "DeckBuilder", "save")) ? true : null), "builder opens", 15000);
   await settle(page);
+  // The pool opens as a card grid; these drivers read the text rows (the "List view" toggle brings them back).
+  if (await stopOf(page, "DeckBuilder", "pool-view")) {
+    if ((await texts(page, "DeckBuilder")).includes("LIST VIEW")) await press(page, "DeckBuilder", "pool-view");
+  }
 }
 export { expect };
 
@@ -186,7 +219,10 @@ export async function legalityLine(page: Page): Promise<string> {
 export async function deckPanel(page: Page): Promise<string[]> {
   const t = await texts(page, "DeckBuilder");
   // Each line also carries its "-" remove control's label.
-  return t.slice(t.indexOf("YOUR DECK") + 1, t.indexOf("PRECONSTRUCTED")).filter((x) => x !== "−");
+  // The panel ends at the first button under it (a saved deck also shows DELETE and a shorter PRECON label).
+  const from = t.indexOf("YOUR DECK") + 1;
+  const end = t.findIndex((x, i) => i >= from && ["DELETE", "PRECONSTRUCTED", "PRECON", "CLEAR"].includes(x));
+  return t.slice(from, end < 0 ? undefined : end).filter((x) => x !== "−");
 }
 /** The pool list's card ids as drawn right now. */
 export async function poolIds(page: Page): Promise<string[]> {

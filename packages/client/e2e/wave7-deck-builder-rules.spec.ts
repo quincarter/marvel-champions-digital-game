@@ -27,7 +27,6 @@ import {
  */
 if (PHONE) test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-const NO_MATCH = "No cards match this filter.";
 const idsFor = async (page: Page, query: string): Promise<string[]> => search(page, query);
 
 test.describe("Flow 4: illegal states and their messages (Deadpool, 'Pool)", () => {
@@ -64,9 +63,14 @@ test.describe("Flow 4: illegal states and their messages (Deadpool, 'Pool)", () 
       ["Pool-ized", "Dreadpool set attachment"],
       ["Butler", "Deadpool encounter minion"],
     ] as const) {
-      expect(await idsFor(page, query), `${query}: ${why}`).toEqual([]);
+      const found = await idsFor(page, query);
+      // The text search is typo tolerant and reads rules text, so "Dreadpool" also finds the 'Pool cards that print
+      // "Deadpool": what must hold is that no Dreadpool-set card (44037-44042) is ever a result.
+      if (/Dreadpool|Crisis|Pool-ized/.test(query)) {
+        for (let n = 44037; n <= 44042; n++) expect(found, `${query}: ${why}`).not.toContain(String(n));
+      } else expect(found, `${query}: ${why}`).toEqual([]);
     }
-    expect(await texts(page, "DeckBuilder")).toContain(NO_MATCH);
+    expect(await texts(page, "DeckBuilder")).toContain("No cards match “Butler”."); // a typed search names itself
     await search(page, "");
 
     // Fill to 40, then 51, then 39.
@@ -126,7 +130,10 @@ test.describe("Flow 4: illegal states and their messages (Deadpool, 'Pool)", () 
     await openDecks(page);
     await startNewDeck(page, "43001a");
     await press(page, "DeckBuilder", "aspect:aggression");
-    expect(await idsFor(page, "Specialist")).toEqual([]);
+    // The search also reads rules text, so other cards may mention "Specialist": none of the four Linked ones may be listed.
+    await idsFor(page, "Specialist");
+    const found = await poolIds(page);
+    for (const id of ["43034", "43035", "43036", "43037"]) expect(found, `Linked Specialist ${id}`).not.toContain(id);
   });
 });
 
@@ -138,7 +145,8 @@ test.describe("Flow 5: the wave 7 heroes' special starts", () => {
     expect(await texts(page, "DeckBuilder")).toEqual(expect.arrayContaining(["IDENTITY — PSYLOCKE", "HERO · 17"]));
     expect(await deckPanel(page)).toEqual(expect.arrayContaining(["Psi-Knife", "2"]));
     await search(page, "Psi-Knife");
-    expect(await poolIds(page)).toEqual(["41002a"]);
+    // The text search ranks name matches first and also finds cards whose rules mention Psi-Knives.
+    expect((await poolIds(page))[0]).toBe("41002a");
     expect((await texts(page, "DeckBuilder")).join("\n")).toContain("Permanent.\nPsylocke gets +1 THW.");
     await shot(page, "5-psylocke");
     // Her precon: 42 listed cards, 40 counted (RRG p. 32 "Permanent"); one fewer card is 39 counted, not 41.
@@ -184,7 +192,7 @@ test.describe("Flow 5: the wave 7 heroes' special starts", () => {
     expect(await texts(page, "DeckBuilder")).toContain("HERO · 16");
     await press(page, "DeckBuilder", "aspect:aggression");
     await search(page, "Claws");
-    expect(await poolIds(page)).toEqual(["43002"]);
+    expect((await poolIds(page))[0]).toBe("43002"); // rules text matches follow it (43005 mentions the claws)
     expect((await texts(page, "DeckBuilder")).join("\n")).toContain("Permanent.");
     expect(await idsFor(page, "Specialized Training")).toEqual(["43021"]);
     await add(page, "43021");
@@ -199,7 +207,7 @@ test.describe("Flow 5: the wave 7 heroes' special starts", () => {
     expect(await texts(page, "DeckBuilder")).toContain("HERO · 15");
     await press(page, "DeckBuilder", "aspect:leadership");
     expect(await idsFor(page, "Technovirus")).toEqual(["40006"]);
-    expect(await idsFor(page, "Build Support")).toEqual(["40027"]);
+    expect((await idsFor(page, "Build Support"))[0]).toBe("40027"); // best match first; a card quoting it follows
     expect(await idsFor(page, "Critical Hit"), "an off-aspect event is not offered").toEqual([]);
   });
 

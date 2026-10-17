@@ -5,12 +5,12 @@ import {
   driveToBoard,
   boardRound,
   hasStop,
+  seatDeckThroughTile,
   trackErrors,
   visibleTexts,
   waitForScene,
 } from "./wave6-helpers-a.js";
 import { hook } from "./wave6-helpers-b.js";
-import { pressHookStop } from "./helpers.js";
 import {
   PHONE,
   add,
@@ -79,10 +79,12 @@ test.describe("Deadpool, 'Pool aspect: flows 1, 7 and 8", () => {
     );
 
     // 1c. Search by name.
-    expect(await search(page, "Break")).toEqual(["44046"]);
+    expect((await search(page, "Break"))[0], "name match first (the text search also lists rules-text matches)").toBe(
+      "44046",
+    );
     expect(await search(page, "dogpool"), "name search ignores case").toEqual(["44013"]);
     expect(await search(page, "zzzz")).toEqual([]);
-    expect(await texts(page, "DeckBuilder")).toContain("No cards match this filter.");
+    expect(await texts(page, "DeckBuilder")).toContain("No cards match “zzzz”.");
     await search(page, "");
 
     // 1d. Type filter: Ally shows allies only.
@@ -122,7 +124,8 @@ test.describe("Deadpool, 'Pool aspect: flows 1, 7 and 8", () => {
 
     // 1g. Save, back to Decks: the deck is listed, legal, 40 cards.
     await press(page, "DeckBuilder", "save");
-    if (!PHONE) expect(await texts(page, "DeckBuilder")).toContain("Saved."); // on the phone the saved deck on Decks is the proof
+    if (!PHONE)
+      expect(await texts(page, "DeckBuilder")).toEqual(expect.arrayContaining(["Saved to your decks.", "SAVED ✓"])); // on the phone the saved deck on Decks is the proof
     await press(page, "DeckBuilder", "back");
     await waitForScene(page, "Decks", 15000);
     await settle(page);
@@ -169,6 +172,7 @@ test.describe("Deadpool, 'Pool aspect: flows 1, 7 and 8", () => {
       "every copy is in the export",
     ).toBe(40);
     await press(page, "Decks", "stats-delete");
+    await press(page, "Decks", "stats-delete"); // Delete asks twice ("Confirm delete")
     await waitFor(
       async () => ((await deckRows(page)).some((d) => d.source === "userBuilt") ? null : true),
       "deleted",
@@ -207,15 +211,8 @@ test.describe("Deadpool, 'Pool aspect: flows 1, 7 and 8", () => {
     await clickStop(page, "next", "ScenarioSelect");
     await waitForScene(page, "Seats", 15000);
     await settle(page);
-    const tile = await waitFor(
-      async () =>
-        ((await hook<{ key: string }[]>(page, "__mcSeatsDebug", "stops")) ?? []).find(
-          (s) => s.key === `hero:${back.id}`,
-        ) ?? null,
-      "the pasted deck's tile on Take your seats",
-      15000,
-    );
-    await pressHookStop(page, "__mcSeatsDebug", tile.key);
+    // Take your seats shows one tile per hero: Deadpool has his precon and this deck, so a tap opens "Pick a deck".
+    await seatDeckThroughTile(page, back.id, { search: "Deadpool" });
     await settle(page);
     const seat = (await visibleTexts(page)).filter((t) => t.scene === "Seats").map((t) => t.text);
     expect(seat).toContain("Deadpool");
@@ -249,7 +246,9 @@ test.describe("Spider-Man (a Core hero) choosing 'Pool: flow 2", () => {
     const ids = await poolIds(page);
     for (const id of POOL_CARD_IDS) expect(ids).toContain(id);
     expect(await legalityLine(page)).toContain("a deck must have between 40 and 50");
-    expect(await search(page, "Break")).toEqual(["44046"]);
+    expect((await search(page, "Break"))[0], "name match first (the text search also lists rules-text matches)").toBe(
+      "44046",
+    );
     await search(page, "");
     await fillPoolDeck(page);
     expect(await legalityLine(page)).toBe("Legal — 40 cards.");
