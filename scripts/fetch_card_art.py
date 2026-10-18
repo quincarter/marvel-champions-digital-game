@@ -239,9 +239,10 @@ class Card:
 
 
 def load_cards() -> dict[str, Card]:
-    """Every card record in the raw MarvelCDB cache, linked faces included, by code."""
+    """Every card record in the raw MarvelCDB cache (and the scan transcriptions in raw/hallofheroes, for faces
+    MarvelCDB lacks), linked faces included, by code."""
     cards: dict[str, Card] = {}
-    for path in sorted(RAW_DIR.glob("*.json")):
+    for path in sorted(RAW_DIR.glob("*.json")) + sorted((RAW_DIR.parent / "hallofheroes").glob("*.json")):
         raw = json.loads(path.read_text())
         stack = list(raw["cards"])
         while stack:
