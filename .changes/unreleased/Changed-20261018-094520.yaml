@@ -1,0 +1,3 @@
+kind: Changed
+body: 'Settings has a Sound tab: Music and Effects volumes on every platform, Game volume in the Windows app; muting the computer pauses the music (#243).'
+time: 2026-10-18T09:45:20.033754-04:00

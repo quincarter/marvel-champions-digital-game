@@ -36,15 +36,14 @@ export interface SettingsSection {
 
 /**
  * The sections, top to bottom. `guideRowIds` is the Guide group's rows in draw order (`guideRowInfoOf`), which grows
- * with the hint warnings. `cardHover` is false off desktop, where there is no mouse popover to size. `volumes` is
- * true in the desktop app or on a desktop form factor (#243): a phone or tablet uses the device's own volume.
- * `gameVolume` is true in the Windows desktop app, whose own entry in the Windows volume mixer it sets. `desktopWindow` is
+ * with the hint warnings. `cardHover` is false off desktop, where there is no mouse popover to size. `gameVolume` is
+ * true in the Windows desktop app, whose own entry in the Windows volume mixer it sets (#243). The Music and Effects
+ * volumes show everywhere: a device's own volume moves both together, never one against the other. `desktopWindow` is
  * true only in the desktop app, the one build that can change its own window; the Window section is left out elsewhere.
  */
 export function settingsSectionsOf(input: {
   readonly guideRowIds: readonly GuideSettingsRowId[];
   readonly cardHover: boolean;
-  readonly volumes?: boolean;
   readonly gameVolume?: boolean;
   readonly desktopWindow?: boolean;
   /** SteamOS or Bazzite: a Steam Deck row in the Window section. */
@@ -79,8 +78,9 @@ export function settingsSectionsOf(input: {
       title: "Sound",
       items: [
         "sound",
-        ...(input.volumes && input.gameVolume ? (["game-volume"] as const) : []),
-        ...(input.volumes ? (["music-volume", "effects-volume"] as const) : []),
+        ...(input.gameVolume ? (["game-volume"] as const) : []),
+        "music-volume",
+        "effects-volume",
         "music-shuffle",
       ],
     },
@@ -89,23 +89,27 @@ export function settingsSectionsOf(input: {
   ];
 }
 
-export type SettingsTabId = "gameplay" | "cards" | "display" | "guide" | "more";
+export type SettingsTabId = "gameplay" | "cards" | "display" | "sound" | "guide" | "more";
 
 export interface SettingsTab {
   readonly id: SettingsTabId;
   readonly label: string;
+  /** A shorter label for a narrow rail (six tabs across a phone): "View" for Display. */
+  readonly shortLabel?: string;
   readonly sections: readonly SettingsSection[];
 }
 
-/** Which sections each tab shows, left to right. Labels stay short enough for five tabs across a phone ("Game", not "Gameplay"). A tab with two sections heads each one; a tab with one doesn't repeat its own name. */
+/** Which sections each tab shows, left to right. Labels stay short enough for six tabs across a phone ("Game", not "Gameplay"); Sound has its own (#243). A tab with two sections heads each one; a tab with one doesn't repeat its own name. */
 const TAB_SECTIONS: readonly {
   readonly id: SettingsTabId;
   readonly label: string;
+  readonly shortLabel?: string;
   readonly sections: readonly SettingsSectionId[];
 }[] = [
   { id: "gameplay", label: "Game", sections: ["gameplay", "villain"] },
   { id: "cards", label: "Cards", sections: ["cards"] },
-  { id: "display", label: "Display", sections: ["window", "motion", "sound"] },
+  { id: "display", label: "Display", shortLabel: "View", sections: ["window", "motion"] },
+  { id: "sound", label: "Sound", sections: ["sound"] },
   { id: "guide", label: "Guide", sections: ["guide"] },
   { id: "more", label: "More", sections: ["more"] },
 ];
@@ -116,6 +120,7 @@ export function settingsTabsOf(input: Parameters<typeof settingsSectionsOf>[0]):
   return TAB_SECTIONS.map((tab) => ({
     id: tab.id,
     label: tab.label,
+    ...(tab.shortLabel ? { shortLabel: tab.shortLabel } : {}),
     sections: tab.sections.flatMap((id) => sections.filter((s) => s.id === id)),
   }));
 }

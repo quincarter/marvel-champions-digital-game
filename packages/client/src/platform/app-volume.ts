@@ -40,6 +40,17 @@ export async function readMixerVolume(): Promise<number | null> {
   return known;
 }
 
+/** Whether the computer's master volume is muted; null when there is none to follow (not the Windows app). */
+export async function readMasterMuted(): Promise<boolean | null> {
+  if (!followsWindowsMixer()) return null;
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return await invoke<boolean | null>("master_muted");
+  } catch {
+    return null;
+  }
+}
+
 let writing: Promise<void> | null = null;
 let queued: number | null = null;
 

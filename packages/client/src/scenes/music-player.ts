@@ -66,7 +66,12 @@ export class MusicPlayerOverlay extends Phaser.Scene {
       onCancel: () => this.#close(),
       onPage: (direction) => this.#list?.scrollByPage(direction),
     });
-    this.#unsubscribe = appSession().music?.onTrackStart(() => this.#redrawSoon()) ?? null;
+    const offTrack = appSession().music?.onTrackStart(() => this.#redrawSoon());
+    const offPause = appSession().music?.onPauseChange(() => this.#redrawSoon());
+    this.#unsubscribe = () => {
+      offTrack?.();
+      offPause?.();
+    };
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
       this.scale.off("resize", onResize, this);

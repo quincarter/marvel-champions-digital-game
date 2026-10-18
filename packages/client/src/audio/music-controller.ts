@@ -32,7 +32,7 @@ import {
 import { extras } from "../progression/progression.js";
 import { earnedSongsOf, musicGainOf, nextShuffled } from "../view/music-player.js";
 import { SOUND_EFFECT_VOLUME, type SoundEffect } from "../view/sound-effects.js";
-import { followsWindowsMixer, readMixerVolume } from "../platform/app-volume.js";
+import { followsWindowsMixer, readMasterMuted, readMixerVolume } from "../platform/app-volume.js";
 import extrasUnlockedUrl from "./sfx/extras-unlocked.mp3?url";
 import handRefillUrl from "./sfx/hand-refill.mp3?url";
 import basicAttackUrl from "./sfx/basic-attack.mp3?url";
@@ -101,6 +101,8 @@ export interface MusicController {
   pause(): void;
   /** Picks the music up where it was paused. */
   resume(): void;
+  /** Calls `listener` when the music pauses or resumes on its own (the master volume muted or unmuted). */
+  onPauseChange(listener: () => void): () => void;
   /** How far into the playing song, in seconds, for the expanded player's progress bar; null in silence. */
   progress(): { readonly seek: number; readonly duration: number } | null;
   /** Calls `listener` each time a song starts; returns the way to stop. */
@@ -124,11 +126,14 @@ export class MusicScene extends Phaser.Scene implements MusicController {
   #shuffleOn = false;
   #paused = false;
   #mixerNamed = false;
+  /** Paused because the computer's master volume was muted, so unmuting picks the music up again (#243). */
+  #pausedForMute = false;
   /** The shuffle's songs still to come this round. */
   #queue: Track[] = [];
   /** The current screen's own music request, made again when shuffle is turned off. */
   #ambient: (() => void) | null = null;
   readonly #listeners = new Set<(track: Track) => void>();
+  readonly #pauseListeners = new Set<() => void>();
   /** Sound effects handed to the loader already, so a second play while one loads does not queue it twice. */
   readonly #effectsQueued = new Set<SoundEffect>();
 
@@ -143,6 +148,12 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     // Phaser pauses every sound while the page is out of focus; the music keeps playing behind another window, as a
     // game's does, and the music player's Pause is the way to stop it (#243).
     this.sound.pauseOnBlur = false;
+    // In the Windows app, muting the computer's master volume pauses the music, and unmuting resumes it unless the
+    // player paused it themselves in the meantime. A timer, not the frame loop, so it keeps time out of focus too.
+    if (followsWindowsMixer()) {
+      const watch = window.setInterval(() => void this.#followMasterMute(), 1000);
+      this.events.once(Phaser.Scenes.Events.DESTROY, () => window.clearInterval(watch));
+    }
     appSession().music = this;
     this.#shuffleOn = appSession().settings.musicShuffle;
     this.syncSettings(appSession().settings);
@@ -270,6 +281,27 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     return this.#paused;
   }
 
+  async #followMasterMute(): Promise<void> {
+    const muted = await readMasterMuted();
+    if (muted === null) return;
+    if (muted && !this.#paused) {
+      this.pause();
+      this.#pausedForMute = true;
+      for (const listener of this.#pauseListeners) listener();
+    } else if (!muted && this.#pausedForMute) {
+      this.#pausedForMute = false;
+      if (this.#paused) {
+        this.resume();
+        for (const listener of this.#pauseListeners) listener();
+      }
+    }
+  }
+
+  onPauseChange(listener: () => void): () => void {
+    this.#pauseListeners.add(listener);
+    return () => this.#pauseListeners.delete(listener);
+  }
+
   pause(): void {
     this.#paused = true;
     if (this.#currentSound?.isPlaying) this.#currentSound.pause();
@@ -277,6 +309,8 @@ export class MusicScene extends Phaser.Scene implements MusicController {
 
   resume(): void {
     this.#paused = false;
+    // The player chose to play while muted: unmuting later has nothing to resume.
+    this.#pausedForMute = false;
     if (this.#currentSound?.isPaused) this.#currentSound.resume();
   }
 

@@ -420,7 +420,7 @@ export function musicVolumeRowInfoOf(settings: Settings, mixer: boolean): Volume
     "Music volume",
     mixer
       ? "How loud the music plays within the game, against the effects."
-      : "How loud the music plays. The music player's slider sets it finer.",
+      : "How loud the music plays, against the effects. On desktop the music player's slider sets it finer.",
     settings.musicVolume,
   );
 }

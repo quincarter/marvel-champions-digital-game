@@ -13,6 +13,7 @@ mod imp {
   use std::collections::{HashMap, HashSet};
   use windows::core::{Interface, HSTRING};
   use windows::Win32::Foundation::CloseHandle;
+  use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
   use windows::Win32::Media::Audio::{
     eConsole, eRender, IAudioSessionControl2, IAudioSessionManager2, IMMDeviceEnumerator, ISimpleAudioVolume,
     MMDeviceEnumerator,
@@ -87,6 +88,17 @@ mod imp {
     }
   }
 
+  /// Whether the computer's own volume (the default output device's) is muted.
+  pub fn master_muted() -> Option<bool> {
+    unsafe {
+      let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+      let devices: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).ok()?;
+      let device = devices.GetDefaultAudioEndpoint(eRender, eConsole).ok()?;
+      let endpoint: IAudioEndpointVolume = device.Activate(CLSCTX_ALL, None).ok()?;
+      endpoint.GetMute().ok().map(|muted| muted.as_bool())
+    }
+  }
+
   pub fn get() -> Option<f32> {
     let found = sessions().ok()?;
     let first = found.first()?;
@@ -108,6 +120,19 @@ pub async fn app_volume() -> Option<f32> {
   #[cfg(windows)]
   {
     imp::get()
+  }
+  #[cfg(not(windows))]
+  {
+    None
+  }
+}
+
+/// Whether the computer's master volume is muted (the music pauses while it is), or `None` off Windows.
+#[tauri::command]
+pub async fn master_muted() -> Option<bool> {
+  #[cfg(windows)]
+  {
+    imp::master_muted()
   }
   #[cfg(not(windows))]
   {

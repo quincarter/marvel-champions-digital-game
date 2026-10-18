@@ -45,6 +45,13 @@ fn installer_kind() -> &'static str {
 }
 
 pub fn run(context: tauri::Context<tauri::Wry>) {
+  // The game's own app identity, set before WebView2 starts, so Windows can name the game's sound after it (#243).
+  #[cfg(windows)]
+  unsafe {
+    let _ = windows::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID(windows::core::w!(
+      "com.quincarter.marvelchampions"
+    ));
+  }
   tauri::Builder::default()
     // Native HTTP for MarvelCDB deck import, which the page can't make
     // cross-origin; scoped in capabilities/default.json.
@@ -60,7 +67,8 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
       display_mode::restore_display_mode,
       display_mode::linux_distro,
       app_volume::app_volume,
-      app_volume::set_app_volume
+      app_volume::set_app_volume,
+      app_volume::master_muted
     ])
     // Exclusive fullscreen gives the monitor back while the game is in the background (display_mode.rs).
     .on_window_event(|_, event| {

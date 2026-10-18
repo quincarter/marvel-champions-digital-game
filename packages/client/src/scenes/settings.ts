@@ -302,7 +302,6 @@ export class SettingsOverlay extends Phaser.Scene {
     const tabs = settingsTabsOf({
       guideRowIds: guideRows.map((row) => row.id),
       cardHover: formFactorFor(width, height) === "desktop",
-      volumes: hasDesktopWindow() || formFactorFor(width, height) === "desktop",
       gameVolume: followsWindowsMixer(),
       desktopWindow: hasDesktopWindow(),
       steamDeck: onHandheldLinux(),
@@ -367,7 +366,11 @@ export class SettingsOverlay extends Phaser.Scene {
 
     this.#tabs = new McTabs(this, {
       rect: layout.tabs,
-      tabs: tabs.map((tab) => ({ id: tab.id, label: tab.label })),
+      // Six tabs across a phone leave no room for "Display": a narrow rail takes the short labels.
+      tabs: tabs.map((tab) => ({
+        id: tab.id,
+        label: layout.tabs.width / tabs.length < 64 ? (tab.shortLabel ?? tab.label) : tab.label,
+      })),
       activeId: active.id,
       onSelect: (id) => this.#setTab(id as SettingsTabId),
     });
