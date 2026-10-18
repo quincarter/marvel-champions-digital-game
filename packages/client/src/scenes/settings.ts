@@ -152,6 +152,9 @@ interface SettingsItem {
 /** The tab Settings last showed, so reopening it in the same session lands where the player left off. */
 let lastTab: SettingsTabId = "gameplay";
 
+/** The narrowest tab cell that still shows "Display" and "Sound" whole (#243). */
+const SOUND_TAB_MIN_CELL = 64;
+
 export class SettingsOverlay extends Phaser.Scene {
   #buttons: McButton[] = [];
   #tabs: McTabs | null = null;
@@ -202,7 +205,18 @@ export class SettingsOverlay extends Phaser.Scene {
     this.#draw();
     if (hasDesktopWindow()) void refreshDesktopMonitor().then(() => this.#redrawIfOpen());
     // The game's volume in the Windows mixer may have moved there since: read it fresh for the Game volume row.
-    if (followsWindowsMixer()) void readMixerVolume().then(() => this.#redrawIfOpen());
+    if (followsWindowsMixer()) {
+      // Twice a second while Settings is open, so a change in the Windows mixer shows on the Game volume row.
+      let last = knownMixerVolume();
+      const follow = (): void =>
+        void readMixerVolume().then((read) => {
+          if (read === last) return;
+          last = read;
+          this.#redrawIfOpen();
+        });
+      follow();
+      this.time.addEvent({ delay: 500, loop: true, callback: follow });
+    }
   }
 
   #redrawIfOpen(): void {
@@ -303,6 +317,8 @@ export class SettingsOverlay extends Phaser.Scene {
       guideRowIds: guideRows.map((row) => row.id),
       cardHover: formFactorFor(width, height) === "desktop",
       gameVolume: followsWindowsMixer(),
+      // Sound's own tab only where six fit with their names whole; a phone keeps five, Sound under Display.
+      soundTab: settingsLayout({ x: 0, y: 0, width, height }, []).tabs.width / 6 >= SOUND_TAB_MIN_CELL,
       desktopWindow: hasDesktopWindow(),
       steamDeck: onHandheldLinux(),
     });
@@ -366,11 +382,7 @@ export class SettingsOverlay extends Phaser.Scene {
 
     this.#tabs = new McTabs(this, {
       rect: layout.tabs,
-      // Six tabs across a phone leave no room for "Display": a narrow rail takes the short labels.
-      tabs: tabs.map((tab) => ({
-        id: tab.id,
-        label: layout.tabs.width / tabs.length < 64 ? (tab.shortLabel ?? tab.label) : tab.label,
-      })),
+      tabs: tabs.map((tab) => ({ id: tab.id, label: tab.label })),
       activeId: active.id,
       onSelect: (id) => this.#setTab(id as SettingsTabId),
     });

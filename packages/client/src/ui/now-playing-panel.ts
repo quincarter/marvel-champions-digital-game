@@ -279,6 +279,7 @@ function drawVolumeRow(
   const set = (volume: number, save: boolean): void => {
     shown = clampMusicVolume(volume);
     if (mixer) {
+      changedAt = Date.now();
       writeMixerVolume(shown);
       paint();
       return;
@@ -290,11 +291,25 @@ function drawVolumeRow(
   };
 
   // The mixer may have moved since the panel was drawn last: read it, and show it if it changed.
+  // The mixer can move while the player is open (the Windows volume mixer, a keyboard's volume knob on the game): read
+  // it now and twice a second, and follow it, except while the slider is in the hand or its last change is still
+  // on its way to the mixer.
+  let dragging = false;
+  let changedAt = 0;
   if (mixer) {
-    void readMixerVolume().then((read) => {
-      if (read === null || read === shown || !bar.active) return;
-      shown = read;
-      paint();
+    const follow = (): void => {
+      if (dragging || Date.now() - changedAt < 1000) return;
+      void readMixerVolume().then((read) => {
+        if (read === null || read === shown || !bar.active || dragging) return;
+        shown = read;
+        paint();
+      });
+    };
+    follow();
+    const poll = scene.time.addEvent({
+      delay: 500,
+      loop: true,
+      callback: () => (bar.active ? follow() : poll.remove()),
     });
   }
 
@@ -303,10 +318,17 @@ function drawVolumeRow(
     .setOrigin(0, 0)
     .setInteractive({ draggable: true, useHandCursor: true });
   zone.setName("music-volume");
-  zone.on("pointerdown", (pointer: Phaser.Input.Pointer) => set(volumeAtTrack(pointer.x, track), false));
+  zone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+    dragging = true;
+    set(volumeAtTrack(pointer.x, track), false);
+  });
   zone.on("drag", (pointer: Phaser.Input.Pointer) => set(volumeAtTrack(pointer.x, track), false));
-  zone.on("dragend", () => set(shown, true));
-  zone.on("pointerup", () => set(shown, true));
+  const release = (): void => {
+    dragging = false;
+    set(shown, true);
+  };
+  zone.on("dragend", release);
+  zone.on("pointerup", release);
 
   const step = (direction: -1 | 1): void => set(steppedVolume(shown, direction), true);
   const buttons = [

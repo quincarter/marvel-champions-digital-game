@@ -82,7 +82,6 @@ describe("settingsTabsOf", () => {
     expect(tabs.find((t) => t.id === "gameplay")!.sections.map((s) => s.id)).toEqual(["gameplay", "villain"]);
     expect(tabs.find((t) => t.id === "display")!.sections.map((s) => s.id)).toEqual(["motion"]);
     expect(tabs.find((t) => t.id === "sound")!.sections.map((s) => s.id)).toEqual(["sound"]);
-    expect(tabs.find((t) => t.id === "display")!.shortLabel, "Display's label on a phone's six-tab rail").toBe("View");
   });
 });
 
@@ -118,5 +117,13 @@ describe("the volumes (#243)", () => {
 
   test("the Windows desktop app also has the game's mixer volume, first", () => {
     expect(sound(true)).toEqual(["sound", "game-volume", "music-volume", "effects-volume", "music-shuffle"]);
+  });
+});
+
+describe("the Sound tab on a narrow rail (#243)", () => {
+  test("a phone keeps five tabs, with Sound headed under Display", () => {
+    const tabs = settingsTabsOf({ guideRowIds, cardHover: false, soundTab: false });
+    expect(tabs.map((tab) => tab.label)).toEqual(["Game", "Cards", "Display", "Guide", "More"]);
+    expect(tabs.find((t) => t.id === "display")!.sections.map((s) => s.id)).toEqual(["motion", "sound"]);
   });
 });

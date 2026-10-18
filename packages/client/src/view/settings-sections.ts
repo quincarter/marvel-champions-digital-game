@@ -94,33 +94,37 @@ export type SettingsTabId = "gameplay" | "cards" | "display" | "sound" | "guide"
 export interface SettingsTab {
   readonly id: SettingsTabId;
   readonly label: string;
-  /** A shorter label for a narrow rail (six tabs across a phone): "View" for Display. */
-  readonly shortLabel?: string;
   readonly sections: readonly SettingsSection[];
 }
 
-/** Which sections each tab shows, left to right. Labels stay short enough for six tabs across a phone ("Game", not "Gameplay"); Sound has its own (#243). A tab with two sections heads each one; a tab with one doesn't repeat its own name. */
+/** Which sections each tab shows, left to right. Labels stay short ("Game", not "Gameplay"). Sound has a tab of its own where the rail has room for six (#243); a phone's narrow rail keeps five, with Sound under Display. A tab with two sections heads each one; a tab with one doesn't repeat its own name. */
 const TAB_SECTIONS: readonly {
   readonly id: SettingsTabId;
   readonly label: string;
-  readonly shortLabel?: string;
   readonly sections: readonly SettingsSectionId[];
 }[] = [
   { id: "gameplay", label: "Game", sections: ["gameplay", "villain"] },
   { id: "cards", label: "Cards", sections: ["cards"] },
-  { id: "display", label: "Display", shortLabel: "View", sections: ["window", "motion"] },
+  { id: "display", label: "Display", sections: ["window", "motion"] },
   { id: "sound", label: "Sound", sections: ["sound"] },
   { id: "guide", label: "Guide", sections: ["guide"] },
   { id: "more", label: "More", sections: ["more"] },
 ];
 
 /** The Settings panel's tabs (owner, 2026-10-16: one tab at a time instead of one long scroll), built from `settingsSectionsOf`'s sections. */
-export function settingsTabsOf(input: Parameters<typeof settingsSectionsOf>[0]): readonly SettingsTab[] {
+export function settingsTabsOf(
+  input: Parameters<typeof settingsSectionsOf>[0] & {
+    /** False on a rail too narrow for six tabs (a phone): Sound goes under Display, headed, and its tab is left out. */
+    readonly soundTab?: boolean;
+  },
+): readonly SettingsTab[] {
   const sections = settingsSectionsOf(input);
-  return TAB_SECTIONS.map((tab) => ({
+  const soundTab = input.soundTab !== false;
+  return TAB_SECTIONS.filter((tab) => soundTab || tab.id !== "sound").map((tab) => ({
     id: tab.id,
     label: tab.label,
-    ...(tab.shortLabel ? { shortLabel: tab.shortLabel } : {}),
-    sections: tab.sections.flatMap((id) => sections.filter((s) => s.id === id)),
+    sections: [...tab.sections, ...(!soundTab && tab.id === "display" ? (["sound"] as const) : [])].flatMap((id) =>
+      sections.filter((s) => s.id === id),
+    ),
   }));
 }
