@@ -32,6 +32,7 @@ import {
   type Picker,
 } from "../../../testing/harness.js";
 import { driveEventsPicking, encounterCardInVillainArea, withForm } from "../../../testing/staging.js";
+import { conjure as benchConjure, playOut as benchPlayOut, rhino as benchRhino } from "../../../testing/qa-bench.js";
 import { WAVE7_ABILITIES } from "../../../wave7/index.js";
 import { ICEMAN_EVENTS, ICEMAN_EVENTS_SKIPPED } from "./events.js";
 import { ICEMAN_IDENTITY } from "./identity.js";
@@ -651,5 +652,22 @@ describe("Chill Out! (46011)", () => {
     expect(supply(state)).toBe(6);
     // Undefended: ATK 2 less the copy's 1, plus 2 boost icons (4 without the copy).
     expect(damageTo(events, identityOf(state))).toEqual([3]);
+  });
+});
+
+describe("June 20, 2024 - Ruling 216 answer 2 (post-RRG 1.5): Rogue plays Chill Out! and attaches Iceman's set-aside Frostbite", () => {
+  // Ruling 216: "As long as the event Rogue is playing doesn't require her to pay a cost with a card she doesn't
+  // control, she can resolve the event as written ... attach a set-aside copy of Frostbite to an enemy". The script
+  // reads `setAside(you, FROSTBITE)`, i.e. only the playing player's own set-aside area, which holds no copy.
+  it("Rogue (P1) plays a Chill Out! while Iceman (P2) holds the set-aside Frostbite: a copy is attached to an enemy", () => {
+    const start = benchRhino(3, "rogue-protection", "rhino", ["iceman-aggression"]);
+    const { state, id } = benchConjure(start, "46011");
+    const played = benchPlayOut(state, id, 2, {});
+    expect(played.accepted).toBe(true);
+    const villain = played.state.villains[0]!.instanceId;
+    const onVillain = inst(played.state, villain).attachments.filter(
+      (a) => played.state.cardPool[inst(played.state, a).cardId]?.name === "Frostbite",
+    );
+    expect(onVillain.length).toBe(1);
   });
 });

@@ -1,4 +1,5 @@
 import {
+  activeEncounterDeckId,
   applyCommand,
   createGame,
   type EngineDeps,
@@ -37,6 +38,7 @@ import {
   withForm,
 } from "../../testing/staging.js";
 import { characterProfile } from "@mc/engine";
+import { drive as benchDrive, intoPlay, rhino, withPatrolMinion } from "../../testing/qa-bench.js";
 import { WAVE7_CARDS } from "../cards.js";
 import { WAVE7_DEPS, wave7Scenario } from "../index.js";
 import { WAR_MACHINE_PACK_CARDS } from "../../wave4/warm/war-machine-pack-cards.js";
@@ -951,6 +953,36 @@ describe("Deadpool (40024)", () => {
   });
 });
 
+describe("Ruling 150, Mar 15, 2024: Deadpool ally healing 3 from excess consequential damage is still defeated if HP is not positive (RRG 1.8 'Damage' p. 14)", () => {
+  it("2 damage on him, 4 consequential damage: 2 + 4 - 3 = 3 on 3 hit points, so he is defeated (one token is added)", () => {
+    const base = withPatrolMinion(rhino());
+    const minion = base.players
+      .find((p) => p.playerId === P1)!
+      .playArea.find((id) => base.instances[id]!.engagedWith === P1)!;
+    const placed = intoPlay(base, "40024");
+    // Staging: Wild Wild Mojo's extra consequential damage modeled by printing 4 on the card.
+    const card = placed.state.cardPool[cardId("40024")] as unknown as object;
+    const pooled = {
+      ...placed.state,
+      cardPool: {
+        ...placed.state.cardPool,
+        [cardId("40024")]: { ...card, consequentialDamage: { attack: 4, thwart: 1 } },
+      },
+    } as unknown as GameState;
+    const staged = patchInstance(pooled, placed.id, { damage: 2 });
+    const tokens = staged.mainScheme.accelerationTokens;
+    const done = benchDrive(
+      staged,
+      { type: "basicAttack", playerId: P1, attackerInstanceId: placed.id, targetInstanceId: minion },
+      { use: ["deadpool"] },
+    );
+    expect(done.accepted).toBe(true);
+    expect(done.state.mainScheme.accelerationTokens - tokens).toBe(1);
+    expect(done.events.some((e) => e.type === "characterDefeated" && e.instanceId === placed.id)).toBe(true);
+    expect(playerOf(done.state, P1).playArea).not.toContain(placed.id);
+  });
+});
+
 describe("Frenemies (40026)", () => {
   /** Cable and Deadpool in play (Deadpool paid for from the hand), main scheme 20, Technovirus Purge 5. */
   const withDeadpool = () => put(heroGame(), "40024", 3);
@@ -1025,6 +1057,38 @@ describe("Frenemies (40026)", () => {
     const { state } = put(placed.state, "40026", 1);
     expect(inst(state, placed.id).damage).toBe(1);
     expect(inst(state, cableOf(state)).damage).toBe(1);
+  });
+});
+
+describe("Frenemies (40026): the two threat removals are simultaneous (FFG ruling December 8, 2023 - Ruling 127)", () => {
+  /** Cable in hero form with Deadpool (40024) in play, the main scheme at 20, and Crowd Control (crisis icon, 3 threat). */
+  function stage() {
+    const withDeadpool = put(heroGame(), "40024", 3).state;
+    // Crowd Control (01108, crisis icon): turn the top encounter card into it, then put it in the villain area.
+    const deckId = activeEncounterDeckId(withDeadpool);
+    const top = withDeadpool.encounterDecks[deckId]!.deck[0]!;
+    const swapped = patchInstance(withDeadpool, top, { cardId: cardId("01108") });
+    return { ...encounterCardInVillainArea(swapped, "01108", 3), main: swapped.mainScheme.instanceId };
+  }
+
+  it.fails("a crisis icon side scheme thwarted by the first removal still bars the main scheme from the second (RRG p. 43 'Target'; Ruling 127 answer 2)", () => {
+    const { state, id: crowd, main } = stage();
+    const offers: string[][] = [];
+    const pick: Picker = (s) => {
+      const c = s.pendingChoice;
+      if (c?.prompt.kind === "chooseTarget") {
+        offers.push(c.options.map((o) => o.optionId));
+        if (offers.length === 1) return [crowd];
+      }
+      return firstLegal(s);
+    };
+    const mainBefore = inst(state, main).threat;
+    const { state: after } = put(state, "40026", 1, { pick });
+    // Staging sanity: the first prompt did not offer the main scheme (crisis icon in play), and Crowd Control was defeated.
+    expect(offers[0]).not.toContain(main);
+    expect(inst(after, crowd).threat).toBe(0);
+    // Ruling: the two instances are simultaneous, so the main scheme was still barred for the second; it loses nothing.
+    expect(inst(after, main).threat).toBe(mainBefore);
   });
 });
 

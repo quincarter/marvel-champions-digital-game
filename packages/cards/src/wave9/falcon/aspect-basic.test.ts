@@ -35,6 +35,7 @@ import {
   patchInstance,
   play,
   playerOf,
+  resourceAbility,
   use,
   type Picker,
 } from "../../testing/harness.js";
@@ -52,7 +53,7 @@ import {
   withLinkedShield,
   withoutLinkedShield,
 } from "./aspect-basic.testing.js";
-import { engageMinion, stagedInPlay } from "./testing.js";
+import { FALCON_DEPS, engageMinion, falconHeroGame, stagedInPlay } from "./testing.js";
 
 vi.setConfig({ testTimeout: 120_000 });
 
@@ -1723,6 +1724,91 @@ describe("53018 Spectrum: after you play her, tuck 1 card used to pay for her un
     expect(stats(session.state, spectrum)).toEqual([2, 2, 5]);
     const replayed = replay(session.log, DEPS);
     expect(replayed.ok && replayed.state).toEqual(session.state);
+  });
+});
+
+/*
+ * Ruling 69.95 (August 22, 2025, Alex): Spectrum (`falcon` 53018, "[mental] - +2 THW. [physical] - +2 ATK. [energy] -
+ * +2 hit points. [wild] - All of the above.") tucking Salvage (`gmw` 16033, which produces one [mental] and one
+ * [wild]) "would give her both the Mental and Wild resource bonuses, so +4 THW, +2 ATK, and +2 HP". RRG 1.8 is silent;
+ * the June 2, 2026 Ruling 2 (2) on Spectrum only says the bonuses last while the card stays tucked.
+ *
+ * The script (`wave9/falcon/aspect-basic.ts` `tuckedPrints`) gives each bonus once however many icons match, so a
+ * [mental] + [wild] card gives +2 THW, not +4.
+ */
+describe("Spectrum tucking a [mental] + [wild] card (ruling Aug 22, 2025, 69.95)", () => {
+  it("gets +4 THW, +2 ATK (Mental and Wild both count)", () => {
+    const base = aspectHero();
+    const given = moveToHand(base, P1, SPECTRUM, ENERGY, GENIUS, REDWING);
+    const [spectrum, energy, genius, redwing] = given.ids as [InstanceId, InstanceId, InstanceId, InstanceId];
+    // Genius (a [mental] resource card) stands in as a card with Salvage's printed resources [mental] + [wild].
+    const salvage = cardId("16033");
+    const staged = patchInstance(
+      {
+        ...given.state,
+        players: given.state.players.map((p) =>
+          p.playerId === P1 ? { ...p, hand: [spectrum, energy, genius, redwing] } : p,
+        ),
+      },
+      genius,
+      { cardId: salvage },
+    );
+    expect(staged.cardPool[salvage], "Salvage is in the card pool").toBeDefined();
+    const pick = (s: Parameters<typeof firstLegal>[0]): readonly string[] => {
+      const choice = s.pendingChoice!;
+      const offered = choice.options.map((o) => o.optionId as string);
+      if (choice.prompt.kind === "chooseTriggers") {
+        const hit = offered.find((o) => o.endsWith(SPECTRUM_GRANTED));
+        return hit ? [hit] : [];
+      }
+      if (choice.prompt.kind === "chooseCards" && offered.includes(genius)) return [genius];
+      return firstLegal(s);
+    };
+    // Salvage 2 (mental + wild) + Energy 2 + Redwing 1 (wild) = 5.
+    const out = driveEventsPicking(DEPS, staged, pick, play(P1, spectrum, [genius, energy, redwing]));
+    expect(inst(out.state, spectrum).tucked).toEqual([genius]);
+    expect(statBonus(out.state, DEPS, spectrum, "thw")).toBe(4);
+    expect(statBonus(out.state, DEPS, spectrum, "atk")).toBe(2);
+  });
+});
+
+/*
+ * Ruling 69.98 (August 22, 2025, Alex), question 2: "Can I use the resource ability of a support or upgrade card to
+ * pay for the cost of Spectrum (leadership ally) and tuck this card under Spectrum? Yes, you can use a resource
+ * ability to pay for Spectrum and then tuck that card under her." RRG 1.8 is silent on this.
+ *
+ * The engine's `paid.cards` slot (`cardsThatPaid`, `engine/src/actions.ts`) lists only cards discarded from a hand,
+ * and the script's own docblock says "never a resource a 'Resource' ability generated", so a card in play whose
+ * resource ability paid (here Falcon's Flock, an Aerial support that pays [energy] for Spectrum) is not offered.
+ */
+describe("Spectrum may tuck the support whose resource ability paid for her (ruling Aug 22, 2025, 69.98)", () => {
+  it.fails("Falcon's Flock, used to pay for Spectrum, is among the cards offered to tuck", () => {
+    const base = falconHeroGame();
+    const flock = stagedInPlay(base, "53006", { counters: { bird: 5 } });
+    const given = moveToHand(flock.state, P1, SPECTRUM, GENIUS, STRENGTH);
+    const [spectrum, genius, strength] = given.ids as [InstanceId, InstanceId, InstanceId];
+    const offeredOptions: string[] = [];
+    const pick = (s: Parameters<typeof firstLegal>[0]): readonly string[] => {
+      const choice = s.pendingChoice!;
+      const offered = choice.options.map((o) => o.optionId as string);
+      if (choice.prompt.kind === "chooseTriggers") {
+        const hit = offered.find((o) => o.endsWith(SPECTRUM_GRANTED));
+        return hit ? [hit] : [];
+      }
+      if (choice.prompt.kind === "chooseCards") offeredOptions.push(...offered);
+      return firstLegal(s);
+    };
+    // Flock [energy] 1 + Genius 2 + Strength 2 = 5.
+    driveEventsPicking(
+      FALCON_DEPS,
+      given.state,
+      pick,
+      play(P1, spectrum, [genius, strength], {
+        abilities: [resourceAbility(flock.id, "53006.falcons-flock-resource")],
+      }),
+    );
+    expect(offeredOptions, "a tuck prompt was shown").not.toEqual([]);
+    expect(offeredOptions).toContain(flock.id);
   });
 });
 

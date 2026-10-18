@@ -209,6 +209,42 @@ describe("Bodyslide (40002)", () => {
   });
 });
 
+describe("Bodyslide (40002) with a player already in a hero form (FFG ruling June 8, 2023 - Ruling 22)", () => {
+  const ANGEL = { starterDeckId: "angel-protection" } as const; // two hero forms, like Ant-Man (Tiny/Giant)
+  it.fails("Cable changes to hero form: Angel (hero form 0) is asked and can change to his other hero form (Archangel), as Ant-Man could from Tiny to Giant", () => {
+    const config = wave7Scenario("juggernaut", {
+      players: [CABLE, ANGEL],
+      seed: 1,
+      difficulty: "standard",
+      modularSetIds: [],
+    });
+    const created = createGame(config, WAVE7_DEPS);
+    if (!created.ok) throw new Error(created.error.message);
+    const settled = settle(created.state, firstLegal, (s) => s.step.phase === "player", WAVE7_DEPS);
+    // Cable in alter-ego form (so Bodyslide takes him to hero form); Angel (P2) in hero form 0.
+    const staged = withForm(withForm(settled, "alterEgo", P1), { heroForm: 0 }, P2);
+    const antFormBefore = playerOf(staged, P2).identity.heroFormIndex;
+    const given = moveToHand(staged, P1, "40002");
+    const [id] = given.ids as [InstanceId];
+    const asked: string[][] = [];
+    const pick: Picker = (s) => {
+      const choice = s.pendingChoice;
+      if (choice?.prompt.kind === "chooseOption" && choice.playerId === P2) {
+        asked.push(choice.options.map((o) => o.label));
+        return [
+          choice.options.find((o) => o.label.toLowerCase().includes("change"))?.optionId ?? choice.options[0]!.optionId,
+        ];
+      }
+      return firstLegal(s);
+    };
+    const driven = driveEventsPicking(WAVE7_DEPS, given.state, pick, play(P1, id, payWith(given.state, P1, 0, [id])));
+    expect(playerOf(driven.state, P1).identity.form).toBe("hero");
+    // Ruling: P2 may change to another hero form (Ant-Man: Tiny to Giant). Actual: P2 is in hero form already, so is never asked.
+    expect(asked.length).toBe(1);
+    expect(playerOf(driven.state, P2).identity.heroFormIndex).not.toBe(antFormBefore);
+  });
+});
+
 describe("Mind Scan (40003)", () => {
   const scan = (state: GameState, target: InstanceId, pick: Picker = firstLegal) =>
     playEvent(state, "40003", 2, (s) =>

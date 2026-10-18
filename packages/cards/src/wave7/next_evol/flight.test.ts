@@ -1,8 +1,9 @@
-import { hasKeyword, traitsOf, type GameState } from "@mc/engine";
+import { activeVillain, createGame, hasKeyword, traitsOf, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import {
   P1,
   P2,
+  firstLegal,
   identityOf,
   inst,
   moveToHand,
@@ -10,10 +11,12 @@ import {
   payWith,
   play,
   playerOf,
+  settle,
   use,
 } from "../../testing/harness.js";
+import { driveEventsPicking, withForm } from "../../testing/staging.js";
 import { attachToHost, handWith } from "../../wave6/mut_gen/project-wideawake-testing.js";
-import { WAVE7_DEPS } from "../index.js";
+import { WAVE7_DEPS, wave7Scenario } from "../index.js";
 import { FLIGHT } from "./flight.js";
 import {
   ANGEL,
@@ -89,6 +92,56 @@ describe("Flight as a modular set: Setup, Attach to the villain, Permanent", () 
   it("Stryfe: the same set attaches to Stryfe, whichever villain is in play", () => {
     const s = game({ scenario: "stryfe", sets: ["flight"] });
     expect(attachmentsOf(s, villainId(s))).toEqual(["Flight"]);
+  });
+});
+
+describe("Ruling 165, 2024 + RRG 1.8 'Permanent' (p. 32): a permanent attachment re-resolves its 'attach to' when its host leaves play", () => {
+  it.fails("Flight (40151) on a Morlock Siege villain: the next villain gets it, it is not discarded", () => {
+    let s: GameState | null = null;
+    for (let seed = 1; seed < 400 && !s; seed++) {
+      const created = createGame(
+        wave7Scenario("morlock-siege", {
+          players: [{ starterDeckId: "core-spider-man-justice" }],
+          seed,
+          difficulty: "standard",
+          modularSetIds: ["flight"],
+        }),
+        WAVE7_DEPS,
+      );
+      if (!created.ok) throw new Error(created.error.message);
+      if ((created.state.instances[activeVillain(created.state).instanceId]!.cardId as string).startsWith("40071"))
+        s = settle(created.state, firstLegal, (x) => x.step.phase === "player", WAVE7_DEPS);
+    }
+    const base0 = s!;
+    const keepOne = {
+      ...base0,
+      encounterSetAside: base0.encounterSetAside.filter(
+        (id) =>
+          base0.cardPool[base0.instances[id]!.cardId]!.type !== "villain" ||
+          (base0.instances[id]!.cardId as string) === "40072a",
+      ),
+    };
+    const hero = withForm(keepOne, { heroForm: 0 }, P1);
+    const target = activeVillain(hero).instanceId;
+    const flight = Object.keys(hero.instances).find(
+      (id) => hero.instances[id as never]!.cardId === "40151",
+    )! as InstanceId;
+    const clear = { stunned: 0, confused: 0, tough: 0 };
+    const armed = patchInstance(patchInstance(hero, target, { damage: 999, statuses: clear }), identityOf(hero), {
+      exhausted: false,
+      damage: 0,
+      statuses: clear,
+    });
+    const run = driveEventsPicking(WAVE7_DEPS, armed, firstLegal, {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: identityOf(armed),
+      targetInstanceId: target,
+    } as never);
+    const next = activeVillain(run.state).instanceId;
+    expect(next).not.toBe(target);
+    // Actual: Flight goes to the encounter discard pile and the new villain has no attachments.
+    expect(run.state.instances[flight]!.attachedTo).toBe(next);
   });
 });
 

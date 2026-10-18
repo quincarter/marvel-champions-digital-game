@@ -1,4 +1,4 @@
-import { AOS_CARDS, CORE_CARDS } from "@mc/content";
+import { AOS_CARDS, CORE_CARDS, cardId } from "@mc/content";
 import {
   activeEncounterDeckId,
   cardsInPlay,
@@ -6,6 +6,7 @@ import {
   mainSchemeValue,
   statBonus,
   keywordTotal,
+  type Command,
   type EngineDeps,
   type GameEvent,
   type GameState,
@@ -54,6 +55,7 @@ import {
   DEFENSES_GRANTED_PREPARATION,
   GOGGLES_GRANTED_PREPARATION,
 } from "./black-widow.js";
+import { AOS_ABILITIES } from "./index.js";
 
 vi.setConfig({ testTimeout: 120_000 });
 
@@ -882,6 +884,72 @@ describe("Attacrobatics (50076)", () => {
     const { state } = kick(t);
     expect(damage(state, t.villain)).toBe(0);
     expect(identityDamage(state)).toBe(8);
+  });
+});
+
+describe("Attacrobatics prevents only the damage dealt to Black Widow (Ruling 69.71, July 11, 2025)", () => {
+  // "Like Temporal Shield preventing just the damage dealt to Kang, Attacrobatics only prevents the damage that would be
+  // dealt to Black Widow during the attack. Spray Fire would still deal damage to engaged minions."
+  // RRG 1.8 p. 10 ("an ability labeled as an attack is considered a single attack") does not say that a Preparation's
+  // "this attack" covers every target; "Prevent" (p. 35) is per damage instance. The engine follows owner decision Q4 = A
+  // (`engine/src/resolve/attack-ability.ts` header, `wave9/aos/scenarios-rulings.qa.test.ts`), which pins the opposite.
+  const SPRAY_FIRE = "50039";
+  const ABDUCTOR = "50080"; // A.I.M. Abductor, a minion in the Black Widow encounter deck
+  const SPRAY_DEPS: EngineDeps = { abilities: mergeRegistries(WAVE8_ABILITIES, AOS_ABILITIES) };
+  it.fails("Spray Fire on Black Widow with Attacrobatics on top: she takes nothing, the engaged minion still takes 3", () => {
+    const config = wave9Scenario("black-widow", {
+      players: [{ starterDeckId: "nick-fury-justice" }],
+      seed: 1,
+      difficulty: "standard",
+    });
+    const created = createGame(config, SPRAY_DEPS);
+    if (!created.ok) throw new Error(created.error.message);
+    let state = settle(created.state, firstLegal, (s) => s.step.phase === "player", SPRAY_DEPS);
+    // Clear setup minions off the table, then engage one Abductor with P1.
+    const deckId = activeEncounterDeckId(state);
+    const setup = cardsInPlay(state).filter((i) => state.instances[i]!.engagedWith !== undefined);
+    let pile = state.encounterDecks[deckId]!;
+    state = {
+      ...state,
+      encounterDecks: { ...state.encounterDecks, [deckId]: { ...pile, discard: [...pile.discard, ...setup] } },
+      players: state.players.map((p) => ({ ...p, playArea: p.playArea.filter((i) => !setup.includes(i)) })),
+      instances: Object.fromEntries(
+        Object.entries(state.instances).map(([id, i]) => [
+          id,
+          setup.includes(id as InstanceId) ? { ...i, engagedWith: undefined } : i,
+        ]),
+      ) as GameState["instances"],
+    };
+    state = withForm(state, { heroForm: 0 }, P1);
+    pile = state.encounterDecks[deckId]!;
+    const minion = [...pile.deck, ...pile.discard].find((i) => state.instances[i]?.cardId === cardId(ABDUCTOR))!;
+    state = {
+      ...state,
+      encounterDecks: {
+        ...state.encounterDecks,
+        [deckId]: { deck: pile.deck.filter((i) => i !== minion), discard: pile.discard.filter((i) => i !== minion) },
+      },
+      players: state.players.map((p) => (p.playerId === P1 ? { ...p, playArea: [...p.playArea, minion] } : p)),
+      instances: { ...state.instances, [minion]: { ...state.instances[minion]!, faceup: true, engagedWith: P1 } },
+    };
+    // Black Widow's interrupt discards the top encounter card: make it Attacrobatics (standard mode: just prevention).
+    const top = state.encounterDecks[deckId]!.deck[0]!;
+    state = patchInstance(state, top, { cardId: cardId(ATTACROBATICS) });
+    const given = moveToHand(state, P1, SPRAY_FIRE);
+    const [spray] = given.ids as [InstanceId];
+    const command: Command = play(P1, spray, payWith(given.state, P1, 3, [spray]));
+    const { state: after } = driveEventsPicking(
+      SPRAY_DEPS,
+      given.state,
+      (s) => {
+        const c = s.pendingChoice!;
+        return c.prompt.kind === "declareDefender" ? ["decline"] : firstLegal(s);
+      },
+      command,
+    );
+    const villain = after.villains[0]!.instanceId;
+    expect(inst(after, villain).damage).toBe(0); // setup check: Attacrobatics prevented the damage to her
+    expect(inst(after, minion).damage).toBe(3); // actual: 0 (the whole attack was prevented)
   });
 });
 

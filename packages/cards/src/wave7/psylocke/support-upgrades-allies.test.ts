@@ -33,6 +33,14 @@ import {
   type Picker,
 } from "../../testing/harness.js";
 import { driveEventsPicking, encounterCardInVillainArea, withDamage, withForm } from "../../testing/staging.js";
+import {
+  accepting as acceptingRefs,
+  basicAttackCmd,
+  drive as driveCrossHero,
+  openedHero,
+  spawnMinion,
+  wasOffered,
+} from "../cross-hero-testing.js";
 import { WAVE7_DEPS, wave7Scenario } from "../index.js";
 import { NEXT_EVOL_PRECON_CABLE_DECK } from "../next_evol/precon-cable-deck.js";
 import { PSYLOCKE_SUPPORT_UPGRADES_ALLIES } from "./support-upgrades-allies.js";
@@ -928,6 +936,46 @@ describe("Cypher (41013)", () => {
     const { state } = driveEventsPicking(WAVE7_DEPS, m.state, accepting(CYPHER), basicAttack(m.state, m.id, id));
     expect(handOf(state, P1)).toHaveLength(handOf(m.state, P1).length + 1);
     expect(handOf(state, P2)).toHaveLength(handOf(m.state, P2).length);
+  });
+});
+
+describe("June 20, 2024 - Ruling 215 answer 3 (post-RRG 1.5): Cypher and overkill damage to a confused villain", () => {
+  // Ruling 215: Cypher (41013, "After Cypher attacks and damages a confused enemy, draw 1 card") with overkill that
+  // defeats a minion and damages a confused villain "did 'damage a confused enemy' via overkill, so you can draw 1
+  // card". RRG 1.8 p. 31 "Overkill": the spill is damage dealt by the attack. The engine reads "damages" only on the
+  // enemy the attack targeted (`trigger-events.ts` `attacked`: "never an enemy that only lost hit points to it (an
+  // overkill spill)"), so the unconfused minion fails the confused-enemy test.
+  it.fails("Cypher (ATK 5 with overkill) defeats an unconfused minion and spills onto the confused villain: he draws", () => {
+    const base = openedHero("41013");
+    const given = moveToHand(base, P1, "41013");
+    const cypher = given.ids[0]!;
+    const played = driveCrossHero(
+      given.state,
+      acceptingRefs([]),
+      play(P1, cypher, payWith(given.state, P1, 3, [cypher])),
+    );
+    const card = played.state.cardPool[inst(played.state, cypher).cardId]!;
+    const boosted: GameState = {
+      ...played.state,
+      cardPool: {
+        ...played.state.cardPool,
+        [card.id]: { ...card, atk: 5, keywords: [{ name: "overkill" }] } as typeof card,
+      },
+    };
+    const villain = boosted.villains[0]!.instanceId;
+    const confusedVillain = patchInstance(boosted, villain, {
+      statuses: { ...inst(boosted, villain).statuses, confused: 1 },
+    });
+    const minion = spawnMinion(confusedVillain);
+    const before = playerOf(minion.state, P1).hand.length;
+    const run = driveCrossHero(
+      minion.state,
+      acceptingRefs(["41013.cypher-response"]),
+      basicAttackCmd(minion.state, minion.id, cypher),
+    );
+    expect(inst(run.state, villain).damage).toBeGreaterThan(0); // setup check: the overkill damaged the villain
+    expect(wasOffered(run.offered, "41013.cypher-response")).toBe(true);
+    expect(playerOf(run.state, P1).hand.length).toBe(before + 1);
   });
 });
 

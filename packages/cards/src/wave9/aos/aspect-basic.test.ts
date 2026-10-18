@@ -1197,6 +1197,25 @@ describe("50023.melinda-may-response: after she uses a basic power, look at the 
   });
 });
 
+describe("Melinda May defending (Ruling 69.17, Mar 16, 2025)", () => {
+  // "allies don't have a DEF stat, they aren't considered to 'use a basic power' when they defend attacks."
+  it.fails("an ally defending an attack is not a basic power: Melinda May's response is not offered", () => {
+    const base = withForm(aspectGame(), { heroForm: 0 });
+    const may = placed(base, "50023");
+    const offered: string[] = [];
+    const pick: Picker = (s) => {
+      const choice = s.pendingChoice!;
+      if (choice.prompt.kind === "declareDefender") return [may.id];
+      if (choice.prompt.kind === "chooseTriggers")
+        offered.push(...choice.options.map((o) => o.optionId as string).filter((o) => o.includes("melinda-may")));
+      return firstLegal(s);
+    };
+    settle(runWith(DEPS, stackEncounterDeck(may.state, "01186", "01186"), endTurn(P1)), pick, undefined, DEPS);
+    // Actual: `announceBasicDefense` announces `basicPowerUsed` (power defense) for any defender, ally included.
+    expect(offered).toEqual([]);
+  });
+});
+
 describe("50024.super-spies-action: place a total of 3 all-purpose counters and/or threat tokens", () => {
   const SUIT = "50035a";
   const COUNTER_SUPPORT = "Place an all-purpose counter on a S.H.I.E.L.D. support";

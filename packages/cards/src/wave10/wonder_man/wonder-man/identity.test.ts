@@ -219,6 +219,19 @@ describe("Wonder Man identity registry", () => {
   });
 });
 
+describe("Ionic Physiology (58002, Wonder Man hero pack) card data", () => {
+  // RRG 1.8 Appendix V p. 70 (Wonder Man Hero Pack): "Should read: 'Response: After you play an event with a printed
+  // [energy] resource, tuck that event from your discard pile under this card. Then, heal 1 damage from your identity.'
+  // (Changed cost arrow to 'Then'.)" The pack is data-only (no ability scripts), but its `text.current` and `errata`
+  // block still carry the pre-erratum cost arrow, unlike every other RRG 1.8 erratum in the pool.
+  it("text.current carries the RRG 1.8 'Then, heal 1 damage' wording", () => {
+    const card = WONDER_MAN_CARDS.find((c) => c.name === "Ionic Physiology")!;
+    expect("text" in card ? card.text.current : "").toContain(
+      "under this card. Then, heal 1 damage from your identity.",
+    );
+  });
+});
+
 describe(`${SETUP}: Setup: put Ionic Physiology into play`, () => {
   it("the game opens in alter-ego form with Ionic Physiology in play on Simon Williams, nothing tucked, 3 room", () => {
     const s = wonderManGame();

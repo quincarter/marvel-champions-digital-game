@@ -661,6 +661,51 @@ describe("Infinite Prelate (45067)", () => {
   });
 });
 
+/**
+ * Infinite Prelate (45067): FFG Game Rules Specialist (Alex), November 19, 2024, "Latest FFG Rulings post RRG 1.6"
+ * ruling 43: "For Infinite Prelate, you resolve each bullet before resolving Unus' activation." RRG 1.8 "Alteration
+ * Effect" (p. 6) is the rule the ruling rests on. The engine (owner decision Q8 = A, docs/phase7-wave8-handoff.md)
+ * resolves the tough status card and the heal after the activation. `it.fails` marks that open bug.
+ */
+describe("Infinite Prelate (45067): FFG ruling 2024-11-19 (post RRG 1.6 #43)", () => {
+  it.fails("at 6 threat, the tough status card and the 3 heal resolve before Unus' activation, not after", () => {
+    const BLANK_A = "01186";
+    const BLANK_B = "01187";
+    const base = setupGame();
+    const villain = base.activeVillainId!;
+    const pool = base.villainArea.find((id) => (base.instances[id]!.cardId as string) === GENE_POOL)!;
+    // Step one of the villain phase adds 1 acceleration threat: 5 -> 6. Unus starts with no tough card and 5 damage.
+    const staged = patchInstance(patchInstance(base, pool, { threat: 5 }), villain, {
+      damage: 5,
+      statuses: { stunned: 0, confused: 0, tough: 0 },
+    });
+    // Unus' own activation takes BLANK_A, then the Prelate is revealed (P1's dealt card) and Unus activates again (BLANK_B).
+    const stacked = stackEncounterDeck(staged, BLANK_A, PRELATE, BLANK_B);
+    const hero = withForm(stacked, { heroForm: 0 });
+    const { events } = driveEventsPicking(
+      DEPS,
+      hero,
+      (s) => (s.pendingChoice!.prompt.kind === "declareDefender" ? ["decline"] : firstLegal(s)),
+      endTurn(P1),
+    );
+    const of = (type: GameEvent["type"], pred: (e: never) => boolean = () => true) =>
+      events.flatMap((e, i) => (e.type === type && pred(e as never) ? [i] : []));
+    const attacks = of(
+      "attackResolved",
+      (e: Extract<GameEvent, { type: "attackResolved" }>) => e.enemyInstanceId === villain,
+    );
+    const toughGiven = of(
+      "statusGiven",
+      (e: Extract<GameEvent, { type: "statusGiven" }>) =>
+        e.instanceId === (villain as InstanceId) && e.status === "tough",
+    );
+    expect(attacks).toHaveLength(2);
+    expect(toughGiven).toHaveLength(1);
+    // The ruling: each bullet resolves before the activation the first sentence starts (the Prelate's, the second).
+    expect(toughGiven[0]!).toBeLessThan(attacks[1]!);
+  });
+});
+
 describe("Endless Ranks (45068)", () => {
   it("is data: a side scheme with 4 threat and an acceleration icon", () => {
     expect(dataOf(RANKS)).toMatchObject({

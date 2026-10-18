@@ -959,6 +959,55 @@ describe('"I Got This" (44021): Hero Action, one effect for each icon type on 1 
   });
 });
 
+/**
+ * "I Got This" (44021), FFG ruling #176 (post-RRG 1.5): the icons in play are checked when the card is played, and the
+ * bullets then resolve in the order the player chooses. A bullet whose icon has since left play still resolves.
+ */
+describe('"I Got This" (44021): ruling #176, the player orders the bullets and the icons are read on play', () => {
+  // No side scheme at all: Stryfe's Grasp (a crisis icon) would be one more crisis icon.
+  const stage = (): GameState => ({ ...heroGame(), villainArea: [] });
+
+  /** Plays the event; the player puts the last-offered option first and aims the threat removal at `scheme`. */
+  function playReversed(state: GameState, scheme: InstanceId) {
+    const prompts: { kind: string; options: string[]; ordered?: boolean }[] = [];
+    const pick: Picker = (s) => {
+      const choice = s.pendingChoice;
+      if (!choice) return [];
+      const prompt = choice.prompt as { kind: string; slot?: string };
+      prompts.push({ kind: prompt.kind, options: choice.options.map((o) => o.optionId) });
+      if (prompt.kind === "chooseOption") return choice.options.map((o) => o.optionId).reverse();
+      if (prompt.kind === "chooseTarget" && prompt.slot === "scheme") return [scheme];
+      return firstLegal(s);
+    };
+    const hand = moveToHand(state, P1, "44021");
+    const id = hand.ids[0]!;
+    const paid = payWith(hand.state, P1, 1, [id]);
+    const driven = driveEventsPicking(DEPS, hand.state, pick, play(P1, id, paid));
+    return { ...driven, prompts };
+  }
+  const indexOf = (events: readonly GameEvent[], match: (e: GameEvent) => boolean): number => events.findIndex(match);
+
+  it("the player chooses the order: threat removal first, then the damage", () => {
+    const a = withScheme(stage(), CROWD_CONTROL, 3);
+    const b = withScheme(a.state, BOMB_SCARE, 5);
+    const r = playReversed(b.state, b.id);
+    expect(r.prompts.some((p) => p.kind === "chooseOption")).toBe(true);
+    const removed = indexOf(r.events, (e) => e.type === "threatRemoved");
+    const damaged = indexOf(r.events, (e) => e.type === "damageDealt");
+    expect(removed).toBeGreaterThanOrEqual(0);
+    expect(damaged).toBeGreaterThan(removed);
+  });
+
+  it("an icon that leaves play mid-resolution does not skip its bullet (checked on play)", () => {
+    const a = withScheme(stage(), CROWD_CONTROL, 2);
+    const b = withScheme(a.state, BOMB_SCARE, 5);
+    // Acceleration first, aimed at the 2-threat crisis scheme: it is defeated, and its crisis bullet still resolves.
+    const r = playReversed(b.state, a.id);
+    expect(r.state.villainArea).not.toContain(a.id);
+    expect(inst(r.state, r.state.villains[0]!.instanceId).damage).toBe(3);
+  });
+});
+
 describe("Not my Responsibility (44022): Interrupt, threat that would be placed on a scheme is taken as damage by you or your ally", () => {
   /** Ends P1's turn with Advance dealt: "The villain schemes." Accepts 44022 and answers its target prompt. */
   const scheming = (state: GameState, who: string | null, accept = true) =>

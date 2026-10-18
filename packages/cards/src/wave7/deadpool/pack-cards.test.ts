@@ -36,6 +36,15 @@ import {
 import { driveEventsPicking, withDamage, withForm } from "../../testing/staging.js";
 import { NEXT_EVOL_PRECON_CABLE_DECK } from "../next_evol/precon-cable-deck.js";
 import { WAVE7_DEPS, wave7Scenario } from "../index.js";
+import {
+  attached as rulingsAttached,
+  attachedCodes as rulingsAttachedCodes,
+  discardCodes as rulingsDiscardCodes,
+  fewest,
+  game as rulingsGame,
+  inPlayArea as rulingsInPlayArea,
+  playCard as rulingsPlayCard,
+} from "../rulings-2026-10-06-harness.js";
 import { DEADPOOL_PACK_CARDS } from "./pack-cards.js";
 
 vi.setConfig({ testTimeout: 120_000 });
@@ -1463,6 +1472,18 @@ describe("Laser Swords (44055): +1 ATK per encounter icon in play (to +4); count
       const other = attached(heroGame(), "44053");
       expect(playRefused(other.state, "44055", 3)).toBe(false);
     });
+  });
+});
+
+describe("Laser Swords (44055) and Side Holster, Ruling 152, Mar 22, 2024: counts as two Restricted Weapon cards", () => {
+  it("Captain America's Shield (restricted Item) + Side Holster in play, then Laser Swords: nothing is discarded", () => {
+    let s = rulingsGame("rhino", ["deadpool-pool"], ["the_doomsday_chair"]);
+    s = rulingsAttached(s, "03009").state;
+    s = rulingsInPlayArea(s, "20021").state;
+    const run = rulingsPlayCard(s, "44055", 3, { chooseCards: fewest });
+    // Was: the limit stayed 2 (Holster only made room for a restricted-keyword Weapon), load 3: the Shield went.
+    expect(rulingsAttachedCodes(run.state, identityOf(run.state)).sort()).toEqual(["03009", "44055"]);
+    expect(rulingsDiscardCodes(run.state)).not.toContain("03009");
   });
 });
 
