@@ -271,6 +271,7 @@ import {
   isAlly,
   isCaptiveAlly,
   matchesQuery,
+  PLAYED_VIA_SLOT,
   printedAbilityRefs,
   printedResourcesOf,
   resolvePlayers,
@@ -474,6 +475,22 @@ export const attachmentsPlayableBy = (state: GameState, deps: EngineDeps, player
     playableFromAttachment(state, deps, playerId, id),
   );
 
+/**
+ * Why a card is never played, or null. RRG 1.8 "Dash (Value)" (p. 15): "If a card has a dash (–) as its cost value,
+ * that card cannot be played and can only enter play through other means." (docs/phase7-wave2.md §3.8.) A star cost
+ * (Photographic Reflexes, `fne` 60040a/b/c) likewise: RRG 1.8 "Star Icon" (p. 40) gives the icon no cost of its own
+ * ("In and of itself, the star icon has no effect; it is merely a reminder to check the card's text box whenever that
+ * field is used"), and the spec settles that a star-cost card is never played (docs/phase7-wave11.md §1.2). Engine
+ * inference (authority step 5): no source plays a star-cost card for its stored cost of 0, so every one is refused,
+ * whatever abilities it prints; its text may give another card a play route (§3.9).
+ */
+export function neverPlayedFault(card: AnyCard): string | null {
+  if (!("specialCost" in card)) return null;
+  if (card.specialCost === "dash") return "a card with a printed '—' cost cannot be played";
+  if (card.specialCost === "star") return "a card with a printed star cost is never played";
+  return null;
+}
+
 /** Where a card may be played from besides hand: its own discard permission, or an attachment permission on its host. */
 export const playableOutsideHand = (state: GameState, deps: EngineDeps, playerId: PlayerId, id: InstanceId): boolean =>
   playableFromDiscard(state, deps, playerId, id) || playableFromAttachment(state, deps, playerId, id);
@@ -497,6 +514,12 @@ export interface AsIfInHandPermission {
   readonly from: "deckTop" | "tucked";
   /** Present only for `from: "tucked"`: the card the covered card is tucked under. */
   readonly hostInstanceId?: InstanceId;
+  /**
+   * The permission is printed on a card in its player's hand (`activeIn: "hand"`, docs/phase7-wave11.md §3.9), which
+   * is discarded as an additional cost of the play (`PlayableAsIfInHandSpec.discardSelfFromHand`): that card is no
+   * resource toward the play, and the log's `cardPlayed.via` names it.
+   */
+  readonly discardsSource?: true;
 }
 
 /** The `playableTopOfDeck` case of `AsIfInHandPermission` (docs/phase7-wave8.md §3.49), by its first name. */
@@ -529,25 +552,47 @@ export function asIfInHandPermissions(
   playerId: PlayerId,
 ): readonly AsIfInHandPermission[] {
   if (!registryHasAsIfInHandPlay(deps)) return [];
-  const top = getPlayer(state, playerId)?.deck[0];
+  const player = getPlayer(state, playerId);
+  const top = player?.deck[0];
   const byCard = new Map<InstanceId, AsIfInHandPermission>();
-  for (const sourceId of cardsInPlay(state)) {
-    for (const ref of activeAbilityRefs(state, sourceId, deps)) {
+  // In play, the active abilities of every card (an ability that works from the hand is never read there); in the
+  // player's own hand, the printed abilities that work from it (`activeIn: "hand"`, docs/phase7-wave11.md §3.9), with
+  // that player as "you" (RRG 1.8 "In Play and Out of Play", p. 23: out-of-play text that refers to being used there).
+  const sources: {
+    readonly sourceId: InstanceId;
+    readonly refs: readonly { readonly id: AbilityId }[];
+    inHand: boolean;
+  }[] = [
+    ...cardsInPlay(state).map((sourceId) => ({
+      sourceId,
+      refs: activeAbilityRefs(state, sourceId, deps),
+      inHand: false,
+    })),
+    ...(player?.hand ?? []).flatMap((sourceId) => {
+      const card = cardOf(state, sourceId);
+      return card ? [{ sourceId, refs: printedAbilityRefs(card), inHand: true }] : [];
+    }),
+  ];
+  for (const { sourceId, refs, inHand } of sources) {
+    for (const ref of refs) {
       const definition = deps.abilities[ref.id];
       const spec = playableAsIfInHandOf(definition?.trigger);
       if (!definition || !spec) continue;
+      if ((definition.activeIn === "hand") !== inHand) continue;
       const context: EffectContext = {
         selfInstanceId: sourceId,
-        controllerId: speakerOf(state, sourceId),
+        controllerId: inHand ? playerId : speakerOf(state, sourceId),
         event: null,
         bindings: {},
         deps,
       };
       if (!resolvePlayers(state, spec.player, context).includes(playerId)) continue;
+      if (spec.form && player?.identity.form !== spec.form) continue;
       const base = {
         sourceInstanceId: sourceId,
         abilityId: ref.id,
         costReduction: Math.max(0, spec.costReduction ?? 0),
+        ...(inHand && spec.discardSelfFromHand ? { discardsSource: true as const } : {}),
       };
       const covered: AsIfInHandPermission[] = [];
       if (spec.zone === "deckTop") {
@@ -560,6 +605,10 @@ export function asIfInHandPermissions(
       const matching = covered.filter((p) => !spec.cards || matchesQuery(state, p.instanceId, spec.cards, context));
       if (matching.length === 0) continue;
       const limitUsed = limitReached(state, sourceId, ref.id, definition, null, playerId);
+      // Known limit (docs/phase7-wave11.md §3.9): one permission per card, the first found whose limit is unused (cards
+      // in play before hand cards, each in order). The player does not choose which of several covering permissions a
+      // play uses, so with two Reflexes-shaped hand cards the first is discarded, and an in-play permission is used
+      // ahead of one that discards a hand card. A command naming the permission would lift this.
       for (const permission of matching) {
         const held = byCard.get(permission.instanceId);
         if (!held || (held.limitUsed && !limitUsed)) byCard.set(permission.instanceId, { ...permission, limitUsed });
@@ -604,6 +653,31 @@ export function deckTopPlayOf(
   const permission = asIfInHandPlayOf(state, deps, playerId, id);
   return permission?.from === "deckTop" ? permission : null;
 }
+
+/**
+ * The hand card a play of `playedId` would discard as its additional cost (`AsIfInHandPermission.discardsSource`,
+ * docs/phase7-wave11.md §3.9), or null. It cannot also be spent as a resource toward that play (engine inference: the
+ * card leaves the hand to pay one cost, so it is not there to generate resources for another; RRG 1.8 "Cost", p. 13,
+ * pays all of a play's costs "simultaneously"), so payment options leave it out and a payment naming it is refused.
+ */
+export function asIfInHandSpentSource(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  playedId: InstanceId | null,
+): InstanceId | null {
+  if (playedId === null) return null;
+  const permission = asIfInHandPlayOf(state, deps, playerId, playedId);
+  return permission?.discardsSource ? permission.sourceInstanceId : null;
+}
+
+/**
+ * The play frame's record of the hand card whose permission played the card (`PLAYED_VIA_SLOT`, read by `Predicate
+ * playedVia` while it resolves and carried by the announced `cardPlayed` as `via`; docs/phase7-wave11.md §3.9). Empty
+ * for every other play. Read from the permission the caller took before the card moved.
+ */
+export const asIfInHandViaBindings = (asIfInHand: AsIfInHandPermission | null): Bindings =>
+  asIfInHand?.discardsSource ? { [PLAYED_VIA_SLOT]: [asIfInHand.sourceInstanceId] } : {};
 
 /** The cards outside `playerId`'s hand they may play as if from it now (`asIfInHandPlayOf`), as a list. */
 export const asIfInHandPlayableBy = (state: GameState, deps: EngineDeps, playerId: PlayerId): readonly InstanceId[] =>
@@ -1936,6 +2010,7 @@ export function priceOf(
   // same payment is spending. Pricing changes no state, so the live pile is that snapshot.
   const topOf = (id: PlayerId): InstanceId | null => mustPlayer(ctx.state, id).discard[0] ?? null;
   let pool = EMPTY_POOL;
+  const discardedAsCost = asIfInHandSpentSource(ctx.state, ctx.deps, playerId, excludeInstanceId ?? payingFor);
   for (const entry of payment) {
     if ("fromHand" in entry) {
       const key = `hand:${entry.fromHand}`;
@@ -1943,6 +2018,9 @@ export function priceOf(
       seen.add(key);
       if (entry.fromHand === excludeInstanceId) {
         return { code: "insufficient_resources", message: "a card cannot pay for itself" };
+      }
+      if (entry.fromHand === discardedAsCost) {
+        return { code: "insufficient_resources", message: "that card is discarded to play this card, not spent" };
       }
       // In a hand, or tucked under a card whose rule lets this player spend it "as if it were in their hand"
       // (`RuleSpec spendableFromTucked`, docs/phase7-wave9.md §3.46 (c)): then theirs is the hand it is read from.
@@ -2090,10 +2168,11 @@ export function paymentOptions(
   const payers = group
     ? [playerId, ...playerOrder(ctx.state).flatMap((p) => (p.playerId === playerId ? [] : [p.playerId]))]
     : [playerId];
+  const discardedAsCost = asIfInHandSpentSource(ctx.state, ctx.deps, playerId, excludeInstanceId ?? payingFor);
   for (const payerId of payers) {
     const payer = mustPlayer(ctx.state, payerId);
     for (const id of payer.hand) {
-      if (id === excludeInstanceId) continue;
+      if (id === excludeInstanceId || id === discardedAsCost) continue;
       const spendableIn = printedConstants(ctx.state, ctx.deps, id).find((trigger) => trigger.spendableIn)?.spendableIn;
       if (spendableIn && spendableIn !== payer.identity.form) continue;
       options.push({
@@ -5024,6 +5103,11 @@ export function commitPlay(
     if (definition)
       recordAbilityUse(ctx, asIfInHand.sourceInstanceId, asIfInHand.abilityId, definition, null, playerId);
     moveCard(ctx, cardInstanceId, { kind: "resolving", playerId });
+    // "You can discard [this card] from your hand to play …" (docs/phase7-wave11.md §3.9): an additional cost. RRG 1.8
+    // "Cost" (p. 13): "A player must pay all additional costs simultaneously with the cost that is being added to", so
+    // it is paid here, with the resource cost below; the card is never also a resource (`asIfInHandSpentSource`). The
+    // discard's own triggers ("after you discard") are heard in the windows the play's paid costs open, as any cost's.
+    if (asIfInHand.discardsSource) discardFromHand(ctx, playerId, asIfInHand.sourceInstanceId);
   }
   consumeCostReductions(ctx, ctx.deps, playerId, cardInstanceId);
   const spent = payPayment(ctx, playerId, payment, cardInstanceId);
@@ -5067,6 +5151,8 @@ export function commitPlay(
     // The log keeps where the card really was; every reader of a play treats it as played from the hand (FAQ "Magik
     // (#30A)", p. 64: "that card is considered to have been played from her hand").
     ...(asIfInHand ? { from: asIfInHand.from, countsAsFrom: "hand" as const } : {}),
+    // The hand card whose permission was spent on this play (docs/phase7-wave11.md §3.9).
+    ...(asIfInHand?.discardsSource ? { via: asIfInHand.sourceInstanceId } : {}),
     ...(fromSeparateDeck ? { from: "separateDeck" as const } : {}),
     // "As if it were in your hand" (Daredevil 60001a): counted as played from the hand, as the Magik FAQ reads it.
     ...(fromSeparateDeck?.asIfInHand ? { countsAsFrom: "hand" as const } : {}),
@@ -5177,9 +5263,8 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
   }
   // RRG 1.8 "Dash (Value)" (p. 15): "If a card has a dash (–) as its cost value, that card cannot be played and can only
   // enter play through other means." (docs/phase7-wave2.md §3.8).
-  if ("specialCost" in card && card.specialCost === "dash") {
-    return engineError("card_type_not_playable", "a card with a printed '—' cost cannot be played", command);
-  }
+  const neverPlayed = neverPlayedFault(card);
+  if (neverPlayed) return engineError("card_type_not_playable", neverPlayed, command);
   // RRG "Event": an event's own ability says when it is played. An interrupt or
   // response event is played only from the window its trigger opens, never as an action.
   const windowOnly =
@@ -5390,6 +5475,7 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
   }
 
   const spent = commitPlay(ctx, command.playerId, command.cardInstanceId, command.payment, priced, asIfInHand);
+  const via = asIfInHandViaBindings(asIfInHand);
   if (intoArea !== null) consumeAreaCostReductions(ctx, command.playerId, command.cardInstanceId, intoArea);
   for (const { instanceId, abilityId } of reductions) {
     const definition = ctx.deps.abilities[abilityId];
@@ -5411,7 +5497,7 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     command.playerId,
     attachTo,
     triggeredAction(chosen),
-    playFrameCost(priced),
+    playFrameCost(priced, { ...priced.plan.bindings, ...via }),
     controllerId,
     command.into?.scenarioPlayArea,
   );
@@ -5608,7 +5694,8 @@ function playFromEffectRestrictionFault(
   const misplaced = playFromZoneFault(ctx.state, playerId, id, from, ctx.deps);
   if (!card || !player || misplaced) return misplaced ?? "not a card";
   if (!("cost" in card)) return "not a card that is played";
-  if ("specialCost" in card && card.specialCost === "dash") return "a '—' cost cannot be played";
+  const neverPlayed = neverPlayedFault(card);
+  if (neverPlayed) return neverPlayed;
   const restrictions = "playRestrictions" in card ? card.playRestrictions : undefined;
   if (restrictions?.form && player.identity.form !== restrictions.form) return "wrong form";
   if (playerTraitLimitFault(ctx.state, ctx.deps, playerId, card, id)) return "a max per player";
@@ -5905,7 +5992,7 @@ export function playWithPayment(
   if (isFault(priced)) return null;
   const spent = commitPlay(ctx, playerId, id, payment, priced, asIfInHand, isSeparateDeckPlayFrom(from) ? from : null);
   if (into !== null) consumeAreaCostReductions(ctx, playerId, id, into);
-  const bindings = { ...priced.plan.bindings, ...extraBindings };
+  const bindings = { ...priced.plan.bindings, ...extraBindings, ...asIfInHandViaBindings(asIfInHand) };
   const fromCost = playHostFromCost(ctx.state, ctx.deps, id, priced.plan.bindings);
   pushPlayCardFrame(
     ctx,
@@ -5972,15 +6059,8 @@ export function playIgnoringCost(
     "paid.total": 0,
   };
   const priced: PricedPlay = { pool: EMPTY_POOL, plan, vars };
-  commitPlay(
-    ctx,
-    playerId,
-    id,
-    [],
-    priced,
-    asIfInHandPlayFrom(ctx.state, ctx.deps, playerId, id, from),
-    isSeparateDeckPlayFrom(from) ? from : null,
-  );
+  const asIfInHand = asIfInHandPlayFrom(ctx.state, ctx.deps, playerId, id, from);
+  commitPlay(ctx, playerId, id, [], priced, asIfInHand, isSeparateDeckPlayFrom(from) ? from : null);
   // "The next ally played to the mission": this was that ally, though nothing was paid for the reduction to lower.
   if (into !== null) consumeAreaCostReductions(ctx, playerId, id, into);
   const card = mustCardOf(ctx.state, id);
@@ -6000,7 +6080,7 @@ export function playIgnoringCost(
     playerId,
     attachTo,
     triggered,
-    { bindings: { ...plan.bindings, ...extraBindings }, vars },
+    { bindings: { ...plan.bindings, ...extraBindings, ...asIfInHandViaBindings(asIfInHand) }, vars },
     playerId,
     into ?? undefined,
   );

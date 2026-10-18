@@ -244,6 +244,12 @@ export type GameEvent =
       readonly from?: "deckTop" | "separateDeck" | "tucked";
       readonly countsAsFrom?: "hand";
       /**
+       * Present only for a play under an "as if it were in your hand" permission printed on a card in the player's
+       * hand that the play discarded as its additional cost (Photographic Reflexes, `fne` 60040a/b/c;
+       * docs/phase7-wave11.md §3.9): that card.
+       */
+      readonly via?: InstanceId;
+      /**
        * Present only on a play whose payment is read for resource types (docs/phase7-wave8.md §3.62): `paidCount` is the
        * number of resources the cost took, so `resourcesPaid` less `paidCount` were overpaid and are not read (§4.1
        * Q34 = A). `paidAs` is the paid resources by the type each was used as, when that is settled as the card is

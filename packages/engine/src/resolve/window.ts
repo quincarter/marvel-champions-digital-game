@@ -18,6 +18,7 @@ import {
   planCost,
   asIfInHandCostReduction,
   asIfInHandPlayOf,
+  asIfInHandViaBindings,
   playableFromAttachment,
   playCostContributions,
   priceAfterReductions,
@@ -1165,7 +1166,7 @@ function playWindowEvent(ctx: Ctx, frame: Frame<"window">, answer: readonly stri
     controller,
     null,
     { triggeredAbilityId: candidate.abilityId, ...answered(ctx, frame, candidate) },
-    playFrameCost(priced),
+    playFrameCost(priced, { ...priced.plan.bindings, ...asIfInHandViaBindings(asIfInHand) }),
   );
   payCost(ctx, candidate.instanceId, controller, abilityCost, priced.plan);
   announceResourcesSpent(ctx, controller, spent, candidate.instanceId, "playCard");

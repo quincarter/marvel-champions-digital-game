@@ -200,6 +200,19 @@ export interface EventPattern {
    * read from the outer pattern or from the alternatives that hear the event's kind. Alternatives may nest.
    */
   readonly anyOf?: readonly EventPattern[];
+  /**
+   * On `cardPlayed` only: the card that played it (`TriggerEvent cardPlayed.via`) must match, read with this card as
+   * `self` wherever the via card now is (a discarded Photographic Reflexes is in its owner's discard pile).
+   * docs/phase7-wave11.md §3.9. Any other event, and a play with no `via`, never matches.
+   */
+  readonly playedVia?: TargetQuery;
+  /**
+   * On `cardPlayed` only: the play must not have been made via a card matching this. "You cannot trigger Echo's
+   * 'Watch and Learn' ability for that event" (Photographic Reflexes, `fne` 60040a/b/c; docs/phase7-wave11.md §3.9) is
+   * Watch and Learn's own pattern with `notPlayedVia` naming Photographic Reflexes, so the ability is not offered and
+   * its cost is not paid. A play with no `via` always passes; any other event kind is not read.
+   */
+  readonly notPlayedVia?: TargetQuery;
 }
 
 /**
@@ -294,6 +307,20 @@ export interface PlayableAsIfInHandSpec {
    */
   readonly cards?: TargetQuery;
   readonly costReduction?: number;
+  /**
+   * The permission is in force only while `player` is in this form: "If you are in hero form, you can discard …"
+   * (Photographic Reflexes, `fne` 60040a/b/c; docs/phase7-wave11.md §3.9). Read with the other conditions, so in the
+   * other form nothing is covered and nothing is offered.
+   */
+  readonly form?: Form;
+  /**
+   * "You can **discard [this card] from your hand** to play an event tucked under Echo as if it were in your hand"
+   * (Photographic Reflexes; docs/phase7-wave11.md §3.9): an additional cost of the play (RRG 1.8 "Cost", p. 13), paid
+   * with it. Only on a permission whose ability works from the hand (`AbilityDefinition.activeIn: "hand"`); the card
+   * carrying it is then not a resource toward that play's cost, and it is discarded as the play is paid for, right
+   * after the played card leaves the tuck. The log's `cardPlayed` names it as `via`.
+   */
+  readonly discardSelfFromHand?: true;
 }
 
 /**
@@ -634,6 +661,10 @@ export type AbilityTriggerSpec =
        *   window) and leaves the tuck at step 1 of initiating (RRG 1.8 "Initiating Abilities", p. 24). The log's
        *   `cardPlayed` carries `from: "tucked", countsAsFrom: "hand"`. The tuck goes with its host (RRG 1.8 "Tuck",
        *   p. 45: discarded when the host leaves play), and with it the permission.
+       *
+       * - From the hand: on an ability with `activeIn: "hand"` (docs/phase7-wave11.md §3.9) the permission is read
+       *   from each card in its player's hand, for that player ("you"), and never from a card in play. With
+       *   `discardSelfFromHand` the card is discarded as an additional cost of each play it allows.
        *
        * `costReduction` and the ability's limit work as for `playableTopOfDeck`. At most one of the two is set.
        * (The spec calls this `playableFrom`; that name is the card's own discard permission above, so it is

@@ -522,6 +522,13 @@ export type TriggerEventBody =
        * ability reads as slot `paid.cards` (`carriedByEvent`). Absent when no card paid.
        */
       readonly paidCards?: readonly InstanceId[];
+      /**
+       * The card whose ability or permission played this one, as the play recorded it (`PLAYED_VIA_SLOT`): the
+       * `playFromHand.via` card (Wolverine's Claws; docs/phase7-wave6.md §3.42) or the hand card discarded to play it
+       * as if it were in the hand (Photographic Reflexes; docs/phase7-wave11.md §3.9). Read by `EventPattern.playedVia`
+       * and `notPlayedVia`. Absent for every other play.
+       */
+      readonly via?: InstanceId;
     }
   /**
    * A card has been paid for and is about to resolve: "When you play an [Attack] event" (Embiggen!, Shrink). An

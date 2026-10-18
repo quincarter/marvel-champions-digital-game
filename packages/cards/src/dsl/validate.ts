@@ -664,6 +664,9 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
   const permissionLimit = playableAsIfInHandOf(trigger) !== undefined;
   if (trigger.kind === "constant" && trigger.playableTopOfDeck && trigger.playableAsIfInHand)
     problems.push("a constant ability has at most one of playableTopOfDeck and playableAsIfInHand");
+  // "Discard [this card] from your hand to play …" (docs/phase7-wave11.md §3.9): only a card in the hand can pay it.
+  if (trigger.kind === "constant" && trigger.playableAsIfInHand?.discardSelfFromHand && definition.activeIn !== "hand")
+    problems.push("a playableAsIfInHand that discards its own card from hand works from the hand (activeIn: hand)");
   if (
     trigger.kind === "constant" &&
     ((definition.cost && !additionalPlayCost) || (definition.limit && !permissionLimit) || definition.label)

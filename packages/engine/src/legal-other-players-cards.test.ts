@@ -386,7 +386,9 @@ describe("the listing and command validation agree", () => {
     expect(total.states).toBeGreaterThan(10);
     expect(total.accepted).toBeGreaterThan(total.states);
     expect(total.refused).toBeGreaterThan(0);
-  });
+    // The walk applies every listed and unlisted command across two turns: seconds alone, past the 5s default when
+    // the full suite runs in parallel on a loaded machine.
+  }, 30_000);
 
   it("with it on p1's identity: the same, and during p1's turn p2 has no player card's Action as legal", () => {
     const state = crowded(true);
@@ -400,5 +402,6 @@ describe("the listing and command validation agree", () => {
     const total = walk(state);
     expect(total.states).toBeGreaterThan(10);
     expect(total.refused).toBeGreaterThan(0);
-  });
+    // The same walk as above: an explicit timeout for a loaded full-suite run.
+  }, 30_000);
 });

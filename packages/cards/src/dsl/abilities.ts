@@ -618,6 +618,8 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
               zone: asIfInHand.zone,
               ...(asIfInHand.cards ? { cards: asIfInHand.cards } : {}),
               ...(asIfInHand.costReduction ? { costReduction: asIfInHand.costReduction } : {}),
+              ...(asIfInHand.form ? { form: asIfInHand.form } : {}),
+              ...(asIfInHand.discardSelfFromHand ? { discardSelfFromHand: true as const } : {}),
             },
           }
         : {}),
@@ -687,6 +689,12 @@ export const playableTopOfDeck = (
  * wherever a card in their hand could be played, exactly as `playableTopOfDeck`'s card is, at its own timing; it leaves
  * the tuck as it is played and counts as played from the hand. `costReduction` and `limit` as for `playableTopOfDeck`.
  * `cards` is the only filter on the tuck: who owns a tucked card is not checked unless `cards` says (`owner: "you"`).
+ *
+ * From the hand (docs/phase7-wave11.md §3.9): "If you are in hero form, you can discard Photographic Reflexes from
+ * your hand to play an event tucked under Echo as if it were in your hand. Reduce the cost to play that event by 2."
+ * is `inHand(constant(playableTucked({ under: your identity, cards: events, costReduction: 2, form: "hero",
+ * discardSelfFromHand: true })))`: read from the card in its player's hand, in that form only, and the card is
+ * discarded as an additional cost of each play.
  */
 export const playableTucked = (
   opts: {
@@ -695,6 +703,8 @@ export const playableTucked = (
     readonly player?: PlayerRef;
     readonly costReduction?: number;
     readonly limit?: "turn" | "phase" | "round";
+    readonly form?: Form;
+    readonly discardSelfFromHand?: true;
   } = {},
 ): ConstantPart => ({
   playableAsIfInHand: {
@@ -703,6 +713,8 @@ export const playableTucked = (
     ...(opts.cards ? { cards: opts.cards } : {}),
     ...(opts.costReduction ? { costReduction: opts.costReduction } : {}),
     ...(opts.limit ? { limit: opts.limit } : {}),
+    ...(opts.form ? { form: opts.form } : {}),
+    ...(opts.discardSelfFromHand ? { discardSelfFromHand: true as const } : {}),
   },
 });
 /** "Reduce the cost to play X by N [while …]" / "… costs N additional resources" (a signed `delta`). */

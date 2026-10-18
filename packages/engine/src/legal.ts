@@ -49,6 +49,7 @@ import {
   attachmentsPlayableBy,
   asIfInHandCostReduction,
   asIfInHandPermissions,
+  neverPlayedFault,
   playableFromDiscard,
   playCostReductionFault,
   playRequirement,
@@ -1041,7 +1042,7 @@ function asIfInHandToList(state: GameState, deps: EngineDeps, playerId: PlayerId
   return asIfInHandPermissions(state, deps, playerId).flatMap(({ instanceId }) => {
     const card = cardOf(state, instanceId);
     if (!card || card.type === "resource" || !("cost" in card)) return [];
-    if ("specialCost" in card && card.specialCost === "dash") return [];
+    if (neverPlayedFault(card)) return [];
     return [instanceId];
   });
 }

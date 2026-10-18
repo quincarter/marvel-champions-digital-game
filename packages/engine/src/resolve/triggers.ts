@@ -445,6 +445,15 @@ function matchesRest(
       if (!matches) return false;
     }
   }
+  // "You cannot trigger Echo's 'Watch and Learn' ability for that event" (docs/phase7-wave11.md §3.9).
+  if (pattern.playedVia) {
+    const query: TargetQuery = pattern.playedVia;
+    if (event.kind !== "cardPlayed" || event.via === undefined) return false;
+    if (!matchesQuery(state, event.via, query, context)) return false;
+  }
+  if (pattern.notPlayedVia && event.kind === "cardPlayed" && event.via !== undefined) {
+    if (matchesQuery(state, event.via, pattern.notPlayedVia, context)) return false;
+  }
   if (pattern.targetHadAttachment) {
     if (event.kind !== "characterDefeated") return false;
     const query: TargetQuery = pattern.targetHadAttachment;

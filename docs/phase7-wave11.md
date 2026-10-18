@@ -268,7 +268,7 @@ module test, and a failure becomes an extend), **exists (compose)**. Searches th
   Searches that found nothing: `exactlyDefeat`, `excessThreat`.
 - **Shape.** `removeThreat` records the attempted amount; `schemeDefeated` gains `excessThreat` (attempted minus the
   threat that was there) and `byThwart`. A predicate `exactlyDefeated` reads `excessThreat === 0` on a thwart's defeat,
-  for schemes only. A character is exactly defeated by an attack whose excess damage *dealt* is 0, not damage taken
+  for schemes only. A character is exactly defeated by an attack whose excess damage _dealt_ is 0, not damage taken
   (August 3, 2026 Ruling 6), which the hero-pack spec's H3.19 builds (`attackExcessAsDealt`), not this predicate.
 - **Tests.** THW 2 on a 2-threat side scheme: exact; on 1: not. Stick's −1 makes it exact. Foggy Nelson's removal of 2
   on 2: not a thwart, no response.
@@ -299,6 +299,8 @@ module test, and a failure becomes an extend), **exists (compose)**. Searches th
 - **Tests.** A tucked Action event played in Echo's turn for its cost minus 2 (not below 0), the Reflexes discarded,
   Watch and Learn not offered, Echo's Katana and Improvisation offered. A tucked Response event (Powerful Punch) played
   from the interrupt window of an enemy attack. Not offered in alter-ego form.
+- **Known limit.** With several permissions over one tucked card the engine uses the first unused one (in play before
+  hand); the player does not pick which (`asIfInHandPermissions`).
 
 ### 3.10 "Use your DEF in place of your THW and ATK"
 
@@ -421,7 +423,7 @@ Only what the authority order does not settle. Until a question is answered, A i
 | --- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | -------- |
 | 1   | Raising Hell (60011) and an enemy with no upgrades: "deal 2 damage to each enemy for each upgrade attached" | Not attacked: no damage instruction names it (no retaliate, no "after attacked")                        | Attacked for 0 (retaliate and "after … attacked" fire, guard applies) | open     |
 | 2   | Focus the Senses' When Defeated: may a Sense upgrade be moved onto Focus the Senses itself?                 | Yes, it is in play until the ability resolves (January 11, 2026 R1); it then goes to the bottom with it | No: "other cards" excludes the scheme being defeated                  | open     |
-| 3   | Nelson and Murdock (60015): does "Attorney" in "an Attorney character or support" describe the support too?  | Yes: an Attorney character or an Attorney support (Foggy Nelson is the pack's only one)                 | No: an Attorney character, or any support                             | open     |
+| 3   | Nelson and Murdock (60015): does "Attorney" in "an Attorney character or support" describe the support too? | Yes: an Attorney character or an Attorney support (Foggy Nelson is the pack's only one)                 | No: an Attorney character, or any support                             | open     |
 
 Question 1: RRG "Labeled Ability" (p. 26) makes the whole event one attack, and the engine reads "each enemy" as naming
 every enemy (wave 8 Q48); June 25, 2026 R2 speaks of "each enemy damaged by the effect" but does not say who is

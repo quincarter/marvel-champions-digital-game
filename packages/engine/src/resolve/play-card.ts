@@ -4,7 +4,7 @@ import type { AbilityId } from "@mc/content";
 import { type Ctx, emit, moveCard, popFrame, pushFrames, setFrame, updateInstance } from "../ctx.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { discardZoneFor, locateCard, mustCardOf, mustInstance, mustPlayer, scenarioPlayAreaOf } from "../query.js";
-import { cardsInPlay, controllerOf, printedAbilityRefs } from "../select.js";
+import { cardsInPlay, controllerOf, PLAYED_VIA_SLOT, printedAbilityRefs } from "../select.js";
 import {
   PAID_CARDS_SLOT,
   paymentVarsIn,
@@ -273,12 +273,16 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
       // you play Spectrum, tuck 1 card used to pay for her under her".
       const payment = paymentVarsIn(frame.vars);
       const paidCards = frame.bindings[PAID_CARDS_SLOT];
+      // The card that played this one (`PLAYED_VIA_SLOT`), so an "after you play" ability can tell how it was played
+      // once the play frame is gone (`EventPattern.playedVia`, docs/phase7-wave11.md §3.9).
+      const via = frame.bindings[PLAYED_VIA_SLOT]?.[0];
       announce(ctx, {
         kind: "cardPlayed",
         instanceId: frame.instanceId,
         playerId: frame.playerId,
         ...(Object.keys(payment).length > 0 ? { payment } : {}),
         ...(paidCards && paidCards.length > 0 ? { paidCards } : {}),
+        ...(via !== undefined ? { via } : {}),
       });
       return;
     }
