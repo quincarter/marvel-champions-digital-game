@@ -21,6 +21,14 @@ the checklist and the owner's open items; this page has the scope, how to resume
   `node -e`. Rulebook pages: `uv run docs/extract_pages.py docs/campaign-modes/mc60_rulebook-web.pdf -p 1-20 --dpi 110
   -o <scratch dir>`.
 
+## E2e pre-push hook: off on this branch (owner, 2026-10-18)
+
+`.githooks/pre-push` is deleted on this branch until the client work is in; its last version is on `main` at 3b840480.
+`e2e-gate.sh`, `pre-commit` and `commit-msg` are unchanged, and `pnpm e2e:verify` still runs the suite on demand.
+**Restore it when the client step (definition of done §5) starts landing**
+(`git checkout origin/main -- .githooks/pre-push`); this PR must not merge without it. E2e runs only on the owner's
+Windows rig, queued on `%TEMP%\mc-e2e.lock`.
+
 ## Scope (provisional until the sources page confirms it)
 
 RRG 1.8 Appendix VI (p. 71) lists waves 1 to 10 only, so cycle 11 follows release order (Hall of Heroes index lines 41,
@@ -38,5 +46,5 @@ the cache is complete. Empty art folders wait in `art/heroes/_pending/`. Not in 
 
 ## Session log
 
-- **2026-10-18.** Branch and draft PR opened. Added the `code-reviewer` agent and the CLAUDE.md section on when to call
+- **2026-10-18.** Branch and draft PR opened; the e2e pre-push hook removed on the branch. Added the `code-reviewer` agent and the CLAUDE.md section on when to call
   it.
