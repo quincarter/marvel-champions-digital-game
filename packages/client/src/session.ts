@@ -23,10 +23,11 @@ import { MemoryDeckStorage, type DeckStorage } from "./engine/deck-storage.js";
 import type { EngineHost } from "./engine/host.js";
 import { IdbDeckStorage } from "./engine/idb-deck-storage.js";
 import { SessionStore } from "./store/session-store.js";
-import type { Settings } from "./settings.js";
+import { defaultSettings, type Settings } from "./settings.js";
 import { SettingsStore } from "./settings-store.js";
 import { emptyLog, type LogState } from "./view/log-lines.js";
 import type { MusicController } from "./audio/music-controller.js";
+import { onPowerSavingChange, powerSavingOn } from "./platform/power-saving.js";
 
 export interface AppSession {
   readonly host: EngineHost;
@@ -103,7 +104,9 @@ export function appSession(): AppSession {
   if (!session) {
     const host = createEngineHost();
     // Loaded once from `mc-settings`; assigning `session.settings` is the one write path and saves.
-    const settingsStore = new SettingsStore();
+    // Power saving mode changes the defaults (reduced motion, 1x text) of every setting the player never set.
+    const settingsStore = new SettingsStore(undefined, () => defaultSettings({ powerSaving: powerSavingOn() }));
+    onPowerSavingChange(() => settingsStore.refreshDefaults());
     session = {
       host,
       store: new SessionStore(host),

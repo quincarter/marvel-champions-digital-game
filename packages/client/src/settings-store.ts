@@ -136,6 +136,15 @@ export class SettingsStore {
     return this.#current;
   }
 
+  /**
+   * Re-reads the device's defaults (power saving mode changed, `platform/power-saving.ts`): every field the player
+   * never set follows them, and every field they did set stays as they set it. Saves nothing.
+   */
+  refreshDefaults(): Settings {
+    this.#current = resolveSettings(this.#overrides, this.defaults());
+    return this.#current;
+  }
+
   set(next: Settings): void {
     const overrides: { -readonly [K in keyof Settings]?: Settings[K] } = { ...this.#overrides };
     for (const key of Object.keys(next) as (keyof Settings)[]) {

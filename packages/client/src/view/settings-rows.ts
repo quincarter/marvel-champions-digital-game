@@ -33,6 +33,7 @@ import {
   type Resolution,
 } from "../settings.js";
 import { FIRST_PLAYER_TOKEN_MOTION_LABELS } from "./first-player-token-motion.js";
+import { POWER_SAVING_ROW_NOTE } from "./power-saving-notice.js";
 
 export type SettingsRowId =
   | "reduced-motion"
@@ -54,19 +55,24 @@ export interface SettingsRowInfo {
   readonly unavailable?: string;
 }
 
-export function settingsRowInfoOf(settings: Settings): readonly SettingsRowInfo[] {
+/** `powerSaving`: the device is in power saving mode (`platform/power-saving.ts`), which the two rows it turns down say. */
+export function settingsRowInfoOf(settings: Settings, powerSaving = false): readonly SettingsRowInfo[] {
+  const followsPowerSaving = (detail: string): string => (powerSaving ? `${detail} ${POWER_SAVING_ROW_NOTE}` : detail);
   return [
     {
       id: "reduced-motion",
       title: "Reduced motion",
-      detail:
+      detail: followsPowerSaving(
         "Skip travel animation and auto-advancing reveals; beats and state changes still appear, just without the motion.",
+      ),
       on: settings.reducedMotion,
     },
     {
       id: "sharper-text",
       title: "Sharper text",
-      detail: "Renders text at the screen's own pixel density. Off trades a little crispness for less texture memory.",
+      detail: followsPowerSaving(
+        "Renders text at the screen's own pixel density. Off trades a little crispness for less texture memory.",
+      ),
       on: settings.textResolution > 1,
     },
     {

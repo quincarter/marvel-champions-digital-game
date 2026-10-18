@@ -32,6 +32,32 @@ function device(reduced: boolean, ratio: number): () => Settings {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("SettingsStore", () => {
+  test("power saving turns down only the settings the player never set, and puts them back after", () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    vi.stubGlobal("devicePixelRatio", 2);
+    let powerSaving = false;
+    const storage = new MapStorage();
+    storage.setItem(SETTINGS_KEY, serializeSettingsOverrides({ textResolution: 2 }));
+    const store = new SettingsStore(storage, () => defaultSettings({ powerSaving }));
+    expect(store.current).toMatchObject({ reducedMotion: false, textResolution: 2 });
+    powerSaving = true;
+    // Reduced motion follows the mode; sharper text was the player's own choice, so it stays.
+    expect(store.refreshDefaults()).toMatchObject({ reducedMotion: true, textResolution: 2 });
+    expect(store.current.reducedMotion).toBe(true);
+    // Changing something else while saving does not pin reduced motion on.
+    store.set({ ...store.current, sound: false });
+    powerSaving = false;
+    expect(store.refreshDefaults()).toMatchObject({ reducedMotion: false, textResolution: 2, sound: false });
+    expect(JSON.parse(storage.getItem(SETTINGS_KEY)!)).toEqual({ version: 1, textResolution: 2, sound: false });
+  });
+
+  test("power saving's defaults: reduced motion on and text at 1x", () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    vi.stubGlobal("devicePixelRatio", 3);
+    expect(defaultSettings({ powerSaving: true })).toMatchObject({ reducedMotion: true, textResolution: 1 });
+    expect(defaultSettings({ powerSaving: false })).toMatchObject({ reducedMotion: false, textResolution: 2 });
+  });
+
   test("a fresh store has the device defaults and writes nothing", () => {
     const storage = new MapStorage();
     const store = new SettingsStore(storage, device(false, 1));

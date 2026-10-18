@@ -33,6 +33,7 @@ import { extras } from "../progression/progression.js";
 import { earnedSongsOf, musicGainOf, nextShuffled } from "../view/music-player.js";
 import { SOUND_EFFECT_VOLUME, type SoundEffect } from "../view/sound-effects.js";
 import { onMixerChange, startMixerWatch, stopMixerWatch } from "../platform/app-volume.js";
+import { onAppBackgroundChange } from "../platform/app-background.js";
 import extrasUnlockedUrl from "./sfx/extras-unlocked.mp3?url";
 import handRefillUrl from "./sfx/hand-refill.mp3?url";
 import basicAttackUrl from "./sfx/basic-attack.mp3?url";
@@ -127,6 +128,8 @@ export class MusicScene extends Phaser.Scene implements MusicController {
   #paused = false;
   /** Paused because the computer's master volume was muted, so unmuting picks the music up again (#243). */
   #pausedForMute = false;
+  /** Paused because the Android app went to the background; it plays again when the app comes back. */
+  #pausedForBackground = false;
   /** The shuffle's songs still to come this round. */
   #queue: Track[] = [];
   /** The current screen's own music request, made again when shuffle is turned off. */
@@ -151,6 +154,9 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     // player paused it themselves in the meantime. The shell tells the page when it changes; nothing here polls.
     const stopFollowing = onMixerChange(({ muted }) => this.#followMasterMute(muted));
     this.events.once(Phaser.Scenes.Events.DESTROY, stopFollowing);
+    // On Android the music pauses while the app is in the background and plays again when it comes back.
+    const stopBackground = onAppBackgroundChange((background) => this.#followBackground(background));
+    this.events.once(Phaser.Scenes.Events.DESTROY, stopBackground);
     appSession().music = this;
     this.#shuffleOn = appSession().settings.musicShuffle;
     this.syncSettings(appSession().settings);
@@ -288,6 +294,21 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     } else if (!muted && this.#pausedForMute) {
       this.#pausedForMute = false;
       if (this.#paused) {
+        this.resume();
+        for (const listener of this.#pauseListeners) listener();
+      }
+    }
+  }
+
+  #followBackground(background: boolean): void {
+    if (background && !this.#paused) {
+      this.#pausedForBackground = true;
+      this.pause();
+      for (const listener of this.#pauseListeners) listener();
+    } else if (!background && this.#pausedForBackground) {
+      this.#pausedForBackground = false;
+      // Unless something else paused it meanwhile (the player cannot, from the background).
+      if (this.#paused && !this.#pausedForMute) {
         this.resume();
         for (const listener of this.#pauseListeners) listener();
       }

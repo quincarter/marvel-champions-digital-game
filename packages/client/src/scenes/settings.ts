@@ -95,6 +95,7 @@ import { formFactorFor, type Rect } from "../view/layout.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { appSession } from "../session.js";
 import { guidePrefs, onGuidePrefsChange, setGuidePrefs } from "../guide/guide-store.js";
+import { onPowerSavingChange, powerSavingOn } from "../platform/power-saving.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import type { RulesSceneData } from "./rules.js";
@@ -198,9 +199,12 @@ export class SettingsOverlay extends Phaser.Scene {
     // Another scene (Pause's own inline Guide group) can change the same live prefs while this overlay is open
     // behind it — redraw so this one never shows a stale level/toggle.
     const unsubscribeGuide = onGuidePrefsChange(() => this.#draw());
+    // Power saving mode turning on or off changes the Reduced motion and Sharper text rows.
+    const unsubscribePowerSaving = onPowerSavingChange(() => this.#redrawIfOpen());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
       unsubscribeGuide();
+      unsubscribePowerSaving();
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
       this.#tabs?.destroy();
@@ -413,7 +417,7 @@ export class SettingsOverlay extends Phaser.Scene {
    */
   #itemsOf(settings: Settings, guideRows: readonly GuideRowInfo[]): ReadonlyMap<SettingsItemId, SettingsItem> {
     const items = new Map<SettingsItemId, SettingsItem>();
-    for (const row of settingsRowInfoOf(settings)) {
+    for (const row of settingsRowInfoOf(settings, powerSavingOn())) {
       items.set(row.id, {
         spec: { kind: "toggle", id: row.id, detail: row.unavailable ?? row.detail },
         draw: (item, stops) => {

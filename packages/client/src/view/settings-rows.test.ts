@@ -26,6 +26,7 @@ import {
   type GuideLevelRowInfo,
   type GuideToggleRowInfo,
 } from "./settings-rows.js";
+import { POWER_SAVING_ROW_NOTE } from "./power-saving-notice.js";
 import { defaultGuidePrefs, withLevel, type GuidePrefs } from "../guide/guide-prefs.js";
 import { defaultSettings, tableRulesOf, type Settings } from "../settings.js";
 
@@ -100,6 +101,16 @@ describe("settingsRowInfoOf", () => {
     const sound = rows.find((r) => r.id === "sound");
     expect(sound?.on).toBe(true);
     expect(sound?.unavailable).toBeUndefined();
+  });
+
+  test("in power saving mode, the two rows it turns down say so and the rest read as usual", () => {
+    const usual = settingsRowInfoOf(BASE);
+    const saving = settingsRowInfoOf(BASE, true);
+    for (const row of saving) {
+      const before = usual.find((r) => r.id === row.id)!.detail;
+      const followsMode = row.id === "reduced-motion" || row.id === "sharper-text";
+      expect(row.detail, row.id).toBe(followsMode ? `${before} ${POWER_SAVING_ROW_NOTE}` : before);
+    }
   });
 
   test("every row has a non-empty title and detail", () => {

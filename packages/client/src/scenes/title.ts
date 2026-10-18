@@ -35,6 +35,9 @@ import { UPDATE_DISMISS_ID, appVersionText, buildCommit, releaseNotesUrl, update
 import { dismissUpdate, dismissedUpdateVersion, isUpdateDismissed } from "../platform/update-dismissal.js";
 import { CLIENT_VERSION } from "../version.js";
 import { detectPlatform, openExternal } from "../platform/platform.js";
+import { onPowerSavingChange, powerSavingOn } from "../platform/power-saving.js";
+import { powerSavingFooterOf } from "../view/power-saving-notice.js";
+import { onTap } from "../ui/tap.js";
 import { checkForUpdate, type AvailableUpdate } from "../platform/update-check.js";
 import { preconDecks } from "../view/deck-list-model.js";
 import { cardDisplayName } from "../view/hero-names.js";
@@ -126,8 +129,13 @@ export class TitleScene extends Phaser.Scene {
     }
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#rebuild, this);
+    // The footer says when power saving mode is on (`platform/power-saving.ts`).
+    const unsubscribePowerSaving = onPowerSavingChange(() => {
+      if (this.sys.isActive()) this.#rebuild();
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.#rebuild, this);
+      unsubscribePowerSaving();
     });
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.inspect) || this.scene.isActive(SCENES.settings),
@@ -411,6 +419,11 @@ export class TitleScene extends Phaser.Scene {
       textStyle(typeRole.label, textColor, ink.meta),
     );
     versionText.setX(layout.footer.x + layout.footer.width - versionText.width);
+    const powerSaving = powerSavingFooterOf(powerSavingOn());
+    if (powerSaving !== null) {
+      const powerText = this.add.text(0, layout.footer.y - 20, powerSaving, textStyle(typeRole.label, textColor));
+      powerText.setX(layout.footer.x + layout.footer.width - powerText.width);
+    }
 
     // The release this build is on, on GitHub: its notes and downloads. Underlined in the footer's own ink rather
     // than red, which is the screen's one forward action.
@@ -429,11 +442,11 @@ export class TitleScene extends Phaser.Scene {
       width: linkText.width + 12,
       height: hit.target,
     };
-    this.add
+    const releaseZone = this.add
       .zone(linkRect.x, linkRect.y, linkRect.width, linkRect.height)
       .setOrigin(0, 0)
-      .setInteractive({ useHandCursor: true })
-      .on("pointerup", releaseNotes);
+      .setInteractive({ useHandCursor: true });
+    onTap(releaseZone, releaseNotes, "title:release-notes");
     this.#stops.set("release-notes", { rect: linkRect, activate: releaseNotes });
 
     this.#status = this.add

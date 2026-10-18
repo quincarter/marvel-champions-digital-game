@@ -130,9 +130,15 @@ export const SCENES = {
   musicButton: "MusicButton",
   /** The music player (#191, `scenes/music-player.ts`), opened from the music button. */
   musicPlayer: "MusicPlayerOverlay",
+  /** The note that drops in when power saving mode turns on or off (`scenes/power-saving-notice.ts`). */
+  powerSavingNotice: "PowerSavingNotice",
 } as const;
 
 /** Scenes that run above every screen but draw only an edge control, so they never count as covering a screen (`ui/widgets.ts`). */
-export const CHROME_SCENES: ReadonlySet<string> = new Set([SCENES.reportButton, SCENES.musicButton]);
+export const CHROME_SCENES: ReadonlySet<string> = new Set([
+  SCENES.reportButton,
+  SCENES.musicButton,
+  SCENES.powerSavingNotice,
+]);
 
 export type SceneKey = (typeof SCENES)[keyof typeof SCENES];

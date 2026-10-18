@@ -200,13 +200,26 @@ export function tableRulesOf(settings: Pick<Settings, "sameNameHeroAllyConflict"
   return settings.sameNameHeroAllyConflict ? { sameNameHeroAllyConflict: true } : undefined;
 }
 
-export function defaultSettings(): Settings {
+/** What the device says right now that some defaults follow. */
+export interface DeviceConditions {
+  /** The device is in power saving mode (`platform/power-saving.ts`). */
+  readonly powerSaving?: boolean;
+}
+
+/**
+ * The settings a player who changed nothing gets on this device. Power saving mode turns reduced motion on and text
+ * down to 1x while it lasts; a player who set either themselves keeps their own choice (`resolveSettings`).
+ */
+export function defaultSettings(device: DeviceConditions = {}): Settings {
   const prefersReduced =
     typeof globalThis.matchMedia === "function" && globalThis.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const powerSaving = device.powerSaving === true;
   return {
-    reducedMotion: prefersReduced,
+    reducedMotion: prefersReduced || powerSaving,
     // Capped at `SHARP_TEXT_RESOLUTION_CEILING`: beyond that the texture cost buys nothing visible.
-    textResolution: Math.min(SHARP_TEXT_RESOLUTION_CEILING, Math.max(1, globalThis.devicePixelRatio || 1)),
+    textResolution: powerSaving
+      ? 1
+      : Math.min(SHARP_TEXT_RESOLUTION_CEILING, Math.max(1, globalThis.devicePixelRatio || 1)),
     largeCardText: false,
     sound: true,
     musicShuffle: false,
