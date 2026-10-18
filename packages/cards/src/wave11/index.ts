@@ -1,7 +1,7 @@
 /**
  * Wave 11 (PLAN.md Phase 7 / docs/phase7-wave11.md, docs/phase7-wave11-hero-packs.md): cycle 11, the Jessica Jones
- * (`jj`, MC61) and Luke Cage (`luke_cage`, MC62) hero packs; Fear No Evil (`fne`, MC60) joins with its own scaffold
- * task.
+ * (`jj`, MC61) and Luke Cage (`luke_cage`, MC62) hero packs, and Fear No Evil (`fne`, MC60), whose player half
+ * (`fne/{daredevil,echo,aspect-basic}`) is scaffolded; its encounter cards get their modules later.
  *
  * Each hero pack's scripts live in per-group modules
  * (`<pack>/<hero>/{identity,events,support-upgrades-allies,obligation-nemesis}.ts`, then `<pack>/<aspect>.ts`);
@@ -25,6 +25,6 @@ export const WAVE11_ABILITIES: AbilityRegistry = mergeRegistries(
 export const WAVE11_DEPS: EngineDeps = { abilities: WAVE11_ABILITIES };
 
 export { WAVE11_CARDS } from "./cards.js";
-export { CARD_GROUPS } from "./card-groups.js";
+export { CARD_GROUPS, isFnePlayerHalfId } from "./card-groups.js";
 export { WAVE11_MODULES } from "./modules.js";
 export type { Wave11Module } from "./modules.js";

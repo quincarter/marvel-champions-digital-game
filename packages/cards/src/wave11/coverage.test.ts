@@ -1,19 +1,25 @@
 /**
- * Coverage for the wave 11 hero-pack modules (`jj`, `luke_cage`), modeled on `../wave10/coverage.test.ts`. Every
+ * Coverage for the wave 11 hero-pack modules (`jj`, `luke_cage`, and the `fne` player half), modeled on
+ * `../wave10/coverage.test.ts`. Every
  * ability
  * ref of every card is either registered by its own module or in that module's `_SKIPPED` map with a written reason; a
  * scaffold module has every ref skipped ("wave 11 scripting in progress: <module>") except its reprint aliases. A
  * module
  * agent fills its registry and deletes its own `_SKIPPED` lines; nothing here changes.
  */
-import { JJ_CARDS, LUKE_CAGE_CARDS } from "@mc/content";
+import { FNE_CARDS, JJ_CARDS, LUKE_CAGE_CARDS } from "@mc/content";
 import { abilityRefIds } from "../ability-refs.js";
 import { WAVE10_ABILITIES } from "../wave10/index.js";
-import { CARD_GROUPS } from "./card-groups.js";
+import { CARD_GROUPS, isFnePlayerHalfId } from "./card-groups.js";
 import { WAVE11_ABILITIES } from "./index.js";
 import { WAVE11_MODULES } from "./modules.js";
 
-const WAVE11_PACK_CARDS = [...JJ_CARDS, ...LUKE_CAGE_CARDS];
+// Fear No Evil: the player half (60001a to 60064); its encounter cards (60065 on) get their own modules later.
+const WAVE11_PACK_CARDS = [
+  ...JJ_CARDS,
+  ...LUKE_CAGE_CARDS,
+  ...FNE_CARDS.filter((c) => isFnePlayerHalfId(c.id as string)),
+];
 
 describe("wave 11 ability registry", () => {
   it("includes every wave 10 (Core through cycle 10) script, the same definition object", () => {
@@ -35,7 +41,7 @@ describe("wave 11 module ability coverage", () => {
     for (const [id, reason] of Object.entries(m.skipped)) expect(reason.length, `${id} reason`).toBeGreaterThan(20);
   });
 
-  it("every jj and luke_cage ability ref resolves, except its documented skips", () => {
+  it("every jj, luke_cage and fne player-half ability ref resolves, except its documented skips", () => {
     const refs = WAVE11_PACK_CARDS.flatMap(abilityRefIds);
     const skipped = WAVE11_MODULES.flatMap((m) => Object.keys(m.skipped));
     const missing = refs.filter((id) => !(id in WAVE11_ABILITIES));
@@ -61,6 +67,13 @@ describe("wave 11 ability id coverage", () => {
     ),
     luke_cage: joined(
       (import.meta as unknown as ImportMetaGlob).glob("./luke_cage/**/*.test.ts", {
+        query: "?raw",
+        import: "default",
+        eager: true,
+      }),
+    ),
+    fne: joined(
+      (import.meta as unknown as ImportMetaGlob).glob("./fne/**/*.test.ts", {
         query: "?raw",
         import: "default",
         eager: true,
