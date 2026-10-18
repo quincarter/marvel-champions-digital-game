@@ -1,4 +1,5 @@
-import { activeEncounterDeck, type GameState, type InstanceId } from "@mc/engine";
+import { cardId } from "@mc/content";
+import { activeEncounterDeck, type CardInstance, type GameState, type InstanceId } from "@mc/engine";
 import {
   endTurn,
   firstLegal,
@@ -8,13 +9,16 @@ import {
   mainThreat,
   moveToHand,
   P1,
+  patchInstance,
   playerOf,
   settle,
   stackEncounterDeck,
   toHero,
   type Picker,
 } from "../../testing/harness.js";
+import { conjure, playOut } from "../../testing/qa-bench.js";
 import { driveStepwise, withDamage } from "../../testing/staging.js";
+import { game, villainOf } from "../../wave7/rulings-2026-10-06-harness.js";
 import { wave2Scenario } from "../setup.js";
 import { playFromHand, runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { SCW_PACK_CARDS } from "./pack-cards.js";
@@ -231,5 +235,39 @@ describe("Order and Chaos (15018): the damage waits on the cancel", () => {
     expect(events).toContainEqual(expect.objectContaining({ type: "preThenUnresolved", cause: "nothingToCancel" }));
     expect(events).toContainEqual({ type: "thenSkipped" });
     expect(inst(after, villain).damage).toBe(0);
+  });
+});
+
+// FFG ruling (post-RRG 1.5, answered by Alex; Hall of Heroes "Latest FFG Rulings (post RRG 1.5)", "Guard prevents you
+// from initiating attacks, but does not prevent you from dealing damage. We rule that, if you already initiated an
+// attack with Swift Retribution and were dealt a Goblin Thrall during the activation, you could still deal the damage
+// from Swift Retribution."): the engine instead re-reads guard when the already-begun attack's damage instruction
+// resolves (Q49, `attack-label.test.ts`), so the 4 damage is lost.
+describe("Swift Retribution (15014) when the villain's scheme boost brings a Guard minion (FFG ruling post-RRG 1.5)", () => {
+  /** Mutagen Formula, one player; P1's setup Goblin Thrall is disengaged and a Goblin Thrall (boost: put into play engaged) is the next card. */
+  const staged = (topCode: string) => {
+    const s = game("mutagen-formula", ["core-spider-man-justice"], ["bomb_scare"], 13);
+    const thralls = Object.values(s.instances).filter((i) => i.cardId === cardId("02024")) as CardInstance[];
+    const free = patchInstance(s, thralls.find((t) => t.engagedWith === P1)!.instanceId, { engagedWith: null });
+    return conjure(stackEncounterDeck(free, topCode), "15014");
+  };
+
+  it("control: a plain boost card (Advance, 01186): the attack deals its 4 damage", () => {
+    const given = staged("01186");
+    const done = playOut(given.state, given.id, 1);
+    expect(done.accepted).toBe(true);
+    expect(inst(done.state, villainOf(given.state)).damage).toBe(4);
+  });
+
+  it.fails("a Goblin Thrall boost engages a Guard minion after the attack began: the 4 damage is still dealt", () => {
+    const given = staged("02024");
+    const done = playOut(given.state, given.id, 1);
+    expect(done.accepted).toBe(true);
+    const engaged = Object.values(done.state.instances).filter(
+      (i) => i.cardId === cardId("02024") && i.engagedWith === P1,
+    );
+    expect(engaged).toHaveLength(1); // the Guard minion did arrive
+    // Actual: 0. The attack had begun; guard "prevents you from initiating attacks, but does not prevent you from dealing damage".
+    expect(inst(done.state, villainOf(given.state)).damage).toBe(4);
   });
 });

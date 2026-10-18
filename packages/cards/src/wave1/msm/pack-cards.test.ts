@@ -1,4 +1,11 @@
-import { activeVillain, characterProfile, remainingHitPoints } from "@mc/engine";
+import { cardId } from "@mc/content";
+import {
+  activeEncounterDeck,
+  activeEncounterDeckId,
+  activeVillain,
+  characterProfile,
+  remainingHitPoints,
+} from "@mc/engine";
 import type { GameEvent, GameState } from "@mc/engine";
 import {
   applyOk,
@@ -17,6 +24,8 @@ import {
   stackEncounterDeck,
   toHero,
 } from "../../testing/harness.js";
+import { DEPS, conjure, rhino } from "../../testing/qa-bench.js";
+import { driveEventsPicking } from "../../testing/staging.js";
 import { wave1Scenario } from "../setup.js";
 import { MSM_DEPS, runMsm, startMsmGame } from "./testing.js";
 
@@ -276,5 +285,50 @@ describe("Preemptive Strike (05014): the cancel needs icons to cancel", () => {
     expect(offered).toBe(true);
     expect(events.some((e) => e.type === "thenSkipped")).toBe(false);
     expect(remainingHitPoints(state, villain)).toBe(before - 1);
+  });
+});
+
+describe("an enemy stunned by an attack-labeled event is attacked (ruling May 30, 2024, Ruling 197)", () => {
+  // Ruling 197 and RRG 1.8 p. 10 "Attack (Player Ability Type)": resolving an ability labeled as an attack "is
+  // considered to attack the specified target", so Tackle (stun only, nothing paid with [physical]) triggers Retaliate.
+  function table() {
+    let s = rhino();
+    const pile = activeEncounterDeck(s);
+    const spare = pile.deck[20]!;
+    s = {
+      ...patchInstance(s, spare, { cardId: cardId("01172"), faceup: true, engagedWith: P1 }),
+      encounterDecks: {
+        ...s.encounterDecks,
+        [activeEncounterDeckId(s)]: { deck: pile.deck.filter((i) => i !== spare), discard: pile.discard },
+      },
+      players: s.players.map((p) => (p.playerId === P1 ? { ...p, playArea: [...p.playArea, spare] } : p)),
+    };
+    return { state: s, whiplash: spare };
+  }
+  it("control: a basic attack on a Retaliate 1 minion hurts the hero", () => {
+    const { state, whiplash } = table();
+    const hero = identityOf(state);
+    const run = driveEventsPicking(DEPS, state, firstLegal, {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: hero,
+      targetInstanceId: whiplash,
+    });
+    expect(inst(run.state, hero).damage).toBe(1);
+  });
+  it.fails("Tackle paid without [physical] stuns the minion and still triggers its Retaliate", () => {
+    const { state, whiplash } = table();
+    const hero = identityOf(state);
+    const c = conjure(state, "05015");
+    const hand = playerOf(c.state, P1).hand.filter((i) => i !== c.id);
+    const run = driveEventsPicking(
+      DEPS,
+      c.state,
+      (st) => (st.pendingChoice?.options.some((o) => o.optionId === whiplash) ? [whiplash] : firstLegal(st)),
+      play(P1, c.id, hand.slice(0, 3)),
+    );
+    expect(inst(run.state, whiplash).statuses.stunned).toBe(1); // setup check: the stun landed, no damage
+    expect(inst(run.state, whiplash).damage).toBe(0);
+    expect(inst(run.state, hero).damage).toBe(1);
   });
 });

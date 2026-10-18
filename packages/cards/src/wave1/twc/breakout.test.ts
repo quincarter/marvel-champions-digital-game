@@ -8,6 +8,7 @@ import {
   type InstanceId,
 } from "@mc/engine";
 import { P1, endTurn, identityOf, inst, patchInstance, settle } from "../../testing/harness.js";
+import { conjure, playOut, rhino } from "../../testing/qa-bench.js";
 import { wave1Scenario } from "../setup.js";
 import { runTwc, startTwcGame, TWC_DEPS } from "./testing.js";
 
@@ -121,5 +122,22 @@ describe("wave1Scenario('breakout')", () => {
     expect(encounterDeckOf(state, piledriverDeckId).discard).toContain(guardId);
     const thunderballDeckId = villainOf(state, villainNamed(state, "Thunderball"))!.encounterDeckId;
     expect(encounterDeckOf(state, thunderballDeckId).discard).not.toContain(guardId);
+  });
+});
+
+describe("June 13, 2024 - Ruling 212 (post-RRG 1.5): 'the villain' in The Wrecking Crew", () => {
+  // Ruling 212: "any card ability (played, triggered, Action, constant, keyword) that refers to 'the villain' always
+  // refers to the active villain" in Wrecking Crew (Tower Defense / Sinister Six / Four Horsemen let the player choose;
+  // Wrecking Crew does not). RRG 1.8 is silent on this (the scenario insert is the source).
+  it.fails("Spider-Woman (01011, 'confuse the villain') played in Breakout confuses the active villain; the player is not asked", () => {
+    const start = rhino(1, "core-spider-man-justice", "breakout");
+    const active = start.activeVillainId!;
+    const other = start.villains.find((v) => v.instanceId !== active)!.instanceId;
+    const { state, id } = conjure(start, "01011");
+    // The player (wrongly) is offered the other villains; steer the pick at a non-active one.
+    const played = playOut(state, id, 3, { use: ["spider-woman"], target: other });
+    expect(played.accepted).toBe(true);
+    const confused = (v: InstanceId) => inst(played.state, v).statuses.confused ?? 0;
+    expect([nameOf(played.state, active), confused(active), confused(other)]).toEqual(["Wrecker", 1, 0]);
   });
 });

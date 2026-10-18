@@ -392,3 +392,21 @@ describe("Wasp pack protection card, from Black Panther (Protection)'s own deck"
     expect(inst(after, identity).statuses.tough).toBe(1);
   });
 });
+
+// FFG ruling, Sep 21, 2023 (post-RRG 1.5 #87): the Ant-Man and Wasp allies "specify that you are 'overpaying' for their
+// cost when you play them, while The Power Of cards state they must be 'paying' for a cost in order to generate double
+// resources. The Power Of cards will only generate one resource for these allies." RRG 1.8 "Cost" (p. 13): resources
+// beyond the cost are overpaid, not paid.
+describe("The Power Of cards and overpaying (Wasp, 13012)", () => {
+  it.fails("Wasp (cost 0) paid with only The Power of Aggression: the card generates 1 resource, so 1 pym counter", () => {
+    const { state: opened, id } = openHandFor("13012", SHE_HULK);
+    const given = moveToHand(opened, P1, "01055");
+    const after = settle(
+      runWith(PLAYABLE_DEPS, given.state, play(P1, id, given.ids, {})),
+      firstLegal,
+      undefined,
+      PLAYABLE_DEPS,
+    );
+    expect(inst(after, id).counters.pym ?? 0).toBe(1);
+  });
+});

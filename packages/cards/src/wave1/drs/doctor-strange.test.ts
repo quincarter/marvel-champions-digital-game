@@ -1,8 +1,9 @@
-import { cardId, trait } from "@mc/content";
+import { cardId, PLAYABLE_CARDS, trait } from "@mc/content";
 import {
   activeEncounterDeck,
   activeVillain,
   characterProfile,
+  createGame,
   remainingHitPoints,
   traitsOf,
   type GameState,
@@ -21,11 +22,13 @@ import {
   picking,
   play,
   playerOf,
+  runWith,
   settle,
   stackEncounterDeck,
   toHero,
   use,
 } from "../../testing/harness.js";
+import { PLAYABLE_DEPS, playableScenario } from "../../playable/index.js";
 import { moveToDiscard } from "../../testing/staging.js";
 import { wave1Scenario } from "../setup.js";
 import { DRS_DEPS, runDrs, stackInvocation, startDrsGame } from "./testing.js";
@@ -382,5 +385,77 @@ describe("Invocation cards", () => {
         (id) => after.instances[id]?.cardId === cardId("09035"),
       ),
     ).toBe(true);
+  });
+});
+
+describe("Vapors of Valtorr vs Mister Sinister (ruling May 10, 2024, Ruling 181)", () => {
+  // Ruling 181: replacing a status card on Mister Sinister does not trigger his "After a status card is placed on
+  // Mister Sinister" Forced Response. RRG 1.8 is silent on "replace" for status cards.
+  it.fails("replacing his stunned status with confused places no threat", () => {
+    const created = createGame(
+      playableScenario("mister-sinister", { seed: 3, players: [{ starterDeckId: "drs-protection" }] }),
+      PLAYABLE_DEPS,
+    );
+    if (!created.ok) throw new Error(created.error.message);
+    const open = settle(created.state, firstLegal, (s) => s.step.phase === "player", PLAYABLE_DEPS);
+    const hero = settle(runWith(PLAYABLE_DEPS, open, toHero(P1)), firstLegal, undefined, PLAYABLE_DEPS);
+    const v = activeVillain(hero).instanceId;
+    const stunned = patchInstance(hero, v, { statuses: { ...inst(hero, v).statuses, stunned: 1 } });
+    const stacked = stackInvocation(stunned, P1, "09035");
+    const top = playerOf(stacked, P1).separateDecks["Invocation"]!.deck[0]!;
+    const before = inst(stacked, stacked.mainScheme.instanceId).threat;
+    const invoked = runWith(
+      PLAYABLE_DEPS,
+      stacked,
+      use(P1, identityOf(stacked), "09001a.spell-mastery", [], { invocation: [top] }),
+    );
+    const after = settle(invoked, picking(v, "0"), undefined, PLAYABLE_DEPS);
+    expect(inst(after, v).statuses.stunned).toBe(0); // setup check: replaced
+    expect(inst(after, v).statuses.confused).toBe(1);
+    expect(inst(after, after.mainScheme.instanceId).threat).toBe(before);
+  });
+});
+
+describe("June 20, 2024 - Ruling 215 answer 1 (post-RRG 1.5): Vapors of Valtorr and a Stalwart enemy with Tough", () => {
+  // Ruling 215: a Stalwart enemy with a tough status card "is not a valid target for Vapors of Valtorr's ability, as a
+  // Stalwart enemy cannot be stunned or confused". RRG 1.8 p. 43 "Target": a target is valid only if the ability can
+  // affect it (the replacement for Tough can only be stunned or confused). Mister Sinister (33028) is Stalwart.
+  it.fails("Vapors of Valtorr cannot take the tough card off the Stalwart minion Mister Sinister: he keeps it", () => {
+    const created = createGame(
+      playableScenario("mister-sinister", { seed: 3, players: [{ starterDeckId: "drs-protection" }] }),
+      PLAYABLE_DEPS,
+    );
+    if (!created.ok) throw new Error(created.error.message);
+    const open = settle(created.state, firstLegal, (s) => s.step.phase === "player", PLAYABLE_DEPS);
+    const hero = settle(runWith(PLAYABLE_DEPS, open, toHero(P1)), firstLegal, undefined, PLAYABLE_DEPS);
+    // Mister Sinister (33028, a Stalwart minion) put into play engaged with P1 in place of the top encounter card.
+    const card = PLAYABLE_CARDS.find((c) => c.id === cardId("33028"));
+    if (card?.type !== "minion") throw new Error("no Mister Sinister minion");
+    const v = activeEncounterDeck(hero).deck[0]!;
+    const pile = activeEncounterDeck(hero);
+    const placed: GameState = {
+      ...patchInstance(hero, v, { cardId: card.id }),
+      cardPool: { ...hero.cardPool, [card.id]: card },
+    };
+    const inPlay: GameState = {
+      ...placed,
+      encounterDecks: {
+        ...placed.encounterDecks,
+        [placed.activeVillainId!]: { deck: pile.deck.filter((i) => i !== v), discard: pile.discard },
+      },
+      players: placed.players.map((p) => (p.playerId === P1 ? { ...p, playArea: [...p.playArea, v] } : p)),
+      instances: { ...placed.instances, [v]: { ...placed.instances[v]!, faceup: true, engagedWith: P1 } },
+    };
+    const toughened = patchInstance(inPlay, v, { statuses: { ...inst(inPlay, v).statuses, tough: 1 } });
+    const stacked = stackInvocation(toughened, P1, "09035");
+    const top = playerOf(stacked, P1).separateDecks["Invocation"]!.deck[0]!;
+    const invoked = runWith(
+      PLAYABLE_DEPS,
+      stacked,
+      use(P1, identityOf(stacked), "09001a.spell-mastery", [], { invocation: [top] }),
+    );
+    const after = settle(invoked, picking(v, "0"), undefined, PLAYABLE_DEPS);
+    expect(inst(after, v).statuses.stunned + inst(after, v).statuses.confused).toBe(0); // stalwart: neither lands
+    expect(inst(after, v).statuses.tough).toBe(1);
   });
 });

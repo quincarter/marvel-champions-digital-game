@@ -27,6 +27,7 @@ import {
   toHero,
   use,
 } from "../../testing/harness.js";
+import { WAVE8_CARDS } from "../../wave8/index.js";
 import { wave1Scenario } from "../setup.js";
 import { DRS_DEPS, runDrs, startDrsGame } from "./testing.js";
 
@@ -370,5 +371,15 @@ describe("Doctor Strange pack cards", () => {
     // Printed hero hand size 5, +1 from The Sorcerer Supreme while in hero form — distinct from alter-ego's own
     // printed 6, so this number alone proves the bonus applied (without it, hero form would show 5).
     expect(handSize(hero, P1, DRS_DEPS)).toBe(6);
+  });
+});
+
+// RRG 1.8 Appendix V p. 65 (printed): "WARNING (#21) ... (Removed '(defense)' and the Defense
+// trait.)" The card data must not keep `traits: [DEFENSE]`.
+describe("Warning (09021): the Defense trait was removed (RRG 1.8 p. 65)", () => {
+  it("Warning (09021) has no Defense trait", () => {
+    const warning = WAVE8_CARDS.find((c) => (c.id as string) === "09021") as unknown as { traits: readonly string[] };
+    expect(warning).toBeDefined();
+    expect(warning.traits).not.toContain("DEFENSE");
   });
 });

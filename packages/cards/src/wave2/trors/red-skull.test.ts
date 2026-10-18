@@ -1,4 +1,13 @@
-import { cardsInPlay, characterProfile, createGame, type GameState, type InstanceId } from "@mc/engine";
+import { cardId } from "@mc/content";
+import {
+  activeEncounterDeck,
+  cardsInPlay,
+  characterProfile,
+  createGame,
+  type GameEvent,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import {
   endTurn,
   firstLegal,
@@ -8,6 +17,7 @@ import {
   P1,
   patchInstance,
   playerOf,
+  runWith,
   settle,
   stackEncounterDeck,
   toHero,
@@ -15,6 +25,10 @@ import {
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { driveEventsPicking } from "../../testing/staging.js";
+import { WAVE6_DEPS } from "../../wave6/index.js";
+import { mansionAttackGame } from "../../wave6/mut_gen/mansion-attack-testing.js";
+import { withoutDealtCards } from "../../wave6/mut_gen/magneto-testing.js";
+import { engageMinion } from "../../wave6/mut_gen/project-wideawake-testing.js";
 
 const redSkullVsHeroes = () =>
   startWave2Game(wave2Scenario("red-skull", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
@@ -357,5 +371,36 @@ describe("Red Skull scenario", () => {
 
   it("Hydra Exo-Soldier: gives the villain a tough status card and an additional boost card for this activation", () => {
     expect(WAVE2_DEPS.abilities["04131.boost"]).toBeDefined();
+  });
+});
+
+// "[star] Boost: Give the villain a tough status card and another boost card." Official source: FFG ruling February 28,
+// 2026 - Ruling 6 (Hall of Heroes, "Latest FFG Rulings (post-RRG 1.7 & 1.8)",
+// https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-7/; `marvel-champions-rulings-post-rrg-1-7.md`), on Pirate
+// Lackey, a boost card that gives the villain a boost card when a Villainous minion activates: "No. Because the
+// villain is not activating, do not give it a boost card." (pinned in `wave6/mut_gen/qa.test.ts`). The same reasoning
+// applies to Exo-Soldier's "another boost card" when a Villainous minion flips it: the tough status card still goes to
+// the villain, but the minion's activation is not given another boost card. A ruling on Exo-Soldier itself dated
+// December 11, 2025 is unconfirmed (no primary source found: the only December 11, 2025 ruling in the transcripts,
+// post-RRG 1.6 #69.132, is about other cards), so it does not drive this test. The script used to hand the extra card
+// to the activation in progress, here the minion's; it now uses `extraBoostCardsForVillain()`.
+describe("Hydra Exo-Soldier (04131) as a Villainous minion's boost card: FFG ruling Feb 28, 2026 (6), Pirate Lackey", () => {
+  it("the villain has no boost card (its own was spent), so the minion's activation is not given another", () => {
+    const base = mansionAttackGame({ villain: "Avalanche", modularSetIds: ["future_past"] });
+    const hero = runWith(WAVE6_DEPS, base, toHero(P1));
+    // Bastion (32167) is a Villainous minion. Deck: the villain's boost (Advance), Bastion's boost (Exo-Soldier), filler.
+    const { state: withBastion, id: bastion } = engageMinion(withoutDealtCards(hero), "32167");
+    const stacked = stackEncounterDeck(withBastion, "01186", "01186", "32132", "32136");
+    const exo = activeEncounterDeck(stacked).deck[1]!;
+    const staged = patchInstance(stacked, exo, { cardId: cardId("04131") });
+    const { events, state } = driveEventsPicking(WAVE6_DEPS, staged, firstLegal, { type: "endTurn", playerId: P1 });
+    const flipped = events.filter(
+      (e): e is Extract<GameEvent, { type: "boostCardFlipped" }> => e.type === "boostCardFlipped",
+    );
+    const bastionFlips = flipped
+      .filter((e) => e.enemyInstanceId === bastion)
+      .map((e) => state.instances[e.instanceId]!.cardId);
+    expect(inst(state, hero.villains[0]!.instanceId).statuses.tough).toBe(1); // the tough half does happen.
+    expect(bastionFlips).toEqual([cardId("04131")]); // actual: Exo-Soldier and then the extra card, 32132.
   });
 });

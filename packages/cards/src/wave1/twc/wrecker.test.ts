@@ -1,4 +1,6 @@
+import { cardId } from "@mc/content";
 import {
+  activeEncounterDeck,
   cannotLeavePlay,
   characterProfile,
   notDefeatedWithoutThreat,
@@ -8,6 +10,7 @@ import {
   startSession,
   villainOf,
   type Command,
+  type GameEvent,
   type GameSession,
   type GameState,
 } from "@mc/engine";
@@ -23,6 +26,7 @@ import {
   toHero,
   use,
 } from "../../testing/harness.js";
+import { drive, rhino } from "../../testing/qa-bench.js";
 import { wave1Scenario } from "../setup.js";
 import { findInstance, forceAttachToVillain, runTwc, startTwcGame, TWC_DEPS } from "./testing.js";
 
@@ -117,5 +121,27 @@ describe("Magic Crowbar (07006)", () => {
 
     const replayed = replay(session.log, TWC_DEPS);
     expect(replayed.ok && replayed.state).toEqual(session.state);
+  });
+});
+
+describe("June 13, 2024 - Ruling 214 answer 1 (post-RRG 1.5), RRG 1.8 p. 6 'Activation'", () => {
+  // RRG 1.8 p. 6: "If an effect initiates an activation during the resolution of another activation, the newly
+  // initiated activation resolves after the current activation has finished resolving." Ruling 214: I've Been Waiting
+  // For This! (07014) boost "That villain schemes" does not interrupt the attack it boosts.
+  it.fails("I've Been Waiting For This! as a boost: the scheme it causes resolves after the boosted attack deals its damage", () => {
+    const base = rhino(5, "core-spider-man-justice", "breakout");
+    const start = patchInstance(base, base.mainScheme.instanceId, { threat: 0 });
+    const top = activeEncounterDeck(start).deck[0]!;
+    const staged = patchInstance(start, top, { cardId: cardId("07014") });
+    const done = drive(staged, endTurn(P1), {});
+    const hero = identityOf(done.state);
+    const index = (test: (e: GameEvent) => boolean) => done.events.findIndex(test);
+    const heroDamaged = index((e) => e.type === "damageDealt" && e.targetInstanceId === hero);
+    const schemeBegan = index(
+      (e) => e.type === "triggerEvent" && e.phase === "initiated" && e.event.kind === "enemyScheme",
+    );
+    expect(heroDamaged).toBeGreaterThanOrEqual(0);
+    expect(schemeBegan).toBeGreaterThanOrEqual(0);
+    expect(heroDamaged).toBeLessThan(schemeBegan);
   });
 });
