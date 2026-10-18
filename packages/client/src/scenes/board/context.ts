@@ -54,12 +54,15 @@ export interface BoardFrame {
    * log), so the table's own scroll at a larger Card size leaves them alone.
    */
   readonly innerScroll: Rect[];
+  /** The tabbed hand's clipped strip this draw (empty elsewhere): where a hand card shows and takes presses. */
+  readonly handStrip: Rect[];
 }
 
 export const emptyFrame = (): BoardFrame => ({
   hitRects: new Map(),
   focusRects: new Map(),
   pileRects: new Map(),
+  handStrip: [],
   buttons: [],
   rings: [],
   masks: [],
@@ -128,6 +131,8 @@ export interface BoardDrawContext {
     onTap?: () => void,
     drag?: RowDrag,
     onHover?: (over: boolean) => void,
+    /** The clipped strip the card sits in (the phone's hand): presses outside it are not the card's. */
+    clip?: Rect,
   ): void;
   /** Opens a card. `siblings` is the list ◂ ▸ steps through; without it, the hand when the card is in it. */
   inspect(id: InstanceId, siblings?: readonly InstanceId[]): void;

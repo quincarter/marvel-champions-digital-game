@@ -173,23 +173,28 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
   drawCards(drawnAt);
 
   const before = scene.children.list.length;
+  // The tabbed hand's clipped strip (the mask below): a card takes presses only where it shows.
+  const strip: Rect | null = tabbed
+    ? { x: row.cardArea.x, y: rect.y, width: row.cardArea.width, height: rect.height }
+    : null;
+  if (strip) ctx.frame.handStrip.push(strip);
   model.hand.forEach((card, index) => {
     const slot = slots[index];
     // A card still flying in from the deck leaves its slot empty; its ghost fills it (`BoardMotion#isArriving`).
     if (slot && !ctx.motion.isArriving(card.instanceId))
-      drawHandCard(ctx, { ...slot, x: slot.x - drawnAt }, card, payment, discard);
+      drawHandCard(ctx, { ...slot, x: slot.x - drawnAt }, card, payment, discard, strip);
   });
   if (tabbed) {
     // Everything the cards just added (frames, scans, tags, rings, tap zones), reparented into one clipped strip —
     // `SetupDealScene#drawOpeningHand`'s trick. The rects above follow it, so beats, travels and the focus ring
     // still find a card where it is.
-    const strip = scene.add.container(0, 0);
+    const container = scene.add.container(0, 0);
     const drawn = scene.children.list.slice(before, -1);
-    if (drawn.length > 0) strip.add(drawn);
+    if (drawn.length > 0) container.add(drawn);
     const mask = scene.make.graphics({}, false);
     mask.fillStyle(0xffffff).fillRect(row.cardArea.x, rect.y, row.cardArea.width, rect.height);
     ctx.frame.masks.push(mask);
-    setMask(strip, mask, "world");
+    setMask(container, mask, "world");
     // A fade and a chevron on whichever edge has more cards past it, so a crowded hand (or a payment strip with the
     // card you need off screen) is seen to scroll (QA A-10).
     // The fade starts under the mode bar, so it never dims the bar's own buttons.
@@ -201,7 +206,7 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
       drawnAt,
     );
     hand.attach((scrollX) => {
-      strip.setX(drawnAt - scrollX);
+      container.setX(drawnAt - scrollX);
       drawCards(scrollX);
       hint(scrollX);
     });
@@ -475,6 +480,7 @@ function drawHandCard(
   card: HandCardView,
   payment: PaymentView | null,
   discard: DiscardChoiceView | null = null,
+  clip: Rect | null = null,
 ): void {
   const { scene } = ctx;
   const { spent, subject, alpha } = paintHandSlot(ctx, slot, card, payment, discard);
@@ -560,7 +566,14 @@ function drawHandCard(
   }
 
   const onHover = onTopHover(scene, slot, card.instanceId, source?.orderNote ?? null);
-  ctx.makeTapTarget(slot, card.instanceId, () => ctx.controller.tapHandCard(card.instanceId), ctx.hand.drag, onHover);
+  ctx.makeTapTarget(
+    slot,
+    card.instanceId,
+    () => ctx.controller.tapHandCard(card.instanceId),
+    ctx.hand.drag,
+    onHover,
+    clip ?? undefined,
+  );
 }
 
 /** The card the mouse is over while it carries the "on top" note, so a redraw under the mouse keeps the note open. */

@@ -116,6 +116,7 @@ export default defineConfig({
         "villain-review-handle.spec.ts",
         "villain-decision-dock.spec.ts",
         "choice-peek.spec.ts",
+        "payment-table-tile-tap.spec.ts",
       ],
     },
   ],

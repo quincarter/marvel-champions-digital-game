@@ -98,14 +98,27 @@ export const facts = <T>(page: Page, read: (game: any) => T): Promise<T> =>
     return new Function("game", `return (${source})(game)`)(appSession().store.state.game);
   }, read.toString()) as Promise<T>;
 
-/** Scrolls the phone's sideways hand until the card is on screen. */
+/**
+ * Scrolls the phone's sideways hand until the card is on screen: its middle inside the hand's clipped strip, where a
+ * hand card takes presses (not under the pile column or a payment's pinned table cards at the strip's head).
+ */
 export async function bringIntoView(page: Page, key: string): Promise<void> {
   const size = page.viewportSize()!;
+  const strip = (): Promise<{ x: number; width: number } | null> =>
+    page.evaluate(
+      () =>
+        (
+          window as unknown as { __mcBoardDebug?: { handStrip?: () => { x: number; width: number } | null } }
+        ).__mcBoardDebug?.handStrip?.() ?? null,
+    );
   for (let i = 0; i < 14; i++) {
     const r = await focusRect(page, key);
-    if (r && r.x >= 0 && r.x + r.width / 2 < size.width - 30) break;
+    const area = (await strip()) ?? { x: 0, width: size.width - 30 };
+    const middle = r ? r.x + r.width / 2 : null;
+    if (middle !== null && middle >= area.x + 10 && middle <= area.x + area.width - 10) break;
     await page.mouse.move(size.width / 2, size.height - 120);
-    await page.mouse.wheel(150, 0);
+    // Back toward the start when the card is left of the strip (scrolled under its head), on otherwise.
+    await page.mouse.wheel(middle !== null && middle < area.x + 10 ? -150 : 150, 0);
     await settle(page);
   }
   await settle(page, { quietMs: 200, maxMs: 800 });

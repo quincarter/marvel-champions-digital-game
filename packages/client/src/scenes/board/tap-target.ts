@@ -8,7 +8,7 @@
  * live in `view/hold-gesture.ts`; `ui/hold-target.ts` wires them to a zone.
  */
 
-import type Phaser from "phaser";
+import Phaser from "phaser";
 import type { Rect } from "../../view/layout.js";
 import { bindHoldTarget } from "../../ui/hold-target.js";
 
@@ -31,13 +31,31 @@ export interface TapGesture {
   key?: string | undefined;
   /** When given, a mouse moving onto (true) or off (false) the card; never a touch, which has no hover. */
   onHover?: ((over: boolean) => void) | undefined;
+  /**
+   * The on-screen area the card is clipped to, when it sits in a clipped strip (the phone's sideways hand). A mask
+   * hides what is outside it but does not stop presses there: without this, a hand card scrolled under the payment's
+   * pinned table cards took the tap meant for them.
+   */
+  clip?: Rect | undefined;
 }
 
 export function addTapTarget(scene: Phaser.Scene, rect: Rect, gesture: TapGesture): void {
-  const zone = scene.add
-    .zone(rect.x, rect.y, rect.width, rect.height)
-    .setOrigin(0, 0)
-    .setInteractive({ useHandCursor: true });
+  const zone = scene.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0);
+  const { clip } = gesture;
+  if (clip) {
+    // Hit-tested where the zone is now: the strip it is reparented into moves it as the row scrolls.
+    zone.setInteractive({
+      hitArea: new Phaser.Geom.Rectangle(0, 0, rect.width, rect.height),
+      hitAreaCallback: (area: Phaser.Geom.Rectangle, x: number, y: number) => {
+        if (!Phaser.Geom.Rectangle.Contains(area, x, y)) return false;
+        const at = zone.getWorldTransformMatrix();
+        const worldX = at.tx + x;
+        const worldY = at.ty + y;
+        return worldX >= clip.x && worldX <= clip.x + clip.width && worldY >= clip.y && worldY <= clip.y + clip.height;
+      },
+      useHandCursor: true,
+    });
+  } else zone.setInteractive({ useHandCursor: true });
   bindHoldTarget(scene, zone, gesture);
   const { onHover } = gesture;
   if (onHover) {
