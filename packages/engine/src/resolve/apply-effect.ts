@@ -57,6 +57,7 @@ import { BORROWED_BOOST_ICONS_SLOT } from "../abilities.js";
 import { EngineInvariantError } from "../errors.js";
 import { boundCardTotals, recountDeckDiscardIcons } from "./deck-discard.js";
 import { resolveTuck, tuckInsteadOfLeaving, tuckOrAnnounce } from "./tuck.js";
+import { separateDeckInsteadOfLeaving } from "./leave-to-separate-deck.js";
 import { dealHiddenPiles, gainFromHiddenPile, revealHiddenPile, seedHiddenPiles } from "./hidden-piles.js";
 import { identifyMole } from "./accusation.js";
 import { giveStatusOrAnnounce } from "./status-being-given.js";
@@ -2961,6 +2962,16 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "replaceLeaveDestination": {
       // docs/phase7-wave9.md §3.20: the leaving this interrupt answers ends under the named card. What made the card
       // leave still did (it left play; a defeated one was defeated); only where it goes is replaced.
+      if ("separateDeck" in effect.to) {
+        // docs/phase7-wave11.md §3.3: the bottom of its owner's separate deck, attachments leaving with a host
+        // included.
+        const sent =
+          frame.eventFrameId !== null &&
+          frame.eventFrameId !== undefined &&
+          separateDeckInsteadOfLeaving(ctx, frame.eventFrameId, effect.to.separateDeck);
+        if (!sent) markPreThenUnresolved(ctx, frame.frameId, "leaveNotReplaced");
+        return;
+      }
       const [to] = targets(effect.to.tuckedUnder);
       const source = frame.selfInstanceId !== null ? getInstance(ctx.state, frame.selfInstanceId) : undefined;
       const replaced =

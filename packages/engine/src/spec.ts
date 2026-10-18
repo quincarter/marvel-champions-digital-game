@@ -3732,8 +3732,25 @@ export type EffectSpec =
    * The Permanent keyword and "cannot leave play" are decided by what made the card leave, before the interrupt window
    * and again when the leaving applies: a card that could not leave play has no leaving to interrupt. A host that has
    * left play by the time the leaving applies takes nothing, and the card goes where it was going.
+   *
+   * `to: { separateDeck, at: "bottom" }` (docs/phase7-wave11.md §3.3; 60001a/b "Forced Interrupt: When a Sense upgrade
+   * would leave play, place it on the bottom of the Sense deck instead."): the card goes to the bottom of its owner's
+   * separate deck of that name, facedown as every deck card is (a `topCardFaceup` deck shows its top one), logged as
+   * `returnedToSeparateDeck`. As with a tuck, whatever made it leave still did, and it is not discarded, so nothing
+   * hears a discard; a cost that discards it is still paid. Unlike a tuck it is a replacement effect ("would …
+   * instead"): once it resolves no further interrupt to that leaving is used and no "after … leaves play" response
+   * answers it (RRG 1.8 "Replacement Effect", p. 37; "'Would'", p. 48). Also unlike a tuck it reaches an attachment
+   * leaving with its host (a Sense upgrade on a defeated minion or side scheme, on a villain removed, or on a main
+   * scheme stage advanced or flipped): the host's move puts it at the bottom, and several such attachments go there in
+   * the order their replacements resolved. And it reaches every destination: the victory display and removal from the
+   * game as well as a discard pile, a hand or a deck. Not replaced (`leaveNotReplaced`): a card with no owner or whose
+   * owner has no deck of that name, a swap's outgoing card, a leaving already sent elsewhere, and a defeat with a
+   * destination of its own, as for a tuck.
    */
-  | { readonly kind: "replaceLeaveDestination"; readonly to: { readonly tuckedUnder: TargetRef } }
+  | {
+      readonly kind: "replaceLeaveDestination";
+      readonly to: { readonly tuckedUnder: TargetRef } | { readonly separateDeck: string; readonly at: "bottom" };
+    }
   /**
    * "Assign each of the discarded cards to a different ally at the mission. If a resource icon on the ally matches a
    * resource icon on the card assigned to it, that ally participates." (MC45 p. 6, steps 1 and 2 of a mission attempt;

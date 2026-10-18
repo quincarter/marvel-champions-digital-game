@@ -1915,19 +1915,45 @@ export type LeaveRequest =
    */
   | { readonly kind: "tuck"; readonly hostInstanceId: InstanceId; readonly replaced: ReplaceableLeave }
   /**
+   * A leaving an interrupt sent to the bottom of its owner's separate deck (`EffectSpec replaceLeaveDestination` with
+   * `to.separateDeck`, docs/phase7-wave11.md §3.3): placed there when the leaving applies, in place of the move
+   * `replaced` describes, which still says what made it leave (its source card, a cost, a defeat).
+   */
+  | ({ readonly kind: "separateDeck"; readonly replaced: ReplaceableLeave } & SeparateDeckPlacement)
+  /**
    * An attachment (or Victory X upgrade) leaving play because its host `host` does (§4.1 Q32): its interrupts share
    * the host's window, and its host's move takes it (`leaveNow` records where in `moved`). `step`: the host has no
    * leaving of its own on the stack (a villain removed or set aside, a main scheme stage removed or flipped), so this
-   * frame's apply step performs the host's change, which takes the attachments with it.
+   * frame's apply step performs the host's change, which takes the attachments with it. `toSeparateDeck`: an interrupt
+   * sent it to the bottom of its owner's separate deck instead (docs/phase7-wave11.md §3.3), so the host's move puts
+   * it there rather than where it was going.
    */
   | {
       readonly kind: "withHost";
       readonly host: InstanceId;
       readonly step?: HostStep;
       readonly moved?: ZoneId["kind"];
+      readonly toSeparateDeck?: SeparateDeckPlacement;
     };
 
-/** The leavings whose destination `EffectSpec replaceLeaveDestination` can replace (`LeaveRequest tuck.replaced`). */
+/**
+ * Where `EffectSpec replaceLeaveDestination { to: { separateDeck } }` sends a leaving card: the bottom of `playerId`'s
+ * separate deck `name` (the card's owner's). `instead`: where it was going (`TriggerEvent cardLeavesPlay.to` when the
+ * replacement resolved), for the log's `returnedToSeparateDeck`. `order`: among the attachments of one host move
+ * sent to separate decks, the order their replacements resolved, which is the order they go to the bottom (the first
+ * resolved goes first, so the last ends lowest).
+ */
+export interface SeparateDeckPlacement {
+  readonly playerId: PlayerId;
+  readonly name: string;
+  readonly instead: ZoneId["kind"];
+  readonly order: number;
+}
+
+/**
+ * The leavings whose destination `EffectSpec replaceLeaveDestination` can replace (`LeaveRequest tuck.replaced`,
+ * `separateDeck.replaced`).
+ */
 export type ReplaceableLeave = Extract<LeaveRequest, { readonly kind: "zone" | "moveCards" | "defeat" }>;
 
 /**

@@ -83,6 +83,7 @@ import {
   type EffectContext,
 } from "./select.js";
 import { hasCandidates, heard } from "./resolve/triggers.js";
+import { landedInSeparateDeck, separateDeckWithHost } from "./resolve/leave-to-separate-deck.js";
 import type { CardDestination, DefeatPlacement, StatusName } from "./spec.js";
 import type { DeckDiscard, GameOutcome, GameState, MainSchemeState, TuckedDiscard, ZoneId } from "./state.js";
 import type { AttachmentBound, LastingDuration, LastingEffect, LastingEffectBody } from "./lasting.js";
@@ -1381,6 +1382,16 @@ export function discardWithLeavingHost(ctx: Ctx, id: InstanceId): void {
 }
 
 /**
+ * A host's attachments in the order its move takes them: as attached, except that those an interrupt sent to a separate
+ * deck (`withHost.toSeparateDeck`, docs/phase7-wave11.md §3.3) come in the order their replacements resolved, after the
+ * rest, so that each goes to the bottom of the deck after the one resolved before it. A copy either way.
+ */
+export function inLeavingOrder(state: GameState, ids: readonly InstanceId[]): readonly InstanceId[] {
+  const rank = (id: InstanceId) => separateDeckWithHost(state, id)?.order ?? -1;
+  return [...ids].sort((a, b) => rank(a) - rank(b));
+}
+
+/**
  * Whether this card's own leaving of play, still on the stack, was cancelled by an interrupt: RRG 1.8 "Cancel" (p. 11)
  * — "the canceled effect is not considered to have occurred" — so a host's move or change that would take it along
  * (`leavePlayAtOnce`, `leaveNow`'s attachment loop) leaves it in play (docs/phase7-wave5.md §4.1 Q53). A cancelled
@@ -1618,10 +1629,25 @@ const requestCauseSide = (state: GameState, request: LeaveRequest): LeaveCauseSi
 
 /**
  * The request that says what made a card leave: itself, or for one an interrupt sent under a card (`LeaveRequest
- * tuck`, docs/phase7-wave9.md §3.20) the move that was replaced, whose source card and cost are still the cause.
+ * tuck`, docs/phase7-wave9.md §3.20) or to a separate deck (`LeaveRequest separateDeck`, docs/phase7-wave11.md §3.3)
+ * the move that was replaced, whose source card and cost are still the cause.
  */
-export const leaveMadeBy = (request: LeaveRequest): Exclude<LeaveRequest, { readonly kind: "tuck" }> =>
-  request.kind === "tuck" ? request.replaced : request;
+export const leaveMadeBy = (
+  request: LeaveRequest,
+): Exclude<LeaveRequest, { readonly kind: "tuck" | "separateDeck" }> =>
+  request.kind === "tuck" || request.kind === "separateDeck" ? request.replaced : request;
+
+/**
+ * Whether a "would … instead" replacement sent a waiting leaving elsewhere: to a separate deck (`separateDeck`,
+ * `withHost.toSeparateDeck`; docs/phase7-wave11.md §3.3). RRG 1.8 "Replacement Effect" (p. 37): the replaced effect
+ * "is no longer considered imminent and no further interrupts or responses to that effect can be triggered";
+ * "'Would'" (p. 48): "no further interrupts to the original trigger may be used" (`stillImminent`, `applyLeavingPlay`).
+ * Not a tuck (`LeaveRequest tuck`): "When an ally leaves play, tuck it under here" (Abduct Superhumans 50081) has no
+ * "would" and no "instead", so it is not a replacement effect, and the ally's own leaving keeps its interrupts and
+ * responses (docs/phase7-wave9.md §3.20).
+ */
+export const leaveReplaced = (request: LeaveRequest): boolean =>
+  request.kind === "separateDeck" || (request.kind === "withHost" && request.toSeparateDeck !== undefined);
 
 /** What a leaving card is, read while it is still in play (`TriggerEvent cardLeavesPlay`, docs/phase7-wave5.md §3.13). */
 function leavingSnapshot(state: GameState, deps: EngineDeps, id: InstanceId) {
@@ -2038,6 +2064,15 @@ function leaveNow(
   withHost = false,
   by?: LeaveCauseSide,
 ): void {
+  // An attachment an interrupt sent to the bottom of its owner's separate deck as its host leaves
+  // (docs/phase7-wave11.md §3.3): the host's move puts it there instead, not as a discard.
+  const toDeck = withHost ? separateDeckWithHost(ctx.state, id) : undefined;
+  if (toDeck !== undefined && !(requested.kind === "separateDeck" && requested.name === toDeck.name)) {
+    const deck = { kind: "separateDeck", playerId: toDeck.playerId, name: toDeck.name } as const;
+    leaveNow(ctx, id, deck, "bottom", false, true, by);
+    landedInSeparateDeck(ctx, id, toDeck);
+    return;
+  }
   // A facedown attachment is out of play (RRG 1.8 "In Play and Out of Play", p. 23), so it does not leave play: it goes
   // where it is sent as a tucked card does, faceup into a discard pile, with no discard "from play", nothing to hear it
   // and no in-play state to clear. `relocateCard` makes it itself again as it comes off its host.
@@ -2085,7 +2120,7 @@ function leaveNow(
   // one, discarded with it below, is then not what takes it out of play (`syncTreatedAs`).
   const foe = instance.treatedAs !== undefined && instance.treatedAs !== null && isSeatlessIdentity(ctx.state, id);
   if (foe) (ctx.leavingHosts ??= []).push(id);
-  for (const attachment of [...instance.attachments]) discardWithLeavingHost(ctx, attachment);
+  for (const attachment of inLeavingOrder(ctx.state, instance.attachments)) discardWithLeavingHost(ctx, attachment);
   if (foe) ctx.leavingHosts?.pop();
   // RRG "Tuck": when a card leaves play, each card tucked under it is discarded.
   for (const tuckedId of [...instance.tucked]) {

@@ -1416,6 +1416,10 @@ export type GameEvent =
    * a hand or another deck) and went back into its own deck, facedown (`noDiscardPileDeckFor`, docs/phase7-wave6.md
    * §3.46, §4.1 Q26). Logged before the move. A deck's returned card goes to its bottom, so a Labor card that leaves
    * play other than to the victory display is placed "on the bottom of the Labor deck" (RRG 1.8 FAQ, p. 65).
+   *
+   * `replaced`: a card leaving play that an interrupt sent to the bottom of its owner's separate deck instead
+   * (`EffectSpec replaceLeaveDestination { to: { separateDeck } }`, docs/phase7-wave11.md §3.3), whatever deck it came
+   * from; logged as it moves, with `instead` where it was going when the replacement resolved.
    */
   | {
       readonly type: "returnedToSeparateDeck";
@@ -1424,6 +1428,7 @@ export type GameEvent =
       readonly playerId: PlayerId;
       readonly name: string;
       readonly instead: ZoneId["kind"];
+      readonly replaced?: true;
     }
   /** `schemeInstanceId` is present only when the token went somewhere other than the central main scheme (§10.3). */
   | { readonly type: "accelerationTokenAdded"; readonly total: number; readonly schemeInstanceId?: InstanceId }

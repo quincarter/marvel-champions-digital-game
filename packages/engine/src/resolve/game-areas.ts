@@ -9,6 +9,7 @@ import { type Ctx, emit, moveCard, nextInstanceId, updateInstance } from "../ctx
 import {
   discardAtOnce,
   discardWithLeavingHost,
+  inLeavingOrder,
   applyToughness,
   setActiveVillain,
   waitsForHostStep,
@@ -230,7 +231,8 @@ export function removeMainSchemeStage(ctx: Ctx, schemeId: InstanceId, mayWait = 
   const scheme = area?.mainScheme ?? pending;
   if (!scheme) return;
   if (mayWait && waitsForHostStep(ctx, [schemeId], { kind: "removeMainSchemeStage", schemeId })) return;
-  for (const attachment of [...mustInstance(ctx.state, schemeId).attachments]) discardWithLeavingHost(ctx, attachment);
+  for (const attachment of inLeavingOrder(ctx.state, mustInstance(ctx.state, schemeId).attachments))
+    discardWithLeavingHost(ctx, attachment);
   if (area)
     updateArea(ctx, area.areaId, (a) => ({
       ...a,
@@ -587,7 +589,7 @@ export function setVillainsAside(ctx: Ctx, ids: readonly InstanceId[]): void {
     const villain = villainOf(ctx.state, id);
     if (!villain || ctx.state.encounterSetAside.includes(id)) continue;
     const instance = mustInstance(ctx.state, id);
-    for (const attachment of [...instance.attachments]) discardWithLeavingHost(ctx, attachment);
+    for (const attachment of inLeavingOrder(ctx.state, instance.attachments)) discardWithLeavingHost(ctx, attachment);
     for (const boost of [...instance.boostCards]) moveCard(ctx, boost, discardZoneFor(ctx.state, boost), "top");
     const wasInPlay = !villain.defeated;
     ctx.state = {
@@ -636,7 +638,7 @@ export function removeVillains(ctx: Ctx, ids: readonly InstanceId[]): void {
     const villain = villainOf(ctx.state, id);
     if (!villain || villain.defeated) continue;
     const instance = mustInstance(ctx.state, id);
-    for (const attachment of [...instance.attachments]) discardWithLeavingHost(ctx, attachment);
+    for (const attachment of inLeavingOrder(ctx.state, instance.attachments)) discardWithLeavingHost(ctx, attachment);
     for (const boost of [...instance.boostCards]) moveCard(ctx, boost, discardZoneFor(ctx.state, boost), "top");
     ctx.state = {
       ...ctx.state,
@@ -725,7 +727,8 @@ export function flipMainSchemeStage(
   ctx.state = central
     ? { ...ctx.state, mainScheme: promoted!, extraMainSchemes: rest }
     : { ...ctx.state, extraMainSchemes: extras.filter((s) => s.instanceId !== schemeId) };
-  for (const attachment of [...mustInstance(ctx.state, schemeId).attachments]) discardAtOnce(ctx, attachment);
+  for (const attachment of inLeavingOrder(ctx.state, mustInstance(ctx.state, schemeId).attachments))
+    discardAtOnce(ctx, attachment);
   // What the discard left stays attached, since the stage flips but stays in play: an attachment whose own leaving was
   // cancelled (RRG 1.8 "Cancel", p. 11; §4.1 Q53), and a permanent or "cannot leave play" one, which the Flip rule's
   // discard cannot move (RRG 1.8 "Permanent", p. 32; "Attach To", p. 8; docs/phase7-wave5.md §4.1 Q50).

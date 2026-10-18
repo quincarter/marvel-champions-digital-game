@@ -2252,8 +2252,15 @@ export const replaceAttachHost = (to: TargetRef, opts: { readonly villainAlias?:
  * was (`printedCostOf(eventTarget)`), and a `then(...)` after it resolves only when the card will be tucked: not for
  * a Victory X or "instead of discarding it" defeat, nor a leaving another card already sent elsewhere.
  * `validateDefinition` rejects it anywhere else.
+ *
+ * `{ separateDeck: "Sense", at: "bottom" }` (docs/phase7-wave11.md §3.3; 60001a/b "Forced Interrupt: When a Sense
+ * upgrade would leave play, place it on the bottom of the Sense deck instead."): the bottom of the leaving card's
+ * owner's separate deck of that name, whatever made it leave and wherever it was going (the victory display and
+ * removal from the game included), and for an attachment leaving with its host too.
  */
-export const replaceLeaveDestination = (to: { readonly tuckedUnder: TargetRef }): EffectSpec => ({
+export const replaceLeaveDestination = (
+  to: { readonly tuckedUnder: TargetRef } | { readonly separateDeck: string; readonly at: "bottom" },
+): EffectSpec => ({
   kind: "replaceLeaveDestination",
   to,
 });

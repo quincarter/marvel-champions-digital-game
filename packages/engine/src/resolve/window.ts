@@ -45,6 +45,7 @@ import {
 import { candidateDefenseBar, windowDefenseBar } from "../defense-claim.js";
 
 import { EngineInvariantError } from "../errors.js";
+import { leaveReplaced } from "../effects.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { cardOf, deckDiscardStillThere, getInstance, mustPlayer, playerOrder, printedCostOf } from "../query.js";
 import { combineRequirements, requirementTotal, satisfies } from "../resources.js";
@@ -317,6 +318,16 @@ const stillImminent = (ctx: Ctx, frame: Frame<"window">, candidate: TriggerCandi
   if (frame.timing !== "interrupt") return true;
   const on = answered(ctx, frame, candidate);
   if (cancelledFrame(ctx, on.eventFrameId)) return false;
+  // A leaving a "would … instead" interrupt already sent elsewhere (RRG 1.8 "Replacement Effect", p. 37; "'Would'",
+  // p. 48).
+  const now = on.eventFrameId ? findFrame(ctx.state, on.eventFrameId) : undefined;
+  if (
+    now?.kind === "event" &&
+    now.event.kind === "cardLeavesPlay" &&
+    now.event.leaving &&
+    leaveReplaced(now.event.leaving)
+  )
+    return false;
   // An attachment leaving with its host (§4.1 Q32): not if the host's own event here was cancelled and the host stays.
   // An attachment's attachment asks the same of its host's host, and so on up (§4.1 Q50).
   const events = [frame.event, ...(frame.alsoEvents ?? [])];

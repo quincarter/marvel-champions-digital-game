@@ -204,8 +204,8 @@ module test, and a failure becomes an extend), **exists (compose)**. Searches th
   attachment leaving with its host (a Sense upgrade on a defeated minion or side scheme) and the destinations the
   backstop does not cover (victory display, removed from game). Logged as `returnedToSeparateDeck`.
 - **Tests.** Radar Sense discarded as its cost: bottom of the deck, the damage resolves. The minion it is attached to
-  is defeated: bottom. A side scheme with two Sense upgrades is defeated: both at the bottom, in the order the owner
-  chooses. Sensory Overload does not fire (nothing entered play).
+  is defeated: bottom. A side scheme with two Sense upgrades is defeated: both at the bottom, in the order the first
+  player chooses for simultaneous forced interrupts (RRG 1.8 "First Player", p. 19; the same player solo). Sensory Overload does not fire (nothing entered play).
 
 ### 3.4 An interrupt to the removal of a scheme's last threat
 

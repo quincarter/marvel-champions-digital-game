@@ -81,6 +81,7 @@ function inOwnersZone(state: GameState, id: InstanceId, zone: PlayerZone): boole
 }
 import { hasCandidates } from "./triggers.js";
 import { tuckLeavingCard } from "./tuck.js";
+import { placeLeavingInSeparateDeck } from "./leave-to-separate-deck.js";
 import { pushWindow } from "./window.js";
 import { heard } from "./triggers.js";
 import { cannotLeavePlay, staysInHand } from "../rules.js";
@@ -978,8 +979,10 @@ export function announceCardsLeftPlay(ctx: Ctx): boolean {
  * `leaving` describes happens now, after the interrupts and before the responses, through the same entry point that
  * waited (`leavePlay`, `moveCardsTo`, `defeatFromPlay`), which sees this frame applying and moves the card at once.
  * The event's `to` becomes where the card went, and `leaving` is dropped. Returns false, so no responses, when the card
- * did not leave here: an interrupt already moved it (a replacement, whose move was announced as its own leaving), or it
- * can no longer leave (permanent, "cannot leave play").
+ * did not leave here: an interrupt already moved it (a replacement, whose move was announced as its own leaving), it
+ * can no longer leave (permanent, "cannot leave play"), or a "would … instead" replacement sent it to a separate deck
+ * (RRG 1.8 "Replacement Effect", p. 37, and "'Would'", p. 48, allow no responses to a replaced effect). A tuck
+ * (docs/phase7-wave9.md §3.20) is no replacement effect, so its leaving keeps its responses.
  */
 export function applyLeavingPlay(ctx: Ctx, frame: Frame<"event">): boolean {
   const event = frame.event;
@@ -988,9 +991,13 @@ export function applyLeavingPlay(ctx: Ctx, frame: Frame<"event">): boolean {
   const request = event.leaving;
   if (request.kind === "withHost") return applyLeavingWithHost(ctx, frame.frameId, request.step);
   const inPlay = cardsInPlay(ctx.state).includes(id);
+  let replaced = false;
   if (inPlay) {
-    // Sent under a card by an interrupt (docs/phase7-wave9.md §3.20); with that card gone, the move it replaced.
+    // Sent under a card by an interrupt (docs/phase7-wave9.md §3.20); with that card gone, the move it replaced. Sent
+    // to the bottom of a separate deck (docs/phase7-wave11.md §3.3), placed there.
     const move = request.kind === "tuck" && !tuckLeavingCard(ctx, id, request) ? request.replaced : request;
+    if (move.kind === "separateDeck") placeLeavingInSeparateDeck(ctx, id, move);
+    replaced = move.kind === "separateDeck";
     switch (move.kind) {
       case "zone":
         leavePlay(
@@ -1011,6 +1018,7 @@ export function applyLeavingPlay(ctx: Ctx, frame: Frame<"event">): boolean {
         defeatFromPlay(ctx, id, move.insteadTo, move.sourceCardId);
         break;
       case "tuck":
+      case "separateDeck":
         break;
       case "swap":
         // The swap completes now: this card takes the other's place as the other enters play (§3.47 of wave 6).
@@ -1025,7 +1033,10 @@ export function applyLeavingPlay(ctx: Ctx, frame: Frame<"event">): boolean {
     const { leaving: _, ...rest } = f.event;
     return { ...f, event: left && where ? { ...rest, to: where.kind } : rest };
   });
-  return left;
+  // RRG 1.8 "Replacement Effect" (p. 37): a replaced effect "is no longer considered imminent and no further
+  // interrupts or responses to that effect can be triggered" ("'Would'", p. 48): a leaving sent to a separate deck
+  // has none.
+  return left && !replaced;
 }
 
 /**
@@ -1044,7 +1055,8 @@ function applyLeavingWithHost(ctx: Ctx, frameId: FrameId, step: HostStep | undef
     const { leaving: _, ...rest } = f.event;
     return { ...f, event: moved !== undefined ? { ...rest, to: moved } : rest };
   });
-  return moved !== undefined;
+  // A replaced one (sent to a separate deck) has no responses (RRG 1.8 "Replacement Effect", p. 37; "'Would'", p. 48).
+  return moved !== undefined && !(leaving?.kind === "withHost" && leaving.toSeparateDeck !== undefined);
 }
 
 /**
