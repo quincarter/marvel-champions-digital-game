@@ -153,6 +153,11 @@ export type DeckProblemCode =
   | "unique_match"
   /** RRG "Team-Up": the identity is neither named character. */
   | "team_up_identity"
+  /**
+   * More than one card with the Starting keyword. The Fear No Evil rulebook (MC60 p. 3; RRG 1.8 has no entry): "Each
+   * deck cannot include more than one card with starting." Two copies of one Starting card are two cards.
+   */
+  | "starting_limit"
   /** A deckbuilding requirement printed on the identity (modeled as data) is not met. */
   | "deckbuilding_requirement"
   /** The identity has a deckbuilding requirement this build cannot check yet. */
@@ -1267,6 +1272,20 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
       "team_up_identity",
       `${uniqueLabel(line.card)} is a Team-Up card for ${teamUp.names[0]} and ${teamUp.names[1]}; only a deck whose identity is one of them may include it.`,
       [line.card.id],
+    );
+  }
+
+  // ---- Starting: one per deck ------------------------------------------------------------
+  // MC60 p. 3 (RRG 1.8 has no entry): "Each deck cannot include more than one card with starting." Counted in cards,
+  // the identity set's included (docs/phase7-wave11.md §3.6; hero-pack spec H3.17, HT12).
+  const starting = lines.filter((line) => line.card.keywords.some((k) => k.name === "starting"));
+  const startingCount = starting.reduce((n, line) => n + line.quantity, 0);
+  if (startingCount > 1) {
+    const names = starting.map((line) => (line.quantity > 1 ? `${line.card.name} ×${line.quantity}` : line.card.name));
+    add(
+      "starting_limit",
+      `A deck may include only one card with the Starting keyword; this deck has ${startingCount} (${names.join(", ")}).`,
+      starting.map((line) => line.card.id),
     );
   }
 

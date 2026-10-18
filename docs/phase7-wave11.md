@@ -253,7 +253,7 @@ module test, and a failure becomes an extend), **exists (compose)**. Searches th
 - **Shape.** A setup step before `drawStartingHands`: each player in player order is offered their Starting card (a
   choice; declining is allowed), it moves to hand, the deck is shuffled, and the hand gains one credit. A deck
   validation fault for two or more Starting cards (`deck.ts`). A campaign's deck surgery runs before it.
-- **Tests.** Echo's precon takes Innate Reflexes and draws 4 more (hand size 5); declining draws 5. A deck with two
+- **Tests.** Echo's precon takes Innate Reflexes and draws 5 more (setup is alter-ego side up: Maya Lopez's hand size 6); declining draws 6. A deck with two
   Starting cards is refused. The mulligan may discard it.
 
 ### 3.7 Exactly defeat a side scheme

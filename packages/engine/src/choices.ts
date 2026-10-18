@@ -36,6 +36,12 @@ export type ChoicePrompt =
    * §3.26). Absent on a player's first mulligan.
    */
   | { readonly kind: "mulligan"; readonly handSize: number; readonly additional?: number }
+  /**
+   * The Starting keyword (MC60 p. 3; docs/phase7-wave11.md §3.6), just before RRG 1.8 Appendix II step 14: the player
+   * may search their deck for their Starting card and add it to their starting hand. The options are the deck's
+   * Starting cards (`ref` each instance); selecting none declines, and the deck is then not searched.
+   */
+  | { readonly kind: "takeStartingCard" }
   /** RRG "Activation": the engaged player chooses which of their minions activates next. */
   | { readonly kind: "chooseMinionToActivate" }
   /**

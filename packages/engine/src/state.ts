@@ -791,7 +791,15 @@ export type GameStep =
    * II step 12's abilities have fully resolved and before step 14's draw. Reached only by a game that has some.
    */
   | { readonly phase: "setup"; readonly kind: "scenarioSetupInstructions" }
-  | { readonly phase: "setup"; readonly kind: "drawStartingHands" }
+  | {
+      readonly phase: "setup";
+      readonly kind: "drawStartingHands";
+      /**
+       * The players already offered their Starting card (docs/phase7-wave11.md §3.6; `starting.ts`), in player order.
+       * Absent until the first offer: a game whose decks hold no Starting card never sets it.
+       */
+      readonly startingOffered?: readonly PlayerId[];
+    }
   | {
       readonly phase: "setup";
       readonly kind: "mulligan";

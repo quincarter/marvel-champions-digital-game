@@ -26,6 +26,7 @@ import { getPlayer, handSize } from "./query.js";
 import { pairSelectionFault } from "./resolve/pair-cards.js";
 import { poolTotal, requirementOf, wildDeclarationFault, wildTypesFromOptionIds } from "./resources.js";
 import { handCountTowardHandSize } from "./select.js";
+import { afterStartingCardChoice } from "./starting.js";
 import type { GameState } from "./state.js";
 import { choiceExclusions } from "./why-not.js";
 
@@ -228,6 +229,13 @@ function resolveChoice(ctx: Ctx, command: Command & { type: "resolveChoice" }): 
       afterMulliganChoice(ctx, choice.playerId, selected.length);
       return null;
     }
+    case "takeStartingCard":
+      afterStartingCardChoice(
+        ctx,
+        choice.playerId,
+        selected.map((id) => instanceId(id)),
+      );
+      return null;
     // RRG "Restricted" / "Ally Limit": the controller discards from play down to the limit.
     case "discardOverAllyLimit":
     case "discardRestricted": {

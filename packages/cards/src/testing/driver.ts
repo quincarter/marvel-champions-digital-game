@@ -393,6 +393,9 @@ function answerChoice(state: GameState, choice: PendingChoice): readonly string[
   switch (choice.prompt.kind) {
     case "mulligan":
       return [];
+    // The Starting keyword (MC60 p. 3): a scripted game takes its Starting card into the opening hand.
+    case "takeStartingCard":
+      return ids.slice(0, 1);
     case "declareDefender": {
       const allies = ids.filter((id) => id !== "decline" && card(state, id as InstanceId)?.type === "ally");
       if (allies[0]) return [allies[0]];

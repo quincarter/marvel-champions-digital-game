@@ -69,6 +69,7 @@ import { cannotChooseToDiscard, playerPhaseTurnOrder } from "./rules.js";
 import { cardsInPlay, controllerOf, handCountTowardHandSize } from "./select.js";
 import { describeFrame } from "./stack.js";
 import { putSeparatedCardIntoPlay } from "./separated-identity.js";
+import { offerStartingCard } from "./starting.js";
 import type { GameState, GameStep } from "./state.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import {
@@ -237,6 +238,8 @@ function executeScenarioSetupStep(ctx: Ctx): void {
 // a refill: a drawn obligation goes into play and is not replaced here; the mulligan's draw makes the hand up
 // (maintainer decision 2026-09-23, docs/campaign-mode-design.md Q20).
 function executeDrawStartingHands(ctx: Ctx): void {
+  // The Starting keyword's search comes first, one player at a time (MC60 p. 3; docs/phase7-wave11.md §3.6).
+  if (offerStartingCard(ctx)) return;
   for (const player of ctx.state.players) {
     // A seat that sat the scenario out during setup draws no hand (`EffectSpec sitOutScenario`).
     if (player.eliminated) continue;

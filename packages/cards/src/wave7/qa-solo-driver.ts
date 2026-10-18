@@ -507,6 +507,9 @@ function answerChoice(
   switch (prompt.kind) {
     case "mulligan":
       return [];
+    // The Starting keyword (MC60 p. 3): a scripted game takes its Starting card into the opening hand.
+    case "takeStartingCard":
+      return ids.slice(0, 1);
     case "declareDefender":
       return defense === "hero-ready"
         ? declareDefenderHeroReady(state, deps, choice, prompt.attack)
