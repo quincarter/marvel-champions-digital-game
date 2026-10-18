@@ -67,7 +67,7 @@ import {
   type ResolvedRequirement,
   type ResourcePool,
 } from "./resources.js";
-import type { AttackKeyword, CardDestination, PairLimit, TargetQuery } from "./spec.js";
+import type { AttackKeyword, CardDestination, PairLimit, TargetQuery, ValueSpec } from "./spec.js";
 import type { Bindings, LingeringDamageRule, StackFrame, Vars } from "./stack.js";
 import type { FrameId } from "./ids.js";
 import { STATUS_NAMES, type Form, type GameAreaState, type GameState } from "./state.js";
@@ -404,7 +404,11 @@ export function lingeringConsequentialRules(
     const rules: LingeringDamageRule[] = [
       ...reduce
         .filter(({ rule, context }) => applies(rule, context))
-        .map(({ rule }) => ({ sourceInstanceId: leavingId, kind: rule.kind, amount: rule.amount })),
+        .map(({ rule, context }) => ({
+          sourceInstanceId: leavingId,
+          kind: rule.kind,
+          amount: reductionAmount(state, deps, rule.amount, context),
+        })),
       ...increase
         .filter(({ rule, context }) => applies(rule, context))
         .map(({ rule }) => ({ sourceInstanceId: leavingId, kind: rule.kind, amount: rule.amount })),
@@ -1379,6 +1383,19 @@ export function firstRevealGainsSurge(
 }
 
 /**
+ * What a `reduceDamageTaken` rule takes off now: its number, or its value read live from the rule's card ("by your
+ * hero's DEF", Echo 61038; docs/phase7-wave11-hero-packs.md). A value below 0 reduces nothing.
+ */
+function reductionAmount(
+  state: GameState,
+  deps: EngineDeps,
+  amount: number | ValueSpec,
+  context: EffectContext,
+): number {
+  return typeof amount === "number" ? amount : Math.max(0, resolveValue(state, amount, context, deps));
+}
+
+/**
  * The damage a character takes from one damage event once constant reductions and caps apply (`reduceDamageTaken`,
  * `maxDamageTakenPerAttack`; docs/phase7-wave3.md §3.15). Reductions first, then the lowest cap: a cap is the last word
  * on what one attack can make the character take (§4 Q9). Last of all, `maxSustainedDamage` (docs/phase7-wave6.md
@@ -1505,7 +1522,9 @@ export function damageTakenBreakdown(
     // "… unless the attacker has the [TINY] trait" (docs/phase7-wave7.md §3.30); "… unless the attacker or attack has
     // the [AERIAL] trait, or the attack has ranged" (docs/phase7-wave9.md §3.25).
     if (attackMeetsException(state, source?.attack, rule, context)) continue;
-    if (consequentialScopeMatches(state, rule.consequential, consequential, context)) taken -= rule.amount;
+    if (consequentialScopeMatches(state, rule.consequential, consequential, context)) {
+      taken -= reductionAmount(state, deps, rule.amount, context);
+    }
   }
   // Rules whose source left play while the power resolved (wave 6 §4.1 Q50; `lingeringConsequentialRules`).
   if (amount > 0) for (const l of lingeringRulesOf(state, consequential, "increaseDamageTaken")) taken += l.amount;

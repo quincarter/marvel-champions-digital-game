@@ -3179,7 +3179,7 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
     case "canUseBasicPower": {
       // docs/phase7-wave8.md §3.64: read as `EffectSpec basicPowerBy` would offer it.
       return resolvePlayers(state, predicate.player, context).some((playerId) =>
-        canUseBasicPower(state, context.deps ?? DEFAULT_DEPS, playerId, predicate.powers),
+        canUseBasicPower(state, context.deps ?? DEFAULT_DEPS, playerId, predicate.powers, predicate.terms),
       );
     }
     case "inAdditionalForm": {

@@ -97,7 +97,7 @@ import {
   resourcesChoiceOf,
   usesPerPaidCard,
 } from "./abilities.js";
-import type { BasicPowerName, EffectSpec, StatName, TargetRef, ValueSpec } from "./spec.js";
+import type { BasicPowerName, BasicPowerTerms, EffectSpec, StatName, TargetRef, ValueSpec } from "./spec.js";
 import {
   BASIC_POWER_STAT,
   cardFlippedEvent,
@@ -6365,7 +6365,14 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }, 
   return null;
 }
 
-function usableCharacter(ctx: Ctx, playerId: PlayerId, characterId: InstanceId, command: Command): EngineError | null {
+function usableCharacter(
+  ctx: Ctx,
+  playerId: PlayerId,
+  characterId: InstanceId,
+  command: Command,
+  /** `BasicPowerTerms.withoutExhausting`: "(even if you are exhausted)" (Grapnel Launcher 61023, §H3.14). */
+  evenIfExhausted = false,
+): EngineError | null {
   const player = mustPlayer(ctx.state, playerId);
   const instance = getInstance(ctx.state, characterId);
   if (!instance) return engineError("unknown_instance", `no instance ${characterId}`, command);
@@ -6377,7 +6384,8 @@ function usableCharacter(ctx: Ctx, playerId: PlayerId, characterId: InstanceId, 
   if (isIdentity && player.identity.form !== "hero") {
     return engineError("wrong_form", "alter-egos cannot attack or thwart", command);
   }
-  if (instance.exhausted) return engineError("already_exhausted", "character is exhausted", command);
+  if (instance.exhausted && !evenIfExhausted)
+    return engineError("already_exhausted", "character is exhausted", command);
   return null;
 }
 
@@ -6574,8 +6582,13 @@ export function insertConsequentialDamage(
  *
  * `assumeCostPaid`: the power's own additional cost (`basicPowerCosts`) is taken as paid. Only for asking whether a
  * power could be made, on a scratch context; the caller checks the cost's affordability itself.
+ *
+ * The `BasicPowerTerms` of an instructed power (docs/phase7-wave11-hero-packs.md §H3.14): `withoutExhausting` skips the
+ * exhausted check and the exhausting, and `ignores` waives patrol and the crisis icon for this thwart, at its
+ * declaration here and on its thwart event (`ignorePatrol`, `ignoreCrisis`), where the removal checks them again.
+ * `character` is for choosing the character (`basicPowerUses`); the command names it already.
  */
-export interface BasicPowerBy {
+export interface BasicPowerBy extends BasicPowerTerms {
   readonly instructed?: boolean;
   readonly assumeCostPaid?: boolean;
 }
@@ -6627,7 +6640,13 @@ function basicAttackPaying(
   const command = withEvenSplit(ctx, given, by);
   const invalid = by.instructed === true ? null : requireActivePlayer(ctx.state, command.playerId, command);
   if (invalid) return invalid;
-  const unusable = usableCharacter(ctx, command.playerId, command.attackerInstanceId, command);
+  const unusable = usableCharacter(
+    ctx,
+    command.playerId,
+    command.attackerInstanceId,
+    command,
+    by.withoutExhausting === true,
+  );
   if (unusable) return unusable;
 
   const shares = dividedShares(
@@ -6754,7 +6773,7 @@ function basicAttackPaying(
   }
   const unpaid = payBasicPowerCost(ctx, command, command.attackerInstanceId, "attack", spent, by);
   if (unpaid) return unpaid;
-  exhaustCard(ctx, command.attackerInstanceId);
+  if (by.withoutExhausting !== true) exhaustCard(ctx, command.attackerInstanceId);
   if (statusActive(ctx.state, command.attackerInstanceId, "stunned", ctx.deps)) {
     // RRG "Stun": the attack is cancelled but its costs (exhausting) are still paid, an additional cost to attack the
     // enemy among them (RRG 1.8 "Stun, Stunned", p. 41; `attack-cost.ts`). No `attack` event is made to charge it.
@@ -6836,7 +6855,7 @@ function announcedWouldAct(ctx: Ctx, characterId: InstanceId, basic: BasicPowerR
 /** The apply step of a basic power's `characterWouldAct` event: nothing replaced the power, so it is made now. */
 export function resumeBasicPower(ctx: Ctx, basic: BasicPowerResume): void {
   if (basic.power === "attack") makeBasicAttack(ctx, basic.command, basic.shares);
-  else makeBasicThwart(ctx, basic.command, basic.shares, basic.useAtk, basic.thwartCostPaid);
+  else makeBasicThwart(ctx, basic.command, basic.shares, basic.useAtk, basic.thwartCostPaid, basic.ignores);
 }
 
 function basicThwartPaying(
@@ -6858,7 +6877,13 @@ function basicThwartWith(
 ): EngineError | null {
   const invalid = by.instructed === true ? null : requireActivePlayer(ctx.state, command.playerId, command);
   if (invalid) return invalid;
-  const unusable = usableCharacter(ctx, command.playerId, command.thwarterInstanceId, command);
+  const unusable = usableCharacter(
+    ctx,
+    command.playerId,
+    command.thwarterInstanceId,
+    command,
+    by.withoutExhausting === true,
+  );
   if (unusable) return unusable;
   if (cannotThwart(ctx.state, ctx.deps, command.playerId, undefined, command.thwarterInstanceId)) {
     return engineError("no_valid_target", "you cannot thwart", command);
@@ -6916,6 +6941,7 @@ function basicThwartWith(
     if (
       protectedScheme &&
       !confused &&
+      by.ignores?.includes("crisis") !== true &&
       iconsInPlay(ctx.state, ctx.deps, "crisis", thwarterArea) > 0 &&
       !characterIgnores(ctx.state, ctx.deps, command.thwarterInstanceId, "crisis", true)
     ) {
@@ -6926,6 +6952,7 @@ function basicThwartWith(
     if (
       protectedScheme &&
       !confused &&
+      by.ignores?.includes("patrol") !== true &&
       patrolledBy(ctx.state, ctx.deps, command.playerId) &&
       !characterIgnores(ctx.state, ctx.deps, command.thwarterInstanceId, "patrol", true)
     ) {
@@ -6988,18 +7015,18 @@ function basicThwartWith(
       const afterOwnCosts = createCtx(ctx.state, ctx.deps);
       const ownUnpaid = payBasicPowerCost(afterOwnCosts, command, command.thwarterInstanceId, "thwart", [], by);
       if (ownUnpaid) return ownUnpaid;
-      exhaustCard(afterOwnCosts, command.thwarterInstanceId);
+      if (by.withoutExhausting !== true) exhaustCard(afterOwnCosts, command.thwarterInstanceId);
       if (!thwartCostsPayable(afterOwnCosts.state, ctx.deps, command.playerId, schemeIds)) {
         return engineError("no_valid_target", "you cannot pay the additional cost to thwart that scheme", command);
       }
-      askBasicThwartCost(ctx, command, schemeIds, cost, by.instructed === true);
+      askBasicThwartCost(ctx, command, schemeIds, cost, by.instructed === true, termsOf(by));
       return null;
     }
   }
   const unpaid = payBasicPowerCost(ctx, command, command.thwarterInstanceId, "thwart", spent, by);
   if (unpaid) return unpaid;
 
-  exhaustCard(ctx, command.thwarterInstanceId);
+  if (by.withoutExhausting !== true) exhaustCard(ctx, command.thwarterInstanceId);
   if (confused) {
     // RRG "Confuse": the thwart is cancelled but its costs are still paid (with any additional cost, §4.1 Q40). It is
     // not considered to have thwarted, so an ally takes no consequential damage (RRG 1.8 "Ally", p. 7).
@@ -7019,10 +7046,27 @@ function basicThwartWith(
     );
   }
   // "When [this character] would … thwart" (docs/phase7-wave10.md §3.21), as for the basic attack.
-  const resume: BasicPowerResume = { power: "thwart", command, shares, useAtk, thwartCostPaid };
+  const ignores = by.ignores && by.ignores.length > 0 ? by.ignores : undefined;
+  const resume: BasicPowerResume = {
+    power: "thwart",
+    command,
+    shares,
+    useAtk,
+    thwartCostPaid,
+    ...(ignores ? { ignores } : {}),
+  };
   if (announcedWouldAct(ctx, command.thwarterInstanceId, resume)) return null;
-  makeBasicThwart(ctx, command, shares, useAtk, thwartCostPaid);
+  makeBasicThwart(ctx, command, shares, useAtk, thwartCostPaid, ignores);
   return null;
+}
+
+/** The `BasicPowerTerms` of `by` alone, for a step that makes the power later (`settleBasicThwartCost`). */
+function termsOf(by: BasicPowerBy): BasicPowerTerms | undefined {
+  const terms: BasicPowerTerms = {
+    ...(by.withoutExhausting === true ? { withoutExhausting: true as const } : {}),
+    ...(by.ignores && by.ignores.length > 0 ? { ignores: by.ignores } : {}),
+  };
+  return Object.keys(terms).length > 0 ? terms : undefined;
 }
 
 /** A basic thwart whose costs are paid and which nothing has replaced: its events and announcements. */
@@ -7032,8 +7076,14 @@ function makeBasicThwart(
   shares: readonly BasicPowerShare[],
   useAtk: boolean,
   thwartCostPaid: boolean,
+  /** `BasicPowerTerms.ignores`: carried on each thwart event, so its removal skips them too. */
+  ignores: BasicPowerTerms["ignores"] = undefined,
 ): void {
   const thwartStat = useAtk ? "atk" : "thw";
+  const ignoring = {
+    ...(ignores?.includes("crisis") ? { ignoreCrisis: true as const } : {}),
+    ...(ignores?.includes("patrol") ? { ignorePatrol: true as const } : {}),
+  };
   announceBasicPower(ctx, command.thwarterInstanceId, "thwart", command.playerId, thwartStat);
   const consequential = pushConsequentialDamage(
     ctx,
@@ -7053,6 +7103,7 @@ function makeBasicThwart(
             playerId: command.playerId,
             basic: true,
             ...(useAtk ? { useAtk: true } : {}),
+            ...ignoring,
           },
           consequential,
         ),
@@ -7069,6 +7120,7 @@ function makeBasicThwart(
           amount,
           dividedAmong: shares.map((share) => share.targetInstanceId),
           ...(useAtk ? { useAtk: true as const } : {}),
+          ...ignoring,
         })),
         consequential,
       );

@@ -1822,11 +1822,16 @@ export type RuleSpec =
    * reduced amount (RRG 1.8 "Overkill", p. 31, superseding ruling Jan 26, 2026 (3); `resolve/event.ts`
    * `excessDamageOf`). Constants resolve before a tough status (RRG 1.8 FAQ p. 58: "A hero can keep their tough
    * status card if … A constant effect reduces the damage the hero takes to zero"). docs/phase7-wave3.md §3.15.
+   *
+   * `amount` may be a value read live, from the rule's card, each time damage is taken: "Reduce the amount of damage
+   * Echo takes from each enemy attack by your hero's DEF." (Echo, `jj` 61038; docs/phase7-wave11-hero-packs.md). A
+   * value below 0 reduces nothing. A consequential-scoped rule whose card leaves play keeps the amount it read then
+   * (`lingeringConsequentialRules`).
    */
   | {
       readonly kind: "reduceDamageTaken";
       readonly target: TargetQuery;
-      readonly amount: number;
+      readonly amount: number | ValueSpec;
       readonly fromAttack?: boolean;
       /**
        * "… unless the attacker has the [TINY] trait." (docs/phase7-wave7.md §3.30): no reduction for an attack's

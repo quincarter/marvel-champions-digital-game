@@ -342,6 +342,7 @@ export type {
   SchemeValueName,
   StatName,
   BasicPowerName,
+  BasicPowerTerms,
   StatComparison,
   StatusName,
   CollectionSearchFilter,

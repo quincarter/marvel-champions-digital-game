@@ -1428,11 +1428,13 @@ export const takesDamageOnlyFromAttacks = (
  * Stance's shape (docs/phase7-wave3.md §3.15). Excess damage is measured on the reduced amount (RRG 1.8 "Overkill",
  * p. 31). "… unless the attacker or attack has the [AERIAL] trait, or the attack has ranged" (Aerial Dogfight, `aos`
  * 50159; docs/phase7-wave9.md §3.25) adds `exceptAttackCard: { trait: AERIAL }, exceptAttackKeyword: "ranged"`, read
- * as `takesDamageOnlyFromAttacks` reads its `attackCard` and `attackKeyword`.
+ * as `takesDamageOnlyFromAttacks` reads its `attackCard` and `attackKeyword`. `amount` may be a value read live each
+ * time damage is taken: "Reduce the amount of damage Echo takes from each enemy attack by your hero's DEF." (`jj`
+ * 61038) is `reducesAttackDamageTaken({ self: true }, statOf(yourIdentity, "def"))`.
  */
 export const reducesAttackDamageTaken = (
   target: TargetQuery,
-  amount: number,
+  amount: number | ValueSpec,
   opts: {
     readonly exceptAttacker?: TargetQuery;
     readonly exceptAttackCard?: TargetQuery;

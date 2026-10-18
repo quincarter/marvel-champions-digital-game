@@ -1793,6 +1793,7 @@ export type GameEvent =
    * logged as any basic power's is. `useAtk`: a thwart they chose to make with ATK (`RuleSpec thwartWithAtk`).
    * `divide`: they divided it (a character who may: `RuleSpec divideBasicPower`; owner decision, 2026-10-08,
    * docs/phase7-wave8.md §4.1 row 82), with each target's share in the order chosen; `targetInstanceId` is the first.
+   * `withoutExhausting`, `ignores`: the effect's `BasicPowerTerms` (docs/phase7-wave11-hero-packs.md §H3.14).
    */
   | {
       readonly type: "basicPowerInstructed";
@@ -1803,6 +1804,8 @@ export type GameEvent =
       readonly sourceInstanceId: InstanceId | null;
       readonly useAtk?: true;
       readonly divide?: readonly { readonly targetInstanceId: InstanceId; readonly amount: number }[];
+      readonly withoutExhausting?: true;
+      readonly ignores?: readonly ("patrol" | "crisis")[];
     }
   /**
    * `EffectSpec basicPowerBy` made no basic power. `noLegalUse`: the player has no ready character with a legal

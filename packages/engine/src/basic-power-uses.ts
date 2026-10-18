@@ -11,6 +11,7 @@ import { type AbilityCost, type EngineDeps, resourcesChoiceOf } from "./abilitie
 import {
   basicAttack,
   basicPowerCost,
+  type BasicPowerBy,
   basicThwart,
   defaultHandDiscardPicks,
   isPriceFault,
@@ -25,6 +26,7 @@ import { cardOf, getInstance, getPlayer, isMinion, mainSchemeStates, undefeatedV
 import { combineRequirements, type ResolvedRequirement } from "./resources.js";
 import { additionalPowerCostFor, mayThwartWithAtk } from "./rules.js";
 import { activeAbilityRefs, cardsInPlay, isAlly } from "./select.js";
+import type { BasicPowerTerms } from "./spec.js";
 import type { GameState } from "./state.js";
 
 export type BasicPowerKind = "attack" | "thwart";
@@ -134,11 +136,17 @@ const withoutInHand = (state: GameState, cards: readonly InstanceId[]): GameStat
     : { ...state, players: state.players.map((p) => ({ ...p, hand: p.hand.filter((id) => !cards.includes(id)) })) };
 
 /** Whether `use` could be declared now by `playerId` on a card's instruction (see the file comment). */
-function declarable(state: GameState, deps: EngineDeps, playerId: PlayerId, use: BasicPowerUse): boolean {
+function declarable(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  use: BasicPowerUse,
+  terms: BasicPowerTerms,
+): boolean {
   const needs = basicPowerCostNeeds(state, deps, playerId, use.characterInstanceId, use.power);
   if (needs && "fault" in needs) return false;
   let command = basicPowerCommand(playerId, use);
-  let by: { instructed: true; assumeCostPaid?: true } = { instructed: true };
+  let by: BasicPowerBy = { ...terms, instructed: true };
   if (needs && resourcesChoiceOf(needs.cost) !== null) {
     // A resource cost of a size the payer chooses has no requirement to check: the command judges it unpaid.
     if (needs.discard) command = { ...command, costChoices: { discard: needs.discard } };
@@ -146,7 +154,7 @@ function declarable(state: GameState, deps: EngineDeps, playerId: PlayerId, use:
     // The cost is planned (above) and its resources checked for affordability with the discards out of hand, then it
     // is taken as paid: which cards are discarded and spent is the player's to pick when the power is made.
     if (!canPaySpend(withoutInHand(state, needs.discard ?? []), deps, playerId, needs.requirement)) return false;
-    by = { instructed: true, assumeCostPaid: true };
+    by = { ...terms, instructed: true, assumeCostPaid: true };
   }
   const scratch = createCtx(state, deps);
   return (
@@ -157,19 +165,23 @@ function declarable(state: GameState, deps: EngineDeps, playerId: PlayerId, use:
 /**
  * Every basic power among `powers` that `playerId` could make now, lazily: characters in play-area order (the
  * identity first), then `powers` in the order given, then targets in table order. A scheme a rule lets the character
- * thwart with ATK instead is yielded both ways, THW first.
+ * thwart with ATK instead is yielded both ways, THW first. `terms` (`BasicPowerTerms`, docs/phase7-wave11-hero-packs.md
+ * §H3.14) are the effect's: the identity alone, an exhausted character too, patrol or crisis waived for the use.
  */
 export function* basicPowerUses(
   state: GameState,
   deps: EngineDeps,
   playerId: PlayerId,
   powers: readonly BasicPowerKind[],
+  terms: BasicPowerTerms = {},
 ): Generator<BasicPowerUse> {
   const player = getPlayer(state, playerId);
   if (!player || player.eliminated) return;
-  // RRG 1.8 "Attack (Player Ability Type)" (p. 10): "A character must exhaust to use this power".
-  const characters = [player.identity.instanceId, ...player.playArea.filter((id) => isAlly(state, id))].filter(
-    (id) => getInstance(state, id)?.exhausted === false,
+  // RRG 1.8 "Attack (Player Ability Type)" (p. 10): "A character must exhaust to use this power", unless the effect
+  // has it made "without exhausting (even if you are exhausted)".
+  const allies = terms.character === "identity" ? [] : player.playArea.filter((id) => isAlly(state, id));
+  const characters = [player.identity.instanceId, ...allies].filter(
+    (id) => getInstance(state, id)?.exhausted === false || terms.withoutExhausting === true,
   );
   if (characters.length === 0) return;
   const enemies = [
@@ -187,14 +199,14 @@ export function* basicPowerUses(
     for (const power of powers) {
       for (const targetInstanceId of power === "attack" ? enemies : schemes) {
         const use: BasicPowerUse = { characterInstanceId, power, targetInstanceId, useAtk: false };
-        if (declarable(state, deps, playerId, use)) yield use;
+        if (declarable(state, deps, playerId, use, terms)) yield use;
         if (
           power === "thwart" &&
           mayThwartWithAtk(state, deps, targetInstanceId) &&
           !hasKeyword(state, targetInstanceId, "assault", deps)
         ) {
           const withAtk: BasicPowerUse = { ...use, useAtk: true };
-          if (declarable(state, deps, playerId, withAtk)) yield withAtk;
+          if (declarable(state, deps, playerId, withAtk, terms)) yield withAtk;
         }
       }
     }
@@ -207,6 +219,7 @@ export function canUseBasicPower(
   deps: EngineDeps,
   playerId: PlayerId,
   powers: readonly BasicPowerKind[],
+  terms: BasicPowerTerms = {},
 ): boolean {
-  return !basicPowerUses(state, deps, playerId, powers).next().done;
+  return !basicPowerUses(state, deps, playerId, powers, terms).next().done;
 }

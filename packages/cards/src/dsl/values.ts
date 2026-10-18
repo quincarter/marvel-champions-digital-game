@@ -12,6 +12,7 @@ import {
 import type {
   AttachCategory,
   BasicPowerName,
+  BasicPowerTerms,
   CardIcon,
   CharacterNames,
   Form,
@@ -1205,7 +1206,8 @@ export const paidType = (resource: TypedResource, of?: TargetRef): Predicate => 
  * (engine `canUseBasicPower`, docs/phase7-wave8.md §3.64): a ready hero-form identity or ally of theirs has a legal
  * target, read as `basicPowerBy` will offer it. `canUseBasicPower(["attack", "thwart"], eachPlayer)` is the condition
  * of an ability that chooses the player as a cost; `playersWhere(canUseBasicPower([...], thatPlayer))` is the players
- * who can, for `choosePlayer(slot, you, { among })`.
+ * who can, for `choosePlayer(slot, you, { among })`. `terms` are the ones `basicPowerBy` makes it with
+ * (`BasicPowerTerms`, docs/phase7-wave11-hero-packs.md §H3.14): with `withoutExhausting` an exhausted hero can.
  */
 /**
  * `player` could play a card from their hand right now, paying its costs, as `playFromHand` with the same `filter` and
@@ -1219,10 +1221,15 @@ export const canPlayFromHand = (filter?: TargetQuery, player: PlayerRef = you, r
   ...(filter ? { filter } : {}),
   ...(reduction ? { reduction } : {}),
 });
-export const canUseBasicPower = (powers: readonly ("attack" | "thwart")[], player: PlayerRef = you): Predicate => ({
+export const canUseBasicPower = (
+  powers: readonly ("attack" | "thwart")[],
+  player: PlayerRef = you,
+  terms?: BasicPowerTerms,
+): Predicate => ({
   kind: "canUseBasicPower",
   player,
   powers,
+  ...(terms ? { terms } : {}),
 });
 /**
  * `player` could pay `spendResources(resources, …, player, { distinctTypes })` right now, from the hand cards and

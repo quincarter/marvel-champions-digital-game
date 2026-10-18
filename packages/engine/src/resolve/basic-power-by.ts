@@ -21,11 +21,17 @@
  * FAQ "Wasp (#1C)" (p. 61) treats her divided attack as her basic attack; no official source speaks of a basic power
  * made on a card's instruction. The command carries the division (`divide`) and checks it as it checks the player's
  * own: distinct legal targets, shares of at least 1 that total the stat for this use, the +1 included
- * (`dividedBasicPowerValue`). A thwart made with ATK by the player's choice is not divided, as on their own turn.
+ * (`dividedBasicPowerValue`).
+ *
+ * **Its terms** (`BasicPowerTerms`, docs/phase7-wave11-hero-packs.md §H3.14; Grapnel Launcher 61023): "your hero" offers
+ * the identity alone, "without exhausting (even if you are exhausted)" offers an exhausted one and leaves it as it was,
+ * and "ignores the patrol keyword and any crisis icons" waives both for the candidates and for the thwart made. All
+ * three are carried on the command's `BasicPowerBy`, so the command checks them as it checks everything else.
  */
 
 import { displayNameOf } from "../visibility.js";
 import {
+  type BasicPowerBy,
   basicAttack,
   basicThwart,
   dividedBasicPowerValue,
@@ -107,7 +113,8 @@ export function executeBasicPowerBy(
   }
 
   if (!playerId) return notMade("noLegalUse");
-  const uses = [...basicPowerUses(ctx.state, ctx.deps, playerId, effect.powers)];
+  const terms = effect.terms ?? {};
+  const uses = [...basicPowerUses(ctx.state, ctx.deps, playerId, effect.powers, terms)];
 
   if (step === 0) {
     if (uses.length === 0) return notMade("noLegalUse");
@@ -349,9 +356,11 @@ export function executeBasicPowerBy(
     sourceInstanceId: source,
     ...(use.useAtk ? { useAtk: true as const } : {}),
     ...(divide ? { divide } : {}),
+    ...(terms.withoutExhausting ? { withoutExhausting: true as const } : {}),
+    ...(terms.ignores && terms.ignores.length > 0 ? { ignores: terms.ignores } : {}),
   });
   const command = { ...basicPowerCommand(playerId, use, payment, picked), ...(divide ? { divide } : {}) };
-  const by = { instructed: true };
+  const by: BasicPowerBy = { ...terms, instructed: true };
   const error = command.type === "basicAttack" ? basicAttack(ctx, command, by) : basicThwart(ctx, command, by);
   if (error) {
     emit(ctx, {

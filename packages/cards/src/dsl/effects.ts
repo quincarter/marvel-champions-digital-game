@@ -1,4 +1,5 @@
 import type {
+  BasicPowerTerms,
   CampaignLogValueSpec,
   BoostCardDestination,
   CardDestination,
@@ -722,14 +723,27 @@ export const friendlyCharacterAttacks = (
  * patrol and "cannot" rules hold, a stunned or confused character loses the status card instead, "basic" triggers hear
  * it, an ally takes its consequential damage. `bonus` is on that character for that use only. Not optional; with no
  * legal use nothing happens, so gate the ability and the player choice with `canUseBasicPower`.
+ *
+ * `terms` (engine `BasicPowerTerms`, docs/phase7-wave11-hero-packs.md §H3.14): "make a basic thwart without exhausting
+ * (even if you are exhausted). For this thwart, your hero gets +1 THW and ignores the patrol keyword and any crisis
+ * icons in play." (Grapnel Launcher, `jj` 61023) is `basicPowerBy(you, ["thwart"], { bonus: { thw: 1 }, terms: {
+ * character: "identity", withoutExhausting: true, ignores: ["patrol", "crisis"] } })`, gated with the same terms
+ * (`canUseBasicPower(["thwart"], you, terms)`).
  */
 export const basicPowerBy = (
   player: PlayerRef,
   powers: readonly ("attack" | "thwart")[],
-  opts: { readonly bonus?: { readonly thw?: number; readonly atk?: number } } = {},
+  opts: { readonly bonus?: { readonly thw?: number; readonly atk?: number }; readonly terms?: BasicPowerTerms } = {},
 ): EffectSpec => {
   if (powers.length === 0) throw new Error("basicPowerBy needs at least one power");
-  return { kind: "basicPowerBy", player, powers, ...(opts.bonus ? { bonus: opts.bonus } : {}) };
+  if (opts.terms?.ignores && !powers.includes("thwart")) throw new Error("basicPowerBy ignores are for a thwart");
+  return {
+    kind: "basicPowerBy",
+    player,
+    powers,
+    ...(opts.bonus ? { bonus: opts.bonus } : {}),
+    ...(opts.terms ? { terms: opts.terms } : {}),
+  };
 };
 export const enemyAttacksEnemy = (
   attacker: TargetRef,

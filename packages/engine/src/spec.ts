@@ -1381,6 +1381,25 @@ export type StatName = "atk" | "thw" | "def" | "rec" | "sch";
 /** A basic power, as the `basicPowerUsing` / `basicPowerUsed` events name it. */
 export type BasicPowerName = "attack" | "thwart" | "defense" | "recover";
 
+/**
+ * How a basic power a card has the player make departs from the ordinary one (`EffectSpec basicPowerBy`,
+ * docs/phase7-wave11-hero-packs.md §H3.14): "make a basic thwart without exhausting (even if you are exhausted). For
+ * this thwart, your hero … ignores the patrol keyword and any crisis icons in play." (Grapnel Launcher, `jj` 61023.)
+ *
+ * - `character: "identity"`: made with the player's identity ("your hero"), never an ally.
+ * - `withoutExhausting`: the character does not exhaust to make it and may make it while exhausted. A stunned or
+ *   confused character still loses the status card instead (RRG 1.8 "Stun, Stunned", p. 41; "Confuse, Confused",
+ *   p. 13): exhausting is not paid, but the attempt is made.
+ * - `ignores`: for this use only, the thwart is not stopped by patrol (RRG 1.8 "Patrol", p. 32) or the crisis icon
+ *   (RRG 1.8 "Crisis Icon", p. 14), at its declaration or its removal (RRG 1.8 "Ignore", p. 23). The one-use sibling of
+ *   `RuleSpec characterIgnores`. Not built for guard: no basic attack made by an effect ignores it yet.
+ */
+export interface BasicPowerTerms {
+  readonly character?: "identity";
+  readonly withoutExhausting?: true;
+  readonly ignores?: readonly ("patrol" | "crisis")[];
+}
+
 /** `TargetQuery.statCompare`: `<the card's stat> <op> <value>`. */
 export interface StatComparison {
   readonly stat: StatName;
@@ -1453,6 +1472,8 @@ export type Predicate =
       readonly kind: "canUseBasicPower";
       readonly player: PlayerRef;
       readonly powers: readonly ("attack" | "thwart")[];
+      /** The terms `basicPowerBy` will make it with (`BasicPowerTerms`); `withoutExhausting` lets an exhausted hero. */
+      readonly terms?: BasicPowerTerms;
     }
   /**
    * The card has a status card of this type. `active`: it *is* stunned/confused by the rules, which with steady takes two
@@ -2109,6 +2130,8 @@ export type EffectSpec =
       readonly player: PlayerRef;
       readonly powers: readonly ("attack" | "thwart")[];
       readonly bonus?: { readonly thw?: number; readonly atk?: number };
+      /** "Your hero", "without exhausting", "ignores … for this thwart" (`BasicPowerTerms`, §H3.14). */
+      readonly terms?: BasicPowerTerms;
     }
   /**
    * "(thwart)": "Remove N threat from a scheme" resolved as a thwart by your identity (or `thwarter`). Pair with
@@ -5328,6 +5351,8 @@ export type EffectSpec =
       readonly indirectDamage: number;
       /** The thwart is one a card's effect has the player make (`basicPowerBy`), so no turn of theirs is asked for. */
       readonly instructed?: true;
+      /** That effect's terms (`BasicPowerTerms`): the thwart, made once the cost is paid, keeps them. */
+      readonly terms?: BasicPowerTerms;
     }
   /**
    * **Engine-internal; no DSL builder.** Allies and minions defeated by one effect resolved together

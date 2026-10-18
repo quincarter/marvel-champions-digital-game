@@ -2106,6 +2106,8 @@ export type BasicPowerResume =
       readonly shares: readonly BasicPowerShare[];
       readonly useAtk: boolean;
       readonly thwartCostPaid: boolean;
+      /** `BasicPowerTerms.ignores` of a thwart a card had the player make (docs/phase7-wave11-hero-packs.md §H3.14). */
+      readonly ignores?: readonly ("patrol" | "crisis")[];
     };
 
 /**
