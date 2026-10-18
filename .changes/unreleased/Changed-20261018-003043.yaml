@@ -1,0 +1,3 @@
+kind: Changed
+body: Claude Code sessions get a project permission allowlist for routine pnpm checks, commits and feature/bug-fix pushes; force pushes always ask.
+time: 2026-10-18T00:30:43.8049067-04:00
