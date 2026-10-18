@@ -442,6 +442,11 @@ describe("58034 Avengers Compound: tuck an ally from hand here, or play the ally
     });
     const out = run(state, compoundPick(), use(P1, compound, COMPOUND_REF));
     expect(inPlayArea(out.state, tuckedId!)).toBe(true);
+    // "As if it were in your hand": logged from the tuck, counting as from the hand (RRG 1.8 FAQ p. 64).
+    expect(out.events.find((e) => e.type === "cardPlayed" && e.instanceId === tuckedId)).toMatchObject({
+      from: "tucked",
+      countsAsFrom: "hand",
+    });
     expect(inst(out.state, compound).tucked).toEqual([]);
     expect(handOf(out.state)).toEqual([]);
     for (const id of handIds) expect(playerOf(out.state, P1).discard).toContain(id);

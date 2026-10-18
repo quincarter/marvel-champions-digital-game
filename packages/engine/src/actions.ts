@@ -103,6 +103,7 @@ import {
   cardFlippedEvent,
   carriedByEvent,
   type BasicPowerResume,
+  type PlayedFrom,
   type TriggerEvent,
 } from "./trigger-events.js";
 import { instanceId as asInstanceId, type FrameId, type InstanceId, type PlayerId } from "./ids.js";
@@ -296,6 +297,7 @@ import {
 import type { GameState } from "./state.js";
 import { attackCostsPayable, pushAttackCosts, unpayableAttackCostSource } from "./attack-cost.js";
 import { payHealCost, planHealCost } from "./heal-cost.js";
+import { planChooseTargetCost } from "./choose-target-cost.js";
 import { anyThwartCost, askBasicThwartCost, thwartCostsPayable, thwartCostTotal } from "./thwart-cost.js";
 import {
   formChangeCostMessage,
@@ -1923,7 +1925,7 @@ function repeatUsesFault(
     return { code: "insufficient_resources", message: "duplicate resource ability" };
   }
   const onlyCounters = cost !== undefined && Object.entries(cost).every(([key, v]) => key === "spendCounters" || !v);
-  if (!counters || counters.upTo || counters.all || !onlyCounters) {
+  if (!counters || counters.upTo || counters.all || typeof counters.amount !== "number" || !onlyCounters) {
     return { code: "insufficient_resources", message: `${abilityId} can only be used once per payment` };
   }
   const repeated: AbilityCost = { spendCounters: { ...counters, amount: counters.amount * uses } };
@@ -2943,6 +2945,9 @@ export function selectCost(
     const { all: _all, ...fixed } = counters;
     chosen = { ...chosen, spendCounters: { ...fixed, amount: held } };
   } else if (counters?.upTo) {
+    // "Up to N" is a printed N: a board-given amount (H3.5) is a fixed X, refused by the card validator too.
+    if (typeof counters.amount !== "number")
+      return { code: "invalid_choice", message: "an 'up to' counter cost needs a printed number" };
     const holderId = counterCostHolder(state, deps, sourceId, playerId, counters.target);
     if (typeof holderId !== "string") return holderId;
     const held = getInstance(state, holderId)?.counters[counters.counterType] ?? 0;
@@ -2985,7 +2990,7 @@ export function upToCounterChoice(
     cost = { ...common, ...either[selected.vars["cost.branch"] ?? 0] };
   }
   const counters = cost.spendCounters;
-  if (!counters?.upTo) return null;
+  if (!counters?.upTo || typeof counters.amount !== "number") return null;
   const holderId = counterCostHolder(state, deps, sourceId, playerId, counters.target);
   if (typeof holderId !== "string") return null;
   const held = getInstance(state, holderId)?.counters[counters.counterType] ?? 0;
@@ -3121,13 +3126,11 @@ export function planCost(
     }
     if (cannotFlip(state, deps, sourceId)) return { code: "no_valid_target", message: "this card cannot be flipped" };
   }
-  if (cost.spendCounters) {
-    const holderId = counterCostHolder(state, deps, sourceId, playerId, cost.spendCounters.target);
-    if (typeof holderId !== "string") return holderId;
-    const holder = mustInstance(state, holderId);
-    if ((holder.counters[cost.spendCounters.counterType] ?? 0) < cost.spendCounters.amount) {
-      return { code: "insufficient_resources", message: `not enough ${cost.spendCounters.counterType} counters` };
-    }
+  // A counter cost whose amount the board gives (a `ValueSpec`, hero-pack spec H3.5) is read below, once the cost's
+  // picks are bound; a fixed one is checked here.
+  if (cost.spendCounters && typeof cost.spendCounters.amount === "number") {
+    const fault = counterCostFault(state, deps, sourceId, playerId, cost.spendCounters, cost.spendCounters.amount);
+    if (fault) return fault;
     if (cost.spendCounters.bind) vars[cost.spendCounters.bind] = cost.spendCounters.amount;
   }
   // "Discard the top card of your deck →" (docs/phase7-wave3.md §3.33): the deck, or the deck the rules would already
@@ -3373,6 +3376,25 @@ export function planCost(
     if (isFault(chosen)) return chosen;
     Object.assign(bindings, chosen);
   }
+  // "Choose a non-Elite minion" before the arrow (`chooseTarget`, `choose-target-cost.ts`; hero-pack spec H3.5).
+  if (cost.chooseTarget) {
+    const chosen = planChooseTargetCost(state, deps, sourceId, playerId, cost.chooseTarget, choices, bindings);
+    if (isFault(chosen)) return chosen;
+    Object.assign(bindings, chosen);
+  }
+  // "Remove X evidence counters …, where X is equal to 2 less than that minion's remaining hit points →" (hero-pack
+  // spec H3.5): X is read now (RRG 1.8 "Initiating Abilities", p. 24, step 3, "Determine the cost"), with the picks
+  // above bound, never below 0, and the plan carries the number so the payment removes exactly what was checked.
+  let countersRead = false;
+  if (cost.spendCounters && typeof cost.spendCounters.amount !== "number") {
+    const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event, bindings, vars, deps };
+    const read = Math.max(0, Math.floor(resolveValue(state, cost.spendCounters.amount, context, deps)));
+    const fault = counterCostFault(state, deps, sourceId, playerId, cost.spendCounters, read);
+    if (fault) return fault;
+    if (cost.spendCounters.bind) vars[cost.spendCounters.bind] = read;
+    cost = { ...cost, spendCounters: { ...cost.spendCounters, amount: read } };
+    countersRead = true;
+  }
   // "Deal a player 1 facedown encounter card →" (`dealEncounterCardsTo`): the payer's pick of a player.
   if (cost.dealEncounterCardsTo) {
     const chosen = planDealToCost(state, cost.dealEncounterCardsTo, choices);
@@ -3517,9 +3539,26 @@ export function planCost(
     bindings,
     vars,
     payingFor,
-    ...(selected ? { cost } : {}),
+    ...(selected || countersRead ? { cost } : {}),
     ...(Object.keys(payers).length > 0 ? { paidBy: payers } : {}),
   };
+}
+
+/** Why a counter cost of `amount` counters cannot be paid now (its holder, or too few counters on it), or null. */
+function counterCostFault(
+  state: GameState,
+  deps: EngineDeps,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+  counters: NonNullable<AbilityCost["spendCounters"]>,
+  amount: number,
+): PriceFault | null {
+  const holderId = counterCostHolder(state, deps, sourceId, playerId, counters.target);
+  if (typeof holderId !== "string") return holderId;
+  if ((mustInstance(state, holderId).counters[counters.counterType] ?? 0) < amount) {
+    return { code: "insufficient_resources", message: `not enough ${counters.counterType} counters` };
+  }
+  return null;
 }
 
 /**
@@ -4075,6 +4114,8 @@ export function payCost(
     const holderId = counterCostHolder(ctx.state, ctx.deps, sourceId, playerId, cost.spendCounters.target);
     if (typeof holderId !== "string") throw new EngineInvariantError(`counter cost unpaid: ${holderId.message}`);
     const { counterType, amount } = cost.spendCounters;
+    // A board-given amount is read by `planCost`, whose plan carries the number (`CostPlan.cost`).
+    if (typeof amount !== "number") throw new EngineInvariantError("counter cost paid without its amount read");
     const held = mustInstance(ctx.state, holderId).counters[counterType] ?? 0;
     const removed = removeCounters(ctx, holderId, counterType, amount);
     // Announced (response only) above the frame being paid for, so "after the last power counter is removed from
@@ -5088,9 +5129,10 @@ export function commitPlay(
    * §3.8). Null for every other play, a searched deck's card and an effect's play from a tuck it names included.
    */
   asIfInHand: AsIfInHandPermission | null = null,
-  /** An effect plays the card from one of its player's separate decks (docs/phase7-wave11.md §3.2): logged as such. */
-  fromSeparateDeck: SeparateDeckPlayFrom | null = null,
+  /** Where an effect plays the card from (`EffectSpec playFromHand.from`); `"hand"` for a play from the hand. */
+  from: PlayFromZone = "hand",
 ): SpentPayment {
+  const origin = playOriginOf(asIfInHand, from);
   if (asIfInHand) {
     // RRG 1.8 "Initiating Abilities" (p. 24), step 1, and FAQ "Magik (#30A)" (p. 64, which calls it step 3): the card
     // goes to the table before any cost is paid, "as soon as she does this, she turns the new top card of her deck
@@ -5148,14 +5190,12 @@ export function commitPlay(
     cardId: mustInstance(ctx.state, cardInstanceId).cardId,
     resourcesPaid: poolTotal(priced.pool),
     paid: priced.pool,
-    // The log keeps where the card really was; every reader of a play treats it as played from the hand (FAQ "Magik
-    // (#30A)", p. 64: "that card is considered to have been played from her hand").
-    ...(asIfInHand ? { from: asIfInHand.from, countsAsFrom: "hand" as const } : {}),
+    // The log keeps where the card really was, and whether it counts as played from the hand (`PlayOrigin`; FAQ
+    // "Magik (#30A)", p. 64: "that card is considered to have been played from her hand"). A hand play logs neither.
+    ...(origin.from !== "hand" ? { from: origin.from } : {}),
+    ...(origin.countsAsFrom ? { countsAsFrom: origin.countsAsFrom } : {}),
     // The hand card whose permission was spent on this play (docs/phase7-wave11.md §3.9).
     ...(asIfInHand?.discardsSource ? { via: asIfInHand.sourceInstanceId } : {}),
-    ...(fromSeparateDeck ? { from: "separateDeck" as const } : {}),
-    // "As if it were in your hand" (Daredevil 60001a): counted as played from the hand, as the Magik FAQ reads it.
-    ...(fromSeparateDeck?.asIfInHand ? { countsAsFrom: "hand" as const } : {}),
     ...(priced.types ? { paidCount: priced.types.paidCount } : {}),
     ...(priced.types?.declared ? { paidAs: priced.types.declared.paidAs } : {}),
   });
@@ -5500,6 +5540,7 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     playFrameCost(priced, { ...priced.plan.bindings, ...via }),
     controllerId,
     command.into?.scenarioPlayArea,
+    playOriginOf(asIfInHand),
   );
   payCost(ctx, command.cardInstanceId, command.playerId, playCost, priced.plan);
   const unpayable = thwartCostUnpayableAfterPaying(ctx, card.type === "event" ? ability : undefined, command);
@@ -5558,8 +5599,53 @@ export type PlayFromZone =
   | "hand"
   | "setAside"
   | "deck"
+  | DeckAsIfInHandPlayFrom
   | { readonly tuckedUnder: readonly InstanceId[] }
   | SeparateDeckPlayFrom;
+
+/**
+ * `"deck"` "as if it were in your hand" (Calling in Favors 61008; hero-pack spec H3.16, owner answer Q102 = A): the same
+ * search of the player's own deck, logged `cardPlayed` `from: "deck", countsAsFrom: "hand"`.
+ */
+export interface DeckAsIfInHandPlayFrom {
+  readonly deck: "search";
+  readonly asIfInHand: true;
+}
+
+/** Whether `from` is a deck search marked "as if it were in your hand" (`DeckAsIfInHandPlayFrom`). */
+const isDeckAsIfInHandPlayFrom = (from: PlayFromZone): from is DeckAsIfInHandPlayFrom =>
+  typeof from === "object" && "deck" in from;
+
+/** Whether an effect's play searches its player's own deck (`"deck"`, either way it is logged). */
+export const searchesOwnDeck = (from: PlayFromZone): boolean => from === "deck" || isDeckAsIfInHandPlayFrom(from);
+
+/**
+ * Where a played card was played from, and whether the game counts it as played from the hand: logged on `cardPlayed`
+ * and carried by the `cardPlayed` / `cardBeingPlayed` trigger events, so "after you play [this card] from your hand"
+ * (`EventPattern.playedFromHand`) hears only a play from the hand or one counted as one.
+ *
+ * RRG 1.8 FAQ "Magik (#30A)" (p. 64): a card played from outside the hand "as if it was in [her] hand" "is considered
+ * to have been played from her hand"; one an effect simply plays from the deck (Fetch Quest, Shuri's Inventor) is not.
+ * Every effect play from the set-aside area (Valkyrie's Death Perception, 25001a) or from a tuck it names (Med Lab
+ * 38028, Avengers Compound 58034) is printed "as if it were in your hand", so those count; a separate deck's or a
+ * searched deck's counts only when the effect says so (`asIfInHand`).
+ */
+export interface PlayOrigin {
+  readonly from: PlayedFrom;
+  readonly countsAsFrom?: "hand";
+}
+
+/** The origin of a play (`PlayOrigin`): under an as-if-in-hand permission, or by an effect from `from`. */
+export function playOriginOf(asIfInHand: AsIfInHandPermission | null, from: PlayFromZone = "hand"): PlayOrigin {
+  if (asIfInHand) return { from: asIfInHand.from, countsAsFrom: "hand" };
+  if (from === "hand") return { from: "hand" };
+  if (from === "deck") return { from: "deck" };
+  if (from === "setAside") return { from: "setAside", countsAsFrom: "hand" };
+  if (isDeckAsIfInHandPlayFrom(from)) return { from: "deck", countsAsFrom: "hand" };
+  if (isSeparateDeckPlayFrom(from))
+    return { from: "separateDeck", ...(from.asIfInHand ? { countsAsFrom: "hand" as const } : {}) };
+  return { from: "tucked", countsAsFrom: "hand" };
+}
 
 /**
  * A play from the player's own separate deck `separateDeck` (docs/phase7-wave11.md §3.2): its top card only, or any card
@@ -5569,8 +5655,9 @@ export interface SeparateDeckPlayFrom {
   readonly separateDeck: string;
   readonly position: "top" | "any";
   /**
-   * "As if it were in your hand": a log marker only (`cardPlayed.countsAsFrom: "hand"`). A "from hand" cost reduction
-   * cannot reach an effect's play today, so whether it should is unreachable, not ruled.
+   * "As if it were in your hand": counted as played from the hand (`PlayOrigin`, `cardPlayed.countsAsFrom: "hand"`), so
+   * a "from your hand" response answers it. A "from hand" cost reduction cannot reach an effect's play today, so
+   * whether it should is unreachable, not ruled.
    */
   readonly asIfInHand?: true;
 }
@@ -5596,6 +5683,7 @@ export function cardsInPlayFromZone(
     const deck = getPlayer(state, playerId)?.separateDecks[from.separateDeck]?.deck ?? [];
     return from.position === "top" ? deck.slice(0, 1) : deck;
   }
+  if (isDeckAsIfInHandPlayFrom(from)) return getPlayer(state, playerId)?.deck ?? [];
   if (typeof from === "object") return from.tuckedUnder.flatMap((host) => getInstance(state, host)?.tucked ?? []);
   const cards = getPlayer(state, playerId)?.[from] ?? [];
   return from === "hand" && deps ? [...cards, ...asIfInHandPlayableBy(state, deps, playerId)] : cards;
@@ -5620,6 +5708,7 @@ function playFromZoneFault(
 ): string | null {
   if (cardsInPlayFromZone(state, playerId, from, deps).includes(id)) return null;
   if (isSeparateDeckPlayFrom(from)) return from.position === "top" ? "not the top of that deck" : "not in that deck";
+  if (isDeckAsIfInHandPlayFrom(from)) return "not in deck";
   if (typeof from === "object") return "not tucked there";
   return from === "hand" ? "not in hand" : from === "deck" ? "not in deck" : "not set aside";
 }
@@ -5646,7 +5735,7 @@ export function tuckedPlayUnavailable(
     (effect): effect is Extract<EffectSpec, { kind: "playFromHand" }> =>
       effect.kind === "playFromHand" &&
       typeof effect.from === "object" &&
-      ("tuckedUnder" in effect.from || effect.from.position === "top") &&
+      ("tuckedUnder" in effect.from || ("separateDeck" in effect.from && effect.from.position === "top")) &&
       effect.optional !== true,
   );
   if (plays.length === 0 || plays.length !== effects.length) return false;
@@ -5990,7 +6079,7 @@ export function playWithPayment(
     wildAs,
   });
   if (isFault(priced)) return null;
-  const spent = commitPlay(ctx, playerId, id, payment, priced, asIfInHand, isSeparateDeckPlayFrom(from) ? from : null);
+  const spent = commitPlay(ctx, playerId, id, payment, priced, asIfInHand, from);
   if (into !== null) consumeAreaCostReductions(ctx, playerId, id, into);
   const bindings = { ...priced.plan.bindings, ...extraBindings, ...asIfInHandViaBindings(asIfInHand) };
   const fromCost = playHostFromCost(ctx.state, ctx.deps, id, priced.plan.bindings);
@@ -6003,6 +6092,7 @@ export function playWithPayment(
     playFrameCost(priced, bindings),
     playerId,
     into ?? undefined,
+    playOriginOf(asIfInHand, from),
   );
   const frameId = ctx.state.stack[0]?.frameId ?? null;
   payCost(ctx, id, playerId, playCost, priced.plan);
@@ -6060,7 +6150,7 @@ export function playIgnoringCost(
   };
   const priced: PricedPlay = { pool: EMPTY_POOL, plan, vars };
   const asIfInHand = asIfInHandPlayFrom(ctx.state, ctx.deps, playerId, id, from);
-  commitPlay(ctx, playerId, id, [], priced, asIfInHand, isSeparateDeckPlayFrom(from) ? from : null);
+  commitPlay(ctx, playerId, id, [], priced, asIfInHand, from);
   // "The next ally played to the mission": this was that ally, though nothing was paid for the reduction to lower.
   if (into !== null) consumeAreaCostReductions(ctx, playerId, id, into);
   const card = mustCardOf(ctx.state, id);
@@ -6083,6 +6173,7 @@ export function playIgnoringCost(
     { bindings: { ...plan.bindings, ...extraBindings, ...asIfInHandViaBindings(asIfInHand) }, vars },
     playerId,
     into ?? undefined,
+    playOriginOf(asIfInHand, from),
   );
   const frameId = ctx.state.stack[0]?.frameId ?? null;
   payCost(ctx, id, playerId, playCost, plan);

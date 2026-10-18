@@ -451,6 +451,11 @@ function matchesRest(
     if (event.kind !== "cardPlayed" || event.via === undefined) return false;
     if (!matchesQuery(state, event.via, query, context)) return false;
   }
+  // "After you play [this card] from your hand" (`playedFromHand`; RRG 1.8 FAQ "Magik (#30A)", p. 64).
+  if (pattern.playedFromHand) {
+    if (event.kind !== "cardPlayed" && event.kind !== "cardBeingPlayed") return false;
+    if ((event.from ?? "hand") !== "hand" && event.countsAsFrom !== "hand") return false;
+  }
   if (pattern.notPlayedVia && event.kind === "cardPlayed" && event.via !== undefined) {
     if (matchesQuery(state, event.via, pattern.notPlayedVia, context)) return false;
   }

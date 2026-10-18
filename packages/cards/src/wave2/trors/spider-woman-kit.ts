@@ -137,7 +137,7 @@ export const SPIDER_WOMAN_KIT = defineAbilities({
 
   // Spider-Girl — Response: After you play Spider-Girl from your hand, stun and confuse a minion.
   "04040.spider-girl-response": response(
-    after.youPlayThis(),
+    after.youPlayThisFromHand(),
     chooseTarget("minion", query("minion")),
     stun(chosen("minion")),
     confuse(chosen("minion")),
@@ -161,7 +161,7 @@ export const SPIDER_WOMAN_KIT = defineAbilities({
 
   // Spider-Man — Response: After you play Spider-Man from your hand, remove 3 [per_hero] threat from a side scheme.
   "04045.spider-man-response": response(
-    after.youPlayThis(),
+    after.youPlayThisFromHand(),
     chooseTarget("scheme", query("sideScheme")),
     removeThreat(perHero(3), chosen("scheme")),
   ),

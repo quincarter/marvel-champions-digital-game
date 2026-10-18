@@ -132,7 +132,7 @@ const CONNECTION_TO_THE_WORLDMIND = query("resource", { name: "Connection to the
  * here as `constant(playOnlyIf(anyOf(youHaveTrait(CHAMPION), youHaveTrait(GENIUS))))` — the "schema has no
  * restriction field for this" shape Spider-Man/Hobie Brown's own `27017.spider-man-constant` already uses
  * (`wave5/sm/ghost-spider/support-upgrades-allies.ts`). "Response: After you play Moon Girl from your hand, draw 1
- * card for each [mental] resource used to pay for her" is `on.youPlayThis()` (Eros' own precedent for "after you
+ * card for each [mental] resource used to pay for her" is `on.youPlayThisFromHand()` (Eros' own precedent for "after you
  * play [this ally] … for each [mental] resource you used to pay for [it]", `wave4/nebu/nebula-pack-cards.ts`
  * `22011.eros-response`) with `draw(varOf("paid.mental"))` in place of Eros' `confuse` — `paid.mental` is read here
  * (unlike Honed Technique above) because this response lives in Moon Girl's *own* ability frame, seeded from Moon
@@ -217,7 +217,7 @@ export const NOVA_SUPPORT_UPGRADES_ALLIES = defineAbilities({
   ),
 
   "28018.moon-girl-constant": constant(playOnlyIf(anyOf(youHaveTrait(CHAMPION), youHaveTrait(GENIUS)))),
-  "28018.moon-girl-response": response(on.youPlayThis(), draw(varOf("paid.mental"))),
+  "28018.moon-girl-response": response(on.youPlayThisFromHand(), draw(varOf("paid.mental"))),
 
   "28019.everyday-hero-constant": constant(spendableForAnyPlayer(youHaveTrait(CIVILIAN))),
   "28019.everyday-hero-response": response(

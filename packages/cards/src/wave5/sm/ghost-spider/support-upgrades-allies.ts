@@ -154,7 +154,7 @@ export const GHOST_SPIDER_SUPPORT_UPGRADES_ALLIES = defineAbilities({
   ),
 
   "27010.silk-response": response(
-    on.youPlayThis(),
+    on.youPlayThisFromHand(),
     ifThen(exists(ANOTHER_WEB_WARRIOR_CARD), [
       chooseCards("found", encounterCards(["deck"], query("treachery")), { min: 1, max: 1 }),
       moveCards(cards(chosen("found")), "discard"),
@@ -163,7 +163,7 @@ export const GHOST_SPIDER_SUPPORT_UPGRADES_ALLIES = defineAbilities({
   ),
 
   "27011.spider-man-response": response(
-    on.youPlayThis(),
+    on.youPlayThisFromHand(),
     ifThen(valueAtLeast(countOf(A_WEB_WARRIOR_CARD), 3), [anEnemy(), stun(chosen("enemy")), confuse(chosen("enemy"))]),
   ),
 

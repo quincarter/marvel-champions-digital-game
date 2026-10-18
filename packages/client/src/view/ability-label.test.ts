@@ -162,6 +162,30 @@ describe("abilityLabelOf", () => {
     expect(label).not.toMatch(/object/i);
   });
 
+  // 4K Digital Camcorder (61009): "Remove X evidence counters …, where X is equal to 2 less than that minion's
+  // remaining hit points": a counter amount read from the board, a value spec (hero-pack spec H3.5).
+  test("a counter amount read from the board reads as X, never as [object Object] (4K Digital Camcorder shape)", () => {
+    const deps = {
+      abilities: {
+        "test.counters-read": {
+          trigger: { kind: "action" },
+          cost: {
+            exhaustSelf: true,
+            chooseTarget: { slot: "minion", query: { categories: ["minion"] } },
+            spendCounters: {
+              counterType: "evidence",
+              amount: { kind: "remainingHp", of: { kind: "slot", slot: "minion" } },
+            },
+          },
+          effects: [],
+        } as unknown as AbilityDefinition,
+      },
+    };
+    const label = abilityShortLabelOf(state, identityId, abilityId("test.counters-read"), deps);
+    expect(label).toBe("exhaust, choose a card, remove X evidence counters");
+    expect(label).not.toMatch(/object/i);
+  });
+
   test("names a combined-cost discard threshold by its filter trait (Advanced Glider shape)", () => {
     const deps = {
       abilities: {

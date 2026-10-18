@@ -202,7 +202,7 @@ export const NEXT_EVOL_PRECON_DOMINO_DECK: AbilityRegistry = defineAbilities({
     gainsTraitsOf(query("identity", { controller: "you" }), query("ally", { self: true })),
   ),
   "40204.hope-summers-response": response(
-    after.youPlayThis(),
+    after.youPlayThisFromHand(),
     chooseCards("found", zone("deck", you, { filter: { trait: SUPERPOWER } }), { min: 0, max: 1 }),
     moveCards(cards(chosen("found")), "hand"),
     shuffleDeck(),

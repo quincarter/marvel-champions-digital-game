@@ -243,10 +243,14 @@ export type GameEvent =
        * one of its player's separate decks (`EffectSpec playFromHand.from { separateDeck }`, docs/phase7-wave11.md
        * §3.2), with `countsAsFrom: "hand"` only when the effect plays it "as if it were in your hand" (`asIfInHand`).
        * `"tucked"`: played from under a card whose `playableAsIfInHand { tuckedUnder }` permission lets its player
-       * play it "as if it were in your hand" (docs/phase7-wave11.md §3.8), with `countsAsFrom: "hand"`. Every other
-       * play logs exactly as before.
+       * play it "as if it were in your hand" (docs/phase7-wave11.md §3.8), with `countsAsFrom: "hand"`. `"deck"`: played
+       * by an effect from its player's searched deck (Fetch Quest), with `countsAsFrom: "hand"` only when the effect
+       * plays it "as if it were in your hand" (`EffectSpec playFromHand.from { deck: "search", asIfInHand }`, hero-pack
+       * spec H3.16, Q102 = A). `"setAside"`: played by an effect from the set-aside area, and `"tucked"` also from a tuck
+       * an effect names (Med Lab 38028, Avengers Compound 58034), each "as if it were in your hand", with
+       * `countsAsFrom: "hand"` (`PlayOrigin`). A play from the hand logs neither.
        */
-      readonly from?: "deckTop" | "separateDeck" | "tucked";
+      readonly from?: "deckTop" | "separateDeck" | "tucked" | "deck" | "setAside";
       readonly countsAsFrom?: "hand";
       /**
        * Present only for a play under an "as if it were in your hand" permission printed on a card in the player's

@@ -288,6 +288,9 @@ function checkCost(definition: AbilityDefinition, problems: string[]): void {
   // The engine asks which character a cost heals only as an action is initiated (`AbilityCost.healCharacter`).
   if (definition.trigger.kind !== "action" && looks.some((part) => part.healCharacter))
     problems.push("cost healCharacter: only on an action (a window cannot ask which character is healed)");
+  // The engine asks for a cost's chosen card only as an action is initiated (`AbilityCost.chooseTarget`, H3.5).
+  if (definition.trigger.kind !== "action" && looks.some((part) => part.chooseTarget))
+    problems.push("cost chooseTarget: only on an action (a window cannot ask which card is chosen)");
   // "Each player exhausts their identity and takes 1 damage →" (`AbilityCost.eachPlayer`, docs/phase7-wave9.md §3.58).
   for (const part of looks) {
     const each = part.eachPlayer;
@@ -382,12 +385,18 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
   // docs/phase7-wave3.md §3.32, §3.33, §3.36.
   const counters = [cost.spendCounters, ...(cost.either ?? []).map((branch) => branch.spendCounters)];
   for (const component of counters) {
-    if (component?.upTo && (!Number.isInteger(component.amount) || component.amount < 1))
+    if (
+      component?.upTo &&
+      typeof component.amount === "number" &&
+      (!Number.isInteger(component.amount) || component.amount < 1)
+    )
       problems.push(
         'cost spendCounters: an "up to" amount must be a whole number of at least 1 (RRG 1.8 "Cost", p. 14)',
       );
     if (component?.upTo && component.all)
       problems.push('cost spendCounters: a counter cost is either "up to" or "each", not both');
+    if (component && typeof component.amount !== "number" && (component.upTo || component.all))
+      problems.push('cost spendCounters: an amount read from the board is a fixed X, not "up to" or "each"');
   }
   // docs/phase7-wave6.md §3.53: "place N counters →" places at least one.
   const placed = cost.placeCounters;
@@ -485,6 +494,7 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
   if (healed && (!Number.isInteger(healed.amount) || healed.amount < 1))
     problems.push("cost healCharacter: amount must be a whole number of at least 1");
   if (healed && healed.slot === "") problems.push("cost healCharacter: needs a slot for the character healed");
+  if (cost.chooseTarget?.slot === "") problems.push("cost chooseTarget: needs a slot for the card chosen");
   const dealtTo = cost.dealEncounterCardsTo;
   if (dealtTo && (!Number.isInteger(dealtTo.count) || dealtTo.count < 1))
     problems.push("cost dealEncounterCardsTo: count must be a whole number of at least 1");
@@ -514,6 +524,7 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
     ...(cost.removeThreat?.choose ? [cost.removeThreat.choose.slot] : []),
     ...(cost.dealEncounterCardsTo ? [cost.dealEncounterCardsTo.slot] : []),
     ...(cost.healCharacter ? [cost.healCharacter.slot] : []),
+    ...(cost.chooseTarget ? [cost.chooseTarget.slot] : []),
     ...inPlayPicksOf(cost).flatMap(({ pick }) => [pick.slot, ...(pick.bindHosts ? [pick.bindHosts] : [])]),
   ];
   if (new Set(slots).size !== slots.length)
@@ -682,6 +693,8 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
       !cost.spendCounters ||
       cost.spendCounters.upTo ||
       cost.spendCounters.all ||
+      // A board-given amount (hero-pack spec H3.5) cannot be multiplied by the uses before it is read.
+      typeof cost.spendCounters.amount !== "number" ||
       others.length > 0 ||
       // The one limit it may carry counts its uses toward one card paid for (docs/phase7-wave9.md §3.46 (a)).
       (definition.limit && definition.limit.per !== "paidCard")
@@ -1114,7 +1127,7 @@ function checkPlays(definition: AbilityDefinition, problems: string[]): void {
     const reduction = effect.costReduction;
     if (reduction?.kind === "const" && (!Number.isInteger(reduction.value) || reduction.value < 0))
       problems.push("playFromHand costReduction: a constant reduction must be a whole number of at least 0");
-    if (effect.from === "deck" && effect.card)
+    if ((effect.from === "deck" || (typeof effect.from === "object" && "deck" in effect.from)) && effect.card)
       problems.push("playFromHand from deck: the card is picked from the searched deck, so `card` is not read");
     if (typeof effect.from === "object" && "separateDeck" in effect.from && effect.card)
       problems.push("playFromHand from a separate deck: the card is picked from that deck, so `card` is not read");
@@ -1910,6 +1923,7 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
     if (cost.dealDamage?.choose) scope.slots.add(cost.dealDamage.choose.slot);
     if (cost.dealEncounterCardsTo) scope.slots.add(cost.dealEncounterCardsTo.slot);
     if (cost.healCharacter) scope.slots.add(cost.healCharacter.slot);
+    if (cost.chooseTarget) scope.slots.add(cost.chooseTarget.slot);
     for (const { pick } of inPlayPicksOf(cost)) {
       scope.slots.add(pick.slot);
       if (pick.bindHosts) scope.slots.add(pick.bindHosts);

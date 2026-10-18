@@ -62,7 +62,7 @@ export const WSP_PACK_CARDS = defineAbilities({
   // Thor (Jane Foster) — Response: After you play Thor from your hand, deal 2 damage to the villain (3 damage
   // instead if you paid for this card using a [physical] resource). The `paid.*`/Response-on-a-card's-own-play
   // shape Valkyrie (06012, `wave1/thor/pack-cards.ts`) established.
-  "13011.thor-response": response(on.entersPlay("self"), dealDamage(ifElse(paidWith("physical"), 3, 2), theVillain)),
+  "13011.thor-response": response(on.youPlayThisFromHand(), dealDamage(ifElse(paidWith("physical"), 3, 2), theVillain)),
 
   // Wasp (Janet Van Dyne) — Wasp gets +1 hit point for each pym counter on her (safe: a plain counter-scaled stat
   // modifier, no `while`). Interrupt: when Wasp enters play, place 1 pym counter on her (to a maximum of 3) for
@@ -106,12 +106,12 @@ export const WSP_PACK_CARDS = defineAbilities({
   ),
 
   // Ironheart — Response: After you play Ironheart from your hand, draw 1 card.
-  "13018.ironheart-response": response(on.entersPlay("self"), draw(1)),
+  "13018.ironheart-response": response(on.youPlayThisFromHand(), draw(1)),
 
   // Spider-Man (Miles Morales) — Response: After you play Spider-Man from your hand, choose THW or ATK. Spider-Man
   // gets +2 to the chosen power until the end of the phase.
   "13019.spider-man-response": response(
-    on.entersPlay("self"),
+    on.youPlayThisFromHand(),
     chooseOne(
       option("THW", modifyStat("thw", 2, self, "endOfPhase")),
       option("ATK", modifyStat("atk", 2, self, "endOfPhase")),

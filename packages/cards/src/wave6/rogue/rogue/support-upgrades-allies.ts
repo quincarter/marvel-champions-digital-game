@@ -96,7 +96,7 @@ export const ROGUE_SUPPORT_UPGRADES_ALLIES = defineAbilities({
   ),
 
   "38011.karma-response": response(
-    after.youPlayThis(),
+    after.youPlayThisFromHand(),
     chooseTarget("minion", query("minion", { withoutTrait: ELITE })),
     treatAsAlly(chosen("minion"), [CONTROLLED], 2),
   ),

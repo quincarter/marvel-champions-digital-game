@@ -75,6 +75,12 @@ export interface DefeatedSnapshot {
   readonly facedown: boolean;
 }
 
+/**
+ * Where a played card was played from (`TriggerEvent cardPlayed.from`, `PlayOrigin` in `actions.ts`): its owner's hand,
+ * the top of the deck or a tuck under an as-if-in-hand permission, or a zone an effect played it from.
+ */
+export type PlayedFrom = "hand" | "deckTop" | "tucked" | "separateDeck" | "deck" | "setAside";
+
 export type TriggerEventBody =
   | {
       readonly kind: "dealDamage";
@@ -516,6 +522,13 @@ export type TriggerEventBody =
       readonly kind: "cardPlayed";
       readonly instanceId: InstanceId;
       readonly playerId: PlayerId;
+      /**
+       * Where the card was played from, and `countsAsFrom: "hand"` when the game counts it as played from the hand
+       * from elsewhere ("as if it were in your hand"; RRG 1.8 FAQ "Magik (#30A)", p. 64). Read by
+       * `EventPattern.playedFromHand`. Absent on an event built by hand: from the hand.
+       */
+      readonly from?: PlayedFrom;
+      readonly countsAsFrom?: "hand";
       readonly payment?: Vars;
       /**
        * The cards that paid for the play (`PAID_CARDS_SLOT`, docs/phase7-wave9.md §3.46 (b)), which an answering
@@ -540,6 +553,9 @@ export type TriggerEventBody =
       readonly kind: "cardBeingPlayed";
       readonly instanceId: InstanceId;
       readonly playerId: PlayerId;
+      /** As `cardPlayed.from` / `countsAsFrom`. */
+      readonly from?: PlayedFrom;
+      readonly countsAsFrom?: "hand";
       /** The cards that paid for the play, as `cardPlayed.paidCards` has them; absent when no card paid. */
       readonly paidCards?: readonly InstanceId[];
     }

@@ -152,24 +152,24 @@ export const TASKMASTER_SET = defineAbilities({
   ),
 
   // Moon Knight — Response: after you play him, spend a [wild] resource → draw 2 cards.
-  "04097.moon-knight-response": response(on.youPlayThis(), { cost: spend(1) }, draw(2)),
+  "04097.moon-knight-response": response(on.youPlayThisFromHand(), { cost: spend(1) }, draw(2)),
   // Shang-Chi — Response: after you play him, spend a [energy] resource → stun an enemy.
   "04098.shang-chi-response": response(
-    on.youPlayThis(),
+    on.youPlayThisFromHand(),
     { cost: spend({ energy: 1 }) },
     chooseTarget("enemy", query("enemy")),
     stun(chosen("enemy")),
   ),
   // White Tiger — Response: after you play her, spend a [mental] resource → remove 3 threat from a scheme.
   "04099.white-tiger-response": response(
-    on.youPlayThis(),
+    on.youPlayThisFromHand(),
     { cost: spend({ mental: 1 }) },
     chooseTarget("scheme", query("scheme")),
     removeThreat(3, chosen("scheme")),
   ),
   // Elektra — Response: after you play her, spend a [physical] resource → deal 3 damage to an enemy.
   "04100.elektra-response": response(
-    on.youPlayThis(),
+    on.youPlayThisFromHand(),
     { cost: spend({ physical: 1 }) },
     chooseTarget("enemy", query("enemy")),
     dealDamage(3, chosen("enemy")),

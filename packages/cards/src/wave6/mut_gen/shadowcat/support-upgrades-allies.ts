@@ -121,7 +121,7 @@ export const SHADOWCAT_SUPPORT_UPGRADES_ALLIES = defineAbilities({
   "32041.wolverine-response": response(on.yourTurnBegins(), heal(1, self)),
 
   "32042.magik-response": response(
-    on.youPlayThis(),
+    on.youPlayThisFromHand(),
     { cost: spend({ mental: 1 }) },
     chooseTarget(
       "minion",

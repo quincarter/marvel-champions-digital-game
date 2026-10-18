@@ -803,6 +803,8 @@ describe("Rogue's supports, upgrades, allies and resources (38003, 38004, 38010-
       const played = events.filter((e) => e.type === "cardPlayed" && e.instanceId === held.gambit);
       expect(played).toHaveLength(1);
       expect(played[0]).toMatchObject({ resourcesPaid: expect.any(Number) });
+      // "As if it was in your hand": logged from the tuck, counting as from the hand (RRG 1.8 FAQ p. 64).
+      expect(played[0]).toMatchObject({ from: "tucked", countsAsFrom: "hand" });
       expect((played[0] as { resourcesPaid: number }).resourcesPaid).toBeGreaterThanOrEqual(3);
       expect(handSize(state)).toBeLessThanOrEqual(hand - 3);
     });

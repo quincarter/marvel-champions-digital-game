@@ -1,4 +1,4 @@
-import { AOA_CARDS, AOA_STARTER_DECKS, CORE_CARDS, cardId } from "@mc/content";
+import { AOA_CARDS, AOA_STARTER_DECKS, CORE_CARDS, WAVE6_CARDS, cardId } from "@mc/content";
 import {
   applyCommand,
   createGame,
@@ -30,6 +30,7 @@ import {
 } from "../../../testing/harness.js";
 import { driveEventsPicking, withDamage } from "../../../testing/staging.js";
 import { WAVE7_ABILITIES } from "../../../wave7/index.js";
+import { STORM_SUPPORT_UPGRADES_ALLIES } from "../../../wave6/storm/storm/support-upgrades-allies.js";
 import { MAGIK_IDENTITY, MAGIK_IDENTITY_SKIPPED } from "./identity.js";
 
 vi.setConfig({ testTimeout: 120_000 });
@@ -343,5 +344,54 @@ describe("45030b.illyana-rasputin-interrupt: before she changes to hero form, a 
     );
     expect(asked).toBe(false);
     expect(playerOf(run.state, P1).identity.form).toBe("alterEgo");
+  });
+});
+
+describe("RRG 1.8 FAQ 'Magik (#30A)' (p. 64): a card she plays from her deck top counts as played from her hand", () => {
+  // The FAQ's own example: "if she plays Pixie from the top of her deck, Pixie's response can be triggered." Pixie
+  // (36017): "Response: After you play Pixie from your hand, add an X-MEN ally from your discard pile to your hand."
+  const PIXIE = "36017";
+  const PIXIE_RESPONSE = "36017.pixie-response";
+  const WITH_PIXIE: EngineDeps = { abilities: { ...DEPS.abilities, ...STORM_SUPPORT_UPGRADES_ALLIES } };
+
+  it("Pixie played from the top of the deck answers her 'from your hand' response: Colossus returns to the hand", () => {
+    const config = coreScenario("rhino", {
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 1,
+      difficulty: "standard",
+      modularSetIds: [],
+      cardPool: [...WAVE6_CARDS, ...AOA_CARDS],
+    } as never);
+    const created = createGame({ ...config, players: [MAGIK_SEAT] }, WITH_PIXIE);
+    if (!created.ok) throw new Error(created.error.message);
+    const ready = settle(created.state, firstLegal, (st) => st.step.phase === "player", WITH_PIXIE);
+    const stacked = heroOf(stackDeck(ready, LIMBO, COLOSSUS));
+    // Surgery: the top card is Pixie, and the Colossus under it is in the discard pile for her response to find.
+    const pixie = topOf(stacked);
+    const colossus = playerOf(stacked, P1).deck[1]!;
+    const relabeled = patchInstance(stacked, pixie, { cardId: cardId(PIXIE) });
+    const s: GameState = {
+      ...relabeled,
+      players: relabeled.players.map((p) =>
+        p.playerId === P1 ? { ...p, deck: p.deck.filter((id) => id !== colossus), discard: [colossus] } : p,
+      ),
+    };
+    const pick = (st: GameState): readonly string[] => {
+      const choice = st.pendingChoice!;
+      if (choice.prompt.kind === "chooseTriggers") {
+        const own = choice.options.find((o) => o.optionId.endsWith(PIXIE_RESPONSE));
+        return own ? [own.optionId] : [];
+      }
+      return firstLegal(st);
+    };
+    // Pixie costs 2, 1 less from the deck top: one card of the hand pays.
+    const played = driveEventsPicking(WITH_PIXIE, s, pick, play(P1, pixie, playerOf(s, P1).hand.slice(0, 1)));
+    expect(playerOf(played.state, P1).playArea).toContain(pixie);
+    const event = cardPlayed(played.events).find((e) => (e as { instanceId?: InstanceId }).instanceId === pixie);
+    expect(event).toMatchObject({ from: "deckTop", countsAsFrom: "hand" });
+    expect(played.events.some((e) => e.type === "abilityResolved" && String(e.abilityId) === PIXIE_RESPONSE)).toBe(
+      true,
+    );
+    expect(playerOf(played.state, P1).hand).toContain(colossus);
   });
 });

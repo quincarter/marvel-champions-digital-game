@@ -1015,11 +1015,12 @@ describe("§3.49 playing the top card of your deck as if it was in your hand", (
     expectReplays(second);
   });
 
-  it("a searched deck's card is not her top-card play: no reduction, no use of the limit, no 'from' on the log", () => {
+  it("a searched deck's card is not her top-card play: no reduction, no use of the limit, logged from the deck only", () => {
     const start = inHeroForm({ hand: [FETCH_QUEST, RESOURCE], deck: [TRIAGE, STRENGTH, CLOBBER] });
     const triage = topOf(start.state);
     const run = step(start, playHand(FETCH_QUEST), { card: TRIAGE });
-    expect(played(run.events)[1]).toEqual({ instanceId: triage, paid: 0, from: undefined, countsAsFrom: undefined });
+    // Logged where it was (`PlayOrigin`), and not counted as from the hand (RRG 1.8 FAQ "Magik (#30A)", p. 64).
+    expect(played(run.events)[1]).toEqual({ instanceId: triage, paid: 0, from: "deck", countsAsFrom: undefined });
     expect(inPlay(run.state, TRIAGE)).toBe(triage);
     expect(uses(run.events)).toEqual([]);
     expect(deckTopPermission(run.state, deps, P1)?.limitUsed).toBe(false);

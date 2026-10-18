@@ -213,6 +213,15 @@ export interface EventPattern {
    * its cost is not paid. A play with no `via` always passes; any other event kind is not read.
    */
   readonly notPlayedVia?: TargetQuery;
+  /**
+   * On `cardPlayed` and `cardBeingPlayed` only: "After you play [this card] **from your hand**" (Nova Prime 17002,
+   * Ironheart 13018, Squirrel Girl 61017; Star-Lord 17001a's "When you play a card from your hand"). The play must be
+   * from the hand, or counted as one ("as if it were in your hand": RRG 1.8 FAQ "Magik (#30A)", p. 64, "considered to
+   * have been played from her hand"; owner answer Q102 = A for Calling in Favors 61008). A card an effect plays from
+   * the deck without those words (Fetch Quest 39045, Shuri's Inventor) does not match, nor does any other event kind.
+   * An event that carries no origin is a play from the hand.
+   */
+  readonly playedFromHand?: true;
 }
 
 /**
@@ -2707,8 +2716,18 @@ export interface AbilityCost {
    */
   readonly spendCounters?: {
     readonly counterType: string;
-    /** How many; with `upTo`, the most that may be removed. */
-    readonly amount: number;
+    /**
+     * How many; with `upTo`, the most that may be removed.
+     *
+     * A `ValueSpec` is a number the board gives (hero-pack spec H3.5; 4K Digital Camcorder 61009: "choose a non-Elite
+     * minion. Remove X evidence counters from Alias Investigations, where X is equal to 2 less than that minion's
+     * remaining hit points →"). It is read when the cost is determined (RRG 1.8 "Initiating Abilities", p. 24, step 3),
+     * after the cost's own picks (`chooseTarget` and the other slots), with them bound, the payer as `you` and the
+     * ability's card as `self`; rounded down and never below 0, so an X of 0 removes nothing and is always payable
+     * while the card is there. The number is the plan's (`CostPlan.cost`), paid as read, and bound to `bind`. Not with
+     * `upTo` or `all`, and not on a `repeatable` resource ability (a use cannot be multiplied by a number not yet read).
+     */
+    readonly amount: number | ValueSpec;
     readonly target?: "self" | "identity" | TargetRef;
     /**
      * "Remove **up to** 4 growth counters from Groot →" ("We Are Groot", `gmw` 16006; docs/phase7-wave3.md §3.32): the
@@ -2960,6 +2979,24 @@ export interface AbilityCost {
    *   steps 3 and 5). `legalActions` offers one variant per candidate.
    */
   readonly healCharacter?: { readonly slot: string; readonly query: TargetQuery; readonly amount: number };
+  /**
+   * "Exhaust this card and **choose a non-Elite minion**. Remove X evidence counters …, where X is equal to 2 less than
+   * that minion's remaining hit points → discard that minion" (4K Digital Camcorder 61009; hero-pack spec H3.5;
+   * `choose-target-cost.ts`): a choice made as part of the cost, before the arrow, with nothing done to the card. The
+   * rest of the cost and the effects read it as slot `slot`.
+   *
+   * - **Candidates.** Cards in play matching `query`, read with the payer as `you` and the ability's card as `self`.
+   *   Any player's card and an enemy alike: it is the target of the ability, not a card the cost is paid with (RRG
+   *   1.8 "Cost", p. 14, names only what the cost spends). Put what the effect needs of it in `query` (RRG 1.8 "Target",
+   *   p. 43: the cost does not make a card a valid target; "Cost", p. 14: a cost cannot be paid without one).
+   * - **The pick** is made up front in `costChoices[slot]`, as every cost pick is; with exactly one candidate it is
+   *   forced and may be omitted. `legalActions` offers one variant per candidate, and `planCost` refuses any whose
+   *   other parts it cannot pay (a counter cost read off it, `spendCounters.amount` as a `ValueSpec`), so a minion with
+   *   too many hit points is no variant at all.
+   * - With no candidate the cost cannot be paid and the ability is not offered (RRG 1.8 "Initiating Abilities", p. 24,
+   *   steps 3 and 5). Only on an action: a timing window cannot ask for the pick.
+   */
+  readonly chooseTarget?: { readonly slot: string; readonly query: TargetQuery };
   /**
    * "Discard [this card] →" (Cosmic Flight, Tenacity, Energy Channel). The
    * card's counters are snapshotted into vars `self.counters.<type>` first, so

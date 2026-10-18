@@ -69,6 +69,7 @@ import { createCtx } from "./ctx.js";
 import { areaCostReductionFor } from "./effects.js";
 import { applyCommand } from "./engine.js";
 import { attachCostCard, attachCostHosts, dealDamageCostChoices } from "./attach-cost.js";
+import { chooseTargetCostChoices } from "./choose-target-cost.js";
 import { removeThreatCostChoices } from "./remove-threat-cost.js";
 import { encounterSearchCostCandidates } from "./encounter-search-cost.js";
 import { resolveAbilityCostCandidates } from "./resolve-ability-cost.js";
@@ -320,7 +321,7 @@ function counterRange(
   const counters = [cost?.spendCounters, ...(cost?.either ?? []).map((branch) => branch.spendCounters)].find(
     (component) => component?.upTo,
   );
-  if (!counters) return undefined;
+  if (!counters || typeof counters.amount !== "number") return undefined;
   const holder = counterCostHolder(state, deps, source, playerId, counters.target);
   const held = typeof holder === "string" ? (state.instances[holder]?.counters[counters.counterType] ?? 0) : 0;
   return { min: 1, max: Math.min(counters.amount, held) };
@@ -815,7 +816,14 @@ function damageChoiceSets(
   cost: AbilityCost | undefined,
   given: readonly CostChoiceSet[],
 ): readonly CostChoiceSet[] {
-  const base = healChoiceSets(state, deps, playerId, source, cost, dealToChoiceSets(state, cost, given));
+  const base = chooseTargetChoiceSets(
+    state,
+    deps,
+    playerId,
+    source,
+    cost,
+    healChoiceSets(state, deps, playerId, source, cost, dealToChoiceSets(state, cost, given)),
+  );
   // "Remove 3 threat from a scheme →" (`AbilityCost.removeThreat.choose`): one variant per card that can pay.
   const threat = cost?.removeThreat;
   const threatCards = threat?.choose ? removeThreatCostChoices(state, deps, source, playerId, threat) : [];
@@ -856,6 +864,29 @@ function healChoiceSets(
   if (candidates.length === 0) return sets;
   return sets.flatMap(({ costChoices, target }) =>
     candidates.map((card) => ({ costChoices: { ...costChoices, [heal.slot]: [card] }, target: target ?? card })),
+  );
+}
+
+/**
+ * "Choose a non-Elite minion" before the arrow (`AbilityCost.chooseTarget`, hero-pack spec H3.5): each variant once per
+ * card the payer may pick, which is the variant's target. A pick the rest of the cost cannot be paid for (a counter
+ * cost read off it) is dropped by the engine's own check (`planCost`). With no candidate the variants are left as they
+ * are, and that check refuses them, so the ability is not offered.
+ */
+function chooseTargetChoiceSets(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  source: InstanceId,
+  cost: AbilityCost | undefined,
+  sets: readonly CostChoiceSet[],
+): readonly CostChoiceSet[] {
+  const choose = cost?.chooseTarget;
+  if (!choose) return sets;
+  const candidates = chooseTargetCostChoices(state, deps, source, playerId, choose);
+  if (candidates.length === 0) return sets;
+  return sets.flatMap(({ costChoices, target }) =>
+    candidates.map((card) => ({ costChoices: { ...costChoices, [choose.slot]: [card] }, target: target ?? card })),
   );
 }
 

@@ -150,6 +150,14 @@ describe("describeCost: discardFromDeck", () => {
     expect(ifElseThreeInAlterEgo).not.toContain("[object Object]");
   });
 
+  test("a counter amount read from the board (4K Digital Camcorder, jj 61009) reads as X, never '[object Object]'", () => {
+    const camcorderLike = describeCost({
+      spendCounters: { counterType: "evidence", amount: { kind: "remainingHp", of: { kind: "slot", slot: "minion" } } },
+    });
+    expect(camcorderLike).toBe("remove X evidence counters");
+    expect(describeCost({ spendCounters: { counterType: "evidence", amount: 2 } })).toBe("remove 2 evidence counters");
+  });
+
   test("eventAmount (Shield Spell, mts 21061) has no event to size itself from here, and reads as a phrase, never '[object Object]'", () => {
     const shieldSpellLike = describeCost({ discardFromDeck: { kind: "eventAmount" } });
     expect(shieldSpellLike).not.toContain("[object Object]");

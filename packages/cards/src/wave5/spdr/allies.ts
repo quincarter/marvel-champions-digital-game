@@ -117,7 +117,7 @@ const ANOTHER_WEB_WARRIOR_CARD: TargetQuery = { ...A_WEB_WARRIOR_CARD, self: fal
  *
  * **Spider-Man / Otto Octavius (ally, 31022)** — "Play only if you control a Web-Warrior card.\nResponse: After you
  * play Spider-Man from your hand, ready an upgrade you control. If that upgrade has the Tech trait, draw 1 card."
- * `on.youPlayThis()` is "after you play [this card]" (its own docblock). "An upgrade you control" is
+ * `on.youPlayThisFromHand()` is "after you play [this card] from your hand" (its own docblock). "An upgrade you control" is
  * `chooseTarget("upgrade", query("upgrade", { controller: "you" }))`; with none in play nothing is asked
  * (`chooseTarget`'s own "with no legal target nothing is asked either way" doc) and the `ready`/`ifThen` that follow
  * are no-ops over an empty ref. "If that upgrade has the Tech trait" reads the chosen upgrade itself:
@@ -161,7 +161,7 @@ export const SPDR_ALLIES = defineAbilities({
 
   "31022.spider-man-constant": constant(playOnlyIf(exists(A_WEB_WARRIOR_CARD))),
   "31022.spider-man-response": response(
-    on.youPlayThis(),
+    on.youPlayThisFromHand(),
     chooseTarget("upgrade", query("upgrade", { controller: "you" })),
     ready(chosen("upgrade")),
     ifThen(refMatches(chosen("upgrade"), query("upgrade", { trait: TECH })), draw(1)),

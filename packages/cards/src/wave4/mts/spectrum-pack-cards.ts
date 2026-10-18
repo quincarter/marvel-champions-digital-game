@@ -84,7 +84,7 @@ export const SPECTRUM_PACK_CARDS = defineAbilities({
 
   // White Tiger (21013) — a plain Response, not a Hero Response (so it also fires in alter-ego form): After you play
   // White Tiger from your hand, draw X cards (max 3), where X is the villain's stage number, or 1 with no stage number.
-  "21013.white-tiger-response": response(on.youPlayThis(), draw(min(max(villainStageNumberOf(), 1), 3))),
+  "21013.white-tiger-response": response(on.youPlayThisFromHand(), draw(min(max(villainStageNumberOf(), 1), 3))),
 
   // Kaluu (21014) — Response: After Kaluu enters play, search the top 5 cards of your deck for an event → add it to
   // your hand. Shuffle your deck (the Brother Voodoo shape, `wave1/drs/pack-cards.ts` `09012.brother-voodoo-response`).

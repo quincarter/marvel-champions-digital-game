@@ -193,7 +193,7 @@ export const STAR_LORD_KIT = defineAbilities({
   // modifier offered while paying for the play, not as an ability resolved in the interrupt window itself
   // (docs/phase7-wave3.md §3.20, §4 Q6) — the trigger stays the printed Interrupt on `cardBeingPlayed` so the
   // client still labels it that way, but it carries no effects of its own.
-  "17001a.what-could-go-wrong": interrupt(when.youPlay({}), {
+  "17001a.what-could-go-wrong": interrupt(when.youPlay({}, { fromHand: true }), {
     cost: dealEncounterCardsCost(1),
     limit: { count: 1, period: "round" },
     playCostReduction: { amount: 3, fromHand: true },
@@ -223,7 +223,7 @@ export const STAR_LORD_KIT = defineAbilities({
 
   // Nova Prime — Response: After you play Nova Prime from your hand, defeat a non-Elite minion.
   "17002.nova-prime-response": response(
-    when.youPlayThis(),
+    when.youPlayThisFromHand(),
     chooseTarget("target", query("minion", { withoutTrait: ELITE })),
     defeat(chosen("target")),
   ),

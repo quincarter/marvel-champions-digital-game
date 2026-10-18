@@ -156,7 +156,7 @@ export const ICEMAN_ASPECT_BASIC: AbilityRegistry = defineAbilities({
   ),
 
   "46019.shadowcat-response": response(
-    after.youPlayThis(),
+    after.youPlayThisFromHand(),
     chooseTarget("scheme", query("sideScheme")),
     ...SHADOWCAT_ICONS.map((icon) =>
       applyRuleUntil({ kind: "gainsIcon", icon, target: { inSlot: "scheme" }, loses: true }, "endOfRound"),
@@ -164,7 +164,7 @@ export const ICEMAN_ASPECT_BASIC: AbilityRegistry = defineAbilities({
   ),
 
   "46020.beak-response": response(
-    after.youPlayThis(),
+    after.youPlayThisFromHand(),
     chooseTarget("scheme", query("scheme")),
     removeThreat(countOf(query("ally", { trait: X_MEN, controller: "you" })), chosen("scheme")),
   ),

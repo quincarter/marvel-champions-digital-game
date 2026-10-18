@@ -104,7 +104,7 @@ export const WINTER_SOLDIER_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbi
   ),
 
   "54003.black-widow-response": heroResponse(
-    on.youPlayThis(),
+    on.youPlayThisFromHand(),
     chooseCards("returned", zone("discard", you, { filter: query("event", { trait: ATTACK }) }), { min: 1, max: 1 }),
     moveCards(cards(chosen("returned")), "hand"),
   ),

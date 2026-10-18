@@ -77,7 +77,7 @@ const SHAPE_RESPONSE = { cost: exhaustThis };
  */
 export const HULKLING_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilities({
   "56030.wiccan-response": response(
-    after.youPlayThis(),
+    after.youPlayThisFromHand(),
     chooseCards(
       "found",
       zone(["deck", "discard"], you, { filter: query("event", ofClassification("identitySpecific")) }),

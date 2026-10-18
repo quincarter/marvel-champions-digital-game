@@ -117,7 +117,7 @@ export const PSYLOCKE_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilities
   ),
   "41002b.psi-katana-resource": heroResource({ physical: 1 }, { cost: exhaustThis }, mayFlipThis),
 
-  "41003.angel-response": response(after.youPlayThis(), ready(yourIdentity)),
+  "41003.angel-response": response(after.youPlayThisFromHand(), ready(yourIdentity)),
 
   "41008.training-regimen-action": action(
     { cost: exhaustThis },

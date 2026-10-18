@@ -72,7 +72,7 @@ export const WOLV_PRECON_PLAYER_CARDS = defineAbilities({
   ),
 
   "35014.sunfire-response": response(
-    on.youPlayThis(),
+    on.youPlayThisFromHand(),
     { cost: spend({ energy: 1 }) },
     chooseTarget("attachment", query("attachment", { abilityTiming: ["heroAction", "heroResponse"] })),
     discard(chosen("attachment")),

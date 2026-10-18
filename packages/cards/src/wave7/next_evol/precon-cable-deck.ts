@@ -165,7 +165,7 @@ export const NEXT_EVOL_PRECON_CABLE_DECK: AbilityRegistry = defineAbilities({
   ),
 
   "40016.sunspot-response": response(
-    after.youPlayThis(),
+    after.youPlayThisFromHand(),
     choosePlayer("player"),
     dealDamage(sum(varOf("paid.energy"), varOf("paid.wild")), theVillain),
     dealDamage(

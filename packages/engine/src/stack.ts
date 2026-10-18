@@ -11,7 +11,7 @@ import {
   type TypedResource,
 } from "./resources.js";
 import type { EffectSpec } from "./spec.js";
-import type { TriggerEvent } from "./trigger-events.js";
+import type { PlayedFrom, TriggerEvent } from "./trigger-events.js";
 import type { ZoneId } from "./state.js";
 
 /**
@@ -858,6 +858,12 @@ export type StackFrame =
        * `RuleSpec playDestination`; docs/phase7-wave8.md §3.34). Absent on every other play.
        */
       readonly intoScenarioPlayArea?: string;
+      /**
+       * Where the card was played from, and whether it counts as played from the hand (`PlayOrigin`; RRG 1.8 FAQ
+       * "Magik (#30A)", p. 64), carried by its `cardBeingPlayed` and `cardPlayed` trigger events. Absent (a frame built
+       * before origins were recorded): from the hand.
+       */
+      readonly playedFrom?: { readonly from: PlayedFrom; readonly countsAsFrom?: "hand" };
       /**
        * Where a played event goes once its effects have resolved, when not its owner's discard pile (`EffectSpec
        * afterResolving`; docs/phase7-wave7.md §3.68): "return that event to your hand after resolving its effects".

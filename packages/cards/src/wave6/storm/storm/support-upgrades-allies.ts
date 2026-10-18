@@ -137,7 +137,7 @@ export const STORM_SUPPORT_UPGRADES_ALLIES = defineAbilities({
   ),
 
   "36017.pixie-response": response(
-    on.youPlayThis(),
+    on.youPlayThisFromHand(),
     chooseCards("found", zone("discard", you, { filter: AN_X_MEN_ALLY }), { min: 1, max: 1 }),
     moveCards(cards(chosen("found")), "hand"),
   ),

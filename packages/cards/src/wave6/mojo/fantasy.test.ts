@@ -11,6 +11,7 @@ import {
 import { describe, expect, it } from "vitest";
 import { cardId } from "@mc/content";
 import { WAVE6_DEPS } from "../index.js";
+import { WSP_PACK_CARDS } from "../../wave2/wsp/pack-cards.js";
 import {
   firstLegal,
   identityOf,
@@ -427,6 +428,49 @@ describe("Fetch Quest (39045)", () => {
       (e, at) => at > played && e.type === "deckShuffled" && e.zone.kind === "deck" && e.zone.playerId === P2,
     );
     expect(shuffled).toBeGreaterThan(played);
+  });
+
+  it("a searched Ironheart (13018) does not answer 'after you play Ironheart from your hand' (RRG 1.8 FAQ p. 64)", () => {
+    // The play is from the deck and Fetch Quest does not say "as if it were in your hand", so it is not a play from the
+    // hand (FAQ "Magik (#30A)": only such a card "is considered to have been played from her hand").
+    const withIronheart: EngineDeps = { abilities: { ...deps.abilities, ...WSP_PACK_CARDS } };
+    const { state: base, id } = quest();
+    const ironheart = playerOf(base, P1).deck[0]!;
+    const state = patchInstance(base, ironheart, { cardId: cardId("13018") });
+    const pick: Picker = (s) => {
+      const choice = s.pendingChoice;
+      if (choice?.prompt.kind === "chooseCards" && choice.prompt.slot === "playFromHand") {
+        return choice.playerId === "p1" && choice.options.some((o) => o.optionId === ironheart) ? [ironheart] : [];
+      }
+      // Every response offered is taken, so a from-hand response that wrongly heard the play would resolve.
+      if (choice?.prompt.kind === "chooseTriggers") return choice.options.map((o) => o.optionId);
+      return firstLegal(s);
+    };
+    const thwart = (using: EngineDeps) =>
+      driveEventsPicking(using, state, pick, {
+        type: "basicThwart",
+        playerId: P1,
+        thwarterInstanceId: identityOf(state, P1),
+        schemeInstanceId: id,
+      });
+    const responded = (events: readonly GameEvent[]) =>
+      events.filter((e) => e.type === "abilityResolved" && String(e.abilityId) === "13018.ironheart-response");
+    const { state: after, events } = thwart(withIronheart);
+    expect(playerOf(after, P1).playArea).toContain(ironheart);
+    expect(of(events, "cardPlayed").find((e) => e.instanceId === ironheart)).toMatchObject({ from: "deck" });
+    expect(responded(events)).toEqual([]);
+    // Control: the same response without "from your hand" answers the play.
+    const printed = withIronheart.abilities["13018.ironheart-response"]!;
+    const anyPlay: EngineDeps = {
+      abilities: {
+        ...withIronheart.abilities,
+        "13018.ironheart-response": {
+          ...printed,
+          trigger: { kind: "response", forced: false, on: { on: "cardPlayed", selfIs: "target" } },
+        },
+      },
+    };
+    expect(responded(thwart(anyPlay).events)).toHaveLength(1);
   });
 
   it("[star] Boost: put this card into play (it starts with its threat)", () => {

@@ -14,7 +14,7 @@ import {
   type Vars,
 } from "../stack.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { additionalPlayCostOf } from "../actions.js";
+import { additionalPlayCostOf, type PlayOrigin } from "../actions.js";
 import {
   endUntilCardPlayedEffects,
   expireCardResolutionEffects,
@@ -29,6 +29,12 @@ import { enterPlay, playerSideSchemeEntersPlay, schemeEntryThreat } from "./ente
 import { placeInScenarioPlayArea } from "./game-areas.js";
 import { abilityFrame, announce, base, pushEffects, type Frame, pushEvent } from "./frames.js";
 import { heard } from "./triggers.js";
+
+/** The play's origin as its trigger events carry it (`TriggerEvent cardPlayed.from` / `countsAsFrom`). */
+const playedFromOf = (frame: Frame<"playCard">): Pick<PlayOrigin, "from" | "countsAsFrom"> => ({
+  from: frame.playedFrom?.from ?? "hand",
+  ...(frame.playedFrom?.countsAsFrom ? { countsAsFrom: frame.playedFrom.countsAsFrom } : {}),
+});
 
 export function pushPlayCardFrame(
   ctx: Ctx,
@@ -49,6 +55,8 @@ export function pushPlayCardFrame(
   controllerId: PlayerId = playerId,
   /** `playCard.into`: the in-play scenario area the card is played into (docs/phase7-wave8.md §3.34). */
   intoScenarioPlayArea?: string,
+  /** Where the card was played from (`PlayOrigin`, `playOriginOf`); absent, from the hand. */
+  playedFrom: PlayOrigin = { from: "hand" },
 ): void {
   pushFrames(ctx, [
     {
@@ -58,6 +66,7 @@ export function pushPlayCardFrame(
       playerId,
       controllerId,
       ...(intoScenarioPlayArea !== undefined ? { intoScenarioPlayArea } : {}),
+      playedFrom,
       attachToInstanceId,
       stage: "enterPlay",
       triggeredAbilityId: triggered?.triggeredAbilityId ?? null,
@@ -190,6 +199,7 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
         kind: "cardBeingPlayed",
         instanceId: frame.instanceId,
         playerId: frame.playerId,
+        ...playedFromOf(frame),
         ...(paidCards && paidCards.length > 0 ? { paidCards } : {}),
       };
       if (heard(ctx.state, ctx.deps, beingPlayed)) pushEvent(ctx, beingPlayed);
@@ -280,6 +290,7 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
         kind: "cardPlayed",
         instanceId: frame.instanceId,
         playerId: frame.playerId,
+        ...playedFromOf(frame),
         ...(Object.keys(payment).length > 0 ? { payment } : {}),
         ...(paidCards && paidCards.length > 0 ? { paidCards } : {}),
         ...(via !== undefined ? { via } : {}),

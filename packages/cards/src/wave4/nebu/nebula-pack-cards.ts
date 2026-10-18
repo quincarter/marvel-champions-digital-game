@@ -75,7 +75,7 @@ export const NEBULA_PACK_CARDS = defineAbilities({
   // fewer minions exist than resources spent, the errata'd repeated choice can only ever re-confuse one already
   // chosen, which changes nothing.
   "22011.eros-response": response(
-    on.youPlayThis(),
+    on.youPlayThisFromHand(),
     chooseTarget("minions", query("minion"), { count: varOf("paid.mental"), upTo: true }),
     confuse(chosen("minions")),
   ),

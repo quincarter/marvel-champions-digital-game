@@ -2217,10 +2217,26 @@ const counterCostTarget = (opts: {
  */
 export const removeCounter = (
   counterType: string,
-  n = 1,
-  opts: { readonly fromIdentity?: boolean; readonly from?: TargetRef } = {},
+  n: Amount = 1,
+  opts: { readonly fromIdentity?: boolean; readonly from?: TargetRef; readonly bind?: string } = {},
 ): AbilityCost => ({
-  spendCounters: { counterType, amount: n, ...counterCostTarget(opts) },
+  spendCounters: {
+    counterType,
+    amount: typeof n === "number" ? n : amount(n),
+    ...counterCostTarget(opts),
+    ...(opts.bind ? { bind: opts.bind } : {}),
+  },
+});
+/**
+ * "Choose a non-Elite minion" as part of a cost (4K Digital Camcorder 61009; hero-pack spec H3.5;
+ * `AbilityCost.chooseTarget`): the payer picks one card in play matching `q`, any player's or an enemy, and nothing is
+ * done to it; the rest of the cost and the effects name it as `chosen(slot)`. Put what the effect needs of the pick in
+ * `q` (RRG 1.8 "Target", p. 43). Combine it with a counter cost read off it, `removeCounter(type, X, { from })` where
+ * X is a value naming `chosen(slot)` (read after the pick, never below 0), and a minion X is too large for is no
+ * legal pick. Only on an action.
+ */
+export const chooseTargetCost = (q: TargetQuery, slot = "costTarget"): AbilityCost => ({
+  chooseTarget: { slot, query: q },
 });
 /** "Take N damage →" (your identity). */
 /**
@@ -3091,10 +3107,23 @@ export const on = {
   /** "After you play [this card]" — playing, not merely putting into play. */
   youPlayThis: (): EventPattern => pattern("cardPlayed", { selfIs: "target" }),
   /**
+   * "After you play [this card] **from your hand**" (Nova Prime 17002, Ironheart 13018, Squirrel Girl 61017): a play
+   * from the hand, or one counted as one ("as if it were in your hand": Calling in Favors 61008, Med Lab 38028; RRG 1.8
+   * FAQ "Magik (#30A)", p. 64). A card an effect plays from the deck without those words (Fetch Quest 39045) does not
+   * answer it, nor does a card put into play (`EventPattern.playedFromHand`).
+   */
+  youPlayThisFromHand: (): EventPattern => pattern("cardPlayed", { selfIs: "target", playedFromHand: true }),
+  /**
    * "Interrupt: When you play [an X card]" (Superhuman Agility, 04031a) — the point of playing, before it resolves
    * (`cardBeingPlayed`, interruptible unlike `cardPlayed`/`cardEntersPlay`). `what` filters which played card.
+   * `fromHand`: "When you play a card **from your hand**" (Star-Lord 17001a), as `youPlayThisFromHand`.
    */
-  youPlay: (what: TargetQuery): EventPattern => pattern("cardBeingPlayed", { targetIs: what, playerIs: "controller" }),
+  youPlay: (what: TargetQuery, opts: { readonly fromHand?: boolean } = {}): EventPattern =>
+    pattern("cardBeingPlayed", {
+      targetIs: what,
+      playerIs: "controller",
+      ...(opts.fromHand ? { playedFromHand: true as const } : {}),
+    }),
   /**
    * "After you play an [X] card" (Morphogenetics, `msm` 05001a; Finesse/Precision, Gamora's own identity, `gam`
    * 18001a) — the response twin of `youPlay`: `cardPlayed`, announced once the play has resolved, rather than

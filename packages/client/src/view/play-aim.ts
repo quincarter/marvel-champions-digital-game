@@ -25,7 +25,8 @@ import { cardName } from "./names.js";
 
 /**
  * The cost-choice slot a cost's pick is sent in: an attach host, a chosen hand card, a card whose cost is paid, the
- * character a cost deals its damage to (Rogue 48012, `dealDamage.choose`) or heals (`healCharacter`), or the card whose Special a cost resolves
+ * character a cost deals its damage to (Rogue 48012, `dealDamage.choose`) or heals (`healCharacter`), the card a cost
+ * chooses (4K Digital Camcorder 61009, `chooseTarget`), or the card whose Special a cost resolves
  * (the [SETTING] environment, `resolveAbility.choose`). Picks among cards in play that pay a cost (Teleport Drop's Bamf!,
  * Mutant Mayhem's two returned allies) are not here: they are several cards over one or more slots, asked by
  * `in-play-cost-choice.ts`.
@@ -37,6 +38,7 @@ export function costPickSlot(cost: AbilityCost | undefined): string | null {
     cost?.payPrintedCostOf?.slot ??
     cost?.dealDamage?.choose?.slot ??
     cost?.healCharacter?.slot ??
+    cost?.chooseTarget?.slot ??
     cost?.resolveAbility?.choose ??
     null
   );

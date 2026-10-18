@@ -2973,11 +2973,19 @@ export const playFromDeckIgnoringCost = (
 export const playFromDeckReducingCost = (
   n: Amount,
   player: PlayerRef = you,
-  opts: { readonly filter?: TargetQuery; readonly optional?: boolean } = {},
+  opts: {
+    readonly filter?: TargetQuery;
+    readonly optional?: boolean;
+    /**
+     * "Play it as if it were in your hand" (Calling in Favors 61008; hero-pack spec H3.16, owner answer Q102 = A): the
+     * same play, logged `cardPlayed` `from: "deck", countsAsFrom: "hand"`.
+     */
+    readonly asIfInHand?: boolean;
+  } = {},
 ): EffectSpec => ({
   kind: "playFromHand",
   player,
-  from: "deck",
+  from: opts.asIfInHand ? { deck: "search", asIfInHand: true } : "deck",
   costReduction: amount(n),
   ...(opts.filter ? { filter: opts.filter } : {}),
   ...(opts.optional ? { optional: true } : {}),
@@ -3029,8 +3037,9 @@ export const playFromSeparateDeck = (
     readonly optional?: boolean;
     readonly player?: PlayerRef;
     /**
-     * "As if it were in your hand" (60001a): a log marker only, `cardPlayed.countsAsFrom: "hand"`; a "from hand" cost
-     * reduction cannot reach an effect's play today (unreachable, not ruled).
+     * "As if it were in your hand" (60001a): counted as played from the hand, `cardPlayed.countsAsFrom: "hand"`, so a
+     * "from your hand" response answers it; a "from hand" cost reduction cannot reach an effect's play today
+     * (unreachable, not ruled).
      */
     readonly asIfInHand?: boolean;
   } = {},

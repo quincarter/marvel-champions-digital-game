@@ -3642,16 +3642,28 @@ export type EffectSpec =
        * which is a search, so the deck is shuffled once this step completes (RRG 1.8 "Search", p. 39) unless it is
        * a `fixedOrder` deck (§3.1), whose order holds. It is a play (RRG 1.8 "Play, Put Into Play", p. 32): cost,
        * form, max and unique apply and it counts as played. The log's `cardPlayed` carries `from: "separateDeck"`.
-       * `asIfInHand` (opt-in, for text that says "as if it were in your hand"): a log marker only, `cardPlayed`
-       * `countsAsFrom: "hand"` (RRG 1.8 FAQ "Magik (#30A)", p. 64: "considered to have been played from her hand";
-       * hero-pack spec Q102 default). Nothing else reads it: a cost reduction limited to cards played from hand
-       * (`playCostReduction.fromHand`) cannot reach an effect's play today, so whether one should is unreachable,
-       * not ruled.
+       * `asIfInHand` (opt-in, for text that says "as if it were in your hand"): `cardPlayed` `countsAsFrom: "hand"`
+       * (RRG 1.8 FAQ "Magik (#30A)", p. 64: "considered to have been played from her hand"; hero-pack spec Q102 = A),
+       * so "after you play [this card] from your hand" answers it (`EventPattern.playedFromHand`). A cost reduction
+       * limited to cards played from hand (`playCostReduction.fromHand`) cannot reach an effect's play today, so
+       * whether one should is unreachable, not ruled.
+       *
+       * **Played from the hand.** A play from the set-aside area or from a tuck an effect names counts as one (every
+       * such card prints "as if it were in your hand"); one from `"deck"` or a separate deck does not unless marked
+       * `asIfInHand` (`PlayOrigin`, `actions.ts`). RRG 1.8 FAQ "Magik (#30A)", p. 64.
+       *
+       * `{ deck: "search", asIfInHand: true }`: `"deck"` for text that says "as if it were in your hand" ("search your
+       * deck for an ally and play it as if it were in your hand, reducing its resource cost by 2", Calling in Favors
+       * 61008; hero-pack spec H3.16). The same search, play and shuffle; the log's `cardPlayed` carries `from: "deck",
+       * countsAsFrom: "hand"` (owner answer Q102 = A, 2026-10-18, by analogy with RRG 1.8 FAQ "Magik (#30A)", p. 64).
+       * So an "after you play [this card] from your hand" response (`EventPattern.playedFromHand`) answers it, as it
+       * does not answer the plain `"deck"` play.
        */
       readonly from?:
         | "hand"
         | "setAside"
         | "deck"
+        | { readonly deck: "search"; readonly asIfInHand: true }
         | { readonly tuckedUnder: TargetRef }
         | { readonly separateDeck: string; readonly position: "top" | "any"; readonly asIfInHand?: true };
       /**

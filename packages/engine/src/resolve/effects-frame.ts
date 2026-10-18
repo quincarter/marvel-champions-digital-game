@@ -16,6 +16,7 @@ import {
   hostChoicesForEffectPlay,
   hostForEffectPlay,
   isSeparateDeckPlayFrom,
+  searchesOwnDeck,
   paymentOptions,
   paymentsFromOptionIds,
   announceResourcesSpent,
@@ -682,7 +683,7 @@ function executePlayFromHand(
   // A play from any card of a separate deck searches it too, and is shuffled the same way: `shuffleSeparateDeck`
   // leaves a fixed-order deck as it is (docs/phase7-wave11.md §3.1, §3.2). Playing its top card is no search.
   const searchedSeparate = isSeparateDeckPlayFrom(from) && from.position === "any" ? from.separateDeck : null;
-  const searched = (from === "deck" || searchedSeparate !== null) && playerId !== undefined;
+  const searched = (searchesOwnDeck(from) || searchedSeparate !== null) && playerId !== undefined;
   const finish = (): void => {
     if (!searched) return done();
     setFrame(ctx, { ...frame, answer: null, vars: { ...vars, "_play.shuffle": 1 }, bindings });
