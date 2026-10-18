@@ -589,6 +589,22 @@ describe("Gambit's events (37006-37009, 37014, 37015, 37019-37021, 37031)", () =
       expect(playerOf(after, P1).hand).toHaveLength(handBefore);
     });
 
+    // FFG ruling May 22, 2023 - Ruling 9, answers 3 and 4; RRG 1.8 "Target" (p. 42): with no X-MEN ally in the discard
+    // pile and no X-Mansion in play, no sentence can resolve, so the event cannot be played.
+    it("X-Men Instruction with nothing to resolve (no X-MEN ally in the discard pile, no X-Mansion in play) cannot be played", () => {
+      const hand = staged(conjured(remy(), X_MEN_INSTRUCTION), X_MEN_INSTRUCTION, 0);
+      // Staging sanity: nothing X-MEN in the discard pile, X-Mansion not in play.
+      expect(discardPile(hand.state).filter((code) => code === "37011")).toEqual([]);
+      expect(rejected(hand.state, hand.command)).toBe(true);
+    });
+
+    // Same script shape as X-Men Instruction (same ruling): with no identity-specific card in the discard pile and no
+    // X-Mansion in play, neither sentence can resolve, so the event cannot be played.
+    it("Mutant Education with nothing to resolve (no identity-specific card in the discard pile, no X-Mansion) cannot be played", () => {
+      const hand = staged(remy(), MUTANT_EDUCATION, 0);
+      expect(rejected(hand.state, hand.command)).toBe(true);
+    });
+
     it("both are Alter-Ego Actions needing a MUTANT identity: refused in Gambit's hero form (THIEF, X-MEN) and for Spider-Man", () => {
       for (const code of [MUTANT_EDUCATION, X_MEN_INSTRUCTION]) {
         const hand = staged(conjured(hero(), code), code, 0);

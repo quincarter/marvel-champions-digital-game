@@ -331,3 +331,30 @@ describe("For Whom the Bell Tolls (27083)", () => {
     expect(inst(revealed, tower).counters["chime"]).toBe(0);
   });
 });
+
+// Conflict inside RRG 1.8 itself. "Damage" (p. 14) orders the dealing and taking of damage as "1. Abilities that
+// trigger 'when [character] would deal/be dealt any amount of damage...' 2. Tough status cards. 3. Abilities that
+// trigger 'when [character] would take any amount of damage...'". The Appendix IV FAQ (p. 57) says instead: "Status
+// cards have priority over all triggered abilities, like interrupts, so the tough status card must be discarded to
+// prevent all of the damage before any other abilities could trigger" (and "Status Cards", p. 41: "Status card
+// abilities have timing priority over all conflicting triggered abilities"). FFG rulings July 20, 2023 - Rulings 55
+// and 56 (post-RRG 1.5; https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-5/) side with p. 14: "Interrupts that
+// prevent damage dealt resolve before Tough is discarded". They predate v1.8, and v1.8 still prints both texts, so the
+// conflict stays open. The engine follows p. 14 (upstream #181, audit finding 17), and this test pins that behaviour.
+describe("Damage order, step 1 before step 2 (RRG 1.8 'Damage', p. 14; conflicts with the Appendix IV FAQ, p. 57)", () => {
+  // Fixed upstream in #181, audit finding 17 (wouldBeDealt: "would be dealt", then tough, then "would be taken").
+  it("a 'would be dealt damage' forced interrupt (Bell Tower, Ringing) resolves before the hero's Tough status card is used", () => {
+    const state = venomGame();
+    const identity = identityOf(state);
+    const tower = towerOf(state);
+    // Ringing with 5 chime counters; the hero holds a Tough status card; Venom's activation attacks (2 ATK, 0-icon boost).
+    const ringing = patchInstance(patchInstance(state, tower, { flipped: true, counters: { chime: 5 } }), identity, {
+      statuses: { ...inst(state, identity).statuses, tough: 1 },
+    });
+    const stacked = stackEncounterDeck(ringing, "01186");
+    const after = settle(runWave5(stacked, toHero(P1), endTurn(P1)), firstLegal, undefined, WAVE5_DEPS);
+    // Step 1: the interrupt removes 2 chime counters and prevents all of the damage dealt, so Tough is never needed.
+    expect(inst(after, tower).counters["chime"]).toBe(3);
+    expect(inst(after, identity).statuses.tough).toBe(1);
+  });
+});

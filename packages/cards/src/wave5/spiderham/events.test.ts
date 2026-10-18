@@ -260,3 +260,26 @@ describe("Spider-Ham's events (30003-30007, 30014-30017)", () => {
     expect(playerOf(state, P1).hand.length).toBe(handBefore + 3);
   });
 });
+
+// RRG 1.8 "Choose (Option)" (p. 12): "When a player card requires a player to choose an option, they cannot choose an
+// option that cannot be at least partially resolved. This includes options that ... Require one or more targets and
+// there are no valid targets." With a side scheme in play and no minion, only the threat option may be offered.
+describe("Hogwashed (30004): RRG 1.8 'Choose (Option)' (p. 12), an option with no valid target cannot be chosen", () => {
+  it("with a side scheme but no minion in play, only the 'Remove 5 threat' option is offered", () => {
+    const start = runWave5(startWave5Game(spiderHamScenario("rhino", { seed: 1 })), toHero(P1));
+    const identity = identityOf(start, P1);
+    const withToon = patchInstance(start, identity, { counters: { ...inst(start, identity).counters, toon: 1 } });
+    const { state: staged } = encounterCardInVillainArea(withToon, "01107", 8); // Breakin' & Takin', a side scheme.
+    const offered: string[][] = [];
+    const pick: Picker = (s) => {
+      const choice = s.pendingChoice;
+      if (choice?.prompt.kind === "chooseOption") offered.push(choice.options.map((o) => o.label ?? ""));
+      return firstLegal(s);
+    };
+    playFromHand(staged, "30004", 1, pick);
+    // No minion is in play, so a prompt, if any, must not list the damage option.
+    for (const labels of offered) expect(labels).not.toContain("Deal 5 damage to a minion");
+    // The prompt is either skipped (one option left) or lists only the threat option; it is never asked with both.
+    expect(offered.flat()).not.toContain("Deal 5 damage to a minion");
+  });
+});

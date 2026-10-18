@@ -10,11 +10,13 @@ import {
   P1,
   patchInstance,
   picking,
+  playerOf,
   runWith,
   settle,
   stackEncounterDeck,
   use,
 } from "../../../testing/harness.js";
+import { tuckBySurgery } from "../../../wave6/mut_gen/project-wideawake-testing.js";
 import { revealFromEncounterDeck, runWave5, startWave5Game, WAVE5_DEPS } from "../../testing.js";
 import { ghostSpiderScenario, ghostSpiderScenarioWithExtras } from "./support.js";
 
@@ -146,5 +148,30 @@ describe("Ghost-Spider's obligation and nemesis set (Worried Father, Regenerativ
       // "Until after that attack resolves": the restriction is gone with the attack.
       expect(after.lastingEffects.some((e) => e.kind === "ruleGrant" && e.rule.kind === "cannotPlay")).toBe(false);
     });
+  });
+});
+
+// FFG ruling May 10, 2024 - Ruling 180 (1): when the search fails the obligation stays in play, and its Alter-Ego
+// Action then adds George Stacy to hand "from wherever it currently is" (same as the Lost Visor obligation). RRG 1.8 is
+// silent.
+describe("Worried Father (27025) when the search finds George Stacy nowhere (ruling May 10, 2024, Ruling 180)", () => {
+  it("the Alter-Ego Action adds George Stacy to hand although the search found him nowhere", () => {
+    const base = ghostSpiderVsRhino(2);
+    const [stacy] = instancesOf(base, "27007") as [InstanceId];
+    // Stacy sits tucked under the main scheme (like Seized! / Stolen Memories): outside deck, hand, discard, play area.
+    const tucked = tuckBySurgery(base, base.mainScheme.instanceId, [stacy]);
+    const staged = stackEncounterDeck(tucked, ADVANCE, "27025");
+    const revealed = settle(runWave5(staged, endTurn(P1)), firstLegal, undefined, WAVE5_DEPS);
+    const [obligation] = instancesOf(revealed, "27025") as [InstanceId];
+    expect(cardsInPlay(revealed)).toContain(obligation); // setup check: the obligation stays, nothing attached
+    expect(inst(revealed, obligation).attachments).toEqual([]);
+    const after = settle(
+      runWave5(revealed, use(P1, obligation, "27025.worried-father-action")),
+      firstLegal,
+      undefined,
+      WAVE5_DEPS,
+    );
+    expect(inst(after, identityOf(after)).exhausted).toBe(true); // setup check: the action ran
+    expect(playerOf(after, P1).hand).toContain(stacy);
   });
 });

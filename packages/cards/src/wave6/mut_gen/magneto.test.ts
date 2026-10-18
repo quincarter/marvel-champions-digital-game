@@ -1,4 +1,6 @@
 import {
+  activeEncounterDeck,
+  activeEncounterDeckId,
   activeVillain,
   applyCommand,
   cardsInPlay,
@@ -9,6 +11,7 @@ import {
   type GameState,
   type InstanceId,
 } from "@mc/engine";
+import { cardId } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import { addCounters, confuse, stun, theMainScheme, theVillain, whenRevealed } from "../../dsl/index.js";
 import { MAGNETO_ABILITIES } from "./magneto.js";
@@ -17,9 +20,12 @@ import {
   firstLegal,
   identityOf,
   inst,
+  moveToHand,
   P1,
   P2,
   patchInstance,
+  payWith,
+  play,
   playerOf,
   runWith,
   settle,
@@ -28,6 +34,7 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
+import { DEPS, rhino } from "../../testing/qa-bench.js";
 import {
   defeatWithAttack,
   driveEventsPicking,
@@ -1032,5 +1039,87 @@ describe("Seized! (32158)", () => {
     expect(of(events, "attackResolved")).toHaveLength(1);
     for (const id of top6) expect(playerOf(state, P1).discard).toContain(id);
     expect(inPlay(state, "32158")).toEqual([]);
+  });
+});
+
+/*
+ * FFG ruling February 15, 2024 - Ruling 145 (post-RRG 1.5; Hall of Heroes, "Latest FFG Rulings (post-RRG 1.5)",
+ * https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-5/):
+ * "If a Steady Magneto has 1 confused status card on him when Magneto's Helmet attaches to him, the confused status
+ * card remains on him unless he gains Stalwart." RRG 1.8 agrees: "Confuse, Confused" (p. 13) says only that
+ * "confused status cards cannot be placed on that character", and "Status Cards" (p. 41) lists no rule that removes a
+ * status card already held. RRG 1.8 "Stalwart" (p. 40) removes held stunned and confused cards only when a character
+ * gains the stalwart keyword. The engine (`clearForbiddenStatuses`, `resolve/state-checks.ts`) sheds the held card as
+ * soon as the helmet applies.
+ */
+describe("'Cannot be confused' stops new status cards only (FFG ruling Feb 15, 2024 #145; RRG 1.8 'Confuse', p. 13)", () => {
+  it.fails("Magneto's Helmet (32147) attaching to a confused Magneto leaves the confused status card on him", () => {
+    const base = runWith(WAVE6_DEPS, magnetoGame(), toHero(P1));
+    const magneto = base.activeVillainId!;
+    const confused = patchInstance(base, magneto, { statuses: { ...inst(base, magneto).statuses, confused: 1 } });
+    const armed = attachToHost(confused, "32147", magneto).state;
+    // Any command runs the state checks; a player's basic attack does not touch the villain's confused card.
+    const identity = identityOf(armed);
+    const after = runWith(WAVE6_DEPS, patchInstance(armed, identity, { exhausted: false }), {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: identity,
+      targetInstanceId: magneto,
+    });
+    expect(inst(after, magneto).statuses.confused).toBe(1);
+  });
+});
+
+// RRG 1.8 p. 57 FAQ: constant effects have priority over status cards, which have priority over triggered abilities
+// (interrupts); p. 14 "Damage" puts "would take" interrupts at step 3. FFG rulings June 6, 2024 - Rulings 205 and 206:
+// Titanium Exoskeleton (cap 2) and Boarding Party (sustained cap) reduce the damage taken first, then Magnetic Bubble
+// places what is left.
+describe("Constant damage limits come before 'would take' interrupts (rulings June 6, 2024, Rulings 205 and 206)", () => {
+  it.fails("Boarding Party's remaining allowance (3) is what Magnetic Bubble receives, not the full 8", () => {
+    const base = withoutDealtCards(finish(run(magnetoGame(), toHero(P1)), firstLegal));
+    const v = base.villains[0]!.instanceId;
+    const armed = attachToHost(base, "32149", v);
+    const hurt = patchInstance(armed.state, v, {
+      damage: 3,
+      statuses: { ...inst(armed.state, v).statuses, tough: 0 },
+    });
+    const kick = moveToHand(hurt, P1, "01005"); // Swinging Web Kick, 8 damage
+    const result = driveEventsPicking(
+      WAVE6_DEPS,
+      kick.state,
+      firstLegal,
+      play(P1, kick.ids[0]!, payWith(kick.state, P1, 3, kick.ids)),
+    );
+    const placed = result.events.filter((e) => e.type === "damagePlaced").map((e) => (e as { amount: number }).amount);
+    expect(placed).toEqual([3]); // actual: [8], and the Bubble is discarded
+  });
+
+  it.fails("Titanium Exoskeleton's cap (2) is what Magnetic Bubble receives from an 8-damage attack", () => {
+    let s = rhino();
+    const v = s.activeVillainId as InstanceId;
+    s = patchInstance(s, v, { statuses: { ...inst(s, v).statuses, tough: 0 } });
+    const attach = (state: GameState, code: string, from: number) => {
+      const pile = activeEncounterDeck(state);
+      const id = pile.deck[from]!;
+      const next: GameState = {
+        ...patchInstance(state, id, { cardId: cardId(code), faceup: true, attachedTo: v }),
+        encounterDecks: {
+          ...state.encounterDecks,
+          [activeEncounterDeckId(state)]: { deck: pile.deck.filter((i) => i !== id), discard: pile.discard },
+        },
+      };
+      return { state: patchInstance(next, v, { attachments: [...inst(next, v).attachments, id] }), id };
+    };
+    s = attach(s, "40091", 26).state;
+    s = attach(s, "32149", 25).state;
+    const kick = moveToHand(s, P1, "01005");
+    const result = driveEventsPicking(
+      DEPS,
+      kick.state,
+      firstLegal,
+      play(P1, kick.ids[0]!, payWith(kick.state, P1, 3, kick.ids)),
+    );
+    const placed = result.events.filter((e) => e.type === "damagePlaced").map((e) => (e as { amount: number }).amount);
+    expect(placed).toEqual([2]); // actual: [8]
   });
 });

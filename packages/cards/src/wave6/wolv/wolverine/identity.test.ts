@@ -1,5 +1,6 @@
 import { cardId } from "@mc/content";
 import {
+  activeEncounterDeck,
   cardsInPlay,
   legalActions,
   replay,
@@ -12,6 +13,7 @@ import {
 import { describe, expect, it } from "vitest";
 import { validateDefinition } from "../../../dsl/validate.js";
 import {
+  endTurn,
   firstLegal,
   identityOf,
   inst,
@@ -27,6 +29,7 @@ import {
   use,
   type Picker,
 } from "../../../testing/harness.js";
+import { drive as qaDrive, intoPlay, rhino } from "../../../testing/qa-bench.js";
 import { withForm } from "../../../testing/staging.js";
 import { WAVE6_DEPS } from "../../index.js";
 import { engageMinion } from "../../mut_gen/project-wideawake-testing.js";
@@ -295,5 +298,42 @@ describe("Wolverine / Logan (35001a/b)", () => {
       expect(claws?.targets).toContain(strike);
       expect(claws?.targets).not.toContain(healing);
     });
+  });
+});
+
+/** Beetle (24043) engaged with P1, relabelled from the top encounter card and taken out of the deck. */
+function beetleEngaged(state: GameState): GameState {
+  const spare = activeEncounterDeck(state).deck[0]!;
+  const relabelled = patchInstance(state, spare, { cardId: cardId("24043") });
+  const s: GameState = {
+    ...relabelled,
+    encounterDecks: Object.fromEntries(
+      Object.entries(state.encounterDecks).map(([k, v]) => [k, { ...v, deck: v.deck.filter((i) => i !== spare) }]),
+    ),
+    players: state.players.map((p) => (p.playerId === P1 ? { ...p, playArea: [...p.playArea, spare] } : p)),
+  };
+  return { ...s, instances: { ...s.instances, [spare]: { ...s.instances[spare]!, faceup: true, engagedWith: P1 } } };
+}
+
+// RRG 1.8 "Permanent" (p. 32): "Permanent cards are not valid targets for card effects that would cause the permanent
+// card to leave play. If a permanent card would be targeted by such an effect (for example, "discard the lowest-cost
+// support you control"), that effect instead targets the non-permanent card that fits its criteria." Beetle (hood 24043)
+// "After Beetle attacks and damages you, discard the lowest-cost upgrade you control" is scripted
+// (`wave4/hood/sinister-syndicate.ts`) as a `superlative` over every upgrade you control, then a pick from that slot:
+// Wolverine's Claws (35002, Permanent, cost 0) is the lowest, the discard is stopped, and the choice "found nothing".
+describe("Wolverine's Claws (35002, Permanent): 'the lowest-cost upgrade you control' targets the non-permanent upgrade", () => {
+  it.fails("Claws (cost 0, Permanent) and Spider-Tracer (cost 1): Beetle's discard takes the Spider-Tracer", () => {
+    let s = beetleEngaged(rhino());
+    s = patchInstance(s, s.mainScheme.instanceId, { threat: 0 });
+    const claws = intoPlay(s, "35002", {}, 2);
+    const tracer = intoPlay(claws.state, "01007", {}, 3);
+    const done = qaDrive(tracer.state, endTurn(P1));
+    // Beetle's forced response resolved (it attacked and damaged P1) ...
+    expect(
+      done.events.some((e) => e.type === "abilityResolved" && String(e.abilityId) === "24043.beetle-forced-response"),
+    ).toBe(true);
+    // ... Claws cannot leave play, so the Spider-Tracer is the card that fits the criteria.
+    expect(playerOf(done.state, P1).playArea).toContain(claws.id);
+    expect(playerOf(done.state, P1).discard).toContain(tracer.id);
   });
 });

@@ -356,6 +356,20 @@ describe("Rogue's events (38005-38009)", () => {
       expect(inst(run.state, rogueId(run.state)).damage).toBe(1);
       expect(inst(run.state, rogueId(run.state)).exhausted).toBe(false);
     });
+
+    // FFG ruling 182 (post-RRG 1.5), May 10, 2024, Alex: "Rogue's Energy Transfer, can this target the character that
+    // Touched is already attached to? ... No. Energy Transfer's ability cost requires Rogue to attach Touched to a
+    // character, and an upgrade can't attach to a character it's already attached to." RRG 1.8 p. 68-69 (erratum:
+    // "Find Touched and attach it to a character other than Rogue ...") does not reverse it.
+    it("cannot name the character Touched is already attached to (ruling 182, May 10, 2024)", () => {
+      const minion = withMinion(rogue());
+      const onMinion = touchOnto(minion.state, minion.id); // Skin Contact puts Touched on the minion.
+      expect(inst(onMinion, touchedOf(onMinion)).attachedTo).toBe(minion.id); // setup check
+      const given = moveToHand(onMinion, P1, ENERGY_TRANSFER);
+      const [id] = given.ids as [InstanceId];
+      const naming = play(P1, id, payWith(given.state, P1, 2, [id]), { costChoices: { host: [minion.id] } });
+      expect(rejected(given.state, naming)).toBe(true);
+    });
   });
 
   describe("Bulletproof Belle (38008): when an enemy with Touched attacks, prevent all damage and gain tough", () => {

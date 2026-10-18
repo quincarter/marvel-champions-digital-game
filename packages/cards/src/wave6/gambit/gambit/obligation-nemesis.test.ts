@@ -25,7 +25,7 @@ import {
   use,
   type Picker,
 } from "../../../testing/harness.js";
-import { encounterCardInVillainArea, stackSetAside, withForm } from "../../../testing/staging.js";
+import { driveEventsPicking, encounterCardInVillainArea, stackSetAside, withForm } from "../../../testing/staging.js";
 import { WAVE6_DEPS } from "../../index.js";
 import { handWith } from "../../mut_gen/project-wideawake-testing.js";
 import { GAMBIT_OBLIGATION_NEMESIS } from "./obligation-nemesis.js";
@@ -448,5 +448,26 @@ describe("Gambit's obligation and nemesis set (37025-37029)", () => {
       const hit = events.find((e) => e.type === "attackResolved");
       expect(hit && hit.type === "attackResolved" && hit.targetInstanceId).toBe(identityOf(state, P2));
     });
+  });
+});
+
+// FFG ruling May 23, 2024 - Ruling 194: Belladonna's quickstrike attack resolves only after all of Shadow of the Past
+// has resolved, so the nemesis side scheme is in play first. RRG 1.8 p. 38 "Reveal": responses to any step of a reveal
+// wait until all steps are done.
+describe("Shadow of the Past (01190) and Belladonna's Quickstrike (ruling May 23, 2024, Ruling 194)", () => {
+  it.fails("the nemesis side scheme enters play before Belladonna's attack resolves", () => {
+    const g0 = withForm(gambitGame(), { heroForm: 0 });
+    const v = g0.villains[0]!.instanceId;
+    const base = patchInstance(g0, v, { statuses: { ...inst(g0, v).statuses, stunned: 1 } });
+    const run = driveEventsPicking(WAVE6_DEPS, stackEncounterDeck(base, "01190"), firstLegal, endTurn(P1));
+    const code = (id: InstanceId) => run.state.instances[id]?.cardId as string | undefined;
+    const idx = (test: (e: GameEvent) => boolean) => run.events.findIndex(test);
+    const attack = idx((e) => e.type === "attackResolved" && code(e.enemyInstanceId) === "37026");
+    const scheme = idx(
+      (e) => e.type === "cardMoved" && code(e.instanceId) === "37027" && JSON.stringify(e.to).includes("villainArea"),
+    );
+    expect(attack).toBeGreaterThanOrEqual(0);
+    expect(scheme).toBeGreaterThanOrEqual(0);
+    expect(scheme).toBeLessThan(attack);
   });
 });

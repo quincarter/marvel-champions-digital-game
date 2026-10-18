@@ -165,6 +165,30 @@ describe("Common Criminal (27131)", () => {
     // No "draw 1 card or remove threat" choice fired, so the hand is down only the resource spent to pay.
     expect(playerOf(resolved, P1).hand.length).toBe(before - 1);
   });
+
+  // RRG 1.8 "Choose (Option)" (p. 12): a player card's option that requires a target with no valid target cannot be
+  // chosen. With no side scheme in play, only "Draw 1 card" may be offered.
+  it("27131.common-criminal-constant: with no side scheme in play, 'Remove 3 threat from a side scheme' is not offered", () => {
+    const placed = engagedMinion(game(), "27131");
+    const paid = moveToHand(placed.state, P1, "27022"); // Strength: a [physical] resource.
+    const [strength] = paid.ids;
+    const offered: string[] = [];
+    const pick: Picker = (s) => {
+      const choice = s.pendingChoice;
+      if (choice?.prompt.kind === "chooseOption") offered.push(...choice.options.map((o) => o.label ?? ""));
+      return firstLegal(s);
+    };
+    const handBefore = playerOf(paid.state, P1).hand.length;
+    const after = settle(
+      runWave5(paid.state, use(P1, placed.id, "27131.common-criminal-constant", [{ fromHand: strength! }])),
+      pick,
+      undefined,
+      WAVE5_DEPS,
+    );
+    expect(offered).not.toContain("Remove 3 threat from a side scheme");
+    // The one option left resolves without asking: the card is drawn.
+    expect(playerOf(after, P1).hand.length).toBe(handBefore);
+  });
 });
 
 describe("Volunteer Work (27133)", () => {

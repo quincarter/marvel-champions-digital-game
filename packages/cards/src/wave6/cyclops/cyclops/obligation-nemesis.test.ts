@@ -1,4 +1,12 @@
-import { activeVillain, applyCommand, canAttack, cardsInPlay, type GameEvent, type GameState } from "@mc/engine";
+import {
+  activeVillain,
+  applyCommand,
+  canAttack,
+  cardsInPlay,
+  type GameEvent,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { validateDefinition } from "../../../dsl/validate.js";
 import {
@@ -14,6 +22,7 @@ import {
   runWith,
   settle,
   stackEncounterDeck,
+  use,
   type Picker,
 } from "../../../testing/harness.js";
 import {
@@ -25,6 +34,7 @@ import {
   withForm,
 } from "../../../testing/staging.js";
 import { WAVE6_DEPS } from "../../index.js";
+import { tuckBySurgery } from "../../mut_gen/project-wideawake-testing.js";
 import { CYCLOPS_OBLIGATION_NEMESIS } from "./obligation-nemesis.js";
 import { cyclopsGame } from "./support.js";
 
@@ -123,6 +133,29 @@ describe("Cyclops's obligation and nemesis set (33027-33031)", () => {
       );
       expect(result.ok).toBe(false);
       expect(cardsInPlay(tired)).toContain(id);
+    });
+
+    // FFG ruling May 10, 2024 - Ruling 180 (1): when the search fails the obligation stays in play, and its Alter-Ego
+    // Action then adds the card to hand "from wherever it currently is" (same as the Worried Father obligation). RRG
+    // 1.8 is silent.
+    it("33027.lost-visor-action: adds Ruby Quartz Visor to hand although the search found it nowhere (ruling May 10, 2024, Ruling 180)", () => {
+      const given = moveToHand(cyclopsGame(), P1, VISOR);
+      const [visor] = given.ids as [InstanceId];
+      // The visor sits tucked under the main scheme: outside deck, hand, discard and play area.
+      const tucked = tuckBySurgery(given.state, given.state.mainScheme.instanceId, [visor]);
+      const staged = stackEncounterDeck(tucked, ADVANCE, "33027");
+      const revealed = pass(staged);
+      const [obligation] = instancesOf(revealed, "33027") as [InstanceId];
+      expect(cardsInPlay(revealed)).toContain(obligation); // setup check: the obligation stays, nothing tucked
+      expect(inst(revealed, obligation).tucked).toEqual([]);
+      const after = settle(
+        runWith(WAVE6_DEPS, revealed, use(P1, obligation, "33027.lost-visor-action")),
+        firstLegal,
+        undefined,
+        WAVE6_DEPS,
+      );
+      expect(inst(after, hero(after)).exhausted).toBe(true); // setup check: the action ran
+      expect(playerOf(after, P1).hand).toContain(visor);
     });
   });
 

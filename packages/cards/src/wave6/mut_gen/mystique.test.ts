@@ -290,6 +290,24 @@ describe("Shapeshifter Surprise (32083)", () => {
     const { events } = driveEventsPicking(deps, withSeven, picking, { type: "endTurn", playerId: P1 });
     expect(movesOf(events, id).map((e) => e.to.kind)).toEqual(["encounterDiscard"]);
   });
+
+  // FFG ruling 69.94 (August 14, 2025, Alex, post-RRG 1.6): "cards are drawn one at a time, so if you draw Shapeshifter
+  // Surprise when drawing up to your hand size, you immediately resolve it before finishing drawing cards." RRG 1.8
+  // "Hand Size" (p. 21) agrees that the end-of-phase draw checks the hand size "after each card is drawn".
+  // Engine: `drawUpTo` (`engine/src/effects.ts`) loops `drawOne` to the end and the forced response is announced afterwards.
+  it.fails("its Forced Response resolves before the second card is drawn (ruling Aug 14, 2025, 69.94)", () => {
+    const withMystique = engageMinion(heroGame(), MYSTIQUE, P1);
+    const staged = onTopOfPlayerDeck(emptyHand(withMystique.state), SURPRISE, P1);
+    const result = driveEventsPicking(deps, staged.state, firstLegal, { type: "endTurn", playerId: P1 });
+    const events: readonly GameEvent[] = result.events;
+    const drawn = events.flatMap((e, i) => (e.type === "cardDrawn" ? [i] : []));
+    const resolved = events.findIndex(
+      (e) => e.type === "abilityResolved" && e.abilityId === "32083.shapeshifter-surprise-forced-response",
+    );
+    expect(drawn.length).toBeGreaterThan(1);
+    expect(resolved, "the forced response resolved").toBeGreaterThan(-1);
+    expect(resolved).toBeLessThan(drawn[1]!);
+  });
 });
 
 describe("Metamorphic Mayhem (32081)", () => {

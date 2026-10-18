@@ -1,4 +1,4 @@
-import { activeVillain, type EngineDeps, type GameState, type InstanceId } from "@mc/engine";
+import { activeVillain, cardsInPlay, type EngineDeps, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { constant, rule } from "../../../dsl/abilities.js";
 import { validateDefinition } from "../../../dsl/validate.js";
@@ -6,6 +6,7 @@ import {
   firstLegal,
   identityOf,
   inst,
+  instancesOf,
   mainThreat,
   moveToHand,
   P1,
@@ -16,8 +17,9 @@ import {
   runWith,
   settle,
   type Picker,
+  use,
 } from "../../../testing/harness.js";
-import { withForm } from "../../../testing/staging.js";
+import { driveEventsPicking, withForm } from "../../../testing/staging.js";
 import { WAVE6_DEPS } from "../../index.js";
 import { engageMinion } from "../../mut_gen/project-wideawake-testing.js";
 import { WOLVERINE_EVENTS } from "./events.js";
@@ -233,6 +235,37 @@ describe("Wolverine events (35008-35012)", () => {
       const state = staged();
       const after = cast(state, "35009", 3);
       expect(inst(after, villainOf(state)).damage).toBe(6);
+    });
+
+    // FFG ruling May 16, 2024 - Ruling 190: unstunned, "only the first attack gains piercing". FAQ "Dance of Death (#4)"
+    // (RRG 1.8 p. 59) makes each damage effect of an unlabeled multi-damage event its own attack; "that attack" (Claws)
+    // is the first one.
+    it.fails("through Wolverine's Claws, the second attack does not pierce a tough status card", () => {
+      let state = withForm(wolverineGame(), { heroForm: 0 });
+      const villain = state.villains[0]!.instanceId;
+      state = patchInstance(state, villain, { statuses: { ...inst(state, villain).statuses, tough: 1 } });
+      const minion = engageMinion(state, "01101", P1);
+      state = minion.state;
+      const given = moveToHand(state, P1, "35009");
+      const claws = instancesOf(given.state, "35002")[0]!;
+      let asked = 0;
+      const pick: Picker = (st) => {
+        if (st.pendingChoice?.prompt.kind === "chooseTarget") {
+          asked++;
+          const want = asked === 1 ? minion.id : villain;
+          if (st.pendingChoice.options.some((o) => o.optionId === want)) return [want];
+        }
+        return firstLegal(st);
+      };
+      const run = driveEventsPicking(
+        WAVE6_DEPS,
+        given.state,
+        pick,
+        use(P1, claws, "35002.wolverines-claws-action", [], { event: [given.ids[0]!] }),
+      );
+      expect(!cardsInPlay(run.state).includes(minion.id)).toBe(true); // setup check: the first attack hit the minion
+      expect(inst(run.state, villain).statuses.tough).toBe(0);
+      expect(inst(run.state, villain).damage).toBe(0); // tough absorbed the non-piercing second attack
     });
   });
 
