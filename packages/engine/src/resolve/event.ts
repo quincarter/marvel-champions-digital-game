@@ -478,6 +478,8 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       for (const effect of [...eachTimeEffectsFor(ctx.state, ctx.deps, event)].reverse()) {
         pushEffects(ctx, { effects: effect.effects, ...effect.scope, event, eventFrameId: frame.frameId });
       }
+      // "At the end of this attack" resolves before the attack's step 6 responses, "after … defends" included.
+      pushDelayedEndEffects(ctx, frame.frameId, event);
       return;
     }
     case "done": {
@@ -531,6 +533,25 @@ function pushEndEffects(ctx: Ctx, frame: Frame<"event">): boolean {
     pushEffects(ctx, { ...deferred, event, eventFrameId: null });
   }
   return true;
+}
+
+/**
+ * Pushes the `delayed` "at the end of this attack" effects held on the activation frame `frameId`, first held
+ * resolving first, on top of its step 6 response window, and drops them from its `endEffects`. RRG 1.8 "Delayed
+ * Effect" (p. 16): a delayed effect resolves "immediately after" its timing point "and before responses to that point",
+ * with the timing priority of a constant effect (p. 5), and the attack's step 6 abilities trigger as it "finishes
+ * resolving" (p. 9), "after … defends" ones included (p. 16: they "resolve after that attack ends"). FFG ruling Sep 26,
+ * 2024 (post-RRG 1.6 #12) confirms it for the pair it was asked about: Riposte's delayed damage lands before the
+ * Electrostatic Armor response's. The engine resolved every held effect after that window until #238. Effects queued
+ * behind the activation (not `delayed`) still wait for it (`pushEndEffects`, ruling Feb 28, 2026 (1) answer 2).
+ */
+function pushDelayedEndEffects(ctx: Ctx, frameId: FrameId, event: TriggerEvent): void {
+  const frame = findFrame(ctx.state, frameId);
+  if (frame?.kind !== "event") return;
+  const delayed = frame.endEffects.filter((deferred) => deferred.delayed);
+  if (delayed.length === 0) return;
+  setFrame(ctx, { ...frame, endEffects: frame.endEffects.filter((deferred) => !deferred.delayed) });
+  for (const deferred of [...delayed].reverse()) pushEffects(ctx, { ...deferred, event, eventFrameId: null });
 }
 
 /**

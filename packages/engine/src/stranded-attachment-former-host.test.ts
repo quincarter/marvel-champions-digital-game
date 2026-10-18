@@ -1,8 +1,9 @@
 /**
  * `TriggerEvent cardLeavesPlay.strandedAttachments` (docs/phase7-wave8.md §3.61): a permanent player card attached to an
- * encounter card stays in play, unattached, when its host leaves (RRG 1.8 "Permanent", p. 32; "Attach To", p. 8), and
- * the leaving is still "attached [card] leaves play" to it. Synthetic cards shaped like "Permanent. Forced Response:
- * After attached enemy leaves play, set this card aside."
+ * encounter card whose own text answers its host leaving stays in play, unattached, when its host leaves, and the
+ * leaving is still "attached [card] leaves play" to it. Synthetic cards shaped like Frostbite's "Permanent. Forced
+ * Response: After attached enemy leaves play, set this card aside." One with no such text is removed from the game, or
+ * moved by its "attach to" text (RRG 1.8 "Permanent", p. 32; `removedWithoutHost` in `effects.ts`).
  *
  * The leaving card's snapshot lists the attachments that stay; `hostOfSelf` and `TargetRef host` read that event's card
  * as the host of each of them while it is unattached.
@@ -33,8 +34,13 @@ const CHILL = stubUpgrade({
   keywords: [{ name: "permanent" }],
   abilities: [CHILL_RESPONSE.ref],
 });
-// Permanent with no ability: it stays unattached in its controller's play area.
+// Permanent with no ability and no "attach to" text: removed from the game when its host leaves.
 const BADGE = stubUpgrade({ id: "badge", cost: 0, keywords: [{ name: "permanent" }] });
+// "Permanent. Attach to a minion." with no ability: moved to another minion when its host leaves, if there is one.
+const CLAMP = {
+  ...stubUpgrade({ id: "clamp", cost: 0, keywords: [{ name: "permanent" }] }),
+  attachesTo: { kind: "minion" },
+} as const;
 const THUG = stubMinion({ id: "thug", atk: 1, sch: 1, hp: 3 });
 const GOON = stubMinion({ id: "goon", atk: 1, sch: 1, hp: 3 });
 
@@ -46,12 +52,13 @@ const attach = (card: string, host: string) =>
   event(`attach-${card}-${host}`, [{ kind: "attach", card: named(card), to: named(host) }]);
 const CHILL_ON_THUG = attach("chill", "thug");
 const BADGE_ON_THUG = attach("badge", "thug");
+const CLAMP_ON_THUG = attach("clamp", "thug");
 const DEFEAT_THUG = event("defeat-thug", [{ kind: "defeat", target: named("thug") }]);
 const DEFEAT_GOON = event("defeat-goon", [{ kind: "defeat", target: named("goon") }]);
 const BOUNCE_THUG = event("bounce-thug", [
   { kind: "moveCards", cards: { kind: "ref", ref: named("thug") }, to: "encounterDeckShuffle" },
 ]);
-const EVENTS = [CHILL_ON_THUG, BADGE_ON_THUG, DEFEAT_THUG, DEFEAT_GOON, BOUNCE_THUG];
+const EVENTS = [CHILL_ON_THUG, BADGE_ON_THUG, CLAMP_ON_THUG, DEFEAT_THUG, DEFEAT_GOON, BOUNCE_THUG];
 
 const deps: EngineDeps = depsOf(CHILL_RESPONSE, ...EVENTS.map((e) => e.ability));
 
@@ -59,21 +66,24 @@ interface Table {
   readonly state: GameState;
   readonly chill: InstanceId;
   readonly badge: InstanceId;
+  readonly clamp: InstanceId;
   readonly thug: InstanceId;
+  readonly goon: InstanceId;
 }
 
 function start(): Table {
   const state = gameAtFirstTurn({
-    cards: [CHILL, BADGE, THUG, GOON, ...EVENTS.map((e) => e.card)],
+    cards: [CHILL, BADGE, CLAMP, THUG, GOON, ...EVENTS.map((e) => e.card)],
     deps,
     encounter: [...copiesOf(TREACHERY.id, 28), THUG.id, GOON.id],
-    deck: [CHILL.id, BADGE.id, ...EVENTS.map((e) => e.card.id)],
+    deck: [CHILL.id, BADGE.id, CLAMP.id, ...EVENTS.map((e) => e.card.id)],
   });
   const chill = playerCardIntoPlay(state, CHILL.id);
   const badge = playerCardIntoPlay(chill.state, BADGE.id);
-  const thug = minionEngagedWith(badge.state, THUG.id);
+  const clamp = playerCardIntoPlay(badge.state, CLAMP.id);
+  const thug = minionEngagedWith(clamp.state, THUG.id);
   const goon = minionEngagedWith(thug.state, GOON.id);
-  return { state: goon.state, chill: chill.id, badge: badge.id, thug: thug.id };
+  return { state: goon.state, chill: chill.id, badge: badge.id, clamp: clamp.id, thug: thug.id, goon: goon.id };
 }
 
 const play = (state: GameState, ...cards: readonly { readonly card: { readonly id: string } }[]) => {
@@ -108,17 +118,17 @@ describe("a permanent attachment answers its former host leaving play", () => {
     const after = play(table.state, DEFEAT_GOON);
     expect(mustPlayer(after.state, P1).playArea).toContain(table.chill);
     expect(mustPlayer(after.state, P1).setAside).not.toContain(table.chill);
-    // Nor a later leaving, once it was stranded by an earlier one that nothing answered for it.
-    const stranded = play(table.state, BADGE_ON_THUG, DEFEAT_THUG, DEFEAT_GOON).state;
-    expect(mustPlayer(stranded, P1).playArea).toContain(table.badge);
-    expect(mustPlayer(stranded, P1).playArea).toContain(table.chill);
+    // Nor a later leaving of a card it was never attached to.
+    const later = play(table.state, BADGE_ON_THUG, DEFEAT_THUG, DEFEAT_GOON).state;
+    expect(later.removedFromGame).toContain(table.badge);
+    expect(mustPlayer(later, P1).playArea).toContain(table.chill);
   });
 
-  it("a permanent attachment with no such ability stays in its controller's play area, as before", () => {
+  it("beside it on the same host, a permanent attachment with no such ability is removed from the game", () => {
     const table = start();
     const after = play(table.state, BADGE_ON_THUG, CHILL_ON_THUG, DEFEAT_THUG).state;
-    expect(mustPlayer(after, P1).playArea).toContain(table.badge);
-    expect(mustInstance(after, table.badge).attachedTo).toBeNull();
+    expect(mustPlayer(after, P1).playArea).not.toContain(table.badge);
+    expect(after.removedFromGame).toContain(table.badge);
     expect(mustPlayer(after, P1).setAside).toContain(table.chill);
   });
 
@@ -135,19 +145,32 @@ describe("a permanent attachment answers its former host leaving play", () => {
 /**
  * RRG 1.8 "Permanent" (p. 32): "If the card to which a permanent attachment was attached leaves play, resolve that
  * attachment's "attach to" text. If it has none or that text does not have a valid target, remove the attachment from
- * the game." The test above ("stays in its controller's play area, as before") pins what the engine does today
- * (`effects.ts` `strandedAttachmentsOf`). A permanent upgrade has no "attach to" text, so the RRG has it removed from
- * the game when its host is defeated.
+ * the game." Before #238 the engine left such a card unattached in its controller's play area.
  */
-describe("a permanent attachment with no 'attach to' text whose host leaves play is removed from the game (RRG 1.8 p. 32)", () => {
-  it.fails("a permanent upgrade attached to a minion that is then defeated is removed from the game", () => {
+describe("a permanent attachment whose host leaves play resolves its 'attach to' text or is removed from the game (RRG 1.8 p. 32)", () => {
+  it("a permanent upgrade with no 'attach to' text attached to a minion that is then defeated is removed from the game", () => {
     const table = start();
     const attached = play(table.state, BADGE_ON_THUG).state;
     expect(attached.instances[table.badge]?.attachedTo).toBe(table.thug);
     const after = play(attached, DEFEAT_THUG).state;
     expect(mustPlayer(after, P1).playArea).not.toContain(table.thug);
-    // The card must be out of play and removed from the game, not left loose in the play area.
     expect(mustPlayer(after, P1).playArea).not.toContain(table.badge);
     expect(after.removedFromGame).toContain(table.badge);
+  });
+
+  it("one whose 'attach to' text has a valid target moves there without leaving play", () => {
+    const table = start();
+    const attached = play(table.state, CLAMP_ON_THUG).state;
+    expect(mustInstance(attached, table.clamp).attachedTo).toBe(table.thug);
+    const after = play(attached, DEFEAT_THUG).state;
+    expect(mustInstance(after, table.clamp).attachedTo).toBe(table.goon);
+    expect(after.removedFromGame).not.toContain(table.clamp);
+  });
+
+  it("one whose 'attach to' text has no valid target left is removed from the game", () => {
+    const table = start();
+    const after = play(table.state, DEFEAT_GOON, CLAMP_ON_THUG, DEFEAT_THUG).state;
+    expect(mustPlayer(after, P1).playArea).not.toContain(table.clamp);
+    expect(after.removedFromGame).toContain(table.clamp);
   });
 });

@@ -256,13 +256,21 @@ export function permanentRehostFor(
   deps: EngineDeps,
   id: InstanceId,
   leavingHostId: InstanceId | null,
+  playerCards = false,
 ): InstanceId | null {
   const instance = getInstance(state, id);
-  if (!instance || instance.ownerId !== null || instance.controllerId !== null) return null;
+  if (!instance) return null;
+  const owned = instance.ownerId !== null || instance.controllerId !== null;
   const card = state.cardPool[instance.cardId];
-  if (card?.type !== "attachment" || card.attachesTo === undefined) return null;
+  // `playerCards`: a player's permanent upgrade whose host leaves play resolves its printed "attach to" too (RRG 1.8
+  // "Permanent", p. 32; #238). Player elimination does not pass it: that player's cards leave the game with them.
+  if (owned && !playerCards) return null;
+  if ((card?.type !== "upgrade" && card?.type !== "attachment") || card.type !== (owned ? "upgrade" : "attachment"))
+    return null;
+  if (card.attachesTo === undefined) return null;
   if (isFacedownAttachment(state, id) || !isPermanent(state, id, deps)) return null;
-  const context = { selfInstanceId: id, controllerId: null, event: null, bindings: {}, deps };
+  const controllerId = instance.controllerId ?? instance.ownerId;
+  const context = { selfInstanceId: id, controllerId, event: null, bindings: {}, deps };
   const [host] = attachmentHostCandidates(state, card.attachesTo, context).filter(
     (candidate) => candidate !== leavingHostId && candidate !== id && canAttachTo(state, deps, id, candidate),
   );
@@ -275,8 +283,13 @@ export function permanentRehostFor(
  * is announced (`cardAttached`), so "After Cap's Shield is attached to Captain America, give him a tough status
  * card" answers it. Returns whether it moved; false leaves the card where it was, for the caller's fallback.
  */
-export function rehostPermanentAttachment(ctx: Ctx, id: InstanceId, leavingHostId: InstanceId | null): boolean {
-  const host = permanentRehostFor(ctx.state, ctx.deps, id, leavingHostId);
+export function rehostPermanentAttachment(
+  ctx: Ctx,
+  id: InstanceId,
+  leavingHostId: InstanceId | null,
+  playerCards = false,
+): boolean {
+  const host = permanentRehostFor(ctx.state, ctx.deps, id, leavingHostId, playerCards);
   if (host === null) return false;
   const from = getInstance(ctx.state, id)?.attachedTo ?? null;
   const events = attachCardBy(ctx, id, host, null);

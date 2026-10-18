@@ -173,12 +173,13 @@ describe("a main scheme that advances discards each card attached to the old sta
     expect(scheme(state).threat).toBe(1);
   });
 
-  it("a permanent player card is unattached in play rather than discarded (RRG 1.8 pp. 8, 32)", () => {
+  // "If it has none or that text does not have a valid target, remove the attachment from the game" (#238).
+  it("a permanent player card with no 'attach to' text is removed from the game rather than discarded (RRG 1.8 pp. 8, 32)", () => {
     const at = table(PERMANENT_BUG);
     const { state } = play(at.state, ADVANCE);
     expect(scheme(state).attachments).toEqual([]);
-    expect(mustInstance(state, at.bug).attachedTo).toBeNull();
-    expect(mustPlayer(state, P1).playArea).toContain(at.bug);
+    expect(state.removedFromGame).toContain(at.bug);
+    expect(mustPlayer(state, P1).playArea).not.toContain(at.bug);
     expect(mustPlayer(state, P1).discard).not.toContain(at.bug);
     expect(encounterDiscard(state)).toContain(at.ward);
   });

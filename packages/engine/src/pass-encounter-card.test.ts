@@ -617,7 +617,7 @@ describe("§3.75 tests 1 to 5: the gang in play and a minion schemes in step two
     expectReplays(session);
   });
 
-  it("test 5: a permanent player upgrade on the minion is unattached, not discarded, and the minion is dealt and passed", () => {
+  it("test 5: a permanent player upgrade on the minion is removed from the game, not discarded, and the minion is dealt and passed", () => {
     const start = gangInPlay(game(2));
     const thug = the(start, THUG);
     const frost = the(start, FROST, p2);
@@ -628,14 +628,16 @@ describe("§3.75 tests 1 to 5: the gang in play and a minion schemes in step two
     expect(typed(events, "encounterCardPassed")).toEqual([
       { type: "encounterCardPassed", instanceId: thug, fromPlayerId: p1, toPlayerId: p2 },
     ]);
-    // RRG p. 32: the permanent copy does not leave play with its host. It is unattached in its owner's play area.
-    expect(mustInstance(state, frost).attachedTo).toBeNull();
-    expect(mustPlayer(state, p2).playArea).toContain(frost);
+    // RRG 1.8 "Permanent" (p. 32): the permanent copy is not discarded with its host. It has no "attach to" text, so it
+    // is removed from the game (#238).
+    expect(state.removedFromGame).toContain(frost);
+    expect(mustPlayer(state, p2).playArea).not.toContain(frost);
     expect(mustPlayer(state, p2).discard).not.toContain(frost);
-    expect(movesOf(events, frost)).toEqual([{ from: { kind: "attachment", hostInstanceId: thug }, to: inPlayOf(p2) }]);
+    expect(movesOf(events, frost)).toEqual([
+      { from: { kind: "attachment", hostInstanceId: thug }, to: { kind: "removedFromGame" } },
+    ]);
     // The thug, revealed by player 2 in step four, is a new card with nothing attached.
     expect(mustInstance(state, thug)).toMatchObject({ faceup: true, engagedWith: p2 });
-    expect(state.instances[frost]!.attachedTo).toBeNull();
     // 1 from the acceleration icon and 1 from his scheme.
     expect(mainThreat(state)).toBe(2);
     expect(defeatsOf(events)).toEqual([]);

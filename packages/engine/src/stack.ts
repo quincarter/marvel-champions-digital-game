@@ -140,6 +140,13 @@ export interface DeferredEffects {
   readonly controllerId: PlayerId | null;
   readonly bindings: Bindings;
   readonly vars: Vars;
+  /**
+   * An "at the end of this attack" delayed effect (`atEndOfAttack`): it resolves as the attack finishes, before the
+   * attack's step 6 responses (RRG 1.8 "Delayed Effect", p. 16; `pushDelayedEndEffects`). Unset for an effect queued
+   * behind the activation (an "after this activation ends" effect, or an activation queued behind this one), which
+   * waits for those responses.
+   */
+  readonly delayed?: true;
 }
 
 /**
@@ -203,7 +210,10 @@ export type StackFrame =
       /** Cards the event's results name (`damaged`, `target`), reported as slots like `vars`. */
       readonly slots: Bindings;
       readonly reportTo: ReportTarget | null;
-      /** "At the end of this attack" effects, run after the response window. */
+      /**
+       * Effects held for the end of this activation. The `delayed` ones ("at the end of this attack") run before its
+       * step 6 response window, the rest after it.
+       */
       readonly endEffects: readonly DeferredEffects[];
       /**
        * An enemy activation or attack that began and then ended before resolving: its enemy left play (RRG 1.8

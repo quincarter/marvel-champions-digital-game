@@ -1,7 +1,7 @@
 import type { CardId, VillainSideLetter } from "@mc/content";
 import { shownCardId } from "./hidden-reverse.js";
 import { announceDeckTops } from "./deck-top.js";
-import type { EngineDeps } from "./abilities.js";
+import type { EngineDeps, EventPattern } from "./abilities.js";
 import { ALL_PURPOSE_COUNTER, ANY_COUNTER, anyCounterTake, definedCounterTypeOrNull } from "./counter-types.js";
 import { counterRoom } from "./counter-limit.js";
 import type { EncounterDeckId, FrameId, InstanceId, PlayerId } from "./ids.js";
@@ -46,6 +46,7 @@ import {
   type LeavePatch,
   type LeaveRequest,
   type TriggerEvent,
+  type TriggerEventKind,
   type TuckHostKind,
 } from "./trigger-events.js";
 import { nextInt, shuffle } from "./rng.js";
@@ -69,6 +70,7 @@ import { flipSeparatedCard, separatedFlipWaits } from "./separated-identity.js";
 import { describeFrame, type StackFrame } from "./stack.js";
 import { releaseTreatedBy } from "./treat-as.js";
 import {
+  activeAbilityRefs,
   cardsInPlay,
   controllerOf,
   deckDiscardsSlot,
@@ -1362,16 +1364,20 @@ export function discardAtOnce(ctx: Ctx, id: InstanceId): void {
  * - one that can leave play is discarded with its host (`discardAtOnce`);
  * - a permanent or "cannot leave play" one stays in play (`staysInPlayWithoutHost`): a player card is unattached into
  *   its controller's play area (§3.30); a permanent encounter attachment resolves its "attach to" text again and
- *   moves to that host (`rehostPermanentAttachment`, docs/phase7-wave10.md §3.19; MC56 p. 20); an unowned permanent
- *   encounter card with no such host is discarded past the keyword (§4.2 Q26), through `leaveNow` itself rather than
- *   `leavePlayAtOnce`. The host leaving is a game rule with no source card, so Permanent's own-set exception (§4.1
- *   Q46) never applies here.
+ *   moves to that host (`rehostPermanentAttachment`, docs/phase7-wave10.md §3.19; MC56 p. 20), and so does a
+ *   player's permanent upgrade that prints one; an unowned permanent encounter card with no such host is discarded
+ *   past the keyword (§4.2 Q26), through `leaveNow` itself rather than `leavePlayAtOnce`; a player's permanent card
+ *   with no such host is removed from the game (`removedWithoutHost`), unless its own text answers its host leaving.
+ *   The host leaving is a game rule with no source card, so Permanent's own-set exception (§4.1 Q46) never applies
+ *   here.
  */
 export function discardWithLeavingHost(ctx: Ctx, id: InstanceId): void {
   if (leavingCancelled(ctx.state, id)) unattachInPlay(ctx, id);
   else if (!staysInPlayWithoutHost(ctx, id)) discardAtOnce(ctx, id);
-  else if (rehostPermanentAttachment(ctx, id, getInstance(ctx.state, id)?.attachedTo ?? null)) return;
+  else if (rehostPermanentAttachment(ctx, id, getInstance(ctx.state, id)?.attachedTo ?? null, true)) return;
   else if (discardedWithoutHost(ctx, id)) leaveNow(ctx, id, discardZoneFor(ctx.state, id), "top", true, true);
+  else if (removedWithoutHost(ctx.state, ctx.deps, id))
+    leaveNow(ctx, id, { kind: "removedFromGame" }, "top", false, true);
   else unattachInPlay(ctx, id);
 }
 
@@ -1510,7 +1516,45 @@ function strandedAttachmentsOf(state: GameState, deps: EngineDeps, hostId: Insta
     const attachment = getInstance(state, id);
     if (!attachment || isFacedownAttachment(state, id) || !staysWithoutHost(state, deps, id)) return false;
     const unowned = playerCardOwnerOf(state, id) === null && attachment.controllerId === null;
-    return !unowned || cannotLeavePlay(state, deps, id, undefined, true);
+    if (unowned) return cannotLeavePlay(state, deps, id, undefined, true);
+    return permanentRehostFor(state, deps, id, hostId, true) === null && !removedWithoutHost(state, deps, id);
+  });
+}
+
+/**
+ * A player's permanent attachment whose host leaves play and whose "attach to" text names no other legal host
+ * (`permanentRehostFor`): removed from the game. RRG 1.8 "Permanent" (p. 32): "If the card to which a permanent
+ * attachment was attached leaves play, resolve that attachment's 'attach to' text. If it has none or that text does
+ * not have a valid target, remove the attachment from the game." Before #238 the engine left it unattached in its
+ * controller's play area (docs/phase7-wave5.md §3.30).
+ *
+ * Not a card whose own text answers its host leaving (`answersHostLeaving`): Frostbite (`iceman` 46002, "Forced
+ * Response: After attached enemy … leaves play, set this card aside") and Wrist Navigator (`sm` 27189a, "When the
+ * attached card is defeated, draw 1 card. (Return this card to your play area.)"). Card text takes precedence over the
+ * Rules Reference where they contradict (RRG 1.8 "The Golden Rules", p. 4), and removing either card at once would
+ * leave its printed ability nothing to do, so it stays unattached in play for that ability (engine interpretation, no
+ * ruling covers either card). "Cannot leave play" stays absolute (RRG 1.8 "'Cannot'", p. 11). An unowned permanent
+ * encounter attachment keeps its own fallback (`discardedWithoutHost`).
+ */
+function removedWithoutHost(state: GameState, deps: EngineDeps, id: InstanceId): boolean {
+  const instance = getInstance(state, id);
+  if (!instance || !isPermanent(state, id, deps) || cannotLeavePlay(state, deps, id, undefined, true)) return false;
+  if (playerCardOwnerOf(state, id) === null && instance.controllerId === null) return false;
+  return !answersHostLeaving(state, deps, id);
+}
+
+const HOST_LEAVING: readonly TriggerEventKind[] = ["cardLeavesPlay", "characterDefeated", "schemeDefeated"];
+
+/** Whether one of the card's abilities is an interrupt or response to the card it is attached to leaving play. */
+function answersHostLeaving(state: GameState, deps: EngineDeps, id: InstanceId): boolean {
+  const hears = (pattern: EventPattern): boolean => {
+    const kinds: readonly TriggerEventKind[] = typeof pattern.on === "string" ? [pattern.on] : pattern.on;
+    if (pattern.targetIs?.hostOfSelf === true && kinds.some((kind) => HOST_LEAVING.includes(kind))) return true;
+    return (pattern.anyOf ?? []).some(hears);
+  };
+  return activeAbilityRefs(state, id, deps).some((ref) => {
+    const trigger = deps.abilities[ref.id]?.trigger;
+    return (trigger?.kind === "interrupt" || trigger?.kind === "response") && hears(trigger.on);
   });
 }
 
@@ -1820,7 +1864,8 @@ export function leavingWithHost(
     if (how === "defeat" && !blocked && hasKeyword(ctx.state, attachment, "victory", ctx.deps)) to = "victoryDisplay";
     else if (how === "flip") to = blocked ? null : discarded();
     // A permanent encounter attachment that goes to the host its "attach to" names does not leave play (§3.19).
-    else if (blocked && permanentRehostFor(ctx.state, ctx.deps, attachment, hostId) !== null) to = null;
+    else if (blocked && permanentRehostFor(ctx.state, ctx.deps, attachment, hostId, true) !== null) to = null;
+    else if (blocked && removedWithoutHost(ctx.state, ctx.deps, attachment)) to = "removedFromGame";
     else to = !blocked || discardedWithoutHost(ctx, attachment) ? discarded() : null;
     if (to === null) continue;
     const event: TriggerEvent = {

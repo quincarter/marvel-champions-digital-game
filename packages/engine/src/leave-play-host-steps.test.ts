@@ -534,24 +534,25 @@ function curseTable(curse: typeof CURSE, abilities: readonly StubAbility[]) {
 }
 
 describe("§4.1 Q50 a permanent attachment on a host that leaves play through a host step", () => {
-  it("a villain removed from the game: a permanent player upgrade is unattached into its controller's play area, keeping its controller; replay deep-equal", () => {
+  // RRG 1.8 "Permanent" (p. 32): with no "attach to" text it is removed from the game (#238).
+  it("a villain removed from the game: a permanent player upgrade with no 'attach to' text is removed from the game; replay deep-equal", () => {
     const t = villainTable(PERMANENT_GADGET, []);
     const { state, session } = playFree(t.state, t.deps, REMOVE_VILLAIN.card.id);
     expect(state.villains.find((v) => v.instanceId === t.villainId)?.defeated).toBe(true);
-    expect(mustInstance(state, t.gadget)).toMatchObject({ attachedTo: null, controllerId: P1 });
     expect(mustInstance(state, t.villainId).attachments).toEqual([]);
-    expect(mustPlayer(state, P1).playArea).toContain(t.gadget);
+    expect(state.removedFromGame).toContain(t.gadget);
+    expect(mustPlayer(state, P1).playArea).not.toContain(t.gadget);
     expect(mustPlayer(state, P1).discard).not.toContain(t.gadget);
     expectReplays(session, t.deps);
   });
 
-  it("a main scheme stage removed from the game: a permanent player upgrade is unattached into its controller's play area; replay deep-equal", () => {
+  it("a main scheme stage removed from the game: a permanent player upgrade with no 'attach to' text goes too (RRG 1.8 p. 32); replay deep-equal", () => {
     const t = areaTable(PERMANENT_AREA_GADGET, []);
     const { state, session } = playFree(t.state, t.deps, REMOVE_STAGE.card.id);
     expect(state.removedFromGame).toContain(t.schemeId);
-    expect(mustInstance(state, t.gadget).attachedTo).toBeNull();
     expect(mustInstance(state, t.schemeId).attachments).toEqual([]);
-    expect(mustPlayer(state, P1).playArea).toContain(t.gadget);
+    expect(state.removedFromGame).toContain(t.gadget);
+    expect(mustPlayer(state, P1).playArea).not.toContain(t.gadget);
     expectReplays(session, t.deps);
   });
 

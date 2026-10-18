@@ -550,7 +550,9 @@ describe("'after a character defends' resolves after the attack ends", () => {
     expect(damageOn(after, activeVillain(after).instanceId)).toBe(1);
   });
 
-  it("resolves after retaliate and before 'at the end of this attack' effects", () => {
+  // RRG 1.8 "Delayed Effect" (p. 16) and FFG ruling Sep 26, 2024 (post-RRG 1.6 #12): the delayed effect resolves before
+  // the "after … defends" response (see "Riposte vs Electrostatic Armor" below).
+  it("resolves after retaliate and after 'at the end of this attack' effects", () => {
     // Rhino's Charge: "When Rhino attacks … At the end of this attack, discard Charge."
     const charge = stubAbility(
       "charge",
@@ -593,8 +595,8 @@ describe("'after a character defends' resolves after the attack ends", () => {
       (e) => e.type === "damageDealt" && e.targetInstanceId === villain && e.sourceInstanceId === allyId,
     );
     expect(resolved(events, "counter")).toBeGreaterThan(retaliate);
-    // …and the delayed "at the end of this attack" effect is the last thing the attack does.
-    expect(resolved(events, "counter")).toBeLessThan(
+    // …and the delayed "at the end of this attack" effect resolves before it, as the attack finishes.
+    expect(resolved(events, "counter")).toBeGreaterThan(
       at(events, (e) => e.type === "cardDiscardedFromPlay" && e.instanceId === chargeId),
     );
     expect(damageOn(after, villain)).toBe(2); // retaliate 1 + the response's 1
@@ -701,9 +703,7 @@ test("ability attacks, defenses and enemy-attack modifications replay to an iden
  * timing point or future condition occurs or becomes true, and before responses to that point or condition may be
  * used. Delayed effects have the same timing priority as constant effects."
  * FFG ruling Sep 26, 2024 (post-RRG 1.6 #12): Riposte "creates a delayed effect, which has the same timing priority as
- * the Retaliate keyword", so its damage lands before the Electrostatic Armor response's. NOTE: the test above
- * ("resolves after retaliate and before 'at the end of this attack' effects") pins the engine's current order, a
- * response to the defense before the 'at the end of this attack' delayed effect; the two disagree for the same pair.
+ * the Retaliate keyword", so its damage lands before the Electrostatic Armor response's (`pushDelayedEndEffects`).
  */
 describe("Riposte vs Electrostatic Armor (FFG ruling Sep 26, 2024 #12, post-RRG 1.6)", () => {
   const damageVillain = (amount: number) =>
@@ -727,7 +727,7 @@ describe("Riposte vs Electrostatic Armor (FFG ruling Sep 26, 2024 #12, post-RRG 
   const RIPOSTE = stubSupport({ id: "riposte", cost: 0, abilities: [riposte.ref] });
   const ARMOR = stubSupport({ id: "armor", cost: 0, abilities: [armor.ref] });
 
-  it.fails("the delayed 3 damage lands before the Electrostatic Armor response's 1 (RRG 1.8 p. 16 Delayed Effect, p. 5 timing priority)", () => {
+  it("the delayed 3 damage lands before the Electrostatic Armor response's 1 (RRG 1.8 p. 16 Delayed Effect, p. 5 timing priority)", () => {
     const deps = depsOf(riposte, armor);
     const start = newGame({
       villain: stubVillain({ id: "villain", stages: [{ hp: flat(30), atk: 2, sch: 0 }] }),
@@ -757,7 +757,6 @@ describe("Riposte vs Electrostatic Armor (FFG ruling Sep 26, 2024 #12, post-RRG 
     const villain = activeVillain(atDefense).instanceId;
     const hits = events.flatMap((e) => (e.type === "damageDealt" && e.targetInstanceId === villain ? [e.amount] : []));
     expect(hits).toHaveLength(2);
-    // Actual: [1, 3] (the response first, then the delayed effect).
     expect(hits).toEqual([3, 1]);
   });
 });
