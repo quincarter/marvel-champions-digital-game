@@ -30,7 +30,7 @@ import {
   villainTracksFor,
 } from "./music-catalog.js";
 import { extras } from "../progression/progression.js";
-import { earnedSongsOf, nextShuffled } from "../view/music-player.js";
+import { earnedSongsOf, musicGainOf, nextShuffled } from "../view/music-player.js";
 import { SOUND_EFFECT_VOLUME, type SoundEffect } from "../view/sound-effects.js";
 import extrasUnlockedUrl from "./sfx/extras-unlocked.mp3?url";
 import handRefillUrl from "./sfx/hand-refill.mp3?url";
@@ -94,6 +94,12 @@ export interface MusicController {
   next(): void;
   /** The song playing now (or loading to play next), or null in silence. */
   nowPlaying(): Track | null;
+  /** Whether the player paused the music (#243): it stays paused, across songs and screens, until resumed. */
+  paused(): boolean;
+  /** Pauses the music where it is; a song that starts while paused waits, paused, at its start. */
+  pause(): void;
+  /** Picks the music up where it was paused. */
+  resume(): void;
   /** How far into the playing song, in seconds, for the expanded player's progress bar; null in silence. */
   progress(): { readonly seek: number; readonly duration: number } | null;
   /** Calls `listener` each time a song starts; returns the way to stop. */
@@ -115,6 +121,7 @@ export class MusicScene extends Phaser.Scene implements MusicController {
   #mode: "title" | "battle" | "outcome" | "interlude" | "finale" | "jukebox" | "shuffle" | "stopped" = "stopped";
   #targetVolume = DEFAULT_MUSIC_VOLUME;
   #shuffleOn = false;
+  #paused = false;
   /** The shuffle's songs still to come this round. */
   #queue: Track[] = [];
   /** The current screen's own music request, made again when shuffle is turned off. */
@@ -254,10 +261,24 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     return this.#targetTrack;
   }
 
+  paused(): boolean {
+    return this.#paused;
+  }
+
+  pause(): void {
+    this.#paused = true;
+    if (this.#currentSound?.isPlaying) this.#currentSound.pause();
+  }
+
+  resume(): void {
+    this.#paused = false;
+    if (this.#currentSound?.isPaused) this.#currentSound.resume();
+  }
+
   progress(): { readonly seek: number; readonly duration: number } | null {
     // `seek` is on both of Phaser's real sound classes (Web Audio and HTML5), not on `BaseSound`.
     const sound = this.#currentSound as (Phaser.Sound.BaseSound & { readonly seek?: number }) | null;
-    if (!sound?.isPlaying) return null;
+    if (!sound?.isPlaying && !sound?.isPaused) return null;
     return { seek: sound.seek ?? 0, duration: sound.duration };
   }
 
@@ -301,6 +322,16 @@ export class MusicScene extends Phaser.Scene implements MusicController {
 
   syncSettings(settings: Settings): void {
     this.sound.mute = !settings.sound;
+    const volume = musicGainOf(settings.musicVolume, DEFAULT_MUSIC_VOLUME);
+    if (volume !== this.#targetVolume) {
+      this.#targetVolume = volume;
+      // The slider is heard as it moves: a fade still running into the old level gives way to the new one.
+      const sound = this.#currentSound as (Phaser.Sound.BaseSound & { volume?: number }) | null;
+      if (sound && "volume" in sound) {
+        this.tweens.killTweensOf(sound);
+        sound.volume = volume;
+      }
+    }
     const was = this.#shuffleOn;
     this.#shuffleOn = settings.musicShuffle;
     if (was === this.#shuffleOn) return;
@@ -437,6 +468,7 @@ export class MusicScene extends Phaser.Scene implements MusicController {
       else newSound.play();
     });
     newSound.play();
+    if (this.#paused) newSound.pause();
     this.#currentSound = newSound;
     for (const listener of this.#listeners) listener(track);
 

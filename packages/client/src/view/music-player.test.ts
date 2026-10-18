@@ -5,12 +5,15 @@ import {
   clockOf,
   earnedSongsOf,
   lockedSongCount,
+  musicGainOf,
   musicSlotBeside,
   nextShuffled,
   nowPlayingBanner,
   nowPlayingPill,
   playerPanelRect,
   shuffledQueue,
+  steppedVolume,
+  volumeAtTrack,
 } from "./music-player.js";
 
 const track = (name: string): Track => ({ key: `music:${name}.mp3`, url: `/${name}.mp3` });
@@ -149,5 +152,32 @@ describe("where it draws", () => {
     expect(many.y + many.height).toBe(592);
     const nearLeft = playerPanelRect({ x: 20, y: 5, width: 44, height: 30 }, { width: 1440, height: 900 }, false, 3);
     expect(nearLeft.x).toBe(8);
+  });
+});
+
+describe("the music volume (#243)", () => {
+  test("scales the music's full level by the setting's percent", () => {
+    expect(musicGainOf(100, 0.45)).toBeCloseTo(0.45);
+    expect(musicGainOf(50, 0.45)).toBeCloseTo(0.225);
+    expect(musicGainOf(0, 0.45)).toBe(0);
+    expect(musicGainOf(180, 0.45)).toBeCloseTo(0.45);
+  });
+
+  test("a press along the track sets the share left of it, clamped at the ends", () => {
+    const track = { x: 100, width: 200 };
+    expect(volumeAtTrack(100, track)).toBe(0);
+    expect(volumeAtTrack(150, track)).toBe(25);
+    expect(volumeAtTrack(300, track)).toBe(100);
+    expect(volumeAtTrack(40, track)).toBe(0);
+    expect(volumeAtTrack(999, track)).toBe(100);
+  });
+
+  test("− and + step to the next mark of ten", () => {
+    expect(steppedVolume(47, 1)).toBe(50);
+    expect(steppedVolume(47, -1)).toBe(40);
+    expect(steppedVolume(50, 1)).toBe(60);
+    expect(steppedVolume(50, -1)).toBe(40);
+    expect(steppedVolume(100, 1)).toBe(100);
+    expect(steppedVolume(0, -1)).toBe(0);
   });
 });

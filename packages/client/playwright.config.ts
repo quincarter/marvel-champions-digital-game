@@ -117,6 +117,7 @@ export default defineConfig({
         "villain-decision-dock.spec.ts",
         "choice-peek.spec.ts",
         "payment-table-tile-tap.spec.ts",
+        "music-volume-pause.spec.ts",
       ],
     },
   ],

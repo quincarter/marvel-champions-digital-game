@@ -11,6 +11,15 @@ import type { TableRules } from "@mc/engine";
 /** The sharp, device-pixel-ratio-matched text resolution `defaultSettings` starts from. Also what "off" restores. */
 export const SHARP_TEXT_RESOLUTION_CEILING = 2;
 
+/** The music volume slider's top, as a percent of the music's full level (`Settings.musicVolume`). */
+export const MUSIC_VOLUME_MAX = 100;
+
+/** A stored or dragged music volume brought into range and to a whole percent. */
+export function clampMusicVolume(volume: number): number {
+  if (!Number.isFinite(volume)) return MUSIC_VOLUME_MAX;
+  return Math.round(Math.min(MUSIC_VOLUME_MAX, Math.max(0, volume)));
+}
+
 export interface Settings {
   readonly reducedMotion: boolean;
   /** Text resolution multiplier; set from the device pixel ratio so text stays sharp. */
@@ -31,6 +40,11 @@ export interface Settings {
    * story moment (a campaign opener's villain theme, Game over, the Finale) still plays its own song. Defaults off.
    */
   readonly musicShuffle: boolean;
+  /**
+   * The music's loudness, 0 to `MUSIC_VOLUME_MAX` percent of its full level, set from the music player's slider (#243)
+   * and kept between launches. Sound effects keep their own levels. Defaults to full.
+   */
+  readonly musicVolume: number;
   /**
    * Ask before an End turn that would still leave a basic attack, thwart or recover open
    * (`view/end-turn-confirm.ts`). Defaults on: ending a turn with something meaningful left is
@@ -194,6 +208,7 @@ export function defaultSettings(): Settings {
     largeCardText: false,
     sound: true,
     musicShuffle: false,
+    musicVolume: MUSIC_VOLUME_MAX,
     confirmBeforeEndTurn: true,
     sameNameHeroAllyConflict: true,
     villainAutoAdvance: "off",

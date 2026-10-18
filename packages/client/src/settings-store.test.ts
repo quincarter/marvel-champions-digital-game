@@ -45,6 +45,7 @@ describe("SettingsStore", () => {
     ["largeCardText", true],
     ["sound", false],
     ["musicShuffle", true],
+    ["musicVolume", 35],
     ["confirmBeforeEndTurn", false],
     ["sameNameHeroAllyConflict", false],
     ["villainAutoAdvance", "afterPause"],
@@ -205,6 +206,14 @@ describe("parseSettingsOverrides", () => {
   test("text resolution is clamped to the sharp range", () => {
     expect(parseSettingsOverrides('{"textResolution":9}')).toEqual({ textResolution: 2 });
     expect(parseSettingsOverrides('{"textResolution":0}')).toEqual({ textResolution: 1 });
+  });
+
+  test("music volume is read as a whole percent from 0 to 100 (#243)", () => {
+    expect(parseSettingsOverrides('{"musicVolume":42.4}')).toEqual({ musicVolume: 42 });
+    expect(parseSettingsOverrides('{"musicVolume":250}')).toEqual({ musicVolume: 100 });
+    expect(parseSettingsOverrides('{"musicVolume":-3}')).toEqual({ musicVolume: 0 });
+    expect(parseSettingsOverrides('{"musicVolume":"loud"}')).toEqual({});
+    expect(defaultSettings().musicVolume).toBe(100);
   });
 
   test("serialize then parse round trips", () => {

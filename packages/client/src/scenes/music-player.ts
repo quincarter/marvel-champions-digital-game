@@ -13,6 +13,7 @@ import Phaser from "phaser";
 import { accent, hit, ink, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { textStyle } from "../ui/theme.js";
 import { McButton, fitText } from "../ui/widgets.js";
+import { onTap } from "../ui/tap.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { shownMusicButton } from "../ui/music-slot.js";
@@ -122,16 +123,21 @@ export class MusicPlayerOverlay extends Phaser.Scene {
     const stops = new Map<string, FocusStop>();
     const order: string[] = [];
 
-    // A tap outside the popover closes it; on a phone the panel is all there is below the bar.
+    // A tap outside the popover closes it; on a phone the panel is all there is below the bar. A tap, not any release:
+    // a swipe of the song list that lifts outside the panel leaves it open.
     const outside = this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
-    outside.on("pointerup", (pointer: Phaser.Input.Pointer) => {
-      const inside =
-        pointer.x >= panel.x &&
-        pointer.x <= panel.x + panel.width &&
-        pointer.y >= panel.y &&
-        pointer.y <= panel.y + panel.height;
-      if (!inside) this.#close();
-    });
+    onTap(
+      outside,
+      (pointer) => {
+        const inside =
+          pointer.x >= panel.x &&
+          pointer.x <= panel.x + panel.width &&
+          pointer.y >= panel.y &&
+          pointer.y <= panel.y + panel.height;
+        if (!inside) this.#close();
+      },
+      "music-player-outside",
+    );
 
     const g = this.add.graphics();
     if (!phone) g.fillStyle(surface.void.hex, 0.28).fillRect(panel.x + 6, panel.y + 6, panel.width, panel.height);
@@ -250,6 +256,24 @@ export class MusicPlayerOverlay extends Phaser.Scene {
     fitText(foot, inner.width, 11);
 
     this.#route?.set(order, stops);
+
+    // Headless click-through hook only: the player's controls where they are drawn now, for the e2e specs.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcMusicPlayerDebug?: unknown }).__mcMusicPlayerDebug = {
+        stopRect: (id: string): Rect | null => {
+          const stop = stops.get(id);
+          if (!stop) return null;
+          return typeof stop.rect === "function" ? stop.rect() : stop.rect;
+        },
+        volumeRect: (): Rect | null => {
+          const zone = this.children.getByName("music-volume") as Phaser.GameObjects.Zone | null;
+          return zone ? { x: zone.x, y: zone.y, width: zone.width, height: zone.height } : null;
+        },
+        listRect: (): Rect => listRect,
+        paused: (): boolean => appSession().music?.paused() ?? false,
+        volume: (): number => appSession().settings.musicVolume,
+      };
+    }
   }
 
   #songRow(song: PlayerSong, rect: Rect, playingKey: string | null): VirtualListRow {

@@ -6,11 +6,15 @@
  * Compact: an ink strip (the note, the song, what is playing it), then Shuffle and Next under it.
  * Expanded: a taller ink block with the song in Bangers and a progress bar; Shuffle and Next stand at its right on a
  * wide screen, and under it on a phone.
+ * Either way the last row is Pause (or Play) and the music volume slider with its − and + (#243). The volume is a
+ * setting (`Settings.musicVolume`), heard as the slider moves and saved when it is let go; the pause is the music
+ * controller's, for this session.
  */
 import type Phaser from "phaser";
 import { accent, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { appSession } from "../session.js";
-import { clockOf, nowPlayingTitleOf, type PlayerSong } from "../view/music-player.js";
+import { clockOf, nowPlayingTitleOf, steppedVolume, volumeAtTrack, type PlayerSong } from "../view/music-player.js";
+import { clampMusicVolume } from "../settings.js";
 import type { Rect } from "../view/layout.js";
 import { bangers } from "./campaign-chrome.js";
 import { drawMusicIcon } from "./music-icon.js";
@@ -26,16 +30,25 @@ const GAP = 8;
 const SIDE_BY_SIDE_MIN = 560;
 const SIDE_BUTTON_WIDTH = 150;
 
+const PAUSE_WIDTH = 104;
+const STEP_WIDTH = 40;
+const PERCENT_WIDTH = 46;
+const VOLUME_ROW_MAX = 520;
+
 export function nowPlayingPanelHeight(expanded: boolean, width: number): number {
-  if (!expanded) return STRIP + GAP + CONTROL;
-  return width >= SIDE_BY_SIDE_MIN ? BLOCK : BLOCK + GAP + CONTROL;
+  const volumeRow = GAP + CONTROL;
+  if (!expanded) return STRIP + GAP + CONTROL + volumeRow;
+  return (width >= SIDE_BY_SIDE_MIN ? BLOCK : BLOCK + GAP + CONTROL) + volumeRow;
 }
+
+/** The ids of the panel's focus stops, in order. */
+export type NowPlayingStopId = "shuffle" | "next" | "pause" | "volume-down" | "volume-up";
 
 export interface NowPlayingPanel {
   readonly height: number;
   readonly buttons: readonly McButton[];
   /** Focus stops for Shuffle and Next, in order. */
-  readonly stops: readonly { readonly id: "shuffle" | "next"; readonly rect: Rect; readonly activate: () => void }[];
+  readonly stops: readonly { readonly id: NowPlayingStopId; readonly rect: Rect; readonly activate: () => void }[];
   /** Moves the progress bar on (expanded only); call it every frame. */
   tick(): void;
 }
@@ -73,7 +86,7 @@ export function drawNowPlayingPanel(
   scene.add.text(
     textX,
     y + (expanded ? 16 : 10),
-    playing ? "NOW PLAYING" : "NOTHING PLAYING",
+    playing ? (music?.paused() ? "PAUSED" : "NOW PLAYING") : "NOTHING PLAYING",
     textStyle(typeRole.label, signal.caution.hex),
   );
   const song = playing ? songs.find((one) => one.track.key === playing.key) : undefined;
@@ -174,13 +187,122 @@ export function drawNowPlayingPanel(
       onClick: skip,
     }),
   ];
+
+  // Pause and the volume, on the row under everything else.
+  const rowY = y + nowPlayingPanelHeight(expanded, width) - CONTROL;
+  const volume = drawVolumeRow(scene, { x, y: rowY, width }, options.onChange);
+  buttons.push(...volume.buttons);
   return {
     height: nowPlayingPanelHeight(expanded, width),
     buttons,
     stops: [
       { id: "shuffle", rect: shuffleRect, activate: toggleShuffle },
       { id: "next", rect: nextRect, activate: skip },
+      ...volume.stops,
     ],
     tick,
+  };
+}
+
+/**
+ * Pause (Play while paused), then − , the slider and + with the percent. A press anywhere on the track sets the volume
+ * there and a drag moves it, heard as it goes; letting go saves it. − and + step it by `MUSIC_VOLUME_STEP` (`steppedVolume`), and are the
+ * keyboard's way to it.
+ */
+function drawVolumeRow(
+  scene: Phaser.Scene,
+  row: { readonly x: number; readonly y: number; readonly width: number },
+  onChange: () => void,
+): { readonly buttons: McButton[]; readonly stops: NowPlayingPanel["stops"] } {
+  const session = appSession();
+  const music = session.music;
+  const paused = music?.paused() ?? false;
+  // A wide screen (Extras' Music tab) keeps the slider a hand's width, not the whole screen's.
+  const width = Math.min(row.width, VOLUME_ROW_MAX);
+  const pauseRect: Rect = { x: row.x, y: row.y, width: PAUSE_WIDTH, height: CONTROL };
+  const downRect: Rect = { x: row.x + PAUSE_WIDTH + GAP, y: row.y, width: STEP_WIDTH, height: CONTROL };
+  const upRect: Rect = {
+    x: row.x + width - PERCENT_WIDTH - STEP_WIDTH,
+    y: row.y,
+    width: STEP_WIDTH,
+    height: CONTROL,
+  };
+  const knob = 9;
+  const track = {
+    x: downRect.x + STEP_WIDTH + 10 + knob,
+    width: Math.max(0, upRect.x - 10 - knob - (downRect.x + STEP_WIDTH + 10 + knob)),
+  };
+  const midY = row.y + CONTROL / 2;
+
+  let shown = clampMusicVolume(session.settings.musicVolume);
+  const bar = scene.add.graphics();
+  const percent = scene.add.text(row.x + width, midY, "", textStyle(typeRole.label, surface.ink.hex)).setOrigin(1, 0.5);
+  const paint = (): void => {
+    bar.clear();
+    bar.fillStyle(surface.ink.hex, 0.18).fillRect(track.x, midY - 3, track.width, 6);
+    const at = track.x + (track.width * shown) / 100;
+    bar.fillStyle(accent.heroRed.hex, 1).fillRect(track.x, midY - 3, at - track.x, 6);
+    bar.fillStyle(surface.paper.hex, 1).fillCircle(at, midY, knob);
+    bar.lineStyle(2, surface.ink.hex, 1).strokeCircle(at, midY, knob);
+    percent.setText(`${shown}%`);
+  };
+  paint();
+  /** Heard now; saved only when `save` (a drag saves once, on release). */
+  const set = (volume: number, save: boolean): void => {
+    shown = clampMusicVolume(volume);
+    const next = { ...session.settings, musicVolume: shown };
+    music?.syncSettings(next);
+    if (save) session.settings = next;
+    paint();
+  };
+
+  const zone = scene.add
+    .zone(track.x - knob, row.y, track.width + knob * 2, CONTROL)
+    .setOrigin(0, 0)
+    .setInteractive({ draggable: true, useHandCursor: true });
+  zone.setName("music-volume");
+  zone.on("pointerdown", (pointer: Phaser.Input.Pointer) => set(volumeAtTrack(pointer.x, track), false));
+  zone.on("drag", (pointer: Phaser.Input.Pointer) => set(volumeAtTrack(pointer.x, track), false));
+  zone.on("dragend", () => set(shown, true));
+  zone.on("pointerup", () => set(shown, true));
+
+  const togglePause = (): void => {
+    if (!music) return;
+    if (music.paused()) music.resume();
+    else music.pause();
+    onChange();
+  };
+  const step = (direction: -1 | 1): void => set(steppedVolume(shown, direction), true);
+  const buttons = [
+    new McButton(scene, {
+      kind: "secondary",
+      label: paused ? "▶ Play" : "❚❚ Pause",
+      type: BUTTON_TYPE,
+      rect: pauseRect,
+      selected: paused,
+      onClick: togglePause,
+    }),
+    new McButton(scene, {
+      kind: "quiet",
+      label: "−",
+      type: BUTTON_TYPE,
+      rect: downRect,
+      onClick: () => step(-1),
+    }),
+    new McButton(scene, {
+      kind: "quiet",
+      label: "+",
+      type: BUTTON_TYPE,
+      rect: upRect,
+      onClick: () => step(1),
+    }),
+  ];
+  return {
+    buttons,
+    stops: [
+      { id: "pause", rect: pauseRect, activate: togglePause },
+      { id: "volume-down", rect: downRect, activate: () => step(-1) },
+      { id: "volume-up", rect: upRect, activate: () => step(1) },
+    ],
   };
 }

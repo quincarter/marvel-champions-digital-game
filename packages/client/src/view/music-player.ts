@@ -12,6 +12,7 @@
 import type { Track } from "../audio/music-catalog.js";
 import { EXTRAS_ENTRIES, trackTitleOf, type Extras, type ExtrasEntry } from "../progression/extras.js";
 import type { Rect } from "./layout.js";
+import { MUSIC_VOLUME_MAX, clampMusicVolume } from "../settings.js";
 
 export interface PlayerSong {
   readonly id: string;
@@ -117,8 +118,8 @@ export function nowPlayingBanner(icon: Rect, screenWidth: number): Rect {
 }
 
 export const PLAYER_ROW_HEIGHT = 52;
-/** The panel's header, the now-playing block and the Shuffle / Next row, above the song list. */
-export const PLAYER_HEAD_HEIGHT = 44 + 64 + 56;
+/** The panel's header, the now-playing block, the Shuffle / Next row and the Pause / volume row, above the song list. */
+export const PLAYER_HEAD_HEIGHT = 44 + 64 + 56 + 48;
 /** The line under the list saying how many songs are still to earn. */
 export const PLAYER_FOOT_HEIGHT = 36;
 const POPOVER_WIDTH = 380;
@@ -140,4 +141,25 @@ export function playerPanelRect(
   const x = Math.max(8, Math.min(icon.x + icon.width - width, screen.width - 8 - width));
   const wanted = PLAYER_HEAD_HEIGHT + Math.max(1, songCount) * PLAYER_ROW_HEIGHT + PLAYER_FOOT_HEIGHT + 8;
   return { x, y: top, width, height: Math.max(0, Math.min(wanted, screen.height - top - 8)) };
+}
+
+/** How far one press of the volume slider's − or + (or an arrow key) moves it, in percent. */
+export const MUSIC_VOLUME_STEP = 10;
+
+/** The music's playback gain for a volume setting (`Settings.musicVolume`, 0–100 percent of `full`). */
+export function musicGainOf(volume: number, full: number): number {
+  return (full * clampMusicVolume(volume)) / MUSIC_VOLUME_MAX;
+}
+
+/** The volume a press or drag at `x` along the slider's track sets: the share of the track left of it, in percent. */
+export function volumeAtTrack(x: number, track: { readonly x: number; readonly width: number }): number {
+  if (track.width <= 0) return MUSIC_VOLUME_MAX;
+  return clampMusicVolume(((x - track.x) / track.width) * MUSIC_VOLUME_MAX);
+}
+
+/** One step of the volume down (`-1`) or up (`1`), landing on the step marks: 47 steps up to 50, not 57. */
+export function steppedVolume(volume: number, direction: -1 | 1): number {
+  const marks = clampMusicVolume(volume) / MUSIC_VOLUME_STEP;
+  const next = direction > 0 ? Math.floor(marks) + 1 : Math.ceil(marks) - 1;
+  return clampMusicVolume(next * MUSIC_VOLUME_STEP);
 }

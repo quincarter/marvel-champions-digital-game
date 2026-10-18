@@ -17,7 +17,7 @@ import type { Track } from "../audio/music-catalog.js";
 import { signal, surface, typeRole } from "../tokens.js";
 import { textStyle } from "../ui/theme.js";
 import { fitText } from "../ui/widgets.js";
-import { musicSlots, setShownMusicButton } from "../ui/music-slot.js";
+import { musicSlots, setShownMusicButton, shownMusicButton } from "../ui/music-slot.js";
 import { drawMusicIcon } from "../ui/music-icon.js";
 import { reportButtonSlot } from "../view/report-button.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
@@ -102,6 +102,12 @@ export class MusicButtonScene extends Phaser.Scene {
       setShownMusicButton(null);
     });
     this.#place(null);
+    // Headless click-through hook only: where the button is drawn now, for the e2e specs.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcMusicButtonDebug?: unknown }).__mcMusicButtonDebug = {
+        rect: () => shownMusicButton(),
+      };
+    }
   }
 
   /**
