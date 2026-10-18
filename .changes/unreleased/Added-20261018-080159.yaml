@@ -1,3 +1,0 @@
-kind: Added
-body: "The music player has Pause, and on desktop a volume slider; Settings > Display > Sound has Music and Effects volumes, and in the Windows app the slider and a Game volume row follow the game's own entry in the Windows volume mixer (#243)."
-time: 2026-10-18T08:01:59.038119-04:00
