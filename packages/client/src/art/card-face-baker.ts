@@ -256,7 +256,7 @@ export class CardFaceBaker {
  * declared it — whatever Vite emitted, in dev (inline `<style>`) or a build (hashed files), with nothing to keep in
  * step by hand.
  */
-function pageFontSources(families: ReadonlySet<string>): FontSource[] {
+export function pageFontSources(families: ReadonlySet<string>): FontSource[] {
   const sources: FontSource[] = [];
   for (const sheet of Array.from(document.styleSheets)) {
     let rules: CSSRuleList;

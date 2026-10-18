@@ -31,6 +31,7 @@ import type Phaser from "phaser";
 import { appSession } from "../session.js";
 import { motion, surface } from "../tokens.js";
 import { isStartPending } from "../scenes/scene-loader.js";
+import { prewarmTextPainter } from "./lazy-text.js";
 
 type Fadeable = Phaser.GameObjects.GameObject & { alpha: number; y: number; setAlpha(value: number): unknown };
 
@@ -260,6 +261,8 @@ export function goToScreen(
   data ??= {};
   // The chunk of the screen being left for is still arriving (`scenes/scene-loader.ts`): a second tap must not queue a second start.
   if (isStartPending(scene.scene)) return;
+  // The next screen's labels are painted in the text worker; start it now if it ended, so the fade covers its start.
+  prewarmTextPainter();
   if (reduced() || durationMs <= 0) {
     scene.scene.start(key, data);
     return;
