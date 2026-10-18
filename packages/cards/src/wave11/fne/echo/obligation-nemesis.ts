@@ -68,16 +68,23 @@ const findKingpin = [
 /**
  * Echo's obligation and nemesis set (60060-60064), docs/phase7-wave11.md section 7.2 and 8.4 line 9.
  *
- * - **Raised by the Kingpin (60060)**: "Give to the Maya Lopez player" is engine data
+ * Cards (5):
+ * - 60060 Raised by the Kingpin (obligation)
+ * - 60061 Kingpin (minion)
+ * - 60062 Master Manipulator (side_scheme)
+ * - 60063 Kingpin's Henchman (minion)
+ * - 60064 Pawn of the Kingpin (treachery)
+ *
+ * **Raised by the Kingpin (60060)**: "Give to the Maya Lopez player" is engine data
  *   (`HeroIdentityCard.obligationCardId`); the obligation stays in that player's play area. Its printed constant,
  *   "You cannot deal damage to Kingpin", has no ability id of its own on the card, so it is carried by
  *   `60060.obligation`: a `cannotTakeDamage` on Kingpin from Echo's identity and its extensions (events, upgrades,
  *   RRG 1.8 "You, Your", p. 49). Her allies are not "you" and still can. The Response puts the threat she thwarts on
  *   this card as well (the scheme loses it as always); at 4 or more the card is removed from the game.
- * - **Kingpin (60061)**: the interrupt replaces his attack on the Maya Lopez player with a scheme (RRG 1.8
+ * **Kingpin (60061)**: the interrupt replaces his attack on the Maya Lopez player with a scheme (RRG 1.8
  *   "Replacement Effect", p. 37; "'Would'", p. 48). Against any other player he attacks.
- * - **Master Manipulator (60062)**, **Kingpin's Henchman (60063)**: "Kingpin cannot take damage" by name.
- * - **Pawn of the Kingpin (60064)**: the form is the revealing player's.
+ * **Master Manipulator (60062)**, **Kingpin's Henchman (60063)**: "Kingpin cannot take damage" by name.
+ * **Pawn of the Kingpin (60064)**: the form is the revealing player's.
  */
 export const FNE_ECHO_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities({
   "60060.obligation": constant(
