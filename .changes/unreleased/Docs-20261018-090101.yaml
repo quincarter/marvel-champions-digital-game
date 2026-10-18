@@ -1,3 +1,0 @@
-kind: Docs
-body: Changelog fragments are linted by pnpm check, the pre-commit hook and their own CI check, so a malformed one shows up on its pull request
-time: 2026-10-18T09:01:01.4713725-04:00

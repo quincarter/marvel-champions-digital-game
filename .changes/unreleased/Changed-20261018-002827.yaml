@@ -1,3 +1,0 @@
-kind: Changed
-body: 'Opening the app and the first visit to Decks & Collection, Campaign and Extras freeze less on slower devices: screens load on demand, labels are measured once per font and painted off the main thread, and deck checks run in a worker'
-time: 2026-10-18T00:28:27.7785481-04:00
