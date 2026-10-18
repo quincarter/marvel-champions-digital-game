@@ -14,6 +14,18 @@ import {
   toHero,
   type Picker,
 } from "../../testing/harness.js";
+import {
+  attachedCodes,
+  attachEncounter,
+  bothEnd,
+  conjure as conjureFor,
+  drive as driveRules,
+  fillers,
+  funded,
+  game,
+  takes,
+  villainOf,
+} from "../../wave7/rulings-2026-10-06-harness.js";
 import { runWave3, startWave3Game, WAVE3_DEPS } from "../testing.js";
 import { venomScenario } from "./support.js";
 
@@ -113,5 +125,26 @@ describe("Charge (01099) when Rhino's attack is cancelled by Grasping Tendrils (
     expect(inst(after, villain).attachments).not.toContain(charge);
     expect(activeEncounterDeck(after).discard).toContain(charge);
     expect(after.players[0]!.hand.some((id) => (inst(after, id).cardId as string) === TENDRILS)).toBe(true);
+  });
+});
+
+// Conflict between sources, flagged for the owner: the describe above pins "no ruling found; an attack that did not
+// occur has no end, so Charge is not discarded" (RRG 1.8 "Cancel", p. 11). FFG ruling 148 (Feb 15, 2024, post-RRG 1.5)
+// says a canceled attack still ends, so "at the end of this attack" effects run. The test below states the ruling and
+// stays an expected failure until the two readings are reconciled.
+describe("Ruling 148, Feb 15, 2024 (post-RRG 1.5): a canceled attack still ends, so 'at the end of this attack' effects run (RRG 1.8 p. 9)", () => {
+  it.fails("Charge (01099) is discarded when Grasping Tendrils (20003) cancels Rhino's attack", () => {
+    const base = game("rhino", ["core-spider-man-justice"], ["the_doomsday_chair"]);
+    const rhinoId = villainOf(base);
+    const charge = attachEncounter(base, CHARGE, rhinoId);
+    const given = conjureFor(funded(charge.state, 4, P1), P1, "20003");
+    const staged = fillers(given.state);
+    const run = driveRules(staged, { chooseTriggers: takes("20003") }, ...bothEnd(staged));
+    // Staging sanity: Tendrils resolved.
+    expect(
+      run.events.some((e) => e.type === "abilityResolved" && e.abilityId === "20003.grasping-tendrils-interrupt"),
+    ).toBe(true);
+    // Actual: Charge stays attached (its delayed discard is dropped with the canceled attack).
+    expect(attachedCodes(run.state, rhinoId)).not.toContain(CHARGE);
   });
 });

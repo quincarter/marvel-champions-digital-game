@@ -109,3 +109,27 @@ describe("Seduced (attachment, 21179)", () => {
     expect(inst(state, seduced).attachedTo).toBeNull();
   });
 });
+
+/**
+ * Seduced, "You cannot make basic attacks or play Attack events": the first half bars only the identity's basic attack,
+ * not an attack made by a card's ability (RRG 1.8 "Basic Power", p. 10; "You, Your", p. 49). The 21179 printing must
+ * scope the rule the way 55015 does (`cannotMakeBasicAttacks`).
+ */
+describe("Seduced (21179) bars only basic attacks", () => {
+  it("21179: the identity cannot make a basic attack, but an ability's attack is still allowed", () => {
+    const hero = settle(runWith(WAVE4_DEPS, game(6), toHero(P1)), firstLegal, undefined, WAVE4_DEPS);
+    const identity = identityOf(hero, P1);
+    const seduced = instancesOf(hero, "21179")[0]!;
+    const state: GameState = {
+      ...hero,
+      instances: {
+        ...hero.instances,
+        [seduced]: { ...hero.instances[seduced]!, attachedTo: identity, faceup: true, controllerId: P1 },
+        [identity]: { ...hero.instances[identity]!, attachments: [...hero.instances[identity]!.attachments, seduced] },
+      },
+    };
+    const villain = state.villains[0]!.instanceId;
+    expect(canAttack(state, identity as never, villain, WAVE4_DEPS, true)).toBe(false);
+    expect(canAttack(state, identity as never, villain, WAVE4_DEPS, false)).toBe(true);
+  });
+});

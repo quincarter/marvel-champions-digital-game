@@ -18,7 +18,12 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
-import { driveEvents, revealFromEncounterDeck, stageNemesisCardForReveal } from "../../testing/staging.js";
+import {
+  driveEvents,
+  driveEventsPicking,
+  revealFromEncounterDeck,
+  stageNemesisCardForReveal,
+} from "../../testing/staging.js";
 import { WAVE4_DEPS } from "../index.js";
 import { playFromHand, startWave4Game } from "../testing.js";
 import { nebulaScenario } from "./support.js";
@@ -300,3 +305,67 @@ function stageWithFiller(state: GameState, code: string): GameState {
     },
   };
 }
+
+/** Flips to alter-ego when offered, records the obligation's options, then takes the discard option. */
+function takingDiscard(seen: string[][]): Picker {
+  return (state) => {
+    const choice = state.pendingChoice;
+    if (!choice) return [];
+    const flip = choice.options.find((o) => o.label === "Flip to alter-ego form");
+    if (flip) return [flip.optionId];
+    if (choice.options.some((o) => o.label.startsWith("Exhaust Nebula"))) seen.push(choice.options.map((o) => o.label));
+    const discard = choice.options.find((o) => o.label.startsWith("Choose and discard 2 Technique"));
+    return discard ? [discard.optionId] : firstLegal(state);
+  };
+}
+
+/*
+ * Inferiority Complex (22027): "You may flip to alter-ego form. Choose: • Exhaust your alter-ego → remove this card
+ * from the game. • Choose and discard 2 Technique upgrades you control. If no upgrade was discarded this way, this card
+ * gains surge. Discard this obligation."
+ *
+ * RRG 1.8 "Choose (Option)" (p. 12) keeps the "cannot choose an option that cannot be at least partially resolved"
+ * test for player cards only; for an encounter card it only bars "an option that requires one or more targets if
+ * there are no valid targets". Inferiority Complex is an encounter card, so a ready alter-ego may take the discard
+ * option with fewer than 2 Technique upgrades (or none: the card itself plans for that with its surge line).
+ *
+ * Conflict noted: ruling 69.105 (September 15, 2025, post-RRG 1.6) says a player "must choose the option they can
+ * fully resolve" on an encounter card and applies it to exactly this card. It predates RRG 1.8, which narrows that
+ * test to player cards, so the engine follows p. 12 here and these tests pin that reading.
+ */
+describe("Inferiority Complex keeps the discard option for a ready alter-ego (RRG 1.8 p. 12, overrides ruling 69.105)", () => {
+  it("with one Technique upgrade, both options are offered and the discard option discards that upgrade", () => {
+    const hero = runWith(WAVE4_DEPS, startWave4Game(nebulaScenario("rhino", { seed: 2 })), toHero());
+    const { state: withOne, id: technique } = playFromHand(hero, "22004", 1);
+    const seen: string[][] = [];
+    const { state, events } = driveEventsPicking(
+      WAVE4_DEPS,
+      stageWithFiller(withOne, "22027"),
+      takingDiscard(seen),
+      endTurn(),
+    );
+    expect(seen, "the obligation's choice was reached from a ready alter-ego").toHaveLength(1);
+    expect(seen[0]!.some((l) => l.startsWith("Exhaust Nebula"))).toBe(true);
+    expect(seen[0]!.some((l) => l.startsWith("Choose and discard 2 Technique"))).toBe(true);
+    expect(playerOf(state, P1).discard).toContain(technique);
+    const [obligation] = instancesOf(state, "22027");
+    expect(state.removedFromGame).not.toContain(obligation);
+    expect(events.some((e) => e.type === "surgeTriggered")).toBe(false);
+  });
+
+  it("with no Technique upgrades, the discard option is offered and the short discard gains surge", () => {
+    const seen: string[][] = [];
+    const { state, events } = driveEventsPicking(
+      WAVE4_DEPS,
+      stageWithFiller(startWave4Game(nebulaScenario("rhino", { seed: 3 })), "22027"),
+      takingDiscard(seen),
+      endTurn(),
+    );
+    expect(seen, "the obligation's choice was reached from a ready alter-ego").toHaveLength(1);
+    expect(seen[0]!.some((l) => l.startsWith("Exhaust Nebula"))).toBe(true);
+    expect(seen[0]!.some((l) => l.startsWith("Choose and discard 2 Technique"))).toBe(true);
+    const [obligation] = instancesOf(state, "22027");
+    expect(state.removedFromGame).not.toContain(obligation);
+    expect(events.some((e) => e.type === "surgeTriggered")).toBe(true);
+  });
+});

@@ -1,4 +1,4 @@
-import { activeVillain, characterProfile, type InstanceId } from "@mc/engine";
+import { activeVillain, applyCommand, characterProfile, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { validateDefinition } from "../../dsl/validate.js";
 import {
@@ -375,5 +375,67 @@ describe("Shield Spell (event, 21061)", () => {
       expect.objectContaining({ type: "damagePrevented", targetInstanceId: identity, amount: prevented }),
     );
     expect(playerOf(state, P1).discard).toContain(shield);
+  });
+});
+
+// FFG ruling May 18, 2023 - Ruling 8; RRG 1.8 "Cost Arrow Icon" p. 13, "Stun" p. 41, "Confuse" p. 12: only the part
+// after the cost arrow is replaced by a stunned or confused status card.
+describe("Karmic Blast (21038) and Cosmic Awareness (21039) while Stunned or Confused", () => {
+  /** Text before the cost arrow is the cost: "Deal 4 damage to an enemy and discard up to 4 cards" / "Remove 3 threat ... and discard up to 4 cards". */
+  const heroGame = (seed: number, change: (s: GameState) => GameState = (s) => s) => {
+    const base = change(startWave4Game(adamWarlockScenario("rhino", { seed })));
+    return settle(applyOk4(base), firstLegal, undefined, WAVE4_DEPS);
+  };
+
+  const applyOk4 = (s: GameState) => {
+    const result = applyCommand(s, toHero(), WAVE4_DEPS);
+    if (!result.ok) throw new Error(result.error.message);
+    return result.state;
+  };
+
+  it("Stunned Adam plays Karmic Blast: the 4 damage (the cost) is still dealt and the stunned card is discarded", () => {
+    const hero = heroGame(20);
+    const me = identityOf(hero);
+    const stunned = patchInstance(hero, me, { statuses: { ...inst(hero, me).statuses, stunned: 1 } });
+    const villain = activeVillain(stunned).instanceId;
+    const before = inst(stunned, villain).damage;
+    const { state } = playFromHand(stunned, "21038", 2, accepting("Discard 1", villain));
+    expect(inst(state, me).statuses.stunned).toBe(0);
+    // Ruling: only the part after the arrow (the additional damage, the "attack") is replaced. Actual: nothing is dealt.
+    expect(inst(state, villain).damage - before).toBeGreaterThanOrEqual(4);
+  });
+
+  it("Confused Adam plays Cosmic Awareness: the 3 threat (the cost) is still removed and the confused card is discarded", () => {
+    const hero = heroGame(21, (s) => patchInstance(s, s.mainScheme.instanceId, { threat: 10 }));
+    const me = identityOf(hero);
+    const confused = patchInstance(hero, me, { statuses: { ...inst(hero, me).statuses, confused: 1 } });
+    const scheme = confused.mainScheme.instanceId;
+    const before = inst(confused, scheme).threat;
+    const { state } = playFromHand(confused, "21039", 2, accepting("Discard 1", scheme));
+    expect(inst(state, me).statuses.confused).toBe(0);
+    expect(before - inst(state, scheme).threat).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("Cosmic Awareness (21039): the 3 threat is the cost, so a scheme needs 3 (FFG ruling November 29, 2023 - Ruling 114)", () => {
+  /**
+   * Ruling: "the cost requires Adam Warlock to remove 3 threat from a scheme while paying the card's cost. If he can't do
+   * that, he can't play the card", and he "can't target a scheme with less than 3 threat". Engine: the 3 threat is part of
+   * the effect after the cost arrow (`thwart(sum(3, ...))` on any scheme), so the event is playable against 2 threat.
+   */
+  const playable = (threat: number): boolean => {
+    const base = settle(runWith(WAVE4_DEPS, adamVsRhino(21), toHero()), firstLegal, undefined, WAVE4_DEPS);
+    const staged = patchInstance(base, base.mainScheme.instanceId, { threat });
+    const given = moveToHand(staged, P1, "21039");
+    const [card] = given.ids as [never];
+    return applyCommand(given.state, play(P1, card, payWith(given.state, P1, 2, [card])), WAVE4_DEPS).ok;
+  };
+
+  it("control: with 10 threat on the only scheme the event is playable", () => {
+    expect(playable(10)).toBe(true);
+  });
+
+  it("with only 2 threat on the only scheme (the main scheme) the event cannot be played", () => {
+    expect(playable(2)).toBe(false);
   });
 });

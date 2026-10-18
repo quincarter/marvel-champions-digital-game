@@ -1,10 +1,13 @@
-import { activeEncounterDeck, cardsInPlay, statusActive } from "@mc/engine";
+import { cardId } from "@mc/content";
+import { activeEncounterDeck, activeEncounterDeckId, cardsInPlay, statusActive, type GameState } from "@mc/engine";
 import {
   firstLegal,
   identityOf,
+  endTurn,
   inst,
   instancesOf,
   moveToHand,
+  patchInstance,
   P1,
   play,
   payWith,
@@ -15,6 +18,7 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
+import { driveEvents } from "../../testing/staging.js";
 import { wave3Scenario } from "../setup.js";
 import { revealFromEncounterDeck, runWave3, startWave3Game, WAVE3_DEPS } from "../testing.js";
 
@@ -109,5 +113,42 @@ describe("Rocket Raccoon's obligation and nemesis (Crisis on Halfworld, Blackjac
     expect(minion).toBeDefined();
     expect(statusActive(state, minion!, "tough", WAVE3_DEPS)).toBe(true);
     expect(playerOf(state, P1).discard).not.toContain(id); // Planetary Invasion itself, an encounter card, isn't in a player's discard
+  });
+});
+
+describe("Planetary Invasion (16057): a Quickstrike attack only initiates in the reveal sentence (FFG ruling January 11, 2024 - Ruling 137)", () => {
+  /**
+   * Ruling: the revealed minion's Quickstrike "initiat[es] its attack. (The steps of the attack will then resolve at the
+   * next available opportunity.) The minion is given a Tough status card immediately after this, because it's in the same
+   * sentence as the reveal effect". RRG 1.8 p. 4 ("resolve the ability one sentence at a time") does not say otherwise.
+   * Teamwork ruling December 8, 2023 - Ruling 129 gives the same "initiates, resolves later" model.
+   */
+  it.fails("Vulture (quickstrike, ATK 3) revealed by Planetary Invasion gets its tough status card before its attack deals damage", () => {
+    const base = runWave3(rocketVsRhino(), toHero());
+    const invasion = base.players[0]!.setAside.find((id) => inst(base, id).cardId === "16057")!;
+    const deckId = activeEncounterDeckId(base);
+    const stacked = stackEncounterDeck(base, "01186", "01101");
+    const mercenary = activeEncounterDeck(stacked).deck.find((i) => inst(stacked, i).cardId === cardId("01101"))!;
+    // The Hydra Mercenary stands in for Vulture (01167, quickstrike, ATK 3): same instance, other printing.
+    const swapped = patchInstance(stacked, mercenary, { cardId: cardId("01167") });
+    const piles = activeEncounterDeck(swapped);
+    const state: GameState = {
+      ...swapped,
+      players: swapped.players.map((p) =>
+        p.playerId === P1 ? { ...p, setAside: p.setAside.filter((i) => i !== invasion) } : p,
+      ),
+      encounterDecks: {
+        ...swapped.encounterDecks,
+        [deckId]: { ...piles, deck: [piles.deck[0]!, invasion, ...piles.deck.slice(1)] },
+      },
+    };
+    const { events } = driveEvents(WAVE3_DEPS, state, endTurn());
+    const after = events.findIndex((e) => e.type === "encounterCardRevealed" && e.cardId === "01167");
+    expect(after, "Vulture was revealed").toBeGreaterThan(-1);
+    const next = events.slice(after + 1).find((e) => e.type === "statusGiven" || e.type === "damageDealt");
+    // Staging sanity: the revealed minion's step produced one of the two events at all.
+    expect(next).toBeDefined();
+    // Actual: damageDealt (3) first, then statusGiven tough.
+    expect(next!.type).toBe("statusGiven");
   });
 });

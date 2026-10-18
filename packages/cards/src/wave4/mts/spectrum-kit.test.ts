@@ -198,3 +198,41 @@ describe("Pulsar Shield (event, 21009)", () => {
     expect(inst(attacked, villain).damage).toBe(before + 1);
   });
 });
+
+describe("Gamma Blast (21007): the Gamma response waits for the whole first sentence (FFG ruling December 8, 2023 - Ruling 126)", () => {
+  /** Accepts the Gamma response and picks the villain whenever a target is asked. */
+  const acceptingGamma =
+    (villain: string): Picker =>
+    (state) => {
+      const choice = state.pendingChoice;
+      if (!choice) return [];
+      const hits = choice.options
+        .filter((o) => o.optionId.includes("21002.gamma-response") || o.optionId === villain)
+        .map((o) => o.optionId);
+      return hits.length > 0 ? hits.slice(0, choice.maxSelections) : firstLegal(state);
+    };
+
+  it.fails("a tough villain: the 7 damage meets the tough card first, the response's 1 damage comes after (total 1, not 7)", () => {
+    // Change to hero form choosing the Pulsar energy form to flip faceup, so Gamma Blast is a real change of form.
+    const start = startWave4Game(spectrumScenario("rhino", { seed: 8 }));
+    const pulsarId = instancesOf(start, "21004")[0]!;
+    const toPulsar: Picker = (st) => {
+      const choice = st.pendingChoice;
+      if (!choice) return [];
+      const hits = choice.options.filter((o) => o.optionId === pulsarId).map((o) => o.optionId);
+      return hits.length > 0 ? hits.slice(0, choice.maxSelections) : firstLegal(st);
+    };
+    const hero: GameState = settle(runWith(WAVE4_DEPS, start, toHero()), toPulsar, undefined, WAVE4_DEPS);
+    const villain = activeVillain(hero).instanceId;
+    const tough = patchInstance(hero, villain, { statuses: { ...inst(hero, villain).statuses, tough: 1 } });
+    // Staging sanity: Spectrum is not yet in Gamma form (the Gamma form upgrade is facedown).
+    expect(inst(tough, instancesOf(tough, "21002")[0]!).faceup).toBe(false);
+    expect(identityOf(tough, P1)).toBeTruthy();
+    const before = inst(tough, villain).damage;
+    const { state } = playFromHand(tough, "21007", 3, acceptingGamma(villain));
+    // Ruling: resolve the first sentence of Gamma Blast in full (the 7 damage discards the tough card and is prevented),
+    // then the response deals 1 damage. If the response came first it would discard tough and let the 7 through (8 total).
+    expect(inst(state, villain).statuses.tough).toBe(0);
+    expect(inst(state, villain).damage - before).toBe(1);
+  });
+});

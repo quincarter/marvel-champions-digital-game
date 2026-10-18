@@ -19,6 +19,7 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
+import { conjure, drive, intoPlay, rhino } from "../../testing/qa-bench.js";
 import { withForm } from "../../testing/staging.js";
 import { WAVE4_DEPS } from "../index.js";
 import { playFromHand, startWave4Game } from "../testing.js";
@@ -448,5 +449,23 @@ describe("Meditation (event, 26036)", () => {
     // Cost 2 reduced by 3, floored at 0: no resources spent (the hand shrinks by exactly the two cards played).
     expect(playerOf(state, P1).hand).not.toContain(meditation);
     expect(playerOf(state, P1).hand).not.toContain(victor);
+  });
+});
+
+describe("Defiance (26018) while an ally defends (FFG ruling 151, Mar 15, 2024)", () => {
+  // Ruling 151, Mar 15, 2024: Defiance cannot be played while an ally defends ('you' is the identity; RRG 1.8
+  // "You, Your" p. 49).
+  it.fails("an ally defends Rhino's attack, Defiance in hand: it is not played", () => {
+    const base = rhino(1, "core-black-panther-protection");
+    const ally = intoPlay(base, "01058");
+    const given = conjure(ally.state, "26018");
+    const staged = patchInstance(stackEncounterDeck(given.state, "01109"), given.state.mainScheme.instanceId, {
+      threat: 1,
+    });
+    const done = drive(staged, endTurn(P1), { defend: ally.id, use: ["26018.defiance-interrupt"] });
+    expect(done.events.some((e) => e.type === "defenderDeclared")).toBe(true);
+    // Actual: Defiance is played and discards the boost card.
+    expect(done.events.some((e) => e.type === "boostCancelled" && e.scope === "discarded")).toBe(false);
+    expect(playerOf(done.state, P1).discard).not.toContain(given.id);
   });
 });

@@ -207,3 +207,27 @@ describe("Powerful Enchantments (side scheme, 25030)", () => {
     expect(inst(control.after, control.weapon).attachedTo).toBeNull();
   });
 });
+
+/**
+ * Seduced, "You cannot make basic attacks or play Attack events": the first half bars only the identity's basic attack,
+ * not an attack made by a card's ability (RRG 1.8 "Basic Power", p. 10; "You, Your", p. 49). The 25032 printing must
+ * scope the rule the way 55015 does (`cannotMakeBasicAttacks`).
+ */
+describe("Seduced (25032) bars only basic attacks", () => {
+  it("25032: the identity cannot make a basic attack, but an ability's attack is still allowed", () => {
+    const hero = runWith(WAVE4_DEPS, valkyrieVsRhino(4), toHero());
+    const identity = identityOf(hero, P1);
+    const seduced = instancesOf(hero, "25032")[0]!;
+    const state: GameState = {
+      ...hero,
+      instances: {
+        ...hero.instances,
+        [seduced]: { ...hero.instances[seduced]!, attachedTo: identity, faceup: true, controllerId: P1 },
+        [identity]: { ...hero.instances[identity]!, attachments: [...hero.instances[identity]!.attachments, seduced] },
+      },
+    };
+    const villain = state.villains[0]!.instanceId;
+    expect(canAttack(state, identity as never, villain, WAVE4_DEPS, true)).toBe(false);
+    expect(canAttack(state, identity as never, villain, WAVE4_DEPS, false)).toBe(true);
+  });
+});

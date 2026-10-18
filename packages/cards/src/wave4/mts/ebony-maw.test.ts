@@ -1,7 +1,10 @@
 import { cardId } from "@mc/content";
 import {
   activeEncounterDeckId,
+  applyCommand,
+  cardOf,
   cardsInPlay,
+  printedResources,
   traitsOf,
   type GameState,
   type InstanceId,
@@ -20,6 +23,7 @@ import {
   settle,
   stackEncounterDeck,
   toHero,
+  use,
   type Picker,
 } from "../../testing/harness.js";
 import { defeatWithAttack, driveEvents } from "../../testing/staging.js";
@@ -434,5 +438,106 @@ describe("MC21 p. 6's Spell rule, seeded at setup (docs/phase7-wave4.md §3.40)"
       WAVE4_DEPS,
     );
     expect(spellsIn(after, P1).length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("Restrained (21083) with only an alter-ego in play (FFG ruling 69.42, Apr 17, 2025)", () => {
+  // "Since Alter-Egos do not have an ATK value, they are not valid targets for Restrained. Restrained would not attach
+  // to anything if there was only an Alter-Ego in play."
+  it.fails("a solo alter-ego with no allies gets no Restrained attached", () => {
+    const start: GameState = startWave4Game(spectrumScenario("ebony-maw", { seed: 3 })); // alter-ego by default
+    const staged = stackEncounterDeck(start, "01186", "21083", "01186");
+    const already = new Set(cardsInPlay(staged));
+    const revealed = settle(runWave4(staged, endTurn(P1)), firstLegal, undefined, WAVE4_DEPS);
+    const id = instancesOf(revealed, "21083").find((c) => cardsInPlay(revealed).includes(c) && !already.has(c)) as
+      | InstanceId
+      | undefined;
+    // Actual: Restrained is in play attached to the alter-ego identity (verified: attachedTo is the identity).
+    expect(id === undefined || inst(revealed, id).attachedTo === null).toBe(true);
+  });
+});
+
+const P2 = "p2" as PlayerId;
+
+/** Attaches an encounter-deck (or discard-pile) card straight to a host, for a card not already in play. */
+function attachTo(state: GameState, code: string, host: InstanceId): { state: GameState; id: InstanceId } {
+  const deckId = activeEncounterDeckId(state);
+  const pile = state.encounterDecks[deckId]!;
+  const wanted = cardId(code);
+  const id =
+    pile.deck.find((i) => state.instances[i]?.cardId === wanted) ??
+    pile.discard.find((i) => state.instances[i]?.cardId === wanted);
+  if (!id) throw new Error(`no ${code} in the encounter deck or discard`);
+  return {
+    id,
+    state: {
+      ...state,
+      encounterDecks: {
+        ...state.encounterDecks,
+        [deckId]: { deck: pile.deck.filter((i) => i !== id), discard: pile.discard.filter((i) => i !== id) },
+      },
+      instances: {
+        ...state.instances,
+        [id]: { ...state.instances[id]!, faceup: true, attachedTo: host },
+        [host]: { ...state.instances[host]!, attachments: [...state.instances[host]!.attachments, id] },
+      },
+    },
+  };
+}
+
+/** Two hand cards of `playerId` that pay [energy] and [physical] (a wild stands for either), moved into hand if needed. */
+function energyPhysical(state: GameState, playerId: PlayerId): { state: GameState; pay: { fromHand: InstanceId }[] } {
+  const player = playerOf(state, playerId);
+  const pool = (id: InstanceId) => {
+    const c = cardOf(state, id);
+    return c ? printedResources(c) : null;
+  };
+  const all = [...player.hand, ...player.deck];
+  const energy = all.find((id) => (pool(id)?.energy ?? 0) > 0);
+  const physical = all.find((id) => id !== energy && ((pool(id)?.physical ?? 0) > 0 || (pool(id)?.wild ?? 0) > 0));
+  if (!energy || !physical) throw new Error("no energy + physical payment found");
+  const moved = [energy, physical].filter((id) => !player.hand.includes(id));
+  const next: GameState = {
+    ...state,
+    players: state.players.map((p) =>
+      p.playerId === playerId
+        ? { ...p, hand: [...p.hand, ...moved], deck: p.deck.filter((id) => !moved.includes(id)) }
+        : p,
+    ),
+  };
+  return { state: next, pay: [energy, physical].map((fromHand) => ({ fromHand })) };
+}
+
+/*
+ * FFG ruling July 13, 2023 - Ruling 48 (Alex): Restrained (Mad Titan's Shadow #83) has no "you" or "your", so "any
+ * player can use the hero action to discard the card from the attached character" (also when it is attached to
+ * another player's identity or ally). RRG 1.8 p. 4 (Ability): "Only the player who controls a player card with an
+ * attachment that uses the word 'you' or 'your' can trigger abilities or pay costs on that attachment."
+ * The engine (`actions.ts` useAbility, "only the player it is attached to can use that card") refuses every other
+ * player for every encounter attachment on a player's card (RRG 1.8 p. 8 "Attachment", last bullet, read alone).
+ */
+describe("Restrained (21083): any player can use its hero action (FFG ruling July 13, 2023 - Ruling 48)", () => {
+  function staged(user: PlayerId) {
+    const base = startWave4Game(
+      spectrumScenario("ebony-maw", { seed: 5, extraPlayers: [{ starterDeckId: "adam-warlock-all-aspects" }] }),
+    );
+    const { state: attached, id } = attachTo(base, "21083", identityOf(base, P1));
+    let state = user === P1 ? attached : settle(runWave4(attached, endTurn(P1)), firstLegal, undefined, WAVE4_DEPS);
+    state = settle(runWave4(state, toHero(user)), firstLegal, undefined, WAVE4_DEPS);
+    const primed = energyPhysical(state, user);
+    return { state: primed.state, id, pay: primed.pay };
+  }
+
+  it("control: the player it is attached to can use it", () => {
+    const { state, id, pay } = staged(P1);
+    const result = applyCommand(state, use(P1, id, "21083.restrained-action", pay), WAVE4_DEPS);
+    expect(result.ok ? "" : result.error.message).toBe("");
+  });
+
+  it.fails("another player can use it on a teammate's identity", () => {
+    const { state, id, pay } = staged(P2);
+    const result = applyCommand(state, use(P2, id, "21083.restrained-action", pay), WAVE4_DEPS);
+    // Today: ok === false, "only the player it is attached to can use that card".
+    expect(result.ok ? "" : result.error.message).toBe("");
   });
 });
