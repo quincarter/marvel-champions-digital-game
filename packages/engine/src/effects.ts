@@ -766,17 +766,32 @@ export function addAccelerationToken(ctx: Ctx, requested?: InstanceId): void {
 /** The counter an acceleration token is on a card that is not a main scheme (docs/phase7-wave5.md §3.4). */
 export const ACCELERATION_COUNTER = "acceleration";
 
-export function removeAccelerationToken(ctx: Ctx): void {
-  // RRG "Acceleration Token": tokens on the main scheme cannot be removed from play.
-  if (ctx.state.mainScheme.accelerationTokens <= 0) return;
-  ctx.state = {
-    ...ctx.state,
-    mainScheme: {
-      ...ctx.state.mainScheme,
-      accelerationTokens: ctx.state.mainScheme.accelerationTokens - 1,
-    },
-  };
-  emit(ctx, { type: "accelerationTokenAdded", total: ctx.state.mainScheme.accelerationTokens });
+/**
+ * Removes one acceleration token from `from`, a card in play holding one: a main scheme stage's
+ * `MainSchemeState.accelerationTokens` (the central stage, one beside it, or a separate game area's), or any other
+ * card's `acceleration` counter. `from` absent is the central main scheme. Nothing when the card holds none or is out
+ * of play.
+ *
+ * RRG 1.8 "Acceleration Token" (p. 5): "Acceleration tokens on the main scheme cannot be removed from play." Only a card
+ * ability that says to remove one overrides that, by the Golden Rules (p. 4: card text takes precedence over the rules
+ * reference) and "Cannot" (p. 11) read with them. Which token is the effect's choice: a card's "remove an acceleration
+ * token from play" binds the holder with `chooseTarget` over `{ hasAccelerationToken: true }` first (docs/phase7-wave11.md
+ * §8.2 task 13). The main scheme's count is logged as `accelerationTokenAdded` with the lowered total (as the
+ * encounter-deck reset logs it raised), with `schemeInstanceId` off the central stage; a counter as `counterRemoved`.
+ */
+export function removeAccelerationToken(ctx: Ctx, from?: InstanceId): void {
+  const id = from ?? ctx.state.mainScheme.instanceId;
+  const scheme = mainSchemeStates(ctx.state).find((candidate) => candidate.instanceId === id);
+  if (scheme) {
+    if (scheme.accelerationTokens <= 0) return;
+    const total = scheme.accelerationTokens - 1;
+    updateMainSchemeState(ctx, id, (state) => ({ ...state, accelerationTokens: total }));
+    const central = id === ctx.state.mainScheme.instanceId;
+    emit(ctx, { type: "accelerationTokenAdded", total, ...(central ? {} : { schemeInstanceId: id }) });
+    return;
+  }
+  if (!cardsInPlay(ctx.state).includes(id)) return;
+  removeCounters(ctx, id, ACCELERATION_COUNTER, 1);
 }
 
 const LISTENS_FOR_ENCOUNTER_DEALT = new WeakMap<EngineDeps, boolean>();

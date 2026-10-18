@@ -2373,6 +2373,31 @@ export const addAccelerationToken = (target?: TargetRef, count?: Amount): Effect
   ...(count !== undefined ? { count: amount(count) } : {}),
 });
 /**
+ * One acceleration token off `from` (the first card it names: a main scheme stage or a card holding an `acceleration`
+ * counter), or, with `from` absent, the legacy default: the central main scheme only (`EffectSpec
+ * removeAccelerationToken`). Card scripts use `removeAnAccelerationToken` for "remove an acceleration token"; this is
+ * for a card that names the holder itself.
+ */
+export const removeAccelerationToken = (from?: TargetRef): EffectSpec => ({
+  kind: "removeAccelerationToken",
+  ...(from ? { from } : {}),
+});
+/**
+ * "Remove an acceleration token from play" (De-escalation 60024): the chooser (default the ability's controller) picks
+ * a card in play holding one, any main scheme stage, in any game area, or an `acceleration` counter on another card,
+ * bound as `slot`, and one token comes off it; nothing is asked and nothing removed when no card holds one. The card's
+ * instruction overrides RRG 1.8 "Acceleration Token" (p. 5) under the Golden Rules (p. 4) and "Cannot" (p. 11).
+ */
+export const removeAnAccelerationToken = (
+  opts: { readonly chooser?: PlayerRef; readonly slot?: string } = {},
+): EffectSpec[] => {
+  const slot = opts.slot ?? "accelerationToken";
+  return [
+    chooseTarget(slot, { hasAccelerationToken: true }, opts.chooser ? { chooser: opts.chooser } : {}),
+    removeAccelerationToken(chosen(slot)),
+  ];
+};
+/**
  * "During the Resolve Mulligans step of game setup, each player may take 1 additional mulligan" (MC27 p. 22 reputation
  * node 5, RRG 1.8 p. 67 erratum; docs/phase7-wave5.md §3.27): a campaign instruction resolved at `beforeStartingHands`.
  */

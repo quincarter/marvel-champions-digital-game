@@ -318,6 +318,12 @@ export interface TargetQuery {
    * type ("a S.H.I.E.L.D. support with a counter", docs/phase7-wave9.md §3.6); acceleration tokens are not counters.
    */
   readonly hasCounter?: string;
+  /**
+   * At least one acceleration token is on the card (`accelerationTokensOn`'s count for it): a main scheme stage's own,
+   * or another card's `acceleration` counter. "Remove an acceleration token from play" chooses among these
+   * (`EffectSpec removeAccelerationToken`). Exclusion `missingCounter`.
+   */
+  readonly hasAccelerationToken?: true;
   readonly damaged?: boolean;
   readonly hasStatus?: "stunned" | "confused" | "tough";
   /**
@@ -4490,7 +4496,16 @@ export type EffectSpec =
    * A constant `accelerationTokenDestination` rule may redirect it before it lands (docs/phase7-wave2.md §10.3).
    */
   | { readonly kind: "addAccelerationToken"; readonly target?: TargetRef; readonly count?: ValueSpec }
-  | { readonly kind: "removeAccelerationToken" }
+  /**
+   * "Remove an acceleration token from play" (De-escalation's When Defeated): one token off the first card `from` names
+   * in play, a main scheme stage (`MainSchemeState.accelerationTokens`) or any other card (its `acceleration` counter);
+   * nothing when it holds none, or when `from` names nothing. `from` absent is the legacy default, the central main
+   * scheme only; card scripts use the DSL's `removeAnAccelerationToken`, which always names `from`. The holder is
+   * the effect's choice: bind it with `chooseTarget` over `{ hasAccelerationToken: true }` (the DSL's
+   * `removeAnAccelerationToken`). A card's instruction overrides RRG 1.8 "Acceleration Token" (p. 5), "Acceleration
+   * tokens on the main scheme cannot be removed from play", by the Golden Rules (p. 4) and "Cannot" (p. 11).
+   */
+  | { readonly kind: "removeAccelerationToken"; readonly from?: TargetRef }
   /**
    * "During the Resolve Mulligans step of game setup, each player may take 1 additional mulligan" (MC27 p. 22
    * reputation node 5, as errata'd by RRG 1.8 p. 67; docs/phase7-wave5.md §3.27): adds `amount` to every player's

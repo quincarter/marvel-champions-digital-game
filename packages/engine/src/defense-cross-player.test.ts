@@ -402,8 +402,10 @@ describe("once a player resolves a (defense) ability, other players cannot for t
     expect(promptsOf(prompts, P3)).toEqual([["watch"], ["watch"]]);
     expect(resolvedBy(events, SHIELD)).toEqual([P2]);
     expect(resolvedBy(events, BLOCK)).toEqual([]);
-    // The second player's hero is the defender and the target; step 2 offers the attacked player only that hero.
-    expect(promptsOf(prompts, P1, "declareDefender")).toEqual([["decline", HERO.id + "-p2"]]);
+    // The second player's hero is the defender and the target; step 2 is the second player's to answer, offering only
+    // that hero (RRG 1.8 "Defend, Defense", p. 15: other players cannot defend), and the attacked player is not asked.
+    expect(promptsOf(prompts, P1, "declareDefender")).toEqual([]);
+    expect(promptsOf(prompts, P2, "declareDefender")).toEqual([["decline", HERO.id + "-p2"]]);
     expect(defenses(events)).toEqual([{ defender: s.hero(P2), basic: false }]);
     expect(attacksResolved(events)).toEqual([{ target: s.hero(P2), def: 0, dealt: 4 }]);
     expect([P1, P2, P3].map((p) => damageOf(state, s.hero(p)))).toEqual([0, 4, 0]);
@@ -521,6 +523,38 @@ describe("while a player is defending, other players cannot defend that attack (
     expect(state.pendingChoice?.options.map((o) => o.optionId)).toEqual(["decline", s.hero(P2)]);
     expect(choiceExclusions(state, deps)).toEqual([{ instanceId: s.hero(P1), reason: "anotherPlayerDefending" }]);
     expect(force(session, s.hero(P1)).message).toBe("another player is defending this attack");
+  });
+});
+
+describe("a (defense) ability redirects an attack on another player: step 2 is the defending player's (RRG 1.8 p. 15)", () => {
+  // RRG 1.8 "Defend, Defense" (p. 15): the (defense) player's identity "becomes the defender", "the defending player
+  // becomes the new target of that attack", and "While a player is defending, other players cannot defend against
+  // that same attack". Step 2 (p. 8): "If a player wishes to defend, that player exhausts a hero or ally".
+  it("control: an attack on the second player with no (defense) ability asks the second player", () => {
+    const s = setup({}, {});
+    const { prompts, events } = drive(s, [attack(s, P2)]);
+    expect(promptsOf(prompts, P1, "declareDefender")).toEqual([]);
+    expect(promptsOf(prompts, P2, "declareDefender")).toEqual([["decline", HERO.id + "-p2", HERO.id]]);
+    expect(of(events, "defenseDeclined").map((e) => e.playerId)).toEqual([P2]);
+  });
+
+  it("the first player's (defense) event on an attack aimed at the second: only the first player is asked", () => {
+    const s = setup({ hand: ["shield"], ally: true }, { ally: true });
+    const stopAt = (state: GameState) => state.pendingChoice?.prompt.kind === "declareDefender";
+    const stopped = drive(s, [attack(s, P2)], { picks: { p1: ALL }, stopAt });
+    expect(stopped.state.pendingChoice?.playerId).toBe(P1);
+    expect(stopped.state.pendingChoice?.options.map((o) => o.optionId)).toEqual(["decline", s.hero(P1)]);
+    // Declining leaves the first player's hero the defender and the target, without DEF.
+    const declined = drive(s, [attack(s, P2)], { picks: { p1: ALL } });
+    expect(promptsOf(declined.prompts, P2, "declareDefender")).toEqual([]);
+    expect(of(declined.events, "defenseDeclined").map((e) => e.playerId)).toEqual([P1]);
+    expect(attacksResolved(declined.events)).toEqual([{ target: s.hero(P1), def: 0, dealt: 4 }]);
+    expect(damageOf(declined.state, s.hero(P2))).toBe(0);
+    // The first player may still make it a basic defense with that hero (p. 16), and decides so themself.
+    const basic = drive(s, [attack(s, P2)], { picks: { p1: ALL }, defender: s.hero(P1) });
+    expect(promptsOf(basic.prompts, P1, "declareDefender")).toEqual([["decline", HERO.id]]);
+    expect(of(basic.events, "defenderDeclared").map((e) => e.playerId)).toEqual([P1]);
+    expect(attacksResolved(basic.events)).toEqual([{ target: s.hero(P1), def: 2, dealt: 2 }]);
   });
 });
 

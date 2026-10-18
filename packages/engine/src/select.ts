@@ -1502,6 +1502,7 @@ export function explainQuery(
   if (query.hasThreat !== undefined && instance.threat > 0 !== query.hasThreat)
     return query.hasThreat ? "noThreat" : "hasThreat";
   if (query.hasCounter !== undefined && countersOfType(state, id, query.hasCounter) <= 0) return "missingCounter";
+  if (query.hasAccelerationToken && accelerationTokensOnCard(state, id) <= 0) return "missingCounter";
   if (query.damaged !== undefined && instance.damage > 0 !== query.damaged)
     return query.damaged ? "notDamaged" : "damaged";
   // The status cards of a card that has left play are its last known ones (`EffectContext.lastKnown`).

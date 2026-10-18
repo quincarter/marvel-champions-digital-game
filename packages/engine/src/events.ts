@@ -1042,12 +1042,12 @@ export type GameEvent =
     }
   /**
    * A character was declared the defender of an enemy attack (RRG 1.8 "Defend, Defense", p. 15). Without `byEffect`: the
-   * Declare Defender step's own declaration (step 2 of the attack, p. 9), `playerId` the attacked player who decided,
-   * the defender exhausted next. `byEffect`: a card ability declared it ("declare [character] the defender [without
-   * exhausting them]", `EffectSpec declareDefender`), `playerId` the defender's controller; the character is the
-   * attack's defender all the same (a hero's is a basic defense, p. 15), and nothing else about the step is implied
-   * (no exhaustion unless the effect says so). Logged once per declaration: an effect naming the character that
-   * already defends declares nothing new.
+   * Declare Defender step's own declaration (step 2 of the attack, p. 9), `playerId` the player who decided (the attacked
+   * player, or the player already defending the attack: `defenseDecider`), the defender exhausted next. `byEffect`: a
+   * card ability declared it ("declare [character] the defender [without exhausting them]", `EffectSpec
+   * declareDefender`), `playerId` the defender's controller; the character is the attack's defender all the same (a
+   * hero's is a basic defense, p. 15), and nothing else about the step is implied (no exhaustion unless the effect says
+   * so). Logged once per declaration: an effect naming the character that already defends declares nothing new.
    */
   | {
       readonly type: "defenderDeclared";

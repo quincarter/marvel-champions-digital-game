@@ -27,7 +27,7 @@ import {
   updateInstance,
 } from "../ctx.js";
 import { activationVarsOf, plannedAttackDamage } from "../defend-preview.js";
-import { currentEnemyAttackFrame, defenseBarFor } from "../defense-claim.js";
+import { currentEnemyAttackFrame, defenseBarFor, defenseClaimOf } from "../defense-claim.js";
 import { drawEncounterCard, exhaustCard } from "../effects.js";
 import { type FrameId, type InstanceId, instanceId as asInstanceId, type PlayerId } from "../ids.js";
 import { attackKeywordsOf, hasKeyword } from "../keywords.js";
@@ -1132,6 +1132,21 @@ function defenderLeftPlay(ctx: Ctx, frame: Frame<"enemyAttack">): Frame<"enemyAt
   return next;
 }
 
+/**
+ * Who answers the Declare Defender step. Normally the attacked player (the co-op table convention in
+ * `legalDefenders`). But once a player is defending the attack, or has resolved a "(defense)"-labeled ability for it,
+ * only that player's characters can still defend it (RRG 1.8 "Defend, Defense", p. 15: "While a player is defending,
+ * other players cannot defend against that same attack"; "Once a player resolves a defense-labeled ability during an
+ * enemy attack, other players cannot resolve defense-labeled abilities"), and step 2 is "If a player wishes to defend,
+ * that player exhausts a hero or ally" (p. 8): so that player decides, not the attacked player. This covers a
+ * "(defense)" interrupt that redirected an attack aimed at another player (p. 15: "the defending player becomes the
+ * new target of that attack"), where the original target has nothing left to declare.
+ */
+function defenseDecider(state: GameState, frame: Frame<"enemyAttack">): PlayerId {
+  const claim = defenseClaimOf(state);
+  return claim?.defendingPlayerId ?? claim?.labeledPlayerId ?? frame.attackedPlayerId;
+}
+
 export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): void {
   if (endedByLeavingPlay(ctx, frame, "attack")) return;
   switch (frame.stage) {
@@ -1150,7 +1165,7 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
           emit(ctx, {
             type: "defenseDeclined",
             attackInstanceId: frame.enemyInstanceId,
-            playerId: frame.attackedPlayerId,
+            playerId: defenseDecider(ctx.state, frame),
           });
           setFrame(ctx, { ...frame, answer: null, stage: "flipBoosts" });
           if (frame.defenderInstanceId === null) addFrameVars(ctx, frame.eventFrameId, { undefended: 1 });
@@ -1175,7 +1190,7 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
           type: "defenderDeclared",
           attackInstanceId: frame.enemyInstanceId,
           defenderInstanceId: defenderId,
-          playerId: frame.attackedPlayerId,
+          playerId: defenseDecider(ctx.state, frame),
           ...(withoutExhausting ? { withoutExhausting: true as const } : {}),
         });
         if (!withoutExhausting) exhaustCard(ctx, defenderId);
@@ -1211,6 +1226,7 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
         (id) => !frame.defendersNotPaidFor?.includes(id),
       );
       // "Must defend with an ally they control, if able" (Melter): only the engaged player's ready allies, no declining.
+      // Engine reading, untested: after a "(defense)" redirect this still reads the originally attacked player.
       const forcedAllies = mustDefendWithAlly(ctx.state, ctx.deps, frame.enemyInstanceId)
         ? all.filter((id) => isAlly(ctx.state, id) && controllerOf(ctx.state, id) === frame.attackedPlayerId)
         : [];
@@ -1221,7 +1237,7 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
         return;
       }
       requestChoice(ctx, {
-        playerId: frame.attackedPlayerId,
+        playerId: defenseDecider(ctx.state, frame),
         prompt: {
           kind: "declareDefender",
           attack: {

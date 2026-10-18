@@ -2397,9 +2397,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       setActiveVillain(ctx, to, reason);
       return;
     }
-    case "removeAccelerationToken":
-      removeAccelerationToken(ctx);
+    case "removeAccelerationToken": {
+      // One token, from the first card `from` names (a chosen holder); none named is none removed.
+      if (!effect.from) return removeAccelerationToken(ctx);
+      const [holder] = targets(effect.from);
+      if (holder) removeAccelerationToken(ctx, holder);
       return;
+    }
     case "grantAdditionalMulligans": {
       // MC27 p. 22 node 5 (docs/phase7-wave5.md §3.27): read by the mulligan step (§3.26) when it reaches the player.
       const amount = Math.max(0, Math.trunc(effect.amount));
