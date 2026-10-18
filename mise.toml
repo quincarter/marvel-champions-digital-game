@@ -55,11 +55,27 @@ description = "Report files oxfmt would change, without writing"
 run = "pnpm fmt:check"
 
 [tasks.check]
-description = "Everything CI runs: lint, format check, typecheck, then tests, then build"
+description = "Everything CI runs: lint, format check, YAML lint, changelog fragments, typecheck, then tests, then build"
 # A sequential array, so a failure stops the run and the output stays readable.
 # The pre-commit hook (.githooks/pre-commit, installed by `pnpm install`) runs the
 # first two on the staged files only; this runs them over the whole tree.
-run = ["pnpm lint", "pnpm fmt:check", "pnpm typecheck", "pnpm test", "pnpm build"]
+run = [
+  "pnpm lint",
+  "pnpm fmt:check",
+  "pnpm yaml:lint",
+  "pnpm changelog:check",
+  "pnpm typecheck",
+  "pnpm test",
+  "pnpm build",
+]
+
+[tasks.yaml-lint]
+description = "Lint every YAML file with yamllint (.yamllint.yaml)"
+run = "pnpm yaml:lint"
+
+[tasks.changelog-check]
+description = "Lint the unreleased changelog fragments the way the release job reads them"
+run = "pnpm changelog:check"
 
 [tasks.ingest]
 description = "Regenerate card data. Pass flags after --, e.g. mise run ingest -- --pack core --offline"
