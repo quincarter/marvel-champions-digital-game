@@ -23,6 +23,7 @@ import {
   on,
   query,
   refMatches,
+  removeAnAccelerationToken,
   response,
   rule,
   spend,
@@ -30,6 +31,7 @@ import {
   takesConsequentialDamage,
   thwartAScheme,
   when,
+  whenDefeated,
   you,
 } from "../../../dsl/index.js";
 import { WAVE10_ABILITIES } from "../../../wave10/index.js";
@@ -74,6 +76,10 @@ const CLOAK = query("ally", { name: "Cloak" });
  * its own).
  *
  *
+ * **60024.when-defeated**: "Remove an acceleration token from play." The card's instruction overrides RRG 1.8
+ * "Acceleration Token" (p. 5, tokens on the main scheme cannot be removed) under the Golden Rules (p. 4) and "Cannot"
+ * (p. 11), so the player chooses any token in play, main scheme stages included; with none, nothing happens.
+ *
  * **60026.legal-trouble-constant**: attached minion gets -2 SCH (attach and max-per-host are card data).
  *
  * **60027.move-in-shadow-response**: "Response (thwart): After you play a card (including this one)": `youPlayedCard`
@@ -116,6 +122,8 @@ export const FNE_ASPECT_BASIC_JUSTICE: AbilityRegistry = defineAbilities({
     thwartAScheme(1, "second"),
   ),
 
+  "60024.when-defeated": whenDefeated(removeAnAccelerationToken()),
+
   "60025.chance-encounter-interrupt": WAVE10_ABILITIES["26034.chance-encounter-interrupt"]!,
 
   "60026.legal-trouble-constant": constant(gets("sch", -2, query("minion", { hostOfSelf: true }))),
@@ -134,6 +142,4 @@ export const FNE_ASPECT_BASIC_JUSTICE: AbilityRegistry = defineAbilities({
 });
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const FNE_ASPECT_BASIC_JUSTICE_SKIPPED: Readonly<Record<string, string>> = {
-  "60024.when-defeated": "waits on the engine's removeAccelerationToken choosing any token in play (Golden Rules p. 4)",
-};
+export const FNE_ASPECT_BASIC_JUSTICE_SKIPPED: Readonly<Record<string, string>> = {};

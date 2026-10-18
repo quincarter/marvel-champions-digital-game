@@ -45,6 +45,7 @@ const BLINDSPOT = "60019";
 const CLOAK = "60020";
 const DAGGER = "60021";
 const GHOST_RIDER = "60022";
+const DE_ESCALATION = "60024";
 const KNOW_YOUR_ENEMY = "60023";
 const LEGAL_TROUBLE = "60026";
 const MOVE_IN_SHADOW = "60027";
@@ -58,6 +59,7 @@ const REFS = [
   "60021.dagger-constant-2",
   "60022.ghost-rider-interrupt",
   "60023.know-your-enemy-action",
+  "60024.when-defeated",
   "60025.chance-encounter-interrupt",
   "60026.legal-trouble-constant",
   "60027.move-in-shadow-response",
@@ -69,6 +71,7 @@ const KEY_CODES = [
   CLOAK,
   DAGGER,
   GHOST_RIDER,
+  DE_ESCALATION,
   KNOW_YOUR_ENEMY,
   LEGAL_TROUBLE,
   MOVE_IN_SHADOW,
@@ -195,7 +198,7 @@ describe("wave 11 fne/aspect-basic/justice", () => {
 
   it("scripts every ref of 60019 to 60028, so nothing is skipped", () => {
     expect(Object.keys(REGISTRY).sort()).toEqual([...REFS].sort());
-    expect(Object.keys(SKIPPED)).toEqual(["60024.when-defeated"]);
+    expect(SKIPPED).toEqual({});
   });
 
   it("aliases the reprint to its original's script, and the printed text is the original's", () => {
@@ -364,6 +367,55 @@ describe("wave 11 fne/aspect-basic/justice", () => {
       expect(inst(after, side.id).threat).toBe(0);
       expect(stunnedOf(after, MINION)).toBe(1);
       expect(inst(after, training.id).exhausted).toBe(true);
+    });
+  });
+
+  describe("60024.when-defeated", () => {
+    /** De-escalation (a player side scheme in the villain area) at 1 threat, ready for P1's basic thwart. */
+    function staged(base: GameState): { readonly state: GameState; readonly id: InstanceId } {
+      const given = moveToHand(base, P1, DE_ESCALATION);
+      const id = given.ids[0]!;
+      const placed: GameState = {
+        ...given.state,
+        players: given.state.players.map((p) =>
+          p.playerId === P1 ? { ...p, hand: p.hand.filter((i) => i !== id) } : p,
+        ),
+        villainArea: [...given.state.villainArea, id],
+      };
+      return { id, state: patchInstance(placed, id, { controllerId: P1, faceup: true, threat: 1 }) };
+    }
+    const withMainTokens = (s: GameState, tokens: number): GameState =>
+      ({ ...s, mainScheme: { ...s.mainScheme, accelerationTokens: tokens } }) as GameState;
+    const defeat = (s: GameState, id: InstanceId, pick: Picker): GameState =>
+      drive(s, basicThwart(identityOf(s), id), pick);
+
+    it("removes the main scheme's token (1 to 0): Golden Rules (p. 4) over 'Acceleration Token' (p. 5)", () => {
+      const scheme = staged(withMainTokens(coreGame(DE_ESCALATION), 1));
+      const after = defeat(scheme.state, scheme.id, choosing());
+      expect(after.mainScheme.accelerationTokens).toBe(0);
+    });
+
+    it("removes one token from a stage holding several", () => {
+      const scheme = staged(withMainTokens(coreGame(DE_ESCALATION), 2));
+      expect(defeat(scheme.state, scheme.id, choosing()).mainScheme.accelerationTokens).toBe(1);
+    });
+
+    it("lets the player pick between the main scheme and a card holding a token", () => {
+      const base = withMainTokens(engageMinion(coreGame(DE_ESCALATION), SHOCKER, MINION), 1);
+      const scheme = staged(patchInstance(base, MINION, { counters: { acceleration: 2 } }));
+      const onCard = defeat(scheme.state, scheme.id, choosing(MINION));
+      expect(inst(onCard, MINION).counters["acceleration"]).toBe(1);
+      expect(onCard.mainScheme.accelerationTokens).toBe(1);
+      const onScheme = defeat(scheme.state, scheme.id, choosing(scheme.state.mainScheme.instanceId));
+      expect(inst(onScheme, MINION).counters["acceleration"]).toBe(2);
+      expect(onScheme.mainScheme.accelerationTokens).toBe(0);
+    });
+
+    it("does nothing when no acceleration token is in play", () => {
+      const scheme = staged(coreGame(DE_ESCALATION));
+      const after = defeat(scheme.state, scheme.id, choosing());
+      expect(after.mainScheme.accelerationTokens).toBe(0);
+      expect(inst(after, scheme.id).threat).toBe(0);
     });
   });
 
