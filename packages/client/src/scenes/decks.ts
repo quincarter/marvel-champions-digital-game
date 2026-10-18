@@ -123,6 +123,7 @@ import {
 } from "../view/community-decks-model.js";
 import {
   cachedDeckOption,
+  deckOptionOf,
   deckRowIndexOf,
   pendingDeckOption,
   preconDecks,
@@ -309,6 +310,9 @@ function importExportBoxHeight(column: number, open: "paste" | "marvelcdb" | nul
 
 /** How long a finished load waits for the others before the screen redraws. */
 const REBUILD_COALESCE_MS = 40;
+
+/** At most this many unchecked decks are checked on the main thread rather than sent to the worker. */
+const STATUS_HERE_MAX = 4;
 
 export class DecksScene extends Phaser.Scene {
   #savedDecks: readonly Deck[] = [];
@@ -533,6 +537,13 @@ export class DecksScene extends Phaser.Scene {
       (deck) => !this.#statusAsked.has(deck) && cachedDeckOption(deck, POOL_CARDS, POOL_VERSION, POOL_DEPS) === null,
     );
     if (decks.length === 0) return;
+    // A deck or two (one just imported, saved or copied) is checked here at once, so it never shows "Checking…":
+    // the worker is for the first visit's whole list, which is where the time went.
+    if (decks.length <= STATUS_HERE_MAX) {
+      for (const deck of decks) deckOptionOf(deck, POOL_CARDS, POOL_VERSION, POOL_DEPS);
+      this.#statusEpoch += 1;
+      return;
+    }
     for (const deck of decks) this.#statusAsked.add(deck);
     this.#askingStatuses = true;
     try {
@@ -731,6 +742,8 @@ export class DecksScene extends Phaser.Scene {
             cardCount: o.deck.cards.reduce((sum, entry) => sum + entry.quantity, 0),
           })),
         status: () => this.#status,
+        /** True while any listed deck's status is still on its way from the worker. */
+        checking: () => allOptions.some((o) => o.checking === true),
       };
     }
     // Saved decks arrive after the first draw, so a deck asked for by `focusDeckId` (the one just saved in the builder)

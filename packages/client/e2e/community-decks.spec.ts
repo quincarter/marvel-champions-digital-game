@@ -64,6 +64,12 @@ async function openDecks(page: Page, query: string): Promise<void> {
   await clickText(page, "Decks");
   await waitFor(async () => ((await activeScenes(page)).includes("Decks") ? true : null), "Decks opens", 8000);
   await waitFor(async () => ((await offers(page)).length > 0 ? true : null), "the community decks are listed", 15000);
+  // The first visit's deck statuses come from the search worker (#226); the rows say "Checking…" until it answers.
+  await waitFor(
+    async () => ((await hook<boolean>(page, "__mcDecksDebug", "checking")) === false ? true : null),
+    "every deck is checked",
+    15000,
+  );
   await settle(page);
 }
 
