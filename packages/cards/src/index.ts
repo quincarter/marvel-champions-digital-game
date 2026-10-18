@@ -55,6 +55,8 @@ export {
   wave10StarterDeckSetup,
 } from "./wave10/index.js";
 export type { Wave10Difficulty, Wave10ScenarioOptions } from "./wave10/index.js";
+// Wave 11 (cycle 11, Jessica Jones and Luke Cage hero packs): scaffold, scripts in progress; its abilities are in `playable/`.
+export { WAVE11_ABILITIES, WAVE11_CARDS, WAVE11_DEPS } from "./wave11/index.js";
 // A main scheme deck made of chosen stages (the Civil War leaders): picks to `mainSchemeStageIndexes`, and the options.
 export {
   chooseMainSchemeStages,

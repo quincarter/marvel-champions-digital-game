@@ -60,6 +60,7 @@ import { WAVE9_ABILITIES } from "../wave9/index.js";
 import { wave9Scenario } from "../wave9/setup.js";
 import { WAVE10_ABILITIES } from "../wave10/index.js";
 import { wave10Scenario } from "../wave10/setup.js";
+import { WAVE11_ABILITIES } from "../wave11/index.js";
 import { checkPlayableDifficultySets } from "./scenario-options.js";
 import { UNSCRIPTED_ENCOUNTER_SET_IDS } from "./unscripted.js";
 import {
@@ -98,6 +99,7 @@ export const PLAYABLE_ABILITIES: AbilityRegistry = unionRegistries(
   WAVE8_ABILITIES,
   WAVE9_ABILITIES,
   WAVE10_ABILITIES,
+  WAVE11_ABILITIES,
 );
 
 /** Engine dependencies for a game on the playable pool. */

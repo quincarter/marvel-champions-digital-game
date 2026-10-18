@@ -280,8 +280,19 @@ describe("same-titled cards (Deadpool's pool: wave 7 QA finding 1)", () => {
   });
 
   test("a bare title naming the deck's own hero identity is not a deck card: 'Hulk' the ally in a Hulk-free list", () => {
-    const result = ok("Hero: Spider-Man (01001a)\nAspect: Aggression\n1x Hulk\n");
+    // Luke Cage's pack prints a second Hulk ally (62020, basic), so the bare title no longer names one ally: the code
+    // picks the Core one, and the hero identity "Hulk" is still not a candidate.
+    const result = ok("Hero: Spider-Man (01001a)\nAspect: Aggression\n1x Hulk (01050)\n");
     expect(entries(result.contents.cards)).toEqual({ "01050": 1 });
+  });
+
+  test("a bare 'Hulk' is ambiguous between the two Hulk allies, and never the hero identity", () => {
+    const result = parse("Hero: Spider-Man (01001a)\nAspect: Aggression\n1x Hulk\n");
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.problems.map((p) => p.code)).toEqual(["ambiguous_card_name"]);
+    expect(result.problems[0]!.message).toContain("Hulk (01050)");
+    expect(result.problems[0]!.message).toContain("Hulk (62020)");
   });
 
   test("a bare title is resolved by the cards legal for this hero: Web-Shooter is Spider-Man's own", () => {

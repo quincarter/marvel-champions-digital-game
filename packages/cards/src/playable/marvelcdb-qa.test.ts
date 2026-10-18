@@ -226,7 +226,7 @@ describe("author credit: only what the JSON and the header table support", () =>
 
 describe("reprint codes (MarvelCDB duplicate_of) map to the right card and merge", () => {
   const pair = Object.entries(CATALOG_REPRINTS).find(
-    ([reprint, original]) => !BY_ID.has(reprint) && BY_ID.has(original) && BY_ID.get(original)!.type === "event",
+    ([reprint, original]) => !BY_ID.has(reprint) && BY_ID.has(original),
   );
   it("a reprint code and its original on separate lines total on the original, with a note", () => {
     expect(pair).toBeDefined();
@@ -566,12 +566,12 @@ describe("the community feature never restricts or alters a player's own decks",
   });
   it("a card outside the playable pool is refused with its code, not dropped or substituted", () => {
     const raw = fixture("falcon-pool");
-    const result = parseMarvelCdbDeckJson({ ...raw, slots: { ...raw.slots, "60002": 1 } }, PLAYABLE_CARDS);
+    const result = parseMarvelCdbDeckJson({ ...raw, slots: { ...raw.slots, "99999": 1 } }, PLAYABLE_CARDS);
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.problems.map((p) => p.code)).toEqual(["unknown_card"]);
-    expect(result.problems[0]!.message).toContain("60002");
-    expect(result.problems[0]!.cardIds).toEqual(["60002"]);
+    expect(result.problems[0]!.message).toContain("99999");
+    expect(result.problems[0]!.cardIds).toEqual(["99999"]);
   });
   it("importing does not mutate its input, and two imports of the same JSON are equal but independent", () => {
     const raw = fixture("maria-hill-leadership");
