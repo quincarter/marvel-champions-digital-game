@@ -114,6 +114,7 @@ export default defineConfig({
         "villain-phase-gate.spec.ts",
         "discard-stale-pick.spec.ts",
         "villain-review-handle.spec.ts",
+        "roster-picker-drag.spec.ts",
         "villain-decision-dock.spec.ts",
         "choice-peek.spec.ts",
         "payment-table-tile-tap.spec.ts",
