@@ -553,9 +553,21 @@ export function moveCardsTo(
   settleScenarioDeckTops(ctx);
 }
 
-/** Shuffles an identity's separate deck, then shows its top card as its rules say. */
-export function shuffleSeparateDeck(ctx: Ctx, playerId: PlayerId, name: string): void {
+/**
+ * Shuffles an identity's separate deck, then shows its top card as its rules say.
+ *
+ * A `fixedOrder` deck (docs/phase7-wave11.md §3.1; MC60 p. 26: "shuffle all five … you cannot change the order", and
+ * the Sense cards' "(Do not shuffle.)") is shuffled only by setup (`atSetup`, RRG 1.8 Appendix II step 6, p. 51). Every
+ * other shuffle of it — `shuffleDeck { separateDeck }`, the shuffle after a search (RRG 1.8 "Search", p. 39), a card
+ * shuffled into it — keeps the order: no `deckShuffled`, no RNG spent. The card text overrides the search rule (The
+ * "Golden Rules", p. 4), so this is not a conflict.
+ */
+export function shuffleSeparateDeck(ctx: Ctx, playerId: PlayerId, name: string, atSetup = false): void {
   const piles = separateDeckOf(ctx.state, playerId, name);
+  if (piles.fixedOrder && !atSetup) {
+    syncSeparateDeckTop(ctx, playerId, name);
+    return;
+  }
   const order = shuffleZone(ctx, { kind: "separateDeck", playerId, name }, piles.deck);
   updatePlayer(ctx, playerId, (p) => ({
     ...p,

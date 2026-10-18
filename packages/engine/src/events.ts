@@ -1315,9 +1315,11 @@ export type GameEvent =
   /**
    * A "find" found this card (`EffectSpec findCard`, RRG 1.8 "Find", p. 19; docs/phase7-wave6.md §3.48), logged before
    * it moves. `from`: where it was (absent for a villain or main scheme, which have no zone). `alreadyThere`: it was at
-   * the destination already, so it stays as it is. `deckShuffled`: it was in a deck, so each deck searched for it is shuffled
-   * after the move (RRG 1.8 "Search", p. 39); one `deckShuffled` per deck follows. A find that found nothing logs no
-   * `cardFound`, only the `deckShuffled` of each deck it searched (docs/phase7-wave6.md §4.1 Q77). For a "find X and
+   * the destination already, so it stays as it is. `deckShuffled`: it was in a deck, so each deck searched for it is
+   * shuffled after the move (RRG 1.8 "Search", p. 39); one `deckShuffled` per deck follows. A fixed-order separate deck
+   * (`SeparateDeckState.fixedOrder`, docs/phase7-wave11.md §3.1) is searched without a shuffle and logs none. A find
+   * that found nothing logs no `cardFound`, only the `deckShuffled` of each shuffled deck it searched
+   * (docs/phase7-wave6.md §4.1 Q77). For a "find X and
    * reveal it" (`revealCard` of a `find` ref, docs/phase7-wave8.md §3.1) `alreadyThere` reads "already in play": the
    * card is revealed where it is and does not enter play.
    */

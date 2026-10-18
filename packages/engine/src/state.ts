@@ -361,6 +361,18 @@ export interface PlayerState {
 export interface SeparateDeckState {
   readonly deck: readonly InstanceId[];
   readonly discard: readonly InstanceId[];
+  /**
+   * The identity's `IdentitySeparateDeck.fixedOrder`, copied at setup (docs/phase7-wave11.md §3.1; Daredevil's Sense
+   * deck, MC60 p. 26: "you cannot change the order"). The deck is shuffled at setup and never again: every later shuffle
+   * of it (`shuffleDeck { separateDeck }`, a search, a card shuffled in) leaves the order as it is. Absent otherwise.
+   */
+  readonly fixedOrder?: true;
+  /**
+   * The identity's `IdentitySeparateDeck.ownerMayLookThrough`, copied at setup (MC60 p. 26: "you can look through it at
+   * any time"): its owner, and no other player, may see the whole deck in order (`mayLookThroughSeparateDeck`). Absent
+   * otherwise.
+   */
+  readonly ownerMayLookThrough?: true;
 }
 
 export interface VillainState {

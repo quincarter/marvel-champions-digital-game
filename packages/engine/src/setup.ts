@@ -947,7 +947,12 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
           ids.push(separateInstanceId);
         }
       }
-      separateDecks[definition.name] = { deck: ids, discard: [] };
+      separateDecks[definition.name] = {
+        deck: ids,
+        discard: [],
+        ...(definition.fixedOrder ? { fixedOrder: true as const } : {}),
+        ...(definition.ownerMayLookThrough ? { ownerMayLookThrough: true as const } : {}),
+      };
     }
     const setAside: InstanceId[] = [...permanent];
     // A progressing identity's later versions wait in the player's set-aside area for `swapIdentity` (§3.23).

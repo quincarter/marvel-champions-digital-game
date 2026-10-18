@@ -616,6 +616,8 @@ export {
   showingResources,
   separateDeckDefinition,
   separateDeckOf,
+  isFixedOrderDeck,
+  mayLookThroughSeparateDeck,
   discardZoneFor,
   encounterDeckOf,
   heroFacesOf,

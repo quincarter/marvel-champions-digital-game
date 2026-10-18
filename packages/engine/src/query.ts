@@ -384,6 +384,30 @@ export function separateDeckOf(state: GameState, playerId: PlayerId, name: strin
   return piles;
 }
 
+/**
+ * Whether `zone` is a separate deck whose order never changes after setup (`SeparateDeckState.fixedOrder`;
+ * docs/phase7-wave11.md §3.1, MC60 p. 26: "you cannot change the order"). Its shuffles keep the order
+ * (`shuffleSeparateDeck`).
+ */
+export function isFixedOrderDeck(state: GameState, zone: ZoneId): boolean {
+  return zone.kind === "separateDeck" && getPlayer(state, zone.playerId)?.separateDecks[zone.name]?.fixedOrder === true;
+}
+
+/**
+ * Whether `viewerId` may look through `ownerId`'s separate deck `name`, every card in order
+ * (`SeparateDeckState.ownerMayLookThrough`; docs/phase7-wave11.md §3.1, MC60 p. 26: "you can look through it at any
+ * time"). "You" is the deck's owner: no other player, so the client and a networked redaction show anyone else only
+ * what any deck shows (its count, and its top card when `topCardFaceup`). False for an unknown player or deck.
+ */
+export function mayLookThroughSeparateDeck(
+  state: GameState,
+  viewerId: PlayerId,
+  ownerId: PlayerId,
+  name: string,
+): boolean {
+  return viewerId === ownerId && getPlayer(state, ownerId)?.separateDecks[name]?.ownerMayLookThrough === true;
+}
+
 /** The identity's printed definition of that separate deck (`HeroIdentityCard.separateDecks`), if it has one. */
 export function separateDeckDefinition(state: GameState, playerId: PlayerId, name: string) {
   const player = getPlayer(state, playerId);

@@ -17,7 +17,7 @@ import { type Ctx, emit, updateFrame, updatePlayer } from "../ctx.js";
 import { announceDeckTops, holdDeckTops } from "../deck-top.js";
 import { shuffleZone } from "../effects.js";
 import type { InstanceId } from "../ids.js";
-import { discardZoneFor, getInstance, locateCard, mustInstance, mustPlayer } from "../query.js";
+import { discardZoneFor, getInstance, isFixedOrderDeck, locateCard, mustInstance, mustPlayer } from "../query.js";
 import {
   cardsInPlay,
   decksSearchedByFind,
@@ -115,7 +115,8 @@ export function announceFound(ctx: Ctx, id: InstanceId, deck: ZoneId | null, alr
     cardId: mustInstance(ctx.state, id).cardId,
     ...(from ? { from } : {}),
     alreadyThere,
-    deckShuffled: deck !== null,
+    // A fixed-order separate deck is searched without a shuffle (docs/phase7-wave11.md §3.1).
+    deckShuffled: deck !== null && !isFixedOrderDeck(ctx.state, deck),
   });
 }
 

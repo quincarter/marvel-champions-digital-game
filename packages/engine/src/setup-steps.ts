@@ -53,7 +53,7 @@ export function resolveScenarioSetup(ctx: Ctx): void {
       players: ctx.state.players.map((p) => (p.playerId === player.playerId ? { ...p, deck: shuffled } : p)),
     };
     // RRG 1.8 Appendix II step 6 (p. 51), for separate decks too; the top card turns faceup as the identity says.
-    for (const name of Object.keys(player.separateDecks)) shuffleSeparateDeck(ctx, player.playerId, name);
+    for (const name of Object.keys(player.separateDecks)) shuffleSeparateDeck(ctx, player.playerId, name, true);
   }
   for (const deckId of ctx.state.encounterDeckOrder) {
     const shuffled = shuffleZone(ctx, { kind: "encounterDeck", deckId }, encounterDeckOf(ctx.state, deckId).deck);
