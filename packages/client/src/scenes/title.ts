@@ -35,7 +35,7 @@ import { UPDATE_DISMISS_ID, appVersionText, buildCommit, releaseNotesUrl, update
 import { dismissUpdate, dismissedUpdateVersion, isUpdateDismissed } from "../platform/update-dismissal.js";
 import { CLIENT_VERSION } from "../version.js";
 import { detectPlatform, openExternal } from "../platform/platform.js";
-import { onPowerSavingChange, powerSavingOn } from "../platform/power-saving.js";
+import { onPowerSavingChange, powerSavingState } from "../platform/power-saving.js";
 import { powerSavingFooterOf } from "../view/power-saving-notice.js";
 import { onTap } from "../ui/tap.js";
 import { checkForUpdate, type AvailableUpdate } from "../platform/update-check.js";
@@ -419,7 +419,8 @@ export class TitleScene extends Phaser.Scene {
       textStyle(typeRole.label, textColor, ink.meta),
     );
     versionText.setX(layout.footer.x + layout.footer.width - versionText.width);
-    const powerSaving = powerSavingFooterOf(powerSavingOn());
+    const { detected, applied } = powerSavingState();
+    const powerSaving = powerSavingFooterOf(detected, applied);
     if (powerSaving !== null) {
       const powerText = this.add.text(0, layout.footer.y - 20, powerSaving, textStyle(typeRole.label, textColor));
       powerText.setX(layout.footer.x + layout.footer.width - powerText.width);

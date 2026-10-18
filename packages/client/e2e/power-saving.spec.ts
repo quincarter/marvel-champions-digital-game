@@ -35,6 +35,17 @@ test("power saving forced on: a 30 fps cap, the notice and the Title footer line
   await waitFor(async () => ((await noticeState(page)).showing ? null : true), "the notice goes away", 15_000);
 });
 
+test("lighter play turned off in Settings: power saving is shown but changes nothing", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.addInitScript(() =>
+    localStorage.setItem("mc-settings", JSON.stringify({ version: 1, powerSavingAdjust: false })),
+  );
+  await openApp(page, "unlock=all&powersave=1");
+  await waitFor(async () => ((await noticeState(page)).showing ? true : null), "the power saving notice", 15_000);
+  expect(await game(page, (g) => g.loop.fpsLimit)).toBe(0);
+  expect(await findText(page, "lighter play off", "Title")).not.toHaveLength(0);
+});
+
 test("no power saving: no cap, no notice, no footer line", async ({ page }) => {
   test.setTimeout(90_000);
   await openApp(page, "unlock=all");

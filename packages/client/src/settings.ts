@@ -99,6 +99,11 @@ export interface Settings {
    * is never changed, so closing the game has nothing to put back. Desktop (Tauri) only.
    */
   readonly resolution: Resolution;
+  /**
+   * Lighten the game while the device is in power saving mode (`platform/power-saving.ts`): reduced motion, 1x text and
+   * a 30 fps cap. Off plays as usual whatever the device says (the owner, 2026-10-18). Defaults on.
+   */
+  readonly powerSavingAdjust: boolean;
 }
 
 export type DisplayMode = "windowed" | "borderless" | "fullscreen";
@@ -238,5 +243,6 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     firstPlayerTokenMotion: "toss",
     displayMode: "windowed",
     resolution: "native",
+    powerSavingAdjust: true,
   };
 }

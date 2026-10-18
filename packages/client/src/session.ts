@@ -24,10 +24,10 @@ import type { EngineHost } from "./engine/host.js";
 import { IdbDeckStorage } from "./engine/idb-deck-storage.js";
 import { SessionStore } from "./store/session-store.js";
 import { defaultSettings, type Settings } from "./settings.js";
-import { SettingsStore } from "./settings-store.js";
+import { SettingsStore, storedSettingsOverrides } from "./settings-store.js";
 import { emptyLog, type LogState } from "./view/log-lines.js";
 import type { MusicController } from "./audio/music-controller.js";
-import { onPowerSavingChange, powerSavingOn } from "./platform/power-saving.js";
+import { onPowerSavingChange, powerSavingOn, setPowerSavingIgnored } from "./platform/power-saving.js";
 
 export interface AppSession {
   readonly host: EngineHost;
@@ -104,7 +104,9 @@ export function appSession(): AppSession {
   if (!session) {
     const host = createEngineHost();
     // Loaded once from `mc-settings`; assigning `session.settings` is the one write path and saves.
-    // Power saving mode changes the defaults (reduced motion, 1x text) of every setting the player never set.
+    // Power saving mode changes the defaults (reduced motion, 1x text) of every setting the player never set, unless the
+    // player turned "Lighter play in power saving" off.
+    setPowerSavingIgnored(storedSettingsOverrides().powerSavingAdjust === false);
     const settingsStore = new SettingsStore(undefined, () => defaultSettings({ powerSaving: powerSavingOn() }));
     onPowerSavingChange(() => settingsStore.refreshDefaults());
     session = {
@@ -115,6 +117,7 @@ export function appSession(): AppSession {
       },
       set settings(next: Settings) {
         settingsStore.set(next);
+        setPowerSavingIgnored(!next.powerSavingAdjust);
       },
       gameLog: emptyLog(),
       villainReview: null,

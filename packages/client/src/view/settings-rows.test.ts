@@ -51,6 +51,7 @@ const BASE: Settings = {
   firstPlayerTokenMotion: "toss",
   displayMode: "windowed",
   resolution: "native",
+  powerSavingAdjust: true,
 };
 
 describe("settingsRowInfoOf", () => {
@@ -76,6 +77,7 @@ describe("settingsRowInfoOf", () => {
       firstPlayerTokenMotion: "toss",
       displayMode: "windowed",
       resolution: "native",
+      powerSavingAdjust: true,
     });
     expect(rows.find((r) => r.id === "reduced-motion")?.on).toBe(true);
     expect(rows.find((r) => r.id === "sharper-text")?.on).toBe(true);

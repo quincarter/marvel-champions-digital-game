@@ -40,6 +40,7 @@ const BOOLEAN_FIELDS = [
   "villainDockTable",
   "hoverHeroCard",
   "hoverVillainCard",
+  "powerSavingAdjust",
 ] as const;
 
 export function parseSettingsOverrides(raw: string | null): SettingsOverrides {

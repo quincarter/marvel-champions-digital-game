@@ -4,7 +4,9 @@
  * Android's Battery Saver (and a maker's own mode that sets the same flag, such as Samsung's Power saving) slows the
  * CPU and GPU, so the game's animation stutters. While it is on the game turns reduced motion on, draws text at 1x
  * and caps the frame rate (`POWER_SAVING_FPS`), unless the player has set those settings themselves
- * (`defaultSettings`), and says so on screen (`scenes/power-saving-notice.ts`, the Title footer, Settings).
+ * (`defaultSettings`), and says so on screen (`scenes/power-saving-notice.ts`, the Title footer, Settings). A player
+ * who would rather play as usual turns Settings' "Lighter play in power saving" off (`Settings.powerSavingAdjust`):
+ * the mode is still detected and shown, but nothing changes for it.
  *
  * Only the Android app can read the mode: the app's `PowerSaving` plugin (`android/.../PowerSavingPlugin.java`)
  * answers from the OS and pushes a `powerSaveModeChange` event when it flips, so nothing here polls. A browser has no
@@ -16,27 +18,53 @@ import { detectPlatform, type Platform } from "./platform.js";
 /** The frame rate the game holds to while power saving: half a 60 Hz screen's, which roughly halves the GPU's work. */
 export const POWER_SAVING_FPS = 30;
 
-type Listener = (on: boolean) => void;
-
-let powerSaving = false;
-const listeners = new Set<Listener>();
-
-/** True while the device is in power saving mode (or `?powersave=1` says so). */
-export function powerSavingOn(): boolean {
-  return powerSaving;
+/** `detected`: the device is in power saving mode. `applied`: and the game is lightening itself for it. */
+export interface PowerSavingState {
+  readonly detected: boolean;
+  readonly applied: boolean;
 }
 
-/** Calls `listener` each time the mode changes; returns the unsubscribe. */
+/** What changed: the device's mode, or the player's "Lighter play in power saving" setting. */
+export type PowerSavingChange = "detected" | "ignored";
+
+type Listener = (state: PowerSavingState, change: PowerSavingChange) => void;
+
+let detected = false;
+let ignored = false;
+const listeners = new Set<Listener>();
+
+export function powerSavingState(): PowerSavingState {
+  return { detected, applied: detected && !ignored };
+}
+
+/** True while the game lightens itself: the device is in power saving mode and the player has not opted out. */
+export function powerSavingOn(): boolean {
+  return detected && !ignored;
+}
+
+/** Calls `listener` each time the mode or the player's opt-out changes; returns the unsubscribe. */
 export function onPowerSavingChange(listener: Listener): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
 
-/** Records the mode, telling every listener when it changed. Exported for tests. */
+function notify(change: PowerSavingChange): void {
+  const state = powerSavingState();
+  for (const listener of [...listeners]) listener(state, change);
+}
+
+/** Records the device's mode, telling every listener when it changed. Exported for tests. */
 export function setPowerSaving(on: boolean): void {
-  if (on === powerSaving) return;
-  powerSaving = on;
-  for (const listener of [...listeners]) listener(on);
+  if (on === detected) return;
+  detected = on;
+  notify("detected");
+}
+
+/** The player's opt-out (`Settings.powerSavingAdjust` off), set by the session at launch and on every change. */
+export function setPowerSavingIgnored(on: boolean): void {
+  if (on === ignored) return;
+  ignored = on;
+  notify("ignored");
 }
 
 /** `?powersave=1` or `?powersave=0` from a query string, or null when it says neither. */

@@ -4,16 +4,21 @@ import {
   forcedPowerSaving,
   onPowerSavingChange,
   powerSavingOn,
+  powerSavingState,
   setPowerSaving,
+  setPowerSavingIgnored,
   watchPowerSaving,
 } from "./power-saving.js";
 
-afterEach(() => setPowerSaving(false));
+afterEach(() => {
+  setPowerSaving(false);
+  setPowerSavingIgnored(false);
+});
 
 describe("power saving mode", () => {
   test("tells listeners only when the mode changes", () => {
     const heard: boolean[] = [];
-    const stop = onPowerSavingChange((on) => heard.push(on));
+    const stop = onPowerSavingChange((state) => heard.push(state.detected));
     setPowerSaving(true);
     setPowerSaving(true);
     setPowerSaving(false);
@@ -21,6 +26,17 @@ describe("power saving mode", () => {
     setPowerSaving(true);
     expect(heard).toEqual([true, false]);
     expect(powerSavingOn()).toBe(true);
+  });
+
+  test("a player who opts out keeps the mode detected but has nothing applied", () => {
+    const heard: string[] = [];
+    onPowerSavingChange((state, change) => heard.push(`${change}:${state.detected}/${state.applied}`));
+    setPowerSaving(true);
+    setPowerSavingIgnored(true);
+    expect(powerSavingOn()).toBe(false);
+    expect(powerSavingState()).toEqual({ detected: true, applied: false });
+    setPowerSavingIgnored(false);
+    expect(heard).toEqual(["detected:true/true", "ignored:true/false", "ignored:true/true"]);
   });
 
   test("?powersave=1 and ?powersave=0 force it either way; anything else leaves it to the device", () => {

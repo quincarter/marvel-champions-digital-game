@@ -11,7 +11,7 @@ import { signal, surface, typeRole } from "../tokens.js";
 import { textStyle } from "../ui/theme.js";
 import { fitText } from "../ui/widgets.js";
 import { appSession } from "../session.js";
-import { onPowerSavingChange, powerSavingOn } from "../platform/power-saving.js";
+import { onPowerSavingChange, powerSavingState } from "../platform/power-saving.js";
 import { powerSavingNoticeOf } from "../view/power-saving-notice.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import { SCENES } from "./keys.js";
@@ -30,22 +30,25 @@ export class PowerSavingNoticeScene extends Phaser.Scene {
 
   create(): void {
     this.sys.setVisible(false);
-    this.#unsubscribe = onPowerSavingChange((on) => this.show(on));
+    // Only the device's mode changing drops a notice in; the player's own Settings toggle needs none.
+    this.#unsubscribe = onPowerSavingChange((state, change) => {
+      if (change === "detected") this.show(state.detected);
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.#unsubscribe?.());
     // The mode may have been read before this scene existed (`?powersave=1`).
-    if (powerSavingOn()) this.show(true);
+    if (powerSavingState().detected) this.show(true);
   }
 
   /** Read by the debug snapshot (`ui/debug-dump.ts`) and the e2e specs. */
   debugState(): Record<string, unknown> {
-    return { showing: this.#container !== null, powerSaving: powerSavingOn() };
+    return { showing: this.#container !== null, powerSaving: powerSavingState().detected };
   }
 
   /** Drops the notice in for `on`, replacing one already up. */
   show(on: boolean): void {
     this.#container?.destroy();
     this.#container = null;
-    const { heading, body } = powerSavingNoticeOf(on, appSession().settings);
+    const { heading, body } = powerSavingNoticeOf(on, appSession().settings, powerSavingState().applied);
     const { width, height } = this.scale.gameSize;
     const formFactor = formFactorFor(width, height);
     const phone = formFactor === "phone" || formFactor === "phoneLandscape";

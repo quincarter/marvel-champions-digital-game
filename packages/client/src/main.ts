@@ -129,8 +129,8 @@ watchStartup(game);
 
 // Power saving mode (`platform/power-saving.ts`): the session's settings already follow it; the frame rate cap and the
 // text resolution new labels draw at are applied here.
-onPowerSavingChange((on) => {
-  game.loop.setFPSLimit(on ? POWER_SAVING_FPS : 0);
+onPowerSavingChange(({ applied }) => {
+  game.loop.setFPSLimit(applied ? POWER_SAVING_FPS : 0);
   setTextResolution(appSession().settings.textResolution);
 });
 watchPowerSaving();
