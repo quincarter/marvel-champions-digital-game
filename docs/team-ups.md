@@ -59,7 +59,7 @@ Team-Up line names both characters exactly as the `teamUp` keyword's `names` car
 | Black Widow and Winter Soldier                 | Winter, Widow, Soldier, Spy (54023) | `winter`          | 9     | `black-widow-winter-soldier`                 | in place: splash and badge    |
 | Maria Hill and Nick Fury                       | Super Spies (50024)                 | `aos`             | 9     | `maria-hill-nick-fury`                       | in place: splash and badge    |
 | Hercules and Thor                              | Ancient Rivalry (59026)             | `hercules`        | 10    | `hercules-thor`                              | none yet (data step, wave 10) |
-| Daredevil and Echo                             | See No Evil, Hear No Evil (60055)   | `fne`             | 11    | `daredevil-echo`                             | in place: splash only (wide)  |
+| Daredevil and Echo                             | See No Evil, Hear No Evil (60055)   | `fne`             | 11    | `daredevil-echo`                             | in place: splash and badge    |
 | Daredevil and Elektra                          | Dance with the Devil (60031)        | `fne`             | 11    | `daredevil-elektra`                          | none (Elektra not a hero yet) |
 | Jessica Jones and Luke Cage                    | Unbreakable Bond (61027, 62024)     | `jj`, `luke_cage` | 11    | `jessica-jones-luke-cage`                    | none yet                      |
 | Iron Fist and Luke Cage                        | Power Man and Iron Fist (62023)     | `luke_cage`       | 11    | `iron-fist-luke-cage`                        | none (Iron Fist not out yet)  |
