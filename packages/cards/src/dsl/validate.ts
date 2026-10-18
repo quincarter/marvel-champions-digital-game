@@ -1398,6 +1398,7 @@ function nestedLists(effect: EffectSpec): (readonly EffectSpec[])[] {
     case "inGroup":
     case "atEndOfAttack":
     case "atEndOfActivation":
+    case "atEndOfThwart":
     case "atEndOfRound":
     case "afterNextCardPlayed":
       return [effect.effects];

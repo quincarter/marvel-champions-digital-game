@@ -979,6 +979,17 @@ export const atEndOfAttack = (...effects: readonly EffectArg[]): EffectSpec => (
   kind: "atEndOfAttack",
   effects: flatten(effects),
 });
+/**
+ * "When a character thwarts attached scheme, … If that thwart defeats attached scheme, place 2 evidence counters."
+ * (Stakeout `jj` 61014; docs/phase7-wave11-hero-packs.md H3.12): effects held on the innermost thwart and resolved as
+ * it finishes, before its responses, with that thwart's results readable (`eventDealt("defeated")`,
+ * `eventResult("threatRemoved")`). Set up from the interrupt, so it resolves even after the card left play with the
+ * defeated scheme.
+ */
+export const atEndOfThwart = (...effects: readonly EffectArg[]): EffectSpec => ({
+  kind: "atEndOfThwart",
+  effects: flatten(effects),
+});
 export const atEndOfRound = (...effects: readonly EffectArg[]): EffectSpec => ({
   kind: "atEndOfRound",
   effects: flatten(effects),

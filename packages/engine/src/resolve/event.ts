@@ -2222,6 +2222,7 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
       sourceInstanceId: event.sourceInstanceId,
       excessThreat,
       ...(thwart ? { byThwart: true as const } : {}),
+      ...(thwart && event.parentFrameId ? { thwartFrameId: event.parentFrameId } : {}),
     };
     pushFrames(ctx, [eventFrame(ctx, defeated)]);
   } else if (
@@ -2246,6 +2247,10 @@ function applySchemeDefeated(ctx: Ctx, event: Extract<TriggerEvent, { kind: "sch
   const schemeId = event.instanceId;
   const scheme = getInstance(ctx.state, schemeId);
   if (!scheme || !cardsInPlay(ctx.state).includes(schemeId)) return;
+  // "If that thwart defeats attached scheme" (docs/phase7-wave11-hero-packs.md H3.12): the thwart's `defeated` result,
+  // read by an `atEndOfThwart` effect or the thwart's responses. Recorded here, past the defeat's interrupt window, so
+  // a defeat an interrupt cancelled (or a scheme it removed first) is not one.
+  if (event.thwartFrameId) addFrameVars(ctx, event.thwartFrameId, { defeated: 1 });
   // "Shuffle it into the encounter deck instead of discarding it." (Time Portal; `defeatedIntoEncounterDeck`, §3.11;
   // the general `defeatDestination`, docs/phase7-wave3.md §3.45).
   const effectsFrame = leaveAfterWhenDefeated(

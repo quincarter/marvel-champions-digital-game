@@ -10,8 +10,8 @@
  *   cannot be modified (RRG 1.8 "Dash (Value)", p. 15) and the spec's stacking rule (H3.10) needs a modifiable stat.
  * - 61033a/b/c are named "Suggestion ([energy])" etc. by MarvelCDB; 61032 Indomitable Will refers to "each Suggestion
  *   obligation" by title, so the three carry the title "Suggestion".
- * - 61040 Mitigated Threat ("Attach to a card.") emits `attachesTo: { kind: "anyCard" }` (spec H3.11). The engine host
- *   list does not resolve that kind until HT6, so the card cannot be played before then.
+ * - 61040 Mitigated Threat ("Attach to a card.") emits `attachesTo: { kind: "anyCard" }` (spec H3.11), which the
+ *   engine's host list resolves (HT6): any card in play other than itself.
  * - Starter deck: no printed list exists (survey section 10), so MarvelCDB decklist 65137 stands in, `verified: false`.
  */
 import type { PackCuration } from "./types.ts";

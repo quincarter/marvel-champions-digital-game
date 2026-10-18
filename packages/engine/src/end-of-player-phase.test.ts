@@ -4,10 +4,11 @@
  * end of the player phase"), which mostly resolves in the villain phase. Synthetic cards only.
  *
  * Sources: RRG 1.8 "Lasting Effects" (p. 26): a lasting effect "expires as soon as the timing point specified by its
- * duration is reached"; "Player Phase" (p. 34) names the end of the player phase. Made in the player phase it ends with
- * that phase; made in the villain phase the first end of a player phase reached is the next one's, so it lasts the rest
- * of the villain phase and the whole next player phase. "Until the end of the phase" is the control: made in the
- * villain phase, it ends with the villain phase.
+ * duration is reached", and "can only be initiated during that time period"; "Player Phase" (p. 34) names the end of
+ * the player phase. Made in the player phase it ends with that phase. Made outside a player phase (the villain phase,
+ * or a "when the player phase ends" ability, whose step is already the villain phase's) it is not made at all: owner
+ * answer Q104 = B, 2026-10-18 (docs/phase7-wave11-hero-packs.md H3.9; `END_OF_PLAYER_PHASE_OUTSIDE_IT`). "Until the end
+ * of the phase" is the control: made in the villain phase, it is made and ends with the villain phase.
  */
 
 import { describe, expect, it } from "vitest";
@@ -107,19 +108,14 @@ describe("H3.9 'until the end of the player phase'", () => {
     expect(ended).toBeLessThan(villain);
   });
 
-  it("made in the villain phase, it lasts through the next player phase; 'until the end of the phase' (control) does not", () => {
+  it("made in the villain phase, it is not made (Q104 = B); 'until the end of the phase' (control) is", () => {
     const game = playerCardIntoPlay(start(), DAWN.id).state;
     expect(heroStat(game, "atk")).toBe(0);
-    const next = endRound(game).state;
-    // The phase-long THW bonus ended with the villain phase; the player-phase one is still on.
-    expect([heroStat(next, "atk"), heroStat(next, "thw")]).toEqual([1, 0]);
-    expect(next.lastingEffects.map((e) => e.duration)).toEqual([{ kind: "endOfPlayerPhase" }]);
-    // The next player phase ends: it expires. Dawn makes a fresh one as that villain phase begins, which lasts on.
-    const after = endRound(next);
-    const kinds = after.events.filter((e) => e.type === "lastingEffectEnded").map((e) => e.reason);
-    expect(kinds).toContain("expired");
-    expect(after.state.lastingEffects).toHaveLength(1);
-    expect(heroStat(after.state, "atk")).toBe(1);
+    const { state: next, events } = endRound(game);
+    // Only the phase-long THW bonus was made, and it ended with the villain phase.
+    expect(events.filter((e) => e.type === "lastingEffectEnded")).toHaveLength(1);
+    expect([heroStat(next, "atk"), heroStat(next, "thw")]).toEqual([0, 0]);
+    expect(next.lastingEffects).toEqual([]);
   });
 
   it("a rule with this duration ends with the player phase too", () => {
@@ -129,16 +125,10 @@ describe("H3.9 'until the end of the player phase'", () => {
     expect(endRound(game).state.lastingEffects).toEqual([]);
   });
 
-  it("made by a 'when the player phase ends' ability, it is made after that end's expiry and lasts to the next one's", () => {
+  it("made by a 'when the player phase ends' ability, it is not made: that step is outside the player phase", () => {
     const game = playerCardIntoPlay(start(), DUSK.id).state;
     const next = endRound(game).state;
-    expect(heroStat(next, "atk")).toBe(1);
-    const [made] = next.lastingEffects;
-    expect(made?.duration).toEqual({ kind: "endOfPlayerPhase" });
-    // The next player phase ends: that one expires, and Dusk makes a fresh one under the same end.
-    const after = endRound(next);
-    expect(after.events).toContainEqual({ type: "lastingEffectEnded", id: made?.id, reason: "expired" });
-    expect(after.state.lastingEffects.map((e) => e.id)).not.toContain(made?.id);
-    expect(heroStat(after.state, "atk")).toBe(1);
+    expect(heroStat(next, "atk")).toBe(0);
+    expect(next.lastingEffects).toEqual([]);
   });
 });

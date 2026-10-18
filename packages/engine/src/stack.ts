@@ -1013,6 +1013,15 @@ export function currentActivationFrameId(stack: readonly StackFrame[]): FrameId 
   return null;
 }
 
+/**
+ * The innermost thwart on the stack (`EffectSpec atEndOfThwart`, docs/phase7-wave11-hero-packs.md H3.12), or null:
+ * "that thwart" for an interrupt or response answering it, the thwart around them for an effect resolving inside it.
+ */
+export function currentThwartFrameId(stack: readonly StackFrame[]): FrameId | null {
+  const frame = stack.find((f) => f.kind === "event" && f.event.kind === "thwart");
+  return frame?.frameId ?? null;
+}
+
 /** A client-facing summary of what is resolving and what is queued. */
 export interface StackView {
   readonly frameId: FrameId;

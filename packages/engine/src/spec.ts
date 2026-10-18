@@ -1120,6 +1120,12 @@ export type ValueSpec =
   | { readonly kind: "statusCount"; readonly of: TargetRef; readonly status: StatusName }
   /** A character's remaining hit points (max HP minus damage): "X is equal to Titania's remaining hit points". */
   | { readonly kind: "remainingHp"; readonly of: TargetRef }
+  /**
+   * A card's hit points: its maximum with every modifier applied (`maxHitPoints`), whatever damage is on it. "Heal it
+   * to 1 remaining hit point" is `healDamage` of `damage(of)` less `hitPoints(of)` minus 1 (Valkyrie 62014;
+   * docs/phase7-wave11-hero-packs.md). The first card the ref names; a card with no hit points, or none named, reads 0.
+   */
+  | { readonly kind: "hitPoints"; readonly of: TargetRef }
   /** "N (M instead if …)": `then` when the predicate holds, `else` otherwise. */
   | { readonly kind: "conditional"; readonly if: Predicate; readonly then: ValueSpec; readonly else: ValueSpec }
   /** Damage on a card: "X is the amount of damage you have sustained" (Gamma Slam). */
@@ -1430,6 +1436,19 @@ export type Predicate =
    * so the ability cannot be initiated); inside `PlayerRef where`, over the scoped player, it is "a player who can",
    * for `choosePlayer { among }`.
    */
+  /**
+   * The player could play a card from their hand now, paying its costs, as `EffectSpec playFromHand` with the same
+   * `filter` and `costReduction` (`reduction`) would offer it (`playFromHandCandidates`): legal to play, with a legal
+   * place and host, and affordable. Suggestion 61033 ("play a card that has a printed [energy] icon (paying its costs)")
+   * gates its option on it: RRG 1.8 "Choose" (p. 12) and "Initiating Abilities" (p. 24), an option that cannot change
+   * the game state cannot be chosen (docs/phase7-wave11-hero-packs.md).
+   */
+  | {
+      readonly kind: "canPlayFromHand";
+      readonly player: PlayerRef;
+      readonly filter?: TargetQuery;
+      readonly reduction?: ValueSpec;
+    }
   | {
       readonly kind: "canUseBasicPower";
       readonly player: PlayerRef;
@@ -2437,6 +2456,18 @@ export type EffectSpec =
   | { readonly kind: "atEndOfAttack"; readonly effects: readonly EffectSpec[] }
   /** "After this activation ends, shuffle this card into the encounter deck" (Goblin Knight's boost): `atEndOfAttack`'s timing, for an attack or a scheme. */
   | { readonly kind: "atEndOfActivation"; readonly effects: readonly EffectSpec[] }
+  /**
+   * "If that thwart defeats attached scheme, …" (Stakeout `jj` 61014; docs/phase7-wave11-hero-packs.md H3.12): the
+   * thwart sibling of `atEndOfAttack`. Held on the innermost thwart on the stack and resolved as it finishes, before
+   * its responses (RRG 1.8 "Delayed Effect", p. 16), with the thwart as the triggering event carrying its `results`:
+   * `threatRemoved`, `amount`, and `defeated` (schemes its removal defeated, counted once each defeat gets past its
+   * interrupt window, so a cancelled defeat is none; absent when none). Set up from an interrupt to the thwart, it
+   * still resolves when the card that set it up left play with the defeated scheme (its scope travels with it).
+   * Nothing happens outside a thwart. Limit: a thwart divided across schemes (Assault) whose shares report into one
+   * frame counts every scheme it defeated under one `defeated`, with no per-scheme key, so "if that thwart defeats
+   * attached scheme" cannot tell which; no card in the pool needs it.
+   */
+  | { readonly kind: "atEndOfThwart"; readonly effects: readonly EffectSpec[] }
   /**
    * "Cancel the boost icons on that card" (Attacrobatics, Preemptive Strike, Foiled!): the boost card the current
    * activation is resolving. A card with no icons has nothing to cancel (FAQ "Attacrobatics (#6)", p. 59). `bind`:

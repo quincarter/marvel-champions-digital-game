@@ -57,6 +57,7 @@ import {
   type ChoicePrompt,
 } from "../choices.js";
 import {
+  createCtx,
   type Ctx,
   emit,
   moveCard,
@@ -573,12 +574,13 @@ function needsMainSchemeChoice(ctx: Ctx, frame: Frame<"effects">, effect: Effect
  * more than one it could trigger → pick a host, if the upgrade has more than one → pick a payment**. Nothing is spent until the last step, and a payment that does not cover the reduced cost
  * plays nothing at all (RRG 1.8 "Initiating Abilities", p. 24, step 5: "abort this process without paying any costs").
  */
-function executePlayFromHand(
-  ctx: Ctx,
-  frame: Frame<"effects">,
-  effect: Extract<EffectSpec, { kind: "playFromHand" }>,
-  context: EffectContext,
-): void {
+/**
+ * What a `playFromHand` effect could play right now, read as it would resolve: its player, the zone, the Action
+ * timing, whether it pays, and the cards it would offer (each legal to play, affordable after the reductions, with a
+ * legal place). `executePlayFromHand` runs on these, and `Predicate canPlayFromHand` reads `candidates`, so an option
+ * gated on "play a card … (paying its costs)" agrees with the play it would make.
+ */
+function playFromHandOptions(ctx: Ctx, effect: Extract<EffectSpec, { kind: "playFromHand" }>, context: EffectContext) {
   const [playerId] = resolvePlayers(ctx.state, effect.player, context);
   const reduction =
     effect.costReduction === undefined
@@ -628,6 +630,30 @@ function executePlayFromHand(
           (!effect.filter || matchesQuery(ctx.state, id, effect.filter, context)),
       )
     : [];
+  return { playerId, reduction, reductionAt, paying, from, timing, placesFor, named, candidates };
+}
+
+/** The cards a `playFromHand` effect would offer now (`playFromHandOptions`), for `Predicate canPlayFromHand`. */
+export function playFromHandCandidates(
+  state: GameState,
+  deps: EngineDeps,
+  effect: Extract<EffectSpec, { kind: "playFromHand" }>,
+  context: EffectContext,
+): readonly InstanceId[] {
+  return playFromHandOptions(createCtx(state, deps), effect, context).candidates;
+}
+
+function executePlayFromHand(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "playFromHand" }>,
+  context: EffectContext,
+): void {
+  const { playerId, reduction, reductionAt, paying, from, timing, placesFor, named, candidates } = playFromHandOptions(
+    ctx,
+    effect,
+    context,
+  );
   // "If you exhausted Wolverine's Claws to play this card" (`via`): recorded on the play for its ability frames.
   const via = effect.via ? resolveRef(ctx.state, effect.via, context) : [];
   const playBindings = via.length > 0 ? { [PLAYED_VIA_SLOT]: via } : {};

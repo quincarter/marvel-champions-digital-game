@@ -79,8 +79,8 @@ import type { KeywordName } from "../keywords.js";
  *
  * Wave 11 kind (docs/phase7-wave11-hero-packs.md H3.11):
  * - `anyCard`: "Attach to a card." (Mitigated Threat 61040): any card in play other than the attachment itself, player
- *   or encounter side, whatever its type. RRG 1.8 "Attach To" (p. 8) names no type, controller or icon. The engine does
- *   not resolve it yet, so the card has no legal host and cannot be played until HT6 adds it to the host list.
+ *   or encounter side, whatever its type. RRG 1.8 "Attach To" (p. 8) names no type, controller or icon. A facedown
+ *   card is out of play and no host.
  *
  * A kind the engine cannot resolve yields no legal host, so the attachment is discarded. Card data that uses
  * a kind the engine does not resolve yet must not be marked playable (docs/phase7-wave1.md §3.1).

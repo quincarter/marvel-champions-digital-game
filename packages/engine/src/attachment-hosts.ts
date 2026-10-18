@@ -416,6 +416,11 @@ function rawHostCandidates(state: GameState, host: AttachmentHost, context: Effe
       // whatever its type. RRG 1.8 "Encounter Card" (p. 18); an encounter card has no controller, which is the same
       // test `isFriendly` inverts.
       return selectTargets(state, {}, context).filter((id) => !isFriendly(state, id));
+    case "anyCard":
+      // "Attach to a card." (docs/phase7-wave11-hero-packs.md H3.11): RRG 1.8 "Attach To" (p. 8) names no type,
+      // controller or icon, so every faceup card in play of either side — identity, villain, scheme, environment,
+      // upgrade, attachment — other than the attaching card itself. A facedown card is out of play and no host.
+      return selectTargets(state, {}, context).filter((id) => id !== context.selfInstanceId);
     case "nonActiveVillain":
       // "Attach to the villain who is not the active villain." (Direct Assault): several are a first-player choice.
       return undefeatedVillains(state)

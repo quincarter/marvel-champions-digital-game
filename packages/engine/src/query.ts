@@ -1326,13 +1326,13 @@ export const turnInProgress = (state: GameState): boolean =>
   state.step.phase === "player" && state.step.kind === "turn";
 
 /**
- * Owner question Q104 (docs/phase7-wave11-hero-packs.md H3.9, open; default A): an "until the end of the player phase"
- * effect made outside a player phase. `"nextPlayerPhase"` (A, built): it is made and lasts through the next player
- * phase. `"notCreated"` (B): RRG 1.8 "Lasting Effects" (p. 26), "can only be initiated during that time period", read
+ * Owner question Q104 (docs/phase7-wave11-hero-packs.md H3.9), answered B by the owner on 2026-10-18 (to be asked of
+ * FFG): an "until the end of the player phase" effect made outside a player phase. `"nextPlayerPhase"` (A): it is made
+ * and lasts through the next player phase. `"notCreated"` (B, built): RRG 1.8 "Lasting Effects" (p. 26), "can only be initiated during that time period", read
  * strictly, so it is not made at all. The end-of-player-phase steps count as outside under B: the step is already the
  * villain phase's (`finishPlayerPhase`).
  */
-const END_OF_PLAYER_PHASE_OUTSIDE_IT: "nextPlayerPhase" | "notCreated" = "nextPlayerPhase";
+const END_OF_PLAYER_PHASE_OUTSIDE_IT: "nextPlayerPhase" | "notCreated" = "notCreated";
 
 /** Whether an `endOfPlayerPhase` lasting effect can be initiated now (`END_OF_PLAYER_PHASE_OUTSIDE_IT`). */
 export const endOfPlayerPhaseCanStart = (state: GameState): boolean =>

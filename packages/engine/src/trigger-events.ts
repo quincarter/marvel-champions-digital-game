@@ -786,6 +786,12 @@ export type TriggerEventBody =
        * removal; `thwartOfRemoval`): "After you thwart and exactly defeat a side scheme". Absent for a plain removal.
        */
       readonly byThwart?: true;
+      /**
+       * The thwart frame whose removal initiated this defeat (`byThwart`), which records its `defeated` result once the
+       * defeat actually happens (`applySchemeDefeated`; `EffectSpec atEndOfThwart`, docs/phase7-wave11-hero-packs.md
+       * H3.12). Absent for any other defeat.
+       */
+      readonly thwartFrameId?: FrameId;
     }
   | { readonly kind: "villainStageAdvanced"; readonly stageIndex: number; readonly instanceId: InstanceId }
   /** `schemeInstanceId` is set only for a separate game area's own stage (docs/phase7-wave2.md §3.1). */

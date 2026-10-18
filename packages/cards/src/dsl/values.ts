@@ -731,6 +731,11 @@ export const printedBoostAreaIconsOn = (cards: TargetRef): ValueSpec =>
   sum({ kind: "boostIcons", of: cards, printed: true }, starIconsOn(cards));
 export const remainingHpOf = (of: TargetRef): ValueSpec => ({ kind: "remainingHp", of });
 /**
+ * A card's hit points, its modified maximum whatever damage it has (`ValueSpec hitPoints`): "heal it to 1 remaining hit
+ * point" (Valkyrie 62014) heals `damage(of)` minus (`hitPointsOf(of)` minus 1).
+ */
+export const hitPointsOf = (of: TargetRef): ValueSpec => ({ kind: "hitPoints", of });
+/**
  * "A minion with fewer remaining hit points than M" (M, `magneto` 49012): `query("minion", remainingHpCompare("lt",
  * remainingHpOf(self)))`. The card's remaining hit points against a value re-read every check; a card with no hit
  * points never matches.
@@ -1202,6 +1207,18 @@ export const paidType = (resource: TypedResource, of?: TargetRef): Predicate => 
  * of an ability that chooses the player as a cost; `playersWhere(canUseBasicPower([...], thatPlayer))` is the players
  * who can, for `choosePlayer(slot, you, { among })`.
  */
+/**
+ * `player` could play a card from their hand right now, paying its costs, as `playFromHand` with the same `filter` and
+ * cost reduction would offer it (engine `canPlayFromHand`): legal, with a legal place and host, and affordable. Gates
+ * an option such as Suggestion 61033's "play a card that has a printed [energy] icon (paying its costs)":
+ * `option("Play …", { when: canPlayFromHand(filter) }, playFromHand(…))`.
+ */
+export const canPlayFromHand = (filter?: TargetQuery, player: PlayerRef = you, reduction?: ValueSpec): Predicate => ({
+  kind: "canPlayFromHand",
+  player,
+  ...(filter ? { filter } : {}),
+  ...(reduction ? { reduction } : {}),
+});
 export const canUseBasicPower = (powers: readonly ("attack" | "thwart")[], player: PlayerRef = you): Predicate => ({
   kind: "canUseBasicPower",
   player,

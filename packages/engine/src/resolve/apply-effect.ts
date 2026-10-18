@@ -118,6 +118,7 @@ import type { DefeatPlacement, EffectSpec, PlayerRef, StatName } from "../spec.j
 import { type GameState, NO_STATUSES } from "../state.js";
 import {
   currentActivationFrameId,
+  currentThwartFrameId,
   type DeferredEffects,
   paidForFrameId,
   PLAY_NOTE_PREFIX,
@@ -1500,8 +1501,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     }
     case "atEndOfAttack":
-    case "atEndOfActivation": {
-      const activation = currentActivationFrameId(ctx.state.stack);
+    case "atEndOfActivation":
+    case "atEndOfThwart": {
+      const activation =
+        effect.kind === "atEndOfThwart"
+          ? currentThwartFrameId(ctx.state.stack)
+          : currentActivationFrameId(ctx.state.stack);
       if (!activation) return;
       const deferred: DeferredEffects = {
         effects: effect.effects,
@@ -1509,7 +1514,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         controllerId: frame.controllerId,
         bindings: frame.bindings,
         vars: frame.vars,
-        ...(effect.kind === "atEndOfAttack" ? { delayed: true as const } : {}),
+        ...(effect.kind !== "atEndOfActivation" ? { delayed: true as const } : {}),
       };
       updateFrame(ctx, activation, (f) => (f.kind === "event" ? { ...f, endEffects: [...f.endEffects, deferred] } : f));
       return;

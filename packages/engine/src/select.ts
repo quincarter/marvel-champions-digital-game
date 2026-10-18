@@ -108,6 +108,7 @@ import { canPaySpend } from "./payable.js";
 import { canUseBasicPower } from "./basic-power-uses.js";
 import { uniqueEntryBlocker } from "./unique.js";
 import { threatRemovalBlocked } from "./resolve/event.js";
+import { playFromHandCandidates } from "./resolve/effects-frame.js";
 import { accusationWrongGuesses, accusedWrong, isAccusationBoardMember } from "./accusation.js";
 import { hiddenPileSize } from "./hidden-pile-state.js";
 import {
@@ -2898,6 +2899,10 @@ export function resolveValue(
       const [id] = resolveRef(state, value.of, context);
       return id ? (consideredRemainingHitPoints(state, id, deps) ?? 0) : 0;
     }
+    case "hitPoints": {
+      const [id] = resolveRef(state, value.of, context);
+      return id ? (maxHitPoints(state, id, deps) ?? 0) : 0;
+    }
     case "conditional":
       return evaluate(state, value.if, { ...context, deps })
         ? resolveValue(state, value.then, context, deps)
@@ -3157,6 +3162,20 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
         canPaySpend(state, context.deps ?? DEFAULT_DEPS, playerId, predicate.resources, predicate.distinctTypes ?? 0)
       );
     }
+    case "canPlayFromHand":
+      return (
+        playFromHandCandidates(
+          state,
+          context.deps ?? DEFAULT_DEPS,
+          {
+            kind: "playFromHand",
+            player: predicate.player,
+            ...(predicate.filter ? { filter: predicate.filter } : {}),
+            ...(predicate.reduction ? { costReduction: predicate.reduction } : {}),
+          },
+          context,
+        ).length > 0
+      );
     case "canUseBasicPower": {
       // docs/phase7-wave8.md §3.64: read as `EffectSpec basicPowerBy` would offer it.
       return resolvePlayers(state, predicate.player, context).some((playerId) =>
