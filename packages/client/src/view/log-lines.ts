@@ -905,6 +905,9 @@ function describe(
         text: `${card(event.instanceId)} gains surge.`,
         voice: "villain",
       };
+    // Run Them to Ground (`jj` 61020): the round ends with no villain phase (hero-pack spec H3.7).
+    case "villainPhaseSkipped":
+      return { text: `The villain phase is skipped this round.`, voice: "villain" };
     case "accelerationTokenAdded":
       return {
         text: `Acceleration: ${event.total} token${event.total === 1 ? "" : "s"} on the main scheme.`,
