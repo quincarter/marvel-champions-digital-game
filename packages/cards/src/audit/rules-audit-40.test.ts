@@ -40,7 +40,7 @@ import {
 vi.setConfig({ testTimeout: 120_000 });
 
 describe("Ruling 148, Feb 15, 2024 (post-RRG 1.5): a canceled attack still ends, so 'at the end of this attack' effects run (RRG 1.8 p. 9)", () => {
-  it.fails("Charge (01099) is discarded when Grasping Tendrils (20003) cancels Rhino's attack", () => {
+  it("Charge (01099) is discarded when Grasping Tendrils (20003) cancels Rhino's attack", () => {
     const base = game("rhino", ["core-spider-man-justice"], ["the_doomsday_chair"]);
     const rhinoId = villainOf(base);
     const charge = attachEncounter(base, CHARGE, rhinoId);
@@ -51,7 +51,7 @@ describe("Ruling 148, Feb 15, 2024 (post-RRG 1.5): a canceled attack still ends,
     expect(
       run.events.some((e) => e.type === "abilityResolved" && e.abilityId === "20003.grasping-tendrils-interrupt"),
     ).toBe(true);
-    // Actual: Charge stays attached (its delayed discard is dropped with the canceled attack).
+    // Charge's delayed discard still resolves at the end of the canceled attack.
     expect(attachedCodes(run.state, rhinoId)).not.toContain(CHARGE);
   });
 });

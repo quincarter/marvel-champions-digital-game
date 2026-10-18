@@ -9,7 +9,7 @@
 
 import { flat } from "@mc/content";
 import { describe, expect, it } from "vitest";
-import type { EngineDeps } from "./abilities.js";
+import type { AbilityDefinition, EngineDeps } from "./abilities.js";
 import type { Command } from "./commands.js";
 import { defendPreview } from "./defend-preview.js";
 import type { GameEvent } from "./events.js";
@@ -129,5 +129,71 @@ describe("an overkill granted to enemy attacks by a constant rule (RRG 1.8 p. 31
     expect(bandsFor()).toEqual([[false, 0]]);
     expect(bandsFor(WESTERN)).toEqual([[true, 1]]);
     expect(bandsFor(POSSE)).toEqual([[false, 0]]);
+  });
+});
+
+/**
+ * Ruling January 11, 2026 (2) (`marvel-champions-rulings-post-rrg-1-7.md`): "if Jigsaw attacks with overkill and damages
+ * both an ally and an identity, his Forced Response triggers twice" (and Captain Marvel's "attacks and defeats" for an
+ * ally and an identity). The engine resolves "after [enemy] attacks and damages ..." once per attack.
+ */
+/** Toad's shape (32076): "Forced Response: After [this enemy] attacks and damages a character you control, ..." */
+const TOAD = stubAbility("toad.forced-response", {
+  trigger: {
+    kind: "response",
+    forced: true,
+    on: { on: "enemyAttack", requireResults: { damage: 1 } },
+  },
+  effects: [
+    { kind: "addCounters", target: { kind: "mainScheme" }, counterType: "toad", amount: { kind: "const", value: 1 } },
+  ],
+} as AbilityDefinition);
+/** One support carries both: the overkill grant (Wild Wild Mojo's shape) and the response, which listens to any enemy's attack. */
+const WESTERN_TOAD = stubSupport({ id: "western-toad", cost: 0, abilities: [EACH_ENEMY.ref, TOAD.ref] });
+const toadDeps: EngineDeps = depsOf(EACH_ENEMY, TOAD);
+
+describe("'After [enemy] attacks and damages ...' with overkill damaging an ally and the identity (ruling Jan 11, 2026 (2))", () => {
+  function overkillAttack(): number {
+    const start = newGame({
+      villain: VILLAIN,
+      mainScheme: SCHEME,
+      extraCards: [BLANK, BUDDY, WESTERN_TOAD],
+      encounterDeck: Array.from({ length: 12 }, () => BLANK.id),
+      deck: [...Array.from({ length: 18 }, () => RESOURCE.id), BUDDY.id, WESTERN_TOAD.id],
+      deps: toadDeps,
+    });
+    const ally = giveCard(start, p1, BUDDY.id);
+    let state = runWith(
+      toadDeps,
+      ally.state,
+      { type: "changeForm", playerId: p1 },
+      {
+        type: "playCard",
+        playerId: p1,
+        cardInstanceId: ally.id,
+        payment: payFor(ally.state, p1, 2),
+        attachToInstanceId: null,
+      },
+    );
+    const rule = giveCard(state, p1, WESTERN_TOAD.id);
+    state = runWith(toadDeps, rule.state, {
+      type: "playCard",
+      playerId: p1,
+      cardInstanceId: rule.id,
+      payment: [],
+      attachToInstanceId: null,
+    });
+    state = settleUntil(runWith(toadDeps, state, { type: "endTurn", playerId: p1 }), "declareDefender", toadDeps);
+    const pick = (s: GameState): readonly string[] =>
+      s.pendingChoice?.prompt.kind === "declareDefender" && s.pendingChoice.options.some((o) => o.optionId === ally.id)
+        ? [ally.id as string]
+        : defaultPick(s);
+    const { state: after } = runCommandsPicking(state, toadDeps, pick);
+    return mustInstance(after, after.mainScheme.instanceId).counters["toad"] ?? 0;
+  }
+
+  it.fails("the villain's attack damages the ally (3) and, by overkill, the identity (1): the response resolves twice", () => {
+    // Actual: once (the attack event is announced once, whoever it damaged).
+    expect(overkillAttack()).toBe(2);
   });
 });

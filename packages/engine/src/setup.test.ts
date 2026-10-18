@@ -4,7 +4,10 @@ import { createGame } from "./setup.js";
 import { playerId } from "./ids.js";
 import { mustInstance, mustPlayer, scale, villainStage } from "./query.js";
 import { DEFAULT_CARDS, DEFAULT_DECK, HERO, MAIN_SCHEME, VILLAIN, newGame } from "./testing/scenario.js";
-import { stubIdentity, stubMainScheme } from "./testing/fixtures.js";
+import type { EngineDeps } from "./abilities.js";
+import { depsOf, stubAbility } from "./testing/abilities.js";
+import { stubAlly, stubIdentity, stubMainScheme, stubVillain } from "./testing/fixtures.js";
+import { gameAtFirstTurn, P1 } from "./testing/wave3.js";
 
 const p1 = playerId("p1");
 const p2 = playerId("p2");
@@ -168,5 +171,42 @@ describe("unique identities across the table", () => {
     });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.message).toContain("p3");
+  });
+});
+
+/**
+ * RRG 1.8 "Ability" (p. 4): "Player card abilities cannot resolve during game setup, unless prefaced by a 'Setup'
+ * timing trigger." A Setup-keyword player ally that enters play at setup (Appendix II step 11) with a Forced Response
+ * "After this ally enters play, deal 3 damage to the villain" must not resolve it then. (Reachability: a player card
+ * with the setup keyword and a response to something that happens in setup; no pool card was confirmed, so this is a
+ * rule proof, not a card bug.)
+ */
+const SETUP_RESPONSE = stubAbility("setup-scout.response", {
+  trigger: { kind: "response", forced: true, on: { on: "cardEntersPlay", selfIs: "target" } },
+  effects: [{ kind: "dealDamage", target: { kind: "villain" }, amount: { kind: "const", value: 3 } }],
+});
+const SETUP_SCOUT = stubAlly({
+  id: "setup-scout",
+  cost: 0,
+  atk: 1,
+  thw: 1,
+  hp: 2,
+  keywords: [{ name: "setup" }],
+  abilities: [SETUP_RESPONSE.ref],
+});
+const SOFT = stubVillain({ id: "soft-villain", stages: [{ hp: flat(30), atk: 0, sch: 0 }] });
+const setupDeps: EngineDeps = depsOf(SETUP_RESPONSE);
+
+describe("a player card's response during game setup (RRG 1.8 'Ability', p. 4)", () => {
+  it("a Setup-keyword ally's 'After this ally enters play' response does not resolve at setup", () => {
+    const state = gameAtFirstTurn({
+      cards: [SETUP_SCOUT, SOFT],
+      deps: setupDeps,
+      villain: SOFT,
+      deck: [SETUP_SCOUT.id],
+    });
+    const scout = Object.values(state.instances).find((i) => i.cardId === SETUP_SCOUT.id)!;
+    expect(mustPlayer(state, P1).playArea).toContain(scout.instanceId); // control: it did enter play at setup
+    expect(state.instances[state.villains[0]!.instanceId]?.damage).toBe(0);
   });
 });

@@ -29,11 +29,12 @@ import {
   stubEvent,
   stubMainScheme,
   stubMinion,
+  stubSideScheme,
   stubTreachery,
   stubVillain,
 } from "./testing/fixtures.js";
 import { DEFAULT_CARDS, DEFAULT_DECK, defaultPick, HERO } from "./testing/scenario.js";
-import { copiesOf, minionEngagedWith, P1, playFree } from "./testing/wave3.js";
+import { copiesOf, encounterCardInVillainArea, minionEngagedWith, P1, playFree } from "./testing/wave3.js";
 
 const PROXIMA = stubVillain({ id: "proxima", name: "Proxima Midnight", stages: [{ hp: flat(30), atk: 0, sch: 2 }] });
 const CORVUS = stubVillain({ id: "corvus", name: "Corvus Glaive", stages: [{ hp: flat(30), atk: 0, sch: 3 }] });
@@ -260,5 +261,73 @@ describe("§3.2 two main schemes, each belonging to a villain", () => {
       },
     );
     expect(player).toEqual([scheme(state, "Corvus Glaive")]);
+  });
+});
+
+/**
+ * Ruling 69.111 (October 10, 2025, Alex), question 2: Tower Defense (two main schemes), M.U.S.I.C. is defeated while
+ * Manipulated M.U.S.I.C. is in play: "move all threat from Manipulated M.U.S.I.C. to just the main scheme with the
+ * Focused Defense attachment. (Since threat is being 'moved' from one scheme to another, the number of tokens placed
+ * should be fixed; and the player should not be able to split the tokens, so this is the simplest way to progress.)"
+ * RRG 1.8 p. 30 "Move" is silent on two main schemes; MC21 p. 10 says an encounter card's "the main scheme" is both
+ * schemes, which the ruling narrows for this move.
+ *
+ * The shipped script is `51034.when-defeated` = `whenDefeated(moveThreat(find(Manipulated M.U.S.I.C.), theMainScheme))`
+ * (`cards/src/wave9/bp/black-panther/obligation-nemesis.ts`); this is its shape on synthetic cards. The engine's
+ * `moveThreat` takes the first of the targets `{ kind: "mainScheme" }` resolves to for an encounter card, which is
+ * both main schemes in `sharedMainSchemes` order, not the one holding Focused Defense.
+ */
+describe("M.U.S.I.C. defeated in Tower Defense moves the threat to the Focused Defense scheme (ruling Oct 10, 2025, 69.111)", () => {
+  const MANIPULATED = stubSideScheme({ id: "manipulated-music", startingThreat: 3 });
+  const WHEN_DEFEATED = stubAbility("music.when-defeated", {
+    trigger: { kind: "whenDefeated" },
+    effects: [{ kind: "moveThreat", from: { kind: "named", name: "manipulated-music" }, to: { kind: "mainScheme" } }],
+  });
+  const MUSIC = stubMinion({ id: "music", atk: 0, sch: 0, hp: 1, boostIcons: 0, abilities: [WHEN_DEFEATED.ref] });
+  const KILL_ABILITY = stubAbility("kill.action", {
+    trigger: { kind: "action" },
+    effects: [
+      {
+        kind: "dealDamage",
+        target: { kind: "each", query: { categories: ["minion"] } },
+        amount: { kind: "const", value: 5 },
+      },
+    ],
+  });
+  const KILL = stubEvent({ id: "kill", cost: 0, abilities: [KILL_ABILITY.ref] });
+  const musicDeps = depsOf(FOCUSED_RULE, FOCUSED_MOVE, SETUP, ARMIES_REVEALED, WHEN_DEFEATED, KILL_ABILITY);
+
+  it.fails("all 3 threat go to the main scheme with Focused Defense, none to the other", () => {
+    const result = createGame(
+      {
+        seed: 11,
+        cards: [...DEFAULT_CARDS, PROXIMA, CORVUS, TOWER_SCHEMES, FOCUSED, MUSIC, MANIPULATED, FILLER, KILL],
+        villainCardId: PROXIMA.id,
+        villains: [
+          { villainCardId: PROXIMA.id, encounterDeck: [] },
+          { villainCardId: CORVUS.id, encounterDeck: [] },
+        ],
+        sharedEncounterDeck: true,
+        encounterDeck: [...copiesOf(FILLER.id, 20), MUSIC.id, MANIPULATED.id],
+        setAside: [FOCUSED.id],
+        mainSchemeCardId: TOWER_SCHEMES.id,
+        includeIdentitySets: false,
+        players: [{ identityCardId: HERO.id, deck: [...DEFAULT_DECK, ...copiesOf(KILL.id, 2)] }],
+      },
+      musicDeps,
+    );
+    if (!result.ok) throw new Error(result.error.message);
+    const started = driveSession(startSession(result.state), musicDeps).session.state;
+    const focusedId = Object.values(started.instances).find((i) => i.cardId === FOCUSED.id)!;
+    const focusedScheme = focusedId.attachedTo!;
+    const all = [started.mainScheme, ...(started.extraMainSchemes ?? [])].map((s) => s.instanceId);
+    const other = all.find((id) => id !== focusedScheme)!;
+    const withSide = encounterCardInVillainArea(started, MANIPULATED.id, 3).state;
+    const engaged = minionEngagedWith(withSide, MUSIC.id).state;
+    const before = mustInstance(engaged, focusedScheme).threat;
+    const beforeOther = mustInstance(engaged, other).threat;
+    const after = playFree(engaged, musicDeps, KILL.id).state;
+    expect(mustInstance(after, focusedScheme).threat).toBe(before + 3);
+    expect(mustInstance(after, other).threat).toBe(beforeOther);
   });
 });

@@ -9,6 +9,7 @@ import {
   type Aspect,
   type CoreAspect,
   type DeckContents,
+  type EventCard,
   type HeroIdentityCard,
   type IdentityDeckbuilding,
   type IdentitySeparateDeck,
@@ -18,6 +19,7 @@ import {
 import * as coreContent from "@mc/content";
 import type { AbilityDefinition, AbilityRegistry } from "./abilities.js";
 import { DEFAULT_DEPS } from "./abilities.js";
+import { stubEvent, stubIdentity } from "./testing/fixtures.js";
 import {
   abilityRefsOf,
   CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT,
@@ -834,5 +836,67 @@ describe("validateDeck in a campaign context", () => {
       });
       expect(codesIn(withCard(starter(), REWARD, 1), context)).toEqual([]);
     });
+  });
+});
+
+// Ruling 153, Mar 22, 2024: Spider-Woman's identity-specific cards count toward their printed aspect.
+describe("Ruling 153, Mar 22, 2024: with 'Pool, Spider-Woman's Pheromones counts as a Leadership card in the equal split", () => {
+  const SW = "sw";
+  const spiderWoman: HeroIdentityCard = {
+    ...stubIdentity({
+      id: SW,
+      name: "Spider-Woman",
+      hp: 11,
+      atk: 1,
+      thw: 1,
+      def: 1,
+      rec: 3,
+      heroHandSize: 5,
+      alterEgoHandSize: 6,
+    }),
+    deckbuilding: { aspectCount: 2, equalCardsPerAspect: true },
+  };
+  const signature = (id: string, quantity: number, printedAspect?: CoreAspect): EventCard => ({
+    ...stubEvent({ id, cost: 1, aspect: `hero:${SW}` }),
+    quantityInSet: quantity,
+    ...(printedAspect ? { printedAspect } : {}),
+  });
+  /** Her set as printed for Leadership only: Pheromones (Leadership) x2 plus 13 plain signature cards. */
+  const SIGNATURE: readonly EventCard[] = [
+    signature("pheromones", 2, "leadership"),
+    signature("glide", 3),
+    signature("finesse", 2),
+    signature("apartment", 1),
+    signature("a", 3),
+    signature("b", 3),
+    signature("c", 1),
+  ];
+  const aspectCards = (aspect: CoreAspect, n: number): readonly EventCard[] =>
+    Array.from({ length: n }, (_, i) => stubEvent({ id: `${aspect}-${i}`, cost: 1, aspect }));
+  const LEADERSHIP = aspectCards("leadership", 5);
+  const POOL = aspectCards("pool", 5);
+  const BASIC = stubEvent({ id: "basic-0", cost: 1, aspect: "basic" });
+  const SW_POOL: readonly AnyCard[] = [spiderWoman, ...SIGNATURE, ...LEADERSHIP, ...POOL, BASIC];
+  const take = (cards: readonly EventCard[], n: number) =>
+    cards.flatMap((card, i) => {
+      const quantity = Math.max(0, Math.min(3, n - 3 * i));
+      return quantity > 0 ? [{ cardId: card.id, quantity }] : [];
+    });
+  const deck = (leadership: number, pool: number): DeckContents => ({
+    identityCardId: spiderWoman.id,
+    aspects: ["leadership", "pool"],
+    cards: [
+      ...SIGNATURE.map((card) => ({ cardId: card.id, quantity: card.quantityInSet })),
+      ...take(LEADERSHIP, leadership),
+      ...take(POOL, pool),
+      { cardId: BASIC.id, quantity: 3 },
+    ],
+  });
+
+  it("10 Leadership (plus the 2 Pheromones) and 12 'Pool cards is a legal deck", () => {
+    const verdict = validateDeck(deck(10, 12), SW_POOL);
+    // Pheromones counts toward Leadership, so 10 + 2 Leadership vs 12 'Pool is equal (ruling 153, Mar 22, 2024).
+    const codes = verdict.ok ? [] : verdict.problems.map((p) => p.code);
+    expect(codes).toEqual([]);
   });
 });

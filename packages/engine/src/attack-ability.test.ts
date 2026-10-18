@@ -442,3 +442,30 @@ describe("Q47 distinction 4 and the rule's edges: what is not the attack's damag
     expect(attacksResolved(after.events)[0]?.results?.damage).toBe(3);
   });
 });
+
+/**
+ * RRG 1.8 "Delayed Effect" (p. 15): "Delayed effects resolve automatically and immediately after their specified
+ * timing point or future condition occurs or becomes true, and before responses to that point or condition may be
+ * used. Delayed effects have the same timing priority as constant effects."
+ * FFG rulings: Alex, Sep 26, 2024 (post-RRG 1.6 #12): Riposte "creates a delayed effect, which has the same timing
+ * priority as the Retaliate keyword"; May 22, 2025 (post-RRG 1.6): a delayed effect that resolves "after the attack"
+ * has "the same timing as the Retaliate keyword" (A.I.M. Commando, Spider Reflexes + Assault); Oct 12, 2023 (post-RRG
+ * 1.5 #100): Last Stand's discard "makes sense to us as resolving at a similar timing point as a Response to the
+ * attack". Retaliate resolves before the attack's responses (RRG 1.8 p. 9, step 6a before 6b), so "at the end of
+ * this attack" effects (`atEndOfAttack`) should too. The engine runs them after the attack's response window
+ * (`resolve/event.ts`, stage "done": "At the end of this attack: run after the response window").
+ */
+describe("an '(attack)' event with an 'at the end of this attack' delayed effect and a response to the attack", () => {
+  // "Forced Interrupt: When you attack, at the end of this attack place 1 counter here." (Last Stand's shape), and
+  // "Forced Response: After you attack, place 1 counter here." (a response to the attack, e.g. Spider-Ham's).
+  it.fails("the delayed effect resolves before the attack's responses (RRG 1.8 'Delayed Effect' p. 15; Alex, Oct 12, 2023 #100 on Last Stand)", () => {
+    const t = table(PLAIN_V, [AFTERMATH_S, FOLLOW_UP_S]);
+    const { events } = play(t, VOLLEY);
+    const delayedAt = events.findIndex((e) => e.type === "counterAdded" && e.counterType === "ended");
+    const responseAt = events.findIndex((e) => e.type === "counterAdded" && e.counterType === "attacks");
+    expect(delayedAt).toBeGreaterThan(-1);
+    expect(responseAt).toBeGreaterThan(-1);
+    // Actual: the response (counter "attacks") is placed first; the delayed effect after the response window.
+    expect(delayedAt).toBeLessThan(responseAt);
+  });
+});

@@ -2769,8 +2769,16 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         markPreThenUnresolved(ctx, frame.frameId, "nothingToCancel");
         return;
       }
+      // A cancelled enemy attack still ends (FFG ruling Feb 15, 2024, Ruling 148: Grasping Tendrils cancelling Rhino's
+      // attack, Charge is still discarded "at the end of this attack"). RRG 1.8 "Cancel" (p. 11) agrees: the cancelled
+      // ability "is still regarded as initiated", and its "abilities dependent on the canceled effect cannot trigger"
+      // keeps new triggers (damage, "after … attacks") from answering it, not delayed effects already created. So its
+      // held "at the end of this attack" effects resolve (`endedEarly`, `resolve/event.ts`).
+      const endsAnyway = triggering.event.kind === "enemyAttack" || triggering.event.kind === "enemyAttacksEnemy";
       updateFrame(ctx, frame.eventFrameId, (target) =>
-        target.kind === "event" ? { ...target, cancelled: true } : target,
+        target.kind === "event"
+          ? { ...target, cancelled: true, ...(endsAnyway ? { endedEarly: true as const } : {}) }
+          : target,
       );
       // RRG 1.8 "Cancel" (p. 13): cancelling the "when you play this card" event cancels *the card's* effects —
       // "Only the effects are prevented from initiating, and do not resolve", while "the card is still considered

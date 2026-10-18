@@ -235,3 +235,35 @@ describe("§3.75 an ally attached to a card is still a character in play", () =>
     expect(slain.removedFromGame).toContain(odin);
   });
 });
+
+/**
+ * FFG ruling November 29, 2023 - Ruling 115: if Hope Summers is defeated while her text box is blank (treated as a
+ * minion by Manipulated Mind or 'Pool-ized), "the players would still lose the game once Hope Summers left play".
+ * RRG 1.8 p. 48 "Winning the Game": "Alternate win or loss conditions cannot be blanked or canceled."
+ */
+describe("an alternate loss condition cannot be blanked (RRG 1.8 p. 48; Ruling 115)", () => {
+  it.fails("a blanked (treated-as-minion) Hope/Odin that is defeated still loses the game", () => {
+    const detached = playFree(start(), deps, NASTROND.card.id).state;
+    const odin = odinId(detached);
+    const blanked: GameState = {
+      ...detached,
+      instances: {
+        ...detached.instances,
+        [odin]: {
+          ...mustInstance(detached, odin),
+          treatedAs: {
+            kind: "minion",
+            traits: [],
+            keepPrintedTraits: true,
+            schFromThw: true,
+            source: odin,
+            controllerBefore: P1,
+          },
+        },
+      },
+    };
+    const { state: slain } = playFree(blanked, deps, SMITE.card.id);
+    expect(cardsInPlay(slain)).not.toContain(odin); // precondition: she was defeated and left play
+    expect(slain.outcome).toEqual({ result: "loss", reason: "cardAbility", sourceInstanceId: odin });
+  });
+});

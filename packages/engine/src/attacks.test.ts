@@ -695,3 +695,69 @@ test("ability attacks, defenses and enemy-attack modifications replay to an iden
   const replayed = replay(session.log, deps);
   expect(replayed.ok && replayed.state).toEqual(session.state);
 });
+
+/**
+ * RRG 1.8 "Delayed Effect" (p. 15): "Delayed effects resolve automatically and immediately after their specified
+ * timing point or future condition occurs or becomes true, and before responses to that point or condition may be
+ * used. Delayed effects have the same timing priority as constant effects."
+ * FFG ruling Sep 26, 2024 (post-RRG 1.6 #12): Riposte "creates a delayed effect, which has the same timing priority as
+ * the Retaliate keyword", so its damage lands before the Electrostatic Armor response's. NOTE: the test above
+ * ("resolves after retaliate and before 'at the end of this attack' effects") pins the engine's current order, a
+ * response to the defense before the 'at the end of this attack' delayed effect; the two disagree for the same pair.
+ */
+describe("Riposte vs Electrostatic Armor (FFG ruling Sep 26, 2024 #12, post-RRG 1.6)", () => {
+  const damageVillain = (amount: number) =>
+    ({ kind: "dealDamage", target: { kind: "villain" }, amount: { kind: "const", value: amount } }) as const;
+  // Riposte: "+2 DEF ... If you take no damage, deal 3 damage to the attacker" as a delayed effect (3 here, source: this card).
+  const riposte = stubAbility(
+    "riposte",
+    def({
+      trigger: { kind: "interrupt", forced: true, on: { on: "enemyAttack", sourceIs: { categories: ["villain"] } } },
+      effects: [{ kind: "atEndOfAttack", effects: [damageVillain(3)] }],
+    }),
+  );
+  // Electrostatic Armor: "Response: After you defend, deal 1 damage to the attacker."
+  const armor = stubAbility(
+    "armor",
+    def({
+      trigger: { kind: "response", forced: true, on: { on: "defended", playerIs: "controller" } },
+      effects: [damageVillain(1)],
+    }),
+  );
+  const RIPOSTE = stubSupport({ id: "riposte", cost: 0, abilities: [riposte.ref] });
+  const ARMOR = stubSupport({ id: "armor", cost: 0, abilities: [armor.ref] });
+
+  it.fails("the delayed 3 damage lands before the Electrostatic Armor response's 1 (RRG 1.8 p. 16 Delayed Effect, p. 5 timing priority)", () => {
+    const deps = depsOf(riposte, armor);
+    const start = newGame({
+      villain: stubVillain({ id: "villain", stages: [{ hp: flat(30), atk: 2, sch: 0 }] }),
+      mainScheme: SCHEME,
+      extraCards: [BLANK, RIPOSTE, ARMOR],
+      deck: [...copies(RIPOSTE.id), ...copies(ARMOR.id), ...copies(RESOURCE.id, 8)],
+      encounterDeck: copies(BLANK.id, 20),
+      deps,
+    });
+    const given = giveCards(start, p1, RIPOSTE.id, ARMOR.id);
+    const [riposteId, armorId] = given.ids as [InstanceId, InstanceId];
+    const inPlay = runWith(deps, given.state, toHero, play(riposteId), play(armorId), endTurn);
+    const atDefense = settleUntil(inPlay, "declareDefender", deps);
+    const hero = mustPlayer(atDefense, p1).identity.instanceId;
+    const result = applyCommand(
+      atDefense,
+      {
+        type: "resolveChoice",
+        playerId: p1,
+        choiceId: atDefense.pendingChoice?.choiceId as never,
+        selectedOptionIds: [hero],
+      },
+      deps,
+    );
+    const events = result.ok ? result.events : [];
+    expectOk(result);
+    const villain = activeVillain(atDefense).instanceId;
+    const hits = events.flatMap((e) => (e.type === "damageDealt" && e.targetInstanceId === villain ? [e.amount] : []));
+    expect(hits).toHaveLength(2);
+    // Actual: [1, 3] (the response first, then the delayed effect).
+    expect(hits).toEqual([3, 1]);
+  });
+});

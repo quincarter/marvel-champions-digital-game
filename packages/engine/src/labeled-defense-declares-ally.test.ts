@@ -16,13 +16,13 @@ import type { Command } from "./commands.js";
 import { replay, startSession } from "./engine.js";
 import type { GameEvent } from "./events.js";
 import type { InstanceId } from "./ids.js";
-import { activeVillain, mustPlayer } from "./query.js";
+import { activeVillain, mustInstance, mustPlayer } from "./query.js";
 import { cardsInPlay } from "./select.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { driveSession } from "./testing/drive.js";
 import { stubAlly, stubMainScheme, stubSupport, stubTreachery, stubVillain } from "./testing/fixtures.js";
-import { defaultPick, runWith } from "./testing/scenario.js";
+import { defaultPick, giveCards, newGame, resolvePending, RESOURCE, runWith, settle, settleUntil } from "./testing/scenario.js";
 import { copiesOf, gameAtFirstTurn, P1, playerCardIntoPlay } from "./testing/wave3.js";
 
 const ability = (id: string, definition: AbilityDefinition) => stubAbility(id, definition);
@@ -219,5 +219,114 @@ describe("RRG 1.8 FAQ 'Mutant Protectors (#17)' (p. 63): a (defense) ability tha
     const replayed = replay(session.log, deps);
     if (!replayed.ok) throw new Error(replayed.error.message);
     expect(replayed.state).toEqual(session.state);
+  });
+});
+
+/**
+ * RRG 1.8 "Defend, Defense" (p. 15): "While a hero is defending against an attack, other friendly characters cannot
+ * defend against that attack" and the same for a defending ally. FFG ruling, Alex, Jul 19, 2023 (post-RRG 1.5 #49):
+ * "since your hero is already defending the attack, the ally put into play with Mutant Protectors cannot defend that
+ * attack. (The rules of defending are strict on this; once one character defends, only that character can defend the
+ * attack unless that character leaves play before the attack finishes.)" The engine bars only another
+ * PLAYER's characters (`defenseBarFor`); a second declaration by the same player replaces the defender
+ * (`declareDefenderByEffect`, `resolve/enemy-activation.ts`).
+ */
+describe("a second character declared the defender of an attack that already has one (same player)", () => {
+  const BLANK = stubTreachery({ id: "blank", boostIcons: 0 });
+  const ALLY_A = stubAlly({ id: "ally-a", cost: 0, atk: 1, thw: 1, hp: 9 });
+  const ALLY_B = stubAlly({ id: "ally-b", cost: 0, atk: 1, thw: 1, hp: 9 });
+  const declare = (id: string, name: string) =>
+    stubAbility(id, {
+      trigger: {
+        kind: "interrupt",
+        forced: true,
+        on: { on: "enemyAttack", playerIs: "controller", usesAttackedPlayer: true },
+      },
+      label: ["defense"],
+      effects: [{ kind: "declareDefender", character: { kind: "each", query: { categories: ["ally"], name } } }],
+    });
+  // "Hero Interrupt (defense): When an enemy attacks you, declare an ally you control the defender" (Mutant Protectors' shape).
+  const DECLARE_A = declare("declare-a", ALLY_A.name);
+  const DECLARE_B = declare("declare-b", ALLY_B.name);
+  const CARD_A = stubSupport({ id: "card-a", cost: 0, abilities: [DECLARE_A.ref] });
+  const CARD_B = stubSupport({ id: "card-b", cost: 0, abilities: [DECLARE_B.ref] });
+  // "Hero Interrupt (defense): When an enemy attacks you, ..." with no further text: the label alone makes the hero the defender.
+  const GUARD = stubAbility("guard", {
+    trigger: {
+      kind: "interrupt",
+      forced: true,
+      on: { on: "enemyAttack", playerIs: "controller", usesAttackedPlayer: true },
+    },
+    label: ["defense"],
+    effects: [],
+  });
+  const GUARD_CARD = stubSupport({ id: "guard", cost: 0, abilities: [GUARD.ref] });
+  const deps = depsOf(DECLARE_A, DECLARE_B, GUARD);
+
+  function stage(cards: readonly (typeof CARD_A | typeof GUARD_CARD)[]) {
+    const scheme = stubMainScheme({
+      id: "scheme",
+      stages: [{ startingThreat: flat(5), targetThreat: flat(40), acceleration: flat(0) }],
+    });
+    const start = newGame({
+      villain: stubVillain({ id: "villain", stages: [{ hp: flat(30), atk: 4, sch: 0 }] }),
+      mainScheme: scheme,
+      extraCards: [BLANK, ALLY_A, ALLY_B, CARD_A, CARD_B, GUARD_CARD],
+      deck: [
+        ...copiesOf(ALLY_A.id, 2),
+        ...copiesOf(ALLY_B.id, 2),
+        ...cards.map((c) => c.id),
+        ...copiesOf(RESOURCE.id, 8),
+      ],
+      encounterDeck: copiesOf(BLANK.id, 20),
+      deps,
+    });
+    const given = giveCards(start, P1, ALLY_A.id, ALLY_B.id, ...cards.map((c) => c.id));
+    const [allyA, allyB, ...rest] = given.ids as InstanceId[];
+    const playCard = (id: InstanceId): Command => ({
+      type: "playCard",
+      playerId: P1,
+      cardInstanceId: id,
+      payment: [],
+      attachToInstanceId: null,
+    });
+    const inPlay = runWith(
+      deps,
+      given.state,
+      { type: "changeForm", playerId: P1 },
+      playCard(allyA!),
+      playCard(allyB!),
+      ...rest.map(playCard),
+      { type: "endTurn", playerId: P1 },
+    );
+    return { inPlay, allyA: allyA!, allyB: allyB!, rest };
+  }
+
+  /** Orders the two forced interrupts `first`, `second`, then declines any defender prompt. */
+  function finish(t: ReturnType<typeof stage>, order: readonly string[]): GameState {
+    const ordering = settleUntil(t.inPlay, "orderTriggers", deps);
+    expect(ordering.pendingChoice?.prompt.kind).toBe("orderTriggers");
+    const ordered = resolvePending(ordering, order, deps);
+    return settle(ordered, undefined, deps);
+  }
+
+  it.fails("Mutant Protectors twice: the first ally declared stays the defender (FFG ruling Jul 19, 2023, post-RRG 1.5 #49)", () => {
+    const t = stage([CARD_A, CARD_B]);
+    const [cardA, cardB] = t.rest as [InstanceId, InstanceId];
+    const after = finish(t, [`${cardA}:declare-a`, `${cardB}:declare-b`]);
+    const hurt = (id: InstanceId) => mustInstance(after, id).damage;
+    // Actual: ally B took the attack (the second declaration replaced the defender); ally A took nothing.
+    expect(hurt(t.allyA)).toBe(4);
+    expect(hurt(t.allyB)).toBe(0);
+  });
+
+  it.fails("a (defense) ability makes the hero the defender, then an ally is declared: the hero stays (post-RRG 1.5 #49 item 4)", () => {
+    const t = stage([GUARD_CARD, CARD_A]);
+    const [guardId, cardA] = t.rest as [InstanceId, InstanceId];
+    const after = finish(t, [`${guardId}:guard`, `${cardA}:declare-a`]);
+    const hero = mustPlayer(after, P1).identity.instanceId;
+    // Actual: ally A is the defender and takes the 4; the hero, already defending, should have taken it.
+    expect(mustInstance(after, t.allyA).damage).toBe(0);
+    expect(mustInstance(after, hero).damage).toBe(4);
   });
 });

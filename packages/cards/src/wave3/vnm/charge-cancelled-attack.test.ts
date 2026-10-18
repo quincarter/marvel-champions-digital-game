@@ -39,11 +39,11 @@ import { venomScenario } from "./support.js";
  * "Attack (Enemy Activation)", p. 9: "when [enemy name] attacks" has the timing of "when [the villain] initiates an
  * attack") and the forced one resolves first, so Charge's delayed effect exists when the attack is cancelled.
  *
- * RRG 1.8 "Cancel" (p. 11): the cancelled effect is "replaced with no effect" and "is not considered to have
- * occurred". "Delayed Effect" (p. 16): a delayed effect resolves "immediately after [its] specified timing point".
- * An attack that did not occur has no end, so Charge is not discarded and waits for Rhino's next attack. No ruling
- * found addresses it (the ruling of January 11, 2026 - Ruling 1, answer 3 is about an attacker that left play, whose
- * attack did end).
+ * FFG ruling Feb 15, 2024, Ruling 148 (post-RRG 1.5) answers this exact case: "the attack is still considered to 'end'
+ * and Charge is discarded." RRG 1.8 "Cancel" (p. 11) does not contradict it: the cancelled ability "is still regarded
+ * as initiated", and "abilities dependent on the canceled effect cannot trigger" covers new triggers (damage, "after
+ * ... attacks"), not a delayed effect Charge's already-resolved interrupt set up. "Delayed Effect" (p. 16): it resolves
+ * "immediately after [its] specified timing point", the attack's end. Nothing else of the attack resolves.
  */
 const CHARGE = "01099";
 const TENDRILS = "20003";
@@ -99,7 +99,7 @@ const villainPhase = (state: GameState, pick: Picker, ...stack: readonly string[
 const damageOf = (state: GameState): number => inst(state, identityOf(state)).damage;
 
 describe("Charge (01099) when Rhino's attack is cancelled by Grasping Tendrils (20003)", () => {
-  it("the attack is cancelled: no damage, Rhino is stunned, and Charge is not discarded", () => {
+  it("the attack is cancelled: no damage, Rhino is stunned, and Charge is still discarded at the attack's end", () => {
     const { state, charge, villain } = start();
     expect(inst(state, villain).attachments).toContain(charge);
     // No boost card is dealt for a cancelled attack: the first card of the deck is the player's encounter card.
@@ -107,9 +107,9 @@ describe("Charge (01099) when Rhino's attack is cancelled by Grasping Tendrils (
 
     expect(damageOf(after)).toBe(damageOf(state));
     expect(inst(after, villain).statuses.stunned).toBe(1);
-    expect(inst(after, charge).attachedTo).toBe(villain);
-    expect(inst(after, villain).attachments).toContain(charge);
-    expect(activeEncounterDeck(after).discard).not.toContain(charge);
+    expect(inst(after, charge).attachedTo).toBeNull();
+    expect(inst(after, villain).attachments).not.toContain(charge);
+    expect(activeEncounterDeck(after).discard).toContain(charge);
     // Grasping Tendrils was played: it is in Venom's discard pile.
     const tendrils = after.players[0]!.discard.filter((id) => (inst(after, id).cardId as string) === TENDRILS);
     expect(tendrils).toHaveLength(1);
@@ -128,12 +128,10 @@ describe("Charge (01099) when Rhino's attack is cancelled by Grasping Tendrils (
   });
 });
 
-// Conflict between sources, flagged for the owner: the describe above pins "no ruling found; an attack that did not
-// occur has no end, so Charge is not discarded" (RRG 1.8 "Cancel", p. 11). FFG ruling 148 (Feb 15, 2024, post-RRG 1.5)
-// says a canceled attack still ends, so "at the end of this attack" effects run. The test below states the ruling and
-// stays an expected failure until the two readings are reconciled.
+// The same ruling through the rulings harness (Spider-Man against Rhino). The owner decided the ruling wins, since RRG
+// 1.8 "Cancel" (p. 11) does not contradict it.
 describe("Ruling 148, Feb 15, 2024 (post-RRG 1.5): a canceled attack still ends, so 'at the end of this attack' effects run (RRG 1.8 p. 9)", () => {
-  it.fails("Charge (01099) is discarded when Grasping Tendrils (20003) cancels Rhino's attack", () => {
+  it("Charge (01099) is discarded when Grasping Tendrils (20003) cancels Rhino's attack", () => {
     const base = game("rhino", ["core-spider-man-justice"], ["the_doomsday_chair"]);
     const rhinoId = villainOf(base);
     const charge = attachEncounter(base, CHARGE, rhinoId);
@@ -144,7 +142,7 @@ describe("Ruling 148, Feb 15, 2024 (post-RRG 1.5): a canceled attack still ends,
     expect(
       run.events.some((e) => e.type === "abilityResolved" && e.abilityId === "20003.grasping-tendrils-interrupt"),
     ).toBe(true);
-    // Actual: Charge stays attached (its delayed discard is dropped with the canceled attack).
+    // Charge's delayed discard still resolves at the end of the canceled attack.
     expect(attachedCodes(run.state, rhinoId)).not.toContain(CHARGE);
   });
 });

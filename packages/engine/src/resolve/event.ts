@@ -346,15 +346,17 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         // Earlier conditions of the same occurrence did happen: their shared window still opens (RRG 1.8 p. 45).
         if (openJoinedResponses(ctx, frame)) return;
         // "At the end of this attack" delayed effects created before the attack ended (in its "when [enemy] attacks"
-        // window) still resolve when the attacker left play (`endedEarly`): the attack has ended, which is their timing
-        // point (RRG 1.8 "Delayed Effect", p. 16; ruling January 11, 2026 - Ruling 1, answer 3: Armored Defense
-        // defeating the attacking minion still gives the tough status card). An effect that names the departed attacker
-        // finds nothing to do.
-        //
-        // Not when the activation was cancelled outright ("cancel that attack"): RRG 1.8 "Cancel" (p. 11), "the
-        // canceled effect [is] replaced with no effect" and "is not considered to have occurred", so the attack has no
-        // end for a delayed effect to follow, and the held effects are dropped with the frame. Rhino's Charge then
-        // stays attached. No ruling found speaks to this; it is the reading of the two RRG entries, open to the owner.
+        // window) still resolve when the attack ended early (`endedEarly`), which is their timing point (RRG 1.8
+        // "Delayed Effect", p. 16):
+        // - the attacker left play (ruling January 11, 2026 - Ruling 1, answer 3: Armored Defense defeating the
+        //   attacking minion still gives the tough status card). An effect that names the departed attacker finds
+        //   nothing to do.
+        // - a cancel effect cancelled the enemy attack ("cancel that attack"; FFG ruling Feb 15, 2024, Ruling 148:
+        //   Grasping Tendrils cancelling Rhino's attack still discards Charge). RRG 1.8 "Cancel" (p. 11) does not
+        //   contradict it: the cancelled ability "is still regarded as initiated", and "abilities dependent on the
+        //   canceled effect cannot trigger" stops new triggers, not a delayed effect an already-resolved interrupt set
+        //   up. Nothing else of the attack resolves: no boost card, no damage, no "after … attacks" responses.
+        // A replaced attack, or one a stunned status card or "cannot activate" stopped before it began, drops them.
         if (frame.endedEarly && pushEndEffects(ctx, frame)) return;
         // RRG "Cancel": the canceled effect is not considered to have occurred, so no responses.
         emit(ctx, { type: "triggerEvent", event: frame.event, phase: "cancelled" });
@@ -518,7 +520,8 @@ function noLaterResponses(ctx: Ctx, eventFrameId: FrameId): void {
  * Pushes the "at the end of this attack / activation" effects held on `frame` (`endEffects`), first held resolving
  * first, and empties the list; false when there are none. The frame stays on the stack beneath them and is resolved
  * again afterwards. Called where the event ends: its `done` stage, and the cancel path of an activation that ended
- * before it resolved because its enemy left play (`endedEarly`), never of one cancelled outright.
+ * before it resolved (`endedEarly`: its enemy left play, or a cancel effect cancelled the enemy attack), never of a
+ * replaced one.
  */
 function pushEndEffects(ctx: Ctx, frame: Frame<"event">): boolean {
   if (frame.endEffects.length === 0) return false;

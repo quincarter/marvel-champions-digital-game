@@ -206,10 +206,12 @@ export type StackFrame =
       /** "At the end of this attack" effects, run after the response window. */
       readonly endEffects: readonly DeferredEffects[];
       /**
-       * An enemy activation that began and then ended before resolving, because its enemy left play (RRG 1.8
-       * "Activation", p. 6). The frame is `cancelled` so that nothing more of it resolves, but unlike an activation
-       * cancelled outright (RRG 1.8 "Cancel", p. 11: "not considered to have occurred") it did occur and has ended, so
-       * its `endEffects` still resolve (ruling January 11, 2026 - Ruling 1, answer 3).
+       * An enemy activation or attack that began and then ended before resolving: its enemy left play (RRG 1.8
+       * "Activation", p. 6; ruling January 11, 2026 - Ruling 1, answer 3), or a cancel effect cancelled the enemy
+       * attack in its interrupt window (FFG ruling Feb 15, 2024, Ruling 148: "the attack is still considered to 'end'").
+       * The frame is `cancelled` so that nothing more of it resolves (no damage, no "after … attacks" responses), but
+       * its end is still a timing point, so its `endEffects` resolve. Not set for a replaced attack, nor for one a
+       * stunned status card or "cannot activate" stopped before it was initiated.
        */
       readonly endedEarly?: true;
       /**

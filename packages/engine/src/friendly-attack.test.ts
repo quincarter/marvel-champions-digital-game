@@ -92,3 +92,20 @@ describe("§3.26 a friendly character attacks its own player", () => {
     expect(surged(events)).toBe(true);
   });
 });
+
+/**
+ * FFG ruling, Oct 26, 2023 (post-RRG 1.5 #102, Old Rivals): "Yes, players can defend against the attack from Old
+ * Rivals. ... the rules do not restrict an attacking character and a defending character from being the same
+ * character." RRG 1.8 "Defend, Defense" (p. 15) says "During an enemy attack, a player may defend" and is silent on a
+ * friendly character's attack, so the ruling is not contradicted. The Old Rivals errata (RRG 1.8 p. 62/67) keeps the
+ * attack ("she attacks you ... resolve her ATK against you").
+ */
+describe("defending against Old Rivals (ruling 102, Oct 26, 2023)", () => {
+  it.fails("the attacked player is offered a defender declaration before Gamora's ATK is dealt", () => {
+    const { state } = start(true);
+    const after = playFree(state, deps, REVEAL.card.id).state;
+    // Fixed behavior: the engine stops on a defender prompt and no damage has been dealt yet.
+    expect(after.pendingChoice?.prompt.kind).toBe("declareDefender");
+    expect(identityDamage(after)).toBe(0);
+  });
+});

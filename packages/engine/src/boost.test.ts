@@ -302,3 +302,61 @@ describe("§3.9 boost cards as events", () => {
     expect(villainThreat(alterEgo.events, villainId(alterEgo.state))).toEqual([expect.objectContaining({ amount: 2 })]);
   });
 });
+
+// ---- Ruling 173, May 10, 2024: canceling boost icons does not cancel icons a Boost ability adds ---------------------
+
+describe("Ruling 173, May 10, 2024: boost icons added by a Boost ability (step 3b) are not canceled by a step 3a cancel", () => {
+  /** Time-Travel Tactics' shape: 1 printed boost icon and "[star] Boost: this card gains 2 boost icons". */
+  const GAIN_BOOST = stubAbility("gain.boost", {
+    trigger: { kind: "boost" },
+    effects: [{ kind: "adjustBoostCount", delta: { kind: "const", value: 2 } } as EffectSpec],
+  });
+  const GAIN = stubTreachery({ id: "gain", boostIcons: 1, abilities: [GAIN_BOOST.ref] });
+  /** Attacrobatics' shape, cancelling the icons and nothing more. */
+  const CANCEL_INTERRUPT = stubAbility("cancel-icons.interrupt", {
+    trigger: {
+      kind: "interrupt",
+      forced: true,
+      on: { on: "boostCardTurnedFaceup", activation: "attack", eventAtLeast: { boostIcons: 1 } },
+    },
+    effects: [{ kind: "cancelBoostIcons", bind: "cancelled" }],
+  });
+  const CANCEL = stubSupport({ id: "cancel-icons", cost: 0, abilities: [CANCEL_INTERRUPT.ref] });
+  const gainDeps: EngineDeps = depsOf(GAIN_BOOST, CANCEL_INTERRUPT);
+
+  function boostGame(): GameState {
+    const start = newGame({
+      villain: VILLAIN,
+      mainScheme: SCHEME,
+      extraCards: [GAIN, ZERO, CANCEL],
+      encounterDeck: [GAIN.id, ...copies(ZERO.id, 12)],
+      deck: [...DEFAULT_DECK, CANCEL.id],
+      deps: gainDeps,
+    });
+    const deck = activeEncounterDeck(start).deck;
+    const top = deck.find((id) => start.instances[id]?.cardId === GAIN.id)!;
+    let state = withEncounterPiles(start, { deck: [top, ...deck.filter((id) => id !== top)] });
+    const given = giveCard(state, p1, CANCEL.id);
+    state = runCommands(given.state, gainDeps, {
+      type: "playCard",
+      playerId: p1,
+      cardInstanceId: given.id,
+      payment: [],
+      attachToInstanceId: null,
+    }).state;
+    return state;
+  }
+
+  it.fails("Attacrobatics cancels the printed icon; the 2 icons its Boost ability adds still count", () => {
+    const toHero: Command = { type: "changeForm", playerId: p1 };
+    const endTurn: Command = { type: "endTurn", playerId: p1 };
+    const { state, events } = runCommands(boostGame(), gainDeps, toHero, endTurn);
+    const attacks = events.filter(
+      (e): e is Extract<GameEvent, { type: "attackResolved" }> =>
+        e.type === "attackResolved" && e.enemyInstanceId === activeVillain(state).instanceId,
+    );
+    expect(events.some((e) => e.type === "boostCancelled" && e.scope === "icons")).toBe(true);
+    // Actual: boostIcons 0 (the Boost ability's +2 is zeroed with the printed icon).
+    expect(attacks[0]).toEqual(expect.objectContaining({ boostIcons: 2 }));
+  });
+});

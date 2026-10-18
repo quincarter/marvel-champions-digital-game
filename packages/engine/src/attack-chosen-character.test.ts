@@ -8,7 +8,7 @@
  * player controls", and "the player is still considered attacked"; "Interrupt" (p. 25).
  */
 
-import type { CardId } from "@mc/content";
+import { flat, type CardId } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { AbilityDefinition } from "./abilities.js";
 import type { Command } from "./commands.js";
@@ -20,9 +20,26 @@ import { characterProfile, mustInstance, mustPlayer } from "./query.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { driveSession } from "./testing/drive.js";
-import { stubAlly, stubEvent, stubMinion, stubTreachery } from "./testing/fixtures.js";
+import {
+  stubAlly,
+  stubEvent,
+  stubMainScheme,
+  stubMinion,
+  stubSideScheme,
+  stubSupport,
+  stubTreachery,
+  stubVillain,
+} from "./testing/fixtures.js";
 import { defaultPick, giveCard } from "./testing/scenario.js";
-import { copiesOf, gameAtFirstTurn, minionEngagedWith, P1, P2, playerCardIntoPlay } from "./testing/wave3.js";
+import {
+  copiesOf,
+  encounterCardInVillainArea,
+  gameAtFirstTurn,
+  minionEngagedWith,
+  P1,
+  P2,
+  playerCardIntoPlay,
+} from "./testing/wave3.js";
 
 const def = (definition: AbilityDefinition) => definition;
 const FRIENDLY = { categories: ["identity", "ally"] } as const;
@@ -292,5 +309,71 @@ describe("§3.21 'When a character attacks Speed Demon, Speed Demon attacks that
     expect(mustInstance(state, hero).damage).toBe(1);
     expect(mustInstance(state, speed.id).damage).toBe(heroAtk);
     expect(events.some((e) => e.type === "playerAttackEnded")).toBe(false);
+  });
+});
+
+/**
+ * Ruling 69.82 (July 25, 2025, Alex), question 2: Hope Summers is a minion engaged with a player (an ally under
+ * 'Pool-ized) while Sinister Ends is in play. "Yes, in that case Mister Sinister will attack the Hope Summers minion.
+ * As this is still an enemy attack activation, a player can still defend against this attack." RRG 1.8 is silent
+ * on a forced interrupt that moves an enemy attack onto a minion (p. 8 "Attack (Enemy Activation)" only names a
+ * player's alter-ego or an ally), so the ruling stands.
+ *
+ * The engine's `retargetAttack` (enemy form, `resolve/apply-effect.ts`) drops any target whose `controllerOf` is
+ * null, and an engaged minion has no controller (`engageInPlayMinion` sets `controllerId: null`), so the attack
+ * stays on the player's hero.
+ */
+describe("an enemy attack moved onto a minion (ruling July 25, 2025, 69.82)", () => {
+  const SNARE_RULE = stubAbility("snare.forced-interrupt", {
+    trigger: { kind: "interrupt", forced: true, on: { on: "enemyAttack", sourceIs: { categories: ["villain"] } } },
+    effects: [{ kind: "retargetAttack", character: { kind: "named", name: "grunt" } }],
+  } satisfies AbilityDefinition);
+  const ATTACK_ME = stubAbility("attack-me.action", {
+    trigger: { kind: "action" },
+    effects: [{ kind: "enemyAttack", enemies: { kind: "villain" }, against: { kind: "controller" } }],
+  } satisfies AbilityDefinition);
+
+  const BOSS = stubVillain({ id: "boss", stages: [{ hp: flat(40), atk: 1, sch: 1 }] });
+  const PLOT = stubMainScheme({
+    id: "plot",
+    stages: [{ startingThreat: flat(0), targetThreat: flat(90), acceleration: flat(0) }],
+  });
+  const GRUNT = stubMinion({ id: "grunt", atk: 1, sch: 0, hp: 9, boostIcons: 0 });
+  const SNARE = stubSideScheme({ id: "snare", startingThreat: 5, abilities: [SNARE_RULE.ref] });
+  const BUTTON = stubSupport({ id: "attack-me", cost: 0, abilities: [ATTACK_ME.ref] });
+  const snareDeps = depsOf(SNARE_RULE, ATTACK_ME);
+
+  it.fails("a forced interrupt that makes the villain attack an engaged minion moves the attack onto that minion", () => {
+    const base = gameAtFirstTurn({
+      cards: [BOSS, PLOT, GRUNT, SNARE, BLANK, BUTTON],
+      deps: snareDeps,
+      players: 1,
+      villain: BOSS,
+      mainScheme: PLOT,
+      deck: [BUTTON.id],
+      encounter: [GRUNT.id, SNARE.id, ...copiesOf(BLANK.id, 20)],
+    });
+    const hero: GameState = {
+      ...base,
+      players: base.players.map((p) => ({ ...p, identity: { ...p.identity, form: "hero" } })),
+    };
+    const engaged = minionEngagedWith(hero, GRUNT.id, P1);
+    const snared = encounterCardInVillainArea(engaged.state, SNARE.id, 5).state;
+    const placed = playerCardIntoPlay(snared, BUTTON.id, P1);
+    const command: Command = {
+      type: "useAbility",
+      playerId: P1,
+      cardInstanceId: placed.id,
+      abilityId: ATTACK_ME.ref.id as Extract<Command, { type: "useAbility" }>["abilityId"],
+      payment: [],
+    };
+    const run = driveSession(startSession(placed.state), snareDeps, [command], (s) => {
+      const choice = s.pendingChoice;
+      return choice?.prompt.kind === "declareDefender" ? ["decline"] : defaultPick(s);
+    });
+    const events: readonly GameEvent[] = run.events;
+    const hero1: InstanceId = mustPlayer(placed.state, P1).identity.instanceId;
+    expect(events.some((e) => e.type === "attackRetargeted" && e.targetInstanceId === engaged.id)).toBe(true);
+    expect(events.some((e) => e.type === "damageDealt" && e.targetInstanceId === hero1)).toBe(false);
   });
 });

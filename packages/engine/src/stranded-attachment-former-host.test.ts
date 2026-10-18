@@ -131,3 +131,23 @@ describe("a permanent attachment answers its former host leaving play", () => {
     expect(replayed.state).toEqual(run.state);
   });
 });
+
+/**
+ * RRG 1.8 "Permanent" (p. 32): "If the card to which a permanent attachment was attached leaves play, resolve that
+ * attachment's "attach to" text. If it has none or that text does not have a valid target, remove the attachment from
+ * the game." The test above ("stays in its controller's play area, as before") pins what the engine does today
+ * (`effects.ts` `strandedAttachmentsOf`). A permanent upgrade has no "attach to" text, so the RRG has it removed from
+ * the game when its host is defeated.
+ */
+describe("a permanent attachment with no 'attach to' text whose host leaves play is removed from the game (RRG 1.8 p. 32)", () => {
+  it.fails("a permanent upgrade attached to a minion that is then defeated is removed from the game", () => {
+    const table = start();
+    const attached = play(table.state, BADGE_ON_THUG).state;
+    expect(attached.instances[table.badge]?.attachedTo).toBe(table.thug);
+    const after = play(attached, DEFEAT_THUG).state;
+    expect(mustPlayer(after, P1).playArea).not.toContain(table.thug);
+    // The card must be out of play and removed from the game, not left loose in the play area.
+    expect(mustPlayer(after, P1).playArea).not.toContain(table.badge);
+    expect(after.removedFromGame).toContain(table.badge);
+  });
+});

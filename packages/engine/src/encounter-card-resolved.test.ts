@@ -211,3 +211,58 @@ describe("encounterCardResolved (RRG 1.8 'Resolve', p. 37)", () => {
     expect(mustInstance(state, s.listener).attachments).toEqual([]);
   });
 });
+
+/**
+ * RRG 1.8 Appendix IV FAQ, "Spider-Man Noir (#15)" (p. 63): "Q: If a treachery's 'When Revealed' ability is canceled,
+ * can Spider-Man Noir attach that treachery to himself? A: In order for Spider-Man Noir's response to trigger, some
+ * part of the treachery card must be resolved. If the treachery card has a keyword on it that is resolved when the card
+ * is revealed, like surge or incite X, Spider-Man Noir can trigger his response to attach that card to himself."
+ * The engine drops surge (and incite) whenever the When Revealed ability is cancelled (resolve/reveal.ts `surgeLive`,
+ * and the early return after "Incite and surge are 'When Revealed' effects too"). FFG ruling August 3, 2026 (3) (after
+ * RRG 1.8) says Enhanced Spider-Sense can cancel surge, which is a different cancel; it does not overrule the FAQ.
+ * INTERPRETATION proof, not a settled bug: the FAQ and that ruling pull in different directions.
+ */
+describe("a treachery with Surge whose printed When Revealed is cancelled (FAQ 'Spider-Man Noir (#15)', p. 63)", () => {
+  // A treachery that prints "Surge." and a When Revealed ability ("draw 1 card").
+  const DRAWS_WR = stubAbility("draws-surge.when-revealed", {
+    trigger: { kind: "whenRevealed" },
+    effects: [{ kind: "draw", player: { kind: "controller" }, amount: { kind: "const", value: 1 } }],
+  });
+  const SURGING = stubTreachery({
+    id: "draws-surge",
+    boostIcons: 0,
+    abilities: [DRAWS_WR.ref],
+    keywords: [{ name: "surge" }],
+  });
+  const surgeDeps: EngineDeps = depsOf(DRAWS_WR, CANCEL_WR, REVEAL);
+
+  function revealWithWhenRevealedCancelled(top: CardId) {
+    const base = gameAtFirstTurn({
+      cards: [SURGING, CANCEL_WR_CARD, REVEAL_CARD],
+      deps: surgeDeps,
+      encounter: [SURGING.id, ...copiesOf(TREACHERY.id, 10)],
+      deck: [REVEAL_CARD.id, CANCEL_WR_CARD.id],
+    });
+    const withCancel = playerCardIntoPlay(base, CANCEL_WR_CARD.id, P1).state;
+    const given = giveCard(onTopOfEncounterDeck(withCancel, top), P1, REVEAL_CARD.id);
+    return runCommandsPicking(given.state, surgeDeps, acceptOnlyCancels, {
+      type: "playCard",
+      playerId: P1,
+      cardInstanceId: given.id,
+      payment: [],
+      attachToInstanceId: null,
+    });
+  }
+
+  const typed = (events: readonly GameEvent[], type: GameEvent["type"]) => events.filter((e) => e.type === type);
+
+  it.fails("a treachery with Surge whose printed When Revealed is cancelled still surges and counts as resolved", () => {
+    const { events } = revealWithWhenRevealedCancelled(SURGING.id);
+    expect(typed(events, "revealCancelled")).toHaveLength(1);
+    // The printed ability did not resolve (the draw never happened) ...
+    expect(typed(events, "cardDrawn")).toHaveLength(0);
+    // ... but the keyword did: the player is dealt the surge card, and "After you resolve a treachery" is announced.
+    expect(typed(events, "surgeTriggered")).toHaveLength(1);
+    expect(events.filter((e) => e.type === "triggerEvent" && e.event.kind === "encounterCardResolved")).toHaveLength(1);
+  });
+});

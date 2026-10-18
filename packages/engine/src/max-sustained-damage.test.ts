@@ -10,18 +10,21 @@
 import { flat, type CardId } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { AbilityDefinition, EngineDeps } from "./abilities.js";
-import { replay } from "./engine.js";
+import { replay, startSession } from "./engine.js";
 import type { GameEvent } from "./events.js";
 import type { InstanceId } from "./ids.js";
 import { mustInstance } from "./query.js";
 import type { EffectSpec, TargetRef } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
+import { driveSession } from "./testing/drive.js";
 import { stubEvent, stubSideScheme, stubSupport, stubVillain } from "./testing/fixtures.js";
+import { defaultPick } from "./testing/scenario.js";
 import {
   copiesOf,
   encounterCardInVillainArea,
   gameAtFirstTurn,
+  P1,
   playerCardIntoPlay,
   playFree,
 } from "./testing/wave3.js";
@@ -235,5 +238,49 @@ describe("§3.3 maxSustainedDamage: 'Magneto cannot have more than 6[per_hero] s
     expect(villainDamage(result.state)).toBe(8);
     expect(capped(result.events)).toEqual([]);
     expectReplays(result);
+  });
+});
+
+/**
+ * Ruling 69.114 (October 10, 2025, Alex), question 2: Vivian blanks Boarding Party ("Magneto cannot have more than
+ * 6[per_hero] sustained damage"), damage on Magneto then exceeds that. "Yes; once Boarding Party's ability is back in
+ * effect, it will immediately affect the amount of sustained damage Magneto has, possibly resulting in less damage on
+ * Magneto." RRG 1.8 "Sustained Damage" (p. 42) is silent on a cap coming back after damage was placed.
+ *
+ * The engine holds the cap only as damage is dealt (`maxSustainedDamage`; "the cap does not stop healing, and does not
+ * heal a villain already above it" above pins 8 damage staying 8 under a 6 cap), so damage taken while the scheme was
+ * blanked stays once the blank ends. That test and this ruling disagree about a villain left above a returning cap.
+ */
+describe("a sustained-damage cap that comes back after a blank applies at once (ruling Oct 10, 2025, 69.114)", () => {
+  const MAGNETO_30 = stubVillain({ id: "magneto-30", stages: [{ hp: flat(30), atk: 0, sch: 0 }] });
+  const BLANK_IT = actionEvent("blank-it", [
+    { kind: "blankTextBox", target: sideSchemes, until: "endOfPhase" },
+  ] as never);
+  const HIT_5 = actionEvent("hit-5", [{ kind: "dealDamage", target: theVillain, amount: n(5) }]);
+  const blankDeps = depsOf(CAP_RULE, BLANK_IT.ability, HIT_5.ability);
+
+  it.fails("5 + 5 damage dealt while blanked drops to the 6 cap when the blank ends", () => {
+    const base = gameAtFirstTurn({
+      cards: [MAGNETO_30, BOARDING, BLANK_IT.card, HIT_5.card],
+      deps: blankDeps,
+      villain: MAGNETO_30,
+      players: 1,
+      deck: [...copiesOf(HIT_5.card.id, 4), BLANK_IT.card.id],
+      encounter: [BOARDING.id],
+    });
+    const hero: GameState = {
+      ...base,
+      players: base.players.map((p) => ({ ...p, identity: { ...p.identity, form: "hero" } })),
+    };
+    const withScheme = encounterCardInVillainArea(hero, BOARDING.id, 3).state;
+    const blanked = playFree(withScheme, blankDeps, BLANK_IT.card.id).state;
+    const hit1 = playFree(blanked, blankDeps, HIT_5.card.id).state;
+    const hit2 = playFree(hit1, blankDeps, HIT_5.card.id).state;
+    const villain = hit2.villains[0]!.instanceId;
+    expect(mustInstance(hit2, villain).damage, "damage over the cap while blanked").toBe(10);
+    const ended = driveSession(startSession(hit2), blankDeps, [{ type: "endTurn", playerId: P1 }], defaultPick).session
+      .state;
+    expect(ended.round, "the round turned, so the end-of-phase blank is over").toBeGreaterThan(hit2.round);
+    expect(mustInstance(ended, villain).damage).toBe(6);
   });
 });

@@ -344,3 +344,74 @@ describe("TargetQuery canAttachTo: 'an upgrade that can be attached to [that car
     expect(replayed.ok && replayed.state).toEqual(session.state);
   });
 });
+
+/**
+ * RRG 1.8 "Play, Put into Play" (p. 32): "Cards with the text '[type] form only' can only be played or put into play by
+ * a player whose identity is in the specified form." `playCard` enforces a printed `playRestrictions.form`
+ * (`actions.ts`, `wrong_form`), but the `putIntoPlay` effect (`resolve/apply-effect.ts`) never reads it, so an effect
+ * such as Superpower Training's "put it into play" puts a "Hero Form only" upgrade onto an alter-ego.
+ */
+/** "Hero Form only." */
+const FORM_RAGE = { ...stubUpgrade({ id: "rage-ish", cost: 1 }), playRestrictions: { form: "hero" as const } };
+const FORM_FETCH_ABILITY = stubAbility("fetch-rage.action", {
+  trigger: { kind: "action" },
+  effects: [
+    {
+      kind: "chooseCards",
+      slot: "found",
+      from: {
+        kind: "zone",
+        zone: ["deck", "discard", "hand"],
+        player: { kind: "controller" },
+        filter: { name: FORM_RAGE.name },
+      },
+      chooser: { kind: "controller" },
+      min: 1,
+      max: 1,
+    },
+    { kind: "putIntoPlay", card: { kind: "slot", slot: "found" }, controller: { kind: "controller" } },
+  ],
+});
+/** "Search your deck for a Hero Form only upgrade and put it into play." */
+const FORM_FETCH = stubEvent({ id: "fetch-rage", cost: 0, abilities: [FORM_FETCH_ABILITY.ref] });
+const formDeps: EngineDeps = depsOf(FORM_FETCH_ABILITY);
+
+function runFormFetch(form: "hero" | "alterEgo"): { state: GameState; rage: InstanceId } {
+  const base = gameAtFirstTurn({
+    cards: [FORM_RAGE, FORM_FETCH, BRUTE],
+    deps: formDeps,
+    deck: [FORM_RAGE.id, FORM_FETCH.id],
+    encounter: [BRUTE.id],
+  });
+  const posed: GameState = {
+    ...base,
+    players: base.players.map((p) => ({ ...p, identity: { ...p.identity, form } })),
+  };
+  const seat = mustPlayer(posed, P1);
+  const rage = [...seat.deck, ...seat.discard, ...seat.hand].find((i) => posed.instances[i]?.cardId === FORM_RAGE.id)!;
+  const given = giveCard(posed, P1, FORM_FETCH.id);
+  const command: Command = {
+    type: "playCard",
+    playerId: P1,
+    cardInstanceId: given.id,
+    payment: [],
+    attachToInstanceId: null,
+  };
+  const { session } = driveSession(startSession(given.state), formDeps, [command], (s) => {
+    const options = s.pendingChoice?.options.map((o) => o.optionId) ?? [];
+    return options.includes(rage) ? [rage] : defaultPick(s);
+  });
+  return { state: session.state, rage };
+}
+
+describe("a 'Hero Form only' upgrade put into play (RRG 1.8 'Play, Put into Play', p. 32)", () => {
+  it("control: a hero-form player may put it into play", () => {
+    const { state, rage } = runFormFetch("hero");
+    expect(mustInstance(state, rage).attachedTo).toBe(mustPlayer(state, P1).identity.instanceId);
+  });
+
+  it.fails("an alter-ego player cannot: it stays out of play", () => {
+    const { state, rage } = runFormFetch("alterEgo");
+    expect(mustInstance(state, rage).attachedTo).toBeNull();
+  });
+});

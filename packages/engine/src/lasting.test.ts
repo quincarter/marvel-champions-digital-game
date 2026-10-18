@@ -6,8 +6,10 @@ import type { Command } from "./commands.js";
 import { applyCommand, replay, sessionApply, startSession, type GameSession } from "./engine.js";
 import { playerId, type InstanceId } from "./ids.js";
 import { characterProfile, handSize, mustInstance, mustPlayer } from "./query.js";
+import type { EffectSpec } from "./spec.js";
 import type { CardInstance, GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
+import { runCommands } from "./testing/drive.js";
 import {
   stubAlly,
   stubAttachment,
@@ -23,6 +25,7 @@ import {
 } from "./testing/fixtures.js";
 import {
   ALLY,
+  giveCard,
   giveCards,
   newGame,
   resolvePending,
@@ -31,6 +34,7 @@ import {
   settle,
   settleUntil,
 } from "./testing/scenario.js";
+import { gameAtFirstTurn, P1, playerCardIntoPlay } from "./testing/wave3.js";
 
 const p1 = playerId("p1");
 const def = (definition: AbilityDefinition) => definition;
@@ -649,4 +653,82 @@ test("lasting and delayed effects replay to an identical state", () => {
   expect(mustPlayer(session.state, p1).discard).toContain(furyId);
   const replayed = replay(session.log, deps);
   expect(replayed.ok && replayed.state).toEqual(session.state);
+});
+
+/**
+ * RRG 1.8 "Leaves Play" (p. 27): "When a card leaves play, there is no memory of its previous state and it is
+ * considered to be a new copy of the card." A delayed effect "At the end of the phase, discard Goliath" (Goliath 23015;
+ * To Me, My X-Men! 36020 "return it to hand") is bound to the copy that was in play when it was created. The engine
+ * keeps the delayed effect on the instance id, which survives the trip.
+ * No FFG ruling in the transcripts covers it; the RRG sentence above is the authority.
+ */
+describe("a delayed 'discard this at the end of the phase' and a copy that left play and came back", () => {
+  const controller = { kind: "controller" } as const;
+  const GOLIATH_ACTION = stubAbility("goliath.action", {
+    trigger: { kind: "action" },
+    effects: [{ kind: "atEndOfPhase", effects: [{ kind: "discardFromPlay", target: { kind: "self" } }] }],
+  });
+  const GOLIATH = stubAlly({ id: "goliath", cost: 0, atk: 1, thw: 1, hp: 5, abilities: [GOLIATH_ACTION.ref] });
+  const action = (id: string, ...effects: EffectSpec[]) => {
+    const ability = stubAbility(`${id}.action`, { trigger: { kind: "action" }, effects });
+    return { card: stubEvent({ id, cost: 0, abilities: [ability.ref] }), ability };
+  };
+  const OUT = action("out", {
+    kind: "discardFromPlay",
+    target: { kind: "each", query: { categories: ["ally"], name: GOLIATH.name } },
+  });
+  const BACK = action(
+    "back",
+    {
+      kind: "chooseCards",
+      slot: "taken",
+      from: { kind: "zone", zone: "discard", player: controller, filter: { categories: ["ally"] } },
+      chooser: controller,
+      min: 1,
+      max: 1,
+    },
+    { kind: "putIntoPlay", card: { kind: "slot", slot: "taken" }, controller },
+  );
+  const deps = depsOf(GOLIATH_ACTION, OUT.ability, BACK.ability);
+
+  it.fails("the copy that returned is a new card: the old delayed discard does not touch it", () => {
+    const base = gameAtFirstTurn({
+      cards: [GOLIATH, OUT.card, BACK.card, BLANK],
+      deps,
+      villain: stubVillain({ id: "v", stages: [{ hp: flat(40), atk: 0, sch: 0 }] }),
+      encounter: copies(BLANK.id, 20),
+      deck: [GOLIATH.id, OUT.card.id, BACK.card.id],
+    });
+    let state: GameState = {
+      ...base,
+      players: base.players.map((p) => ({ ...p, identity: { ...p.identity, form: "hero" } })),
+    };
+    const put = playerCardIntoPlay(state, GOLIATH.id);
+    state = put.state;
+    const used = runCommands(state, deps, {
+      type: "useAbility",
+      playerId: P1,
+      cardInstanceId: put.id,
+      abilityId: GOLIATH_ACTION.ref.id,
+      payment: [],
+    });
+    const outAndBack = (s: GameState, card: typeof OUT.card) => {
+      const given = giveCard(s, P1, card.id);
+      return runCommands(given.state, deps, {
+        type: "playCard",
+        playerId: P1,
+        cardInstanceId: given.id,
+        payment: [],
+        attachToInstanceId: null,
+      }).state;
+    };
+    const left = outAndBack(used.state, OUT.card);
+    expect(mustPlayer(left, P1).discard).toContain(put.id);
+    const returned = outAndBack(left, BACK.card);
+    expect(mustPlayer(returned, P1).playArea).toContain(put.id);
+    // End of the player phase: the delayed effect of the first copy fires.
+    const ended = runCommands(returned, deps, { type: "endTurn", playerId: P1 }).state;
+    // Actual: the returned copy is discarded by the old delayed effect (same instance id).
+    expect(mustPlayer(ended, P1).playArea).toContain(put.id);
+  });
 });

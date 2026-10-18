@@ -14,6 +14,7 @@ import type { Command } from "./commands.js";
 import { applyCommand, replay, startSession } from "./engine.js";
 import type { InstanceId } from "./ids.js";
 import { mustInstance, mustPlayer } from "./query.js";
+import type { EffectSpec } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { driveSession } from "./testing/drive.js";
@@ -312,5 +313,68 @@ describe("§3.12 a basic recovery", () => {
     const identity = mustPlayer(state, P1).identity.instanceId;
     expect(mustInstance(state, identity).exhausted).toBe(false);
     expect(damageOf(state, identity)).toBe(4);
+  });
+});
+
+/**
+ * FFG ruling December 8, 2023 - Ruling 125: moving damage off Robert Kelly is healing him, "so you cannot target him
+ * with Tic-Tac-Toe while Protect the Senator is in play". RRG 1.8 p. 43 "Target": "A target is valid for an ability or
+ * game function if any part of that ability or game function can affect that target"; heal is an effect on a target. A
+ * character that cannot be healed by the ability is therefore no valid target of a "choose a character ... heal"
+ * ability. Shape: Protect the Senator (`cannotBeHealed`, player cards) plus a "choose a damaged ally, heal 2" event.
+ */
+describe("a character that cannot be healed is not a valid target of a heal (Ruling 125)", () => {
+  const n2 = { kind: "const", value: 2 } as const;
+  const senatorAbility = stubAbility("senator.constant", {
+    trigger: {
+      kind: "constant",
+      rules: [{ kind: "cannotBeHealed", target: { name: "kelly" }, bySource: "playerCard" }],
+    },
+    effects: [],
+  });
+  const SENATOR_SCHEME = stubSideScheme({ id: "senator-scheme", startingThreat: 5, abilities: [senatorAbility.ref] });
+  const choose: EffectSpec = {
+    kind: "chooseTarget",
+    slot: "pick",
+    chooser: { kind: "controller" },
+    query: { categories: ["ally"] },
+  };
+  const mendAbility = stubAbility("choose-mend.action", {
+    trigger: { kind: "action" },
+    effects: [choose, { kind: "heal", target: { kind: "slot", slot: "pick" }, amount: n2 }],
+  });
+  const CHOOSE_MEND = stubEvent({ id: "choose-mend", cost: 0, abilities: [mendAbility.ref] });
+  const chooseDeps = depsOf(senatorAbility, mendAbility);
+
+  it("Kelly under Protect the Senator is not offered as the target of a player card's heal (RRG p. 43; Ruling 125)", () => {
+    let state = gameAtFirstTurn({
+      cards: [SENATOR_SCHEME, CHOOSE_MEND, KELLY, AIDE],
+      deps: chooseDeps,
+      deck: [CHOOSE_MEND.id, KELLY.id, AIDE.id],
+      encounter: [SENATOR_SCHEME.id],
+    });
+    state = encounterCardInVillainArea(state, SENATOR_SCHEME.id, 5).state;
+    const k = playerCardIntoPlay(state, KELLY.id);
+    const a = playerCardIntoPlay(k.state, AIDE.id);
+    const hurt: GameState = {
+      ...a.state,
+      instances: {
+        ...a.state.instances,
+        [k.id]: { ...a.state.instances[k.id]!, damage: 3 },
+        [a.id]: { ...a.state.instances[a.id]!, damage: 3 },
+      },
+    };
+    const given = giveCard(hurt, P1, CHOOSE_MEND.id);
+    const driven = driveSession(startSession(given.state), chooseDeps, [
+      { type: "playCard", playerId: P1, cardInstanceId: given.id, payment: [], attachToInstanceId: null },
+    ]);
+    // The driver answers prompts itself; read what the target prompt offered from the event log.
+    const prompt = driven.events.flatMap((e) =>
+      e.type === "choiceRequested" && e.choice.prompt.kind === "chooseTarget" ? [e.choice] : [],
+    );
+    expect(prompt.length, "a target choice was offered").toBeGreaterThan(0);
+    const offered = prompt[0]!.options.map((o) => o.optionId);
+    expect(offered).toContain(a.id);
+    expect(offered).not.toContain(k.id);
   });
 });

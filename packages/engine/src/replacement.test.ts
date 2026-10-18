@@ -16,6 +16,7 @@ import {
   stubMainScheme,
   stubMinion,
   stubResource,
+  stubSideScheme,
   stubTreachery,
   stubUpgrade,
   stubVillain,
@@ -567,5 +568,70 @@ describe("cancelling a revealed encounter card (RRG 'Cancel', 'Surge')", () => {
     expect(minionIn(after)).toHaveLength(1);
     expect(minionIn(after)).not.toContain(firstRevealed);
     expect(mustInstance(after, widowId).exhausted).toBe(true);
+  });
+});
+
+/**
+ * RRG 1.8 Appendix IV FAQ, "Q: Can Jennifer Walters remove threat from a side scheme as it enters play?" (printed
+ * p. 57): "No. Side schemes enter play with threat already on them, meaning threat is not 'placed' at this point." The
+ * engine enters a side scheme with a `placeThreat` event frame (`enter-play.ts` `enterPlayOnReveal`), the same event a
+ * "When threat would be placed on a scheme" interrupt (I Object!) matches, so the interrupt is offered and prevents it.
+ */
+describe("I Object! against a side scheme entering play (RRG 1.8 App. IV FAQ, Jennifer Walters, p. 57)", () => {
+  const iObject = stubAbility(
+    "i-object",
+    def({
+      trigger: { kind: "interrupt", forced: false, form: "alterEgo", on: { on: "placeThreat" } },
+      effects: [{ kind: "preventThreat", amount: { kind: "const", value: 1 } }],
+    }),
+  );
+  const walters = stubIdentity({
+    id: "walters",
+    hp: 15,
+    atk: 3,
+    thw: 1,
+    def: 2,
+    rec: 5,
+    heroHandSize: 4,
+    alterEgoHandSize: 6,
+    alterEgoAbilities: [iObject.ref],
+  });
+  const QUIET_VILLAIN = stubVillain({ id: "villain", stages: [{ hp: flat(30), atk: 0, sch: 0 }] });
+  const FAR_SCHEME = stubMainScheme({
+    id: "scheme",
+    stages: [{ startingThreat: flat(5), targetThreat: flat(40), acceleration: flat(0) }],
+  });
+  const SIDE = stubSideScheme({ id: "side", startingThreat: 3 });
+
+  it("is not offered: a side scheme enters with its threat, nothing is 'placed'", () => {
+    const deps = depsOf(iObject);
+    const dealt = newGame({
+      villain: QUIET_VILLAIN,
+      mainScheme: FAR_SCHEME,
+      identity: walters,
+      extraCards: [BLANK, SIDE],
+      encounterDeck: [SIDE.id, ...Array.from({ length: 19 }, () => BLANK.id)],
+      deps,
+    });
+    // Setup shuffles the encounter deck: put the side scheme second, under the villain's boost card, so the villain
+    // phase deals it to the player as their encounter card.
+    const deck = activeEncounterDeck(dealt).deck;
+    const sideId = deck.find((id) => dealt.instances[id]?.cardId === SIDE.id);
+    if (!sideId) throw new Error("side scheme not in the encounter deck");
+    const [boost, ...rest] = deck.filter((id) => id !== sideId);
+    if (!boost) throw new Error("no boost card");
+    const state = withEncounterPiles(dealt, { deck: [boost, sideId, ...rest] });
+    // Always take the I Object! option when it is offered; otherwise the default answer.
+    const takeIObject = (s: GameState): readonly string[] => {
+      const choice = s.pendingChoice;
+      if (choice?.prompt.kind === "chooseTriggers") {
+        const option = choice.options.find((o) => o.optionId.includes("i-object") || o.optionId.includes(":"));
+        if (option) return [option.optionId];
+      }
+      return defaultPick(s);
+    };
+    const after = settle(runWith(deps, state, endTurn), takeIObject, deps);
+    expect(after.villainArea).toContain(sideId);
+    expect(after.instances[sideId]?.threat).toBe(3);
   });
 });

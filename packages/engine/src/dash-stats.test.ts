@@ -6,8 +6,17 @@ import { playerId, type InstanceId } from "./ids.js";
 import { characterProfile, mustInstance, mustPlayer } from "./query.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
-import { stubAlly, stubEvent, stubMainScheme, stubMinion, stubTreachery, stubVillain } from "./testing/fixtures.js";
-import { giveCards, newGame, RESOURCE, runWith, settle } from "./testing/scenario.js";
+import {
+  stubAlly,
+  stubEvent,
+  stubMainScheme,
+  stubMinion,
+  stubSideScheme,
+  stubTreachery,
+  stubVillain,
+} from "./testing/fixtures.js";
+import { giveCards, newGame, RESOURCE, runWith, settle, TREACHERY } from "./testing/scenario.js";
+import { encounterCardInVillainArea, gameAtFirstTurn, P1, playerCardIntoPlay } from "./testing/wave3.js";
 
 // Schema `PrintedStat`: a printed "—" is not a 0 — the character can't use that power at all.
 const p1 = playerId("p1");
@@ -147,4 +156,47 @@ test("an enemy with a printed '—' SCH skips its scheme activation; an 'X' stat
   ) as InstanceId;
   expect(characterProfile(titanRound, titanId, deps)?.atk).toBe(0);
   expect(characterProfile(titanRound, titanId, deps)?.missing).toEqual([]);
+});
+
+describe("a character with a dash THW cannot thwart The Red House (Ruling 69.62, June 17, 2025)", () => {
+  // "Hulk cannot thwart The Red House; a character needs to be able to initiate a thwart against The Red House before
+  // triggering its interrupt to use their ATK, and since Hulk has a 'dash' (-) value for his THW, he cannot exhaust to
+  // initiate a basic thwart this way." Assault is different (always in effect): a dash-THW character can thwart it.
+  // RRG 1.8 p. 44 "Thwart" says a basic thwart needs the character's THW; the RRG does not address this card.
+  /** "Interrupt: When a character thwarts this side scheme, they may use their ATK instead of their THW" (The Red House). */
+  const MAY_USE_ATK = stubAbility("optional.constant", {
+    trigger: { kind: "constant", rules: [{ kind: "thwartWithAtk", scheme: { self: true } }] },
+    effects: [],
+  });
+  const HOUSE = stubSideScheme({ id: "house", startingThreat: 10, abilities: [MAY_USE_ATK.ref] });
+  /** The Hulk ally shape: ATK 4, THW "dash". */
+  const HULK_ATK_4 = stubAlly({ id: "hulk-atk-4", cost: 0, atk: 4, thw: null, hp: 5 });
+  const houseDeps = depsOf(MAY_USE_ATK);
+
+  it("an ally with THW dash and ATK 4 using ATK against the Red House is refused", () => {
+    let state = gameAtFirstTurn({
+      cards: [HULK_ATK_4, HOUSE],
+      deps: houseDeps,
+      deck: [HULK_ATK_4.id],
+      encounter: [HOUSE.id, ...copies(TREACHERY.id, 29)],
+    });
+    state = playerCardIntoPlay(state, HULK_ATK_4.id).state;
+    const hulk = mustPlayer(state, P1).playArea.find(
+      (id) => mustInstance(state, id).cardId === HULK_ATK_4.id,
+    ) as InstanceId;
+    const house = encounterCardInVillainArea(state, HOUSE.id, 10);
+    const command: Command = {
+      type: "basicThwart",
+      playerId: P1,
+      thwarterInstanceId: hulk,
+      schemeInstanceId: house.id,
+      useAtk: true,
+    };
+    // Refused (the engine used to let the thwart through, ATK 4 removing 4 threat); the scheme keeps its 10 threat.
+    const result = applyCommand(house.state, command, houseDeps);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toContain("cannot initiate a thwart");
+    expect(mustInstance(house.state, house.id).threat).toBe(10);
+    expect(mustInstance(house.state, hulk).exhausted).toBe(false);
+  });
 });

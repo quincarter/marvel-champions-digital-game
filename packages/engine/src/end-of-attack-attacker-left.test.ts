@@ -20,12 +20,12 @@ import { giveCards, newGame, RESOURCE, withEncounterPiles } from "./testing/scen
  * Ruling January 11, 2026 - Ruling 1, answer 3: "if Armored Defense defeats the attacking minion, Hulkling still
  * receives a Tough status card."
  *
- * An attack cancelled outright is the other case. RRG 1.8 "Cancel" (p. 11): "Cancel effects are considered a subtype of
- * replacement effect, with the canceled effect being replaced with no effect", and "the canceled effect is not
- * considered to have occurred". An attack that did not occur has no end, so the timing point of an "at the end of this
- * attack" delayed effect never comes and the effect never resolves. "Lasting Effects" (p. 26) is unaffected: an "until
- * the end of this attack" modifier has nothing left to modify. No ruling found addresses the cancel; this is the
- * reading of the RRG entries.
+ * An attack cancelled in the same window ends too. FFG ruling Feb 15, 2024, Ruling 148 (post-RRG 1.5): when Grasping
+ * Tendrils cancels Rhino's attack, "the attack is still considered to 'end' and Charge is discarded." RRG 1.8 "Cancel"
+ * (p. 11) does not contradict it: the cancelled ability "is still regarded as initiated", and "abilities dependent on
+ * the canceled effect cannot trigger" covers new triggers (the attack's damage, "after ... attacks"), not a delayed
+ * effect an already-resolved interrupt set up. So the held "at the end of this attack" effects resolve; nothing else of
+ * the attack does.
  */
 const p1 = playerId("p1");
 const def = (definition: AbilityDefinition) => definition;
@@ -182,20 +182,20 @@ describe("'at the end of this attack' when the attack is cancelled in its 'when 
   const cancelledAttacks = (events: readonly GameEvent[]) =>
     events.filter((e) => e.type === "triggerEvent" && e.phase === "cancelled" && e.event.kind === "enemyAttack");
 
-  it("the held effect does not resolve: no tough card, no damage, and the attacker stays in play", () => {
+  it("the held effect still resolves: the tough card, but none of the attack's damage, and the attacker stays", () => {
     const { state, events, thug } = game(5, 1, [giveTough], [cancelIt]);
     expect(cancelledAttacks(events)).toHaveLength(1);
     expect(mustPlayer(state, p1).playArea).toContain(thug);
     // The interrupt's own damage was dealt before the cancel; the attack's 2 was not.
     expect(damageTo(events, thug)).toEqual([1]);
     expect(identity(state).damage).toBe(0);
-    expect(identity(state).statuses.tough).toBe(0);
-    expect(events.filter((e) => e.type === "statusGiven")).toEqual([]);
+    expect(identity(state).statuses.tough).toBe(1);
+    expect(events.filter((e) => e.type === "statusGiven")).toHaveLength(1);
     // Cancelled, not ended early: the activation was not skipped for a departed enemy.
     expect(events.some((e) => e.type === "activationSkipped")).toBe(false);
   });
 
-  it("nothing held resolves, whatever it names: the attacker, the villain or the player", () => {
+  it("every held effect resolves, whatever it names: the attacker, the villain or the player", () => {
     const { state, events, thug } = game(
       5,
       1,
@@ -207,10 +207,12 @@ describe("'at the end of this attack' when the attack is cancelled in its 'when 
       [cancelIt],
     );
     expect(cancelledAttacks(events)).toHaveLength(1);
-    expect(damageTo(events, thug)).toEqual([1]);
-    expect(mustInstance(state, thug).damage).toBe(1);
-    expect(identity(state).statuses.tough).toBe(0);
-    expect(mustInstance(state, state.activeVillainId as InstanceId).damage).toBe(0);
+    // The interrupt's 1, then the held effect's 1 (the attack's own 2 is never dealt).
+    expect(damageTo(events, thug)).toEqual([1, 1]);
+    expect(mustInstance(state, thug).damage).toBe(2);
+    expect(identity(state).damage).toBe(0);
+    expect(identity(state).statuses.tough).toBe(1);
+    expect(mustInstance(state, state.activeVillainId as InstanceId).damage).toBe(1);
   });
 
   it("control: the same interrupt without the cancel deals the attack's 2 damage, then gives the tough card", () => {
@@ -221,12 +223,13 @@ describe("'at the end of this attack' when the attack is cancelled in its 'when 
     expect(identity(state).statuses.tough).toBe(1);
   });
 
-  it("an attack cancelled after its attacker was defeated in the same window is still a cancelled attack", () => {
-    // The interrupt defeats the minion, then cancels the attack: the cancel is what ends it, so nothing held resolves.
+  it("an attack cancelled after its attacker was defeated in the same window still ends: the held effect resolves", () => {
+    // The interrupt defeats the minion, then cancels the attack. Either way the attack has ended, so the held effect
+    // resolves (ruling January 11, 2026 - Ruling 1, answer 3; Ruling 148).
     const { state, events, thug } = game(1, 1, [giveTough], [cancelIt]);
     expect(activeEncounterDeck(state).discard).toContain(thug);
     expect(identity(state).damage).toBe(0);
-    expect(identity(state).statuses.tough).toBe(0);
+    expect(identity(state).statuses.tough).toBe(1);
     expect(cancelledAttacks(events)).toHaveLength(1);
   });
 });
