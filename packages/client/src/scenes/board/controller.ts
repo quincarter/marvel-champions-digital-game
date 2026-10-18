@@ -669,6 +669,8 @@ export class BoardController {
       // A change of form with an additional cost (`RuleSpec formChangeCost`, wave 8 §3.63) owes the player the payment
       // decision like any costed action; `entry.example` is only the engine's proof that some payment works.
       if (action === "changeForm" && entry.needsPayment && this.#openPayment(entry, null)) return;
+      // A basic power whose own cost discards from hand (Wonder Man, `03014`): which card is the player's choice.
+      if (this.#tryOpenDiscardChoice(entry)) return;
       // No target, or one legal target: not a decision; aim and go.
       void this.#dispatch(entry.example);
       return;
@@ -691,10 +693,18 @@ export class BoardController {
       await this.#playAs(action, playAs.controllerId, false, id);
       return;
     }
+    const { game } = appSession().store.state;
+    // A basic power whose own cost discards from hand (Wonder Man, `03014`) asks which card, aimed at this target.
+    if (
+      game &&
+      (action.action.kind === "basicAttack" || action.action.kind === "basicThwart") &&
+      this.#tryOpenDiscardChoice({ ...action, example: retarget(game, action.example, id) })
+    ) {
+      return;
+    }
     // An aimed action that also costs something still owes the player the
     // payment decision; only a free one goes straight to the engine.
     if (action.needsPayment && this.#openPayment(action, id)) return;
-    const { game } = appSession().store.state;
     await this.#send(game ? retarget(game, action.example, id) : action.example);
   }
 

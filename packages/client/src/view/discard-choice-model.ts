@@ -25,6 +25,7 @@
 import {
   activeAbilityRefs,
   applyCommand,
+  basicPowerCost,
   cardOf,
   costAsDetermined,
   getPlayer,
@@ -72,6 +73,18 @@ function actionAbilityCost(
   if (action.kind === "useAbility") {
     const written = deps.abilities[action.abilityId]?.cost;
     return costAsDetermined(state, deps, action.instanceId, playerId, written);
+  }
+  // A basic power with an additional cost of its own (Wonder Man, `03014`: "As an additional cost for Wonder Man to
+  // attack, you must discard 1 card from your hand"; `basicPowerCosts`). Which card is the player's choice.
+  if (action.kind === "basicAttack" || action.kind === "basicThwart") {
+    const power = action.kind === "basicAttack" ? "attack" : "thwart";
+    return costAsDetermined(
+      state,
+      deps,
+      action.instanceId,
+      playerId,
+      basicPowerCost(state, deps, action.instanceId, power),
+    );
   }
   if (action.kind !== "playCard") return undefined;
   // Only an event resolves its printed Action when played. An ally/support/upgrade in hand is being *put into
@@ -146,7 +159,7 @@ export interface DiscardChoiceState {
 }
 
 /**
- * Opens the picker for a `playCard` or `useAbility` action whose cost has a
+ * Opens the picker for a `playCard`, `useAbility` or basic power action whose cost has a
  * real discard choice in it — more than one legal selection exists. Null
  * when there isn't one: no `discardFromHand` cost at all, or so few hand
  * cards that every candidate must be discarded regardless (a hand of exactly
@@ -159,7 +172,8 @@ export function beginDiscardChoice(
   action: LegalAction,
   deps: EngineDeps,
 ): DiscardChoiceState | null {
-  if (action.action.kind !== "playCard" && action.action.kind !== "useAbility") return null;
+  const kind = action.action.kind;
+  if (kind !== "playCard" && kind !== "useAbility" && kind !== "basicAttack" && kind !== "basicThwart") return null;
   const cost = discardCostOf(state, deps, playerId, action.action);
   if (!cost) return null;
   const own = discardCandidates(state, playerId, action.action.instanceId);
@@ -211,7 +225,12 @@ export interface DiscardChoiceView {
 export function discardChoiceView(state: GameState, choice: DiscardChoiceState, deps: EngineDeps): DiscardChoiceView {
   const picked = new Set(choice.picked);
   const base = choice.action.example;
-  if (base.type !== "playCard" && base.type !== "useAbility") {
+  if (
+    base.type !== "playCard" &&
+    base.type !== "useAbility" &&
+    base.type !== "basicAttack" &&
+    base.type !== "basicThwart"
+  ) {
     return {
       source: choice.source,
       min: choice.min,

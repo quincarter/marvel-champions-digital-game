@@ -46,7 +46,9 @@ export function drawDiscardBar(ctx: BoardDrawContext, rect: Rect, discard: Disca
       .text(
         headlineLeft,
         rect.y + rect.height / 2,
-        "Tap cards to choose how many to discard, then Confirm.",
+        discard.min === discard.max
+          ? `Tap ${discard.min === 1 ? "the card" : `the ${discard.min} cards`} to discard, then Confirm.`
+          : "Tap cards to choose how many to discard, then Confirm.",
         textStyle(typeRole.emphasis, surface.paper.hex),
       )
       .setOrigin(0, 0.5)

@@ -140,6 +140,7 @@ export type { PlayCost, PlayCostContribution } from "./actions.js";
 export {
   PAID_FOR_SLOT,
   additionalPlayCostOf,
+  basicPowerCost,
   costAsDetermined,
   inPlayCostCandidates,
   minimumChosenX,
