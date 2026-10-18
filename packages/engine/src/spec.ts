@@ -3521,8 +3521,26 @@ export type EffectSpec =
        * restriction applies, it counts as played, and the card leaves the tuck as it enters play. The playing player
        * controls it; its owner does not change. An action ability whose effects are only such plays cannot be
        * initiated while no tucked card could be played that way (`tuckedPlayUnavailable`, `actions.ts`).
+       *
+       * `{ separateDeck, position }`: a card of the player's own separate deck of that name (docs/phase7-wave11.md
+       * §3.2; Daredevil 60001a "Play the top card of the Sense deck as if it were in your hand (paying its cost)";
+       * Deposition 60009 "choose any upgrade from the Sense deck and play it, ignoring its resource cost"). `"top"`
+       * offers only the deck's top card; `"any"` lets the player pick any card of it the play could legally make,
+       * which is a search, so the deck is shuffled once this step completes (RRG 1.8 "Search", p. 39) unless it is
+       * a `fixedOrder` deck (§3.1), whose order holds. It is a play (RRG 1.8 "Play, Put Into Play", p. 32): cost,
+       * form, max and unique apply and it counts as played. The log's `cardPlayed` carries `from: "separateDeck"`.
+       * `asIfInHand` (opt-in, for text that says "as if it were in your hand"): a log marker only, `cardPlayed`
+       * `countsAsFrom: "hand"` (RRG 1.8 FAQ "Magik (#30A)", p. 64: "considered to have been played from her hand";
+       * hero-pack spec Q102 default). Nothing else reads it: a cost reduction limited to cards played from hand
+       * (`playCostReduction.fromHand`) cannot reach an effect's play today, so whether one should is unreachable,
+       * not ruled.
        */
-      readonly from?: "hand" | "setAside" | "deck" | { readonly tuckedUnder: TargetRef };
+      readonly from?:
+        | "hand"
+        | "setAside"
+        | "deck"
+        | { readonly tuckedUnder: TargetRef }
+        | { readonly separateDeck: string; readonly position: "top" | "any"; readonly asIfInHand?: true };
       /**
        * "It enters play exhausted" (Med Lab 38028; docs/phase7-wave6.md §3.57): the played card is placed exhausted as
        * it enters play, before its "enters play" windows. It is not exhausted *by* anything, so no "when exhausted"

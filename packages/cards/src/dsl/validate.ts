@@ -1110,6 +1110,8 @@ function checkPlays(definition: AbilityDefinition, problems: string[]): void {
       problems.push("playFromHand costReduction: a constant reduction must be a whole number of at least 0");
     if (effect.from === "deck" && effect.card)
       problems.push("playFromHand from deck: the card is picked from the searched deck, so `card` is not read");
+    if (typeof effect.from === "object" && "separateDeck" in effect.from && effect.card)
+      problems.push("playFromHand from a separate deck: the card is picked from that deck, so `card` is not read");
   }
 }
 

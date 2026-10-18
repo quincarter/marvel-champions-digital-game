@@ -27,6 +27,7 @@ import {
   enemyScheme,
   giveBoostCard,
   moveCards,
+  playFromSeparateDeck,
   selectCards,
   zone,
 } from "./effects.js";
@@ -342,5 +343,17 @@ describe("wave 1 closing batch: the three new builders", () => {
       on: { on: ["enemyAttack", "enemyScheme"], selfIs: "source", playerIs: "controller", usesAttackedPlayer: true },
     });
     expect(validateDefinition(watch)).toEqual([]);
+  });
+});
+
+describe("validateDefinition: a play from a separate deck (docs/phase7-wave11.md §3.2)", () => {
+  it("accepts the builder's plays, and refuses one that names its card (the card is picked from that deck)", () => {
+    const top = playFromSeparateDeck("Sense", "top", { asIfInHand: true });
+    const any = playFromSeparateDeck("Sense", "any", { ignoreCost: true, filter: query("upgrade"), optional: true });
+    expect(validateDefinition(action({}, top))).toEqual([]);
+    expect(validateDefinition(action({}, any))).toEqual([]);
+    expect(validateDefinition(action({}, { ...any, card: { kind: "self" } } as typeof any))).toEqual([
+      "playFromHand from a separate deck: the card is picked from that deck, so `card` is not read",
+    ]);
   });
 });

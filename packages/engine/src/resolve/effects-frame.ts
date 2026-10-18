@@ -15,6 +15,7 @@ import {
   cardsInPlayFromZone,
   hostChoicesForEffectPlay,
   hostForEffectPlay,
+  isSeparateDeckPlayFrom,
   paymentOptions,
   paymentsFromOptionIds,
   announceResourcesSpent,
@@ -167,7 +168,7 @@ import { applyFindCard, findCandidates } from "./find.js";
 import { putIntoPlayHostCandidates } from "./reveal.js";
 import { controllerOfArea, joinGameArea } from "./game-areas.js";
 import { damageGroupFrame } from "./damage-group.js";
-import { eachEncounterCard, selectCards } from "./cards.js";
+import { eachEncounterCard, selectCards, shuffleSeparateDeck } from "./cards.js";
 import { abilityFrame, addFrameVars, eventFrame, type Frame, pushEffects, pushEvents } from "./frames.js";
 import { giveStatusOrAnnounce } from "./status-being-given.js";
 import { splitWouldDiscard } from "./would-discard.js";
@@ -585,10 +586,13 @@ function executePlayFromHand(
       : Math.max(0, resolveValue(ctx.state, effect.costReduction, context, ctx.deps));
   const paying = effect.ignoreCost !== true;
   // `{ tuckedUnder }` (Med Lab; docs/phase7-wave6.md §3.57): the hosts are read as the effect resolves.
+  // `{ separateDeck, position }` (docs/phase7-wave11.md §3.2): the player's own deck of that name.
   const from: PlayFromZone =
-    typeof effect.from === "object"
-      ? { tuckedUnder: resolveRef(ctx.state, effect.from.tuckedUnder, context) }
-      : (effect.from ?? "hand");
+    typeof effect.from !== "object"
+      ? (effect.from ?? "hand")
+      : "tuckedUnder" in effect.from
+        ? { tuckedUnder: resolveRef(ctx.state, effect.from.tuckedUnder, context) }
+        : effect.from;
   // "Play an event with a 'Hero Action' ability" from a Response (`ignoreActionTiming`): the Action's turn is not asked.
   const timing: ActionTiming = effect.ignoreActionTiming === true ? "any" : "turn";
   // What this effect takes off the card's cost when it goes to `into`: its own reduction, plus a reduction that reads
@@ -649,12 +653,19 @@ function executePlayFromHand(
   // A searched deck (`from: "deck"`, Fetch Quest; docs/phase7-wave6.md §3.70) is shuffled "upon completion of that game
   // step" (RRG 1.8 "Search", p. 39): this step stays current while the played card resolves above it, then comes back
   // here once to shuffle, played or not.
-  const searched = from === "deck" && playerId !== undefined;
+  // A play from any card of a separate deck searches it too, and is shuffled the same way: `shuffleSeparateDeck`
+  // leaves a fixed-order deck as it is (docs/phase7-wave11.md §3.1, §3.2). Playing its top card is no search.
+  const searchedSeparate = isSeparateDeckPlayFrom(from) && from.position === "any" ? from.separateDeck : null;
+  const searched = (from === "deck" || searchedSeparate !== null) && playerId !== undefined;
   const finish = (): void => {
     if (!searched) return done();
     setFrame(ctx, { ...frame, answer: null, vars: { ...vars, "_play.shuffle": 1 }, bindings });
   };
-  if (from === "deck" && playerId && (frame.vars["_play.shuffle"] ?? 0) > 0) {
+  if (searched && playerId && (frame.vars["_play.shuffle"] ?? 0) > 0) {
+    if (searchedSeparate !== null) {
+      shuffleSeparateDeck(ctx, playerId, searchedSeparate);
+      return done();
+    }
     const order = shuffleZone(ctx, { kind: "deck", playerId }, mustPlayer(ctx.state, playerId).deck);
     updatePlayer(ctx, playerId, (p) => ({ ...p, deck: order }));
     announceDeckTops(ctx);
@@ -747,13 +758,14 @@ function executePlayFromHand(
       chosen = actions.find((abilityId) => abilityId === frame.answer?.[0]);
       if (!chosen) return finish();
     }
-    if (!paying) {
+    // A host is only a question when the upgrade names one and several are legal (RRG 1.8 "Attach To", p. 8), whether
+    // the play pays or ignores the cost (Deposition 60009: a Sense upgrade onto an enemy; docs/phase7-wave11.md §3.2).
+    const choices = hostChoicesForEffectPlay(ctx, playerId, card);
+    if (!paying && choices.length <= 1) {
       finish();
       grantWhileResolving(playIgnoringCost(ctx, playerId, card, from, playBindings, chosen, timing, into));
       return;
     }
-    // A host is only a question when the upgrade names one and several are legal (RRG 1.8 "Attach To", p. 8).
-    const choices = hostChoicesForEffectPlay(ctx, playerId, card);
     setFrame(ctx, {
       ...frame,
       answer: null,
@@ -792,6 +804,11 @@ function executePlayFromHand(
   }
 
   const [chosenHost] = frame.bindings["_play.host"] ?? [];
+  if (!paying) {
+    finish();
+    grantWhileResolving(playIgnoringCost(ctx, playerId, card, from, playBindings, action, timing, into, chosenHost));
+    return;
+  }
   const attachTo = chosenHost ?? hostForEffectPlay(ctx, playerId, card) ?? null;
   const requirement = playFromEffectRequirement(ctx, playerId, card, attachTo, reductionHere, action, from);
   if (requirement === null) return finish();

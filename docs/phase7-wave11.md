@@ -184,7 +184,9 @@ module test, and a failure becomes an extend), **exists (compose)**. Searches th
   `asIfInHand`, `playFromSeparateDeck`.
 - **Shape.** `from: { separateDeck: name, position: "top" | "any" }`. `"top"` offers only the top card; `"any"` lets the
   player pick any card of the deck the play could legally make. No shuffle afterwards for a `fixedOrder` deck (§3.1); a
-  deck without it shuffles as `"deck"` does. `cardPlayed` carries `from: "separateDeck"`.
+  deck without it shuffles after an `"any"` play, which is a search (RRG "Search", p. 39), and not after a `"top"`
+  play, which is not. `cardPlayed` carries `from: "separateDeck"`, plus `countsAsFrom: "hand"` when the card's text says
+  "as if it were in your hand" (opt-in, as Magik's top-of-deck play).
 - **Tests.** Superhuman Senses with 1 resource plays the top card onto an enemy and the next card becomes the top; with
   no resource it is not offered. The Man Without Fear plays the fourth card for 0 and the order of the rest holds.
 

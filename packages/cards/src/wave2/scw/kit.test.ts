@@ -1,4 +1,4 @@
-import { activeEncounterDeck, cardsInPlay, type InstanceId } from "@mc/engine";
+import { activeEncounterDeck, cardsInPlay, type GameState, type InstanceId } from "@mc/engine";
 import {
   endTurn,
   firstLegal,
@@ -8,6 +8,7 @@ import {
   mainThreat,
   moveToHand,
   P1,
+  patchInstance,
   play,
   playerOf,
   settle,
@@ -15,6 +16,7 @@ import {
   toHero,
   type Picker,
 } from "../../testing/harness.js";
+import { minionEngaged, pooled } from "../../testing/wave10-engine-qa-bench.js";
 import { wave2Scenario } from "../setup.js";
 import { playFromHand, runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 
@@ -141,6 +143,73 @@ describe("Scarlet Witch kit", () => {
     expect(playerOf(played, P1).hand.length).toBe(handBefore - 2); // Chaos Magic + Magic Shield left hand; nothing paid.
     expect(cardsInPlay(played)).toContain(magicShield);
     expect(activeEncounterDeck(played).discard.length).toBe(discardBefore + 1); // Magic Shield's printed cost is 1.
+  });
+
+  /**
+   * Spider-Tracer (01007, cost 1, "Attach to a minion.") relabeled onto a deck card by surgery, so Chaos Magic's hand
+   * holds an upgrade that names its own host (docs/phase7-wave11.md §3.2 broadened the ignore-cost play to such
+   * upgrades: RRG 1.8 "Attach To", p. 8, and "Ignore", p. 23). `minions` Hydra Mercenaries (01101) engaged with P1.
+   */
+  const chaosWithTracer = (minions: number) => {
+    const given = moveToHand(runWave2(scwVsRhino(), toHero()), P1, "15003");
+    const spare = playerOf(given.state, P1).deck[0]!;
+    const tracer = pooled(given.state, "01007");
+    let state: GameState = patchInstance(tracer.state, spare, { cardId: tracer.cardId });
+    state = {
+      ...state,
+      players: state.players.map((p) =>
+        p.playerId === P1 ? { ...p, hand: [...p.hand, spare], deck: p.deck.filter((i) => i !== spare) } : p,
+      ),
+    };
+    const engaged: InstanceId[] = [];
+    for (let n = 0; n < minions; n += 1) {
+      const placed = minionEngaged(state, "01101");
+      state = placed.state;
+      engaged.push(placed.id);
+    }
+    return { state, chaosMagic: given.ids[0]!, tracer: spare, engaged };
+  };
+
+  it("Chaos Magic on an upgrade that attaches to a minion: the player picks between two engaged minions, then the encounter deck discards its cost", () => {
+    const { state, chaosMagic, tracer, engaged } = chaosWithTracer(2);
+    const second = engaged[1]!;
+    const stacked = stackEncounterDeck(state, "01186");
+    const top = activeEncounterDeck(stacked).deck[0]!;
+    const hostsOffered: InstanceId[][] = [];
+    const pick: Picker = (s) => {
+      const choice = s.pendingChoice;
+      const ids = (choice?.options ?? []).flatMap((o) => (o.ref.kind === "card" ? [o.ref.instanceId] : []));
+      if (choice?.prompt.kind === "chooseCards" && ids.includes(tracer))
+        return [choice.options[ids.indexOf(tracer)]!.optionId];
+      if (choice?.prompt.kind === "chooseTarget" && choice.prompt.slot === "playFromHandHost") {
+        hostsOffered.push(ids);
+        return [choice.options[ids.indexOf(second)]!.optionId];
+      }
+      return firstLegal(s);
+    };
+    const discardBefore = activeEncounterDeck(stacked).discard.length;
+    const played = settle(runWave2(stacked, play(P1, chaosMagic, [])), pick, undefined, WAVE2_DEPS);
+    expect(hostsOffered).toEqual([engaged]);
+    expect(inst(played, second).attachments).toContain(tracer);
+    expect(inst(played, engaged[0]!).attachments).not.toContain(tracer);
+    // Spider-Tracer's printed cost is 1: one encounter card discarded, the top one.
+    expect(activeEncounterDeck(played).discard).toHaveLength(discardBefore + 1);
+    expect(activeEncounterDeck(played).discard).toContain(top);
+  });
+
+  it("Chaos Magic does not offer an upgrade that attaches to a minion while no minion is in play", () => {
+    const { state, chaosMagic, tracer } = chaosWithTracer(0);
+    const offered: InstanceId[][] = [];
+    const pick: Picker = (s) => {
+      const choice = s.pendingChoice;
+      if (choice?.prompt.kind === "chooseCards" && choice.prompt.slot === "playFromHand")
+        offered.push(choice.options.flatMap((o) => (o.ref.kind === "card" ? [o.ref.instanceId] : [])));
+      return firstLegal(s);
+    };
+    const played = settle(runWave2(state, play(P1, chaosMagic, [])), pick, undefined, WAVE2_DEPS);
+    expect(offered.length).toBeGreaterThan(0);
+    for (const cards of offered) expect(cards).not.toContain(tracer);
+    expect(playerOf(played, P1).hand).toContain(tracer);
   });
 
   it("Hex Bolt: discards the top 3 cards, resolving a different bulleted ability per discarded card's own boost icons", () => {

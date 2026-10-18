@@ -4964,6 +4964,8 @@ export function commitPlay(
    * anything moved; docs/phase7-wave8.md §3.49). Null for every other play, a searched deck's card included.
    */
   deckTop: DeckTopPermission | null = null,
+  /** An effect plays the card from one of its player's separate decks (docs/phase7-wave11.md §3.2): logged as such. */
+  fromSeparateDeck: SeparateDeckPlayFrom | null = null,
 ): SpentPayment {
   if (deckTop) {
     // RRG 1.8 "Initiating Abilities" (p. 24), step 1, and FAQ "Magik (#30A)" (p. 64, which calls it step 3): the card
@@ -5018,6 +5020,9 @@ export function commitPlay(
     // The log keeps where the card really was; every reader of a play treats it as played from the hand (FAQ "Magik
     // (#30A)", p. 64: "that card is considered to have been played from her hand").
     ...(deckTop ? { from: "deckTop" as const, countsAsFrom: "hand" as const } : {}),
+    ...(fromSeparateDeck ? { from: "separateDeck" as const } : {}),
+    // "As if it were in your hand" (Daredevil 60001a): counted as played from the hand, as the Magik FAQ reads it.
+    ...(fromSeparateDeck?.asIfInHand ? { countsAsFrom: "hand" as const } : {}),
     ...(priced.types ? { paidCount: priced.types.paidCount } : {}),
     ...(priced.types?.declared ? { paidAs: priced.types.declared.paidAs } : {}),
   });
@@ -5411,7 +5416,30 @@ export type ActionTiming = "turn" | "any";
  * Where an effect plays a card from "as if it were in your hand" (`EffectSpec playFromHand.from`). `tuckedUnder` holds
  * the resolved hosts: any card tucked under one of them (Med Lab 38028; docs/phase7-wave6.md §3.57), whoever owns it.
  */
-export type PlayFromZone = "hand" | "setAside" | "deck" | { readonly tuckedUnder: readonly InstanceId[] };
+export type PlayFromZone =
+  | "hand"
+  | "setAside"
+  | "deck"
+  | { readonly tuckedUnder: readonly InstanceId[] }
+  | SeparateDeckPlayFrom;
+
+/**
+ * A play from the player's own separate deck `separateDeck` (docs/phase7-wave11.md §3.2): its top card only, or any card
+ * of it (a search, shuffled afterwards unless the deck is in fixed order, §3.1).
+ */
+export interface SeparateDeckPlayFrom {
+  readonly separateDeck: string;
+  readonly position: "top" | "any";
+  /**
+   * "As if it were in your hand": a log marker only (`cardPlayed.countsAsFrom: "hand"`). A "from hand" cost reduction
+   * cannot reach an effect's play today, so whether it should is unreachable, not ruled.
+   */
+  readonly asIfInHand?: true;
+}
+
+/** Whether `from` is a separate deck's (`SeparateDeckPlayFrom`). */
+export const isSeparateDeckPlayFrom = (from: PlayFromZone): from is SeparateDeckPlayFrom =>
+  typeof from === "object" && "separateDeck" in from;
 
 /**
  * The cards an effect could play from `from` for this player, in zone order (before any play check). With `deps`, the
@@ -5425,6 +5453,10 @@ export function cardsInPlayFromZone(
   from: PlayFromZone,
   deps?: EngineDeps,
 ): readonly InstanceId[] {
+  if (isSeparateDeckPlayFrom(from)) {
+    const deck = getPlayer(state, playerId)?.separateDecks[from.separateDeck]?.deck ?? [];
+    return from.position === "top" ? deck.slice(0, 1) : deck;
+  }
   if (typeof from === "object") return from.tuckedUnder.flatMap((host) => getInstance(state, host)?.tucked ?? []);
   const cards = getPlayer(state, playerId)?.[from] ?? [];
   return from === "hand" && deps ? [...cards, ...deckTopPlayableBy(state, deps, playerId)] : cards;
@@ -5448,6 +5480,7 @@ function playFromZoneFault(
   deps: EngineDeps,
 ): string | null {
   if (cardsInPlayFromZone(state, playerId, from, deps).includes(id)) return null;
+  if (isSeparateDeckPlayFrom(from)) return from.position === "top" ? "not the top of that deck" : "not in that deck";
   if (typeof from === "object") return "not tucked there";
   return from === "hand" ? "not in hand" : from === "deck" ? "not in deck" : "not set aside";
 }
@@ -5458,6 +5491,10 @@ function playFromZoneFault(
  * card the ability names, so RRG 1.8 "Initiating Abilities" (p. 24) steps 2–3 ("can the card be played … the player's
  * ability to pay") are checked for it before the ability's own cost is paid, the way "Target" (p. 42) blocks an
  * ability with no valid target. An optional play ("you may"), or an ability with any other effect, is left alone.
+ *
+ * The same holds for a play of a separate deck's top card ("Play the top card of the Sense deck as if it were in your
+ * hand (paying its cost)", Daredevil 60001a; docs/phase7-wave11.md §3.2): that card is named. A play of any card of the
+ * deck is a search, and needs only a searchable deck to initiate (RRG 1.8 "Target", p. 43), so it is left alone.
  */
 export function tuckedPlayUnavailable(
   ctx: Ctx,
@@ -5468,7 +5505,10 @@ export function tuckedPlayUnavailable(
   const effects = definition.effects;
   const plays = effects.filter(
     (effect): effect is Extract<EffectSpec, { kind: "playFromHand" }> =>
-      effect.kind === "playFromHand" && typeof effect.from === "object" && effect.optional !== true,
+      effect.kind === "playFromHand" &&
+      typeof effect.from === "object" &&
+      ("tuckedUnder" in effect.from || effect.from.position === "top") &&
+      effect.optional !== true,
   );
   if (plays.length === 0 || plays.length !== effects.length) return false;
   const context: EffectContext = {
@@ -5480,7 +5520,10 @@ export function tuckedPlayUnavailable(
   };
   return plays.every((effect) => {
     if (typeof effect.from !== "object") return false;
-    const from: PlayFromZone = { tuckedUnder: resolveRef(ctx.state, effect.from.tuckedUnder, context) };
+    const from: PlayFromZone =
+      "tuckedUnder" in effect.from
+        ? { tuckedUnder: resolveRef(ctx.state, effect.from.tuckedUnder, context) }
+        : effect.from;
     const reduction =
       effect.costReduction === undefined
         ? 0
@@ -5532,7 +5575,8 @@ function playFromEffectRestrictionFault(
  * ignoring its resource cost."; docs/phase7-wave2.md §3.8), or null. The play restrictions still apply; a Requirement
  * card cannot be (RRG 1.8 "Requirement (Resources)", p. 37: "cannot be played 'ignoring its resource cost' because the
  * required resources cannot be paid for it"), nor a dash cost (RRG 1.8 "Dash (Value)", p. 15). Kept conservative: an
- * event is playable only through an action ability with no cost of its own, and an upgrade only onto its own identity.
+ * event is playable only through an action ability with no cost of its own. An upgrade goes onto its own identity, or
+ * onto a legal host when it names one (docs/phase7-wave11.md §3.2).
  */
 export function playIgnoringCostFault(
   ctx: Ctx,
@@ -5549,7 +5593,14 @@ export function playIgnoringCostFault(
   if ("keywords" in card && card.keywords.some((keyword) => keyword.name === "requirement")) {
     return "a Requirement card cannot be played ignoring its cost";
   }
-  if (card.type === "upgrade" && card.attachesTo) return "an upgrade with a host of its own";
+  // An upgrade that names its host goes on a legal one, picked by the effect's player when there are several
+  // (`executePlayFromHand`; Deposition 60009, docs/phase7-wave11.md §3.2): with none it cannot be played.
+  if (
+    card.type === "upgrade" &&
+    card.attachesTo &&
+    upgradeHostCandidates(ctx.state, ctx.deps, id, playerId).length === 0
+  )
+    return "no legal host";
   // An additional cost to play is still paid (`playIgnoringCost`); nothing asks for a pick here, so it must be forced.
   const additional = playCostWith(ctx.state, ctx.deps, id, playerId, undefined);
   if (additional && isFault(planCost(ctx.state, ctx.deps, id, playerId, additional, {}, new Set([id])))) {
@@ -5799,7 +5850,7 @@ export function playWithPayment(
     wildAs,
   });
   if (isFault(priced)) return null;
-  const spent = commitPlay(ctx, playerId, id, payment, priced, deckTop);
+  const spent = commitPlay(ctx, playerId, id, payment, priced, deckTop, isSeparateDeckPlayFrom(from) ? from : null);
   if (into !== null) consumeAreaCostReductions(ctx, playerId, id, into);
   const bindings = { ...priced.plan.bindings, ...extraBindings };
   const fromCost = playHostFromCost(ctx.state, ctx.deps, id, priced.plan.bindings);
@@ -5835,8 +5886,21 @@ export function playIgnoringCost(
   timing: ActionTiming = "turn",
   /** The in-play scenario area the card is played into, as for `playWithPayment`; null for the player's own area. */
   into: string | null = null,
+  /**
+   * The host the player chose for an upgrade that names one (`executePlayFromHand`); absent, its only legal host. One
+   * that is not a legal host plays nothing, and so does none when it has several.
+   */
+  host?: InstanceId,
 ): FrameId | null {
   if (playIgnoringCostFault(ctx, playerId, id, from, abilityId, timing)) return null;
+  const printed = mustCardOf(ctx.state, id);
+  const hosts =
+    printed.type === "upgrade" && printed.attachesTo ? upgradeHostCandidates(ctx.state, ctx.deps, id, playerId) : [];
+  // Several legal hosts and none named: the choice is the player's (RRG 1.8 "Attach To", p. 8), asked by
+  // `executePlayFromHand` before this call, so nothing is played rather than taking the first.
+  if (host === undefined && hosts.length > 1) return null;
+  const namedHost = printed.type === "upgrade" && printed.attachesTo ? (host ?? hosts[0]) : undefined;
+  if (namedHost !== undefined && !hosts.includes(namedHost)) return null;
   const usable = eventActionsForEffectPlay(ctx, playerId, id, null, from, timing);
   const actionId = abilityId ?? (usable.length === 1 ? usable[0] : undefined);
   // Several usable and none named: the choice is the player's (RRG 1.8 "Event", p. 18), so nothing is played.
@@ -5855,7 +5919,15 @@ export function playIgnoringCost(
     "paid.total": 0,
   };
   const priced: PricedPlay = { pool: EMPTY_POOL, plan, vars };
-  commitPlay(ctx, playerId, id, [], priced, deckTopPlayFrom(ctx.state, ctx.deps, playerId, id, from));
+  commitPlay(
+    ctx,
+    playerId,
+    id,
+    [],
+    priced,
+    deckTopPlayFrom(ctx.state, ctx.deps, playerId, id, from),
+    isSeparateDeckPlayFrom(from) ? from : null,
+  );
   // "The next ally played to the mission": this was that ally, though nothing was paid for the reduction to lower.
   if (into !== null) consumeAreaCostReductions(ctx, playerId, id, into);
   const card = mustCardOf(ctx.state, id);
@@ -5863,9 +5935,11 @@ export function playIgnoringCost(
   const attachTo =
     fromCost !== undefined
       ? fromCost
-      : card.type === "upgrade"
-        ? mustPlayer(ctx.state, playerId).identity.instanceId
-        : null;
+      : namedHost !== undefined
+        ? namedHost
+        : card.type === "upgrade"
+          ? mustPlayer(ctx.state, playerId).identity.instanceId
+          : null;
   const triggered = actionId ? { triggeredAbilityId: actionId, event: null, eventFrameId: null } : undefined;
   pushPlayCardFrame(
     ctx,
@@ -5935,10 +6009,10 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }, 
   }
   const fault = abilityTargetFault(ctx.state, ctx.deps, definition, command.cardInstanceId, command.playerId);
   if (fault !== null) return engineError("no_valid_target", TARGET_FAULT_MESSAGE[fault], command);
-  // "Play the ally here as if it was in your hand" (Med Lab; docs/phase7-wave6.md §3.57): nothing tucked there could be
-  // played and paid for now.
+  // "Play the ally here as if it was in your hand" (Med Lab; docs/phase7-wave6.md §3.57), or "play the top card of the
+  // Sense deck" (wave 11 §3.2): the card named could not be played and paid for now.
   if (tuckedPlayUnavailable(ctx, definition, command.cardInstanceId, command.playerId)) {
-    return engineError("no_valid_target", "no card tucked there could be played now", command);
+    return engineError("no_valid_target", "the card it plays could not be played now", command);
   }
   // "Any player whose alter-ego has the [MUTANT] trait may trigger this ability" (`triggerableBy`, docs/phase7-wave6.md
   // §3.11) names who may, in place of the controller rule below; the form gate further down reads the triggering player.

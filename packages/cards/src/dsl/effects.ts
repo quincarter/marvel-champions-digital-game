@@ -2937,6 +2937,40 @@ export const playTuckedCard = (
   ...(opts.optional ? { optional: true } : {}),
 });
 
+/**
+ * "Play the top card of the Sense deck as if it were in your hand (paying its cost)." (Daredevil 60001a) is
+ * `playFromSeparateDeck("Sense", "top", { asIfInHand: true })`; "You may choose any upgrade from the Sense deck and
+ * play it, ignoring its resource cost." (Deposition 60009) is `playFromSeparateDeck("Sense", "any", { ignoreCost:
+ * true, filter: query("upgrade"), optional: true })` (docs/phase7-wave11.md §3.2). A play from the player's own
+ * separate deck: cost and play restrictions apply, an upgrade's host is asked when it has several, and `"any"`
+ * shuffles the deck afterwards unless it is in fixed order. Required by default, so an action made only of a `"top"`
+ * play cannot be initiated while that card could not be played and paid for.
+ */
+export const playFromSeparateDeck = (
+  name: string,
+  position: "top" | "any",
+  opts: {
+    readonly filter?: TargetQuery;
+    readonly ignoreCost?: boolean;
+    readonly costReduction?: Amount;
+    readonly optional?: boolean;
+    readonly player?: PlayerRef;
+    /**
+     * "As if it were in your hand" (60001a): a log marker only, `cardPlayed.countsAsFrom: "hand"`; a "from hand" cost
+     * reduction cannot reach an effect's play today (unreachable, not ruled).
+     */
+    readonly asIfInHand?: boolean;
+  } = {},
+): EffectSpec => ({
+  kind: "playFromHand",
+  player: opts.player ?? you,
+  from: { separateDeck: name, position, ...(opts.asIfInHand ? { asIfInHand: true as const } : {}) },
+  ...(opts.ignoreCost ? { ignoreCost: true as const } : {}),
+  ...(opts.costReduction !== undefined ? { costReduction: amount(opts.costReduction) } : {}),
+  ...(opts.filter ? { filter: opts.filter } : {}),
+  ...(opts.optional ? { optional: true } : {}),
+});
+
 /** "Advance the main scheme to stage N" (docs/phase7-wave2.md §1.6/§3.4). */
 export const advanceMainScheme = (
   opts: { readonly to?: { readonly stageNumber: number; readonly name?: string }; readonly scheme?: TargetRef } = {},
