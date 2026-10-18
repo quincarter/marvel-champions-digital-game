@@ -52,12 +52,22 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm fmt:check
-      # Parse every unreleased changelog fragment the way the release job will, so a malformed one (an unescaped
-      # quote in a single-quoted body) fails here rather than breaking the release PR after it reaches main.
+
+  # Its own check, so a malformed changelog fragment (an unescaped quote in a single-quoted body, an unknown kind,
+  # an empty body) shows by name on the pull request instead of breaking the release PR job after it reaches main.
+  changelog:
+    name: Changelog fragments
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - uses: miniscruff/changie-action@v3
         with:
           version: latest
-          args: batch patch --dry-run --allow-no-changes
+          args: --version
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node scripts/check-changelog.mjs
 
   # Typecheck and the unit tests, in parallel (tests.yml). They need no secrets, so they run on fork PRs too.
   tests:
@@ -134,7 +144,7 @@ jobs:
   # included. The first step fails if a job is added to this file without being added to `needs`.
   gate:
     name: All checks
-    needs: [lint, tests, deploy]
+    needs: [lint, changelog, tests, deploy]
     if: always()
     runs-on: ubuntu-latest
     steps:

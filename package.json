@@ -23,7 +23,8 @@
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
-    "check": "pnpm lint && pnpm fmt:check && pnpm typecheck && pnpm test && pnpm build",
+    "changelog:check": "node scripts/check-changelog.mjs",
+    "check": "pnpm lint && pnpm fmt:check && pnpm changelog:check && pnpm typecheck && pnpm test && pnpm build",
     "capture:screens": "node scripts/capture-design-screenshots.mjs",
     "screenshots": "node scripts/shoot-screens.mjs",
     "campaign:scrape": "uv run scripts/scrape_campaign_markdown.py",
@@ -51,7 +52,8 @@
     ],
     "*.{json,jsonc,md,yml,yaml,toml,css,html}": [
       "oxfmt --no-error-on-unmatched-pattern"
-    ]
+    ],
+    ".changes/unreleased/*.yaml": "node scripts/check-changelog.mjs"
   },
   "engines": {
     "node": ">=24"

@@ -33,12 +33,13 @@ pnpm dev
 ## Checks
 
 ```bash
-# Lint, format check, typecheck, unit tests and build, as one command
+# Lint, format check, changelog fragments, typecheck, unit tests and build, as one command
 pnpm check
 
 # Or one at a time
 pnpm lint
 pnpm fmt:check
+pnpm changelog:check
 pnpm typecheck
 pnpm test
 ```
@@ -83,7 +84,8 @@ so the same code is not tested twice. `pnpm e2e:verify` runs the same gate ahead
 - **Changelog**: every change that lands on `main` carries a [changie](https://github.com/miniscruff/changie)
   fragment. Run `changie new -k <Kind> -b "<one line>"` (kinds in `.changie.yaml`: Added, Changed, Fixed, Engine,
   Content, Docs) and commit the `.changes/unreleased/*.yaml` file with the code. Wait a second between two
-  `changie new` calls: fragments are named by kind and timestamp to the second.
+  `changie new` calls: fragments are named by kind and timestamp to the second. `pnpm changelog:check` (also run by
+  `pnpm check`, the pre-commit hook and CI's "Changelog fragments" check) parses them the way the release job does.
 - **Rules accuracy**: the [Rules Reference v1.8](mc_rulesreference_v18_compressed.pdf) in the repo root is the
   authority, then current errata, then FFG's rulings
   ([transcribed here](marvel-champions-rulings-post-rrg-1-7.md)). Community sites are pointers, not authorities. Cite
