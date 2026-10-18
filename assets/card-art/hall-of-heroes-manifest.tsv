@@ -433,35 +433,85 @@ code	pack	name	source_page	image_url	fetched
 56206b	cw	Now It's Personal	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56206b.jpg	
 57046a	synthezoid	Dense	https://hallofheroeslcg.com/synthezoid-smackdown/	https://hallofheroeslcg.com/wp-content/uploads/2026/03/57046a.jpg	
 57046b	synthezoid	Intangible	https://hallofheroeslcg.com/synthezoid-smackdown/	https://hallofheroeslcg.com/wp-content/uploads/2026/03/57046b.jpg	
-60040a	fne	Photographic Reflexes	https://hallofheroeslcg.com/fear-no-evil/	https://hallofheroeslcg.com/wp-content/uploads/2026/08/60040a.jpg	
-60040b	fne	Photographic Reflexes	https://hallofheroeslcg.com/fear-no-evil/	https://hallofheroeslcg.com/wp-content/uploads/2026/08/60040b.jpg	
-60040c	fne	Photographic Reflexes	https://hallofheroeslcg.com/fear-no-evil/	https://hallofheroeslcg.com/wp-content/uploads/2026/08/60040c.jpg	
-61002	jj	Alias Investigations	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_alias-investigations.png	
-61003	jj	Luke Cage	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_luke-cage.png	
-61004	jj	"Big Mistake"	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_big-mistake.png	
-61005	jj	Breakthrough	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_breakthrough.png	
-61006	jj	Snooping Around	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_snooping-around.png	
-61008	jj	Calling in Favors	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_calling-in-favors.png	
-61009	jj	4K Digital Camcorder	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_4k-digital-camcorder.png	
-61010	jj	Circumstantial Evidence	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_circumstantial-evidence.png	
-61011	jj	Leather Jacket	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_leather-jacket.png	
-61014	jj	Stakeout	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_stakeout.png	
-61015	jj	Captain Marvel	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_captain-marvel.png	
-61017	jj	Squirrel Girl	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_squirrel-girl.png	
-61019	jj	Strategy Session	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_strategy-session.png	
-61020	jj	Run Them to Ground	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_run-them-to-ground.png	
-61023	jj	Grapnel Launcher	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_grapnel-launcher.png	
-61024	jj	Entrapment	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_entrapment.png	
-61026	jj	Joys of Life	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_joys-of-life.png	
-61027	jj	Unbreakable Bond	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_unbreakable-bond.png	
-61029	jj	Defend Our City	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_defend-our-city.png	
-62002	luke_cage	Jessica Jones	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_jessica-jones.png	
-62004	luke_cage	Knuckle Sandwich	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_knuckle-sandwich.png	
-62005	luke_cage	"Stand with Me!"	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_stand-with-me.png	
-62006	luke_cage	"Sweet Christmas!"	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_sweet-christmas.png	
-62011	luke_cage	Power Man	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_power-man.png	
-62013	luke_cage	Misty Knight	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_misty-knight.png	
-62015	luke_cage	Take a Stand	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_take-a-stand.png	
-62018	luke_cage	Defensive Formation	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_defensive-formation.png	
-62019	luke_cage	Righteous Purpose	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_righteous-purpose.png	
-62022	luke_cage	Dynamic Duo	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_dynamic-duo.png	
+60001a	fne	Daredevil	https://hallofheroeslcg.com/fear-no-evil/	https://hallofheroeslcg.com/wp-content/uploads/2026/08/60001a.jpg	2026-10-18
+60001b	fne	Matt Murdock	https://hallofheroeslcg.com/fear-no-evil/	https://hallofheroeslcg.com/wp-content/uploads/2026/08/60001b.jpg	2026-10-18
+60037a	fne	Echo	https://hallofheroeslcg.com/fear-no-evil/	https://hallofheroeslcg.com/wp-content/uploads/2026/08/60037a.jpg	2026-10-18
+60037b	fne	Maya Lopez	https://hallofheroeslcg.com/fear-no-evil/	https://hallofheroeslcg.com/wp-content/uploads/2026/08/60037b.jpg	2026-10-18
+60040a	fne	Photographic Reflexes	https://hallofheroeslcg.com/fear-no-evil/	https://hallofheroeslcg.com/wp-content/uploads/2026/08/60040a.jpg	2026-10-18
+60040b	fne	Photographic Reflexes	https://hallofheroeslcg.com/fear-no-evil/	https://hallofheroeslcg.com/wp-content/uploads/2026/08/60040b.jpg	2026-10-18
+60040c	fne	Photographic Reflexes	https://hallofheroeslcg.com/fear-no-evil/	https://hallofheroeslcg.com/wp-content/uploads/2026/08/60040c.jpg	2026-10-18
+61001a	jj	Jessica Jones	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61001a.jpg	2026-10-18
+61001b	jj	Jessica Jones	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61001b.jpg	2026-10-18
+61002	jj	Alias Investigations	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61002.jpg	2026-10-18
+61003	jj	Luke Cage	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61003.jpg	2026-10-18
+61004	jj	"Big Mistake"	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61004.jpg	2026-10-18
+61005	jj	Breakthrough	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61005.jpg	2026-10-18
+61006	jj	Snooping Around	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61006.jpg	2026-10-18
+61007	jj	Piecing It All Together	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61007.jpg	2026-10-18
+61008	jj	Calling in Favors	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61008.jpg	2026-10-18
+61009	jj	4K Digital Camcorder	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61009.jpg	2026-10-18
+61010	jj	Circumstantial Evidence	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61010.jpg	2026-10-18
+61011	jj	Leather Jacket	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61011.jpg	2026-10-18
+61012	jj	"Now I'm Ticked Off!"	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61012.jpg	2026-10-18
+61013	jj	Reluctant Flier	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61013.jpg	2026-10-18
+61014	jj	Stakeout	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61014.jpg	2026-10-18
+61015	jj	Captain Marvel	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61015.jpg	2026-10-18
+61016	jj	Spider-Woman	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61016.jpg	2026-10-18
+61017	jj	Squirrel Girl	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61017.jpg	2026-10-18
+61019	jj	Strategy Session	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61019.jpg	2026-10-18
+61020	jj	Run Them to Ground	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61020.jpg	2026-10-18
+61021	jj	Lay the Trap	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61021.jpg	2026-10-18
+61023	jj	Grapnel Launcher	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61023.jpg	2026-10-18
+61024	jj	Entrapment	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61024.jpg	2026-10-18
+61025	jj	Hellcat	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61025.jpg	2026-10-18
+61026	jj	Joys of Life	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61026.jpg	2026-10-18
+61027	jj	Unbreakable Bond	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61027.jpg	2026-10-18
+61028	jj	Second Chance	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61028.jpg	2026-10-18
+61029	jj	Defend Our City	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61029.jpg	2026-10-18
+61030	jj	Work-Life Balance	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61030.jpg	2026-10-18
+61031	jj	Purple Man	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61031.jpg	2026-10-18
+61032	jj	Indomitable Will	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61032.jpg	2026-10-18
+61033a	jj	Suggestion ([energy])	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61033a.jpg	2026-10-18
+61033b	jj	Suggestion ([mental])	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61033b.jpg	2026-10-18
+61033c	jj	Suggestion ([physical])	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61033c.jpg	2026-10-18
+61034	jj	Innate Aggression	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61034.jpg	2026-10-18
+61035	jj	Shakedown	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61035.jpg	2026-10-18
+61036	jj	Innate Perception	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61036.jpg	2026-10-18
+61037	jj	Innate Inspiration	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61037.jpg	2026-10-18
+61038	jj	Echo	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61038.jpg	2026-10-18
+61039	jj	Lay Low	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61039.jpg	2026-10-18
+61040	jj	Mitigated Threat	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/61040.jpg	2026-10-18
+62001a	luke_cage	Luke Cage	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62001a.jpg	2026-10-18
+62001b	luke_cage	Luke Cage	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62001b.jpg	2026-10-18
+62002	luke_cage	Jessica Jones	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62002.jpg	2026-10-18
+62003	luke_cage	Harlem's Hero	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62003.jpg	2026-10-18
+62004	luke_cage	Knuckle Sandwich	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62004.jpg	2026-10-18
+62005	luke_cage	"Stand with Me!"	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62005.jpg	2026-10-18
+62006	luke_cage	"Sweet Christmas!"	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62006.jpg	2026-10-18
+62007	luke_cage	Fogwell's Gym	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62007.jpg	2026-10-18
+62008	luke_cage	Burstein Process	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62008.jpg	2026-10-18
+62009	luke_cage	Cruisin' for a Bruisin'	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62009.jpg	2026-10-18
+62010	luke_cage	Metal Bracer	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62010.jpg	2026-10-18
+62011	luke_cage	Power Man	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62011.jpg	2026-10-18
+62012	luke_cage	Iron Fist	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62012.jpg	2026-10-18
+62013	luke_cage	Misty Knight	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62013.jpg	2026-10-18
+62014	luke_cage	Valkyrie	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62014.jpg	2026-10-18
+62015	luke_cage	Take a Stand	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62015.jpg	2026-10-18
+62016	luke_cage	Innovation	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62016.jpg	2026-10-18
+62017	luke_cage	The Power of Leadership	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62017.jpg	2026-10-18
+62018	luke_cage	Defensive Formation	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62018.jpg	2026-10-18
+62019	luke_cage	Righteous Purpose	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62019.jpg	2026-10-18
+62020	luke_cage	Hulk	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62020.jpg	2026-10-18
+62021	luke_cage	She-Hulk	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62021.jpg	2026-10-18
+62022	luke_cage	Dynamic Duo	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62022.jpg	2026-10-18
+62023	luke_cage	Power Man and Iron Fist	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62023.jpg	2026-10-18
+62028	luke_cage	Internal Injury	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62028.jpg	2026-10-18
+62029	luke_cage	Cottonmouth	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62029.jpg	2026-10-18
+62030	luke_cage	Venomous Whispers	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62030.jpg	2026-10-18
+62031	luke_cage	Augmented Jaws	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62031.jpg	2026-10-18
+62032	luke_cage	Asp	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62032.jpg	2026-10-18
+62033	luke_cage	Sidewinder	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62033.jpg	2026-10-18
+62034	luke_cage	Size Advantage	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62034.jpg	2026-10-18
+62035	luke_cage	Observe	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62035.jpg	2026-10-18
+62036	luke_cage	Toughen Up	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62036.jpg	2026-10-18
+62037	luke_cage	Black Belt	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62037.jpg	2026-10-18
