@@ -3292,7 +3292,7 @@ export const MTS_CARDS: readonly AnyCard[] = [
         name: "Hela",
         stages: [
           {
-            stageNumber: 1,
+            stageNumber: 2,
             stageLabel: "B2",
             hp: { base: 0, perPlayer: 0 },
             infiniteHp: true,

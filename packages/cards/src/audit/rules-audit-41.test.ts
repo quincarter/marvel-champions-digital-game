@@ -37,6 +37,7 @@ import { runWave5, startWave5Game, WAVE5_DEPS } from "../wave5/testing.js";
 import { ghostSpiderScenario } from "../wave5/sm/ghost-spider/support.js";
 import { attachToHost, engageMinion, tuckBySurgery } from "../wave6/mut_gen/project-wideawake-testing.js";
 import { stackInvocation } from "../wave1/drs/testing.js";
+import { cyclopsGame } from "../wave6/cyclops/cyclops/support.js";
 import { gambitGame } from "../wave6/gambit/gambit/support.js";
 import { wolverineGame } from "../wave6/wolv/wolverine/support.js";
 import { WAVE6_DEPS } from "../wave6/index.js";
@@ -46,7 +47,7 @@ import { magnetoGame, withoutDealtCards } from "../wave6/mut_gen/magneto-testing
  * Chunk 41 audit proofs (FFG rulings May 10 - June 13, 2024). Order of authority: RRG 1.8 first, rulings second.
  */
 
-describe("chunk 41: Worried Father (ruling May 10, 2024, Ruling 180)", () => {
+describe("chunk 41: Worried Father and Lost Visor (ruling May 10, 2024, Ruling 180)", () => {
   // Ruling 180 (1): when the search fails the obligation stays in play, and its Alter-Ego Action then adds George
   // Stacy to hand "from wherever it currently is" (same as the Lost Visor obligation). RRG 1.8 is silent.
   it("the Alter-Ego Action adds George Stacy to hand although the search found him nowhere", () => {
@@ -67,6 +68,26 @@ describe("chunk 41: Worried Father (ruling May 10, 2024, Ruling 180)", () => {
     );
     expect(inst(after, identityOf(after)).exhausted).toBe(true); // setup check: the action ran
     expect(playerOf(after, P1).hand).toContain(stacy);
+  });
+
+  it("Lost Visor's Alter-Ego Action adds Ruby Quartz Visor to hand although the search found it nowhere", () => {
+    const given = moveToHand(cyclopsGame(), P1, "33003");
+    const [visor] = given.ids as [InstanceId];
+    // The visor sits tucked under the main scheme: outside deck, hand, discard and play area.
+    const tucked = tuckBySurgery(given.state, given.state.mainScheme.instanceId, [visor]);
+    const staged = stackEncounterDeck(tucked, "01186", "33027");
+    const revealed = settle(runWith(WAVE6_DEPS, staged, endTurn(P1)), firstLegal, undefined, WAVE6_DEPS);
+    const [obligation] = instancesOf(revealed, "33027") as [InstanceId];
+    expect(cardsInPlay(revealed)).toContain(obligation); // setup check: the obligation stays, nothing tucked
+    expect(inst(revealed, obligation).tucked).toEqual([]);
+    const after = settle(
+      runWith(WAVE6_DEPS, revealed, use(P1, obligation, "33027.lost-visor-action")),
+      firstLegal,
+      undefined,
+      WAVE6_DEPS,
+    );
+    expect(inst(after, identityOf(after)).exhausted).toBe(true); // setup check: the action ran
+    expect(playerOf(after, P1).hand).toContain(visor);
   });
 });
 

@@ -1,9 +1,9 @@
 /**
  * Fix proof for `cosmo-type-list`: Cosmo's "name a card type" offers the player card types (ally, event, upgrade,
- * support, resource, player side scheme) for a player's deck and the encounter card types for the encounter deck,
- * environment included; the encounter types are offered for a player's deck only while an encounter card is in it
- * (a Mysterio-style villain shuffled one in). RRG 1.8 "Card Types", p. 12; errata p. 66; owner call in
- * the contributor's rules call (bluefireF5ran).
+ * support, resource, player side scheme) and the encounter card types for a player's deck, since a villain can
+ * shuffle an encounter card into it, and the encounter card types for the encounter deck, environment included.
+ * Offering both lists for every player deck keeps the choice from revealing what that hidden deck holds. The type
+ * lists are an engine interpretation: the errata (RRG 1.8 p. 66) only names the decks, and "Card Types" is p. 12.
  */
 import { cardId } from "@mc/content";
 import { activeVillain, type GameState, type InstanceId } from "@mc/engine";
@@ -70,13 +70,12 @@ function attackWithCosmo(stacked: GameState, cosmo: InstanceId, picker: Picker):
 const withCosmo = () => playFromHand(runWave3(start(), toHero()), "17020", 2);
 
 describe("Cosmo: the card types offered when naming a type", () => {
-  it("a player's deck with no encounter card in it offers the player types, player side scheme included", () => {
+  it("a player's deck with no encounter card in it still offers both lists, so the choice reveals nothing", () => {
     const { state, id } = withCosmo();
     const offered: string[][] = [];
     attackWithCosmo(state, id, drive("A player's deck", "ally", offered));
-    expect(offered[1]).toEqual(PLAYER_TYPES);
+    expect(offered[1]).toEqual([...PLAYER_TYPES, ...ENCOUNTER_TYPES]);
   });
-
   it("the encounter deck offers the encounter types, environment included", () => {
     const { state, id } = withCosmo();
     const offered: string[][] = [];

@@ -59,7 +59,7 @@ const LEAST_THREAT_SCHEMES = superlative("lowest", each(query("mainScheme")), th
  *
  * The least-threat schemes are found first, then `from` is struck from them: an element cannot move to its current
  * placement (RRG 1.8 "Move", p. 30), so a tie with another scheme forces the move there, and `from` alone at the
- * least leaves nothing to choose and the counter stays (post-RRG 1.5 ruling 36.2, July 2, 2023).
+ * least leaves nothing to choose and the counter stays (post-RRG 1.5 ruling 38, July 2, 2023).
  */
 export const moveToLeastThreatScheme = (from: TargetRef, counterType?: string): readonly EffectSpec[] => [
   bindTargets("leastThreat", LEAST_THREAT_SCHEMES),

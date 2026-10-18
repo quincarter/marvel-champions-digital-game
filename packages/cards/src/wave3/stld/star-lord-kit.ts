@@ -66,7 +66,6 @@ import {
   spend,
   theMainScheme,
   topOfDeck,
-  valueAtLeast,
   varOf,
   when,
   you,
@@ -74,7 +73,6 @@ import {
   YOUR_IDENTITY,
   yourIdentity,
   zone,
-  zoneCountOf,
 } from "../../dsl/index.js";
 
 const GUARDIAN = trait("Guardian");
@@ -111,7 +109,50 @@ const ENCOUNTER_CARD_TYPES: readonly (readonly [string, TargetQuery])[] = [
   ["obligation", query("obligation")],
   ["environment", query("environment")],
 ];
-const ANY_ENCOUNTER_CARD: TargetQuery = { anyOf: ENCOUNTER_CARD_TYPES.map(([, q]) => q) };
+
+/**
+ * Cosmo (17020, reprinted verbatim as 22020) — Interrupt: When Cosmo attacks or thwarts, name a card type, then
+ * discard the top card of a player deck or the encounter deck. If that card is of the named type, Cosmo does not
+ * take consequential damage for this use. Naming the type and choosing the source both fold into one `chooseOne`
+ * tree (docs/phase7-wave3.md §3.21): a branch per source, then a branch per named type within it.
+ *
+ * The errata (RRG 1.8 p. 66) only changes "a deck" to "a player deck or the encounter deck"; which types each source
+ * offers is an engine interpretation (RRG 1.8 "Card Types", p. 12). A player's deck offers the player types (player
+ * side scheme included) and the encounter types too, since a villain can shuffle an encounter card into it. Both
+ * lists are offered for every player deck, so the choice gives away nothing about what that hidden deck holds. The
+ * encounter deck offers the encounter types, environment included.
+ */
+export const cosmoInterrupt = () =>
+  interrupt(
+    when.attacksOrThwarts("self"),
+    chooseOne(
+      option(
+        "A player's deck",
+        choosePlayer("owner"),
+        chooseOne(
+          ...[...PLAYER_CARD_TYPES, ...ENCOUNTER_CARD_TYPES].map(([label, q]) =>
+            option(
+              label,
+              moveCards(topOfDeck(1, chosenPlayer("owner")), "discard", "named"),
+              ifThen(refMatchesAnywhere(chosen("named"), q), cancelConsequentialDamage()),
+            ),
+          ),
+        ),
+      ),
+      option(
+        "The encounter deck",
+        chooseOne(
+          ...ENCOUNTER_CARD_TYPES.map(([label, q]) =>
+            option(
+              label,
+              moveCards(encounterCards(["deck"], undefined, 1), "discard", "named"),
+              ifThen(refMatchesAnywhere(chosen("named"), q), cancelConsequentialDamage()),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 
 /** "Each guardian character you control" (Leader of the Guardians, C.I.T.T.): hero/alter-ego or ally. */
 const GUARDIAN_CHARACTERS_YOU_CONTROL: TargetQuery = query(["identity", "ally"], {
@@ -356,51 +397,8 @@ export const STAR_LORD_KIT = defineAbilities({
     attacksGainKeywords(["overkill"], { attacker: query("ally", { hostOfSelf: true }) }),
   ),
 
-  // Cosmo — Interrupt: When Cosmo attacks or thwarts, name a card type, then discard the top card of a player
-  // deck or the encounter deck. If that card is of the named type, Cosmo does not take consequential damage for
-  // this use. Naming the type and choosing the source both fold into one `chooseOne` tree (docs/phase7-wave3.md
-  // §3.21): a branch per source, then a branch per named type within it. A player's deck offers the player card
-  // types (player side scheme included); the encounter deck offers the encounter types (environment included); a
-  // player's deck also offers the encounter types while it holds an encounter card (a Mysterio-style villain
-  // shuffled one in). Contributor's rules call (bluefireF5ran); RRG 1.8 p. 12, errata p. 66.
-  "17020.cosmo-interrupt": interrupt(
-    when.attacksOrThwarts("self"),
-    chooseOne(
-      option(
-        "A player's deck",
-        choosePlayer("owner"),
-        chooseOne(
-          ...PLAYER_CARD_TYPES.map(([label, q]) =>
-            option(
-              label,
-              moveCards(topOfDeck(1, chosenPlayer("owner")), "discard", "named"),
-              ifThen(refMatchesAnywhere(chosen("named"), q), cancelConsequentialDamage()),
-            ),
-          ),
-          ...ENCOUNTER_CARD_TYPES.map(([label, q]) =>
-            option(
-              label,
-              { when: valueAtLeast(zoneCountOf("deck", chosenPlayer("owner"), ANY_ENCOUNTER_CARD), 1) },
-              moveCards(topOfDeck(1, chosenPlayer("owner")), "discard", "named"),
-              ifThen(refMatchesAnywhere(chosen("named"), q), cancelConsequentialDamage()),
-            ),
-          ),
-        ),
-      ),
-      option(
-        "The encounter deck",
-        chooseOne(
-          ...ENCOUNTER_CARD_TYPES.map(([label, q]) =>
-            option(
-              label,
-              moveCards(encounterCards(["deck"], undefined, 1), "discard", "named"),
-              ifThen(refMatchesAnywhere(chosen("named"), q), cancelConsequentialDamage()),
-            ),
-          ),
-        ),
-      ),
-    ),
-  ),
+  // Cosmo — see `cosmoInterrupt` above.
+  "17020.cosmo-interrupt": cosmoInterrupt(),
 
   // C.I.T.T. — Hero Action: Exhaust C.I.T.T. and spend 2 resources of any type → ready a guardian character.
   "17021.citt-action": heroAction(

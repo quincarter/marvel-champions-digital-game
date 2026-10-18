@@ -3,15 +3,11 @@ import {
   action,
   alterEgoAction,
   attackAnEnemy,
-  cancelConsequentialDamage,
   cards,
   centralMainScheme,
   chooseCards,
-  chooseOne,
-  choosePlayer,
   chooseTarget,
   chosen,
-  chosenPlayer,
   confuse,
   constant,
   damageThisCardCost,
@@ -33,11 +29,9 @@ import {
   heroInterrupt,
   heroResponse,
   ifThen,
-  interrupt,
   moveCards,
   not,
   on,
-  option,
   partOf,
   query,
   ready,
@@ -51,15 +45,14 @@ import {
   shuffleEncounterDeck,
   statOf,
   threatOn,
-  topOfDeck,
   valueAtMost,
   varOf,
-  when,
   you,
   yourIdentity,
   YOUR_HERO,
   zone,
 } from "../../dsl/index.js";
+import { cosmoInterrupt } from "../../wave3/stld/star-lord-kit.js";
 
 const GUARDIAN = trait("GUARDIAN");
 
@@ -159,38 +152,9 @@ export const NEBULA_PACK_CARDS = defineAbilities({
 
   // Cosmo (ally, 22020) — Interrupt: When Cosmo attacks or thwarts, name a card type, then discard the top card of
   // a player deck or the encounter deck. If that card is of the named type, Cosmo does not take consequential
-  // damage for this use. Copied verbatim from `stld` 17020 (`wave3/stld/star-lord-kit.ts`) under this pack's own
-  // ability id.
-  "22020.cosmo-interrupt": interrupt(
-    when.attacksOrThwarts("self"),
-    chooseOne(
-      option(
-        "A player's deck",
-        choosePlayer("owner"),
-        chooseOne(
-          ...(["ally", "event", "upgrade", "support", "resource"] as const).map((category) =>
-            option(
-              category,
-              moveCards(topOfDeck(1, chosenPlayer("owner")), "discard", "named"),
-              ifThen(refMatches(chosen("named"), query(category), { anywhere: true }), cancelConsequentialDamage()),
-            ),
-          ),
-        ),
-      ),
-      option(
-        "The encounter deck",
-        chooseOne(
-          ...(["minion", "sideScheme", "attachment", "treachery", "obligation"] as const).map((category) =>
-            option(
-              category,
-              moveCards(encounterCards(["deck"], undefined, 1), "discard", "named"),
-              ifThen(refMatches(chosen("named"), query(category), { anywhere: true }), cancelConsequentialDamage()),
-            ),
-          ),
-        ),
-      ),
-    ),
-  ),
+  // damage for this use. The same definition as `stld` 17020 (`cosmoInterrupt`, `wave3/stld/star-lord-kit.ts`)
+  // under this pack's own ability id.
+  "22020.cosmo-interrupt": cosmoInterrupt(),
 
   // Knowhere (support, 22021) — Play only if your identity has the guardian trait (data). Increase your ally limit
   // by 1. Response: After a player plays a guardian ally, exhaust Knowhere → that player draws 1 card. Copied

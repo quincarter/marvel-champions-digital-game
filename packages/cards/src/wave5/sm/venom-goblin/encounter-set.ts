@@ -41,7 +41,7 @@ const symbioteEnvironmentInPlay = exists(query("environment", { trait: SYMBIOTE 
  * this module rather than exported from there (this agent's brief: don't touch `main-scheme.ts`). Ties broken by the
  * first player (MC27 p. 21 FAQ, docs/phase7-wave5.md §3.3's own "ties are the first player's"), the same as the
  * least-threat case. The glider's own scheme is struck from the tied schemes: it cannot move to its current placement
- * (RRG 1.8 "Move", p. 30; post-RRG 1.5 ruling 36.2, July 2, 2023), so alone at the most it stays put. "That scheme"
+ * (RRG 1.8 "Move", p. 30; post-RRG 1.5 ruling 38, July 2, 2023), so alone at the most it stays put. "That scheme"
  * afterward (Symbiotic Berserker's own "Place 1 threat on that scheme", Joy Ride's own "Resolve that scheme's
  * 'Special' ability") is the scheme with the glider counter once the move is done, moved or not (ruling 39, July 2,
  * 2023: the next sentence still resolves when the counter stays).

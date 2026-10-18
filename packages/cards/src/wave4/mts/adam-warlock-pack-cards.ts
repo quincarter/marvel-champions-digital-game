@@ -97,8 +97,11 @@ const discardUpTo = (max: number, effectFor: (n: number) => EffectArg) =>
 export const ADAM_WARLOCK_PACK_CARDS = defineAbilities({
   // Karmic Blast (21038) — Hero Action (attack): Deal 4 damage to an enemy and discard up to 4 cards from the top
   // of your deck → deal 1 additional damage for each different aspect discarded this way. The 4 damage and the
-  // discard are the cost, so a stunned hero still pays them and only the additional damage is replaced (FFG ruling
-  // May 18, 2023 (8); RRG 1.8 "Cost Arrow Icon", p. 14).
+  // discard are the cost, so a stunned hero still pays them and only the additional damage is replaced (RRG 1.8
+  // "Cost Arrow Icon", p. 14). Engine interpretation: FFG ruling May 18, 2023 (8) settles this for Cosmic Awareness
+  // and Chase Them Down, and Karmic Blast follows by analogy. In the paper game additional damage resolves together
+  // with the damage it modifies; here the 4 is dealt on its own first, so Toughness, Overkill or a defeat on the 4
+  // can play out differently.
   "21038.karmic-blast-action": heroAction(
     {
       label: "attack",
