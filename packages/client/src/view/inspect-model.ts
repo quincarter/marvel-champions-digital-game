@@ -938,9 +938,15 @@ export function facedownPileOf(
 }
 
 function typeLineOf(card: AnyCard, face: CardFace = { kind: "front" }): string {
-  // An identity's type line is its form's: "ALTER-EGO · MYSTIC", not "HERO IDENTITY" for both sides.
+  // An identity's type line is its form's: "ALTER-EGO · MYSTIC", not "HERO IDENTITY" for both sides, and Ant-Man's
+  // Giant form reads GIANT, not his Tiny face's TINY (#244).
   if (card.type === "hero_identity") {
-    const side = face.kind === "alterEgo" ? card.alterEgo : card.hero;
+    const side =
+      face.kind === "alterEgo"
+        ? card.alterEgo
+        : face.kind === "heroForm"
+          ? (card.additionalHeroForms?.[face.index - 1] ?? card.hero)
+          : card.hero;
     return [face.kind === "alterEgo" ? "alter-ego" : "hero", ...(side.traits as readonly string[]).slice(0, 2)]
       .join(" · ")
       .toUpperCase();

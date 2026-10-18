@@ -93,3 +93,13 @@ describe("thumbSizeFor", () => {
     expect(box.height).toBe(83);
   });
 });
+
+describe("an identity's extra hero form reads its own traits (#244)", () => {
+  test("Ant-Man's Giant form reads GIANT, his Tiny face TINY", () => {
+    const antMan = asCard("12001a", false);
+    const giant = inspectModel(antMan, anyCard, null, me, CORE_DEPS, { face: { kind: "heroForm", index: 1 } });
+    const tiny = inspectModel(antMan, anyCard, null, me, CORE_DEPS, { face: { kind: "hero" } });
+    expect(giant.typeLine).toBe("HERO · AVENGER · GIANT");
+    expect(tiny.typeLine).toBe("HERO · AVENGER · TINY");
+  });
+});
