@@ -767,6 +767,18 @@ export type TriggerEventBody =
       readonly instanceId: InstanceId;
       readonly defeatedByPlayerId?: PlayerId | null;
       readonly sourceInstanceId?: InstanceId | null;
+      /**
+       * How much more threat the defeating removal attempted to remove than the scheme had (its `removeThreat.amount`,
+       * after every modifier, minus the threat there as it applied): 0 when it removed exactly the last threat. Absent
+       * for a defeat no removal made (a scheme held at no threat whose protection ended, `checkSchemeProtectionEnded`).
+       * Read by `Predicate exactlyDefeated` (docs/phase7-wave11.md §3.7).
+       */
+      readonly excessThreat?: number;
+      /**
+       * The defeating removal was a thwart's (a basic thwart, a `thwart` effect or a "(thwart)"-labeled ability's
+       * removal; `thwartOfRemoval`): "After you thwart and exactly defeat a side scheme". Absent for a plain removal.
+       */
+      readonly byThwart?: true;
     }
   | { readonly kind: "villainStageAdvanced"; readonly stageIndex: number; readonly instanceId: InstanceId }
   /** `schemeInstanceId` is set only for a separate game area's own stage (docs/phase7-wave2.md §3.1). */

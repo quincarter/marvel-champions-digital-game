@@ -3277,6 +3277,10 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       const play = context.selfInstanceId ? playFrameOf(state.stack, context.selfInstanceId) : undefined;
       return (play?.bindings[PLAYED_VIA_SLOT] ?? []).some((id) => matchesQuery(state, id, predicate.card, context));
     }
+    case "exactlyDefeated": {
+      const defeat = context.event;
+      return defeat?.kind === "schemeDefeated" && defeat.byThwart === true && defeat.excessThreat === 0;
+    }
     case "playNote": {
       const play = context.selfInstanceId ? playFrameOf(state.stack, context.selfInstanceId) : undefined;
       const note = play?.vars[`${PLAY_NOTE_PREFIX}${predicate.name}`];

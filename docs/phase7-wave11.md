@@ -268,7 +268,8 @@ module test, and a failure becomes an extend), **exists (compose)**. Searches th
   Searches that found nothing: `exactlyDefeat`, `excessThreat`.
 - **Shape.** `removeThreat` records the attempted amount; `schemeDefeated` gains `excessThreat` (attempted minus the
   threat that was there) and `byThwart`. A predicate `exactlyDefeated` reads `excessThreat === 0` on a thwart's defeat,
-  and `defeatExcessDamage === 0` from an attack for a character.
+  for schemes only. A character is exactly defeated by an attack whose excess damage *dealt* is 0, not damage taken
+  (August 3, 2026 Ruling 6), which the hero-pack spec's H3.19 builds (`attackExcessAsDealt`), not this predicate.
 - **Tests.** THW 2 on a 2-threat side scheme: exact; on 1: not. Stick's −1 makes it exact. Foggy Nelson's removal of 2
   on 2: not a thwart, no response.
 

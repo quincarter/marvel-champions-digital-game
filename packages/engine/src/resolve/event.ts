@@ -2156,6 +2156,11 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
   }
   const removed = Math.min(event.amount, scheme.threat);
   if (removed <= 0) return;
+  // What this removal attempted beyond the threat that was there: 0 when it took exactly the last threat. A defeat
+  // reports it (`schemeDefeated.excessThreat`) for "exactly defeat" (MC60 p. 4: "defeated by a thwart that did not
+  // attempt to remove more threat than was necessary"; docs/phase7-wave11.md §3.7). Each removal instruction is its own
+  // attempt (engine reading, §3.7), so a second "Remove 1 threat" of the same thwart is measured on its own.
+  const excessThreat = Math.max(0, event.amount - scheme.threat);
   // The crisis icons and patrol minions this thwart got past (docs/phase7-wave6.md §3.8), read before the removal
   // changes anything: a removal that was stopped anyway, or removed nothing, ignored nothing (§4.1 Q6).
   if (thwart && event.parentFrameId) {
@@ -2214,6 +2219,8 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
       // What removed the last threat. A thwart's own removal is already sourced to the thwarting character
       // (`applyPlayerThwart`), so this needs no thwart special case of its own, unlike the defeating *player* above.
       sourceInstanceId: event.sourceInstanceId,
+      excessThreat,
+      ...(thwart ? { byThwart: true as const } : {}),
     };
     pushFrames(ctx, [eventFrame(ctx, defeated)]);
   } else if (

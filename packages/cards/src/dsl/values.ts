@@ -1007,6 +1007,12 @@ export const theAffectedCard: TargetQuery = { inSlot: "affected" };
  */
 export const playedVia = (card: TargetQuery): Predicate => ({ kind: "playedVia", card });
 /**
+ * "After you thwart and exactly defeat a side scheme" (Stealth Training 60028; docs/phase7-wave11.md §3.7): a response's
+ * `while` on a `schemeDefeated` pattern. True when a thwart's removal defeated the scheme attempting no more threat than
+ * it had (MC60 p. 4). Schemes only: a character's exact defeat reads `attackExcessAsDealt` (hero-pack spec H3.19).
+ */
+export const exactlyDefeated: Predicate = { kind: "exactlyDefeated" };
+/**
  * "If Gambit's 'Throw de Card' ability removed at least: • 1 counter, this attack gains ranged. • 2 counters, …"
  * (Charged Card 37006; docs/phase7-wave6.md §3.52): the play of the card resolving carries the note `name`
  * (`modifyCardEffect(…, { note })`, written by an interrupt to that play) of at least `atLeast`.

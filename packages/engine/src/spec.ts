@@ -1738,6 +1738,15 @@ export type Predicate =
    */
   | { readonly kind: "playedVia"; readonly card: TargetQuery }
   /**
+   * "After you thwart and exactly defeat a side scheme" (docs/phase7-wave11.md §3.7): the triggering event is a
+   * `schemeDefeated` made by a thwart's removal (`byThwart`) that attempted no more threat than the scheme had
+   * (`excessThreat` 0). MC60 p. 4: "defeated by a thwart that did not attempt to remove more threat than was necessary".
+   * False for any other event, a plain removal's defeat, or one with threat to spare. A character's exact defeat
+   * (August 3, 2026 - Ruling 6: an attack that dealt no excess damage, dealt rather than taken) is not this predicate:
+   * it composes `attackExcessAsDealt` on the attack (docs/phase7-wave11-hero-packs.md H3.19).
+   */
+  | { readonly kind: "exactlyDefeated" }
+  /**
    * "If Gambit's 'Throw de Card' ability removed at least: • 1 counter, this attack gains ranged. • 2 counters, …"
    * (Charged Card 37006; docs/phase7-wave6.md §3.52): the play of the card being resolved carries a note `name`
    * (`modifyCardEffect.note`, written by an interrupt to that play) of at least `atLeast`. False with no such note, for
