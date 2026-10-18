@@ -16,6 +16,9 @@
  * are ignored. Ties keep the order the documents arrived in.
  */
 
+import type { Deck } from "@mc/content";
+import type { DeckVerdict } from "./deck-list-model.js";
+
 export interface SearchDocument {
   readonly id: string;
   readonly primary: readonly string[];
@@ -181,15 +184,31 @@ export class DeckSearchHost {
   }
 }
 
-/** Messages between the main thread and `workers/deck-search.worker.ts`. */
+/**
+ * Messages between the main thread and `workers/deck-search.worker.ts`. `status` asks for the engine's verdict on each
+ * deck (legality and playability, `view/deck-list-model.ts`'s `verdictOf`) so the Decks list's first pass runs off the
+ * main thread; its ids count apart from the queries', and every answer is wanted whatever has been asked since.
+ */
 export type DeckSearchRequest =
   | { readonly type: "docs"; readonly documents: readonly SearchDocument[] }
-  | { readonly type: "query"; readonly requestId: number; readonly query: string };
+  | { readonly type: "query"; readonly requestId: number; readonly query: string }
+  | { readonly type: "status"; readonly requestId: number; readonly decks: readonly Deck[] };
 
 export interface DeckSearchResponse {
   readonly requestId: number;
   readonly ranked: readonly RankedDocument[];
 }
+
+/** The answer to a `status` request: one verdict per deck, in the order asked. */
+export interface DeckStatusResponse {
+  readonly requestId: number;
+  readonly statuses: readonly DeckVerdict[];
+}
+
+export type DeckWorkerResponse = DeckSearchResponse | DeckStatusResponse;
+
+export const isStatusResponse = (response: DeckWorkerResponse): response is DeckStatusResponse =>
+  "statuses" in response;
 
 /** `shelves` with each shelf's items best match first, and the shelves ordered by their best item (ties keep the order given). */
 export function rankShelvesByScore<T, S extends { readonly items: readonly T[] }>(

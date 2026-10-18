@@ -21,6 +21,7 @@ export interface DeckStatus {
  * flagging even on an otherwise-fine deck, then plain legal.
  */
 export function deckStatusOf(option: DeckOption): DeckStatus {
+  if (option.checking) return { text: "Checking…", tone: "poolChanged" };
   if (!option.legal) return { text: "Illegal", tone: "illegal" };
   // Every legal deck can be seated and played (`DeckOption.seatable` is `legal` alone). What an unscripted card
   // costs the player is that one card's ability doing nothing — not the deck being unplayable, which is what this

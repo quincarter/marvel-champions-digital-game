@@ -33,7 +33,12 @@ export interface DeckOption {
   readonly blockedReason: string | null;
   /** Named unscripted cards, shown alongside an otherwise-seatable deck so the player knows before they sit down. Null when nothing is unscripted. */
   readonly warning: string | null;
+  /** True on a stand-in drawn while a worker is still checking the deck (`pendingDeckOption`): never legal, never seatable, and replaced by the real status when the answer arrives. */
+  readonly checking?: true;
 }
+
+/** A `DeckOption` without its deck: what a worker can post back (plain data) for the main thread to attach to the deck it holds. */
+export type DeckVerdict = Omit<DeckOption, "deck">;
 
 const cardName = (pool: CardPool, id: CardId): string | undefined => {
   const card = Array.isArray(pool) ? pool.find((c) => c.id === id) : (pool as Record<string, AnyCard>)[id as string];
@@ -87,7 +92,61 @@ export function deckOptionOf(deck: Deck, pool: CardPool, currentPoolVersion: str
   return option;
 }
 
+/** The status already worked out for `deck` against this pool, version and registry, or null when it has not been. */
+export function cachedDeckOption(
+  deck: Deck,
+  pool: CardPool,
+  currentPoolVersion: string,
+  deps: EngineDeps,
+): DeckOption | null {
+  const known = options.get(deck);
+  return known && known.pool === pool && known.version === currentPoolVersion && known.deps === deps
+    ? known.option
+    : null;
+}
+
+/** Remembers a status that was worked out elsewhere (a worker's `verdictOf`) so `deckOptionOf` finds it. */
+export function primeDeckOption(
+  deck: Deck,
+  pool: CardPool,
+  currentPoolVersion: string,
+  deps: EngineDeps,
+  verdict: DeckVerdict,
+): DeckOption {
+  const option: DeckOption = { ...verdict, deck };
+  options.set(deck, { pool, version: currentPoolVersion, deps, option });
+  return option;
+}
+
+const identityNameOf = (deck: Deck, pool: CardPool): string | null => {
+  const identityCard = Array.isArray(pool)
+    ? pool.find((c) => c.id === deck.identityCardId)
+    : (pool as Record<string, AnyCard>)[deck.identityCardId as string];
+  return identityCard?.type === "hero_identity" ? qualifiedHeroName(identityCard) : (identityCard?.name ?? null);
+};
+
+/** The stand-in for a deck whose status is on its way: the identity's name (cheap) and nothing else known. Not remembered. */
+export function pendingDeckOption(deck: Deck, pool: CardPool): DeckOption {
+  return {
+    deck,
+    identityName: identityNameOf(deck, pool),
+    legal: false,
+    problems: [],
+    unscripted: [],
+    poolChanged: false,
+    seatable: false,
+    blockedReason: "Checking this deck…",
+    warning: null,
+    checking: true,
+  };
+}
+
 function checkDeck(deck: Deck, pool: CardPool, currentPoolVersion: string, deps: EngineDeps): DeckOption {
+  return { ...verdictOf(deck, pool, currentPoolVersion, deps), deck };
+}
+
+/** Everything `deckOptionOf` reports about a deck except the deck itself (which is the same object the caller already holds). */
+export function verdictOf(deck: Deck, pool: CardPool, currentPoolVersion: string, deps: EngineDeps): DeckVerdict {
   const verdict = validateDeck(deck, pool);
   const legal = verdict.ok;
   const problems = verdict.ok ? [] : verdict.problems;
@@ -99,13 +158,9 @@ function checkDeck(deck: Deck, pool: CardPool, currentPoolVersion: string, deps:
   const blockedReason = legal ? null : (problems[0]?.message ?? "This deck is not legal.");
   const warning = unscriptedMessage(unscripted, pool);
 
-  const identityCard = Array.isArray(pool)
-    ? pool.find((c) => c.id === deck.identityCardId)
-    : (pool as Record<string, AnyCard>)[deck.identityCardId as string];
-  const identityName =
-    identityCard?.type === "hero_identity" ? qualifiedHeroName(identityCard) : (identityCard?.name ?? null);
+  const identityName = identityNameOf(deck, pool);
 
-  return { deck, identityName, legal, problems, unscripted, poolChanged, seatable, blockedReason, warning };
+  return { identityName, legal, problems, unscripted, poolChanged, seatable, blockedReason, warning };
 }
 
 /** Every option (precons first, in `POOL_STARTER_DECKS` order, then saved decks in the order given), each with its status. */

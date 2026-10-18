@@ -115,12 +115,21 @@ import {
   communityOfferMatches,
   testedEntryOf,
   testedSearchFieldsOf,
+  communityDeckAsDeck,
   communityOffers,
   communityStatusText,
   communityPublishedText,
   type CommunityOffer,
 } from "../view/community-decks-model.js";
-import { deckOptionsOf, deckRowIndexOf, type DeckOption } from "../view/deck-list-model.js";
+import {
+  cachedDeckOption,
+  deckRowIndexOf,
+  pendingDeckOption,
+  preconDecks,
+  primeDeckOption,
+  verdictOf,
+  type DeckOption,
+} from "../view/deck-list-model.js";
 import { sortByRecency } from "../view/deck-recency.js";
 import {
   compositionTilesOf,
@@ -298,6 +307,9 @@ function importExportBoxHeight(column: number, open: "paste" | "marvelcdb" | nul
   return height;
 }
 
+/** How long a finished load waits for the others before the screen redraws. */
+const REBUILD_COALESCE_MS = 40;
+
 export class DecksScene extends Phaser.Scene {
   #savedDecks: readonly Deck[] = [];
   #data: DecksSceneData = {};
@@ -316,6 +328,13 @@ export class DecksScene extends Phaser.Scene {
   readonly #deckSearch = new DeckSearchClient();
   #deckRanking: ReadonlyMap<string, number> | null = null;
   #deckDocsVersion: string | null = null;
+  /** The deck list's first status pass also runs in the `#deckSearch` worker (`DeckSearchClient.checkDecks`); a deck is asked about once. */
+  readonly #statusAsked = new WeakSet<Deck>();
+  /** Bumped whenever a worker's answer is remembered, so `#offersCache` is rebuilt from the new statuses. */
+  #statusEpoch = 0;
+  /** True while `#askStatuses` is calling `checkDecks`: an answer that comes back inside the call (no worker) is used by the draw already under way. */
+  #askingStatuses = false;
+  #rebuildTimer: ReturnType<typeof setTimeout> | null = null;
   readonly #poolSearch = new DeckSearchClient();
   #poolRanking: ReadonlyMap<string, number> | null = null;
   #poolDocsVersion: string | null = null;
@@ -351,6 +370,7 @@ export class DecksScene extends Phaser.Scene {
   #communityOnly = false;
   /** `communityOffers` for the saved decks and unlocks it was last built from (both are replaced, never mutated). */
   #offersCache: {
+    readonly epoch: number;
     readonly saved: readonly Deck[];
     readonly gate: unknown;
     readonly offers: readonly CommunityOffer[];
@@ -418,6 +438,8 @@ export class DecksScene extends Phaser.Scene {
       artOff();
       this.#hover?.destroy();
       this.#hover = null;
+      if (this.#rebuildTimer !== null) clearTimeout(this.#rebuildTimer);
+      this.#rebuildTimer = null;
       this.#deckSearch.destroy();
       this.#poolSearch.destroy();
       this.#pasteInput?.destroy();
@@ -460,31 +482,84 @@ export class DecksScene extends Phaser.Scene {
       .then((decks) => {
         if (!this.sys.isActive()) return;
         this.#savedDecks = decks;
-        this.#rebuild();
+        this.#queueRebuild();
       });
     // A community deck is offered only when its hero and cards are open; the wins that decide that load here.
     void refreshUnlocks().then((changed) => {
-      if (changed && this.sys.isActive()) this.#rebuild();
+      if (changed && this.sys.isActive()) this.#queueRebuild();
     });
     void appSession()
       .store.listSaves()
       .then((saves) => {
         if (!this.sys.isActive()) return;
         this.#history = resultsHistoryOf(saves);
-        this.#rebuild();
+        this.#queueRebuild();
       });
+  }
+
+  /**
+   * One redraw for the loads that finish together (saved decks, unlocks, saves, a worker's statuses): each used to
+   * redraw the whole screen on its own, back to back, which on a slow device is most of a second apiece (#226).
+   */
+  #queueRebuild(): void {
+    if (this.#rebuildTimer !== null) return;
+    this.#rebuildTimer = setTimeout(() => {
+      this.#rebuildTimer = null;
+      if (this.sys.isActive()) this.#rebuild();
+    }, REBUILD_COALESCE_MS);
   }
 
   /** Precons (fixed order) plus saved decks, most recently changed first (W9's "Recently changed") — `deckOptionsOf` already puts precons ahead of whatever list it's given. */
   #deckOptions(): readonly DeckOption[] {
-    return deckOptionsOf(sortByRecency(this.#savedDecks), POOL_CARDS, POOL_VERSION, POOL_DEPS);
+    return [...preconDecks(POOL_VERSION), ...sortByRecency(this.#savedDecks)].map((deck) => this.#optionOf(deck));
+  }
+
+  /** A deck's status if it is known, else a "Checking…" stand-in until the worker answers (`#askStatuses`). */
+  #optionOf(deck: Deck): DeckOption {
+    return cachedDeckOption(deck, POOL_CARDS, POOL_VERSION, POOL_DEPS) ?? pendingDeckOption(deck, POOL_CARDS);
+  }
+
+  /**
+   * Asks the worker for the status of every listed deck that has none yet (precons, saved and community decks, in one
+   * message) and redraws once when it answers. The first visit used to check them all on the main thread before the
+   * screen drew (#226). With no worker the answer comes back before this returns and nothing is redrawn.
+   */
+  #askStatuses(): void {
+    const decks = [
+      ...preconDecks(POOL_VERSION),
+      ...this.#savedDecks,
+      ...communityDecks().map((entry) => communityDeckAsDeck(entry, POOL_VERSION)),
+    ].filter(
+      (deck) => !this.#statusAsked.has(deck) && cachedDeckOption(deck, POOL_CARDS, POOL_VERSION, POOL_DEPS) === null,
+    );
+    if (decks.length === 0) return;
+    for (const deck of decks) this.#statusAsked.add(deck);
+    this.#askingStatuses = true;
+    try {
+      this.#deckSearch.checkDecks(
+        decks,
+        (asked) => asked.map((deck) => verdictOf(deck, POOL_CARDS, POOL_VERSION, POOL_DEPS)),
+        (verdicts) => {
+          decks.forEach((deck, at) => primeDeckOption(deck, POOL_CARDS, POOL_VERSION, POOL_DEPS, verdicts[at]!));
+          this.#statusEpoch += 1;
+          if (!this.#askingStatuses && this.sys.isActive()) this.#queueRebuild();
+        },
+      );
+    } finally {
+      this.#askingStatuses = false;
+    }
   }
 
   /** The community decks (`@mc/cards`'s catalog), each with whether the player may add it yet. */
   #communityOffers(): readonly CommunityOffer[] {
     const gate = unlocks();
-    if (this.#offersCache?.saved !== this.#savedDecks || this.#offersCache.gate !== gate) {
+    if (
+      this.#offersCache?.saved !== this.#savedDecks ||
+      this.#offersCache.gate !== gate ||
+      this.#offersCache.epoch !== this.#statusEpoch
+    ) {
       this.#offersCache = {
+        epoch: this.#statusEpoch,
         saved: this.#savedDecks,
         gate,
         offers: communityOffers({
@@ -494,6 +569,7 @@ export class DecksScene extends Phaser.Scene {
           poolVersion: POOL_VERSION,
           deps: POOL_DEPS,
           gate,
+          optionOf: (deck) => this.#optionOf(deck),
         }),
       };
     }
@@ -616,6 +692,7 @@ export class DecksScene extends Phaser.Scene {
 
     // The player's own list (precons and saved decks), then the community decks: recommendations that can be
     // selected and previewed like any deck, and added as an editable copy rather than played or edited in place.
+    this.#askStatuses();
     const ownOptions = this.#deckOptions();
     const offers = this.#communityOffers();
     const allOptions = [...ownOptions, ...offers.map((offer) => offer.option)];

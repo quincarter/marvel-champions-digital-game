@@ -57,6 +57,17 @@ export function communityDeckLock(entry: CommunityDeck, pool: CardPool, gate: Co
 
 /** `entry` as a `Deck` for display. `updatedAt` is left unset: "recently changed" is about the player's own edits. */
 export function communityDeckAsDeck(entry: CommunityDeck, poolVersion: string): Deck {
+  // One object per entry and version, so the status remembered for it (`deckOptionOf`, or a worker's answer) is found again.
+  const known = decksOfEntry.get(entry);
+  if (known?.poolVersion === poolVersion) return known;
+  const deck = buildCommunityDeck(entry, poolVersion);
+  decksOfEntry.set(entry, deck);
+  return deck;
+}
+
+const decksOfEntry = new WeakMap<CommunityDeck, Deck>();
+
+function buildCommunityDeck(entry: CommunityDeck, poolVersion: string): Deck {
   return {
     id: deckId(communityDeckIdOf(entry.marvelcdbId)),
     name: entry.name,
@@ -88,6 +99,8 @@ export interface CommunityOffersInput {
   readonly poolVersion: string;
   readonly deps: EngineDeps;
   readonly gate: CommunityDeckGate;
+  /** Where each deck's status comes from; `deckOptionOf` when left out. The Decks screen passes its worker-fed lookup. */
+  readonly optionOf?: (deck: Deck) => DeckOption;
 }
 
 /** Every catalog deck as an offer, in catalog order (by hero, then MarvelCDB id). */
@@ -97,9 +110,10 @@ export function communityOffers(input: CommunityOffersInput): readonly Community
       deck.source.kind === "imported" && deck.source.marvelcdbDeckId !== null ? [deck.source.marvelcdbDeckId] : [],
     ),
   );
+  const optionOf = input.optionOf ?? ((deck: Deck) => deckOptionOf(deck, input.pool, input.poolVersion, input.deps));
   return input.catalog.map((entry) => ({
     entry,
-    option: deckOptionOf(communityDeckAsDeck(entry, input.poolVersion), input.pool, input.poolVersion, input.deps),
+    option: optionOf(communityDeckAsDeck(entry, input.poolVersion)),
     lock: communityDeckLock(entry, input.pool, input.gate),
     added: owned.has(String(entry.marvelcdbId)),
   }));
@@ -182,6 +196,7 @@ export const communityCredit = (entry: Pick<CommunityDeck, "author">): string =>
  */
 export function communityStatusText(offer: CommunityOffer): string {
   if (offer.lock) return "Locked";
+  if (offer.option.checking) return "Checking…";
   return offer.option.legal ? "Tested" : "Not legal";
 }
 
