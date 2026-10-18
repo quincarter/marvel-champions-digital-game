@@ -74,7 +74,13 @@ import {
   refreshDesktopMonitor,
   resolutionOptionsFor,
 } from "../platform/desktop-window.js";
-import { followsWindowsMixer, knownMixerVolume, readMixerVolume, writeMixerVolume } from "../platform/app-volume.js";
+import {
+  followsWindowsMixer,
+  knownMixerVolume,
+  onMixerChange,
+  readMixerVolume,
+  writeMixerVolume,
+} from "../platform/app-volume.js";
 import { ink, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
 import { McButton, McTabs, addRowTapZone, fitText, label, paintOnFrame, sectionHeader } from "../ui/widgets.js";
@@ -206,16 +212,17 @@ export class SettingsOverlay extends Phaser.Scene {
     if (hasDesktopWindow()) void refreshDesktopMonitor().then(() => this.#redrawIfOpen());
     // The game's volume in the Windows mixer may have moved there since: read it fresh for the Game volume row.
     if (followsWindowsMixer()) {
-      // Twice a second while Settings is open, so a change in the Windows mixer shows on the Game volume row.
+      // Read it now, then follow the shell's change events, so a change in the Windows mixer shows on the Game volume
+      // row while Settings is open. Nothing polls here.
       let last = knownMixerVolume();
-      const follow = (): void =>
-        void readMixerVolume().then((read) => {
-          if (read === last) return;
-          last = read;
-          this.#redrawIfOpen();
-        });
-      follow();
-      this.time.addEvent({ delay: 500, loop: true, callback: follow });
+      const show = (read: number | null): void => {
+        if (read === last) return;
+        last = read;
+        this.#redrawIfOpen();
+      };
+      void readMixerVolume().then(show);
+      const stop = onMixerChange(({ volume }) => show(volume));
+      this.events.once(Phaser.Scenes.Events.SHUTDOWN, stop);
     }
   }
 

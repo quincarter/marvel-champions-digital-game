@@ -68,7 +68,9 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
       display_mode::linux_distro,
       app_volume::app_volume,
       app_volume::set_app_volume,
-      app_volume::master_muted
+      app_volume::master_muted,
+      app_volume::start_app_volume_watch,
+      app_volume::stop_app_volume_watch
     ])
     // Exclusive fullscreen gives the monitor back while the game is in the background (display_mode.rs).
     .on_window_event(|_, event| {

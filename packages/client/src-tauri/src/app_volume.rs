@@ -7,6 +7,10 @@
 //! own audio process, so Windows would list them in the mixer as "Microsoft Edge WebView2" with Edge's icon; each one is
 //! named and iconed as the game when it is found, so the mixer shows Marvel Champions. Elsewhere (macOS, Linux) there is no
 //! such mixer here: `app_volume` answers `None` and the game keeps its own in-game music volume.
+//!
+//! Changes made outside the game (the mixer, the master mute) reach the page as an `app-volume` event from a watcher
+//! thread of the shell's own (`start_app_volume_watch`), so the page never polls: nothing runs on its main thread until
+//! something changes. The watcher runs only while the music plays (or waits on a master mute).
 
 #[cfg(windows)]
 mod imp {
@@ -22,6 +26,8 @@ mod imp {
   use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
   };
+
+  const GAME_NAME: &str = "Marvel Champions";
 
   /// This process and every process descended from it (the WebView2 browser, renderers and audio service).
   fn family() -> HashSet<u32> {
@@ -77,9 +83,13 @@ mod imp {
         let Ok(pid) = control2.GetProcessId() else { continue };
         if ours.contains(&pid) {
           // The game's own name and icon in the mixer, not WebView2's. Best effort: a refusal leaves it as it was.
-          let _ = control.SetDisplayName(&HSTRING::from("Marvel Champions"), std::ptr::null());
-          if let Ok(exe) = std::env::current_exe() {
-            let _ = control.SetIconPath(&HSTRING::from(format!("{},0", exe.display())), std::ptr::null());
+          // Set once per session: a change raises a session event of its own.
+          let named = control.GetDisplayName().ok().map(|name| name.to_string().unwrap_or_default());
+          if named.as_deref() != Some(GAME_NAME) {
+            let _ = control.SetDisplayName(&HSTRING::from(GAME_NAME), std::ptr::null());
+            if let Ok(exe) = std::env::current_exe() {
+              let _ = control.SetIconPath(&HSTRING::from(format!("{},0", exe.display())), std::ptr::null());
+            }
           }
           found.push(control.cast::<ISimpleAudioVolume>()?);
         }
@@ -111,6 +121,68 @@ mod imp {
       unsafe { volume.SetMasterVolume(level.clamp(0.0, 1.0), std::ptr::null()) }.map_err(|error| error.to_string())?;
     }
     Ok(!found.is_empty())
+  }
+}
+
+/// What the `app-volume` event carries: the game's mixer volume (0 to 1, `None` before its first sound) and whether the
+/// computer's master volume is muted.
+#[derive(Clone, Copy, PartialEq, serde::Serialize)]
+pub struct AppVolume {
+  pub volume: Option<f32>,
+  pub muted: Option<bool>,
+}
+
+/// Which watcher is current: starting or stopping one moves it on, and a thread whose number is no longer current ends.
+static WATCH_GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// How long one watcher thread lives before it hands over to a fresh one.
+const WATCH_RECYCLE: std::time::Duration = std::time::Duration::from_secs(10 * 60);
+
+/// Starts the watcher, replacing any running one: a thread of the shell's own that reads the game's mixer volume and the
+/// master mute twice a second and emits `app-volume` to the page when either changed, and once at the start (so a play
+/// picks up the mixer's volume). The page starts it when the music plays and stops it when the player pauses
+/// (`platform/app-volume.ts`); it hands over to a fresh thread every ten minutes. Windows only.
+#[tauri::command]
+pub fn start_app_volume_watch(app: tauri::AppHandle) {
+  let generation = WATCH_GENERATION.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+  spawn_watch(app, generation);
+}
+
+/// Stops the watcher; nothing runs until the next start.
+#[tauri::command]
+pub fn stop_app_volume_watch() {
+  WATCH_GENERATION.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+}
+
+fn spawn_watch(app: tauri::AppHandle, generation: u64) {
+  #[cfg(windows)]
+  {
+    use std::sync::atomic::Ordering;
+    use tauri::Emitter;
+    std::thread::spawn(move || {
+      log::info!("app volume watch {generation}: started");
+      let born = std::time::Instant::now();
+      let mut last: Option<AppVolume> = None;
+      while WATCH_GENERATION.load(Ordering::SeqCst) == generation {
+        if born.elapsed() >= WATCH_RECYCLE {
+          // A fresh thread (and fresh COM objects) carries on; this one ends.
+          spawn_watch(app.clone(), generation);
+          return;
+        }
+        let now = AppVolume { volume: imp::get(), muted: imp::master_muted() };
+        if last != Some(now) {
+          last = Some(now);
+          log::info!("app volume watch {generation}: {:?} muted {:?}", now.volume, now.muted);
+          let _ = app.emit("app-volume", now);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(500));
+      }
+      log::info!("app volume watch {generation}: stopped");
+    });
+  }
+  #[cfg(not(windows))]
+  {
+    let _ = (app, generation);
   }
 }
 

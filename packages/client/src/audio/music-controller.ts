@@ -32,7 +32,7 @@ import {
 import { extras } from "../progression/progression.js";
 import { earnedSongsOf, musicGainOf, nextShuffled } from "../view/music-player.js";
 import { SOUND_EFFECT_VOLUME, type SoundEffect } from "../view/sound-effects.js";
-import { followsWindowsMixer, readMasterMuted, readMixerVolume } from "../platform/app-volume.js";
+import { onMixerChange, startMixerWatch, stopMixerWatch } from "../platform/app-volume.js";
 import extrasUnlockedUrl from "./sfx/extras-unlocked.mp3?url";
 import handRefillUrl from "./sfx/hand-refill.mp3?url";
 import basicAttackUrl from "./sfx/basic-attack.mp3?url";
@@ -125,7 +125,6 @@ export class MusicScene extends Phaser.Scene implements MusicController {
   #targetVolume = DEFAULT_MUSIC_VOLUME;
   #shuffleOn = false;
   #paused = false;
-  #mixerNamed = false;
   /** Paused because the computer's master volume was muted, so unmuting picks the music up again (#243). */
   #pausedForMute = false;
   /** The shuffle's songs still to come this round. */
@@ -149,11 +148,9 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     // game's does, and the music player's Pause is the way to stop it (#243).
     this.sound.pauseOnBlur = false;
     // In the Windows app, muting the computer's master volume pauses the music, and unmuting resumes it unless the
-    // player paused it themselves in the meantime. A timer, not the frame loop, so it keeps time out of focus too.
-    if (followsWindowsMixer()) {
-      const watch = window.setInterval(() => void this.#followMasterMute(), 1000);
-      this.events.once(Phaser.Scenes.Events.DESTROY, () => window.clearInterval(watch));
-    }
+    // player paused it themselves in the meantime. The shell tells the page when it changes; nothing here polls.
+    const stopFollowing = onMixerChange(({ muted }) => this.#followMasterMute(muted));
+    this.events.once(Phaser.Scenes.Events.DESTROY, stopFollowing);
     appSession().music = this;
     this.#shuffleOn = appSession().settings.musicShuffle;
     this.syncSettings(appSession().settings);
@@ -281,12 +278,12 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     return this.#paused;
   }
 
-  async #followMasterMute(): Promise<void> {
-    const muted = await readMasterMuted();
+  #followMasterMute(muted: boolean | null): void {
     if (muted === null) return;
     if (muted && !this.#paused) {
-      this.pause();
+      // Set first: a pause for the mute keeps the watcher, which is how the unmute is heard.
       this.#pausedForMute = true;
+      this.pause();
       for (const listener of this.#pauseListeners) listener();
     } else if (!muted && this.#pausedForMute) {
       this.#pausedForMute = false;
@@ -305,6 +302,8 @@ export class MusicScene extends Phaser.Scene implements MusicController {
   pause(): void {
     this.#paused = true;
     if (this.#currentSound?.isPlaying) this.#currentSound.pause();
+    // The player paused it: nothing to watch until it plays again.
+    if (!this.#pausedForMute) stopMixerWatch();
   }
 
   resume(): void {
@@ -312,6 +311,7 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     // The player chose to play while muted: unmuting later has nothing to resume.
     this.#pausedForMute = false;
     if (this.#currentSound?.isPaused) this.#currentSound.resume();
+    startMixerWatch();
   }
 
   progress(): { readonly seek: number; readonly duration: number } | null {
@@ -417,6 +417,7 @@ export class MusicScene extends Phaser.Scene implements MusicController {
 
   stop(fadeDurationMs = CROSSFADE_DURATION_MS): void {
     this.#mode = "stopped";
+    stopMixerWatch();
     this.#targetKey = null;
     this.#targetTrack = null;
     if (!this.#currentSound) return;
@@ -510,11 +511,8 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     newSound.play();
     if (this.#paused) newSound.pause();
     this.#currentSound = newSound;
-    // In the Windows app the game's mixer entry exists from its first sound: name it as the game there now.
-    if (!this.#mixerNamed && followsWindowsMixer()) {
-      this.#mixerNamed = true;
-      this.time.delayedCall(1500, () => void readMixerVolume());
-    }
+    // Playing: the shell watches the game's mixer volume and the master mute (and names the game in the mixer).
+    if (!this.#paused) startMixerWatch();
     for (const listener of this.#listeners) listener(track);
 
     if (duration > 0) {

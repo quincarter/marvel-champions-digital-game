@@ -1,5 +1,12 @@
 import { describe, expect, test } from "vitest";
-import { followsWindowsMixer, knownMixerVolume, readMixerVolume } from "./app-volume.js";
+import {
+  followsWindowsMixer,
+  knownMixerVolume,
+  onMixerChange,
+  readMixerVolume,
+  startMixerWatch,
+  stopMixerWatch,
+} from "./app-volume.js";
 
 const WINDOWS =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Edg/155.0.0.0";
@@ -16,5 +23,14 @@ describe("the Windows mixer volume (#243)", () => {
   test("off the Windows app there is nothing to read, and the slider stays the music volume", async () => {
     expect(await readMixerVolume()).toBeNull();
     expect(knownMixerVolume()).toBeNull();
+  });
+
+  test("off the Windows app the shell's watcher is never started, and no change ever arrives", () => {
+    const heard: unknown[] = [];
+    const stop = onMixerChange((change) => heard.push(change));
+    startMixerWatch();
+    stopMixerWatch();
+    stop();
+    expect(heard).toEqual([]);
   });
 });

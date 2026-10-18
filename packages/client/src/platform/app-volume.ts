@@ -40,15 +40,70 @@ export async function readMixerVolume(): Promise<number | null> {
   return known;
 }
 
-/** Whether the computer's master volume is muted; null when there is none to follow (not the Windows app). */
-export async function readMasterMuted(): Promise<boolean | null> {
-  if (!followsWindowsMixer()) return null;
+export interface MixerChange {
+  /** The game's mixer volume in percent; null before its first sound. */
+  readonly volume: number | null;
+  /** Whether the computer's master volume is muted; null when unknown. */
+  readonly muted: boolean | null;
+}
+
+const changeListeners = new Set<(change: MixerChange) => void>();
+let listening = false;
+let lastMuted: boolean | null = null;
+
+/** Whether the computer's master volume was muted, as last heard. */
+export function knownMasterMuted(): boolean | null {
+  return lastMuted;
+}
+
+/**
+ * Calls `listener` whenever the game's mixer volume or the master mute changes outside the game. The shell watches both
+ * on a thread of its own while the watcher runs (`startMixerWatch`) and sends an `app-volume` event only on a change
+ * (`src-tauri/src/app_volume.rs`), so the page does no polling. Nothing happens off the Windows app. Returns the way to stop.
+ */
+export function onMixerChange(listener: (change: MixerChange) => void): () => void {
+  changeListeners.add(listener);
+  if (followsWindowsMixer() && !listening) {
+    listening = true;
+    void import("@tauri-apps/api/event")
+      .then(({ listen }) =>
+        listen<{ volume: number | null; muted: boolean | null }>("app-volume", ({ payload }) => {
+          known = payload.volume === null ? null : clampMusicVolume(payload.volume * MUSIC_VOLUME_MAX);
+          lastMuted = payload.muted;
+          for (const each of [...changeListeners]) each({ volume: known, muted: lastMuted });
+        }),
+      )
+      .catch((error: unknown) => console.warn("mixer volume:", error));
+  }
+  return () => changeListeners.delete(listener);
+}
+
+let watching = false;
+
+async function shell(command: string): Promise<void> {
   try {
     const { invoke } = await import("@tauri-apps/api/core");
-    return await invoke<boolean | null>("master_muted");
-  } catch {
-    return null;
+    await invoke(command);
+  } catch (error) {
+    console.warn("mixer volume:", error);
   }
+}
+
+/**
+ * Starts the shell's watcher (`start_app_volume_watch`): while the music plays, or waits on a master mute. Its first
+ * event carries the mixer's volume as it is now, so a play picks it up. Nothing off the Windows app.
+ */
+export function startMixerWatch(): void {
+  if (!followsWindowsMixer() || watching) return;
+  watching = true;
+  void shell("start_app_volume_watch");
+}
+
+/** Stops the shell's watcher, while the player has the music paused: nothing is left running. */
+export function stopMixerWatch(): void {
+  if (!watching) return;
+  watching = false;
+  void shell("stop_app_volume_watch");
 }
 
 let writing: Promise<void> | null = null;

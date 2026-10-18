@@ -11,13 +11,19 @@
  * setting (`Settings.musicVolume`), heard as the slider moves and saved when it is let go; the pause is the music
  * controller's, for this session.
  */
-import type Phaser from "phaser";
+import Phaser from "phaser";
 import { accent, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { appSession } from "../session.js";
 import { clockOf, nowPlayingTitleOf, steppedVolume, volumeAtTrack, type PlayerSong } from "../view/music-player.js";
 import { clampMusicVolume } from "../settings.js";
 import { hasDesktopWindow } from "../platform/desktop-window.js";
-import { followsWindowsMixer, knownMixerVolume, readMixerVolume, writeMixerVolume } from "../platform/app-volume.js";
+import {
+  followsWindowsMixer,
+  knownMixerVolume,
+  onMixerChange,
+  readMixerVolume,
+  writeMixerVolume,
+} from "../platform/app-volume.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import { bangers } from "./campaign-chrome.js";
 import { drawMusicIcon } from "./music-icon.js";
@@ -291,26 +297,19 @@ function drawVolumeRow(
   };
 
   // The mixer may have moved since the panel was drawn last: read it, and show it if it changed.
-  // The mixer can move while the player is open (the Windows volume mixer, a keyboard's volume knob on the game): read
-  // it now and twice a second, and follow it, except while the slider is in the hand or its last change is still
-  // on its way to the mixer.
+  // The mixer can move while the player is open (the Windows volume mixer): read it now, then follow the shell's
+  // change events (no polling here), except while the slider is in the hand or its last change is still on its way.
   let dragging = false;
   let changedAt = 0;
   if (mixer) {
-    const follow = (): void => {
-      if (dragging || Date.now() - changedAt < 1000) return;
-      void readMixerVolume().then((read) => {
-        if (read === null || read === shown || !bar.active || dragging) return;
-        shown = read;
-        paint();
-      });
+    const show = (read: number | null): void => {
+      if (read === null || read === shown || dragging || Date.now() - changedAt < 1000) return;
+      shown = read;
+      paint();
     };
-    follow();
-    const poll = scene.time.addEvent({
-      delay: 500,
-      loop: true,
-      callback: () => (bar.active ? follow() : poll.remove()),
-    });
+    void readMixerVolume().then((read) => bar.active && show(read));
+    const stop = onMixerChange(({ volume }) => (bar.active ? show(volume) : stop()));
+    bar.once(Phaser.GameObjects.Events.DESTROY, stop);
   }
 
   const zone = scene.add
