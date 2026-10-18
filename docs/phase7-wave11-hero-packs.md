@@ -346,12 +346,12 @@ Suggestion's forced action comes once a round.
 Numbered from 101. Until answered, **A is what gets built**; the main session records answers in the main spec's §4.1
 table and the PR.
 
-| Q    | Question                                                                                                      | A (default)                                                        | B                                                  | Decision |
-| ---- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------- | -------- |
-| Q101 | Run Them to Ground: what does skipping the villain phase leave?                                               | Villain-phase steps 1–5 skipped; the round still ends; token stays | As A, but the first player token passes            | open     |
-| Q102 | Calling in Favors: is an ally played from the deck "from hand"?                                               | Yes: Squirrel Girl's response answers                              | No                                                 | open     |
-| Q103 | Unpreventable damage and effects that redirect it                                                             | Only reductions, preventions and tough are barred; redirects work  | No "would take damage" effect may change it at all | open     |
-| Q104 | Take a Stand (62015) used in the villain phase vs RRG p. 26 ("can only be initiated during that time period") | The bonus lasts through the next player phase                      | Strict: nothing outside a player phase             | open     |
+| Q    | Question                                                                                                      | A (default)                                                        | B                                                  | Decision                  |
+| ---- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------- | ------------------------- |
+| Q101 | Run Them to Ground: what does skipping the villain phase leave?                                               | Villain-phase steps 1–5 skipped; the round still ends; token stays | As A, but the first player token passes            | **A** (owner, 2026-10-18) |
+| Q102 | Calling in Favors: is an ally played from the deck "from hand"?                                               | Yes: Squirrel Girl's response answers                              | No                                                 | **A** (owner, 2026-10-18) |
+| Q103 | Unpreventable damage and effects that redirect it                                                             | Only reductions, preventions and tough are barred; redirects work  | No "would take damage" effect may change it at all | **A** (owner, 2026-10-18) |
+| Q104 | Take a Stand (62015) used in the villain phase vs RRG p. 26 ("can only be initiated during that time period") | The bonus lasts through the next player phase                      | Strict: nothing outside a player phase             | **B** (owner, 2026-10-18) |
 
 **Q101** (61020, H3.7). RRG p. 47: step 5 "Pass First Player Token", step 6 "End of Villain Phase and Round"; the Round
 Overview (p. 4) lists "Pass the first player token" (9) and "End the round" (10). No ruling. A: no threat, activations,
