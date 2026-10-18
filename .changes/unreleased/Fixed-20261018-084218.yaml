@@ -1,0 +1,3 @@
+kind: Fixed
+body: CI parses every changelog fragment on pull requests, so a malformed one no longer reaches main and breaks the release PR
+time: 2026-10-18T08:42:18.3168541-04:00

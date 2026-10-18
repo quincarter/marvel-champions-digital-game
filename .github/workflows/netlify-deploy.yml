@@ -52,6 +52,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm fmt:check
+      # Parse every unreleased changelog fragment the way the release job will, so a malformed one (an unescaped
+      # quote in a single-quoted body) fails here rather than breaking the release PR after it reaches main.
+      - uses: miniscruff/changie-action@v3
+        with:
+          version: latest
+          args: batch patch --dry-run --allow-no-changes
 
   # Typecheck and the unit tests, in parallel (tests.yml). They need no secrets, so they run on fork PRs too.
   tests:
