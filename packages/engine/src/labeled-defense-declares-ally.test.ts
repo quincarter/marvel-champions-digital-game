@@ -22,7 +22,16 @@ import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { driveSession } from "./testing/drive.js";
 import { stubAlly, stubMainScheme, stubSupport, stubTreachery, stubVillain } from "./testing/fixtures.js";
-import { defaultPick, giveCards, newGame, resolvePending, RESOURCE, runWith, settle, settleUntil } from "./testing/scenario.js";
+import {
+  defaultPick,
+  giveCards,
+  newGame,
+  resolvePending,
+  RESOURCE,
+  runWith,
+  settle,
+  settleUntil,
+} from "./testing/scenario.js";
 import { copiesOf, gameAtFirstTurn, P1, playerCardIntoPlay } from "./testing/wave3.js";
 
 const ability = (id: string, definition: AbilityDefinition) => stubAbility(id, definition);
