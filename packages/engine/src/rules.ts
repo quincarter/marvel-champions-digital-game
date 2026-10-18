@@ -1446,6 +1446,10 @@ export function damageTakenBeforeSustainedCap(
  * `damageTakenBeforeSustainedCap` with how doubling (`doubleDamageTaken`, docs/phase7-wave6.md §3.68) changed it:
  * `beforeDoubling` is the damage after every increase and reduction, `doubledBy` the cards whose rules doubled it (null for
  * a rule with no card), one entry per doubling, in the order the rules were read (empty when none did). `applyDamage` logs `damageDoubled` from it.
+ *
+ * `unpreventable` (docs/phase7-wave11-hero-packs.md §H3.3, the MC62 insert's "cannot be reduced or prevented"): no
+ * reduction applies, live or lingering; the increases, doubling and the per-attack cap do. A cap is a "cannot" (RRG 1.8
+ * "Cannot", p. 13, absolute), and capped damage is neither taken nor prevented (docs/phase7-wave6.md §4.1 Q9).
  */
 export function damageTakenBreakdown(
   state: GameState,
@@ -1455,6 +1459,7 @@ export function damageTakenBreakdown(
   fromAttack: boolean,
   consequential?: ConsequentialDamage,
   source?: DamageSourceInfo,
+  unpreventable = false,
 ): { readonly taken: number; readonly beforeDoubling: number; readonly doubledBy: readonly (InstanceId | null)[] } {
   let taken = amount;
   // "Increase all damage Venom takes by 1" (docs/phase7-wave5.md §3.8), summed with the reductions (RRG 1.8
@@ -1468,7 +1473,7 @@ export function damageTakenBreakdown(
       if (consequentialScopeMatches(state, rule.consequential, consequential, context)) taken += rule.amount;
     }
   }
-  for (const { rule, context } of activeRules(state, deps, "reduceDamageTaken")) {
+  for (const { rule, context } of unpreventable ? [] : activeRules(state, deps, "reduceDamageTaken")) {
     if (rule.fromAttack === true && !fromAttack) continue;
     if (!matchesQuery(state, targetId, rule.target, context)) continue;
     // "… unless the attacker has the [TINY] trait" (docs/phase7-wave7.md §3.30); "… unless the attacker or attack has
@@ -1478,7 +1483,7 @@ export function damageTakenBreakdown(
   }
   // Rules whose source left play while the power resolved (wave 6 §4.1 Q50; `lingeringConsequentialRules`).
   if (amount > 0) for (const l of lingeringRulesOf(state, consequential, "increaseDamageTaken")) taken += l.amount;
-  for (const l of lingeringRulesOf(state, consequential, "reduceDamageTaken")) taken -= l.amount;
+  if (!unpreventable) for (const l of lingeringRulesOf(state, consequential, "reduceDamageTaken")) taken -= l.amount;
   // "Double the amount of damage this minion takes from …" (§3.68): RRG 1.8 "Modifiers" (p. 29) calculates every
   // additive and subtractive modifier first, so the floored sum is what is doubled (Wild Wild Mojo's +1 too, §4 Q40),
   // and the per-attack cap below still has the last word.

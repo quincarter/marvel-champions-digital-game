@@ -1244,7 +1244,7 @@ export function piercedBeforeInterrupts(event: DamageEvent): readonly StatusDisc
  * reduces the damage to zero, and a basic defense's DEF, which reduced the amount before this event).
  */
 function toughResolvesFirst(ctx: Ctx, event: Extract<TriggerEvent, { kind: "dealDamage" }>, frameId: FrameId): boolean {
-  if (event.amount <= 0 || event.ignoreTough === true) return false;
+  if (event.amount <= 0 || event.ignoreTough === true || event.unpreventable === true) return false;
   const target = getInstance(ctx.state, event.targetInstanceId);
   if (!target || target.statuses.tough <= 0) return false;
   if (damageCannotBeTaken(ctx, event)) return false;
@@ -1576,7 +1576,14 @@ export function applyDamage(
   // A rule scoped to consequential damage ("prevent all consequential damage each ally would take from attacking",
   // Group Assault; docs/phase7-wave6.md §3.31) reaches only an ally's consequential damage.
   const consequential = consequentialDamageOf(ctx, event, frameId);
-  const preventer = damagePreventerOf(ctx.state, ctx.deps, event.targetInstanceId, consequential);
+  // Unpreventable damage (docs/phase7-wave11-hero-packs.md §H3.3, the MC62 insert: "cannot be reduced or prevented")
+  // passes every prevention and reduction below, and every tough status card, which stays; increases still apply.
+  // "Cannot take damage" (above) and the caps below are "cannot"s (RRG 1.8 "Cannot", p. 13, absolute; capped damage is
+  // neither taken nor prevented, wave 6 §4.1 Q9), so they still hold (`resolve/unpreventable.ts`).
+  const unpreventable = event.unpreventable === true;
+  const preventer = unpreventable
+    ? null
+    : damagePreventerOf(ctx.state, ctx.deps, event.targetInstanceId, consequential);
   if (preventer !== null) {
     emit(ctx, {
       type: "damagePrevented",
@@ -1594,7 +1601,7 @@ export function applyDamage(
     });
     return;
   }
-  if (event.fromAttack && preventedByAttackFlag(ctx, event)) {
+  if (event.fromAttack && !unpreventable && preventedByAttackFlag(ctx, event)) {
     emit(ctx, {
       type: "damagePrevented",
       targetInstanceId: event.targetInstanceId,
@@ -1618,6 +1625,7 @@ export function applyDamage(
     event.fromAttack,
     consequential,
     damageSourceInfo(ctx, event),
+    unpreventable,
   );
   const uncapped = breakdown.taken;
   // "Double the amount of damage this minion takes from …" (§3.68), logged before any cap trims it.
@@ -1650,7 +1658,7 @@ export function applyDamage(
   }
   // "This damage ignores tough status cards" (Lightning Strike, errata RRG 1.8 p. 65): the damage is taken and the
   // status card stays. Piercing is the keyword the RRG defines as discarding it, so "ignores" does not (§3.13).
-  if (taken > 0 && target.statuses.tough > 0 && event.ignoreTough !== true) {
+  if (taken > 0 && target.statuses.tough > 0 && event.ignoreTough !== true && !unpreventable) {
     emit(ctx, {
       type: "damagePrevented",
       targetInstanceId: event.targetInstanceId,
@@ -1678,7 +1686,7 @@ export function applyDamage(
   // that absorbed the damage returned above with the budget unspent). Prevented damage is dealt but not taken (RRG 1.8
   // "Prevent", p. 35): it yields no `damage` result and no excess. An overkill spill carries no `parentFrameId`, so the
   // budget never reaches it.
-  const prevented = event.fromAttack ? spendAttackPreventBudget(ctx, event, taken) : 0;
+  const prevented = event.fromAttack && !unpreventable ? spendAttackPreventBudget(ctx, event, taken) : 0;
   const landed = taken - prevented;
   const maxHp = characterProfile(ctx.state, event.targetInstanceId, ctx.deps)?.maxHp;
   // Excess damage is measured on the damage taken, after the sustained-damage cap too, so capped damage yields no excess
@@ -1763,6 +1771,7 @@ function recordDamageTaken(
     amount: taken,
     sourceInstanceId: event.sourceInstanceId,
     ...(event.noPlayer ? { noPlayer: true as const } : {}),
+    ...(event.unpreventable ? { unpreventable: true as const } : {}),
   });
   addFrameVars(ctx, frameId, { amount: taken });
   // The character that took it, reported as `<bind>.damaged` ("exhaust each character damaged this way", Bombshell

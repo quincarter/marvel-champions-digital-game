@@ -117,6 +117,13 @@ export type TriggerEventBody =
       /** "This damage ignores tough status cards" (Lightning Strike, errata RRG 1.8 p. 65): taken through a tough status card, which stays. */
       readonly ignoreTough?: boolean;
       /**
+       * "Unpreventable damage" (docs/phase7-wave11-hero-packs.md §H3.3, `EffectSpec dealDamage.unpreventable`): taken
+       * through a tough status card, which stays, and past every reduction and prevention; increases and "cannot"
+       * rules (caps, "cannot take damage") still apply.
+       * A redirect of it ("deal that damage to X instead", `sourceFromEvent`) keeps it unpreventable (Q103 at A).
+       */
+      readonly unpreventable?: true;
+      /**
        * This attack has piercing even if its attacker lacks the keyword ("this attack gains piercing"): the attacked
        * character's tough status cards are discarded before damage (RRG 1.8 "Piercing", p. 32). Stamped when the
        * attack pushes its damage, so every way of granting the keyword is already folded in.

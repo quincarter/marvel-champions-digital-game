@@ -226,6 +226,7 @@ import {
 } from "./attack-ability.js";
 import { abilityRootFrameId, addSessionExtraThreat } from "./thwart-session.js";
 import { readsDeck } from "./target-validity.js";
+import { isUnpreventableDamage } from "./unpreventable.js";
 import { markPreThenUnresolved, UNRESOLVED_VAR } from "./then.js";
 import { heard } from "./triggers.js";
 import { announceStatusDiscarded } from "./status-discarded.js";
@@ -527,6 +528,15 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             skipRetargetedAwayFrom(ctx, ability, frame.selfInstanceId, named),
           )
         : named;
+      // "N unpreventable damage" (§H3.3). Damage an interrupt moves to another character ("deal that damage to X
+      // instead", `sourceFromEvent`) is still that damage, so it stays unpreventable: owner question Q103 at A
+      // (`unpreventable.ts`). Only a redirect written with `sourceFromEvent` carries it; a script that re-deals the
+      // amount without it deals plain damage. Under B the redirect would not change the damage at all.
+      const unpreventable =
+        effect.unpreventable === true ||
+        (effect.sourceFromEvent === true &&
+          context.event?.kind === "dealDamage" &&
+          isUnpreventableDamage(context.event));
       const events = withMovedAttackTarget(ctx, attack, frame.selfInstanceId, aimed)
         .map((to) => ({ ...to, base: effect.perTarget ? amountFor(to.named) : shared }))
         .filter(({ base }) => !effect.perTarget || base > 0)
@@ -542,7 +552,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
                 ? context.event.sourceInstanceId
                 : null) ?? frame.selfInstanceId,
             fromAttack: effect.fromAttack === true,
-            ...(effect.ignoreTough ? { ignoreTough: true } : {}),
+            ...(effect.ignoreTough || unpreventable ? { ignoreTough: true } : {}),
+            ...(unpreventable ? { unpreventable: true as const } : {}),
             ...(namedBy(effect.by) === null ? { noPlayer: true } : {}),
             ...ofAttack?.damage,
             // "Deal damage … equal to your ATK" as an attack's damage (docs/phase7-wave10.md §3.17).
@@ -2798,6 +2809,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const kind = effect.kind === "preventDamage" ? "dealDamage" : "placeThreat";
       const target = frame.eventFrameId ? findFrame(ctx.state, frame.eventFrameId) : undefined;
       if (target?.kind !== "event" || target.event.kind !== kind || target.cancelled) return;
+      // Unpreventable damage cannot be prevented (§H3.3): such an interrupt is not offered against it
+      // (`interruptBarredByUnpreventable`), and one that resolves against it anyway prevents nothing.
+      if (isUnpreventableDamage(target.event)) return;
       const pending = target.event.amount;
       const prevented = effect.amount === undefined ? pending : Math.min(pending, Math.max(0, value(effect.amount)));
       if (prevented <= 0) return;
@@ -2834,8 +2848,14 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "reduceDamageTo": {
       const target = frame.eventFrameId ? findFrame(ctx.state, frame.eventFrameId) : undefined;
+      // Unpreventable damage cannot be reduced either (§H3.3): this reduces nothing, as for `preventDamage`.
       const pending =
-        target?.kind === "event" && target.event.kind === "dealDamage" && !target.cancelled ? target.event : null;
+        target?.kind === "event" &&
+        target.event.kind === "dealDamage" &&
+        !target.cancelled &&
+        !isUnpreventableDamage(target.event)
+          ? target.event
+          : null;
       const cap = Math.max(0, value(effect.amount));
       const reduced = pending ? Math.max(0, pending.amount - cap) : 0;
       if (effect.bind)

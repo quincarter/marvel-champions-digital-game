@@ -1823,6 +1823,15 @@ export type EffectSpec =
        */
       readonly usesAtk?: true;
       readonly ignoreTough?: boolean;
+      /**
+       * "N unpreventable damage" (Luke Cage 62001a, Internal Injury 62028; docs/phase7-wave11-hero-packs.md §H3.3):
+       * the MC62 insert's "cannot be reduced or prevented", tough not removed. Implies `ignoreTough`; no constant
+       * reduction (`reduceDamageTaken`), `preventAllDamage`, attack prevention or prevent / reduce interrupt effect
+       * applies to it, while increases do, and so do "cannot" rules (`cannotTakeDamage`, `maxDamageTakenPerAttack`,
+       * `maxSustainedDamage`; RRG 1.8 "Cannot", p. 13). Redirects: owner question Q103, built at A (`unpreventable.ts`).
+       * `takeDamage` takes it too (`taken`).
+       */
+      readonly unpreventable?: boolean;
       readonly bind?: string;
       /**
        * The damage is the triggering damage event's own, redirected (Robert Kelly's "deal that damage to Robert Kelly"

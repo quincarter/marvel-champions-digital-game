@@ -54,6 +54,7 @@ import { resourcesChoiceOf, type AbilityDefinition } from "../abilities.js";
 import { chosenSizePayments } from "../payable.js";
 import { cannotEnterPlay, cannotPlayCard, revealCannotBeCanceled, triggeredAbilityForbidden } from "../rules.js";
 import { abilityLacksValidTarget } from "./target-validity.js";
+import { interruptBarredByUnpreventable } from "./unpreventable.js";
 import { KEYWORD_ABILITIES } from "../keyword-abilities.js";
 import { attackKeywordsOf, hasKeyword } from "../keywords.js";
 import { enteredPlaySince } from "../entered-since.js";
@@ -65,8 +66,12 @@ import { enteredPlaySince } from "../entered-since.js";
  * canceled.", `revealCannotBeCanceled`) it has no valid target, so it can't be initiated (RRG 1.8 "Initiating
  * Abilities", p. 24, step 2) and no cost is paid. Read from the ability's own top-level effects, where every printed
  * reveal cancel sits.
+ *
+ * Likewise an optional interrupt that could only reduce or prevent unpreventable damage has nothing it can do, so it is
+ * not offered (docs/phase7-wave11-hero-packs.md §H3.3, an engine interpretation; Q103: `unpreventable.ts`).
  */
 function cancelHasNoTarget(state: GameState, deps: EngineDeps, definition: AbilityDefinition, event: TriggerEvent) {
+  if (interruptBarredByUnpreventable(definition, event)) return true;
   if (event.kind === "boostCardTurnedFaceup") return boostAbilityCancelGone(state, definition, event.boostInstanceId);
   if (event.kind !== "encounterCardRevealing") return false;
   const cancels = definition.effects.some((e) => e.kind === "cancelWhenRevealed" || e.kind === "cancelRevealedCard");

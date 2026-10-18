@@ -1133,7 +1133,7 @@ function moveThreatLacksSource(
 type ThwartVerdict = "valid" | "invalid" | "unknown";
 
 /** The effect lists nested in this effect that resolve as part of the same resolution of the ability. */
-function nestedEffects(effect: EffectSpec): readonly (readonly EffectSpec[])[] {
+export function nestedEffects(effect: EffectSpec): readonly (readonly EffectSpec[])[] {
   switch (effect.kind) {
     case "if":
       return [effect.then, effect.otherwise ?? []];
@@ -1153,7 +1153,7 @@ function nestedEffects(effect: EffectSpec): readonly (readonly EffectSpec[])[] {
 }
 
 /** Every effect of the ability, the ones inside its branches, options and post-"then" text included. */
-function flattenEffects(effects: readonly EffectSpec[]): readonly EffectSpec[] {
+export function flattenEffects(effects: readonly EffectSpec[]): readonly EffectSpec[] {
   return effects.flatMap((effect) => [effect, ...nestedEffects(effect).flatMap(flattenEffects)]);
 }
 

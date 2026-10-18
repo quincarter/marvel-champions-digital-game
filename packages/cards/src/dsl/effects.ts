@@ -127,11 +127,14 @@ export const dealDamage = (
      */
     readonly additional?: boolean;
     readonly usesAtk?: boolean;
+    /** "N unpreventable damage" (docs/phase7-wave11-hero-packs.md §H3.3): `EffectSpec dealDamage.unpreventable`. */
+    readonly unpreventable?: boolean;
   } = {},
 ): EffectSpec => ({
   kind: "dealDamage",
   target,
   amount: amount(n),
+  ...(opts.unpreventable ? { unpreventable: true } : {}),
   ...(opts.additional ? { additional: true as const } : {}),
   ...(opts.fromAttack !== undefined ? { fromAttack: opts.fromAttack } : {}),
   // Not marked on an instruction kept out of the attack: that damage is no attack's.
@@ -144,12 +147,18 @@ export const dealDamage = (
 /**
  * "You take N damage" / "Take N damage": your identity takes it. `taken` (docs/phase7-wave6.md §3.41, §4.1 Q21): no
  * "that event deals N additional damage" bonus (Embiggen!, Cybernetic Arm, Aggressive Energy) adds to it.
+ * `unpreventable`: "take N unpreventable damage" (docs/phase7-wave11-hero-packs.md §H3.3).
  */
-export const takeDamage = (n: Amount, player: PlayerRef = you): EffectSpec => ({
+export const takeDamage = (
+  n: Amount,
+  player: PlayerRef = you,
+  opts: { readonly unpreventable?: boolean } = {},
+): EffectSpec => ({
   kind: "dealDamage",
   target: identityOf(player),
   amount: amount(n),
   taken: true,
+  ...(opts.unpreventable ? { unpreventable: true } : {}),
 });
 export const placeThreat = (n: Amount, target: TargetRef, opts: { readonly bind?: string } = {}): EffectSpec => ({
   kind: "placeThreat",
