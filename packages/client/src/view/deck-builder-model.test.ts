@@ -29,6 +29,7 @@ import {
   setName,
   touch,
 } from "./deck-builder-model.js";
+import { POOL_CARDS } from "../content/pool.js";
 
 const spiderMan = identityOptions(CORE_CARDS).find((c) => c.name === "Spider-Man")!;
 const NOW = "2026-09-13T00:00:00.000Z";
@@ -52,6 +53,11 @@ describe("identityOptions", () => {
     expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
     expect(names).toContain("Spider-Man");
     expect(names).toContain("Black Panther");
+  });
+
+  test("a progressing identity is one hero: Ironheart is listed once, as the version a deck names (#260)", () => {
+    const ironhearts = identityOptions(POOL_CARDS).filter((c) => c.name === "Ironheart");
+    expect(ironhearts.map((c) => c.id as string)).toEqual(["29001a"]);
   });
 });
 
