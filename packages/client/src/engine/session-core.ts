@@ -48,6 +48,8 @@ import {
 } from "@mc/engine";
 import type { BackOutTrailEntry } from "../view/back-out.js";
 import { sealForTable } from "../view/hidden-reverse.js";
+import type { PaymentState } from "../view/payment-model.js";
+import { judgePayment, type JudgedPayment } from "../view/payment-verdict.js";
 import { actingPlayer } from "./acting-player.js";
 import { emptyRecord, recordEvents, type GameRecord } from "./game-record.js";
 import { isCurrentSchema, SAVE_SCHEMA, type GameStorage, type SaveMeta, type SaveStatus } from "./game-storage.js";
@@ -460,6 +462,14 @@ export class EngineSessionCore {
 
   legalActions(playerId: PlayerId): LegalActions {
     return queryLegalActions(this.#require().state, playerId, POOL_DEPS);
+  }
+
+  /**
+   * Judges a pay step's picks against the full state (issue #258): the table only holds the sealed one, and this is
+   * the costly half of paying, so it runs here, off the main thread, tagged with the version it was judged at.
+   */
+  judgePayment(playerId: PlayerId, payment: PaymentState): JudgedPayment {
+    return { version: this.#version, verdict: judgePayment(this.#require().state, playerId, payment, POOL_DEPS) };
   }
 
   /**

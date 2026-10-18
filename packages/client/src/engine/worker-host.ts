@@ -19,6 +19,8 @@ import type {
   UpdateListener,
 } from "./host.js";
 import type { HostRequest, HostResponse } from "./protocol.js";
+import type { PaymentState } from "../view/payment-model.js";
+import type { JudgedPayment } from "../view/payment-verdict.js";
 import { SetupError, type Snapshot } from "./session-core.js";
 
 type Pending = {
@@ -80,6 +82,12 @@ export class WorkerEngineHost implements EngineHost {
     const response = await this.#request({ kind: "legalActions", id: this.#id(), playerId });
     if (response.kind !== "legalActions") throw new Error(`unexpected reply ${response.kind}`);
     return response.actions;
+  }
+
+  async judgePayment(playerId: PlayerId, payment: PaymentState): Promise<JudgedPayment> {
+    const response = await this.#request({ kind: "judgePayment", id: this.#id(), playerId, payment });
+    if (response.kind !== "paymentJudged") throw new Error(`unexpected reply ${response.kind}`);
+    return response.judged;
   }
 
   subscribe(listener: UpdateListener): () => void {

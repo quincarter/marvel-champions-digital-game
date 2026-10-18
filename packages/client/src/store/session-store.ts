@@ -28,6 +28,8 @@ import { emptyRecord, type GameRecord } from "../engine/game-record.js";
 import type { SaveMeta } from "../engine/game-storage.js";
 import type { EngineHost, EngineUpdate, LegalActionsFor, SavedGame, SessionConfig } from "../engine/host.js";
 import type { BackOutTrailEntry } from "../view/back-out.js";
+import type { PaymentState } from "../view/payment-model.js";
+import type { JudgedPayment } from "../view/payment-verdict.js";
 
 export type SessionStatus = "idle" | "starting" | "playing" | "failed";
 
@@ -273,6 +275,19 @@ export class SessionStore {
     if (this.#state.version !== version || !hasOffTurnAction(actions)) return false;
     this.#set({ ...this.#state, offTurnSeat: playerId, perspectiveId: playerId, legal: { playerId, actions } });
     return true;
+  }
+
+  /**
+   * The engine's verdict on a pay step's picks (issue #258), judged where the engine runs: off the main thread on the
+   * worker host. Tagged with the version it was judged at, so a caller can drop one the game has moved past.
+   */
+  judgePayment(playerId: PlayerId, payment: PaymentState): Promise<JudgedPayment> {
+    return this.#host.judgePayment(playerId, payment);
+  }
+
+  /** The same verdict at once, when the host runs the engine on this thread (tests, dev states); null otherwise. */
+  judgePaymentNow(playerId: PlayerId, payment: PaymentState): JudgedPayment | null {
+    return this.#host.judgePaymentNow?.(playerId, payment) ?? null;
   }
 
   /** Back to whoever must act, with the legal actions the host prefetched for them. */

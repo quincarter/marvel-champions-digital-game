@@ -155,7 +155,7 @@ export function drawPaymentBar(ctx: BoardDrawContext, rect: Rect, payment: Payme
       label: payment.payLabel ?? "Pay",
       type: typeRole.label,
       rect: payRect,
-      enabled: payment.command !== null,
+      enabled: payment.payReady,
       ...(payment.blockedBy ? { reason: payment.blockedBy } : {}),
       onClick: () => void controller.commitPayment(),
     }),
