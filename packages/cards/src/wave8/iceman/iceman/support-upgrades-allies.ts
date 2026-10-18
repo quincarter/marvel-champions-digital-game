@@ -77,7 +77,8 @@ export const attachFrostbite = (enemy: TargetRef): readonly EffectSpec[] => [
  * activates or leaves play, set this card aside", is `on.either(on.enemyActivates("host"), on.leavesPlay("host"))` with
  * `moveCards(cards(self), "setAside")`. The activation half includes Q35 = A (a copy attached during an activation, by a
  * basic defense or by Ice Wall, is set aside after that same activation: no grace activation). The leaves-play half:
- * the permanent copy stays in play unattached when its host leaves (RRG 1.8 "Permanent", p. 32), and the engine's
+ * the permanent copy stays in play unattached when its host leaves (`staysWhenHostLeaves`; the RRG 1.8 "Permanent" rule
+ * would remove it from the game, p. 32, but the card and its rules insert set it aside), and the engine's
  * `cardLeavesPlay` names the attachments it stranded, so the copy still reads the leaving card as its host and is set
  * aside (section 3.61).
  *
@@ -109,10 +110,12 @@ export const attachFrostbite = (enemy: TargetRef): readonly EffectSpec[] => [
 export const ICEMAN_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilities({
   "46002.frostbite-constant": constant(gets("sch", -1, THE_HOST_ENEMY), gets("atk", -1, THE_HOST_ENEMY)),
 
-  "46002.frostbite-forced-response": forcedResponse(
-    on.either(on.enemyActivates("host"), on.leavesPlay("host")),
-    moveCards(cards(self), "setAside"),
-  ),
+  // `staysWhenHostLeaves`: set aside by this response, not removed from the game by RRG 1.8 "Permanent" (p. 32), as the
+  // Iceman rules insert instructs (#238).
+  "46002.frostbite-forced-response": {
+    ...forcedResponse(on.either(on.enemyActivates("host"), on.leavesPlay("host")), moveCards(cards(self), "setAside")),
+    staysWhenHostLeaves: "leaves",
+  },
 
   "46003.snow-clone-constant": constant(
     rule({ kind: "cannotHaveAttachments", target: { self: true }, from: "upgrade" }),

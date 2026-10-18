@@ -28,6 +28,7 @@ import {
 } from "../../../testing/harness.js";
 import { driveEvents, moveToDiscard } from "../../../testing/staging.js";
 import { SM_CAMPAIGN_DEFINITION } from "../../../campaigns/sm.js";
+import { SHIELD_TECH_CAMPAIGN_CARDS } from "./shield-tech.js";
 import { runWave5, startWave5Game, WAVE5_DEPS } from "../../testing.js";
 import { WAVE5_CARDS } from "../../index.js";
 import { ghostSpiderScenario, ghostSpiderScenarioWithExtras } from "../ghost-spider/support.js";
@@ -534,10 +535,18 @@ describe("Wrist Navigator (27189a / 27189b)", () => {
     // in for `defeatWithAttack`, which declines every optional trigger by default).
     const defeated = defeatWithAttackAccepting(revealed, attachedHost!, "27189a.wrist-navigator-interrupt");
     expect(playerOf(defeated, P1).hand.length).toBe(handBefore + 1);
-    // A permanent player attachment stays in play, unattached, in its controller's play area (`on.attachedCardDefeated`'s
-    // own doc comment) — the parenthetical "(Return this card to your play area.)" is `coveredByEngineRule`.
+    // "(Return this card to your play area.)": its host was defeated, so it stays in play, unattached, in its
+    // controller's play area (`staysWhenHostLeaves: "defeated"`) rather than being removed from the game (#238).
     expect(inst(defeated, withNav.id).attachedTo).toBeNull();
     expect(playerOf(defeated, P1).playArea).toContain(withNav.id);
+    expect(defeated.removedFromGame).not.toContain(withNav.id);
+  });
+
+  it("its return is marked for a defeat only, so a host that leaves play another way strands it (RRG 1.8 'Permanent', p. 32)", () => {
+    // The engine side of a non-defeat leaving is `packages/engine/src/attached-player-card-returns.test.ts` (a discarded
+    // side scheme removes it from the game).
+    expect(SHIELD_TECH_CAMPAIGN_CARDS["27189a.wrist-navigator-interrupt"]?.staysWhenHostLeaves).toBe("defeated");
+    expect(SHIELD_TECH_CAMPAIGN_CARDS["27189b.wrist-navigator-interrupt"]?.staysWhenHostLeaves).toBe("defeated");
   });
 
   it("Enhanced back: Interrupt draws 2 cards, then discards 1 (27189b.wrist-navigator-forced-response, -interrupt)", () => {

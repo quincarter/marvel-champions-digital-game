@@ -27,6 +27,7 @@ const named = (name: string): TargetRef => ({ kind: "each", query: { name } });
 const CHILL_RESPONSE = stubAbility("chill.forced-response", {
   trigger: { kind: "response", forced: true, on: { on: "cardLeavesPlay", targetIs: { hostOfSelf: true } } },
   effects: [{ kind: "moveCards", cards: { kind: "ref", ref: { kind: "self" } }, to: "setAside" }],
+  staysWhenHostLeaves: "leaves",
 });
 const CHILL = stubUpgrade({
   id: "chill",
@@ -34,6 +35,13 @@ const CHILL = stubUpgrade({
   keywords: [{ name: "permanent" }],
   abilities: [CHILL_RESPONSE.ref],
 });
+// "Permanent. Forced Response: After attached enemy leaves play, draw 1 card." It answers its host leaving but says
+// nothing of where it goes, so it is not marked `staysWhenHostLeaves`: removed from the game like any other (#238).
+const SPARK_RESPONSE = stubAbility("spark.forced-response", {
+  trigger: { kind: "response", forced: true, on: { on: "cardLeavesPlay", targetIs: { hostOfSelf: true } } },
+  effects: [{ kind: "draw", player: { kind: "controller" }, amount: { kind: "const", value: 1 } }],
+});
+const SPARK = stubUpgrade({ id: "spark", cost: 0, keywords: [{ name: "permanent" }], abilities: [SPARK_RESPONSE.ref] });
 // Permanent with no ability and no "attach to" text: removed from the game when its host leaves.
 const BADGE = stubUpgrade({ id: "badge", cost: 0, keywords: [{ name: "permanent" }] });
 // "Permanent. Attach to a minion." with no ability: moved to another minion when its host leaves, if there is one.
@@ -53,37 +61,48 @@ const attach = (card: string, host: string) =>
 const CHILL_ON_THUG = attach("chill", "thug");
 const BADGE_ON_THUG = attach("badge", "thug");
 const CLAMP_ON_THUG = attach("clamp", "thug");
+const SPARK_ON_THUG = attach("spark", "thug");
 const DEFEAT_THUG = event("defeat-thug", [{ kind: "defeat", target: named("thug") }]);
 const DEFEAT_GOON = event("defeat-goon", [{ kind: "defeat", target: named("goon") }]);
 const BOUNCE_THUG = event("bounce-thug", [
   { kind: "moveCards", cards: { kind: "ref", ref: named("thug") }, to: "encounterDeckShuffle" },
 ]);
-const EVENTS = [CHILL_ON_THUG, BADGE_ON_THUG, CLAMP_ON_THUG, DEFEAT_THUG, DEFEAT_GOON, BOUNCE_THUG];
+const EVENTS = [CHILL_ON_THUG, BADGE_ON_THUG, CLAMP_ON_THUG, SPARK_ON_THUG, DEFEAT_THUG, DEFEAT_GOON, BOUNCE_THUG];
 
-const deps: EngineDeps = depsOf(CHILL_RESPONSE, ...EVENTS.map((e) => e.ability));
+const deps: EngineDeps = depsOf(CHILL_RESPONSE, SPARK_RESPONSE, ...EVENTS.map((e) => e.ability));
 
 interface Table {
   readonly state: GameState;
   readonly chill: InstanceId;
   readonly badge: InstanceId;
   readonly clamp: InstanceId;
+  readonly spark: InstanceId;
   readonly thug: InstanceId;
   readonly goon: InstanceId;
 }
 
 function start(): Table {
   const state = gameAtFirstTurn({
-    cards: [CHILL, BADGE, CLAMP, THUG, GOON, ...EVENTS.map((e) => e.card)],
+    cards: [CHILL, BADGE, CLAMP, SPARK, THUG, GOON, ...EVENTS.map((e) => e.card)],
     deps,
     encounter: [...copiesOf(TREACHERY.id, 28), THUG.id, GOON.id],
-    deck: [CHILL.id, BADGE.id, CLAMP.id, ...EVENTS.map((e) => e.card.id)],
+    deck: [CHILL.id, BADGE.id, CLAMP.id, SPARK.id, ...EVENTS.map((e) => e.card.id)],
   });
   const chill = playerCardIntoPlay(state, CHILL.id);
   const badge = playerCardIntoPlay(chill.state, BADGE.id);
   const clamp = playerCardIntoPlay(badge.state, CLAMP.id);
-  const thug = minionEngagedWith(clamp.state, THUG.id);
+  const spark = playerCardIntoPlay(clamp.state, SPARK.id);
+  const thug = minionEngagedWith(spark.state, THUG.id);
   const goon = minionEngagedWith(thug.state, GOON.id);
-  return { state: goon.state, chill: chill.id, badge: badge.id, clamp: clamp.id, thug: thug.id, goon: goon.id };
+  return {
+    state: goon.state,
+    chill: chill.id,
+    badge: badge.id,
+    clamp: clamp.id,
+    spark: spark.id,
+    thug: thug.id,
+    goon: goon.id,
+  };
 }
 
 const play = (state: GameState, ...cards: readonly { readonly card: { readonly id: string } }[]) => {
@@ -165,6 +184,13 @@ describe("a permanent attachment whose host leaves play resolves its 'attach to'
     const after = play(attached, DEFEAT_THUG).state;
     expect(mustInstance(after, table.clamp).attachedTo).toBe(table.goon);
     expect(after.removedFromGame).not.toContain(table.clamp);
+  });
+
+  it("one whose own response to its host leaving does not say where it goes is removed from the game", () => {
+    const table = start();
+    const after = play(table.state, SPARK_ON_THUG, DEFEAT_THUG).state;
+    expect(mustPlayer(after, P1).playArea).not.toContain(table.spark);
+    expect(after.removedFromGame).toContain(table.spark);
   });
 
   it("one whose 'attach to' text has no valid target left is removed from the game", () => {

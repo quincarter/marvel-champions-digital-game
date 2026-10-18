@@ -3477,6 +3477,19 @@ export type ResourceGeneration =
 export interface AbilityDefinition {
   readonly trigger: AbilityTriggerSpec;
   /**
+   * This interrupt or response is the card's own printed answer to the card it is attached to leaving play, which needs
+   * the card to stay in play, unattached, rather than be removed from the game as RRG 1.8 "Permanent" (p. 32) has a
+   * stranded permanent attachment with no "attach to" target (`removedWithoutHost`, `effects.ts`; #238). Set by the
+   * scripts of the cards whose text says where they go instead, for the leaving their text names: `"leaves"`, however
+   * the host leaves play (Frostbite, `iceman` 46002: "After attached enemy … leaves play, set this card aside", as the
+   * Iceman rules insert also instructs); `"defeated"`, only when the host is defeated (Wrist Navigator, `sm` 27189a/b:
+   * "Interrupt: When the attached card is defeated, draw 1 card. (Return this card to your play area.)"), so a host
+   * that leaves another way strands it under the RRG. Card text over the Rules Reference (RRG 1.8 "The Golden Rules",
+   * p. 4). Not inferred from the trigger: another card that only answers its host leaving ("draw 1 card") is still
+   * removed from the game (owner, 2026-10-18).
+   */
+  readonly staysWhenHostLeaves?: "leaves" | "defeated";
+  /**
    * The ability "refers to the mission area" though its printed words do not name it card by card (MC45 p. 5: cards
    * there "cannot be affected by card abilities unless the ability refers to the mission area";
    * docs/phase7-wave8.md §3.33, §4.1 Q19 = B): every query, host reference and target ref of this ability may match

@@ -1,7 +1,7 @@
 import type { CardId, VillainSideLetter } from "@mc/content";
 import { shownCardId } from "./hidden-reverse.js";
 import { announceDeckTops } from "./deck-top.js";
-import type { EngineDeps, EventPattern } from "./abilities.js";
+import type { EngineDeps } from "./abilities.js";
 import { ALL_PURPOSE_COUNTER, ANY_COUNTER, anyCounterTake, definedCounterTypeOrNull } from "./counter-types.js";
 import { counterRoom } from "./counter-limit.js";
 import type { EncounterDeckId, FrameId, InstanceId, PlayerId } from "./ids.js";
@@ -46,7 +46,6 @@ import {
   type LeavePatch,
   type LeaveRequest,
   type TriggerEvent,
-  type TriggerEventKind,
   type TuckHostKind,
 } from "./trigger-events.js";
 import { nextInt, shuffle } from "./rng.js";
@@ -1528,33 +1527,33 @@ function strandedAttachmentsOf(state: GameState, deps: EngineDeps, hostId: Insta
  * not have a valid target, remove the attachment from the game." Before #238 the engine left it unattached in its
  * controller's play area (docs/phase7-wave5.md §3.30).
  *
- * Not a card whose own text answers its host leaving (`answersHostLeaving`): Frostbite (`iceman` 46002, "Forced
- * Response: After attached enemy … leaves play, set this card aside") and Wrist Navigator (`sm` 27189a, "When the
- * attached card is defeated, draw 1 card. (Return this card to your play area.)"). Card text takes precedence over the
- * Rules Reference where they contradict (RRG 1.8 "The Golden Rules", p. 4), and removing either card at once would
- * leave its printed ability nothing to do, so it stays unattached in play for that ability (engine interpretation, no
- * ruling covers either card). "Cannot leave play" stays absolute (RRG 1.8 "'Cannot'", p. 11). An unowned permanent
- * encounter attachment keeps its own fallback (`discardedWithoutHost`).
+ * Not a card whose own printed answer to its host leaving needs it to stay in play (`AbilityDefinition
+ * staysWhenHostLeaves`: Frostbite, `iceman` 46002, however its host leaves; Wrist Navigator, `sm` 27189a, when its host
+ * is defeated). Card text takes precedence over the
+ * Rules Reference where they contradict (RRG 1.8 "The Golden Rules", p. 4); no ruling covers either card, so this is
+ * an engine interpretation, kept to those cards (owner, 2026-10-18). "Cannot leave play" stays absolute (RRG 1.8
+ * "'Cannot'", p. 11). An unowned permanent encounter attachment keeps its own fallback (`discardedWithoutHost`).
  */
 function removedWithoutHost(state: GameState, deps: EngineDeps, id: InstanceId): boolean {
   const instance = getInstance(state, id);
   if (!instance || !isPermanent(state, id, deps) || cannotLeavePlay(state, deps, id, undefined, true)) return false;
   if (playerCardOwnerOf(state, id) === null && instance.controllerId === null) return false;
-  return !answersHostLeaving(state, deps, id);
+  return !staysForOwnText(state, deps, id, instance.attachedTo);
 }
 
-const HOST_LEAVING: readonly TriggerEventKind[] = ["cardLeavesPlay", "characterDefeated", "schemeDefeated"];
-
-/** Whether one of the card's abilities is an interrupt or response to the card it is attached to leaving play. */
-function answersHostLeaving(state: GameState, deps: EngineDeps, id: InstanceId): boolean {
-  const hears = (pattern: EventPattern): boolean => {
-    const kinds: readonly TriggerEventKind[] = typeof pattern.on === "string" ? [pattern.on] : pattern.on;
-    if (pattern.targetIs?.hostOfSelf === true && kinds.some((kind) => HOST_LEAVING.includes(kind))) return true;
-    return (pattern.anyOf ?? []).some(hears);
-  };
+/**
+ * Whether one of the card's active interrupts or responses is marked `staysWhenHostLeaves` for this leaving: any
+ * leaving for `"leaves"`, a defeat of the host for `"defeated"` (its When Defeated step is on the stack,
+ * `leaveAfterWhenDefeated`).
+ */
+function staysForOwnText(state: GameState, deps: EngineDeps, id: InstanceId, hostId: InstanceId | null): boolean {
+  const defeated =
+    hostId !== null && state.stack.some((frame) => frame.kind === "effects" && frame.defeatedLeaving === hostId);
   return activeAbilityRefs(state, id, deps).some((ref) => {
-    const trigger = deps.abilities[ref.id]?.trigger;
-    return (trigger?.kind === "interrupt" || trigger?.kind === "response") && hears(trigger.on);
+    const definition = deps.abilities[ref.id];
+    const kind = definition?.trigger.kind;
+    if (kind !== "interrupt" && kind !== "response") return false;
+    return definition?.staysWhenHostLeaves === "leaves" || (definition?.staysWhenHostLeaves === "defeated" && defeated);
   });
 }
 

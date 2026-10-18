@@ -195,19 +195,24 @@ export const SHIELD_TECH_CAMPAIGN_CARDS = defineAbilities({
   // --- Wrist Navigator (27189a / 27189b) ------------------------------------------------------------------------
   // "Setup. Permanent.\nForced Response: After a minion or side scheme enters play, attach Wrist Navigator to
   // it.\nInterrupt: When the attached card is defeated, draw 1 card. (Return this card to your play area.)" —
-  // the parenthetical is `coveredByEngineRule` (module docblock, `dsl/abilities.ts`'s own `on.attachedCardDefeated`
-  // doc comment): a permanent player-owned attachment already stays in play, unattached, in its controller's play
-  // area when its host leaves play (`packages/engine/src/effects.ts`'s `discardWithLeavingHost`/
-  // `staysInPlayWithoutHost`), so only the draw is scripted.
+  // the parenthetical is `staysWhenHostLeaves: "defeated"`: when the attached card is defeated the engine unattaches it
+  // into its controller's play area (`discardWithLeavingHost`, `packages/engine/src/effects.ts`). A host that leaves
+  // play any other way is not covered by this text, so RRG 1.8 "Permanent" (p. 32) removes it from the game (#238).
   "27189a.wrist-navigator-forced-response": forcedResponse(
     on.entersPlay(query(["minion", "sideScheme"])),
     attachCard(self, eventTarget),
   ),
-  "27189a.wrist-navigator-interrupt": interrupt(on.attachedCardDefeated(), draw(1)),
+  "27189a.wrist-navigator-interrupt": {
+    ...interrupt(on.attachedCardDefeated(), draw(1)),
+    staysWhenHostLeaves: "defeated",
+  },
   // Enhanced back — "Interrupt: … draw 2 cards, then discard 1 card from your hand."
   "27189b.wrist-navigator-forced-response": forcedResponse(
     on.entersPlay(query(["minion", "sideScheme"])),
     attachCard(self, eventTarget),
   ),
-  "27189b.wrist-navigator-interrupt": interrupt(on.attachedCardDefeated(), draw(2), discardFromHand(1)),
+  "27189b.wrist-navigator-interrupt": {
+    ...interrupt(on.attachedCardDefeated(), draw(2), discardFromHand(1)),
+    staysWhenHostLeaves: "defeated",
+  },
 });

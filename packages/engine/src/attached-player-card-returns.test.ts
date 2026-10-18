@@ -5,7 +5,8 @@
  * this card to your play area.)").
  *
  * Sources: RRG 1.8 "Attach To" (p. 8: the attached card is discarded when its host leaves play), "Permanent" (p. 32: it
- * cannot leave play except by card abilities in its own set), "Ownership and Control" (p. 31: control stays constant;
+ * cannot leave play except by card abilities in its own set; stranded with no "attach to" target, it is removed from
+ * the game, unless, as here, its own text returns it when the host is defeated: `staysWhenHostLeaves`), "Ownership and Control" (p. 31: control stays constant;
  * an encounter card is controlled by the scenario, not a player, so the upgrade's owner keeps it).
  */
 
@@ -41,6 +42,8 @@ const NAVIGATOR_INTERRUPT = stubAbility("navigator.interrupt", {
     on: { on: ["characterDefeated", "schemeDefeated"], targetIs: { hostOfSelf: true } },
   },
   effects: [{ kind: "draw", player: { kind: "controller" }, amount: { kind: "const", value: 1 } }],
+  // "(Return this card to your play area.)", for a defeat only (#238).
+  staysWhenHostLeaves: "defeated",
 });
 const NAVIGATOR = stubUpgrade({
   id: "navigator",
@@ -145,7 +148,10 @@ describe("§3.30 a player card attached to an encounter card, returned when its 
     expect(replayed.state).toEqual(session.state);
   });
 
-  it("a defeated side scheme fires the interrupt too; a discarded one returns it without the draw", () => {
+  // Its return is printed beside a defeat interrupt only ("When the attached card is defeated … (Return this card to
+  // your play area.)"), so a host discarded without being defeated strands it: RRG 1.8 "Permanent" (p. 32) removes it
+  // from the game (#238).
+  it("a defeated side scheme fires the interrupt too; a discarded one is no defeat, so it is removed from the game", () => {
     const table = start();
     const onPlot = play(table.state, NAVIGATOR_ON_PLOT).state;
     expect(mustInstance(onPlot, table.navigator).attachedTo).toBe(table.plot);
@@ -160,8 +166,8 @@ describe("§3.30 a player card attached to an encounter card, returned when its 
     expect(resolved(discard.events)).not.toContain("navigator.interrupt");
     const discarded = discard.state;
     expect(discarded.villainArea).not.toContain(table.plot);
-    expect(mustInstance(discarded, table.navigator).attachedTo).toBeNull();
-    expect(mustPlayer(discarded, P1).playArea).toContain(table.navigator);
+    expect(mustPlayer(discarded, P1).playArea).not.toContain(table.navigator);
+    expect(discarded.removedFromGame).toContain(table.navigator);
   });
 
   it("a player upgrade without permanent is discarded with its host (RRG 1.8 'Attach To', p. 8)", () => {

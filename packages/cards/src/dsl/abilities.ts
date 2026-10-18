@@ -3451,7 +3451,8 @@ export const on = {
   /**
    * "When the attached card is defeated" on a card that attaches to a minion or a side scheme (Wrist Navigator, `sm`
    * 27189a; docs/phase7-wave5.md §3.30): a character's defeat or a scheme's, the host still attached as it opens. A
-   * permanent attachment then stays in play, unattached, in its controller's play area.
+   * permanent attachment stays in play, unattached, in its controller's play area only if its script marks the ability
+   * `staysWhenHostLeaves: "defeated"`; otherwise RRG 1.8 "Permanent" (p. 32) removes it from the game (#238).
    */
   attachedCardDefeated: (): EventPattern => pattern(["characterDefeated", "schemeDefeated"], asTarget("host")),
   /**
