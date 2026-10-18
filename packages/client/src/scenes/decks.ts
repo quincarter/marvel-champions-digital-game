@@ -529,11 +529,20 @@ export class DecksScene extends Phaser.Scene {
    * screen drew (#226). With no worker the answer comes back before this returns and nothing is redrawn.
    */
   #askStatuses(): void {
-    const decks = [
+    const listed = [
       ...preconDecks(POOL_VERSION),
       ...this.#savedDecks,
       ...communityDecks().map((entry) => communityDeckAsDeck(entry, POOL_VERSION)),
-    ].filter(
+    ];
+    // The selected deck (the first row until one is picked) is checked here at once: its pane and "Play this deck" act
+    // on it, and a deck still being checked can't be seated.
+    const shownId = this.#selectedDeckId ?? this.#data.focusDeckId ?? null;
+    const shown = shownId === null ? listed[0] : listed.find((deck) => (deck.id as string) === shownId);
+    if (shown && cachedDeckOption(shown, POOL_CARDS, POOL_VERSION, POOL_DEPS) === null) {
+      deckOptionOf(shown, POOL_CARDS, POOL_VERSION, POOL_DEPS);
+      this.#statusEpoch += 1;
+    }
+    const decks = listed.filter(
       (deck) => !this.#statusAsked.has(deck) && cachedDeckOption(deck, POOL_CARDS, POOL_VERSION, POOL_DEPS) === null,
     );
     if (decks.length === 0) return;

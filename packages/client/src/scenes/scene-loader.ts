@@ -140,12 +140,14 @@ export function installSceneLoader(game: Phaser.Game, ScenePlugin: typeof Phaser
   };
   for (const name of ["start", "launch", "run", "switch", "bringToTop"] as const) wrap(name);
 
-  // `game.scene.start("X")` from the console or a test reaches the manager directly.
+  // `game.scene.start("X")` from the console or a test reaches the manager directly. It needs the scene's companions
+  // as much as the Scene Plugin's start does: the Board reads the villain phase sheet in `create`.
   for (const name of ["start", "run"] as const) {
     const original = manager[name].bind(manager) as (key: Key, data?: object) => unknown;
     (manager as unknown as Record<string, unknown>)[name] = (key: Key, data?: object): unknown => {
-      if (isLazy(key) && !isRegistered(key)) {
-        void load(key).then(() => original(key, data));
+      const keys = typeof key === "string" ? missing(needed(key)) : [];
+      if (keys.length > 0) {
+        void Promise.all(keys.map(load)).then(() => original(key, data));
         return manager;
       }
       return original(key, data);
