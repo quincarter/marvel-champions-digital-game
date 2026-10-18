@@ -3,13 +3,15 @@
 //! the mixer. It is the game's entry there, never the computer's master volume.
 //!
 //! The game's sound plays through WebView2, whose processes are children of this one, so every audio session on the
-//! default output device whose process is this one or a descendant is the game's. Elsewhere (macOS, Linux) there is no
+//! default output device whose process is this one or a descendant is the game's. Those sessions belong to WebView2's
+//! own audio process, so Windows would list them in the mixer as "Microsoft Edge WebView2" with Edge's icon; each one is
+//! named and iconed as the game when it is found, so the mixer shows Marvel Champions. Elsewhere (macOS, Linux) there is no
 //! such mixer here: `app_volume` answers `None` and the game keeps its own in-game music volume.
 
 #[cfg(windows)]
 mod imp {
   use std::collections::{HashMap, HashSet};
-  use windows::core::Interface;
+  use windows::core::{Interface, HSTRING};
   use windows::Win32::Foundation::CloseHandle;
   use windows::Win32::Media::Audio::{
     eConsole, eRender, IAudioSessionControl2, IAudioSessionManager2, IMMDeviceEnumerator, ISimpleAudioVolume,
@@ -73,6 +75,11 @@ mod imp {
         let Ok(control2) = control.cast::<IAudioSessionControl2>() else { continue };
         let Ok(pid) = control2.GetProcessId() else { continue };
         if ours.contains(&pid) {
+          // The game's own name and icon in the mixer, not WebView2's. Best effort: a refusal leaves it as it was.
+          let _ = control.SetDisplayName(&HSTRING::from("Marvel Champions"), std::ptr::null());
+          if let Ok(exe) = std::env::current_exe() {
+            let _ = control.SetIconPath(&HSTRING::from(format!("{},0", exe.display())), std::ptr::null());
+          }
           found.push(control.cast::<ISimpleAudioVolume>()?);
         }
       }

@@ -32,6 +32,7 @@ import {
 import { extras } from "../progression/progression.js";
 import { earnedSongsOf, musicGainOf, nextShuffled } from "../view/music-player.js";
 import { SOUND_EFFECT_VOLUME, type SoundEffect } from "../view/sound-effects.js";
+import { followsWindowsMixer, readMixerVolume } from "../platform/app-volume.js";
 import extrasUnlockedUrl from "./sfx/extras-unlocked.mp3?url";
 import handRefillUrl from "./sfx/hand-refill.mp3?url";
 import basicAttackUrl from "./sfx/basic-attack.mp3?url";
@@ -122,6 +123,7 @@ export class MusicScene extends Phaser.Scene implements MusicController {
   #targetVolume = DEFAULT_MUSIC_VOLUME;
   #shuffleOn = false;
   #paused = false;
+  #mixerNamed = false;
   /** The shuffle's songs still to come this round. */
   #queue: Track[] = [];
   /** The current screen's own music request, made again when shuffle is turned off. */
@@ -138,6 +140,9 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     // Nothing here is drawn, and saying so matters: `McTextInput` hides its DOM field under any *visible* scene
     // running above its own, and this one runs above every screen for the whole session (`ui/widgets.ts`).
     this.sys.setVisible(false);
+    // Phaser pauses every sound while the page is out of focus; the music keeps playing behind another window, as a
+    // game's does, and the music player's Pause is the way to stop it (#243).
+    this.sound.pauseOnBlur = false;
     appSession().music = this;
     this.#shuffleOn = appSession().settings.musicShuffle;
     this.syncSettings(appSession().settings);
@@ -471,6 +476,11 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     newSound.play();
     if (this.#paused) newSound.pause();
     this.#currentSound = newSound;
+    // In the Windows app the game's mixer entry exists from its first sound: name it as the game there now.
+    if (!this.#mixerNamed && followsWindowsMixer()) {
+      this.#mixerNamed = true;
+      this.time.delayedCall(1500, () => void readMixerVolume());
+    }
     for (const listener of this.#listeners) listener(track);
 
     if (duration > 0) {
