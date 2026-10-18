@@ -71,6 +71,7 @@ import {
   attackUsesAtk,
   damageUsedStat,
   lostAttackKeywords,
+  statUsedInPlaceOf,
 } from "../rules.js";
 import {
   actingCharacterOf,
@@ -2350,7 +2351,13 @@ function applyPlayerAttack(
     (attackFrame.vars.useThw ?? 0) > 0;
   // "Havok gets +1 ATK for this attack" (Havok, `storm` 36014): `modifyAttack.atkBonus` on this attack's own frame,
   // part of ATK, so it counts only when the attack deals the attacker's ATK (not an effect's fixed amount, not THW).
-  const atkBonus = attackFrame?.kind === "event" ? (attackFrame.vars.atkBonus ?? 0) : 0;
+  // An attacker using another stat in place of its ATK (`RuleSpec statInPlaceOf`, "Use your DEF in place of your THW and
+  // ATK. (Ignore any modifiers to your THW and ATK.)", docs/phase7-wave11.md §3.10) ignores it: it is an ATK modifier.
+  const atkBonus =
+    attackFrame?.kind === "event" &&
+    statUsedInPlaceOf(ctx.state, ctx.deps, event.attackerInstanceId, "atk") === undefined
+      ? (attackFrame.vars.atkBonus ?? 0)
+      : 0;
   const computed = useThw
     ? profile?.thw
     : (event.amount ?? (profile === undefined ? undefined : Math.max(0, profile.atk + atkBonus)));

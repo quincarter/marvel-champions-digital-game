@@ -349,6 +349,7 @@ export type {
   TargetQuery,
   TargetRef,
   ValueSpec,
+  AttachCategory,
 } from "./spec.js";
 
 /**

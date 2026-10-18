@@ -18,6 +18,7 @@ import { EngineInvariantError } from "./errors.js";
 import type { EncounterDeckId, InstanceId, PlayerId } from "./ids.js";
 import { baseOverride, statBonus } from "./modifiers.js";
 import { podOf, type SharedPodState } from "./pod.js";
+import { statUsedInPlaceOf } from "./rules.js";
 import { perPlayerCount } from "./team.js";
 import { EMPTY_POOL, printedResources, type ResourcePool } from "./resources.js";
 import type { SchemeValueName } from "./spec.js";
@@ -852,6 +853,26 @@ export interface CharacterProfile {
  * no modifier or override touches it.
  */
 function modifiedStat(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  printed: CharacterProfile,
+  stat: "atk" | "thw" | "def" | "rec" | "sch",
+): number {
+  if ((printed.missing as readonly string[]).includes(stat)) return 0;
+  // "Use your DEF in place of your THW and ATK. (Ignore any modifiers to your THW and ATK.)" (docs/phase7-wave11.md
+  // §3.10, ruling June 25, 2026 - Ruling 3): the other stat as it stands, this stat's own base and modifiers unread.
+  const inPlace = statUsedInPlaceOf(state, deps, id, stat);
+  if (inPlace !== undefined) return modifiedStatPlain(state, deps, id, printed, inPlace);
+  return modifiedStatPlain(state, deps, id, printed, stat);
+}
+
+/**
+ * `modifiedStat` without the `statInPlaceOf` swap: the stat's own base and modifiers. A replaced stat printed as a dash
+ * stays 0 (the check in `modifiedStat` runs first): engine interpretation, from RRG 1.8 "Dash (Value)" (p. 15), "treated
+ * as an unmodifiable 0", since no ruling says whether "use X in place of" overrides a dash. No hero prints one.
+ */
+function modifiedStatPlain(
   state: GameState,
   deps: EngineDeps,
   id: InstanceId,

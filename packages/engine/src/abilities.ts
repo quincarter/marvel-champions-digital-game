@@ -1430,6 +1430,28 @@ export type RuleSpec =
   /** "When a character thwarts this side scheme, they may use their ATK instead of their THW" (The Red House): `basicThwart.useAtk`. */
   | { readonly kind: "thwartWithAtk"; readonly scheme: TargetQuery; readonly while?: Predicate }
   /**
+   * "Use your DEF in place of your THW and ATK. (Ignore any modifiers to your THW and ATK.)" (The Best Offense...,
+   * `fne` 60052; docs/phase7-wave11.md §3.10): `{ target, stats: ["thw", "atk"], use: "def" }`. Each read of a listed
+   * stat of a matching character (`query.ts characterStat` / `characterProfile`, so every basic power, every "equal to
+   * your ATK" and every effect that names the stat) is that character's `use` stat as it stands, its own modifiers
+   * included; the listed stat's base override and modifiers are ignored. Ruling June 25, 2026 - Ruling 3 (on RRG 1.8
+   * "Thwart", p. 43, and "Attack", p. 8): basic thwart thwarts for the DEF, Go All Out uses the DEF for its THW, ATK
+   * and DEF, As One! uses the DEF in place of the ATK. Not a choice and not one use, unlike `modifyBasicPower.useStat`
+   * and `thwartWithAtk`. The `use` stat itself is read plainly, never through another such rule. Consequential damage
+   * is unchanged (the power used still decides it, docs/phase7-wave6.md §4.1 Q22). A `modifyAttack.atkBonus` on the
+   * attack is an ATK modifier too, so it is ignored (`resolve/event.ts`).
+   *
+   * `target` and `while` must not read a character's stats (a `stat` value, a stat comparison): the rule is consulted
+   * inside every stat read, so such a read would recurse.
+   */
+  | {
+      readonly kind: "statInPlaceOf";
+      readonly target: TargetQuery;
+      readonly stats: readonly ("atk" | "thw" | "def" | "rec" | "sch")[];
+      readonly use: "atk" | "thw" | "def" | "rec" | "sch";
+      readonly while?: Predicate;
+    }
+  /**
    * "Each of your [Arrow] attacks gain ranged" (Hawkeye's Bow): an `AttackKeyword` granted to *attacks*, not to a
    * character. RRG 1.8 defines piercing, ranged and overkill as properties of an attack ("An attack with the …
    * keyword"), so a grant can be keyed on either end of one:

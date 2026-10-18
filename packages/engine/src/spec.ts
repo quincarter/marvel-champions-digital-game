@@ -90,6 +90,12 @@ export type TargetCategory =
   | "obligation"
   | "environment";
 
+/**
+ * A kind of card an "attach to" text may allow, as `TargetQuery.canAttachToCategory` asks it: "an upgrade that can be
+ * attached to an ally" (docs/phase7-wave8.md §3.59), "… to a minion or side scheme" (docs/phase7-wave11.md §3.11).
+ */
+export type AttachCategory = "ally" | "minion" | "sideScheme";
+
 /** A data filter over card instances. `chooseTarget` and constant modifiers both use it. */
 export interface TargetQuery {
   readonly categories?: readonly TargetCategory[];
@@ -223,8 +229,12 @@ export interface TargetQuery {
    *
    * A card with no "attach to" text never matches: an upgrade without one attaches to its controller's identity
    * (RRG 1.8 "Upgrade", p. 46). Exclusion `cannotAttachTo`. docs/phase7-wave8.md §3.59.
+   *
+   * Widened in wave 11 (docs/phase7-wave11.md §3.11): "an upgrade in your hand that can attach to a minion or side
+   * scheme" (Contingency Planning, `fne` 60030) is `canAttachToCategory: ["minion", "sideScheme"]`; a list matches a
+   * card whose text allows any one of them. Same card-data reading (Q30 = A): no minion or side scheme in play needed.
    */
-  readonly canAttachToCategory?: "ally";
+  readonly canAttachToCategory?: AttachCategory | readonly AttachCategory[];
   /**
    * The candidate is a card the unique rule lets enter play under this player: "chooses 1 set-aside [trait] upgrade
    * and puts it into play under their control" offers no unique card that matches a card already in play (RRG 1.8

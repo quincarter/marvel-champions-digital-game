@@ -1136,6 +1136,24 @@ export function lostAttackKeywords(state: GameState, deps: EngineDeps, targetId:
   return lost;
 }
 
+/**
+ * The stat a character reads in place of `stat` (`RuleSpec statInPlaceOf`, docs/phase7-wave11.md §3.10: "Use your DEF
+ * in place of your THW and ATK"), or undefined when none applies. A stat never stands in for itself; with several rules
+ * the first in play order decides.
+ */
+export function statUsedInPlaceOf(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  stat: "atk" | "thw" | "def" | "rec" | "sch",
+): "atk" | "thw" | "def" | "rec" | "sch" | undefined {
+  const found = activeRules(state, deps, "statInPlaceOf").find(
+    ({ rule, context }) =>
+      rule.use !== stat && rule.stats.includes(stat) && matchesQuery(state, id, rule.target, context),
+  );
+  return found?.rule.use;
+}
+
 /** Whether a basic thwart against this scheme may use ATK instead of THW (`thwartWithAtk`). */
 export const mayThwartWithAtk = (state: GameState, deps: EngineDeps, schemeId: InstanceId): boolean =>
   activeRules(state, deps, "thwartWithAtk").some(({ rule, context }) =>

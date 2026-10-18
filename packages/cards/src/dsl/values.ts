@@ -10,6 +10,7 @@ import {
   UNRESOLVED_VAR,
 } from "@mc/engine";
 import type {
+  AttachCategory,
   BasicPowerName,
   CardIcon,
   CharacterNames,
@@ -359,9 +360,13 @@ export const canAttachTo = (host: TargetRef): Pick<TargetQuery, "canAttachTo"> =
  * `query("upgrade", canAttachToCategory("ally"))`. The upgrade's own printed "attach to" allows an ally, read from card
  * data with no card in play consulted (§4.1 Q30 = A), so it matches with no ally in play; an upgrade with no "attach
  * to" text (it goes by its controller's identity) does not. `canAttachTo(ref)` asks about named cards in play instead.
+ * Several categories are "any of them": "an upgrade in your hand that can attach to a minion or side scheme"
+ * (Contingency Planning, `fne` 60030; docs/phase7-wave11.md §3.11) is `canAttachToCategory("minion", "sideScheme")`.
  */
-export const canAttachToCategory = (category: "ally"): Pick<TargetQuery, "canAttachToCategory"> => ({
-  canAttachToCategory: category,
+export const canAttachToCategory = (
+  ...categories: readonly [AttachCategory, ...AttachCategory[]]
+): Pick<TargetQuery, "canAttachToCategory"> => ({
+  canAttachToCategory: categories.length === 1 ? categories[0] : categories,
 });
 /**
  * "… chooses 1 set-aside SPECIALIZATION upgrade and puts it into play under their control" (`x23` 43021), as a choice
