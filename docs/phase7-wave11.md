@@ -541,6 +541,7 @@ One agent at a time, one primitive per task, one commit each with the §3 tests.
 10. §3.10: `RuleSpec statInPlaceOf` in `characterStat`.
 11. §3.11: `canAttachToCategory` widened to minion and side scheme.
 12. Found while scripting (2026-10-18): after Heightened Hearing's defense-labeled "You become the target" interrupt redirects an attack aimed at another player, that player was still offered a declare-defender prompt (`defense-claim.ts`). Check whether the redirected attack should still open defenders for its original target, and fix with a test.
+13. Found while scripting (2026-10-18): `removeAccelerationToken` takes a token off the central main scheme only. De-escalation (60024, "Remove an acceleration token from play") overrides the RRG 1.8 "Acceleration Token" rule (p. 5) under the Golden Rules (p. 4) and "Cannot" (p. 11): the player chooses any acceleration token in play (any main scheme stage, or an `acceleration` counter on another card). Rework it as that choice, then script 60024 in `aspect-basic/justice.ts`.
 
 ### 8.3 The "exists (verify)" rows
 
