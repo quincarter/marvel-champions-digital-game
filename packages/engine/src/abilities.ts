@@ -3679,6 +3679,22 @@ export type AbilityRegistry = Readonly<Record<string, AbilityDefinition>>;
 
 export const NO_ABILITIES: AbilityRegistry = {};
 
+const REGISTRIES_WITH_ABILITIES = new WeakMap<AbilityRegistry, boolean>();
+
+/**
+ * Whether a registry defines any ability at all: false for `NO_ABILITIES`, the printed-characteristics-only reading.
+ * Remembered per registry, since `traitsOf` and `keywordsOf` ask it on every read and a game's registry holds thousands
+ * of abilities: `Object.keys` on it each time was most of a legal-move listing (issue #256, seconds per tap of Pay).
+ */
+export function registryHasAbilities(registry: AbilityRegistry): boolean {
+  let known = REGISTRIES_WITH_ABILITIES.get(registry);
+  if (known === undefined) {
+    known = Object.keys(registry).length > 0;
+    REGISTRIES_WITH_ABILITIES.set(registry, known);
+  }
+  return known;
+}
+
 export interface EngineDeps {
   readonly abilities: AbilityRegistry;
 }

@@ -1,0 +1,3 @@
+kind: Fixed
+body: Dragging through the campaign roster's deck picker on a phone no longer closes it when the finger lifts; only a tap on the backdrop does (#257).
+time: 2026-10-18T14:07:46.0221854-04:00

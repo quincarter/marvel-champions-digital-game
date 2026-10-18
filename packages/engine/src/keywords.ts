@@ -1,5 +1,5 @@
 import type { KeywordInstance, KeywordName } from "@mc/content";
-import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
+import { DEFAULT_DEPS, registryHasAbilities, type EngineDeps } from "./abilities.js";
 import type { InstanceId } from "./ids.js";
 import {
   cardOf,
@@ -148,7 +148,7 @@ function scanGrantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId)
   for (const effect of state.lastingEffects) {
     if (effect.kind === "keywordGrant" && lastingReaches(state, effect, id, deps)) granted.push(effect.keyword);
   }
-  if (Object.keys(deps.abilities).length === 0) return changes();
+  if (!registryHasAbilities(deps.abilities)) return changes();
   const inPlay = cardsInPlay(state);
   // "In expert mode, this card gains surge" on a treachery (Surprise!, `sm` 27112; docs/phase7-wave5.md §3.11): an
   // encounter card's grants to itself are read wherever it is, since a revealed treachery is never in play — the
@@ -237,7 +237,7 @@ export function hasGrantedPermanent(state: GameState, id: InstanceId, deps: Engi
       if (effect.kind !== "keywordGrant" || effect.keyword.name !== "permanent") continue;
       if (lastingReaches(state, effect, id, DEFAULT_DEPS)) return true;
     }
-    if (Object.keys(deps.abilities).length === 0) return false;
+    if (!registryHasAbilities(deps.abilities)) return false;
     for (const sourceId of cardsInPlay(state)) {
       if (sourceId === id) continue;
       for (const ref of refsLiveUnderLastingBlank(state, sourceId, deps)) {

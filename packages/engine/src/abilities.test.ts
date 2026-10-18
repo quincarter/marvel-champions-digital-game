@@ -1,3 +1,6 @@
+import { NO_ABILITIES, registryHasAbilities, type AbilityRegistry } from "./abilities.js";
+import { keywordsOf } from "./keywords.js";
+import { traitsOf } from "./select.js";
 import { activeEncounterDeck, activeVillain } from "./query.js";
 import { cardId, flat, type CardId } from "@mc/content";
 import { applyCommand } from "./engine.js";
@@ -411,4 +414,44 @@ test("expectOk keeps rejected ability commands from changing state", () => {
   const before = JSON.stringify(start);
   expectOk(applyCommand(start, toHero));
   expect(JSON.stringify(start)).toBe(before);
+});
+
+// Issue #256: `traitsOf` and `keywordsOf` asked "is the registry empty?" by listing its keys on every read, and a game's
+// registry holds thousands of abilities, so a legal-move listing took seconds on a tablet. The answer is remembered.
+describe("registryHasAbilities", () => {
+  /** A registry that counts how often its keys are listed. */
+  function countingRegistry(abilities: AbilityRegistry): { registry: AbilityRegistry; listings: () => number } {
+    let listings = 0;
+    const registry = new Proxy(abilities, {
+      ownKeys(target) {
+        listings += 1;
+        return Reflect.ownKeys(target);
+      },
+    });
+    return { registry, listings: () => listings };
+  }
+
+  it("is false for the empty registry and true for one with an ability", () => {
+    expect(registryHasAbilities(NO_ABILITIES)).toBe(false);
+    expect(
+      registryHasAbilities(depsOf(stubAbility("one", { trigger: { kind: "whenRevealed" }, effects: [] })).abilities),
+    ).toBe(true);
+  });
+
+  it("lists a registry's keys once, however often traits and keywords are read", () => {
+    const { registry, listings } = countingRegistry(
+      depsOf(stubAbility("one", { trigger: { kind: "whenRevealed" }, effects: [] })).abilities,
+    );
+    const deps = { abilities: registry };
+    const state = newGame({ villain: VILLAIN, mainScheme: SCHEME, deps });
+    const identity = mustPlayer(state, p1).identity.instanceId;
+    traitsOf(state, identity, deps);
+    keywordsOf(state, identity, deps);
+    const after = listings();
+    for (let read = 0; read < 50; read += 1) {
+      traitsOf(state, identity, deps);
+      keywordsOf(state, identity, deps);
+    }
+    expect(listings()).toBe(after);
+  });
 });

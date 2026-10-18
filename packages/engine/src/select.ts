@@ -17,6 +17,7 @@ import {
   type CardIcon,
   DEFAULT_DEPS,
   type EngineDeps,
+  registryHasAbilities,
   type RuleSpec,
   type TraitGrantSpec,
 } from "./abilities.js";
@@ -696,7 +697,7 @@ function traitsOfGuarded(
   }
   // "Considered a [Symbiote] environment" (`countsAs`, docs/phase7-wave5.md §3.9).
   traits.push(...(countsAsExtras(state, deps).get(id)?.traits ?? []));
-  if (Object.keys(deps.abilities).length > 0) {
+  if (registryHasAbilities(deps.abilities)) {
     // A card in the victory display grants a trait too when its text says so (`constantSources`, §3.50 of wave 7).
     for (const sourceId of constantSources(state, deps)) {
       for (const ref of constantAbilityRefs(state, sourceId, deps)) {

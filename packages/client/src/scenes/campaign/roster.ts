@@ -34,6 +34,8 @@ import { DeckSearchClient } from "../../view/deck-search-client.js";
 import { drawSearchField } from "../roster-panel.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import { McVirtualList } from "../../ui/virtual-list.js";
+import { addPressShield } from "../../ui/press-shield.js";
+import { onTap } from "../../ui/tap.js";
 import { deckStorage, campaignService } from "../../session.js";
 import { rollSeed } from "../../view/seed.js";
 import type { Rect } from "../../view/layout.js";
@@ -514,9 +516,8 @@ export class CampaignRosterScene extends Phaser.Scene {
       const zone = this.add
         .zone(rect.x, rect.y, rect.width, rect.height)
         .setOrigin(0, 0)
-        .setInteractive({ useHandCursor: true })
-        .on("pointerup", open);
-      void zone;
+        .setInteractive({ useHandCursor: true });
+      onTap(zone, open, `roster:seat-${seatNumber}`);
       this.#stops.set(`seat-${seatNumber}`, { rect, activate: open });
       return;
     }
@@ -571,9 +572,8 @@ export class CampaignRosterScene extends Phaser.Scene {
     const zone = this.add
       .zone(rect.x, rect.y, rect.width, rect.height)
       .setOrigin(0, 0)
-      .setInteractive({ useHandCursor: true })
-      .on("pointerup", open);
-    void zone;
+      .setInteractive({ useHandCursor: true });
+    onTap(zone, open, `roster:seat-${seatNumber}`);
     this.#stops.set(`seat-${seatNumber}`, { rect, activate: open });
   }
 
@@ -590,21 +590,6 @@ export class CampaignRosterScene extends Phaser.Scene {
   // ---- The deck picker overlay ------------------------------------------------------------------------------
 
   #drawPicker(frame: ReturnType<typeof campaignFrame>, seatNumber: number): void {
-    // Dev e2e hook (never referenced by product code): each picker row's name, whether its hero picture is drawn,
-    // and the aspect badges it carries (label and fill: a badge is never color alone).
-    if (import.meta.env.DEV) {
-      this.#pickerRowsDebug.clear();
-      (window as unknown as { __mcRosterPickerDebug?: unknown }).__mcRosterPickerDebug = {
-        rows: () => [...this.#pickerRowsDebug.values()],
-      };
-    }
-    const scrim = this.add.rectangle(0, 0, frame.width, frame.height, surface.ink.hex, 0.6).setOrigin(0, 0);
-    scrim.setInteractive();
-    scrim.on("pointerup", () => {
-      this.#pickerSeat = null;
-      this.#rebuild();
-    });
-
     const panelWidth = Math.min(460, frame.width - 32);
     const panelHeight = Math.min(560, frame.height - 32);
     const panelRect: Rect = {
@@ -613,6 +598,32 @@ export class CampaignRosterScene extends Phaser.Scene {
       width: panelWidth,
       height: panelHeight,
     };
+    // Dev e2e hook (never referenced by product code): each picker row's name, whether its hero picture is drawn,
+    // and the aspect badges it carries (label and fill: a badge is never color alone); whether the picker is open, and
+    // where its panel sits.
+    if (import.meta.env.DEV) {
+      this.#pickerRowsDebug.clear();
+      (window as unknown as { __mcRosterPickerDebug?: unknown }).__mcRosterPickerDebug = {
+        rows: () => [...this.#pickerRowsDebug.values()],
+        open: () => this.#pickerSeat !== null,
+        panel: () => panelRect,
+      };
+    }
+    // The scrim takes every press, so nothing under the picker answers while it is open; only a tap on it closes, never
+    // the lift of a drag through the list (issue #257).
+    const shield = addPressShield(this, { x: 0, y: 0, width: frame.width, height: frame.height });
+    onTap(
+      shield,
+      () => {
+        this.#pickerSeat = null;
+        this.#rebuild();
+      },
+      "roster-picker:scrim",
+    );
+    this.add.rectangle(0, 0, frame.width, frame.height, surface.ink.hex, 0.6).setOrigin(0, 0);
+
+    // The panel takes a press that lands on it, so only the scrim around it closes.
+    this.add.zone(panelRect.x, panelRect.y, panelRect.width, panelRect.height).setOrigin(0, 0).setInteractive();
     const panelBg = this.add.graphics();
     panelBg.fillStyle(surface.paper.hex, 1).fillRect(panelRect.x, panelRect.y, panelRect.width, panelRect.height);
     panelBg
