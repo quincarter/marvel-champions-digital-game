@@ -23,3 +23,11 @@ describe("wave 11 luke_cage/other-aspects-basic", () => {
     }
   });
 });
+
+describe("62024.unbreakable-bond-action", () => {
+  it("is the reprint of 61027's script, the same definition", async () => {
+    const { JJ_BASIC } = await import("../jj/basic.js");
+    expect(REGISTRY["62024.unbreakable-bond-action"]).toBe(JJ_BASIC["61027.unbreakable-bond-action"]);
+    expect(REGISTRY["62024.unbreakable-bond-action"]!.trigger).toMatchObject({ kind: "action", form: "hero" });
+  });
+});

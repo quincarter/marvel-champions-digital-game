@@ -1,4 +1,5 @@
 import type { AbilityRegistry } from "@mc/engine";
+import { JJ_BASIC } from "../jj/basic.js";
 
 /**
  * Wave 11 scripting module `luke_cage/other-aspects-basic` (docs/phase7-wave11-hero-packs.md H8.4).
@@ -23,7 +24,9 @@ import type { AbilityRegistry } from "@mc/engine";
  * task for this module fills the registry, deletes its own `_SKIPPED` lines and names every id it registers in
  * `other-aspects-basic.test.ts`.
  */
-export const LUKE_CAGE_OTHER_ASPECTS_BASIC: AbilityRegistry = {};
+export const LUKE_CAGE_OTHER_ASPECTS_BASIC: AbilityRegistry = {
+  "62024.unbreakable-bond-action": JJ_BASIC["61027.unbreakable-bond-action"]!,
+};
 
 /**
  * Refs of this module's cards deliberately left unscripted, each with its written reason. Delete a line as its ref is
@@ -35,8 +38,6 @@ export const LUKE_CAGE_OTHER_ASPECTS_BASIC_SKIPPED: Readonly<Record<string, stri
   "62021.she-hulk-response": "wave 11 scripting in progress: luke_cage/other-aspects-basic",
   "62022.dynamic-duo-action": "wave 11 scripting in progress: luke_cage/other-aspects-basic",
   "62023.power-man-and-iron-fist-action": "wave 11 scripting in progress: luke_cage/other-aspects-basic",
-  "62024.unbreakable-bond-action":
-    "wave 11 scripting in progress: luke_cage/other-aspects-basic; aliases 61027.unbreakable-bond-action (jj/basic, HS7) once it is scripted",
   "62034.size-advantage-action": "wave 11 scripting in progress: luke_cage/other-aspects-basic",
   "62035.observe-action": "wave 11 scripting in progress: luke_cage/other-aspects-basic",
   "62036.toughen-up-response": "wave 11 scripting in progress: luke_cage/other-aspects-basic",
