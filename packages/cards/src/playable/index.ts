@@ -34,6 +34,7 @@ import {
   WAVE10_ENCOUNTER_SETS,
   WAVE10_SCENARIOS,
   WAVE10_STARTER_DECKS,
+  WAVE11_STARTER_DECKS,
   autoIncludedSetsOf,
   type AnyCard,
   type StarterDeck,
@@ -129,6 +130,7 @@ const STARTER_DECKS: readonly StarterDeck[] = [
   ...WAVE8_STARTER_DECKS,
   ...WAVE9_STARTER_DECKS,
   ...WAVE10_STARTER_DECKS,
+  ...WAVE11_STARTER_DECKS,
 ];
 
 /** Any starter deck in the playable pool as a player seat (quantities expanded; the identity isn't part of the deck). */
