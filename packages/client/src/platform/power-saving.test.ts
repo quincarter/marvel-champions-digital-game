@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "vitest";
 import {
   canReadPowerSaving,
   forcedPowerSaving,
+  hasPowerSavingPlugin,
   onPowerSavingChange,
   powerSavingOn,
   powerSavingState,
@@ -54,6 +55,14 @@ describe("power saving mode", () => {
     expect(canReadPowerSaving("capacitor", ipad)).toBe(false);
     expect(canReadPowerSaving("web", android)).toBe(false);
     expect(canReadPowerSaving("tauri", android)).toBe(false);
+  });
+
+  test("asks the app only when its bridge lists the PowerSaving plugin", () => {
+    expect(
+      hasPowerSavingPlugin({ Capacitor: { PluginHeaders: [{ name: "ExternalBrowser" }, { name: "PowerSaving" }] } }),
+    ).toBe(true);
+    expect(hasPowerSavingPlugin({ Capacitor: { PluginHeaders: [{ name: "ExternalBrowser" }] } })).toBe(false);
+    expect(hasPowerSavingPlugin({})).toBe(false);
   });
 
   test("a forced mode applies at once, and a browser without one stays off", () => {

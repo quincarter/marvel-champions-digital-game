@@ -80,6 +80,15 @@ export function canReadPowerSaving(platform: Platform, userAgent: string): boole
   return platform === "capacitor" && /android/i.test(userAgent);
 }
 
+/**
+ * Whether this app build has the `PowerSaving` plugin: the native bridge lists its plugins (`Capacitor.PluginHeaders`)
+ * before any page script runs. An older APK has none, and then `@capacitor/core` is not loaded at launch for it.
+ */
+export function hasPowerSavingPlugin(global: object = globalThis): boolean {
+  const headers = (global as { Capacitor?: { PluginHeaders?: readonly { name?: string }[] } }).Capacitor?.PluginHeaders;
+  return Array.isArray(headers) && headers.some((header) => header?.name === "PowerSaving");
+}
+
 interface PowerSavingPlugin {
   isPowerSaveMode(): Promise<{ powerSaveMode: boolean }>;
   addListener(event: "powerSaveModeChange", listener: (state: { powerSaveMode: boolean }) => void): Promise<unknown>;
@@ -99,7 +108,7 @@ export function watchPowerSaving(
     setPowerSaving(forced);
     return;
   }
-  if (!canReadPowerSaving(platform, userAgent)) return;
+  if (!canReadPowerSaving(platform, userAgent) || !hasPowerSavingPlugin()) return;
   // Boxed, as `openExternal` does: the plugin proxy answers every property, `then` included.
   void import("@capacitor/core")
     .then(({ registerPlugin }) => ({ plugin: registerPlugin<PowerSavingPlugin>("PowerSaving") }))
