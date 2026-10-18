@@ -30,6 +30,7 @@
 import type Phaser from "phaser";
 import { appSession } from "../session.js";
 import { motion, surface } from "../tokens.js";
+import { isStartPending } from "../scenes/scene-loader.js";
 
 type Fadeable = Phaser.GameObjects.GameObject & { alpha: number; y: number; setAlpha(value: number): unknown };
 
@@ -257,6 +258,8 @@ export function goToScreen(
   // a bare "back to Title" would replay the Decks screen's "Play this deck" hand-off and bounce straight to Take
   // your seats again, forever. Every screen change passes an object, empty when the caller has nothing to say.
   data ??= {};
+  // The chunk of the screen being left for is still arriving (`scenes/scene-loader.ts`): a second tap must not queue a second start.
+  if (isStartPending(scene.scene)) return;
   if (reduced() || durationMs <= 0) {
     scene.scene.start(key, data);
     return;

@@ -20,70 +20,13 @@ import { cssOf, setTextResolution } from "./ui/theme.js";
 import { recoverTextOnContextRestore } from "./ui/context-recovery.js";
 import { installLazyText } from "./ui/lazy-text.js";
 import { appSession } from "./session.js";
+import { SCENES } from "./scenes/keys.js";
+import { installSceneLoader, startIdlePreload } from "./scenes/scene-loader.js";
 import { BootScene } from "./scenes/boot.js";
 import { TitleScene } from "./scenes/title.js";
-import { ScenarioSelectScene } from "./scenes/scenario-select.js";
-import { SeatsScene } from "./scenes/seats.js";
-import { TableSetupScene } from "./scenes/table-setup.js";
-import { SetupDealScene } from "./scenes/setup-deal.js";
-import { ScenarioIntroScene } from "./scenes/scenario-intro.js";
-import { BoardScene } from "./scenes/board.js";
-import { ChoiceOverlay } from "./scenes/choice.js";
-import { InspectOverlay } from "./scenes/inspect.js";
-import { SetCardsOverlay } from "./scenes/set-cards.js";
-import { VillainPhaseOverlay } from "./scenes/villain-phase.js";
-import { GameOverScene } from "./scenes/game-over.js";
-import { DecksScene } from "./scenes/decks.js";
-import { DeckBuilderScene } from "./scenes/deck-builder.js";
-import { DeckCheckScene } from "./scenes/deck-check.js";
-import { PauseOverlay } from "./scenes/pause.js";
-import { RulesOverlay } from "./scenes/rules.js";
-import { SettingsOverlay } from "./scenes/settings.js";
-import { UnlocksOverlay } from "./scenes/unlocks.js";
-import { SaveDataOverlay } from "./scenes/save-data.js";
-import { UnlockConfirmOverlay } from "./scenes/unlock-confirm.js";
-import { NameConflictOverlay } from "./scenes/name-conflict.js";
-import { HeroDecksSheet } from "./scenes/hero-decks-sheet.js";
-import { EndTurnConfirmOverlay } from "./scenes/end-turn-confirm.js";
-import { TutorialResumeConfirmOverlay } from "./scenes/tutorial-resume-confirm.js";
-import { HoldOnOverlay } from "./scenes/hold-on.js";
-import { RoundDebriefScene } from "./scenes/round-debrief.js";
-import { CampaignSagaScene } from "./scenes/campaign/saga.js";
-import { CampaignCoverScene } from "./scenes/campaign/cover.js";
-import { CampaignRosterScene } from "./scenes/campaign/roster.js";
-import { CampaignOpenerScene } from "./scenes/campaign/opener.js";
-import { CampaignBriefingScene } from "./scenes/campaign/briefing.js";
-import { CampaignMarketScene } from "./scenes/campaign/market.js";
-import { CampaignAftermathScene } from "./scenes/campaign/aftermath.js";
-import { CampaignRewindScene } from "./scenes/campaign/rewind.js";
-import { CampaignRunScene } from "./scenes/campaign/run.js";
-import { CampaignIssueScene } from "./scenes/campaign/issue.js";
-import { CampaignDossierScene } from "./scenes/campaign/dossier.js";
-import { CampaignFinaleScene } from "./scenes/campaign/finale.js";
-import { CampaignDeckEditScene } from "./scenes/campaign/deck-edit.js";
-import { CampaignFrozenDeckScene } from "./scenes/campaign/frozen-deck.js";
-import { CampaignBeatOverlay } from "./scenes/campaign/beat.js";
-import { TeamUpSplashOverlay } from "./scenes/team-up-splash.js";
-import { TeamUpInfoOverlay } from "./scenes/team-up-info.js";
-import { EvidenceOverlay } from "./scenes/evidence.js";
-import { PileViewOverlay } from "./scenes/pile-view.js";
 import { MusicScene } from "./audio/music-controller.js";
 import { MusicButtonScene } from "./scenes/music-button.js";
 import { MusicPlayerOverlay } from "./scenes/music-player.js";
-import { ExtrasScene } from "./scenes/extras.js";
-import { ExtrasViewerScene } from "./scenes/extras-viewer.js";
-import { ExtrasReaderScene } from "./scenes/extras-reader.js";
-import { TermTextDemoScene } from "./scenes/term-text-demo.js";
-import { GuideCalloutDemoScene } from "./scenes/guide-callout-demo.js";
-import { HoldOnDemoScene } from "./scenes/hold-on-demo.js";
-import { GuidePanelDemoScene } from "./scenes/guide-panel-demo.js";
-import { GuideSpotlightDemoScene } from "./scenes/guide-spotlight-demo.js";
-import { GuideChooserScene } from "./scenes/guide-chooser.js";
-import { HowToWinScene } from "./scenes/how-to-win.js";
-import { HowToPlayScene } from "./scenes/how-to-play.js";
-import { NewInBoxScene } from "./scenes/new-in-box.js";
-import { CivilWarBuilderScene } from "./scenes/civil-war-builder.js";
-import { AspectLessonScene } from "./scenes/aspect-lesson.js";
 import { ReportIssueOverlay } from "./scenes/report-issue.js";
 import { ReportButtonScene } from "./scenes/report-button.js";
 import { installDebugDump } from "./ui/debug-dump.js";
@@ -148,78 +91,29 @@ const game = new Phaser.Game({
   // app's one DOM element (PLAN.md Phase 4). Phaser 4 only creates the DOM
   // container Phaser.GameObjects.DOMElement needs when asked to.
   dom: { createContainer: true },
+  // Boot, Title and the always-on chrome only; every other screen loads on demand (`scenes/scene-loader.ts`). In draw order,
+  // chrome last so it draws above every screen and overlay (#176, #191).
   scene: [
     BootScene,
     TitleScene,
-    ScenarioSelectScene,
-    SeatsScene,
-    TableSetupScene,
-    SetupDealScene,
-    ScenarioIntroScene,
-    BoardScene,
-    DecksScene,
-    DeckBuilderScene,
-    DeckCheckScene,
-    CampaignSagaScene,
-    CampaignCoverScene,
-    CampaignRosterScene,
-    CampaignOpenerScene,
-    CampaignBriefingScene,
-    CampaignMarketScene,
-    CampaignAftermathScene,
-    CampaignRewindScene,
-    CampaignRunScene,
-    CampaignIssueScene,
-    CampaignDossierScene,
-    CampaignFinaleScene,
-    CampaignDeckEditScene,
-    CampaignFrozenDeckScene,
-    ExtrasScene,
-    ExtrasReaderScene,
-    // Dev-only demo scenes: reachable only through `?screen=…` jumps, which are themselves gated to
-    // `import.meta.env.DEV` (`scenes/boot.ts#devScreenJump`) — registering them only in dev keeps a production
-    // build from ever loading their modules.
-    ...(import.meta.env.DEV
-      ? [TermTextDemoScene, GuideCalloutDemoScene, HoldOnDemoScene, GuidePanelDemoScene, GuideSpotlightDemoScene]
-      : []),
-    GuideChooserScene,
-    HowToWinScene,
-    HowToPlayScene,
-    NewInBoxScene,
-    CivilWarBuilderScene,
-    AspectLessonScene,
-    ChoiceOverlay,
-    SetCardsOverlay,
-    InspectOverlay,
-    VillainPhaseOverlay,
-    GameOverScene,
-    PauseOverlay,
-    RulesOverlay,
-    SettingsOverlay,
-    UnlocksOverlay,
-    UnlockConfirmOverlay,
-    NameConflictOverlay,
-    HeroDecksSheet,
-    SaveDataOverlay,
-    EndTurnConfirmOverlay,
-    TutorialResumeConfirmOverlay,
-    HoldOnOverlay,
-    RoundDebriefScene,
-    CampaignBeatOverlay,
-    TeamUpSplashOverlay,
-    TeamUpInfoOverlay,
-    EvidenceOverlay,
-    PileViewOverlay,
-    ExtrasViewerScene,
     MusicScene,
-    // Last, so they draw above every screen and overlay (#176, #191): the music player and its button, then the report
-    // panel and the tab that opens it above that.
     MusicPlayerOverlay,
     MusicButtonScene,
     ReportIssueOverlay,
     ReportButtonScene,
   ],
 });
+
+// Every other screen is added the first time something starts it (`scenes/scene-loader.ts`), and the rest in idle
+// time once Title has drawn its first frame.
+const sceneLoader = installSceneLoader(game, Phaser.Scenes.ScenePlugin);
+const preloadAfterTitle = (): void => {
+  game.scene.getScene(SCENES.title)?.events.once(Phaser.Scenes.Events.CREATE, () => {
+    game.events.once(Phaser.Core.Events.POST_RENDER, () => startIdlePreload(sceneLoader));
+  });
+};
+if (game.scene.isBooted) preloadAfterTitle();
+else game.events.once(Phaser.Core.Events.READY, preloadAfterTitle);
 
 // The desktop app's saved window mode and resolution (Settings > Display > Window); nothing off desktop. A Steam
 // Deck or Bazzite starts in Fullscreen until the player picks a window mode of their own.
