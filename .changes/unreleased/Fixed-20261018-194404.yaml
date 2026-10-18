@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Leaving Game over by Back to title after a campaign game no longer loses the result: continuing the campaign opens that game''s Aftermath instead of the same mission (#265).'
+time: 2026-10-18T19:44:04.8810273-04:00

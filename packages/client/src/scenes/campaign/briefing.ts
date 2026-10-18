@@ -139,6 +139,7 @@ import {
 } from "../../view/campaign-role-call-model.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
+import { routeUnfoldedGame } from "./unfolded-game-route.js";
 import type { CampaignBriefingData } from "./routes.js";
 
 const cardName = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
@@ -243,6 +244,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
   async #load(): Promise<void> {
     const service = campaignService();
     const loaded = await service.load(this.#data.runId);
+    if (loaded && (await routeUnfoldedGame(this, loaded))) return;
     // An issue composed before removed cards left decks on their own is composed again, without them.
     const record = loaded ? await service.discardStaleAttempt(loaded) : null;
     if (!this.sys.isActive()) return;
