@@ -58,9 +58,6 @@ import { unlocks } from "../progression/progression.js";
 import type { CivilWarBuilderData } from "./civil-war-builder.js";
 import { tutorialResumeDecisionFor } from "../guide/tutorial-resume.js";
 import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
-import { startTutorialGame } from "../guide/start-tutorial.js";
-import { startAspectTryItGame } from "../guide/start-aspect-tryit.js";
-import { startMechanicTryItGame } from "../guide/start-mechanic-tryit.js";
 import type { TutorialResumeConfirmData } from "./tutorial-resume-confirm.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { hasDesktopWindow, quitToDesktop } from "../platform/desktop-window.js";
@@ -594,12 +591,15 @@ export class TitleScene extends Phaser.Scene {
       body,
       resumeLabel,
       onResume: () => {
+        // Imported on the tap, so the lesson configs stay out of the chunk Title loads before its first frame (#226).
         void (
           decision.kind === "tutorial"
-            ? startTutorialGame({ startAtLesson: decision.lessonId })
+            ? import("../guide/start-tutorial.js").then((m) =>
+                m.startTutorialGame({ startAtLesson: decision.lessonId }),
+              )
             : decision.kind === "mechanic"
-              ? startMechanicTryItGame(decision.mechanic)
-              : startAspectTryItGame(decision.aspect)
+              ? import("../guide/start-mechanic-tryit.js").then((m) => m.startMechanicTryItGame(decision.mechanic))
+              : import("../guide/start-aspect-tryit.js").then((m) => m.startAspectTryItGame(decision.aspect))
         ).then(() => {
           if (!this.sys.isActive()) return;
           goToScreen(this, SCENES.board);
