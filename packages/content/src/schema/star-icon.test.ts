@@ -198,9 +198,9 @@ describe("starIcon", () => {
     expect(mismatches).toEqual([]);
   });
 
-  it("exactly 440 encounter-side cards across Core/wave 1/wave 2/wave 5/wave 6/wave 7/wave 8/wave 9/wave 10/wave 11/data-only pools carry starIcon: true (docs/phase7-wave2-data.md Part 8's backfill, cross-checked 703/703 against MarvelCDB's boost_star; +30 from gmw, wave3 §5; +25 from mts, docs/phase7-wave4.md §1; +27 from sm, docs/phase7-wave5.md; +29 from mut_gen, docs/phase7-wave6.md; +27 net from next_evol, docs/phase7-wave7.md; +33 from aoa, docs/phase7-wave8.md; +32 net from aos and tt, docs/phase7-wave9.md; +39 from cw, docs/phase7-wave10.md: the 39 raw boost_star records, top-level and nested; +39 from fne, docs/phase7-wave11.md, ten of them with the Boost granted by Purple Man's stages)", () => {
+  it("exactly 443 encounter-side cards across Core/wave 1/wave 2/wave 5/wave 6/wave 7/wave 8/wave 9/wave 10/wave 11/data-only pools carry starIcon: true (docs/phase7-wave2-data.md Part 8's backfill, cross-checked 703/703 against MarvelCDB's boost_star; +30 from gmw, wave3 §5; +25 from mts, docs/phase7-wave4.md §1; +27 from sm, docs/phase7-wave5.md; +29 from mut_gen, docs/phase7-wave6.md; +27 net from next_evol, docs/phase7-wave7.md; +33 from aoa, docs/phase7-wave8.md; +32 net from aos and tt, docs/phase7-wave9.md; +39 from cw, docs/phase7-wave10.md: the 39 raw boost_star records, top-level and nested; +39 from fne, docs/phase7-wave11.md, ten of them with the Boost granted by Purple Man's stages; +3 from luke_cage, docs/phase7-wave11-hero-packs.md: 62029, 62030 and 62032)", () => {
     const starred = allEncounterSideCards().filter((c) => (c as { starIcon?: boolean }).starIcon === true);
-    expect(starred).toHaveLength(440);
+    expect(starred).toHaveLength(443);
   });
 
   it("Slipping Sanity (15023, scw) itself has no star icon — its text refers to stars on OTHER discarded cards, not its own boost area", () => {

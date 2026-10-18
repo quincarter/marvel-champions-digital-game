@@ -154,7 +154,7 @@ describe("jj: wave 11 pool wiring", () => {
     expect(ids.slice(at, at + JJ_CARDS.length)).toEqual(JJ_CARDS.map((c) => c.id as string));
   });
 
-  it("WAVE11_STARTER_DECKS ends with the jj stand-in", () => {
-    expect(WAVE11_STARTER_DECKS.at(-1)).toEqual(JJ_STARTER_DECKS[0]);
+  it("WAVE11_STARTER_DECKS carries the jj stand-in after fne's two", () => {
+    expect(WAVE11_STARTER_DECKS[2]).toEqual(JJ_STARTER_DECKS[0]);
   });
 });

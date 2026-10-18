@@ -34,7 +34,7 @@ import { fileURLToPath } from "node:url";
 import type { RawCard } from "./marvelcdb/raw-types.ts";
 import { normalizePack, type NormalizedPack } from "./marvelcdb/normalize.ts";
 import { withLocalArt } from "./marvelcdb/normalize/art.ts";
-import { localArtCodes } from "./marvelcdb/local-art.ts";
+import { localArtCodes, seedLocalArtByCode } from "./marvelcdb/local-art.ts";
 import { emitModule, type ModuleSpec } from "./marvelcdb/emit.ts";
 import { CORE_CURATION } from "./marvelcdb/curation/core.ts";
 import { GOB_CURATION } from "./marvelcdb/curation/gob.ts";
@@ -97,6 +97,7 @@ import { CW_CURATION } from "./marvelcdb/curation/cw.ts";
 import { HERCULES_CURATION } from "./marvelcdb/curation/hercules.ts";
 import { FNE_CURATION } from "./marvelcdb/curation/fne.ts";
 import { JJ_CURATION } from "./marvelcdb/curation/jj.ts";
+import { LUKE_CAGE_CURATION } from "./marvelcdb/curation/luke_cage.ts";
 import { bareCuration } from "./marvelcdb/curation/empty.ts";
 import type { PackCuration } from "./marvelcdb/curation/types.ts";
 
@@ -166,6 +167,7 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   hercules: HERCULES_CURATION,
   fne: FNE_CURATION,
   jj: JJ_CURATION,
+  luke_cage: LUKE_CAGE_CURATION,
 };
 
 interface RawCache {
@@ -354,6 +356,7 @@ async function ingestOne(pack: string, args: Args): Promise<{ ok: boolean; summa
   let normalized: NormalizedPack;
   try {
     const localCodes = await localArtCodes();
+    seedLocalArtByCode(localCodes);
     // Faces transcribed from scans (`addedRecords`) get their local scan the same way MarvelCDB's records do.
     const added = curation.addedRecords?.map((a) => ({ ...a, record: withLocalArt([a.record], localCodes)[0]! }));
     normalized = normalizePack(

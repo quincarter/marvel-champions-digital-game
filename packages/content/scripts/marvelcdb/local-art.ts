@@ -2,6 +2,7 @@
 import { readdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { ART_BY_CODE } from "./normalize/core-raw.ts";
 
 const CARD_ART_DIR = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -23,4 +24,13 @@ export async function localArtCodes(): Promise<ReadonlySet<string>> {
   } catch {
     return new Set();
   }
+}
+
+/**
+ * Lets the cross-pack reprint lookup (`reprintImages`, by `duplicate_of_code`) see local scans for originals whose raw
+ * record has no `imagesrc` (Unbreakable Bond 62024 reprints jj 61027). Never overrides a raw `imagesrc`. Call it
+ * wherever `withLocalArt` is, so ingest and survey agree.
+ */
+export function seedLocalArtByCode(localCodes: ReadonlySet<string>): void {
+  for (const code of localCodes) if (!ART_BY_CODE.has(code)) ART_BY_CODE.set(code, `/bundles/cards/${code}.png`);
 }
