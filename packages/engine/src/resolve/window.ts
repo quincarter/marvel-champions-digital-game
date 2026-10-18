@@ -16,8 +16,8 @@ import {
   payPayment,
   costResourceRequirement,
   planCost,
-  deckTopCostReduction,
-  deckTopPlayOf,
+  asIfInHandCostReduction,
+  asIfInHandPlayOf,
   playableFromAttachment,
   playCostContributions,
   priceAfterReductions,
@@ -646,7 +646,8 @@ function windowEventCost(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCan
   // constant (`playCostModifier` — this path previously read only `costReductionFor`'s older "reduce the next card"
   // lasting-effect mechanism, so a constant cost reduction like Knife Leap's "reduce the cost to play this card by
   // 1 for each vengeance counter on Drax" silently never applied here), then the older reduction, never below 0.
-  // Played from the top of the deck, less its permission's reduction (`playableTopOfDeck`, docs/phase7-wave8.md §3.49).
+  // Played as if from hand from the top of the deck or a tuck, less its permission's reduction (`playableTopOfDeck`,
+  // docs/phase7-wave8.md §3.49; `playableAsIfInHand`, docs/phase7-wave11.md §3.8).
   const reduced = priceAfterReductions(
     ctx.state,
     ctx.deps,
@@ -654,7 +655,7 @@ function windowEventCost(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCan
     candidate.instanceId,
     printed,
     playCostContributions(ctx.state, ctx.deps, candidate.controllerId, candidate.instanceId, null).map((e) => e.delta),
-    deckTopCostReduction(ctx.state, ctx.deps, candidate.controllerId, candidate.instanceId),
+    asIfInHandCostReduction(ctx.state, ctx.deps, candidate.controllerId, candidate.instanceId),
   );
   // The ability's own resources, a computed X included (`resourcesEqualTo`), as `planCost` will ask for them.
   const abilityCost = costResourceRequirement(
@@ -1129,10 +1130,11 @@ function playWindowEvent(ctx: Ctx, frame: Frame<"window">, answer: readonly stri
   const controller = candidate?.controllerId;
   if (!candidate || !controller) return;
   // Still in hand, still on a host that lets it be played "as if it were in your hand", or still the top card of the
-  // deck under a `playableTopOfDeck` permission not used since it was offered (`inHandCandidates`).
-  const deckTop = deckTopPlayOf(ctx.state, ctx.deps, controller, candidate.instanceId);
+  // deck or a tucked card under a permission (`playableTopOfDeck`, `playableAsIfInHand`) not used since it was
+  // offered (`inHandCandidates`).
+  const asIfInHand = asIfInHandPlayOf(ctx.state, ctx.deps, controller, candidate.instanceId);
   if (
-    !deckTop &&
+    !asIfInHand &&
     !mustPlayer(ctx.state, controller).hand.includes(candidate.instanceId) &&
     !playableFromAttachment(ctx.state, ctx.deps, controller, candidate.instanceId)
   )
@@ -1148,7 +1150,7 @@ function playWindowEvent(ctx: Ctx, frame: Frame<"window">, answer: readonly stri
     costChoicesFor(frame, candidate),
     null,
     undefined,
-    deckTop?.costReduction ?? 0,
+    asIfInHand?.costReduction ?? 0,
     selection,
     answered(ctx, frame, candidate).event,
     // The window's payment choice carries no declaration of its wilds: the play's own frame asks for one when a card
@@ -1156,7 +1158,7 @@ function playWindowEvent(ctx: Ctx, frame: Frame<"window">, answer: readonly stri
     { abilityId: candidate.abilityId },
   );
   if (isPriceFault(priced)) return;
-  const spent = commitPlay(ctx, controller, candidate.instanceId, payment, priced, deckTop);
+  const spent = commitPlay(ctx, controller, candidate.instanceId, payment, priced, asIfInHand);
   pushPlayCardFrame(
     ctx,
     candidate.instanceId,

@@ -237,9 +237,11 @@ export type GameEvent =
        * p. 64: "that card is considered to have been played from her hand"). `"separateDeck"`: played by an effect from
        * one of its player's separate decks (`EffectSpec playFromHand.from { separateDeck }`, docs/phase7-wave11.md
        * §3.2), with `countsAsFrom: "hand"` only when the effect plays it "as if it were in your hand" (`asIfInHand`).
-       * Every other play logs exactly as before.
+       * `"tucked"`: played from under a card whose `playableAsIfInHand { tuckedUnder }` permission lets its player
+       * play it "as if it were in your hand" (docs/phase7-wave11.md §3.8), with `countsAsFrom: "hand"`. Every other
+       * play logs exactly as before.
        */
-      readonly from?: "deckTop" | "separateDeck";
+      readonly from?: "deckTop" | "separateDeck" | "tucked";
       readonly countsAsFrom?: "hand";
       /**
        * Present only on a play whose payment is read for resource types (docs/phase7-wave8.md §3.62): `paidCount` is the

@@ -35,6 +35,7 @@ import type {
   InPlayCostPick,
   PaidTypesRead,
   PlayerRef,
+  PlayableAsIfInHandSpec,
   TraitGrantSpec,
   TriggerEventKind,
   TypedResource,
@@ -506,6 +507,8 @@ export interface ConstantPart {
     readonly costReduction?: number;
     readonly limit?: "turn" | "phase" | "round";
   };
+  /** `playableTucked(…)`: the permission, and the limit `constant` puts on it (docs/phase7-wave11.md §3.8). */
+  readonly playableAsIfInHand?: PlayableAsIfInHandSpec & { readonly limit?: "turn" | "phase" | "round" };
   /**
    * "Play only if you control an Element Gun." (Sliding Shot, `stld` 17005; docs/phase7-wave3.md §3.42): a play
    * restriction read from the card itself while it is being played. Several are ANDed.
@@ -566,6 +569,11 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
   const topOfDeckList = parts.flatMap((p) => (p.playableTopOfDeck ? [p.playableTopOfDeck] : []));
   if (topOfDeckList.length > 1) throw new Error("a constant ability has at most one playableTopOfDeck");
   const topOfDeck = topOfDeckList[0];
+  const asIfInHandList = parts.flatMap((p) => (p.playableAsIfInHand ? [p.playableAsIfInHand] : []));
+  if (asIfInHandList.length + topOfDeckList.length > 1)
+    throw new Error("a constant ability has at most one playableTopOfDeck or playableTucked");
+  const asIfInHand = asIfInHandList[0];
+  const permissionLimit = topOfDeck?.limit ?? asIfInHand?.limit;
   const modifiers = all("modifiers");
   const keywordGrants = all("keywordGrants");
   const traitGrants = all("traitGrants");
@@ -603,9 +611,19 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
             },
           }
         : {}),
+      ...(asIfInHand
+        ? {
+            playableAsIfInHand: {
+              player: asIfInHand.player,
+              zone: asIfInHand.zone,
+              ...(asIfInHand.cards ? { cards: asIfInHand.cards } : {}),
+              ...(asIfInHand.costReduction ? { costReduction: asIfInHand.costReduction } : {}),
+            },
+          }
+        : {}),
     },
     // The permission's "once per phase" is the ability's own limit, counted and cleared like any other.
-    ...(topOfDeck?.limit ? { limit: { count: 1, period: topOfDeck.limit } } : {}),
+    ...(permissionLimit ? { limit: { count: 1, period: permissionLimit } } : {}),
     effects: [],
   };
 }
@@ -658,6 +676,31 @@ export const playableTopOfDeck = (
 ): ConstantPart => ({
   playableTopOfDeck: {
     player: opts.player ?? { kind: "controller" },
+    ...(opts.costReduction ? { costReduction: opts.costReduction } : {}),
+    ...(opts.limit ? { limit: opts.limit } : {}),
+  },
+});
+/**
+ * "You may play the upgrade tucked here as if it were in your hand." (Contingency Planning, `fne` 60030;
+ * docs/phase7-wave11.md §3.8): `constant(playableTucked({ cards: { categories: ["upgrade"] } }))`. Each card tucked
+ * under `under` (default this card) that matches `cards` is a candidate for each player `player` names (default "you")
+ * wherever a card in their hand could be played, exactly as `playableTopOfDeck`'s card is, at its own timing; it leaves
+ * the tuck as it is played and counts as played from the hand. `costReduction` and `limit` as for `playableTopOfDeck`.
+ * `cards` is the only filter on the tuck: who owns a tucked card is not checked unless `cards` says (`owner: "you"`).
+ */
+export const playableTucked = (
+  opts: {
+    readonly under?: TargetRef;
+    readonly cards?: TargetQuery;
+    readonly player?: PlayerRef;
+    readonly costReduction?: number;
+    readonly limit?: "turn" | "phase" | "round";
+  } = {},
+): ConstantPart => ({
+  playableAsIfInHand: {
+    player: opts.player ?? { kind: "controller" },
+    zone: { tuckedUnder: opts.under ?? { kind: "self" } },
+    ...(opts.cards ? { cards: opts.cards } : {}),
     ...(opts.costReduction ? { costReduction: opts.costReduction } : {}),
     ...(opts.limit ? { limit: opts.limit } : {}),
   },

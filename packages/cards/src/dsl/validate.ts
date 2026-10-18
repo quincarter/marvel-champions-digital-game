@@ -3,6 +3,7 @@ import {
   inPlayPicksOf,
   tuckedPickOf,
   isResourcesChoice,
+  playableAsIfInHandOf,
   hearsEncounterDeckDiscard,
   MOMENT_PREFIX,
   PAID_FOR_SLOT,
@@ -658,9 +659,11 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
   }
   if (definition.generates !== undefined && trigger.kind !== "resource")
     problems.push("only resource abilities generate resources");
-  // The one limit a constant carries is its `playableTopOfDeck` permission's "once per phase" (docs/phase7-wave8.md
-  // §3.49), counted when a card is played under it.
-  const permissionLimit = trigger.kind === "constant" && trigger.playableTopOfDeck !== undefined;
+  // The one limit a constant carries is its `playableTopOfDeck` / `playableAsIfInHand` permission's "once per phase"
+  // (docs/phase7-wave8.md §3.49, docs/phase7-wave11.md §3.8), counted when a card is played under it.
+  const permissionLimit = playableAsIfInHandOf(trigger) !== undefined;
+  if (trigger.kind === "constant" && trigger.playableTopOfDeck && trigger.playableAsIfInHand)
+    problems.push("a constant ability has at most one of playableTopOfDeck and playableAsIfInHand");
   if (
     trigger.kind === "constant" &&
     ((definition.cost && !additionalPlayCost) || (definition.limit && !permissionLimit) || definition.label)

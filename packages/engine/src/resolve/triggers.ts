@@ -3,9 +3,9 @@
 import type { EngineDeps, EventPattern } from "../abilities.js";
 import {
   attachmentsPlayableBy,
-  deckTopCostReduction,
-  deckTopPlayableBy,
-  deckTopPlayOf,
+  asIfInHandCostReduction,
+  asIfInHandPlayableBy,
+  asIfInHandPlayOf,
   playsOwnCardFromHand,
   ownCardPlayFault,
   defaultHandDiscardPicks,
@@ -140,8 +140,8 @@ function costPayable(
     event,
   );
   if (isPriceFault(plan)) return false;
-  // Played from the top of the deck (`playableTopOfDeck`), the permission's reduction applies, as `playWindowEvent`
-  // prices it.
+  // Played as if from hand from the top of the deck or a tuck (`playableTopOfDeck`, `playableAsIfInHand`), the
+  // permission's reduction applies, as `playWindowEvent` prices it.
   const requirement = fromHand
     ? playRequirement(
         state,
@@ -151,7 +151,7 @@ function costPayable(
         deps,
         null,
         0,
-        deckTopCostReduction(state, deps, playerId, id),
+        asIfInHandCostReduction(state, deps, playerId, id),
       )
     : plan.requirement;
   const chosenSize = fromHand ? null : resourcesChoiceOf(plan.cost ?? cost);
@@ -1040,10 +1040,11 @@ function inHandCandidates(
   for (const player of playerOrder(state)) {
     const attached = new Set(attachmentsPlayableBy(state, deps, player.playerId));
     // "You may play the top card of your deck as if it was in your hand" (`playableTopOfDeck`, docs/phase7-wave8.md
-    // §3.49): offered as an event in hand is, and for an in-hand ability that plays its own card (`playsOwnCardFromHand`).
-    // Nothing else of the card works from there: it is in the deck.
-    const deckTop = new Set(deckTopPlayableBy(state, deps, player.playerId));
-    for (const id of [...player.hand, ...attached, ...deckTop]) {
+    // §3.49), "You may play the upgrade tucked here as if it were in your hand" (`playableAsIfInHand`,
+    // docs/phase7-wave11.md §3.8): offered as an event in hand is, and for an in-hand ability that plays its own card
+    // (`playsOwnCardFromHand`). Nothing else of the card works from there: it is in the deck or the tuck.
+    const asIfInHand = new Set(asIfInHandPlayableBy(state, deps, player.playerId));
+    for (const id of [...player.hand, ...attached, ...asIfInHand]) {
       const card = cardOf(state, id);
       if (!card) continue;
       // "While Pip the Troll is in your hand, he gains 'Interrupt: …'" (`activeIn: "hand"`, docs/phase7-wave4.md §3.13):
@@ -1058,7 +1059,7 @@ function inHandCandidates(
         for (const ref of "abilities" in card ? card.abilities : []) {
           const definition = deps.abilities[ref.id];
           if (!definition || definition.activeIn !== "hand") continue;
-          if (deckTop.has(id) && !playsOwnCardFromHand(definition)) continue;
+          if (asIfInHand.has(id) && !playsOwnCardFromHand(definition)) continue;
           const trigger = definition.trigger;
           if (trigger.kind !== timing || trigger.forced !== forced) continue;
           // "Other players cannot resolve player card abilities during your turn": one used from a hand included.
@@ -1148,7 +1149,7 @@ export function hearersOf(
   for (const player of playerOrder(state)) {
     const elsewhere = [
       ...attachmentsPlayableBy(state, deps, player.playerId),
-      ...deckTopPlayableBy(state, deps, player.playerId),
+      ...asIfInHandPlayableBy(state, deps, player.playerId),
     ];
     for (const id of [...player.hand, ...elsewhere]) {
       const card = cardOf(state, id);
@@ -1256,7 +1257,7 @@ export function stillOffered(
     if (
       !player.hand.includes(id) &&
       !attachmentsPlayableBy(state, deps, controllerId).includes(id) &&
-      !deckTopPlayOf(state, deps, controllerId, id)
+      !asIfInHandPlayOf(state, deps, controllerId, id)
     )
       return false;
     if (playRestrictionFault(state, deps, controllerId, card, id)) return false;
@@ -1269,8 +1270,8 @@ export function stillOffered(
     if (triggeredAbilityForbidden(state, deps, id, trigger, controllerId, noTriggers)) return false;
   } else if (definition.activeIn === "hand") {
     if (!controllerId) return false;
-    const fromDeckTop = playsOwnCardFromHand(definition) && deckTopPlayOf(state, deps, controllerId, id) !== null;
-    if (!getPlayer(state, controllerId)?.hand.includes(id) && !fromDeckTop) return false;
+    const asIfInHandPlay = playsOwnCardFromHand(definition) && asIfInHandPlayOf(state, deps, controllerId, id) !== null;
+    if (!getPlayer(state, controllerId)?.hand.includes(id) && !asIfInHandPlay) return false;
     if (triggeredAbilityForbidden(state, deps, id, trigger, controllerId)) return false;
     if (ownCardPlayFault(state, deps, controllerId, id, definition, event) !== null) return false;
   } else if (!answersFromOutOfPlay(event, id)) {

@@ -283,6 +283,35 @@ export type ResourceMultiplierSpec =
       readonly additional?: { readonly resource: ResourceType; readonly amount: ValueSpec };
     };
 
+/** `AbilityTriggerSpec playableAsIfInHand`: where a card may be played "as if it were in your hand" (wave 11 §3.8). */
+export interface PlayableAsIfInHandSpec {
+  readonly player: PlayerRef;
+  readonly zone: "deckTop" | { readonly tuckedUnder: TargetRef };
+  /**
+   * Only the covered cards that match ("the upgrade tucked here"); read with this ability's card as `self`. On a tuck
+   * this is the only filter: nothing checks who owns the tucked card, so a permission meant for its owner's cards
+   * only says so here (`owner: "you"`) or in `player`.
+   */
+  readonly cards?: TargetQuery;
+  readonly costReduction?: number;
+}
+
+/**
+ * The "as if it were in your hand" permission a constant carries, or undefined: its `playableAsIfInHand`, or its
+ * `playableTopOfDeck` read as the `"deckTop"` case (docs/phase7-wave11.md §3.8).
+ */
+export function playableAsIfInHandOf(trigger: AbilityTriggerSpec | undefined): PlayableAsIfInHandSpec | undefined {
+  if (trigger?.kind !== "constant") return undefined;
+  if (trigger.playableAsIfInHand) return trigger.playableAsIfInHand;
+  const top = trigger.playableTopOfDeck;
+  if (!top) return undefined;
+  return {
+    player: top.player,
+    zone: "deckTop",
+    ...(top.costReduction !== undefined ? { costReduction: top.costReduction } : {}),
+  };
+}
+
 export type AbilityTriggerSpec =
   /**
    * `while`: a condition printed before the cost ("Hero Action: If you are in Tiny hero form, exhaust Army of Ants →
@@ -592,6 +621,25 @@ export type AbilityTriggerSpec =
        * is showing it. On the one printed card the two lines are two constants of the same face and go off together.
        */
       readonly playableTopOfDeck?: { readonly player: PlayerRef; readonly costReduction?: number };
+      /**
+       * The general form of `playableTopOfDeck` (docs/phase7-wave11.md §3.8): a permission (RRG 1.8 "Play
+       * Restrictions and Permissions", p. 33) for each player `player` names to play a card from `zone` "as if it
+       * were in your hand", read the same way and on every route that plays a card from the hand.
+       *
+       * - `zone: "deckTop"`: exactly `playableTopOfDeck` (which stays, and is read as this case).
+       * - `zone: { tuckedUnder }`: "You may play the upgrade tucked here as if it were in your hand." (Contingency
+       *   Planning, `fne` 60030). Each card tucked under the card(s) `tuckedUnder` names (this ability's card as
+       *   `self`), faceup or facedown, that matches `cards` when given. A tucked card is out of play (RRG 1.8 "Tuck",
+       *   p. 45), so it is played at its own timing as a hand card is (an upgrade in its player's turn, an event in its
+       *   window) and leaves the tuck at step 1 of initiating (RRG 1.8 "Initiating Abilities", p. 24). The log's
+       *   `cardPlayed` carries `from: "tucked", countsAsFrom: "hand"`. The tuck goes with its host (RRG 1.8 "Tuck",
+       *   p. 45: discarded when the host leaves play), and with it the permission.
+       *
+       * `costReduction` and the ability's limit work as for `playableTopOfDeck`. At most one of the two is set.
+       * (The spec calls this `playableFrom`; that name is the card's own discard permission above, so it is
+       * `playableAsIfInHand` here.)
+       */
+      readonly playableAsIfInHand?: PlayableAsIfInHandSpec;
       /** "As an additional cost for Wonder Man to attack, you must discard 1 card." Costs on this character's own basic powers. */
       readonly basicPowerCosts?: readonly { readonly power: "attack" | "thwart"; readonly cost: AbilityCost }[];
       /**

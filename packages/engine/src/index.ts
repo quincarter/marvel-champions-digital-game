@@ -149,7 +149,14 @@ export {
   playableOutsideHand,
 } from "./actions.js";
 export { encounterSearchCostCandidates } from "./encounter-search-cost.js";
-export { deckTopPermission, deckTopPlayOf, type DeckTopPermission } from "./actions.js";
+export {
+  asIfInHandPermissions,
+  asIfInHandPlayOf,
+  deckTopPermission,
+  deckTopPlayOf,
+  type AsIfInHandPermission,
+  type DeckTopPermission,
+} from "./actions.js";
 export type { Command, CommandType, Payment, ResourceAbilityUse, SpentCardAbilityUse } from "./commands.js";
 export type { GameEvent, GameEventType } from "./events.js";
 export type { EngineError, EngineErrorCode, IllegalDeck } from "./errors.js";
@@ -200,6 +207,7 @@ export type {
   AbilityRegistry,
   AbilitySource,
   AbilityTriggerSpec,
+  PlayableAsIfInHandSpec,
   CardZoneQuery,
   ConsequentialDamageScope,
   CostModifierSpec,
@@ -309,6 +317,7 @@ export {
   labeledResolvedVar,
   isResourcesChoice,
   NO_ABILITIES,
+  playableAsIfInHandOf,
   resourcesChoiceOf,
 } from "./abilities.js";
 export type { InPlayCostMode, ResourcesChoice } from "./abilities.js";

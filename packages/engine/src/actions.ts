@@ -7,6 +7,7 @@ import {
   type AbilityDefinition,
   type AbilityRegistry,
   type AbilityTriggerSpec,
+  playableAsIfInHandOf,
   type CostModifierSpec,
   type EngineDeps,
   type ResourceGeneration,
@@ -478,11 +479,13 @@ export const playableOutsideHand = (state: GameState, deps: EngineDeps, playerId
   playableFromDiscard(state, deps, playerId, id) || playableFromAttachment(state, deps, playerId, id);
 
 /**
- * A `playableTopOfDeck` permission in force for a player (docs/phase7-wave8.md §3.49): the card and ability it is
- * printed on, what it takes off the cost, and the top card of the player's deck it covers.
+ * A permission to play one card "as if it was in your hand" in force for a player: `playableTopOfDeck` over the top
+ * card of their deck (docs/phase7-wave8.md §3.49), or `playableAsIfInHand` over that card or a tucked one
+ * (docs/phase7-wave11.md §3.8). The card and ability it is printed on, what it takes off the cost, and the card it
+ * covers.
  */
-export interface DeckTopPermission {
-  /** The top card of the player's deck: the one card the permission covers right now. */
+export interface AsIfInHandPermission {
+  /** The card the permission covers right now: the top card of the deck, or a card tucked under `hostInstanceId`. */
   readonly instanceId: InstanceId;
   readonly sourceInstanceId: InstanceId;
   readonly abilityId: AbilityId;
@@ -490,41 +493,49 @@ export interface DeckTopPermission {
   readonly costReduction: number;
   /** The ability's limit has been reached for its period ("once per phase"), so the card cannot be played this way. */
   readonly limitUsed: boolean;
+  /** Where the card is: the top of the player's deck, or tucked under `hostInstanceId`. */
+  readonly from: "deckTop" | "tucked";
+  /** Present only for `from: "tucked"`: the card the covered card is tucked under. */
+  readonly hostInstanceId?: InstanceId;
 }
 
-const REGISTRIES_WITH_DECK_TOP_PLAY = new WeakMap<AbilityRegistry, boolean>();
+/** The `playableTopOfDeck` case of `AsIfInHandPermission` (docs/phase7-wave8.md §3.49), by its first name. */
+export type DeckTopPermission = AsIfInHandPermission;
+
+const REGISTRIES_WITH_AS_IF_IN_HAND_PLAY = new WeakMap<AbilityRegistry, boolean>();
 
 /** Whether any ability of this registry carries the permission, read once per registry. */
-function registryHasDeckTopPlay(deps: EngineDeps): boolean {
-  let found = REGISTRIES_WITH_DECK_TOP_PLAY.get(deps.abilities);
+function registryHasAsIfInHandPlay(deps: EngineDeps): boolean {
+  let found = REGISTRIES_WITH_AS_IF_IN_HAND_PLAY.get(deps.abilities);
   if (found === undefined) {
-    found = Object.values(deps.abilities).some(
-      (definition) => definition.trigger.kind === "constant" && definition.trigger.playableTopOfDeck !== undefined,
-    );
-    REGISTRIES_WITH_DECK_TOP_PLAY.set(deps.abilities, found);
+    found = Object.values(deps.abilities).some((definition) => playableAsIfInHandOf(definition.trigger) !== undefined);
+    REGISTRIES_WITH_AS_IF_IN_HAND_PLAY.set(deps.abilities, found);
   }
   return found;
 }
 
 /**
- * The `playableTopOfDeck` permission over `playerId`'s deck right now, or null: none is in force (no such constant on
- * an active face in play, a blank text box), or the deck is empty. Derived each time it is asked, like the faceup rule
- * (`shownDeckTop`); only the limit's count is state (`abilityUses`). With several in force, the first whose limit is
- * not used. `limitUsed` says the permission stands but cannot be used again this period: the card is then not playable,
- * and `legalActions` and `choiceExclusions` say why.
- *
- * Not tied to `RuleSpec topOfDeckFaceup`: see `AbilityTriggerSpec.playableTopOfDeck`.
+ * Every card `playerId` may play "as if it was in your hand" from outside it right now, one permission per card: the
+ * top card of their deck (`playableTopOfDeck`, `playableAsIfInHand "deckTop"`) first, then each covered tucked card
+ * (`playableAsIfInHand { tuckedUnder }`). Derived each time it is asked, like the faceup rule (`shownDeckTop`): with
+ * no such constant on an active face in play (the other form, a blank text box) there is none; only a limit's count is
+ * state (`abilityUses`). With several over one card, the first whose limit is not used. `limitUsed` says the
+ * permission stands but cannot be used again this period: the card is then not playable this way, and `legalActions`
+ * and `choiceExclusions` say why.
  */
-export function deckTopPermission(state: GameState, deps: EngineDeps, playerId: PlayerId): DeckTopPermission | null {
-  if (!registryHasDeckTopPlay(deps)) return null;
+export function asIfInHandPermissions(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+): readonly AsIfInHandPermission[] {
+  if (!registryHasAsIfInHandPlay(deps)) return [];
   const top = getPlayer(state, playerId)?.deck[0];
-  if (top === undefined) return null;
-  let used: DeckTopPermission | null = null;
+  const byCard = new Map<InstanceId, AsIfInHandPermission>();
   for (const sourceId of cardsInPlay(state)) {
     for (const ref of activeAbilityRefs(state, sourceId, deps)) {
       const definition = deps.abilities[ref.id];
-      const trigger = definition?.trigger;
-      if (!definition || trigger?.kind !== "constant" || !trigger.playableTopOfDeck) continue;
+      const spec = playableAsIfInHandOf(definition?.trigger);
+      if (!definition || !spec) continue;
       const context: EffectContext = {
         selfInstanceId: sourceId,
         controllerId: speakerOf(state, sourceId),
@@ -532,54 +543,86 @@ export function deckTopPermission(state: GameState, deps: EngineDeps, playerId: 
         bindings: {},
         deps,
       };
-      if (!resolvePlayers(state, trigger.playableTopOfDeck.player, context).includes(playerId)) continue;
-      const permission: DeckTopPermission = {
-        instanceId: top,
+      if (!resolvePlayers(state, spec.player, context).includes(playerId)) continue;
+      const base = {
         sourceInstanceId: sourceId,
         abilityId: ref.id,
-        costReduction: Math.max(0, trigger.playableTopOfDeck.costReduction ?? 0),
-        limitUsed: limitReached(state, sourceId, ref.id, definition, null, playerId),
+        costReduction: Math.max(0, spec.costReduction ?? 0),
       };
-      if (!permission.limitUsed) return permission;
-      used ??= permission;
+      const covered: AsIfInHandPermission[] = [];
+      if (spec.zone === "deckTop") {
+        if (top !== undefined) covered.push({ ...base, instanceId: top, limitUsed: false, from: "deckTop" });
+      } else {
+        for (const host of resolveRef(state, spec.zone.tuckedUnder, context))
+          for (const id of getInstance(state, host)?.tucked ?? [])
+            covered.push({ ...base, instanceId: id, limitUsed: false, from: "tucked", hostInstanceId: host });
+      }
+      const matching = covered.filter((p) => !spec.cards || matchesQuery(state, p.instanceId, spec.cards, context));
+      if (matching.length === 0) continue;
+      const limitUsed = limitReached(state, sourceId, ref.id, definition, null, playerId);
+      for (const permission of matching) {
+        const held = byCard.get(permission.instanceId);
+        if (!held || (held.limitUsed && !limitUsed)) byCard.set(permission.instanceId, { ...permission, limitUsed });
+      }
     }
   }
-  return used;
+  const all = [...byCard.values()];
+  return [...all.filter((p) => p.from === "deckTop"), ...all.filter((p) => p.from === "tucked")];
 }
 
 /**
- * The permission under which `playerId` may play `id` "as if it was in your hand" from the top of their deck now
- * (`deckTopPermission`, in force with its limit unused, and `id` that top card), or null. Every route that plays a card
- * from the hand asks this of a card that is not in the hand: the play command, a timing window's in-hand candidates and
- * `EffectSpec playFromHand` from the hand. A play from the deck by an effect that searches it (`from: "deck"`) does
- * not ask, so a searched card that happens to be on top is neither reduced nor counted against the limit.
+ * The permission over the top card of `playerId`'s deck right now, or null: none is in force, or the deck is empty
+ * (`asIfInHandPermissions`' `"deckTop"` entry). Not tied to `RuleSpec topOfDeckFaceup`: see
+ * `AbilityTriggerSpec.playableTopOfDeck`.
  */
+export const deckTopPermission = (state: GameState, deps: EngineDeps, playerId: PlayerId): DeckTopPermission | null =>
+  asIfInHandPermissions(state, deps, playerId).find((p) => p.from === "deckTop") ?? null;
+
+/**
+ * The permission under which `playerId` may play `id` "as if it was in your hand" from outside it now (in force with
+ * its limit unused, over `id`), or null. Every route that plays a card from the hand asks this of a card that is not
+ * in the hand: the play command, a timing window's in-hand candidates and `EffectSpec playFromHand` from the hand. A
+ * play by an effect from the deck it searches (`from: "deck"`) or from a tuck it names (`from: { tuckedUnder }`) does
+ * not ask, so the card it plays is neither reduced nor counted against the limit.
+ */
+export function asIfInHandPlayOf(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  id: InstanceId,
+): AsIfInHandPermission | null {
+  return asIfInHandPermissions(state, deps, playerId).find((p) => !p.limitUsed && p.instanceId === id) ?? null;
+}
+
+/** `asIfInHandPlayOf` for the top card of the deck only (docs/phase7-wave8.md §3.49). */
 export function deckTopPlayOf(
   state: GameState,
   deps: EngineDeps,
   playerId: PlayerId,
   id: InstanceId,
 ): DeckTopPermission | null {
-  const permission = deckTopPermission(state, deps, playerId);
-  return permission && !permission.limitUsed && permission.instanceId === id ? permission : null;
+  const permission = asIfInHandPlayOf(state, deps, playerId, id);
+  return permission?.from === "deckTop" ? permission : null;
 }
 
-/** The top card of `playerId`'s deck when they may play it as if from hand now (`deckTopPlayOf`), as a list. */
-export function deckTopPlayableBy(state: GameState, deps: EngineDeps, playerId: PlayerId): readonly InstanceId[] {
-  const permission = deckTopPermission(state, deps, playerId);
-  return permission && !permission.limitUsed ? [permission.instanceId] : [];
-}
+/** The cards outside `playerId`'s hand they may play as if from it now (`asIfInHandPlayOf`), as a list. */
+export const asIfInHandPlayableBy = (state: GameState, deps: EngineDeps, playerId: PlayerId): readonly InstanceId[] =>
+  asIfInHandPermissions(state, deps, playerId).flatMap((p) => (p.limitUsed ? [] : [p.instanceId]));
 
-/** What the permission takes off the cost of playing `id` from the top of the deck; 0 for any other card. */
-export const deckTopCostReduction = (state: GameState, deps: EngineDeps, playerId: PlayerId, id: InstanceId): number =>
-  deckTopPlayOf(state, deps, playerId, id)?.costReduction ?? 0;
+/** What the permission takes off the cost of playing `id` as if from hand; 0 for any card it does not cover. */
+export const asIfInHandCostReduction = (
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  id: InstanceId,
+): number => asIfInHandPlayOf(state, deps, playerId, id)?.costReduction ?? 0;
 
 /**
- * Whether a card counts as "in your hand" for being played: in the hand, or the top card of the deck under
- * `playableTopOfDeck`. Only for playing (RRG 1.8 FAQ "Magik (#30A)", p. 64, fourth entry).
+ * Whether a card counts as "in your hand" for being played: in the hand, or covered by an "as if it was in your hand"
+ * permission (`asIfInHandPlayOf`). Only for playing (RRG 1.8 FAQ "Magik (#30A)", p. 64, fourth entry).
  */
 export const inHandForPlaying = (state: GameState, deps: EngineDeps, playerId: PlayerId, id: InstanceId): boolean =>
-  (getPlayer(state, playerId)?.hand.includes(id) ?? false) || deckTopPlayOf(state, deps, playerId, id) !== null;
+  (getPlayer(state, playerId)?.hand.includes(id) ?? false) || asIfInHandPlayOf(state, deps, playerId, id) !== null;
 
 /**
  * An ability that works from the hand (`activeIn: "hand"`) and plays its own card from there ("Interrupt: When an
@@ -4576,14 +4619,15 @@ export function playCostOf(
   const printed = printedCostOf(state, card, cardInstanceId);
   const modified = Math.max(0, printed + modifiers.reduce((total, entry) => total + entry.delta, 0));
   const byArea = Math.max(0, areaCostReductionFor(state, deps, playerId, cardInstanceId, into));
-  // The top card of the deck under `playableTopOfDeck` (docs/phase7-wave8.md §3.49): what playing it from there costs,
-  // with the permission's card listed last as the source of its reduction. Applied where the play's own reductions
-  // are (`ownPlayCost`'s `extraReduction`), after the modifiers.
-  const deckTop = deckTopPlayOf(state, deps, playerId, cardInstanceId);
-  const offTheTop = deckTop?.costReduction ?? 0;
+  // A card played as if from hand from outside it (`playableTopOfDeck`, docs/phase7-wave8.md §3.49;
+  // `playableAsIfInHand`, docs/phase7-wave11.md §3.8): what playing it from there costs, with the permission's card
+  // listed last as the source of its reduction. Applied where the play's own reductions are (`ownPlayCost`'s
+  // `extraReduction`), after the modifiers.
+  const asIfInHand = asIfInHandPlayOf(state, deps, playerId, cardInstanceId);
+  const permissionReduction = asIfInHand?.costReduction ?? 0;
   const contributions =
-    deckTop && offTheTop > 0
-      ? [...modifiers, { sourceInstanceId: deckTop.sourceInstanceId, delta: -offTheTop }]
+    asIfInHand && permissionReduction > 0
+      ? [...modifiers, { sourceInstanceId: asIfInHand.sourceInstanceId, delta: -permissionReduction }]
       : modifiers;
   const current = priceAfterReductions(
     state,
@@ -4592,11 +4636,11 @@ export function playCostOf(
     cardInstanceId,
     printed,
     modifiers.map((entry) => entry.delta),
-    byArea + offTheTop,
+    byArea + permissionReduction,
   );
   // With a "to 0" waiting on the card, what it takes off is whatever was left of the modified cost.
   const reduction = costSetToZeroFor(state, deps, playerId, cardInstanceId)
-    ? Math.max(0, modified - offTheTop - current)
+    ? Math.max(0, modified - permissionReduction - current)
     : costReductionFor(state, deps, playerId, cardInstanceId) + byArea;
   return { printed, current, contributions, reduction };
 }
@@ -4960,22 +5004,25 @@ export function commitPlay(
   payment: readonly Payment[],
   priced: PricedPlay,
   /**
-   * The card is played from the top of the deck under this permission (`deckTopPlayOf`, read by the caller before
-   * anything moved; docs/phase7-wave8.md §3.49). Null for every other play, a searched deck's card included.
+   * The card is played as if from hand from outside it under this permission (`asIfInHandPlayOf`, read by the caller
+   * before anything moved): from the top of the deck (docs/phase7-wave8.md §3.49) or a tuck (docs/phase7-wave11.md
+   * §3.8). Null for every other play, a searched deck's card and an effect's play from a tuck it names included.
    */
-  deckTop: DeckTopPermission | null = null,
+  asIfInHand: AsIfInHandPermission | null = null,
   /** An effect plays the card from one of its player's separate decks (docs/phase7-wave11.md §3.2): logged as such. */
   fromSeparateDeck: SeparateDeckPlayFrom | null = null,
 ): SpentPayment {
-  if (deckTop) {
+  if (asIfInHand) {
     // RRG 1.8 "Initiating Abilities" (p. 24), step 1, and FAQ "Magik (#30A)" (p. 64, which calls it step 3): the card
     // goes to the table before any cost is paid, "as soon as she does this, she turns the new top card of her deck
     // faceup" (`moveCard` logs `deckTopShown`), and the card that was second is "the top card of your deck" to
     // everything the played card reads. The permission's use is counted here, so a play canceled later still used it
     // (RRG 1.8 "Limit", p. 27). The card waits in the player's resolving area whatever its type; an ally, support or
-    // upgrade enters play from there when its play frame runs.
-    const definition = ctx.deps.abilities[deckTop.abilityId];
-    if (definition) recordAbilityUse(ctx, deckTop.sourceInstanceId, deckTop.abilityId, definition, null, playerId);
+    // upgrade enters play from there when its play frame runs. A tucked card leaves its tuck the same way (RRG 1.8
+    // "Tuck", p. 45: it is out of play, so it does not leave play).
+    const definition = ctx.deps.abilities[asIfInHand.abilityId];
+    if (definition)
+      recordAbilityUse(ctx, asIfInHand.sourceInstanceId, asIfInHand.abilityId, definition, null, playerId);
     moveCard(ctx, cardInstanceId, { kind: "resolving", playerId });
   }
   consumeCostReductions(ctx, ctx.deps, playerId, cardInstanceId);
@@ -5019,7 +5066,7 @@ export function commitPlay(
     paid: priced.pool,
     // The log keeps where the card really was; every reader of a play treats it as played from the hand (FAQ "Magik
     // (#30A)", p. 64: "that card is considered to have been played from her hand").
-    ...(deckTop ? { from: "deckTop" as const, countsAsFrom: "hand" as const } : {}),
+    ...(asIfInHand ? { from: asIfInHand.from, countsAsFrom: "hand" as const } : {}),
     ...(fromSeparateDeck ? { from: "separateDeck" as const } : {}),
     // "As if it were in your hand" (Daredevil 60001a): counted as played from the hand, as the Magik FAQ reads it.
     ...(fromSeparateDeck?.asIfInHand ? { countsAsFrom: "hand" as const } : {}),
@@ -5041,7 +5088,7 @@ export function commitPlay(
     });
   }
   // RRG "Event": a played event is out of play while it resolves, then it is discarded.
-  if (!deckTop && cardOf(ctx.state, cardInstanceId)?.type === "event")
+  if (!asIfInHand && cardOf(ctx.state, cardInstanceId)?.type === "event")
     moveCard(ctx, cardInstanceId, { kind: "resolving", playerId });
   return spent;
 }
@@ -5073,7 +5120,8 @@ export function playCostReductionFault(
     return { code: "wrong_form", message: `${abilityId} requires ${form} form` };
   if (limitReached(state, instanceId, asAbilityId(abilityId), definition, null, playerId))
     return { code: "limit_reached", message: `${abilityId} has reached its limit` };
-  // The top card of the deck played under `playableTopOfDeck` is played from the hand (docs/phase7-wave8.md §3.49).
+  // A card played under `playableTopOfDeck` / `playableAsIfInHand` is played from the hand (docs/phase7-wave8.md
+  // §3.49, docs/phase7-wave11.md §3.8).
   if (reduction.fromHand === true && !inHandForPlaying(state, deps, playerId, cardInstanceId))
     return { code: "no_valid_target", message: "that ability only reduces a card played from your hand" };
   if (reduction.cards) {
@@ -5099,18 +5147,22 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
   const invalid = (actionEvent ? requireActionTiming : requireActivePlayer)(ctx.state, command.playerId, command);
   if (invalid) return invalid;
   const player = mustPlayer(ctx.state, command.playerId);
-  // "You may play the top card of your deck as if it was in your hand" (`playableTopOfDeck`, docs/phase7-wave8.md
-  // §3.49): read before anything moves, and handed to `commitPlay`.
-  const deckTop = deckTopPlayOf(ctx.state, ctx.deps, command.playerId, command.cardInstanceId);
+  // "You may play the top card of your deck / the upgrade tucked here as if it was in your hand" (`playableTopOfDeck`,
+  // docs/phase7-wave8.md §3.49; `playableAsIfInHand`, docs/phase7-wave11.md §3.8): read before anything moves, and
+  // handed to `commitPlay`.
+  const asIfInHand = asIfInHandPlayOf(ctx.state, ctx.deps, command.playerId, command.cardInstanceId);
   if (
-    !deckTop &&
+    !asIfInHand &&
     !player.hand.includes(command.cardInstanceId) &&
     !playableOutsideHand(ctx.state, ctx.deps, command.playerId, command.cardInstanceId)
   ) {
-    const standing = deckTopPermission(ctx.state, ctx.deps, command.playerId);
-    if (standing?.limitUsed && standing.instanceId === command.cardInstanceId) {
+    const standing = asIfInHandPermissions(ctx.state, ctx.deps, command.playerId).find(
+      (p) => p.instanceId === command.cardInstanceId,
+    );
+    if (standing?.limitUsed) {
       const period = ctx.deps.abilities[standing.abilityId]?.limit?.period ?? "phase";
-      return engineError("limit_reached", `you have already played the top card of your deck this ${period}`, command);
+      const what = standing.from === "deckTop" ? "the top card of your deck" : "a card tucked there";
+      return engineError("limit_reached", `you have already played ${what} this ${period}`, command);
     }
     return engineError("card_not_in_zone", "card is not in hand", command);
   }
@@ -5292,7 +5344,7 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
   // "Reduce the cost to play that card by 3" (Star-Lord; docs/phase7-wave3.md §3.20): each named ability is checked
   // before pricing, so a refused one costs nothing.
   const reductions = command.costReductionAbilities ?? [];
-  let extraReduction = deckTop?.costReduction ?? 0;
+  let extraReduction = asIfInHand?.costReduction ?? 0;
   for (const [index, { instanceId, abilityId }] of reductions.entries()) {
     if (reductions.findIndex((other) => other.instanceId === instanceId && other.abilityId === abilityId) !== index)
       return engineError("invalid_choice", "the same cost reduction is named twice", command);
@@ -5337,7 +5389,7 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     if (attachTo === null) return engineError("no_valid_target", "upgrade has no valid host", command);
   }
 
-  const spent = commitPlay(ctx, command.playerId, command.cardInstanceId, command.payment, priced, deckTop);
+  const spent = commitPlay(ctx, command.playerId, command.cardInstanceId, command.payment, priced, asIfInHand);
   if (intoArea !== null) consumeAreaCostReductions(ctx, command.playerId, command.cardInstanceId, intoArea);
   for (const { instanceId, abilityId } of reductions) {
     const definition = ctx.deps.abilities[abilityId];
@@ -5443,9 +5495,10 @@ export const isSeparateDeckPlayFrom = (from: PlayFromZone): from is SeparateDeck
 
 /**
  * The cards an effect could play from `from` for this player, in zone order (before any play check). With `deps`, the
- * hand is followed by the top card of the deck the player may play "as if it was in your hand" (`deckTopPlayableBy`,
- * docs/phase7-wave8.md §3.49; RRG 1.8 FAQ "Magik (#30A)", p. 64, second entry). Only for `from: "hand"`: a searched
- * deck, the set-aside area and a tuck are not the hand.
+ * hand is followed by the cards the player may play "as if it was in your hand" from outside it, the top card of the
+ * deck and covered tucked cards (`asIfInHandPlayableBy`, docs/phase7-wave8.md §3.49, docs/phase7-wave11.md §3.8; RRG
+ * 1.8 FAQ "Magik (#30A)", p. 64, second entry). Only for `from: "hand"`: a searched deck, the set-aside area and a
+ * tuck an effect names are not the hand.
  */
 export function cardsInPlayFromZone(
   state: GameState,
@@ -5459,17 +5512,17 @@ export function cardsInPlayFromZone(
   }
   if (typeof from === "object") return from.tuckedUnder.flatMap((host) => getInstance(state, host)?.tucked ?? []);
   const cards = getPlayer(state, playerId)?.[from] ?? [];
-  return from === "hand" && deps ? [...cards, ...deckTopPlayableBy(state, deps, playerId)] : cards;
+  return from === "hand" && deps ? [...cards, ...asIfInHandPlayableBy(state, deps, playerId)] : cards;
 }
 
-/** The permission an effect's play of `id` from `from` uses: only a play "from your hand" may reach the deck's top. */
-export const deckTopPlayFrom = (
+/** The permission an effect's play of `id` from `from` uses: only a play "from your hand" reaches outside it. */
+export const asIfInHandPlayFrom = (
   state: GameState,
   deps: EngineDeps,
   playerId: PlayerId,
   id: InstanceId,
   from: PlayFromZone,
-): DeckTopPermission | null => (from === "hand" ? deckTopPlayOf(state, deps, playerId, id) : null);
+): DeckTopPermission | null => (from === "hand" ? asIfInHandPlayOf(state, deps, playerId, id) : null);
 
 /** Why a card is not where `from` says, as a fault message, or null. */
 function playFromZoneFault(
@@ -5694,9 +5747,9 @@ export function playWithPaymentFault(
   const restriction = playFromEffectRestrictionFault(ctx, playerId, id, from);
   if (restriction) return restriction;
   const card = mustCardOf(ctx.state, id);
-  // Played from the top of the deck through this effect, the permission's reduction and the effect's both apply
+  // Played as if from hand (deck top, tuck) through this effect, the permission's reduction and the effect's both apply
   // (docs/phase7-wave8.md §4.1 Q27 = A).
-  const reduction = extraReduction + (deckTopPlayFrom(ctx.state, ctx.deps, playerId, id, from)?.costReduction ?? 0);
+  const reduction = extraReduction + (asIfInHandPlayFrom(ctx.state, ctx.deps, playerId, id, from)?.costReduction ?? 0);
   if (card.type !== "event") return paidPlayFault(ctx, playerId, id, reduction, undefined);
   return anyEventAction(
     ctx,
@@ -5787,7 +5840,7 @@ export function playFromEffectRequirement(
   attachTo: InstanceId | null,
   extraReduction: number,
   abilityId?: AbilityId,
-  /** Where the effect plays from: from the hand, the top card of the deck adds its permission's reduction (Q27 = A). */
+  /** Where the effect plays from: from the hand, a deck top or tucked card adds its permission's reduction (Q27 A). */
   from: PlayFromZone = "hand",
 ): ResolvedRequirement | null {
   const abilityCost = eventActionForQuery(ctx, mustCardOf(ctx.state, id), id, playerId, abilityId).action?.definition
@@ -5802,7 +5855,7 @@ export function playFromEffectRequirement(
     new Set([id]),
   );
   if (isFault(plan)) return null;
-  const reduction = extraReduction + (deckTopPlayFrom(ctx.state, ctx.deps, playerId, id, from)?.costReduction ?? 0);
+  const reduction = extraReduction + (asIfInHandPlayFrom(ctx.state, ctx.deps, playerId, id, from)?.costReduction ?? 0);
   return playRequirement(ctx.state, playerId, id, plan.requirement, ctx.deps, attachTo, 0, reduction);
 }
 
@@ -5821,7 +5874,7 @@ export function playWithPayment(
   extraBindings: Bindings = {},
   /** The event's Action ability the player chose; absent, the only usable one. */
   abilityId?: AbilityId,
-  /** Where the effect plays from (`deckTopPlayFrom`): the hand reaches the top of the deck under its permission. */
+  /** Where the effect plays from (`asIfInHandPlayFrom`): the hand reaches a deck top or tuck under its permission. */
   from: PlayFromZone = "hand",
   /**
    * The declared types of the payment's wilds, when the caller has them (`playCard.wildAs`; docs/phase7-wave8.md
@@ -5838,10 +5891,10 @@ export function playWithPayment(
   const chosen = eventActionToPlay(ctx, mustCardOf(ctx.state, id), id, playerId, abilityId);
   if (chosen && isFault(chosen)) return null;
   const ability = chosen?.definition;
-  const deckTop = deckTopPlayFrom(ctx.state, ctx.deps, playerId, id, from);
+  const asIfInHand = asIfInHandPlayFrom(ctx.state, ctx.deps, playerId, id, from);
   const reduction =
     extraReduction +
-    (deckTop?.costReduction ?? 0) +
+    (asIfInHand?.costReduction ?? 0) +
     Math.max(0, areaCostReductionFor(ctx.state, ctx.deps, playerId, id, into));
   // An additional cost to play is paid here too, with a pick only when it is forced (`paidPlayFault`).
   const playCost = playCostWith(ctx.state, ctx.deps, id, playerId, ability?.cost);
@@ -5850,7 +5903,7 @@ export function playWithPayment(
     wildAs,
   });
   if (isFault(priced)) return null;
-  const spent = commitPlay(ctx, playerId, id, payment, priced, deckTop, isSeparateDeckPlayFrom(from) ? from : null);
+  const spent = commitPlay(ctx, playerId, id, payment, priced, asIfInHand, isSeparateDeckPlayFrom(from) ? from : null);
   if (into !== null) consumeAreaCostReductions(ctx, playerId, id, into);
   const bindings = { ...priced.plan.bindings, ...extraBindings };
   const fromCost = playHostFromCost(ctx.state, ctx.deps, id, priced.plan.bindings);
@@ -5925,7 +5978,7 @@ export function playIgnoringCost(
     id,
     [],
     priced,
-    deckTopPlayFrom(ctx.state, ctx.deps, playerId, id, from),
+    asIfInHandPlayFrom(ctx.state, ctx.deps, playerId, id, from),
     isSeparateDeckPlayFrom(from) ? from : null,
   );
   // "The next ally played to the mission": this was that ally, though nothing was paid for the reduction to lower.

@@ -16,7 +16,7 @@
 
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
 import { type DefenseBar, defenseBarFor, windowDefenseBar } from "./defense-claim.js";
-import { deckTopPermission, playsOwnCardFromHand } from "./actions.js";
+import { asIfInHandPermissions, playsOwnCardFromHand } from "./actions.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { cardOf, getInstance, playerOrder } from "./query.js";
 import { contextOf } from "./resolve/effects-frame.js";
@@ -70,6 +70,10 @@ export type ExclusionCode =
    * RRG 1.8 "Limit", p. 27). Reported for a "play a card from your hand" card choice and for a `chooseTriggers`
    * prompt whose timing the card could have been played in. Not reported while no permission is in force (the other
    * form, a blank text box): the card is then simply in the deck.
+   *
+   * Also a card tucked under a card whose `playableAsIfInHand { tuckedUnder }` permission covers it, with that
+   * permission's limit used (docs/phase7-wave11.md §3.8). The code keeps its first name, which the client's wording
+   * table is keyed by.
    */
   | "deckTopPlayLimitUsed";
 
@@ -106,8 +110,10 @@ export function choiceExclusions(state: GameState, deps: EngineDeps = DEFAULT_DE
     // "Play a card from your hand": the card choice of `EffectSpec playFromHand` from the hand.
     const asking = frame?.kind === "effects" ? frame.effects[frame.cursor] : undefined;
     if (asking?.kind !== "playFromHand" || (asking.from ?? "hand") !== "hand") return [];
-    const used = usedDeckTop(state, deps, choice.playerId);
-    return used ? [{ instanceId: used, reason: "deckTopPlayLimitUsed" }] : [];
+    return usedAsIfInHand(state, deps, choice.playerId).map((instanceId) => ({
+      instanceId,
+      reason: "deckTopPlayLimitUsed" as const,
+    }));
   }
   if (choice.prompt.kind !== "chooseTarget") return [];
 
@@ -151,30 +157,34 @@ export function choiceExclusions(state: GameState, deps: EngineDeps = DEFAULT_DE
   return exclusions;
 }
 
-/** The top card of the player's deck when a `playableTopOfDeck` permission stands over it with its limit used. */
-function usedDeckTop(state: GameState, deps: EngineDeps, playerId: PlayerId): InstanceId | null {
-  const permission = deckTopPermission(state, deps, playerId);
-  return permission?.limitUsed ? permission.instanceId : null;
+/**
+ * The cards outside the player's hand that an "as if it was in your hand" permission stands over with its limit used:
+ * the top card of their deck (`playableTopOfDeck`) and covered tucked cards (`playableAsIfInHand`).
+ */
+function usedAsIfInHand(state: GameState, deps: EngineDeps, playerId: PlayerId): readonly InstanceId[] {
+  return asIfInHandPermissions(state, deps, playerId).flatMap((p) => (p.limitUsed ? [p.instanceId] : []));
 }
 
 /**
- * A `chooseTriggers` prompt's missing top-of-deck card: the permission's limit is used, and the card is one that could
- * be played in a window of this timing (an event with an interrupt or response of that timing, or an in-hand ability
- * that plays its own card). Whether its trigger matched this occurrence is not judged: the limit excluded it first.
+ * A `chooseTriggers` prompt's missing top-of-deck or tucked cards: the permission's limit is used, and the card is one
+ * that could be played in a window of this timing (an event with an interrupt or response of that timing, or an in-hand
+ * ability that plays its own card). Whether its trigger matched this occurrence is not judged: the limit excluded it
+ * first.
  */
 function deckTopTriggerExclusions(state: GameState, deps: EngineDeps): readonly ChoiceExclusion[] {
   const choice = state.pendingChoice;
   if (!choice || choice.prompt.kind !== "chooseTriggers") return [];
   const timing = choice.prompt.timing;
-  const used = usedDeckTop(state, deps, choice.playerId);
-  const card = used ? cardOf(state, used) : undefined;
-  if (!used || !card || !("abilities" in card)) return [];
-  const playedHere = card.abilities.some((ref) => {
-    const definition = deps.abilities[ref.id];
-    if (!definition || definition.trigger.kind !== timing || definition.trigger.forced) return false;
-    return definition.activeIn === "hand" ? playsOwnCardFromHand(definition) : card.type === "event";
+  return usedAsIfInHand(state, deps, choice.playerId).flatMap((used) => {
+    const card = cardOf(state, used);
+    if (!card || !("abilities" in card)) return [];
+    const playedHere = card.abilities.some((ref) => {
+      const definition = deps.abilities[ref.id];
+      if (!definition || definition.trigger.kind !== timing || definition.trigger.forced) return false;
+      return definition.activeIn === "hand" ? playsOwnCardFromHand(definition) : card.type === "event";
+    });
+    return playedHere ? [{ instanceId: used, reason: "deckTopPlayLimitUsed" as const }] : [];
   });
-  return playedHere ? [{ instanceId: used, reason: "deckTopPlayLimitUsed" }] : [];
 }
 
 /**
