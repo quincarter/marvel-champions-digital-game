@@ -83,6 +83,7 @@ export default defineConfig({
       // here unchanged.
       testMatch: [
         "holdon.spec.ts",
+        "ironheart-level-up.spec.ts",
         "tips.spec.ts",
         "overlay-input-block.spec.ts",
         "settings-blocks-presses.spec.ts",

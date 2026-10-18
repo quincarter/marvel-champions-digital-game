@@ -131,6 +131,7 @@ import {
 } from "../view/team-up-model.js";
 import { drawEncounter, drawEnemies, drawPlayArea, drawScenarioPlayAreas, drawTeam } from "./board/zones.js";
 import { avatarSwapAnnouncements } from "../view/avatar-swap-banner.js";
+import { levelUpCaptions } from "../view/level-up-banner.js";
 import { splitMissionArea, splitNeutralTab } from "../view/mission-area-layout.js";
 import { referenceCardViews, type ReferenceCardView } from "../view/reference-cards.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -723,6 +724,8 @@ export class BoardScene extends Phaser.Scene {
       for (const swap of avatarSwapAnnouncements(state.lastEvents, state.game)) {
         this.#motion.announce(swap.title, swap.detail);
       }
+      // A progressing identity's Level Up!: her card, stats and abilities change at once, so it gets its own moment.
+      for (const caption of levelUpCaptions(state.lastEvents, state.game)) this.#motion.announceLevelUp(caption);
       // Saving failing is silent otherwise — the game plays on — and a refresh
       // would then lose it. Said once, loudly; the chrome chip keeps saying it.
       if (state.saveError !== null && !this.#saveFailureAnnounced) {

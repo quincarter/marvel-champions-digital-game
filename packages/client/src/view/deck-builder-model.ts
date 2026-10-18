@@ -60,10 +60,14 @@ export interface FilterChoice {
 
 const cardsOf = (pool: CardPool): readonly AnyCard[] => (Array.isArray(pool) ? pool : Object.values(pool));
 
-/** Every hero identity in the pool, for the "pick an identity" step, sorted by name. */
+/**
+ * Every hero identity in the pool, for the "pick an identity" step, sorted by name. A progressing identity (Ironheart's
+ * three cards) is one hero: only the version a deck names, the first, is listed (issue #260).
+ */
 export function identityOptions(pool: CardPool): readonly HeroIdentityCard[] {
   return cardsOf(pool)
     .filter((card): card is HeroIdentityCard => card.type === "hero_identity")
+    .filter((card) => !card.progressingIdentity || card.progressingIdentity.versions[0] === card.id)
     .slice()
     .sort((a, b) => a.name.localeCompare(b.name));
 }

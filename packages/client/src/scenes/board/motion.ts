@@ -14,10 +14,62 @@ import { drawArt } from "../../art/card-art.js";
 import { appSession } from "../../session.js";
 import { accent, motion, signal, surface, typeRole } from "../../tokens.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
+import { onTap } from "../../ui/tap.js";
 import { fitText, hatchRect } from "../../ui/widgets.js";
 
 /** How long a table announcement holds once it is on screen. */
 const BANNER_MS = 3600;
+
+/** A band crossing the table: the phase/round band, or a hero's level-up band. */
+type WipeStyle = "phase" | "levelUp";
+
+/** One band on its way across the table (`#playWipe`). */
+interface WipeEntry {
+  readonly caption: string;
+  /** When the band starts to slide in — later than it landed, for the opening band (`wipeTimingFor`), and moved
+   * on to the moment the table is uncovered if an overlay was over it when its time came (`drawPhaseWipe`). */
+  startedAt: number;
+  readonly holdMs: number;
+  /** Its time came while an overlay covered the table, and it hasn't been on screen yet. */
+  deferred: boolean;
+  /** The durable record of this band (`debugPhaseBandLog`). */
+  readonly log: PhaseBandLogEntry;
+}
+
+/** A level-up band holds longer than a phase band: it is the hero's moment, and her card just changed under it. */
+const LEVEL_UP_HOLD_MS = 2000;
+
+const WIPE_COLORS: Record<
+  WipeStyle,
+  {
+    readonly ground: number;
+    /** A hatch over the ground, or none. */
+    readonly hatch: number | null;
+    /** The top and bottom edges, in segments that repeat these colors in order. */
+    readonly stripes: readonly number[];
+    readonly title: number;
+    readonly stroke: number;
+    readonly heightScale: number;
+  }
+> = {
+  phase: {
+    ground: surface.ink.hex,
+    hatch: null,
+    stripes: [accent.heroRed.hex],
+    title: surface.paper.hex,
+    stroke: accent.heroRed.hex,
+    heightScale: 1,
+  },
+  // Ironheart's armor: crimson and magenta plates, gold trim and the cyan glow of her repulsors, on a night-sky band.
+  levelUp: {
+    ground: 0x1d1240,
+    hatch: 0xe0338a,
+    stripes: [accent.heroRed.hex, signal.caution.hex, 0x2fc7e8, 0xe0338a],
+    title: signal.caution.hex,
+    stroke: 0xe0338a,
+    heightScale: 1.25,
+  },
+};
 import { beatsFrom, type Beat } from "../../view/beats.js";
 import { faceOf } from "../../view/board-model.js";
 import { exhaustMotionsFrom, type ExhaustDirection } from "../../view/exhaust-motion.js";
@@ -126,23 +178,19 @@ export class BoardMotion {
   #bannerPoll: Phaser.Time.TimerEvent | null = null;
 
   /** The phase/round band, and the round-chip pop / toggle fade it also drives (`drawPhaseWipe`, `roundChipScale`, `toggleFadeAlpha`). */
-  #phaseTransition: {
-    readonly transition: PhaseTransition;
-    /** When the band starts to slide in — later than it landed, for the opening band (`wipeTimingFor`), and moved
-     * on to the moment the table is uncovered if an overlay was over it when its time came (`drawPhaseWipe`). */
-    startedAt: number;
-    readonly holdMs: number;
-    /** Its time came while an overlay covered the table, and it hasn't been on screen yet. */
-    deferred: boolean;
-    /** The durable record of this band (`debugPhaseBandLog`). */
-    readonly log: PhaseBandLogEntry;
-  } | null = null;
+  #phaseTransition: (WipeEntry & { readonly transition: PhaseTransition }) | null = null;
   /** Every band that was queued, kept for the e2e: a band is on screen for a moment, a record is not. */
   readonly #bandLog: PhaseBandLogEntry[] = [];
   /** False until the first state has landed: that one's band is the game's opening band. */
   #landed = false;
   /** The pending "start the delayed band" call, so a redraw inside the delay replaces it rather than doubling it. */
   #wipeStart: Phaser.Time.TimerEvent | null = null;
+  /**
+   * A hero's own level-up band (Ironheart's Level Up!, `view/level-up-banner.ts`): the phase band's slide, in its
+   * `levelUp` colors. A slot of its own, so it never replaces a phase band or drives the round chip and phase toggle.
+   */
+  #levelUp: WipeEntry | null = null;
+  #levelUpStart: Phaser.Time.TimerEvent | null = null;
   /** A status pip/tag freshly stamped on, by card then by status, so more than one status on the same card each animate on their own clock. */
   #statusStamps = new Map<InstanceId, Map<StatusName, number>>();
   /** Ghosts of statuses just removed, by card. A card can lose more than one status in the same batch (Toughness cancelling a status-causing attack, an effect clearing several at once). */
@@ -178,7 +226,10 @@ export class BoardMotion {
    * because the round-2 band's own `#phaseTransition` never got cleared without some *other*, unrelated redraw.
    */
   isTransitioning(): boolean {
-    const entry = this.#phaseTransition;
+    return this.#wipeRunning(this.#phaseTransition) || this.#wipeRunning(this.#levelUp);
+  }
+
+  #wipeRunning(entry: WipeEntry | null): boolean {
     if (!entry) return false;
     if (entry.deferred) return true; // Waiting for the table to be uncovered, still to play.
     const elapsed = this.#scene.time.now - entry.startedAt;
@@ -192,7 +243,7 @@ export class BoardMotion {
     const entry = this.#phaseTransition;
     if (!entry) return null;
     return {
-      caption: entry.transition.caption,
+      caption: entry.caption,
       deferred: entry.deferred,
       elapsedMs: this.#scene.time.now - entry.startedAt,
     };
@@ -216,6 +267,9 @@ export class BoardMotion {
     this.#landed = false;
     this.#wipeStart?.remove();
     this.#wipeStart = null;
+    this.#levelUp = null;
+    this.#levelUpStart?.remove();
+    this.#levelUpStart = null;
     this.#statusStamps.clear();
     this.#statusGhosts.clear();
     this.#exhaustMotions.clear();
@@ -284,16 +338,16 @@ export class BoardMotion {
       .setDepth(1101);
 
     // Over the whole table, so a tap anywhere dismisses rather than acting on
-    // a card the banner is covering.
-    scene.add
+    // a card the banner is covering. A tap, not a bare release: a swipe that ends here dismisses nothing.
+    const dismiss = scene.add
       .zone(area.x, area.y, area.width, area.height)
       .setOrigin(0, 0)
       .setDepth(1102)
-      .setInteractive()
-      .on("pointerup", () => {
-        banner.shownAt = -Infinity;
-        redraw();
-      });
+      .setInteractive();
+    onTap(dismiss, () => {
+      banner.shownAt = -Infinity;
+      redraw();
+    });
 
     if (firstShow && !appSession().settings.reducedMotion) {
       scene.tweens.add({
@@ -326,6 +380,7 @@ export class BoardMotion {
       this.#bandLog.push(log);
       this.#phaseTransition = {
         transition,
+        caption: transition.caption,
         startedAt: now + timing.delayMs,
         holdMs: timing.holdMs,
         deferred: false,
@@ -502,14 +557,42 @@ export class BoardMotion {
    * follows.
    */
   drawPhaseWipe(area: Rect, isCovered: () => boolean): void {
+    this.#playWipe("phase", area, isCovered);
+    this.#playWipe("levelUp", area, isCovered);
+  }
+
+  /**
+   * Queues a hero's level-up band (`caption`: "IRONHEART LEVELS UP! · VERSION 2 OF 3"). It plays once any phase band
+   * already on screen has gone, so the two never share the table, and it holds a little longer than a phase band.
+   */
+  announceLevelUp(caption: string): void {
+    const now = this.#scene.time.now;
+    const phase = this.#phaseTransition;
+    const after = phase && !phase.deferred ? phase.startedAt + wipeTotalMs(phase.holdMs) : now;
+    const log: PhaseBandLogEntry = { caption, wasDeferred: false, played: false };
+    this.#bandLog.push(log);
+    this.#levelUp = { caption, startedAt: Math.max(now, after), holdMs: LEVEL_UP_HOLD_MS, deferred: false, log };
+  }
+
+  /** One band's slide in, hold and slide out (see `drawPhaseWipe`), for the phase band or the level-up band. */
+  #playWipe(slot: WipeStyle, area: Rect, isCovered: () => boolean): void {
+    const current = (): WipeEntry | null => (slot === "phase" ? this.#phaseTransition : this.#levelUp);
+    const clear = (): void => {
+      if (slot === "phase") this.#phaseTransition = null;
+      else this.#levelUp = null;
+    };
+    const setTimer = (timer: Phaser.Time.TimerEvent | null): void => {
+      if (slot === "phase") this.#wipeStart = timer;
+      else this.#levelUpStart = timer;
+    };
     const covered = isCovered();
-    const entry = this.#phaseTransition;
+    const entry = current();
     if (!entry) return;
     const scene = this.#scene;
     const reduced = appSession().settings.reducedMotion;
 
-    this.#wipeStart?.remove();
-    this.#wipeStart = null;
+    (slot === "phase" ? this.#wipeStart : this.#levelUpStart)?.remove();
+    setTimer(null);
     if (entry.deferred && !covered) {
       // The overlay just went: the band plays now, from its start, rather than having spent itself unseen.
       entry.deferred = false;
@@ -527,19 +610,23 @@ export class BoardMotion {
     }
     if (!entry.deferred && elapsed >= 0 && !entry.log.wasDeferred) entry.log.played = true;
     if (entry.deferred) {
-      this.#wipeStart = scene.time.delayedCall(250, () => {
-        this.#wipeStart = null;
-        if (this.#phaseTransition === entry) this.drawPhaseWipe(area, isCovered);
-      });
+      setTimer(
+        scene.time.delayedCall(250, () => {
+          setTimer(null);
+          if (current() === entry) this.#playWipe(slot, area, isCovered);
+        }),
+      );
       return;
     }
     if (elapsed < 0) {
       // Not yet: the opening band waits for the Board to be on screen. Nothing else will redraw the table at that
       // moment, so the band starts itself — unless a redraw gets here first, which re-arms this.
-      this.#wipeStart = scene.time.delayedCall(-elapsed, () => {
-        this.#wipeStart = null;
-        if (this.#phaseTransition === entry) this.drawPhaseWipe(area, isCovered);
-      });
+      setTimer(
+        scene.time.delayedCall(-elapsed, () => {
+          setTimer(null);
+          if (current() === entry) this.#playWipe(slot, area, isCovered);
+        }),
+      );
       return;
     }
 
@@ -547,17 +634,17 @@ export class BoardMotion {
       // The plain caption holds as much longer as the sliding band does.
       const reducedMs = PHASE_WIPE_REDUCED_MS + (entry.holdMs - PHASE_WIPE_HOLD_MS);
       if (elapsed >= reducedMs) {
-        this.#phaseTransition = null;
+        clear();
         return;
       }
-      const container = this.#drawWipeBand(area, entry.transition.caption, area.x);
+      const container = this.#drawWipeBand(area, entry.caption, slot, area.x);
       scene.time.delayedCall(reducedMs - elapsed, () => container.destroy());
       return;
     }
 
     const frame = wipeFrame(elapsed, motion.phaseWipeMs, entry.holdMs);
     if (!frame) {
-      this.#phaseTransition = null;
+      clear();
       return;
     }
 
@@ -567,7 +654,7 @@ export class BoardMotion {
         : frame.stage === "out"
           ? lerp(0, area.width, frame.progress)
           : 0;
-    const container = this.#drawWipeBand(area, entry.transition.caption, area.x + startX);
+    const container = this.#drawWipeBand(area, entry.caption, slot, area.x + startX);
 
     const slideOut = (): void => {
       if (!container.active) return;
@@ -600,27 +687,46 @@ export class BoardMotion {
   }
 
   /** The band's own graphics and caption, as one container positioned at `(x, centeredY)`. */
-  #drawWipeBand(area: Rect, caption: string, x: number): Phaser.GameObjects.Container {
+  #drawWipeBand(area: Rect, caption: string, style: WipeStyle, x: number): Phaser.GameObjects.Container {
     const scene = this.#scene;
-    const height = Math.max(64, Math.min(96, area.height * 0.16));
+    const colors = WIPE_COLORS[style];
+    const height = Math.max(64, Math.min(96, area.height * 0.16)) * colors.heightScale;
     const y = area.y + (area.height - height) / 2;
 
     const g = scene.add.graphics();
-    g.fillStyle(surface.ink.hex, 0.96).fillRect(0, 0, area.width, height);
-    g.fillStyle(accent.heroRed.hex, 1)
-      .fillRect(0, 0, area.width, 5)
-      .fillRect(0, height - 5, area.width, 5);
+    g.fillStyle(colors.ground, 0.96).fillRect(0, 0, area.width, height);
+    if (colors.hatch !== null) hatchRect(g, { x: 0, y: 0, width: area.width, height }, colors.hatch, 0.3, 18, 6);
+    // The edge stripes: one color, or a repeating run of colored segments.
+    const segments = colors.stripes.length === 1 ? 1 : Math.max(1, Math.ceil(area.width / 64));
+    const segment = area.width / segments;
+    for (let i = 0; i < segments; i++) {
+      g.fillStyle(colors.stripes[i % colors.stripes.length]!, 1)
+        .fillRect(i * segment, 0, segment, 5)
+        .fillRect(i * segment, height - 5, segment, 5);
+    }
     const text = scene.add
       .text(area.width / 2, height / 2, caption, {
-        ...textStyle(typeRole.screenTitle, surface.paper.hex),
-        stroke: cssOf(accent.heroRed.hex),
+        ...textStyle(typeRole.screenTitle, colors.title),
+        stroke: cssOf(colors.stroke),
         strokeThickness: 5,
       })
       .setOrigin(0.5)
       .setLetterSpacing(2);
     fitText(text, area.width - 64, typeRole.screenTitle.size);
+    if (style === "levelUp" && !appSession().settings.reducedMotion) {
+      // Her outline runs through the band's colors while it crosses, like a power surge.
+      scene.tweens.addCounter({
+        from: 0,
+        to: colors.stripes.length * 4,
+        duration: LEVEL_UP_HOLD_MS + motion.phaseWipeMs,
+        onUpdate: (tween) => {
+          const at = Math.floor(tween.getValue() ?? 0) % colors.stripes.length;
+          if (text.active) text.setStroke(cssOf(colors.stripes[at]!), 5);
+        },
+      });
+    }
 
-    return scene.add.container(x, y, [g, text]).setDepth(1150);
+    return scene.add.container(x, y, [g, text]).setDepth(style === "levelUp" ? 1160 : 1150);
   }
 
   /**
