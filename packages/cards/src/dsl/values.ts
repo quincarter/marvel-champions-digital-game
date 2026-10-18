@@ -490,6 +490,13 @@ export const printsAbility = (
   return { printsAbility: { kinds: [...kinds], form } };
 };
 /**
+ * "If the discarded card has a 'Boost' ability" (Sidewinder 62033; docs/phase7-wave11-hero-packs.md H3.21): a query
+ * fragment for a card that prints one, read from the card data wherever it is. The printed boost-area star (RRG 1.8
+ * "Boost, Boost Icon", p. 11), less a card whose star stands for a Boost another card grants (Purple Man's set,
+ * `boostGrantedBy`): a granted Boost is not printed text. For the star itself, `{ starIcon: true }`.
+ */
+export const hasPrintedBoostAbility: Pick<TargetQuery, "printsBoostAbility"> = { printsBoostAbility: true };
+/**
  * "Each Spell card in your play area" (Ebony Maw I–III, `mts` 21071–21073): a query fragment for cards in that player's
  * play area, controlled by them or not (docs/phase7-wave4.md §3.16).
  */
@@ -557,6 +564,20 @@ export const teamUpCharacters = (index?: 0 | 1): TargetRef => each(teamUpCharact
 export const ofTeamUpSet = (index?: 0 | 1): Pick<TargetQuery, "identitySetTitled"> => ({
   identitySetTitled: teamUpNames(index),
 });
+/**
+ * "An ally named by that card's Team-Up keyword" (Dynamic Duo 62022; docs/phase7-wave11-hero-packs.md H3.20): a query
+ * fragment for a character named by the Team-Up keyword of the card(s) `of` names, usually a card a search bound
+ * earlier in the same ability (`chosen("teamUp")`), not this card. Read wherever both cards are, so it filters a deck
+ * and discard pile search: an ally matches by its title or subtitle (RRG 1.8 "Team-Up", p. 43), Iron Fist 62012
+ * (subtitle Danny Rand) for "Team-Up (Iron Fist and Luke Cage)". With nothing bound it names no one and matches
+ * nothing. `index` picks one of the keyword's two names. `zone(["deck", "discard"], you, { filter: query("ally",
+ * namedByTeamUpOf(chosen("teamUp"))) })`.
+ */
+export const namedByTeamUpOf = (of: TargetRef, index?: 0 | 1): Pick<TargetQuery, "titled"> => ({
+  titled: { teamUpOf: of, ...(index === undefined ? {} : { index }) },
+});
+/** "A Team-Up card": a query fragment for a card with the Team-Up keyword (RRG 1.8 "Team-Up", p. 43). */
+export const TEAM_UP_CARD: Pick<TargetQuery, "withKeyword"> = { withKeyword: "teamUp" };
 /** A character named by a title written out, for a card that names one without the Team-Up keyword. */
 /**
  * "A friendly character of your choice" as the new target of the player attack in progress (`retargetPlayerAttack`;

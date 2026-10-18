@@ -195,6 +195,24 @@ export const hasStarIcon = (state: GameState, id: InstanceId): boolean => {
   return card !== undefined && "starIcon" in card && card.starIcon === true;
 };
 
+/**
+ * Does this card print a "Boost" ability? "If the discarded card has a 'Boost' ability" (Sidewinder 62033;
+ * docs/phase7-wave11-hero-packs.md H3.21). RRG 1.8 "Boost, Boost Icon" (p. 11): "If the boost field has a star icon, it
+ * indicates that the card has a 'Boost' ability". So this is the printed star, less the cards whose star stands for a
+ * Boost another card grants (`boostGrantedBy`: Purple Man's set, whose villain stages say "each **boost card** from the
+ * Purple Man encounter set gains '[star] Boost: …'"). Those print no Boost of their own, and a card being read in a
+ * discard pile or a deck is not a boost card, so the grant does not reach it either. Engine interpretation (no FFG
+ * ruling names it): "has a Boost ability" means printed text; a script after the star itself reads `starIcon`.
+ *
+ * A printed fact read from `@mc/content`, never from the ability registry, for the reason `hasStarIcon` gives: what has
+ * been scripted must not change what a card prints. Wherever the card is (RRG 1.8 "Printed", p. 35).
+ */
+export const printsBoostAbility = (state: GameState, id: InstanceId): boolean => {
+  const card = cardOf(state, id);
+  if (card === undefined || !("starIcon" in card) || card.starIcon !== true) return false;
+  return !("boostGrantedBy" in card) || (card.boostGrantedBy ?? []).length === 0;
+};
+
 /** A hero face with its traits: the identity's `hero`, or one of its `additionalHeroForms`. */
 export type HeroFaceWithTraits = HeroFace & { readonly traits: readonly Trait[] };
 

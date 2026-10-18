@@ -288,6 +288,14 @@ export interface TargetQuery {
    */
   readonly starIcon?: boolean;
   /**
+   * The card prints a "Boost" ability: "If the discarded card has a 'Boost' ability" (Sidewinder 62033) is `{
+   * printsBoostAbility: true }` over the discarded card (docs/phase7-wave11-hero-packs.md H3.21). `printsBoostAbility`
+   * (`query.ts`): the printed boost-area star (RRG 1.8 "Boost, Boost Icon", p. 11), less a card whose star stands for a
+   * Boost another card grants (`boostGrantedBy`, Purple Man's set). Read from the card data wherever the card is, never
+   * from the ability registry. Exclusion `noSuchAbility`.
+   */
+  readonly printsBoostAbility?: true;
+  /**
    * The card carries the unique (⬡) icon: "against a unique enemy" (Godslayer, `gam` 18018), the printed fact
    * `isUnique` (`unique.ts`) already reads for the deckbuilding unique rule — every hero identity is unique whether
    * or not its own card prints the icon (RRG 1.8 "Unique", p. 46). docs/phase7-wave3.md §3.26.

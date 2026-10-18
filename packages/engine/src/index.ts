@@ -644,6 +644,7 @@ export {
   getPlayer,
   handSize,
   hasStarIcon,
+  printsBoostAbility,
   isMinion,
   isTerminal,
   maxHitPoints,

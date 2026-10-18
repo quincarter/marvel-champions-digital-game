@@ -49,6 +49,7 @@ import {
   getPlayer,
   handSize,
   hasStarIcon,
+  printsBoostAbility,
   foeHeroFace,
   heroFacesOf,
   identityFace,
@@ -1394,6 +1395,8 @@ export function explainQuery(
   // read of the ability registry: see docs/phase7-wave2.md §18.6. RRG 1.8 "Boost, Boost Icon" (p. 11) — a star is not
   // a boost icon, so this clause says nothing about the card's pip count.
   if (query.starIcon !== undefined && hasStarIcon(state, id) !== query.starIcon) return "wrongStarIcon";
+  // "If the discarded card has a 'Boost' ability" (H3.21): printed, so a granted Boost (Purple Man's set) is not one.
+  if (query.printsBoostAbility === true && !printsBoostAbility(state, id)) return "noSuchAbility";
   // "Against a unique enemy" (Godslayer, `gam` 18018): the same printed-fact reading `unique.ts`'s `isUnique` uses
   // for the deckbuilding unique rule (RRG 1.8 "Unique", p. 46) — every hero identity is unique whether or not its
   // own card prints the icon. Read inline here (not `isUnique` itself) to avoid a `select.ts` ↔ `unique.ts` import
