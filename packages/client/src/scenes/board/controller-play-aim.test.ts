@@ -25,9 +25,16 @@ class NoopWorker {
 }
 (globalThis as unknown as { Worker: unknown }).Worker = NoopWorker;
 
+import type { PaymentState } from "../../view/payment-model.js";
+import { judgePayment, type JudgedPayment } from "../../view/payment-verdict.js";
+
 class StubStore {
   state: { game: GameState; perspectiveId: PlayerId; legal: unknown; [key: string]: unknown };
   readonly dispatch = vi.fn(async (_command: Command) => {});
+  /** Judged in-thread, against this game, as the in-thread hosts do. */
+  judgePaymentNow(playerId: PlayerId, payment: PaymentState): JudgedPayment {
+    return { version: 0, verdict: judgePayment(this.state.game, playerId, payment, POOL_DEPS) };
+  }
   constructor(state: StubStore["state"]) {
     this.state = state;
   }

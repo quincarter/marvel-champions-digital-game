@@ -11,6 +11,7 @@ import {
   characterProfile,
   iconsInPlay,
   instanceId,
+  legalActions,
   mainSchemeValue,
   type ActionRef,
   type GameState,
@@ -545,6 +546,19 @@ describe("wastedPayHint", () => {
 
     // The suggested alternative must never itself trigger the warning when paid with alone (the ping-pong check).
     expect(wastedPayHint(state, CORE_DEPS, me, viewSpiderTracer)).toBeNull();
+
+    // The board passes the host's own legal actions (issue #258) rather than having them listed again here: the same
+    // list gives the same warning, and a list in which For Justice! is no play gives none.
+    const listed = legalActions(state, me, CORE_DEPS);
+    expect(wastedPayHint(state, CORE_DEPS, me, viewForJustice, listed)).toEqual(hint);
+    if (listed.kind !== "turn") throw new Error("expected a turn");
+    const withoutForJustice = {
+      ...listed,
+      legal: listed.legal.filter(
+        (entry) => !(entry.action.kind === "playCard" && entry.action.instanceId === forJusticeId),
+      ),
+    };
+    expect(wastedPayHint(state, CORE_DEPS, me, viewForJustice, withoutForJustice)).toBeNull();
   });
 });
 

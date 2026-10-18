@@ -21,6 +21,8 @@ import {
   type PlayerId,
 } from "@mc/engine";
 import { sealForTable } from "../view/hidden-reverse.js";
+import type { PaymentState } from "../view/payment-model.js";
+import { judgePayment, type JudgedPayment } from "../view/payment-verdict.js";
 import { actingPlayer } from "./acting-player.js";
 import { emptyRecord, recordEvents, type GameRecord } from "./game-record.js";
 import type { SaveMeta } from "./game-storage.js";
@@ -67,6 +69,14 @@ export class DevStateHost implements EngineHost {
 
   async legalActions(playerId: PlayerId): Promise<LegalActions> {
     return queryLegalActions(this.#require().state, playerId, this.#deps);
+  }
+
+  async judgePayment(playerId: PlayerId, payment: PaymentState): Promise<JudgedPayment> {
+    return this.judgePaymentNow(playerId, payment);
+  }
+
+  judgePaymentNow(playerId: PlayerId, payment: PaymentState): JudgedPayment {
+    return { version: this.#version, verdict: judgePayment(this.#require().state, playerId, payment, this.#deps) };
   }
 
   subscribe(listener: UpdateListener): () => void {

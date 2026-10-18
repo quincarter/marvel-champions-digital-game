@@ -29,6 +29,8 @@ import type {
   TableRules,
 } from "@mc/engine";
 import type { BackOutTrailEntry } from "../view/back-out.js";
+import type { PaymentState } from "../view/payment-model.js";
+import type { JudgedPayment } from "../view/payment-verdict.js";
 import type { GameRecord } from "./game-record.js";
 import type { SaveMeta, SavedGuidedRun } from "./game-storage.js";
 
@@ -271,6 +273,16 @@ export interface EngineHost {
   rewindTo(commandCount: number): Promise<EngineUpdate>;
   /** An on-demand query, for a seat that isn't the one the host prefetched. */
   legalActions(playerId: PlayerId): Promise<LegalActions>;
+  /**
+   * The engine's verdict on a pay step's picks, judged against the full game state where the engine runs (issue
+   * #258), with the version it was judged at.
+   */
+  judgePayment(playerId: PlayerId, payment: PaymentState): Promise<JudgedPayment>;
+  /**
+   * The same verdict at once, from a host that runs the engine on the calling thread (`LocalEngineHost`,
+   * `DevStateHost`); absent on the worker host, whose whole point is that the main thread never runs it.
+   */
+  judgePaymentNow?(playerId: PlayerId, payment: PaymentState): JudgedPayment;
   /** Every update, including the one `start` returns. Returns an unsubscribe. */
   subscribe(listener: UpdateListener): () => void;
   /** The replayable log, for export. */

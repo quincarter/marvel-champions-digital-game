@@ -24,7 +24,6 @@ import {
   minimumChosenX,
   paymentFor,
   playCostOf,
-  tryPayment,
   type ActionRef,
   type Command,
   type CostChoices,
@@ -36,15 +35,11 @@ import {
   type PaymentSource,
   type PlayerId,
 } from "@mc/engine";
-import {
-  costReductionOptionsFor,
-  costReductionTotal,
-  tryReducedPlay,
-  type CostReductionOption,
-} from "./cost-reduction-model.js";
+import { costReductionOptionsFor, costReductionTotal, type CostReductionOption } from "./cost-reduction-model.js";
 import { actionAbilityCost } from "./cost-choice-model.js";
 import { costHelpLines } from "./cost-help-model.js";
 import { cardName, faceUpName } from "./names.js";
+import { judgePayment, paymentContext, type PaymentVerdict } from "./payment-verdict.js";
 
 export interface PaymentState {
   readonly action: ActionRef;
@@ -253,6 +248,16 @@ export interface PaymentView {
   readonly command: Command | null;
   readonly blockedBy: string | null;
   /**
+   * The engine is still judging these picks off the main thread (issue #258): `command` is null until the verdict
+   * lands, and Pay waits for it rather than sending anything judged for older picks.
+   */
+  readonly judging: boolean;
+  /**
+   * Pay is drawn enabled: the engine accepts these picks or, while they are still being judged, it accepted the picks
+   * before them, so the button doesn't flicker on every tap. Pressing it still waits for this selection's own verdict.
+   */
+  readonly payReady: boolean;
+  /**
    * `playCostReduction` abilities the player could name on this play (docs/phase7-wave3.md §3.20), for a
    * "reduce the cost" toggle beside the bar. Empty for anything but `playCard`, and for a `playCard` with none in
    * play — the overwhelmingly common case, which draws nothing extra.
@@ -328,24 +333,6 @@ export function beginPayment(
     reductions: [],
   };
 }
-
-const paymentContext = (
-  target: InstanceId | null,
-  controllerId: PlayerId | null | undefined,
-  costSelection?: CostSelection,
-  costChoices?: CostChoices,
-  abilityId?: AbilityId,
-  into?: string,
-  x?: number,
-) => ({
-  target,
-  ...(x !== undefined ? { x } : {}),
-  ...(controllerId ? { controllerId } : {}),
-  ...(costSelection ? { costSelection } : {}),
-  ...(costChoices ? { costChoices } : {}),
-  ...(abilityId ? { abilityId } : {}),
-  ...(into !== undefined ? { into } : {}),
-});
 
 /** True for a play of a card printed with an X cost (`specialCost: "X"`), whose X the player names in the pay step. */
 export function printsXCost(state: GameState, action: ActionRef): boolean {
@@ -445,12 +432,21 @@ export function toggleCostReduction(payment: PaymentState, option: CostReduction
 /** Clears the selection, so a player can start the payment over without cancelling. */
 export const clearPayment = (payment: PaymentState): PaymentState => ({ ...payment, picked: [], reductions: [] });
 
+/**
+ * The pay step as the bar and the hand draw it. `verdict` is the engine's judgement of these exact picks
+ * (`payment-verdict.ts`): null while it is still being judged off the main thread, and judged here, in-thread, when
+ * left out (tests and the in-thread hosts). While it is judged, the bar keeps showing `shown`, the verdict on the picks
+ * before (Pay's readiness, its reason, a held overpay-only source), so it doesn't flicker on every tap; only `command`
+ * waits for the new verdict.
+ */
 export function paymentView(
   state: GameState,
   playerId: PlayerId,
   payment: PaymentState,
   headline: string,
   deps: EngineDeps,
+  verdict: PaymentVerdict | null = judgePayment(state, playerId, payment, deps),
+  shown: PaymentVerdict | null = null,
 ): PaymentView {
   const { query, picked } = payment;
   const byOption = new Map(query.sources.map((source) => [source.optionId, source] as const));
@@ -478,44 +474,10 @@ export function paymentView(
     action.kind === "playCard" ? costReductionOptionsFor(state, playerId, action.instanceId, deps) : [];
   const reductionAmount = costReductionTotal(payment.reductions, deps);
 
-  const attemptWith = (ids: readonly string[]) =>
-    action.kind === "playCard" && payment.reductions.length > 0
-      ? tryReducedPlay(
-          state,
-          playerId,
-          action.instanceId,
-          ids,
-          query.sources,
-          payment.reductions,
-          deps,
-          payment.target,
-          payment.controllerId ?? null,
-          payment.costSelection,
-          payment.costChoices,
-          payment.abilityId,
-          payment.x,
-        )
-      : tryPayment(
-          state,
-          playerId,
-          payment.action,
-          ids,
-          paymentContext(
-            payment.target,
-            payment.controllerId,
-            payment.costSelection,
-            payment.costChoices,
-            payment.abilityId,
-            payment.into,
-            payment.x,
-          ),
-          deps,
-        );
-  const attempt = attemptWith(picked);
-  // The cost is covered when the picks that count toward it are accepted without the overpay-only ones.
-  const covered = query.sources.some((source) => source.overpayOnly)
-    ? attemptWith(picked.filter(countsToCost)).ok
-    : attempt.ok;
+  // Still being judged (`verdict` null): nothing to send yet, and the bar reads as it did for the picks before.
+  const drawn = verdict ?? shown;
+  const covered = drawn?.covered ?? false;
+  const accepted = drawn?.command != null;
 
   const requirement =
     reductionAmount > 0
@@ -545,7 +507,7 @@ export function paymentView(
   // A chosen-size cost (`chosenResources`) spends up to `max` and overpays the rest; any other cost spends what it
   // requires. Only counted once the engine accepts the selection.
   const requiredTotal = poolTotal(requirement) + (query.chosenResources?.max ?? 0);
-  const overpaid = attempt.ok ? Math.max(0, paid - requiredTotal) + overpayOnlyPaid : 0;
+  const overpaid = accepted ? Math.max(0, paid - requiredTotal) + overpayOnlyPaid : 0;
   return {
     headline,
     subject,
@@ -571,8 +533,10 @@ export function paymentView(
     orderNote: sources.find((source) => source.orderNote !== null)?.orderNote ?? null,
     // A helper's cards, then the parts of the cost a helper pays in the user's place (`costSelection.paidBy`).
     helperLines: [...helperLinesOf(sources), ...costHelpLines(state, playerId, payment.costSelection)],
-    command: attempt.ok ? attempt.command : null,
-    blockedBy: attempt.ok ? null : attempt.message,
+    command: verdict?.command ?? null,
+    blockedBy: drawn?.blockedBy ?? null,
+    judging: verdict === null,
+    payReady: accepted,
     costReductionOptions,
     xPicker:
       payment.xRange && payment.x !== undefined

@@ -11,6 +11,8 @@ import type { Command, EngineError, EngineErrorCode, IllegalDeck, LegalActions, 
 import type { SaveMeta } from "./game-storage.js";
 import type { CardPool, SessionConfig, StateWithoutPool } from "./host.js";
 import type { Snapshot } from "./session-core.js";
+import type { PaymentState } from "../view/payment-model.js";
+import type { JudgedPayment } from "../view/payment-verdict.js";
 
 export type HostRequest =
   | { readonly kind: "start"; readonly id: number; readonly config: SessionConfig }
@@ -18,6 +20,7 @@ export type HostRequest =
   | { readonly kind: "dispatch"; readonly id: number; readonly command: Command }
   | { readonly kind: "rewindTo"; readonly id: number; readonly commandCount: number }
   | { readonly kind: "legalActions"; readonly id: number; readonly playerId: PlayerId }
+  | { readonly kind: "judgePayment"; readonly id: number; readonly playerId: PlayerId; readonly payment: PaymentState }
   | { readonly kind: "save"; readonly id: number }
   | { readonly kind: "latestSave"; readonly id: number }
   | { readonly kind: "listSaves"; readonly id: number };
@@ -39,6 +42,7 @@ export type HostResponse =
     }
   | { readonly kind: "rewound"; readonly id: number; readonly snapshot: Snapshot }
   | { readonly kind: "legalActions"; readonly id: number; readonly actions: LegalActions }
+  | { readonly kind: "paymentJudged"; readonly id: number; readonly judged: JudgedPayment }
   | { readonly kind: "save"; readonly id: number; readonly save: SerializedSave }
   | { readonly kind: "latestSave"; readonly id: number; readonly meta: SaveMeta | null }
   | { readonly kind: "listSaves"; readonly id: number; readonly saves: readonly SaveMeta[] }

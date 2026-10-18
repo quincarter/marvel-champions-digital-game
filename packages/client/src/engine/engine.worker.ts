@@ -56,6 +56,10 @@ async function handle(request: HostRequest): Promise<void> {
         reply({ kind: "legalActions", id: request.id, actions: core.legalActions(request.playerId) });
         return;
       }
+      case "judgePayment": {
+        reply({ kind: "paymentJudged", id: request.id, judged: core.judgePayment(request.playerId, request.payment) });
+        return;
+      }
       case "save": {
         const { initialState, commands } = core.save();
         const { cardPool: _pool, ...baseline } = initialState;

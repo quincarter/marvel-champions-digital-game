@@ -22,6 +22,8 @@ import type {
   UpdateListener,
 } from "./host.js";
 import { EngineSessionCore, type Snapshot } from "./session-core.js";
+import type { PaymentState } from "../view/payment-model.js";
+import type { JudgedPayment } from "../view/payment-verdict.js";
 
 export class LocalEngineHost implements EngineHost {
   readonly #core: EngineSessionCore;
@@ -57,6 +59,14 @@ export class LocalEngineHost implements EngineHost {
 
   async legalActions(playerId: PlayerId): Promise<LegalActions> {
     return this.#core.legalActions(playerId);
+  }
+
+  async judgePayment(playerId: PlayerId, payment: PaymentState): Promise<JudgedPayment> {
+    return this.judgePaymentNow(playerId, payment);
+  }
+
+  judgePaymentNow(playerId: PlayerId, payment: PaymentState): JudgedPayment {
+    return this.#core.judgePayment(playerId, payment);
   }
 
   subscribe(listener: UpdateListener): () => void {

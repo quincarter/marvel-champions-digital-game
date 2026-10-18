@@ -76,6 +76,7 @@ import {
   type PaymentState,
   type PaymentView,
 } from "../../view/payment-model.js";
+import type { PaymentVerdict } from "../../view/payment-verdict.js";
 import { targetingPanelOf, type TargetingPanel, type TargetingSource } from "../../view/targeting-panel.js";
 import { hintsFor, type Hint, type HintTrigger } from "../../view/guide-hints.js";
 import { guidePrefs } from "../../guide/guide-store.js";
@@ -255,6 +256,25 @@ function thwartStat(state: GameState, action: LegalAction, id: InstanceId): stri
   return suffix === null ? statSuffix(state, id, "THW") : ` ${suffix}`;
 }
 
+/** One payment selection a verdict is for: these picks, by this payer, at this game version. */
+interface PaymentKey {
+  readonly payment: PaymentState;
+  readonly playerId: PlayerId;
+  readonly version: number;
+  /** The state object too: a rewind and a new move can reach the same version with a different game. */
+  readonly game: GameState | null;
+}
+
+const sameKey = (a: PaymentKey, b: PaymentKey): boolean =>
+  a.payment === b.payment && a.playerId === b.playerId && a.version === b.version && a.game === b.game;
+
+/** Two verdicts the bar draws alike: the same Pay readiness, reason and coverage. */
+const sameReading = (a: PaymentVerdict, b: PaymentVerdict): boolean =>
+  (a.command === null) === (b.command === null) && a.blockedBy === b.blockedBy && a.covered === b.covered;
+
+/** How many verdicts Pay waits through (a reply for a version the game moved past asks again) before giving up. */
+const JUDGE_RETRIES = 3;
+
 /** How long a notice beside Undo stays, and the pause after an undo in which another is ignored. */
 const UNDO_NOTICE_MS = 3500;
 const UNDO_COOLDOWN_MS = 350;
@@ -292,6 +312,18 @@ export class BoardController {
    * doc comment, including the "two inert clicks lift it" and Escape-release behavior. Set by G5c's guide
    * controller; every input entry point below checks it the same way it already checks `#readOnly`. */
   readonly #guideGate = new GuideGateHolder();
+  /**
+   * The engine's verdict on the open payment's picks (issue #258), for one selection: the `PaymentState` (a new object
+   * on every pick), the payer and the game version. The worker host judges it off the main thread; until it lands the
+   * bar shows the picks and Pay waits for it.
+   */
+  #verdict: (PaymentKey & { readonly verdict: PaymentVerdict }) | null = null;
+  /** The verdict being judged, if any: a newer selection replaces it, and a superseded reply is dropped. */
+  #judging: (PaymentKey & { readonly done: Promise<void> }) | null = null;
+  /** The last verdict drawn for this payment (same `action` object): the bar keeps it while the next is judged. */
+  #shown: { readonly action: PaymentState["action"]; readonly verdict: PaymentVerdict } | null = null;
+  /** Pay was pressed and is waiting for its verdict. */
+  #committing = false;
 
   constructor(host: BoardControllerHost, options: { readonly readOnly?: boolean } = {}) {
     this.#host = host;
@@ -1113,6 +1145,10 @@ export class BoardController {
       intoOf(entry),
     );
     if (!payment) return false;
+    // A new payment starts with nothing judged: an abandoned one for the same card must not lend it its look.
+    this.#shown = null;
+    this.#verdict = null;
+    this.#judging = null;
     this.#selection = { kind: "paying", payment: destinationNote ? { ...payment, destinationNote } : payment };
     this.#host.redraw();
     return true;
@@ -1292,10 +1328,22 @@ export class BoardController {
   /** Spends or un-spends one source. The engine re-judges the whole selection. */
   #togglePayment(optionId: string): void {
     if (this.#selection.kind !== "paying") return;
-    // The view decides what is held (an overpay-only source before the cost is covered), never this scene.
-    if (this.paymentView()?.sources.find((source) => source.optionId === optionId)?.lockedReason) return;
+    // The view decides what is held (an overpay-only source before the cost is covered), never this scene. It holds
+    // it by these picks' own verdict: a tap on one while they are still judged waits for it.
+    const view = this.paymentView();
+    const source = view?.sources.find((candidate) => candidate.optionId === optionId);
+    if (view?.judging && source?.overpayOnly && !source.spent) {
+      void this.#toggleWhenJudged(optionId, this.#selection.payment);
+      return;
+    }
+    if (source?.lockedReason) return;
     this.#selection = { kind: "paying", payment: togglePayment(this.#selection.payment, optionId) };
     this.#host.redraw();
+  }
+
+  async #toggleWhenJudged(optionId: string, payment: PaymentState): Promise<void> {
+    const view = await this.#judgedPaymentView(payment);
+    if (view && !view.judging) this.#togglePayment(optionId);
   }
 
   /** The X picker's minus (-1) and plus (+1): the payment is priced again at the new X, the picked sources kept where valid. */
@@ -1334,13 +1382,81 @@ export class BoardController {
     ]
       .filter(Boolean)
       .join(" ");
-    return paymentView(game, perspectiveId, payment, headline, POOL_DEPS);
+    const verdict = this.#verdictFor(payment, perspectiveId);
+    if (verdict) this.#shown = { action: payment.action, verdict };
+    const shown = this.#shown?.action === payment.action ? this.#shown.verdict : null;
+    return paymentView(game, perspectiveId, payment, headline, POOL_DEPS, verdict, shown);
+  }
+
+  /**
+   * The verdict for these exact picks at the current version, or null while it is being judged (and the request for it
+   * sent). An in-thread host answers at once.
+   */
+  #verdictFor(payment: PaymentState, playerId: PlayerId): PaymentVerdict | null {
+    const { store } = appSession();
+    const { version, game } = store.state;
+    const key: PaymentKey = { payment, playerId, version, game };
+    if (this.#verdict && sameKey(this.#verdict, key)) return this.#verdict.verdict;
+    const now = store.judgePaymentNow(playerId, payment);
+    if (now) {
+      this.#verdict = { ...key, verdict: now.verdict };
+      return now.verdict;
+    }
+    if (this.#judging && sameKey(this.#judging, key)) return null;
+    const done: Promise<void> = store.judgePayment(playerId, payment).then(
+      (judged) => {
+        if (this.#judging?.done !== done) return;
+        this.#judging = null;
+        // Judged at another version (the game moved on): the next draw asks again for the version it shows.
+        const now = appSession().store.state;
+        if (judged.version !== version || now.version !== version || now.game !== game) return;
+        this.#verdict = { ...key, verdict: judged.verdict };
+        if (this.#selection.kind !== "paying" || this.#selection.payment !== payment) return;
+        // The bar already shows the verdict on the picks before; a board redraw is only worth it when this one reads
+        // differently (a full redraw is the costliest thing a tap does on a slow tablet).
+        const before = this.#shown?.action === payment.action ? this.#shown.verdict : null;
+        this.#shown = { action: payment.action, verdict: judged.verdict };
+        if (!before || !sameReading(before, judged.verdict)) this.#host.redraw();
+      },
+      (cause: unknown) => {
+        if (this.#judging?.done !== done) return;
+        this.#judging = null;
+        // Said on the bar rather than left judging: Pay stays off with the reason, and the next pick asks again.
+        const message = cause instanceof Error ? cause.message : String(cause);
+        const verdict = { command: null, blockedBy: `Couldn't check this payment: ${message}`, covered: false };
+        this.#verdict = { ...key, verdict };
+        if (this.#selection.kind === "paying" && this.#selection.payment === payment) this.#host.redraw();
+      },
+    );
+    this.#judging = { ...key, done };
+    return null;
+  }
+
+  /**
+   * The payment view once the engine has judged `payment`, the picks on screen when the player pressed: Pay never acts
+   * on a verdict for older picks, and null when the picks changed while it waited.
+   */
+  async #judgedPaymentView(payment: PaymentState): Promise<PaymentView | null> {
+    for (let asked = 0; ; asked += 1) {
+      if (this.#selection.kind !== "paying" || this.#selection.payment !== payment) return null;
+      const view = this.paymentView();
+      const pending = this.#judging;
+      if (!view?.judging || !pending || asked === JUDGE_RETRIES) return view;
+      await pending.done;
+    }
   }
 
   async commitPayment(): Promise<void> {
     if (this.#readOnly) return;
-    if (this.#selection.kind !== "paying") return;
-    const payment = this.paymentView();
+    if (this.#selection.kind !== "paying" || this.#committing) return;
+    // One press at a time: a second tap while the first waits for its verdict would raise the Hold on prompt twice.
+    this.#committing = true;
+    let payment: PaymentView | null;
+    try {
+      payment = await this.#judgedPaymentView(this.#selection.payment);
+    } finally {
+      this.#committing = false;
+    }
     if (!payment?.command) return;
     const trigger: HintTrigger = { kind: "confirmPayment", payment };
     const hint = this.#hintsFor(trigger)[0];
@@ -1660,9 +1776,18 @@ export class BoardController {
    */
   #hintsFor(trigger: HintTrigger): readonly Hint[] {
     if (this.#readOnly) return [];
-    const { game, perspectiveId } = appSession().store.state;
+    const { game, perspectiveId, legal } = appSession().store.state;
     if (!game || perspectiveId === null) return [];
-    return hintsFor({ state: game, deps: POOL_DEPS, playerId: perspectiveId, trigger }, guidePrefs());
+    return hintsFor(
+      {
+        state: game,
+        deps: POOL_DEPS,
+        playerId: perspectiveId,
+        trigger,
+        ...(legal?.playerId === perspectiveId ? { legal: legal.actions } : {}),
+      },
+      guidePrefs(),
+    );
   }
 
   /**

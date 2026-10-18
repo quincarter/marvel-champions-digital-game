@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Paying for a card no longer freezes the game: each check of your picks runs in the engine worker, and pressing Pay no longer stalls for over a second while the guide checks for a wasted card (#258).'
+time: 2026-10-18T15:32:30.7096091-04:00

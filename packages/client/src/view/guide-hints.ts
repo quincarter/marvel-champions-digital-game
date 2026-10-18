@@ -31,6 +31,7 @@ import {
   type EngineDeps,
   type GameState,
   type InstanceId,
+  type LegalActions,
   type PaymentSource,
   type PlayerId,
 } from "@mc/engine";
@@ -356,19 +357,13 @@ const poolTotal = (pool: Readonly<Record<string, number>>): number =>
   Object.values(pool).reduce((sum, n) => sum + n, 0);
 
 /**
- * Whether `instanceId` (a hand card) has a legal, affordable play *right now*, in `state` as it stood before this
- * payment opened — `legalActions`' own `playCard` evaluation already resolves a target and a working payment for
- * it (`evaluatePlay`, `packages/engine/src/legal.ts`), so this is never re-derived here. A card with no legal
- * target (Spider-Tracer with no minion in play) or the wrong form for its play restriction reports `illegal`
- * there instead, and is not "genuinely playable" for this hint's purposes.
+ * Whether `instanceId` (a hand card) has a legal, affordable play *right now*, in the legal actions for the state as
+ * it stood before this payment opened — `legalActions`' own `playCard` evaluation already resolves a target and a
+ * working payment for it (`evaluatePlay`, `packages/engine/src/legal.ts`), so this is never re-derived here. A card
+ * with no legal target (Spider-Tracer with no minion in play) or the wrong form for its play restriction reports
+ * `illegal` there instead, and is not "genuinely playable" for this hint's purposes.
  */
-function isGenuinelyPlayableNow(
-  state: GameState,
-  deps: EngineDeps,
-  playerId: PlayerId,
-  instanceId: InstanceId,
-): boolean {
-  const legal = legalActions(state, playerId, deps);
+function isGenuinelyPlayableNow(legal: LegalActions, instanceId: InstanceId): boolean {
   if (legal.kind !== "turn") return false;
   return legal.legal.some((entry) => entry.action.kind === "playCard" && entry.action.instanceId === instanceId);
 }
@@ -387,8 +382,14 @@ export function wastedPayHint(
   deps: EngineDeps,
   playerId: PlayerId,
   payment: WastedPayView,
+  given?: LegalActions,
 ): Hint | null {
   const { paid, required, spent, spendable } = payment;
+  // The host's own list for this seat when the caller has it (computed off the main thread, issue #258); listing them
+  // again here took over a second on a slow tablet. Listed at most once otherwise.
+  let listed = given;
+  const playable = (instanceId: InstanceId) =>
+    isGenuinelyPlayableNow((listed ??= legalActions(state, playerId, deps)), instanceId);
 
   if (paid > required) {
     return {
@@ -403,12 +404,11 @@ export function wastedPayHint(
 
   for (const source of spent.values()) {
     if (source.kind !== "handCard") continue;
-    if (!isGenuinelyPlayableNow(state, deps, playerId, source.instanceId)) continue;
+    if (!playable(source.instanceId)) continue;
     const withoutThis = paid - poolTotal(source.pool);
     const alt = [...spendable.values()].find(
       (other) =>
-        withoutThis + poolTotal(other.pool) >= required &&
-        !(other.kind === "handCard" && isGenuinelyPlayableNow(state, deps, playerId, other.instanceId)),
+        withoutThis + poolTotal(other.pool) >= required && !(other.kind === "handCard" && playable(other.instanceId)),
     );
     if (alt) return wastedCardHint(state, source, alt, paid, required);
   }
@@ -450,6 +450,8 @@ export interface HintContext {
   readonly deps: EngineDeps;
   readonly playerId: PlayerId;
   readonly trigger: HintTrigger;
+  /** `playerId`'s legal actions in `state`, when the caller already has them (the host's prefetched list). */
+  readonly legal?: LegalActions;
 }
 
 /**
@@ -458,7 +460,7 @@ export interface HintContext {
  */
 export function hintsFor(context: HintContext, prefs: GuidePrefs): readonly Hint[] {
   if (prefs.level === "off") return [];
-  const { state, deps, playerId, trigger } = context;
+  const { state, deps, playerId, trigger, legal } = context;
 
   const candidates: (Hint | null)[] =
     trigger.kind === "endTurn"
@@ -470,7 +472,7 @@ export function hintsFor(context: HintContext, prefs: GuidePrefs): readonly Hint
         ]
       : trigger.kind === "flip"
         ? [flipDangerHint(state, deps, playerId, "flip")]
-        : [wastedPayHint(state, deps, playerId, trigger.payment)];
+        : [wastedPayHint(state, deps, playerId, trigger.payment, legal)];
 
   return candidates.filter((hint): hint is Hint => hint !== null && !prefs.silencedWarnings.includes(hint.key));
 }
