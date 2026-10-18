@@ -226,7 +226,11 @@ describe("wave 11 fne/echo/identity", () => {
     }
 
     it("another player's aspect event is tucked under Echo from that player's discard pile", () => {
-      const base = p2Hand(withForm(newGame(1, true), { heroForm: 0 }), ARMY_OF_ONE, ENERGY);
+      const base = p2Hand(
+        withForm(withForm(newGame(1, true), { heroForm: 0 }), { heroForm: 0 }, P2),
+        ARMY_OF_ONE,
+        ENERGY,
+      );
       const turn = applyCommand(base.state, endTurn(P1), WAVE11_DEPS);
       if (!turn.ok) throw new Error(turn.error.message);
       const run = drive(turn.state, play(P2, base.ids[0]!, [base.ids[1]!]));
