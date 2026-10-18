@@ -1,4 +1,49 @@
 import type { AbilityRegistry } from "@mc/engine";
+import {
+  addCounters,
+  after,
+  attackExcessAsDealt,
+  baseStatOf,
+  changeForm,
+  chooseOneBy,
+  constant,
+  countersOn,
+  defineAbilities,
+  discard,
+  eachPlayer,
+  eventTarget,
+  exhaustThis,
+  forcedResponse,
+  forEachPlayer,
+  gets,
+  heal,
+  heroResponse,
+  identityOf,
+  ifThen,
+  isAlterEgo,
+  isHero,
+  losesIcon,
+  made,
+  not,
+  on,
+  option,
+  query,
+  removeThreatFromAScheme,
+  self,
+  spendResources,
+  statOf,
+  thatPlayer,
+  valueAtLeast,
+  valueAtMost,
+  whenDefeated,
+  YOUR_HERO,
+  YOUR_IDENTITY,
+} from "../../dsl/index.js";
+
+/** "Each ally you control" (RRG 1.8 "You, Your", p. 49). */
+const YOUR_ALLIES = query("ally", { controller: "you" });
+/** Mitigated Threat's "attached card". */
+const ATTACHED_CARD = { hostOfSelf: true } as const;
 
 /**
  * Wave 11 scripting module `jj/other-aspects` (docs/phase7-wave11-hero-packs.md H8.4).
@@ -11,22 +56,68 @@ import type { AbilityRegistry } from "@mc/engine";
  * - 61039 Lay Low (player_side_scheme)
  * - 61040 Mitigated Threat (upgrade)
  *
- * Scaffold (HS0): the registry is empty and every ref is in `JJ_OTHER_ASPECTS_SKIPPED`. The scripting
- * task for this module fills the registry, deletes its own `_SKIPPED` lines and names every id it registers in
- * `other-aspects.test.ts`.
+ * **61034 / 61037**: Starting is data (engine setup step, spec H3.17).
+ *
+ * **61035.shakedown-response**: "After you attack and exactly defeat a minion": your identity's attack (an ally's is
+ * not "you", RRG 1.8 p. 49) that dealt no excess damage (August 3, 2026 - Ruling 6: the excess dealt, so a reducer or a
+ * tough status card does not make a defeat "exact"). The threat is removed, not thwarted.
+ *
+ * **61039.when-defeated**: each player in hero form may change; then each alter-ego (changed or already so) heals its
+ * REC.
+ *
+ * **61040**: the host loses the four icons; the end-of-round spend is each player's choice, and one player declining
+ * discards the card once at the end (every player is still asked, and a player who paid keeps having paid).
+ *
+ * **61038 Echo** is not scripted: it needs a `reduceDamageTaken` rule with a live amount (see the skip reason).
  */
-export const JJ_OTHER_ASPECTS: AbilityRegistry = {};
+export const JJ_OTHER_ASPECTS: AbilityRegistry = defineAbilities({
+  "61034.innate-aggression-constant": constant(gets("atk", 1, YOUR_HERO)),
+
+  "61035.shakedown-response": heroResponse(
+    after.attacks(YOUR_IDENTITY, { target: query("minion"), defeats: true }),
+    { cost: exhaustThis, while: valueAtMost(attackExcessAsDealt, 0) },
+    removeThreatFromAScheme(baseStatOf(eventTarget, "sch")),
+  ),
+
+  "61037.innate-inspiration-constant": constant(gets("hp", 1, YOUR_ALLIES)),
+
+  "61039.when-defeated": whenDefeated(
+    forEachPlayer(
+      eachPlayer,
+      chooseOneBy(
+        thatPlayer,
+        option("Change to alter-ego form", { when: isHero(thatPlayer) }, changeForm(thatPlayer, "alterEgo")),
+        option("Do not change form", { when: isHero(thatPlayer) }),
+      ),
+    ),
+    forEachPlayer(
+      eachPlayer,
+      ifThen(isAlterEgo(thatPlayer), heal(statOf(identityOf(thatPlayer), "rec"), identityOf(thatPlayer))),
+    ),
+  ),
+
+  "61040.mitigated-threat-constant": constant(
+    losesIcon("acceleration", ATTACHED_CARD),
+    losesIcon("amplify", ATTACHED_CARD),
+    losesIcon("crisis", ATTACHED_CARD),
+    losesIcon("hazard", ATTACHED_CARD),
+  ),
+  "61040.mitigated-threat-forced-response": forcedResponse(
+    on.roundEnding(),
+    forEachPlayer(
+      eachPlayer,
+      spendResources({ generic: 1 }, "spent", thatPlayer),
+      ifThen(not(made("spent")), addCounters("declined", 1)),
+    ),
+    ifThen(valueAtLeast(countersOn(self, "declined"), 1), discard(self)),
+  ),
+});
 
 /**
  * Refs of this module's cards deliberately left unscripted, each with its written reason. Delete a line as its ref is
  * scripted.
  */
 export const JJ_OTHER_ASPECTS_SKIPPED: Readonly<Record<string, string>> = {
-  "61034.innate-aggression-constant": "wave 11 scripting in progress: jj/other-aspects",
-  "61035.shakedown-response": "wave 11 scripting in progress: jj/other-aspects",
-  "61037.innate-inspiration-constant": "wave 11 scripting in progress: jj/other-aspects",
-  "61038.echo-constant": "wave 11 scripting in progress: jj/other-aspects",
-  "61039.when-defeated": "wave 11 scripting in progress: jj/other-aspects",
-  "61040.mitigated-threat-constant": "wave 11 scripting in progress: jj/other-aspects",
-  "61040.mitigated-threat-forced-response": "wave 11 scripting in progress: jj/other-aspects",
+  "61038.echo-constant":
+    "Echo reduces the damage she takes from each enemy attack by your hero's DEF, a live amount; the engine's reduceDamageTaken rule takes a literal number (primitive gap, reported to the main session)",
 };
