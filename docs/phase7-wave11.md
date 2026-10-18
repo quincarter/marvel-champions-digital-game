@@ -421,6 +421,7 @@ Only what the authority order does not settle. Until a question is answered, A i
 | --- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | -------- |
 | 1   | Raising Hell (60011) and an enemy with no upgrades: "deal 2 damage to each enemy for each upgrade attached" | Not attacked: no damage instruction names it (no retaliate, no "after attacked")                        | Attacked for 0 (retaliate and "after … attacked" fire, guard applies) | open     |
 | 2   | Focus the Senses' When Defeated: may a Sense upgrade be moved onto Focus the Senses itself?                 | Yes, it is in play until the ability resolves (January 11, 2026 R1); it then goes to the bottom with it | No: "other cards" excludes the scheme being defeated                  | open     |
+| 3   | Nelson and Murdock (60015): does "Attorney" in "an Attorney character or support" describe the support too?  | Yes: an Attorney character or an Attorney support (Foggy Nelson is the pack's only one)                 | No: an Attorney character, or any support                             | open     |
 
 Question 1: RRG "Labeled Ability" (p. 26) makes the whole event one attack, and the engine reads "each enemy" as naming
 every enemy (wave 8 Q48); June 25, 2026 R2 speaks of "each enemy damaged by the effect" but does not say who is
