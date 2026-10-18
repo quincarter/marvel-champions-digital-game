@@ -33,11 +33,13 @@ import {
   spendResources,
   statOf,
   thatPlayer,
+  reducesAttackDamageTaken,
   valueAtLeast,
   valueAtMost,
   whenDefeated,
   YOUR_HERO,
   YOUR_IDENTITY,
+  yourIdentity,
 } from "../../dsl/index.js";
 
 /** "Each ally you control" (RRG 1.8 "You, Your", p. 49). */
@@ -67,8 +69,6 @@ const ATTACHED_CARD = { hostOfSelf: true } as const;
  *
  * **61040**: the host loses the four icons; the end-of-round spend is each player's choice, and one player declining
  * discards the card once at the end (every player is still asked, and a player who paid keeps having paid).
- *
- * **61038 Echo** is not scripted: it needs a `reduceDamageTaken` rule with a live amount (see the skip reason).
  */
 export const JJ_OTHER_ASPECTS: AbilityRegistry = defineAbilities({
   "61034.innate-aggression-constant": constant(gets("atk", 1, YOUR_HERO)),
@@ -77,6 +77,14 @@ export const JJ_OTHER_ASPECTS: AbilityRegistry = defineAbilities({
     after.attacks(YOUR_IDENTITY, { target: query("minion"), defeats: true }),
     { cost: exhaustThis, while: valueAtMost(attackExcessAsDealt, 0) },
     removeThreatFromAScheme(baseStatOf(eventTarget, "sch")),
+  ),
+
+  // "each enemy attack": an attack by a hero or an ally is not one (RRG 1.8 "Enemy", p. 17). Indirect damage from an
+  // enemy attack is the attack's damage too (August 3, 2026 - Ruling 2). "Your hero's DEF" reads 0 for an alter-ego.
+  "61038.echo-constant": constant(
+    reducesAttackDamageTaken({ self: true }, statOf(yourIdentity, "def"), {
+      exceptAttacker: query(["hero", "ally"]),
+    }),
   ),
 
   "61037.innate-inspiration-constant": constant(gets("hp", 1, YOUR_ALLIES)),
@@ -113,11 +121,5 @@ export const JJ_OTHER_ASPECTS: AbilityRegistry = defineAbilities({
   ),
 });
 
-/**
- * Refs of this module's cards deliberately left unscripted, each with its written reason. Delete a line as its ref is
- * scripted.
- */
-export const JJ_OTHER_ASPECTS_SKIPPED: Readonly<Record<string, string>> = {
-  "61038.echo-constant":
-    "Echo reduces the damage she takes from each enemy attack by your hero's DEF, a live amount; the engine's reduceDamageTaken rule takes a literal number (primitive gap, reported to the main session)",
-};
+/** Refs of this module's cards deliberately left unscripted, each with its written reason. None. */
+export const JJ_OTHER_ASPECTS_SKIPPED: Readonly<Record<string, string>> = {};

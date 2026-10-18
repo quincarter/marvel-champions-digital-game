@@ -32,8 +32,8 @@ vi.setConfig({ testTimeout: 120_000 });
  * Protection; definition of done 4b) against Core's Rhino, staged by surgery and used through the engine's commands.
  *
  * The registered ids, each exercised below: "61034.innate-aggression-constant", "61035.shakedown-response",
- * "61037.innate-inspiration-constant", "61039.when-defeated", "61040.mitigated-threat-constant",
- * "61040.mitigated-threat-forced-response". Echo "61038.echo-constant" is skipped (primitive gap).
+ * "61037.innate-inspiration-constant", "61038.echo-constant", "61039.when-defeated", "61040.mitigated-threat-constant",
+ * "61040.mitigated-threat-forced-response". "61038.echo-constant".
  */
 const INNATE_AGGRESSION = "61034";
 const SHAKEDOWN = "61035";
@@ -145,11 +145,12 @@ describe("wave 11 jj/other-aspects", () => {
       expect(id in REGISTRY, id).toBe(false);
       expect(reason.length, id).toBeGreaterThan(20);
     }
-    expect(Object.keys(SKIPPED)).toEqual(["61038.echo-constant"]);
+    expect(SKIPPED).toEqual({});
     expect(Object.keys(REGISTRY).sort()).toEqual([
       "61034.innate-aggression-constant",
       "61035.shakedown-response",
       "61037.innate-inspiration-constant",
+      "61038.echo-constant",
       "61039.when-defeated",
       "61040.mitigated-threat-constant",
       "61040.mitigated-threat-forced-response",
@@ -413,6 +414,47 @@ describe("wave 11 jj/other-aspects", () => {
         expect(playerOf(r.after, P1).discard, JSON.stringify(spends)).toContain(r.id);
         expect(r.paid, JSON.stringify(spends)).toHaveLength(1);
       }
+    });
+  });
+
+  describe("61038.echo-constant", () => {
+    const STARSHARK = "16137"; // ATK 3, its attacks deal indirect damage
+    /** Echo in play and `minion` engaged; every defender prompt but the `defendAt`-th (0 = the villain's) is declined, which Echo answers. */
+    function villainPhase(minion: string, defendAt: number, alterEgo = false) {
+      const echo = stagedInPlay(coreGame("61038", PROTECTION), "61038");
+      const withMinion = engageMinion(echo.state, minion, "m-attacker");
+      const state = alterEgo ? withForm(withMinion, "alterEgo") : withMinion;
+      let prompts = 0;
+      const pick: Picker = (s) => {
+        const c = s.pendingChoice!;
+        if (c.prompt.kind === "declareDefender") {
+          const mine = prompts++ === defendAt;
+          return mine && c.options.some((o) => o.optionId === echo.id) ? [echo.id] : ["decline"];
+        }
+        if (c.prompt.kind === "assignIndirectDamage") {
+          return c.options.filter((o) => o.optionId.startsWith(`${echo.id}#`)).map((o) => o.optionId);
+        }
+        return answering()(s);
+      };
+      const after = drive(state, pick, endTurn(P1));
+      return { echoDamage: inst(after, echo.id).damage, def: profile(state).def };
+    }
+
+    it("reduces the damage she takes defending an enemy attack by your hero's DEF (3 ATK - 2 DEF = 1)", () => {
+      expect(villainPhase(SANDMAN, 1)).toEqual({ echoDamage: 1, def: 2 });
+    });
+
+    it("reduces indirect damage from an enemy attack: 3 assigned to Echo, she takes 1 (August 3, 2026 - Ruling 2)", () => {
+      expect(villainPhase(STARSHARK, 99).echoDamage).toBe(1);
+    });
+
+    it("reads 0 DEF while your identity is in alter-ego form, and no enemy attack reaches her then", () => {
+      // The amount is your identity's DEF (Black Panther 2, T'Challa 0). Enemies scheme against an alter-ego rather than attack, so
+      // Echo takes nothing from the villain phase in that form.
+      const echo = stagedInPlay(coreGame("61038", PROTECTION), "61038");
+      expect(profile(echo.state).def).toBe(2);
+      expect(profile(withForm(echo.state, "alterEgo")).def).toBe(0);
+      expect(villainPhase(STARSHARK, 99, true).echoDamage).toBe(0);
     });
   });
 });
