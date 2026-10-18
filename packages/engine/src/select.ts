@@ -345,8 +345,9 @@ export const DEFENDER_SLOT = "defender";
  * the player plays, resources they spend, and upgrades they control "unless attached to a different friendly
  * character" — so what they do is done by that identity. Allies, supports, player side schemes and encounter cards are
  * not. `TargetQuery.extensionOf` (docs/phase7-wave4.md §3.22: "If Valkyrie defeated that enemy" when an event she
- * played dealt the damage). Read wherever the card is (an event or spent resource is out of play by then); an event or
- * resource is its owner's, an upgrade its controller's.
+ * played dealt the damage). Read wherever the card is (an event or spent resource is out of play by then); an event is
+ * the identity's of the player playing it while it resolves (`eventPlayerOf`), else its owner's, a resource its
+ * owner's, an upgrade its controller's.
  */
 export function isIdentityExtension(state: GameState, id: InstanceId, players: readonly PlayerId[]): boolean {
   const card = cardOf(state, id);
@@ -354,8 +355,10 @@ export function isIdentityExtension(state: GameState, id: InstanceId, players: r
   if (!card || !instance) return false;
   const identityOf = (player: PlayerId) => state.players.find((p) => p.playerId === player)?.identity.instanceId;
   if (players.some((player) => identityOf(player) === id)) return true;
-  if (card.type === "event" || card.type === "resource")
-    return instance.ownerId !== null && players.includes(instance.ownerId);
+  if (card.type === "event" || card.type === "resource") {
+    const player = eventPlayerOf(state, id);
+    return player !== null && players.includes(player);
+  }
   if (card.type !== "upgrade") return false;
   const controller = controllerOf(state, id);
   if (controller === null || !players.includes(controller)) return false;
@@ -367,13 +370,26 @@ export function isIdentityExtension(state: GameState, id: InstanceId, players: r
 }
 
 /**
+ * The player an event or resource acts for: the player resolving it while it resolves, else its owner. RRG 1.8 "You,
+ * Your" (p. 49): what resolves from an event is "performed by that player's identity", the player playing it; a
+ * borrowed event stays its owner's card (RRG 1.8 "Ownership and Control", p. 31; August 13, 2026 R1: Echo's Study the
+ * Tape plays another player's event) but acts for whoever plays it. Out of resolution (in its owner's discard pile)
+ * the engine reads its owner (engine interpretation).
+ */
+export function eventPlayerOf(state: GameState, id: InstanceId): PlayerId | null {
+  const resolving = state.players.find((p) => p.resolving.includes(id));
+  return resolving?.playerId ?? state.instances[id]?.ownerId ?? null;
+}
+
+/**
  * The character a card's ability is performed by, or null when no character performs it: "Characters other than [X]
  * cannot remove threat from [this scheme]" (`RuleSpec threatCannotBeRemoved.exceptBy`, docs/phase7-wave7.md §3.51).
  *
  * - A character (RRG 1.8 "Character", p. 12: "Identities (heroes and alter-egos), allies, villains, and minions are
  *   all characters") acts for itself.
- * - An event or a resource is its owner's identity (RRG 1.8 "You, Your", p. 49: what resolves from a player playing an
- *   event is "performed by that player's identity").
+ * - An event or a resource is the identity of the player it acts for (`eventPlayerOf`: the player playing an event
+ *   while it resolves, else its owner; RRG 1.8 "You, Your", p. 49: what resolves from a player playing an event is
+ *   "performed by that player's identity").
  * - An upgrade attached to a friendly character other than its controller's identity is that character. The RRG says
  *   only that such an upgrade is not an extension of the controller's identity ("unless attached to a different
  *   friendly character"), not whose it is then; the engine reads it as its host's. Any other upgrade (attached to the
@@ -388,7 +404,7 @@ export function actingCharacterOf(state: GameState, id: InstanceId): InstanceId 
   if (categoriesOf(state, id).includes("character")) return id;
   const identityOf = (player: PlayerId | null) =>
     state.players.find((p) => p.playerId === player)?.identity.instanceId ?? null;
-  if (card.type === "event" || card.type === "resource") return identityOf(instance.ownerId);
+  if (card.type === "event" || card.type === "resource") return identityOf(eventPlayerOf(state, id));
   if (card.type !== "upgrade") return null;
   const host = instance.attachedTo;
   const hostCategories = host === null ? [] : categoriesOf(state, host);

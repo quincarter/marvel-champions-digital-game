@@ -819,6 +819,19 @@ export type RuleSpec =
    * player's identity's); an encounter card's removal; threat moved off the scheme. The scheme is not a legal target
    * of a basic thwart or thwart ability the rule stops. It may be combined with `player`, which then scopes whose
    * removals are bound, as above.
+   *
+   * `exceptFromSource` scopes it by the removing **card** (docs/phase7-wave11.md §3.5): "Threat cannot be removed from
+   * this scheme except by Daredevil or Matt Murdock" (Focus the Senses, `fne` 60012) is `{ target: { self: true },
+   * exceptFromSource: { extensionOf: <that player> } }`. It binds every removal (RRG 1.8 "'Cannot'", p. 11: an
+   * encounter card's, a support's and an ally's included) and lets through one whose removing card matches; for a
+   * removal a thwart makes, the removing card is the thwarting character alone. With `extensionOf` that is the
+   * identity's basic thwart in either form (RRG 1.8 "Identity", p. 23: both titles name the identity), an event its
+   * player plays (a borrowed one included; one they own that another player plays is not), its upgrades unless on
+   * another friendly character (RRG 1.8 "You, Your", p. 49), and any "(thwart)"-labeled ability its player uses, on a
+   * support or ally included: RRG 1.8 "Labeled Ability" (p. 26) makes it "a thwart made by that player's identity",
+   * which the engine follows over p. 49's line that supports and allies are not extensions (engine interpretation).
+   * An ally's basic thwart is the ally's. A `removeThreat.noPlayer` removal has no removing card and is bound. The
+   * scheme is not a legal target of a basic thwart or thwart ability the rule stops.
    */
   | {
       readonly kind: "threatCannotBeRemoved";
@@ -828,6 +841,7 @@ export type RuleSpec =
       readonly player?: PlayerRef;
       readonly exceptBy?: TargetQuery;
       readonly exceptThwartBy?: TargetQuery;
+      readonly exceptFromSource?: TargetQuery;
     }
   /**
    * "While Baron Zemo is engaged with you, you cannot thwart." `player` is resolved with "you" as the rule card's

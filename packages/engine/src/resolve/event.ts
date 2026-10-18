@@ -2034,7 +2034,13 @@ export function threatRemovalBlocked(
   // card acts for (RRG 1.8 "You, Your", p. 49); none for a removal no player makes.
   const characterId =
     thwarterInstanceId ?? (noPlayer || sourceInstanceId === null ? null : actingCharacterOf(state, sourceInstanceId));
-  return threatCannotBeRemoved(state, deps, schemeId, byThwart, removerId, characterId) ? "rule" : null;
+  // The removing card, for a rule scoped with `exceptFromSource` (docs/phase7-wave11.md §3.5): for a thwart, only its
+  // thwarting character (a "(thwart)"-labeled ability is "a thwart made by that player's identity", RRG 1.8 "Labeled
+  // Ability", p. 26, whichever card the label is on), else the card whose effect removes the threat; none for a
+  // removal no player makes.
+  const removing = noPlayer ? null : byThwart ? thwarterInstanceId : sourceInstanceId;
+  const removingCards = removing === null ? [] : [removing];
+  return threatCannotBeRemoved(state, deps, schemeId, byThwart, removerId, characterId, removingCards) ? "rule" : null;
 }
 
 /**

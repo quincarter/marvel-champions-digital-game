@@ -1319,6 +1319,28 @@ export const onlyThwartsRemoveThreat = (
     ...(opts.while ? { while: opts.while } : {}),
   });
 /**
+ * "Threat cannot be removed from this scheme except by Daredevil or Matt Murdock." (Focus the Senses, `fne` 60012;
+ * docs/phase7-wave11.md §3.5): `constant(onlySourceRemovesThreat({ self: true }, { extensionOf: <that player> }))`, a
+ * `threatCannotBeRemoved` with `exceptFromSource`. Every removal is stopped (RRG 1.8 "'Cannot'", p. 11), an encounter
+ * card's, a support's and an ally's included, except one whose removing card matches `source` (for a thwart, the
+ * thwarting character alone): with `extensionOf`, the identity in either form, the events its player plays and its
+ * upgrades not on another friendly character (RRG 1.8 "You, Your", p. 49), and a "(thwart)"-labeled ability its player
+ * uses, a support's or ally's included (RRG 1.8 "Labeled Ability", p. 26). For Focus the Senses, Daredevil's own hero
+ * card, `{ extensionOf: { kind: "controller" } }` names Daredevil's identity: its controller is his player. The scheme
+ * is not a legal target of a basic thwart or thwart ability the rule stops.
+ */
+export const onlySourceRemovesThreat = (
+  target: TargetQuery,
+  source: TargetQuery,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "threatCannotBeRemoved",
+    target,
+    exceptFromSource: source,
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
  * "The villain cannot take damage unless the attacker or attack has the [AERIAL] trait, or the attack has ranged."
  * (Out of Reach, `next_evol` 40153; docs/phase7-wave7.md §3.30): `constant(takesDamageOnlyFromAttacks(query("villain"),
  * { attacker: { trait: AERIAL }, attackCard: { trait: AERIAL }, attackKeyword: "ranged" }))`, a `cannotTakeDamage`

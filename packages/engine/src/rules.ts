@@ -476,6 +476,9 @@ function lastKnownFromAttack(damage: ConsequentialDamage): EffectContext["lastKn
  * A rule with `exceptThwartBy` ("except by Hercules's thwarts", docs/phase7-wave10-hero-packs.md H3.6) lets through
  * only a thwart (`byThwart`) whose thwarting character (`characterId`) matches, and blocks every other removal,
  * whether or not a character performs it.
+ *
+ * A rule with `exceptFromSource` ("except by Daredevil or Matt Murdock", docs/phase7-wave11.md §3.5) blocks every
+ * removal except one whose `removingCards` (a thwart's thwarting character, else the removing card) include a match.
  */
 export const threatCannotBeRemoved = (
   state: GameState,
@@ -484,6 +487,7 @@ export const threatCannotBeRemoved = (
   byThwart = false,
   removerId: PlayerId | null = null,
   characterId: InstanceId | null = null,
+  removingCards: readonly InstanceId[] = [],
 ): boolean =>
   activeRules(state, deps, "threatCannotBeRemoved").some((active) => {
     const { rule, context } = active;
@@ -500,6 +504,8 @@ export const threatCannotBeRemoved = (
     ) {
       return false;
     }
+    const fromSource = rule.exceptFromSource;
+    if (fromSource && removingCards.some((id) => matchesQuery(state, id, fromSource, context))) return false;
     if (!rule.player) return true;
     return removerId !== null && rulePlayers(state, { player: rule.player }, active).includes(removerId);
   });
@@ -509,7 +515,8 @@ export const threatCannotBeRemoved = (
  * scheme (docs/phase7-wave7.md §3.51): what the basic thwart command refuses on, so the scheme is not a legal target
  * of that character's basic thwart. A rule without `exceptBy`, or one that also scopes itself with `by` or `player`,
  * is left to the removal itself, as before the field. A rule with `exceptThwartBy` (docs/phase7-wave10-hero-packs.md
- * H3.6) refuses the basic thwart of every character it does not name, on the same terms.
+ * H3.6) refuses the basic thwart of every character it does not name, on the same terms, and so does one with
+ * `exceptFromSource` (docs/phase7-wave11.md §3.5): a basic thwart's removing card is its character.
  */
 export const characterCannotRemoveThreat = (
   state: GameState,
@@ -523,7 +530,8 @@ export const characterCannotRemoveThreat = (
       rule.player === undefined &&
       matchesQuery(state, schemeId, rule.target, context) &&
       ((rule.exceptBy !== undefined && !matchesQuery(state, characterId, rule.exceptBy, context)) ||
-        (rule.exceptThwartBy !== undefined && !matchesQuery(state, characterId, rule.exceptThwartBy, context))),
+        (rule.exceptThwartBy !== undefined && !matchesQuery(state, characterId, rule.exceptThwartBy, context)) ||
+        (rule.exceptFromSource !== undefined && !matchesQuery(state, characterId, rule.exceptFromSource, context))),
   );
 
 /**
