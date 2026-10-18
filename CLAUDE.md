@@ -49,6 +49,7 @@ This repo defines specialized subagents under `.claude/agents/` that model the r
 | `multiplayer-netcode-engineer` | Multiplayer state sync, turn/action authority, reconnect handling, 1–4 player co-op             |
 | `rules-qa-engineer`            | Regression tests tied to specific rulings/FAQ entries, scenario replay testing, drift detection |
 | `content-release-tracker`      | Keeping the card pool current as new packs/cycles/errata/taboo changes release                  |
+| `code-reviewer`                | Read-only review of each change before it is committed, against the rules authority order       |
 
 See [PLAN.md](PLAN.md) for the build roadmap and current phase, and [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks, CI and the release flow (the README is kept slim: overview, tech stack, community and roadmap, linking out to `docs/project/` for current status, architecture and downloads).
 
@@ -87,6 +88,26 @@ section current so any session can resume from GitHub alone.
   the tests, reads the diff) before flipping a status or ticking the PR. Rules questions go to the user as short
   multiple-choice prompts with a recommended default; answers are recorded in the spec's §4.1 table and the PR.
 - The live state of a wave (agents, worktree, what's next) is kept in its PR description's handoff section.
+
+### When to hand code to the code reviewer (the user, 2026-10-18)
+
+The `code-reviewer` agent (`.claude/agents/code-reviewer.md`) reviews a change as it goes in, so a rules bug or a
+broken boundary is caught before anything is built on it. It is read-only and applies the rules authority order above;
+the owning specialist or the main session fixes what it finds. This applies to contributors working with Claude too.
+
+- **Call it often, on small diffs, as a separate agent**, not from inside the agent that wrote the code:
+  - after each specialist agent's piece of work (one engine primitive, one card group, one ruling, one client
+    screen), before the main session commits it;
+  - after any change to engine timing, keyword semantics, the trigger stack or the ability DSL, however small;
+  - after fixing a finding from a previous review, on the fix;
+  - before a PR is marked ready for review, on the whole branch against `main` (as a final pass, not a substitute for
+    the per-piece reviews).
+- **Skip it** for docs-only changes, changelog fragments, generated data that a test already checks, and pure
+  formatting.
+- **Brief it** with the diff or commit range, what the change is for, and the spec section or card it implements.
+  Ask for findings ranked blocker / should-fix / nit, each with file:line, a failing scenario and its source.
+- **Blockers and should-fixes are fixed before the commit is pushed**; a rules question the authority order cannot
+  settle goes to the user as a multiple-choice question with a recommended default, like any other.
 
 ## Working conventions
 
