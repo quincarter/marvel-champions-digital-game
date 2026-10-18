@@ -21,8 +21,12 @@ import {
   defenderLineOf,
   emptyWalkthrough,
   enemyTeamNoticeOf,
+  INLINE_ARM_MS,
   inlineInterruptFor,
+  inlinePressAnswers,
+  inlineShownFor,
   interruptActionLabel,
+  offeredFrom,
   pauseFor,
   recapPlacementFor,
   readyToAutoClose,
@@ -466,7 +470,7 @@ describe("pauseFor", () => {
 
     const pause = pauseFor(counting, played.state, played.viewer, activation);
     expect(pause.label).toBe(`Your interrupt: counting the boost icons on ${name} (2 icons)`);
-    expect(pause.countedBoost).toEqual({ instanceId: boostId, name, icons: 2 });
+    expect(pause.countedBoost).toEqual({ instanceId: boostId, name, icons: 2, reason: "counting" });
 
     // Without the activation's beats the card is still named, just without a count.
     expect(pauseFor(counting, played.state, played.viewer).label).toBe(
@@ -482,6 +486,43 @@ describe("pauseFor", () => {
     expect(activationBoostLineOf(activation, null, played.state)).toBe(`Boost: ${name}`);
     expect(activationBoostLineOf({ ...activation, boosts: [] }, null, played.state)).toBe(
       "Boost card facedown · flips after interrupts",
+    );
+  });
+
+  // Issue #253: Klaw's attack is dealt two boost cards, so Preemptive Strike's window opens once per card, in the same
+  // place with the same buttons. The pause names the card being turned up and its icons, and frames it for the panel.
+  test("a boost-turned-faceup window names the card and its icons", () => {
+    const villain = activeVillain(played.state);
+    const boostId = played.state.players[0]!.identity.instanceId;
+    const turned = {
+      ...choice("player"),
+      prompt: {
+        kind: "chooseTriggers",
+        event: {
+          kind: "boostCardTurnedFaceup",
+          enemyInstanceId: villain.instanceId,
+          boostInstanceId: boostId,
+          activation: "attack",
+          boostIcons: 2,
+          playerId: played.viewer,
+        },
+        timing: "interrupt",
+      } as unknown as ChoicePrompt,
+    };
+    const name = cardName(played.state, boostId);
+    const pause = pauseFor(turned, played.state, played.viewer);
+    expect(pause.label).toBe(`Your interrupt: ${name} turned up (2 icons)`);
+    expect(pause.countedBoost).toEqual({ instanceId: boostId, name, icons: 2, reason: "turnedUp" });
+    const activation: ActivationBeat = {
+      kind: "attack",
+      enemyInstanceId: villain.instanceId,
+      attackedPlayerId: played.viewer,
+      boosts: [{ instanceId: boostId, boostIcons: 2, cancelled: null }],
+      defender: null,
+      resolved: null,
+    };
+    expect(activationBoostLineOf(activation, pause.countedBoost!, played.state)).toBe(
+      `${name} turned up · 2 boost icons`,
     );
   });
 
@@ -644,6 +685,12 @@ describe("inlineInterruptFor", () => {
     const player = played.state.players.find((seat) => seat.playerId === played.viewer)!;
     const handCard = player.hand[0]!;
     expect(interruptActionLabel(played.state, { optionId: "h", instanceId: handCard, abilityId: null })).toMatch(
+      /^Play /,
+    );
+    // The top card of the deck, played as if from hand (Magik, issue #253), is played too.
+    const deckTop = player.deck[0]!;
+    expect(offeredFrom(played.state, deckTop)).toBe("deckTop");
+    expect(interruptActionLabel(played.state, { optionId: "d", instanceId: deckTop, abilityId: null })).toMatch(
       /^Play /,
     );
 
@@ -998,5 +1045,27 @@ describe("walkthrough encounter tracking", () => {
     );
     expect(walk.activeStep).toBe(4);
     expect(walk.encounter.current?.instanceId).toBe(walk.encounter.revealed[0]!.instanceId);
+  });
+});
+
+// Issue #253: the second boost card's window opens in the first one's place the moment the first is answered.
+describe("inline window presses", () => {
+  test("a fresh window ignores presses for INLINE_ARM_MS, then answers", () => {
+    const shown = inlineShownFor(null, "c5", 1000);
+    expect(inlinePressAnswers(shown, "c5", "c5", 1000 + INLINE_ARM_MS - 1)).toBe(false);
+    expect(inlinePressAnswers(shown, "c5", "c5", 1000 + INLINE_ARM_MS)).toBe(true);
+  });
+
+  test("the same window drawn again keeps the time it first appeared; a new one starts over", () => {
+    const first = inlineShownFor(null, "c4", 1000);
+    expect(inlineShownFor(first, "c4", 2000)).toBe(first);
+    expect(inlineShownFor(first, "c5", 2000)).toEqual({ choiceId: "c5", at: 2000 });
+  });
+
+  test("a press on a window that was answered never answers the next decision", () => {
+    const shown = inlineShownFor(null, "c4", 0);
+    expect(inlinePressAnswers(shown, "c4", "c5", 5000)).toBe(false);
+    expect(inlinePressAnswers(inlineShownFor(shown, "c5", 4900), "c4", "c5", 5000)).toBe(false);
+    expect(inlinePressAnswers(null, "c4", "c4", 5000)).toBe(false);
   });
 });

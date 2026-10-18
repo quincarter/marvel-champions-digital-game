@@ -89,6 +89,29 @@ describe("a Klaw setup with She-Hulk (the owner's report)", () => {
     expect(triggerHeadlineOf(game, damage, "response", viewer)).toBe("You took 3 damage");
   });
 
+  // Issue #253: an attack dealt two boost cards opens a window per card; the headline names the card and its icons.
+  test("a boost card turned faceup is named, with its icons", () => {
+    const game = store.state.game!;
+    const viewer = game.players[0]!.playerId;
+    const boost = Object.keys(game.instances).find(
+      (id) => cardName(game, id as InstanceId) === "Defense Network",
+    )! as InstanceId;
+    const event = {
+      kind: "boostCardTurnedFaceup",
+      enemyInstanceId: game.players[0]!.identity.instanceId,
+      boostInstanceId: boost,
+      activation: "attack",
+      boostIcons: 2,
+      playerId: viewer,
+    } as unknown as TriggerEvent;
+    expect(triggerHeadlineOf(game, event, "interrupt", viewer)).toBe(
+      "Defense Network is being turned up as a boost card (2 boost icons)",
+    );
+    expect(triggerHeadlineOf(game, { ...event, boostIcons: 1 } as TriggerEvent, "response", viewer)).toBe(
+      "Defense Network was turned up as a boost card (1 boost icon)",
+    );
+  });
+
   test("an event with no sentence of its own falls back to the shared words", () => {
     const game = store.state.game!;
     const event = { kind: "deckRanOut" } as unknown as TriggerEvent;
