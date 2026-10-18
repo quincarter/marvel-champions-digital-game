@@ -33,12 +33,13 @@ pnpm dev
 ## Checks
 
 ```bash
-# Lint, format check, changelog fragments, typecheck, unit tests and build, as one command
+# Lint, format check, YAML lint, changelog fragments, typecheck, unit tests and build, as one command
 pnpm check
 
 # Or one at a time
 pnpm lint
 pnpm fmt:check
+pnpm yaml:lint
 pnpm changelog:check
 pnpm typecheck
 pnpm test

@@ -1,0 +1,21 @@
+# yamllint (https://yamllint.readthedocs.io): every YAML file in the repo. `pnpm yaml:lint` runs it through uvx;
+# CI runs it as the "YAML lint" check. oxfmt owns formatting, so the rules here are the ones it doesn't settle.
+extends: default
+
+ignore: |
+  node_modules/
+  dist/
+  release/
+  .history/
+  packages/content/scripts/raw/
+  pnpm-lock.yaml
+
+rules:
+  # oxfmt wraps at 120 where it can; fragment bodies and long strings stay on one line.
+  line-length: disable
+  # Workflow files key on `on:`, which YAML 1.1 reads as a boolean.
+  truthy:
+    check-keys: false
+  document-start: disable
+  comments:
+    min-spaces-from-content: 1

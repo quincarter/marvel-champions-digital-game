@@ -53,6 +53,15 @@ jobs:
       - run: pnpm lint
       - run: pnpm fmt:check
 
+  # Every YAML file (workflows, issue templates, changie config and fragments) through yamllint (.yamllint.yaml).
+  yaml:
+    name: YAML lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v10.3.0
+      - run: uvx yamllint@1.38.0 --strict --format github .
+
   # Its own check, so a malformed changelog fragment (an unescaped quote in a single-quoted body, an unknown kind,
   # an empty body) shows by name on the pull request instead of breaking the release PR job after it reaches main.
   changelog:
@@ -144,7 +153,7 @@ jobs:
   # included. The first step fails if a job is added to this file without being added to `needs`.
   gate:
     name: All checks
-    needs: [lint, changelog, tests, deploy]
+    needs: [lint, yaml, changelog, tests, deploy]
     if: always()
     runs-on: ubuntu-latest
     steps:
