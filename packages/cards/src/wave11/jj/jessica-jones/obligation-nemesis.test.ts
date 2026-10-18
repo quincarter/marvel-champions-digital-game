@@ -308,6 +308,41 @@ describe.each(SUGGESTION_REFS)(
       expect(mainThreat(after)).toBe(mainThreat(g.state));
     });
 
+    /** Runs the action, answering "add 2 threat" and recording the labels the first option prompt offered. */
+    const offered = (state: GameState, id: InstanceId): string[] => {
+      let labels: string[] = [];
+      drive(state, use(P1, id, action), (s) => {
+        const choice = s.pendingChoice;
+        if (choice?.prompt.kind !== "chooseOption") return firstLegal(s);
+        labels = choice.options.map((o) => String((o as { label?: string }).label));
+        return ["1"];
+      });
+      return labels;
+    };
+    const handOf = (s: GameState, codes: readonly string[]) => {
+      const kept = playerOf(s, P1).hand.slice(0, codes.length);
+      const relabelled = kept.reduce((next, id, i) => relabel(next, id, codes[i]!), s);
+      return {
+        ...relabelled,
+        players: relabelled.players.map((p) => (p.playerId === P1 ? { ...p, hand: kept } : p)),
+      };
+    };
+
+    it("offers both options when a card with the icon can be played and paid for", () => {
+      const g = staged(3);
+      const cost = COST_BY_ICON[icon];
+      const hand = [SUPPORT_BY_ICON[icon], ...Array.from({ length: cost }, () => OTHER_ICON[icon])];
+      expect(offered(handOf(g.state, hand), g.id)).toHaveLength(2);
+    });
+
+    it("offers only the threat when the only card with the icon cannot be paid for", () => {
+      const g = staged(3);
+      // Alone in hand, a card cannot pay for itself: Core 01093 [energy] costs 2, 01091 [mental] 4, 01092 [physical] 3.
+      const unaffordable = handOf(g.state, [{ energy: "01093", mental: "01091", physical: "01092" }[icon]]);
+      expect(offered(unaffordable, g.id)).toEqual([]);
+      expect(mainThreat(drive(unaffordable, use(P1, g.id, action)))).toBe(mainThreat(g.state) + 2);
+    });
+
     it("offers the play option only while the hand holds a card with that printed icon", () => {
       const g = staged(3);
       const wrong = withHand(

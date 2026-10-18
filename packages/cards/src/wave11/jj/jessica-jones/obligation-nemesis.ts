@@ -3,6 +3,7 @@ import {
   addCounters,
   after,
   alterEgoAction,
+  canPlayFromHand,
   canTakeStatus,
   cards,
   chooseOne,
@@ -29,11 +30,9 @@ import {
   removeCounter,
   self,
   theMainScheme,
-  valueAtLeast,
   whenRevealed,
   yourIdentity,
   you,
-  zoneCountOf,
 } from "../../../dsl/index.js";
 
 /**
@@ -52,9 +51,8 @@ import {
  * identity), and the cost steps come first in each option. **61031**: SCH and ATK are bases that read the other
  * characters (HT5, H3.10; excluding himself is an engine reading). **61032**: Hinder 3 per player is data.
  * **61033a-c**: Uses is data; the card data gives its paragraph a `-constant` ref, which the coverage guard needs
- * registered, so each is an empty `constant()` (no behavior is invented). The play option is offered while the hand holds a card with that
- * printed icon; a card in hand that cannot be played or paid for still lets the option be picked, and it plays nothing
- * (the engine has no "can play" test for an option).
+ * registered, so each is an empty `constant()` (no behavior is invented). The play option is gated by `canPlayFromHand`
+ * (RRG 1.8 pp. 12, 24): offered only while a card with that printed icon can be played and paid for.
  */
 const PHEROMONE = "pheromone";
 const SUGGESTION = query("obligation", { name: "Suggestion" });
@@ -66,7 +64,7 @@ const suggestion = (icon: "energy" | "mental" | "physical") =>
     chooseOne(
       option(
         `Play a card with a printed [${icon}] resource icon`,
-        { when: valueAtLeast(zoneCountOf("hand", you, { printedResource: icon }), 1) },
+        { when: canPlayFromHand({ printedResource: icon }) },
         playFromHandReducingCost(0, you, { filter: { printedResource: icon }, mustPay: true }),
       ),
       option("Add 2 threat to the main scheme", placeThreat(2, theMainScheme)),
