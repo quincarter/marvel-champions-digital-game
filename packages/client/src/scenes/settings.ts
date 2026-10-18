@@ -95,6 +95,9 @@ import { formFactorFor, type Rect } from "../view/layout.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { appSession } from "../session.js";
 import { guidePrefs, onGuidePrefsChange, setGuidePrefs } from "../guide/guide-store.js";
+import { canReadPowerSaving, onPowerSavingChange, powerSavingOn, powerSavingState } from "../platform/power-saving.js";
+import { powerSavingRowOf } from "../view/power-saving-notice.js";
+import { detectPlatform } from "../platform/platform.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import type { RulesSceneData } from "./rules.js";
@@ -198,9 +201,12 @@ export class SettingsOverlay extends Phaser.Scene {
     // Another scene (Pause's own inline Guide group) can change the same live prefs while this overlay is open
     // behind it — redraw so this one never shows a stale level/toggle.
     const unsubscribeGuide = onGuidePrefsChange(() => this.#draw());
+    // Power saving mode turning on or off changes the Reduced motion and Sharper text rows.
+    const unsubscribePowerSaving = onPowerSavingChange(() => this.#redrawIfOpen());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
       unsubscribeGuide();
+      unsubscribePowerSaving();
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
       this.#tabs?.destroy();
@@ -328,6 +334,8 @@ export class SettingsOverlay extends Phaser.Scene {
       soundTab: settingsLayout({ x: 0, y: 0, width, height }, []).tabs.width / 6 >= SOUND_TAB_MIN_CELL,
       desktopWindow: hasDesktopWindow(),
       steamDeck: onHandheldLinux(),
+      powerSaving:
+        canReadPowerSaving(detectPlatform(), globalThis.navigator?.userAgent ?? "") || powerSavingState().detected,
     });
     const active = tabs.find((tab) => tab.id === lastTab) ?? tabs[0]!;
     const layout = settingsLayout(
@@ -413,7 +421,7 @@ export class SettingsOverlay extends Phaser.Scene {
    */
   #itemsOf(settings: Settings, guideRows: readonly GuideRowInfo[]): ReadonlyMap<SettingsItemId, SettingsItem> {
     const items = new Map<SettingsItemId, SettingsItem>();
-    for (const row of settingsRowInfoOf(settings)) {
+    for (const row of settingsRowInfoOf(settings, powerSavingOn())) {
       items.set(row.id, {
         spec: { kind: "toggle", id: row.id, detail: row.unavailable ?? row.detail },
         draw: (item, stops) => {
@@ -497,6 +505,7 @@ export class SettingsOverlay extends Phaser.Scene {
     for (const [id, row] of [
       ["villain-hold", villain.hold],
       ["villain-dock", villain.dock],
+      ["power-saving", powerSavingRowOf(settings, powerSavingState().detected)],
     ] as const) {
       items.set(id, {
         spec: { kind: "toggle", id, detail: row.detail },
@@ -687,6 +696,13 @@ export class SettingsOverlay extends Phaser.Scene {
         .setWordWrapWidth(cellWidth - 16);
       stops.set(`row:guide-level:${option.value}`, this.#bodyStop(cellRect, index, activate));
     });
+  }
+
+  /** "Lighter play in power saving": the session tells `platform/power-saving.ts`, and this redraws from its change. */
+  #togglePowerSaving(): void {
+    const settings = appSession().settings;
+    appSession().settings = { ...settings, powerSavingAdjust: !settings.powerSavingAdjust };
+    this.#draw();
   }
 
   #setVillain(id: VillainRowId, value?: VillainAutoAdvance | VillainBeatSpeed): void {
@@ -973,7 +989,7 @@ export class SettingsOverlay extends Phaser.Scene {
 
   #drawVillainToggle(
     rect: Rect,
-    id: "villain-hold" | "villain-dock",
+    id: "villain-hold" | "villain-dock" | "power-saving",
     row: { readonly title: string; readonly detail: string; readonly on: boolean },
     index: number,
     stops: Map<string, FocusStop>,
@@ -984,7 +1000,7 @@ export class SettingsOverlay extends Phaser.Scene {
       .setFontSize(10)
       .setWordWrapWidth(rect.width - 100);
     const toggleRect = controlRectOf(rect);
-    const activate = (): void => this.#setVillain(id);
+    const activate = (): void => (id === "power-saving" ? this.#togglePowerSaving() : this.#setVillain(id));
     addRowTapZone(this, rect, { onClick: activate, clip: this.#bodyClip, suppressClick: this.#bodySuppressClick });
     this.#buttons.push(
       new McButton(this, {

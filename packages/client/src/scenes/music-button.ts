@@ -43,6 +43,7 @@ const ABOVE_SCREENS: ReadonlySet<string> = new Set([
   SCENES.reportButton,
   SCENES.reportIssue,
   SCENES.music,
+  SCENES.powerSavingNotice,
 ]);
 /** How often the notice looks for something newly open in Extras, how long it stays up, and how long it slides. */
 const EXTRAS_CHECK_MS = 1000;

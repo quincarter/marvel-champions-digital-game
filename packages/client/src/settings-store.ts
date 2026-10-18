@@ -40,6 +40,7 @@ const BOOLEAN_FIELDS = [
   "villainDockTable",
   "hoverHeroCard",
   "hoverVillainCard",
+  "powerSavingAdjust",
 ] as const;
 
 export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
@@ -133,6 +134,15 @@ export class SettingsStore {
   }
 
   get current(): Settings {
+    return this.#current;
+  }
+
+  /**
+   * Re-reads the device's defaults (power saving mode changed, `platform/power-saving.ts`): every field the player
+   * never set follows them, and every field they did set stays as they set it. Saves nothing.
+   */
+  refreshDefaults(): Settings {
+    this.#current = resolveSettings(this.#overrides, this.defaults());
     return this.#current;
   }
 

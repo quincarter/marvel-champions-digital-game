@@ -39,6 +39,8 @@ import { applyDesktopWindowOnLaunch, desktopLaunchSettings, setRenderSizeHandler
 import { storedSettingsOverrides } from "./settings-store.js";
 import { applyRenderSize } from "./ui/render-resolution.js";
 import { isAndroidEdge, rendererOptionsOf } from "./platform/renderer-options.js";
+import { POWER_SAVING_FPS, onPowerSavingChange, watchPowerSaving } from "./platform/power-saving.js";
+import { PowerSavingNoticeScene } from "./scenes/power-saving-notice.js";
 
 // The one `Settings` instance for the whole app (`appSession().settings`), not a
 // second copy: `scenes/settings.ts` mutates that same object, and every text
@@ -97,6 +99,7 @@ const game = new Phaser.Game({
     BootScene,
     TitleScene,
     MusicScene,
+    PowerSavingNoticeScene,
     MusicPlayerOverlay,
     MusicButtonScene,
     ReportIssueOverlay,
@@ -123,6 +126,14 @@ void desktopLaunchSettings(settings, storedSettingsOverrides().displayMode !== u
   applyDesktopWindowOnLaunch(launch);
 });
 watchStartup(game);
+
+// Power saving mode (`platform/power-saving.ts`): the session's settings already follow it; the frame rate cap and the
+// text resolution new labels draw at are applied here.
+onPowerSavingChange(({ applied }) => {
+  game.loop.setFPSLimit(applied ? POWER_SAVING_FPS : 0);
+  setTextResolution(appSession().settings.textResolution);
+});
+watchPowerSaving();
 
 // Registered before any scene's own resize listener, so a screen redrawing on resize already draws at the new size.
 game.scale.on("resize", (size: Phaser.Structs.Size) =>

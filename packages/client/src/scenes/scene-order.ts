@@ -75,6 +75,8 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.pileView,
   SCENES.extrasViewer,
   SCENES.music,
+  // Above every screen and overlay, below the chrome that takes input.
+  SCENES.powerSavingNotice,
   // Last, so they draw above every screen and overlay (#176, #191): the music player and its button, then the report
   // panel and the tab that opens it above that.
   SCENES.musicPlayer,
@@ -88,6 +90,7 @@ export const EAGER_SCENES: readonly string[] = [
   SCENES.boot,
   SCENES.title,
   SCENES.music,
+  SCENES.powerSavingNotice,
   SCENES.musicPlayer,
   SCENES.musicButton,
   SCENES.reportIssue,

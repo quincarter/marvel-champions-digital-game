@@ -49,6 +49,8 @@ export class BootScene extends Phaser.Scene {
         this.scene.launch(SCENES.reportButton);
         // The music button (#191), beside it.
         this.scene.launch(SCENES.musicButton);
+        // The power saving notice (`scenes/power-saving-notice.ts`), hidden until the mode turns on or off.
+        this.scene.launch(SCENES.powerSavingNotice);
         if (!jump) {
           // Boot's own normal hand-off (no `?screen=` dev jump): a plain fade, same as every other
           // screen-to-screen move. The dev jumps below stay hard cuts — they're QA/screenshot entry

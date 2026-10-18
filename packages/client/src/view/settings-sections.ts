@@ -17,6 +17,7 @@ export type SettingsItemId =
   | "display-mode"
   | "resolution"
   | "steam-deck"
+  | "power-saving"
   | "villain-auto"
   | "villain-hold"
   | "villain-speed"
@@ -48,6 +49,8 @@ export function settingsSectionsOf(input: {
   readonly desktopWindow?: boolean;
   /** SteamOS or Bazzite: a Steam Deck row in the Window section. */
   readonly steamDeck?: boolean;
+  /** The Android app, which can read power saving mode, or a forced `?powersave=`: a "Lighter play" row under motion. */
+  readonly powerSaving?: boolean;
 }): readonly SettingsSection[] {
   return [
     { id: "gameplay", title: "Gameplay", items: ["confirm-end-turn", "same-name-conflict"] },
@@ -72,7 +75,16 @@ export function settingsSectionsOf(input: {
           } satisfies SettingsSection,
         ]
       : []),
-    { id: "motion", title: "Animation and display", items: ["reduced-motion", "token-motion", "sharper-text"] },
+    {
+      id: "motion",
+      title: "Animation and display",
+      items: [
+        ...(input.powerSaving ? (["power-saving"] as const) : []),
+        "reduced-motion",
+        "token-motion",
+        "sharper-text",
+      ],
+    },
     {
       id: "sound",
       title: "Sound",
