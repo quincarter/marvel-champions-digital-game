@@ -24,6 +24,21 @@ export type LastingDuration =
    * the villain phase beginning and before step one (`expireNextVillainPhaseEffects`).
    */
   | { readonly kind: "nextVillainPhaseBegins" }
+  /**
+   * "Until the end of the player phase" (Take a Stand, 62015; docs/phase7-wave11-hero-packs.md H3.9): ends as the
+   * player phase in progress ends, or, made during a villain phase, as the next player phase ends (RRG 1.8 "Lasting
+   * Effects", p. 26; "Player Phase", p. 34). Expired by its own `expireLastingEffects(ctx, "endOfPlayerPhase")` in
+   * `finishPlayerPhase`, right after the phase's `endOfPhase` effects, and untouched at a villain phase's or round's end.
+   * One made by a "when the player phase ends" ability is made after that expiry, so it lasts to the next one's end.
+   *
+   * **Conflict, flagged (owner question Q104, docs/phase7-wave11-hero-packs.md H3.9; the PR's handoff):** RRG 1.8
+   * "Lasting Effects" (p. 26) also says "A lasting effect that expires at the end of a specified time period can only be
+   * initiated during that time period", and Take a Stand is mostly used after a villain-phase defense. Built reading A:
+   * made outside a player phase it lasts through the next player phase. Reading B, the strict one (made outside a player
+   * phase it is not created, so the card gives nothing then), is the one-line switch
+   * `END_OF_PLAYER_PHASE_OUTSIDE_IT` in `query.ts`.
+   */
+  | { readonly kind: "endOfPlayerPhase" }
   /** "Until the end of this turn" / "this turn": the active player's turn (docs/phase7-wave2.md §13). */
   | { readonly kind: "endOfTurn" }
   /** "Until the end of this attack/activation": ends when that event frame finishes. */

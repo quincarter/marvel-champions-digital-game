@@ -14,6 +14,8 @@ export function lastingDurationWords(duration: LastingDuration): string {
       return "until the end of the phase";
     case "endOfRound":
       return "until the end of the round";
+    case "endOfPlayerPhase":
+      return "until the end of the player phase";
     // Pestilence (`aoa` 45083): gone before anything answers the villain phase beginning (wave 8 §3.13).
     case "nextVillainPhaseBegins":
       return "until the villain phase begins";

@@ -1216,6 +1216,9 @@ export const blankTextBoxUntil = (target: TargetRef, until: LastingUntil): Effec
  * `"nextVillainPhaseBegins"` is "until the start of the next (unskipped) villain phase" (Run Them to Ground 61020;
  * docs/phase7-wave11-hero-packs.md H3.8): the rule ends as the next villain phase played begins, and a skipped one
  * (`skipNextVillainPhase`) never begins, so it lasts through it.
+ *
+ * `"endOfPlayerPhase"` is "until the end of the player phase" (docs/phase7-wave11-hero-packs.md H3.9): the end of the
+ * player phase in progress, or of the next one when made in the villain phase.
  */
 export const applyRuleUntil = (
   rule: RuleSpec,
@@ -1226,7 +1229,8 @@ export const applyRuleUntil = (
     | "endOfNextTurn"
     | "endOfAttack"
     | "endOfPaidFor"
-    | "nextVillainPhaseBegins",
+    | "nextVillainPhaseBegins"
+    | "endOfPlayerPhase",
   player?: PlayerRef,
   options: { readonly attack?: "current" | "initiated" } = {},
 ): EffectSpec => ({

@@ -90,6 +90,7 @@ import {
   nextVillainInActivationOrder,
   nextVillainInRow,
   turnInProgress,
+  endOfPlayerPhaseCanStart,
   villainOf,
   isScheme,
   playerCardOwnerOf,
@@ -3101,6 +3102,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       } else {
         // "Until the end of this turn" outside a turn cannot be initiated (RRG 1.8 "Lasting Effects", p. 26; §13).
         if (effect.until === "endOfTurn" && !turnInProgress(ctx.state)) return;
+        if (effect.until === "endOfPlayerPhase" && !endOfPlayerPhaseCanStart(ctx.state)) return;
         duration = { kind: effect.until };
       }
       const scope: LastingScope = {
@@ -3187,6 +3189,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         } else {
           // "Until the end of this turn" outside a turn cannot be initiated (RRG 1.8 "Lasting Effects", p. 26; §13.3).
           if (effect.until === "endOfTurn" && !turnInProgress(ctx.state)) return;
+          if (effect.until === "endOfPlayerPhase" && !endOfPlayerPhaseCanStart(ctx.state)) return;
           duration = { kind: effect.until };
         }
         const rule =
@@ -3222,9 +3225,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const activation = effect.until === "endOfAttack" ? currentActivationFrameId(ctx.state.stack) : null;
       if (ids.length === 0 || (effect.until === "endOfAttack" && !activation)) return;
       if (effect.until === "endOfTurn" && !turnInProgress(ctx.state)) return;
+      if (effect.until === "endOfPlayerPhase" && !endOfPlayerPhaseCanStart(ctx.state)) return;
       const duration: LastingDuration = activation
         ? { kind: "endOfEvent", frameId: activation }
-        : effect.until === "endOfRound" || effect.until === "endOfTurn" || effect.until === "nextVillainPhaseBegins"
+        : effect.until === "endOfRound" ||
+            effect.until === "endOfTurn" ||
+            effect.until === "nextVillainPhaseBegins" ||
+            effect.until === "endOfPlayerPhase"
           ? { kind: effect.until }
           : { kind: "endOfPhase" };
       // Which card made the blank, for the Permanent keyword's same-set exception (docs/phase7-wave5.md §4.1 Q31).

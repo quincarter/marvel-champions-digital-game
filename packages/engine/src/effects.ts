@@ -2259,7 +2259,10 @@ export function endLastingEffect(
 }
 
 /** Removes every lasting effect whose duration ends at this boundary (delayed effects are fired by the caller). */
-export function expireLastingEffects(ctx: Ctx, boundary: "endOfPhase" | "endOfRound" | "endOfTurn"): void {
+export function expireLastingEffects(
+  ctx: Ctx,
+  boundary: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfPlayerPhase",
+): void {
   for (const effect of [...ctx.state.lastingEffects]) {
     // "Its next basic thwart or attack action this phase" (`nextBasicPower`, §3.39) still waiting ends with the phase.
     const ends =

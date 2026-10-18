@@ -686,6 +686,8 @@ function finishPlayerPhase(ctx: Ctx): void {
   const listened = heard(ctx.state, ctx.deps, ending);
   const delayed = listened ? [] : takeDelayed(ctx, "endOfPhase");
   expireLastingEffects(ctx, "endOfPhase");
+  // "Until the end of the player phase" (docs/phase7-wave11-hero-packs.md H3.9), with the phase's own effects.
+  expireLastingEffects(ctx, "endOfPlayerPhase");
   // A skipped villain phase never begins (docs/phase7-wave11-hero-packs.md H3.7): no beginning to answer, and "until
   // the next villain phase begins" lasts on to the next one played (H3.8).
   if (!skipping) pushVillainPhaseBeginning(ctx);

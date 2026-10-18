@@ -2760,6 +2760,46 @@ function eventAmount(state: GameState, deps: EngineDeps, event: TriggerEvent | n
   return "amount" in event ? (event.amount ?? 0) : 0;
 }
 
+/**
+ * The cards a `highestStat` read is measuring for, outermost first, so a card it measures that reads the same way
+ * skips them (`ValueSpec highestStat`). Module-level because nothing else reaches the inner read: measuring a
+ * candidate goes `characterStat` → `modifiedStat` → `modifiersFor`, and `modifiersFor` builds a fresh `EffectContext`
+ * for each constant source from the state alone, so a guard carried on the caller's context is gone by then. Only ever
+ * non-empty during that one synchronous read, and emptied by its `finally`: never part of the game state, and no
+ * read's result depends on anything but the state read.
+ */
+const highestStatReaders: InstanceId[] = [];
+
+/** `ValueSpec highestStat` (docs/phase7-wave11-hero-packs.md H3.10). */
+function highestStatAmong(
+  state: GameState,
+  value: Extract<ValueSpec, { kind: "highestStat" }>,
+  context: EffectContext,
+  deps: EngineDeps,
+): number {
+  // The card whose stat is being read, bound by `modifiersFor`; none outside a modifier.
+  const reader = context.bindings[AFFECTED_SLOT]?.[0];
+  const skipped = new Set<InstanceId>(highestStatReaders);
+  if (reader) skipped.add(reader);
+  const candidates = resolveRef(state, value.among, context).filter(
+    (id) => !skipped.has(id) && !categoriesOf(state, id).includes("alterEgo"),
+  );
+  if (reader) highestStatReaders.push(reader);
+  try {
+    let best = 0;
+    for (const id of candidates) {
+      const missing = printedProfile(state, id)?.missing ?? [];
+      for (const stat of value.stats) {
+        if ((missing as readonly string[]).includes(stat)) continue;
+        best = Math.max(best, characterStat(state, id, stat, deps) ?? 0);
+      }
+    }
+    return best;
+  } finally {
+    if (reader) highestStatReaders.pop();
+  }
+}
+
 /** `deps` lets stat reads include constant and lasting modifiers ("damage equal to your hero's ATK" reads the modified ATK). */
 export function resolveValue(
   state: GameState,
@@ -2986,6 +3026,8 @@ export function resolveValue(
       return Math.min(...value.values.map((part) => resolveValue(state, part, context, deps)));
     case "max":
       return Math.max(...value.values.map((part) => resolveValue(state, part, context, deps)));
+    case "highestStat":
+      return highestStatAmong(state, value, context, deps);
     case "deckCount": {
       // The player deck only: a separate deck (`PlayerState.separateDecks`) is its own deck, not part of this one.
       const [playerId] = resolvePlayers(state, value.player, context);

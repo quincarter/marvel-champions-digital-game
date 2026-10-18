@@ -13,8 +13,26 @@ import type { AbilityId, CardId, EvidenceCombination, KeywordInstance, KeywordNa
  * phase it lasts the rest of that phase and the whole of the next player phase; made during the player phase, the rest
  * of it. It expires as the villain phase starts, after everything the end of the player phase resolves and before the
  * villain phase's own beginning is answered and its step one (`LastingDuration nextVillainPhaseBegins`).
+ *
+ * `endOfPlayerPhase` (docs/phase7-wave11-hero-packs.md H3.9): "until the end of the player phase" (Take a Stand,
+ * 62015, after a defense, mostly in the villain phase). RRG 1.8 "Lasting Effects" (p. 26): it expires "as soon as the
+ * timing point specified by its duration is reached"; "Player Phase" (p. 34) names the end of that phase. So it ends
+ * with the player phase in progress, or, made during the villain phase, with the next player phase, which comes first.
+ * Never ends with a villain phase (`LastingDuration endOfPlayerPhase`).
+ * **Conflict, flagged (owner question Q104, docs/phase7-wave11-hero-packs.md H3.9; the PR's handoff):** RRG 1.8
+ * "Lasting Effects" (p. 26) also says "A lasting effect that expires at the end of a specified time period can only be
+ * initiated during that time period", and Take a Stand is mostly used after a villain-phase defense. Built reading A:
+ * made outside a player phase it lasts through the next player phase. Reading B, the strict one (made outside a player
+ * phase it is not created, so the card gives nothing then), is the one-line switch
+ * `END_OF_PLAYER_PHASE_OUTSIDE_IT` in `query.ts`.
  */
-export type LastingUntil = "endOfPhase" | "endOfRound" | "endOfAttack" | "endOfTurn" | "nextVillainPhaseBegins";
+export type LastingUntil =
+  | "endOfPhase"
+  | "endOfRound"
+  | "endOfAttack"
+  | "endOfTurn"
+  | "nextVillainPhaseBegins"
+  | "endOfPlayerPhase";
 /**
  * "That ally gets +2 THW and +2 ATK for its next basic thwart or attack action this phase" (Psychic Kicker, 34034;
  * docs/phase7-wave6.md §3.39, §4.1 Q23): a lasting stat, trait or keyword grant that waits for the target character's
@@ -1044,6 +1062,24 @@ export type ValueSpec =
    */
   | { readonly kind: "min"; readonly values: readonly [ValueSpec, ...ValueSpec[]] }
   | { readonly kind: "max"; readonly values: readonly [ValueSpec, ...ValueSpec[]] }
+  /**
+   * "The highest SCH or THW among characters in play" / "the highest ATK among characters in play" (Purple Man, 61031;
+   * docs/phase7-wave11-hero-packs.md H3.10): each card `among` names is measured by the largest of its current
+   * `stats` (modifiers included; a stat printed "—" is skipped), and this is the largest measure, 0 when nothing is
+   * measured. Ties need no breaking: the number is the same.
+   *
+   * Never counted, as engine readings (no ruling covers them):
+   * - **the reading card**: the card whose stat this value is part of (slot `AFFECTED_SLOT`, bound by a modifier's
+   *   read). Purple Man's ATK cannot be read from his own ATK; including him is circular. Only that card: outside a
+   *   modifier nothing is bound, so "damage equal to the highest ATK among characters" counts its own source too.
+   * - **an alter-ego**: it is a character (RRG 1.8 "Character", p. 12) but prints no ATK, THW or SCH, so it adds
+   *   nothing, even where an "identity gets +1 ATK" modifier reaches its unused ATK.
+   * - **a card already being measured** by an outer read of this kind, so two such cards reading each other end.
+   *
+   * Meant as a `setBase` amount ("his SCH is equal to …" defines the star, RRG 1.8 "Star Icon", pp. 40–41; "Base
+   * Value", p. 10), so modifiers on the card apply on top (RRG 1.8 "Modifiers", p. 28).
+   */
+  | { readonly kind: "highestStat"; readonly stats: readonly [StatName, ...StatName[]]; readonly among: TargetRef }
   /**
    * The facedown encounter cards dealt to a player and not yet revealed, "in front of" them (RRG 1.8 "Deal", p. 14):
    * "for each facedown encounter card in front of you" (Star-Lord: Gutsy Move, Sliding Shot, Jet Boots, Star-Lord's
@@ -2644,7 +2680,8 @@ export type EffectSpec =
         | "endOfNextTurn"
         | "endOfAttack"
         | "endOfPaidFor"
-        | "nextVillainPhaseBegins";
+        | "nextVillainPhaseBegins"
+        | "endOfPlayerPhase";
       readonly player?: PlayerRef;
       /** With `until: "endOfAttack"`: the attack in progress (default) or the one this frame's `enemyAttack` begins. */
       readonly attack?: "current" | "initiated";

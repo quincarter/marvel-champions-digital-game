@@ -959,6 +959,17 @@ export const max = (...values: readonly [Amount, Amount, ...Amount[]]): ValueSpe
   kind: "max",
   values: values.map(amount) as [ValueSpec, ...ValueSpec[]],
 });
+/**
+ * "The highest SCH or THW among characters in play" (Purple Man, 61031; docs/phase7-wave11-hero-packs.md H3.10):
+ * `highestStatAmong(["sch", "thw"])`. Each card is measured by the larger of its current `stats`; the card whose stat
+ * this modifier is part of, alter-egos and printed "—" stats never count, and nothing measured is 0 (engine `ValueSpec highestStat`).
+ * `among` defaults to every character in play. As "his SCH is equal to …" it is a base: `gets("sch",
+ * highestStatAmong(["sch", "thw"]), { self: true }, { setBase: true })`, so modifiers on the card apply on top.
+ */
+export const highestStatAmong = (
+  stats: readonly [StatName, ...StatName[]],
+  among: TargetRef = { kind: "each", query: { categories: ["character"] } },
+): ValueSpec => ({ kind: "highestStat", stats, among });
 /** "N (M instead if …)". */
 export const ifElse = (condition: Predicate, then: Amount, otherwise: Amount): ValueSpec => ({
   kind: "conditional",
