@@ -25,7 +25,7 @@ import { candidateDefenseBar, type DefenseBar } from "../defense-claim.js";
 import { addPools, EMPTY_POOL, requirementTotal, satisfies, satisfiesPrinted } from "../resources.js";
 import type { AbilityId } from "@mc/content";
 import type { InstanceId, PlayerId } from "../ids.js";
-import { cardOf, deckDiscardStillThere, getPlayer, playerOrder } from "../query.js";
+import { cardOf, deckDiscardStillThere, getInstance, getPlayer, playerOrder } from "../query.js";
 import {
   activeAbilityRefs,
   activeRules,
@@ -50,6 +50,7 @@ import type { LastingEffect } from "../lasting.js";
 import { STATUS_NAMES, type Form, type GameState } from "../state.js";
 import { carriedByEvent, eventSubjects, hearsEncounterDeckDiscard, type TriggerEvent } from "../trigger-events.js";
 import { limitReached } from "./ability.js";
+import { removalBlockedOf } from "./event.js";
 import { resourcesChoiceOf, type AbilityDefinition } from "../abilities.js";
 import { chosenSizePayments } from "../payable.js";
 import { cannotEnterPlay, cannotPlayCard, revealCannotBeCanceled, triggeredAbilityForbidden } from "../rules.js";
@@ -216,6 +217,9 @@ function matchesOwnFields(
   // The same attack resolved against another player doesn't re-trigger the attacker's own "when it attacks".
   if (event.kind === "enemyAttack" && event.additionalResolution && event.enemyInstanceId === selfId) return false;
   if (event.kind === "attack" && event.additionalResolution && event.attackerInstanceId === selfId) return false;
+  // A pending removal is read only as an interrupt window opens: once it has resolved, the scheme's threat is what the
+  // removal left, which says nothing about whether it was the last (docs/phase7-wave11.md §3.4).
+  if (pattern.removesLastThreat && timing !== "interrupt") return false;
   const subjects = eventSubjects(event);
   if (pattern.selfIs === "source" && !subjects.sources.includes(selfId)) return false;
   if (pattern.selfIs === "target" && !subjects.targets.includes(selfId)) return false;
@@ -423,6 +427,14 @@ function matchesRest(
       const value = carried[key];
       if (typeof value !== "number" || value > amount) return false;
     }
+  }
+  // "When you remove the last threat from attached scheme" (docs/phase7-wave11.md §3.4): the pending removal will
+  // empty the scheme, read before it applies (an interrupt window only: `matchesOwnFields`).
+  if (pattern.removesLastThreat) {
+    if (event.kind !== "removeThreat") return false;
+    const threat = getInstance(state, event.schemeInstanceId)?.threat ?? 0;
+    if (threat <= 0 || event.amount < threat) return false;
+    if (removalBlockedOf(state, deps, event) !== null) return false;
   }
   if (pattern.eventIs) {
     const carried = event as unknown as Readonly<Record<string, unknown>>;

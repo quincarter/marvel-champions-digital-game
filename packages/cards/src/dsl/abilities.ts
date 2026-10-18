@@ -3226,6 +3226,19 @@ export const on = {
   lastThreatRemoved: (what: Who): EventPattern =>
     pattern("removeThreat", asTarget(what), { requireResults: { lastThreatRemoved: 1 } }),
   /**
+   * "When you remove the last threat from attached scheme" (docs/phase7-wave11.md §3.4), an interrupt: the pending
+   * removal will take `what` from some threat to none (`EventPattern.removesLastThreat`), before the threat goes and so
+   * before the scheme's defeat (RRG 1.8 "Interrupt", p. 25). `byYou`: the removal is yours (`playerIn` you). Use
+   * `lastThreatRemoved` for the response.
+   */
+  removesLastThreat: (what: Who, opts: { readonly byYou?: boolean } = {}): EventPattern =>
+    pattern(
+      "removeThreat",
+      asTarget(what),
+      { removesLastThreat: true },
+      opts.byYou ? { playerIn: { kind: "controller" } } : {},
+    ),
+  /**
    * "After this stage is complete/completed" (Kang's stage 3 cards, docs/phase7-wave2.md §3.1) — a *different*
    * stage reacting to another stage's own completion (as opposed to `whenCompleted`, printed on the completing
    * stage itself).

@@ -135,6 +135,18 @@ export interface EventPattern {
    */
   readonly eventAtMost?: Readonly<Record<string, number>>;
   /**
+   * "When you **remove the last threat** from attached scheme" (Acute Tactility, Enhanced Olfaction; docs/phase7-
+   * wave11.md §3.4): a `removeThreat` interrupt that hears a pending removal that will take the scheme from some threat
+   * to none. Matches while the scheme's threat is above 0 and the removal's amount is at least that threat, read as the
+   * interrupt window opens. It also asks that nothing will stop the removal as it applies (`removalBlockedOf`: a crisis
+   * icon, a patrol minion, a `cannotThwart` or `threatCannotBeRemoved` rule): an engine interpretation (authority step
+   * 5), since no ruling says whether a removal that will be stopped "removes the last threat". RRG 1.8 "Interrupt" (p. 25): it resolves before the threat is removed, so before the side scheme's defeat
+   * (August 3, 2026 R1; August 13, 2026 R2). A main scheme is heard too; nothing is defeated for it. Read in an
+   * interrupt window only, never a response one: a response reads `requireResults: { lastThreatRemoved: 1 }`. Any
+   * other event kind never matches. Pair it with `playerIn` for "you remove".
+   */
+  readonly removesLastThreat?: true;
+  /**
    * String fields the event itself carries must equal these, in both windows — the string counterpart of
    * `eventAtLeast`. `{ to: "hero" }` is "After a player changes to **hero form**" (Taskmaster 04093–04095), which
    * `formChanged`'s own `to` field already records but no pattern field could read. An event without the field, or

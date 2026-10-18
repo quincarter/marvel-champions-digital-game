@@ -2102,19 +2102,33 @@ function defeatingPlayerOf(state: GameState, event: Extract<TriggerEvent, { kind
   return sourcePlayerOf(state, event);
 }
 
-function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "removeThreat" }>, frameId: FrameId): void {
-  const scheme = getInstance(ctx.state, event.schemeInstanceId);
-  if (!scheme) return;
+/** The thwart a threat removal belongs to (its parent event frame's), or null for a removal that is no thwart's. */
+function thwartOfRemoval(
+  state: GameState,
+  event: Extract<TriggerEvent, { kind: "removeThreat" }>,
+): Extract<TriggerEvent, { kind: "thwart" }> | null {
+  const parent = event.parentFrameId ? findFrame(state, event.parentFrameId) : undefined;
+  return parent?.kind === "event" && parent.event.kind === "thwart" ? parent.event : null;
+}
+
+/**
+ * Why this pending removal would remove nothing as it applies (a crisis icon, a patrol minion, a `threatCannotBeRemoved`
+ * or `cannotThwart` rule), or null: the check `applyRemoveThreat` makes, readable before it applies, so an interrupt to
+ * the removal of a scheme's last threat (`EventPattern.removesLastThreat`) does not hear a removal that will be stopped.
+ */
+export function removalBlockedOf(
+  state: GameState,
+  deps: EngineDeps,
+  event: Extract<TriggerEvent, { kind: "removeThreat" }>,
+): "crisis" | "patrol" | "rule" | null {
   // "Threat cannot be removed from attached scheme by thwarting" (Held Hostage) looks at the thwart this removal belongs to.
-  const parent = event.parentFrameId ? findFrame(ctx.state, event.parentFrameId) : undefined;
-  const thwart = parent?.kind === "event" && parent.event.kind === "thwart" ? parent.event : null;
-  const byThwart = thwart !== null;
-  const blocked = threatRemovalBlocked(
-    ctx.state,
-    ctx.deps,
+  const thwart = thwartOfRemoval(state, event);
+  return threatRemovalBlocked(
+    state,
+    deps,
     event.schemeInstanceId,
     event.sourceInstanceId,
-    byThwart,
+    thwart !== null,
     event.ignoreCrisis === true,
     thwart?.playerId ?? null,
     thwart?.thwarterInstanceId ?? null,
@@ -2123,6 +2137,13 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
     event.playerId ?? null,
     event.noPlayer === true,
   );
+}
+
+function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "removeThreat" }>, frameId: FrameId): void {
+  const scheme = getInstance(ctx.state, event.schemeInstanceId);
+  if (!scheme) return;
+  const thwart = thwartOfRemoval(ctx.state, event);
+  const blocked = removalBlockedOf(ctx.state, ctx.deps, event);
   if (blocked) {
     emit(ctx, { type: "threatRemovalBlocked", schemeInstanceId: event.schemeInstanceId, reason: blocked });
     return;
