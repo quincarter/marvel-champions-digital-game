@@ -1,7 +1,7 @@
 # First-load performance
 
-How the client was measured and sped up for older devices (issue #223, PR #225), and the plan for the follow-up PR
-(text in a worker and lazy-loaded screens), which starts only after #220 (the deck builder overhaul) has merged.
+How the client was measured and sped up for older devices: issue #223 (PR #225), then issue #226 (PR #239: text in a
+worker and lazy-loaded screens). The plan #226 followed is kept below, after what it did.
 
 The report that started it: on a four-year-old Android tablet (APK v0.23.0), opening the app and the first visit
 to a screen froze for seconds. The screens it was most noticeable on were Decks & Collection, New game, Campaign and
@@ -75,7 +75,44 @@ worker paints with `OffscreenCanvas` and hands back an `ImageBitmap`, and the ma
 card-face worker (`art/card-face.worker.ts`, `card-face-baker.ts`, `card-face-bake.ts`, `card-face-protocol.ts`)
 already works this way, fonts included.
 
-## The follow-up PR
+## What #226 did
+
+Medians at 6x slowdown, 1280x800, fresh profile, with the build before #225 (299b6e6c4), `main` after #225
+(0ac5709d6) and #226 run interleaved in one session: 12 runs for opening the app, 3 per screen. The machine was quieter
+than during #225's runs, so compare these with each other rather than with the table above.
+
+| Moment             | Frozen before #225 | After #225 | After #226 | Longest freeze, three stages |
+| ------------------ | ------------------ | ---------- | ---------- | ---------------------------- |
+| Opening the app    | 3.9 s              | 2.4 s      | 1.3 s      | 3.1 s → 1.9 s → 0.9 s        |
+| Campaign (Saga)    | 20.2 s             | 0.21 s     | 0.15 s     | 9.7 s → 0.23 s → 0.20 s      |
+| Decks & Collection | 3.0 s              | 1.75 s     | 1.14 s     | 1.3 s → 1.2 s → 0.8 s        |
+| Extras             | 2.2 s              | 0.95 s     | 0.43 s     | 0.44 s → 0.53 s → 0.34 s     |
+| New game (chooser) | 26 ms              | 28 ms      | 2 ms       | 76 ms → 78 ms → 52 ms        |
+
+- **Screens load on demand** (`scenes/scene-loader.ts`, `scene-table.ts`, `scene-order.ts`). Only Boot, Title and the
+  always-on chrome are registered at start. Every other scene is a dynamic import, added on its first
+  `start`/`launch`/`run` (the Scene Plugin is wrapped once, so call sites didn't change) and slotted back into the old
+  draw order. Sheets a screen reads right after launching are listed in `COMPANIONS` and registered with it. After
+  Title draws, the rest preload one per idle slot. The dev-only `?screen=` jumps live in `scenes/boot-dev-jump.ts`.
+- **Text measured once per font, painted in a worker** (`ui/font-metrics.ts`, `text-layout.ts`, `text-painter.ts`,
+  `workers/text-paint.worker.ts`). Measuring cost more than painting (about 450 ms against 170 ms on the Decks visit),
+  so font metrics are cached per canvas font once the face has loaded, and line widths per font and text. Layout stays
+  on the main thread, so sizes are exact at once. During a screen's first 40 frames the painting goes to the worker,
+  and bitmaps are uploaded a few per frame. Later redraws, anything the worker can't paint exactly, the Canvas
+  renderer, and browsers without `OffscreenCanvas` or fonts in workers paint on the main thread as before. The
+  worker ends after 5 s idle, and `goToScreen` restarts it as the fade-out begins. `layoutText` copies the measuring
+  half of Phaser 4.2.1's `Text.updateText`: re-check it on a Phaser upgrade.
+- **Deck statuses in the search worker** (`view/deck-status-host.ts`, `DeckSearchClient.checkDecks`). The first
+  visit's status pass (precons, saved and community decks) runs in #220's search worker, which loads the pool itself on
+  its first status request. Rows say "Checking…" until it answers, and the screen's async loads redraw once together.
+  Four or fewer unchecked decks (one just imported or saved) are checked on the main thread. Extras and the Campaign
+  roster had no list preparation worth moving: their cost is text, texture uploads and drawing.
+
+What is still on the main thread before Title draws: Phaser and rexUI, and the card pool with its ability registry,
+because `session.ts` and Title import `content/pool.ts`. Deferring the pool past Title's first frame is the next
+step.
+
+## The follow-up PR (the plan #226 followed)
 
 The user agreed on a single follow-up PR on 2026-10-17, to start from `main` after #220 merges. The tracking issue
 links here.
