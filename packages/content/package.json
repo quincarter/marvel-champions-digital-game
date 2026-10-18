@@ -16,7 +16,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p scripts/tsconfig.json",
     "ingest": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/ingest-marvelcdb.ts",
-    "catalog": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/generate-catalog.ts"
+    "catalog": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/generate-catalog.ts",
+    "export-added-records": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/export-added-records.ts"
   },
   "devDependencies": {
     "@types/node": "^24.19.2"

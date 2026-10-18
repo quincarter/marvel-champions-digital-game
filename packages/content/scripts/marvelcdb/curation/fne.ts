@@ -1,5 +1,5 @@
 /**
- * Fear No Evil (Cycle 10) curation — a campaign box with two heroes (Daredevil, Echo) and six scenarios (Kingpin
+ * Fear No Evil (Cycle 11) curation — a campaign box with two heroes (Daredevil, Echo) and six scenarios (Kingpin
  * plus Bullseye/Electro/Purple Man, mixed and matched).
  *
  * **Curated but NOT registered for emission** — see "Schema requests for game-rules-architect" (the Requirement/
@@ -23,10 +23,15 @@
  *   page or a physical count from a printed product) is needed before curating either way.
  */
 import type { PackCuration } from "./types.ts";
+import { KINGPIN } from "./fne-encounter/kingpin.ts";
+import { MODULAR_CAMPAIGN } from "./fne-encounter/modular-campaign.ts";
+import { SCENARIOS } from "./fne-encounter/scenarios.ts";
+import { VILLAINS_A } from "./fne-encounter/villains-a.ts";
+import { VILLAINS_B } from "./fne-encounter/villains-b.ts";
 
 export const FNE_CURATION: PackCuration = {
   packCode: "fne",
-  cycle: { id: "cycle10", name: "Cycle 10", order: 10 },
+  cycle: { id: "cycle11", name: "Fear No Evil", order: 11 },
   pack: {
     name: "Fear No Evil",
     releaseDate: "2026-07-01",
@@ -35,6 +40,13 @@ export const FNE_CURATION: PackCuration = {
   },
   outDir: "src/data/fne",
   exportPrefix: "FNE",
+
+  /**
+   * The box's scenario half (villains, scenarios, modular sets, campaign cards, 60065-60210): MarvelCDB has none
+   * of it (docs/phase7-wave11-data-survey.md §3). Transcribed from Hall of Heroes' Fear No Evil gallery scans and
+   * checked a second time against the same scans, one module per group.
+   */
+  addedRecords: [...VILLAINS_A, ...VILLAINS_B, ...KINGPIN, ...SCENARIOS, ...MODULAR_CAMPAIGN],
 
   corrections: [],
   errata: [],

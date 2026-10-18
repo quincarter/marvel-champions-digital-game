@@ -117,8 +117,11 @@ def boost_summary(card: Dict[str, Any]) -> Optional[str]:
 class CardDatabase:
     """Loads and indexes all card data from raw MarvelCDB JSON caches."""
 
-    def __init__(self, raw_dir: str, images_dir: str):
+    def __init__(self, raw_dir: str, images_dir: str, extra_raw_dirs: Optional[List[str]] = None):
         self.raw_dir = Path(raw_dir)
+        # Raw-shaped records from other sources (raw/hallofheroes: faces MarvelCDB lacks, exported from the
+        # curation's addedRecords by `pnpm --filter @mc/content export-added-records`), merged into the same packs.
+        self.extra_raw_dirs = [Path(d) for d in (extra_raw_dirs or [])]
         self.images_dir = Path(images_dir)
         self.cards_by_code: Dict[str, Dict[str, Any]] = {}
         self.cards_by_pack: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
@@ -145,7 +148,7 @@ class CardDatabase:
                 # generated markdown reads the same however the script was invoked.
                 self.images_cache[base_code] = {
                     "filename": entry.name,
-                    "path": os.path.relpath(entry.path, REPO_ROOT),
+                    "path": Path(os.path.relpath(entry.path, REPO_ROOT)).as_posix(),
                     "abs_path": entry.path,
                     "size_bytes": file_size,
                     "size_kb": round(file_size / 1024, 1),
@@ -154,6 +157,8 @@ class CardDatabase:
     def _load_cards(self):
         """Loads all raw JSON packs and indexes cards and linked cards."""
         json_files = sorted(glob.glob(str(self.raw_dir / "*.json")))
+        for extra in self.extra_raw_dirs:
+            json_files += sorted(glob.glob(str(extra / "*.json")))
         if not json_files:
             print(f"Warning: No JSON files found in {self.raw_dir}", file=sys.stderr)
             return
@@ -166,7 +171,7 @@ class CardDatabase:
                 print(f"Error reading {jf}: {e}", file=sys.stderr)
                 continue
 
-            pack_code = data.get("pack", Path(jf).stem)
+            pack_code = data.get("pack", Path(jf).stem) if isinstance(data, dict) else Path(jf).stem
             raw_cards = data.get("cards", []) if isinstance(data, dict) else data
 
             for card in raw_cards:
@@ -576,12 +581,13 @@ def generate_markdown(
 
     print(f"Generating markdown for {len(filtered_cards)} cards -> {output_path}")
 
-    with open(output_path, "w", encoding="utf-8") as out:
+    with open(output_path, "w", encoding="utf-8", newline="\n") as out:
         # Header & Documentation
         out.write("# Marvel Champions Card Reference Database\n\n")
         out.write(
             "A complete, generated transcription of the cached MarvelCDB card records in "
-            "`packages/content/raw/marvelcdb/`, formatted for AI and rules-engine consumption. "
+            "`packages/content/raw/marvelcdb/` (and, for faces MarvelCDB lacks, the scan transcriptions in "
+            "`packages/content/raw/hallofheroes/`), formatted for AI and rules-engine consumption. "
             "Regenerate with `scripts/generate_cards_markdown.py`; do not hand-edit.\n\n"
             "**This document is not authoritative.** MarvelCDB is a community database. The "
             "authorities on how a card behaves are the Rules Reference Guide "
@@ -689,6 +695,10 @@ def main():
     parser = argparse.ArgumentParser(description="Parse Marvel Champions card art and metadata into AI-ready Markdown")
     parser.add_argument("--output", "-o", default="docs/cards_reference.md", help="Output markdown path")
     parser.add_argument("--raw-dir", default="packages/content/raw/marvelcdb", help="Raw JSON cache directory")
+    parser.add_argument(
+        "--extra-raw-dir", action="append", default=None,
+        help="Further raw-shaped JSON directories merged in (default: packages/content/raw/hallofheroes)",
+    )
     parser.add_argument("--images-dir", default="assets/card-art/bundles/cards", help="Card images directory")
     parser.add_argument("--pack", help="Filter by pack code (e.g. 'core', 'trors', 'next_evol')")
     parser.add_argument("--set", dest="set_code", help="Filter by card set code (e.g. 'red_skull', 'spider_man')")
@@ -707,7 +717,8 @@ def main():
     output_path = REPO_ROOT / args.output
 
     print(f"Loading Marvel Champions Card Database from {raw_dir}...")
-    db = CardDatabase(str(raw_dir), str(images_dir))
+    extra_dirs = args.extra_raw_dir if args.extra_raw_dir is not None else ["packages/content/raw/hallofheroes"]
+    db = CardDatabase(str(raw_dir), str(images_dir), [str(REPO_ROOT / d) for d in extra_dirs])
     print(f"Loaded {len(db.cards_by_code)} cards and indexed {len(db.images_cache)} images.")
 
     # Generate single master markdown or filtered markdown
