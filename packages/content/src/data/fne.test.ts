@@ -228,24 +228,24 @@ describe("fne: the two starter decks (MC60 rulebook p. 25)", () => {
 });
 
 describe("fne: wave 11 pool wiring", () => {
-  it("WAVE11_CARDS is Core plus fne, with no duplicate ids and no id shared with wave 10", () => {
-    expect(WAVE11_CARDS).toHaveLength(CORE_CARDS.length + FNE_CARDS.length);
+  it("WAVE11_CARDS is Core, then fne, then the hero packs, with no duplicate ids and no id shared with wave 10", () => {
     expect(WAVE11_CARDS.slice(0, CORE_CARDS.length)).toEqual(CORE_CARDS);
-    expect(WAVE11_CARDS.slice(CORE_CARDS.length)).toEqual(FNE_CARDS);
+    expect(WAVE11_CARDS.slice(CORE_CARDS.length, CORE_CARDS.length + FNE_CARDS.length)).toEqual(FNE_CARDS);
     expect(new Set(WAVE11_CARDS.map((c) => c.id)).size).toBe(WAVE11_CARDS.length);
     const wave10 = new Set(WAVE10_CARDS.map((c) => c.id as string));
     for (const c of FNE_CARDS) expect(wave10.has(c.id as string), c.id as string).toBe(false);
   });
 
-  it("PLAYABLE_CARDS ends with the fne cards, each once", () => {
+  it("PLAYABLE_CARDS carries the fne cards as one block inside wave 11, each once", () => {
     const ids = PLAYABLE_CARDS.map((c) => c.id as string);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(ids.slice(ids.length - FNE_CARDS.length)).toEqual(FNE_CARDS.map((c) => c.id as string));
+    const start = ids.length - (WAVE11_CARDS.length - CORE_CARDS.length);
+    expect(ids.slice(start, start + FNE_CARDS.length)).toEqual(FNE_CARDS.map((c) => c.id as string));
   });
 
-  it("the wave exports are fne's encounter sets, no scenarios and the two starter decks", () => {
-    expect(WAVE11_ENCOUNTER_SETS).toEqual(FNE_ENCOUNTER_SETS);
-    expect(WAVE11_SCENARIOS).toEqual([]);
-    expect(WAVE11_STARTER_DECKS).toEqual(FNE_STARTER_DECKS);
+  it("the wave exports begin with fne's encounter sets, no scenarios and the two starter decks", () => {
+    expect(WAVE11_ENCOUNTER_SETS.slice(0, FNE_ENCOUNTER_SETS.length)).toEqual(FNE_ENCOUNTER_SETS);
+    expect(WAVE11_SCENARIOS.slice(0, FNE_SCENARIOS.length)).toEqual(FNE_SCENARIOS);
+    expect(WAVE11_STARTER_DECKS.slice(0, FNE_STARTER_DECKS.length)).toEqual(FNE_STARTER_DECKS);
   });
 });

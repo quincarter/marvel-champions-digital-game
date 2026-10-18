@@ -543,6 +543,8 @@ function parseAttach(
     // docs/phase7-wave2.md §7.2: "Attach to an encounter card in play." (Coordinated Effort 58032) — any card in
     // play on the encounter side, whatever its type, as opposed to a specific category.
     "an encounter card in play": { kind: "encounterCard" },
+    // docs/phase7-wave11-hero-packs.md H3.11: "Attach to a card." (Mitigated Threat 61040), any card in play.
+    "a card": { kind: "anyCard" },
   };
   // Case-insensitive on the phrase itself (MarvelCDB is inconsistent — "Attach to the Villain." in `trors`);
   // proper names below stay case-sensitive.

@@ -96,6 +96,7 @@ import { MTS_CURATION } from "./marvelcdb/curation/mts.ts";
 import { CW_CURATION } from "./marvelcdb/curation/cw.ts";
 import { HERCULES_CURATION } from "./marvelcdb/curation/hercules.ts";
 import { FNE_CURATION } from "./marvelcdb/curation/fne.ts";
+import { JJ_CURATION } from "./marvelcdb/curation/jj.ts";
 import { bareCuration } from "./marvelcdb/curation/empty.ts";
 import type { PackCuration } from "./marvelcdb/curation/types.ts";
 
@@ -164,6 +165,7 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   cw: CW_CURATION,
   hercules: HERCULES_CURATION,
   fne: FNE_CURATION,
+  jj: JJ_CURATION,
 };
 
 interface RawCache {

@@ -181,6 +181,22 @@ describe("obligation preamble split: a quoted trigger header (mts 21185 System S
  * attach sentence with "and give it a tough status card", and Targeted for Elimination (32107) attaches to "your
  * identity if a copy of … is not attached to you".
  */
+describe("attach shape: any card (Mitigated Threat 61040, spec H3.11)", () => {
+  it('"Attach to a card." is the anyCard host', () => {
+    const parsed = parseCardText("Attach to a card. Attached card loses each [crisis] icon.", {
+      villainNames: new Set(),
+    });
+    expect(parsed.attachesTo).toEqual({ kind: "anyCard" });
+    expect(parsed.unclassified.filter((u) => u.includes("attach rule"))).toEqual([]);
+  });
+
+  it('"Attach to a card in play." stays unresolved', () => {
+    const parsed = parseCardText("Attach to a card in play.", { villainNames: new Set() });
+    expect(parsed.attachesTo).toBeUndefined();
+    expect(parsed.unclassified.some((u) => u.includes("unrecognized attach rule"))).toBe(true);
+  });
+});
+
 describe("attach shapes: tough status clause and identity without a named attachment", () => {
   it('"Attach to a minion and give it a tough status card." parses the host and keeps the clause as its own sentence', () => {
     const parsed = parseCardText(

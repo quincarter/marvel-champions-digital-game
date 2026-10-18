@@ -801,29 +801,40 @@ export const WAVE10_STARTER_DECKS: readonly StarterDeck[] = [
 
 // ---------------------------------------------------------------------------------------------------------------
 // Wave 11 (PLAN.md Phase 7, docs/phase7-wave11.md): cycle 11, Fear No Evil `fne` (MC60, a campaign expansion: Daredevil
-// and Echo, six scenarios, the Kingpin set and the campaign cards). `jj` and `luke_cage` (the cycle's hero packs) join
-// when they are emitted. `fne`'s scenario records (`FNE_SCENARIOS`) are empty until the scenarios task adds them from
+// and Echo, six scenarios, the Kingpin set and the campaign cards). `jj` (Jessica Jones, MC61) is emitted;
+// `luke_cage` joins when it is emitted. `fne`'s scenario records (`FNE_SCENARIOS`) are empty until the scenarios task adds them from
 // the scenarios spec, and the box has no `Campaign` record yet (see `CAMPAIGNS`). Pool membership is not a claim that a
 // pack is scripted: `unscriptedCards` keeps unscripted precons from being seated.
 // ---------------------------------------------------------------------------------------------------------------
 export * from "./fne/index.js";
+export * from "./jj/index.js";
 
 import { FNE_CARDS } from "./fne/cards.js";
 import { FNE_ENCOUNTER_SETS } from "./fne/encounterSets.js";
 import { FNE_SCENARIOS } from "./fne/scenarios.js";
 import { FNE_STARTER_DECKS } from "./fne/starterDecks.js";
+import { JJ_CARDS } from "./jj/cards.js";
+import { JJ_ENCOUNTER_SETS } from "./jj/encounterSets.js";
+import { JJ_SCENARIOS } from "./jj/scenarios.js";
+import { JJ_STARTER_DECKS } from "./jj/starterDecks.js";
 
-/** Every card in the wave 11 (cycle 11) pool: Core plus the packs shipped so far (`fne`). A sibling pool that starts from Core, like `WAVE10_CARDS`. */
-export const WAVE11_CARDS: readonly AnyCard[] = [...CORE_CARDS, ...FNE_CARDS];
+/**
+ * Every card in the wave 11 (cycle 11) pool: Core plus the packs shipped so far (`fne`, `jj`). A sibling pool that
+ * starts from Core, like `WAVE10_CARDS`.
+ */
+export const WAVE11_CARDS: readonly AnyCard[] = [...CORE_CARDS, ...FNE_CARDS, ...JJ_CARDS];
 
 /** Every wave 11 encounter set (Core's own villain sets are not included). */
-export const WAVE11_ENCOUNTER_SETS: readonly EncounterSet[] = [...FNE_ENCOUNTER_SETS];
+export const WAVE11_ENCOUNTER_SETS: readonly EncounterSet[] = [...FNE_ENCOUNTER_SETS, ...JJ_ENCOUNTER_SETS];
 
 /** Every wave 11 scenario: none yet (the box's six scenarios are a later task). */
-export const WAVE11_SCENARIOS: readonly Scenario[] = [...FNE_SCENARIOS];
+export const WAVE11_SCENARIOS: readonly Scenario[] = [...FNE_SCENARIOS, ...JJ_SCENARIOS];
 
-/** Every wave 11 starter deck the playable pool carries: Daredevil / Justice and Echo / Protection (MC60 p. 25). */
-export const WAVE11_STARTER_DECKS: readonly StarterDeck[] = [...FNE_STARTER_DECKS];
+/**
+ * Every wave 11 starter deck the playable pool carries: Daredevil / Justice and Echo / Protection (MC60 p. 25) and
+ * the unverified Jessica Jones / Justice stand-in.
+ */
+export const WAVE11_STARTER_DECKS: readonly StarterDeck[] = [...FNE_STARTER_DECKS, ...JJ_STARTER_DECKS];
 
 /**
  * Every playable card: Core, the eight wave 1 packs, the six cycle 1 packs, the six cycle 2 packs, the six cycle

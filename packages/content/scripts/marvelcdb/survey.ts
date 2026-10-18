@@ -77,6 +77,7 @@ import { STORM_CURATION } from "./curation/storm.ts";
 import { ICEMAN_CURATION } from "./curation/iceman.ts";
 import { HERCULES_CURATION } from "./curation/hercules.ts";
 import { FNE_CURATION } from "./curation/fne.ts";
+import { JJ_CURATION } from "./curation/jj.ts";
 import { GMW_CURATION } from "./curation/gmw.ts";
 import { WONDER_MAN_CURATION } from "./curation/wonder_man.ts";
 import { CW_CURATION } from "./curation/cw.ts";
@@ -142,6 +143,7 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   iceman: ICEMAN_CURATION,
   hercules: HERCULES_CURATION,
   fne: FNE_CURATION,
+  jj: JJ_CURATION,
   gmw: GMW_CURATION,
   wonder_man: WONDER_MAN_CURATION,
   cw: CW_CURATION,
