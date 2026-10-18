@@ -8,7 +8,10 @@ import {
   nextGuidePrefsAfterRow,
   nextSettingsAfterToggle,
   cardHoverRowInfoOf,
+  effectsVolumeRowInfoOf,
+  gameVolumeRowInfoOf,
   musicVolumeRowInfoOf,
+  nextSettingsAfterEffectsVolume,
   nextSettingsAfterMusicVolume,
   cardSizeRowInfoOf,
   nextSettingsAfterCardSize,
@@ -33,6 +36,7 @@ const BASE: Settings = {
   sound: true,
   musicShuffle: false,
   musicVolume: 100,
+  effectsVolume: 100,
   confirmBeforeEndTurn: true,
   sameNameHeroAllyConflict: true,
   villainAutoAdvance: "off",
@@ -57,6 +61,7 @@ describe("settingsRowInfoOf", () => {
       sound: false,
       musicShuffle: true,
       musicVolume: 60,
+      effectsVolume: 80,
       confirmBeforeEndTurn: false,
       sameNameHeroAllyConflict: false,
       villainAutoAdvance: "off",
@@ -357,9 +362,9 @@ describe("Window mode and Resolution (desktop app)", () => {
   });
 });
 
-describe("musicVolumeRowInfoOf (#243)", () => {
+describe("the volume rows (#243)", () => {
   test("offers Off to 100% in quarters, selecting the step nearest the volume", () => {
-    const row = (musicVolume: number) => musicVolumeRowInfoOf({ ...defaultSettings(), musicVolume });
+    const row = (musicVolume: number) => musicVolumeRowInfoOf({ ...defaultSettings(), musicVolume }, false);
     expect(row(100).options.map((o) => o.label)).toEqual(["Off", "25%", "50%", "75%", "100%"]);
     expect(row(100).selected).toBe("100");
     expect(row(43).selected).toBe("50");
@@ -370,5 +375,13 @@ describe("musicVolumeRowInfoOf (#243)", () => {
     expect(nextSettingsAfterMusicVolume(defaultSettings(), "25").musicVolume).toBe(25);
     const settings = defaultSettings();
     expect(nextSettingsAfterMusicVolume(settings, "33" as never)).toBe(settings);
+    expect(nextSettingsAfterEffectsVolume(defaultSettings(), "75").effectsVolume).toBe(75);
+    expect(nextSettingsAfterEffectsVolume(settings, "33" as never)).toBe(settings);
+  });
+
+  test("effects and the game's mixer volume read their own values", () => {
+    expect(effectsVolumeRowInfoOf({ ...defaultSettings(), effectsVolume: 30 }).selected).toBe("25");
+    expect(gameVolumeRowInfoOf(64).selected).toBe("75");
+    expect(gameVolumeRowInfoOf(64).title).toBe("Game volume");
   });
 });

@@ -1,3 +1,4 @@
+mod app_volume;
 mod display_mode;
 
 // The context (and with it all of dist/, embedded) is generated in main.rs, not
@@ -57,7 +58,9 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
       display_mode::display_modes,
       display_mode::set_display_mode,
       display_mode::restore_display_mode,
-      display_mode::linux_distro
+      display_mode::linux_distro,
+      app_volume::app_volume,
+      app_volume::set_app_volume
     ])
     // Exclusive fullscreen gives the monitor back while the game is in the background (display_mode.rs).
     .on_window_event(|_, event| {

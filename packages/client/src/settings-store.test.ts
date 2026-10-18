@@ -46,6 +46,7 @@ describe("SettingsStore", () => {
     ["sound", false],
     ["musicShuffle", true],
     ["musicVolume", 35],
+    ["effectsVolume", 60],
     ["confirmBeforeEndTurn", false],
     ["sameNameHeroAllyConflict", false],
     ["villainAutoAdvance", "afterPause"],
@@ -214,6 +215,8 @@ describe("parseSettingsOverrides", () => {
     expect(parseSettingsOverrides('{"musicVolume":-3}')).toEqual({ musicVolume: 0 });
     expect(parseSettingsOverrides('{"musicVolume":"loud"}')).toEqual({});
     expect(defaultSettings().musicVolume).toBe(100);
+    expect(parseSettingsOverrides('{"effectsVolume":180}')).toEqual({ effectsVolume: 100 });
+    expect(defaultSettings().effectsVolume).toBe(100);
   });
 
   test("serialize then parse round trips", () => {

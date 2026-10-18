@@ -377,36 +377,70 @@ export const CARD_HOVER_SCALE_LABELS: Readonly<Record<CardHoverScale, string>> =
 };
 
 // ---------------------------------------------------------------------------
-// "Music volume" (#243): the music's loudness, desktop form factor only, beside the music player's own slider.
+// The volumes (#243), desktop only (a phone or tablet uses the device's own volume): the game's own entry in the
+// Windows volume mixer (the Windows desktop app only), and the music's and the sound effects' levels within the game,
+// so either can sit louder than the other.
 // ---------------------------------------------------------------------------
 
-export const MUSIC_VOLUME_STEPS = ["0", "25", "50", "75", "100"] as const;
-export type MusicVolumeStep = (typeof MUSIC_VOLUME_STEPS)[number];
+export const VOLUME_STEPS = ["0", "25", "50", "75", "100"] as const;
+export type VolumeStep = (typeof VOLUME_STEPS)[number];
 
-export interface MusicVolumeRowInfo {
+export interface VolumeRowInfo {
   readonly title: string;
   readonly detail: string;
-  readonly options: readonly { readonly value: MusicVolumeStep; readonly label: string }[];
-  /** The step nearest the volume set (the music player's slider sets any whole percent). */
-  readonly selected: MusicVolumeStep;
+  readonly options: readonly { readonly value: VolumeStep; readonly label: string }[];
+  /** The step nearest the volume set (the music player's slider and the mixer set any whole percent). */
+  readonly selected: VolumeStep;
 }
 
-export function musicVolumeRowInfoOf(settings: Settings): MusicVolumeRowInfo {
-  const volume = clampMusicVolume(settings.musicVolume);
-  const selected = MUSIC_VOLUME_STEPS.reduce((best, step) =>
+function volumeRowInfo(title: string, detail: string, percent: number): VolumeRowInfo {
+  const volume = clampMusicVolume(percent);
+  const selected = VOLUME_STEPS.reduce((best, step) =>
     Math.abs(Number(step) - volume) < Math.abs(Number(best) - volume) ? step : best,
   );
   return {
-    title: "Music volume",
-    detail: "How loud the music plays. The music player's slider sets it finer. Sound effects keep their own level.",
-    options: MUSIC_VOLUME_STEPS.map((value) => ({ value, label: value === "0" ? "Off" : `${value}%` })),
+    title,
+    detail,
+    options: VOLUME_STEPS.map((value) => ({ value, label: value === "0" ? "Off" : `${value}%` })),
     selected,
   };
 }
 
+/** The game's volume in the Windows mixer, as last read (`platform/app-volume.ts`). */
+export function gameVolumeRowInfoOf(mixerPercent: number): VolumeRowInfo {
+  return volumeRowInfo(
+    "Game volume",
+    "The game's own volume in the Windows volume mixer, music and effects together. The music player's slider sets it finer.",
+    mixerPercent,
+  );
+}
+
+export function musicVolumeRowInfoOf(settings: Settings, mixer: boolean): VolumeRowInfo {
+  return volumeRowInfo(
+    "Music volume",
+    mixer
+      ? "How loud the music plays within the game, against the effects."
+      : "How loud the music plays. The music player's slider sets it finer.",
+    settings.musicVolume,
+  );
+}
+
+export function effectsVolumeRowInfoOf(settings: Settings): VolumeRowInfo {
+  return volumeRowInfo(
+    "Effects volume",
+    "How loud the sound effects play (attacks, thwarts, cards played), against the music.",
+    settings.effectsVolume,
+  );
+}
+
 /** `settings` with the music volume set to a step; a value that is not a step changes nothing. */
-export function nextSettingsAfterMusicVolume(settings: Settings, value: MusicVolumeStep): Settings {
-  return MUSIC_VOLUME_STEPS.includes(value) ? { ...settings, musicVolume: Number(value) } : settings;
+export function nextSettingsAfterMusicVolume(settings: Settings, value: VolumeStep): Settings {
+  return VOLUME_STEPS.includes(value) ? { ...settings, musicVolume: Number(value) } : settings;
+}
+
+/** `settings` with the effects volume set to a step; a value that is not a step changes nothing. */
+export function nextSettingsAfterEffectsVolume(settings: Settings, value: VolumeStep): Settings {
+  return VOLUME_STEPS.includes(value) ? { ...settings, effectsVolume: Number(value) } : settings;
 }
 
 export interface CardHoverRowInfo {

@@ -31,7 +31,10 @@ import {
   guideRowDetailOf,
   nextGuidePrefsAfterRow,
   cardHoverRowInfoOf,
+  effectsVolumeRowInfoOf,
+  gameVolumeRowInfoOf,
   musicVolumeRowInfoOf,
+  nextSettingsAfterEffectsVolume,
   nextSettingsAfterMusicVolume,
   cardSizeRowInfoOf,
   displayModeRowInfoOf,
@@ -71,6 +74,7 @@ import {
   refreshDesktopMonitor,
   resolutionOptionsFor,
 } from "../platform/desktop-window.js";
+import { followsWindowsMixer, knownMixerVolume, readMixerVolume, writeMixerVolume } from "../platform/app-volume.js";
 import { ink, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
 import { McButton, McTabs, addRowTapZone, fitText, label, paintOnFrame, sectionHeader } from "../ui/widgets.js";
@@ -197,6 +201,8 @@ export class SettingsOverlay extends Phaser.Scene {
     });
     this.#draw();
     if (hasDesktopWindow()) void refreshDesktopMonitor().then(() => this.#redrawIfOpen());
+    // The game's volume in the Windows mixer may have moved there since: read it fresh for the Game volume row.
+    if (followsWindowsMixer()) void readMixerVolume().then(() => this.#redrawIfOpen());
   }
 
   #redrawIfOpen(): void {
@@ -296,7 +302,8 @@ export class SettingsOverlay extends Phaser.Scene {
     const tabs = settingsTabsOf({
       guideRowIds: guideRows.map((row) => row.id),
       cardHover: formFactorFor(width, height) === "desktop",
-      musicVolume: formFactorFor(width, height) === "desktop",
+      volumes: hasDesktopWindow() || formFactorFor(width, height) === "desktop",
+      gameVolume: followsWindowsMixer(),
       desktopWindow: hasDesktopWindow(),
       steamDeck: onHandheldLinux(),
     });
@@ -409,11 +416,23 @@ export class SettingsOverlay extends Phaser.Scene {
       });
     };
     segmented("card-hover", cardHoverRowInfoOf(settings), CARD_HOVER_CONTROL_WIDTH, (v) => this.#setCardHover(v));
-    segmented("music-volume", musicVolumeRowInfoOf(settings), CARD_HOVER_CONTROL_WIDTH, (v) => {
-      const next = nextSettingsAfterMusicVolume(appSession().settings, v);
+    // The game's mixer volume shows once read (`create` reads it); 100 until then, the mixer's own default.
+    segmented("game-volume", gameVolumeRowInfoOf(knownMixerVolume() ?? 100), CARD_HOVER_CONTROL_WIDTH, (v) => {
+      writeMixerVolume(Number(v));
+      this.#draw();
+    });
+    const setVolume = (next: Settings): void => {
       appSession().music?.syncSettings(next);
       appSession().settings = next;
       this.#draw();
+    };
+    segmented("music-volume", musicVolumeRowInfoOf(settings, followsWindowsMixer()), CARD_HOVER_CONTROL_WIDTH, (v) =>
+      setVolume(nextSettingsAfterMusicVolume(appSession().settings, v)),
+    );
+    segmented("effects-volume", effectsVolumeRowInfoOf(settings), CARD_HOVER_CONTROL_WIDTH, (v) => {
+      setVolume(nextSettingsAfterEffectsVolume(appSession().settings, v));
+      // A sample at the new level.
+      appSession().music?.playEffect("basic-attack");
     });
     segmented("card-size", cardSizeRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => this.#setCardSize(v));
     segmented("token-motion", tokenMotionRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => this.#setTokenMotion(v));

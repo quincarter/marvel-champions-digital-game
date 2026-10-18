@@ -291,7 +291,8 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     if (!effect || !appSession().settings.sound) return;
     const key = `sfx:${effect}`;
     const play = (): void => {
-      const sound = this.sound.add(key, { volume: SOUND_EFFECT_VOLUME[effect] });
+      const level = musicGainOf(appSession().settings.effectsVolume, SOUND_EFFECT_VOLUME[effect]);
+      const sound = this.sound.add(key, { volume: level });
       sound.once(Phaser.Sound.Events.COMPLETE, () => sound.destroy());
       sound.play();
       // The next one comes in as this one ends, or sooner for a long one: the card, then its attack.

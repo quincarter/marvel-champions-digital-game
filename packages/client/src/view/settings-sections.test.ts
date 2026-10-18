@@ -103,11 +103,17 @@ describe("the desktop app's Window section", () => {
   });
 });
 
-describe("Music volume (#243)", () => {
-  test("sits in Sound between Sound and Shuffle on a desktop form factor, and is left out elsewhere", () => {
-    const sound = (musicVolume: boolean) =>
-      settingsSectionsOf({ guideRowIds, cardHover: musicVolume, musicVolume }).find((s) => s.id === "sound")!.items;
-    expect(sound(true)).toEqual(["sound", "music-volume", "music-shuffle"]);
+describe("the volumes (#243)", () => {
+  const sound = (volumes: boolean, gameVolume = false) =>
+    settingsSectionsOf({ guideRowIds, cardHover: volumes, volumes, gameVolume }).find((s) => s.id === "sound")!.items;
+
+  test("Music and Effects sit in Sound between Sound and Shuffle on desktop, and are left out elsewhere", () => {
+    expect(sound(true)).toEqual(["sound", "music-volume", "effects-volume", "music-shuffle"]);
     expect(sound(false)).toEqual(["sound", "music-shuffle"]);
+  });
+
+  test("the Windows desktop app also has the game's mixer volume, first", () => {
+    expect(sound(true, true)).toEqual(["sound", "game-volume", "music-volume", "effects-volume", "music-shuffle"]);
+    expect(sound(false, true)).toEqual(["sound", "music-shuffle"]);
   });
 });

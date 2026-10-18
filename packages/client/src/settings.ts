@@ -45,6 +45,8 @@ export interface Settings {
    * and kept between launches. Sound effects keep their own levels. Defaults to full.
    */
   readonly musicVolume: number;
+  /** The sound effects' loudness, 0 to `MUSIC_VOLUME_MAX` percent of each effect's own level (#243). Defaults to full. */
+  readonly effectsVolume: number;
   /**
    * Ask before an End turn that would still leave a basic attack, thwart or recover open
    * (`view/end-turn-confirm.ts`). Defaults on: ending a turn with something meaningful left is
@@ -209,6 +211,7 @@ export function defaultSettings(): Settings {
     sound: true,
     musicShuffle: false,
     musicVolume: MUSIC_VOLUME_MAX,
+    effectsVolume: MUSIC_VOLUME_MAX,
     confirmBeforeEndTurn: true,
     sameNameHeroAllyConflict: true,
     villainAutoAdvance: "off",

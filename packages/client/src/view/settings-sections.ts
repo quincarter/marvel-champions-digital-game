@@ -10,7 +10,9 @@ export type SettingsItemId =
   | SettingsRowId
   | "card-size"
   | "card-hover"
+  | "game-volume"
   | "music-volume"
+  | "effects-volume"
   | "token-motion"
   | "display-mode"
   | "resolution"
@@ -34,14 +36,16 @@ export interface SettingsSection {
 
 /**
  * The sections, top to bottom. `guideRowIds` is the Guide group's rows in draw order (`guideRowInfoOf`), which grows
- * with the hint warnings. `cardHover` is false off desktop, where there is no mouse popover to size. `musicVolume` is
- * true on a desktop form factor only (#243): a phone or tablet player uses the device's own volume. `desktopWindow` is
+ * with the hint warnings. `cardHover` is false off desktop, where there is no mouse popover to size. `volumes` is
+ * true in the desktop app or on a desktop form factor (#243): a phone or tablet uses the device's own volume.
+ * `gameVolume` is true in the Windows desktop app, whose own entry in the Windows volume mixer it sets. `desktopWindow` is
  * true only in the desktop app, the one build that can change its own window; the Window section is left out elsewhere.
  */
 export function settingsSectionsOf(input: {
   readonly guideRowIds: readonly GuideSettingsRowId[];
   readonly cardHover: boolean;
-  readonly musicVolume?: boolean;
+  readonly volumes?: boolean;
+  readonly gameVolume?: boolean;
   readonly desktopWindow?: boolean;
   /** SteamOS or Bazzite: a Steam Deck row in the Window section. */
   readonly steamDeck?: boolean;
@@ -73,7 +77,12 @@ export function settingsSectionsOf(input: {
     {
       id: "sound",
       title: "Sound",
-      items: ["sound", ...(input.musicVolume ? (["music-volume"] as const) : []), "music-shuffle"],
+      items: [
+        "sound",
+        ...(input.volumes && input.gameVolume ? (["game-volume"] as const) : []),
+        ...(input.volumes ? (["music-volume", "effects-volume"] as const) : []),
+        "music-shuffle",
+      ],
     },
     { id: "guide", title: "Guide", items: input.guideRowIds },
     { id: "more", title: "More", items: ["unlocks", "save-data", "rules"] },

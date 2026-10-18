@@ -80,6 +80,10 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   }
   const musicVolume = source["musicVolume"];
   if (typeof musicVolume === "number" && Number.isFinite(musicVolume)) out.musicVolume = clampMusicVolume(musicVolume);
+  const effectsVolume = source["effectsVolume"];
+  if (typeof effectsVolume === "number" && Number.isFinite(effectsVolume)) {
+    out.effectsVolume = clampMusicVolume(effectsVolume);
+  }
   const resolution = source["textResolution"];
   if (typeof resolution === "number" && Number.isFinite(resolution)) {
     out.textResolution = Math.min(SHARP_TEXT_RESOLUTION_CEILING, Math.max(1, resolution));

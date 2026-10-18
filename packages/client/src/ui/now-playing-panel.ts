@@ -16,6 +16,8 @@ import { accent, ink, signal, surface, typeRole, type TypeSpec } from "../tokens
 import { appSession } from "../session.js";
 import { clockOf, nowPlayingTitleOf, steppedVolume, volumeAtTrack, type PlayerSong } from "../view/music-player.js";
 import { clampMusicVolume } from "../settings.js";
+import { hasDesktopWindow } from "../platform/desktop-window.js";
+import { followsWindowsMixer, knownMixerVolume, readMixerVolume, writeMixerVolume } from "../platform/app-volume.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import { bangers } from "./campaign-chrome.js";
 import { drawMusicIcon } from "./music-icon.js";
@@ -192,7 +194,7 @@ export function drawNowPlayingPanel(
   // Pause and the volume, on the row under everything else.
   const rowY = y + nowPlayingPanelHeight(expanded, width) - CONTROL;
   const { width: screenWidth, height: screenHeight } = scene.scale.gameSize;
-  const desktop = formFactorFor(screenWidth, screenHeight) === "desktop";
+  const desktop = hasDesktopWindow() || formFactorFor(screenWidth, screenHeight) === "desktop";
   const volume = drawVolumeRow(scene, { x, y: rowY, width }, desktop, options.onChange);
   buttons.push(...volume.buttons);
   return {
@@ -258,7 +260,9 @@ function drawVolumeRow(
   };
   const midY = row.y + CONTROL / 2;
 
-  let shown = clampMusicVolume(session.settings.musicVolume);
+  // In the Windows app the slider is the game's own entry in the Windows volume mixer; elsewhere, the music volume.
+  const mixer = followsWindowsMixer();
+  let shown = clampMusicVolume(mixer ? (knownMixerVolume() ?? 100) : session.settings.musicVolume);
   const bar = scene.add.graphics();
   const percent = scene.add.text(row.x + width, midY, "", textStyle(typeRole.label, surface.ink.hex)).setOrigin(1, 0.5);
   const paint = (): void => {
@@ -274,11 +278,25 @@ function drawVolumeRow(
   /** Heard now; saved only when `save` (a drag saves once, on release). */
   const set = (volume: number, save: boolean): void => {
     shown = clampMusicVolume(volume);
+    if (mixer) {
+      writeMixerVolume(shown);
+      paint();
+      return;
+    }
     const next = { ...session.settings, musicVolume: shown };
     music?.syncSettings(next);
     if (save) session.settings = next;
     paint();
   };
+
+  // The mixer may have moved since the panel was drawn last: read it, and show it if it changed.
+  if (mixer) {
+    void readMixerVolume().then((read) => {
+      if (read === null || read === shown || !bar.active) return;
+      shown = read;
+      paint();
+    });
+  }
 
   const zone = scene.add
     .zone(track.x - knob, row.y, track.width + knob * 2, CONTROL)
