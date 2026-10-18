@@ -175,7 +175,15 @@ export function parse(ctx: NormalizeContext, p: Prepared): ParsedText {
   // ability — confirmed from the card image as MarvelCDB's own flag being wrong, not the text. A curated
   // `ignoreFields: ["boost_star"]` correction silences this cross-check for that one record; the emitted
   // `starIcon` always follows the text (`hasBoostAbility`), never the raw flag, so this only affects validation.
-  if (Boolean(p.raw.boost_star) !== hasBoostAbility && !p.ignored.has("boost_star")) {
+  if (p.boostGrantedBy) {
+    // A star whose Boost another card grants (`Correction.boostGrantedBy`): the flag must be set and the text must not
+    // carry a Boost of its own.
+    if (!p.raw.boost_star || hasBoostAbility) {
+      ctx.errors.push(
+        `${p.raw.code}: boostGrantedBy needs boost_star=true and no Boost ability in the text (boost_star=${String(p.raw.boost_star)}, text ${hasBoostAbility ? "has" : "has no"} a Boost ability)`,
+      );
+    }
+  } else if (Boolean(p.raw.boost_star) !== hasBoostAbility && !p.ignored.has("boost_star")) {
     ctx.errors.push(
       `${p.raw.code}: boost_star=${String(p.raw.boost_star)} but text ${hasBoostAbility ? "has" : "has no"} a Boost ability`,
     );

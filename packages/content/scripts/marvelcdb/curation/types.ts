@@ -112,6 +112,15 @@ export interface Correction {
    * never errata.
    */
   readonly infiniteHp?: true;
+  /**
+   * Codes of the card(s) whose text gives this card its Boost ability, for an encounter-side card that prints a
+   * boost-area star without a Boost of its own (wave 11, Purple Man: the villain stages 60097 to 60099 say "Each boost
+   * card from the Purple Man encounter set gains: [star] Boost: ..."). RRG 1.8 "Boost, Boost Icon" (p. 11): the star
+   * is a printed fact of the card. Emits `starIcon: true` and `boostGrantedBy`, and replaces the check that the text
+   * carries a Boost ability with a check that it does not (a card with its own Boost needs no grant). Requires
+   * MarvelCDB's `boost_star: true`.
+   */
+  readonly boostGrantedBy?: readonly string[];
   /** MarvelCDB fields with no printed counterpart on this card type — ignored, with the reason recorded. */
   readonly ignoreFields?: readonly string[];
   /**
@@ -496,6 +505,10 @@ export interface SeparateDeckCuration {
   readonly discardPile?: "own" | "none";
   readonly whenEmpty?: "reshuffleDiscardWithoutPenalty" | "stayEmpty";
   readonly cardFamily?: "player" | "encounter";
+  /** `IdentitySeparateDeck.fixedOrder` (wave 11, docs/phase7-wave11.md section 1.1: Daredevil's Sense deck). */
+  readonly fixedOrder?: true;
+  /** `IdentitySeparateDeck.ownerMayLookThrough` (wave 11, same section). */
+  readonly ownerMayLookThrough?: true;
 }
 
 /**

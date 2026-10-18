@@ -41,6 +41,7 @@ const KEY_BRANDS: Readonly<Record<string, BrandFn>> = {
   // `HostQualifiers.trait`/`withoutTrait` (`AttachmentHost`'s `qualified`/`superlative` kinds, wave 2).
   trait: "trait",
   withoutTrait: "trait",
+  withoutAttachmentTrait: "trait",
   // `OffAspectAllowance.anyTrait` (Gamora's Skilled Tactician deckbuilding, wave 3, docs/phase7-wave3.md §1.5).
   anyTrait: "trait",
   // `SpecificSet.encounterSetId` (wave 2 scenario-/campaign-specific player cards) — singular, distinct from the
@@ -57,6 +58,8 @@ const KEY_BRANDS: Readonly<Record<string, BrandFn>> = {
   setAsideCardIds: "cardId",
   // `ScenarioSeparateDeck.contents.cardIds` (wave 6, docs/phase7-wave6.md §3.66: Cornered! in the show deck).
   cardIds: "cardId",
+  // `boostGrantedBy` (wave 11, Purple Man's boost cards): the villain stages that grant the Boost.
+  boostGrantedBy: "cardId",
   // `MainSchemeStage.printedCardId` and `Scenario.mainSchemeStages.recommended` (wave 10, docs/phase7-wave10.md §1.2, §1.4).
   printedCardId: "cardId",
   recommended: "cardId",

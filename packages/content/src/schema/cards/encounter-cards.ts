@@ -1,7 +1,7 @@
 import type { CardText, PrintedStat, ResourceIconCounts, Trait } from "../common.js";
 import type { KeywordInstance } from "../keywords.js";
 import type { AbilityReference } from "../abilities.js";
-import type { EncounterSetId, ImageRef } from "../ids.js";
+import type { CardId, EncounterSetId, ImageRef } from "../ids.js";
 import type { BaseCard } from "./base.js";
 import type { SchemeIcon } from "./schemes.js";
 import type { AttachmentHost, AttachmentHostChooser, PrintedStatModifiers } from "./attachment-host.js";
@@ -76,6 +76,12 @@ interface EncounterCardCommon extends BaseCard {
    * token and a `Boost:` ability (validated against every pack's MarvelCDB `boost_star` field, 703/703 agreement).
    */
   readonly starIcon?: boolean;
+  /**
+   * The card(s) whose text gives this card the Boost its star stands for, when the card has no Boost ability of its
+   * own (Purple Man's set: the villain stages 60097 to 60099 give every boost card of the set a Boost). Only with
+   * `starIcon: true`; each id must name a card in the pool.
+   */
+  readonly boostGrantedBy?: readonly CardId[];
   readonly traits: readonly Trait[];
   readonly keywords: readonly KeywordInstance[];
   readonly text: CardText;

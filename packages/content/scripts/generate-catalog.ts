@@ -1,5 +1,5 @@
 /**
- * The whole game's card catalog, counted from the committed MarvelCDB cache (`raw/marvelcdb/*.json`), for the Title
+ * The whole game's card catalog, counted from the committed MarvelCDB cache (`raw/marvelcdb/*.json`, plus `raw/hallofheroes/*.json` for cards MarvelCDB lacks), for the Title
  * footer's "N / M cards live": M is every card in the game, not just the packs this app has ingested.
  *
  *   pnpm --filter @mc/content catalog
@@ -21,9 +21,25 @@ import { catalogOf, type RawCatalogPack } from "../src/data/catalog-codes.ts";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const rawDir = join(root, "raw", "marvelcdb");
 
+// Cards MarvelCDB does not list at all, transcribed from scans (`raw/hallofheroes/<pack>.json`, written by
+// `pnpm --filter @mc/content export-added-records`; wave 11: the Fear No Evil scenario half), join the MarvelCDB pack of
+// the same name, so they are cards of that pack rather than a pack of their own.
+const addedDir = join(root, "raw", "hallofheroes");
+const addedFiles = new Set(
+  await readdir(addedDir).then(
+    (names) => names.filter((name) => name.endsWith(".json")),
+    () => [] as string[],
+  ),
+);
 const files = (await readdir(rawDir)).filter((name) => name.endsWith(".json")).sort();
 const packs: RawCatalogPack[] = [];
-for (const file of files) packs.push(JSON.parse(await readFile(join(rawDir, file), "utf8")) as RawCatalogPack);
+for (const file of files) {
+  const pack = JSON.parse(await readFile(join(rawDir, file), "utf8")) as RawCatalogPack;
+  const added = addedFiles.has(file)
+    ? (JSON.parse(await readFile(join(addedDir, file), "utf8")) as RawCatalogPack).cards
+    : [];
+  packs.push({ ...pack, cards: [...pack.cards, ...added] });
+}
 const catalog = catalogOf(packs);
 
 const reprints = Object.entries(catalog.reprints)

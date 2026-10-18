@@ -799,6 +799,32 @@ export const WAVE10_STARTER_DECKS: readonly StarterDeck[] = [
   ...HERCULES_STARTER_DECKS,
 ];
 
+// ---------------------------------------------------------------------------------------------------------------
+// Wave 11 (PLAN.md Phase 7, docs/phase7-wave11.md): cycle 11, Fear No Evil `fne` (MC60, a campaign expansion: Daredevil
+// and Echo, six scenarios, the Kingpin set and the campaign cards). `jj` and `luke_cage` (the cycle's hero packs) join
+// when they are emitted. `fne`'s scenario records (`FNE_SCENARIOS`) are empty until the scenarios task adds them from
+// the scenarios spec, and the box has no `Campaign` record yet (see `CAMPAIGNS`). Pool membership is not a claim that a
+// pack is scripted: `unscriptedCards` keeps unscripted precons from being seated.
+// ---------------------------------------------------------------------------------------------------------------
+export * from "./fne/index.js";
+
+import { FNE_CARDS } from "./fne/cards.js";
+import { FNE_ENCOUNTER_SETS } from "./fne/encounterSets.js";
+import { FNE_SCENARIOS } from "./fne/scenarios.js";
+import { FNE_STARTER_DECKS } from "./fne/starterDecks.js";
+
+/** Every card in the wave 11 (cycle 11) pool: Core plus the packs shipped so far (`fne`). A sibling pool that starts from Core, like `WAVE10_CARDS`. */
+export const WAVE11_CARDS: readonly AnyCard[] = [...CORE_CARDS, ...FNE_CARDS];
+
+/** Every wave 11 encounter set (Core's own villain sets are not included). */
+export const WAVE11_ENCOUNTER_SETS: readonly EncounterSet[] = [...FNE_ENCOUNTER_SETS];
+
+/** Every wave 11 scenario: none yet (the box's six scenarios are a later task). */
+export const WAVE11_SCENARIOS: readonly Scenario[] = [...FNE_SCENARIOS];
+
+/** Every wave 11 starter deck the playable pool carries: Daredevil / Justice and Echo / Protection (MC60 p. 25). */
+export const WAVE11_STARTER_DECKS: readonly StarterDeck[] = [...FNE_STARTER_DECKS];
+
 /**
  * Every playable card: Core, the eight wave 1 packs, the six cycle 1 packs, the six cycle 2 packs, the six cycle
  * 3 packs, then the five cycle 4 packs shipped so far (`sm`, `nova`, `ironheart`, `spiderham`, `spdr` — `silk`, also
@@ -821,6 +847,7 @@ export const PLAYABLE_CARDS: readonly AnyCard[] = [
   ...WAVE8_CARDS.slice(CORE_CARDS.length),
   ...WAVE9_CARDS.slice(CORE_CARDS.length),
   ...WAVE10_CARDS.slice(CORE_CARDS.length),
+  ...WAVE11_CARDS.slice(CORE_CARDS.length),
 ];
 
 /**

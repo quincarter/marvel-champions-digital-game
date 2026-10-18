@@ -284,4 +284,16 @@ export interface IdentitySeparateDeck {
    * would play a different game.
    */
   readonly cardFamily?: "player" | "encounter";
+  /**
+   * "you cannot change the order" (Daredevil, MC60 rulebook p. 26; docs/phase7-wave11.md section 1.1). The deck is
+   * shuffled once, at setup, and never again: no search of it shuffles it and any reorder does nothing to it. Absent
+   * means the order may change like any deck.
+   */
+  readonly fixedOrder?: boolean;
+  /**
+   * "you can look through it at any time" (Daredevil, MC60 rulebook p. 26). The owner, not every player, sees the whole
+   * deck in order. A hint to the client and the netcode redaction; the engine state is readable regardless. Absent
+   * means the deck is private like any other.
+   */
+  readonly ownerMayLookThrough?: boolean;
 }

@@ -55,6 +55,14 @@ export function checkCoverage(ctx: NormalizeContext): void {
         ctx.usedArtUnavailable.add(code as string);
         return;
       }
+      // Wave 11 (`fne`): a card whose faces cannot be told apart by code (a villain or main scheme's stages, a front with a nested
+      // back) may be named by its own card id, which exempts each of its faces that has no art. Only art-less faces
+      // reach here, so an entry never hides a face that has a reference.
+      const byCardId = ctx.curation.artUnavailable?.[card.id as string];
+      if (byCardId !== undefined) {
+        ctx.usedArtUnavailable.add(card.id as string);
+        return;
+      }
       errors.push(`${card.id}: no artwork reference for ${face.what}`);
     });
   }

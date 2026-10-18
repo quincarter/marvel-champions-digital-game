@@ -67,7 +67,9 @@ export function normalizeEncounterCard(
     // flag follows the parsed text (docs/phase7-wave2-data.md "starIcon?: boolean"). `parse()` has already
     // rejected any record whose MarvelCDB `boost_star` disagrees with that text, so the two never diverge here.
     // Emitted only when true — absent reads as false, and the committed data carries no `starIcon: false`.
-    ...(parsed.abilities.some((a) => a.kind === "boost") ? { starIcon: true } : {}),
+    // A star whose Boost another card grants (`Correction.boostGrantedBy`) is still a printed star, and names its granters.
+    ...(parsed.abilities.some((a) => a.kind === "boost") || p.boostGrantedBy ? { starIcon: true } : {}),
+    ...(p.boostGrantedBy ? { boostGrantedBy: p.boostGrantedBy.map((c) => brand("card", c)) } : {}),
     traits: p.traits,
     keywords: parsed.keywords,
     text: p.text,
@@ -211,7 +213,16 @@ export function normalizeEncounterCard(
       // and recorded in a `cardNotes` entry, the way a minion's absent ATK is.
       if ((r.base_threat === null || r.base_threat === undefined) && !curation.cardNotes[r.code])
         errors.push(`${r.code}: side scheme without starting threat`);
-      const { encounterSetIds, boostIcons, starIcon, traits, keywords, text, abilities: abs } = encounterCommon;
+      const {
+        encounterSetIds,
+        boostIcons,
+        starIcon,
+        boostGrantedBy,
+        traits,
+        keywords,
+        text,
+        abilities: abs,
+      } = encounterCommon;
       const scheme: SideSchemeCard = {
         ...common,
         type: "side_scheme",
@@ -233,6 +244,7 @@ export function normalizeEncounterCard(
         ),
         boostIcons,
         ...(starIcon ? { starIcon } : {}),
+        ...(boostGrantedBy ? { boostGrantedBy } : {}),
         traits,
         keywords,
         text,

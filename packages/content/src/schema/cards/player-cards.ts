@@ -99,8 +99,12 @@ export interface SpecificSet {
  * - `"dash"`: RRG 1.8 "Dash (Value)" (p. 15): "If a card has a dash (–) as its cost value, that card cannot be played
  *   and can only enter play through other means." The Hydra Campaign "Basic" Condition upgrades (04159a–04162a) have
  *   no cost in MarvelCDB and enter play through Setup; curation must confirm the printed dash from the card image.
+ * - `"star"`: a star in the cost field (Photographic Reflexes, `fne` 60040a/b/c). RRG 1.8 "Star Icon" (p. 40): a star in
+ *   a field is a reminder of a mandatory text-box ability for that field. The card has no triggered ability of its own,
+ *   so it is never played (RRG "Event", p. 18); its text gives another card a play route (docs/phase7-wave11.md 1.2).
+ *   Not yet enforced by the engine (spec task 9): the data records the star, nothing stops a play of the card yet.
  */
-export type SpecialCost = "X" | "dash";
+export type SpecialCost = "X" | "dash" | "star";
 
 /** Fields shared by every card that lives in a player's own deck. */
 interface PlayerCardCommon extends BaseCard {

@@ -217,6 +217,35 @@ describe("attach shapes: tough status clause and identity without a named attach
     expect(parsed.unclassified.filter((u) => u.includes("attach rule"))).toEqual([]);
   });
 
+  it('"Attach to the enemy with the highest ATK without a Vehicle attachment." qualifies by attachment trait (Sports Car, `fne` 60186)', () => {
+    const parsed = parseCardText(
+      "Attach to the enemy with the highest ATK without a Vehicle attachment. Otherwise, this card gains surge.",
+      { villainNames: new Set() },
+    );
+    expect(parsed.attachesTo).toEqual({
+      kind: "superlative",
+      among: "enemy",
+      order: "highest",
+      measure: "atk",
+      withoutAttachmentTrait: "VEHICLE",
+    });
+    expect(parsed.unclassified).toEqual([]);
+  });
+
+  it('"the minion with the highest base hit points and give that minion a tough status card" is printed hit points (Tombstone, `fne` 60195)', () => {
+    const parsed = parseCardText(
+      "Attach to the minion with the highest base hit points and give that minion a tough status card. Otherwise, this card gains surge.",
+      { villainNames: new Set() },
+    );
+    expect(parsed.attachesTo).toEqual({
+      kind: "superlative",
+      among: "minion",
+      order: "highest",
+      measure: "printedHp",
+    });
+    expect(parsed.unclassified).toEqual([]);
+  });
+
   it('"Attach to the <villain name> villain." still names the villain, not a trait', () => {
     const parsed = parseCardText("Attach to the Rhino villain.", { villainNames: new Set(["Rhino"]) });
     expect(parsed.attachesTo).toEqual({ kind: "villain" });

@@ -748,10 +748,18 @@ function parseAttach(
   let supRest = target;
   let supWithoutAttachmentNamed: string | undefined;
   let supWithoutTrait: string | undefined;
+  let supWithoutAttachmentTrait: string | undefined;
+  // "the enemy with the highest ATK without a [[Vehicle]] attachment" (Fear No Evil, Drive set `fne` 60186 to 60188):
+  // an attachment named by trait (`HostQualifiers.withoutAttachmentTrait`), not by title. A single capitalized word
+  // is the trait; the title form ("without Stun Beam attached") is the branch below.
+  const traitAttachmentSuffix = /^(.*?)\s+(?:and\s+)?without an? ([A-Z][A-Za-z-]*) attachment$/.exec(supRest);
   const namedSuffix = /^(.*?)\s+(?:and\s+)?without (?:a copy of |another copy of |another )?(.+?) attached$/i.exec(
     supRest,
   );
-  if (namedSuffix) {
+  if (traitAttachmentSuffix) {
+    supRest = traitAttachmentSuffix[1] as string;
+    supWithoutAttachmentTrait = traitAttachmentSuffix[2] as string;
+  } else if (namedSuffix) {
     supRest = namedSuffix[1] as string;
     supWithoutAttachmentNamed = (namedSuffix[2] as string).trim();
   } else {
@@ -776,7 +784,10 @@ function parseAttach(
     const order: "highest" | "lowest" = orderWord === "highest" || orderWord === "most" ? "highest" : "lowest";
     const descriptor = (supCore[4] as string).trim().toLowerCase();
     const measure: HostMeasure | undefined =
-      descriptor === "printed hit points"
+      // "base hit points" (Tombstone, `fne` 60195/60196): RRG 1.8 "Base Value" (p. 10), the value before modifiers,
+      // "in most cases ... also the printed value"; for a minion's hit points that is the printed value.
+      // Caveat: right for host rules, not for an effect that sets a base value (it would change "base", not "printed").
+      descriptor === "printed hit points" || descriptor === "base hit points"
         ? "printedHp"
         : descriptor === "hit points" || descriptor === "remaining hit points"
           ? "remainingHp"
@@ -813,6 +824,9 @@ function parseAttach(
           ...(supTrait ? { trait: supTrait.toUpperCase() as Trait } : {}),
           ...(supWithoutTrait ? { withoutTrait: supWithoutTrait.toUpperCase() as Trait } : {}),
           ...(supWithoutAttachmentNamed ? { withoutAttachmentNamed: supWithoutAttachmentNamed } : {}),
+          ...(supWithoutAttachmentTrait
+            ? { withoutAttachmentTrait: supWithoutAttachmentTrait.toUpperCase() as Trait }
+            : {}),
         },
       };
     }

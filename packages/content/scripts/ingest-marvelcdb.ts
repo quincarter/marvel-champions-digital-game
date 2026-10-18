@@ -95,6 +95,7 @@ import { GMW_CURATION } from "./marvelcdb/curation/gmw.ts";
 import { MTS_CURATION } from "./marvelcdb/curation/mts.ts";
 import { CW_CURATION } from "./marvelcdb/curation/cw.ts";
 import { HERCULES_CURATION } from "./marvelcdb/curation/hercules.ts";
+import { FNE_CURATION } from "./marvelcdb/curation/fne.ts";
 import { bareCuration } from "./marvelcdb/curation/empty.ts";
 import type { PackCuration } from "./marvelcdb/curation/types.ts";
 
@@ -162,9 +163,7 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   mts: MTS_CURATION,
   cw: CW_CURATION,
   hercules: HERCULES_CURATION,
-  // fne: curated (survey.ts), but NOT registered here — it has at least one card
-  // still blocked on a real parser/schema gap (docs/phase7-wave2-data.md's "Schema requests for
-  // game-rules-architect" / parser-gap log).
+  fne: FNE_CURATION,
 };
 
 interface RawCache {
@@ -352,7 +351,13 @@ async function ingestOne(pack: string, args: Args): Promise<{ ok: boolean; summa
   const curation = registered ?? bareCuration(pack, cache.cards[0]);
   let normalized: NormalizedPack;
   try {
-    normalized = normalizePack(withLocalArt(cache.cards, await localArtCodes()), curation);
+    const localCodes = await localArtCodes();
+    // Faces transcribed from scans (`addedRecords`) get their local scan the same way MarvelCDB's records do.
+    const added = curation.addedRecords?.map((a) => ({ ...a, record: withLocalArt([a.record], localCodes)[0]! }));
+    normalized = normalizePack(
+      withLocalArt(cache.cards, localCodes),
+      added ? { ...curation, addedRecords: added } : curation,
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (args.dryRun) return { ok: false, summary: `${pack}: FAILED\n${message}` };

@@ -65,6 +65,8 @@ export interface Prepared {
   readonly evidenceIcon?: { readonly icon: string; readonly color: EvidenceColor };
   /** A curated `Correction.definedCounterTypes` — absent for every card that defines no counter type in its text. */
   readonly definedCounterTypes?: readonly string[];
+  /** A curated `Correction.boostGrantedBy` — absent for every card that prints its own Boost or no star. */
+  readonly boostGrantedBy?: readonly string[];
   readonly impliedAttachHost?: "mainScheme" | "ally" | "minion" | "ownWhenRevealed" | AttachmentHost;
   /** A curated `Correction.hostChosenBy` (encounter attachments only) — absent for every ordinary card. */
   readonly hostChosenBy?: AttachmentHostChooser;
@@ -104,6 +106,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
   let dashedThreatFields: readonly MainSchemeThreatField[] | undefined;
   let evidenceIcon: { readonly icon: string; readonly color: EvidenceColor } | undefined;
   let definedCounterTypes: readonly string[] | undefined;
+  let boostGrantedBy: readonly string[] | undefined;
   let unheadedWhenRevealed: string | undefined;
   let extraConstantFrom: string | undefined;
   let preambleWhenRevealed: string | undefined;
@@ -155,6 +158,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     if (c.dashedThreatFields !== undefined) dashedThreatFields = c.dashedThreatFields;
     if (c.evidenceIcon !== undefined) evidenceIcon = c.evidenceIcon;
     if (c.definedCounterTypes !== undefined) definedCounterTypes = c.definedCounterTypes;
+    if (c.boostGrantedBy !== undefined) boostGrantedBy = c.boostGrantedBy;
     for (const f of c.ignoreFields ?? []) ignored.add(f);
     notes.push(`${r.code}: ${c.reason} [evidence: ${c.evidence}]`);
   });
@@ -212,6 +216,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     ...(dashedThreatFields ? { dashedThreatFields } : {}),
     ...(evidenceIcon ? { evidenceIcon } : {}),
     ...(definedCounterTypes ? { definedCounterTypes } : {}),
+    ...(boostGrantedBy ? { boostGrantedBy } : {}),
   };
   ctx.prepared.set(r.code, p);
   return p;

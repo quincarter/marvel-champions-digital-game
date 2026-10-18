@@ -27,6 +27,7 @@ import {
   WAVE10_ENCOUNTER_SETS,
   WAVE10_SCENARIOS,
   WAVE10_STARTER_DECKS,
+  WAVE11_CARDS,
 } from "./index.js";
 
 /**
@@ -62,7 +63,9 @@ describe("wave 10 data: pool wiring", () => {
       ).toHaveLength(1);
     const wave9Last = ids.lastIndexOf(WAVE9_CARDS[WAVE9_CARDS.length - 1]!.id as string);
     expect(ids.indexOf(CW_CARDS[0]!.id as string)).toBeGreaterThan(wave9Last);
-    expect(ids.slice(ids.length - wave10.length)).toEqual(wave10.map((c) => c.id as string));
+    // Wave 11 (`fne`) follows wave 10 in the pool; wave10's cards are the block just before it.
+    const tail = ids.length - (WAVE11_CARDS.length - CORE_CARDS.length);
+    expect(ids.slice(tail - wave10.length, tail)).toEqual(wave10.map((c) => c.id as string));
   });
 
   it("every wave 10 card passes validateCard()", () => {

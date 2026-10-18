@@ -225,6 +225,7 @@ export function validateAttachmentHost(host: unknown, label: string): string[] {
     optionalName("trait");
     optionalName("withoutTrait");
     optionalName("withoutAttachmentNamed");
+    optionalName("withoutAttachmentTrait");
     optionalName("titleContains");
     for (const key of ["keyword", "withoutKeyword"] as const) {
       if (h[key] !== undefined && !KNOWN_KEYWORD_NAMES.includes(h[key] as KeywordName)) {
@@ -250,6 +251,7 @@ export function validateAttachmentHost(host: unknown, label: string): string[] {
     h.trait !== undefined ||
     h.withoutTrait !== undefined ||
     h.withoutAttachmentNamed !== undefined ||
+    h.withoutAttachmentTrait !== undefined ||
     h.keyword !== undefined ||
     h.withoutKeyword !== undefined ||
     h.titleContains !== undefined ||
@@ -404,11 +406,24 @@ function faceSchemeIconErrors(face: { readonly schemeIcons?: unknown } | undefin
  * `starIcon` is a plain boolean when present at all (docs/phase7-wave2-data.md): a boost area carries at most one
  * star, so there is no count to validate, just the type.
  */
-function boostErrors(card: { boostIcons: number; starIcon?: unknown }, label: string): string[] {
+function boostErrors(
+  card: { boostIcons: number; starIcon?: unknown; boostGrantedBy?: unknown },
+  label: string,
+): string[] {
   const errors: string[] = [];
   if (!isNonNegativeInteger(card.boostIcons)) errors.push(`${label} boostIcons must be a whole number of at least 0`);
   if (card.starIcon !== undefined && typeof card.starIcon !== "boolean") {
     errors.push(`${label} starIcon must be a boolean when present`);
+  }
+  if (card.boostGrantedBy !== undefined) {
+    if (
+      !Array.isArray(card.boostGrantedBy) ||
+      card.boostGrantedBy.length === 0 ||
+      !card.boostGrantedBy.every(isNonEmptyString)
+    ) {
+      errors.push(`${label} boostGrantedBy must be a non-empty list of card ids`);
+    }
+    if (card.starIcon !== true) errors.push(`${label} boostGrantedBy needs starIcon: true`);
   }
   return errors;
 }
@@ -420,18 +435,40 @@ function boostErrors(card: { boostIcons: number; starIcon?: unknown }, label: st
  * cards agree). This is an ingest-quality signal, not a hard schema error — a card can legitimately have a `.boost`
  * ref named differently in principle — so it is surfaced as a warning string for a test to assert is empty across
  * the pool, not folded into `ValidationResult`.
+ *
+ * A star whose Boost another card grants (`boostGrantedBy`, Purple Man's set) is accepted without an own `.boost` ref;
+ * a card with its own `.boost` ref and a `boostGrantedBy` is flagged. `boostGrantedByMissing` checks the granters exist.
  */
 export function starIconAbilityMismatch(
-  card: { readonly cardCode?: string; readonly starIcon?: boolean; readonly abilities: readonly AbilityReference[] },
+  card: {
+    readonly cardCode?: string;
+    readonly starIcon?: boolean;
+    readonly boostGrantedBy?: readonly unknown[];
+    readonly abilities: readonly AbilityReference[];
+  },
   label: string,
 ): string | null {
   if (!Array.isArray(card.abilities)) return null;
   const hasBoostRef = card.abilities.some((ref) => typeof ref?.id === "string" && ref.id.endsWith(".boost"));
   const starIcon = card.starIcon === true;
+  if (card.boostGrantedBy !== undefined && card.boostGrantedBy.length > 0) {
+    if (hasBoostRef) return `${label} has a ".boost" ability ref and also boostGrantedBy`;
+    return starIcon ? null : `${label} has boostGrantedBy but starIcon is not true`;
+  }
   if (hasBoostRef === starIcon) return null;
   return hasBoostRef
     ? `${label} has a ".boost" ability ref but starIcon is not true`
     : `${label} has starIcon: true but no ".boost" ability ref`;
+}
+
+/** The `boostGrantedBy` ids of `cards` that name no card in `cards`, as `"<card> names <id>"` strings. */
+export function boostGrantedByMissing(
+  cards: readonly { readonly id: unknown; readonly boostGrantedBy?: readonly unknown[] }[],
+): string[] {
+  const ids = new Set(cards.map((c) => String(c.id)));
+  return cards.flatMap((c) =>
+    (c.boostGrantedBy ?? []).filter((g) => !ids.has(String(g))).map((g) => `${String(c.id)} names ${String(g)}`),
+  );
 }
 
 /** Fields every player-deck card shares: text, keywords, abilities, deck limit, play restrictions, separate deck. */
@@ -494,10 +531,12 @@ function playerCommonErrors(card: PlayerCard): string[] {
   }
   if ("cost" in card && !isNonNegativeNumber(card.cost)) errors.push(`${card.type} cost must be a non-negative number`);
   if ("specialCost" in card && card.specialCost !== undefined) {
-    if (card.specialCost !== "X" && card.specialCost !== "dash")
-      errors.push(`${card.type} specialCost must be 'X' or 'dash'`);
+    if (card.specialCost !== "X" && card.specialCost !== "dash" && card.specialCost !== "star")
+      errors.push(`${card.type} specialCost must be 'X', 'dash' or 'star'`);
     else if (card.cost !== 0)
-      errors.push(`${card.type} cost is printed ${card.specialCost === "X" ? "X" : "—"}, so its value must be 0`);
+      errors.push(
+        `${card.type} cost is printed ${card.specialCost === "X" ? "X" : card.specialCost === "star" ? "a star" : "—"}, so its value must be 0`,
+      );
   }
   if ("costPerPlayer" in card && card.costPerPlayer !== undefined) {
     if (card.costPerPlayer !== true) errors.push(`${card.type} costPerPlayer must be true when present`);
@@ -708,6 +747,12 @@ export function validateHeroIdentityCard(card: HeroIdentityCard): ValidationResu
         }
         if (deck.cardFamily !== undefined && deck.cardFamily !== "player" && deck.cardFamily !== "encounter") {
           errors.push(`${label} cardFamily must be 'player' or 'encounter'`);
+        }
+        if (deck.fixedOrder !== undefined && typeof deck.fixedOrder !== "boolean") {
+          errors.push(`${label} fixedOrder must be a boolean`);
+        }
+        if (deck.ownerMayLookThrough !== undefined && typeof deck.ownerMayLookThrough !== "boolean") {
+          errors.push(`${label} ownerMayLookThrough must be a boolean`);
         }
       }
     }

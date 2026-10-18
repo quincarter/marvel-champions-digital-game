@@ -12,8 +12,15 @@ import {
   WAVE8_CARDS,
   WAVE9_CARDS,
   WAVE10_CARDS,
+  WAVE11_CARDS,
 } from "../data/index.js";
-import { abilityId, starIconAbilityMismatch, validateMinionCard, validateSideSchemeCard } from "./index.js";
+import {
+  abilityId,
+  boostGrantedByMissing,
+  starIconAbilityMismatch,
+  validateMinionCard,
+  validateSideSchemeCard,
+} from "./index.js";
 import type {
   AnyCard,
   AttachmentCard,
@@ -63,6 +70,7 @@ function allEncounterSideCards(): readonly EncounterSideCard[] {
     ...WAVE8_CARDS,
     ...WAVE9_CARDS,
     ...WAVE10_CARDS,
+    ...WAVE11_CARDS,
     ...DATA_ONLY_CARDS,
   ]) {
     byId.set(c.id as string, c);
@@ -158,6 +166,31 @@ describe("starIcon", () => {
     expect(starIconAbilityMismatch({ abilities: [] }, "fixture")).toBeNull();
   });
 
+  it("boostGrantedBy accepts a star whose Boost another card grants, and flags the contradictions", () => {
+    expect(starIconAbilityMismatch({ starIcon: true, boostGrantedBy: ["60097"], abilities: [] }, "fixture")).toBeNull();
+    expect(starIconAbilityMismatch({ boostGrantedBy: ["60097"], abilities: [] }, "fixture")).toBe(
+      "fixture has boostGrantedBy but starIcon is not true",
+    );
+    expect(
+      starIconAbilityMismatch(
+        { starIcon: true, boostGrantedBy: ["60097"], abilities: [{ id: abilityId("01234.boost") }] },
+        "fixture",
+      ),
+    ).toBe('fixture has a ".boost" ability ref and also boostGrantedBy');
+    expect(boostGrantedByMissing([{ id: "a", boostGrantedBy: ["b"] }, { id: "b" }])).toEqual([]);
+    expect(boostGrantedByMissing([{ id: "a", boostGrantedBy: ["c"] }, { id: "b" }])).toEqual(["a names c"]);
+  });
+
+  it("the ten Purple Man boost cards (60100 to 60109) keep their star and name the Purple Man villain card (60097, all three stages) that grants the Boost", () => {
+    const byId = new Map(allEncounterSideCards().map((c) => [c.id as string, c]));
+    for (let n = 60100; n <= 60109; n++) {
+      const c = byId.get(String(n)) as { starIcon?: boolean; boostGrantedBy?: string[] } | undefined;
+      expect(c?.starIcon, String(n)).toBe(true);
+      expect(c?.boostGrantedBy, String(n)).toEqual(["60097"]);
+    }
+    expect(boostGrantedByMissing(WAVE11_CARDS)).toEqual([]);
+  });
+
   it('every encounter-side card\'s starIcon agrees with whether it carries a ".boost" ability ref (docs/phase7-wave2-data.md Part 8)', () => {
     const mismatches = allEncounterSideCards()
       .map((c) => starIconAbilityMismatch(c, c.id as string))
@@ -165,9 +198,9 @@ describe("starIcon", () => {
     expect(mismatches).toEqual([]);
   });
 
-  it("exactly 401 encounter-side cards across Core/wave 1/wave 2/wave 5/wave 6/wave 7/wave 8/wave 9/wave 10/data-only pools carry starIcon: true (docs/phase7-wave2-data.md Part 8's backfill, cross-checked 703/703 against MarvelCDB's boost_star; +30 from gmw, wave3 §5; +25 from mts, docs/phase7-wave4.md §1; +27 from sm, docs/phase7-wave5.md; +29 from mut_gen, docs/phase7-wave6.md; +27 net from next_evol, docs/phase7-wave7.md; +33 from aoa, docs/phase7-wave8.md; +32 net from aos and tt, docs/phase7-wave9.md; +39 from cw, docs/phase7-wave10.md: the 39 raw boost_star records, top-level and nested)", () => {
+  it("exactly 440 encounter-side cards across Core/wave 1/wave 2/wave 5/wave 6/wave 7/wave 8/wave 9/wave 10/wave 11/data-only pools carry starIcon: true (docs/phase7-wave2-data.md Part 8's backfill, cross-checked 703/703 against MarvelCDB's boost_star; +30 from gmw, wave3 §5; +25 from mts, docs/phase7-wave4.md §1; +27 from sm, docs/phase7-wave5.md; +29 from mut_gen, docs/phase7-wave6.md; +27 net from next_evol, docs/phase7-wave7.md; +33 from aoa, docs/phase7-wave8.md; +32 net from aos and tt, docs/phase7-wave9.md; +39 from cw, docs/phase7-wave10.md: the 39 raw boost_star records, top-level and nested; +39 from fne, docs/phase7-wave11.md, ten of them with the Boost granted by Purple Man's stages)", () => {
     const starred = allEncounterSideCards().filter((c) => (c as { starIcon?: boolean }).starIcon === true);
-    expect(starred).toHaveLength(401);
+    expect(starred).toHaveLength(440);
   });
 
   it("Slipping Sanity (15023, scw) itself has no star icon — its text refers to stars on OTHER discarded cards, not its own boost area", () => {

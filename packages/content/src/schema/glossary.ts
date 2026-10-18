@@ -99,6 +99,7 @@ export type GlossaryBoxId =
   | "cycle8"
   | "cycle9"
   | "cycle10"
+  | "cycle11"
   | "later";
 
 /** Which "New in this box" group a concept belongs under: a hero's own mechanic, or a scenario's. Keywords have their own group. */

@@ -45,6 +45,8 @@ export function collectSeparateDecks(ctx: NormalizeContext): SeparateDecks {
       discardPile: sd.discardPile ?? "own",
       whenEmpty: sd.whenEmpty ?? "reshuffleDiscardWithoutPenalty",
       ...(sd.cardFamily !== undefined ? { cardFamily: sd.cardFamily } : {}),
+      ...(sd.fixedOrder !== undefined ? { fixedOrder: sd.fixedOrder } : {}),
+      ...(sd.ownerMayLookThrough !== undefined ? { ownerMayLookThrough: sd.ownerMayLookThrough } : {}),
     });
     byIdentity.set(sd.identityCode, list);
   }

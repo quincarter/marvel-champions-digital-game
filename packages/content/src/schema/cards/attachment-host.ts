@@ -178,6 +178,10 @@ export type HostClassification = (typeof HOST_CLASSIFICATIONS)[number];
  * - `trait`: "an X-MEN ally" (printed or gained traits, RRG 1.8 "Gains").
  * - `withoutTrait`: "a non-ELITE minion", "without the Aerial trait".
  * - `withoutAttachmentNamed`: "without another Goblin Glider attached", "without a copy of Gene Therapy attached".
+ * - `withoutAttachmentTrait` (wave 11): "the enemy with the highest ATK without a Vehicle attachment" (Fear No Evil's Drive
+ *   set, `fne` 60186 to 60188): no attachment on the candidate has this trait, so one qualifier covers three differently
+ *   named cards, where `withoutAttachmentNamed` names a single card. Data only until the engine reads it
+ *   (`attachment-hosts.ts`).
  * - `keyword` / `withoutKeyword` (wave 2): "a non-permanent side scheme" is `withoutKeyword: "permanent"`. A keyword
  *   counts whether printed or gained (RRG 1.8 "Gains").
  * - `titleContains`: "a character with 'Spider' in its title" — a case-sensitive substring of the title the card is
@@ -199,6 +203,7 @@ export interface HostQualifiers {
   readonly trait?: Trait;
   readonly withoutTrait?: Trait;
   readonly withoutAttachmentNamed?: string;
+  readonly withoutAttachmentTrait?: Trait;
   readonly keyword?: KeywordName;
   readonly withoutKeyword?: KeywordName;
   readonly titleContains?: string;
