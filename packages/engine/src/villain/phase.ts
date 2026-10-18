@@ -437,10 +437,15 @@ export function executeRevealEncounterCards(ctx: Ctx, remainingPlayerIds: readon
 
 // RRG "Villain Phase" step 5: the first player token passes clockwise.
 export function executePassFirstPlayer(ctx: Ctx): void {
+  passFirstPlayerToken(ctx);
+  setStep(ctx, { phase: "villain", kind: "endOfRound" });
+}
+
+/** The first player token passes clockwise (step 5's own change, also read by a skipped villain phase's Q101 B). */
+export function passFirstPlayerToken(ctx: Ctx): void {
   const next = nextClockwisePlayer(ctx.state, ctx.state.firstPlayerId);
   if (next) {
     ctx.state = { ...ctx.state, firstPlayerId: next.playerId };
     emit(ctx, { type: "firstPlayerChanged", playerId: next.playerId });
   }
-  setStep(ctx, { phase: "villain", kind: "endOfRound" });
 }

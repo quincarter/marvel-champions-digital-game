@@ -3056,6 +3056,12 @@ export const on = {
    */
   phaseEnding: (phase: "player" | "villain"): EventPattern => pattern("phaseEnding", { eventIs: { phase } }),
   /**
+   * "When/After the round ends": the villain phase's end, or the round's end alone when its villain phase was skipped
+   * (`skipNextVillainPhase`, docs/phase7-wave11-hero-packs.md H3.7). `phaseEnding("villain")` is "when the villain phase
+   * ends", which a skipped phase never raises.
+   */
+  roundEnding: (): EventPattern => pattern("phaseEnding", { eventIs: { phase: ["villain", "round"] } }),
+  /**
    * "After resolving step one of the villain phase" (docs/phase7-wave3.md §3.2): a response-only window, once per
    * villain phase, regardless of how much threat step one placed or whether it placed any. Fixes the wave 2 bug
    * the same doc section names — None Shall Pass 1B, Hunting Down Heroes, The Mad Doctor 2B previously matched

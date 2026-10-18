@@ -275,6 +275,9 @@ export const UNDO_EVENT_VERDICTS: Readonly<Record<GameEvent["type"], readonly [V
   uniqueEntryBlocked: [ALLOWED, "the hero's own visible play"],
   villainAdded: [STOPS, "the villain changed"],
   villainFlipped: [STOPS, "the villain flipped"],
+  // A round with no villain phase (docs/phase7-wave11-hero-packs.md H3.7). Client follow-up: `view/phase-wipe.ts`
+  // still shows the villain wipe for a skipped round, whose round-end step reads `phase: "villain"`.
+  villainPhaseSkipped: [STOPS, "a round boundary"],
   villainRemoved: [STOPS, "the villain changed"],
   villainReplaced: [STOPS, "the villain changed"],
   villainRowSet: [STOPS, "the villain changed"],

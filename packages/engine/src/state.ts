@@ -873,8 +873,19 @@ export type GameStep =
       readonly remainingPlayerIds: readonly PlayerId[];
     }
   | { readonly phase: "villain"; readonly kind: "passFirstPlayer" }
-  /** `delayedResolved`: "at the end of the round" delayed effects have been fired (RRG "Lasting Effects"). */
-  | { readonly phase: "villain"; readonly kind: "endOfRound"; readonly delayedResolved?: boolean }
+  /**
+   * `delayedResolved`: "at the end of the round" delayed effects have been fired (RRG "Lasting Effects").
+   * `villainPhaseSkipped`: this round's villain phase was skipped (`EffectSpec skipNextVillainPhase`,
+   * docs/phase7-wave11-hero-packs.md H3.7). The step was reached straight from the player phase's end, steps one to
+   * five never ran, and the round's end is `phaseEnding { phase: "round" }`, not the villain phase's. The step's
+   * `phase` still reads `"villain"`, as the round's end does in every other round.
+   */
+  | {
+      readonly phase: "villain";
+      readonly kind: "endOfRound";
+      readonly delayedResolved?: boolean;
+      readonly villainPhaseSkipped?: true;
+    }
   | { readonly phase: "gameOver"; readonly kind: "gameOver" };
 
 export type GameOutcome =
@@ -962,6 +973,12 @@ export interface TableRules {
 export interface GameState {
   readonly round: number;
   readonly step: GameStep;
+  /**
+   * "Skip the next villain phase" (`EffectSpec skipNextVillainPhase`, docs/phase7-wave11-hero-packs.md H3.7): how many
+   * of the villain phases to come are skipped. Each player phase's end reads it; above 0, it counts one off and the
+   * round ends with no villain phase (`flow.ts` `finishPlayerPhase`). Absent is 0.
+   */
+  readonly villainPhasesToSkip?: number;
   readonly firstPlayerId: PlayerId;
   /**
    * The number of players who started the scenario, the one count every per player value reads (RRG 1.8 "Per Player

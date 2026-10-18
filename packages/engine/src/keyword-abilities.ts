@@ -20,13 +20,14 @@ export interface KeywordAbility {
 /**
  * RRG 1.8 "Temporary" (p. 44): "A card with temporary must be discarded from play at the end of the round", equivalent
  * to "Forced Interrupt: When the round ends, discard this card from play." The round ends with the villain phase
- * (`phaseEnding { phase: "villain" }`, `flow.ts` `executeEndOfRound`). docs/phase7-wave6.md §3.26.
+ * (`phaseEnding { phase: "villain" }`, `flow.ts` `executeEndOfRound`), or without one when it was skipped
+ * (`phase: "round"`, docs/phase7-wave11-hero-packs.md H3.7). docs/phase7-wave6.md §3.26.
  */
 export const TEMPORARY_ABILITY: KeywordAbility = {
   keyword: "temporary",
   abilityId: abilityId("keyword:temporary"),
   definition: {
-    trigger: { kind: "interrupt", forced: true, on: { on: "phaseEnding", eventIs: { phase: "villain" } } },
+    trigger: { kind: "interrupt", forced: true, on: { on: "phaseEnding", eventIs: { phase: ["villain", "round"] } } },
     effects: [{ kind: "discardFromPlay", target: { kind: "self" } }],
   },
 };

@@ -2404,6 +2404,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (holder) removeAccelerationToken(ctx, holder);
       return;
     }
+    case "skipNextVillainPhase":
+      // docs/phase7-wave11-hero-packs.md H3.7: read at the next player phase's end (`flow.ts` `finishPlayerPhase`).
+      ctx.state = { ...ctx.state, villainPhasesToSkip: (ctx.state.villainPhasesToSkip ?? 0) + 1 };
+      return;
     case "grantAdditionalMulligans": {
       // MC27 p. 22 node 5 (docs/phase7-wave5.md §3.27): read by the mulligan step (§3.26) when it reaches the player.
       const amount = Math.max(0, Math.trunc(effect.amount));

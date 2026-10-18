@@ -145,7 +145,7 @@ const collectorFrontInterrupt = () =>
 const collectorCannotBeDefeated = () => constant(rule({ kind: "cannotBeDefeated", target: { self: true } }));
 /** "Forced Interrupt: When the round ends, flip this card, then set Collector's hit point dial to his printed hit
  * points." — the dial reset is the engine's own rule on any flip into/out of an ∞ face (module docblock). */
-const collectorBackInterrupt = () => forcedInterrupt(on.phaseEnding("villain"), flipCard(self));
+const collectorBackInterrupt = () => forcedInterrupt(on.roundEnding(), flipCard(self));
 
 /** "When the last threat is removed from this scheme, advance to stage N (module docblock: response, not literal
  * interrupt timing, so the removal has actually applied before the check)." */

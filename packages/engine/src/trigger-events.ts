@@ -1714,8 +1714,12 @@ export type TriggerEventBody =
    * "at the end of the phase/round" delayed effects, which RRG 1.8 "Delayed Effect" (p. 15) places "immediately after
    * their specified timing point [...] and before responses". The Collector's and Hela's ∞ faces, Rogue Vessel (`gmw`),
    * Regroup (`drax`), Magical Enhancements (`drs`), the temporary keyword. Pushed only when an ability is listening.
+   *
+   * `"round"`: the round ends with no villain phase, which was skipped (`EffectSpec skipNextVillainPhase`,
+   * docs/phase7-wave11-hero-packs.md H3.7, Q101). "When the round ends" hears it (`eventIs: { phase: ["villain",
+   * "round"] }`, the DSL's `on.roundEnding()`, the temporary keyword); "when the villain phase ends" does not.
    */
-  | { readonly kind: "phaseEnding"; readonly phase: "player" | "villain" }
+  | { readonly kind: "phaseEnding"; readonly phase: "player" | "villain" | "round" }
   /**
    * "After resolving step one of the villain phase" (docs/phase7-wave3.md §3.2): 36 printed cards, among them
    * Terrestrial Invasion 1B, Protect the Planet 2B and Bombardment (`gmw`). Announced once step one's threat and its

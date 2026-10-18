@@ -2633,7 +2633,18 @@ export type EffectSpec =
   | {
       readonly kind: "applyRuleUntil";
       readonly rule: RuleSpec;
-      readonly until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn" | "endOfAttack" | "endOfPaidFor";
+      /**
+       * `"nextVillainPhaseBegins"` (`LastingDuration nextVillainPhaseBegins`, docs/phase7-wave8.md §3.13): ends as the
+       * next villain phase played begins; a skipped one never begins (docs/phase7-wave11-hero-packs.md H3.7, H3.8).
+       */
+      readonly until:
+        | "endOfPhase"
+        | "endOfRound"
+        | "endOfTurn"
+        | "endOfNextTurn"
+        | "endOfAttack"
+        | "endOfPaidFor"
+        | "nextVillainPhaseBegins";
       readonly player?: PlayerRef;
       /** With `until: "endOfAttack"`: the attack in progress (default) or the one this frame's `enemyAttack` begins. */
       readonly attack?: "current" | "initiated";
@@ -4506,6 +4517,15 @@ export type EffectSpec =
    * tokens on the main scheme cannot be removed from play", by the Golden Rules (p. 4) and "Cannot" (p. 11).
    */
   | { readonly kind: "removeAccelerationToken"; readonly from?: TargetRef }
+  /**
+   * "Skip the next villain phase." (Run Them to Ground's When Defeated; docs/phase7-wave11-hero-packs.md H3.7): adds 1
+   * to `GameState.villainPhasesToSkip`. At the next player phase's end the round goes straight to its end: no "villain
+   * phase begins" (so "until the next villain phase begins" lasts on to the next phase played), none of steps one to
+   * five, no "villain phase ends"; the round still ends (`phaseEnding { phase: "round" }`: temporary, "at/until the end
+   * of the round"). Cards dealt meanwhile wait for the next villain phase played (RRG 1.8 "Deal", p. 15). Q101 (open,
+   * default A): the first player token stays (`SKIPPED_VILLAIN_PHASE_PASSES_TOKEN`, `flow.ts`).
+   */
+  | { readonly kind: "skipNextVillainPhase" }
   /**
    * "During the Resolve Mulligans step of game setup, each player may take 1 additional mulligan" (MC27 p. 22
    * reputation node 5, as errata'd by RRG 1.8 p. 67; docs/phase7-wave5.md §3.27): adds `amount` to every player's

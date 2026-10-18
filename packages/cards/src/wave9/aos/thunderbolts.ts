@@ -221,7 +221,7 @@ export const THUNDERBOLTS: AbilityRegistry = defineAbilities({
     flipCard(self),
   ),
   "50131b.thunderbolt-backup-forced-interrupt": forcedInterrupt(
-    on.phaseEnding("villain"),
+    on.roundEnding(),
     bindTargets("tied", superlative("highest", each(THUNDERBOLT_MINIONS), damageOn(chosen("candidate")))),
     chooseTarget("most", { inSlot: "tied" }, { chooser: firstPlayer }),
     engage(HELD_HERE_OTHER_THAN_MOST, engagedPlayerOf(chosen("most"))),

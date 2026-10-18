@@ -49,7 +49,8 @@ export const DRAX_PACK_CARDS = defineAbilities({
     when.defeated(query("ally"), { byAttackFrom: query("enemy") }),
     setDefeatDestination("hand"),
   ),
-  // Regroup — Forced Interrupt: When the round ends, discard this card. The villain phase's end *is* the round's
-  // end (RRG 1.8 "Villain Phase", p. 47 step 6b; docs/phase7-wave3.md §3.2).
-  "19032.regroup-forced-interrupt": forcedInterrupt(on.phaseEnding("villain"), moveCards(cards(self), "discard")),
+  // Regroup — Forced Interrupt: When the round ends, discard this card: the villain phase's end, which *is* the round's
+  // end (RRG 1.8 "Villain Phase", p. 47 step 6b; docs/phase7-wave3.md §3.2), or the round's end alone after a skipped
+  // villain phase (docs/phase7-wave11-hero-packs.md H3.7).
+  "19032.regroup-forced-interrupt": forcedInterrupt(on.roundEnding(), moveCards(cards(self), "discard")),
 });

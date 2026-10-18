@@ -111,7 +111,7 @@ export const SCI_FI_ABILITIES = defineAbilities({
   // Forced Interrupt: At the end of the round (after the first player token is passed), the first player searches the
   // encounter deck and discard pile for a minion and puts it into play engaged with them. (Shuffle.)
   "39059.ice-teroid-m-forced-interrupt": forcedInterrupt(
-    on.phaseEnding("villain"),
+    on.roundEnding(),
     chooseCards("found", encounterCards(["deck", "discard"], query("minion")), {
       min: 1,
       max: 1,

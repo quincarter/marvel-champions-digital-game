@@ -1212,10 +1212,21 @@ export const blankTextBoxUntil = (target: TargetRef, until: LastingUntil): Effec
  * `"endOfPaidFor"` is "that attack" on a resource ability: the rule lasts until the ability or card the payment paid
  * for (slot `paidFor`) finishes resolving, so a later use is untouched (docs/phase7-wave6.md §3.30; see
  * `thatAttackGainsKeywords`).
+ *
+ * `"nextVillainPhaseBegins"` is "until the start of the next (unskipped) villain phase" (Run Them to Ground 61020;
+ * docs/phase7-wave11-hero-packs.md H3.8): the rule ends as the next villain phase played begins, and a skipped one
+ * (`skipNextVillainPhase`) never begins, so it lasts through it.
  */
 export const applyRuleUntil = (
   rule: RuleSpec,
-  until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn" | "endOfAttack" | "endOfPaidFor",
+  until:
+    | "endOfPhase"
+    | "endOfRound"
+    | "endOfTurn"
+    | "endOfNextTurn"
+    | "endOfAttack"
+    | "endOfPaidFor"
+    | "nextVillainPhaseBegins",
   player?: PlayerRef,
   options: { readonly attack?: "current" | "initiated" } = {},
 ): EffectSpec => ({
@@ -2382,6 +2393,12 @@ export const removeAccelerationToken = (from?: TargetRef): EffectSpec => ({
   kind: "removeAccelerationToken",
   ...(from ? { from } : {}),
 });
+/**
+ * "Skip the next villain phase." (Run Them to Ground 61020; docs/phase7-wave11-hero-packs.md H3.7): the next villain
+ * phase does not happen and the round ends straight after the player phase (engine `EffectSpec skipNextVillainPhase`;
+ * Q101 open, default A: the first player token stays). Cards dealt meanwhile wait for the next villain phase played.
+ */
+export const skipNextVillainPhase = (): EffectSpec => ({ kind: "skipNextVillainPhase" });
 /**
  * "Remove an acceleration token from play" (De-escalation 60024): the chooser (default the ability's controller) picks
  * a card in play holding one, any main scheme stage, in any game area, or an `acceleration` counter on another card,

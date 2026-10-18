@@ -132,6 +132,7 @@ export const PROBE_FIELDS: { readonly [K in keyof Required<GameState>]: "game" |
   round: "game",
   step: "game",
   firstPlayerId: "game",
+  villainPhasesToSkip: "game",
   startingPlayerCount: "game",
   players: "game",
   villains: "game",
