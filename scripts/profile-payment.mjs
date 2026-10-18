@@ -25,6 +25,7 @@
  *   --size <WxH>         Viewport (default 1280x800)
  *   --runs <n>           Runs per build, medians reported (default 5)
  *   --json <path>        Write every sample as JSON
+ *   --shots <dir>        Screenshot the pay step (picked, and a card's hover) on each build's last run
  *   --cpuprofile <dir>   Also write a CPU profile of each build's last run, from opening the pay step on
  */
 import { chromium } from "playwright";
@@ -47,6 +48,7 @@ function parse(argv) {
     runs: 5,
     json: null,
     cpuprofile: null,
+    shots: null,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -89,6 +91,9 @@ function parse(argv) {
         break;
       case "--json":
         options.json = value;
+        break;
+      case "--shots":
+        options.shots = value;
         break;
       case "--cpuprofile":
         options.cpuprofile = value;
@@ -259,7 +264,7 @@ const taskSeconds = async (cdp) =>
   (await cdp.send("Performance.getMetrics")).metrics.find((metric) => metric.name === "TaskDuration").value;
 
 /** One measured pass on one build: resume the save, open the pay step, tap each pick, press Pay. */
-async function run(browser, base, save, options, profilePath = null) {
+async function run(browser, base, save, options, profilePath = null, shotPrefix = null) {
   const [width, height] = options.size.split("x").map(Number);
   const context = await browser.newContext({ viewport: { width, height } });
   const page = await context.newPage();
@@ -354,6 +359,16 @@ async function run(browser, base, save, options, profilePath = null) {
     });
   }
   const pay = await waitFor(page, () => window.__mcBoardDebug.focusRect("payment:pay"), null, "the Pay button");
+  if (shotPrefix) {
+    await mkdir(path.dirname(shotPrefix), { recursive: true });
+    await page.screenshot({ path: `${shotPrefix}-picked.png` });
+    const last = await page.evaluate((id) => window.__mcBoardDebug.focusRect(`card:${id}`), options.picks.at(-1));
+    await page.mouse.move(...center(last));
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: `${shotPrefix}-hover.png` });
+    await page.mouse.move(1, 1);
+    await page.waitForTimeout(500);
+  }
   const closed = () =>
     window.__mcBoardDebug.paymentView() === null || window.__findText("confirm payment").length > 0
       ? performance.now()
@@ -404,7 +419,8 @@ if (options.makeSave) {
           options.cpuprofile && index === options.runs - 1
             ? path.join(options.cpuprofile, `${build.name}.cpuprofile`)
             : null;
-        samples[build.name].push(await run(browser, server.base, save, options, profile));
+        const shots = options.shots && index === options.runs - 1 ? path.join(options.shots, build.name) : null;
+        samples[build.name].push(await run(browser, server.base, save, options, profile, shots));
         process.stdout.write(".");
       }
     }
