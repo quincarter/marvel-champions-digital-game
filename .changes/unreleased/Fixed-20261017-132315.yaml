@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Opening the app, the Campaign saga and Decks & Collection no longer freezes for seconds on older devices: release builds skip the card-script check, art decodes off the main thread and arrives in one redraw, and deck checks are cached (#223)'
-time: 2026-10-17T13:23:15.0909551-04:00

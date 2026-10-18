@@ -1,3 +1,0 @@
-kind: Added
-body: The deck builder shows the card pool as card pictures (List view keeps the text rows), searches card text, warns before leaving unsaved changes, can delete a saved deck, and New deck picks a hero from searchable tiles and starts from an empty deck or a precon copy (#217).
-time: 2026-10-17T12:19:16.7295218-04:00

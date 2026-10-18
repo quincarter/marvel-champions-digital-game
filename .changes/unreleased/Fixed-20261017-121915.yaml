@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Editing a precon now edits your own copy: saving it adds a new deck instead of silently keeping the precon, and decks saved the old way are repaired into their own decks (#217).'
-time: 2026-10-17T12:19:15.0076237-04:00
