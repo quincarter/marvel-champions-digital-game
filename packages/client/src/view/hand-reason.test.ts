@@ -4,6 +4,7 @@ import { NEUTRAL_PLAY_TAG, noTargetTag } from "./hand-reason.js";
 /** Every `no_valid_target` play message in `packages/engine/src/actions.ts` (and `attach-cost.ts`) this tag knows. */
 const MAPPED: readonly (readonly [string, string])[] = [
   ["play only if your identity has the Hero trait", "needs Hero"],
+  ["Prerequisite: your identity must have the DEFENDER trait", "needs DEFENDER"],
   ["play only if you control a Avenger character", "needs Avenger in play"],
   ["play only if you control an Elite character", "needs Elite in play"],
   ["this card's play restriction is not met", "restricted"],

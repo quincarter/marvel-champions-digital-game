@@ -1115,6 +1115,8 @@ export function grantedAttackKeywords(
   attackerId: InstanceId,
   viaId: InstanceId | null,
   basic = false,
+  /** The attacked character, when known; a rule scoped by `target` grants nothing without it. */
+  targetId: InstanceId | null = null,
 ): readonly AttackKeyword[] {
   const granted: AttackKeyword[] = [];
   for (const { rule, context } of activeRules(state, deps, "attackKeywords")) {
@@ -1122,9 +1124,31 @@ export function grantedAttackKeywords(
     if (rule.via && (viaId === null || !matchesQuery(state, viaId, rule.via, context))) continue;
     // "Your *basic* attacks gain piercing": an attack made by a card's ability is not one, whoever makes it.
     if (rule.basicOnly === true && !basic) continue;
+    // "Attacks against attached minion gain overkill" (docs/phase7-wave11-hero-packs.md §H3.15).
+    if (rule.target && (targetId === null || !matchesQuery(state, targetId, rule.target, context))) continue;
     for (const keyword of rule.keywords) if (!granted.includes(keyword)) granted.push(keyword);
   }
   return granted;
+}
+
+/**
+ * The additional damage an attack by `attackerId` deals to `targetId` under `attacksDealExtraDamage` rules ("Attacks
+ * against attached minion deal 2 additional damage", docs/phase7-wave11-hero-packs.md §H3.15): the sum of every
+ * matching rule's amount, 0 with none.
+ */
+export function attackExtraDamageAgainst(
+  state: GameState,
+  deps: EngineDeps,
+  attackerId: InstanceId,
+  targetId: InstanceId,
+): number {
+  let extra = 0;
+  for (const { rule, context } of activeRules(state, deps, "attacksDealExtraDamage")) {
+    if (!matchesQuery(state, targetId, rule.target, context)) continue;
+    if (rule.attacker && !matchesQuery(state, attackerId, rule.attacker, context)) continue;
+    extra += Math.max(0, rule.amount);
+  }
+  return extra;
 }
 
 /**

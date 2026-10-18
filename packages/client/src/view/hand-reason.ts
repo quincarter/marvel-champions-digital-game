@@ -23,6 +23,8 @@ export function noTargetTag(message: string): string {
   if (exact) return exact;
   const identityTrait = /^play only if your identity has the (.+) trait$/i.exec(message);
   if (identityTrait) return `needs ${identityTrait[1]}`;
+  const prerequisite = /^prerequisite: your identity must have the (.+) trait$/i.exec(message);
+  if (prerequisite) return `needs ${prerequisite[1]}`;
   const controlled = /^play only if you control an? (.+) character$/i.exec(message);
   if (controlled) return `needs ${controlled[1]} in play`;
   if (/^nothing in play to /i.test(message)) return "no target";

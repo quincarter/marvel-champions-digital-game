@@ -360,7 +360,8 @@ export interface AttackKeywordContext {
   readonly vars?: Readonly<Record<string, number>>;
   /**
    * The character the attack is against, when the caller knows it: the keywords attacks lose against that character
-   * are left out (`attacksLoseKeywords`, docs/phase7-wave10.md §3.18). Absent: what the attack has against a
+   * are left out (`attacksLoseKeywords`, docs/phase7-wave10.md §3.18), and those attacks against it gain are added
+   * (`attackKeywords.target`, docs/phase7-wave11-hero-packs.md §H3.15). Absent: what the attack has against a
    * character with no such rule, which is what "when you make a ranged attack" reads.
    */
   readonly targetInstanceId?: InstanceId | null;
@@ -385,7 +386,14 @@ export function attackKeywordsOf(
   attack: AttackKeywordContext,
 ): readonly AttackKeyword[] {
   const via = attack.viaInstanceId ?? null;
-  const fromRules = grantedAttackKeywords(state, deps, attack.attackerInstanceId, via, attack.basic === true);
+  const fromRules = grantedAttackKeywords(
+    state,
+    deps,
+    attack.attackerInstanceId,
+    via,
+    attack.basic === true,
+    attack.targetInstanceId ?? null,
+  );
   const lost = attack.targetInstanceId ? lostAttackKeywords(state, deps, attack.targetInstanceId) : [];
   return ATTACK_KEYWORDS.filter(
     (name) =>

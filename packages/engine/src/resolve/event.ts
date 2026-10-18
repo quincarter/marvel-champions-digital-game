@@ -72,6 +72,7 @@ import {
   damageUsedStat,
   lostAttackKeywords,
   statUsedInPlaceOf,
+  attackExtraDamageAgainst,
 } from "../rules.js";
 import {
   actingCharacterOf,
@@ -2368,8 +2369,12 @@ function applyPlayerAttack(
     : (event.amount ?? (profile === undefined ? undefined : Math.max(0, profile.atk + atkBonus)));
   if (computed === undefined) return;
   // "This attack deals 3 additional damage" (`modifyAttack.extraDamage`, docs/phase7-wave6.md §3.29): added after the
-  // amount is computed (ATK, or the effect's amount with its `cardEffectBonus`), to this attack only.
-  const extra = attackFrame?.kind === "event" ? (attackFrame.vars.extraDamage ?? 0) : 0;
+  // amount is computed (ATK, or the effect's amount with its `cardEffectBonus`), to this attack only. "Attacks against
+  // attached minion deal 2 additional damage" (`attacksDealExtraDamage`, docs/phase7-wave11-hero-packs.md §H3.15) is
+  // added the same way, for this target.
+  const extra =
+    (attackFrame?.kind === "event" ? (attackFrame.vars.extraDamage ?? 0) : 0) +
+    attackExtraDamageAgainst(ctx.state, ctx.deps, event.attackerInstanceId, event.targetInstanceId);
   const amount = Math.max(0, computed + extra);
   // "Uses their ATK to attack and damage" (docs/phase7-wave10.md §3.17): the attack in progress records the stat its
   // damage is dealt with, and that damage carries it (ruling December 17, 2025 (2) #3).

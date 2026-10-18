@@ -264,6 +264,7 @@ function attackCanDamage(
     viaInstanceId: via,
     basic: false,
     ...(effect.keywords ? { keywords: effect.keywords } : {}),
+    targetInstanceId: id,
   });
   // Piercing that would discard the target's tough card affects it whether or not it can take the damage.
   if (attackPiercesTough(state, deps, id, has)) return true;

@@ -760,6 +760,8 @@ export function playRestrictionFault(
 ): PriceFault | null {
   const teamUp = teamUpFault(state, card);
   if (teamUp) return teamUp;
+  const prerequisite = prerequisiteFault(state, deps, playerId, card);
+  if (prerequisite) return prerequisite;
   // "Play only if you control an Element Gun": RRG 1.8 "Initiating Abilities" (p. 24) step 2, the card not in play.
   const context: EffectContext = {
     selfInstanceId: instanceId,
@@ -798,6 +800,35 @@ export function playRestrictionFault(
     ];
     if (!characters.some((id) => traitsOf(state, id, deps).includes(characterTrait))) {
       return { code: "no_valid_target", message: `play only if you control a ${characterTrait} character` };
+    }
+  }
+  return null;
+}
+
+/**
+ * Prerequisite (form or trait), Fear No Evil rulebook p. 3 (docs/phase7-wave11-hero-packs.md §H3.18): "In order for a
+ * player to play a card with prerequisite …, their identity must be in the specified form … or have the specified
+ * trait." A play restriction only, read for the playing player's identity (traits printed or gained, RRG 1.8 "Gains"),
+ * so a card put into play is not asked (RRG 1.8 "Put into Play", p. 32). `traits` is an OR: any one of them meets it.
+ * A keyword naming both a form and traits asks for both: no printed card does yet, and the rulebook words each card as
+ * naming one (engine reading, flagged).
+ */
+function prerequisiteFault(state: GameState, deps: EngineDeps, playerId: PlayerId, card: AnyCard): PriceFault | null {
+  const keyword = "keywords" in card ? card.keywords.find((k) => k.name === "prerequisite") : undefined;
+  if (keyword?.name !== "prerequisite") return null;
+  const player = mustPlayer(state, playerId);
+  if (keyword.form !== undefined && player.identity.form !== keyword.form) {
+    const form = keyword.form === "hero" ? "hero" : "alter-ego";
+    return { code: "wrong_form", message: `Prerequisite: your identity must be in ${form} form` };
+  }
+  const traits = keyword.traits ?? [];
+  if (traits.length > 0) {
+    const have = traitsOf(state, player.identity.instanceId, deps);
+    if (!traits.some((t) => have.includes(t))) {
+      return {
+        code: "no_valid_target",
+        message: `Prerequisite: your identity must have the ${traits.join(" or ")} trait`,
+      };
     }
   }
   return null;

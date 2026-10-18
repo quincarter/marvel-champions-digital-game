@@ -336,7 +336,7 @@ import { type Ctx, emit, findFrame, updateFrame } from "../ctx.js";
 import type { AbilityDefinition, EngineDeps } from "../abilities.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { attackKeywordsOf } from "../keywords.js";
-import { lostAttackKeywords } from "../rules.js";
+import { attackExtraDamageAgainst, lostAttackKeywords } from "../rules.js";
 import {
   canAttack,
   cardsInPlay,
@@ -1269,8 +1269,11 @@ export function abilityAttackDamage(
     // "This attack deals N additional damage" (`modifyAttack.extraDamage` on the attack's frame) increases each
     // instance of the attack's damage (RRG 1.8 "Attack (Player Ability Type)", p. 10; owner ruling Q53): the attack's
     // own damage (`applyPlayerAttack`) and each later instruction's, through here. The caller leaves it off an
-    // instruction that is itself additional damage (`dealDamage.additional`).
-    extra: Math.max(0, attack.vars.extraDamage ?? 0),
+    // instruction that is itself additional damage (`dealDamage.additional`). "Attacks against attached minion deal 2
+    // additional damage" (`attacksDealExtraDamage`, docs/phase7-wave11-hero-packs.md §H3.15) is added the same way.
+    extra:
+      Math.max(0, attack.vars.extraDamage ?? 0) +
+      attackExtraDamageAgainst(state, deps, event.attackerInstanceId, targetId),
     damage: {
       sourceInstanceId: event.attackerInstanceId,
       fromAttack: true,

@@ -56,6 +56,7 @@ import {
   schemeActivationDestination,
   cannotDefend,
   defendsWithoutExhausting,
+  attackExtraDamageAgainst,
 } from "../rules.js";
 import { canAttack, cardsInPlay, controllerOf, DEFENDER_SLOT, evaluate, isAlly } from "../select.js";
 import { currentActivationFrameId, type Vars } from "../stack.js";
@@ -897,10 +898,13 @@ export function applyEnemyAttacksEnemy(
     ...(attackFrame?.kind === "event" ? { vars: attackFrame.vars } : {}),
     targetInstanceId: target,
   });
-  const amount = Math.max(
-    0,
-    profile.atk + (attackFrame?.kind === "event" ? (attackFrame.vars.atkBonus ?? 0) : 0) + (boostIcons ?? 0),
-  );
+  // "Attacks against attached minion deal 2 additional damage" (`attacksDealExtraDamage`,
+  // docs/phase7-wave11-hero-packs.md §H3.15): added once the attack's ATK and boost are totalled.
+  const amount =
+    Math.max(
+      0,
+      profile.atk + (attackFrame?.kind === "event" ? (attackFrame.vars.atkBonus ?? 0) : 0) + (boostIcons ?? 0),
+    ) + attackExtraDamageAgainst(ctx.state, ctx.deps, attacker, target);
   emit(ctx, {
     type: "enemyAttackedEnemy",
     attackerInstanceId: attacker,

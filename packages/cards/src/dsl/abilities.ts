@@ -2052,6 +2052,9 @@ export const playWithTopOfEncounterDeckFaceup = (opts: { readonly while?: Predic
  * the game and no villain attack; pair it with `attacker` to scope to "your" basic attacks specifically. `via`
  * already excludes a basic attack (a basic attack's own `viaId` is null); `basicOnly` is the opposite requirement —
  * excluding an event-sourced attack — which `via` alone cannot say.
+ *
+ * `target`: "attacks **against attached minion** … gain overkill" (Cruisin' for a Bruisin' 62009;
+ * docs/phase7-wave11-hero-packs.md §H3.15) — matches the attacked character, the mirror of `attacksLoseKeywords`.
  */
 export const attacksGainKeywords = (
   keywords: readonly AttackKeyword[],
@@ -2060,6 +2063,7 @@ export const attacksGainKeywords = (
     readonly via?: TargetQuery;
     readonly while?: Predicate;
     readonly basicOnly?: boolean;
+    readonly target?: TargetQuery;
   } = {},
 ): ConstantPart => ({
   rules: [
@@ -2068,6 +2072,7 @@ export const attacksGainKeywords = (
       keywords,
       ...(opts.attacker ? { attacker: opts.attacker } : {}),
       ...(opts.via ? { via: opts.via } : {}),
+      ...(opts.target ? { target: opts.target } : {}),
       ...(opts.while ? { while: opts.while } : {}),
       ...(opts.basicOnly ? { basicOnly: true } : {}),
     },
@@ -2086,6 +2091,28 @@ export const attacksLoseKeywords = (
   opts: { readonly target: TargetQuery; readonly while?: Predicate },
 ): ConstantPart => ({
   rules: [{ kind: "attacksLoseKeywords", keywords, target: opts.target, ...(opts.while ? { while: opts.while } : {}) }],
+});
+/**
+ * "Attacks against attached minion deal 2 additional damage" (Cruisin' for a Bruisin' 62009;
+ * docs/phase7-wave11-hero-packs.md §H3.15): `attacksDealAdditionalDamage(2, { target: { hostOfSelf: true } })`. A
+ * player's attack, and an enemy's attack on another enemy, deal `amount` more to each instance of attack damage dealt
+ * to a character matching `target`, added as "this attack deals N additional damage" is. `attacker` narrows it to
+ * attacks by a matching character. Not read for an enemy's attack on a hero or ally (62009 only attaches to
+ * minions; `RuleSpec attacksDealExtraDamage`). Pair it with `attacksGainKeywords([…], { target })` for "… and gain overkill".
+ */
+export const attacksDealAdditionalDamage = (
+  amount: number,
+  opts: { readonly target: TargetQuery; readonly attacker?: TargetQuery; readonly while?: Predicate },
+): ConstantPart => ({
+  rules: [
+    {
+      kind: "attacksDealExtraDamage",
+      amount,
+      target: opts.target,
+      ...(opts.attacker ? { attacker: opts.attacker } : {}),
+      ...(opts.while ? { while: opts.while } : {}),
+    },
+  ],
 });
 /** "Double the number of resources this card generates while paying for an [aspect] card." */
 export const doublesResourcesWhilePayingFor = (whilePayingFor: TargetQuery): ConstantPart => ({

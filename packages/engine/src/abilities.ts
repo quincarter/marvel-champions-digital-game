@@ -1473,7 +1473,12 @@ export type RuleSpec =
    *   its ATK, which is exactly what `attack.basic` records, so an attack an event or ability makes is excluded even
    *   when the same character makes it. The mirror of `via`, which excludes a basic attack rather than requiring one.
    *
-   * All three are optional and ANDed. A rule with none of them grants the keyword to every attack in the game, which
+   * - `target` matches the **attacked** character ("attacks against attached minion … gain overkill", Cruisin' for a
+   *   Bruisin' 62009; docs/phase7-wave11-hero-packs.md §H3.15), the mirror of `attacksLoseKeywords.target`. It is read
+   *   only where the attacked character is known (`AttackKeywordContext.targetInstanceId`: as the attack's damage is
+   *   made), so a rule with `target` never answers "when you make an overkill attack" before a target is in hand.
+   *
+   * All four are optional and ANDed. A rule with none of them grants the keyword to every attack in the game, which
    * no card does; `@mc/cards` should always set at least one.
    */
   | {
@@ -1482,6 +1487,26 @@ export type RuleSpec =
       readonly attacker?: TargetQuery;
       readonly via?: TargetQuery;
       readonly basicOnly?: boolean;
+      readonly target?: TargetQuery;
+      readonly while?: Predicate;
+    }
+  /**
+   * "Attacks against attached minion deal 2 additional damage" (Cruisin' for a Bruisin' 62009;
+   * docs/phase7-wave11-hero-packs.md §H3.15): while it applies, a player's attack (basic, or made by a card's ability)
+   * and an enemy's attack on another enemy deal `amount` more damage to a character matching `target`, added where
+   * `modifyAttack.extraDamage` is: after the attack's amount is computed, to each instance of attack damage dealt to
+   * that character (owner ruling Q53). `attacker` narrows it to attacks by a matching character. Several matching
+   * rules add up.
+   *
+   * Not read for an enemy's attack on a hero or ally (RRG 1.8 "Attack (Enemy Activation)", p. 9): 62009 only attaches
+   * to minions, so no card needs it yet; a card that does should settle whether "against" there means the attacked
+   * character or the defender.
+   */
+  | {
+      readonly kind: "attacksDealExtraDamage";
+      readonly amount: number;
+      readonly target: TargetQuery;
+      readonly attacker?: TargetQuery;
       readonly while?: Predicate;
     }
   /**
