@@ -102,3 +102,12 @@ describe("the desktop app's Window section", () => {
     expect(sections.map((s) => s.id)).not.toContain("window");
   });
 });
+
+describe("Music volume (#243)", () => {
+  test("sits in Sound between Sound and Shuffle on a desktop form factor, and is left out elsewhere", () => {
+    const sound = (musicVolume: boolean) =>
+      settingsSectionsOf({ guideRowIds, cardHover: musicVolume, musicVolume }).find((s) => s.id === "sound")!.items;
+    expect(sound(true)).toEqual(["sound", "music-volume", "music-shuffle"]);
+    expect(sound(false)).toEqual(["sound", "music-shuffle"]);
+  });
+});

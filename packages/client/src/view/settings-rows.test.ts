@@ -8,6 +8,8 @@ import {
   nextGuidePrefsAfterRow,
   nextSettingsAfterToggle,
   cardHoverRowInfoOf,
+  musicVolumeRowInfoOf,
+  nextSettingsAfterMusicVolume,
   cardSizeRowInfoOf,
   nextSettingsAfterCardSize,
   nextSettingsAfterCardHover,
@@ -352,5 +354,21 @@ describe("Window mode and Resolution (desktop app)", () => {
     const detail = resolutionRowInfoOf(settings, []).detail;
     expect(detail).toMatch(/black bars/);
     expect(detail).toMatch(/display resolution is never changed/);
+  });
+});
+
+describe("musicVolumeRowInfoOf (#243)", () => {
+  test("offers Off to 100% in quarters, selecting the step nearest the volume", () => {
+    const row = (musicVolume: number) => musicVolumeRowInfoOf({ ...defaultSettings(), musicVolume });
+    expect(row(100).options.map((o) => o.label)).toEqual(["Off", "25%", "50%", "75%", "100%"]);
+    expect(row(100).selected).toBe("100");
+    expect(row(43).selected).toBe("50");
+    expect(row(0).selected).toBe("0");
+  });
+
+  test("a step sets the volume; anything else changes nothing", () => {
+    expect(nextSettingsAfterMusicVolume(defaultSettings(), "25").musicVolume).toBe(25);
+    const settings = defaultSettings();
+    expect(nextSettingsAfterMusicVolume(settings, "33" as never)).toBe(settings);
   });
 });

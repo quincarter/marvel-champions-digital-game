@@ -4,9 +4,9 @@ import { openApp, type Rect } from "./wave6-helpers-b.js";
 import { SHOT } from "./x-men-helpers.js";
 
 /**
- * Issue #243: the music player has Pause (Play while paused) and a volume slider with − and +. The volume is kept
- * between launches; a press along the slider sets it there. On a phone a swipe of the song list that lifts over the
- * player's controls presses none of them (issue #227's rule).
+ * Issue #243: the music player has Pause (Play while paused) and, on a desktop form factor, a volume slider with − and
+ * +. The volume is kept between launches; a press along the slider sets it there. A phone has Pause only (its own
+ * volume buttons set the loudness), and a swipe of the song list that lifts over Pause presses nothing (issue #227).
  */
 
 interface PlayerDebug {
@@ -52,7 +52,7 @@ async function openPlayer(page: Page, phone: boolean): Promise<void> {
     "the music player opens",
     15_000,
   );
-  await waitFor(() => player(page, "volumeRect"), "the volume slider", 15_000);
+  await waitFor(() => player(page, "stopRect", "pause"), "the Pause button", 15_000);
   await settle(page);
 }
 
@@ -81,6 +81,19 @@ test("issue #243: Pause, and a music volume that is kept between launches", asyn
   await press(page, phone, centre(pause));
   await waitFor(async () => ((await player(page, "paused")) ? true : null), "the music pauses", 5_000);
 
+  if (phone) {
+    expect(await player(page, "volumeRect"), "no volume slider on a phone").toBeNull();
+    expect(await player(page, "stopRect", "volume-up")).toBeNull();
+    if (SHOT) await page.screenshot({ path: `${SHOT}/music-volume-pause-phone.png` });
+    // A swipe up the song list that lifts over Pause presses nothing.
+    const list = (await player(page, "listRect"))!;
+    const over = centre((await player(page, "stopRect", "pause"))!);
+    await swipe(page, { x: over.x, y: list.y + list.height - 40 }, over);
+    await settle(page);
+    expect(await player(page, "paused"), "a swipe that lifted on Pause did not press it").toBe(true);
+    return;
+  }
+
   // A press a quarter of the way along the slider sets the volume to about a quarter.
   const track = (await player(page, "volumeRect"))!;
   // The zone runs a knob's radius past each end of the track.
@@ -105,17 +118,6 @@ test("issue #243: Pause, and a music volume that is kept between launches", asyn
   );
   const saved = (await player(page, "volume"))!;
   if (SHOT) await page.screenshot({ path: `${SHOT}/music-volume-pause-${info.project.name}.png` });
-
-  if (phone) {
-    // A swipe up the song list that lifts over Pause presses nothing.
-    const list = (await player(page, "listRect"))!;
-    const paused = await player(page, "paused");
-    const over = centre((await player(page, "stopRect", "pause"))!);
-    await swipe(page, { x: over.x, y: list.y + list.height - 40 }, over);
-    await settle(page);
-    expect(await player(page, "paused"), "a swipe that lifted on Pause did not press it").toBe(paused);
-    expect(await player(page, "volume")).toBe(saved);
-  }
 
   // A fresh launch keeps the volume; the pause is for the session.
   await openApp(page);

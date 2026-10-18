@@ -10,6 +10,7 @@ export type SettingsItemId =
   | SettingsRowId
   | "card-size"
   | "card-hover"
+  | "music-volume"
   | "token-motion"
   | "display-mode"
   | "resolution"
@@ -33,12 +34,14 @@ export interface SettingsSection {
 
 /**
  * The sections, top to bottom. `guideRowIds` is the Guide group's rows in draw order (`guideRowInfoOf`), which grows
- * with the hint warnings. `cardHover` is false off desktop, where there is no mouse popover to size. `desktopWindow` is
+ * with the hint warnings. `cardHover` is false off desktop, where there is no mouse popover to size. `musicVolume` is
+ * true on a desktop form factor only (#243): a phone or tablet player uses the device's own volume. `desktopWindow` is
  * true only in the desktop app, the one build that can change its own window; the Window section is left out elsewhere.
  */
 export function settingsSectionsOf(input: {
   readonly guideRowIds: readonly GuideSettingsRowId[];
   readonly cardHover: boolean;
+  readonly musicVolume?: boolean;
   readonly desktopWindow?: boolean;
   /** SteamOS or Bazzite: a Steam Deck row in the Window section. */
   readonly steamDeck?: boolean;
@@ -67,7 +70,11 @@ export function settingsSectionsOf(input: {
         ]
       : []),
     { id: "motion", title: "Animation and display", items: ["reduced-motion", "token-motion", "sharper-text"] },
-    { id: "sound", title: "Sound", items: ["sound", "music-shuffle"] },
+    {
+      id: "sound",
+      title: "Sound",
+      items: ["sound", ...(input.musicVolume ? (["music-volume"] as const) : []), "music-shuffle"],
+    },
     { id: "guide", title: "Guide", items: input.guideRowIds },
     { id: "more", title: "More", items: ["unlocks", "save-data", "rules"] },
   ];

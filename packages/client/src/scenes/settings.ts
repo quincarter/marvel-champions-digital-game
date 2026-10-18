@@ -31,6 +31,8 @@ import {
   guideRowDetailOf,
   nextGuidePrefsAfterRow,
   cardHoverRowInfoOf,
+  musicVolumeRowInfoOf,
+  nextSettingsAfterMusicVolume,
   cardSizeRowInfoOf,
   displayModeRowInfoOf,
   nextSettingsAfterCardSize,
@@ -294,6 +296,7 @@ export class SettingsOverlay extends Phaser.Scene {
     const tabs = settingsTabsOf({
       guideRowIds: guideRows.map((row) => row.id),
       cardHover: formFactorFor(width, height) === "desktop",
+      musicVolume: formFactorFor(width, height) === "desktop",
       desktopWindow: hasDesktopWindow(),
       steamDeck: onHandheldLinux(),
     });
@@ -406,6 +409,12 @@ export class SettingsOverlay extends Phaser.Scene {
       });
     };
     segmented("card-hover", cardHoverRowInfoOf(settings), CARD_HOVER_CONTROL_WIDTH, (v) => this.#setCardHover(v));
+    segmented("music-volume", musicVolumeRowInfoOf(settings), CARD_HOVER_CONTROL_WIDTH, (v) => {
+      const next = nextSettingsAfterMusicVolume(appSession().settings, v);
+      appSession().music?.syncSettings(next);
+      appSession().settings = next;
+      this.#draw();
+    });
     segmented("card-size", cardSizeRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => this.#setCardSize(v));
     segmented("token-motion", tokenMotionRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => this.#setTokenMotion(v));
     if (hasDesktopWindow()) {

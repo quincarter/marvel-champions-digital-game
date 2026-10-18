@@ -21,6 +21,7 @@ import {
   DISPLAY_MODE_VALUES,
   FIRST_PLAYER_TOKEN_MOTION_VALUES,
   SHARP_TEXT_RESOLUTION_CEILING,
+  clampMusicVolume,
   resolutionPixelsOf,
   type CardHoverScale,
   type CardSize,
@@ -374,6 +375,39 @@ export const CARD_HOVER_SCALE_LABELS: Readonly<Record<CardHoverScale, string>> =
   "3x": "3×",
   "4x": "4×",
 };
+
+// ---------------------------------------------------------------------------
+// "Music volume" (#243): the music's loudness, desktop form factor only, beside the music player's own slider.
+// ---------------------------------------------------------------------------
+
+export const MUSIC_VOLUME_STEPS = ["0", "25", "50", "75", "100"] as const;
+export type MusicVolumeStep = (typeof MUSIC_VOLUME_STEPS)[number];
+
+export interface MusicVolumeRowInfo {
+  readonly title: string;
+  readonly detail: string;
+  readonly options: readonly { readonly value: MusicVolumeStep; readonly label: string }[];
+  /** The step nearest the volume set (the music player's slider sets any whole percent). */
+  readonly selected: MusicVolumeStep;
+}
+
+export function musicVolumeRowInfoOf(settings: Settings): MusicVolumeRowInfo {
+  const volume = clampMusicVolume(settings.musicVolume);
+  const selected = MUSIC_VOLUME_STEPS.reduce((best, step) =>
+    Math.abs(Number(step) - volume) < Math.abs(Number(best) - volume) ? step : best,
+  );
+  return {
+    title: "Music volume",
+    detail: "How loud the music plays. The music player's slider sets it finer. Sound effects keep their own level.",
+    options: MUSIC_VOLUME_STEPS.map((value) => ({ value, label: value === "0" ? "Off" : `${value}%` })),
+    selected,
+  };
+}
+
+/** `settings` with the music volume set to a step; a value that is not a step changes nothing. */
+export function nextSettingsAfterMusicVolume(settings: Settings, value: MusicVolumeStep): Settings {
+  return MUSIC_VOLUME_STEPS.includes(value) ? { ...settings, musicVolume: Number(value) } : settings;
+}
 
 export interface CardHoverRowInfo {
   readonly title: string;

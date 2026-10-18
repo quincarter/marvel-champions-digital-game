@@ -6,7 +6,8 @@
  * Compact: an ink strip (the note, the song, what is playing it), then Shuffle and Next under it.
  * Expanded: a taller ink block with the song in Bangers and a progress bar; Shuffle and Next stand at its right on a
  * wide screen, and under it on a phone.
- * Either way the last row is Pause (or Play) and the music volume slider with its − and + (#243). The volume is a
+ * Either way the last row is Pause (or Play) and, on a desktop form factor only, the music volume slider with its −
+ * and + (#243): a phone or tablet player uses the device's own volume. The volume is a
  * setting (`Settings.musicVolume`), heard as the slider moves and saved when it is let go; the pause is the music
  * controller's, for this session.
  */
@@ -15,7 +16,7 @@ import { accent, ink, signal, surface, typeRole, type TypeSpec } from "../tokens
 import { appSession } from "../session.js";
 import { clockOf, nowPlayingTitleOf, steppedVolume, volumeAtTrack, type PlayerSong } from "../view/music-player.js";
 import { clampMusicVolume } from "../settings.js";
-import type { Rect } from "../view/layout.js";
+import { formFactorFor, type Rect } from "../view/layout.js";
 import { bangers } from "./campaign-chrome.js";
 import { drawMusicIcon } from "./music-icon.js";
 import { textStyle } from "./theme.js";
@@ -190,7 +191,9 @@ export function drawNowPlayingPanel(
 
   // Pause and the volume, on the row under everything else.
   const rowY = y + nowPlayingPanelHeight(expanded, width) - CONTROL;
-  const volume = drawVolumeRow(scene, { x, y: rowY, width }, options.onChange);
+  const { width: screenWidth, height: screenHeight } = scene.scale.gameSize;
+  const desktop = formFactorFor(screenWidth, screenHeight) === "desktop";
+  const volume = drawVolumeRow(scene, { x, y: rowY, width }, desktop, options.onChange);
   buttons.push(...volume.buttons);
   return {
     height: nowPlayingPanelHeight(expanded, width),
@@ -206,17 +209,38 @@ export function drawNowPlayingPanel(
 
 /**
  * Pause (Play while paused), then − , the slider and + with the percent. A press anywhere on the track sets the volume
- * there and a drag moves it, heard as it goes; letting go saves it. − and + step it by `MUSIC_VOLUME_STEP` (`steppedVolume`), and are the
- * keyboard's way to it.
+ * there and a drag moves it, heard as it goes; letting go saves it. − and + step it by `MUSIC_VOLUME_STEP`
+ * (`steppedVolume`), and are the keyboard's way to it. Without the slider (off a desktop form factor), Pause alone
+ * takes the row.
  */
 function drawVolumeRow(
   scene: Phaser.Scene,
   row: { readonly x: number; readonly y: number; readonly width: number },
+  withSlider: boolean,
   onChange: () => void,
 ): { readonly buttons: McButton[]; readonly stops: NowPlayingPanel["stops"] } {
   const session = appSession();
   const music = session.music;
   const paused = music?.paused() ?? false;
+  const togglePause = (): void => {
+    if (!music) return;
+    if (music.paused()) music.resume();
+    else music.pause();
+    onChange();
+  };
+  const pauseButton = (rect: Rect): McButton =>
+    new McButton(scene, {
+      kind: "secondary",
+      label: paused ? "▶ Play" : "❚❚ Pause",
+      type: BUTTON_TYPE,
+      rect,
+      selected: paused,
+      onClick: togglePause,
+    });
+  if (!withSlider) {
+    const rect: Rect = { x: row.x, y: row.y, width: row.width, height: CONTROL };
+    return { buttons: [pauseButton(rect)], stops: [{ id: "pause", rect, activate: togglePause }] };
+  }
   // A wide screen (Extras' Music tab) keeps the slider a hand's width, not the whole screen's.
   const width = Math.min(row.width, VOLUME_ROW_MAX);
   const pauseRect: Rect = { x: row.x, y: row.y, width: PAUSE_WIDTH, height: CONTROL };
@@ -266,22 +290,9 @@ function drawVolumeRow(
   zone.on("dragend", () => set(shown, true));
   zone.on("pointerup", () => set(shown, true));
 
-  const togglePause = (): void => {
-    if (!music) return;
-    if (music.paused()) music.resume();
-    else music.pause();
-    onChange();
-  };
   const step = (direction: -1 | 1): void => set(steppedVolume(shown, direction), true);
   const buttons = [
-    new McButton(scene, {
-      kind: "secondary",
-      label: paused ? "▶ Play" : "❚❚ Pause",
-      type: BUTTON_TYPE,
-      rect: pauseRect,
-      selected: paused,
-      onClick: togglePause,
-    }),
+    pauseButton(pauseRect),
     new McButton(scene, {
       kind: "quiet",
       label: "−",

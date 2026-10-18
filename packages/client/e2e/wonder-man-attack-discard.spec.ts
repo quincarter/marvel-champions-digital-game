@@ -7,7 +7,8 @@ import { SHOT, boardText, boardUp, facts, pressCard, press, waitForBoardText } f
 /**
  * Issue #242: Wonder Man (03014, "As an additional cost for Wonder Man to attack, you must discard 1 card from your
  * hand") attacked and the first card in hand went to the discard pile without a question. Now the attack opens the
- * discard bar over the hand, and the card picked is the one discarded. The dev game (`store/dev-in-play-cost-games.ts`)
+ * discard bar over the hand, and the card picked is the one discarded. The bar is a mode over the hand, not a sheet over
+ * the table: the table stays drawn and its cards still open their hover popover while the pick is open. The dev game (`store/dev-in-play-cost-games.ts`)
  * has Wonder Man in play; a turn is played through so the hand holds a real choice.
  */
 test("issue #242: Wonder Man's attack asks which card to discard", async ({ page }, info) => {
@@ -69,6 +70,42 @@ test("issue #242: Wonder Man's attack asks which card to discard", async ({ page
   expect(await facts(page, (g) => g.players[0].discard.length), "nothing discarded before the pick").toBe(
     discardBefore,
   );
+
+  // The table is still there to read: Wonder Man's tile opens its hover popover with the bar open.
+  const wonderManId = (await facts(page, (g) =>
+    Object.keys(g.instances).find(
+      (id: string) => g.instances[id].cardId === "03014" && !g.players[0].hand.includes(id),
+    ),
+  )) as string;
+  const tile = await page.evaluate(
+    (id) =>
+      (
+        window as unknown as {
+          __mcBoardDebug?: { hitRect(id: string): { x: number; y: number; width: number; height: number } | null };
+        }
+      ).__mcBoardDebug?.hitRect(id) ?? null,
+    wonderManId,
+  );
+  expect(tile, "Wonder Man's tile on the table").not.toBeNull();
+  await page.mouse.move(tile!.x + tile!.width / 2, tile!.y + tile!.height / 2);
+  await page.mouse.move(tile!.x + tile!.width / 2 + 4, tile!.y + tile!.height / 2 + 4, { steps: 4 });
+  await waitFor(
+    async () =>
+      (
+        await page.evaluate(
+          () =>
+            (window as unknown as { __mcBoardDebug?: { hoverShown(): string | null } }).__mcBoardDebug?.hoverShown() ??
+            null,
+        )
+      )?.includes(wonderManId)
+        ? true
+        : null,
+    "Wonder Man's hover popover while picking",
+    10_000,
+  );
+  await settle(page, { quietMs: 400, maxMs: 3000 });
+  if (SHOT) await page.screenshot({ path: `${SHOT}/wonder-man-discard-table-hover.png` });
+  await page.mouse.move(5, 5);
 
   // Pick the last hand card, not the first, and confirm.
   const last = hand[hand.length - 1]!;
