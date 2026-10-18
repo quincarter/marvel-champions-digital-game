@@ -118,6 +118,14 @@ export function triggerHeadlineOf(
       const by = event.sourceInstanceId === null ? "" : ` by ${cardName(state, event.sourceInstanceId)}`;
       return `${card} was discarded from the top of ${deck}${by}`;
     }
+    case "boostCardTurnedFaceup": {
+      // One window per boost card: the card and its icons tell two windows of the same attack apart (issue #253).
+      const boost = cardName(state, event.boostInstanceId);
+      const icons = count(event.boostIcons, event.boostIcons === 1 ? "boost icon" : "boost icons");
+      return before
+        ? `${boost} is being turned up as a boost card (${icons})`
+        : `${boost} was turned up as a boost card (${icons})`;
+    }
     case "thwart": {
       const thwarter = cardName(state, event.thwarterInstanceId);
       return before ? `${thwarter} is about to thwart` : `${thwarter} thwarted`;

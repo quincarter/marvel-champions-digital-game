@@ -86,19 +86,23 @@ export interface Pause {
    */
   readonly offer: string;
   /**
-   * A boost-count window (Chaos Control, Scarlet Witch's Crest: "when boost icons on an encounter card would be
-   * counted"): the faceup boost card whose icons are about to be counted. The interrupt panel takes the place of the
-   * boost panel while it is open, so it shows this card itself (issue #172). Absent for every other decision.
+   * A window about one boost card: a boost-count window (Chaos Control, Scarlet Witch's Crest: "when boost icons on an
+   * encounter card would be counted"), whose card's icons are about to be counted, or a window on a boost card being
+   * turned faceup (Preemptive Strike), one per boost card. The interrupt panel takes the place of the boost panel while
+   * it is open, so it shows this card itself (issue #172), and an attack dealt two boost cards opens two windows that
+   * differ only by this card (issue #253). Absent for every other decision.
    */
   readonly countedBoost?: CountedBoost;
 }
 
-/** The boost card a boost-count window is about (`Pause.countedBoost`). */
+/** The boost card a window is about (`Pause.countedBoost`). */
 export interface CountedBoost {
   readonly instanceId: InstanceId;
   readonly name: string;
   /** The icons its flip reported (0 once cancelled); null when this activation's beats never saw it flip. */
   readonly icons: number | null;
+  /** Its icons are about to be counted, or it is being turned faceup. */
+  readonly reason: "counting" | "turnedUp";
 }
 
 /** One boost card revealed during the activation this beat belongs to (`boostCardFlipped`/`boostCancelled`). */
@@ -635,10 +639,11 @@ export function pauseFor(
   const who = shortSeatName(state, choice.playerId, viewer);
   const counted = countedBoostOf(choice, state, activation);
   const base = counted
-    ? // Names the card being counted: nothing else on screen does while the interrupt panel is up (issue #172).
-      `${yours ? "Your" : `${who}'s`} ${windowTimingOf(choice)}: counting the boost icons on ${counted.name}${
-        counted.icons === null ? "" : ` (${counted.icons} icon${counted.icons === 1 ? "" : "s"})`
-      }`
+    ? // Names the boost card: nothing else on screen does while the interrupt panel is up (issue #172), and two boost
+      // cards turned up in one attack open two windows alike in everything else (issue #253).
+      `${yours ? "Your" : `${who}'s`} ${windowTimingOf(choice)}: ${
+        counted.reason === "turnedUp" ? `${counted.name} turned up` : `counting the boost icons on ${counted.name}`
+      }${counted.icons === null ? "" : ` (${counted.icons} icon${counted.icons === 1 ? "" : "s"})`}`
     : choice.authority === "player" && choice.prompt.kind !== "declareDefender"
       ? // The design canvas's exact phrase for an ordinary interrupt.
         yours
@@ -659,19 +664,26 @@ export function pauseFor(
 }
 
 /**
- * The boost card a "boost icons would be counted" window is about, off the window's own event
- * (`boostIconsCounting.cardInstanceId`), with the icon count its flip reported in this activation's beats.
+ * The boost card a window is about, off the window's own event: a "boost icons would be counted" window
+ * (`boostIconsCounting.cardInstanceId`), with the icon count its flip reported in this activation's beats, or a
+ * "boost card turned faceup" window (`boostCardTurnedFaceup.boostInstanceId`), with the icons that event announces.
  */
 export function countedBoostOf(
   choice: ChoiceLike,
   state: GameState,
   activation: ActivationBeat | null,
 ): CountedBoost | null {
-  if (choice.prompt.kind !== "chooseTriggers" || choice.prompt.event?.kind !== "boostIconsCounting") return null;
-  const instanceId = choice.prompt.event.cardInstanceId;
+  if (choice.prompt.kind !== "chooseTriggers") return null;
+  const event = choice.prompt.event;
+  if (event?.kind === "boostCardTurnedFaceup") {
+    const instanceId = event.boostInstanceId;
+    return { instanceId, name: cardName(state, instanceId), icons: event.boostIcons, reason: "turnedUp" };
+  }
+  if (event?.kind !== "boostIconsCounting") return null;
+  const instanceId = event.cardInstanceId;
   const beat = activation?.boosts.find((boost) => boost.instanceId === instanceId);
   const icons = beat ? (beat.cancelled === "icons" ? 0 : beat.boostIcons) : null;
-  return { instanceId, name: cardName(state, instanceId), icons };
+  return { instanceId, name: cardName(state, instanceId), icons, reason: "counting" };
 }
 
 /**
@@ -685,7 +697,7 @@ export function activationBoostLineOf(
 ): string | null {
   if (counted) {
     const icons = counted.icons === null ? "" : ` · ${counted.icons} boost icon${counted.icons === 1 ? "" : "s"}`;
-    return `Counting ${counted.name}${icons}`;
+    return counted.reason === "turnedUp" ? `${counted.name} turned up${icons}` : `Counting ${counted.name}${icons}`;
   }
   if (activation.boosts.length > 0) {
     return `Boost: ${activation.boosts.map((boost) => cardName(state, boost.instanceId)).join(", ")}`;
@@ -811,6 +823,16 @@ export function inlineInterruptFor(
 }
 
 /**
+ * Where a card offered by a window is played from: a hand, or the top of a deck (Magik's "you may play the top card of
+ * your deck as if it was in your hand", the case in issue #253); null for a card in play.
+ */
+export function offeredFrom(state: GameState, instanceId: InstanceId): "hand" | "deckTop" | null {
+  if (state.players.some((player) => player.hand.includes(instanceId))) return "hand";
+  if (state.players.some((player) => player.deck[0] === instanceId)) return "deckTop";
+  return null;
+}
+
+/**
  * What the option's button says. A card in a hand is *played* ("Play Backflip"); an ability on a card already in
  * play — an identity's own, an upgrade's — is *used*, and by its printed name where it has one ("Use Spider-Sense"),
  * since "Play Spider-Man" names something the player cannot do. The verb comes from where the card is, never from
@@ -818,7 +840,7 @@ export function inlineInterruptFor(
  */
 export function interruptActionLabel(state: GameState, option: InlineInterruptOption): string {
   const name = cardName(state, option.instanceId);
-  if (state.players.some((player) => player.hand.includes(option.instanceId))) return `Play ${name}`;
+  if (offeredFrom(state, option.instanceId) !== null) return `Play ${name}`;
   const printed = option.abilityId
     ? activeAbilityRefs(state, option.instanceId).find((ref) => ref.id === option.abilityId)?.label
     : null;
@@ -832,6 +854,36 @@ export function interruptActionLabel(state: GameState, option: InlineInterruptOp
  * one control answers; with exactly one option the press stays a one-press answer (`inlineSingle`).
  */
 export const inlineSingle = (options: readonly InlineInterruptOption[]): boolean => options.length < 2;
+
+/**
+ * How long a newly opened inline window ignores presses. An attack dealt two boost cards opens one window per card, the
+ * second drawn the moment the first is answered, with its buttons where the first one's were: a second press on "Let
+ * it resolve" (a double press, or a press again because nothing seemed to change) answered the second card's window
+ * before the player had seen it (issue #253).
+ */
+export const INLINE_ARM_MS = 500;
+
+/** The inline window on screen: the decision it was drawn for and when it first appeared. */
+export interface InlineShown {
+  readonly choiceId: string;
+  readonly at: number;
+}
+
+/** The window now drawn for `choiceId`: the same window keeps the time it first appeared, a new one starts its own. */
+export const inlineShownFor = (shown: InlineShown | null, choiceId: string, now: number): InlineShown =>
+  shown?.choiceId === choiceId ? shown : { choiceId, at: now };
+
+/**
+ * Whether a press on a window drawn for `drawnFor` answers it: that window is still the open decision (`open`), it is
+ * the one on screen, and it has been up for `INLINE_ARM_MS`. A press on a window that has since been answered never
+ * answers the next one.
+ */
+export const inlinePressAnswers = (
+  shown: InlineShown | null,
+  drawnFor: string,
+  open: string | null,
+  now: number,
+): boolean => shown !== null && shown.choiceId === drawnFor && open === drawnFor && now - shown.at >= INLINE_ARM_MS;
 
 /** Toggles one option in the picks (kept in pick order, which is the order they resolve in); no more than `max`. */
 export function toggleInlinePick(picked: readonly string[], optionId: string, max: number): readonly string[] {

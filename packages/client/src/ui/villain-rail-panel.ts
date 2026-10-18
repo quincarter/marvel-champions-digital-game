@@ -29,6 +29,7 @@ import {
   inlinePickLabel,
   inlineSingle,
   interruptActionLabel,
+  offeredFrom,
   windowTitleOf,
   type InlineInterruptOption,
   type Pause,
@@ -623,7 +624,8 @@ function drawInterrupt(
   // Name, tags and the ability on offer, beside the card.
   const model = inspectModel(game, first.instanceId, null, viewerId, POOL_DEPS, { face });
   const { x, y, width, height } = layout.text;
-  const inHand = game.players.some((player) => player.hand.includes(first.instanceId));
+  const from = offeredFrom(game, first.instanceId);
+  const inHand = from === "hand";
   const name = scene.add
     .text(
       x,
@@ -636,13 +638,21 @@ function drawInterrupt(
   let cursor = y + name.height + 6;
   let tx = x;
   const kindTag = first.abilityId
-    ? inHand
+    ? from !== null
       ? "Card ability"
       : "Hero ability"
     : (model.typeLine.split(" · ")[0] ?? "Card");
   const costTag = model.cost !== null && inHand ? `${kindTag} · cost ${model.currentCost ?? model.cost}` : kindTag;
   tx += tag(scene, tx, cursor, costTag, true, signal.caution.hex) + 6;
-  tag(scene, tx, cursor, inHand ? "From your hand" : first.abilityId ? "In play" : "Free", false, surface.paper.hex);
+  // The top of the deck is played "as if it was in your hand" at a reduced cost: no printed cost here, which it is not.
+  const fromTag = inHand
+    ? "From your hand"
+    : from === "deckTop"
+      ? "From your deck"
+      : first.abilityId
+        ? "In play"
+        : "Free";
+  tag(scene, tx, cursor, fromTag, false, surface.paper.hex);
   cursor += 30;
   const trigger = first.abilityId ? POOL_DEPS.abilities[first.abilityId]?.trigger : undefined;
   const rulesText = trigger ? abilityFirst(model.rulesText, triggerLabel(trigger)) : model.rulesText;

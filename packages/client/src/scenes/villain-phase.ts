@@ -164,11 +164,14 @@ import {
   emptyWalkthrough,
   defenderLineOf,
   inlineInterruptFor,
+  inlinePressAnswers,
+  inlineShownFor,
   inlineConfirmLabel,
   inlinePickLabel,
   inlineSingle,
   interruptActionLabel,
   livePicks,
+  type InlineShown,
   toggleInlinePick,
   readyToAutoClose,
   recapPlacementFor,
@@ -315,6 +318,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #soleAnswered = new Set<string>();
   /** When each held decision's notice first appeared, for its slide in. */
   #noticeShownAt = new Map<string, number>();
+  /** The inline interrupt window on screen and when it first appeared, so a fresh one ignores a stray press (#253). */
+  #inlineShown: InlineShown | null = null;
   /** PEEK AT TABLE on a phone or tablet in portrait (P3): the board's tabs show, the phase keeps a banner. */
   #peeking = false;
   /** Encounter cards the player has moved past under "Hold encounter cards" (`#heldCard`). */
@@ -356,6 +361,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#answered = new Set();
     this.#soleAnswered = new Set();
     this.#noticeShownAt = new Map();
+    this.#inlineShown = null;
     this.#endOfTurn = null;
     this.#review = data?.review ?? null;
     if (this.#review) {
@@ -575,6 +581,36 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   /** Submits an inline interrupt answer exactly as the choice overlay would (`resolveChoice`) — an empty selection is "let it resolve". */
   #resolve(selectedOptionIds: readonly string[]): void {
     void appSession().store.resolveChoice(selectedOptionIds);
+  }
+
+  /**
+   * The inline window's picks and answers, bound to the decision it is drawn for. A press counts only while that
+   * decision is still open and its window has been up for `INLINE_ARM_MS` (`inlinePressAnswers`): an attack dealt two
+   * boost cards opens a window per card in the same place, and a second press on the first one's "Let it resolve" used
+   * to answer the second card's window unseen (issue #253).
+   */
+  #inlineAnswers(
+    game: GameState,
+    options: readonly InlineInterruptOption[],
+  ): { picks: readonly string[]; onPick: (optionId: string) => void; onResolve: (ids: readonly string[]) => void } {
+    const choiceId = game.pendingChoice?.choiceId ?? "";
+    this.#inlineShown = inlineShownFor(this.#inlineShown, choiceId, this.time.now);
+    const answers = (): boolean =>
+      inlinePressAnswers(
+        this.#inlineShown,
+        choiceId,
+        this.#latest?.game?.pendingChoice?.choiceId ?? null,
+        this.time.now,
+      );
+    return {
+      picks: this.#livePicksFor(game, options),
+      onPick: (optionId) => {
+        if (answers()) this.#togglePick(game, options, optionId);
+      },
+      onResolve: (ids) => {
+        if (answers()) this.#resolve(ids);
+      },
+    };
   }
 
   #onState(state: SessionState): void {
@@ -2333,7 +2369,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       }
       if (counted && strips.boost) {
         const icons = counted.icons === null ? "" : ` · ${counted.icons} boost icon${counted.icons === 1 ? "" : "s"}`;
-        const boostPanel = sourceCardPanelFor(state, counted.instanceId, viewerId, POOL_DEPS, `Being counted${icons}`);
+        const heading = `${counted.reason === "turnedUp" ? "Turned up" : "Being counted"}${icons}`;
+        const boostPanel = sourceCardPanelFor(state, counted.instanceId, viewerId, POOL_DEPS, heading);
         drawSourceCardPanel(this, sourceStripPlacement(strips.boost), boostPanel, () =>
           this.scene.launch(SCENES.inspect, { instanceId: counted.instanceId }),
         );
@@ -2372,8 +2409,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
     // Two or more optional triggers are one multi-select: the buttons toggle and one control answers.
     const multi = !inlineSingle(options);
-    const picks = this.#livePicksFor(state, options);
-    const toggle = (optionId: string): void => this.#togglePick(state, options, optionId);
+    const { picks, onPick: toggle, onResolve: answer } = this.#inlineAnswers(state, options);
 
     options.forEach((option, i) => {
       const slot = slots[i];
@@ -2460,12 +2496,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
             : interruptActionLabel(state, option),
           type: typeRole.label,
           rect: slot.button,
-          onClick: () => (multi ? toggle(option.optionId) : this.#resolve([option.optionId])),
+          onClick: () => (multi ? toggle(option.optionId) : answer([option.optionId])),
         }),
       );
       stops.set(`interrupt:${option.optionId}`, {
         rect: slot.button,
-        activate: () => (multi ? toggle(option.optionId) : this.#resolve([option.optionId])),
+        activate: () => (multi ? toggle(option.optionId) : answer([option.optionId])),
       });
     });
 
@@ -2483,10 +2519,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         label: multi ? inlineConfirmLabel(state, options, picks) : "Let it resolve",
         type: typeRole.barTitle,
         rect: resolveRect,
-        onClick: () => this.#resolve(multi ? picks : []),
+        onClick: () => answer(multi ? picks : []),
       }),
     );
-    stops.set("resolve", { rect: resolveRect, activate: () => this.#resolve(multi ? picks : []) });
+    stops.set("resolve", { rect: resolveRect, activate: () => answer(multi ? picks : []) });
   }
 
   /** The options picked so far in the inline window, reset when the decision changes. */
@@ -2592,9 +2628,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
           ? {
               options: inline,
               pause,
-              picks: this.#livePicksFor(game, inline),
-              onPick: (optionId) => this.#togglePick(game, inline, optionId),
-              onResolve: (ids) => this.#resolve(ids),
+              ...this.#inlineAnswers(game, inline),
             }
           : null,
       gate,
@@ -2661,7 +2695,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     }
     const breakdown = breakdownLineOf(activation, game);
     const defender = defenderLineOf(game, activation);
-    // While a boost-count window (Chaos Control, Scarlet Witch's Crest) is open, the card being counted (issue #172).
+    // While a window on one boost card is open, that card: the one being counted (Chaos Control, Scarlet Witch's Crest;
+    // issue #172) or the one being turned up (Preemptive Strike; issue #253).
     const counted = paused ? (this.#shownPause()?.countedBoost ?? null) : null;
     return {
       kind: "happening",
@@ -2841,9 +2876,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         {
           options: inline,
           pause,
-          picks: this.#livePicksFor(game, inline),
-          onPick: (optionId) => this.#togglePick(game, inline, optionId),
-          onResolve: (ids) => this.#resolve(ids),
+          ...this.#inlineAnswers(game, inline),
         },
         this.#buttons,
         stops,
