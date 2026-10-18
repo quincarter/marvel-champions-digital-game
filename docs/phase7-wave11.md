@@ -540,6 +540,7 @@ One agent at a time, one primitive per task, one commit each with the §3 tests.
 9. §3.9: `playableFrom` active in hand with a discard-self cost; `cardPlayed.via`; star-cost cards not played. After 8.
 10. §3.10: `RuleSpec statInPlaceOf` in `characterStat`.
 11. §3.11: `canAttachToCategory` widened to minion and side scheme.
+12. Found while scripting (2026-10-18): after Heightened Hearing's defense-labeled "You become the target" interrupt redirects an attack aimed at another player, that player was still offered a declare-defender prompt (`defense-claim.ts`). Check whether the redirected attack should still open defenders for its original target, and fix with a test.
 
 ### 8.3 The "exists (verify)" rows
 
