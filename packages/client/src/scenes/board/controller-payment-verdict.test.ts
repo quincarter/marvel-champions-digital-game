@@ -146,4 +146,34 @@ describe("paying with verdicts judged off the main thread", () => {
     expect(sent.payment).toHaveLength(suggested.length);
     expect(controller.selection.kind).toBe("idle");
   });
+
+  test("a second press while the first waits sends once; picks changed while waiting send nothing", async () => {
+    const controller = new BoardController(board());
+    await controller.playCard(card);
+    const suggested = (controller.selection as { payment: PaymentState }).payment.query.suggested;
+    for (const option of suggested) controller.togglePaymentOption(option);
+    controller.paymentView();
+
+    const first = controller.commitPayment();
+    const second = controller.commitPayment();
+    for (const held of host.held) held.release();
+    await Promise.all([first, second]);
+    expect(dispatch).toHaveBeenCalledTimes(1);
+  });
+
+  test("picks changed while Pay waits are not sent", async () => {
+    const controller = new BoardController(board());
+    await controller.playCard(card);
+    const suggested = (controller.selection as { payment: PaymentState }).payment.query.suggested;
+    for (const option of suggested) controller.togglePaymentOption(option);
+    controller.paymentView();
+
+    const paying = controller.commitPayment();
+    controller.togglePaymentOption(suggested[0]!);
+    controller.paymentView();
+    for (const held of host.held) held.release();
+    await paying;
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(controller.selection.kind).toBe("paying");
+  });
 });
