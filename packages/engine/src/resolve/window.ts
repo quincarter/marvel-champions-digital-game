@@ -31,6 +31,7 @@ import {
   upToCounterChoice,
 } from "../actions.js";
 import { inPlayPicksOf, resourcesChoiceOf } from "../abilities.js";
+import { costWithChangeForm } from "../change-form-cost.js";
 import type { ChoiceOption } from "../choices.js";
 import type { CostChoices, CostSelection } from "../commands.js";
 import {
@@ -842,9 +843,12 @@ function askHandDiscard(
   rest: readonly TriggerCandidate[],
 ): boolean {
   const controller = candidate.controllerId;
-  const cost = ctx.deps.abilities[candidate.abilityId]?.cost;
+  if (!controller) return false;
+  // A "change form →" cost's hand discard may be an additional cost to change form (`change-form-cost.ts`).
+  const written = ctx.deps.abilities[candidate.abilityId]?.cost;
+  const cost = costWithChangeForm(ctx.state, ctx.deps, candidate.instanceId, controller, written);
   const discard = cost?.discardFromHand;
-  if (!controller || !discard || (discard.min <= 0 && !discard.combined)) return false;
+  if (!discard || (discard.min <= 0 && !discard.combined)) return false;
   const choices = costChoicesFor(frame, candidate);
   if (choices[HAND_DISCARD_SLOT] !== undefined) return false;
   const candidates = handDiscardCandidates(ctx.state, ctx.deps, candidate.instanceId, controller, cost);
@@ -903,7 +907,11 @@ function withoutHandDiscards(
 function absorbCostPick(ctx: Ctx, frame: Frame<"window">, answer: readonly string[], slot: string | null): void {
   const candidate = frame.paying;
   const { costPicks: _dropped, ...cleared } = { ...frame, answer: null, awaiting: null, paying: null };
-  const cost = candidate ? ctx.deps.abilities[candidate.abilityId]?.cost : undefined;
+  const written = candidate ? ctx.deps.abilities[candidate.abilityId]?.cost : undefined;
+  const cost =
+    candidate?.controllerId != null
+      ? costWithChangeForm(ctx.state, ctx.deps, candidate.instanceId, candidate.controllerId, written)
+      : written;
   // A pick of cards in play, or the hand-discard cost's (`askHandDiscard`), which needs at least one card.
   const pick =
     inPlayPicksOf(cost).find((entry) => entry.pick.slot === slot)?.pick ??

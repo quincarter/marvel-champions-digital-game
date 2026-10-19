@@ -137,6 +137,7 @@ import {
   encounterDiscardCostRange,
 } from "./encounter-discard-cost.js";
 import { encounterLookDiscardEffects, encounterLookPayable } from "./encounter-look-cost.js";
+import { costWithChangeForm, foldChangeFormCost, payChangeFormCost } from "./change-form-cost.js";
 import { enemyAttackCostEffects, enemyAttackCostEnemy, enemyAttackCostFault } from "./enemy-attack-cost.js";
 import {
   planResolveAbilityCost,
@@ -3134,6 +3135,13 @@ export function planCost(
       : null;
   if (selected && isFault(selected)) return selected;
   if (selected) cost = selected.cost;
+  // "Change to hero form →" (`change-form-cost.ts`): its additional costs to change form are folded in and planned with it.
+  const folded = cost.changeForm !== undefined;
+  if (folded) {
+    const withExtras = foldChangeFormCost(state, deps, sourceId, playerId, cost);
+    if (isFault(withExtras)) return withExtras;
+    cost = withExtras;
+  }
   const player = mustPlayer(state, playerId);
   const identity = mustInstance(state, player.identity.instanceId);
   // Parts another player pays in the user's place (`CostSelection.paidBy`): each is checked against that player.
@@ -3570,7 +3578,7 @@ export function planCost(
     bindings,
     vars,
     payingFor,
-    ...(selected || countersRead ? { cost } : {}),
+    ...(selected || countersRead || folded ? { cost } : {}),
     ...(Object.keys(payers).length > 0 ? { paidBy: payers } : {}),
   };
 }
@@ -4185,6 +4193,7 @@ export function payCost(
     }
   }
   if (cost.exhaustIdentity) exhaustCard(ctx, identityId);
+  if (cost.changeForm !== undefined) payChangeFormCost(ctx, playerId, cost.changeForm);
   // "Each player exhausts their identity and takes 1 damage →" (`each-player-cost.ts`): every identity exhausts now, and
   // the damage is one deal to all of them above the frame being paid for, settled as any damage taken as a cost.
   if (cost.eachPlayer) {
@@ -7489,8 +7498,9 @@ export function handDiscardCandidates(
   deps: EngineDeps,
   sourceId: InstanceId,
   playerId: PlayerId,
-  cost: AbilityCost | undefined,
+  written: AbilityCost | undefined,
 ): readonly InstanceId[] {
+  const cost = costWithChangeForm(state, deps, sourceId, playerId, written);
   const discard = cost?.discardFromHand;
   if (!discard) return [];
   const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event: null, bindings: {}, deps };
@@ -7518,8 +7528,9 @@ export function defaultHandDiscardPicks(
   deps: EngineDeps,
   sourceId: InstanceId,
   playerId: PlayerId,
-  cost: AbilityCost | undefined,
+  written: AbilityCost | undefined,
 ): readonly InstanceId[] | undefined {
+  const cost = costWithChangeForm(state, deps, sourceId, playerId, written);
   const discard = cost?.discardFromHand;
   if (!discard) return undefined;
   const candidates = handDiscardCandidates(state, deps, sourceId, playerId, cost);

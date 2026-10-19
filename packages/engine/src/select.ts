@@ -1331,6 +1331,12 @@ export function explainQuery(
     const chosen = chosenFromList(context.vars, query.cardTypeIs.chosen);
     if (chosen === null || cardTypeOf(state, id) !== chosen) return "wrongCategory";
   }
+  // A player side scheme by its card type, whoever controls it or nobody (RRG 1.8 p. 34; wave 11 hero packs).
+  if (
+    query.playerSideScheme !== undefined &&
+    (cardTypeOf(state, id) === "player_side_scheme") !== query.playerSideScheme
+  )
+    return "wrongCategory";
   // docs/phase7-wave9.md §3.29 (b): the accused or the mole of the game's accusation, a card named by its printed id
   // (either face), so the exclusion is the one `printedId` gives.
   if (query.accusation !== undefined && !isAccusationBoardMember(state, id, query.accusation)) return "wrongPrintedId";

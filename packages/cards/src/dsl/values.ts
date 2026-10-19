@@ -523,6 +523,15 @@ export const encounterCard = (rest: Omit<TargetQuery, "categories" | "controller
   query(ENCOUNTER_CARD_CATEGORIES, { controller: "encounter", ...rest });
 export const ENCOUNTER_CARD: TargetQuery = encounterCard();
 
+/**
+ * "A player side scheme" / "an encounter side scheme" by card type, not by controller (`TargetQuery playerSideScheme`;
+ * RRG 1.8 "Player Side Scheme", p. 34): a player side scheme no player controls (the NeXt Evolution campaign's, one in
+ * a scenario play area) is still a player side scheme, and `controller: "encounter"` would count it as an encounter
+ * one. Spread `{ ...PLAYER_SIDE_SCHEME, withoutKeyword: "permanent" }` or `query("sideScheme", { playerSideScheme:
+ * false, … })` for more.
+ */
+export const PLAYER_SIDE_SCHEME: TargetQuery = query("sideScheme", { playerSideScheme: true });
+export const ENCOUNTER_SIDE_SCHEME: TargetQuery = query("sideScheme", { playerSideScheme: false });
 /** "Friendly character": any identity or ally (every player's, RRG "Friendly"). */
 export const FRIENDLY_CHARACTER: TargetQuery = query(["identity", "ally"]);
 /** "Your hero": your identity while it is in hero form. */

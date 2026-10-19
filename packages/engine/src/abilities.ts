@@ -2701,6 +2701,15 @@ export interface AbilityCost {
    */
   readonly flipSelf?: boolean;
   /**
+   * "Change to hero form and discard this card →" (Entrapment 61024): the paying player's identity changes to this form
+   * as part of the cost (`change-form-cost.ts`). RRG 1.8 "Cost" (pp. 13–14): paid in full or not at all, so payable
+   * only from the other form and when no `cannotChangeForm` rule stops the change; an additional cost to change form
+   * (`RuleSpec formChangeCost`, Work-Life Balance 61030) is folded into this cost and paid with it. The change is not the
+   * once-per-round change (RRG 1.8 "Form, Change Form", p. 21), and its `formChanged` event goes above the frame paid
+   * for, so "after you change form" responses resolve before the ability's effects.
+   */
+  readonly changeForm?: "hero" | "alterEgo";
+  /**
    * "Spend a [energy] resource" → `{ energy: 1 }`; "Spend [E][M][P]" → one of each. A number is a generic amount.
    * `{ choose }` is a number of resources of any type the payer chooses (`ResourcesChoice`).
    */

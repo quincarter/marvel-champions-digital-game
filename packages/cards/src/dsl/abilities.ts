@@ -2184,6 +2184,14 @@ export const discardThis: AbilityCost = { discardSelf: true };
  * which a card a `cannotFlip` rule names cannot pay (RRG 1.8 "Cost", p. 13). Not on a resource ability.
  */
 export const flipThis: AbilityCost = { flipSelf: true };
+/**
+ * "Change to hero form and discard this card →" (Entrapment 61024): `{ ...changeFormCost("hero"), ...discardThis }`.
+ * The paying player's identity changes to `to` as the cost (engine `AbilityCost.changeForm`): payable only from the
+ * other form and when no rule forbids the change, with any additional cost to change form (Work-Life Balance 61030)
+ * paid together with it, and not the once-per-round change (RRG 1.8 "Cost", pp. 13–14; "Form, Change Form", p. 21).
+ * The payer is always the ability's user (RRG 1.8 "Cost", p. 13), so the cost names no player.
+ */
+export const changeFormCost = (to: "hero" | "alterEgo"): AbilityCost => ({ changeForm: to });
 /** "Spend a [energy] resource" → `spend({ energy: 1 })`; "Spend [E][M][P]" → one of each. */
 export const spend = (resources: ResourceRequirement | number): AbilityCost => ({ resources });
 /**

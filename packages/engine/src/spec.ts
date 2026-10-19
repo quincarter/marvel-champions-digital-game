@@ -181,6 +181,15 @@ export interface TargetQuery {
    */
   readonly cardTypeIs?: { readonly chosen: string };
   /**
+   * The card's type is player side scheme (`true`) or is not (`false`), read from its card type (`cardTypeOf`), not its
+   * controller: "remove 3 threat from a player side scheme" (Strategy Session 61019) is `{ categories: ["sideScheme"],
+   * playerSideScheme: true }`, and "a non-permanent **encounter** side scheme" (Stakeout 61014) is `playerSideScheme:
+   * false`. RRG 1.8 "Player Side Scheme" (p. 34) and "Card Types" (p. 12): a player card type, whoever controls it or
+   * nobody, so one with no controller (the NeXt Evolution campaign's, one in a scenario play area) matches `true`;
+   * `controller: "encounter"` (no controller) would take it for an encounter side scheme. Exclusion `wrongCategory`.
+   */
+  readonly playerSideScheme?: boolean;
+  /**
    * "The accused" / "the mole" (The Accusation 2B, Fighting Zemo 3B, `aos` 50168b, 50169b; docs/phase7-wave9.md §3.29
    * (b)): the card is the board member of that row of the game's accusation (`GameState.accusation`), on either face
    * (the row names the card of one face; a card whose other face is a card of its own matches by `otherFaceId`). No

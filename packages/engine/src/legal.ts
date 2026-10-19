@@ -12,6 +12,7 @@
  * what to pay with.
  */
 
+import { costWithChangeForm } from "./change-form-cost.js";
 import type { AbilityId, AnyCard, ResourceIconType } from "@mc/content";
 import {
   DEFAULT_DEPS,
@@ -697,8 +698,10 @@ function discardPicks(
   deps: EngineDeps,
   playerId: PlayerId,
   source: InstanceId,
-  cost: AbilityCost | undefined,
+  written: AbilityCost | undefined,
 ): readonly InstanceId[] {
+  // A "change form →" cost's hand discard may be an additional cost to change form (`change-form-cost.ts`).
+  const cost = costWithChangeForm(state, deps, source, playerId, written);
   const min = cost?.discardFromHand?.min ?? 0;
   const combined = cost?.discardFromHand?.combined;
   if (min === 0 && !combined) return [];
@@ -947,7 +950,7 @@ function pickChoiceSets(
 ): readonly CostChoiceSet[] {
   const base: CostChoices = {
     ...defaultInPlayPicks(state, deps, source, playerId, cost),
-    ...(cost?.discardFromHand ? { discard: picks } : {}),
+    ...(costWithChangeForm(state, deps, source, playerId, cost)?.discardFromHand ? { discard: picks } : {}),
   };
   const baseChoices = Object.keys(base).length > 0 ? base : undefined;
   // "Choose an ATTACK event in your hand … →" (`chooseCard`, docs/phase7-wave6.md §3.42): one variant per card of the
