@@ -88,6 +88,7 @@ export function eventRefs(event: GameEvent): readonly InstanceId[] {
     case "villainFlipped":
     case "villainSideSet":
     case "cardFlipped":
+    case "cardEnteredOnOtherFace":
     case "encounterCardRevealed":
     case "statusGiven":
     case "leavePlayBlocked":

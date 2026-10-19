@@ -1341,6 +1341,12 @@ export type GameEvent =
   | { readonly type: "treatedAsChanged"; readonly instanceId: InstanceId; readonly as: "minion" | "ally" | null }
   /** A double-sided encounter card turned over; `flipped` is true when its other face is now up. */
   | { readonly type: "cardFlipped"; readonly instanceId: InstanceId; readonly flipped: boolean }
+  /**
+   * A double-sided card entered play with its other face up (`EffectSpec putIntoPlay.otherFace`,
+   * docs/phase7-wave11-scenarios.md §S3.15): the face it starts on, not a flip, so nothing answers it as one.
+   * `playerId`: the player the entry is attributed to.
+   */
+  | { readonly type: "cardEnteredOnOtherFace"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   /** The active counter moved (The Wrecking Crew insert, "The Active Villain"). */
   | {
       readonly type: "activeVillainChanged";

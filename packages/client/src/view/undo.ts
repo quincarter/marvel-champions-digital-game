@@ -98,6 +98,7 @@ export const UNDO_EVENT_VERDICTS: Readonly<Record<GameEvent["type"], readonly [V
   cardDiscardedFromPlay: [ALLOWED, "the hero's own visible play"],
   cardDrawn: [STOPS, "a draw"],
   cardExhausted: [ALLOWED, "the hero's own visible play"],
+  cardEnteredOnOtherFace: [STOPS, "turns a hidden face up"],
   cardFlipped: [STOPS, "turns a hidden face up"],
   cardFlippedToOtherFace: [STOPS, "turns a hidden face up"],
   cardFound: [STOPS, "the result of a search"],

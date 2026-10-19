@@ -137,6 +137,7 @@ import {
   type TriggerEvent,
 } from "../trigger-events.js";
 import { uniqueEntryBlocker } from "../unique.js";
+import { resolveSetupOnEntry, settleEntryFaces, turnBeforeEntry, type TurnedForEntry } from "./put-into-play-setup.js";
 import { campaignSeatNumber } from "../campaign-state.js";
 import { campaignLogValueOf, recordCampaignRemoval, recordCampaignWrite } from "./campaign.js";
 import { damageGroupFrame } from "./damage-group.js";
@@ -1924,6 +1925,23 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "putIntoPlay": {
       const [controller] = resolvePlayers(ctx.state, effect.controller, context);
       if (!controller) return;
+      // `otherFace` / `resolveSetup` (docs/phase7-wave11-scenarios.md §S3.15): the frames the entries push sit above
+      // the Setup abilities, so what was on the stack before this effect is the line between them.
+      const heldStack = ctx.state.stack.length;
+      const inPlayBefore = new Set(cardsInPlay(ctx.state));
+      const fresh = (ids: readonly InstanceId[]): InstanceId[] => ids.filter((id) => !inPlayBefore.has(id));
+      const turned: TurnedForEntry[] = [];
+      // Turned before the card moves, so its entry reads the face it enters on.
+      const beforeEntry = (id: InstanceId): void => {
+        if (effect.otherFace !== true || effect.facedown === true || inPlayBefore.has(id)) return;
+        const turn = turnBeforeEntry(ctx, id);
+        if (turn) turned.push(turn);
+      };
+      const afterEntry = (entered: readonly InstanceId[]): void => {
+        settleEntryFaces(ctx, turned, controller);
+        if (effect.resolveSetup === true && effect.facedown !== true)
+          resolveSetupOnEntry(ctx, heldStack, fresh(entered), controller);
+      };
       // An in-play scenario area nobody controls (the mission area, docs/phase7-wave8.md §3.33).
       if (effect.into) {
         const area = effect.into.scenarioPlayArea;
@@ -1940,6 +1958,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         const there: InstanceId[] = [];
         for (const id of named) {
           if (!alreadyInPlay.includes(id) && !admitted.includes(id)) continue;
+          beforeEntry(id);
           const outcome = placeInScenarioPlayArea(ctx, id, area);
           if (outcome === "noSuchArea" || outcome === "cardType") {
             emit(ctx, { type: "putIntoPlayRefused", instanceId: id, playerId: controller, reason: outcome });
@@ -1962,6 +1981,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         }
         // Announced like any entry (`enterPlayOnReveal`): the enter-play keywords are that event's apply step.
         for (const id of entered) enterPlay(ctx, id, controller);
+        afterEntry(entered);
         return;
       }
       const unmatched = admitUniqueEntry(ctx, targets(effect.card), controller, frame.selfInstanceId);
@@ -1980,11 +2000,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           !cardsInPlay(ctx.state).includes(id)
         ) {
           updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
+          beforeEntry(id);
           enterPlayOnReveal(ctx, id, controller);
           placed.push(id);
         } else if (card?.type === "player_side_scheme") {
           // A player's own player side scheme: the villain's play area, under `controller`'s control, with its
           // starting threat, as when it is played (docs/phase7-wave7.md §3.43).
+          beforeEntry(id);
           playerSideSchemeEntersPlay(ctx, id, controller);
           placed.push(id);
         }
@@ -2010,6 +2032,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         }
         updateInstance(ctx, id, (i) => ({ ...i, controllerId: controller, faceup: true }));
         takeOwnership(ctx, id, controller);
+        beforeEntry(id);
         moveCard(ctx, id, { kind: "attachment", hostInstanceId: host });
         // RRG 1.8 p. 31: on a card another player controls, that player controls it from the moment it is attached.
         settleUpgradeControl(ctx, id, controller);
@@ -2027,6 +2050,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         // A minion belongs to the encounter side even while it sits in a player's area.
         const isMinion = cardOf(ctx.state, id)?.type === "minion";
         takeOwnership(ctx, id, controller);
+        beforeEntry(id);
         moveCard(ctx, id, { kind: "playArea", playerId: controller });
         updateInstance(ctx, id, (instance) => ({
           ...instance,
@@ -2070,6 +2094,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         );
       }
       pushFrames(ctx, frames);
+      afterEntry(admitted.filter((id) => cardsInPlay(ctx.state).includes(id)));
       return;
     }
     case "putIntoPlayAsHost": {

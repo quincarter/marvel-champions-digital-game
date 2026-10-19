@@ -1109,6 +1109,18 @@ function describe(
         voice: "player",
       };
     }
+    // docs/phase7-wave11-scenarios.md §S3.15: a card put into play on its other face ("Failed side faceup", MC60 p. 9
+    // step 12). Not a flip, so it reads as the face the card starts on.
+    case "cardEnteredOnOtherFace": {
+      const pooled = cardOf(state, event.instanceId);
+      const face = pooled && "flipSide" in pooled ? pooled.flipSide : undefined;
+      // The face's first trait is its printed side name on the campaign environments (COMPLETED / FAILED, MC60 205-209).
+      const named = face && "traits" in face ? face.traits[0] : undefined;
+      return {
+        text: `${card(event.instanceId)} enters play ${named ? `${named.toUpperCase()} side` : "on its other side"} faceup.`,
+        voice: "scenario",
+      };
+    }
     // A counter put on or taken off a card by an ability (Phoenix Force's power counters, a Uses card's tokens).
     case "counterAdded":
     case "counterRemoved": {

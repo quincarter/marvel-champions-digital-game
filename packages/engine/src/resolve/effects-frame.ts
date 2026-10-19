@@ -156,6 +156,7 @@ import { executePayEncounterDeckDiscard } from "../encounter-discard-cost.js";
 import { executePayRemoveThreatCost } from "../remove-threat-cost.js";
 import { executeSettleReadyCardsCost } from "../ready-cards-cost.js";
 import { executeDefeatedTogether } from "./defeated-together.js";
+import { executeResolveSetupsTogether } from "./put-into-play-setup.js";
 import { executeSearchCollection } from "./collection.js";
 import { announceAbilityResolved, labelCancels } from "./ability.js";
 import { noteDeckDiscardsTaken } from "./deck-discard.js";
@@ -371,6 +372,8 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   if (effect.kind === "settleReadyCardsCost") return executeSettleReadyCardsCost(ctx, frame, effect);
   // docs/phase7-wave5.md §4.1 Q49: allies and minions defeated by one effect, resolved together.
   if (effect.kind === "defeatedTogether") return executeDefeatedTogether(ctx, frame, effect);
+  // docs/phase7-wave11-scenarios.md §S3.15: the Setup abilities of cards a `putIntoPlay` put into play.
+  if (effect.kind === "resolveSetupsTogether") return executeResolveSetupsTogether(ctx, frame, effect);
   // docs/phase7-wave6.md §3.1: a minion's teamwork keyword, checked as it resolves.
   if (effect.kind === "resolveTeamwork") {
     setFrame(ctx, { ...frame, cursor: frame.cursor + 1 });

@@ -2056,6 +2056,10 @@ export const putIntoPlay = (
      * play. `controller` is then only who the entry is attributed to.
      */
     readonly into?: { readonly scenarioPlayArea: string };
+    /** "Into play Failed side faceup" (MC60 p. 9 step 12): a `flipSide` card enters on that face, not flipping. */
+    readonly otherFace?: boolean;
+    /** "Resolve the 'Setup' abilities on each of these cards" (MC60 p. 9 step 12), after the entries resolve. */
+    readonly resolveSetup?: boolean;
   } = {},
 ): EffectSpec => ({
   kind: "putIntoPlay",
@@ -2064,6 +2068,8 @@ export const putIntoPlay = (
   ...withBind(opts.bind),
   ...(opts.facedown ? { facedown: true as const } : {}),
   ...(opts.into ? { into: opts.into } : {}),
+  ...(opts.otherFace ? { otherFace: true as const } : {}),
+  ...(opts.resolveSetup ? { resolveSetup: true as const } : {}),
 });
 /**
  * "Setup: Put [your permanent card] into play" (RRG 1.8 "Permanent", p. 32: permanent cards are set aside before setup

@@ -4573,6 +4573,21 @@ export type EffectSpec =
        * An area the game does not have takes nothing (`putIntoPlayRefused { reason: "noSuchArea" }`).
        */
       readonly into?: { readonly scenarioPlayArea: string };
+      /**
+       * "Place the environment … into play Failed side faceup" (MC60 p. 9 step 12; docs/phase7-wave11-scenarios.md
+       * §S3.15): each card that enters play with a `flipSide` has that face up from the start. Not a flip: no
+       * `cardFlipped` and no reveal; logged `cardEnteredOnOtherFace`. A card with no `flipSide` enters on its front.
+       */
+      readonly otherFace?: true;
+      /**
+       * "Resolve the 'Setup' abilities on each of these cards" (MC60 p. 9 steps 12-13; §S3.15): once the cards have
+       * entered play and their entries' own frames have resolved, the Setup abilities of each card that entered
+       * resolve, the first player ordering those of two or more cards (RRG 1.8 "Simultaneous Resolution", p. 40); "you"
+       * for a card nobody controls is `controller`. Not a reveal.
+       * Absent, a card put into play resolves no Setup ability (RRG 1.8 "Setup (Triggered Ability)", p. 40, places
+       * them in setup steps 12 and 16 only, Appendix II p. 51). A card put into play facedown has none to resolve.
+       */
+      readonly resolveSetup?: true;
     }
   /**
    * "Put it into play engaged with you. Attach this card to it." (Reluctant Foe, `aos` 50171; docs/phase7-wave9.md
@@ -5488,6 +5503,13 @@ export type EffectSpec =
    * `resolveTeamwork`).
    */
   | { readonly kind: "resolveTeamwork"; readonly minion: InstanceId }
+  /**
+   * **Engine-internal; no DSL builder.** `putIntoPlay.resolveSetup` (docs/phase7-wave11-scenarios.md §S3.15,
+   * `resolve/put-into-play-setup.ts`): once the entries have resolved, the Setup abilities of each of `cards` still in
+   * play, the first player ordering those of two or more cards (RRG 1.8 "Simultaneous Resolution", p. 40). `playerId`
+   * is "you" for a card nobody controls.
+   */
+  | { readonly kind: "resolveSetupsTogether"; readonly cards: readonly InstanceId[]; readonly playerId: PlayerId }
   /**
    * "Reduce the resource cost of the next card that player plays this phase by 1" (lasting, consumed on use).
    * `cardFilter` narrows which played card consumes it: "the next Avenger ally played this phase" (Avengers Tower,
