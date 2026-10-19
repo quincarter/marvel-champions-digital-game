@@ -391,16 +391,16 @@ nine transcriptions for "player setup"). The engine's `beforePlayerSetup` window
 
 ### S5.1 Log fields (MC60 p. 28)
 
-| Field                              | Label (sheet)                                         | Scope   | Type                              | Notes                                                  |
-| ---------------------------------- | ----------------------------------------------------- | ------- | --------------------------------- | ------------------------------------------------------ |
-| `remainingHp`                      | Remaining hit points                                  | perSeat | `number`, min 0                   | `whenModes: { expertCampaign: true }`; p. 9            |
-| `villain.<node>` ×5                | Villain (one per scenario row)                        | shared  | `choice` over the five underlings | step 5                                                 |
-| `completed.<node>` ×5              | Completed                                             | shared  | `flag`                            | mirrors `position.resolved`; the sheet's left column   |
-| `unrecordedVillains`               | List of Villains                                      | shared  | `strikeList` (the five)           | struck as each is recorded; step 5c draws the rest     |
-| `removedTitles`                    | Allies and Persona Supports Removed from the Campaign | shared  | `cardList`                        | step 8, by title (§S3.14)                              |
-| `trustEstablished`, `maryDefeated` | Trust Established? / Mary Defeated?                   | shared  | `flag`                            | pp. 13–21 VICTORY                                      |
-| `playthrough`                      | (working)                                             | shared  | `choice`, `working`               | asked once, at the first `beforeChoice` (p. 9 step 5b) |
-| `checks`                           | (working)                                             | shared  | `number`, `working`               | the chosen node's progress marks (§S3.12)              |
+| Field                              | Label (sheet)                                         | Scope   | Type                              | Notes                                                |
+| ---------------------------------- | ----------------------------------------------------- | ------- | --------------------------------- | ---------------------------------------------------- |
+| `remainingHp`                      | Remaining hit points                                  | perSeat | `number`, min 0                   | `whenModes: { expertCampaign: true }`; p. 9          |
+| `villain.<node>` ×5                | Villain (one per scenario row)                        | shared  | `choice` over the five underlings | step 5                                               |
+| `completed.<node>` ×5              | Completed                                             | shared  | `flag`                            | mirrors `position.resolved`; the sheet's left column |
+| `unrecordedVillains`               | List of Villains                                      | shared  | `strikeList` (the five)           | struck as each is recorded; step 5c draws the rest   |
+| `removedTitles`                    | Allies and Persona Supports Removed from the Campaign | shared  | `cardList`                        | step 8, by title (§S3.14)                            |
+| `trustEstablished`, `maryDefeated` | Trust Established? / Mary Defeated?                   | shared  | `flag`                            | pp. 13–21 VICTORY                                    |
+| `playthrough`                      | (working)                                             | shared  | `choice`, `working`               | asked once; says whether step 5b applies (p. 9)      |
+| `checks`                           | (working)                                             | shared  | `number`, `working`               | the chosen node's progress marks (§S3.12)            |
 
 The progress boxes "1", "2" and "Failed" are `position.progress` and `position.resolved` (`progressToFail: 3`); the
 Dossier draws them from there.
@@ -411,15 +411,15 @@ Dossier draws them from there.
 "kingpin", when: and(nodeResolved(each of the five)) }, available: { kind: "and", of: [] } }` (always true; `CampaignPredicate` has no `const`) (with §S3.11). `beforeChoice`, ids
 `mc60.choice.<name>`, MC60 p. 9:
 
-1. `playthrough` — once (`when: not(fieldIsSet(playthrough))`): group choice, "first time through" or not.
+1. `playthrough` — once (`when: not(fieldIsSet(playthrough))`): group choice, "first time through" or not; it only says whether 5b applies (Q210 = B).
 2. `drawA` — `random` 1 from `excludingTitles(nodes unresolved, const "kingpin")` (steps 1–2).
 3. `drawB` — `random` 1 from the same source less `choice(drawA)`.
 4. `progress` — `progressNode(choice(drawA))`, `progressNode(choice(drawB))`; `if not(choiceMade(drawB))` a second
    `progressNode(choice(drawA))` (step 3: "If there was only one environment drawn, mark two boxes instead").
 
 Each node's `composition` (step 5): `if fieldIsSet(villain.<node>)` → `composeVillain(field)`; else `if
-playthrough` is the first → the first unstruck of Hammerhead, Bullseye, Electro, then a group `choose` between Purple Man and
-Typhoid Mary while both are unstruck (p. 8 item 4); else `random` from `fieldOptions(unrecordedVillains, unstruckOnly)`;
+playthrough` is the first → a group `choose` (`villainMethod`, each time) between the next listed villain (the first unstruck of Hammerhead, Bullseye, Electro, then a group `choose` between Purple Man and
+Typhoid Mary while both are unstruck, p. 8 item 4) and a `random` unrecorded villain; else (a later playthrough) `random` from `fieldOptions(unrecordedVillains, unstruckOnly)`;
 then `setField villain.<node>`, `strike unrecordedVillains`, `setField checks = nodeProgress(<node>)`. Kingpin's
 composition is only the environment and ally set-asides below.
 

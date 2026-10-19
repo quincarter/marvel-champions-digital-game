@@ -29,6 +29,8 @@ import {
   FNE_FINALE_NODE,
   FNE_FIRST_PLAYTHROUGH,
   FNE_LATER_PLAYTHROUGH,
+  FNE_VILLAIN_LISTED,
+  FNE_VILLAIN_RANDOM,
   FNE_UNDERLING_NODES,
   completedField,
   villainField,
@@ -420,6 +422,72 @@ describe("campaign setup step 5: the villain (MC60 p. 9, p. 8)", () => {
     expect(offered).toEqual([["purple_man", "typhoid_mary"]]);
     expect(startGameFromLog(DEF, composed).villain).toBe("typhoid_mary");
     expect(struck(composed)).toContain("typhoid_mary");
+  });
+
+  it("first playthrough: 5b is offered at each setup with no recorded villain; random on one game, the list on the next (Q210 = B)", () => {
+    const pickMethod =
+      (method: string, node: string): Picker =>
+      (c) =>
+        c.slot === "villainMethod" ? method : c.slot === "node" ? node : c.options[0]!;
+    const asked: string[][] = [];
+    // Game 1: a random unrecorded villain.
+    const first = compose(firstTime(newLog()), pickMethod(FNE_VILLAIN_RANDOM, AMH), (asked[0] = []));
+    expect(asked[0]!.filter((slot) => slot === "villainMethod")).toHaveLength(1);
+    const randomVillain = startGameFromLog(DEF, first).villain!;
+    expect(FNE_VILLAIN_IDS).toContain(randomVillain);
+    expect(struck(first)).toEqual([randomVillain]);
+    // Game 2: the next villain on the recommended list, skipping the one already recorded.
+    const second = compose(finished(first, "won"), pickMethod(FNE_VILLAIN_LISTED, GETAWAY), (asked[1] = []));
+    expect(asked[1]!.filter((slot) => slot === "villainMethod")).toHaveLength(1);
+    const expected = ["hammerhead", "bullseye", "electro"].find((v) => v !== randomVillain)!;
+    expect(startGameFromLog(DEF, second).villain).toBe(expected);
+    expect(asked[1]).not.toContain("playthrough");
+  });
+
+  it("random may take Purple Man; the list then reaches the pair and offers only Typhoid Mary", () => {
+    const log = withResolved(
+      firstTime(newLog()),
+      {},
+      { unrecordedVillains: { kind: "strikeList", struck: ["hammerhead", "bullseye", "electro", "purple_man"] } },
+    );
+    const offered: string[][] = [];
+    const composed = compose(log, (c) => {
+      if (c.slot === "villain") offered.push([...c.options]);
+      return c.slot === "node" ? AMH : c.options[0]!;
+    });
+    expect(offered).toEqual([["typhoid_mary"]]);
+    expect(startGameFromLog(DEF, composed).villain).toBe("typhoid_mary");
+  });
+
+  it("5b is not offered when a villain is recorded (5a, also after a loss) or on a later playthrough", () => {
+    const methodAsked = (log: CampaignLog, node: string): boolean => {
+      const asked: string[] = [];
+      compose(log, playing(node), asked);
+      return asked.includes("villainMethod");
+    };
+    const recorded = withResolved(
+      firstTime(newLog()),
+      {},
+      {
+        [villainField(RAFT)]: { kind: "choice", option: "electro" },
+        unrecordedVillains: { kind: "strikeList", struck: ["electro"] },
+      },
+    );
+    expect(methodAsked(recorded, RAFT)).toBe(false);
+    expect(methodAsked(recorded, AMH)).toBe(true);
+    expect(methodAsked(newLog(), AMH)).toBe(true); // asks the playthrough question, then (first) 5b
+    const later = withResolved(newLog(), {}, { playthrough: { kind: "choice", option: FNE_LATER_PLAYTHROUGH } });
+    expect(methodAsked(later, AMH)).toBe(false);
+    // A lost first game keeps the villain it recorded: the retry at that scenario takes it by 5a without asking again.
+    const first = compose(firstTime(newLog()), playing(AMH));
+    const recordedVillain = startGameFromLog(DEF, first).villain!;
+    const lost = finished(first, "lost");
+    const retry: string[] = [];
+    const again = compose(lost, playing(AMH), retry);
+    expect(again.attempt!.nodeId).toBe(AMH);
+    expect(startGameFromLog(DEF, again).villain).toBe(recordedVillain);
+    expect(retry).not.toContain("playthrough");
+    expect(retry).not.toContain("villainMethod");
   });
 
   it("later playthroughs draw an unrecorded villain at random, never one twice", () => {

@@ -303,6 +303,8 @@ describe("a standard first-playthrough campaign, played game by game (MC60 pp. 8
     expect(struck(trail[2]!.composed)).toEqual(["hammerhead", "bullseye", "electro"]);
     // The playthrough question is asked once, at the very start.
     expect(trail.map((g) => g.asked.some((c) => c.slot === "playthrough"))).toEqual([true, false, false, false]);
+    // 5b is offered at each of the three underling setups (Q210 = B), and not at Kingpin, which has no underling villain.
+    expect(trail.map((g) => g.asked.some((c) => c.slot === "villainMethod"))).toEqual([true, true, true, false]);
     // Kingpin has no underling villain.
     expect(trail.at(-1)!.start.villain).toBeFalsy();
   });

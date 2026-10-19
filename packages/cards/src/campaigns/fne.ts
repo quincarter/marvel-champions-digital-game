@@ -22,8 +22,10 @@
  * 2. Settled with 1: the villain recorded at composition survives a lost game, so the next game at that scenario
  *    takes it by step 5a ("If there is already a villain listed"). Removed allies and supports are still recorded
  *    only by a VICTORY block (Q201 = A), so a lost game records none.
- * 3. Step 5b says the players "may" choose the first unrecorded villain of p. 8's list; this definition always takes it
- *    on a first playthrough (open owner question Q210, A built), and asks only the Purple Man / Typhoid Mary choice.
+ * 3. Settled (owner, Q210 = B, 2026-10-19): step 5b is repeated before every game. "First time through?" is asked once
+ *    and only says whether 5b applies at all; then at each scenario's setup with no recorded villain (5a wins when
+ *    there is one, also after a loss) the group is offered the next unrecorded villain on p. 8's list (with the Purple
+ *    Man / Typhoid Mary group choice when that is the next pair) or a random unrecorded villain (5c).
  * 4. Settled (rules expert, 2026-10-19; spec E31): step 12 places every environment first, then resolves their Setups
  *    together (`resolveSetups`), the first player ordering them when two or more have one (RRG 1.8 "Simultaneous
  *    Resolution", p. 40); with one, no prompt.
@@ -122,6 +124,9 @@ const BUGLE_SUPPORTS: readonly CardId[] = ["60153", "60154", "60155", "60156"].m
 
 export const FNE_FIRST_PLAYTHROUGH = "First playthrough";
 export const FNE_LATER_PLAYTHROUGH = "Not the first playthrough";
+/** Step 5b's per-scenario offer on a first playthrough (owner answer Q210 = B, 2026-10-19). */
+export const FNE_VILLAIN_LISTED = "The next villain on the recommended list";
+export const FNE_VILLAIN_RANDOM = "A random unrecorded villain";
 
 const LOG_PAGE = "MC60 p. 28";
 const SETUP_PAGE = "MC60 p. 9";
@@ -233,6 +238,15 @@ const logFields: readonly LogFieldDef[] = [
     working: true,
     citation: SETUP_PAGE,
   },
+  // Persists in the log, but is re-asked (and overwritten) before every read of it.
+  {
+    id: "villainMethod",
+    label: "How this scenario's villain is chosen (first playthrough)",
+    scope: "shared",
+    type: { kind: "choice", options: [FNE_VILLAIN_LISTED, FNE_VILLAIN_RANDOM] },
+    working: true,
+    citation: SETUP_PAGE,
+  },
   {
     id: "checks",
     label: "Check marks beside the chosen scenario",
@@ -316,10 +330,10 @@ const beforeChoice: readonly CampaignInstruction[] = [
 
 /**
  * Step 5: "Determine the villain ... and record the name of the chosen villain next to the scenario":
- * (a) the villain already listed for the scenario; else (b) on the players' first time through, the first of Hammerhead,
- * Bullseye and Electro still unrecorded, then a group choice of Purple Man or Typhoid Mary (the only two left); else
+ * (a) the villain already listed for the scenario; else (b) on the players' first time through, the group may take the first of
+ * Hammerhead, Bullseye and Electro still unrecorded, then a group choice of Purple Man or Typhoid Mary (the only two left); else
  * (c) one of the unrecorded villains at random. Recording also strikes it from the log's "List of Villains".
- * Reading flag 3: 5b's "may" is taken as always on a first playthrough (docs/phase7-wave11-scenarios.md S5.2).
+ * Reading flag 3: on a first playthrough the group is asked, each time, between 5b's list and 5c's random draw.
  */
 function villainComposition(node: string): CampaignInstruction {
   const field = villainField(node);
@@ -344,6 +358,14 @@ function villainComposition(node: string): CampaignInstruction {
       { kind: "setField", field, value: choiceOf("villain") },
     ],
   );
+  const randomVillain: readonly CampaignOp[] = [
+    {
+      kind: "random",
+      slot: "villain",
+      from: { kind: "fieldOptions", field: "unrecordedVillains", unstruckOnly: true },
+    },
+    { kind: "setField", field, value: choiceOf("villain") },
+  ];
   return between(
     `mc60.${node}.compose.villain`,
     "Determine the villain and record the name of the chosen villain next to the scenario in the campaign log. Gather your chosen villain and its encounter set.",
@@ -356,15 +378,23 @@ function villainComposition(node: string): CampaignInstruction {
           {
             kind: "if",
             when: { kind: "fieldContains", field: "playthrough", value: FNE_FIRST_PLAYTHROUGH },
-            then: recommended,
-            else: [
+            then: [
+              // Asked at every setup that has no recorded villain; the field only carries the answer to the `if`.
               {
-                kind: "random",
-                slot: "villain",
-                from: { kind: "fieldOptions", field: "unrecordedVillains", unstruckOnly: true },
+                kind: "choose",
+                slot: "villainMethod",
+                chooser: "group",
+                from: { kind: "fieldOptions", field: "villainMethod" },
               },
-              { kind: "setField", field, value: choiceOf("villain") },
+              { kind: "setField", field: "villainMethod", value: choiceOf("villainMethod") },
+              {
+                kind: "if",
+                when: { kind: "fieldContains", field: "villainMethod", value: FNE_VILLAIN_LISTED },
+                then: recommended,
+                else: randomVillain,
+              },
             ],
+            else: randomVillain,
           },
           { kind: "strike", field: "unrecordedVillains", option: fieldOf(field) },
         ],
