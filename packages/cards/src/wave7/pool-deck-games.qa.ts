@@ -1189,7 +1189,9 @@ DEFER.push(() =>
     // When Defeated ability is resolved"), she was the only non-ELITE minion, so she was offered as her own target; choosing
     // her defeated her again, which triggered her When Defeated again, for ever. Fixed in the engine: a card already
     // defeated cannot be defeated again and is no target for a defeat (`alreadyDefeated`, RRG 1.8 "Defeat", p. 15).
-    it("Lady Deadpool, a 'Pool-ized minion defeated by an attack, resolves her When Defeated once per defeat and the game ends", () => {
+    // Since 2026-10-19 (wave 11 E25) her When Defeated does not resolve at all: 'Pool-ized's printed text (44041) treats
+    // her as a minion "with a blank text box". The loop guard is pinned in the engine's `already-defeated.test.ts`.
+    it("Lady Deadpool, a 'Pool-ized minion defeated by an attack, resolves no When Defeated (blank text box) and the game ends", () => {
       let run = 0;
       let longest = 0;
       const defeated = new Map<string, number>();
@@ -1215,7 +1217,7 @@ DEFER.push(() =>
       const defeats = [...defeated.values()].reduce((sum, count) => sum + count, 0);
       const resolutions = [...resolved.values()].reduce((sum, count) => sum + count, 0);
       expect(defeats).toBeGreaterThanOrEqual(1);
-      expect(resolutions).toBe(defeats);
+      expect(resolutions).toBe(0);
     }, 120_000);
   }),
 );

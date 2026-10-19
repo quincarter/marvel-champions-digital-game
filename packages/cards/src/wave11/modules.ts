@@ -212,6 +212,8 @@ export const WAVE11_MODULES: readonly Wave11Module[] = [
     group: "fne/scenarios/the-raft-breakout",
     registry: FNE_SCENARIOS_THE_RAFT_BREAKOUT,
     skipped: FNE_SCENARIOS_THE_RAFT_BREAKOUT_SKIPPED,
+    // The Raft Breakout's main scheme grants each minion a When Defeated (gainsAbility): on no card's own refs.
+    registryOnly: ["60142b.granted-when-defeated"],
   },
   {
     group: "fne/scenarios/stop-the-presses",

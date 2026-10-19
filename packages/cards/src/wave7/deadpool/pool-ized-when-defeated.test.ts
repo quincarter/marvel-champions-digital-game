@@ -27,11 +27,13 @@ import { WAVE7_ABILITIES, wave7Scenario } from "../index.js";
 vi.setConfig({ testTimeout: 120_000 });
 
 /**
- * An ally under 'Pool-ized (44041) is a minion, and its own printed When Defeated then sees it as one: Lady Deadpool
- * (44016, "When Defeated: Defeat a non-ELITE minion.") and Dogpool (44013, "When Defeated: Deal 1 damage to an enemy.").
- * A defeated card is still in play while its When Defeated resolves (RRG 1.8 "When Defeated Abilities", p. 48), and
- * cannot be defeated again (RRG 1.8 "Defeat", p. 15; engine `alreadyDefeated`): Lady Deadpool is no target for her own
- * defeat, and Dogpool, who may still be dealt his own 1 damage, is defeated once.
+ * An ally under 'Pool-ized (44041) is "a 'POOL minion with a blank text box" (its printed text; the RRG 1.8 p. 69 erratum
+ * only added "Attached ally engages its controller"), so
+ * its own printed When Defeated is gone while it is attached: Lady Deadpool (44016, "When Defeated: Defeat a non-ELITE
+ * minion.") and Dogpool (44013, "When Defeated: Deal 1 damage to an enemy.") are defeated once and discarded, with no
+ * When Defeated. Until 2026-10-19 the engine resolved them anyway (QA F1, docs/phase7-wave7-qa-pool-deck-games.md;
+ * wave 11 E25 made `gameAbilityFrames` read the live abilities). The F1 loop guard (a defeated card is no target for its
+ * own "Defeat a minion", RRG 1.8 "Defeat", p. 15) is pinned in the engine's `already-defeated.test.ts`.
  *
  * Test doubles: 44003 (cost 0) reveals the top card of the encounter deck, 44004 (cost 0) deals 20 damage to Lady
  * Deadpool as a minion. Every other ability is the shipped one.
@@ -137,8 +139,8 @@ const defeats = (events: readonly GameEvent[], id: InstanceId): number =>
 const resolutions = (events: readonly GameEvent[], abilityId: string): number =>
   events.filter((e) => e.type === "abilityResolved" && e.abilityId === abilityId).length;
 
-describe("a 'Pool-ized ally's own When Defeated (44016, 44013) resolves once per defeat", () => {
-  it("Lady Deadpool, the only non-ELITE minion: she is not offered as her own target, is defeated once and discarded", () => {
+describe("a 'Pool-ized ally has no When Defeated of its own (44016, 44013): defeated once and discarded", () => {
+  it("Lady Deadpool: her When Defeated does not resolve, nothing is offered, she is defeated once and discarded", () => {
     const staged = playCode(poolizedOnTop(allyInPlay(baseGame(), P1, LADY_DEADPOOL)), REVEAL).state;
     const lady = idOf(staged, LADY_DEADPOOL);
     expect(inst(staged, lady).treatedAs?.kind).toBe("minion");
@@ -146,13 +148,13 @@ describe("a 'Pool-ized ally's own When Defeated (44016, 44013) resolves once per
     const run = playCode(staged, HIT_LADY);
     expect(run.offered("minion")).toEqual([]);
     expect(defeats(run.events, lady)).toBe(1);
-    expect(resolutions(run.events, LADY_DEFEATED)).toBe(1);
+    expect(resolutions(run.events, LADY_DEFEATED)).toBe(0);
     expect(run.state.pendingChoice).toBeNull();
     expect(run.state.stack).toEqual([]);
     expect(playerOf(run.state, P1).discard).toContain(lady);
   });
 
-  it("with Dogpool also 'Pool-ized: Lady Deadpool's When Defeated offers only Dogpool; his 1 damage may go to himself, and each is defeated once", () => {
+  it("with Dogpool also 'Pool-ized: neither When Defeated resolves; Lady Deadpool is defeated once, Dogpool stays in play", () => {
     const allies = allyInPlay(allyInPlay(baseGame(), P1, DOGPOOL), P1, LADY_DEADPOOL);
     // The first 'Pool-ized goes to Lady Deadpool (cost 4), the second to Dogpool (cost 3).
     const once = playCode(poolizedOnTop(allies), REVEAL).state;
@@ -162,16 +164,15 @@ describe("a 'Pool-ized ally's own When Defeated (44016, 44013) resolves once per
     expect(inst(staged, lady).treatedAs?.kind).toBe("minion");
     expect(inst(staged, dogpool).treatedAs?.kind).toBe("minion");
 
-    const run = playCode(staged, HIT_LADY, ["Dogpool", "Dogpool"]);
-    expect(run.offered("minion")).toEqual([["Dogpool"]]);
-    // Damage is not a defeat: the RRG does not make a defeated card in play untargetable, so both stay candidates.
-    expect(run.offered("enemy")).toHaveLength(1);
-    expect(run.offered("enemy")[0]).toEqual(expect.arrayContaining(["Dogpool", "Lady Deadpool"]));
+    const run = playCode(staged, HIT_LADY);
+    expect(run.offered("minion")).toEqual([]);
+    expect(run.offered("enemy")).toEqual([]);
     expect(defeats(run.events, lady)).toBe(1);
-    expect(defeats(run.events, dogpool)).toBe(1);
-    expect(resolutions(run.events, LADY_DEFEATED)).toBe(1);
-    expect(resolutions(run.events, DOGPOOL_DEFEATED)).toBe(1);
+    expect(defeats(run.events, dogpool)).toBe(0);
+    expect(resolutions(run.events, LADY_DEFEATED)).toBe(0);
+    expect(resolutions(run.events, DOGPOOL_DEFEATED)).toBe(0);
     expect(run.state.stack).toEqual([]);
-    expect(playerOf(run.state, P1).discard).toEqual(expect.arrayContaining([lady, dogpool]));
+    expect(playerOf(run.state, P1).discard).toContain(lady);
+    expect(playerOf(run.state, P1).discard).not.toContain(dogpool);
   });
 });

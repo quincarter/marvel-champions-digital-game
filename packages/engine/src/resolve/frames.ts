@@ -10,8 +10,6 @@ import {
   controllerOf,
   countsAsExtras,
   ignoredAbilities,
-  printedAbilityRefs,
-  textBoxBlankFor,
   TOGETHER_TARGETS_SLOT,
   traitsOf,
   withSelfHost,
@@ -421,18 +419,12 @@ export function gameAbilityFrames(
   actingPlayerId: PlayerId | null = null,
 ): readonly StackFrame[] {
   const card = cardOf(ctx.state, instanceId);
-  if (!card || (!refsOverride && textBoxBlankFor(ctx.state, instanceId, ctx.deps))) return [];
-  // Villains, main schemes and identities print abilities for every face/stage;
-  // only the active one is live.
-  // A flipped encounter card's live abilities are its other face's (RRG 1.8 "Flip").
-  const refs =
-    refsOverride ??
-    (card.type === "villain" ||
-    card.type === "main_scheme" ||
-    card.type === "hero_identity" ||
-    ctx.state.instances[instanceId]?.flipped
-      ? activeAbilityRefs(ctx.state, instanceId, ctx.deps)
-      : printedAbilityRefs(card));
+  if (!card) return [];
+  // The card's live ability slots (`activeAbilityRefs`): a villain's or main scheme's current stage, an identity's
+  // faceup side, a flipped encounter card's other face (RRG 1.8 "Flip"); none of its printed ones while its text box is
+  // blank; plus any a `gainsAbility` rule gives it ("Each minion gains 'When Defeated: …'", 60142b). A gained ability is
+  // not printed on the card, so the card's own blank text box does not take it away (RRG 1.8 "'Gains'", p. 21).
+  const refs = refsOverride ?? activeAbilityRefs(ctx.state, instanceId, ctx.deps);
   const frames: StackFrame[] = [];
   // An ability an `ignoreAbilities` rule names is not there (docs/phase7-wave8.md §3.21), whichever slots are scanned.
   const ignored = ignoredAbilities(ctx.state, ctx.deps).get(instanceId);

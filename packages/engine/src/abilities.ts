@@ -1076,8 +1076,11 @@ export type RuleSpec =
    * - **Where it is read** (`gainedAbilities`, select.ts): `activeAbilityRefs` joins the gained abilities to the
    *   card's live printed ones, so every reader of a card's abilities has them: timing windows, the triggers of an
    *   event, legal actions and `useAbility`, resource abilities, the limit and the uses counted under
-   *   `<instance>:<abilityId>`, costs, labels. Inside the gained ability `self` is the card that gained it and `you`
-   *   its controller, as for a printed ability. Its form, `while`, cost and limit are its own.
+   *   `<instance>:<abilityId>`, costs, labels, and the game-triggered abilities (`gameAbilityFrames`: a gained When
+   *   Defeated or When Revealed resolves after the card's printed ones, "Each minion gains: 'When Defeated: …'", The
+   *   Raft Breakout 60142b; an effect that ignores When Defeated abilities ignores it too). Inside the gained ability
+   *   `self` is the card that gained it and `you` its controller, as for a printed ability. Its form, `while`, cost and
+   *   limit are its own.
    * - **Not printed.** A blank on the gaining card's text box does not take a gained ability away (only the granting
    *   card's own blank does, by turning its constant off: one and the same for "this card gains"); "printed" readers
    *   (`printedAbilityRefs`) never see it. `RuleSpec ignoreAbilities` naming its id does remove it.
