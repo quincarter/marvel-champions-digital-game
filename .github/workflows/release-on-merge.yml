@@ -144,6 +144,7 @@ jobs:
             NEXT_TAG=$(changie next auto 2>/dev/null || changie next patch)
           fi
           TAG="v${NEXT_TAG#v}"
+          PREV_TAG=$(git describe --tags --abbrev=0)
           echo "Preparing ${TAG}."
 
           # Batch the fragments into .changes/${TAG}.md, rebuild CHANGELOG.md and run the version replacements
@@ -160,6 +161,9 @@ jobs:
           # The repo's pre-push hook runs the whole Playwright suite. That gate is for contributors' pushes; this
           # commit only batches changelog fragments onto code main already has. This job doesn't run `pnpm install`,
           # so the hooks aren't installed here, and `--no-verify` keeps it that way if that ever changes.
+          # The README's Special thanks lists, refreshed from every issue and merged PR (scripts/release-credits.mjs).
+          node scripts/release-credits.mjs readme || echo "::warning::Couldn't refresh the README's Special thanks."
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -B release/next
@@ -173,6 +177,8 @@ jobs:
             echo "It is regenerated on every merge to main while it is open, so it always holds everything unreleased."
             echo
             cat ".changes/${TAG}.md"
+            node scripts/release-credits.mjs notes "${PREV_TAG}" HEAD "${TAG}" ||
+              echo "::warning::Couldn't list this release's Special thanks." >&2
           } > "$BODY_FILE"
 
           PR=$(gh pr list --head release/next --base main --state open --json number -q '.[0].number')
@@ -203,11 +209,19 @@ jobs:
           VERSION="${TAG#v}"
           echo "Releasing ${TAG}."
 
-          # The changelog, then a "Which download do I need?" table naming this version's files.
+          # The changelog, a Special thanks to everyone who reported or wrote this release's changes
+          # (scripts/release-credits.mjs), then a "Which download do I need?" table naming this version's files.
           NOTES_FILE=""
           if [ -f ".changes/${TAG}.md" ]; then
             NOTES_FILE="$(mktemp)"
-            { cat ".changes/${TAG}.md"; sed "s/VERSION/${VERSION}/g" .github/release-downloads.md; } > "$NOTES_FILE"
+            PREV_TAG=$(git describe --tags --abbrev=0 "${TAG}^")
+            CREDITS=$(node scripts/release-credits.mjs notes "${PREV_TAG}" "${TAG}") ||
+              { echo "::warning::Couldn't list this release's Special thanks."; CREDITS=""; }
+            {
+              cat ".changes/${TAG}.md"
+              if [ -n "$CREDITS" ]; then printf '%s\n' "$CREDITS"; fi
+              sed "s/VERSION/${VERSION}/g" .github/release-downloads.md
+            } > "$NOTES_FILE"
           fi
           if gh release view "${TAG}" >/dev/null 2>&1; then
             echo "Release ${TAG} already exists on GitHub."

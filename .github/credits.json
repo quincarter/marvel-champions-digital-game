@@ -1,0 +1,7 @@
+{
+  "$comment": "People to credit whom GitHub can't see, read by scripts/release-credits.mjs. reporters / contributors: { name, github?, url?, note? } added to the README's Special thanks. release: { \"vX.Y.Z\": [\"a line for that release's Special thanks\"] }. exclude: logins to leave out.",
+  "reporters": [],
+  "contributors": [],
+  "release": {},
+  "exclude": []
+}
