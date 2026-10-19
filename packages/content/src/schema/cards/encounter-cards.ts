@@ -47,6 +47,16 @@ export interface CardFlipSide {
   readonly resourceIcons?: ResourceIconCounts;
   /** This face's "Standard Mode Only." / "Expert Mode Only." (see `ModeOnly`). */
   readonly modeOnly?: ModeOnly;
+  /**
+   * This face's own printed THW / ATK / hit points, for a double-sided ally whose faces print different ones
+   * (`AllyCard.thw` / `atk` / `hp` are the front's): Typhoid Mary (THW 2, ATK 1) flips to Bloody Mary (THW 1, ATK 2),
+   * `fne` 60210a/b. RRG 1.8 "Flip" (p. 20): the new face's characteristics apply. Only a stat the face changes is
+   * present, and it differs from the front's; an absent one reads the front's. Allies only (an ally prints no DEF):
+   * a minion or attachment flip side's printed values are not modeled here.
+   */
+  readonly thw?: PrintedStat;
+  readonly atk?: PrintedStat;
+  readonly hp?: number;
 }
 
 /**

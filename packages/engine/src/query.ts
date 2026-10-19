@@ -1,5 +1,6 @@
 import type {
   AbilityReference,
+  AllyCard,
   AlterEgoFace,
   AnyCard,
   CardId,
@@ -988,6 +989,23 @@ const statValue = (value: PrintedStat): number => (typeof value === "number" ? v
 const dashes = (stats: Readonly<Record<"atk" | "thw" | "sch", PrintedStat | undefined>>): ("atk" | "thw" | "sch")[] =>
   (["atk", "thw", "sch"] as const).filter((stat) => stats[stat] === null);
 
+/**
+ * The printed THW, ATK and hit points of the face an ally shows: a flipped double-sided ally reads its other face's
+ * where that face prints its own (`CardFlipSide.thw` / `atk` / `hp`; Typhoid Mary 60210a THW 2 / ATK 1 flips to
+ * Bloody Mary 60210b THW 1 / ATK 2), since the new face's characteristics apply (RRG 1.8 "Flip", p. 20).
+ */
+export function showingAllyStats(
+  card: AllyCard,
+  flipped: boolean,
+): { readonly thw: PrintedStat; readonly atk: PrintedStat; readonly hp: number } {
+  const face = flipped ? card.flipSide : undefined;
+  return {
+    thw: face?.thw !== undefined ? face.thw : card.thw,
+    atk: face?.atk !== undefined ? face.atk : card.atk,
+    hp: face?.hp ?? card.hp,
+  };
+}
+
 export function printedProfile(state: GameState, id: InstanceId): CharacterProfile | undefined {
   const instance = getInstance(state, id);
   if (!instance) return undefined;
@@ -999,17 +1017,18 @@ export function printedProfile(state: GameState, id: InstanceId): CharacterProfi
   }
   // An ally treated as a minion: its printed ATK and hit points; "SCH is equal to its printed THW" (§3.9 of wave 4).
   if (instance.treatedAs?.kind === "minion" && card.type === "ally") {
+    const ally = showingAllyStats(card, instance.flipped === true);
     // Either reading starts from the printed THW; `characterProfile` adds the THW modifiers for `"current"`.
-    const sch = instance.treatedAs.schFromThw ? card.thw : 0;
+    const sch = instance.treatedAs.schFromThw ? ally.thw : 0;
     return {
       kind: "minion",
-      missing: dashes({ atk: card.atk, thw: 0, sch }),
-      atk: statValue(card.atk),
+      missing: dashes({ atk: ally.atk, thw: 0, sch }),
+      atk: statValue(ally.atk),
       thw: 0,
       def: 0,
       rec: 0,
       sch: statValue(sch),
-      maxHp: card.hp,
+      maxHp: ally.hp,
     };
   }
   // A hero treated as a minion (docs/phase7-wave9.md §3.30; MC50 p. 22: "SCH equal to its THW value, and hit points
@@ -1060,15 +1079,16 @@ export function printedProfile(state: GameState, id: InstanceId): CharacterProfi
       : { kind: "identity", missing: [], atk: 0, thw: 0, def: 0, rec: up.face.rec, sch: 0, maxHp: card.hp };
   }
   if (card.type === "ally") {
+    const ally = showingAllyStats(card, instance.flipped === true);
     return {
       kind: "ally",
-      missing: dashes({ atk: card.atk, thw: card.thw, sch: 0 }),
-      atk: statValue(card.atk),
-      thw: statValue(card.thw),
+      missing: dashes({ atk: ally.atk, thw: ally.thw, sch: 0 }),
+      atk: statValue(ally.atk),
+      thw: statValue(ally.thw),
       def: 0,
       rec: 0,
       sch: 0,
-      maxHp: card.hp,
+      maxHp: ally.hp,
     };
   }
   if (card.type === "minion") {

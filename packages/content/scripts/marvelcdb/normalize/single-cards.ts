@@ -19,7 +19,7 @@ import { splitsIntoTwoCards } from "./encounter-sets.ts";
 import { normalizePlayerCard } from "./player-cards.ts";
 import { prepare, type Prepared } from "./prepare.ts";
 import type { SeparateDeckMembership } from "./separate-decks.ts";
-import { amplifyIconsField, PLAYER_TYPES, resourceIcons } from "./values.ts";
+import { amplifyIconsField, PLAYER_TYPES, printedStat, resourceIcons } from "./values.ts";
 
 export function normalizeSingleCards(
   ctx: NormalizeContext,
@@ -90,8 +90,10 @@ export function normalizeSingleCards(
       }
       continue;
     }
-    const { flipSide, flipParts } = readFlipSide(ctx, r);
+    const read = readFlipSide(ctx, r);
+    const { flipParts } = read;
     const p = prepare(ctx, r);
+    const flipSide = read.flipSide && withAllyFlipStats(read.flipSide, r, p, flipParts[0]);
     const parsed = parse(ctx, p);
     const rec = {
       r,
@@ -105,6 +107,30 @@ export function normalizeSingleCards(
       normalizePlayerCard(ctx, rec, separateDeckOfCode.get(r.code), flipSide, flipParts);
     else normalizeEncounterCard(ctx, rec, flipSide, flipParts);
   }
+}
+
+/**
+ * A double-sided ally's flip side with its own printed THW / ATK / hit points where they differ from the front's
+ * (`CardFlipSide.thw` / `atk` / `hp`; Typhoid Mary 60210a THW 2 / ATK 1, Bloody Mary 60210b THW 1 / ATK 2), read the
+ * way `normalizePlayerCard` reads the front's. RRG 1.8 "Flip" (p. 20): the new face's characteristics apply.
+ */
+function withAllyFlipStats(
+  flipSide: EncounterCardFlipSide,
+  r: RawCard,
+  p: Prepared,
+  pBack: Prepared | undefined,
+): EncounterCardFlipSide {
+  const back = r.linked_card;
+  if (r.type_code !== "ally" || !back || !pBack) return flipSide;
+  const thw = printedStat(pBack.thwart ?? back.thwart);
+  const atk = printedStat(pBack.attack);
+  const hp = back.health ?? 0;
+  return {
+    ...flipSide,
+    ...(thw !== printedStat(p.thwart ?? r.thwart) ? { thw } : {}),
+    ...(atk !== printedStat(p.attack) ? { atk } : {}),
+    ...(hp !== (r.health ?? 0) ? { hp } : {}),
+  };
 }
 
 /**

@@ -5464,6 +5464,8 @@ export const FNE_CARDS: readonly AnyCard[] = [
       abilities: [{ id: abilityId("60210b.bloody-mary-forced-response") }],
       image: imageRef("/bundles/cards/60210b.png"),
       resourceIcons: { physical: 1 },
+      thw: 1,
+      atk: 2,
     },
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("fne_campaign") },
   },

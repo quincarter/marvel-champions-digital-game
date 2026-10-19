@@ -932,12 +932,31 @@ function flipSideErrors(
   const frontMode = (card as { readonly modeOnly?: unknown }).modeOnly;
   if (back.modeOnly !== undefined && frontMode === back.modeOnly)
     errors.push(`${side} modeOnly repeats the front face's; the two faces name different modes`);
+  errors.push(...flipSideStatErrors(card, back, side));
   if (Array.isArray(back.abilities) && Array.isArray(card.abilities)) {
     const front = new Set((card.abilities as readonly AbilityReference[]).map((ref) => ref?.id));
     for (const ref of back.abilities) {
       if (ref && front.has(ref.id))
         errors.push(`${side} ability ${ref.id} is also on the front face; ability ids are unique per card`);
     }
+  }
+  return errors;
+}
+
+/**
+ * A flip side's own THW / ATK / hit points (`CardFlipSide.thw` / `atk` / `hp`): only on an ally's flip side, each a
+ * valid printed value that differs from the front's (a stat the face does not change is left out).
+ */
+function flipSideStatErrors(card: object, back: EncounterCardFlipSide, side: string): string[] {
+  const stats = (["thw", "atk", "hp"] as const).filter((stat) => back[stat] !== undefined);
+  if (stats.length === 0) return [];
+  const front = card as { readonly type?: unknown } & Partial<Record<"thw" | "atk" | "hp", unknown>>;
+  if (front.type !== "ally") return [`${side} thw/atk/hp are only for a double-sided ally`];
+  const errors: string[] = [];
+  for (const stat of stats) {
+    if (stat === "hp" ? !isNonNegativeNumber(back.hp) || back.hp < 1 : !isPrintedStat(back[stat]))
+      errors.push(`${side} ${stat} must be a valid printed ${stat === "hp" ? "hit point value" : "stat"}`);
+    else if (back[stat] === front[stat]) errors.push(`${side} ${stat} repeats the front face's; leave it out`);
   }
   return errors;
 }

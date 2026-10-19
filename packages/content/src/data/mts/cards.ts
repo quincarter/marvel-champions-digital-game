@@ -3387,6 +3387,8 @@ export const MTS_CARDS: readonly AnyCard[] = [
         { id: abilityId("21139b.odin-constant-2") },
         { id: abilityId("21139b.odin-forced-interrupt") },
       ],
+      thw: 3,
+      atk: 4,
     },
     specificTo: { kind: "scenario", encounterSetId: encounterSetId("hela") },
   },
