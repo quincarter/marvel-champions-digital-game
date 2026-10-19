@@ -1767,6 +1767,13 @@ export type Predicate =
    */
   | { readonly kind: "areaPlayersDefeated" }
   /**
+   * A player has been eliminated from the game (RRG 1.8 "Player Elimination", p. 34), anywhere at the table: "If any
+   * main scheme is completed or any player is eliminated, the players lose the game." (the Protection Racket 1B cards,
+   * docs/phase7-wave11-scenarios.md §S3.1), a `stateCheck` → `endGame lost`. A player who sat the scenario out
+   * (`sitOutScenario`) never started it and does not count.
+   */
+  | { readonly kind: "anyPlayerEliminated" }
+  /**
    * A campaign-log field says something: "If Cosmo is in the campaign pool …" (MC21 p. 17) is `has`, "If the
    * 'Trust Established?' box is checked" is `isSet`, "if 3 or more delay counters are recorded" is `atLeast`.
    *

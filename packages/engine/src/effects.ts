@@ -27,6 +27,7 @@ import {
   isPlayerCardType,
   isSeatlessIdentity,
   locateCard,
+  mainSchemeStateOf,
   mainSchemeStates,
   mustCard,
   mustCardOf,
@@ -36,7 +37,9 @@ import {
   mustVillain,
   isOwnedEncounterCard,
   playerCardOwnerOf,
+  villainOf,
 } from "./query.js";
+import { hasPerPlayerMainSchemes } from "./per-player-main-schemes.js";
 import type { StatusDiscardCause } from "./events.js";
 import {
   type EncounterDealSource,
@@ -743,7 +746,11 @@ export function updateMainSchemeState(
 export function addAccelerationToken(ctx: Ctx, requested?: InstanceId): void {
   // "When an acceleration token would be placed on 'the main scheme,' place it on the scheme with the glider counter"
   // (MC27 p. 17; FAQ, RRG 1.8 p. 62, for a player card's too; docs/phase7-wave5.md §3.3).
-  const target = requested ?? gliderMainSchemeId(ctx.state, ctx.deps) ?? ctx.state.mainScheme.instanceId;
+  const target =
+    perPlayerTokenHolder(ctx, requested) ??
+    requested ??
+    gliderMainSchemeId(ctx.state, ctx.deps) ??
+    ctx.state.mainScheme.instanceId;
   const redirected = accelerationTokenRedirect(ctx.state, ctx.deps, target);
   const to = redirected ?? target;
   if (redirected !== null) emit(ctx, { type: "accelerationTokenRedirected", from: target, to });
@@ -761,6 +768,19 @@ export function addAccelerationToken(ctx: Ctx, requested?: InstanceId): void {
   }
   const placed: TriggerEvent = { kind: "accelerationTokenPlaced", instanceId: to };
   if (heard(ctx.state, ctx.deps, placed)) pushEvent(ctx, placed);
+}
+
+/**
+ * With a main scheme per player, a token headed for "the main scheme" (the default, or any main scheme named) goes
+ * near the villain instead, as the active villain's `acceleration` counter (MC60 p. 13: "When an acceleration token
+ * would be placed on the main scheme, such as when the encounter deck is reset, place that acceleration token near the
+ * villain"; docs/phase7-wave11-scenarios.md §S3.1). Null in any other game, or with no villain in play.
+ */
+function perPlayerTokenHolder(ctx: Ctx, requested: InstanceId | undefined): InstanceId | null {
+  if (!hasPerPlayerMainSchemes(ctx.state)) return null;
+  if (requested !== undefined && mainSchemeStateOf(ctx.state, requested) === undefined) return null;
+  const villain = villainOf(ctx.state, ctx.state.activeVillainId);
+  return villain && !villain.defeated ? villain.instanceId : null;
 }
 
 /** The counter an acceleration token is on a card that is not a main scheme (docs/phase7-wave5.md §3.4). */

@@ -33,6 +33,15 @@ const SHIELD_RULE = stubAbility("shield.constant", {
   effects: [],
 });
 const SHIELD = stubSupport({ id: "shield", cost: 0, abilities: [SHIELD_RULE.ref] });
+/** "The villain cannot be dealt damage." (Jackknifed Tanker Truck 60131's shape, docs/phase7-wave11-scenarios.md §S3.5) */
+const WALL_RULE = stubAbility("wall.constant", {
+  trigger: {
+    kind: "constant",
+    rules: [{ kind: "cannotTakeDamage", target: { categories: ["villain"] }, stage: "dealt" }],
+  },
+  effects: [],
+});
+const WALL = stubSupport({ id: "wall", cost: 0, abilities: [WALL_RULE.ref] });
 /** "Your basic attacks gain piercing." */
 const CLAWS_RULE = stubAbility("claws.constant", {
   trigger: {
@@ -64,7 +73,7 @@ const STRIKE_ABILITY = stubAbility("strike.action", {
   ] satisfies EffectSpec[],
 });
 const STRIKE = stubEvent({ id: "strike", cost: 0, abilities: [STRIKE_ABILITY.ref] });
-const deps = depsOf(SHIELD_RULE, CLAWS_RULE, STRIKE_ABILITY);
+const deps = depsOf(SHIELD_RULE, WALL_RULE, CLAWS_RULE, STRIKE_ABILITY);
 
 const playFree = (state: GameState, card: string): GameState => {
   const given = giveCard(state, p1, card);
@@ -77,14 +86,17 @@ const playFree = (state: GameState, card: string): GameState => {
   });
 };
 
-/** P1's second turn in hero form, the villain under "cannot take damage", with `tough` tough cards and `supports`. */
-function table(tough: number, supports: readonly string[]) {
+/**
+ * P1's second turn in hero form, the villain under "cannot take damage" (or `rule`), with `tough` tough cards and
+ * `supports`.
+ */
+function table(tough: number, supports: readonly string[], rule: string = SHIELD.id) {
   const start = newGame({
     villain: VILLAIN,
     mainScheme: SCHEME,
-    extraCards: [THUG, SHIELD, CLAWS, STRIKE],
+    extraCards: [THUG, SHIELD, WALL, CLAWS, STRIKE],
     encounterDeck: Array.from({ length: 12 }, () => THUG.id),
-    deck: [...Array.from({ length: 18 }, () => RESOURCE.id), SHIELD.id, CLAWS.id, STRIKE.id],
+    deck: [...Array.from({ length: 17 }, () => RESOURCE.id), SHIELD.id, WALL.id, CLAWS.id, STRIKE.id],
     deps,
   });
   let state = settle(
@@ -92,7 +104,7 @@ function table(tough: number, supports: readonly string[]) {
     undefined,
     deps,
   );
-  for (const support of [SHIELD.id, ...supports]) state = playFree(state, support);
+  for (const support of [rule, ...supports]) state = playFree(state, support);
   const villain = activeVillain(state).instanceId;
   state = {
     ...state,
@@ -166,6 +178,35 @@ describe("a piercing attack on a Tough enemy that cannot take damage (RRG 1.8 pp
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     const offered = result.state.pendingChoice?.options.map((o) => o.optionId) ?? [];
+    expect(offered).not.toContain(at.villain);
+  });
+});
+
+describe("'cannot be dealt damage' gives piercing nothing to act on (RRG 1.8 'Piercing', p. 32; §S3.5)", () => {
+  // Unlike "cannot take damage" (Ruling 69.76 above), no damage is dealt, so piercing discards no tough card and the
+  // attack has no effect on the target: an attack that only deals damage cannot target it.
+  it("a basic attack that gains piercing is refused against the Tough villain", () => {
+    const at = table(1, [CLAWS.id], WALL.id);
+    const result = applyCommand(at.state, basicAttack(at.hero, at.villain), deps);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("no_valid_target");
+    expect(mustInstance(at.state, at.villain).statuses.tough).toBe(1);
+  });
+
+  it("Piercing Strike does not offer the Tough villain", () => {
+    const at = table(1, [], WALL.id);
+    const given = giveCard(at.state, p1, STRIKE.id);
+    const result = applyCommand(
+      given.state,
+      { type: "playCard", playerId: p1, cardInstanceId: given.id, payment: [], attachToInstanceId: null },
+      deps,
+    );
+    // The engaged minion is still a target, so the event plays; the villain is not among the choices.
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const offered = result.state.pendingChoice?.options.map((o) => o.optionId) ?? [];
+    expect(offered.length).toBeGreaterThan(0);
     expect(offered).not.toContain(at.villain);
   });
 });

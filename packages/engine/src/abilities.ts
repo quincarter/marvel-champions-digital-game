@@ -865,10 +865,20 @@ export type RuleSpec =
    * Damage that is not from an attack (an ability's or non-attack event's, retaliate, indirect damage) has neither
    * an attacker nor an attack, meets none of them and is blocked (§4.1 Q17). Overkill's spill is "damage from an
    * attack" (RRG 1.8 "Overkill", p. 31) and carries its attack's attacker, card and keywords.
+   *
+   * `stage: "dealt"`: "X cannot be dealt damage" (Kingpin `fne` 60159a, Jackknifed Tanker Truck 60131;
+   * docs/phase7-wave11-scenarios.md §S3.5). RRG 1.8 "Damage" (p. 14) separates the damage dealt from the damage taken,
+   * and "Cannot" (p. 11) is absolute, so damage that cannot be dealt is never dealt: it is dropped before its
+   * interrupt window, with no "would deal / be dealt" or "would take" interrupt, no tough card used or pierced, no
+   * excess damage and no "after … deals / is dealt damage" response (logged `damageNotDealt`). The attack it belongs
+   * to was still made, so "after … attacks" and retaliate still resolve. Everywhere else (target validity, damage
+   * costs, sequential damage) it reads as "cannot take damage": what cannot be dealt cannot be taken either. Absent,
+   * the rule is the "cannot take damage" above (dealt, then not taken; ruling March 6, 2026 R1).
    */
   | {
       readonly kind: "cannotTakeDamage";
       readonly target: TargetQuery;
+      readonly stage?: "dealt";
       readonly while?: Predicate;
       readonly fromSource?: TargetQuery;
       readonly exceptFromSource?: TargetQuery;

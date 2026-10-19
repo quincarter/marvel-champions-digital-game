@@ -266,6 +266,7 @@ export {
   cannotLeavePlay,
   cardAbilitiesCannotRemove,
   resourceIconsInPlay,
+  cannotBeDealtDamage,
   cannotTakeDamage,
   playDestinationsOf,
   countSchemeIcons,

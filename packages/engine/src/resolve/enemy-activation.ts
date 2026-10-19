@@ -1596,7 +1596,7 @@ export function executeEnemySchemeFrame(ctx: Ctx, frame: Frame<"enemyScheme">): 
       // threat itself and applies either way. The two are deliberately separate keys.
       const sch = profile.sch + (profile.missing.includes("sch") ? 0 : (vars.schBonus ?? 0));
       // RRG 1.8 "Scheme (Enemy Activation)" step 3 places it on the main scheme unless a constant ability redirects it.
-      const schemeInstanceId = schemeActivationDestination(ctx.state, ctx.deps, frame.enemyInstanceId);
+      const schemeInstanceId = schemeActivationDestination(ctx.state, ctx.deps, frame.enemyInstanceId, frame.playerId);
       const threatBonus = vars.threatBonus ?? 0;
       const amount = Math.max(0, sch + frame.boostIcons + threatBonus);
       // "This activation removes threat instead of placing it" (`modifyAttack.removesThreat`, Psychic Manipulation;

@@ -521,6 +521,12 @@ function describe(
         text: `${card(event.targetInstanceId)} can't take more damage — ${event.amount} not taken.`,
         voice: "scenario",
       };
+    // docs/phase7-wave11-scenarios.md §S3.5: "cannot be dealt damage", so none was dealt (not a prevention).
+    case "damageNotDealt":
+      return {
+        text: `${card(event.targetInstanceId)} can't be dealt damage — ${event.amount} not dealt.`,
+        voice: "scenario",
+      };
     // §3.68: say why the damage is more than was dealt.
     case "damageDoubled":
       return {
@@ -854,6 +860,12 @@ function describe(
         (index) => stages[index]?.name ?? `stage ${stages[index]?.stageNumber ?? index + 1}`,
       );
       return { text: `Main scheme stages for this game: ${names.join(", then ")}.`, voice: "scenario" };
+    }
+    // docs/phase7-wave11-scenarios.md §S3.1: a main scheme per player, each in its play area.
+    case "mainSchemesChosen": {
+      const picks = event.picks.map((pick) => `${who(pick.playerId)}: ${card(pick.schemeInstanceId)}`);
+      const random = event.picks.some((pick) => pick.random) ? " (drawn at random)" : "";
+      return { text: `Main schemes for this game${random}: ${picks.join("; ")}.`, voice: "scenario" };
     }
     // docs/phase7-wave10.md §3.19 (MC56 p. 20): a permanent attachment (Cap's Shield) whose holder left play moves on.
     case "permanentAttachmentRehosted":

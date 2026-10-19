@@ -1,0 +1,3 @@
+kind: Engine
+body: '''Cannot be dealt damage'' (cannotTakeDamage.stage: "dealt"): the damage is never dealt, so no ''would be dealt'' interrupt, tough or piercing, and no ''after ... dealt'' response; logged and shown as damageNotDealt.'
+time: 2026-10-18T21:04:07.883031-04:00

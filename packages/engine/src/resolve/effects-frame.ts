@@ -201,6 +201,7 @@ import {
   slotTargetValid,
   UNRESOLVED_VAR,
 } from "./target-validity.js";
+import { hasPerPlayerMainSchemes } from "../per-player-main-schemes.js";
 import { executePairCards } from "./pair-cards.js";
 import { executeSequentialDamage } from "./sequential-damage.js";
 import { markPreThenUnresolved } from "./then.js";
@@ -561,6 +562,8 @@ function needsVillainChoice(ctx: Ctx, frame: Frame<"effects">, effect: EffectSpe
  */
 function needsMainSchemeChoice(ctx: Ctx, frame: Frame<"effects">, effect: EffectSpec): boolean {
   if ((ctx.state.extraMainSchemes ?? []).length === 0 || frame.bindings[MAIN_SCHEME_CHOICE]) return false;
+  // A main scheme per player: "the main scheme" is read by play area, never chosen (wave 11 scenarios §S3.1).
+  if (hasPerPlayerMainSchemes(ctx.state)) return false;
   if (frame.controllerId === null || !isPlayerCard(ctx.state, frame.selfInstanceId)) return false;
   if (contextArea(ctx.state, contextOf(frame, ctx.deps))) return false;
   return JSON.stringify(effect).includes('{"kind":"mainScheme"}');

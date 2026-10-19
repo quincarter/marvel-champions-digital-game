@@ -942,7 +942,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           pushEvent(ctx, {
             kind: "thwart",
             thwarterInstanceId: mustPlayer(ctx.state, frame.controllerId).identity.instanceId,
-            schemeInstanceId: schemeActivationDestination(ctx.state, ctx.deps, scheming.enemyInstanceId),
+            schemeInstanceId: schemeActivationDestination(
+              ctx.state,
+              ctx.deps,
+              scheming.enemyInstanceId,
+              scheming.playerId,
+            ),
             playerId: frame.controllerId,
             amount: 0,
             basic: false,

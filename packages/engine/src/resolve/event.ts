@@ -43,6 +43,7 @@ import {
 } from "../query.js";
 import type { EngineDeps } from "../abilities.js";
 import {
+  cannotBeDealtDamage,
   cannotBeDefeated,
   cannotTakeDamage,
   consideredAboveZero,
@@ -145,6 +146,7 @@ import { applyEncounterCardBeingDealt, resolveSurge } from "./reveal.js";
 import { answeredByNoResponse, candidatesFor, eachTimeEffectsFor, hasCandidates, heard } from "./triggers.js";
 import { pushWindow } from "./window.js";
 import { markPreThenUnresolved } from "./then.js";
+import { mainSchemePlayAreaOf } from "../per-player-main-schemes.js";
 import {
   attackAwaitsAbility,
   attackPreventingDamage,
@@ -252,6 +254,20 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
           ctx,
           discardStatusCards(ctx, frame.event.enemyInstanceId, "stunned", "cancelledAttack"),
         );
+        return;
+      }
+      // "X cannot be dealt damage" (docs/phase7-wave11-scenarios.md §S3.5): RRG 1.8 "Damage" (p. 14) separates dealing
+      // from taking, and "Cannot" (p. 11) is absolute, so the damage is never dealt. It goes on as damage of 0, which has
+      // no "would" window, uses and pierces no tough card, is neither dealt nor taken and answers no response
+      // (`nothingToAnswer`); the attack it belongs to still happened.
+      if (frame.event.kind === "dealDamage" && damageCannotBeDealt(ctx, frame.event)) {
+        emit(ctx, {
+          type: "damageNotDealt",
+          targetInstanceId: frame.event.targetInstanceId,
+          amount: frame.event.amount,
+          sourceInstanceId: frame.event.sourceInstanceId,
+        });
+        setFrame(ctx, { ...frame, event: { ...frame.event, amount: 0, dealt: 0 } });
         return;
       }
       emit(ctx, { type: "triggerEvent", event: frame.event, phase: "initiated" });
@@ -1211,6 +1227,17 @@ const damageCannotBeTaken = (ctx: Ctx, event: DamageEvent): boolean =>
     damageAttackInfo(ctx, event),
   );
 
+/** Whether a "cannot be dealt damage" rule drops this damage before its interrupt window (`cannotBeDealtDamage`). */
+const damageCannotBeDealt = (ctx: Ctx, event: DamageEvent): boolean =>
+  event.amount > 0 &&
+  cannotBeDealtDamage(
+    ctx.state,
+    ctx.deps,
+    event.targetInstanceId,
+    [event.sourceInstanceId, event.viaInstanceId],
+    damageAttackInfo(ctx, event),
+  );
+
 /**
  * Piercing ahead of the damage's interrupt window (ruling January 17, 2026 (3) #2: "keywords have timing priority over
  * triggered abilities. Piercing removes the Tough status card before Aerial Evacuation triggers to prevent damage
@@ -1959,6 +1986,10 @@ export function thwartForbiddenOn(
   if (
     thwart.ignorePatrol !== true &&
     isProtectedMainScheme(state, deps, schemeId) &&
+    // RRG 1.8 "Patrol" (p. 32): "The engaged player cannot thwart the main scheme", a constant on a minion in that
+    // player's play area, so with a main scheme per player it is their own (MC60 p. 13; docs/phase7-wave11-scenarios.md
+    // §S3.1): they may still thwart another player's.
+    (mainSchemePlayAreaOf(state, schemeId) ?? thwart.playerId) === thwart.playerId &&
     patrolledBy(state, deps, thwart.playerId) &&
     !characterIgnores(state, deps, thwart.thwarterInstanceId, "patrol", thwart.basic === true)
   )

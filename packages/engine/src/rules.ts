@@ -70,6 +70,7 @@ import {
 import type { AttackKeyword, CardDestination, PairLimit, TargetQuery, ValueSpec } from "./spec.js";
 import type { Bindings, LingeringDamageRule, StackFrame, Vars } from "./stack.js";
 import type { FrameId } from "./ids.js";
+import { mainSchemeInPlayAreaOf } from "./per-player-main-schemes.js";
 import { STATUS_NAMES, type Form, type GameAreaState, type GameState } from "./state.js";
 import type { TriggerEvent } from "./trigger-events.js";
 
@@ -182,8 +183,35 @@ export function cannotTakeDamage(
   sources: readonly (InstanceId | null | undefined)[],
   attack?: DamageAttackInfo,
 ): boolean {
+  return damageBlocked(state, deps, targetId, sources, attack, false);
+}
+
+/**
+ * "X cannot be dealt damage" (`cannotTakeDamage.stage: "dealt"`, docs/phase7-wave11-scenarios.md §S3.5): only those
+ * rules, read with the same sources, attack and exceptions as `cannotTakeDamage`. The damage step drops such damage
+ * before its interrupt window (RRG 1.8 "Damage", p. 14; "Cannot", p. 11).
+ */
+export function cannotBeDealtDamage(
+  state: GameState,
+  deps: EngineDeps,
+  targetId: InstanceId,
+  sources: readonly (InstanceId | null | undefined)[],
+  attack?: DamageAttackInfo,
+): boolean {
+  return damageBlocked(state, deps, targetId, sources, attack, true);
+}
+
+function damageBlocked(
+  state: GameState,
+  deps: EngineDeps,
+  targetId: InstanceId,
+  sources: readonly (InstanceId | null | undefined)[],
+  attack: DamageAttackInfo | undefined,
+  dealtOnly: boolean,
+): boolean {
   const card = sources[1] ?? sources[0] ?? null;
   return activeRules(state, deps, "cannotTakeDamage").some(({ rule, context }) => {
+    if (dealtOnly && rule.stage !== "dealt") return false;
     if (!matchesQuery(state, targetId, rule.target, context)) return false;
     if (rule.exceptFromSource && card !== null && matchesQuery(state, card, rule.exceptFromSource, context)) {
       return false;
@@ -1807,10 +1835,24 @@ export function schemeThreatDestination(state: GameState, deps: EngineDeps, enem
  * The scheme a scheme activation by this enemy places its threat on: RRG 1.8 "Scheme (Enemy Activation)" step 3 places
  * it on the main scheme unless a constant ability redirects it (`schemeThreatDestination`). With separate game areas,
  * "the main scheme" is the enemy's own area's (docs/phase7-wave2.md §3.1).
+ *
+ * With a main scheme per player (docs/phase7-wave11-scenarios.md §S3.1), the scheme in the play area of the player the
+ * enemy activates against (`activatedAgainst`), the villain's as much as a minion's. Tier 5 (engine reading): MC60
+ * p. 13 says only that a card in no play area "that refer[s] to 'the main scheme'" means every one, and a scheme
+ * activation is a game step, not card text. FFG's Fear No Evil preview (April 16, 2026) says "anytime an enemy
+ * schemes (including both the villain and their minions), they only add threat to the main scheme of the player
+ * they're activating against"; a preview article is not a rules source, so the reading is the owner's question Q204
+ * (docs/phase7-wave11-scenarios.md §S4.1; A, the activated player's scheme, is built until answered).
  */
-export function schemeActivationDestination(state: GameState, deps: EngineDeps, enemyId: InstanceId): InstanceId {
+export function schemeActivationDestination(
+  state: GameState,
+  deps: EngineDeps,
+  enemyId: InstanceId,
+  activatedAgainst: PlayerId | null = null,
+): InstanceId {
   return (
     schemeThreatDestination(state, deps, enemyId) ??
+    (activatedAgainst ? mainSchemeInPlayAreaOf(state, activatedAgainst)?.instanceId : undefined) ??
     pairedMainSchemeId(state, deps, enemyId) ??
     mainSchemeFor(state, areaOfCard(state, enemyId))?.instanceId ??
     state.mainScheme.instanceId
@@ -1946,6 +1988,8 @@ export function countSchemeIcons(
   icon: SchemeIcon,
   area: GameAreaState | null = null,
 ): number {
+  // TODO(§S3.1): with a main scheme per player this counts the central scheme's own icons for every scheme, and the
+  // other schemes' not at all. No Protection Racket scheme prints an icon (60134–60138), so it is left as is.
   const scheme = mainSchemeFor(state, area);
   let total =
     scheme && !iconsBlankedOn(state, deps, scheme.instanceId) && !losesIcon(state, deps, scheme.instanceId, icon)

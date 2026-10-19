@@ -57,6 +57,10 @@ export function beatsFrom(events: readonly GameEvent[]): readonly Beat[] {
         // "0" is the whole point of Toughness: the attack happened and did nothing.
         push(event.targetInstanceId, event.reason === "tough" ? "TOUGH" : "PREVENTED", "status");
         break;
+      case "damageNotDealt":
+        // "Cannot be dealt damage" (docs/phase7-wave11-scenarios.md §S3.5): nothing was dealt, so nothing prevented.
+        push(event.targetInstanceId, "NO DAMAGE", "status");
+        break;
       case "threatPlaced":
         if (event.amount > 0) push(event.schemeInstanceId, `+${event.amount} THREAT`, "threat");
         break;

@@ -1,0 +1,3 @@
+kind: Engine
+body: 'A main scheme per player in their own play area (Protection Racket): setup picks or draws one per seat, ''the main scheme'' is read by play area, enemies scheme onto the activated player''s scheme, acceleration tokens go near the villain and add to each, and an anyPlayerEliminated predicate.'
+time: 2026-10-18T21:04:09.313684-04:00

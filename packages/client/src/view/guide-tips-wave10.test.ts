@@ -277,6 +277,16 @@ describe("wave 10 tips", () => {
     expect(firedId(base, [preventedBecause("tough")])).toBeUndefined();
   });
 
+  test("the cannot-take-damage tip fires when damage could not be dealt at all (`damageNotDealt`)", () => {
+    const notDealt = {
+      type: "damageNotDealt",
+      targetInstanceId: instanceId("t"),
+      amount: 1,
+      sourceInstanceId: null,
+    } as never;
+    expect(firedId(base, [notDealt])).toBe("situation:cannotTakeDamage");
+  });
+
   test("the Shapeshift tip fires when one of Hulkling's four shapes leaves play", () => {
     for (const id of ["56032", "56033", "56034", "56035"]) {
       expect(firedId(base, [discardedFromPlay(id)]), id).toBe("situation:shapeshift");

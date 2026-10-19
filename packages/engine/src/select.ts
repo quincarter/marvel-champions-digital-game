@@ -112,6 +112,7 @@ import { threatRemovalBlocked } from "./resolve/event.js";
 import { playFromHandCandidates } from "./resolve/effects-frame.js";
 import { accusationWrongGuesses, accusedWrong, isAccusationBoardMember } from "./accusation.js";
 import { hiddenPileSize } from "./hidden-pile-state.js";
+import { hasPerPlayerMainSchemes, mainSchemePlayAreaOf, mainSchemesFor } from "./per-player-main-schemes.js";
 import {
   attackUsesAtk,
   canHaveAttached,
@@ -1604,7 +1605,13 @@ export function explainQuery(
   }
   if (query.inPlayAreaOf) {
     const owners = resolvePlayers(state, query.inPlayAreaOf, context);
-    if (!state.players.some((p) => owners.includes(p.playerId) && p.playArea.includes(id))) return "notInPlayArea";
+    // A main scheme placed in a player's play area is in it too (docs/phase7-wave11-scenarios.md §S3.1).
+    const schemeArea = mainSchemePlayAreaOf(state, id);
+    if (
+      !state.players.some((p) => owners.includes(p.playerId) && p.playArea.includes(id)) &&
+      !(schemeArea !== null && owners.includes(schemeArea))
+    )
+      return "notInPlayArea";
   }
   if (query.engagedWithPlayer) {
     if (
@@ -2013,6 +2020,9 @@ export function uncontrolledYouOf(state: GameState, id: InstanceId): PlayerId | 
   const instance = getInstance(state, id);
   if (!instance) return null;
   if (instance.attachedTo) return controllerOf(state, instance.attachedTo);
+  // A main scheme in a player's play area (docs/phase7-wave11-scenarios.md §S3.1): "this play area" is that player's.
+  const schemeArea = mainSchemePlayAreaOf(state, id);
+  if (schemeArea) return schemeArea;
   // An obligation, and an environment placed in a player's play area (Ebony Maw's Spells, "in front of them in their play
   // area", MC21 p. 6; "deal 4 damage to your identity": docs/phase7-wave4.md §3.16).
   const type = cardOf(state, id)?.type;
@@ -2664,6 +2674,9 @@ function resolveRefAnywhere(state: GameState, ref: TargetRef, context: EffectCon
     case "mainScheme": {
       // "The main scheme": this area's own stage, or the central one (`of: "central"`, "under stage 4A").
       if (ref.of === "central") return [state.mainScheme.instanceId];
+      // A main scheme per player (docs/phase7-wave11-scenarios.md §S3.1; MC60 p. 13): the one in the play area of the
+      // card that says it (or of the player who played or revealed it), or every one for a card in no play area.
+      if (hasPerPlayerMainSchemes(state)) return mainSchemesFor(state, context);
       const area = contextArea(state, context);
       // Two main schemes in the shared area (Tower Defense, docs/phase7-wave4.md §3.2; MC21 p. 10): the one the player
       // chose for this ability (`MAIN_SCHEME_CHOICE`, asked before the effect resolves); on a player card otherwise the
@@ -3489,6 +3502,9 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
         (act) =>
           act.did === predicate.did && matchesQuery(state, act.characterInstanceId, predicate.character, context),
       );
+    case "anyPlayerEliminated":
+      // A player who sat the scenario out never started it (`sitOutScenario`), so is not one who was eliminated.
+      return state.players.some((player) => player.eliminated && player.sittingOut !== true);
     case "areaPlayersDefeated": {
       const area = contextArea(state, context);
       return area !== null && area.playerIds.every((id) => getPlayer(state, id)?.eliminated !== false);

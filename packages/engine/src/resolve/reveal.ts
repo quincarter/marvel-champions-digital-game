@@ -57,6 +57,7 @@ import {
 import { asksTraitGrants, hasCandidates, heard } from "./triggers.js";
 import { pushWindow } from "./window.js";
 import { markPreThenUnresolved } from "./then.js";
+import { hasPerPlayerMainSchemes, mainSchemesFor } from "../per-player-main-schemes.js";
 import { base, eventFrame, type Frame, gameAbilityFrames, pushEvent } from "./frames.js";
 
 /**
@@ -411,7 +412,12 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       };
       // RRG "Incite X" is itself a "When Revealed: place X threat on the main scheme". Its "the main scheme" is the
       // revealing player's area's, when the players are split (§3.1).
-      const inciteScheme = mainSchemeFor(ctx.state, areaOfPlayer(ctx.state, frame.playerId))?.instanceId;
+      // With a main scheme per player, the incite card's play area decides (MC60 p. 13): a minion engaged with or a
+      // treachery revealed by that player, that player's; a side scheme or environment in no play area, every one
+      // (docs/phase7-wave11-scenarios.md §S3.1).
+      const inciteSchemes = hasPerPlayerMainSchemes(ctx.state)
+        ? mainSchemesFor(ctx.state, { selfInstanceId: frame.instanceId, controllerId: frame.playerId })
+        : [mainSchemeFor(ctx.state, areaOfPlayer(ctx.state, frame.playerId))?.instanceId];
       // "Resolve each 'When Revealed' ability that you reveal 1 additional time" (Media Coverage). Incite is one of
       // them (RRG 1.8 "Incite X", p. 24), so it repeats with the card's printed ones: each pass resolves the incite,
       // then the printed When Revealed abilities, the first pass in the order a reveal always has. Surge, the other
@@ -419,7 +425,7 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       const times = whenRevealedTimes(ctx, frame.playerId);
       const frames: StackFrame[] = [];
       for (let i = 0; i < times; i++) {
-        frames.push(...inciteFrames(ctx, frame.instanceId, inciteScheme));
+        for (const scheme of inciteSchemes) frames.push(...inciteFrames(ctx, frame.instanceId, scheme));
         frames.push(...gameAbilityFrames(ctx, frame.instanceId, ["whenRevealed"], revealed, undefined, frame.playerId));
       }
       if (frames.length > 0) setFrame(ctx, { ...frame, stage: next, abilityResolved: true });

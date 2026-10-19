@@ -35,6 +35,7 @@ import {
   villainAliasOf,
 } from "./select.js";
 import type { AttachCategory, TargetQuery } from "./spec.js";
+import { hasPerPlayerMainSchemes, mainSchemesFor } from "./per-player-main-schemes.js";
 import type { GameState } from "./state.js";
 
 const HOST_QUERIES: Partial<Record<AttachmentHost["kind"], TargetQuery>> = {
@@ -335,6 +336,9 @@ function rawHostCandidates(state: GameState, host: AttachmentHost, context: Effe
         .filter((villain) => currentName(state, villain.instanceId) === host.name)
         .map((villain) => villain.instanceId);
     case "mainScheme": {
+      // A main scheme per player: the one in the play area of the card's player, every one for a card in no play
+      // area (MC60 p. 13; docs/phase7-wave11-scenarios.md §S3.1).
+      if (hasPerPlayerMainSchemes(state)) return mainSchemesFor(state, context);
       // The main scheme of the revealing player's area when the players are split (docs/phase7-wave2.md §3.1).
       const scheme = mainSchemeFor(state, contextArea(state, context));
       return scheme ? [scheme.instanceId] : [];

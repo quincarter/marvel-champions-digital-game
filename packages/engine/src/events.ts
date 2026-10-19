@@ -478,6 +478,23 @@ export type GameEvent =
       readonly order: readonly number[];
     }
   /**
+   * The game was set up with a main scheme per player (`GameSetupConfig.mainSchemeChoice`,
+   * docs/phase7-wave11-scenarios.md §S3.1): each seat's scheme, in its play area, in seat order, `random` when the
+   * game's RNG drew it (expert mode, "at random in expert mode"); `setAside` the unused ones, out of play. The picks
+   * are made in the open (MC60 p. 13: "players can look at the '1B' side of the main schemes when making their
+   * choice"). Emitted once, right after `gameCreated`.
+   */
+  | {
+      readonly type: "mainSchemesChosen";
+      readonly picks: readonly {
+        readonly playerId: PlayerId;
+        readonly schemeInstanceId: InstanceId;
+        readonly cardId: CardId;
+        readonly random: boolean;
+      }[];
+      readonly setAside: readonly InstanceId[];
+    }
+  /**
    * A main scheme's stages were shuffled (docs/phase7-wave6.md §3.18). `order` is the full walk order of stage indexes
    * from now on; like a `deckShuffled` order it is for the replay log, not for the players to see.
    */
@@ -827,6 +844,17 @@ export type GameEvent =
       readonly amount: number;
       /** `reduced`: constant reductions and caps brought it to 0 (docs/phase7-wave3.md §3.15). */
       readonly reason: "tough" | "cancelled" | "effect" | "cannotTakeDamage" | "reduced";
+    }
+  /**
+   * `amount` damage to `targetInstanceId` was never dealt: a "cannot be dealt damage" rule (`cannotTakeDamage.stage:
+   * "dealt"`, docs/phase7-wave11-scenarios.md §S3.5) dropped it before its interrupt window. Not a prevention (RRG 1.8
+   * "Damage", p. 14: prevention reduces the damage taken): no `damagePrevented` accompanies it, and nothing was dealt.
+   */
+  | {
+      readonly type: "damageNotDealt";
+      readonly targetInstanceId: InstanceId;
+      readonly amount: number;
+      readonly sourceInstanceId: InstanceId | null;
     }
   /**
    * `amount` of a damage event (or of placed damage) was not taken because `maxSustainedDamage` held the target at its

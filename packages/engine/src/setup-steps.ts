@@ -19,7 +19,14 @@ import { isPermanentCard } from "./deck.js";
 import { applyToughness, shuffleZone } from "./effects.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
-import { encounterDeckOf, mainSchemeValue, mustCardOf, undefeatedVillains, villainOf } from "./query.js";
+import {
+  encounterDeckOf,
+  mainSchemeValue,
+  mustCardOf,
+  sharedMainSchemes,
+  undefeatedVillains,
+  villainOf,
+} from "./query.js";
 import { announce, applyEnterPlayKeywords, gameAbilityFrames, shuffleSeparateDeck } from "./resolve/index.js";
 import { buildScenarioDeck } from "./resolve/cards.js";
 import { base } from "./resolve/frames.js";
@@ -69,12 +76,14 @@ export function resolveScenarioSetup(ctx: Ctx): void {
   for (const [name, piles] of Object.entries(ctx.state.scenarioDecks))
     if (piles.buildAtSetup) buildScenarioDeck(ctx, name);
 
-  const startingThreat = mainSchemeValue(ctx.state, "startingThreat", ctx.deps);
-  if (startingThreat > 0) {
-    updateInstance(ctx, mainSchemeInstanceId, (i) => ({ ...i, threat: i.threat + startingThreat }));
+  // Each main scheme in play at setup: the one, or one per player (docs/phase7-wave11-scenarios.md §S3.1).
+  for (const scheme of sharedMainSchemes(ctx.state)) {
+    const startingThreat = mainSchemeValue(ctx.state, "startingThreat", ctx.deps, scheme);
+    if (startingThreat <= 0) continue;
+    updateInstance(ctx, scheme.instanceId, (i) => ({ ...i, threat: i.threat + startingThreat }));
     emit(ctx, {
       type: "threatPlaced",
-      schemeInstanceId: mainSchemeInstanceId,
+      schemeInstanceId: scheme.instanceId,
       amount: startingThreat,
       sourceInstanceId: null,
     });
@@ -100,7 +109,21 @@ export function resolveScenarioSetup(ctx: Ctx): void {
     ...setupOptionFrames(ctx),
     // Steps 12a and 12b: 1A's Setup, then the flip to 1B, whose own Setup and When Revealed resolve once it is the
     // faceup side (docs/phase7-wave8.md §4.1 Q56).
-    ...mainSchemeStageFrames(ctx, mainSchemeInstanceId, "setup", ["setup", "whenRevealed"], firstPlayerId),
+    ...mainSchemeStageFrames(
+      ctx,
+      mainSchemeInstanceId,
+      "setup",
+      ["setup", "whenRevealed"],
+      ctx.state.mainScheme.playArea ?? firstPlayerId,
+    ),
+    // A main scheme per player (docs/phase7-wave11-scenarios.md §S3.1): each other seat's scheme the same way, in seat
+    // order, resolved by the player whose play area it is in. The choice its 1A Setup describes was made at
+    // `createGame` (`GameSetupConfig.mainSchemeChoice`), so that text resolves nothing more.
+    ...(ctx.state.extraMainSchemes ?? []).flatMap((scheme) =>
+      scheme.playArea
+        ? mainSchemeStageFrames(ctx, scheme.instanceId, "setup", ["setup", "whenRevealed"], scheme.playArea)
+        : [],
+    ),
     ...undefeatedVillains(ctx.state).flatMap((villain) => [
       ...gameAbilityFrames(ctx, villain.instanceId, ["setup"], null, undefined, firstPlayerId),
       // RRG Appendix II "Resolve Scenario Setup and When Revealed Abilities": the starting villain

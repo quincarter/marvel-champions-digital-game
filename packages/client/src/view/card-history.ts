@@ -105,6 +105,8 @@ export function eventRefs(event: GameEvent): readonly InstanceId[] {
     case "damageCapped":
     case "damageDoubled":
       return [event.targetInstanceId];
+    case "damageNotDealt":
+      return event.sourceInstanceId ? [event.targetInstanceId, event.sourceInstanceId] : [event.targetInstanceId];
     case "threatPrevented":
       return [event.schemeInstanceId];
     case "threatPlaced":

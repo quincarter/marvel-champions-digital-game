@@ -76,7 +76,9 @@ import {
   cannotBeHealed,
   cannotFlip,
   cannotLeavePlay,
+  cannotBeDealtDamage,
   cannotTakeDamage,
+  type DamageAttackInfo,
   iconsInPlay,
   lostAttackKeywords,
   patrolledBy,
@@ -266,13 +268,17 @@ function attackCanDamage(
     ...(effect.keywords ? { keywords: effect.keywords } : {}),
     targetInstanceId: id,
   });
-  // Piercing that would discard the target's tough card affects it whether or not it can take the damage.
-  if (attackPiercesTough(state, deps, id, has)) return true;
-  return !cannotTakeDamage(state, deps, id, [attacker, via], {
+  const attack: DamageAttackInfo = {
     attackerInstanceId: attacker,
     cardInstanceId: via,
     keywords: effect.overkill === true && !has.includes("overkill") ? [...has, "overkill"] : has,
-  });
+  };
+  // Piercing that would discard the target's tough card affects it whether or not it can take the damage, but only
+  // if the damage is dealt at all: "cannot be dealt damage" leaves piercing nothing to act on (RRG 1.8 "Piercing",
+  // p. 32; docs/phase7-wave11-scenarios.md §S3.5).
+  if (attackPiercesTough(state, deps, id, has) && !cannotBeDealtDamage(state, deps, id, [attacker, via], attack))
+    return true;
+  return !cannotTakeDamage(state, deps, id, [attacker, via], attack);
 }
 
 /**
@@ -1224,7 +1230,8 @@ function thwartNamesNoValidScheme(
       }
       // "This activation removes threat instead of placing it": the scheme the villain's scheme would place it on.
       if (effect.removesThreat && context.event?.kind === "enemyScheme") {
-        verdicts.push(among([schemeActivationDestination(state, deps, context.event.enemyInstanceId)]));
+        const { enemyInstanceId, playerId: against } = context.event;
+        verdicts.push(among([schemeActivationDestination(state, deps, enemyInstanceId, against)]));
       }
       // "Reduce the amount of threat placed on the scheme by 1" (Emergency): a thwart of that scheme that removes no
       // threat (owner decision, 2026-10-03), so only what forbids thwarting it makes it invalid: an engaged patrol
@@ -1232,7 +1239,7 @@ function thwartNamesNoValidScheme(
       // A value that cannot be read yet is taken as a reduction.
       if (effect.threatBonus && context.event?.kind === "enemyScheme" && context.controllerId !== null) {
         const reduces = readsBindings(effect.threatBonus) || resolveValue(state, effect.threatBonus, context, deps) < 0;
-        const scheme = schemeActivationDestination(state, deps, context.event.enemyInstanceId);
+        const scheme = schemeActivationDestination(state, deps, context.event.enemyInstanceId, context.event.playerId);
         const thwart = {
           thwarterInstanceId: getPlayer(state, context.controllerId)?.identity.instanceId ?? null,
           playerId: context.controllerId,

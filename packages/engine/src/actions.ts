@@ -70,6 +70,7 @@ import {
   cannotEnterPlay,
   enterPlayBarMessage,
   cannotPlayCard,
+  cannotBeDealtDamage,
   cannotTakeDamage,
   cannotThwart,
   cannotTriggerAction,
@@ -307,6 +308,7 @@ import {
   planFormChangeCosts,
   settleFormChangeCosts,
 } from "./form-change-cost.js";
+import { mainSchemeInPlayAreaOf } from "./per-player-main-schemes.js";
 import { characterTitledAs } from "./titles.js";
 import { entersPlayWhenPlayed, matchingCardInPlay, uniqueBlockedMessageIn } from "./unique.js";
 
@@ -4526,7 +4528,8 @@ function thwartBlockNote(ctx: Ctx, card: AnyCard, playerId: PlayerId): string {
     ctx.state,
     ctx.deps,
     { thwarterInstanceId: identity, playerId },
-    ctx.state.mainScheme.instanceId,
+    // With a main scheme per player, the one in this player's play area (docs/phase7-wave11-scenarios.md §S3.1).
+    mainSchemeInPlayAreaOf(ctx.state, playerId)?.instanceId ?? ctx.state.mainScheme.instanceId,
   );
   if (why === "crisis")
     return ". Right now it could not be used anyway: it is a thwart, and a crisis icon is in play, so you can't thwart the main scheme";
@@ -6797,11 +6800,14 @@ function basicAttackPaying(
       keywords: attackKeywordsOf(ctx.state, ctx.deps, { attackerInstanceId: command.attackerInstanceId, basic: true }),
     };
     // A piercing attack on a character with a tough card affects it through piercing (`attackPiercesTough`; ruling
-    // July 11, 2025, Ruling 69.76), so that target stays valid.
-    if (
-      !attackPiercesTough(ctx.state, ctx.deps, targetInstanceId, attack.keywords) &&
-      cannotTakeDamage(ctx.state, ctx.deps, targetInstanceId, [command.attackerInstanceId], attack)
-    ) {
+    // July 11, 2025, Ruling 69.76), so that target stays valid. Not when the damage cannot even be dealt
+    // (`cannotBeDealtDamage`, docs/phase7-wave11-scenarios.md §S3.5): RRG 1.8 "Piercing" (p. 32) discards tough cards
+    // only for damage the attack deals.
+    const sources = [command.attackerInstanceId];
+    const pierces =
+      attackPiercesTough(ctx.state, ctx.deps, targetInstanceId, attack.keywords) &&
+      !cannotBeDealtDamage(ctx.state, ctx.deps, targetInstanceId, sources, attack);
+    if (!pierces && cannotTakeDamage(ctx.state, ctx.deps, targetInstanceId, sources, attack)) {
       return engineError("no_valid_target", "that enemy cannot take damage from this attack", command);
     }
   }

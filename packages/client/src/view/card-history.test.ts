@@ -139,6 +139,16 @@ describe("eventRefs", () => {
     expect(refs).toEqual(["t"]);
   });
 
+  test("damage not dealt names its target and its source", () => {
+    const refs = eventRefs({
+      type: "damageNotDealt",
+      targetInstanceId: "t" as InstanceId,
+      sourceInstanceId: "s" as InstanceId,
+      amount: 3,
+    });
+    expect(refs).toEqual(["t", "s"]);
+  });
+
   test("an unrecognized event names nobody, rather than throwing", () => {
     expect(eventRefs({ type: "gameCreated", playerIds: [], firstPlayerId: "p1" as PlayerId, seed: 1 })).toEqual([]);
   });

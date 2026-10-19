@@ -39,6 +39,13 @@ describe("beatsFrom", () => {
     expect(beats[0]!.text).toBe("TOUGH");
   });
 
+  test("says No Damage when damage could not be dealt at all, anchored on the card it was aimed at", () => {
+    const beats = beatsFrom([
+      { type: "damageNotDealt", targetInstanceId: id("villain-1"), amount: 5, sourceInstanceId: id("hero-1") },
+    ]);
+    expect(beats).toEqual([expect.objectContaining({ anchor: "villain-1", text: "NO DAMAGE", tone: "status" })]);
+  });
+
   test("says Crisis when a thwart was blocked, which otherwise looks like a bug", () => {
     const beats = beatsFrom([{ type: "threatRemovalBlocked", schemeInstanceId: id("main"), reason: "crisis" }]);
     expect(beats[0]!.text).toBe("CRISIS");

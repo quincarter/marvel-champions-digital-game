@@ -1582,6 +1582,8 @@ export const characterDidThisPhase = (character: TargetQuery, did: "attack" | "t
  * in this effect's own game area is defeated (eliminated). False outside a separate game area.
  */
 export const areaPlayersDefeated: Predicate = { kind: "areaPlayersDefeated" };
+/** "If … any player is eliminated" (the Protection Racket 1B cards): any player, not one who sat the scenario out. */
+export const anyPlayerEliminated: Predicate = { kind: "anyPlayerEliminated" };
 /** "During the player phase" (Falcon 53001a): any step of it, whoever's turn it is. */
 export const duringPlayerPhase: Predicate = { kind: "gameStep", phase: "player" };
 /** "During step one of the villain phase". */

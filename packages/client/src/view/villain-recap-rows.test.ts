@@ -157,6 +157,31 @@ describe("the recap's rows", () => {
     expect(rows[1]!.headline).toMatch(/ attacks you$/);
     expect(rows[1]!.detail).toBe("ATK 3 + boost 1 = 4");
   });
+
+  test("damage not dealt after an activation resolves is its aftermath, not a line of the card's text", async () => {
+    // "Cannot be dealt damage" (`damageNotDealt`, docs/phase7-wave11-scenarios.md §S3.5) sits beside damagePrevented.
+    const game = await table();
+    const enemy = game.villains[0]!.instanceId;
+    const p1 = game.players[0]!.playerId;
+    const open = attackOn(enemy, p1, false);
+    const done = attackOn(enemy, p1, true);
+    const under = { encounterInstanceId: enemy };
+    const beats = [
+      beat("b1", "Card revealed.", { ...under, eventType: "encounterCardRevealed" }),
+      beat("b2", "Attacks you.", { ...under, eventType: "enemyActivated", activation: open, startsActivation: true }),
+      beat("b3", "Hit you for 4.", { ...under, eventType: "attackResolved", activation: done }),
+      beat("b4", "4 not dealt.", { ...under, eventType: "damageNotDealt", activation: done }),
+      beat("b5", "The card is discarded.", { ...under, eventType: "cardMoved", activation: done }),
+    ];
+    const recap = villainRecapOf(
+      walk([[], [], [], beats], [{ instanceId: enemy, cardId: game.instances[enemy]!.cardId, playerId: p1 }]),
+      null,
+      game,
+      p1,
+      POOL_DEPS,
+    );
+    expect(recap.columns[3]!.entries[0]!.effects).toEqual(["The card is discarded."]);
+  });
 });
 
 describe("the scheme tiles", () => {

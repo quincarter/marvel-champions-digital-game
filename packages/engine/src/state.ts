@@ -624,6 +624,14 @@ export interface MainSchemeState {
    * resolved by the frames pushed for them. Removed by the `mainSchemeTurnsToB` event. Absent: the B side is faceup.
    */
   readonly faceupSide?: "A";
+  /**
+   * The player whose play area this main scheme is in (docs/phase7-wave11-scenarios.md §S3.1; Protection Racket 1A:
+   * "Each player chooses a single Protection Racket main scheme … places it in their play area"). Set at setup by
+   * `GameSetupConfig.mainSchemeChoice`, on the central scheme and each one beside it. "The main scheme" is then read
+   * by play area (`mainSchemesFor`, MC60 p. 13). Absent: the scheme is in the villain's play area, as in every other
+   * game, so saves are unchanged.
+   */
+  readonly playArea?: PlayerId;
 }
 
 /**

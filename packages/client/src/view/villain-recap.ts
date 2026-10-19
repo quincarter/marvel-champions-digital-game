@@ -408,6 +408,7 @@ const AFTERMATH: ReadonlySet<string> = new Set([
   "damageDealt",
   "damagePlaced",
   "damagePrevented",
+  "damageNotDealt",
   "damageCapped",
   "damageDoubled",
   "damageIncreased",

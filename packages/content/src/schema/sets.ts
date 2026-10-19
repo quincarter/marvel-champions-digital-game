@@ -443,6 +443,19 @@ export interface Scenario {
    */
   readonly mainSchemeStages?: { readonly recommended: readonly [CardId, CardId] };
   /**
+   * Present when each player has a main scheme of their own, in their play area (docs/phase7-wave11-scenarios.md
+   * §S3.1). Protection Racket 1A, Setup: "Each player chooses a single Protection Racket main scheme (at random in
+   * expert mode), places it in their play area, and flips it to its 1B side. Set each unused main scheme aside, out of
+   * play." `cardIds` are the cards chosen among (`mainSchemeCardId` is the first of them); in expert mode each player's
+   * is drawn at random. The scenario builder passes it on as `GameSetupConfig.mainSchemeChoice`; the engine then reads
+   * "the main scheme" by play area and puts acceleration tokens near the villain itself (MC60 p. 13).
+   */
+  readonly mainSchemeChoice?: {
+    readonly kind: "perPlayer";
+    readonly cardIds: readonly CardId[];
+    readonly expert: "random";
+  };
+  /**
    * Villain cards of this scenario that are not in the villain deck at setup, but set aside for card abilities to
    * bring in (wave 2). The Once and Future Kang insert, "Setup": "stage 1A instructs the players to set each copy of
    * Kang (II) and Kang (III) aside. This means that Kang (I) is the only villain in the villain deck at the beginning

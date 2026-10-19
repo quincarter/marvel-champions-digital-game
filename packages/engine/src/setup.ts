@@ -28,7 +28,7 @@ import { encounterDeckId, instanceId, playerId, type EncounterDeckId, type Insta
 import { linkedKeywordNames, linkedKeywordsOf, linkedNameKey } from "./linked.js";
 import { podSetupFault, type PodSetup, type PodState } from "./pod.js";
 import { COMPETITIVE_MODE_UNAVAILABLE_MESSAGE, type GameMode } from "./game-mode.js";
-import { createRng, nextInt } from "./rng.js";
+import { createRng, nextInt, type RngState } from "./rng.js";
 import {
   FIRST_CAMPAIGN_STEP,
   FIRST_STANDALONE_STEP,
@@ -43,6 +43,7 @@ import {
   type CardInstance,
   type EncounterDeckState,
   type GameState,
+  type MainSchemeState,
   type PlayerState,
   type ScenarioDeckState,
   type ScenarioSetupInstruction,
@@ -250,6 +251,26 @@ export interface GameSetupConfig {
    * given one stage of each number. Absent: every stage, in printed order.
    */
   readonly mainSchemeStageIndexes?: readonly number[];
+  /**
+   * A main scheme per player (`Scenario.mainSchemeChoice`, docs/phase7-wave11-scenarios.md §S3.1). Protection Racket
+   * 1A, Setup: "Each player chooses a single Protection Racket main scheme (at random in expert mode), places it in
+   * their play area, and flips it to its 1B side. Set each unused main scheme aside, out of play."
+   *
+   * - `cardIds`: the main scheme cards the players choose among, each one card. `mainSchemeCardId` must be one of them;
+   *   the picks, not it, decide which are in play.
+   * - `picks`: each seat's choice by player id (`p1` is the first seat), every seat named and no card twice. Absent
+   *   (expert mode only; refused otherwise): each seat's is drawn from the game's seeded RNG, in seat order, among the
+   *   cards not yet drawn.
+   *
+   * The first seat's scheme is `GameState.mainScheme`, the others are `extraMainSchemes` in seat order, each with its
+   * `playArea`; the unused cards are created in `encounterSetAside`. Logged `mainSchemesChosen`. Not with
+   * `mainSchemeStageIndexes` or `separateGameAreas`.
+   */
+  readonly mainSchemeChoice?: {
+    readonly kind: "perPlayer";
+    readonly cardIds: readonly CardId[];
+    readonly picks?: Readonly<Record<PlayerId, CardId>>;
+  };
   /** The encounter deck of a single-villain scenario. Empty when `villains` gives each villain its own. */
   readonly encounterDeck: readonly CardId[];
   readonly players: readonly PlayerSetup[];
@@ -743,6 +764,68 @@ export function mainSchemeStageIndexesProblem(card: MainSchemeCard, indexes: rea
   return null;
 }
 
+/** One seat's main scheme in a game with one per player (`GameSetupConfig.mainSchemeChoice`). */
+interface SchemePick {
+  readonly playerId: PlayerId;
+  readonly cardId: CardId;
+  /** Drawn by the game's RNG (expert mode) rather than chosen. */
+  readonly random: boolean;
+}
+
+/**
+ * `GameSetupConfig.mainSchemeChoice` checked and resolved (docs/phase7-wave11-scenarios.md §S3.1): each seat's main
+ * scheme in seat order, the unused cards in listed order, and the RNG after any random draws. A string says why the
+ * config cannot be played.
+ */
+function planMainSchemeChoice(
+  config: GameSetupConfig,
+  pool: Readonly<Record<string, AnyCard>>,
+  rng: RngState,
+): { readonly picks: readonly SchemePick[]; readonly unused: readonly CardId[]; readonly rng: RngState } | string {
+  const choice = config.mainSchemeChoice!;
+  if (choice.kind !== "perPlayer") return `mainSchemeChoice kind must be "perPlayer", not ${String(choice.kind)}`;
+  if (config.mainSchemeStageIndexes !== undefined) return "mainSchemeChoice cannot be used with mainSchemeStageIndexes";
+  if (config.separateGameAreas) return "mainSchemeChoice cannot be used with separate game areas";
+  const { cardIds } = choice;
+  for (const [at, cardId] of cardIds.entries()) {
+    if (pool[cardId]?.type !== "main_scheme") return `${cardId} in mainSchemeChoice is not a main scheme card`;
+    if (cardIds.indexOf(cardId) !== at) return `${cardId} is listed twice in mainSchemeChoice`;
+  }
+  if (!cardIds.includes(config.mainSchemeCardId))
+    return `mainSchemeCardId ${config.mainSchemeCardId} is not one of the mainSchemeChoice cards`;
+  const seats = config.players.map((_, index) => playerId(`p${index + 1}`));
+  if (cardIds.length < seats.length)
+    return `${seats.length} players need ${seats.length} main schemes to choose from; mainSchemeChoice lists ${cardIds.length}`;
+  const picks: SchemePick[] = [];
+  let next = rng;
+  if (choice.picks === undefined) {
+    // "At random in expert mode": each seat in turn draws among the cards not yet drawn. In standard mode each player
+    // chooses, so a config without picks is refused rather than silently drawn.
+    if (config.difficulty !== "expert") return "mainSchemeChoice needs a pick for each player outside expert mode";
+    for (const seat of seats) {
+      const remaining = cardIds.filter((cardId) => !picks.some((pick) => pick.cardId === cardId));
+      const [index, after] = nextInt(next, remaining.length);
+      next = after;
+      picks.push({ playerId: seat, cardId: remaining[index] as CardId, random: true });
+    }
+  } else {
+    const named = Object.keys(choice.picks);
+    const stray = named.find((id) => !seats.includes(playerId(id)));
+    if (stray !== undefined) return `mainSchemeChoice picks name ${stray}, who is not a seat in this game`;
+    for (const seat of seats) {
+      const cardId = choice.picks[seat];
+      if (cardId === undefined) return `mainSchemeChoice picks name no main scheme for ${seat}`;
+      if (!cardIds.includes(cardId)) return `${seat}'s pick ${cardId} is not one of the mainSchemeChoice cards`;
+      const taken = picks.find((pick) => pick.cardId === cardId);
+      if (taken)
+        return `${cardId} is picked by both ${taken.playerId} and ${seat}: each player chooses a different one`;
+      picks.push({ playerId: seat, cardId, random: false });
+    }
+  }
+  const unused = cardIds.filter((cardId) => !picks.some((pick) => pick.cardId === cardId));
+  return { picks, unused, rng: next };
+}
+
 /** RRG Appendix II: Setup, minus obligations/nemesis sets/setup abilities (they need slice 2). */
 export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAULT_DEPS): SetupResult {
   // The mode is judged first, so its message never depends on what else is wrong with the config.
@@ -786,6 +869,13 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     const problem = mainSchemeStageIndexesProblem(mainSchemeCard, config.mainSchemeStageIndexes);
     if (problem) return invalid(problem);
   }
+  // A main scheme per player (docs/phase7-wave11-scenarios.md §S3.1): the picks, drawn here when random, before any
+  // instance exists, so a random pick spends the RNG ahead of every shuffle.
+  const schemeChoice = config.mainSchemeChoice ? planMainSchemeChoice(config, pool, rng) : null;
+  if (typeof schemeChoice === "string") return invalid(schemeChoice);
+  if (schemeChoice) rng = schemeChoice.rng;
+  const [firstPick] = schemeChoice?.picks ?? [];
+  const centralSchemeCard = firstPick ? (pool[firstPick.cardId] as MainSchemeCard) : mainSchemeCard;
 
   // Deck legality is judged per seat, before any seat is built, and every illegal seat is
   // reported at once. Table-level conflicts (matching identities) come after, as
@@ -826,9 +916,26 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
   }
   const mainSchemeInstanceId = nextId();
   instances[mainSchemeInstanceId] = {
-    ...blankInstance(mainSchemeInstanceId, mainSchemeCard.id, null, ACTIVE_DECK_HOME),
+    ...blankInstance(mainSchemeInstanceId, centralSchemeCard.id, null, ACTIVE_DECK_HOME),
     faceup: true,
   };
+  // The other seats' schemes, faceup in play like the central one, then the unused ones, set aside out of play
+  // (Protection Racket 1A; docs/phase7-wave11-scenarios.md §S3.1). The set-aside ones join `encounterSetAside` first.
+  const pickedSchemes: { readonly playerId: PlayerId; readonly instanceId: InstanceId; readonly pick: SchemePick }[] =
+    [];
+  const unusedSchemeIds: InstanceId[] = [];
+  if (schemeChoice) {
+    for (const [index, pick] of schemeChoice.picks.entries()) {
+      const id = index === 0 ? mainSchemeInstanceId : nextId();
+      if (index > 0) instances[id] = { ...blankInstance(id, pick.cardId, null, ACTIVE_DECK_HOME), faceup: true };
+      pickedSchemes.push({ playerId: pick.playerId, instanceId: id, pick });
+    }
+    for (const cardId of schemeChoice.unused) {
+      const id = nextId();
+      instances[id] = blankInstance(id, cardId, null, { kind: "encounterDeck", deckId: deckIds[0] as EncounterDeckId });
+      unusedSchemeIds.push(id);
+    }
+  }
 
   const players: PlayerState[] = [];
   const obligationIds: InstanceId[] = [];
@@ -1072,7 +1179,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
   }
 
   // Signature side schemes are set aside, linked to their villain, until an ability puts them into play.
-  const encounterSetAside: InstanceId[] = [];
+  const encounterSetAside: InstanceId[] = [...unusedSchemeIds];
   // A campaign's `setAsideCards` (cards brought in from outside the game, MC27 p. 13) join them, ownerless like the rest.
   for (const cardId of [...(config.setAside ?? []), ...(config.campaign?.setAsideCards ?? [])]) {
     const card = pool[cardId];
@@ -1401,7 +1508,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     activeVillainId: firstVillain.instanceId,
     mainScheme: {
       instanceId: mainSchemeInstanceId,
-      cardId: mainSchemeCard.id,
+      cardId: centralSchemeCard.id,
       stageIndex: mainSchemeStageOrder?.[0] ?? 0,
       completed: false,
       accelerationTokens: 0,
@@ -1409,7 +1516,24 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       ...(mainSchemeStageOrder ? { stageOrder: mainSchemeStageOrder } : {}),
       // Side 1A is faceup until Appendix II step 12b (RRG 1.8 p. 51).
       faceupSide: "A",
+      // In the first seat's play area when each player has one (docs/phase7-wave11-scenarios.md §S3.1).
+      ...(firstPick ? { playArea: firstPick.playerId } : {}),
     },
+    ...(pickedSchemes.length > 1
+      ? {
+          extraMainSchemes: pickedSchemes
+            .slice(1)
+            .map(({ playerId: owner, instanceId: id, pick }): MainSchemeState => ({
+              instanceId: id,
+              cardId: pick.cardId,
+              stageIndex: 0,
+              completed: false,
+              accelerationTokens: 0,
+              faceupSide: "A",
+              playArea: owner,
+            })),
+        }
+      : {}),
     gameAreas: [],
     nextGameAreaSeq: 1,
     // Stages left out of a chosen main scheme deck are back in the box: no effect can reach them (§3.2).
@@ -1474,6 +1598,17 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
   });
   if (mainSchemeStageOrder)
     emit(ctx, { type: "mainSchemeStagesChosen", schemeInstanceId: mainSchemeInstanceId, order: mainSchemeStageOrder });
+  if (pickedSchemes.length > 0)
+    emit(ctx, {
+      type: "mainSchemesChosen",
+      picks: pickedSchemes.map(({ playerId: owner, instanceId: id, pick }) => ({
+        playerId: owner,
+        schemeInstanceId: id,
+        cardId: pick.cardId,
+        random: pick.random,
+      })),
+      setAside: unusedSchemeIds,
+    });
   if (neutralArea) emit(ctx, { type: "scenarioPlayAreaCreated", name: neutralArea.name, closed: true });
   for (const entry of permanentSetAside) emit(ctx, { type: "cardsSetAside", ...entry, reason: "permanent" });
   for (const entry of linkedSetAside) emit(ctx, { type: "linkedCardsSetAside", ...entry });
