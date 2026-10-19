@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import {
   DECK_REQUEST_URL,
@@ -86,18 +87,29 @@ test("the file name is the player's local date and time", () => {
 });
 
 describe("newIssueUrl", () => {
-  test("the repo's Bug report form, prefilled by its field ids", () => {
+  test("the repo's Bug report form, with only its Game details box filled in", () => {
     const url = new URL(newIssueUrl(environment));
     expect(url.origin + url.pathname).toBe("https://github.com/quincarter/marvel-champions-digital-game/issues/new");
     expect(url.searchParams.get("template")).toBe("bug_report.yml");
-    expect(url.searchParams.get("platform")).toBe("Web browser (phone or tablet)");
-    expect(url.searchParams.get("environment")).toBe(
-      "v0.21.1+9211646, phone 390x844, Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/129",
-    );
-    const box = url.searchParams.get("screenshots") ?? "";
-    expect(box).toContain("Drag your screenshot here");
-    expect(box).toContain("mc-report-");
-    expect(box).toContain("Screen: Board > ChoiceOverlay");
+    const details = url.searchParams.get("game-details") ?? "";
+    expect(details).toContain("Version: v0.21.1+9211646");
+    expect(details).toContain("Platform: Web browser (phone or tablet)");
+    expect(details).toContain("Device: phone 390x844");
+    expect(details).toContain("Browser: Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/129");
+    expect(details).toContain("Screen: Board > ChoiceOverlay");
+  });
+
+  test("#273: leaves every field the player edits or drops an image into empty", () => {
+    const url = new URL(newIssueUrl(environment));
+    expect([...url.searchParams.keys()].sort()).toEqual(["game-details", "template"]);
+  });
+
+  test("fills only fields the Bug report form has", () => {
+    const form = readFileSync(new URL("../../../../.github/ISSUE_TEMPLATE/bug_report.yml", import.meta.url), "utf8");
+    const ids = new Set([...form.matchAll(/^\s+id: (\S+)/gm)].map((m) => m[1]));
+    for (const key of new URL(newIssueUrl(environment)).searchParams.keys()) {
+      if (key !== "template") expect(ids, key).toContain(key);
+    }
   });
 
   test("short enough for GitHub to accept", () => {
