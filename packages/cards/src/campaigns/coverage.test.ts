@@ -21,6 +21,7 @@ const CAMPAIGN_STATUS: Readonly<Record<string, "scripted">> = {
   next_evol: "scripted",
   aoa: "scripted",
   aos: "scripted",
+  fne: "scripted",
 };
 
 describe("CAMPAIGNS registry", () => {

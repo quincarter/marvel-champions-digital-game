@@ -990,8 +990,15 @@ export interface LossPolicy {
    * instructions wrote. MC40 p. 7 depends on it: "When the players replay a scenario after losing, they must choose
    * the same player side scheme for that scenario and defeat it in order to earn its reward, **even if they
    * defeated it during a game they lost**." A per-box value, never an engine default (design Q6).
+   *
+   * `"keepLog"` restores nothing: the log stays as the lost attempt left it (its between-games writes and draws, the
+   * RNG included), then the game's writes and the `defeat` instructions go on top. A `choice` graph then goes back to
+   * its choice (`beforeChoice` runs again, and the players pick from what is available); a `linear` graph replays the
+   * node. MC60 p. 8: a lost scenario "does not automatically cause it to fail and it may be able to be attempted
+   * again", and every underling DEFEAT block ends "Go to 'Campaign Setup' on page 9", whose steps 1 to 3 draw anew and
+   * whose step 5a reads the villain already recorded (rules expert, 2026-10-19; docs/phase7-wave11-scenarios.md E30).
    */
-  readonly retryBaseline: "nodeStart";
+  readonly retryBaseline: "nodeStart" | "keepLog";
 }
 
 // ---------------------------------------------------------------------------------------------------------------

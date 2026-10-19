@@ -432,7 +432,8 @@ const windowIndex = (instruction: ResolvedInstruction): number => CAMPAIGN_WINDO
  * For a `choice` graph the order is the printed one (MC60 p. 9): the graph's `beforeChoice` block first, then the
  * node, then that node's `composition`, then its setup. `logBefore` is taken before any of it, so
  * `retryBaseline: "nodeStart"` restores the log to before the whole between-games block — including the
- * progression draw, which then re-runs from the restored RNG and reproduces itself exactly.
+ * progression draw, which then re-runs from the restored RNG and reproduces itself exactly. Under `"keepLog"` a
+ * loss keeps that block's writes, and the next call runs `beforeChoice` again from where the RNG was left.
  */
 export function resolveBetweenGames(
   definition: CampaignDefinition,
@@ -484,7 +485,8 @@ export function resolveBetweenGames(
   // The in-game seed comes out of the campaign's own RNG, so a game is not a second, unrecorded source of randomness.
   const [drawn, rng] = nextUint32(run.working.rng);
   run.working.rng = rng;
-  // A loss restores the campaign RNG to the node's start, so the draw above is the same on every retry; left alone,
+  // Under `nodeStart` a loss restores the campaign RNG to the node's start, so the draw above is the same on every
+  // retry (under `keepLog` nothing is rewound and the RNG simply continues); left alone,
   // every rewound attempt would be the identical game. MC10 p. 3's "reset the scenario and try again" is a fresh game,
   // so a retry's seed is the draw mixed with how many times the node was already played (`mixWithAttempt`).
   const seed = mixWithAttempt(drawn, log.history.filter((entry) => entry.nodeId === node.id).length);
@@ -801,6 +803,9 @@ function advanceAfterWin(run: CampaignRun): void {
  * evidence again). Such a block draws on from the RNG as it stood when the lost game was composed, and the log keeps
  * the RNG where the block left it. Its draws are therefore never the values that made the lost game's seed, and a
  * second loss of the same node starts its block from another state than the first did.
+ *
+ * Under `retryBaseline: "keepLog"` (MC60 p. 8) nothing is restored: the log, the RNG included, stays as the attempt
+ * left it, the game's writes and the DEFEAT block go on top, and a `choice` graph asks for the next node again.
  */
 export function applyCampaignResult(
   definition: CampaignDefinition,
@@ -821,8 +826,10 @@ export function applyCampaignResult(
   const records = recordsByInstruction(result);
   const won = result.outcome === "won";
 
+  // `"keepLog"`: the lost attempt's own between-games writes and draws stay (MC60 p. 8, "Go to 'Campaign Setup'").
+  const keepLog = definition.loss.retryBaseline === "keepLog";
   let working = workingOf(log);
-  if (!won) {
+  if (!won && !keepLog) {
     const removed = [...working.removedFromCampaign];
     working = workingOfSnapshot(attempt.logBefore, log.status);
     working.removedFromCampaign = removed;
@@ -858,7 +865,7 @@ export function applyCampaignResult(
   // A loss whose DEFEAT block drew nothing leaves the RNG at the node's start, as `retryBaseline` says: a retry's
   // plain setup draws then repeat (`random.perAttempt` is what makes one fresh). A block that drew keeps the RNG it
   // advanced, which is part of what the block wrote.
-  if (!won && run.working.rng.value === log.rng.value && run.working.rng.draws === log.rng.draws) {
+  if (!won && !keepLog && run.working.rng.value === log.rng.value && run.working.rng.draws === log.rng.draws) {
     run.working.rng = { ...attempt.logBefore.rng };
   }
 
@@ -866,8 +873,10 @@ export function applyCampaignResult(
   else if (run.working.status === "active") {
     // MC10 p. 3: "they may reset the scenario and try again". A node the DEFEAT instructions marked resolved
     // (MC60's third progression mark) is not replayed; a `choice` graph then asks for the next node again.
+    // Under `"keepLog"` a `choice` graph goes back to its choice instead (MC60 pp. 8, 9 step 4).
+    const backToChoice = keepLog && definition.graph.kind === "choice";
     run.working.nextNodeId =
-      run.working.resolved[attempt.nodeId] === undefined
+      run.working.resolved[attempt.nodeId] === undefined && !backToChoice
         ? attempt.nodeId
         : definition.graph.kind === "linear"
           ? (definition.graph.nodes.find((candidate) => run.working.resolved[candidate.id] === undefined)?.id ?? null)
@@ -880,7 +889,8 @@ export function applyCampaignResult(
   }
 
   // RRG 1.8 p. 29 / MC10 p. 12: whatever this game or its instructions removed leaves every deck now, win or lose —
-  // a loss restored the decks from `logBefore`, so this is also what keeps a removal out of the retry.
+  // a `nodeStart` loss restored the decks from `logBefore`, so this is also what keeps a removal out of the retry
+  // (a `keepLog` loss kept the decks, and this applies the same removals to them).
   run.working.seats = withoutRemovedCards(run.working.seats, run.working.removedFromCampaign);
   const entry: CampaignHistoryEntry = {
     nodeId: attempt.nodeId,
@@ -899,7 +909,10 @@ export function applyCampaignResult(
   };
 }
 
-/** The snapshot a retry restores, exposed so a client can show "this is where the scenario began". */
+/**
+ * The snapshot a `nodeStart` retry restores, exposed so a client can show "this is where the scenario began". Under
+ * `keepLog` nothing is restored; it is still the log as the scenario began.
+ */
 export const retryBaselineOf = (log: CampaignLog): CampaignLogSnapshot | null => log.attempt?.logBefore ?? null;
 
 /** Grants a seat currently holds, for the deck-edit screen and for `DeckContext` (design §8). */
