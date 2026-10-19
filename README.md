@@ -73,7 +73,8 @@ This project is built **rules-engine-first**:
 - **Deterministic state machine**: game state is serializable, reproducible from a seed and a command log, and
   decoupled from any presentation or I/O layer.
 - **The Rules Reference is the authority**: the official _Rules Reference Guide_ (v1.8, in this repo), FFG's errata and
-  its rulings decide how the game behaves.
+  its rulings decide how the game behaves. [Rules authority](docs/project/rules-authority.md) gives the order they
+  win in when they disagree, and links every RRG version and rulings page.
 - **Headless rules engine**: the engine has no DOM or rendering dependencies and can simulate and audit full games on
   its own.
 - **Phaser as a pure view**: the client presents state and sends player commands; it never decides rules or move
@@ -128,14 +129,15 @@ What you can play today is in [Current status](docs/project/current-status.md). 
 
 ## More
 
-| Page                                             | What's in it                                                         |
-| ------------------------------------------------ | -------------------------------------------------------------------- |
-| [Current status](docs/project/current-status.md) | What you can play today and what the next release adds               |
-| [Architecture](docs/project/architecture.md)     | The four packages, how they depend on each other, running it locally |
-| [Downloads](docs/project/downloads.md)           | Every installer, unsigned macOS builds, the in-app update notice     |
-| [Contributing](CONTRIBUTING.md)                  | Setup, tests, CI, conventions, card data and the release flow        |
-| [PLAN.md](PLAN.md)                               | The full roadmap, decisions and per-phase detail                     |
-| [CHANGELOG.md](CHANGELOG.md)                     | Every release's changes                                              |
+| Page                                               | What's in it                                                         |
+| -------------------------------------------------- | -------------------------------------------------------------------- |
+| [Current status](docs/project/current-status.md)   | What you can play today and what the next release adds               |
+| [Architecture](docs/project/architecture.md)       | The four packages, how they depend on each other, running it locally |
+| [Downloads](docs/project/downloads.md)             | Every installer, unsigned macOS builds, the in-app update notice     |
+| [Contributing](CONTRIBUTING.md)                    | Setup, tests, CI, conventions, card data and the release flow        |
+| [PLAN.md](PLAN.md)                                 | The full roadmap, decisions and per-phase detail                     |
+| [Rules authority](docs/project/rules-authority.md) | Which rules source wins a conflict, and every RRG and rulings page   |
+| [CHANGELOG.md](CHANGELOG.md)                       | Every release's changes                                              |
 
 ## License
 
