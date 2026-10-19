@@ -348,7 +348,10 @@ War did: the team scaffolding, the unique-rule extension, the leader refs and th
   `packages/engine/src/resolve/villainous.ts` and `villainous-friendly-character.test.ts`, untracked in the working tree
   now (another agent). The Taskmaster scripting task waits on it landing; it does not write it.
 - **M13.** Mimicked Move 57025: "If Taskmaster is in play, he attacks your leader. Otherwise, give the enemy leader a tough
-  status card and a facedown boost card." In a cooperative game "your leader" cannot be resolved (MC57 p. 4). See Q2.
+  status card and a facedown boost card." Settled by the rules expert (2026-10-19, was Q2): in a cooperative game "he attacks
+  your leader" cannot resolve (MC57 p. 4), so the "Otherwise" sentence resolves even with Taskmaster in play (RRG 1.8
+  "Otherwise" p. 31: "an effect that cannot at least partially resolve"); outside Civil War "enemy leader" is the villain
+  (ruling July 9, 2026 R3). Same pattern as wave 10 §3.6 Venom 56087.
 
 ### M14 Deferred
 
@@ -383,12 +386,12 @@ resolve" fallback (wave 10 §3.6, owner Q11 = A).
 ### 4.1 Rules questions for the owner
 
 The authority order settles every card in §7 except two. Q1 is a scenario-building rule neither official source reaches;
-Q2 is a printed card whose cooperative reading is open. Each has a default that is built; the owner can flip it.
+Q1 has no source that settles it (rules expert, 2026-10-19); A is built. Q2 was settled by the authority order (B; see M13).
 
-| Q   | Question                                                                                              | A (default)                                                                | B                                  | Decision |
-| --- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------- | -------- |
-| 1   | Which main scheme stages may a custom leader of a side choose once both boxes are owned?              | Every stage of that side from either box (five stage 1s, five stage 2s)    | Only the leader's own box's stages | open     |
-| 2   | Mimicked Move 57025 in a cooperative game: Taskmaster is in play and "your leader" cannot be attacked | The card does nothing (it is discarded; the "Otherwise" half does not run) | The "Otherwise" half resolves      | open     |
+| Q   | Question                                                                                              | A (default)                                                                | B                                  | Decision                                                                           |
+| --- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------- |
+| 1   | Which main scheme stages may a custom leader of a side choose once both boxes are owned?              | Every stage of that side from either box (five stage 1s, five stage 2s)    | Only the leader's own box's stages | open                                                                               |
+| 2   | Mimicked Move 57025 in a cooperative game: Taskmaster is in play and "your leader" cannot be attacked | The card does nothing (it is discarded; the "Otherwise" half does not run) | The "Otherwise" half resolves      | **B**, settled by RRG 1.8 "Otherwise" p. 31 + MC57 p. 4 (rules expert, 2026-10-19) |
 
 ### 4.2 The questions as asked, with the readings for the rules expert
 
@@ -411,7 +414,9 @@ Synthezoid "your leader" cards (Atlas, Songbird, Penance) print an explicit "Oth
 alternate resolves. This card's "Otherwise" is the other branch of an "If", not the failure of the attack. Reading A:
 with Taskmaster in play the card has no resolvable effect (Taskmaster does not attack), matching wave 10 Q11 = A
 (Darkforce). Reading B: "your leader" cannot be resolved, so the alternate effect resolves: the "Otherwise" half. B
-makes the card never do nothing in a cooperative game; A keeps the printed condition. The wave 10 answer favors A.
+makes the card never do nothing in a cooperative game; A keeps the printed condition. Settled as B: RRG "Otherwise" p. 31
+covers an effect that cannot resolve, the "Otherwise" here is its own sentence, and wave 10 Q11 (Darkforce) had no
+"Otherwise" clause, so it is not an equivalent case.
 
 ### 4.3 Product defaults taken (not rules)
 
