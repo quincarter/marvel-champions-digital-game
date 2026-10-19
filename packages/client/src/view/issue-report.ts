@@ -7,7 +7,7 @@
  * (the setup and every command, which with the seed reproduce it), and the Ctrl+Shift+D debug snapshot
  * (`ui/debug-dump.ts`) for the bugs a refresh erases.
  *
- * The GitHub link opens the repo's Bug report form with the device details filled in. It carries no log: a URL has a
+ * The GitHub link opens the repo's Bug report form with the device details in its Game details box. It carries no log: a URL has a
  * length limit and a full game's commands do not fit, so the form asks the player to paste or attach it instead.
  */
 import type { LogLine } from "./log-lines.js";
@@ -115,18 +115,20 @@ export function issuePlatformOf(environment: ReportEnvironment): string {
 }
 
 /**
- * The repo's Bug report form (blank issues are off), prefilled by its field ids: the platform, the version and
- * device line, and the screenshots-and-log box with what to drop in it and where the player was.
+ * The repo's Bug report form (blank issues are off), with only its Game details box filled in: the version, the
+ * platform as the form words it, the device, the screen and the time. Every field the player types or drops an image
+ * into is left empty, because GitHub can put a prefilled field back to its link value when the form redraws, which
+ * undid the player's edits and dropped their screenshot uploads (#273).
  */
 export function newIssueUrl(environment: ReportEnvironment): string {
   const { viewport } = environment;
   const query = new URLSearchParams({
     template: "bug_report.yml",
-    platform: issuePlatformOf(environment),
-    environment: `${environment.version}, ${environment.formFactor} ${viewport.width}x${viewport.height}, ${environment.userAgent}`,
-    screenshots: [
-      "Drag your screenshot here, then paste the copied log or drag in the downloaded mc-report-….txt file.",
-      "",
+    "game-details": [
+      `Version: ${environment.version}`,
+      `Platform: ${issuePlatformOf(environment)}`,
+      `Device: ${environment.formFactor} ${viewport.width}x${viewport.height}`,
+      `Browser: ${environment.userAgent}`,
       `Screen: ${environment.screens.length > 0 ? environment.screens.join(" > ") : "unknown"}`,
       `Reported: ${environment.at}`,
     ].join("\n"),
