@@ -75,7 +75,10 @@ jobs:
           COUNT=$(find .changes/unreleased -maxdepth 1 \( -name "*.yaml" -o -name "*.yml" \) 2>/dev/null | wc -l)
           echo "Latest released version on main: ${LATEST}. Unreleased fragments: ${COUNT}."
 
-          if ! git ls-remote --tags origin | grep -q "refs/tags/${LATEST}$"; then
+          # Ask for the one tag rather than piping every tag into `grep -q`: Actions runs bash with pipefail, so grep
+          # quitting at its first match could fail the pipe on SIGPIPE and read as "not tagged" (a run then tried to
+          # tag v0.28.0 again and failed).
+          if [ -z "$(git ls-remote --tags origin "refs/tags/${LATEST}")" ]; then
             echo "${LATEST} is on main but not tagged: its release PR merged. Tagging it."
             printf 'mode=tag\nhas_changes=true\n' >> "$GITHUB_OUTPUT"
           elif [ "${COUNT}" -gt 0 ] || [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
