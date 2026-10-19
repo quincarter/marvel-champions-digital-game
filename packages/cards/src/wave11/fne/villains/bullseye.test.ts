@@ -487,9 +487,9 @@ describe("Deadly Sai 60070", () => {
 });
 
 describe("Deadly Sai 60070 with another ranged grant and with two players", () => {
-  // KNOWN WRONG, ENGINE GAP E19: Out Front (60129a) and any other "attacks gain ranged" source beat the Sai's
-  // skip-the-grant workaround. Staged with a constant in place of Raise the Stakes' ability (Out Front's shape).
-  it.fails("60065.bullseye-forced-interrupt: Deadly Sai takes ranged away even when another card grants it (RRG 1.8 Lose, p. 27)", () => {
+  // Out Front (60129a) and any other "attacks gain ranged" source lose to the Sai. Staged with a constant in place of
+  // Raise the Stakes' ability (Out Front's shape).
+  it("60065.bullseye-forced-interrupt: Deadly Sai takes ranged away even when another card grants it (RRG 1.8 Lose, p. 27)", () => {
     const granting = {
       ...WAVE11_DEPS,
       abilities: {

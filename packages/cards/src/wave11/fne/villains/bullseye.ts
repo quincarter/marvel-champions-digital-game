@@ -11,6 +11,7 @@ import {
   attachCard,
   attackInProgress,
   attacksGainKeywords,
+  attacksLoseKeywords,
   boost,
   cannotAttach,
   cards,
@@ -70,7 +71,6 @@ import {
 } from "../../../dsl/index.js";
 
 const SPINE = "Adamantium-Laced Spine";
-const SAI = "Deadly Sai";
 const BLOODLUST = "Deranged Bloodlust";
 const BULLSEYE = query("villain", { name: "Bullseye" });
 const ALLY = query("ally");
@@ -96,17 +96,14 @@ const findSpine = (slot: string) =>
  * boost step: `boostIconsEach` is added to every boost card turned faceup in this activation, the facedown ones he held
  * included (the same sentence as an amplify icon, RRG 1.8 "Amplify Icon", p. 7). `keywords` is read for an attack only.
  *
- * Deadly Sai (60070) makes Bullseye's attacks lose ranged. The engine's `attacksLoseKeywords` is scoped to the attacked
- * character and has no attacker scope, so the loss is written here: the grant is not made while a Deadly Sai is
- * attached to him (engine reading, rules tier 5; RRG 1.8 "Lose", p. 27: a loss beats a gain). KNOWN WRONG when another
- * card also grants him ranged: Out Front (60129a, The Getaway: "Attached villain's attacks gain ranged") would still give
- * it with a Sai attached. ENGINE GAP E19: an attacker-scoped `attacksLoseKeywords` lets the Sai say it itself.
+ * Deadly Sai (60070) makes his attacks lose ranged by itself (`attacksLoseKeywords`, attacker-scoped; RRG 1.8 "Lose",
+ * p. 27: a loss beats a gain, whatever grants it).
  */
 const bullseyeInterrupt = () =>
   forcedInterrupt(
     on.enemySchemesOrAttacks("self"),
     modifyAttack({ boostIconsEach: 1 }),
-    ifThen(not(exists(query("attachment", { name: SAI, host: theVillain }))), modifyAttack({ keywords: ["ranged"] })),
+    modifyAttack({ keywords: ["ranged"] }),
   );
 
 /**
@@ -170,9 +167,10 @@ export const FNE_VILLAINS_BULLSEYE: AbilityRegistry = defineAbilities({
     ),
   ),
 
-  // +2 ATK is data. His attacks gain piercing; the loss of ranged is in `bullseyeInterrupt`.
+  // +2 ATK is data. His attacks gain piercing; and they lose ranged.
   "60070.deadly-sai-constant": constant(
     attacksGainKeywords(["piercing"], { attacker: query("villain", { hostOfSelf: true }) }),
+    attacksLoseKeywords(["ranged"], { attacker: query("villain", { hostOfSelf: true }) }),
   ),
   "60070.deadly-sai-response": heroResponse(
     { ...on.defends(query("identity")), sourceIs: { hostOfSelf: true }, playerIs: "controller" },
