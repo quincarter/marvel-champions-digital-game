@@ -30,8 +30,10 @@ import { mansionAttackGame } from "../../wave6/mut_gen/mansion-attack-testing.js
 import { withoutDealtCards } from "../../wave6/mut_gen/magneto-testing.js";
 import { engageMinion } from "../../wave6/mut_gen/project-wideawake-testing.js";
 
+// Seed 2028: since #277 took the second Sleeper out of the encounter deck, 2026 deals Hawkeye a first villain phase
+// that defeats him before these tests can act.
 const redSkullVsHeroes = () =>
-  startWave2Game(wave2Scenario("red-skull", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
+  startWave2Game(wave2Scenario("red-skull", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2028 }));
 const ADVANCE = "01186";
 
 /**
@@ -72,6 +74,11 @@ describe("Red Skull scenario", () => {
     const settled = startWave2Game(config);
     expect(cardsInPlay(settled).some((id) => settled.instances[id]?.cardId === "04139")).toBe(true);
     expect(settled.encounterSetAside.some((id) => settled.instances[id]?.cardId === "04130")).toBe(true);
+    // Issue #277: set aside only, never shuffled into the encounter deck as well.
+    expect(config.encounterDeck).not.toContain("04130");
+    const sleepers = instancesOf(settled, "04130");
+    expect(sleepers).toHaveLength(1);
+    expect(settled.encounterSetAside).toContain(sleepers[0]);
     expect(settled.scenarioDecks["side-scheme deck"]?.deck.length ?? 0).toBeGreaterThan(0);
     expect(settled.villains).toHaveLength(1);
     expect(settled.outcome).toBeNull();
@@ -201,6 +208,26 @@ describe("Red Skull scenario", () => {
       expect(after.removedFromGame).toContain(scheme);
       expect(cardsInPlay(after)).not.toContain(scheme);
       expect(characterProfile(after, villain, WAVE2_DEPS)?.atk).toBe(atkBefore - 1);
+    });
+
+    // Issue #277: setup built a second Sleeper into the encounter deck, revealed in a later villain phase.
+    it("once The Sleeper is defeated, no copy of it is left in the encounter deck or discard pile to come back", () => {
+      const { state, sleeper } = sleeperAwake();
+      const after = settle(
+        runWave2(state, {
+          type: "basicAttack",
+          playerId: P1,
+          attackerInstanceId: identityOf(state),
+          targetInstanceId: sleeper,
+        }),
+        firstLegal,
+        undefined,
+        WAVE2_DEPS,
+      );
+      expect(instancesOf(after, "04130")).toEqual([sleeper]);
+      expect(after.removedFromGame).toContain(sleeper);
+      const piles = Object.values(after.encounterDecks).flatMap((pile) => [...pile.deck, ...pile.discard]);
+      expect(piles).not.toContain(sleeper);
     });
   });
 

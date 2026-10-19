@@ -113,6 +113,7 @@ function buildSingleVillain(
   ];
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
   const setAside = SETASIDE_BY_SCENARIO[scenario.id];
+  const setAsideIds = new Set<string>(setAside ?? []);
   return {
     seed: options.seed,
     cards: PLAYABLE_CARDS,
@@ -121,7 +122,12 @@ function buildSingleVillain(
     villainStartStageIndex: stageIndex(firstStage),
     villainLastStageIndex: stageIndex(lastStage),
     mainSchemeCardId: scenario.mainSchemeCardId,
-    encounterDeck: [...encounterCardsOf(sets, PLAYABLE_CARDS), ...modularSetupCardIds(modular, PLAYABLE_CARDS)],
+    // A set-aside card belongs to one of `sets` (The Sleeper is in `red_skull`) but starts out of play, never in the
+    // deck as well: a second copy there was revealed after the set-aside one was defeated and removed (#277).
+    encounterDeck: [
+      ...encounterCardsOf(sets, PLAYABLE_CARDS).filter((id) => !setAsideIds.has(id)),
+      ...modularSetupCardIds(modular, PLAYABLE_CARDS),
+    ],
     players: seatsOf(options.players),
     includeIdentitySets: scenario.usesIdentityEncounterSets ?? true,
     requireIdentitySets: true,

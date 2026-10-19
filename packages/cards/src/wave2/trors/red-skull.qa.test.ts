@@ -53,7 +53,7 @@ function stackSideSchemeDeck(state: GameState, code: string): GameState {
 
 /** The Sleeper Awakened revealed with The Sleeper engaged, on the hero's turn. */
 function awake(count = 1) {
-  const stacked = stackSideSchemeDeck(runWave2(redSkullVsHeroes(2026, count), toHero()), "04140");
+  const stacked = stackSideSchemeDeck(runWave2(redSkullVsHeroes(2028, count), toHero()), "04140");
   const revealed = settle(
     runWave2(stacked, endTurn(), ...(count === 2 ? [endTurn(P2)] : [])),
     firstLegal,
