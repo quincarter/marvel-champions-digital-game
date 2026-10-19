@@ -289,11 +289,12 @@ describe("Energy Gatling Gun 60089", () => {
       return choice.options.some((o) => (o.optionId as string) === (ally as string)) ? [ally as string] : ["decline"];
     };
 
-  const gunVsAlly = (statuses: { stunned: number; confused: number; tough: number }, damage: number) => {
+  // `boosts`: one per attack expected (a second boost card left in the deck is dealt instead, and Assault attacks).
+  const gunVsAlly = (statuses: { stunned: number; confused: number; tough: number }, damage: number, boosts = 2) => {
     const gun = attachedToVillain(newGame(1), GUN);
     const placed = allyInPlay(gun.state);
     const staged = patchInstance(placed.state, placed.id, { damage, statuses });
-    const run = villainPhase(staged, 2, [ADVANCE], allyDefends(placed.id));
+    const run = villainPhase(staged, boosts, [ADVANCE], allyDefends(placed.id));
     return { run, gun, ally: placed.id };
   };
 
@@ -304,11 +305,8 @@ describe("Energy Gatling Gun 60089", () => {
     expect(inst(run.state, gun.id).attachedTo).toBeNull();
   });
 
-  // ENGINE GAP, expected to fail until fixed: the defender defeated by the attack is reported as an attack on the identity
-  // (`defenderLeftPlay`), so the "not defeated" condition cannot see it and the gun attacks the hero. Remove `.fails`
-  // when the attacked character stays the defeated ally.
-  it.fails("60089.energy-gatling-gun-forced-response: not used when the defending ally was defeated", () => {
-    const { run, gun } = gunVsAlly({ stunned: 0, confused: 0, tough: 0 }, 1);
+  it("60089.energy-gatling-gun-forced-response: not used when the defending ally was defeated", () => {
+    const { run, gun } = gunVsAlly({ stunned: 0, confused: 0, tough: 0 }, 1, 1);
     expect(attacksBy(run.state, run.events, "60086")).toHaveLength(1);
     expect(inst(run.state, gun.id).attachedTo).toBe(villainOf(run.state));
   });

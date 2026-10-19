@@ -120,9 +120,8 @@ export const FNE_VILLAINS_HAMMERHEAD: AbilityRegistry = defineAbilities({
     after.enemyAttacks("host"),
     {
       cost: discardThis,
-      // The attacked character must still be in play. Engine gap: a defending ally defeated by this very attack is
-      // reported as a target-less attack on the identity (`defenderLeftPlay`, RRG 1.8 FAQ #17 p. 63), so for that case
-      // the card attacks the identity again (see the `it.fails` in hammerhead.test.ts).
+      // The attacked character must still be in play: an attack that defeats its defender names that ally with
+      // `defeated` set, so the gun does not fire.
       while: allOf(not(eventDealt("defeated")), refMatches(eventTarget, query("character"))),
     },
     enemyAttack(theVillain, { targetCharacter: eventTarget }),

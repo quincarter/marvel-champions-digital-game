@@ -491,7 +491,7 @@ handoff note; the main session verifies and pushes.
 18. E15 — §S3.15 `putIntoPlay.resolveSetup`.
 19. E16 — The three §S4.0 code comments (Vulnerable, Amplify, Steady); no behavior change.
 20. E17 — Read `HostQualifiers.withoutAttachmentTrait` in `packages/engine/src/attachment-hosts.ts` (`passesQualifiers` and the superlative filter), beside `withoutAttachmentNamed`, with a test (Sports Car skips an enemy that already has a Motorcycle). Found in review 2026-10-18.
-21. E18 — An enemy attack whose defending ally is defeated keeps that ally as the attacked character in the attack's results (with `defeated` set), so "if the attacked character was not defeated" (Energy Gatling Gun 60089) can see the death; today `defenderLeftPlay` (RRG FAQ #17 p. 63) reports the identity. The `it.fails` test in `fne/villains/hammerhead.test.ts` turns green when this lands. Found while scripting Hammerhead 2026-10-18.
+21. E18 — Not needed (checked 2026-10-18): an attack that defeats its defending ally already names that ally with `defeated` set; `defenderLeftPlay` is only for a defender gone before damage (RRG 1.8 p. 9 step 5, FAQ #17 p. 63). The failing Hammerhead test stacked a second boost card that was dealt as an Assault instead.
 22. E19 — An `attacker` scope on `attacksLoseKeywords` (today `rules.ts` reads only `target`), so Deadly Sai 60070 can say "Bullseye's attacks lose ranged" itself and beat any grant, Out Front 60129a included (RRG 1.8 "Lose", p. 27). Then drop the workaround in `fne/villains/bullseye.ts`. Found in review 2026-10-18.
 
 **Scripting (`ability-scripting-engineer`), one module each (§S6)**
