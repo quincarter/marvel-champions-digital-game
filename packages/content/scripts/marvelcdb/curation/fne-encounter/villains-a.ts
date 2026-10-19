@@ -787,7 +787,7 @@ export const VILLAINS_A: readonly AddedRecord[] = [
     }),
     reason: `${NO_REC} 60092 Maggia Enforcers (2 copies, 7/14 and 8/14).`,
     evidence:
-      'Scans 60092.jpg and 60092_2.jpg (footers "HAMMERHEAD (7/14)" and "(8/14)", collector 92, identical text): MINION, "Maggia Enforcers" (no unique marker), SCH (bare star, no numeral), ATK 2 (no star), hit point circle 3, "CRIMINAL. MAGGIA.", "Guard. (star) Maggia Enforcers\'s SCH is equal to the number of MAGGIA enemies in play (including this one)." Flavor "Before I ran my own gang I was a Maggia enforcer."-Hammerhead. No boost icons printed (boost null), no illustrator. Bare-star SCH: scheme null, scheme_star true.',
+      'Scans 60092.jpg and 60092_2.jpg (footers "HAMMERHEAD (7/14)" and "(8/14)", collector 92, identical text): MINION, "Maggia Enforcers" (no unique marker), SCH (bare star, no numeral), ATK 2 (no star), hit point circle 3, "CRIMINAL. MAGGIA.", "Guard. (star) Maggia Enforcers\'s SCH is equal to the number of MAGGIA enemies in play (including this one)." Flavor "Before I ran my own gang I was a Maggia enforcer."-Hammerhead. No boost icons printed (boost null), no illustrator. Bare-star SCH: raw scheme null, scheme_star true; emitted as 0, not a dash (see the fne.ts cardNote).',
   },
   {
     record: rec({

@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Maggia Enforcers (60092) prints a star in its SCH box, not a dash: the card data now emits SCH 0 so its text can set the value, like Purple Man.'
+time: 2026-10-18T20:53:13.6613268-04:00

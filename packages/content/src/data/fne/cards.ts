@@ -2267,7 +2267,7 @@ export const FNE_CARDS: readonly AnyCard[] = [
     unique: false,
     images: { front: imageRef("/bundles/cards/60092.png") },
     atk: 2,
-    sch: null,
+    sch: 0,
     hp: 3,
     encounterSetIds: [encounterSetId("hammerhead")],
     boostIcons: 0,

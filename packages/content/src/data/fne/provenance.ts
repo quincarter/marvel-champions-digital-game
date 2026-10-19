@@ -250,8 +250,7 @@ export const FNE_PROVENANCE: readonly CardProvenance[] = [
     cardSetCode: "hammerhead",
     marvelcdbCodes: ["60092"],
     corrections: [
-      "60092: Maggia Enforcers' SCH is a bare star (\"SCH is equal to the number of Maggia enemies in play\"), absent as a number in the raw record, like Purple Man 61031. [evidence: Scans 60092.jpg and 60092_2.jpg: SCH box holds a star with no numeral; text \"[star] Maggia Enforcers's SCH is equal to the number of [[Maggia]] enemies in play (including this one).\"]",
-      "data decision: Maggia Enforcers: the SCH box prints a bare star (SCH equals the number of Maggia enemies in play), emitted as a dash (null) with the rule in the text, like Purple Man 61031 (scan 60092.jpg).",
+      "data decision: Maggia Enforcers: the SCH box prints a bare star (SCH equals the number of Maggia enemies in play), emitted 0, not a dash, with the rule in the text, like Purple Man 61031: a dash cannot be modified (RRG 1.8 p. 15), so the card's setBase constant needs a number (scan 60092.jpg).",
     ],
   },
   { cardId: cardId("60093"), cardSetCode: "hammerhead", marvelcdbCodes: ["60093"], corrections: [] },

@@ -20,7 +20,7 @@ import { SCENARIOS } from "./fne-encounter/scenarios.ts";
 import { VILLAINS_A } from "./fne-encounter/villains-a.ts";
 import { VILLAINS_B } from "./fne-encounter/villains-b.ts";
 
-/** Scenario-half records the normalizer could not read as printed: an attach host, a dash cost or a star SCH. */
+/** Scenario-half records the normalizer could not read as printed: an attach host. */
 const SCENARIO_HALF_CORRECTIONS: readonly Correction[] = [
   {
     code: "60068a",
@@ -43,14 +43,6 @@ const SCENARIO_HALF_CORRECTIONS: readonly Correction[] = [
       'Drained of Power\'s attach clause sits inside its When Revealed ("Attach to your identity and exhaust each upgrade you control"), where the preamble scan does not look.',
     evidence: "Scan 60080.jpg, When Revealed text. Never applied to text.",
     impliedAttachHost: { kind: "yourIdentity" },
-  },
-  {
-    code: "60092",
-    reason:
-      'Maggia Enforcers\' SCH is a bare star ("SCH is equal to the number of Maggia enemies in play"), absent as a number in the raw record, like Purple Man 61031.',
-    evidence:
-      'Scans 60092.jpg and 60092_2.jpg: SCH box holds a star with no numeral; text "[star] Maggia Enforcers\'s SCH is equal to the number of [[Maggia]] enemies in play (including this one)."',
-    dashedMinionStats: ["sch"],
   },
   {
     code: "60100",
@@ -251,7 +243,7 @@ export const FNE_CURATION: PackCuration = {
   scriptingNotes: {},
   cardNotes: {
     "60092":
-      "Maggia Enforcers: the SCH box prints a bare star (SCH equals the number of Maggia enemies in play), emitted as a dash (null) with the rule in the text, like Purple Man 61031 (scan 60092.jpg).",
+      "Maggia Enforcers: the SCH box prints a bare star (SCH equals the number of Maggia enemies in play), emitted 0, not a dash, with the rule in the text, like Purple Man 61031: a dash cannot be modified (RRG 1.8 p. 15), so the card's setBase constant needs a number (scan 60092.jpg).",
   },
 
   scenarios: [],
