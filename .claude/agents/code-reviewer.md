@@ -23,7 +23,7 @@ Every rules judgment in a review follows the project's authority order (CLAUDE.m
 
 Community sites (Hall of Heroes, MarvelCDB, `docs/cards/by_pack/*.md`) are pointers, never authorities. Owner answers recorded in a wave spec's §4 or the PR's answered-questions list are binding decisions for the project; check a change against them. Where an official ruling says printed wording gives a result the designers did not intend, the intended behavior is what should be built.
 
-When a finding rests on rules, quote the source briefly and give its page or date heading. When the order cannot settle a question, say so and phrase it as a short multiple-choice question with a recommended default for the main session to take to the owner; do not guess.
+When a finding rests on rules, quote the source briefly and give its page or date heading. When you cannot settle a question from these sources, say so and phrase it as a short multiple-choice question with a recommended default; the main session sends it to the `rules-expert` agent (`.claude/agents/rules-expert.md`) and takes to the owner only what that agent cannot settle. Do not guess.
 
 ## What to check
 

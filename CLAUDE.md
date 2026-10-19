@@ -50,6 +50,7 @@ This repo defines specialized subagents under `.claude/agents/` that model the r
 | `rules-qa-engineer`            | Regression tests tied to specific rulings/FAQ entries, scenario replay testing, drift detection |
 | `content-release-tracker`      | Keeping the card pool current as new packs/cycles/errata/taboo changes release                  |
 | `code-reviewer`                | Read-only review of each change before it is committed, against the rules authority order       |
+| `rules-expert`                 | Answers rules questions from the sources in authority order before any go to the owner          |
 
 See [PLAN.md](PLAN.md) for the build roadmap and current phase, and [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks, CI and the release flow (the README is kept slim: overview, tech stack, community and roadmap, linking out to `docs/project/` for current status, architecture and downloads).
 
@@ -85,8 +86,9 @@ section current so any session can resume from GitHub alone.
   `git reset`, `git clean`, or repo-wide `pnpm fmt`. **No debugging edits in shared files** (a `console.log` in an
   engine file): debug in a scratch test file of your own and delete it before committing.
 - **Agents don't edit the wave spec's status or open questions**; they report, and the main session verifies (runs
-  the tests, reads the diff) before flipping a status or ticking the PR. Rules questions go to the user as short
-  multiple-choice prompts with a recommended default; answers are recorded in the spec's §4.1 table and the PR.
+  the tests, reads the diff) before flipping a status or ticking the PR. Rules questions go to the `rules-expert`
+  agent first; only what it cannot settle goes to the user, as a short multiple-choice prompt with a recommended
+  default, and answers are recorded in the spec's §4.1 table and the PR.
 - The live state of a wave (agents, worktree, what's next) is kept in its PR description's handoff section.
 
 ### When to hand code to the code reviewer (the user, 2026-10-18)
@@ -108,6 +110,21 @@ the owning specialist or the main session fixes what it finds. This applies to c
   Ask for findings ranked blocker / should-fix / nit, each with file:line, a failing scenario and its source.
 - **Blockers and should-fixes are fixed before the commit is pushed**; a rules question the authority order cannot
   settle goes to the user as a multiple-choice question with a recommended default, like any other.
+
+### Rules questions go to the rules expert first (the user, 2026-10-19)
+
+The `rules-expert` agent (`.claude/agents/rules-expert.md`) answers a rules question by working it through the
+authority order above, the product rulebooks in `docs/campaign-modes/markdown/`, and the owner decisions already
+recorded in the wave specs' rules tables, and cites what settles it. It is read-only. This applies to contributors
+working with Claude too.
+
+- **Send it every rules question** before it becomes an owner question: one raised by a specialist agent's handoff, a
+  code review, a spec draft or a card that reads two ways. Brief it with the card text, the situation and the readings
+  on the table; ask for a one-line verdict and its sources.
+- **When it settles the question**, build to its answer, cite its source in a code comment where the behavior is not
+  obvious from the card text, and record the reading in the spec's §4.0 "settled by the authority order" table.
+- **When it cannot**, take its multiple-choice question (recommended option first) to the user, with the sources it
+  checked in one line, and record the answer in the spec's §4.1 table and the PR.
 
 ## Working conventions
 
