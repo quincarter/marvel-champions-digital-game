@@ -92,8 +92,8 @@ import { markPreThenUnresolved } from "./then.js";
  * `count` cards of `pool` at random, without replacement, in the order drawn; every card of a smaller pool, none of an
  * empty one. Each pick is one draw on the game's seeded RNG (`GameState.rng`), which advances with it, so a replay of
  * the command log picks the same cards; an empty pool or a count of zero draws nothing and leaves the RNG as it was.
- * The one place a selector's `random` is resolved (`zone`, `encounter`, `encounterSetAside`, `victoryDisplay`,
- * `tucked`).
+ * The one place a selector's `random` is resolved (`zone`, `encounter`, `encounterSetAside`, `setAside`,
+ * `victoryDisplay`, `tucked`).
  */
 function pickAtRandom(ctx: Ctx, pool: readonly InstanceId[], count: number): InstanceId[] {
   const left = [...pool];
@@ -241,10 +241,13 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
         selector.filter,
       );
     }
-    case "setAside":
-      return resolvePlayers(state, selector.player, context).flatMap((playerId) =>
+    case "setAside": {
+      const matching = resolvePlayers(state, selector.player, context).flatMap((playerId) =>
         filtered(mustPlayer(state, playerId).setAside, selector.filter),
       );
+      if (!selector.random) return matching;
+      return pickAtRandom(ctx, matching, resolveValue(ctx.state, selector.random, context));
+    }
     case "tucked": {
       const under = filtered(
         resolveRef(state, selector.under, context).flatMap((id) => getInstance(state, id)?.tucked ?? []),

@@ -1,6 +1,7 @@
 import { trait } from "@mc/content";
 import type { AbilityRegistry } from "@mc/engine";
 import {
+  activatingEnemy,
   activationIs,
   actingCharacter,
   addCounters,
@@ -48,6 +49,7 @@ import {
   inForm,
   inMode,
   instead,
+  interrupt,
   isConfused,
   isStunned,
   modifyAttack,
@@ -107,6 +109,8 @@ const NEMESIS_SIDE_SCHEME_OF_THAT_PLAYER = query("sideScheme", { nemesisSideSche
 /** The scoped player's nemesis minion, in play (a reveal that was turned away leaves it out). */
 const NEMESIS_MINION_IN_PLAY = query("minion", { nemesisMinionOf: thatPlayer });
 const ORGANIZED_CRIME = query("sideScheme", { name: "Organized Crime" });
+/** "Your set-aside nemesis set" (Bag of Tricks): the cards of your nemesis encounter set in your set-aside area. */
+const YOUR_NEMESIS_SET = { nemesisSetOf: you } as const;
 /** "The attacker" that Spot's damage goes back to: the character that made the attack (RRG 1.8 "You, Your", p. 49). */
 const ATTACKER = actingCharacter(eventSource);
 
@@ -227,9 +231,9 @@ const attachIfMartialArtist = (...host: Parameters<typeof attachCard>[1][]) =>
  * is not in play (no threat is placed on a scheme that is not there yet: the printed order).
  * **60174 Organized Crime**, **60176 Unrelenting Hate**: as printed (an unfound nemesis minion is replaced by an
  * Underling).
- * **Left unscripted** (`FNE_SCENARIOS_KINGPIN_SKIPPED`): 60163b's High-side Interrupt (no "would be given a boost
- * card" window) and
- * both abilities of 60175 Bag of Tricks (no random pick from a player's set-aside cards).
+ * 60163b's High-side Interrupt replaces the give of a facedown boost card to an enemy (`on.boostCardWouldBeGiven`,
+ * docs/phase7-wave11-scenarios.md E23). **60175 Bag of Tricks** picks its card from the seeded RNG (`setAside`'s
+ * `random`, E24).
  *
  * Cards (17):
  * - 60159a Kingpin (villain)
@@ -321,6 +325,16 @@ export const FNE_SCENARIOS_KINGPIN: AbilityRegistry = defineAbilities({
       advanceMainScheme(),
       flipCard(self),
     ]),
+  ),
+  // Any player may use it (an encounter card's optional ability, RRG 1.8 "Ability", p. 4). No → (RRG 1.8 'Cost Arrow
+  // Icon', p. 14): the removal is the replacement's effect, not a cost, so it may partially resolve ('Otherwise',
+  // p. 31; 'Initiating Abilities', p. 24). With 0 counters the replacement cannot resolve and cannot trigger (ruling
+  // Mar 19, 2026 R5, Redwing; June 27, 2023 #32, C.S.I.). Engine reading: no ruling covers a partly resolving
+  // replacement. Owner Q207 open, built B.
+  "60163b.public-support-interrupt": interrupt(
+    on.boostCardWouldBeGiven({ to: query("enemy") }),
+    { would: true, while: valueAtLeast(countersOn(self, "support"), 1) },
+    instead(removeCountersFrom(self, "support", perHero(1))),
   ),
   "60163b.public-support-forced-response": forcedResponse(after.defeated(query("minion")), addCounters("support", 1)),
 
@@ -430,6 +444,20 @@ export const FNE_SCENARIOS_KINGPIN: AbilityRegistry = defineAbilities({
 
   "60174.organized-crime-constant": constant(gets("hp", 2, query("minion"))),
 
+  // "Your set-aside nemesis set" names the set, not the whole set-aside area (`nemesisSetOf`). An empty set reveals
+  // nothing, and the card gains surge.
+  "60175.when-revealed": whenRevealed(
+    selectCards("trick", setAside(you, YOUR_NEMESIS_SET, { random: 1 })),
+    revealCard(chosen("trick"), you),
+    ifThen(not(varAtLeast("trick.count")), surge()),
+  ),
+  // "As an additional boost card": given while this activation's boost cards are being turned faceup, it joins them
+  // and is turned faceup in its turn. "Your" is the player the activation is against.
+  "60175.boost": boost(
+    selectCards("trick", setAside(you, YOUR_NEMESIS_SET, { random: 1 })),
+    giveBoostCard(activatingEnemy, { card: chosen("trick") }),
+  ),
+
   "60176.when-revealed": whenRevealed(
     enemyActivates(each(query("minion", { nemesisMinionOf: you })), { against: you }),
     ifThen(not(exists(query("minion", { nemesisMinionOf: you }))), [
@@ -452,17 +480,4 @@ export const FNE_SCENARIOS_KINGPIN: AbilityRegistry = defineAbilities({
 });
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const FNE_SCENARIOS_KINGPIN_SKIPPED: Readonly<Record<string, string>> = {
-  "60163b.public-support-interrupt":
-    "High side: 'When an enemy would be given a facedown boost card, remove 1[per_hero] support counters " +
-    "from here instead.' needs a would-be-given interrupt window on a boost card (TriggerEvent " +
-    "boostCardGiven is announced after the card is given, 'a response only', dsl on.boostCardGiven) and a " +
-    "way to withhold the card; no engine primitive does either",
-  "60175.when-revealed":
-    "'Reveal a random card from your set-aside nemesis set': CardSelector setAside has no random option " +
-    "(only encounterSetAside, encounter, tucked and victoryDisplay do), so the pick cannot come from the " +
-    "seeded RNG",
-  "60175.boost":
-    "'Give this character a random card from your set-aside nemesis set as an additional boost card' " +
-    "needs the same random pick from a player's setAside selector as 60175.when-revealed",
-};
+export const FNE_SCENARIOS_KINGPIN_SKIPPED: Readonly<Record<string, string>> = {};

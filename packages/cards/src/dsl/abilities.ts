@@ -3909,6 +3909,26 @@ export const on = {
       opts.activation ? { activation: opts.activation } : {},
       opts.againstYou ? { playerIs: "controller" } : {},
     ),
+  /**
+   * "When an enemy **would be given** a facedown boost card" (Public Support 60163b, `fne`;
+   * docs/phase7-wave11-scenarios.md E23; RRG 1.8 "'Would'", p. 48). Use it in a `would` interrupt: one event and one
+   * window per card, before it is given: an activation's own boost card and each additional one, and one a card
+   * ability gives (`giveBoostCard`). The holder is `eventSource`; `to` narrows it (an enemy is `query(["villain",
+   * "minion"])`: a card ability may give one to an identity). `activation` and `againstYou` read the holder's
+   * activation in progress, as `boostCardGiven`'s do. A named card (`giveBoostCard(…, { card })`) is `eventTarget`;
+   * a card off the encounter deck is not named, still on the deck. `replaceTriggeringEvent(…)` (`instead`) is
+   * "… instead": nothing is given. Interrupt only: after the card is given is `boostCardGiven`. Not heard: a boost card
+   * given as a cost, a defeated card given to the enemy leader, a villainous character's basic power's.
+   */
+  boostCardWouldBeGiven: (
+    opts: { readonly activation?: "attack" | "scheme"; readonly to?: Who; readonly againstYou?: boolean } = {},
+  ): EventPattern =>
+    pattern(
+      "boostCardBeingGiven",
+      opts.to !== undefined ? asSource(opts.to) : {},
+      opts.activation ? { activation: opts.activation } : {},
+      opts.againstYou ? { playerIs: "controller" } : {},
+    ),
   /** "After your deck runs out of cards" (Soul World, `mts` 21033; docs/phase7-wave4.md §3.11): your deck reset. */
   yourDeckRunsOut: (): EventPattern => pattern("deckRanOut", { playerIs: "controller", eventIs: { deck: "player" } }),
   /** "After a player resets their deck" (Universal Church of Truth, 21068): any player's; name them with `eventPlayer`. */

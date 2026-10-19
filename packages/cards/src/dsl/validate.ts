@@ -813,6 +813,8 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
     // Nor has an encounter card about to be dealt (docs/phase7-wave9.md §3.45): "after" answers `encounterCardDealt`.
     if (kinds.includes("encounterCardBeingDealt"))
       problems.push("encounterCardBeingDealt is interrupt-only: after a player is dealt a card is encounterCardDealt");
+    if (kinds.includes("boostCardBeingGiven"))
+      problems.push("boostCardBeingGiven is interrupt-only: after a boost card is given is boostCardGiven");
   }
   // docs/phase7-wave7.md §3.35: the card's "attach to" text as an ability. It is forced and free, and attaches itself.
   if (definition.attachInstruction) {
@@ -1320,7 +1322,14 @@ function checkHiddenPiles(definition: AbilityDefinition, problems: string[]): vo
 }
 
 /** The card selectors that take `random`: that many of their cards, by the game's seeded RNG. */
-const RANDOM_SELECTORS: readonly string[] = ["zone", "encounter", "encounterSetAside", "victoryDisplay", "tucked"];
+const RANDOM_SELECTORS: readonly string[] = [
+  "zone",
+  "encounter",
+  "encounterSetAside",
+  "setAside",
+  "victoryDisplay",
+  "tucked",
+];
 
 /**
  * A selector's `random` is a number of cards to pick ("1 of those cards at random", docs/phase7-wave9.md §3.40): a

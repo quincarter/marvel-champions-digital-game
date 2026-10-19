@@ -5657,8 +5657,18 @@ export type CardSelector =
        */
       readonly random?: ValueSpec;
     }
-  /** A player's set-aside nemesis set. */
-  | { readonly kind: "setAside"; readonly player: PlayerRef; readonly filter?: TargetQuery }
+  /**
+   * A player's set-aside area (their nemesis set, among other cards: `TargetQuery nemesisSetOf`). `random`: that many of
+   * the matching cards at random, from the game's seeded RNG, as `encounterSetAside.random`; over every named player's
+   * matches as one pool, after `filter`, fewer when fewer are there ("Reveal a random card from your set-aside nemesis
+   * set", Bag of Tricks, `fne` 60175; docs/phase7-wave11-scenarios.md E24).
+   */
+  | {
+      readonly kind: "setAside";
+      readonly player: PlayerRef;
+      readonly filter?: TargetQuery;
+      readonly random?: ValueSpec;
+    }
   /**
    * Scenario cards set aside at setup (a signature side scheme before Breakout 1A puts it into play). `random`: that many
    * of the matching cards at random, from the game's seeded RNG ("Place 1 random set-aside Captive ally facedown beneath

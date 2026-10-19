@@ -1539,10 +1539,20 @@ export const victoryDisplayCards = (filter?: TargetQuery, opts: { readonly rando
  */
 export const addToVictoryDisplay = (from: CardSelector, bind?: string): EffectSpec =>
   moveCards(from, "victoryDisplay", bind);
-export const setAside = (player: PlayerRef = you, filter?: TargetQuery): CardSelector => ({
+/**
+ * A player's set-aside area; "your set-aside nemesis set" is `setAside(you, { nemesisSetOf: you })`. `opts.random`:
+ * that many of the matching cards, picked by the game's seeded RNG, fewer when fewer are there ("Reveal a random card
+ * from your set-aside nemesis set", Bag of Tricks, `fne` 60175).
+ */
+export const setAside = (
+  player: PlayerRef = you,
+  filter?: TargetQuery,
+  opts: { readonly random?: Amount } = {},
+): CardSelector => ({
   kind: "setAside",
   player,
   ...(filter ? { filter } : {}),
+  ...(opts.random !== undefined ? { random: amount(opts.random) } : {}),
 });
 /**
  * The cards in a scenario out-of-play area, e.g. "The Collection" (docs/phase7-wave3.md §3.14): `scenarioArea(name)`

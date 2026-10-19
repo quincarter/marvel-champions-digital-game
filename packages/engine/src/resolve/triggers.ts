@@ -721,6 +721,8 @@ function gatherCandidates(
   if (timing === "response" && event.kind === "countersPlaced" && event.imminent !== undefined) return [];
   // And an encounter card about to be dealt ("after a player is dealt" answers `encounterCardDealt`; wave 9 §3.45).
   if (timing === "response" && event.kind === "encounterCardBeingDealt") return [];
+  // And a boost card about to be given ("after … is given" answers `boostCardGiven`; wave 11 scenarios E23).
+  if (timing === "response" && event.kind === "boostCardBeingGiven") return [];
   if (nothingToAnswer(event, timing)) return [];
   // A card discarded from a deck that a response has since moved leaves nothing to act on: no other ability answers
   // its discard (docs/phase7-wave7.md §3.55).

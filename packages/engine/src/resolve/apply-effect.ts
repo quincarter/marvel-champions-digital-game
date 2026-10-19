@@ -239,9 +239,12 @@ import { announceStatusDiscarded } from "./status-discarded.js";
 import {
   beingRevealed,
   BOOST_SOURCE_ZONES,
-  dealBoostCard,
+  boostAwaitingInterrupt,
+  boostCardBeingGivenTo,
+  dealBoostCardOrAnnounce,
   dealChosenBoostCard,
   declareDefenderByLabeledEffect,
+  getsBoostCard,
   giveBoostCard,
 } from "./enemy-activation.js";
 import {
@@ -1056,8 +1059,15 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (withheld) {
         // Nothing to deal.
       } else if (extra > 0 && procedure && procedure.stage !== "giveBoost") {
-        // Boost cards are already being flipped: the extra card joins the pile and is flipped too.
-        for (let i = 0; i < extra; i++) giveBoostCard(ctx, procedure.enemyInstanceId);
+        // Boost cards are already being flipped: the extra card joins the pile and is flipped too. Each passes its "would
+        // be given" window first when an ability could react (docs/phase7-wave11-scenarios.md E23), in order.
+        const enemyId = procedure.enemyInstanceId;
+        if (getsBoostCard(ctx.state, ctx.deps, enemyId) && boostAwaitingInterrupt(ctx, enemyId)) {
+          pushEvents(
+            ctx,
+            Array.from({ length: extra }, () => boostCardBeingGivenTo(ctx, enemyId)),
+          );
+        } else for (let i = 0; i < extra; i++) giveBoostCard(ctx, enemyId);
       } else if (extra > 0) {
         delta.extraBoost = extra;
       }
@@ -2239,6 +2249,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         // every card named; nothing named out of play, nothing given.
         const [holderId] = targets(effect.enemy).filter((id) => inPlay.includes(id));
         if (!holderId) return;
+        const named: InstanceId[] = [];
         for (const id of targets(effect.card)) {
           const zone = locateCard(ctx.state, id)?.kind;
           // "Give this card to that villain as a facedown boost card" on a card being revealed (docs/phase7-wave8.md
@@ -2246,14 +2257,32 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           // does not discard it (`resolve/reveal.ts`, "finish").
           const given = zone !== undefined && (BOOST_SOURCE_ZONES.has(zone) || beingRevealed(ctx.state, id));
           if (!given || inPlay.includes(id)) continue;
-          dealChosenBoostCard(ctx, holderId, id);
+          named.push(id);
         }
+        // "When an enemy would be given a facedown boost card" (docs/phase7-wave11-scenarios.md E23): when an ability
+        // could react to any of them, each card is given by its own event, in order, so the order does not depend on
+        // which windows opened. A replaced give leaves no pre-"then" text unresolved (engine reading, authority step 5:
+        // unlike `dealAsEncounterCard`, no printed card gives a boost card before a "then").
+        const awaited = named.map((id) =>
+          boostAwaitingInterrupt(ctx, holderId, { outsideActivation: true, named: id }),
+        );
+        if (awaited.some((event) => event !== null)) {
+          pushEvents(
+            ctx,
+            named.map(
+              (id, i) => awaited[i] ?? boostCardBeingGivenTo(ctx, holderId, { outsideActivation: true, named: id }),
+            ),
+          );
+          return;
+        }
+        for (const id of named) dealChosenBoostCard(ctx, holderId, id);
         return;
       }
       const holders = targets(effect.enemy).filter((id) => inPlay.includes(id));
+      // A give waiting in its "would be given" window pauses the effect until it resolves (E23).
       eachEncounterCard(ctx, frame, holders.length * count, (index) => {
         const holderId = holders[Math.floor(index / count)];
-        if (holderId) dealBoostCard(ctx, holderId, true);
+        if (holderId) return dealBoostCardOrAnnounce(ctx, holderId, true);
       });
       return;
     }

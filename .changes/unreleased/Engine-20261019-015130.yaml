@@ -1,0 +1,3 @@
+kind: Engine
+body: A 'would be given a facedown boost card' interrupt window (boostCardBeingGiven, on.boostCardWouldBeGiven) lets an ability replace the give of a boost card; the setAside card selector takes random, picked from the seeded RNG.
+time: 2026-10-19T01:51:30.5549033-04:00

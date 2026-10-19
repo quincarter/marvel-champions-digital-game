@@ -17,18 +17,17 @@ import { wave11Scenario } from "../../setup.js";
 vi.setConfig({ testTimeout: 600_000 });
 
 /**
- * The Kingpin scenario (docs/phase7-wave11-scenarios.md section S7, task S12), built by `wave11Scenario("kingpin",
- * ...)`
- * and played whole by the greedy driver (testing/driver.ts, which knows no card names): Core's Spider-Man (Justice)
- * and Captain Marvel (Leadership), standard mode, the Kingpin set with Tombstone and Tracksuit Mafia.
+ * The Kingpin scenario (docs/phase7-wave11-scenarios.md section S7, task S12), built by
+ * `wave11Scenario("kingpin", ...)` and played whole by the greedy driver (testing/driver.ts, which knows no card
+ * names): Core's Spider-Man (Justice) and Captain Marvel (Leadership), standard mode, the Kingpin set with Tombstone
+ * and Tracksuit Mafia.
  *
  * - The loss is a plain seeded game: Kingpin stays untouchable on his first side (no hero can damage him), so the
  *   driver can only wear the table down until the main scheme or the heroes give out.
- * - The win starts the same game with Public Support at 2[per_hero]+2 counters and Kingpin one hit point from defeat.
- * He
- *   cannot be hurt on his first side, so the game has to get through its first villain phase, where Public Support
- *   flips him and advances the main scheme to 2A (Endgame: every minion gains guard); the driver's attack after that
- *   defeats the villain on his final stage.
+ * - The win (2 players) starts the same game with Public Support at 2[per_hero]+2 counters and Kingpin one hit point
+ *   from defeat. He cannot be hurt on his first side, so the game has to get through its first villain phase, where
+ *   Public Support flips him and advances the main scheme to 2A (Endgame: every minion gains guard); the driver's
+ *   attack after that defeats the villain on his final stage.
  *
  * Each game must end with no pending prompt, replay deep-equal from its log (`replay`) and command by command
  * (`sessionApply`), and run twice to the same end state.
@@ -94,8 +93,11 @@ describe("Kingpin (standard), greedy driver", () => {
     });
   }
 
-  it("a win, seed 2, 1 player: Public Support flips Kingpin, then his last hit point is taken; replays deep-equal", () => {
-    const start = opening(2, 1, true);
+  // Two players, seed 2: once Public Support's High-side Interrupt was scripted (docs/phase7-wave11-scenarios.md E23)
+  // the driver spends its counters on Kingpin's boost cards, the encounter deck runs differently, and no 1-player seed
+  // from 1 to 30 wins any more (the hero falls behind Endgame's guard minions); 2 players, seed 2 still does.
+  it("a win, seed 2, 2 players: Public Support flips Kingpin, then his last hit point is taken; replays deep-equal", () => {
+    const start = opening(2, 2, true);
     const villain = start.activeVillainId!;
     const first = playGame(start);
     expect(first.outcome).toEqual({ result: "win", reason: "villainDefeated" });
@@ -106,6 +108,6 @@ describe("Kingpin (standard), greedy driver", () => {
     expect(inst(first.state, villain).damage).toBeGreaterThanOrEqual(
       characterProfile(start, villain, WAVE11_DEPS)!.maxHp,
     );
-    expect(playGame(opening(2, 1, true)).state).toEqual(first.state);
+    expect(playGame(opening(2, 2, true)).state).toEqual(first.state);
   });
 });

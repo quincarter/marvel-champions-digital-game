@@ -126,7 +126,7 @@ const REFS = [
   "60176.when-revealed",
   "60176.boost",
 ];
-const SKIPPED_REFS = ["60163b.public-support-interrupt", "60175.when-revealed", "60175.boost"];
+const SKIPPED_REFS: readonly string[] = [];
 const CARDS = [
   "60159a",
   "60160a",
@@ -231,7 +231,7 @@ const bare = (s: GameState, stack: readonly string[], pick: Picker = declines) =
   driveEventsPicking(WAVE11_DEPS, stackEncounterDeck(s, ...stack), pick, ...endAll(s));
 
 describe("registry", () => {
-  it("registers every printed ref of the cards but the three skipped ones, and names each skip's reason", () => {
+  it("registers every printed ref of the cards (none skipped)", () => {
     const printed = CARDS.flatMap((c) => abilityRefIds(data(c))).sort();
     expect(printed).toEqual([...REFS].sort());
     expect(Object.keys(REGISTRY).sort()).toEqual(REFS.filter((r) => !SKIPPED_REFS.includes(r)).sort());
@@ -522,6 +522,87 @@ describe("Public Support (60163a, 60163b)", () => {
     const before = counters(flipped, support(flipped), "support");
     const after = defeatWithAttack(WAVE11_DEPS, ready(withForm(flipped, { heroForm: 0 })), minion);
     expect(counters(after, support(after), "support")).toBe(before + 1);
+  });
+});
+
+describe("Public Support, High side (60163b.public-support-interrupt)", () => {
+  const support = (s: GameState): InstanceId => idOf(s, SUPPORT);
+  /** Public Support turned to its High side with `n` support counters (surgery). */
+  const high = (s: GameState, n: number): GameState =>
+    patchInstance(s, support(s), { flipped: true, counters: { ...inst(s, support(s)).counters, support: n } });
+  /** Takes Public Support's Interrupt whenever it is offered; declines every other choice as `declines` does. */
+  const takesSupport: Picker = (s) => {
+    const choice = s.pendingChoice!;
+    if (choice.prompt.kind === "chooseTriggers") {
+      const offered = choice.options.find((o) => {
+        const ref = (o as { ref?: { kind: string; abilityId?: string } }).ref;
+        return ref?.kind === "ability" && ref.abilityId === "60163b.public-support-interrupt";
+      });
+      if (offered) return [offered.optionId];
+    }
+    return declines(s);
+  };
+
+  it("taken, each boost card Kingpin would be given is replaced by removing 1[per_hero] counters (1 hero: 1)", () => {
+    const base = high(hobbledExceptKingpin(newGame()), 5);
+    const kingpin = villainOf(base);
+    const declined = bare(base, [BRO, INFLUENCE]);
+    const given = boostsGiven(declined.events, kingpin);
+    expect(given).toBeGreaterThan(0);
+    expect(counters(declined.state, support(declined.state), "support")).toBe(5);
+    const taken = bare(base, [BRO, INFLUENCE], takesSupport);
+    expect(boostsGiven(taken.events, kingpin)).toBe(0);
+    expect(counters(taken.state, support(taken.state), "support")).toBe(5 - given);
+  });
+
+  it("2 heroes: 2 counters a give; with 3 counters both gives are replaced, the second removing the last 1 (Q207 = B)", () => {
+    const base = high(hobbledExceptKingpin(newGame({ players: 2 })), 3);
+    const kingpin = villainOf(base);
+    const given = boostsGiven(bare(base, [BRO, BRO, BRO, INFLUENCE]).events, kingpin);
+    expect(given).toBe(2);
+    const taken = bare(base, [BRO, BRO, BRO, INFLUENCE], takesSupport);
+    expect(counters(taken.state, support(taken.state), "support")).toBe(0);
+    expect(boostsGiven(taken.events, kingpin)).toBe(0);
+  });
+
+  it("2 heroes, 1 counter: the give is replaced and the counter is gone (the removal partly resolves, Q207 = B)", () => {
+    const base = high(hobbledExceptKingpin(newGame({ players: 2 })), 1);
+    const kingpin = villainOf(base);
+    const given = boostsGiven(bare(base, [BRO, BRO, BRO, INFLUENCE]).events, kingpin);
+    const taken = bare(base, [BRO, BRO, BRO, INFLUENCE], takesSupport);
+    expect(counters(taken.state, support(taken.state), "support")).toBe(0);
+    expect(boostsGiven(taken.events, kingpin)).toBe(given - 1);
+  });
+
+  it("0 counters: the Interrupt is not offered and every boost card is given", () => {
+    const base = high(hobbledExceptKingpin(newGame()), 0);
+    const kingpin = villainOf(base);
+    let offered = false;
+    const watch: Picker = (s) => {
+      const choice = s.pendingChoice!;
+      if (
+        choice.prompt.kind === "chooseTriggers" &&
+        choice.options.some(
+          (o) => (o as { ref?: { abilityId?: string } }).ref?.abilityId === "60163b.public-support-interrupt",
+        )
+      )
+        offered = true;
+      return takesSupport(s);
+    };
+    const control = boostsGiven(bare(base, [BRO, INFLUENCE]).events, kingpin);
+    const run = bare(base, [BRO, INFLUENCE], watch);
+    expect(offered).toBe(false);
+    expect(boostsGiven(run.events, kingpin)).toBe(control);
+  });
+
+  it("the Low side has no such Interrupt: with counters on it every boost card is given", () => {
+    const base = hobbledExceptKingpin(newGame());
+    const low = patchInstance(base, support(base), { counters: { support: 2 } });
+    const kingpin = villainOf(low);
+    const control = boostsGiven(bare(base, [BRO, INFLUENCE]).events, kingpin);
+    const taken = bare(low, [BRO, INFLUENCE], takesSupport);
+    expect(boostsGiven(taken.events, kingpin)).toBe(control);
+    expect(counters(taken.state, support(taken.state), "support")).toBe(2);
   });
 });
 
@@ -1175,11 +1256,93 @@ describe("Unrelenting Hate (60176)", () => {
 });
 
 describe("Bag of Tricks (60175)", () => {
-  it("60175.when-revealed, 60175.boost: left unscripted (no random pick from a player's set-aside area): revealing it does nothing", () => {
-    const { state, events } = phase(newGame(), [BAG]);
-    expect(revealed(events)).toEqual([BAG]);
-    expect(damageOf(state, hero(state))).toBe(0);
-    expect(Object.keys(SKIPPED)).toEqual(expect.arrayContaining(["60175.when-revealed", "60175.boost"]));
+  /** The cards of `player`'s own nemesis set still in their set-aside area. */
+  const nemesisSetAside = (s: GameState, player: PlayerId = P1): InstanceId[] => {
+    const set = (s.cardPool[inst(s, identityOf(s, player)).cardId] as { nemesisEncounterSetId?: string })
+      .nemesisEncounterSetId;
+    return playerOf(s, player).setAside.filter((id) =>
+      ((s.cardPool[inst(s, id).cardId] as { encounterSetIds?: readonly string[] }).encounterSetIds ?? []).includes(
+        set as string,
+      ),
+    );
+  };
+
+  it("60175.when-revealed: reveals a random card of the player's set-aside nemesis set, no surge", () => {
+    const base = newGame();
+    const pool = nemesisSetAside(base);
+    expect(pool.length).toBeGreaterThan(0);
+    const { state, events } = phase(base, [BAG, INFLUENCE]);
+    const codes = revealed(events);
+    expect(codes[0]).toBe(BAG);
+    const trick = ofType(events, "encounterCardRevealed")[1]!.instanceId;
+    expect(pool).toContain(trick);
+    expect(nemesisSetAside(state)).not.toContain(trick);
+    // The pick does not surge: the next card on the deck is not revealed.
+    expect(codes).not.toContain(INFLUENCE);
+  });
+
+  it("60175.when-revealed: the pick is the seeded RNG's: each of two seeds picks the same card every time", () => {
+    for (const seed of [7, 11]) {
+      const base = newGame({ seed });
+      const pickOf = () => ofType(phase(base, [BAG, INFLUENCE]).events, "encounterCardRevealed")[1]!.instanceId;
+      const first = pickOf();
+      expect(nemesisSetAside(base)).toContain(first);
+      expect(pickOf(), `seed ${seed}`).toBe(first);
+    }
+  });
+
+  it("60175.when-revealed: 2 players: \"your\" is the revealing player's set (p2 is dealt it, p2's nemesis card comes out)", () => {
+    const base = newGame({ players: 2 });
+    const p1Pool = nemesisSetAside(base, P1);
+    const p2Pool = nemesisSetAside(base, P2);
+    expect(p2Pool.length).toBeGreaterThan(0);
+    // p1 is dealt a blank, p2 the Bag.
+    const { state, events } = phase(base, [INFLUENCE, BAG, BRO]);
+    const at = ofType(events, "encounterCardRevealed").findIndex((e) => `${e.cardId}` === BAG);
+    const trick = ofType(events, "encounterCardRevealed")[at + 1]!.instanceId;
+    expect(p2Pool).toContain(trick);
+    expect(p1Pool).not.toContain(trick);
+    expect(nemesisSetAside(state, P1)).toEqual(p1Pool);
+  });
+
+  it('60175.boost: 2 players: "your" is the player the activation is against', () => {
+    const base = hobbledExceptKingpin(newGame({ players: 2 }));
+    const p1Pool = nemesisSetAside(base, P1);
+    const p2Pool = nemesisSetAside(base, P2);
+    const kingpin = villainOf(base);
+    // Kingpin activates against p1 first, then p2: the Bag is his boost card against p1.
+    const { events } = bare(base, [BAG, BRO, BRO, INFLUENCE, BRO]);
+    const flipped = ofType(events, "boostCardFlipped").filter((e) => e.enemyInstanceId === kingpin);
+    const bag = flipped.findIndex((e) => p1Pool.includes(e.instanceId) || p2Pool.includes(e.instanceId));
+    expect(bag).toBeGreaterThan(0);
+    expect(p1Pool).toContain(flipped[bag]!.instanceId);
+  });
+
+  it("60175.when-revealed: with nothing of the nemesis set aside nothing is revealed and it gains surge", () => {
+    const base = newGame();
+    const pool = nemesisSetAside(base);
+    const emptied: GameState = {
+      ...base,
+      removedFromGame: [...base.removedFromGame, ...pool],
+      players: base.players.map((p) =>
+        p.playerId === P1 ? { ...p, setAside: p.setAside.filter((id) => !pool.includes(id)) } : p,
+      ),
+    };
+    const { events } = phase(emptied, [BAG, INFLUENCE]);
+    expect(revealed(events)).toEqual([BAG, INFLUENCE]);
+  });
+
+  it("60175.boost: the activating Kingpin is given a random set-aside nemesis card as an additional boost card, turned faceup in turn", () => {
+    const base = hobbledExceptKingpin(newGame());
+    const pool = nemesisSetAside(base);
+    const { state, events } = bare(base, [BAG, INFLUENCE]);
+    const kingpin = villainOf(base);
+    const flipped = ofType(events, "boostCardFlipped").filter((e) => e.enemyInstanceId === kingpin);
+    expect(flipped.map((e) => codeOf(state, e.instanceId))[0]).toBe(BAG);
+    expect(flipped).toHaveLength(2);
+    expect(pool).toContain(flipped[1]!.instanceId);
+    expect(boostsGiven(events, kingpin)).toBe(2);
+    expect(nemesisSetAside(state)).not.toContain(flipped[1]!.instanceId);
   });
 });
 

@@ -460,6 +460,43 @@ export type TriggerEventBody =
       readonly playerId: PlayerId | null;
     }
   /**
+   * A facedown boost card is about to be given to a card: "Interrupt: When an enemy would be given a facedown boost
+   * card, remove 1[per_hero] support counters from here instead." (Public Support 60163b, `fne`;
+   * docs/phase7-wave11-scenarios.md E23). RRG 1.8 "Boost, Boost Icon" (p. 11); "'Would'" (p. 48); "Replacement
+   * Effect" (p. 37): a replaced give "is no longer considered imminent", so no card is given and no `boostCardGiven`
+   * follows it.
+   *
+   * One event per card, before it is given: `enemyInstanceId` is the card to hold it (the event's source, as for
+   * `boostCardGiven`), `activation` / `playerId` the activation of that enemy in progress and the player it is
+   * against (null when it is not activating). `outsideActivation`: a card ability gives it (`EffectSpec
+   * giveBoostCard`), not the activation (its step 1, or an additional boost card an effect adds to it). `named`: a
+   * chosen card (`giveBoostCard.card`), the event's target, not yet moved; absent, the card is whatever is on top of
+   * the encounter deck when the event applies.
+   *
+   * Interrupt only: the give is this event's apply step (`applyBoostCardBeingGiven`), which gives as before, so
+   * `boostCardGiven` still follows a give that was not replaced. Cancelled or replaced (`cancelTriggeringEvent`,
+   * `replaceTriggeringEvent`), nothing is given: the deck's top card stays on top and a named card stays where it was.
+   * An activation's own card still counts as one of its boost cards for the give step, so "1 additional boost card"
+   * is not given in its place.
+   * A replaced give does not leave the giving effect's text before a "then" unresolved, as a replaced named deal
+   * (`encounterCardBeingDealt`) does: no printed card yet gives a boost card before a "then" (engine reading,
+   * authority step 5).
+   *
+   * Pushed only when an ability could react (`boostAwaitingInterrupt`, `heard`); otherwise the card is given at once,
+   * with the log, state and replay of a game that has no such ability. **Not** heard (engine reading, authority step
+   * 5): a boost card given as a cost (`AbilityCost.giveBoostCards`; all costs are paid at once, RRG 1.8 "Cost", p. 13),
+   * a defeated card given to the enemy leader as its own boost card (`defeatFromPlay`), and the boost card of a
+   * villainous character's basic power.
+   */
+  | {
+      readonly kind: "boostCardBeingGiven";
+      readonly enemyInstanceId: InstanceId;
+      readonly activation: "attack" | "scheme" | null;
+      readonly playerId: PlayerId | null;
+      readonly outsideActivation?: true;
+      readonly named?: { readonly instanceId: InstanceId };
+    }
+  /**
    * A boost card was turned faceup during an activation (RRG 1.8 "Boost", p. 11), before its "Boost" ability resolves
    * and its icons are added: "When a boost card is turned faceup" (Attacrobatics, an interrupt) and "After a boost card is
    * turned faceup" (Target Acquired, a response). `boostIcons` is what it would add now, 0 once cancelled.
@@ -2199,6 +2236,8 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "statusBeingGiven":
     // "When a player would be dealt an encounter card" (docs/phase7-wave9.md §3.45): the deal is still to come.
     case "encounterCardBeingDealt":
+    // "When an enemy would be given a facedown boost card" (docs/phase7-wave11-scenarios.md E23): the give is to come.
+    case "boostCardBeingGiven":
     // "Forced Interrupt: When your turn begins, …" (The Poison, `gmw` 16125). A turn beginning is a timing point like a
     // phase beginning (below): RRG 1.8 "Interrupt" (p. 25) resolves an interrupt "immediately before that triggering
     // condition resolves", and nothing in the RRG makes a "begins" timing point response-only. The turn's state
@@ -2371,6 +2410,9 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([], [event.instanceId], [event.controllerId ?? event.speakerId ?? null]);
     case "boostCardGiven":
       return of([event.enemyInstanceId], [event.boostInstanceId], [event.playerId]);
+    // The enemy to hold it is the source, as for `boostCardGiven`; a named card is the target ("that card").
+    case "boostCardBeingGiven":
+      return of([event.enemyInstanceId], [event.named?.instanceId ?? null], [event.playerId]);
     case "boostCardResolved":
       return of([event.enemyInstanceId], [event.boostInstanceId], [event.playerId]);
     case "boostIconsCounting":

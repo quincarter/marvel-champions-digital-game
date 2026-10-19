@@ -92,7 +92,7 @@ import { pushCharacterBoost, startDefenderBoost } from "./villainous.js";
  * if it possesses the gained characteristic" (RRG 1.8 "Gains", p. 21; Solus, `spiderham` 30037), and a printed one on a
  * blanked text box does not (RRG 1.8 "Blank", p. 10).
  */
-const getsBoostCard = (state: GameState, deps: EngineDeps, enemyId: InstanceId): boolean => {
+export const getsBoostCard = (state: GameState, deps: EngineDeps, enemyId: InstanceId): boolean => {
   const card = cardOf(state, enemyId);
   if (!card) return false;
   if (card.type === "villain") return true;
@@ -177,17 +177,121 @@ export function listensForBoostGiven(deps: EngineDeps): boolean {
  */
 function recordBoostGiven(ctx: Ctx, enemyId: InstanceId, boostId: InstanceId): void {
   if (!listensForBoostGiven(ctx.deps)) return;
+  const given: BoostGiven = { enemyInstanceId: enemyId, boostInstanceId: boostId, ...activationGivingTo(ctx, enemyId) };
+  ctx.state = { ...ctx.state, pendingBoostGiven: [...(ctx.state.pendingBoostGiven ?? []), given] };
+}
+
+/**
+ * The innermost activation of `enemyId` in progress, as a boost card given to it reads it (`boostCardGiven`,
+ * `boostCardBeingGiven`): the procedure giving its own card, or the one a card ability gives a card during; none for
+ * an enemy that is not activating.
+ */
+function activationGivingTo(
+  ctx: Ctx,
+  enemyId: InstanceId,
+): { readonly activation: "attack" | "scheme" | null; readonly playerId: PlayerId | null } {
   const procedure = ctx.state.stack.find(
     (f): f is Frame<"enemyAttack"> | Frame<"enemyScheme"> =>
       (f.kind === "enemyAttack" || f.kind === "enemyScheme") && f.enemyInstanceId === enemyId && f.stage !== "done",
   );
-  const given: BoostGiven = {
-    enemyInstanceId: enemyId,
-    boostInstanceId: boostId,
+  return {
     activation: procedure ? (procedure.kind === "enemyAttack" ? "attack" : "scheme") : null,
     playerId: procedure ? (procedure.kind === "enemyAttack" ? procedure.attackedPlayerId : procedure.playerId) : null,
   };
-  ctx.state = { ...ctx.state, pendingBoostGiven: [...(ctx.state.pendingBoostGiven ?? []), given] };
+}
+
+const LISTENS_FOR_BOOST_BEING_GIVEN = new WeakMap<EngineDeps, boolean>();
+
+/**
+ * Whether any ability in the registry triggers on `boostCardBeingGiven` (docs/phase7-wave11-scenarios.md E23); cached
+ * per registry. A boost card is given in every villain phase, so nothing is asked for a registry with no such ability.
+ */
+export function listensForBoostBeingGiven(deps: EngineDeps): boolean {
+  const cached = LISTENS_FOR_BOOST_BEING_GIVEN.get(deps);
+  if (cached !== undefined) return cached;
+  const listens = Object.values(deps.abilities).some((definition) => {
+    const trigger = definition.trigger;
+    if (!("on" in trigger) || !trigger.on) return false;
+    const kinds = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+    return kinds.includes("boostCardBeingGiven");
+  });
+  LISTENS_FOR_BOOST_BEING_GIVEN.set(deps, listens);
+  return listens;
+}
+
+type BoostCardBeingGiven = Extract<TriggerEvent, { kind: "boostCardBeingGiven" }>;
+
+/**
+ * The "would be given a facedown boost card" event of a give about to be made (`TriggerEvent boostCardBeingGiven`,
+ * docs/phase7-wave11-scenarios.md E23; RRG 1.8 "'Would'", p. 48), when an ability could react to it (`heard`); else
+ * null, and the caller gives the card at once, so a game no ability of which can answer keeps its log, state and
+ * replay.
+ */
+export function boostAwaitingInterrupt(
+  ctx: Ctx,
+  enemyId: InstanceId,
+  opts: BoostGiveOptions = {},
+): BoostCardBeingGiven | null {
+  if (!listensForBoostBeingGiven(ctx.deps)) return null;
+  const event = boostCardBeingGivenTo(ctx, enemyId, opts);
+  return heard(ctx.state, ctx.deps, event) ? event : null;
+}
+
+/** How a boost card is given, for its `boostCardBeingGiven` event. */
+export interface BoostGiveOptions {
+  /** A card ability gives it (`TriggerEvent boostCardBeingGiven.outsideActivation`). */
+  readonly outsideActivation?: boolean;
+  /** The chosen card given, not the encounter deck's top card. */
+  readonly named?: InstanceId;
+}
+
+/**
+ * The `boostCardBeingGiven` event of a give about to be made to `enemyId`, read now, heard or not: for a caller that
+ * gives several cards and, once any of them could be answered, gives each by its own event (in order).
+ */
+export function boostCardBeingGivenTo(ctx: Ctx, enemyId: InstanceId, opts: BoostGiveOptions = {}): BoostCardBeingGiven {
+  return {
+    kind: "boostCardBeingGiven",
+    enemyInstanceId: enemyId,
+    ...activationGivingTo(ctx, enemyId),
+    ...(opts.outsideActivation ? { outsideActivation: true as const } : {}),
+    ...(opts.named !== undefined ? { named: { instanceId: opts.named } } : {}),
+  };
+}
+
+/**
+ * Gives `enemyId` the encounter deck's top card as a facedown boost card (`dealBoostCard`), through its "would be
+ * given" interrupt window when an ability could react (`boostAwaitingInterrupt`): the event goes on the stack, its
+ * apply step gives the card, and this returns true, for a caller to wait for that frame. Returns false when the card
+ * was given at once (or there was none to give).
+ */
+export function dealBoostCardOrAnnounce(ctx: Ctx, enemyId: InstanceId, outsideActivation = false): boolean {
+  const event = boostAwaitingInterrupt(ctx, enemyId, { outsideActivation });
+  if (!event) {
+    dealBoostCard(ctx, enemyId, outsideActivation);
+    return false;
+  }
+  pushEvent(ctx, event);
+  return true;
+}
+
+/**
+ * A `boostCardBeingGiven` whose interrupts have resolved (docs/phase7-wave11-scenarios.md E23): the card is given now,
+ * as it would have been with no window. A holder that has left play since is given nothing (a card in play is needed
+ * to hold one, `EffectSpec giveBoostCard`); a named card that has since moved into play, or out of the zones a boost
+ * card can be given from, stays where it is.
+ */
+export function applyBoostCardBeingGiven(ctx: Ctx, event: BoostCardBeingGiven): void {
+  const inPlay = cardsInPlay(ctx.state);
+  if (!inPlay.includes(event.enemyInstanceId)) return;
+  if (!event.named) {
+    dealBoostCard(ctx, event.enemyInstanceId, event.outsideActivation === true);
+    return;
+  }
+  const id = event.named.instanceId;
+  const zone = locateCard(ctx.state, id)?.kind;
+  const givable = zone !== undefined && (BOOST_SOURCE_ZONES.has(zone) || beingRevealed(ctx.state, id));
+  if (givable && !inPlay.includes(id)) dealChosenBoostCard(ctx, event.enemyInstanceId, id);
 }
 
 /**
@@ -238,14 +342,16 @@ function giveBoostStep(
   // "That attack does not get a boost card": no boost card at all, additional ones included.
   if (frame.noBoost || boostWithheld(ctx, frame, activation)) return advance();
   const total = 1 + (activationVars(ctx, frame.eventFrameId).extraBoost ?? 0);
-  if (!listensForBoostGiven(ctx.deps)) {
+  if (!listensForBoostGiven(ctx.deps) && !listensForBoostBeingGiven(ctx.deps)) {
     advance();
     for (let i = 0; i < total; i++) giveBoostCard(ctx, frame.enemyInstanceId);
     return;
   }
   if (given >= total) return advance();
   setFrame(ctx, { ...frame, boostsGiven: given + 1 });
-  giveBoostCard(ctx, frame.enemyInstanceId);
+  // A replaced give (docs/phase7-wave11-scenarios.md E23) still counts as one of the activation's boost cards.
+  if (!getsBoostCard(ctx.state, ctx.deps, frame.enemyInstanceId)) return;
+  dealBoostCardOrAnnounce(ctx, frame.enemyInstanceId);
 }
 
 /**
