@@ -38,6 +38,7 @@ import {
   createCampaignLog,
   createGame,
   getInstance,
+  handSize,
   maxHitPoints,
   resolveBetweenGames,
   startGameFromLog,
@@ -463,6 +464,15 @@ describe("Priority 1 — the Badoon Headhunter ladder lands in the encounter dec
     const two = realGameAt(walkTo(STANDARD, seats, "escape-the-museum", [1, 1]), STANDARD, "escape-the-museum", seats);
     expect(deckAndDiscardCardIds(two)).toContain("16184");
     expect(deckAndDiscardCardIds(two)).toContain("16185");
+  });
+
+  it("escape-the-museum: removing The Collection's cards leaves each player one starting hand, not two (MC16 p. 12, #263)", () => {
+    const seats = seatsOf(TWO_SEATS);
+    const log = walkTo(STANDARD, seats, "escape-the-museum", [0, 0]);
+    const state = realGameAt(log, STANDARD, "escape-the-museum", seats);
+    for (const player of state.players) {
+      expect(player.hand.length).toBe(handSize(state, player.playerId, WAVE3_DEPS));
+    }
   });
 
   it("nebula (tiers 1-3): the third rung (Headhunter's Henchman) only appears at 3 marks (MC16 p. 14)", () => {

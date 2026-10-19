@@ -50,6 +50,7 @@ import {
 import type { Rect } from "../../view/layout.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
+import { routeUnfoldedGame } from "./unfolded-game-route.js";
 import type { CampaignRunData } from "./routes.js";
 
 const cardName = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
@@ -127,6 +128,7 @@ export class CampaignRunScene extends Phaser.Scene {
       this.#draw();
       return;
     }
+    if (await routeUnfoldedGame(this, record)) return;
     appSession().music?.playInterlude(record.campaignId as string);
     const definition = service.definitionFor(record);
     this.#campaignId = record.campaignId as string;
