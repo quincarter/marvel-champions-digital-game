@@ -161,7 +161,9 @@ The game gets better every time someone plays it and tells us what broke. These 
 They see everything. Reporters and feature requesters with at least two issues that got fixed or built, most first.
 
 <!-- credits:reporters:start -->
-<p><i>Your name could be here.</i></p>
+<table>
+<tr><td align="center"><a href="https://github.com/PermaKarma"><img src="https://github.com/PermaKarma.png?size=128" width="64" height="64" alt="PermaKarma"><br><sub><b>PermaKarma</b></sub></a></td><td align="center"><a href="https://github.com/dwballance"><img src="https://github.com/dwballance.png?size=128" width="64" height="64" alt="dwballance"><br><sub><b>dwballance</b></sub></a></td><td align="center"><a href="https://github.com/Joelstrd"><img src="https://github.com/Joelstrd.png?size=128" width="64" height="64" alt="Joelstrd"><br><sub><b>Joelstrd</b></sub></a></td><td align="center"><a href="https://github.com/zackburnley"><img src="https://github.com/zackburnley.png?size=128" width="64" height="64" alt="Zack Burnley"><br><sub><b>Zack Burnley</b></sub></a></td></tr>
+</table>
 <!-- credits:reporters:end -->
 
 ### Earth's Mightiest Committers

@@ -27,6 +27,8 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  # scripts/release-credits.mjs lists issues for the README's Special thanks; without this the list comes back empty.
+  issues: read
 
 concurrency:
   group: release-on-merge-${{ github.ref }}

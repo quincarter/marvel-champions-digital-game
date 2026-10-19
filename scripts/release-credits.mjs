@@ -174,6 +174,10 @@ function people(listed, manual = []) {
 
 function readme() {
   const all = ghPaged(`repos/${repo}/issues?state=all&per_page=100`);
+  // A token without `issues: read` gets an empty list rather than an error, which would blank both lists (v0.28.0).
+  if (!all.some((i) => !i.pull_request) || !all.some((i) => i.pull_request)) {
+    throw new Error("GitHub listed no issues or no pull requests; the token may lack issues: read. README left as is.");
+  }
   const sections = {
     reporters: people(
       ranked(
