@@ -122,6 +122,11 @@ export class CampaignRosterScene extends Phaser.Scene {
   readonly #onRowArt = (): void => this.#queueArtRedraw("list");
   /** Dev e2e hook only (see `#drawPicker`): the picker rows drawn since it opened. */
   #pickerRowsDebug = new Map<number, { name: string; picture: boolean; badges: { label: string; fill: number }[] }>();
+  /** Dev e2e hook only: each drawn picker row's rect and the texts drawn over its button (#272). */
+  #pickerRowTextDebug = new Map<
+    number,
+    { name: string; rect: Rect; texts: readonly Phaser.GameObjects.Text[]; button: McButton }
+  >();
   #heroArtCache = new Map<string, Picture | null>();
   #signing = false;
   #error: string | null = null;
@@ -603,8 +608,24 @@ export class CampaignRosterScene extends Phaser.Scene {
     // where its panel sits.
     if (import.meta.env.DEV) {
       this.#pickerRowsDebug.clear();
+      this.#pickerRowTextDebug.clear();
       (window as unknown as { __mcRosterPickerDebug?: unknown }).__mcRosterPickerDebug = {
         rows: () => [...this.#pickerRowsDebug.values()],
+        // Each drawn row's rect, its button's state, and the colors of the texts drawn over it, beside the text color
+        // the button's skin gives that state: a row whose texts are left in another state's colors reads blank (#272).
+        rowTexts: () =>
+          [...this.#pickerRowTextDebug.values()]
+            .filter((row) => row.button.container.active)
+            .map((row) => {
+              const s = skin("secondary", row.button.state);
+              return {
+                name: row.name,
+                rect: row.rect,
+                state: row.button.state,
+                expected: cssOf(s.text, s.textAlpha),
+                title: row.texts[0]!.style.color,
+              };
+            }),
         open: () => this.#pickerSeat !== null,
         panel: () => panelRect,
       };
@@ -818,8 +839,12 @@ export class CampaignRosterScene extends Phaser.Scene {
         enabled,
         ...(option.blockedReason ? { reason: option.blockedReason } : {}),
         onClick: () => selectAt(index),
+        // `onHover`, not the zone's own `pointerover`/`pointerout`: a finger's hover ends without a `pointerout`, and
+        // a row left in its hover colors over the rest fill drew its name, note and reason blank (#272).
+        onHover: (over) => {
+          if (enabled) applyState(over ? "hover" : "rest");
+        },
       });
-      const zone = button.container.list.at(-1) as Phaser.GameObjects.Zone | undefined;
       const parts: Phaser.GameObjects.GameObject[] = [];
       const pad = 8;
       const thumb: Rect = {
@@ -903,10 +928,8 @@ export class CampaignRosterScene extends Phaser.Scene {
         reasonText?.setColor(cssOf(buttonSkin.text, buttonSkin.textAlpha * ink.secondary));
       };
       applyState(enabled ? "rest" : "unavailable");
-      if (enabled) {
-        zone?.on("pointerover", () => applyState("hover"));
-        zone?.on("pointerout", () => applyState("rest"));
-      }
+      if (import.meta.env.DEV)
+        this.#pickerRowTextDebug.set(index, { name: identityName, rect: rowRect, texts: [title], button });
       button.container.add([...parts, title, ...chips.objects, note, ...extras]);
       return { objects: [button.container] };
     };

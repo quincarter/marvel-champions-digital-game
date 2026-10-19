@@ -44,10 +44,12 @@ export function campaignActionButton(scene: Phaser.Scene, options: CampaignActio
     ...(options.enabled !== undefined ? { enabled: options.enabled } : {}),
     ...(options.reason !== undefined ? { reason: options.reason } : {}),
     onClick: options.onClick,
+    // `onHover` rather than the zone's own `pointerover`/`pointerout`: a touch's hover ends without a `pointerout`,
+    // and the text below must leave its hover colors when the button does (#272).
+    onHover: (over) => {
+      if (options.enabled !== false) applyState(over ? "hover" : "rest");
+    },
   });
-  // Captured now, before this function appends its own title/subtitle/chevron — `McButton`'s zone is its last
-  // child only until those are added, and reading `.at(-1)` after that would grab a text object instead.
-  const zone = button.container.list.at(-1) as Phaser.GameObjects.Zone | undefined;
   const padX = 16;
   const { rect } = options;
   const titleSize = options.titleSize ?? (options.kind === "primary" ? 22 : 18);
@@ -105,10 +107,6 @@ export function campaignActionButton(scene: Phaser.Scene, options: CampaignActio
     chevron?.setColor(cssOf(buttonSkin.text, buttonSkin.textAlpha));
   };
   applyState(options.enabled === false ? "unavailable" : "rest");
-  if (options.enabled !== false) {
-    zone?.on("pointerover", () => applyState("hover"));
-    zone?.on("pointerout", () => applyState("rest"));
-  }
   return button;
 }
 

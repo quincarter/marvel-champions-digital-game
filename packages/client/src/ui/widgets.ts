@@ -401,6 +401,9 @@ export class McButton {
       if (!redraw || !this.#hovered || !this.container.active) return;
       this.#hovered = false;
       this.redraw();
+      // No `pointerout` comes for a dropped touch hover, so `onHover` hears it here: text a row draws over its button
+      // follows `onHover`, and a row left in its hover colors over the rest fill reads blank (#272).
+      this.#options.onHover?.(false);
     };
     input.on(Phaser.Input.Events.POINTER_MOVE, onMove);
     input.on(Phaser.Input.Events.POINTER_UP, onUp);

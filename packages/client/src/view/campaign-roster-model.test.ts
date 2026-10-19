@@ -144,47 +144,90 @@ describe("rosterDeckOptions with the real unlocks", () => {
 describe("pickerEntriesOf", () => {
   const catalog = pairCatalogOf(CARDS_BY_ID);
   const deck = (slug: string): Deck => precons.find((d) => (d.id as string) === `precon:${slug}`)!;
-  const entries = (seats: (Deck | null)[], seatNumber: number, query = "") => {
-    const options = rosterDeckOptions(seats, seatNumber, [], POOL_VERSION);
+  const entries = (
+    seats: (Deck | null)[],
+    seatNumber: number,
+    query = "",
+    deckLockOf: (deck: Deck) => string | null = () => null,
+  ) => {
+    const options = rosterDeckOptions(seats, seatNumber, [], POOL_VERSION, deckLockOf);
     const recs = pickerRecommendationsOf(seats, seatNumber, options, CARDS_BY_ID, catalog);
-    return { options, list: pickerEntriesOf(seatNumber, options, recs, CARDS_BY_ID, query) };
+    return { options, recs, list: pickerEntriesOf(seatNumber, options, recs, CARDS_BY_ID, query) };
   };
+  const headingAt = (list: readonly PickerEntry[], from: number): number =>
+    list.findIndex((e, i) => i > from && e.kind === "heading");
+  const lockCap = (d: Deck): string | null => (d.identityCardId === "03001a" ? "Unlock in campaign" : null);
   const nameOf = (options: ReturnType<typeof rosterDeckOptions>, e: PickerEntry): string =>
     e.kind === "option" ? pickerHeroNameOf(options[e.optionIndex]!, CARDS_BY_ID) : `[${e.text}]`;
   const sortedAZ = (names: readonly string[]): boolean =>
     names.every((name, i) => i === 0 || names[i - 1]!.localeCompare(name, undefined, { sensitivity: "base" }) <= 0);
 
-  test("seat 1's picker is every deck once, A to Z by hero, with no headings", () => {
-    const { options, list } = entries([deck("gambit-justice"), deck("rogue-protection"), null, null], 1);
+  test("with nobody seated the picker is every deck once, A to Z by hero, with no headings", () => {
+    const { options, list } = entries([null, null, null, null], 1);
     expect(list.every((e) => e.kind === "option" && !e.recommended)).toBe(true);
     expect(list).toHaveLength(options.length);
     expect(sortedAZ(list.map((e) => nameOf(options, e)))).toBe(true);
   });
 
-  test("seat 3 with Gambit and Rogue seated: a top 5 group, then every other hero once, both A to Z", () => {
-    const { options, list } = entries([deck("gambit-justice"), deck("rogue-protection"), null, null], 3);
+  test("#272: seat 1's picker recommends against the heroes at the other seats", () => {
+    const { list } = entries([deck("gambit-justice"), deck("rogue-protection"), null, null], 1);
+    expect(list[0]).toEqual({ kind: "heading", text: "Recommended for seat #1" });
+    expect(list.filter((e) => e.kind === "option" && e.recommended)).toHaveLength(PICKER_RECOMMENDED_LIMIT);
+  });
+
+  test("seat 3 with Gambit and Rogue seated: a top 5 group, best partner first, then the rest A to Z", () => {
+    const seats = [deck("gambit-justice"), deck("rogue-protection"), null, null];
+    const { options, recs, list } = entries(seats, 3);
     expect(list[0]).toEqual({ kind: "heading", text: "Recommended for seat #3" });
-    const second = list.findIndex((e, i) => i > 0 && e.kind === "heading");
+    const second = headingAt(list, 0);
     expect(list[second]).toEqual({ kind: "heading", text: "Other heroes" });
     const group = list.slice(1, second);
     expect(group).toHaveLength(PICKER_RECOMMENDED_LIMIT);
     expect(group.every((e) => e.kind === "option" && e.recommended && e.rec !== null)).toBe(true);
-    expect(sortedAZ(group.map((e) => nameOf(options, e)))).toBe(true);
-    const rest = list.slice(second + 1);
-    expect(rest.every((e) => e.kind === "option" && !e.recommended)).toBe(true);
+    // In the recommendation's own order (best score first), not A to Z.
+    expect(group.map((e) => (e.kind === "option" ? options[e.optionIndex]!.deck.id : ""))).toEqual(
+      recs.map((rec) => rec.deckId),
+    );
+    const scores = group.map((e) => (e.kind === "option" ? e.rec!.score : 0));
+    expect(scores).toEqual([...scores].sort((a, b) => b - a));
+    // The seated heroes sit in the last group, so the middle group runs up to it.
+    const third = headingAt(list, second);
+    const rest = list.slice(second + 1, third === -1 ? undefined : third);
+    expect(rest.every((e) => e.kind === "option" && !e.recommended && !options[e.optionIndex]!.blocked)).toBe(true);
     expect(sortedAZ(rest.map((e) => nameOf(options, e)))).toBe(true);
-    // Every deck exactly once across the two groups.
-    const indexes = [...group, ...rest].map((e) => (e.kind === "option" ? e.optionIndex : -1)).sort((a, b) => a - b);
+    // Every deck exactly once across the groups.
+    const indexes = list.flatMap((e) => (e.kind === "option" ? [e.optionIndex] : [])).sort((a, b) => a - b);
     expect(indexes).toEqual(options.map((_, i) => i));
+  });
+
+  test("#272: locked and already-seated heroes come last, A to Z, under their own heading, never recommended", () => {
+    const seats = [deck("gambit-justice"), null, null, null];
+    const { options, list } = entries(seats, 2, "", lockCap);
+    const last = list.findIndex((e) => e.kind === "heading" && e.text === "Locked or already seated");
+    expect(last).toBeGreaterThan(0);
+    const tail = list.slice(last + 1);
+    expect(tail.every((e) => e.kind === "option" && options[e.optionIndex]!.blocked && !e.recommended)).toBe(true);
+    expect(sortedAZ(tail.map((e) => nameOf(options, e)))).toBe(true);
+    const tailIds = tail.map((e) => (e.kind === "option" ? options[e.optionIndex]!.identityId : ""));
+    expect(tailIds).toContain("03001a");
+    expect(tailIds).toContain(seats[0]!.identityCardId as string);
+    // Nothing blocked anywhere above the last heading.
+    expect(list.slice(0, last).every((e) => e.kind === "heading" || !options[e.optionIndex]!.blocked)).toBe(true);
+  });
+
+  test("with nobody seated but a hero locked: the available heroes, then the locked ones", () => {
+    const { list } = entries([null, null, null, null], 1, "", lockCap);
+    expect(list[0]).toEqual({ kind: "heading", text: "Available heroes" });
+    expect(list.filter((e) => e.kind === "heading")).toEqual([
+      { kind: "heading", text: "Available heroes" },
+      { kind: "heading", text: "Locked or already seated" },
+    ]);
   });
 
   test("Team-Up partners are in the group, and an already-seated hero is never in it", () => {
     const seats = [deck("phoenix-justice"), deck("core-spider-man-justice"), null, null];
     const { options, list } = entries(seats, 3);
-    const group = list.slice(
-      1,
-      list.findIndex((e, i) => i > 0 && e.kind === "heading"),
-    );
+    const group = list.slice(1, headingAt(list, 0));
     const ids = group.map((e) => (e.kind === "option" ? options[e.optionIndex]!.deck.id : ""));
     // Phoenix's partner Cyclops and Spider-Man's partner Silk (cycle 9).
     expect(ids).toContain("precon:cyclops-leadership");
