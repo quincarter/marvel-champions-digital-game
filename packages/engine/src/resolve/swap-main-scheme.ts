@@ -30,10 +30,18 @@
  * Engine interpretation (tier 5): no card in the pool answers a main scheme entering or leaving play, so the swap
  * raises no `cardEntersPlay` / `cardLeavesPlay` for the two schemes; it is logged `mainSchemeSwapped`.
  *
+ * Whether the two share a title is read on the faces the swap compares (`swapTitles`): a double-sided card's faceup side
+ * is the one in play (RRG 1.8 "In Play and Out of Play", p. 23), so the scheme in play is titled by its current stage's
+ * B side (`currentName`: "Battle in the Bodega"), and the incoming card, which takes the original's orientation ("Swapped
+ * cards maintain the orientation ... of the original card", p. 42), by its first stage's B side ("Bull in a China
+ * Shop"). The five Protection Racket cards share their 1A title, "Protection Racket" (the card data's `name`), and no
+ * 1B title, so Change of Venue's swap is the "do not share a title" one above, as its own "Place the threat from the
+ * previous scheme on the new scheme" and the MC60 p. 26 FAQ (attachments discarded) both read it.
+ *
  * Not built (refused `unsupported`): a main scheme of a separate game area (Kang's own stages: `removeMainSchemeStage`),
- * two main schemes sharing a title (whose swap would carry everything over; no printed card does it), and an incoming
- * card anywhere but the scenario's set-aside area (`GameState.encounterSetAside`, where Protection Racket 1A sets the
- * unused schemes aside).
+ * two main schemes whose compared faces share a title (whose swap would carry everything over, p. 42; no printed card
+ * does it), and an incoming card anywhere but the scenario's set-aside area (`GameState.encounterSetAside`, where
+ * Protection Racket 1A sets the unused schemes aside).
  */
 
 import type { CardId } from "@mc/content";
@@ -42,7 +50,7 @@ import { discardWithLeavingHost, endLastingEffect, inLeavingOrder, waitsForHostS
 import { noteEnteredPlay } from "../entered-since.js";
 import type { GameEvent } from "../events.js";
 import type { FrameId, InstanceId } from "../ids.js";
-import { cardOf, discardZoneFor, getInstance, mustInstance, sharedMainSchemes } from "../query.js";
+import { cardOf, currentName, discardZoneFor, getInstance, mustInstance, sharedMainSchemes } from "../query.js";
 import type { GameState, MainSchemeState } from "../state.js";
 import { cardsInPlay } from "../select.js";
 import { pushEvents } from "./frames.js";
@@ -81,8 +89,24 @@ export function mainSchemeSwapPair(
   if (slotOf(state, incoming)) return "bothInPlay";
   if (!isMainSchemeCard(state, incoming) || !state.encounterSetAside.includes(incoming)) return "unsupported";
   if (cardsInPlay(state).includes(incoming)) return "bothInPlay";
-  if (cardOf(state, outgoing)?.name === cardOf(state, incoming)?.name) return "unsupported";
+  const titles = swapTitles(state, outgoing, incoming);
+  if (titles.outgoing === undefined || titles.outgoing === titles.incoming) return "unsupported";
   return { outgoing, incoming };
+}
+
+/**
+ * The titles a main scheme swap compares (RRG 1.8 p. 42 "share a title"): the scheme in play's faceup side
+ * (`currentName`, its current stage's own title or else the card's), and the set-aside card's first stage as it would
+ * show in the original's orientation, B side up (its stage title or else the card's).
+ */
+function swapTitles(
+  state: GameState,
+  outgoing: InstanceId,
+  incoming: InstanceId,
+): { readonly outgoing: string | undefined; readonly incoming: string | undefined } {
+  const card = cardOf(state, incoming);
+  const first = card?.type === "main_scheme" ? card.stages[0] : undefined;
+  return { outgoing: currentName(state, outgoing), incoming: first?.name ?? card?.name };
 }
 
 /**

@@ -1266,6 +1266,7 @@ export function abilityAttackDamage(
     keywords.includes("overkill") ||
     (event.overkill === true &&
       !lostAttackKeywords(state, deps, targetId, event.attackerInstanceId).includes("overkill"));
+  const engagedWith = state.instances[targetId]?.engagedWith ?? null;
   return {
     // "This attack deals N additional damage" (`modifyAttack.extraDamage` on the attack's frame) increases each
     // instance of the attack's damage (RRG 1.8 "Attack (Player Ability Type)", p. 10; owner ruling Q53): the attack's
@@ -1290,6 +1291,8 @@ export function abilityAttackDamage(
       targetInstanceId: targetId,
       playerId: event.playerId,
       ...(keywords.includes("ranged") ? { ranged: true } : {}),
+      // Whom the enemy was engaged with as the damage was aimed at it, before it was dealt (`targetEngagedWith`).
+      ...(engagedWith ? { targetEngagedWith: engagedWith } : {}),
     },
   };
 }

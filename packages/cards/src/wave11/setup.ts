@@ -172,6 +172,22 @@ export function wave11Scenario(scenarioId: string, options: Wave11ScenarioOption
 }
 
 /**
+ * Player-typed cards with an encounter back that belong to one of the game's sets through `specificTo` (a player card
+ * type has no `encounterSetIds`): Shop Proprietor (60139), the Protection Racket set's ally, revealed from the encounter
+ * deck ("When Revealed: Put Shop Proprietor into play under your control").
+ */
+function encounterBackedCardIds(sets: readonly string[]): CardId[] {
+  const ids: CardId[] = [];
+  for (const card of WAVE11_CARDS) {
+    if (card.cardBack !== "encounter" || !("specificTo" in card) || card.specificTo?.kind !== "scenario") continue;
+    if (!sets.includes(card.specificTo.encounterSetId)) continue;
+    if ("encounterSetIds" in card && (card.encounterSetIds as readonly string[]).length > 0) continue;
+    for (let copy = 0; copy < card.quantityInSet; copy++) ids.push(card.id);
+  }
+  return ids;
+}
+
+/**
  * A wave 11 scenario's `GameSetupConfig` from a scenario record and the players' choices (RRG 1.8 Appendix II, p. 51;
  * MC60 p. 5). Throws for a choice the rules forbid.
  *
@@ -221,6 +237,7 @@ export function buildWave11Scenario(record: Scenario, options: Wave11ScenarioOpt
   ];
   const encounterDeck = withoutBackFaces([
     ...encounterCardsOf(sets, WAVE11_CARDS),
+    ...encounterBackedCardIds(sets),
     ...modularSetupCardIds(modular.modularSetIds, WAVE11_CARDS),
     ...extraModularCardIds(modular.extraModularSetIds, WAVE11_CARDS),
   ]);

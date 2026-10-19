@@ -1032,6 +1032,8 @@ export function applyEnemyAttacksEnemy(
       0,
       profile.atk + (attackFrame?.kind === "event" ? (attackFrame.vars.atkBonus ?? 0) : 0) + (boostIcons ?? 0),
     ) + attackExtraDamageAgainst(ctx.state, ctx.deps, attacker, target);
+  // Whom the target was engaged with as it was attacked (`characterAttacked.targetEngagedWith`).
+  const targetEngagedWith = mustInstance(ctx.state, target).engagedWith;
   emit(ctx, {
     type: "enemyAttackedEnemy",
     attackerInstanceId: attacker,
@@ -1058,6 +1060,7 @@ export function applyEnemyAttacksEnemy(
         targetInstanceId: target,
         playerId: null,
         ...(keywords.includes("ranged") ? { ranged: true } : {}),
+        ...(targetEngagedWith !== null ? { targetEngagedWith } : {}),
       },
     ],
     frameId,

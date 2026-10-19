@@ -551,6 +551,16 @@ export type TriggerEventBody =
        * keyword" (RRG 1.8 "Ranged", p. 35). Stamped when the attack pushes this event, alongside `dealDamage.piercing`.
        */
       readonly ranged?: boolean;
+      /**
+       * The player the target was engaged with as the attack was made, before its damage was dealt (absent: engaged
+       * with no one). By the response window an attack may have defeated the minion, and a card out of play is engaged
+       * with no one, so a pattern's `engagedWithPlayer` / `engagedWith` clauses read this for a target that has left
+       * play (`EffectContext.lastKnown`, `resolve/triggers.ts`); a target still in play is read live. "After a
+       * character in this play area is attacked" (Battle in the Bodega 60134b) still hears an attack that defeated the
+       * minion engaged with that player (owner Q208 open, built A; a response reads the game as its triggering
+       * condition happened, RRG 1.8 "Response", p. 38).
+       */
+      readonly targetEngagedWith?: PlayerId;
     }
   | { readonly kind: "cardEntersPlay"; readonly instanceId: InstanceId; readonly playerId: PlayerId | null }
   /**

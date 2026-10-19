@@ -2474,6 +2474,7 @@ function applyPlayerAttack(
     targetInstanceId: event.targetInstanceId,
     playerId: event.playerId,
     ...(keywords.includes("ranged") ? { ranged: true } : {}),
+    ...(attackedAs.engagedWith !== null ? { targetEngagedWith: attackedAs.engagedWith } : {}),
   };
   // An "(attack)" ability's attack is not over with this damage (RRG 1.8 "Attack (Player Ability Type)", p. 10; owner
   // ruling Q47, `attack-ability.ts`): its target is named as attacked once the whole ability has resolved, with every

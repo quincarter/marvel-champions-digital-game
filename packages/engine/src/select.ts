@@ -237,10 +237,12 @@ export interface EffectContext {
    */
   readonly reaches?: "all" | { readonly scenarioPlayArea: string };
   /**
-   * Last known information about cards that may have left play, by card: what was attached to each and the status
-   * cards it held (`LastKnownCard`). A query's `hasAttachment`, `hasStatus` and `hasAnyStatus` read it for a card that
-   * is no longer in play; a card still in play is always read live. Set only where a ruling asks for it: an ally's
-   * consequential damage after an attack that defeated its target (`rules.ts` `lastKnownFromAttack`).
+   * Last known information about cards that may have left play, by card: what was attached to each, the status
+   * cards it held and whom it was engaged with (`LastKnownCard`). A query's `hasAttachment`, `hasStatus`,
+   * `hasAnyStatus`, `engagedWith` and `engagedWithPlayer` read it for a card that is no longer in play; a card still in
+   * play is always read live. Set only where a ruling asks for it: an ally's consequential damage after an attack that
+   * defeated its target (`rules.ts` `lastKnownFromAttack`), and a pattern on `characterAttacked` whose target was
+   * engaged as it was attacked (`characterAttacked.targetEngagedWith`, `resolve/triggers.ts`).
    */
   readonly lastKnown?: Readonly<Record<InstanceId, LastKnownCard>>;
   /**
@@ -259,8 +261,12 @@ export interface EffectContext {
 
 /** A card as it last was in play, as far as `EffectContext.lastKnown` carries it. */
 export interface LastKnownCard {
-  readonly attachments: readonly InstanceId[];
-  readonly statuses: Readonly<Record<"stunned" | "confused" | "tough", number>>;
+  /** Absent: not recorded, so `hasAttachment` reads the live card. */
+  readonly attachments?: readonly InstanceId[];
+  /** Absent: not recorded, so `hasStatus` / `hasAnyStatus` read the live card. */
+  readonly statuses?: Readonly<Record<"stunned" | "confused" | "tough", number>>;
+  /** The player it was engaged with (null: no one). Absent: not recorded, so the engagement clauses read it live. */
+  readonly engagedWith?: PlayerId | null;
 }
 
 /** `AbilityDefinition.reaches` as a context field: spread into the context an ability's queries are read in. */
@@ -1363,8 +1369,14 @@ export function explainQuery(
       return "wrongController";
     }
   }
-  if (query.engagedWith === "you" && instance.engagedWith !== context.controllerId) return "notEngagedWithYou";
-  if (query.engagedWith === "any" && instance.engagedWith === null) return "notEngaged";
+  // A card that has left play: whom it was engaged with as last known (`EffectContext.lastKnown`).
+  const knownEngagement =
+    query.engagedWith !== undefined || query.engagedWithPlayer !== undefined
+      ? lastKnownOf(state, id, context)?.engagedWith
+      : undefined;
+  const engagedWith = knownEngagement !== undefined ? knownEngagement : instance.engagedWith;
+  if (query.engagedWith === "you" && engagedWith !== context.controllerId) return "notEngagedWithYou";
+  if (query.engagedWith === "any" && engagedWith === null) return "notEngaged";
   if (query.trait && !traitsOf(state, id, context.deps).includes(query.trait)) return "missingTrait";
   if (query.withoutTrait && traitsOf(state, id, context.deps).includes(query.withoutTrait)) return "hasExcludedTrait";
   if (query.anyTrait) {
@@ -1446,7 +1458,7 @@ export function explainQuery(
       wanted.facedown === true || !isFacedownAttachment(state, attached);
     // A card that has left play: what was attached to it as last known (`EffectContext.lastKnown`).
     const known = lastKnownOf(state, id, context);
-    const attachments = known ? known.attachments : instance.attachments.filter(counts);
+    const attachments = known?.attachments ?? instance.attachments.filter(counts);
     if (!attachments.some((attached) => matchesQuery(state, attached, wanted, context))) return "missingAttachment";
   }
   // "Attach it to another character": only a host that can take that card (`cannotHaveAttachments`).
@@ -1629,10 +1641,7 @@ export function explainQuery(
       return "notInPlayArea";
   }
   if (query.engagedWithPlayer) {
-    if (
-      instance.engagedWith === null ||
-      !resolvePlayers(state, query.engagedWithPlayer, context).includes(instance.engagedWith)
-    )
+    if (engagedWith === null || !resolvePlayers(state, query.engagedWithPlayer, context).includes(engagedWith))
       return "notEngagedWithPlayer";
   }
   if (query.identitySetOf) {

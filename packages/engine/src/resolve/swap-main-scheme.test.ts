@@ -400,3 +400,41 @@ describe('§S3.2 "your main scheme"', () => {
     expect([...read(undefined, P2)].sort()).toEqual([schemeOf(state, BODEGA), schemeOf(state, LAUNDROMAT)].sort());
   });
 });
+
+/** Protection Racket's shape: one card title on every 1A ("Protection Racket"), each 1B titled on its own. */
+const titled = (card: ReturnType<typeof racket>, stageTitle: string) => ({
+  ...card,
+  name: "Protection Racket",
+  stages: [{ ...card.stages[0], name: stageTitle }] as typeof card.stages,
+});
+
+describe('§S3.2 "share a title" reads the faceup 1B titles (RRG 1.8 pp. 23, 42)', () => {
+  const swapWith = (pawnShopTitle: string) => {
+    const cards = [
+      titled(BODEGA, "Battle in the Bodega"),
+      titled(LAUNDROMAT, "Hung Out to Dry"),
+      titled(PAWN_SHOP, pawnShopTitle),
+    ];
+    const base = config();
+    const replaced = new Map(cards.map((card) => [card.id, card]));
+    const started = withThreat(start({ cards: base.cards.map((card) => replaced.get(card.id) ?? card) }), BODEGA, 4);
+    return { started, ...playFree(started, deps, VENUE_EVENT.id, P1) };
+  };
+
+  it("one card title and different 1B titles: the swap leaves and enters play, the threat placed", () => {
+    const { started, state, events } = swapWith("Pawn Shop Showdown");
+    expect(swapsIn(events)).toMatchObject([{ cardIds: [BODEGA.id, PAWN_SHOP.id], playArea: P1, threat: 4 }]);
+    expect(state.mainScheme.cardId).toBe(PAWN_SHOP.id);
+    expect(mustInstance(state, state.mainScheme.instanceId).threat).toBe(4);
+    expect(setAsideCards(state)).toContain(BODEGA.id);
+    expect(mustInstance(state, schemeOf(started, BODEGA)).threat).toBe(0);
+  });
+
+  it("the same 1B title: the shared-title swap is not built, so nothing moves", () => {
+    const { state, events } = swapWith("Battle in the Bodega");
+    expect(swapsIn(events)).toEqual([]);
+    expect(events).toContainEqual(expect.objectContaining({ type: "swapRefused", reason: "unsupported" }));
+    expect(state.mainScheme.cardId).toBe(BODEGA.id);
+    expect(mustInstance(state, schemeOf(state, BODEGA)).threat).toBe(4);
+  });
+});
