@@ -302,6 +302,9 @@ function drawPaymentTable(ctx: BoardDrawContext, row: HandRowLayout, payment: Pa
     if (ordered) tableTag(scene, tile, spentTagText(source, compact), surface.ink.hex, "top", 1);
     tableTag(scene, tile, poolText(source.pool), signal.cost.hex, "bottom");
     ctx.frame.focusRects.set(focusKey({ kind: "card", instanceId: source.instanceId }), tile);
+    // By option as well: one card's several ways to pay are several tiles, and the hand tile drawn later takes the
+    // card key (e2e presses a mode's tile by this one).
+    ctx.frame.focusRects.set(`payment:${source.optionId}`, tile);
     const onHover = onTopHover(scene, tile, source.instanceId, source.orderNote);
     // By option, not by card: a card offering two resource abilities is two tiles.
     addTapTarget(scene, tile, {
@@ -445,10 +448,12 @@ function paintHandSlot(
     return { spent: picked, subject: isSubject, alpha };
   }
   // `payment.spendable`/`.spent` are keyed by option id, not instance id (payment-model.ts's own doc comment on
-  // `spendable`: several options can come off one card) — a hand card has exactly one payment option, so its own
-  // flat `sources` list (already correct per option) is the one to search by instance id here.
-  const source = payment?.sources.find((candidate) => candidate.instanceId === card.instanceId);
-  const spent = source?.spent ?? false;
+  // `spendable`: several options can come off one card), so the flat `sources` list is searched by instance id. A hand
+  // card can offer more than one way to spend it (Organizational Support plainly or through its interrupt, issue
+  // #279); it reads as spent whichever way is picked.
+  const ways = payment?.sources.filter((candidate) => candidate.instanceId === card.instanceId) ?? [];
+  const source = ways[0];
+  const spent = ways.some((way) => way.spent);
   const subject = payment?.subject === card.instanceId;
   // A card the villain phase's open window offers right now is live, whatever the player-phase marks say.
   const answersNow = !payment && ctx.villainHandTags?.get(card.instanceId)?.kind === "now";

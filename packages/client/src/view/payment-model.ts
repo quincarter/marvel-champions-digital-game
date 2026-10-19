@@ -407,12 +407,35 @@ export function setPaymentX(
   return { ...payment, x: next, query, picked: payment.picked.filter((id) => offered.has(id)) };
 }
 
-/** Toggles one source in or out of the payment. */
+/**
+ * Toggles one source in or out of the payment. A hand card can be spent only once, so picking one way of spending it
+ * (Organizational Support as a plain resource, or through its "When you spend this card" ability with one set of
+ * exhausted cards or another; Energy Siphon at one amount of damage or another) drops any other way already picked for
+ * that card (issue #279: the engine refused both, and the bar never said why).
+ */
 export function togglePayment(payment: PaymentState, optionId: string): PaymentState {
-  const picked = payment.picked.includes(optionId)
-    ? payment.picked.filter((id) => id !== optionId)
-    : [...payment.picked, optionId];
-  return { ...payment, picked };
+  if (payment.picked.includes(optionId)) {
+    return { ...payment, picked: payment.picked.filter((id) => id !== optionId) };
+  }
+  const card = handCardSpentBy(payment, optionId);
+  const kept = card ? payment.picked.filter((id) => handCardSpentBy(payment, id) !== card) : payment.picked;
+  return { ...payment, picked: [...kept, optionId] };
+}
+
+/** The hand card a source discards when it is picked, or null for a resource ability on a card that stays put. */
+function handCardSpentBy(payment: PaymentState, optionId: string): InstanceId | null {
+  const source = payment.query.sources.find((candidate) => candidate.optionId === optionId);
+  if (!source) return null;
+  return source.kind === "handCard" || source.spendsHandCard ? source.instanceId : null;
+}
+
+/**
+ * The option a tap on the card itself toggles (the hand fan, Inspect's "Pay with"): the way it is already spent when
+ * one is picked, so the tap takes it back out, else the first way the engine offers.
+ */
+export function cardTapOption(payment: PaymentState, instanceId: InstanceId): string | null {
+  const options = payment.query.sources.filter((source) => source.instanceId === instanceId);
+  return (options.find((source) => payment.picked.includes(source.optionId)) ?? options[0])?.optionId ?? null;
 }
 
 /**

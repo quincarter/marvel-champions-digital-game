@@ -69,6 +69,7 @@ import { cardName, seatIdentityName } from "../../view/names.js";
 import {
   allianceHelpersOf,
   beginPayment,
+  cardTapOption,
   paymentView,
   setPaymentX,
   toggleCostReduction,
@@ -1295,8 +1296,8 @@ export class BoardController {
   /** Tapping a card during payment spends it, if the engine listed it as spendable. */
   #spendByInstance(id: InstanceId): void {
     if (this.#selection.kind !== "paying") return;
-    const source = this.#selection.payment.query.sources.find((candidate) => candidate.instanceId === id);
-    if (source) this.#togglePayment(source.optionId);
+    const optionId = cardTapOption(this.#selection.payment, id);
+    if (optionId) this.#togglePayment(optionId);
   }
 
   /**
@@ -1309,9 +1310,9 @@ export class BoardController {
    */
   payWithCard(id: InstanceId): boolean {
     if (this.#readOnly || this.#selection.kind !== "paying") return false;
-    const source = this.#selection.payment.query.sources.find((candidate) => candidate.instanceId === id);
-    if (!source) return false;
-    this.#togglePayment(source.optionId);
+    const optionId = cardTapOption(this.#selection.payment, id);
+    if (!optionId) return false;
+    this.#togglePayment(optionId);
     return true;
   }
 
