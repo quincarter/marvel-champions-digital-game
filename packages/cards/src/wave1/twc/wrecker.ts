@@ -41,7 +41,6 @@ import {
   scaled,
   self,
   selectCards,
-  setActiveVillain,
   spend,
   surge,
   theVillain,
@@ -57,9 +56,8 @@ import {
 } from "../../dsl/index.js";
 import {
   enemyAttackAfterThisNoBoost,
-  leastThreatSideScheme,
-  leastThreatVillain,
-  mostThreatVillain,
+  moveActiveCounterToVillain,
+  pickSideSchemeBy,
   pickVillainBy,
   pickedVillain,
   signatureSideSchemeOf,
@@ -69,6 +67,8 @@ import {
 } from "./local.js";
 
 const WRECKER = query("villain", { name: "Wrecker" });
+
+const pickCrowbarScheme = pickSideSchemeBy("lowest", "crowbar");
 
 /**
  * Wrecker (07002/07003) and his own encounter set: Day of Reckoning (07004), Held Hostage (07005), Magic Crowbar
@@ -132,7 +132,8 @@ export const WRECKER_SET = defineAbilities({
   // scheme with the least threat.
   "07006.magic-crowbar-forced-response": forcedResponse(
     after.enemyAttacks("host"),
-    placeThreat(1, leastThreatSideScheme),
+    pickCrowbarScheme.effects,
+    placeThreat(1, pickCrowbarScheme.scheme),
   ),
   // Hero Action: Exhaust your hero and discard 1 card at random from your hand → discard this card.
   // `discardRandomFromHandCost` (`dsl/abilities.ts`) picks with the game's own seeded RNG, landed for exactly this
@@ -157,7 +158,7 @@ export const WRECKER_SET = defineAbilities({
   // threat. If you are in hero form, that villain attacks you after this attack. That attack does not get a boost
   // card.
   "07009.boost": boost(
-    setActiveVillain(leastThreatVillain),
+    moveActiveCounterToVillain("lowest"),
     ifThen(isHero(), enemyAttackAfterThisNoBoost(theVillain, you)),
   ),
 
@@ -178,7 +179,7 @@ export const WRECKER_SET = defineAbilities({
     revealCard(chosen("looked")),
   ),
   // [star] Boost: Move the active counter to the villain whose side scheme has the least threat.
-  "07010.boost": boost(setActiveVillain(leastThreatVillain)),
+  "07010.boost": boost(moveActiveCounterToVillain("lowest")),
 
   // Chaos In the Prison — When Revealed: Choose to either discard an upgrade you control or place 1 threat on the
   // active villain's side scheme for each upgrade you control. If you do not control any upgrades, this card gains
@@ -216,19 +217,25 @@ export const WRECKER_SET = defineAbilities({
   // RRG 1.8 "'Then'", p. 44). Same for the hero side's attack and a stunned Wrecker.
   "07012.when-revealed-alter-ego": whenRevealedAlterEgo(
     enemyScheme(named("Wrecker")),
-    andThen(setActiveVillain(leastThreatVillain)),
+    andThen(moveActiveCounterToVillain("lowest")),
   ),
   // When Revealed (Hero): Wrecker attacks you. Then, move the active villain counter to the villain whose side
   // scheme has the least threat.
   "07012.when-revealed-hero": whenRevealedHero(
     enemyAttack(named("Wrecker"), { against: you }),
-    andThen(setActiveVillain(leastThreatVillain)),
+    andThen(moveActiveCounterToVillain("lowest")),
   ),
 
   // Get Wrecked! — When Revealed (Alter-Ego): The villain whose side scheme has the most threat schemes.
-  "07013.when-revealed-alter-ego": whenRevealedAlterEgo(enemyScheme(mostThreatVillain)),
+  "07013.when-revealed-alter-ego": whenRevealedAlterEgo(
+    pickVillainBy("highest", firstPlayer),
+    enemyScheme(pickedVillain),
+  ),
   // When Revealed (Hero): The villain whose side scheme has the least threat attacks you.
-  "07013.when-revealed-hero": whenRevealedHero(enemyAttack(leastThreatVillain, { against: you })),
+  "07013.when-revealed-hero": whenRevealedHero(
+    pickVillainBy("lowest", firstPlayer),
+    enemyAttack(pickedVillain, { against: you }),
+  ),
 
   // I've Been Waiting For This! — When Revealed: The active villain heals 3 hit points. Give that villain a tough
   // status card. Errata (RRG 1.8 p. 65): "gains" became "heals" — the raw card data already carries the current
@@ -236,7 +243,7 @@ export const WRECKER_SET = defineAbilities({
   "07014.when-revealed": whenRevealed(heal(3, theVillain), giveTough(theVillain)),
   // [star] Boost: Move the active counter to the villain with the least threat on his side scheme. That villain
   // schemes.
-  "07014.boost": boost(setActiveVillain(leastThreatVillain), enemyScheme(theVillain)),
+  "07014.boost": boost(moveActiveCounterToVillain("lowest"), enemyScheme(theVillain)),
 
   // Mystical Link — When Revealed: Place 2 threat on each side scheme.
   "07015.when-revealed": whenRevealed(placeThreat(2, each(query("sideScheme")))),

@@ -1,7 +1,19 @@
+import { maxHitPoints } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { P1, P2, firstLegal, settle } from "../../testing/harness.js";
+import { driveEvents } from "../../testing/staging.js";
 import { runWave4, WAVE4_DEPS } from "../testing.js";
-import { foldModularSetIntoDeck, game, heroified, onStage, playerCardInPlay, stackTop } from "./testing.js";
+import {
+  foldModularSetIntoDeck,
+  game,
+  heroified,
+  damageDealt,
+  minionEngagedWith,
+  onStage,
+  patchInstance,
+  playerCardInPlay,
+  stackTop,
+} from "./testing.js";
 
 /**
  * E32 (docs/phase7-wave11-scenarios.md §S7 item 37; RRG 1.8 "First Player", p. 19): an encounter card's target among
@@ -40,5 +52,71 @@ describe("E32: encounter-side targets go to the first player", () => {
     const options = choice.options.map((o) => o.optionId);
     expect(options).toEqual(expect.arrayContaining([p2Identity, withAlly.id]));
     expect(options).not.toContain(p1Identity);
+  });
+
+  // E36: Crossfire's "fewest remaining hit points" tie between the two heroes is the first player's call, not the
+  // first character in instance order; with one hero ahead there is no tie and nobody is asked.
+  it("24026.crossfire-forced-interrupt: attacking P2 with the heroes tied on remaining hit points, P1 picks", () => {
+    const start = minionEngagedWith(
+      heroified(
+        heroified(
+          onStage(
+            foldModularSetIntoDeck(game(1, [{ starterDeckId: "core-black-panther-protection" }]), "crossfire_crew"),
+            0,
+          ),
+          P1,
+        ),
+        P2,
+      ),
+      "24026",
+      P2,
+    ).state;
+    const turns = [
+      { type: "endTurn", playerId: P1 },
+      { type: "endTurn", playerId: P2 },
+    ] as const;
+    // Each hero at 8 remaining plus `shift` less what the villain phase deals before Crossfire's interrupt.
+    const stagedWith = (shift: readonly number[], taken: readonly number[]) =>
+      start.players.reduce((acc, player, i) => {
+        const identity = player.identity.instanceId;
+        return patchInstance(acc, identity, {
+          damage: maxHitPoints(acc, identity, WAVE4_DEPS)! - 8 - shift[i]! + taken[i]!,
+        });
+      }, start);
+    const probe = driveEvents(WAVE4_DEPS, stagedWith([0, 0], [0, 0]), ...turns);
+    const upTo = probe.events.findIndex(
+      (e) => (e as { abilityId?: string }).abilityId === "24026.crossfire-forced-interrupt",
+    );
+    expect(upTo).toBeGreaterThan(0);
+    const taken = start.players.map((p) =>
+      damageDealt(probe.events.slice(0, upTo))
+        .filter(([target]) => target === p.identity.instanceId)
+        .reduce((sum, [, amount]) => sum + amount, 0),
+    );
+    const askedAt = (shift: readonly number[]) =>
+      settle(
+        runWave4(
+          runWave4(
+            stagedWith(
+              shift,
+              taken.map((t) => -t),
+            ),
+            turns[0],
+          ),
+          turns[1],
+        ),
+        firstLegal,
+        (s) =>
+          s.pendingChoice?.prompt.kind === "chooseTarget" &&
+          (s.pendingChoice.prompt as { slot?: string }).slot === "crossfire-target",
+        WAVE4_DEPS,
+      );
+    const asked = askedAt([0, 0]);
+    const choice = asked.pendingChoice!;
+    expect(choice.playerId).toBe(P1);
+    expect(choice.options.map((o) => o.optionId).sort()).toEqual(
+      asked.players.map((p) => p.identity.instanceId).sort(),
+    );
+    expect(askedAt([0, 1]).pendingChoice).toBeNull();
   });
 });

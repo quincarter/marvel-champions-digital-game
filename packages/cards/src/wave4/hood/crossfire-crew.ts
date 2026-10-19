@@ -6,6 +6,8 @@ import {
   chosen,
   constant,
   countOf,
+  ifThen,
+  valueAtLeast,
   dealIndirectDamage,
   defineAbilities,
   discardDeckUntil,
@@ -97,7 +99,18 @@ export const CROSSFIRE_CREW = defineAbilities({
   // hit points. That attack gains overkill and ranged.
   "24026.crossfire-forced-interrupt": forcedInterrupt(
     { on: "enemyAttack", selfIs: "source" },
-    retargetAttack(superlative("lowest", each(query(["identity", "ally"])), remainingHpOf(chosen("candidate")))),
+    bindTargets(
+      "fewest-hp",
+      superlative("lowest", each(query(["identity", "ally"])), remainingHpOf(chosen("candidate"))),
+    ),
+    // A tie is the first player's choice (RRG 1.8 "First Player", p. 19), not the first card in instance order.
+    // No prompt when one character has the fewest.
+    ifThen(
+      valueAtLeast(countOf({ inSlot: "fewest-hp" }), 2),
+      chooseTarget("crossfire-target", { inSlot: "fewest-hp" }, { chooser: firstPlayer }),
+      bindTargets("crossfire-target", chosen("fewest-hp")),
+    ),
+    retargetAttack(chosen("crossfire-target")),
     modifyAttack({ keywords: ["overkill", "ranged"] }),
   ),
 

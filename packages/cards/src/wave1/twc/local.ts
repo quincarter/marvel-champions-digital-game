@@ -1,5 +1,20 @@
 import type { EffectSpec, PlayerRef, TargetRef, ValueSpec } from "@mc/engine";
-import { amount, bindTargets, chooseTarget, chosen, each, query, threatOn, you, type Amount } from "../../dsl/index.js";
+import {
+  amount,
+  bindTargets,
+  chooseTarget,
+  chosen,
+  countOf,
+  each,
+  firstPlayer,
+  ifThen,
+  query,
+  setActiveVillain,
+  threatOn,
+  you,
+  valueAtLeast,
+  type Amount,
+} from "../../dsl/index.js";
 
 /**
  * Small local helpers for The Wrecking Crew (`twc`) scenario pack: thin composition over `EffectSpec`/`TargetRef`/
@@ -40,29 +55,32 @@ export const superlative = (
   ...(opts.ties ? { ties: opts.ties } : {}),
 });
 
-/** "The villain whose side scheme has the least/most threat" (Escaped Convict, Buddy System, Get Wrecked!, …). */
-export const leastThreatVillain: TargetRef = superlative(
-  "lowest",
-  each(query("villain")),
-  threatOn(signatureSideSchemeOf(chosen("candidate"))),
-);
-export const mostThreatVillain: TargetRef = superlative(
-  "highest",
-  each(query("villain")),
-  threatOn(signatureSideSchemeOf(chosen("candidate"))),
-);
+/**
+ * Pick one card of a tied set: the chooser is asked only when two or more cards are eligible (`excluding` is applied
+ * first); a lone card is bound to `pick` without a prompt, a card that was never a choice.
+ */
+const pickFromTied = (tiedSlot: string, pick: string, chooser: PlayerRef, excluding?: TargetRef): EffectSpec => {
+  const pool = { inSlot: tiedSlot, ...(excluding ? { excluding } : {}) };
+  return ifThen(valueAtLeast(countOf(pool), 2), chooseTarget(pick, pool, { chooser }), bindTargets(pick, each(pool)));
+};
 
-/** "The side scheme with the least/most threat" (Magic Crowbar, Lightning Blast, Tactical Prowess). */
-export const leastThreatSideScheme: TargetRef = superlative(
-  "lowest",
-  each(query("sideScheme")),
-  threatOn(chosen("candidate")),
-);
-export const mostThreatSideScheme: TargetRef = superlative(
-  "highest",
-  each(query("sideScheme")),
-  threatOn(chosen("candidate")),
-);
+/**
+ * "The side scheme with the least/most threat" (Magic Crowbar, Lightning Blast, Tactical Prowess), as the effects that
+ * bind the tied candidates and let the first player pick one (RRG 1.8 "First Player", p. 19), plus the ref to read it
+ * by. A bare superlative ref would place threat on every tied scheme (E36). `excluding` keeps the pick off another
+ * pick (Tactical Prowess may not move threat to the scheme it came from, RRG 1.8 "Move", p. 30).
+ */
+export const pickSideSchemeBy = (
+  order: "highest" | "lowest",
+  slot: string,
+  excluding?: TargetRef,
+): { readonly effects: EffectSpec[]; readonly scheme: TargetRef } => ({
+  effects: [
+    bindTargets(`${slot}-tied`, superlative(order, each(query("sideScheme")), threatOn(chosen("candidate")))),
+    pickFromTied(`${slot}-tied`, slot, firstPlayer, excluding),
+  ],
+  scheme: chosen(slot),
+});
 
 /**
  * "Choose the villain whose side scheme has the least/most threat" (Buddy System) and Breakout 1B's own "move the
@@ -80,9 +98,18 @@ export const pickVillainBy = (order: "highest" | "lowest", chooser: PlayerRef = 
     VILLAIN_CANDIDATES_SLOT,
     superlative(order, each(query("villain")), threatOn(signatureSideSchemeOf(chosen("candidate")))),
   ),
-  chooseTarget(VILLAIN_PICK_SLOT, query("villain", { inSlot: VILLAIN_CANDIDATES_SLOT }), { chooser }),
+  pickFromTied(VILLAIN_CANDIDATES_SLOT, VILLAIN_PICK_SLOT, chooser),
 ];
 export const pickedVillain: TargetRef = chosen(VILLAIN_PICK_SLOT);
+/**
+ * "Move the active villain counter to the villain whose side scheme has the least/most threat" on an encounter card
+ * (a boost, a "Then"). A tie is the first player's choice (RRG 1.8 "First Player", p. 19): a bare superlative ref
+ * would hand every tied villain to a single-target effect, which takes the first in instance order (E36).
+ */
+export const moveActiveCounterToVillain = (order: "highest" | "lowest"): EffectSpec[] => [
+  ...pickVillainBy(order, firstPlayer),
+  setActiveVillain(pickedVillain),
+];
 
 /**
  * "Move all threat from the side scheme with the least threat to the side scheme with the most threat" (Tactical

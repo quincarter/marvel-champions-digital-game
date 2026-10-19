@@ -39,7 +39,6 @@ import {
   scaled,
   self,
   selectCards,
-  setActiveVillain,
   statOf,
   surge,
   thatPlayer,
@@ -61,8 +60,7 @@ import {
 import {
   distinctCardTypesOf,
   enemyAttackAfterThisNoBoost,
-  leastThreatVillain,
-  mostThreatVillain,
+  moveActiveCounterToVillain,
   pickVillainBy,
   pickedVillain,
   printedCostOf,
@@ -154,7 +152,7 @@ export const BULLDOZER_SET = defineAbilities({
 
   // Escaped Convict — same text as Wrecker's copy (07009).
   "07053.boost": boost(
-    setActiveVillain(leastThreatVillain),
+    moveActiveCounterToVillain("lowest"),
     ifThen(isHero(), enemyAttackAfterThisNoBoost(theVillain, you)),
   ),
 
@@ -172,7 +170,7 @@ export const BULLDOZER_SET = defineAbilities({
     ),
     revealCard(chosen("looked")),
   ),
-  "07054.boost": boost(setActiveVillain(leastThreatVillain)),
+  "07054.boost": boost(moveActiveCounterToVillain("lowest")),
 
   // Bull Rush — When Revealed (Alter-Ego): Bulldozer schemes. Discard the top card of your deck for each threat
   // placed by this activation.
@@ -216,8 +214,14 @@ export const BULLDOZER_SET = defineAbilities({
   ),
 
   // Get Wrecked! — same text as Wrecker's copy (07013).
-  "07057.when-revealed-alter-ego": whenRevealedAlterEgo(enemyScheme(mostThreatVillain)),
-  "07057.when-revealed-hero": whenRevealedHero(enemyAttack(leastThreatVillain, { against: you })),
+  "07057.when-revealed-alter-ego": whenRevealedAlterEgo(
+    pickVillainBy("highest", firstPlayer),
+    enemyScheme(pickedVillain),
+  ),
+  "07057.when-revealed-hero": whenRevealedHero(
+    pickVillainBy("lowest", firstPlayer),
+    enemyAttack(pickedVillain, { against: you }),
+  ),
 
   // Headbutt — When Revealed: Discard 1 card at random from your hand. If you are in hero form, take damage equal
   // to that card's printed cost. If you are in alter-ego form, place threat on Bulldozer's side scheme equal to

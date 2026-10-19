@@ -252,7 +252,7 @@ test("Marked for Death (04028): When Defeated returns the tucked Mockingbird to 
  * DSL wrapper in `dsl/effects.ts` doesn't expose either field, which is exactly why a `wave1/twc/local.ts` helper,
  * `enemyAttackAfterThisNoBoost`, already exists for the *identically worded* Escaped Convict (07009, "Surge. [star]
  * Boost: … If you are in hero form, that villain attacks you after this attack. That attack does not get a boost
- * card.") — `wrecker.ts`'s `"07009.boost": boost(setActiveVillain(leastThreatVillain), ifThen(isHero(),
+ * card.") — `wrecker.ts`'s `"07009.boost": boost(moveActiveCounterToVillain("lowest"), ifThen(isHero(),
  * enemyAttackAfterThisNoBoost(theVillain, you)))`. 04146 needed the same treatment and didn't get it.
  *
  * Why the missing `boost: false` is exactly what recurses: 04146.boost resolves *while a boost card is being

@@ -39,7 +39,6 @@ import {
   scaled,
   self,
   selectCards,
-  setActiveVillain,
   spend,
   surge,
   thatPlayer,
@@ -56,8 +55,7 @@ import {
 } from "../../dsl/index.js";
 import {
   enemyAttackAfterThisNoBoost,
-  leastThreatVillain,
-  mostThreatVillain,
+  moveActiveCounterToVillain,
   pickVillainBy,
   pickedVillain,
   printedCostOf,
@@ -147,7 +145,7 @@ export const PILEDRIVER_SET = defineAbilities({
 
   // Escaped Convict — same text as Wrecker's copy (07009).
   "07038.boost": boost(
-    setActiveVillain(leastThreatVillain),
+    moveActiveCounterToVillain("lowest"),
     ifThen(isHero(), enemyAttackAfterThisNoBoost(theVillain, you)),
   ),
 
@@ -165,15 +163,21 @@ export const PILEDRIVER_SET = defineAbilities({
     ),
     revealCard(chosen("looked")),
   ),
-  "07039.boost": boost(setActiveVillain(leastThreatVillain)),
+  "07039.boost": boost(moveActiveCounterToVillain("lowest")),
 
   // Get Wrecked! — same text as Wrecker's copy (07013).
-  "07040.when-revealed-alter-ego": whenRevealedAlterEgo(enemyScheme(mostThreatVillain)),
-  "07040.when-revealed-hero": whenRevealedHero(enemyAttack(leastThreatVillain, { against: you })),
+  "07040.when-revealed-alter-ego": whenRevealedAlterEgo(
+    pickVillainBy("highest", firstPlayer),
+    enemyScheme(pickedVillain),
+  ),
+  "07040.when-revealed-hero": whenRevealedHero(
+    pickVillainBy("lowest", firstPlayer),
+    enemyAttack(pickedVillain, { against: you }),
+  ),
 
   // I've Been Waiting For This! — same text as Wrecker's copy (07014).
   "07041.when-revealed": whenRevealed(heal(3, theVillain), giveTough(theVillain)),
-  "07041.boost": boost(setActiveVillain(leastThreatVillain), enemyScheme(theVillain)),
+  "07041.boost": boost(moveActiveCounterToVillain("lowest"), enemyScheme(theVillain)),
 
   // Oversized Hands — When Revealed: Discard the support you control with the highest cost. If no support was
   // discarded this way, place 2 threat on the active villain's scheme.
