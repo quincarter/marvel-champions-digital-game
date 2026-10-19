@@ -177,6 +177,11 @@ export interface ParseOptions {
    * with the structural id `<code>.when-revealed`; the card text is unchanged.
    */
   readonly preambleWhenRevealed?: string;
+  /**
+   * Non-obligation: sentences that are labels, not keywords (`Correction.labelSentences`; "Mass form." on Dense and
+   * Intangible, `synthezoid` 57046a/b). Skipped by the keyword scan; the card text is unchanged.
+   */
+  readonly labelSentences?: readonly string[];
 }
 
 const TRIGGER = String.raw`(?:(?:Hero |Alter-Ego )?(?:Forced )?(?:Action|Resource|Response|Interrupt)(?: \((?:Hero|Alter-Ego)\))?|Mission Response|Special|Setup|Boost|Preparation|When Revealed\/Defeated|When Revealed/Defeated|When Revealed(?: \((?:Hero|Alter-Ego)\))?|When Defeated|When Completed|Contents)`;
@@ -1108,6 +1113,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
   }
 
   let preambleWhenRevealedFound = 0;
+  const labelSentencesFound = new Set<string>();
   for (const line of lines) {
     const headers = findHeaders(line);
     const preamble = line.slice(0, headers[0]?.index ?? line.length).trim();
@@ -1174,6 +1180,11 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
           sentenceIndex++; // consume the fallback sentence too
           continue;
         }
+      }
+      if (options.labelSentences?.includes(sentence)) {
+        flushConstant();
+        labelSentencesFound.add(sentence);
+        continue;
       }
       const keyword = parseKeyword(sentence);
       if (keyword) {
@@ -1403,6 +1414,10 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
         }
       }
     });
+  }
+  for (const label of options.labelSentences ?? []) {
+    if (!labelSentencesFound.has(label))
+      unclassified.push(`label sentence "${label}" not found as a sentence of the text`);
   }
   if (options.preambleWhenRevealed !== undefined && preambleWhenRevealedFound !== 1) {
     unclassified.push(

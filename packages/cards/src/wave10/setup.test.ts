@@ -131,8 +131,10 @@ const PRECONS = [
 ] as const;
 
 describe("wave10Scenario: the four preconstructed scenarios (MC56 pp. 7-8)", () => {
-  it("are the wave's four records", () => {
-    expect(WAVE10_SCENARIOS.map((scenario) => scenario.id)).toEqual(PRECONS.map((precon) => precon.id));
+  it("are the Civil War box's four records (Synthezoid Smackdown's two follow them in WAVE10_SCENARIOS)", () => {
+    expect(
+      WAVE10_SCENARIOS.filter((scenario) => (scenario.packCode as string) === "cw").map((scenario) => scenario.id),
+    ).toEqual(PRECONS.map((precon) => precon.id));
   });
 
   describe.each(PRECONS)("$id", (precon) => {

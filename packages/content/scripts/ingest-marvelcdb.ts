@@ -94,6 +94,7 @@ import { SM_CURATION } from "./marvelcdb/curation/sm.ts";
 import { GMW_CURATION } from "./marvelcdb/curation/gmw.ts";
 import { MTS_CURATION } from "./marvelcdb/curation/mts.ts";
 import { CW_CURATION } from "./marvelcdb/curation/cw.ts";
+import { SYNTHEZOID_CURATION } from "./marvelcdb/curation/synthezoid.ts";
 import { HERCULES_CURATION } from "./marvelcdb/curation/hercules.ts";
 import { FNE_CURATION } from "./marvelcdb/curation/fne.ts";
 import { JJ_CURATION } from "./marvelcdb/curation/jj.ts";
@@ -164,6 +165,7 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   gmw: GMW_CURATION,
   mts: MTS_CURATION,
   cw: CW_CURATION,
+  synthezoid: SYNTHEZOID_CURATION,
   hercules: HERCULES_CURATION,
   fne: FNE_CURATION,
   jj: JJ_CURATION,

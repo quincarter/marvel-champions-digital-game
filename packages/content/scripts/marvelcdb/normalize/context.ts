@@ -167,6 +167,7 @@ export function parse(ctx: NormalizeContext, p: Prepared): ParsedText {
     multipleVillains: ctx.packHasMultipleVillains,
     ...(p.unheadedWhenRevealed !== undefined ? { unheadedWhenRevealed: p.unheadedWhenRevealed } : {}),
     ...(p.extraConstantFrom !== undefined ? { extraConstantFrom: p.extraConstantFrom } : {}),
+    ...(p.labelSentences !== undefined ? { labelSentences: p.labelSentences } : {}),
     ...(p.preambleWhenRevealed !== undefined ? { preambleWhenRevealed: p.preambleWhenRevealed } : {}),
   });
   for (const u of parsed.unclassified) ctx.errors.push(`${p.raw.code}: ${u}`);

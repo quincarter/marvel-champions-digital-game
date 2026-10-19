@@ -19,6 +19,9 @@ import {
   HERCULES_ENCOUNTER_SETS,
   HERCULES_STARTER_DECKS,
   PLAYABLE_CARDS,
+  SYNTHEZOID_CARDS,
+  SYNTHEZOID_ENCOUNTER_SETS,
+  SYNTHEZOID_SCENARIOS,
   WAVE9_CARDS,
   WONDER_MAN_CARDS,
   WONDER_MAN_ENCOUNTER_SETS,
@@ -36,12 +39,17 @@ import {
  * and `hercules.test.ts`.
  */
 describe("wave 10 data: pool wiring", () => {
-  it("WAVE10_CARDS is Core plus cw, wonder_man and hercules, with no duplicate ids", () => {
+  it("WAVE10_CARDS is Core plus cw, synthezoid, wonder_man and hercules in release order, with no duplicate ids", () => {
     expect(WAVE10_CARDS).toHaveLength(
-      CORE_CARDS.length + CW_CARDS.length + WONDER_MAN_CARDS.length + HERCULES_CARDS.length,
+      CORE_CARDS.length + CW_CARDS.length + SYNTHEZOID_CARDS.length + WONDER_MAN_CARDS.length + HERCULES_CARDS.length,
     );
     expect(WAVE10_CARDS.slice(0, CORE_CARDS.length)).toEqual(CORE_CARDS);
-    expect(WAVE10_CARDS.slice(CORE_CARDS.length)).toEqual([...CW_CARDS, ...WONDER_MAN_CARDS, ...HERCULES_CARDS]);
+    expect(WAVE10_CARDS.slice(CORE_CARDS.length)).toEqual([
+      ...CW_CARDS,
+      ...SYNTHEZOID_CARDS,
+      ...WONDER_MAN_CARDS,
+      ...HERCULES_CARDS,
+    ]);
     expect(new Set(WAVE10_CARDS.map((c) => c.id)).size).toBe(WAVE10_CARDS.length);
   });
 
@@ -55,7 +63,7 @@ describe("wave 10 data: pool wiring", () => {
   it("PLAYABLE_CARDS carries every wave 10 card exactly once, after the wave 9 cards, in pack order", () => {
     const ids = PLAYABLE_CARDS.map((c) => c.id as string);
     expect(new Set(ids).size).toBe(ids.length);
-    const wave10 = [...CW_CARDS, ...WONDER_MAN_CARDS, ...HERCULES_CARDS];
+    const wave10 = [...CW_CARDS, ...SYNTHEZOID_CARDS, ...WONDER_MAN_CARDS, ...HERCULES_CARDS];
     for (const c of wave10)
       expect(
         ids.filter((id) => id === (c.id as string)),
@@ -75,9 +83,9 @@ describe("wave 10 data: pool wiring", () => {
     expect(failures).toEqual([]);
   });
 
-  it("every wave 10 card id is its MarvelCDB code (no clash with another pack's id), and all three packs are cycle10", () => {
+  it("every wave 10 card id is its MarvelCDB code (no clash with another pack's id), and all four packs are cycle10", () => {
     const others = new Set(WAVE9_CARDS.map((c) => c.id as string));
-    for (const c of [...CW_CARDS, ...WONDER_MAN_CARDS, ...HERCULES_CARDS]) {
+    for (const c of [...CW_CARDS, ...SYNTHEZOID_CARDS, ...WONDER_MAN_CARDS, ...HERCULES_CARDS]) {
       expect(others.has(c.id as string), c.id as string).toBe(false);
       expect(c.cycleId as string, c.id as string).toBe("cycle10");
     }
@@ -85,24 +93,27 @@ describe("wave 10 data: pool wiring", () => {
 });
 
 describe("wave 10 data: encounter sets, scenarios and starter decks", () => {
-  it("29 encounter sets (26 cw, 1 wonder_man, 2 hercules), unique, and every card's sets exist", () => {
-    expect(WAVE10_ENCOUNTER_SETS).toHaveLength(29);
+  it("43 encounter sets (26 cw, 14 synthezoid, 1 wonder_man, 2 hercules), unique, and every card's sets exist", () => {
+    expect(WAVE10_ENCOUNTER_SETS).toHaveLength(43);
     expect(WAVE10_ENCOUNTER_SETS.slice(0, 26)).toEqual(CW_ENCOUNTER_SETS);
-    expect(WAVE10_ENCOUNTER_SETS.slice(26)).toEqual([...WONDER_MAN_ENCOUNTER_SETS, ...HERCULES_ENCOUNTER_SETS]);
+    expect(WAVE10_ENCOUNTER_SETS.slice(26, 40)).toEqual(SYNTHEZOID_ENCOUNTER_SETS);
+    expect(WAVE10_ENCOUNTER_SETS.slice(40)).toEqual([...WONDER_MAN_ENCOUNTER_SETS, ...HERCULES_ENCOUNTER_SETS]);
     const known = new Set(WAVE10_ENCOUNTER_SETS.map((s) => s.id as string));
-    expect(known.size).toBe(29);
-    for (const c of [...CW_CARDS, ...WONDER_MAN_CARDS, ...HERCULES_CARDS])
+    expect(known.size).toBe(43);
+    for (const c of [...CW_CARDS, ...SYNTHEZOID_CARDS, ...WONDER_MAN_CARDS, ...HERCULES_CARDS])
       for (const id of (c as { encounterSetIds?: readonly unknown[] }).encounterSetIds ?? [])
         expect(known.has(id as string), `${c.id}: ${String(id)}`).toBe(true);
   });
 
-  it("four scenarios, one per leader, each valid with its sets and main scheme stages resolving", () => {
-    expect(WAVE10_SCENARIOS).toEqual(CW_SCENARIOS);
+  it("six scenarios, one per leader (Civil War's four, then Synthezoid Smackdown's two), each valid with its sets and main scheme stages resolving", () => {
+    expect(WAVE10_SCENARIOS).toEqual([...CW_SCENARIOS, ...SYNTHEZOID_SCENARIOS]);
     expect(WAVE10_SCENARIOS.map((s) => s.id as string)).toEqual([
       "registration-iron-man",
       "registration-captain-marvel",
       "resistance-captain-america",
       "resistance-spider-woman",
+      "registration-she-hulk",
+      "resistance-vision",
     ]);
     const sets = [...CORE_ENCOUNTER_SETS, ...WAVE10_ENCOUNTER_SETS];
     for (const s of WAVE10_SCENARIOS) {

@@ -361,12 +361,19 @@ function leaderStages(
   });
 }
 
-/** A main scheme stage's own printed card, drawn as its B side (the one that carries the threat). */
+/**
+ * A main scheme stage's own printed card, drawn as its B side (the one that carries the threat). A side's stages are
+ * printed on the main scheme cards of more than one box (docs/phase7-synthezoid.md §3 M1), so the stage is looked up on
+ * the scenario's own card first and then on any other.
+ */
 function stageFaceOf(ctx: BuilderContext, scenario: Scenario, printedCardId: string, name: string): FaceRef | null {
-  const card = ctx.cards.get(scenario.mainSchemeCardId as string);
-  if (card?.type !== "main_scheme") return null;
-  const stageIndex = card.stages.findIndex((stage) => stage.printedCardId === printedCardId);
-  return stageIndex < 0 ? null : faceRefOf(card, { kind: "mainSchemeStage", stageIndex, side: "B" }, name);
+  const own = ctx.cards.get(scenario.mainSchemeCardId as string);
+  for (const card of [own, ...ctx.cards.values()]) {
+    if (card?.type !== "main_scheme") continue;
+    const stageIndex = card.stages.findIndex((stage) => stage.printedCardId === printedCardId);
+    if (stageIndex >= 0) return faceRefOf(card, { kind: "mainSchemeStage", stageIndex, side: "B" }, name);
+  }
+  return null;
 }
 
 /** The "cards in this set" sheet for one modular set. */

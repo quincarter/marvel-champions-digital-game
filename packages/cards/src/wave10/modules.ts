@@ -40,6 +40,56 @@ import { MODULAR_HELLS_KITCHEN, MODULAR_HELLS_KITCHEN_SKIPPED } from "./cw/modul
 import { MODULAR_CLOAK_AND_DAGGER, MODULAR_CLOAK_AND_DAGGER_SKIPPED } from "./cw/modular/cloak-and-dagger.js";
 import { COMPETITIVE_STANDARD_PVP, COMPETITIVE_STANDARD_PVP_SKIPPED } from "./cw/competitive/standard-pvp.js";
 import { COMPETITIVE_LEADER_CARDS, COMPETITIVE_LEADER_CARDS_SKIPPED } from "./cw/competitive/leader-cards.js";
+import {
+  SYNTHEZOID_MAIN_SCHEMES_REGISTRATION,
+  SYNTHEZOID_MAIN_SCHEMES_REGISTRATION_SKIPPED,
+} from "./synthezoid/main-schemes/registration.js";
+import {
+  SYNTHEZOID_MAIN_SCHEMES_RESISTANCE,
+  SYNTHEZOID_MAIN_SCHEMES_RESISTANCE_SKIPPED,
+} from "./synthezoid/main-schemes/resistance.js";
+import { SYNTHEZOID_LEADERS_SHE_HULK, SYNTHEZOID_LEADERS_SHE_HULK_SKIPPED } from "./synthezoid/leaders/she-hulk.js";
+import { SYNTHEZOID_LEADERS_VISION, SYNTHEZOID_LEADERS_VISION_SKIPPED } from "./synthezoid/leaders/vision.js";
+import {
+  SYNTHEZOID_MODULAR_SHIELD_OPS,
+  SYNTHEZOID_MODULAR_SHIELD_OPS_SKIPPED,
+} from "./synthezoid/modular/shield-ops.js";
+import {
+  SYNTHEZOID_MODULAR_THUNDERBOLTS,
+  SYNTHEZOID_MODULAR_THUNDERBOLTS_SKIPPED,
+} from "./synthezoid/modular/thunderbolts.js";
+import {
+  SYNTHEZOID_MODULAR_TASKMASTER,
+  SYNTHEZOID_MODULAR_TASKMASTER_SKIPPED,
+} from "./synthezoid/modular/taskmaster.js";
+import {
+  SYNTHEZOID_MODULAR_DEADLY_DUO,
+  SYNTHEZOID_MODULAR_DEADLY_DUO_SKIPPED,
+} from "./synthezoid/modular/deadly-duo.js";
+import {
+  SYNTHEZOID_MODULAR_YOUNG_AVENGERS,
+  SYNTHEZOID_MODULAR_YOUNG_AVENGERS_SKIPPED,
+} from "./synthezoid/modular/young-avengers.js";
+import {
+  SYNTHEZOID_MODULAR_SCARLET_TWINS,
+  SYNTHEZOID_MODULAR_SCARLET_TWINS_SKIPPED,
+} from "./synthezoid/modular/scarlet-twins.js";
+import {
+  SYNTHEZOID_MODULAR_MOON_KNIGHT,
+  SYNTHEZOID_MODULAR_MOON_KNIGHT_SKIPPED,
+} from "./synthezoid/modular/moon-knight.js";
+import {
+  SYNTHEZOID_MODULAR_ROYAL_GUARD,
+  SYNTHEZOID_MODULAR_ROYAL_GUARD_SKIPPED,
+} from "./synthezoid/modular/royal-guard.js";
+import {
+  SYNTHEZOID_COMPETITIVE_LEADER_CARDS,
+  SYNTHEZOID_COMPETITIVE_LEADER_CARDS_SKIPPED,
+} from "./synthezoid/competitive/leader-cards.js";
+import {
+  SYNTHEZOID_COMPETITIVE_STANDARD_PVP,
+  SYNTHEZOID_COMPETITIVE_STANDARD_PVP_SKIPPED,
+} from "./synthezoid/competitive/standard-pvp.js";
 import { WONDER_MAN_IDENTITY, WONDER_MAN_IDENTITY_SKIPPED } from "./wonder_man/wonder-man/identity.js";
 import { WONDER_MAN_EVENTS, WONDER_MAN_EVENTS_SKIPPED } from "./wonder_man/wonder-man/events.js";
 import {
@@ -153,6 +203,76 @@ export const WAVE10_MODULES: readonly Wave10Module[] = [
     group: "cw/competitive/leader-cards",
     registry: COMPETITIVE_LEADER_CARDS,
     skipped: COMPETITIVE_LEADER_CARDS_SKIPPED,
+  },
+  {
+    group: "synthezoid/main-schemes/registration",
+    registry: SYNTHEZOID_MAIN_SCHEMES_REGISTRATION,
+    skipped: SYNTHEZOID_MAIN_SCHEMES_REGISTRATION_SKIPPED,
+  },
+  {
+    group: "synthezoid/main-schemes/resistance",
+    registry: SYNTHEZOID_MAIN_SCHEMES_RESISTANCE,
+    skipped: SYNTHEZOID_MAIN_SCHEMES_RESISTANCE_SKIPPED,
+  },
+  {
+    group: "synthezoid/leaders/she-hulk",
+    registry: SYNTHEZOID_LEADERS_SHE_HULK,
+    skipped: SYNTHEZOID_LEADERS_SHE_HULK_SKIPPED,
+  },
+  {
+    group: "synthezoid/leaders/vision",
+    registry: SYNTHEZOID_LEADERS_VISION,
+    skipped: SYNTHEZOID_LEADERS_VISION_SKIPPED,
+  },
+  {
+    group: "synthezoid/modular/shield-ops",
+    registry: SYNTHEZOID_MODULAR_SHIELD_OPS,
+    skipped: SYNTHEZOID_MODULAR_SHIELD_OPS_SKIPPED,
+  },
+  {
+    group: "synthezoid/modular/thunderbolts",
+    registry: SYNTHEZOID_MODULAR_THUNDERBOLTS,
+    skipped: SYNTHEZOID_MODULAR_THUNDERBOLTS_SKIPPED,
+  },
+  {
+    group: "synthezoid/modular/taskmaster",
+    registry: SYNTHEZOID_MODULAR_TASKMASTER,
+    skipped: SYNTHEZOID_MODULAR_TASKMASTER_SKIPPED,
+  },
+  {
+    group: "synthezoid/modular/deadly-duo",
+    registry: SYNTHEZOID_MODULAR_DEADLY_DUO,
+    skipped: SYNTHEZOID_MODULAR_DEADLY_DUO_SKIPPED,
+  },
+  {
+    group: "synthezoid/modular/young-avengers",
+    registry: SYNTHEZOID_MODULAR_YOUNG_AVENGERS,
+    skipped: SYNTHEZOID_MODULAR_YOUNG_AVENGERS_SKIPPED,
+  },
+  {
+    group: "synthezoid/modular/scarlet-twins",
+    registry: SYNTHEZOID_MODULAR_SCARLET_TWINS,
+    skipped: SYNTHEZOID_MODULAR_SCARLET_TWINS_SKIPPED,
+  },
+  {
+    group: "synthezoid/modular/moon-knight",
+    registry: SYNTHEZOID_MODULAR_MOON_KNIGHT,
+    skipped: SYNTHEZOID_MODULAR_MOON_KNIGHT_SKIPPED,
+  },
+  {
+    group: "synthezoid/modular/royal-guard",
+    registry: SYNTHEZOID_MODULAR_ROYAL_GUARD,
+    skipped: SYNTHEZOID_MODULAR_ROYAL_GUARD_SKIPPED,
+  },
+  {
+    group: "synthezoid/competitive/leader-cards",
+    registry: SYNTHEZOID_COMPETITIVE_LEADER_CARDS,
+    skipped: SYNTHEZOID_COMPETITIVE_LEADER_CARDS_SKIPPED,
+  },
+  {
+    group: "synthezoid/competitive/standard-pvp",
+    registry: SYNTHEZOID_COMPETITIVE_STANDARD_PVP,
+    skipped: SYNTHEZOID_COMPETITIVE_STANDARD_PVP_SKIPPED,
   },
   { group: "wonder_man/wonder-man/identity", registry: WONDER_MAN_IDENTITY, skipped: WONDER_MAN_IDENTITY_SKIPPED },
   { group: "wonder_man/wonder-man/events", registry: WONDER_MAN_EVENTS, skipped: WONDER_MAN_EVENTS_SKIPPED },

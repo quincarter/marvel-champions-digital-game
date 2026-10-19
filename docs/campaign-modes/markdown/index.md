@@ -35,6 +35,7 @@ All Private Use Area font glyphs from the original FFG PDFs have been normalized
 | **MC45** | Age of Apocalypse | Bishop (Lucas Bishop), Magik (Illyana Rasputina) | 5 scenarios | [Age of Apocalypse](./mc45_age_of_apocalypse.md) |
 | **MC50** | Agents of S.H.I.E.L.D. | Maria Hill, Nick Fury | 5 scenarios | [Agents of S.H.I.E.L.D.](./mc50_agents_of_shield.md) |
 | **MC56** | Civil War | Tigra, Hulkling | 2 scenarios | [Civil War](./mc56_civil_war.md) |
+| **MC57** | Synthezoid Smackdown | None (scenario pack: two leaders, no heroes) | 2 scenarios | [Synthezoid Smackdown](./mc57_synthezoid_smackdown.md) |
 | **MC60** | Fear No Evil | Daredevil, Echo | 6 scenarios | [Fear No Evil](./mc60_fear_no_evil.md) |
 
 ## Campaign Details & Mechanics
@@ -143,6 +144,15 @@ All Private Use Area font glyphs from the original FFG PDFs have been normalized
 - **Scenarios:**
   - Custom Scenario: Superhero Registration Conflict
   - Leader Scenarios: Pro-Registration & Anti-Registration
+
+### [Synthezoid Smackdown (MC57)](./mc57_synthezoid_smackdown.md)
+- **Heroes Included:** None (scenario pack: two leaders, no heroes)
+- **Rulebook File:** `mc57_rulebook-web.pdf`
+- **Campaign Log File:** `Integrated in rulebook`
+- **Summary:** Civil War scenario pack adding She-Hulk (registration) and Vision (resistance) as leaders with four modular encounter sets per side; the competitive-mode diagram pages (pp. 10 to 11) come out scrambled in text extraction.
+- **Scenarios:**
+  - Leader Scenario: Registration (She-Hulk)
+  - Leader Scenario: Resistance (Vision)
 
 ### [Fear No Evil (MC60)](./mc60_fear_no_evil.md)
 - **Heroes Included:** Daredevil, Echo

@@ -1,6 +1,7 @@
 import { PLAYABLE_CARDS } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import { PLAYABLE_ABILITIES } from "./playable/index.js";
+import { WAVE10_MODULES } from "./wave10/modules.js";
 import { WAVE11_MODULES } from "./wave11/index.js";
 
 /**
@@ -9,6 +10,11 @@ import { WAVE11_MODULES } from "./wave11/index.js";
  * be in the assembled registry. An exemption would be listed here by id with the reason; there are none.
  */
 const EXEMPT: ReadonlySet<string> = new Set([
+  // Synthezoid Smackdown (cycle 10, wave 11 PR) mid-scripting: every ref still unscripted is in its module's
+  // `_SKIPPED` map.
+  ...WAVE10_MODULES.filter((module) => module.group.startsWith("synthezoid/")).flatMap((module) =>
+    Object.keys(module.skipped),
+  ),
   // Wave 11 mid-scripting: every jj / luke_cage / fne ref still unscripted is in its module's `_SKIPPED` map with a reason.
   ...WAVE11_MODULES.flatMap((module) => Object.keys(module.skipped)),
 ]);

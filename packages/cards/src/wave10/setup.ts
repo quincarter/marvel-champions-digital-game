@@ -22,7 +22,7 @@ import {
   type CorePlayer,
   type CoreScenarioOptions,
 } from "../core/setup.js";
-import { chooseMainSchemeStages } from "../main-scheme-stages.js";
+import { chooseMainSchemeStages, sideMainSchemeCard, type MainSchemeStagePool } from "../main-scheme-stages.js";
 import {
   PLAYABLE_ENCOUNTER_SETS,
   checkModularPickCount,
@@ -66,10 +66,27 @@ export function wave10ScenarioRecord(scenarioId: string): Scenario {
   return record;
 }
 
-/** The scenario's main scheme card: the one card that holds every stage of its side. */
+/**
+ * Which stages a Civil War leader may choose once both Civil War and Synthezoid Smackdown are in the pool
+ * (docs/phase7-synthezoid.md §3 M1, §4.1 Q1). Owner SS1 open, built A: every stage of the leader's side from either box
+ * (five stage 1s and five stage 2s per side). Reading B (the leader's own box only) is `"scenario"`.
+ */
+export const WAVE10_MAIN_SCHEME_STAGE_POOL: MainSchemeStagePool = "side";
+
+const sideCards = new Map<string, MainSchemeCard>();
+
+/**
+ * The card a Civil War scenario's main scheme deck is chosen from and played on: its own main scheme card holding
+ * every stage of its side (`sideMainSchemeCard`; Civil War's eight, then Synthezoid Smackdown's two). Civil War's
+ * stages keep their indexes 0 to 7 on Civil War's cards, so a game saved before the pack joined resumes on the same
+ * stages. The side is read from the playable sets, so a gated box's main scheme card (`playable/unscripted.ts`) offers
+ * its stages to no other leader until it is un-gated.
+ */
 export function wave10MainSchemeCard(scenario: Scenario): MainSchemeCard {
-  const card = cardsById.get(scenario.mainSchemeCardId);
-  if (!card || card.type !== "main_scheme") throw new Error(`${scenario.mainSchemeCardId} is not a main scheme`);
+  const cached = sideCards.get(scenario.id);
+  if (cached) return cached;
+  const card = sideMainSchemeCard(scenario, WAVE10_CARDS, WAVE10_GAME_ENCOUNTER_SETS, WAVE10_MAIN_SCHEME_STAGE_POOL);
+  sideCards.set(scenario.id, card);
   return card;
 }
 
@@ -99,14 +116,16 @@ const seatsOf = (players: readonly CorePlayer[]): PlayerSetup[] =>
 
 /**
  * A Civil War scenario's `GameSetupConfig` from its leader's record (`registration-iron-man`,
- * `registration-captain-marvel`, `resistance-captain-america`, `resistance-spider-woman`) and the players' choices:
- * the four preconstructed scenarios with no choices, any custom scenario with them (MC56 pp. 4-5, steps 1 to 4). Throws
+ * `registration-captain-marvel`, `resistance-captain-america`, `resistance-spider-woman`, and Synthezoid Smackdown's
+ * `registration-she-hulk` and `resistance-vision`, MC57 pp. 6-7) and the players' choices:
+ * the six preconstructed scenarios with no choices, any custom scenario with them (MC56 pp. 4-5, steps 1 to 4). Throws
  * for any other id and for a choice the rules forbid.
  *
  * - **Leader**: the record's villain card, started at the difficulty's first stage (I, or III in expert mode) and
  *   ending at its second (II or IV); MC56 p. 4 and each stage 1A's "Contents" line.
- * - **Main scheme deck**: the chosen stage 1 over the chosen stage 2 of the side's one main scheme card, handed to the
- *   engine as `mainSchemeStageIndexes` (`chooseMainSchemeStages`).
+ * - **Main scheme deck**: the chosen stage 1 over the chosen stage 2, from every stage of the side in either box
+ *   (`wave10MainSchemeCard`; docs/phase7-synthezoid.md §3 M1), handed to the engine as `mainSchemeStageIndexes`
+ *   (`chooseMainSchemeStages`) on the gathered card, which takes the printed card's place in `cards`.
  * - **Encounter deck**: the leader's set, the three or four modular sets, the Standard set and, in expert mode, the
  *   Expert set. The side's main scheme set and the competitive-only Standard PvP sets are never in it. The leader's
  *   permanent attachment and side scheme stay in the deck: the leader's and stage 1A's "Setup" abilities find them
@@ -115,6 +134,15 @@ const seatsOf = (players: readonly CorePlayer[]): PlayerSetup[] =>
  *   cooperative game, so no seat is refused for it.
  */
 export function wave10Scenario(scenarioId: string, options: Wave10ScenarioOptions): GameSetupConfig {
+  const config = wave10ScenarioConfig(scenarioId, options);
+  const mainScheme = wave10MainSchemeCard(wave10ScenarioRecord(scenarioId));
+  // The side's stages gathered on the scenario's card (`wave10MainSchemeCard`) replace the printed card in the game's
+  // pool, so `mainSchemeStageIndexes` and every later `stageIndex` read that card's stages.
+  if (mainScheme === cardsById.get(mainScheme.id)) return config;
+  return { ...config, cards: config.cards.map((card) => (card.id === mainScheme.id ? mainScheme : card)) };
+}
+
+function wave10ScenarioConfig(scenarioId: string, options: Wave10ScenarioOptions): GameSetupConfig {
   checkScenarioSetupOptions(scenarioId, options.setupOptions);
   const scenario = wave10ScenarioRecord(scenarioId);
   const modes = resolveModes(options.difficulty, options.modes);

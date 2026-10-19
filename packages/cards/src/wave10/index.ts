@@ -2,6 +2,9 @@
  * Wave 10 (PLAN.md Phase 7 / docs/phase7-wave10.md): cycle 10, the Civil War box (`cw`, MC56: Tigra, Hulkling, four
  * leaders, sided modular sets), then the Wonder Man and Hercules hero packs.
  *
+ * Synthezoid Smackdown (`synthezoid/`, MC57, cycle 10 after Civil War) has the same scaffold: one module per set, an empty
+ * registry and every ref skipped ("wave 11 PR: synthezoid scripting in progress") until its scripting task lands.
+ *
  * Every `cw` card belongs to one module file under `cw/` (see `card-groups.ts`); `modules.ts` lists them all. The
  * module files exist from the scaffold with an empty registry and every ref in its `_SKIPPED` map, so scripting a
  * module is editing that file and its test, nothing else. `setup.ts` builds any Civil War scenario (`wave10Scenario`);

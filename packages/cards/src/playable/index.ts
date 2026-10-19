@@ -326,10 +326,9 @@ function wave10Playable(
     difficulty,
     ...rest
   } = options;
-  return {
-    ...wave10Scenario(scenarioId, { ...rest, players, ...(difficulty ? { difficulty } : {}) }),
-    cards: PLAYABLE_CARDS,
-  };
+  // `wave10Scenario`'s cards are the playable pool with the side's gathered main scheme card in its printed card's
+  // place (docs/phase7-synthezoid.md §3 M1), so they are kept as built.
+  return wave10Scenario(scenarioId, { ...rest, players, ...(difficulty ? { difficulty } : {}) });
 }
 
 function playableScenarioUnstacked(scenarioId: string, options: PlayableScenarioOptions): GameSetupConfig {

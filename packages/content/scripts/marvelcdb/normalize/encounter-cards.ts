@@ -211,7 +211,11 @@ export function normalizeEncounterCard(
       expectNoAttach(ctx, p, parsed);
       // A printed dash threat (docs/phase7-wave8.md §1.24: the mission b faces, "Finished.") is emitted as a fixed 0
       // and recorded in a `cardNotes` entry, the way a minion's absent ATK is.
-      if ((r.base_threat === null || r.base_threat === undefined) && !curation.cardNotes[r.code])
+      if (
+        (r.base_threat === null || r.base_threat === undefined) &&
+        p.startingThreat === undefined &&
+        !curation.cardNotes[r.code]
+      )
         errors.push(`${r.code}: side scheme without starting threat`);
       const {
         encounterSetIds,
@@ -228,7 +232,7 @@ export function normalizeEncounterCard(
         type: "side_scheme",
         encounterSetIds,
         startingThreat: scalingOf(
-          r.base_threat ?? 0,
+          p.startingThreat ?? r.base_threat ?? 0,
           p.startingThreatPerPlayer ?? !r.base_threat_fixed,
           r.base_threat_per_group,
         ),

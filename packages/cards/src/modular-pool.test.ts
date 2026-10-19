@@ -117,10 +117,10 @@ describe("modularPickProblem: the Civil War side rule", () => {
     expect(scenarioSideClause(leader("registration-iron-man"))).toBe("Iron Man leads the registration side");
   });
 
-  it("accepts every modular set of the leader's own side, the other leader's recommendation included", () => {
+  it("accepts every modular set of the leader's own side, the other leaders' recommendations included (three leaders a side)", () => {
     for (const record of WAVE10_SCENARIOS) {
       const own = WAVE10_SCENARIOS.filter((s) => s.side === record.side).flatMap((s) => s.recommendedModularSetIds);
-      expect(own).toHaveLength(8);
+      expect(own).toHaveLength(12);
       for (const id of own) expect(modularPickProblem(record, id, CW_SETS), `${record.id} ${id}`).toBeNull();
       const other = WAVE10_SCENARIOS.filter((s) => s.side !== record.side).flatMap((s) => s.recommendedModularSetIds);
       for (const id of other) expect(modularPickProblem(record, id, CW_SETS), `${record.id} ${id}`).toMatch(/ set; /);

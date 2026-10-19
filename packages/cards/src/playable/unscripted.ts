@@ -13,7 +13,24 @@
  */
 import type { Scenario } from "@mc/content";
 
-export const UNSCRIPTED_ENCOUNTER_SET_IDS: ReadonlySet<string> = new Set([]);
+export const UNSCRIPTED_ENCOUNTER_SET_IDS: ReadonlySet<string> = new Set([
+  // Synthezoid Smackdown (cycle 10; docs/phase7-synthezoid.md), mid-scripting: every set of the pack, so neither leader
+  // is offered, no set is a modular pick anywhere, and no Civil War leader is offered the pack's main scheme stages.
+  "deadly_duo",
+  "moon_knight_modular",
+  "royal_guard",
+  "scarlet_twins",
+  "she_hulk_leader",
+  "shield_ops",
+  "standard_pvp_registration_mc57",
+  "standard_pvp_resistance_mc57",
+  "synthezoid_registration",
+  "synthezoid_resistance",
+  "taskmaster_modular",
+  "thunderbolts_modular",
+  "vision_leader",
+  "young_avengers",
+]);
 
 /**
  * Gated sets whose every ability is scripted but which are held back for another reason, each with that reason. The

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { WAVE10_GAME_ENCOUNTER_SETS, wave10MainSchemeCard, wave10Scenario } from "../wave10/setup.js";
 import { playableScenario } from "./index.js";
 import { randomCivilWarScenario } from "./random-civil-war.js";
+import { scenarioIsScripted } from "./unscripted.js";
 import { playableScenarioOffer } from "./scenario-options.js";
 
 const SEAT = { starterDeckId: "core-spider-man-justice" } as const;
@@ -34,9 +35,14 @@ describe("randomCivilWarScenario", () => {
         expect(sideOfSet(id)).toBe(side);
       }
     }
-    expect([...leaders].sort()).toEqual(WAVE10_SCENARIOS.map((s) => s.id as string).sort());
+    // Every offered leader: a gated pack's leaders (`unscripted.ts`) are not drawn.
+    expect([...leaders].sort()).toEqual(
+      WAVE10_SCENARIOS.filter(scenarioIsScripted)
+        .map((s) => s.id as string)
+        .sort(),
+    );
     const stageIds = (n: number) =>
-      WAVE10_SCENARIOS.flatMap((s) =>
+      WAVE10_SCENARIOS.filter(scenarioIsScripted).flatMap((s) =>
         playableScenarioOffer(s.id)
           .mainSchemeStages!.stages.find((st) => st.stageNumber === n)!
           .options.map((o) => o.printedCardId),

@@ -45,6 +45,7 @@ import {
 } from "../modular-pool.js";
 import { WAVE10_GAME_ENCOUNTER_SETS, wave10MainSchemeCard } from "../wave10/setup.js";
 import { WAVE11_GAME_ENCOUNTER_SETS } from "../wave11/setup.js";
+import { scenarioIsScripted } from "./unscripted.js";
 import { INFINITES_GENE_POOL_THREAT_MAX, infinitesGenePoolThreatRecommendation } from "../wave8/aoa/infinites.js";
 import { offersEasierStart, offersGenePoolThreat, standardSetReplaceable, type HorsemanSide } from "../wave8/setup.js";
 
@@ -258,16 +259,24 @@ const SIDE_NAMES: Readonly<Record<CivilWarSide, string>> = { registration: "Regi
 const isCivilWarLeader = (scenario: Scenario): boolean =>
   scenario.side !== undefined && WAVE10_SCENARIOS.some((candidate) => candidate.id === scenario.id);
 
-/** The two sides of the Civil War box and each side's leaders (MC56 p. 4, steps 1 and 2), registration first. */
-export function civilWarSidesOffer(): readonly CivilWarSideOffer[] {
+/**
+ * The two sides of the Civil War box and each side's leaders (MC56 p. 4, steps 1 and 2), registration first. A leader
+ * whose own set is gated (`playable/unscripted.ts`: Synthezoid Smackdown's She-Hulk and Vision while they are scripted)
+ * is not offered; `scenarios` is every leader record to choose from, in printed order.
+ */
+export function civilWarSidesOffer(
+  scenarios: readonly Scenario[] = WAVE10_SCENARIOS.filter(scenarioIsScripted),
+): readonly CivilWarSideOffer[] {
   return (["registration", "resistance"] as const).map((side) => ({
     side,
     name: SIDE_NAMES[side],
-    leaders: WAVE10_SCENARIOS.filter((scenario) => scenario.side === side).map((scenario) => ({
-      scenarioId: scenario.id as string,
-      name: PLAYABLE_CARDS.find((card) => card.id === scenario.villainCardId)?.name ?? scenario.name,
-      leaderCardId: scenario.villainCardId as string,
-    })),
+    leaders: scenarios
+      .filter((scenario) => scenario.side === side)
+      .map((scenario) => ({
+        scenarioId: scenario.id as string,
+        name: PLAYABLE_CARDS.find((card) => card.id === scenario.villainCardId)?.name ?? scenario.name,
+        leaderCardId: scenario.villainCardId as string,
+      })),
   }));
 }
 

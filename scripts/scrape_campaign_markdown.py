@@ -211,6 +211,19 @@ CAMPAIGNS: List[CampaignMetadata] = [
         description="Civil War scenario expansion introducing Leader characters in place of standard villains and custom scenario building.",
     ),
     CampaignMetadata(
+        code="MC57",
+        title="Synthezoid Smackdown",
+        rulebook_pdf="mc57_rulebook-web.pdf",
+        heroes=["None (scenario pack: two leaders, no heroes)"],
+        scenarios=[
+            "Leader Scenario: Registration (She-Hulk)",
+            "Leader Scenario: Resistance (Vision)",
+        ],
+        log_sheet_pdf=None,
+        output_filename="mc57_synthezoid_smackdown.md",
+        description="Civil War scenario pack adding She-Hulk (registration) and Vision (resistance) as leaders with four modular encounter sets per side; the competitive-mode diagram pages (pp. 10 to 11) come out scrambled in text extraction.",
+    ),
+    CampaignMetadata(
         code="MC60",
         title="Fear No Evil",
         rulebook_pdf="mc60_rulebook-web.pdf",

@@ -4,14 +4,14 @@
  * module has an empty registry and every ref skipped ("wave 10 scripting in progress: <module>"). A module agent fills
  * its registry and deletes its own `_SKIPPED` lines; nothing here changes.
  */
-import { CW_CARDS, HERCULES_CARDS, WONDER_MAN_CARDS } from "@mc/content";
+import { CW_CARDS, HERCULES_CARDS, SYNTHEZOID_CARDS, WONDER_MAN_CARDS } from "@mc/content";
 import { abilityRefIds } from "../ability-refs.js";
 import { WAVE9_ABILITIES } from "../wave9/index.js";
 import { CARD_GROUPS } from "./card-groups.js";
 import { WAVE10_ABILITIES } from "./index.js";
 import { WAVE10_MODULES } from "./modules.js";
 
-const WAVE10_PACK_CARDS = [...CW_CARDS, ...WONDER_MAN_CARDS, ...HERCULES_CARDS];
+const WAVE10_PACK_CARDS = [...CW_CARDS, ...SYNTHEZOID_CARDS, ...WONDER_MAN_CARDS, ...HERCULES_CARDS];
 
 describe("wave 10 ability registry", () => {
   it("includes every wave 9 (Core through cycle 9) script, the same definition object", () => {
@@ -45,7 +45,7 @@ describe("wave 10 module ability coverage", () => {
 /** Every ability id a module registers must be named in a test file of the wave's module folders. */
 describe("wave 10 ability id coverage", () => {
   const rawTestFiles = (import.meta as unknown as ImportMetaEnv).glob(
-    ["./cw/**/*.test.ts", "./wonder_man/**/*.test.ts", "./hercules/**/*.test.ts"],
+    ["./cw/**/*.test.ts", "./synthezoid/**/*.test.ts", "./wonder_man/**/*.test.ts", "./hercules/**/*.test.ts"],
     {
       query: "?raw",
       import: "default",

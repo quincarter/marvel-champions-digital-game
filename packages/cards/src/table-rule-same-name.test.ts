@@ -196,6 +196,7 @@ describe("matrix over the whole card pool: every identity against every unique c
         "Daredevil (Matt Murdock) [hero 60001a] x Daredevil [minion 56189]: no match",
         "Falcon (Sam Wilson) [hero 53001a] x Falcon [minion 56150]: no match",
         "Gamora (Gamora) [hero 18001a] x Gamora [minion 22028]: match (RRG)",
+        "Hawkeye (Clint Barton) [hero 04001a] x Hawkeye [minion 57056]: no match",
         "Hercules (Hercules) [hero 59001a] x Hercules [minion 56151]: match (RRG)",
         "Iron Man (Tony Stark) [hero 01029a] x Iron Man [villain 56059]: no match",
         "Jessica Jones (Jessica Jones) [hero 61001a] x Jessica Jones [minion 56185]: match (RRG)",
@@ -204,12 +205,14 @@ describe("matrix over the whole card pool: every identity against every unique c
         "Maria Hill (Maria Hill) [hero 50001a] x Maria Hill [minion 56083]: match (RRG)",
         "Nebula (Nebula) [hero 22001a] x Nebula [minion 18026]: match (RRG)",
         "Nebula (Nebula) [hero 22001a] x Nebula [villain 16088]: match (RRG)",
+        "She-Hulk (Jennifer Walters) [hero 01019a] x She-Hulk [villain 57001]: no match",
         "Spectrum (Monica Rambeau) [hero 21001a] x Spectrum [minion 56156]: no match",
         "Spider-Man (Miles Morales) [hero 27030a] x Spider-Man [minion 56180]: no match",
         "Spider-Man (Peter Parker) [hero 01001a] x Spider-Man [minion 56180]: no match",
         "Spider-Woman (Jessica Drew) [hero 04031a] x Spider-Woman [villain 56168]: no match",
         "Venom (Flash Thompson) [hero 20001a] x Venom [minion 56087]: no match",
         "Venom (Flash Thompson) [hero 20001a] x Venom [villain 27073]: no match",
+        "Vision (Vision) [hero 26001a] x Vision [villain 57040]: match (RRG)",
         "Wasp (Nadia Van Dyne) [hero 13001a] x Wasp [minion 56074]: no match",
       ]
     `);

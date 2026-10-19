@@ -1,6 +1,13 @@
 import { describe, expect, test } from "vitest";
 import { playableScenarioOffer } from "@mc/cards";
-import { CW_CARDS, CW_ENCOUNTER_SETS, CW_SCENARIOS, type AnyCard } from "@mc/content";
+import {
+  CW_CARDS,
+  CW_ENCOUNTER_SETS,
+  CW_SCENARIOS,
+  SYNTHEZOID_CARDS,
+  SYNTHEZOID_SCENARIOS,
+  type AnyCard,
+} from "@mc/content";
 import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
 import {
@@ -17,10 +24,12 @@ import {
 import { builderViewOf, openBuilderOn, setSheetFor, type BuilderContext } from "./civil-war-builder-model.js";
 import { initialSetupDraft, setCivilWarBlind, setScenario } from "./setup-draft.js";
 
-const CARDS = new Map<string, AnyCard>(CW_CARDS.map((c) => [c.id as string, c]));
+// Synthezoid Smackdown's two main scheme cards hold the fifth stage of each number a leader is offered
+// (docs/phase7-synthezoid.md §3 M1).
+const CARDS = new Map<string, AnyCard>([...CW_CARDS, ...SYNTHEZOID_CARDS].map((c) => [c.id as string, c]));
 const CTX: BuilderContext = {
   cards: CARDS,
-  scenarios: CW_SCENARIOS,
+  scenarios: [...CW_SCENARIOS, ...SYNTHEZOID_SCENARIOS],
   encounterSets: [...POOL_ENCOUNTER_SETS, ...CW_ENCOUNTER_SETS],
 };
 const IRON = "registration-iron-man";
@@ -147,10 +156,14 @@ describe("the builder view carries the pictures", () => {
         expect(option.face).not.toBeNull();
         expect(option.face!.face).toMatchObject({ kind: "mainSchemeStage", side: "B" });
         expect(option.face!.landscape).toBe(true);
-        expect(artFor(CARDS.get(option.face!.cardId), option.face!.face)).not.toBeNull();
+        // Synthezoid Smackdown's main scheme scans are not in the data yet (docs/phase7-synthezoid.md §8.1 D8).
+        if (!option.printedCardId.startsWith("57"))
+          expect(artFor(CARDS.get(option.face!.cardId), option.face!.face)).not.toBeNull();
       }
-      // Two options never share a face.
-      expect(new Set(row.options.map((o) => JSON.stringify(o.face!.face))).size).toBe(row.options.length);
+      // Two options never share a face (a stage index is read on its own printed card).
+      expect(new Set(row.options.map((o) => JSON.stringify([o.face!.cardId, o.face!.face]))).size).toBe(
+        row.options.length,
+      );
     }
   });
 

@@ -1,6 +1,13 @@
 import { describe, expect, test } from "vitest";
 import { playableScenario, playableScenarioOffer } from "@mc/cards";
-import { CW_CARDS, CW_ENCOUNTER_SETS, CW_SCENARIOS, type AnyCard } from "@mc/content";
+import {
+  CW_CARDS,
+  CW_ENCOUNTER_SETS,
+  CW_SCENARIOS,
+  SYNTHEZOID_CARDS,
+  SYNTHEZOID_SCENARIOS,
+  type AnyCard,
+} from "@mc/content";
 import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
 import {
   applyBuilderAction,
@@ -20,10 +27,10 @@ import { GAME_MODE_OPTIONS, COMPETITIVE_TAPPED_MESSAGE } from "./game-mode-optio
 import { initialSetupDraft, setDifficulty, setModularSetIds, toSessionConfig, type SetupDraft } from "./setup-draft.js";
 import { offerOf } from "./setup-options.js";
 
-const CARDS = new Map<string, AnyCard>(CW_CARDS.map((c) => [c.id as string, c]));
+const CARDS = new Map<string, AnyCard>([...CW_CARDS, ...SYNTHEZOID_CARDS].map((c) => [c.id as string, c]));
 const BASE: BuilderContext = {
   cards: CARDS,
-  scenarios: CW_SCENARIOS,
+  scenarios: [...CW_SCENARIOS, ...SYNTHEZOID_SCENARIOS],
   encounterSets: [...POOL_ENCOUNTER_SETS, ...CW_ENCOUNTER_SETS],
 };
 const LEADERS = [
@@ -164,6 +171,8 @@ describe("the steps and the choices", () => {
 
   test("the stage rows mark the recommended and the picked option", () => {
     const v = view(draftFor(IRON));
+    // Civil War's four of each number; Synthezoid Smackdown's joins when the pack is un-gated (docs/phase7-synthezoid.md
+    // §3 M1).
     expect(v.stageRows.map((r) => r.options.length)).toEqual([4, 4]);
     expect(v.stageRows[0]!.label).toBe("Stage 1 (it goes on top)");
     expect(v.stageRows.map((r) => r.options.filter((o) => o.selected).length)).toEqual([1, 1]);

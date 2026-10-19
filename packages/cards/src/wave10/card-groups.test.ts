@@ -3,11 +3,11 @@
  * the emitted data, against the modules on disk, and against each module's header list, so a card cannot be left out,
  * listed twice or filed under the wrong pack unnoticed.
  */
-import { CW_CARDS, HERCULES_CARDS, WONDER_MAN_CARDS } from "@mc/content";
+import { CW_CARDS, HERCULES_CARDS, SYNTHEZOID_CARDS, WONDER_MAN_CARDS } from "@mc/content";
 import { CARD_GROUPS } from "./card-groups.js";
 import { WAVE10_MODULES } from "./modules.js";
 
-const PACK_PREFIX: Readonly<Record<string, string>> = { cw: "56", wonder_man: "58", hercules: "59" };
+const PACK_PREFIX: Readonly<Record<string, string>> = { cw: "56", synthezoid: "57", wonder_man: "58", hercules: "59" };
 
 describe("wave 10 card groups", () => {
   it("holds every cw, wonder_man and hercules card in exactly one group", () => {
@@ -18,9 +18,10 @@ describe("wave 10 card groups", () => {
     const twice = [...seen].filter(([, groups]) => groups.length > 1).map(([id, groups]) => `${id}: ${groups}`);
     expect(twice).toEqual([]);
     expect([...seen.keys()].sort()).toEqual(
-      [...CW_CARDS, ...WONDER_MAN_CARDS, ...HERCULES_CARDS].map((card) => card.id).sort(),
+      [...CW_CARDS, ...SYNTHEZOID_CARDS, ...WONDER_MAN_CARDS, ...HERCULES_CARDS].map((card) => card.id).sort(),
     );
     expect(CW_CARDS).toHaveLength(190);
+    expect(SYNTHEZOID_CARDS).toHaveLength(75);
     expect(WONDER_MAN_CARDS).toHaveLength(34);
     expect(HERCULES_CARDS).toHaveLength(45);
   });
@@ -36,7 +37,7 @@ describe("wave 10 card groups", () => {
   it("has one module file per group, wired into modules.ts, with a header listing exactly its ids", () => {
     const sources = (
       import.meta as unknown as { glob: (p: string | string[], o: object) => Record<string, string> }
-    ).glob(["./cw/**/*.ts", "./wonder_man/**/*.ts", "./hercules/**/*.ts"], {
+    ).glob(["./cw/**/*.ts", "./synthezoid/**/*.ts", "./wonder_man/**/*.ts", "./hercules/**/*.ts"], {
       query: "?raw",
       import: "default",
       eager: true,

@@ -338,7 +338,9 @@ export function normalizeMainSchemes(ctx: NormalizeContext): Map<string, string>
     // card with several stages of one number (Civil War's four stage 1s and four stage 2s); a card whose stage numbers
     // are unique carries none, so the other packs' data is unchanged.
     const numbers = stages.map((st) => st.stageNumber);
-    if (new Set(numbers).size === numbers.length)
+    // `PackCuration.keepStagePrintedCardIds` keeps the key on a pack's own two-stage card whose stage 1 and 2 are
+    // choices among the side's stages of other cards (Synthezoid Smackdown, docs/phase7-synthezoid.md section 1.5).
+    if (new Set(numbers).size === numbers.length && !ctx.curation.keepStagePrintedCardIds?.includes(set))
       for (let i = 0; i < stages.length; i++) {
         const { printedCardId: _key, ...rest } = stages[i] as MainSchemeStage;
         stages[i] = rest;

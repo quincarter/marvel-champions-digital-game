@@ -225,41 +225,50 @@ describe("author credit: only what the JSON and the header table support", () =>
 });
 
 describe("reprint codes (MarvelCDB duplicate_of) map to the right card and merge", () => {
-  const pair = Object.entries(CATALOG_REPRINTS).find(
-    ([reprint, original]) => !BY_ID.has(reprint) && BY_ID.has(original),
-  );
+  // Every catalog reprint is now a card of its own in the pool (the wave 11 data emits reprints with
+  // `duplicateOfCardId`), so the mapping path is driven against the pool without the reprint: what a deck naming a
+  // reprint the pool does not hold meets. 03012 (Hawkeye, Hawkeye's pack) reprints Core's 01066.
+  const REPRINT = "03012";
+  const ORIGINAL = "01066";
+  const withoutReprint = (reprint: string) => PLAYABLE_CARDS.filter((card) => (card.id as string) !== reprint);
+
+  it("drives a real catalog pair", () => {
+    expect(CATALOG_REPRINTS[REPRINT]).toBe(ORIGINAL);
+    expect(BY_ID.has(ORIGINAL)).toBe(true);
+  });
+
   it("a reprint code and its original on separate lines total on the original, with a note", () => {
-    expect(pair).toBeDefined();
-    const [reprint, original] = pair!;
     const base = fixture("silk-justice");
     const slots = { ...base.slots };
-    delete slots[original];
+    delete slots[ORIGINAL];
     const result = parseMarvelCdbDeckJson(
-      { ...base, slots: { ...slots, [reprint]: 2, [original]: 1 } },
-      PLAYABLE_CARDS,
+      { ...base, slots: { ...slots, [REPRINT]: 2, [ORIGINAL]: 1 } },
+      withoutReprint(REPRINT),
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const lines = result.contents.cards.filter((l) => l.cardId === original);
-    expect(lines).toEqual([{ cardId: original, quantity: 3 }]);
-    expect(result.contents.cards.some((l) => l.cardId === reprint)).toBe(false);
+    const lines = result.contents.cards.filter((l) => l.cardId === ORIGINAL);
+    expect(lines).toEqual([{ cardId: ORIGINAL, quantity: 3 }]);
+    expect(result.contents.cards.some((l) => l.cardId === REPRINT)).toBe(false);
     expect((result.notes ?? []).map((n) => n.code)).toContain("reprint_resolved");
     expect(codes(result.contents).includes("duplicate_entry")).toBe(false);
   });
 
   it("every reprint whose original is in the pool resolves to a card of the same title", () => {
     const wrong: string[] = [];
+    let checked = 0;
     for (const [reprint, original] of Object.entries(CATALOG_REPRINTS)) {
       const card = BY_ID.get(original);
-      // A reprint code the pool holds as a card of its own is used as that card, not mapped.
-      if (!card || BY_ID.has(reprint)) continue;
+      if (!card) continue;
+      checked += 1;
       const result = parseMarvelCdbDeckJson(
         { id: 1, name: "t", hero_code: "50001a", slots: { [reprint]: 1 }, meta: '{"aspect":"justice"}' },
-        PLAYABLE_CARDS,
+        withoutReprint(reprint),
       );
       if (!result.ok || result.contents.cards.every((l) => l.cardId !== original))
         wrong.push(`${reprint}->${original}`);
     }
+    expect(checked).toBeGreaterThan(0);
     expect(wrong).toEqual([]);
   });
 });

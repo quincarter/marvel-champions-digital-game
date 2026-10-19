@@ -5,7 +5,7 @@ import { PLAYABLE_ENCOUNTER_SETS, PLAYABLE_SCENARIO_RECORDS } from "../modular-p
 import { WAVE10_DEPS } from "../wave10/index.js";
 import { wave10Scenario } from "../wave10/setup.js";
 import { PLAYABLE_ABILITIES, PLAYABLE_DEPS, playableScenario, playableStarterDeckSetup } from "./index.js";
-import { UNSCRIPTED_ENCOUNTER_SET_IDS } from "./unscripted.js";
+import { UNSCRIPTED_ENCOUNTER_SET_IDS, scenarioIsScripted } from "./unscripted.js";
 import { civilWarGameModes, civilWarSidesOffer, playableScenarioOffer } from "./scenario-options.js";
 
 /**
@@ -19,11 +19,16 @@ const IRON_MAN = "registration-iron-man";
 
 describe("the Civil War box is joined to the playable pool", () => {
   it("every playable list names its scenarios, sets, starter decks and scripts", () => {
+    // Synthezoid Smackdown's two leaders are gated while the pack is scripted (`unscripted.ts`).
     for (const scenario of WAVE10_SCENARIOS)
       expect(
         PLAYABLE_SCENARIO_RECORDS.some((record) => record.id === scenario.id),
         scenario.id,
-      ).toBe(true);
+      ).toBe(scenarioIsScripted(scenario));
+    expect(WAVE10_SCENARIOS.filter((scenario) => !scenarioIsScripted(scenario)).map((s) => s.id)).toEqual([
+      "registration-she-hulk",
+      "resistance-vision",
+    ]);
     const sided = PLAYABLE_ENCOUNTER_SETS.filter((set) => set.side !== undefined);
     expect(sided.length).toBeGreaterThan(0);
     for (const id of ["tigra-aggression", "hulkling-protection"])
@@ -71,7 +76,9 @@ describe("the Civil War box is joined to the playable pool", () => {
     const competitive = WAVE10_ENCOUNTER_SETS.filter((set) => set.competitiveOnly);
     expect(competitive.length).toBeGreaterThan(0);
     for (const set of competitive) {
-      expect(PLAYABLE_ENCOUNTER_SETS.some((candidate) => candidate.id === set.id)).toBe(true);
+      expect(PLAYABLE_ENCOUNTER_SETS.some((candidate) => candidate.id === set.id)).toBe(
+        !UNSCRIPTED_ENCOUNTER_SET_IDS.has(set.id),
+      );
       expect(
         () =>
           playableScenario(IRON_MAN, {
@@ -284,6 +291,8 @@ describe("playableScenarioOffer at a Civil War leader", () => {
     const offer = playableScenarioOffer("resistance-captain-america").mainSchemeStages!;
     expect(offer.recommended).toEqual(["56141b", "56142b"]);
     expect(offer.problem).toBeNull();
+    // Civil War's four of each number; Synthezoid Smackdown's stage of each number joins when the pack is un-gated
+    // (docs/phase7-synthezoid.md §3 M1, `wave10/main-scheme-stage-pool.test.ts`).
     expect(offer.stages.map((stage) => stage.options.map((option) => option.printedCardId))).toEqual([
       ["56141b", "56172b", "56199b", "56200b"],
       ["56142b", "56173b", "56201b", "56202b"],

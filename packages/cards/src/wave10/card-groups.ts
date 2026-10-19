@@ -7,6 +7,9 @@
  * docs/phase7-wave10-box-heroes.md B8.4 (player side: `cw/tigra`, `cw/hulkling`, `cw/aspect-basic`). `cw/competitive`
  * holds the Standard PvP sets and the sixteen leader player cards (competitive mode, not shipped).
  *
+ * `synthezoid/` (Synthezoid Smackdown, MC57, 57001 to 57081b) sits after `cw/` and before the hero packs, the pack's
+ * release order (docs/phase7-synthezoid.md section 8.3): `main-schemes`, `leaders`, `modular` and `competitive`.
+ *
  * The hero packs follow docs/phase7-wave10-hero-packs.md H8.4: `wonder_man/` (58001a to 58034) and `hercules/` (59001a to
  * 59045), each reprint filed under its own aspect module.
  */
@@ -85,6 +88,42 @@ export const CARD_GROUPS: Readonly<Record<string, readonly string[]>> = {
     "56212",
     "56213",
     "56214",
+  ],
+  "synthezoid/main-schemes/registration": ["57005a"],
+  "synthezoid/main-schemes/resistance": ["57044a"],
+  "synthezoid/leaders/she-hulk": ["57001", "57007", "57008", "57009", "57010", "57011", "57012"],
+  "synthezoid/leaders/vision": [
+    "57040",
+    "57046a",
+    "57047",
+    "57048",
+    "57049",
+    "57050",
+    "57051",
+    "57052",
+    "57053",
+    "57054",
+  ],
+  "synthezoid/modular/shield-ops": ["57013", "57014", "57015", "57016"],
+  "synthezoid/modular/thunderbolts": ["57017", "57018", "57019", "57020", "57021"],
+  "synthezoid/modular/taskmaster": ["57022", "57023", "57024", "57025", "57026"],
+  "synthezoid/modular/deadly-duo": ["57027", "57028", "57029", "57030", "57031"],
+  "synthezoid/modular/young-avengers": ["57055", "57056", "57057", "57058", "57059"],
+  "synthezoid/modular/scarlet-twins": ["57060", "57061", "57062", "57063", "57064"],
+  "synthezoid/modular/moon-knight": ["57065", "57066", "57067", "57068"],
+  "synthezoid/modular/royal-guard": ["57069", "57070", "57071", "57072", "57073"],
+  "synthezoid/competitive/leader-cards": ["57032", "57033", "57034", "57035", "57074", "57075", "57076", "57077"],
+  "synthezoid/competitive/standard-pvp": [
+    "57036",
+    "57037",
+    "57038",
+    "57039a",
+    "57039b",
+    "57078",
+    "57079",
+    "57080",
+    "57081a",
+    "57081b",
   ],
   "wonder_man/wonder-man/identity": ["58001a", "58002"],
   "wonder_man/wonder-man/events": ["58003", "58004", "58005", "58006"],

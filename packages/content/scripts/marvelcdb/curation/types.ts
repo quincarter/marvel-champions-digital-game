@@ -94,6 +94,13 @@ export interface Correction {
    */
   readonly startingThreatPerPlayer?: boolean;
   /**
+   * A side scheme's printed starting threat where MarvelCDB sends `base_threat: null` (wave 11, `synthezoid` 57039a and
+   * 57081a Choosing Sides, the reprints of `cw` 56128a and 56206a, whose records carry 4; the scan of the Civil War
+   * copy prints "4" with the per player icon). Replaces `base_threat`; whether it is per player stays raw's
+   * `base_threat_fixed` unless `startingThreatPerPlayer` says otherwise. Side schemes only; never errata.
+   */
+  readonly startingThreat?: number;
+  /**
    * An evidence card's printed icon and color, read from its scan (wave 9, `aos` 50185 to 50193; MarvelCDB does not
    * record either). `icon` is the slug the combination grid is crossed off by (`EvidenceCard.evidenceIcon`).
    * Evidence cards only; never errata.
@@ -220,6 +227,14 @@ export interface Correction {
    * to read (`MinionCard.nemesisMinion`; wave 10, `cw` 56055 Super Skrull). Minions only. Never applied to text.
    */
   readonly nemesisMinion?: boolean;
+  /**
+   * A printed sentence that is a label other cards refer to, not a keyword, although its shape reads as one (wave 11,
+   * `synthezoid` 57046a/b Dense and Intangible: "Mass form." names "Vision's mass form attachment" for 57040 and 57042;
+   * the parser reads every "X form." line as the identity `form` keyword, RRG 1.8 "Form, Change Form", p. 21). The
+   * sentence is skipped by the keyword scan and stays in the printed text, so no keyword is emitted for it. Each entry
+   * must occur as a whole sentence of the card's text, or ingestion fails. Never applied to text.
+   */
+  readonly labelSentences?: readonly string[];
 }
 
 /**
@@ -699,6 +714,14 @@ export interface PackCuration {
    * `mainSchemeIdBySet` entry is its first card.
    */
   readonly separateMainSchemeCards?: readonly string[];
+  /**
+   * Main scheme sets (`card_set_code`) whose stages keep `MainSchemeStage.printedCardId` (the B face's code) although
+   * their stage numbers are unique. By default only a card with several stages of one number carries the key (Civil
+   * War's four stage 1s); Synthezoid Smackdown's `synthezoid_registration` and `synthezoid_resistance` hold one stage 1
+   * and one stage 2 each, yet a scenario names them by B face code and its stages join the side's other cards'
+   * (docs/phase7-synthezoid.md section 1.5, M1). Absent = none.
+   */
+  readonly keepStagePrintedCardIds?: readonly string[];
   /**
    * Villain sets whose MarvelCDB top-level record of each double-sided stage is the printed side A (MojoMania's
    * Spiral: 39012a ESCAPED is the face she starts on, its hidden linked record 39012b CORNERED is side B). The default

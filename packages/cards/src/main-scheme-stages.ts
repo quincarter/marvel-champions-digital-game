@@ -1,10 +1,11 @@
 /**
  * A main scheme deck made of chosen stages (docs/phase7-wave10.md §3.1; MC56 pp. 4-5, step 4: "Select one stage 1 main
  * scheme and one stage 2 main scheme from the chosen side. Place the stage 1 main scheme on top of the stage 2 main
- * scheme."). A Civil War side's eight stages are one `MainSchemeCard`, each stage keyed by the id of its printed B face
- * (`MainSchemeStage.printedCardId`), and `Scenario.mainSchemeStages` says a setup chooses among them and which pair the
- * rulebook recommends. This module turns the players' picks into `GameSetupConfig.mainSchemeStageIndexes` and lists
- * the options a setup screen shows.
+ * scheme."). A side's stages are printed across main scheme cards of several boxes (Civil War's eight, Synthezoid
+ * Smackdown's two), each stage keyed by the id of its printed B face (`MainSchemeStage.printedCardId`);
+ * `sideMainSchemeCard` gathers them into the one card a game indexes, and `Scenario.mainSchemeStages` says a setup
+ * chooses among them and which pair the rulebook recommends. This module turns the players' picks into
+ * `GameSetupConfig.mainSchemeStageIndexes` and lists the options a setup screen shows.
  *
  * What a legal deck is belongs to the engine (`mainSchemeStageIndexesProblem`: one stage of each number, ascending,
  * none twice); this module adds only what the engine cannot know from indexes, that a pick names a stage of this card
@@ -28,6 +29,64 @@ export interface MainSchemeStageContext {
   readonly encounterSets?: readonly EncounterSet[];
 }
 
+/**
+ * Where a sided scenario's stage choices come from (docs/phase7-synthezoid.md §3 M1, §4.1 Q1):
+ *
+ * - `"side"` (Q1 reading A): every stage of every main scheme card whose encounter set is on the scenario's side, from
+ *   any box. MC56 p. 4, step 4: "Select one of the four main scheme stage 1s from the chosen side"; the sides are
+ *   told apart by color, not by box ("Each side uses different colors to identify its modular sets and main
+ *   schemes").
+ * - `"scenario"` (Q1 reading B): only the stages of the scenario's own main scheme card.
+ */
+export type MainSchemeStagePool = "side" | "scenario";
+
+/** The side of a main scheme card: the side of its first sided encounter set, or undefined for an unsided card. */
+function mainSchemeSideOf(card: MainSchemeCard, encounterSets: readonly EncounterSet[]): string | undefined {
+  return encounterSets.find((set) => card.encounterSetIds.includes(set.id) && set.side !== undefined)?.side;
+}
+
+/**
+ * The main scheme card a sided scenario's main scheme deck is chosen from: under the `"side"` pool, the scenario's own
+ * card (`Scenario.mainSchemeCardId`: its id, name, A side and set) holding every stage of the side, card by card in
+ * `cards` order (Civil War's eight, then Synthezoid Smackdown's two), each stage still keyed by its `printedCardId`
+ * and carrying its own text and abilities, so a stage plays the same whichever card it is printed on. Every stage 1 of
+ * a side prints the same A side (MC56 p. 4: "Each stage 1 has the same side A and a different side B"; MC57 p. 3), so
+ * the chosen stage 1's own A side is the one resolved.
+ *
+ * The card handed back is a composition, not a printed card: `wave10Scenario` puts it in the game's card pool in place
+ * of the printed one, so the state's `cardPool` (what a saved game and the client read) names every stage the game can
+ * index. The scenario's own card is unchanged when it is the side's only card, when the pool is `"scenario"`, or for
+ * an unsided scenario. Throws when two stages of the side share a `printedCardId` (a pick could not say which).
+ *
+ * Only a card whose set is in `encounterSets` joins another scenario's pool: pass the playable sets and a gated box's
+ * card (`playable/unscripted.ts`) offers its stages to no one, while the scenario's own card always holds its own.
+ */
+export function sideMainSchemeCard(
+  scenario: Scenario,
+  cards: readonly AnyCard[],
+  encounterSets: readonly EncounterSet[],
+  pool: MainSchemeStagePool = "side",
+): MainSchemeCard {
+  const own = cards.find((card) => card.id === scenario.mainSchemeCardId);
+  if (!own || own.type !== "main_scheme") throw new Error(`${scenario.mainSchemeCardId} is not a main scheme`);
+  if (pool === "scenario" || scenario.side === undefined || !scenario.mainSchemeStages) return own;
+  const sideCards = cards.filter(
+    (card): card is MainSchemeCard =>
+      card.type === "main_scheme" && (card === own || mainSchemeSideOf(card, encounterSets) === scenario.side),
+  );
+  if (sideCards.length <= 1) return own;
+  const stages = sideCards.flatMap((card) => card.stages);
+  const keys = new Set<string>();
+  for (const stage of stages) {
+    if (stage.printedCardId === undefined) continue;
+    if (keys.has(stage.printedCardId))
+      throw new Error(`two ${scenario.side} main scheme stages are printed as ${stage.printedCardId}`);
+    keys.add(stage.printedCardId);
+  }
+  const [first, ...rest] = stages;
+  return first ? { ...own, stages: [first, ...rest] } : own;
+}
+
 /** Why `id` is not a stage of `card`: the other side's stage by name and side, anything else by id. */
 function unknownStageProblem(
   scenario: Scenario,
@@ -39,11 +98,14 @@ function unknownStageProblem(
     if (other.type !== "main_scheme" || other.id === card.id) continue;
     const stage = other.stages.find((candidate) => candidate.printedCardId === id);
     if (!stage) continue;
-    const side = (context.encounterSets ?? PLAYABLE_ENCOUNTER_SETS).find(
-      (set) => other.encounterSetIds.includes(set.id) && set.side !== undefined,
-    )?.side;
+    const side = mainSchemeSideOf(other, context.encounterSets ?? PLAYABLE_ENCOUNTER_SETS);
     if (side !== undefined && scenario.side !== undefined && side !== scenario.side)
       return `${stage.name ?? other.name} is a ${side} stage; ${scenarioSideClause(scenario)} (MC56 p. 4)`;
+    // Two cards of one side share a title (Civil War's and Synthezoid Smackdown's "Superhero Registration Act"), so
+    // the cards are told apart by their printed ids.
+    const name = stage.name ?? other.name;
+    if (other.name === card.name)
+      return `${name} is a stage of ${other.name} (${other.id}), not of this scenario's ${card.name} (${card.id})`;
     return `${stage.name ?? other.name} is a stage of ${other.name}, not of ${card.name}`;
   }
   return `${id} is not a stage of ${card.name}`;
