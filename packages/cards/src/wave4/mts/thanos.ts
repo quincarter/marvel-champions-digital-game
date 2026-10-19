@@ -32,6 +32,7 @@ import {
   not,
   option,
   placeThreat,
+  preventDamage,
   putIntoPlay,
   query,
   replaceBoostCount,
@@ -209,9 +210,8 @@ export const THANOS = defineAbilities({
   // Thanos's Armor (21117) — Forced Interrupt: When Thanos would take any amount of damage, reduce that amount by
   // 1. Hero Response: After a hero makes a basic attack against Thanos, spend [energy][physical] resources →
   // discard this card.
-  "21117.thanoss-armor-forced-interrupt": constant(
-    rule({ kind: "reduceDamageTaken", target: query("villain"), amount: 1 }),
-  ),
+  // An interrupt, so a tough status card is used first (RRG 1.8 Appendix III timing priority; FAQ p. 58).
+  "21117.thanoss-armor-forced-interrupt": forcedInterrupt(when.damage(query("villain")), preventDamage(1)),
   "21117.thanoss-armor-response": response(
     after.attacks(query("hero"), { basic: true, target: query("villain") }),
     { cost: spend({ energy: 1, physical: 1 }) },

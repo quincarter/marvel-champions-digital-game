@@ -33,6 +33,7 @@ import { driveEvents } from "../../testing/staging.js";
 import { WAVE4_DEPS } from "../index.js";
 import { runWave4, startWave4Game } from "../testing.js";
 import { spectrumScenario } from "./support.js";
+import { THANOS } from "./thanos.js";
 
 /** `../../testing/staging.js`'s own `driveEvents`, but with a caller-supplied `Picker` instead of a hardcoded
  * `firstLegal` — needed to steer a `declareDefender` choice while still collecting the full event log. */
@@ -382,6 +383,13 @@ describe("Thanos's Armor (21117)", () => {
     const withArmorDamage = inst(armoredAttacked, armoredVillain).damage;
 
     expect(withArmorDamage).toBe(withoutArmor - 1);
+  });
+
+  it("21117.thanoss-armor-forced-interrupt: is an interrupt, so a tough status card is used up before it reduces anything", () => {
+    expect(THANOS["21117.thanoss-armor-forced-interrupt"]!.trigger).toMatchObject({
+      kind: "interrupt",
+      forced: true,
+    });
   });
 
   it("21117.thanoss-armor-response: a hero may spend [energy][physical] to discard it after a basic attack against Thanos", () => {
