@@ -140,6 +140,14 @@ function passesQualifiers(
   const barred = host.withoutAttachmentNamed;
   if (barred !== undefined && mustInstance(state, id).attachments.some((a) => currentName(state, a) === barred))
     return false;
+  // "without a Vehicle attachment" (docs/phase7-wave11-scenarios.md §S7 E17): no card attached to it has the trait,
+  // printed or gained (RRG 1.8 "Gains"), whatever its title, so a Motorcycle bars a Sports Car.
+  const barredTrait = host.withoutAttachmentTrait;
+  if (
+    barredTrait !== undefined &&
+    mustInstance(state, id).attachments.some((a) => traitsOf(state, a, deps).includes(barredTrait))
+  )
+    return false;
   // "a non-permanent side scheme" (docs/phase7-wave2.md §6.5): printed or gained keywords.
   if (host.keyword !== undefined && !hasKeyword(state, id, host.keyword, deps)) return false;
   if (host.withoutKeyword !== undefined && hasKeyword(state, id, host.withoutKeyword, deps)) return false;

@@ -100,6 +100,19 @@ const TIEBREAKER = stubAttachment({
   attachesTo: { kind: "superlative", among: "minion", order: "highest", measure: "printedHp" },
 });
 
+const VEHICLE = trait("Vehicle");
+const STRONG_MINION = stubMinion({ id: "strong-minion", atk: 3, sch: 0, hp: 4, boostIcons: 0 });
+const WEAK_MINION = stubMinion({ id: "weak-minion", atk: 1, sch: 0, hp: 4, boostIcons: 0 });
+const SPORTS_CAR_HOST: AttachmentHost = {
+  kind: "superlative",
+  among: "enemy",
+  order: "highest",
+  measure: "atk",
+  withoutAttachmentTrait: VEHICLE,
+};
+/** A VEHICLE attachment under another title (Motorcycle, `fne` 60187). */
+const MOTORCYCLE = { ...stubAttachment({ id: "motorcycle", attachesTo: SPORTS_CAR_HOST }), traits: [VEHICLE] };
+
 const deps: EngineDeps = depsOf(GLIDER_SURGE, MARKED_SURGE);
 
 const CARDS = [
@@ -116,6 +129,9 @@ const CARDS = [
   COUNTERSPELL,
   MARKED,
   TIEBREAKER,
+  STRONG_MINION,
+  WEAK_MINION,
+  MOTORCYCLE,
 ];
 
 function game(options: { readonly players?: number; readonly encounter?: readonly CardId[] } = {}): GameState {
@@ -327,6 +343,27 @@ describe("§3.14 every host kind resolves at the moment of attaching", () => {
     // With a glider already on the villain it is out of the pool, so the minions are ranked instead.
     const marked = attachTo(state, GLIDER.id, villain);
     expect(hosts(marked.state, GLIDER_HOST)).toEqual([elite.id, plain.id]);
+  });
+
+  it("withoutAttachmentTrait: an enemy holding an attachment with the trait, of any title, leaves the pool", () => {
+    // Sports Car (`fne` 60186): "Attach to the enemy with the highest ATK without a Vehicle attachment." A Motorcycle
+    // (another title, the same trait) bars it; an attachment without the trait does not
+    // (docs/phase7-wave11-scenarios.md §S7 E17).
+    const start = game({
+      encounter: [STRONG_MINION.id, WEAK_MINION.id, MOTORCYCLE.id, GLIDER.id, ...copies(BLANK.id, 12)],
+    });
+    const strong = intoPlay(start, STRONG_MINION.id);
+    const weak = intoPlay(strong.state, WEAK_MINION.id);
+    expect(hosts(weak.state, SPORTS_CAR_HOST)).toEqual([strong.id]);
+
+    const plainAttachment = attachTo(weak.state, GLIDER.id, strong.id);
+    expect(hosts(plainAttachment.state, SPORTS_CAR_HOST)).toEqual([strong.id]);
+
+    const motorcycle = attachTo(plainAttachment.state, MOTORCYCLE.id, strong.id);
+    expect(hosts(motorcycle.state, SPORTS_CAR_HOST)).toEqual([weak.id]);
+    expect(hosts(motorcycle.state, { kind: "qualified", category: "minion", withoutAttachmentTrait: VEHICLE })).toEqual(
+      [weak.id],
+    );
   });
 });
 
