@@ -80,6 +80,7 @@ import {
   you,
   yourIdentity,
   zone,
+  firstPlayer,
 } from "../../dsl/index.js";
 import { atEndOfAttack } from "../../dsl/effects.js";
 import { discardThisObligation } from "../../core/obligations.js";
@@ -201,7 +202,9 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
         printedCostOf(chosen("candidate")),
       ),
     ),
-    chooseTarget("pick", { inSlot: "highestCost" }),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseTarget("pick", { inSlot: "highestCost" }, { chooser: firstPlayer }),
     discard(chosen("pick")),
     andThen(tuckCards(cards(chosen("pick")), self, true)),
   ),
@@ -279,7 +282,10 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
   "11026.when-revealed-alter-ego": whenRevealedAlterEgo(
     ifThen(
       exists(query(["ally", "support"], { controller: "you" })),
-      [chooseTarget("discard", query(["ally", "support"], { controller: "you" })), discard(chosen("discard"))],
+      [
+        chooseTarget("discard", query(["ally", "support"], { controller: "you" }), { chooser: firstPlayer }),
+        discard(chosen("discard")),
+      ],
       { kind: "gainSurge" },
     ),
   ),
@@ -348,11 +354,11 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
   // Apocryphus — When Revealed: discard an ally or support you control. [star] Boost: exhaust a character you
   // control. Give this enemy another boost card.
   "11040.when-revealed": whenRevealed(
-    chooseTarget("target", query(["ally", "support"], { controller: "you" })),
+    chooseTarget("target", query(["ally", "support"], { controller: "you" }), { chooser: firstPlayer }),
     discard(chosen("target")),
   ),
   "11040.boost": boost(
-    chooseTarget("char", query("character", { controller: "you" })),
+    chooseTarget("char", query("character", { controller: "you" }), { chooser: firstPlayer }),
     exhaust(chosen("char")),
     modifyAttack({ extraBoostCards: 1 }),
   ),

@@ -16,6 +16,7 @@ import {
   each,
   encounterCards,
   exhaust,
+  firstPlayer,
   forcedInterrupt,
   gets,
   ifThen,
@@ -56,11 +57,13 @@ export const NASTY_BOYS: AbilityRegistry = defineAbilities({
   // your ally is resolved by the ally's controller, owner decision Q5 = A.)
   "40112.gorgeous-george-forced-interrupt": forcedInterrupt(
     on.enemyAttacks("self", { againstYou: true }),
-    chooseTarget("char", YOUR_CHARACTERS),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseTarget("char", YOUR_CHARACTERS, { chooser: firstPlayer }),
     exhaust(chosen("char")),
   ),
   // [star] Boost: Exhaust a character you control.
-  "40112.boost": boost(chooseTarget("char", YOUR_CHARACTERS), exhaust(chosen("char"))),
+  "40112.boost": boost(chooseTarget("char", YOUR_CHARACTERS, { chooser: firstPlayer }), exhaust(chosen("char"))),
 
   // Hairbag — [star] Boost: After this activation, shuffle Hairbag into the encounter deck. (The boost card is not
   // also discarded: it has left the discard-bound path by then; `boost.test.ts` pins that for Goblin Knight.)

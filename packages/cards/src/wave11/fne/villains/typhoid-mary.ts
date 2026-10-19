@@ -23,6 +23,7 @@ import {
   eventAmount,
   exhaust,
   exists,
+  firstPlayer,
   flipCard,
   forEachPlayer,
   forcedInterrupt,
@@ -147,7 +148,9 @@ export const FNE_VILLAINS_TYPHOID_MARY: AbilityRegistry = defineAbilities({
   "60115.when-revealed": whenRevealed(unmaskMary(), enemyScheme(theVillain)),
   "60115.boost": boost(
     ifThen(TYPHOID_ACTIVATING, [
-      chooseTarget("victim", query("ally", { controller: "you" })),
+      // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+      // (RRG 1.8 "First Player", p. 19).
+      chooseTarget("victim", query("ally", { controller: "you" }), { chooser: firstPlayer }),
       dealDamage(3, chosen("victim")),
     ]),
   ),

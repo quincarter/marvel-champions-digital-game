@@ -281,7 +281,7 @@ describe("Bystanders in Peril 60181", () => {
     expect(inDiscard(run.state)).toContain(BYSTANDERS);
   });
 
-  it("60181.when-revealed: two players, P2 is dealt it: P2 (the revealer) picks the environment and P1 is not asked", () => {
+  it("60181.when-revealed: two players, P2 is dealt it: P2 (the revealer, Peril) picks the environment and P1 is not asked", () => {
     const a = staged(newGame(2), FERRY, 0);
     const b = staged(a.state, INFERNO, 0);
     const asked: PlayerId[] = [];
@@ -306,6 +306,8 @@ describe("Bystanders in Peril 60181", () => {
       pick,
       ...order,
     );
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
     expect(asked).toEqual([P2]);
     expect([civilians(run.state, a.id), civilians(run.state, b.id)]).toEqual([0, 1]);
   });

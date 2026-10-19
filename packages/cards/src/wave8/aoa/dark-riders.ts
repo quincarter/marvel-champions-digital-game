@@ -11,6 +11,7 @@ import {
   discard,
   discardEncounterUntil,
   each,
+  firstPlayer,
   forcedResponse,
   gainsKeyword,
   on,
@@ -41,10 +42,12 @@ const AFTER_ATTACKS_YOU = on.enemyAttacks("self", { againstYou: true });
  * - 45117 The Dark Riders (side_scheme)
  */
 export const DARK_RIDERS: AbilityRegistry = defineAbilities({
-  // Gauntlet — Forced Response: After Gauntlet attacks you, discard an upgrade you control. (You choose it.)
+  // Gauntlet — Forced Response: After Gauntlet attacks you, discard an upgrade you control. (The first player chooses it.)
   "45112.gauntlet-forced-response": forcedResponse(
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
     AFTER_ATTACKS_YOU,
-    chooseTarget("upgrade", query("upgrade", { controller: "you" })),
+    chooseTarget("upgrade", query("upgrade", { controller: "you" }), { chooser: firstPlayer }),
     discard(chosen("upgrade")),
   ),
 

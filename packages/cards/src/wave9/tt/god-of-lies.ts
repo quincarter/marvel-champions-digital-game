@@ -46,6 +46,7 @@ import {
   exists,
   faceNamed,
   find,
+  firstPlayer,
   flipCard,
   forcedInterrupt,
   forcedResponse,
@@ -293,11 +294,13 @@ export const GOD_OF_LIES: AbilityRegistry = defineAbilities({
   "55029b.when-revealed": whenRevealed(...shatterTheIllusion("Unified Front")),
 
   // Loki the Miscreant: "Forced Response: After you resolve a treachery, place 1 threat on the main scheme and 1
-  // threat on a side scheme." The player who resolved it chooses the side scheme.
+  // threat on a side scheme." The first player chooses the side scheme (RRG 1.8 "First Player", p. 19).
   "55030a.loki-the-miscreant-forced-response": forcedResponse(
     treacheryResolved,
     placeThreat(1, theMainScheme),
-    chooseTarget("scheme", query("sideScheme"), { chooser: eventPlayer }),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseTarget("scheme", query("sideScheme"), { chooser: firstPlayer }),
     placeThreat(1, chosen("scheme")),
   ),
   "55030a.loki-the-miscreant-forced-interrupt": avatarWouldBeDefeated(),
@@ -308,7 +311,7 @@ export const GOD_OF_LIES: AbilityRegistry = defineAbilities({
   "55031a.loki-the-knave-forced-response": forcedResponse(
     treacheryResolved,
     dealDamage(1, identityOf(eventPlayer)),
-    chooseTarget("ally", query("ally", { controlledBy: eventPlayer }), { chooser: eventPlayer }),
+    chooseTarget("ally", query("ally", { controlledBy: eventPlayer }), { chooser: firstPlayer }),
     dealDamage(1, chosen("ally")),
   ),
   "55031a.loki-the-knave-forced-interrupt": avatarWouldBeDefeated(),

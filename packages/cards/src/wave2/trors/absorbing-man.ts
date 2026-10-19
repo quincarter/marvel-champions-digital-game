@@ -214,7 +214,11 @@ export const ABSORBING_MAN_SET = defineAbilities({
   "04088.when-revealed": whenRevealed(
     discardAtRandom(1, you),
     ifThen(hasTrait(theVillain, WOOD), [
-      chooseTarget("controlled", query(["ally", "upgrade", "support"], { controller: "you" })),
+      // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+      // (RRG 1.8 "First Player", p. 19).
+      chooseTarget("controlled", query(["ally", "upgrade", "support"], { controller: "you" }), {
+        chooser: firstPlayer,
+      }),
       discard(chosen("controlled")),
     ]),
   ),

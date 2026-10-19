@@ -12,6 +12,7 @@ import {
   encounterCards,
   eventTarget,
   exists,
+  firstPlayer,
   forEachCard,
   forcedInterrupt,
   ifThen,
@@ -88,7 +89,9 @@ export const AIM_ABDUCTION: AbilityRegistry = defineAbilities({
           "mostHp",
           superlative("highest", each(query("ally", { controller: "you" })), remainingHpOf(chosen("candidate"))),
         ),
-        chooseTarget("victim", { inSlot: "mostHp" }),
+        // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+        // (RRG 1.8 "First Player", p. 19).
+        chooseTarget("victim", { inSlot: "mostHp" }, { chooser: firstPlayer }),
         tuckCards(cards(chosen("victim")), SCHEME),
       ],
       placeThreat(2, SCHEME),

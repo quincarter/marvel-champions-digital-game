@@ -15,6 +15,7 @@ import {
   engagedPlayerOf,
   enemyAttack,
   eventTarget,
+  firstPlayer,
   forcedResponse,
   gets,
   handCountOf,
@@ -41,7 +42,7 @@ import {
  */
 const TINY = trait("TINY");
 const YOUR_CHARACTERS = query(["identity", "ally"], { controller: "you" });
-/** The highest printed-cost card of a category the revealing player controls (a tie is their choice). */
+/** The highest printed-cost card of a category the revealing player controls (a tie is the first player's choice). */
 const highestCost = (category: "upgrade" | "support") =>
   bindTargets(
     "extreme",
@@ -72,10 +73,12 @@ export const EXTREME_MEASURES: AbilityRegistry = defineAbilities({
   "40182.thumbelina-constant": constant(
     reducesAttackDamageTaken({ self: true }, 1, { exceptAttacker: { trait: TINY } }),
   ),
-  // When Revealed: Return the highest-cost upgrade you control to its owner's hand (a tie is your choice; printed cost).
+  // When Revealed: Return the highest-cost upgrade you control to its owner's hand (a tie is the first player's choice; printed cost).
+  // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+  // (RRG 1.8 "First Player", p. 19).
   "40182.when-revealed": whenRevealed(
     highestCost("upgrade"),
-    chooseTarget("pick", { inSlot: "extreme" }),
+    chooseTarget("pick", { inSlot: "extreme" }, { chooser: firstPlayer }),
     moveCards(cards(chosen("pick")), "hand"),
   ),
 
@@ -87,7 +90,7 @@ export const EXTREME_MEASURES: AbilityRegistry = defineAbilities({
       option(
         "Return the highest-cost support you control to its owner's hand",
         highestCost("support"),
-        chooseTarget("pick", { inSlot: "extreme" }),
+        chooseTarget("pick", { inSlot: "extreme" }, { chooser: firstPlayer }),
         moveCards(cards(chosen("pick")), "hand"),
       ),
     ),

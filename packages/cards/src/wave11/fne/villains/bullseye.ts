@@ -32,6 +32,7 @@ import {
   eventTarget,
   exists,
   findCard,
+  firstPlayer,
   flipCard,
   forcedInterrupt,
   forcedResponse,
@@ -210,7 +211,9 @@ export const FNE_VILLAINS_BULLSEYE: AbilityRegistry = defineAbilities({
       option(
         "Remove an ally you control from the game",
         { when: exists(YOUR_ALLY) },
-        chooseTarget("ally", YOUR_ALLY),
+        // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+        // (RRG 1.8 "First Player", p. 19).
+        chooseTarget("ally", YOUR_ALLY, { chooser: firstPlayer }),
         moveCards(cards(chosen("ally")), "removedFromGame"),
       ),
     ),
@@ -225,7 +228,7 @@ export const FNE_VILLAINS_BULLSEYE: AbilityRegistry = defineAbilities({
       option(
         "Remove a Persona support you control from the game",
         { when: exists(YOUR_PERSONA) },
-        chooseTarget("persona", YOUR_PERSONA),
+        chooseTarget("persona", YOUR_PERSONA, { chooser: firstPlayer }),
         moveCards(cards(chosen("persona")), "removedFromGame"),
       ),
     ),

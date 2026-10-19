@@ -20,6 +20,7 @@ import {
   eventSource,
   exhaust,
   findCard,
+  firstPlayer,
   forEachCard,
   forcedInterrupt,
   forcedResponse,
@@ -178,7 +179,9 @@ export const FNE_VILLAINS_ELECTRO: AbilityRegistry = defineAbilities({
         chooseOne(
           option("Discard that card", [moveCards(cards(chosen("card")), "discard")]),
           option("Stun a character you control", [
-            chooseTarget("stunned", query("character", { controller: "you" })),
+            // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+            // (RRG 1.8 "First Player", p. 19).
+            chooseTarget("stunned", query("character", { controller: "you" }), { chooser: firstPlayer }),
             stun(chosen("stunned")),
           ]),
         ),

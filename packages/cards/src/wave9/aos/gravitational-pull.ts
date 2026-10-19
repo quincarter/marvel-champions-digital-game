@@ -16,6 +16,7 @@ import {
   exhaust,
   exists,
   find,
+  firstPlayer,
   forcedResponse,
   gets,
   giveTough,
@@ -80,20 +81,22 @@ export const GRAVITATIONAL_PULL: AbilityRegistry = defineAbilities({
     ifThen(not(varAtLeast("activated.made")), surge()),
   ),
   "50141.boost": boost(
-    chooseTarget("character", query("character", { controller: "you" })),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseTarget("character", query("character", { controller: "you" }), { chooser: firstPlayer }),
     exhaust(chosen("character")),
   ),
 
   "50142.when-revealed-alter-ego": whenRevealedAlterEgo(
     ifThen(
       exists(ALLY_OR_SUPPORT_YOU_CONTROL),
-      [chooseTarget("card", ALLY_OR_SUPPORT_YOU_CONTROL), discard(chosen("card"))],
+      [chooseTarget("card", ALLY_OR_SUPPORT_YOU_CONTROL, { chooser: firstPlayer }), discard(chosen("card"))],
       surge(),
     ),
   ),
   "50142.when-revealed-hero": whenRevealedHero(
     bindTargets("fewest", superlative("lowest", each(query(["identity", "ally"])), remainingHpOf(chosen("candidate")))),
-    chooseTarget("target", { inSlot: "fewest" }),
+    chooseTarget("target", { inSlot: "fewest" }, { chooser: firstPlayer }),
     dealDamage(statOf(yourIdentity, "atk"), chosen("target")),
   ),
 });

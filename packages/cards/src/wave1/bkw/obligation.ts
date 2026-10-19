@@ -15,7 +15,7 @@ export const BKW_OBLIGATION = defineAbilities({
   // • Exhaust Natasha Romanoff → remove this card from the game. (Shared `obligation()` shape.)
   // • Discard the Preparation card you control with the highest cost. If you cannot, this card gains surge. Discard
   //   this obligation.
-  // "The … card with the highest cost" is one card: a tie is broken by the player's own choice among the tied cards,
+  // "The … card with the highest cost" is one card: a tie is broken by the obligation's player among the tied cards,
   // not by discarding all of them.
   "08025.obligation": obligation("Natasha Romanoff", {
     label: "Discard the Preparation card you control with the highest cost",
@@ -24,6 +24,7 @@ export const BKW_OBLIGATION = defineAbilities({
         exists(PREPARATION_YOU_CONTROL),
         [
           bindTargets("highest", theCardWithHighestCost(PREPARATION_YOU_CONTROL)),
+          // RRG 1.8 "Obligation" p.30 / "Ability" p.4: the obligation's player decides how to resolve it (specific over "First Player" p.19).
           chooseTarget("burned", { inSlot: "highest" }),
           discard(chosen("burned")),
         ],

@@ -89,7 +89,12 @@ export const CRAZY_GANG: AbilityRegistry = defineAbilities({
   "48035.when-revealed": whenRevealed(
     ifThen(
       hasStatus(identityOf(), "confused"),
-      [chooseTarget("pick", query("support", { controller: "you" })), discard(chosen("pick"))],
+      // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+      // (RRG 1.8 "First Player", p. 19).
+      [
+        chooseTarget("pick", query("support", { controller: "you" }), { chooser: firstPlayer }),
+        discard(chosen("pick")),
+      ],
       confuse(identityOf()),
     ),
   ),
@@ -118,7 +123,9 @@ export const CRAZY_GANG: AbilityRegistry = defineAbilities({
     ifThen(
       hasStatus(identityOf(), "stunned"),
       [
-        chooseTarget("pick", query("upgrade", { controller: "you", withoutKeyword: "permanent" })),
+        chooseTarget("pick", query("upgrade", { controller: "you", withoutKeyword: "permanent" }), {
+          chooser: firstPlayer,
+        }),
         discard(chosen("pick")),
       ],
       stun(identityOf()),

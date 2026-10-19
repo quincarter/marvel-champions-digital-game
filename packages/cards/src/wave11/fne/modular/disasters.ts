@@ -1,5 +1,5 @@
 import { trait } from "@mc/content";
-import type { AbilityRegistry, Predicate } from "@mc/engine";
+import type { AbilityRegistry, Predicate, PlayerRef } from "@mc/engine";
 import {
   addCounters,
   allOf,
@@ -11,6 +11,7 @@ import {
   eitherCost,
   encounterCards,
   exhaustCardsCost,
+  firstPlayer,
   forcedResponse,
   hasStatus,
   heroAction,
@@ -27,6 +28,7 @@ import {
   spend,
   varAtLeast,
   whenRevealed,
+  you,
 } from "../../../dsl/index.js";
 
 /** The character a Disaster's exhaust cost picked (`exhaustCardsCost`'s default slot). */
@@ -46,9 +48,14 @@ const disasterAction = (resource: "mental" | "energy" | "physical", bonus: Predi
 
 const DISASTER_ENVIRONMENT = query("environment", { trait: trait("DISASTER") });
 
-/** "Place 1 civilian counter on a Disaster environment": the revealing (or defending) player picks which. */
-const placeCivilian = (bind?: string) => [
-  chooseTarget("environment", DISASTER_ENVIRONMENT),
+/**
+ * "Place 1 civilian counter on a Disaster environment". The When Revealed has Peril, so the revealing player picks
+ * (RRG 1.8 "Peril", p. 32: they cannot consult the other players); the Boost has no Peril, so the first player picks.
+ */
+const placeCivilian = (chooser: PlayerRef, bind?: string) => [
+  // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+  // (RRG 1.8 "First Player", p. 19), except under Peril.
+  chooseTarget("environment", DISASTER_ENVIRONMENT, { chooser }),
   addCounters("civilian", 1, chosen("environment"), bind ? { bind } : {}),
 ];
 
@@ -59,9 +66,9 @@ const placeCivilian = (bind?: string) => [
  * an Aerial character, or a character with a tough status card, read from the card the exhaust cost picked.
  * **60180 Collapsing Bridge**: Hinder and the starting threat are data. The Forced Response answers any removal that
  * took threat off it (`removeThreat` on itself, which only fires for a removal of at least 1).
- * **60181 Bystanders in Peril**: Peril is data. When Revealed: the player picks a Disaster environment in play for the
+ * **60181 Bystanders in Peril**: Peril is data. When Revealed: the revealing player (Peril) picks a Disaster environment in play for the
  * counter; "if no counter was placed" (none in play) the encounter deck and discard pile are searched for one (the deck
- * is shuffled, RRG 1.8 "Search", p. 39) and it is revealed. The Boost places the counter the same way, with no search.
+ * is shuffled, RRG 1.8 "Search", p. 39) and it is revealed. The Boost places the counter the same way (the first player picks), with no search.
  *
  * Cards (5):
  * - 60177 Mystic Incursion (environment)
@@ -84,14 +91,14 @@ export const FNE_MODULAR_DISASTERS: AbilityRegistry = defineAbilities({
   ),
 
   "60181.when-revealed": whenRevealed(
-    ...placeCivilian("placed"),
+    ...placeCivilian(you, "placed"),
     ifThen(not(varAtLeast("placed.amount")), [
       chooseCards("found", encounterCards(["deck", "discard"], DISASTER_ENVIRONMENT), { min: 1, max: 1 }),
       shuffleEncounterDeck(),
       revealCard(chosen("found")),
     ]),
   ),
-  "60181.boost": boost(...placeCivilian()),
+  "60181.boost": boost(...placeCivilian(firstPlayer)),
 });
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. None. */

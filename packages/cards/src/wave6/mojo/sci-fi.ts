@@ -43,7 +43,12 @@ import {
 const SETTING = trait("SETTING");
 /** "A character you control": your hero or alter-ego, or one of your allies. */
 const YOUR_CHARACTER = query(["identity", "ally"], { controller: "you" });
-const exhaustACharacterYouControl = [chooseTarget("character", YOUR_CHARACTER), exhaust(chosen("character"))];
+// No "choose": an encounter card targeting one of several eligible cards; the first player selects
+// (RRG 1.8 "First Player", p. 19).
+const exhaustACharacterYouControl = [
+  chooseTarget("character", YOUR_CHARACTER, { chooser: firstPlayer }),
+  exhaust(chosen("character")),
+];
 
 /**
  * MojoMania (`mojo`), the Sci-Fi genre set (`sci-fi`, 39053-39059; docs/phase7-wave6.md §7.4). Its SHOW environment
@@ -97,7 +102,7 @@ export const SCI_FI_ABILITIES = defineAbilities({
   // Toad 2.0 (39058) — Forced Response: After Toad 2.0 engages you, place 1 upgrade you control facedown under Toad.
   "39058.toad-20-forced-response": forcedResponse(
     { on: "minionEngaged", selfIs: "source" },
-    chooseTarget("upgrade", query("upgrade", { controller: "you" })),
+    chooseTarget("upgrade", query("upgrade", { controller: "you" }), { chooser: firstPlayer }),
     tuckCards(cards(chosen("upgrade")), self, true),
   ),
   // When Defeated: Return each card under Toad 2.0 to its owner's hand.

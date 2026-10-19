@@ -38,6 +38,7 @@ import {
   whenRevealedHero,
   you,
   type EffectArg,
+  firstPlayer,
 } from "../../../dsl/index.js";
 
 /**
@@ -101,17 +102,25 @@ export const SINISTER_SIX_TREACHERIES = defineAbilities({
   "27109.high-fashion-constant": gainsInciteInExpertMode(),
   // High Fashion — When Revealed: Put the set-aside Electro and Kraven the Hunter into play. If Electro is already
   // in play, discard the highest-cost card you control. If Kraven the Hunter is already in play, discard the
-  // lowest-cost card you control. `ties: "first"` (Oversized Hands, `twc` 07042's precedent): no fallback text for
+  // lowest-cost card you control. A tie goes to the first player (Oversized Hands, `twc` 07042); no fallback text for
   // "nothing to discard", so an empty `CARDS_YOU_CONTROL` simply discards nothing.
   "27109.when-revealed": whenRevealed(
     ifThen(
       villainAlreadyInPlay("Electro"),
-      discard(superlative("highest", each(CARDS_YOU_CONTROL), printedCostOf(chosen("candidate")), { ties: "first" })),
+      [
+        bindTargets("hf-highest", superlative("highest", each(CARDS_YOU_CONTROL), printedCostOf(chosen("candidate")))),
+        chooseTarget("hf-highest-pick", { inSlot: "hf-highest" }, { chooser: firstPlayer }),
+        discard(chosen("hf-highest-pick")),
+      ],
       putSetAsideVillainIntoPlay("Electro", "electro"),
     ),
     ifThen(
       villainAlreadyInPlay("Kraven the Hunter"),
-      discard(superlative("lowest", each(CARDS_YOU_CONTROL), printedCostOf(chosen("candidate")), { ties: "first" })),
+      [
+        bindTargets("hf-lowest", superlative("lowest", each(CARDS_YOU_CONTROL), printedCostOf(chosen("candidate")))),
+        chooseTarget("hf-lowest-pick", { inSlot: "hf-lowest" }, { chooser: firstPlayer }),
+        discard(chosen("hf-lowest-pick")),
+      ],
       putSetAsideVillainIntoPlay("Kraven the Hunter", "kraven"),
     ),
   ),
@@ -124,12 +133,14 @@ export const SINISTER_SIX_TREACHERIES = defineAbilities({
   "27110.when-revealed": whenRevealed(
     ifThen(
       villainAlreadyInPlay("Doctor Octopus"),
-      [chooseTarget("confused", CHARACTER_YOU_CONTROL), confuse(chosen("confused"))],
+      // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+      // (RRG 1.8 "First Player", p. 19).
+      [chooseTarget("confused", CHARACTER_YOU_CONTROL, { chooser: firstPlayer }), confuse(chosen("confused"))],
       putSetAsideVillainIntoPlay("Doctor Octopus", "octopus"),
     ),
     ifThen(
       villainAlreadyInPlay("Scorpion"),
-      [chooseTarget("stunned", CHARACTER_YOU_CONTROL), stun(chosen("stunned"))],
+      [chooseTarget("stunned", CHARACTER_YOU_CONTROL, { chooser: firstPlayer }), stun(chosen("stunned"))],
       putSetAsideVillainIntoPlay("Scorpion", "scorpion"),
     ),
   ),

@@ -21,6 +21,7 @@ import {
   enemyAttack,
   enemyScheme,
   exists,
+  firstPlayer,
   forcedInterrupt,
   giveStatus,
   giveTough,
@@ -118,7 +119,7 @@ const advancedWhenRevealed = () =>
  *
  * **Inconspicuous (56178)**: the revealing player chooses; the first option needs a card with a printed cost under
  * their control (RRG 1.8 "Choose (Option)", p. 12: an encounter card's option needs a valid target), a tie for the
- * highest is broken by that player. Boost: one more boost icon per status card on their identity.
+ * highest is broken by the first player. Boost: one more boost icon per status card on their identity.
  *
  * **Self-propelled Glide (56179)**: an attack's damage to Spider-Woman is reduced by the skill counters on Finesse,
  * to nothing at most (acceleration icon and threat are data).
@@ -184,7 +185,9 @@ export const LEADERS_SPIDER_WOMAN: AbilityRegistry = defineAbilities({
         "Discard the highest-cost card you control",
         { when: exists(CARDS_YOU_CONTROL) },
         bindTargets("highest", theCardWithHighestCost(CARDS_YOU_CONTROL)),
-        chooseTarget("burned", { inSlot: "highest" }),
+        // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+        // (RRG 1.8 "First Player", p. 19).
+        chooseTarget("burned", { inSlot: "highest" }, { chooser: firstPlayer }),
         discard(chosen("burned")),
       ),
       option("Spider-Woman schemes", enemyScheme(theVillain)),

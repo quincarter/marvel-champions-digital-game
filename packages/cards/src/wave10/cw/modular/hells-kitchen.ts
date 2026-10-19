@@ -13,6 +13,7 @@ import {
   enemyTeamChooses,
   exhaust,
   exists,
+  firstPlayer,
   gainsKeyword,
   gets,
   ifThen,
@@ -27,7 +28,11 @@ import {
 import { STREET_DEFENDERS } from "./defenders.js";
 
 const HOST_MINION = query("minion", { hostOfSelf: true });
-const A_CHARACTER_YOU_CONTROL = chooseTarget("tired", query("character", { controller: "you" }));
+// No "choose": an encounter card targeting one of several eligible cards; the first player selects
+// (RRG 1.8 "First Player", p. 19).
+const A_CHARACTER_YOU_CONTROL = chooseTarget("tired", query("character", { controller: "you" }), {
+  chooser: firstPlayer,
+});
 const A_CHARACTER_THE_ENEMY_TEAM_PICKS = chooseTarget("tired", query("character", { controller: "you" }), {
   chooser: enemyTeamChooses,
 });
@@ -39,7 +44,7 @@ const A_CHARACTER_THE_ENEMY_TEAM_PICKS = chooseTarget("tired", query("character"
  *
  * **Daredevil (56189)**: When Revealed: "the enemy team exhausts a character you control" is the first player's choice
  * among the revealing player's characters, in a prompt marked as the enemy team's (owner's answer to question 6 = A,
- * 2026-10-11). Boost: the player activated against chooses the character to exhaust.
+ * 2026-10-11). Boost: the first player chooses the character to exhaust.
  *
  * **Iron Fist (56190)**: When Revealed: "Iron Fist attacks your leader" has no leader to attack cooperatively, so the
  * "Otherwise" sentence resolves: he activates against you (a minion, so no boost card). Boost: "The enemy leader attacks
@@ -49,7 +54,7 @@ const A_CHARACTER_THE_ENEMY_TEAM_PICKS = chooseTarget("tired", query("character"
  * **Resistance Fighter (56191)**: the attach sentence is the data host (`attachesTo`: a minion), several hosts being
  * the first player's choice (question 6 = A); with no minion in play the card gains surge (`cannotAttach`). The
  * attached minion gets +4 hit points and stalwart; the +1 ATK and +1 SCH are data. Boost: it is attached to a minion
- * engaged with the player activated against (chosen by that player if several).
+ * engaged with the player activated against (chosen by the first player if several).
  *
  * **Street Defenders (56192)**: the same card as The Defenders' 56187, the one shared definition.
  *
@@ -87,7 +92,7 @@ export const MODULAR_HELLS_KITCHEN: AbilityRegistry = defineAbilities({
     gainsKeyword({ name: "stalwart" }, HOST_MINION),
   ),
   "56191.boost": boost(
-    chooseTarget("host", query("minion", { engagedWithPlayer: you })),
+    chooseTarget("host", query("minion", { engagedWithPlayer: you }), { chooser: firstPlayer }),
     attachCard(self, chosen("host")),
   ),
 

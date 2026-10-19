@@ -10,7 +10,6 @@ import {
   chooseTarget,
   chosen,
   constant,
-  controllerOf,
   coveredByEngineRule,
   defineAbilities,
   discard,
@@ -20,6 +19,7 @@ import {
   eachPlayer,
   exhaustYourHero,
   exists,
+  firstPlayer,
   forcedResponse,
   gets,
   ifThen,
@@ -41,8 +41,6 @@ import {
 } from "../../../dsl/index.js";
 
 const CONTROLLED = trait("CONTROLLED");
-/** "Maria Hill" the identity, whoever controls it: an encounter card has no controller, so `you` is nobody there. */
-const HILL_PLAYER = controllerOf(each(query("identity", { name: "Maria Hill" })));
 const CONTROLLED_MINIONS = query("minion", { trait: CONTROLLED });
 const FACEDOWN_CONTROLLED = query("minion", { trait: CONTROLLED, facedown: true });
 /** "a support" with an all-purpose counter to take (a support without one cannot have one removed). */
@@ -95,7 +93,9 @@ export const MARIA_HILL_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities({
 
   "50030.controller-forced-response": forcedResponse(
     after.enemyActivates("self", { againstYou: true }),
-    chooseTarget("support", SUPPORT_WITH_COUNTER),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseTarget("support", SUPPORT_WITH_COUNTER, { chooser: firstPlayer }),
     removeCountersFrom(chosen("support"), "any", 1),
     ifThen(inPlay("Controlled Innocents"), controlledFromDeck),
   ),
@@ -122,7 +122,7 @@ export const MARIA_HILL_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities({
         exists(CONTROLLED_MINIONS),
         selectCards("minion", atMost(1, cards(each(CONTROLLED_MINIONS)))),
         discard(chosen("minion")),
-        chooseTarget("support", query("support"), { chooser: HILL_PLAYER }),
+        chooseTarget("support", query("support"), { chooser: firstPlayer }),
         addCounters("allPurpose", 1, chosen("support")),
       ),
     ),
@@ -139,7 +139,7 @@ export const MARIA_HILL_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities({
   ),
 
   "50033.when-revealed": whenRevealed(
-    chooseTarget("support", SUPPORT_WITH_COUNTER),
+    chooseTarget("support", SUPPORT_WITH_COUNTER, { chooser: firstPlayer }),
     removeCountersFrom(chosen("support"), "any", 1),
     ifThen(inPlay("Controlled Innocents"), controlledFromDeck),
   ),

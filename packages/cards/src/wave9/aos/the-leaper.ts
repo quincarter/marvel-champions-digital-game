@@ -13,6 +13,7 @@ import {
   eventPlayer,
   eventTarget,
   find,
+  firstPlayer,
   forcedInterrupt,
   ifThen,
   moveCards,
@@ -86,7 +87,9 @@ export const THE_LEAPER: AbilityRegistry = defineAbilities({
     ifThen(
       activationIs("attack"),
       atEndOfActivation(
-        chooseTarget("minion", query("minion", notMatching({ engagedWithPlayer: you }))),
+        // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+        // (RRG 1.8 "First Player", p. 19).
+        chooseTarget("minion", query("minion", notMatching({ engagedWithPlayer: you })), { chooser: firstPlayer }),
         engage(chosen("minion"), you),
       ),
     ),

@@ -126,7 +126,9 @@ export const FNE_SCENARIOS_STOP_THE_PRESSES: AbilityRegistry = defineAbilities({
       option(
         "Remove 1 stamina counter from a Daily Bugle support you control",
         { when: exists(YOUR_BUGLE_SUPPORT) },
-        chooseTarget("support", YOUR_BUGLE_SUPPORT),
+        // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+        // (RRG 1.8 "First Player", p. 19).
+        chooseTarget("support", YOUR_BUGLE_SUPPORT, { chooser: firstPlayer }),
         removeCountersFrom(chosen("support"), "stamina", 1),
       ),
     ),

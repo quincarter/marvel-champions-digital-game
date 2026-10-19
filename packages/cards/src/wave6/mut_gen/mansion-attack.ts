@@ -78,7 +78,9 @@ const AFTER_ATTACKS_YOU = on.enemyAttacks("self", { againstYou: true });
 const avalancheForcedResponse = () =>
   forcedResponse(
     AFTER_ATTACKS_YOU,
-    chooseTarget("ally", query("ally", { controller: "you", exhausted: false })),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseTarget("ally", query("ally", { controller: "you", exhausted: false }), { chooser: firstPlayer }),
     exhaust(chosen("ally")),
   );
 /** "Blob": "[star] Forced Response: After Blob attacks and damages a character, stun that character." */

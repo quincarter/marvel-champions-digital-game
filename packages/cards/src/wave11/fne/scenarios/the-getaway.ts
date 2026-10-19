@@ -16,6 +16,7 @@ import {
   eventAmount,
   exhaust,
   exists,
+  firstPlayer,
   flipCard,
   forcedInterrupt,
   forEachPlayer,
@@ -152,7 +153,11 @@ export const FNE_SCENARIOS_THE_GETAWAY: AbilityRegistry = defineAbilities({
         option(
           "Exhaust a character you control",
           { when: exists(query("character", { controller: "you", exhausted: false })) },
-          chooseTarget("character", query("character", { controller: "you", exhausted: false })),
+          // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+          // (RRG 1.8 "First Player", p. 19).
+          chooseTarget("character", query("character", { controller: "you", exhausted: false }), {
+            chooser: firstPlayer,
+          }),
           exhaust(chosen("character")),
         ),
         option("Take 1 indirect damage", dealIndirectDamage(you, 1)),

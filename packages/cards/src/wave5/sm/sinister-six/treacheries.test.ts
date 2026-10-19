@@ -9,6 +9,7 @@ import {
   instancesOf,
   mainThreat,
   P1,
+  P2,
   settle,
   stackEncounterDeck,
   toHero,
@@ -300,5 +301,45 @@ describe("Surprise! (27112)", () => {
     const threatBefore = inst(state, light).threat;
     const after = reveal(state, "27112");
     expect(inst(after, light).threat).toBe(threatBefore + 3); // "place 3 threat on Light at the End"
+  });
+});
+
+describe("E32: High Fashion (27109) ties go to the first player", () => {
+  it("revealed to P2 with Electro in play, a tie on P2's highest-cost cards is broken by P1 (RRG 1.8 'First Player', p. 19)", () => {
+    let state = sinisterSixGame([
+      { starterDeckId: "ghost-spider" },
+      { starterDeckId: "core-black-panther-protection" },
+    ]);
+    state = forceVillainsInPlay(state, [ELECTRO, DOC_OCK]);
+    // Two Med Teams (cost 3 each) in P2's play area: a tie on "the highest-cost card you control".
+    const medTeams = state.players[1]!.deck.filter((i) => inst(state, i).cardId === "01080").slice(0, 2);
+    expect(medTeams).toHaveLength(2);
+    state = {
+      ...state,
+      players: state.players.map((p) =>
+        p.playerId === P2
+          ? { ...p, deck: p.deck.filter((i) => !medTeams.includes(i)), playArea: [...p.playArea, ...medTeams] }
+          : p,
+      ),
+      instances: Object.fromEntries(
+        Object.entries(state.instances).map(([id, v]) => [
+          id,
+          medTeams.includes(id as InstanceId) ? { ...v, faceup: true, controllerId: P2 } : v,
+        ]),
+      ) as GameState["instances"],
+    };
+    // Both heroes stay in alter-ego form (the villain only schemes); the cards ahead of High Fashion are the boost and P1's reveal, so P2 reveals it.
+    const staged = stackEncounterDeck(state, FILLER, "01187", "01188", "27109");
+    const asked = settle(
+      runWave5(staged, endTurn(P1), endTurn(P2)),
+      firstLegal,
+      (s) =>
+        s.pendingChoice?.prompt.kind === "chooseTarget" &&
+        (s.pendingChoice.prompt as { slot?: string }).slot === "hf-highest-pick",
+      WAVE5_DEPS,
+    );
+    const choice = asked.pendingChoice!;
+    expect(choice.playerId).toBe(P1);
+    expect(choice.options.map((o) => o.optionId).sort()).toEqual([...medTeams].sort());
   });
 });

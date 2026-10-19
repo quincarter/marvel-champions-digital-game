@@ -93,9 +93,11 @@ const [kravenForcedResponse, kravenWhenDefeated] = sinisterSixVillain([
 ]);
 
 const [scorpionForcedResponse, scorpionWhenDefeated] = sinisterSixVillain([
-  // "Stun a character you control": the attacked player chooses among their identity and allies, as Double Trouble
+  // "Stun a character you control": the first player picks among the attacked player's identity and allies, as Double Trouble
   // (`hood/beasty-boys.ts` 24017) does.
-  chooseTarget("stunned", query("character", { controller: "you" })),
+  // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+  // (RRG 1.8 "First Player", p. 19).
+  chooseTarget("stunned", query("character", { controller: "you" }), { chooser: firstPlayer }),
   stun(chosen("stunned")),
 ]);
 

@@ -12,6 +12,7 @@ import {
   encounterCards,
   enemyActivates,
   exhaust,
+  firstPlayer,
   forcedInterrupt,
   giveTough,
   heal,
@@ -108,7 +109,9 @@ export const SAURON: AbilityRegistry = defineAbilities({
     ...perIcon("eye", "mental", () => discardFromHand(1)),
     ...perIcon("eye", "physical", () => dealDamage(1, yourIdentity)),
     ...perIcon("eye", "wild", () => [
-      chooseTarget("tired", query("character", { controller: "you" })),
+      // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+      // (RRG 1.8 "First Player", p. 19).
+      chooseTarget("tired", query("character", { controller: "you" }), { chooser: firstPlayer }),
       exhaust(chosen("tired")),
     ]),
   ),

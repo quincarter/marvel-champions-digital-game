@@ -339,14 +339,16 @@ describe("Spectrum (56156) Boost: exhaust a character you control", () => {
     expect(exhaustedIds(run.events)).toEqual([hero(state)]);
   });
 
-  it("the prompt is the activated player's own (not the enemy team's) and offers the hero and the ally", () => {
+  // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+  // (RRG 1.8 "First Player", p. 19).
+  it("the prompt is the first player's (not the enemy team's) and offers the activated player's hero and ally", () => {
     const { state, ally } = withAlly();
     const asked = until(
       stackEncounterDeck(state, SPECTRUM, GLIDE),
       endTurn(P1),
       (s) => s.pendingChoice?.prompt.kind === "chooseTarget",
     );
-    expect(asked.state.pendingChoice).toMatchObject({ playerId: P1, authority: "player" });
+    expect(asked.state.pendingChoice).toMatchObject({ playerId: P1, authority: "firstPlayerTargets" });
     expect(offeredCards(asked.state).sort()).toEqual([hero(state), ally].sort());
   });
 

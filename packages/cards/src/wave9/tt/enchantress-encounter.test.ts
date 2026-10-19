@@ -1000,3 +1000,38 @@ describe("Trance of Wrath's Forced Action with a minion in play (55011b)", () =>
     expect(damageOn(sim.state, lackey)).toBe(2);
   });
 });
+
+// No "choose": an encounter card targeting one of several eligible cards; the first player selects
+// (RRG 1.8 "First Player", p. 19).
+describe("Trance of Pride / Wrath Forced Actions, 2 players: the holder is not the first player, who picks the target", () => {
+  /** Uses the holder's Trance; records who is asked a chooseTarget, and picks the last option. */
+  function useAs(sim: Sim, holder: PlayerId, gaze: InstanceId, ref: string): PlayerId[] {
+    const asked: PlayerId[] = [];
+    const pick: Picker = (s) => {
+      const choice = s.pendingChoice!;
+      if (choice.prompt.kind === "chooseTarget") asked.push(choice.playerId);
+      return [choice.options.at(-1)!.optionId];
+    };
+    run(sim, use(holder, gaze, ref), pick);
+    return asked;
+  }
+
+  it("Trance of Wrath: the first player picks which of two minions takes 2 damage", () => {
+    const sim = open([SPIDER_MAN, IRON_MAN]);
+    round(sim, [BLANK, BLANK, "55017", "55017"], firstLegal, [P1, P2]);
+    // The round passed the first player token to P2, so P1 holds the Trance and P2 is asked.
+    expect(sim.state.firstPlayerId).toBe(P2);
+    const gaze = enthrall(sim, P1, "55011a");
+    sim.state = patchInstance(sim.state, gaze, { exhausted: false });
+    expect(useAs(sim, P1, gaze, "55011b.trance-of-wrath-forced-action")).toEqual([P2]);
+  });
+
+  it("Trance of Pride: the first player picks which of two side schemes loses 2 threat", () => {
+    const sim = open([SPIDER_MAN, IRON_MAN]);
+    round(sim, [BLANK, BLANK, "55021"], firstLegal, [P1, P2]);
+    expect(sim.state.firstPlayerId).toBe(P2);
+    const gaze = enthrall(sim, P1, "55009a");
+    sim.state = patchInstance(sim.state, gaze, { exhausted: false });
+    expect(useAs(sim, P1, gaze, "55009b.trance-of-pride-forced-action")).toEqual([P2]);
+  });
+});

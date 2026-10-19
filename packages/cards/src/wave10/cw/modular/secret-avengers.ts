@@ -13,6 +13,7 @@ import {
   enemyLeader,
   enemyTeamChooses,
   exhaust,
+  firstPlayer,
   giveBoostCard,
   ifThen,
   inCompetitiveMode,
@@ -71,7 +72,12 @@ export const MODULAR_SECRET_AVENGERS: AbilityRegistry = defineAbilities({
   "56155.boost": boost(exhaust(each(query("upgrade", { controller: "you" })))),
 
   "56156.when-defeated": GIVEN_TO_THE_ENEMY_LEADER,
-  "56156.boost": boost(chooseTarget("tired", query("character", { controller: "you" })), exhaust(chosen("tired"))),
+  // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+  // (RRG 1.8 "First Player", p. 19).
+  "56156.boost": boost(
+    chooseTarget("tired", query("character", { controller: "you" }), { chooser: firstPlayer }),
+    exhaust(chosen("tired")),
+  ),
 
   "56157.when-revealed": FREEDOM_FIGHTERS_WHEN_REVEALED,
   "56157.boost": FREEDOM_FIGHTERS_BOOST,
@@ -80,7 +86,7 @@ export const MODULAR_SECRET_AVENGERS: AbilityRegistry = defineAbilities({
     // Read before the discard: with an ally to discard none is missing, with none "no ally left play this way".
     ifThen(
       exists(AN_ALLY_YOU_CONTROL),
-      [chooseTarget("ally", AN_ALLY_YOU_CONTROL), discard(chosen("ally"))],
+      [chooseTarget("ally", AN_ALLY_YOU_CONTROL, { chooser: firstPlayer }), discard(chosen("ally"))],
       [surge()],
     ),
     ifThen(inCompetitiveMode(), [

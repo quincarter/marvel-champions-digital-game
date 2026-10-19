@@ -17,6 +17,7 @@ import {
   eventTargetsTogether,
   exists,
   findCard,
+  firstPlayer,
   forcedInterrupt,
   forcedResponse,
   gainsKeywordX,
@@ -108,7 +109,9 @@ export const HULKLING_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities({
     ifThen(milled("mental"), discardFromHand(1)),
     ifThen(milled("physical"), giveTough(self)),
     ifThen(allOf(milled("wild"), exists(YOUR_UPGRADES)), [
-      chooseTarget("upgrade", YOUR_UPGRADES),
+      // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+      // (RRG 1.8 "First Player", p. 19).
+      chooseTarget("upgrade", YOUR_UPGRADES, { chooser: firstPlayer }),
       discard(chosen("upgrade")),
     ]),
   ),

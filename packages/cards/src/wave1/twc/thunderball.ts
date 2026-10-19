@@ -52,6 +52,7 @@ import {
   whenRevealedAlterEgo,
   whenRevealedHero,
   you,
+  firstPlayer,
 } from "../../dsl/index.js";
 import {
   enemyAttackAfterThisNoBoost,
@@ -183,7 +184,9 @@ export const THUNDERBALL_SET = defineAbilities({
       chooseOne(
         option(
           "Discard an upgrade you control",
-          chooseTarget("discarded-upgrade", query("upgrade", { controller: "you" })),
+          // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+          // (RRG 1.8 "First Player", p. 19).
+          chooseTarget("discarded-upgrade", query("upgrade", { controller: "you" }), { chooser: firstPlayer }),
           discard(chosen("discarded-upgrade")),
         ),
         option(
@@ -196,7 +199,7 @@ export const THUNDERBALL_SET = defineAbilities({
   ),
   "07026.boost": boost(
     ifThen(undefendedAttack, [
-      chooseTarget("chaos-boost-upgrade", query("upgrade", { controller: "you" })),
+      chooseTarget("chaos-boost-upgrade", query("upgrade", { controller: "you" }), { chooser: firstPlayer }),
       discard(chosen("chaos-boost-upgrade")),
     ]),
   ),

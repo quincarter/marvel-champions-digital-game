@@ -7,6 +7,7 @@ import {
   dealDamage,
   defineAbilities,
   enemyActivates,
+  firstPlayer,
   modifyAttack,
   option,
   placeThreat,
@@ -53,7 +54,9 @@ export const AGE_OF_APOCALYPSE: AbilityRegistry = defineAbilities({
   ),
   // [star] Boost: Deal 1 damage to an ally at the mission. Give the activating enemy an additional boost card.
   "45164.boost": boost(
-    chooseTarget("ally", ALLY_AT_THE_MISSION),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseTarget("ally", ALLY_AT_THE_MISSION, { chooser: firstPlayer }),
     dealDamage(1, chosen("ally")),
     modifyAttack({ extraBoostCards: 1 }),
   ),

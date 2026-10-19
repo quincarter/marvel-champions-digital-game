@@ -18,6 +18,7 @@ import {
   encounterCards,
   encounterSetAside,
   enemyActivates,
+  firstPlayer,
   forEachPlayer,
   forcedResponse,
   gainsKeyword,
@@ -146,7 +147,9 @@ const blankIdentityOf = (player: PlayerRef): EffectSpec =>
 const FORCED_RESPONSE: Readonly<Record<Horseman, AbilityDefinition>> = {
   // Discard an upgrade or support you control (nothing happens with none; a permanent card is no target).
   War: afterAttackingYou(
-    chooseTarget("lost", query(["upgrade", "support"], { controller: "you" })),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseTarget("lost", query(["upgrade", "support"], { controller: "you" }), { chooser: firstPlayer }),
     discard(chosen("lost")),
   ),
   Famine: afterAttackingYou(moveCards(topOfDeck(10, you), "discard")),

@@ -18,6 +18,7 @@ import {
   enemyAttack,
   exists,
   findCard,
+  firstPlayer,
   forcedInterrupt,
   forcedResponse,
   giveBoostCard,
@@ -92,7 +93,9 @@ export const FNE_DAREDEVIL_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities
       option(
         "Discard a Persona support you control",
         { when: exists(YOUR_PERSONA_SUPPORT) },
-        chooseTarget("persona", YOUR_PERSONA_SUPPORT),
+        // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+        // (RRG 1.8 "First Player", p. 19).
+        chooseTarget("persona", YOUR_PERSONA_SUPPORT, { chooser: firstPlayer }),
         discard(chosen("persona")),
       ),
       option("Bullseye attacks you", enemyAttack(self, { against: you })),
@@ -124,7 +127,7 @@ export const FNE_DAREDEVIL_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities
       option(
         "Remove an ally or Persona support you control from the game",
         { when: exists(YOUR_ALLY_OR_PERSONA) },
-        chooseTarget("removed", YOUR_ALLY_OR_PERSONA),
+        chooseTarget("removed", YOUR_ALLY_OR_PERSONA, { chooser: firstPlayer }),
         moveCards(cards(chosen("removed")), "removedFromGame"),
       ),
       option(

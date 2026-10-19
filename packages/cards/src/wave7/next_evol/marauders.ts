@@ -12,6 +12,7 @@ import {
   discard,
   each,
   exists,
+  firstPlayer,
   forcedInterrupt,
   giveTough,
   hasStatus,
@@ -45,7 +46,7 @@ import {
  * Arclight and Vertigo give a status card to a character the player controls, so (Q8) that option is offered only if
  * some character can take it (`canTakeStatus`: not stalwart, not already holding one, a steady one holding fewer than
  * two). The B faces name "the character you control with the highest THW/ATK": the highest is found among every
- * character the player controls, the player breaks a tie, and the option is offered only if one of the tied
+ * character the player controls, the first player breaks a tie, and the option is offered only if one of the tied
  * characters can take the card (a character that cannot is not replaced by the next highest; flagged in the report).
  */
 const ATTACKS_YOU = () => on.enemyAttacks("self", { againstYou: true });
@@ -80,7 +81,9 @@ export const MARAUDERS: AbilityRegistry = defineAbilities({
       option(
         "Confuse a character you control",
         { when: exists(ABLE("confused")) },
-        chooseTarget("target", ABLE("confused")),
+        // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+        // (RRG 1.8 "First Player", p. 19).
+        chooseTarget("target", ABLE("confused"), { chooser: firstPlayer }),
         confuse(chosen("target")),
       ),
       option(`Arclight ${PLUS_2_ATK}`, modifyAttack({ atkBonus: 2 })),
@@ -93,7 +96,7 @@ export const MARAUDERS: AbilityRegistry = defineAbilities({
       option(
         "Confuse the character you control with the highest THW",
         { when: exists(ABLE_HIGHEST("confused")) },
-        chooseTarget("target", ABLE_HIGHEST("confused")),
+        chooseTarget("target", ABLE_HIGHEST("confused"), { chooser: firstPlayer }),
         confuse(chosen("target")),
       ),
       option(`Arclight ${PLUS_2_ATK}`, modifyAttack({ atkBonus: 2 })),
@@ -107,7 +110,7 @@ export const MARAUDERS: AbilityRegistry = defineAbilities({
       option(
         "Stun a character you control",
         { when: exists(ABLE("stunned")) },
-        chooseTarget("target", ABLE("stunned")),
+        chooseTarget("target", ABLE("stunned"), { chooser: firstPlayer }),
         stun(chosen("target")),
       ),
       option(`Vertigo ${PLUS_2_ATK}`, modifyAttack({ atkBonus: 2 })),
@@ -120,7 +123,7 @@ export const MARAUDERS: AbilityRegistry = defineAbilities({
       option(
         "Stun the character you control with the highest ATK",
         { when: exists(ABLE_HIGHEST("stunned")) },
-        chooseTarget("target", ABLE_HIGHEST("stunned")),
+        chooseTarget("target", ABLE_HIGHEST("stunned"), { chooser: firstPlayer }),
         stun(chosen("target")),
       ),
       option(`Vertigo ${PLUS_2_ATK}`, modifyAttack({ atkBonus: 2 })),
@@ -167,7 +170,7 @@ export const MARAUDERS: AbilityRegistry = defineAbilities({
     ),
   ),
 
-  // Greycrow. A tie for the highest cost is the attacked player's pick (A); B discards every tied card.
+  // Greycrow. A tie for the highest cost is the first player's pick (A); B discards every tied card.
   "40073a.greycrow-forced-interrupt": forcedInterrupt(
     ATTACKS_YOU(),
     chooseOne(
@@ -175,7 +178,7 @@ export const MARAUDERS: AbilityRegistry = defineAbilities({
         "Discard the highest-cost card you control",
         { when: exists(YOUR_COSTED_CARDS) },
         bindTargets("highest", highestCost("all")),
-        chooseTarget("pick", { inSlot: "highest" }),
+        chooseTarget("pick", { inSlot: "highest" }, { chooser: firstPlayer }),
         discard(chosen("pick")),
       ),
       option("Greycrow gets +X ATK for this attack", modifyAttack({ atkBonus: HIGHEST_PRINTED_COST })),

@@ -13,6 +13,7 @@ import {
   draw,
   each,
   eachPlayer,
+  firstPlayer,
   forEachPlayer,
   forcedInterrupt,
   forcedResponse,
@@ -113,8 +114,11 @@ export const WESTERN_ABILITIES = defineAbilities({
     draw(5),
     chooseCards("discarded", zone("hand", you), { min: 5, max: 5 }),
     moveCards(cards(chosen("discarded")), "discard"),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
     chooseTarget("lost", query(["upgrade", "support"], { controller: "you" }), {
       count: resourceTypesOf(chosen("discarded")),
+      chooser: firstPlayer,
     }),
     discard(chosen("lost")),
   ),

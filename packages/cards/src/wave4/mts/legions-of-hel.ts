@@ -5,6 +5,7 @@ import {
   chooseOne,
   chooseOneBy,
   chooseTarget,
+  firstPlayer,
   chosen,
   constant,
   countOf,
@@ -93,7 +94,8 @@ export const LEGIONS_OF_HEL = defineAbilities({
               printedCostOf(chosen("candidate")),
             ),
           ),
-          chooseTarget("discarded", { inSlot: "highestCost" }, { chooser: thatPlayer }),
+          // "They control" defines the pool; the tie inside it is the first player's (RRG 1.8 "First Player", p. 19).
+          chooseTarget("discarded", { inSlot: "highestCost" }, { chooser: firstPlayer }),
           discard(chosen("discarded")),
         ),
         option(

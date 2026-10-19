@@ -13,6 +13,7 @@ import {
   discard,
   each,
   enemyActivates,
+  firstPlayer,
   forEachPlayer,
   eachPlayer,
   forcedInterrupt,
@@ -129,7 +130,9 @@ export const UNUS: AbilityRegistry = defineAbilities({
 
   // Infinite Hunter — When Revealed: Deal 3 damage to an ally you control.
   "45065.when-revealed": whenRevealed(
-    chooseTarget("ally", query("ally", { controller: "you" })),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseTarget("ally", query("ally", { controller: "you" }), { chooser: firstPlayer }),
     dealDamage(3, chosen("ally")),
   ),
   // [star] Boost: Choose to either place 2 threat on Gene Pool, or the activating enemy gets +2 SCH and +2 ATK for this
@@ -152,7 +155,10 @@ export const UNUS: AbilityRegistry = defineAbilities({
   // Forced Interrupt: When attached minion is defeated, place 2 threat on Gene Pool.
   "45066.genetic-experiments-forced-interrupt": forcedInterrupt(on.defeated("host"), placeThreat(2, GENE_POOL)),
   // [star] Boost: Attach this card to an Infinite minion.
-  "45066.boost": boost(chooseTarget("host", INFINITE_MINION), attachCard(self, chosen("host"))),
+  "45066.boost": boost(
+    chooseTarget("host", INFINITE_MINION, { chooser: firstPlayer }),
+    attachCard(self, chosen("host")),
+  ),
 
   // Infinite Prelate — When Revealed: Unus activates against you (at 9 threat with one more boost card, Q8 = A). Then,
   // at 3: give Unus a tough status card; at 6: also heal 3 damage from Unus.

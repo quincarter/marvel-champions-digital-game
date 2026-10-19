@@ -15,6 +15,7 @@ import {
   engagedPlayerOf,
   exhaustCardsCost,
   exists,
+  firstPlayer,
   ifThen,
   placeThreat,
   query,
@@ -62,7 +63,9 @@ export const SHIELD: AbilityRegistry = defineAbilities({
         chooseCards("victim", cards(each(TROOPER_VICTIMS)), {
           min: 1,
           max: 1,
-          chooser: engagedPlayerOf(self),
+          // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+          // (RRG 1.8 "First Player", p. 19).
+          chooser: firstPlayer,
         }),
         discard(chosen("victim")),
       ],

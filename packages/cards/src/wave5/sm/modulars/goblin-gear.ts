@@ -34,6 +34,7 @@ import {
   whenRevealed,
   you,
   zone,
+  firstPlayer,
 } from "../../../dsl/index.js";
 
 const ATTACK = trait("ATTACK");
@@ -85,9 +86,11 @@ export const GOBLIN_GEAR = defineAbilities({
   "27137.concussive-bombs-forced-response": forcedResponse(
     after.villainAttacks({ againstYou: true }),
     { cost: removeCounter("bomb", 1) },
-    chooseTarget("upgrade", query("upgrade", { controller: "you" })),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseTarget("upgrade", query("upgrade", { controller: "you" }), { chooser: firstPlayer }),
     exhaust(chosen("upgrade")),
-    chooseTarget("support", query("support", { controller: "you" })),
+    chooseTarget("support", query("support", { controller: "you" }), { chooser: firstPlayer }),
     exhaust(chosen("support")),
   ),
 

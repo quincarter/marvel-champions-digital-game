@@ -20,6 +20,7 @@ export const MSM_OBLIGATION = defineAbilities({
     effects: [
       ifThen(
         exists(PERSONA_SUPPORT_YOU_CONTROL),
+        // RRG 1.8 "Obligation" p.30 / "Ability" p.4: the obligation's player decides how to resolve it (specific over "First Player" p.19).
         [chooseTarget("discarded", PERSONA_SUPPORT_YOU_CONTROL), discard(chosen("discarded"))],
         surge(),
       ),

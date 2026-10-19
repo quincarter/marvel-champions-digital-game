@@ -11,6 +11,7 @@ import {
   discard,
   enemyLeader,
   exists,
+  firstPlayer,
   forcedResponse,
   giveTough,
   heal,
@@ -28,8 +29,12 @@ import {
 
 const CLOAK = "Cloak";
 const DAGGER = "Dagger";
-const A_SCHEME = chooseTarget("scheme", query("scheme"));
-const A_CHARACTER_YOU_CONTROL = chooseTarget("victim", query("character", { controller: "you" }));
+// No "choose": an encounter card targeting one of several eligible cards; the first player selects
+// (RRG 1.8 "First Player", p. 19).
+const A_SCHEME = chooseTarget("scheme", query("scheme"), { chooser: firstPlayer });
+const A_CHARACTER_YOU_CONTROL = chooseTarget("victim", query("character", { controller: "you" }), {
+  chooser: firstPlayer,
+});
 
 /**
  * Modular encounter set `cloak_and_dagger_modular` (Civil War, Resistance side; docs/phase7-wave10.md sections 3.4,

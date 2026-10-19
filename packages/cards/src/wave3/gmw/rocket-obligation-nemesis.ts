@@ -1,5 +1,7 @@
 import {
   andThen,
+  bindTargets,
+  chooseTarget,
   chosen,
   defineAbilities,
   discard,
@@ -34,11 +36,15 @@ export const ROCKET_OBLIGATION_NEMESIS = defineAbilities({
     effects: [
       ifThen(
         exists(query("upgrade", { controller: "you" })),
-        discard(
-          superlative("highest", each(query("upgrade", { controller: "you" })), printedCostOf(chosen("candidate")), {
-            ties: "first",
-          }),
-        ),
+        [
+          bindTargets(
+            "highest-upgrades",
+            superlative("highest", each(query("upgrade", { controller: "you" })), printedCostOf(chosen("candidate"))),
+          ),
+          // RRG 1.8 "Obligation" p.30 / "Ability" p.4: the obligation's player decides how to resolve it (specific over "First Player" p.19).
+          chooseTarget("highest-upgrade", { inSlot: "highest-upgrades" }),
+          discard(chosen("highest-upgrade")),
+        ],
         surge(),
       ),
     ],

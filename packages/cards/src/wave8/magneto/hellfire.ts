@@ -12,6 +12,7 @@ import {
   enemyActivates,
   activatingEnemy,
   exists,
+  firstPlayer,
   forcedResponse,
   giveBoostCard,
   giveTough,
@@ -65,7 +66,9 @@ export const HELLFIRE: AbilityRegistry = defineAbilities({
   ),
   // [star] Boost: Discard an ally you control.
   "49039.boost": boost(
-    chooseTarget("ally", query("ally", { controller: "you" })),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseTarget("ally", query("ally", { controller: "you" }), { chooser: firstPlayer }),
     ifThen(exists(query("ally", { controller: "you" })), discard(chosen("ally"))),
   ),
 

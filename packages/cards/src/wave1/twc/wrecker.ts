@@ -53,6 +53,7 @@ import {
   whenRevealedAlterEgo,
   whenRevealedHero,
   you,
+  firstPlayer,
 } from "../../dsl/index.js";
 import {
   enemyAttackAfterThisNoBoost,
@@ -188,7 +189,9 @@ export const WRECKER_SET = defineAbilities({
       chooseOne(
         option(
           "Discard an upgrade you control",
-          chooseTarget("discarded-upgrade", query("upgrade", { controller: "you" })),
+          // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+          // (RRG 1.8 "First Player", p. 19).
+          chooseTarget("discarded-upgrade", query("upgrade", { controller: "you" }), { chooser: firstPlayer }),
           discard(chosen("discarded-upgrade")),
         ),
         option(
@@ -202,7 +205,7 @@ export const WRECKER_SET = defineAbilities({
   // [star] Boost: If this attack is undefended, discard an upgrade you control.
   "07011.boost": boost(
     ifThen(undefendedAttack, [
-      chooseTarget("chaos-boost-upgrade", query("upgrade", { controller: "you" })),
+      chooseTarget("chaos-boost-upgrade", query("upgrade", { controller: "you" }), { chooser: firstPlayer }),
       discard(chosen("chaos-boost-upgrade")),
     ]),
   ),
@@ -248,11 +251,12 @@ export const WRECKER_SET = defineAbilities({
   // You're Dead Meat! — When Revealed: Deal 1 damage to the hero or ally with the fewest remaining hit points. If
   // that character is defeated this way, place 3 threat on Wrecker's side scheme.
   "07016.when-revealed": whenRevealed(
-    dealDamage(
-      1,
-      superlative("lowest", each(FRIENDLY_CHARACTER), remainingHpOf(chosen("candidate")), { ties: "first" }),
-      { bind: "hit" },
+    bindTargets(
+      "dead-meat-fewest",
+      superlative("lowest", each(FRIENDLY_CHARACTER), remainingHpOf(chosen("candidate"))),
     ),
+    chooseTarget("dead-meat-pick", { inSlot: "dead-meat-fewest" }, { chooser: firstPlayer }),
+    dealDamage(1, chosen("dead-meat-pick"), { bind: "hit" }),
     ifThen(varAtLeast("hit.defeated"), placeThreat(3, signatureSideSchemeOf(named("Wrecker")))),
   ),
 });

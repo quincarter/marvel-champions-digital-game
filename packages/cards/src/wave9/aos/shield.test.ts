@@ -2,12 +2,25 @@ import { cardId } from "@mc/content";
 import { cardsInPlay, playCostOf, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { validateDefinition } from "../../dsl/validate.js";
-import { P1, identityOf, inst, instancesOf, firstLegal, patchInstance, playerOf, use } from "../../testing/harness.js";
+import {
+  P1,
+  P2,
+  endTurn,
+  identityOf,
+  inst,
+  instancesOf,
+  firstLegal,
+  patchInstance,
+  playerOf,
+  use,
+} from "../../testing/harness.js";
 import { driveEventsPicking } from "../../testing/staging.js";
 import { engageMinion } from "../../wave6/mut_gen/project-wideawake-testing.js";
 import {
   BLANK,
   FILLER_A,
+  IRON_MAN,
+  SPIDER_MAN,
   codeOf,
   dataOf,
   heroForm,
@@ -156,6 +169,46 @@ describe("S.H.I.E.L.D. Trooper (50178)", () => {
     });
     expect(playerOf(run.state, P1).discard).toContain(second.id);
     expect(playerOf(run.state, P1).playArea).toContain(first.id);
+  });
+
+  // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+  // (RRG 1.8 "First Player", p. 19).
+  it("2 players: P2 is the engaged player, P2 discards, but the first player (P1) is asked which of P2's candidates", () => {
+    const base = setupGame([SPIDER_MAN, IRON_MAN]);
+    const stage = (state: GameState, code: string) => {
+      const id = playerOf(state, P2).deck[0]!;
+      const relabeled = relabel(state, id, code);
+      return {
+        id,
+        state: {
+          ...relabeled,
+          players: relabeled.players.map((p) =>
+            p.playerId === P2 ? { ...p, deck: p.deck.filter((i) => i !== id), playArea: [...p.playArea, id] } : p,
+          ),
+          instances: { ...relabeled.instances, [id]: { ...relabeled.instances[id]!, faceup: true } },
+        },
+      };
+    };
+    const first = stage(base, MARIA_HILL_ALLY);
+    const second = stage(first.state, SUPPORT_STAFF);
+    const { state, id: engagedId } = engageMinion(heroForm(second.state, P1, P2), TROOPER, P2);
+    const staged = patchInstance(state, engagedId, { damage: 3 });
+    const askedPlayers: string[] = [];
+    const pickSecond = (s: GameState) => {
+      const options = s.pendingChoice!.options;
+      const match = options.find((o) => o.ref.kind === "card" && o.ref.instanceId === second.id);
+      if (match) askedPlayers.push(s.pendingChoice!.playerId);
+      return [(match ?? options[0]!).optionId];
+    };
+    const run = driveEventsPicking(DEPS, staged, pickSecond, endTurn(P1), {
+      type: "basicAttack",
+      playerId: P2,
+      attackerInstanceId: identityOf(staged, P2),
+      targetInstanceId: engagedId,
+    });
+    expect(askedPlayers).toEqual([P1]);
+    expect(playerOf(run.state, P2).discard).toContain(second.id);
+    expect(playerOf(run.state, P2).playArea).toContain(first.id);
   });
 
   it("When Defeated: a card that is not S.H.I.E.L.D. (an ally of another trait) does not count: 2 threat", () => {

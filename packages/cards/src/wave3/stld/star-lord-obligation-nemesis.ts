@@ -35,6 +35,7 @@ export const STAR_LORD_OBLIGATION_NEMESIS = defineAbilities({
     effects: [
       ifThen(
         exists(ELEMENT_GUN_IN_PLAY),
+        // RRG 1.8 "Obligation" p.30 / "Ability" p.4: the obligation's player decides how to resolve it (specific over "First Player" p.19).
         [chooseTarget("gun", ELEMENT_GUN_IN_PLAY), discard(chosen("gun"))],
         placeThreat(3, theMainScheme),
       ),

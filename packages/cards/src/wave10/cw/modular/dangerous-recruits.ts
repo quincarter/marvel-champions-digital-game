@@ -12,6 +12,7 @@ import {
   enemyActivates,
   enemyLeader,
   exists,
+  firstPlayer,
   forcedInterrupt,
   ifThen,
   inCompetitiveMode,
@@ -73,7 +74,12 @@ export const MODULAR_DANGEROUS_RECRUITS: AbilityRegistry = defineAbilities({
     ifThen(
       inCompetitiveMode(),
       [competitiveOnly("The enemy team discards an attachment from your leader.")],
-      [chooseTarget("upgrade", query("upgrade", { controller: "you" })), discard(chosen("upgrade"))],
+      // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+      // (RRG 1.8 "First Player", p. 19).
+      [
+        chooseTarget("upgrade", query("upgrade", { controller: "you" }), { chooser: firstPlayer }),
+        discard(chosen("upgrade")),
+      ],
     ),
   ),
 

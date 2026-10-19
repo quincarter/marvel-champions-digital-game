@@ -10,6 +10,7 @@ import {
   encounterCards,
   enemyActivates,
   exists,
+  firstPlayer,
   forcedResponse,
   gets,
   ifThen,
@@ -77,7 +78,13 @@ export const MYSTIQUE_ABILITIES = defineAbilities({
   "32082.when-revealed": whenRevealed(moveCardsInto(cards(self), "deckShuffle", you), surge()),
   // Forced Response: After this card enters your hand, discard an ally or support you control.
   "32082.infiltration-forced-response": inHand(
-    forcedResponse(on.thisEntersYourHand(), chooseTarget("victim", YOUR_ALLY_OR_SUPPORT), discard(chosen("victim"))),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    forcedResponse(
+      on.thisEntersYourHand(),
+      chooseTarget("victim", YOUR_ALLY_OR_SUPPORT, { chooser: firstPlayer }),
+      discard(chosen("victim")),
+    ),
   ),
 
   // Shapeshifter Surprise (32083) — When Revealed: Shuffle this card into your deck. This card gains surge.

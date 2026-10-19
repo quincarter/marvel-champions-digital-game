@@ -15,6 +15,7 @@ import {
   encounterCards,
   exhaust,
   eventTarget,
+  firstPlayer,
   gainsKeyword,
   gets,
   giveTough,
@@ -62,11 +63,16 @@ export const BROTHERHOOD_ABILITIES = defineAbilities({
   // Avalanche (32073) — Forced Response: After Avalanche attacks you, exhaust a character you control.
   "32073.avalanche-forced-response": forcedResponse(
     after.enemyAttacks("self", { againstYou: true }),
-    chooseTarget("char", query("character", { controller: "you" })),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseTarget("char", query("character", { controller: "you" }), { chooser: firstPlayer }),
     exhaust(chosen("char")),
   ),
   // [star] Boost: Exhaust a character you control.
-  "32073.boost": boost(chooseTarget("char", query("character", { controller: "you" })), exhaust(chosen("char"))),
+  "32073.boost": boost(
+    chooseTarget("char", query("character", { controller: "you" }), { chooser: firstPlayer }),
+    exhaust(chosen("char")),
+  ),
 
   // Blob (32074, Guard is data) — Forced Response: After Blob attacks and damages a character, stun that character.
   "32074.blob-forced-response": forcedResponse(after.enemyAttacks("self", { damages: true }), stun(eventTarget)),
@@ -95,7 +101,11 @@ export const BROTHERHOOD_ABILITIES = defineAbilities({
   // Attached minion gets +5 hit points.
   "32077.homo-superior-constant-2": constant(gets("hp", 5, HOST_MINION)),
   // [star] Boost: Attach this card to a minion and give it a tough status card.
-  "32077.boost": boost(chooseTarget("host", ANY_MINION), attachCard(self, chosen("host")), giveTough(chosen("host"))),
+  "32077.boost": boost(
+    chooseTarget("host", ANY_MINION, { chooser: firstPlayer }),
+    attachCard(self, chosen("host")),
+    giveTough(chosen("host")),
+  ),
 
   // Mutant Terrorists (32078) — When Revealed: Search the encounter deck and discard pile for The Brotherhood side
   // scheme and reveal it. (Shuffle.) If it did not enter play this way, discard cards from the top of the encounter deck

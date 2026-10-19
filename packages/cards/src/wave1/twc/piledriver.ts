@@ -52,6 +52,7 @@ import {
   you,
   yourIdentity,
   YOUR_HERO,
+  firstPlayer,
 } from "../../dsl/index.js";
 import {
   enemyAttackAfterThisNoBoost,
@@ -95,8 +96,8 @@ export const PILEDRIVER_SET = defineAbilities({
   // Pile Drive — Forced Response: After threat is placed here, if there is 10 or more threat here, each player
   // discards the upgrade or support they control with the highest cost. Remove all but 3 threat from this scheme.
   // `threatAtLeast` (wave B primitives batch, docs/phase7-wave1-scripting.md §6) is the same live-threat-vs-
-  // threshold read Day of Reckoning's Hard Hitter needed (`wrecker.ts`). A tie is broken by each player's own
-  // choice among their tied cards, matching Burn Notice's identical "the card with the highest cost" reading
+  // threshold read Day of Reckoning's Hard Hitter needed (`wrecker.ts`). A tie is broken by the first player
+  // (E32), not the obligation-style reading Burn Notice uses for its own player
   // (`wave1/bkw/obligation.ts`).
   "07034.pile-drive": forcedResponse(
     after.threatPlaced("self"),
@@ -112,7 +113,8 @@ export const PILEDRIVER_SET = defineAbilities({
               printedCostOf(chosen("candidate")),
             ),
           ),
-          chooseTarget("burned", { inSlot: "pd" }, { chooser: thatPlayer }),
+          // "They control" defines the pool; the tie inside it is the first player's (RRG 1.8 "First Player", p. 19).
+          chooseTarget("burned", { inSlot: "pd" }, { chooser: firstPlayer }),
           discard(chosen("burned")),
         ]),
       ),
@@ -178,18 +180,23 @@ export const PILEDRIVER_SET = defineAbilities({
   "07042.when-revealed": whenRevealed(
     ifThen(
       exists(query("support", { controller: "you" })),
-      discard(
-        superlative("highest", each(query("support", { controller: "you" })), printedCostOf(chosen("candidate")), {
-          ties: "first",
-        }),
-      ),
+      [
+        bindTargets(
+          "oversized-hands-highest",
+          superlative("highest", each(query("support", { controller: "you" })), printedCostOf(chosen("candidate"))),
+        ),
+        chooseTarget("oversized-hands-tied", { inSlot: "oversized-hands-highest" }, { chooser: firstPlayer }),
+        discard(chosen("oversized-hands-tied")),
+      ],
       placeThreat(2, signatureSideSchemeOf(theVillain)),
     ),
   ),
   // [star] Boost: Discard a support you control.
   "07042.boost": boost(
     ifThen(exists(query("support", { controller: "you" })), [
-      chooseTarget("oversized-hands-support", query("support", { controller: "you" })),
+      // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+      // (RRG 1.8 "First Player", p. 19).
+      chooseTarget("oversized-hands-support", query("support", { controller: "you" }), { chooser: firstPlayer }),
       discard(chosen("oversized-hands-support")),
     ]),
   ),

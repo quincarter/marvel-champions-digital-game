@@ -12,6 +12,7 @@ import {
   eventAmount,
   exists,
   findCard,
+  firstPlayer,
   forcedInterrupt,
   ifThen,
   inPlay,
@@ -111,7 +112,9 @@ export const FNE_ECHO_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities({
 
   "60064.when-revealed-alter-ego": whenRevealedAlterEgo(ifThen(inPlay(KINGPIN), enemyScheme(named(KINGPIN)), surge())),
   "60064.when-revealed-hero": whenRevealedHero(
-    chooseTarget("hero", query("hero")),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseTarget("hero", query("hero"), { chooser: firstPlayer }),
     dealDamage(statOf(yourIdentity, "atk"), chosen("hero")),
   ),
 });

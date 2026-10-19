@@ -19,6 +19,7 @@ import {
   refMatches,
   stun,
   you,
+  firstPlayer,
 } from "../../../dsl/index.js";
 
 /**
@@ -76,7 +77,9 @@ export const SINISTER_ASSAULT = defineAbilities({
   "27161.kraven-the-hunter-forced-response": forcedResponse(
     after.enemyAttacks("self", { damages: true }),
     ifThen(refMatches(eventTarget, query("character", { controller: "you" })), [
-      chooseTarget("card", query(["upgrade", "support"], { controller: "you" })),
+      // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+      // (RRG 1.8 "First Player", p. 19).
+      chooseTarget("card", query(["upgrade", "support"], { controller: "you" }), { chooser: firstPlayer }),
       discard(chosen("card")),
     ]),
   ),

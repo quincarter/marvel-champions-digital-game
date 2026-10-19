@@ -26,6 +26,7 @@ import {
   whenDefeated,
   whenRevealed,
   boost,
+  firstPlayer,
 } from "../../dsl/index.js";
 
 /**
@@ -67,15 +68,17 @@ export const BEASTY_BOYS = defineAbilities({
   // Double Trouble (24017, treachery; starIcon is data) — When Revealed: stun a character you control. Confuse a
   // character you control. [star] Boost: resolve this card's own When Revealed ability.
   "24017.when-revealed": whenRevealed(
-    chooseTarget("stunned", query("character", { controller: "you" })),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseTarget("stunned", query("character", { controller: "you" }), { chooser: firstPlayer }),
     stun(chosen("stunned")),
-    chooseTarget("confused", query("character", { controller: "you" })),
+    chooseTarget("confused", query("character", { controller: "you" }), { chooser: firstPlayer }),
     confuse(chosen("confused")),
   ),
   "24017.boost": boost(
-    chooseTarget("stunned2", query("character", { controller: "you" })),
+    chooseTarget("stunned2", query("character", { controller: "you" }), { chooser: firstPlayer }),
     stun(chosen("stunned2")),
-    chooseTarget("confused2", query("character", { controller: "you" })),
+    chooseTarget("confused2", query("character", { controller: "you" }), { chooser: firstPlayer }),
     confuse(chosen("confused2")),
   ),
 });

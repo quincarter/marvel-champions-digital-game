@@ -24,6 +24,7 @@ import {
   whenDefeated,
   whenRevealed,
   yourIdentity,
+  firstPlayer,
 } from "../../dsl/index.js";
 import { obligation } from "../../core/obligations.js";
 
@@ -63,7 +64,13 @@ export const WAR_MACHINE_OBLIGATION_NEMESIS = defineAbilities({
   // Laser Strike (treachery ×3, 23031) — When Revealed: Discard an upgrade you control. If you cannot, this card
   // gains surge.
   "23031.when-revealed": whenRevealed(
-    chooseCards("discarded", cards(each(query("upgrade", { controller: "you" }))), { min: 1, max: 1 }),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseCards("discarded", cards(each(query("upgrade", { controller: "you" }))), {
+      chooser: firstPlayer,
+      min: 1,
+      max: 1,
+    }),
     moveCards(cards(chosen("discarded")), "discard", "moved"),
     ifThen(valueEquals(varOf("moved.count"), 0), surge()),
   ),
@@ -71,7 +78,7 @@ export const WAR_MACHINE_OBLIGATION_NEMESIS = defineAbilities({
   // Hydra Flame-Soldier boost shape (`wave2/trors/red-skull.ts`), "upgrade" in place of "support".
   "23031.boost": boost(
     ifThen(undefendedAttack, [
-      chooseTarget("upgrade", query("upgrade", { controller: "you" })),
+      chooseTarget("upgrade", query("upgrade", { controller: "you" }), { chooser: firstPlayer }),
       ifThen(exists(query("upgrade", { controller: "you" })), discard(chosen("upgrade"))),
     ]),
   ),

@@ -203,7 +203,9 @@ export const MUSEUM = defineAbilities({
       exists(CARDS_YOU_CONTROL),
       [
         bindTargets("lowest", superlative("lowest", each(CARDS_YOU_CONTROL), printedCostOf(chosen("candidate")))),
-        chooseTarget("moved", { inSlot: "lowest" }),
+        // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+        // (RRG 1.8 "First Player", p. 19).
+        chooseTarget("moved", { inSlot: "lowest" }, { chooser: firstPlayer }),
         moveCards(cards(chosen("moved")), { scenarioArea: COLLECTION }),
       ],
       surge(),

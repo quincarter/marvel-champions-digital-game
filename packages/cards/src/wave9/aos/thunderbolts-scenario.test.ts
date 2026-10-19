@@ -913,11 +913,14 @@ describe("Thunderbolts scenario, game B: four players (Spider-Man, Iron Man, Cap
     ]);
   });
 
-  it("round 2 villain phase: Tap In (p3) finds Songbird (0) and the held Moonstone (0) tied for least damage and p3 chooses Moonstone, who engages p3 and attacks", () => {
+  // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+  // (RRG 1.8 "First Player", p. 19).
+  it("round 2 villain phase: Tap In (p3) finds Songbird (0) and the held Moonstone (0) tied for least damage and the first player (p2) chooses Moonstone, who engages p3 and attacks", () => {
     const ev = round2;
     const tapIn = ofType(ev, "choiceRequested").find(
-      (e) => e.choice.playerId === P3 && e.choice.prompt.kind === "chooseTarget",
+      (e) => e.choice.prompt.kind === "chooseTarget" && e.choice.options.some((o) => o.label === "Moonstone"),
     );
+    expect(tapIn!.choice.playerId).toBe(P2);
     expect(tapIn!.choice.options.map((o) => o.label).sort()).toEqual(["Moonstone", "Songbird"]);
     expect(ofType(ev, "targetChosen").find((e) => e.slot === "minion")).toMatchObject({ instanceIds: [id(MOONSTONE)] });
     expect(ofType(ev, "attackResolved").find((e) => e.enemyInstanceId === id(MOONSTONE))).toMatchObject({

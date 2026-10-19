@@ -12,6 +12,7 @@ import {
   modifyAttack,
   query,
   whenDefeated,
+  firstPlayer,
 } from "../../dsl/index.js";
 import { defineAbilities } from "../../dsl/index.js";
 
@@ -28,7 +29,9 @@ export const CHILDREN_OF_THANOS = defineAbilities({
   // Corvus Glaive (minion, 21125) — [star] Boost: Discard an ally or support you control.
   "21125.boost": boost(
     ifThen(exists(query(["ally", "support"], { controller: "you" })), [
-      chooseTarget("discard", query(["ally", "support"], { controller: "you" })),
+      // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+      // (RRG 1.8 "First Player", p. 19).
+      chooseTarget("discard", query(["ally", "support"], { controller: "you" }), { chooser: firstPlayer }),
       discard(chosen("discard")),
     ]),
   ),
@@ -38,7 +41,7 @@ export const CHILDREN_OF_THANOS = defineAbilities({
   "21126.proxima-midnight-constant": constant(attacksGainKeywords(["piercing"], { attacker: { self: true } })),
   "21126.boost": boost(
     ifThen(exists(query(["ally", "upgrade"], { controller: "you" })), [
-      chooseTarget("discard", query(["ally", "upgrade"], { controller: "you" })),
+      chooseTarget("discard", query(["ally", "upgrade"], { controller: "you" }), { chooser: firstPlayer }),
       discard(chosen("discard")),
     ]),
   ),

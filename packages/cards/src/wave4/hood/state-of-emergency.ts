@@ -23,6 +23,7 @@ import {
   whenRevealed,
   you,
   zone,
+  firstPlayer,
 } from "../../dsl/index.js";
 
 /**
@@ -71,7 +72,9 @@ export const STATE_OF_EMERGENCY = defineAbilities({
         printedCostOf(chosen("candidate")),
       ),
     ),
-    chooseTarget("pick", { inSlot: "lowestCost" }),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseTarget("pick", { inSlot: "lowestCost" }, { chooser: firstPlayer }),
     discard(chosen("pick")),
   ),
 

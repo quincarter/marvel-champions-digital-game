@@ -17,6 +17,7 @@ import {
   enemyAttack,
   enemyScheme,
   eventSource,
+  firstPlayer,
   gets,
   giveStatus,
   hasTrait,
@@ -304,7 +305,9 @@ export const ENCHANTRESS: AbilityRegistry = defineAbilities({
   // Trance of Envy.
   "55007b.trance-of-envy-constant": tranceEnthralled(),
   "55007b.when-revealed": whenRevealed(
-    chooseTarget("card", CARD_YOU_CONTROL),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseTarget("card", CARD_YOU_CONTROL, { chooser: firstPlayer }),
     discard(chosen("card")),
     ifThen(choiceFoundNothing(), moveCards(zone("deck", you, { top: 8 }), "discard")),
   ),
@@ -339,7 +342,7 @@ export const ENCHANTRESS: AbilityRegistry = defineAbilities({
   "55009b.trance-of-pride-forced-action": forcedAction(
     { cost: exhaustThis },
     placeThreat(1, theMainScheme),
-    chooseTarget("scheme", query("sideScheme")),
+    chooseTarget("scheme", query("sideScheme"), { chooser: firstPlayer }),
     removeThreat(2, chosen("scheme")),
   ),
 
@@ -365,7 +368,7 @@ export const ENCHANTRESS: AbilityRegistry = defineAbilities({
   "55011b.trance-of-wrath-forced-action": forcedAction(
     { cost: exhaustThis },
     dealIndirectDamage(you, 1),
-    chooseTarget("minion", query("minion")),
+    chooseTarget("minion", query("minion"), { chooser: firstPlayer }),
     dealDamage(2, chosen("minion")),
   ),
 

@@ -10,6 +10,7 @@ import {
   encounterCard,
   enemyAttack,
   enemyScheme,
+  firstPlayer,
   gainsKeywordX,
   inMode,
   isAlterEgo,
@@ -216,14 +217,22 @@ export const BLACK_WIDOW: AbilityRegistry = defineAbilities({
   // Three different characters you control, in the printed order; "a second" and "a third" are never one already chosen.
   // `not: { not: { excluding } }` is "is not that card", the way to leave two chosen cards out of one query.
   "50078.when-revealed": whenRevealed(
-    chooseTarget("first", query("character", { controller: "you" })),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseTarget("first", query("character", { controller: "you" }), { chooser: firstPlayer }),
     dealDamage(1, chosen("first")),
-    chooseTarget("second", query("character", { controller: "you", excluding: chosen("first") })),
-    dealDamage(2, chosen("second")),
-    chooseTarget("third", {
-      ...query("character", { controller: "you", excluding: chosen("first") }),
-      not: { not: { excluding: chosen("second") } },
+    chooseTarget("second", query("character", { controller: "you", excluding: chosen("first") }), {
+      chooser: firstPlayer,
     }),
+    dealDamage(2, chosen("second")),
+    chooseTarget(
+      "third",
+      {
+        ...query("character", { controller: "you", excluding: chosen("first") }),
+        not: { not: { excluding: chosen("second") } },
+      },
+      { chooser: firstPlayer },
+    ),
     dealDamage(3, chosen("third")),
   ),
   "50078.preparation": preparation(dealDamage(1, each(query("character", { controller: "you" })))),

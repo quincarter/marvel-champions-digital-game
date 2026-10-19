@@ -32,6 +32,7 @@ import {
   eventResult,
   exhaustCardsCost,
   exhaustYourHero,
+  firstPlayer,
   flipCard,
   forEachPlayer,
   forEachPlayerInChosenOrder,
@@ -237,8 +238,10 @@ export const STRYFE: AbilityRegistry = defineAbilities({
 
   // Cerebral Erasure (40175) — Acceleration (data). When Revealed: Return an upgrade or support you control to its
   // owner's hand. When Defeated: the player who defeated this scheme does the same with theirs.
+  // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+  // (RRG 1.8 "First Player", p. 19).
   "40175.when-revealed": whenRevealed(
-    chooseTarget("returned", YOUR_UPGRADES_AND_SUPPORTS),
+    chooseTarget("returned", YOUR_UPGRADES_AND_SUPPORTS, { chooser: firstPlayer }),
     moveCards(cards(chosen("returned")), "hand"),
   ),
   "40175.when-defeated": whenDefeated(
@@ -286,7 +289,7 @@ export const STRYFE: AbilityRegistry = defineAbilities({
   // against you. [star] Boost: If you have at least 3 cards in your hand that share a type, place 3 threat on the main
   // scheme.
   "40179.when-revealed": whenRevealed(
-    chooseTarget("returned", YOUR_UPGRADES_AND_SUPPORTS),
+    chooseTarget("returned", YOUR_UPGRADES_AND_SUPPORTS, { chooser: firstPlayer }),
     moveCards(cards(chosen("returned")), "hand"),
     enemyActivates(each(THE_VILLAIN), { against: you }),
   ),

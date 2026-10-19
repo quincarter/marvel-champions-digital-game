@@ -19,6 +19,7 @@ import {
   each,
   encounterCards,
   exists,
+  firstPlayer,
   gainsKeyword,
   gets,
   giveTough,
@@ -100,7 +101,9 @@ export const BATROCS_BRIGADE: AbilityRegistry = defineAbilities({
     ifThen(
       exists(query("upgrade", { controller: "you", trait: WEAPON })),
       [
-        chooseTarget("weapon", query("upgrade", { controller: "you", trait: WEAPON })),
+        // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+        // (RRG 1.8 "First Player", p. 19).
+        chooseTarget("weapon", query("upgrade", { controller: "you", trait: WEAPON }), { chooser: firstPlayer }),
         tuckCards(cards(chosen("weapon")), self),
       ],
       tuckCards(topOfDeck(1, you), self),

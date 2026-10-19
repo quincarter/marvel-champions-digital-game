@@ -15,6 +15,7 @@ import {
   damageOn,
   each,
   encounterCards,
+  firstPlayer,
   forcedInterrupt,
   forcedResponse,
   FRIENDLY_CHARACTER,
@@ -141,7 +142,9 @@ export const HORROR_ABILITIES = defineAbilities({
 
   // Werewolf Pack (39052) — When Revealed: Defeat an ally you control and place it facedown under Werewolf Pack.
   "39052.when-revealed": whenRevealed(
-    chooseTarget("ally", query("ally", { controller: "you" })),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseTarget("ally", query("ally", { controller: "you" }), { chooser: firstPlayer }),
     defeat(chosen("ally")),
     tuckCards(cards(chosen("ally")), self, true),
   ),
@@ -150,7 +153,7 @@ export const HORROR_ABILITIES = defineAbilities({
   "39052.werewolf-pack-forced-interrupt": forcedInterrupt(
     when.defeated("self"),
     { would: true },
-    chooseCards("lost", tuckedUnder(self), { min: 1, max: 1, chooser: you }),
+    chooseCards("lost", tuckedUnder(self), { min: 1, max: 1, chooser: firstPlayer }),
     ifThen(not(choiceFoundNothing()), instead(moveCards(cards(chosen("lost")), "discard"), heal(damageOn(self), self))),
   ),
 });

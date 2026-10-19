@@ -119,13 +119,15 @@ const overburdened = () =>
     option("Take 2 damage", takeDamage(2)),
   );
 
-/** "The support you control with the highest cost": a tie is the controller's choice (RRG 1.8 "Choose", p. 12). */
+/** "The support you control with the highest cost": a tie is the first player's choice (RRG 1.8 "First Player", p. 19). */
 const returnHighestSupport = (): EffectSpec[] => [
   bindTargets(
     "highest",
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
     superlative("highest", each(query("support", { controller: "you" })), printedCostOf(chosen("candidate"))),
   ),
-  chooseTarget("pick", { inSlot: "highest" }),
+  chooseTarget("pick", { inSlot: "highest" }, { chooser: firstPlayer }),
   moveCards(cards(chosen("pick")), "hand"),
 ];
 
@@ -242,7 +244,7 @@ export const NEXT_EVOL_CAMPAIGN_CARDS: AbilityRegistry = defineAbilities({
   "40198.boost": boost(discardFromHand(1, you, { filter: query("event") })),
 
   "40200.when-revealed": whenRevealed(
-    chooseTarget("upgrade", query("upgrade", { controller: "you" })),
+    chooseTarget("upgrade", query("upgrade", { controller: "you" }), { chooser: firstPlayer }),
     discard(chosen("upgrade")),
   ),
 

@@ -118,7 +118,7 @@ const zemoForcedInterruptA = (to: 12 | 16) =>
 
 /**
  * "[star] Forced Interrupt: When Baron Zemo activates against you, either place N secret counter(s) on a Board Member
- * card or give Baron Zemo an additional boost card for this activation." The player activated against chooses, and
+ * card or give Baron Zemo an additional boost card for this activation." The first player chooses, and
  * names the card (a Board Member card is either face).
  */
 const zemoForcedInterruptB = (counters: 1 | 2) =>
@@ -127,7 +127,9 @@ const zemoForcedInterruptB = (counters: 1 | 2) =>
     chooseOne(
       option(
         `Place ${counters} secret counter${counters === 1 ? "" : "s"} on a Board Member card`,
-        chooseTarget("board", BOARD_MEMBER_CARDS),
+        // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+        // (RRG 1.8 "First Player", p. 19).
+        chooseTarget("board", BOARD_MEMBER_CARDS, { chooser: firstPlayer }),
         addCounters("secret", counters, chosen("board")),
       ),
       option("Give Baron Zemo an additional boost card for this activation", modifyAttack({ extraBoostCards: 1 })),
@@ -371,7 +373,7 @@ export const BARON_ZEMO: AbilityRegistry = defineAbilities({
       option(
         "Discard an ally or support you control to remove secret counters equal to its printed cost",
         { when: exists(query(["ally", "support"], { controller: "you" })) },
-        chooseTarget("card", query(["ally", "support"], { controller: "you" })),
+        chooseTarget("card", query(["ally", "support"], { controller: "you" }), { chooser: firstPlayer }),
         discard(chosen("card")),
         removeCountersAmong("secret", printedCostOf(chosen("card")), BOARD_MEMBER_ENVIRONMENTS, {
           chooser: firstPlayer,

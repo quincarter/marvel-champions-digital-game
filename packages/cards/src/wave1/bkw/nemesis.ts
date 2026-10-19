@@ -20,13 +20,19 @@ import {
   whenRevealedAlterEgo,
   whenRevealedHero,
   you,
+  firstPlayer,
 } from "../../dsl/index.js";
 
 const YOUR_UPGRADES = query("upgrade", { controller: "you" });
 /** "Discard an upgrade you control" (Deadly Shot). A `chooseTarget` with zero candidates simply resolves to
  * nothing chosen (RRG "cannot" default for an effect, not a cost) — the same reading Core's Iron Man nemesis set
  * uses for its own "discard an upgrade you control" (`packages/cards/src/core/heroes/iron-man.ts`'s `discardAnUpgrade`). */
-const discardAnUpgradeYouControl = [chooseTarget("upgrade", YOUR_UPGRADES), discard(chosen("upgrade"))];
+// No "choose": an encounter card targeting one of several eligible cards; the first player selects
+// (RRG 1.8 "First Player", p. 19).
+const discardAnUpgradeYouControl = [
+  chooseTarget("upgrade", YOUR_UPGRADES, { chooser: firstPlayer }),
+  discard(chosen("upgrade")),
+];
 
 /**
  * Black Widow's nemesis set: Taskmaster (08026, nemesis minion), Killer for Hire (08027, side scheme), Hydra

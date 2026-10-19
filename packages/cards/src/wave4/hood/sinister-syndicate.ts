@@ -79,7 +79,9 @@ export const SINISTER_SYNDICATE = defineAbilities({
       "lowest",
       superlative("lowest", each(query("upgrade", { controller: "you" })), printedCostOf(chosen("candidate"))),
     ),
-    chooseTarget("pick", { inSlot: "lowest" }),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseTarget("pick", { inSlot: "lowest" }, { chooser: firstPlayer }),
     discard(chosen("pick")),
   ),
   "24043.boost": boost(chooseTarget("pick", query("upgrade", { controller: "you" })), discard(chosen("pick"))),
@@ -91,7 +93,10 @@ export const SINISTER_SYNDICATE = defineAbilities({
     after.enemyAttacks("self", { againstYou: true }),
     dealDamage(1, each(query("ally", { controller: "you" }))),
   ),
-  "24044.boost": boost(chooseTarget("ally", query("ally", { controller: "you" })), dealDamage(2, chosen("ally"))),
+  "24044.boost": boost(
+    chooseTarget("ally", query("ally", { controller: "you" }), { chooser: firstPlayer }),
+    dealDamage(2, chosen("ally")),
+  ),
 
   // Shocker (24045, minion; CRIMINAL/MASTERS OF EVIL, starIcon are data) — Forced Response: after Shocker is
   // attacked, stun the attacking character. [star] Boost: stun the character you control with the highest ATK.
@@ -101,7 +106,7 @@ export const SINISTER_SYNDICATE = defineAbilities({
       "highest",
       superlative("highest", each(query("character", { controller: "you" })), statOf(chosen("candidate"), "atk")),
     ),
-    chooseTarget("pick", { inSlot: "highest" }),
+    chooseTarget("pick", { inSlot: "highest" }, { chooser: firstPlayer }),
     stun(chosen("pick")),
   ),
 
@@ -117,7 +122,7 @@ export const SINISTER_SYNDICATE = defineAbilities({
       "lowest",
       superlative("lowest", each(query("support", { controller: "you" })), printedCostOf(chosen("candidate"))),
     ),
-    chooseTarget("pick", { inSlot: "lowest" }),
+    chooseTarget("pick", { inSlot: "lowest" }, { chooser: firstPlayer }),
     discard(chosen("pick")),
   ),
 

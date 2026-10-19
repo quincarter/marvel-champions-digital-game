@@ -172,7 +172,9 @@ export const LEADERS_IRON_MAN: AbilityRegistry = defineAbilities({
 
   // Repulsor Blast
   "56070.when-revealed-alter-ego": whenRevealedAlterEgo(
-    chooseTarget("gear", query(["upgrade", "support"], { controller: "you" })),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseTarget("gear", query(["upgrade", "support"], { controller: "you" }), { chooser: firstPlayer }),
     discard(chosen("gear")),
   ),
   "56070.when-revealed-hero": whenRevealedHero(

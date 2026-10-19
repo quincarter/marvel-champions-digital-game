@@ -106,7 +106,9 @@ export const INFINITY_GAUNTLET = defineAbilities({
   // infinity stone deck discard pile. Not "may": forced, but naturally a no-op with no legal target (`chooseTarget`
   // asks nothing when nothing matches, and discarding an empty slot discards nothing).
   "21132.reality-stone-special": special(
-    chooseTarget("card", query(["ally", "upgrade", "support"], { controller: "you" })),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseTarget("card", query(["ally", "upgrade", "support"], { controller: "you" }), { chooser: firstPlayer }),
     discard(chosen("card")),
     discard(self),
   ),

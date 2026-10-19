@@ -101,7 +101,9 @@ export const SPIDERHAM_INHERITORS = defineAbilities({
   "30033.daemos-constant": constant(gainsKeyword({ name: "stalwart" }, INHERITOR_MINIONS)),
   "30033.when-revealed": whenRevealed(
     ifThen(A_WEB_WARRIOR_CHARACTER_IS_IN_PLAY, [
-      chooseTarget("stunned", A_CHARACTER_YOU_CONTROL),
+      // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+      // (RRG 1.8 "First Player", p. 19).
+      chooseTarget("stunned", A_CHARACTER_YOU_CONTROL, { chooser: firstPlayer }),
       stun(chosen("stunned")),
     ]),
   ),
@@ -122,7 +124,7 @@ export const SPIDERHAM_INHERITORS = defineAbilities({
   ),
   "30035.when-revealed": whenRevealed(
     ifThen(A_WEB_WARRIOR_CHARACTER_IS_IN_PLAY, [
-      chooseTarget("discarded", query(["upgrade", "support"], { controller: "you" })),
+      chooseTarget("discarded", query(["upgrade", "support"], { controller: "you" }), { chooser: firstPlayer }),
       discard(chosen("discarded")),
     ]),
   ),

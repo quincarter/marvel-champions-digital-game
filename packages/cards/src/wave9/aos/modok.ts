@@ -328,7 +328,12 @@ export const MODOK: AbilityRegistry = defineAbilities({
   "50119.when-revealed": whenRevealed(
     ifThen(
       exists(query("upgrade", { controller: "you" })),
-      [chooseTarget("upgrade", query("upgrade", { controller: "you" })), tuckCards(cards(chosen("upgrade")), self)],
+      // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+      // (RRG 1.8 "First Player", p. 19).
+      [
+        chooseTarget("upgrade", query("upgrade", { controller: "you" }), { chooser: firstPlayer }),
+        tuckCards(cards(chosen("upgrade")), self),
+      ],
       tuckCards(topOfDeck(1, you), self),
     ),
   ),

@@ -316,10 +316,12 @@ export const MAGNETO_ABILITIES = defineAbilities({
 
   // Magnetic Missile (32155) — Surge (data). When Revealed: Defeat a Sentinel minion in play. Then, take 5 damage. You
   // may discard X cards from your hand to prevent X of that damage. The prevention is chosen before the damage, so the
-  // damage is dealt as 5 minus X (as Sabretooth Strikes' exhaust-to-prevent option); the Sentinel is the revealing
+  // damage is dealt as 5 minus X (as Sabretooth Strikes' exhaust-to-prevent option); the Sentinel is the first
   // player's choice, and with none in play the "then" part does not resolve (RRG 1.8 "'Then'", p. 44).
   "32155.when-revealed": whenRevealed(
-    chooseTarget("sentinel", query("minion", { trait: SENTINEL })),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseTarget("sentinel", query("minion", { trait: SENTINEL }), { chooser: firstPlayer }),
     defeat(chosen("sentinel")),
     andThen(...missileDamage()),
   ),

@@ -7,6 +7,7 @@ import {
   andThen,
   attacksGainKeywords,
   attachCard,
+  firstPlayer,
   isStunned,
   canTakeStatus,
   chooseCards,
@@ -258,14 +259,19 @@ export const ON_THE_RUN: AbilityRegistry = defineAbilities({
   // Dizzying Deeds (40110) — When Revealed: Exhaust a character you control. If the following enemies are in play:
   // Arclight — Stun a character you control. Riptide — Take 3 indirect damage. Vertigo — Confuse a character you control.
   "40110.when-revealed": whenRevealed(
-    ifThen(exists(READY_CHARACTER), [chooseTarget("tired", READY_CHARACTER), exhaust(chosen("tired"))]),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    ifThen(exists(READY_CHARACTER), [
+      chooseTarget("tired", READY_CHARACTER, { chooser: firstPlayer }),
+      exhaust(chosen("tired")),
+    ]),
     ifThen(allOf(exists(query("enemy", { name: "Arclight" })), exists(CAN_BE_STUNNED)), [
-      chooseTarget("stunned", CAN_BE_STUNNED),
+      chooseTarget("stunned", CAN_BE_STUNNED, { chooser: firstPlayer }),
       stun(chosen("stunned")),
     ]),
     ifThen(exists(query("enemy", { name: "Riptide" })), dealIndirectDamage(you, 3)),
     ifThen(allOf(exists(query("enemy", { name: "Vertigo" })), exists(CAN_BE_CONFUSED)), [
-      chooseTarget("confused", CAN_BE_CONFUSED),
+      chooseTarget("confused", CAN_BE_CONFUSED, { chooser: firstPlayer }),
       confuse(chosen("confused")),
     ]),
   ),

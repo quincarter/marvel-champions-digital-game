@@ -24,6 +24,7 @@ import {
   eventDamageTaken,
   eventSource,
   exists,
+  firstPlayer,
   forcedInterrupt,
   forcedResponse,
   gainsKeyword,
@@ -180,7 +181,9 @@ export const LEADERS_CAPTAIN_AMERICA: AbilityRegistry = defineAbilities({
   ),
 
   "56148.when-revealed-alter-ego": whenRevealedAlterEgo(
-    chooseTarget("lost", query(["ally", "upgrade"], { controller: "you" })),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseTarget("lost", query(["ally", "upgrade"], { controller: "you" }), { chooser: firstPlayer }),
     discard(chosen("lost")),
   ),
   "56148.when-revealed-hero": whenRevealedHero(

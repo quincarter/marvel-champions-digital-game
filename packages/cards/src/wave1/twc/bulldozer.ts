@@ -56,6 +56,7 @@ import {
   you,
   yourIdentity,
   zone,
+  firstPlayer,
 } from "../../dsl/index.js";
 import {
   distinctCardTypesOf,
@@ -193,7 +194,9 @@ export const BULLDOZER_SET = defineAbilities({
       chooseOne(
         option(
           "Discard an upgrade you control",
-          chooseTarget("discarded-upgrade", query("upgrade", { controller: "you" })),
+          // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+          // (RRG 1.8 "First Player", p. 19).
+          chooseTarget("discarded-upgrade", query("upgrade", { controller: "you" }), { chooser: firstPlayer }),
           discard(chosen("discarded-upgrade")),
         ),
         option(
@@ -207,7 +210,7 @@ export const BULLDOZER_SET = defineAbilities({
   // [star] Boost: If this attack is undefended, discard an upgrade you control.
   "07056.boost": boost(
     ifThen(undefendedAttack, [
-      chooseTarget("chaos-boost-upgrade", query("upgrade", { controller: "you" })),
+      chooseTarget("chaos-boost-upgrade", query("upgrade", { controller: "you" }), { chooser: firstPlayer }),
       discard(chosen("chaos-boost-upgrade")),
     ]),
   ),

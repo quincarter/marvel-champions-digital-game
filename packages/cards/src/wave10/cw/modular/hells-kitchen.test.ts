@@ -300,10 +300,10 @@ describe("Daredevil (56189)", () => {
     expect(inst(done.state, inPlayCard(done.state, DAREDEVIL)!).engagedWith).toBe(P2);
   });
 
-  it("BOOST with one character: the player Rhino activated against is asked (one option) and the hero is exhausted; Daredevil does not enter play", () => {
+  it("BOOST with one character: the first player is asked (one option; here also the player Rhino activated against) and the hero is exhausted; Daredevil does not enter play", () => {
     const start = game();
     const asked = villainPhaseUntil(start, [DAREDEVIL, FILLER_A], ANY_CHOICE);
-    expect(asked.state.pendingChoice).toMatchObject({ playerId: P1, authority: "player" });
+    expect(asked.state.pendingChoice).toMatchObject({ playerId: P1, authority: "firstPlayerTargets" });
     expect(optionIds(asked.state)).toEqual([hero(start)]);
     const run = answer(asked.state, P1, hero(start));
     expect(exhaustedIds(run.events)).toEqual([hero(start)]);
@@ -313,7 +313,9 @@ describe("Daredevil (56189)", () => {
     expect(inPlayCard(run.state, DAREDEVIL)).toBeUndefined();
   });
 
-  it("BOOST with two characters: the player activated against chooses, not the enemy team", () => {
+  // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+  // (RRG 1.8 "First Player", p. 19).
+  it("BOOST with two characters: the first player (P1) chooses among the activated player's (P2) characters, not the enemy team", () => {
     const withAlly = playFromHand(
       WAVE10_DEPS,
       onTurnOf(game([CAPTAIN_MARVEL, SPIDER_MAN]), P2),
@@ -326,11 +328,11 @@ describe("Daredevil (56189)", () => {
     // Rhino's first activation is against P1, whose boost is blank; the second is against P2, whose boost is Daredevil.
     const asked = villainPhaseUntil(withAlly.state, [BLANK, DAREDEVIL, FILLER_A, FILLER_B], ANY_CHOICE);
     const choice = asked.state.pendingChoice!;
-    expect(choice.playerId).toBe(P2);
-    expect(choice.authority).not.toBe("enemyTeam");
+    expect(choice.playerId).toBe(P1);
+    expect(choice.authority).toBe("firstPlayerTargets");
     expect(optionIds(asked.state)).toEqual([hero(withAlly.state, P2), cat].sort());
-    expect(refused(asked.state, P1, cat)).toBe(true);
-    const done = answer(asked.state, P2, cat);
+    expect(refused(asked.state, P2, cat)).toBe(true);
+    const done = answer(asked.state, P1, cat);
     expect(exhaustedIds(done.events)).toEqual([cat]);
     expect(inst(done.state, hero(withAlly.state, P1)).exhausted).toBe(false);
   });

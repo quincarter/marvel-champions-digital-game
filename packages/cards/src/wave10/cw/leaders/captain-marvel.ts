@@ -17,6 +17,7 @@ import {
   enemyAttack,
   enemyScheme,
   eventSource,
+  firstPlayer,
   forcedInterrupt,
   forcedResponse,
   gainsKeyword,
@@ -171,7 +172,9 @@ export const LEADERS_CAPTAIN_MARVEL: AbilityRegistry = defineAbilities({
   "56100.boost": boost(revealCard(self)),
 
   "56101.when-revealed-alter-ego": whenRevealedAlterEgo(
-    chooseTarget("lost", query(["ally", "support"], { controller: "you" })),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseTarget("lost", query(["ally", "support"], { controller: "you" }), { chooser: firstPlayer }),
     discard(chosen("lost")),
   ),
   "56101.when-revealed-hero": whenRevealedHero(enemyAttack(theVillain, { against: you }), energyCounters(1)),

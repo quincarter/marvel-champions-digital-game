@@ -17,6 +17,7 @@ import {
   identityOf,
   inst,
   P1,
+  P2,
   patchInstance,
   runWith,
   stackEncounterDeck as stackEncounter,
@@ -46,6 +47,12 @@ const heroGame = () => runWith(deps, mystiqueGame(), toHero(P1));
 const emptyHand = (state: GameState): GameState => ({
   ...state,
   players: state.players.map((p) => ({ ...p, hand: [], discard: [...p.discard, ...p.hand] })),
+});
+const emptyHand2 = (state: GameState, player: string): GameState => ({
+  ...state,
+  players: state.players.map((p) =>
+    p.playerId === player ? { ...p, hand: [], discard: [...p.discard, ...p.hand] } : p,
+  ),
 });
 /** P1 ends the turn in hero form with an empty hand: draws five, `code` (stacked on top of the deck) first. */
 function drawsAtTurnEnd(state: GameState, code: string, pick: Picker = firstLegal) {
@@ -186,6 +193,37 @@ describe("Infiltration (32082)", () => {
     const { state: after } = drawsAtTurnEnd(state, INFILTRATION, pickTracer);
     expect(seat(after).discard).toContain(tracer.id);
     expect(cardsInPlay(after).some((i) => after.instances[i]!.cardId === cardId(DAREDEVIL))).toBe(true);
+  });
+
+  // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+  // (RRG 1.8 "First Player", p. 19).
+  it("2 players: P2 draws it, but the first player (P1) is asked which of P2's ally or support to discard", () => {
+    let state = runWith(
+      deps,
+      mystiqueGame({
+        players: [{ starterDeckId: "core-captain-marvel-leadership" }, { starterDeckId: "core-spider-man-justice" }],
+      }),
+      toHero(P1),
+    );
+    state = intoPlayArea(state, P2, DAREDEVIL).state;
+    const aunt = intoPlayArea(state, P2, "01006");
+    state = aunt.state;
+    const staged = onTopOfPlayerDeck(emptyHand2(state, P2), INFILTRATION, P2);
+    const asked: string[] = [];
+    const pick: Picker = (s) => {
+      const choice = s.pendingChoice!;
+      if (choice.prompt.kind === "chooseTarget" && choice.options.some((o) => o.optionId === aunt.id)) {
+        asked.push(choice.playerId);
+        return [aunt.id];
+      }
+      return firstLegal(s);
+    };
+    const run = driveEventsPicking(deps, staged.state, pick, { type: "endTurn", playerId: P1 }, toHero(P2), {
+      type: "endTurn",
+      playerId: P2,
+    });
+    expect(asked).toEqual([P1]);
+    expect(run.state.players.find((p) => p.playerId === P2)!.discard).toContain(aunt.id);
   });
 
   it("with no ally or support in play, the Forced Response has nothing to discard", () => {

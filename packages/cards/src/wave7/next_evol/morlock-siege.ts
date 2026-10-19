@@ -95,8 +95,13 @@ const ROUTED = named("Routed");
 const VILLAINS_UNDER_ROUTED = tuckedCount(ROUTED, THE_VILLAIN);
 const ATTACHED_VILLAIN = query("villain", { hostOfSelf: true });
 
-/** "Give 1 MORLOCK ally a tough status card": the player resolving it chooses; nothing is asked with no valid ally. */
-const toughenAMorlock = () => [chooseTarget("morlock", MORLOCK_TO_TOUGHEN), giveTough(chosen("morlock"))];
+/** "Give 1 MORLOCK ally a tough status card": the first player chooses; nothing is asked with no valid ally. */
+// No "choose": an encounter card targeting one of several eligible cards; the first player selects
+// (RRG 1.8 "First Player", p. 19).
+const toughenAMorlock = () => [
+  chooseTarget("morlock", MORLOCK_TO_TOUGHEN, { chooser: firstPlayer }),
+  giveTough(chosen("morlock")),
+];
 
 /** "Each player puts 1 set-aside Morlock ally into play under their control." */
 const putMorlockIntoPlay = (controller: typeof thatPlayer) => [
@@ -237,7 +242,7 @@ export const MORLOCK_SIEGE: AbilityRegistry = defineAbilities({
       chooseOne(
         option(
           "Deal 1 damage to a Morlock ally you control",
-          chooseTarget("morlock", YOUR_MORLOCKS),
+          chooseTarget("morlock", YOUR_MORLOCKS, { chooser: firstPlayer }),
           dealDamage(1, chosen("morlock")),
         ),
         option(

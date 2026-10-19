@@ -16,6 +16,7 @@ import {
   discardEncounterUntil,
   each,
   exists,
+  firstPlayer,
   forcedInterrupt,
   gainsKeyword,
   giveTough,
@@ -81,7 +82,9 @@ export const MUTANT_SLAYERS: AbilityRegistry = defineAbilities({
       option(
         "Confuse a character you control",
         { when: exists(ABLE("confused")) },
-        chooseTarget("target", ABLE("confused")),
+        // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+        // (RRG 1.8 "First Player", p. 19).
+        chooseTarget("target", ABLE("confused"), { chooser: firstPlayer }),
         confuse(chosen("target")),
       ),
       option(`Arclight ${PLUS_2_ATK}`, modifyAttack({ atkBonus: 2 })),
@@ -110,7 +113,7 @@ export const MUTANT_SLAYERS: AbilityRegistry = defineAbilities({
     ),
   ),
 
-  // Greycrow. A tie for the highest cost is the attacked player's pick.
+  // Greycrow. A tie for the highest cost is the first player's pick.
   "40097.greycrow-forced-interrupt": forcedInterrupt(
     ATTACKS_YOU(),
     chooseOne(
@@ -118,7 +121,7 @@ export const MUTANT_SLAYERS: AbilityRegistry = defineAbilities({
         "Discard the highest-cost card you control",
         { when: exists(YOUR_COSTED_CARDS) },
         bindTargets("highest", highestCost),
-        chooseTarget("pick", { inSlot: "highest" }),
+        chooseTarget("pick", { inSlot: "highest" }, { chooser: firstPlayer }),
         discard(chosen("pick")),
       ),
       option("Greycrow gets +X ATK for this attack", modifyAttack({ atkBonus: HIGHEST_PRINTED_COST })),
@@ -157,7 +160,7 @@ export const MUTANT_SLAYERS: AbilityRegistry = defineAbilities({
       option(
         "Stun a character you control",
         { when: exists(ABLE("stunned")) },
-        chooseTarget("target", ABLE("stunned")),
+        chooseTarget("target", ABLE("stunned"), { chooser: firstPlayer }),
         stun(chosen("target")),
       ),
       option(`Vertigo ${PLUS_2_ATK}`, modifyAttack({ atkBonus: 2 })),

@@ -13,6 +13,7 @@ import {
   discard,
   exhaust,
   exists,
+  firstPlayer,
   forcedInterrupt,
   forcedResponse,
   gainsKeyword,
@@ -90,7 +91,9 @@ export const MUTANT_INSURRECTION: AbilityRegistry = defineAbilities({
       option(
         "Discard a card you control with printed cost at least the charge counters",
         { when: exists(CARD_YOU_CONTROL(countersOn(self, "charge"))) },
-        chooseTarget("pay", CARD_YOU_CONTROL(countersOn(self, "charge"))),
+        // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+        // (RRG 1.8 "First Player", p. 19).
+        chooseTarget("pay", CARD_YOU_CONTROL(countersOn(self, "charge")), { chooser: firstPlayer }),
         discard(chosen("pay")),
       ),
     ),

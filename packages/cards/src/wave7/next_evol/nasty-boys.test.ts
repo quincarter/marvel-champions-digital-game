@@ -171,10 +171,12 @@ describe("Gorgeous George (40112): 40112.gorgeous-george-forced-interrupt, 40112
     expect(attacksBy(run, id)).toMatchObject([{ baseAtk: 2, damageDealt: 2 }]);
   });
 
-  it("2 players: only the attacked player chooses, among their own characters (Hope Summers is the first player's)", () => {
+  // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+  // (RRG 1.8 "First Player", p. 19).
+  it("2 players: P2 is attacked, the first player (P1) is asked, and only P2's characters are offered", () => {
     const { state, id } = engaged(calm(game(TWO)), GEORGE, P2);
     const run = quiet(state);
-    expect(promptsOf(run, "chooseTarget")).toEqual([{ kind: "chooseTarget", player: P2, labels: ["Captain Marvel"] }]);
+    expect(promptsOf(run, "chooseTarget")).toEqual([{ kind: "chooseTarget", player: P1, labels: ["Captain Marvel"] }]);
     expect(exhaustedIds(run)).toEqual([identityOf(state, P2)]);
     expect(attacksBy(run, id)).toHaveLength(1);
   });

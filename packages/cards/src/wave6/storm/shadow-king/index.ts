@@ -13,6 +13,7 @@ import {
   engage,
   enemyActivates,
   exists,
+  firstPlayer,
   host,
   ifThen,
   isAttached,
@@ -64,7 +65,9 @@ export const SHADOW_KING_ABILITIES: AbilityRegistry = defineAbilities({
 
   // Ruler of the Astral Plane — Acceleration (data). When Defeated: discard 1 copy of Possessed from play.
   "36037.when-defeated": whenDefeated(
-    chooseTarget("possessed", query("attachment", { name: POSSESSED })),
+    // No "choose": an encounter card targeting one of several eligible cards; the first player selects
+    // (RRG 1.8 "First Player", p. 19).
+    chooseTarget("possessed", query("attachment", { name: POSSESSED }), { chooser: firstPlayer }),
     discard(chosen("possessed")),
   ),
   // [star] Boost: if you are engaged with a Controlled minion, reveal this card.
