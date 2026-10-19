@@ -180,7 +180,13 @@ export const WAVE11_MODULES: readonly Wave11Module[] = [
   { group: "fne/villains/bullseye", registry: FNE_VILLAINS_BULLSEYE, skipped: FNE_VILLAINS_BULLSEYE_SKIPPED },
   { group: "fne/villains/electro", registry: FNE_VILLAINS_ELECTRO, skipped: FNE_VILLAINS_ELECTRO_SKIPPED },
   { group: "fne/villains/hammerhead", registry: FNE_VILLAINS_HAMMERHEAD, skipped: FNE_VILLAINS_HAMMERHEAD_SKIPPED },
-  { group: "fne/villains/purple-man", registry: FNE_VILLAINS_PURPLE_MAN, skipped: FNE_VILLAINS_PURPLE_MAN_SKIPPED },
+  {
+    group: "fne/villains/purple-man",
+    registry: FNE_VILLAINS_PURPLE_MAN,
+    skipped: FNE_VILLAINS_PURPLE_MAN_SKIPPED,
+    // The Boost Purple Man's stages grant his set's boost cards (gainsAbility): on no card's own refs.
+    registryOnly: ["60097.granted-boost"],
+  },
   {
     group: "fne/villains/typhoid-mary",
     registry: FNE_VILLAINS_TYPHOID_MARY,
