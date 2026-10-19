@@ -250,7 +250,7 @@ War did: the team scaffolding, the unique-rule extension, the leader refs and th
 | M10 | An Alter-Ego Response on a side scheme, cost "exhaust your identity"                             | 57012                                                                 | exists (verify)               |
 | M11 | A Forced Interrupt when you play a card: cancel its effects, then discard the obligation         | 57063                                                                 | exists (verify)               |
 | M12 | Villainous                                                                                       | 57022 Taskmaster                                                      | dependency                    |
-| M13 | "If [condition], [X] your leader. Otherwise, [Y]" in a cooperative game                          | 57025 (Q2)                                                            | exists (verify), Q2           |
+| M13 | "If [condition], [X] your leader. Otherwise, [Y]" in a cooperative game                          | 57025                                                                 | exists (verify); B settled    |
 | M14 | Choose an attachment by the label of its ability ("Hero Action", "Hero Response")                | 57076 (competitive only)                                              | **new**, deferred             |
 | M15 | Reusable as is (checked by name)                                                                 | the rest of §7                                                        | exists (compose)              |
 
