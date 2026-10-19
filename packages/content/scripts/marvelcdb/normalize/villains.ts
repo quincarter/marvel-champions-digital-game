@@ -163,14 +163,18 @@ export function normalizeVillains(ctx: NormalizeContext): Map<string, string> {
           if (front.prepared.name !== back.prepared.name && !ctx.curation.villainFaceNamesMayDiffer?.includes(set))
             errors.push(`${r.code}: villain face names differ`);
           // Both faces are the same single stage, flipped (VillainCard doc: "every side lists the same stage
-          // numbers"); the printed digit told them apart as records, not as stages.
+          // numbers"); the printed digit told them apart as records, not as stages. The one exception mirrors
+          // validation.ts: a back face printing infinite hit points (Hela's Wounded A2/B2) is "just like advancing to
+          // the next villain stage" (MC21 p. 20), and a villain's stage number is the numeral printed in its top-right
+          // corner (FFG ruling Sep 5, 2024, post-RRG 1.6 #11), so that face is stage 2.
+          const backStageNumber = back.stage.infiniteHp === true ? 2 : 1;
           const card: VillainCard = {
             ...baseFields(ctx, front.prepared, front.prepared.raw.code, [r.code, linked.code], null),
             type: "villain",
             encounterSetIds: [brand("encounterSet", set)],
             sides: [
               { side: "A", name: front.prepared.name, stages: [{ ...front.stage, stageNumber: 1 }] },
-              { side: "B", name: back.prepared.name, stages: [{ ...back.stage, stageNumber: 1 }] },
+              { side: "B", name: back.prepared.name, stages: [{ ...back.stage, stageNumber: backStageNumber }] },
             ],
             ...(printedType ? { printedType } : {}),
             ...(front.activationOrder !== undefined || back.activationOrder !== undefined

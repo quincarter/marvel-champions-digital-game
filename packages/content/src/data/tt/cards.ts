@@ -796,6 +796,7 @@ export const TT_CARDS: readonly AnyCard[] = [
     stages: [
       {
         stageNumber: 1,
+        printedCardId: cardId("55028b"),
         stageLetter: "A",
         startingThreat: { base: 0, perPlayer: 0 },
         targetThreat: { base: 0, perPlayer: 0, perGroup: 2 },
@@ -875,7 +876,7 @@ export const TT_CARDS: readonly AnyCard[] = [
         name: "Fading Figment",
         stages: [
           {
-            stageNumber: 1,
+            stageNumber: 2,
             stageLabel: "A2",
             hp: { base: 0, perPlayer: 0 },
             infiniteHp: true,
@@ -945,7 +946,7 @@ export const TT_CARDS: readonly AnyCard[] = [
         name: "Fading Figment",
         stages: [
           {
-            stageNumber: 1,
+            stageNumber: 2,
             stageLabel: "B2",
             hp: { base: 0, perPlayer: 0 },
             infiniteHp: true,
@@ -1011,7 +1012,7 @@ export const TT_CARDS: readonly AnyCard[] = [
         name: "Fading Figment",
         stages: [
           {
-            stageNumber: 1,
+            stageNumber: 2,
             stageLabel: "C2",
             hp: { base: 0, perPlayer: 0 },
             infiniteHp: true,
@@ -1079,7 +1080,7 @@ export const TT_CARDS: readonly AnyCard[] = [
         name: "Fading Figment",
         stages: [
           {
-            stageNumber: 1,
+            stageNumber: 2,
             stageLabel: "D2",
             hp: { base: 0, perPlayer: 0 },
             infiniteHp: true,

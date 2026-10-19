@@ -5,6 +5,7 @@ import { bareCuration } from "./curation/empty.ts";
 import type { AddedRecord, Correction, LinkOverride, PackCuration } from "./curation/types.ts";
 import { AOA_CURATION } from "./curation/aoa.ts";
 import { TT_CURATION } from "./curation/tt.ts";
+import { MTS_CURATION } from "./curation/mts.ts";
 import { normalizePack } from "./normalize.ts";
 import { withLocalArt } from "./normalize/art.ts";
 import { createContext } from "./normalize/context.ts";
@@ -1211,5 +1212,21 @@ describe("Trickster Takeover (`tt`), normalized from the real raw pack: per grou
       category: "villain",
       trait: "AVATAR OF LOKI",
     });
+  });
+});
+
+describe("The Mad Titan's Shadow (`mts`), normalized from the real raw pack: Hela's stage numbers", () => {
+  const rawPack = JSON.parse(readFileSync(new URL("../../raw/marvelcdb/mts.json", import.meta.url), "utf8")) as {
+    cards: RawCard[];
+  };
+  const allCodes = new Set(rawPack.cards.flatMap((c) => [c.code, ...(c.linked_card ? [c.linked_card.code] : [])]));
+  const out = normalizePack(withLocalArt(rawPack.cards, allCodes), { ...MTS_CURATION, artUnavailable: {} });
+
+  it("numbers Hela's infinite-HP Wounded face stage 2 and her front stage 1 (FFG ruling Sep 5, 2024 #11)", () => {
+    for (const id of ["21136a", "21137a"]) {
+      const c = out.cards.find((x) => x.id === id);
+      if (c?.type !== "villain") throw new Error(`${id} is not a villain card`);
+      expect(c.sides.map((side) => side.stages.map((st) => st.stageNumber))).toEqual([[1], [2]]);
+    }
   });
 });
