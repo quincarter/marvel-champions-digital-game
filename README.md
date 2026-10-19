@@ -166,7 +166,7 @@ Everyone whose code is in the game.
 
 <!-- credits:contributors:start -->
 <table>
-<tr><td align="center"><a href="https://github.com/bluefireF5ran"><img src="https://github.com/bluefireF5ran.png?size=128" width="64" height="64" alt="Francisco Merchán Cordero"><br><sub><b>Francisco Merchán Cordero</b></sub></a></td></tr>
+<tr><td align="center"><a href="https://github.com/quincarter"><img src="https://github.com/quincarter.png?size=128" width="64" height="64" alt="Quin Carter"><br><sub><b>Quin Carter</b></sub></a></td><td align="center"><a href="https://github.com/bluefireF5ran"><img src="https://github.com/bluefireF5ran.png?size=128" width="64" height="64" alt="Francisco Merchán Cordero"><br><sub><b>Francisco Merchán Cordero</b></sub></a></td></tr>
 </table>
 <!-- credits:contributors:end -->
 

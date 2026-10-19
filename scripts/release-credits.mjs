@@ -12,9 +12,10 @@
 //     Rewrites the README's two "Special thanks" lists (between the `credits:` markers). The Watchers are people
 //     with at least `watcherMinimum` (default 2) issues closed as done: a bug fixed or a feature built, by anyone. A
 //     single report, or reports closed as not planned or as duplicates, don't count. The Committers are everyone with
-//     a merged pull request. The release PR job runs it, so the README stays current release by release.
+//     a merged pull request, after the `pinnedContributors` (the repository owner by default), who lead the list.
+//     The release PR job runs it, so the README stays current release by release.
 //
-// The repository owner and bots are left out. `.github/credits.json` adds people GitHub can't see (a bug sent on
+// The repository owner and bots are otherwise left out. `.github/credits.json` adds people GitHub can't see (a bug sent on
 // Discord or through the in-game reporter) and names logins to leave out.
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -151,7 +152,8 @@ function person(login) {
 }
 
 // GitHub's people, then the hand-listed ones GitHub doesn't already show.
-function people(logins, manual = []) {
+function people(listed, manual = []) {
+  const logins = [...new Map(listed.map((l) => [l.toLowerCase(), l])).values()];
   const list = logins.map(person);
   const seen = new Set(logins.map((l) => l.toLowerCase()));
   for (const entry of manual) {
@@ -171,7 +173,10 @@ function readme() {
       ),
       config.reporters,
     ),
-    contributors: people(ranked(all.filter((i) => i.pull_request?.merged_at)), config.contributors),
+    contributors: people(
+      [...(config.pinnedContributors ?? [owner]), ...ranked(all.filter((i) => i.pull_request?.merged_at))],
+      config.contributors,
+    ),
   };
 
   let text = readFileSync(README, "utf8");

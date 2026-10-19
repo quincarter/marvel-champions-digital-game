@@ -1,5 +1,6 @@
 {
-  "$comment": "People to credit whom GitHub can't see, read by scripts/release-credits.mjs. watcherMinimum: how many issues closed as done put someone in The Watchers. reporters / contributors: { name, github?, url?, note? } added to the README's Special thanks. release: { \"vX.Y.Z\": [\"a line for that release's Special thanks\"] }. exclude: logins to leave out.",
+  "$comment": "People to credit whom GitHub can't see, read by scripts/release-credits.mjs. pinnedContributors: logins that lead Earth's Mightiest Committers, owner or not. watcherMinimum: how many issues closed as done put someone in The Watchers. reporters / contributors: { name, github?, url?, note? } added to the README's Special thanks. release: { \"vX.Y.Z\": [\"a line for that release's Special thanks\"] }. exclude: logins to leave out.",
+  "pinnedContributors": ["quincarter"],
   "watcherMinimum": 2,
   "reporters": [],
   "contributors": [],
