@@ -279,8 +279,12 @@ subsections.
 - **S3.14 Removal by title.** MC60 p. 9 step 8: "searches their deck for each card whose title is recorded … and removes
   those cards". `withoutRemovedCards` matches by card id; add `removeFromCampaign { byTitle: true }` so every printing
   of a recorded title leaves every deck. A deck left below minimum is the campaign deck editor's existing check.
-- **S3.15 Setup ability of a campaign-placed card.** An `inGame` instruction puts 60205a/b–60209a/b (and 60210a) into
-  play from `setAsideCards`; their "Setup:" abilities then resolve (MC60 p. 9 step 12). `gameAbilityFrames(…, ["setup"])`
+- **S3.15 Setup ability of a campaign-placed card.** An `inGame` instruction sets aside 60205a–60209a and puts each into
+  play on its Completed or Failed face (`putIntoPlay { otherFace, resolveSetup }`; the Failed faces are `flipSide`s, not
+  pool cards); their "Setup:" abilities then resolve in the order the first player chooses (MC60 p. 9 step 12; RRG 1.8
+  "Simultaneous Resolution", p. 40). The Typhoid Mary ally 60210a has the Setup keyword, not a "Setup:" ability: step 13
+  puts it into play itself under the player the players choose, only when its condition holds, and it must not be swept
+  in by step 11. `gameAbilityFrames(…, ["setup"])`
   exists for setup-keyword cards at step 11; add `putIntoPlay.resolveSetup: true`. Not a reveal (environments are put
   into play, and flipping or placing one is not revealing: January 26, 2026 R4 (2), April 30, 2026 R3 (3)).
 
