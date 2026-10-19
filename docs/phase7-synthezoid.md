@@ -321,8 +321,9 @@ War did: the team scaffolding, the unique-rule extension, the leader refs and th
 
 - Justice Like Lightning: "Each minion activates against the player it is engaged with. Otherwise, the enemy leader
   activates against you. Do not give it a boost card for this activation." `EffectSpec enemyActivation` exists; the "no
-  boost card" option was not found by name (searched `giveBoostCard`, `adjustBoostCount`, `cancelBoostIcons`). Verify the
-  option, or add one flag. "Otherwise" is true when no minion was engaged with that player.
+  boost card" option was not found by name (searched `giveBoostCard`, `adjustBoostCount`, `cancelBoostIcons`); it exists
+  as `enemyActivates(..., { noBoost: true })` (verified 2026-10-19). "Otherwise" is true when no minion is in play at
+  all, as Street Defenders reads the same sentence.
 
 ### M9 Attach with a fallback host
 
