@@ -3578,6 +3578,7 @@ export const FNE_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/60139.png") },
+    cardBack: "encounter",
     cost: 0,
     specialCost: "dash",
     resourceIcons: {},
@@ -3895,6 +3896,7 @@ export const FNE_CARDS: readonly AnyCard[] = [
           { id: abilityId("60151b.stop-the-presses-forced-response") },
           { id: abilityId("60151b.stop-the-presses-constant") },
         ],
+        completionLoses: true,
         image: imageRef("/bundles/cards/60151b.png"),
         aSide: {
           text: {

@@ -88,6 +88,11 @@ const SCENARIO_HALF_CORRECTIONS: readonly Correction[] = [
     reason: `${title} prints a dash cost (it enters play through its own When Revealed or Setup); the transcription has no cost.`,
     evidence: `${scan} RRG Dash (Value), p. 15.`,
     specialCost: "dash",
+    // Shop Proprietor is shuffled into the encounter deck and revealed from it ("When Revealed: Put Shop Proprietor
+    // into play under your control"): an ally of the Protection Racket set (footer "PROTECTION RACKET (6/9)"; MC60
+    // p. 13 "Encounter Deck: Protection Racket, ...") with an encounter card back, as Longshot (mojo 39071). The
+    // scan is the front only; the back follows from the card being dealt in the encounter deck.
+    ...(code === "60139" ? { cardBack: "encounter" as const } : {}),
   })),
   // The star in the boost row of each of the ten Purple Man boost cards (60100 to 60109) is printed on the card, but the
   // Boost it stands for is granted by the villain stages (60097 to 60099), not written on the card (villains-b.ts
@@ -263,8 +268,11 @@ const SCENARIO_RECORDS: readonly ScenarioCuration[] = [
     name: "Stop the Presses!",
     mainSchemeSetCode: "stop_the_presses",
     recommendedModularSetCodes: ["tombstone", "tracksuit_mafia"],
+    // The four DAILY BUGLE supports are player-typed, so no encounter set's deck holds them: 1A's Setup puts a random
+    // one into play under each player's control and removes the rest from the game.
+    setAsideCardCodes: ["60153", "60154", "60155", "60156"],
     evidence:
-      'MC60 p. 21: "Main Scheme Deck: Stop the Presses! Encounter Deck: Stop the Presses!, Tombstone, Tracksuit Mafia, Standard, and chosen villain\'s encounter sets." Underling villains: MC60 p. 5, p. 8.',
+      'MC60 p. 21: "Main Scheme Deck: Stop the Presses! Encounter Deck: Stop the Presses!, Tombstone, Tracksuit Mafia, Standard, and chosen villain\'s encounter sets." "Daily Bugle Support Cards": "each player starts the game with a random Daily Bugle support under their control". Stage 1A Setup (60151a): "Each player puts a random Daily Bugle support from this encounter set into play under their control. Remove each remaining Daily Bugle support from the game." Underling villains: MC60 p. 5, p. 8.',
   }),
   {
     id: "kingpin",

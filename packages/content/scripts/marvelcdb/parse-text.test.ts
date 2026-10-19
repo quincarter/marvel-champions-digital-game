@@ -127,6 +127,17 @@ describe("stage-completion loss reminder: MainSchemeStage.completionLoses", () =
       "If there are at least 5[per_hero] cards in The Collection or if this stage is completed",
     );
   });
+
+  it('the compound fires with the other clause leading and no second "if" (fne 60151b)', () => {
+    const text =
+      "Forced Response: After an enemy makes an undefended attack against you, choose:\n• Place 2 threat here (3 threat instead in expert mode).\n• Remove 1 stamina counter from a Daily Bugle support you control.\nIf a Daily Bugle support leaves play or this stage is completed, the players lose the game.";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.completionLoses).toBe(true);
+    expect(parsed.unclassified).toEqual([]);
+    const constant = parsed.abilities.find((a) => a.kind === "constant");
+    expect(constant?.text).toContain("If a Daily Bugle support leaves play or this stage is completed");
+  });
 });
 
 /**

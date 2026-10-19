@@ -970,9 +970,11 @@ const STAGE_LOSS_REMINDER = /^If this (?:stage|scheme) is completed, the players
 // order — Extract Captives `aos` 50089b ("If this stage is completed or there are no Rescued Captive allies in
 // play, the players lose the game."), Mutant Massacre `next_evol` 40078b (same shape), and The Grand Collection
 // `gmw` 16073b ("If there are at least 5[per_hero] cards in The Collection or if this stage is completed, the
-// players lose the game." — the other clause leads). Only the "completed" half is the reminder; the other half
-// is real scripted behavior and is left in the card text (a `constant` ability ref).
-const STAGE_LOSS_COMPOUND_HALF = /\bif this (?:stage|scheme) is completed\b/i;
+// players lose the game." — the other clause leads), and Stop the Presses! `fne` 60151b ("If a Daily Bugle support
+// leaves play or this stage is completed, the players lose the game." — the other clause leads, with no second "if").
+// Only the "completed" half is the reminder; the other half is real scripted behavior and is left in the card text (a
+// `constant` ability ref).
+const STAGE_LOSS_COMPOUND_HALF = /\b(?:if|or) this (?:stage|scheme) is completed\b/i;
 const STAGE_LOSS_COMPOUND_TAIL = /the players lose the game\.?$/i;
 
 export function parseCardText(text: string, options: ParseOptions): ParsedText {
