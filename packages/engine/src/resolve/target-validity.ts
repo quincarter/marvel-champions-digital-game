@@ -228,7 +228,8 @@ export const attackPiercesTough = (
   keywords: readonly AttackKeyword[],
 ): boolean =>
   keywords.includes("piercing") &&
-  !lostAttackKeywords(state, deps, id).includes("piercing") &&
+  // `keywords` come from `attackKeywordsOf`, which already left out what the attacker's attacks lose.
+  !lostAttackKeywords(state, deps, id, null).includes("piercing") &&
   statusActive(state, id, "tough", deps);
 
 /** The character an `attack` effect attacks with: its `attacker`, else the controller's identity (`apply-effect.ts`). */

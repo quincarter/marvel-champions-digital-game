@@ -2101,12 +2101,25 @@ export const attacksGainKeywords = (
  * keyword against a character matching `target`, whatever gave it: the attacker's own keyword, "this attack gains
  * piercing" on the card making the attack, a grant made during the attack, or `attacksGainKeywords` (RRG 1.8 "Lose",
  * p. 27: a loss beats a gain). The same attack keeps the keyword against any other character.
+ *
+ * `attacker`: "**Bullseye's attacks** lose ranged" (Deadly Sai 60070; docs/phase7-wave11-scenarios.md §S7 E19):
+ * `attacksLoseKeywords(["ranged"], { attacker: theVillain })`. An attack made by a matching character has none of these
+ * keywords against anyone, whatever grants them ("attached villain's attacks gain ranged", Out Front 60129a). Set
+ * `target`, `attacker` or both (ANDed); the validator rejects a rule with neither.
  */
 export const attacksLoseKeywords = (
   keywords: readonly AttackKeyword[],
-  opts: { readonly target: TargetQuery; readonly while?: Predicate },
+  opts: { readonly target?: TargetQuery; readonly attacker?: TargetQuery; readonly while?: Predicate },
 ): ConstantPart => ({
-  rules: [{ kind: "attacksLoseKeywords", keywords, target: opts.target, ...(opts.while ? { while: opts.while } : {}) }],
+  rules: [
+    {
+      kind: "attacksLoseKeywords",
+      keywords,
+      ...(opts.target ? { target: opts.target } : {}),
+      ...(opts.attacker ? { attacker: opts.attacker } : {}),
+      ...(opts.while ? { while: opts.while } : {}),
+    },
+  ],
 });
 /**
  * "Attacks against attached minion deal 2 additional damage" (Cruisin' for a Bruisin' 62009;

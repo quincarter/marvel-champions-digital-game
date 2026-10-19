@@ -195,6 +195,7 @@ export const UNDO_EVENT_VERDICTS: Readonly<Record<GameEvent["type"], readonly [V
   mainSchemeCompleted: [STOPS, "the scheme ended the game"],
   mainSchemeFlippedToOtherFace: [STOPS, "turns a hidden face up"],
   mainSchemeStageRemoved: [STOPS, "scheme stages changed"],
+  mainSchemeSwapped: [STOPS, "a main scheme changed"],
   mainSchemeStageRevealed: [STOPS, "a stage revealed"],
   mainSchemeStageToVictoryDisplay: [STOPS, "scheme stages changed"],
   mainSchemeStagesChosen: [STOPS, "scheme stages changed"],

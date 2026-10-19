@@ -19,6 +19,8 @@ import {
   setVillainsAside,
 } from "./game-areas.js";
 import { flipToOtherFace } from "./other-face.js";
+import { swapMainScheme } from "./swap-main-scheme.js";
+import { markPreThenUnresolved } from "./then.js";
 
 export function runHostStep(ctx: Ctx, step: HostStep): void {
   switch (step.kind) {
@@ -63,5 +65,15 @@ export function runHostStep(ctx: Ctx, step: HostStep): void {
       )
         pushFrames(ctx, [eventFrame(ctx, cardFlippedEvent(step.id, step.flippedBy))]);
       return;
+    case "swapMainScheme": {
+      // It pushes its own threat placement. Refused now (a card moved while the interrupts resolved): the swapping
+      // ability's text before a "then" is not fully resolved, as `swapCards` marks it (RRG 1.8 "'Then'", p. 44).
+      const outcome = swapMainScheme(ctx, step.schemeId, step.incoming, {
+        placePreviousThreat: step.placePreviousThreat === true,
+        sourceInstanceId: step.sourceInstanceId ?? null,
+      });
+      if (outcome === "refused") markPreThenUnresolved(ctx, step.frameId, "swapNotCompleted");
+      return;
+    }
   }
 }

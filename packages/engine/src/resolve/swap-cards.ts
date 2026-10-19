@@ -28,8 +28,11 @@
  * facedown ... of the original card": facedown, with no title or text there), and the facedown one enters play faceup,
  * ready, in the other's place.
  *
- * Not built (refused, logged `swapRefused`): two cards both in play (no printed card does it), and identities, villains
- * and main schemes, which have their own swaps (`swapIdentity`, `swapVillain`).
+ * A main scheme in play and a set-aside main scheme (Change of Venue, `fne` 60141) is its own exchange of
+ * `MainSchemeState` slots (`swapMainScheme`, docs/phase7-wave11-scenarios.md §S3.2).
+ *
+ * Not built (refused, logged `swapRefused`): two cards both in play (no printed card does it), and identities and
+ * villains, which have their own swaps (`swapIdentity`, `swapVillain`).
  */
 
 import type { CardId } from "@mc/content";
@@ -54,6 +57,7 @@ import type { ZoneId } from "../state.js";
 import { matchingCardInPlay } from "../unique.js";
 import { pushEvents } from "./frames.js";
 import { boostCardReplaced } from "./rearrange.js";
+import { mainSchemeSwapPair, swapMainScheme, type MainSchemeSwapOptions } from "./swap-main-scheme.js";
 import { markPreThenUnresolved } from "./then.js";
 
 /** How a swap ended: done, waiting for the outgoing card's "when it leaves play" interrupts, or not completed. */
@@ -70,7 +74,7 @@ function placeOf(ctx: Ctx, id: InstanceId): { readonly zone: ZoneId; readonly in
   return { zone, index: zone.kind === "identity" ? 0 : zoneContents(ctx.state, zone).indexOf(id) };
 }
 
-/** An identity, a villain or a main scheme: each has its own swap (`swapIdentity`, `swapVillain`). */
+/** An identity, a villain or a main scheme: each has its own swap (`swapIdentity`, `swapVillain`, `swapMainScheme`). */
 function hasOwnSwap(ctx: Ctx, id: InstanceId): boolean {
   const state = ctx.state;
   if (state.players.some((p) => p.identity.instanceId === id)) return true;
@@ -82,7 +86,8 @@ function hasOwnSwap(ctx: Ctx, id: InstanceId): boolean {
 /**
  * Swaps `a` and `b` (either order: whichever is in play is the outgoing card). `sourceCardId`: the card whose ability
  * swaps them, for Permanent's same-set exception. `frameId`: the effects frame, marked "not fully resolved" for a
- * "then" when the swap cannot be completed (RRG 1.8 "'Then'", p. 44).
+ * "then" when the swap cannot be completed (RRG 1.8 "'Then'", p. 44). `schemeOptions`: what a main scheme swap adds
+ * (`swapMainScheme`).
  */
 export function swapCards(
   ctx: Ctx,
@@ -90,10 +95,11 @@ export function swapCards(
   b: InstanceId | undefined,
   sourceCardId?: CardId,
   frameId?: FrameId,
+  schemeOptions?: MainSchemeSwapOptions,
 ): SwapOutcome {
   // One change to a deck kept faceup (docs/phase7-wave8.md §3.48): a card swapped onto the top of a deck is the next
   // one showing, and the card under the one it replaced never was (RRG 1.8 "'Swap'", p. 42).
-  return holdDeckTops(ctx, () => swapCardsNow(ctx, a, b, sourceCardId, frameId));
+  return holdDeckTops(ctx, () => swapCardsNow(ctx, a, b, sourceCardId, frameId, schemeOptions));
 }
 
 function swapCardsNow(
@@ -102,6 +108,7 @@ function swapCardsNow(
   b: InstanceId | undefined,
   sourceCardId?: CardId,
   frameId?: FrameId,
+  schemeOptions?: MainSchemeSwapOptions,
 ): SwapOutcome {
   const refuse = (reason: Refusal, ids: readonly (InstanceId | undefined)[]): SwapOutcome => {
     emit(ctx, {
@@ -114,6 +121,17 @@ function swapCardsNow(
   };
   if (a === undefined || b === undefined || a === b) return refuse("missingCard", [a, b]);
   if (!getInstance(ctx.state, a) || !getInstance(ctx.state, b)) return refuse("missingCard", [a, b]);
+  // A main scheme has no zone: its swap exchanges `MainSchemeState` slots (docs/phase7-wave11-scenarios.md §S3.2).
+  const schemes = mainSchemeSwapPair(ctx.state, a, b);
+  if (typeof schemes === "string") return refuse(schemes, [a, b]);
+  if (schemes) {
+    const outcome = swapMainScheme(ctx, schemes.outgoing, schemes.incoming, {
+      ...schemeOptions,
+      ...(frameId !== undefined ? { frameId } : {}),
+    });
+    if (outcome === "refused") markPreThenUnresolved(ctx, frameId, "swapNotCompleted");
+    return outcome;
+  }
   if (hasOwnSwap(ctx, a) || hasOwnSwap(ctx, b)) return refuse("unsupported", [a, b]);
   if (!placeOf(ctx, a) || !placeOf(ctx, b)) return refuse("missingCard", [a, b]);
   const inPlay = cardsInPlay(ctx.state);

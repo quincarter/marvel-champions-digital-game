@@ -799,8 +799,16 @@ export type TargetRef =
   /**
    * "The main scheme": in a separate game area, that area's own stage; `of: "central"` is the central stage outside
    * every area ("place 1 set-aside Kang's Dominion facedown under stage 4A"; docs/phase7-wave2.md §3.1).
+   *
+   * `of: "yours"`: "your main scheme" (Change of Venue, `fne` 60141; docs/phase7-wave11-scenarios.md §S3.2). With a
+   * main scheme per player, the one in the play area of "you" (the player scoped by `forEachPlayer`, else the
+   * ability's player: the revealing player of a treachery; for a Boost ability the defending player, RRG 1.8 "Attack
+   * (Enemy Activation)", p. 8), wherever the card is; none when that player has none. In any other game it reads as
+   * "the main scheme". Engine interpretation (tier 5): during a scheme, where RRG 1.8 "Scheme (Enemy Activation)"
+   * (p. 39) names no "you", a Boost ability's "you" is the player the enemy is scheming against, as
+   * `gameAbilityFrames` reads it.
    */
-  | { readonly kind: "mainScheme"; readonly of?: "central" }
+  | { readonly kind: "mainScheme"; readonly of?: "central" | "yours" }
   | { readonly kind: "identityOf"; readonly player: PlayerRef }
   /** "The villain corresponding to the attached side scheme" (Held Hostage): each undefeated villain whose signature side scheme the ref names. */
   | { readonly kind: "villainOfSideScheme"; readonly scheme: TargetRef }
@@ -5104,8 +5112,20 @@ export type EffectSpec =
    * enters play ready in its place, under its controller; nothing transfers. Sharing a title: neither enters or leaves
    * play, and everything on the in-play card stays on it. Two out-of-play cards just exchange places. Logged
    * `cardsSwapped`. The caller shuffles a deck it searched (`shuffleDeck`, RRG 1.8 "Search", p. 39).
+   *
+   * A main scheme in play and a set-aside main scheme card ("Swap your main scheme with a random set-aside main
+   * scheme", Change of Venue, `fne` 60141; docs/phase7-wave11-scenarios.md §S3.2): the new card takes the old one's
+   * main scheme slot and play area, at its first stage, B side faceup, with no Setup, When Revealed or starting threat;
+   * the old one goes to the new one's set-aside place, its attachments discarded (MC60 p. 26 FAQ) and its tokens gone.
+   * Logged `mainSchemeSwapped`. `placePreviousThreat`: "Place the threat from the previous scheme on the new scheme",
+   * placed (a `placeThreat` event) once the swap is done; nothing is placed when the swap cannot be completed.
    */
-  | { readonly kind: "swapCards"; readonly a: TargetRef; readonly b: TargetRef }
+  | {
+      readonly kind: "swapCards";
+      readonly a: TargetRef;
+      readonly b: TargetRef;
+      readonly placePreviousThreat?: true;
+    }
   /**
    * "The first player detaches Odin from the main scheme and takes control of him" (Hall of Nastrond, `mts` 21141); "The
    * first player detaches Robert Kelly from this scheme and takes control of him" (Find the Senator, `mut_gen` 32065a).

@@ -32,7 +32,7 @@
 
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
 import type { InstanceId, FrameId, PlayerId } from "./ids.js";
-import { attackKeywordsOf, hasKeyword, keywordTotal } from "./keywords.js";
+import { attackKeywordsOf, keywordTotal } from "./keywords.js";
 import { boostIconsFor } from "./modifiers.js";
 import {
   activeVillain,
@@ -412,7 +412,14 @@ export function defendPreview(
     return bound;
   };
   const overkill = attackHasOverkill(state, deps, frame);
-  const ranged = hasKeyword(state, frame.enemyInstanceId, "ranged", deps);
+  // Read per option as the attack's damage step reads it, against that option's attacked character: a grant ("it
+  // gains ranged"), a loss by the attacker ("his attacks lose ranged", wave 11 §S7 E19) and a loss against the
+  // character ("attacks against them lose ranged", wave 10 §3.18) all count.
+  const vars = activationVarsOf(state, frame.eventFrameId);
+  const rangedAgainst = (targetInstanceId: InstanceId): boolean =>
+    attackKeywordsOf(state, deps, { attackerInstanceId: frame.enemyInstanceId, vars, targetInstanceId }).includes(
+      "ranged",
+    );
 
   return choice.options.map((option) => {
     const defenderInstanceId =
@@ -428,6 +435,7 @@ export function defendPreview(
     const defended = withTargetPlayer(state, frame, targetPlayerId);
     const planned = plannedAttackDamage(defended, deps, frame, { boostIcons: 0, defenderInstanceId, basicDefense });
 
+    const ranged = rangedAgainst(targetInstanceId);
     const bands: DefendBand[] = [];
     for (let icons = boost.min; icons <= boost.max; icons++) {
       const outcome = outcomeAt(defended, deps, frame, shape, icons, overkill, ranged);

@@ -2652,7 +2652,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const a = targets(effect.a);
       const b = targets(effect.b);
       const one = (ids: readonly InstanceId[]) => (ids.length === 1 ? ids[0] : undefined);
-      swapCards(ctx, one(a), one(b), leaveSourceOf(ctx, frame), frame.frameId);
+      swapCards(ctx, one(a), one(b), leaveSourceOf(ctx, frame), frame.frameId, {
+        placePreviousThreat: effect.placePreviousThreat === true,
+        sourceInstanceId: frame.selfInstanceId,
+      });
       return;
     }
     case "swapIdentity":

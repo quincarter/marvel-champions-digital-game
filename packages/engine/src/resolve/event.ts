@@ -1179,9 +1179,12 @@ function attackPierces(ctx: Ctx, event: DamageEvent): boolean {
   );
 }
 
-/** Whether attacks do not have `keyword` against this damage's target (`attacksLoseKeywords`, wave 10 §3.18). */
+/**
+ * Whether this damage's attack does not have `keyword` against its target (`attacksLoseKeywords`, wave 10 §3.18): lost
+ * against the target, or lost by the attacker's attacks (the damage's source; wave 11 §S7 E19).
+ */
 const attackLost = (ctx: Ctx, event: DamageEvent, keyword: AttackKeyword): boolean =>
-  lostAttackKeywords(ctx.state, ctx.deps, event.targetInstanceId).includes(keyword);
+  lostAttackKeywords(ctx.state, ctx.deps, event.targetInstanceId, event.sourceInstanceId).includes(keyword);
 
 /**
  * RRG 1.8 "Piercing" (p. 32): "Before this attack deals damage to a character, discard each tough status card from that
@@ -1752,7 +1755,10 @@ export function applyDamage(
           sourceInstanceId: source,
           // The spill is damage from this attack, so it keeps the attack's card and ranged (docs/phase7-wave7.md §3.30).
           ...(event.viaInstanceId ? { viaInstanceId: event.viaInstanceId } : {}),
-          ...(event.ranged === true || (source !== null && hasKeyword(ctx.state, source, "ranged", ctx.deps))
+          // Not when the attacker's attacks lose ranged (§S7 E19); a loss against the spill's own recipient is read
+          // where that damage is dealt.
+          ...((event.ranged === true || (source !== null && hasKeyword(ctx.state, source, "ranged", ctx.deps))) &&
+          !lostAttackKeywords(ctx.state, ctx.deps, null, source).includes("ranged")
             ? { ranged: true as const }
             : {}),
           // …and the stat it was made with: overkill damage of an attack that used ATK triggers "uses their ATK to
@@ -1891,7 +1897,7 @@ function applyRetaliate(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characte
   // …unless attacks lose ranged against the attacked character (`attacksLoseKeywords`, docs/phase7-wave10.md §3.18).
   if (
     (event.ranged === true || hasKeyword(ctx.state, event.attackerInstanceId, "ranged", ctx.deps)) &&
-    !lostAttackKeywords(ctx.state, ctx.deps, event.targetInstanceId).includes("ranged")
+    !lostAttackKeywords(ctx.state, ctx.deps, event.targetInstanceId, event.attackerInstanceId).includes("ranged")
   )
     return;
   const inPlay = cardsInPlay(ctx.state);
@@ -2439,7 +2445,9 @@ function applyPlayerAttack(
     overkill:
       keywords.includes("overkill") ||
       (event.overkill === true &&
-        !lostAttackKeywords(ctx.state, ctx.deps, event.targetInstanceId).includes("overkill")),
+        !lostAttackKeywords(ctx.state, ctx.deps, event.targetInstanceId, event.attackerInstanceId).includes(
+          "overkill",
+        )),
     viaInstanceId: event.sourceInstanceId ?? null,
     // Only set when true, so an attack with no granted keyword logs exactly as it always has.
     ...(keywords.includes("piercing") ? { piercing: true } : {}),

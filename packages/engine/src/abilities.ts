@@ -1548,11 +1548,18 @@ export type RuleSpec =
    * the excess of the character it defeats, "Ranged" (p. 35) ignores that character's retaliate. The same attack
    * keeps the keyword against any other character. Read by `attackKeywordsOf` when it is given the attacked
    * character, and again as the damage is dealt (`lostAttackKeywords`).
+   *
+   * `attacker` scopes the loss to attacks *made by* a matching character instead ("Bullseye's attacks lose ranged",
+   * Deadly Sai 60070; docs/phase7-wave11-scenarios.md §S7 E19): such an attack has none of these keywords against any
+   * character, and is read so even where no attacked character is known yet ("when an enemy makes a ranged attack").
+   * The same "Lose" sentence makes it beat every grant, "attached villain's attacks gain ranged" (Out Front 60129a)
+   * included. With both set, the two are ANDed; at least one must be set (`@mc/cards` validates it).
    */
   | {
       readonly kind: "attacksLoseKeywords";
       readonly keywords: readonly AttackKeyword[];
-      readonly target: TargetQuery;
+      readonly target?: TargetQuery;
+      readonly attacker?: TargetQuery;
       readonly while?: Predicate;
     }
   /**

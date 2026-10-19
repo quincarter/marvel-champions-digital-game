@@ -3391,6 +3391,24 @@ export const placeThreatOnSharedScheme = (count: Amount, cause: SharedThreatCaus
  */
 export const swapCards = (a: TargetRef, b: TargetRef): EffectSpec => ({ kind: "swapCards", a, b });
 /**
+ * "Swap your main scheme with a random set-aside main scheme. Place the threat from the previous scheme on the new
+ * scheme." (Change of Venue, `fne` 60141; docs/phase7-wave11-scenarios.md §S3.2): bind the set-aside card first
+ * (`selectCards(slot, encounterSetAside(query("mainScheme"), { random: 1 }))`), then `swapMainScheme(yourMainScheme,
+ * chosen(slot), { placePreviousThreat: true })`. The new scheme takes the old one's place at its first stage, B side
+ * faceup; the old one is set aside with its attachments discarded (MC60 p. 26 FAQ). Nothing is placed when the swap
+ * cannot be completed (no set-aside main scheme).
+ */
+export const swapMainScheme = (
+  scheme: TargetRef,
+  setAside: TargetRef,
+  options: { readonly placePreviousThreat?: boolean } = {},
+): EffectSpec => ({
+  kind: "swapCards",
+  a: scheme,
+  b: setAside,
+  ...(options.placePreviousThreat ? { placePreviousThreat: true as const } : {}),
+});
+/**
  * "When Loki is defeated, advance to a random set-aside Loki villain" (All Hail King Loki 1B): from a forced interrupt
  * to the villain's defeat, `advanceToSetAsideVillain(eventTarget)` (docs/phase7-wave4.md §3.7).
  */

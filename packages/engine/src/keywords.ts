@@ -378,7 +378,8 @@ export interface AttackKeywordContext {
  * 4. a constant `attackKeywords` rule in play ("each of your [Arrow] attacks gain ranged", Hawkeye's Bow).
  *
  * Less the keywords attacks lose against `targetInstanceId` ("attacks against them lose piercing", Cap's Shield;
- * `attacksLoseKeywords`): a loss beats every source above (RRG 1.8 "Lose", p. 27).
+ * `attacksLoseKeywords`) and those the attacker's attacks lose ("Bullseye's attacks lose ranged", Deadly Sai): a loss
+ * beats every source above (RRG 1.8 "Lose", p. 27).
  */
 export function attackKeywordsOf(
   state: GameState,
@@ -394,7 +395,8 @@ export function attackKeywordsOf(
     attack.basic === true,
     attack.targetInstanceId ?? null,
   );
-  const lost = attack.targetInstanceId ? lostAttackKeywords(state, deps, attack.targetInstanceId) : [];
+  // Without a target only the attacker-scoped losses apply ("Bullseye's attacks lose ranged", wave 11 §S7 E19).
+  const lost = lostAttackKeywords(state, deps, attack.targetInstanceId ?? null, attack.attackerInstanceId);
   return ATTACK_KEYWORDS.filter(
     (name) =>
       !lost.includes(name) &&

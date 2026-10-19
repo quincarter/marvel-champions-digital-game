@@ -2061,6 +2061,20 @@ export type HostStep =
       readonly flippedBy?: PlayerId;
       /** `flipCard.keepCounters`: the counter types it keeps through the change of type. */
       readonly keepCounters?: readonly string[];
+    }
+  /**
+   * `swapMainScheme` (docs/phase7-wave11-scenarios.md §S3.2): the main scheme in play swapped out with `incoming`, a
+   * set-aside main scheme, its attachments discarded; `placePreviousThreat` / `sourceInstanceId` as
+   * `MainSchemeSwapOptions`. `frameId`: the swapping ability's effects frame, marked for a "then" if the swap is refused
+   * when it resumes.
+   */
+  | {
+      readonly kind: "swapMainScheme";
+      readonly schemeId: InstanceId;
+      readonly incoming: InstanceId;
+      readonly placePreviousThreat?: true;
+      readonly sourceInstanceId?: InstanceId;
+      readonly frameId?: FrameId;
     };
 
 /** How a card about to be attached is being attached (`TriggerEvent cardAttached.imminent`). */

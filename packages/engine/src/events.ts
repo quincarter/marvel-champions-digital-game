@@ -1363,6 +1363,21 @@ export type GameEvent =
       readonly cardIds: readonly [CardId, CardId];
     }
   /**
+   * A main scheme in play was swapped with a set-aside one (`EffectSpec swapCards`, `resolve/swap-main-scheme.ts`;
+   * docs/phase7-wave11-scenarios.md §S3.2; RRG 1.8 "'Swap'", p. 42): `incoming` took `outgoing`'s main scheme slot and
+   * `playArea` (null: the villain's play area), at its first stage with the B side faceup and no threat, and `outgoing`
+   * took `incoming`'s place in the set-aside area, its attachments discarded (logged before this) and its tokens gone.
+   * `threat`: what was on `outgoing`; a `placePreviousThreat` places it on `incoming` next. `cardIds`: [old, new].
+   */
+  | {
+      readonly type: "mainSchemeSwapped";
+      readonly outgoing: InstanceId;
+      readonly incoming: InstanceId;
+      readonly cardIds: readonly [CardId, CardId];
+      readonly playArea: PlayerId | null;
+      readonly threat: number;
+    }
+  /**
    * A "find" found this card (`EffectSpec findCard`, RRG 1.8 "Find", p. 19; docs/phase7-wave6.md §3.48), logged before
    * it moves. `from`: where it was (absent for a villain or main scheme, which have no zone). `alreadyThere`: it was at
    * the destination already, so it stays as it is. `deckShuffled`: it was in a deck, so each deck searched for it is
@@ -1990,8 +2005,12 @@ export type GameEvent =
   | {
       readonly type: "lastingEffectEnded";
       readonly id: string;
-      /** `detached`: its `whileAttached` card is no longer on that host (docs/phase7-wave6.md §3.50, §4.1 Q28). */
-      readonly reason: "expired" | "consumed" | "sourceLeftPlay" | "fired" | "detached";
+      /**
+       * `detached`: its `whileAttached` card is no longer on that host (docs/phase7-wave6.md §3.50, §4.1 Q28).
+       * `targetLeftPlay`: the only card it named left play as a new copy (a main scheme swapped out,
+       * docs/phase7-wave11-scenarios.md §S3.2).
+       */
+      readonly reason: "expired" | "consumed" | "sourceLeftPlay" | "fired" | "detached" | "targetLeftPlay";
     }
   /** `patrol`: a thwart by a player a patrol minion is engaged with, against the main scheme (docs/phase7-wave3.md §3.5). */
   | {

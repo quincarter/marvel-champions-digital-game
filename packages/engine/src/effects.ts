@@ -2271,7 +2271,7 @@ export function addLastingEffect(
 export function endLastingEffect(
   ctx: Ctx,
   id: string,
-  reason: "expired" | "consumed" | "sourceLeftPlay" | "fired" | "detached",
+  reason: "expired" | "consumed" | "sourceLeftPlay" | "fired" | "detached" | "targetLeftPlay",
 ): void {
   if (!ctx.state.lastingEffects.some((effect) => effect.id === id)) return;
   ctx.state = { ...ctx.state, lastingEffects: ctx.state.lastingEffects.filter((effect) => effect.id !== id) };

@@ -1264,7 +1264,8 @@ export function abilityAttackDamage(
   });
   const overkill =
     keywords.includes("overkill") ||
-    (event.overkill === true && !lostAttackKeywords(state, deps, targetId).includes("overkill"));
+    (event.overkill === true &&
+      !lostAttackKeywords(state, deps, targetId, event.attackerInstanceId).includes("overkill"));
   return {
     // "This attack deals N additional damage" (`modifyAttack.extraDamage` on the attack's frame) increases each
     // instance of the attack's damage (RRG 1.8 "Attack (Player Ability Type)", p. 10; owner ruling Q53): the attack's

@@ -112,7 +112,12 @@ import { threatRemovalBlocked } from "./resolve/event.js";
 import { playFromHandCandidates } from "./resolve/effects-frame.js";
 import { accusationWrongGuesses, accusedWrong, isAccusationBoardMember } from "./accusation.js";
 import { hiddenPileSize } from "./hidden-pile-state.js";
-import { hasPerPlayerMainSchemes, mainSchemePlayAreaOf, mainSchemesFor } from "./per-player-main-schemes.js";
+import {
+  hasPerPlayerMainSchemes,
+  mainSchemeInPlayAreaOf,
+  mainSchemePlayAreaOf,
+  mainSchemesFor,
+} from "./per-player-main-schemes.js";
 import {
   attackUsesAtk,
   canHaveAttached,
@@ -2674,6 +2679,12 @@ function resolveRefAnywhere(state: GameState, ref: TargetRef, context: EffectCon
     case "mainScheme": {
       // "The main scheme": this area's own stage, or the central one (`of: "central"`, "under stage 4A").
       if (ref.of === "central") return [state.mainScheme.instanceId];
+      // "Your main scheme" (docs/phase7-wave11-scenarios.md §S3.2): the one in your play area, wherever the card is.
+      if (ref.of === "yours" && hasPerPlayerMainSchemes(state)) {
+        const you = context.scopedPlayerId ?? context.controllerId;
+        const yours = you ? mainSchemeInPlayAreaOf(state, you) : undefined;
+        return yours ? [yours.instanceId] : [];
+      }
       // A main scheme per player (docs/phase7-wave11-scenarios.md §S3.1; MC60 p. 13): the one in the play area of the
       // card that says it (or of the player who played or revealed it), or every one for a card in no play area.
       if (hasPerPlayerMainSchemes(state)) return mainSchemesFor(state, context);

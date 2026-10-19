@@ -1138,6 +1138,15 @@ function describe(
       };
     case "swapRefused":
       return { text: `The swap can't happen: ${swapRefusedReason(event.reason)}.`, voice: "player" };
+    // docs/phase7-wave11-scenarios.md §S3.2 (Change of Venue): a main scheme swapped with a set-aside one.
+    case "mainSchemeSwapped": {
+      const owner = event.playArea === viewer ? "your" : event.playArea === null ? "" : `${who(event.playArea)}'s`;
+      const where = event.playArea === null ? "" : ` in ${owner} play area`;
+      return {
+        text: `${card(event.incoming)} replaces ${card(event.outgoing)}${where}; ${card(event.outgoing)} is set aside.`,
+        voice: "scenario",
+      };
+    }
 
     // docs/phase7-wave8.md §3.63: an additional cost to change form (Spectrum-style "2 resources of the same type").
     // The cards that print it are not named: they are in the form-change prompt's header and in Inspect.

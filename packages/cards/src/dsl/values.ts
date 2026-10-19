@@ -226,6 +226,12 @@ export const theMainScheme: TargetRef = { kind: "mainScheme" };
  */
 export const centralMainScheme: TargetRef = { kind: "mainScheme", of: "central" };
 /**
+ * "Your main scheme" (Change of Venue, `fne` 60141; docs/phase7-wave11-scenarios.md §S3.2): with a main scheme per
+ * player, the one in your play area, also from a Boost ability on the villain (you are the defending or schemed-against
+ * player); in any other game, the main scheme.
+ */
+export const yourMainScheme: TargetRef = { kind: "mainScheme", of: "yours" };
+/**
  * "Each face down [card] under this stage/card" (Kang's Wrath 4A, 11013a): the cards tucked under what `of` names,
  * still out of play (RRG 1.8 "Tuck", p. 45) — the `TargetRef` sibling of the `tuckedUnder` `CardSelector` (`dsl/
  * effects.ts`), needed anywhere a ref is required (`revealCard`'s `cards`, above all) rather than a selector.

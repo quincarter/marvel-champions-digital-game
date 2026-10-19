@@ -67,6 +67,22 @@ describe("§3.18 the DSL surface", () => {
     expect(validateDefinition(CONSTANT)).toEqual([]);
   });
 
+  it("builds and validates an attacker-scoped loss (docs/phase7-wave11-scenarios.md §S7 E19)", () => {
+    const part = attacksLoseKeywords(["ranged"], { attacker: { hostOfSelf: true } });
+    expect(part).toEqual({
+      rules: [{ kind: "attacksLoseKeywords", keywords: ["ranged"], attacker: { hostOfSelf: true } }],
+    });
+    expect(validateDefinition(constant(part))).toEqual([]);
+    expect(
+      attacksLoseKeywords(["piercing"], { target: { self: true }, attacker: { categories: ["villain"] } }).rules?.[0],
+    ).toEqual({
+      kind: "attacksLoseKeywords",
+      keywords: ["piercing"],
+      target: { self: true },
+      attacker: { categories: ["villain"] },
+    });
+  });
+
   it("the validator refuses no keyword, a repeated one, a character keyword and no target", () => {
     const at = "definition.trigger.rules[0]";
     expect(validateDefinition(constant(attacksLoseKeywords([], { target: { self: true } })))).toEqual([
@@ -80,8 +96,11 @@ describe("§3.18 the DSL surface", () => {
     ).toEqual([
       `${at}: attacksLoseKeywords takes piercing, ranged or overkill, not "guard" (a character's own keyword is lost with losesKeyword)`,
     ]);
+    expect(validateDefinition(constant(attacksLoseKeywords(["piercing"], {})))).toEqual([
+      `${at}: attacksLoseKeywords names the attacked character (target) or the attacker (attacker)`,
+    ]);
     expect(validateDefinition(constant(attacksLoseKeywords(["piercing"], { target: {} })))).toEqual([
-      `${at}: attacksLoseKeywords names the attacked character (target)`,
+      `${at}: attacksLoseKeywords names the attacked character (target) or the attacker (attacker)`,
     ]);
   });
 });

@@ -1108,8 +1108,10 @@ function checkAttackKeywordLoss(value: unknown, path: string, problems: string[]
           `${path}: attacksLoseKeywords takes piercing, ranged or overkill, not ${JSON.stringify(keyword)} (a character's own keyword is lost with losesKeyword)`,
         );
     }
-    if (typeof record.target !== "object" || record.target === null || Object.keys(record.target).length === 0)
-      problems.push(`${path}: attacksLoseKeywords names the attacked character (target)`);
+    // "Attacks against them" (`target`) or "his attacks" (`attacker`, docs/phase7-wave11-scenarios.md §S7 E19).
+    const names = (end: unknown) => typeof end === "object" && end !== null && Object.keys(end).length > 0;
+    if (!names(record.target) && !names(record.attacker))
+      problems.push(`${path}: attacksLoseKeywords names the attacked character (target) or the attacker (attacker)`);
   }
   for (const [key, item] of Object.entries(record)) checkAttackKeywordLoss(item, `${path}.${key}`, problems);
 }

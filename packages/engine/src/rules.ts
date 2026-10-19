@@ -303,7 +303,8 @@ export function canTakePlayerAttack(
     vars: attack.vars,
     targetInstanceId: targetId,
   });
-  const withOverkill = overkill === true && !lostAttackKeywords(state, deps, targetId).includes("overkill");
+  const withOverkill =
+    overkill === true && !lostAttackKeywords(state, deps, targetId, attackerInstanceId).includes("overkill");
   return !cannotTakeDamage(state, deps, targetId, [attackerInstanceId, sourceInstanceId], {
     attackerInstanceId,
     cardInstanceId: sourceInstanceId,
@@ -1180,13 +1181,23 @@ export function attackExtraDamageAgainst(
 }
 
 /**
- * The `AttackKeyword`s attacks do not have against this character (`attacksLoseKeywords`, docs/phase7-wave10.md §3.18;
- * RRG 1.8 "Lose", p. 27: a loss holds whatever would give the keyword). Empty with no such rule in force.
+ * The `AttackKeyword`s an attack by `attackerId` does not have against `targetId` (`attacksLoseKeywords`,
+ * docs/phase7-wave10.md §3.18, docs/phase7-wave11-scenarios.md §S7 E19; RRG 1.8 "Lose", p. 27: a loss holds whatever
+ * would give the keyword). A rule scoped by `target` needs the attacked character and one scoped by `attacker` needs the
+ * attacker: pass null for an end that is not known, and a rule needing it does not apply. Empty with no such rule.
  */
-export function lostAttackKeywords(state: GameState, deps: EngineDeps, targetId: InstanceId): readonly AttackKeyword[] {
+export function lostAttackKeywords(
+  state: GameState,
+  deps: EngineDeps,
+  targetId: InstanceId | null,
+  attackerId: InstanceId | null,
+): readonly AttackKeyword[] {
   const lost: AttackKeyword[] = [];
   for (const { rule, context } of activeRules(state, deps, "attacksLoseKeywords")) {
-    if (!matchesQuery(state, targetId, rule.target, context)) continue;
+    // A rule with neither end set would strip every attack in the game; no card says that, so it matches nothing.
+    if (!rule.target && !rule.attacker) continue;
+    if (rule.target && (targetId === null || !matchesQuery(state, targetId, rule.target, context))) continue;
+    if (rule.attacker && (attackerId === null || !matchesQuery(state, attackerId, rule.attacker, context))) continue;
     for (const keyword of rule.keywords) if (!lost.includes(keyword)) lost.push(keyword);
   }
   return lost;
