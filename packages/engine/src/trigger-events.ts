@@ -11,6 +11,7 @@ import type {
   StatName,
   StatusName,
   TargetCategory,
+  ValueSpec,
 } from "./spec.js";
 import { PAID_CARDS_SLOT, type Bindings, type Vars } from "./stack.js";
 import type { DeckDiscard, MainSchemeAdvancedBy, StatusCounts, ZoneId } from "./state.js";
@@ -398,6 +399,8 @@ export type TriggerEventBody =
       readonly additionalResolution?: boolean;
       /** "That attack does not get a boost card" (Escaped Convict, I See You): step 1 deals nothing. */
       readonly noBoost?: boolean;
+      /** `EffectSpec enemyAttack.statBonusTiming`: the `atkBonus` read once this attack's interrupts have resolved. */
+      readonly deferredBonus?: DeferredActivationBonus;
     }
   /**
    * An enemy attack has reached its damage step (RRG 1.8 "Attack (Enemy Activation)", pp. 8-9: step 2 has declared
@@ -432,6 +435,8 @@ export type TriggerEventBody =
       readonly divert?: SchemeThreatDivert;
       /** `EffectSpec enemyScheme.wouldPlaceThreat`, resolved at this activation's place-threat step. */
       readonly wouldPlaceThreat?: SchemeWouldPlaceThreat;
+      /** `EffectSpec enemyScheme.statBonusTiming`: the `schBonus` read once this scheme's interrupts have resolved. */
+      readonly deferredBonus?: DeferredActivationBonus;
     }
   /**
    * An enemy was given a facedown boost card (docs/phase7-wave9.md §3.44): "Hero Response (defense): After an
@@ -1854,9 +1859,39 @@ export interface CardCausedActivation {
   readonly noBoost?: boolean;
   readonly divert?: SchemeThreatDivert;
   readonly wouldPlaceThreat?: SchemeWouldPlaceThreat;
+  /** Handed on to the attack's or scheme's event (`TriggerEvent enemyAttack.deferredBonus`). */
+  readonly deferredBonus?: DeferredActivationBonus;
   readonly vars: Vars;
   /** A rule waiting on "that attack" (`LastingDuration awaitingAttack`) is retimed to this activation's attack. */
   readonly settlesAwaitingAttack?: boolean;
+}
+
+/**
+ * An activation bonus read when the activation's ATK / SCH is set (`EffectSpec enemyAttack.statBonusTiming`): after the
+ * "when [enemy] activates / attacks / schemes" interrupts, at the apply step of the attack's or scheme's event, in the
+ * scope of the ability whose effect initiated it. An attack reads `atkBonus`, a scheme `schBonus`. Engine extension of
+ * FFG ruling #147, Feb 15 2024 (authority tier 5, built on #147's order: interrupts to the initiated activation, then
+ * the rest of the card, then the activation); RRG 1.8 "Interrupt", p. 25.
+ *
+ * The scope is the one the effect had, read later: `selfInstanceId` names the card even after it left play (a revealed
+ * treachery is in the discard pile by then), so a bonus reading `self` sees it there, and the `event` the value sees
+ * is the activation being resolved, not the reveal or other event that triggered the ability.
+ *
+ * `shared`: the same attack resolved against several players (`additionalResolution`) reads the bonus once, at its
+ * first resolution, as the eager form does; `fixed` then carries that value to the other resolutions still queued.
+ * Separate activations from one effect ("each enemy attacks you") each read their own, after their own interrupts.
+ */
+export interface DeferredActivationBonus {
+  readonly atkBonus?: ValueSpec;
+  readonly schBonus?: ValueSpec;
+  readonly selfInstanceId: InstanceId | null;
+  readonly controllerId: PlayerId | null;
+  readonly bindings: Bindings;
+  readonly vars: Vars;
+  /** The effect frame and effect index that initiated the resolutions sharing one reading (`additionalResolution`). */
+  readonly shared?: string;
+  /** The value the first of the `shared` resolutions read. */
+  readonly fixed?: { readonly atkBonus?: number; readonly schBonus?: number };
 }
 
 /**

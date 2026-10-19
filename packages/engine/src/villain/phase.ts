@@ -347,6 +347,7 @@ function initiateCardCausedActivation(
           targetInstanceId: made.targetInstanceId ?? mustPlayer(ctx.state, playerId).identity.instanceId,
           ...(made.additionalResolution ? { additionalResolution: true } : {}),
           ...noBoost,
+          ...(made.deferredBonus?.atkBonus ? { deferredBonus: made.deferredBonus } : {}),
         }
       : {
           kind: "enemyScheme",
@@ -355,6 +356,7 @@ function initiateCardCausedActivation(
           ...noBoost,
           ...(made.divert ? { divert: made.divert } : {}),
           ...(made.wouldPlaceThreat ? { wouldPlaceThreat: made.wouldPlaceThreat } : {}),
+          ...(made.deferredBonus?.schBonus ? { deferredBonus: made.deferredBonus } : {}),
         };
   const [frameId] = pushEvents(ctx, [event], reportTo, made.vars);
   if (made.settlesAwaitingAttack && reportTo && activation === "attack" && frameId)

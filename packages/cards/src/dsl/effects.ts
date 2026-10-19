@@ -593,6 +593,12 @@ export const enemyAttack = (
     readonly bind?: string;
     readonly additionalResolution?: boolean;
     readonly atkBonus?: Amount;
+    /**
+     * "X attacks you. If [condition], X gets +1 ATK for this attack": `atkBonus` is read once the attack's "when X
+     * activates / attacks" interrupts have resolved, not as this effect resolves (`EffectSpec enemyAttack
+     * .statBonusTiming`; FFG ruling #147, Feb 15 2024). Without it the bonus is fixed now.
+     */
+    readonly bonusAfterInterrupts?: boolean;
     /** "…attacks you after this activation": queued behind the activation now resolving rather than nested in it. */
     readonly afterCurrentActivation?: boolean;
     /** "Do not deal any boost cards for that attack." */
@@ -631,9 +637,13 @@ export const enemyAttack = (
   ...(opts.afterCurrentActivation ? { after: "currentActivation" as const } : {}),
   ...(opts.additionalResolution ? { additionalResolution: true } : {}),
   ...(opts.atkBonus !== undefined ? { atkBonus: amount(opts.atkBonus) } : {}),
+  ...bonusTiming(opts),
   ...(opts.keywords && opts.keywords.length > 0 ? { keywords: opts.keywords } : {}),
   ...activationBoost(opts),
 });
+/** `enemyAttack`/`enemyScheme`/`enemyActivates`' `bonusAfterInterrupts`: `EffectSpec enemyAttack.statBonusTiming`. */
+const bonusTiming = (opts: { readonly bonusAfterInterrupts?: boolean }) =>
+  opts.bonusAfterInterrupts ? { statBonusTiming: "afterInterrupts" as const } : {};
 /** `enemyAttack`/`enemyScheme`'s activation-scoped boost changes (docs/phase7-wave5.md §4.1 Q66). */
 const activationBoost = (opts: { readonly extraBoostCards?: Amount; readonly boostIconsEach?: Amount }) => ({
   ...(opts.extraBoostCards !== undefined ? { extraBoostCards: amount(opts.extraBoostCards) } : {}),
@@ -655,6 +665,8 @@ export const enemyScheme = (
     readonly against?: PlayerRef;
     readonly bind?: string;
     readonly schBonus?: Amount;
+    /** `enemyAttack`'s, for `schBonus`: read once the scheme's interrupts have resolved. */
+    readonly bonusAfterInterrupts?: boolean;
     readonly extraBoostCards?: Amount;
     readonly boostIconsEach?: Amount;
     readonly divert?: { readonly amount?: Amount; readonly to: TargetRef; readonly if?: Predicate };
@@ -674,6 +686,7 @@ export const enemyScheme = (
   ...(opts.against ? { against: opts.against } : {}),
   ...withBind(opts.bind),
   ...(opts.schBonus !== undefined ? { schBonus: amount(opts.schBonus) } : {}),
+  ...bonusTiming(opts),
   ...activationBoost(opts),
   ...(opts.divert
     ? {
@@ -705,6 +718,7 @@ export const enemyActivates = (
     readonly atkBonus?: Amount;
     readonly keywords?: readonly AttackKeyword[];
     readonly schBonus?: Amount;
+    readonly bonusAfterInterrupts?: boolean;
     readonly extraBoostCards?: Amount;
     readonly boostIconsEach?: Amount;
   } = {},
@@ -718,6 +732,7 @@ export const enemyActivates = (
   ...(opts.atkBonus !== undefined ? { atkBonus: amount(opts.atkBonus) } : {}),
   ...(opts.keywords && opts.keywords.length > 0 ? { keywords: opts.keywords } : {}),
   ...(opts.schBonus !== undefined ? { schBonus: amount(opts.schBonus) } : {}),
+  ...bonusTiming(opts),
   ...activationBoost(opts),
 });
 /**

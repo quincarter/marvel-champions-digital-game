@@ -195,11 +195,17 @@ export const ABSORBING_MAN_SET = defineAbilities({
 
   // Swinging Stone — When Revealed (Alter-Ego): Absorbing Man schemes (+1 SCH if he has the Stone trait). When
   // Revealed (Hero): Absorbing Man attacks you (+1 ATK if Stone).
+  // The trait is read as the SCH / ATK is set, after "when Absorbing Man activates / attacks" interrupts: an engine
+  // extension (tier 5) built on the order of FFG ruling #147, Feb 15 2024; RRG 1.8 "Interrupt" (p. 25).
   "04086.when-revealed-alter-ego": whenRevealedAlterEgo(
-    enemyScheme(theVillain, { schBonus: ifElse(hasTrait(theVillain, STONE), 1, 0) }),
+    enemyScheme(theVillain, { schBonus: ifElse(hasTrait(theVillain, STONE), 1, 0), bonusAfterInterrupts: true }),
   ),
   "04086.when-revealed-hero": whenRevealedHero(
-    enemyAttack(theVillain, { against: you, atkBonus: ifElse(hasTrait(theVillain, STONE), 1, 0) }),
+    enemyAttack(theVillain, {
+      against: you,
+      atkBonus: ifElse(hasTrait(theVillain, STONE), 1, 0),
+      bonusAfterInterrupts: true,
+    }),
   ),
 
   // Steel Kick — When Revealed (Alter-Ego): place 2 threat (3 if Metal). When Revealed (Hero): take 3 indirect

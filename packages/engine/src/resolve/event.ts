@@ -82,6 +82,7 @@ import {
   characterIgnores,
   controllerOf,
   isProtectedMainScheme,
+  resolveValue,
   sourcePlayerOf,
   thwartAmount,
 } from "../select.js";
@@ -842,6 +843,32 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
           ...(leftPlay ? { endedEarly: true as const } : {}),
         });
         return;
+      }
+      // `EffectSpec enemyAttack.statBonusTiming`: the bonus is read now, its "when [enemy] activates / attacks /
+      // schemes" interrupts resolved and the ATK / SCH about to be used, and added to what the activation already
+      // carries. Engine extension of FFG ruling #147, Feb 15 2024 (tier 5, built on its order); RRG 1.8 "Interrupt".
+      const deferred = event.deferredBonus;
+      const bonusKey = event.kind === "enemyAttack" ? "atkBonus" : "schBonus";
+      const deferredSpec = deferred?.[bonusKey];
+      if (deferred && deferredSpec) {
+        const fixed = deferred.fixed?.[bonusKey];
+        const bonus =
+          fixed ??
+          resolveValue(
+            ctx.state,
+            deferredSpec,
+            {
+              selfInstanceId: deferred.selfInstanceId,
+              controllerId: deferred.controllerId,
+              event,
+              bindings: deferred.bindings,
+              vars: deferred.vars,
+              deps: ctx.deps,
+            },
+            ctx.deps,
+          );
+        addFrameVars(ctx, frame.frameId, { [bonusKey]: bonus });
+        if (fixed === undefined && deferred.shared !== undefined) fixSharedBonus(ctx, deferred.shared, bonusKey, bonus);
       }
       return event.kind === "enemyAttack"
         ? pushEnemyAttackFrame(ctx, event, frame.frameId)
@@ -2712,4 +2739,21 @@ function applyPlayerThwart(
     parentFrameId: frameId,
     ...(event.ignoreCrisis ? { ignoreCrisis: true } : {}),
   });
+}
+
+/**
+ * The same attack resolved against several players (`DeferredActivationBonus.shared`): the value its first resolution
+ * read is fixed on the resolutions still queued, so each one uses it rather than reading the board again.
+ */
+function fixSharedBonus(ctx: Ctx, shared: string, key: "atkBonus" | "schBonus", bonus: number): void {
+  for (const queued of ctx.state.stack) {
+    if (queued.kind !== "event") continue;
+    const pending = queued.event;
+    if (pending.kind !== "enemyAttack" && pending.kind !== "enemyScheme") continue;
+    if (pending.deferredBonus?.shared !== shared) continue;
+    const deferredBonus = { ...pending.deferredBonus, fixed: { ...pending.deferredBonus.fixed, [key]: bonus } };
+    updateFrame(ctx, queued.frameId, (f) =>
+      f.kind === "event" && f.event.kind === pending.kind ? { ...f, event: { ...pending, deferredBonus } } : f,
+    );
+  }
 }

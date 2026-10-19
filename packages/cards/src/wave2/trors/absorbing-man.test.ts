@@ -172,6 +172,40 @@ describe("Absorbing Man scenario", () => {
     expect(metalAfter - metalBefore).toBe(woodAfter - woodBefore + 1);
   });
 
+  // Swinging Stone (04086): "Absorbing Man schemes. If Absorbing Man has the Stone trait, he gets +1 SCH for this
+  // activation." The trait is read as the SCH is set, after the activation's interrupts (an engine extension of FFG
+  // ruling #147, Feb 15 2024).
+  const swingingStone = (environment: string) => {
+    const start = stackEncounterDeck(absorbingManVsHeroes(), ADVANCE, environment);
+    const withEnvironment = settle(runWave2(start, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    const villain = withEnvironment.villains[0]!.instanceId;
+    const stone = traitsOf(withEnvironment, villain, WAVE2_DEPS).map(String).includes("STONE");
+    const { events } = driveEvents(WAVE2_DEPS, stackEncounterDeck(withEnvironment, ADVANCE, "04086"), endTurn());
+    const schemes = events.filter((e) => e.type === "schemeResolved" && e.enemyInstanceId === villain);
+    return { stone, schemes: schemes as readonly { baseSch: number }[] };
+  };
+
+  it("Swinging Stone: with the Stone trait, Absorbing Man schemes with +1 SCH for this activation alone", () => {
+    const { stone, schemes } = swingingStone("04082"); // Rocky Outcrop, Stone
+    expect(stone).toBe(true);
+    const [phase, swing] = schemes;
+    expect(swing!.baseSch).toBe(phase!.baseSch + 1);
+  });
+
+  it("Swinging Stone: without the Stone trait there is no bonus (control)", () => {
+    const other = ENVIRONMENTS.find((code) => code !== "04082" && code !== environmentInPlay(absorbingManVsHeroes()))!;
+    const { stone, schemes } = swingingStone(other);
+    expect(stone).toBe(false);
+    const [phase, swing] = schemes;
+    expect(swing!.baseSch).toBe(phase!.baseSch);
+  });
+
+  it("Swinging Stone: both bonuses are read after the activation's interrupts (statBonusTiming)", () => {
+    for (const ref of ["04086.when-revealed-alter-ego", "04086.when-revealed-hero"]) {
+      expect(JSON.stringify(WAVE2_DEPS.abilities[ref]), ref).toContain('"statBonusTiming":"afterInterrupts"');
+    }
+  });
+
   it("Piercing Thorns: discards 1 card at random from your hand", () => {
     const start = stackEncounterDeck(absorbingManVsHeroes(), ADVANCE, "04088");
     const before = playerOf(start, P1).hand.length;

@@ -132,6 +132,7 @@ import {
 import {
   cardFlippedEvent,
   type LeavePatch,
+  type DeferredActivationBonus,
   type SchemeThreatDivert,
   type SchemeWouldPlaceThreat,
   type TriggerEvent,
@@ -3598,6 +3599,25 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
               },
             }
           : {};
+      // `statBonusTiming: "afterInterrupts"` (FFG ruling #147, Feb 15 2024): the bonus travels unevaluated, in this
+      // ability's scope as it is now, and is read once the activation's interrupts have resolved.
+      const deferAtk = effect.kind !== "enemyScheme" && effect.statBonusTiming === "afterInterrupts" && effect.atkBonus;
+      const deferSch = effect.kind !== "enemyAttack" && effect.statBonusTiming === "afterInterrupts" && effect.schBonus;
+      const deferredBonus: DeferredActivationBonus | null =
+        deferAtk || deferSch
+          ? {
+              ...(deferAtk ? { atkBonus: deferAtk } : {}),
+              ...(deferSch ? { schBonus: deferSch } : {}),
+              selfInstanceId: frame.selfInstanceId,
+              controllerId: frame.controllerId,
+              bindings: frame.bindings,
+              vars: frame.vars,
+              ...(effect.kind === "enemyAttack" && effect.additionalResolution
+                ? { shared: `${frame.frameId}#${frame.cursor}` }
+                : {}),
+            }
+          : null;
+      const deferred = deferredBonus ? { deferredBonus } : {};
       const events: TriggerEvent[] = [];
       // Each activation's "when [enemy] activates" announcement, pushed in its place when an ability listens.
       const announces: Extract<TriggerEvent, { kind: "enemyActivating" }>[] = [];
@@ -3656,6 +3676,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
               ...noBoost,
               ...(attacking ? {} : divert),
               ...(attacking ? {} : wouldPlace),
+              ...deferred,
               vars: {},
             },
           });
@@ -3671,8 +3692,17 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
                     ? { additionalResolution: true }
                     : {}),
                   ...noBoost,
+                  ...(deferAtk ? deferred : {}),
                 }
-              : { kind: "enemyScheme", enemyInstanceId: enemy, playerId, ...noBoost, ...divert, ...wouldPlace },
+              : {
+                  kind: "enemyScheme",
+                  enemyInstanceId: enemy,
+                  playerId,
+                  ...noBoost,
+                  ...divert,
+                  ...wouldPlace,
+                  ...(deferSch ? deferred : {}),
+                },
           );
         }
       }
@@ -3695,11 +3725,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // An attack reads only `atkBonus` and the keywords, a scheme only `schBonus`, so an `enemyActivation` seeds all
       // three and each activation it starts reads its own.
       const bonus = {
-        ...(effect.kind !== "enemyScheme" && effect.atkBonus ? { atkBonus: value(effect.atkBonus) } : {}),
+        ...(effect.kind !== "enemyScheme" && effect.atkBonus && !deferAtk ? { atkBonus: value(effect.atkBonus) } : {}),
         ...(effect.kind !== "enemyScheme"
           ? Object.fromEntries((effect.keywords ?? []).map((keyword) => [keyword, 1]))
           : {}),
-        ...(effect.kind !== "enemyAttack" && effect.schBonus ? { schBonus: value(effect.schBonus) } : {}),
+        ...(effect.kind !== "enemyAttack" && effect.schBonus && !deferSch ? { schBonus: value(effect.schBonus) } : {}),
         ...boostScoped,
       };
       // RRG 1.8 "'Then'" (p. 44): "X attacks you. Then, …" waits on the attack. One that a status cancelled, or that

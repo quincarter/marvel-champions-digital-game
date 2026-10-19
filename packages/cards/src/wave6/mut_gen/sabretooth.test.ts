@@ -930,6 +930,13 @@ describe("Unrelenting Savage (32070)", () => {
     const hurtVillain = patchInstance(base, villain(base), { damage: 1 });
     expect(attacks(phase(hurtVillain))[1]).toMatchObject({ baseAtk: 2 });
   });
+
+  // Engine extension of FFG ruling #147 (Feb 15 2024): the damage is read as the SCH / ATK is set, after interrupts.
+  it("32070: both bonuses are read after the activation's interrupts (statBonusTiming)", () => {
+    for (const ref of ["32070.unrelenting-savage-constant", "32070.when-revealed-hero"] as const) {
+      expect(JSON.stringify(SABRETOOTH_ABILITIES[ref]), ref).toContain('"statBonusTiming":"afterInterrupts"');
+    }
+  });
 });
 
 // FFG Game Rules Specialist (Alex), July 11, 2024, "Latest FFG Rulings post RRG 1.5" ruling 221: "Robert Kelly's

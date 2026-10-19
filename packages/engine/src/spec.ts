@@ -3325,6 +3325,17 @@ export type EffectSpec =
        */
       readonly atkBonus?: ValueSpec;
       /**
+       * `"afterInterrupts"`: `atkBonus` / `schBonus` are evaluated when the activation's ATK / SCH is set, after its
+       * "when [enemy] activates / attacks / schemes" interrupts have resolved, not as this effect resolves. "Vision
+       * attacks you. If the Dense attachment is in play, Vision gets +1 ATK for this attack" (Solar Beam, 57051) reads
+       * the attachment after Density Control's interrupt flips it. An engine extension (tier 5) built on the order of
+       * FFG ruling #147, Feb 15 2024 (Weapon Master / Crossbones' Machine Gun: the interrupt to the initiated attack
+       * resolves before the rest of the card is read); RRG 1.8 "Interrupt" (p. 25), "Activation" (p. 6). Evaluated
+       * in this ability's scope (card, controller, slots, vars as they are now) with the activation as the event;
+       * `DeferredActivationBonus` has the details. Absent: eager.
+       */
+      readonly statBonusTiming?: "afterInterrupts";
+      /**
        * "The villain attacks you. **That attack gains overkill**" (Total Annihilation, `hood` 24054; Avatar of Death,
        * `mts` 21120, "overkill and piercing"; Calvin Zabo, `hood` 24034): attack keywords carried by exactly the
        * attacks this effect initiates, like `atkBonus` (docs/phase7-wave4.md §3.51). A following `modifyAttack` cannot
@@ -3368,6 +3379,8 @@ export type EffectSpec =
        * change to the threat placed would still apply.
        */
       readonly schBonus?: ValueSpec;
+      /** `enemyAttack.statBonusTiming`, for `schBonus`. */
+      readonly statBonusTiming?: "afterInterrupts";
       /** `enemyAttack.extraBoostCards`, for a scheme activation this effect initiates (§4.1 Q66). */
       readonly extraBoostCards?: number | ValueSpec;
       /** `enemyAttack.boostIconsEach`, for a scheme activation this effect initiates (§4.1 Q66). */
@@ -3438,6 +3451,7 @@ export type EffectSpec =
       readonly atkBonus?: ValueSpec;
       readonly keywords?: readonly AttackKeyword[];
       readonly schBonus?: ValueSpec;
+      readonly statBonusTiming?: "afterInterrupts";
       readonly extraBoostCards?: number | ValueSpec;
       readonly boostIconsEach?: ValueSpec;
     }

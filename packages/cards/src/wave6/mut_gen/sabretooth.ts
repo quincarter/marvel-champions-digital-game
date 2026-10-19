@@ -233,16 +233,18 @@ export const SABRETOOTH_ABILITIES = defineAbilities({
 
   // Unrelenting Savage (32070) — When Revealed (Alter-Ego): Sabretooth schemes. If he has no sustained damage, he gets
   // +1 SCH for this activation. (The data names the alter-ego clause "-constant".)
+  // The damage is read as the SCH / ATK is set, after "when Sabretooth activates / attacks" interrupts: an engine
+  // extension (tier 5) built on the order of FFG ruling #147, Feb 15 2024; RRG 1.8 "Interrupt" (p. 25).
   "32070.unrelenting-savage-constant": whenRevealedAlterEgo(
-    ifThen(not(damagedAtLeast(theVillain, 1)), enemyScheme(theVillain, { schBonus: 1 }), enemyScheme(theVillain)),
+    enemyScheme(theVillain, { schBonus: ifElse(not(damagedAtLeast(theVillain, 1)), 1, 0), bonusAfterInterrupts: true }),
   ),
   // When Revealed (Hero): Sabretooth attacks you. If he has no sustained damage, he gets +1 ATK for this activation.
   "32070.when-revealed-hero": whenRevealedHero(
-    ifThen(
-      not(damagedAtLeast(theVillain, 1)),
-      enemyAttack(theVillain, { against: you, atkBonus: 1 }),
-      enemyAttack(theVillain, { against: you }),
-    ),
+    enemyAttack(theVillain, {
+      against: you,
+      atkBonus: ifElse(not(damagedAtLeast(theVillain, 1)), 1, 0),
+      bonusAfterInterrupts: true,
+    }),
   ),
 
   // Medical Emergency (32071) — Hinder 2[per_hero]. Victory 1 (data). When Defeated: Heal 2 damage from Robert Kelly.
