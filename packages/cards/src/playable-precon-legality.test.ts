@@ -79,7 +79,7 @@ const UNSCRIPTED_WAVE10_PACKS: ReadonlySet<string> = new Set();
  * Wave 11 packs in the pool whose kits are not scripted yet (docs/phase7-wave11.md, docs/phase7-wave11-hero-packs.md):
  * all three. Each pack's precon task removes its code here once its kit is scripted and its precon can be seated.
  */
-const UNSCRIPTED_WAVE11_PACKS: ReadonlySet<string> = new Set(["jj", "luke_cage"]);
+const UNSCRIPTED_WAVE11_PACKS: ReadonlySet<string> = new Set();
 
 /** Every pack whose precons are legal but cannot be seated yet. */
 const UNSCRIPTED_PACKS: ReadonlySet<string> = new Set([
