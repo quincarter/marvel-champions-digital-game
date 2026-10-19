@@ -73,7 +73,8 @@ This project is built **rules-engine-first**:
 - **Deterministic state machine**: game state is serializable, reproducible from a seed and a command log, and
   decoupled from any presentation or I/O layer.
 - **The Rules Reference is the authority**: the official _Rules Reference Guide_ (v1.8, in this repo), FFG's errata and
-  its rulings decide how the game behaves.
+  its rulings decide how the game behaves. [Rules authority](docs/project/rules-authority.md) gives the order they
+  win in when they disagree, and links every RRG version and rulings page.
 - **Headless rules engine**: the engine has no DOM or rendering dependencies and can simulate and audit full games on
   its own.
 - **Phaser as a pure view**: the client presents state and sends player commands; it never decides rules or move
@@ -111,15 +112,19 @@ How the packages fit together, and how to run the game locally, is in [Architect
 | 4     | Client: the Phaser 4 tabletop on desktop, tablet and phone                                                    | 🟡 Playable end to end; accessibility pass and remaining design-canvas screens in progress                   |
 | 5     | Online multiplayer: 2–4 players over a network, reconnects, Epic Multiplayer for Loki                         | ⬜ Planned                                                                                                   |
 | 6     | Rules QA: ruling-by-ruling tests, replay fixtures, drift detection on new errata                              | 🟡 Ongoing: per-wave rules audits, random-deck soaks, MarvelCDB decklist games, a Rules Reference v1.8 audit |
-| 7     | Content beyond the Core Set, in release order                                                                 | 🟡 Through cycle 10 (Civil War); Fear No Evil next                                                           |
+| 7     | Content beyond the Core Set, in release order                                                                 | 🟡 Through cycle 10 (Civil War); Fear No Evil in progress                                                    |
 | 8     | Polish: onboarding, settings, audio, packaging, undo, hero AI                                                 | 🟡 Guided mode, settings, music, desktop and Android builds and undo landed; hero AI planned                 |
 | 9     | Decks: precons, MarvelCDB import, in-app deck builder                                                         | ✅ Done                                                                                                      |
 
 Next up:
 
-- **Fear No Evil (cycle 11)**: its card data is in; scripting, its six-scenario campaign and its heroes come next.
-- **Civil War leftovers**: the Synthezoid Smackdown scenario pack and competitive (team versus team) mode, which the
-  game marks as coming soon.
+- **Fear No Evil (cycle 11), in progress** in
+  [#251](https://github.com/quincarter/marvel-champions-digital-game/pull/251): the card data for the box and the
+  Jessica Jones and Luke Cage packs is in, and the heroes are being scripted. The six-scenario campaign and the
+  client come after.
+- **Civil War leftovers**: everything in the Civil War box and the Wonder Man and Hercules packs is playable. Still
+  to come are the separate Synthezoid Smackdown scenario pack (December 2025), held for its own pull request, and
+  competitive (team versus team) mode, which the game marks as coming soon.
 - **Hero AI** to fill seats with computer-controlled heroes, then **online multiplayer** (Phase 5).
 
 What you can play today is in [Current status](docs/project/current-status.md). The detailed plan, decisions and per-wave specs are in [PLAN.md](PLAN.md) and [`docs/`](docs).
@@ -128,14 +133,15 @@ What you can play today is in [Current status](docs/project/current-status.md). 
 
 ## More
 
-| Page                                             | What's in it                                                         |
-| ------------------------------------------------ | -------------------------------------------------------------------- |
-| [Current status](docs/project/current-status.md) | What you can play today and what the next release adds               |
-| [Architecture](docs/project/architecture.md)     | The four packages, how they depend on each other, running it locally |
-| [Downloads](docs/project/downloads.md)           | Every installer, unsigned macOS builds, the in-app update notice     |
-| [Contributing](CONTRIBUTING.md)                  | Setup, tests, CI, conventions, card data and the release flow        |
-| [PLAN.md](PLAN.md)                               | The full roadmap, decisions and per-phase detail                     |
-| [CHANGELOG.md](CHANGELOG.md)                     | Every release's changes                                              |
+| Page                                               | What's in it                                                         |
+| -------------------------------------------------- | -------------------------------------------------------------------- |
+| [Current status](docs/project/current-status.md)   | What you can play today and what the next release adds               |
+| [Architecture](docs/project/architecture.md)       | The four packages, how they depend on each other, running it locally |
+| [Downloads](docs/project/downloads.md)             | Every installer, unsigned macOS builds, the in-app update notice     |
+| [Contributing](CONTRIBUTING.md)                    | Setup, tests, CI, conventions, card data and the release flow        |
+| [PLAN.md](PLAN.md)                                 | The full roadmap, decisions and per-phase detail                     |
+| [Rules authority](docs/project/rules-authority.md) | Which rules source wins a conflict, and every RRG and rulings page   |
+| [CHANGELOG.md](CHANGELOG.md)                       | Every release's changes                                              |
 
 ## License
 
