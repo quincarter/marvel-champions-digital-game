@@ -9,7 +9,7 @@ import {
   chosen,
   defineAbilities,
   exists,
-  forEachPlayer,
+  forEachPlayerInChosenOrder,
   eachPlayer,
   moveCards,
   option,
@@ -69,7 +69,7 @@ export const evidenceSetupEffects = (aspect: EvidenceAspect, type: EvidenceType)
   const label = `${aspect[0]!.toUpperCase()}${aspect.slice(1)} ${type}`;
   const inDeck = query(type, { aspect });
   return [
-    forEachPlayer(
+    forEachPlayerInChosenOrder(
       eachPlayer,
       chooseOneBy(
         thatPlayer,
@@ -84,7 +84,7 @@ export const evidenceSetupEffects = (aspect: EvidenceAspect, type: EvidenceType)
         option("Do not add a secret counter"),
       ),
     ),
-    forEachPlayer(
+    forEachPlayerInChosenOrder(
       eachPlayer,
       chooseOneBy(
         thatPlayer,

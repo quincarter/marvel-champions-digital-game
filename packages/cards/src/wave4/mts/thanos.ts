@@ -22,6 +22,7 @@ import {
   forcedInterrupt,
   forcedResponse,
   forEachPlayer,
+  forEachPlayerInChosenOrder,
   gainsKeyword,
   giveBoostCard,
   giveTough,
@@ -186,7 +187,7 @@ export const THANOS = defineAbilities({
   "21116.sanctuary-constant": constant(
     rule({ kind: "cannotTakeDamage", target: query("villain"), fromSource: PLAYER_CARD }),
   ),
-  "21116.when-defeated": whenDefeated(forEachPlayer(eachPlayer, maySpendPhysicalForDamage(3))),
+  "21116.when-defeated": whenDefeated(forEachPlayerInChosenOrder(eachPlayer, maySpendPhysicalForDamage(3))),
 
   // Thanos's Armor (21117) — Forced Interrupt: When Thanos would take any amount of damage, reduce that amount by
   // 1. Hero Response: After a hero makes a basic attack against Thanos, spend [energy][physical] resources →

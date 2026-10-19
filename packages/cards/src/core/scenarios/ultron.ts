@@ -26,6 +26,7 @@ import {
   forcedInterrupt,
   forcedResponse,
   forEachPlayer,
+  forEachPlayerInChosenOrder,
   FRIENDLY_CHARACTER,
   gainsKeyword,
   gets,
@@ -123,7 +124,7 @@ export const ULTRON = defineAbilities({
     after.threatPlaced("self"),
     ifThen(
       allOf(duringVillainPhaseStepOne, not(refMatches(eventSource, {}))),
-      forEachPlayer(
+      forEachPlayerInChosenOrder(
         eachPlayer,
         chooseOneBy(
           thatPlayer,

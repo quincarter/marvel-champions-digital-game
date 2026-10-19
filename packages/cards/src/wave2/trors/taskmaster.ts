@@ -29,6 +29,7 @@ import {
   exhaustYourHero,
   firstPlayer,
   forEachPlayer,
+  forEachPlayerInChosenOrder,
   forcedInterrupt,
   forcedResponse,
   gainsKeyword,
@@ -138,7 +139,7 @@ export const TASKMASTER_SET = defineAbilities({
   // ability's own `isHero(thatPlayer)` condition already does.
   "04096b.hunting-down-heroes-forced-response": forcedResponse(
     on.villainStepResolved(),
-    forEachPlayer(
+    forEachPlayerInChosenOrder(
       eachPlayer,
       ifThen(
         isHero(thatPlayer),
