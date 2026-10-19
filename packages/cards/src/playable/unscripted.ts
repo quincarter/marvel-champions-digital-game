@@ -35,9 +35,18 @@ export const UNSCRIPTED_ENCOUNTER_SET_IDS: ReadonlySet<string> = new Set([
 /**
  * Gated sets whose every ability is scripted but which are held back for another reason, each with that reason. The
  * "fully scripted: remove it" check skips these; delete an entry with its reason gone, then un-gate the set above.
- * Empty: All Versus All left with the Hercules pack, which joined the playable pool.
  */
-export const GATED_THOUGH_SCRIPTED: Readonly<Record<string, string>> = {};
+const SYNTHEZOID_MID_SCRIPTING = "Synthezoid Smackdown is un-gated as one pack once its last set is scripted";
+export const GATED_THOUGH_SCRIPTED: Readonly<Record<string, string>> = {
+  deadly_duo: SYNTHEZOID_MID_SCRIPTING,
+  royal_guard: SYNTHEZOID_MID_SCRIPTING,
+  scarlet_twins: SYNTHEZOID_MID_SCRIPTING,
+  she_hulk_leader: SYNTHEZOID_MID_SCRIPTING,
+  shield_ops: SYNTHEZOID_MID_SCRIPTING,
+  synthezoid_registration: SYNTHEZOID_MID_SCRIPTING,
+  synthezoid_resistance: SYNTHEZOID_MID_SCRIPTING,
+  young_avengers: SYNTHEZOID_MID_SCRIPTING,
+};
 
 /** Whether a scenario is playable: none of its own sets (or its villains' own sets) is gated. */
 export function scenarioIsScripted(scenario: Pick<Scenario, "encounterSetIds" | "multipleVillains">): boolean {

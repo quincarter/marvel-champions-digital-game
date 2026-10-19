@@ -117,7 +117,7 @@ describe("wave 9 modular sets", () => {
     expect([...UNSCRIPTED_ENCOUNTER_SET_IDS].every((id) => WAVE9_ENCOUNTER_SETS.every((set) => set.id !== id))).toBe(
       true,
     );
-    expect(Object.keys(GATED_THOUGH_SCRIPTED)).toEqual([]);
+    expect(Object.keys(GATED_THOUGH_SCRIPTED).every((id) => UNSCRIPTED_ENCOUNTER_SET_IDS.has(id))).toBe(true);
     for (const set of WAVE9_ENCOUNTER_SETS)
       expect(UNSCRIPTED_ENCOUNTER_SET_IDS.has(set.id as string), set.id).toBe(false);
     const playable = new Set(PLAYABLE_ENCOUNTER_SETS.map((s) => s.id as string));
