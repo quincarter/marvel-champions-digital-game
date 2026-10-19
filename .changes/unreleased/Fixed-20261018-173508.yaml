@@ -1,3 +1,0 @@
-kind: Fixed
-body: Ending a swipe over the hero-down banner on a phone no longer dismisses it; only a tap does.
-time: 2026-10-18T17:35:08.1292319-04:00
