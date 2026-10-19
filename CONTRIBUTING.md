@@ -133,8 +133,10 @@ only after every installer has been uploaded, which is what the apps' update not
 Every release thanks the people behind it. `scripts/release-credits.mjs` reads GitHub for the issues a release fixes
 and the pull requests it merges, and the release notes and release PR get a **Special thanks** section that
 @-mentions each reporter and code contributor (the repository owner and bots are left out). The release PR also
-refreshes the README's Special thanks lists with every reporter's and contributor's avatar. People GitHub can't see,
-such as a bug sent on Discord or through the in-game reporter, go in `.github/credits.json`.
+refreshes the README's Special thanks lists with avatars. The Watchers are reporters with at least two issues closed as
+done (a bug fixed or a feature built, by anyone; `watcherMinimum` in `.github/credits.json`), and the Committers are
+everyone with a merged pull request. People GitHub can't see, such as a bug sent on Discord or through the in-game
+reporter, go in `.github/credits.json`.
 
 `mise ship-it` (or `pnpm ship-it`) builds and stages the native packages locally.
 

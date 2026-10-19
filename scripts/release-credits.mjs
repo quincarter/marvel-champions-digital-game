@@ -9,8 +9,10 @@
 //     the release notes and the release PR body.
 //
 //   node scripts/release-credits.mjs readme
-//     Rewrites the README's two "Special thanks" lists (between the `credits:` markers) from every issue and merged
-//     pull request on the repository. The release PR job runs it, so the README stays current release by release.
+//     Rewrites the README's two "Special thanks" lists (between the `credits:` markers). The Watchers are people
+//     with at least `watcherMinimum` (default 2) issues closed as done: a bug fixed or a feature built, by anyone. A
+//     single report, or reports closed as not planned or as duplicates, don't count. The Committers are everyone with
+//     a merged pull request. The release PR job runs it, so the README stays current release by release.
 //
 // The repository owner and bots are left out. `.github/credits.json` adds people GitHub can't see (a bug sent on
 // Discord or through the in-game reporter) and names logins to leave out.
@@ -102,11 +104,14 @@ function notes(from, to = "HEAD", version = to) {
   return ["### Special thanks", ...lines.sort(byName), ""].join("\n");
 }
 
-// Logins ranked by how many of the items they opened, then by name.
-function ranked(list) {
+// Logins that opened at least `minimum` of the items, ranked by how many, then by name.
+function ranked(list, minimum = 1) {
   const tally = new Map();
   for (const entry of list) if (counts(entry.user)) tally.set(entry.user.login, (tally.get(entry.user.login) ?? 0) + 1);
-  return [...tally.entries()].sort(([a, x], [b, y]) => y - x || byName(a, b)).map(([login]) => login);
+  return [...tally.entries()]
+    .filter(([, n]) => n >= minimum)
+    .sort(([a, x], [b, y]) => y - x || byName(a, b))
+    .map(([login]) => login);
 }
 
 const AVATARS_PER_ROW = 6;
@@ -159,7 +164,13 @@ function people(logins, manual = []) {
 function readme() {
   const all = ghPaged(`repos/${repo}/issues?state=all&per_page=100`);
   const sections = {
-    reporters: people(ranked(all.filter((i) => !i.pull_request)), config.reporters),
+    reporters: people(
+      ranked(
+        all.filter((i) => !i.pull_request && i.state_reason === "completed"),
+        config.watcherMinimum ?? 2,
+      ),
+      config.reporters,
+    ),
     contributors: people(ranked(all.filter((i) => i.pull_request?.merged_at)), config.contributors),
   };
 
