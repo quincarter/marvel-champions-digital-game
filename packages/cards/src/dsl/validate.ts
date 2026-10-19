@@ -1921,7 +1921,6 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
     if (cost.damageSelf !== undefined && typeof cost.damageSelf !== "number") scope.vars.add("cost.damageSelf");
     // "Remove [up to] N threat from [a card] →" records how much it removed (docs/phase7-wave9.md §3.7 (b)).
     if (cost.removeThreat) scope.vars.add("cost.removeThreat");
-    if (cost.removeThreat?.choose) scope.slots.add(cost.removeThreat.choose.slot);
     // A chosen "discard up to N cards from the top of your deck →" records how many it discarded (wave 8 §3.55).
     if (typeof cost.discardFromDeck === "object" && "choose" in cost.discardFromDeck)
       scope.vars.add("cost.discardFromDeck");
@@ -1931,11 +1930,16 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
       if (component.spendCounters?.bind) scope.vars.add(component.spendCounters.bind);
     }
     if (cost.either) scope.vars.add("cost.branch");
-    if (cost.dealDamage?.choose) scope.slots.add(cost.dealDamage.choose.slot);
-    if (cost.dealEncounterCardsTo) scope.slots.add(cost.dealEncounterCardsTo.slot);
-    if (cost.healCharacter) scope.slots.add(cost.healCharacter.slot);
-    if (cost.chooseTarget) scope.slots.add(cost.chooseTarget.slot);
-    for (const { pick } of inPlayPicksOf(cost)) {
+    // Slots chosen by a cost component, in the cost or any either/or branch. A slot only a branch picks is in scope
+    // for the effects but reads empty when the other branch was the one paid (`cost.branch` says which).
+    for (const component of [cost, ...(cost.either ?? [])]) {
+      if (component.removeThreat?.choose) scope.slots.add(component.removeThreat.choose.slot);
+      if (component.dealDamage?.choose) scope.slots.add(component.dealDamage.choose.slot);
+      if (component.dealEncounterCardsTo) scope.slots.add(component.dealEncounterCardsTo.slot);
+      if (component.healCharacter) scope.slots.add(component.healCharacter.slot);
+      if (component.chooseTarget) scope.slots.add(component.chooseTarget.slot);
+    }
+    for (const { pick } of [cost, ...(cost.either ?? [])].flatMap((component) => inPlayPicksOf(component))) {
       scope.slots.add(pick.slot);
       if (pick.bindHosts) scope.slots.add(pick.bindHosts);
       if (pick.snapshotStats) for (const stat of ["thw", "atk", "def"]) scope.vars.add(`${pick.slot}.${stat}`);
