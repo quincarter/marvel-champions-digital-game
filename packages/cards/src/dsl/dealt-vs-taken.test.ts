@@ -48,10 +48,10 @@ describe("on.damage: damage dealt or damage taken", () => {
       pattern.anyOf !== undefined
         ? reading(pattern.anyOf.find(hears) ?? pattern)
         : pattern.eventAtLeast?.dealt !== undefined
-        ? "dealt"
-        : pattern.requireResults?.amount !== undefined || pattern.eventAtLeast?.taken !== undefined
-          ? "taken"
-          : "none";
+          ? "dealt"
+          : pattern.requireResults?.amount !== undefined || pattern.eventAtLeast?.taken !== undefined
+            ? "taken"
+            : "none";
     const hears = (pattern: EventPattern) =>
       (typeof pattern.on === "string" ? [pattern.on] : pattern.on).includes("dealDamage");
     const byReading: Record<string, string[]> = { dealt: [], taken: [], none: [] };
