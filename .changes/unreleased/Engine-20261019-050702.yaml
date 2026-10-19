@@ -1,0 +1,3 @@
+kind: Engine
+body: 'resolveSetups effect: resolve the Setup abilities of cards already in play together, the first player choosing the order (RRG 1.8 ''Simultaneous Resolution'', p. 40). Campaign progress marks stop at the fail threshold.'
+time: 2026-10-19T05:07:02.317259-04:00

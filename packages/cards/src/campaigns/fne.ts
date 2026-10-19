@@ -24,8 +24,9 @@
  *    only by a VICTORY block (Q201 = A), so a lost game records none.
  * 3. Step 5b says the players "may" choose the first unrecorded villain of p. 8's list; this definition always takes it
  *    on a first playthrough (open owner question Q210, A built), and asks only the Purple Man / Typhoid Mary choice.
- * 4. Step 12's Setups are resolved one environment at a time in log order (one `putIntoPlay { resolveSetup }` each),
- *    not in an order the first player chooses among all five (RRG 1.8 "Simultaneous Resolution", p. 40).
+ * 4. Settled (rules expert, 2026-10-19; spec E31): step 12 places every environment first, then resolves their Setups
+ *    together (`resolveSetups`), the first player ordering them when two or more have one (RRG 1.8 "Simultaneous
+ *    Resolution", p. 40); with one, no prompt.
  * 5. "Under any player's control" (step 13) is decided by the first player (`choosePlayer`).
  */
 
@@ -72,6 +73,7 @@ import {
   putIntoPlay,
   query,
   removeCountersFrom,
+  resolveSetups,
   selectCards,
   statOf,
   thatPlayer,
@@ -110,6 +112,8 @@ export const FNE_ENVIRONMENTS: Readonly<Record<string, string>> = {
   [THE_RAFT_BREAKOUT]: "60208a",
   [STOP_THE_PRESSES]: "60209a",
 };
+/** The encounter set of the campaign cards (the environments 60205 to 60209 and the Typhoid Mary ally). */
+const FNE_CAMPAIGN_SET = "fne_campaign";
 const TYPHOID_MARY_ALLY: CardId = cardId("60210a");
 /** The Raft Breakout encounter set's six minions (60144 to 60149): set aside when its Failed environment is in play. */
 const RAFT_MINIONS: readonly CardId[] = ["60144", "60145", "60146", "60147", "60148", "60149"].map(cardId);
@@ -479,26 +483,42 @@ const healStep: CampaignInstruction = (() => {
   );
 })();
 
-/** Step 12: one instruction for each environment on each face, in log order, gated on the scenario's outcome. */
-const environmentSteps: readonly CampaignInstruction[] = FNE_UNDERLING_NODES.flatMap((scenario) =>
-  (["completed", "failed"] as const).map((as) =>
-    inGame(
-      `mc60.setup.environment.${scenario}.${as}`,
-      `Place the environment for each ${as === "completed" ? "Completed" : "Failed"} scenario into play ${as === "completed" ? "Completed" : "Failed"} side faceup. Resolve the "Setup" abilities on each of these cards.`,
-      "MC60 p. 9 step 12",
-      "afterMulligans",
-      [
-        selectCards(
-          "environment",
-          encounterSetAside(query("environment", { printedId: cardId(FNE_ENVIRONMENTS[scenario]!) })),
-        ),
-        // A flip or a campaign placement is not a reveal (January 26, 2026 R4 (2); April 30, 2026 R3 (3)): no When Revealed.
-        putIntoPlay(chosen("environment"), firstPlayer, { otherFace: as === "failed", resolveSetup: true }),
-      ],
-      { when: resolved(scenario, as) },
+/**
+ * Step 12: one instruction placing each environment on each face, in log order, gated on the scenario's outcome; then
+ * one resolving the Setups of every environment placed, which the first player orders when two or more have one (RRG
+ * 1.8 "Simultaneous Resolution", p. 40; spec E31). Only a resolved scenario's environment is set aside (`composition`),
+ * so the campaign environments in play here are exactly the ones placed.
+ */
+const environmentSteps: readonly CampaignInstruction[] = [
+  ...FNE_UNDERLING_NODES.flatMap((scenario) =>
+    (["completed", "failed"] as const).map((as) =>
+      inGame(
+        `mc60.setup.environment.${scenario}.${as}`,
+        `Place the environment for each ${as === "completed" ? "Completed" : "Failed"} scenario into play ${as === "completed" ? "Completed" : "Failed"} side faceup.`,
+        "MC60 p. 9 step 12",
+        "afterMulligans",
+        [
+          selectCards(
+            "environment",
+            encounterSetAside(query("environment", { printedId: cardId(FNE_ENVIRONMENTS[scenario]!) })),
+          ),
+          // A flip or a campaign placement is not a reveal (January 26, 2026 R4 (2); April 30, 2026 R3 (3)): no When
+          // Revealed.
+          putIntoPlay(chosen("environment"), firstPlayer, { otherFace: as === "failed" }),
+        ],
+        { when: resolved(scenario, as) },
+      ),
     ),
   ),
-);
+  inGame(
+    "mc60.setup.environment.setups",
+    'Resolve the "Setup" abilities on each of these cards.',
+    "MC60 p. 9 step 12",
+    "afterMulligans",
+    [resolveSetups(each(query("environment", inEncounterSet(FNE_CAMPAIGN_SET))), firstPlayer)],
+    { when: { kind: "or", of: FNE_UNDERLING_NODES.map((scenario) => resolved(scenario)) } },
+  ),
+];
 
 /** Step 13: the ally goes into play under the player the first player names, only while Trust holds and Mary lives. */
 const maryStep: CampaignInstruction = inGame(

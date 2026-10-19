@@ -2119,6 +2119,15 @@ export const putIntoPlay = (
   ...(opts.resolveSetup ? { resolveSetup: true as const } : {}),
 });
 /**
+ * "Resolve the 'Setup' abilities on each of these cards" (MC60 p. 9 step 12) for cards already in play, placed by
+ * earlier effects: the first player orders those of two or more cards. `controller` is "you" for a card nobody controls.
+ */
+export const resolveSetups = (cards: TargetRef, controller: PlayerRef = you): EffectSpec => ({
+  kind: "resolveSetups",
+  cards,
+  controller,
+});
+/**
  * "Setup: Put [your permanent card] into play" (RRG 1.8 "Permanent", p. 32: permanent cards are set aside before setup
  * step 1, docs/phase7-wave6.md §3.74): every card of yours in your set-aside area that `filter` matches, bound to
  * `slot`, put into play under your control (an upgrade as playing it would, `putIntoPlay`), and attached to `attachTo`

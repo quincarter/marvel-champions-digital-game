@@ -98,3 +98,19 @@ describe("nodeProgress (§S3.12; MC60 p. 9 step 3, p. 13)", () => {
     expect(() => compose(definitionWith([], [copyChecks("nowhere")]))).toThrow(EngineInvariantError);
   });
 });
+
+// docs/phase7-wave11-scenarios.md C1a: the sheet has `progressToFail` boxes, so the count never passes it.
+describe("progressNode caps a node's marks at progressToFail (C1a)", () => {
+  it("stores 3, not 4, for a node at 2 marks drawn twice more, and fails it", () => {
+    const log = compose(
+      definitionWith([progress("racket"), progress("racket"), progress("racket"), progress("racket")], []),
+    );
+    expect(log.position.progress).toEqual({ racket: 3 });
+    expect(log.position.resolved.racket).toBe("failed");
+  });
+
+  it("counts below the cap as before", () => {
+    const log = compose(definitionWith([progress("racket")], []));
+    expect(log.position.progress).toEqual({ racket: 1 });
+  });
+});

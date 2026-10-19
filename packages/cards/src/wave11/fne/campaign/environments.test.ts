@@ -18,7 +18,17 @@ import { describe, expect, it, vi } from "vitest";
 import { abilityRefIds } from "../../../ability-refs.js";
 import { coreScenario } from "../../../core/index.js";
 import { validateDefinition } from "../../../dsl/validate.js";
-import { chosen, encounterSetAside, firstPlayer, putIntoPlay, query, selectCards } from "../../../dsl/index.js";
+import {
+  chosen,
+  each,
+  encounterSetAside,
+  firstPlayer,
+  inEncounterSet,
+  putIntoPlay,
+  query,
+  resolveSetups,
+  selectCards,
+} from "../../../dsl/index.js";
 import {
   P1,
   P2,
@@ -99,7 +109,8 @@ interface Options {
 
 /**
  * Core Spider-Man (Captain Marvel, Black Panther) against Rhino, in a campaign game whose `afterMulligans` instruction
- * does what MC60 p. 9 step 12 does: set the environments aside, put each into play on its face, resolve its Setup.
+ * does what MC60 p. 9 step 12 does: set the environments aside, put each into play on its face, then resolve all their
+ * Setups, the first player ordering two or more.
  */
 function newGame(o: Options): { state: GameState; events: GameEvent[]; asked: string[] } {
   const players = o.players ?? 1;
@@ -111,21 +122,28 @@ function newGame(o: Options): { state: GameState; events: GameEvent[]; asked: st
     modularSetIds: [],
     cardPool: PLAYABLE_CARDS,
   } as never);
-  const instructions = o.envs.flatMap((env, index) => {
+  // As `fne.ts` builds step 12 (spec E31): one instruction placing each environment, then one resolving every Setup.
+  const placements = o.envs.map((env, index) => {
     const effects: EffectSpec[] = [
       selectCards(`env${index}`, encounterSetAside(query("environment", { name: data(env.id).name }))),
-      putIntoPlay(chosen(`env${index}`), firstPlayer, { otherFace: !!env.failed, resolveSetup: true }),
+      putIntoPlay(chosen(`env${index}`), firstPlayer, { otherFace: !!env.failed }),
     ];
-    return [
-      {
-        instructionId: `fne.env${index}`,
-        text: "env",
-        citation: "MC60 p. 9",
-        window: "afterMulligans" as const,
-        effects,
-      },
-    ];
+    return {
+      instructionId: `fne.env${index}`,
+      text: "env",
+      citation: "MC60 p. 9",
+      window: "afterMulligans" as const,
+      effects,
+    };
   });
+  const setups = {
+    instructionId: "fne.env.setups",
+    text: "setups",
+    citation: "MC60 p. 9",
+    window: "afterMulligans" as const,
+    effects: [resolveSetups(each(query("environment", inEncounterSet("fne_campaign"))), firstPlayer)],
+  };
+  const instructions = placements.length > 0 ? [...placements, setups] : [];
   const campaign: CampaignGameInput = {
     campaignId: campaignId("fne-test"),
     nodeId: "node",
@@ -605,6 +623,46 @@ describe("several environments at once (MC60 p. 9 step 12)", () => {
     // The Completed face is not flipped; the Failed ones are.
     expect(inst(state, idsOf(state, "60205a")[0]!).flipped).toBeFalsy();
     expect(inst(state, idsOf(state, "60207a")[0]!).flipped).toBe(true);
+  });
+
+  // Spec E31 (RRG 1.8 "Simultaneous Resolution", p. 40): the Setups share a timing, so the first player orders them.
+  const TENACITY = "01093";
+  /** Orders the Setups as `order` (ability ids); searches and takes Tenacity; discards Tenacity when it is in hand. */
+  const ordered =
+    (order: readonly string[]): Picker =>
+    (s) => {
+      const choice = s.pendingChoice!;
+      if (choice.prompt.kind === "orderTriggers")
+        return order.map((ability) => choice.options.find((o) => o.optionId.endsWith(`:${ability}`))!.optionId);
+      if (choice.prompt.kind === "chooseCards" || choice.prompt.kind === "chooseTarget") {
+        const tenacity = choice.options.find((o) => codeOf(s, o.optionId as InstanceId) === TENACITY);
+        if (tenacity) return [tenacity.optionId];
+      }
+      return labelled("Search")(s);
+    };
+  const getawayThenRacket = (order: readonly string[]) =>
+    newGame({
+      envs: [{ id: "60206a" }, { id: "60207a", failed: true }],
+      prep: inDiscardPile(TENACITY),
+      pick: ordered(order),
+    });
+
+  it("the search before the discard: the upgrade found can be the card discarded", () => {
+    const { state, asked } = getawayThenRacket(["60206a.setup", "60207b.setup"]);
+    expect(asked.filter((kind) => kind === "orderTriggers")).toHaveLength(1);
+    expect(discard(state)).toContain(TENACITY);
+    expect(hand(state)).not.toContain(TENACITY);
+  });
+
+  it("the discard before the search: the upgrade found stays in hand", () => {
+    const { state } = getawayThenRacket(["60207b.setup", "60206a.setup"]);
+    expect(hand(state)).toContain(TENACITY);
+    expect(discard(state)).not.toContain(TENACITY);
+  });
+
+  it("one environment's Setup asks for no order", () => {
+    const { asked } = newGame({ envs: [{ id: "60207a", failed: true }] });
+    expect(asked).not.toContain("orderTriggers");
   });
 });
 

@@ -254,3 +254,45 @@ describe("putIntoPlay.otherFace (§S3.15)", () => {
     expect(events.some((event) => event.type === "cardEnteredOnOtherFace")).toBe(false);
   });
 });
+
+// docs/phase7-wave11-scenarios.md E31: MC60 p. 9 step 12 places each environment by its own instruction, then resolves
+// the Setups of all of them together, so the first player orders them across the placements.
+describe("resolveSetups (E31)", () => {
+  const environments: EffectSpec = {
+    kind: "resolveSetups",
+    cards: { kind: "each", query: { categories: ["environment"] } },
+    controller: { kind: "firstPlayer" },
+  };
+  const placedApart: readonly EffectSpec[] = [
+    selectByName("env", "Synthetic Venue"),
+    putIntoPlay("env", { otherFace: true }),
+    selectByName("env2", "Second Venue"),
+    putIntoPlay("env2"),
+    environments,
+  ];
+  const watched: readonly string[] = [ON_ENTRY.ref.id, OTHER_SETUP.ref.id, LOST_SETUP.ref.id];
+  const watchedOrder = (events: readonly GameEvent[]) => resolvedAbilities(events).filter((id) => watched.includes(id));
+
+  it("resolves the Setups of cards placed by separate effects in the order the first player picks", () => {
+    asked.length = 0;
+    const { state, events } = play(placedApart, [LOST_SETUP.ref.id, OTHER_SETUP.ref.id]);
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toHaveLength(2);
+    // The second card's entry window resolved at its entry, before either Setup; the first card's Setup is its face's.
+    expect(watchedOrder(events)).toEqual([ON_ENTRY.ref.id, LOST_SETUP.ref.id, OTHER_SETUP.ref.id]);
+    expect(schemeThreat(state)).toBe(1110);
+  });
+
+  it("resolves them the other way round when the first player picks that order", () => {
+    const { events } = play(placedApart, [OTHER_SETUP.ref.id, LOST_SETUP.ref.id]);
+    expect(watchedOrder(events)).toEqual([ON_ENTRY.ref.id, OTHER_SETUP.ref.id, LOST_SETUP.ref.id]);
+  });
+
+  it("asks nothing for one card's Setup, and skips a card that is not in play", () => {
+    asked.length = 0;
+    const { state, events } = play([selectByName("env", "Synthetic Venue"), putIntoPlay("env"), environments]);
+    expect(asked).toEqual([]);
+    expect(schemeThreat(state)).toBe(1);
+    expect(resolvedAbilities(events)).not.toContain(OTHER_SETUP.ref.id);
+  });
+});

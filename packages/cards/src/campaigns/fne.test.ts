@@ -471,7 +471,7 @@ describe("campaign setup step 5: the villain (MC60 p. 9, p. 8)", () => {
 describe("campaign setup steps 12 and 13: the environments and the Typhoid Mary ally", () => {
   const later = { playthrough: { kind: "choice", option: FNE_LATER_PLAYTHROUGH } } as const;
 
-  it("sets aside and places one environment for each Completed or Failed scenario, on its face, in log order", () => {
+  it("sets aside and places one environment for each Completed or Failed scenario, on its face, in log order, then resolves their Setups (E31)", () => {
     const log = withResolved(newLog(), { [AMH]: "completed", [GETAWAY]: "failed", [RAFT]: "completed" }, later);
     const composed = compose(log, playing(RACKET, false));
     expect(composed.attempt!.nodeId).toBe(RACKET);
@@ -480,6 +480,7 @@ describe("campaign setup steps 12 and 13: the environments and the Typhoid Mary 
       `mc60.setup.environment.${AMH}.completed`,
       `mc60.setup.environment.${GETAWAY}.failed`,
       `mc60.setup.environment.${RAFT}.completed`,
+      "mc60.setup.environment.setups",
     ]);
     const windows = new Set(
       composed
@@ -934,6 +935,7 @@ describe("the Kingpin scenario (MC60 p. 23)", () => {
       `mc60.setup.environment.${RACKET}.failed`,
       `mc60.setup.environment.${RAFT}.completed`,
       `mc60.setup.environment.${PRESSES}.failed`,
+      "mc60.setup.environment.setups",
     ]);
   });
 

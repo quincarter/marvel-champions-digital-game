@@ -286,7 +286,10 @@ subsections.
   puts it into play itself under the player the players choose, only when its condition holds, and it must not be swept
   in by step 11. `gameAbilityFrames(…, ["setup"])`
   exists for setup-keyword cards at step 11; add `putIntoPlay.resolveSetup: true`. Not a reveal (environments are put
-  into play, and flipping or placing one is not revealing: January 26, 2026 R4 (2), April 30, 2026 R3 (3)).
+  into play, and flipping or placing one is not revealing: January 26, 2026 R4 (2), April 30, 2026 R3 (3)). E31: one
+  instruction per environment places it (`putIntoPlay { otherFace }`), then a last one, `resolveSetups`, resolves the
+  Setups of every campaign environment in play, so the first player orders them across the placements; with one, no
+  prompt.
 
 ### S3.17 Reusable as is (checked by name; the scripting agent proves each "(verify)" in its module test)
 
@@ -420,20 +423,20 @@ composition is only the environment and ally set-asides below.
 
 ### S5.3 Instructions
 
-| Instruction                    | Step                                                                                                                                                                                                                                                    |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| every `surgery` (step 8)       | `betweenGames`: `removeFromCampaign { byTitle }` of `removedTitles` (§S3.14)                                                                                                                                                                            |
-| every `environments` (step 12) | composition: for each of the five, `if nodeResolved(n, completed)` → `setAsideCards(<code>a)`, `if failed` → `<code>b`; `inGame`, `afterMulligans` (Q202): put each into play, resolve its Setup (§S3.15), in log order                                 |
-| every `hp` (step 10)           | `inGame`, `afterMulligans`, `expertCampaign`: `setRemainingHitPoints` from `remainingHp`                                                                                                                                                                |
-| every `heal` (step 11)         | `inGame`, `afterMulligans`, `expertCampaign`: each player may deal themself 1 facedown encounter card and heal REC; a seat at 0 must, or sits out (§S4.0)                                                                                               |
-| every `mary` (step 13)         | composition `if and(fieldIsSet(trustEstablished), not(fieldIsSet(maryDefeated)))` → `setAsideCards(60210a)`; `inGame`: put it into play under a chosen player's control                                                                                 |
-| amh / presses / … `setup`      | `inGame`, `afterMulligans`: the §S2 campaign SETUP bullet, `checks` from `campaignLog`; expert amounts by `{ expert: true }`                                                                                                                            |
-| kingpin `setup`                | `inGame`: count Completed environments in play (`hasTrait Completed`); ≥3 tough to each minion; ≥4 find and reveal 60165                                                                                                                                |
-| every underling VICTORY (×4)   | `record`: `trustEstablished` ← `atLeast(threatOn(60112), 2)`; `maryDefeated` ← `atLeast(cardsInVictoryDisplay(60210), 1)`; `removedTitles` append `cardsRemovedFromGame(unique ally or support)` (Q201, Q203); `markNode completed`, `completed.<node>` |
-| every underling DEFEAT         | each node's own `defeat`, `expertCampaign`: `progressNode(<node>)` (`loss.everyNodeDefeat` holds only the hp record); then back to Campaign Setup with the log kept (E30)                                                                               |
-| every game                     | `remainingHp` ← `remainingHitPointsCappedAtBase`, victory and defeat, `expertCampaign`; `defeatedSeatRecordsZero`                                                                                                                                       |
-| kingpin VICTORY                | `endCampaign won`                                                                                                                                                                                                                                       |
-| kingpin DEFEAT                 | standard: none (retry). `expertCampaign`: `if` any node completed → group `choose` from `nodes completed` (§S3.13) → `markNode failed`; else `endCampaign lost`                                                                                         |
+| Instruction                    | Step                                                                                                                                                                                                                                                           |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| every `surgery` (step 8)       | `betweenGames`: `removeFromCampaign { byTitle }` of `removedTitles` (§S3.14)                                                                                                                                                                                   |
+| every `environments` (step 12) | composition: for each of the five, `if nodeResolved(n, completed)` → `setAsideCards(<code>a)`, `if failed` → `<code>b`; `inGame`, `afterMulligans` (Q202): put each into play in log order, then resolve every Setup in the first player's order (§S3.15, E31) |
+| every `hp` (step 10)           | `inGame`, `afterMulligans`, `expertCampaign`: `setRemainingHitPoints` from `remainingHp`                                                                                                                                                                       |
+| every `heal` (step 11)         | `inGame`, `afterMulligans`, `expertCampaign`: each player may deal themself 1 facedown encounter card and heal REC; a seat at 0 must, or sits out (§S4.0)                                                                                                      |
+| every `mary` (step 13)         | composition `if and(fieldIsSet(trustEstablished), not(fieldIsSet(maryDefeated)))` → `setAsideCards(60210a)`; `inGame`: put it into play under a chosen player's control                                                                                        |
+| amh / presses / … `setup`      | `inGame`, `afterMulligans`: the §S2 campaign SETUP bullet, `checks` from `campaignLog`; expert amounts by `{ expert: true }`                                                                                                                                   |
+| kingpin `setup`                | `inGame`: count Completed environments in play (`hasTrait Completed`); ≥3 tough to each minion; ≥4 find and reveal 60165                                                                                                                                       |
+| every underling VICTORY (×4)   | `record`: `trustEstablished` ← `atLeast(threatOn(60112), 2)`; `maryDefeated` ← `atLeast(cardsInVictoryDisplay(60210), 1)`; `removedTitles` append `cardsRemovedFromGame(unique ally or support)` (Q201, Q203); `markNode completed`, `completed.<node>`        |
+| every underling DEFEAT         | each node's own `defeat`, `expertCampaign`: `progressNode(<node>)` (`loss.everyNodeDefeat` holds only the hp record); then back to Campaign Setup with the log kept (E30)                                                                                      |
+| every game                     | `remainingHp` ← `remainingHitPointsCappedAtBase`, victory and defeat, `expertCampaign`; `defeatedSeatRecordsZero`                                                                                                                                              |
+| kingpin VICTORY                | `endCampaign won`                                                                                                                                                                                                                                              |
+| kingpin DEFEAT                 | standard: none (retry). `expertCampaign`: `if` any node completed → group `choose` from `nodes completed` (§S3.13) → `markNode failed`; else `endCampaign lost`                                                                                                |
 
 `loss: { retry: "byInstruction", retryBaseline: "keepLog", citation: "MC60 pp. 8, 9, 13, 23" }` (E30); `elimination: { id:
 "mc60.elimination", citation: "MC60 p. 9", whenModes: { expertCampaign: true } }`. Version `"1"`.

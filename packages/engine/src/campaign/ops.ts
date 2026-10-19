@@ -905,12 +905,16 @@ function revokeCard(run: CampaignRun, seatNumber: number, cardId: CardId): void 
   });
 }
 
-/** MC60 p. 9 step 3. The mark is counted here; how many marks fail a node is the *box's* number, not the engine's. */
+/**
+ * MC60 p. 9 step 3. The mark is counted here; how many marks fail a node is the *box's* number, not the engine's. The
+ * count stops at that number (spec C1a): the sheet has that many boxes, so a node at 2 of 3 drawn alone stores 3.
+ */
 function progressNode(run: CampaignRun, nodeId: string): void {
-  const marks = (run.working.progress[nodeId] ?? 0) + 1;
-  run.working.progress = { ...run.working.progress, [nodeId]: marks };
   const graph = run.definition.graph;
   const threshold = graph.kind === "choice" ? graph.progressToFail : undefined;
+  const counted = (run.working.progress[nodeId] ?? 0) + 1;
+  const marks = threshold === undefined ? counted : Math.min(counted, threshold);
+  run.working.progress = { ...run.working.progress, [nodeId]: marks };
   if (threshold !== undefined && marks >= threshold && run.working.resolved[nodeId] === undefined) {
     run.working.resolved = { ...run.working.resolved, [nodeId]: "failed" };
   }

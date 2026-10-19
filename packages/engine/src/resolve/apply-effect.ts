@@ -1974,6 +1974,15 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       }
       return;
     }
+    case "resolveSetups": {
+      const [controller] = resolvePlayers(ctx.state, effect.controller, context);
+      if (!controller) return;
+      const inPlay = cardsInPlay(ctx.state);
+      // Nothing of this effect is on the stack to resolve first: the step goes straight on top.
+      const cards = targets(effect.cards).filter((id) => inPlay.includes(id));
+      resolveSetupOnEntry(ctx, ctx.state.stack.length, cards, controller);
+      return;
+    }
     case "putIntoPlay": {
       const [controller] = resolvePlayers(ctx.state, effect.controller, context);
       if (!controller) return;

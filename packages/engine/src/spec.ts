@@ -5540,6 +5540,14 @@ export type EffectSpec =
    */
   | { readonly kind: "resolveSetupsTogether"; readonly cards: readonly InstanceId[]; readonly playerId: PlayerId }
   /**
+   * "Resolve the 'Setup' abilities on each of these cards" for cards already in play (MC60 p. 9 step 12, once every
+   * environment has been placed; docs/phase7-wave11-scenarios.md E31): the Setup abilities of each card `cards` names
+   * that is in play and faceup, the first player ordering those of two or more cards (RRG 1.8 "Simultaneous
+   * Resolution", p. 40), as `putIntoPlay.resolveSetup` does for the cards one effect put into play. "You" for a card
+   * nobody controls is `controller`.
+   */
+  | { readonly kind: "resolveSetups"; readonly cards: TargetRef; readonly controller: PlayerRef }
+  /**
    * "Reduce the resource cost of the next card that player plays this phase by 1" (lasting, consumed on use).
    * `cardFilter` narrows which played card consumes it: "the next Avenger ally played this phase" (Avengers Tower,
    * `cap` pack). Absent = any card (Helicarrier).
