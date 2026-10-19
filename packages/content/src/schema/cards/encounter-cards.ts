@@ -52,11 +52,20 @@ export interface CardFlipSide {
    * (`AllyCard.thw` / `atk` / `hp` are the front's): Typhoid Mary (THW 2, ATK 1) flips to Bloody Mary (THW 1, ATK 2),
    * `fne` 60210a/b. RRG 1.8 "Flip" (p. 20): the new face's characteristics apply. Only a stat the face changes is
    * present, and it differs from the front's; an absent one reads the front's. Allies only (an ally prints no DEF):
-   * a minion or attachment flip side's printed values are not modeled here.
+   * a minion flip side's printed values are not modeled here; an attachment's are `statModifiers`.
    */
   readonly thw?: PrintedStat;
   readonly atk?: PrintedStat;
   readonly hp?: number;
+  /**
+   * This face's own printed stat boxes, for a double-sided attachment whose faces print different ones
+   * (`AttachmentCard.statModifiers` is the front's): Dense (+1 ATK) flips to Intangible (+1 SCH), `synthezoid`
+   * 57046a/b. RRG 1.8 "Flip" (p. 20): the new face's characteristics apply. Present only when the face differs from
+   * the front, and then it replaces the front's whole set (a stat box this face does not print is not inherited);
+   * `{}` is a face that prints no stat box behind a front that does. Absent: the face prints the front's.
+   * Attachments only.
+   */
+  readonly statModifiers?: PrintedStatModifiers;
 }
 
 /**

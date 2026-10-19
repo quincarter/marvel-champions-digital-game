@@ -1,5 +1,6 @@
 import {
   activeVillain,
+  characterProfile,
   createGame,
   hasKeyword,
   iconsOn,
@@ -515,6 +516,18 @@ describe("Hope's Captor (40105a): 40105a.hopes-captor-forced-interrupt-2, then 4
     const second = defeatVillain(first, { clearMinions: true });
     expect(second.state.outcome).toMatchObject({ result: "win" });
     expect(events(second.events, "characterDefeated").length).toBeGreaterThan(0);
+  });
+
+  it("the DESPERATE side's printed +1 SCH and +1 ATK apply to the villain (40105b stat boxes; the star marks its ability)", () => {
+    const stage2 = defeatVillain(game({ villain: ARCLIGHT, minions: DEF1 })).state;
+    const villain = villainId(stage2);
+    const captor = captorOf(stage2)!;
+    const unflipped = patchInstance(stage2, captor, { flipped: false });
+    const stat = (s: GameState, name: "atk" | "sch") => characterProfile(s, villain, WAVE7_DEPS)?.[name] ?? NaN;
+    expect([stat(stage2, "sch"), stat(stage2, "atk")]).toEqual([
+      stat(unflipped, "sch") + 1,
+      stat(unflipped, "atk") + 1,
+    ]);
   });
 
   it("40105b.hopes-captor-forced-interrupt: the DESPERATE side still has the villain scheme instead", () => {

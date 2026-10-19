@@ -2912,6 +2912,7 @@ export const NEXT_EVOL_CARDS: readonly AnyCard[] = [
         { id: abilityId("40105b.hopes-captor-forced-interrupt") },
       ],
       image: imageRef("/bundles/cards/40105b.png"),
+      statModifiers: { atk: 1, sch: 1 },
     },
   },
   {

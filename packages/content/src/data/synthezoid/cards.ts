@@ -1119,6 +1119,7 @@ export const SYNTHEZOID_CARDS: readonly AnyCard[] = [
       flavor: "\"Innovation is the ultimate weapon.\" —Vision",
       abilities: [{ id: abilityId("57046b.intangible-forced-interrupt") }],
       image: imageRef("/bundles/cards/57046b.png"),
+      statModifiers: { sch: 1 },
     },
   },
   {

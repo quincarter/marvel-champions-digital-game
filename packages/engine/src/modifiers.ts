@@ -58,11 +58,17 @@ export function modifiersFor(
   const found: ActiveModifier[] = [];
   const wanted = (s: ModifiedStat) => stat === undefined || stat === s;
 
-  // Printed stat boxes on an attachment modify its host while attached (Charge +3 ATK).
+  // Printed stat boxes on an attachment modify its host while attached (Charge +3 ATK). A flipped double-sided
+  // attachment's are its showing face's (Dense +1 ATK / Intangible +1 SCH, `synthezoid` 57046a/b): RRG 1.8 "Flip"
+  // (p. 20), "Printed" (p. 35). A face with no `statModifiers` of its own prints the front's.
   for (const attachmentId of state.instances[targetId]?.attachments ?? []) {
     const card = cardOf(state, attachmentId);
-    if (card?.type !== "attachment" || !card.statModifiers) continue;
-    for (const [s, amount] of Object.entries(card.statModifiers)) {
+    if (card?.type !== "attachment") continue;
+    const showing =
+      (state.instances[attachmentId]?.flipped === true ? card.flipSide?.statModifiers : undefined) ??
+      card.statModifiers;
+    if (!showing) continue;
+    for (const [s, amount] of Object.entries(showing)) {
       if (typeof amount === "number" && amount !== 0 && wanted(s as ModifiedStat)) {
         found.push({ sourceInstanceId: attachmentId, stat: s as ModifiedStat, amount, origin: "attachment" });
       }

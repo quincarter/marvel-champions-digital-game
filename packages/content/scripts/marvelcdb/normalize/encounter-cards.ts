@@ -17,6 +17,7 @@ import {
   type NormalizeContext,
   type SingleRecord,
 } from "./context.ts";
+import type { RawCard } from "../raw-types.ts";
 import type { Prepared } from "./prepare.ts";
 import { scalingOf, schemeIcons } from "./values.ts";
 
@@ -162,28 +163,8 @@ export function normalizeEncounterCard(
       // Curated only (`Correction.hostChosenBy`): the chooser picks among the data hosts, so a card with none has no use
       // for one.
       if (p.hostChosenBy && !attachesTo) errors.push(`${r.code}: hostChosenBy on an attachment with no data host`);
-      const mods: { -readonly [K in keyof PrintedStatModifiers]: number } = {};
-      // MarvelCDB's -1 is its printed-X encoding (the same sentinel the minion branch above reads), but
-      // `PrintedStatModifiers.atk` is a fixed number with no "X" — a dynamic stat-box bonus is a scripted ability's
-      // job instead (`ability-scripting-engineer`), so it is omitted here rather than emitted as a literal -1.
-      // Requires a `cardNotes` entry the same way a minion's `-1` does (Heightened Morale, `sm` 27103,
-      // docs/phase7-wave5.md §1.9).
-      // A printed "-1 ATK" badge (Inhibitor Collar, `next_evol` 40092) is the same raw value: a `Correction.attack`
-      // of -1, confirmed on the scan, says it is the literal number.
-      const printedX = p.attack === -1 && !p.attackIsCurated;
-      if (printedX && !curation.cardNotes[r.code]) {
-        errors.push(`${r.code}: attachment ATK is X (MarvelCDB -1) — needs a cardNotes entry or a Correction.attack`);
-      } else if (p.attack !== null && p.attack !== undefined && !printedX) {
-        mods.atk = p.attack;
-      }
-      // MarvelCDB has no THW field for an attachment and files a printed "-1 THW" badge under `scheme` (Psychic
-      // Inertia, `next_evol` 40173, which attaches to an identity). `Correction.thwart` emits it as THW instead.
-      if (p.thwart !== undefined) mods.thw = p.thwart;
-      // A SCH badge of -1 beside an X ATK badge is the same printed X (Reverse Engineering, `aos` 50119, "+X SCH" and
-      // "+X ATK"), omitted like the ATK one; a card whose ATK is a real number keeps its SCH as sent.
-      else if (r.scheme === -1 && printedX && curation.cardNotes[r.code]) {
-        // printed X: no flat number
-      } else if (r.scheme !== null && r.scheme !== undefined) mods.sch = r.scheme;
+      const mods = attachmentStatModifiers(ctx, r.code, p, r.scheme);
+      const flipMods = attachmentFlipStatModifiers(ctx, mods, r.linked_card, flipParts[0]);
       const attachment: AttachmentCard = {
         ...common,
         type: "attachment",
@@ -192,6 +173,9 @@ export function normalizeEncounterCard(
         ...(p.attachmentMaxPerHost !== undefined ? { playRestrictions: { maxPerHost: p.attachmentMaxPerHost } } : {}),
         ...(Object.keys(mods).length > 0 ? { statModifiers: mods } : {}),
         ...encounterCommon,
+        ...(encounterCommon.flipSide && flipMods
+          ? { flipSide: { ...encounterCommon.flipSide, statModifiers: flipMods } }
+          : {}),
       };
       record(ctx, attachment, set, [p, ...flipParts]);
       return;
@@ -282,4 +266,56 @@ export function normalizeEncounterCard(
     default:
       errors.push(`${r.code}: unhandled type ${r.type_code}`);
   }
+}
+
+/**
+ * The stat boxes printed on one face of an attachment (`PrintedStatModifiers`), read from that face's record: the
+ * front's become `AttachmentCard.statModifiers`, the back's `CardFlipSide.statModifiers`.
+ */
+function attachmentStatModifiers(
+  ctx: NormalizeContext,
+  code: string,
+  p: Prepared,
+  rawScheme: number | null | undefined,
+): PrintedStatModifiers {
+  const mods: { -readonly [K in keyof PrintedStatModifiers]: number } = {};
+  // MarvelCDB's -1 is its printed-X encoding (the same sentinel the minion branch above reads), but
+  // `PrintedStatModifiers.atk` is a fixed number with no "X" — a dynamic stat-box bonus is a scripted ability's
+  // job instead (`ability-scripting-engineer`), so it is omitted here rather than emitted as a literal -1.
+  // Requires a `cardNotes` entry the same way a minion's `-1` does (Heightened Morale, `sm` 27103,
+  // docs/phase7-wave5.md §1.9).
+  // A printed "-1 ATK" badge (Inhibitor Collar, `next_evol` 40092) is the same raw value: a `Correction.attack`
+  // of -1, confirmed on the scan, says it is the literal number.
+  const printedX = p.attack === -1 && !p.attackIsCurated;
+  if (printedX && !ctx.curation.cardNotes[code]) {
+    ctx.errors.push(`${code}: attachment ATK is X (MarvelCDB -1) — needs a cardNotes entry or a Correction.attack`);
+  } else if (p.attack !== null && p.attack !== undefined && !printedX) {
+    mods.atk = p.attack;
+  }
+  // MarvelCDB has no THW field for an attachment and files a printed "-1 THW" badge under `scheme` (Psychic
+  // Inertia, `next_evol` 40173, which attaches to an identity). `Correction.thwart` emits it as THW instead.
+  if (p.thwart !== undefined) mods.thw = p.thwart;
+  // A SCH badge of -1 beside an X ATK badge is the same printed X (Reverse Engineering, `aos` 50119, "+X SCH" and
+  // "+X ATK"), omitted like the ATK one; a card whose ATK is a real number keeps its SCH as sent.
+  else if (rawScheme === -1 && printedX && ctx.curation.cardNotes[code]) {
+    // printed X: no flat number
+  } else if (rawScheme !== null && rawScheme !== undefined) mods.sch = rawScheme;
+  return mods;
+}
+
+/**
+ * A double-sided attachment's other face's stat boxes where they differ from the front's (`CardFlipSide.statModifiers`;
+ * Dense 57046a +1 ATK, Intangible 57046b +1 SCH): the whole set replaces the front's when that face shows, so `{}` is a
+ * face that prints none behind a front that prints some. RRG 1.8 "Flip" (p. 20): the new face's characteristics apply.
+ */
+function attachmentFlipStatModifiers(
+  ctx: NormalizeContext,
+  front: PrintedStatModifiers,
+  back: RawCard | null | undefined,
+  pBack: Prepared | undefined,
+): PrintedStatModifiers | undefined {
+  if (!back || !pBack) return undefined;
+  const mods = attachmentStatModifiers(ctx, back.code, pBack, back.scheme);
+  const keys = new Set([...Object.keys(front), ...Object.keys(mods)]) as Set<keyof PrintedStatModifiers>;
+  return [...keys].every((k) => (front[k] ?? 0) === (mods[k] ?? 0)) ? undefined : mods;
 }

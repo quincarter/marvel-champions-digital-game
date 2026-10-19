@@ -26,6 +26,7 @@ import {
   type AttachmentHostChooser,
   type HostClassification,
   type HostMeasure,
+  type PrintedStatModifiers,
   type SuperlativeHostPool,
 } from "./cards/attachment-host.js";
 import { EVIDENCE_COLORS, EVIDENCE_KINDS } from "./cards/evidence.js";
@@ -933,6 +934,7 @@ function flipSideErrors(
   if (back.modeOnly !== undefined && frontMode === back.modeOnly)
     errors.push(`${side} modeOnly repeats the front face's; the two faces name different modes`);
   errors.push(...flipSideStatErrors(card, back, side));
+  errors.push(...flipSideModifierErrors(card, back, side));
   if (Array.isArray(back.abilities) && Array.isArray(card.abilities)) {
     const front = new Set((card.abilities as readonly AbilityReference[]).map((ref) => ref?.id));
     for (const ref of back.abilities) {
@@ -959,6 +961,37 @@ function flipSideStatErrors(card: object, back: EncounterCardFlipSide, side: str
     else if (back[stat] === front[stat]) errors.push(`${side} ${stat} repeats the front face's; leave it out`);
   }
   return errors;
+}
+
+/** The keys and values an attachment's printed stat boxes may carry (`PrintedStatModifiers`). */
+function statModifierErrors(mods: unknown, label: string): string[] {
+  if (typeof mods !== "object" || mods === null) return [`${label} must be an object`];
+  const errors: string[] = [];
+  for (const [key, value] of Object.entries(mods)) {
+    if (!["atk", "sch", "thw", "hp"].includes(key)) errors.push(`${label}.${key} is not a stat`);
+    else if (typeof value !== "number" || !Number.isFinite(value)) errors.push(`${label}.${key} must be a number`);
+  }
+  return errors;
+}
+
+/**
+ * A flip side's own printed stat boxes (`CardFlipSide.statModifiers`): only on an attachment's flip side, and only
+ * when they differ from the front's (an absent field reads the front's; `{}` is a face printing none behind a front
+ * that prints some).
+ */
+function flipSideModifierErrors(card: object, back: EncounterCardFlipSide, side: string): string[] {
+  if (back.statModifiers === undefined) return [];
+  const front = card as { readonly type?: unknown; readonly statModifiers?: PrintedStatModifiers };
+  if (front.type !== "attachment") return [`${side} statModifiers are only for a double-sided attachment`];
+  const errors = statModifierErrors(back.statModifiers, `${side} statModifiers`);
+  if (errors.length > 0) return errors;
+  const keys = new Set([...Object.keys(front.statModifiers ?? {}), ...Object.keys(back.statModifiers)]);
+  const same = [...keys].every(
+    (key) =>
+      (front.statModifiers?.[key as keyof PrintedStatModifiers] ?? 0) ===
+      (back.statModifiers?.[key as keyof PrintedStatModifiers] ?? 0),
+  );
+  return same ? [`${side} statModifiers repeat the front face's; leave them out`] : [];
 }
 
 function encounterCommonErrors(
@@ -1031,18 +1064,8 @@ export function validateAttachmentCard(card: AttachmentCard): ValidationResult {
         errors.push("attachment playRestrictions.maxPerHost must be a positive integer");
     }
   }
-  const mods = card.statModifiers;
-  if (mods !== undefined) {
-    if (typeof mods !== "object" || mods === null) errors.push("attachment statModifiers must be an object");
-    else {
-      for (const [key, value] of Object.entries(mods)) {
-        if (!["atk", "sch", "thw", "hp"].includes(key)) errors.push(`attachment statModifiers.${key} is not a stat`);
-        else if (typeof value !== "number" || !Number.isFinite(value)) {
-          errors.push(`attachment statModifiers.${key} must be a number`);
-        }
-      }
-    }
-  }
+  if (card.statModifiers !== undefined)
+    errors.push(...statModifierErrors(card.statModifiers, "attachment statModifiers"));
   return result(errors);
 }
 
