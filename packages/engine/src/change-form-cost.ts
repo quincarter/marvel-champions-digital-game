@@ -51,8 +51,27 @@ const FOLDABLE: ReadonlySet<keyof AbilityCost> = new Set<keyof AbilityCost>([
   "indirectDamage",
 ]);
 
-/** Costs `foldChangeFormCost` built, so a folded cost handed back to it is not folded twice. */
-const FOLDED = new WeakSet<AbilityCost>();
+/**
+ * Whether `paidBy` hands a folded part to another player (`CostSelection.paidBy`, a cost any player may help pay). An
+ * additional cost to change form is the changing player's ("discard 1 card from **your** hand", Work-Life Balance
+ * 61030; RRG 1.8 "Cost", p. 13), whoever may help with the ability's own cost, so a part it added is never delegated.
+ */
+export const delegatesFoldedPart = (
+  cost: AbilityCost,
+  paidBy: Readonly<Record<string, PlayerId | undefined>>,
+  playerId: PlayerId,
+): boolean => (cost.changeFormFolded ?? []).some((key) => paidBy[key] !== undefined && paidBy[key] !== playerId);
+
+/** The parts that shape the whole payment: folded in only when the ability's own cost spends no resources. */
+const PAYMENT_SHAPE: readonly (keyof AbilityCost)[] = [
+  "sameResourceType",
+  "distinctResourceTypes",
+  "printedResourcesOnly",
+];
+/** The parts by which an ability's own cost spends resources. */
+const SPENDS: readonly (keyof AbilityCost)[] = ["resources", "resourcesX", "resourcesEqualTo"];
+const has = (cost: AbilityCost, keys: readonly (keyof AbilityCost)[]): boolean =>
+  keys.some((key) => cost[key] !== undefined);
 
 /** Fixed resources added together; a size the payer chooses (`ResourcesChoice`) does not add. */
 type Resources = NonNullable<AbilityCost["resources"]>;
@@ -102,9 +121,20 @@ export function foldChangeFormCost(
   if (cannotChangeForm(state, deps, playerId, undefined, sourceId)) {
     return { code: "no_valid_target", message: "you cannot change form, so this cost cannot be paid" };
   }
-  if (FOLDED.has(cost)) return cost;
+  // Folded already (`changeFormFolded` marks the result): read the checks above again, add nothing twice.
+  if (cost.changeFormFolded !== undefined) return cost;
   let folded: AbilityCost = cost;
+  const added: (keyof AbilityCost)[] = [];
   for (const { cost: extra } of changeFormExtras(state, deps, playerId, cost)) {
+    // "Of the same type", "different", "printed" judge the whole payment, so they cannot join a cost that already
+    // spends resources (it would hold the ability's own resources to them), nor resources join a cost shaped so. Read
+    // against the cost as folded so far, so a second additional cost meets the first one's parts too.
+    if ((has(extra, PAYMENT_SHAPE) && has(folded, SPENDS)) || (has(folded, PAYMENT_SHAPE) && has(extra, SPENDS))) {
+      return {
+        code: "no_valid_target",
+        message: "an additional cost to change form that shapes the payment cannot join a cost that spends resources",
+      };
+    }
     for (const key of Object.keys(extra) as (keyof AbilityCost)[]) {
       if (extra[key] === undefined) continue;
       if (!FOLDABLE.has(key)) {
@@ -116,17 +146,17 @@ export function foldChangeFormCost(
           return { code: "no_valid_target", message: "a chosen number of resources cannot be added to this cost" };
         }
         folded = { ...folded, resources };
+        added.push(key);
         continue;
       }
       if (folded[key] !== undefined) {
         return { code: "no_valid_target", message: `two ${key} parts of one cost cannot be paid together` };
       }
       folded = { ...folded, [key]: extra[key] };
+      added.push(key);
     }
   }
-  // Only a cost built here: the written cost (nothing to fold now) may have more to fold later.
-  if (folded !== cost) FOLDED.add(folded);
-  return folded;
+  return { ...folded, changeFormFolded: added };
 }
 
 /** `foldChangeFormCost` for a reader of a cost's picks: the folded cost, or the cost as written when it is unpayable. */

@@ -1260,6 +1260,22 @@ export type RuleSpec =
       readonly while?: Predicate;
     }
   /**
+   * "Until the end of the phase, reduce the cost to play each Team-Up card by 1" (Defend Our City 61029): every play by
+   * a player `player` names of a card `appliesTo` matches has its resource cost changed by `delta` (negative reduces),
+   * as a `CostModifierSpec` does, but as a rule, so `applyRuleUntil` makes it lasting (RRG 1.8 "Lasting Effects",
+   * p. 26). Read on every play while it lasts: the cards in hand when it was created and any drawn later. Added to the
+   * other cost modifiers and floored at 0 with them (RRG 1.8 "Cost", p. 13; "Modifiers", p. 29: below zero is zero).
+   * `appliesTo` and `delta` are read with the rule's "you" (the creating ability's controller). `playCostContributions`
+   * lists it under the rule's own card.
+   */
+  | {
+      readonly kind: "playCostModifier";
+      readonly player: PlayerRef;
+      readonly appliesTo: TargetQuery;
+      readonly delta: number | ValueSpec;
+      readonly while?: Predicate;
+    }
+  /**
    * "Players cannot attack other villains." (Distracting Taunts): player attacks against a matching `target` are
    * illegal. `player` scopes the restriction to one player — "You cannot attack Kang" (Fear of Kang, `toafk` 11049).
    * Absent, it binds the whole table, which is what Distracting Taunts' plural printed wording means; every caller
@@ -2706,9 +2722,16 @@ export interface AbilityCost {
    * only from the other form and when no `cannotChangeForm` rule stops the change; an additional cost to change form
    * (`RuleSpec formChangeCost`, Work-Life Balance 61030) is folded into this cost and paid with it. The change is not the
    * once-per-round change (RRG 1.8 "Form, Change Form", p. 21), and its `formChanged` event goes above the frame paid
-   * for, so "after you change form" responses resolve before the ability's effects.
+   * for, so "after you change form" responses resolve before the ability's effects. Not on a resource ability: the
+   * change and its event need the frame being paid for, which a resource ability paid mid-payment does not have.
    */
   readonly changeForm?: "hero" | "alterEgo";
+  /**
+   * Engine-internal, never scripted: set by `foldChangeFormCost` on the cost it returns, listing the parts the additional
+   * costs to change form added. It marks the cost folded (so it is not folded twice) and keeps those parts the
+   * changing player's own (`delegatesFoldedPart`).
+   */
+  readonly changeFormFolded?: readonly (keyof AbilityCost)[];
   /**
    * "Spend a [energy] resource" → `{ energy: 1 }`; "Spend [E][M][P]" → one of each. A number is a generic amount.
    * `{ choose }` is a number of resources of any type the payer chooses (`ResourcesChoice`).

@@ -137,7 +137,7 @@ import {
   encounterDiscardCostRange,
 } from "./encounter-discard-cost.js";
 import { encounterLookDiscardEffects, encounterLookPayable } from "./encounter-look-cost.js";
-import { costWithChangeForm, foldChangeFormCost, payChangeFormCost } from "./change-form-cost.js";
+import { costWithChangeForm, delegatesFoldedPart, foldChangeFormCost, payChangeFormCost } from "./change-form-cost.js";
 import { enemyAttackCostEffects, enemyAttackCostEnemy, enemyAttackCostFault } from "./enemy-attack-cost.js";
 import {
   planResolveAbilityCost,
@@ -259,6 +259,7 @@ import {
 import {
   activeAbilityRefs,
   activeRules,
+  rulePlayers,
   basicThwartTargetAllowed,
   attackableAsMinion,
   attackerForbiddenEveryAttack,
@@ -914,6 +915,13 @@ export function playCostContributions(
         });
       }
     }
+  }
+  // A cost change as a rule (`RuleSpec playCostModifier`): constant, or lasting ("until the end of the phase, reduce the
+  // cost to play each Team-Up card by 1", Defend Our City 61029), for each player it names.
+  for (const active of activeRules(state, deps, "playCostModifier")) {
+    if (!rulePlayers(state, active.rule, active).includes(playerId)) continue;
+    const { appliesTo, delta } = active.rule;
+    apply({ appliesTo, delta }, active.context.selfInstanceId ?? cardInstanceId, active.context);
   }
   const discount = discountFor(state, deps, playerId, cardInstanceId);
   if (discount > 0) contributions.push({ sourceInstanceId: cardInstanceId, delta: -discount });
@@ -3144,7 +3152,11 @@ export function planCost(
   }
   const player = mustPlayer(state, playerId);
   const identity = mustInstance(state, player.identity.instanceId);
-  // Parts another player pays in the user's place (`CostSelection.paidBy`): each is checked against that player.
+  // Parts another player pays in the user's place (`CostSelection.paidBy`): each is checked against that player. A part
+  // an additional cost to change form added stays the changing player's (`delegatesFoldedPart`).
+  if (folded && selection.paidBy && delegatesFoldedPart(cost, selection.paidBy, playerId)) {
+    return { code: "invalid_choice", message: "another player cannot pay an additional cost to change your form" };
+  }
   const payers = costPartPayers(state, deps, sourceId, playerId, cost, selection.paidBy);
   if (isFault(payers)) return payers;
   const payerOf = (part: DelegableCostPart) => mustPlayer(state, payers[part] ?? playerId);
@@ -3280,8 +3292,9 @@ export function planCost(
       bindings: {},
       deps,
     };
-    // An alliance card's discards may come from any player's hand (§3.17).
-    const group = paidAsGroup(state, deps, sourceId);
+    // An alliance card's discards may come from any player's hand (§3.17), but not a discard an additional cost to
+    // change form added: "discard 1 card from **your** hand" (Work-Life Balance 61030) is the changing player's.
+    const group = paidAsGroup(state, deps, sourceId) && !cost.changeFormFolded?.includes("discardFromHand");
     const inAHand = (id: InstanceId): boolean =>
       player.hand.includes(id) || (group && locateCard(state, id)?.kind === "hand");
     for (const id of picks) {
@@ -7504,7 +7517,9 @@ export function handDiscardCandidates(
   const discard = cost?.discardFromHand;
   if (!discard) return [];
   const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event: null, bindings: {}, deps };
-  const hands = paidAsGroup(state, deps, sourceId)
+  // A discard folded in from an additional cost to change form is the changing player's own hand only (`planCost`).
+  const group = paidAsGroup(state, deps, sourceId) && !cost?.changeFormFolded?.includes("discardFromHand");
+  const hands = group
     ? [playerId, ...playerOrder(state).flatMap((p) => (p.playerId === playerId ? [] : [p.playerId]))]
     : [playerId];
   return hands
@@ -7533,7 +7548,7 @@ export function defaultHandDiscardPicks(
   const cost = costWithChangeForm(state, deps, sourceId, playerId, written);
   const discard = cost?.discardFromHand;
   if (!discard) return undefined;
-  const candidates = handDiscardCandidates(state, deps, sourceId, playerId, cost);
+  const candidates = handDiscardCandidates(state, deps, sourceId, playerId, written);
   const combined = discard.combined;
   if (!combined) return candidates.slice(0, discard.min);
   const largest = [...candidates].sort(

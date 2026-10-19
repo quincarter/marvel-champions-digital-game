@@ -43,7 +43,7 @@ import type {
 } from "@mc/engine";
 import { GRANTED_BY_SLOT, POD_MOMENT } from "@mc/engine";
 import { flatten, ifThen, type EffectArg } from "./effects.js";
-import { amount, isAlterEgo, isHero, type Amount, type AttackKeyword } from "./values.js";
+import { amount, eachPlayer, isAlterEgo, isHero, type Amount, type AttackKeyword } from "./values.js";
 
 /**
  * Abilities — the sentence structure of the DSL. `heroInterrupt(when.x, …)`
@@ -1258,6 +1258,22 @@ export const formChangeCost = (
     ...(opts.during ? { during: opts.during } : {}),
     ...(opts.while ? { while: opts.while } : {}),
   });
+/**
+ * "Until the end of the phase, reduce the cost to play each Team-Up card by 1" (Defend Our City 61029): the rule
+ * `applyRuleUntil(reduceCostToPlay(TEAM_UP_CARD, 1), "endOfPhase")`. Every play of a card `appliesTo` matches, by each
+ * player `player` names (default every player), costs `by` less while the rule lasts: cards in hand then and cards drawn
+ * later alike, stacked with every other cost change and floored at 0 (engine `RuleSpec playCostModifier`; RRG 1.8
+ * "Cost", p. 13). `by` is a reduction: a negative one is refused by the validator. In a constant, wrap it in `rule(...)`.
+ */
+export const reduceCostToPlay = (appliesTo: TargetQuery, by: Amount, player: PlayerRef = eachPlayer): RuleSpec => {
+  const delta = amount(by);
+  return {
+    kind: "playCostModifier",
+    player,
+    appliesTo,
+    delta: delta.kind === "const" ? -delta.value : { kind: "product", values: [{ kind: "const", value: -1 }, delta] },
+  };
+};
 /**
  * "Treat the printed resource of each card in your hand as if it were [energy]." (Haywire, `ironheart` 29038;
  * docs/phase7-wave5.md §3.20): `constant(printedResourcesInHandAs(you, "energy"))` on the attachment ("you" is the

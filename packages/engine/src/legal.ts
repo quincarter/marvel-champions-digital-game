@@ -709,9 +709,11 @@ function discardPicks(
   const context: EffectContext = { selfInstanceId: source, controllerId: playerId, event: null, bindings: {}, deps };
   // A cost any player may help pay (`RuleSpec costsPayableByAnyPlayer`, hero-packs H3.19): the user's own cards
   // first, then the other players' in player order, so a helper's card is picked only when the user's run out.
-  const hands = costsPayableByAnyPlayer(state, deps, source)
-    ? [playerId, ...playerOrder(state).flatMap((p) => (p.playerId === playerId ? [] : [p.playerId]))]
-    : [playerId];
+  // Not a discard folded in from an additional cost to change form: that one is the changing player's own hand.
+  const hands =
+    costsPayableByAnyPlayer(state, deps, source) && !cost?.changeFormFolded?.includes("discardFromHand")
+      ? [playerId, ...playerOrder(state).flatMap((p) => (p.playerId === playerId ? [] : [p.playerId]))]
+      : [playerId];
   const matching = (owner: PlayerId): InstanceId[] =>
     (getPlayer(state, owner)?.hand ?? [])
       .filter((id) => id !== source)

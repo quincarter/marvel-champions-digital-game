@@ -117,6 +117,8 @@ function costPhrase(cost: AbilityCost | undefined): string | null {
   // it): exhaust, then what's spent, then what's discarded — "Spend 1
   // [physical] resource and discard Tenacity" reads spend-then-discard, not
   // the other way around.
+  // "Change to hero form and discard this card →" (Entrapment 61024): printed first.
+  if (cost.changeForm) parts.push(`change to ${cost.changeForm === "hero" ? "hero" : "alter-ego"} form`);
   if (cost.exhaustSelf) parts.push("exhaust");
   if (cost.exhaustIdentity) parts.push("exhaust your identity");
   const everyone = eachPlayerPhrase(cost.eachPlayer);

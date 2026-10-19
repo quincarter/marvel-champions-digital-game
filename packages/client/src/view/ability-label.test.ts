@@ -83,6 +83,22 @@ describe("abilityLabelOf", () => {
     expect(label).toBe(`${faceUpName(state, identityId)} — exhaust, remove 1 snoop counter`);
   });
 
+  test("describes a change-form cost (Entrapment 61024)", () => {
+    // "Alter-Ego Response (attack): After the villain schemes, change to hero form and discard this card → …"
+    const id = abilityId("61024.entrapment-response");
+    const deps = {
+      abilities: {
+        [id]: {
+          trigger: { kind: "response", forced: false, form: "alterEgo", on: { on: "enemyScheme" } },
+          cost: { changeForm: "hero", discardSelf: true },
+          effects: [],
+        },
+      },
+    } as unknown as typeof CORE_DEPS;
+    const label = abilityLabelOf(state, identityId, id, deps);
+    expect(label).toBe(`${faceUpName(state, identityId)} — change to hero form, discard this card`);
+  });
+
   test("describes a resources-plus-discard cost (Tenacity)", () => {
     // "Action: Spend 1 [physical] resource and discard Tenacity → ready your hero."
     const label = abilityLabelOf(state, identityId, abilityId("01093.tenacity-action"), CORE_DEPS);

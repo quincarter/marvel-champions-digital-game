@@ -15,6 +15,8 @@ import type { CardId } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { AbilityCost, EngineDeps, RuleSpec } from "./abilities.js";
 import type { Command } from "./commands.js";
+import { planCost } from "./actions.js";
+import { delegatesFoldedPart, foldChangeFormCost } from "./change-form-cost.js";
 import { replay, startSession } from "./engine.js";
 import type { GameEvent } from "./events.js";
 import type { InstanceId } from "./ids.js";
@@ -25,7 +27,7 @@ import { depsOf, stubAbility } from "./testing/abilities.js";
 import { driveSession } from "./testing/drive.js";
 import { stubResource, stubSupport } from "./testing/fixtures.js";
 import { defaultPick, giveCards } from "./testing/scenario.js";
-import { copiesOf, gameAtFirstTurn, P1, playerCardIntoPlay } from "./testing/wave3.js";
+import { copiesOf, gameAtFirstTurn, P1, P2, playerCardIntoPlay } from "./testing/wave3.js";
 
 const you = { kind: "controller" } as const;
 const ENTRAP_COST: AbilityCost = { changeForm: "hero", discardSelf: true };
@@ -60,18 +62,55 @@ const BALANCE = stubSupport({ id: "balance", cost: 0, abilities: [BALANCE_RULE.r
 /** Claustrophobia's shape: "You cannot change to hero form" (a rule while in alter-ego form; here always). */
 const CLAUSTRO_RULE = constant("claustro.constant", [{ kind: "cannotChangeForm", player: you }]);
 const CLAUSTRO = stubSupport({ id: "claustro", cost: 0, abilities: [CLAUSTRO_RULE.ref] });
+/** "As an additional cost to change form, spend 1 resource." */
+const TOLL_RULE = constant("toll.constant", [{ kind: "formChangeCost", player: you, cost: { resources: 1 } }]);
+const TOLL = stubSupport({ id: "toll", cost: 0, abilities: [TOLL_RULE.ref] });
+/** Jubilee's obligation's shape: "… you must spend 2 resources of the same type." */
+const CURFEW_RULE = constant("curfew.constant", [
+  { kind: "formChangeCost", player: you, cost: { resources: 2, sameResourceType: true } },
+]);
+const CURFEW = stubSupport({ id: "curfew", cost: 0, abilities: [CURFEW_RULE.ref] });
+/** "As an additional cost to change form, take 1 damage": a part another player could otherwise be handed. */
+const STING_RULE = constant("sting.constant", [{ kind: "formChangeCost", player: you, cost: { damageSelf: 1 } }]);
+const STING = stubSupport({ id: "sting", cost: 0, abilities: [STING_RULE.ref] });
+/** "While paying costs on Entrapment, any player may help pay those costs." */
+const HELP_RULE = constant("help.constant", [{ kind: "costsPayableByAnyPlayer", card: { name: "entrap" } }]);
+const HELP = stubSupport({ id: "help", cost: 0, abilities: [HELP_RULE.ref] });
 /** The card whose entering play opens the response window. */
 const SPARK = stubSupport({ id: "spark", cost: 0 });
 const ENERGY = stubResource({ id: "energy", icons: 0, produces: { energy: 1 } });
 
-const deps: EngineDeps = depsOf(LUNGE_ACTION, ENTRAP_RESPONSE, WATCH_RESPONSE, BALANCE_RULE, CLAUSTRO_RULE);
+const deps: EngineDeps = depsOf(
+  LUNGE_ACTION,
+  ENTRAP_RESPONSE,
+  WATCH_RESPONSE,
+  BALANCE_RULE,
+  CLAUSTRO_RULE,
+  TOLL_RULE,
+  CURFEW_RULE,
+  STING_RULE,
+  HELP_RULE,
+);
 
 /** The first turn in `form`: these supports in play, exactly this hand plus Spark, Entrapment's shape in play. */
-function table(supports: readonly CardId[], hand: readonly CardId[], form: Form = "alterEgo") {
+function table(supports: readonly CardId[], hand: readonly CardId[], form: Form = "alterEgo", players: 1 | 2 = 1) {
   let state = gameAtFirstTurn({
-    cards: [ENTRAP, LUNGE, WATCH, BALANCE, CLAUSTRO, SPARK, ENERGY],
+    cards: [ENTRAP, LUNGE, WATCH, BALANCE, CLAUSTRO, TOLL, CURFEW, STING, HELP, SPARK, ENERGY],
     deps,
-    deck: [ENTRAP.id, LUNGE.id, WATCH.id, BALANCE.id, CLAUSTRO.id, SPARK.id, ...copiesOf(ENERGY.id, 6)],
+    players,
+    deck: [
+      ENTRAP.id,
+      LUNGE.id,
+      WATCH.id,
+      BALANCE.id,
+      CLAUSTRO.id,
+      TOLL.id,
+      CURFEW.id,
+      STING.id,
+      HELP.id,
+      SPARK.id,
+      ...copiesOf(ENERGY.id, 6),
+    ],
   });
   state = {
     ...state,
@@ -228,5 +267,60 @@ describe("`AbilityCost.changeForm` (Entrapment 61024)", () => {
     expect(villainDamage(session.state)).toBe(1);
     expect(mustPlayer(session.state, P1).discard).toContain(spark);
     expect(mustPlayer(session.state, P1).identity.changedFormThisRound).toBe(false);
+  });
+});
+
+describe("folding the additional costs (`foldChangeFormCost`)", () => {
+  const fold = (supports: readonly CardId[], cost: AbilityCost) => {
+    const { state, entrap } = table(supports, []);
+    return { state, entrap, folded: foldChangeFormCost(state, deps, entrap, P1, cost) };
+  };
+
+  it("adds resources to the ability's own, marks the result, and folds a folded cost no further", () => {
+    const { state, entrap, folded } = fold([TOLL.id], { changeForm: "hero", resources: 2 });
+    expect(folded).toEqual({ changeForm: "hero", resources: 3, changeFormFolded: ["resources"] });
+    expect(foldChangeFormCost(state, deps, entrap, P1, folded as AbilityCost)).toBe(folded);
+  });
+
+  it("'of the same type' joins a cost that spends nothing, but not one that spends resources", () => {
+    expect(fold([CURFEW.id], ENTRAP_COST).folded).toMatchObject({ resources: 2, sameResourceType: true });
+    expect(fold([CURFEW.id], { changeForm: "hero", resources: 1 }).folded).toMatchObject({ code: "no_valid_target" });
+    // Nor resources join a cost the ability shapes itself.
+    const shaped: AbilityCost = { changeForm: "hero", resources: 2, sameResourceType: true };
+    expect(fold([TOLL.id], shaped).folded).toMatchObject({ code: "no_valid_target" });
+  });
+
+  it("a second additional cost meets the first one's parts: resources and 'of the same type', in either order", () => {
+    // Toll's resources then Curfew's shape, or Curfew's shape then Toll's resources: refused both ways.
+    expect(fold([TOLL.id, CURFEW.id], ENTRAP_COST).folded).toMatchObject({ code: "no_valid_target" });
+    expect(fold([CURFEW.id, TOLL.id], ENTRAP_COST).folded).toMatchObject({ code: "no_valid_target" });
+    // Control: either alone folds.
+    expect(fold([TOLL.id], ENTRAP_COST).folded).toMatchObject({ resources: 1 });
+    expect(fold([CURFEW.id], ENTRAP_COST).folded).toMatchObject({ resources: 2, sameResourceType: true });
+  });
+
+  it("control: two hand discards are not merged; with no additional cost, only the marker is added", () => {
+    const twice: AbilityCost = { changeForm: "hero", discardFromHand: { min: 1, max: 1 } };
+    expect(fold([BALANCE.id], twice).folded).toMatchObject({ code: "no_valid_target" });
+    expect(fold([], ENTRAP_COST).folded).toEqual({ ...ENTRAP_COST, changeFormFolded: [] });
+  });
+
+  it("a folded part is the changing player's own: handing it to another player is refused", () => {
+    const { folded } = fold([BALANCE.id], ENTRAP_COST);
+    expect(delegatesFoldedPart(folded as AbilityCost, { discardFromHand: P2 }, P1)).toBe(true);
+    expect(delegatesFoldedPart(folded as AbilityCost, { discardFromHand: P1 }, P1)).toBe(false);
+    expect(delegatesFoldedPart(folded as AbilityCost, { damageSelf: P2 }, P1)).toBe(false);
+  });
+
+  it("planning: a delegable folded part handed to another player is refused; the ability's own one is allowed", () => {
+    const sting = table([STING.id, HELP.id], [], "alterEgo", 2);
+    const handed = { paidBy: { damageSelf: P2 } };
+    const refused = planCost(sting.state, deps, sting.entrap, P1, ENTRAP_COST, {}, new Set(), handed);
+    expect(refused).toMatchObject({ code: "invalid_choice" });
+    // Control: the ability's own "take 1 damage" (no additional cost folded in) may be handed over under the rule.
+    const own = table([HELP.id], [], "alterEgo", 2);
+    const ownCost: AbilityCost = { changeForm: "hero", damageSelf: 1 };
+    const allowed = planCost(own.state, deps, own.entrap, P1, ownCost, {}, new Set(), handed);
+    expect(allowed).toMatchObject({ paidBy: { damageSelf: P2 } });
   });
 });

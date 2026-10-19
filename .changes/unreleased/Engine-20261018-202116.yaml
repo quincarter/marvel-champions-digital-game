@@ -1,0 +1,3 @@
+kind: Engine
+body: Change-form costs no longer depend on remembered objects; `changeFormCost` is refused on resource abilities, and the client labels it "change to hero form".
+time: 2026-10-18T20:21:16.1412473-04:00

@@ -282,6 +282,11 @@ function checkCost(definition: AbilityDefinition, problems: string[]): void {
     problems.push("cost enemyAttack: not on a resource ability");
   if (definition.trigger.kind === "resource" && looks.some((part) => part.resolveAbility))
     problems.push("cost resolveAbility: not on a resource ability");
+  // `changeFormCost`: the change and its event need the frame being paid for (engine `AbilityCost.changeForm`).
+  if (definition.trigger.kind === "resource" && looks.some((part) => part.changeForm !== undefined))
+    problems.push("cost changeForm: not on a resource ability");
+  if (looks.some((part) => part.changeFormFolded !== undefined))
+    problems.push("cost changeFormFolded: the engine's own marker, never scripted");
   // The engine asks for the player a cost deals to only as an action is initiated (`AbilityCost.dealEncounterCardsTo`).
   if (definition.trigger.kind !== "action" && looks.some((part) => part.dealEncounterCardsTo))
     problems.push("cost dealEncounterCardsTo: only on an action (a window cannot ask which player is dealt the card)");
@@ -547,6 +552,10 @@ function checkScaled(value: unknown, path: string, problems: string[]): void {
       problems.push(`${path}: scaled divide.round must be "down" or "up"`);
   }
   // An empty list is almost certainly an authoring slip: `sum` of nothing is 0, and `anyTrait`/`anyPrintedResource`/`anyOf` of nothing matches no card.
+  // `reduceCostToPlay` (a `playCostModifier` rule): a reduction, so a negative one (a fixed delta above 0) is a slip.
+  // No card in the pool raises a play cost by a lasting rule; one that does would need its own builder and reading.
+  if (record.kind === "playCostModifier" && typeof record.delta === "number" && record.delta > 0)
+    problems.push(`${path}: reduceCostToPlay needs a reduction of 0 or more, not ${-record.delta}`);
   if (record.kind === "sum" && (!Array.isArray(record.values) || record.values.length === 0))
     problems.push(`${path}: sum needs at least one value`);
   if (Array.isArray(record.anyTrait) && record.anyTrait.length === 0)

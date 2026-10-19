@@ -134,6 +134,9 @@ describe("describeCost: discardFromDeck", () => {
 
   test("a plain number renders as a number", () => {
     expect(describeCost({ discardFromDeck: 2 })).toBe("discard the top 2 cards of your deck");
+    // Entrapment 61024: "change to hero form and discard this card →".
+    expect(describeCost({ changeForm: "hero", discardSelf: true })).toBe("change to hero form, discard this card");
+    expect(describeCost({ changeForm: "alterEgo" })).toBe("change to alter-ego form");
     expect(describeCost({ discardFromDeck: 1 })).toBe("discard the top 1 card of your deck");
   });
 
