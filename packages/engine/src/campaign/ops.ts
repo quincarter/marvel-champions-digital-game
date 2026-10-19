@@ -380,6 +380,15 @@ export function campaignValues(run: CampaignRun, value: CampaignValue): readonly
       const raw = campaignNumber(run, value.of) / value.by;
       return [value.round === "down" ? Math.floor(raw) : Math.ceil(raw)];
     }
+    case "nodeProgress":
+      // MC60 p. 9 step 3: the boxes marked beside a scenario. The position is not in `CampaignLogView`, so this is
+      // how a game comes to read it: a definition copies it into a field (docs/phase7-wave11-scenarios.md §S3.12).
+      if (!run.definition.graph.nodes.some((node) => node.id === value.node)) {
+        throw new EngineInvariantError(
+          `${run.instructionId}: nodeProgress names campaign node "${value.node}", which the graph does not hold`,
+        );
+      }
+      return [run.working.progress[value.node] ?? 0];
   }
 }
 
@@ -617,16 +626,30 @@ const cardsOfSet = (
     )
     .map((card) => card.id);
 
-/** The nodes still playable: never resolved, and — for a `choice` graph — passing the graph's `available` gate. */
-export function availableNodeIds(run: CampaignRun, filter: "unresolved" | "available"): readonly string[] {
+/**
+ * The nodes a `nodes` source names, in graph order: never resolved; never resolved and — for a `choice` graph —
+ * passing the graph's `available` gate, the `finale` left out; or marked Completed.
+ */
+export function availableNodeIds(
+  run: CampaignRun,
+  filter: "unresolved" | "available" | "completed",
+): readonly string[] {
   const graph = run.definition.graph;
+  if (filter === "completed") {
+    // MC60 p. 23, expert DEFEAT: "choose and flip one to its Failed side". A Failed node is not offered.
+    return graph.nodes.filter((node) => run.working.resolved[node.id] === "completed").map((node) => node.id);
+  }
   const unresolved = graph.nodes.filter((node) => run.working.resolved[node.id] === undefined).map((node) => node.id);
   if (filter === "unresolved") return unresolved;
   if (graph.kind === "linear") {
     // A linear graph offers exactly one node: MC10 p. 3, "win all five scenarios in numerical order".
     return unresolved.slice(0, 1);
   }
-  return unresolved.filter(() => evaluateCampaignPredicate(run, graph.available));
+  // MC60 p. 9 step 4: the players choose among the scenarios "that has not been Completed or Failed"; the Kingpin
+  // scenario is reached only once "each scenario is either Completed or Failed" (`finale.when`, `chooseNode`).
+  const finaleId = graph.finale?.nodeId;
+  if (!evaluateCampaignPredicate(run, graph.available)) return [];
+  return unresolved.filter((nodeId) => nodeId !== finaleId);
 }
 
 /** The options a `choose` or `random` op draws from, in a deterministic order (pool order, then log order). */
@@ -719,6 +742,27 @@ export function resolveChoiceSource(
 /** A card's printed title (its front face's name) out of the pool; undefined for an id that is not a card. */
 const titleOf = (run: CampaignRun, id: string): string | undefined =>
   poolCards(run.deps.pool).find((card) => card.id === id)?.name;
+
+/**
+ * `removeFromCampaign { byTitle }` (MC60 p. 9 step 8: "each card whose title is recorded … removes those cards"):
+ * every copy of the named card, i.e. every card in the pool that can be in a player deck and shares its title **and**
+ * subtitle, in pool order, the named card first. A same-titled ally with another subtitle (Spider-Man (Miles Morales)
+ * against Spider-Man (Peter Parker)) is a different card and stays. The step searches the decks, so an identity or an
+ * encounter card of that title is not one of them. An id with no card in the pool names only itself, as
+ * `excludingTitles` treats one.
+ */
+function printingsOfTitle(run: CampaignRun, id: string): readonly string[] {
+  const named = poolCards(run.deps.pool).find((card) => card.id === id);
+  if (named === undefined) return [id];
+  // MC60 p. 9 step 8; RRG 1.8 Player Deck p. 33 (deck types), Copy p. 13 (title + subtitle).
+  const printings = poolCards(run.deps.pool)
+    .filter(
+      (card) =>
+        card.id !== id && card.name === named.name && card.subtitle === named.subtitle && DECKABLE.has(card.type),
+    )
+    .map((card) => card.id as string);
+  return [id, ...printings];
+}
 
 // ------------------------------------------------------------------------------------------------------------
 // §4.5 Ops
@@ -1159,9 +1203,11 @@ export function runCampaignOp(run: CampaignRun, op: CampaignOp, instruction: Cam
       // RRG 1.8 p. 29. By face (ruling April 30, 2026 (4) answer 2); a between-games op names the front face,
       // because the face a card is showing is a fact about a game and there is no game here.
       for (const value of op.cards) {
-        for (const cardId of campaignStrings(run, value)) {
-          const face: CampaignCardFace = { cardId: cardId as CardId };
-          if (addRemoval(run.working, face)) run.removed.push(face);
+        for (const named of campaignStrings(run, value)) {
+          for (const cardId of op.byTitle ? printingsOfTitle(run, named) : [named]) {
+            const face: CampaignCardFace = { cardId: cardId as CardId };
+            if (addRemoval(run.working, face)) run.removed.push(face);
+          }
         }
       }
       return;
@@ -1225,6 +1271,9 @@ export function runCampaignOp(run: CampaignRun, op: CampaignOp, instruction: Cam
           if (!poolCards(run.deps.pool).some((card) => card.id === cardId)) {
             throw new EngineInvariantError(`${run.instructionId}: setAsideCards names ${cardId}, not in the card pool`);
           }
+          // RRG 1.8 p. 29: a card removed from the campaign "can no longer be used during the rest of the campaign",
+          // so it is not brought into a game either (MC60 p. 9 step 13's Typhoid Mary ally, once removed).
+          if (isRemoved(run, cardId)) continue;
           for (let copy = 0; copy < copies; copy++) run.setAsideCards.push(cardId as CardId);
         }
       }

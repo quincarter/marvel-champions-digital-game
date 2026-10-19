@@ -84,10 +84,16 @@ export type CampaignGraph =
       readonly kind: "choice";
       readonly nodes: readonly CampaignNode[];
       readonly beforeChoice: readonly CampaignInstruction[];
+      /** Gates every unresolved node but the `finale`, which `available` never offers (see `finale`). */
       readonly available: CampaignPredicate;
       /**
        * A node that becomes mandatory once `when` holds and nothing else is available. MC60 p. 9 step 4: "If each
        * scenario is either Completed or Failed, the players must choose the Kingpin scenario".
+       *
+       * The finale is never one of the `available` nodes (`CampaignChoiceSource` `nodes` `"available"`, the next-node
+       * choice): step 4's "choose any scenario to play that has not been Completed or Failed" is over the other
+       * scenarios, and the finale is reached only through `when`. It is still `"unresolved"` until it is played to a
+       * win, so a draw over the unresolved nodes leaves it out by its own filter (MC60's `excludingTitles`).
        */
       readonly finale?: { readonly nodeId: string; readonly when: CampaignPredicate };
       /**
@@ -594,7 +600,15 @@ export type CampaignValue =
    * `divide`, which this type is otherwise deliberately without (see the file header) — needed the moment a
    * between-games write is itself a quotient rather than a sum/difference/min/max of whole values.
    */
-  | { readonly kind: "divide"; readonly of: CampaignValue; readonly by: number; readonly round: "down" | "up" };
+  | { readonly kind: "divide"; readonly of: CampaignValue; readonly by: number; readonly round: "down" | "up" }
+  /**
+   * The progression marks a node holds (`CampaignPosition.progress`, MC60 p. 9 step 3: "marking the first unmarked box
+   * to the right of that scenario"), 0 for a node never progressed. A game never reads the position, so a definition
+   * copies this into a log field (a `working` number) that the in-game setup reads through `ValueSpec` `campaignLog`,
+   * and the copy is traced like any other write: MC60 p. 13, "Place 1 threat … for each check mark in the campaign
+   * log beside 'Protection Racket.'" Naming a node the graph does not hold is an `EngineInvariantError`.
+   */
+  | { readonly kind: "nodeProgress"; readonly node: string };
 
 export type CampaignPredicate =
   | { readonly kind: "fieldAtLeast"; readonly field: string; readonly amount: number; readonly seat?: "self" }
@@ -681,7 +695,23 @@ export type CampaignOp =
    * campaign, even if players retry the scenario wherein that card was removed." Applies to every seat and to the
    * encounter side, and survives a retry — hence it is not restored by `LossPolicy.retryBaseline`.
    */
-  | { readonly kind: "removeFromCampaign"; readonly cards: readonly CampaignValue[] }
+  | {
+      readonly kind: "removeFromCampaign";
+      readonly cards: readonly CampaignValue[];
+      /**
+       * Remove every copy of each named card, not only the card id named. MC60 p. 9 step 8: "Each player searches
+       * their deck for each card whose title is recorded in the 'Allies/Supports Removed from the Campaign' section …
+       * and removes those cards", so a reprint or another pack's printing of a recorded ally goes too. A copy shares
+       * title **and** subtitle (RRG 1.8 "Copy", p. 13): Spider-Man (Miles Morales) recorded leaves Spider-Man (Peter
+       * Parker) in the deck. Matched over the cards that can be in a player deck (RRG 1.8 "Player Deck", p. 33): the
+       * search is of the decks, so a hero identity or an encounter card sharing the title is untouched. A named id
+       * with no card in the pool is removed by that id alone. Each printing is one front-face removal, so
+       * `withoutRemovedCards`, the choice sources and `validateDeck` need nothing new. A deck this leaves below its
+       * minimum is the deck editor's existing `deck_size` check (step 8: "must add cards to their deck"). Absent: by
+       * card id, as before.
+       */
+      readonly byTitle?: true;
+    }
   /** MC10 p. 12 ("replace their 'Basic' Condition upgrade with its 'Improved' side"); MC27 p. 22's Enhanced side. */
   | { readonly kind: "setGrantFace"; readonly card: CampaignValue; readonly face: string }
   // --- choices and randomness --------------------------------------------------------------------------------
@@ -875,8 +905,13 @@ export type CampaignChoiceSource =
   | { readonly kind: "collection"; readonly filter: CollectionFilter }
   /** Options of a `choice` or `strikeList` field (MC45 p. 5's available missions). */
   | { readonly kind: "fieldOptions"; readonly field: string; readonly unstruckOnly?: true }
-  /** MC60 p. 9 steps 2 and 4: the unresolved scenarios, or the ones the players may currently choose. */
-  | { readonly kind: "nodes"; readonly filter: "unresolved" | "available" }
+  /**
+   * MC60 p. 9 steps 2 and 4: the unresolved scenarios, or the ones the players may currently choose (never the
+   * graph's `finale`). `"completed"`: the nodes marked Completed, for MC60 p. 23's expert DEFEAT, "If there is at
+   * least one environment on its Completed side, choose and flip one to its Failed side" (`markNode as: "failed"`).
+   * Graph order in every case.
+   */
+  | { readonly kind: "nodes"; readonly filter: "unresolved" | "available" | "completed" }
   /** MC27 p. 22's "Planning Ahead": "Each player chooses one card from their deck". */
   | { readonly kind: "ownDeck"; readonly filter?: CollectionFilter }
   /**

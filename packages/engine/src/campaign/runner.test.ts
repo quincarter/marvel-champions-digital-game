@@ -192,8 +192,8 @@ describe("a whole campaign, played headlessly", () => {
       ["omega", "won"],
     ]);
     // The finale was never offered as a choice: nothing else was available and its condition held (MC60 p. 9 step 4).
+    // Nor was the first node: the finale is not one of the available nodes (§S3.11), so alpha was the only one.
     expect(asked.map((choice) => `${choice.instructionId}/${choice.slot}/${choice.seatNumber ?? "-"}`)).toEqual([
-      "campaign.nextNode/node/-",
       "syn.alpha.victory.errand/relic/1",
       "syn.alpha.victory.errand/relic/2",
       "syn.omega.victory.end/parting-gift/1",
