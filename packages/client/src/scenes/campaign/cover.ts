@@ -31,6 +31,7 @@ import type { Rect } from "../../view/layout.js";
 import type { CampaignRecord } from "../../engine/campaign-storage.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
+import { routeUnfoldedGame } from "./unfolded-game-route.js";
 import type { CampaignCoverData } from "./routes.js";
 
 const cardOf = (id: string) => CARDS_BY_ID.get(id);
@@ -73,6 +74,7 @@ export class CampaignCoverScene extends Phaser.Scene {
       campaignService().storage.list(),
     ]);
     if (!this.sys.isActive()) return;
+    if (record && (await routeUnfoldedGame(this, record))) return;
     const content = CAMPAIGN_RECORDS[this.#campaignId];
     const definition = campaignDefinitionOf(this.#campaignId);
     this.#model = coverModelOf({

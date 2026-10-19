@@ -719,14 +719,10 @@ export const GMW_CAMPAIGN_DEFINITION: CampaignDefinition = {
             step: {
               kind: "inGame",
               window: DEFAULT_CAMPAIGN_WINDOW,
-              effects: [
-                moveCards(campaignLogCards("collection"), "removedFromGame"),
-                forEachPlayer(eachPlayer, {
-                  kind: "drawUpTo",
-                  player: thatPlayer,
-                  amount: { kind: "handSize", player: thatPlayer },
-                }),
-              ],
+              // No "draws up to their hand size" effect: this window resolves before the starting hands are drawn
+              // (`DEFAULT_CAMPAIGN_WINDOW`, MC50 p. 4), so every hand is still empty and the starting-hand draw that
+              // follows is that draw. Refilling here as well dealt a second full hand on top of it (issue #263).
+              effects: [moveCards(campaignLogCards("collection"), "removedFromGame")],
             },
           },
           headhunterLadder("mc16.s3", "MC16 p. 12", 2),

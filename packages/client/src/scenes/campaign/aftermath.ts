@@ -23,6 +23,7 @@ import type { CardId, CoreAspect } from "@mc/content";
 import type { CampaignChoiceAnswer, CampaignDefinition } from "@mc/engine";
 import Phaser from "phaser";
 import { issueNumberOf, issueStoryFor, storyFor, type IssueStory } from "../../campaign/story.js";
+import { unfoldedGameOf } from "../../campaign/unfolded-game.js";
 import { CARDS_BY_ID, POOL_VERSION } from "../../content/pool.js";
 import { DeckSearchClient } from "../../view/deck-search-client.js";
 import { cardDisplayName } from "../../view/hero-names.js";
@@ -239,8 +240,8 @@ export class CampaignAftermathScene extends Phaser.Scene {
     const outcome = store.state.game?.outcome?.result ?? null;
     const won = outcome === "win";
     this.#saved = await store.save();
-    const latest = await store.latestSave();
-    this.#gameId = latest?.id ?? null;
+    // The finished game itself: `latestSave` names only an active game, never this one, which has its result.
+    this.#gameId = unfoldedGameOf(record, await store.listSaves())?.id ?? null;
     if (!this.sys.isActive()) return;
     if (!won) {
       const result = await service.fold(record, this.#saved, [], this.#gameId);
