@@ -299,7 +299,7 @@ describe("60134b Battle in the Bodega", () => {
     expect(threatOf(done, P1), "P1 holds Hung Out to Dry, which does not hear it").toBe(before[0]);
   });
 
-  // Owner Q208 open, built A: the attacked character was in this play area when it was attacked, so the response still
+  // Owner Q208 answered A (2026-10-19): the attacked character was in this play area when it was attacked, so the response still
   // comes when the attack defeated it (RRG 1.8 "Response", p. 38; the Omega Zero Tolerance ruling resolves "after ...
   // attacks and defeats an ally" after the ally has left play).
   // The engine reads the defeated minion's engagement as it was attacked (`characterAttacked.targetEngagedWith`).

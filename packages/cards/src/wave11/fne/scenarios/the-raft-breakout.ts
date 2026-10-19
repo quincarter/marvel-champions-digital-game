@@ -88,7 +88,7 @@ const dealBoostCardsOfType = (type: "minion" | "treachery", activation: "attack"
  * shuffled after the search, RRG 1.8 "Search", p. 39). 2 / 11 per hero threat, acceleration 1 per hero and "if this
  * stage is completed, the players lose" are data. Each minion gains a When Defeated that removes 1 threat from the
  * main scheme, 2 if the minion is Elite (`gainsAbility` to each minion, a granted When Defeated). A crisis icon does not
- * stop it on an encounter minion and does on an ally treated as a minion (owner Q209 open, built A; RRG 1.8 p. 14).
+ * stop it on an encounter minion and does on an ally treated as a minion (owner Q209 answered A, 2026-10-19; RRG 1.8 p. 14).
  * The campaign's "tough status card / facedown boost card on each Prisoner minion" line is campaign setup (MC60
  * p. 15), not this card's text.
  * **60143 Master Key**: Permanent is data. Forced Response: each boost card of the villain's scheme activation that is a
@@ -135,7 +135,7 @@ export const FNE_SCENARIOS_THE_RAFT_BREAKOUT: AbilityRegistry = defineAbilities(
   ),
   // "Each minion gains: 'When Defeated: ...'": a gained ability, not printed on the minion (RRG 1.8 "'Gains'", p. 21),
   // so an effect that ignores When Defeated abilities stops it and a minion whose text box is blank still has it.
-  // Crisis (owner Q209 open, built A): the gained ability is on the minion, so the removal's source is the minion.
+  // Crisis (owner Q209 answered A, 2026-10-19): the gained ability is on the minion, so the removal's source is the minion.
   // On an encounter minion a crisis icon does not stop it ("Abilities on encounter cards are not affected", RRG 1.8
   // "Crisis Icon", p. 14); on an ally Baron Zemo treats as a minion, a player card, it does ("'Gains'", p. 21). The
   // engine's crisis check reads the source card (`threatRemovalBlocked`), so no `ignoreCrisis` here.

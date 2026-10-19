@@ -387,7 +387,7 @@ resolve" fallback (wave 10 §3.6, owner Q11 = A).
 ### 4.1 Rules questions for the owner
 
 The authority order settles every card in §7 except two. Q1 is a scenario-building rule neither official source reaches;
-Q1 has no source that settles it (rules expert, 2026-10-19); A is built. Q2 was settled by the authority order (B; see M13).
+Q1 has no source that settles it (rules expert, 2026-10-19); the owner answered A on 2026-10-19 (FFG describes the pack as extending Civil War's customization, with main schemes compatible across products). Q2 was settled by the authority order (B; see M13).
 
 | Q   | Question                                                                                              | A (default)                                                                | B                                  | Decision                                                                           |
 | --- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------- |

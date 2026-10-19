@@ -672,7 +672,7 @@ describe("The Raft Breakout 60142b with Baron Zemo 60145: an ally treated as a D
     expect(mainThreat(after)).toBe(7);
   });
 
-  it("60142b.the-raft-breakout-constant: a crisis icon stops it on the ally, a player card (owner Q209 open, built A)", () => {
+  it("60142b.the-raft-breakout-constant: a crisis icon stops it on the ally, a player card (owner Q209 answered A, 2026-10-19)", () => {
     // RRG 1.8 "Crisis Icon" (p. 14): "threat cannot be removed from the main scheme by player cards"; the gained
     // ability is on the ally ("'Gains'", p. 21), so its removal is a player card's. An encounter minion's is not
     // stopped (the crisis test above).

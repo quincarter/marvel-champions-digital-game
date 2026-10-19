@@ -142,7 +142,7 @@ export const FNE_SCENARIOS_PROTECTION_RACKET: AbilityRegistry = defineAbilities(
   "60137a.setup": setup(),
   "60138a.setup": setup(),
 
-  // Owner Q208 open, built A: it still fires when the attack defeated the attacked minion, which was in this play area
+  // Owner Q208 (2026-10-19), reading A: it still fires when the attack defeated the attacked minion, which was in this play area
   // when attacked (RRG 1.8 "Response", p. 38; the Omega Zero Tolerance ruling). The engine reads a defeated target's
   // engagement as it was attacked (`characterAttacked.targetEngagedWith`), so `MINION_HERE` still matches it.
   "60134b.battle-in-the-bodega-forced-response": forcedResponse(

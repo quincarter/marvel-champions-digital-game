@@ -565,6 +565,22 @@ describe("Public Support, High side (60163b.public-support-interrupt)", () => {
     expect(boostsGiven(taken.events, kingpin)).toBe(0);
   });
 
+  // Provisional owner reading Q207 (2026-10-19), no FFG ruling: no cost arrow, so a replacement effect (RRG 1.8 pp. 14,
+  // 24, 37) removing as many as possible up to 1[per_hero]. Table in a 2-player game: 2+ -> 2, 1 -> 1, 0 -> not offered.
+  it("2 heroes, 2 or more counters: each replaced give removes exactly 2 and no boost card is given (Q207)", () => {
+    for (const n of [2, 5]) {
+      const base = high(hobbledExceptKingpin(newGame({ players: 2 })), n);
+      const kingpin = villainOf(base);
+      const given = boostsGiven(bare(base, [BRO, BRO, BRO, INFLUENCE]).events, kingpin);
+      const taken = bare(base, [BRO, BRO, BRO, INFLUENCE], takesSupport);
+      const left = counters(taken.state, support(taken.state), "support");
+      const replaced = given - boostsGiven(taken.events, kingpin);
+      expect(replaced).toBeGreaterThan(0);
+      expect(left).toBe(Math.max(0, n - 2 * replaced));
+      if (n === 5) expect(left).toBe(5 - 2 * given);
+    }
+  });
+
   it("2 heroes, 1 counter: the give is replaced and the counter is gone (the removal partly resolves, Q207 = B)", () => {
     const base = high(hobbledExceptKingpin(newGame({ players: 2 })), 1);
     const kingpin = villainOf(base);
