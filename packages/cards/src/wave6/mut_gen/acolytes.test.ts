@@ -277,6 +277,18 @@ describe("Zeal for the Cause (32164)", () => {
     for (const id of ids) expect(cardsInPlay(state)).toContain(id);
   });
 
+  it("engaged with Unuscione whose heal changes nothing (villain tough, undamaged): no discard and no reveal", () => {
+    const { state: staged } = withAcolytes(UNUSCIONE);
+    const villain = villainId(staged);
+    const tough = patchInstance(staged, villain, {
+      damage: 0,
+      statuses: { ...inst(staged, villain).statuses, tough: 1 },
+    });
+    const { state, events } = villainPhase(tough, ZEAL);
+    expect(inst(state, villainId(state)).statuses.tough).toBe(1);
+    expect(of(events, "encounterCardRevealed").map((e) => e.cardId)).toEqual([ZEAL]);
+  });
+
   it("an Acolyte engaged with someone else is not resolved", () => {
     const { state: staged, ids } = withAcolytes(AMELIA);
     const away = patchInstance(staged, ids[0]!, { engagedWith: null });

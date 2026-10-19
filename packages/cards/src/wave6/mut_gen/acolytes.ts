@@ -9,6 +9,7 @@ import {
   discardEncounterUntil,
   each,
   encounterCards,
+  exists,
   chosen,
   dealDamage,
   gainsKeyword,
@@ -21,6 +22,7 @@ import {
   isConfused,
   isStunned,
   moveCards,
+  not,
   placeThreat,
   putIntoPlay,
   query,
@@ -30,14 +32,13 @@ import {
   stun,
   theMainScheme,
   theVillain,
-  valueEquals,
-  varOf,
   whenDefeated,
   whenRevealed,
 } from "../../dsl/index.js";
 
 const ACOLYTE = trait("ACOLYTE");
 const ACOLYTE_MINION = query("minion", { trait: ACOLYTE });
+const ENGAGED_ACOLYTE = query("minion", { trait: ACOLYTE, engagedWith: "you" });
 
 /**
  * The Acolytes modular set (`acolytes`, `mut_gen` 32159-32165, MC32 p. 7 / p. 15, docs/phase7-wave6.md §2.2): five
@@ -100,8 +101,10 @@ export const ACOLYTES_ABILITIES = defineAbilities({
   // you. If you are not engaged with an Acolyte minion, discard cards from the encounter deck until a minion is
   // discarded, then reveal it.
   "32164.when-revealed": whenRevealed(
-    resolveWhenDefeatedOf(each(query("minion", { trait: ACOLYTE, engagedWith: "you" })), { bind: "zeal" }),
-    ifThen(valueEquals(varOf("zeal.count"), 0), [
+    resolveWhenDefeatedOf(each(ENGAGED_ACOLYTE)),
+    // The printed condition is the engagement, not whether a When Defeated resolved: an engaged Unuscione whose heal
+    // changes nothing still stops the discard.
+    ifThen(not(exists(ENGAGED_ACOLYTE)), [
       discardEncounterUntil(query("minion"), "minion"),
       revealCard(chosen("minion")),
     ]),

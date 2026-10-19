@@ -397,10 +397,33 @@ describe("Black Widow's Gauntlet (50068)", () => {
     expect(discardCodes(state)).toContain(GAUNTLET);
   });
 
-  it("response, a Preparation resolved (Grappling Hook's): the Gauntlet stays attached", () => {
+  it("response, a Preparation resolved (Grappling Hook's discards an event): the Gauntlet stays attached", () => {
     const base = attached(stack(game(), HOOK), GAUNTLET);
-    const { state } = attack(base, accepting("black-widows-gauntlet-response"));
+    const given = moveToHand(base.state, P1, eventCodeIn(base.state, P1));
+    const [event] = given.ids as [InstanceId];
+    const { state } = attack({ ...base, state: given.state }, accepting("black-widows-gauntlet-response"));
+    expect(playerOf(state, P1).discard).toContain(event);
     expect(attachmentsOf(state, base.villain)).toEqual([GAUNTLET]);
+  });
+
+  // RRG 1.8 "Resolve" (p. 37): an ability resolves only if one or more of its effects is applied to the game state.
+  it("response, Grappling Hook's Preparation with no event in hand changes nothing (none resolved): it may be discarded", () => {
+    const base = attached(stack(game(), HOOK), GAUNTLET);
+    const events = new Set(CORE_CARDS.filter((c) => c.type === "event").map((c) => c.id as string));
+    const isEvent = (i: InstanceId) => events.has(codeOf(base.state, i));
+    // Each event card in hand goes to the bottom of its owner's deck.
+    const noEvents = {
+      ...base.state,
+      players: base.state.players.map((p) => ({
+        ...p,
+        hand: p.hand.filter((i) => !isEvent(i)),
+        deck: [...p.deck, ...p.hand.filter(isEvent)],
+      })),
+    };
+    const { state } = attack({ ...base, state: noEvents }, accepting("black-widows-gauntlet-response"));
+    expect(playerOf(state, P1).hand).toEqual(playerOf(noEvents, P1).hand);
+    expect(attachmentsOf(state, base.villain)).toEqual([]);
+    expect(discardCodes(state)).toEqual(expect.arrayContaining([HOOK, GAUNTLET]));
   });
 });
 

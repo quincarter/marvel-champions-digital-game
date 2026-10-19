@@ -627,7 +627,9 @@ describe(`${HUNTED_COST}: as an additional cost to play, search the encounter de
     expect(inst(after, id).attachedTo).toBe(vulture);
     expect(stunnedOf(after, vulture)).toBe(1);
     const attacked = events.findIndex((e) => e.type === "damageDealt" && e.targetInstanceId === hero);
-    const attachedAt = events.findIndex((e) => e.type === "cardMoved" && e.instanceId === id);
+    const attachedAt = events.findIndex(
+      (e) => e.type === "cardMoved" && e.instanceId === id && e.to.kind === "attachment",
+    );
     const stunnedAt = events.findIndex((e) => e.type === "statusGiven" && e.instanceId === vulture);
     expect(attacked).toBeGreaterThan(-1);
     expect(attachedAt).toBeGreaterThan(attacked);

@@ -513,6 +513,109 @@ describe("§3.56 resolving a card's When Revealed abilities on demand", () => {
   });
 });
 
+// RRG 1.8 "Resolve" (p. 37): an ability resolves only if one or more of its effects is applied to the game state; FFG
+// ruling on Citywide Crisis (RRG 1.0-1.4 era): a When Revealed that changes nothing does not count.
+describe("§3.56 `<bind>.count` counts only the When Revealed abilities that changed the game", () => {
+  const threat = (amount: number) =>
+    ({ kind: "placeThreat", target: { kind: "self" }, amount: { kind: "const", value: amount } }) as const;
+  /** When Revealed: place 1 threat here (changes the game). */
+  const CHANGES = stubAbility("changes.when-revealed", { trigger: { kind: "whenRevealed" }, effects: [threat(1)] });
+  /** When Revealed: place 0 threat here (resolves nothing). */
+  const NOOP = stubAbility("noop.when-revealed", { trigger: { kind: "whenRevealed" }, effects: [threat(0)] });
+  /** When Revealed: place 0 threat here, then 1 (only its second effect changes the game). */
+  const PARTIAL = stubAbility("partial.when-revealed", {
+    trigger: { kind: "whenRevealed" },
+    effects: [threat(0), threat(1)],
+  });
+  const scheme = (id: string, ability: typeof CHANGES) =>
+    stubSideScheme({ id, startingThreat: 0, boostIcons: 0, abilities: [ability.ref] });
+  const CHANGING = scheme("changing", CHANGES);
+  const NOOPING = scheme("nooping", NOOP);
+  const PARTIALLY = scheme("partially", PARTIAL);
+  const COUNT = stubAbility("count.when-revealed", {
+    trigger: { kind: "whenRevealed" },
+    effects: [
+      {
+        kind: "resolveSpecials",
+        of: { kind: "each", query: { categories: ["sideScheme"] } },
+        trigger: "whenRevealed",
+        bind: "r",
+      },
+      // "Place 1 threat on the main scheme for each ability resolved this way", then 5 if there was none.
+      { kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "var", name: "r.count" } },
+      {
+        kind: "if",
+        condition: { kind: "not", of: { kind: "varAtLeast", name: "r.count", amount: 1 } },
+        then: [{ kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "const", value: 5 } }],
+      },
+    ],
+  });
+  const COUNT_CARD = stubTreachery({ id: "count", boostIcons: 0, abilities: [COUNT.ref] });
+  const deps = depsOf(CHANGES, NOOP, PARTIAL, COUNT);
+
+  function reveal(...schemes: readonly (typeof CHANGING)[]) {
+    let state = heroTable([CHANGING, NOOPING, PARTIALLY, COUNT_CARD], deps, QUIET_HITTER, [
+      ...schemes.map((s) => s.id),
+      COUNT_CARD.id,
+      ...Array.from({ length: 10 }, () => BLANK_BOOST.id),
+    ]);
+    for (const s of schemes) state = inVillainArea(state, s.id).state;
+    state = onTopOfEncounterDeck(onTopOfEncounterDeck(state, COUNT_CARD.id), BLANK_BOOST.id);
+    const result = run(state, deps);
+    const card = Object.values(result.session.state.instances).find((i) => i.cardId === COUNT_CARD.id)!.instanceId;
+    const main = result.session.state.mainScheme.instanceId;
+    return result.events.flatMap((e) =>
+      e.type === "threatPlaced" && e.schemeInstanceId === main && e.sourceInstanceId === card ? [e.amount] : [],
+    );
+  }
+
+  it("a When Revealed that changes the game counts", () => {
+    expect(reveal(CHANGING)).toEqual([1]);
+  });
+
+  it("a When Revealed that changes nothing does not count, so the fallback places 5", () => {
+    expect(reveal(NOOPING)).toEqual([5]);
+  });
+
+  it("a When Revealed that changes the game with only some of its effects counts", () => {
+    expect(reveal(PARTIALLY)).toEqual([1]);
+  });
+
+  it("beside a no-op, each changing one counts once", () => {
+    expect(reveal(NOOPING, CHANGING, PARTIALLY)).toEqual([2]);
+  });
+
+  // "When Revealed: Resolve this card's 'Special' ability. If none was resolved, place 5 threat on the main scheme."
+  // "Special: This card gains surge." Its only change is to the reveal in progress, a frame beneath it.
+  const SURGING = stubAbility("surging.special", { trigger: { kind: "special" }, effects: [{ kind: "gainSurge" }] });
+  const SELF = stubAbility("self.when-revealed", {
+    trigger: { kind: "whenRevealed" },
+    effects: [
+      { kind: "resolveSpecials", of: { kind: "self" }, bind: "r" },
+      {
+        kind: "if",
+        condition: { kind: "not", of: { kind: "varAtLeast", name: "r.count", amount: 1 } },
+        then: [{ kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "const", value: 5 } }],
+      },
+    ],
+  });
+  const SELF_CARD = stubTreachery({ id: "self", boostIcons: 0, abilities: [SELF.ref, SURGING.ref] });
+
+  it("a Special whose only change is to a frame beneath (the reveal in progress gains surge) counts", () => {
+    const selfDeps = depsOf(SURGING, SELF);
+    let state = heroTable([SELF_CARD], selfDeps, QUIET_HITTER, [
+      SELF_CARD.id,
+      ...Array.from({ length: 10 }, () => BLANK_BOOST.id),
+    ]);
+    state = onTopOfEncounterDeck(onTopOfEncounterDeck(state, SELF_CARD.id), BLANK_BOOST.id);
+    const { session, events } = run(state, selfDeps);
+    const card = Object.values(session.state.instances).find((i) => i.cardId === SELF_CARD.id)!.instanceId;
+    expect(events.some((e) => e.type === "threatPlaced" && e.sourceInstanceId === card)).toBe(false);
+    // The card, then the card its surge deals.
+    expect(events.filter((e) => e.type === "encounterCardRevealed")).toHaveLength(2);
+  });
+});
+
 describe("§3.57 icons gained from constant abilities", () => {
   const LAIR = stubAbility("lair.constant", {
     trigger: {

@@ -125,9 +125,11 @@ describe("Alluring Call (55012): 'place 1 charm counter ... Play a card from you
 
   it("owner decision 63B, case (b): a card affordable but not legally playable (a Hero Action in alter-ego form) is not offered; the others are", () => {
     const { s, call, haymaker } = withAlluringCall();
-    const may = moveToHand(s, P1, "01006").ids[0]!;
-    const e1 = moveToHand(s, P1, "01088").ids[0]!;
-    const staged = inForm(handOnly(s, [haymaker, may, e1]), "alterEgo");
+    // Taken out of the deck (the state `moveToHand` returns): a card left in both the deck and the hand is in two
+    // places, and its play would move it out of the deck and leave it on the table.
+    const given = moveToHand(s, P1, "01006", "01088");
+    const [may, e1] = given.ids as [InstanceId, InstanceId];
+    const staged = inForm(handOnly(given.state, [haymaker, may, e1]), "alterEgo");
     const seen: string[] = [];
     const r = act(staged, { cards: ["Aunt May"], seen }, use(P1, call, "55012.alluring-call-forced-action"));
     expect(seen[0], "Haymaker (a Hero Action) is not offered in alter-ego form").toMatch(/^chooseCards: Aunt May$/);
@@ -137,10 +139,11 @@ describe("Alluring Call (55012): 'place 1 charm counter ... Play a card from you
 
   it("owner decision 63B, case (b/c): with no card legal and payable the instruction cannot be completed (MC55 p. 7, 'if able'): the counter is placed, nothing is played, the Forced Action counts as performed", () => {
     const { s, call, haymaker } = withAlluringCall();
-    const e1 = moveToHand(s, P1, "01088").ids[0]!;
+    const given = moveToHand(s, P1, "01088");
+    const e1 = given.ids[0]!;
     // Alter-ego form: Haymaker cannot be played at all.
     const wrongForm = act(
-      inForm(handOnly(s, [haymaker, e1]), "alterEgo"),
+      inForm(handOnly(given.state, [haymaker, e1]), "alterEgo"),
       {},
       use(P1, call, "55012.alluring-call-forced-action"),
     );
@@ -158,9 +161,10 @@ describe("Alluring Call (55012): 'place 1 charm counter ... Play a card from you
 
   it("owner decision 63B, case (d): the reduction makes a card payable that otherwise is not (Haymaker, cost 2, with one other card in hand)", () => {
     const { s, call, haymaker } = withAlluringCall();
-    const e1 = moveToHand(s, P1, "01088").ids[0]!;
+    const given = moveToHand(s, P1, "01088");
+    const e1 = given.ids[0]!;
     const r = act(
-      handOnly(s, [haymaker, e1]),
+      handOnly(given.state, [haymaker, e1]),
       { cards: ["Haymaker"], payWith: [e1] },
       use(P1, call, "55012.alluring-call-forced-action"),
     );

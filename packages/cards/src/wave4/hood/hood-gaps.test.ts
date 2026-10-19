@@ -310,6 +310,35 @@ describe("Citywide Crisis (24059)", () => {
     expect(revealedCodes(events)).toEqual(["24059"]);
   });
 
+  // RRG 1.8 "Resolve" (p. 37); FFG ruling on Citywide Crisis (RRG 1.0-1.4 era): a When Revealed that changes nothing
+  // (Offshore Inferno with no ally, upgrade or support to discard) was not resolved, so 2 threat on each scheme.
+  it("24059.when-revealed: Offshore Inferno with nothing to discard changes nothing, so 2 threat on each scheme", () => {
+    const base = cleanGame({ fold: ["state_of_emergency"] });
+    expect(playerOf(base, P1).playArea).toEqual([]);
+    const inferno = encounterCardInVillainArea(base, "24057", 3);
+    const { state, events, staged } = villainPhaseWith(inferno.state, [BOOST, "24059"]);
+    const card = staged.encounterDecks[deckId(staged)]!.deck[1]!;
+    const placed = eventsFrom(events, card).flatMap((e) =>
+      e.type === "threatPlaced" ? [[e.schemeInstanceId, e.amount]] : [],
+    );
+    expect(placed).toEqual([
+      [base.mainScheme.instanceId, 2],
+      [inferno.id, 2],
+    ]);
+    expect(eventsFrom(events, inferno.id)).toEqual([]);
+    expect(state.instances[inferno.id]!.threat).toBe(5);
+  });
+
+  it("24059.when-revealed: a no-op Offshore Inferno beside the Docks (3 damage): one resolved, so no threat", () => {
+    const base = cleanGame({ fold: ["state_of_emergency"] });
+    const inferno = encounterCardInVillainArea(base, "24057", 3);
+    const docks = encounterCardInVillainArea(inferno.state, "24056", 3);
+    const { events, staged } = villainPhaseWith(docks.state, [BOOST, "24059"]);
+    const card = staged.encounterDecks[deckId(staged)]!.deck[1]!;
+    expect(damageDealt(eventsFrom(events, docks.id))).toEqual([[hero(base), 3]]);
+    expect(eventsFrom(events, card).some((e) => e.type === "threatPlaced")).toBe(false);
+  });
+
   it("24059.when-revealed: with no When Revealed on the side schemes in play, 2 threat on each scheme", () => {
     const base = cleanGame({ fold: ["state_of_emergency"] });
     const ambition = encounterCardInVillainArea(base, "24011", 4); // Unbridled Ambition: hinder only.

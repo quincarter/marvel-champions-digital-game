@@ -198,7 +198,9 @@ describe("Phoenix / Jean Grey and Phoenix Force (34001a/b, 34002a/b)", () => {
       // Paying the cost flipped it before Down Time resolved (RRG 1.8 "Initiating Abilities", p. 24, steps 5-6).
       const flippedAt = events.findIndex((e) => e.type === "cardFlipped" && e.instanceId === forceOf(state));
       // Down Time enters play (attached to her identity) only after the flip.
-      const enteredAt = events.findIndex((e) => e.type === "cardMoved" && e.instanceId === last.downTime);
+      const enteredAt = events.findIndex(
+        (e) => e.type === "cardMoved" && e.instanceId === last.downTime && e.to.kind === "attachment",
+      );
       expect(flippedAt).toBeGreaterThanOrEqual(0);
       expect(enteredAt).toBeGreaterThan(flippedAt);
     });

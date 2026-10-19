@@ -774,7 +774,7 @@ describe("E.V.A. (40021)", () => {
     const { state, events, id } = playEva(heroGame());
     expect(inPlay(state)).not.toContain(id);
     expect(playerOf(state, P1).discard).toContain(id);
-    expect(evaStory(events, id)).toEqual(["hand>playArea", EVA_CONSTANT, "playArea>discard"]);
+    expect(evaStory(events, id)).toEqual(["hand>resolving", "resolving>playArea", EVA_CONSTANT, "playArea>discard"]);
     expect(state.stack).toEqual([]);
     expect(state.pendingChoice).toBeNull();
   });
@@ -783,7 +783,12 @@ describe("E.V.A. (40021)", () => {
     expect(playedOf(fantomexOnly.state, "40021")).toBeUndefined();
     const { state, events, id } = playEva(fantomexOnly.state);
     expect(inPlay(state)).toContain(id);
-    expect(evaStory(events, id)).toEqual(["hand>playArea", "enters:initiated", "enters:resolved"]);
+    expect(evaStory(events, id)).toEqual([
+      "hand>resolving",
+      "resolving>playArea",
+      "enters:initiated",
+      "enters:resolved",
+    ]);
   });
   it("Action, exhaust: remove 1 threat from a scheme (not a thwart: Technovirus Purge, which only Cable thwarts, still loses it)", () => {
     const { state } = withFantomex();

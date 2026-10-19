@@ -373,6 +373,28 @@ describe("Mighty Avengers (56076)", () => {
     expect(revealedCodes(state, events)).toEqual([MIGHTY, DECOY]);
   });
 
+  // RRG 1.8 "Resolve" (p. 37); FFG ruling on Citywide Crisis (RRG 1.0-1.4 era): a When Revealed that changes nothing
+  // was not resolved, so it is not counted.
+  it("WHEN REVEALED with only Yellowjacket in play and the leader already tough: nothing changes, so it surges", () => {
+    const yellowjacket = engaged(game(), YELLOWJACKET);
+    const start = withStatus(yellowjacket.state, leaderOf(yellowjacket.state), "tough");
+    const { state, events } = villainPhase(start, ADVANCE, MIGHTY, DECOY);
+    expect(toughGiven(events, leaderOf(state))).toEqual([]);
+    expect(status(state, leaderOf(state), "tough")).toBe(1);
+    expect(types(events, "surgeTriggered").map((e) => codeOf(state, e.instanceId))).toEqual([MIGHTY]);
+    expect(revealedCodes(state, events)).toEqual([MIGHTY, DECOY]);
+  });
+
+  it("WHEN REVEALED with Yellowjacket (leader already tough) and Wasp: Wasp's threat counts, so no surge", () => {
+    const yellowjacket = engaged(game(), YELLOWJACKET);
+    const wasp = engaged(yellowjacket.state, WASP);
+    const start = withStatus(wasp.state, leaderOf(wasp.state), "tough");
+    const { state, events } = villainPhase(start, ADVANCE, MIGHTY, DECOY);
+    expect(threatFrom(events, wasp.id)).toEqual([1]);
+    expect(types(events, "surgeTriggered")).toEqual([]);
+    expect(revealedCodes(state, events)).toEqual([MIGHTY]);
+  });
+
   it("BOOST: 2 icons on the activating enemy's attack (Iron Man ATK 1 + 2) and nothing else", () => {
     const wasp = engaged(game(), WASP);
     const { state, events } = villainPhase(wasp.state, MIGHTY, ORDER);

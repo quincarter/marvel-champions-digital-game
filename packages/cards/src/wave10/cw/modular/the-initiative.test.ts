@@ -63,6 +63,7 @@ const INITIATIVE = "56082";
 const SET = [SAMSON, HELLCAT, DRAFTED, MIGHTY, INITIATIVE];
 const RHINO = "01094";
 const SHOCKER = "01103"; // Core minion, ATK 2, SCH 1, 3 hit points; When Revealed: 1 damage to each hero
+const HAWKEYE = "57056"; // Synthezoid minion; When Revealed: choose and discard an upgrade you control
 const SANDMAN = "01102"; // Core minion, ATK 3, SCH 2, 4 hit points, Toughness, no When Revealed ability
 const BLANK_B = "01104"; // Core treachery with no boost icons
 const BLACK_CAT = "01002"; // Core ally, cost 2
@@ -485,6 +486,21 @@ describe("Mighty Avengers (56081)", () => {
     const start = engageMinion(game(), SANDMAN, "sandman");
     const run = villainPhase(start, [BLANK, MIGHTY, FILLER_A]);
     expect(revealedCodes(run.state, run.events)).toEqual([MIGHTY, FILLER_A]);
+  });
+
+  // RRG 1.8 "Resolve" (p. 37); FFG ruling on Citywide Crisis (RRG 1.0-1.4 era): a When Revealed that changes nothing
+  // was not resolved, so it is not counted. Hawkeye (Synthezoid Smackdown 57056): "discard an upgrade you control".
+  it("WHEN REVEALED with only Hawkeye in play and no upgrade: his discard changes nothing, so it gains surge", () => {
+    const start = engageMinion(game(), HAWKEYE, "hawk");
+    const run = villainPhase(start, [BLANK, MIGHTY, FILLER_A]);
+    expect(revealedCodes(run.state, run.events)).toEqual([MIGHTY, FILLER_A]);
+  });
+
+  it("WHEN REVEALED with a no-op Hawkeye and Doc Samson: Samson's confused counts, so there is no surge", () => {
+    const placed = minionInPlay(engageMinion(game(), HAWKEYE, "hawk"), SAMSON);
+    const run = villainPhase(placed.state, [BLANK, MIGHTY, FILLER_A]);
+    expect(statuses(run.state).confused).toBe(1);
+    expect(revealedCodes(run.state, run.events)).toEqual([MIGHTY]);
   });
 
   it("WHEN REVEALED with Doc Samson in play: his When Revealed resolves (you are confused) and there is no surge", () => {

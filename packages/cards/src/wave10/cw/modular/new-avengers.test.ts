@@ -497,15 +497,17 @@ describe("Freedom Fighters (56153)", () => {
       expect(types(events, "surgeTriggered")).toEqual([]);
     });
 
-    it("Falcon (two halves) with the player already confused: no second status, still resolved (no surge)", () => {
+    // RRG 1.8 "Resolve" (p. 37): an ability resolves only if one or more of its effects is applied to the game state.
+    // Already confused, Falcon's Boost gives no second status and its "gains [boost][boost]" does nothing (section 4.0
+    // question 10, answer A), so it changed nothing: no Boost ability was resolved this way, and the card surges.
+    it("Falcon (two halves) with the player already confused: nothing changes, so none resolved and it surges", () => {
       const falcon = engaged(game(), FALCON);
       const confused = withStatus(falcon.state, hero(falcon.state), "confused");
       const { state, events } = phase(WAVE10_DEPS, confused, ADVANCE, FIGHTERS, DEFEND);
-      expect(boostsResolved(state, events)).toEqual([[FALCON, "56150.boost"]]);
       expect(types(events, "statusGiven")).toEqual([]);
       expect(hasStatus(state, hero(state))).toEqual({ stunned: 0, confused: 1, tough: 0 });
-      expect(types(events, "surgeTriggered")).toEqual([]);
-      expect(revealedCodes(state, events)).toEqual([FIGHTERS]);
+      expect(types(events, "surgeTriggered").map((e) => codeOf(state, e.instanceId))).toEqual([FIGHTERS]);
+      expect(revealedCodes(state, events)).toEqual([FIGHTERS, DEFEND]);
     });
 
     it("no minion in play: the card gains surge and exactly one more encounter card is revealed", () => {

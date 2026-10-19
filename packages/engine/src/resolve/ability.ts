@@ -3,6 +3,7 @@
 import type { AbilityId } from "@mc/content";
 import { type AbilityDefinition, abilityUseKey, GRANTED_BY_SLOT } from "../abilities.js";
 import { COST_NOT_PAID_VAR } from "../cost-damage.js";
+import { gameFingerprint } from "../game-fingerprint.js";
 import { type Ctx, emit, popFrame, setFrame } from "../ctx.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { statusActive } from "../keywords.js";
@@ -101,6 +102,16 @@ export function executeAbilityFrame(ctx: Ctx, frame: Frame<"ability">): void {
   const top = ctx.state.stack[0];
   const pushed = top?.kind === "effects" && top.frameId !== below && top.selfInstanceId === frame.instanceId;
   settlePaidForEffects(ctx, frame.frameId, pushed ? top.frameId : null);
+  // The game as a counted Special's effects begin (`Frame<"effects">.resolvedCount`), the frames beneath them with it:
+  // after its costs. Limitation: a cost written as its leading effects (`costEffects`) is paid inside the frame, so
+  // paying it reads as a change even if the effects then do nothing. No counted Special (a When Revealed, Boost,
+  // Preparation or When Defeated resolved on instruction) has such a cost today.
+  const effects = ctx.state.stack[0];
+  if (pushed && effects?.kind === "effects" && effects.resolvedCount)
+    setFrame(ctx, {
+      ...effects,
+      resolvedCount: { ...effects.resolvedCount, from: gameFingerprint(ctx.state, ctx.state.stack.slice(1)) },
+    });
 }
 
 /**
@@ -221,6 +232,11 @@ function resolveAbility(ctx: Ctx, frame: Frame<"ability">): void {
     announceResolved,
     ...(frame.returnBindingsTo
       ? { returnBindingsTo: frame.returnBindingsTo.frameId, returnBindingsPrefix: frame.returnBindingsTo.prefix }
+      : {}),
+    // Whether this Special resolved is read as its effects finish, against the game as they begin: taken here, with
+    // the stack beneath them, and again by `executeAbilityFrame` once the paid-for effects have followed the ability.
+    ...(frame.resolvedCounts?.length
+      ? { resolvedCount: { from: gameFingerprint(ctx.state), to: frame.resolvedCounts } }
       : {}),
   });
   if (labelAfterCost) {

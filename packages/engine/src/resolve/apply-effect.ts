@@ -2968,7 +2968,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           ? { ...target, cancelled: true, ...(endsAnyway ? { endedEarly: true as const } : {}) }
           : target,
       );
-      // RRG 1.8 "Cancel" (p. 13): cancelling the "when you play this card" event cancels *the card's* effects —
+      // RRG 1.8 "Cancel" (p. 11): cancelling the "when you play this card" event cancels *the card's* effects —
       // "Only the effects are prevented from initiating, and do not resolve", while "the card is still considered
       // played, and it is discarded". The play frame carries the flag the way a reveal frame carries
       // `effectsCancelled` for an encounter card, so this is one rule rather than a per-card branch.

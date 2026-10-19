@@ -1146,7 +1146,7 @@ describe("Mutant Mayhem (47028): Alliance, return an X-FORCE ally and an X-MEN a
       expect(playerOf(state, P1).playArea).toContain(id);
       expect(inst(state, id)).toMatchObject({ damage: 0, exhausted: false });
       const moves = events.flatMap((e) => (e.type === "cardMoved" && e.instanceId === id ? [e.to.kind] : []));
-      expect(moves).toEqual(["hand", "playArea"]);
+      expect(moves).toEqual(["hand", "resolving", "playArea"]);
     }
     // Only Mutant Mayhem and what paid for it left the hand: the allies cost nothing.
     expect(playerOf(state, P1).hand.length).toBe(handBefore - 1 - b.paid.length);

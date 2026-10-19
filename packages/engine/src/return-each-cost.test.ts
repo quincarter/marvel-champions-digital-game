@@ -99,7 +99,7 @@ describe("a return-to-hand cost of several picks", () => {
       expect(inPlayOf(after, P1)).toContain(id);
       expect(mustInstance(after, id)).toMatchObject({ damage: 0, exhausted: false });
       const moves = events.flatMap((e) => (e.type === "cardMoved" && e.instanceId === id ? [e.to.kind] : []));
-      expect(moves).toEqual(["hand", "playArea"]);
+      expect(moves).toEqual(["hand", "resolving", "playArea"]); // on the table, then in play (RRG 1.8 p. 24)
     }
   });
 

@@ -198,6 +198,12 @@ interface FrameBase {
   readonly answer: readonly string[] | null;
 }
 
+/** A var on a frame that counts each ability that resolved (`Frame<"ability">.resolvedCounts`). */
+export interface ResolvedCountVar {
+  readonly frameId: FrameId;
+  readonly name: string;
+}
+
 export type StackFrame =
   /** An event with its interrupt window, its state change, and its response window. */
   | (FrameBase & {
@@ -484,6 +490,12 @@ export type StackFrame =
        */
       readonly returnBindingsTo?: { readonly frameId: FrameId; readonly prefix: string };
       /**
+       * Vars on other frames that count this ability if it resolves (`EffectSpec resolveSpecials`): its `<bind>.count`,
+       * and the attack in progress's `labeledResolvedVar("preparation")`. Its effects frame raises each by 1 as it
+       * finishes, only if they changed the game (`Frame<"effects">.resolvedCount`).
+       */
+      readonly resolvedCounts?: readonly ResolvedCountVar[];
+      /**
        * An attack- or thwart-labeled ability whose `characterWouldAct` event was pushed above this frame
        * (docs/phase7-wave10.md §3.21): `"asked"` once it has been, so it is announced once; `"replaced"` when an
        * interrupt replaced it ("discard this card instead"), so the ability resolves none of its effects.
@@ -520,6 +532,12 @@ export type StackFrame =
        * is not handed back once per pass.
        */
       readonly returnChangedFrom?: { readonly vars: Vars; readonly bindings: Bindings };
+      /**
+       * A Special's own effects whose resolution is counted (`Frame<"ability">.resolvedCounts`): `from` is the game's
+       * digest as they began (`gameFingerprint`). When they finish with the game changed, the Special resolved and
+       * each var in `to` goes up by 1; when nothing changed, it did not (RRG 1.8 "Resolve", p. 37).
+       */
+      readonly resolvedCount?: { readonly from: string; readonly to: readonly ResolvedCountVar[] };
       /**
        * The effects of an ability a player uses: an ability on a player card, an action, or an optional interrupt or
        * response (not a forced ability, When Revealed, boost or setup on an encounter card). "Players cannot discard
@@ -889,11 +907,13 @@ export type StackFrame =
       /** Who controls the card once it's in play ("Play under any player's control"); usually `playerId`. */
       readonly controllerId: PlayerId;
       readonly attachToInstanceId: InstanceId | null;
-      readonly stage: "enterPlay" | "effects" | "abilities" | "discardEvent" | "done";
+      /** `beingPlayed`: a non-event's play interrupt window has resolved; it enters play next unless cancelled. */
+      readonly stage: "enterPlay" | "beingPlayed" | "effects" | "abilities" | "discardEvent" | "done";
       /**
-       * RRG 1.8 "Cancel" (p. 13): a Forced Interrupt on `cardBeingPlayed` cancelled this card's effects
+       * RRG 1.8 "Cancel" (p. 11): a Forced Interrupt on `cardBeingPlayed` cancelled this card's effects
        * ("When you play an event, cancel its effects and discard it", Counterspell, `drs` pack). The card is still
-       * considered played and is still discarded — only its own abilities are prevented from initiating.
+       * considered played and is still discarded — only its own abilities are prevented from initiating. A cancelled
+       * non-event never enters play (Spellcasting 57063): it goes from the table to its owner's discard pile.
        */
       readonly effectsCancelled: boolean;
       /**

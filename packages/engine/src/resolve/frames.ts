@@ -277,6 +277,8 @@ export function pushEffects(
     readonly returnBindingsPrefix?: string;
     /** With `returnBindingsPrefix`: only what changed since this goes back (`Frame<"effects">.returnChangedFrom`). */
     readonly returnChangedFrom?: Frame<"effects">["returnChangedFrom"];
+    /** A counted Special's effects (`Frame<"effects">.resolvedCount`). */
+    readonly resolvedCount?: Frame<"effects">["resolvedCount"];
     /** The effects of an ability a player uses (docs/phase7-wave4.md §3.44). */
     readonly byPlayer?: boolean;
     /** The ability these effects belong to (`Frame<"effects">.abilityId`, docs/phase7-wave6.md §3.84). */
@@ -316,6 +318,7 @@ export function pushEffects(
       ...(spec.returnBindingsTo && spec.returnBindingsPrefix && spec.returnChangedFrom
         ? { returnChangedFrom: spec.returnChangedFrom }
         : {}),
+      ...(spec.resolvedCount ? { resolvedCount: spec.resolvedCount } : {}),
       ...(spec.byPlayer ? { byPlayer: true as const } : {}),
       ...(spec.abilityId !== undefined ? { abilityId: spec.abilityId } : {}),
       ...(spec.announceResolved ? { announceResolved: spec.announceResolved } : {}),

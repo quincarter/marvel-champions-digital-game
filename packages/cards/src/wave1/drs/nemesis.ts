@@ -74,7 +74,7 @@ const discardHighestCostCard = (slot: string) => [
  * When Revealed on `!frame.effectsCancelled`. Landed with the wave B primitives batch (docs/phase7-wave1-scripting.md
  * §6): `play-card.ts` now pushes a card's own ability frames in a later `"abilities"` stage, after the
  * `cardBeingPlayed` window resolves, so there's something left for `cancelIt()` to cancel. Per RRG 1.8 "Cancel"
- * (p. 13) the play still stands otherwise — cost paid, "Max N per round" counted, `cardPlayed` still announced, and
+ * (p. 11) the play still stands otherwise — cost paid, "Max N per round" counted, `cardPlayed` still announced, and
  * the event still goes to its owner's discard "because it is still considered played" — so "cancel its effects and
  * discard it" needs no separate discard effect of its own; only "Then, discard this card" (Counterspell itself) is
  * scripted here.

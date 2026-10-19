@@ -330,7 +330,9 @@ describe("B3.1 question 18 = A: what the cost triggers resolves before the card 
     expect(mustInstance(after, id).attachedTo).toBe(striker);
     expect(stunned(after, striker)).toBe(1);
     const hit = events.findIndex((e) => e.type === "damageDealt" && e.targetInstanceId === identityOf(after));
-    const attached = events.findIndex((e) => e.type === "cardMoved" && e.instanceId === id);
+    const attached = events.findIndex(
+      (e) => e.type === "cardMoved" && e.instanceId === id && e.to.kind === "attachment",
+    );
     const stun = events.findIndex((e) => e.type === "statusGiven" && e.instanceId === striker);
     expect(hit).toBeGreaterThan(-1);
     expect(attached).toBeGreaterThan(hit);

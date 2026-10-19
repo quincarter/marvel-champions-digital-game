@@ -144,13 +144,14 @@ import {
   reachOf,
 } from "../select.js";
 import type { EffectSpec, PlayerRef, StatusName, ValueSpec } from "../spec.js";
-import type { Bindings, StackFrame, TriggerCandidate } from "../stack.js";
+import type { Bindings, ResolvedCountVar, StackFrame, TriggerCandidate } from "../stack.js";
 import { executeSettleBasicThwartCost } from "../thwart-cost.js";
 import { executePayAttackCost } from "../attack-cost.js";
 import { executeSettleCostDamage } from "../cost-damage.js";
 import { executePayEncounterLookDiscard } from "../encounter-look-cost.js";
 import { executeSettleEnemyAttackCost } from "../enemy-attack-cost.js";
 import { executeSettleResolveAbilityCost } from "../resolve-ability-cost.js";
+import { gameFingerprint } from "../game-fingerprint.js";
 import { executePayDeckDiscardChoice } from "../deck-discard-choice-cost.js";
 import { executePayEncounterDeckDiscard } from "../encounter-discard-cost.js";
 import { executePayRemoveThreatCost } from "../remove-threat-cost.js";
@@ -238,6 +239,12 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
     // An optional setup rule is logged as applied once its instruction has resolved (`Frame.setupOption`).
     if (frame.setupOption) emit(ctx, { type: "setupOptionApplied", ...frame.setupOption });
     popFrame(ctx);
+    // RRG 1.8 "Resolve" (p. 37): an ability resolves only if one or more of its effects is applied to the game state;
+    // FFG ruling on Citywide Crisis (RRG 1.0-1.4 era): a When Revealed that changes nothing does not count. Any change
+    // counts, however partial. Read with this frame popped, so the frames beneath are the ones beneath at its start,
+    // and before the lasting effects that end with it do, which were there at its start too.
+    if (frame.resolvedCount && gameFingerprint(ctx.state) !== frame.resolvedCount.from)
+      for (const counted of frame.resolvedCount.to) addFrameVars(ctx, counted.frameId, { [counted.name]: 1 });
     // A rule waiting on an attack this frame never initiated ends with it (spec.ts `applyRuleUntil`, "initiated").
     settleAwaitingAttackEffects(ctx, frame.frameId, null);
     // "That attack" on a resource ability ends with the ability it paid for (spec.ts `applyRuleUntil`, "endOfPaidFor").
@@ -3250,19 +3257,32 @@ function executeResolveSpecials(
     }
   }
   if (effect.bind) {
-    addFrameVars(ctx, frame.frameId, { [`${effect.bind}.count`]: ordered.length + incites.length + surges.length });
+    // The printed abilities add to the count as each finishes having changed the game (`resolvedCounts`); incite
+    // and surge always do. `<bind>.triggered` is every one put on the stack, changed the game or not: a "resolve
+    // [ability]" cost reads it, having judged beforehand whether resolving could change the game
+    // (`executeSettleResolveAbilityCost`).
+    const keywords = incites.length + surges.length;
+    addFrameVars(ctx, frame.frameId, {
+      [`${effect.bind}.count`]: keywords,
+      [`${effect.bind}.triggered`]: ordered.length + keywords,
+    });
   }
   // The attack in progress records how many Preparation abilities resolved during it (docs/phase7-wave9.md §3.2): the
   // innermost attack on the stack, as `Predicate attackInProgress` reads it. Its frame's vars become the attack's
-  // `results` when its response window opens ("if no 'Preparation' ability was resolved").
-  if (trigger === "preparation" && ordered.length > 0) {
-    const attack = ctx.state.stack.find(
-      (f) =>
-        f.kind === "event" &&
-        (f.event.kind === "attack" || f.event.kind === "enemyAttack" || f.event.kind === "enemyAttacksEnemy"),
-    );
-    addFrameVars(ctx, attack?.frameId, { [labeledResolvedVar("preparation")]: ordered.length });
-  }
+  // `results` when its response window opens ("if no 'Preparation' ability was resolved"). Each counts as it
+  // finishes having changed the game, as `<bind>.count` does (RRG 1.8 "Resolve", p. 37).
+  const attack =
+    trigger === "preparation"
+      ? ctx.state.stack.find(
+          (f) =>
+            f.kind === "event" &&
+            (f.event.kind === "attack" || f.event.kind === "enemyAttack" || f.event.kind === "enemyAttacksEnemy"),
+        )
+      : undefined;
+  const resolvedCounts: ResolvedCountVar[] = [
+    ...(effect.bind ? [{ frameId: frame.frameId, name: `${effect.bind}.count` }] : []),
+    ...(attack ? [{ frameId: attack.frameId, name: labeledResolvedVar("preparation") }] : []),
+  ];
   const whoFor = (id: InstanceId) => controllerOf(ctx.state, id) ?? resolvingPlayer ?? context.controllerId;
   // Each surge on its own frame, as a reveal's does when an ability hears it (`surgeResolving`, `resolveSurge`): the
   // keyword deals its player a facedown encounter card, a deal like any other (docs/phase7-wave9.md §4.1 Q19).
@@ -3321,6 +3341,7 @@ function executeResolveSpecials(
           { "sequence.step": index + 1, "sequence.final": index === ordered.length - 1 ? 1 : 0 },
         ),
         ...returnTo,
+        ...(resolvedCounts.length > 0 ? { resolvedCounts } : {}),
       }) as StackFrame,
   );
   // "… as if it has at least 1 hit point" (`asIf`): the floor of §3.10 on each ability's own card, for exactly as long

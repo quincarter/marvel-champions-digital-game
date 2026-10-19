@@ -5270,9 +5270,12 @@ export function commitPlay(
       paidAs: declared.paidAs,
     });
   }
-  // RRG "Event": a played event is out of play while it resolves, then it is discarded.
-  if (!asIfInHand && cardOf(ctx.state, cardInstanceId)?.type === "event")
-    moveCard(ctx, cardInstanceId, { kind: "resolving", playerId });
+  // RRG 1.8 "Initiating Abilities" (p. 24), step 1: the played card is faceup on the table, "not in play", while
+  // it is played: an event while it resolves (then it is discarded), any other card until it enters play at step 7,
+  // so a play interrupt ("When you play a card, cancel its effects and discard it", Spellcasting 57063) sees it there.
+  // Step 1 puts it there before the costs are paid; it moves here, after them, because nothing can look in between
+  // today (the payment is one command, with no window inside it). The `asIfInHand` branch above moves it first.
+  if (!asIfInHand) moveCard(ctx, cardInstanceId, { kind: "resolving", playerId });
   return spent;
 }
 

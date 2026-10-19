@@ -1,0 +1,3 @@
+kind: Engine
+body: A card cancelled as it is played (Spellcasting, Counterspell) is discarded before it enters play, so its own enters-play and after-played abilities never fire; it still counts as played for other cards (RRG 1.8 'Initiating Abilities', 'Cancel', p. 11).
+time: 2026-10-19T06:30:14.0462896-04:00

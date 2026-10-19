@@ -208,14 +208,19 @@ describe("a `fromEntering` state check resolves when its condition is already tr
     expect(resolved(events, "pal.check")).toBe(1);
     // It entered play first: a constant is active "as soon as its card enters play" (RRG 1.8 p. 4). Then it is
     // discarded, and its entering play is never initiated: nothing to interrupt, nothing to respond to.
-    expect(story(events, id)).toEqual(["hand>playArea", "pal.check", "playArea>discard"]);
+    expect(story(events, id)).toEqual(["hand>resolving", "resolving>playArea", "pal.check", "playArea>discard"]);
     expect(state.stack).toEqual([]);
   });
 
   it("no response is offered for a card the check discards: 'After a support enters play' stays unoffered", () => {
     const greeter = play(start(), GREETER);
     const pal = play(greeter.state, PAL);
-    expect(story(pal.events, pal.id)).toEqual(["hand>playArea", "pal.check", "playArea>discard"]);
+    expect(story(pal.events, pal.id)).toEqual([
+      "hand>resolving",
+      "resolving>playArea",
+      "pal.check",
+      "playArea>discard",
+    ]);
     expect(pal.events.filter((e) => e.type === "windowOpened")).toEqual([]);
     expect(pal.events.filter((e) => e.type === "choiceRequested")).toEqual([]);
     expect(counters(pal.state, greeter.id).seen).toBeUndefined();
@@ -224,7 +229,12 @@ describe("a `fromEntering` state check resolves when its condition is already tr
   it("…nor an interrupt: 'When a support enters play' is not offered either", () => {
     const sentry = play(start(), SENTRY);
     const pal = play(sentry.state, PAL);
-    expect(story(pal.events, pal.id)).toEqual(["hand>playArea", "pal.check", "playArea>discard"]);
+    expect(story(pal.events, pal.id)).toEqual([
+      "hand>resolving",
+      "resolving>playArea",
+      "pal.check",
+      "playArea>discard",
+    ]);
     expect(pal.events.filter((e) => e.type === "windowOpened")).toEqual([]);
     expect(counters(pal.state, sentry.id).warned).toBeUndefined();
   });
@@ -233,7 +243,8 @@ describe("a `fromEntering` state check resolves when its condition is already tr
     const greeter = play(play(start(), BUDDY).state, GREETER);
     const pal = playPicking(greeter.state, PAL, takeOffer);
     expect(story(pal.events, pal.id)).toEqual([
-      "hand>playArea",
+      "hand>resolving",
+      "resolving>playArea",
       "enters:initiated",
       "enters:resolved",
       "response window: greeter.response",
@@ -248,7 +259,8 @@ describe("a `fromEntering` state check resolves when its condition is already tr
     const greeter = play(start(), GREETER);
     const lookout = playPicking(greeter.state, LOOKOUT, takeOffer);
     expect(story(lookout.events, lookout.id)).toEqual([
-      "hand>playArea",
+      "hand>resolving",
+      "resolving>playArea",
       "lookout.check",
       "+1 fired",
       "enters:initiated",
@@ -305,7 +317,8 @@ describe("a `fromEntering` state check resolves when its condition is already tr
     expect(counters(battery.state, battery.id)).toEqual({ charge: 2 });
     expect(resolved(battery.events, "battery.check")).toBe(0);
     expect(story(battery.events, battery.id)).toEqual([
-      "hand>playArea",
+      "hand>resolving",
+      "resolving>playArea",
       "enters:initiated",
       "+2 charge",
       "enters:resolved",
@@ -318,8 +331,9 @@ describe("a `fromEntering` state check resolves when its condition is already tr
     const tank = play(start(), TANK);
     expect(counters(tank.state, tank.id)).toEqual({ fired: 1, fuel: 2 });
     expect(resolved(tank.events, "tank.check")).toBe(1);
-    expect(story(tank.events, tank.id).slice(0, 4)).toEqual([
-      "hand>playArea",
+    expect(story(tank.events, tank.id).slice(0, 5)).toEqual([
+      "hand>resolving",
+      "resolving>playArea",
       "tank.check",
       "+1 fired",
       "enters:initiated",

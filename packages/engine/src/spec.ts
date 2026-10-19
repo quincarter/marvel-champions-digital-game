@@ -3263,7 +3263,9 @@ export type EffectSpec =
        */
       readonly includeKeywords?: boolean;
       /**
-       * `<bind>.count`: how many abilities were resolved ("If no 'When Revealed' ability was resolved this way"). Also,
+       * `<bind>.count`: how many abilities were resolved ("If no 'When Revealed' ability was resolved this way"): only
+       * those whose effects changed the game (RRG 1.8 "Resolve", p. 37), read as each finishes (`Frame<"effects">.resolvedCount`),
+       * so a discard with nothing to discard or a second tough status is not counted. Also,
        * once each resolved ability's effects finish, what they bound comes back to this frame as `<bind>.<slot>` and
        * `<bind>.<var>` (slots joined and vars summed across the sequence): "resolve its 'Surging Sands' ability. If at
        * least 1 Sandman card was discarded this way" (Sandslide, `sm` 27070) reads `<bind>.discarded` when Surging

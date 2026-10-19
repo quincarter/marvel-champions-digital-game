@@ -7,6 +7,7 @@ import {
   defineAbilities,
   discardEncounterUntil,
   each,
+  enemyLeader,
   firstRevealGainsSurge,
   giveTough,
   ifThen,
@@ -19,8 +20,6 @@ import {
   whenRevealed,
 } from "../../../dsl/index.js";
 
-/** "The enemy leader" outside Civil War's competitive game is the villain (ruling July 9, 2026 R3; spec M13). */
-const ENEMY_LEADER = query("villain");
 const MINION = query("minion");
 
 /**
@@ -49,7 +48,7 @@ const MINION = query("minion");
 export const SYNTHEZOID_MODULAR_SHIELD_OPS: AbilityRegistry = defineAbilities({
   "57013.when-revealed": whenRevealed(placeThreat(2, theMainScheme)),
 
-  "57014.when-revealed": whenRevealed(giveTough(each(ENEMY_LEADER)), giveTough(each(MINION))),
+  "57014.when-revealed": whenRevealed(giveTough(enemyLeader), giveTough(each(MINION))),
   "57014.boost": boost(giveTough(activatingEnemy)),
 
   "57015.when-revealed": whenRevealed(

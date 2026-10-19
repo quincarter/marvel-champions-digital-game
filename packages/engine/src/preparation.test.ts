@@ -247,6 +247,66 @@ describe('`resolveSpecials` with `trigger: "preparation"` on a card in the encou
   });
 });
 
+describe("the count on the attack in progress counts only Preparations that changed the game", () => {
+  // RRG 1.8 "Resolve" (p. 37): an ability resolves only if one or more of its effects is applied to the game state.
+  const NOOP = stubAbility("pair.preparation", {
+    trigger: { kind: "preparation" },
+    effects: [{ kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "const", value: 0 } }],
+  });
+  const CHANGE = stubAbility("pair.preparation-2", {
+    trigger: { kind: "preparation" },
+    effects: [{ kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "const", value: 2 } }],
+  });
+  const PAIR = stubTreachery({ id: "pair", abilities: [NOOP.ref, CHANGE.ref] });
+  // "After a character attacks [this villain]": 100 threat on the side scheme per Preparation the attack recorded.
+  const READ = stubAbility("reader.forced-response", {
+    trigger: { kind: "response", forced: true, on: { on: "attack", selfIs: "target" } },
+    effects: [
+      {
+        kind: "placeThreat",
+        target: { kind: "each", query: { categories: ["sideScheme"] } },
+        amount: {
+          kind: "product",
+          values: [
+            { kind: "eventResult", key: labeledResolvedVar("preparation") },
+            { kind: "const", value: 100 },
+          ],
+        },
+      },
+    ],
+  });
+  const READER = stubVillain({
+    id: "reader",
+    stages: [{ hp: flat(20), atk: 2, sch: 1, abilities: [WIDOW_INTERRUPT.ref, READ.ref] }],
+  });
+  const pairDeps: EngineDeps = depsOf(NOOP, CHANGE, WIDOW_INTERRUPT, READ);
+
+  it("a no-op Preparation and a changing one, in either order: the attack's count reads 1", () => {
+    for (const reverse of [false, true]) {
+      const base = gameAtFirstTurn({
+        cards: [PAIR, SIDE],
+        deps: pairDeps,
+        villain: READER,
+        mainScheme: WEB,
+        encounter: [PAIR.id, SIDE.id, ...Array.from({ length: 12 }, () => TREACHERY.id)],
+      });
+      const side = encounterCardInVillainArea(base, SIDE.id);
+      const ready = onTopOfEncounterDeck(side.state, PAIR.id);
+      const hero = runCommands(ready, pairDeps, { type: "changeForm", playerId: P1 }).state;
+      const pick = (state: GameState): readonly string[] => {
+        const choice = state.pendingChoice!;
+        if (choice.prompt.kind !== "orderSpecials") return defaultPick(state);
+        const ids = choice.options.map((o) => o.optionId);
+        return reverse ? [...ids].reverse() : ids;
+      };
+      const { state } = runCommandsPicking(hero, pairDeps, pick, attackVillain(hero));
+      // 2 from the changing Preparation, then 10 x `prep.count` (1).
+      expect(threatOn(state, mainSchemeOf(hero))).toBe(2 + 10);
+      expect(threatOn(state, side.id)).toBe(100);
+    }
+  });
+});
+
 describe("the count on the attack in progress", () => {
   it("the attack's results carry how many resolved, read after the attack", () => {
     const t = table(OPS);

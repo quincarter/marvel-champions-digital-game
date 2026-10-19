@@ -25,6 +25,10 @@ import { activeAbilityRefs, type EffectContext, resolveRef } from "./select.js";
 import type { EffectSpec } from "./spec.js";
 import type { Bindings } from "./stack.js";
 import type { GameState } from "./state.js";
+import { sameGame } from "./game-fingerprint.js";
+
+// What a probe compares lives in a leaf module, which the resolver reads too (`gameFingerprint`).
+export { PROBE_FIELDS, sameGame } from "./game-fingerprint.js";
 
 type ResolveAbilityCost = NonNullable<AbilityCost["resolveAbility"]>;
 
@@ -104,109 +108,6 @@ const resolving = (cost: ResolveAbilityCost): EffectSpec => ({
   ...(cost.asIf ? { asIf: cost.asIf } : {}),
   bind: BIND,
 });
-
-/**
- * Every field of the state, as a probe reads it: `game` is the game itself, compared before and after; `bookkeeping`
- * is what resolving anything leaves different without the game having changed, and is not compared.
- *
- * The map is exhaustive over `GameState` by its type, so a field added to the state does not compile until it is
- * placed here: a bookkeeping field cannot be forgotten and so read as a change (a cost judged payable that is not).
- *
- * Bookkeeping: the stack and the open choice; the counters that name frames, choices and lasting effects; the
- * per-ability use counts ("Limit once per round" counts a resolution that did nothing); and the memory of what the
- * between-frames checks and the log last saw (`stateChecks`, `hitPointsSeen`, `schemeTargetsSeen`, `deckTopsAnnounced`, `encounterTopAnnounced`), none of which the
- * game is ever read from. The queues those checks drain (`pending…`) are game: a card left play or entered a hand.
- */
-export const PROBE_FIELDS: { readonly [K in keyof Required<GameState>]: "game" | "bookkeeping" } = {
-  stack: "bookkeeping",
-  pendingChoice: "bookkeeping",
-  nextFrameSeq: "bookkeeping",
-  nextChoiceSeq: "bookkeeping",
-  nextLastingSeq: "bookkeeping",
-  abilityUses: "bookkeeping",
-  stateChecks: "bookkeeping",
-  hitPointsSeen: "bookkeeping",
-  schemeTargetsSeen: "bookkeeping",
-  deckTopsAnnounced: "bookkeeping",
-  encounterTopAnnounced: "bookkeeping",
-  round: "game",
-  step: "game",
-  firstPlayerId: "game",
-  villainPhasesToSkip: "game",
-  startingPlayerCount: "game",
-  players: "game",
-  villains: "game",
-  activeVillainId: "game",
-  villainRow: "game",
-  mainScheme: "game",
-  extraMainSchemes: "game",
-  gameAreas: "game",
-  nextGameAreaSeq: "game",
-  spentMainSchemeStages: "game",
-  revealedMainSchemes: "game",
-  scenarioRules: "game",
-  tableRules: "game",
-  encounterDecks: "game",
-  encounterDeckOrder: "game",
-  encounterSetAside: "game",
-  setAsideModularSets: "game",
-  scenarioDecks: "game",
-  pendingDeckRunOuts: "game",
-  pendingEncounterFromDeck: "game",
-  pendingEnteredHand: "game",
-  pendingEncounterDealt: "game",
-  pendingEncounterDeals: "game",
-  pendingLeftPlay: "game",
-  pendingStatusPlaced: "game",
-  pendingDeckDiscards: "game",
-  pendingTuckedDiscards: "game",
-  pendingBoostGiven: "game",
-  deckDiscardWindows: "game",
-  villainArea: "game",
-  victoryDisplay: "game",
-  removedFromGame: "game",
-  instances: "game",
-  cardPool: "game",
-  lastingEffects: "game",
-  heldAtZero: "game",
-  heldAtNoThreat: "game",
-  playedThisRound: "game",
-  playedThisPhase: "game",
-  playedByPlayerThisRound: "game",
-  attackedThisTurn: "game",
-  attacksThisTurn: "game",
-  characterActsThisPhase: "game",
-  revealedThisRound: "game",
-  playedThisTurn: "game",
-  playedByPlayerThisPhase: "game",
-  scenarioAreas: "game",
-  scenarioPlayAreas: "game",
-  hiddenPiles: "game",
-  hiddenPileSizes: "game",
-  revealedPileCards: "game",
-  accusation: "game",
-  pod: "game",
-  gameMode: "game",
-  teams: "game",
-  campaign: "game",
-  campaignWrites: "game",
-  setupStack: "game",
-  villainsEnteringAtSetup: "game",
-  setupCardsAwaitingHost: "game",
-  outcome: "game",
-  rng: "game",
-  nextInstanceSeq: "game",
-};
-
-const GAME_FIELDS = (Object.keys(PROBE_FIELDS) as (keyof GameState)[]).filter((key) => PROBE_FIELDS[key] === "game");
-
-/** Whether two states hold the same game: every `game` field of `PROBE_FIELDS`, by identity or else by content. */
-export function sameGame(a: GameState, b: GameState): boolean {
-  for (const key of GAME_FIELDS) {
-    if (a[key] !== b[key] && JSON.stringify(a[key]) !== JSON.stringify(b[key])) return false;
-  }
-  return true;
-}
 
 /** Frames a probe runs before it stops looking and answers yes: far more than any printed ability resolves in. */
 const PROBE_FRAMES = 400;
@@ -319,10 +220,10 @@ export function resolveAbilityCostEffects(
 }
 
 /**
- * The `settleResolveAbilityCost` step: at least one ability resolved (`<bind>.count`) and resolving could change the
- * game when the cost was paid, so the cost is paid; otherwise the frame it paid for is marked (`COST_NOT_PAID_VAR`) and
- * the ability's effects do not resolve ("discard this card" stays undone). Whatever else of the cost was paid stays
- * paid.
+ * The `settleResolveAbilityCost` step: at least one ability resolved (`<bind>.triggered`) and resolving could change
+ * the game when the cost was paid, so the cost is paid; otherwise the frame it paid for is marked
+ * (`COST_NOT_PAID_VAR`) and the ability's effects do not resolve ("discard this card" stays undone). Whatever else of
+ * the cost was paid stays paid.
  *
  * The abilities themselves are not second-guessed once they have resolved: one whose effects were then prevented or
  * replaced as they applied still resolved, as an attack another player defends is still the attack
@@ -334,7 +235,8 @@ export function executeSettleResolveAbilityCost(
   effect: Extract<EffectSpec, { kind: "settleResolveAbilityCost" }>,
 ): void {
   setFrame(ctx, { ...frame, cursor: frame.cursor + 1 });
-  const resolved = frame.vars[`${effect.bind}.count`] ?? 0;
+  // Not `<bind>.count` (only those that changed the game): whether they could was judged as the cost was paid.
+  const resolved = frame.vars[`${effect.bind}.triggered`] ?? 0;
   const paid = effect.wouldChange && resolved > 0;
   emit(ctx, {
     type: "resolveAbilityCostSettled",
