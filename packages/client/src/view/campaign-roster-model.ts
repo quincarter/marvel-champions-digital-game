@@ -151,10 +151,10 @@ export type PickerEntry =
 export const PICKER_RECOMMENDED_LIMIT = 5;
 
 /**
- * The heroes pinned above seat `seatNumber`'s list: from the second seat on, and only once someone else is seated, the
- * best few by score (Team-Up partners first, then aspect coverage, `seat-recommendations.ts`). Seat 1 has nobody to
- * recommend against. A hero whose row is blocked (already seated, locked) is never recommended. Worked out once per
- * picker, not per keystroke: the search only filters what this returns.
+ * The heroes pinned above seat `seatNumber`'s list, once anyone else is seated (at any seat, seat 1's own picker
+ * included: changing seat 1 with seat 2 filled recommends against seat 2), the best few by score, best first (Team-Up
+ * partners first, then aspect coverage, `seat-recommendations.ts`). A hero whose row is blocked (already seated,
+ * locked) is never recommended. Worked out once per picker, not per keystroke: the search only filters what this returns.
  */
 export function pickerRecommendationsOf(
   seats: readonly (Deck | null)[],
@@ -164,7 +164,7 @@ export function pickerRecommendationsOf(
   catalog: PairCatalog,
 ): readonly SeatRecommendation[] {
   const others = seats.filter((deck, index): deck is Deck => deck !== null && index + 1 !== seatNumber);
-  if (seatNumber < 2 || others.length === 0) return [];
+  if (others.length === 0) return [];
   return seatInsightsOf({
     seated: others,
     activeSeatIndex: -1,
@@ -203,11 +203,13 @@ export function pickerSearchDocumentsOf(
 }
 
 /**
- * The picker's rows for seat `seatNumber`: the recommended heroes under their own heading, then every other hero under
- * "Other heroes" (a recommended hero is not listed twice), each group A to Z by hero name, then deck name. With no
- * recommendation the list has no headings. `query` keeps the decks whose hero, deck name, aspect or source matches it;
- * a group it empties loses its heading. `ranking` (deck id to score, from the search worker) replaces `query`: only the
- * ranked decks stay, best first within each group.
+ * The picker's rows for seat `seatNumber` (the owner, 2026-10-19, #272): the recommended heroes under their own heading
+ * in recommendation order, the best partner first; then every other hero the player can seat, A to Z by hero name, then
+ * deck name; then the heroes that can't be seated (locked, or already at another seat), A to Z, under a heading of
+ * their own. A recommended hero is not listed twice. A list with only the available group has no headings. `query`
+ * keeps the decks whose hero, deck name, aspect or source matches it; a group it empties loses its heading. `ranking`
+ * (deck id to score, from the search worker) replaces `query`: only the ranked decks stay, best first within each of
+ * the two A to Z groups.
  */
 export function pickerEntriesOf(
   seatNumber: number,
@@ -236,16 +238,24 @@ export function pickerEntriesOf(
     options[a]!.deck.name.localeCompare(options[b]!.deck.name, undefined, { sensitivity: "base" }) ||
     a - b;
   const recOf = new Map(recommendations.map((rec) => [rec.deckId, rec]));
-  const recommended = shown.filter((index) => recOf.has(options[index]!.deck.id as string)).sort(byName);
+  const recRank = new Map(recommendations.map((rec, rank) => [rec.deckId, rank]));
+  const rankOf = (index: number): number => recRank.get(options[index]!.deck.id as string) ?? 0;
+  const recommended = shown
+    .filter((index) => recOf.has(options[index]!.deck.id as string))
+    .sort((a, b) => rankOf(a) - rankOf(b) || a - b);
   const rest = shown.filter((index) => !recOf.has(options[index]!.deck.id as string)).sort(byName);
+  const available = rest.filter((index) => !options[index]!.blocked);
+  const unavailable = rest.filter((index) => options[index]!.blocked);
   const row = (index: number): PickerEntry => {
     const rec = recOf.get(options[index]!.deck.id as string) ?? null;
     return { kind: "option", optionIndex: index, recommended: rec !== null, rec };
   };
-  if (recommended.length === 0) return rest.map(row);
+  if (recommended.length === 0 && unavailable.length === 0) return available.map(row);
+  const group = (text: string, indexes: readonly number[]): PickerEntry[] =>
+    indexes.length > 0 ? [{ kind: "heading", text }, ...indexes.map(row)] : [];
   return [
-    { kind: "heading", text: `Recommended for seat #${seatNumber}` },
-    ...recommended.map(row),
-    ...(rest.length > 0 ? [{ kind: "heading", text: "Other heroes" } as const, ...rest.map(row)] : []),
+    ...group(`Recommended for seat #${seatNumber}`, recommended),
+    ...group(recommended.length > 0 ? "Other heroes" : "Available heroes", available),
+    ...group("Locked or already seated", unavailable),
   ];
 }

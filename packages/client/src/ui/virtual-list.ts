@@ -62,6 +62,7 @@
 import Phaser from "phaser";
 import { ListScroll, thumbOf } from "../view/list-scroll.js";
 import { DragGesture, Momentum, pointInRect } from "../view/drag-gesture.js";
+import { withinTapSlop } from "../view/press-arm.js";
 import type { Rect } from "../view/layout.js";
 import { surface, typeRole } from "../tokens.js";
 import { textStyle } from "./theme.js";
@@ -148,6 +149,8 @@ export class McVirtualList {
   #thumbDragStartOffset = 0;
   /** True once the current list-body drag has passed the tap threshold — see `ui/scroll-clip.ts`'s own doc comment on why every row is disabled for the duration rather than relying on each row's own `suppressClick`. */
   #dragSuppressed = false;
+  /** Where the current list-body press began: the drag only measures up and down, so a tap is checked in both axes. */
+  #downAt: { x: number; y: number } | null = null;
   readonly #snapRows: boolean;
   #snapTimer: Phaser.Time.TimerEvent | null = null;
   readonly #hint: Phaser.GameObjects.Graphics | null;
@@ -424,6 +427,7 @@ export class McVirtualList {
     this.#momentum.stop();
     this.#drag.start(pointer.id, pointer.y, pointer.downTime);
     this.#dragSuppressed = false;
+    this.#downAt = { x: pointer.x, y: pointer.y };
   }
 
   #onPointerMove(pointer: Phaser.Input.Pointer): void {
@@ -445,9 +449,14 @@ export class McVirtualList {
     if (!result) return;
     this.#dragSuppressed = false;
     this.#applyRowInteractivity();
+    const downAt = this.#downAt;
+    this.#downAt = null;
     if (result.wasTap) {
       if (!this.#onRowActivate || !pointInRect(pointer.x, pointer.y, this.#rect) || this.#inScrollbarColumn(pointer.x))
         return;
+      // A sideways swipe never scrolls the list, so the drag calls it a tap; it is not one, and lifting it over a row
+      // must not pick that row (#272: a finger sliding across the roster picker's rows seated the hero under it).
+      if (downAt && !withinTapSlop(downAt, pointer)) return;
       const index = this.#rowIndexAt(pointer.y);
       if (index >= 0 && index < this.#count) this.#onRowActivate(index, pointer);
       return;
