@@ -157,6 +157,6 @@ describe("compact tags for a narrow tile", () => {
   });
 
   test("togglePayment still orders by pick", () => {
-    expect(togglePayment({ picked: ["a"] } as never, "b").picked).toEqual(["a", "b"]);
+    expect(togglePayment({ picked: ["a"], query: { sources: [] } } as never, "b").picked).toEqual(["a", "b"]);
   });
 });
