@@ -28,6 +28,7 @@ import type {
   TargetCategory,
   TargetQuery,
   TargetRef,
+  TriggerEventKind,
   TypedResource,
   ValueSpec,
   GroupRef,
@@ -1440,6 +1441,16 @@ export const basicPowerStatIs = (...stat: readonly StatName[]): Predicate => ({
 });
 /** A result of the triggering event ("if this attack dealt damage" → `eventDealt("damage")`). */
 export const eventDealt = (key: string, n = 1): Predicate => ({ kind: "eventResultAtLeast", key, amount: n });
+/**
+ * The triggering event is of (one of) these kinds. An ability that answers two kinds of event (a list `on`, or
+ * `anyOf`) and does something different for each uses it to pick the branch, inside `instead` too. Traffic Jam (`fne`
+ * 60189): `instead(ifThen(eventKindIs("placeThreat"), placeThreat(eventAmount, self), removeThreat(eventAmount, self,
+ * { by: eventPlayer })))`.
+ */
+export const eventKindIs = (...kinds: readonly [TriggerEventKind, ...TriggerEventKind[]]): Predicate => ({
+  kind: "eventKindIs",
+  event: kinds.length === 1 ? kinds[0] : kinds,
+});
 /**
  * "If no 'Preparation' ability was resolved [during this attack]" → `not(attackResolvedLabeled("preparation"))`
  * (Black Widow's Gauntlet, `aos` 50068; docs/phase7-wave9.md §3.4): at least `atLeast` abilities of that label were

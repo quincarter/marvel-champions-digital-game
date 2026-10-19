@@ -1,0 +1,3 @@
+kind: Engine
+body: Add an eventKindIs predicate, so one ability that answers several kinds of event can do something different for each; replacement threat placements and removals keep the original's source and the thwart or activation they belong to; EventPattern.removalWillApply ignores removals that will be stopped.
+time: 2026-10-18T22:52:39.1469724-04:00

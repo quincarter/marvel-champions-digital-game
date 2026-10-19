@@ -62,6 +62,7 @@ import {
   usesCountersOnEntering,
 } from "./enter-play.js";
 import { abilityFrame, eventFrame } from "./frames.js";
+import { syncOwnTreatments } from "../treat-as.js";
 import { announceStatusDiscarded } from "./status-discarded.js";
 
 const registriesWithChecks = new WeakMap<AbilityRegistry, boolean>();
@@ -108,6 +109,9 @@ function hasStateChecks(registry: AbilityRegistry): boolean {
  * (at once for a card entering play, ahead of that event's windows); the rest only have their value recorded. Returns true when it pushed a frame.
  */
 export function checkStateTriggers(ctx: Ctx): boolean {
+  // A card its own constant made an ally is a minion again once that constant stops holding (Black Cat; docs/phase7-
+  // wave11-scenarios.md §S3.8). First, so the limits below count it as what it now is.
+  if (hasRuleKind(ctx.deps.abilities, "treatSelfAsAlly")) syncOwnTreatments(ctx);
   // A continuous rule rather than an ability, checked in the same place and for the same reason: RRG 1.8 "Ally
   // Limit" (p. 7) applies the moment a player "ever" controls too many allies. Asking for the discard is the result.
   if (checkAllyLimits(ctx)) return true;

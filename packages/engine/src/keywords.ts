@@ -13,6 +13,7 @@ import {
   perPlayerCountAt,
   villainStageOf,
   playerCardOwnerOf,
+  textGoneByTreatment,
 } from "./query.js";
 import { cannotHaveStatus, grantedAttackKeywords, lostAttackKeywords, statusLimit } from "./rules.js";
 import {
@@ -57,14 +58,15 @@ export function printedKeywordsOf(
 
 /**
  * The keywords printed on a card's showing face with no text-box blank applied (`printedKeywordsOf` less the blank
- * check). A facedown card and a card treated as another type still have none. The Permanent keyword's blank
+ * check). A facedown card and a card treated as another type still have none (`textGoneByTreatment`), except a card
+ * its own constant treats as an ally (Black Cat, docs/phase7-wave11-scenarios.md §S3.8). The Permanent keyword's blank
  * protection reads this (RRG 1.8 "Permanent", p. 32; docs/phase7-wave5.md §4.1 Q31), since the keyword protects the
  * very text box it is printed in, and so it can be asked from inside every blank check without recursion.
  */
 export function unblankedPrintedKeywordsOf(state: GameState, id: InstanceId): readonly KeywordInstance[] {
   const card = cardOf(state, id);
   if (!card) return [];
-  if (state.instances[id]?.facedownAs || state.instances[id]?.treatedAs) return [];
+  if (textGoneByTreatment(state, id)) return [];
   const face = encounterFace(state, id);
   if (face) return face.keywords;
   if (card.type === "villain") {

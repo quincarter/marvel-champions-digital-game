@@ -256,7 +256,7 @@ import {
 } from "./enter-play.js";
 import { addFrameSlots, addFrameVars, eventFrame, type Frame, pushEffects, pushEvent, pushEvents } from "./frames.js";
 import { insertConsequentialDamage, pushConsequentialDamage, setBasicPowerStat } from "../actions.js";
-import { treatAsAlly } from "../treat-as.js";
+import { takeControlAsOwnAlly, treatAsAlly } from "../treat-as.js";
 import {
   enterPlayOnReveal,
   replaceRevealInProgress,
@@ -600,13 +600,16 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "placeThreat": {
       const amount = value(effect.amount);
+      // Replacing a placement: still that threat, placed by the same card for the same activation (`replacesEvent`).
+      const replaced = frame.replacesEvent?.kind === "placeThreat" ? frame.replacesEvent : undefined;
       pushEvents(
         ctx,
         targets(effect.target).map((id) => ({
           kind: "placeThreat",
           schemeInstanceId: id,
           amount,
-          sourceInstanceId: frame.selfInstanceId,
+          sourceInstanceId: replaced ? replaced.sourceInstanceId : frame.selfInstanceId,
+          ...(replaced?.parentFrameId ? { parentFrameId: replaced.parentFrameId } : {}),
         })),
         reportTo(effect.bind),
       );
@@ -616,13 +619,16 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // "Increase the amount of threat that event removes by 2" (Shrink): every instance this card removes.
       const amount = value(effect.amount) + cardEffectBonus(ctx.state, ctx.deps, frame.selfInstanceId, "threatRemoved");
       const by = namedBy(effect.by);
+      // Replacing a removal: still that threat, removed by the same card for the same thwart (`replacesEvent`).
+      const replaced = frame.replacesEvent?.kind === "removeThreat" ? frame.replacesEvent : undefined;
       pushEvents(
         ctx,
         targets(effect.target).map((id) => ({
           kind: "removeThreat",
           schemeInstanceId: id,
           amount,
-          sourceInstanceId: frame.selfInstanceId,
+          sourceInstanceId: replaced ? replaced.sourceInstanceId : frame.selfInstanceId,
+          ...(replaced?.parentFrameId ? { parentFrameId: replaced.parentFrameId } : {}),
           playerId: by === undefined ? threatRemoverOf(ctx, frame) : by,
           ...(effect.ignoreCrisis ? { ignoreCrisis: true } : {}),
           ...(by === null ? { noPlayer: true } : {}),
@@ -745,6 +751,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           controller,
         });
       }
+      return;
+    }
+    case "takeControl": {
+      // docs/phase7-wave11-scenarios.md §S3.8 (Black Cat): only a minion its own constant treats as an ally right now.
+      const controller = frame.controllerId;
+      if (!controller) return;
+      for (const id of targets(effect.target)) takeControlAsOwnAlly(ctx, id, controller);
       return;
     }
     case "friendlyCharacterAttacks": {
@@ -2788,6 +2801,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         // A defeated card's leaving step checks its face with an `if` (`leaveAfterWhenDefeated`; §4.1 Q46).
         ...(frame.defeatedLeaving !== undefined ? { defeatedLeaving: frame.defeatedLeaving } : {}),
         ...(frame.defeatedLeavingSource !== undefined ? { defeatedLeavingSource: frame.defeatedLeavingSource } : {}),
+        ...(frame.replacesEvent !== undefined ? { replacesEvent: frame.replacesEvent } : {}),
       });
       return;
     }
@@ -3070,6 +3084,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         eventFrameId: null,
         bindings: frame.bindings,
         vars: frame.vars,
+        ...(frame.event ? { replacesEvent: frame.event } : {}),
       });
       return;
     }

@@ -85,6 +85,7 @@ import {
   scenarioPlayAreaOf,
   isOwnedEncounterCard,
   playerCardOwnerOf,
+  textGoneByTreatment,
 } from "./query.js";
 import type { LogValue } from "./campaign.js";
 import {
@@ -620,6 +621,12 @@ function printedTraitsOf(state: GameState, id: InstanceId): readonly Trait[] {
   const facedown = getInstance(state, id)?.facedownAs;
   if (facedown) return facedown.traits;
   const treated = getInstance(state, id)?.treatedAs;
+  // A card its own constant treats as an ally keeps its printed traits (Black Cat; docs/phase7-wave11-scenarios.md
+  // §S3.8).
+  if (treated?.kind === "ally" && treated.keepsText === true) {
+    const own = encounterFace(state, id)?.traits ?? ("traits" in card ? card.traits : []);
+    return [...treated.traits, ...own];
+  }
   if (treated) {
     if (treated.kind === "ally") return treated.traits;
     // A hero treated as a minion keeps its hero side's traits (docs/phase7-wave9.md §4.1 Q41 = A).
@@ -3285,6 +3292,11 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       return predicate.of.some((p) => evaluate(state, p, context));
     case "eventResultAtLeast":
       return (context.event?.results?.[predicate.key] ?? 0) >= predicate.amount;
+    case "eventKindIs": {
+      const kind = context.event?.kind;
+      if (kind === undefined) return false;
+      return typeof predicate.event === "string" ? predicate.event === kind : predicate.event.includes(kind);
+    }
     case "basicPowerIs": {
       const triggering = context.event;
       const power =
@@ -4257,9 +4269,10 @@ function unblankedAbilityRefs(state: GameState, id: InstanceId): readonly Abilit
   const card = cardOf(state, id);
   if (!card) return [];
   // A facedown card's own text is blank while it is facedown, and so is a card whose text box is treated as blank
-  // (an ally treated as a minion "with a blank text box", docs/phase7-wave4.md §3.9).
+  // (an ally treated as a minion "with a blank text box", docs/phase7-wave4.md §3.9); not a card its own constant
+  // treats as an ally (Black Cat, docs/phase7-wave11-scenarios.md §S3.8).
   const instance = getInstance(state, id);
-  if (instance?.facedownAs || instance?.treatedAs) return [];
+  if (textGoneByTreatment(state, id)) return [];
   // An event's abilities resolve only by playing it (RRG 1.8 "Event", p. 19), which reads its printed text directly.
   // One sitting faceup on another card (an Arrow on Hawkeye's Quiver) has none of its own: offered as a card ability,
   // its effect ran without paying the event's cost or discarding it (2026-09-29 report).

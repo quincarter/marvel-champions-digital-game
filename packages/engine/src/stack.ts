@@ -562,6 +562,14 @@ export type StackFrame =
        * card, and is never the source of its leaving.
        */
       readonly defeatedLeavingSource?: CardId;
+      /**
+       * These effects replace this event ("… instead", `EffectSpec replaceTriggeringEvent`), carried into their `if`
+       * branches. A `placeThreat` or `removeThreat` replacing an event of the same kind is still that threat ("that
+       * threat is added here instead", Traffic Jam `fne` 60189; RRG 1.8 "Replacement Effect", p. 37): it keeps the
+       * replaced event's source and parent frame, so the scheme activation or thwart it belonged to reports it
+       * (`threatPlaced`, `threatRemoved`) and a scheme it defeats is defeated by that thwart's player.
+       */
+      readonly replacesEvent?: TriggerEvent;
       /** The one thwart this "(thwart)" ability is making, on the root frame of its resolution (`ThwartSession`). */
       readonly thwart?: ThwartSession;
       /**

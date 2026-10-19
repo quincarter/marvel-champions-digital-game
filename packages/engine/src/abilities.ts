@@ -147,6 +147,14 @@ export interface EventPattern {
    */
   readonly removesLastThreat?: true;
   /**
+   * On a `removeThreat` event: nothing will stop the pending removal as it applies (`removalBlockedOf`: a crisis icon,
+   * a patrol minion, a `cannotThwart` or `threatCannotBeRemoved` rule), read as the interrupt window opens. A removal
+   * that will be stopped removes no threat, so "when a character would remove threat" does not hear it (RRG 1.8
+   * "'Cannot'", p. 11; "'Would'", p. 48): Traffic Jam (`fne` 60189) does not replace a removal from the main scheme
+   * under a crisis icon. Any other event kind is not read, so a pattern that also hears `placeThreat` keeps it.
+   */
+  readonly removalWillApply?: true;
+  /**
    * String fields the event itself carries must equal these, in both windows — the string counterpart of
    * `eventAtLeast`. `{ to: "hero" }` is "After a player changes to **hero form**" (Taskmaster 04093–04095), which
    * `formChanged`'s own `to` field already records but no pattern field could read. An event without the field, or
@@ -2411,6 +2419,28 @@ export type RuleSpec =
       readonly traits: readonly Trait[];
       readonly thwFromSch?: boolean;
       readonly consequential: number;
+    }
+  /**
+   * On a minion, of itself: "While there is 4 threat here, treat Black Cat as an ally that takes 2 consequential
+   * damage after she attacks or thwarts." (Black Cat, `fne` 60169; docs/phase7-wave11-scenarios.md §S3.8). While
+   * `while` holds (read with the minion as "self"), the minion may be an ally: `EffectSpec takeControl` ("take control
+   * of Black Cat as an ally") makes it one under the effect's controller, as RRG 1.8 "Card Types" (p. 12) has it: "When
+   * a player changes a minion to an ally, that player takes control of that ally." It stays one while `while` holds and
+   * the rule is active; the moment either fails it is a minion again, engaged with the player who controlled it, and
+   * its threat stays (`syncOwnTreatments`). Unlike Karma or Mind Control its text box is not blank: its printed
+   * abilities and keywords stay (MC60 p. 26 FAQ: Black Cat keeps villainous as an ally), and so do its printed traits,
+   * with `traits` added. `thwFromSch`: its THW is its printed SCH; otherwise 0, a minion having no printed THW.
+   *
+   * Engine reading (tier 5, no source answers it): with `while` holding and no player having taken control (threat
+   * reaching 4 by any other way than the card's own action), the card stays a minion. An ally has a controller (RRG 1.8
+   * "Ally", p. 7) and RRG 1.8 p. 12 names the player who made the change as that controller; no player made it.
+   */
+  | {
+      readonly kind: "treatSelfAsAlly";
+      readonly while: Predicate;
+      readonly consequential: number;
+      readonly traits?: readonly Trait[];
+      readonly thwFromSch?: boolean;
     }
   | {
       readonly kind: "treatHostAsMinion";

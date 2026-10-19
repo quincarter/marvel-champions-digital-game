@@ -6,6 +6,8 @@
  * - a minion with a `treatHostAsAlly` attachment on it is its controller's ally until that attachment goes (Mind
  *   Control);
  * - a minion a `treatAsAlly` effect took is its controller's ally while the effect's card stays in play (Karma).
+ * - a minion whose own `treatSelfAsAlly` constant holds is the ally of the player a `takeControl` effect named, for as
+ *   long as that constant holds (Black Cat, docs/phase7-wave11-scenarios.md §S3.8; `syncOwnTreatments`).
  * - a hero from a collection, an identity card that is no seat's identity, is a minion while a `treatHostAsMinion`
  *   card is attached to it, and is in play only for that long (Reluctant Foe, docs/phase7-wave9.md §3.30): when the
  *   attachment goes and the hero is not leaving play itself, the hero is removed from the game (§4.1 Q39 = A).
@@ -21,7 +23,7 @@ import { type Ctx, emit, moveCard, updateInstance } from "./ctx.js";
 import { leavePlayAtOnce } from "./effects.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { cardOf, getInstance, isSeatlessIdentity, locateCard } from "./query.js";
-import { activeAbilityRefs, cardsInPlay, controllerOf } from "./select.js";
+import { activeAbilityRefs, activeRules, cardsInPlay, controllerOf } from "./select.js";
 import type { TreatedAs, TreatedAsAlly } from "./state.js";
 
 /** What the host's own attachments make it, if anything. */
@@ -89,6 +91,53 @@ export function treatAsAlly(ctx: Ctx, hostId: InstanceId, spec: Omit<TreatedAsAl
   const host = getInstance(ctx.state, hostId);
   if (!host || cardOf(ctx.state, hostId)?.type !== "minion" || host.treatedAs) return;
   apply(ctx, hostId, null, { kind: "ally", ...spec, engagedBefore: host.engagedWith });
+}
+
+/** The card's own `treatSelfAsAlly` constant, if it is active and its `while` holds now. */
+function ownAllyRule(ctx: Ctx, hostId: InstanceId) {
+  return activeRules(ctx.state, ctx.deps, "treatSelfAsAlly").find((r) => r.context.selfInstanceId === hostId)?.rule;
+}
+
+/**
+ * "Take control of Black Cat as an ally" (`EffectSpec takeControl`; docs/phase7-wave11-scenarios.md §S3.8):
+ * `controller` takes control of a minion in play that its own `treatSelfAsAlly` constant treats as an ally right now
+ * (RRG 1.8 "Card Types", p. 12: "When a player changes a minion to an ally, that player takes control of that ally").
+ * Nothing happens to a minion whose constant does not hold, or one already treated as something by another card
+ * (Karma).
+ */
+export function takeControlAsOwnAlly(ctx: Ctx, hostId: InstanceId, controller: PlayerId): void {
+  const host = getInstance(ctx.state, hostId);
+  if (!host || host.treatedAs || cardOf(ctx.state, hostId)?.type !== "minion") return;
+  if (!cardsInPlay(ctx.state).includes(hostId)) return;
+  const rule = ownAllyRule(ctx, hostId);
+  if (!rule) return;
+  apply(ctx, hostId, null, {
+    kind: "ally",
+    traits: rule.traits ?? [],
+    thwFromSch: rule.thwFromSch === true,
+    consequential: rule.consequential,
+    source: hostId,
+    controller,
+    engagedBefore: host.engagedWith,
+    keepsText: true,
+  });
+}
+
+/**
+ * A card its own constant made an ally (`TreatedAsAlly.keepsText`) is a minion again the moment that constant stops
+ * holding: its threat fell below 4, or its text box was blanked. Checked between frames (`checkStateTriggers`), as a
+ * constant ability's effects "are active anytime the specific condition is met" (RRG 1.8 "Ability", p. 5). It goes
+ * back the way Karma's minion does (`apply`): nobody controls it and it is engaged with the player who controlled it,
+ * with no new engage trigger (docs/phase7-wave4.md §4 Q21); it neither enters nor leaves play, so its threat and
+ * damage stay (ruling Dec 17, 2025 (1) #3: "essentially a status change").
+ */
+export function syncOwnTreatments(ctx: Ctx): void {
+  for (const id of cardsInPlay(ctx.state)) {
+    const treated = getInstance(ctx.state, id)?.treatedAs;
+    if (treated?.kind !== "ally" || treated.keepsText !== true || treated.source !== id) continue;
+    if (ownAllyRule(ctx, id)) continue;
+    apply(ctx, id, treated, null);
+  }
 }
 
 function apply(ctx: Ctx, hostId: InstanceId, current: TreatedAs | null, next: TreatedAs | null): void {

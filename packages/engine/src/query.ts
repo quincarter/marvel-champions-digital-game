@@ -839,6 +839,19 @@ export function mainSchemeStagePosition(state: GameState, scheme: MainSchemeStat
   return (at >= 0 ? at : scheme.stageIndex) + 1;
 }
 
+/**
+ * Whether the card's own printed text box is gone because it is facedown as something else or treated as another card
+ * type "with a blank text box" (docs/phase7-wave4.md §3.9, §3.29). A card its own constant treats as an ally keeps
+ * its text (`TreatedAsAlly.keepsText`, Black Cat; docs/phase7-wave11-scenarios.md §S3.8).
+ */
+export function textGoneByTreatment(state: GameState, id: InstanceId): boolean {
+  const instance = state.instances[id];
+  if (!instance) return false;
+  if (instance.facedownAs) return true;
+  const treated = instance.treatedAs;
+  return treated !== undefined && treated !== null && !(treated.kind === "ally" && treated.keepsText === true);
+}
+
 /** A minion in play: a minion card, or a card facedown as a minion (a facedown Drone). */
 export function isMinion(state: GameState, id: InstanceId): boolean {
   const instance = state.instances[id];

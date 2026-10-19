@@ -291,6 +291,8 @@ export function pushEffects(
      */
     readonly defeatedLeaving?: InstanceId;
     readonly defeatedLeavingSource?: CardId;
+    /** `Frame<"effects">.replacesEvent`. */
+    readonly replacesEvent?: TriggerEvent;
   },
 ): void {
   if (spec.effects.length === 0) return;
@@ -317,6 +319,7 @@ export function pushEffects(
       ...(spec.instruction ? { instruction: spec.instruction } : {}),
       ...(spec.defeatedLeaving !== undefined ? { defeatedLeaving: spec.defeatedLeaving } : {}),
       ...(spec.defeatedLeavingSource !== undefined ? { defeatedLeavingSource: spec.defeatedLeavingSource } : {}),
+      ...(spec.replacesEvent !== undefined ? { replacesEvent: spec.replacesEvent } : {}),
     },
   ]);
 }

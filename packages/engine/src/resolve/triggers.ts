@@ -436,6 +436,9 @@ function matchesRest(
     if (threat <= 0 || event.amount < threat) return false;
     if (removalBlockedOf(state, deps, event) !== null) return false;
   }
+  // "When … would remove threat": a removal that will be stopped removes none (`EventPattern.removalWillApply`).
+  if (pattern.removalWillApply && event.kind === "removeThreat" && removalBlockedOf(state, deps, event) !== null)
+    return false;
   if (pattern.eventIs) {
     const carried = event as unknown as Readonly<Record<string, unknown>>;
     for (const [key, expected] of Object.entries(pattern.eventIs)) {

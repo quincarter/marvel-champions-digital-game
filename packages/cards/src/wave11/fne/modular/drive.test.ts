@@ -12,6 +12,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import { abilityRefIds } from "../../../ability-refs.js";
 import { coreScenario, encounterCardsOf } from "../../../core/index.js";
+import { each, heroAction, placeThreat, query } from "../../../dsl/index.js";
 import { validateDefinition } from "../../../dsl/validate.js";
 import {
   P1,
@@ -24,9 +25,10 @@ import {
   playerOf,
   settle,
   stackEncounterDeck,
+  use,
   type Picker,
 } from "../../../testing/harness.js";
-import { driveEventsPicking, withForm } from "../../../testing/staging.js";
+import { driveEventsPicking, encounterCardInVillainArea, playFromHand, withForm } from "../../../testing/staging.js";
 import { engageMinion } from "../../../wave9/falcon/testing.js";
 import { WAVE11_CARDS } from "../../cards.js";
 import { WAVE11_DEPS } from "../../index.js";
@@ -38,7 +40,7 @@ vi.setConfig({ testTimeout: 180_000 });
  * The Drive modular set (60186 Sports Car, 60187 Motorcycle, 60188 Utility Van, 60189 Traffic Jam, 60190 Carjacking),
  * docs/phase7-wave11-scenarios.md section S6. Each game is Core's Spider-Man (Justice) in hero form against Rhino with
  * the Drive cards added to the Core encounter deck; Advance (01186) and Assault (01187) print no boost icon and no
- * boost ability, so they are the blank fillers. Traffic Jam (60189) is skipped (see the registry test).
+ * boost ability, so they are the blank fillers.
  */
 const SPORTS_CAR = "60186";
 const MOTORCYCLE = "60187";
@@ -49,6 +51,12 @@ const ADVANCE = "01186";
 const ASSAULT = "01187";
 /** Core attachment (Rhino's own), not a Vehicle: Carjacking must discard past it. */
 const CHARGE = "01099";
+/** Core side scheme (Rhino's own set): a scheme the hero can thwart while Traffic Jam's crisis icon guards the main one. */
+const BREAKIN = "01107";
+/** Core Justice cards in Spider-Man's deck: an ally (THW 2), a "(thwart)" event, a support that removes threat. */
+const DAREDEVIL = "01058";
+const FOR_JUSTICE = "01060";
+const SURVEILLANCE_TEAM = "01064";
 /** Core minions: Hydra Mercenary ATK 1 / SCH 0 / HP 3; Sandman ATK 3 / SCH 2 / HP 4. */
 const HYDRA = "01101";
 const SANDMAN = "01102";
@@ -59,6 +67,7 @@ const SCRIPTED = [
   "60187.motorcycle-forced-interrupt",
   "60188.utility-van-constant",
   "60188.utility-van-forced-interrupt",
+  "60189.traffic-jam-forced-interrupt",
   "60190.when-revealed",
 ];
 const VEHICLES = [SPORTS_CAR, MOTORCYCLE, VAN];
@@ -173,12 +182,11 @@ function typeWithThree(state: GameState, player: PlayerId): string {
 }
 
 describe("registry", () => {
-  it("registers every printed ref of the five cards but Traffic Jam, which is skipped with a reason", () => {
+  it("registers every printed ref of the five cards and skips none", () => {
     const printedRefs = [SPORTS_CAR, MOTORCYCLE, VAN, TRAFFIC_JAM, CARJACKING].flatMap((c) => abilityRefIds(data(c)));
-    expect([...printedRefs].sort()).toEqual([...SCRIPTED, "60189.traffic-jam-forced-interrupt"].sort());
+    expect([...printedRefs].sort()).toEqual([...SCRIPTED].sort());
     expect(Object.keys(REGISTRY).sort()).toEqual([...SCRIPTED].sort());
-    expect(Object.keys(SKIPPED)).toEqual(["60189.traffic-jam-forced-interrupt"]);
-    expect(SKIPPED["60189.traffic-jam-forced-interrupt"]).toMatch(/engine gap/);
+    expect(SKIPPED).toEqual({});
   });
   it.each(SCRIPTED)("%s validates", (ref) => {
     expect(validateDefinition(REGISTRY[ref]!), ref).toEqual([]);
@@ -187,6 +195,8 @@ describe("registry", () => {
     for (const ref of SCRIPTED.filter((r) => r.endsWith("forced-interrupt")))
       expect(REGISTRY[ref]!.trigger, ref).toMatchObject({ kind: "interrupt", forced: true });
     expect(REGISTRY["60190.when-revealed"]!.trigger).toMatchObject({ kind: "whenRevealed" });
+    // "When … would": the higher interrupt priority (RRG 1.8 "'Would'", p. 48).
+    expect(REGISTRY["60189.traffic-jam-forced-interrupt"]!.trigger).toMatchObject({ would: true });
   });
   it("the data prints the hosts, the stat bonuses and Traffic Jam's Hinder", () => {
     for (const code of VEHICLES)
@@ -356,6 +366,194 @@ describe("the Vehicles' Forced Interrupt: damage to the attached character is pl
     // Enough damage lands on it to fill and discard it, so read the placements, not the card's final damage.
     expect(placedOn(run.events, s.id)).toBeGreaterThan(0);
     expect(inst(run.state, hero(run.state)).damage).toBe(0);
+  });
+});
+
+describe("Traffic Jam 60189: threat a character with a Vehicle adds or removes goes here instead", () => {
+  const MAIN = (s: GameState): InstanceId => s.mainScheme.instanceId;
+  const threat = (s: GameState, id: InstanceId): number => inst(s, id).threat;
+  /**
+   * Traffic Jam in play with `jam` threat, Breakin' & Takin' (Rhino's side scheme, 01107) with 4 and the main scheme at
+   * 1 (room for a villain phase); with `vehicle`, it is attached to `host`. Traffic Jam's crisis icon keeps players off
+   * the main scheme, so the hero's thwarts go to Breakin' & Takin'.
+   */
+  function staged(jam: number, vehicle?: { readonly code: string; readonly host: (s: GameState) => InstanceId }) {
+    const base = newGame();
+    const withMain = patchInstance(base, MAIN(base), { threat: 1 });
+    const tj = encounterCardInVillainArea(withMain, TRAFFIC_JAM, jam);
+    const other = encounterCardInVillainArea(tj.state, BREAKIN, 4);
+    const state = vehicle ? attachedTo(other.state, vehicle.code, vehicle.host(other.state)).state : other.state;
+    return { state, jam: tj.id, other: other.id };
+  }
+  const thwart = (state: GameState, scheme: InstanceId) =>
+    driveEventsPicking(WAVE11_DEPS, state, declines, {
+      type: "basicThwart",
+      playerId: P1,
+      thwarterInstanceId: hero(state),
+      schemeInstanceId: scheme,
+    } as never);
+  /** The hero's THW, the threat a basic thwart removes. */
+  const thw = (s: GameState): number => characterProfile(s, hero(s), WAVE11_DEPS)!.thw;
+  const onHero = { code: SPORTS_CAR, host: (s: GameState) => hero(s) };
+
+  it("a hero with a Vehicle thwarts another scheme: the threat is removed from Traffic Jam instead", () => {
+    const s = staged(3, onHero);
+    const run = thwart(s.state, s.other);
+    const n = thw(s.state);
+    expect(n).toBeGreaterThan(0);
+    expect(threat(run.state, s.other)).toBe(4);
+    expect(threat(run.state, s.jam)).toBe(3 - n);
+  });
+
+  it("a hero without a Vehicle thwarts as usual", () => {
+    const s = staged(3);
+    const run = thwart(s.state, s.other);
+    expect(threat(run.state, s.other)).toBe(4 - thw(s.state));
+    expect(threat(run.state, s.jam)).toBe(3);
+  });
+
+  it("a Vehicle on the villain does not redirect the hero's thwart", () => {
+    const s = staged(3, { code: SPORTS_CAR, host: villainOf });
+    const run = thwart(s.state, s.other);
+    expect(threat(run.state, s.other)).toBe(4 - thw(s.state));
+    expect(threat(run.state, s.jam)).toBe(3);
+  });
+
+  it("threat removed from Traffic Jam itself is removed once, as usual, and not replaced", () => {
+    const s = staged(3, onHero);
+    const run = thwart(s.state, s.jam);
+    expect(threat(run.state, s.jam)).toBe(3 - thw(s.state));
+    expect(threat(run.state, s.other)).toBe(4);
+  });
+
+  it("removing the last threat here instead defeats Traffic Jam; the thwarted scheme keeps its threat", () => {
+    const s = staged(1, onHero);
+    const run = thwart(s.state, s.other);
+    expect(threat(run.state, s.other)).toBe(4);
+    expect(run.state.villainArea).not.toContain(s.jam);
+    expect(inDiscard(run.state)).toContain(TRAFFIC_JAM);
+    // With Traffic Jam gone, the next thwart is not replaced.
+    const ready = patchInstance(run.state, hero(run.state), { exhausted: false });
+    const again = thwart(ready, s.other);
+    expect(threat(again.state, s.other)).toBe(4 - thw(ready));
+  });
+
+  it("Traffic Jam at 0 threat still replaces the removal: nothing is removed from either scheme", () => {
+    // RRG 1.8 "Replacement Effect" (p. 37): the removal is replaced, and the replacement removes what is here. Not
+    // reachable in play (a side scheme with no threat is defeated), so this pins the engine reading.
+    const s = staged(0, onHero);
+    const run = thwart(s.state, s.other);
+    expect(threat(run.state, s.other)).toBe(4);
+    expect(threat(run.state, s.jam)).toBe(0);
+  });
+
+  /** The resolved trigger events of `kind` the run logged, with their results. */
+  const resolved = <K extends string>(events: readonly GameEvent[], kind: K): any[] =>
+    events.flatMap((e: any) =>
+      e.type === "triggerEvent" && e.phase === "resolved" && e.event.kind === kind ? [e.event] : [],
+    );
+
+  it("the redirected removal still belongs to the thwart: it reports the threat and its player defeats Traffic Jam", () => {
+    // RRG 1.8 "Replacement Effect" (p. 37): "that threat is removed from here instead", still the thwart's threat.
+    const s = staged(1, onHero);
+    const run = thwart(s.state, s.other);
+    const [made] = resolved(run.events, "thwart");
+    expect(made.results).toMatchObject({ threatRemoved: 1 });
+    const [defeat] = resolved(run.events, "schemeDefeated");
+    expect(defeat).toMatchObject({ instanceId: s.jam, defeatedByPlayerId: P1, sourceInstanceId: hero(s.state) });
+  });
+
+  it("an ally with a Vehicle thwarts: the threat is removed from Traffic Jam instead", () => {
+    const s = staged(3);
+    const played = playFromHand(WAVE11_DEPS, s.state, DAREDEVIL, 4, declines);
+    const state = attachedTo(played.state, SPORTS_CAR, played.id).state;
+    const thw = characterProfile(state, played.id, WAVE11_DEPS)!.thw;
+    const run = driveEventsPicking(WAVE11_DEPS, state, declines, {
+      type: "basicThwart",
+      playerId: P1,
+      thwarterInstanceId: played.id,
+      schemeInstanceId: s.other,
+    } as never);
+    expect(threat(run.state, s.other)).toBe(4);
+    expect(threat(run.state, s.jam)).toBe(3 - thw);
+  });
+
+  it('a "(thwart)" event (For Justice!) by a hero with a Vehicle is the hero\'s thwart, so it is redirected', () => {
+    const s = staged(5, onHero);
+    const run = playFromHand(WAVE11_DEPS, s.state, FOR_JUSTICE, 2, labeled("Breakin"));
+    expect(threat(run.state, s.other)).toBe(4);
+    // 3 threat, or 4 if a mental resource paid for it.
+    expect(5 - threat(run.state, s.jam)).toBeGreaterThanOrEqual(3);
+  });
+
+  it("an unlabeled removal by a card that is not a character (Surveillance Team) is not redirected", () => {
+    // Engine interpretation (authority step 5): the removal is the support's, not the identity's; only a "(thwart)"
+    // ability is made by the identity (RRG 1.8 "Labeled Ability", p. 26). An event card's "remove N threat" reads the
+    // same way.
+    const s = staged(3, onHero);
+    const team = playFromHand(WAVE11_DEPS, s.state, SURVEILLANCE_TEAM, 2, declines);
+    const run = driveEventsPicking(
+      WAVE11_DEPS,
+      team.state,
+      labeled("Breakin"),
+      use(P1, team.id, "01064.surveillance-team-action"),
+    );
+    expect(threat(run.state, s.other)).toBe(3);
+    expect(threat(run.state, s.jam)).toBe(3);
+  });
+
+  /** P1 in alter-ego form ends the turn: Rhino (and an engaged minion) scheme. */
+  const schemes = (state: GameState) => villainPhase(withForm(state, "alterEgo"), [ADVANCE, ASSAULT]);
+  const schOf = (s: GameState, id: InstanceId): number => characterProfile(s, id, WAVE11_DEPS)!.sch;
+
+  it("the villain with a Vehicle schemes: the threat is added to Traffic Jam instead of the main scheme", () => {
+    const control = staged(3);
+    const plain = schemes(control.state);
+    const s = staged(3, { code: SPORTS_CAR, host: villainOf });
+    const run = schemes(s.state);
+    const sch = schOf(s.state, villainOf(s.state));
+    expect(sch).toBeGreaterThan(0);
+    expect(threat(plain.state, control.jam)).toBe(3);
+    expect(threat(run.state, s.jam)).toBe(3 + sch);
+    // The placement on Traffic Jam is still the activation's (RRG 1.8 "Replacement Effect", p. 37).
+    const activation = resolved(run.events, "enemyScheme").find((e) => e.enemyInstanceId === villainOf(s.state));
+    expect(activation.results).toMatchObject({ threatPlaced: sch });
+    // Step one's acceleration and the dealt card's threat (neither placed by a character) still land on the main scheme.
+    expect(threat(run.state, MAIN(run.state))).toBe(threat(plain.state, MAIN(plain.state)) - sch);
+  });
+
+  it("a hero with a Vehicle places threat on a minion: it is not a scheme, so the threat is not redirected", () => {
+    // Test only: "Hero Action: place 1 threat on each minion", on Spider-Man's identity (threat on a minion: Black Cat
+    // 60169, docs/phase7-wave11-scenarios.md §S3.8).
+    const ON_MINION = "test.place-threat-on-each-minion";
+    const deps = {
+      abilities: { ...WAVE11_DEPS.abilities, [ON_MINION]: heroAction(placeThreat(1, each(query("minion")))) },
+    };
+    const s = staged(3, onHero);
+    const card = s.state.cardPool[playerOf(s.state, P1).identity.cardId]!;
+    if (card.type !== "hero_identity") throw new Error("no identity card");
+    const withAbility: GameState = {
+      ...withMinion(s.state, SANDMAN),
+      cardPool: {
+        ...s.state.cardPool,
+        [card.id]: { ...card, hero: { ...card.hero, abilities: [...card.hero.abilities, { id: ON_MINION as never }] } },
+      },
+    };
+    const run = driveEventsPicking(deps, withAbility, declines, use(P1, hero(withAbility), ON_MINION));
+    expect(threat(run.state, MINI)).toBe(1);
+    expect(threat(run.state, s.jam)).toBe(3);
+  });
+
+  it("only the enemy with the Vehicle is redirected: a minion with one, beside a villain without", () => {
+    const control = staged(3);
+    const plain = schemes(withMinion(control.state, SANDMAN));
+    const s = staged(3);
+    const state = attachedTo(withMinion(s.state, SANDMAN), SPORTS_CAR, MINI).state;
+    const run = schemes(state);
+    const sch = schOf(state, MINI);
+    expect(sch).toBeGreaterThan(0);
+    expect(threat(run.state, s.jam)).toBe(3 + sch);
+    expect(threat(run.state, MAIN(run.state))).toBe(threat(plain.state, MAIN(plain.state)) - sch);
   });
 });
 

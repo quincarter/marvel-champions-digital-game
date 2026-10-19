@@ -163,6 +163,12 @@ export interface TreatedAsAlly {
   readonly source: InstanceId;
   readonly controller: PlayerId;
   readonly engagedBefore: PlayerId | null;
+  /**
+   * Set when the card's own constant treats it as an ally (`RuleSpec treatSelfAsAlly`, Black Cat; docs/phase7-wave11-
+   * scenarios.md §S3.8): `source` is the card itself, its text box is not blank (its printed abilities and keywords
+   * stay), and `traits` are added to its printed traits rather than replacing them. Absent otherwise.
+   */
+  readonly keepsText?: true;
 }
 
 /**

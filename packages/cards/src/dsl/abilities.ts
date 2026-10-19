@@ -1797,6 +1797,28 @@ export const treatAttachedMinionAsAlly = (traits: readonly Trait[], consequentia
   rules: [{ kind: "treatHostAsAlly", traits, thwFromSch: true, consequential }],
 });
 /**
+ * "While there is 4 threat here, treat Black Cat as an ally that takes 2 consequential damage after she attacks or
+ * thwarts." (Black Cat, `fne` 60169): `constant(treatSelfAsAlly(threatAtLeast(self, 4), 2))`. The minion is an ally,
+ * text box and printed traits kept, of the player a `takeControl` effect named, while `when` holds; a minion again,
+ * engaged with that player and keeping its threat, once it stops holding. `opts.traits` are added to its printed
+ * traits; `opts.thwFromSch` gives it its printed SCH as THW (otherwise 0). docs/phase7-wave11-scenarios.md §S3.8.
+ */
+export const treatSelfAsAlly = (
+  when: Predicate,
+  consequential: number,
+  opts: { readonly traits?: readonly Trait[]; readonly thwFromSch?: boolean } = {},
+): ConstantPart => ({
+  rules: [
+    {
+      kind: "treatSelfAsAlly",
+      while: when,
+      consequential,
+      ...(opts.traits ? { traits: opts.traits } : {}),
+      ...(opts.thwFromSch ? { thwFromSch: true } : {}),
+    },
+  ],
+});
+/**
  * "Players cannot discard attachments that are attached to friendly characters." (Powerful Enchantments, `valk`
  * 25030): `constant(playersCannotDiscard(query))`. A player's ability does not discard a matching card; its host's
  * defeat and encounter effects still do. docs/phase7-wave4.md §3.44.
@@ -3278,8 +3300,12 @@ export const on = {
       asTarget(to),
       { eventAtLeast: { dealt: 1 } },
     ),
-  /** "When threat would be placed on a scheme" / "after placing threat here". */
-  threatPlaced: (where?: Who): EventPattern => pattern("placeThreat", where ? asTarget(where) : {}),
+  /**
+   * "When threat would be placed on a scheme" / "after placing threat here". With no `where`, only a scheme's: threat
+   * can sit on other cards too (Black Cat 60169, Baron Zemo's allies; docs/phase7-wave11-scenarios.md §S3.8, §S3.9),
+   * and "on a scheme" does not hear it.
+   */
+  threatPlaced: (where?: Who): EventPattern => pattern("placeThreat", asTarget(where ?? { categories: ["scheme"] })),
   /** "When a [treachery] card is revealed from the encounter deck". */
   encounterCardRevealed: (what?: TargetQuery): EventPattern =>
     pattern("encounterCardRevealing", what ? { targetIs: what } : {}),

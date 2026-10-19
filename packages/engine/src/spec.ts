@@ -71,8 +71,8 @@ import type { ReportedFact, SetupOutsideFact } from "./outside-facts.js";
 import type { ResourceRequirement, TypedResource } from "./resources.js";
 import type { FacedownRole, Form, GameStep, MainSchemeAdvancedBy } from "./state.js";
 import type { CollectionFilter } from "./campaign.js";
-// Type-only: `defeatedTogether` carries the defeats it resolves.
-import type { TriggerEvent } from "./trigger-events.js";
+// Type-only: `defeatedTogether` carries the defeats it resolves; `eventKindIs` names event kinds.
+import type { TriggerEvent, TriggerEventKind } from "./trigger-events.js";
 
 /**
  * The executable effect vocabulary. The Phase 2 ability DSL compiles down to
@@ -1568,6 +1568,15 @@ export type Predicate =
   /** A result of the triggering event is at least `amount` ("if this attack dealt damage"). */
   | { readonly kind: "eventResultAtLeast"; readonly key: string; readonly amount: number }
   /**
+   * The triggering event is of (one of) these kinds (docs/phase7-wave11-scenarios.md §S7, E20). An ability that
+   * answers several kinds of event (a list `on`, or `EventPattern.anyOf`) and does something different for each uses
+   * it to pick the branch, `instead` included. "When a character with a Vehicle attachment would: add threat to a
+   * scheme, that threat is added here instead; remove threat from a scheme, that threat is removed from here instead"
+   * (Traffic Jam, `fne` 60189) is one forced interrupt on `placeThreat` and `removeThreat` whose replacement is "if
+   * `eventKindIs placeThreat`, place the threat here, otherwise remove it from here". False with no triggering event.
+   */
+  | { readonly kind: "eventKindIs"; readonly event: TriggerEventKind | readonly TriggerEventKind[] }
+  /**
    * The basic power being used is (one of) `power`. It names the power, not the stat powering it: "matching power"
    * is `basicPowerStatIs` (docs/phase7-wave8.md §4.1 Q54). Read off the triggering event when that is a
    * `basicPowerUsing` or `basicPowerUsed`; otherwise off the `basicPowerUsing` event on the stack, the one
@@ -2140,6 +2149,15 @@ export type EffectSpec =
       readonly thwFromSch?: boolean;
       readonly consequential: number;
     }
+  /**
+   * "If there is 4 threat here, take control of Black Cat as an ally." (Black Cat, `fne` 60169; docs/phase7-wave11-
+   * scenarios.md §S3.8): the effect's controller takes control of each target minion that its own `RuleSpec
+   * treatSelfAsAlly` constant treats as an ally right now (RRG 1.8 "Card Types", p. 12: "When a player changes a minion
+   * to an ally, that player takes control of that ally"). It is that player's ally, in their play area and engaged with
+   * no one, for as long as the constant holds (`treat-as.ts` `takeControlAsOwnAlly`, `syncOwnTreatments`). A target
+   * whose constant does not hold, or that another card already treats as something else, is left as it is.
+   */
+  | { readonly kind: "takeControl"; readonly target: TargetRef }
   | {
       readonly kind: "friendlyCharacterAttacks";
       readonly attacker: TargetRef;

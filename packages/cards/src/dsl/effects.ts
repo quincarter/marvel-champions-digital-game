@@ -708,6 +708,13 @@ export const treatAsAlly = (target: TargetRef, traits: readonly Trait[], consequ
   consequential,
 });
 /**
+ * "If there is 4 threat here, take control of Black Cat as an ally." (Black Cat, `fne` 60169): you take control of
+ * each target minion its own constant (`constant(treatSelfAsAlly(…))`) treats as an ally right now; nothing
+ * happens to one whose constant does not hold. `ifThen(threatAtLeast(self, 4), takeControl(self))`.
+ * docs/phase7-wave11-scenarios.md §S3.8.
+ */
+export const takeControl = (target: TargetRef): EffectSpec => ({ kind: "takeControl", target });
+/**
  * "When a boost card on an enemy attacking you would be turned faceup, discard it instead." (Defiance, `vision`
  * 26018): the boost card resolving now is discarded, its Boost ability and icons never applied. docs/phase7-wave4.md
  * §3.35.

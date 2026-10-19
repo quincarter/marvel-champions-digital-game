@@ -1,0 +1,3 @@
+kind: Engine
+body: A minion can hold threat and be treated as an ally by its own constant while a condition holds (treatSelfAsAlly, takeControl; Black Cat 60169); a bare 'when threat is placed' interrupt now hears only threat placed on schemes.
+time: 2026-10-18T22:52:40.5797895-04:00
