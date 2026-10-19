@@ -501,8 +501,16 @@ describe("Back to the Future (40033)", () => {
     expect(threat(state, id)).toBe(4);
   });
 
-  /** The threat a basic thwart by `player` removes from `scheme` (0 when the removal is barred). */
+  /**
+   * The threat a basic thwart by `player` removes from `scheme`: 0 when the removal is barred, the scheme then being no
+   * target for the thwart, which is refused (docs/phase7-wave11-scenarios.md §S7 item 40; RRG 1.8 "Target", p. 43).
+   */
   function thwartRemoves(state: GameState, player: PlayerId, scheme: InstanceId): number {
+    const tried = applyCommand(state, basicThwart(state, player, scheme), WAVE7_DEPS);
+    if (!tried.ok) {
+      expect(tried.error.code).toBe("no_valid_target");
+      return 0;
+    }
     const after = driveEventsPicking(WAVE7_DEPS, state, firstLegal, basicThwart(state, player, scheme)).state;
     return threat(state, scheme) - threat(after, scheme);
   }

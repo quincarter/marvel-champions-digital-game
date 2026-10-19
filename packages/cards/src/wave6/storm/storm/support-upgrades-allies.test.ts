@@ -217,6 +217,27 @@ describe("Storm's supports, upgrades and allies (36006-36008, 36014-36026, 36035
       expect(inst(done, cape).exhausted).toBe(true);
       expect(inst(done, heroId(done)).exhausted).toBe(false);
     });
+    // RRG 1.8 "Resolve" (p. 37): a Special that changes nothing has not resolved (docs/phase7-wave11-scenarios.md §S7
+    // E33). Hurricane's "remove 2 threat from a scheme" with no threat on any scheme.
+    it("36007.storms-cape-response is not offered after a WEATHER Special that changed nothing (Hurricane, no threat)", () => {
+      const base = stormWith(THUNDERSTORM);
+      const { state: armed, id: cape } = attach(base, "36007", heroId(base));
+      const tired = patchInstance(armed, heroId(armed), { exhausted: true });
+      const schemes = Object.values(tired.instances).filter((i) => (i.threat ?? 0) > 0);
+      const calm = schemes.reduce((s, i) => patchInstance(s, i.instanceId, { threat: 0 }), tired);
+      const given = moveToHand(calm, P1, "36009");
+      const goddess = given.ids[0]!;
+      const done = settle(
+        runWith(DEPS, given.state, play(P1, goddess, payWith(given.state, P1, 0, [goddess]))),
+        weatherPicks("36003"),
+        (s) => offers(s, "36007.storms-cape-response"),
+        DEPS,
+      );
+      expect(instancesOf(done, "36003")).toHaveLength(1);
+      expect(offers(done, "36007.storms-cape-response")).toBe(false);
+      expect(inst(done, cape).exhausted).toBe(false);
+      expect(inst(done, heroId(done)).exhausted).toBe(true);
+    });
   });
 
   describe("Ororo's Garden (36008)", () => {

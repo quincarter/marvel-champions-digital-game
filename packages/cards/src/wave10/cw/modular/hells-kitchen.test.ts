@@ -588,12 +588,13 @@ describe("Defend Hell's Kitchen (56193)", () => {
     expect(inst(run.state, inPlayCard(run.state, DEFEND)!).threat).toBe(4);
   });
 
-  it("CONSTANT: with a Defender minion in play no threat can be removed from it, by a thwart", () => {
+  // A scheme threat cannot be removed from is no target for a basic thwart (docs/phase7-wave11-scenarios.md §S7 item
+  // 40; RRG 1.8 "Target", p. 43).
+  it("CONSTANT: with a Defender minion in play no threat can be removed from it, so a thwart of it is refused", () => {
     const withLuke = engageMinion(game(), LUKE, "luke");
     const { state, id } = encounterCardInVillainArea(withLuke, DEFEND, 4);
-    const result = thwart(state, id);
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(inst(result.state, id).threat).toBe(4);
+    expect(thwart(state, id)).toMatchObject({ ok: false, error: { code: "no_valid_target" } });
+    expect(inst(state, id).threat).toBe(4);
   });
 
   it("CONSTANT: without a Defender the same thwart removes 1 threat; a non-Defender minion does not stop it", () => {

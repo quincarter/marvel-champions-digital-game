@@ -1,5 +1,5 @@
 import { cardId, MTS_CARDS } from "@mc/content";
-import { characterProfile, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import { applyCommand, characterProfile, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   firstLegal,
@@ -395,18 +395,22 @@ describe("Garm (21143)", () => {
     const gnipahellir = instancesOf(state, "21140")[0]!;
     const withThreat = patchInstance(heroForm(state), gnipahellir, { threat: 5 });
     const identity = identityOf(withThreat, P1);
-    const attempted = settle(
-      runWave4(withThreat, {
-        type: "basicThwart",
-        playerId: P1,
-        thwarterInstanceId: identity,
-        schemeInstanceId: gnipahellir,
-      }),
-      firstLegal,
-      undefined,
-      WAVE4_DEPS,
-    );
-    expect(inst(attempted, gnipahellir).threat).toBe(5); // unchanged: threat cannot be removed from Gnipahellir
+    // No target for the thwart (docs/phase7-wave11-scenarios.md §S7 item 40; RRG 1.8 "Target", p. 43).
+    expect(
+      applyCommand(
+        withThreat,
+        {
+          type: "basicThwart",
+          playerId: P1,
+          thwarterInstanceId: identity,
+          schemeInstanceId: gnipahellir,
+        },
+        WAVE4_DEPS,
+      ),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "no_valid_target" },
+    });
   });
 });
 
@@ -424,18 +428,22 @@ describe("Skurge (21144)", () => {
 
     const { state: withGjallerbru, id: gjallerbru } = sideSchemeInPlay(state, "21142");
     const withThreat = heroForm(withGjallerbru);
-    const attempted = settle(
-      runWave4(withThreat, {
-        type: "basicThwart",
-        playerId: P1,
-        thwarterInstanceId: identityOf(withThreat, P1),
-        schemeInstanceId: gjallerbru,
-      }),
-      firstLegal,
-      undefined,
-      WAVE4_DEPS,
-    );
-    expect(inst(attempted, gjallerbru).threat).toBe(5); // unchanged: threat cannot be removed from Gjallerbru
+    // No target for the thwart (docs/phase7-wave11-scenarios.md §S7 item 40; RRG 1.8 "Target", p. 43).
+    expect(
+      applyCommand(
+        withThreat,
+        {
+          type: "basicThwart",
+          playerId: P1,
+          thwarterInstanceId: identityOf(withThreat, P1),
+          schemeInstanceId: gjallerbru,
+        },
+        WAVE4_DEPS,
+      ),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "no_valid_target" },
+    });
   });
 });
 
@@ -449,18 +457,22 @@ describe("Nidhogg (21145)", () => {
 
     const { state: withNastrond, id: hallOfNastrond } = sideSchemeInPlay(state, "21141");
     const withThreat = heroForm(withNastrond);
-    const attempted = settle(
-      runWave4(withThreat, {
-        type: "basicThwart",
-        playerId: P1,
-        thwarterInstanceId: identityOf(withThreat, P1),
-        schemeInstanceId: hallOfNastrond,
-      }),
-      firstLegal,
-      undefined,
-      WAVE4_DEPS,
-    );
-    expect(inst(attempted, hallOfNastrond).threat).toBe(5); // unchanged: threat cannot be removed from Hall of Nastrond
+    // No target for the thwart (docs/phase7-wave11-scenarios.md §S7 item 40; RRG 1.8 "Target", p. 43).
+    expect(
+      applyCommand(
+        withThreat,
+        {
+          type: "basicThwart",
+          playerId: P1,
+          thwarterInstanceId: identityOf(withThreat, P1),
+          schemeInstanceId: hallOfNastrond,
+        },
+        WAVE4_DEPS,
+      ),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "no_valid_target" },
+    });
   });
 });
 

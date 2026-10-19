@@ -370,19 +370,17 @@ describe("The Thunderbolts (57021)", () => {
     expect(inst(run.state, scheme).threat).toBeLessThan(3);
   });
 
-  // The engine refuses a basic thwart up front only for a rule with an exception (`characterCannotRemoveThreat`,
-  // "left to the removal itself" for a plain rule), so a plain rule lets the hero thwart and removes nothing. Flagged:
-  // RRG "Target" (p. 43) arguably makes the scheme not a legal target.
-  it("while a Thunderbolt minion is in play, a basic thwart is accepted by the engine but removes no threat", () => {
+  // A scheme threat cannot be removed from is no target for a basic thwart (docs/phase7-wave11-scenarios.md §S7 item
+  // 40; RRG 1.8 "Target", p. 43: "not valid ... if that ability would cause the target to perform a game function that
+  // another ability says the target cannot perform"), so the engine refuses it up front.
+  it("while a Thunderbolt minion is in play, the side scheme is no target for a basic thwart", () => {
     const { state, scheme } = schemeGame(true);
     const result = applyCommand(
       state,
       { type: "basicThwart", playerId: P1, thwarterInstanceId: hero(state), schemeInstanceId: scheme },
       WAVE10_DEPS,
     );
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(inst(driveEventsPicking(WAVE10_DEPS, result.state, firstLegal).state, scheme).threat).toBe(3);
+    expect(result).toMatchObject({ ok: false, error: { code: "no_valid_target" } });
   });
 
   /** P1 plays Nick Fury (Core: "remove 2 threat from a scheme"), choosing that option and the side scheme. */

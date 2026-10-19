@@ -544,28 +544,21 @@ export const threatCannotBeRemoved = (
   });
 
 /**
- * Whether a `threatCannotBeRemoved` rule scoped with `exceptBy` keeps this character from removing threat from the
- * scheme (docs/phase7-wave7.md §3.51): what the basic thwart command refuses on, so the scheme is not a legal target
- * of that character's basic thwart. A rule without `exceptBy`, or one that also scopes itself with `by` or `player`,
- * is left to the removal itself, as before the field. A rule with `exceptThwartBy` (docs/phase7-wave10-hero-packs.md
- * H3.6) refuses the basic thwart of every character it does not name, on the same terms, and so does one with
- * `exceptFromSource` (docs/phase7-wave11.md §3.5): a basic thwart's removing card is its character.
+ * Whether a `threatCannotBeRemoved` rule keeps this character's basic thwart from removing threat from the scheme, so
+ * the scheme is not a legal target of it: the same reading `threatCannotBeRemoved` gives the removal that thwart would
+ * make (a thwart by `characterId`, its removing card, for `playerId`, else the character's controller). Every rule
+ * counts, a plain "Threat cannot be removed from this scheme" as much as one with `exceptBy` (docs/phase7-wave7.md
+ * §3.51), `exceptThwartBy` (docs/phase7-wave10-hero-packs.md H3.6), `exceptFromSource` (docs/phase7-wave11.md §3.5),
+ * `by: "thwart"` or `player` (docs/phase7-wave11-scenarios.md §S7 item 40). RRG 1.8 "Target" (p. 43): a target is
+ * invalid if no part of the ability can affect it, or if another ability says it cannot perform that game function.
  */
 export const characterCannotRemoveThreat = (
   state: GameState,
   deps: EngineDeps,
   schemeId: InstanceId,
   characterId: InstanceId,
-): boolean =>
-  activeRules(state, deps, "threatCannotBeRemoved").some(
-    ({ rule, context }) =>
-      rule.by !== "thwart" &&
-      rule.player === undefined &&
-      matchesQuery(state, schemeId, rule.target, context) &&
-      ((rule.exceptBy !== undefined && !matchesQuery(state, characterId, rule.exceptBy, context)) ||
-        (rule.exceptThwartBy !== undefined && !matchesQuery(state, characterId, rule.exceptThwartBy, context)) ||
-        (rule.exceptFromSource !== undefined && !matchesQuery(state, characterId, rule.exceptFromSource, context))),
-  );
+  playerId: PlayerId | null = controllerOf(state, characterId),
+): boolean => threatCannotBeRemoved(state, deps, schemeId, true, playerId, characterId, [characterId]);
 
 /**
  * "While Baron Zemo is engaged with you, you cannot thwart." With `schemeId`, whether this player cannot thwart that

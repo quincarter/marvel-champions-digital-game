@@ -80,6 +80,21 @@ function revealCard(
   return { state: after, id };
 }
 
+/**
+ * P1's readied basic thwart of `target` as one command, unresolved: a scheme threat cannot be removed from is no target
+ * for it, so it is refused (docs/phase7-wave11-scenarios.md §S7 item 40; RRG 1.8 "Target", p. 43).
+ */
+function thwartCommand(deps: EngineDeps, state: GameState, target: InstanceId) {
+  const identity = identityOf(state, P1);
+  const readied = patchInstance(state, identity, { exhausted: false });
+  return applyCommand(
+    readied,
+    { type: "basicThwart", playerId: P1, thwarterInstanceId: identity, schemeInstanceId: target },
+    deps,
+  );
+}
+const REFUSED = { ok: false, error: { code: "no_valid_target" } } as const;
+
 /** A basic thwart from P1's identity against `target`, readying it first (`scenario-cards.test.ts`'s own shape). */
 function thwart(deps: EngineDeps, state: GameState, target: InstanceId): GameState {
   const identity = identityOf(state, P1);
@@ -123,8 +138,9 @@ describe("Taunting Presence (27104, attachment)", () => {
     const { state: attached } = revealCard(WAVE5_DEPS, withThreat, "27104");
     const threatBefore = inst(attached, light).threat;
 
-    const blocked = thwart(WAVE5_DEPS, attached, light);
-    expect(inst(blocked, light).threat, "threatCannotBeRemoved should have blocked the thwart").toBe(threatBefore);
+    expect(thwartCommand(WAVE5_DEPS, attached, light), "threatCannotBeRemoved should refuse the thwart").toMatchObject(
+      REFUSED,
+    );
 
     const withoutTheScript = thwart(depsWithout("27104.taunting-presence-constant-2"), attached, light);
     expect(inst(withoutTheScript, light).threat).toBeLessThan(threatBefore);
@@ -171,8 +187,7 @@ describe("Brute Force Barricade (27107, side scheme)", () => {
     const barricadeThreatBefore = inst(withBarricade, barricade).threat;
     const lightThreatBefore = inst(withBarricade, light).threat;
 
-    const blockedOther = thwart(WAVE5_DEPS, withBarricade, light);
-    expect(inst(blockedOther, light).threat).toBe(lightThreatBefore);
+    expect(thwartCommand(WAVE5_DEPS, withBarricade, light)).toMatchObject(REFUSED);
 
     const allowedSelf = thwart(WAVE5_DEPS, withBarricade, barricade);
     expect(inst(allowedSelf, barricade).threat).toBeLessThan(barricadeThreatBefore);

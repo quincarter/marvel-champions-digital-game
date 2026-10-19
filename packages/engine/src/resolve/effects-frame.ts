@@ -242,8 +242,11 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
     // RRG 1.8 "Resolve" (p. 37): an ability resolves only if one or more of its effects is applied to the game state;
     // FFG ruling on Citywide Crisis (RRG 1.0-1.4 era): a When Revealed that changes nothing does not count. Any change
     // counts, however partial. Read with this frame popped, so the frames beneath are the ones beneath at its start,
-    // and before the lasting effects that end with it do, which were there at its start too.
-    if (frame.resolvedCount && gameFingerprint(ctx.state) !== frame.resolvedCount.from)
+    // and before the lasting effects that end with it do, which were there at its start too. The count, the
+    // `<prefix>.resolved` slot and the `abilityResolved` announcement all follow it. Unmeasured (nothing could answer
+    // as the effects began, `resolveAbility`): read as changed, so a listener that arrived meanwhile still hears it.
+    const changed = !frame.resolvedCount || gameFingerprint(ctx.state) !== frame.resolvedCount.from;
+    if (changed && frame.resolvedCount)
       for (const counted of frame.resolvedCount.to) addFrameVars(ctx, counted.frameId, { [counted.name]: 1 });
     // A rule waiting on an attack this frame never initiated ends with it (spec.ts `applyRuleUntil`, "initiated").
     settleAwaitingAttackEffects(ctx, frame.frameId, null);
@@ -272,8 +275,8 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
         // `<prefix>.resolved`: the cards whose Special resolved. One a stunned/confused status card or an interrupt
         // replaced never reaches its effects, and one cut short after its cost (`beginEffectAfterCost`) lost its
         // announcement, so neither is listed ("each technique upgrade resolved this way"; FFG ruling Oct 18, 2024,
-        // post-RRG 1.6 #26 (3)).
-        if (frame.announceResolved && frame.selfInstanceId)
+        // post-RRG 1.6 #26 (3)); nor is one whose effects changed nothing (RRG 1.8 "Resolve", p. 37).
+        if (changed && frame.announceResolved && frame.selfInstanceId)
           bindings[`${prefix}.resolved`] = [
             ...new Set([...(bindings[`${prefix}.resolved`] ?? []), frame.selfInstanceId]),
           ];
@@ -289,7 +292,7 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
     // A response to a deck discard: the cards it took away are recorded as its (box-heroes B3.3).
     noteDeckDiscardsTaken(ctx, frame);
     // The ability these effects are has now resolved (RRG 1.8 "Resolve", p. 37).
-    announceAbilityResolved(ctx, frame);
+    announceAbilityResolved(ctx, frame, changed);
     return;
   }
   if (beginEffectAfterCost(ctx, frame)) return;

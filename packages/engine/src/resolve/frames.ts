@@ -277,7 +277,7 @@ export function pushEffects(
     readonly returnBindingsPrefix?: string;
     /** With `returnBindingsPrefix`: only what changed since this goes back (`Frame<"effects">.returnChangedFrom`). */
     readonly returnChangedFrom?: Frame<"effects">["returnChangedFrom"];
-    /** A counted Special's effects (`Frame<"effects">.resolvedCount`). */
+    /** A measured ability's effects (`Frame<"effects">.resolvedCount`). */
     readonly resolvedCount?: Frame<"effects">["resolvedCount"];
     /** The effects of an ability a player uses (docs/phase7-wave4.md §3.44). */
     readonly byPlayer?: boolean;

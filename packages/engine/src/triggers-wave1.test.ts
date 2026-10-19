@@ -459,18 +459,15 @@ describe("§3.11 rules", () => {
   it("'Threat cannot be removed from attached scheme by thwarting': a thwart is blocked, other removal is not", () => {
     const hostage = encounterInPlay(game(), HOSTAGE, 3);
     const hero = runCommands(hostage.state, deps, toHero).state;
-    const thwarted = runCommands(hero, deps, {
+    // The scheme is no target for the basic thwart (docs/phase7-wave11-scenarios.md §S7 item 40; RRG 1.8 "Target",
+    // p. 43): refused up front rather than accepted and removing none.
+    const thwart: Command = {
       type: "basicThwart",
       playerId: p1,
       thwarterInstanceId: identity(hero).instanceId,
       schemeInstanceId: hostage.id,
-    });
-    expect(mustInstance(thwarted.state, hostage.id).threat).toBe(3);
-    expect(thwarted.events).toContainEqual({
-      type: "threatRemovalBlocked",
-      schemeInstanceId: hostage.id,
-      reason: "rule",
-    });
+    };
+    expect(applyCommand(hero, thwart, deps)).toMatchObject({ ok: false, error: { code: "no_valid_target" } });
     expect(mustInstance(play(hero, REMOVE_ONE).state, hostage.id).threat).toBe(2);
   });
 

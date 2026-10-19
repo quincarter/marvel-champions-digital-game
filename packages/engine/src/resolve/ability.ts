@@ -102,7 +102,7 @@ export function executeAbilityFrame(ctx: Ctx, frame: Frame<"ability">): void {
   const top = ctx.state.stack[0];
   const pushed = top?.kind === "effects" && top.frameId !== below && top.selfInstanceId === frame.instanceId;
   settlePaidForEffects(ctx, frame.frameId, pushed ? top.frameId : null);
-  // The game as a counted Special's effects begin (`Frame<"effects">.resolvedCount`), the frames beneath them with it:
+  // The game as a measured ability's effects begin (`Frame<"effects">.resolvedCount`), the frames beneath them with it:
   // after its costs. Limitation: a cost written as its leading effects (`costEffects`) is paid inside the frame, so
   // paying it reads as a change even if the effects then do nothing. No counted Special (a When Revealed, Boost,
   // Preparation or When Defeated resolved on instruction) has such a cost today.
@@ -210,6 +210,10 @@ function resolveAbility(ctx: Ctx, frame: Frame<"ability">): void {
     abilityId: frame.abilityId,
     controllerId: frame.controllerId,
   };
+  const measured =
+    (frame.resolvedCounts?.length ?? 0) > 0 ||
+    frame.returnBindingsTo !== undefined ||
+    heard(ctx.state, ctx.deps, { kind: "abilityResolved", ...announceResolved });
   // A player's own ability, or one a player chose to use (docs/phase7-wave4.md §3.44).
   const trigger = definition.trigger;
   // A keyword is a game rule, not a player's choice: "players cannot discard …" does not stop temporary.
@@ -233,11 +237,11 @@ function resolveAbility(ctx: Ctx, frame: Frame<"ability">): void {
     ...(frame.returnBindingsTo
       ? { returnBindingsTo: frame.returnBindingsTo.frameId, returnBindingsPrefix: frame.returnBindingsTo.prefix }
       : {}),
-    // Whether this Special resolved is read as its effects finish, against the game as they begin: taken here, with
+    // Whether this ability resolved is read as its effects finish, against the game as they begin: taken here, with
     // the stack beneath them, and again by `executeAbilityFrame` once the paid-for effects have followed the ability.
-    ...(frame.resolvedCounts?.length
-      ? { resolvedCount: { from: gameFingerprint(ctx.state), to: frame.resolvedCounts } }
-      : {}),
+    // Taken only where it is read: a counted Special, a Special reporting `<prefix>.resolved`, or an ability whose
+    // resolution something could answer (the digest is the whole game, too costly to take for every ability).
+    ...(measured ? { resolvedCount: { from: gameFingerprint(ctx.state), to: frame.resolvedCounts ?? [] } } : {}),
   });
   if (labelAfterCost) {
     const pushed = ctx.state.stack[0];
@@ -251,10 +255,11 @@ function resolveAbility(ctx: Ctx, frame: Frame<"ability">): void {
  * resolve the ability of …" answers, made by the ability's effects frame as it finishes and only when something could
  * respond. It carries the slots the ability holds by then (docs/phase7-wave9.md §3.43 (c)): what its costs bound, its
  * chosen targets, and what its effects bound, so "After you resolve Falcon's 'Eagle-Eyed' ability, … for each icon in
- * the discarded card's boost area" reads the card that ability's effect discarded.
+ * the discarded card's boost area" reads the card that ability's effect discarded. Not made when its effects changed
+ * nothing (`changed`, read by `executeEffectsFrame` from `Frame<"effects">.resolvedCount`): RRG 1.8 "Resolve", p. 37.
  */
-export function announceAbilityResolved(ctx: Ctx, frame: Frame<"effects">): void {
-  if (!frame.announceResolved) return;
+export function announceAbilityResolved(ctx: Ctx, frame: Frame<"effects">, changed: boolean): void {
+  if (!frame.announceResolved || !changed) return;
   const carried = slotsCarriedByResolved(frame.bindings);
   const resolved: TriggerEvent = {
     kind: "abilityResolved",

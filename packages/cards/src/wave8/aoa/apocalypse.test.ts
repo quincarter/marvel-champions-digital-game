@@ -1,5 +1,6 @@
 import { AOA_CARDS, CORE_CARDS, encounterSetId } from "@mc/content";
 import {
+  applyCommand,
   createGame,
   hasKeyword,
   ignoredAbilities,
@@ -273,9 +274,13 @@ describe("the side scheme chain (45104a, 45104b, 45105a)", () => {
   it("threat cannot be removed from Heart of the Empire while a Prelate is in play", () => {
     const s = setupGame({ players: 3 });
     const heart = inVillainArea(s, HEART)[0]!;
-    const run = thwartOut(s, heart);
-    expect(inst(run.state, heart).threat).toBe(2);
-    expect(inVillainArea(run.state, HEART)).toHaveLength(1);
+    // No target for the basic thwart (docs/phase7-wave11-scenarios.md §S7 item 40; RRG 1.8 "Target", p. 43).
+    const hero = readied(asHero(s), P1);
+    expect(applyCommand(hero, thwart(hero, heart), DEPS)).toMatchObject({
+      ok: false,
+      error: { code: "no_valid_target" },
+    });
+    expect(inst(hero, heart).threat).toBe(2);
   });
 
   it("Heart defeated: a second Prelate is revealed, players 2 and 3 are dealt 1 facedown card each, Heart flips to The Towering Citadel (3 threat)", () => {

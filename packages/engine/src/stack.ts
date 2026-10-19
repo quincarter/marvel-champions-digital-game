@@ -533,9 +533,11 @@ export type StackFrame =
        */
       readonly returnChangedFrom?: { readonly vars: Vars; readonly bindings: Bindings };
       /**
-       * A Special's own effects whose resolution is counted (`Frame<"ability">.resolvedCounts`): `from` is the game's
-       * digest as they began (`gameFingerprint`). When they finish with the game changed, the Special resolved and
-       * each var in `to` goes up by 1; when nothing changed, it did not (RRG 1.8 "Resolve", p. 37).
+       * An ability's effects whose resolution is read (`resolveAbility`): `from` is the game's digest as they began
+       * (`gameFingerprint`). When they finish with the game changed, the ability resolved: each var in `to` (its
+       * `Frame<"ability">.resolvedCounts`) goes up by 1, a Special is listed in `<prefix>.resolved` and
+       * `abilityResolved` is announced; when nothing changed, none of them (RRG 1.8 "Resolve", p. 37). Absent when
+       * nothing reads it, which reads as changed.
        */
       readonly resolvedCount?: { readonly from: string; readonly to: readonly ResolvedCountVar[] };
       /**

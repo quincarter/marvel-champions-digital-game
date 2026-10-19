@@ -189,7 +189,9 @@ describe("Lady Spider (ally, 30012)", () => {
     expect(offered).not.toContain(scheme);
   });
 
-  it("30012.lady-spider-response: a thwart that removes no threat (Brute Force Barricade blocks it) removes none from a different scheme", () => {
+  // Brute Force Barricade makes Light at the End no target for her basic thwart (docs/phase7-wave11-scenarios.md §S7
+  // item 40; RRG 1.8 "Target", p. 43), so the thwart is refused and her Response never comes up.
+  it("30012.lady-spider-response: a thwart Brute Force Barricade blocks is refused, so no threat is removed anywhere", () => {
     const hero = runWave5(startWave5Game(spiderHamScenario("sinister-six", { seed: 2 })), toHero(P1));
     const { state: withLady, id: lady } = playFromHand(topUp(hero, 4), "30012", 4, accepting());
     // Light at the End (`sm` 27102a), in play from setup; "Threat cannot be removed from other side schemes."
@@ -202,16 +204,14 @@ describe("Lady Spider (ally, 30012)", () => {
     );
     const main = staged.mainScheme.instanceId;
     const mainBefore = inst(staged, main).threat;
-    const thwarted = settle(
-      runWave5(staged, ladyThwarts(lady, light)),
-      accepting(LADY_SPIDER_RESPONSE, main, barricade),
-      undefined,
-      WAVE5_DEPS,
-    );
-    expect(inst(thwarted, lady).exhausted).toBe(true); // she did thwart,
-    expect(inst(thwarted, light).threat).toBe(5); // but removed no threat,
-    expect(inst(thwarted, main).threat).toBe(mainBefore); // so none is removed from a different scheme.
-    expect(inst(thwarted, barricade).threat).toBe(3);
+    expect(applyCommand(staged, ladyThwarts(lady, light), WAVE5_DEPS)).toMatchObject({
+      ok: false,
+      error: { code: "no_valid_target" },
+    });
+    expect(inst(staged, lady).exhausted).toBe(false);
+    expect(inst(staged, light).threat).toBe(5);
+    expect(inst(staged, main).threat).toBe(mainBefore);
+    expect(inst(staged, barricade).threat).toBe(3);
   });
 
   it("30012.lady-spider-response: without another Web-Warrior card controlled (alter-ego form: Peter Porker prints no Web-Warrior trait), thwarting removes no threat from a different scheme", () => {

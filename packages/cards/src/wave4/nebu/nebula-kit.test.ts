@@ -389,4 +389,21 @@ describe("Combat Protocols (22001a) with a technique whose Special is replaced b
     expect(inst(after, identity).statuses.stunned ?? 0).toBe(0);
     expect(inst(after, villain).damage - damageBefore).toBeGreaterThan(0);
   });
+  // RRG 1.8 "Resolve" (p. 37): an ability resolves only if one of its effects changes the game (docs/phase7-wave11-
+  // scenarios.md §S7 E33). "Give Nebula a tough status card" finds her already tough and changes nothing. FFG ruling
+  // (docs/rulings/rrg-1-0-to-1-4/38-nebula.md): a Technique whose Special cannot be resolved stays in play.
+  it("Unyielding Persistence (22006) with Nebula already tough: its Special changes nothing, so it stays in play", () => {
+    const hero = runWith(WAVE4_DEPS, startWave4Game(nebulaScenario("rhino", { seed: 9 })), toHero());
+    const identity = identityOf(hero, P1);
+    const { state: withTech, id: tech } = playFromHand(hero, "22006", 1);
+    const tough = patchInstance(withTech, identity, { statuses: { ...inst(withTech, identity).statuses, tough: 1 } });
+    // Rhino stunned (his activation does not attack) and Hydra Mercenary (01101) the card revealed, so Nebula is
+    // still tough when her turn begins.
+    const villain = activeVillain(tough).instanceId;
+    const stunned = patchInstance(tough, villain, { statuses: { ...inst(tough, villain).statuses, stunned: 1 } });
+    const staged = stackEncounterDeck(stunned, "01101");
+    const after = settle(runWith(WAVE4_DEPS, staged, endTurn()), firstLegal, undefined, WAVE4_DEPS);
+    expect(inst(after, identity).statuses.tough).toBe(1);
+    expect(playerOf(after, P1).discard).not.toContain(tech);
+  });
 });

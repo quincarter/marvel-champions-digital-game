@@ -278,10 +278,13 @@ describe("Crime Scene Investigation (39037)", () => {
     const { state: withOther, id: other } = withCrimeCard(withCrime, LAW_AND_ORDER, 3);
     const main = withOther.mainScheme.instanceId;
     const staged = patchInstance(withOther, main, { threat: 4 });
+    // Neither is a target for the basic thwart (docs/phase7-wave11-scenarios.md §S7 item 40; RRG 1.8 "Target", p. 43).
     for (const scheme of [main, other]) {
-      const { state, events } = thwart(staged, scheme);
-      expect(threatOn(state, scheme), scheme).toBe(threatOn(staged, scheme));
-      expect(of(events, "threatRemovalBlocked").map((e) => e.reason)).toEqual(["rule"]);
+      const command = { type: "basicThwart" as const, playerId: P1, thwarterInstanceId: hero(staged) };
+      expect(applyCommand(staged, { ...command, schemeInstanceId: scheme }, deps), scheme).toMatchObject({
+        ok: false,
+        error: { code: "no_valid_target" },
+      });
     }
     // This scheme itself can still be thwarted.
     expect(threatOn(thwart(staged, crime).state, crime)).toBeLessThan(3);

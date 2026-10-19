@@ -7025,12 +7025,16 @@ function basicThwartWith(
         command,
       );
     }
-    // "Characters other than [X] cannot remove threat from [this scheme]" (`RuleSpec threatCannotBeRemoved.exceptBy`,
-    // docs/phase7-wave7.md §3.51): a scheme this character cannot remove threat from is not a legal target of its
-    // basic thwart (docs/phase7-wave5.md §4.1 Q18; RRG 1.8 "Thwart", p. 44: a basic thwart needs "a scheme with at
-    // least one threat for the character to remove"), checked per share like the crisis icon, so a divided thwart
-    // cannot include it. A confused character may still attempt it (RRG 1.8 "Confuse, Confused", p. 13).
-    if (!confused && characterCannotRemoveThreat(ctx.state, ctx.deps, schemeId, command.thwarterInstanceId)) {
+    // Any `threatCannotBeRemoved` rule this thwart's removal would meet ("Threat cannot be removed from this scheme",
+    // "Characters other than [X] cannot remove threat from [this scheme]", docs/phase7-wave7.md §3.51): a scheme this
+    // character cannot remove threat from is not a legal target of its basic thwart (docs/phase7-wave11-scenarios.md
+    // §S7 item 40; RRG 1.8 "Thwart", p. 44: a basic thwart needs "a scheme with at least one threat for the character
+    // to remove"), checked per share like the crisis icon, so a divided thwart cannot include it. A confused character
+    // may still attempt it (RRG 1.8 "Confuse, Confused", p. 13). RRG 1.8 "Target" (p. 43): "cannot" makes it invalid.
+    if (
+      !confused &&
+      characterCannotRemoveThreat(ctx.state, ctx.deps, schemeId, command.thwarterInstanceId, command.playerId)
+    ) {
       return engineError("no_valid_target", "this character cannot remove threat from that scheme", command);
     }
   }

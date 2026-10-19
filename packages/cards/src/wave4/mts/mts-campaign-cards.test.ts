@@ -1,5 +1,6 @@
 import { cardId, MTS_STARTER_DECKS, type AnyCard } from "@mc/content";
 import {
+  applyCommand,
   cardsInPlay,
   characterProfile,
   handSize,
@@ -327,19 +328,22 @@ describe("Find the Norn Stones (21186a) / Retrieve Odin's Armor (21186b)", () =>
     };
     const staged = schemeInPlay(merged, "21186a", 5);
     const identity = identityOf(staged.state, P1);
-    const blocked = settle(
-      runWave4(staged.state, {
-        type: "basicThwart",
-        playerId: P1,
-        thwarterInstanceId: identity,
-        schemeInstanceId: staged.id,
-      }),
-      firstLegal,
-      undefined,
-      WAVE4_DEPS,
-    );
-    // Hela's Mystic (side A, un-Wounded) is in play — the "unless Wounded" gate holds threat at 5.
-    expect(inst(blocked, staged.id).threat).toBe(5);
+    // No target for the thwart (docs/phase7-wave11-scenarios.md §S7 item 40; RRG 1.8 "Target", p. 43).
+    expect(
+      applyCommand(
+        staged.state,
+        {
+          type: "basicThwart",
+          playerId: P1,
+          thwarterInstanceId: identity,
+          schemeInstanceId: staged.id,
+        },
+        WAVE4_DEPS,
+      ),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "no_valid_target" },
+    });
 
     const woundedHela: GameState = {
       ...staged.state,
@@ -390,18 +394,22 @@ describe("Find the Norn Stones (21186a) / Retrieve Odin's Armor (21186b)", () =>
     const base = heroForm(campaignGame(["21186b"]));
     const staged = schemeInPlay(base, "21186b", 5);
     const identity = identityOf(staged.state, P1);
-    const blocked = settle(
-      runWave4(staged.state, {
-        type: "basicThwart",
-        playerId: P1,
-        thwarterInstanceId: identity,
-        schemeInstanceId: staged.id,
-      }),
-      firstLegal,
-      undefined,
-      WAVE4_DEPS,
-    );
-    expect(inst(blocked, staged.id).threat).toBe(5);
+    // No target for the thwart (docs/phase7-wave11-scenarios.md §S7 item 40; RRG 1.8 "Target", p. 43).
+    expect(
+      applyCommand(
+        staged.state,
+        {
+          type: "basicThwart",
+          playerId: P1,
+          thwarterInstanceId: identity,
+          schemeInstanceId: staged.id,
+        },
+        WAVE4_DEPS,
+      ),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "no_valid_target" },
+    });
   });
 
   it("on defeat, heals Odin and flips him to his King side (21186b.when-defeated)", () => {
