@@ -452,6 +452,33 @@ export function threatRemoverOf(ctx: Ctx, frame: Frame<"effects">): PlayerId | n
   return sourcePlayerOf(ctx.state, { sourceInstanceId: frame.selfInstanceId });
 }
 
+/**
+ * One `forEachPlayer` pass per player of `players`, resolving in that order: each pass is its own effects frame with
+ * `scopedPlayerId` = that player, sharing the parent frame's source, bindings and vars.
+ */
+export function pushEachPlayerPass(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effects: readonly EffectSpec[],
+  players: readonly PlayerId[],
+): void {
+  // Pushed in reverse so the first player's pass resolves first.
+  for (const playerId of [...players].reverse()) {
+    pushEffects(ctx, {
+      effects,
+      selfInstanceId: frame.selfInstanceId,
+      abilityId: frame.abilityId,
+      instruction: frame.instruction,
+      controllerId: frame.controllerId,
+      event: frame.event,
+      eventFrameId: frame.eventFrameId,
+      bindings: frame.bindings,
+      vars: frame.vars,
+      scopedPlayerId: playerId,
+    });
+  }
+}
+
 export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext, frame: Frame<"effects">): void {
   // Announcements pushed only when an ability listens, so a game with no listener resolves as before.
   const pushHeard = (events: readonly TriggerEvent[]): void => {
@@ -3467,25 +3494,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         drawUpTo(ctx, playerId, () => value(effect.amount));
       }
       return;
-    case "forEachPlayer": {
-      const players = resolvePlayers(ctx.state, effect.players, context);
-      // Pushed in reverse so the first player's pass resolves first.
-      for (const playerId of [...players].reverse()) {
-        pushEffects(ctx, {
-          effects: effect.effects,
-          selfInstanceId: frame.selfInstanceId,
-          abilityId: frame.abilityId,
-          instruction: frame.instruction,
-          controllerId: frame.controllerId,
-          event: frame.event,
-          eventFrameId: frame.eventFrameId,
-          bindings: frame.bindings,
-          vars: frame.vars,
-          scopedPlayerId: playerId,
-        });
-      }
+    case "forEachPlayer":
+      // `order: "firstPlayerChooses"` is asked by the effects frame (`executeForEachPlayerOrdered`) before it lands here.
+      pushEachPlayerPass(ctx, frame, effect.effects, resolvePlayers(ctx.state, effect.players, context));
       return;
-    }
     case "enemyAttack":
     case "enemyScheme":
     case "enemyActivation": {

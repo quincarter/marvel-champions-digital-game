@@ -166,7 +166,7 @@ import { executeReportFact } from "./report-fact.js";
 import { executeBasicPowerBy } from "./basic-power-by.js";
 import { resolveTeamwork } from "./enter-play.js";
 import { effectChoiceAuthority, simultaneousOrderer } from "../villain/authority.js";
-import { applyEffect, putIntoPlayHostSlot, threatRemoverOf } from "./apply-effect.js";
+import { applyEffect, pushEachPlayerPass, putIntoPlayHostSlot, threatRemoverOf } from "./apply-effect.js";
 import { applyFindCard, findCandidates } from "./find.js";
 import { putIntoPlayHostCandidates } from "./reveal.js";
 import { controllerOfArea, joinGameArea } from "./game-areas.js";
@@ -339,6 +339,8 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   if (effect.kind === "divideDamageEvenly") return executeDivideDamageEvenly(ctx, frame, effect, context);
   if (effect.kind === "spendResources") return executeSpendResources(ctx, frame, effect, context);
   if (effect.kind === "dealEncounterCard") return executeDealEncounterCards(ctx, frame, effect, context);
+  if (effect.kind === "forEachPlayer" && effect.order === "firstPlayerChooses")
+    return executeForEachPlayerOrdered(ctx, frame, effect, context);
   if (effect.kind === "reorderCards") return executeReorderCards(ctx, frame, effect, context);
   if (effect.kind === "changeForm") return executeChangeForm(ctx, frame, effect, context);
   if (effect.kind === "joinGameArea") return executeJoinGameArea(ctx, frame, context);
@@ -1675,6 +1677,41 @@ function orderedActivation(
     : [getInstance(ctx.state, enemies[0]!)?.engagedWith ?? context.controllerId];
   const player = playerId ? getPlayer(ctx.state, playerId) : undefined;
   return player && player.identity.form !== "hero" ? "scheme" : "attack";
+}
+
+/**
+ * A `forEachPlayer` with `order: "firstPlayerChooses"` (docs/phase7-wave11-scenarios.md §S7 E27). RRG 1.8 "Each
+ * Player" (p. 17): "If the effect does not specify what order the players resolve the effect in, the first player
+ * decides the order." The first player orders the players with the `orderPlayers` prompt `dealEncounterCard` asks
+ * (`authority: "firstPlayerOrders"`, as every simultaneous ordering is); then each player's pass resolves in turn, as
+ * `forEachPlayer` resolves in player order. One player (or none) is not asked, and an answer that does not name every
+ * player exactly once falls back to player order, so a replay always resolves the same way.
+ */
+function executeForEachPlayerOrdered(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "forEachPlayer" }>,
+  context: EffectContext,
+): void {
+  const players = resolvePlayers(ctx.state, effect.players, context);
+  if (frame.answer === null && players.length > 1) {
+    requestChoice(ctx, {
+      playerId: simultaneousOrderer(ctx.state),
+      authority: "firstPlayerOrders",
+      prompt: { kind: "orderPlayers", reason: "forEachPlayer" },
+      options: players.map((id) => ({ optionId: id, label: id, ref: { kind: "player", playerId: id } as const })),
+      minSelections: players.length,
+      maxSelections: players.length,
+      frameId: frame.frameId,
+      ordered: true,
+    });
+    return;
+  }
+  const answered = (frame.answer ?? []).map((id) => asPlayerId(id)).filter((id) => players.includes(id));
+  const order = answered.length === players.length && new Set(answered).size === players.length ? answered : players;
+  const next: Frame<"effects"> = { ...frame, answer: null, cursor: frame.cursor + 1 };
+  setFrame(ctx, next);
+  pushEachPlayerPass(ctx, next, effect.effects, order);
 }
 
 /**

@@ -63,8 +63,11 @@ export type ChoicePrompt =
    * RRG 1.8 "Each Player" (p. 17): "If the effect does not specify what order the players resolve the effect in,
    * the first player decides the order." Ordering which players receive dealt encounter cards (ruling, Jan 26, 2026
    * (4) answer 3). The selections are player ids, in the order they resolve.
+   *
+   * `reason: "forEachPlayer"`: a `forEachPlayer` with `order: "firstPlayerChooses"` (docs/phase7-wave11-scenarios.md
+   * §S7 E27); each player's pass resolves in the order selected.
    */
-  | { readonly kind: "orderPlayers"; readonly reason: "dealEncounterCards" }
+  | { readonly kind: "orderPlayers"; readonly reason: "dealEncounterCards" | "forEachPlayer" }
   /**
    * "Put the others back in any order" (Heimdall): the selections are the cards, in the order they go back on top of
    * the deck. RRG 1.8 "Deck" (p. 15): a deck's order changes only when a card instructs it.

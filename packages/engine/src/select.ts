@@ -1772,7 +1772,7 @@ export function explainQuery(
   // RRG 1.8 "Classifications" (p. 12); docs/phase7-wave8.md §3.53. A printed attribute, read wherever the card is.
   if (query.classification !== undefined && !classificationsOf(state, id).includes(query.classification))
     return "wrongClassification";
-  if (query.inEncounterSet !== undefined && !encounterSetsOf(state, id).includes(query.inEncounterSet))
+  if (query.inEncounterSet !== undefined && !inEncounterSet(state, id, query.inEncounterSet))
     return "wrongEncounterSet";
   if (query.inCampaignLogField) {
     // "Each EXPERIMENTAL attachment recorded in the campaign log" (MC10 p. 7) as a filter. Membership only: the
@@ -1812,6 +1812,20 @@ export function campaignSeatRead(
   if (!spec.seat) return null;
   const [playerId] = resolvePlayers(state, spec.seat, context);
   return playerId === undefined ? null : campaignSeatNumber(state, playerId);
+}
+
+/**
+ * `CardQuery inEncounterSet`: an encounter card listing the set in `encounterSetIds`, or a player card printed as
+ * belonging to it (`specificTo.encounterSetId`: a scenario's or campaign's own supports and allies, the Daily Bugle
+ * supports 60153-60156; docs/phase7-wave11-scenarios.md §S7 E28). Read off card data, so it matches wherever the card
+ * is.
+ */
+function inEncounterSet(state: GameState, id: InstanceId, setId: string): boolean {
+  if (encounterSetsOf(state, id).includes(setId)) return true;
+  const card = cardOf(state, id);
+  const specific =
+    card && "specificTo" in card ? (card.specificTo as { readonly encounterSetId?: string } | undefined) : undefined;
+  return specific?.encounterSetId === setId;
 }
 
 /** The encounter sets a card belongs to (`encounterSetIds`); empty for a player card. */

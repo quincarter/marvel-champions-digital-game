@@ -507,11 +507,26 @@ export const choosePlayer = (
   chooser,
   ...(opts.among ? { among: opts.among } : {}),
 });
-/** "Each player …": the effects run once per player with `thatPlayer`. */
+/**
+ * "Each player …": the effects run once per player with `thatPlayer`, in player order. Engine reading (authority step
+ * 5): RRG 1.8 "Each Player" p. 17 lets the first player choose the order; use `forEachPlayerInChosenOrder` where it can
+ * change the outcome.
+ */
 export const forEachPlayer = (players: PlayerRef, ...effects: readonly EffectArg[]): EffectSpec => ({
   kind: "forEachPlayer",
   players,
   effects: flatten(effects),
+});
+/**
+ * "Each player …" where the order the players resolve it in can change the outcome (each player reveals or takes a
+ * card from one shared pile): the first player orders the players first (RRG 1.8 "Each Player", p. 17;
+ * docs/phase7-wave11-scenarios.md §S7 E27). One player is not asked. Otherwise as `forEachPlayer`.
+ */
+export const forEachPlayerInChosenOrder = (players: PlayerRef, ...effects: readonly EffectArg[]): EffectSpec => ({
+  kind: "forEachPlayer",
+  players,
+  effects: flatten(effects),
+  order: "firstPlayerChooses",
 });
 /**
  * "Choose a/an X" (`count` for "X enemies"). `upTo`: a printed "up to X" — at least one whenever a legal target exists
@@ -2367,7 +2382,15 @@ export const dealPoolOneAtATime = (
   sequential: true,
   ...withBind(opts.bind),
 });
-export const dealEncounterCard = (player: PlayerRef = you): EffectSpec => ({ kind: "dealEncounterCard", player });
+/**
+ * "Deal N facedown encounter cards to [player]". `count`: how many each player is dealt (default 1); for "each player"
+ * the first player orders the deals (RRG 1.8 "Each Player", p. 17).
+ */
+export const dealEncounterCard = (player: PlayerRef = you, opts: { readonly count?: Amount } = {}): EffectSpec => ({
+  kind: "dealEncounterCard",
+  player,
+  ...(opts.count !== undefined ? { count: amount(opts.count) } : {}),
+});
 /**
  * "Deal that card to yourself as a facedown encounter card" (You Dare Oppose Me?, `ron` 90005): deals the card(s)
  * `cards` names, already identified, rather than the encounter deck's top card (docs/phase7-wave3.md §3.47). A card in

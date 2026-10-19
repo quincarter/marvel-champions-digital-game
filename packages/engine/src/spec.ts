@@ -625,7 +625,9 @@ export interface TargetQuery {
   /**
    * The card belongs to this encounter set, named by its id: "Search the **'Sinister Assault' (158-163) modular set**"
    * (MC27 p. 17), a campaign instruction with no card of that set to point `encounterSetOf` at. Reads `encounterSetIds`
-   * off the card data, so it matches wherever the card is; a player card never matches.
+   * off the card data, so it matches wherever the card is. A player card matches only when it is printed as belonging
+   * to the set (`specificTo.encounterSetId`: "each player takes a Daily Bugle support", docs/phase7-wave11-scenarios.md
+   * §S7 E28); any other player card never matches.
    */
   readonly inEncounterSet?: string;
   /**
@@ -3109,8 +3111,25 @@ export type EffectSpec =
    * bound without asking (there is no choice to make), and none binds nothing.
    */
   | { readonly kind: "choosePlayer"; readonly slot: string; readonly chooser: PlayerRef; readonly among?: PlayerRef }
-  /** "Each player …": runs `effects` once per player in player order, with `PlayerRef` `scoped` = that player. */
-  | { readonly kind: "forEachPlayer"; readonly players: PlayerRef; readonly effects: readonly EffectSpec[] }
+  /**
+   * "Each player …": runs `effects` once per player, with `PlayerRef` `scoped` = that player.
+   *
+   * `order` (docs/phase7-wave11-scenarios.md §S7 E27): `"playerOrder"` (the default) runs the passes in player order,
+   * starting with the first player. `"firstPlayerChooses"` asks the first player to order the players first (RRG 1.8
+   * "Each Player", p. 17: "If the effect does not specify what order the players resolve the effect in, the first
+   * player decides the order"), with the same `orderPlayers` prompt `dealEncounterCard` asks (`reason:
+   * "forEachPlayer"`). One player is not asked. Scripts set it where the order can change the outcome (each player
+   * reveals or takes a card from a shared pile); where every pass is independent the default reads the same. Engine
+   * reading (authority step 5): p. 17 gives the first player the order whenever a card does not; the default skips that
+   * choice, which is safe because player order is always one the first player could pick (spec §S7 E29 audits the
+   * existing scripts where the order can matter).
+   */
+  | {
+      readonly kind: "forEachPlayer";
+      readonly players: PlayerRef;
+      readonly effects: readonly EffectSpec[];
+      readonly order?: "playerOrder" | "firstPlayerChooses";
+    }
   /**
    * "Resolve the Special ability on each [Black Panther] upgrade you control in
    * any order. (Each is a step in a sequence.)" The controller orders them; each

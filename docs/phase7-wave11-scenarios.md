@@ -511,6 +511,7 @@ handoff note; the main session verifies and pushes.
 28. D4 — The ingest parser folds `^d+. ` list lines into the preceding ability, as it does `•` lines (`parse-text.ts` ~1099), so 60128b's "1." / "2." lines stop being separate constants; renames refs on 60128b, aos 50168b, next_evol 40121b, tt 55033a. Found in review 2026-10-19.
 29. E27 — A `forEachPlayer` whose order the first player chooses (RRG 1.8 "Each Player", p. 17), generalising the `orderPlayers` choice `dealEncounterCards` already has; then 60206b (each player reveals an attachment) and 60209a (each player takes a Daily Bugle support) use it. Found in review 2026-10-19.
 30. E28 — `inEncounterSet` also matches a card's `specificTo.encounterSetId` (the Daily Bugle supports 60153-60156 are support-type and carry only `specificTo`), so `BUGLE_SUPPORT` in `fne/campaign/environments.ts` can name its set. Found in review 2026-10-19.
+31. E29 — Audit existing `forEachPlayer` scripts where the order can change the outcome (each player takes from a shared pile) and switch them to `forEachPlayerInChosenOrder` (RRG 1.8 "Each Player", p. 17): `campaigns/gmw.ts` ~742, `wave11/fne/scenarios/the-raft-breakout.ts` ~132, `kingpin.ts` ~272/297, `wave2/trors/zola.ts` ~89/130, `campaigns/next_evol.ts` ~682. Found in review 2026-10-19.
 
 **Scripting (`ability-scripting-engineer`), one module each (§S6)**
 
