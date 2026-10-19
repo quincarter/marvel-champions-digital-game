@@ -455,13 +455,21 @@ export function threatRemoverOf(ctx: Ctx, frame: Frame<"effects">): PlayerId | n
 /**
  * One `forEachPlayer` pass per player of `players`, resolving in that order: each pass is its own effects frame with
  * `scopedPlayerId` = that player, sharing the parent frame's source, bindings and vars.
+ *
+ * With `bind`, each pass hands what it set or changed back to `frame` under `<bind>.` as it finishes (vars summed,
+ * slots joined: `returnBindingsPrefix`; `returnChangedFrom` keeps the ability's own vars from coming back once per
+ * pass), and starts without the `<bind>.` names.
  */
 export function pushEachPlayerPass(
   ctx: Ctx,
   frame: Frame<"effects">,
   effects: readonly EffectSpec[],
   players: readonly PlayerId[],
+  bind?: string,
 ): void {
+  const prefix = bind === undefined ? null : `${bind}.`;
+  const own = <T>(record: Readonly<Record<string, T>>): Readonly<Record<string, T>> =>
+    prefix === null ? record : Object.fromEntries(Object.entries(record).filter(([key]) => !key.startsWith(prefix)));
   // Pushed in reverse so the first player's pass resolves first.
   for (const playerId of [...players].reverse()) {
     pushEffects(ctx, {
@@ -472,9 +480,16 @@ export function pushEachPlayerPass(
       controllerId: frame.controllerId,
       event: frame.event,
       eventFrameId: frame.eventFrameId,
-      bindings: frame.bindings,
-      vars: frame.vars,
+      bindings: own(frame.bindings),
+      vars: own(frame.vars),
       scopedPlayerId: playerId,
+      ...(bind !== undefined
+        ? {
+            returnBindingsTo: frame.frameId,
+            returnBindingsPrefix: bind,
+            returnChangedFrom: { vars: own(frame.vars), bindings: own(frame.bindings) },
+          }
+        : {}),
     });
   }
 }
@@ -3496,7 +3511,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     case "forEachPlayer":
       // `order: "firstPlayerChooses"` is asked by the effects frame (`executeForEachPlayerOrdered`) before it lands here.
-      pushEachPlayerPass(ctx, frame, effect.effects, resolvePlayers(ctx.state, effect.players, context));
+      pushEachPlayerPass(ctx, frame, effect.effects, resolvePlayers(ctx.state, effect.players, context), effect.bind);
       return;
     case "enemyAttack":
     case "enemyScheme":

@@ -42,12 +42,14 @@ import {
   searchAndReveal,
   selectCards,
   self,
+  setVar,
   spend,
   spendResources,
   thatPlayer,
   theMainScheme,
   theVillain,
   varAtLeast,
+  varOf,
   when,
   whenDefeated,
   whenRevealed,
@@ -82,9 +84,10 @@ import { cardName } from "../names.js";
  * resource spent this way." (Sanctuary's own When Defeated)**: `spendResources` reports only whether its exact
  * requirement was met (`<bind>.made`, 0 or 1), not how many resources a variable payment used, so "up to 3,
  * scaling the result" can't be read back from one call. Scripted the same way `adam-warlock-pack-cards.ts`'s own
- * `discardUpTo` composes "discard up to N cards → …" (docs/phase7-wave4.md §3.12): a `chooseOne` of "spend 0/1/2/3",
- * each committing to (and reading back only whether it succeeded at) exactly that count, so the damage for that
- * option is the option's own known literal, not a read-back amount.
+ * `discardUpTo` composes "discard up to N cards → …" (docs/phase7-wave4.md §3.12): each player's `chooseOne` of "spend
+ * 0/1/2/3" commits to (and reads back only whether it succeeded at) exactly that count, and records it as `spent`.
+ * The loop's `bind` sums those into `sanctuary.spent`, and the damage is one instance after the loop, 2 ×
+ * `sanctuary.spent`: Thanos's Armor reduces it once, and no defeat is checked between two players' spends.
  *
  * **"Hero Response: After a hero makes a basic attack against Thanos, spend … → discard this card" (Thanos's Armor,
  * Thanos's Helmet)** is a plain `response`, not `heroResponse`: `heroResponse`'s `form: "hero"` gate is checked
@@ -135,19 +138,33 @@ const putTopStoneIntoPlay = (controller = you): EffectSpec[] => [
   putIntoPlay(chosen("stone"), controller),
 ];
 
-/** "May spend up to 3 [physical] resources from their hand. Deal 2 damage to Thanos for each … spent this way." */
-const maySpendPhysicalForDamage = (max: number) =>
-  chooseOneBy(
-    thatPlayer,
-    option("Spend none"),
-    ...Array.from({ length: max }, (_, i) => i + 1).map((n) =>
-      option(
-        `Spend ${n} [physical]`,
-        spendResources({ physical: n }, "paid", thatPlayer),
-        ifThen(varAtLeast("paid.made"), dealDamageIgnoringTough(2 * n, theVillain)),
+/**
+ * "Each player may spend up to 3 [physical] resources from their hand. Deal 2 damage to Thanos for each [physical]
+ * resource spent this way." One damage instance once every player has spent, not one per player: each pass records
+ * what it spent as `spent`, the loop sums them into `sanctuary.spent` (`forEachPlayer` `bind`), and the damage is
+ * dealt after the loop, so Thanos's Armor reduces it once and no defeat is checked between two players' spends.
+ */
+const eachPlayerMaySpendPhysicalForDamage = (max: number): EffectSpec[] => [
+  forEachPlayerInChosenOrder(
+    eachPlayer,
+    chooseOneBy(
+      thatPlayer,
+      option("Spend none"),
+      ...Array.from({ length: max }, (_, i) => i + 1).map((n) =>
+        option(
+          `Spend ${n} [physical]`,
+          spendResources({ physical: n }, "paid", thatPlayer),
+          ifThen(varAtLeast("paid.made"), setVar("spent", n)),
+        ),
       ),
     ),
-  );
+    { bind: "sanctuary" },
+  ),
+  ifThen(
+    varAtLeast("sanctuary.spent"),
+    dealDamageIgnoringTough(scaled(varOf("sanctuary.spent"), { times: 2 }), theVillain),
+  ),
+];
 
 export const THANOS = defineAbilities({
   // Thanos (I) — Stalwart (data). Forced Response: After the infinity stone deck runs out, give Thanos 1 facedown
@@ -187,7 +204,7 @@ export const THANOS = defineAbilities({
   "21116.sanctuary-constant": constant(
     rule({ kind: "cannotTakeDamage", target: query("villain"), fromSource: PLAYER_CARD }),
   ),
-  "21116.when-defeated": whenDefeated(forEachPlayerInChosenOrder(eachPlayer, maySpendPhysicalForDamage(3))),
+  "21116.when-defeated": whenDefeated(...eachPlayerMaySpendPhysicalForDamage(3)),
 
   // Thanos's Armor (21117) — Forced Interrupt: When Thanos would take any amount of damage, reduce that amount by
   // 1. Hero Response: After a hero makes a basic attack against Thanos, spend [energy][physical] resources →

@@ -1743,20 +1743,30 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
   }
 }
 
-function walk(effects: readonly EffectSpec[], scope: Scope, path: string, problems: string[]): void {
+/**
+ * `loops`: the `bind` names of the bound `forEachPlayer` / `forEachCard` loops `walk` is inside, outermost first (a
+ * nested loop must not reuse one).
+ */
+function walk(
+  effects: readonly EffectSpec[],
+  scope: Scope,
+  path: string,
+  problems: string[],
+  loops: readonly string[] = [],
+): void {
   effects.forEach((effect, index) => {
     const where = `${path}[${index}] ${effect.kind}`;
     if (effect.kind === "chooseOne") {
       effect.options.forEach((option, i) => {
         if (option.condition) checkRefs(option.condition, scope, `${where} option ${i}`, problems);
-        walk(option.effects, scope, `${where}.options[${i}]`, problems);
+        walk(option.effects, scope, `${where}.options[${i}]`, problems, loops);
       });
       return;
     }
     // "Repeat this effect" (docs/phase7-wave4.md §3.54): the condition is read after the repeated effects, so it may
     // read what they bind.
     if (effect.kind === "repeatWhile") {
-      walk(effect.effects, scope, `${where}/0`, problems);
+      walk(effect.effects, scope, `${where}/0`, problems, loops);
       checkRefs(effect.while, scope, `${where} while`, problems);
       return;
     }
@@ -1772,7 +1782,39 @@ function walk(effects: readonly EffectSpec[], scope: Scope, path: string, proble
         vars: new Set(scope.vars),
         prefixes: new Set(scope.prefixes),
       };
-      walk(effect.effects, pass, `${where}/0`, problems);
+      walk(effect.effects, pass, `${where}/0`, problems, loops);
+      return;
+    }
+    // "Each player …" with a `bind`: each pass is its own frame, so what it binds is read inside it, and comes back to
+    // the effects after the loop under `<bind>.` only (vars summed over the players). Without one, walked as before.
+    // The name must be new: a pass drops the `<bind>.` names it inherits and the loop sums onto any already there, so
+    // one already known (an earlier `bind`, or an enclosing loop's) would mix the two. A pass must not bind a var or
+    // slot the ability already holds either: a pass hands back only what differs from what it inherited
+    // (`Frame<"effects">.returnChangedFrom`), so binding the same value again would be lost.
+    if (effect.kind === "forEachPlayer" && effect.bind !== undefined) {
+      const prefix = `${effect.bind}.`;
+      if (effect.bind.length === 0) problems.push(`${where}: forEachPlayer bind needs a name`);
+      else if (
+        scope.prefixes.has(prefix) ||
+        [...scope.vars, ...scope.slots].some((name) => name.startsWith(prefix)) ||
+        loops.includes(effect.bind)
+      )
+        problems.push(`${where}: forEachPlayer bind "${effect.bind}" is already bound earlier in the ability`);
+      checkRefs(effect.players, scope, `${where} players`, problems);
+      const bound: Scope = { slots: new Set(), vars: new Set(), prefixes: new Set() };
+      for (const inner of allEffects(effect.effects)) bindsOf(inner, bound);
+      for (const name of [...bound.vars, ...bound.slots])
+        if (scope.vars.has(name) || scope.slots.has(name))
+          problems.push(
+            `${where}: a forEachPlayer bind pass binds "${name}", which the ability already holds; use a new name`,
+          );
+      const pass: Scope = {
+        slots: new Set(scope.slots),
+        vars: new Set(scope.vars),
+        prefixes: new Set(scope.prefixes),
+      };
+      walk(effect.effects, pass, `${where}/0`, problems, [...loops, effect.bind]);
+      scope.prefixes.add(prefix);
       return;
     }
     // "For each character you control, … that character" (RRG 1.8 "'For Each'", p. 20): the pass's card is read under
@@ -1789,7 +1831,9 @@ function walk(effects: readonly EffectSpec[], scope: Scope, path: string, proble
         vars: new Set(scope.vars),
         prefixes: new Set(scope.prefixes),
       };
-      walk(effect.effects, pass, `${where}/0`, problems);
+      if (effect.bind !== undefined && loops.includes(effect.bind))
+        problems.push(`${where}: forEachCard bind "${effect.bind}" is already an enclosing loop's bind`);
+      walk(effect.effects, pass, `${where}/0`, problems, effect.bind === undefined ? loops : [...loops, effect.bind]);
       if (effect.bind !== undefined) {
         if (effect.bind.length === 0) problems.push(`${where}: forEachCard bind needs a name`);
         scope.prefixes.add(`${effect.bind}.`);
@@ -1806,7 +1850,7 @@ function walk(effects: readonly EffectSpec[], scope: Scope, path: string, proble
         problems.push(`${where}: a block resolved in a group's area cannot name another group`);
       if (readsKind(effect.effects, (kind) => kind.startsWith("event")))
         problems.push(`${where}: a block resolved in a group's area cannot read the triggering event`);
-      walk(effect.effects, { slots: new Set(), vars: new Set(), prefixes: new Set() }, `${where}/0`, problems);
+      walk(effect.effects, { slots: new Set(), vars: new Set(), prefixes: new Set() }, `${where}/0`, problems, loops);
       return;
     }
     // `enemyScheme.wouldPlaceThreat`: resolved later, at the activation's place-threat step, with this ability's slots
@@ -1821,7 +1865,7 @@ function walk(effects: readonly EffectSpec[], scope: Scope, path: string, proble
         vars: new Set(scope.vars),
         prefixes: new Set(scope.prefixes),
       };
-      walk(wouldPlaceThreat, placing, `${where}/0`, problems);
+      walk(wouldPlaceThreat, placing, `${where}/0`, problems, loops);
       bindsOf(effect, scope);
       return;
     }
@@ -1849,7 +1893,7 @@ function walk(effects: readonly EffectSpec[], scope: Scope, path: string, proble
         if (!scope.slots.has(slot)) problems.push(`${where}: carried slot "${slot}" is not bound before the moment`);
     }
     checkRefs(effect, scope, where, problems);
-    nestedLists(effect).forEach((list, i) => walk(list, scope, `${where}/${i}`, problems));
+    nestedLists(effect).forEach((list, i) => walk(list, scope, `${where}/${i}`, problems, loops));
     bindsOf(effect, scope);
   });
 }

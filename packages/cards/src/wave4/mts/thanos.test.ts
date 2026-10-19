@@ -21,6 +21,7 @@ import {
   instancesOf,
   moveToHand,
   P1,
+  P2,
   patchInstance,
   settle,
   settleUntil,
@@ -176,6 +177,26 @@ const attack = (state: GameState, player = P1): GameState =>
     WAVE4_DEPS,
   );
 
+/**
+ * Two players (Spectrum, Core Black Panther) at Thanos in hero form, Thanos with a tough status and Thanos's Armor
+ * (21117), Sanctuary at 1 threat so P1's basic thwart defeats it. Blade (21019, P1), Black Widow (01075) and
+ * Counter-Punch (01077, P2) each print a [physical] resource and are moved to hand.
+ */
+function twoPlayerSanctuary() {
+  const twoPlayers = startWave4Game(
+    spectrumScenario("thanos", { seed: 4, extraPlayers: [{ starterDeckId: "core-black-panther-protection" }] }),
+  );
+  const hero = settle(runWave4(twoPlayers, toHero()), firstLegal, undefined, WAVE4_DEPS);
+  const villain = villainOf(hero);
+  const toughened = patchInstance(hero, villain, { statuses: { ...inst(hero, villain).statuses, tough: 1 } });
+  const { state: armored } = attachToHost(toughened, "21117", villain);
+  const [sanctuary] = instancesOf(armored, "21116");
+  const { state: p1Hand, ids: p1Ids } = moveToHand(armored, P1, "21019");
+  const { state: p2Hand, ids: p2Ids } = moveToHand(p1Hand, P2, "01075", "01077");
+  const staged = patchInstance(p2Hand, sanctuary!, { threat: 1 });
+  return { staged, villain, p1Ids, p2Ids, before: inst(staged, villain).damage };
+}
+
 describe("Sanctuary (21116) — cannot take damage from player cards; When Defeated", () => {
   // The identity is a player card, so its basic attack could deal Thanos no damage: he is not a valid target for it
   // (RRG 1.8 "Target", p. 43; ruling Mar 19, 2026 (2)).
@@ -240,7 +261,7 @@ describe("Sanctuary (21116) — cannot take damage from player cards; When Defea
       schemeInstanceId: sanctuary!,
     });
     const revealed = settleUntil(thwarted, "chooseOption", firstLegal, WAVE4_DEPS);
-    // Option index 2 is "Spend 2 [physical]" (`maySpendPhysicalForDamage(3)`'s own option order: none, 1, 2, 3).
+    // Option index 2 is "Spend 2 [physical]" (the options are none, 1, 2, 3).
     const picked = answer(revealed, ["2"], WAVE4_DEPS);
     const paid = settleUntil(picked, "spendResources", firstLegal, WAVE4_DEPS);
     const settled = settle(
@@ -250,6 +271,78 @@ describe("Sanctuary (21116) — cannot take damage from player cards; When Defea
       WAVE4_DEPS,
     );
     expect(inst(settled, villain).damage).toBe(before + 4);
+  });
+
+  // "Deal 2 damage to Thanos for each [physical] resource spent this way" is one damage instance once every player
+  // has spent: Thanos's Armor (21117, "reduce that amount by 1") applies to it once, 2 × (1 + 2) - 1 = 5, not once per
+  // player (1 + 3 = 4), and nothing is dealt between the two players' spends.
+  it("21116.when-defeated: two players' spends are one damage instance, dealt after both have spent", () => {
+    const { staged, villain, p1Ids, p2Ids, before } = twoPlayerSanctuary();
+    const sanctuary = instancesOf(staged, "21116")[0];
+    const thwarted = runWave4(staged, {
+      type: "basicThwart",
+      playerId: P1,
+      thwarterInstanceId: identityOf(staged, P1),
+      schemeInstanceId: sanctuary!,
+    });
+
+    // The first player orders the players (`firstLegal`: P1 then P2); P1 spends 1.
+    const p1Asked = settleUntil(thwarted, "chooseOption", firstLegal, WAVE4_DEPS);
+    expect(p1Asked.pendingChoice?.playerId).toBe(P1);
+    const p1Paying = settleUntil(answer(p1Asked, ["1"], WAVE4_DEPS), "spendResources", firstLegal, WAVE4_DEPS);
+    const p2Asked = settleUntil(
+      answer(
+        p1Paying,
+        p1Ids.map((id) => `hand:${id}`),
+        WAVE4_DEPS,
+      ),
+      "chooseOption",
+      firstLegal,
+      WAVE4_DEPS,
+    );
+    expect(p2Asked.pendingChoice?.playerId).toBe(P2);
+    expect(inst(p2Asked, villain).damage).toBe(before);
+
+    // P2 spends 2: one 6-damage hit, reduced once by the Armor, ignoring the tough status.
+    const p2Paying = settleUntil(answer(p2Asked, ["2"], WAVE4_DEPS), "spendResources", firstLegal, WAVE4_DEPS);
+    const settled = settle(
+      answer(
+        p2Paying,
+        p2Ids.map((id) => `hand:${id}`),
+        WAVE4_DEPS,
+      ),
+      firstLegal,
+      undefined,
+      WAVE4_DEPS,
+    );
+    expect(inst(settled, villain).damage).toBe(before + 5);
+  });
+
+  // One player spends none: the other's spend is still one hit, 2 × 2 - 1 (Armor) = 3.
+  it("21116.when-defeated: two players, one spends none, the other's spend is dealt once", () => {
+    const { staged, villain, p2Ids, before } = twoPlayerSanctuary();
+    const thwarted = runWave4(staged, {
+      type: "basicThwart",
+      playerId: P1,
+      thwarterInstanceId: identityOf(staged, P1),
+      schemeInstanceId: instancesOf(staged, "21116")[0]!,
+    });
+    const p1Asked = settleUntil(thwarted, "chooseOption", firstLegal, WAVE4_DEPS);
+    expect(p1Asked.pendingChoice?.playerId).toBe(P1);
+    const p2Asked = settleUntil(answer(p1Asked, ["0"], WAVE4_DEPS), "chooseOption", firstLegal, WAVE4_DEPS);
+    expect(p2Asked.pendingChoice?.playerId).toBe(P2);
+    const p2Paying = settleUntil(answer(p2Asked, ["2"], WAVE4_DEPS), "spendResources", firstLegal, WAVE4_DEPS);
+    const settled = settle(
+      answer(
+        p2Paying,
+        p2Ids.map((id) => `hand:${id}`),
+        WAVE4_DEPS,
+      ),
+      firstLegal,
+      undefined,
+      WAVE4_DEPS,
+    );
+    expect(inst(settled, villain).damage).toBe(before + 3);
   });
 });
 

@@ -508,26 +508,48 @@ export const choosePlayer = (
   ...(opts.among ? { among: opts.among } : {}),
 });
 /**
+ * `forEachPlayer` / `forEachPlayerInChosenOrder`'s options, given anywhere among the effects. `bind`: what the passes
+ * did comes back to the ability after the loop, each pass's own binds as `<bind>.<name>` (vars summed across the
+ * players, slots joined), so one effect after the loop acts on them together. "Each player may spend up to 3
+ * [physical] resources … Deal 2 damage to Thanos for each [physical] resource spent this way" (Sanctuary, `mts` 21116)
+ * is one damage instance: `forEachPlayerInChosenOrder(eachPlayer, chooseOneBy(…, setVar("spent", n)), { bind: "all"
+ * })` then `dealDamage(scaled(varOf("all.spent"), { times: 2 }), theVillain)`.
+ */
+export interface ForEachPlayerOptions {
+  readonly bind?: string;
+}
+const isForEachPlayerOptions = (r: unknown): r is ForEachPlayerOptions =>
+  !Array.isArray(r) && typeof r === "object" && r !== null && "bind" in r && !("kind" in r);
+const forEachPlayerOf = (
+  players: PlayerRef,
+  rest: readonly (EffectArg | ForEachPlayerOptions)[],
+  order: { readonly order?: "firstPlayerChooses" },
+): EffectSpec => {
+  const opts = rest.find(isForEachPlayerOptions);
+  return {
+    kind: "forEachPlayer",
+    players,
+    effects: flatten(rest.filter((r): r is EffectArg => !isForEachPlayerOptions(r))),
+    ...order,
+    ...withBind(opts?.bind),
+  };
+};
+/**
  * "Each player …": the effects run once per player with `thatPlayer`, in player order. Engine reading (authority step
  * 5): RRG 1.8 "Each Player" p. 17 lets the first player choose the order; use `forEachPlayerInChosenOrder` where it can
- * change the outcome.
+ * change the outcome. Options (`{ bind }`): `ForEachPlayerOptions`.
  */
-export const forEachPlayer = (players: PlayerRef, ...effects: readonly EffectArg[]): EffectSpec => ({
-  kind: "forEachPlayer",
-  players,
-  effects: flatten(effects),
-});
+export const forEachPlayer = (players: PlayerRef, ...rest: readonly (EffectArg | ForEachPlayerOptions)[]): EffectSpec =>
+  forEachPlayerOf(players, rest, {});
 /**
  * "Each player …" where the order the players resolve it in can change the outcome (each player reveals or takes a
  * card from one shared pile): the first player orders the players first (RRG 1.8 "Each Player", p. 17;
  * docs/phase7-wave11-scenarios.md §S7 E27). One player is not asked. Otherwise as `forEachPlayer`.
  */
-export const forEachPlayerInChosenOrder = (players: PlayerRef, ...effects: readonly EffectArg[]): EffectSpec => ({
-  kind: "forEachPlayer",
-  players,
-  effects: flatten(effects),
-  order: "firstPlayerChooses",
-});
+export const forEachPlayerInChosenOrder = (
+  players: PlayerRef,
+  ...rest: readonly (EffectArg | ForEachPlayerOptions)[]
+): EffectSpec => forEachPlayerOf(players, rest, { order: "firstPlayerChooses" });
 /**
  * "Choose a/an X" (`count` for "X enemies"). `upTo`: a printed "up to X" — at least one whenever a legal target exists
  * (docs/phase7-wave3.md §4 Q16, decided by the user on 2026-09-23). `optional`: only for a printed "may", which lets the

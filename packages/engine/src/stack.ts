@@ -515,6 +515,12 @@ export type StackFrame =
        */
       readonly returnBindingsPrefix?: string;
       /**
+       * With `returnBindingsPrefix`: what this frame started with (a `forEachPlayer` `bind` pass inherits its ability's
+       * vars and slots). Only the vars and slots it set or changed go back, so a var the ability held before the loop
+       * is not handed back once per pass.
+       */
+      readonly returnChangedFrom?: { readonly vars: Vars; readonly bindings: Bindings };
+      /**
        * The effects of an ability a player uses: an ability on a player card, an action, or an optional interrupt or
        * response (not a forced ability, When Revealed, boost or setup on an encounter card). "Players cannot discard
        * attachments …" (Powerful Enchantments, `valk` 25030) reads it. docs/phase7-wave4.md §3.44.

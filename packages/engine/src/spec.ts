@@ -3123,12 +3123,22 @@ export type EffectSpec =
    * reading (authority step 5): p. 17 gives the first player the order whenever a card does not; the default skips that
    * choice, which is safe because player order is always one the first player could pick (spec §S7 E29 audits the
    * existing scripts where the order can matter).
+   *
+   * `bind`: each pass hands what it holds back to the ability as it finishes, under `<bind>.` (vars summed across the
+   * passes, slots joined: the `forEachCard` `bind` mechanism), so one effect after the loop can act on what every
+   * player did together: "Each player may spend up to 3 [physical] resources … Deal 2 damage to Thanos for each
+   * [physical] resource spent this way" (Sanctuary, `mts` 21116) is one damage instance after every pass, not one per
+   * player. A pass starts without the `<bind>.` names, and hands back only the vars and slots it set or changed (a var
+   * the ability held before the loop, untouched by a pass, does not come back once per player); one it changed comes
+   * back with its new value. A pass binding a name the ability already holds is refused by the cards validator, since
+   * binding the same value again would read as unchanged.
    */
   | {
       readonly kind: "forEachPlayer";
       readonly players: PlayerRef;
       readonly effects: readonly EffectSpec[];
       readonly order?: "playerOrder" | "firstPlayerChooses";
+      readonly bind?: string;
     }
   /**
    * "Resolve the Special ability on each [Black Panther] upgrade you control in

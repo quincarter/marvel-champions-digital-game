@@ -247,14 +247,21 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
       // A Special's own bindings, reported to the `resolveSpecials` that resolved it (docs/phase7-wave5.md §3.7): under
       // the prefix, added to what the sequence's earlier Specials reported.
       const prefix = frame.returnBindingsPrefix;
+      // A `forEachPlayer` pass hands back only the vars and slots it set or changed, not what it inherited.
+      const from = frame.returnChangedFrom;
+      // Order-sensitive: a slot re-bound to the same cards in another order counts as changed and is joined back, which
+      // adds no card the ability did not already hold.
+      const sameIds = (a: readonly InstanceId[], b: readonly InstanceId[] | undefined) =>
+        b !== undefined && a.length === b.length && a.every((id, i) => id === b[i]);
       updateFrame(ctx, frame.returnBindingsTo, (parent) => {
         if (parent.kind !== "effects") return parent;
         const bindings: Record<string, readonly InstanceId[]> = { ...parent.bindings };
         for (const [key, ids] of Object.entries(frame.bindings))
-          bindings[`${prefix}.${key}`] = [...new Set([...(bindings[`${prefix}.${key}`] ?? []), ...ids])];
+          if (!from || !sameIds(ids, from.bindings[key]))
+            bindings[`${prefix}.${key}`] = [...new Set([...(bindings[`${prefix}.${key}`] ?? []), ...ids])];
         const vars: Record<string, number> = { ...parent.vars };
         for (const [key, amount] of Object.entries(frame.vars))
-          vars[`${prefix}.${key}`] = (vars[`${prefix}.${key}`] ?? 0) + amount;
+          if (!from || from.vars[key] !== amount) vars[`${prefix}.${key}`] = (vars[`${prefix}.${key}`] ?? 0) + amount;
         // `<prefix>.resolved`: the cards whose Special resolved. One a stunned/confused status card or an interrupt
         // replaced never reaches its effects, and one cut short after its cost (`beginEffectAfterCost`) lost its
         // announcement, so neither is listed ("each technique upgrade resolved this way"; FFG ruling Oct 18, 2024,
@@ -1711,7 +1718,7 @@ function executeForEachPlayerOrdered(
   const order = answered.length === players.length && new Set(answered).size === players.length ? answered : players;
   const next: Frame<"effects"> = { ...frame, answer: null, cursor: frame.cursor + 1 };
   setFrame(ctx, next);
-  pushEachPlayerPass(ctx, next, effect.effects, order);
+  pushEachPlayerPass(ctx, next, effect.effects, order, effect.bind);
 }
 
 /**
