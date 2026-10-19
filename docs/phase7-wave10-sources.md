@@ -420,7 +420,7 @@ Rulebook-only rules to model (RRG 1.8 has none):
 
 Each question has a recommended default. Answers go into the spec's §4.1 table and the PR.
 
-1. **Synthezoid Smackdown (MC57 by code, unchecked; scenario pack; December 2025).** (a) Include it in wave 10, as
+1. **Synthezoid Smackdown (MC57 by code, unchecked; scenario pack; December 2025).** _Update 2026-10-19: the owner moved it into the wave 11 PR (#251), placed chronologically after Civil War and before Wonder Man; see `docs/phase7-synthezoid.md`._ (a) Include it in wave 10, as
    Trickster Takeover was in wave 9; or (b) give it its own slot after wave 10. Recommended: (b). The RRG wave list
    and the handoff scope name only the three products. The rulebook (p. 17, line 911) continues the story into this
    pack, so confirm the MC57 code before recording the answer.
