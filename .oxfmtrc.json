@@ -16,6 +16,7 @@
     "**/ios/**",
     "docs/cards_reference.md",
     "marvel-champions-rulings-post-rrg-1-7.md",
+    "docs/rulings/**",
     "hallofheroes-llms.txt",
     ".changes/**",
     "CHANGELOG.md"
