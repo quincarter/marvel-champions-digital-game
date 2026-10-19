@@ -19,6 +19,7 @@ import {
   forcedInterrupt,
   forcedResponse,
   forEachPlayer,
+  forEachPlayerInChosenOrder,
   gainsKeyword,
   gets,
   grantOwnedCards,
@@ -287,7 +288,7 @@ export const MTS_CAMPAIGN_CARDS = defineAbilities({
   // "When Defeated: Each player chooses 1 Captive ally from the campaign set and puts it into play under their
   // control. Flip this card over."
   "21189a.when-defeated": whenDefeated(
-    forEachPlayer(eachPlayer, [
+    forEachPlayerInChosenOrder(eachPlayer, [
       chooseCards("captive", encounterSetAside(query(["ally"], { trait: CAPTIVE })), {
         min: 1,
         max: 1,

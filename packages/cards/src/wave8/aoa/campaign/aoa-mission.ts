@@ -29,6 +29,7 @@ import {
   flipCard,
   forcedResponse,
   forEachPlayer,
+  forEachPlayerInChosenOrder,
   grantOwnedCards,
   ifThen,
   moveCards,
@@ -213,7 +214,7 @@ export const AOA_MISSION: AbilityRegistry = defineAbilities({
     notDefeated: [revealCard(find(SEA_WALL), you)],
     defeated: [
       findCard(SEA_WALL, "removedFromGame"),
-      forEachPlayer(
+      forEachPlayerInChosenOrder(
         eachPlayer,
         chooseTarget("enemy", query("enemy"), { chooser: thatPlayer }),
         dealDamage(3, chosen("enemy")),
@@ -228,7 +229,7 @@ export const AOA_MISSION: AbilityRegistry = defineAbilities({
   "45169b.find-lost-mutants-forced-response": finished({
     notDefeated: [forEachPlayer(eachPlayer, discardFromHand(1, thatPlayer))],
     defeated: [
-      forEachPlayer(
+      forEachPlayerInChosenOrder(
         eachPlayer,
         chooseCards("ally", encounterSetAside(CAMPAIGN_ALLY), { min: 1, max: 1, chooser: thatPlayer }),
         grantOwnedCards(cards(chosen("ally")), "hand", thatPlayer),

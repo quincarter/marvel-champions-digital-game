@@ -42,6 +42,7 @@ import {
   forcedInterrupt,
   forcedResponse,
   forEachPlayer,
+  forEachPlayerInChosenOrder,
   gets,
   giveTough,
   ifThen,
@@ -303,7 +304,7 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
   // for a different obligation and reveals it (module docblock: cross-player distinctness not enforced). Shuffle
   // the encounter deck.
   "11029.when-revealed": whenRevealed(
-    forEachPlayer(
+    forEachPlayerInChosenOrder(
       eachPlayer,
       chooseCards(
         "found",

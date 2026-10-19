@@ -35,7 +35,7 @@ import {
   exhaust,
   exists,
   flipCard,
-  forEachPlayer,
+  forEachPlayerInChosenOrder,
   forcedInterrupt,
   forcedResponse,
   gainsIcon,
@@ -137,14 +137,14 @@ export const ON_THE_RUN: AbilityRegistry = defineAbilities({
   // When Revealed: Each player searches the encounter deck for a MARAUDER minion and puts it into play engaged with
   // them. (Shuffle.) "If this stage is completed, the players lose the game" is `MainSchemeStage.completionLoses`.
   "40103b.when-revealed": whenRevealed(
-    forEachPlayer(eachPlayer, searchForMarauder(["deck"], thatPlayer)),
+    forEachPlayerInChosenOrder(eachPlayer, searchForMarauder(["deck"], thatPlayer)),
     shuffleEncounterDeck(),
   ),
 
   // Escaping with Hope 2A — When Revealed: Each player searches the encounter deck and discard pile for a MARAUDER
   // minion and puts that minion into play engaged with them. (Shuffle.) Give each MARAUDER enemy a tough status card.
   "40104a.when-revealed": whenRevealed(
-    forEachPlayer(eachPlayer, searchForMarauder(["deck", "discard"], thatPlayer)),
+    forEachPlayerInChosenOrder(eachPlayer, searchForMarauder(["deck", "discard"], thatPlayer)),
     shuffleEncounterDeck(),
     giveTough(each(MARAUDER_ENEMIES)),
   ),

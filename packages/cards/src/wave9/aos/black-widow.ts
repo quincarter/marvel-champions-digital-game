@@ -37,7 +37,7 @@ import {
   eventPlayer,
   eventSource,
   exhaustCardsCost,
-  forEachPlayer,
+  forEachPlayerInChosenOrder,
   forcedInterrupt,
   gainsKeyword,
   gets,
@@ -138,9 +138,9 @@ export const BLACK_WIDOW: AbilityRegistry = defineAbilities({
   "50066.when-revealed": whenRevealed(placeThreat(perHero(3), theMainScheme)),
   "50066.black-widow-forced-interrupt": forcedInterruptOnAttack(),
 
-  // Setup: each player, in player order, chooses a minion from the encounter deck and puts it into play engaged with them.
+  // Setup: each player chooses a minion from the encounter deck and puts it into play engaged with them.
   "50067a.setup": setup(
-    forEachPlayer(
+    forEachPlayerInChosenOrder(
       eachPlayer,
       chooseCards("minion", encounterCards(["deck"], query("minion")), { min: 1, max: 1, chooser: thatPlayer }),
       putIntoPlay(chosen("minion"), thatPlayer),

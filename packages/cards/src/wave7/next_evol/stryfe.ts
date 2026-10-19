@@ -34,6 +34,7 @@ import {
   exhaustYourHero,
   flipCard,
   forEachPlayer,
+  forEachPlayerInChosenOrder,
   forcedResponse,
   gainsKeyword,
   gets,
@@ -102,9 +103,10 @@ export const STRYFE: AbilityRegistry = defineAbilities({
   "40163.stryfe-constant": stryfeAttack(),
   "40164.stryfe-constant": stryfeAttack(),
   // II — When Revealed: Each player discards cards from the top of the encounter deck until a PSIONIC attachment is
-  // discarded and reveals that card (in player order; the deck resets if it runs out, as any discard-until does).
+  // discarded and reveals that card (the first player picks the order, RRG 1.8 p. 17; the deck resets if it runs out,
+  // as any discard-until does).
   "40164.when-revealed": whenRevealed(
-    forEachPlayer(
+    forEachPlayerInChosenOrder(
       eachPlayer,
       discardEncounterUntil(query("attachment", { trait: PSIONIC }), "found"),
       revealCard(chosen("found"), thatPlayer),

@@ -23,6 +23,7 @@ import {
   exhaust,
   firstPlayer,
   forEachPlayer,
+  forEachPlayerInChosenOrder,
   forcedInterrupt,
   forcedResponse,
   gainsKeyword,
@@ -347,7 +348,7 @@ export const RED_SKULL_SET = defineAbilities({
   // Hydra Patrol (Hydra Patrol) — When Defeated: each player searches the encounter deck and discard pile for a
   // Hydra minion and puts it into play engaged with them. Shuffle the encounter deck.
   "04154.when-defeated": whenDefeated(
-    forEachPlayer(eachPlayer, [
+    forEachPlayerInChosenOrder(eachPlayer, [
       chooseCards(
         "found",
         { kind: "encounter", zones: ["deck", "discard"], filter: query("minion", { trait: HYDRA }) },

@@ -12,7 +12,7 @@ import {
   encounterSetAside,
   exists,
   exhaustThis,
-  forEachPlayer,
+  forEachPlayerInChosenOrder,
   gets,
   heal,
   heroResponse,
@@ -60,7 +60,7 @@ export const X23_PACK_CARDS: AbilityRegistry = defineAbilities({
   "43018.when-defeated": whenDefeated(removeThreat(perHero(5), theMainScheme, { by: defeatingPlayer })),
 
   "43021.when-defeated": whenDefeated(
-    forEachPlayer(eachPlayer, [
+    forEachPlayerInChosenOrder(eachPlayer, [
       ifThen(not(exists(query("upgrade", { trait: SPECIALIZATION, controlledBy: thatPlayer }))), [
         chooseCards("taken", encounterSetAside({ ...SPECIALIST, ...canEnterPlay(thatPlayer) }), {
           min: 1,

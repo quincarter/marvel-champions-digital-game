@@ -26,7 +26,7 @@ import {
   eventTarget,
   exhaustCardsCost,
   firstPlayer,
-  forEachPlayer,
+  forEachPlayerInChosenOrder,
   forcedInterrupt,
   forcedResponse,
   gainsAbility,
@@ -126,7 +126,7 @@ export const FNE_SCENARIOS_THE_RAFT_BREAKOUT: AbilityRegistry = defineAbilities(
   "60142a.setup": setup(
     selectCards("key", encounterCards(["deck"], MASTER_KEY)),
     attachCard(chosen("key"), theVillain),
-    forEachPlayer(
+    forEachPlayerInChosenOrder(
       eachPlayer,
       discardEncounterUntil(PRISONER_MINION, "prisoner"),
       revealCard(chosen("prisoner"), thatPlayer),

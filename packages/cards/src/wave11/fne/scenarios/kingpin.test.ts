@@ -653,6 +653,24 @@ describe("Endgame (60162a.when-revealed, 60162b.endgame-constant)", () => {
     expect(isUnderling(two!)).toBe(true);
   });
 
+  it("60162a.when-revealed: the first player chooses the order the players find their Underlings (RRG 1.8 p. 17)", () => {
+    const order =
+      (ids: readonly PlayerId[]): Picker =>
+      (st) =>
+        st.pendingChoice!.prompt.kind === "orderPlayers" ? [...ids] : declines(st);
+    const run = (ids: readonly PlayerId[]) => {
+      const base = newGame({ players: 2 });
+      const high = patchInstance(base, idOf(base, SUPPORT), { counters: { support: 6 } });
+      const { state, events } = phase(high, BLANKS.slice(2, 4), order(ids));
+      const [first] = revealedByAdvance(events);
+      return { first: first!, engaged: inPlay(state, first!).map((i) => inst(state, i).engagedWith) };
+    };
+    const forward = run([P1, P2]);
+    const reverse = run([P2, P1]);
+    expect(forward.engaged).toEqual([P1]);
+    expect(reverse.engaged).toEqual([P2]);
+  });
+
   it("60162a.when-revealed: in expert mode the first player then finds and reveals Organized Crime; in standard it stays in the deck", () => {
     const standard = advanced({ expert: false });
     expect(revealedByAdvance(standard.events)).not.toContain(CRIME);

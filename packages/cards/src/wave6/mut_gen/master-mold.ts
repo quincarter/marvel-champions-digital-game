@@ -19,7 +19,7 @@ import {
   eventTarget,
   exists,
   firstPlayer,
-  forEachPlayer,
+  forEachPlayerInChosenOrder,
   forcedInterrupt,
   forcedResponse,
   gainsKeyword,
@@ -67,7 +67,7 @@ const sentinelIntoPlayFor = (player: Parameters<typeof putIntoPlay>[1]): EffectA
 ];
 /** "Each player discards cards from the encounter deck until they discard a [Sentinel] minion, then puts it into play
  * engaged with them." */
-const eachPlayerSentinel = () => forEachPlayer(eachPlayer, ...sentinelIntoPlayFor(thatPlayer));
+const eachPlayerSentinel = () => forEachPlayerInChosenOrder(eachPlayer, ...sentinelIntoPlayFor(thatPlayer));
 
 /**
  * "[star] Forced Interrupt: When Master Mold schemes against you, discard cards from the encounter deck until a

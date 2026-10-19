@@ -22,6 +22,7 @@ import {
   exists,
   flipCard,
   forEachPlayer,
+  forEachPlayerInChosenOrder,
   forcedInterrupt,
   forcedResponse,
   gets,
@@ -192,7 +193,7 @@ export const SPIRAL_ABILITIES = defineAbilities({
   // from the same encounter set as the current SHOW environment and deals that card to themself as a facedown
   // encounter card. (Shuffle.)
   "39020.when-revealed": whenRevealed(
-    forEachPlayer(
+    forEachPlayerInChosenOrder(
       eachPlayer,
       chooseCards("found", encounterCards(["deck", "discard"], encounterSetOf(each(SHOW_ENVIRONMENT))), {
         min: 1,

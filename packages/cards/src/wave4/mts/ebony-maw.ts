@@ -24,6 +24,7 @@ import {
   forcedInterrupt,
   forcedResponse,
   forEachPlayer,
+  forEachPlayerInChosenOrder,
   giveStatus,
   giveTough,
   heroAction,
@@ -97,7 +98,7 @@ const spellIntoPlayFor = (player: PlayerRef): EffectArg[] => [
 ];
 /** "Each player discards cards from the top of the encounter deck until they discard a Spell card and puts that card
  * into play in their play area." */
-const eachPlayerSpell = (): EffectArg => forEachPlayer(eachPlayer, ...spellIntoPlayFor(thatPlayer));
+const eachPlayerSpell = (): EffectArg => forEachPlayerInChosenOrder(eachPlayer, ...spellIntoPlayFor(thatPlayer));
 /** "Shuffle the encounter discard pile into the encounter deck." */
 const shuffleDiscardIn = (): EffectArg => moveCards(encounterCards(["discard"]), "encounterDeckShuffle");
 
@@ -226,7 +227,7 @@ export const EBONY_MAW = defineAbilities({
   // player; each player who is not engaged with a minion searches the encounter deck and discard pile for a Black
   // Order minion and puts it into play engaged with them. Shuffle the encounter deck.
   "21088.when-revealed": whenRevealed(
-    forEachPlayer(eachPlayer, [
+    forEachPlayerInChosenOrder(eachPlayer, [
       ifThen(
         exists(query("minion", { engagedWithPlayer: thatPlayer })),
         ifThen(

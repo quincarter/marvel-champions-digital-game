@@ -21,7 +21,7 @@ import {
   encounterSetAside,
   exists,
   find,
-  forEachPlayer,
+  forEachPlayerInChosenOrder,
   eachPlayer,
   gainsKeyword,
   gainsTrait,
@@ -232,7 +232,7 @@ export const MAGNETO_ASPECT_BASIC: AbilityRegistry = defineAbilities({
   ),
 
   "49020.when-defeated": whenDefeated(
-    forEachPlayer(
+    forEachPlayerInChosenOrder(
       eachPlayer,
       chooseCards("taken", encounterSetAside(query("ally", { trait: NEW })), {
         min: 1,

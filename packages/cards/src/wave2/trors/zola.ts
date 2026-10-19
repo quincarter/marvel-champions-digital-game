@@ -18,6 +18,7 @@ import {
   enemyScheme,
   firstPlayer,
   forEachPlayer,
+  forEachPlayerInChosenOrder,
   forcedResponse,
   gainsKeyword,
   gets,
@@ -80,7 +81,7 @@ export const ZOLA_SET = defineAbilities({
   // Zola (III) — Retaliate 1 (data). When Revealed: each player searches the encounter deck and discard pile for
   // a minion and reveals it.
   "04111.when-revealed": whenRevealed(
-    forEachPlayer(eachPlayer, [
+    forEachPlayerInChosenOrder(eachPlayer, [
       chooseCards("found", encounterCards(["deck", "discard"], query("minion")), {
         min: 1,
         max: 1,
@@ -121,7 +122,7 @@ export const ZOLA_SET = defineAbilities({
   // The Mad Doctor 2A — When Revealed: each player searches the encounter deck and discard pile for a minion and
   // reveals it. Shuffle the encounter deck.
   "04113a.when-revealed": whenRevealed(
-    forEachPlayer(eachPlayer, [
+    forEachPlayerInChosenOrder(eachPlayer, [
       chooseCards("found", encounterCards(["deck", "discard"], query("minion")), {
         min: 1,
         max: 1,

@@ -9,6 +9,7 @@ import {
   enemyAttack,
   exists,
   forEachPlayer,
+  forEachPlayerInChosenOrder,
   ifThen,
   moveCards,
   not,
@@ -55,7 +56,7 @@ export const CAP_NEMESIS = defineAbilities({
   // that minions engage and attack players regardless of form (docs/phase2-core-set.md §4 "Masters of Mayhem").
   "03030.when-revealed": whenRevealed(
     enemyAttack(each(query("minion", { trait: TRAIT.HYDRA, engagedWith: "any" }))),
-    forEachPlayer(
+    forEachPlayerInChosenOrder(
       eachPlayer,
       ifThen(not(exists(query("minion", { trait: TRAIT.HYDRA, engagedWithPlayer: thatPlayer }))), [
         chooseCards("found", encounterCards(["deck", "discard"], query("minion", { trait: TRAIT.HYDRA })), {

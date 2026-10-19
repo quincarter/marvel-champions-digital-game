@@ -38,6 +38,7 @@ import {
   firstPlayer,
   flipCard,
   forEachPlayer,
+  forEachPlayerInChosenOrder,
   forcedInterrupt,
   forcedResponse,
   gainsKeyword,
@@ -263,7 +264,7 @@ export const FNE_SCENARIOS_KINGPIN: AbilityRegistry = defineAbilities({
   "60160b.kingpin-forced-interrupt": alone(true),
 
   "60161a.setup": setup(
-    forEachPlayer(
+    forEachPlayerInChosenOrder(
       eachPlayer,
       selectCards("nemesis", setAside(thatPlayer, NEMESIS_MINION_OF_THAT_PLAYER)),
       ifThen(
@@ -300,7 +301,7 @@ export const FNE_SCENARIOS_KINGPIN: AbilityRegistry = defineAbilities({
         ifThen(varAtLeast("nemesis.count"), addCounters("nemesisEntered", 1, identityOf(thatPlayer))),
       ),
     ),
-    forEachPlayer(
+    forEachPlayerInChosenOrder(
       eachPlayer,
       ifThen(
         valueAtLeast(countersOn(identityOf(thatPlayer), "nemesisEntered"), 1),
