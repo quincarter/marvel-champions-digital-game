@@ -43,8 +43,11 @@ describe("on.damage: damage dealt or damage taken", () => {
   });
 
   it("every scripted response to damage reads one of the two, and the three 'deals' cards read dealt", () => {
+    // An `on.either` pattern is read through its damage alternative (Mary Walker 60113b: "takes damage or the round ends").
     const reading = (pattern: EventPattern): "dealt" | "taken" | "none" =>
-      pattern.eventAtLeast?.dealt !== undefined
+      pattern.anyOf !== undefined
+        ? reading(pattern.anyOf.find(hears) ?? pattern)
+        : pattern.eventAtLeast?.dealt !== undefined
         ? "dealt"
         : pattern.requireResults?.amount !== undefined || pattern.eventAtLeast?.taken !== undefined
           ? "taken"
@@ -67,8 +70,9 @@ describe("on.damage: damage dealt or damage taken", () => {
       "55020.ulik-forced-response",
     ]);
     // 20 with wave 8 in the playable pool: Bishop's Energy Absorption (45001a, "After Bishop takes any amount of damage").
-    // 22 with wave 9 in the playable pool (two more "takes damage" readers).
-    expect(byReading.taken).toHaveLength(22);
+    // 22 with wave 9 in the playable pool (two more "takes damage" readers); 23 with wave 11's Mary Walker (60113b).
+    expect(byReading.taken).toHaveLength(23);
+    expect(byReading.taken).toContain("60113b.mary-walker-forced-response");
     expect(byReading.taken).toContain("45001a.energy-absorption");
     // Schadenfreude's lasting "each time you deal any amount of damage" is the third dealt reader.
     expect(JSON.stringify(PLAYABLE_ABILITIES["16032.schadenfreude-action"]?.effects)).toContain(
