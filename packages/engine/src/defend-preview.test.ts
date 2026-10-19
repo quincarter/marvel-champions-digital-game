@@ -198,6 +198,41 @@ test("a Boost ability in the pool is reported, and never raises the damage bound
   expect(plain.options[0]!.boost.poolWithBoostAbility).toBe(0);
 });
 
+/**
+ * docs/phase7-wave11-scenarios.md §S3.6: "Each boost card from the Purple Man encounter set gains: '[star] Boost: …'"
+ * (60097–60099). The pool's cards are still in the deck or facedown, so they are read as if they were boost cards.
+ */
+test("a Boost the pool's cards would gain as boost cards is reported (Purple Man's set)", () => {
+  const granted = stubAbility("pm.granted-boost", { trigger: { kind: "boost" }, effects: [] });
+  const grant = stubAbility("pm.grant", {
+    trigger: {
+      kind: "constant",
+      rules: [{ kind: "gainsAbility", abilityId: granted.ref.id, to: { boostCard: true, inEncounterSet: "pm-set" } }],
+    },
+    effects: [],
+  });
+  const purple = stubVillain({ id: "villain", stages: [{ hp: flat(200), atk: 4, sch: 1, abilities: [grant.ref] }] });
+  const SET_CARD = stubTreachery({ id: "pm-card", encounterSetIds: ["pm-set"], boostIcons: 1, starIcon: true });
+  const OUTSIDER = stubTreachery({ id: "outsider", encounterSetIds: ["other-set"], boostIcons: 1 });
+  const setDeck = Array.from({ length: 24 }, () => SET_CARD.id);
+  const outsiderDeck = Array.from({ length: 24 }, () => OUTSIDER.id);
+  const abilities = [granted, grant];
+
+  const purpleSet = atDefense({ villain: purple, extraCards: [SET_CARD], abilities, encounterDeck: setDeck });
+  const bound = purpleSet.options[0]!.boost;
+  expect(bound.facedownCount).toBe(1);
+  expect(bound.mayTriggerBoostAbility).toBe(true);
+  expect(bound.poolWithBoostAbility).toBe(bound.poolSize);
+
+  const plain = atDefense({ villain: villainWith(4), extraCards: [SET_CARD], abilities, encounterDeck: setDeck });
+  expect(plain.options[0]!.boost.mayTriggerBoostAbility).toBe(false);
+  expect(plain.options[0]!.boost.poolWithBoostAbility).toBe(0);
+
+  const outsiders = atDefense({ villain: purple, extraCards: [OUTSIDER], abilities, encounterDeck: outsiderDeck });
+  expect(outsiders.options[0]!.boost.mayTriggerBoostAbility).toBe(false);
+  expect(outsiders.options[0]!.boost.poolWithBoostAbility).toBe(0);
+});
+
 test("shuffling the deck the boost cards came out of changes nothing", () => {
   const at = atDefense();
   let rng = { value: 7, draws: 0 };

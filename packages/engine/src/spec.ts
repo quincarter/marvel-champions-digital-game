@@ -1,4 +1,12 @@
-import type { AbilityId, CardId, EvidenceCombination, KeywordInstance, KeywordName, Trait } from "@mc/content";
+import type {
+  AbilityId,
+  CardId,
+  EvidenceCombination,
+  KeywordInstance,
+  KeywordName,
+  Trait,
+  VillainSideLetter,
+} from "@mc/content";
 /**
  * When a lasting effect ends: "until the end of the phase" / "…of the round" / "…of this attack" / "…of this turn".
  *
@@ -296,6 +304,16 @@ export interface TargetQuery {
    * boost icon, so this says nothing about the card's pip count.
    */
   readonly starIcon?: boolean;
+  /**
+   * The card is a boost card: in an enemy's boost area (`ZoneId boost`), facedown or faceup. "Each **boost card** from
+   * the Purple Man encounter set gains: '[star] Boost: …'" (60097–60099; docs/phase7-wave11-scenarios.md §S3.6) is
+   * `RuleSpec gainsAbility { to: { boostCard: true, inEncounterSet: "purple_man" } }`. Only that rule's read at a
+   * boost card's flip uses it (`gainedBoostAbilities`): no target choice or count enumerates boost areas, and a card in
+   * a deck or a discard pile is not a boost card. The defend preview reads a facedown card's possible identities as
+   * if they were boost cards (`gainedBoostAbilities` with `asBoostCard`), by dropping this clause from the top level of
+   * `to` only, not from inside its `anyOf` or `not`. Exclusion `notBoostCard`.
+   */
+  readonly boostCard?: true;
   /**
    * The card prints a "Boost" ability: "If the discarded card has a 'Boost' ability" (Sidewinder 62033) is `{
    * printsBoostAbility: true }` over the discarded card (docs/phase7-wave11-hero-packs.md H3.21). `printsBoostAbility`
@@ -5166,6 +5184,22 @@ export type EffectSpec =
       readonly toFaceWithTrait: Trait;
       readonly reveal?: false;
     }
+  /**
+   * "Setup: Put the villain into play on a random side (and reveal it)." (Disturbed Psyche, `fne` 60112;
+   * docs/phase7-wave11-scenarios.md §S3.4): the face each villain `villain` names is put into play on. `"random"` draws
+   * one of the faces of its current stage card from the game's seeded RNG, every face equally likely (a draw is spent
+   * even when it lands on the face already up; a one-faced villain spends none); a letter names the face. Logged as
+   * `villainSideSet`, whichever face it lands on.
+   *
+   * Not a flip (RRG 1.8 "Flip", p. 20): the villain is taken as having entered play on that face, so no `cardFlipped`
+   * is raised and nothing of the new face is revealed here. That face's toughness gives it a tough status card, as
+   * entering play does ("Toughness", p. 45). Engine interpretation (no official source places the villain's entry):
+   * the villain enters at RRG 1.8 Appendix II step 8 (p. 51) as usual, this resolves among step 12's encounter-card
+   * Setup abilities ("Setup (Triggered Ability)", p. 40), and the "(and reveal it)" is step 12c's reveal of the face
+   * it now shows, once (`resolveScenarioSetup` holds step 12c back until then). A face change after setup is a flip
+   * (`flipCard`), never this.
+   */
+  | { readonly kind: "setVillainSide"; readonly villain: TargetRef; readonly side: "random" | VillainSideLetter }
   /**
    * "Flip this card and reveal Apocalypse (II)" / "Remove this card from the game and reveal Apocalypse (III)"
    * (Apocalypse I to III, `aoa` 45101a, 45101b, 45102a; docs/phase7-wave8.md §3.18): the stage change of a villain's

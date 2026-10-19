@@ -27,7 +27,13 @@ import type {
   TargetQuery,
   TargetRef,
 } from "@mc/engine";
-import { abilityId, type EvidenceCombination, type KeywordInstance, type Trait } from "@mc/content";
+import {
+  abilityId,
+  type EvidenceCombination,
+  type KeywordInstance,
+  type Trait,
+  type VillainSideLetter,
+} from "@mc/content";
 import {
   activatingEnemy,
   amount,
@@ -3221,6 +3227,16 @@ export const changeVillainForm = (
   villain,
   toFaceWithTrait,
   ...(options.reveal === false ? { reveal: false as const } : {}),
+});
+/**
+ * "Setup: Put the villain into play on a random side (and reveal it)" (Disturbed Psyche, `fne` 60112;
+ * docs/phase7-wave11-scenarios.md §S3.4): the face the villain is put into play on, `"random"` drawn from the game's
+ * seed. Not a flip; step 12c reveals the face it lands on. A face change during the game is `flipCard`.
+ */
+export const setVillainSide = (villain: TargetRef, side: "random" | VillainSideLetter): EffectSpec => ({
+  kind: "setVillainSide",
+  villain,
+  side,
 });
 /**
  * "Flip [card]" (RRG 1.8 "Flip"). `{ reveal: true }`: "Flip this card and reveal it" / "flip this card and reveal

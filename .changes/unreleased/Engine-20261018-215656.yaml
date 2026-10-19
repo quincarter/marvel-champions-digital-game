@@ -1,0 +1,3 @@
+kind: Engine
+body: gainsAbility can grant a Boost ability to boost cards (TargetQuery.boostCard, DSL boostCardsFromSet), resolved after the card's printed Boost abilities when it is turned faceup (Purple Man's set).
+time: 2026-10-18T21:56:56.5045946-04:00

@@ -27,6 +27,7 @@ import {
   undefeatedVillains,
   villainOf,
 } from "./query.js";
+import { cardsInPlay } from "./select.js";
 import { announce, applyEnterPlayKeywords, gameAbilityFrames, shuffleSeparateDeck } from "./resolve/index.js";
 import { buildScenarioDeck } from "./resolve/cards.js";
 import { base } from "./resolve/frames.js";
@@ -99,14 +100,33 @@ export function resolveScenarioSetup(ctx: Ctx): void {
   // 12: they are lifted off here and put back on top once step 12's frames are pushed, so the stack reads step 11,
   // the setup options, step 12 (RRG 1.8 Appendix II, p. 51; docs/phase7-wave8.md §3.5).
   const heldBeforeStep11 = ctx.state.stack.length;
-  putSetupCardsIntoPlay(ctx, firstPlayerId);
+  const encounterSetupCards = putSetupCardsIntoPlay(ctx, firstPlayerId);
   const step11Frames = ctx.state.stack.slice(0, ctx.state.stack.length - heldBeforeStep11);
   ctx.state = { ...ctx.state, stack: ctx.state.stack.slice(step11Frames.length) };
+  // RRG 1.8 "Setup (Triggered Ability)" (p. 40): "Setup abilities on encounter cards are resolved during the 'Resolve
+  // Scenario Setup and When Revealed Abilities' step of setup", which lists only the main scheme's and the villain's.
+  // Engine interpretation (Appendix II, p. 51, gives no place): the Setup of each encounter card step 11 put into play
+  // resolves first in step 12, in the order step 11 found them, before 12a (docs/phase7-wave11-scenarios.md §S3.4:
+  // "Put the villain into play on a random side (and reveal it)" settles the face 12a to 12c then see). A setup card
+  // still waiting for a host (`setupCardsAwaitingHost`) is not in play yet, so its Setup ability is skipped.
+  const inPlay = cardsInPlay(ctx.state);
+  const encounterSetupFrames = encounterSetupCards
+    .filter((id) => inPlay.includes(id))
+    .flatMap((id) => gameAbilityFrames(ctx, id, ["setup"], null, undefined, firstPlayerId));
+  // Those abilities can change what step 12c reads (the villain's face, so which Setup and When Revealed it has), and a
+  // frame lists its abilities when it is built: step 12c then waits for its own flow step, built once 12a and 12b have
+  // resolved, as in a game whose villains started set aside (`villainsEnteringAtSetup`, `resolveVillainSetupAbilities`).
+  // A game with no such ability keeps the step sequence it had.
+  if (encounterSetupFrames.length > 0 && ctx.state.villainsEnteringAtSetup === undefined) {
+    ctx.state = { ...ctx.state, villainsEnteringAtSetup: undefeatedVillains(ctx.state).map((v) => v.instanceId) };
+  }
+  const villainStep12c = ctx.state.villainsEnteringAtSetup === undefined;
   // RRG Appendix II step 12: main scheme 1A setup text, the flip to 1B and its "When Revealed", then each villain's,
   // in printed order. Side 1A is the faceup one through step 11 and step 12a (`MainSchemeState.faceupSide`).
   pushFrames(ctx, [
     // Between step 11 and step 12: the optional setup rules the players turned on (docs/phase7-wave8.md §3.5).
     ...setupOptionFrames(ctx),
+    ...encounterSetupFrames,
     // Steps 12a and 12b: 1A's Setup, then the flip to 1B, whose own Setup and When Revealed resolve once it is the
     // faceup side (docs/phase7-wave8.md §4.1 Q56).
     ...mainSchemeStageFrames(
@@ -124,7 +144,7 @@ export function resolveScenarioSetup(ctx: Ctx): void {
         ? mainSchemeStageFrames(ctx, scheme.instanceId, "setup", ["setup", "whenRevealed"], scheme.playArea)
         : [],
     ),
-    ...undefeatedVillains(ctx.state).flatMap((villain) => [
+    ...(villainStep12c ? undefeatedVillains(ctx.state) : []).flatMap((villain) => [
       ...gameAbilityFrames(ctx, villain.instanceId, ["setup"], null, undefined, firstPlayerId),
       // RRG Appendix II "Resolve Scenario Setup and When Revealed Abilities": the starting villain
       // stage is revealed too (expert Rhino II reveals Breakin' & Takin' during setup).
@@ -319,12 +339,14 @@ function stackDecks(ctx: Ctx): void {
  * - An attachment with no card to attach to, in a game whose villains all start set aside, waits for the villain that
  *   step 12a puts into play (`resolve/setup-cards.ts`), wherever step 11 found it.
  */
-function putSetupCardsIntoPlay(ctx: Ctx, revealingPlayerId: PlayerId): void {
+function putSetupCardsIntoPlay(ctx: Ctx, revealingPlayerId: PlayerId): readonly InstanceId[] {
   const setAsideAtStart = [...ctx.state.encounterSetAside];
+  const encounterCards: InstanceId[] = [];
   for (const deckId of ctx.state.encounterDeckOrder) {
     for (const id of [...encounterDeckOf(ctx.state, deckId).deck]) {
       if (!hasKeyword(ctx.state, id, "setup")) continue;
       encounterSetupCardEntersPlay(ctx, id, revealingPlayerId);
+      encounterCards.push(id);
     }
   }
   for (const player of ctx.state.players) {
@@ -347,7 +369,9 @@ function putSetupCardsIntoPlay(ctx: Ctx, revealingPlayerId: PlayerId): void {
   for (const id of setAsideAtStart) {
     if (!hasKeyword(ctx.state, id, "setup") || isSetAsideUntilCalled(ctx.state, id)) continue;
     encounterSetupCardEntersPlay(ctx, id, revealingPlayerId);
+    encounterCards.push(id);
   }
+  return encounterCards;
 }
 
 /**

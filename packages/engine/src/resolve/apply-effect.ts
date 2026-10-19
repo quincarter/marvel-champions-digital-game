@@ -4,7 +4,7 @@ import { imminentAttach, imminentAttachHeard, resolveImminentAttach } from "./im
 import { placeCountersOrAnnounce } from "./counters-being-placed.js";
 import { announceDeckTops } from "../deck-top.js";
 import { discardTopOfEncounterDeck, encounterTopDiscardVars } from "../encounter-discard-cost.js";
-import type { CardId } from "@mc/content";
+import type { CardId, VillainSideLetter } from "@mc/content";
 import { nextInt, shuffle } from "../rng.js";
 import {
   type Ctx,
@@ -38,6 +38,8 @@ import {
   moveCounters,
   discardEmptiedUsesCard,
   flipVillain,
+  applyToughness,
+  setVillainSide,
   removeStatus,
   discardStatusCards,
   type StatusDiscarded,
@@ -2254,7 +2256,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           // Both faces of a double-sided stage card list the same stages (docs/phase7-wave1.md §1.3).
           if (!other?.stages[villain.stageIndex]) continue;
           flipVillain(ctx, id, other.side);
-          // Her new face is revealed (FAQ "Dial M for Mojo (#35)"; docs/phase7-wave6.md §3.65, §4.1 Q36).
+          // Her new face is revealed (FAQ "Dial M for Mojo (#35)"; docs/phase7-wave6.md §3.65, §4.1 Q36), and its
+          // toughness resolves as on a stage revealed by a defeat (`villainFaceRevealedByFlip`).
+          villainFaceRevealedByFlip(ctx, id);
           frames.push(revealNewFaceFrame(ctx, id));
         } else if (mainSchemeStateOf(ctx.state, id)) {
           // A main scheme stage with its other face emitted as its own card (docs/phase7-wave5.md §3.3): "Flip this
@@ -2390,10 +2394,33 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         );
         if (!face || face.side === villain.side) continue;
         flipVillain(ctx, id, face.side);
-        if (effect.reveal !== false) frames.push(revealNewFaceFrame(ctx, id));
+        if (effect.reveal !== false) {
+          villainFaceRevealedByFlip(ctx, id);
+          frames.push(revealNewFaceFrame(ctx, id));
+        }
         frames.push(eventFrame(ctx, cardFlippedEvent(id, context.controllerId)));
       }
       pushFrames(ctx, frames);
+      return;
+    }
+    case "setVillainSide": {
+      // docs/phase7-wave11-scenarios.md §S3.4: the face the villain is put into play on, not a flip.
+      const inPlay = cardsInPlay(ctx.state);
+      for (const id of targets(effect.villain)) {
+        const card = cardOf(ctx.state, id);
+        const villain = villainOf(ctx.state, id);
+        if (!inPlay.includes(id) || !villain || villain.defeated || card?.type !== "villain") continue;
+        // Only the faces of the villain's current stage card: every face of a stage card lists the same stages.
+        const faces = card.sides.filter((side) => side.stages[villain.stageIndex] !== undefined).map((s) => s.side);
+        let to: VillainSideLetter | undefined = effect.side === "random" ? undefined : effect.side;
+        if (to === undefined) {
+          const [pick, rng] = nextInt(ctx.state.rng, faces.length);
+          ctx.state = { ...ctx.state, rng };
+          to = faces[pick];
+        }
+        if (to === undefined || !faces.includes(to)) continue;
+        setVillainSide(ctx, id, to, effect.side === "random");
+      }
       return;
     }
     case "revealNextVillainStage": {
@@ -4067,6 +4094,19 @@ function useThwForBasicAttack(ctx: Ctx, frame: Frame<"effects">): void {
  * A card in play turns facedown as nothing in particular (`FacedownRole` `blank`), keeping its controller: no title,
  * text, keywords or abilities until it turns faceup or leaves play (docs/phase7-wave4.md §3.1).
  */
+/**
+ * A villain's new face revealed by a flip (`flipCard`, `changeVillainForm`) resolves its toughness keyword, as a stage
+ * revealed by a defeat does (`defeatVillainStage`): MC60 p. 26 FAQ, when Typhoid Mary (B) flips, "the ability or
+ * keyword on her new faceup side resolves" (docs/phase7-wave11-scenarios.md §S3.4). RRG 1.8 "Toughness" (p. 45) speaks
+ * only of entering play and is silent on a flip; the product's FAQ answers, and this engine reads it for every villain
+ * whose flip is a reveal (FAQ "Dial M for Mojo (#35)"). Placed before the reveal's frames, as at a stage advance; a
+ * villain that already holds its tough status card gets no second one (`canTakeStatus`). A change of form that is no
+ * reveal (`changeVillainForm` `reveal: false`) resolves nothing of the new face, toughness included.
+ */
+function villainFaceRevealedByFlip(ctx: Ctx, id: InstanceId): void {
+  applyToughness(ctx, id);
+}
+
 function turnFacedown(ctx: Ctx, id: InstanceId): void {
   updateInstance(ctx, id, (i) => ({ ...i, faceup: false, facedownAs: { kind: "blank", traits: [] } }));
   emit(ctx, { type: "cardTurnedFacedown", instanceId: id });

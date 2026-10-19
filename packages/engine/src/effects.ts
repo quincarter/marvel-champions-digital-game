@@ -688,6 +688,23 @@ export function flipVillain(ctx: Ctx, id: InstanceId, to: VillainSideLetter): vo
 }
 
 /**
+ * Puts a villain on face `to` as the face it entered play on (`EffectSpec setVillainSide`,
+ * docs/phase7-wave11-scenarios.md §S3.4). Not a flip, so nothing is revealed and no `cardFlipped` is raised; the face's
+ * toughness gives a tough status card as entering play would (RRG 1.8 "Toughness", p. 45). Logged as `villainSideSet`
+ * even when `to` is already up, so the log shows the draw.
+ *
+ * Known gap (engine call): a tough status card the previous face's toughness gave at setup step 10 is kept when the new
+ * face has no toughness, although the villain is taken as having entered on the new face. No card reaches it yet
+ * (Typhoid Mary's starting face, Bloody Mary, has no toughness on either stage).
+ */
+export function setVillainSide(ctx: Ctx, id: InstanceId, to: VillainSideLetter, random: boolean): void {
+  const villain = mustVillain(ctx.state, id);
+  ctx.state = { ...ctx.state, villains: ctx.state.villains.map((v) => (v.instanceId === id ? { ...v, side: to } : v)) };
+  emit(ctx, { type: "villainSideSet", instanceId: id, from: villain.side, to, random });
+  if (villain.side !== to) applyToughness(ctx, id);
+}
+
+/**
  * Moves the active counter (The Wrecking Crew insert, "The Active Villain"). Only an undefeated villain can hold it.
  * `reason` says why it moved in the log: an ability, or the rule that replaces a defeated active villain.
  */

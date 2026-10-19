@@ -837,6 +837,13 @@ function describe(
         text: `${card(event.instanceId)} flips${event.hitPointsReset ? ", hit points reset," : ""} to side ${event.to}.`,
         voice: "villain",
       };
+    // docs/phase7-wave11-scenarios.md §S3.4: the face a villain is put into play on (Disturbed Psyche's Setup). Not a
+    // flip, so it reads as where the villain starts.
+    case "villainSideSet":
+      return {
+        text: `${card(event.instanceId)} starts on side ${event.to}${event.random ? " (drawn at random)" : ""}.`,
+        voice: "villain",
+      };
     // A card the first player controls followed the token to a new seat (the Milano, docs/phase7-wave3.md §3.13) —
     // otherwise silent, since nothing about the card's own state changes, only who may use its ability. The
     // engine's own `reason` is always "firstPlayer" today, so the line states that plainly rather than branching

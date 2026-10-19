@@ -1368,6 +1368,11 @@ export interface GameState {
    * is present "the villain" may be nobody; it lists, in the order they entered, the villains put into play without
    * being revealed, whose Setup and When Revealed abilities step 12c still owes (the `villainSetupAbilities` step).
    * docs/phase7-wave7.md §3.42.
+   *
+   * Also present, from step 12 on, in a game where an encounter card step 11 put into play has a Setup ability
+   * (`resolveScenarioSetup`; docs/phase7-wave11-scenarios.md §S3.4): it then starts with the villains already in play,
+   * whose step 12c waits for that ability (it can set the face they show), and a villain put into play during step 12
+   * without being revealed is added to it as above.
    */
   readonly villainsEnteringAtSetup?: readonly InstanceId[];
   /**

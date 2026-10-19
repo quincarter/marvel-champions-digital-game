@@ -253,6 +253,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   wrongForm: "not that kind of form card",
   noSuchAbility: "has no such ability",
   wrongStarIcon: "wrong star icon in the boost area",
+  notBoostCard: "not a boost card",
   wrongUnique: "wrong unique icon",
   notHostOfSelf: "isn't hosting this card",
   notAttachedToHost: "not attached to the right host",

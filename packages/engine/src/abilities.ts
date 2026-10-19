@@ -1081,6 +1081,10 @@ export type RuleSpec =
    * - A constant like any other: off while its `while` is false, on a face that is not up, under a blank text box,
    *   and once its card has left play (an ability already on the stack still resolves). Also given by a lasting
    *   `applyRuleUntil` and by a scenario rule.
+   * - **To boost cards.** A `to` with `boostCard: true` reaches a card in an enemy's boost area, which is not in play:
+   *   "Each boost card from the Purple Man encounter set gains: '[star] Boost: …'" (60097–60099;
+   *   docs/phase7-wave11-scenarios.md §S3.6). Read as the boost card is turned faceup (`gainedBoostAbilities`); only a
+   *   `boost` ability is gained that way, and it resolves after the card's printed ones, as one of them would.
    *
    * How it relates to `grantsLabeledAbility` above: both name a registry-only ability from a constant. That one is
    * for a labeled ability (a Preparation) of a card that is resolved on demand wherever the card is (an encounter

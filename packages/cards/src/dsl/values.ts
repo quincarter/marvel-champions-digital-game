@@ -503,6 +503,16 @@ export const printsAbility = (
  */
 export const hasPrintedBoostAbility: Pick<TargetQuery, "printsBoostAbility"> = { printsBoostAbility: true };
 /**
+ * "Each **boost card** from the Purple Man encounter set gains: '[star] Boost: …'" (60097–60099;
+ * docs/phase7-wave11-scenarios.md §S3.6) → `constant(gainsAbility(GRANTED_BOOST_ID, { to: boostCardsFromSet(id) }))`,
+ * the granted ability a `boost` trigger: a card in an enemy's boost area of that encounter set, read as it is turned
+ * faceup. The same cards in play, in a deck or in a discard pile are not boost cards and gain nothing.
+ */
+export const boostCardsFromSet = (setId: string): Pick<TargetQuery, "boostCard" | "inEncounterSet"> => ({
+  boostCard: true,
+  inEncounterSet: setId,
+});
+/**
  * "Each Spell card in your play area" (Ebony Maw I–III, `mts` 21071–21073): a query fragment for cards in that player's
  * play area, controlled by them or not (docs/phase7-wave4.md §3.16).
  */

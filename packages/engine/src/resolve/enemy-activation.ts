@@ -58,7 +58,15 @@ import {
   defendsWithoutExhausting,
   attackExtraDamageAgainst,
 } from "../rules.js";
-import { canAttack, cardsInPlay, controllerOf, DEFENDER_SLOT, evaluate, isAlly } from "../select.js";
+import {
+  canAttack,
+  cardsInPlay,
+  controllerOf,
+  DEFENDER_SLOT,
+  evaluate,
+  gainedBoostAbilities,
+  isAlly,
+} from "../select.js";
 import { currentActivationFrameId, type Vars } from "../stack.js";
 import type { BoostGiven, GameState, ZoneId } from "../state.js";
 import { type SchemeThreatDivert, TOTAL_ATK_RESULT, type TriggerEvent } from "../trigger-events.js";
@@ -401,8 +409,17 @@ function stepBoostCard(
     boost = rest;
     setFrame(ctx, { ...frame, boost: { ...boost, step: "ability" } });
     if (boost.abilityCancelled) emit(ctx, { type: "boostCancelled", instanceId: boost.instanceId, scope: "ability" });
-    else if (!boost.ignored)
-      pushFrames(ctx, gameAbilityFrames(ctx, boost.instanceId, ["boost"], null, undefined, playerId));
+    else if (!boost.ignored) {
+      // Its printed Boost abilities, then those it gains as a boost card ("Each boost card from the Purple Man
+      // encounter set gains: '[star] Boost: …'", docs/phase7-wave11-scenarios.md §S3.6), read now it is faceup. A
+      // gained one is passed as the slots to scan, so the card's own blank does not reach it: engine interpretation
+      // (RRG 1.8 "'Gains'", p. 21, is silent on blanking), the one `RuleSpec gainsAbility` already makes in play.
+      const gained = gainedBoostAbilities(ctx.state, ctx.deps, boost.instanceId).map((g) => ({ id: g.abilityId }));
+      pushFrames(ctx, [
+        ...gameAbilityFrames(ctx, boost.instanceId, ["boost"], null, undefined, playerId),
+        ...(gained.length > 0 ? gameAbilityFrames(ctx, boost.instanceId, ["boost"], null, gained, playerId) : []),
+      ]);
+    }
     return "busy";
   }
   if (boost.step === "ability") {

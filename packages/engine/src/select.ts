@@ -1230,6 +1230,8 @@ export type QueryExclusion =
   /** No ability with one of the query's `abilityTiming` words (docs/phase7-wave4.md §3.33), or none printed with a `printsAbility` label. */
   | "noSuchAbility"
   | "wrongStarIcon"
+  /** Not in an enemy's boost area (`TargetQuery.boostCard`, docs/phase7-wave11-scenarios.md §S3.6). */
+  | "notBoostCard"
   | "wrongUnique"
   | "notHostOfSelf"
   | "notAttachedToHost"
@@ -1407,6 +1409,7 @@ export function explainQuery(
   // read of the ability registry: see docs/phase7-wave2.md §18.6. RRG 1.8 "Boost, Boost Icon" (p. 11) — a star is not
   // a boost icon, so this clause says nothing about the card's pip count.
   if (query.starIcon !== undefined && hasStarIcon(state, id) !== query.starIcon) return "wrongStarIcon";
+  if (query.boostCard === true && locateCard(state, id)?.kind !== "boost") return "notBoostCard";
   // "If the discarded card has a 'Boost' ability" (H3.21): printed, so a granted Boost (Purple Man's set) is not one.
   if (query.printsBoostAbility === true && !printsBoostAbility(state, id)) return "noSuchAbility";
   // "Against a unique enemy" (Godslayer, `gam` 18018): the same printed-fact reading `unique.ts`'s `isUnique` uses
@@ -3994,6 +3997,25 @@ const GAINED_BY_RULES = new WeakMap<
   WeakMap<EngineDeps, ReadonlyMap<InstanceId, readonly GrantedAbility[]> | null>
 >();
 
+/** Whether any `gainsAbility` rule could be in effect: one in the registry, a lasting rule grant or a scenario rule. */
+function mayGainAbilities(state: GameState, deps: EngineDeps): boolean {
+  let inRegistry = GAIN_RULE_IN_REGISTRY.get(deps);
+  if (inRegistry === undefined) {
+    inRegistry = Object.values(deps.abilities).some(
+      (definition) =>
+        definition.trigger.kind === "constant" &&
+        (definition.trigger.rules ?? []).some((rule) => rule.kind === "gainsAbility"),
+    );
+    GAIN_RULE_IN_REGISTRY.set(deps, inRegistry);
+  }
+  const isGain = (rule: RuleSpec): boolean => rule.kind === "gainsAbility";
+  return (
+    inRegistry ||
+    state.lastingEffects.some((effect) => effect.kind === "ruleGrant" && isGain(effect.rule)) ||
+    (state.scenarioRules.rules ?? []).some(isGain)
+  );
+}
+
 /**
  * The abilities cards in play gain from `gainsAbility` rules in effect, by the card that gains them (`RuleSpec
  * gainsAbility`; RRG 1.8 "'Gains'", p. 21), one entry per rule that reaches the card, in the order `activeRules` reads
@@ -4012,22 +4034,7 @@ export function gainedAbilities(
   state: GameState,
   deps: EngineDeps,
 ): ReadonlyMap<InstanceId, readonly GrantedAbility[]> {
-  let inRegistry = GAIN_RULE_IN_REGISTRY.get(deps);
-  if (inRegistry === undefined) {
-    inRegistry = Object.values(deps.abilities).some(
-      (definition) =>
-        definition.trigger.kind === "constant" &&
-        (definition.trigger.rules ?? []).some((rule) => rule.kind === "gainsAbility"),
-    );
-    GAIN_RULE_IN_REGISTRY.set(deps, inRegistry);
-  }
-  const isGain = (rule: RuleSpec): boolean => rule.kind === "gainsAbility";
-  if (
-    !inRegistry &&
-    !state.lastingEffects.some((effect) => effect.kind === "ruleGrant" && isGain(effect.rule)) &&
-    !(state.scenarioRules.rules ?? []).some(isGain)
-  )
-    return NO_GAINED_ABILITIES;
+  if (!mayGainAbilities(state, deps)) return NO_GAINED_ABILITIES;
   let perDeps = GAINED_BY_RULES.get(state);
   if (!perDeps) {
     perDeps = new WeakMap();
@@ -4060,6 +4067,42 @@ export function gainedAbilities(
     perDeps.delete(deps);
     throw error;
   }
+}
+
+/**
+ * The "Boost" abilities a boost card gains from `gainsAbility` rules in effect, read as it is turned faceup: "Each
+ * boost card from the Purple Man encounter set gains: '[star] Boost: …'" (60097–60099; docs/phase7-wave11-scenarios.md
+ * §S3.6). `gainedAbilities` reads only cards in play, and a boost card is not one; this is the same rules' read for a
+ * card in a boost area, by `to` (`TargetQuery.boostCard`). A rule with no `to` (this card gains) never reaches it.
+ *
+ * - Only a `boost` ability is gained here: "Only the ability text beneath the divider line is active on a card that is
+ *   resolving as a boost card" (RRG 1.8 "Boost, Boost Icon", p. 11), so a granted response or action is not.
+ * - As `activeAbilityRefs` treats a gained ability: one of each, not one the card prints, not one an `ignoreAbilities`
+ *   rule names, and not taken away by the boost card's own blank text box. That last is an engine interpretation, the
+ *   one `RuleSpec gainsAbility` makes in play: RRG 1.8 "'Gains'" (p. 21) does not speak to blanking.
+ * - `asBoostCard`: read the card as if it were in a boost area (a facedown card's possible identities, for the defend
+ *   preview), by ignoring the top-level `boostCard` clause of each `to`.
+ */
+export function gainedBoostAbilities(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  opts: { readonly asBoostCard?: true } = {},
+): readonly GrantedAbility[] {
+  const card = cardOf(state, id);
+  if (!card || !mayGainAbilities(state, deps)) return [];
+  const printed = new Set(printedAbilityRefs(card).map((ref) => ref.id));
+  const ignored = ignoredAbilities(state, deps).get(id);
+  const found: GrantedAbility[] = [];
+  for (const { rule, context } of activeRules(state, deps, "gainsAbility")) {
+    if (!rule.to || deps.abilities[rule.abilityId]?.trigger.kind !== "boost") continue;
+    if (printed.has(rule.abilityId) || ignored?.has(rule.abilityId)) continue;
+    if (found.some((grant) => grant.abilityId === rule.abilityId)) continue;
+    const { boostCard: _boostCard, ...rest } = rule.to;
+    if (!matchesQuery(state, id, opts.asBoostCard ? rest : rule.to, context)) continue;
+    found.push({ abilityId: rule.abilityId, grantedBy: context.selfInstanceId });
+  }
+  return found;
 }
 
 const NO_IGNORED_ABILITIES: ReadonlyMap<InstanceId, ReadonlySet<string>> = new Map();

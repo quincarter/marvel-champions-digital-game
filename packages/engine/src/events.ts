@@ -1280,6 +1280,18 @@ export type GameEvent =
       readonly hitPointsReset?: true;
     }
   /**
+   * The face a villain is put into play on was set (`EffectSpec setVillainSide`, docs/phase7-wave11-scenarios.md
+   * §S3.4): `to` is the face up from now on, `from` the one before (the same when the draw landed on it). `random`: the
+   * face was drawn from the game's RNG. Not a flip: nothing answers it as one.
+   */
+  | {
+      readonly type: "villainSideSet";
+      readonly instanceId: InstanceId;
+      readonly from: VillainSideLetter;
+      readonly to: VillainSideLetter;
+      readonly random: boolean;
+    }
+  /**
    * A card whose other face is a card of its own turned over (`otherFaceId`, docs/phase7-wave4.md §3.10). `typeChanged`:
    * the new face is another card type, so its attachments, tucked cards, status cards and tokens were discarded.
    * `keptCounters`: the counters it held through that change of type, by type (`flipCard.keepCounters`,
