@@ -4,9 +4,9 @@
 //   node scripts/release-credits.mjs notes <from-ref> [to-ref] [version]
 //     Prints a release's "Special thanks" section: everyone who reported an issue fixed between the two refs, or
 //     authored a pull request merged between them. A PR counts when a commit subject names it, "(#123)"; an issue
-//     counts when a commit subject, a merged PR's body ("Fixes #123") or the release's changelog
-//     (`.changes/<version>.md`, the version defaulting to <to-ref>) names it. Prints nothing when there is no one to thank. The release job appends it to
-//     the release notes and the release PR body.
+//     counts when a commit subject, a merged PR's closing issues ("Fixes #123", or linked in its sidebar) or the
+//     release's changelog (`.changes/<version>.md`, the version defaulting to <to-ref>) names it. Prints nothing
+//     when there is no one to thank. The release job appends it to the release notes and the release PR body.
 //
 //   node scripts/release-credits.mjs readme
 //     Rewrites the README's two "Special thanks" lists (between the `credits:` markers). The Watchers are people
@@ -34,6 +34,15 @@ function ghJson(path) {
 // Every page of a list endpoint, flattened.
 function ghPaged(path) {
   return JSON.parse(gh(["api", "--paginate", "--slurp", path])).flat();
+}
+
+// The issues a PR closes, including ones linked in its Development sidebar or listed after one "Fixes".
+function closingIssues(pr) {
+  const [repoOwner, name] = repo.split("/");
+  const query = `{ repository(owner: "${repoOwner}", name: "${name}") { pullRequest(number: ${pr}) {
+    closingIssuesReferences(first: 50) { nodes { number } } } } }`;
+  const data = JSON.parse(gh(["api", "graphql", "-f", `query=${query}`]));
+  return data.data.repository.pullRequest.closingIssuesReferences.nodes.map((node) => node.number);
 }
 
 function git(args) {
@@ -83,7 +92,7 @@ function notes(from, to = "HEAD", version = to) {
     if (!found.pull_request) issues.add(n);
     else if (found.pull_request.merged_at) {
       prs.add(n);
-      for (const closed of refsIn(found.body, CLOSES_REF)) issues.add(closed);
+      for (const closed of [...refsIn(found.body, CLOSES_REF), ...closingIssues(n)]) issues.add(closed);
     }
   }
 
