@@ -1296,7 +1296,74 @@ export function validateScenario(scenario: Scenario): ValidationResult {
   errors.push(...wave2ScenarioErrors(scenario));
   errors.push(...wave4ScenarioErrors(scenario));
   errors.push(...wave10ScenarioErrors(scenario));
+  errors.push(...villainOptionErrors(scenario));
   return result(errors);
+}
+
+const sameStageRange = (a: unknown, b: unknown): boolean =>
+  Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((n, i) => n === b[i]);
+
+/**
+ * `Scenario.villainOptions` on its own (docs/phase7-wave11-scenarios.md §S1.2): two or more options, one per villain
+ * set, the default among them and described by the record's own villain fields, so a reader that knows nothing of the
+ * choice still builds the default game. The cards are checked by `validateScenarioVillainOptions`.
+ */
+function villainOptionErrors(scenario: Scenario): string[] {
+  const choice: unknown = scenario.villainOptions;
+  if (choice === undefined) return [];
+  const label = "scenario villainOptions";
+  const { options, defaultSetId } = (typeof choice === "object" && choice !== null ? choice : {}) as Record<
+    string,
+    unknown
+  >;
+  if (!Array.isArray(options) || options.length < 2) return [`${label} must list at least two villains`];
+  const errors: string[] = [];
+  const ownSets: readonly unknown[] = Array.isArray(scenario.encounterSetIds) ? scenario.encounterSetIds : [];
+  const setIds = new Set<string>();
+  for (const [index, entry] of options.entries()) {
+    const option = (typeof entry === "object" && entry !== null ? entry : {}) as Record<string, unknown>;
+    const name = isNonEmptyString(option.villainSetId) ? option.villainSetId : `#${index}`;
+    if (!isNonEmptyString(option.villainSetId)) errors.push(`${label} option ${name} missing villainSetId`);
+    else if (setIds.has(option.villainSetId)) errors.push(`${label} lists set ${option.villainSetId} twice`);
+    else setIds.add(option.villainSetId);
+    if (!isNonEmptyString(option.villainCardId)) errors.push(`${label} option ${name} missing villainCardId`);
+    const stages = (typeof option.villainStages === "object" ? option.villainStages : null) as Record<
+      string,
+      unknown
+    > | null;
+    if (!stages || !isStageRange(stages.standard) || !isStageRange(stages.expert))
+      errors.push(`${label} option ${name} villainStages.standard/expert must be [first, last] stage numerals`);
+    if (option.victory !== undefined && option.victory !== "finalVillainStage" && option.victory !== "cardAbility")
+      errors.push(`${label} option ${name} victory must be 'finalVillainStage' or 'cardAbility' when present`);
+    if (option.expertVillainCardId !== undefined && !isNonEmptyString(option.expertVillainCardId))
+      errors.push(`${label} option ${name} expertVillainCardId must be a card id when present`);
+    // Another option's set among the record's own sets would put two villains' sets in the default game.
+    if (isNonEmptyString(option.villainSetId) && option.villainSetId !== defaultSetId && ownSets.includes(name))
+      errors.push(`${label} option ${name} is not the default, so encounterSetIds must not name its set`);
+  }
+  if (!isNonEmptyString(defaultSetId) || !setIds.has(defaultSetId)) {
+    errors.push(`${label}.defaultSetId must be one of the options' villainSetId`);
+    return errors;
+  }
+  const fallback = (options as readonly Record<string, unknown>[]).find((o) => o?.villainSetId === defaultSetId)!;
+  if (fallback.villainCardId !== scenario.villainCardId)
+    errors.push(`${label}: villainCardId must be the default option's (${String(fallback.villainCardId)})`);
+  const stages = (typeof fallback.villainStages === "object" ? fallback.villainStages : null) as Record<
+    string,
+    unknown
+  > | null;
+  if (
+    !sameStageRange(stages?.standard, scenario.villainStages?.standard) ||
+    !sameStageRange(stages?.expert, scenario.villainStages?.expert)
+  )
+    errors.push(`${label}: villainStages must be the default option's`);
+  if ((fallback.victory ?? "finalVillainStage") !== (scenario.victory ?? "finalVillainStage"))
+    errors.push(`${label}: victory must be the default option's`);
+  if (!ownSets.includes(defaultSetId))
+    errors.push(`${label}: encounterSetIds must name the default villain's set ${defaultSetId}`);
+  for (const field of ["multipleVillains", "expertVillains", "setAsideVillainCardIds", "startingVillain"] as const)
+    if (scenario[field] !== undefined) errors.push(`${label} cannot be combined with ${field}`);
+  return errors;
 }
 
 /** Wave 10 scenario fields (docs/phase7-wave10.md §1.4): `side`, `modularSetCountRange`, `mainSchemeStages`. */
@@ -1624,6 +1691,7 @@ export function validateScenarioEncounterSets(
     ...scenario.standardEncounterSetIds,
     ...scenario.expertEncounterSetIds,
     ...(scenario.multipleVillains?.villains.flatMap((villain) => villain.encounterSetIds) ?? []),
+    ...(scenario.villainOptions?.options.map((option) => option.villainSetId) ?? []),
   ];
   for (const id of new Set(named)) {
     const set = byId.get(id);
@@ -1713,6 +1781,43 @@ export function validateScenarioMainSchemeStages(
     });
     if (numbers.every((n) => n !== undefined) && (numbers[0] !== 1 || numbers[1] !== 2))
       errors.push(`scenario ${scenario.id} must recommend one stage 1 then one stage 2, not ${numbers.join(" then ")}`);
+  }
+  return result(errors);
+}
+
+/**
+ * `Scenario.villainOptions` against the cards and sets (docs/phase7-wave11-scenarios.md §S1.2): each option's set is
+ * registered, its villain card (and expert card) is a villain card of that set, and the card's first side, as the
+ * builders read it, holds every stage number the option's `villainStages` name. A scenario without the field passes.
+ * A card or set `cards`/`sets` don't contain is reported, so the check can't pass by omission.
+ */
+export function validateScenarioVillainOptions(
+  scenario: Scenario,
+  cards: readonly AnyCard[],
+  sets: readonly EncounterSet[],
+): ValidationResult {
+  const errors: string[] = [];
+  const choice = scenario.villainOptions;
+  if (!choice) return result(errors);
+  const byId = new Map(cards.map((card) => [card.id as string, card]));
+  for (const option of choice.options) {
+    const label = `scenario ${scenario.id} villain option ${option.villainSetId}`;
+    if (!sets.some((set) => set.id === option.villainSetId)) errors.push(`${label}: set is not registered`);
+    for (const id of [option.villainCardId, ...(option.expertVillainCardId ? [option.expertVillainCardId] : [])]) {
+      const card = byId.get(id);
+      if (!card || card.type !== "villain") errors.push(`${label}: ${id} is not a villain card`);
+      else if (!(card.encounterSetIds as readonly string[]).includes(option.villainSetId))
+        errors.push(`${label}: villain ${id} is not in set ${option.villainSetId}`);
+    }
+    const villain = byId.get(option.villainCardId);
+    if (villain?.type !== "villain") continue;
+    const held = new Set((villain.sides[0]?.stages ?? []).map((stage) => stage.stageNumber));
+    // An expert card is started at its own first stage, so only the standard range is read from this card then.
+    const named = option.expertVillainCardId
+      ? option.villainStages.standard
+      : [...option.villainStages.standard, ...option.villainStages.expert];
+    for (const stage of new Set(named))
+      if (!held.has(stage)) errors.push(`${label}: villain ${villain.id} has no stage ${stage}`);
   }
   return result(errors);
 }

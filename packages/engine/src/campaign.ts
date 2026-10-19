@@ -149,8 +149,19 @@ export interface CampaignNode {
 }
 
 export type CampaignScenarioRef =
+  /**
+   * The node plays one scenario record. MC60 p. 9 steps 5-6 ("Determine the villain … Gather your chosen main scheme,
+   * your chosen villain, and their corresponding encounter sets") is a `fixed` node too: the main scheme is the
+   * scenario and the villain one of its `Scenario.villainOptions`, which `composition`'s `composeVillain` names
+   * and the caller passes to the scenario builder (`CampaignGameStart.villain`; docs/phase7-wave11-scenarios.md §S3.3).
+   */
   | { readonly kind: "fixed"; readonly scenarioId: ScenarioId }
-  /** MC60 p. 9 steps 5-6: the villain (and so the encounter sets) is picked between games by `composition`. */
+  /**
+   * A game with no scenario record, built from `composition` alone (`CampaignGameStart.villain` and
+   * `encounterSets`). No box uses it: a fixed record already names the main scheme and sets, and MC60's villain
+   * follows from the option (above). Kept for a campaign whose game no record describes; only the engine's synthetic
+   * campaign fixture (`testing/campaign.ts`) builds one.
+   */
   | { readonly kind: "composed" };
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1198,7 +1209,7 @@ export interface CampaignAttempt {
   readonly steps: readonly CampaignStepTrace[];
   /** What the game is handed (design §7.1). Frozen here so a resumed campaign hands the identical value twice. */
   readonly input: CampaignGameInput;
-  /** `composeVillain` (MC60 p. 9 step 5). Null for a node whose scenario is `fixed`. */
+  /** `composeVillain` (MC60 p. 9 step 5). Null when the node's composition names no villain. */
   readonly composedVillain: string | null;
   /** `composeEncounterSets` (MC60 p. 9 step 6), in the order the ops named them, split by `into`. */
   readonly composedEncounterSets: { readonly deck: readonly string[]; readonly setAside: readonly string[] };

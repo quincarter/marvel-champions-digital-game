@@ -16,10 +16,14 @@
  *   (`sides`), the stage 1 and stage 2 options of the leader's side (`mainSchemeStages`), every modular set with
  *   whether this leader may use it (`modularSets`), and the game modes (`gameModes`). All four are null at a scenario
  *   that is not a Civil War leader. `modularSetCount` is the count of modular picks any scenario takes, as a range.
+ * - **The villain** (`villainChoiceOffer`; docs/phase7-wave11-scenarios.md §S3.3, MC60 p. 5): the villains a Fear No
+ *   Evil scenario may be played against and its default, answered as `PlayableScenarioOptions.villainSetId`. Null at
+ *   every scenario whose villain is fixed (`Scenario.villainOptions` absent).
  */
 import {
   PLAYABLE_CARDS,
   WAVE10_SCENARIOS,
+  WAVE11_SCENARIOS,
   difficultySetChoiceErrors,
   type AnyCard,
   type CivilWarSide,
@@ -40,6 +44,7 @@ import {
   scenarioOwnSetIds,
 } from "../modular-pool.js";
 import { WAVE10_GAME_ENCOUNTER_SETS, wave10MainSchemeCard } from "../wave10/setup.js";
+import { WAVE11_GAME_ENCOUNTER_SETS } from "../wave11/setup.js";
 import { INFINITES_GENE_POOL_THREAT_MAX, infinitesGenePoolThreatRecommendation } from "../wave8/aoa/infinites.js";
 import { offersEasierStart, offersGenePoolThreat, standardSetReplaceable, type HorsemanSide } from "../wave8/setup.js";
 
@@ -203,6 +208,22 @@ export interface MainSchemeStagesChoiceOffer extends MainSchemeStagesOffer {
   readonly problem: string | null;
 }
 
+/** One villain a scenario may be played against (`Scenario.villainOptions`). */
+export interface VillainChoice {
+  /** What `PlayableScenarioOptions.villainSetId` is given to pick it. */
+  readonly villainSetId: string;
+  /** The villain's encounter set name ("Typhoid Mary"): the villain card's own may name its other face. */
+  readonly name: string;
+  /** The villain card, for its art. */
+  readonly villainCardId: string;
+}
+
+/** The villains of a scenario whose villain is a setup choice, in printed order, and the one absent picks. */
+export interface VillainChoiceOffer {
+  readonly defaultSetId: string;
+  readonly options: readonly VillainChoice[];
+}
+
 export interface PlayableScenarioChoices {
   /** `"extreme"` (Breakout) is not expert as far as these options go, as in `resolveModes`. */
   readonly difficulty?: string;
@@ -228,6 +249,8 @@ export interface PlayableScenarioOffer {
   readonly modularSets: readonly ModularSetLegality[] | null;
   /** Cooperative and competitive, at a Civil War leader; null at any other scenario (cooperative only). */
   readonly gameModes: readonly GameModeOption[] | null;
+  /** The villains to choose among (MC60 p. 5); null at a scenario whose villain is fixed. */
+  readonly villains: VillainChoiceOffer | null;
 }
 
 const SIDE_NAMES: Readonly<Record<CivilWarSide, string>> = { registration: "Registration", resistance: "Resistance" };
@@ -288,6 +311,30 @@ export function civilWarModularSets(
   return listed.filter((set) => set.cardCount > 0);
 }
 
+/**
+ * The villains `scenario` may be played against (docs/phase7-wave11-scenarios.md §S1.2, §S3.3; MC60 p. 5: "one of
+ * the five interchangeable villains"), or null when its villain is fixed. Each is named by its encounter set, because
+ * a villain card's first face may carry another name (Typhoid Mary's is Bloody Mary, 60110b).
+ */
+export function villainChoiceOffer(
+  scenario: Scenario,
+  encounterSets: readonly EncounterSet[] = WAVE11_GAME_ENCOUNTER_SETS,
+): VillainChoiceOffer | null {
+  const choice = scenario.villainOptions;
+  if (!choice) return null;
+  return {
+    defaultSetId: choice.defaultSetId as string,
+    options: choice.options.map((option) => ({
+      villainSetId: option.villainSetId as string,
+      name:
+        encounterSets.find((set) => set.id === option.villainSetId)?.name ??
+        PLAYABLE_CARDS.find((card) => card.id === option.villainCardId)?.name ??
+        (option.villainSetId as string),
+      villainCardId: option.villainCardId as string,
+    })),
+  };
+}
+
 /** Cooperative and competitive (MC56 pp. 4, 14); the engine does not play a competitive game yet and says so. */
 export function civilWarGameModes(): readonly GameModeOption[] {
   return [
@@ -309,7 +356,8 @@ export function playableScenarioOffer(
   // against the real offer; no list of playable scenarios names one until then.
   const scenario =
     PLAYABLE_SCENARIO_RECORDS.find((candidate) => candidate.id === scenarioId) ??
-    WAVE10_SCENARIOS.find((candidate) => candidate.id === scenarioId);
+    WAVE10_SCENARIOS.find((candidate) => candidate.id === scenarioId) ??
+    WAVE11_SCENARIOS.find((candidate) => candidate.id === scenarioId);
   if (!scenario) throw new Error(`no playable scenario ${scenarioId}`);
   const modes = resolveModes(choices.difficulty, choices.modes);
   const civilWar = isCivilWarLeader(scenario);
@@ -332,5 +380,6 @@ export function playableScenarioOffer(
     },
     modularSets: civilWar ? civilWarModularSets(scenario) : null,
     gameModes: civilWar ? civilWarGameModes() : null,
+    villains: villainChoiceOffer(scenario),
   };
 }

@@ -455,6 +455,32 @@ export interface ScenarioCuration {
   readonly expertVillains?: { readonly villainCardCode: string; readonly setAsideVillainCardCodes: readonly string[] };
   /** Absent = `"finalVillainStage"`. See `Scenario.victory`. */
   readonly victory?: "finalVillainStage" | "cardAbility";
+  /**
+   * `Scenario.villainOptions` (docs/phase7-wave11-scenarios.md §S1.2): the villain sets the scenario may be played
+   * against, `villainSetCode` (the default) among them. Each option's villain card is the set's villain
+   * (`villainIdBySet`), with this record's `villainStages` and `victory` unless `villainOptionDetails` says otherwise.
+   * Absent: the villain is not a choice.
+   */
+  readonly villainOptionSetCodes?: readonly string[];
+  /**
+   * Per option set code, what differs from this record's own villain fields (MC60 p. 5: Typhoid Mary is A in standard
+   * and B in expert, and Disturbed Psyche wins the game). Only for codes in `villainOptionSetCodes`; the default's
+   * entry, if any, must agree with the record (`validateScenario`).
+   */
+  readonly villainOptionDetails?: Readonly<
+    Record<
+      string,
+      {
+        readonly villainCardCode?: string;
+        readonly villainStages?: {
+          readonly standard: readonly [number, number];
+          readonly expert: readonly [number, number];
+        };
+        readonly victory?: "finalVillainStage" | "cardAbility";
+        readonly expertVillainCardCode?: string;
+      }
+    >
+  >;
   /** See `Scenario.separateGameAreas` (wave 2 — Kang). Absent = the scenario has none. */
   readonly separateGameAreas?: SeparateGameAreas;
   /** See `Scenario.separateDecks` (wave 2 — Crossbones' Experimental Weapons deck, Red Skull's side-scheme deck). */

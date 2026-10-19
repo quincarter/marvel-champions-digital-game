@@ -592,7 +592,11 @@ export interface CampaignGameStart {
   readonly input: CampaignGameInput;
   /** The node's fixed scenario, or null for a `composed` node whose pieces are the two fields below. */
   readonly scenarioId: ScenarioId | null;
-  /** MC60 p. 9 step 5's chosen villain, as the `composeVillain` op named it. */
+  /**
+   * MC60 p. 9 step 5's chosen villain, as the `composeVillain` op named it; null when the node names none. At a
+   * `fixed` node whose record has `Scenario.villainOptions` it is the villain set id the scenario builder takes
+   * as its `villainSetId`.
+   */
   readonly villain: string | null;
   /**
    * MC60 p. 9 step 6's / MC16 p. 8's gathered sets, as the `composeEncounterSets` ops named them, in order, split

@@ -34,6 +34,7 @@ import {
   WAVE10_ENCOUNTER_SETS,
   WAVE10_SCENARIOS,
   WAVE10_STARTER_DECKS,
+  WAVE11_SCENARIOS,
   WAVE11_STARTER_DECKS,
   autoIncludedSetsOf,
   type AnyCard,
@@ -62,6 +63,7 @@ import { wave9Scenario } from "../wave9/setup.js";
 import { WAVE10_ABILITIES } from "../wave10/index.js";
 import { wave10Scenario } from "../wave10/setup.js";
 import { WAVE11_ABILITIES } from "../wave11/index.js";
+import { wave11Scenario, type Wave11ScenarioOptions } from "../wave11/setup.js";
 import { checkPlayableDifficultySets } from "./scenario-options.js";
 import { UNSCRIPTED_ENCOUNTER_SET_IDS } from "./unscripted.js";
 import {
@@ -116,7 +118,8 @@ export const PLAYABLE_DEPS: EngineDeps = { abilities: PLAYABLE_ABILITIES };
 export type PlayableScenarioOptions = Wave1ScenarioOptions &
   Pick<Wave4ScenarioOptions, "setAsideModularSetIds"> &
   Pick<Wave6ScenarioOptions, "extraModularSetIds"> &
-  Pick<Wave8ScenarioOptions, "genePoolThreatPerPlayer" | "horsemanSides" | "easierStart">;
+  Pick<Wave8ScenarioOptions, "genePoolThreatPerPlayer" | "horsemanSides" | "easierStart"> &
+  Pick<Wave11ScenarioOptions, "villainSetId" | "mainSchemePicks">;
 
 const STARTER_DECKS: readonly StarterDeck[] = [
   ...CORE_STARTER_DECKS,
@@ -153,7 +156,10 @@ export function playableStarterDeckSetup(starterDeckId: string): PlayerSetup {
 export function playableScenario(scenarioId: string, options: PlayableScenarioOptions): GameSetupConfig {
   // The picks are checked against the scenario's required count here, where the app's table setup builds a game; each
   // builder checks what a pick may be (`chosenModularSetIds`).
-  const scenario = PLAYABLE_SCENARIO_RECORDS.find((candidate) => candidate.id === scenarioId);
+  // A wave 11 record is checked the same way before the wave is joined to the playable records.
+  const scenario =
+    PLAYABLE_SCENARIO_RECORDS.find((candidate) => candidate.id === scenarioId) ??
+    WAVE11_SCENARIOS.find((candidate) => candidate.id === scenarioId);
   // Which stages the main scheme deck is made of is a choice at a Civil War leader only (MC56 p. 5); every other
   // builder would drop the option silently.
   if (options.mainSchemeStageIds !== undefined && !isWave10Scenario(scenarioId))
@@ -216,7 +222,8 @@ function withExtraModularSets(
     WAVE7_SCENARIOS.some((scenario) => scenario.id === scenarioId) ||
     WAVE8_SCENARIOS.some((scenario) => scenario.id === scenarioId) ||
     WAVE9_SCENARIOS.some((scenario) => scenario.id === scenarioId) ||
-    isWave10Scenario(scenarioId)
+    isWave10Scenario(scenarioId) ||
+    isWave11Scenario(scenarioId)
   )
     return built;
   if (new Set(extra).size !== extra.length) throw new Error(`${scenarioId}: an extra modular set is added twice`);
@@ -255,6 +262,41 @@ function withGenePoolThreat(
 
 const isWave10Scenario = (scenarioId: string): boolean =>
   WAVE10_SCENARIOS.some((scenario) => scenario.id === scenarioId);
+
+const isWave11Scenario = (scenarioId: string): boolean =>
+  WAVE11_SCENARIOS.some((scenario) => scenario.id === scenarioId);
+
+/**
+ * A wave 11 scenario (Fear No Evil, docs/phase7-wave11-scenarios.md §S3.3): `wave11Scenario` builds it from the main
+ * scheme's record and checks the villain (`villainSetId`, one of `Scenario.villainOptions`), the modular sets and
+ * the per-player main schemes itself. Like a Civil War leader before its wave was joined, a record is answered here
+ * before `PLAYABLE_SCENARIO_RECORDS` lists it, so no table setup offers one until then.
+ */
+function wave11Playable(
+  scenarioId: string,
+  options: PlayableScenarioOptions,
+  players: readonly CorePlayer[],
+): GameSetupConfig {
+  if (options.horsemanSides) throw new Error(`${scenarioId}: horsemanSides belongs to the Four Horsemen scenario`);
+  if (options.easierStart) throw new Error(`${scenarioId}: easierStart belongs to the Apocalypse scenario`);
+  if (options.setAsideModularSetIds)
+    throw new Error(`${scenarioId}: a Fear No Evil scenario sets no modular sets aside`);
+  if (options.difficulty === "extreme")
+    throw new Error(`${scenarioId} is a cycle 11 scenario; "extreme" is Breakout's own multi-villain challenge`);
+  const {
+    horsemanSides: _horsemanSides,
+    easierStart: _easierStart,
+    genePoolThreatPerPlayer: _genePoolThreatPerPlayer,
+    villainVersions: _villainVersions,
+    setAsideModularSetIds: _setAsideModularSetIds,
+    difficulty,
+    ...rest
+  } = options;
+  return {
+    ...wave11Scenario(scenarioId, { ...rest, players, ...(difficulty ? { difficulty } : {}) }),
+    cards: PLAYABLE_CARDS,
+  };
+}
 
 /**
  * A Civil War scenario (docs/phase7-wave10.md §3.1): `wave10Scenario` builds it from the leader's record and the
@@ -301,6 +343,12 @@ function playableScenarioUnstacked(scenarioId: string, options: PlayableScenario
       ...(setup.aspects ? { aspects: setup.aspects } : {}),
     };
   });
+  if (isWave11Scenario(scenarioId)) return wave11Playable(scenarioId, options, players);
+  // The villain is a setup choice, and there is a main scheme per player, only at a wave 11 scenario that says so
+  // (`Scenario.villainOptions`, `mainSchemeChoice`); every other builder would drop the option silently.
+  if (options.villainSetId !== undefined) throw new Error(`${scenarioId}: the villain is not a setup choice here`);
+  if (options.mainSchemePicks !== undefined)
+    throw new Error(`${scenarioId}: there is one main scheme, not one per player`);
   if (isWave10Scenario(scenarioId)) return wave10Playable(scenarioId, options, players);
   if (WAVE9_SCENARIOS.some((scenario) => scenario.id === scenarioId))
     return wave9Playable(scenarioId, options, players);

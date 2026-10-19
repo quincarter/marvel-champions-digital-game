@@ -57,6 +57,17 @@ export {
 export type { Wave10Difficulty, Wave10ScenarioOptions } from "./wave10/index.js";
 // Wave 11 (cycle 11, Jessica Jones and Luke Cage hero packs): scaffold, scripts in progress; its abilities are in `playable/`.
 export { WAVE11_ABILITIES, WAVE11_CARDS, WAVE11_DEPS } from "./wave11/index.js";
+// Fear No Evil's scenarios: the main scheme is the scenario, the villain an option (docs/phase7-wave11-scenarios.md §S3.3).
+export {
+  WAVE11_GAME_ENCOUNTER_SETS,
+  buildWave11Scenario,
+  scenarioWithVillain,
+  villainOptionOf,
+  wave11Scenario,
+  wave11ScenarioRecord,
+  wave11StarterDeckSetup,
+} from "./wave11/setup.js";
+export type { Wave11ScenarioOptions } from "./wave11/setup.js";
 // A main scheme deck made of chosen stages (the Civil War leaders): picks to `mainSchemeStageIndexes`, and the options.
 export {
   chooseMainSchemeStages,
@@ -84,6 +95,7 @@ export {
   playableScenarioOffer,
   scenarioGameSetIds,
   standardSetReplaceable,
+  villainChoiceOffer,
 } from "./playable/scenario-options.js";
 export type {
   CivilWarLeaderOffer,
@@ -97,6 +109,8 @@ export type {
   ModularSetLegality,
   PlayableScenarioChoices,
   PlayableScenarioOffer,
+  VillainChoice,
+  VillainChoiceOffer,
 } from "./playable/scenario-options.js";
 export { PLAYABLE_ABILITIES, PLAYABLE_DEPS, playableScenario, playableStarterDeckSetup } from "./playable/index.js";
 export { randomCivilWarScenario } from "./playable/random-civil-war.js";

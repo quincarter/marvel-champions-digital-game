@@ -1,0 +1,3 @@
+kind: Engine
+body: 'Fear No Evil scenario builder wave11Scenario: the main scheme is the scenario and the villain a setup option (villainSetId), offered to setup screens as PlayableScenarioOffer.villains; per-player main scheme picks pass through as mainSchemeChoice.'
+time: 2026-10-18T23:13:42.0849061-04:00

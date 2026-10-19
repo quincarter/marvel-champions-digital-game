@@ -209,6 +209,33 @@ export type ScenarioDifficulty = "standard" | "expert";
 export type VillainStageRange = readonly [number, number];
 
 /**
+ * One villain a scenario may be played against (`Scenario.villainOptions`; docs/phase7-wave11-scenarios.md §S1.2).
+ * MC60 p. 5: "five of this expansion's scenarios combine one of five interchangeable main schemes with one of the five
+ * interchangeable villains". The option's villain set replaces the default's in the scenario's encounter sets.
+ */
+export interface VillainOption {
+  /** The villain's own encounter set: shuffled in, in place of the default villain's set. */
+  readonly villainSetId: EncounterSetId;
+  /** The villain card, read as `Scenario.villainCardId` is. */
+  readonly villainCardId: CardId;
+  /** As `Scenario.villainStages`, for this villain (Typhoid Mary: A standard, B expert, MC60 p. 5). */
+  readonly villainStages: {
+    readonly standard: VillainStageRange;
+    readonly expert: VillainStageRange;
+  };
+  /**
+   * As `Scenario.victory`, for this villain. Absent: `"finalVillainStage"`. Typhoid Mary's Disturbed Psyche (60112):
+   * "If there are 3 or more tokens here, the players win the game!" (`"cardAbility"`).
+   */
+  readonly victory?: "finalVillainStage" | "cardAbility";
+  /**
+   * A villain card that replaces `villainCardId` in expert mode, as `Scenario.expertVillains` does (its own stages,
+   * started at its first). Absent: `villainCardId` holds both modes as stages. No Fear No Evil villain needs it.
+   */
+  readonly expertVillainCardId?: CardId;
+}
+
+/**
  * One villain of a scenario that has several villains in play at once (`Scenario.multipleVillains`).
  */
 export interface ScenarioVillain {
@@ -454,6 +481,22 @@ export interface Scenario {
     readonly kind: "perPlayer";
     readonly cardIds: readonly CardId[];
     readonly expert: "random";
+  };
+  /**
+   * Present when the villain is a setup choice (docs/phase7-wave11-scenarios.md §S1.2, §S3.3). MC60 p. 5: the box's
+   * scenarios "combine one of five interchangeable main schemes with one of the five interchangeable villains", and
+   * p. 9 step 5 picks the villain for a scenario. The main scheme is the scenario; the villain is one of `options`.
+   *
+   * The record's own villain fields describe the default option (`defaultSetId`): `villainCardId`, `villainStages` and
+   * `victory` are that option's, and `encounterSetIds` holds its set and no other option's, so every reader of those
+   * fields that knows nothing of the choice still sees one whole game. The scenario builder swaps in a chosen option's
+   * villain card, set, stages and victory (`wave11Scenario`'s `villainSetId`). Not with `multipleVillains`,
+   * `expertVillains`, `setAsideVillainCardIds` or `startingVillain`. Read the cards through
+   * `validateScenarioVillainOptions`.
+   */
+  readonly villainOptions?: {
+    readonly options: readonly VillainOption[];
+    readonly defaultSetId: EncounterSetId;
   };
   /**
    * Villain cards of this scenario that are not in the villain deck at setup, but set aside for card abilities to

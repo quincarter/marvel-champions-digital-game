@@ -30,6 +30,7 @@ const NO_OFFER: PlayableScenarioOffer = {
   mainSchemeStages: null,
   modularSets: null,
   gameModes: null,
+  villains: null,
 };
 
 /** The offer for the draft's scenario under its difficulty and modular picks; nothing is offered for an unknown id. */
