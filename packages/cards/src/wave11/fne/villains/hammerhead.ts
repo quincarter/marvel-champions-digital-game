@@ -79,26 +79,26 @@ const SPEND_TO_DISCARD = heroAction({ cost: spend({ energy: 1, mental: 1, physic
 /**
  * Hammerhead villain set (docs/phase7-wave11-scenarios.md section S6).
  *
- * - **60086-60088 Hammerhead**: Toughness and Retaliate are data. Forced Response as `hammerheadResponse`.
- * - **60089 Energy Gatling Gun**: Forced Response: after the attached enemy attacks, if the attacked character was
- *   not defeated, discard this card as the cost; Hammerhead attacks that character again (a new activation's attack
- *   with its own boost card, `enemyAttack` with `targetCharacter`). The cost needs the effect to be able to resolve
- *   (RRG 1.8 "Cost", p. 14): a defeated target leaves the ability unavailable and the card in play.
- * - **60090 Hardheaded**: stalwart on the host; Hero Action (as Klaw's Sonic Converter); Boost: the activating enemy
- *   gets a tough status card.
- * - **60091 Chameleon**: +X SCH, X the highest THW among the other characters in play (`highestStatAmong`, H3.10).
- *   He prints no THW; a character that does not print one counts as 0.
- * - **60092 Maggia Enforcers**: Guard is data. Her SCH prints a star and is emitted as a dash; "SCH is equal to" is a
- *   base set (`setBase`) over every Maggia enemy in play, herself included.
- * - **60093 Maggia Underboss**: Villainous is data. Forced Interrupt: when it activates against you, if you are
- *   stunned, 1 additional boost card for this activation (`modifyAttack.extraBoostCards` reads either activation).
- * - **60094 Consolidate Power**: Forced Response: after a minion is defeated, it is given to the villain as a facedown
- *   boost card. Printed as a response (unlike Dangerous Recruits' interrupt), so the minion has already left play
- *   (discard pile, or the victory display for a card with Victory) and is given from there with `giveBoostCard`.
- * - **60095 Power Struggle**: defeat the minion with the fewest remaining hit points (a tie is decided by the first
- *   player, RRG 1.8 "First Player", p. 19), discard from the encounter deck until a minion, reveal it.
- * - **60096 "Head First!"**: Alter-Ego: surge. Hero: Hammerhead attacks you; if you are stunned (read before the
- *   attack) he gets +2 ATK for it and it gains overkill.
+ * **60086-60088 Hammerhead**: Toughness and Retaliate are data. Forced Response as `hammerheadResponse`.
+ * **60089 Energy Gatling Gun**: Forced Response: after the attached enemy attacks, if the attacked character was
+ * not defeated, discard this card as the cost; Hammerhead attacks that character again (a new activation's attack
+ * with its own boost card, `enemyAttack` with `targetCharacter`). The cost needs the effect to be able to resolve
+ * (RRG 1.8 "Cost", p. 14): a defeated target leaves the ability unavailable and the card in play.
+ * **60090 Hardheaded**: stalwart on the host; Hero Action (as Klaw's Sonic Converter); Boost: the activating enemy
+ * gets a tough status card.
+ * **60091 Chameleon**: +X SCH, X the highest THW among the other characters in play (`highestStatAmong`, H3.10).
+ * He prints no THW; a character that does not print one counts as 0.
+ * **60092 Maggia Enforcers**: Guard is data. Her SCH prints a star and is emitted 0, not a dash (RRG 1.8 p. 15);
+ * "SCH is equal to" is a base set (`setBase`) over every Maggia enemy in play, herself included.
+ * **60093 Maggia Underboss**: Villainous is data. Forced Interrupt: when it activates against you, if you are
+ * stunned, 1 additional boost card for this activation (`modifyAttack.extraBoostCards` reads either activation).
+ * **60094 Consolidate Power**: Forced Response: after a minion is defeated, it is given to the villain as a facedown
+ * boost card. Printed as a response (unlike Dangerous Recruits' interrupt), so the minion has already left play
+ * (discard pile, or the victory display for a card with Victory) and is given from there with `giveBoostCard`.
+ * **60095 Power Struggle**: defeat the minion with the fewest remaining hit points (a tie is decided by the first
+ * player, RRG 1.8 "First Player", p. 19), discard from the encounter deck until a minion, reveal it.
+ * **60096 "Head First!"**: Alter-Ego: surge. Hero: Hammerhead attacks you; if you are stunned (read before the
+ * attack) he gets +2 ATK for it and it gains overkill.
  *
  * Cards (9):
  * - 60086 Hammerhead (villain)
