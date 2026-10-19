@@ -73,10 +73,14 @@ test("issue #272: a picker row's name keeps its button's colors after a finger o
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     await cdp.detach();
   } else {
-    await page.mouse.move(at.x, at.y);
-    await settle(page);
-    const hovered = (await rowTexts(page)).find((row) => row.name === target.name)!;
-    expect(hovered.state).toBe("hover");
+    // Arriving hero art redraws the rows, and a redrawn row only hears the pointer when it next moves: nudge it until
+    // the row under it shows its hover (a loaded machine can redraw between the move and the read).
+    let nudge = 0;
+    await waitFor(async () => {
+      await page.mouse.move(at.x + (nudge++ % 2), at.y);
+      await settle(page);
+      return (await rowTexts(page)).find((row) => row.name === target.name)?.state === "hover" ? true : null;
+    }, "the row under the mouse shows its hover");
     await expectRowsReadable(page, "while the mouse is over a row");
     await page.mouse.move(4, 4);
   }
