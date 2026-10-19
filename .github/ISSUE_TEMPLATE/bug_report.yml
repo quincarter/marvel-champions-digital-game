@@ -8,6 +8,7 @@ body:
       value: |
         Thanks for reporting a bug. The more precisely you describe the game state, the faster it can be reproduced.
         If a card or keyword resolved wrongly, please name the card and quote the rule or ruling you expected (RRG page or FAQ entry).
+        Opened from the game's Report an issue button? The Game details box at the bottom is already filled in; leave it as it is.
   - type: dropdown
     id: category
     attributes:
@@ -41,10 +42,10 @@ body:
     id: environment
     attributes:
       label: Browser, OS and game version
-      description: The game version is shown in the game's menu. For the web version, include the browser.
+      description: >-
+        The game version is shown in the game's menu. For the web version, include the browser.
+        Skip this if you opened the form from the game: Game details below already has it.
       placeholder: "e.g. v0.19.0, Chrome 130 on Windows 11"
-    validations:
-      required: true
   - type: input
     id: heroes
     attributes:
@@ -91,7 +92,9 @@ body:
     id: screenshots
     attributes:
       label: Screenshots, video or game log
-      description: Drag images or a short recording in here. If the game log shows the problem, paste the relevant lines.
+      description: >-
+        Drag or paste your screenshot or a short recording into this box. Then paste the log the game copied, or drag
+        in the mc-report-….txt file it saved.
   - type: dropdown
     id: frequency
     attributes:
@@ -100,6 +103,15 @@ body:
         - Every time
         - Sometimes
         - Happened once
+  # Filled in by the game's Report an issue link (`packages/client/src/view/issue-report.ts`). It is the only field the
+  # link fills: GitHub can put a prefilled field back to its link value when the form redraws, which undid edits and
+  # dropped image uploads in the fields people type into (#273).
+  - type: textarea
+    id: game-details
+    attributes:
+      label: Game details
+      description: Filled in by the game when you report from it. Leave it as it is, or leave it empty if you opened this form yourself.
+      render: text
   - type: checkboxes
     id: checks
     attributes:
