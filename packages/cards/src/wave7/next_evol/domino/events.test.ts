@@ -32,7 +32,6 @@ vi.setConfig({ testTimeout: 120_000 });
  */
 const WORKOUT = "40040.a-good-workout-action";
 const LUCK = "40041.luck-be-a-lady-action";
-const LUCK_PARTS = ["40041.luck-be-a-lady-constant", "40041.luck-be-a-lady-constant-2"] as const;
 const RIGHT_PLACE = "40042.right-place-right-time-action";
 const JACKPOT = "40043.jackpot-response";
 const DOMINO = { starterDeckId: "domino-justice" } as const;
@@ -131,9 +130,6 @@ describe("Domino events registry", () => {
       [
         WORKOUT,
         LUCK,
-        ...LUCK_PARTS,
-        "40041.luck-be-a-lady-constant-3",
-        "40041.luck-be-a-lady-constant-4",
         RIGHT_PLACE,
         JACKPOT,
       ].sort(),

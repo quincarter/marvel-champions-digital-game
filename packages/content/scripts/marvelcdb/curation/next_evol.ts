@@ -337,6 +337,7 @@ export const NEXT_EVOL_CURATION: PackCuration = {
       // 40077a Setup: "Set the Hide! treachery and each Morlock ally aside."
       setAsideCardCodes: ["40079", "40080"],
       startingVillain: "random",
+      randomVillainName: "The Marauders",
       victory: "cardAbility",
       additionalEncounterSetCodes: ["marauders"],
       recommendedModularSetCodes: ["military_grade", "mutant_slayers"],
@@ -365,6 +366,7 @@ export const NEXT_EVOL_CURATION: PackCuration = {
       setAsideCardCodes: ["40105a"],
       // 40103a's own Setup puts the villain into play, after the campaign's removals (docs/phase7-wave7.md §1.21).
       startingVillain: "bySetup",
+      randomVillainName: "The Marauders",
       victory: "cardAbility",
       additionalEncounterSetCodes: ["marauders", "mutant_slayers"],
       recommendedModularSetCodes: ["military_grade", "nasty_boys"],

@@ -269,6 +269,7 @@ export function normalizeScenarios(
       ...(s.separateGameAreas ? { separateGameAreas: s.separateGameAreas } : {}),
       ...(separateDecks ? { separateDecks } : {}),
       ...(s.startingVillain ? { startingVillain: s.startingVillain } : {}),
+      ...(s.randomVillainName ? { randomVillainName: s.randomVillainName } : {}),
       ...(s.victoryCondition ? { victoryCondition: s.victoryCondition } : {}),
       ...(villainOptions ? { villainOptions } : {}),
       ...(mainSchemeChoice ? { mainSchemeChoice } : {}),

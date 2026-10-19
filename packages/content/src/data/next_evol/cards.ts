@@ -1032,13 +1032,7 @@ export const NEXT_EVOL_CARDS: readonly AnyCard[] = [
       printed: "Hero Action: Discard the top card of your deck and count the resources on it. For each resource counted this way, if it is a:\n[energy] - Heal 2 damage from a character.\n[mental] - Remove 2 threat from a scheme.\n[physical] - Deal 3 damage to an enemy.\n[wild] - Choose 1 of the above.",
       current: "Hero Action: Discard the top card of your deck and count the resources on it. For each resource counted this way, if it is a:\n[energy] - Heal 2 damage from a character.\n[mental] - Remove 2 threat from a scheme.\n[physical] - Deal 3 damage to an enemy.\n[wild] - Choose 1 of the above.",
     },
-    abilities: [
-      { id: abilityId("40041.luck-be-a-lady-action") },
-      { id: abilityId("40041.luck-be-a-lady-constant") },
-      { id: abilityId("40041.luck-be-a-lady-constant-2") },
-      { id: abilityId("40041.luck-be-a-lady-constant-3") },
-      { id: abilityId("40041.luck-be-a-lady-constant-4") },
-    ],
+    abilities: [{ id: abilityId("40041.luck-be-a-lady-action") }],
   },
   {
     id: cardId("40042"),
@@ -3729,6 +3723,7 @@ export const NEXT_EVOL_CARDS: readonly AnyCard[] = [
     stages: [
       {
         stageNumber: 1,
+        printedCardId: cardId("40139b"),
         startingThreat: { base: 0, perPlayer: 0 },
         targetThreat: { base: 0, perPlayer: 0 },
         acceleration: { base: 0, perPlayer: 0 },
@@ -3753,6 +3748,7 @@ export const NEXT_EVOL_CARDS: readonly AnyCard[] = [
       },
       {
         stageNumber: 2,
+        printedCardId: cardId("40140b"),
         name: "Taking Off",
         startingThreat: { base: 0, perPlayer: 1 },
         targetThreat: { base: 0, perPlayer: 5 },
@@ -3774,6 +3770,7 @@ export const NEXT_EVOL_CARDS: readonly AnyCard[] = [
       },
       {
         stageNumber: 2,
+        printedCardId: cardId("40141b"),
         name: "Bulking Up",
         startingThreat: { base: 0, perPlayer: 1 },
         targetThreat: { base: 0, perPlayer: 5 },
@@ -3795,6 +3792,7 @@ export const NEXT_EVOL_CARDS: readonly AnyCard[] = [
       },
       {
         stageNumber: 2,
+        printedCardId: cardId("40142b"),
         name: "Focusing In",
         startingThreat: { base: 0, perPlayer: 1 },
         targetThreat: { base: 0, perPlayer: 5 },
@@ -3816,6 +3814,7 @@ export const NEXT_EVOL_CARDS: readonly AnyCard[] = [
       },
       {
         stageNumber: 3,
+        printedCardId: cardId("40143b"),
         name: "Sinister Ends",
         startingThreat: { base: 0, perPlayer: 0 },
         targetThreat: { base: 0, perPlayer: 7 },

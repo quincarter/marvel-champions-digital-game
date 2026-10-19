@@ -16,7 +16,6 @@ import {
   moveCards,
   on,
   option,
-  partOf,
   query,
   removeThreat,
   removeThreatFromAScheme,
@@ -85,10 +84,6 @@ export const DOMINO_EVENTS: AbilityRegistry = defineAbilities({
       ),
     ]),
   ),
-  "40041.luck-be-a-lady-constant": partOf("40041.luck-be-a-lady-action"),
-  "40041.luck-be-a-lady-constant-2": partOf("40041.luck-be-a-lady-action"),
-  "40041.luck-be-a-lady-constant-3": partOf("40041.luck-be-a-lady-action"),
-  "40041.luck-be-a-lady-constant-4": partOf("40041.luck-be-a-lady-action"),
 
   "40042.right-place-right-time-action": heroAction(
     { label: "thwart" },
