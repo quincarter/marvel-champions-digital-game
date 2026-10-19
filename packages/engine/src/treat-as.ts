@@ -194,6 +194,12 @@ export function syncRuleTreatments(ctx: Ctx): void {
     apply(ctx, id, treated, null);
   }
   if (rules.length === 0) return;
+  // A card something else already treats is skipped (owner Q206 = A, 2026-10-19): an ally that Converted (`fne` 60100)
+  // has made an Influenced minion is no longer an ally, so Zemo's "each ally with threat on it" does not reach it; if
+  // Converted leaves while Zemo stays, it is an ally again and Zemo makes it a Deceived minion. RRG 1.8 p. 4 (a
+  // constant is checked continuously against what the card is now); ruling Dec 17, 2025 (Beguiled: a status change, not
+  // leaving play). The July 8, 2022 ruling (Mind Control vs. Beguiled: the effect that entered play last wins) does not
+  // force a both-or-latest reading here, because Zemo's effect needs an ally and the card is already a minion.
   for (const id of cardsInPlay(ctx.state)) {
     const host = getInstance(ctx.state, id);
     if (!host || host.treatedAs || host.facedownAs || cardOf(ctx.state, id)?.type !== "ally") continue;
