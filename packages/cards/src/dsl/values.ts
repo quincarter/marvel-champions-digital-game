@@ -273,6 +273,11 @@ export const paidCards: TargetRef = { kind: "slot", slot: PAID_CARDS_SLOT };
 export const PAID_CARDS = PAID_CARDS_SLOT;
 /** The card that caused the triggering event ("that enemy" after it attacks). */
 export const eventSource: TargetRef = { kind: "eventSource" };
+/**
+ * The character a card acts for (RRG 1.8 "You, Your", p. 49): `actingCharacter(eventSource)` is the character that
+ * caused the event, the identity for an event card, a resource or an upgrade on it; nobody for a support.
+ */
+export const actingCharacter = (of: TargetRef): TargetRef => ({ kind: "actingCharacter", of });
 /** The card the triggering event happened to ("that minion", "the attacked enemy"). */
 export const eventTarget: TargetRef = { kind: "eventTarget" };
 /**

@@ -2631,6 +2631,11 @@ function resolveRefAnywhere(state: GameState, ref: TargetRef, context: EffectCon
       return context.event ? eventSubjects(context.event).sources : [];
     case "eventTarget":
       return context.event ? eventSubjects(context.event).targets : [];
+    case "actingCharacter":
+      return resolveRef(state, ref.of, context).flatMap((id) => {
+        const acting = actingCharacterOf(state, id);
+        return acting === null ? [] : [acting];
+      });
     case "defendingCharacter": {
       // The stack is innermost-first, so a nested or queued attack names its own defender.
       const attack = state.stack.find((f) => f.kind === "event" && f.event.kind === "enemyAttack");

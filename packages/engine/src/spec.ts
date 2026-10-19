@@ -759,6 +759,11 @@ export type TargetRef =
   | { readonly kind: "named"; readonly name: string }
   | { readonly kind: "slot"; readonly slot: string }
   | { readonly kind: "eventSource" }
+  /**
+   * The character a card acts for (`actingCharacterOf`; RRG 1.8 "You, Your", p. 49): a character is itself, an event,
+   * a resource or an upgrade is its controller's identity (or its host ally), a support or encounter card nobody.
+   */
+  | { readonly kind: "actingCharacter"; readonly of: TargetRef }
   | { readonly kind: "eventTarget" }
   /**
    * "The defending character" (Energy Projectiles' boost, 07027: "Deal 1 damage to the defending character"): the
