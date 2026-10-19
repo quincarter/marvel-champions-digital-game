@@ -126,14 +126,7 @@ describe("Domino events registry", () => {
     expect(validateDefinition(DOMINO_EVENTS[id]!)).toEqual([]);
   });
   it("holds exactly the printed refs of 40040-40043", () => {
-    expect(Object.keys(DOMINO_EVENTS).sort()).toEqual(
-      [
-        WORKOUT,
-        LUCK,
-        RIGHT_PLACE,
-        JACKPOT,
-      ].sort(),
-    );
+    expect(Object.keys(DOMINO_EVENTS).sort()).toEqual([WORKOUT, LUCK, RIGHT_PLACE, JACKPOT].sort());
   });
 });
 
