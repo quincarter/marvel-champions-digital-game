@@ -43,8 +43,9 @@ import {
   self,
   spend,
   takeControl,
-  threatAtLeast,
+  threatOn,
   treatSelfAsAlly,
+  valueEquals,
   when,
 } from "./index.js";
 import { validateDefinition } from "./validate.js";
@@ -77,12 +78,17 @@ const BLANK_ALLIES = "test.blank-your-allies";
 /** Test only: She-Hulk's "I Object" shape, "Interrupt: When threat would be placed on a scheme, prevent 1 of it". */
 const OBJECT = "test.when-threat-placed-on-a-scheme";
 
+/**
+ * Q205 = B (owner, 2026-10-19): "While there is 4 threat here" and "If there is 4 threat here" mean exactly 4. RRG 1.8
+ * p. 4: a "while" constant is active only while its condition is met, and the card does not say "at least". So a 5th
+ * threat ends the ally state, and her action at 5 threat takes no control.
+ */
 const BLACK_CAT_ABILITIES: Record<string, AbilityDefinition> = {
-  [CONSTANT]: constant(treatSelfAsAlly(threatAtLeast(self, 4), 2)),
+  [CONSTANT]: constant(treatSelfAsAlly(valueEquals(threatOn(self), 4), 2)),
   [ACTION]: heroAction(
     { cost: spend({ mental: 1 }) },
     placeThreat(1, self),
-    ifThen(threatAtLeast(self, 4), takeControl(self)),
+    ifThen(valueEquals(threatOn(self), 4), takeControl(self)),
   ),
 };
 const DEPS: EngineDeps = {
@@ -311,5 +317,28 @@ describe("a minion treated as an ally while it holds 4 threat", () => {
     expect(after.engagedWith).toBeNull();
     expect(after.threat).toBe(0);
     expect(after.damage).toBe(0);
+  });
+
+  it("Q205 B: as P1's ally at 4, using her action again makes 5 threat and she reverts to a minion engaged with P1", () => {
+    const { state, cat } = game();
+    const ally = useAction(withThreat(state, cat, 3), cat).state;
+    expect(inst(ally, cat).treatedAs).toMatchObject({ kind: "ally", controller: P1 });
+    const run = useAction(ally, cat);
+    const after = inst(run.state, cat);
+    expect(after.threat).toBe(5);
+    expect(after.treatedAs ?? null).toBeNull();
+    expect(after.controllerId).toBeNull();
+    expect(after.engagedWith).toBe(P1);
+    expect(categoriesOf(run.state, cat)).toContain("minion");
+  });
+
+  it("Q205 B: at 5 threat as a minion her action does not take control", () => {
+    const { state, cat } = game();
+    const run = useAction(withThreat(state, cat, 5), cat);
+    const after = inst(run.state, cat);
+    expect(after.threat).toBe(6);
+    expect(after.treatedAs ?? null).toBeNull();
+    expect(after.controllerId).toBeNull();
+    expect(after.engagedWith).toBe(P1);
   });
 });

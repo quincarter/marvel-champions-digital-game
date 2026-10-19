@@ -510,7 +510,7 @@ handoff note; the main session verifies and pushes.
 28. S9 — Protection Racket. After S7, E1, E2.
 29. S10 — The Raft Breakout. After S7, E9.
 30. S11 — Stop the Presses!. After S7.
-31. S12 — Kingpin (villain, schemes, set; Echo's Kingpin nemesis removed at setup). After S1, E5, E7, E8.
+31. S12 — Kingpin (villain, schemes, set; Echo's Kingpin nemesis removed at setup). After S1, E5, E7, E8. Black Cat 60169 (Q205 B): `constant(treatSelfAsAlly(valueEquals(threatOn(self), 4), 2))` and `heroAction({ cost: spend({ mental: 1 }) }, placeThreat(1, self), ifThen(valueEquals(threatOn(self), 4), takeControl(self)))`, as tested in `dsl/wave11-treat-self-as-ally.test.ts`.
 32. S13 — Disasters. After S1.
 33. S14 — Cops. After S1.
 34. S15 — Drive. After S1.
