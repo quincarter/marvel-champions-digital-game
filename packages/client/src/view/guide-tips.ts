@@ -34,6 +34,7 @@ import type { HeroIdentityCard } from "@mc/content";
 import {
   cardOf,
   cardsInPlay,
+  categoriesOf,
   getInstance,
   getPlayer,
   heroFacesOf,
@@ -1193,6 +1194,9 @@ function yourLeaderTip({ game, lastEvents }: LessonObservation): Tip | null {
 function givenAsBoostTip({ game, lastEvents }: LessonObservation): Tip | null {
   const given = lastEvents.some((event) => {
     if (event.type !== "boostCardDealt" || !event.outsideActivation) return false;
+    // To an enemy only: a villainous ally or hero is given its boost card from the deck (§S3.7 of
+    // docs/phase7-wave11-scenarios.md), which may happen to be a minion that was never defeated.
+    if (!categoriesOf(game, event.enemyInstanceId).includes("enemy")) return false;
     const instance = getInstance(game, event.instanceId);
     return !!instance && game.cardPool[instance.cardId]?.type === "minion";
   });

@@ -10,7 +10,7 @@ import {
   type ResourceType,
   type TypedResource,
 } from "./resources.js";
-import type { EffectSpec } from "./spec.js";
+import type { BasicPowerName, EffectSpec, StatName } from "./spec.js";
 import type { PlayedFrom, TriggerEvent } from "./trigger-events.js";
 import type { ZoneId } from "./state.js";
 
@@ -674,6 +674,48 @@ export type StackFrame =
       readonly boostsGiven?: number;
       readonly boost?: BoostInProgress | null;
     })
+  /**
+   * RRG 1.8 "Villainous" (p. 47) on a character that is not an enemy (an ally or a hero: MC60 p. 26 FAQ, "The rules for
+   * villainous have been revised to function for allies (and heroes) who have it"; docs/phase7-wave11-scenarios.md
+   * §S3.7): "When resolving that basic power, turn the boost card faceup, resolve any boost ability on that card, and
+   * apply its boost icons to the character's stats for this use. Discard the boost card after it is resolved."
+   * `resolve/villainous.ts`. Two frames for one use of a basic power:
+   *
+   * - `use`, the record of the use, beneath the use's own frame (`useFrameId`): what the use turned up, the stat its
+   *   icons go to, and the lasting modifiers carrying them. It runs once the use has resolved, and discards the cards
+   *   (RRG 1.8 p. 47; MC60 p. 3, "after the basic power resolves").
+   * - `resolve`, above the use, which turns each card up and resolves it, writing to its record (`recordFrameId`).
+   */
+  | (FrameBase & {
+      readonly kind: "characterBoost";
+      readonly stage: "use" | "resolve";
+      readonly characterInstanceId: InstanceId;
+      /** The character's controller: "you" for the Boost abilities (RRG 1.8 p. 47). */
+      readonly playerId: PlayerId;
+      readonly power: BasicPowerName;
+      /**
+       * `use`: the stat powering this use, its icons' destination (rewritten by `setBasicPowerStat`, as the events are,
+       * and its `bonuses` with it). `resolve` reads its record's.
+       */
+      readonly stat: StatName;
+      /** The frame the use is (`basicPowerUseFrameId`); its end ends the icons' modifiers. */
+      readonly useFrameId: FrameId;
+      /**
+       * `use`: the facedown boost cards the character held before this use. They stay facedown: only the card this use
+       * gave is resolved (RRG 1.8 "Boost, Boost Icon", p. 11).
+       */
+      readonly heldBefore: readonly InstanceId[];
+      /** `use`: the cards turned faceup for this use, in order. */
+      readonly turned: readonly InstanceId[];
+      /** `use`: the lasting stat modifiers carrying their icons (`LastingEffect.id`). */
+      readonly bonuses: readonly string[];
+      /** `use`: its `resolve` frame has been pushed (a basic defense's waits for the enemy's boost cards). */
+      readonly started?: true;
+      /** `resolve`: its `use` record. */
+      readonly recordFrameId?: FrameId;
+      /** `resolve`: the card being resolved. */
+      readonly boost?: BoostInProgress | null;
+    })
   /** RRG "Reveal" steps 1–4. */
   | (FrameBase & {
       readonly kind: "reveal";
@@ -1028,6 +1070,24 @@ export function currentActivationFrameId(stack: readonly StackFrame[]): FrameId 
 }
 
 /**
+ * The frame a basic power's use is, "for this use" (docs/phase7-wave2.md §17.4): its own `attack` / `thwart` event, or
+ * the enemy attack a basic defense answers (`currentActivationFrameId`), on the stack beneath the power's
+ * `basicPowerUsing` window. A basic recovery is neither an attack nor an activation: its use is its own `basicRecovery`
+ * event (docs/phase7-wave6.md §3.40), which reads REC as it applies, never an attack further down.
+ */
+export function basicPowerUseFrameId(
+  stack: readonly StackFrame[],
+  power: BasicPowerName,
+  characterId: InstanceId,
+): FrameId | null {
+  if (power !== "recover") return currentActivationFrameId(stack);
+  const recovery = stack.find(
+    (f) => f.kind === "event" && f.event.kind === "basicRecovery" && f.event.characterInstanceId === characterId,
+  );
+  return recovery?.frameId ?? null;
+}
+
+/**
  * The innermost thwart on the stack (`EffectSpec atEndOfThwart`, docs/phase7-wave11-hero-packs.md H3.12), or null:
  * "that thwart" for an interrupt or response answering it, the thwart around them for an effect resolving inside it.
  */
@@ -1063,6 +1123,8 @@ export function describeFrame(frame: StackFrame): string {
       return `play ${frame.instanceId} (${frame.stage})`;
     case "damageGroup":
       return `simultaneous damage to ${frame.members.length} character(s) (${frame.stage})`;
+    case "characterBoost":
+      return `villainous boost ${frame.stage} for ${frame.characterInstanceId}'s ${frame.power}`;
   }
 }
 

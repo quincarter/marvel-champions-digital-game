@@ -119,6 +119,7 @@ import {
 import type { DefeatPlacement, EffectSpec, PlayerRef, StatName } from "../spec.js";
 import { type GameState, NO_STATUSES } from "../state.js";
 import {
+  basicPowerUseFrameId,
   currentActivationFrameId,
   currentThwartFrameId,
   type DeferredEffects,
@@ -1262,12 +1263,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // is neither an attack nor an activation: its use is its own `basicRecovery` event (docs/phase7-wave6.md §3.40),
       // which reads REC as it applies, so the bonus is timed to that frame and never to an attack further down.
       const user = using.event.characterInstanceId;
-      const activation =
-        using.event.power === "recover"
-          ? (ctx.state.stack.find(
-              (f) => f.kind === "event" && f.event.kind === "basicRecovery" && f.event.characterInstanceId === user,
-            )?.frameId ?? null)
-          : currentActivationFrameId(ctx.state.stack);
+      const activation = basicPowerUseFrameId(ctx.state.stack, using.event.power, user);
       if (!activation) return;
       addLastingEffect(
         ctx,
@@ -1368,9 +1364,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "cancelBoostIcons":
     case "cancelBoostAbility": {
+      // An enemy activation's boost card, or a villainous ally's or hero's own (§S3.7, `resolve/villainous.ts`).
       const procedure = ctx.state.stack.find(
-        (f): f is Frame<"enemyAttack"> | Frame<"enemyScheme"> =>
-          (f.kind === "enemyAttack" || f.kind === "enemyScheme") && Boolean(f.boost),
+        (f): f is Frame<"enemyAttack"> | Frame<"enemyScheme"> | Frame<"characterBoost"> =>
+          (f.kind === "enemyAttack" || f.kind === "enemyScheme" || f.kind === "characterBoost") && Boolean(f.boost),
       );
       const boost = procedure?.boost;
       const report = (made: number, amount?: number): void => {
@@ -1387,7 +1384,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // An ignored boost icon or "Boost" ability is not "in effect or present" (RRG 1.8 "Ignore", p. 23;
       // docs/phase7-wave7.md §3.67), so there is none to cancel and what depends on the cancel does not happen
       // ("Cancel", p. 11).
-      if (boost.ignored || boostIgnored(ctx.state, ctx.deps, procedure.enemyInstanceId, procedure.eventFrameId))
+      if (
+        boost.ignored ||
+        (procedure.kind !== "characterBoost" &&
+          boostIgnored(ctx.state, ctx.deps, procedure.enemyInstanceId, procedure.eventFrameId))
+      )
         return report(0);
       if (effect.kind === "cancelBoostAbility") {
         // Its ability resolves as soon as the turned-faceup interrupts close, before the responses (RRG 1.8 p. 5);
@@ -1398,6 +1399,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       }
       // The card's own "you", as at its count (`stepBoostCard`): an attack's defending player, a scheme's player.
       const activatedAgainst = procedure.kind === "enemyAttack" ? procedure.targetPlayerId : procedure.playerId;
+      // (A villainous character's card: its controller, `characterBoost.playerId`.)
       const icons = boost.iconsCancelled ? 0 : boostIconsFor(ctx.state, ctx.deps, boost.instanceId, activatedAgainst);
       if (icons <= 0) return report(0);
       setFrame(ctx, { ...procedure, boost: { ...boost, iconsCancelled: true } });
@@ -1415,9 +1417,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "discardBoostCard": {
       // docs/phase7-wave4.md §3.35 (Defiance): "discard it instead" of turning it faceup and applying it.
+      // An enemy activation's boost card, or a villainous ally's or hero's own (§S3.7, `resolve/villainous.ts`).
       const procedure = ctx.state.stack.find(
-        (f): f is Frame<"enemyAttack"> | Frame<"enemyScheme"> =>
-          (f.kind === "enemyAttack" || f.kind === "enemyScheme") && Boolean(f.boost),
+        (f): f is Frame<"enemyAttack"> | Frame<"enemyScheme"> | Frame<"characterBoost"> =>
+          (f.kind === "enemyAttack" || f.kind === "enemyScheme" || f.kind === "characterBoost") && Boolean(f.boost),
       );
       const boost = procedure?.boost;
       const made = (n: number): void => {
@@ -1458,12 +1461,16 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // count (`countBoostIcons`, an event frame with no enemy) records the change on its own event, so a count made
       // while an activation's boost card is resolving never changes that boost card's count, nor the reverse. Such an
       // event is at `apply` while its interrupt window is open (`executeEventFrame` moves it on before the window);
-      // the counts of the same effect still waiting beneath it are at `interrupts`.
-      const counting = ctx.state.stack.find((f): f is Frame<"event"> | Frame<"enemyAttack"> | Frame<"enemyScheme"> =>
-        f.kind === "event"
-          ? f.event.kind === "boostIconsCounting" && f.event.enemyInstanceId === null && f.stage === "apply"
-          : (f.kind === "enemyAttack" || f.kind === "enemyScheme") &&
-            (f.boost?.step === "count" || f.boost?.step === "ability" || f.boost?.step === "responses"),
+      // the counts of the same effect still waiting beneath it are at `interrupts`. A villainous ally's or hero's boost
+      // card resolving its own Boost ability is a `characterBoost` frame (§S3.7, `resolve/villainous.ts`).
+      const counting = ctx.state.stack.find(
+        (f): f is Frame<"event"> | Frame<"enemyAttack"> | Frame<"enemyScheme"> | Frame<"characterBoost"> =>
+          f.kind === "event"
+            ? f.event.kind === "boostIconsCounting" && f.event.enemyInstanceId === null && f.stage === "apply"
+            : f.kind === "characterBoost"
+              ? f.boost?.step === "ability"
+              : (f.kind === "enemyAttack" || f.kind === "enemyScheme") &&
+                (f.boost?.step === "count" || f.boost?.step === "ability" || f.boost?.step === "responses"),
       );
       // Inside a borrowed Boost ability: the boost cards whose count its gained icons join (often none).
       const borrowedFor = effect.kind === "adjustBoostCount" ? context.bindings[BORROWED_BOOST_ICONS_SLOT] : undefined;

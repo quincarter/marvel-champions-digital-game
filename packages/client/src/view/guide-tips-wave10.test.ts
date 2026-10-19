@@ -215,10 +215,11 @@ function withLeaderText(state: GameState): GameState {
 
 const played = (cid: string) =>
   ({ type: "cardPlayed", playerId: me, instanceId: instanceId("p"), cardId: cardId(cid) }) as never;
+/** Dealt to the game's villain: the tip is about a card given to an enemy (a villainous ally's own card is not). */
 const dealtAsBoost = (instance: string, outside: boolean) =>
   ({
     type: "boostCardDealt",
-    enemyInstanceId: instanceId("v"),
+    enemyInstanceId: base.villains[0]!.instanceId,
     instanceId: instanceId(instance),
     ...(outside ? { outsideActivation: true } : {}),
   }) as never;
@@ -264,6 +265,12 @@ describe("wave 10 tips", () => {
     const game = withPrintedCard(base, "56150", { area: "player" });
     expect(firedId(game, [dealtAsBoost("wave10-tip-56150", true)])).toBe("situation:givenAsBoost");
     expect(firedId(game, [dealtAsBoost("wave10-tip-56150", false)])).toBeUndefined();
+    // A villainous hero or ally given its own boost card (docs/phase7-wave11-scenarios.md §S3.7) is no enemy.
+    const toHero = {
+      ...(dealtAsBoost("wave10-tip-56150", true) as object),
+      enemyInstanceId: game.players[0]!.identity.instanceId,
+    };
+    expect(firedId(game, [toHero as never])).toBeUndefined();
     expect(firedId(game, [dealtAsBoost("wave10-tip-56150", true)], ["situation:givenAsBoost"])).toBeUndefined();
   });
 

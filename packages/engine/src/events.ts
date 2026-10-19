@@ -15,6 +15,7 @@ import type {
   MainSchemeAdvancedBy,
   ZoneId,
 } from "./state.js";
+import type { BasicPowerName, StatName } from "./spec.js";
 import type { StackFrameKind, WindowTiming } from "./stack.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import type { KeywordAbilityName } from "./keyword-abilities.js";
@@ -1075,6 +1076,21 @@ export type GameEvent =
       readonly type: "boostCardFlipped";
       readonly enemyInstanceId: InstanceId;
       readonly instanceId: InstanceId;
+      readonly boostIcons: number;
+    }
+  /**
+   * A villainous character that is not an enemy (an ally or a hero) turned its boost card faceup as one of its basic
+   * powers resolved (RRG 1.8 "Villainous", p. 47; MC60 p. 26 FAQ; docs/phase7-wave11-scenarios.md §S3.7). `boostIcons`
+   * is the card's count at the flip (no amplify: RRG 1.8 "Amplify Icon", p. 7, adds only "during an enemy activation");
+   * the icons go to `stat` for this use, and the card is discarded once its Boost ability has resolved. Not an enemy's
+   * boost card, so never a `boostCardFlipped`.
+   */
+  | {
+      readonly type: "characterBoostCardFlipped";
+      readonly characterInstanceId: InstanceId;
+      readonly instanceId: InstanceId;
+      readonly power: BasicPowerName;
+      readonly stat: StatName;
       readonly boostIcons: number;
     }
   /**

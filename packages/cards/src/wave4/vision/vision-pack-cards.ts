@@ -88,8 +88,9 @@ export const VISION_PACK_CARDS = defineAbilities({
 
   // Defiance (event, 26018) — Hero Interrupt (defense): When a boost card on an enemy attacking you would be turned
   // faceup, discard it instead (`discardBoostCard`, docs/phase7-wave4.md §3.35).
+  // "On an enemy": not a villainous ally's or hero's own boost card (docs/phase7-wave11-scenarios.md §S3.7).
   "26018.defiance-interrupt": heroInterrupt(
-    { on: "boostCardTurnedFaceup", playerIs: "controller", activation: "attack" },
+    { on: "boostCardTurnedFaceup", sourceIs: { categories: ["enemy"] }, playerIs: "controller", activation: "attack" },
     { label: "defense" },
     discardBoostCard(),
   ),

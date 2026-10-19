@@ -112,8 +112,10 @@ export const DOMINO_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilities({
     attack(ICONS_DISCARDED, chosen("enemy"), { keywords: ["ranged"] }),
   ),
 
+  // "During an attack against you": an enemy's boost card, never a villainous ally's own on her basic attack
+  // (docs/phase7-wave11-scenarios.md §S3.7).
   "40047.lucky-and-good-interrupt": heroInterrupt(
-    { on: "boostCardTurnedFaceup", playerIs: "controller", activation: "attack" },
+    { on: "boostCardTurnedFaceup", sourceIs: { categories: ["enemy"] }, playerIs: "controller", activation: "attack" },
     { label: "defense", cost: exhaustThis },
     // No DSL wrapper for these two (Close Call 16158, Wraith 22012 pass the engine's own data).
     { kind: "cancelBoostIcons" },

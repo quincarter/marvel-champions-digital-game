@@ -49,6 +49,7 @@ export interface StackEntry {
 /** The enemy an activation procedure frame belongs to, on top of the card `frameCardId` names. */
 function subjectOf(frame: StackFrame): InstanceId | null {
   if (frame.kind === "enemyAttack" || frame.kind === "enemyScheme") return frame.enemyInstanceId;
+  if (frame.kind === "characterBoost") return frame.characterInstanceId;
   return frameCardId(frame);
 }
 

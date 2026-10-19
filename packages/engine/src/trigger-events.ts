@@ -466,11 +466,16 @@ export type TriggerEventBody =
    */
   | {
       readonly kind: "boostCardTurnedFaceup";
+      /** The card holding it: an enemy, or a villainous ally or hero using a basic power (§S3.7). */
       readonly enemyInstanceId: InstanceId;
       readonly boostInstanceId: InstanceId;
-      readonly activation: "attack" | "scheme";
+      /**
+       * The activation, or for a villainous character's own card (`resolve/villainous.ts`) "attack" for its basic
+       * attack or a hero's basic defense (it is during an attack) and null for a thwart or a recovery.
+       */
+      readonly activation: "attack" | "scheme" | null;
       readonly boostIcons: number;
-      /** The player the activation is against ("you"). */
+      /** "You": the player the activation is against, or for a villainous character's own card its controller. */
       readonly playerId: PlayerId;
     }
   /**

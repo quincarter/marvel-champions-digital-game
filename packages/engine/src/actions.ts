@@ -227,6 +227,7 @@ import {
 } from "./resolve/target-validity.js";
 import { moveCardsTo } from "./resolve/cards.js";
 import { addFrameSlots, eventFrame } from "./resolve/frames.js";
+import { pushCharacterBoost, retargetCharacterBoost } from "./resolve/villainous.js";
 import {
   addPools,
   combineRequirements,
@@ -7439,6 +7440,8 @@ export function announceBasicPowerUsing(
   stat: StatName = BASIC_POWER_STAT[power],
 ): void {
   const event: TriggerEvent = { kind: "basicPowerUsing", characterInstanceId: characterId, power, stat, playerId };
+  // A villainous ally or hero resolves its boost card beneath this event (docs/phase7-wave11-scenarios.md §S3.7).
+  pushCharacterBoost(ctx, characterId, power, stat, playerId);
   if (heard(ctx.state, ctx.deps, event)) pushEvent(ctx, event);
 }
 
@@ -7465,6 +7468,8 @@ export function setBasicPowerStat(
     if (frame?.kind !== "event" || frame.event.kind !== kind || frame.event.stat === stat) continue;
     setFrame(ctx, { ...frame, event: { ...frame.event, stat } });
   }
+  // A villainous character's boost icons go to the stat actually powering the use (§S3.7, `resolve/villainous.ts`).
+  retargetCharacterBoost(ctx, characterId, power, stat);
 }
 
 export function endTurn(ctx: Ctx, command: Command & { type: "endTurn" }): EngineError | null {

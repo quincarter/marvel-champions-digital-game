@@ -688,6 +688,13 @@ function describe(
         text: `Boost: ${event.boostIcons} icon${event.boostIcons === 1 ? "" : "s"} for ${card(event.enemyInstanceId)}.`,
         voice: "villain",
       };
+    // docs/phase7-wave11-scenarios.md §S3.7: a villainous ally or hero turns up its boost card as its basic power
+    // resolves; the icons go to the stat powering that use.
+    case "characterBoostCardFlipped":
+      return {
+        text: `Villainous: ${card(event.characterInstanceId)} turns up ${card(event.instanceId)}, ${event.boostIcons} boost icon${event.boostIcons === 1 ? "" : "s"} to ${event.stat.toUpperCase()}.`,
+        voice: "scenario",
+      };
     // A player card (Attacrobatics, Target Acquired) cancelling all or part of a just-flipped boost card
     // (RRG 1.8 "Boost", p. 11) — worded so the villain-phase breakdown can show it beside the boost card itself.
     case "boostCancelled":

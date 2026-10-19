@@ -82,6 +82,7 @@ export const UNDO_EVENT_VERDICTS: Readonly<Record<GameEvent["type"], readonly [V
   boostCancelled: [STOPS, "boost cards are the encounter's"],
   boostCardDealt: [STOPS, "a boost card dealt"],
   boostCardFlipped: [STOPS, "a boost card turned up"],
+  characterBoostCardFlipped: [STOPS, "a boost card turned up"],
   boostCardMoved: [STOPS, "boost cards are the encounter's"],
   boostIgnored: [STOPS, "boost cards are the encounter's"],
   boostWithheld: [STOPS, "boost cards are the encounter's"],

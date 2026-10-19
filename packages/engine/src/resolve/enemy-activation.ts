@@ -84,6 +84,7 @@ import {
   pushEventsJoiningResponses,
 } from "./frames.js";
 import { heard } from "./triggers.js";
+import { pushCharacterBoost, startDefenderBoost } from "./villainous.js";
 
 /**
  * RRG 1.8 "Villainous" (p. 47): a minion with the keyword is given a boost card when it activates. The keyword is read
@@ -615,6 +616,9 @@ function announceBasicDefense(ctx: Ctx, defenderId: InstanceId, defenderPlayer: 
     stat: "def",
     playerId: defenderPlayer,
   };
+  // A villainous hero's basic defense is recorded; its boost card resolves after the enemy's, at the end of step 3, its
+  // icons added to its DEF for this attack (docs/phase7-wave11-scenarios.md §S3.7, `resolve/villainous.ts`).
+  pushCharacterBoost(ctx, defenderId, "defense", "def", defenderPlayer);
   if (heard(ctx.state, ctx.deps, using)) announce(ctx, using);
 }
 
@@ -1293,6 +1297,8 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
       const icons = stepBoostCard(ctx, frame, frame.targetPlayerId, "attack");
       if (icons === "busy") return;
       if (icons === null) {
+        // A villainous hero's basic defense: its own boost card now, after the enemy's (§S3.7, `startDefenderBoost`).
+        if (startDefenderBoost(ctx, frame.eventFrameId)) return;
         setFrame(ctx, { ...frame, stage: "dealDamage" });
         return;
       }

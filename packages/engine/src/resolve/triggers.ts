@@ -90,9 +90,14 @@ function boostAbilityCancelGone(state: GameState, definition: AbilityDefinition,
   if (definition.effects.length === 0 || !definition.effects.every((e) => e.kind === "cancelBoostAbility"))
     return false;
   const procedure = state.stack.find(
-    (f) => (f.kind === "enemyAttack" || f.kind === "enemyScheme") && f.boost?.instanceId === boostId,
+    (f) =>
+      (f.kind === "enemyAttack" || f.kind === "enemyScheme" || f.kind === "characterBoost") &&
+      f.boost?.instanceId === boostId,
   );
-  const boost = procedure?.kind === "enemyAttack" || procedure?.kind === "enemyScheme" ? procedure.boost : null;
+  const boost =
+    procedure?.kind === "enemyAttack" || procedure?.kind === "enemyScheme" || procedure?.kind === "characterBoost"
+      ? procedure.boost
+      : null;
   return !boost || boost.step !== "window" || boost.abilityCancelled || boost.ignored === true;
 }
 

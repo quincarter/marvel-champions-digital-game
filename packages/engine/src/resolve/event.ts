@@ -529,7 +529,10 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
  */
 function noLaterResponses(ctx: Ctx, eventFrameId: FrameId): void {
   for (const f of ctx.state.stack) {
-    if ((f.kind === "enemyAttack" || f.kind === "enemyScheme") && f.boost?.turnedFrameId === eventFrameId) {
+    if (
+      (f.kind === "enemyAttack" || f.kind === "enemyScheme" || f.kind === "characterBoost") &&
+      f.boost?.turnedFrameId === eventFrameId
+    ) {
       setFrame(ctx, { ...f, boost: { ...f.boost, turnedCancelled: true } });
       return;
     }

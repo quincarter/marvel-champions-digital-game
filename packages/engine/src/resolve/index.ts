@@ -10,6 +10,7 @@ import { executeEnemyAttackFrame, executeEnemySchemeFrame } from "./enemy-activa
 import { executeEventFrame } from "./event.js";
 import { executePlayCardFrame } from "./play-card.js";
 import { executeRevealFrame } from "./reveal.js";
+import { executeCharacterBoostFrame } from "./villainous.js";
 import { executeWindowFrame } from "./window.js";
 
 export { clearAbilityUses, recordAbilityUse } from "./ability.js";
@@ -59,5 +60,7 @@ export function executeFrame(ctx: Ctx): void {
       return executePlayCardFrame(ctx, frame);
     case "damageGroup":
       return executeDamageGroupFrame(ctx, frame);
+    case "characterBoost":
+      return executeCharacterBoostFrame(ctx, frame);
   }
 }

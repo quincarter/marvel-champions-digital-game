@@ -130,6 +130,8 @@ export function eventRefs(event: GameEvent): readonly InstanceId[] {
     case "boostCardDealt":
     case "boostCardFlipped":
       return [event.enemyInstanceId, event.instanceId];
+    case "characterBoostCardFlipped":
+      return [event.characterInstanceId, event.instanceId];
     case "boostCancelled":
       return [event.instanceId];
     case "defenderDeclared":

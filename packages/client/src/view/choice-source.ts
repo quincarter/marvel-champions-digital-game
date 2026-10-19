@@ -130,6 +130,8 @@ export function choiceSourceOf(state: GameState, choice: PendingChoice): ChoiceS
       return { instanceId: frame.enemyInstanceId, abilityId: null };
     case "reveal":
       return { instanceId: frame.instanceId, abilityId: null };
+    case "characterBoost":
+      return { instanceId: frame.characterInstanceId, abilityId: null };
     case "playCard":
       return { instanceId: frame.instanceId, abilityId: frame.triggeredAbilityId };
     case "event":
