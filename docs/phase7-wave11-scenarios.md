@@ -68,15 +68,15 @@ attachments on the villain); The Getaway 2/9/+2 per hero; Protection Racket 0/10
 records carry the same five options (MC60 p. 5); `villainCardId` holds the default's card so every existing reader of
 the field still works. Curated as `ScenarioCuration.villainOptionSetCodes` beside `villainSetCode` (the default).
 
-| Set            | Cards       | Standard / expert     | Setup (MC60 p. 5; the cards)                                                                                     |
-| -------------- | ----------- | --------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `bullseye`     | 60065–60075 | I, II / II, III       | I sets aside Adamantium-Laced Spine (68A); II finds it and attaches it; III finds and reveals Deranged Bloodlust |
-| `electro`      | 60076–60085 | I, II / II, III       | I and II find Electric Charge, attach it, 2[per_hero] charge counters; III adds 3[per_hero]                      |
-| `hammerhead`   | 60086–60096 | I, II / II, III       | none                                                                                                             |
-| `purple_man`   | 60097–60109 | I, II / II, III       | none                                                                                                             |
-| `typhoid_mary` | 60110–60120 | 60110 (A) / 60111 (B) | Disturbed Psyche 60112 and Establish Trust 60113a (both Setup); the villain on a random side (§S3.4)             |
+| Set            | Cards       | Standard / expert                 | Setup (MC60 p. 5; the cards)                                                                                     |
+| -------------- | ----------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `bullseye`     | 60065–60075 | I, II / II, III                   | I sets aside Adamantium-Laced Spine (68A); II finds it and attaches it; III finds and reveals Deranged Bloodlust |
+| `electro`      | 60076–60085 | I, II / II, III                   | I and II find Electric Charge, attach it, 2[per_hero] charge counters; III adds 3[per_hero]                      |
+| `hammerhead`   | 60086–60096 | I, II / II, III                   | none                                                                                                             |
+| `purple_man`   | 60097–60109 | I, II / II, III                   | none                                                                                                             |
+| `typhoid_mary` | 60110–60120 | 60110b: stage 1 (A) / stage 2 (B) | Disturbed Psyche 60112 and Establish Trust 60113a (both Setup); the villain on a random side (§S3.4)             |
 
-Default `hammerhead` (first of MC60 p. 8's recommended order). Typhoid Mary's option carries `victory: "cardAbility"`
+Default `hammerhead` (first of MC60 p. 8's recommended order). Typhoid Mary is one card, 60110b (two sides, Bloody Mary and Typhoid Mary, of two stages A and B; 60111 is its stage 2), so her option carries `villainStages: { standard: [1, 1], expert: [2, 2] }` and `victory: "cardAbility"`
 (Disturbed Psyche: "If there are 3 or more tokens here, the players win the game!"); the others the default.
 
 ### S1.3 The campaign record
@@ -89,8 +89,9 @@ STP, Kingpin], campaignSetIds: ["fne_campaign"], logSheetReference: "docs/campai
 ### S1.4 Shapes the normalizer must get right (verify while emitting)
 
 1. Typhoid Mary 60110a/b and 60111a/b: each card's two faces print the **same** stage letter (A, or B) with different
-   names. One villain card, two faces of one stage, flipped by Disturbed Psyche; not the MaGog A/B stage pair and not two
-   versions.
+   names. One villain card, **60110b** (the emitted id), whose two sides are her two forms and whose stages are 1 (A) and
+   2 (B), flipped by Disturbed Psyche; the option's stages are `[1, 1]` standard and `[2, 2]` expert. Not the MaGog A/B
+   stage pair and not two versions.
 2. Kingpin 60159 (A1/A2) and 60160 (B1/B2): the Collector mode+face shape (`MODE_LABEL_RE`).
 3. Protection Racket 60134–60138: five main scheme cards, each a one-stage card (1A shared text, distinct 1B), quantity
    one each.
@@ -394,7 +395,7 @@ Dossier draws them from there.
 ### S5.2 Graph
 
 `{ kind: "choice", nodes: [amh, getaway, protection, raft, presses, kingpin], progressToFail: 3, finale: { nodeId:
-"kingpin", when: and(nodeResolved(each of the five)) }, available: const true }` (with §S3.11). `beforeChoice`, ids
+"kingpin", when: and(nodeResolved(each of the five)) }, available: { kind: "and", of: [] } }` (always true; `CampaignPredicate` has no `const`) (with §S3.11). `beforeChoice`, ids
 `mc60.choice.<name>`, MC60 p. 9:
 
 1. `playthrough` — once (`when: not(fieldIsSet(firstPlaythrough))`): group choice, "first time through" or not.

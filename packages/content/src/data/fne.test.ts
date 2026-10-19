@@ -1,7 +1,15 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { validateCard, validateStarterDeck } from "../schema/index.js";
-import type { AnyCard, HeroIdentityCard } from "../schema/index.js";
+import {
+  validateCard,
+  validateScenario,
+  validateScenarioEncounterSets,
+  validateScenarioVillainOptions,
+  validateStarterDeck,
+} from "../schema/index.js";
+import type { AnyCard, HeroIdentityCard, MainSchemeCard, VillainCard } from "../schema/index.js";
+import { CORE_ENCOUNTER_SETS } from "./core/index.js";
+import { FNE_CAMPAIGN } from "./fne/campaign.js";
 import { FNE_CARDS } from "./fne/cards.js";
 import { FNE_ENCOUNTER_SETS } from "./fne/encounterSets.js";
 import { FNE_CYCLE, FNE_PACK } from "./fne/packs.js";
@@ -22,8 +30,8 @@ import {
  * Fear No Evil (`fne`, cycle 11, MC60): counts, the Sense separate deck, Photographic Reflexes' star cost, the two
  * a-face corrections and the two precons, each with its citation (`scripts/marvelcdb/curation/fne.ts`). Sources: the
  * MC60 rulebook p. 3, 25 and 26, RRG 1.8 (Star Icon p. 40), docs/phase7-wave11.md section 1 and
- * docs/phase7-wave11-data-survey.md sections 6 and 10. The scenario half (60065 to 60210) is transcribed data; its
- * scenarios are a later task, so `FNE_SCENARIOS` is empty here.
+ * docs/phase7-wave11-data-survey.md sections 6 and 10. The scenario half (60065 to 60210) is transcribed data; its six
+ * scenarios and the campaign record are at the end (MC60 pp. 5, 8, 9, 13 to 23; docs/phase7-wave11-scenarios.md S1).
  */
 interface RawRecord {
   readonly code: string;
@@ -55,9 +63,9 @@ describe("fne: the pack", () => {
     expect(FNE_PACK.cycleId as string).toBe("cycle11");
   });
 
-  it("is 199 cards (264 copies), counted by type", () => {
-    expect(FNE_CARDS).toHaveLength(199);
-    expect(FNE_CARDS.reduce((n, c) => n + c.quantityInSet, 0)).toBe(264);
+  it("is 203 cards (268 copies; the five Protection Racket schemes are five cards), counted by type", () => {
+    expect(FNE_CARDS).toHaveLength(203);
+    expect(FNE_CARDS.reduce((n, c) => n + c.quantityInSet, 0)).toBe(268);
     expect(typeCounts(FNE_CARDS)).toEqual({
       hero_identity: 2,
       upgrade: 22,
@@ -73,7 +81,7 @@ describe("fne: the pack", () => {
       resource: 3,
       villain: 7,
       environment: 11,
-      main_scheme: 6,
+      main_scheme: 10,
     });
   });
 
@@ -90,11 +98,10 @@ describe("fne: the pack", () => {
     for (const r of raw.cards) expect(covered.has(r.code), r.code).toBe(true);
   });
 
-  it("has 20 encounter sets with both heroes' nemesis sets and the campaign set, and no scenarios yet", () => {
+  it("has 20 encounter sets with both heroes' nemesis sets and the campaign set", () => {
     expect(FNE_ENCOUNTER_SETS).toHaveLength(20);
     const ids = FNE_ENCOUNTER_SETS.map((s) => s.id as string);
     for (const id of ["daredevil_nemesis", "echo_nemesis", "kingpin", "fne_campaign"]) expect(ids).toContain(id);
-    expect(FNE_SCENARIOS).toEqual([]);
   });
 });
 
@@ -243,9 +250,133 @@ describe("fne: wave 11 pool wiring", () => {
     expect(ids.slice(start, start + FNE_CARDS.length)).toEqual(FNE_CARDS.map((c) => c.id as string));
   });
 
-  it("the wave exports begin with fne's encounter sets, no scenarios and the two starter decks", () => {
+  it("the wave exports begin with fne's encounter sets, scenarios and the two starter decks", () => {
     expect(WAVE11_ENCOUNTER_SETS.slice(0, FNE_ENCOUNTER_SETS.length)).toEqual(FNE_ENCOUNTER_SETS);
     expect(WAVE11_SCENARIOS.slice(0, FNE_SCENARIOS.length)).toEqual(FNE_SCENARIOS);
     expect(WAVE11_STARTER_DECKS.slice(0, FNE_STARTER_DECKS.length)).toEqual(FNE_STARTER_DECKS);
+  });
+});
+
+describe("fne: the six scenarios and the campaign record (MC60 pp. 5, 8, 9, 13 to 23)", () => {
+  const sets = [...CORE_ENCOUNTER_SETS, ...FNE_ENCOUNTER_SETS];
+  const underling = FNE_SCENARIOS.filter((s) => s.id !== "kingpin");
+  const scenario = (id: string) => FNE_SCENARIOS.find((s) => s.id === id)!;
+
+  it("is one record per main scheme in log order, Kingpin last (MC60 p. 5, p. 28)", () => {
+    expect(FNE_SCENARIOS.map((s) => s.id as string)).toEqual([
+      "art-museum-heist",
+      "the-getaway",
+      "protection-racket",
+      "the-raft-breakout",
+      "stop-the-presses",
+      "kingpin",
+    ]);
+    expect(FNE_CAMPAIGN.scenarioIds).toEqual(FNE_SCENARIOS.map((s) => s.id));
+    expect(FNE_CAMPAIGN.campaignSetIds).toEqual(["fne_campaign"]);
+    expect(FNE_CAMPAIGN.packCode).toBe("fne");
+    expect(FNE_CAMPAIGN.boxCode).toBe("MC60");
+  });
+
+  it("passes the scenario, encounter set and villain option checks", () => {
+    for (const s of FNE_SCENARIOS) {
+      const id = s.id as string;
+      expect(validateScenario(s).errors, id).toEqual([]);
+      expect(validateScenarioEncounterSets(s, sets).errors, id).toEqual([]);
+      expect(validateScenarioVillainOptions(s, FNE_CARDS, sets).errors, id).toEqual([]);
+    }
+  });
+
+  it("offers the five underlings at each interchangeable scenario, Hammerhead the default (MC60 p. 5, p. 8)", () => {
+    expect(underling).toHaveLength(5);
+    for (const s of underling) {
+      expect(s.villainOptions!.defaultSetId, s.id as string).toBe("hammerhead");
+      expect(s.villainOptions!.options.map((o) => o.villainSetId as string)).toEqual([
+        "hammerhead",
+        "bullseye",
+        "electro",
+        "purple_man",
+        "typhoid_mary",
+      ]);
+      expect(s.villainStages).toEqual({ standard: [1, 2], expert: [2, 3] });
+      expect(s.modularSetCount).toBe(2);
+      expect(s.standardEncounterSetIds).toEqual(["standard"]);
+      expect(s.expertEncounterSetIds).toEqual(["expert"]);
+    }
+  });
+
+  it("Typhoid Mary is one card (60110b), stage 1 standard and stage 2 expert, won by Disturbed Psyche (MC60 p. 5)", () => {
+    for (const s of underling) {
+      const mary = s.villainOptions!.options.find((o) => o.villainSetId === "typhoid_mary")!;
+      expect(mary.villainCardId).toBe("60110b");
+      expect(mary.villainStages).toEqual({ standard: [1, 1], expert: [2, 2] });
+      expect(mary.victory).toBe("cardAbility");
+      for (const o of s.villainOptions!.options.filter((x) => x !== mary))
+        expect(o.victory, `${s.id as string} ${o.villainSetId as string}`).toBeUndefined();
+    }
+    const card = get<VillainCard>("60110b");
+    expect(card.sides.map((side) => side.stages.map((st) => st.stageNumber))).toEqual([
+      [1, 2],
+      [1, 2],
+    ]);
+  });
+
+  it("names the printed main scheme set and the two recommended modular sets of each (MC60 pp. 13 to 21)", () => {
+    const pages: Record<string, [string, readonly string[]]> = {
+      "art-museum-heist": ["art_museum_heist", ["cops", "the_owl"]],
+      "the-getaway": ["the_getaway", ["cops", "drive"]],
+      "protection-racket": ["protection_racket", ["disasters", "tracksuit_mafia"]],
+      "the-raft-breakout": ["the_raft_breakout", ["the_owl", "tombstone"]],
+      "stop-the-presses": ["stop_the_presses", ["tombstone", "tracksuit_mafia"]],
+    };
+    for (const [id, [set, modular]] of Object.entries(pages)) {
+      const s = scenario(id);
+      expect(
+        s.encounterSetIds.map((x) => x as string),
+        id,
+      ).toEqual(["hammerhead", set]);
+      expect(s.recommendedModularSetIds, id).toEqual(modular);
+    }
+  });
+
+  it("Protection Racket deals one of five single-stage main schemes to each player (MC60 p. 13)", () => {
+    const s = scenario("protection-racket");
+    expect(s.mainSchemeChoice).toEqual({
+      kind: "perPlayer",
+      cardIds: ["60134a", "60135a", "60136a", "60137a", "60138a"],
+      expert: "random",
+    });
+    expect(s.mainSchemeCardId).toBe("60134a");
+    const titles = s.mainSchemeChoice!.cardIds.map((id) => {
+      const card = get<MainSchemeCard>(id as string);
+      expect(card.stages, id as string).toHaveLength(1);
+      expect(card.stages[0]!.stageNumber).toBe(1);
+      return card.stages[0]!.name;
+    });
+    expect(titles).toEqual([
+      "Battle in the Bodega",
+      "Bull in a China Shop",
+      "Hung Out to Dry",
+      "Pawn Shop Showdown",
+      "A Slice of the Pizza Dough",
+    ]);
+    for (const other of underling.filter((x) => x !== s)) expect(other.mainSchemeChoice).toBeUndefined();
+  });
+
+  it("Kingpin has no underling, no Standard set, the Expert set, and one double-sided card per mode (MC60 p. 23)", () => {
+    const s = scenario("kingpin");
+    expect(s.villainOptions).toBeUndefined();
+    expect(s.encounterSetIds).toEqual(["kingpin"]);
+    expect(s.standardEncounterSetIds).toEqual([]);
+    expect(s.expertEncounterSetIds).toEqual(["expert"]);
+    expect(s.villainCardId).toBe("60159a");
+    expect(s.expertVillains).toEqual({ villainCardId: "60160a", setAsideVillainCardIds: [] });
+    expect(s.villainStages).toEqual({ standard: [1, 1], expert: [1, 1] });
+    expect(s.mainSchemeCardId).toBe("60161a");
+    expect(s.recommendedModularSetIds).toEqual(["tombstone", "tracksuit_mafia"]);
+    for (const id of ["60159a", "60160a"])
+      expect(
+        get<VillainCard>(id).sides.map((side) => side.stages.length),
+        id,
+      ).toEqual([1, 1]);
   });
 });

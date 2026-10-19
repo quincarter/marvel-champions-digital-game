@@ -431,7 +431,31 @@ export const FNE_PROVENANCE: readonly CardProvenance[] = [
   {
     cardId: cardId("60134a"),
     cardSetCode: "protection_racket",
-    marvelcdbCodes: ["60134a", "60134b", "60135a", "60135b", "60136a", "60136b", "60137a", "60137b", "60138a", "60138b"],
+    marvelcdbCodes: ["60134a", "60134b"],
+    corrections: [],
+  },
+  {
+    cardId: cardId("60135a"),
+    cardSetCode: "protection_racket",
+    marvelcdbCodes: ["60135a", "60135b"],
+    corrections: [],
+  },
+  {
+    cardId: cardId("60136a"),
+    cardSetCode: "protection_racket",
+    marvelcdbCodes: ["60136a", "60136b"],
+    corrections: [],
+  },
+  {
+    cardId: cardId("60137a"),
+    cardSetCode: "protection_racket",
+    marvelcdbCodes: ["60137a", "60137b"],
+    corrections: [],
+  },
+  {
+    cardId: cardId("60138a"),
+    cardSetCode: "protection_racket",
+    marvelcdbCodes: ["60138a", "60138b"],
     corrections: [],
   },
   {

@@ -110,7 +110,7 @@ export const CARD_GROUPS: Readonly<Record<string, readonly string[]>> = {
   ],
   "fne/scenarios/art-museum-heist": ["60121a", "60122", "60123", "60124", "60125", "60126", "60127"],
   "fne/scenarios/the-getaway": ["60128a", "60129a", "60130", "60131", "60132", "60133"],
-  "fne/scenarios/protection-racket": ["60134a", "60139", "60140", "60141"],
+  "fne/scenarios/protection-racket": ["60134a", "60135a", "60136a", "60137a", "60138a", "60139", "60140", "60141"],
   "fne/scenarios/the-raft-breakout": ["60142a", "60143", "60144", "60145", "60146", "60147", "60148", "60149", "60150"],
   "fne/scenarios/stop-the-presses": ["60151a", "60152", "60153", "60154", "60155", "60156", "60157", "60158"],
   "fne/modular/disasters": ["60177", "60178", "60179", "60180", "60181"],

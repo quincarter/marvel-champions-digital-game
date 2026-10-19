@@ -50,6 +50,10 @@ const KEY_BRANDS: Readonly<Record<string, BrandFn>> = {
   obligationCardId: "cardId",
   villainCardId: "cardId",
   mainSchemeCardId: "cardId",
+  // `Scenario.villainOptions` (wave 11, docs/phase7-wave11-scenarios.md section S1.2): each option's set and the default's.
+  villainSetId: "encounterSetId",
+  defaultSetId: "encounterSetId",
+  expertVillainCardId: "cardId",
   // `ScenarioVillain.sideBCardId` (wave 8, Four Horsemen: each horseman is a two-card villain).
   sideBCardId: "cardId",
   // `Scenario.setAsideVillainCardIds` and `Scenario.expertVillains.setAsideVillainCardIds` (wave 2 — Kang).

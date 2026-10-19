@@ -13,7 +13,7 @@
  * - Photographic Reflexes is three records (60040a/b/c, two copies each, the "(x6)" of MC60 p. 25), kept as three
  *   cards (spec section 1.2). Its cost is a printed star.
  */
-import type { Correction, PackCuration, StarterDeckCuration } from "./types.ts";
+import type { Correction, PackCuration, ScenarioCuration, StarterDeckCuration } from "./types.ts";
 import { KINGPIN } from "./fne-encounter/kingpin.ts";
 import { MODULAR_CAMPAIGN } from "./fne-encounter/modular-campaign.ts";
 import { SCENARIOS } from "./fne-encounter/scenarios.ts";
@@ -189,6 +189,102 @@ const ECHO_PROTECTION: StarterDeckCuration = {
   note: 'Innate Reflexes (60038) has the Starting keyword (MC60 p. 3). Photographic Reflexes is six copies in three printings of two (the page\'s "(x6)").',
 };
 
+const UNDERLING_SETS = ["hammerhead", "bullseye", "electro", "purple_man", "typhoid_mary"] as const;
+
+/**
+ * Typhoid Mary is one villain card (60110b, two faces of each of two stages, A and B: MC60 p. 5), so stage 1 is her
+ * standard version and stage 2 her expert one. Her scenario is won by Disturbed Psyche (60112: "If there are 3 or more
+ * tokens here, the players win the game!"), not by defeating her.
+ */
+const TYPHOID_MARY_OPTION = {
+  typhoid_mary: { villainStages: { standard: [1, 1], expert: [2, 2] }, victory: "cardAbility" },
+} as const;
+
+/**
+ * One of the five scenarios that combine an interchangeable main scheme with an underling villain (MC60 p. 5, p. 8):
+ * the main scheme is the scenario and the villain is an option (docs/phase7-wave11-scenarios.md sections S1.1, S1.2).
+ * Hammerhead is the default, the first of MC60 p. 8's recommended order. Every villain but Typhoid Mary uses the
+ * record's own stages, (I) and (II), or (II) and (III) in expert mode (MC60 p. 5).
+ */
+function underlingScenario(
+  fields: Pick<ScenarioCuration, "id" | "name" | "mainSchemeSetCode" | "recommendedModularSetCodes" | "evidence"> &
+    Partial<ScenarioCuration>,
+): ScenarioCuration {
+  return {
+    villainSetCode: "hammerhead",
+    additionalEncounterSetCodes: [fields.mainSchemeSetCode as string],
+    standardSetCodes: ["standard"],
+    expertSetCodes: ["expert"],
+    villainStages: { standard: [1, 2], expert: [2, 3] },
+    modularSetCount: 2,
+    villainOptionSetCodes: UNDERLING_SETS,
+    villainOptionDetails: TYPHOID_MARY_OPTION,
+    ...fields,
+  };
+}
+
+const SCENARIO_RECORDS: readonly ScenarioCuration[] = [
+  underlingScenario({
+    id: "art-museum-heist",
+    name: "Art Museum Heist",
+    mainSchemeSetCode: "art_museum_heist",
+    recommendedModularSetCodes: ["cops", "the_owl"],
+    evidence:
+      'MC60 p. 17: "Main Scheme Deck: Art Museum Heist. Encounter Deck: Art Museum Heist, Cops, The Owl, Standard, and the chosen villain\'s encounter sets." Underling villains and their stages: MC60 p. 5; default Hammerhead: p. 8.',
+  }),
+  underlingScenario({
+    id: "the-getaway",
+    name: "The Getaway",
+    mainSchemeSetCode: "the_getaway",
+    recommendedModularSetCodes: ["cops", "drive"],
+    evidence:
+      'MC60 p. 19: "Main Scheme Deck: The Getaway. Encounter Deck: The Getaway, Cops, Drive, Standard, and chosen villain\'s encounter sets." Underling villains: MC60 p. 5, p. 8.',
+  }),
+  underlingScenario({
+    id: "protection-racket",
+    name: "Protection Racket",
+    mainSchemeSetCode: "protection_racket",
+    recommendedModularSetCodes: ["disasters", "tracksuit_mafia"],
+    // Five main scheme cards, one dealt to each player (at random in expert mode, 1A Setup); see `separateMainSchemeCards`.
+    perPlayerMainSchemeCodes: ["60134a", "60135a", "60136a", "60137a", "60138a"],
+    evidence:
+      'MC60 p. 13: "Main Scheme Deck: Protection Racket (x5). Encounter Deck: Protection Racket, Disasters, Tracksuit Mafia, Standard, and chosen villain\'s encounter sets." "Separate Main Schemes": each player has their own main scheme. Stage 1A Setup (60134a): each player chooses one, at random in expert mode. Underling villains: MC60 p. 5, p. 8.',
+  }),
+  underlingScenario({
+    id: "the-raft-breakout",
+    name: "The Raft Breakout",
+    mainSchemeSetCode: "the_raft_breakout",
+    recommendedModularSetCodes: ["the_owl", "tombstone"],
+    evidence:
+      'MC60 p. 15: "Main Scheme Deck: The Raft Breakout. Encounter Deck: The Raft Breakout, The Owl, Tombstone, Standard, and chosen villain\'s encounter sets." Underling villains: MC60 p. 5, p. 8.',
+  }),
+  underlingScenario({
+    id: "stop-the-presses",
+    name: "Stop the Presses!",
+    mainSchemeSetCode: "stop_the_presses",
+    recommendedModularSetCodes: ["tombstone", "tracksuit_mafia"],
+    evidence:
+      'MC60 p. 21: "Main Scheme Deck: Stop the Presses! Encounter Deck: Stop the Presses!, Tombstone, Tracksuit Mafia, Standard, and chosen villain\'s encounter sets." Underling villains: MC60 p. 5, p. 8.',
+  }),
+  {
+    id: "kingpin",
+    name: "Kingpin",
+    villainSetCode: "kingpin",
+    // Two double-sided villain cards share the set (the Collector shape, wave 3 section 1.1): the standard A1/A2
+    // (60159a) and the expert B1/B2 (60160a), each one stage with two faces, flipped by Public Support (60163a).
+    villainCardCode: "60159a",
+    expertVillains: { villainCardCode: "60160a", setAsideVillainCardCodes: [] },
+    recommendedModularSetCodes: ["tombstone", "tracksuit_mafia"],
+    // "This scenario does not use the Standard encounter set, but still uses the Expert encounter set in Expert Mode."
+    standardSetCodes: [],
+    expertSetCodes: ["expert"],
+    villainStages: { standard: [1, 1], expert: [1, 1] },
+    modularSetCount: 2,
+    evidence:
+      'MC60 p. 23: "Villain Deck: Kingpin (A1). Remove Kingpin (A1) and add Kingpin (B1) for expert mode. Main Scheme Deck: The King\'s Gambit, Endgame. Encounter Deck: Kingpin, Tombstone, and Tracksuit Mafia encounter sets. (Important: This scenario does not use the Standard encounter set, but still uses the Expert encounter set in Expert Mode.)" "Double-Sided Villain": one card per mode. Kingpin follows the five others (MC60 p. 8, p. 9 step 4).',
+  },
+];
+
 export const FNE_CURATION: PackCuration = {
   packCode: "fne",
   cycle: { id: "cycle11", name: "Fear No Evil", order: 11 },
@@ -200,6 +296,11 @@ export const FNE_CURATION: PackCuration = {
   },
   outDir: "src/data/fne",
   exportPrefix: "FNE",
+  // MarvelCDB has no campaign record (docs/campaign-mode-design.md section 3): `campaign.ts` (`FNE_CAMPAIGN`) is
+  // hand-authored from MC60 pp. 8, 9 and 28 (docs/phase7-wave11-scenarios.md section S1.3).
+  handAuthoredModules: ["campaign"],
+  // Protection Racket prints five stage 1 main schemes sharing one 1A, one dealt to each player (MC60 p. 13).
+  separateMainSchemeCards: ["protection_racket"],
 
   /**
    * The box's scenario half (villains, scenarios, modular sets, campaign cards, 60065-60210): MarvelCDB has none
@@ -246,7 +347,7 @@ export const FNE_CURATION: PackCuration = {
       "Maggia Enforcers: the SCH box prints a bare star (SCH equals the number of Maggia enemies in play), emitted 0, not a dash, with the rule in the text, like Purple Man 61031: a dash cannot be modified (RRG 1.8 p. 15), so the card's setBase constant needs a number (scan 60092.jpg).",
   },
 
-  scenarios: [],
+  scenarios: SCENARIO_RECORDS,
   starterDecks: [DAREDEVIL_JUSTICE, ECHO_PROTECTION],
 
   /**

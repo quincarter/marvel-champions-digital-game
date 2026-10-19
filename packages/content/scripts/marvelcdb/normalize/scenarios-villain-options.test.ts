@@ -91,3 +91,36 @@ describe("ScenarioCuration.villainOptionSetCodes", () => {
     expect(normalize(plain).scenarios[0]!.villainOptions).toBeUndefined();
   });
 });
+
+describe("ScenarioCuration.perPlayerMainSchemeCodes and PackCuration.separateMainSchemeCards", () => {
+  const RACKET: ScenarioCuration = {
+    ...HEIST,
+    id: "protection-racket",
+    name: "Protection Racket",
+    mainSchemeSetCode: "protection_racket",
+    additionalEncounterSetCodes: ["protection_racket"],
+    perPlayerMainSchemeCodes: ["60134a", "60135a", "60136a", "60137a", "60138a"],
+  };
+
+  it("resolves the five single-stage cards the set's pairs become to Scenario.mainSchemeChoice", () => {
+    const out = normalize(RACKET);
+    const [s] = out.scenarios;
+    expect(s!.mainSchemeCardId).toBe("60134a");
+    expect(s!.mainSchemeChoice).toEqual({
+      kind: "perPlayer",
+      cardIds: ["60134a", "60135a", "60136a", "60137a", "60138a"],
+      expert: "random",
+    });
+    expect(validateScenario(s!).errors).toEqual([]);
+  });
+
+  it("refuses a code that is not a main scheme card or a list that does not start with the scenario's own", () => {
+    const bad = { ...RACKET, perPlayerMainSchemeCodes: ["60135a", "60086"] };
+    expect(() => normalize(bad)).toThrow(/perPlayerMainSchemeCodes names 60086, not a main scheme card/);
+    expect(() => normalize(bad)).toThrow(/perPlayerMainSchemeCodes must start with the main scheme 60134a/);
+  });
+
+  it("a record without the field emits none", () => {
+    expect(normalize(HEIST).scenarios[0]!.mainSchemeChoice).toBeUndefined();
+  });
+});

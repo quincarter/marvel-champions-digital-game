@@ -133,6 +133,30 @@ describe("validateScenarioVillainOptions: the options against the cards", () => 
     ]);
   });
 
+  it("refuses a record whose set aside cards, modular sets or separate decks carry a villain option's set", () => {
+    const s = {
+      ...HEIST,
+      setAsideCardIds: [cardId("60068a"), cardId("60121a")],
+      recommendedModularSetIds: [encounterSetId("cops"), encounterSetId("electro")],
+      standardEncounterSetIds: [encounterSetId("standard"), encounterSetId("purple_man")],
+      separateDecks: [
+        {
+          name: "Showcase",
+          contents: { encounterSetIds: [encounterSetId("bullseye")], cardIds: [cardId("60079")] },
+          discardPile: "own" as const,
+          whenEmpty: "reshuffleDiscard" as const,
+        },
+      ],
+    } as unknown as Scenario;
+    expect(validateScenarioVillainOptions(s, CARDS, SETS).errors).toEqual([
+      "scenario art-museum-heist recommendedModularSetIds names villain option set electro, which the chosen villain decides",
+      "scenario art-museum-heist standardEncounterSetIds names villain option set purple_man, which the chosen villain decides",
+      "scenario art-museum-heist setAsideCardIds names 60068a, a card of villain option set bullseye",
+      "scenario art-museum-heist separateDecks Showcase encounterSetIds names villain option set bullseye, which the chosen villain decides",
+      "scenario art-museum-heist separateDecks Showcase cardIds names 60079, a card of villain option set electro",
+    ]);
+  });
+
   it("validateScenarioEncounterSets reads every option's set, not only the default's", () => {
     expect(validateScenarioEncounterSets(HEIST, SETS).errors).toEqual([]);
     const campaignSet = option("fne_campaign", "60086");

@@ -186,7 +186,10 @@ export function normalizeMainSchemes(ctx: NormalizeContext): Map<string, string>
       // own, not a stage of the set's numbered chain (its set also holds Mischief and Mayhem 1A/1B): both are in play
       // at once, in different game areas (MC55 insert p. 10). It becomes its own card, below.
       const solo = /^[A-Z]$/.test(ra.stage ?? "");
-      const ownParts: Prepared[] = solo ? [] : parts;
+      // A set listed in `separateMainSchemeCards` (Protection Racket, MC60 p. 13): every A/B pair is a card of its own,
+      // one stage 1, for a scenario that deals one to each player (`Scenario.mainSchemeChoice`).
+      const separate = !solo && Boolean(ctx.curation.separateMainSchemeCards?.includes(set));
+      const ownParts: Prepared[] = solo || separate ? [] : parts;
       ownParts.push(a, b);
       const pa = parse(ctx, a);
       const pb = parse(ctx, b);
@@ -228,7 +231,7 @@ export function normalizeMainSchemes(ctx: NormalizeContext): Map<string, string>
       missingOrDashed(rb.threat, rb.threat_fixed, "targetThreat", "target threat");
       missingOrDashed(rb.escalation_threat, rb.escalation_threat_fixed, "acceleration", "acceleration");
       // A later stage with its own title (Klaw's stage 2 is "Secret Rendezvous") keeps it.
-      const firstName = solo ? a.name : parts[0]?.name;
+      const firstName = solo || separate ? a.name : parts[0]?.name;
       // The aggregate record carries the B side and the `…b` record the A side
       // (see `aggregateImage`). MarvelCDB's front/back for a main scheme is
       // "the side you play with" / "the side you set up from", not A / B.
@@ -304,6 +307,19 @@ export function normalizeMainSchemes(ctx: NormalizeContext): Map<string, string>
         },
       };
       ctx.handled.add(ra.code).add(rb.code);
+      if (separate) {
+        const { printedCardId: _key, ...stage } = builtStage;
+        const card: MainSchemeCard = {
+          ...baseFields(ctx, a, ra.code, [ra.code, rb.code], null),
+          type: "main_scheme",
+          encounterSetIds: [brand("encounterSet", set)],
+          stages: [stage],
+        };
+        record(ctx, card, set, ownParts);
+        // The set's "the main scheme" for a scenario record is its first card; the others are named by `cardIds`.
+        if (!mainSchemeIdBySet.has(set)) mainSchemeIdBySet.set(set, card.id);
+        continue;
+      }
       if (!solo) {
         stages.push(builtStage);
         continue;

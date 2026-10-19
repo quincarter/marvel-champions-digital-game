@@ -802,7 +802,7 @@ export const WAVE10_STARTER_DECKS: readonly StarterDeck[] = [
 // ---------------------------------------------------------------------------------------------------------------
 // Wave 11 (PLAN.md Phase 7, docs/phase7-wave11.md): cycle 11, Fear No Evil `fne` (MC60, a campaign expansion: Daredevil
 // and Echo, six scenarios, the Kingpin set and the campaign cards). `jj` (Jessica Jones, MC61) and `luke_cage` (Luke Cage, MC62) are
-// emitted. `fne`'s scenario records (`FNE_SCENARIOS`) are empty until the scenarios task adds them from the scenarios spec, and the box has no `Campaign` record yet (see `CAMPAIGNS`). Pool membership is not a claim that a
+// emitted. `fne`'s six scenario records (`FNE_SCENARIOS`) and its `Campaign` record (`FNE_CAMPAIGN`) are emitted; `FNE_CAMPAIGN` joins `CAMPAIGNS` with the box's campaign definition in `@mc/cards`. Pool membership is not a claim that a
 // pack is scripted: `unscriptedCards` keeps unscripted precons from being seated.
 // ---------------------------------------------------------------------------------------------------------------
 export * from "./fne/index.js";

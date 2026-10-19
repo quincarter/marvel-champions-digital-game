@@ -4,8 +4,12 @@ import { defineAbilities } from "../../../dsl/index.js";
 /**
  * The Protection Racket scenario (docs/phase7-wave11-scenarios.md section S6).
  *
- * Cards (4):
+ * Cards (8):
  * - 60134a Protection Racket (main_scheme)
+ * - 60135a Protection Racket (main_scheme)
+ * - 60136a Protection Racket (main_scheme)
+ * - 60137a Protection Racket (main_scheme)
+ * - 60138a Protection Racket (main_scheme)
  * - 60139 Shop Proprietor (ally)
  * - 60140 Man-Bull (minion)
  * - 60141 Change of Venue (treachery)

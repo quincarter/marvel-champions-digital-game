@@ -1819,6 +1819,37 @@ export function validateScenarioVillainOptions(
     for (const stage of new Set(named))
       if (!held.has(stage)) errors.push(`${label}: villain ${villain.id} has no stage ${stage}`);
   }
+  // The builder swaps one option's villain set for another's, so nothing else the record lists may carry any option's
+  // villain set: it would stay in the game beside the chosen villain's set (or be missing from it).
+  const villainSets = new Set(choice.options.map((option) => option.villainSetId as string));
+  const inVillainSet = (id: string): string | undefined => {
+    const card = byId.get(id);
+    const sets: readonly string[] =
+      card && "encounterSetIds" in card ? (card.encounterSetIds as readonly string[]) : [];
+    return sets.find((set) => villainSets.has(set));
+  };
+  const noVillainSets = (field: string, ids: readonly string[]) => {
+    for (const id of ids)
+      if (villainSets.has(id))
+        errors.push(
+          `scenario ${scenario.id} ${field} names villain option set ${id}, which the chosen villain decides`,
+        );
+  };
+  noVillainSets("recommendedModularSetIds", scenario.recommendedModularSetIds);
+  noVillainSets("standardEncounterSetIds", scenario.standardEncounterSetIds);
+  noVillainSets("expertEncounterSetIds", scenario.expertEncounterSetIds);
+  const cardsIn = (field: string, ids: readonly string[]) => {
+    for (const id of ids) {
+      const set = inVillainSet(id);
+      if (set !== undefined)
+        errors.push(`scenario ${scenario.id} ${field} names ${id}, a card of villain option set ${set}`);
+    }
+  };
+  cardsIn("setAsideCardIds", scenario.setAsideCardIds ?? []);
+  for (const deck of scenario.separateDecks ?? []) {
+    noVillainSets(`separateDecks ${deck.name} encounterSetIds`, deck.contents.encounterSetIds ?? []);
+    cardsIn(`separateDecks ${deck.name} cardIds`, deck.contents.cardIds ?? []);
+  }
   return result(errors);
 }
 
