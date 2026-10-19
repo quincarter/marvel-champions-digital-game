@@ -41,7 +41,10 @@ import {
   heroAction,
   moveCards,
   named,
+  encounterCards,
   placeThreat,
+  selectCards,
+  putIntoPlay,
   query,
   removeThreat,
   takeControl,
@@ -50,6 +53,7 @@ import {
   treatAsMinion,
   treatAttachedAllyAsMinion,
   treatSelfAsAlly,
+  you,
 } from "./index.js";
 import { validateDefinition } from "./validate.js";
 import { coreScenario } from "../core/setup.js";
@@ -86,6 +90,8 @@ const BASE_THW = "test.deceived-base-3-thw";
 /** Test only: "attach Converted to an ally; attached ally engages its controller"; "discard Converted". */
 const CONVERT = "test.attach-converted";
 const UNCONVERT = "test.discard-converted";
+/** Test only: "put Baron Zemo into play" (from the encounter discard). */
+const ENTER_ZEMO = "test.baron-zemo-enters-play";
 
 const ZEMO_ABILITIES: Record<string, AbilityDefinition> = {
   [CONSTANT]: constant(treatAsMinion(query("ally", { hasThreat: true }), [DECEIVED], { schFromThw: "base" })),
@@ -113,6 +119,10 @@ const DEPS: EngineDeps = {
       engage(chosen("ally"), controllerOf(chosen("ally"))),
     ),
     [UNCONVERT]: heroAction(moveCards(cards(named("Converted")), "discard")),
+    [ENTER_ZEMO]: heroAction(
+      selectCards("zemo", encounterCards(["discard"], query("minion", { name: "Baron Zemo" }))),
+      putIntoPlay(chosen("zemo"), you),
+    ),
   },
 };
 
@@ -168,7 +178,7 @@ function game(players = 1, extra: readonly string[] = [], withCat = false) {
   if (!created.ok) throw new Error(created.error.message);
   let s = settle(created.state, firstLegal, (st) => st.step.phase === "player", DEPS);
   for (let n = 0; n < players; n++) s = withForm(s, { heroForm: 0 }, n === 0 ? P1 : P2);
-  s = withTestAbilities(s, [DECEIVE, REMOVE, DISCARD, CONVERT, UNCONVERT, ...extra]);
+  s = withTestAbilities(s, [DECEIVE, REMOVE, DISCARD, CONVERT, UNCONVERT, ENTER_ZEMO, ...extra]);
   s = encounterCardInVillainArea(s, CONVERTED).state;
   const placed = engageMinion(s, ZEMO, P1);
   const mine = alliesInPlay(placed.state, P1, 2);
@@ -400,5 +410,78 @@ describe('back to its owner\'s control (MC60 FAQ p. 26; RRG 1.8 "Ownership and C
     expect(after.treatedAs ?? null).toBeNull();
     expect(after.controllerId).toBe(P2);
     expect(playAreaOf(run.state, P2)).toContain(ally);
+  });
+});
+
+describe("Converted first, then Baron Zemo (owner Q206 = A, 2026-10-19; RRG 1.8 p. 4; ruling Dec 17, 2025)", () => {
+  const changes = (events: readonly { type: string }[], ally: InstanceId) =>
+    events.filter((e) => e.type === "treatedAsChanged" && (e as { instanceId?: InstanceId }).instanceId === ally);
+
+  /** An ally with threat, Converted on it, and Baron Zemo out of play (in the encounter discard). */
+  function converted() {
+    const { state, zemo, allies } = game();
+    const ally = allies[0]!;
+    const deckId = Object.keys(state.encounterDecks)[0]!;
+    const home = state.encounterDecks[deckId]!;
+    let staged: GameState = {
+      ...state,
+      encounterDecks: { ...state.encounterDecks, [deckId]: { deck: home.deck, discard: [...home.discard, zemo] } },
+      players: state.players.map((p) => ({ ...p, playArea: p.playArea.filter((i) => i !== zemo) })),
+    };
+    staged = patchInstance(staged, zemo, { engagedWith: null });
+    staged = patchInstance(staged, ally, { threat: 1 });
+    const pickAlly = (s: GameState) =>
+      s.pendingChoice!.options.some((o) => o.optionId === ally) ? [ally] : firstLegal(s);
+    const run = driveEventsPicking(DEPS, staged, pickAlly, use(P1, identityOf(staged, P1), CONVERT));
+    return { state: run.state, zemo, ally, convertedEvents: run.events };
+  }
+  const enter = (s: GameState) => driveEvents(DEPS, s, use(P1, identityOf(s, P1), ENTER_ZEMO));
+
+  it("the whole sequence: Influenced only, then Zemo's Deceived once Converted goes, one change per step, then stable", () => {
+    const { state, zemo, ally, convertedEvents } = converted();
+    expect(changes(convertedEvents, ally).length).toBeLessThanOrEqual(1);
+    expect(inst(state, ally).treatedAs).toMatchObject({ kind: "minion", traits: [INFLUENCED] });
+    expect(inst(state, ally).treatedAs).not.toHaveProperty("byRule");
+
+    // (1) Zemo enters play: the ally stays Converted's Influenced minion; nothing changes for it.
+    const entered = enter(state);
+    expect(playAreaOf(entered.state, P1)).toContain(zemo);
+    expect(changes(entered.events, ally)).toHaveLength(0);
+    const influenced = inst(entered.state, ally).treatedAs;
+    expect(influenced).toMatchObject({ kind: "minion", traits: [INFLUENCED] });
+    expect(influenced).not.toHaveProperty("byRule");
+    expect(influenced).not.toMatchObject({ source: zemo });
+    expect(traitsOf(entered.state, ally, DEPS).map(String)).toEqual(["INFLUENCED"]);
+    expect(inst(entered.state, ally).threat).toBe(1);
+
+    // (2) Converted discarded while Zemo stays: Zemo's Deceived minion, threat kept, no ally <-> minion flip.
+    const freed = driveEvents(DEPS, entered.state, use(P1, identityOf(entered.state, P1), UNCONVERT));
+    // Converted going makes it an ally again, then Zemo makes it Deceived: two changes in the one step (coordinator,
+    // 2026-10-19: correct, the Q206 = A reasoning). The ally limit runs after both syncs, so it does not fire for it.
+    expect(changes(freed.events, ally).map((e) => (e as { as?: unknown }).as)).toEqual([null, "minion"]);
+    expect(inst(freed.state, ally).treatedAs).toMatchObject({ kind: "minion", source: zemo, byRule: true });
+    expect(traitsOf(freed.state, ally, DEPS).map(String)).toEqual(["DECEIVED"]);
+    expect(inst(freed.state, ally).threat).toBe(1);
+    expect(freed.state.pendingChoice ?? null).toBeNull();
+    expect(playerOf(freed.state, P1).discard).not.toContain(ally);
+    expect(playAreaOf(freed.state, P1)).toContain(zemo);
+
+    // (3) Stable, no loop: a further step changes nothing for the card.
+    const treated = inst(freed.state, ally).treatedAs;
+    const again = driveEvents(DEPS, freed.state, use(P1, identityOf(freed.state, P1), UNCONVERT));
+    expect(changes(again.events, ally)).toHaveLength(0);
+    expect(inst(again.state, ally).treatedAs).toEqual(treated);
+  });
+
+  it("Zemo leaving play while Converted stays: still Influenced, nothing changes", () => {
+    const { state, zemo, ally } = converted();
+    const entered = enter(state).state;
+    const before = inst(entered, ally).treatedAs;
+    const run = driveEvents(DEPS, entered, use(P1, identityOf(entered, P1), DISCARD));
+    expect(playAreaOf(run.state, P1)).not.toContain(zemo);
+    expect(changes(run.events, ally)).toHaveLength(0);
+    expect(inst(run.state, ally).treatedAs).toEqual(before);
+    expect(inst(run.state, ally).treatedAs).toMatchObject({ kind: "minion", traits: [INFLUENCED] });
+    expect(inst(run.state, ally).threat).toBe(1);
   });
 });
