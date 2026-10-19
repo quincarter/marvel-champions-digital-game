@@ -1,6 +1,7 @@
 import { cardId } from "@mc/content";
 import {
   createGame,
+  playCostOf,
   replay,
   sessionApply,
   startSession,
@@ -34,7 +35,7 @@ import { moveToDiscard, withForm } from "../../testing/staging.js";
 import { stagedInPlay } from "../../wave9/falcon/testing.js";
 import { WAVE11_CARDS } from "../cards.js";
 import { WAVE11_DEPS } from "../index.js";
-import { JJ_BASIC as REGISTRY, JJ_BASIC_SKIPPED as SKIPPED } from "./basic.js";
+import { JJ_BASIC as REGISTRY } from "./basic.js";
 
 vi.setConfig({ testTimeout: 120_000 });
 
@@ -168,12 +169,14 @@ const thwartIt = (state: GameState, scheme: InstanceId): Command => ({
 describe("wave 11 jj/basic registry", () => {
   it("registers only valid definitions, with the printed timing, and skips nothing", () => {
     for (const id of Object.keys(REGISTRY)) expect(validateDefinition(REGISTRY[id]!), id).toEqual([]);
-    expect(Object.keys(REGISTRY).sort()).toEqual([HELLCAT_REF, JOYS_REF, BOND_REF, SECOND_CHANCE_REF].sort());
+    expect(Object.keys(REGISTRY).sort()).toEqual(
+      [HELLCAT_REF, JOYS_REF, BOND_REF, SECOND_CHANCE_REF, DEFEND_REF].sort(),
+    );
     expect(REGISTRY[HELLCAT_REF]).toMatchObject({ activeIn: "hand", trigger: { kind: "action" } });
     expect(REGISTRY[JOYS_REF]!.trigger).toMatchObject({ kind: "action" });
     expect(REGISTRY[BOND_REF]!.trigger).toMatchObject({ kind: "action", form: "hero" });
     expect(REGISTRY[SECOND_CHANCE_REF]!.trigger).toMatchObject({ kind: "whenDefeated" });
-    expect(Object.keys(SKIPPED)).toEqual([DEFEND_REF]);
+    expect(REGISTRY[DEFEND_REF]!.trigger).toMatchObject({ kind: "whenDefeated" });
   });
 });
 
@@ -357,9 +360,67 @@ describe(`${SECOND_CHANCE_REF}: with two players`, () => {
 });
 
 describe("61029 Defend Our City", () => {
-  it("is skipped with a written reason (no lasting cost modifier in the engine)", () => {
-    expect(DEFEND_REF in REGISTRY).toBe(false);
-    expect(SKIPPED[DEFEND_REF]).toContain("lasting cost modifier");
+  const TEAM_UP_EVENT = BOND; // Unbreakable Bond: Team-Up (Luke Cage), printed cost 1
+  const defeated = (state: GameState, pick: Picker = firstLegal) => {
+    const { state: staged, scheme } = schemeOnTable(withForm(state, { heroForm: 0 }), DEFEND);
+    return drive(staged, thwartIt(staged, scheme), pick);
+  };
+  /** Takes the Team-Up card when the search offers one, else the first legal option. */
+  const takeTeamUp: Picker = (state) => {
+    const hit = state.pendingChoice?.options.find(
+      (o) => o.ref.kind === "card" && String(inst(state, o.ref.instanceId as InstanceId).cardId) === TEAM_UP_EVENT,
+    );
+    return hit ? [hit.optionId] : firstLegal(state);
+  };
+  const priceOf = (state: GameState, id: InstanceId, player: PlayerId = P1) =>
+    playCostOf(state, player, id, WAVE11_DEPS)?.current;
+
+  it("the search takes a Team-Up card from the deck into hand, and the cost of Team-Up cards drops by 1 for the phase", () => {
+    const given = defeated(jjGame(), takeTeamUp);
+    const bond = pile(given.state, "hand").find((i) => String(inst(given.state, i).cardId) === BOND)!;
+    expect(bond).toBeDefined();
+    expect(pile(given.state, "deck")).not.toContain(bond);
+    // Unbreakable Bond prints cost 1; the reduction floors it at 0.
+    expect(priceOf(given.state, bond)).toBe(0);
+    // A card without Team-Up is not reduced.
+    const joys = moveToHand(given.state, P1, JOYS);
+    expect(priceOf(joys.state, joys.ids[0]!)).toBe(playCostOf(joys.state, P1, joys.ids[0]!, WAVE11_DEPS)?.printed);
+  });
+
+  it("the search may find a Team-Up card in the discard pile too", () => {
+    const base = moveToDiscard(jjGame(), P1, BOND);
+    const inDeck = pile(base.state, "deck").filter((i) => String(inst(base.state, i).cardId) === BOND);
+    expect(inDeck).toEqual([]); // the only copy was moved to the discard pile
+    const given = defeated(base.state, takeTeamUp);
+    expect(codesOf(given.state, pile(given.state, "hand"))).toContain(BOND);
+    expect(pile(given.state, "discard")).not.toContain(base.id);
+  });
+
+  it("declining the search still reduces the cost of a Team-Up card that is already in hand", () => {
+    const base = moveToHand(jjGame(), P1, BOND);
+    const none: Picker = (state) => {
+      const choice = state.pendingChoice!;
+      return choice.prompt.kind === "chooseCards" ? [] : firstLegal(state);
+    };
+    const given = defeated(base.state, none);
+    expect(codesOf(given.state, pile(given.state, "hand"))).toContain(BOND);
+    expect(priceOf(given.state, base.ids[0]!)).toBe(0);
+  });
+
+  it("control: before the scheme is defeated the Team-Up card costs its printed amount", () => {
+    const base = moveToHand(jjGame(), P1, BOND);
+    expect(priceOf(base.state, base.ids[0]!)).toBe(playCostOf(base.state, P1, base.ids[0]!, WAVE11_DEPS)?.printed);
+    expect(playCostOf(base.state, P1, base.ids[0]!, WAVE11_DEPS)?.printed).toBe(1);
+  });
+
+  it("the reduction ends with the phase: the cost is back after the turn ends", () => {
+    const base = moveToHand(jjGame(), P1, BOND);
+    const none: Picker = (state) => (state.pendingChoice?.prompt.kind === "chooseCards" ? [] : firstLegal(state));
+    const given = defeated(base.state, none);
+    expect(priceOf(given.state, base.ids[0]!)).toBe(0);
+    const later = drive(given.state, endTurn(P1), none).state;
+    expect(later.lastingEffects.filter((e) => e.kind === "ruleGrant")).toEqual([]);
+    expect(priceOf(later, base.ids[0]!)).toBe(1);
   });
 
   it("Prerequisite (Defender): Jessica Jones can play it, Spider-Man cannot (engine HT13)", () => {

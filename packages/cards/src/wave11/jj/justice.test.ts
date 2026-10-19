@@ -15,6 +15,7 @@ import { validateDefinition } from "../../dsl/validate.js";
 import {
   P1,
   P2,
+  endTurn,
   firstLegal,
   identityOf,
   inst,
@@ -33,7 +34,7 @@ import { engageMinion, stagedInPlay } from "../../wave9/falcon/testing.js";
 import { WAVE10_ABILITIES } from "../../wave10/index.js";
 import { WAVE11_CARDS } from "../cards.js";
 import { WAVE11_DEPS } from "../index.js";
-import { JJ_JUSTICE as REGISTRY, JJ_JUSTICE_SKIPPED as SKIPPED } from "./justice.js";
+import { JJ_JUSTICE as REGISTRY } from "./justice.js";
 
 vi.setConfig({ testTimeout: 120_000 });
 
@@ -62,6 +63,7 @@ const SQUIRREL = "61017";
 const SESSION = "61019";
 const GROUND = "61020";
 const GRAPNEL = "61023";
+const ENTRAPMENT = "61024";
 const PERCEPTION = "61036";
 const FAVORS = "61008";
 const ALIAS = "61002";
@@ -189,11 +191,14 @@ describe("wave 11 jj/justice", () => {
         TRAP_D,
         DETERMINATION_R,
         GRAPNEL_A,
+        ENTRAPMENT_R,
         PERCEPTION_C,
       ].sort(),
     );
-    expect(Object.keys(SKIPPED)).toEqual([ENTRAPMENT_R]);
-    expect(SKIPPED[ENTRAPMENT_R]).toBe("waits on a change-form cost (RRG pp. 13-14)");
+    expect(REGISTRY[ENTRAPMENT_R]).toMatchObject({
+      trigger: { kind: "response", forced: false, form: "alterEgo" },
+      cost: { changeForm: "hero", discardSelf: true },
+    });
   });
 
   it("aliases each reprint to its original's script, and the printed text is the original's", () => {
@@ -540,5 +545,45 @@ describe(`${PERCEPTION_C}: your hero gets +1 THW`, () => {
     const g = stagedInPlay(relabel(s0, PERCEPTION).state, PERCEPTION, { attach: true });
     const boosted = drive(g.state, thwartMain(g.state));
     expect(mainThreat(boosted.state)).toBe(3);
+  });
+});
+
+describe(`${ENTRAPMENT_R}: after the villain schemes, change to hero form and discard this card to deal damage to the villain equal to the threat placed`, () => {
+  /** Entrapment attached to the alter-ego, then the turn ends: the villain phase runs until the response is offered. */
+  const staged = () => {
+    const g = stagedInPlay(relabel(jjGame(), ENTRAPMENT).state, ENTRAPMENT, { attach: true });
+    return { ...g, before: mainThreat(g.state) };
+  };
+  const isEntrapment = (state: GameState, id: InstanceId): Picker => picks({ cards: [id] });
+  /** The threat the villain's scheme activation placed (the phase's acceleration threat is a separate placement). */
+  const placed = (events: readonly GameEvent[]) =>
+    ofType(events, "schemeResolved").reduce((sum, e) => sum + e.threatPlaced, 0);
+
+  it("changes to hero form, discards itself and deals damage equal to the threat that activation placed", () => {
+    const g = staged();
+    const villain = villainOf(g.state);
+    const { state, events } = drive(g.state, endTurn(P1), isEntrapment(g.state, g.id));
+    const threat = placed(events);
+    expect(threat).toBeGreaterThan(0);
+    expect(playerOf(state, P1).identity.form).toBe("hero");
+    expect(playerOf(state, P1).discard).toContain(g.id);
+    expect(inst(state, villain).damage).toBe(threat);
+  });
+
+  it("control: declining leaves the form, the card and the villain untouched", () => {
+    const g = staged();
+    const { state } = drive(g.state, endTurn(P1), picks({ label: "Decline" }));
+    expect(playerOf(state, P1).identity.form).toBe("alterEgo");
+    expect(playerOf(state, P1).discard).not.toContain(g.id);
+    expect(inst(state, villainOf(state)).damage).toBe(0);
+  });
+
+  it("is not offered in hero form", () => {
+    const g = stagedInPlay(relabel(withForm(jjGame(), { heroForm: 0 }), ENTRAPMENT).state, ENTRAPMENT, {
+      attach: true,
+    });
+    const { state } = drive(g.state, endTurn(P1), isEntrapment(g.state, g.id));
+    expect(playerOf(state, P1).discard).not.toContain(g.id);
+    expect(inst(state, villainOf(state)).damage).toBe(0);
   });
 });

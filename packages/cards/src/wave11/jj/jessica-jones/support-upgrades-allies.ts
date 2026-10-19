@@ -1,6 +1,7 @@
 import { trait } from "@mc/content";
 import type { AbilityRegistry } from "@mc/engine";
 import {
+  ENCOUNTER_SIDE_SCHEME,
   action,
   addCounters,
   alterEgoAction,
@@ -126,7 +127,7 @@ export const JJ_JESSICA_JONES_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineA
 
   "61014.stakeout-action": action(
     { while: exists({ self: true, ...inPlayAreaOf() }) },
-    chooseTarget("scheme", query("sideScheme", { controller: "encounter", withoutKeyword: "permanent" })),
+    chooseTarget("scheme", { ...ENCOUNTER_SIDE_SCHEME, withoutKeyword: "permanent" }),
     attachCard(self, chosen("scheme")),
   ),
   "61014.stakeout-interrupt": interrupt(

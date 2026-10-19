@@ -2,9 +2,11 @@ import { trait } from "@mc/content";
 import type { AbilityRegistry } from "@mc/engine";
 import {
   action,
+  applyRuleUntil,
   aScheme,
   atEndOfPhase,
   cards,
+  chooseCards,
   chooseOne,
   chooseOneBy,
   chooseTarget,
@@ -24,7 +26,10 @@ import {
   putIntoPlay,
   query,
   ready,
+  reduceCostToPlay,
   self,
+  shuffleDeck,
+  TEAM_UP_CARD,
   teamUpCharacter,
   thatPlayer,
   thwart,
@@ -69,8 +74,10 @@ const EXHAUSTABLE_HERO_OR_ALLY = query(["hero", "ally"], { controller: "any", ex
  * "Classifications", p. 12, any identity's) from their discard pile into their deck; a player who declines shuffles
  * nothing (RRG 1.8 "Search", p. 39).
  *
- * **61029.when-defeated**: NOT scripted (see `JJ_BASIC_SKIPPED`): the cost reduction is a lasting modifier on every Team-Up
- * card for the phase, and the engine has no such rule. Prerequisite (Defender) is data (engine HT13).
+ * **61029.when-defeated**: each player in turn order may search their deck and discard pile for one Team-Up card (taking
+ * none is allowed, RRG 1.8 "Search", p. 39), add it to their hand and shuffle their deck. Then, once, until the end of
+ * the phase every play of a Team-Up card by any player costs 1 less, cards drawn later included (the lasting rule is
+ * `reduceCostToPlay`, floored at 0, RRG 1.8 "Cost", p. 13). Prerequisite (Defender) is data (engine HT13).
  */
 export const JJ_BASIC: AbilityRegistry = defineAbilities({
   "61025.hellcat-constant": inHand(
@@ -122,10 +129,21 @@ export const JJ_BASIC: AbilityRegistry = defineAbilities({
       ),
     ),
   ),
+
+  "61029.when-defeated": whenDefeated(
+    forEachPlayer(
+      eachPlayer,
+      chooseCards("found", zone(["deck", "discard"], thatPlayer, { filter: TEAM_UP_CARD }), {
+        min: 0,
+        max: 1,
+        chooser: thatPlayer,
+      }),
+      moveCards(cards(chosen("found")), "hand"),
+      shuffleDeck(thatPlayer),
+    ),
+    applyRuleUntil(reduceCostToPlay(TEAM_UP_CARD, 1), "endOfPhase"),
+  ),
 });
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const JJ_BASIC_SKIPPED: Readonly<Record<string, string>> = {
-  "61029.when-defeated":
-    "only the lasting cost modifier is missing (the search itself is scriptable): a lasting cost modifier ('until the end of the phase, reduce the cost to play each Team-Up card by 1', every play by any player, cards drawn later included); only reduceNextCardCost (one play) and reduceCostOfCards (named cards) exist",
-};
+export const JJ_BASIC_SKIPPED: Readonly<Record<string, string>> = {};

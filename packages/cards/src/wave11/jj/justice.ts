@@ -4,6 +4,7 @@ import {
   addCounters,
   after,
   alterEgoAction,
+  alterEgoResponse,
   anEnemy,
   applyRuleUntil,
   basicPowerBy,
@@ -15,6 +16,7 @@ import {
   chooseTarget,
   chosen,
   chosenPlayer,
+  changeFormCost,
   confuse,
   constant,
   countersOn,
@@ -24,13 +26,16 @@ import {
   discard,
   discardThis,
   eachPlayer,
+  eventResult,
   forEachPlayer,
   gets,
   handCountOf,
   heroAction,
   ifThen,
   moveCards,
+  on,
   option,
+  PLAYER_SIDE_SCHEME,
   query,
   removeCounter,
   removeThreatFromAScheme,
@@ -40,6 +45,7 @@ import {
   shuffleDeck,
   skipNextVillainPhase,
   thatPlayer,
+  theVillain,
   thwart,
   topOfDeck,
   varAtLeast,
@@ -51,11 +57,6 @@ import {
 import { WAVE10_ABILITIES } from "../../wave10/index.js";
 
 const CHARACTER_YOU_CONTROL = query("character", { controller: "you" });
-/**
- * A player side scheme in play: a side scheme some player controls (an encounter side scheme has no controller).
- * Interim: an engine query field for player side schemes is queued; swap this for it then.
- */
-const PLAYER_SIDE_SCHEME = query("sideScheme", { not: { controller: "encounter" } });
 const GRAPNEL_TERMS = {
   character: "identity",
   withoutExhausting: true,
@@ -88,9 +89,10 @@ const GRAPNEL_TERMS = {
  * the finding (and the deck is shuffled); the Hero Action is a thwart of a side scheme some player controls.
  * **61020** (Q101 = A): the villain phase is skipped, each player is dealt one facedown encounter card (revealed in the
  * next villain phase played) and the villain cannot take damage until that phase begins. **61023**: Restricted is the
- * keyword; the thwart is made without exhausting and ignores patrol and crisis for that use (HT9). **61024** is
- * skipped: "change to hero form and discard this card" is all cost (RRG 1.8 "Cost", pp. 13-14), which needs a
- * change-form cost primitive. **61036**: Starting is the keyword (HT12).
+ * keyword; the thwart is made without exhausting and ignores patrol and crisis for that use (HT9). **61024**: "change
+ * to hero form and discard this card" is all cost (RRG 1.8 "Cost", pp. 13-14), paid before the damage; the damage is the threat that activation placed
+ * (the scheme event's `threatPlaced` result, the amount after boost and reductions). "(attack)" is the ability's label.
+ * **61036**: Starting is the keyword (HT12).
  */
 export const JJ_JUSTICE: AbilityRegistry = defineAbilities({
   "61015.captain-marvel-response": response(
@@ -153,10 +155,14 @@ export const JJ_JUSTICE: AbilityRegistry = defineAbilities({
     basicPowerBy(you, ["thwart"], { bonus: { thw: 1 }, terms: GRAPNEL_TERMS }),
   ),
 
+  "61024.entrapment-response": alterEgoResponse(
+    on.enemySchemes(query("villain")),
+    { label: "attack", cost: { ...changeFormCost("hero"), ...discardThis } },
+    dealDamage(eventResult("threatPlaced"), theVillain),
+  ),
+
   "61036.innate-perception-constant": constant(gets("thw", 1, query("hero", { controller: "you" }))),
 });
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const JJ_JUSTICE_SKIPPED: Readonly<Record<string, string>> = {
-  "61024.entrapment-response": "waits on a change-form cost (RRG pp. 13-14)",
-};
+export const JJ_JUSTICE_SKIPPED: Readonly<Record<string, string>> = {};
