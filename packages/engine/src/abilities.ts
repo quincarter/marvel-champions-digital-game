@@ -2446,7 +2446,40 @@ export type RuleSpec =
       readonly kind: "treatHostAsMinion";
       readonly traits: readonly Trait[];
       readonly keepPrintedTraits?: boolean;
-      readonly schFromThw?: boolean | "current";
+      /** `"base"`: "SCH is equal to its base THW" (Converted, `fne` 60100), as `RuleSpec treatAsMinion` reads it. */
+      readonly schFromThw?: boolean | "current" | "base";
+    }
+  /**
+   * On any card, of every ally a query matches: "Treat each ally with threat on it as a [Deceived] minion with a blank
+   * text box. Its SCH is equal to its base THW and it does not take consequential damage." (Baron Zemo, `fne` 60145;
+   * docs/phase7-wave11-scenarios.md §S3.9). `treatHostAsMinion`'s treatment (blank text box, `traits` in place of the
+   * printed ones unless `keepPrintedTraits`, its printed ATK and hit points, no consequential damage, a minion takes
+   * none), given to each ally card in play that `cards` matches, read live with the rule's card as "self": checked
+   * between frames (`treat-as.ts` `syncRuleTreatments`), as a constant ability's effects "are active anytime the
+   * specific condition is met" (RRG 1.8 "Ability", p. 5). The query is read of the card as it would be untreated (an
+   * ally its controller controls), so "an ally with threat on it" stays matched once it is a minion.
+   *
+   * It is an ally again, under the player who controlled it, in their play area and engaged with no one, the moment the
+   * query stops matching it (its threat removed) or the rule stops being active (its card leaves play, or its text box
+   * is blanked); its threat and damage stay. MC60 p. 26 FAQ: when Baron Zemo leaves play "they are allies again, under
+   * their owner's control, and keep the threat"; ruling Dec 17, 2025 (1) #3: nothing enters or leaves play. Becoming a
+   * minion engages no one: "It engages its controller" is the revealing ability's own `engage` (as Beguiled's is).
+   *
+   * Only a card printed as an ally that nothing else treats as another type is changed: an ally an attachment already
+   * treats as a minion is left to that attachment, and a minion treated as an ally (Karma, Black Cat) is left as it is
+   * (engine reading, tier 5: no source says what a minion-turned-ally that the query matches becomes).
+   *
+   * `schFromThw`: `"base"` is its base THW (RRG 1.8 "Base Value", p. 10: "A defined value before modifiers are
+   * applied"), the printed THW unless an active "has a base THW of" ability sets it, with no THW modifier; `true` its
+   * printed THW; `"current"` its THW with its modifiers. SCH modifiers apply on top of each.
+   */
+  | {
+      readonly kind: "treatAsMinion";
+      readonly cards: TargetQuery;
+      readonly traits: readonly Trait[];
+      readonly keepPrintedTraits?: boolean;
+      readonly schFromThw?: boolean | "current" | "base";
+      readonly while?: Predicate;
     }
   | {
       readonly kind: "cannotHaveAttachments";

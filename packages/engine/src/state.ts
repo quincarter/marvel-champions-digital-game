@@ -140,9 +140,15 @@ export interface TreatedAsMinion {
   readonly traits: readonly Trait[];
   readonly keepPrintedTraits: boolean;
   /** `"current"`: "SCH is equal to its THW", the ally's THW with its modifiers, not the printed value (wave 7 §3.44). */
-  readonly schFromThw: boolean | "current";
+  readonly schFromThw: boolean | "current" | "base";
   readonly source: InstanceId;
   readonly controllerBefore: PlayerId | null;
+  /**
+   * Set when a `RuleSpec treatAsMinion` on `source` matched the card (Baron Zemo, docs/phase7-wave11-scenarios.md
+   * §S3.9) rather than an attachment on it: it lasts while that rule is active and its query matches the card
+   * (`syncRuleTreatments`). Absent otherwise.
+   */
+  readonly byRule?: true;
 }
 
 /**

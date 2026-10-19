@@ -156,6 +156,8 @@ describe("§3.16 a card is revealed that gives heroes a trait", () => {
       instanceId: contractor,
       playerId: P1,
       grantedTo: { [UNREGISTERED]: [...t.identities] },
+      // Dealt from the encounter deck in the villain phase (docs/phase7-wave11-scenarios.md §S3.10).
+      from: "encounterDeck",
     });
     const replayed = replay(session.log, deps);
     if (!replayed.ok) throw new Error(replayed.error.message);

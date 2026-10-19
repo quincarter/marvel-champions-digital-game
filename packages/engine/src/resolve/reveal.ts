@@ -409,6 +409,7 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
         kind: "cardRevealed",
         instanceId: frame.instanceId,
         playerId: frame.playerId,
+        ...revealedFrom(frame),
       };
       // RRG "Incite X" is itself a "When Revealed: place X threat on the main scheme". Its "the main scheme" is the
       // revealing player's area's, when the players are split (§3.1).
@@ -601,6 +602,10 @@ function stepRevealKeywords(ctx: Ctx, held: Frame<"reveal">): void {
   if (resolving) pushFrames(ctx, [resolving]);
 }
 
+/** `cardRevealed.from`: present only for a reveal that began at an encounter deck (docs/phase7-wave11-scenarios.md §S3.10). */
+const revealedFrom = (frame: Frame<"reveal">): { readonly from?: "encounterDeck" } =>
+  frame.source === "encounterDeck" ? { from: "encounterDeck" } : {};
+
 /** The `responses` stage: everything that answers a finished reveal is announced. */
 function announceRevealFinished(ctx: Ctx, frame: Frame<"reveal">, card: AnyCard): void {
   const { heldResponses: held = [], ...rest } = frame;
@@ -614,6 +619,7 @@ function announceRevealFinished(ctx: Ctx, frame: Frame<"reveal">, card: AnyCard)
       instanceId: frame.instanceId,
       playerId: frame.playerId,
       ...(Object.keys(granted).length > 0 ? { grantedTo: granted } : {}),
+      ...revealedFrom(frame),
     },
   ];
   // "After you resolve a treachery" (`encounterCardResolved`): a treachery or event one or more of whose abilities

@@ -1709,14 +1709,44 @@ export const cannotBeCanceled = (cards: TargetQuery, when?: Predicate): Constant
  */
 export const treatAttachedAllyAsMinion = (
   traits: readonly Trait[],
-  opts: { readonly keepPrintedTraits?: boolean; readonly schFromThw?: "printed" | "current" } = {},
+  opts: { readonly keepPrintedTraits?: boolean; readonly schFromThw?: "printed" | "current" | "base" } = {},
 ): ConstantPart => ({
   rules: [
     {
       kind: "treatHostAsMinion",
       traits,
-      schFromThw: opts.schFromThw === "current" ? "current" : true,
+      schFromThw: schFromThwOf(opts.schFromThw),
       ...(opts.keepPrintedTraits ? { keepPrintedTraits: true } : {}),
+    },
+  ],
+});
+const schFromThwOf = (how: "printed" | "current" | "base" | undefined): true | "current" | "base" =>
+  how === "current" || how === "base" ? how : true;
+/**
+ * "Treat each ally with threat on it as a [Deceived] minion with a blank text box. Its SCH is equal to its base THW and
+ * it does not take consequential damage." (Baron Zemo, `fne` 60145) →
+ * `constant(treatAsMinion(query("ally", { hasThreat: true }), [DECEIVED], { schFromThw: "base" }))`. Every ally card in
+ * play the query matches (read with this card as "self") is a minion while it matches and this card's constant is
+ * active; an ally again, under the player who controlled it and keeping its threat, once either stops (MC60 p. 26 FAQ).
+ * `schFromThw` defaults to `"printed"`, as `treatAttachedAllyAsMinion`'s does. docs/phase7-wave11-scenarios.md §S3.9.
+ */
+export const treatAsMinion = (
+  cards: TargetQuery,
+  traits: readonly Trait[],
+  opts: {
+    readonly keepPrintedTraits?: boolean;
+    readonly schFromThw?: "printed" | "current" | "base";
+    readonly while?: Predicate;
+  } = {},
+): ConstantPart => ({
+  rules: [
+    {
+      kind: "treatAsMinion",
+      cards,
+      traits,
+      schFromThw: schFromThwOf(opts.schFromThw),
+      ...(opts.keepPrintedTraits ? { keepPrintedTraits: true } : {}),
+      ...(opts.while ? { while: opts.while } : {}),
     },
   ],
 });
@@ -3317,6 +3347,15 @@ export const on = {
    */
   youRevealEncounterCard: (what?: TargetQuery): EventPattern =>
     pattern("cardRevealed", { playerIs: "controller" }, what ? { targetIs: what } : {}),
+  /**
+   * "After a player reveals a [Tracksuit] minion **from the encounter deck**" (Tracksuit Mafia, `fne` 60204;
+   * docs/phase7-wave11-scenarios.md §S3.10): any player's reveal that began at an encounter deck, a facedown
+   * encounter card dealt from one included (`cardRevealed.from`), heard once every step of the reveal has completed
+   * (RRG 1.8 "Reveal", p. 38). A card revealed from under a card, a set-aside area, a scenario deck or a discard pile is
+   * not heard. "That player" is `eventPlayer`; the card is `eventTarget`.
+   */
+  cardRevealedFromEncounterDeck: (what?: TargetQuery): EventPattern =>
+    pattern("cardRevealed", { eventIs: { from: "encounterDeck" } }, what ? { targetIs: what } : {}),
   /**
    * "After another card is revealed that gives 1 or more heroes the Unregistered trait" (Hunting Rebel Heroes, `cw`
    * 56097b; docs/phase7-wave10.md §3.16): any player's reveal of a card whose constant ability grants `t` to at least

@@ -48,6 +48,7 @@ import {
   type LeaveCauseSide,
   type LeavePatch,
   type LeaveRequest,
+  type ReplaceableLeave,
   type TriggerEvent,
   type TuckHostKind,
 } from "./trigger-events.js";
@@ -87,6 +88,7 @@ import {
 } from "./select.js";
 import { hasCandidates, heard } from "./resolve/triggers.js";
 import { landedInSeparateDeck, separateDeckWithHost } from "./resolve/leave-to-separate-deck.js";
+import { tuckLeavingCard } from "./resolve/tuck.js";
 import type { CardDestination, DefeatPlacement, StatusName } from "./spec.js";
 import type { DeckDiscard, GameOutcome, GameState, MainSchemeState, TuckedDiscard, ZoneId } from "./state.js";
 import type { AttachmentBound, LastingDuration, LastingEffect, LastingEffectBody } from "./lasting.js";
@@ -1481,18 +1483,37 @@ export function defeatFromPlay(ctx: Ctx, id: InstanceId, placement?: DefeatPlace
   // it is in play; with it gone the defeated card is discarded as normal.
   const givenTo = typeof placement === "object" && "boostCardOf" in placement ? placement.boostCardOf : undefined;
   const holder = givenTo !== undefined && givenTo !== id && cardsInPlay(ctx.state).includes(givenTo) ? givenTo : null;
-  const insteadTo = typeof placement === "object" && "boostCardOf" in placement ? undefined : placement;
+  // "Tuck this card under …" from its own When Defeated (docs/phase7-wave11-scenarios.md §S3.10): under that card
+  // while it is in play; with it gone the defeated card is discarded as normal. Victory X wins over the tuck, as over
+  // every defeat destination: an engine reading (authority step 5), RRG 1.8 "Victory X" (p. 46) does not settle it.
+  const tuckHost = typeof placement === "object" && "tuckedUnder" in placement ? placement.tuckedUnder : undefined;
+  const under =
+    !victory && tuckHost !== undefined && tuckHost !== id && cardsInPlay(ctx.state).includes(tuckHost)
+      ? tuckHost
+      : null;
+  const insteadTo =
+    typeof placement === "object" && ("boostCardOf" in placement || "tuckedUnder" in placement) ? undefined : placement;
   const going: ZoneId["kind"] = victory
     ? "victoryDisplay"
     : holder !== null
       ? "boost"
-      : insteadTo !== undefined
-        ? destinationZoneKind(insteadTo)
-        : leaveDestinationKind(ctx.state, ctx.deps, id, discardZoneFor(ctx.state, id).kind, true);
+      : under !== null
+        ? "tucked"
+        : insteadTo !== undefined
+          ? destinationZoneKind(insteadTo)
+          : leaveDestinationKind(ctx.state, ctx.deps, id, discardZoneFor(ctx.state, id).kind, true);
   const source = sourceCardId !== undefined ? { sourceCardId } : {};
-  const instead = placement !== undefined ? { insteadTo: placement } : {};
-  const request: LeaveRequest = { kind: "defeat", ...instead, ...source };
+  const instead = placement !== undefined && tuckHost === undefined ? { insteadTo: placement } : {};
+  const defeat: ReplaceableLeave = { kind: "defeat", ...instead, ...source };
+  // The tuck takes the defeat's place as a leaving sent under a card does (`LeaveRequest tuck`, RRG 1.8 "Tuck",
+  // p. 45): its apply step tucks the card, or makes the defeat it replaced when the host has gone.
+  const request: LeaveRequest = under !== null ? { kind: "tuck", hostInstanceId: under, replaced: defeat } : defeat;
   if (waitsForLeaveInterrupts(ctx, id, request, going)) return;
+  if (request.kind === "tuck") {
+    // Permanent, Victory X attachments and a full host are read there (`tuckLeavingCard`).
+    if (!tuckLeavingCard(ctx, id, request)) discardFromPlay(ctx, id, sourceCardId);
+    return;
+  }
   // A permanent card this defeat cannot move keeps its Victory X attachments with it.
   if (permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId)) {
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "permanent" });

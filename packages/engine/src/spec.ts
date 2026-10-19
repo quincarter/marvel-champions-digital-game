@@ -3887,6 +3887,19 @@ export type EffectSpec =
    * damage, status cards and counters; its attachments and boost cards were discarded by the defeat. A villain in play
    * is never tucked, so the defeat of a stage with a later one tucks nothing. Count them with `countInRef` over
    * `tuckedUnder`; the card stays listed in `GameState.villains` as `defeated`.
+   *
+   * Encounter cards under an encounter card (Tracksuit Mafia, `fne` 60204; docs/phase7-wave11-scenarios.md §S3.10):
+   * - "Discard cards from the top of the encounter deck until a [Tracksuit] minion is discarded and tuck that minion
+   *   here": `cards` naming the `discardEncounterUntil` slot takes the card from the encounter discard pile, faceup
+   *   (RRG 1.8 "Tuck", p. 45). Out of play, it is "revealed from there" with `revealCard` over `tuckedUnder` (a reveal
+   *   from elsewhere, not from the encounter deck: `cardRevealed.from` is absent). When the host leaves play each card
+   *   under it goes to its own encounter discard pile (p. 45: "each card tucked under it is discarded").
+   * - "When Defeated: Tuck this card under the Tracksuit Mafia side scheme" (60202, 60203): `cards` naming the card
+   *   resolving its own When Defeated does not move it now. It stays in play until its leaving step, which tucks it
+   *   in place of the discard (`DefeatPlacement tuckedUnder`; RRG 1.8 "When Defeated Abilities", p. 48), faceup
+   *   whatever `facedown` says. Not announced as `cardBeingTucked` (an engine reading, authority step 5: no card yet
+   *   asks to replace such a tuck). "Otherwise" is an `if` on that side scheme being in play (RRG 1.8 "'Otherwise'",
+   *   p. 31: the tuck "cannot at least partially resolve" without it).
    */
   | { readonly kind: "tuckCards"; readonly cards: CardSelector; readonly under: TargetRef; readonly facedown?: boolean }
   /**
@@ -5849,7 +5862,22 @@ export type DefeatDestination = CardDestination | BoostCardDestination;
  * A defeat destination as the engine carries it once set (the defeat event, its leaving step, a waiting leaving): a
  * `BoostCardDestination` with its enemy resolved to the card that holds the boost card.
  */
-export type DefeatPlacement = CardDestination | { readonly boostCardOf: InstanceId };
+export type DefeatPlacement =
+  | CardDestination
+  | { readonly boostCardOf: InstanceId }
+  /**
+   * "When Defeated: Tuck this card under the Tracksuit Mafia side scheme." (Tracksuit Mafioso 60202, Tracksuit Bro
+   * 60203; docs/phase7-wave11-scenarios.md §S3.10): set by an `EffectSpec tuckCards` naming the defeated card in its
+   * own When Defeated ability. The card is still in play while that ability resolves and "leaves play after its 'When
+   * Defeated' ability is resolved" (RRG 1.8 "When Defeated Abilities", p. 48), so the tuck takes the place of the
+   * discard ("Defeat", p. 15): at the leaving step it goes faceup under this card (RRG 1.8 "Tuck", p. 45) as a
+   * `LeaveRequest tuck` replacing the defeat. It is still defeated: "after … is defeated" answers, and "after … leaves
+   * play" with `to: "tucked"`. It is not discarded, so nothing hears a discard. A Victory X card still goes to the
+   * victory display, as for every other defeat destination: an engine reading (authority step 5), since RRG 1.8
+   * "Victory X" (p. 46) does not say which wins over a tuck. A host no longer in play, or full (`RuleSpec tuckLimit`),
+   * takes nothing: the card is discarded as normal.
+   */
+  | { readonly tuckedUnder: InstanceId };
 
 export type CardDestination =
   /** "Put it faceup into The Collection": a scenario out-of-play area, cards faceup (docs/phase7-wave3.md §3.14). */

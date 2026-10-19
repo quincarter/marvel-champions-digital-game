@@ -8,6 +8,8 @@
  * - a minion a `treatAsAlly` effect took is its controller's ally while the effect's card stays in play (Karma).
  * - a minion whose own `treatSelfAsAlly` constant holds is the ally of the player a `takeControl` effect named, for as
  *   long as that constant holds (Black Cat, docs/phase7-wave11-scenarios.md §S3.8; `syncOwnTreatments`).
+ * - an ally a `treatAsMinion` constant's query matches is a minion while the rule is active and still matches it
+ *   (Baron Zemo, "each ally with threat on it", docs/phase7-wave11-scenarios.md §S3.9; `syncRuleTreatments`).
  * - a hero from a collection, an identity card that is no seat's identity, is a minion while a `treatHostAsMinion`
  *   card is attached to it, and is in play only for that long (Reluctant Foe, docs/phase7-wave9.md §3.30): when the
  *   attachment goes and the hero is not leaving play itself, the hero is removed from the game (§4.1 Q39 = A).
@@ -23,8 +25,8 @@ import { type Ctx, emit, moveCard, updateInstance } from "./ctx.js";
 import { leavePlayAtOnce } from "./effects.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { cardOf, getInstance, isSeatlessIdentity, locateCard } from "./query.js";
-import { activeAbilityRefs, activeRules, cardsInPlay, controllerOf } from "./select.js";
-import type { TreatedAs, TreatedAsAlly } from "./state.js";
+import { type ActiveRule, activeAbilityRefs, activeRules, cardsInPlay, controllerOf, matchesQuery } from "./select.js";
+import type { GameState, TreatedAs, TreatedAsAlly } from "./state.js";
 
 /** What the host's own attachments make it, if anything. */
 function fromAttachments(ctx: Ctx, hostId: InstanceId, current: TreatedAs | null): TreatedAs | null {
@@ -140,6 +142,75 @@ export function syncOwnTreatments(ctx: Ctx): void {
   }
 }
 
+/**
+ * The card as it would be with nothing treating it as another type: an ally its controller controls again. A
+ * `treatAsMinion` query ("each ally with threat on it") is read of this, so the card it made a minion keeps matching.
+ */
+function untreatedView(state: GameState, id: InstanceId): GameState {
+  const instance = state.instances[id];
+  const treated = instance?.treatedAs;
+  if (!instance || treated?.kind !== "minion") return state;
+  return {
+    ...state,
+    instances: { ...state.instances, [id]: { ...instance, treatedAs: null, controllerId: treated.controllerBefore } },
+  };
+}
+
+/** The first active `treatAsMinion` rule (of `source` only, when given) whose query matches the untreated card. */
+function matchingMinionRule(
+  ctx: Ctx,
+  rules: readonly ActiveRule<"treatAsMinion">[],
+  id: InstanceId,
+  source?: InstanceId,
+) {
+  const view = untreatedView(ctx.state, id);
+  return rules.find(
+    ({ rule, context }) =>
+      context.selfInstanceId !== null &&
+      (source === undefined || context.selfInstanceId === source) &&
+      matchesQuery(view, id, rule.cards, context),
+  );
+}
+
+/**
+ * Every ally a `RuleSpec treatAsMinion` matches is a minion while it does (Baron Zemo, `fne` 60145; docs/phase7-wave11-
+ * scenarios.md §S3.9), checked between frames as `syncOwnTreatments` is. First the cards a rule made minions whose rule
+ * no longer matches them go back to being allies (`apply`: under their owner's control, engaged with no one, threat
+ * and damage kept); then each ally card in play that nothing treats as anything and an active rule matches becomes
+ * that rule's minion, keeping its controller as `controllerBefore` (who "its controller" still names while it is a
+ * minion, as for an ally an attachment made a minion). In play order, the first matching rule taking it.
+ */
+export function syncRuleTreatments(ctx: Ctx): void {
+  const rules = activeRules(ctx.state, ctx.deps, "treatAsMinion");
+  const byRule = cardsInPlay(ctx.state).filter((id) => {
+    const treated = getInstance(ctx.state, id)?.treatedAs;
+    return treated?.kind === "minion" && treated.byRule === true;
+  });
+  if (rules.length === 0 && byRule.length === 0) return;
+  for (const id of byRule) {
+    const treated = getInstance(ctx.state, id)?.treatedAs;
+    if (treated?.kind !== "minion") continue;
+    if (matchingMinionRule(ctx, rules, id, treated.source)) continue;
+    apply(ctx, id, treated, null);
+  }
+  if (rules.length === 0) return;
+  for (const id of cardsInPlay(ctx.state)) {
+    const host = getInstance(ctx.state, id);
+    if (!host || host.treatedAs || host.facedownAs || cardOf(ctx.state, id)?.type !== "ally") continue;
+    const found = matchingMinionRule(ctx, rules, id);
+    if (!found?.context.selfInstanceId) continue;
+    apply(ctx, id, null, {
+      kind: "minion",
+      traits: found.rule.traits,
+      keepPrintedTraits: found.rule.keepPrintedTraits === true,
+      schFromThw: found.rule.schFromThw ?? false,
+      source: found.context.selfInstanceId,
+      controllerBefore: host.controllerId,
+      byRule: true,
+    });
+  }
+}
+
 function apply(ctx: Ctx, hostId: InstanceId, current: TreatedAs | null, next: TreatedAs | null): void {
   const host = getInstance(ctx.state, hostId);
   if (!host) return;
@@ -167,8 +238,11 @@ function apply(ctx: Ctx, hostId: InstanceId, current: TreatedAs | null, next: Tr
     if (cardsInPlay(ctx.state).includes(hostId)) leavePlayAtOnce(ctx, hostId, { kind: "removedFromGame" });
     return;
   } else if (current?.kind === "minion") {
-    // The attachment went: an ally again, controlled by whoever controlled it before, in their play area.
-    const controller = current.controllerBefore ?? host.ownerId;
+    // An ally again, in its owner's play area, under its owner's control, whoever controlled it before. MC60 FAQ p. 26
+    // (Baron Zemo leaving play: "allies again, under their owner's control", keeping the threat); RRG 1.8 "Ownership
+    // and Control" (p. 31): a change of control that ends reverts the card to its owner (an attachment that changed
+    // control being removed included). `controllerBefore` is only "its controller" while it is a minion.
+    const controller = host.ownerId ?? current.controllerBefore;
     if (controller) inAreaOf(controller);
     updateInstance(ctx, hostId, (i) => ({ ...i, treatedAs: null, controllerId: controller, engagedWith: null }));
   } else if (current?.kind === "ally") {

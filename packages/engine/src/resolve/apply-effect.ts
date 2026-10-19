@@ -3902,7 +3902,24 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const [host] = targets(effect.under);
       if (!host) return;
       const tucking: InstanceId[] = [];
+      // "When Defeated: Tuck this card under …" (docs/phase7-wave11-scenarios.md §S3.10): the card resolving its own
+      // When Defeated is still in play and leaves after it (RRG 1.8 "When Defeated Abilities", p. 48), so the tuck
+      // takes the place of the defeat's discard at its leaving step, already waiting (`DefeatPlacement tuckedUnder`).
+      const defeated =
+        frame.event?.kind === "characterDefeated" && frame.event.instanceId === frame.selfInstanceId
+          ? frame.event.instanceId
+          : null;
+      let deferred = 0;
       for (const id of selectCards(ctx, effect.cards, context)) {
+        if (
+          id === defeated &&
+          id !== host &&
+          cardsInPlay(ctx.state).includes(id) &&
+          redirectPendingDefeat(ctx, id, { tuckedUnder: host })
+        ) {
+          deferred++;
+          continue;
+        }
         // "After the villain is defeated, put it under here" (docs/phase7-wave7.md §3.7): only a villain's defeated last
         // stage is a card that can go under another. A villain still in play, one whose defeated stage revealed its
         // next, keeps its place: the stage that fell was removed from the game (RRG 1.8 "Villain Defeat", p. 47).
@@ -3918,7 +3935,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       }
       // The cards it names are out of its reach (removed from the game, or gone from the zone it takes them from): the
       // tuck did not resolve, so a "Then" after it is not attempted (RRG 1.8 "'Then'", p. 44).
-      if (tucking.length === 0 && effect.cards.kind === "ref" && targets(effect.cards.ref).length > 0)
+      if (tucking.length === 0 && deferred === 0 && effect.cards.kind === "ref" && targets(effect.cards.ref).length > 0)
         markPreThenUnresolved(ctx, frame.frameId, "tuckNamedNoCard");
       // Each tuck opens its "would be tucked" window when an ability hears it (docs/phase7-wave9.md §3.40 (a)).
       tuckOrAnnounce(ctx, tucking, host, {

@@ -573,6 +573,14 @@ export type TriggerEventBody =
        * `TargetRef grantedTo`. Absent on a reveal that grants nothing, and in a game where no ability asks.
        */
       readonly grantedTo?: Readonly<Record<string, readonly InstanceId[]>>;
+      /**
+       * `"encounterDeck"`: the reveal began at an encounter deck, a facedown encounter card dealt from one included
+       * (`Frame<"reveal">.source`; docs/phase7-wave6.md §3.64, §4 Q35). "After a player reveals a [Tracksuit] minion
+       * from the encounter deck" (Tracksuit Mafia, `fne` 60204; docs/phase7-wave11-scenarios.md §S3.10) reads it with
+       * `EventPattern.eventIs { from: "encounterDeck" }`, so a minion revealed from under that scheme, from a set-aside
+       * area, a scenario deck or a discard pile is not heard. Absent on every other reveal.
+       */
+      readonly from?: "encounterDeck";
     }
   /**
    * A revealed treachery (or a revealed event) has **resolved**: "After you resolve a treachery, … attach that treachery

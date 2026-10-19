@@ -1104,10 +1104,15 @@ export function whenDefeatedFrames(
  * `EffectSpec setDefeatDestination` from the defeated card's own When Defeated ability (docs/phase7-wave10.md §3.10):
  * the leaving step that waits for that ability takes `to`, whether the card was defeated alone (`leaveAfterWhenDefeated`)
  * or with others (`defeatedTogether`, whose members leave from one step). Nothing changes once the card has left.
+ * Returns whether a leaving step was found waiting for it.
  */
-export function redirectPendingDefeat(ctx: Ctx, id: InstanceId, to: DefeatPlacement): void {
+export function redirectPendingDefeat(ctx: Ctx, id: InstanceId, to: DefeatPlacement): boolean {
+  let found = false;
   const own = (effect: EffectSpec): EffectSpec => {
-    if (effect.kind === "discardFromPlay" && effect.defeated === true) return { ...effect, insteadTo: to };
+    if (effect.kind === "discardFromPlay" && effect.defeated === true) {
+      found = true;
+      return { ...effect, insteadTo: to };
+    }
     if (effect.kind === "if") return { ...effect, then: effect.then.map(own) };
     return effect;
   };
@@ -1115,11 +1120,11 @@ export function redirectPendingDefeat(ctx: Ctx, id: InstanceId, to: DefeatPlacem
     effect.kind === "defeatedTogether"
       ? {
           ...effect,
-          members: effect.members.map((member) =>
-            member.event.instanceId === id && member.defeated
-              ? { ...member, defeated: { ...member.defeated, insteadTo: to } }
-              : member,
-          ),
+          members: effect.members.map((member) => {
+            if (member.event.instanceId !== id || !member.defeated) return member;
+            found = true;
+            return { ...member, defeated: { ...member.defeated, insteadTo: to } };
+          }),
         }
       : effect;
   for (const frame of [...ctx.state.stack]) {
@@ -1128,6 +1133,7 @@ export function redirectPendingDefeat(ctx: Ctx, id: InstanceId, to: DefeatPlacem
     else if (frame.effects.some((effect) => effect.kind === "defeatedTogether"))
       setFrame(ctx, { ...frame, effects: frame.effects.map(together) });
   }
+  return found;
 }
 
 /** A defeated ally's or minion's leaving step (`leaveAfterWhenDefeated`), with the destination its defeat read. */

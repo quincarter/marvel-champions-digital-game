@@ -914,10 +914,14 @@ function modifiedStatPlain(
   // "Attached minion's SCH is equal to its THW" (docs/phase7-wave7.md §3.44, §4.1 Q27): the ally's THW as it stands, so
   // its base THW with the THW modifiers still applying to the card, where `printedProfile` gave the printed value.
   const treated = stat === "sch" ? getInstance(state, id)?.treatedAs : undefined;
+  // "SCH is equal to its base THW" (docs/phase7-wave11-scenarios.md §S3.9): its base THW (RRG 1.8 "Base Value", p. 10),
+  // with no THW modifier.
   const value =
     treated?.kind === "minion" && treated.schFromThw === "current"
       ? Math.max(0, (baseOverride(state, deps, id, "thw") ?? printed.sch) + statBonus(state, deps, id, "thw"))
-      : printed[stat];
+      : treated?.kind === "minion" && treated.schFromThw === "base"
+        ? Math.max(0, baseOverride(state, deps, id, "thw") ?? printed.sch)
+        : printed[stat];
   return Math.max(0, (baseOverride(state, deps, id, stat) ?? value) + statBonus(state, deps, id, stat));
 }
 
