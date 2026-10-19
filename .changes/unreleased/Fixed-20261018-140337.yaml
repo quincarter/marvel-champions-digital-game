@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Paying for a card no longer freezes the game for seconds on a slower device: a rules check that ran on every move listed every card ability in the game each time (#256).'
-time: 2026-10-18T14:03:37.4984633-04:00
