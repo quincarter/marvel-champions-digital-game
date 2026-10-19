@@ -13,46 +13,16 @@
  */
 import type { Scenario } from "@mc/content";
 
-export const UNSCRIPTED_ENCOUNTER_SET_IDS: ReadonlySet<string> = new Set([
-  // Synthezoid Smackdown (cycle 10; docs/phase7-synthezoid.md), mid-scripting: every set of the pack, so neither leader
-  // is offered, no set is a modular pick anywhere, and no Civil War leader is offered the pack's main scheme stages.
-  "deadly_duo",
-  "moon_knight_modular",
-  "royal_guard",
-  "scarlet_twins",
-  "she_hulk_leader",
-  "shield_ops",
-  "standard_pvp_registration_mc57",
-  "standard_pvp_resistance_mc57",
-  "synthezoid_registration",
-  "synthezoid_resistance",
-  "taskmaster_modular",
-  "thunderbolts_modular",
-  "vision_leader",
-  "young_avengers",
+export const UNSCRIPTED_ENCOUNTER_SET_IDS: ReadonlySet<string> = new Set<string>([
+  // Empty: Synthezoid Smackdown (cycle 10; docs/phase7-synthezoid.md) is fully scripted and joined the playable pool.
 ]);
 
 /**
  * Gated sets whose every ability is scripted but which are held back for another reason, each with that reason. The
  * "fully scripted: remove it" check skips these; delete an entry with its reason gone, then un-gate the set above.
+ * Empty: Synthezoid Smackdown left with its last set scripted.
  */
-const SYNTHEZOID_MID_SCRIPTING = "Synthezoid Smackdown is un-gated as one pack once its last set is scripted";
-export const GATED_THOUGH_SCRIPTED: Readonly<Record<string, string>> = {
-  deadly_duo: SYNTHEZOID_MID_SCRIPTING,
-  moon_knight_modular: SYNTHEZOID_MID_SCRIPTING,
-  royal_guard: SYNTHEZOID_MID_SCRIPTING,
-  scarlet_twins: SYNTHEZOID_MID_SCRIPTING,
-  she_hulk_leader: SYNTHEZOID_MID_SCRIPTING,
-  shield_ops: SYNTHEZOID_MID_SCRIPTING,
-  standard_pvp_registration_mc57: SYNTHEZOID_MID_SCRIPTING,
-  standard_pvp_resistance_mc57: SYNTHEZOID_MID_SCRIPTING,
-  synthezoid_registration: SYNTHEZOID_MID_SCRIPTING,
-  synthezoid_resistance: SYNTHEZOID_MID_SCRIPTING,
-  taskmaster_modular: SYNTHEZOID_MID_SCRIPTING,
-  thunderbolts_modular: SYNTHEZOID_MID_SCRIPTING,
-  vision_leader: SYNTHEZOID_MID_SCRIPTING,
-  young_avengers: SYNTHEZOID_MID_SCRIPTING,
-};
+export const GATED_THOUGH_SCRIPTED: Readonly<Record<string, string>> = {};
 
 /** Whether a scenario is playable: none of its own sets (or its villains' own sets) is gated. */
 export function scenarioIsScripted(scenario: Pick<Scenario, "encounterSetIds" | "multipleVillains">): boolean {

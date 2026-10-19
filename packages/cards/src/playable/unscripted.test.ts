@@ -16,18 +16,18 @@ const unscriptedRefsOf = (setId: string): string[] =>
   ).flatMap((card) => abilityRefIds(card).filter((id) => !(id in PLAYABLE_ABILITIES)));
 
 describe("UNSCRIPTED_ENCOUNTER_SET_IDS", () => {
-  it("names Synthezoid Smackdown's fourteen sets, each a real set left out of the playable sets", () => {
-    expect([...UNSCRIPTED_ENCOUNTER_SET_IDS].sort()).toEqual(
-      WAVE10_ENCOUNTER_SETS.filter((set) => (set.packCodes as readonly string[]).includes("synthezoid"))
-        .map((set) => set.id as string)
-        .sort(),
+  it("is empty: Synthezoid Smackdown's fourteen sets (docs/phase7-synthezoid.md §4.3) are all playable sets", () => {
+    expect(UNSCRIPTED_ENCOUNTER_SET_IDS.size).toBe(0);
+    expect(Object.keys(GATED_THOUGH_SCRIPTED)).toEqual([]);
+    const synthezoid = WAVE10_ENCOUNTER_SETS.filter((set) =>
+      (set.packCodes as readonly string[]).includes("synthezoid"),
     );
-    expect(UNSCRIPTED_ENCOUNTER_SET_IDS.size).toBe(14);
-    for (const id of UNSCRIPTED_ENCOUNTER_SET_IDS)
+    expect(synthezoid).toHaveLength(14);
+    for (const set of synthezoid)
       expect(
-        PLAYABLE_ENCOUNTER_SETS.some((set) => set.id === id),
-        id,
-      ).toBe(false);
+        PLAYABLE_ENCOUNTER_SETS.some((s) => s.id === set.id),
+        set.id as string,
+      ).toBe(true);
   });
 
   it("gates a set only while it still has an unscripted ability ref, or with a reason", () => {

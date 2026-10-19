@@ -24,9 +24,23 @@ describe("the cards randomizer behind the builder", () => {
       expect(cardsRandomizer({ seed, leaderId: "resistance-captain-america" }).leaderId).toBe(
         "resistance-captain-america",
       );
-      expect(["registration-iron-man", "registration-captain-marvel"]).toContain(
+      expect(["registration-iron-man", "registration-captain-marvel", "registration-she-hulk"]).toContain(
         cardsRandomizer({ seed, side: "registration" }).leaderId,
       );
     }
+  });
+
+  test("draws the Synthezoid Smackdown leaders and sets too, each side's own (docs/phase7-synthezoid.md §4.3 item 3)", () => {
+    const leaders = new Set<string>();
+    const sets = new Set<string>();
+    for (let seed = 0; seed < 300; seed++) {
+      const r = cardsRandomizer({ seed });
+      leaders.add(r.leaderId);
+      for (const id of r.modularSetIds) sets.add(id);
+    }
+    expect(leaders.has("registration-she-hulk")).toBe(true);
+    expect(leaders.has("resistance-vision")).toBe(true);
+    for (const id of ["deadly_duo", "shield_ops", "moon_knight_modular", "young_avengers"])
+      expect(sets.has(id), id).toBe(true);
   });
 });

@@ -27,8 +27,8 @@ vi.setConfig({ testTimeout: 120_000 });
  * stage 1 has the same side A and a different side B." MC57 p. 3 adds one stage 1 and one stage 2 per side whose A
  * sides repeat Civil War's, so each side has five of each once both boxes are playable.
  *
- * While Synthezoid Smackdown is gated (`playable/unscripted.ts`), the playable offers are Civil War's alone; reading A
- * is proven here on the ungated set list (`WAVE10_ENCOUNTER_SETS`), the list the pool reads once the gate is lifted.
+ * Synthezoid Smackdown is playable (the gate in `playable/unscripted.ts` is empty), so the playable offers are the
+ * five of each; reading A is proven here on the full set list (`WAVE10_ENCOUNTER_SETS`) and on the playable pool.
  */
 
 const SHE_HULK = "registration-she-hulk";
@@ -40,7 +40,6 @@ const REGISTRATION_1 = ["56063b", "56096b", "56121b", "56122b", "57005b"];
 const REGISTRATION_2 = ["56064b", "56097b", "56123b", "56124b", "57006b"];
 const RESISTANCE_1 = ["56141b", "56172b", "56199b", "56200b", "57044b"];
 const RESISTANCE_2 = ["56142b", "56173b", "56201b", "56202b", "57045b"];
-const civilWarOnly = (ids: readonly string[]) => ids.filter((id) => id.startsWith("56"));
 
 /** The scenario's card under reading A with every set ungated. */
 const ungated = (scenarioId: string): MainSchemeCard =>
@@ -160,44 +159,48 @@ describe("the stage pool of a side under reading A (M1, owner SS1 open, built A)
   });
 });
 
-describe("while Synthezoid Smackdown is gated (playable/unscripted.ts)", () => {
-  it("gates the pack's main scheme sets, so the playable side list has Civil War's cards only", () => {
-    for (const id of ["synthezoid_registration", "synthezoid_resistance"]) {
-      expect(UNSCRIPTED_ENCOUNTER_SET_IDS.has(id), id).toBe(true);
+describe("with Synthezoid Smackdown playable (playable/unscripted.ts is empty; spec §4.3)", () => {
+  it("has no gated set, so the pack's main scheme sets are in the playable side list", () => {
+    expect(UNSCRIPTED_ENCOUNTER_SET_IDS.size).toBe(0);
+    for (const id of ["synthezoid_registration", "synthezoid_resistance"])
       expect(
         WAVE10_GAME_ENCOUNTER_SETS.some((set) => set.id === id),
         id,
-      ).toBe(false);
-    }
+      ).toBe(true);
   });
 
-  it("offers each Civil War leader Civil War's four stages of each number", () => {
-    for (const id of ["registration-iron-man", "registration-captain-marvel"])
-      expect(optionIds(id), id).toEqual([civilWarOnly(REGISTRATION_1), civilWarOnly(REGISTRATION_2)]);
-    for (const id of [CAPTAIN_AMERICA, "resistance-spider-woman"])
-      expect(optionIds(id), id).toEqual([civilWarOnly(RESISTANCE_1), civilWarOnly(RESISTANCE_2)]);
-    expect(() =>
-      wave10Scenario(IRON_MAN_SCENARIO, { players: [SEAT], seed: 3, mainSchemeStageIds: ["56121b", "57006b"] }),
-    ).toThrow("Mighty Avengers is a stage of Superhero Registration Act (57005a)");
+  it("offers each Civil War leader five stages of each number, from either box (M1 reading A)", () => {
+    for (const id of ["registration-iron-man", "registration-captain-marvel", SHE_HULK])
+      expect(optionIds(id), id).toEqual([REGISTRATION_1, REGISTRATION_2]);
+    for (const id of [CAPTAIN_AMERICA, "resistance-spider-woman", VISION])
+      expect(optionIds(id), id).toEqual([RESISTANCE_1, RESISTANCE_2]);
+    const config = wave10Scenario(IRON_MAN_SCENARIO, {
+      players: [SEAT],
+      seed: 3,
+      mainSchemeStageIds: ["56121b", "57006b"],
+    });
+    expect(config.mainSchemeStageIndexes).toEqual([4, 9]);
   });
 
-  it("does not offer She-Hulk or Vision as a leader", () => {
+  it("offers She-Hulk and Vision as leaders, after each side's four (spec §4.3 item 2)", () => {
     const leaders = civilWarSidesOffer().flatMap((side) => side.leaders.map((l) => l.scenarioId));
     expect(leaders).toEqual([
       "registration-iron-man",
       "registration-captain-marvel",
+      SHE_HULK,
       CAPTAIN_AMERICA,
       "resistance-spider-woman",
+      VISION,
     ]);
   });
 
-  it("still holds a gated leader's own stages on its own card, after its side's playable ones", () => {
+  it("holds a pack leader's own stages on its own card, after its side's Civil War ones", () => {
     const card = wave10MainSchemeCard(wave10ScenarioRecord(SHE_HULK));
     expect(byNumber(card)).toEqual([REGISTRATION_1, REGISTRATION_2]);
     expect(wave10Scenario(VISION, { players: [SEAT], seed: 3 }).mainSchemeStageIndexes).toEqual([8, 9]);
   });
 
-  it("keeps a Civil War precon's stage indexes on its printed card (a game saved before the pack resumes)", () => {
+  it("keeps a Civil War precon's stage indexes on its printed stages", () => {
     for (const [scenarioId, cardId] of [
       [IRON_MAN_SCENARIO, "56063a"],
       [CAPTAIN_AMERICA, "56141a"],
@@ -205,14 +208,12 @@ describe("while Synthezoid Smackdown is gated (playable/unscripted.ts)", () => {
       const config = playableScenario(scenarioId, { players: [SEAT], seed: 3 });
       const card = config.cards.find((c) => c.id === config.mainSchemeCardId) as MainSchemeCard;
       expect(card.id).toBe(cardId);
-      expect(card.stages).toEqual(printed(cardId).stages);
+      expect(card.stages.slice(0, 8)).toEqual(printed(cardId).stages);
       expect(config.mainSchemeStageIndexes).toEqual([0, 1]);
-      // Once un-gated, the pack's stages follow Civil War's, so the same indexes name the same stages.
-      expect(ungated(scenarioId).stages.slice(0, 8)).toEqual(printed(cardId).stages);
     }
   });
 
-  it("random creation draws Civil War's leaders and stages only, and refuses a gated pin", () => {
+  it("random creation draws the pack's leaders and stages too, by side, and refuses a stage of the other side", () => {
     const leaders = new Set<string>();
     const ones = new Set<string>();
     const twos = new Set<string>();
@@ -222,12 +223,12 @@ describe("while Synthezoid Smackdown is gated (playable/unscripted.ts)", () => {
       ones.add(r.mainSchemeStageIds[0]);
       twos.add(r.mainSchemeStageIds[1]);
     }
-    expect(leaders.has(SHE_HULK) || leaders.has(VISION)).toBe(false);
-    expect([...ones].sort()).toEqual(civilWarOnly([...REGISTRATION_1, ...RESISTANCE_1]).sort());
-    expect([...twos].sort()).toEqual(civilWarOnly([...REGISTRATION_2, ...RESISTANCE_2]).sort());
-    expect(() => randomCivilWarScenario(4, { leaderId: SHE_HULK })).toThrow("does not lead");
-    expect(() => randomCivilWarScenario(4, { leaderId: IRON_MAN_SCENARIO, stage2Id: "57006b" })).toThrow(
-      "Mighty Avengers is a stage of Superhero Registration Act (57005a)",
+    expect(leaders.has(SHE_HULK) && leaders.has(VISION)).toBe(true);
+    expect([...ones].sort()).toEqual([...REGISTRATION_1, ...RESISTANCE_1].sort());
+    expect([...twos].sort()).toEqual([...REGISTRATION_2, ...RESISTANCE_2].sort());
+    expect(() => randomCivilWarScenario(4, { leaderId: SHE_HULK, stage2Id: "57045b" })).toThrow();
+    expect(randomCivilWarScenario(4, { leaderId: IRON_MAN_SCENARIO, stage2Id: "57006b" }).mainSchemeStageIds[1]).toBe(
+      "57006b",
     );
   });
 });

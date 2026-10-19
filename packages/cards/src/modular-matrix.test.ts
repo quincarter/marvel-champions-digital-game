@@ -169,6 +169,14 @@ describe("the lists, derived from content data", () => {
         "secret_avengers",
         "spider_man_modular",
         "the_initiative",
+        "deadly_duo",
+        "moon_knight_modular",
+        "royal_guard",
+        "scarlet_twins",
+        "shield_ops",
+        "taskmaster_modular",
+        "thunderbolts_modular",
+        "young_avengers",
         "all_versus_all",
       ]
     `);
@@ -221,6 +229,8 @@ describe("the lists, derived from content data", () => {
         "competitive only": [
           "standard_pvp_registration",
           "standard_pvp_resistance",
+          "standard_pvp_registration_mc57",
+          "standard_pvp_resistance_mc57",
         ],
         "expert set": [
           "expert",
@@ -362,6 +372,10 @@ describe("the lists, derived from content data", () => {
           "registration",
           "resistance",
           "spider_woman_leader",
+          "she_hulk_leader",
+          "synthezoid_registration",
+          "synthezoid_resistance",
+          "vision_leader",
         ],
         "standard set": [
           "standard",
@@ -580,22 +594,22 @@ describe("modular set x scenario: every pairing builds", () => {
     }
     expect({ sets: MODULAR_SETS.length, scenarios: PLAYABLE_SCENARIOS.length, ...kinds }).toMatchInlineSnapshot(`
       {
-        "build": 5868,
+        "build": 6244,
         "required": 28,
-        "restricted": 729,
+        "restricted": 777,
         "scenarios": 53,
-        "sets": 125,
+        "sets": 133,
       }
     `);
     expect(restrictedBy).toMatchInlineSnapshot(`
       {
-        "breakout": 125,
+        "breakout": 133,
         "four-horsemen": 1,
-        "mojo": 119,
-        "sinister-six": 124,
-        "spiral": 119,
-        "the-hood": 125,
-        "thunderbolts": 115,
+        "mojo": 127,
+        "sinister-six": 132,
+        "spiral": 127,
+        "the-hood": 133,
+        "thunderbolts": 123,
         "tower-defense": 1,
       }
     `);

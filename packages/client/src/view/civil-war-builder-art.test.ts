@@ -121,11 +121,11 @@ describe("which faces stand for a set", () => {
 });
 
 describe("the builder view carries the pictures", () => {
-  test("side step: both leaders of each side, with the card to fall back on", () => {
+  test("side step: all three leaders of each side (She-Hulk and Vision join, spec §4.3 item 2), with the card to fall back on", () => {
     const v = view();
     expect(v.sideChoices).toHaveLength(2);
     for (const side of v.sideChoices) {
-      expect(side.leaders).toHaveLength(2);
+      expect(side.leaders).toHaveLength(3);
       expect(side.leaders.map((l) => l.name)).toEqual(side.leaderNames);
       for (const leader of side.leaders) expect(CARDS.get(leader.cardId)?.type).toBe("villain");
     }

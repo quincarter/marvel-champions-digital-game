@@ -113,7 +113,7 @@ describe("wave 9 in the playable pool", () => {
 
 describe("wave 9 modular sets", () => {
   it("no wave 9 set is gated any more: every wave 9 encounter set is a playable one", () => {
-    // Only Synthezoid Smackdown (cycle 10) is gated now (`playable/unscripted.ts`).
+    // Nothing is gated now: Synthezoid Smackdown (cycle 10) was the last (`playable/unscripted.ts`).
     expect([...UNSCRIPTED_ENCOUNTER_SET_IDS].every((id) => WAVE9_ENCOUNTER_SETS.every((set) => set.id !== id))).toBe(
       true,
     );

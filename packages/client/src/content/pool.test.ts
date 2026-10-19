@@ -59,7 +59,7 @@ describe("POOL_CARDS", () => {
 });
 
 describe("POOL_SCENARIOS", () => {
-  test("is Core's three scenarios, wave 1's three, cycle 1's six, cycle 2's five, cycle 3's six, cycle 4's five, then Mutant Genesis' five, MojoMania's three and NeXt Evolution's five, then Age of Apocalypse's five and Agents of S.H.I.E.L.D.'s five and Trickster Takeover's Enchantress and God of Lies, then Civil War's four leaders, in that order", () => {
+  test("is Core's three scenarios, wave 1's three, cycle 1's six, cycle 2's five, cycle 3's six, cycle 4's five, then Mutant Genesis' five, MojoMania's three and NeXt Evolution's five, then Age of Apocalypse's five and Agents of S.H.I.E.L.D.'s five and Trickster Takeover's Enchantress and God of Lies, then Civil War's four leaders and Synthezoid Smackdown's two, in that order", () => {
     expect(POOL_SCENARIOS.map((s) => s.id)).toEqual(
       [
         ...CORE_SCENARIOS,
@@ -73,7 +73,7 @@ describe("POOL_SCENARIOS", () => {
         ...WAVE7_SCENARIOS,
         ...WAVE8_SCENARIOS,
         ...WAVE9_SCENARIOS,
-        ...WAVE10_SCENARIOS.filter((s) => s.packCode !== "synthezoid"),
+        ...WAVE10_SCENARIOS,
       ].map((s) => s.id),
     );
     expect(POOL_SCENARIOS.length).toBe(
@@ -84,7 +84,7 @@ describe("POOL_SCENARIOS", () => {
         WAVE7_SCENARIOS.length +
         WAVE8_SCENARIOS.length +
         7 +
-        WAVE10_SCENARIOS.filter((s) => s.packCode !== "synthezoid").length,
+        WAVE10_SCENARIOS.length,
     );
   });
 });
@@ -287,8 +287,11 @@ describe("the Civil War box in the pool", () => {
     expect(POOL_SCENARIOS.filter((s) => s.packCode === "cw").map((s) => s.id)).toEqual(
       WAVE10_SCENARIOS.filter((s) => s.packCode === "cw").map((s) => s.id),
     );
-    // Synthezoid Smackdown's leaders are gated as unscripted, so the pool offers none (pool-synthezoid.test.ts).
-    expect(POOL_SCENARIOS.some((s) => s.packCode === "synthezoid")).toBe(false);
+    // Synthezoid Smackdown's two leaders follow them on the shelf (docs/phase7-synthezoid.md §4.3; pool-synthezoid.test.ts).
+    expect(POOL_SCENARIOS.filter((s) => s.packCode === "synthezoid").map((s) => s.id)).toEqual([
+      "registration-she-hulk",
+      "resistance-vision",
+    ]);
     for (const starterDeckId of ["tigra-aggression", "hulkling-protection"]) {
       const config = buildScenario("registration-iron-man", {
         seed: 1,

@@ -74,7 +74,16 @@ describe("candidates for a sided scenario", () => {
       "maria_hill_modular",
       "dangerous_recruits",
     ]);
-    expect(group(OWN_SIDE_GROUP_ID)).toEqual(["cape_killer", "heroes_for_hire", "martial_law", "paladin"]);
+    expect(group(OWN_SIDE_GROUP_ID)).toEqual([
+      "cape_killer",
+      "heroes_for_hire",
+      "martial_law",
+      "paladin",
+      "deadly_duo",
+      "shield_ops",
+      "taskmaster_modular",
+      "thunderbolts_modular",
+    ]);
     expect(group(OTHER_SIDE_GROUP_ID)).toEqual([
       "atlanteans",
       "cloak_and_dagger_modular",
@@ -84,8 +93,12 @@ describe("candidates for a sided scenario", () => {
       "new_avengers",
       "secret_avengers",
       "spider_man_modular",
+      "moon_knight_modular",
+      "royal_guard",
+      "scarlet_twins",
+      "young_avengers",
     ]);
-    expect(candidates.slice(-8).map((c) => c.groupId)).toEqual(Array(8).fill(OTHER_SIDE_GROUP_ID));
+    expect(candidates.slice(-12).map((c) => c.groupId)).toEqual(Array(12).fill(OTHER_SIDE_GROUP_ID));
   });
 
   test("other products sets are offered with no reason; leader sets never are", () => {
@@ -108,7 +121,7 @@ describe("candidates for a sided scenario", () => {
     expect(resistance.find((c) => c.id === "paladin")!.disabledReason).toBe(
       "Paladin is a registration set; this scenario is resistance (MC56 p. 4)",
     );
-    expect(resistance.filter((c) => c.groupId === OTHER_SIDE_GROUP_ID)).toHaveLength(8);
+    expect(resistance.filter((c) => c.groupId === OTHER_SIDE_GROUP_ID)).toHaveLength(12);
   });
 
   test("the seam: a neutral set or a matching side has no side reason", () => {
@@ -152,7 +165,7 @@ describe("options and toggling at a range", () => {
   test("the other side is a section of its own, last", () => {
     const sections = modularSectionsFor(0, optionsFor(null));
     expect(sections[0]).toEqual({ id: "recommended", label: "Recommended · 4", itemCount: 4 });
-    expect(sections.at(-1)).toEqual({ id: "other-side", label: "Other side · 8", itemCount: 8 });
+    expect(sections.at(-1)).toEqual({ id: "other-side", label: "Other side · 12", itemCount: 12 });
   });
 
   test("a set of a fixed scenario is unchanged: no disabled reason from a count", () => {

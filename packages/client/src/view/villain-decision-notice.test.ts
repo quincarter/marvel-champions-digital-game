@@ -9,7 +9,7 @@ import { decisionNoticeOf, soleAnswerOf } from "./villain-decision-notice.js";
 /** Plays turns (answering every other decision with its minimum) until `want` finds a pending choice. */
 async function playUntil(
   scenarioId: string,
-  want: (choice: PendingChoice) => boolean,
+  want: (choice: PendingChoice, game: GameState) => boolean,
   rounds = 8,
 ): Promise<{ readonly game: GameState; readonly choice: PendingChoice } | null> {
   const store = new SessionStore(new LocalEngineHost());
@@ -25,7 +25,7 @@ async function playUntil(
     if (!legal || game.outcome) return null;
     if (legal.actions.kind === "choice") {
       const { choice } = legal.actions;
-      if (want(choice)) return { game, choice };
+      if (want(choice, game)) return { game, choice };
       await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((o) => o.optionId));
     } else if (legal.actions.kind === "turn") {
       const end = legal.actions.legal.find((entry) => entry.action.kind === "endTurn");
@@ -36,8 +36,12 @@ async function playUntil(
   return null;
 }
 
-const pickingVillain = (choice: PendingChoice): boolean =>
-  choice.prompt.kind === "chooseTarget" && choice.authority === "firstPlayerTargets";
+// The random modular sets decide which other first-player picks come up first (Wrecking Crew's Dead Meat, say), so the
+// pick wanted is the one a card asks for the active villain, not any first-player target pick.
+const pickingVillain = (choice: PendingChoice, game: GameState): boolean =>
+  choice.prompt.kind === "chooseTarget" &&
+  choice.authority === "firstPlayerTargets" &&
+  choosesActiveVillain(game, choice, POOL_DEPS);
 
 describe("the decision notice", () => {
   test("a Breakout pick says it chooses the new active villain and lists the candidates", async () => {
@@ -52,9 +56,9 @@ describe("the decision notice", () => {
   }, 60_000);
 
   test("a pick with one candidate is answered with it; one with several is not", async () => {
-    const one = await playUntil("breakout", (c) => pickingVillain(c) && c.options.length === 1);
+    const one = await playUntil("breakout", (c, g) => pickingVillain(c, g) && c.options.length === 1);
     if (one) expect(soleAnswerOf(one.game, one.choice, POOL_DEPS)).toBe(one.choice.options[0]!.optionId);
-    const many = await playUntil("breakout", (c) => pickingVillain(c) && c.options.length > 1);
+    const many = await playUntil("breakout", (c, g) => pickingVillain(c, g) && c.options.length > 1);
     expect(many).not.toBeNull();
     expect(soleAnswerOf(many!.game, many!.choice, POOL_DEPS)).toBeNull();
   }, 90_000);

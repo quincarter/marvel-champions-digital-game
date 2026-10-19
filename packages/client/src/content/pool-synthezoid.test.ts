@@ -25,14 +25,18 @@ describe("T3: the pool lists Synthezoid Smackdown between Civil War and Wonder M
     expect([pack.cycleId, pack.cycleOrder, pack.cycleName]).toEqual(["cycle10", 10, "Civil War"]);
   });
 
-  it("gives its pack cycle 10, locked exactly as Civil War's four (its scenarios are gated while unscripted)", () => {
+  it("gives its pack cycle 10, locked exactly as Civil War's four (its two leaders are playable; spec §4.3 item 1: no new unlock row)", () => {
     const sz = { id: "registration-she-hulk", packCode: "synthezoid" } as Pick<Scenario, "id" | "packCode">;
     expect(scenarioCycleOf(sz)).toBe("cycle10");
-    expect(POOL_SCENARIOS.some((s) => s.packCode === "synthezoid")).toBe(false);
+    expect(POOL_SCENARIOS.filter((s) => s.packCode === "synthezoid").map((s) => s.id)).toEqual([
+      "registration-she-hulk",
+      "resistance-vision",
+    ]);
     const fresh = new Unlocks({ progress: NO_PROGRESS, prefs: DEFAULT_UNLOCK_PREFS });
     const civilWar = fresh.scenarioLock(scenario("registration-iron-man"));
     expect(civilWar).not.toBeNull();
     expect(fresh.scenarioLock(sz)).toBe(civilWar);
+    expect(fresh.scenarioLock(scenario("resistance-vision"))).toBe(civilWar);
     const finished = new Unlocks({
       progress: { ...NO_PROGRESS, wonCampaignIds: ["aos"] },
       prefs: DEFAULT_UNLOCK_PREFS,

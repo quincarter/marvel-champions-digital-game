@@ -19,16 +19,13 @@ const IRON_MAN = "registration-iron-man";
 
 describe("the Civil War box is joined to the playable pool", () => {
   it("every playable list names its scenarios, sets, starter decks and scripts", () => {
-    // Synthezoid Smackdown's two leaders are gated while the pack is scripted (`unscripted.ts`).
+    // Synthezoid Smackdown's two leaders (She-Hulk, Vision) are playable: nothing is gated (docs/phase7-synthezoid.md §4.3).
     for (const scenario of WAVE10_SCENARIOS)
       expect(
         PLAYABLE_SCENARIO_RECORDS.some((record) => record.id === scenario.id),
         scenario.id,
       ).toBe(scenarioIsScripted(scenario));
-    expect(WAVE10_SCENARIOS.filter((scenario) => !scenarioIsScripted(scenario)).map((s) => s.id)).toEqual([
-      "registration-she-hulk",
-      "resistance-vision",
-    ]);
+    expect(WAVE10_SCENARIOS.filter((scenario) => !scenarioIsScripted(scenario)).map((s) => s.id)).toEqual([]);
     const sided = PLAYABLE_ENCOUNTER_SETS.filter((set) => set.side !== undefined);
     expect(sided.length).toBeGreaterThan(0);
     for (const id of ["tigra-aggression", "hulkling-protection"])
@@ -178,6 +175,7 @@ describe("playableScenarioOffer at a Civil War leader", () => {
         leaders: [
           { scenarioId: "registration-iron-man", name: "Iron Man", leaderCardId: "56059" },
           { scenarioId: "registration-captain-marvel", name: "Captain Marvel", leaderCardId: "56092" },
+          { scenarioId: "registration-she-hulk", name: "She-Hulk", leaderCardId: "57001" },
         ],
       },
       {
@@ -186,6 +184,7 @@ describe("playableScenarioOffer at a Civil War leader", () => {
         leaders: [
           { scenarioId: "resistance-captain-america", name: "Captain America", leaderCardId: "56137" },
           { scenarioId: "resistance-spider-woman", name: "Spider-Woman", leaderCardId: "56168" },
+          { scenarioId: "resistance-vision", name: "Vision", leaderCardId: "57040" },
         ],
       },
     ]);
@@ -209,10 +208,10 @@ describe("playableScenarioOffer at a Civil War leader", () => {
     ).toBe("Registration: Iron Man uses 3 to 4 modular sets, got 5");
   });
 
-  it("lists the box's sixteen modular sets first, each with its side and whether this leader may use it", () => {
+  it("lists the two boxes' twenty-four modular sets first, each with its side and whether this leader may use it", () => {
     const sets = playableScenarioOffer("resistance-spider-woman").modularSets!;
     const sided = sets.filter((set) => set.side !== null);
-    expect(sets.slice(0, 16)).toEqual(sided);
+    expect(sets.slice(0, 24)).toEqual(sided);
     expect(sided.filter((set) => set.side === "resistance").map((set) => set.id)).toEqual([
       "atlanteans",
       "cloak_and_dagger_modular",
@@ -222,6 +221,10 @@ describe("playableScenarioOffer at a Civil War leader", () => {
       "new_avengers",
       "secret_avengers",
       "spider_man_modular",
+      "moon_knight_modular",
+      "royal_guard",
+      "scarlet_twins",
+      "young_avengers",
     ]);
     expect(sided.filter((set) => set.side === "registration").map((set) => set.id)).toEqual([
       "cape_killer",
@@ -232,6 +235,10 @@ describe("playableScenarioOffer at a Civil War leader", () => {
       "mighty_avengers",
       "paladin",
       "the_initiative",
+      "deadly_duo",
+      "shield_ops",
+      "taskmaster_modular",
+      "thunderbolts_modular",
     ]);
     for (const set of sided) {
       expect(set.cardCount, set.id).toBe(5);
@@ -291,11 +298,11 @@ describe("playableScenarioOffer at a Civil War leader", () => {
     const offer = playableScenarioOffer("resistance-captain-america").mainSchemeStages!;
     expect(offer.recommended).toEqual(["56141b", "56142b"]);
     expect(offer.problem).toBeNull();
-    // Civil War's four of each number; Synthezoid Smackdown's stage of each number joins when the pack is un-gated
-    // (docs/phase7-synthezoid.md §3 M1, `wave10/main-scheme-stage-pool.test.ts`).
+    // Civil War's four of each number and Synthezoid Smackdown's fifth (docs/phase7-synthezoid.md §3 M1 reading A,
+    // §4.3; `wave10/main-scheme-stage-pool.test.ts`).
     expect(offer.stages.map((stage) => stage.options.map((option) => option.printedCardId))).toEqual([
-      ["56141b", "56172b", "56199b", "56200b"],
-      ["56142b", "56173b", "56201b", "56202b"],
+      ["56141b", "56172b", "56199b", "56200b", "57044b"],
+      ["56142b", "56173b", "56201b", "56202b", "57045b"],
     ]);
     expect(offer.stages[0]!.options[3]).toEqual({
       printedCardId: "56200b",
