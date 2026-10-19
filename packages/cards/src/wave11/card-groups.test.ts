@@ -4,13 +4,13 @@
  * against the emitted data, against the modules on disk, and against each module's header list.
  */
 import { FNE_CARDS, JJ_CARDS, LUKE_CAGE_CARDS } from "@mc/content";
-import { CARD_GROUPS, isFnePlayerHalfId } from "./card-groups.js";
+import { CARD_GROUPS } from "./card-groups.js";
 import { WAVE11_MODULES } from "./modules.js";
 
 const PACK_PREFIX: Readonly<Record<string, string>> = { jj: "61", luke_cage: "62", fne: "60" };
 
 describe("wave 11 card groups", () => {
-  it("holds every jj, luke_cage and fne player-half card in exactly one group", () => {
+  it("holds every jj, luke_cage and fne card in exactly one group", () => {
     const seen = new Map<string, string[]>();
     for (const [group, ids] of Object.entries(CARD_GROUPS)) {
       for (const id of ids) seen.set(id, [...(seen.get(id) ?? []), group]);
@@ -18,9 +18,7 @@ describe("wave 11 card groups", () => {
     const twice = [...seen].filter(([, groups]) => groups.length > 1).map(([id, groups]) => `${id}: ${groups}`);
     expect(twice).toEqual([]);
     expect([...seen.keys()].sort()).toEqual(
-      [...JJ_CARDS, ...LUKE_CAGE_CARDS, ...FNE_CARDS.filter((card) => isFnePlayerHalfId(card.id as string))]
-        .map((card) => card.id as string)
-        .sort(),
+      [...JJ_CARDS, ...LUKE_CAGE_CARDS, ...FNE_CARDS].map((card) => card.id as string).sort(),
     );
   });
 
