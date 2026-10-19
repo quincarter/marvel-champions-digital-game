@@ -77,6 +77,30 @@ const FALLBACK = stubAbility("fallback.cannot-attach", {
 });
 const FALLS_BACK = stubAttachment({ id: "falls-back", abilities: [FALLBACK_INSTRUCTION.ref, FALLBACK.ref] });
 
+/** "Uses (3 grip counters)" on cards attached by an attach instruction, its fallback, and a data host (Bear Hug 60164). */
+const GRIP_USES = [{ name: "uses", count: 3, counterType: "grip" }] as const;
+const GRIP_INSTRUCTION = stubAbility("grip.attach", {
+  trigger: { kind: "whenRevealed" },
+  attachInstruction: true,
+  effects: ATTACH_EFFECTS,
+});
+const GRIP = stubAttachment({ id: "grip", keywords: GRIP_USES, abilities: [GRIP_INSTRUCTION.ref] });
+const GRIP_FALLBACK_INSTRUCTION = stubAbility("grip-fallback.attach", {
+  trigger: { kind: "whenRevealed" },
+  attachInstruction: true,
+  effects: ATTACH_EFFECTS,
+});
+const GRIP_FALLBACK = stubAbility("grip-fallback.cannot-attach", {
+  trigger: { kind: "cannotAttach" },
+  effects: [{ kind: "attach", card: self, to: { kind: "villain" } }],
+});
+const GRIP_FALLS_BACK = stubAttachment({
+  id: "grip-falls-back",
+  keywords: GRIP_USES,
+  abilities: [GRIP_FALLBACK_INSTRUCTION.ref, GRIP_FALLBACK.ref],
+});
+const GRIP_DATA_HOST = stubAttachment({ id: "grip-data-host", attachesTo: { kind: "villain" }, keywords: GRIP_USES });
+
 /** "Interrupt: When an encounter card is revealed, cancel its 'When Revealed' effects." */
 const SENSE = stubAbility("sense.interrupt", {
   trigger: { kind: "interrupt", forced: false, on: { on: "encounterCardRevealing" } },
@@ -111,14 +135,37 @@ const deps: EngineDeps = depsOf(
   WIDOW,
   REVEAL_ACTION,
   AGAIN_ACTION,
+  GRIP_INSTRUCTION,
+  GRIP_FALLBACK_INSTRUCTION,
+  GRIP_FALLBACK,
 );
 
-function game(players: 1 | 2 = 1): GameState {
+/** `grip`: the game with the Uses attachments in its encounter deck too. */
+function game(players: 1 | 2 = 1, grip = false): GameState {
   return gameAtFirstTurn({
-    cards: [GRASP, HOST, TRANSFER, FALLS_BACK, SENSE_CARD, WIDOW_CARD, REVEAL, AGAIN],
+    cards: [
+      GRASP,
+      HOST,
+      TRANSFER,
+      FALLS_BACK,
+      SENSE_CARD,
+      WIDOW_CARD,
+      REVEAL,
+      AGAIN,
+      GRIP,
+      GRIP_FALLS_BACK,
+      GRIP_DATA_HOST,
+    ],
     deps,
     players,
-    encounter: [GRASP.id, HOST.id, TRANSFER.id, FALLS_BACK.id, ...copiesOf("treachery" as CardId, 12)],
+    encounter: [
+      GRASP.id,
+      HOST.id,
+      TRANSFER.id,
+      FALLS_BACK.id,
+      ...(grip ? [GRIP.id, GRIP_FALLS_BACK.id, GRIP_DATA_HOST.id] : []),
+      ...copiesOf("treachery" as CardId, 12),
+    ],
     deck: [SENSE_CARD.id, WIDOW_CARD.id, AGAIN.id, ...copiesOf(REVEAL.id, 3)],
   });
 }
@@ -276,6 +323,43 @@ describe("§3.35 an attach instruction that yields no legal host", () => {
     expect(mustInstance(after, card).attachedTo).toBe(after.villains[0]!.instanceId);
     expect(cardsInPlay(after)).toContain(card);
     expect(activeEncounterDeck(after).discard).not.toContain(card);
+  });
+});
+
+describe("§3.35 an attachment its attach instruction attaches enters play once (RRG 1.8 'Uses', p. 46)", () => {
+  const grip = (state: GameState, id: InstanceId): number =>
+    (mustInstance(state, id).counters as Record<string, number> | undefined)?.grip ?? 0;
+  const gripPlacements = (events: readonly GameEvent[], id: InstanceId) =>
+    events.filter((e) => e.type === "counterAdded" && e.instanceId === id && e.counterType === "grip");
+
+  it("attached by its instruction, it has exactly X uses counters, placed by one placement", () => {
+    const start = withGraspAndHost(game(1, true));
+    const card = find(start.state, GRIP.id);
+    const { after, events } = reveal(start.state, GRIP.id);
+
+    expect(mustInstance(after, card).attachedTo).toBe(start.host);
+    expect(grip(after, card)).toBe(3);
+    expect(gripPlacements(events, card)).toHaveLength(1);
+  });
+
+  it("attached by its cannotAttach fallback instead, it has exactly X too", () => {
+    const grasp = encounterCardInVillainArea(game(1, true), GRASP.id);
+    const card = find(grasp.state, GRIP_FALLS_BACK.id);
+    const { after, events } = reveal(grasp.state, GRIP_FALLS_BACK.id);
+
+    expect(mustInstance(after, card).attachedTo).toBe(after.villains[0]!.instanceId);
+    expect(grip(after, card)).toBe(3);
+    expect(gripPlacements(events, card)).toHaveLength(1);
+  });
+
+  it("attached to its data host, it has exactly X (unchanged)", () => {
+    const base = game(1, true);
+    const card = find(base, GRIP_DATA_HOST.id);
+    const { after, events } = reveal(base, GRIP_DATA_HOST.id);
+
+    expect(mustInstance(after, card).attachedTo).toBe(after.villains[0]!.instanceId);
+    expect(grip(after, card)).toBe(3);
+    expect(gripPlacements(events, card)).toHaveLength(1);
   });
 });
 

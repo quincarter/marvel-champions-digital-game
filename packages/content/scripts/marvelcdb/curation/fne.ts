@@ -60,9 +60,9 @@ const SCENARIO_HALF_CORRECTIONS: readonly Correction[] = [
   {
     code: "60164",
     reason:
-      'Bear Hug\'s attach sentence is conditional ("If Kingpin has the Martial Artist trait, attach to your hero. Otherwise, this card gains surge."), so the parser reads no attach rule.',
+      'Bear Hug\'s attach sentence is conditional ("If Kingpin has the Martial Artist trait, attach to your hero. Otherwise, this card gains surge."), so the parser reads no attach rule; its own reveal attaches it (attach instruction, scriptingNotes).',
     evidence: "Raw text of 60164 (Kingpin set transcription). Never applied to text.",
-    impliedAttachHost: { kind: "yourIdentity", form: "hero" },
+    impliedAttachHost: "ownWhenRevealed",
   },
   {
     code: "60165",
@@ -76,7 +76,7 @@ const SCENARIO_HALF_CORRECTIONS: readonly Correction[] = [
     reason:
       'Mountain of Muscle\'s attach sentence is conditional ("If Kingpin has the Martial Artist trait, attach to Kingpin. Otherwise, this card gains surge.").',
     evidence: "Raw text of 60167 (Kingpin set transcription). Never applied to text.",
-    impliedAttachHost: { kind: "villain" },
+    impliedAttachHost: "ownWhenRevealed",
   },
   ...(
     [

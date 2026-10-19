@@ -167,8 +167,9 @@ export function releaseControlOfCaptive(ctx: Ctx, id: InstanceId, host: Instance
  * ("Leaves Play", p. 27, and "Enters Play" both name a change of area, and it changed none), and a card attached
  * facedown, which is out of play on its host (RRG 1.8 "In Play and Out of Play", p. 23).
  *
- * Announced elsewhere: an encounter attachment being revealed that its own When Revealed or `cannotAttach` ability
- * attaches. Its reveal announces it once that ability has resolved (`revealAnnouncesEntry`), as it always has.
+ * Announced elsewhere: an encounter attachment being revealed that its own When Revealed, attach instruction or
+ * `cannotAttach` ability attaches. Its reveal announces it once that ability has resolved (`revealAnnouncesEntry`),
+ * so it enters play once and its Uses counters are placed once (RRG 1.8 "Uses", p. 46).
  */
 export function attachCardBy(
   ctx: Ctx,
@@ -188,15 +189,15 @@ export function attachCardBy(
 
 /**
  * Whether `id` is being revealed at a step whose end announces it entering play if it is attached by then: a
- * self-attaching attachment's When Revealed (`settleAttach`; ruling Feb 20, 2026 (4)) or its `cannotAttach` abilities
- * (`resolve/reveal.ts`).
+ * self-attaching attachment's When Revealed (`settleAttach`; ruling Feb 20, 2026 (4)), its attach instruction
+ * (`attachInstruction`, docs/phase7-wave7.md §3.35) or its `cannotAttach` abilities (`resolve/reveal.ts`).
  */
 const revealAnnouncesEntry = (state: GameState, id: InstanceId): boolean =>
   state.stack.some(
     (frame) =>
       frame.kind === "reveal" &&
       frame.instanceId === id &&
-      (frame.stage === "settleAttach" || frame.stage === "cannotAttach"),
+      (frame.stage === "settleAttach" || frame.stage === "attachInstruction" || frame.stage === "cannotAttach"),
   );
 
 /**

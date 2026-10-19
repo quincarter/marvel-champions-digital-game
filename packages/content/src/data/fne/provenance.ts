@@ -609,7 +609,7 @@ export const FNE_PROVENANCE: readonly CardProvenance[] = [
     cardSetCode: "kingpin",
     marvelcdbCodes: ["60164"],
     corrections: [
-      "60164: Bear Hug's attach sentence is conditional (\"If Kingpin has the Martial Artist trait, attach to your hero. Otherwise, this card gains surge.\"), so the parser reads no attach rule. [evidence: Raw text of 60164 (Kingpin set transcription). Never applied to text.]",
+      "60164: Bear Hug's attach sentence is conditional (\"If Kingpin has the Martial Artist trait, attach to your hero. Otherwise, this card gains surge.\"), so the parser reads no attach rule; its own reveal attaches it (attach instruction, scriptingNotes). [evidence: Raw text of 60164 (Kingpin set transcription). Never applied to text.]",
     ],
   },
   {
