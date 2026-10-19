@@ -22,8 +22,6 @@ export const UNSCRIPTED_ENCOUNTER_SET_IDS: ReadonlySet<string> = new Set([
   "scarlet_twins",
   "she_hulk_leader",
   "shield_ops",
-  "standard_pvp_registration_mc57",
-  "standard_pvp_resistance_mc57",
   "synthezoid_registration",
   "synthezoid_resistance",
   "taskmaster_modular",
