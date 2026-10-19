@@ -509,6 +509,8 @@ handoff note; the main session verifies and pushes.
 26. E23 — A "would be given a facedown boost card" interrupt window (Public Support 60163b High side: "remove counters instead"); `on.boostCardGiven` is response-only today. Found while scripting Kingpin 2026-10-19.
 27. E24 — A random pick from a player's set-aside nemesis set (Bag of Tricks 60175, When Revealed and Boost): the `setAside` selector has no `random` option (`encounterSetAside` does). Found while scripting Kingpin 2026-10-19.
 28. D4 — The ingest parser folds `^d+. ` list lines into the preceding ability, as it does `•` lines (`parse-text.ts` ~1099), so 60128b's "1." / "2." lines stop being separate constants; renames refs on 60128b, aos 50168b, next_evol 40121b, tt 55033a. Found in review 2026-10-19.
+29. E27 — A `forEachPlayer` whose order the first player chooses (RRG 1.8 "Each Player", p. 17), generalising the `orderPlayers` choice `dealEncounterCards` already has; then 60206b (each player reveals an attachment) and 60209a (each player takes a Daily Bugle support) use it. Found in review 2026-10-19.
+30. E28 — `inEncounterSet` also matches a card's `specificTo.encounterSetId` (the Daily Bugle supports 60153-60156 are support-type and carry only `specificTo`), so `BUGLE_SUPPORT` in `fne/campaign/environments.ts` can name its set. Found in review 2026-10-19.
 
 **Scripting (`ability-scripting-engineer`), one module each (§S6)**
 
