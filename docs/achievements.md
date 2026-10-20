@@ -60,6 +60,10 @@ spread so a new player ranks up within the first few sessions.
   Aaron's _Avengers_ #11 (2018). The extra is a four-page excerpt (`art/extras/_pending/thor-she-hulk-badlands-date/`) shown
   with a bibliography (title, issue, year, creators, publisher, link) (owner, 2026-10-20).
 
+- **Earned items already built:** PR #294 (Ultron Drone art, stacked on this branch) adds an earned item, "Drone art",
+  toggled under Settings > More > Earned items and for now gated on "win a game against Ultron" read from the save
+  history. When the achievements list is built, add a Drone achievement for that win and point the earned item at it.
+
 ## Data the client must record
 
 Most families read the existing `mc-saves` / `mc-campaigns` rows (outcome, scenario, heroes, difficulty, players,
