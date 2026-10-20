@@ -7,7 +7,7 @@
  * **Cast:** Daredevil (`60001a`) and Echo (`60037a`) ship in this box, so their lines are written for them; every
  * other hero shows the narrator `fallback` instead.
  */
-import type { CampaignStory, IssueStory, SetupCallCopy, StorySpeaker } from "../story.js";
+import type { CampaignStory, HandledWords, IssueStory, SetupCallCopy, StorySpeaker } from "../story.js";
 
 const DAREDEVIL: StorySpeaker = { kind: "hero", identityId: "60001a", name: "Daredevil" };
 const ECHO: StorySpeaker = { kind: "hero", identityId: "60037a", name: "Echo" };
@@ -52,14 +52,85 @@ const VILLAIN_CALL: SetupCallCopy = {
     'On a first playthrough, "The next villain on the recommended list" takes the rulebook\'s order (Hammerhead, Bullseye, Electro, then Purple Man or Typhoid Mary), and "A random unrecorded villain" draws one you have not faced. If only Purple Man and Typhoid Mary are left, pick which one you face.',
 };
 
+const NODE_TITLES: Readonly<Record<string, string>> = {
+  "art-museum-heist": "Art Museum Heist",
+  "the-getaway": "The Getaway",
+  "protection-racket": "Protection Racket",
+  "the-raft-breakout": "The Raft Breakout",
+  "stop-the-presses": "Stop the Presses!",
+  kingpin: "Kingpin",
+};
+
+/** "typhoid_mary" -> "Typhoid Mary"; a scenario id reads as its printed title. */
+const nameOf = (id: string): string =>
+  NODE_TITLES[id] ??
+  id.replace(/[-_]+/g, " ").replace(/(^|\s)([a-z])/g, (_m, lead: string, c: string) => lead + c.toUpperCase());
+
+const lowerFirst = (text: string): string => text.charAt(0).toLowerCase() + text.slice(1);
+
+/**
+ * The Briefing's "Handled for you" facts in plain sentences, not the log's own wording ("Recorded
+ * Villain.art-museum-heist: hammerhead"). A question's own answer lines are the answer sentences, and the working
+ * fields the setup only reads back (the playthrough answer, how the villain is chosen) are left out.
+ */
+const handledWords: HandledWords = (fact) => {
+  if (fact.kind === "write") {
+    if (fact.value.kind === "choice" && fact.field.startsWith("villain.")) {
+      const villain = nameOf(fact.value.option);
+      const node = nameOf(fact.field.slice("villain.".length));
+      return `${villain} is the villain for ${node}.`;
+    }
+    if (fact.field === "unrecordedVillains" && fact.value.kind === "strikeList") {
+      const struck = new Set(fact.value.struck);
+      const left = (fact.options ?? []).filter((id) => !struck.has(id)).map(nameOf);
+      return left.length === 0 ? "Every villain has now been faced." : `Villains not yet faced: ${left.join(", ")}.`;
+    }
+    if (fact.field === "playthrough" || fact.field === "villainMethod" || fact.field === "checks") return "";
+    return undefined;
+  }
+  if (fact.kind === "choice") {
+    const picked = fact.picked[0] ?? "";
+    switch (fact.slot) {
+      case "playthrough":
+        return /^first/i.test(picked)
+          ? "This is the group's first time through the campaign."
+          : "This is not the group's first time through the campaign.";
+      case "drawA":
+      case "drawB":
+        return `${nameOf(picked)} was drawn and gets a check mark.`;
+      case "villainMethod":
+        return `The group took ${lowerFirst(picked)}.`;
+      case "villain":
+        // The villain's own sentence ("X is the villain for Y") says it; a draw or a pick adds nothing more.
+        return "";
+      default:
+        return undefined;
+    }
+  }
+  if (fact.field === "checks" && fact.value.kind === "number") {
+    const marks = fact.value.value;
+    return `${nameOf(fact.nodeId)} has ${marks} check mark${marks === 1 ? "" : "s"} in the campaign log.`;
+  }
+  return undefined;
+};
+
+/** The question that picks the next scenario (the runner's own `campaign.nextNode`). */
+const NEXT_SCENARIO_CALL: SetupCallCopy = {
+  name: "Choose the next scenario",
+  explain:
+    "Pick which of the open scenarios to play next. The open ones are the five underling scenarios you have not beaten yet; each one's villain is chosen right after you pick. The Kingpin comes only after all five are done.",
+};
+
 export const FNE_STORY: CampaignStory = {
   campaignId: "fne",
+  handledWords,
   tagline: "A story in six issues",
   blurb:
     "Hell's Kitchen is falling to the Kingpin's underlings, one job at a time. Daredevil and Echo have to take them down in whatever order the city deals them, then climb to the man who runs it all.",
   rosterBanner:
     "Each hero stays for the whole campaign. The underlings you beat are crossed off, and the Kingpin waits at the end.",
   setupCalls: {
+    "campaign.nextNode": NEXT_SCENARIO_CALL,
     "mc60.choice.playthrough": {
       name: "First playthrough?",
       explain:

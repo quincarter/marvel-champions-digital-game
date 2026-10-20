@@ -22,6 +22,7 @@ import { AOS_STORY } from "./stories/aos.js";
 import { FNE_STORY } from "./stories/fne.js";
 import type { PoolCopy } from "../view/campaign-pool-model.js";
 import type { BriefingNoteCopy } from "../view/campaign-briefing-model.js";
+import type { LogValue } from "@mc/engine";
 
 export type StorySpeaker =
   | { readonly kind: "narrator" }
@@ -295,8 +296,37 @@ export interface AftermathCallCopy {
   readonly showCost?: boolean;
 }
 
+/**
+ * One fact the Briefing's "Handled for you" list would otherwise print in the engine's log wording ("Recorded
+ * Villain.art-museum-heist: hammerhead"), for a box to say in plain sentences instead (`CampaignStory.handledWords`).
+ */
+export type HandledFact =
+  /** A log field the step wrote. `options` are the field's own choice/strike-list options, when it has some. */
+  | {
+      readonly kind: "write";
+      readonly field: string;
+      readonly mode: string;
+      readonly value: LogValue;
+      readonly options: readonly string[] | undefined;
+    }
+  /** A pick the group made (or a random draw) for a step's slot. */
+  | {
+      readonly kind: "choice";
+      readonly slot: string;
+      readonly picked: readonly string[];
+      readonly random: boolean;
+      readonly seatNumber: number | null;
+    }
+  /** A log value the issue's own setup reads back, shown as a row title; `nodeId` is the issue being opened. */
+  | { readonly kind: "field"; readonly field: string; readonly value: LogValue; readonly nodeId: string };
+
+/** A sentence for a fact; "" leaves the fact out (bookkeeping); undefined keeps the default log wording. */
+export type HandledWords = (fact: HandledFact) => string | undefined;
+
 export interface CampaignStory {
   readonly campaignId: string;
+  /** Plain sentences for the facts the Briefing's "Handled for you" list shows (`HandledFact`). */
+  readonly handledWords?: HandledWords;
   /** "A story in five issues". */
   readonly tagline: string;
   /** The cover's pitch. */

@@ -43,10 +43,16 @@ describe("the Fear No Evil plain-words calls", () => {
   );
 
   test("each is keyed to an instruction the definition has, and the first-playthrough question says what each answer does", () => {
-    for (const id of Object.keys(FNE_STORY.setupCalls ?? {})) expect(ids.has(id), id).toBe(true);
+    // `campaign.nextNode` is the runner's own scenario-pick question, not one of the definition's instructions.
+    for (const id of Object.keys(FNE_STORY.setupCalls ?? {}))
+      expect(ids.has(id) || id === "campaign.nextNode", id).toBe(true);
     const copy = setupCallCopyFor("mc60.choice.playthrough");
     expect(copy?.explain).toMatch(/rulebook's villain order/);
     expect(copy?.explain).toMatch(/at random/);
     expect(setupCallCopyFor("mc60.art-museum-heist.compose.villain")?.explain).toMatch(/recommended list/);
+    const pick = setupCallCopyFor("campaign.nextNode");
+    expect(pick?.explain).toMatch(/open/);
+    expect(pick?.explain).toMatch(/villain is chosen/);
+    expect(pick?.explain).toMatch(/Kingpin comes only after all five/);
   });
 });

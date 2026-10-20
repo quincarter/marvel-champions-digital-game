@@ -36,6 +36,7 @@ import {
   type GameState,
 } from "@mc/engine";
 import type { SessionConfig } from "../engine/host.js";
+import type { HandledWords } from "../campaign/story.js";
 import { renderLogValue, type CardNameOf } from "./campaign-log-model.js";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -53,10 +54,17 @@ export interface CampaignStepRow {
   readonly effects: readonly string[];
 }
 
+/** A box's own plain sentences for the facts a step shows (`CampaignStory.handledWords`), and its fields' options. */
+export interface StepWords {
+  readonly say: HandledWords;
+  readonly optionsOf: (field: string) => readonly string[] | undefined;
+}
+
 /** Renders a resolved step trace list — `CampaignAttempt.steps` or a `CampaignHistoryEntry.steps` — as rows. */
 export function campaignStepRows(
   steps: readonly CampaignStepTrace[],
   cardName: CardNameOf = (id) => id as string,
+  words?: StepWords,
 ): readonly CampaignStepRow[] {
   return steps.map((step) => ({
     instructionId: step.instructionId,
@@ -64,7 +72,7 @@ export function campaignStepRows(
     citation: step.citation,
     kind: step.kind,
     skipped: step.skipped ?? null,
-    effects: effectsOf(step, cardName),
+    effects: effectsOf(step, cardName, words),
   }));
 }
 
@@ -85,7 +93,7 @@ function titleCase(word: string): string {
   return word.replace(/(^|[\s_-])([a-z])/g, (_m, lead: string, letter: string) => lead + letter.toUpperCase());
 }
 
-function effectsOf(step: CampaignStepTrace, cardName: CardNameOf): readonly string[] {
+function effectsOf(step: CampaignStepTrace, cardName: CardNameOf, words?: StepWords): readonly string[] {
   if (step.skipped) return [];
   const lines: string[] = [];
   // A choice's own line below already says what got picked; a `set` write that records that exact same value into
@@ -108,6 +116,17 @@ function effectsOf(step: CampaignStepTrace, cardName: CardNameOf): readonly stri
   step.writes.forEach((write, index) => {
     const isStrike = write.value.kind === "strikeList";
     if (isStrike && lastStrike.get(`${write.field}|${write.seatNumber}`) !== index) return;
+    const said = words?.say({
+      kind: "write",
+      field: write.field,
+      mode: write.mode,
+      value: write.value,
+      options: words.optionsOf(write.field),
+    });
+    if (said !== undefined) {
+      if (said !== "") lines.push(said);
+      return;
+    }
     // This is a raw trace of the write as it went into the log, not the fold's own delta (`campaign-log-deltas.ts`):
     // `add` stores the field's new running total, not the amount this one write alone contributed, so it's labeled
     // as such rather than read as "added N" the way the Run/Issue/Dossier screens present it.
@@ -132,6 +151,17 @@ function effectsOf(step: CampaignStepTrace, cardName: CardNameOf): readonly stri
     );
   });
   for (const choice of step.choices) {
+    const said = words?.say({
+      kind: "choice",
+      slot: choice.slot,
+      picked: choice.picked,
+      random: choice.random === true,
+      seatNumber: choice.seatNumber,
+    });
+    if (said !== undefined) {
+      if (said !== "") lines.push(said);
+      continue;
+    }
     const who = choice.seatNumber === null ? "The group" : `Seat ${choice.seatNumber}`;
     // `picked` is card ids, node ids or option strings depending on the choice's source (design §5's
     // `CampaignChoiceRecord`); `cardName` is applied to all of them alike, which only matters for a caller that

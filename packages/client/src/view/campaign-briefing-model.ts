@@ -26,7 +26,8 @@ import {
   type CardMetaOf,
   type PoolCopy,
 } from "./campaign-pool-model.js";
-import { campaignStepRows, type CampaignStepRow } from "./campaign-step-model.js";
+import { campaignStepRows, type CampaignStepRow, type StepWords } from "./campaign-step-model.js";
+import { storyFor } from "../campaign/story.js";
 import { idWords } from "./campaign-option-labels.js";
 import { hiddenEvidenceEnvelope, type HiddenEvidenceEnvelope } from "./campaign-hidden-evidence-model.js";
 import { missionBriefingOf, type MissionBriefing } from "./campaign-mission-model.js";
@@ -232,12 +233,26 @@ const BRIEFING_FIELD_WORDS: Readonly<Record<string, { readonly label: string; re
   heldAllies: { label: "Allies struck", detail: "Out of the campaign for good." },
 };
 
+/** The box's own plain sentences for the log facts a row shows, when its story writes some (`CampaignStory.handledWords`). */
+function stepWordsOf(definition: CampaignDefinition | undefined): StepWords | undefined {
+  const say = definition ? storyFor(definition.campaignId as string)?.handledWords : undefined;
+  if (!definition || !say) return undefined;
+  return {
+    say,
+    optionsOf: (field) => {
+      const type = definition.logFields.find((candidate) => candidate.id === field)?.type;
+      return type && (type.kind === "choice" || type.kind === "strikeList") ? type.options : undefined;
+    },
+  };
+}
+
 function fieldLogRowsOf(
   attempt: CampaignAttempt,
   record: CampaignRecord,
   definition: CampaignDefinition,
   nodeIds: readonly string[],
 ): readonly HandledRow[] {
+  const words = stepWordsOf(definition);
   const fieldLabel = (id: string): string =>
     BRIEFING_FIELD_WORDS[id]?.label ?? definition.logFields.find((field) => field.id === id)?.label ?? id;
   // A campaign-pool field (`campaign-pool-model.ts`'s own detection) is never shown here: its own field label is
@@ -256,13 +271,18 @@ function fieldLogRowsOf(
       readThisIssue.add(fieldId);
       const value = record.shared[fieldId];
       if (!isMeaningfulValue(value)) continue;
-      const words = BRIEFING_FIELD_WORDS[fieldId];
-      if (words) {
+      const said = words?.say({ kind: "field", field: fieldId, value: value!, nodeId: attempt.nodeId });
+      if (said !== undefined) {
+        if (said !== "") parts.push(said);
+        continue;
+      }
+      const fieldWords = BRIEFING_FIELD_WORDS[fieldId];
+      if (fieldWords) {
         nowRows.push({
           key: `field:${instruction.instructionId}:${fieldId}`,
           status: "done",
-          title: `${words.label}: ${compactValueOf(value!)}`,
-          detail: words.detail,
+          title: `${fieldWords.label}: ${compactValueOf(value!)}`,
+          detail: fieldWords.detail,
         });
       } else {
         parts.push(`${fieldLabel(fieldId)}: ${compactValueOf(value!)}`);
@@ -493,7 +513,7 @@ function genericHandledRowsOf(
 ): readonly HandledRow[] {
   const grants = grantRowsOf(record, cardName, definition);
   const statusById = new Map(attempt.steps.map((step) => [step.instructionId, statusOf(step)] as const));
-  const rows = campaignStepRows(attempt.steps, cardName);
+  const rows = campaignStepRows(attempt.steps, cardName, stepWordsOf(definition));
   const stepRows = rows
     // The grants row above already covers every `grantCard`-only step; one that only granted would otherwise
     // repeat the same cards a second time. A pool-reading step ("If Cosmo is in the campaign pool, …") is already
