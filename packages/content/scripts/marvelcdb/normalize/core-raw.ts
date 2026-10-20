@@ -26,8 +26,11 @@ import type { RawCard } from "../raw-types.ts";
  * `PRIORITY_ORDER` only needs to be correct where two different real printings of the same name+type both carry
  * art of their own (a true redesign, not a reprint) — every wave 1/wave 2 case checked so far is a reprint with no
  * art of its own, so this has not come up, but a future cycle should extend `PRIORITY_ORDER` if it does.
+ *
+ * The value is that first printing's whole record, not just its `imagesrc`, so `reprintImages` can check that a
+ * namesake really is the same card before borrowing its art (issue #296).
  */
-export const CORE_ART_BY_NAME = new Map<string, string>();
+export const CORE_ART_BY_NAME = new Map<string, RawCard>();
 
 /**
  * Artwork by MarvelCDB code over every cached pack, for a reprint's `duplicate_of_code` target (see `reprintImages`).
@@ -59,11 +62,10 @@ function recordArt(cards: readonly RawCard[]): void {
   for (const c of cards) {
     if (c.imagesrc) ART_BY_CODE.set(c.code, c.imagesrc);
     const key = `${c.type_code} ${c.name}`;
-    if (c.imagesrc && !CORE_ART_BY_NAME.has(key)) CORE_ART_BY_NAME.set(key, c.imagesrc);
+    if (c.imagesrc && !CORE_ART_BY_NAME.has(key)) CORE_ART_BY_NAME.set(key, c);
     if (c.linked_card) {
       const linkedKey = `${c.linked_card.type_code} ${c.linked_card.name}`;
-      if (c.linked_card.imagesrc && !CORE_ART_BY_NAME.has(linkedKey))
-        CORE_ART_BY_NAME.set(linkedKey, c.linked_card.imagesrc);
+      if (c.linked_card.imagesrc && !CORE_ART_BY_NAME.has(linkedKey)) CORE_ART_BY_NAME.set(linkedKey, c.linked_card);
     }
   }
 }
