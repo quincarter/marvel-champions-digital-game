@@ -169,3 +169,32 @@ describe("titleMenuLayout", () => {
     }
   });
 });
+
+describe("the rank badge", () => {
+  for (const size of [
+    { width: 360, height: 740 },
+    { width: 390, height: 844 },
+    { width: 1024, height: 768 },
+    { width: 1440, height: 900 },
+  ]) {
+    test(`sits on screen and clear of the report and music buttons at ${size.width}x${size.height}`, () => {
+      const layout = titleMenuLayout({ ...size, continuable: true, civilWar: true, update: true, quit: true });
+      const badge = layout.rankBadge;
+      expect(badge.x).toBeGreaterThanOrEqual(0);
+      expect(badge.y).toBeGreaterThanOrEqual(0);
+      expect(badge.x + badge.width).toBeLessThanOrEqual(size.width);
+      expect(badge.y + badge.height).toBeLessThanOrEqual(size.height);
+      // The report and music buttons sit level with the eyebrow, at the column's right edge.
+      const report = 40;
+      const reportRect = {
+        x: layout.left + layout.column - report,
+        y: Math.max(8, layout.eyebrow.y + 8 - report / 2),
+        width: report,
+        height: report,
+      };
+      const musicRect = { ...reportRect, x: reportRect.x - 8 - report };
+      expect(rectsOverlap(badge, reportRect)).toBe(false);
+      expect(rectsOverlap(badge, musicRect)).toBe(false);
+    });
+  }
+});

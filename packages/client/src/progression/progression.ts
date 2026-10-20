@@ -11,7 +11,13 @@
  * session.
  */
 import { appSession, campaignService } from "../session.js";
-import { NO_HISTORY, achievementPointsOf, lifetimePointsOf, type AchievementHistory } from "./achievements.js";
+import {
+  NO_HISTORY,
+  achievementPointsOf,
+  achievementStatuses,
+  lifetimePointsOf,
+  type AchievementHistory,
+} from "./achievements.js";
 import { Extras, NO_EXTRAS_PROGRESS, extrasProgressOf, type ExtrasProgress } from "./extras.js";
 import {
   NO_PROGRESS,
@@ -87,12 +93,16 @@ export async function refreshUnlocks(): Promise<boolean> {
       .storage.list()
       .catch(() => []),
   ]);
-  const nextExtras = extrasProgressOf(saves, campaigns);
+  const nextHistory = { saves, campaigns };
+  const earnedIds = achievementStatuses(nextHistory)
+    .filter((status) => status.earned)
+    .map((status) => status.def.id);
+  const nextExtras = extrasProgressOf(saves, campaigns, earnedIds);
   if (JSON.stringify(nextExtras) !== JSON.stringify(extrasProgress)) {
     extrasProgress = nextExtras;
     currentExtras = null;
   }
-  history = { saves, campaigns };
+  history = nextHistory;
   lifetimePoints = lifetimePointsOf(history);
   const next = progressOf(saves, campaigns);
   const nextAchievementPoints = achievementPointsOf(history);

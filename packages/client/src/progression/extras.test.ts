@@ -212,7 +212,27 @@ describe("the catalog", () => {
   it("gives every locked entry a hint that says how to open it", () => {
     for (const e of Object.values(EXTRAS_ENTRIES).flat()) {
       if (e.unlock.kind === "always") continue;
-      expect(unlockHint(e.unlock), e.id).toMatch(/^(Finish|Beat|Lose|Win|Reach|Start|Complete)\b/);
+      expect(unlockHint(e.unlock), e.id).toMatch(/^(Finish|Beat|Lose|Win|Reach|Start|Complete|Earn)\b/);
     }
+  });
+});
+
+describe("the achievement unlock", () => {
+  const drone = { kind: "achievement", achievementId: "ultron-drone" } as const;
+
+  it("opens once that achievement is earned, and not before", () => {
+    expect(open({}).isOpen(drone)).toBe(false);
+    expect(open({ earnedAchievementIds: ["rhino-down"] }).isOpen(drone)).toBe(false);
+    expect(open({ earnedAchievementIds: ["ultron-drone"] }).isOpen(drone)).toBe(true);
+  });
+
+  it("names the achievement in its hint", () => {
+    expect(unlockHint(drone)).toBe("Earn the Drone On achievement");
+    expect(unlockHint({ kind: "achievement", achievementId: "nope" })).toBe("Earn the nope achievement");
+  });
+
+  it("is filled by extrasProgressOf from the earned ids, de-duplicated", () => {
+    expect(extrasProgressOf([], [], ["b", "a", "b"]).earnedAchievementIds).toEqual(["a", "b"]);
+    expect(extrasProgressOf([], []).earnedAchievementIds).toEqual([]);
   });
 });

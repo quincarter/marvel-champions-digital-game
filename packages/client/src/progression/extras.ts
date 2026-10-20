@@ -41,6 +41,7 @@ import { BOOKS } from "../content/books.js";
 import { CAMPAIGN_RECORDS } from "../campaign/campaign-service.js";
 import { UNLOCK_HEROES, villainLabelOf } from "./unlocks.js";
 import { isLessonSave } from "../engine/game-storage.js";
+import { ACHIEVEMENTS } from "./achievements.js";
 
 /** What the player has done, as far as Extras cares, read from storage by `extrasProgressOf`. */
 export interface ExtrasProgress {
@@ -54,6 +55,8 @@ export interface ExtrasProgress {
   readonly reachedIssues: readonly string[];
   readonly startedCampaignIds: readonly string[];
   readonly wonCampaignIds: readonly string[];
+  /** Ids of the achievements earned (`achievements.ts`), for an extra gated on one. */
+  readonly earnedAchievementIds: readonly string[];
 }
 
 export const NO_EXTRAS_PROGRESS: ExtrasProgress = {
@@ -64,6 +67,7 @@ export const NO_EXTRAS_PROGRESS: ExtrasProgress = {
   reachedIssues: [],
   startedCampaignIds: [],
   wonCampaignIds: [],
+  earnedAchievementIds: [],
 };
 
 /** The save statuses of a game that has ended. An `active` game is still being played; `incompatible` never loads. */
@@ -95,6 +99,7 @@ export function extrasProgressOf(
     readonly campaignId: string;
     readonly position: { readonly nextNodeId: string | null; readonly resolved: Readonly<Record<string, string>> };
   }[],
+  earnedAchievementIds: readonly string[] = [],
 ): ExtrasProgress {
   const ended = saves.filter((save) => ENDED.has(save.status) && !isLessonSave(save));
   return {
@@ -112,6 +117,7 @@ export function extrasProgressOf(
     ),
     startedCampaignIds: unique(campaigns.map((run) => run.campaignId)),
     wonCampaignIds: unique(campaigns.filter((run) => run.status === "won").map((run) => run.campaignId)),
+    earnedAchievementIds: unique(earnedAchievementIds),
   };
 }
 
@@ -166,6 +172,8 @@ export type ExtrasUnlock =
   | { readonly kind: "issueReached"; readonly campaignId: string; readonly nodeId: string; readonly issue: number }
   | { readonly kind: "campaignStarted"; readonly campaignId: string }
   | { readonly kind: "campaignWon"; readonly campaignId: string }
+  /** An achievement in the Trophy Room (`achievements.ts`), by id. */
+  | { readonly kind: "achievement"; readonly achievementId: string }
   /** One track filed in several slots (the same song as a campaign finale and a pack's victory theme). */
   | { readonly kind: "any"; readonly of: readonly ExtrasUnlock[] };
 
@@ -243,6 +251,8 @@ export function unlockHint(unlock: ExtrasUnlock): string {
       return `Start ${campaignName(unlock.campaignId)}`;
     case "campaignWon":
       return `Complete ${campaignName(unlock.campaignId)}`;
+    case "achievement":
+      return `Earn the ${ACHIEVEMENTS.find((a) => a.id === unlock.achievementId)?.name ?? unlock.achievementId} achievement`;
     case "any":
       return unlock.of.length > 0 ? unlockHint(unlock.of[0]!) : "Open from the start";
   }
@@ -261,6 +271,7 @@ export class Extras {
     readonly issues: ReadonlySet<string>;
     readonly started: ReadonlySet<string>;
     readonly completed: ReadonlySet<string>;
+    readonly achievements: ReadonlySet<string>;
   };
 
   constructor(progress: ExtrasProgress, options: { readonly everything?: boolean } = {}) {
@@ -274,6 +285,7 @@ export class Extras {
       issues: new Set(progress.reachedIssues),
       started: new Set(progress.startedCampaignIds),
       completed: new Set(progress.wonCampaignIds),
+      achievements: new Set(progress.earnedAchievementIds),
     };
   }
 
@@ -305,6 +317,8 @@ export class Extras {
         return s.started.has(unlock.campaignId);
       case "campaignWon":
         return s.completed.has(unlock.campaignId);
+      case "achievement":
+        return s.achievements.has(unlock.achievementId);
       case "any":
         return unlock.of.some((one) => this.isOpen(one));
     }
