@@ -445,11 +445,13 @@ describe("§3.50: unbound copies (the primitive without whileAttached) stack", (
     expect(rogueTraits(moved)).toEqual(sorted(X_MEN, SPY, CRIMINAL, BRUTE));
   });
 
-  it("an unbound copy of a host that left play gives nothing", () => {
+  it("an unbound copy of a host that left play gives nothing and ends", () => {
     const { state: start } = board();
     const copied = play(start, COPY_PAL.card).state;
-    const gone = play(copied, KILL_PAL.card).state;
-    expect(copies(gone)).toHaveLength(1);
+    const { state: gone, events } = play(copied, KILL_PAL.card);
+    // The copy ends with the chosen character (FFG ruling October 9, 2026 - Ruling 1, revising Q28).
+    expect(copies(gone)).toHaveLength(0);
+    expect(typed(events, "lastingEffectEnded").map((e) => e.reason)).toEqual(["targetLeftPlay"]);
     expect(rogueTraits(gone)).toEqual([X_MEN]);
   });
 });

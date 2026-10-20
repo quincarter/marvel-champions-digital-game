@@ -423,7 +423,8 @@ describe("errata and rulings", () => {
 describe("interactions between cards of the pack", () => {
   describe("one turn: Skin Contact onto an ally, Energy Transfer onto a minion, then Bulletproof Belle in the villain phase", () => {
     // Touched moves from the ally to the minion (RRG 'Find', p. 19; one card, not a copy). Every Touched line and the
-    // copied traits are live only while it sits on that host (owner decision Q28), so nothing of the ally is kept.
+    // copied traits follow the character each was copied from, not Touched (FFG ruling October 9, 2026 - Ruling 1, which
+    // revises Q28), so the ally's traits are kept while it stays in play and the minion's are added.
     it("the Jacket bonus, the copied traits and Belle's window follow Touched from host to host", () => {
       const base0 = engaged(rogue(), MERCENARY);
       const ally = withAlly(base0.state);
@@ -434,7 +435,6 @@ describe("interactions between cards of the pack", () => {
         return { thw: p.thw, atk: p.atk };
       };
       const printed = powers(base);
-      const printedTraits = rogueTraits(base);
 
       // 1. Skin Contact onto the ally: Jacket gives +1 THW, Rogue gains the ally's traits (and AERIAL from Touched).
       const onAlly = skinContact(base, ally.id);
@@ -451,9 +451,7 @@ describe("interactions between cards of the pack", () => {
       expect(inst(moved.state, ally.id).attachments).not.toContain(touchedOf(moved.state));
       expect(rogueTraits(moved.state)).toContain("HYDRA");
       expect(rogueTraits(moved.state)).not.toContain("AERIAL");
-      const minionTraits = traitsOf(moved.state, base0.id, DEPS).map(String);
-      for (const t of allyTraits.filter((t) => !printedTraits.includes(t) && !minionTraits.includes(t)))
-        expect(rogueTraits(moved.state)).not.toContain(t);
+      for (const t of allyTraits) expect(rogueTraits(moved.state)).toContain(t);
       expect(powers(moved.state)).toEqual({ thw: printed.thw, atk: printed.atk + 1 });
       expect(inst(moved.state, base0.id).damage).toBe(2);
       expect(inst(moved.state, me(moved.state)).damage).toBe(1);

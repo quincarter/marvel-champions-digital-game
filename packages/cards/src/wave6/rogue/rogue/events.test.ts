@@ -288,7 +288,7 @@ describe("Rogue's events (38005-38009)", () => {
       expect(playerOf(run.state, P1).discard).toContain(run.id);
     });
 
-    it("Rogue gains each of the host's traits until the end of the round (live while Touched stays)", () => {
+    it("Rogue gains each of the host's traits until the end of the round (follows the host, not Touched)", () => {
       const minion = withMinion(hurt(rogue()));
       const traitsBefore = traitsOf(minion.state, rogueId(minion.state), DEPS).map(String);
       const hostTraits = traitsOf(minion.state, minion.id, DEPS).map(String);
@@ -297,11 +297,12 @@ describe("Rogue's events (38005-38009)", () => {
       const gained = traitsOf(run.state, rogueId(run.state), DEPS).map(String);
       for (const t of hostTraits) expect(gained).toContain(t);
       expect(traitsBefore).not.toContain("HYDRA");
-      // Touched leaving the host ends the grant (Q28).
+      // Touched leaving the host does not end the grant: it follows the chosen character (FFG ruling October 9, 2026 -
+      // Ruling 1, which revises Q28).
       const left = patchInstance(patchInstance(run.state, minion.id, { attachments: [] }), touchedOf(run.state), {
         attachedTo: null,
       });
-      expect(traitsOf(left, rogueId(left), DEPS).map(String)).not.toContain("HYDRA");
+      expect(traitsOf(left, rogueId(left), DEPS).map(String)).toContain("HYDRA");
     });
 
     it("the host is never Rogue: naming her is refused, another character is accepted", () => {

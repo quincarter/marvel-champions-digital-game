@@ -110,7 +110,7 @@ export const ROGUE_EVENTS = defineAbilities({
     },
     heal(2, yourIdentity),
     ready(yourIdentity),
-    gainTraitsOfUntil(chosen("host"), yourIdentity, "endOfRound", { whileAttached: chosen("touched") }),
+    gainTraitsOfUntil(chosen("host"), yourIdentity, "endOfRound"),
   ),
 
   "38008.bulletproof-belle-interrupt": heroInterrupt(

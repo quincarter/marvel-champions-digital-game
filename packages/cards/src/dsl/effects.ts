@@ -1259,11 +1259,10 @@ export const gainTraitUntil = (t: Trait, target: TargetRef, until: LastingUntil)
  * granted, read live (they follow the source's trait changes), never its keywords or text. `source` is fixed as this
  * resolves.
  *
- * `{ whileAttached }` is the owner's decision §4.1 Q28, "Rogue's copied traits are live, for as long as Touched stays
- * on that character": the grant also ends once that card is no longer attached to `source` (or to `to`, when given),
- * whichever of that and `until` comes first. Rogue's two cards, after the attach that binds the host to slot `host`
- * and Touched to slot `touched`:
- * `gainTraitsOfUntil(chosen("host"), yourIdentity, "endOfRound", { whileAttached: chosen("touched") })`.
+ * The grant ends at `until` or when `source` leaves play (FFG ruling October 9, 2026 - Ruling 1, which revises wave 6
+ * Q28): Rogue's cards use `gainTraitsOfUntil(chosen("host"), yourIdentity, "endOfRound")`, and Touched moving does not
+ * end it. `{ whileAttached }` is an optional generic extra bound (no card uses it now): the grant also ends once that
+ * card is no longer attached to `source` (or to `to`, when given).
  */
 export const gainTraitsOfUntil = (
   source: TargetRef,

@@ -390,9 +390,16 @@ function applyHostedUpgradeControl(ctx: Ctx): void {
  * already ignores it from the moment the card moves (`lastingReaches`); this only records it.
  */
 function endDetachedLastingEffects(ctx: Ctx): void {
+  const inPlay = new Set(cardsInPlay(ctx.state));
   for (const effect of [...ctx.state.lastingEffects]) {
     if (effect.whileAttached && !attachmentHolds(ctx.state, effect.whileAttached)) {
       endLastingEffect(ctx, effect.id, "detached");
+      continue;
+    }
+    // Copied traits follow the chosen character and end when it leaves play (FFG ruling October 9, 2026 - Ruling 1,
+    // which revises wave 6 Q28), whatever happens to Touched.
+    if (effect.kind === "traitGrant" && effect.copiedFrom && !effect.copiedFrom.some((id) => inPlay.has(id))) {
+      endLastingEffect(ctx, effect.id, "targetLeftPlay");
     }
   }
 }

@@ -1359,6 +1359,22 @@ describe("Rogue (48012): deal 1 damage to another friendly character to take its
     expect(profile(state, rogue, ROGUE_DEPS)).toMatchObject({ thw: 2, atk: 2 });
     expect(traitsOf(state, rogue, ROGUE_DEPS).map(String)).not.toContain("THIEF");
   });
+  it("the friend leaving play later in the round ends the bonus and the traits (FFG ruling October 9, 2026 - Ruling 1)", () => {
+    const { state: s, rogue, gambit } = table();
+    const { state: used } = useRogue(s, rogue, gambit);
+    expect(profile(used, rogue, ROGUE_DEPS)).toMatchObject({ thw: 4, atk: 4 });
+    // Gambit leaves play (taken off the table; his card is no longer in play).
+    const gone = {
+      ...used,
+      players: used.players.map((p) =>
+        p.playerId === P1
+          ? { ...p, playArea: p.playArea.filter((i) => i !== gambit), discard: [...p.discard, gambit] }
+          : p,
+      ),
+    };
+    expect(profile(gone, rogue, ROGUE_DEPS)).toMatchObject({ thw: 2, atk: 2 });
+    expect(traitsOf(gone, rogue, ROGUE_DEPS).map(String)).not.toContain("THIEF");
+  });
   it("test 10: next round the bonus is gone and the Action is offered again; this round it is once only", () => {
     const { state: s, rogue, nc } = table();
     const { state: used } = useRogue(s, rogue, nc);

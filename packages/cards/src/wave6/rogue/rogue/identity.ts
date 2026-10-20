@@ -45,8 +45,9 @@ const FIND_AND_SET_ASIDE = findCard(TOUCHED, "setAside", { owner: you });
  *   aside" wherever it is (RRG 1.8 errata p. 69; "Find", p. 19). Her response is printed on the hero face, so it only
  *   hears the player phase beginning in hero form.
  * - **Skin Contact (38001a)**: "Find Touched and attach it to another character. You gain each of the attached
- *   character's TRAITS until the end of the round." The grant ends at the earlier of the end of the round and Touched
- *   leaving that host (Q28, `whileAttached`).
+ *   character's TRAITS until the end of the round." The copy follows the chosen character, not Touched: it ends at the end
+ *   of the round or when that character leaves play, and Touched moving does not end it (FFG ruling October 9, 2026 -
+ *   Ruling 1, which revises Q28's old `whileAttached`).
  * - **Touched (38002)**: minion, Rogue's attacks gain overkill; villain, Rogue gains retaliate 1; ally, Rogue gains
  *   AERIAL; hero (a hero-form identity), Rogue gains stalwart. Each is read live from the host. Four refs, one line
  *   of text each.
@@ -61,7 +62,7 @@ export const ROGUE_IDENTITY = defineAbilities({
     // Only a host that can take Touched (Robert Kelly cannot have player cards attached), as Energy Transfer's cost reads it.
     chooseTarget("host", query("character", { excluding: yourIdentity, canHaveAttached: TOUCHED_FIND })),
     findCard(TOUCHED, { attachTo: chosen("host") }, { owner: you, bind: "touched" }),
-    gainTraitsOfUntil(chosen("host"), yourIdentity, "endOfRound", { whileAttached: chosen("touched") }),
+    gainTraitsOfUntil(chosen("host"), yourIdentity, "endOfRound"),
   ),
 
   "38002.touched-constant": constant(attacksGainKeywords(["overkill"], { attacker: ROGUE, while: hostIs("minion") })),
