@@ -1,0 +1,3 @@
+kind: Changed
+body: A copied or downloaded bug report log puts its replay and debug snapshot in json code blocks, so they read as code when pasted into an issue.
+time: 2026-10-20T14:11:36.7750171-04:00
