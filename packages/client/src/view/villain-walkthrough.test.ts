@@ -11,7 +11,7 @@ import { cardName } from "./names.js";
 import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
-import { revealOf } from "./villain-phase-reveal.js";
+import { flipGateAt, revealOf } from "./villain-phase-reveal.js";
 import {
   activationBoostLineOf,
   advanceReveal,
@@ -998,6 +998,24 @@ describe("walkthrough encounter tracking", () => {
       expect(card.playerId).toBe(played.viewer);
       expect(card.cardId.length).toBeGreaterThan(0);
     }
+  });
+
+  test("the flip gate fires once per dealt card as the reveal cursor walks a real phase (#287)", () => {
+    const { walkthrough } = played;
+    const beats = walkthrough.steps.flatMap((step) => step.beats);
+    const dealt = new Set<string>(walkthrough.encounter.dealt.map((card) => card.instanceId));
+    const flipped = new Set<string>();
+    const stops: string[] = [];
+    for (let revealed = 1; revealed <= beats.length; revealed++) {
+      const card = flipGateAt(beats, revealed, dealt, flipped);
+      if (card) {
+        stops.push(card);
+        flipped.add(card);
+      }
+    }
+    const revealedDealt = walkthrough.encounter.revealed.filter((card) => dealt.has(card.instanceId));
+    expect(revealedDealt.length).toBeGreaterThan(0);
+    expect(stops).toEqual(revealedDealt.map((card) => card.instanceId));
   });
 
   test("no card is current once the phase is complete", () => {

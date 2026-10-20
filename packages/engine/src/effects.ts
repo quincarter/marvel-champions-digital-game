@@ -40,7 +40,7 @@ import {
   villainOf,
 } from "./query.js";
 import { hasPerPlayerMainSchemes } from "./per-player-main-schemes.js";
-import type { StatusDiscardCause } from "./events.js";
+import type { GameEvent, StatusDiscardCause } from "./events.js";
 import {
   type EncounterDealSource,
   hearsEncounterDeckDiscard,
@@ -865,6 +865,16 @@ export function markDealtFromEncounterDeck(ctx: Ctx, id: InstanceId): void {
 }
 
 /**
+ * The log's `encounterCardDealt` for `id` dealt to `playerId`, passed to the deal's `moveCard` so it follows the
+ * `cardMoved` before any reset or loss the move sets off. Every path that deals one logs it, listener or not.
+ */
+export const encounterCardDealtEvent = (
+  playerId: PlayerId,
+  id: InstanceId,
+  source: EncounterDealSource,
+): GameEvent => ({ type: "encounterCardDealt", playerId, instanceId: id, source });
+
+/**
  * Records that `playerId` was dealt the facedown encounter card `id`, for the flow to announce between frames
  * (`TriggerEvent encounterCardDealt`, `announceEncounterCardsDealt`), when an ability listens. Called by every path
  * that deals one: `dealEncounterCardTo` with a source, and a card's "deal [this card] to a player as a facedown
@@ -901,7 +911,8 @@ export function dealEncounterCardTo(
   const id = drawEncounterCard(ctx);
   if (!id) return null;
   updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
-  moveCard(ctx, id, { kind: "dealtEncounter", playerId });
+  const logged = source !== null ? encounterCardDealtEvent(playerId, id, source) : undefined;
+  moveCard(ctx, id, { kind: "dealtEncounter", playerId }, "bottom", logged);
   if (source !== null) {
     markDealtFromEncounterDeck(ctx, id);
     recordEncounterCardDealt(ctx, playerId, id, source);
@@ -2219,7 +2230,8 @@ function leaveNow(
   }
   // Boost cards still on an enemy that leaves play mid-activation go with it (RRG 1.8 "Boost": they are discarded).
   for (const boostId of [...instance.boostCards]) moveCard(ctx, boostId, discardZoneFor(ctx.state, boostId), "top");
-  moveCard(ctx, id, to, redirect !== null ? "bottom" : position);
+  const dealtTo = to.kind === "dealtEncounter" ? encounterCardDealtEvent(to.playerId, id, "ability") : undefined;
+  moveCard(ctx, id, to, redirect !== null ? "bottom" : position, dealtTo);
   // A card in play dealt to a player as a facedown encounter card (`dealAsEncounterCards`): heard as any other deal.
   if (to.kind === "dealtEncounter") {
     markDealtFromEncounterDeck(ctx, id);

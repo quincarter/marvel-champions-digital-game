@@ -101,7 +101,7 @@ export async function reachVillainRecap(page: Page, phone: boolean): Promise<voi
       // (its sheet is running), and answering it here would skip the very thing under test.
       if (await continueRect(page)) return true;
       // Auto-advance off: the docked phase waits on START VILLAIN PHASE, then holds each decision behind ANSWER.
-      for (const gate of ["startRect", "answerRect"]) {
+      for (const gate of ["startRect", "answerRect", "flipRect"]) {
         const rect = await villainDebugRect(page, gate);
         if (rect) {
           if (phone) await page.touchscreen.tap(rect.x + rect.width / 2, rect.y + rect.height / 2);

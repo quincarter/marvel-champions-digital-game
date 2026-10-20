@@ -44,6 +44,11 @@ export interface Travel {
   readonly delayMs: number;
   /** A draw from a deck into the hand: it flies longer, and its hand slot stays empty until it lands (`handArrivalsFrom`). */
   readonly draw: boolean;
+  /**
+   * A facedown encounter card dealt to a player (`dealtEncounter`): the ghost is the encounter card back, never the
+   * card's face, whatever it became since (a card dealt and revealed in one command is already in play).
+   */
+  readonly facedown: boolean;
   /** The card's own face, when the scene already has it cached — the ghost draws the scan instead of a plain parchment rectangle. Null falls back to the rectangle, the same as before this existed. */
   readonly art: ArtSource | null;
 }
@@ -134,6 +139,9 @@ export function travelsFrom(
   events.forEach((event, index) => {
     if (event.type !== "cardMoved") return;
     if (zoneKey(event.from) === zoneKey(event.to)) return;
+    // A dealt card flips where it lies: its reveal is not a flight, so a card dealt and revealed in one command flies to
+    // the player's pile and simply does not stay.
+    if (event.from.kind === "dealtEncounter") return;
     if (isHidden(event.from) && isHidden(event.to)) return;
 
     const from = anchorBefore(event.instanceId, event.from);
@@ -147,11 +155,12 @@ export function travelsFrom(
       to,
       delayMs: 0,
       draw: isDraw(event.from, event.to),
-      art: artOf(event.instanceId),
+      facedown: event.to.kind === "dealtEncounter",
+      art: event.to.kind === "dealtEncounter" ? null : artOf(event.instanceId),
     });
   });
-  // Deal the draws one after another, in the order the engine drew them.
-  const draws = travels.filter((travel) => travel.draw);
+  // Deal the draws, and the facedown encounter deals, one after another, in the order the engine made them.
+  const draws = travels.filter((travel) => travel.draw || travel.facedown);
   const gap = draws.length > 1 ? Math.min(DRAW_STAGGER_MS, DRAW_SPREAD_MAX_MS / (draws.length - 1)) : 0;
   return travels.map((travel) => {
     const order = draws.indexOf(travel);

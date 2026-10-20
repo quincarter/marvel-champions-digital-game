@@ -41,6 +41,7 @@ describe("travelsFrom", () => {
       to: RECT_B,
       delayMs: 0,
       draw: false,
+      facedown: false,
       art: null,
     });
   });
@@ -141,6 +142,44 @@ describe("travelsFrom", () => {
     expect(travels[0]!.id).toBe("travel-1");
   });
 
+  describe("facedown encounter deals", () => {
+    const encounter: ZoneId = { kind: "encounterDeck", deckId: encounterDeckId("e1") };
+    const dealt: ZoneId = { kind: "dealtEncounter", playerId: player("p1") };
+
+    test("a deal flies from the encounter deck to the player's pile as the card back, never the face", () => {
+      const face = { key: "art:face", url: "/face.png" };
+      const travels = travelsFrom(
+        [moved(id("card-0"), encounter, dealt)],
+        () => RECT_A,
+        () => RECT_B,
+        () => face,
+      );
+      expect(travels).toHaveLength(1);
+      expect(travels[0]).toMatchObject({ facedown: true, draw: false, art: null, from: RECT_A, to: RECT_B });
+    });
+
+    test("several deals in one command fly one after another", () => {
+      const travels = travelsFrom(
+        [0, 1, 2].map((i) => moved(id(`card-${i}`), encounter, dealt)),
+        () => RECT_A,
+        () => RECT_B,
+        () => null,
+      );
+      expect(travels.map((travel) => travel.delayMs)).toEqual([0, DRAW_STAGGER_MS, DRAW_STAGGER_MS * 2]);
+    });
+
+    test("a card dealt and revealed in one command flies to the pile and has no second flight", () => {
+      const inPlay: ZoneId = { kind: "villainArea" };
+      const travels = travelsFrom(
+        [moved(id("card-0"), encounter, dealt), moved(id("card-0"), dealt, inPlay)],
+        () => RECT_A,
+        () => RECT_B,
+        () => null,
+      );
+      expect(travels.map((travel) => travel.id)).toEqual(["travel-0"]);
+    });
+  });
+
   describe("draws", () => {
     const deck: ZoneId = { kind: "deck", playerId: player("p1") };
     const hand: ZoneId = { kind: "hand", playerId: player("p1") };
@@ -155,7 +194,16 @@ describe("travelsFrom", () => {
         () => null,
       );
       expect(travels).toEqual([
-        { id: "travel-0", instanceId: id("card-0"), from: RECT_A, to: RECT_B, delayMs: 0, draw: true, art: null },
+        {
+          id: "travel-0",
+          instanceId: id("card-0"),
+          from: RECT_A,
+          to: RECT_B,
+          delayMs: 0,
+          draw: true,
+          facedown: false,
+          art: null,
+        },
       ]);
     });
 

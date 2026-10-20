@@ -77,6 +77,8 @@ describe("SettingsStore", () => {
     ["sameNameHeroAllyConflict", false],
     ["villainAutoAdvance", "afterPause"],
     ["holdEncounterCards", false],
+    ["flipEncounterCards", false],
+    ["flipEncounterSpeed", "off"],
     ["villainBeatSpeed", "fast"],
     ["villainDockTable", false],
     ["cardHoverScale", "2.5x"],

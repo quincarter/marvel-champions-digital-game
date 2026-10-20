@@ -19,6 +19,8 @@ describe("settingsSectionsOf", () => {
       "token-motion",
       "villain-auto",
       "villain-hold",
+      "villain-flip",
+      "villain-flip-speed",
       "villain-speed",
       "villain-dock",
       "unlocks",

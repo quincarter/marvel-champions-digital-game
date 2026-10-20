@@ -408,9 +408,10 @@ describe("owner decision Q58 (RRG 1.8 p. 17): 'after the encounter deck resets' 
     const without = playFree(arrange(deafTable), DEAF, DEAL_FOUR.card.id);
     expect(mustPlayer(without.state, P1).dealtEncounter).toEqual(mustPlayer(withListener.state, P1).dealtEncounter);
     expect(without.state.encounterDecks).toEqual(withListener.state.encounterDecks);
-    // Nothing comes between the deaf game's four deals but the shuffle and the token.
+    // Nothing comes between the deaf game's four deals but the log's note of the deal, the shuffle and the token.
     const deals = dealIndexes(without.events);
     expect(without.events.slice(deals[1]! + 1, deals[2]!).map((e) => e.type)).toEqual([
+      "encounterCardDealt",
       "deckShuffled",
       "accelerationTokenAdded",
     ]);
