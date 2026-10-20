@@ -49,6 +49,8 @@ export const SHADOWLAND_CURATION: PackCuration = {
   outDir: "src/data/shadowland",
   exportPrefix: "SHADOWLAND",
   scanOnly: true,
+  // MarvelCDB has no campaign record: `campaign.ts` (`SHADOWLAND_CAMPAIGN`) is hand-authored from MC65 pp. 4, 5 (task D4).
+  handAuthoredModules: ["campaign"],
 
   addedRecords: [
     ...SHADOWS_IN_THE_NIGHT_RECORDS,
@@ -117,6 +119,8 @@ export const SHADOWLAND_CURATION: PackCuration = {
       "One double-sided upgrade (72A Setup side, 72B OVERPOWERING side). The cost box prints a dash on both faces. The insert (pp. 9, 14) implies more copies than players, but only 1/13 is previewed, so quantityInSet is 1. Answers spec Q8: the printed text on side B is 'If there are at least 5 corruption counters here, you are defeated.'",
   },
 
+  // The three scenario records are authored in `shadowland-scenarios.ts` (`SHADOWLAND_SCENARIO_RECORDS`) but cannot be
+  // emitted until each scenario's main scheme (A and B faces) is transcribed; see that file's header.
   scenarios: [],
   starterDecks: [],
 };
