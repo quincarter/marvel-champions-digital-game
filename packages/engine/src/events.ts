@@ -882,6 +882,8 @@ export type GameEvent =
     }
   /** An interrupt increased a pending damage event by `amount` (`increaseDamage`, docs/phase7-wave4.md §3.52). */
   | { readonly type: "damageIncreased"; readonly targetInstanceId: InstanceId; readonly amount: number }
+  /** An interrupt reduced the damage a pending damage event deals by `amount` (`EffectSpec reduceDamage`). */
+  | { readonly type: "damageReduced"; readonly targetInstanceId: InstanceId; readonly amount: number }
   | { readonly type: "threatPrevented"; readonly schemeInstanceId: InstanceId; readonly amount: number }
   | {
       readonly type: "damagePlaced";

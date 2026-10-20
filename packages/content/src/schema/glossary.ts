@@ -725,7 +725,7 @@ const KEYWORD_RAW: Record<KeywordName, UntaggedEntry<KeywordName>> = {
       "While a minion with this keyword is engaged with you, none of your cards can attack the villain. An attack card whose only target is the guarded villain can't be played.",
     sources: [
       { kind: "rrg", page: 21 },
-      { kind: "ruling", date: "April 30, 2026 - Ruling 2" },
+      { kind: "ruling", date: "April 30, 2026 - Ruling 5" },
       { kind: "owner-ruling", date: "Oct 8, 2026" },
     ],
   },

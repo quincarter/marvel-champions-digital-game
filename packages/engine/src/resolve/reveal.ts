@@ -239,7 +239,12 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       setFrame(ctx, { ...frame, stage: "enterPlay", ...(surges ? { surgeGained: true } : {}) });
       // The card is faceup and about to resolve: cancel effects interrupt here
       // (FFG ruling: Black Widow triggers after the flip, before its effects).
-      pushEvent(ctx, { kind: "encounterCardRevealing", instanceId: frame.instanceId, playerId: frame.playerId });
+      pushEvent(ctx, {
+        kind: "encounterCardRevealing",
+        instanceId: frame.instanceId,
+        playerId: frame.playerId,
+        ...revealedFrom(frame),
+      });
       return;
     }
     case "enterPlay": {
@@ -602,7 +607,10 @@ function stepRevealKeywords(ctx: Ctx, held: Frame<"reveal">): void {
   if (resolving) pushFrames(ctx, [resolving]);
 }
 
-/** `cardRevealed.from`: present only for a reveal that began at an encounter deck (docs/phase7-wave11-scenarios.md §S3.10). */
+/**
+ * `cardRevealed.from` / `encounterCardRevealing.from`: present only for a reveal that began at an encounter deck
+ * (docs/phase7-wave11-scenarios.md §S3.10, §S7 E22).
+ */
 const revealedFrom = (frame: Frame<"reveal">): { readonly from?: "encounterDeck" } =>
   frame.source === "encounterDeck" ? { from: "encounterDeck" } : {};
 

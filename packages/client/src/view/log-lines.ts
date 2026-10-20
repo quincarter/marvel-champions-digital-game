@@ -521,6 +521,9 @@ function describe(
         text: `${card(event.targetInstanceId)} can't take more damage — ${event.amount} not taken.`,
         voice: "scenario",
       };
+    // An interrupt lowered the damage dealt (Metal Bracer; ruling August 26, 2026 - Ruling 2), not a prevention.
+    case "damageReduced":
+      return { text: `Damage to ${card(event.targetInstanceId)} reduced by ${event.amount}.`, voice: "player" };
     // docs/phase7-wave11-scenarios.md §S3.5: "cannot be dealt damage", so none was dealt (not a prevention).
     case "damageNotDealt":
       return {

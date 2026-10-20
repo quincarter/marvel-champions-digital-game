@@ -64,7 +64,7 @@ is fixed). Neither was fixed here.
 - **Source:** erratum p. 68 reads "Hero Action (attack): Deal 5 damage to an enemy. You may discard a tough status card from
   your hero to stun and confuse that enemy." RRG "Labeled Ability" (p. 26): a labeled ability's identity is "considered to
   be performing the labeled effect"; with a stunned identity "the entire ability (except for its costs) is canceled" and
-  the status card is removed. Ruling April 30, 2026 (2) #2: a stun met at that point is discarded "instead of dealing damage".
+  the status card is removed. Ruling April 30, 2026 (5) #2: a stun met at that point is discarded "instead of dealing damage".
 - **Repro:** `colossus/qa.test.ts` "stunned: the ability is cancelled (cost paid), the stun card is removed and no damage is
   dealt" (`it.fails`). Colossus in hero form with a stunned status card plays Steel Fist.
 - **Expected:** Steel Fist spent (cost paid), the stunned card removed, the enemy takes 0 damage.

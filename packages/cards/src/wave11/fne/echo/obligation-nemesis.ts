@@ -48,8 +48,11 @@ const KINGPIN_MINION = query("minion", { name: KINGPIN });
  * villain, who appears only in the Kingpin scenario, where the minion is removed at setup, so matching any enemy titled
  * Kingpin gives that result in every real game. A future card adding another Kingpin-titled enemy would need an
  * out-of-play check for the minion.
+ *
+ * Any character titled Kingpin, not only an enemy: he can be taken over as an ally (Karma, Redemption), and the nemesis
+ * cards still stop him taking damage then (FFG ruling, September 10, 2026, Ruling 2).
  */
-const KINGPIN_ENEMY = query("enemy", { name: KINGPIN });
+const KINGPIN_ENEMY = query("character", { name: KINGPIN });
 /** "The Maya Lopez player": the engaged player's identity is Echo's, in either form. */
 const MAYA_LOPEZ_PLAYER = query("identity", { controller: "you", anyOf: [{ name: "Echo" }, { name: "Maya Lopez" }] });
 

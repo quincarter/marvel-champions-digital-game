@@ -106,6 +106,7 @@ export function eventRefs(event: GameEvent): readonly InstanceId[] {
     case "healBlocked":
     case "damageCapped":
     case "damageDoubled":
+    case "damageReduced":
       return [event.targetInstanceId];
     case "damageNotDealt":
       return event.sourceInstanceId ? [event.targetInstanceId, event.sourceInstanceId] : [event.targetInstanceId];

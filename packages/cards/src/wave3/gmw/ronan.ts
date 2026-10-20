@@ -164,7 +164,7 @@ export const RONAN = defineAbilities({
   // First Player Interrupt: When a treachery card is revealed from the encounter deck, exhaust the Milano and
   // spend 1 resource of any type → cancel that card's "When Revealed" effects.
   "16108.kree-command-ship-constant": interrupt(
-    on.encounterCardRevealed(query("treachery")),
+    on.encounterCardRevealedFromEncounterDeck(query("treachery")),
     { firstPlayerOnly: true, cost: [exhaustMilano, spend(1)] },
     cancelWhenRevealed(),
   ),

@@ -3046,6 +3046,26 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       emit(ctx, { type: "damageCapped", targetInstanceId: pending.targetInstanceId, amount: reduced });
       return;
     }
+    case "reduceDamage": {
+      // The mirror of `increaseDamage`: the damage dealt goes down, and the amount taken with it (RRG 1.8 "Damage",
+      // p. 14); ruling August 26, 2026 - Ruling 2 (Metal Bracer can leave 0 damage dealt).
+      const target = frame.eventFrameId ? findFrame(ctx.state, frame.eventFrameId) : undefined;
+      if (target?.kind !== "event" || target.event.kind !== "dealDamage" || target.cancelled) return;
+      if (isUnpreventableDamage(target.event)) return;
+      const { amount: pending, dealt } = target.event;
+      const reduced = Math.min(dealt ?? pending, Math.max(0, value(effect.amount)));
+      if (reduced <= 0) return;
+      setFrame(ctx, {
+        ...target,
+        event: {
+          ...target.event,
+          amount: Math.max(0, pending - reduced),
+          ...(dealt !== undefined ? { dealt: dealt - reduced } : {}),
+        },
+      });
+      emit(ctx, { type: "damageReduced", targetInstanceId: target.event.targetInstanceId, amount: reduced });
+      return;
+    }
     case "increaseDamage": {
       // The mirror of `preventDamage` (docs/phase7-wave4.md §3.52): the interrupted damage event's own amount grows.
       const target = frame.eventFrameId ? findFrame(ctx.state, frame.eventFrameId) : undefined;
@@ -3494,6 +3514,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             )
           : { now: ids, waiting: [] };
       moveCardsTo(ctx, now, effect.to, into, sourceCardId, { sourceInstanceId: frame.selfInstanceId, ...boundOn });
+      if (effect.shuffleEvenIfEmpty && effect.to === "encounterDeckShuffle" && now.length === 0)
+        shuffleEncounterDeck(ctx);
       // An icon of a card this discarded from a deck may count more than once (docs/phase7-wave7.md §3.56).
       if (effect.bind) recountDeckDiscardIcons(ctx, frame.frameId, effect.bind);
       if (waiting.length > 0) pushEvents(ctx, waiting);
@@ -3828,7 +3850,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           moveCard(ctx, id, { kind: "dealtEncounter", playerId }, "top");
         // A reveal whose effects are cancelled reports back (`preThenOf`, `resolve/reveal.ts`).
         frames.push({
-          ...revealFrame(ctx, playerId, id, frame.frameId, "elsewhere"),
+          ...revealFrame(ctx, playerId, id, frame.frameId, effect.fromEncounterDeck ? "encounterDeck" : "elsewhere"),
           ...(holder ? { heldBy: holder } : {}),
           ...reading,
         });

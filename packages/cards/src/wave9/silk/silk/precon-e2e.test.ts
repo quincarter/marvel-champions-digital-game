@@ -1018,7 +1018,7 @@ describe("round 9: Rhino stage I is defeated", () => {
 
 describe("Stop Hitting Yourself while a guard minion is engaged", () => {
   // The engine does not offer the Hero Response (attack) while Hydra Mercenary (Guard) is engaged, which is what RRG 1.8
-  // "Guard" (p. 21: "cannot use cards they control to attack a villain") and the April 30, 2026 Ruling 2 (a Guard minion
+  // "Guard" (p. 21: "cannot use cards they control to attack a villain") and the April 30, 2026 Ruling 5 (a Guard minion
   // forbids an attack effect against the villain) give. The comment on 52016 in aspect-basic.ts says "guard does not
   // apply"; that comment is the stale half, not the engine. Pinned so a change to either is noticed.
   const offeredStop = (withGuard: boolean): boolean => {

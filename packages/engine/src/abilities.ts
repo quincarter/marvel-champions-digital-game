@@ -325,6 +325,14 @@ export interface PlayableAsIfInHandSpec {
   readonly cards?: TargetQuery;
   readonly costReduction?: number;
   /**
+   * "Reduce **the cost to play** that event by 2" (Photographic Reflexes) rather than "reducing its **resource cost**"
+   * (Magik): `costReduction` comes off the play's whole cost, the card's resource cost and then the generic resources
+   * of its ability cost, which are both costs of playing it (ruling August 26, 2026 - Ruling 1, on RRG 1.8 "Cost",
+   * p. 13-14: Reflexes reduces Make the Call's total, including the chosen ally's cost). Absent: the card's own
+   * resource cost only, floored at 0. `playRequirement` applies it.
+   */
+  readonly reducesAbilityCost?: true;
+  /**
    * The permission is in force only while `player` is in this form: "If you are in hero form, you can discard …"
    * (Photographic Reflexes, `fne` 60040a/b/c; docs/phase7-wave11.md §3.9). Read with the other conditions, so in the
    * other form nothing is covered and nothing is offered.

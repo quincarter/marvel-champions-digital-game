@@ -38,7 +38,7 @@ export const PROTECTION = defineAbilities({
   // Black Widow — Interrupt: When a card is revealed from the encounter deck, exhaust Black Widow and spend a [mental] resource →
   // cancel the effects of that card and discard it. Then, reveal another card from the encounter deck.
   "01075.black-widow-interrupt": interrupt(
-    when.encounterCardRevealed(),
+    when.encounterCardRevealedFromEncounterDeck(),
     { cost: [exhaustThis, spend({ mental: 1 })] },
     cancelRevealedCard(),
     // Nothing left to cancel (another cancel got there first): `nothingToCancel` skips the reveal (RRG 1.8 "'Then'",
@@ -54,7 +54,7 @@ export const PROTECTION = defineAbilities({
   // Get Behind Me! — Hero Interrupt: When a treachery card is revealed from the encounter deck, cancel its "When Revealed" effects.
   // The villain attacks you instead.
   "01078.get-behind-me-interrupt": heroInterrupt(
-    when.encounterCardRevealed(query("treachery")),
+    when.encounterCardRevealedFromEncounterDeck(query("treachery")),
     cancelWhenRevealed(),
     enemyAttack(theVillain, { against: you }),
   ),

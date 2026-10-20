@@ -220,7 +220,7 @@
  *   instructions of the effect only, not a cost (next point).
  * - **A printed cost written as effects is not part of the attack** (`AbilityDefinition.costEffects`; official: RRG
  *   1.8 "Initiating Abilities", p. 24, costs in step 5 and effects in step 6, p. 26's "after costs have been paid",
- *   and ruling April 30, 2026 - Ruling 2 on Return the Favor: "If a treachery revealed in Step 5 Stuns the hero, the
+ *   and ruling April 30, 2026 - Ruling 5 on Return the Favor: "If a treachery revealed in Step 5 Stuns the hero, the
  *   Stun card is discarded in Step 6 instead of dealing damage"; owner decision 2026-10-16, audit finding 13, which
  *   supersedes reading the 2026-10-08 rule ahead of the cost). The ability begins resolving when the cursor reaches
  *   its first instruction after the cost (`beginEffectAfterCost` in `effects-frame.ts`, `effectBeganAt`): the status

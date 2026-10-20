@@ -69,6 +69,8 @@ function reflexes() {
         costReduction: 2,
         form: "hero",
         discardSelfFromHand: true,
+        // "Reduce the cost to play that event": Make the Call's chosen ally included (August 26, 2026 - Ruling 1).
+        reducesAbilityCost: true,
       }),
     ),
   );

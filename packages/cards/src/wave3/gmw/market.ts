@@ -327,7 +327,7 @@ export const MARKET = defineAbilities({
 
   // Onrush (16167) — Hero Interrupt: When a card is revealed from the encounter deck, cancel the effects of that
   // card and discard it. Same shape as Core's own Black Widow (01075, `core/aspects/protection.ts`).
-  "16167.onrush-interrupt": heroInterrupt(when.encounterCardRevealed(), cancelRevealedCard()),
+  "16167.onrush-interrupt": heroInterrupt(when.encounterCardRevealedFromEncounterDeck(), cancelRevealedCard()),
   "16167.onrush-constant": partOf("16167.onrush-interrupt"),
 
   // Safeguard (16168) — Hero Action: Give up to 2 friendly characters each a tough status card. Draw 1 card.

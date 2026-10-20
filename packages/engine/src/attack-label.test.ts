@@ -827,7 +827,7 @@ describe("Row 73 (A1, second half): an ability with an attack effect begins its 
     expect(mustInstance(after.state, t.hero).statuses.stunned).toBe(1);
   });
 
-  // Ruling 2026-04-30 (April 30, 2026 - Ruling 2, on Return the Favor): "Costs are paid in Step 5 of Initiating
+  // Ruling 2026-04-30 (April 30, 2026 - Ruling 5, on Return the Favor): "Costs are paid in Step 5 of Initiating
   // Abilities; effects initiate in Step 6. … If a treachery revealed in Step 5 Stuns the hero, the Stun card is
   // discarded in Step 6 instead of dealing damage." RRG 1.8 pp. 24, 26. Owner decision 2026-10-16 (audit finding 13):
   // a cost written as effects is paid before the attack begins, superseding the 2026-10-08 reading in which the attack

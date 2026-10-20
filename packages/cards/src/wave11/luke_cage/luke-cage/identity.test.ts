@@ -30,7 +30,7 @@ import {
   type Picker,
 } from "../../../testing/harness.js";
 import { withForm } from "../../../testing/staging.js";
-import { engageMinion } from "../../../wave9/falcon/testing.js";
+import { engageMinion, stagedInPlay } from "../../../wave9/falcon/testing.js";
 import { WAVE11_ABILITIES, WAVE11_CARDS } from "../../index.js";
 import {
   LUKE_CAGE_LUKE_CAGE_IDENTITY as REGISTRY,
@@ -290,5 +290,34 @@ describe("Unbreakable Skin end to end: an enemy attack with piercing", () => {
     const pierced = events.filter((e) => e.type === "statusRemoved" && e.status === "tough" && e.reason === "piercing");
     expect(pierced).toHaveLength(1);
     expect(damageOf(state)).toBe(4);
+  });
+});
+
+describe("Unflappable (09020) with Luke Cage: his Forced Response's damage is not the attack's (August 26, 2026 - Ruling 3)", () => {
+  const SHOCKER = "01103"; // ATK 2, against Luke Cage's DEF 1
+  const UNFLAPPABLE = "09020"; // "After you defend against an attack and take no damage, exhaust Unflappable → draw 1 card."
+
+  it("defending through a tough card, then taking 1 unpreventable damage, still triggers Unflappable", () => {
+    const base = lukeGame();
+    const villain = base.activeVillainId!;
+    const quiet = patchInstance(base, villain, { statuses: { ...inst(base, villain).statuses, stunned: 1 } });
+    // A filler card at the bottom of the deck retagged as Unflappable, so `stagedInPlay` finds it.
+    const deck = playerOf(quiet, P1).deck;
+    const retagged = patchInstance(quiet, deck[deck.length - 1]!, { cardId: cardId(UNFLAPPABLE) });
+    const staged = stagedInPlay(engageMinion(withTough(retagged, 1), SHOCKER, "shocker"), UNFLAPPABLE);
+    const identity = identityOf(staged.state);
+    let offered = false;
+    const pick: Picker = (state) => {
+      const choice = state.pendingChoice!;
+      if (choice.prompt.kind === "declareDefender") return [identity];
+      const hit = choice.options.find((o) => o.optionId === `${staged.id}:09020.unflappable-response`);
+      if (hit) offered = true;
+      return hit ? [hit.optionId] : firstLegal(state);
+    };
+    const after = drive(staged.state, endTurn(P1), pick);
+    expect(tough(after)).toBe(0);
+    expect(damageOf(after)).toBe(1);
+    expect(offered).toBe(true);
+    expect(inst(after, staged.id).exhausted).toBe(true);
   });
 });

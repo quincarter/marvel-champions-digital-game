@@ -63,6 +63,7 @@ const BRACER = "62010";
 const POWER_MAN = "62011";
 const KNUCKLE_SANDWICH = "62004"; // Deal 3 damage to an enemy; may discard a tough status card from Luke Cage to return it
 const SHOCKER = "01103"; // Core minion: ATK 2, 3 hit points, no guard
+const HYDRA_MERCENARY = "01101"; // Core minion: ATK 1, guard
 const FILLER = "01091";
 
 function lukeGame(form: "hero" | "alterEgo" = "hero"): GameState {
@@ -366,24 +367,46 @@ describe(`${BRACER_I}: when damage would be dealt to Luke Cage, exhaust Metal Br
   });
 });
 
-describe(`${BRACER_I}: after tough`, () => {
-  it("a tough card absorbs the attack first, Bracer is not offered, and Luke's 1 unpreventable damage follows", () => {
+describe(`${BRACER_I}: before tough ("would be dealt", ruling August 26, 2026 - Ruling 2)`, () => {
+  /** Luke with 1 tough card and the bracer, the villain stunned, and one minion of `atk` attacking at the end of turn. */
+  function attackedThroughTough(minion: string, pick: (bracer: InstanceId) => Picker) {
     const base = lukeGame();
     const villain = villainOf(base);
     const quiet = patchInstance(base, villain, { statuses: { ...inst(base, villain).statuses, stunned: 1 } });
-    const bracer = stagedInPlay(engageMinion(withTough(quiet, 1), SHOCKER, "shock"), BRACER, { attach: true });
-    let offered = false;
-    const watching: Picker = (state) => {
+    const bracer = stagedInPlay(engageMinion(withTough(quiet, 1), minion, "minion"), BRACER, { attach: true });
+    const { state, events } = drive(bracer.state, endTurn(P1), pick(bracer.id));
+    return { state, events, bracer: bracer.id };
+  }
+
+  it("a 1-ATK attack: Bracer reduces the damage dealt to 0, so the tough card is kept and Luke takes nothing", () => {
+    const r = attackedThroughTough(HYDRA_MERCENARY, (bracer) => accepting(bracer));
+    expect(inst(r.state, r.bracer).exhausted).toBe(true);
+    expect(tough(r.state)).toBe(1);
+    expect(damageOf(r.state)).toBe(0);
+    expect(r.events).toContainEqual(expect.objectContaining({ type: "damageReduced", amount: 1 }));
+    expect(r.events.some((e) => e.type === "damagePrevented")).toBe(false);
+  });
+
+  it("a 2-ATK attack: Bracer is offered first and takes 1 off; the tough card stops the rest, then Luke's 1", () => {
+    const r = attackedThroughTough(SHOCKER, (bracer) => accepting(bracer));
+    expect(inst(r.state, r.bracer).exhausted).toBe(true);
+    expect(tough(r.state)).toBe(0);
+    // Unbreakable Skin's Forced Response: 1 unpreventable damage after the tough card is discarded.
+    expect(damageOf(r.state)).toBe(1);
+  });
+
+  it("declined: the tough card absorbs the attack, and Bracer is not offered against Luke's unpreventable 1", () => {
+    let offers = 0;
+    const r = attackedThroughTough(SHOCKER, (bracer) => (state) => {
       const options = state.pendingChoice?.options ?? [];
-      if (options.some((o) => (o.ref.kind === "card" || o.ref.kind === "ability") && o.ref.instanceId === bracer.id))
-        offered = true;
+      if (options.some((o) => (o.ref.kind === "card" || o.ref.kind === "ability") && o.ref.instanceId === bracer))
+        offers++;
       return firstLegal(state);
-    };
-    const { state } = drive(bracer.state, endTurn(P1), watching);
-    expect(offered).toBe(false);
-    expect(tough(state)).toBe(0);
-    expect(damageOf(state)).toBe(1);
-    expect(inst(state, bracer.id).exhausted).toBe(false);
+    });
+    expect(offers).toBe(1);
+    expect(tough(r.state)).toBe(0);
+    expect(damageOf(r.state)).toBe(1);
+    expect(inst(r.state, r.bracer).exhausted).toBe(false);
   });
 });
 

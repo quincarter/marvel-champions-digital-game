@@ -637,7 +637,7 @@ export type StackFrame =
        * 6; "Labeled Ability" (p. 26): the labeled effect is performed "when the labeled ability begins resolving (after
        * costs have been paid)". So the status cards that cancel the label are read, and an "(attack)" ability's attack
        * begins, only when the cursor reaches the effect (`beginEffectAfterCost`, `resolve/effects-frame.ts`; ruling
-       * April 30, 2026 - Ruling 2). Counted from the end because a choice inserted while paying lands before the
+       * April 30, 2026 - Ruling 5). Counted from the end because a choice inserted while paying lands before the
        * effect. Absent once the cost is paid, and on every other frame.
        */
       readonly costEffectsPending?: number;

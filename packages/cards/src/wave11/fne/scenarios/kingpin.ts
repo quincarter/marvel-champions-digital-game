@@ -283,7 +283,8 @@ export const FNE_SCENARIOS_KINGPIN: AbilityRegistry = defineAbilities({
       removeThreat(4, self, { ignoreCrisis: true }),
       removeThreat(5, self, { ignoreCrisis: true }),
     ),
-    moveCards(encounterCards(["discard"]), "encounterDeckShuffle"),
+    // The whole discard pile, which may be empty: the deck is still shuffled (FFG ruling, September 10, 2026, Ruling 1).
+    moveCards(encounterCards(["discard"]), "encounterDeckShuffle", undefined, { shuffleEvenIfEmpty: true }),
     discardEncounterUntil(query("minion"), "found"),
     revealCard(chosen("found"), you),
   ),

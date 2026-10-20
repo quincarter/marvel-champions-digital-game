@@ -31,7 +31,11 @@ import { flattenEffects, nestedEffects } from "./target-validity.js";
 export const UNPREVENTABLE_BARS_EVERY_WOULD_TAKE_INTERRUPT: boolean = false;
 
 /** The interrupt effects that reduce or prevent the interrupted damage, which do nothing against unpreventable damage. */
-const REDUCES_OR_PREVENTS: ReadonlySet<EffectSpec["kind"]> = new Set(["preventDamage", "reduceDamageTo"]);
+const REDUCES_OR_PREVENTS: ReadonlySet<EffectSpec["kind"]> = new Set([
+  "preventDamage",
+  "reduceDamageTo",
+  "reduceDamage",
+]);
 
 /** Whether this is a damage event that cannot be reduced or prevented. */
 export const isUnpreventableDamage = (event: TriggerEvent | null | undefined): boolean =>

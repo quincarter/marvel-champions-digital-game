@@ -21,9 +21,9 @@ import {
   host,
   ifThen,
   min,
-  preventDamage,
   query,
   ready,
+  reduceDamage,
   response,
   statusCount,
   when,
@@ -50,10 +50,14 @@ const LUKE_CAGE = query("identity", { controller: "you", name: "Luke Cage" });
  * (hero, ally or another player's), once per card (H3.2); it readies that character. **62008**: the "2 instead if he has
  * none" is read as the action resolves; Luke Cage can hold any number of tough cards (his identity script).
  * **62009**: the constant parts are the engine's HT10 rules, scoped to the attached minion; the response is
- * "after you play this card" (not "from your hand"), engaging the attached minion. **62010**: "reduce that damage by 1" is scripted as preventing 1 of it. That is an engine reading, shared with
- * 26014 and 58019: no ruling equates the two for damage dealt to a character. The rulings (June 25, 2026 - Ruling 6;
- * July 9, 2026 - Ruling 2, "Metal Bracelet" is this card) cover damage taken as a cost only: reducing or preventing it
- * to 0 keeps the cost paid. **62011**: exhausts, so several tough cards discarded at once (Augmented Jaws) draw one card (H3.2).
+ * "after you play this card" (not "from your hand"), engaging the attached minion. **62010**: "When damage would be
+ * dealt to Luke Cage" is a "would be dealt" interrupt (`wouldBeDealt`), so it is offered before a tough status card
+ * (RRG 1.8 "Damage", p. 14, steps 1-2), and "reduce that damage by 1" lowers the damage dealt (`reduceDamage`), which
+ * can leave 0 dealt and keep the tough card: ruling August 26, 2026 - Ruling 2 ("Metal Bracer interrupts when damage
+ * would be dealt to Luke Cage, which can potentially reduce the damage dealt to 0"). Earlier rulings (June 25, 2026 -
+ * Ruling 6; July 9, 2026 - Ruling 2, "Metal Bracelet" is this card) cover damage taken as a cost: reducing it to 0
+ * keeps the cost paid. Luke's own unpreventable damage cannot be reduced (H3.3), so Bracer is not offered against it.
+ * **62011**: exhausts, so several tough cards discarded at once (Augmented Jaws) draw one card (H3.2).
  */
 export const LUKE_CAGE_LUKE_CAGE_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilities({
   "62002.jessica-jones-constant": constant(gets("thw", min(statusCount("tough", yourIdentity), 4), { self: true })),
@@ -79,7 +83,11 @@ export const LUKE_CAGE_LUKE_CAGE_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defi
   "62009.cruisin-for-a-bruisin-response": response(after.youPlayThis(), engage(host)),
 
   "62010.metal-bracer-constant": constant(gainsKeywordX("retaliate", 1, LUKE_CAGE)),
-  "62010.metal-bracer-interrupt": heroInterrupt(when.damage(LUKE_CAGE), { cost: exhaustThis }, preventDamage(1)),
+  "62010.metal-bracer-interrupt": heroInterrupt(
+    when.damage(LUKE_CAGE),
+    { cost: exhaustThis, wouldBeDealt: true },
+    reduceDamage(1),
+  ),
 
   "62011.power-man-response": heroResponse(after.statusDiscarded("tough", LUKE_CAGE), { cost: exhaustThis }, draw(1)),
 });

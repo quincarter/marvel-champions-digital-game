@@ -270,6 +270,39 @@ describe("The King's Gambit setup (60161a.setup, 60161b.when-revealed)", () => {
     expect(traits).toContain("UNDERLING");
   });
 
+  // FFG ruling September 25, 2026, Ruling 1 (and Ruling 2): Shadow of the Past (01190) revealed while Echo's set-aside
+  // nemesis minion cannot enter play because the Kingpin villain is in play (RRG 1.8 "Unique Icon", pp. 45-46): the
+  // minion goes to the encounter discard pile, its player is dealt one facedown encounter card, and Shadow gains no surge.
+  it("Shadow of the Past with Echo's Kingpin blocked by the unique rule: minion to the encounter discard, one card dealt, no surge (FFG ruling, September 25, 2026, Rulings 1-2)", () => {
+    const base = newGame({ players: 2, echo: true });
+    const echoKingpin = idOf(base, ECHO_KINGPIN);
+    expect(zoneOf(base, echoKingpin)).toBe("removedFromGame");
+    const echo = playerOf(base, P2);
+    // Surgery: Echo's nemesis minion back to her set-aside area, as it is in a game that is not this scenario.
+    const deckId = Object.keys(base.encounterDecks)[0]!;
+    const setAside: GameState = {
+      ...base,
+      removedFromGame: base.removedFromGame?.filter((i) => i !== echoKingpin),
+      players: base.players.map((p) => (p.playerId === P2 ? { ...p, setAside: [...echo.setAside, echoKingpin] } : p)),
+    } as GameState;
+    // The Kingpin scenario's deck holds no Standard set card: a treachery of the deck is rewritten into Shadow of the Past.
+    const spare = idOf(setAside, HATE);
+    const withShadow = patchInstance(setAside, spare, { cardId: "01190" as never });
+    const staged = stackEncounterDeck(hobbled(withShadow), BRO, BRO, BRO, "01190");
+    const run = driveEventsPicking(WAVE11_DEPS, staged, declines, ...endAll(staged));
+    const after = run.state;
+    const echoReveals = ofType(run.events, "encounterCardRevealed").filter((e) => e.playerId === P2);
+    // Echo reveals Shadow, her nemesis minion (blocked) and her nemesis side scheme, then the one card dealt in place of
+    // the blocked minion; a surge would add a fifth.
+    expect(echoReveals.map((e) => codeOf(after, e.instanceId)).slice(0, 3)).toEqual(["01190", ECHO_KINGPIN, "60062"]);
+    expect(echoReveals).toHaveLength(4);
+    expect(inPlay(after, ECHO_KINGPIN)).toHaveLength(0);
+    expect(after.encounterDecks[deckId]!.discard).toContain(echoKingpin);
+    const shadow = idOf(after, "01190");
+    expect(ofType(run.events, "surgeTriggered").filter((e) => e.instanceId === shadow)).toHaveLength(0);
+    expect(ofType(run.events, "surgeGranted").filter((e) => e.instanceId === shadow)).toHaveLength(0);
+  });
+
   it("60161b.when-revealed: Public Support is in play on its Low side", () => {
     const s = newGame({ players: 1 });
     expect(inPlay(s, SUPPORT)).toHaveLength(1);
@@ -323,6 +356,45 @@ describe("The King's Gambit Hero Action (60161b.the-kings-gambit-action)", () =>
     );
     expect(minionsAfter).toHaveLength(minionsBefore.length + 1);
     expect(minionsAfter).toContain(discards.at(-1));
+  });
+
+  it("can be used any number of times in a turn, each use doing as much as it can (FFG ruling, September 10, 2026, Ruling 1)", () => {
+    const s = withThreat(newGame(), 8);
+    const first = act(s);
+    expect(inst(first.state, first.state.mainScheme.instanceId).threat).toBe(3);
+    const second = driveEventsPicking(
+      WAVE11_DEPS,
+      first.state,
+      firstLegal,
+      use(P1, s.mainScheme.instanceId, "60161b.the-kings-gambit-action"),
+    );
+    // Only 3 threat were left: all of it is removed and the rest of the ability still resolves.
+    expect(inst(second.state, second.state.mainScheme.instanceId).threat).toBe(0);
+    expect(ofType(second.events, "cardDiscardedFromEncounterDeck").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("with under 5 threat removes what is there and still shuffles, discards and reveals (FFG ruling, September 10, 2026, Ruling 1)", () => {
+    const s = withThreat(newGame(), 2);
+    const { state: after, events } = act(s);
+    expect(inst(after, after.mainScheme.instanceId).threat).toBe(0);
+    expect(ofType(events, "deckShuffled").length).toBeGreaterThanOrEqual(1);
+    expect(ofType(events, "cardDiscardedFromEncounterDeck").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("with an empty encounter discard pile still shuffles the encounter deck (FFG ruling, September 10, 2026, Ruling 1)", () => {
+    let s = withThreat(newGame(), 9);
+    const deckId = Object.keys(s.encounterDecks)[0]!;
+    const piles = s.encounterDecks[deckId]!;
+    s = {
+      ...s,
+      encounterDecks: { ...s.encounterDecks, [deckId]: { deck: [...piles.deck, ...piles.discard], discard: [] } },
+    };
+    const { events } = act(s);
+    const shuffles = ofType(events, "deckShuffled").filter(
+      (e) => e.zone.kind === "encounterDeck" && e.zone.deckId === deckId,
+    );
+    expect(shuffles.length).toBeGreaterThanOrEqual(1);
+    expect(ofType(events, "cardDiscardedFromEncounterDeck").length).toBeGreaterThanOrEqual(1);
   });
 
   it("ignores crisis icons (an encounter card's own Hero Action: RRG 1.8 p. 14, owner Q66 = B)", () => {

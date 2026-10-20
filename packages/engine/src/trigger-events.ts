@@ -839,8 +839,22 @@ export type TriggerEventBody =
        */
       readonly asDefeated?: DefeatedSnapshot;
     }
-  /** An encounter card has been flipped faceup and is about to resolve (RRG "Reveal"): the point to cancel it. */
-  | { readonly kind: "encounterCardRevealing"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
+  /**
+   * An encounter card has been flipped faceup and is about to resolve (RRG "Reveal"): the point to cancel it.
+   *
+   * `from`: as `cardRevealed.from`, `"encounterDeck"` only for a reveal that began at an encounter deck or at a
+   * facedown encounter card dealt from one (`Frame<"reveal">.source`). "When a card is revealed from the encounter
+   * deck" (Black Widow 01075, Enhanced Spider-Sense 01004; `on.encounterCardRevealedFromEncounterDeck`) reads it, so a
+   * minion revealed from under Tracksuit Mafia, a set-aside card or a scenario deck's card is not heard (ruling
+   * September 14, 2026 - Ruling 1; docs/phase7-wave11-scenarios.md §S7 E22). Wording that says only "revealed" hears
+   * every reveal.
+   */
+  | {
+      readonly kind: "encounterCardRevealing";
+      readonly instanceId: InstanceId;
+      readonly playerId: PlayerId;
+      readonly from?: "encounterDeck";
+    }
   /**
    * A side scheme reached no threat and is defeated (RRG 1.8 "Defeat", p. 15). `defeatedByPlayerId` is the player
    * whose thwart or card effect removed the last threat — "the player who defeated this scheme" (Crossbones' Assault

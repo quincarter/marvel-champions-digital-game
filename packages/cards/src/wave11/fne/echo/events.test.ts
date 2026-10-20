@@ -42,6 +42,9 @@ const ENERGY = "01088"; // basic resource
 const ARMY_OF_ONE = "60048"; // protection event
 const REFLEXES = "60040a";
 const STUDY_THE_TAPE = "60041";
+const MAKE_THE_CALL = "01071"; // leadership event, cost 0, "Pay the printed cost of an ally in any player's discard"
+const HAWKEYE = "01066"; // ally, cost 3
+const MARIA_HILL = "01067"; // ally, cost 2
 const BACKFLIP = "01003"; // Spider-Man's event (identity-specific, another hero's), not found by the search
 
 function newGame(twoPlayers = false): GameState {
@@ -128,7 +131,7 @@ describe("wave 11 fne/echo/events", () => {
       expect(REGISTRY[id]!.activeIn, id).toBe("hand");
       expect(REGISTRY[id]!.trigger, id).toMatchObject({
         kind: "constant",
-        playableAsIfInHand: { costReduction: 2, form: "hero", discardSelfFromHand: true },
+        playableAsIfInHand: { costReduction: 2, form: "hero", discardSelfFromHand: true, reducesAbilityCost: true },
       });
     }
     expect(REGISTRY[STUDY]!.trigger).toEqual({ kind: "action" });
@@ -172,6 +175,61 @@ describe("wave 11 fne/echo/events", () => {
     it("works for a cost-1 event too: the reduction does not go below 0", () => {
       const t = table(ARMY_OF_ONE); // printed cost 1: free
       expect(accepted(t.state, play(P1, t.tucked))).toBe(true);
+    });
+
+    describe("with Make the Call: the reduction covers the chosen ally's cost (August 26, 2026 - Ruling 1)", () => {
+      /** Make the Call (cost 0) tucked, the Reflexes and `resources` Haymakers (1 resource each) in hand, `ally` discarded. */
+      function callTable(ally: string, resources: number) {
+        const t = table(MAKE_THE_CALL);
+        let state = t.state;
+        const used = [t.tucked, t.reflexes];
+        const target = place(state, P1, ally, "discard", used);
+        state = target.state;
+        used.push(target.id);
+        const paid: InstanceId[] = [];
+        for (let i = 0; i < resources; i++) {
+          const e = place(state, P1, HAYMAKER, "hand", used);
+          state = e.state;
+          used.push(e.id);
+          paid.push(e.id);
+        }
+        const command = (payment: readonly InstanceId[] = paid) =>
+          play(P1, t.tucked, payment, { costChoices: { ally: [target.id] } });
+        return { state, ally: target.id, paid, command };
+      }
+
+      it("a 3-cost ally costs 1: refused with nothing paid, played with 1 resource", () => {
+        const c = callTable(HAWKEYE, 1);
+        expect(accepted(c.state, c.command([]))).toBe(false);
+        const run = drive(c.state, c.command());
+        expect(playerOf(run.state, P1).playArea).toContain(c.ally);
+        expect(discardCodes(run.state)).toEqual(expect.arrayContaining([MAKE_THE_CALL, REFLEXES, HAYMAKER]));
+      });
+
+      it("a 2-cost ally is free", () => {
+        const c = callTable(MARIA_HILL, 0);
+        const run = drive(c.state, c.command());
+        expect(playerOf(run.state, P1).playArea).toContain(c.ally);
+      });
+
+      it("control: a permission reducing only the resource cost leaves the ally's 3 to pay", () => {
+        const deps = {
+          ...WAVE11_DEPS,
+          abilities: Object.fromEntries(
+            Object.entries(WAVE11_DEPS.abilities).map(([id, def]) => {
+              const trigger = def.trigger;
+              if (!REFLEXES_IDS.includes(id) || trigger.kind !== "constant" || !trigger.playableAsIfInHand)
+                return [id, def];
+              const { reducesAbilityCost: _dropped, ...spec } = trigger.playableAsIfInHand;
+              return [id, { ...def, trigger: { ...trigger, playableAsIfInHand: spec } }];
+            }),
+          ),
+        } as typeof WAVE11_DEPS;
+        const c = callTable(HAWKEYE, 3);
+        expect(applyCommand(c.state, c.command(c.paid.slice(0, 1)), deps).ok).toBe(false);
+        expect(applyCommand(c.state, c.command(c.paid.slice(0, 2)), deps).ok).toBe(false);
+        expect(applyCommand(c.state, c.command(), deps).ok).toBe(true);
+      });
     });
 
     it("is not offered in alter-ego form", () => {

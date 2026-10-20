@@ -126,7 +126,7 @@ export const SCW_PACK_CARDS = defineAbilities({
   // Interrupt: when a treachery card is revealed from the encounter deck, cancel its "When Revealed" effects, then
   // deal 2 damage to the villain (module docblock: identical text to `qsv`'s own 14018).
   "15018.order-and-chaos-interrupt": heroInterrupt(
-    on.encounterCardRevealed(query("treachery")),
+    on.encounterCardRevealedFromEncounterDeck(query("treachery")),
     cancelWhenRevealed(),
     // Its "When Revealed" already cancelled (Cosmic Ward got there first): `nothingToCancel` skips the damage (RRG 1.8
     // "'Then'", p. 44).

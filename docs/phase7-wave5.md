@@ -52,7 +52,7 @@ Reference; FFG rulings clarify both):
    2026-09-26): Dec 17, 2025 (3) (Concussive Bombs), Jan 11, 2026 (3) (Bring the War!, printed resources), Jan 11,
    2026 (4) (Bombshell ally vs guard), Jan 26, 2026 (1) (Ms. Marvel's cost under Go for Champions!), Jan 26, 2026 (2)
    (all-purpose counters take the card's counter type; Captain Americat), Mar 30, 2026 (1) (George Stacy's "to a
-   maximum of 3" is local), Apr 30, 2026 (2) (Return the Favor's cost → effect), Jun 25, 2026 (3) (Go All Out), Jun 25,
+   maximum of 3" is local), Apr 30, 2026 (5) (Return the Favor's cost → effect), Jun 25, 2026 (3) (Go All Out), Jun 25,
    2026 (6) and Jul 9, 2026 (2) (Clarity of Purpose's damage cost), Aug 3, 2026 (4) #2 (negative victory points mark
    no reputation nodes). Also used: **Jan 17, 2026 (1) #2** — the RRG "Leaves Play" bullets are "carried out
    simultaneously with the card leaving play", not an interrupt (§3.13).

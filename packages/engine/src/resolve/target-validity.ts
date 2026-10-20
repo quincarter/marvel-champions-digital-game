@@ -17,7 +17,7 @@
  * - **"up to" divisions** (`divisionCanAffect`), through the same per-effect checks.
  *
  * The resolution-time check stays as the backstop: a target can become invalid between the choice and the effect
- * (a patrol minion engaging in between, the analogue of ruling Apr 30, 2026 (2)), and `threatRemovalBlocked` then
+ * (a patrol minion engaging in between, the analogue of ruling Apr 30, 2026 (5)), and `threatRemovalBlocked` then
  * stops the removal as it applies.
  *
  * A move of threat is judged by its source (`canMoveThreatFrom`, `moveThreatLacksSource`): RRG 1.8 "Move" (p. 30), "If
@@ -1268,7 +1268,7 @@ function holdsAttackInstruction(value: unknown): boolean {
  * `thwartNamesNoValidScheme`). Official text it rests on, RRG 1.8 "Target": "A target that cannot be attacked is not a
  * valid target for an attack-labeled ability" (p. 43), "the villain" is a target, and an ability that requires targets
  * "can only be initiated if it has at least one valid target" (p. 42); "Guard" (p. 21): "that player cannot use cards
- * they control to attack a villain without this keyword"; ruling Apr 30, 2026 (2): "If a minion with Guard engages
+ * they control to attack a villain without this keyword"; ruling Apr 30, 2026 (5): "If a minion with Guard engages
  * during Step 5, you cannot initiate an attack effect against the villain in Step 6." What the owner decided beyond
  * that text: the ability's other instructions, which have a target of their own (the boost card whose icons "Hero
  * Interrupt (attack): … cancel the boost icons on that card. Deal 1 damage to the villain for each boost icon canceled

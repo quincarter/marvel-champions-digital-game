@@ -117,7 +117,7 @@ export const SPIDERHAM_EVENTS = defineAbilities({
   ),
 
   "30005.i-dont-think-so-interrupt": heroInterrupt(
-    { ...on.encounterCardRevealed(), playerIn: you },
+    { ...on.encounterCardRevealedFromEncounterDeck(), playerIn: you },
     { cost: removeCounter("toon", 1, { fromIdentity: true }) },
     cancelRevealedCard(),
   ),

@@ -192,7 +192,7 @@ export const SCW_KIT = defineAbilities({
   // effects and discard it. Discard cards from the top of the encounter deck equal to the number of boost icons on
   // that card.
   "15006.warp-reality-interrupt": heroInterrupt(
-    on.encounterCardRevealed(),
+    on.encounterCardRevealedFromEncounterDeck(),
     cancelRevealedCard(),
     countBoostIcons(eventTarget, "revealed"),
     discardEncounterCards(varOf("revealed.boostIcons")),

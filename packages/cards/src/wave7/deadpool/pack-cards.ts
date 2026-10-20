@@ -212,7 +212,7 @@ export const DEADPOOL_PACK_CARDS: AbilityRegistry = defineAbilities({
   ),
 
   "44047.get-in-front-of-me-interrupt": heroInterrupt(
-    on.encounterCardRevealed(query("treachery")),
+    on.encounterCardRevealedFromEncounterDeck(query("treachery")),
     cancelWhenRevealed(),
     enemyAttack(theVillain, { against: you, bind: "attack" }),
     ifThen(ANOTHER_DEFENDS, draw(1)),

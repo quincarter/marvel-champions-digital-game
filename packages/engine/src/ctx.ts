@@ -159,6 +159,17 @@ function withPlayer(state: GameState, id: PlayerId, update: (player: PlayerState
 export type ZonePosition = "top" | "bottom";
 
 /**
+ * Wave 6 §4 Q35 (open owner question): whether an encounter card drawn or discarded from a player's deck and then
+ * dealt to them (Mysterio's Maze of Mirrors, `sm` 27087b/27088b) is "revealed from the encounter deck". `false` keeps
+ * the Q35 default (it is not: no surge from "If this card was revealed from the encounter deck", and Black Widow,
+ * Enhanced Spider-Sense and the other "from the encounter deck" cancels are not offered). Rulings September 14, 2026 -
+ * Ruling 1 ("cards in the Mysterio scenario that are drawn or discarded from the player's deck" were "first dealt to
+ * the player") and the RRG 1.0-1.4 Adam Warlock ruling (docs/rulings/rrg-1-0-to-1-4/36-adam-warlock.md) point to
+ * `true`; flipping this one constant is the whole switch.
+ */
+const PLAYER_DECK_ENCOUNTER_CARDS_ARE_FROM_ENCOUNTER_DECK: boolean = false;
+
+/**
  * The single way a card changes zones. Emits `cardMoved` so the log always
  * explains how a card got where it is, then resets a player deck or separate
  * deck, or an encounter deck, the move emptied (`settlePlayerDecks`).
@@ -334,10 +345,15 @@ export function relocateCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: Zon
     ctx.state = { ...ctx.state, instances: { ...ctx.state.instances, [id]: instance } };
   }
   // "If this card was revealed from the encounter deck" (docs/phase7-wave6.md §3.64): a card dealt facedown straight
-  // off an encounter deck remembers it until it leaves the players' dealt encounter cards.
+  // off an encounter deck remembers it until it leaves the players' dealt encounter cards. It is what makes a reveal's
+  // `source` `encounterDeck`, read by `Predicate revealedFromEncounterDeck` and by "When a card is revealed from the
+  // encounter deck" (`encounterCardRevealing.from`, docs/phase7-wave11-scenarios.md §S7 E22).
+  const fromPlayerDeck = from?.kind === "hand" || from?.kind === "deck" || from?.kind === "discard";
   const dealtFromDeck =
     to.kind === "dealtEncounter" &&
-    (from?.kind === "encounterDeck" || (from?.kind === "dealtEncounter" && instance.dealtFromEncounterDeck === true));
+    (from?.kind === "encounterDeck" ||
+      (fromPlayerDeck && PLAYER_DECK_ENCOUNTER_CARDS_ARE_FROM_ENCOUNTER_DECK) ||
+      (from?.kind === "dealtEncounter" && instance.dealtFromEncounterDeck === true));
   if (dealtFromDeck !== (instance.dealtFromEncounterDeck === true)) {
     const { dealtFromEncounterDeck: _was, ...rest } = instance;
     instance = dealtFromDeck ? { ...rest, dealtFromEncounterDeck: true } : rest;

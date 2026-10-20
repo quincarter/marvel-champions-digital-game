@@ -1125,6 +1125,12 @@ export const preventDamage = (n?: Amount, opts: { readonly bind?: string } = {})
  */
 export const increaseDamage = (n: Amount): EffectSpec => ({ kind: "increaseDamage", amount: amount(n) });
 /**
+ * "When damage would be dealt to Luke Cage, … reduce that damage by 1" (Metal Bracer, `luke_cage` 62010): the damage
+ * dealt goes down by N, and the amount taken with it, so it can be 0 dealt (ruling August 26, 2026 - Ruling 2). Pair it
+ * with `wouldBeDealt` on the interrupt so it resolves before a tough status card. Not a prevention (`preventDamage`).
+ */
+export const reduceDamage = (n: Amount): EffectSpec => ({ kind: "reduceDamage", amount: amount(n) });
+/**
  * "… If [condition], repeat this effect" (Out for Blood, `hood` 24023): `effects` resolve, then `condition` is read with
  * what they bound, and while it holds they resolve again, each time with their own bindings cleared.
  * docs/phase7-wave4.md §3.54.
@@ -1798,13 +1804,14 @@ export const moveCards = (
   from: CardSelector,
   to: CardDestination,
   bind?: string,
-  options: { readonly takenAwayNotCounted?: true } = {},
+  options: { readonly takenAwayNotCounted?: true; readonly shuffleEvenIfEmpty?: true } = {},
 ): EffectSpec => ({
   kind: "moveCards",
   cards: from,
   to,
   ...withBind(bind),
   ...(options.takenAwayNotCounted ? { takenAwayNotCounted: true as const } : {}),
+  ...(options.shuffleEvenIfEmpty ? { shuffleEvenIfEmpty: true as const } : {}),
 });
 /**
  * "Each player shuffles 1 copy of Shawarma into their deck" (Save the Shawarma Place, `mts` 21182a): `from` is an
@@ -2286,16 +2293,19 @@ export const lookAtAndRearrange = (
  * that reveals. While that card is being revealed every per player icon on it multiplies by 1: its starting threat,
  * its hinder, and a `perHero` / `scaled` value in its own When Revealed. Other cards read the real number of players,
  * and so does a later ability of the same card (the owner's answer to question 19 = A, provisional).
+ *
+ * `fromEncounterDeck`: the reveal counts as "from the encounter deck" (`EffectSpec revealCard.fromEncounterDeck`).
  */
 export const revealCard = (
   target: TargetRef,
   player: PlayerRef = you,
-  opts: { readonly perPlayerAs?: number } = {},
+  opts: { readonly perPlayerAs?: number; readonly fromEncounterDeck?: true } = {},
 ): EffectSpec => ({
   kind: "revealCard",
   cards: target,
   player,
   ...(opts.perPlayerAs !== undefined ? { perPlayerAs: opts.perPlayerAs } : {}),
+  ...(opts.fromEncounterDeck ? { fromEncounterDeck: true as const } : {}),
 });
 /**
  * "Reveal and attach the remaining set-aside Thunderbolt minion faceup here." (Justice, Like Lightning, `aos` 50131a;

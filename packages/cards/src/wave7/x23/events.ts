@@ -90,7 +90,10 @@ export const X23_EVENTS: AbilityRegistry = defineAbilities({
   "43017.moment-of-triumph-response": ANT_PACK_CARDS["12030.moment-of-triumph-response"]!,
 
   "43038.predictable-ploy-constant": constant(SIDE_SCHEME_IN_VICTORY_DISPLAY),
-  "43038.predictable-ploy-interrupt": heroInterrupt(on.encounterCardRevealed(query("treachery")), cancelWhenRevealed()),
+  "43038.predictable-ploy-interrupt": heroInterrupt(
+    on.encounterCardRevealedFromEncounterDeck(query("treachery")),
+    cancelWhenRevealed(),
+  ),
 
   "43040.anticipated-attack-constant": constant(SIDE_SCHEME_IN_VICTORY_DISPLAY),
   "43040.anticipated-attack-interrupt": heroInterrupt(

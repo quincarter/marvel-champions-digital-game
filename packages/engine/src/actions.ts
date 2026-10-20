@@ -515,6 +515,8 @@ export interface AsIfInHandPermission {
   readonly abilityId: AbilityId;
   /** "…, reducing its resource cost by N", as a positive number; 0 when the permission prints none. */
   readonly costReduction: number;
+  /** `costReduction` also reaches the play's ability cost (`PlayableAsIfInHandSpec.reducesAbilityCost`). */
+  readonly reducesAbilityCost?: true;
   /** The ability's limit has been reached for its period ("once per phase"), so the card cannot be played this way. */
   readonly limitUsed: boolean;
   /** Where the card is: the top of the player's deck, or tucked under `hostInstanceId`. */
@@ -599,6 +601,7 @@ export function asIfInHandPermissions(
         sourceInstanceId: sourceId,
         abilityId: ref.id,
         costReduction: Math.max(0, spec.costReduction ?? 0),
+        ...(spec.reducesAbilityCost ? { reducesAbilityCost: true as const } : {}),
         ...(inHand && spec.discardSelfFromHand ? { discardsSource: true as const } : {}),
       };
       const covered: AsIfInHandPermission[] = [];
@@ -4752,7 +4755,38 @@ export function playRequirement(
   const required = requiredResources(mustCardOf(state, cardInstanceId));
   const typed = requirementTotal(required);
   const cardCost = typed === 0 ? own : { ...required, generic: Math.max(0, own - typed) };
-  return combineRequirements(cardCost, abilityRequirement);
+  const spill = abilityCostReduction(state, playerId, cardInstanceId, deps, attachTo, x, extraReduction, own);
+  const ability = requirementOf(abilityRequirement);
+  return combineRequirements(
+    cardCost,
+    spill === 0 ? ability : { ...ability, generic: Math.max(0, ability.generic - spill) },
+  );
+}
+
+/**
+ * What a "reduce the cost to play" reduction has left after the card's own resource cost, to come off the generic
+ * resources of the play's ability cost: an event's resource cost and its ability cost are both costs of playing it, and
+ * Photographic Reflexes reduces Make the Call's total, the chosen ally's cost included (ruling August 26, 2026 - Ruling
+ * 1, on RRG 1.8 "Cost", p. 13-14). Only a reduction that says so (`PlayableAsIfInHandSpec.reducesAbilityCost`); one
+ * worded "its resource cost" stays on the card. Engine reading, not settled by the ruling: typed resources in the
+ * ability cost ("Spend 1 [energy] →") are not reduced.
+ */
+function abilityCostReduction(
+  state: GameState,
+  playerId: PlayerId,
+  cardInstanceId: InstanceId,
+  deps: EngineDeps,
+  attachTo: InstanceId | null,
+  x: number,
+  extraReduction: number,
+  own: number,
+): number {
+  const permission = asIfInHandPlayOf(state, deps, playerId, cardInstanceId);
+  if (!permission?.reducesAbilityCost || permission.costReduction === 0 || extraReduction <= 0) return 0;
+  // The part of the play's own reductions the card's cost had no room for (its floor at 0, or a "to 0" waiting on it).
+  const before = ownPlayCost(state, playerId, cardInstanceId, deps, attachTo, x, 0);
+  const unspent = Math.max(0, extraReduction - Math.max(0, before - own));
+  return Math.min(unspent, permission.costReduction);
 }
 
 /**

@@ -187,7 +187,7 @@ function resolveAbility(ctx: Ctx, frame: Frame<"ability">): void {
   // its effects resolve. Its costs are paid and its limit counted above, as for a use a status card cancels.
   if (frame.wouldAct === "replaced") return;
   // A printed cost written as the leading effects (`costEffects`) is paid in step 5, before the label's status check,
-  // which its effects frame makes once that cost is paid (`beginEffectAfterCost`; ruling April 30, 2026 - Ruling 2).
+  // which its effects frame makes once that cost is paid (`beginEffectAfterCost`; ruling April 30, 2026 - Ruling 5).
   const costEffects = keyword ? 0 : Math.min(definition.costEffects ?? 0, definition.effects.length);
   const labelAfterCost = costEffects > 0 && definition.label !== undefined && definition.label.length > 0;
   if (

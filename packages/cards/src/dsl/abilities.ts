@@ -620,6 +620,7 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
               ...(asIfInHand.costReduction ? { costReduction: asIfInHand.costReduction } : {}),
               ...(asIfInHand.form ? { form: asIfInHand.form } : {}),
               ...(asIfInHand.discardSelfFromHand ? { discardSelfFromHand: true as const } : {}),
+              ...(asIfInHand.reducesAbilityCost ? { reducesAbilityCost: true as const } : {}),
             },
           }
         : {}),
@@ -693,8 +694,9 @@ export const playableTopOfDeck = (
  * From the hand (docs/phase7-wave11.md §3.9): "If you are in hero form, you can discard Photographic Reflexes from
  * your hand to play an event tucked under Echo as if it were in your hand. Reduce the cost to play that event by 2."
  * is `inHand(constant(playableTucked({ under: your identity, cards: events, costReduction: 2, form: "hero",
- * discardSelfFromHand: true })))`: read from the card in its player's hand, in that form only, and the card is
- * discarded as an additional cost of each play.
+ * discardSelfFromHand: true, reducesAbilityCost: true })))`: read from the card in its player's hand, in that form
+ * only, and the card is discarded as an additional cost of each play. `reducesAbilityCost`: "the cost to play" also
+ * covers the event's ability cost (`PlayableAsIfInHandSpec.reducesAbilityCost`; ruling August 26, 2026 - Ruling 1).
  */
 export const playableTucked = (
   opts: {
@@ -705,6 +707,7 @@ export const playableTucked = (
     readonly limit?: "turn" | "phase" | "round";
     readonly form?: Form;
     readonly discardSelfFromHand?: true;
+    readonly reducesAbilityCost?: true;
   } = {},
 ): ConstantPart => ({
   playableAsIfInHand: {
@@ -715,6 +718,7 @@ export const playableTucked = (
     ...(opts.limit ? { limit: opts.limit } : {}),
     ...(opts.form ? { form: opts.form } : {}),
     ...(opts.discardSelfFromHand ? { discardSelfFromHand: true as const } : {}),
+    ...(opts.reducesAbilityCost ? { reducesAbilityCost: true as const } : {}),
   },
 });
 /** "Reduce the cost to play X by N [while …]" / "… costs N additional resources" (a signed `delta`). */
@@ -3336,9 +3340,22 @@ export const on = {
    * and "on a scheme" does not hear it.
    */
   threatPlaced: (where?: Who): EventPattern => pattern("placeThreat", asTarget(where ?? { categories: ["scheme"] })),
-  /** "When a [treachery] card is revealed from the encounter deck". */
+  /**
+   * "When a [treachery] card is revealed" / "When you reveal an encounter card": any reveal, wherever it began (under
+   * a card, the set-aside area, a scenario deck, a discard pile). For printed "from the encounter deck", use
+   * `encounterCardRevealedFromEncounterDeck`.
+   */
   encounterCardRevealed: (what?: TargetQuery): EventPattern =>
     pattern("encounterCardRevealing", what ? { targetIs: what } : {}),
+  /**
+   * "When a [treachery] card is revealed **from the encounter deck**" (Black Widow 01075, Enhanced Spider-Sense 01004):
+   * a reveal that began at an encounter deck, a facedown encounter card dealt from one included
+   * (`encounterCardRevealing.from`). A minion Tracksuit Mafia reveals from under itself is not (ruling September 14,
+   * 2026 - Ruling 1: "an ability like Black Widow's would not cancel this reveal"; docs/phase7-wave11-scenarios.md §S7
+   * E22), nor is a card found and revealed, a set-aside card or a villain's new face.
+   */
+  encounterCardRevealedFromEncounterDeck: (what?: TargetQuery): EventPattern =>
+    pattern("encounterCardRevealing", { eventIs: { from: "encounterDeck" } }, what ? { targetIs: what } : {}),
   /**
    * "After you reveal an encounter card" (Venom, `sm` 27190): heard once every step of the reveal has completed, the
    * card's When Revealed abilities and a treachery's discard included (RRG 1.8 "Reveal", p. 38: "Responses … to any

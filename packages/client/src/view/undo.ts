@@ -135,6 +135,7 @@ export const UNDO_EVENT_VERDICTS: Readonly<Record<GameEvent["type"], readonly [V
   damageDoubled: [ALLOWED, "damage and healing, face up"],
   damageHealed: [ALLOWED, "damage and healing, face up"],
   damageIncreased: [ALLOWED, "damage and healing, face up"],
+  damageReduced: [ALLOWED, "damage and healing, face up"],
   damagePlaced: [ALLOWED, "damage and healing, face up"],
   damagePoolResolved: [ALLOWED, "damage and healing, face up"],
   damagePrevented: [ALLOWED, "damage and healing, face up"],

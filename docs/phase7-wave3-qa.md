@@ -217,7 +217,7 @@ multi-target `dealDamage` is now one simultaneous damage group and a tie is a lo
   something new this wave. Not independently pinned with a new test (an ally being attacked directly, rather than
   defending the villain's attack on the player, needs state the existing `toDeclareDefender` helper doesn't build)
   — flagged as checked-but-not-proven rather than assumed correct.
-- **The Apr 30, 2026 Ruling 2 "does a Guard/Patrol engage during cost payment fizzle the effect" reading** —
+- **The Apr 30, 2026 Ruling 5 "does a Guard/Patrol engage during cost payment fizzle the effect" reading** —
   several `gmw`/`stld` cards use the "deal yourself 1 facedown encounter card → effect" shape (Daring Escape,
   Library Labyrinth, Universal Weapon, Star-Lord's "What could go wrong?"); whether a minion revealed by that cost
   and engaging the player mid-payment correctly blocks a same-turn attack effect the ruling describes was not
@@ -315,7 +315,7 @@ June 25, 2026 (4) #1's "nemesis sets belong to that identity"). Confirmed alread
   spec doc's own citation.
 
 Not chased further (see "what could not be checked" above): the Dec 17, 2025 (3) ally-attacked exception
-(spot-checked, not newly pinned), the Apr 30, 2026 (2) Guard/Patrol cost-fizzle reading (generic engine
+(spot-checked, not newly pinned), the Apr 30, 2026 (5) Guard/Patrol cost-fizzle reading (generic engine
 sequencing, not wave-3-specific), and the Aug 3, 2026 (6) "exactly defeat" definition (no wave 3 card uses the
 term).
 

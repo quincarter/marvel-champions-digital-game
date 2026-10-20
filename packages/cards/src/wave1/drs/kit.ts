@@ -175,7 +175,7 @@ export const DRS_KIT = defineAbilities({
   // Protective Ward — Hero Interrupt: When a treachery is revealed from the encounter deck, cancel all of its
   // effects and discard it.
   "09007.protective-ward-interrupt": heroInterrupt(
-    when.encounterCardRevealed(query("treachery")),
+    when.encounterCardRevealedFromEncounterDeck(query("treachery")),
     cancelRevealedCard(),
   ),
 

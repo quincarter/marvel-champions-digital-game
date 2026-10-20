@@ -103,7 +103,7 @@ describe("Ghost-Spider's events, part B (27013–27019)", () => {
     expect(playerOf(after, P1).discard).toContain(card);
   });
 
-  // Ruling 2026-04-30 (April 30, 2026 - Ruling 2): "If a treachery revealed in Step 5 Stuns the hero, the Stun card is
+  // Ruling 2026-04-30 (April 30, 2026 - Ruling 5): "If a treachery revealed in Step 5 Stuns the hero, the Stun card is
   // discarded in Step 6 instead of dealing damage." RRG 1.8 "Initiating Abilities" (p. 24), "Labeled Ability" (p. 26).
   // Owner decision 2026-10-16 (audit finding 13), superseding the 2026-10-08 behavior (the attack began before the
   // cost, so the stun stayed and the 5 damage was dealt). Real cards: Core Spider-Man's Sweeping Swoop (01168, "When
@@ -146,6 +146,24 @@ describe("Ghost-Spider's events, part B (27013–27019)", () => {
     const done = playOut(given.state, given.id, 0);
     expect(done.accepted).toBe(true);
     expect(inst(done.state, hero).statuses.stunned).toBe(0);
+    expect(inst(done.state, villain).damage).toBe(damageBefore + 5);
+  });
+
+  // FFG ruling, RRG 1.0-1.4 (docs/rulings/rrg-1-0-to-1-4/36-adam-warlock.md): Return the Favor's revealed treachery
+  // "should be considered as having come from the encounter deck", so Enhanced Spider-Sense can cancel its When
+  // Revealed and the 5 damage is still dealt. Not contradicted by ruling September 14, 2026 - Ruling 1.
+  it("27015.return-the-favor-action: its revealed treachery counts as from the encounter deck, so Enhanced Spider-Sense (01004) cancels its stun and the 5 damage lands", () => {
+    const start = conjure(stackSetAside(rhino(), "01168"), "27015");
+    const sense = moveToHand(start.state, P1, "01004");
+    const hero = identityOf(sense.state);
+    const villain = sense.state.activeVillainId!;
+    const damageBefore = inst(sense.state, villain).damage;
+    const done = playOut(sense.state, start.id, 0, { use: ["01004.enhanced-spider-sense-interrupt"], pay: 1 });
+    expect(done.accepted).toBe(true);
+    expect(playerOf(done.state, P1).discard).toContain(sense.ids[0]);
+    expect(done.events.some((e) => e.type === "statusGiven" && e.instanceId === hero && e.status === "stunned")).toBe(
+      false,
+    );
     expect(inst(done.state, villain).damage).toBe(damageBefore + 5);
   });
 
@@ -261,7 +279,7 @@ describe("Ghost-Spider's events, part B (27013–27019)", () => {
 });
 
 // Text before a cost arrow is paid even when a stun or confuse status card replaces the labeled ability's effect
-// (FFG ruling April 30, 2026 (2); RRG 1.8 "Cost Arrow Icon", p. 14).
+// (FFG ruling April 30, 2026 (5); RRG 1.8 "Cost Arrow Icon", p. 14).
 describe("Return the Favor (27015) played while stunned", () => {
   it("the discard and reveal (the cost) still happen; the stun card replaces only the 5 damage", () => {
     const state = startWave5Game(ghostSpiderScenario("rhino", { seed: 1 }));

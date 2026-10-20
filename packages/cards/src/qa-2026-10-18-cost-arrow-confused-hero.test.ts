@@ -1,5 +1,5 @@
 /**
- * Cost arrow with a confused hero (FFG ruling April 30, 2026 (2); RRG 1.8 "Confuse" p. 13, "Cost Arrow Icon" p. 13),
+ * Cost arrow with a confused hero (FFG ruling April 30, 2026 (5); RRG 1.8 "Confuse" p. 13, "Cost Arrow Icon" p. 13),
  * proved on a real card: Defender of the Nine Realms (06003) played while the hero is confused, in a real Rhino game
  * (`testing/qa-bench.ts`).
  */
@@ -12,7 +12,7 @@ import { conjure, playOut, rhino } from "./testing/qa-bench.js";
 const DEFENDER = "06003";
 const SENTINEL = "32093";
 
-describe("Cost arrow with a confused hero (FFG ruling April 30, 2026 (2); RRG 1.8 'Confuse' p. 13, 'Cost Arrow Icon' p. 13)", () => {
+describe("Cost arrow with a confused hero (FFG ruling April 30, 2026 (5); RRG 1.8 'Confuse' p. 13, 'Cost Arrow Icon' p. 13)", () => {
   it("Defender of the Nine Realms (06003) played while confused: the minion (cost) still comes, the confused card replaces the thwart", () => {
     const base = rhino();
     const me = identityOf(base);

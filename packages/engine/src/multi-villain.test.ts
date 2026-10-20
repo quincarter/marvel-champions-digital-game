@@ -587,6 +587,16 @@ describe("§3.2 an encounter deck per villain, and discard routing", () => {
       deckId: active.encounterDeckOrder[3],
     });
   });
+
+  // A move that selects no card shuffles nothing by itself: only an effect with `shuffleEvenIfEmpty` (The King's
+  // Gambit 1B, FFG ruling September 10, 2026, Ruling 1) shuffles an empty pile's deck. A named card with none to move
+  // has no valid target (RRG 1.8 "Target", p. 42).
+  it("moving no card to 'encounterDeckShuffle' does not shuffle the encounter deck", () => {
+    const { state, deps, villain } = crew();
+    const ctx = createCtx(withActive(state, villain("thunderball")), deps);
+    moveCardsTo(ctx, [], "encounterDeckShuffle");
+    expect(ctx.events.filter((e) => e.type === "deckShuffled")).toHaveLength(0);
+  });
 });
 
 describe('owner\'s answer to matrix Q-M2: a player card that names "the villain" with several villains in play', () => {

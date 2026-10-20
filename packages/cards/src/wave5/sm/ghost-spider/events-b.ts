@@ -66,7 +66,7 @@ import {
  * "(attack)" label — not a bare `dealDamage`, so Retaliate/Guard/a Stunned attacker are read the normal way. The
  * discard and the reveal are the printed cost (before the arrow), marked `costEffects: 2` as Defender of the Nine
  * Realms' are, so the engine pays them in step 5 and begins the attack in step 6 (RRG 1.8 "Initiating Abilities",
- * p. 24). Ruling April 30, 2026 - Ruling 2: paying this cost can stun the hero (the revealed treachery's "When
+ * p. 24). Ruling April 30, 2026 - Ruling 5: paying this cost can stun the hero (the revealed treachery's "When
  * Revealed" resolves as part of `revealCard`), and then "the Stun card is discarded in Step 6 instead of dealing
  * damage"; the cards discarded and the treachery revealed stay done. Owner decision 2026-10-16 (audit finding 13)
  * supersedes the 2026-10-08 behavior, where the attack began before the cost and the stun stayed. A Guard minion
@@ -157,7 +157,9 @@ export const GHOST_SPIDER_EVENTS_B = defineAbilities({
   "27015.return-the-favor-action": heroAction(
     { label: "attack", costEffects: 2 },
     discardEncounterUntil(query("treachery"), "found"),
-    revealCard(chosen("found")),
+    // The treachery "should be considered as having come from the encounter deck", so Enhanced Spider-Sense can cancel
+    // it (FFG ruling, docs/rulings/rrg-1-0-to-1-4/36-adam-warlock.md).
+    revealCard(chosen("found"), you, { fromEncounterDeck: true }),
     attack(5, theVillain),
   ),
 

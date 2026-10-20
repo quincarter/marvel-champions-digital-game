@@ -151,7 +151,7 @@ describe("rulings", () => {
     // to stun and confuse that enemy.'" RRG "Labeled ability" (p. 26): "If a player triggers a labeled ability while their
     // identity has one or more status cards that cancel any of the labeled ability's types, the entire ability (except
     // for its costs) is canceled ... Each status card ... that cancels any of the labeled ability's types is removed".
-    // Ruling April 30, 2026 (2) #2 gives the same timing for a stun card met in step 6. Steel Fist is scripted with the
+    // Ruling April 30, 2026 (5) #2 gives the same timing for a stun card met in step 6. Steel Fist is scripted with the
     // (attack) label (card data `32008` carries it, `curation/mut_gen.ts`), so a stunned Colossus is stopped.
     const cast = (state: GameState) => {
       const given = moveToHand(state, P1, "32008");

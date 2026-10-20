@@ -80,7 +80,7 @@ const THWART_AND_MARK = actionEvent("thwart-and-mark", [
 ]);
 /**
  * The target is chosen while it is valid, then a patrol minion engages before the thwart resolves: the analogue of a
- * Guard minion engaging during step-5 cost payment (ruling, Apr 30, 2026 (2)). The removal is blocked as it applies.
+ * Guard minion engaging during step-5 cost payment (ruling, Apr 30, 2026 (5)). The removal is blocked as it applies.
  */
 const CHOOSE_ENGAGE_THWART = actionEvent("choose-engage-thwart", [
   aScheme,

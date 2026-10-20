@@ -111,7 +111,7 @@ export const GHOST_SPIDER_EVENTS_A = defineAbilities({
   ),
 
   "27005.pirouette-and-punch-interrupt": heroInterrupt(
-    on.encounterCardRevealed(),
+    on.encounterCardRevealedFromEncounterDeck(),
     countBoostIcons(eventTarget, "revealed"),
     dealDamage(scaled(varOf("revealed.boostIcons"), { plus: 1 }), theVillain),
     cancelWhenRevealed(),

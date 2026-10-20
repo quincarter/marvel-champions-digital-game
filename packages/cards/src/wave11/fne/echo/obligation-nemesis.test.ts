@@ -23,7 +23,13 @@ import {
   settle,
   stackEncounterDeck,
 } from "../../../testing/harness.js";
-import { driveEvents, stageNemesisCardForReveal, stackSetAside, withForm } from "../../../testing/staging.js";
+import {
+  driveEvents,
+  playFromHand,
+  stageNemesisCardForReveal,
+  stackSetAside,
+  withForm,
+} from "../../../testing/staging.js";
 import { engageMinion, stagedInPlay } from "../../../wave9/falcon/testing.js";
 import { heroThwarts } from "../../../wave9/testing.js";
 import { WAVE11_DEPS } from "../../index.js";
@@ -62,16 +68,18 @@ const REFS = [
 const KINGPIN_SLOT = "kingpin-minion" as InstanceId;
 const HENCHMAN_SLOT = "henchman-1" as InstanceId;
 
-const seatOf = (deckId: string) => {
+const seatOf = (deckId: string, extra: readonly string[] = []) => {
   const deck = FNE_STARTER_DECKS.find((d) => d.id === deckId)!;
   return {
     identityCardId: deck.identityCardId,
     aspects: deck.aspects,
-    deck: deck.cards.flatMap(({ cardId: id, quantity }) => Array.from({ length: quantity }, () => id)),
+    deck: deck.cards
+      .flatMap(({ cardId: id, quantity }) => Array.from({ length: quantity }, () => id))
+      .concat(extra as never[]),
   };
 };
 
-function newGame(seats: readonly string[] = ["fne-echo-protection"]): GameState {
+function newGame(seats: readonly string[] = ["fne-echo-protection"], extraDeck: readonly string[] = []): GameState {
   const config = coreScenario("rhino", {
     players: [{ starterDeckId: "core-spider-man-justice" }],
     seed: 1,
@@ -79,7 +87,10 @@ function newGame(seats: readonly string[] = ["fne-echo-protection"]): GameState 
     modularSetIds: [],
     cardPool: PLAYABLE_CARDS,
   } as never);
-  const created = createGame({ ...config, players: seats.map(seatOf) } as never, WAVE11_DEPS);
+  const created = createGame(
+    { ...config, players: seats.map((id, i) => seatOf(id, i === 0 ? extraDeck : [])) } as never,
+    WAVE11_DEPS,
+  );
   if (!created.ok) throw new Error(created.error.message);
   return settle(created.state, firstLegal, (s) => s.step.phase === "player", WAVE11_DEPS);
 }
@@ -175,6 +186,25 @@ describe("wave 11 fne/echo/obligation-nemesis", () => {
       const withEvent = stagedInPlay(withAlly.state, "60041");
       expect(cannotTakeDamage(withEvent.state, WAVE11_DEPS, kingpin, [withAlly.id])).toBe(false);
       expect(cannotTakeDamage(withEvent.state, WAVE11_DEPS, kingpin, [withEvent.id])).toBe(true);
+    });
+
+    it("Kingpin taken over as an ally with Karma still cannot take damage (FFG ruling, September 10, 2026, Ruling 2)", () => {
+      const kingpin = KINGPIN_SLOT;
+      const game = withKingpin(withForm(newGame(["fne-echo-protection"], ["38011"]), { heroForm: 0 }));
+      const accepting = (s: GameState) => {
+        const choice = s.pendingChoice;
+        if (choice?.prompt.kind === "chooseTriggers") return [choice.options[0]!.optionId];
+        const hit = choice?.options.find((o) => o.ref.kind === "card" && o.ref.instanceId === kingpin);
+        return hit ? [hit.optionId] : firstLegal(s);
+      };
+      const { state } = playFromHand(WAVE11_DEPS, game, "38011", 4, accepting);
+      expect(inst(state, kingpin).treatedAs?.kind).toBe("ally");
+      // Master Manipulator (a side scheme in play) is what stops the damage; Kingpin is an ally now.
+      expect(cannotTakeDamage(state, WAVE11_DEPS, kingpin, [state.activeVillainId!])).toBe(false);
+      const withScheme = stageNemesisCardForReveal(state, MANIPULATOR);
+      const revealed = endTurn(withScheme).state;
+      expect(inst(revealed, kingpin).treatedAs?.kind).toBe("ally");
+      expect(cannotTakeDamage(revealed, WAVE11_DEPS, kingpin, [revealed.activeVillainId!])).toBe(true);
     });
 
     it("60060.raised-by-the-kingpin-response puts the threat she thwarts on the card, removing it at 4", () => {

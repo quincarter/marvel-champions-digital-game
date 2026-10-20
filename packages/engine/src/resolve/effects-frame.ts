@@ -475,7 +475,7 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
  * .costEffectsPending`): once the cursor reaches the first instruction of the effect, the cost has been paid. Official
  * text: RRG 1.8 "Initiating Abilities" (p. 24), costs in step 5 and the effect in step 6; "Labeled Ability" (p. 26),
  * the labeled effect begins "after costs have been paid", and a stunned or confused identity has "the entire ability
- * (except for its costs)" cancelled; ruling April 30, 2026 - Ruling 2: "If a treachery revealed in Step 5 Stuns the
+ * (except for its costs)" cancelled; ruling April 30, 2026 - Ruling 5: "If a treachery revealed in Step 5 Stuns the
  * hero, the Stun card is discarded in Step 6 instead of dealing damage" (Return the Favor; owner decision 2026-10-16,
  * audit finding 13, superseding the 2026-10-08 reading that the attack began before the cost). So the status check
  * `resolveAbility` makes for every other labeled ability is made here: a status card gained while paying cancels the

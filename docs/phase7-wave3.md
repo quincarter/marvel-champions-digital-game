@@ -328,7 +328,7 @@ Other threat removal ("remove 2 threat from the main scheme") is not a thwart (R
 
 - **Choosing.** A `chooseTarget` offers only targets that some later effect in the same program can affect (`slotTargetValid`, read by `requestTargetChoice`). A patrolled player's "(thwart): Remove N threat from a scheme" offers the side schemes but not the main scheme.
 - **Initiating.** An ability whose opening `chooseTarget` has candidates, none of them valid, cannot be initiated (RRG 1.8 "Initiating Abilities", p. 24, step 2). The same holds for an ability that names its targets, when every one it names is invalid ("(thwart): Remove 3 threat from the main scheme"; "… from each scheme" with only the main scheme in play). `playCard` and `useAbility` refuse it with `no_valid_target`, `legalActions` does not offer it (it probes those commands), neither do the play-from-hand effects (`playIgnoringCostFault`, `playWithPaymentFault`), and a window does not offer it as an optional interrupt or response. A forced ability still resolves as far as it can.
-- **Resolving.** `threatRemovalBlocked` stays as the backstop. A target can become invalid after it is chosen, for example when a patrol minion engages in between (the analogue of ruling Apr 30, 2026 (2), a Guard minion engaging during step-5 cost payment). The removal is then blocked as it applies and logged.
+- **Resolving.** `threatRemovalBlocked` stays as the backstop. A target can become invalid after it is chosen, for example when a patrol minion engages in between (the analogue of ruling Apr 30, 2026 (5), a Guard minion engaging during step-5 cost payment). The removal is then blocked as it applies and logged.
 
 The rules the three places share:
 

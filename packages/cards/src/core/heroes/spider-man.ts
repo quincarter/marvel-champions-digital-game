@@ -82,7 +82,7 @@ export const SPIDER_MAN_KIT = defineAbilities({
   ),
   // Enhanced Spider-Sense — Hero Interrupt: When a treachery card is revealed from the encounter deck, cancel its "When Revealed" effects.
   "01004.enhanced-spider-sense-interrupt": heroInterrupt(
-    when.encounterCardRevealed(query("treachery")),
+    when.encounterCardRevealedFromEncounterDeck(query("treachery")),
     cancelWhenRevealed(),
   ),
   // Swinging Web Kick — Hero Action (attack): Deal 8 damage to an enemy.

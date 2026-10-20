@@ -2629,6 +2629,15 @@ export type EffectSpec =
    */
   | { readonly kind: "increaseDamage"; readonly amount: ValueSpec }
   /**
+   * An interrupt to a `dealDamage` event "when damage would be dealt": "**reduce that damage by 1**" (Metal Bracer,
+   * `luke_cage` 62010). It is the amount *dealt* that goes down, and with it the amount taken (RRG 1.8 "Damage", p. 14:
+   * "When the amount of damage an effect deals is modified, the amount of damage the character takes is similarly
+   * modified"), so it can leave 0 damage dealt, as a basic defense's DEF does (ruling August 26, 2026 - Ruling 2). The
+   * mirror of `increaseDamage`, and not a prevention: logged as `damageReduced`, heard by nothing that answers prevented
+   * damage. Unpreventable damage "cannot be reduced" (`isUnpreventableDamage`), so against it this does nothing.
+   */
+  | { readonly kind: "reduceDamage"; readonly amount: ValueSpec }
+  /**
    * An interrupt to a `dealDamage` event: "When [she] would take more than 3 damage from an attack, **reduce that
    * amount to 3**" (Cosmic Flight, `cw` 56100). The damage pending on the interrupted event, read as this effect
    * resolves (so after any interrupt that resolved before it), is lowered to `amount` if it is higher. It is the
@@ -2903,6 +2912,12 @@ export type EffectSpec =
        * `settleDeckDiscards`).
        */
       readonly takenAwayNotCounted?: true;
+      /**
+       * `to: "encounterDeckShuffle"` shuffles the encounter deck even when `cards` selects nothing. Only for text that
+       * shuffles a whole pile that may be empty (The King's Gambit 1B: FFG ruling September 10, 2026, Ruling 1); an
+       * effect naming a card with none to move has no valid target and does not use it (RRG 1.8 "Target", p. 42).
+       */
+      readonly shuffleEvenIfEmpty?: true;
     }
   /**
    * "Find Touched and set it aside" / "find Touched and attach it to another character" (Rogue, `rogue` 38001, 38007;
@@ -3686,6 +3701,12 @@ export type EffectSpec =
    * A per player value on any other card is read as usual. The reading ends with the reveal (the owner's answer to
    * question 19 = A, 2026-10-11, provisional): threat already placed stays, and an ability of that card that resolves
    * later reads the real number of players.
+   *
+   * `fromEncounterDeck`: the reveal counts as one "from the encounter deck" (`Frame<"reveal">.source`), for "When a card
+   * is revealed from the encounter deck" (`encounterCardRevealing.from`) and `Predicate revealedFromEncounterDeck`.
+   * Return the Favor (`sm` 27015) reveals a treachery it discarded off the top of the encounter deck, which "should be
+   * considered as having come from the encounter deck" (FFG ruling, docs/rulings/rrg-1-0-to-1-4/36-adam-warlock.md;
+   * not contradicted by ruling September 14, 2026 - Ruling 1). Absent: the reveal is from elsewhere.
    */
   | {
       readonly kind: "revealCard";
@@ -3694,6 +3715,7 @@ export type EffectSpec =
       readonly instead?: true;
       readonly heldBy?: TargetRef;
       readonly perPlayerAs?: number;
+      readonly fromEncounterDeck?: true;
     }
   | { readonly kind: "shuffleEncounterDeck" }
   /**

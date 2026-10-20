@@ -99,8 +99,9 @@ export const PSYLOCKE_EVENTS: AbilityRegistry = defineAbilities({
   ),
 
   "41007.telepathic-suggestion-interrupt": heroInterrupt(
-    // "When you reveal": the interrupt twin of `youRevealEncounterCard`, for the cards dealt to her (not another player's).
-    { ...on.encounterCardRevealed(), playerIs: "controller" },
+    // "When you reveal a card from the encounter deck": the interrupt twin of `youRevealEncounterCard`, for the cards
+    // dealt to her (not another player's), from an encounter deck only.
+    { ...on.encounterCardRevealedFromEncounterDeck(), playerIs: "controller" },
     cancelWhenRevealed(),
     ...perBlade(KATANAS, "katana", (slot) => [anEnemy(slot), dealDamage(2, chosen(slot))]),
     ...perBlade(KNIVES, "knife", (slot) => [aScheme(slot), removeThreat(1, chosen(slot))]),

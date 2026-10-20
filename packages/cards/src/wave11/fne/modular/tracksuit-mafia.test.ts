@@ -71,9 +71,12 @@ const stack = (s: GameState, boosts: number, ...dealt: readonly string[]): GameS
 const accel = (s: GameState, id: InstanceId): number => inst(s, id).counters.acceleration ?? 0;
 const inEncounterDeck = (s: GameState, id: InstanceId): boolean => activeEncounterDeck(s).deck.includes(id);
 
-/** Core Spider-Man (and Captain Marvel with `players: 2`) against Rhino, with the Tracksuit Mafia set added to the encounter deck. */
-function newGame(players = 1, form: "hero" | "alterEgo" = "alterEgo"): GameState {
-  const seats = [{ starterDeckId: "core-spider-man-justice" }, { starterDeckId: "core-captain-marvel-leadership" }];
+/**
+ * Core Spider-Man (and Captain Marvel with `players: 2`) against Rhino, with the Tracksuit Mafia set added to the
+ * encounter deck. `first` swaps the first seat's starter deck.
+ */
+function newGame(players = 1, form: "hero" | "alterEgo" = "alterEgo", first = "core-spider-man-justice"): GameState {
+  const seats = [{ starterDeckId: first }, { starterDeckId: "core-captain-marvel-leadership" }];
   const base = coreScenario("rhino", {
     players: seats.slice(0, players),
     seed: 1,
@@ -449,5 +452,51 @@ describe("two minions tucked under Tracksuit Mafia", () => {
     expect(inst(run.state, mafia.id).tucked).toEqual([bro]);
     expect(inst(run.state, mafioso).engagedWith).toBe(P1);
     expect(inst(run.state, bro).engagedWith ?? null).toBeNull();
+  });
+});
+
+describe("Tracksuit Mafia's reveal is not from the encounter deck (ruling September 14, 2026 - Ruling 1)", () => {
+  const BLACK_WIDOW = "01075";
+  const GENIUS = "01089";
+  const WIDOW = "01075.black-widow-interrupt";
+
+  /** Core Black Panther (Protection) with Black Widow in play and a [mental] resource in hand to pay for her. */
+  function withBlackWidow(s: GameState): GameState {
+    const placed = inPlayFromDeck(s, P1, BLACK_WIDOW);
+    return moveToHand(placed.state, P1, GENIUS).state;
+  }
+
+  /** The encounter card each `chooseTriggers` prompt offering Black Widow answers; every offer is declined. */
+  function widowOffers(s: GameState) {
+    const answered: InstanceId[] = [];
+    const picker: Picker = (st) => {
+      const choice = st.pendingChoice!;
+      if (
+        choice.prompt.kind === "chooseTriggers" &&
+        choice.prompt.event.kind === "encounterCardRevealing" &&
+        choice.options.some((o) => o.optionId.endsWith(WIDOW))
+      )
+        answered.push(choice.prompt.event.instanceId);
+      return declines(st);
+    };
+    return { answered, run: driveEventsPicking(WAVE11_DEPS, s, picker, endTurn(P1)) };
+  }
+
+  it("01075.black-widow-interrupt: offered for a card revealed from the encounter deck, not for the minion Tracksuit Mafia reveals from under itself", () => {
+    const start = withBlackWidow(newGame(1, "alterEgo", "core-black-panther-protection"));
+    const first = widowOffers(stack(start, 1, MAFIA, BRO));
+    const mafia = idsOf(first.run.state, MAFIA)[0]!;
+    const [bro] = inst(first.run.state, mafia).tucked;
+    expect(bro).toBeDefined();
+    // The side scheme itself came off the encounter deck: she is offered for it.
+    expect(first.answered).toContain(mafia);
+
+    const second = widowOffers(stack(moveToHand(first.run.state, P1, GENIUS).state, 1, IVAN));
+    const ivan = idsOf(second.run.state, IVAN)[0]!;
+    // Ivan is revealed from the encounter deck: offered. The tucked Bro, revealed by Mafia's Forced Response from
+    // under the scheme, is revealed and engages P1, but Black Widow is never offered to cancel it.
+    expect(second.answered).toContain(ivan);
+    expect(inst(second.run.state, bro!).engagedWith).toBe(P1);
+    expect(second.answered).not.toContain(bro);
   });
 });
