@@ -37,22 +37,29 @@ implementation is checked against the primary source before it is trusted.
 ### Rules Reference Guide
 
 The current RRG is in this repository: [`mc_rulesreference_v18_compressed.pdf`](../../mc_rulesreference_v18_compressed.pdf)
-(v1.8, July 2026). Rules citations in the code and the docs use its page numbers.
+(v1.8, July 2026), with a searchable Markdown transcription beside it,
+[`mc_rulesreference_v18_compressed.md`](../../mc_rulesreference_v18_compressed.md). Search the Markdown copy (it is
+the one to hand an agent or LLM), then confirm a page number in the PDF: rules citations in the code and the docs use
+the PDF's page numbers.
 
 Hall of Heroes hosts every version:
 
-| Version                       | Link                                                                                                                                        |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| **v1.8 (July 2026), current** | [mc_rulesreference_v18_compressed.pdf](https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc_rulesreference_v18_compressed.pdf)         |
-| v1.7 (December 2025)          | [mc_rulesreference_v17-compressed.pdf](https://hallofheroeslcg.com/wp-content/uploads/2025/12/mc_rulesreference_v17-compressed.pdf)         |
-| v1.6 (July 2024)              | [mc_rulesreference_v16_compressed.pdf](https://hallofheroeslcg.com/wp-content/uploads/2024/07/mc_rulesreference_v16_compressed.pdf)         |
-| v1.5 (May 2023)               | [mc_rulesreference_v15-compressed.pdf](https://hallofheroeslcg.com/wp-content/uploads/2023/05/mc_rulesreference_v15-compressed.pdf)         |
-| v1.4.2 (undated)              | [mc_rulesreference_v14_2_compressed_1.pdf](https://hallofheroeslcg.com/wp-content/uploads/2021/05/mc_rulesreference_v14_2_compressed_1.pdf) |
-| v1.4 (April 2021)             | [mc_rulesreference_v14.pdf](https://hallofheroeslcg.com/wp-content/uploads/2021/04/mc_rulesreference_v14.pdf)                               |
-| v1.3                          | [mc_rulesreference_v13.pdf](https://hallofheroeslcg.com/wp-content/uploads/2020/04/mc_rulesreference_v13.pdf)                               |
-| v1.2                          | [mc_rulesreference_v12.pdf](https://hallofheroeslcg.com/wp-content/uploads/2020/04/mc_rulesreference_v12.pdf)                               |
-| v1.1                          | [mc_rulesreference_v11.pdf](https://hallofheroeslcg.com/wp-content/uploads/2020/04/mc_rulesreference_v11.pdf)                               |
-| v1.0                          | [marvelrrg10.pdf](https://hallofheroeslcg.com/wp-content/uploads/2020/09/marvelrrg10.pdf)                                                   |
+| Version                       | Link                                                                                                                                        | In this repository (Markdown)                                                      |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| **v1.8 (July 2026), current** | [mc_rulesreference_v18_compressed.pdf](https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc_rulesreference_v18_compressed.pdf)         | [`mc_rulesreference_v18_compressed.md`](../../mc_rulesreference_v18_compressed.md) |
+| v1.7 (December 2025)          | [mc_rulesreference_v17-compressed.pdf](https://hallofheroeslcg.com/wp-content/uploads/2025/12/mc_rulesreference_v17-compressed.pdf)         | —                                                                                  |
+| v1.6 (July 2024)              | [mc_rulesreference_v16_compressed.pdf](https://hallofheroeslcg.com/wp-content/uploads/2024/07/mc_rulesreference_v16_compressed.pdf)         | —                                                                                  |
+| v1.5 (May 2023)               | [mc_rulesreference_v15-compressed.pdf](https://hallofheroeslcg.com/wp-content/uploads/2023/05/mc_rulesreference_v15-compressed.pdf)         | —                                                                                  |
+| v1.4.2 (undated)              | [mc_rulesreference_v14_2_compressed_1.pdf](https://hallofheroeslcg.com/wp-content/uploads/2021/05/mc_rulesreference_v14_2_compressed_1.pdf) | —                                                                                  |
+| v1.4 (April 2021)             | [mc_rulesreference_v14.pdf](https://hallofheroeslcg.com/wp-content/uploads/2021/04/mc_rulesreference_v14.pdf)                               | —                                                                                  |
+| v1.3                          | [mc_rulesreference_v13.pdf](https://hallofheroeslcg.com/wp-content/uploads/2020/04/mc_rulesreference_v13.pdf)                               | —                                                                                  |
+| v1.2                          | [mc_rulesreference_v12.pdf](https://hallofheroeslcg.com/wp-content/uploads/2020/04/mc_rulesreference_v12.pdf)                               | —                                                                                  |
+| v1.1                          | [mc_rulesreference_v11.pdf](https://hallofheroeslcg.com/wp-content/uploads/2020/04/mc_rulesreference_v11.pdf)                               | —                                                                                  |
+| v1.0                          | [marvelrrg10.pdf](https://hallofheroeslcg.com/wp-content/uploads/2020/09/marvelrrg10.pdf)                                                   | —                                                                                  |
+
+Only v1.8 has a copy here; older versions are history and v1.8 replaces them.
+[`marvel_champions_rules-marvelcdb.md`](../../marvel_champions_rules-marvelcdb.md) is MarvelCDB's rules page, an older
+RRG text: useful for wording searches, never cited over v1.8.
 
 What changed between versions is in Hall of Heroes'
 [RRG changelog](https://hallofheroeslcg.com/marvel-champions-ffg-rrg-changelog/). The
@@ -66,12 +73,22 @@ FFG's Game Rules Specialist answers rules questions; Hall of Heroes transcribes 
 - **Since RRG v1.7 (December 17, 2025 onward):**
   [Latest FFG Rulings (post-RRG 1.7 & 1.8)](https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-7/). A copy
   through August 13, 2026 is in this repository:
-  [`marvel-champions-rulings-post-rrg-1-7.md`](../../marvel-champions-rulings-post-rrg-1-7.md).
+  [`marvel-champions-rulings-post-rrg-1-7.md`](../../marvel-champions-rulings-post-rrg-1-7.md), one Markdown file
+  cited by its date headings.
 - **RRG v1.6 era (July 2024 to December 2025):**
   [Latest FFG Rulings (post-RRG 1.6)](https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-6/)
-- **RRG v1.5 era:** [Latest FFG Rulings (post-RRG 1.5)](https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-5/)
+- **RRG v1.5 era:** [Latest FFG Rulings (post-RRG 1.5)](https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-5/).
+  A copy (May 2023 to 2024) is in this repository, split into small files:
+  [`docs/rulings/post-rrg-1-5/`](../rulings/post-rrg-1-5/), indexed in [`docs/rulings/README.md`](../rulings/README.md).
 - **Before RRG v1.5:** [Latest FFG Rulings (pre-RRG 1.5)](https://hallofheroeslcg.com/latest-ffg-rulings/) and the
-  [RRG 1.0 to 1.4 rulings and errata](https://hallofheroeslcg.com/official-ffg-rulings/)
+  [RRG 1.0 to 1.4 rulings and errata](https://hallofheroeslcg.com/official-ffg-rulings/). The RRG 1.0 to 1.4 page is
+  copied the same way: [`docs/rulings/rrg-1-0-to-1-4/`](../rulings/rrg-1-0-to-1-4/).
+
+The split copies are for searching, not reading end to end: start at the
+[README index](../rulings/README.md) (one line per file, with the cards and keywords it covers), or
+`grep -ril "<card or keyword>" docs/rulings/`, then open only the matching file. They are tier 4 above. Regenerate
+them with `scripts/scrape_rulings_markdown.py`. The post-RRG 1.6 page has no copy here yet.
+
 - **Overturned rulings:** [Legacy Rulings](https://hallofheroeslcg.com/marvel-champions-lcg-legacy-rulings/), rulings
   a later ruling or RRG replaced. These are kept for history and are not followed.
 
@@ -92,7 +109,28 @@ FFG's Game Rules Specialist answers rules questions; Hall of Heroes transcribes 
 [`hallofheroes-llms.txt`](../../hallofheroes-llms.txt) indexes Hall of Heroes' pages: each hero pack and box (release
 dates, rules inserts, campaign logs, starter decks), the card database's
 [browse page](https://hallofheroeslcg.com/browse/), and the rulings pages above. Per-product rules inserts aren't in
-this repository yet.
+this repository yet, except the campaign boxes.
+
+### Campaign box rulebooks
+
+A campaign box's own rulebook (its campaign rules, setup and FAQ) governs that box's cards. Each is transcribed to
+Markdown in [`docs/campaign-modes/markdown/`](../campaign-modes/markdown/index.md), indexed by
+[`index.md`](../campaign-modes/markdown/index.md); the original PDFs are in [`docs/campaign-modes/`](../campaign-modes/).
+
+| Box                    | Markdown                                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------------------- |
+| The Rise of Red Skull  | [`mc10_the_rise_of_red_skull.md`](../campaign-modes/markdown/mc10_the_rise_of_red_skull.md) |
+| Galaxy's Most Wanted   | [`mc16_galaxys_most_wanted.md`](../campaign-modes/markdown/mc16_galaxys_most_wanted.md)     |
+| The Mad Titan's Shadow | [`mc21_the_mad_titans_shadow.md`](../campaign-modes/markdown/mc21_the_mad_titans_shadow.md) |
+| Sinister Motives       | [`mc27_sinister_motives.md`](../campaign-modes/markdown/mc27_sinister_motives.md)           |
+| Mutant Genesis         | [`mc32_mutant_genesis.md`](../campaign-modes/markdown/mc32_mutant_genesis.md)               |
+| NeXt Evolution         | [`mc40_next_evolution.md`](../campaign-modes/markdown/mc40_next_evolution.md)               |
+| Age of Apocalypse      | [`mc45_age_of_apocalypse.md`](../campaign-modes/markdown/mc45_age_of_apocalypse.md)         |
+| Agents of S.H.I.E.L.D. | [`mc50_agents_of_shield.md`](../campaign-modes/markdown/mc50_agents_of_shield.md)           |
+| Trickster Takeover     | [`mc55_trickster_takeover.md`](../campaign-modes/markdown/mc55_trickster_takeover.md)       |
+| Civil War              | [`mc56_civil_war.md`](../campaign-modes/markdown/mc56_civil_war.md)                         |
+| Synthezoid Smackdown   | [`mc57_synthezoid_smackdown.md`](../campaign-modes/markdown/mc57_synthezoid_smackdown.md)   |
+| Fear No Evil           | [`mc60_fear_no_evil.md`](../campaign-modes/markdown/mc60_fear_no_evil.md)                   |
 
 _Marvel Champions: The Card Game_, its rules and its card text belong to Fantasy Flight Games and Marvel. Hall of
 Heroes is a fan site; thanks to it for keeping every version and ruling in one place.
