@@ -434,10 +434,14 @@ export function drawPicture(
   const key = ensurePictureLoaded(scene, picture, onReady);
   if (!key) return null;
   const source = scene.textures.get(key).getSourceImage() as { width: number; height: number };
-  const fit = coverFit(source, rect);
+  // A picture's own focus point (a hero's `focus.json`) wins over the caller's per-screen default on the axis it names.
+  const fit = coverFit(source, rect, picture.focus);
   const focusY = options.focusY ?? 0.5;
-  const cropY = Math.max(0, Math.min(source.height - fit.cropHeight, (source.height - fit.cropHeight) * focusY));
-  const cropX = (source.width - fit.cropWidth) * (options.focusX ?? 0.5);
+  const cropY =
+    picture.focus?.y !== undefined
+      ? fit.cropY
+      : Math.max(0, Math.min(source.height - fit.cropHeight, (source.height - fit.cropHeight) * focusY));
+  const cropX = picture.focus?.x !== undefined ? fit.cropX : (source.width - fit.cropWidth) * (options.focusX ?? 0.5);
   const image = scene.add
     .image(rect.x - cropX * fit.scale, rect.y - cropY * fit.scale, key)
     .setOrigin(0, 0)

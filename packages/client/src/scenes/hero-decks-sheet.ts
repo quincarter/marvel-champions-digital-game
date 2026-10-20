@@ -7,6 +7,7 @@
  * and handles the pick with the very code a tap on a single-deck tile runs, so blocked reasons, locked decks and name
  * conflicts behave exactly as before. Like the other sheets it switches off the launching screen's input while up.
  */
+import type { PictureFocus } from "../art/focus.js";
 import Phaser from "phaser";
 import { accent, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cardFaces } from "../art/card-face-baker.js";
@@ -35,6 +36,8 @@ export interface HeroDecksSheetData {
   /** The hero's identity card, which the pictures' hover popover shows. */
   readonly identityCardId: string;
   readonly artUrl: string | null;
+  /** The hero art's focus point (`Picture.focus`), when `artUrl` is hero art. */
+  readonly artFocus?: PictureFocus;
   readonly rows: readonly HeroDecksSheetRow[];
   /** The player chose a deck: the sheet is already closed. */
   readonly onPick: (deckId: string) => void;
@@ -190,7 +193,7 @@ export class HeroDecksSheet extends Phaser.Scene {
       g.fillStyle(surface.parchment.hex, 1).fillRect(body.x, body.y, body.width, body.height);
       g.lineStyle(2, surface.ink.hex, 1).strokeRect(body.x, body.y, body.width, body.height);
       objects.push(g);
-      objects.push(renderArtThumb(this, this.#thumbRect(rect), this.#data.artUrl));
+      objects.push(renderArtThumb(this, this.#thumbRect(rect), this.#data.artUrl, 0.2, this.#data.artFocus));
 
       const textX = body.x + ROW_PAD + THUMB_WIDTH + 10;
       const textWidth = body.x + body.width - ROW_PAD - buttonWidth - 10 - textX;

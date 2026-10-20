@@ -50,6 +50,7 @@
  * introducing a new one under time pressure.
  */
 
+import type { PictureFocus } from "../art/focus.js";
 import Phaser from "phaser";
 import type { AnyCard, CardType, CoreAspect, Deck, HeroIdentityCard, StarterDeck } from "@mc/content";
 import type { CampaignDeckContext, CampaignGrant } from "@mc/engine";
@@ -289,7 +290,7 @@ export class DeckBuilderScene extends Phaser.Scene {
   #route: FocusRoute | null = null;
   #stops = new Map<string, FocusStop>();
   /** `#identityArtUrl`, per visit, so a redraw never reshuffles a hero with several pictures. */
-  readonly #identityArt = new Map<string, string | null>();
+  readonly #identityArt = new Map<string, { url: string | null; focus?: PictureFocus }>();
   /** The list itself is recreated every rebuild (`ui/virtual-list.ts`); only its scroll position persists, in this field. */
   #list: McVirtualList | null = null;
   #listScroll = new ListScroll();
@@ -1814,6 +1815,8 @@ export class DeckBuilderScene extends Phaser.Scene {
             this,
             { x: tile.x + 3, y: tile.y + 3, width: tile.width - 6, height: artHeight - 3 },
             this.#identityArtUrl(identity),
+            0.2,
+            this.#identityArtFocus(identity),
           ),
         );
         const button = new McButton(this, {
@@ -1957,7 +1960,13 @@ export class DeckBuilderScene extends Phaser.Scene {
     y += 20;
     const width = Math.min(column, 560);
     const bannerHeight = Math.round(width / 2.4);
-    renderArtThumb(this, { x: left, y, width, height: bannerHeight }, this.#identityArtUrl(identity));
+    renderArtThumb(
+      this,
+      { x: left, y, width, height: bannerHeight },
+      this.#identityArtUrl(identity),
+      0.2,
+      this.#identityArtFocus(identity),
+    );
     // The picture is baked off the main thread: once it lands, redraw this step (once) to show it.
     this.#bannerBaked?.();
     this.#bannerBaked = cardFaces(this).onBaked(() => {
@@ -2005,12 +2014,25 @@ export class DeckBuilderScene extends Phaser.Scene {
 
   /** The identity row's picture: the hero's own art (`art/heroes/`), else the identity card's scan, else none. */
   #identityArtUrl(identity: HeroIdentityCard): string | null {
+    return this.#identityArtOf(identity).url;
+  }
+
+  /** The hero art's focus point (`focus.json`); none for the identity card's own scan. */
+  #identityArtFocus(identity: HeroIdentityCard): PictureFocus | undefined {
+    return this.#identityArtOf(identity).focus;
+  }
+
+  #identityArtOf(identity: HeroIdentityCard): { url: string | null; focus?: PictureFocus } {
     const id = identity.id as string;
-    if (!this.#identityArt.has(id)) {
+    let art = this.#identityArt.get(id);
+    if (!art) {
       const picture = heroArtForIdentity(HERO_ART, id, POOL_CARDS);
-      this.#identityArt.set(id, picture?.url ?? artFor(identity, { kind: "hero" })?.url ?? null);
+      art = picture
+        ? { url: picture.url, ...(picture.focus ? { focus: picture.focus } : {}) }
+        : { url: artFor(identity, { kind: "hero" })?.url ?? null };
+      this.#identityArt.set(id, art);
     }
-    return this.#identityArt.get(id) ?? null;
+    return art;
   }
 
   #renderCardRow(rect: Rect, deck: Deck, card: AnyCard): VirtualListRow {

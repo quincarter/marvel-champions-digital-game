@@ -107,6 +107,29 @@ describe("artPlacement", () => {
   });
 });
 
+describe("artPlacement focus point", () => {
+  const tall = { width: 200, height: 400 };
+  it("centers a landscape picture's crop on the subject, not the middle", () => {
+    // 700x500 into a 0.5 box: the crop is 250 wide; a subject at x 0.38 (266) starts it at 141.
+    const place = artPlacement({ width: 700, height: 500 }, tall, "cover", 0.1, { x: 0.38, y: 0.3 });
+    expect(place.sw).toBeCloseTo(250);
+    expect(place.sx).toBeCloseTo(141);
+  });
+
+  it("keeps the crop inside the picture at the edges", () => {
+    const left = artPlacement({ width: 700, height: 500 }, tall, "cover", 0.1, { x: 0 });
+    const right = artPlacement({ width: 700, height: 500 }, tall, "cover", 0.1, { x: 1 });
+    expect(left.sx).toBe(0);
+    expect(right.sx + right.sw).toBeCloseTo(700);
+  });
+
+  it("with no focus crops around the center, and a missing y keeps the caller's focusY", () => {
+    expect(artPlacement({ width: 700, height: 500 }, tall, "cover", 0.1).sx).toBeCloseTo(225);
+    const place = artPlacement({ width: 1000, height: 2000 }, { width: 200, height: 200 }, "cover", 0.34, { x: 0.5 });
+    expect(place.sy).toBeCloseTo(340);
+  });
+});
+
 describe("artDecodeSize", () => {
   it("decodes a huge picture at what the card shows at the device resolution", () => {
     expect(artDecodeSize({ width: 2160, height: 3840 }, { width: 210, height: 300 }, "cover", 2)).toEqual({

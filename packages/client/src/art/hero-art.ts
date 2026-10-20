@@ -9,9 +9,13 @@
  * work as they do for villains: `hero.jpg`, `hero-2.png`, one picked at random. A folder whose name starts with `_`
  * (`_pending/`) is a holding area and is never read.
  *
+ * An optional `focus.json` beside the pictures, `{ "x": 0.38, "y": 0.3 }`, says where the subject is (0 left/top to
+ * 1 right/bottom) so a tall or small crop centers on it instead of on the middle of the picture. Either axis may be
+ * left out. It applies to every picture in the folder and rides on each `Picture.focus`.
+ *
  * Pure over a path → URL map, like `scenario-art.ts`, so it is tested without the glob.
  */
-import { pickPicture, type Picture } from "./pictures.js";
+import { pickPicture, type Picture, type PictureFocus } from "./pictures.js";
 
 export interface HeroArtCatalog {
   /** By identity card id. */
@@ -20,9 +24,29 @@ export interface HeroArtCatalog {
   readonly unrecognized: readonly string[];
 }
 
-export function parseHeroArt(files: Readonly<Record<string, string>>): HeroArtCatalog {
+/** A `focus.json`'s content as a focus, or null when it names no usable axis. Values outside 0 to 1 are clamped. */
+export function parseFocus(raw: unknown): PictureFocus | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const axis = (value: unknown): number | undefined =>
+    typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : undefined;
+  const x = axis((raw as { x?: unknown }).x);
+  const y = axis((raw as { y?: unknown }).y);
+  if (x === undefined && y === undefined) return null;
+  return { ...(x === undefined ? {} : { x }), ...(y === undefined ? {} : { y }) };
+}
+
+export function parseHeroArt(
+  files: Readonly<Record<string, string>>,
+  focusFiles: Readonly<Record<string, unknown>> = {},
+): HeroArtCatalog {
   const heroes = new Map<string, Picture[]>();
   const unrecognized: string[] = [];
+  const focusOf = new Map<string, PictureFocus>();
+  for (const [fullPath, raw] of Object.entries(focusFiles)) {
+    const folder = fullPath.slice(fullPath.indexOf("art/heroes/") + "art/heroes/".length).split("/")[0] ?? "";
+    const focus = parseFocus(raw);
+    if (focus && !folder.startsWith("_")) focusOf.set(folder.split("-")[0]!, focus);
+  }
   for (const fullPath of Object.keys(files).sort()) {
     // Anchored on the whole prefix: a bare "art/" also ends "29001a-ironheart/".
     const underArt = fullPath.slice(fullPath.indexOf("art/heroes/") + "art/".length);
@@ -36,7 +60,8 @@ export function parseHeroArt(files: Readonly<Record<string, string>>): HeroArtCa
     }
     const identityId = parts[1]!.split("-")[0]!;
     const entry = heroes.get(identityId) ?? [];
-    entry.push({ key: `scene-art:${underArt}`, url: files[fullPath]! });
+    const focus = focusOf.get(identityId);
+    entry.push({ key: `scene-art:${underArt}`, url: files[fullPath]!, ...(focus ? { focus } : {}) });
     heroes.set(identityId, entry);
   }
   return { heroes, unrecognized };
@@ -80,5 +105,10 @@ const files = import.meta.glob("../../../../art/heroes/*/*.{png,jpg,jpeg,webp,av
   import: "default",
 }) as Record<string, string>;
 
+const focusFiles = import.meta.glob("../../../../art/heroes/*/focus.json", {
+  eager: true,
+  import: "default",
+}) as Record<string, unknown>;
+
 /** Everything in `art/heroes/`. */
-export const HERO_ART: HeroArtCatalog = parseHeroArt(files);
+export const HERO_ART: HeroArtCatalog = parseHeroArt(files, focusFiles);

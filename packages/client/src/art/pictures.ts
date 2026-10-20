@@ -17,6 +17,9 @@
  */
 import type Phaser from "phaser";
 import { canvasOf } from "./bitmap-canvas.js";
+import { focusedOffset, type PictureFocus } from "./focus.js";
+
+export { focusedOffset, type PictureFocus };
 
 /** The formats a picture may be in. Kept in step with the glob patterns, which must be literals. */
 export const PICTURE_EXTENSIONS = ["png", "jpg", "jpeg", "webp", "avif"] as const;
@@ -25,6 +28,8 @@ export interface Picture {
   /** Stable Phaser texture key, derived from the file's path under `art/`. */
   readonly key: string;
   readonly url: string;
+  /** The subject's place in the picture (a hero's `focus.json`, `art/hero-art.ts`); absent crops around the center. */
+  readonly focus?: PictureFocus;
 }
 
 /**
@@ -167,6 +172,7 @@ async function decodedPicture(url: string): Promise<HTMLImageElement | HTMLCanva
 export function coverFit(
   image: { readonly width: number; readonly height: number },
   panel: { readonly width: number; readonly height: number },
+  focus?: PictureFocus,
 ): {
   readonly scale: number;
   readonly cropX: number;
@@ -177,7 +183,13 @@ export function coverFit(
   const scale = Math.max(panel.width / image.width, panel.height / image.height);
   const cropWidth = Math.min(image.width, panel.width / scale);
   const cropHeight = Math.min(image.height, panel.height / scale);
-  return { scale, cropX: (image.width - cropWidth) / 2, cropY: (image.height - cropHeight) / 2, cropWidth, cropHeight };
+  return {
+    scale,
+    cropX: focusedOffset(image.width, cropWidth, focus?.x),
+    cropY: focusedOffset(image.height, cropHeight, focus?.y),
+    cropWidth,
+    cropHeight,
+  };
 }
 
 /** The scale that fits all of `image` inside `panel`, letterboxing whichever dimension falls short (never cropping). */

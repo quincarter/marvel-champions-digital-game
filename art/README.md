@@ -83,6 +83,15 @@ a folder directly under `heroes/` for a hero with no card data fails the test be
 data, the same branch moves its heroes' folders up one level into `heroes/`, pictures and all.
 `packages/client/src/art/hero-art.test.ts` fails if a folder isn't a real identity id or a file isn't `hero*`.
 
+**Keeping the hero in frame (`focus.json`).** A tile or card crops a picture to its own shape, around the middle by
+default, which cuts off a hero who stands off to one side in a landscape or square picture (Daredevil's is 700x500
+with his face at x 0.38). Put an optional `focus.json` in the hero's folder, `{ "x": 0.38, "y": 0.3 }`: where the
+subject is in the picture, 0 left/top to 1 right/bottom. Every crop of that hero's art (campaign roster, Take your
+seats tiles and deck sheet, deck rows, seat avatars, dossier, briefing, finale) centers on that point, kept inside the
+picture. Either axis may be left out; an axis left out crops the way the screen always did. It applies to every
+picture in the folder (`hero.jpg`, `hero-2.png`), and a folder with no `focus.json` crops around the center.
+Estimate the point off the face or the middle of the figure; the check is the roster's tall seat tile.
+
 **Extras** (the Title menu's reward shelf) shows these same pictures once play has opened them: a hero's
 `hero.*` files, a scenario's `villain*` files, `title/`, `outcomes/` and each campaign's `cover.*`. Nothing extra
 needs adding for it; a new file shows up there too. `extras/`: pictures shown only on the Extras ▸ Artwork shelf, always open; name the file for its title.

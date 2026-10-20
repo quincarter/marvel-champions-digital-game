@@ -15,6 +15,7 @@
  * the game-object version did: same font string (including the desktop size bump, `view/desktop-type.ts`), same
  * per-letter spacing, same ascent-based baseline, same binary searches.
  */
+import { focusedOffset } from "./focus.js";
 import { desktopFont } from "../view/desktop-type.js";
 
 /** One font as Phaser's `TextStyle` would build it (`ui/theme.ts`'s `textStyle`). */
@@ -48,6 +49,8 @@ export interface CardFaceSpec {
   readonly artFit: "cover" | "contain";
   /** Where a cover crop sits vertically, 0 top to 1 bottom (`drawArt`'s `focusY`). */
   readonly artFocusY: number;
+  /** The subject's point in the picture (`Picture.focus`); a named axis overrides the matching offset above. */
+  readonly artFocus?: { readonly x?: number; readonly y?: number };
   readonly dim: number;
   readonly title: string;
   readonly titleFont: FaceFont;
@@ -324,7 +327,7 @@ export function paintCardFace(
     ctx.globalAlpha = dim;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    const place = artPlacement(art, { width, height: artHeight }, spec.artFit, spec.artFocusY);
+    const place = artPlacement(art, { width, height: artHeight }, spec.artFit, spec.artFocusY, spec.artFocus);
     ctx.drawImage(art.source, place.sx, place.sy, place.sw, place.sh, place.dx, place.dy, place.dw, place.dh);
     ctx.restore();
   } else {
@@ -412,6 +415,7 @@ export function artPlacement(
   slot: { readonly width: number; readonly height: number },
   fit: "cover" | "contain",
   focusY: number,
+  focus?: { readonly x?: number; readonly y?: number },
 ): { sx: number; sy: number; sw: number; sh: number; dx: number; dy: number; dw: number; dh: number } {
   const { width: sourceWidth, height: sourceHeight } = source;
   if (fit === "contain") {
@@ -432,8 +436,11 @@ export function artPlacement(
   const scale = Math.max(slot.width / sourceWidth, slot.height / sourceHeight);
   const sw = Math.min(sourceWidth, slot.width / scale);
   const sh = Math.min(sourceHeight, slot.height / scale);
-  const sx = (sourceWidth - sw) / 2;
-  const sy = Math.max(0, Math.min(sourceHeight - sh, (sourceHeight - sh) * focusY));
+  const sx = focusedOffset(sourceWidth, sw, focus?.x);
+  const sy =
+    focus?.y !== undefined
+      ? focusedOffset(sourceHeight, sh, focus.y)
+      : Math.max(0, Math.min(sourceHeight - sh, (sourceHeight - sh) * focusY));
   return { sx, sy, sw, sh, dx: 0, dy: 0, dw: sw * scale, dh: sh * scale };
 }
 

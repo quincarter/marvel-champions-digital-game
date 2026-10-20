@@ -16,7 +16,7 @@
 import type Phaser from "phaser";
 import type { CardId } from "@mc/content";
 import { drawArt } from "../art/card-art.js";
-import { ensurePictureLoaded, type Picture } from "../art/pictures.js";
+import { ensurePictureLoaded, type Picture, type PictureFocus } from "../art/pictures.js";
 import { accent, hit, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { cardFaces } from "../art/card-face-baker.js";
 import { SUBTITLE_EXTRA_LINE, type CardFaceSpec } from "../art/card-face.js";
@@ -293,6 +293,8 @@ export interface ShelfCardOptions {
   readonly artFit?: "contain" | "cover";
   /** Where a cover crop keeps the art vertically, 0 = top edge. Defaults to 0.34; a scan whose printed title sits at its top edge (a villain card) passes 0 so the title is not cropped. */
   readonly artFocusY?: number;
+  /** The subject's point in the art (`Picture.focus`, a hero's `focus.json`): the crop centers on it, whatever `artFocusY` says on that axis. */
+  readonly artFocus?: PictureFocus;
   /** The Bangers size the card's own name/title draws at — `typeRole.villainTitle` (32px) for a scenario card, `typeRole.barTitle` (22px) for a hero card. Determines the footer band's own height, so every card in one roster should pass the same role. */
   readonly titleRole: TypeSpec;
   readonly title: string;
@@ -351,6 +353,7 @@ export function artThumbSpec(
   artUrl: string | null,
   focusY = 0.2,
   fit: "cover" | "contain" = "cover",
+  focus?: PictureFocus,
 ): CardFaceSpec {
   return {
     ...shelfCardSpec(rect, {
@@ -363,6 +366,7 @@ export function artThumbSpec(
       warning: null,
       tag: null,
       selected: false,
+      ...(focus ? { artFocus: focus } : {}),
     }),
     artFocusY: focusY,
     artOnly: true,
@@ -379,9 +383,10 @@ export function renderArtThumb(
   rect: Rect,
   artUrl: string | null,
   focusY = 0.2,
+  focus?: PictureFocus,
 ): Phaser.GameObjects.GameObject {
   const faces = cardFaces(scene);
-  const spec = artThumbSpec(rect, artUrl, focusY);
+  const spec = artThumbSpec(rect, artUrl, focusY, "cover", focus);
   const key = faces.request(spec);
   if (key) {
     const image = scene.add.image(rect.x, rect.y, key).setOrigin(0, 0).setDisplaySize(rect.width, rect.height);
@@ -407,6 +412,7 @@ function shelfCardSpec(rect: Rect, options: ShelfCardOptions): CardFaceSpec {
     artUrl: options.artUrl === null ? null : new URL(options.artUrl, document.baseURI).href,
     artFit: options.artFit ?? "cover",
     artFocusY: options.artFocusY ?? 0.34,
+    ...(options.artFocus ? { artFocus: options.artFocus } : {}),
     dim,
     title: options.title,
     titleFont: faceFontOf(options.titleRole),

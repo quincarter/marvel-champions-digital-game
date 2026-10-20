@@ -1121,6 +1121,7 @@ export class SeatsScene extends Phaser.Scene {
       heroName: group.rep.identityName ?? group.rep.deck.name,
       identityCardId: group.rep.deck.identityCardId as string,
       artUrl: picture?.url ?? (identity ? artFor(identity, { kind: "hero" }) : null)?.url ?? null,
+      ...(picture?.focus ? { artFocus: picture.focus } : {}),
       rows,
       onPick: (deckId) => {
         if (!this.sys.isActive()) return;
@@ -1483,6 +1484,7 @@ export class SeatsScene extends Phaser.Scene {
     const rec = this.#insights?.analysis.get(option.deck.id as string);
     const card = renderShelfCard(this, rect, {
       artUrl,
+      ...(picture?.focus ? { artFocus: picture.focus } : {}),
       titleRole: typeRole.barTitle,
       title: several
         ? (option.identityName ?? option.deck.name)

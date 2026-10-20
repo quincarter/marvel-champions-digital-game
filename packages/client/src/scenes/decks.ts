@@ -72,6 +72,7 @@
  * never decides whether a deck is legal or what its record is.
  */
 
+import type { PictureFocus } from "../art/focus.js";
 import Phaser from "phaser";
 import { aspectStampOf } from "../view/aspect-stamp.js";
 import {
@@ -354,8 +355,8 @@ export class DecksScene extends Phaser.Scene {
   #poolAspectFilter: CoreAspect | "basic" | "identity" | null = null;
   #poolSortByCost = false;
   #selectedDeckId: string | null = null;
-  /** `#deckArtUrl`, per identity. */
-  readonly #deckArt = new Map<string, string | null>();
+  /** `#deckArtOf`, per identity. */
+  readonly #deckArt = new Map<string, { url: string | null; focus?: PictureFocus }>();
   #activeTab: DecksTab = "decks";
   #history: ResultsHistory | null = null;
   #buttons: McButton[] = [];
@@ -1266,16 +1267,17 @@ export class DecksScene extends Phaser.Scene {
   }
 
   /** A deck row's picture, per visit, so a redraw never reshuffles a hero with several pictures. */
-  #deckArtUrl(identityId: string): string | null {
-    if (!this.#deckArt.has(identityId)) {
+  #deckArtOf(identityId: string): { url: string | null; focus?: PictureFocus } {
+    let art = this.#deckArt.get(identityId);
+    if (!art) {
       const picture = heroArtForIdentity(HERO_ART, identityId, POOL_CARDS);
       const identity = CARDS_BY_ID.get(identityId);
-      this.#deckArt.set(
-        identityId,
-        picture?.url ?? (identity ? artFor(identity, { kind: "hero" })?.url : null) ?? null,
-      );
+      art = picture
+        ? { url: picture.url, ...(picture.focus ? { focus: picture.focus } : {}) }
+        : { url: (identity ? artFor(identity, { kind: "hero" })?.url : null) ?? null };
+      this.#deckArt.set(identityId, art);
     }
-    return this.#deckArt.get(identityId) ?? null;
+    return art;
   }
 
   #renderDeckRow(rect: Rect, row: DeckRow): VirtualListRow {
@@ -1336,7 +1338,9 @@ export class DecksScene extends Phaser.Scene {
     const thumb = renderArtThumb(
       this,
       { x: card.x + 6, y: card.y + 6, width: thumbWidth, height: thumbHeight },
-      this.#deckArtUrl(option.deck.identityCardId as string),
+      this.#deckArtOf(option.deck.identityCardId as string).url,
+      0.2,
+      this.#deckArtOf(option.deck.identityCardId as string).focus,
     );
     this.#thumbInRow.set(option.deck.id as string, {
       x: card.x + 6 - rect.x,
