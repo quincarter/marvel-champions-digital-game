@@ -70,9 +70,13 @@ test("issue #298: each defender says the health it has now, and a swipe that lif
   );
   await installWave6Helpers(page);
   await page.goto("/?screen=defend-allies");
-  await press(page, phone, await waitFor(() => villainDebugRect(page, "startRect"), "START VILLAIN PHASE", 45_000));
+  await waitFor(() => villainDebugRect(page, "startRect"), "START VILLAIN PHASE", 45_000);
   const ids = await waitFor(
     async () => {
+      // The jump sends its last command 1.5 s after the board loads, which can reset the phase panel to its START
+      // gate after an early press, so START is pressed again for as long as the gate shows.
+      const start = await villainDebugRect(page, "startRect");
+      if (start) await press(page, phone, start);
       const answer = await villainDebugRect(page, "answerRect");
       if (answer) await press(page, phone, answer);
       const options = await debug<string[]>(page, "defendOptionIds");

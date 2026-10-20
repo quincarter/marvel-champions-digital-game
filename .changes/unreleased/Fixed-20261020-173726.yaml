@@ -1,0 +1,3 @@
+kind: Fixed
+body: The defend picker's health line wraps instead of being cut off when four defenders are offered.
+time: 2026-10-20T17:37:26.6770554-04:00

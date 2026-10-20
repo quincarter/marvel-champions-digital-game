@@ -369,7 +369,9 @@ function drawOption(
       surface.ink.hex,
       ink.secondary,
     );
-    fitText(hp, text.width, small ? 9 : 10);
+    // Wrapped, never clipped: "NOW 3 OF 3 HP → 0–1 LEFT" is the health the player decides on (#298), and a narrow
+    // option column used to cut it to "… 0–1 L…".
+    hp.setWordWrapWidth(text.width).setMaxLines(2);
     y += hp.height + 2;
   }
   // Tough, Overkill and Retaliate, where the card still has a line to spare; the defeat threshold is said above.
