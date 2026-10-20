@@ -24,6 +24,7 @@ import {
   hasStatus,
   heal,
   heroAction,
+  heroResource,
   heroResponse,
   ifThen,
   giveTough,
@@ -36,7 +37,6 @@ import {
   query,
   ready,
   removeThreat,
-  resource,
   response,
   shuffleDeck,
   stun,
@@ -97,7 +97,7 @@ export const SPIDER_WOMAN_KIT = defineAbilities({
   "04032.captain-marvel-response": response(after.basicPowerUsed("self"), draw(1)),
 
   // Finesse — Hero Resource: Exhaust Finesse → generate a [wild] resource for an aspect card.
-  "04033.finesse-resource": resource({ wild: 1 }, { cost: exhaustThis, generatesFor: ANY_ASPECT_CARD }),
+  "04033.finesse-resource": heroResource({ wild: 1 }, { cost: exhaustThis, generatesFor: ANY_ASPECT_CARD }),
 
   // Jessica Drew's Apartment — Alter-Ego Action: Exhaust Jessica Drew's Apartment → search the top 5 cards of your
   // deck for an aspect card and add it to your hand. Shuffle your deck.
