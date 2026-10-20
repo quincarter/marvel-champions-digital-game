@@ -108,6 +108,7 @@ export default defineConfig({
         "x-cost.spec.ts",
         "wonder-man-overpay.spec.ts",
         "payment-order.spec.ts",
+        "scheme-other-side.spec.ts",
         "qa-v0200-client.spec.ts",
         "card-size-scroll.spec.ts",
         "campaign-market-scroll.spec.ts",

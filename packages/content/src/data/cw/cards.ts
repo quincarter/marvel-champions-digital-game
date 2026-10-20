@@ -1526,7 +1526,7 @@ export const CW_CARDS: readonly AnyCard[] = [
             current: "Contents: Chosen leader I and II (III and IV for expert mode). Chosen leader's set, Standard set, and 3–4 modular sets.\nSetup: In competitive mode, the enemy team finds the Choosing Sides side scheme and your team reveals it. In cooperative mode, find the chosen leader's side scheme and reveal it.",
           },
           abilities: [{ id: abilityId("56063a.setup") }],
-          image: imageRef("/bundles/cards/56063b.png"),
+          image: imageRef("/bundles/cards/56063a.png"),
         },
       },
       {
@@ -1554,7 +1554,7 @@ export const CW_CARDS: readonly AnyCard[] = [
         aSide: {
           text: { printed: "", current: "" },
           abilities: [],
-          image: imageRef("/bundles/cards/56064b.png"),
+          image: imageRef("/bundles/cards/56064a.png"),
         },
       },
       {
@@ -1579,7 +1579,7 @@ export const CW_CARDS: readonly AnyCard[] = [
             current: "Contents: Chosen leader I and II (III and IV for expert mode). Chosen leader's set, Standard set, and 3–4 modular sets.\nSetup: In competitive mode, the enemy team finds the Choosing Sides side scheme and your team reveals it. In cooperative mode, find the chosen leader's side scheme and reveal it.",
           },
           abilities: [{ id: abilityId("56096a.setup") }],
-          image: imageRef("/bundles/cards/56096b.png"),
+          image: imageRef("/bundles/cards/56096a.png"),
         },
       },
       {
@@ -1607,7 +1607,7 @@ export const CW_CARDS: readonly AnyCard[] = [
         aSide: {
           text: { printed: "", current: "" },
           abilities: [],
-          image: imageRef("/bundles/cards/56097b.png"),
+          image: imageRef("/bundles/cards/56097a.png"),
         },
       },
       {
@@ -1635,7 +1635,7 @@ export const CW_CARDS: readonly AnyCard[] = [
             current: "Contents: Chosen leader I and II (III and IV for expert mode). Chosen leader's set, Standard set, and 3–4 modular sets.\nSetup: In competitive mode, the enemy team finds the Choosing Sides side scheme and your team reveals it. In cooperative mode, find the chosen leader's side scheme and reveal it.",
           },
           abilities: [{ id: abilityId("56121a.setup") }],
-          image: imageRef("/bundles/cards/56121b.png"),
+          image: imageRef("/bundles/cards/56121a.png"),
         },
       },
       {
@@ -1663,7 +1663,7 @@ export const CW_CARDS: readonly AnyCard[] = [
             current: "Contents: Chosen leader I and II (III and IV for expert mode). Chosen leader's set, Standard set, and 3–4 modular sets.\nSetup: In competitive mode, the enemy team finds the Choosing Sides side scheme and your team reveals it. In cooperative mode, find the chosen leader's side scheme and reveal it.",
           },
           abilities: [{ id: abilityId("56122a.setup") }],
-          image: imageRef("/bundles/cards/56122b.png"),
+          image: imageRef("/bundles/cards/56122a.png"),
         },
       },
       {
@@ -1686,7 +1686,7 @@ export const CW_CARDS: readonly AnyCard[] = [
         aSide: {
           text: { printed: "", current: "" },
           abilities: [],
-          image: imageRef("/bundles/cards/56123b.png"),
+          image: imageRef("/bundles/cards/56123a.png"),
         },
       },
       {
@@ -1709,7 +1709,7 @@ export const CW_CARDS: readonly AnyCard[] = [
         aSide: {
           text: { printed: "", current: "" },
           abilities: [],
-          image: imageRef("/bundles/cards/56124b.png"),
+          image: imageRef("/bundles/cards/56124a.png"),
         },
       },
     ],
@@ -3393,7 +3393,7 @@ export const CW_CARDS: readonly AnyCard[] = [
             current: "Contents: Chosen leader I and II (III and IV for expert mode). Chosen leader's set, Standard set, and 3–4 modular sets.\nSetup: In competitive mode, the enemy team finds the Choosing Sides side scheme and your team reveals it. In cooperative mode, find the chosen leader's side scheme and reveal it.",
           },
           abilities: [{ id: abilityId("56141a.setup") }],
-          image: imageRef("/bundles/cards/56141b.png"),
+          image: imageRef("/bundles/cards/56141a.png"),
         },
       },
       {
@@ -3416,7 +3416,7 @@ export const CW_CARDS: readonly AnyCard[] = [
         aSide: {
           text: { printed: "", current: "" },
           abilities: [],
-          image: imageRef("/bundles/cards/56142b.png"),
+          image: imageRef("/bundles/cards/56142a.png"),
         },
       },
       {
@@ -3444,7 +3444,7 @@ export const CW_CARDS: readonly AnyCard[] = [
             current: "Contents: Chosen leader I and II (III and IV for expert mode). Chosen leader's set, Standard set, and 3–4 modular sets.\nSetup: In competitive mode, the enemy team finds the Choosing Sides side scheme and your team reveals it. In cooperative mode, find the chosen leader's side scheme and reveal it.",
           },
           abilities: [{ id: abilityId("56172a.setup") }],
-          image: imageRef("/bundles/cards/56172b.png"),
+          image: imageRef("/bundles/cards/56172a.png"),
         },
       },
       {
@@ -3467,7 +3467,7 @@ export const CW_CARDS: readonly AnyCard[] = [
         aSide: {
           text: { printed: "", current: "" },
           abilities: [],
-          image: imageRef("/bundles/cards/56173b.png"),
+          image: imageRef("/bundles/cards/56173a.png"),
         },
       },
       {
@@ -3495,7 +3495,7 @@ export const CW_CARDS: readonly AnyCard[] = [
             current: "Contents: Chosen leader I and II (III and IV for expert mode). Chosen leader's set, Standard set, and 3–4 modular sets.\nSetup: In competitive mode, the enemy team finds the Choosing Sides side scheme and your team reveals it. In cooperative mode, find the chosen leader's side scheme and reveal it.",
           },
           abilities: [{ id: abilityId("56199a.setup") }],
-          image: imageRef("/bundles/cards/56199b.png"),
+          image: imageRef("/bundles/cards/56199a.png"),
         },
       },
       {
@@ -3523,7 +3523,7 @@ export const CW_CARDS: readonly AnyCard[] = [
             current: "Contents: Chosen leader I and II (III and IV for expert mode). Chosen leader's set, Standard set, and 3–4 modular sets.\nSetup: In competitive mode, the enemy team finds the Choosing Sides side scheme and your team reveals it. In cooperative mode, find the chosen leader's side scheme and reveal it.",
           },
           abilities: [{ id: abilityId("56200a.setup") }],
-          image: imageRef("/bundles/cards/56200b.png"),
+          image: imageRef("/bundles/cards/56200a.png"),
         },
       },
       {
@@ -3546,7 +3546,7 @@ export const CW_CARDS: readonly AnyCard[] = [
         aSide: {
           text: { printed: "", current: "" },
           abilities: [],
-          image: imageRef("/bundles/cards/56201b.png"),
+          image: imageRef("/bundles/cards/56201a.png"),
         },
       },
       {
@@ -3573,7 +3573,7 @@ export const CW_CARDS: readonly AnyCard[] = [
         aSide: {
           text: { printed: "", current: "" },
           abilities: [],
-          image: imageRef("/bundles/cards/56202b.png"),
+          image: imageRef("/bundles/cards/56202a.png"),
         },
       },
     ],

@@ -73,6 +73,30 @@ describe("artFor", () => {
     expect(side("32063a", "B")).toMatch(/32063b\.png$/);
   });
 
+  it("plays Mad Titan's Shadow schemes from their B scans and keeps the aggregate scan as the A side (#295)", () => {
+    const stage = (index: number, side: "A" | "B") =>
+      artFor(POOL_CARDS_BY_ID.get("21074a"), { kind: "mainSchemeStage", stageIndex: index, side })?.url;
+    expect(stage(0, "A")).toMatch(/21074\.png$/);
+    expect(stage(0, "B")).toMatch(/21074b\.png$/);
+    expect(stage(1, "A")).toMatch(/21075\.png$/);
+    expect(stage(1, "B")).toMatch(/21075b\.png$/);
+  });
+
+  it("gives every main scheme stage two different scans for its A and B sides", () => {
+    const shared: string[] = [];
+    for (const card of POOL_CARDS_BY_ID.values()) {
+      if (card.type !== "main_scheme") continue;
+      card.stages.forEach((stage, stageIndex) => {
+        // A lettered scheme whose other face is a separate card (Venom Goblin's environment) has no A scan.
+        if (stage.otherFaceId) return;
+        const a = artFor(card, { kind: "mainSchemeStage", stageIndex, side: "A" })?.url;
+        const b = artFor(card, { kind: "mainSchemeStage", stageIndex, side: "B" })?.url;
+        if (a && a === b) shared.push(`${card.id as string} stage ${stage.stageNumber}: ${a}`);
+      });
+    }
+    expect(shared).toEqual([]);
+  });
+
   it("shares one texture key between two cards pointing at the same scan", () => {
     const card = { ...byId("01002"), images: { front: imageRef("/bundles/cards/01002.png") } } as AnyCard;
     expect(artFor(card, { kind: "front" })?.key).toBe(artFor(byId("01002"), { kind: "front" })?.key);

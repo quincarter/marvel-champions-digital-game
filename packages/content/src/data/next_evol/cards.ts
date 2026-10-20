@@ -3743,7 +3743,7 @@ export const NEXT_EVOL_CARDS: readonly AnyCard[] = [
             current: "Contents: Mister Sinister (I) and Mister Sinister (II) (Mister Sinister (II) and Mister Sinister (III) instead for expert mode). Mister Sinister, Flight, Super Strength, Telepathy, Hope Summers, and Standard encounter sets. One modular encounter set (Nasty Boys).\nSetup: Set aside the Flight, Super Strength, and Telepathy encounter sets. Put Hope Summers into play under the first player's control.",
           },
           abilities: [{ id: abilityId("40139a.setup") }],
-          image: imageRef("/bundles/cards/40139b.png"),
+          image: imageRef("/bundles/cards/40139a.png"),
         },
       },
       {
@@ -3765,7 +3765,7 @@ export const NEXT_EVOL_CARDS: readonly AnyCard[] = [
         aSide: {
           text: { printed: "", current: "" },
           abilities: [],
-          image: imageRef("/bundles/cards/40140b.png"),
+          image: imageRef("/bundles/cards/40140a.png"),
         },
       },
       {
@@ -3787,7 +3787,7 @@ export const NEXT_EVOL_CARDS: readonly AnyCard[] = [
         aSide: {
           text: { printed: "", current: "" },
           abilities: [],
-          image: imageRef("/bundles/cards/40141b.png"),
+          image: imageRef("/bundles/cards/40141a.png"),
         },
       },
       {
@@ -3809,7 +3809,7 @@ export const NEXT_EVOL_CARDS: readonly AnyCard[] = [
         aSide: {
           text: { printed: "", current: "" },
           abilities: [],
-          image: imageRef("/bundles/cards/40142b.png"),
+          image: imageRef("/bundles/cards/40142a.png"),
         },
       },
       {
@@ -3835,7 +3835,7 @@ export const NEXT_EVOL_CARDS: readonly AnyCard[] = [
             current: "When Revealed: Deal each player 1 facedown encounter card.",
           },
           abilities: [{ id: abilityId("40143a.when-revealed") }],
-          image: imageRef("/bundles/cards/40143b.png"),
+          image: imageRef("/bundles/cards/40143a.png"),
         },
       },
     ],
