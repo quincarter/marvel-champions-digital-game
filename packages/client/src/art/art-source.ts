@@ -81,6 +81,16 @@ export type CardFace =
  */
 export type StandIn = { readonly kind: "ultronDrone"; readonly atk: number };
 
+/**
+ * The stand-ins this player has earned and switched on (`progression/earned-items.ts`); any other stand-in draws as
+ * its card back. Set by `applyEarnedItems` (`progression/progression.ts`) as progress and settings change.
+ */
+let shownStandIns: ReadonlySet<StandIn["kind"]> = new Set();
+
+export function setShownStandIns(kinds: ReadonlySet<StandIn["kind"]>): void {
+  shownStandIns = kinds;
+}
+
 /** The ATKs the Drone pictures print; a Drone's ATK outside them shows the nearest one. */
 export const DRONE_STAND_IN_ATKS = [1, 2, 3, 4] as const;
 
@@ -94,7 +104,9 @@ export interface ArtSource {
 export function artFor(card: AnyCard | undefined, face: CardFace): ArtSource | null {
   // Answered before the card is consulted at all: a hidden card must not be
   // able to fall through to its own front.
-  if (face.kind === "back") return face.standIn ? standInArt(face.standIn) : CARD_BACKS[face.back];
+  if (face.kind === "back") {
+    return face.standIn && shownStandIns.has(face.standIn.kind) ? standInArt(face.standIn) : CARD_BACKS[face.back];
+  }
   if (!card) return null;
   const local = localRefFor(card, face);
   if (local) return source(`${local as string}.png`);

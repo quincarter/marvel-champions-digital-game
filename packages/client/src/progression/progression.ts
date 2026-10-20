@@ -10,7 +10,9 @@
  * `localStorage` is missing or throws (Vitest, a locked-down webview), they fall back to the defaults for the
  * session.
  */
+import { setShownStandIns } from "../art/art-source.js";
 import { appSession, campaignService } from "../session.js";
+import { earnedItemIdsOf, shownStandInsOf, type EarnedItemId } from "./earned-items.js";
 import { Extras, NO_EXTRAS_PROGRESS, extrasProgressOf, type ExtrasProgress } from "./extras.js";
 import {
   NO_PROGRESS,
@@ -79,11 +81,26 @@ export async function refreshUnlocks(): Promise<boolean> {
     currentExtras = null;
   }
   const next = progressOf(saves, campaigns);
-  if (sameProgress(next, progress)) return false;
+  if (sameProgress(next, progress)) {
+    applyEarnedItems();
+    return false;
+  }
   progress = next;
   current = null;
   currentExtras = null;
+  applyEarnedItems();
   return true;
+}
+
+/** The earned items this player has (`earned-items.ts`), from the same reads as `extras()`. */
+export function earnedItems(): ReadonlySet<EarnedItemId> {
+  const open = extras();
+  return earnedItemIdsOf((unlock) => open.isOpen(unlock));
+}
+
+/** Tells the art which earned pictures to draw: call after progress, unlock preferences or settings change. */
+export function applyEarnedItems(): void {
+  setShownStandIns(shownStandInsOf(earnedItems(), appSession().settings));
 }
 
 /** Saves new preferences and applies them at once. */
@@ -92,4 +109,5 @@ export function setUnlockPrefs(next: UnlockPrefs): void {
   current = null;
   currentExtras = null;
   writePrefs(next);
+  applyEarnedItems();
 }

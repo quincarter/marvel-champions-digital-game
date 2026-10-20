@@ -3,6 +3,7 @@
  * place that says which setting sits under which heading, in draw order, so the scene only draws and a test can check
  * that every setting shows up exactly once. Pure data: the scene still owns each row's control.
  */
+import { EARNED_ITEMS } from "../progression/earned-items.js";
 import type { GuideSettingsRowId, SettingsRowId } from "./settings-rows.js";
 
 /** Every row the Settings screen can draw, by the id its focus stop is keyed on. */
@@ -27,7 +28,16 @@ export type SettingsItemId =
   | "save-data"
   | "rules";
 
-export type SettingsSectionId = "gameplay" | "villain" | "cards" | "window" | "motion" | "sound" | "guide" | "more";
+export type SettingsSectionId =
+  | "gameplay"
+  | "villain"
+  | "cards"
+  | "window"
+  | "motion"
+  | "sound"
+  | "guide"
+  | "more"
+  | "earned";
 
 export interface SettingsSection {
   readonly id: SettingsSectionId;
@@ -98,6 +108,7 @@ export function settingsSectionsOf(input: {
     },
     { id: "guide", title: "Guide", items: input.guideRowIds },
     { id: "more", title: "More", items: ["unlocks", "save-data", "rules"] },
+    { id: "earned", title: "Earned items", items: EARNED_ITEMS.map((item) => item.id) },
   ];
 }
 
@@ -120,7 +131,7 @@ const TAB_SECTIONS: readonly {
   { id: "display", label: "Display", sections: ["window", "motion"] },
   { id: "sound", label: "Sound", sections: ["sound"] },
   { id: "guide", label: "Guide", sections: ["guide"] },
-  { id: "more", label: "More", sections: ["more"] },
+  { id: "more", label: "More", sections: ["more", "earned"] },
 ];
 
 /** The Settings panel's tabs (owner, 2026-10-16: one tab at a time instead of one long scroll), built from `settingsSectionsOf`'s sections. */

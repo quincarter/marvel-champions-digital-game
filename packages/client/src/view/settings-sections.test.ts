@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { defaultGuidePrefs } from "../guide/guide-prefs.js";
+import { EARNED_ITEMS } from "../progression/earned-items.js";
 import { defaultSettings } from "../settings.js";
 import { guideRowInfoOf, settingsRowInfoOf } from "./settings-rows.js";
 import { settingsSectionsOf, settingsTabsOf } from "./settings-sections.js";
@@ -24,11 +25,12 @@ describe("settingsSectionsOf", () => {
       "unlocks",
       "save-data",
       "rules",
+      ...EARNED_ITEMS.map((item) => item.id),
     ];
     expect([...items].sort()).toEqual([...expected].sort());
   });
 
-  test("the sections read top to bottom: Gameplay, Villain phase, Cards, Animation and display, Sound, Guide, More", () => {
+  test("the sections read top to bottom: Gameplay, Villain phase, Cards, Animation and display, Sound, Guide, More, Earned items", () => {
     expect(settingsSectionsOf({ guideRowIds, cardHover: true }).map((s) => s.title)).toEqual([
       "Gameplay",
       "Villain phase",
@@ -37,7 +39,14 @@ describe("settingsSectionsOf", () => {
       "Sound",
       "Guide",
       "More",
+      "Earned items",
     ]);
+  });
+
+  test("Earned items sits on the More tab, under its own heading (#291)", () => {
+    const more = settingsTabsOf({ guideRowIds, cardHover: true }).find((tab) => tab.id === "more")!;
+    expect(more.sections.map((s) => s.title)).toEqual(["More", "Earned items"]);
+    expect(more.sections[1]!.items).toContain("ultron-drone-art");
   });
 
   test("the first player token's animation sits with Reduced motion", () => {
