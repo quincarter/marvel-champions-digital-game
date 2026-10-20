@@ -11,6 +11,7 @@ import { describe, expect, test } from "vitest";
 import type { DefendBand, GameState, InstanceId, PendingChoice, PlayerId } from "@mc/engine";
 import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
+import { playDefendAlliesGame } from "../store/dev-defend-allies-game.js";
 import { SessionStore } from "../store/session-store.js";
 import {
   bandFactsOf,
@@ -19,7 +20,7 @@ import {
   defendCauseFrom,
   defendChoiceViewOf,
   forcedNotesOf,
-  hpAfterFrom,
+  hpLineFrom,
 } from "./defend-choice.js";
 
 async function playToDeclareDefender(): Promise<{ state: GameState; choice: PendingChoice; viewer: PlayerId }> {
@@ -133,7 +134,7 @@ describe("defendChoiceViewOf: a real declareDefender choice", () => {
 
 // ---------------------------------------------------------------------------
 // Hand-built band fixtures for the RRG cases a two-line seed doesn't reach —
-// `bandFactsOf`/`consequenceLinesFrom`/`damageHeadline`/`hpAfterFrom` are pure
+// `bandFactsOf`/`consequenceLinesFrom`/`damageHeadline`/`hpLineFrom` are pure
 // over `DefendBand[]` and plain names, so none of this needs a `GameState`.
 // ---------------------------------------------------------------------------
 
@@ -167,18 +168,41 @@ describe("damageHeadline", () => {
   });
 });
 
-describe("hpAfterFrom", () => {
+describe("hpLineFrom: the health now, then what the attack leaves (#298)", () => {
   test("a fixed outcome reads as one number", () => {
-    expect(hpAfterFrom(16, 16, [band({ damageTaken: 4 })])).toBe("12 of 16 HP");
+    expect(hpLineFrom(16, 16, [band({ damageTaken: 4 })])).toBe("Now 16 of 16 HP → 12 left");
   });
 
   test("a range subtracts each end of the band range from current HP, worst case first", () => {
-    expect(hpAfterFrom(16, 16, [band({ damageTaken: 1 }), band({ damageTaken: 5 })])).toBe("11–15 of 16 HP");
+    expect(hpLineFrom(5, 9, [band({ damageTaken: 2 }), band({ damageTaken: 5 })])).toBe("Now 5 of 9 HP → 0–3 left");
   });
 
   test("never reports negative HP — a lethal band floors at 0", () => {
-    expect(hpAfterFrom(3, 16, [band({ damageTaken: 3 }), band({ damageTaken: 7, defeated: true })])).toBe("0 of 16 HP");
+    expect(hpLineFrom(2, 4, [band({ damageTaken: 2 }), band({ damageTaken: 5, defeated: true })])).toBe(
+      "Now 2 of 4 HP → 0 left",
+    );
   });
+
+  test("with no bands, only the health now", () => {
+    expect(hpLineFrom(3, 3, [])).toBe("Now 3 of 3 HP");
+  });
+
+  test("a hurt ally's option says what it has now, beside what the attack leaves it", async () => {
+    const store = new SessionStore(new LocalEngineHost());
+    await playDefendAlliesGame(store);
+    const state = store.state.game!;
+    const view = defendChoiceViewOf(state, state.pendingChoice!, POOL_DEPS, state.players[0]!.playerId, [])!;
+    const allies = view.options.filter((o) => o.kind === "defender" && o.title !== "You defend");
+    expect(allies.map((o) => o.title).sort()).toEqual(["Mockingbird defends", "War Machine defends"]);
+    // War Machine has 4 printed hit points and Mockingbird 3; the fixture has one of them hurt.
+    const printed: Record<string, number> = { "War Machine defends": 4, "Mockingbird defends": 3 };
+    for (const option of allies) {
+      const max = printed[option.title]!;
+      const now = max - state.instances[option.defenderInstanceId!]!.damage;
+      expect(option.hpLine?.startsWith(`Now ${now} of ${max} HP → `)).toBe(true);
+    }
+    expect(allies.some((o) => state.instances[o.defenderInstanceId!]!.damage > 0)).toBe(true);
+  }, 120_000);
 });
 
 describe("bandFactsOf / consequenceLinesFrom", () => {

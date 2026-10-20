@@ -1848,8 +1848,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     });
     y += damage.height + 4;
 
-    const hp = option.hpAfter
-      ? this.add.text(textX, y, option.hpAfter, textStyle(typeRole.label, surface.ink.hex, ink.secondary))
+    const hp = option.hpLine
+      ? this.add.text(textX, y, option.hpLine, textStyle(typeRole.label, surface.ink.hex, ink.secondary))
       : null;
     if (hp) y += hp.height + 4;
 
@@ -1881,6 +1881,26 @@ export class ChoiceOverlay extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     // A tap, not any release (#231): a finger dragging the defend sheet that lifted on an option picked it.
     onTap(zone, () => this.#toggle(option.optionId, 1), `defend:${option.optionId}`);
+    // The picture over it: a tap still picks the option, a hold reads the card, and on desktop its popover previews
+    // the health this option leaves the character (#298).
+    // Not a card the sheet already shows (the hero is the matchup's target): the sheet's popover keeps one rect a card.
+    if (picture && game && !hoverCardsOf(this).has(option.pictureInstanceId)) {
+      const pictureZone = this.add
+        .zone(picture.x, picture.y, picture.width, picture.height)
+        .setOrigin(0, 0)
+        .setInteractive({ useHandCursor: true });
+      const inspect = (): void => {
+        this.scene.launch(SCENES.inspect, { instanceId: option.pictureInstanceId });
+        this.scene.bringToTop(SCENES.inspect);
+      };
+      bindHoldTarget(this, pictureZone, {
+        key: `defend-scan:${option.optionId}`,
+        onTap: () => this.#toggle(option.optionId, 1),
+        onInspect: inspect,
+      });
+      const hp = option.hpNow && option.hpAfterRange ? { ...option.hpNow, ...option.hpAfterRange } : undefined;
+      noteHoverCard(this, option.pictureInstanceId, picture, hp);
+    }
   }
 
   /**

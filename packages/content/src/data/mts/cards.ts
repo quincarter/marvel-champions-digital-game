@@ -4400,7 +4400,7 @@ export const MTS_CARDS: readonly AnyCard[] = [
     collectorNumber: "180B",
     quantityInSet: 1,
     unique: true,
-    images: { front: imageRef("/bundles/cards/17020.png") },
+    images: { front: imageRef("/bundles/cards/21180b.png") },
     otherFaceId: cardId("21180a"),
     cost: 0,
     resourceIcons: { mental: 1 },

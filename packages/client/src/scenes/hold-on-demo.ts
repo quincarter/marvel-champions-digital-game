@@ -9,6 +9,7 @@
  */
 import Phaser from "phaser";
 import { surface, typeRole } from "../tokens.js";
+import { onTap } from "../ui/tap.js";
 import { textStyle } from "../ui/theme.js";
 import type { Hint } from "../view/guide-hints.js";
 import type { Rect } from "../view/layout.js";
@@ -51,6 +52,18 @@ const WASTED_PAY: Hint = {
   anywayAction: { label: "Confirm payment" },
 };
 
+/** The card swap (`wastedPayHint`, issue #299): the card spent, the cheaper one, and why that one was picked. */
+const WASTED_CARD: Hint = {
+  key: "wastedPay",
+  title: "This spends a card you could keep",
+  body:
+    "Tac Team could be played right now, but it is spent for [[resource|resources]] here. Relentless Assault has no " +
+    "play right now, and could pay Tac Team's share instead.",
+  facts: { paid: 2, required: 2 },
+  safeAction: { label: "Change payment" },
+  anywayAction: { label: "Confirm payment" },
+};
+
 /** No safe action at all — a hint that fires with nothing legal to offer instead ("Thwart first" hidden when a
  * crisis side scheme blocks it, `guide-hints.ts`'s own doc comment on `schemeFinishHint`). */
 const NO_SAFE_ACTION: Hint = { ...SCHEME_FINISH, safeAction: null };
@@ -60,6 +73,7 @@ const HINTS: readonly { readonly label: string; readonly hint: Hint }[] = [
   { label: "lethal", hint: LETHAL },
   { label: "flipDanger", hint: FLIP_DANGER },
   { label: "wastedPay", hint: WASTED_PAY },
+  { label: "wastedCard", hint: WASTED_CARD },
   { label: "no safe action", hint: NO_SAFE_ACTION },
 ];
 
@@ -127,10 +141,12 @@ export class HoldOnDemoScene extends Phaser.Scene {
 
   #drawChips(): void {
     HINTS.forEach(({ label }, i) => {
-      const chip = this.add
-        .text(24 + i * 110, 46, label, textStyle(typeRole.label, surface.ink.hex, 0.7))
+      const chip = this.add.text(24 + i * 110, 46, label, textStyle(typeRole.label, surface.ink.hex, 0.7));
+      const zone = this.add
+        .zone(chip.x, chip.y, chip.width, chip.height)
+        .setOrigin(0, 0)
         .setInteractive({ useHandCursor: true });
-      chip.on("pointerup", () => this.#show(HINTS[i]!.hint));
+      onTap(zone, () => this.#show(HINTS[i]!.hint), `holdondemo:${label}`);
       this.#chips.push(chip);
     });
   }

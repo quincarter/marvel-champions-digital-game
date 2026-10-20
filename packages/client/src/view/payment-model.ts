@@ -34,6 +34,7 @@ import {
   type PaymentQuery,
   type PaymentSource,
   type PlayerId,
+  type ResolvedRequirement,
 } from "@mc/engine";
 import { costReductionOptionsFor, costReductionTotal, type CostReductionOption } from "./cost-reduction-model.js";
 import { actionAbilityCost } from "./cost-choice-model.js";
@@ -177,6 +178,8 @@ export interface PaymentView {
   readonly paid: number;
   /** Resources the action costs. The bar's denominator. */
   readonly required: number;
+  /** `required` by type, after any named cost reduction: what a different selection would have to cover. */
+  readonly requirement: ResolvedRequirement;
   /**
    * The denominator as the bar prints it: `required`, or a range when the player chooses how many to spend ("spend up
    * to 2 resources": "1–2"), where `required` alone read "PAYING 0 / 0" (issue #174, Nebula's Ship).
@@ -543,6 +546,7 @@ export function paymentView(
     subject,
     paid,
     required: poolTotal(requirement),
+    requirement,
     requiredLabel: requiredLabelOf(poolTotal(requirement), chosenSpendRange(state, deps, playerId, payment)),
     priceNote:
       payment.destinationNote ??

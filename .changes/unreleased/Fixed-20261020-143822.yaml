@@ -1,0 +1,3 @@
+kind: Fixed
+body: The defend picker shows each defender's health now beside what the attack leaves it ("Now 2 of 4 HP → 0 left"), so a hurt ally reads as hurt, and its card pictures open the hover popover (#298).
+time: 2026-10-20T14:38:22.9778553-04:00
