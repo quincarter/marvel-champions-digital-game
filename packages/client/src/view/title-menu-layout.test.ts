@@ -173,6 +173,7 @@ describe("titleMenuLayout", () => {
 describe("the rank badge", () => {
   for (const size of [
     { width: 360, height: 740 },
+    { width: 375, height: 667 },
     { width: 390, height: 844 },
     { width: 1024, height: 768 },
     { width: 1440, height: 900 },
@@ -197,4 +198,13 @@ describe("the rank badge", () => {
       expect(rectsOverlap(badge, musicRect)).toBe(false);
     });
   }
+});
+
+describe("the phone rank badge", () => {
+  test("sits above the footer on an iPhone SE (375x667) with the usual rows", () => {
+    const layout = titleMenuLayout({ width: 375, height: 667, continuable: false });
+    expect(layout.rankBadge.y).toBeGreaterThan(layout.settings.y + layout.settings.height - 1);
+    expect(layout.rankBadge.y + layout.rankBadge.height).toBeLessThanOrEqual(layout.footer.y);
+    expect(layout.footer.y + layout.footer.height).toBeLessThanOrEqual(667);
+  });
 });
