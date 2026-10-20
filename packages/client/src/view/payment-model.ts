@@ -692,7 +692,7 @@ export function spentTagText(
  * the word that fits a narrow tile; the bar's own lock note says the whole rule.
  */
 export function sourceTagText(source: PaymentSourceView, compact = false): string {
-  if (source.notFor) return compact ? "can't pay" : "can't pay this";
+  if (source.notFor) return "can't pay";
   if (source.helperName !== null) return source.helperName;
   if (source.amountNote !== null) return source.amountNote;
   if (source.overpayOnly) return compact ? "extra" : "overpay only";

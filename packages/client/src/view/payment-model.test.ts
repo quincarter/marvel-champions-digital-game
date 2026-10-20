@@ -111,7 +111,7 @@ describe("payment mode", () => {
     });
     expect(view.sources.some((source) => source.notFor)).toBe(false);
     expect(view.lockedNote).toBe("Finesse: Can't pay for this card");
-    expect(sourceTagText(tile!)).toBe("can't pay this");
+    expect(sourceTagText(tile!)).toBe("can't pay");
   });
 
   test("never offers the card being paid for as a way to pay for itself", () => {
