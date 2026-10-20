@@ -62,7 +62,7 @@ spread so a new player ranks up within the first few sessions.
 
 - **Earned items already built:** PR #294 (Ultron Drone art, stacked on this branch) adds an earned item, "Drone art",
   toggled under Settings > More > Earned items and for now gated on "win a game against Ultron" read from the save
-  history. When the achievements list is built, add a Drone achievement for that win and point the earned item at it.
+  history. When the achievements list is built, add a Drone achievement for that win and point the item's unlock in `progression/earned-items.ts` (setting `ultronDroneArt`) at it in place of `scenarioWon ultron` (owner, 2026-10-20).
 
 ## Data the client must record
 
