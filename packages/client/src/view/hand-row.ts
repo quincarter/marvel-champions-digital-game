@@ -28,6 +28,11 @@ export interface HandRowOptions {
   readonly tableTiles: number;
   readonly fan: boolean | "expanded";
   readonly piles: PileStyle;
+  /**
+   * Per hand card, whether its printed face is sideways (a player side scheme). A sideways card keeps the portrait
+   * card's long side as its width, so it is wider and shorter than its neighbours and its scan shows whole.
+   */
+  readonly landscape?: readonly boolean[];
 }
 
 export interface HandRowLayout {
@@ -70,12 +75,15 @@ export function handRow(inner: Rect, options: HandRowOptions): HandRowLayout {
   const stripWidth = count > 0 ? count * (tileWidth + STRIP_GAP) + RULE_WIDTH + STRIP_GAP : 0;
 
   const cardArea: Rect = { ...area, x: area.x + stripWidth, width: Math.max(0, area.width - stripWidth) };
-  const raw = cardRow(cardArea, options.handCount, {
-    gap: CARD_GAP,
-    maxHeight: cardArea.height,
-    fan: options.fan,
-    align: "start",
-  });
+  const sideways = options.landscape?.slice(0, options.handCount) ?? [];
+  const raw = sideways.some(Boolean)
+    ? mixedCardRow(cardArea, options.handCount, sideways, CARD_GAP, Boolean(options.fan))
+    : cardRow(cardArea, options.handCount, {
+        gap: CARD_GAP,
+        maxHeight: cardArea.height,
+        fan: options.fan,
+        align: "start",
+      });
   const rowRight = raw.reduce((right, slot) => Math.max(right, slot.x + slot.width), cardArea.x);
 
   // Strip and hand centered together when they fit. A row that overflows — the
@@ -133,4 +141,43 @@ function stackedPiles(inner: Rect): { deck: Rect; discard: Rect; area: Rect } {
       height: inner.height,
     },
   };
+}
+
+/**
+ * A hand row holding sideways cards among portrait ones, left-aligned like `cardRow`'s `align: "start"`. A portrait
+ * card is as tall as the row; a sideways card is as wide as that, so both share a long side. Too wide for the area
+ * and not fanned: every card shrinks together (down to the same floor `cardRow` uses), then the row overlaps. Fanned
+ * (the tabbed board's scrolling hand): full size, running past the area.
+ */
+export function mixedCardRow(
+  bounds: Rect,
+  count: number,
+  landscape: readonly boolean[],
+  gap: number,
+  fan: boolean,
+): readonly CardSlot[] {
+  if (count <= 0) return [];
+  const long = bounds.height;
+  const widths = Array.from({ length: count }, (_unused, i) => (landscape[i] ? long : long * CARD_ASPECT));
+  const sum = widths.reduce((total, width) => total + width, 0);
+  const needed = sum + gap * (count - 1);
+  const scale = fan || needed <= bounds.width ? 1 : Math.max(0.35, (bounds.width - gap * (count - 1)) / sum);
+  const scaled = widths.map((width) => width * scale);
+  const rowWidth = scaled.reduce((total, width) => total + width, 0) + gap * (count - 1);
+  // Past the floor the cards overlap, evenly, so the row stays inside the area.
+  const last = scaled[count - 1] ?? 0;
+  const squeeze = fan || rowWidth <= bounds.width || rowWidth <= last ? 1 : (bounds.width - last) / (rowWidth - last);
+  let offset = 0;
+  return scaled.map((width, i): CardSlot => {
+    const height = landscape[i] ? width * CARD_ASPECT : width / CARD_ASPECT;
+    const slot: CardSlot = {
+      x: bounds.x + offset * squeeze,
+      y: bounds.y + (bounds.height - height) / 2,
+      width,
+      height,
+      kind: "full",
+    };
+    offset += width + gap;
+    return slot;
+  });
 }

@@ -68,4 +68,55 @@ describe("hand row", () => {
     expect(layout.slots[0]!.x).toBeCloseTo(layout.cardArea.x);
     expect(right(layout.slots[8]!)).toBeGreaterThan(right(layout.cardArea));
   });
+
+  describe("sideways cards", () => {
+    const longTable: Rect = { x: 10, y: 600, width: 1260, height: 150 };
+    const phone: Rect = { x: 10, y: 650, width: 355, height: 140 };
+
+    test("a sideways card shares the portrait long side and sits centered in the row", () => {
+      const layout = handRow(longTable, {
+        handCount: 3,
+        tableTiles: 0,
+        fan: false,
+        piles: "flank",
+        landscape: [false, true, false],
+      });
+      const [a, b, c] = layout.slots;
+      expect(a!.width / a!.height).toBeCloseTo(2.5 / 3.5);
+      expect(b!.width / b!.height).toBeCloseTo(3.5 / 2.5);
+      expect(b!.width).toBeCloseTo(a!.height);
+      expect(b!.y + b!.height / 2).toBeCloseTo(a!.y + a!.height / 2);
+      // Side by side, no overlap while it fits.
+      expect(b!.x).toBeGreaterThanOrEqual(right(a!));
+      expect(c!.x).toBeGreaterThanOrEqual(right(b!));
+      for (const slot of layout.slots) expect(inside(layout.cardArea, slot)).toBe(true);
+    });
+
+    test("a crowded long-table hand shrinks together and stays inside the area", () => {
+      const landscape = Array.from({ length: 9 }, (_unused, i) => i % 3 === 1);
+      const layout = handRow(longTable, { handCount: 9, tableTiles: 0, fan: false, piles: "flank", landscape });
+      for (const slot of layout.slots) expect(inside(layout.cardArea, slot)).toBe(true);
+      expect(layout.slots[1]!.width / layout.slots[1]!.height).toBeCloseTo(3.5 / 2.5);
+    });
+
+    test("the phone's expanded hand keeps full size and runs past the area to scroll", () => {
+      const landscape = [false, false, true, false, true, false, false];
+      const layout = handRow(phone, { handCount: 7, tableTiles: 0, fan: "expanded", piles: "stacked", landscape });
+      expect(layout.slots[2]!.width).toBeCloseTo(layout.slots[0]!.height);
+      expect(right(layout.slots[6]!)).toBeGreaterThan(right(layout.cardArea));
+      for (let i = 1; i < 7; i++) expect(layout.slots[i]!.x).toBeGreaterThan(right(layout.slots[i - 1]!));
+    });
+
+    test("with no sideways card the row is exactly the portrait row", () => {
+      const plain = handRow(longTable, { handCount: 4, tableTiles: 0, fan: false, piles: "flank" });
+      const flagged = handRow(longTable, {
+        handCount: 4,
+        tableTiles: 0,
+        fan: false,
+        piles: "flank",
+        landscape: [false, false, false, false],
+      });
+      expect(flagged.slots).toEqual(plain.slots);
+    });
+  });
 });

@@ -661,6 +661,8 @@ export interface HandCardView {
   readonly resourceIcons: readonly ResourceIconType[];
   /** The whole card scan; the hand draws it behind the frame. */
   readonly art: ArtSource | null;
+  /** The printed face is sideways (a player side scheme): the hand draws it as a horizontal card. */
+  readonly landscape: boolean;
   /**
    * Where the card is, when that is not your hand: "on Hawkeye's Quiver" for an Arrow event attached to the Quiver,
    * "in your discard" for a card whose own text lets it be played from there. The engine lets you play these "as if
@@ -2117,6 +2119,7 @@ export function handCardView(state: GameState, id: InstanceId, playerId: PlayerI
       rulesText: "",
       resourceIcons: [],
       art: null,
+      landscape: false,
       from: null,
     };
   }
@@ -2140,8 +2143,14 @@ export function handCardView(state: GameState, id: InstanceId, playerId: PlayerI
     // [wild] per ally you control (docs/phase7-wave4.md §3.38).
     resourceIcons: resourceIconList(handCardResources(state, deps, id, playerId, null)),
     art: artFor(card, { kind: "front" }),
+    landscape: isLandscapeType(card.type),
     from: null,
   };
+}
+
+/** Card types printed sideways: the schemes. */
+export function isLandscapeType(type: string): boolean {
+  return type === "player_side_scheme" || type === "side_scheme" || type === "main_scheme";
 }
 
 /**

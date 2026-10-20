@@ -152,6 +152,7 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
     tableTiles: payment ? paymentTileCount(payment) : (discard?.helperCards.length ?? 0),
     fan,
     piles: tabbed ? "stacked" : "flank",
+    landscape: model.hand.map((card) => card.landscape),
   });
   const { slots } = row;
   if (payment) drawPaymentTable(ctx, row, payment);
