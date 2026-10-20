@@ -73,6 +73,8 @@ export interface AchievementCampaign {
 export interface AchievementHistory {
   readonly saves: readonly AchievementSave[];
   readonly campaigns: readonly AchievementCampaign[];
+  /** How much of How to Play is done (`view/how-to-play-model.ts#howToPlayProgressOf`), from the guide prefs. */
+  readonly howToPlay?: { readonly done: number; readonly total: number };
 }
 
 export const NO_HISTORY: AchievementHistory = { saves: [], campaigns: [] };
@@ -103,6 +105,8 @@ interface Facts {
   readonly oneHitPointWinners: ReadonlySet<string>;
   /** Won games, with a summary, in which no seat played an ally. */
   readonly noAllyWins: number;
+  /** How to Play rows done and in all; null when the history carries no guide progress. */
+  readonly howToPlay: { readonly done: number; readonly total: number } | null;
 }
 
 /** `{ current, target }`, or null when the history can't answer yet. */
@@ -179,6 +183,7 @@ export function factsOf(history: AchievementHistory): Facts {
       ),
     ),
     noAllyWins: wonSaves.filter((s) => s.summary != null && s.summary.alliesPlayed === 0).length,
+    howToPlay: history.howToPlay ?? null,
   };
 }
 
@@ -416,6 +421,16 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
     family: "feats",
     points: 150,
     measure: (f) => count(f.fastWins > 0 ? 1 : 0, 1),
+  }),
+  // The owner, 2026-10-20: Doctor Strange in Kamar-Taj's library, reading everything he can.
+  def({
+    id: "feat-how-to-play",
+    name: "Studying Like Doctor Strange",
+    description: "Finish all of How to Play: the five basics lessons and every aspect's Try it.",
+    family: "feats",
+    points: 50,
+    showProgress: true,
+    measure: (f) => (f.howToPlay && f.howToPlay.total > 0 ? count(f.howToPlay.done, f.howToPlay.total) : null),
   }),
   def({
     id: "feat-four-players",

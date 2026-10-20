@@ -11,6 +11,8 @@
  * session.
  */
 import { setShownStandIns } from "../art/art-source.js";
+import { guidePrefs } from "../guide/guide-store.js";
+import { howToPlayProgressOf } from "../view/how-to-play-model.js";
 import { appSession, campaignService } from "../session.js";
 import {
   NO_HISTORY,
@@ -107,7 +109,7 @@ export async function refreshUnlocks(): Promise<boolean> {
       .storage.list()
       .catch(() => []),
   ]);
-  const nextHistory = { saves, campaigns };
+  const nextHistory = { saves, campaigns, howToPlay: howToPlayProgressOf(guidePrefs()) };
   const nextEarned = achievementStatuses(nextHistory)
     .filter((status) => status.earned)
     .map((status) => status.def.id);

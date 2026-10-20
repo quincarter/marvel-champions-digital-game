@@ -74,7 +74,13 @@ announced in `mc-achievements-seen` (`platform/achievements-seen.ts`; a first ru
 and folds more than four at once into one summary. It takes no input.
 
 Settings ▸ More ▸ Achievements: **Achievement popup** (Off, 3, 5, 8 or 10 s; default 5 s) and **Popup position**
-(Title bar, Top, Middle, Bottom; default Middle). Picking either shows a sample.
+(Title bar, Top, Middle, Bottom; default Middle), and **Popup size** (Small, Medium, Large; default Medium; owner,
+2026-10-20). Picking any of them shows a sample.
+
+**How to Play (owner, 2026-10-20):** "Studying Like Doctor Strange" (`feat-how-to-play`, 50 points, with a progress
+bar) for finishing every How to Play row: the five basics lessons and each aspect's Try it
+(`view/how-to-play-model.ts#howToPlayProgressOf`, read from the guide prefs into `AchievementHistory.howToPlay`). The
+popup re-reads achievements whenever the guide prefs change, since a lesson finished changes no save.
 
 ## Data the client must record
 

@@ -100,6 +100,16 @@ export function howToPlayModules(prefs: GuidePrefs, boxPages: readonly BoxPage[]
   };
 }
 
+/**
+ * How much of How to Play is done: the five basics lessons and every aspect's Try it, the rows the hub marks ✓. What
+ * the "Studying Like Doctor Strange" achievement counts (`progression/achievements.ts`).
+ */
+export function howToPlayProgressOf(prefs: GuidePrefs): { readonly done: number; readonly total: number } {
+  const modules = howToPlayModules(prefs);
+  const rows = [...modules.lessons, ...modules.aspects];
+  return { done: rows.filter((row) => row.done).length, total: rows.length };
+}
+
 /** "Continue learning ▸" / "Play it again ▸" (once every lesson is done) — the hub's one red primary action's label. */
 export function continueLearningLabel(modules: HowToPlayModules): string {
   return modules.recommendedLessonIndex === null ? "Play it again ▸" : "Continue learning ▸";

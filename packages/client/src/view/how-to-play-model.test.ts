@@ -12,7 +12,20 @@ import {
   howToPlayFocusOrder,
   howToPlayHeaderLayout,
   howToPlayModules,
+  howToPlayProgressOf,
 } from "./how-to-play-model.js";
+
+describe("howToPlayProgressOf", () => {
+  it("counts the basics lessons and the aspects' Try its, and is complete only with all of them", () => {
+    const total = TUTORIAL_LESSONS.length + ASPECT_GUIDES.filter((g) => g.aspect !== "basic").length;
+    expect(howToPlayProgressOf(defaultGuidePrefs)).toEqual({ done: 0, total });
+    let prefs = defaultGuidePrefs;
+    for (const lesson of TUTORIAL_LESSONS) prefs = markLessonDone(prefs, lesson.id);
+    expect(howToPlayProgressOf(prefs).done).toBe(TUTORIAL_LESSONS.length);
+    for (const guide of ASPECT_GUIDES) if (guide.aspect !== "basic") prefs = markAspectLessonDone(prefs, guide.aspect);
+    expect(howToPlayProgressOf(prefs)).toEqual({ done: total, total });
+  });
+});
 
 describe("howToPlayModules", () => {
   it("lists all five tutorial lessons, none done and lesson 1 recommended, from fresh prefs", () => {

@@ -69,24 +69,26 @@ export function sampleAchievementToast(seconds: number): AchievementToast {
   return { heading: "Achievement unlocked", title: "Popup preview", reward: `${seconds} s here` };
 }
 
-/** The popup's height: slimmer in the title bar, where it has to fit the screens' top strip. */
+/** The popup's height at medium size: slimmer in the title bar, where it has to fit the screens' top strip. */
 export function achievementToastHeight(place: AchievementPopupPlace): number {
   return place === "titleBar" ? 48 : 72;
 }
 
 /**
  * Where the open popup sits on a `width` x `height` screen: centered across it, in the top bar (`titleBar`), just under
- * it (`top`), in the middle, or along the bottom edge. Never wider than the screen less a margin either side.
+ * it (`top`), in the middle, or along the bottom edge, drawn at `scale` (Settings' popup size, `achievementPopupScale`).
+ * Never wider than the screen less a margin either side.
  */
 export function achievementToastRect(
   place: AchievementPopupPlace,
   width: number,
   height: number,
   phone: boolean,
+  scale = 1,
 ): Rect {
   const margin = phone ? 8 : 16;
-  const h = achievementToastHeight(place);
-  const w = Math.min(place === "titleBar" ? 380 : 460, width - 2 * margin);
+  const h = Math.round(achievementToastHeight(place) * scale);
+  const w = Math.min(Math.round((place === "titleBar" ? 380 : 460) * scale), width - 2 * margin);
   const x = Math.round((width - w) / 2);
   let y: number;
   switch (place) {

@@ -80,9 +80,19 @@ describe("achievementToastRect", () => {
     expect(bar.y + bar.height).toBeLessThanOrEqual(60);
   });
 
-  test("a phone keeps a margin either side", () => {
+  test("small and large scale the popup, still centered", () => {
+    const medium = achievementToastRect("middle", W, H, false);
+    const small = achievementToastRect("middle", W, H, false, 0.8);
+    const large = achievementToastRect("middle", W, H, false, 1.3);
+    expect(small.height).toBeLessThan(medium.height);
+    expect(large.height).toBeGreaterThan(medium.height);
+    expect(large.width).toBeGreaterThan(medium.width);
+    expect(large.x + large.width / 2).toBe(W / 2);
+  });
+
+  test("a phone keeps a margin either side, even large", () => {
     for (const place of ["titleBar", "top", "middle", "bottom"] as const) {
-      const rect = achievementToastRect(place, 390, 844, true);
+      const rect = achievementToastRect(place, 390, 844, true, 1.3);
       expect(rect.x).toBeGreaterThanOrEqual(8);
       expect(rect.x + rect.width).toBeLessThanOrEqual(382);
     }

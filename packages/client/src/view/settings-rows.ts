@@ -17,6 +17,7 @@ import {
 } from "../guide/guide-prefs.js";
 import {
   ACHIEVEMENT_POPUP_PLACE_VALUES,
+  ACHIEVEMENT_POPUP_SIZE_VALUES,
   ACHIEVEMENT_POPUP_TIME_VALUES,
   CARD_HOVER_SCALE_VALUES,
   CARD_SIZE_VALUES,
@@ -26,6 +27,7 @@ import {
   clampMusicVolume,
   resolutionPixelsOf,
   type AchievementPopupPlace,
+  type AchievementPopupSize,
   type AchievementPopupTime,
   type CardHoverScale,
   type CardSize,
@@ -621,6 +623,26 @@ const ACHIEVEMENT_POPUP_PLACE_LABELS: Readonly<Record<AchievementPopupPlace, str
   middle: "Middle",
   bottom: "Bottom",
 };
+
+const ACHIEVEMENT_POPUP_SIZE_LABELS: Readonly<Record<AchievementPopupSize, string>> = {
+  small: "Small",
+  medium: "Medium",
+  large: "Large",
+};
+
+export function achievementPopupSizeRowInfoOf(settings: Settings): AchievementPopupRowInfo<AchievementPopupSize> {
+  return {
+    title: "Popup size",
+    detail: "How large the achievement popup is drawn. Picking one shows a sample.",
+    options: ACHIEVEMENT_POPUP_SIZE_VALUES.map((value) => ({ value, label: ACHIEVEMENT_POPUP_SIZE_LABELS[value] })),
+    selected: settings.achievementPopupSize,
+  };
+}
+
+/** `settings` with the popup's size set; a value that is not one of the three changes nothing. */
+export function nextSettingsAfterAchievementPopupSize(settings: Settings, value: AchievementPopupSize): Settings {
+  return ACHIEVEMENT_POPUP_SIZE_VALUES.includes(value) ? { ...settings, achievementPopupSize: value } : settings;
+}
 
 export function achievementPopupTimeRowInfoOf(settings: Settings): AchievementPopupRowInfo<AchievementPopupTime> {
   return {

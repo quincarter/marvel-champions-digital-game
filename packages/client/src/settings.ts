@@ -120,6 +120,8 @@ export interface Settings {
   readonly achievementPopupTime: AchievementPopupTime;
   /** Where the "Achievement unlocked" popup shows. Defaults to the middle of the screen (the owner, 2026-10-20). */
   readonly achievementPopupPlace: AchievementPopupPlace;
+  /** How large the "Achievement unlocked" popup is drawn. Defaults to medium (the owner, 2026-10-20). */
+  readonly achievementPopupSize: AchievementPopupSize;
 }
 
 export type AchievementPopupTime = "off" | "3s" | "5s" | "8s" | "10s";
@@ -132,6 +134,14 @@ export function achievementPopupHoldMs(time: AchievementPopupTime): number {
 
 /** "titleBar" sits in the screens' top bar strip; the rest are centered across the screen at that height. */
 export type AchievementPopupPlace = "titleBar" | "top" | "middle" | "bottom";
+export type AchievementPopupSize = "small" | "medium" | "large";
+export const ACHIEVEMENT_POPUP_SIZE_VALUES: readonly AchievementPopupSize[] = ["small", "medium", "large"];
+
+/** The scale an `achievementPopupSize` draws the popup at: medium is the size it was designed at. */
+export function achievementPopupScale(size: AchievementPopupSize): number {
+  return size === "small" ? 0.8 : size === "large" ? 1.3 : 1;
+}
+
 export const ACHIEVEMENT_POPUP_PLACE_VALUES: readonly AchievementPopupPlace[] = ["titleBar", "top", "middle", "bottom"];
 
 export type DisplayMode = "windowed" | "borderless" | "fullscreen";
@@ -292,5 +302,6 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     powerSavingAdjust: true,
     achievementPopupTime: "5s",
     achievementPopupPlace: "middle",
+    achievementPopupSize: "medium",
   };
 }

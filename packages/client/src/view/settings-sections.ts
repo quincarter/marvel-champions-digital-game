@@ -30,7 +30,8 @@ export type SettingsItemId =
   | "save-data"
   | "rules"
   | "achievement-popup-time"
-  | "achievement-popup-place";
+  | "achievement-popup-place"
+  | "achievement-popup-size";
 
 export type SettingsSectionId =
   | "gameplay"
@@ -117,7 +118,11 @@ export function settingsSectionsOf(input: {
     },
     { id: "guide", title: "Guide", items: input.guideRowIds },
     { id: "more", title: "More", items: ["unlocks", "save-data", "rules"] },
-    { id: "achievements", title: "Achievements", items: ["achievement-popup-time", "achievement-popup-place"] },
+    {
+      id: "achievements",
+      title: "Achievements",
+      items: ["achievement-popup-time", "achievement-popup-place", "achievement-popup-size"],
+    },
     { id: "earned", title: "Earned items", items: EARNED_ITEMS.map((item) => item.id) },
   ];
 }

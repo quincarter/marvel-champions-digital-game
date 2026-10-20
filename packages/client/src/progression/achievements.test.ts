@@ -142,6 +142,15 @@ describe("reading the save history", () => {
     expect(earned("feat-four-players", hist([game("rhino", "won", { players: four })]))).toBe(true);
   });
 
+  it("earns Studying Like Doctor Strange once every How to Play row is done, with a progress bar", () => {
+    const at = (done: number): AchievementHistory => ({ ...hist([]), howToPlay: { done, total: 9 } });
+    expect(earned("feat-how-to-play", at(8))).toBe(false);
+    expect(earned("feat-how-to-play", at(9))).toBe(true);
+    expect(earned("feat-how-to-play", hist([]))).toBe(false);
+    const status = achievementStatuses(at(4)).find((st) => st.def.id === "feat-how-to-play")!;
+    expect(status.progress).toEqual({ current: 4, target: 9 });
+  });
+
   it("earns the team-up story only for Thor and She-Hulk seated together in a won game", () => {
     const together = game("rhino", "won", { players: [deckOf("Thor"), deckOf("She-Hulk")] });
     expect(earned("worthy-of-a-second-date", hist([together]))).toBe(true);

@@ -17,9 +17,10 @@ import { font, signal, surface, typeRole } from "../tokens.js";
 import { textStyle } from "../ui/theme.js";
 import { fitText } from "../ui/widgets.js";
 import { appSession } from "../session.js";
-import { achievementPopupHoldMs } from "../settings.js";
+import { achievementPopupHoldMs, achievementPopupScale } from "../settings.js";
 import { ACHIEVEMENTS } from "../progression/achievements.js";
-import { earnedAchievementIds } from "../progression/progression.js";
+import { earnedAchievementIds, refreshUnlocks } from "../progression/progression.js";
+import { onGuidePrefsChange } from "../guide/guide-store.js";
 import { achievementsSeen, rememberAchievementsSeen } from "../platform/achievements-seen.js";
 import {
   achievementToastRect,
@@ -60,6 +61,9 @@ export class AchievementToastScene extends Phaser.Scene {
   create(): void {
     this.sys.setVisible(false);
     this.scale.on(Phaser.Scale.Events.RESIZE, this.#onResize, this);
+    // A How to Play lesson finished changes no save, so its achievement is read again here.
+    const unsubscribe = onGuidePrefsChange(() => void refreshUnlocks().catch(() => false));
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, unsubscribe);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () =>
       this.scale.off(Phaser.Scale.Events.RESIZE, this.#onResize, this),
     );
@@ -126,36 +130,53 @@ export class AchievementToastScene extends Phaser.Scene {
     const { width, height } = this.scale.gameSize;
     const formFactor = formFactorFor(width, height);
     const phone = formFactor === "phone" || formFactor === "phoneLandscape";
-    const rect = achievementToastRect(settings.achievementPopupPlace, width, height, phone);
-    const slim = rect.height < 60;
-    const textX = rect.x + rect.height + 12;
-    const textWidth = rect.x + rect.width - 14 - textX;
-    const heading = this.add.text(
-      textX,
-      rect.y + (slim ? 7 : 14),
-      toast.heading.toUpperCase(),
-      textStyle(typeRole.label, signal.caution.hex),
-    );
+    const scale = achievementPopupScale(settings.achievementPopupSize);
+    const rect = achievementToastRect(settings.achievementPopupPlace, width, height, phone, scale);
+    const slim = settings.achievementPopupPlace === "titleBar";
+    // Every offset and size below is the medium popup's, times the Settings scale.
+    const k = (n: number): number => Math.round(n * scale);
+    const labelSize = Math.max(8, k(typeRole.label.size));
+    const titleSize = k(slim ? 15 : phone ? 16 : 18);
+    const textX = rect.x + rect.height + k(12);
+    const textWidth = rect.x + rect.width - k(14) - textX;
+    const heading = this.add
+      .text(
+        textX,
+        rect.y + k(slim ? 7 : 14),
+        toast.heading.toUpperCase(),
+        textStyle(typeRole.label, signal.caution.hex),
+      )
+      .setFontSize(labelSize);
     const title = this.add
-      .text(textX, rect.y + (slim ? 20 : 30), toast.title, textStyle(typeRole.menuButton, surface.paper.hex))
-      .setFontSize(slim ? 15 : phone ? 16 : 18);
+      .text(textX, rect.y + k(slim ? 20 : 30), toast.title, textStyle(typeRole.menuButton, surface.paper.hex))
+      .setFontSize(titleSize);
     const reward = this.add
       .text(
-        rect.x + rect.width - 14,
-        rect.y + (slim ? 7 : 14),
+        rect.x + rect.width - k(14),
+        rect.y + k(slim ? 7 : 14),
         toast.reward,
         textStyle(typeRole.label, surface.paper.hex),
       )
+      .setFontSize(labelSize)
       .setOrigin(1, 0);
-    fitText(heading, Math.max(40, textWidth - reward.width - 12), typeRole.label.size);
-    fitText(title, textWidth, slim ? 15 : phone ? 16 : 18);
+    fitText(heading, Math.max(40, textWidth - reward.width - 12), labelSize);
+    fitText(title, textWidth, titleSize);
+    // The game's monogram, sized to sit inside the trophy's bowl (`trophyBowlOf`).
+    const bowl = trophyBowlOf(rect.height / 2);
+    // Bangers' capitals stand about three quarters of the font size.
+    const monogramSize = Math.max(8, Math.floor(bowl.height / 0.75));
     const monogram = this.add
       .text(0, 0, "MC", {
         ...textStyle(typeRole.stat, signal.caution.hex),
         fontFamily: font.display,
-        fontSize: `${Math.round(rect.height * 0.22)}px`,
+        fontSize: `${monogramSize}px`,
+        letterSpacing: 0,
       })
       .setOrigin(0.5);
+    // Shrunk (never cut, as `fitText` would) when the bowl is narrower than the letters.
+    if (monogram.width > bowl.width) {
+      monogram.setFontSize(Math.max(6, Math.floor((monogramSize * bowl.width) / monogram.width)));
+    }
     // The words over the bar, the monogram over the badge.
     const graphics = this.add.graphics().setDepth(2);
     for (const text of [heading, title, reward]) text.setDepth(3);
@@ -197,10 +218,10 @@ export class AchievementToastScene extends Phaser.Scene {
     if (radius > 0.5) {
       g.fillStyle(signal.caution.hex, alpha).fillCircle(badge.cx, badge.cy, radius);
       g.lineStyle(3, surface.ink.hex, alpha).strokeCircle(badge.cx, badge.cy, radius - 1.5);
-      drawTrophy(g, badge.cx, badge.cy, radius * 1.5, surface.ink.hex, alpha);
+      drawTrophy(g, badge.cx, badge.cy, radius, surface.ink.hex, alpha);
     }
     showing.monogram
-      .setPosition(badge.cx, badge.cy - radius * 0.16)
+      .setPosition(badge.cx, badge.cy + trophyBowlOf(radius).dy)
       .setScale(badgeScale)
       .setAlpha(alpha)
       .setVisible(radius > 4);
@@ -229,42 +250,48 @@ export class AchievementToastScene extends Phaser.Scene {
   }
 }
 
-/** A trophy cup `size` px tall, centred on (`cx`, `cy`): cup, two handles, stem and foot, leaving room for the monogram. */
+/**
+ * The trophy's bowl inside a badge of radius `r`: the space the monogram sits in, as a width, a height and its centre's
+ * offset below the badge's centre (negative: above it). The whole trophy keeps inside the badge's ring.
+ */
+function trophyBowlOf(r: number): { readonly width: number; readonly height: number; readonly dy: number } {
+  return { width: 0.64 * r, height: 0.3 * r, dy: -0.21 * r };
+}
+
+/** An ink trophy filling a badge of radius `r` centred on (`cx`, `cy`): bowl, two handles, stem and foot. */
 function drawTrophy(
   g: Phaser.GameObjects.Graphics,
   cx: number,
   cy: number,
-  size: number,
+  r: number,
   color: number,
   alpha: number,
 ): void {
-  const s = size / 2;
-  const cupTop = cy - s * 0.55;
-  const cupW = s * 0.95;
+  const at = (x: number, y: number): Phaser.Math.Vector2 => new Phaser.Math.Vector2(cx + x * r, cy + y * r);
   g.fillStyle(color, alpha);
-  // The cup: a bowl narrowing to the stem.
+  // The bowl: straight sides that round in to the stem, wide enough at the top for the monogram.
   g.fillPoints(
     [
-      new Phaser.Math.Vector2(cx - cupW / 2, cupTop),
-      new Phaser.Math.Vector2(cx + cupW / 2, cupTop),
-      new Phaser.Math.Vector2(cx + cupW * 0.36, cy + s * 0.12),
-      new Phaser.Math.Vector2(cx + cupW * 0.12, cy + s * 0.25),
-      new Phaser.Math.Vector2(cx - cupW * 0.12, cy + s * 0.25),
-      new Phaser.Math.Vector2(cx - cupW * 0.36, cy + s * 0.12),
+      at(-0.32, -0.36),
+      at(0.32, -0.36),
+      at(0.32, -0.08),
+      at(0.22, 0.08),
+      at(0.08, 0.16),
+      at(-0.08, 0.16),
+      at(-0.22, 0.08),
+      at(-0.32, -0.08),
     ],
     true,
   );
   // Handles: a half ring on each side of the bowl.
-  const handleR = s * 0.2;
-  const handleY = cupTop + s * 0.24;
-  g.lineStyle(Math.max(2, s * 0.1), color, alpha);
+  g.lineStyle(Math.max(2, r * 0.06), color, alpha);
   g.beginPath();
-  g.arc(cx - cupW * 0.46, handleY, handleR, Math.PI / 2, (Math.PI * 3) / 2);
+  g.arc(cx - 0.32 * r, cy - 0.22 * r, 0.11 * r, Math.PI / 2, (Math.PI * 3) / 2);
   g.strokePath();
   g.beginPath();
-  g.arc(cx + cupW * 0.46, handleY, handleR, -Math.PI / 2, Math.PI / 2);
+  g.arc(cx + 0.32 * r, cy - 0.22 * r, 0.11 * r, -Math.PI / 2, Math.PI / 2);
   g.strokePath();
   // Stem and foot.
-  g.fillRect(cx - s * 0.07, cy + s * 0.25, s * 0.14, s * 0.2);
-  g.fillRect(cx - s * 0.32, cy + s * 0.45, s * 0.64, s * 0.12);
+  g.fillRect(cx - 0.05 * r, cy + 0.15 * r, 0.1 * r, 0.12 * r);
+  g.fillRect(cx - 0.2 * r, cy + 0.26 * r, 0.4 * r, 0.1 * r);
 }

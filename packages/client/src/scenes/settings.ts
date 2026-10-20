@@ -46,6 +46,8 @@ import {
   nextSettingsAfterTokenMotion,
   tokenMotionRowInfoOf,
   achievementPopupPlaceRowInfoOf,
+  achievementPopupSizeRowInfoOf,
+  nextSettingsAfterAchievementPopupSize,
   achievementPopupTimeRowInfoOf,
   nextSettingsAfterAchievementPopupPlace,
   nextSettingsAfterAchievementPopupTime,
@@ -137,6 +139,7 @@ const CARD_HOVER_CONTROL_WIDTH = 280;
 const CARD_SIZE_CONTROL_WIDTH = 520;
 const POPUP_TIME_CONTROL_WIDTH = 320;
 const POPUP_PLACE_CONTROL_WIDTH = 400;
+const POPUP_SIZE_CONTROL_WIDTH = 300;
 /** Room for each mode's label with padding either side (the owner, 2026-10-16). */
 const DISPLAY_MODE_CONTROL_WIDTH = 480;
 /** Resolution is a dropdown and an Apply button: up to seventeen sizes is too many segments. */
@@ -490,6 +493,9 @@ export class SettingsOverlay extends Phaser.Scene {
     );
     segmented("achievement-popup-place", achievementPopupPlaceRowInfoOf(settings), POPUP_PLACE_CONTROL_WIDTH, (v) =>
       setPopup(nextSettingsAfterAchievementPopupPlace(appSession().settings, v)),
+    );
+    segmented("achievement-popup-size", achievementPopupSizeRowInfoOf(settings), POPUP_SIZE_CONTROL_WIDTH, (v) =>
+      setPopup(nextSettingsAfterAchievementPopupSize(appSession().settings, v)),
     );
     if (hasDesktopWindow()) {
       const monitor = desktopMonitor();

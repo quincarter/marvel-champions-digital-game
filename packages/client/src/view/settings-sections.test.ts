@@ -29,6 +29,7 @@ describe("settingsSectionsOf", () => {
       "rules",
       "achievement-popup-time",
       "achievement-popup-place",
+      "achievement-popup-size",
       ...EARNED_ITEMS.map((item) => item.id),
     ];
     expect([...items].sort()).toEqual([...expected].sort());
@@ -59,6 +60,7 @@ describe("settingsSectionsOf", () => {
     expect(more.sections.find((s) => s.id === "achievements")?.items).toEqual([
       "achievement-popup-time",
       "achievement-popup-place",
+      "achievement-popup-size",
     ]);
   });
 

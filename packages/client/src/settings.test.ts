@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   VILLAIN_RECAP_PAUSE_MS,
   achievementPopupHoldMs,
+  achievementPopupScale,
   defaultSettings,
   flipDurationMs,
   villainBeatIntervalMs,
@@ -35,6 +36,10 @@ describe("villain phase settings", () => {
     expect(settings.cardSize).toBe("standard");
     expect(settings.achievementPopupTime).toBe("5s");
     expect(settings.achievementPopupPlace).toBe("middle");
+    expect(settings.achievementPopupSize).toBe("medium");
+    expect(achievementPopupScale("small")).toBeLessThan(1);
+    expect(achievementPopupScale("medium")).toBe(1);
+    expect(achievementPopupScale("large")).toBeGreaterThan(1);
   });
 
   test("achievementPopupHoldMs: the popup's hold in milliseconds, none when off", () => {

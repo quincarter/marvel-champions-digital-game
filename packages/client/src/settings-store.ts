@@ -10,6 +10,7 @@
  */
 import {
   ACHIEVEMENT_POPUP_PLACE_VALUES,
+  ACHIEVEMENT_POPUP_SIZE_VALUES,
   ACHIEVEMENT_POPUP_TIME_VALUES,
   CARD_HOVER_SCALE_VALUES,
   CARD_SIZE_VALUES,
@@ -81,6 +82,8 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   if (popupTimeValue !== undefined) out.achievementPopupTime = popupTimeValue;
   const popupPlaceValue = ACHIEVEMENT_POPUP_PLACE_VALUES.find((value) => value === source["achievementPopupPlace"]);
   if (popupPlaceValue !== undefined) out.achievementPopupPlace = popupPlaceValue;
+  const popupSizeValue = ACHIEVEMENT_POPUP_SIZE_VALUES.find((value) => value === source["achievementPopupSize"]);
+  if (popupSizeValue !== undefined) out.achievementPopupSize = popupSizeValue;
   const displayModeValue = DISPLAY_MODE_VALUES.find((value) => value === source["displayMode"]);
   if (displayModeValue !== undefined) out.displayMode = displayModeValue;
   const drawResolution = source["resolution"];
