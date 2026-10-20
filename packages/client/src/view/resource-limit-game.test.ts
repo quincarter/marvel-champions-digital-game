@@ -1,7 +1,7 @@
 /**
  * Issue #292: Finesse ("Hero Resource: Exhaust Finesse → generate a [wild] resource for an aspect card") can't pay for
  * Self-Propelled Glide, a Spider-Woman hero card that shows no aspect. Inspect says so on both cards, from the engine's
- * own answer (`resourcesNotFor`), with a real Spider-Woman game.
+ * own answer (`resourcesNotFor`), with a real Spider-Woman game; the pause menu's table rules explain "aspect card".
  */
 import { beforeAll, describe, expect, test } from "vitest";
 import { cardId } from "@mc/content";
@@ -10,6 +10,7 @@ import { LocalEngineHost } from "../engine/local-host.js";
 import { POOL_DEPS } from "../content/pool.js";
 import { SessionStore } from "../store/session-store.js";
 import { inspectModel } from "./inspect-model.js";
+import { rulesGlossaryOf } from "./rules-reference.js";
 
 const FINESSE = "04033";
 const GLIDE = "04039";
@@ -108,5 +109,13 @@ describe("Inspect explains Finesse's limit (issue #292)", () => {
       },
     }).resourceNote;
     expect(note).toContain("It can't pay for Self-Propelled Glide.");
+  });
+});
+
+describe("the pause menu's table rules explain aspect cards (issue #292)", () => {
+  test("lists Aspect card with the table's cards that name it", () => {
+    const entry = rulesGlossaryOf(state, POOL_DEPS).find((candidate) => candidate.id === "aspectCard");
+    expect(entry?.definition).toContain("Self-Propelled Glide shows none");
+    expect(entry?.cardRefs.map((ref) => ref.name)).toContain("Finesse");
   });
 });
