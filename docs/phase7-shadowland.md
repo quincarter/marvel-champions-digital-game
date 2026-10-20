@@ -232,3 +232,58 @@ game (no heroes ship: use two existing heroes).
 
 **Client (not started here; the client agents own `packages/client`):** pool and cycle wiring, the position environments
 and trap deck zones, the corruption counter display, the campaign log screen, hover and Guided text for the new rules.
+
+## 6. Rules brief for the engine (rules expert, 2026-10-20)
+
+Sources: the insert (`docs/campaign-modes/mc65_rulebook-web.pdf`, printed page numbers; pp. 8-9, 12-13, 16-17 checked
+against the photographs) and RRG 1.8. No Shadowland ruling exists yet.
+
+- **M1 Positions (insert p. 8; RRG "Environment" p. 18, "Flip" p. 20).** Setup puts two double-sided environments in
+  play, The Streets Below / Atop the Tenshu: one with the VILLAIN POSITION trait, one with HERO POSITION (one hero card
+  in total). "The villain's position is X" = that card shows X; "change the villain's position" flips it. "Both
+  positions are the same / different" compares the two faceup titles. A flip is not a reveal (rulings 2026-02-28 #7.3,
+  2026-01-26 #4.2); tokens and attachments stay. FAQ p. 18: an effect that cannot fully resolve may be chosen on The
+  Streets Below, and then (because of "then") the card is not flipped. Starting faces and movement come from card text.
+- **M2 Creeping Corruption (pp. 9, 14, 17).** 72A is a double-sided upgrade (Black Flower), Setup keyword on A; 72B has
+  OVERPOWERING (not "overwhelming"). Corruption counters are all-purpose counters (RRG p. 6) and survive the flip.
+  Campaign scenarios 1-2 setup (RRG step 13): one 72A per player, rest set aside, rest of Black Flower shuffled in.
+  Black Flower is not a campaign modular pick (p. 5). Q7: the upgrade does not carry over between games; scenario 3's
+  "counter on their Creeping Corruption" assumes Heart of Shadow's own setup provides it — verify on the 1A scan; if
+  silent, owner question (A: one 72A per player, as pp. 9/14; B: none). Q8 (corruption "turns a hero into a Dark
+  Protégé"): build from 72B's printed text once transcribed; if it gives no mechanic, owner question (A: that player is
+  eliminated, RRG p. 34; B: the players lose).
+- **M3 Trap deck (pp. 12-13, FAQ p. 18; RRG "Deck" p. 15).** Built after the encounter deck from every TRAP! treachery
+  in it, the Deadly Contraptions set, Whisper in the Dark, and any TRAP! card from added modular sets (8 by default).
+  "Reveal a card from the trap deck" reveals its top card. A TRAP! card that would be discarded goes to the trap discard
+  pile from anywhere; a non-TRAP! card goes to the encounter discard even if drawn from the trap deck. Once empty,
+  reshuffle its discard immediately; not an encounter deck reset, no acceleration token. Surge from a trap card deals
+  from the encounter deck (FAQ p. 18). Trap deck and discard both empty: engine reading, the reveal does nothing (no
+  loss).
+- **M4 Infinite hit points (p. 13; RRG "Hit Points" p. 22).** Shifting Corridors takes damage but is never defeated;
+  damage-taken triggers still fire. Precedent: wave 3 §3.1.
+- **M5 Passage counters (p. 13).** Placed by card text; removed by card abilities. The players lose as soon as none
+  remain (a state check).
+- **M6 Assault (p. 2 = RRG p. 8).** A basic thwart against an Assault scheme uses ATK instead of THW; an ally takes its
+  ATK consequential damage; basic-power increases apply to ATK. Basic thwarts only; Patrol/Crisis still apply. Check the
+  engine's `assault` hits are this keyword, not the TRoRS card Assault.
+- **M7 Linked (RRG p. 27).** Never in a deck; set aside at setup when any deck (the villain deck counts) holds the named
+  card. The 10 Dark Protégé linked cards are set aside only for scenario 1's villain. Linked cards cannot be campaign
+  rewards (ruling 2026-08-03 #4.3).
+- **M8 First Player Action (p. 2; project decision wave 3 §3.13).** Only the first player, whenever they could take a
+  standard action, on any card (Milano precedent). Reuse `firstPlayerOnly`.
+- **M9 Teamwork (RRG p. 43; FAQ p. 18).** After the minion enters play and engages, if another minion with the trait is
+  in play it activates against that player, after its When Revealed. FAQ: a NINJA's When Defeated putting a Teamwork
+  NINJA into play checks after the defeated minion is discarded (it never counts). Test it.
+- **M10 Villainous (RRG p. 47).** Follow the RRG ("uses a basic power"); rulings 2026-02-28 #6 and 2026-01-26 #4.1.
+- **M11 Krahllak's Interrupt (FAQ p. 18).** "When Krahllak attacks you" resolves before a teammate declares defense.
+- **M12 Campaign (pp. 4-6, 9-10, 14-15, 17, 20).** Campaign setup at RRG step 13. Identity fixed for the campaign;
+  aspect/deck may change. Recording Daredevil or Elektra as an identity removes that Dark Protégé villain. Scenario 1
+  victory removes the villain used. Scenario 3 deals the four Dark Protégé minions (Archpriestess, Gorgon, Lady
+  Bullseye, White Tiger) at random, one facedown per player, rest shuffled in (all four regardless). A loss replays the
+  scenario with no penalty (p. 5). OVERPOWERING flag recorded at scenario 1 and 2 victory; scenario 2 setup +1 counter
+  if set in 1; scenario 3 +1 per flag. Recorded cards: each victory, each player may record one support or upgrade they
+  control with cost 2 or less (not "-", not linked), two slots; scenarios 2/3 setup may put that card (from their
+  current deck, no shuffle) into play free for +1 counter each. Expert: record remaining HP at victory (capped); set it
+  at setup and the player may deal themself a facedown encounter card to heal to full; a player defeated in a won
+  scenario rejoins next time (owner question if no HP is recorded: A, they must take the card to heal to full; B, base
+  HP). Extra main scheme threat: +1 per player (s1), +3 per player (s2), none (s3).
