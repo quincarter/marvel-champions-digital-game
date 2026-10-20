@@ -86,6 +86,11 @@ export interface SetupDraft {
   /** Apocalypse begins at stage I (standard only). Q12. */
   readonly easierStart: boolean;
   /**
+   * The villain a Fear No Evil scenario is played against (`Scenario.villainOptions`): an option's encounter set id, or
+   * `null` for the scenario's default. Only ever holds what `playableScenarioOffer` lists (`reconcileWithOffer`).
+   */
+  readonly villainSetId: string | null;
+  /**
    * The Hood's own seven-of-nine modular set choice (docs/phase7-wave4.md §2.3, §3.18). `null` means the scenario
    * builder's own default (the pack's first seven in declaration order) — never a random draw the client makes
    * itself, so the same draft always seats the same game.
@@ -155,6 +160,7 @@ export function initialSetupDraft(options: InitialSetupDraftOptions): SetupDraft
     genePoolThreatPerPlayer: 0,
     horsemanSides: null,
     easierStart: false,
+    villainSetId: null,
     setAsideModularSetIds: null,
     extraModularSetIds: [],
     towerDefenseSetupDamage: false,
@@ -227,6 +233,7 @@ export function setScenario(draft: SetupDraft, scenario: Scenario | undefined, s
     genePoolThreatPerPlayer: 0,
     horsemanSides: null,
     easierStart: false,
+    villainSetId: null,
     setAsideModularSetIds: null,
     towerDefenseSetupDamage: false,
     // A different leader's stage picks never carry over (they may be the other side's); the same leader keeps its own.
@@ -262,6 +269,20 @@ function reconcileKeepingEasierStart(next: SetupDraft): SetupDraft {
   return next.easierStart && !reconciled.easierStart && offerOf({ ...next, difficulty: "standard" }).easierStart
     ? { ...reconciled, easierStart: true }
     : reconciled;
+}
+
+/**
+ * Protection Racket's "each player chooses a main scheme" (standard mode): until the table has a picker, seat N takes the
+ * Nth of the scenario's schemes, which are all different. Expert draws them at random in the engine, so none are sent.
+ */
+function defaultMainSchemePicks(
+  scenario: Scenario | undefined,
+  difficulty: SetupDifficulty,
+  seats: number,
+): readonly string[] | undefined {
+  const choice = scenario?.mainSchemeChoice;
+  if (!choice || difficulty === "expert") return undefined;
+  return choice.cardIds.slice(0, seats).map((id) => id as string);
 }
 
 /** Picking modular sets; a Gene Pool amount stops applying when Infinites leaves the game. */
@@ -570,6 +591,7 @@ export function toSessionConfig(
       : draft.setAsideModularSetIds;
   // Only what the scenario offers goes out (`reconcileWithOffer`): a stale choice never reaches a builder that refuses it.
   const options = reconcileWithOffer(draft);
+  const mainSchemePicks = defaultMainSchemePicks(scenario, draft.difficulty, players.length);
   return {
     scenarioId: draft.scenarioId,
     difficulty: draft.difficulty,
@@ -583,6 +605,8 @@ export function toSessionConfig(
       ? { horsemanSides: options.horsemanSides as HorsemanSides }
       : {}),
     ...(options.easierStart ? { easierStart: true } : {}),
+    ...(options.villainSetId ? { villainSetId: options.villainSetId } : {}),
+    ...(mainSchemePicks ? { mainSchemePicks } : {}),
     ...(options.civilWar
       ? {
           ...(options.civilWar.stageIds.length > 0 ? { mainSchemeStageIds: options.civilWar.stageIds } : {}),

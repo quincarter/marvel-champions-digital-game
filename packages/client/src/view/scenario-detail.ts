@@ -61,6 +61,11 @@ export interface ScenarioDetail {
   /** True when `tileTitle` is the scenario's name rather than the villain's, so the subtitle leads with the villain. */
   readonly titledByScenario: boolean;
   readonly villainCardId: CardId;
+  /**
+   * The villains the scenario may be played against, by encounter set name, when the villain is a setup choice (Fear No
+   * Evil, `Scenario.villainOptions`); empty for a scenario whose villain is fixed. `villainName` is then the default's.
+   */
+  readonly villainChoices: readonly string[];
   /** Present only for a multi-villain scenario (Breakout); every other name beside `villainName` that also enters play at setup. */
   readonly otherVillainNames: readonly string[];
   readonly mainSchemeName: string;
@@ -146,12 +151,16 @@ export function scenarioDetailOf(
     tileTitle: titledByScenario ? scenario.name : displayName,
     titledByScenario,
     villainCardId: scenario.villainCardId,
+    villainChoices: (scenario.villainOptions?.options ?? []).map((o) => setName(o.villainSetId as string, sets)),
     otherVillainNames,
     mainSchemeName: mainScheme.name,
     startingThreat: firstStage.startingThreat,
     startingAcceleration: firstStage.acceleration,
     stages,
-    fixedEncounterSetNames: scenario.encounterSetIds.map((id) => setName(id as string, sets)),
+    // The record's villain set is the default option's; with a villain to choose it is not a fixed set of the game.
+    fixedEncounterSetNames: scenario.encounterSetIds
+      .filter((id) => id !== scenario.villainOptions?.defaultSetId)
+      .map((id) => setName(id as string, sets)),
     recommendedModularSetNames: scenario.recommendedModularSetIds.map((id) => setName(id as string, sets)),
     modularSummary: pooledModularSummary(scenario),
     modularShortSummary: pooledModularShortSummary(scenario),
@@ -171,7 +180,9 @@ export function scenarioDetailOf(
 export function scenarioDetailLines(detail: ScenarioDetail): readonly string[] {
   const lines: string[] = [];
   lines.push(
-    `${detail.foeWord}: ${detail.villainName}${detail.otherVillainNames.length > 0 ? ` + ${detail.otherVillainNames.length} more (${detail.otherVillainNames.join(", ")})` : ""}`,
+    detail.villainChoices.length > 0
+      ? `${detail.foeWord}: your pick of ${detail.villainChoices.join(", ")}`
+      : `${detail.foeWord}: ${detail.villainName}${detail.otherVillainNames.length > 0 ? ` + ${detail.otherVillainNames.length} more (${detail.otherVillainNames.join(", ")})` : ""}`,
   );
   lines.push(`Main scheme: ${detail.mainSchemeName} — starting threat ${formatScaling(detail.startingThreat)}`);
   lines.push(
@@ -193,7 +204,7 @@ export function scenarioDetailLines(detail: ScenarioDetail): readonly string[] {
 /** Scenario select's "Encounter sets" stat cell: the villain's set and the modular sets, short enough for one line. */
 export function encounterSetsCellText(detail: ScenarioDetail): string {
   const modular = detail.modularShortSummary ?? detail.modularSummary ?? detail.recommendedModularSetNames[0] ?? "";
-  return `${detail.displayName} · ${modular}`.toUpperCase();
+  return `${detail.villainChoices.length > 0 ? "Your villain's set" : detail.displayName} · ${modular}`.toUpperCase();
 }
 
 const SHELF_ROMAN = ["", "I", "II", "III", "IV", "V", "VI"] as const;
@@ -213,6 +224,7 @@ export function shelfSubtitleOf(detail: ScenarioDetail): string {
     : (detail.recommendedModularSetNames[0] ?? detail.fixedEncounterSetNames[0] ?? "");
   const line = setName ? `${stages} · ${setName}` : stages;
   if (detail.villainIsRandom) return `${detail.villainName} · random`;
+  if (detail.villainChoices.length > 0) return `Choice of ${detail.villainChoices.length} villains · ${line}`;
   return detail.titledByScenario ? `${detail.villainName} · ${line}` : line;
 }
 

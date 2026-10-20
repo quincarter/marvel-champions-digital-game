@@ -499,7 +499,7 @@ const INTRODUCED_IN: Record<GlossaryId, Intro> = {
   assault: { box: "cycle7" },
   discount: { box: "cycle11" },
   linked: { box: "cycle7" },
-  prerequisite: { box: "later" },
+  prerequisite: { box: "cycle11" },
   starting: { box: "cycle11" },
   vulnerable: { box: "cycle9" },
   // Status cards: all three are in the Core Set.

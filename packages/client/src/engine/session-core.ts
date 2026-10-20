@@ -161,6 +161,8 @@ const scenarioFor = (config: SessionConfig) => {
     ...(config.genePoolThreatPerPlayer ? { genePoolThreatPerPlayer: config.genePoolThreatPerPlayer } : {}),
     ...(config.horsemanSides ? { horsemanSides: config.horsemanSides } : {}),
     ...(config.easierStart ? { easierStart: true } : {}),
+    ...(config.villainSetId ? { villainSetId: config.villainSetId } : {}),
+    ...(config.mainSchemePicks ? { mainSchemePicks: config.mainSchemePicks } : {}),
     ...(config.setAsideModularSetIds ? { setAsideModularSetIds: config.setAsideModularSetIds } : {}),
     ...(config.extraModularSetIds ? { extraModularSetIds: config.extraModularSetIds } : {}),
     ...(config.setupOptions ? { setupOptions: config.setupOptions } : {}),

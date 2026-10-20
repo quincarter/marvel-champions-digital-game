@@ -127,7 +127,10 @@ describe("shelfSubtitleOf", () => {
 
   test("in the real pool, the two Museum scenarios, the two Marauders scenarios (Morlock Siege, On the Run) and Apocalypse with En Sabah Nur are the only villain names shared", () => {
     const names = POOL_SCENARIOS.map((s) => detail(s.id as string).villainName);
-    const shared = POOL_SCENARIOS.filter((_, i) => names.indexOf(names[i]!) !== names.lastIndexOf(names[i]!));
+    // Fear No Evil's five underling scenarios all open on their default villain's card, which a table replaces at setup.
+    const shared = POOL_SCENARIOS.filter(
+      (s, i) => !s.villainOptions && names.indexOf(names[i]!) !== names.lastIndexOf(names[i]!),
+    );
     expect(shared.map((s) => s.id as string).sort()).toEqual([
       "apocalypse",
       "en-sabah-nur",
@@ -136,6 +139,27 @@ describe("shelfSubtitleOf", () => {
       "morlock-siege",
       "on-the-run",
     ]);
+  });
+});
+
+describe("a scenario whose villain is a setup choice (Fear No Evil)", () => {
+  const detail = (id: string) =>
+    scenarioDetailOf(
+      POOL_SCENARIOS.find((s) => (s.id as string) === id)!,
+      CARDS_BY_ID,
+      POOL_ENCOUNTER_SETS,
+    );
+
+  test("names the five villains, not the default one, and keeps the default's set out of the fixed sets", () => {
+    const d = detail("art-museum-heist");
+    expect(d.villainChoices).toEqual(["Hammerhead", "Bullseye", "Electro", "Purple Man", "Typhoid Mary"]);
+    expect(shelfSubtitleOf(d)).toMatch(/^Choice of 5 villains · Stages I–II/);
+    expect(scenarioDetailLines(d)[0]).toContain("your pick of Hammerhead, Bullseye");
+    expect(d.fixedEncounterSetNames).not.toContain("Hammerhead");
+  });
+
+  test("Kingpin's villain is fixed", () => {
+    expect(detail("kingpin").villainChoices).toEqual([]);
   });
 });
 
