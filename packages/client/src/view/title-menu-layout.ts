@@ -36,6 +36,8 @@ const DIVIDER_WIDTH = 4;
 const ART_PANEL_SHARE = 0.45;
 /** The rank badge's plate. */
 export const RANK_BADGE_HEIGHT = 58;
+/** The one-column (phone) badge: a full-width strip above the footer, one line plus the bar and its caption. */
+export const RANK_BADGE_PHONE_HEIGHT = 42;
 const RANK_BADGE_PHONE_WIDTH = 124;
 const RANK_BADGE_MAX_WIDTH = 300;
 
@@ -203,15 +205,22 @@ const TITLE_STEP = 4;
 export function titleMenuLayout(input: TitleMenuLayoutInput): TitleMenuLayout {
   const { width, height } = input;
   const { gap } = setupMetrics(width, height);
-  let tight = { gap, titleSize: null as number | null };
-  let layout = titleMenuLayoutAt(input, tight.gap, tight.titleSize);
-  while (!layout.fits && (tight.gap > GAP_FLOOR || layout.titleSize > TITLE_SIZE_FLOOR)) {
-    tight = {
-      gap: Math.max(GAP_FLOOR, tight.gap - GAP_STEP),
-      titleSize: Math.max(TITLE_SIZE_FLOOR, layout.titleSize - (tight.gap > GAP_FLOOR ? 0 : TITLE_STEP)),
-    };
-    layout = titleMenuLayoutAt(input, tight.gap, tight.titleSize);
-  }
+  const tightened = (badgeUp: boolean): TitleMenuLayout & { readonly fits: boolean } => {
+    let tight = { gap, titleSize: null as number | null };
+    let layout = titleMenuLayoutAt(input, tight.gap, tight.titleSize, badgeUp);
+    while (!layout.fits && (tight.gap > GAP_FLOOR || layout.titleSize > TITLE_SIZE_FLOOR)) {
+      tight = {
+        gap: Math.max(GAP_FLOOR, tight.gap - GAP_STEP),
+        titleSize: Math.max(TITLE_SIZE_FLOOR, layout.titleSize - (tight.gap > GAP_FLOOR ? 0 : TITLE_STEP)),
+      };
+      layout = titleMenuLayoutAt(input, tight.gap, tight.titleSize, badgeUp);
+    }
+    return layout;
+  };
+  // A phone puts the rank badge above the footer (owner, 2026-10-20); only when every row at once leaves no room there
+  // (a 360x740 phone with Continue, Civil War! and the update banner) does it go back up beside the logo.
+  let layout = tightened(false);
+  if (!layout.fits && !layout.split) layout = tightened(true);
   const { fits: _fits, ...rest } = layout;
   return rest;
 }
@@ -220,6 +229,7 @@ function titleMenuLayoutAt(
   input: TitleMenuLayoutInput,
   gap: number,
   titleOverride: number | null,
+  badgeUp: boolean,
 ): TitleMenuLayout & { readonly fits: boolean } {
   const { width, height } = input;
   const { phone, short, pad } = setupMetrics(width, height);
@@ -287,6 +297,11 @@ function titleMenuLayoutAt(
     y += hit.target + gap;
   }
 
+  // The rank badge: at the art panel's bottom-left on a split screen; in one column (a phone) it sits at the foot of the
+  // menu, just above the footer (cards live, release notes), not up by the title (owner, 2026-10-20).
+  const menuBottom = menuPanel.y + menuPanel.height;
+  const atFoot = !split && !badgeUp;
+  const rankBadgeY = atFoot ? Math.max(y, menuBottom - pad - hit.target - gap - RANK_BADGE_PHONE_HEIGHT) : 0;
   const rankBadge: Rect = split
     ? {
         x: pad,
@@ -294,15 +309,19 @@ function titleMenuLayoutAt(
         width: Math.min(artPanel!.width - pad * 2, RANK_BADGE_MAX_WIDTH),
         height: RANK_BADGE_HEIGHT,
       }
-    : {
-        x: left + column - RANK_BADGE_PHONE_WIDTH,
-        y: rule.y - RANK_BADGE_HEIGHT - 6,
-        width: RANK_BADGE_PHONE_WIDTH,
-        height: RANK_BADGE_HEIGHT,
-      };
+    : atFoot
+      ? { x: left, y: rankBadgeY, width: column, height: RANK_BADGE_PHONE_HEIGHT }
+      : {
+          x: left + column - RANK_BADGE_PHONE_WIDTH,
+          y: rule.y - RANK_BADGE_HEIGHT - 6,
+          width: RANK_BADGE_PHONE_WIDTH,
+          height: RANK_BADGE_HEIGHT,
+        };
 
-  const footerY = Math.max(y, menuPanel.y + menuPanel.height - pad - hit.target);
-  const fits = footerY + hit.target <= menuPanel.y + menuPanel.height;
+  const footerY = !atFoot
+    ? Math.max(y, menuBottom - pad - hit.target)
+    : Math.max(rankBadgeY + RANK_BADGE_PHONE_HEIGHT + gap, menuBottom - pad - hit.target);
+  const fits = footerY + hit.target <= menuBottom;
   const footer: Rect = { x: left, y: footerY, width: column, height: hit.target };
 
   return {

@@ -44,7 +44,7 @@ import { cardDisplayName } from "../view/hero-names.js";
 import { initialSetupDraft, withSeatOne } from "../view/setup-draft.js";
 import { rollSeed } from "../view/seed.js";
 import { titleMenuFocusOrder } from "../view/screen-focus.js";
-import { titleMenuLayout, updateBannerParts } from "../view/title-menu-layout.js";
+import { RANK_BADGE_HEIGHT, titleMenuLayout, updateBannerParts } from "../view/title-menu-layout.js";
 import type { SaveMeta } from "../engine/game-storage.js";
 import { appSession } from "../session.js";
 import { guidePrefs, setGuideRunLevelOverride } from "../guide/guide-store.js";
@@ -576,12 +576,59 @@ export class TitleScene extends Phaser.Scene {
   #drawRankBadge(rect: Rect, open: () => void): void {
     const badge = titleRankBadgeOf(lifetimeChampionPoints());
     const up = this.#rankUp;
-    const pad = 8;
-    const inner = rect.width - pad * 2;
     this.add
       .rectangle(rect.x, rect.y, rect.width, rect.height, up ? accent.heroRed.hex : surface.ink.hex, up ? 1 : 0.9)
       .setOrigin(0, 0)
       .setStrokeStyle(2, surface.paper.hex);
+    if (rect.height < RANK_BADGE_HEIGHT) {
+      this.#drawCompactRankBadge(rect, badge, up);
+    } else {
+      this.#drawFullRankBadge(rect, badge, up);
+    }
+    const zone = this.add
+      .zone(rect.x, rect.y, rect.width, rect.height)
+      .setOrigin(0, 0)
+      .setInteractive({ useHandCursor: true });
+    onTap(zone, open, "title:rank-badge");
+    this.#stops.set("rank-badge", { rect, activate: open });
+  }
+
+  /** The phone strip: "RANK 1 · Sidekick in Training" and the points on one line, then the bar and its caption. */
+  #drawCompactRankBadge(rect: Rect, badge: ReturnType<typeof titleRankBadgeOf>, up: string | null): void {
+    const pad = 8;
+    const inner = rect.width - pad * 2;
+    const paper = surface.paper.hex;
+    const line = this.add.text(
+      rect.x + pad,
+      rect.y + 4,
+      up ? `RANK UP · ${up.replace(/^Rank up: /, "")}` : `${badge.rankLabel} · ${badge.title}`,
+      textStyle(typeRole.label, paper),
+    );
+    let room = inner;
+    if (!up) {
+      const points = this.add.text(0, rect.y + 4, badge.pointsLabel, textStyle(typeRole.label, paper));
+      points.setX(rect.x + rect.width - pad - points.width);
+      room = Math.max(20, inner - points.width - 6);
+      const barY = rect.y + 21;
+      this.add.rectangle(rect.x + pad, barY, inner, 4, paper, 0.3).setOrigin(0, 0);
+      if (badge.fraction > 0) {
+        this.add.rectangle(rect.x + pad, barY, Math.max(2, inner * badge.fraction), 4, paper).setOrigin(0, 0);
+      }
+      const next = this.add.text(
+        rect.x + pad,
+        rect.y + 27,
+        badge.nextLabel,
+        textStyle(typeRole.label, paper, ink.meta),
+      );
+      fitText(next, inner, typeRole.label.size);
+    }
+    fitText(line, room, typeRole.label.size);
+  }
+
+  /** The art-panel plate: rank and points, the rank's name, the bar and its caption. */
+  #drawFullRankBadge(rect: Rect, badge: ReturnType<typeof titleRankBadgeOf>, up: string | null): void {
+    const pad = 8;
+    const inner = rect.width - pad * 2;
     const paper = surface.paper.hex;
     const label = this.add
       .text(rect.x + pad, rect.y + 5, up ? "RANK UP" : badge.rankLabel, textStyle(typeRole.label, paper))
@@ -609,12 +656,6 @@ export class TitleScene extends Phaser.Scene {
       );
       fitText(next, inner, typeRole.label.size);
     }
-    const zone = this.add
-      .zone(rect.x, rect.y, rect.width, rect.height)
-      .setOrigin(0, 0)
-      .setInteractive({ useHandCursor: true });
-    onTap(zone, open, "title:rank-badge");
-    this.#stops.set("rank-badge", { rect, activate: open });
   }
 
   /** Draws this visit's picture if its texture is ready, otherwise loads it once and draws on arrival. */
