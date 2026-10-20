@@ -44,6 +44,8 @@ export interface NormalizeContext extends Flattened {
   readonly usedNotes: Set<string>;
   readonly usedAbilityIds: Set<string>;
   readonly usedImageOverrides: Set<string>;
+  /** `PackCuration.printedBSideSchemeScans` codes matched — a stale entry is caught the same way. */
+  readonly usedPrintedBSideScans: Set<string>;
   /** `PackCuration.encounterSets` keys matched (docs/phase7-wave4.md §1.10) — a stale entry is caught the same way. */
   readonly usedEncounterSetOverrides: Set<string>;
   /** `PackCuration.artUnavailable` keys matched — a stale entry is caught the same way. */
@@ -135,6 +137,7 @@ export function createContext(raw: readonly RawCard[], curation: PackCuration): 
     usedNotes: new Set(),
     usedAbilityIds: new Set(),
     usedImageOverrides: new Set(),
+    usedPrintedBSideScans: new Set(),
     usedEncounterSetOverrides: new Set(),
     usedArtUnavailable: new Set(),
     faceCodesByCardId: new Map(),
