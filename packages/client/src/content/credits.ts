@@ -239,11 +239,11 @@ export const CREDITS: readonly CreditEntry[] = [
     group: "story",
     title: "Shadowland story panels",
     shownIn: "Not shown yet; raw material for the Shadowland scenario intro",
+    // The owner, 2026-10-20, from their library entry for the issue.
     credit:
-      "Five panel pictures from the foot of Hall of Heroes' Shadowland page. Artwork (c) 2026 Marvel; the artist is not recorded yet.",
-    notice: FFG_MARVEL,
+      "Five panel pictures from Shadowland #5 (of 5) (Marvel Comics, 2010), found at the foot of Hall of Heroes' Shadowland page. Written by Andy Diggle; pencils by Billy Tan; inks by Victor Olazaba; colors by Guru eFX; cover by John Cassaday.",
+    notice: MARVEL,
     url: "https://hallofheroeslcg.com/shadowland/",
-    gap: true,
   },
   {
     id: "avengers-11",
@@ -264,19 +264,19 @@ export const CREDITS: readonly CreditEntry[] = [
     title: "Soundtrack",
     shownIn: "Title, gameplay, scenario and campaign themes, the Extras jukebox",
     credit:
-      "Original instrumental music generated with an AI music generator from prompts written for this project: no vocals, and not modeled on any existing theme. The generator and its terms are not recorded yet.",
-    notice: "Generated music; no human composer is credited. Not licensed to you by this project.",
+      "Original instrumental music generated with Google Gemini from prompts written for this project (the owner, 2026-10-20): no vocals, and not modeled on any existing theme.",
+    notice:
+      "AI-generated music made with Google Gemini, under Google's terms for generated content; no human composer is credited. Not licensed to you by this project.",
     folders: ["music"],
-    gap: true,
   },
   {
     id: "sfx",
     group: "music",
     title: "Sound effects",
-    shownIn: "Card plays, attacks, thwarts, hand refills, Extras unlocks",
-    credit: "Short game sounds. Their source is not recorded yet.",
-    notice: "Sources to be confirmed.",
-    gap: true,
+    shownIn: "Card plays, attacks, thwarts, hand refills, Extras and achievement unlocks",
+    credit:
+      'Short royalty-free sounds gathered from assorted free sound libraries online (the owner, 2026-10-20). The "Achievement unlocked" sound is "Level Complete" by Universfield (Pixabay).',
+    notice: "Royalty-free sounds, used under each library's own license.",
   },
 
   {

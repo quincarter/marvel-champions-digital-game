@@ -15,6 +15,8 @@ import type { Rect } from "./layout.js";
 export interface AchievementToast {
   /** What it announces: the achievement sound or the Extras sting plays with it. */
   readonly kind: "achievement" | "extra";
+  /** What the badge shows: the trophy for achievements, a note for songs, a star for any other Extras. */
+  readonly badge: "trophy" | "music" | "star";
   /** The small caps line over the name. */
   readonly heading: string;
   readonly title: string;
@@ -43,6 +45,8 @@ export interface ExtrasToastSource {
   readonly title: string;
   /** What kind of thing it is, "New song earned" (`extrasNewsHeadline` of the item alone). */
   readonly label: string;
+  /** A song (the Extras jukebox): a popup of songs only wears a note on its badge. */
+  readonly music?: boolean;
 }
 
 /**
@@ -75,13 +79,21 @@ export function achievementToastsOf(sources: readonly AchievementToastSource[]):
   if (sources.length === 1) {
     const only = sources[0]!;
     return [
-      { kind: "achievement", heading: "Achievement unlocked", title: only.name, reward: rewardOf(only), items: [] },
+      {
+        kind: "achievement",
+        badge: "trophy",
+        heading: "Achievement unlocked",
+        title: only.name,
+        reward: rewardOf(only),
+        items: [],
+      },
     ];
   }
   const points = sources.reduce((sum, source) => sum + source.points, 0);
   return [
     {
       kind: "achievement",
+      badge: "trophy",
       heading: `${sources.length} achievements unlocked`,
       title: STACK_PROMPT,
       reward: points > 0 ? `+${points} points` : "",
@@ -96,13 +108,15 @@ export function achievementToastsOf(sources: readonly AchievementToastSource[]):
  */
 export function extrasToastsOf(sources: readonly ExtrasToastSource[]): readonly AchievementToast[] {
   if (sources.length === 0) return [];
+  const badge = sources.every((source) => source.music === true) ? "music" : "star";
   if (sources.length === 1) {
     const only = sources[0]!;
-    return [{ kind: "extra", heading: only.label, title: only.title, reward: "", items: [] }];
+    return [{ kind: "extra", badge, heading: only.label, title: only.title, reward: "", items: [] }];
   }
   return [
     {
       kind: "extra",
+      badge,
       heading: `${sources.length} extras in the vault`,
       title: STACK_PROMPT,
       reward: "",
@@ -115,6 +129,7 @@ export function extrasToastsOf(sources: readonly ExtrasToastSource[]): readonly 
 export function sampleAchievementToast(seconds: number): AchievementToast {
   return {
     kind: "achievement",
+    badge: "trophy",
     heading: "Achievement unlocked",
     title: "Popup preview",
     reward: `${seconds} s here`,

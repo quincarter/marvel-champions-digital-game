@@ -20,6 +20,7 @@ import { font, signal, surface, typeRole } from "../tokens.js";
 import { textStyle } from "../ui/theme.js";
 import { McButton, fitText } from "../ui/widgets.js";
 import { onTap } from "../ui/tap.js";
+import { drawMusicIcon } from "../ui/music-icon.js";
 import { appSession } from "../session.js";
 import { achievementPopupHoldMs, achievementPopupScale } from "../settings.js";
 import { ACHIEVEMENTS } from "../progression/achievements.js";
@@ -283,13 +284,19 @@ export class AchievementToastScene extends Phaser.Scene {
     if (radius > 0.5) {
       g.fillStyle(signal.caution.hex, alpha).fillCircle(badge.cx, badge.cy, radius);
       g.lineStyle(3, surface.ink.hex, alpha).strokeCircle(badge.cx, badge.cy, radius - 1.5);
-      drawTrophy(g, badge.cx, badge.cy, radius, surface.ink.hex, alpha);
+      if (showing.toast.badge === "trophy") drawTrophy(g, badge.cx, badge.cy, radius, surface.ink.hex, alpha);
+      else if (showing.toast.badge === "music") drawMusicIcon(g, badge.cx, badge.cy, radius * 1.1, surface.ink.hex);
+      else
+        g.fillStyle(surface.ink.hex, alpha).fillPoints(
+          starPoints(badge.cx, badge.cy, radius * 0.62, radius * 0.27),
+          true,
+        );
     }
     showing.monogram
       .setPosition(badge.cx, badge.cy + trophyBowlOf(radius).dy)
       .setScale(badgeScale)
       .setAlpha(alpha)
-      .setVisible(radius > 4);
+      .setVisible(radius > 4 && showing.toast.badge === "trophy");
     // The words show once the bar has (nearly) opened under them.
     const textAlpha = alpha * Math.min(1, Math.max(0, (open - 0.8) / 0.2));
     for (const text of showing.texts) text.setAlpha(textAlpha);
@@ -491,4 +498,13 @@ function drawTrophy(
   // Stem and foot.
   g.fillRect(cx - 0.05 * r, cy + 0.15 * r, 0.1 * r, 0.12 * r);
   g.fillRect(cx - 0.2 * r, cy + 0.26 * r, 0.4 * r, 0.1 * r);
+}
+
+/** A five-pointed star's corners around (`cx`, `cy`): the badge for Extras that aren't all songs. */
+function starPoints(cx: number, cy: number, outer: number, inner: number): Phaser.Math.Vector2[] {
+  return Array.from({ length: 10 }, (_, index) => {
+    const radius = index % 2 === 0 ? outer : inner;
+    const angle = -Math.PI / 2 + (index * Math.PI) / 5;
+    return new Phaser.Math.Vector2(cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius);
+  });
 }

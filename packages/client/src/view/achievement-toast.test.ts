@@ -33,7 +33,14 @@ describe("newAchievementsOf", () => {
 describe("achievementToastsOf", () => {
   test("one alone names itself, with its points or its joke pack", () => {
     expect(achievementToastsOf([{ id: "wins-1", name: "First Blood", points: 10 }])).toEqual([
-      { kind: "achievement", heading: "Achievement unlocked", title: "First Blood", reward: "+10 points", items: [] },
+      {
+        kind: "achievement",
+        badge: "trophy",
+        heading: "Achievement unlocked",
+        title: "First Blood",
+        reward: "+10 points",
+        items: [],
+      },
     ]);
     expect(
       achievementToastsOf([
@@ -72,13 +79,21 @@ describe("achievementToastsOf", () => {
 
 describe("extrasToastsOf", () => {
   test("one names itself under its kind; several stack as extras in the vault", () => {
-    expect(extrasToastsOf([{ title: "The Rhino Has Fallen", label: "New song earned" }])).toEqual([
-      { kind: "extra", heading: "New song earned", title: "The Rhino Has Fallen", reward: "", items: [] },
+    expect(extrasToastsOf([{ title: "The Rhino Has Fallen", label: "New song earned", music: true }])).toEqual([
+      {
+        kind: "extra",
+        badge: "music",
+        heading: "New song earned",
+        title: "The Rhino Has Fallen",
+        reward: "",
+        items: [],
+      },
     ]);
     const five = Array.from({ length: 5 }, (_, i) => ({ title: `Song ${i}`, label: "New song earned" }));
     const [stack] = extrasToastsOf(five);
     expect(stack).toMatchObject({ kind: "extra", heading: "5 extras in the vault", title: "Tap to see them all" });
     expect(stack!.items).toHaveLength(5);
+    expect(stack!.badge, "a stack that isn't all songs wears a star, never the trophy").toBe("star");
   });
 });
 

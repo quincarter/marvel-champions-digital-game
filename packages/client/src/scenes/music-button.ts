@@ -193,7 +193,13 @@ export class MusicButtonScene extends Phaser.Scene {
     // Shown in the achievement popup (`scenes/achievement-toast.ts`), after any achievements, on its own beat.
     if (fresh.length === 0) return;
     const toast = this.scene.get(SCENES.achievementToast) as AchievementToastScene | null;
-    toast?.announceExtras(fresh.map((item) => ({ title: item.title, label: extrasNewsHeadline([item]).label })));
+    toast?.announceExtras(
+      fresh.map((item) => ({
+        title: item.title,
+        label: extrasNewsHeadline([item]).label,
+        music: item.tab === "music",
+      })),
+    );
   }
 
   #togglePlayer(): void {
