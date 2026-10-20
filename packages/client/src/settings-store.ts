@@ -9,6 +9,8 @@
  * corrupt record is no record, and a newer `version` is read best-effort.
  */
 import {
+  ACHIEVEMENT_POPUP_PLACE_VALUES,
+  ACHIEVEMENT_POPUP_TIME_VALUES,
   CARD_HOVER_SCALE_VALUES,
   CARD_SIZE_VALUES,
   DISPLAY_MODE_VALUES,
@@ -75,6 +77,10 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   if (cardSizeValue !== undefined) out.cardSize = cardSizeValue;
   const tokenMotionValue = FIRST_PLAYER_TOKEN_MOTION_VALUES.find((value) => value === source["firstPlayerTokenMotion"]);
   if (tokenMotionValue !== undefined) out.firstPlayerTokenMotion = tokenMotionValue;
+  const popupTimeValue = ACHIEVEMENT_POPUP_TIME_VALUES.find((value) => value === source["achievementPopupTime"]);
+  if (popupTimeValue !== undefined) out.achievementPopupTime = popupTimeValue;
+  const popupPlaceValue = ACHIEVEMENT_POPUP_PLACE_VALUES.find((value) => value === source["achievementPopupPlace"]);
+  if (popupPlaceValue !== undefined) out.achievementPopupPlace = popupPlaceValue;
   const displayModeValue = DISPLAY_MODE_VALUES.find((value) => value === source["displayMode"]);
   if (displayModeValue !== undefined) out.displayMode = displayModeValue;
   const drawResolution = source["resolution"];

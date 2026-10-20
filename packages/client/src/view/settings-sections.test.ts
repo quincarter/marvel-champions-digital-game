@@ -27,12 +27,14 @@ describe("settingsSectionsOf", () => {
       "unlocks",
       "save-data",
       "rules",
+      "achievement-popup-time",
+      "achievement-popup-place",
       ...EARNED_ITEMS.map((item) => item.id),
     ];
     expect([...items].sort()).toEqual([...expected].sort());
   });
 
-  test("the sections read top to bottom: Gameplay, Villain phase, Cards, Animation and display, Sound, Guide, More, Earned items", () => {
+  test("the sections read top to bottom: Gameplay, Villain phase, Cards, Animation and display, Sound, Guide, More, Achievements, Earned items", () => {
     expect(settingsSectionsOf({ guideRowIds, cardHover: true }).map((s) => s.title)).toEqual([
       "Gameplay",
       "Villain phase",
@@ -41,14 +43,23 @@ describe("settingsSectionsOf", () => {
       "Sound",
       "Guide",
       "More",
+      "Achievements",
       "Earned items",
     ]);
   });
 
   test("Earned items sits on the More tab, under its own heading (#291)", () => {
     const more = settingsTabsOf({ guideRowIds, cardHover: true }).find((tab) => tab.id === "more")!;
-    expect(more.sections.map((s) => s.title)).toEqual(["More", "Earned items"]);
-    expect(more.sections[1]!.items).toContain("ultron-drone-art");
+    expect(more.sections.map((s) => s.title)).toEqual(["More", "Achievements", "Earned items"]);
+    expect(more.sections[2]!.items).toContain("ultron-drone-art");
+  });
+
+  test("the achievement popup's time and position sit on the More tab, under Achievements", () => {
+    const more = settingsTabsOf({ guideRowIds, cardHover: true }).find((tab) => tab.id === "more")!;
+    expect(more.sections.find((s) => s.id === "achievements")?.items).toEqual([
+      "achievement-popup-time",
+      "achievement-popup-place",
+    ]);
   });
 
   test("the first player token's animation sits with Reduced motion", () => {

@@ -8,6 +8,7 @@ import type { Command, GameEvent, ZoneId } from "@mc/engine";
 
 export type SoundEffect =
   | "extras-unlocked"
+  | "achievement-unlocked"
   | "hand-refill"
   | "basic-attack"
   | "basic-thwart"
@@ -19,6 +20,7 @@ export type SoundEffect =
 /** How loud each one plays, under the music's own level. */
 export const SOUND_EFFECT_VOLUME: Readonly<Record<SoundEffect, number>> = {
   "extras-unlocked": 0.7,
+  "achievement-unlocked": 0.7,
   "hand-refill": 0.6,
   "basic-attack": 0.7,
   "basic-thwart": 0.7,

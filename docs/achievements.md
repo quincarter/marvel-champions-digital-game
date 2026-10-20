@@ -64,6 +64,18 @@ spread so a new player ranks up within the first few sessions.
   toggled under Settings > More > Earned items and for now gated on "win a game against Ultron" read from the save
   history. When the achievements list is built, add a Drone achievement for that win and point the item's unlock in `progression/earned-items.ts` (setting `ultronDroneArt`) at it in place of `scenarioWon ultron` (owner, 2026-10-20). `EARNED_ITEMS` (each with an `ExtrasUnlock` read through `Extras.isOpen`; `earnedItems()` / `applyEarnedItems()` in `progression/progression.ts`; Settings > More "Earned items" via `earnedItemRowInfoOf`) is meant to hold every cosmetic reward, so the funny joke packs and other achievement rewards become earned items too, likely through an achievement kind of `ExtrasUnlock`.
 
+## Unlock popup
+
+Built 2026-10-20 (owner's request): an Xbox-style "Achievement unlocked" popup (`scenes/achievement-toast.ts`, model in
+`view/achievement-toast.ts`). A gold trophy badge with the MC monogram pops in, a bar opens out of it with the name and
+what it earned, holds, and folds away, with `audio/sfx/achievement-unlocked.mp3` (Universfield's "Level Complete").
+It checks once a second against what the last `refreshUnlocks()` read (`earnedAchievementIds()`), remembers what it
+announced in `mc-achievements-seen` (`platform/achievements-seen.ts`; a first run records silently), queues several,
+and folds more than four at once into one summary. It takes no input.
+
+Settings ▸ More ▸ Achievements: **Achievement popup** (Off, 3, 5, 8 or 10 s; default 5 s) and **Popup position**
+(Title bar, Top, Middle, Bottom; default Middle). Picking either shows a sample.
+
 ## Data the client must record
 
 Most families read the existing `mc-saves` / `mc-campaigns` rows (outcome, scenario, heroes, difficulty, players,

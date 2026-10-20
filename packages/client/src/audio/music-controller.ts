@@ -35,6 +35,7 @@ import { SOUND_EFFECT_VOLUME, type SoundEffect } from "../view/sound-effects.js"
 import { onMixerChange, startMixerWatch, stopMixerWatch } from "../platform/app-volume.js";
 import { onAppBackgroundChange } from "../platform/app-background.js";
 import extrasUnlockedUrl from "./sfx/extras-unlocked.mp3?url";
+import achievementUnlockedUrl from "./sfx/achievement-unlocked.mp3?url";
 import handRefillUrl from "./sfx/hand-refill.mp3?url";
 import basicAttackUrl from "./sfx/basic-attack.mp3?url";
 import basicThwartUrl from "./sfx/basic-thwart.mp3?url";
@@ -48,6 +49,7 @@ const EFFECT_GAP_MAX_MS = 600;
 
 const SOUND_EFFECT_URLS: Readonly<Record<SoundEffect, string>> = {
   "extras-unlocked": extrasUnlockedUrl,
+  "achievement-unlocked": achievementUnlockedUrl,
   "hand-refill": handRefillUrl,
   "basic-attack": basicAttackUrl,
   "basic-thwart": basicThwartUrl,

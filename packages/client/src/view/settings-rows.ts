@@ -16,6 +16,8 @@ import {
   type SilencedWarningKey,
 } from "../guide/guide-prefs.js";
 import {
+  ACHIEVEMENT_POPUP_PLACE_VALUES,
+  ACHIEVEMENT_POPUP_TIME_VALUES,
   CARD_HOVER_SCALE_VALUES,
   CARD_SIZE_VALUES,
   DISPLAY_MODE_VALUES,
@@ -23,6 +25,8 @@ import {
   SHARP_TEXT_RESOLUTION_CEILING,
   clampMusicVolume,
   resolutionPixelsOf,
+  type AchievementPopupPlace,
+  type AchievementPopupTime,
   type CardHoverScale,
   type CardSize,
   type DisplayMode,
@@ -589,6 +593,64 @@ export function tokenMotionRowInfoOf(settings: Settings): TokenMotionRowInfo {
 /** `settings` with the token's motion set; a value that is not one of the five changes nothing. */
 export function nextSettingsAfterTokenMotion(settings: Settings, value: FirstPlayerTokenMotion): Settings {
   return FIRST_PLAYER_TOKEN_MOTION_VALUES.includes(value) ? { ...settings, firstPlayerTokenMotion: value } : settings;
+}
+
+// ---------------------------------------------------------------------------
+// "Achievement popup": how long the "Achievement unlocked" popup stays up and where it shows
+// (`scenes/achievement-toast.ts`). Two segmented rows under More, beside Unlocks and the earned items.
+// ---------------------------------------------------------------------------
+
+export interface AchievementPopupRowInfo<V extends string> {
+  readonly title: string;
+  readonly detail: string;
+  readonly options: readonly { readonly value: V; readonly label: string }[];
+  readonly selected: V;
+}
+
+const ACHIEVEMENT_POPUP_TIME_LABELS: Readonly<Record<AchievementPopupTime, string>> = {
+  off: "Off",
+  "3s": "3 s",
+  "5s": "5 s",
+  "8s": "8 s",
+  "10s": "10 s",
+};
+
+const ACHIEVEMENT_POPUP_PLACE_LABELS: Readonly<Record<AchievementPopupPlace, string>> = {
+  titleBar: "Title bar",
+  top: "Top",
+  middle: "Middle",
+  bottom: "Bottom",
+};
+
+export function achievementPopupTimeRowInfoOf(settings: Settings): AchievementPopupRowInfo<AchievementPopupTime> {
+  return {
+    title: "Achievement popup",
+    detail:
+      settings.achievementPopupTime === "off"
+        ? "Off: a new achievement shows only in the Trophy Room, with no popup or sound."
+        : "How long the popup stays up when you earn an achievement, with its sound.",
+    options: ACHIEVEMENT_POPUP_TIME_VALUES.map((value) => ({ value, label: ACHIEVEMENT_POPUP_TIME_LABELS[value] })),
+    selected: settings.achievementPopupTime,
+  };
+}
+
+export function achievementPopupPlaceRowInfoOf(settings: Settings): AchievementPopupRowInfo<AchievementPopupPlace> {
+  return {
+    title: "Popup position",
+    detail: "Where on the screen the achievement popup shows. Picking one shows a sample there.",
+    options: ACHIEVEMENT_POPUP_PLACE_VALUES.map((value) => ({ value, label: ACHIEVEMENT_POPUP_PLACE_LABELS[value] })),
+    selected: settings.achievementPopupPlace,
+  };
+}
+
+/** `settings` with the popup's time set; a value that is not one of the five changes nothing. */
+export function nextSettingsAfterAchievementPopupTime(settings: Settings, value: AchievementPopupTime): Settings {
+  return ACHIEVEMENT_POPUP_TIME_VALUES.includes(value) ? { ...settings, achievementPopupTime: value } : settings;
+}
+
+/** `settings` with the popup's position set; a value that is not one of the four changes nothing. */
+export function nextSettingsAfterAchievementPopupPlace(settings: Settings, value: AchievementPopupPlace): Settings {
+  return ACHIEVEMENT_POPUP_PLACE_VALUES.includes(value) ? { ...settings, achievementPopupPlace: value } : settings;
 }
 
 // ---------------------------------------------------------------------------

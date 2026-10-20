@@ -56,6 +56,8 @@ const devUnlockAll = typeof location !== "undefined" && devUnlockAllFrom(locatio
 
 let progress: UnlockProgress = NO_PROGRESS;
 let history: AchievementHistory = NO_HISTORY;
+/** Ids earned as of the last refresh, in definition order; null until a refresh has read the stores. */
+let earnedIds: readonly string[] | null = null;
 let achievementPoints = 0;
 let lifetimePoints = 0;
 let prefs: UnlockPrefs | null = null;
@@ -72,6 +74,15 @@ export function unlocks(): Unlocks {
 /** The save history the Trophy Room reads achievements from (`achievements.ts`), as of the last refresh. */
 export function achievementHistory(): AchievementHistory {
   return history;
+}
+
+/**
+ * The achievements earned as of the last refresh, in definition order (what the "Achievement unlocked" popup compares
+ * against what it has announced), or null before any refresh has read the stores, so a failed first read never
+ * passes for "nothing earned".
+ */
+export function earnedAchievementIds(): readonly string[] | null {
+  return earnedIds;
 }
 
 /** Lifetime champion points as of the last refresh: what rank reads, never lowered by spending. */
@@ -97,10 +108,11 @@ export async function refreshUnlocks(): Promise<boolean> {
       .catch(() => []),
   ]);
   const nextHistory = { saves, campaigns };
-  const earnedIds = achievementStatuses(nextHistory)
+  const nextEarned = achievementStatuses(nextHistory)
     .filter((status) => status.earned)
     .map((status) => status.def.id);
-  const nextExtras = extrasProgressOf(saves, campaigns, earnedIds);
+  earnedIds = nextEarned;
+  const nextExtras = extrasProgressOf(saves, campaigns, nextEarned);
   if (JSON.stringify(nextExtras) !== JSON.stringify(extrasProgress)) {
     extrasProgress = nextExtras;
     currentExtras = null;

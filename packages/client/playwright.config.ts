@@ -125,6 +125,7 @@ export default defineConfig({
         "music-volume-pause.spec.ts",
         "villain-boost-breakdown.spec.ts",
         "settings-earned-items.spec.ts",
+        "achievement-popup.spec.ts",
       ],
     },
   ],

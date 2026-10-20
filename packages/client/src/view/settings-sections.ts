@@ -28,7 +28,9 @@ export type SettingsItemId =
   | GuideSettingsRowId
   | "unlocks"
   | "save-data"
-  | "rules";
+  | "rules"
+  | "achievement-popup-time"
+  | "achievement-popup-place";
 
 export type SettingsSectionId =
   | "gameplay"
@@ -39,6 +41,7 @@ export type SettingsSectionId =
   | "sound"
   | "guide"
   | "more"
+  | "achievements"
   | "earned";
 
 export interface SettingsSection {
@@ -114,6 +117,7 @@ export function settingsSectionsOf(input: {
     },
     { id: "guide", title: "Guide", items: input.guideRowIds },
     { id: "more", title: "More", items: ["unlocks", "save-data", "rules"] },
+    { id: "achievements", title: "Achievements", items: ["achievement-popup-time", "achievement-popup-place"] },
     { id: "earned", title: "Earned items", items: EARNED_ITEMS.map((item) => item.id) },
   ];
 }
@@ -137,7 +141,7 @@ const TAB_SECTIONS: readonly {
   { id: "display", label: "Display", sections: ["window", "motion"] },
   { id: "sound", label: "Sound", sections: ["sound"] },
   { id: "guide", label: "Guide", sections: ["guide"] },
-  { id: "more", label: "More", sections: ["more", "earned"] },
+  { id: "more", label: "More", sections: ["more", "achievements", "earned"] },
 ];
 
 /** The Settings panel's tabs (owner, 2026-10-16: one tab at a time instead of one long scroll), built from `settingsSectionsOf`'s sections. */

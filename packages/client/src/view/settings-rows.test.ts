@@ -55,6 +55,8 @@ const BASE: Settings = {
   displayMode: "windowed",
   resolution: "native",
   powerSavingAdjust: true,
+  achievementPopupTime: "5s",
+  achievementPopupPlace: "middle",
 };
 
 describe("settingsRowInfoOf", () => {
@@ -84,6 +86,8 @@ describe("settingsRowInfoOf", () => {
       displayMode: "windowed",
       resolution: "native",
       powerSavingAdjust: true,
+      achievementPopupTime: "5s",
+      achievementPopupPlace: "middle",
     });
     expect(rows.find((r) => r.id === "reduced-motion")?.on).toBe(true);
     expect(rows.find((r) => r.id === "sharper-text")?.on).toBe(true);

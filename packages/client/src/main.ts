@@ -41,6 +41,7 @@ import { applyRenderSize } from "./ui/render-resolution.js";
 import { isAndroidEdge, rendererOptionsOf } from "./platform/renderer-options.js";
 import { POWER_SAVING_FPS, onPowerSavingChange, watchPowerSaving } from "./platform/power-saving.js";
 import { PowerSavingNoticeScene } from "./scenes/power-saving-notice.js";
+import { AchievementToastScene } from "./scenes/achievement-toast.js";
 
 // The one `Settings` instance for the whole app (`appSession().settings`), not a
 // second copy: `scenes/settings.ts` mutates that same object, and every text
@@ -100,6 +101,7 @@ const game = new Phaser.Game({
     TitleScene,
     MusicScene,
     PowerSavingNoticeScene,
+    AchievementToastScene,
     MusicPlayerOverlay,
     MusicButtonScene,
     ReportIssueOverlay,

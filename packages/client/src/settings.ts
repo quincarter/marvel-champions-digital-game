@@ -113,7 +113,26 @@ export interface Settings {
    * a 30 fps cap. Off plays as usual whatever the device says (the owner, 2026-10-18). Defaults on.
    */
   readonly powerSavingAdjust: boolean;
+  /**
+   * How long the "Achievement unlocked" popup stays up (`scenes/achievement-toast.ts`), or "off" for none. Defaults to
+   * 5 s (the owner, 2026-10-20).
+   */
+  readonly achievementPopupTime: AchievementPopupTime;
+  /** Where the "Achievement unlocked" popup shows. Defaults to the middle of the screen (the owner, 2026-10-20). */
+  readonly achievementPopupPlace: AchievementPopupPlace;
 }
+
+export type AchievementPopupTime = "off" | "3s" | "5s" | "8s" | "10s";
+export const ACHIEVEMENT_POPUP_TIME_VALUES: readonly AchievementPopupTime[] = ["off", "3s", "5s", "8s", "10s"];
+
+/** Milliseconds an achievement popup holds for a `achievementPopupTime`; 0 for "off". */
+export function achievementPopupHoldMs(time: AchievementPopupTime): number {
+  return time === "off" ? 0 : Number.parseInt(time, 10) * 1000;
+}
+
+/** "titleBar" sits in the screens' top bar strip; the rest are centered across the screen at that height. */
+export type AchievementPopupPlace = "titleBar" | "top" | "middle" | "bottom";
+export const ACHIEVEMENT_POPUP_PLACE_VALUES: readonly AchievementPopupPlace[] = ["titleBar", "top", "middle", "bottom"];
 
 export type DisplayMode = "windowed" | "borderless" | "fullscreen";
 export const DISPLAY_MODE_VALUES: readonly DisplayMode[] = ["windowed", "borderless", "fullscreen"];
@@ -271,5 +290,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     displayMode: "windowed",
     resolution: "native",
     powerSavingAdjust: true,
+    achievementPopupTime: "5s",
+    achievementPopupPlace: "middle",
   };
 }

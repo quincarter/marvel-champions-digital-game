@@ -136,6 +136,8 @@ export const SCENES = {
   musicPlayer: "MusicPlayerOverlay",
   /** The note that drops in when power saving mode turns on or off (`scenes/power-saving-notice.ts`). */
   powerSavingNotice: "PowerSavingNotice",
+  /** The "Achievement unlocked" popup (`scenes/achievement-toast.ts`), hidden except while one shows. */
+  achievementToast: "AchievementToast",
 } as const;
 
 /** Scenes that run above every screen but draw only an edge control, so they never count as covering a screen (`ui/widgets.ts`). */
@@ -143,6 +145,7 @@ export const CHROME_SCENES: ReadonlySet<string> = new Set([
   SCENES.reportButton,
   SCENES.musicButton,
   SCENES.powerSavingNotice,
+  SCENES.achievementToast,
 ]);
 
 export type SceneKey = (typeof SCENES)[keyof typeof SCENES];

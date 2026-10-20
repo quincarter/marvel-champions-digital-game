@@ -5,16 +5,17 @@ player and the shuffle never list them. The music controller plays them over the
 (`audio/music-controller.ts`, `playEffect` / `playEffects`), loading each file the first time it is needed. Sound off
 in Settings mutes them with the music.
 
-| File                      | Plays                                                                                       |
-| ------------------------- | ------------------------------------------------------------------------------------------- |
-| `extras-unlocked.mp3`     | Something new opens in Extras (with the "New song earned" notice, `scenes/music-button.ts`) |
-| `hand-refill.mp3`         | A hand draws up to its hand size at the end of the player phase                             |
-| `basic-attack.mp3`        | A basic attack: the Attack button (hero or ally), or a card that has a character make one   |
-| `basic-thwart.mp3`        | A basic thwart, the same two ways                                                           |
-| `card-played.mp3`         | A card played (events too), or a card entering play on either side                          |
-| `spell-cast.mp3`          | A played card with the Spell trait, in place of `card-played`                               |
-| `cloak-of-levitation.mp3` | Doctor Strange uses Cloak of Levitation's ability                                           |
-| `shield-toss.mp3`         | Captain America plays Shield Toss, in place of `card-played`                                |
+| File                       | Plays                                                                                                              |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `extras-unlocked.mp3`      | Something new opens in Extras (with the "New song earned" notice, `scenes/music-button.ts`)                        |
+| `achievement-unlocked.mp3` | The "Achievement unlocked" popup (`scenes/achievement-toast.ts`); Universfield's "Level Complete" (Pixabay 143022) |
+| `hand-refill.mp3`          | A hand draws up to its hand size at the end of the player phase                                                    |
+| `basic-attack.mp3`         | A basic attack: the Attack button (hero or ally), or a card that has a character make one                          |
+| `basic-thwart.mp3`         | A basic thwart, the same two ways                                                                                  |
+| `card-played.mp3`          | A card played (events too), or a card entering play on either side                                                 |
+| `spell-cast.mp3`           | A played card with the Spell trait, in place of `card-played`                                                      |
+| `cloak-of-levitation.mp3`  | Doctor Strange uses Cloak of Levitation's ability                                                                  |
+| `shield-toss.mp3`          | Captain America plays Shield Toss, in place of `card-played`                                                       |
 
 When one command makes several, they play in order, each starting as the one before ends (at most 600 ms in): the
 card's sound, then its attack or thwart, then the refill (`tableSoundsOf` in `view/sound-effects.ts`).
