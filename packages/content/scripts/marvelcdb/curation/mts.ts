@@ -454,6 +454,10 @@ export const MTS_CURATION: PackCuration = {
   // `imageOverrides`' own evidence bar both require a second source to be independently viewed before it is
   // cited, so none of these candidates was entered as an `imageOverrides` URL. If one turns up later, prefer that
   // (a real reference beats an acknowledged gap) and drop the matching entry here.
+  // MarvelCDB hosts only the A side of each main scheme stage here (the aggregate `21075.png` is stamped "2A"); the
+  // B sides were fetched from Hall of Heroes' encounter gallery (assets/card-art/hall-of-heroes-manifest.tsv) and
+  // checked by eye against their stage stamps (issue #295).
+  printedBSideSchemeScans: ["21074b", "21075b", "21098b", "21099b", "21114b", "21115b", "21138b", "21165b"],
   artUnavailable: {
     // Hela's own hidden linked back faces — 21136a/21137a (the fronts, mode digit "1") already have MarvelCDB
     // art; only their backs (digit "2") don't.
