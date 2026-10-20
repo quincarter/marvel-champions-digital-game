@@ -65,10 +65,57 @@ export interface RewindView {
    * never by naming a box. False for every box whose retry restores the log exactly.
    */
   readonly logChanged: boolean;
+  /**
+   * The box's loss policy is `retryBaseline: "keepLog"` (MC60 p. 8; E30): nothing is restored, the log keeps what the
+   * lost attempt left, and the players return to Campaign Setup to choose a scenario again.
+   */
+  readonly keepLog: boolean;
+  /** Under `keepLog`: the shared log marks already drawn (as the sheet labels them), which the loss keeps. */
+  readonly keptMarks: readonly string[];
+}
+
+/** The shared, player-visible log marks that hold something (a set flag, a chosen option, a non-empty list, a count). */
+function drawnMarksOf(definition: CampaignDefinition, record: CampaignRecord): readonly string[] {
+  const marks: string[] = [];
+  for (const field of definition.logFields) {
+    if (field.scope !== "shared" || field.hidden || field.working || !matchesModes(record.modes, field.whenModes)) {
+      continue;
+    }
+    const value = record.shared[field.id];
+    if (!value) continue;
+    const set =
+      value.kind === "flag"
+        ? value.value
+        : value.kind === "number"
+          ? value.value > 0
+          : value.kind === "cardList"
+            ? value.cardIds.length > 0
+            : value.kind === "strikeList"
+              ? value.struck.length > 0
+              : value.kind === "choice" || value.kind === "cardRef";
+    if (set) marks.push(field.label);
+  }
+  return marks;
+}
+
+/** The action button's label: a `keepLog` loss goes back to Campaign Setup rather than rewinding. */
+export function rewindActionLabelOf(view: Pick<RewindView, "keepLog">): string {
+  return view.keepLog ? "Back to Campaign Setup ▸" : "Rewind, new shuffle ▸";
+}
+
+/** The sheet's headline (two lines). */
+export function rewindHeadlineOf(view: Pick<RewindView, "keepLog" | "issueNumber">): string {
+  return view.keepLog ? "Campaign\nSetup" : `Rewind\nIssue #${view.issueNumber}`;
 }
 
 /** The Rewind screen's intro line. A box told as comic pages reads "the page flips back"; a changed log says so in either. */
-export function rewindIntroOf(view: Pick<RewindView, "logChanged">, pageBased: boolean): string {
+export function rewindIntroOf(
+  view: Pick<RewindView, "logChanged"> & { readonly keepLog?: boolean },
+  pageBased: boolean,
+): string {
+  if (view.keepLog) {
+    return "This defeat has run, and the log is not rewound: it keeps every mark already drawn. You return to Campaign Setup and choose a scenario again. Change decks or aspects first if you want.";
+  }
   if (view.logChanged) {
     return "This defeat changes the log, so it is not exactly as it was when you opened the issue. Change decks or aspects first if you want.";
   }
@@ -123,6 +170,21 @@ export function rewindViewOf(
         entry.logBefore.hidden,
         (entry.logBefore.seats ?? []).map((seat) => seat.fields),
       ]);
+  const keepLog = definition.loss.retryBaseline === "keepLog";
+  if (keepLog) {
+    const keptMarks = drawnMarksOf(definition, record);
+    return {
+      campaignLost: record.status === "lost",
+      issueNumber,
+      keptSummary: keptMarks.length > 0 ? `${keptMarks.join(", ")}.` : "No marks drawn yet.",
+      gone,
+      // Setup draws anew, so a lost attempt's exact deal is not a thing to replay.
+      replaySeed: null,
+      logChanged: false,
+      keepLog,
+      keptMarks,
+    };
+  }
   return {
     campaignLost: record.status === "lost",
     issueNumber,
@@ -130,5 +192,7 @@ export function rewindViewOf(
     gone,
     replaySeed: entry?.seed ?? null,
     logChanged,
+    keepLog: false,
+    keptMarks: [],
   };
 }
