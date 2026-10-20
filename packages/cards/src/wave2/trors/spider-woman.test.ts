@@ -153,6 +153,52 @@ describe("Spider-Woman kit", () => {
     if (played.ok) expect(inst(played.state, finesse).exhausted).toBe(true);
   });
 
+  // Issue #292: "Hero Resource" is usable only in hero form, and "an aspect card" excludes a hero card that prints
+  // no aspect (Self-Propelled Glide), so the game's "can't afford" for Glide paid only by Finesse was correct.
+  it("Finesse: not usable in alter-ego form (Hero Resource)", () => {
+    const start = spiderWomanVsRhino(); // alter-ego form
+    const given = moveToHand(start, P1, "04033", "04048"); // Finesse, Interrogation Room (Justice support, cost 1)
+    const [finesse, room] = given.ids as [InstanceId, InstanceId];
+    const withFinesse = settle(
+      runWave2(given.state, play(P1, finesse, payWith(given.state, P1, 2, [finesse, room]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    const refused = applyCommand(
+      withFinesse,
+      play(P1, room, [], { abilities: [resourceAbility(finesse, "04033.finesse-resource")] }),
+      WAVE2_DEPS,
+    );
+    expect(refused.ok).toBe(false);
+
+    const hero = runWave2(withFinesse, toHero());
+    const paid = applyCommand(
+      hero,
+      play(P1, room, [], { abilities: [resourceAbility(finesse, "04033.finesse-resource")] }),
+      WAVE2_DEPS,
+    );
+    expect(paid.ok).toBe(true);
+  });
+
+  it("Finesse: cannot pay for Self-Propelled Glide, a hero card with no printed aspect", () => {
+    const hero = runWave2(spiderWomanVsRhino(), toHero());
+    const given = moveToHand(hero, P1, "04033", "04039"); // Finesse, Self-Propelled Glide
+    const [finesse, glide] = given.ids as [InstanceId, InstanceId];
+    const withFinesse = settle(
+      runWave2(given.state, play(P1, finesse, payWith(given.state, P1, 2, [finesse, glide]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    const refused = applyCommand(
+      withFinesse,
+      play(P1, glide, [], { abilities: [resourceAbility(finesse, "04033.finesse-resource")] }),
+      WAVE2_DEPS,
+    );
+    expect(refused.ok).toBe(false);
+  });
+
   it("Jessica Drew's Apartment: Alter-Ego Action, exhausting it, searches the top 5 cards of the deck for an aspect card into hand, then shuffles", () => {
     const start = spiderWomanVsRhino();
     const withTop = putOnTopOfDeck(start, P1, "04035"); // Venom Blast, printed Aggression
