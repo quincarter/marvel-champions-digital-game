@@ -70,9 +70,13 @@ test("issue #298: each defender says the health it has now, and a swipe that lif
   );
   await installWave6Helpers(page);
   await page.goto("/?screen=defend-allies");
-  await press(page, phone, await waitFor(() => villainDebugRect(page, "startRect"), "START VILLAIN PHASE", 45_000));
+  await waitFor(() => villainDebugRect(page, "startRect"), "START VILLAIN PHASE", 45_000);
+  // The jump sends its last command once the board is up, which can redraw the panel under the first press: press
+  // START and ANSWER until the defend panel is there.
   const ids = await waitFor(
     async () => {
+      const start = await villainDebugRect(page, "startRect");
+      if (start) await press(page, phone, start);
       const answer = await villainDebugRect(page, "answerRect");
       if (answer) await press(page, phone, answer);
       const options = await debug<string[]>(page, "defendOptionIds");
@@ -83,8 +87,16 @@ test("issue #298: each defender says the health it has now, and a swipe that lif
   );
 
   // War Machine has taken 2 of its 4 hit points; Mockingbird is whole.
-  for (const line of ["NOW 2 OF 4 HP → 0 LEFT", "NOW 3 OF 3 HP → 0–1 LEFT"]) {
-    expect(await findText(page, line, "VillainPhaseOverlay"), line).not.toHaveLength(0);
+  // In full where the card has the width, else as the table writes HP.
+  for (const [full, short] of [
+    ["NOW 2 OF 4 HP → 0 LEFT", "2/4 HP → 0 LEFT"],
+    ["NOW 3 OF 3 HP → 0–1 LEFT", "3/3 HP → 0–1 LEFT"],
+  ]) {
+    const found = [
+      ...(await findText(page, full, "VillainPhaseOverlay")),
+      ...(await findText(page, short, "VillainPhaseOverlay")),
+    ];
+    expect(found, full).not.toHaveLength(0);
   }
   if (SHOT) await page.screenshot({ path: `${SHOT}/defend-ally-health-${info.project.name}.png` });
 
