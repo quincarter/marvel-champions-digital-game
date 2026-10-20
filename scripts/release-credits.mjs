@@ -130,15 +130,17 @@ function escapeHtml(text) {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+// Only the avatar is a link: GitHub draws a link's underline through the name's text, which reads as stray marks.
 function cell(person) {
   const name = escapeHtml(person.name);
   const link = person.github ? `https://github.com/${person.github}` : person.url;
-  const avatar = person.github
-    ? `<img src="https://github.com/${person.github}.png?size=128" width="64" height="64" alt="${name}"><br>`
+  const image = person.github
+    ? `<img src="https://github.com/${person.github}.png?size=128" width="64" height="64" alt="${name}">`
     : "";
-  const label = `${avatar}<sub><b>${name}</b></sub>`;
-  const note = person.note ? `<br><sub>${escapeHtml(person.note)}</sub>` : "";
-  return `<td align="center">${link ? `<a href="${link}">${label}</a>` : label}${note}</td>`;
+  const avatar = image && link ? `<a href="${link}">${image}</a><br>` : image ? `${image}<br>` : "";
+  const label = !image && link ? `<a href="${link}">${name}</a>` : name;
+  const note = person.note ? `<br>${escapeHtml(person.note)}` : "";
+  return `<td align="center">${avatar}${label}${note}</td>`;
 }
 
 function grid(people) {
