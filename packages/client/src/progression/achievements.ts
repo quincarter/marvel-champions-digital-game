@@ -110,6 +110,8 @@ interface Facts {
   readonly noAllyWins: number;
   /** How to Play rows done and in all; null when the history carries no guide progress. */
   readonly howToPlay: { readonly done: number; readonly total: number } | null;
+  /** `<scenarioId>|<identityCardId>` for each won game whose last blow on the villain that seat dealt. */
+  readonly finalBlows: ReadonlySet<string>;
   /** Identity card ids of heroes seated in a finished game, won or lost. */
   readonly playedHeroes: ReadonlySet<string>;
   readonly unlockedEverything: boolean;
@@ -190,6 +192,9 @@ export function factsOf(history: AchievementHistory): Facts {
     ),
     noAllyWins: wonSaves.filter((s) => s.summary != null && s.summary.alliesPlayed === 0).length,
     howToPlay: history.howToPlay ?? null,
+    finalBlows: new Set(
+      wonSaves.flatMap((s) => (s.summary?.finalBlowBy ? [`${s.config.scenarioId}|${s.summary.finalBlowBy}`] : [])),
+    ),
     playedHeroes: new Set([...wonSaves, ...lostSaves].flatMap(heroesOf)),
     unlockedEverything: history.unlockedEverything === true,
   };
@@ -451,6 +456,22 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
     showProgress: true,
     measure: (f) => (f.howToPlay && f.howToPlay.total > 0 ? count(f.howToPlay.done, f.howToPlay.total) : null),
   }),
+  // The owner, 2026-10-20: Iron Man ends Thanos.
+  ...(() => {
+    const ironMan = heroIdNamed("Iron Man");
+    return ironMan
+      ? [
+          def({
+            id: "iron-man-thanos",
+            name: "I Love You 3000",
+            description: "Deal the final blow to Thanos as Iron Man.",
+            family: "feats" as const,
+            points: 100,
+            measure: (f: Facts) => count(f.finalBlows.has(`thanos|${ironMan}`) ? 1 : 0, 1),
+          }),
+        ]
+      : [];
+  })(),
   def({
     id: "feat-four-players",
     name: "Too Many Cooks",

@@ -8,7 +8,7 @@
  *
  * Pure: no storage, no Phaser. A game still being played has no summary (null).
  */
-import { remainingHitPoints, type EngineDeps, type GameState } from "@mc/engine";
+import { controllerOf, getInstance, remainingHitPoints, type EngineDeps, type GameState } from "@mc/engine";
 import type { GameRecord } from "./game-record.js";
 
 /** Why a game was lost, in the terms the "Read the Room" and "Respawn Pending" achievements care about. */
@@ -33,6 +33,12 @@ export interface GameSummary {
   readonly winners: readonly WinningSeat[];
   /** Allies played by any seat, over the whole game. */
   readonly alliesPlayed: number;
+  /**
+   * At a win, the identity card id of the seat whose card dealt the villain its last damage (the game record's last
+   * blow, attributed like the game-over screen: the card's controller, else its owner); null when no seat did. Absent
+   * on a summary written before the field existed.
+   */
+  readonly finalBlowBy?: string | null;
 }
 
 const lossReasonOf = (outcome: NonNullable<GameState["outcome"]>): LossReason | null => {
@@ -43,6 +49,14 @@ const lossReasonOf = (outcome: NonNullable<GameState["outcome"]>): LossReason | 
   if (outcome.reason === "allPlayersDefeated") return "playersDefeated";
   return "other";
 };
+
+function finalBlowIdentityOf(state: GameState, record: GameRecord): string | null {
+  const source = record.lastVillainDamage?.sourceInstanceId ?? null;
+  if (!source) return null;
+  const playerId = controllerOf(state, source) ?? getInstance(state, source)?.ownerId ?? null;
+  const player = state.players.find((p) => p.playerId === playerId);
+  return player ? (player.identity.cardId as string) : null;
+}
 
 /** The summary of a finished game, or null while the game is still being played. */
 export function summarizeGame(state: GameState, record: GameRecord, deps?: EngineDeps): GameSummary | null {
@@ -62,5 +76,6 @@ export function summarizeGame(state: GameState, record: GameRecord, deps?: Engin
           }))
       : [],
     alliesPlayed: record.seats.reduce((sum, seat) => sum + (seat.alliesPlayed ?? 0), 0),
+    finalBlowBy: won ? finalBlowIdentityOf(state, record) : null,
   };
 }

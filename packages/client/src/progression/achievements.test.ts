@@ -268,6 +268,15 @@ describe("achievements read from the game summary", () => {
     expect(earned("defeated-25", hist([game("rhino", "lost")]))).toBe(false);
   });
 
+  it("earns I Love You 3000 only when Iron Man lands the last blow on Thanos", () => {
+    const iron = heroId("Iron Man");
+    const win = (scenarioId: string, by: string) =>
+      game(scenarioId, "won", { players: [deckOf("Iron Man")], summary: summary({ finalBlowBy: by }) });
+    expect(earned("iron-man-thanos", hist([win("thanos", iron)]))).toBe(true);
+    expect(earned("iron-man-thanos", hist([win("thanos", heroId("Thor"))]))).toBe(false);
+    expect(earned("iron-man-thanos", hist([win("rhino", iron)]))).toBe(false);
+  });
+
   it("counts only the losses to the main scheme completing", () => {
     const scheme = Array.from({ length: 9 }, () => lost({ lossReason: "schemeCompleted" }));
     expect(earned("scheme-losses-10", hist([...scheme, lost({ lossReason: "playersDefeated" })]))).toBe(false);

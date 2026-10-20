@@ -84,6 +84,19 @@ describe("summarizeGame", () => {
     expect(summary.winners[0]!.identityCardId).toBe(player.identity.cardId);
     expect(summary.winners[0]!.hitPoints).toBeGreaterThan(0);
     expect(summary.winners[0]!.inHeroForm).toBe(player.identity.form === "hero");
+    expect(summary.finalBlowBy, "no blow on the villain in the record").toBeNull();
+  });
+
+  test("a win names the identity whose card dealt the villain its last damage", async () => {
+    const { state, record } = await passiveLoss();
+    const player = state.players[0]!;
+    const won: GameState = { ...state, outcome: { result: "win", reason: "villainDefeated" } };
+    const blow = { targetInstanceId: player.identity.instanceId, amount: 3, round: 4 };
+    const byHero = { ...record, lastVillainDamage: { ...blow, sourceInstanceId: player.identity.instanceId } };
+    expect(summarizeGame(won, byHero)!.finalBlowBy).toBe(player.identity.cardId);
+    const byNobody = { ...record, lastVillainDamage: { ...blow, sourceInstanceId: null } };
+    expect(summarizeGame(won, byNobody)!.finalBlowBy).toBeNull();
+    expect(summarizeGame(state, byHero)!.finalBlowBy, "only a win names one").toBeNull();
   });
 
   test("a concession is a loss reason of its own", async () => {

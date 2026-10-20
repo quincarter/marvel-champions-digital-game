@@ -89,6 +89,10 @@ and T'Challa's "Wakanda Forever!"; the rest were drafted for the owner to edit).
 Walk" (`unlock-everything`, funny family, a joke pack) is earned by turning on Settings ▸ Unlocks' "Unlock everything",
 remembered in `mc-unlocked-everything` after it is turned off again.
 
+**I Love You 3000 (owner, 2026-10-20):** `iron-man-thanos`, 100 points, for winning against Thanos with Iron Man's seat
+dealing the last damage. The save row's summary now records `finalBlowBy` (the identity of the seat whose card dealt the
+villain its last damage, from the game record's last blow); games saved before it don't count.
+
 ## Data the client must record
 
 Most families read the existing `mc-saves` / `mc-campaigns` rows (outcome, scenario, heroes, difficulty, players,
