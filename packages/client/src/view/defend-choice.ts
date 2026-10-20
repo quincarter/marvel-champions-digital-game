@@ -29,7 +29,7 @@ import {
   type Vars,
 } from "@mc/engine";
 import { defenseLockoutOf } from "./defense-lockout.js";
-import { hpNumber } from "./hp-format.js";
+import { hpFraction, hpNumber } from "./hp-format.js";
 import { cardName, faceUpName, shortFaceUpName, shortSeatName } from "./names.js";
 import { triggerEventWords } from "./trigger-event-words.js";
 import { decisionLabel } from "./villain-walkthrough.js";
@@ -54,6 +54,8 @@ export interface DefendOptionView {
    * (#298: an ally's damage is not on its card picture), or null when its HP isn't modeled.
    */
   readonly hpLine: string | null;
+  /** `hpLine` for a narrow card: "3/4 HP → 0–1 left". */
+  readonly hpLineShort: string | null;
   /** The target's hit points now, as numbers, for the hover popover's health plate (#298); null when not modeled. */
   readonly hpNow: { readonly current: number; readonly max: number } | null;
   /** The same range as numbers, `low` to `high` hit points left, for the compact identity panel (TB1's "10 → 8–10"). */
@@ -135,9 +137,12 @@ export function hpRangeFrom(
   return { low: Math.max(0, current - last.damageTaken), high: Math.max(0, current - first.damageTaken) };
 }
 
-/** "Now 3 of 4 HP → 0–1 left" — the target's health now, then the range `hpRangeFrom` leaves it. */
-export function hpLineFrom(current: number, max: number, bands: readonly DefendBand[]): string {
-  const now = `Now ${hpNumber(current)} of ${hpNumber(max)} HP`;
+/**
+ * "Now 3 of 4 HP → 0–1 left" — the target's health now, then the range `hpRangeFrom` leaves it. `short` is the form
+ * for a narrow card, as the table writes HP: "3/4 HP → 0–1 left".
+ */
+export function hpLineFrom(current: number, max: number, bands: readonly DefendBand[], short = false): string {
+  const now = short ? `${hpFraction(current, max)} HP` : `Now ${hpNumber(current)} of ${hpNumber(max)} HP`;
   const range = hpRangeFrom(current, bands);
   if (!range) return now;
   const left = range.low === range.high ? hpNumber(range.low) : `${hpNumber(range.low)}–${hpNumber(range.high)}`;
@@ -154,10 +159,10 @@ function hpNowOf(
   return max === undefined || current === undefined ? null : { current, max };
 }
 
-function hpLineOf(state: GameState, preview: DefendOptionPreview, deps: EngineDeps): string | null {
+function hpLineOf(state: GameState, preview: DefendOptionPreview, deps: EngineDeps, short = false): string | null {
   const max = maxHitPoints(state, preview.targetInstanceId, deps);
   const current = remainingHitPoints(state, preview.targetInstanceId, deps);
-  return max === undefined || current === undefined ? null : hpLineFrom(current, max, preview.bands);
+  return max === undefined || current === undefined ? null : hpLineFrom(current, max, preview.bands, short);
 }
 
 function hpAfterRange(
@@ -270,6 +275,7 @@ function optionViewOf(
     defenseReduction: preview.defenseReduction,
     damageHeadline: damageHeadline(preview.bands),
     hpLine: hpLineOf(state, preview, deps),
+    hpLineShort: hpLineOf(state, preview, deps, true),
     hpNow: hpNowOf(state, preview, deps),
     hpAfterRange: hpAfterRange(state, preview, deps),
     defeatAt: bandFactsOf(preview.bands).defeatAt,

@@ -12,7 +12,7 @@ import type { FocusStop } from "../scenes/focus-route.js";
 import { SCENES } from "../scenes/keys.js";
 import { noteHoverCard, type HoverHpPreview } from "./card-hover-preview.js";
 import { bindHoldTarget } from "./hold-target.js";
-import { accent, border, ink, signal, surface, typeRole } from "../tokens.js";
+import { accent, border, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { faceOf } from "../view/board-model.js";
 import type { DefendChoiceView, DefendOptionView } from "../view/defend-choice.js";
 import { defendMiddleLayout } from "../view/defend-choice-layout.js";
@@ -307,6 +307,20 @@ function drawMatchup(scene: Phaser.Scene, layout: VillainDefendLayout, view: Def
   }
 }
 
+/** Whether `words` fit `width` at `role`'s size, measured on a throwaway label. */
+function fitsAt(scene: Phaser.Scene, words: string, width: number, role: TypeSpec): boolean {
+  const probe = label(scene, 0, 0, words, role, surface.ink.hex, 1);
+  const fits = probe.width <= width;
+  probe.destroy();
+  return fits;
+}
+
+/** The option's HP line in full where it fits the card, else as the table writes HP ("3/4 HP → 0–1 LEFT"). */
+function hpLineFitting(scene: Phaser.Scene, option: DefendOptionView, width: number, role: TypeSpec): string {
+  const full = (option.hpLine ?? "").toUpperCase();
+  return fitsAt(scene, full, width, role) || !option.hpLineShort ? full : option.hpLineShort.toUpperCase();
+}
+
 /** One defender card: picture, title, what it exhausts, the damage range and what is left. Selected rings red with a check. */
 function drawOption(
   scene: Phaser.Scene,
@@ -356,7 +370,7 @@ function drawOption(
   fitText(damage, text.width, small ? 24 : 34);
   y += damage.height + 2;
   const hpLines = [
-    ...(option.hpLine ? [option.hpLine.toUpperCase()] : []),
+    ...(option.hpLine ? [hpLineFitting(scene, option, text.width, { ...typeRole.label, size: small ? 9 : 10 })] : []),
     ...(option.defeatAt !== null ? [`DEFEATED AT ${option.defeatAt}+`] : []),
   ];
   for (const line of hpLines) {
@@ -414,10 +428,10 @@ function drawDenseOption(scene: Phaser.Scene, text: Rect, option: DefendOptionVi
     )
     .setWordWrapWidth(text.width)
     .setMaxLines(1);
-  const hp = [
-    ...(option.hpLine ? [option.hpLine.toUpperCase()] : []),
-    ...(option.defeatAt !== null ? [`DEFEATED AT ${option.defeatAt}+`] : []),
-  ].join(" · ");
+  const defeat = option.defeatAt !== null ? [`DEFEATED AT ${option.defeatAt}+`] : [];
+  const full = [...(option.hpLine ? [option.hpLine.toUpperCase()] : []), ...defeat].join(" · ");
+  const short = [...(option.hpLineShort ? [option.hpLineShort.toUpperCase()] : []), ...defeat].join(" · ");
+  const hp = fitsAt(scene, full, text.width, { ...typeRole.label, size: 9 }) ? full : short;
   if (hp) {
     const hpText = label(
       scene,
