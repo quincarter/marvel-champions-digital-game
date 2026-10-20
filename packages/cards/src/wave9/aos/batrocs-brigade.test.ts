@@ -533,7 +533,8 @@ describe("Soldiers of Fortune (50102)", () => {
     expect(run.state.instances[id]!.cardId).toBe(RAPIDO);
   });
 
-  it("WHEN REVEALED: the spend option is not offered to a player who cannot pay for it (no cards in hand, deck or discard to pay with)", () => {
+  // Owner Q33 = A was revised on 2026-10-20: the spend is offered to a player who cannot pay for it too (RRG 1.8 p. 12).
+  it("WHEN REVEALED: the spend option is still offered to a player who cannot pay for it (no cards in hand, deck or discard to pay with)", () => {
     const state = heroForm(setupGame());
     const empty = {
       ...state,
@@ -541,11 +542,12 @@ describe("Soldiers of Fortune (50102)", () => {
     } as GameState;
     const kinds: string[] = [];
     const run = villainPhase(onlyDeck(empty, BLANK, SOLDIERS, MACHETE, RAPIDO, ZARAN, FILLER_A), [], (s) => {
-      kinds.push(s.pendingChoice!.prompt.kind);
-      return firstLegal(s);
+      const choice = s.pendingChoice!;
+      kinds.push(choice.prompt.kind);
+      const find = choice.prompt.kind === "chooseOption" && choice.options.find((o) => o.label.startsWith("Find"));
+      return find ? [find.optionId] : firstLegal(s);
     });
-    // Only the Mercenary option remains, so the engine does not ask which option; it goes straight to the pick.
-    expect(kinds).not.toContain("chooseOption");
+    expect(kinds).toContain("chooseOption");
     expect(kinds).toContain("chooseCards");
     expect(
       [MACHETE, RAPIDO, ZARAN].filter((code) => inPlayCard(run.state, code) !== undefined).length,

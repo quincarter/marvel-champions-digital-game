@@ -74,8 +74,8 @@ const ABILITY_ON_YOUR_IDENTITY_OR_ITS_CARDS: EventPattern = {
  *   nemesis set's own cards sit in its owner's set-aside area, so every player's is searched: Topaz may be dealt to
  *   another player) and attaches one copy to the revealing player's identity, then shuffles the encounter deck (RRG
  *   "Search", p. 39).
- * - **Not My Lucky Day (40067)**: each player chooses 1 damage or 2 threat here (Q8: an option that cannot be carried
- *   out is not offered).
+ * - **Not My Lucky Day (40067)**: each player chooses 1 damage or 2 threat here (neither is barred: RRG 1.8 p. 12, owner 2026-10-20 reversing Q8;
+ *   an identity can always take damage and threat can always be placed).
  * - **Prototype (40068)**: luck counters equal to the revealing player's identity's damage, each +1 hit point.
  * - **Superpower Feedback (40069)**: attaches to the identity (data, `attachesTo`); the Forced Response taxes 1 damage per
  *   identity ability; the Alter-Ego Action discards an identity-specific card from hand to discard it.

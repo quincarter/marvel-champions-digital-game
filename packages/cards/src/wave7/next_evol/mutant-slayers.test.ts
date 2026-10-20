@@ -445,13 +445,13 @@ describe("Chimera (40096)", () => {
     expect(damage(o.state, identityOf(o.state, P1))).toBe(3);
   });
 
-  it("no [mental] resource in hand: the spend option is not offered and +2 ATK is forced (Q8)", () => {
+  it("no [mental] resource in hand: the spend option is still offered; it spends nothing and ATK stays 1", () => {
     const base = withHand(start(), P1, NO_MENTAL);
     const o = villainPhase(base, { choose: "Spend" });
-    expect(o.offered).toEqual([]);
-    expect(o.resolved).toEqual(["Chimera gets +2 ATK for this attack"]);
+    expect(o.offered).toHaveLength(1);
+    expect(o.resolved).toEqual(["Spend a [mental] resource"]);
     expect(playerOf(o.state, P1).hand).toHaveLength(5);
-    expectAttack(o, "Chimera", minionOf(base, "Chimera"), 2);
+    expectAttack(o, "Chimera", minionOf(base, "Chimera"), 0);
   });
 
   it("an attack on an ally: the ally's controller chooses and pays (Q5)", () => {
@@ -464,12 +464,12 @@ describe("Chimera (40096)", () => {
     expect(expectAttack(o, "Chimera", minionOf(base, "Chimera"), 0).targetInstanceId).toBe(cat);
   });
 
-  it("two players: each attacked player pays from their own hand; one without a [mental] resource is forced to +2 ATK", () => {
+  it("two players: each attacked player pays from their own hand; one without a [mental] resource pays nothing", () => {
     let base = start([SPIDER_MAN, CAPTAIN_MARVEL], ["Harpoon", "Chimera"]);
     base = withNoMentalHand(withHand(base, P1, MENTAL_2), P2);
     const o = villainPhase(base, [{ choose: "Harpoon gets +2" }, { choose: "Spend", pay: ["Make the Call"] }]);
-    expect(o.offered.map((p) => p.player)).toEqual([P1]);
-    const attack = expectAttack(o, "Chimera", minionOf(base, "Chimera"), 2);
+    expect(o.offered.map((p) => p.player)).toEqual([P1, P2]);
+    const attack = expectAttack(o, "Chimera", minionOf(base, "Chimera"), 0);
     expect(attack.targetInstanceId).toBe(identityOf(o.state, P2));
     expect(playerOf(o.state, P2).discard).toEqual([]);
     expect(playerOf(o.state, P1).discard).toEqual([]);

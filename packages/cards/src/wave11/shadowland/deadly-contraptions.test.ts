@@ -81,12 +81,14 @@ describe("Blinding Powder (65050): Avoid, Disarm or Trip", () => {
     expect(damage(r.state)).toBe(damage(r.before));
   });
 
-  it("Disarm is not offered with fewer than 2 cards in hand", () => {
-    // Trip is then the only option left, so it resolves without a prompt.
-    const r = reveal(BLINDING, [OTHER], choosingOption("Trip"));
-    expect(r.offered).toBeNull();
-    expect(damage(r.state)).toBe(damage(r.before) + 2);
-    expect(r.discarded).toEqual([]);
+  // Owner decision 2026-10-20 (A), reversing Q8: RRG 1.8 "Choose (Option)" (p. 12) bars an option only for want of a
+  // target (a card in hand to discard counts, p. 42); a hand of one card is a target, so Disarm is offered.
+  it("Disarm with fewer than 2 cards in hand discards what it can and skips its 'then' (no tough status card)", () => {
+    const r = reveal(BLINDING, [OTHER], choosingOption("Disarm"));
+    expect(r.offered).toEqual(["Avoid", "Disarm", "Trip"].filter((l) => l !== "Avoid"));
+    expect(r.discarded).toEqual([OTHER]);
+    expect(statuses(r.state).tough).toBe(0);
+    expect(damage(r.state)).toBe(damage(r.before));
   });
 
   it("Trip deals 2 damage to the identity and confuses it", () => {
@@ -96,7 +98,7 @@ describe("Blinding Powder (65050): Avoid, Disarm or Trip", () => {
     expect(statuses(r.state).tough).toBe(0);
   });
 
-  it("with the identity already confused and nothing to discard, no option can be carried out: nothing happens", () => {
+  it("Trip is choosable while the identity is already confused: it still deals its 2 damage (the identity is a valid target of the damage)", () => {
     let state = trapGame({ trapCards: [BLINDING, CALTROPS], encounter: [FILLER, FILLER, FILLER] });
     state = heroForm(stackTraps(withHandOnly(state, P1), BLINDING), P1);
     const id = identityOf(state);
@@ -107,9 +109,9 @@ describe("Blinding Powder (65050): Avoid, Disarm or Trip", () => {
         [id]: { ...inst(state, id), statuses: { ...inst(state, id).statuses, confused: 1 } },
       },
     };
-    const run = endTurnAnswering(state, firstLegal);
-    expect(damage(run.state)).toBe(damage(state));
-    expect(types(run.events, "optionChosen" as never)).toEqual([]);
+    const run = endTurnAnswering(state, choosingOption("Trip"));
+    expect(damage(run.state)).toBe(damage(state) + 2);
+    expect(statuses(run.state).confused).toBe(1);
   });
 
   it("is a TRAP! card: it is discarded to the trap discard pile", () => {

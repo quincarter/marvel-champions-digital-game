@@ -2457,10 +2457,11 @@ export class ChoiceOverlay extends Phaser.Scene {
       width: slot.width - 6,
       height: slot.height - 6 - (bar ? barHeight + 6 : 0),
     };
-    // Which keyword resolves first: the minion is the one source card beside the sheet, so each option is its keyword
-    // in words, never a second copy of the same face (`view/keyword-order-choice.ts`).
+    // Which keyword resolves first, or the order of a card's When Revealed abilities (incite, printed, surge): the card
+    // is the one source card beside the sheet, so each option is drawn in words, never a second copy of the same face
+    // (`view/keyword-order-choice.ts`).
     const keywordTile = state?.pendingChoice
-      ? keywordOrderTilesOf(state.pendingChoice)?.get(option.optionId)
+      ? keywordOrderTilesOf(state.pendingChoice, state)?.get(option.optionId)
       : undefined;
     const source =
       state && instanceId && !keywordTile

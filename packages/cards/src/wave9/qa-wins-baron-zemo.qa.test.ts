@@ -71,7 +71,9 @@ describe("Baron Zemo, three players, a perfect accusation and a lost fight (Iron
       [1, 4, 12, 0, 9, 10],
       [2, 0, 11, 0, 8, 3],
       [3, 0, 21, 0, 4, 21],
-      [4, 0, 15, 0, 5, 0],
+      // Round 4's 16 includes the incite 1 of the A.I.M. Interference boost card ("Resolve this card's 'When
+      // Revealed' ability"; FFG ruling, September 22, 2026; owner decision 2026-10-20, spec §S7 E37). It was 15.
+      [4, 0, 16, 0, 5, 0],
     ]);
   });
 

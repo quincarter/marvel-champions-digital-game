@@ -401,12 +401,12 @@ describe("Chimera (40072a/b)", () => {
     expect(damage(o.state, identityOf(o.state))).toBe(3 + attack.boostIcons);
   });
 
-  it("40072a: with no [mental] resource to spend the option is not offered and +2 ATK is forced", () => {
+  it("40072a: with no [mental] resource to spend the option is still offered; choosing it spends nothing and ATK stays 1", () => {
     const o = villainPhase(withHand(start(), P1, NO_MENTAL), { choose: "Spend" });
-    expect(o.offered).toEqual([]);
-    expect(o.resolved).toEqual(["Chimera gets +2 ATK for this attack"]);
+    expect(o.offered).toHaveLength(1);
+    expect(o.resolved).toEqual(["Spend a [mental] resource"]);
     expect(playerOf(o.state, P1).hand).toHaveLength(5);
-    expectAttack(o, "40072a", 2);
+    expectAttack(o, "40072a", 0);
   });
 
   it("40072b: spending [mental][mental] discards both cards and leaves ATK at 2", () => {
@@ -420,12 +420,12 @@ describe("Chimera (40072a/b)", () => {
     expectAttack(o, "40072b", 0);
   });
 
-  it("40072b: one [mental] resource is not enough, so +2 ATK (4) is forced and nothing is spent", () => {
-    const o = villainPhase(withHand(start(true), P1, MENTAL_1), {});
-    expect(o.offered).toEqual([]);
-    expect(o.resolved).toEqual(["Chimera gets +2 ATK for this attack"]);
+  it("40072b: one [mental] resource is not enough; the spend is still offered and nothing is spent (ATK stays 2)", () => {
+    const o = villainPhase(withHand(start(true), P1, MENTAL_1), { choose: "Spend" });
+    expect(o.offered).toHaveLength(1);
+    expect(o.resolved).toEqual(["Spend [mental][mental] resources"]);
     expect(playerOf(o.state, P1).discard).toEqual([]);
-    expectAttack(o, "40072b", 2);
+    expectAttack(o, "40072b", 0);
   });
 
   it("an attack on a Morlock ally is chosen by the ally's controller (RRG p. 10, Q5) and the interrupt resolves once", () => {
@@ -439,16 +439,16 @@ describe("Chimera (40072a/b)", () => {
     expect(playerOf(o.state, P1).discard).toHaveLength(1);
   });
 
-  it("two players: each attacked player chooses and pays from their own hand; one without a [mental] resource is forced to +2 ATK", () => {
+  it("two players: each attacked player chooses and pays from their own hand; one without a [mental] resource pays nothing", () => {
     let base = withHand(start(false, TWO), P1, NO_MENTAL);
     base = withHand(base, P2, CM_MENTAL_2);
     const paid = findByName(base, P2, "Make the Call");
-    const o = villainPhase(base, [{}, { choose: "Spend", pay: ["Make the Call"] }]);
-    expect(o.offered.map((p) => p.player)).toEqual([P2]);
-    expect(o.resolved).toEqual(["Chimera gets +2 ATK for this attack", "Spend a [mental] resource"]);
+    const o = villainPhase(base, [{ choose: "Spend" }, { choose: "Spend", pay: ["Make the Call"] }]);
+    expect(o.offered.map((p) => p.player)).toEqual([P1, P2]);
+    expect(o.resolved).toEqual(["Spend a [mental] resource", "Spend a [mental] resource"]);
     const [first, second] = attacks(o);
     expect(first!.targetInstanceId).toBe(identityOf(o.state, P1));
-    expect(first!.baseAtk).toBe(3);
+    expect(first!.baseAtk).toBe(1);
     expect(second!.targetInstanceId).toBe(identityOf(o.state, P2));
     expect(second!.baseAtk).toBe(1);
     expect(playerOf(o.state, P2).discard).toEqual([paid]);
@@ -460,9 +460,10 @@ describe("Chimera (40072a/b)", () => {
       withHand(withHand(start(false, TWO), P1, NO_MENTAL), P2, CM_MENTAL_2),
       P2,
     );
-    const o = villainPhase(withAlly, [{}, { choose: "Chimera gets +2" }]);
-    expect(o.offered).toHaveLength(1);
-    expect(o.offered[0]!.player).toBe(P2);
+    const o = villainPhase(withAlly, [{ choose: "Chimera gets +2" }, { choose: "Chimera gets +2" }]);
+    // P1 (no [mental] resource) is asked too: the spend is no longer withheld from a player who cannot pay.
+    expect(o.offered).toHaveLength(2);
+    expect(o.offered[1]!.player).toBe(P2);
     expect(attacks(o).map((a) => a.targetInstanceId)).toEqual([identityOf(o.state, P1), morlock]);
     expect(attacks(o).map((a) => a.baseAtk)).toEqual([3, 3]);
   });

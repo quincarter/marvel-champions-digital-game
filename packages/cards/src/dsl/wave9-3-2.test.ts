@@ -32,7 +32,7 @@ describe("§3.2 `preparation` and `resolvePreparationsOf`", () => {
     });
   });
 
-  it("validates: the card is named with `of`, and `asIf` / `includeKeywords` are refused", () => {
+  it("validates: the card is named with `of`, and `asIf` / `excludeKeywords` are refused", () => {
     const problems = (extra: object) =>
       validateDefinition(
         forcedInterrupt({ on: "attack", selfIs: "target" }, {
@@ -43,7 +43,7 @@ describe("§3.2 `preparation` and `resolvePreparationsOf`", () => {
       ).join("\n");
     expect(problems({})).toMatch(/resolveSpecials preparation: name the card with `of`/);
     expect(problems({ asIf: { remainingHpAtLeast: 1 } })).toMatch(/`asIf` is not read for a Preparation ability/);
-    expect(problems({ includeKeywords: true })).toMatch(/`includeKeywords` is for When Revealed abilities/);
+    expect(problems({ excludeKeywords: ["surge"] })).toMatch(/`excludeKeywords` is for When Revealed abilities/);
     expect(
       validateDefinition(
         forcedInterrupt({ on: "attack", selfIs: "target" }, resolvePreparationsOf(chosen("top"), { bind: "prep" })),

@@ -854,6 +854,17 @@ function listensForEncounterDealt(deps: EngineDeps): boolean {
 }
 
 /**
+ * Marks `id`, just dealt to a player as a facedown encounter card, as "first dealt to the player": revealed later it
+ * counts as revealed from the encounter deck (`CardInstance.dealtFromEncounterDeck`), whatever it was dealt from. Owner
+ * answer Q35 A, 2026-10-20; ruling September 14, 2026 - Ruling 1 ("first dealt to the player"); the Adam Warlock ruling
+ * (docs/rulings/rrg-1-0-to-1-4/36-adam-warlock.md; owner dates it June 2, 2022). Called by every deal, not by a reveal
+ * that parks a card.
+ */
+export function markDealtFromEncounterDeck(ctx: Ctx, id: InstanceId): void {
+  updateInstance(ctx, id, (i) => (i.dealtFromEncounterDeck === true ? i : { ...i, dealtFromEncounterDeck: true }));
+}
+
+/**
  * Records that `playerId` was dealt the facedown encounter card `id`, for the flow to announce between frames
  * (`TriggerEvent encounterCardDealt`, `announceEncounterCardsDealt`), when an ability listens. Called by every path
  * that deals one: `dealEncounterCardTo` with a source, and a card's "deal [this card] to a player as a facedown
@@ -891,7 +902,10 @@ export function dealEncounterCardTo(
   if (!id) return null;
   updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
   moveCard(ctx, id, { kind: "dealtEncounter", playerId });
-  if (source !== null) recordEncounterCardDealt(ctx, playerId, id, source);
+  if (source !== null) {
+    markDealtFromEncounterDeck(ctx, id);
+    recordEncounterCardDealt(ctx, playerId, id, source);
+  }
   return id;
 }
 
@@ -2207,7 +2221,10 @@ function leaveNow(
   for (const boostId of [...instance.boostCards]) moveCard(ctx, boostId, discardZoneFor(ctx.state, boostId), "top");
   moveCard(ctx, id, to, redirect !== null ? "bottom" : position);
   // A card in play dealt to a player as a facedown encounter card (`dealAsEncounterCards`): heard as any other deal.
-  if (to.kind === "dealtEncounter") recordEncounterCardDealt(ctx, to.playerId, id, "ability");
+  if (to.kind === "dealtEncounter") {
+    markDealtFromEncounterDeck(ctx, id);
+    recordEncounterCardDealt(ctx, to.playerId, id, "ability");
+  }
   const ownedEncounter = isOwnedEncounterCard(ctx.state, id);
   // A card that re-enters play is a new instance of it: "this phase" starts over (docs/phase7-wave6.md §3.4).
   updateInstance(ctx, id, ({ damageTakenThisPhase: _tally, ...i }) => ({

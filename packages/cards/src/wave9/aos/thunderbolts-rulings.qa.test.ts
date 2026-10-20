@@ -788,16 +788,18 @@ describe("S.H.I.E.L.D. Executive Board", () => {
     expect(r.ok).toBe(false);
   });
 
-  // Card 50184a: "Incite 1. When Revealed: ... [star] Boost: Resolve this card's 'When Revealed' ability." RRG 1.8 'Incite X'
-  // p. 24: incite is "When a card with the incite X keyword is revealed". A boost card is not revealed.
-  it("A.I.M. Interference as a boost card places its counters but no incite threat on the main scheme", () => {
+  // Card 50184a: "Incite 1. When Revealed: ... [star] Boost: Resolve this card's 'When Revealed' ability." FFG ruling,
+  // September 22, 2026: incite and surge are When Revealed abilities, so an ability that resolves a card's When Revealed
+  // includes them (owner decision 2026-10-20, spec §S7 E37, revising docs/phase7-wave4.md §4 Q23). Until then this test
+  // pinned the opposite (no incite threat, since a boost card is not revealed).
+  it("A.I.M. Interference as a boost card places its counters and its incite 1 on the main scheme", () => {
     const base = heroForm(setupGame());
     const asBoost = run(deps, onlyDeck(base, AIM_ENERGY, FILLER_A, FILLER_B), {}, endTurn(P1));
     const control = run(deps, onlyDeck(base, BLANK, FILLER_A, FILLER_B), {}, endTurn(P1));
     const counts = (s: GameState) => ["50181a", "50182a", "50183a"].map((c) => secretsOn(s, boardMember(s, c)));
     expect(counts(asBoost.state)).toEqual([1, 1, 1]);
     expect(counts(control.state)).toEqual([0, 0, 0]);
-    expect(mainThreat(asBoost.state)).toBe(mainThreat(control.state));
+    expect(mainThreat(asBoost.state)).toBe(mainThreat(control.state) + 1);
   });
 
   // Card 50184a: "You may spend X [energy] resources to prevent X of these counters". RRG 1.8 'You, Your' p. 49 and 'Reveal'

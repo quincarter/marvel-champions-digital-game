@@ -46,11 +46,6 @@ export const hasCreepingCorruption = (player: PlayerRef = you) =>
 /** Whether "you" have a Creeping Corruption to place counters on. */
 export const youHaveCreepingCorruption = hasCreepingCorruption();
 
-/** Whether "you" have a Creeping Corruption holding at least one corruption counter to remove. */
-export const youHaveCorruptionToRemove = exists(
-  query("upgrade", { name: "Creeping Corruption", ...inPlayAreaOf(you), hasCounter: CORRUPTION }),
-);
-
 /** "Place N corruption counters on your Creeping Corruption." */
 export const placeCorruption = (n = 1, player: PlayerRef = you) =>
   addCounters(CORRUPTION, n, creepingCorruptionOf(player));

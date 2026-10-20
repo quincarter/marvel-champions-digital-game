@@ -55,8 +55,9 @@ const HOST_MINION = query("minion", { hostOfSelf: true });
  * Revealed (RRG 1.8 "Reveal", p. 38, step 2). A minion that does not enter play (the unique rule discards it) takes no
  * Drafted, which is then discarded (RRG 1.8 "Attach To", p. 8).
  *
- * **Mighty Avengers (56081)**: the "When Revealed" ability of each minion in play is resolved (printed ones only,
- * docs/phase7-wave4.md section 3.56); with none resolved the card gains surge.
+ * **Mighty Avengers (56081)**: the "When Revealed" ability of each minion in play is resolved, a minion's incite and
+ * surge included (FFG ruling, September 22, 2026; owner decision 2026-10-20, revising docs/phase7-wave4.md §4 Q23,
+ * section 3.56); with none resolved the card gains surge.
  *
  * **The Fifty State Initiative (56082)**: When Defeated: each Avenger minion in the encounter discard pile is shuffled
  * into the encounter deck.

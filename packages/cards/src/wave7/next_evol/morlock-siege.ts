@@ -9,7 +9,6 @@ import {
   advanceMainScheme,
   boost,
   cannotLeavePlay,
-  canPayResources,
   cards,
   chooseOne,
   chooseTarget,
@@ -235,7 +234,6 @@ export const MORLOCK_SIEGE: AbilityRegistry = defineAbilities({
   // the number of villains under Routed.
   "40088.when-revealed": whenRevealed(giveTough(theVillain), placeThreat(VILLAINS_UNDER_ROUTED, theMainScheme)),
   // [star] Boost: If you control a Morlock ally, choose to either deal 1 damage to it or spend 1 resource of any type.
-  // An option is offered only if it can be carried out in full (Q8 = A).
   "40088.boost": boost(
     ifThen(
       exists(YOUR_MORLOCKS),
@@ -245,11 +243,7 @@ export const MORLOCK_SIEGE: AbilityRegistry = defineAbilities({
           chooseTarget("morlock", YOUR_MORLOCKS, { chooser: firstPlayer }),
           dealDamage(1, chosen("morlock")),
         ),
-        option(
-          "Spend 1 resource of any type",
-          { when: canPayResources({ generic: 1 }) },
-          spendResources({ generic: 1 }, "spent"),
-        ),
+        option("Spend 1 resource of any type", spendResources({ generic: 1 }, "spent")),
       ),
     ),
   ),

@@ -882,8 +882,8 @@ function checkPreparations(definition: AbilityDefinition, problems: string[]): v
     if (!effect.of)
       problems.push("resolveSpecials preparation: name the card with `of` (it is in the encounter discard pile)");
     if (effect.asIf) problems.push("resolveSpecials preparation: `asIf` is not read for a Preparation ability");
-    if (effect.includeKeywords)
-      problems.push("resolveSpecials preparation: `includeKeywords` is for When Revealed abilities");
+    if (effect.excludeKeywords)
+      problems.push("resolveSpecials preparation: `excludeKeywords` is for When Revealed abilities");
   }
 }
 
@@ -903,8 +903,8 @@ function checkBorrowedBoosts(definition: AbilityDefinition, problems: string[]):
     if (option !== undefined && option !== "nothing" && option !== "joinActivation")
       problems.push('resolveSpecials boost: `borrowedBoostIcons` is "nothing" or "joinActivation"');
     if (effect.asIf) problems.push("resolveSpecials boost: `asIf` is not read for a Boost ability");
-    if (effect.includeKeywords)
-      problems.push("resolveSpecials boost: `includeKeywords` is for When Revealed abilities");
+    if (effect.excludeKeywords)
+      problems.push("resolveSpecials boost: `excludeKeywords` is for When Revealed abilities");
   }
 }
 

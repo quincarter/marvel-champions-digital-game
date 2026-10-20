@@ -290,4 +290,22 @@ describe("Countless Numbers 65036", () => {
     );
     expect(ninjas(control.state)).toHaveLength(2);
   });
+
+  // Provisional exception (owner decision 2026-10-20, spec §S7 E37): the Sep 22, 2026 ruling would have the boost
+  // resolve the surge too; FFG's announced erratum for "Change of Venue and similar encounter cards" makes it non-surge.
+  it("boost: resolves only the non-surge When Revealed: no surge from the boost card", () => {
+    const start = toEncounterDiscard(heroGame(), BO_STAFF, KATANA);
+    const run = driveEventsPicking(
+      DEPS,
+      stackEncounterDeck(start, COUNTLESS, FILLER_A, FILLER_B),
+      firstLegal,
+      endTurn(P1),
+    );
+    expect(ninjas(run.state)).toHaveLength(0);
+    const countless = Object.values(run.state.instances).filter((i) => (i.cardId as string) === COUNTLESS);
+    const surges = run.events.filter(
+      (e) => e.type === "surgeTriggered" && countless.some((c) => c.instanceId === e.instanceId),
+    );
+    expect(surges).toEqual([]);
+  });
 });

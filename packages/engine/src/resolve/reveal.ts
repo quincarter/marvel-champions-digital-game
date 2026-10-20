@@ -2,7 +2,7 @@
 
 import { placeAttachment } from "./imminent-attach.js";
 import { displayNameOf } from "../visibility.js";
-import type { AnyCard, AttachmentHost } from "@mc/content";
+import type { AbilityId, AnyCard, AttachmentHost } from "@mc/content";
 import {
   type Ctx,
   emit,
@@ -32,7 +32,7 @@ import {
   mainSchemeFor,
   cardBackOf,
 } from "../query.js";
-import { cardsInPlay, enemyTeamDecider, traitGrantReach, type EffectContext } from "../select.js";
+import { activeAbilityRefs, cardsInPlay, enemyTeamDecider, traitGrantReach, type EffectContext } from "../select.js";
 import type { RevealKeyword, RevealSource, StackFrame } from "../stack.js";
 import type { ZoneId } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
@@ -58,7 +58,7 @@ import { asksTraitGrants, hasCandidates, heard } from "./triggers.js";
 import { pushWindow } from "./window.js";
 import { markPreThenUnresolved } from "./then.js";
 import { hasPerPlayerMainSchemes, mainSchemesFor } from "../per-player-main-schemes.js";
-import { base, eventFrame, type Frame, gameAbilityFrames, pushEvent } from "./frames.js";
+import { base, eventFrame, type Frame, gameAbilityFrames, gameAbilityIds, pushEvent } from "./frames.js";
 
 /**
  * `preThenOf`: the effects frame whose pre-"then" text this reveal is (`revealCard`; RRG 1.8 "'Then'", p. 44).
@@ -407,9 +407,12 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
         card.type === "attachment" &&
         card.attachesTo === undefined;
       const next = selfAttaching ? "settleAttach" : "surge";
-      setFrame(ctx, { ...frame, stage: next });
-      // Incite and surge are "When Revealed" effects too (RRG "Incite X", "Surge"); surge resolves at `surge`.
-      if (frame.whenRevealedCancelled) return;
+      // Incite and surge are "When Revealed" effects too (RRG "Incite X", "Surge"); surge resolves at `surge` unless
+      // the players order it before a printed ability (`whenRevealedOrder`).
+      if (frame.whenRevealedCancelled) {
+        setFrame(ctx, { ...frame, answer: null, stage: next });
+        return;
+      }
       const revealed: TriggerEvent = {
         kind: "cardRevealed",
         instanceId: frame.instanceId,
@@ -424,17 +427,38 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       const inciteSchemes = hasPerPlayerMainSchemes(ctx.state)
         ? mainSchemesFor(ctx.state, { selfInstanceId: frame.instanceId, controllerId: frame.playerId })
         : [mainSchemeFor(ctx.state, areaOfPlayer(ctx.state, frame.playerId))?.instanceId];
-      // "Resolve each 'When Revealed' ability that you reveal 1 additional time" (Media Coverage). Incite is one of
-      // them (RRG 1.8 "Incite X", p. 24), so it repeats with the card's printed ones: each pass resolves the incite,
-      // then the printed When Revealed abilities, the first pass in the order a reveal always has. Surge, the other
-      // keyword that is a When Revealed ability, repeats where it resolves (the `surge` stage, next).
+      const order = whenRevealedOrder(ctx, frame, inciteSchemes);
+      if (order === null) return;
+      // Surge ordered last resolves where it always does, at `surge` (after a self-attaching attachment's settle, and
+      // with any surge the printed text gains); ordered before a printed ability, it resolves in its place here.
+      const inPass = order[order.length - 1] === SURGE_STEP ? order.slice(0, -1) : order;
+      const surgeHere = inPass.includes(SURGE_STEP);
+      // "Resolve each 'When Revealed' ability that you reveal 1 additional time" (Media Coverage). Incite and surge are
+      // among them (RRG 1.8 "Incite X", p. 24; "Surge", p. 42), so each pass resolves them all again, in the order the
+      // players chose; a surge left to the `surge` stage repeats there.
       const times = whenRevealedTimes(ctx, frame.playerId);
       const frames: StackFrame[] = [];
       for (let i = 0; i < times; i++) {
-        for (const scheme of inciteSchemes) frames.push(...inciteFrames(ctx, frame.instanceId, scheme));
-        frames.push(...gameAbilityFrames(ctx, frame.instanceId, ["whenRevealed"], revealed, undefined, frame.playerId));
+        for (const step of inPass) {
+          if (step === INCITE_STEP)
+            for (const scheme of inciteSchemes) frames.push(...inciteFrames(ctx, frame.instanceId, scheme));
+          else if (step === SURGE_STEP)
+            frames.push(
+              eventFrame(ctx, { kind: "surgeResolving", instanceId: frame.instanceId, playerId: frame.playerId }),
+            );
+          else {
+            const refs = activeAbilityRefs(ctx.state, frame.instanceId, ctx.deps).filter((ref) => ref.id === step);
+            frames.push(...gameAbilityFrames(ctx, frame.instanceId, ["whenRevealed"], revealed, refs, frame.playerId));
+          }
+        }
       }
-      if (frames.length > 0) setFrame(ctx, { ...frame, stage: next, abilityResolved: true });
+      setFrame(ctx, {
+        ...frame,
+        answer: null,
+        stage: next,
+        ...(frames.length > 0 ? { abilityResolved: true as const } : {}),
+        ...(surgeHere ? { surgeResolved: true as const } : {}),
+      });
       pushFrames(ctx, frames);
       return;
     }
@@ -660,6 +684,69 @@ function announceRevealFinished(ctx: Ctx, frame: Frame<"reveal">, card: AnyCard)
   pushFrames(ctx, frames);
 }
 
+/** The order steps of reveal step 3 that are keywords; every other step is a printed ability's id. */
+const INCITE_STEP = "incite";
+const SURGE_STEP = "surge";
+
+/**
+ * The order in which reveal step 3 resolves the card's When Revealed abilities: its incite, each printed (or gained)
+ * When Revealed ability by id, and its surge. Null when the first player has just been asked.
+ *
+ * FFG ruling, September 22, 2026 (clarifying RRG 1.8 "Surge", p. 42, and "Reveal", p. 38, step 3): "Surge, Incite, and
+ * 'When Revealed' abilities each share the same timing, which allows players to resolve them in any order." Abilities
+ * with the same timing that would resolve simultaneously are ordered by the first player (RRG 1.8 "Simultaneous
+ * Resolution", p. 40; "Forced", p. 20: "regardless of who controls the cards bearing those abilities"), so the first
+ * player is asked (`orderWhenRevealed`), as for a minion's quickstrike and teamwork (`orderKeywords`). Owner decision
+ * 2026-10-20 (docs/phase7-wave11-scenarios.md §S7 E37).
+ *
+ * Asked only when a printed ability shares step 3 with incite or surge. Engine call where no official source answers:
+ * incite and surge alone are not asked about, since neither reads what the other does (threat on the main scheme, a
+ * facedown card dealt and queued), and several printed abilities with no keyword keep their printed order, as every
+ * card's own same-timing abilities do in this engine. Unasked, the order is incite, the printed abilities, surge (the
+ * order of the card's text box), the order the players are offered first.
+ */
+function whenRevealedOrder(
+  ctx: Ctx,
+  frame: Frame<"reveal">,
+  inciteSchemes: readonly (InstanceId | undefined)[],
+): readonly string[] | null {
+  // One step per ability id: a pass resolves every slot carrying that id at its step (a card given the same ability
+  // twice resolves it twice there), so an id offered twice would resolve its slots twice over.
+  const printed = [...new Set(gameAbilityIds(ctx, frame.instanceId, ["whenRevealed"]))];
+  const incite = keywordTotal(ctx.state, frame.instanceId, "incite", ctx.deps);
+  const incites = incite > 0 && inciteSchemes.some((scheme) => scheme !== undefined);
+  const surges =
+    !frame.effectsCancelled && (frame.surgeGained || hasKeyword(ctx.state, frame.instanceId, "surge", ctx.deps));
+  const offered = [...(incites ? [INCITE_STEP] : []), ...printed, ...(surges ? [SURGE_STEP] : [])];
+  if (printed.length === 0 || offered.length === printed.length) return offered;
+  if (frame.answer) {
+    const picked = frame.answer.filter((step) => offered.includes(step));
+    return picked.length === offered.length ? picked : offered;
+  }
+  const self = { kind: "card", instanceId: frame.instanceId } as const;
+  requestChoice(ctx, {
+    playerId: simultaneousOrderer(ctx.state),
+    authority: "firstPlayerOrders",
+    prompt: { kind: "orderWhenRevealed", instanceId: frame.instanceId },
+    options: offered.map((step) =>
+      step === INCITE_STEP
+        ? { optionId: step, label: `Incite ${incite}`, ref: self }
+        : step === SURGE_STEP
+          ? { optionId: step, label: "Surge", ref: self }
+          : {
+              optionId: step,
+              label: "When Revealed",
+              ref: { kind: "ability", instanceId: frame.instanceId, abilityId: step as AbilityId },
+            },
+    ),
+    minSelections: offered.length,
+    maxSelections: offered.length,
+    frameId: frame.frameId,
+    ordered: true,
+  });
+  return null;
+}
+
 /**
  * The `surge` stage, the last of reveal step 3: the surge keyword, printed or gained, resolves as the When Revealed
  * ability it is, after the incite and the card's printed When Revealed abilities (so a "this card gains surge" they
@@ -685,7 +772,8 @@ function announceRevealFinished(ctx: Ctx, frame: Frame<"reveal">, card: AnyCard)
  * time" (Media Coverage) resolves it again: one more card dealt, each surge on its own frame with its own window.
  */
 function resolveSurgeKeyword(ctx: Ctx, frame: Frame<"reveal">): void {
-  const live = !frame.effectsCancelled && !frame.whenRevealedCancelled;
+  // A surge the players ordered before a printed When Revealed ability has already resolved (`whenRevealedOrder`).
+  const live = !frame.effectsCancelled && !frame.whenRevealedCancelled && !frame.surgeResolved;
   const surges = live && (frame.surgeGained || hasKeyword(ctx.state, frame.instanceId, "surge", ctx.deps));
   setFrame(ctx, { ...frame, stage: "finish", ...(surges ? { abilityResolved: true as const } : {}) });
   if (!surges) return;

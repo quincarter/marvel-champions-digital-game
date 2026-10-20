@@ -30,9 +30,12 @@ import {
  * discard pile. Current text adds "(Limit once per phase.)" (RRG 1.8 errata; the printed card lacks it): the limit is
  * the ability's own `limit`, counted per card instance, so it also holds when another card resolves this ability
  * (`resolveSpecials`), where a limited-out step does not count as resolved (RRG 1.8 "Resolve", p. 37). Not a
- * reveal of that treachery: only its printed When Revealed abilities resolve, so its surge and incite do not (and it
- * announces nothing). With no treachery in the discard pile nothing happens. "You" in the borrowed ability is the
- * player revealing Moon Knight.
+ * reveal of that treachery (it announces nothing), but its incite and surge are When Revealed abilities and resolve
+ * with its printed ones, in the order the first player chooses (RRG 1.8 "Simultaneous Resolution", p. 40; FFG
+ * ruling, September 22, 2026; owner decision 2026-10-20,
+ * revising docs/phase7-wave4.md §4 Q23; spec §S7 E37). Khonshu's Avatar (57068) resolves its treachery's the same
+ * way. With no treachery in the discard pile nothing happens. "You" in the borrowed ability is the player revealing
+ * Moon Knight.
  *
  * **Crescent Dart (57066)**: the attach sentence (Moon Knight, otherwise the enemy leader) and +2 ATK are data. Forced
  * Interrupt when the attached enemy attacks: that attack gains piercing and ranged, and the card is discarded at the

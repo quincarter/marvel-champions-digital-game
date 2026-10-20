@@ -470,6 +470,14 @@ export interface TargetQuery {
    * an event she played or an upgrade of hers (`isIdentityExtension`; docs/phase7-wave4.md §3.22).
    */
   readonly extensionOf?: PlayerRef;
+  /**
+   * The character this card acts for matches this query (`actingCharacterOf`; RRG 1.8 "You, Your", p. 49): a
+   * character is itself, an event or a resource the identity of the player it acts for, an upgrade its friendly host or
+   * else its controller's identity; a support, a player side scheme or an encounter card that is not an enemy acts
+   * for nobody and never matches. "Would take damage from a character" (Krahllak's Blessing, 65019; owner decision,
+   * docs/phase7-shadowland.md) is `sourceIs: { actsFor: query("character") }`, labeled or not.
+   */
+  readonly actsFor?: TargetQuery;
   /** Engaged with one of these players: "each enemy engaged with *that player*". */
   readonly engagedWithPlayer?: PlayerRef;
   /**
@@ -3188,8 +3196,8 @@ export type EffectSpec =
       /**
        * Which printed abilities to resolve: `"special"` (absent) or `"whenRevealed"`: "Resolve each 'When Revealed'
        * ability on each side scheme in play" (Citywide Crisis, `hood` 24059), "[star] Boost: Resolve this card's 'When
-       * Revealed' ability" (Out for Blood, Double Trouble, Sandslide, A.I.M. Interference). Only the printed abilities
-       * resolve unless `includeKeywords` says otherwise. docs/phase7-wave4.md §3.56.
+       * Revealed' ability" (Out for Blood, Double Trouble, Sandslide, A.I.M. Interference). Incite and surge resolve with
+       * the printed abilities unless `excludeKeywords` says otherwise. docs/phase7-wave4.md §3.56.
        *
        * `"whenDefeated"`: "Resolve the 'When Defeated' ability of each [Acolyte] minion engaged with you" (Zeal for the
        * Cause, `mut_gen` 32164). Each card's printed When Defeated abilities resolve with the card still in play: no
@@ -3280,13 +3288,18 @@ export type EffectSpec =
        */
       readonly abilities?: readonly AbilityId[];
       /**
-       * With `trigger: "whenRevealed"`, also resolve each card's incite and surge keywords, which RRG 1.8 calls
-       * "equivalent to the following triggered ability: 'When Revealed: …'" ("Incite X", p. 24; "Surge", p. 42), in a
-       * reveal's order (incite, the printed abilities, surge), each counting toward `<bind>.count`. Absent/false: printed
-       * When Revealed abilities only — the user's reading of Citywide Crisis (docs/phase7-wave4.md §4 Q23, 2026-09-25):
-       * incite and surge fire only when a card is revealed, and a card already in play is not being revealed.
+       * With `trigger: "whenRevealed"`, each card's incite and surge keywords resolve too, as the When Revealed abilities
+       * they are (RRG 1.8 "Incite X", p. 24; "Surge", p. 42; FFG ruling, September 22, 2026: "an ability that targets a
+       * card's 'When Revealed' ability would also include the 'Surge' keyword if on that card"), each counting toward
+       * `<bind>.count`, in the order the first player chooses among them and the printed abilities ("Surge, Incite, and
+       * 'When Revealed' abilities each share the same timing"; the cards are encounter cards, RRG 1.8 "First Player",
+       * p. 19, "Simultaneous Resolution", p. 40); unasked, a reveal's order (incite, the printed abilities, surge). Owner decision 2026-10-20 (docs/phase7-wave4.md §4 Q23, revised;
+       * docs/phase7-wave11-scenarios.md §S7 E37), superseding the 2026-09-25 reading (printed abilities only).
+       *
+       * `excludeKeywords` leaves the named keywords out: "Resolve this card's non-surge 'When Revealed' ability", the
+       * wording of FFG's announced erratum to Change of Venue (`fne` 60141) and similar cards (same ruling).
        */
-      readonly includeKeywords?: boolean;
+      readonly excludeKeywords?: readonly ("incite" | "surge")[];
       /**
        * `<bind>.count`: how many abilities were resolved ("If no 'When Revealed' ability was resolved this way"): only
        * those whose effects changed the game (RRG 1.8 "Resolve", p. 37), read as each finishes (`Frame<"effects">.resolvedCount`),
@@ -3510,9 +3523,10 @@ export type EffectSpec =
    *   legal;
    * - a `chooseOne` does not offer an option holding a required spend its player cannot pay (`executeChooseOne`).
    *   RRG 1.8 "Choose (Option)" (p. 12) says so for a player card ("cannot choose an option … [that has] a cost the
-   *   player cannot pay"); for an encounter card that paragraph names only options without targets, and this follows
-   *   the owner's standing default instead (docs/phase7-wave7.md §4.2 Q8 = A, docs/phase7-wave6.md Q51: the choice is
-   *   a price, so an option is offered only to a player who can carry it out);
+   *   player cannot pay"); for an ENCOUNTER-side source card (villain, scheme, minion, treachery, attachment,
+   *   environment, obligation) that paragraph names only options without targets, so its option is offered to a player
+   *   who cannot pay (owner decision 2026-10-20, reversing Q8 and wave 9 Q33; the February 28, 2026 Spell Blast ruling):
+   *   chosen, it pays in full when the player can and spends nothing (`<bind>.made` 0) when not;
    * - reached all the same by a player who cannot pay (the only option left, or no `chooseOne` around it), nobody is
    *   asked, nothing is spent and `<bind>.made` is 0.
    * Without it the effect is the "either spend … or" / "you may spend" prompt above, where paying nothing declines.

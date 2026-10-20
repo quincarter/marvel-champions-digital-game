@@ -421,11 +421,13 @@ describe("Submit or Suffer 65071", () => {
     expect(ofType(run.events, "attackResolved").map((e) => e.enemyInstanceId)).toEqual([villainOf(run.state)]);
   });
 
-  it("when revealed: with no counter to remove, only placing one is offered", () => {
-    const log: Parameters<typeof recording>[1] = [];
-    const run = villainPhase(krahllak(), [ADVANCE, SUBMIT], recording(byLabel(remove), log));
-    expect(corruption(run.state)).toBe(1);
-    expect(damage(run.state)).toBe(0);
+  // Owner decision 2026-10-20 (A), reversing Q8: RRG 1.8 "Choose (Option)" (p. 12) bars an encounter card's option only
+  // when it needs a target and has no valid one; the Creeping Corruption is the target, and it holds no counter.
+  it("when revealed: with no counter to remove, the remove option is still offered and Krahllak attacks you", () => {
+    const run = villainPhase(krahllak(), [ADVANCE, SUBMIT, ASSAULT], byLabel(remove));
+    expect(corruption(run.state)).toBe(0);
+    expect(damage(run.state)).toBe(3);
+    expect(ofType(run.events, "attackResolved").map((e) => e.enemyInstanceId)).toEqual([villainOf(run.state)]);
   });
 
   it("when revealed: with no Creeping Corruption nothing is offered and nothing happens", () => {

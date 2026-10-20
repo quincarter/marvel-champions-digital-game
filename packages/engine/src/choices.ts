@@ -60,6 +60,15 @@ export type ChoicePrompt =
    */
   | { readonly kind: "orderKeywords"; readonly instanceId: InstanceId }
   /**
+   * Reveal step 3 of the encounter card `instanceId` (RRG 1.8 "Reveal", p. 38): its incite, its printed When Revealed
+   * abilities and its surge share one timing, "which allows players to resolve them in any order" (FFG ruling, September
+   * 22, 2026), and the first player orders them (RRG 1.8 "Simultaneous Resolution", p. 40). The options are `incite`
+   * and `surge` (each `ref` the card) and each printed ability by its id (`ref` the ability); all are selected, in the
+   * order they resolve. Asked only when a printed ability shares the step with incite or surge
+   * (docs/phase7-wave11-scenarios.md §S7 E37).
+   */
+  | { readonly kind: "orderWhenRevealed"; readonly instanceId: InstanceId }
+  /**
    * RRG 1.8 "Each Player" (p. 17): "If the effect does not specify what order the players resolve the effect in,
    * the first player decides the order." Ordering which players receive dealt encounter cards (ruling, Jan 26, 2026
    * (4) answer 3). The selections are player ids, in the order they resolve.

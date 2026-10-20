@@ -1245,8 +1245,9 @@ describe("Director's Directions (39033)", () => {
     }
   });
 
-  // Pending default Q51 = B: "Spend 2 different resources" is offered only to a player who can pay it.
-  it("Q51: the spend option is not offered to a player who can only pay with one resource type", () => {
+  // Q51 = B (offered only to a player who can pay it) is reversed by the owner's decision of 2026-10-20 (A): RRG 1.8
+  // "Choose (Option)" (p. 12) bars an encounter card's option only for want of a target.
+  it("Q51 (reversed): the spend option is still offered to a player who can only pay with one resource type", () => {
     // Hero form: Peter Parker's "Scientist" resource ability ([mental]) is an alter-ego ability, so it can't help.
     const staged = run(quiet(), toHero(P1));
     // Surgery: every card P1 holds or will draw at the end of the turn prints only [energy] (Core's Energy).
@@ -1263,7 +1264,7 @@ describe("Director's Directions (39033)", () => {
     // In hero form Mojo I's turn end first discards the top 3 encounter cards: three Mojo-set cards (no threat).
     endTurn(empty, ["39029", "39032", "39034", NO_BOOST, "39033", INERT[0]], P1, pick);
     expect(offered.length).toBeGreaterThan(0);
-    expect(offered).not.toContain("Spend 2 different resources");
+    expect(offered).toContain("Spend 2 different resources");
   });
 });
 

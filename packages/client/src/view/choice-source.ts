@@ -472,6 +472,8 @@ export function promptTitleOf(
     orderTriggers: "Order these effects",
     // A revealed minion with both Quickstrike and Teamwork: the first player picks which resolves first.
     orderKeywords: "Choose which keyword resolves first",
+    // Incite, printed When Revealed and surge share a timing (FFG ruling, Sep 22, 2026): the first player orders them.
+    orderWhenRevealed: "Order the When Revealed abilities",
     chooseTriggers: "Trigger an ability?",
     chooseTarget: "Choose a target",
     chooseAttachmentTarget: "Choose a host",

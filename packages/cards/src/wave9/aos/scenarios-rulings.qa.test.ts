@@ -653,7 +653,9 @@ describe("Batroc's Brigade 50101 and Soldiers of Fortune 50102 (RRG 1.8 'Cancel'
     expect(inPlayCard(r.state, "50099")).toBeDefined();
   });
 
-  it("the boost's 'spend 1 resource' is not offered to a player with nothing to spend: the card gains its 3 icons without a choice", () => {
+  // Owner Q33 = A was revised on 2026-10-20 (A: RRG 1.8 p. 12 and the February 28, 2026 Spell Blast ruling): the spend is
+  // offered to a player who cannot pay; chosen, it spends nothing.
+  it("the boost's 'spend 1 resource' is still offered to a player with nothing to spend; choosing it pays nothing and adds no icons", () => {
     const t = open("batroc", [SPIDER_MAN]);
     const empty: GameState = {
       ...t.state,
@@ -661,9 +663,12 @@ describe("Batroc's Brigade 50101 and Soldiers of Fortune 50102 (RRG 1.8 'Cancel'
     };
     const seen: string[] = [];
     const r = villainPhase(empty, { seen }, SOLDIERS_OF_FORTUNE, BLANK, BLANK);
-    expect(seen.filter((x) => x.startsWith("option:"))).toEqual([]);
+    expect(seen.filter((x) => x.startsWith("option:"))).toEqual([
+      "option:Spend 1 resource of any type",
+      "option:This card gains 3 boost icons",
+    ]);
     const attack = ofType(r.events, "attackResolved").find((a) => a.enemyInstanceId === t.villain)!;
-    expect(attack.baseAtk + 3).toBe(attack.damageDealt);
+    expect(attack.baseAtk).toBe(attack.damageDealt);
   });
 });
 

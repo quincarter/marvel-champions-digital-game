@@ -953,6 +953,26 @@ describe("60141 Change of Venue", () => {
     expect(schemeCode(run.state, P1)).not.toBe(BODEGA);
   });
 
+  // Provisional exception (owner decision 2026-10-20, spec §S7 E37): FFG ruling, September 22, 2026, would have this
+  // boost resolve the surge too, but FFG announced an erratum to "Resolve this card's non-surge 'When Revealed'
+  // ability", which the script follows ahead of it.
+  it("Boost: resolves only the non-surge When Revealed: the swap happens, the surge does not", () => {
+    let s = newGame({ picks: [BODEGA, HUNG] });
+    s = withForm(withForm(s, "alterEgo", P1), "alterEgo", P2);
+    const staged = quiet(s, [VENUE]);
+    const run = driveEventsPicking(
+      WAVE11_DEPS,
+      stackEncounterDeck(staged, VENUE, "01187", "01187"),
+      declines,
+      endTurn(P1),
+      endTurn(P2),
+    );
+    expect(swaps(run.events)).toHaveLength(1);
+    const venue = Object.values(run.state.instances).find((i) => codeOf(run.state, i.instanceId) === VENUE)!;
+    const surges = run.events.filter((e) => e.type === "surgeTriggered" && e.instanceId === venue.instanceId);
+    expect(surges, "no surge from the boost card").toEqual([]);
+  });
+
   // The five cards share their 1A title, "Protection Racket" (the data's card name), but the swap compares the faceup
   // 1B titles, which all differ (RRG 1.8 pp. 23, 42; `resolve/swap-main-scheme.ts`): the swap leaves and enters play.
   it("with the shipped card data (all five schemes named Protection Racket) the swap goes through", () => {

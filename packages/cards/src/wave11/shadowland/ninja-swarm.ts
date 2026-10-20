@@ -86,7 +86,11 @@ export const SHADOWLAND_NINJA_SWARM: AbilityRegistry = defineAbilities({
   "65035.boost": boost(atEndOfActivation(revealCard(self))),
 
   "65036.when-revealed": whenRevealed(moveCards(encounterCards(["discard"], NINJA_MINION), "encounterDeckShuffle")),
-  "65036.boost": boost(resolveWhenRevealedOf(self)),
+  // Provisional exception: the boost resolves only the non-surge When Revealed. FFG ruling, September 22, 2026: surge
+  // is a When Revealed ability, so "Resolve this card's 'When Revealed' ability" would include it, but FFG plans to
+  // errata "Change of Venue and similar encounter cards" to "Boost: Resolve this card's non-surge 'When Revealed'
+  // ability". Built to that announced wording ahead of the erratum (owner decision 2026-10-20, spec §S7 E37).
+  "65036.boost": boost(resolveWhenRevealedOf(self, { excludeKeywords: ["surge"] })),
 });
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */

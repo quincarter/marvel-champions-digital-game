@@ -418,11 +418,12 @@ export const notMatching = (excluded: TargetQuery): Pick<TargetQuery, "not"> => 
 /**
  * "A character that can be given a [stunned / confused / tough] status card": one given to it now would be placed,
  * which is the check the give itself makes (RRG 1.8 "Status Cards", p. 41: one of each type, a second stunned or
- * confused for steady, none of those for stalwart or under a "cannot be stunned" rule, a `statusLimit` for tough). An
- * encounter card's "choose: • Confuse a character you control. • …" offers that option only if it can be carried out
- * in full (docs/phase7-wave7.md §4.1 Q8 = A): with `const able = query("character", { controller: "you",
- * ...canTakeStatus("confused") })`, the option is `option("…", { when: exists(able) }, chooseTarget("target", able),
- * confuse(chosen("target")))`. For "that cannot take one", wrap it in `notMatching`. docs/phase7-wave7.md §3.11.
+ * confused for steady, none of those for stalwart or under a "cannot be stunned" rule, a `statusLimit` for tough). A
+ * target is valid only if the ability can affect it (RRG 1.8 "Target", p. 42), so an encounter card's "choose: •
+ * Confuse a character you control. • …" uses it as the TARGET filter, not a `when` gate: `chooseTarget("target",
+ * query("character", { controller: "you", ...canTakeStatus("confused") }))`, and the engine bars the option when no
+ * character qualifies (`optionLacksValidTarget`, p. 12; owner 2026-10-20 revising wave 7 Q8). For "that cannot take
+ * one", wrap it in `notMatching`. docs/phase7-wave7.md §3.11.
  */
 export const canTakeStatus = (status: StatusName): Pick<TargetQuery, "canTakeStatus"> => ({ canTakeStatus: status });
 /**
@@ -1287,8 +1288,9 @@ export const canUseBasicPower = (
  * `player` could pay `spendResources(resources, …, player, { distinctTypes })` right now, from the hand cards and
  * resource abilities that spend would offer them, priced as the spend prices it (engine `canPayResources`). Gates an
  * option on the payment: `option("Spend …", { when: canPayResources({ energy: 1 }) }, spendResources({ energy: 1 },
- * "spent"))`. RRG 1.8 "Choose (Option)" (p. 12) bars a player card's option with "a cost the player cannot pay"; an
- * encounter card's spend option uses it by the pending default Q51 (docs/phase7-wave6.md §3.69).
+ * "spent"))`. For a "may spend ... instead" payment tied to a result (Carjacking, Sinister Disguise). An option's own
+ * spend needs no gate: the engine bars an unpayable one on a player card only (RRG 1.8 "Choose (Option)", p. 12; owner
+ * 2026-10-20 reversing Q8/Q33 for encounter cards).
  */
 export const canPayResources = (
   resources: ResourceRequirement,

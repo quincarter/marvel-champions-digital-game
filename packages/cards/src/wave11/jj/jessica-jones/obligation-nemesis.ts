@@ -4,8 +4,8 @@ import {
   after,
   alterEgoAction,
   canPlayFromHand,
-  canTakeStatus,
   cards,
+  canTakeStatus,
   chooseOne,
   chooseTarget,
   chosen,
@@ -31,7 +31,6 @@ import {
   self,
   theMainScheme,
   whenRevealed,
-  yourIdentity,
   you,
 } from "../../../dsl/index.js";
 
@@ -82,10 +81,12 @@ export const JJ_JESSICA_JONES_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilit
         moveCards(cards(chosen("ally")), "removedFromGame"),
         moveCards(cards(self), "removedFromGame"),
       ),
+      // A target is valid only if the ability can affect it (RRG 1.8 "Target", p. 42): an identity that already holds a
+      // confused status card (or is stalwart) is not, so the option is barred then (p. 12).
       option(
         "Confuse your identity",
-        { when: exists(query("identity", { controller: "you", ...canTakeStatus("confused") })) },
-        confuse(yourIdentity),
+        chooseTarget("identity", query("identity", { controller: "you", ...canTakeStatus("confused") })),
+        confuse(chosen("identity")),
         moveCards(cards(self), "discard"),
       ),
     ),

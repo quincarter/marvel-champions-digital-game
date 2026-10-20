@@ -14,6 +14,8 @@ import {
   mainThreat,
   moveToHand,
   patchInstance,
+  payWith,
+  play,
   playerOf,
   putOnTopOfDeck,
   runWith,
@@ -57,6 +59,7 @@ const BO_STAFF = "65030";
 const KATANA = "65032";
 const CHARGE = "01099";
 const CORE_MINION = "01101";
+const HELLCAT = "01020";
 const CARDS = [ARCHPRIESTESS, DAREDEVIL, ELEKTRA, GORGON, BULLSEYE, TIGER, ART, BLESSING, WITHIN, EMBRACED];
 const REFS = [
   "65012a.archpriestess-forced-response",
@@ -299,7 +302,7 @@ describe("Gorgon 65015a", () => {
     expect(inst(run.state, identityOf(run.state)).statuses.stunned).toBe(0);
   });
 
-  it("forced interrupt: or spend a physical resource (offered only to a player who holds one)", () => {
+  it("forced interrupt: or spend a physical resource (offered to a player with none too: owner 2026-10-20 reversing Q8)", () => {
     const withPhysical = moveToHand(
       game(),
       P1,
@@ -314,7 +317,7 @@ describe("Gorgon 65015a", () => {
     expect(labels.some((l) => l.startsWith("Spend a [physical]"))).toBe(true);
     expect(damage(run.state)).toBe(2);
     expect(inst(run.state, identityOf(run.state)).statuses.stunned).toBe(0);
-    // A hand with no physical resource is not offered the spend.
+    // A hand with no physical resource is offered the spend as well; it spends nothing.
     const bare = patchHand(game());
     const labelsBare: string[] = [];
     villainPhase(bare, [ADVANCE, FILLER_A], (s) => {
@@ -322,8 +325,7 @@ describe("Gorgon 65015a", () => {
         labelsBare.push(...s.pendingChoice.options.map((o) => o.label));
       return firstLegal(s);
     });
-    expect(labelsBare.some((l) => l.startsWith("Spend"))).toBe(false);
-    expect(labelsBare.length).toBeGreaterThan(0);
+    expect(labelsBare.some((l) => l.startsWith("Spend"))).toBe(true);
   });
 });
 
@@ -467,6 +469,68 @@ describe("Krahllak's Blessing 65019", () => {
     expect(villainAttacks(run.events, run.state)[0]!.targetInstanceId).toBe(identityOf(run.state));
     expect(inst(run.state, id).attachedTo).toBeNull();
     expect(discardCodes(run.state)).toContain(BLESSING);
+  });
+
+  // "From a character" is the character the damage's source acts for (owner decision 2026-10-20,
+  // docs/phase7-shadowland.md; RRG 1.8 "You, Your", p. 49): events the identity plays and upgrades it controls are its
+  // own, labeled or not; a support is nobody's.
+  const blessed = (seat: typeof SHE_HULK | typeof CAPTAIN_MARVEL) => {
+    const base = withForm(shadowGame({ seats: [seat], encounter: [BLESSING] }), { heroForm: 0 });
+    return attachEncounterCard(base, BLESSING, base.activeVillainId!);
+  };
+
+  it("an unlabeled event's damage (Ground Stomp) is reduced by 3, and the villain attacks the identity", () => {
+    const { state, id } = blessed(SHE_HULK);
+    const given = moveToHand(state, P1, "01022");
+    const stomp = given.ids[0]!;
+    const run = driveEventsPicking(
+      DEPS,
+      given.state,
+      firstLegal,
+      play(P1, stomp, payWith(given.state, P1, 2, [stomp])),
+    );
+    // 1 damage to each enemy, less 3: none.
+    expect(damageOnVillain(run.state)).toBe(0);
+    expect(villainAttacks(run.events, run.state)).toHaveLength(1);
+    expect(villainAttacks(run.events, run.state)[0]!.targetInstanceId).toBe(identityOf(run.state));
+    expect(inst(run.state, id).attachedTo).toBeNull();
+  });
+
+  it("an upgrade's damage (Energy Channel, discarded as its cost) is reduced by 3, and the villain attacks the identity", () => {
+    const { state, id } = blessed(CAPTAIN_MARVEL);
+    const staged = stagedInPlay(state, "01018", { attach: true, counters: { energy: 2 } });
+    const run = driveEventsPicking(
+      DEPS,
+      staged.state,
+      firstLegal,
+      use(P1, staged.id, "01018.energy-channel-hero-action"),
+    );
+    // 2 damage for each of 2 energy counters, less 3.
+    expect(damageOnVillain(run.state)).toBe(1);
+    expect(villainAttacks(run.events, run.state)).toHaveLength(1);
+    expect(villainAttacks(run.events, run.state)[0]!.targetInstanceId).toBe(identityOf(run.state));
+    expect(inst(run.state, id).attachedTo).toBeNull();
+  });
+
+  it("a support's damage (Tac Team) is not from a character: not reduced, no attack, the Blessing stays", () => {
+    const { state, id } = blessed(SHE_HULK);
+    const staged = stagedInPlay(state, "01056", { counters: { attack: 3 } });
+    const run = driveEventsPicking(DEPS, staged.state, firstLegal, use(P1, staged.id, "01056.tac-team-action"));
+    expect(damageOnVillain(run.state)).toBe(2);
+    expect(villainAttacks(run.events, run.state)).toHaveLength(0);
+    expect(inst(run.state, id).attachedTo).toBe(run.state.activeVillainId);
+  });
+
+  it("an ally's attack is reduced by 3, and the villain attacks that ally", () => {
+    const { state, id } = blessed(SHE_HULK);
+    const staged = stagedInPlay(state, HELLCAT);
+    const unblessed = stagedInPlay(withForm(shadowGame({ seats: [SHE_HULK] }), { heroForm: 0 }), HELLCAT);
+    const run = driveEventsPicking(DEPS, staged.state, firstLegal, basicAttack(staged.state, P1, staged.id));
+    const plain = driveEventsPicking(DEPS, unblessed.state, firstLegal, basicAttack(unblessed.state, P1, unblessed.id));
+    expect(damageOnVillain(run.state)).toBe(Math.max(0, damageOnVillain(plain.state) - 3));
+    expect(villainAttacks(run.events, run.state)).toHaveLength(1);
+    expect(villainAttacks(run.events, run.state)[0]!.targetInstanceId).toBe(staged.id);
+    expect(inst(run.state, id).attachedTo).toBeNull();
   });
 });
 

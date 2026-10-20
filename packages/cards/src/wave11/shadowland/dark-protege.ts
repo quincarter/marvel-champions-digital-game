@@ -21,12 +21,14 @@ import {
   enemyAttack,
   enemyScheme,
   eventDealt,
+  handCountOf,
+  valueAtLeast,
+  actingCharacter,
   eventSource,
   firstPlayer,
   forcedInterrupt,
   forcedResponse,
   giveTough,
-  handCountOf,
   host,
   ifThen,
   modifyAttack,
@@ -46,7 +48,6 @@ import {
   theMainScheme,
   theVillain,
   topOfDeck,
-  valueAtLeast,
   valueAtMost,
   valueEquals,
   varAtLeast,
@@ -54,13 +55,15 @@ import {
   whenRevealed,
   yourIdentity,
   you,
-  FRIENDLY_CHARACTER,
 } from "../../dsl/index.js";
 
 /** "If that card's printed cost is an odd number": a printed cost no card has is not odd (a dashed cost is not a number). */
 const ODD_PRINTED_COST = anyOf(
   ...[1, 3, 5, 7, 9, 11, 13, 15].map((n) => valueEquals(printedCostOf(chosen("discardedCard")), n)),
 );
+
+/** "Damage from a character": a source that is, or acts for, a character (`TargetQuery.actsFor`). */
+const DAMAGE_FROM_A_CHARACTER = { actsFor: query("character") };
 
 /** "Attacks you": the six Dark Protege villains' triggers, `againstYou` read by timing (an interrupt: the attacked player). */
 const attacksYou = on.enemyAttacks("self", { againstYou: true });
@@ -87,9 +90,12 @@ const attacksYou = on.enemyAttacks("self", { againstYou: true });
  * **65018 Art of the Kill**: an enemy attacking you gets +1 ATK; if the attack defeats a character, 1 threat on the main
  *   scheme (read at the attack's end, as every "if that attack defeats"). Alter-Ego Action: spend one of each
  *   energy, mental and physical to discard it.
- * **65019 Krahllak's Blessing**: when the attached villain would take damage from a friendly character (a hero or an
- *   ally; the villain is only ever damaged by those), reduce it by 3, the villain attacks that character, discard this
- *   card.
+ * **65019 Krahllak's Blessing**: when the attached villain would take damage from a character, reduce it by 3, the
+ *   villain attacks that character, discard this card. "From a character" is the character the damage's source acts
+ *   for (owner decision 2026-10-20, docs/phase7-shadowland.md; RRG 1.8 "You, Your", p. 49): an identity, ally or enemy
+ *   itself, the identity for an event its player plays or an upgrade it controls, labeled "(attack)" or not; never a
+ *   support, a player side scheme or an encounter card, whoever owns it. An enemy source has nobody to be attacked
+ *   (enemies attack players), so the damage is reduced and no attack is made.
  * **65026 Darkness Within**: change to hero form, the villain attacks you. Boost: an attack gains overkill.
  * **65027 Embraced by Darkness**: the villain schemes; if 2 or less threat was placed that way (none included), discard
  *   the top 3 cards of the encounter deck. Boost: an attack places 2 threat on the main scheme.
@@ -163,9 +169,9 @@ export const SHADOWLAND_DARK_PROTEGE: AbilityRegistry = defineAbilities({
   "65018.art-of-the-kill-action": alterEgoAction({ cost: spend({ energy: 1, mental: 1, physical: 1 }) }, discard(self)),
 
   "65019.krahllaks-blessing-forced-interrupt": forcedInterrupt(
-    { ...on.damage("host"), sourceIs: FRIENDLY_CHARACTER },
+    { ...on.damage("host"), sourceIs: DAMAGE_FROM_A_CHARACTER },
     reduceDamage(3),
-    enemyAttack(host, { targetCharacter: eventSource }),
+    enemyAttack(host, { targetCharacter: actingCharacter(eventSource) }),
     discard(self),
   ),
 

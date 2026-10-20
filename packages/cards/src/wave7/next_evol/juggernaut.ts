@@ -165,7 +165,8 @@ export const JUGGERNAUT: AbilityRegistry = defineAbilities({
   ),
 
   // Breakthrough (40125) — Choose: take damage equal to Juggernaut's ATK, or discard the highest-cost upgrade or support
-  // you control. An option is offered only if it can be carried out in full (Q8 = A); the first player picks among ties.
+  // you control. The discard option needs a card to target (RRG 1.8 p. 12; owner 2026-10-20 revising Q8); the first player
+  // picks among ties.
   "40125.when-revealed": whenRevealed(
     chooseOne(
       option("Take damage equal to Juggernaut's ATK", takeDamage(HIS_ATK)),

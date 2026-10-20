@@ -2,9 +2,8 @@ import { trait } from "@mc/content";
 import type { AbilityRegistry, TargetQuery } from "@mc/engine";
 import {
   allOf,
-  andThen,
-  boost,
   canTakeStatus,
+  boost,
   chooseOne,
   chooseTarget,
   chosen,
@@ -18,27 +17,31 @@ import {
   exists,
   firstPlayer,
   giveTough,
+  ifThen,
   handCountOf,
   option,
   placeThreat,
   query,
+  setVar,
   stun,
   theMainScheme,
   valueAtLeast,
+  varOf,
   whenRevealed,
   yourIdentity,
   you,
 } from "../../dsl/index.js";
 
-// A chosen option is carried out in full or is not offered (docs/phase7-wave7.md section 4.1 Q8 = A), so each option
-// carries the check for what it needs. None of the card's targets says "choose", so the first player selects
-// (RRG 1.8 "First Player", p. 19).
+// RRG 1.8 "Choose (Option)" (p. 12) and the February 28, 2026 Spell Blast ruling (owner decision 2026-10-20, reversing
+// Q8): an encounter card's option is barred only when it needs a target and has no valid one, and a target is valid only
+// if the ability can affect it (RRG 1.8 "Target", p. 42). So Avoid and Disarm need a card in hand to discard (Disarm
+// with fewer than 2 discards what it can and skips its "then"), Disarm needs a character that can take a tough card or
+// an enemy, and Trip is offered to an identity that already holds the status (the damage can still be dealt). None of
+// the card's targets says "choose", so the first player selects (RRG 1.8 "First Player", p. 19).
 
 /** "A character you control" a tough status card can be given to. */
 const TOUGH_TARGET: TargetQuery = query("character", { controller: "you", ...canTakeStatus("tough") });
 const YOUR_CHARACTER: TargetQuery = query("character", { controller: "you" });
-const identityCan = (status: "confused" | "stunned"): TargetQuery =>
-  query("identity", { controller: "you", ...canTakeStatus(status) });
 const handHas = (filter: TargetQuery, n = 1) => valueAtLeast(handCountOf(you, filter), n);
 const THWART_EVENT = query("event", { trait: trait("THWART") });
 const DEFENSE_EVENT = query("event", { trait: trait("DEFENSE") });
@@ -76,16 +79,17 @@ export const SHADOWLAND_DEADLY_CONTRAPTIONS: AbilityRegistry = defineAbilities({
       ),
       option(
         "Disarm: discard 2 cards at random from your hand, then give a character you control a tough status card",
-        { when: allOf(handHas({}, 2), exists(TOUGH_TARGET)) },
+        { when: allOf(handHas({}), exists(TOUGH_TARGET)) },
+        setVar("handBefore", handCountOf(you)),
         discardAtRandom(2),
-        andThen(chooseTarget("armed", TOUGH_TARGET, { chooser: firstPlayer }), giveTough(chosen("armed"))),
+        // "Then" (RRG 1.8 p. 44): only if both cards were discarded. Read from the hand as it was, because the engine's
+        // pre-"then" check does not see a discard that found fewer cards than it asked for.
+        ifThen(valueAtLeast(varOf("handBefore"), 2), [
+          chooseTarget("armed", TOUGH_TARGET, { chooser: firstPlayer }),
+          giveTough(chosen("armed")),
+        ]),
       ),
-      option(
-        "Trip: deal 2 damage to your identity and confuse it",
-        { when: exists(identityCan("confused")) },
-        dealDamage(2, yourIdentity),
-        confuse(yourIdentity),
-      ),
+      option("Trip: deal 2 damage to your identity and confuse it", dealDamage(2, yourIdentity), confuse(yourIdentity)),
     ),
   ),
 
@@ -99,15 +103,15 @@ export const SHADOWLAND_DEADLY_CONTRAPTIONS: AbilityRegistry = defineAbilities({
       option(
         "Disarm: discard 1 identity-specific card from your hand, then deal 2 damage to an enemy",
         { when: allOf(handHas(IDENTITY_SPECIFIC), exists(query("enemy"))) },
+        setVar("matching", handCountOf(you, IDENTITY_SPECIFIC)),
         discardFromHand(1, you, { filter: IDENTITY_SPECIFIC }),
-        andThen(chooseTarget("foe", query("enemy"), { chooser: firstPlayer }), dealDamage(2, chosen("foe"))),
+        // "Then": only if a card was discarded (see Blinding Powder's Disarm).
+        ifThen(valueAtLeast(varOf("matching"), 1), [
+          chooseTarget("foe", query("enemy"), { chooser: firstPlayer }),
+          dealDamage(2, chosen("foe")),
+        ]),
       ),
-      option(
-        "Trip: deal 2 damage to your identity and stun it",
-        { when: exists(identityCan("stunned")) },
-        dealDamage(2, yourIdentity),
-        stun(yourIdentity),
-      ),
+      option("Trip: deal 2 damage to your identity and stun it", dealDamage(2, yourIdentity), stun(yourIdentity)),
     ),
   ),
 });

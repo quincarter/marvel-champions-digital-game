@@ -278,7 +278,7 @@ export const ON_THE_RUN: AbilityRegistry = defineAbilities({
 
   // Tag Team (40111) — When Revealed: Choose: • Each MARAUDER minion engaged with you activates against you. • Discard 7
   // cards from the top of the encounter deck. Put the topmost MARAUDER minion in the encounter discard pile into play
-  // engaged with you. The first option is offered only if a Marauder minion is engaged with you (Q8 = A).
+  // engaged with you. The first option needs a Marauder minion engaged with you as its target (RRG 1.8 p. 12).
   "40111.when-revealed": whenRevealed(
     chooseOne(
       option(

@@ -400,11 +400,18 @@ describe("Moon Knight (57065) further cases", () => {
     expect(revealedCodes(run.state, run.events)).toEqual([MOON, TEENAGE, FILLER_A]);
   });
 
-  it("a treachery with a printed surge keyword in the discard pile: its surge does not resolve", () => {
+  // Changed by the owner's decision of 2026-10-20 (spec §S7 E37, revising docs/phase7-wave4.md §4 Q23): FFG ruling,
+  // September 22, 2026, "an ability that targets a card's 'When Revealed' ability would also include the 'Surge'
+  // keyword if on that card". Until then this test pinned the opposite (its surge did not resolve).
+  it("a treachery with a printed surge keyword in the discard pile: its surge resolves too, dealing the next card", () => {
     const herb = "01158"; // Heart-Shaped Herb, printed surge
     const start = withDiscard(game([SPIDER_MAN], [herb]), herb);
     const run = villainPhase(start, PLAIN, MOON, FILLER_A, FILLER_B);
-    expect(revealedCodes(run.state, run.events)).toEqual([MOON]);
+    // Herb's printed When Revealed (a tough status on Rhino) and its surge (FILLER_A dealt to and revealed by P1).
+    expect(tough(run.state, villainOf(run.state))).toBe(1);
+    expect(revealedCodes(run.state, run.events)).toEqual([MOON, FILLER_A]);
+    // The herb stays in the discard pile: resolving its abilities is not revealing it.
+    expect(inDiscard(run.state, herb)).toHaveLength(1);
   });
 
   it("Moon Knight enters with a tough status (Toughness)", () => {

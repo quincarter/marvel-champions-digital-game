@@ -1,9 +1,10 @@
 import type { AbilityRegistry } from "@mc/engine";
 import {
   bindTargets,
-  canPayResources,
   canTakeStatus,
   chooseOne,
+  hasStatus,
+  not,
   chooseTarget,
   chosen,
   confuse,
@@ -15,9 +16,7 @@ import {
   firstPlayer,
   forcedInterrupt,
   giveTough,
-  hasStatus,
   modifyAttack,
-  not,
   on,
   option,
   placeThreat,
@@ -38,21 +37,19 @@ import {
  * player, so an attack on an ally is chosen by the ally's controller (RRG 1.8 "Attacks Against Allies", p. 10; owner
  * decision Q5 = A), and `you` in the options is that player.
  *
- * Owner decision Q8 = A (docs/phase7-wave7.md section 4.1): an option is offered only if the player can carry it out in
- * full, otherwise the other option is forced. Chimera's spend and Greycrow's discard are gated by `when`. Harpoon's
- * indirect damage and Riptide's threat can always be carried out (an identity can always take damage; threat can always
- * be placed on the main scheme), so neither is gated, and each +ATK option is always possible.
- *
- * Arclight and Vertigo give a status card to a character the player controls, so (Q8) that option is offered only if
- * some character can take it (`canTakeStatus`: not stalwart, not already holding one, a steady one holding fewer than
- * two). The B faces name "the character you control with the highest THW/ATK": the highest is found among every
- * character the player controls, the first player breaks a tie, and the option is offered only if one of the tied
- * characters can take the card (a character that cannot is not replaced by the next highest; flagged in the report).
+ * Owner decision 2026-10-20 (A), revising Q8 (docs/phase7-wave7.md section 4.1): RRG 1.8 "Choose (Option)" (p. 12) and
+ * the February 28, 2026 Spell Blast ruling bar an encounter card's option only when it needs a target and has no valid
+ * one. Chimera's spend is offered to a player who cannot pay it (they pay what they can). A target is valid only if the
+ * ability can affect it (RRG 1.8 "Target", p. 42), so Arclight's and Vertigo's status card needs a character that can
+ * take it (`canTakeStatus`, as a target filter), Blockbuster's tough card needs him not to hold one, and Greycrow's
+ * discard needs a card to target. The B faces name "the character you control with the highest THW/ATK": the highest is
+ * found among every character the player controls, the first player breaks a tie, and the option is barred if none of
+ * the tied characters can take the card (the next highest is not used instead).
  */
 const ATTACKS_YOU = () => on.enemyAttacks("self", { againstYou: true });
 const PLUS_2_ATK = "gets +2 ATK for this attack";
 
-/** "Give Blockbuster a tough status card": offered only if he holds none (nothing is placed on a holder, task 16). */
+/** "Give Blockbuster a tough status card": barred while he holds one (he is the only target and cannot be affected, RRG p. 42). */
 const GIVE_TOUGH = "Give Blockbuster a tough status card";
 
 /** "The highest-cost card you control": allies, upgrades and supports (the cards a player controls that print a cost). */
@@ -62,7 +59,11 @@ const highestCost = (ties: "all" | "first") =>
 /** X: the printed cost of the highest-cost card you control, read when the option resolves (0 with none). */
 const HIGHEST_PRINTED_COST = printedCostOf(highestCost("first"));
 
-/** A character you control that a status card can still be given to. */
+/**
+ * A character you control that a status card can be given to. A target is valid only if the ability can affect it (RRG
+ * 1.8 "Target", p. 42; "Status Cards", p. 41): not a stalwart one, nor one holding that status already. With none, the
+ * engine bars the option (`optionLacksValidTarget`, RRG p. 12).
+ */
 const ABLE = (status: "confused" | "stunned") => query("character", { controller: "you", ...canTakeStatus(status) });
 /** The characters you control tied for the highest `stat`, bound before the choice so each option can read them. */
 const bindHighest = (stat: "thw" | "atk") =>
@@ -80,7 +81,6 @@ export const MARAUDERS: AbilityRegistry = defineAbilities({
     chooseOne(
       option(
         "Confuse a character you control",
-        { when: exists(ABLE("confused")) },
         // No "choose": an encounter card targeting one of several eligible cards; the first player selects
         // (RRG 1.8 "First Player", p. 19).
         chooseTarget("target", ABLE("confused"), { chooser: firstPlayer }),
@@ -95,6 +95,7 @@ export const MARAUDERS: AbilityRegistry = defineAbilities({
     chooseOne(
       option(
         "Confuse the character you control with the highest THW",
+        // The slot is bound before the choice, so the gate reads it; the engine cannot see a target in a bound slot.
         { when: exists(ABLE_HIGHEST("confused")) },
         chooseTarget("target", ABLE_HIGHEST("confused"), { chooser: firstPlayer }),
         confuse(chosen("target")),
@@ -109,7 +110,6 @@ export const MARAUDERS: AbilityRegistry = defineAbilities({
     chooseOne(
       option(
         "Stun a character you control",
-        { when: exists(ABLE("stunned")) },
         chooseTarget("target", ABLE("stunned"), { chooser: firstPlayer }),
         stun(chosen("target")),
       ),
@@ -150,22 +150,14 @@ export const MARAUDERS: AbilityRegistry = defineAbilities({
   "40072a.chimera-forced-interrupt": forcedInterrupt(
     ATTACKS_YOU(),
     chooseOne(
-      option(
-        "Spend a [mental] resource",
-        { when: canPayResources({ mental: 1 }) },
-        spendResources({ mental: 1 }, "spent"),
-      ),
+      option("Spend a [mental] resource", spendResources({ mental: 1 }, "spent")),
       option(`Chimera ${PLUS_2_ATK}`, modifyAttack({ atkBonus: 2 })),
     ),
   ),
   "40072b.chimera-forced-interrupt": forcedInterrupt(
     ATTACKS_YOU(),
     chooseOne(
-      option(
-        "Spend [mental][mental] resources",
-        { when: canPayResources({ mental: 2 }) },
-        spendResources({ mental: 2 }, "spent"),
-      ),
+      option("Spend [mental][mental] resources", spendResources({ mental: 2 }, "spent")),
       option(`Chimera ${PLUS_2_ATK}`, modifyAttack({ atkBonus: 2 })),
     ),
   ),

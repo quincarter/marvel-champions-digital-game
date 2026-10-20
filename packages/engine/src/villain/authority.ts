@@ -22,6 +22,12 @@ const ENCOUNTER_SIDE_TYPES: ReadonlySet<string> = new Set([
   "obligation",
 ]);
 
+/** Whether the card is of an encounter-side type, wherever it is and whoever controls it (a revealed obligation, say). */
+export function isEncounterCardType(state: GameState, id: InstanceId | null): boolean {
+  const card = id ? cardOf(state, id) : undefined;
+  return card !== undefined && ENCOUNTER_SIDE_TYPES.has(card.type);
+}
+
 /** A villain, scheme or encounter card that no player controls. */
 export function isEncounterSide(state: GameState, id: InstanceId | null): boolean {
   if (!id) return false;

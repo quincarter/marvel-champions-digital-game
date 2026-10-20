@@ -23,6 +23,11 @@ const packs: RawCatalogPack[] = readdirSync(rawDir)
     const added = JSON.parse(readFileSync(join(addedDir, name), "utf8")) as RawCatalogPack;
     return { ...pack, cards: [...pack.cards, ...added.cards] };
   });
+// A scan-only pack (raw/hallofheroes file with no MarvelCDB file, e.g. Shadowland) is a pack of its own; it counts what
+// the raw file holds (40 of 70 printed Shadowland cards so far).
+const marvelcdbNames = new Set(readdirSync(rawDir));
+for (const name of [...addedNames].filter((n) => n.endsWith(".json") && !marvelcdbNames.has(n)).sort())
+  packs.push(JSON.parse(readFileSync(join(addedDir, name), "utf8")) as RawCatalogPack);
 const catalog = catalogOf(packs);
 
 describe("card catalog", () => {
@@ -49,16 +54,13 @@ describe("card catalog", () => {
   });
 
   it("maps every playable card to printed cards that are in the catalog", () => {
-    // Shadowland (MC65) is hand-transcribed from preview scans and has no MarvelCDB pack, so the catalog (counted from
-    // raw/marvelcdb) cannot hold its codes yet; it joins once the pack is ingested.
-    const outside = PLAYABLE_CARDS.filter((card) => card.setCode !== "shadowland").flatMap((card) =>
+    const outside = PLAYABLE_CARDS.flatMap((card) =>
       [...printedCodesOfCard(card, CATALOG_REPRINTS)]
         .filter((code) => !catalog.codes.has(code))
         .map((code) => `${String(card.id)} → ${code}`),
     );
     expect(outside).toEqual([]);
-    for (const card of PLAYABLE_CARDS.filter((c) => c.setCode !== "shadowland"))
-      expect(printedCodesOfCard(card, CATALOG_REPRINTS).size).toBeGreaterThan(0);
+    for (const card of PLAYABLE_CARDS) expect(printedCodesOfCard(card, CATALOG_REPRINTS).size).toBeGreaterThan(0);
   });
 
   it("folds a villain's later stages into the villain card that carries their scans", () => {

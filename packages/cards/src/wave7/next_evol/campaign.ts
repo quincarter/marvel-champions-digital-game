@@ -20,6 +20,8 @@ import {
   defineAbilities,
   discard,
   discardFromHand,
+  handCountOf,
+  valueAtLeast,
   draw,
   each,
   eachPlayer,
@@ -33,7 +35,6 @@ import {
   gainsKeyword,
   gets,
   grantOwnedCards,
-  handCountOf,
   heal,
   host,
   ifThen,
@@ -55,7 +56,6 @@ import {
   takeDamage,
   thatPlayer,
   treatAttachedAllyAsMinion,
-  valueAtLeast,
   whenDefeated,
   whenRevealed,
   you,
@@ -108,7 +108,7 @@ const searchAndAttachUpgrade = (): EffectSpec =>
     shuffleDeck(thatPlayer),
   );
 
-/** "Choose to either discard 1 resource card from your hand or take 2 damage." A choice is offered only if it can be carried out (§4.2 Q8). */
+/** "Choose to either discard 1 resource card from your hand or take 2 damage." The discard needs a resource card in hand to target (RRG 1.8 "Target", p. 42, and "Choose (Option)", p. 12; owner 2026-10-20 revising Q8). */
 const overburdened = () =>
   chooseOne(
     option(

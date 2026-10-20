@@ -500,7 +500,8 @@ describe("Burning Rubber 60132", () => {
     expect(playerOf(withIt.state, P1).hand.length).toBe(playerOf(without.state, P1).hand.length - 1);
   });
 
-  it("60132.when-revealed: a player with no resource to spend is only offered the threat", () => {
+  // Owner decision 2026-10-20 (A), reversing Q8: RRG 1.8 p. 12 bars an encounter card's option only for want of a target.
+  it("60132.when-revealed: a player with no resource to spend is still offered the spend (and the threat)", () => {
     const base = withSpeed(newGame(), 1);
     const empty = {
       ...base,
@@ -519,7 +520,8 @@ describe("Burning Rubber 60132", () => {
     seen.length = 0;
     const done = villainPhase(empty, 1, [RUBBER], watch);
     expect(mainThreat(done.state) - before).toBe(1);
-    expect(seen.every((labels) => !labels.some((l) => l.includes(spendOption)))).toBe(true);
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every((labels) => labels.some((l) => l.includes(spendOption)))).toBe(true);
   });
 
   it("60132.when-revealed: with no speed counters it does nothing", () => {

@@ -5,7 +5,6 @@ import {
   anyOfCards,
   attacksGainKeywords,
   boost,
-  canPayResources,
   cancelRevealedCard,
   cards,
   chooseCards,
@@ -120,11 +119,7 @@ export const BATROCS_BRIGADE: AbilityRegistry = defineAbilities({
 
   "50102.when-revealed": whenRevealed(
     chooseOne(
-      option(
-        "Spend 3 resources of any type",
-        { when: canPayResources({ generic: 3 }) },
-        spendResources({ generic: 3 }, "paid"),
-      ),
+      option("Spend 3 resources of any type", spendResources({ generic: 3 }, "paid")),
       option(
         "Find a Mercenary minion and reveal it",
         setVar("minionsBefore", countOf(query("minion"))),
@@ -144,11 +139,7 @@ export const BATROCS_BRIGADE: AbilityRegistry = defineAbilities({
   ),
   "50102.boost": boost(
     chooseOne(
-      option(
-        "Spend 1 resource of any type",
-        { when: canPayResources({ generic: 1 }) },
-        spendResources({ generic: 1 }, "paid"),
-      ),
+      option("Spend 1 resource of any type", spendResources({ generic: 1 }, "paid")),
       option("This card gains 3 boost icons", adjustBoostCount(3)),
     ),
   ),

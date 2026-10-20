@@ -160,6 +160,8 @@ export const MISTER_SINISTER: AbilityRegistry = defineAbilities({
       option(
         "Spend [mental][mental] resources",
         { when: canPayResources({ mental: 2 }, controllerOf(eventSource)) },
+        // "May spend": the payment is the price of keeping the damage off a friendly character, so it is paid in full or
+        // not chosen (a cost, RRG 1.8 p. 13), not a "Choose" option that may resolve nothing: the gate above stays.
         spendResources({ mental: 2 }, "spent", controllerOf(eventSource)),
       ),
       option(

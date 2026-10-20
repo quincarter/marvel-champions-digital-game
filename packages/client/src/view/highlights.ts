@@ -239,6 +239,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   notFriendly: "not controlled by any player",
   wrongController: "controlled by the wrong player",
   notIdentityExtension: "not that hero or one of their events, resources or upgrades",
+  notActingCharacter: "not a character or a card acting for one",
   notEngagedWithYou: "not engaged with you",
   notEngaged: "not engaged with anyone",
   missingTrait: "missing the required trait",

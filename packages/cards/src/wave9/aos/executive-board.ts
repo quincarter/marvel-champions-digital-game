@@ -112,7 +112,9 @@ const placeSecrets = (type: "energy" | "mental" | "physical") => [
  *
  * **A.I.M. Interference (50184a to 50184c)**: When Revealed places 1 secret counter on each Board Member card; the
  * revealing player may first spend X [type] resources, X chosen once and paid in one payment, to prevent X of those
- * placings (`placeSecrets`). The boost resolves the When Revealed ability alone (no incite: the card is not revealed).
+ * placings (`placeSecrets`). The boost resolves the card's When Revealed abilities, Incite 1 included (FFG ruling,
+ * September 22, 2026; owner decision 2026-10-20, revising docs/phase7-wave4.md §4 Q23), in the order the first player
+ * chooses (RRG 1.8 "Simultaneous Resolution", p. 40).
  *
  * Cards (9):
  * - 50181a Chief Medical Officer (environment)

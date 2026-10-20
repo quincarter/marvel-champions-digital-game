@@ -730,15 +730,16 @@ describe("59037.lernean-hydra-forced-response (owner's answer to question 22 = A
     expect(damageOf(r.state, t.hydra)).toBe(0);
   });
 
-  it("a player who cannot spend a physical resource is not offered the spend; the Hydra heals", () => {
+  // Owner decision 2026-10-20 (A), reversing Q8/Q33: an encounter card's spend option is offered to a player who cannot pay.
+  it("a player who cannot spend a physical resource is still offered the spend; choosing it spends nothing and the Hydra does not heal", () => {
     const t0 = table(3);
     // The whole hand is energy and mental cards.
     const noPhysical = handOf(t0.s, P2, ...playerOf(t0.s, P2).hand.map((_, n) => (n % 2 ? TIGRA : BLACK_CAT)));
     const t = { ...t0, s: noPhysical };
     const r = run(t.s, t.cat, t.hydra, P2, firstLegal);
     const offered = choiceOf(r)?.labels ?? [];
-    expect(offered.some((l) => l.startsWith("Spend a [physical]"))).toBe(false);
-    expect(damageOf(r.state, t.hydra)).toBe(2);
+    expect(offered.some((l) => l.startsWith("Spend a [physical]"))).toBe(true);
+    expect(damageOf(r.state, t.hydra)).toBe(4);
   });
 
   it("Hercules's own attack (3 damage, engaged with him): he is the one asked", () => {

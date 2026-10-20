@@ -138,12 +138,13 @@ describe("§3.56 resolveWhenRevealedOf", () => {
       bind: "resolved",
     });
     valid(boost(resolveWhenRevealedOf(self)));
-    // Keywords only on request (§4 Q23: Citywide Crisis re-resolves printed When Revealed abilities only).
-    expect(resolveWhenRevealedOf(self, { includeKeywords: true })).toEqual({
+    // Incite and surge are included by default (owner 2026-10-20, revising §4 Q23 after the Sep 22, 2026 ruling);
+    // "non-surge" (Change of Venue's announced erratum) opts out.
+    expect(resolveWhenRevealedOf(self, { excludeKeywords: ["surge"] })).toEqual({
       kind: "resolveSpecials",
       of: { kind: "self" },
       trigger: "whenRevealed",
-      includeKeywords: true,
+      excludeKeywords: ["surge"],
     });
   });
 });

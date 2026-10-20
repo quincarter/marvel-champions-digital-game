@@ -79,8 +79,9 @@ const speedAtLeast = (n: number) => valueAtLeast(SPEEDS, n);
  * damage" is `cannotTakeDamage` at the `dealt` stage, so no "would be dealt" or "would take" interrupt sees the damage.
  * **60132 Burning Rubber / 60133 Pedestrians**: once for each speed counter on the main scheme, the revealing player
  * chooses one of two options ("choose" with no one named is the revealing player's; each pass its own choice, RRG 1.8
- * "For Each", p. 20): spend 1 resource of any type (offered only to a player who can pay) or place 1 threat on the main
- * scheme (the spend is offered only to a player who can pay it: docs/phase7-wave7.md section 4.1 Q8 = A); exhaust a character they control (offered only while one is ready) or take 1 indirect damage.
+ * "For Each", p. 20): spend 1 resource of any type or place 1 threat on the main scheme (the spend is offered to a player who
+ * cannot pay it too, and pays what they can: RRG 1.8 "Choose (Option)", p. 12; owner 2026-10-20 reversing Q8); exhaust a
+ * character they control (offered only while one is ready, which is the target) or take 1 indirect damage.
  *
  * Cards (6):
  * - 60128a The Getaway (main_scheme)

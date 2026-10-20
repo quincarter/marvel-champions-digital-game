@@ -997,7 +997,7 @@ describe("Innocent Bystanders (50134)", () => {
     expect(() => attackMinion(s, choosing(/spend/i, []))).toThrow(/resolveChoice rejected: invalid_choice/);
   });
 
-  it("a player with nothing to spend is not offered the spend: the threat is placed (owner default Q8 = A, docs/phase7-wave7.md)", () => {
+  it("a player with nothing to spend is still offered the spend; choosing it pays nothing (owner 2026-10-20 reversing Q8 = A)", () => {
     const held = withBystanders();
     const s: GameState = {
       ...held,
@@ -1010,8 +1010,8 @@ describe("Innocent Bystanders (50134)", () => {
       if (c.prompt.kind === "chooseOption") offered.push(c.options.map((o) => o.label));
       return firstLegal(st);
     });
-    expect(offered).toEqual([]); // one option left: it resolves without asking
-    expect(mainThreat(after)).toBe(threat + 1);
+    expect(offered).toEqual([["Spend 1 resource of any type", "Place threat on the main scheme"]]);
+    expect(mainThreat(after)).toBe(threat); // firstLegal takes the spend, which pays nothing
     expect(counters(after)).toBe(3);
   });
 

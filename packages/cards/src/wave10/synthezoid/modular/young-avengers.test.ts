@@ -228,6 +228,29 @@ describe("Teenage Superheroes (57058)", () => {
     const run = villainPhase(engageMinion(game(), PLAIN, "plain"), BLANK, TEENAGE, FILLER_A, FILLER_B);
     expect(revealedCodes(run.state, run.events)).toEqual([TEENAGE, FILLER_A]);
   });
+
+  // FFG ruling, September 22, 2026: surge and incite are When Revealed abilities, so "resolve the 'When Revealed'
+  // ability of each minion" includes them (owner decision 2026-10-20, spec §S7 E37, revising docs/phase7-wave4.md §4
+  // Q23 and the M6 reading these tests used to pin).
+  it("WHEN REVEALED with Weapons Runner (surge) in play: its surge resolves and counts, so Teenage does not gain surge", () => {
+    const RUNNER = "01121"; // Core minion: Surge, no printed When Revealed
+    const run = villainPhase(engageMinion(game(), RUNNER, "runner"), BLANK, TEENAGE, FILLER_A, FILLER_B);
+    // One card dealt, by the runner's surge; Teenage's own "gains surge" fallback did not fire.
+    const surges = run.events.flatMap((e) => (e.type === "surgeTriggered" ? [e.instanceId] : []));
+    expect(surges).toEqual(["runner"]);
+    expect(revealedCodes(run.state, run.events)).toEqual([TEENAGE, FILLER_A]);
+  });
+
+  it("WHEN REVEALED with Wiccan (incite 1) in play: his incite and his printed When Revealed both resolve", () => {
+    const WICCAN = "57061"; // Incite 1. When Revealed: You are confused. Otherwise, place 2 threat on the main scheme.
+    const run = villainPhase(engageMinion(game(), WICCAN, "wiccan"), BLANK, TEENAGE, FILLER_A);
+    const fromWiccan = run.events.flatMap((e) =>
+      e.type === "threatPlaced" && e.sourceInstanceId === "wiccan" ? [e.amount] : [],
+    );
+    expect(fromWiccan).toEqual([1]);
+    expect(inst(run.state, hero(run.state)).statuses.confused).toBe(1);
+    expect(revealedCodes(run.state, run.events)).toEqual([TEENAGE]);
+  });
 });
 
 describe("Young Avengers (57059)", () => {

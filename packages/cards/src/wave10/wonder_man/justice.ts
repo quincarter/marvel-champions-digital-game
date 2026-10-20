@@ -72,8 +72,9 @@ import {
  * you choose, whoever it is engaged with.
  *
  * **58014 Scarlet Witch.** After she is played (not when put into play) the top card of the encounter deck is discarded;
- * a treachery's "When Revealed" abilities resolve (not its surge, which is a keyword: `resolveWhenRevealedOf`'s
- * default, as Mighty Avengers 56076). Any other card type only stays discarded.
+ * a treachery's "When Revealed" abilities resolve, its incite and surge included (FFG ruling, September 22, 2026:
+ * surge is a type of When Revealed ability; owner decision 2026-10-20, revising docs/phase7-wave4.md §4 Q23), as for
+ * Mighty Avengers 56076. Any other card type only stays discarded.
  *
  * **58015 Sentry.** Searches the encounter deck (not its discard pile) for a side scheme, you pick which, and reveals
  * it, then shuffles. When the deck holds none, 6 threat go on the main scheme. RRG 1.8 "Search", p. 39.

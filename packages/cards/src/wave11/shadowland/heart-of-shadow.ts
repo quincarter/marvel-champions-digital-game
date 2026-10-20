@@ -44,7 +44,6 @@ import {
   YOUR_CREEPING_CORRUPTION,
   placeCorruption,
   removeCorruption,
-  youHaveCorruptionToRemove,
   youHaveCreepingCorruption,
 } from "./creeping-corruption.js";
 
@@ -163,7 +162,9 @@ export const SHADOWLAND_HEART_OF_SHADOW: AbilityRegistry = defineAbilities({
       ),
       option(
         "Remove 1 corruption counter from your Creeping Corruption and Krahllak attacks you",
-        { when: youHaveCorruptionToRemove },
+        // Needs the Creeping Corruption as its target; with no counter on it the removal does nothing and Krahllak still
+        // attacks (RRG 1.8 "Choose (Option)", p. 12; owner 2026-10-20 reversing Q8).
+        { when: youHaveCreepingCorruption },
         removeCorruption(1),
         enemyAttack(theVillain, { against: you }),
       ),

@@ -37,8 +37,9 @@ const AVENGER_MINION = query("minion", { trait: trait("AVENGER") });
  * **U.S. Agent (56075)**: 1 damage to your identity, revealed or as a boost card (the activated player's, as a boost).
  *
  * **Mighty Avengers (56076)**: When Revealed resolves the When Revealed ability of each minion in play, and counts how
- * many resolved; with none, the card gains surge. Keywords are not When Revealed abilities (the default of
- * `resolveWhenRevealedOf`), so Toughness does not count.
+ * many resolved; with none, the card gains surge. A minion's incite and surge are When Revealed abilities and count
+ * as resolved (FFG ruling, September 22, 2026; owner decision 2026-10-20, revising docs/phase7-wave4.md §4 Q23);
+ * other keywords (Toughness) are not, and do not count.
  *
  * **Earth's Mightiest Heroes (56077)**: each Avenger minion gains the printed keywords of each other Avenger minion
  * (docs/phase7-wave10.md section 3.12): Retaliate 1 is live at once; Toughness, Quickstrike and

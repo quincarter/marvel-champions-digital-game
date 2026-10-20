@@ -1225,6 +1225,8 @@ export type QueryExclusion =
   | "notFriendly"
   | "wrongController"
   | "notIdentityExtension"
+  /** The character the card acts for (none, for a support) does not match `TargetQuery.actsFor`. */
+  | "notActingCharacter"
   | "notEngagedWithYou"
   | "notEngaged"
   | "missingTrait"
@@ -1624,6 +1626,10 @@ export function explainQuery(
   }
   if (query.extensionOf && !isIdentityExtension(state, id, resolvePlayers(state, query.extensionOf, context)))
     return "notIdentityExtension";
+  if (query.actsFor !== undefined) {
+    const acting = actingCharacterOf(state, id);
+    if (acting === null || !matchesQuery(state, acting, query.actsFor, context)) return "notActingCharacter";
+  }
   if (
     query.signatureSideScheme !== undefined &&
     state.villains.some((villain) => villain.signatureSideSchemeId === id) !== query.signatureSideScheme

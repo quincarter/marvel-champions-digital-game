@@ -1,7 +1,7 @@
 /**
  * docs/phase7-wave6.md §3.64: `Predicate revealedFromEncounterDeck`, the SHOW environments' "If this card was revealed
  * from the encounter deck, it gains surge" (`mojo` 39035 …). True for a card revealed off the encounter deck and for a
- * facedown encounter card dealt from it; false for a search, a discard pile or a card dealt from anywhere else (§4 Q35).
+ * facedown encounter card dealt from it; false for a search, a reveal from a discard pile or a card dealt from a player zone (§4 Q35); a card dealt from the encounter discard pile counts (Sept 14, 2026 ruling).
  *
  * Sources: the MojoMania insert (p. 18: a SHOW environment revealed from the show deck or by Wheel of Genres "was not
  * 'revealed from the encounter deck'"); RRG 1.8 "Reveal" (p. 37), "Surge" (p. 42).
@@ -53,7 +53,23 @@ const DEAL_FROM_DISCARD = action("deal-from-discard", [
   { kind: "dealAsEncounterCard", cards: found, player: controller },
 ]);
 
-const ACTIONS = [REVEAL_TOP, SEARCH, FROM_DISCARD, DEAL_FROM_DISCARD];
+/** "Deal [the show] from your deck to yourself as a facedown encounter card" (Mysterio's Maze of Mirrors, in effect). */
+const DEAL_FROM_DECK = action("deal-from-deck", [
+  {
+    kind: "selectCards",
+    slot: "found",
+    cards: { kind: "zone", zone: "deck", player: controller, filter: { name: SHOW.name } },
+  },
+  { kind: "dealAsEncounterCard", cards: found, player: controller },
+]);
+
+/** "Deal [the show] from the removed-from-game area to yourself as a facedown encounter card" (a non-deck, non-discard source). */
+const DEAL_FROM_REMOVED = action("deal-from-removed", [
+  { kind: "selectCards", slot: "found", cards: { kind: "removedFromGame", filter: { name: SHOW.name } } },
+  { kind: "dealAsEncounterCard", cards: found, player: controller },
+]);
+
+const ACTIONS = [REVEAL_TOP, SEARCH, FROM_DISCARD, DEAL_FROM_DISCARD, DEAL_FROM_DECK, DEAL_FROM_REMOVED];
 const deps: EngineDeps = depsOf(SHOW_REVEALED, ...ACTIONS.map((a) => a.ability));
 const ENCOUNTER: readonly CardId[] = [SHOW.id, ...copiesOf(FILLER.id, 6), ...copiesOf(BLANK.id, 20)];
 
@@ -118,14 +134,68 @@ describe("§3.64 'If this card was revealed from the encounter deck'", () => {
     expect(summary(events)).toEqual({ revealed: ["show"], surges: 0 });
   });
 
-  it("dealt facedown from somewhere other than the encounter deck, then revealed in the villain phase: no surge", () => {
+  // Q35 revised: ruling September 14, 2026 - Ruling 1 tests "first dealt to the player", and the RRG 1.0-1.4 Adam Warlock
+  // ruling (docs/rulings/rrg-1-0-to-1-4/36-adam-warlock.md) calls a dealt card "from the encounter deck" however it was
+  // dealt. A card discarded from the encounter deck and dealt to a player (The Hood's Foul Play) is therefore from it:
+  // Enhanced Spider-Sense and Black Widow hear it. (This test pinned the earlier Q35 default, "no surge".)
+  it("dealt facedown from the encounter discard pile, then revealed in the villain phase: from the encounter deck, so it surges", () => {
     const dealt = playFree(showInDiscard(start()), deps, DEAL_FROM_DISCARD.card.id).state;
     const show = dealt.players[0]!.dealtEncounter[0]!;
-    expect(dealt.instances[show]?.dealtFromEncounterDeck).toBeUndefined();
-    // The dealt show is revealed first, then the card step 3 dealt off the deck (after the villain's boost filler).
+    expect(dealt.instances[show]?.dealtFromEncounterDeck).toBe(true);
+    // The dealt show is revealed first, surges into the card step 3 dealt off the deck (after the villain's boost filler).
     const { revealed, surges } = villainPhase(stacked(dealt, [FILLER.id, BLANK.id]));
-    expect(revealed).toEqual(["show", "blank"]);
-    expect(surges).toBe(0);
+    expect(revealed[0]).toBe("show");
+    expect(surges).toBe(1);
+  });
+
+  // Owner answer Q35 A, 2026-10-20 (docs/phase7-wave6.md §4.1): Mysterio's encounter cards dealt from a player's deck are
+  // "first dealt to the player" (ruling September 14, 2026 - Ruling 1; Adam Warlock ruling), so SHOW surges and the
+  // reveal is heard as "from the encounter deck" (`encounterCardRevealing.from`: Black Widow, Enhanced Spider-Sense).
+  it("dealt facedown from a player's deck, then revealed: from the encounter deck (surge; heard as such by Black Widow)", () => {
+    const base = start();
+    const deckId = activeEncounterDeckId(base);
+    const piles = base.encounterDecks[deckId]!;
+    const showId = piles.deck.find((c) => base.instances[c]?.cardId === SHOW.id)!;
+    const staged: GameState = {
+      ...base,
+      encounterDecks: { ...base.encounterDecks, [deckId]: { ...piles, deck: piles.deck.filter((c) => c !== showId) } },
+      players: base.players.map((p) => ({ ...p, deck: [showId, ...p.deck] })),
+    };
+    const dealt = playFree(staged, deps, DEAL_FROM_DECK.card.id).state;
+    expect(dealt.players[0]!.dealtEncounter).toEqual([showId]);
+    expect(dealt.instances[showId]?.dealtFromEncounterDeck).toBe(true);
+    const { session, events } = driveSession(startSession(stacked(dealt, [FILLER.id, BLANK.id])), deps, [
+      { type: "endTurn", playerId: P1 },
+    ]);
+    expect(summary(events).surges).toBe(1);
+    const revealing = events.flatMap((e) =>
+      e.type === "triggerEvent" && e.phase === "initiated" && e.event.kind === "encounterCardRevealing"
+        ? [e.event]
+        : [],
+    );
+    expect(revealing.find((e) => e.instanceId === showId)?.from).toBe("encounterDeck");
+    expect(session.state.players[0]!.dealtEncounter).toEqual([]);
+  });
+
+  // The deal itself marks the card, not the zone it came from (owner answer Q35 A): a card dealt from the removed-from-game
+  // area (like set-aside, neither an encounter deck nor a player zone) counts when it is later revealed.
+  it("dealt facedown from the removed-from-game area, then revealed: from the encounter deck, so it surges", () => {
+    const base = start();
+    const deckId = activeEncounterDeckId(base);
+    const piles = base.encounterDecks[deckId]!;
+    const showId = piles.deck.find((c) => base.instances[c]?.cardId === SHOW.id)!;
+    const staged: GameState = {
+      ...base,
+      encounterDecks: { ...base.encounterDecks, [deckId]: { ...piles, deck: piles.deck.filter((c) => c !== showId) } },
+      removedFromGame: [...base.removedFromGame, showId],
+    };
+    const dealt = playFree(staged, deps, DEAL_FROM_REMOVED.card.id).state;
+    expect(dealt.players[0]!.dealtEncounter).toEqual([showId]);
+    expect(dealt.instances[showId]?.dealtFromEncounterDeck).toBe(true);
+    const { events } = driveSession(startSession(stacked(dealt, [FILLER.id, BLANK.id])), deps, [
+      { type: "endTurn", playerId: P1 },
+    ]);
+    expect(summary(events).surges).toBe(1);
   });
 
   it("is false outside the card's own reveal", () => {

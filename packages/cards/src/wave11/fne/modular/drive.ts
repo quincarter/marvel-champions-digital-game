@@ -4,6 +4,7 @@ import {
   attachCard,
   cannotAttach,
   chosen,
+  canPayResources,
   chooseOne,
   damagedAtLeast,
   defineAbilities,
@@ -99,6 +100,10 @@ const IDENTITY_HAS_VEHICLE = refMatches(identityOf(you), query([], hasAttachment
 const attachForThree = (type: "physical" | "mental" | "energy") =>
   option(
     `Spend 3 [${type}] resources and attach it to your identity`,
+    // The payment is the price of the attachment ("spend 3 resources of the same type to attach it"), not an effect of
+    // its own, so it stays a cost: an option nobody can pay is not offered (RRG 1.8 "Cost", p. 13). Flagged to the owner
+    // when the 2026-10-20 decision (A) reversed Q8/Q33: otherwise a player with no resources attaches for free.
+    { when: canPayResources({ [type]: 3 }) },
     spendResources({ [type]: 3 }, "paid"),
     attachCard(chosen("found"), identityOf(you)),
   );

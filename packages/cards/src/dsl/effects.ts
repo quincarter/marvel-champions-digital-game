@@ -464,12 +464,12 @@ export interface ChoiceOption {
 /**
  * One option of `chooseOne`; `when` limits it to states where it can happen.
  *
- * A `spendResources` written as one of the option's own effects is a spend the player has chosen ("choose to either
- * spend 1 resource of any type or place 1 threat on the main scheme"), so it is made `required` here (engine
- * `EffectSpec spendResources.required`): the option is offered only to a player who can pay it, and once chosen the
- * payment is made in full (RRG 1.8 "Choose (Option)", p. 12, and "Cost", p. 13; for an encounter card the owner's
- * standing default, docs/phase7-wave7.md §4.2 Q8 = A). No `when: canPayResources(…)` is needed for that. A spend
- * nested deeper (inside an `ifThen`, a `forEachPlayer`) is left as written.
+ * A `spendResources` written as one of the option's own effects is made `required` (engine `EffectSpec
+ * spendResources.required`): once chosen, the payment is made in full. Whether an unpayable option is offered is the
+ * engine's call from the source card (`executeChooseOne`): a PLAYER card's is not (RRG 1.8 "Choose (Option)", p. 12), an
+ * ENCOUNTER card's is, since only a missing target bars it (owner decision 2026-10-20 (A), following the February 28,
+ * 2026 Spell Blast ruling; it reverses wave 7 Q8 and wave 9 Q33). A "may spend ... instead" that is a payment tied to a
+ * result keeps `when: canPayResources(...)`. A spend nested deeper (inside an `ifThen`, a `forEachPlayer`) is left as written.
  */
 export const option = (label: string, ...rest: readonly (EffectArg | { readonly when: Predicate })[]): ChoiceOption => {
   const condition = rest.find((r): r is { readonly when: Predicate } => !Array.isArray(r) && "when" in (r as object));
@@ -1956,18 +1956,20 @@ export const resolveSpecialsOf = (
 /**
  * "Resolve this card's 'When Revealed' ability" (`of: self`; the boost of Out for Blood, Double Trouble, Sandslide),
  * "Resolve each 'When Revealed' ability on each side scheme in play" (`of: each(query("sideScheme"))`; Citywide Crisis,
- * `hood` 24059). Printed When Revealed abilities only, by default (the user's reading of Citywide Crisis, §4 Q23);
- * `includeKeywords` also resolves incite and surge (RRG 1.8: each is "equivalent to" a When Revealed ability). `bind`:
- * `<bind>.count`, how many were resolved. docs/phase7-wave4.md §3.56.
+ * `hood` 24059). Each card's incite and surge resolve too, as the When Revealed abilities they are, in the order the
+ * first player chooses among them and the printed ones (FFG ruling, September 22, 2026; owner decision 2026-10-20, revising
+ * docs/phase7-wave4.md §4 Q23). `excludeKeywords` leaves keywords out: "Resolve this card's non-surge 'When Revealed'
+ * ability" (FFG's announced erratum to Change of Venue, same ruling) is `{ excludeKeywords: ["surge"] }`. `bind`:
+ * `<bind>.count`, how many were resolved, incite and surge included. docs/phase7-wave4.md §3.56.
  */
 export const resolveWhenRevealedOf = (
   ref: TargetRef,
-  opts: { readonly bind?: string; readonly includeKeywords?: boolean } = {},
+  opts: { readonly bind?: string; readonly excludeKeywords?: readonly ("incite" | "surge")[] } = {},
 ): EffectSpec => ({
   kind: "resolveSpecials",
   of: ref,
   trigger: "whenRevealed",
-  ...(opts.includeKeywords ? { includeKeywords: true } : {}),
+  ...(opts.excludeKeywords && opts.excludeKeywords.length > 0 ? { excludeKeywords: opts.excludeKeywords } : {}),
   ...withBind(opts.bind),
 });
 /**

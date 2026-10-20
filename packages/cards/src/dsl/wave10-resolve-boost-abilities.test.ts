@@ -137,11 +137,11 @@ describe("§3.11 `resolveBoostAbilitiesOf`", () => {
     ).toEqual(['resolveSpecials boost: `borrowedBoostIcons` is "nothing" or "joinActivation"']);
     expect(
       validateDefinition(
-        whenRevealed({ ...base, trigger: "boost", asIf: { remainingHpAtLeast: 1 }, includeKeywords: true }),
+        whenRevealed({ ...base, trigger: "boost", asIf: { remainingHpAtLeast: 1 }, excludeKeywords: ["surge"] }),
       ),
     ).toEqual([
       "resolveSpecials boost: `asIf` is not read for a Boost ability",
-      "resolveSpecials boost: `includeKeywords` is for When Revealed abilities",
+      "resolveSpecials boost: `excludeKeywords` is for When Revealed abilities",
     ]);
   });
 });

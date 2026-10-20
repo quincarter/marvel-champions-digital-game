@@ -40,6 +40,13 @@ for (const file of files) {
     : [];
   packs.push({ ...pack, cards: [...pack.cards, ...added] });
 }
+// A scan-only pack (Shadowland, `PackCuration.scanOnly`) has a raw/hallofheroes file and no MarvelCDB file: it is a pack
+// of its own. It counts what the raw file holds (Shadowland: 40 of 70 printed cards transcribed so far); the full count
+// lands as the rest are transcribed and exported.
+for (const file of [...addedFiles].sort()) {
+  if (files.includes(file)) continue;
+  packs.push(JSON.parse(await readFile(join(addedDir, file), "utf8")) as RawCatalogPack);
+}
 const catalog = catalogOf(packs);
 
 const reprints = Object.entries(catalog.reprints)

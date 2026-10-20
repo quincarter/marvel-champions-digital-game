@@ -195,6 +195,12 @@ a fixed order (no branching; a loss resets with no penalty), and a log with thes
 | 9   | The unrevealed art-less faces (B sides, linked cards): who supplies scans?                                                                      | owner list at D8; HoH's box gallery when published; nothing is transcribed from memory                                                         |
 | 10  | The insert is photographs of a printed booklet, not a clean PDF: is there a text copy?                                                          | the hand transcription stands; the FFG PDF, if published, replaces it                                                                          |
 
+### 5.1 Owner answers
+
+| Q   | Question                                                                                                                             | Owner answer                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| K1  | Krahllak's Blessing (65019): "would take any amount of damage **from a character** ... attacks that character". Which damage counts? | Quin, 2026-10-20: follow RRG 1.8 "You, Your" (p. 49). Character-sourced damage includes an identity's, an ally's and an enemy's own, and an event's or upgrade's attributed to the identity, labeled "(attack)" or not. Support, player side scheme and encounter-card damage is not attributed to an identity through ownership. Built as `TargetQuery.actsFor` (`actingCharacterOf`); an enemy source is reduced but cannot be attacked. |
+
 ## 6. Build order (proposed; one task per agent, one commit per task, the Synthezoid §8 shape)
 
 **D (card-data-pipeline).**

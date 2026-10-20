@@ -426,6 +426,33 @@ export function gameAbilityFrames(
    */
   actingPlayerId: PlayerId | null = null,
 ): readonly StackFrame[] {
+  return gameAbilityIds(ctx, instanceId, kinds, refsOverride).map((abilityId) =>
+    abilityFrame(
+      ctx,
+      {
+        instanceId,
+        abilityId,
+        controllerId: controllerOf(ctx.state, instanceId) ?? actingPlayerId,
+        forced: true,
+        fromHand: false,
+      },
+      event,
+      null,
+    ),
+  );
+}
+
+/**
+ * The ids of the abilities `gameAbilityFrames` would put on the stack, in card order, without making their frames: a
+ * reveal reads them to know which When Revealed abilities share step 3 before it asks for their order
+ * (`resolve/reveal.ts`, docs/phase7-wave11-scenarios.md §S7 E37).
+ */
+export function gameAbilityIds(
+  ctx: Ctx,
+  instanceId: InstanceId,
+  kinds: readonly GameAbilityKind[],
+  refsOverride?: readonly AbilityReference[],
+): readonly AbilityId[] {
   const card = cardOf(ctx.state, instanceId);
   if (!card) return [];
   // The card's live ability slots (`activeAbilityRefs`): a villain's or main scheme's current stage, an identity's
@@ -433,31 +460,18 @@ export function gameAbilityFrames(
   // blank; plus any a `gainsAbility` rule gives it ("Each minion gains 'When Defeated: …'", 60142b). A gained ability is
   // not printed on the card, so the card's own blank text box does not take it away (RRG 1.8 "'Gains'", p. 21).
   const refs = refsOverride ?? activeAbilityRefs(ctx.state, instanceId, ctx.deps);
-  const frames: StackFrame[] = [];
   // An ability an `ignoreAbilities` rule names is not there (docs/phase7-wave8.md §3.21), whichever slots are scanned.
   const ignored = ignoredAbilities(ctx.state, ctx.deps).get(instanceId);
+  const ids: AbilityId[] = [];
   for (const ref of refs) {
     if (ignored?.has(ref.id)) continue;
     const definition = ctx.deps.abilities[ref.id];
     if (!definition) continue;
     const kind = definition.attachInstruction ? "attachInstruction" : definition.trigger.kind;
     if (!kinds.includes(kind as GameAbilityKind)) continue;
-    frames.push(
-      abilityFrame(
-        ctx,
-        {
-          instanceId,
-          abilityId: ref.id,
-          controllerId: controllerOf(ctx.state, instanceId) ?? actingPlayerId,
-          forced: true,
-          fromHand: false,
-        },
-        event,
-        null,
-      ),
-    );
+    ids.push(ref.id);
   }
-  return frames;
+  return ids;
 }
 
 export function pushGameAbilities(

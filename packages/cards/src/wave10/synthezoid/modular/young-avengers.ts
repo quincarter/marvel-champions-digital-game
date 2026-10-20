@@ -33,8 +33,9 @@ const MINION = query("minion");
  * **Stature (57057)**: When Revealed: you discard a support you control (you choose; none: nothing).
  *
  * **Teenage Superheroes (57058)**: resolves the printed When Revealed of each minion in play, this card's revealer
- * being "you" for them. Printed When Revealed abilities only (spec M6 / Citywide Crisis reading): a minion's surge or
- * incite keyword does not count as resolved. If none resolved, this card gains surge.
+ * being "you" for them. A minion's incite and surge are When Revealed abilities, resolve with its printed ones and
+ * count as resolved (FFG ruling, September 22, 2026; owner decision 2026-10-20, revising docs/phase7-wave4.md §4 Q23
+ * and spec M6's Citywide Crisis reading). If none resolved, this card gains surge.
  *
  * **Young Avengers (57059)**: the first minion revealed each round gains surge (anyone's reveal).
  *

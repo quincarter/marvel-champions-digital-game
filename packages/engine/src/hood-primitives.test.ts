@@ -7,8 +7,8 @@
  * - §3.52 `increaseDamage` and the steady-aware `hasStatus.active` (Beast Mode, Controller).
  * - §3.53 `KeywordGrantSpec.value` (Mandrill's retaliate X).
  * - §3.54 `repeatWhile`, and a card's own damage reporting the defeat it caused (Out for Blood).
- * - §3.56 `resolveSpecials.trigger: "whenRevealed"`: printed abilities only by default (Citywide Crisis, §4 Q23, user
- *   decision 2026-09-25), incite and surge too with `includeKeywords`.
+ * - §3.56 `resolveSpecials.trigger: "whenRevealed"`: incite and surge with the printed abilities by default (FFG ruling,
+ *   September 22, 2026; owner decision 2026-10-20 revising §4 Q23), printed abilities only with `excludeKeywords`.
  * - §3.57 `RuleSpec gainsIcon` (Secret Lair).
  * - §3.59 `putIntoPlay.bind` (Crime Pays).
  */
@@ -419,7 +419,7 @@ describe("§3.56 resolving a card's When Revealed abilities on demand", () => {
     keywords: [{ name: "incite", value: 2 }, { name: "surge" }],
   });
   /** "Resolve each 'When Revealed' ability on each side scheme in play. If none was resolved, place 5 threat on the main scheme." */
-  const crisis = (id: string, includeKeywords: boolean) =>
+  const crisis = (id: string, excludeKeywords?: readonly ("incite" | "surge")[]) =>
     stubAbility(id, {
       trigger: { kind: "whenRevealed" },
       effects: [
@@ -427,7 +427,7 @@ describe("§3.56 resolving a card's When Revealed abilities on demand", () => {
           kind: "resolveSpecials",
           of: { kind: "each", query: { categories: ["sideScheme"] } },
           trigger: "whenRevealed",
-          ...(includeKeywords ? { includeKeywords: true } : {}),
+          ...(excludeKeywords ? { excludeKeywords } : {}),
           bind: "r",
         },
         {
@@ -437,11 +437,14 @@ describe("§3.56 resolving a card's When Revealed abilities on demand", () => {
         },
       ],
     });
-  /** Citywide Crisis as the user reads it (§4 Q23): printed When Revealed abilities only. */
-  const CRISIS = crisis("crisis.when-revealed", false);
+  /**
+   * Citywide Crisis as printed: incite and surge are When Revealed abilities too (FFG ruling, September 22, 2026; owner
+   * decision 2026-10-20, revising §4 Q23, which had printed abilities only).
+   */
+  const CRISIS = crisis("crisis.when-revealed");
   const CRISIS_CARD = stubTreachery({ id: "crisis", boostIcons: 0, abilities: [CRISIS.ref] });
-  /** The same with `includeKeywords`: incite and surge as RRG 1.8's "equivalent to … 'When Revealed'" wording has it. */
-  const WIDE = crisis("wide.when-revealed", true);
+  /** The same with both keywords excluded (`excludeKeywords`): printed When Revealed abilities only. */
+  const WIDE = crisis("wide.when-revealed", ["incite", "surge"]);
   const WIDE_CARD = stubTreachery({ id: "wide", boostIcons: 0, abilities: [WIDE.ref] });
   const deps = depsOf(OWN, CRISIS, WIDE);
 
@@ -462,8 +465,8 @@ describe("§3.56 resolving a card's When Revealed abilities on demand", () => {
       e.type === "threatPlaced" && e.schemeInstanceId === scheme ? [[e.amount, e.sourceInstanceId]] : [],
     );
 
-  it("default (Citywide Crisis, §4 Q23): only the printed ability resolves — no incite, no surge; no fallback", () => {
-    const { session, events, scheme } = reveal(LOUD);
+  it("excludeKeywords: only the printed ability resolves — no incite, no surge; no fallback", () => {
+    const { session, events, scheme } = reveal(LOUD, WIDE_CARD);
     const main = session.state.mainScheme.instanceId;
     expect(threatOn(events, scheme)).toEqual([[1, scheme]]);
     // Step one's acceleration only: no incite 2, and the printed ability counted, so no fallback 5.
@@ -472,18 +475,18 @@ describe("§3.56 resolving a card's When Revealed abilities on demand", () => {
     expect(events.filter((e) => e.type === "encounterCardRevealed")).toHaveLength(1);
   });
 
-  it("default: a side scheme with only incite and surge resolves nothing, so the fallback places 5", () => {
-    const { session, events, scheme } = reveal(KEYWORDS_ONLY);
+  it("excludeKeywords: a side scheme with only incite and surge resolves nothing, so the fallback places 5", () => {
+    const { session, events, scheme } = reveal(KEYWORDS_ONLY, WIDE_CARD);
     expect(threatOn(events, scheme)).toEqual([]);
     expect(threatOn(events, session.state.mainScheme.instanceId)).toEqual([
       [1, null],
-      [5, idOf(session.state, CRISIS_CARD)],
+      [5, idOf(session.state, WIDE_CARD)],
     ]);
     expect(events.filter((e) => e.type === "encounterCardRevealed")).toHaveLength(1);
   });
 
-  it("includeKeywords: the side scheme's own ability, its incite 2 and its surge all resolve; no fallback threat", () => {
-    const { session, events, scheme } = reveal(LOUD, WIDE_CARD);
+  it("default (owner 2026-10-20): the side scheme's own ability, its incite 2 and its surge all resolve; no fallback", () => {
+    const { session, events, scheme } = reveal(LOUD);
     const main = session.state.mainScheme.instanceId;
     expect(threatOn(events, scheme)).toEqual([[1, scheme]]);
     // Step one's acceleration (source null), then the side scheme's incite 2; never the fallback 5.
@@ -495,8 +498,8 @@ describe("§3.56 resolving a card's When Revealed abilities on demand", () => {
     expect(events.filter((e) => e.type === "encounterCardRevealed")).toHaveLength(2);
   });
 
-  it("includeKeywords: incite and surge alone count as abilities resolved, so no fallback", () => {
-    const { session, events, scheme } = reveal(KEYWORDS_ONLY, WIDE_CARD);
+  it("default: incite and surge alone count as abilities resolved (E33's count), so no fallback", () => {
+    const { session, events, scheme } = reveal(KEYWORDS_ONLY);
     expect(threatOn(events, session.state.mainScheme.instanceId)).toEqual([
       [1, null],
       [2, scheme],

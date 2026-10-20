@@ -175,13 +175,13 @@ describe(`${WORK_LIFE_A}: Alter-Ego Action, choose one`, () => {
     expect(playerOf(after, P1).playArea).not.toContain(g.id);
   });
 
-  // No option is selectable here. Today the engine accepts the action and resolves it as a no-op; a "some option is
-  // selectable" gate on chooseOne (so the action cannot be initiated) is queued as an engine task.
-  it("with no ally and the identity already confused, the action resolves as a no-op and the card stays", () => {
+  // No option has a valid target: an identity that already holds a confused status card cannot be affected, so it is not
+  // a valid target (RRG 1.8 "Target", p. 42; owner 2026-10-20 revising Q8), and the action cannot be used.
+  it("with no ally and the identity already confused, the action has no valid target and the card stays", () => {
     const g = stagedInPlay(withCodes(WORK_LIFE), WORK_LIFE);
     const confused = patchInstance(g.state, identityOf(g.state), { statuses: { stunned: 0, confused: 1, tough: 0 } });
-    const after = drive(confused, use(P1, g.id, WORK_LIFE_A));
-    expect(playerOf(after, P1).playArea).toContain(g.id);
+    expect(sessionApply(startSession(confused), use(P1, g.id, WORK_LIFE_A), WAVE11_DEPS).ok).toBe(false);
+    expect(playerOf(confused, P1).playArea).toContain(g.id);
   });
 
   it("cannot be used in hero form", () => {

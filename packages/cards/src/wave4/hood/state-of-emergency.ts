@@ -33,8 +33,10 @@ import {
  * Feisty Heist's "the highest-cost card from your hand" is a superlative over the hand bound as a slot (`selectCards`,
  * then `superlative` over the slot, the out-of-play pool `TargetRef.superlative` documents) and a real discard among the
  * tied cards (`discardFromHand` with `inSlot`): the player whose hand it is picks among ties, as a hidden hand is theirs
- * to show (docs/phase7-wave4.md §3.55). Citywide Crisis re-resolves each side scheme's printed When Revealed abilities,
- * not incite or surge (`resolveWhenRevealedOf`, §3.56; §4 Q23, the user's decision of 2026-09-25).
+ * to show (docs/phase7-wave4.md §3.55). Citywide Crisis re-resolves each side scheme's When Revealed abilities, its
+ * incite and surge included, in the order the first player chooses; a resolved incite or surge counts against the fallback
+ * (`resolveWhenRevealedOf`, §3.56; FFG ruling, September 22, 2026; §4 Q23 as the owner revised it on 2026-10-20,
+ * superseding the 2026-09-25 decision).
  */
 
 export const STATE_OF_EMERGENCY = defineAbilities({

@@ -258,13 +258,13 @@ describe("59009 The Gift of Battle", () => {
     const hydra = theCard(attached, LERNEAN_HYDRA);
     const { state, command } = staged(attached, GIFT_OF_BATTLE);
     const { state: after, events } = run(state, command(3), picks(hydra));
-    // The Hydra then heals 2 (its Forced Response, firstLegal takes the heal), so 5 dealt leaves 3.
+    // Owner 2026-10-20 (A, reversing Q8/Q33): the Hydra's spend option is offered even to a player who cannot pay, and firstLegal takes it (first option), so the Hydra does not heal and keeps all 5.
     expect(
       events
         .filter((e) => e.type === "damageDealt" && e.targetInstanceId === hydra)
         .map((e) => (e as { amount: number }).amount),
     ).toEqual([5]);
-    expect(inst(after, hydra).damage).toBe(3);
+    expect(inst(after, hydra).damage).toBe(5);
   });
 
   it("two players: the other player's Gift cards do not reduce the cost, Hercules's own do", () => {

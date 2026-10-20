@@ -167,7 +167,7 @@ import { executeAccuse } from "./accusation.js";
 import { executeReportFact } from "./report-fact.js";
 import { executeBasicPowerBy } from "./basic-power-by.js";
 import { resolveTeamwork } from "./enter-play.js";
-import { effectChoiceAuthority, simultaneousOrderer } from "../villain/authority.js";
+import { effectChoiceAuthority, isEncounterCardType, simultaneousOrderer } from "../villain/authority.js";
 import { applyEffect, pushEachPlayerPass, putIntoPlayHostSlot, threatRemoverOf } from "./apply-effect.js";
 import { applyFindCard, findCandidates } from "./find.js";
 import { putIntoPlayHostCandidates } from "./reveal.js";
@@ -2326,7 +2326,12 @@ function executeChooseOne(
     .map((option, index) => ({ option, index }))
     .filter(({ option }) => !option.condition || evaluate(ctx.state, option.condition, context))
     // An option to spend resources is offered only to a player who can pay it (`EffectSpec spendResources.required`).
-    .filter(({ option }) => option.effects.every((step) => requiredSpendPayable(ctx, step, context)))
+    // Not for an encounter-side source card: its option is barred only for want of a target (p. 12; owner 2026-10-20).
+    .filter(
+      ({ option }) =>
+        isEncounterCardType(ctx.state, context.selfInstanceId) ||
+        option.effects.every((step) => requiredSpendPayable(ctx, step, context)),
+    )
     // RRG 1.8 "Choose (Option)" (p. 12): an option that requires a target and has no valid one cannot be chosen
     // ("Remove 2 threat from a scheme" with no threat on any scheme). Read once, before the choice is asked: the
     // answer is checked against the options that were offered.
@@ -3233,11 +3238,37 @@ function executeResolveSpecials(
       });
     }
   }
+  // Incite X and surge are each "a type of 'When Revealed' ability" (RRG 1.8 "Incite X", p. 24; "Surge", p. 42), so "an
+  // ability that targets a card's 'When Revealed' ability would also include the 'Surge' keyword if on that card", and
+  // "Surge, Incite, and 'When Revealed' abilities each share the same timing, which allows players to resolve them in
+  // any order" (FFG ruling, September 22, 2026). Owner decision 2026-10-20 (docs/phase7-wave4.md §4 Q23, revised;
+  // docs/phase7-wave11-scenarios.md §S7 E37), superseding the user's 2026-09-25 reading of Citywide Crisis (printed
+  // abilities only). `excludeKeywords` leaves one out where a card says so ("non-surge"; Change of Venue's erratum).
+  const keywordSteps: KeywordStep[] = [];
+  if (trigger === "whenRevealed") {
+    const excluded = new Set(effect.excludeKeywords ?? []);
+    for (const id of sources) {
+      const amount = excluded.has("incite") ? 0 : keywordTotal(ctx.state, id, "incite", ctx.deps);
+      if (amount > 0) keywordSteps.push({ keyword: "incite", instanceId: id, amount });
+      if (!excluded.has("surge") && hasKeyword(ctx.state, id, "surge", ctx.deps))
+        keywordSteps.push({ keyword: "surge", instanceId: id, amount: 1 });
+    }
+  }
   // Two copies of a granting card give one card the same ability twice: the granting card tells them apart.
-  const key = (c: Step) =>
-    c.grantedBy === undefined ? `${c.instanceId}:${c.abilityId}` : `${c.instanceId}:${c.abilityId}@${c.grantedBy}`;
+  const key = (c: Step | KeywordStep) =>
+    "keyword" in c
+      ? `${c.instanceId}:${c.keyword}`
+      : c.grantedBy === undefined
+        ? `${c.instanceId}:${c.abilityId}`
+        : `${c.instanceId}:${c.abilityId}@${c.grantedBy}`;
   // A granted ability is offered under its granting card, the card that prints its text.
-  const option = (c: Step): ChoiceOption => {
+  const option = (c: Step | KeywordStep): ChoiceOption => {
+    if ("keyword" in c)
+      return {
+        optionId: key(c),
+        label: `${displayNameOf(ctx.state, c.instanceId)}: ${c.keyword === "incite" ? `Incite ${c.amount}` : "Surge"}`,
+        ref: { kind: "card", instanceId: c.instanceId },
+      };
     const printed = candidateOption(ctx.state)(c);
     if (c.grantedBy === undefined) return printed;
     if (c.grantedBy === null) return { ...printed, optionId: key(c) };
@@ -3247,54 +3278,58 @@ function executeResolveSpecials(
       ref: { kind: "ability", instanceId: c.grantedBy, abilityId: c.abilityId },
     };
   };
-  let ordered = steps;
+  // Unasked, a reveal's order: each card's incite first, the printed abilities, each surge last.
+  const all: (Step | KeywordStep)[] = [
+    ...keywordSteps.filter((k) => k.keyword === "incite"),
+    ...steps,
+    ...keywordSteps.filter((k) => k.keyword === "surge"),
+  ];
+  // Asked when the order can matter: several printed abilities, or a printed one with incite or surge. Incite and
+  // surge alone are not asked about (neither reads what the other does), as on a reveal (`resolve/reveal.ts`).
+  const asks = steps.length > 1 || (steps.length > 0 && keywordSteps.length > 0);
+  // Abilities on cards nobody controls (encounter cards: Citywide Crisis's side schemes, a treachery resolved by
+  // Moon Knight or Scarlet Witch) are ordered by the first player (RRG 1.8 "First Player", p. 19; "Simultaneous
+  // Resolution", p. 40), as on a reveal (`resolve/reveal.ts` `whenRevealedOrder`); a player's own cards' abilities by
+  // the calling ability's player (Wakanda Forever!).
+  const unowned = all.every((c) => controllerOf(ctx.state, c.instanceId) === null);
+  let ordered = all;
   if (frame.answer !== null) {
-    const byKey = new Map(steps.map((c) => [key(c), c]));
-    ordered = frame.answer.map((k) => byKey.get(k)).filter((c): c is Step => c !== undefined);
-  } else if (steps.length > 1 && frame.controllerId) {
+    const byKey = new Map(all.map((c) => [key(c), c]));
+    ordered = frame.answer.map((k) => byKey.get(k)).filter((c): c is Step | KeywordStep => c !== undefined);
+  } else if (asks && (frame.controllerId || unowned)) {
     requestChoice(ctx, {
-      playerId: frame.controllerId,
+      playerId: unowned ? simultaneousOrderer(ctx.state) : frame.controllerId!,
+      ...(unowned ? { authority: "firstPlayerOrders" as const } : {}),
       prompt: { kind: "orderSpecials" },
-      options: steps.map(option),
-      minSelections: steps.length,
-      maxSelections: steps.length,
+      options: all.map(option),
+      minSelections: all.length,
+      maxSelections: all.length,
       frameId: frame.frameId,
       ordered: true,
     });
     return;
   }
+  const abilitySteps = ordered.filter((c): c is Step => !("keyword" in c));
   setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
   // A card whose Special resolves from an identity's separate deck (an Invocation card) leaves the deck as it starts
   // resolving, like a played event (RRG 1.8 "Event", p. 19), and is out of play in its owner's `resolving` area until its
   // own text moves it on. If it was the last card, the deck resets now, without it (`settlePlayerDecks`): ruling, Apr 30,
   // 2026 (3) answer 7, "The deck is reshuffled **before** the currently resolving card enters the discard pile"
   // (docs/phase7-wave1.md §4 Q9, resolved 2026-09-25).
-  for (const id of new Set(ordered.map((step) => step.instanceId))) {
+  for (const id of new Set(abilitySteps.map((step) => step.instanceId))) {
     const zone = locateCard(ctx.state, id);
     if (zone?.kind === "separateDeck") moveCard(ctx, id, { kind: "resolving", playerId: zone.playerId });
   }
-  // Only on request (`includeKeywords`): incite X and surge are each "equivalent to" a When Revealed ability (RRG 1.8
-  // "Incite X", p. 24; "Surge", p. 42), resolved in the order a reveal resolves them: incite first, the printed
-  // abilities, surge last. Off by default: the user decided Citywide Crisis re-resolves printed abilities only, since
-  // a card already in play is not being revealed (§3.56, §4 Q23, 2026-09-25).
-  const incites: { readonly id: InstanceId; readonly amount: number }[] = [];
-  const surges: InstanceId[] = [];
-  if (trigger === "whenRevealed" && effect.includeKeywords === true) {
-    for (const id of sources) {
-      const amount = keywordTotal(ctx.state, id, "incite", ctx.deps);
-      if (amount > 0) incites.push({ id, amount });
-      if (hasKeyword(ctx.state, id, "surge", ctx.deps)) surges.push(id);
-    }
-  }
   if (effect.bind) {
     // The printed abilities add to the count as each finishes having changed the game (`resolvedCounts`); incite
-    // and surge always do. `<bind>.triggered` is every one put on the stack, changed the game or not: a "resolve
-    // [ability]" cost reads it, having judged beforehand whether resolving could change the game
+    // and surge always do (threat placed, a card dealt): "If no 'When Revealed' abilities were resolved this way"
+    // counts them as resolved (E37). `<bind>.triggered` is every one put on the stack, changed the game or not: a
+    // "resolve [ability]" cost reads it, having judged beforehand whether resolving could change the game
     // (`executeSettleResolveAbilityCost`).
-    const keywords = incites.length + surges.length;
+    const keywords = ordered.length - abilitySteps.length;
     addFrameVars(ctx, frame.frameId, {
       [`${effect.bind}.count`]: keywords,
-      [`${effect.bind}.triggered`]: ordered.length + keywords,
+      [`${effect.bind}.triggered`]: ordered.length,
     });
   }
   // The attack in progress records how many Preparation abilities resolved during it (docs/phase7-wave9.md §3.2): the
@@ -3314,15 +3349,6 @@ function executeResolveSpecials(
     ...(attack ? [{ frameId: attack.frameId, name: labeledResolvedVar("preparation") }] : []),
   ];
   const whoFor = (id: InstanceId) => controllerOf(ctx.state, id) ?? resolvingPlayer ?? context.controllerId;
-  // Each surge on its own frame, as a reveal's does when an ability hears it (`surgeResolving`, `resolveSurge`): the
-  // keyword deals its player a facedown encounter card, a deal like any other (docs/phase7-wave9.md §4.1 Q19).
-  pushFrames(
-    ctx,
-    surges.flatMap((id) => {
-      const playerId = whoFor(id);
-      return playerId ? [eventFrame(ctx, { kind: "surgeResolving", instanceId: id, playerId })] : [];
-    }),
-  );
   // With `bind`, what each Special's effects bind comes back as `<bind>.<slot>` (docs/phase7-wave5.md §3.7).
   const returnTo = effect.bind ? { returnBindingsTo: { frameId: frame.frameId, prefix: effect.bind } } : {};
   // A When Defeated resolved on demand (Zeal for the Cause, docs/phase7-wave6.md §3.17) reads its defeat from its frame's
@@ -3358,7 +3384,7 @@ function executeResolveSpecials(
             effect.borrowedBoostIcons === "joinActivation" && frame.selfInstanceId ? [frame.selfInstanceId] : [],
         }
       : {};
-  const frames = ordered.map(
+  const frames = abilitySteps.map(
     (step, index): StackFrame =>
       ({
         ...abilityFrame(
@@ -3368,7 +3394,7 @@ function executeResolveSpecials(
           null,
           // "Then, discard [the granting card]": the card a granted ability names (`GRANTED_BY_SLOT`).
           step.grantedBy ? { [GRANTED_BY_SLOT]: [step.grantedBy] } : borrowedBoost,
-          { "sequence.step": index + 1, "sequence.final": index === ordered.length - 1 ? 1 : 0 },
+          { "sequence.step": index + 1, "sequence.final": index === abilitySteps.length - 1 ? 1 : 0 },
         ),
         ...returnTo,
         ...(resolvedCounts.length > 0 ? { resolvedCounts } : {}),
@@ -3378,7 +3404,7 @@ function executeResolveSpecials(
   // as that ability's effects resolve (`endOfPaidFor` follows the ability into its effects frame and ends with it).
   const floor = effect.asIf?.remainingHpAtLeast;
   if (floor !== undefined) {
-    ordered.forEach((step, index) => {
+    abilitySteps.forEach((step, index) => {
       addLastingEffect(
         ctx,
         {
@@ -3390,14 +3416,35 @@ function executeResolveSpecials(
       );
     });
   }
-  pushFrames(ctx, frames);
-  for (const { id, amount } of [...incites].reverse()) {
+  // Pushed last first, so the first in order resolves first. Each surge on its own frame, as a reveal's does when an
+  // ability hears it (`surgeResolving`, `resolveSurge`): the keyword deals its player a facedown encounter card, a deal
+  // like any other (docs/phase7-wave9.md §4.1 Q19). Incite places its threat on the main scheme.
+  const framesByStep = new Map(abilitySteps.map((step, index) => [step, frames[index]!]));
+  for (const step of [...ordered].reverse()) {
+    if (!("keyword" in step)) {
+      pushFrames(ctx, [framesByStep.get(step)!]);
+      continue;
+    }
+    const playerId = whoFor(step.instanceId);
+    if (step.keyword === "surge") {
+      if (playerId)
+        pushFrames(ctx, [eventFrame(ctx, { kind: "surgeResolving", instanceId: step.instanceId, playerId })]);
+      continue;
+    }
     pushEffects(ctx, {
-      effects: [{ kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "const", value: amount } }],
-      selfInstanceId: id,
-      controllerId: whoFor(id),
+      effects: [{ kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "const", value: step.amount } }],
+      selfInstanceId: step.instanceId,
+      controllerId: playerId,
     });
   }
+}
+
+/** An incite or surge keyword resolved as one of a card's When Revealed abilities by `resolveSpecials` (E37). */
+interface KeywordStep {
+  readonly keyword: "incite" | "surge";
+  readonly instanceId: InstanceId;
+  /** Incite X's X; 1 for surge. */
+  readonly amount: number;
 }
 
 function requestTargetChoice(

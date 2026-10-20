@@ -2,10 +2,10 @@
 // `pnpm --filter @mc/content catalog` after an ingest adds or refreshes a pack.
 
 /** How many MarvelCDB packs the catalog was counted from. */
-export const CATALOG_PACK_COUNT = 63;
+export const CATALOG_PACK_COUNT = 64;
 
 /** Every printed card in the game: one per card, double-sided cards once, reprints not counted again. */
-export const CATALOG_CARD_COUNT = 3824;
+export const CATALOG_CARD_COUNT = 3864;
 
 /** A reprint's printed code → the original card it reprints. */
 export const CATALOG_REPRINTS: Readonly<Record<string, string>> = {

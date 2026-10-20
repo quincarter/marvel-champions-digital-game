@@ -754,6 +754,12 @@ export type StackFrame =
       /** "This card gains surge" resolved while it was being revealed. */
       readonly surgeGained: boolean;
       /**
+       * The card's surge resolved in step 3 among its other When Revealed abilities, because the first player ordered it
+       * before a printed one (FFG ruling, September 22, 2026; `orderWhenRevealed`), so the `surge` stage has nothing
+       * left to resolve. Absent on every other reveal.
+       */
+      readonly surgeResolved?: true;
+      /**
        * Reveal step 3 initiated at least one of the card's When Revealed abilities, incite included (RRG 1.8 "Reveal",
        * p. 38), uncancelled. With a live surge, this is what makes a treachery "resolved" (RRG 1.8 "Resolve", p. 37;
        * `encounterCardResolved`). Absent until then.

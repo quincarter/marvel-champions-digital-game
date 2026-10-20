@@ -224,7 +224,11 @@ export const FNE_SCENARIOS_PROTECTION_RACKET: AbilityRegistry = defineAbilities(
     selectCards("venue", encounterSetAside(query("mainScheme"), { random: 1 })),
     swapMainScheme(yourMainScheme, chosen("venue"), { placePreviousThreat: true }),
   ),
-  "60141.boost": boost(resolveWhenRevealedOf(self)),
+  // Provisional exception: the boost resolves only the non-surge When Revealed. FFG ruling, September 22, 2026: surge
+  // is a When Revealed ability, so "Resolve this card's 'When Revealed' ability" would include it, but triggering both
+  // "would skew its balance", and FFG plans to errata Change of Venue to "Boost: Resolve this card's non-surge 'When
+  // Revealed' ability". Built to that announced wording ahead of the erratum (owner decision 2026-10-20, spec §S7 E37).
+  "60141.boost": boost(resolveWhenRevealedOf(self, { excludeKeywords: ["surge"] })),
 });
 
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
