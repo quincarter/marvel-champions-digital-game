@@ -171,13 +171,13 @@ test.describe("Team-Up: Gambit and Rogue", () => {
     expect(await findVisibleText(page, "Team-Up active", "Board"), "no active label while quiet").toEqual([]);
     await page.mouse.move(720, 450);
     expect(
-      await findVisibleText(page, "needs hero form", "Board"),
+      await findVisibleText(page, "team-up:", "Board"),
       "both alter-egos carry the yellow blurb (own panel and the other hero's row)",
     ).toHaveLength(2);
 
     await flipByClick(page, 0);
     expect(await teamUpRings(page), "still quiet with only Gambit a hero").toHaveLength(2);
-    expect((await findVisibleText(page, "needs hero form", "Board")).length, "only Rogue's panel keeps the blurb").toBe(
+    expect((await findVisibleText(page, "team-up:", "Board")).length, "only Rogue's panel keeps the blurb").toBe(
       1,
     );
     await endTurnByClick(page);
