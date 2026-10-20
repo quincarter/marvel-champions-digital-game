@@ -352,6 +352,13 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.board, data: {} };
   }
 
+  // `&fixture=sense`: Daredevil (with his Sense deck) and Echo, two seats, for the side-deck and Team-Up blurb layout.
+  if (screen === "board" && params.get("fixture") === "sense") {
+    const { startDevSenseGame } = await import("../store/dev-sense-game.js");
+    await startDevSenseGame();
+    return { key: SCENES.board, data: {} };
+  }
+
   // `&fixture=grounded`: Jubilee on round 2 with Grounded in play, for Flip to hero's additional cost.
   // `?screen=board&fixture=jackpot`: Domino paused on Jackpot!'s response to Luck Be a Lady's discard (#222).
   if (screen === "board" && params.get("fixture") === "jackpot") {

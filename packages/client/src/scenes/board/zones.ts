@@ -85,7 +85,13 @@ import { drawDealtPile } from "./dealt-pile.js";
 import { dealtPileParts, dealtWords } from "../../view/dealt-pile.js";
 import { addTapTarget } from "./tap-target.js";
 import { dimAlpha, focusKey, targetState } from "./selection.js";
-import { playAreaRow, separateColumnWidth, separateRowHeight, sliceWithin } from "../../view/play-area-row.js";
+import {
+  playAreaRow,
+  separateColumnWidth,
+  separatePileBoxes,
+  separateRowHeight,
+  sliceWithin,
+} from "../../view/play-area-row.js";
 import { setMask } from "../../ui/rex.js";
 import { clipToViewport } from "../../ui/scroll-clip.js";
 
@@ -1453,7 +1459,12 @@ function drawSeparateDecks(
   perspectiveId: PlayerId,
 ): void {
   const { scene } = ctx;
-  const rowHeight = separateRowHeight(rect.height, decks.length, rect.width);
+  const rowHeight = separateRowHeight(
+    rect.height,
+    decks.length,
+    rect.width,
+    decks.some((deck) => deck.hasDiscard),
+  );
   decks.forEach((deck, index) => {
     const row: Rect = { x: rect.x, y: rect.y + index * (rowHeight + 8), width: rect.width, height: rowHeight };
     if (row.y + row.height > rect.y + rect.height) return;
@@ -1464,9 +1475,12 @@ function drawSeparateDecks(
     const lineCount = Math.min(deck.outside.length, Math.max(0, Math.floor((row.height - 14 - 30) / 12)), 3);
     const boxHeight = row.height - 14 - lineCount * 12;
     if (boxHeight < 30) return;
-    const boxWidth = deck.hasDiscard ? (row.width - 6) / 2 : row.width;
-    const deckBox: Rect = { x: row.x, y: boxTop, width: boxWidth, height: boxHeight };
-    const discardBox: Rect = { x: row.x + boxWidth + 6, y: boxTop, width: boxWidth, height: boxHeight };
+    // Portrait card-shaped piles (`separatePileBoxes`), never a landscape box that crops a portrait top card.
+    const { deck: deckBox, discard: discardBox } = separatePileBoxes(
+      { x: row.x, y: boxTop, width: row.width },
+      boxHeight,
+      deck.hasDiscard,
+    );
 
     drawPile(ctx, deckBox, "deck", deck.deckCount, deck.topArt, "foot");
     ctx.frame.pileRects.set(pileKey("separateDeck", perspectiveId, deck.name), deckBox);
@@ -1703,7 +1717,9 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow, rowStyle:
   // is what keeps a present pair from being playable. Skipped when the row has no room for it.
   const blurbTop = lineY + (seat.statuses.length > 0 || notes.length > 0 ? 20 : 0);
   if (ctx.teamUpRings?.waiting.has(seat.playerId) && blurbTop + 14 <= row.y + row.height) {
-    drawTeamUpBlurb(scene, row.x + 6, blurbTop, row.width - 12, dim);
+    // Clear of the Act button that sits at the row's bottom right while this seat holds an Action for the turn.
+    const actReserve = appSession().store.state.offTurnSeats.includes(seat.playerId) ? 70 : 0;
+    drawTeamUpBlurb(scene, row.x + 6, blurbTop, row.width - 12 - actReserve, dim);
   }
   if (notes.length > 0) {
     const room = row.x + row.width - 6 - cursor;

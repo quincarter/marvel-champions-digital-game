@@ -116,6 +116,14 @@ export function ringLabel(badge: { readonly label: string; readonly playable: bo
 /** What the yellow blurb on a character that holds a present Team-Up up says. */
 export const TEAM_UP_BLURB = "Team-Up: needs hero form";
 
+/** The same blurb for a chip too narrow for the full sentence on one line (the Other Heroes rows beside an Act button). */
+export const TEAM_UP_BLURB_SHORT = "Team-Up: hero form";
+
+/** The longest blurb that fits on one line: the full sentence if `fits` says so, else the short one. */
+export function teamUpBlurbFor(fits: (text: string) => boolean): string {
+  return fits(TEAM_UP_BLURB) ? TEAM_UP_BLURB : TEAM_UP_BLURB_SHORT;
+}
+
 /**
  * The seats that hold a present pair up: for each present pair that is not playable, the seats whose identity is one
  * of its characters but is showing the other side (an alter-ego up). Each gets the yellow "needs hero form" blurb on

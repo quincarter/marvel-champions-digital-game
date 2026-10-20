@@ -119,8 +119,27 @@ export function separateColumnWidth(zoneWidth: number, zoneHeight: number, cardS
 }
 
 /** One second-deck row's height: its two piles at card proportions across the column, within the room the column has. */
-export function separateRowHeight(columnHeight: number, rows: number, columnWidth: number): number {
+export function separateRowHeight(columnHeight: number, rows: number, columnWidth: number, hasDiscard = true): number {
   const room = (columnHeight - (rows - 1) * 8) / Math.max(1, rows);
-  const natural = Math.round((columnWidth - 6) / 2 / CARD_ASPECT + 14);
+  const natural = Math.round((hasDiscard ? (columnWidth - 6) / 2 : columnWidth) / CARD_ASPECT + 14);
   return Math.min(natural, Math.max(70, room));
+}
+
+/**
+ * The boxes of one second-deck row: the deck, and its discard when it has one, each a portrait card (2.5 by 3.5) as tall
+ * as the room allows, so a top card shows whole and as large as the play area's own cards. A pile never stretches wider
+ * than a card to fill the column (the Sense deck used to be a landscape box with its portrait upgrade cropped sideways);
+ * when the column is too narrow for the full height, the piles shrink together and stay card-shaped. Left aligned.
+ */
+export function separatePileBoxes(
+  row: { readonly x: number; readonly y: number; readonly width: number },
+  height: number,
+  hasDiscard: boolean,
+): { readonly deck: Rect; readonly discard: Rect } {
+  const gap = 6;
+  const perPile = hasDiscard ? (row.width - gap) / 2 : row.width;
+  const pileHeight = Math.max(0, Math.min(height, perPile / CARD_ASPECT));
+  const pileWidth = pileHeight * CARD_ASPECT;
+  const deck: Rect = { x: row.x, y: row.y, width: pileWidth, height: pileHeight };
+  return { deck, discard: { ...deck, x: row.x + pileWidth + gap } };
 }

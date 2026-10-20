@@ -16,6 +16,9 @@ import {
   teamUpWhyNot,
   presentTeamUps,
   ringLabel,
+  TEAM_UP_BLURB,
+  TEAM_UP_BLURB_SHORT,
+  teamUpBlurbFor,
   teamUpWaitingSeats,
   teamUpStatus,
   teamUpRoleOf,
@@ -531,5 +534,12 @@ describe("which panels carry the yellow 'needs hero form' blurb", () => {
     const base = { label: "Gambit and Rogue" };
     expect(ringLabel({ ...base, playable: false })).toBe("Team-Up: Gambit and Rogue");
     expect(ringLabel({ ...base, playable: true })).toBe("Team-Up active: Gambit and Rogue");
+  });
+});
+
+describe("the blurb's one-line text", () => {
+  test("the full sentence when it fits, the short one when it does not", () => {
+    expect(teamUpBlurbFor(() => true)).toBe(TEAM_UP_BLURB);
+    expect(teamUpBlurbFor((text) => text.length < 20)).toBe(TEAM_UP_BLURB_SHORT);
   });
 });

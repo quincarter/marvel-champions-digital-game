@@ -11,6 +11,7 @@ import {
   PlayAreaScroll,
   playAreaRow,
   separateColumnWidth,
+  separatePileBoxes,
   separateRowHeight,
   sliceWithin,
 } from "./play-area-row.js";
@@ -168,5 +169,24 @@ describe("a second deck's column (Doctor Strange's Invocation)", () => {
   test("its piles keep card proportions across the column, and never exceed the room", () => {
     expect(separateRowHeight(600, 1, 400)).toBeGreaterThan(separateRowHeight(600, 1, 150));
     expect(separateRowHeight(100, 1, 400)).toBe(100);
+  });
+
+  test("a deck with no discard gets a row as tall as its full-width card", () => {
+    expect(separateRowHeight(900, 1, 150, false)).toBeGreaterThan(separateRowHeight(900, 1, 150, true));
+  });
+
+  test("a deck alone is a portrait card at the room's height, not the column's width", () => {
+    const { deck } = separatePileBoxes({ x: 10, y: 20, width: 200 }, 150, false);
+    expect(deck.height).toBe(150);
+    expect(deck.width).toBeCloseTo(150 * (2.5 / 3.5));
+    expect(deck.width).toBeLessThan(200);
+  });
+
+  test("a deck and discard stay card-shaped, side by side, shrinking together in a narrow column", () => {
+    const { deck, discard } = separatePileBoxes({ x: 0, y: 0, width: 106 }, 300, true);
+    expect(deck.width).toBeCloseTo(50);
+    expect(deck.width / deck.height).toBeCloseTo(2.5 / 3.5);
+    expect(discard.x).toBeCloseTo(56);
+    expect(discard.height).toBeCloseTo(deck.height);
   });
 });

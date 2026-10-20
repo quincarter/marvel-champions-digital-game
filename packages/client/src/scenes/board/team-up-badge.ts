@@ -11,9 +11,10 @@
 import type Phaser from "phaser";
 import { ensurePictureLoaded, type Picture } from "../../art/pictures.js";
 import { accent, signal, surface, typeRole } from "../../tokens.js";
-import { ringLabel, TEAM_UP_BLURB } from "../../view/team-up-model.js";
+import { ringLabel, teamUpBlurbFor } from "../../view/team-up-model.js";
 import { setMask } from "../../ui/rex.js";
 import { textStyle } from "../../ui/theme.js";
+import { fitWrapped } from "../../ui/widgets.js";
 import { badgeLabelRect, type BadgeSlot } from "../../view/team-up-layout.js";
 import { badgeFocusFor } from "../../art/team-up-art.js";
 import { badgeCropRect } from "../../view/badge-crop.js";
@@ -144,31 +145,21 @@ function strokeDashedCircle(g: Phaser.GameObjects.Graphics, cx: number, cy: numb
 
 /**
  * The caution-yellow blurb ("Team-Up: needs hero form") for the seat whose alter-ego is up while its partner is
- * present. A chip in the app's caution yellow with ink text, wrapped to two lines at most and never truncated: the
- * type steps down a size before it would need a third line. Returns the height it took.
+ * present. A chip in the app's caution yellow with ink text on one line: the short wording ("Team-Up:
+ * hero form") when the full sentence does not fit, then two lines in a very narrow chip, never clipped.
+ * Returns the height it took.
  */
 export function drawTeamUpBlurb(scene: Phaser.Scene, x: number, y: number, width: number, dim = 1): number {
   const inner = Math.max(40, width - 10);
   const style = textStyle(typeRole.label, surface.ink.hex, dim);
-  // No tracking: the blurb is a sentence in a narrow chip, and the wrap must not be fooled by letter spacing.
-  const text = scene.add
-    .text(x + 5, y + 3, "X", style)
-    .setLetterSpacing(0)
-    .setWordWrapWidth(inner);
-  const lineHeight = (): number => {
-    const full = text.text;
-    text.setText("X");
-    const one = text.height;
-    text.setText(full);
-    return one;
-  };
-  text.setText(TEAM_UP_BLURB.toUpperCase());
-  let size = typeRole.label.size;
-  while (size > 7 && text.height > lineHeight() * 2 + 1) {
-    size -= 1;
-    text.setFontSize(size);
-    text.setWordWrapWidth(inner);
-  }
+  // No tracking: the blurb is a sentence in a narrow chip, and the fit must not be fooled by letter spacing.
+  const text = scene.add.text(x + 5, y + 3, "X", style).setLetterSpacing(0);
+  text.setText(teamUpBlurbFor((candidate) => (text.setText(candidate.toUpperCase()), text.width <= inner)));
+  text.setText(text.text.toUpperCase());
+  // The narrow hero panel (about 80px of text) cannot hold even the short wording on one line at a readable size: it wraps
+  // to two lines there, a word at a time (`fitWrapped`), rather than clip with an ellipsis.
+  text.setFontSize(typeRole.label.size);
+  if (text.width > inner) fitWrapped(text, inner, 2, typeRole.label.size);
   const height = Math.ceil(text.height) + 6;
   const chip = scene.add.graphics();
   chip.fillStyle(signal.caution.hex, dim).fillRect(x, y, width, height);
