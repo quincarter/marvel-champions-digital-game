@@ -62,8 +62,13 @@ round). Counts the rows don't hold yet: a game's loss reason (players defeated o
 during a game, and a hero's hit points at the win. Those come from the engine's game log at game end, so the save row
 gains a small summary; older saves simply don't count toward those achievements.
 
+## Decided
+
+- **Points (owner, 2026-10-20: A).** Achievement points add to the same champion points total that unlocks spend; rank
+  reads lifetime points. Exception: the funny "for trying" achievements (losses, heroes defeated, round-1 losses) give
+  no champion points. Each unlocks a silly content pack instead, such as a joke Extras picture, a card-back or
+  board skin, a funny title or banner line, or a sound sting, so losing still earns something to laugh at.
+
 ## Open for the owner
 
-- Whether achievement points add to the spendable champion points or form a separate score (default: one total;
-  rank reads lifetime points).
-- The names: every title above is a placeholder.
+- The names: every title above is a placeholder, and so are the funny packs' contents.
