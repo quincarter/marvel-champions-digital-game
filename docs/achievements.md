@@ -62,7 +62,7 @@ spread so a new player ranks up within the first few sessions.
 
 - **Earned items already built:** PR #294 (Ultron Drone art, stacked on this branch) adds an earned item, "Drone art",
   toggled under Settings > More > Earned items and for now gated on "win a game against Ultron" read from the save
-  history. When the achievements list is built, add a Drone achievement for that win and point the item's unlock in `progression/earned-items.ts` (setting `ultronDroneArt`) at it in place of `scenarioWon ultron` (owner, 2026-10-20).
+  history. When the achievements list is built, add a Drone achievement for that win and point the item's unlock in `progression/earned-items.ts` (setting `ultronDroneArt`) at it in place of `scenarioWon ultron` (owner, 2026-10-20). `EARNED_ITEMS` (each with an `ExtrasUnlock` read through `Extras.isOpen`; `earnedItems()` / `applyEarnedItems()` in `progression/progression.ts`; Settings > More "Earned items" via `earnedItemRowInfoOf`) is meant to hold every cosmetic reward, so the funny joke packs and other achievement rewards become earned items too, likely through an achievement kind of `ExtrasUnlock`.
 
 ## Data the client must record
 
