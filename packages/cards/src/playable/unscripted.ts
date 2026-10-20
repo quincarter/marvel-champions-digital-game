@@ -32,6 +32,11 @@ export const UNSCRIPTED_ENCOUNTER_SET_IDS: ReadonlySet<string> = new Set<string>
  */
 export const GATED_THOUGH_SCRIPTED: Readonly<Record<string, string>> = {
   black_flower: "Shadowland is mid-transcription: this set has no cards transcribed yet, so there is nothing to script",
+  dark_protege: "Shadowland is mid-transcription: its transcribed cards are scripted, the rest await scans",
+  heart_of_shadow: "Shadowland is mid-transcription: its transcribed cards are scripted, the rest await scans",
+  ninja_swarm: "Shadowland is mid-transcription: its transcribed cards are scripted, the rest await scans",
+  shadow_labyrinth: "Shadowland is mid-transcription: its transcribed cards are scripted, the rest await scans",
+  shadows_in_the_night: "Shadowland is mid-transcription: its transcribed cards are scripted, the rest await scans",
 };
 
 /** Whether a scenario is playable: none of its own sets (or its villains' own sets) is gated. */

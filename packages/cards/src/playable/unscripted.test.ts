@@ -26,7 +26,14 @@ describe("UNSCRIPTED_ENCOUNTER_SET_IDS", () => {
       "shadow_labyrinth",
       "shadows_in_the_night",
     ]);
-    expect(Object.keys(GATED_THOUGH_SCRIPTED)).toEqual(["black_flower"]);
+    expect(Object.keys(GATED_THOUGH_SCRIPTED).sort()).toEqual([
+      "black_flower",
+      "dark_protege",
+      "heart_of_shadow",
+      "ninja_swarm",
+      "shadow_labyrinth",
+      "shadows_in_the_night",
+    ]);
     for (const id of UNSCRIPTED_ENCOUNTER_SET_IDS)
       expect(
         PLAYABLE_ENCOUNTER_SETS.some((s) => s.id === id),

@@ -68,7 +68,13 @@ describe("wave 11 ability id coverage", () => {
         eager: true,
       }),
     ),
-    shadowland: "", // no scripts yet: every Shadowland ref is skipped
+    shadowland: joined(
+      (import.meta as unknown as ImportMetaGlob).glob("./shadowland/**/*.test.ts", {
+        query: "?raw",
+        import: "default",
+        eager: true,
+      }),
+    ),
     fne: joined(
       (import.meta as unknown as ImportMetaGlob).glob("./fne/**/*.test.ts", {
         query: "?raw",
