@@ -10,12 +10,13 @@ import { SHOT } from "./x-men-helpers.js";
  * breakdown and cut the total off: the headline wrapped to two lines and the panel's fixed height had no room left.
  * Played from the `?screen=villain-boost-interrupt` jump (Scarlet Witch against Rhino, paused on Chaos Control's
  * boost-count window), answered with RESOLVE so the attack resolves: seed 1 counts Crowd Control, a side scheme drawn
- * on its side, and seed 4 counts "I'm Tough!", a portrait card. The viewport is a 360-wide phone, where the headline
- * wraps. Phone only: the desktop rail lays out "happening now" on its own, taller body.
+ * on its side, and seed 4 counts "I'm Tough!", the card in the report, a portrait card. The screen is the reporter's:
+ * the report's screenshot is 1080×2520 pixels, an Android phone at 3× (360×840 CSS pixels, where the headline wraps).
+ * Phone only: the desktop rail lays out "happening now" on its own, taller body.
  */
 
 // The resolved attack is one beat of the walkthrough, which reduced motion (the suite's default) skips past.
-test.use({ reducedMotion: "no-preference" });
+test.use({ reducedMotion: "no-preference", viewport: { width: 360, height: 840 }, deviceScaleFactor: 3 });
 
 interface BoostedBeat {
   readonly text: string;
@@ -50,7 +51,6 @@ for (const [seed, shape] of [
   }, info) => {
     test.setTimeout(120_000);
     test.skip(info.project.name !== "phone", "the bug is the phone's docked panel");
-    await page.setViewportSize({ width: 360, height: 800 });
     const errors = trackErrors(page);
     await page.addInitScript(() =>
       localStorage.setItem("mc-settings", JSON.stringify({ version: 1, villainAutoAdvance: "off" })),
