@@ -497,6 +497,13 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.campaignDossier, data: { runId: record.id } };
   }
 
+  // `?screen=fne-briefing`: Fear No Evil (Daredevil and Echo), fresh, on the Briefing's first-playthrough question.
+  if (screen === "fne-briefing" && import.meta.env.DEV) {
+    const fixtures = await import("../campaign/dev-fixtures.js");
+    const record = await fixtures.seedFneFresh(campaignService());
+    return { key: SCENES.campaignBriefing, data: { runId: record.id } };
+  }
+
   // `?screen=campaign-market[&units=N]`: The Galaxy's Most Wanted (Groot and Rocket) after issue #1, on the Market
   // before issue #2. `units` sets both wallets so the whole shelf can be priced as affordable. Dev builds only.
   if (screen === "campaign-market" && import.meta.env.DEV) {

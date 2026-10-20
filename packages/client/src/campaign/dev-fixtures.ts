@@ -1097,3 +1097,14 @@ export async function seedHiddenEvidenceFixture(service: CampaignService, reveal
   await service.storage.create(record);
   return record;
 }
+
+/** Fear No Evil with Daredevil and Echo, nothing composed: the Briefing opens on the first-playthrough question. */
+export async function seedFneFresh(service: CampaignService): Promise<CampaignRecord> {
+  return service.start({
+    campaignId: "fne",
+    seats: [smDeck("daredevil"), smDeck("echo")],
+    expertCampaign: false,
+    poolVersion: POOL_VERSION,
+    seed: 2026,
+  });
+}

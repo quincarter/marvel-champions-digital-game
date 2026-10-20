@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { campaignDefinitionOf } from "@mc/cards";
 import { FNE_STORY } from "./stories/fne.js";
-import { SAGA_VOLUMES, storyFor } from "./story.js";
+import { SAGA_VOLUMES, setupCallCopyFor, storyFor } from "./story.js";
 
 const nodeIds = campaignDefinitionOf("fne")!.graph.nodes.map((node) => node.id);
 
@@ -29,5 +29,24 @@ describe("the Fear No Evil story", () => {
 
   test("the cast is Daredevil and Echo", () => {
     expect(FNE_STORY.castIdentityIds).toEqual(["60001a", "60037a"]);
+  });
+});
+
+describe("the Fear No Evil plain-words calls", () => {
+  const def = campaignDefinitionOf("fne")!;
+  const ids = new Set(
+    [
+      ...(def.graph.kind === "choice" ? def.graph.beforeChoice : []),
+      ...(def.everyNodeSetup ?? []),
+      ...def.graph.nodes.flatMap((node) => [...(node.composition ?? []), ...node.setup, ...node.victory]),
+    ].map((instruction) => instruction.id),
+  );
+
+  test("each is keyed to an instruction the definition has, and the first-playthrough question says what each answer does", () => {
+    for (const id of Object.keys(FNE_STORY.setupCalls ?? {})) expect(ids.has(id), id).toBe(true);
+    const copy = setupCallCopyFor("mc60.choice.playthrough");
+    expect(copy?.explain).toMatch(/rulebook's villain order/);
+    expect(copy?.explain).toMatch(/at random/);
+    expect(setupCallCopyFor("mc60.art-museum-heist.compose.villain")?.explain).toMatch(/recommended list/);
   });
 });

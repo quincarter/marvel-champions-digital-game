@@ -7,7 +7,7 @@
  * **Cast:** Daredevil (`60001a`) and Echo (`60037a`) ship in this box, so their lines are written for them; every
  * other hero shows the narrator `fallback` instead.
  */
-import type { CampaignStory, IssueStory, StorySpeaker } from "../story.js";
+import type { CampaignStory, IssueStory, SetupCallCopy, StorySpeaker } from "../story.js";
 
 const DAREDEVIL: StorySpeaker = { kind: "hero", identityId: "60001a", name: "Daredevil" };
 const ECHO: StorySpeaker = { kind: "hero", identityId: "60037a", name: "Echo" };
@@ -37,6 +37,21 @@ const issue = (
   rewindTaunt,
 });
 
+/** The five interchangeable scenarios (the finale, Kingpin, has no villain to choose). */
+const UNDERLING_NODES = [
+  "art-museum-heist",
+  "the-getaway",
+  "protection-racket",
+  "the-raft-breakout",
+  "stop-the-presses",
+];
+
+const VILLAIN_CALL: SetupCallCopy = {
+  name: "Choose the villain",
+  explain:
+    'On a first playthrough, "The next villain on the recommended list" takes the rulebook\'s order (Hammerhead, Bullseye, Electro, then Purple Man or Typhoid Mary), and "A random unrecorded villain" draws one you have not faced. If only Purple Man and Typhoid Mary are left, pick which one you face.',
+};
+
 export const FNE_STORY: CampaignStory = {
   campaignId: "fne",
   tagline: "A story in six issues",
@@ -44,6 +59,14 @@ export const FNE_STORY: CampaignStory = {
     "Hell's Kitchen is falling to the Kingpin's underlings, one job at a time. Daredevil and Echo have to take them down in whatever order the city deals them, then climb to the man who runs it all.",
   rosterBanner:
     "Each hero stays for the whole campaign. The underlings you beat are crossed off, and the Kingpin waits at the end.",
+  setupCalls: {
+    "mc60.choice.playthrough": {
+      name: "First playthrough?",
+      explain:
+        "Answer once for the whole campaign. First playthrough lets you take the rulebook's villain order, scenario by scenario, or draw villains at random. Not the first playthrough draws every villain at random, with no further questions.",
+    },
+    ...Object.fromEntries(UNDERLING_NODES.map((id) => [`mc60.${id}.compose.villain`, VILLAIN_CALL])),
+  },
   castIdentityIds: ["60001a", "60037a"],
   issues: [
     issue(

@@ -7,6 +7,7 @@
  * re-calling `compose` until it comes back `"done"`, exactly the loop the service's doc comment describes. Nothing
  * half-answered is ever shown as settled: `#pending` is only ever the *current* unanswered question.
  */
+import { openIssueHintOf } from "../../view/campaign-open-hint.js";
 import Phaser from "phaser";
 import type { CampaignChoiceAnswer, CampaignDefinition, CampaignPendingChoice, PlayerSetup } from "@mc/engine";
 import { CAMPAIGN_ACCEPT } from "@mc/engine";
@@ -789,6 +790,30 @@ export class CampaignBriefingScene extends Phaser.Scene {
         text.setY(actionBar.y + (actionBar.height - text.height) / 2);
       }
     }
+    const hint = openIssueHintOf({
+      issueNumber: this.#issueNumber,
+      pending: !!this.#pending,
+      composing: this.#composing,
+      starting: this.#starting,
+      deckBlocked: blocked,
+    });
+    if (hint) {
+      const reasonWidth = phone ? width - gutter * 2 : editRect.x - gutter - 16;
+      const text = this.add
+        .text(gutter, 0, hint.bar, textStyle({ ...typeRole.label, size: 15 }, accent.heroRed.hex, 1))
+        .setOrigin(0, 0)
+        .setWordWrapWidth(reasonWidth);
+      if (phone) {
+        const stripHeight = text.height + 12;
+        this.add
+          .rectangle(0, actionBar.y - stripHeight, width, stripHeight, surface.paper.hex)
+          .setOrigin(0, 0)
+          .setDepth(5);
+        text.setDepth(6).setY(actionBar.y - stripHeight + 6);
+      } else {
+        text.setY(actionBar.y + (actionBar.height - text.height) / 2);
+      }
+    }
     if (this.#startError) {
       label(this, gutter, actionBar.y - 20, this.#startError, typeRole.label, accent.heroRed.hex, 1);
     }
@@ -1189,6 +1214,20 @@ export class CampaignBriefingScene extends Phaser.Scene {
     let y = ruleHeading(this, rect.x, rect.y, rect.width, "Your call", surface.ink.hex, 20);
     const record = this.#record;
     const header = record ? seatHeaderOf(pending, record.seats, heroNameOf) : null;
+    const callHint = openIssueHintOf({
+      issueNumber: this.#issueNumber,
+      pending: true,
+      composing: false,
+      starting: false,
+      deckBlocked: false,
+    })?.call;
+    if (callHint) {
+      y +=
+        this.add
+          .text(rect.x, y, callHint, textStyle({ ...typeRole.label, size: 15 }, accent.heroRed.hex, 1))
+          .setOrigin(0, 0)
+          .setWordWrapWidth(rect.width).height + 8;
+    }
     if (header) y = this.#drawSeatHeader(rect, y, header, phone);
     const build = record ? this.#roleBuildFor(pending, record) : null;
     if (build) {
