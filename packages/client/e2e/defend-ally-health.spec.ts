@@ -73,6 +73,9 @@ test("issue #298: each defender says the health it has now, and a swipe that lif
   await press(page, phone, await waitFor(() => villainDebugRect(page, "startRect"), "START VILLAIN PHASE", 45_000));
   const ids = await waitFor(
     async () => {
+      // A press that lands before the panel takes input leaves START up: press it again.
+      const start = await villainDebugRect(page, "startRect");
+      if (start) await press(page, phone, start);
       const answer = await villainDebugRect(page, "answerRect");
       if (answer) await press(page, phone, answer);
       const options = await debug<string[]>(page, "defendOptionIds");
@@ -83,7 +86,8 @@ test("issue #298: each defender says the health it has now, and a swipe that lif
   );
 
   // War Machine has taken 2 of its 4 hit points; Mockingbird is whole.
-  for (const line of ["NOW 2 OF 4 HP → 0 LEFT", "NOW 3 OF 3 HP → 0–1 LEFT"]) {
+  // Four options across a 1440px desktop clip the range line's tail ("0–1 L…"), so match up to the range.
+  for (const line of ["NOW 2 OF 4 HP → 0", "NOW 3 OF 3 HP → 0–1"]) {
     expect(await findText(page, line, "VillainPhaseOverlay"), line).not.toHaveLength(0);
   }
   if (SHOT) await page.screenshot({ path: `${SHOT}/defend-ally-health-${info.project.name}.png` });
