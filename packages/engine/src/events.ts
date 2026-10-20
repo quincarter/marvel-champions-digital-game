@@ -1196,7 +1196,17 @@ export type GameEvent =
        */
       readonly diverted?: { readonly toInstanceId: InstanceId; readonly amount: number };
     }
-  | { readonly type: "characterDefeated"; readonly instanceId: InstanceId; readonly cardId: CardId }
+  | {
+      readonly type: "characterDefeated";
+      readonly instanceId: InstanceId;
+      readonly cardId: CardId;
+      /**
+       * What the card was treated as while it was in play facedown (an Ultron Drone, `CardInstance.facedownAs`), absent
+       * for a card that was faceup. Leaving play turns it faceup, so without this a reader of the state after the command
+       * would name its earlier moments ("Drone attacks you") by the card underneath (#291).
+       */
+      readonly facedownAs?: FacedownRole;
+    }
   | { readonly type: "schemeDefeated"; readonly instanceId: InstanceId; readonly cardId: CardId }
   /**
    * A character kept in play at zero or fewer remaining hit points by a "cannot be defeated" rule is no longer under
@@ -1797,7 +1807,17 @@ export type GameEvent =
       /** `constant`: given by a `keepsGivingStatus` rule between frames (docs/phase7-wave6.md §3.9). */
       readonly reason?: "constant";
     }
-  | { readonly type: "cardDiscardedFromPlay"; readonly instanceId: InstanceId; readonly cardId: CardId }
+  | {
+      readonly type: "cardDiscardedFromPlay";
+      readonly instanceId: InstanceId;
+      readonly cardId: CardId;
+      /**
+       * What the card was treated as while it was in play facedown (an Ultron Drone, `CardInstance.facedownAs`), absent
+       * for a card that was faceup. Leaving play turns it faceup, so without this a reader of the state after the command
+       * would name its earlier moments ("Drone attacks you") by the card underneath (#291). Same as `characterDefeated`'s.
+       */
+      readonly facedownAs?: FacedownRole;
+    }
   /**
    * RRG 1.8 "Vulnerable" (p. 48): the `status` card just given made this character stunned or confused, so its
    * vulnerable keyword discards it, without defeating it (docs/phase7-wave9.md §3.1). Logged right after the

@@ -1082,7 +1082,12 @@ function beginOneDefeat(
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "cannotLeavePlay" });
     return false;
   }
-  emit(ctx, { type: "characterDefeated", instanceId: id, cardId: instance.cardId });
+  emit(ctx, {
+    type: "characterDefeated",
+    instanceId: id,
+    cardId: instance.cardId,
+    ...(instance.facedownAs ? { facedownAs: instance.facedownAs } : {}),
+  });
   const actingPlayerId = instance.engagedWith ?? ctx.state.firstPlayerId;
   // Victory X sends a defeated character to the victory display instead (docs/phase7-wave3.md §3.4). Otherwise an
   // interrupt's `setDefeatDestination` ("return it to its owner's hand instead of discarding it", Regroup), else a

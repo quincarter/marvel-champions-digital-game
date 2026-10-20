@@ -31,6 +31,7 @@ import {
 } from "@mc/engine";
 import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
 import { abilityShortLabelOf } from "./ability-label.js";
+import { facedownRoleName, facedownUntilLater } from "./facedown-history.js";
 import { foeWord } from "./foe-words.js";
 import { cardName, faceUpName, formWords, optionLabelOf, playerName, seatName } from "./names.js";
 
@@ -228,6 +229,12 @@ function swappedOutName(state: GameState, id: InstanceId, event: GameEvent, burs
   return null;
 }
 
+/** A facedown card's role, for a line about it before a later event in the command took it out of play (#291). */
+function hiddenThenName(id: InstanceId, burst: Burst | undefined): string | null {
+  const role = burst ? facedownUntilLater(burst.events, burst.at, id) : null;
+  return role ? facedownRoleName(role) : null;
+}
+
 /** The command's whole event list and where `event` sits in it: a few lines read the events around them. */
 export interface Burst {
   readonly events: readonly GameEvent[];
@@ -249,7 +256,7 @@ function describe(
   /** "Your deck" vs "Spider-Man's deck": "you" possessive isn't "you's". */
   const possessive = (id: PlayerId): string => (id === viewer ? "Your" : `${who(id)}'s`);
   const card = (id: Parameters<typeof cardName>[1]): string =>
-    faceNames?.get(id) ?? swappedOutName(state, id, event, burst) ?? cardName(state, id);
+    faceNames?.get(id) ?? hiddenThenName(id, burst) ?? swappedOutName(state, id, event, burst) ?? cardName(state, id);
 
   switch (event.type) {
     case "roundStarted":

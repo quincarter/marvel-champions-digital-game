@@ -8,7 +8,7 @@
 import type Phaser from "phaser";
 import type { GameState, InstanceId, PlayerId } from "@mc/engine";
 import { cardOf } from "@mc/engine";
-import { artFor, type ArtSource } from "../art/art-source.js";
+import { artFor, isHiddenArt, type ArtSource, type CardFace } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { POOL_DEPS } from "../content/pool.js";
 import type { FocusStop } from "../scenes/focus-route.js";
@@ -53,6 +53,8 @@ export type RailBody =
       readonly kind: "happening";
       /** The enemy whose activation this is, for the thumbnail; null outside an activation. */
       readonly enemyInstanceId: InstanceId | null;
+      /** The face to draw for that enemy when it was facedown and has left play since (#291); absent otherwise. */
+      readonly enemyFace?: CardFace;
       readonly headline: string;
       readonly text: string;
       /** Boost cards flipped so far, by name ("1 boost card, facedown — flips after interrupts" before any). */
@@ -394,7 +396,7 @@ function drawCard(
       .text(
         rect.x + rect.width / 2,
         rect.y + rect.height / 2,
-        cardOf(game, instanceId)?.name ?? "",
+        isHiddenArt(source) ? "" : (cardOf(game, instanceId)?.name ?? ""),
         textStyle({ ...typeRole.rowTitle, size: 13 }, surface.paper.hex, ink.secondary),
       )
       .setOrigin(0.5)
@@ -501,7 +503,9 @@ function drawHappening(
   const hasArt = body.enemyInstanceId !== null && layout.bodyArt.width > 0;
   if (hasArt) {
     const enemy = body.enemyInstanceId!;
-    const art = inspectModel(args.game, enemy, null, args.viewerId, POOL_DEPS).art;
+    const art = body.enemyFace
+      ? artFor(undefined, body.enemyFace)
+      : inspectModel(args.game, enemy, null, args.viewerId, POOL_DEPS).art;
     drawCard(scene, layout.bodyArt, args.game, enemy, args.onInspect, `happening:${enemy}`, art);
   }
   const x = hasArt ? layout.bodyText.x : layout.body.x;

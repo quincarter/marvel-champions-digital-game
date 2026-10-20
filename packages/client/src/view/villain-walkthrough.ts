@@ -18,6 +18,7 @@
 import type { AbilityId, CardId } from "@mc/content";
 import { activeAbilityRefs, cardOf, ENEMY_TEAM_CHOICE_INSTRUCTION, ENEMY_TEAM_CHOICE_RULE } from "@mc/engine";
 import type {
+  FacedownRole,
   ChoiceBehalf,
   ChoiceOption,
   ChoicePrompt,
@@ -29,6 +30,7 @@ import type {
   PendingChoice,
   PlayerId,
 } from "@mc/engine";
+import { facedownUntilLater } from "./facedown-history.js";
 import { beatTextWithStatus, logLine } from "./log-lines.js";
 import { cardName, numberWord, optionLabelOf, playerName, shortSeatName } from "./names.js";
 
@@ -144,6 +146,11 @@ export type ActivationBeat =
   | {
       readonly kind: "attack";
       readonly enemyInstanceId: InstanceId;
+      /**
+       * What the enemy was while facedown, when it left play later in the same command (#291): its name and picture
+       * are then the Drone's, not the card the state after the command shows faceup in a discard pile.
+       */
+      readonly enemyFacedownAs?: FacedownRole;
       readonly attackedPlayerId: PlayerId;
       readonly boosts: readonly BoostCardBeat[];
       /**
@@ -160,6 +167,8 @@ export type ActivationBeat =
   | {
       readonly kind: "scheme";
       readonly enemyInstanceId: InstanceId;
+      /** As the attack's. */
+      readonly enemyFacedownAs?: FacedownRole;
       readonly playerId: PlayerId;
       readonly boosts: readonly BoostCardBeat[];
       readonly resolved: SchemeBreakdown | null;
@@ -340,7 +349,7 @@ export function appendWalkthrough(
     });
   };
 
-  for (const event of events) {
+  for (const [at, event] of events.entries()) {
     if (event.type === "roundStarted") {
       liveRound = event.round;
       continue;
@@ -533,10 +542,14 @@ export function appendWalkthrough(
       default:
         break;
     }
+    if (activation && activation.enemyFacedownAs === undefined) {
+      const role = facedownUntilLater(events, at, activation.enemyInstanceId);
+      if (role) activation = { ...activation, enemyFacedownAs: role };
+    }
 
     // Everything else reuses the log's wording, so the walkthrough and the log
     // never describe the same beat two different ways.
-    const described = logLine(event, state, viewer, deps);
+    const described = logLine(event, state, viewer, deps, false, undefined, { events, at });
     if (described) {
       push(beatTextWithStatus(described), null, event);
       startsActivation = false;

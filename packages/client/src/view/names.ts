@@ -21,6 +21,7 @@ import {
   type ViewerContext,
 } from "@mc/engine";
 import { cardDisplayName, heroFaceDisplayName, qualifiedHeroName } from "./hero-names.js";
+import { facedownRoleName } from "./facedown-history.js";
 import { faceVisible } from "./visibility.js";
 
 /**
@@ -35,7 +36,7 @@ export function cardName(state: GameState, id: InstanceId, view?: ViewerContext)
   const instance = getInstance(state, id);
   if (!instance) return "something";
   if (!faceVisible(state, id, view)) {
-    if (instance.facedownAs) return instance.facedownAs.traits.join(" ") || "facedown minion";
+    if (instance.facedownAs) return facedownRoleName(instance.facedownAs);
     return "a facedown card";
   }
   // A flipped card reads as the side now up: the Trance of Greed that was the Hypnotic Gaze (its name is public once it flips).

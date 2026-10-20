@@ -49,7 +49,12 @@ export type CardFace =
    * Resolved without consulting the card, so a hidden card cannot leak its own
    * front through a missing-back fallback.
    */
-  | { readonly kind: "back"; readonly back: CardBack }
+  | {
+      readonly kind: "back";
+      readonly back: CardBack;
+      /** A picture of what the hidden card is treated as, shown instead of the back (`StandIn`). Never the card's face. */
+      readonly standIn?: StandIn;
+    }
   | { readonly kind: "hero" }
   | { readonly kind: "alterEgo" }
   /**
@@ -68,6 +73,17 @@ export type CardFace =
    */
   | { readonly kind: "flipSide" };
 
+/**
+ * What a facedown card is treated as, when there is a picture for it: Ultron's Drone minions (the top card of a
+ * player's deck put into play facedown, `01140` Ultron Drones) show a Drone card with their current ATK, drawn by
+ * Hall of Heroes, rather than a player card back. Read only from what the table may see (the role and the stat), so
+ * it can never say which card is underneath.
+ */
+export type StandIn = { readonly kind: "ultronDrone"; readonly atk: number };
+
+/** The ATKs the Drone pictures print; a Drone's ATK outside them shows the nearest one. */
+export const DRONE_STAND_IN_ATKS = [1, 2, 3, 4] as const;
+
 export interface ArtSource {
   /** Stable Phaser texture key. Derived from the path, so two cards sharing art share a texture. */
   readonly key: string;
@@ -78,7 +94,7 @@ export interface ArtSource {
 export function artFor(card: AnyCard | undefined, face: CardFace): ArtSource | null {
   // Answered before the card is consulted at all: a hidden card must not be
   // able to fall through to its own front.
-  if (face.kind === "back") return CARD_BACKS[face.back];
+  if (face.kind === "back") return face.standIn ? standInArt(face.standIn) : CARD_BACKS[face.back];
   if (!card) return null;
   const local = localRefFor(card, face);
   if (local) return source(`${local as string}.png`);
@@ -191,6 +207,19 @@ export const CARD_BACKS: Readonly<Record<CardBack, ArtSource>> = {
   villain: source("bundles/cards/marvel-villain-back.webp"),
 };
 
+/** The picture for a stand-in, from `assets/card-art/stand-ins/`. */
+export function standInArt(standIn: StandIn): ArtSource {
+  const lo = DRONE_STAND_IN_ATKS[0];
+  const hi = DRONE_STAND_IN_ATKS[DRONE_STAND_IN_ATKS.length - 1]!;
+  const atk = Math.min(hi, Math.max(lo, Math.round(standIn.atk)));
+  return source(`stand-ins/ultron-drone-atk-${atk}.webp`);
+}
+
+/** Every stand-in picture, for the build to carry alongside the card backs. */
+export const STAND_IN_ART: readonly ArtSource[] = DRONE_STAND_IN_ATKS.map((atk) =>
+  standInArt({ kind: "ultronDrone", atk }),
+);
+
 /** The path under `assets/card-art/` (and under `/card-art/` when served) an `ArtSource` names. */
 export function artPathOf(art: ArtSource): string {
   return art.url.slice(CARD_ART_ROUTE.length);
@@ -234,3 +263,8 @@ export function allArtFor(card: AnyCard): readonly ArtSource[] {
   }
   return [...byKey.values()];
 }
+
+/** Whether this picture is a card back or a stand-in: what a hidden card draws, so no fallback may print its name. */
+export const isHiddenArt = (art: ArtSource | null): boolean =>
+  art !== null &&
+  (Object.values(CARD_BACKS).some((back) => back.key === art.key) || STAND_IN_ART.some((s) => s.key === art.key));

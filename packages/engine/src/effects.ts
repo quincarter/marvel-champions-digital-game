@@ -2199,7 +2199,12 @@ function leaveNow(
   // Raccoon (#29A)", p. 61), so it is logged as one.
   const redirect = discarded && to === requested ? discardRedirectArea(ctx.state, ctx.deps, id) : null;
   if (discarded && to === requested)
-    emit(ctx, { type: "cardDiscardedFromPlay", instanceId: id, cardId: shownCardId(ctx.state, id) });
+    emit(ctx, {
+      type: "cardDiscardedFromPlay",
+      instanceId: id,
+      cardId: shownCardId(ctx.state, id),
+      ...(instance.facedownAs ? { facedownAs: instance.facedownAs } : {}),
+    });
   if (redirect !== null) to = { kind: "scenarioArea", name: redirect.area };
   // Its consequential-scoped damage-taken rules still apply to a pending consequential damage (wave 6 §4.1 Q50).
   keepLingeringConsequentialRules(ctx, id);
