@@ -37,6 +37,7 @@ All Private Use Area font glyphs from the original FFG PDFs have been normalized
 | **MC56** | Civil War | Tigra, Hulkling | 2 scenarios | [Civil War](./mc56_civil_war.md) |
 | **MC57** | Synthezoid Smackdown | None (scenario pack: two leaders, no heroes) | 2 scenarios | [Synthezoid Smackdown](./mc57_synthezoid_smackdown.md) |
 | **MC60** | Fear No Evil | Daredevil, Echo | 6 scenarios | [Fear No Evil](./mc60_fear_no_evil.md) |
+| **MC65** | Shadowland | None (scenario pack: three scenarios, no heroes) | 3 scenarios | [Shadowland](./mc65_shadowland.md) |
 
 ## Campaign Details & Mechanics
 
@@ -166,3 +167,13 @@ All Private Use Area font glyphs from the original FFG PDFs have been normalized
   - Scenario: The Getaway
   - Scenario: Stop the Presses!
   - Scenario: Kingpin (Mastermind)
+
+### [Shadowland (MC65)](./mc65_shadowland.md)
+- **Heroes Included:** None (scenario pack: three scenarios, no heroes)
+- **Rulebook File:** `mc65_rulebook-web.pdf` (photographs, no text layer; the markdown is a hand transcription)
+- **Campaign Log File:** `Integrated in rulebook` (p. 20)
+- **Summary:** Three scenarios in the Hand's fortress (standalone or as a three-scenario campaign), the Dark Protege special encounter set (six villains) and the Black Flower, Deadly Contraptions and Ninja Swarm modular sets.
+- **Scenarios:**
+  - Scenario #1: Shadows in the Night
+  - Scenario #2: Shadow Labyrinth
+  - Scenario #3: Heart of Shadow

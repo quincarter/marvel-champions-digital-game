@@ -74,8 +74,10 @@ not released as far as the index shows, and its cycle is unknown. Elektra and Ir
 no day given). Jessica Jones is listed first only because the index is alphabetical; the order between the two hero
 packs is unknown (§10, question 4).
 
-**Out of scope.** Synthezoid Smackdown (December 2025, index line 119; `57xxx`, not in this wave per the user), and
-Shadowland, Elektra Natchios and Iron Fist (above).
+**Out of scope.** Synthezoid Smackdown (December 2025, index line 119; `57xxx`; since moved into this PR as cycle 10,
+see `docs/phase7-synthezoid.md`), and Elektra Natchios and Iron Fist (above). **Shadowland (MC65, released 2026-10-16)
+is now in this wave by the owner's instruction (2026-10-19): see `docs/phase7-shadowland.md`;** the "not released" and
+"cycle unknown" wording above predates the release.
 
 ---
 
@@ -410,8 +412,8 @@ Only the questions the authority order and the sources cannot settle, each with 
    case before implementing either reading.
 4. **Order of Jessica Jones and Luke Cage (both August 2026).** _Default:_ Jessica Jones first, matching the index order.
    This affects only the cycle's listing order.
-5. **Shadowland (October 2026, TBA).** Whether it is cycle 11 or cycle 12. _Default:_ cycle 12, out of this wave, until a
-   release date and product type are confirmed.
+5. **Shadowland (MC65).** Settled in part: released 2026-10-16, a scenario pack, in this wave (owner, 2026-10-19). Its
+   cycle is still open (cycle 11 default); see `docs/phase7-shadowland.md` Q1.
 6. **Metal Bracer or Metal Bracelet (`62010`).** The raw name and the rulings disagree, and no art exists locally for
    `62010`. _Default:_ keep the raw name, note "Metal Bracelet" in a comment on the ruling, and confirm against a physical
    card.

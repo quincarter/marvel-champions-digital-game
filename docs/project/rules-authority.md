@@ -131,6 +131,7 @@ Markdown in [`docs/campaign-modes/markdown/`](../campaign-modes/markdown/index.m
 | Civil War              | [`mc56_civil_war.md`](../campaign-modes/markdown/mc56_civil_war.md)                         |
 | Synthezoid Smackdown   | [`mc57_synthezoid_smackdown.md`](../campaign-modes/markdown/mc57_synthezoid_smackdown.md)   |
 | Fear No Evil           | [`mc60_fear_no_evil.md`](../campaign-modes/markdown/mc60_fear_no_evil.md)                   |
+| Shadowland             | [`mc65_shadowland.md`](../campaign-modes/markdown/mc65_shadowland.md)                       |
 
 _Marvel Champions: The Card Game_, its rules and its card text belong to Fantasy Flight Games and Marvel. Hall of
 Heroes is a fan site; thanks to it for keeping every version and ruling in one place.
