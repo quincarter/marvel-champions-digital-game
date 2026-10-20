@@ -79,6 +79,7 @@ import { HERCULES_CURATION } from "./curation/hercules.ts";
 import { FNE_CURATION } from "./curation/fne.ts";
 import { JJ_CURATION } from "./curation/jj.ts";
 import { LUKE_CAGE_CURATION } from "./curation/luke_cage.ts";
+import { SHADOWLAND_CURATION } from "./curation/shadowland.ts";
 import { GMW_CURATION } from "./curation/gmw.ts";
 import { WONDER_MAN_CURATION } from "./curation/wonder_man.ts";
 import { CW_CURATION } from "./curation/cw.ts";
@@ -147,6 +148,7 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   fne: FNE_CURATION,
   jj: JJ_CURATION,
   luke_cage: LUKE_CAGE_CURATION,
+  shadowland: SHADOWLAND_CURATION,
   gmw: GMW_CURATION,
   wonder_man: WONDER_MAN_CURATION,
   cw: CW_CURATION,

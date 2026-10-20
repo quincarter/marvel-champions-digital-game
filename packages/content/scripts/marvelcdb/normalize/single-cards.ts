@@ -146,7 +146,14 @@ function readFlipSide(
     const back = r.linked_card;
     const pBack = prepare(ctx, back);
     const parsedBack = parse(ctx, pBack);
-    expectNoPlayerData(ctx, pBack, parsedBack);
+    // A double-sided player card's back may restate the front's "Max N per player." (Shadowland's Creeping
+    // Corruption 65072b, an encounter-set upgrade printing it on both faces, insert pp. 9 and 14). `flipSide` carries
+    // no restrictions: the front's are the card's, so that one sentence alone is not a play rule on a "non-player" card.
+    const restatesMaxPerPlayer =
+      PLAYER_TYPES.has(r.type_code) &&
+      parsedBack.maxPerDeckText === undefined &&
+      Object.keys(parsedBack.restrictions).every((k) => k === "maxPerPlayer");
+    if (!restatesMaxPerPlayer) expectNoPlayerData(ctx, pBack, parsedBack);
     // A flipped attachment is already attached, so its back face may restate the host ("Permanent. Attach to
     // Juggernaut.", Juggernaut Exposed `next_evol` 40122b). The front face's `attachesTo` is the only attach rule
     // the card carries; `EncounterCardFlipSide` has none, and a back-face attach sentence is not an error.

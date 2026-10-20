@@ -99,6 +99,7 @@ import { HERCULES_CURATION } from "./marvelcdb/curation/hercules.ts";
 import { FNE_CURATION } from "./marvelcdb/curation/fne.ts";
 import { JJ_CURATION } from "./marvelcdb/curation/jj.ts";
 import { LUKE_CAGE_CURATION } from "./marvelcdb/curation/luke_cage.ts";
+import { SHADOWLAND_CURATION } from "./marvelcdb/curation/shadowland.ts";
 import { bareCuration } from "./marvelcdb/curation/empty.ts";
 import type { PackCuration } from "./marvelcdb/curation/types.ts";
 
@@ -170,6 +171,7 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   fne: FNE_CURATION,
   jj: JJ_CURATION,
   luke_cage: LUKE_CAGE_CURATION,
+  shadowland: SHADOWLAND_CURATION,
 };
 
 interface RawCache {
@@ -218,8 +220,24 @@ async function parseArgs(argv: readonly string[]): Promise<Args> {
   return { packs, offline, dryRun, allowBare };
 }
 
-async function loadRaw(pack: string, offline: boolean): Promise<RawCache> {
+async function loadRaw(pack: string, offline: boolean, scanOnly: boolean): Promise<RawCache> {
   const cachePath = join(PKG_ROOT, "raw", "marvelcdb", `${pack}.json`);
+  // A pack MarvelCDB does not carry at all (Shadowland, docs/phase7-shadowland.md section 0): every record is an
+  // `addedRecord` transcribed from scans, so there is no cache to read or to fetch, and an empty stub would count as a
+  // MarvelCDB pack in the card catalog.
+  if (
+    scanOnly &&
+    !(await access(cachePath).then(
+      () => true,
+      () => false,
+    ))
+  )
+    return {
+      source: `no MarvelCDB pack "${pack}": every record is an addedRecord transcribed from scans (curation/${pack}.ts)`,
+      fetchedAt: "n/a",
+      pack,
+      cards: [],
+    };
   if (offline) return JSON.parse(await readFile(cachePath, "utf8")) as RawCache;
   const source = `https://marvelcdb.com/api/public/cards/${pack}`;
   const res = await fetch(source, { headers: { accept: "application/json" } });
@@ -244,7 +262,9 @@ function modules(n: NormalizedPack, curation: PackCuration, cache: RawCache): Re
   const schema = "../../schema/index.js";
   const header = [
     "GENERATED FILE — do not edit by hand.",
-    `Source: MarvelCDB public API ${cache.source} (fetched ${cache.fetchedAt}; raw cache: packages/content/raw/marvelcdb/${cache.pack}.json).`,
+    curation.scanOnly
+      ? `Source: Hall of Heroes preview scans, hand-transcribed as addedRecords (${cache.source}; export: packages/content/raw/hallofheroes/${cache.pack}.json).`
+      : `Source: MarvelCDB public API ${cache.source} (fetched ${cache.fetchedAt}; raw cache: packages/content/raw/marvelcdb/${cache.pack}.json).`,
     `Hand corrections / curated data: packages/content/scripts/marvelcdb/curation/${curation.packCode}.ts`,
     `Regenerate: pnpm --filter @mc/content ingest -- --pack ${curation.packCode} [--offline]`,
   ];
@@ -353,7 +373,7 @@ async function ingestOne(pack: string, args: Args): Promise<{ ok: boolean; summa
         `or pass --dry-run to survey it, or --allow-bare to emit with a zero-correction placeholder curation`,
     );
   }
-  const cache = await loadRaw(pack, args.offline);
+  const cache = await loadRaw(pack, args.offline, registered?.scanOnly === true);
   const curation = registered ?? bareCuration(pack, cache.cards[0]);
   let normalized: NormalizedPack;
   try {

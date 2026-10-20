@@ -653,6 +653,11 @@ export interface PackCuration {
   /** Prefix for exported constants: "CORE" → CORE_CARDS, CORE_PACK, … */
   readonly exportPrefix: string;
   readonly corrections: readonly Correction[];
+  /**
+   * The pack is not on MarvelCDB at all (Shadowland): there is no raw cache, `addedRecords` is the whole pack, and
+   * ingestion starts from an empty record list instead of reading or fetching `raw/marvelcdb/<pack>.json`.
+   */
+  readonly scanOnly?: true;
   /** Card faces MarvelCDB lacks (see `AddedRecord`). Absent = none. */
   readonly addedRecords?: readonly AddedRecord[];
   /** Wrong MarvelCDB face links (see `LinkOverride`). Absent = none. */
