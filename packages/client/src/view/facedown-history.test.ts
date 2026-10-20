@@ -140,7 +140,8 @@ describe("a Drone that leaves play in the command it attacked in (#291)", () => 
     const walkthrough = appendWalkthrough(emptyWalkthrough(1), events, after, table.owner, POOL_DEPS);
     const activation = walkthrough.steps
       .flatMap((step) => step.beats)
-      .findLast((beat) => beat.activation?.kind === "attack" && beat.activation.resolved)!.activation!;
+      .filter((beat) => beat.activation?.kind === "attack" && beat.activation.resolved)
+      .at(-1)!.activation!;
     expect(artFor(undefined, activationHiddenFace(activation)!)).toEqual(standInArt({ kind: "ultronDrone", atk: 1 }));
   });
 
@@ -149,7 +150,7 @@ describe("a Drone that leaves play in the command it attacked in (#291)", () => 
     expect(face).toMatchObject({ kind: "back", back: "player", standIn: { kind: "ultronDrone" } });
     expect(artFor(cardOf(table.before, table.drone), face)).toEqual(CARD_BACKS.player);
     setShownStandIns(new Set(["ultronDrone"]));
-    expect(artFor(cardOf(table.before, table.drone), face).url).toMatch(/stand-ins\/ultron-drone-atk-\d\.webp$/);
+    expect(artFor(cardOf(table.before, table.drone), face)?.url).toMatch(/stand-ins\/ultron-drone-atk-\d\.webp$/);
     expect(getInstance(table.before, table.drone)?.facedownAs).not.toBeNull();
   });
 });
