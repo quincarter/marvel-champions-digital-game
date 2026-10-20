@@ -13,12 +13,56 @@ import { openApp } from "./wave6-helpers-b.js";
 const SETTINGS = "SettingsOverlay";
 const TOAST = "AchievementToast";
 
+interface Box {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
 interface ToastState {
-  readonly showing: { readonly heading: string; readonly title: string; readonly reward: string } | null;
-  readonly rect: { readonly x: number; readonly y: number; readonly width: number; readonly height: number } | null;
+  readonly showing: {
+    readonly kind: string;
+    readonly heading: string;
+    readonly title: string;
+    readonly reward: string;
+    readonly items: readonly unknown[];
+  } | null;
+  readonly rect: Box | null;
   readonly shown: number;
   readonly place: string;
+  readonly expanded: boolean;
+  readonly collapseRect: Box | null;
+  readonly dismissRect: Box | null;
 }
+
+/** Hands the popup news, as the achievement check and the Extras check do. */
+const announce = (page: Page, ids: readonly string[], extras: readonly { title: string; label: string }[] = []) =>
+  page.evaluate(
+    ([key, ids, extras]) => {
+      const scene = (
+        window as unknown as { __mcGame: { scene: { getScene(k: string): unknown } } }
+      ).__mcGame.scene.getScene(key) as {
+        announce(ids: readonly string[]): void;
+        announceExtras(items: readonly { title: string; label: string }[]): void;
+      };
+      scene.announce(ids);
+      scene.announceExtras(extras);
+    },
+    [TOAST, ids, extras] as const,
+  );
+
+const showingWith = (page: Page, heading: string): Promise<ToastState> =>
+  waitFor(
+    async () => {
+      const s = await toastState(page);
+      return s.showing?.heading === heading ? s : null;
+    },
+    `the popup "${heading}"`,
+    8000,
+  );
+
+const middle = (box: Box): [number, number] => [box.x + box.width / 2, box.y + box.height / 2];
 
 const toastState = (page: Page): Promise<ToastState> =>
   page.evaluate(
@@ -136,5 +180,80 @@ test("a newly earned achievement pops up once, in the middle by default", async 
   // Gone after its 5 s, and not shown again.
   await waitFor(async () => ((await toastState(page)).showing ? null : true), "the popup goes away", 9000);
   expect((await toastState(page)).shown).toBe(1);
+  expect(errors).toEqual([]);
+});
+
+test("several achievements stack into one popup that opens, collapses and dismisses; Extras follow on their own beat", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "desktop", "the phone case is the swipe test below");
+  const errors = trackPageErrors(page);
+  await page.addInitScript(() => localStorage.setItem("mc-achievements-seen", "[]"));
+  await openApp(page, "unlock=all");
+  await waitForScene(page, "Title", 30000);
+  await settle(page);
+  await announce(
+    page,
+    ["wins-1", "beat-rhino", "feat-fast-win"],
+    [
+      { title: "The Rhino Has Fallen", label: "New song earned" },
+      { title: "Rhino's file", label: "New villain file" },
+    ],
+  );
+  const stack = await showingWith(page, "3 achievements unlocked");
+  expect(stack.showing!.items).toHaveLength(3);
+
+  await page.mouse.click(...middle(stack.rect!));
+  const open = await waitFor(
+    async () => ((await toastState(page)).expanded ? toastState(page) : null),
+    "the list",
+    3000,
+  );
+  expect(open.collapseRect).not.toBeNull();
+  await page.mouse.click(...middle(open.collapseRect!));
+  await settle(page, { quietMs: 300, maxMs: 1500 });
+  const collapsed = await toastState(page);
+  expect(collapsed.expanded, "Collapse closes the list").toBe(false);
+  expect(collapsed.showing?.heading, "and the popup stays").toBe("3 achievements unlocked");
+
+  await page.mouse.click(...middle(collapsed.rect!));
+  const again = await waitFor(
+    async () => ((await toastState(page)).expanded ? toastState(page) : null),
+    "the list",
+    3000,
+  );
+  await page.mouse.click(...middle(again.dismissRect!));
+  // Dismiss closes it, and the Extras popup follows on its own.
+  const extras = await showingWith(page, "2 extras in the vault");
+  expect(extras.showing!.kind).toBe("extra");
+  expect(extras.expanded).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test("a swipe that lifts on a stacked popup never opens it; a tap does", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "the touch release is the phone's case");
+  const errors = trackPageErrors(page);
+  await page.addInitScript(() => localStorage.setItem("mc-achievements-seen", "[]"));
+  await openApp(page, "unlock=all");
+  await waitForScene(page, "Title", 30000);
+  await settle(page);
+  await announce(page, ["wins-1", "beat-rhino"]);
+  const stack = await showingWith(page, "2 achievements unlocked");
+  const [x, y] = middle(stack.rect!);
+  await touchSwipe(page, x, Math.min(y + 200, page.viewportSize()!.height - 10), y);
+  await settle(page, { quietMs: 300, maxMs: 1500 });
+  expect((await toastState(page)).expanded, "a swipe's lift leaves it shut").toBe(false);
+
+  await page.touchscreen.tap(x, y);
+  const open = await waitFor(
+    async () => ((await toastState(page)).expanded ? toastState(page) : null),
+    "the list",
+    3000,
+  );
+  await page.touchscreen.tap(...middle(open.dismissRect!));
+  await settle(page, { quietMs: 300, maxMs: 1500 });
+  const after = await toastState(page);
+  expect(after.expanded).toBe(false);
+  expect(after.showing).toBeNull();
   expect(errors).toEqual([]);
 });

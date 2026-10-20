@@ -1,8 +1,9 @@
 import { describe, expect, test } from "vitest";
 import {
-  ACHIEVEMENT_TOAST_BATCH,
   achievementToastRect,
   achievementToastsOf,
+  extrasToastsOf,
+  toastListLayout,
   newAchievementsOf,
   sampleAchievementToast,
   toastFrameAt,
@@ -30,31 +31,76 @@ describe("newAchievementsOf", () => {
 });
 
 describe("achievementToastsOf", () => {
-  test("one popup per achievement, with its points or its joke pack", () => {
+  test("one alone names itself, with its points or its joke pack", () => {
+    expect(achievementToastsOf([{ id: "wins-1", name: "First Blood", points: 10 }])).toEqual([
+      { kind: "achievement", heading: "Achievement unlocked", title: "First Blood", reward: "+10 points", items: [] },
+    ]);
     expect(
       achievementToastsOf([
-        { id: "wins-1", name: "First Blood", points: 10 },
         { id: "lose-10", name: "Glutton for Punishment", points: 0, rewardPackId: "pack-glutton" },
-      ]),
-    ).toEqual([
-      { heading: "Achievement unlocked", title: "First Blood", reward: "+10 points" },
-      { heading: "Achievement unlocked", title: "Glutton for Punishment", reward: "Joke pack" },
+      ])[0]!.reward,
+    ).toBe("Joke pack");
+  });
+
+  test("two or more stack into one popup that lists them all", () => {
+    const toasts = achievementToastsOf([
+      { id: "wins-1", name: "First Blood", points: 25 },
+      { id: "beat-rhino", name: "Down Goes Rhino", points: 25 },
+      { id: "lose-10", name: "Glutton for Punishment", points: 0, rewardPackId: "pack-glutton" },
+    ]);
+    expect(toasts).toHaveLength(1);
+    expect(toasts[0]).toMatchObject({
+      heading: "3 achievements unlocked",
+      title: "Tap to see them all",
+      reward: "+50 points",
+    });
+    expect(toasts[0]!.items).toEqual([
+      { title: "First Blood", detail: "+25 points" },
+      { title: "Down Goes Rhino", detail: "+25 points" },
+      { title: "Glutton for Punishment", detail: "Joke pack" },
     ]);
   });
 
-  test("more than a batch at once is one summary popup", () => {
-    const many = Array.from({ length: ACHIEVEMENT_TOAST_BATCH + 3 }, (_, i) => ({
-      id: `a${i}`,
-      name: `A${i}`,
-      points: 5,
-    }));
-    expect(achievementToastsOf(many)).toEqual([
-      { heading: "7 achievements unlocked", title: "See them in the Trophy Room", reward: "+35 points" },
-    ]);
+  test("none is no popup", () => {
+    expect(achievementToastsOf([])).toEqual([]);
   });
 
   test("the Settings sample names its time", () => {
     expect(sampleAchievementToast(5).reward).toBe("5 s here");
+  });
+});
+
+describe("extrasToastsOf", () => {
+  test("one names itself under its kind; several stack as extras in the vault", () => {
+    expect(extrasToastsOf([{ title: "The Rhino Has Fallen", label: "New song earned" }])).toEqual([
+      { kind: "extra", heading: "New song earned", title: "The Rhino Has Fallen", reward: "", items: [] },
+    ]);
+    const five = Array.from({ length: 5 }, (_, i) => ({ title: `Song ${i}`, label: "New song earned" }));
+    const [stack] = extrasToastsOf(five);
+    expect(stack).toMatchObject({ kind: "extra", heading: "5 extras in the vault", title: "Tap to see them all" });
+    expect(stack!.items).toHaveLength(5);
+  });
+});
+
+describe("toastListLayout", () => {
+  test("lists every line that fits, centered, with Collapse and Dismiss under them", () => {
+    const layout = toastListLayout(5, 1440, 900, false);
+    expect(layout.rows).toHaveLength(5);
+    expect(layout.more).toBe(0);
+    expect(layout.panel.x + layout.panel.width / 2).toBe(720);
+    const lastRow = layout.rows.at(-1)!;
+    expect(layout.collapse.y).toBeGreaterThanOrEqual(lastRow.y + lastRow.height);
+    expect(layout.dismiss.x).toBeGreaterThan(layout.collapse.x);
+    expect(layout.panel.y + layout.panel.height).toBeLessThanOrEqual(900);
+  });
+
+  test("more lines than fit end in a counted last row, and the panel stays on screen", () => {
+    const layout = toastListLayout(60, 390, 844, true);
+    expect(layout.more).toBeGreaterThan(0);
+    expect(layout.rows.length + layout.more).toBe(60);
+    expect(layout.moreRow).not.toBeNull();
+    expect(layout.panel.y).toBeGreaterThanOrEqual(0);
+    expect(layout.panel.y + layout.panel.height).toBeLessThanOrEqual(844);
   });
 });
 

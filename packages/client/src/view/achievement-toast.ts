@@ -4,23 +4,30 @@
  * (`scenes/achievement-toast.ts`) only draws what this returns.
  *
  * The popup is a gold trophy badge that pops in, then a bar that opens out of it with the achievement's name and what
- * it earned, held for the Settings ▸ More ▸ Achievements time and folded away again. More than
- * `ACHIEVEMENT_TOAST_BATCH` at once (a save-data import, a first launch after an update that adds achievements) come as
- * one summary popup rather than a long queue.
+ * it earned, held for the Settings ▸ More ▸ Achievements time and folded away again. Two or more at once stack into one
+ * popup that opens on a tap into a list (`toastListLayout`), with Collapse and Dismiss; what opened in Extras gets the
+ * same popup on its own beat, after the achievements' (the owner, 2026-10-20).
  */
 import type { AchievementPopupPlace } from "../settings.js";
 import type { Rect } from "./layout.js";
 
-/** The most achievements shown one popup each; more than this at once get one summary popup. */
-export const ACHIEVEMENT_TOAST_BATCH = 4;
-
 /** What one popup says. */
 export interface AchievementToast {
+  /** What it announces: the achievement sound or the Extras sting plays with it. */
+  readonly kind: "achievement" | "extra";
   /** The small caps line over the name. */
   readonly heading: string;
   readonly title: string;
-  /** What it earned: "+25 points", "Joke pack", or a summary's total. */
+  /** What it earned: "+25 points", "Joke pack", a stack's total, or nothing (an extra). */
   readonly reward: string;
+  /** A stack's lines, one per item, shown when the popup is tapped open; empty for a single popup. */
+  readonly items: readonly ToastLine[];
+}
+
+/** One line of an opened stack. */
+export interface ToastLine {
+  readonly title: string;
+  readonly detail: string;
 }
 
 /** The part of an achievement the popup reads (`AchievementDef`). */
@@ -29,6 +36,13 @@ export interface AchievementToastSource {
   readonly name: string;
   readonly points: number;
   readonly rewardPackId?: string;
+}
+
+/** The part of a newly opened Extras entry the popup reads (`view/extras-news.ts`). */
+export interface ExtrasToastSource {
+  readonly title: string;
+  /** What kind of thing it is, "New song earned" (`extrasNewsHeadline` of the item alone). */
+  readonly label: string;
 }
 
 /**
@@ -49,24 +63,120 @@ export function newAchievementsOf(
 const rewardOf = (source: AchievementToastSource): string =>
   source.points > 0 ? `+${source.points} points` : source.rewardPackId ? "Joke pack" : "Earned";
 
-/** The popups for a batch of new achievements: one each up to `ACHIEVEMENT_TOAST_BATCH`, otherwise one summary. */
+/** What a stack's bar asks for, the press that opens it. */
+export const STACK_PROMPT = "Tap to see them all";
+
+/**
+ * The popup for a batch of new achievements (the owner, 2026-10-20): one alone names itself; two or more stack into
+ * one popup, counted, that opens on a tap to list them all. Never a run of popups one after another.
+ */
 export function achievementToastsOf(sources: readonly AchievementToastSource[]): readonly AchievementToast[] {
-  if (sources.length <= ACHIEVEMENT_TOAST_BATCH) {
-    return sources.map((source) => ({ heading: "Achievement unlocked", title: source.name, reward: rewardOf(source) }));
+  if (sources.length === 0) return [];
+  if (sources.length === 1) {
+    const only = sources[0]!;
+    return [
+      { kind: "achievement", heading: "Achievement unlocked", title: only.name, reward: rewardOf(only), items: [] },
+    ];
   }
   const points = sources.reduce((sum, source) => sum + source.points, 0);
   return [
     {
+      kind: "achievement",
       heading: `${sources.length} achievements unlocked`,
-      title: "See them in the Trophy Room",
-      reward: points > 0 ? `+${points} points` : "Earned",
+      title: STACK_PROMPT,
+      reward: points > 0 ? `+${points} points` : "",
+      items: sources.map((source) => ({ title: source.name, detail: rewardOf(source) })),
     },
   ];
 }
 
-/** The sample Settings shows when the player picks a time or a position. */
+/**
+ * The popup for what just opened in Extras, the same way: one names itself under its kind ("New song earned"); two or
+ * more stack ("5 extras in the vault"). It follows the achievements' popup, on its own beat.
+ */
+export function extrasToastsOf(sources: readonly ExtrasToastSource[]): readonly AchievementToast[] {
+  if (sources.length === 0) return [];
+  if (sources.length === 1) {
+    const only = sources[0]!;
+    return [{ kind: "extra", heading: only.label, title: only.title, reward: "", items: [] }];
+  }
+  return [
+    {
+      kind: "extra",
+      heading: `${sources.length} extras in the vault`,
+      title: STACK_PROMPT,
+      reward: "",
+      items: sources.map((source) => ({ title: source.title, detail: source.label })),
+    },
+  ];
+}
+
+/** The sample Settings shows when the player picks a time, a position or a size. */
 export function sampleAchievementToast(seconds: number): AchievementToast {
-  return { heading: "Achievement unlocked", title: "Popup preview", reward: `${seconds} s here` };
+  return {
+    kind: "achievement",
+    heading: "Achievement unlocked",
+    title: "Popup preview",
+    reward: `${seconds} s here`,
+    items: [],
+  };
+}
+
+/** An opened stack: a panel in the middle of the screen listing its lines, with Collapse and Dismiss under them. */
+export interface ToastListLayout {
+  readonly panel: Rect;
+  readonly heading: Rect;
+  /** One row per line that fits, top to bottom. */
+  readonly rows: readonly Rect[];
+  /** Lines that didn't fit, counted on a last row ("and 3 more"); 0 when all fit. */
+  readonly more: number;
+  readonly moreRow: Rect | null;
+  readonly collapse: Rect;
+  readonly dismiss: Rect;
+}
+
+const LIST_ROW = 40;
+const LIST_HEADING = 44;
+const LIST_BUTTONS = 64;
+
+/** Where an opened stack of `count` lines draws on a `width` x `height` screen. */
+export function toastListLayout(count: number, width: number, height: number, phone: boolean): ToastListLayout {
+  const margin = phone ? 12 : 24;
+  const panelWidth = Math.min(520, width - 2 * margin);
+  const room = Math.max(LIST_ROW, height - 2 * margin - LIST_HEADING - LIST_BUTTONS - 16);
+  const fit = Math.max(1, Math.floor(room / LIST_ROW));
+  const shown = count <= fit ? count : fit - 1;
+  const more = count - shown;
+  const rowsHeight = (shown + (more > 0 ? 1 : 0)) * LIST_ROW;
+  const panelHeight = LIST_HEADING + rowsHeight + 16 + LIST_BUTTONS;
+  const panel = {
+    x: Math.round((width - panelWidth) / 2),
+    y: Math.round((height - panelHeight) / 2),
+    width: panelWidth,
+    height: panelHeight,
+  };
+  const inner = { x: panel.x + 16, width: panel.width - 32 };
+  const rows = Array.from({ length: shown }, (_, i) => ({
+    x: inner.x,
+    y: panel.y + LIST_HEADING + i * LIST_ROW,
+    width: inner.width,
+    height: LIST_ROW,
+  }));
+  const moreRow =
+    more > 0
+      ? { x: inner.x, y: panel.y + LIST_HEADING + shown * LIST_ROW, width: inner.width, height: LIST_ROW }
+      : null;
+  const buttonY = panel.y + panel.height - LIST_BUTTONS + 10;
+  const buttonWidth = (inner.width - 12) / 2;
+  return {
+    panel,
+    heading: { x: inner.x, y: panel.y + 12, width: inner.width, height: LIST_HEADING - 12 },
+    rows,
+    more,
+    moreRow,
+    collapse: { x: inner.x, y: buttonY, width: buttonWidth, height: 44 },
+    dismiss: { x: inner.x + buttonWidth + 12, y: buttonY, width: buttonWidth, height: 44 },
+  };
 }
 
 /** The popup's height at medium size: slimmer in the title bar, where it has to fit the screens' top strip. */

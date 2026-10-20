@@ -69,7 +69,12 @@ spread so a new player ranks up within the first few sessions.
 Built 2026-10-20 (owner's request): an Xbox-style "Achievement unlocked" popup (`scenes/achievement-toast.ts`, model in
 `view/achievement-toast.ts`). A gold trophy badge with the MC monogram pops in, a bar opens out of it with the name and
 what it earned, holds, and folds away, with `audio/sfx/achievement-unlocked.mp3` (Universfield's "Level Complete").
-It checks once a second against what the last `refreshUnlocks()` read (`earnedAchievementIds()`), remembers what it
+Two or more achievements at once stack into one popup ("5 achievements unlocked", their points summed); a tap (or
+click) opens it into a list of them all, with Collapse (back to the popup, which then holds its full time again) and
+Dismiss; Escape or a tap outside the list collapses it, and every screen under it holds its input while it is open.
+What opens in Extras uses the same popup on its own beat after the achievements' ("New song earned", or "5 extras in
+the vault" stacked), with the Extras sting; it replaced the music button's "New song earned" notice (owner,
+2026-10-20). It checks once a second against what the last `refreshUnlocks()` read (`earnedAchievementIds()`), remembers what it
 announced in `mc-achievements-seen` (`platform/achievements-seen.ts`; a first run records silently), queues several,
 and folds more than four at once into one summary. It takes no input.
 
