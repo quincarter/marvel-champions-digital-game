@@ -1848,8 +1848,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     });
     y += damage.height + 4;
 
-    const hp = option.hpAfter
-      ? this.add.text(textX, y, option.hpAfter, textStyle(typeRole.label, surface.ink.hex, ink.secondary))
+    const hp = option.hpLine
+      ? this.add.text(textX, y, option.hpLine, textStyle(typeRole.label, surface.ink.hex, ink.secondary))
       : null;
     if (hp) y += hp.height + 4;
 

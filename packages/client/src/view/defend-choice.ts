@@ -29,6 +29,7 @@ import {
   type Vars,
 } from "@mc/engine";
 import { defenseLockoutOf } from "./defense-lockout.js";
+import { hpNumber } from "./hp-format.js";
 import { cardName, faceUpName, shortFaceUpName, shortSeatName } from "./names.js";
 import { triggerEventWords } from "./trigger-event-words.js";
 import { decisionLabel } from "./villain-walkthrough.js";
@@ -48,8 +49,11 @@ export interface DefendOptionView {
   readonly defenseReduction: number;
   /** "0 damage" / "3 damage" / "1–5 damage" — a single number exactly when the boost bound is a single number. */
   readonly damageHeadline: string;
-  /** "12 of 16 HP" / "8–12 of 16 HP", or null when the target's HP isn't modeled (shouldn't happen for a character). */
-  readonly hpAfter: string | null;
+  /**
+   * "Now 3 of 4 HP → 0–1 left": the target's health before this attack and what the attack leaves it, on one line
+   * (#298: an ally's damage is not on its card picture), or null when its HP isn't modeled.
+   */
+  readonly hpLine: string | null;
   /** The same range as numbers, `low` to `high` hit points left, for the compact identity panel (TB1's "10 → 8–10"). */
   readonly hpAfterRange: { readonly low: number; readonly high: number } | null;
   /** The lowest damage at which this option's target is defeated ("DEFEATED AT 2+"), or null when no band defeats it. */
@@ -118,8 +122,7 @@ export function damageHeadline(bands: readonly DefendBand[]): string {
     : `${first.damageTaken}–${last.damageTaken} damage`;
 }
 
-/** "8–12 of 16 HP" — pure over the bands and the two numbers the engine's own HP query already reports. */
-/** The range `hpAfterFrom` words, as numbers; null with no bands. */
+/** The hit points `bands` leave a target that has `current` now, `low` to `high`; null with no bands. */
 export function hpRangeFrom(
   current: number,
   bands: readonly DefendBand[],
@@ -130,21 +133,19 @@ export function hpRangeFrom(
   return { low: Math.max(0, current - last.damageTaken), high: Math.max(0, current - first.damageTaken) };
 }
 
-export function hpAfterFrom(current: number, max: number, bands: readonly DefendBand[]): string | null {
-  const first = bands[0];
-  const last = bands[bands.length - 1];
-  if (!first || !last) return null;
-  const worst = Math.max(0, current - last.damageTaken);
-  const best = Math.max(0, current - first.damageTaken);
-  return worst === best ? `${worst} of ${max} HP` : `${worst}–${best} of ${max} HP`;
+/** "Now 3 of 4 HP → 0–1 left" — the target's health now, then the range `hpRangeFrom` leaves it. */
+export function hpLineFrom(current: number, max: number, bands: readonly DefendBand[]): string {
+  const now = `Now ${hpNumber(current)} of ${hpNumber(max)} HP`;
+  const range = hpRangeFrom(current, bands);
+  if (!range) return now;
+  const left = range.low === range.high ? hpNumber(range.low) : `${hpNumber(range.low)}–${hpNumber(range.high)}`;
+  return `${now} → ${left} left`;
 }
 
-/** "8–12 of 16 HP" — the target's current HP, minus the band range, so the player never does the subtraction. */
-function hpAfterLine(state: GameState, preview: DefendOptionPreview, deps: EngineDeps): string | null {
+function hpLineOf(state: GameState, preview: DefendOptionPreview, deps: EngineDeps): string | null {
   const max = maxHitPoints(state, preview.targetInstanceId, deps);
   const current = remainingHitPoints(state, preview.targetInstanceId, deps);
-  if (max === undefined || current === undefined) return null;
-  return hpAfterFrom(current, max, preview.bands);
+  return max === undefined || current === undefined ? null : hpLineFrom(current, max, preview.bands);
 }
 
 function hpAfterRange(
@@ -256,7 +257,7 @@ function optionViewOf(
     baseAtk: preview.baseAtk,
     defenseReduction: preview.defenseReduction,
     damageHeadline: damageHeadline(preview.bands),
-    hpAfter: hpAfterLine(state, preview, deps),
+    hpLine: hpLineOf(state, preview, deps),
     hpAfterRange: hpAfterRange(state, preview, deps),
     defeatAt: bandFactsOf(preview.bands).defeatAt,
     consequences: consequenceLines(state, attackerInstanceId, preview),
