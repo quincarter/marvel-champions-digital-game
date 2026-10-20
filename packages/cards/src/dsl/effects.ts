@@ -1849,6 +1849,8 @@ export const chooseCards = (
     readonly chooser?: PlayerRef;
     readonly distinctNames?: boolean;
     readonly maxTotalPrintedCost?: number;
+    /** Another player's hand cards are offered facedown (`EffectSpec chooseCards.hiddenHands`; owner answer 211). */
+    readonly hiddenHands?: boolean;
   },
 ): EffectSpec => ({
   kind: "chooseCards",
@@ -1861,7 +1863,15 @@ export const chooseCards = (
   ...(opts.maxTotalPrintedCost !== undefined
     ? { maxTotal: { of: "printedCost" as const, atMost: opts.maxTotalPrintedCost } }
     : {}),
+  ...(opts.hiddenHands ? { hiddenHands: true as const } : {}),
 });
+/**
+ * "Discard the [superlative] card in your hand" on an encounter card, among `from` (the tied cards): the first player
+ * picks one (RRG 1.8 "First Player", p. 19), shown facedown when the hand is not theirs (p. 42, "Table Talk"; owner
+ * answer 211, docs/phase7-wave11-scenarios.md §4.1). One tied card is taken with no prompt.
+ */
+export const firstPlayerPicksFromHand = (slot: string, from: CardSelector): EffectSpec =>
+  chooseCards(slot, from, { min: 1, max: 1, chooser: { kind: "firstPlayer" }, hiddenHands: true });
 /** "Any number of …" as a `chooseCards` `max`: no printed choice comes near it. */
 export const ANY_NUMBER = 99;
 export const shuffleDeck = (player: PlayerRef = you): EffectSpec => ({ kind: "shuffleDeck", player });

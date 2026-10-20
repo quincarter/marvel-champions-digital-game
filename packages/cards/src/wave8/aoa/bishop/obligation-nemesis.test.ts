@@ -6,7 +6,9 @@ import {
   type EngineDeps,
   type GameEvent,
   type GameState,
+  facedownOptionId,
   type InstanceId,
+  type PendingChoice,
   type PlayerId,
 } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
@@ -578,6 +580,45 @@ describe("Temporal Trickery (45029)", () => {
     expect(v.events.slice(at).filter((e) => e.type === "cardDiscardedFromHand")).toEqual([]);
     expect(ofType(v.events, "threatPlaced").filter((e) => e.sourceInstanceId === id)).toEqual([]);
     expect(whereIs(v.state, id)).toBe("encounterDiscard");
+  });
+  it("two players, Bishop's hand ties: the first player picks facedown (p. 19, p. 42); its icons count", () => {
+    // Owner answer 211 (docs/phase7-wave11-scenarios.md §4.1): Spider-Man's player is first, Bishop (p2) reveals.
+    const base = alterEgoGame(TWO_BISHOP_SECOND);
+    const staged = handOf(base, P2, padded([ENERGY, STORED, POWER], 6));
+    const id = asideCopies(staged.state, TRICKERY, P2)[0]!;
+    const asks: PendingChoice[] = [];
+    let second: InstanceId | undefined;
+    const v = reveal(staged.state, id, {
+      to: P2,
+      pick: (st) => {
+        const choice = st.pendingChoice!;
+        if (choice.prompt.kind !== "chooseCards" || !choice.prompt.facedown) return firstLegal(st);
+        asks.push(choice);
+        // The card behind the second facedown option: the offered order (a seeded shuffle) kept in the frame.
+        const frame = st.stack.find((f) => "bindings" in f && f.bindings["trickery#offered"]);
+        second = (frame as { bindings: Record<string, readonly InstanceId[]> }).bindings["trickery#offered"]![1];
+        return [facedownOptionId(P2, 2)];
+      },
+    });
+    expect(asks).toHaveLength(1);
+    const [ask] = asks;
+    expect(ask!.playerId).toBe(P1);
+    expect(ask!.authority).toBe("firstPlayerTargets");
+    expect(ask!.options.map((o) => o.optionId)).toEqual([facedownOptionId(P2, 1), facedownOptionId(P2, 2)]);
+    const shown = JSON.stringify(ask!.options);
+    for (const leak of [...staged.ids, ENERGY, STORED, "Energy"]) expect(shown).not.toContain(leak);
+    // The tie is Energy and Stored Energy (2 icons each): the one picked is discarded, the other stays, and its 2
+    // icons go on the scheme.
+    const tied = [staged.ids[0]!, staged.ids[1]!];
+    expect(tied).toContain(second);
+    expect(whereIs(v.state, second!)).toBe("discard:p2");
+    expect(
+      whereIs(
+        v.state,
+        tied.find((t) => t !== second)!,
+      ),
+    ).toBe("hand:p2");
+    expect(placed(v.events, id, MAIN(v.state))).toBe(2);
   });
   it("any card counts by its printed resource icons, an event's too: with only events (1 icon each) one is discarded and 1 threat goes on each scheme", () => {
     const base = alterEgoGame(ONE);

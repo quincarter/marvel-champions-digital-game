@@ -5,11 +5,11 @@ import {
   bindTargets,
   cancelIt,
   cards,
-  chooseCards,
   chosen,
   confuse,
   defineAbilities,
   discard,
+  firstPlayerPicksFromHand,
   forcedInterrupt,
   ifThen,
   moveCards,
@@ -39,9 +39,9 @@ const mordoHas = (type: "physical" | "energy" | "mental") =>
   anyOf(varAtLeast(`mordo.${type}`), varAtLeast("mordo.wild"));
 
 /**
- * "Discard a card from your hand with the highest cost" (Thoughtcasting, both halves): bind every hand card, break
- * ties on printed cost with a `superlative`, let the affected player choose among any tie (their own hand, not a
- * contested pool — unlike a tied villain/scheme, which needs `firstPlayerTargets`), then discard the chosen card.
+ * "Discard a card from your hand with the highest cost" (Thoughtcasting, both halves): bind every hand card, keep the
+ * tied highest with a `superlative`, and the first player picks one (RRG 1.8 "First Player", p. 19), facedown when the
+ * hand is not theirs (p. 42, "Table Talk"; owner answer 211, docs/phase7-wave11-scenarios.md §4.1), then discard it.
  * `<slot>` receives exactly the one discarded card, read by each half's own follow-up effect.
  *
  * **`chooseCards`, not `chooseTarget`.** `chooseTarget`'s `TargetQuery`/`inSlot` narrowing only ever matches
@@ -58,7 +58,7 @@ const mordoHas = (type: "physical" | "energy" | "mental") =>
 const discardHighestCostCard = (slot: string) => [
   selectCards("hand", zone("hand", you)),
   bindTargets("costly", superlativeAmong(chosen("hand"), "highest", printedCostOf(candidateSlot))),
-  chooseCards(slot, cards(chosen("costly")), { min: 1, max: 1, chooser: you }),
+  firstPlayerPicksFromHand(slot, cards(chosen("costly"))),
   moveCards(cards(chosen(slot)), "discard"),
 ];
 

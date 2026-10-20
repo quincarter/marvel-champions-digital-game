@@ -3,13 +3,13 @@ import type { AbilityRegistry, EventPattern } from "@mc/engine";
 import {
   bindTargets,
   cards,
-  chooseCards,
   chosen,
   defineAbilities,
   each,
   engagedPlayerOf,
   exists,
   find,
+  firstPlayerPicksFromHand,
   eventTarget,
   forcedInterrupt,
   forcedResponse,
@@ -77,9 +77,11 @@ const FITZROY_DEFEATS_ALLY: EventPattern = {
  *
  * **Bantam (45028)**: the same choice as a When Revealed.
  *
- * **Temporal Trickery (45029)**: the player discards one card of their choice among those in hand with the most
- * printed resource icons (the hand is bound as a slot, `superlative` keeps every tied card, `chooseCards` picks one),
- * then each scheme in play (main and side) takes 1 threat per printed icon on it. An empty hand does nothing.
+ * **Temporal Trickery (45029)**: the player discards a card in hand with the most printed resource icons (the hand is
+ * bound as a slot, `superlative` keeps every tied card), then each scheme in play (main and side) takes 1 threat per
+ * printed icon on it. An empty hand does nothing. A tie is the first player's to break (RRG 1.8 "First Player", p. 19),
+ * picking among the tied cards facedown when the hand is not theirs (p. 42, "Table Talk"; owner answer 211,
+ * docs/phase7-wave11-scenarios.md §4.1): `firstPlayerPicksFromHand`.
  *
  * **Portal Through Time (45027)**, "Forced Interrupt: When a TEMPORAL card is revealed, it gains surge. (Limit once per
  * phase.)": a forced interrupt of the side scheme in play on the card being revealed, giving that card surge
@@ -111,7 +113,7 @@ export const BISHOP_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilities({
   "45029.when-revealed": whenRevealed(
     selectCards("hand", zone("hand", you)),
     bindTargets("most", superlative("highest", chosen("hand"), totalPrintedResources(chosen("candidate")))),
-    chooseCards("trickery", cards(chosen("most")), { min: 1, max: 1 }),
+    firstPlayerPicksFromHand("trickery", cards(chosen("most"))),
     moveCards(cards(chosen("trickery")), "discard"),
     placeThreat(totalPrintedResources(chosen("trickery")), each(query("scheme"))),
   ),

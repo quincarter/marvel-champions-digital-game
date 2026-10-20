@@ -4,6 +4,7 @@ import { displayNameOf } from "../visibility.js";
 import type { AbilityId } from "@mc/content";
 import { announceDeckTops } from "../deck-top.js";
 import { positionsOf, rearrangeable, rearrangeCards } from "./rearrange.js";
+import { anyFacedown, hiddenHandOptions, offerOrder, offeredSlotOf, pickedInstances } from "./hidden-hand-pick.js";
 import {
   BORROWED_BOOST_ICONS_SLOT,
   type EngineDeps,
@@ -1943,12 +1944,14 @@ function placeTarget(
   };
 }
 
-const cardOptions = (ctx: Ctx, ids: readonly InstanceId[]): readonly ChoiceOption[] =>
-  ids.map((id) => ({
+const cardOption =
+  (ctx: Ctx) =>
+  (id: InstanceId): ChoiceOption => ({
     optionId: id,
     label: displayNameOf(ctx.state, id),
     ref: { kind: "card", instanceId: id } as const,
-  }));
+  });
+const cardOptions = (ctx: Ctx, ids: readonly InstanceId[]): readonly ChoiceOption[] => ids.map(cardOption(ctx));
 
 /**
  * A choice that chooses nothing binds its slot empty and moves on. A required one (`isRequiredChoice`), or a search
@@ -1995,18 +1998,25 @@ function executeChooseCards(
   effect: Extract<EffectSpec, { kind: "chooseCards" }>,
   context: EffectContext,
 ): void {
+  const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
   if (frame.answer !== null) {
-    const chosen = frame.answer.map((id) => asInstanceId(id));
+    // A hidden-hand pick's facedown options map back through the candidates as offered (`hidden-hand-pick.ts`).
+    const offered = effect.hiddenHands ? frame.bindings[offeredSlotOf(effect.slot)] : undefined;
+    const chosen =
+      offered && chooser
+        ? pickedInstances(hiddenHandOptions(ctx.state, chooser, offered, cardOption(ctx)), offered, frame.answer)
+        : frame.answer.map((id) => asInstanceId(id));
+    const bindings: Record<string, readonly InstanceId[]> = { ...frame.bindings };
+    if (effect.hiddenHands) delete bindings[offeredSlotOf(effect.slot)];
     emit(ctx, { type: "targetChosen", slot: effect.slot, instanceIds: chosen });
     setFrame(ctx, {
       ...frame,
       answer: null,
       cursor: frame.cursor + 1,
-      bindings: { ...frame.bindings, [effect.slot]: chosen },
+      bindings: { ...bindings, [effect.slot]: chosen },
     });
     return;
   }
-  const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
   let candidates = selectCards(ctx, effect.from, context);
   if (effect.distinctNames) {
     const seen = new Set<string>();
@@ -2035,11 +2045,27 @@ function executeChooseCards(
     choseNothing(ctx, frame, effect, candidates.length === 0);
     return;
   }
-  // One card found by a search the enemy team must make: nothing to choose, so no prompt (`forcedEnemyTeamSearch`).
-  if (forcedEnemyTeamSearch(effect) && candidates.length === 1) {
+  // One card found by a search the enemy team must make, or one candidate of a hidden-hand pick (owner answer 211):
+  // nothing to choose, so no prompt (`forcedEnemyTeamSearch`).
+  if ((forcedEnemyTeamSearch(effect) || (effect.hiddenHands && effect.min > 0)) && candidates.length === 1) {
     emit(ctx, { type: "targetChosen", slot: effect.slot, instanceIds: candidates });
     setFrame(ctx, { ...frame, cursor: frame.cursor + 1, bindings: { ...frame.bindings, [effect.slot]: candidates } });
     return;
+  }
+  // A hidden-hand pick offers another player's hand cards facedown (RRG 1.8 p. 19 and p. 42; `hidden-hand-pick.ts`).
+  // The facedown cards are offered in a seeded shuffle, not hand order (`offerOrder`).
+  let offered = candidates;
+  if (effect.hiddenHands) {
+    const [order, rng] = offerOrder(ctx.state, chooser, candidates, ctx.state.rng);
+    ctx.state = { ...ctx.state, rng };
+    offered = order;
+  }
+  const options = effect.hiddenHands
+    ? hiddenHandOptions(ctx.state, chooser, offered, cardOption(ctx))
+    : cardOptions(ctx, candidates);
+  const facedown = anyFacedown(options);
+  if (facedown) {
+    setFrame(ctx, { ...frame, bindings: { ...frame.bindings, [offeredSlotOf(effect.slot)]: offered } });
   }
   requestChoice(ctx, {
     playerId: chooser,
@@ -2048,9 +2074,10 @@ function executeChooseCards(
       kind: "chooseCards",
       slot: effect.slot,
       ...(limit ? { maxTotal: { of: limit.of, atMost: limit.atMost, values } } : {}),
+      ...(facedown ? { facedown: true as const } : {}),
     },
     // "Different cards" by name: the offered ids are one per name, so any selection is legal.
-    options: cardOptions(ctx, candidates),
+    options,
     minSelections: Math.min(effect.min, max),
     maxSelections: max,
     frameId: frame.frameId,

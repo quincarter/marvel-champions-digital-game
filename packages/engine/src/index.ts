@@ -91,6 +91,7 @@ export {
   cardTotalOf,
   ENEMY_TEAM_CHOICE_INSTRUCTION,
   ENEMY_TEAM_CHOICE_RULE,
+  facedownOptionId,
   mostCardsUnderTotal,
   PLAY_TO_OWN_AREA,
   playDestinationOfOption,

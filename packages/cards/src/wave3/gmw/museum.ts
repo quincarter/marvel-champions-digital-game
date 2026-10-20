@@ -23,6 +23,7 @@ import {
   exhaustYourHero,
   exists,
   firstPlayer,
+  firstPlayerPicksFromHand,
   forcedInterrupt,
   forEachPlayer,
   hasStatus,
@@ -223,14 +224,16 @@ export const MUSEUM = defineAbilities({
   // View the Cosmos — When Revealed: Choose one: put the highest cost card from your hand faceup into The
   // Collection; or discard the highest cost card from your hand, then place threat on the main scheme equal to
   // its printed cost. `chooseCards`, not `chooseTarget`: a hand card is never "in play" (wave1/drs/nemesis.ts's
-  // own `discardHighestCostCard` docblock, the same trap).
+  // own `discardHighestCostCard` docblock, the same trap). "Choose one" is printed, so the option is the revealer's;
+  // a tie for the highest cost is the first player's to break, facedown when the hand is not theirs (RRG 1.8 p. 19,
+  // p. 42; owner answer 211, docs/phase7-wave11-scenarios.md §4.1).
   "16077.when-revealed": whenRevealed(
     selectCards("hand", zone("hand", you)),
     bindTargets("costly", superlative("highest", chosen("hand"), printedCostOf(chosen("candidate")))),
     chooseOne(
       option(
         "Put the highest cost card from your hand faceup into The Collection",
-        chooseCards("picked", cards(chosen("costly")), { min: 1, max: 1, chooser: you }),
+        firstPlayerPicksFromHand("picked", cards(chosen("costly"))),
         moveCards(cards(chosen("picked")), { scenarioArea: COLLECTION }),
       ),
       option(
@@ -238,7 +241,7 @@ export const MUSEUM = defineAbilities({
         // RRG 1.8 "Choose (Option)" (p. 12) already excludes this option when the hand is empty, so the required
         // `chooseCards` can't leave the frame pre-then-unresolved today; `andThen` is still the faithful reading
         // of the printed "then" (RRG 1.8 "'Then'", p. 44).
-        chooseCards("discarded", cards(chosen("costly")), { min: 1, max: 1, chooser: you }),
+        firstPlayerPicksFromHand("discarded", cards(chosen("costly"))),
         moveCards(cards(chosen("discarded")), "discard"),
         andThen(placeThreat(printedCostOf(chosen("discarded")), theMainScheme)),
       ),

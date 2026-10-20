@@ -1,4 +1,5 @@
-import type { GameState, InstanceId } from "@mc/engine";
+import { cardId } from "@mc/content";
+import type { GameState, InstanceId, PendingChoice } from "@mc/engine";
 import {
   answer,
   firstLegal,
@@ -353,6 +354,68 @@ describe("View the Cosmos (16077)", () => {
     const settled = settle(answered, firstLegal, undefined, WAVE3_DEPS);
     expect(settled.players[0]!.hand.length).toBeLessThan(hand.length);
     expect(inst(settled, settled.mainScheme.instanceId).threat).toBeGreaterThan(threatBefore);
+  });
+
+  it("two players: p2 picks the discard option, then the first player breaks the cost tie facedown", () => {
+    // Owner answer 211 (docs/phase7-wave11-scenarios.md §4.1): "Choose one" is printed, so the option is the
+    // revealer's (RRG 1.8 "Choose", p. 12); the tie is p1's (RRG 1.8 "First Player", p. 19), and p2's hand is not
+    // shown to them (p. 42, "Table Talk").
+    const state = startWave3Game(
+      wave3Scenario("infiltrate-the-museum", {
+        players: [{ starterDeckId: "groot-protection" }, { starterDeckId: "rocket-raccoon-aggression" }],
+        seed: 2026,
+      }),
+    );
+    // The encounter deck (test surgery): two boost cards and p1's card, each Advance (01186), then View the Cosmos.
+    const fourthDealt = (st: GameState): GameState => {
+      const deckId = Object.keys(st.encounterDecks)[0]!;
+      const pile = st.encounterDecks[deckId]!;
+      const [cosmos, a, b, c, ...rest] = pile.deck;
+      const moved = {
+        ...st,
+        encounterDecks: { ...st.encounterDecks, [deckId]: { ...pile, deck: [a!, b!, c!, cosmos!, ...rest] } },
+      };
+      return [a!, b!, c!].reduce<GameState>((acc, id) => patchInstance(acc, id, { cardId: cardId("01186") }), moved);
+    };
+    // p2's hand relabeled (test surgery): two copies of the costliest card of their deck, the rest a cheaper one.
+    const costOf = (id: InstanceId): number => {
+      const card = state.cardPool[state.instances[id]!.cardId as string] as { cost?: unknown };
+      return typeof card.cost === "number" ? card.cost : -1;
+    };
+    const p2 = playerOf(state, P2);
+    const pool = [...p2.deck, ...p2.hand].sort((a, b) => costOf(b) - costOf(a));
+    const high = state.instances[pool[0]!]!.cardId;
+    const low = state.instances[pool.find((id) => costOf(id) >= 0 && costOf(id) < costOf(pool[0]!))!]!.cardId;
+    const hand = p2.hand;
+    const staged = hand.reduce<GameState>(
+      (st, id, n) => patchInstance(st, id, { cardId: n < 2 ? high : low }),
+      fourthDealt(stackEncounterDeck(state, "16077")),
+    );
+    const asks: PendingChoice[] = [];
+    let picked: InstanceId | undefined;
+    const pick = (st: GameState) => {
+      const choice = st.pendingChoice!;
+      if (choice.prompt.kind === "chooseOption" && choice.playerId === P2) return ["1"];
+      if (choice.prompt.kind !== "chooseCards" || !choice.prompt.facedown) return firstLegal(st);
+      asks.push(choice);
+      const frame = st.stack.find((f) => "bindings" in f && f.bindings["discarded#offered"]);
+      picked = (frame as { bindings: Record<string, readonly InstanceId[]> }).bindings["discarded#offered"]![1];
+      return [choice.options[1]!.optionId];
+    };
+    const threatBefore = inst(staged, staged.mainScheme.instanceId).threat;
+    let s = settle(runWave3(staged, { type: "endTurn", playerId: P1 }), pick, undefined, WAVE3_DEPS);
+    s = settle(runWave3(s, { type: "endTurn", playerId: P2 }), pick, undefined, WAVE3_DEPS);
+    expect(asks).toHaveLength(1);
+    expect(asks[0]!.playerId).toBe(P1);
+    expect(asks[0]!.authority).toBe("firstPlayerTargets");
+    expect(asks[0]!.options.map((o) => o.ref)).toEqual([
+      { kind: "facedownCard", ownerId: P2 },
+      { kind: "facedownCard", ownerId: P2 },
+    ]);
+    expect([hand[0], hand[1]]).toContain(picked);
+    expect(playerOf(s, P2).discard).toContain(picked);
+    expect(playerOf(s, P2).hand).toContain([hand[0], hand[1]].find((id) => id !== picked));
+    expect(inst(s, s.mainScheme.instanceId).threat).toBeGreaterThanOrEqual(threatBefore + costOf(pool[0]!));
   });
 
   it("its two data-artifact refs resolve, and carry no behavior of their own (16077.view-the-cosmos-constant, 16077.view-the-cosmos-constant-2)", () => {

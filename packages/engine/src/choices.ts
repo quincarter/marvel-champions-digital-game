@@ -106,6 +106,11 @@ export type ChoicePrompt =
         readonly atMost: number;
         readonly values: Readonly<Record<string, number>>;
       };
+      /**
+       * Some options are cards in another player's hand, offered facedown (`EffectSpec chooseCards.hiddenHands`; RRG
+       * 1.8 p. 19 and p. 42): their `ref` is `facedownCard` and their option id and label say only whose hand.
+       */
+      readonly facedown?: true;
     }
   /**
    * `EffectSpec lookAt`: the options are cards the player is looking at (RRG 1.8 "Look, Looked-At", p. 27), offered
@@ -426,6 +431,12 @@ export type ChoiceRef =
   | { readonly kind: "cardDefinition"; readonly cardId: CardId }
   | { readonly kind: "player"; readonly playerId: PlayerId }
   | { readonly kind: "ability"; readonly instanceId: InstanceId; readonly abilityId: AbilityId }
+  /**
+   * A card in `ownerId`'s hand offered facedown to a chooser who may not look at it (`EffectSpec
+   * chooseCards.hiddenHands`; RRG 1.8 "Table Talk", p. 42): a client draws a card back. Neither the card nor its
+   * instance is named; the engine maps the option back to the card when the choice is answered.
+   */
+  | { readonly kind: "facedownCard"; readonly ownerId: PlayerId }
   | { readonly kind: "none" };
 
 type CardTotal = NonNullable<Extract<ChoicePrompt, { kind: "chooseCards" }>["maxTotal"]>;
@@ -453,6 +464,12 @@ export function mostCardsUnderTotal(values: readonly number[], atMost: number): 
   }
   return count;
 }
+
+/**
+ * The option id of the `n`th (from 1, in hand order) facedown card offered out of `ownerId`'s hand
+ * (`ChoiceRef facedownCard`). It names whose hand and a position, never the card.
+ */
+export const facedownOptionId = (ownerId: PlayerId, n: number): string => `facedown:${ownerId}:${n}`;
 
 /** The option of an effect play's destination choice that plays the card to its player's own play area. */
 export const PLAY_TO_OWN_AREA = "playTo:ownArea";

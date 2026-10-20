@@ -2975,6 +2975,16 @@ export type EffectSpec =
        * "Non-Numerical Variable", p. 30: an undefined variable is "equal to 0").
        */
       readonly maxTotal?: { readonly of: "printedCost"; readonly atMost: number };
+      /**
+       * A pick among cards in hands that the chooser may not look at (owner answer 211, docs/phase7-wave11-scenarios.md
+       * §4.1): an encounter card makes a player discard "the [superlative] card in your hand", several tie, and the
+       * first player selects among them (RRG 1.8 "First Player", p. 19) without the hand being revealed (p. 42, "Table
+       * Talk": players need not disclose their hands). A candidate in a hand that is not the chooser's is offered
+       * facedown (`ChoiceRef facedownCard`, option id `facedownOptionId`), naming neither its card nor its instance; a
+       * candidate in the chooser's own hand, or anywhere else, is offered as usual. One candidate is taken with no
+       * prompt. The slot binds the instances picked, as any `chooseCards` does.
+       */
+      readonly hiddenHands?: true;
     }
   /**
    * Shuffle a player's deck (RRG "Search": searching any part of a deck shuffles it afterwards). `separateDeck`: that

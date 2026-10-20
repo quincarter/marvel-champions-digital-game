@@ -8,6 +8,7 @@ import {
   type GameEvent,
   type GameState,
   type InstanceId,
+  type PendingChoice,
 } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
@@ -24,8 +25,9 @@ import {
   toHero,
   use,
   P1,
+  P2,
 } from "../../../testing/harness.js";
-import { driveEvents, encounterCardInVillainArea } from "../../../testing/staging.js";
+import { driveEvents, encounterCardInVillainArea, withForm } from "../../../testing/staging.js";
 import { playFromHand, runWave5, startWave5Game, WAVE5_DEPS } from "../../testing.js";
 import { wave5Scenario } from "../../setup.js";
 
@@ -285,6 +287,53 @@ describe("Smoke Bombs (27139)", () => {
         e.type === "abilityResolved" && e.abilityId === "27139.smoke-bombs-forced-response",
     );
     expect(resolved).toHaveLength(1);
+  });
+
+  it("two players, p2's hand ties for the lowest cost: the first player picks facedown (owner answer 211)", () => {
+    // RRG 1.8 "First Player" (p. 19) gives the tie to p1; p. 42 ("Table Talk") keeps p2's hand hidden from them.
+    const state = startWave5Game(
+      wave5Scenario("venom-goblin", {
+        seed: 1,
+        players: [{ starterDeckId: "spider-man-morales" }, { starterDeckId: "ghost-spider" }],
+        modularSetIds: [encounterSetId("goblin_gear")],
+      }),
+    );
+    const attached = attachToHost(state, "27139", activeVillain(state).instanceId);
+    const seeded = patchInstance(attached.state, attached.id, { counters: { bomb: 2 } });
+    const cleared: GameState = {
+      ...seeded,
+      players: seeded.players.map((p) =>
+        p.playerId === P2 ? { ...p, discard: [...p.discard, ...p.hand], hand: [] } : p,
+      ),
+    };
+    // Two cost-0 events in p2's hand (Parental Guidance 27003, and Ghost Kick 27002 relabeled as one).
+    const given = moveToHand(cleared, P2, "27003", "27002");
+    const tied = given.ids as readonly InstanceId[];
+    const staged = patchInstance(given.state, tied[1]!, { cardId: cardId("27003") });
+    // Both seats in hero form (test surgery: a form change is only legal on its own player's turn).
+    const heroes = [P1, P2].reduce<GameState>((st, p) => withForm(st, { heroForm: 0 }, p), staged);
+    const asks: PendingChoice[] = [];
+    let picked: InstanceId | undefined;
+    const pick = (s: GameState) => {
+      const choice = s.pendingChoice!;
+      if (choice.prompt.kind !== "chooseCards" || !choice.prompt.facedown) return firstLegal(s);
+      asks.push(choice);
+      const frame = s.stack.find((f) => "bindings" in f && f.bindings["discarded#offered"]);
+      picked = (frame as { bindings: Record<string, readonly InstanceId[]> }).bindings["discarded#offered"]![0];
+      return [choice.options[0]!.optionId];
+    };
+    let s = settle(runWave5(heroes, endTurn(P1)), pick, undefined, WAVE5_DEPS);
+    s = settle(runWave5(s, endTurn(P2)), pick, undefined, WAVE5_DEPS);
+    expect(asks).toHaveLength(1);
+    const [ask] = asks;
+    expect(ask!.playerId).toBe(P1);
+    expect(ask!.authority).toBe("firstPlayerTargets");
+    expect(ask!.options.length).toBeGreaterThanOrEqual(2);
+    expect(ask!.options.every((o) => o.ref.kind === "facedownCard" && o.ref.ownerId === P2)).toBe(true);
+    for (const id of tied) expect(JSON.stringify(ask!.options)).not.toContain(id);
+    // The card behind the option picked is the one discarded (a cost-0 event: the lowest).
+    expect(inst(s, picked!).cardId).toBe(cardId("27003"));
+    expect(playerOf(s, P2).discard).toContain(picked);
   });
 });
 
