@@ -550,6 +550,13 @@ function pickedFromDeck(state: GameState, choice: PendingChoice): string | null 
   if (choice.prompt.kind !== "chooseCards" || choice.options.length === 0) return null;
   let found: string | null = null;
   for (const option of choice.options) {
+    // A hidden-hand pick (`facedown: true`): the options name an owner, never a card.
+    if (option.ref.kind === "facedownCard") {
+      const here = `${seatFormName(state, option.ref.ownerId)}'s hand`;
+      if (found !== null && found !== here) return null;
+      found = here;
+      continue;
+    }
     if (option.ref.kind !== "card") return null;
     const zone = locateCard(state, option.ref.instanceId);
     let here: string | null = null;

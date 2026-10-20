@@ -536,7 +536,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     // `ref.kind` was "ability", not "card": the option named a card just as
     // concretely, the check just didn't recognize it. See `refInstanceId`.
     const asCards =
-      (choice.options.length > 0 && choice.options.every((option) => refInstanceId(option.ref) !== null)) ||
+      (choice.options.length > 0 &&
+        choice.options.every((option) => refInstanceId(option.ref) !== null || isFacedownRef(option.ref))) ||
       collectionRows(choice, (cardId) => CARDS_BY_ID.get(cardId)) !== null;
 
     // The card (and, where it can be pinned down, the ability and cost) this choice is actually about, ready to
@@ -2463,8 +2464,11 @@ export class ChoiceOverlay extends Phaser.Scene {
     const keywordTile = state?.pendingChoice
       ? keywordOrderTilesOf(state.pendingChoice, state)?.get(option.optionId)
       : undefined;
-    const source =
-      state && instanceId && !keywordTile
+    // A card in another player's hand (`chooseCards` with `facedown: true`): the player card back, whatever it is.
+    const facedown = isFacedownRef(option.ref);
+    const source = facedown
+      ? CARD_BACKS.player
+      : state && instanceId && !keywordTile
         ? artFor(
             state.cardPool[state.instances[instanceId]?.cardId ?? ""],
             abilityFaceOf(state, instanceId, option.ref.kind === "ability" ? option.ref.abilityId : null),
@@ -2939,6 +2943,11 @@ const PAIR_CHARACTER = "pair-character:";
  */
 function refInstanceId(ref: ChoiceRef): InstanceId | null {
   return ref.kind === "card" || ref.kind === "ability" ? ref.instanceId : null;
+}
+
+/** A card in another player's hand, offered without its identity: drawn as a card back, never hovered or inspected. */
+function isFacedownRef(ref: ChoiceRef): boolean {
+  return ref.kind === "facedownCard";
 }
 
 /**
