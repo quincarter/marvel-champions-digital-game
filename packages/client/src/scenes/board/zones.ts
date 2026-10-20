@@ -1465,8 +1465,9 @@ function drawPlayAreaScrollHint(ctx: BoardDrawContext, area: Rect, scrollX: numb
 }
 
 /**
- * A set of form cards side by side under its heading (Spectrum's energy forms, issue #308): every face shown, since their
- * owner knows them, the active one ringed and marked ACTIVE, the waiting ones dimmed. Each card is its own tap target
+ * A hero's form cards under their heading (issue #308): Spectrum's set of energy forms, every face shown since their
+ * owner knows them, the active one ringed and marked ACTIVE and the waiting ones dimmed; or one double-sided form card
+ * (Vision, Shadowcat, Nick Fury) marked with the form a flip changes to. Each card is its own tap target
  * (Inspect, or a pick while a target prompt names it) and opens the desktop hover popover through its hit rect.
  */
 function drawFormCards(ctx: BoardDrawContext, row: Rect, group: FormCardGroup): void {
@@ -1475,9 +1476,11 @@ function drawFormCards(ctx: BoardDrawContext, row: Rect, group: FormCardGroup): 
   if (slots.length === 0 || slots[0]!.height < 24) return;
   const heading = label(scene, row.x, row.y, group.title, typeRole.label, surface.ink.hex, ink.label);
   fitText(heading, row.width, typeRole.label.size);
+  // A set marks which form is up; a lone double-sided card is always up, so it names the form a flip changes to instead.
+  const isSet = group.cards.length > 1;
   group.cards.forEach((card, index) => {
     const rect = slots[index]!;
-    const dim = card.active ? 1 : ink.meta;
+    const dim = card.active || !isSet ? 1 : ink.meta;
     const frame = scene.add.graphics();
     frame.fillStyle(surface.ink.hex, dim).fillRect(rect.x - 1, rect.y - 1, rect.width + 2, rect.height + 2);
     frame.fillStyle(surface.paper.hex, dim).fillRect(rect.x, rect.y, rect.width, rect.height);
@@ -1493,18 +1496,17 @@ function drawFormCards(ctx: BoardDrawContext, row: Rect, group: FormCardGroup): 
         .setOrigin(0.5);
       fitText(name, rect.width - 4, typeRole.label.size);
     }
-    if (card.active) {
+    const foot = { x: rect.x, y: rect.y + rect.height - 16, width: rect.width, height: 16 };
+    if (isSet && card.active) {
       const ring = scene.add.graphics();
       ring.lineStyle(3, signal.heal.hex, 1).strokeRect(rect.x - 2, rect.y - 2, rect.width + 4, rect.height + 4);
-      if (rect.height >= 60) {
-        drawFootStrip(
-          scene,
-          { x: rect.x, y: rect.y + rect.height - 16, width: rect.width, height: 16 },
-          "ACTIVE",
-          "ability",
-          1,
-        );
-      }
+      if (rect.height >= 60) drawFootStrip(scene, foot, "ACTIVE", "ability", 1);
+    } else if (!isSet && card.otherFace && rect.height >= 60) {
+      drawFootStrip(scene, foot, `FLIPS TO ${card.otherFace.toUpperCase()}`, "ability", 1);
+    }
+    // Threat and counters the card holds (Nick Fury's suit form), over the top of the card.
+    if (card.tokens && rect.height >= 60) {
+      drawFootStrip(scene, { x: rect.x, y: rect.y, width: rect.width, height: 16 }, card.tokens, "threat", 1);
     }
     ctx.frame.hitRects.set(card.instanceId, rect);
     ctx.makeTapTarget(rect, card.instanceId, () => ctx.controller.onCharacterTap(card.instanceId));

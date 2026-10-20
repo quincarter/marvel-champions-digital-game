@@ -113,3 +113,26 @@ describe("Vision's own mass form upgrade", () => {
     expect(massForm?.name).toBe("Intangible");
   });
 });
+
+describe("every hero's double-sided form card sits in the form column too (#308)", () => {
+  const cases = [
+    { deck: "vision-protection", title: "Mass form", name: "Intangible", other: "Dense" },
+    { deck: "shadowcat-aggression", title: "Mass form", name: "Solid", other: "Phased" },
+    { deck: "nick-fury-justice", title: "Suit form", name: "Assault", other: "Stealth" },
+  ];
+  for (const { deck, title, name, other } of cases) {
+    test(`${deck}: ${name}, flipping to ${other}, beside the play area and out of the play row`, async () => {
+      const store = await afterSetup({
+        scenarioId: "rhino",
+        difficulty: "standard",
+        players: [{ starterDeckId: deck }],
+        seed: 5,
+      });
+      const model = boardModel(store.state.game!, store.state.perspectiveId!, POOL_DEPS);
+      expect(model.formCards.map((group) => group.title)).toEqual([title]);
+      const [card] = model.formCards[0]!.cards;
+      expect(card).toMatchObject({ name, otherFace: other, active: true });
+      expect(model.myPlayArea.some((panel) => panel.instanceId === card!.instanceId)).toBe(false);
+    });
+  }
+});

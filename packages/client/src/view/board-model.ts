@@ -83,7 +83,7 @@ import type { StatusName } from "./log-lines.js";
 import { heroFaceDisplayName, qualifiedHeroName } from "./hero-names.js";
 import { faceUpName, playerName } from "./names.js";
 import { aspectName } from "./aspect-stamp.js";
-import { formCardGroupIds } from "./form-cards.js";
+import { formCardGroupIds, formCardTokens, otherFormFaceName } from "./form-cards.js";
 
 /** One of the 2px inner stat boxes in the design's entity card. */
 export interface StatTile {
@@ -856,6 +856,10 @@ export interface FormCardView {
   readonly art: ArtSource | null;
   /** Faceup: the form the player is in now. */
   readonly active: boolean;
+  /** "Dense": the face of a double-sided form card that is not showing, the form a flip changes to. Null for a single-faced card. */
+  readonly otherFace: string | null;
+  /** "3 threat · 2 all-purpose" on the card (Nick Fury's suit form gathers threat), or null. */
+  readonly tokens: string | null;
 }
 
 function formCardGroups(state: GameState, me: PlayerState): readonly FormCardGroup[] {
@@ -864,9 +868,11 @@ function formCardGroups(state: GameState, me: PlayerState): readonly FormCardGro
     title: group.title,
     cards: group.ids.map((id) => ({
       instanceId: id,
-      name: cardOf(state, id)?.name ?? "Form",
+      name: faceUpName(state, id),
       art: artFor(cardOf(state, id), faceOf(state, id)),
       active: getInstance(state, id)?.faceup === true,
+      otherFace: otherFormFaceName(state, id),
+      tokens: formCardTokens(state, id),
     })),
   }));
 }
@@ -1160,7 +1166,7 @@ export function boardModel(
     // from there; what the encounter deck hangs on you stays on the identity.
     myPlayArea: [
       ...(getInstance(state, me.identity.instanceId)?.attachments ?? []).filter(
-        (id) => cardOf(state, id)?.type === "upgrade" && !me.playArea.includes(id),
+        (id) => cardOf(state, id)?.type === "upgrade" && !me.playArea.includes(id) && !inFormColumn.has(id),
       ),
       ...me.playArea.filter((id) => {
         // An engaged minion lives in `playArea` too (engine/src/query.ts `minionsEngagedWith`), but it belongs to
