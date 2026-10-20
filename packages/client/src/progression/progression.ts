@@ -12,7 +12,13 @@
  */
 import { setShownStandIns } from "../art/art-source.js";
 import { appSession, campaignService } from "../session.js";
-import { NO_HISTORY, isAchievementEarned, type AchievementHistory } from "./achievements.js";
+import {
+  NO_HISTORY,
+  achievementPointsOf,
+  isAchievementEarned,
+  lifetimePointsOf,
+  type AchievementHistory,
+} from "./achievements.js";
 import { earnedItemIdsOf, shownStandInsOf, type EarnedItemId } from "./earned-items.js";
 import { Extras, NO_EXTRAS_PROGRESS, extrasProgressOf, type ExtrasProgress } from "./extras.js";
 import {
@@ -48,8 +54,9 @@ function writePrefs(prefs: UnlockPrefs): void {
 const devUnlockAll = typeof location !== "undefined" && devUnlockAllFrom(location.search);
 
 let progress: UnlockProgress = NO_PROGRESS;
-/** The rows achievements read, kept from the last refresh. */
 let history: AchievementHistory = NO_HISTORY;
+let achievementPoints = 0;
+let lifetimePoints = 0;
 let prefs: UnlockPrefs | null = null;
 let current: Unlocks | null = null;
 let extrasProgress: ExtrasProgress = NO_EXTRAS_PROGRESS;
@@ -57,8 +64,18 @@ let currentExtras: Extras | null = null;
 
 export function unlocks(): Unlocks {
   prefs ??= readPrefs();
-  current ??= new Unlocks({ progress, prefs, devUnlockAll });
+  current ??= new Unlocks({ progress, prefs, devUnlockAll, achievementPoints });
   return current;
+}
+
+/** The save history the Trophy Room reads achievements from (`achievements.ts`), as of the last refresh. */
+export function achievementHistory(): AchievementHistory {
+  return history;
+}
+
+/** Lifetime champion points as of the last refresh: what rank reads, never lowered by spending. */
+export function lifetimeChampionPoints(): number {
+  return lifetimePoints;
 }
 
 /** What the Extras screen may show (`extras.ts`), from the same reads; everything is open while `unlocks()` says so. */
@@ -78,18 +95,21 @@ export async function refreshUnlocks(): Promise<boolean> {
       .storage.list()
       .catch(() => []),
   ]);
-  history = { saves, campaigns };
   const nextExtras = extrasProgressOf(saves, campaigns);
   if (JSON.stringify(nextExtras) !== JSON.stringify(extrasProgress)) {
     extrasProgress = nextExtras;
     currentExtras = null;
   }
+  history = { saves, campaigns };
+  lifetimePoints = lifetimePointsOf(history);
   const next = progressOf(saves, campaigns);
-  if (sameProgress(next, progress)) {
+  const nextAchievementPoints = achievementPointsOf(history);
+  if (sameProgress(next, progress) && nextAchievementPoints === achievementPoints) {
     applyEarnedItems();
     return false;
   }
   progress = next;
+  achievementPoints = nextAchievementPoints;
   current = null;
   currentExtras = null;
   applyEarnedItems();

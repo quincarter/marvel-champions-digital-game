@@ -38,6 +38,7 @@ export const SCENE_LOADERS: Readonly<Record<string, () => Promise<SceneClass>>> 
   [SCENES.campaignDeckEdit]: () => import("./campaign/deck-edit.js").then((m) => m.CampaignDeckEditScene),
   [SCENES.campaignFrozenDeck]: () => import("./campaign/frozen-deck.js").then((m) => m.CampaignFrozenDeckScene),
   [SCENES.extras]: () => import("./extras.js").then((m) => m.ExtrasScene),
+  [SCENES.trophyRoom]: () => import("./trophy-room.js").then((m) => m.TrophyRoomScene),
   [SCENES.extrasReader]: () => import("./extras-reader.js").then((m) => m.ExtrasReaderScene),
   [SCENES.guideChooser]: () => import("./guide-chooser.js").then((m) => m.GuideChooserScene),
   [SCENES.howToWin]: () => import("./how-to-win.js").then((m) => m.HowToWinScene),
