@@ -42,6 +42,7 @@
 import type { AnyCard, KeywordInstance, KeywordName } from "@mc/content";
 import { GLOSSARY_ENTRIES, glossaryEntry, type GlossaryEntry, type GlossarySource } from "@mc/content";
 import { originNoteOf } from "./new-in-box-model.js";
+import { ASPECT_CARD_DEFINITION } from "./resource-limit.js";
 import {
   getInstance,
   keywordsOf,
@@ -229,6 +230,35 @@ function tableInstanceIds(state: GameState): readonly InstanceId[] {
   return [...withHosted];
 }
 
+/**
+ * "Aspect card" (RRG 1.8 "Aspect Card", p. 8): not a keyword, so the glossary has no entry for it, but resources such as
+ * Finesse's pay only for one, and a hero's own card that shows no aspect is not one (issue #292). Listed for the table
+ * when a card there says "aspect card" in its text, with those cards.
+ */
+function aspectCardEntry(cardRefs: readonly RulesCardRef[]): RulesEntry {
+  return {
+    id: "aspectCard",
+    displayName: "Aspect card",
+    definition: ASPECT_CARD_DEFINITION,
+    citeLabel: "RRG 1.8 p. 8",
+    playerCiteLabel: "RRG 1.8 p. 8",
+    unverified: false,
+    cardRefs,
+  };
+}
+
+/** Whether any of the card's printed text, on any face, says "aspect card". */
+function mentionsAspectCard(card: AnyCard | undefined): boolean {
+  if (!card) return false;
+  const texts =
+    card.type === "hero_identity"
+      ? [card.hero.text.current, card.alterEgo.text.current]
+      : "text" in card
+        ? [(card as { readonly text: { readonly current: string } }).text.current]
+        : [];
+  return texts.some((text) => /\baspect cards?\b/i.test(text));
+}
+
 /** Dedupes `refs` by `cardId` (first one seen wins its `instanceId`) and sorts alphabetically by name. */
 function dedupeCardRefs(refs: readonly RulesCardRef[]): readonly RulesCardRef[] {
   const byCardId = new Map<string, RulesCardRef>();
@@ -246,9 +276,11 @@ function tableAssociationsOf(
 ): {
   readonly keywords: ReadonlyMap<KeywordName, readonly RulesCardRef[]>;
   readonly statuses: ReadonlyMap<keyof StatusCounts, readonly RulesCardRef[]>;
+  readonly aspectCard: readonly RulesCardRef[];
 } {
   const keywordRefs = new Map<KeywordName, RulesCardRef[]>();
   const statusRefs = new Map<keyof StatusCounts, RulesCardRef[]>();
+  const aspectCardRefs: RulesCardRef[] = [];
   for (const id of tableInstanceIds(state)) {
     const instance = getInstance(state, id);
     if (!instance) continue;
@@ -263,6 +295,7 @@ function tableAssociationsOf(
       list.push(ref);
       keywordRefs.set(keyword.name, list);
     }
+    if (mentionsAspectCard(card)) aspectCardRefs.push(ref);
     for (const status of ["stunned", "confused", "tough"] as const) {
       if (instance.statuses[status] <= 0) continue;
       const list = statusRefs.get(status) ?? [];
@@ -273,6 +306,7 @@ function tableAssociationsOf(
   return {
     keywords: new Map([...keywordRefs.entries()].map(([name, refs]) => [name, dedupeCardRefs(refs)])),
     statuses: new Map([...statusRefs.entries()].map(([name, refs]) => [name, dedupeCardRefs(refs)])),
+    aspectCard: dedupeCardRefs(aspectCardRefs),
   };
 }
 
@@ -365,6 +399,7 @@ export function rulesGlossaryOf(
     const entry = glossaryEntry(status);
     if (entry) entries.push(toRulesEntry(entry, refs));
   }
+  if (assoc.aspectCard.length > 0) entries.push(aspectCardEntry(assoc.aspectCard));
   entries.push(...TABLE_STATE_ENTRIES);
   if (options?.includeConcepts) entries.push(...CONCEPT_ENTRIES);
   entries.sort((a, b) => a.displayName.localeCompare(b.displayName));
@@ -391,6 +426,13 @@ export function rulesGlossaryPoolOf(pool: readonly AnyCard[], query = ""): reado
   const entries: RulesEntry[] = GLOSSARY_ENTRIES.map((entry) =>
     toRulesEntry(entry, dedupeCardRefs(byKeyword.get(entry.id as KeywordName) ?? [])),
   );
+  entries.push(
+    aspectCardEntry(
+      dedupeCardRefs(
+        pool.filter((card) => mentionsAspectCard(card)).map((card) => ({ cardId: card.id as string, name: card.name })),
+      ),
+    ),
+  );
   entries.push(...TABLE_STATE_ENTRIES);
   entries.sort((a, b) => a.displayName.localeCompare(b.displayName));
   return filterByQuery(entries, query);
@@ -398,8 +440,8 @@ export function rulesGlossaryPoolOf(pool: readonly AnyCard[], query = ""): reado
 
 /** Every glossary entry `@mc/content` and this module know about, with no card associations — kept for the existing "does the flagged conflict survive" test; a screen wanting cards too should use `rulesGlossaryPoolOf`. */
 export function everyGlossaryEntry(): readonly RulesEntry[] {
-  return [...GLOSSARY_ENTRIES.map((entry) => toRulesEntry(entry)), ...TABLE_STATE_ENTRIES].sort((a, b) =>
-    a.displayName.localeCompare(b.displayName),
+  return [...GLOSSARY_ENTRIES.map((entry) => toRulesEntry(entry)), aspectCardEntry([]), ...TABLE_STATE_ENTRIES].sort(
+    (a, b) => a.displayName.localeCompare(b.displayName),
   );
 }
 
