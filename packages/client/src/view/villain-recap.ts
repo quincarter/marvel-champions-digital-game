@@ -10,6 +10,8 @@
 import { cardOf, getCard, getInstance, getPlayer, mainSchemeStateOf, schemesInPlay } from "@mc/engine";
 import type { EngineDeps, GameState, InstanceId, PlayerId } from "@mc/engine";
 import { schemePanel, seatRow } from "./board-model.js";
+import type { CardFace } from "../art/art-source.js";
+import { activationEnemyName, activationHiddenFace } from "./villain-breakdown.js";
 import { cardName, shortSeatName } from "./names.js";
 import { activeVillainWording } from "./villain-active-change.js";
 import { mainSchemeCalloutOf } from "./villain-main-scheme.js";
@@ -54,6 +56,11 @@ export interface RecapEntry {
   readonly detail: string | null;
   /** The card the entry is about: the activating enemy, the scheme that gained threat, the revealed card. */
   readonly cardInstanceId: InstanceId | null;
+  /**
+   * The face to draw for that card instead of the one it shows now: an enemy that was facedown when it acted and has
+   * left play since (#291), drawn as it was. Absent for the rest.
+   */
+  readonly cardFace?: CardFace;
   readonly cardType: string | null;
   /** The seat the entry belongs to (who an enemy hit, who a card was revealed for). */
   readonly seat: string | null;
@@ -352,9 +359,12 @@ function activationEntryOf(
   respond: (beat: WalkthroughBeat) => RecapResponse,
 ): RecapEntry {
   const target = activation.kind === "attack" ? activation.attackedPlayerId : activation.playerId;
-  const enemy = cardName(after, activation.enemyInstanceId);
+  const enemy = activationEnemyName(activation, after);
   const against = target === viewer ? "you" : shortSeatName(after, target, viewer);
-  const isMinion = cardOf(after, activation.enemyInstanceId)?.type === "minion";
+  // A Drone that has left play since is a player card now, but it was a minion when it acted (#291).
+  const hiddenFace = activationHiddenFace(activation);
+  const cardType = activation.enemyFacedownAs?.kind ?? cardOf(after, activation.enemyInstanceId)?.type ?? null;
+  const isMinion = cardType === "minion";
   let detail: string | null = null;
   if (activation.kind === "attack" && activation.resolved) {
     const r = activation.resolved;
@@ -378,7 +388,8 @@ function activationEntryOf(
     headline: activation.kind === "attack" ? `${enemy} attacks ${against}` : `${enemy} schemes against ${against}`,
     detail,
     cardInstanceId: activation.enemyInstanceId,
-    cardType: cardOf(after, activation.enemyInstanceId)?.type ?? null,
+    ...(hiddenFace ? { cardFace: hiddenFace } : {}),
+    cardType: cardType === "blank" ? null : cardType,
     seat: target === viewer ? "YOU" : shortSeatName(after, target, viewer),
     seatIsViewer: target === viewer,
     boostInstanceIds: activation.boosts.map((boost) => boost.instanceId),

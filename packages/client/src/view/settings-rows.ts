@@ -35,6 +35,7 @@ import {
 } from "../settings.js";
 import { FIRST_PLAYER_TOKEN_MOTION_LABELS } from "./first-player-token-motion.js";
 import { POWER_SAVING_ROW_NOTE } from "./power-saving-notice.js";
+import { EARNED_ITEMS, type EarnedItemId } from "../progression/earned-items.js";
 
 export type SettingsRowId =
   | "reduced-motion"
@@ -45,7 +46,8 @@ export type SettingsRowId =
   | "confirm-end-turn"
   | "same-name-conflict"
   | "hover-hero"
-  | "hover-villain";
+  | "hover-villain"
+  | EarnedItemId;
 
 export interface SettingsRowInfo {
   readonly id: SettingsRowId;
@@ -125,6 +127,20 @@ export function settingsRowInfoOf(settings: Settings, powerSaving = false): read
   ];
 }
 
+/**
+ * Settings ▸ More ▸ Earned items (issue #291): one toggle per earned item. One not earned yet is still listed, dim, and
+ * says how to earn it instead of what it does.
+ */
+export function earnedItemRowInfoOf(settings: Settings, earned: ReadonlySet<EarnedItemId>): readonly SettingsRowInfo[] {
+  return EARNED_ITEMS.map((item) => ({
+    id: item.id,
+    title: item.title,
+    detail: item.detail,
+    on: earned.has(item.id) && settings[item.setting],
+    ...(earned.has(item.id) ? {} : { unavailable: item.howToEarn }),
+  }));
+}
+
 /** The value "Sharper text" should switch *to* when it's off, given the screen's own device pixel ratio. What "off" restores is always `1`. */
 export function sharperTextTargetResolution(devicePixelRatio: number): number {
   return Math.min(SHARP_TEXT_RESOLUTION_CEILING, Math.max(1, devicePixelRatio || 1));
@@ -158,6 +174,8 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
       return { ...settings, hoverHeroCard: !settings.hoverHeroCard };
     case "hover-villain":
       return { ...settings, hoverVillainCard: !settings.hoverVillainCard };
+    case "ultron-drone-art":
+      return { ...settings, ultronDroneArt: !settings.ultronDroneArt };
   }
 }
 

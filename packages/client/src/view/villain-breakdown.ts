@@ -1,4 +1,6 @@
 import type { GameState, PlayerId } from "@mc/engine";
+import type { CardFace } from "../art/art-source.js";
+import { facedownRoleName, isDroneRole } from "./facedown-history.js";
 import { cardName, shortSeatName } from "./names.js";
 import type { ActivationBeat } from "./villain-walkthrough.js";
 
@@ -71,8 +73,28 @@ export function breakdownLineOf(activation: ActivationBeat, state: GameState): s
 
 /** "Klaw attacks Captain Marvel" / "Klaw schemes against Black Panther": the activation the events named, the hero short. */
 export function activationHeadline(activation: ActivationBeat, state: GameState, viewer: PlayerId | null): string {
-  const enemy = cardName(state, activation.enemyInstanceId);
+  const enemy = activationEnemyName(activation, state);
   return activation.kind === "attack"
     ? `${enemy} attacks ${shortSeatName(state, activation.attackedPlayerId, viewer)}`
     : `${enemy} schemes against ${shortSeatName(state, activation.playerId, viewer)}`;
+}
+
+/** The enemy's name as it was when it acted: a Drone that left play facedown later in the command is still "Drone" (#291). */
+export function activationEnemyName(activation: ActivationBeat, state: GameState): string {
+  return activation.enemyFacedownAs
+    ? facedownRoleName(activation.enemyFacedownAs)
+    : cardName(state, activation.enemyInstanceId);
+}
+
+/**
+ * The face to draw for an enemy that was facedown when it acted and has left play since (#291): its player card back,
+ * or the Drone picture at the ATK the attack used. Null when the enemy was faceup, so the caller draws it as it is now.
+ */
+export function activationHiddenFace(activation: ActivationBeat): CardFace | null {
+  const role = activation.enemyFacedownAs;
+  if (!role) return null;
+  const atk = activation.kind === "attack" ? activation.resolved?.baseAtk : undefined;
+  return isDroneRole(role) && atk !== undefined
+    ? { kind: "back", back: "player", standIn: { kind: "ultronDrone", atk } }
+    : { kind: "back", back: "player" };
 }

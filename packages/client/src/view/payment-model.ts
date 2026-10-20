@@ -34,12 +34,14 @@ import {
   type PaymentQuery,
   type PaymentSource,
   type PlayerId,
+  type ResolvedRequirement,
 } from "@mc/engine";
 import { costReductionOptionsFor, costReductionTotal, type CostReductionOption } from "./cost-reduction-model.js";
 import { actionAbilityCost } from "./cost-choice-model.js";
 import { costHelpLines } from "./cost-help-model.js";
 import { cardName, faceUpName } from "./names.js";
 import { judgePayment, paymentContext, type PaymentVerdict } from "./payment-verdict.js";
+import { notForReason } from "./resource-limit.js";
 
 export interface PaymentState {
   readonly action: ActionRef;
@@ -138,6 +140,12 @@ export interface PaymentSourceView extends PaymentSource {
    * Hollywood) never makes the payment covered, so it is held until the rest of the picks cover the cost by themselves.
    */
   readonly lockedReason: string | null;
+  /**
+   * A resource ability that can't pay for this card because it pays only for another kind of card (the engine's
+   * `PaymentQuery.notForThisCard`: Finesse while paying for a hero card). Never in `sources`; shown in the strip,
+   * washed out and locked, with `lockedReason` saying what it pays for (issue #292). Tapping it opens its card.
+   */
+  readonly notFor?: true;
 }
 
 /** The stepper beside the requirement: the chosen X and the range the engine allows right now. */
@@ -170,6 +178,8 @@ export interface PaymentView {
   readonly paid: number;
   /** Resources the action costs. The bar's denominator. */
   readonly required: number;
+  /** `required` by type, after any named cost reduction: what a different selection would have to cover. */
+  readonly requirement: ResolvedRequirement;
   /**
    * The denominator as the bar prints it: `required`, or a range when the player chooses how many to spend ("spend up
    * to 2 resources": "1–2"), where `required` alone read "PAYING 0 / 0" (issue #174, Nebula's Ship).
@@ -536,6 +546,7 @@ export function paymentView(
     subject,
     paid,
     required: poolTotal(requirement),
+    requirement,
     requiredLabel: requiredLabelOf(poolTotal(requirement), chosenSpendRange(state, deps, playerId, payment)),
     priceNote:
       payment.destinationNote ??
@@ -544,11 +555,14 @@ export function paymentView(
     spendable,
     spent,
     sources,
-    tableSources: sources.filter((source) => source.kind === "resourceAbility" || source.helperName !== null),
+    tableSources: [
+      ...sources.filter((source) => source.kind === "resourceAbility" || source.helperName !== null),
+      ...notForSources(state, query),
+    ],
     subjectInHand: subject !== null && locateCard(state, subject)?.kind === "hand",
     overpaid,
     lockedNote: ((held) => (held ? `${held.label}: ${held.lockedReason}` : null))(
-      sources.find((source) => source.lockedReason !== null),
+      sources.find((source) => source.lockedReason !== null) ?? notForSources(state, query)[0],
     ),
     payLabel:
       picked.length === 0 && poolTotal(requirement) === 0 && query.overpayMatters ? "Play without overpaying" : null,
@@ -682,6 +696,7 @@ export function spentTagText(
  * the word that fits a narrow tile; the bar's own lock note says the whole rule.
  */
 export function sourceTagText(source: PaymentSourceView, compact = false): string {
+  if (source.notFor) return "can't pay";
   if (source.helperName !== null) return source.helperName;
   if (source.amountNote !== null) return source.amountNote;
   if (source.overpayOnly) return compact ? "extra" : "overpay only";
@@ -756,6 +771,29 @@ function discardOrderOf(
 }
 
 /** Whose hand an alliance helper's card sits in, by hero name; null for anything the payer holds or in play. */
+/** The strip tiles for `PaymentQuery.notForThisCard`: shown, never spendable (`PaymentSourceView.notFor`). */
+function notForSources(state: GameState, query: PaymentQuery): readonly PaymentSourceView[] {
+  return (query.notForThisCard ?? []).map((entry) => {
+    const card = cardOf(state, entry.instanceId);
+    return {
+      optionId: `notFor:${entry.instanceId}:${entry.abilityId}`,
+      kind: "resourceAbility",
+      instanceId: entry.instanceId,
+      label: entry.label,
+      pool: { physical: 0, mental: 0, energy: 0, wild: 0 },
+      spent: false,
+      helperName: null,
+      amountNote: null,
+      discardOrder: null,
+      onTop: false,
+      underSubject: null,
+      orderNote: null,
+      lockedReason: notForReason(card && "text" in card ? card.text.current : ""),
+      notFor: true,
+    };
+  });
+}
+
 function helperNameOf(state: GameState, payerId: PlayerId, source: PaymentSource): string | null {
   if (source.kind !== "handCard") return null;
   const owner = state.players.find((player) => player.hand.includes(source.instanceId));

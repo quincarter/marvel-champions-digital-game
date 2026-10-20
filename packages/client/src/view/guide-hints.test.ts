@@ -538,27 +538,99 @@ describe("wastedPayHint", () => {
     const paidWithForJustice = togglePayment(openedForForJustice, forJusticeSource.optionId);
     const viewForJustice = paymentView(state, me, paidWithForJustice, "test", CORE_DEPS);
     expect(viewForJustice.paid).toBe(viewForJustice.required);
-    // For Justice! is a legal thwart right now — genuinely worth keeping — and Spider-Tracer (not itself worth
-    // keeping) alone covers the cost, so this direction still warns.
+    // For Justice! is a legal thwart right now and Spider-Tracer has no play this round, so this direction warns, and
+    // says why it picked Spider-Tracer.
     const hint = wastedPayHint(state, CORE_DEPS, me, viewForJustice);
     expect(hint).not.toBeNull();
-    expect(hint!.body).toContain("Spider-Tracer");
+    expect(hint!.body).toContain("Spider-Tracer has no play right now, and alone could cover");
 
     // The suggested alternative must never itself trigger the warning when paid with alone (the ping-pong check).
     expect(wastedPayHint(state, CORE_DEPS, me, viewSpiderTracer)).toBeNull();
+  });
 
-    // The board passes the host's own legal actions (issue #258) rather than having them listed again here: the same
-    // list gives the same warning, and a list in which For Justice! is no play gives none.
+  /** Aunt May (cost 1) opened for payment with exactly `codes` in hand, paid with the card at `payWith`. */
+  function auntMayPaidWith(codes: readonly string[], payWith: number) {
+    const staged = moveToHand(withMainSchemeThreat(base, 2), me, ["01006", ...codes]);
+    const state: GameState = {
+      ...staged.state,
+      players: staged.state.players.map((p) => (p.playerId === me ? { ...p, hand: staged.ids } : p)),
+    };
+    const opened = beginPayment(state, me, { kind: "playCard", instanceId: staged.ids[0]! }, null, CORE_DEPS)!;
+    const source = opened.query.sources.find((s) => s.instanceId === staged.ids[payWith + 1])!;
+    const view = paymentView(state, me, togglePayment(opened, source.optionId), "test", CORE_DEPS);
+    return { state, ids: staged.ids.slice(1), view };
+  }
+
+  /** Black Cat (cost 2) opened for payment with exactly `codes` in hand, paid with the cards at `payWith`. */
+  function blackCatPaidWith(codes: readonly string[], payWith: readonly number[]) {
+    const staged = moveToHand(withMainSchemeThreat(base, 2), me, ["01002", ...codes]);
+    const state: GameState = {
+      ...staged.state,
+      players: staged.state.players.map((p) => (p.playerId === me ? { ...p, hand: staged.ids } : p)),
+    };
+    const ids = staged.ids.slice(1);
+    let payment = beginPayment(state, me, { kind: "playCard", instanceId: staged.ids[0]! }, null, CORE_DEPS)!;
+    for (const index of payWith) {
+      payment = togglePayment(payment, payment.query.sources.find((s) => s.instanceId === ids[index])!.optionId);
+    }
+    return { state, ids, view: paymentView(state, me, payment, "test", CORE_DEPS) };
+  }
+
+  // Reported 2026-10-20 (issue #299): the suggestion was whichever other card came first, with no word on why. A
+  // resource card now comes before a card with no play this round, and the warning says which it is.
+  test("suggests a resource card before a card with no play right now (#299)", () => {
+    // For Justice! (a thwart the scheme's threat makes playable) and Spider-Tracer pay 2. Backflip (an interrupt with
+    // nothing to interrupt) has no play either, but Energy is a resource card and pays 2 by itself.
+    const { state, view } = blackCatPaidWith(["01060", "01007", "01003", "01088"], [0, 1]);
+    expect(view.paid).toBe(view.required);
+    const hint = wastedPayHint(state, CORE_DEPS, me, view);
+    expect(hint).not.toBeNull();
+    expect(hint!.body).toContain("For Justice! could be played right now");
+    expect(hint!.body).toContain("Energy is a resource card, and alone could cover");
+  });
+
+  test("never suggests a card that could be played right now as well", () => {
+    // Web-Shooter (an upgrade For Justice! could pay for) is a play this round too: swapping one for the other is no help.
+    const { state, view } = auntMayPaidWith(["01060", "01008"], 0);
+    expect(view.paid).toBe(view.required);
+    expect(wastedPayHint(state, CORE_DEPS, me, view)).toBeNull();
+  });
+
+  test("does not fire when the resource card itself is spent", () => {
+    const { state, view } = blackCatPaidWith(["01060", "01007", "01088"], [2]);
+    expect(view.paid).toBe(view.required);
+    expect(wastedPayHint(state, CORE_DEPS, me, view)).toBeNull();
+  });
+
+  test("stays quiet when the spent card is no play right now (the host's own list)", () => {
+    const { state, ids, view } = blackCatPaidWith(["01060", "01007", "01088"], [0, 1]);
     const listed = legalActions(state, me, CORE_DEPS);
-    expect(wastedPayHint(state, CORE_DEPS, me, viewForJustice, listed)).toEqual(hint);
+    expect(wastedPayHint(state, CORE_DEPS, me, view, listed)).not.toBeNull();
     if (listed.kind !== "turn") throw new Error("expected a turn");
     const withoutForJustice = {
       ...listed,
-      legal: listed.legal.filter(
-        (entry) => !(entry.action.kind === "playCard" && entry.action.instanceId === forJusticeId),
-      ),
+      legal: listed.legal.filter((entry) => !(entry.action.kind === "playCard" && entry.action.instanceId === ids[0])),
     };
-    expect(wastedPayHint(state, CORE_DEPS, me, viewForJustice, withoutForJustice)).toBeNull();
+    expect(wastedPayHint(state, CORE_DEPS, me, view, withoutForJustice)).toBeNull();
+  });
+  test("never suggests a card of the wrong resource type for a typed cost", () => {
+    const { state, view } = auntMayPaidWith(["01060", "01088"], 0);
+    const energyCost = { generic: 0, physical: 0, mental: 0, energy: 1 };
+    const asType = (type: "energy" | "physical") => ({ physical: 0, mental: 0, energy: 0, wild: 0, [type]: 1 });
+    const retype = (sources: typeof view.spent, type: "energy" | "physical") =>
+      new Map([...sources].map(([id, source]) => [id, { ...source, pool: asType(type) }]));
+    const typed = { ...view, requirement: energyCost, spent: retype(view.spent, "energy") };
+    // Energy pays an energy cost; the same card read as physical cannot, so it is no suggestion.
+    expect(
+      wastedPayHint(state, CORE_DEPS, me, { ...typed, spendable: retype(view.spendable, "energy") }),
+    ).not.toBeNull();
+    expect(wastedPayHint(state, CORE_DEPS, me, { ...typed, spendable: retype(view.spendable, "physical") })).toBeNull();
+  });
+
+  test("a chosen spend beyond the fixed cost is not an overpay", () => {
+    const { state, view } = auntMayPaidWith(["01060"], 0);
+    // "Spend up to 2 resources" with nothing else to pay: paid is above the fixed cost, but nothing is overpaid.
+    expect(wastedPayHint(state, CORE_DEPS, me, { ...view, required: 0, overpaid: 0 })).toBeNull();
   });
 });
 

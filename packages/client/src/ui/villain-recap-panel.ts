@@ -6,7 +6,7 @@
 import Phaser from "phaser";
 import type { GameState, InstanceId } from "@mc/engine";
 import { cardOf } from "@mc/engine";
-import { artFor } from "../art/art-source.js";
+import { artFor, isHiddenArt, type CardFace } from "../art/art-source.js";
 import { faceOf } from "../view/board-model.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import type { FocusStop } from "../scenes/focus-route.js";
@@ -343,7 +343,13 @@ function drawEntry(
   let thumbsBottom = slot.y + PAD;
 
   if (entry.cardInstanceId) {
-    drawThumb(scene, { x: left, y: slot.y + PAD, width: thumbW, height: thumbH }, entry.cardInstanceId, game);
+    drawThumb(
+      scene,
+      { x: left, y: slot.y + PAD, width: thumbW, height: thumbH },
+      entry.cardInstanceId,
+      game,
+      entry.cardFace,
+    );
     thumbsRight = left + thumbW + 8;
     thumbsBottom = slot.y + PAD + thumbH;
     entry.boostInstanceIds.forEach((id, i) => {
@@ -480,7 +486,7 @@ function drawResponse(
 }
 
 /** A card thumbnail: its real scan, or the plain frame with a name label when there is none. Tap to inspect. */
-function drawThumb(scene: Phaser.Scene, rect: Rect, instanceId: InstanceId, game: GameState): void {
+function drawThumb(scene: Phaser.Scene, rect: Rect, instanceId: InstanceId, game: GameState, face?: CardFace): void {
   noteHoverCard(scene, instanceId, rect);
   const fill = scene.add.graphics();
   fill.fillStyle(surface.parchment.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
@@ -488,13 +494,14 @@ function drawThumb(scene: Phaser.Scene, rect: Rect, instanceId: InstanceId, game
   fill.strokeRect(rect.x, rect.y, rect.width, rect.height);
   const card = cardOf(game, instanceId);
   // The face in play: a villain's and a main scheme's picture lives on its stage or side, not on a "front".
-  const key = cardArt(scene).request(scene, artFor(card, faceOf(game, instanceId)));
+  const source = artFor(card, face ?? faceOf(game, instanceId));
+  const key = cardArt(scene).request(scene, source);
   if (!drawArt(scene, key, rect)) {
     scene.add
       .text(
         rect.x + rect.width / 2,
         rect.y + rect.height / 2,
-        card?.name ?? "",
+        isHiddenArt(source) ? "" : (card?.name ?? ""),
         textStyle(typeRole.label, surface.ink.hex, ink.meta),
       )
       .setOrigin(0.5)

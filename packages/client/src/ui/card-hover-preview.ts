@@ -12,7 +12,7 @@
 
 import Phaser from "phaser";
 import { cardOf, getInstance, type InstanceId } from "@mc/engine";
-import { CARD_BACKS, defaultFaceFor, type CardFace } from "../art/art-source.js";
+import { CARD_BACKS, defaultFaceFor, isStandInArt, type CardFace } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { CARDS_BY_ID, POOL_DEPS } from "../content/pool.js";
 import type { FacedownHover } from "../scenes/board/context.js";
@@ -20,7 +20,7 @@ import { SCENES } from "../scenes/keys.js";
 import { appSession } from "../session.js";
 import { surface, typeRole } from "../tokens.js";
 import { textStyle } from "./theme.js";
-import { paintThreatMeter } from "./widgets.js";
+import { McHpPlate, paintThreatMeter } from "./widgets.js";
 import { schemePanel } from "../view/board-model.js";
 import {
   HOVER_DELAY_MS,
@@ -48,6 +48,8 @@ const STRIP_GAP = 6;
 const BACK_SHAPE: Rect = { x: 0, y: 0, width: 69, height: 100 };
 /** The scheme's threat meter under a scheme's popover: the board's own, a little taller to read at a glance. */
 const METER_HEIGHT = 26;
+/** The health plate a defend option's picture previews (#298): as tall as the table's own, so its numbers read. */
+const HP_PLATE_HEIGHT = 44;
 const FADE_MS = 90;
 
 export interface HoverPreviewDeps {
@@ -146,6 +148,8 @@ export class HoverPreview {
   #pendingId: string | null = null;
   /** The rect of the picture `#candidate` last found, for the popover's size: one card can be shown in several places. */
   #candidateRect: Rect | null = null;
+  /** The health preview noted with that picture (a defend option's), if any. */
+  #candidateHp: HoverHpPreview | null = null;
   #timer: Phaser.Time.TimerEvent | null = null;
   /** The card the popover is showing. */
   #shownId: string | null = null;
@@ -265,6 +269,7 @@ export class HoverPreview {
     if (found !== null) {
       const { id, rect } = found;
       this.#candidateRect = rect;
+      this.#candidateHp = found.hp ?? null;
       // The Hero card popover and Villain card popover settings turn those two kinds off.
       const game = appSession().store.state.game;
       const type = game ? cardOf(game, id)?.type : undefined;
@@ -286,7 +291,7 @@ export class HoverPreview {
   }
 
   /** The game card under the pointer, with the rect of the very picture it is in. */
-  #gameCardAt(x: number, y: number, topmost: Rect | null): { readonly id: InstanceId; readonly rect: Rect } | null {
+  #gameCardAt(x: number, y: number, topmost: Rect | null): HoverCardHit | null {
     if (this.deps.hits) {
       const hits = this.deps.hits();
       const at = hoverCandidateAt(x, y, new Map(hits.map((hit, i) => [i, hit.rect])), topmost);
@@ -295,7 +300,12 @@ export class HoverPreview {
     const cards = this.deps.cards?.() ?? EMPTY_RECTS;
     const id = hoverCandidateAt(x, y, cards, topmost);
     const rect = id === null ? undefined : cards.get(id);
-    return id === null || !rect ? null : { id, rect };
+    if (id === null || !rect) return null;
+    // A health preview noted with that picture (a scene keyed by card still notes each picture's hit).
+    const hp = hoverCardHitsOf(this.scene).find(
+      (hit) => hit.id === id && hit.rect.x === rect.x && hit.rect.width === rect.width,
+    )?.hp;
+    return hp ? { id, rect, hp } : { id, rect };
   }
 
   #update(pointer: Phaser.Input.Pointer, instant: boolean): void {
@@ -348,7 +358,7 @@ export class HoverPreview {
       ? null
       : plain
         ? this.#buildPlain(plain.cardId, plain.face, rect, area)
-        : this.#build(id as InstanceId, rect, area);
+        : this.#build(id as InstanceId, rect, area, this.#candidateHp);
     if (!built) {
       this.#clear();
       return;
@@ -385,6 +395,7 @@ export class HoverPreview {
     id: InstanceId,
     onTable: Rect,
     area: Rect,
+    hp: HoverHpPreview | null = null,
   ): {
     readonly container: Phaser.GameObjects.Container;
     readonly size: Size;
@@ -394,8 +405,9 @@ export class HoverPreview {
     const game = state.game;
     if (!game || state.perspectiveId === null) return null;
     const model = inspectModel(game, id, null, state.perspectiveId, POOL_DEPS);
-    // A facedown card or pile shows nothing the table doesn't: no popover.
-    if (model.hidden) return null;
+    // A facedown card or pile shows nothing the table doesn't: no popover. A Drone drawn with its earned Drone art
+    // (#291) is the exception: the popover shows that picture, which is all the table sees of it too.
+    if (model.hidden && !isStandInArt(model.art)) return null;
     const instance = getInstance(game, id);
     // A scheme's threat is drawn as the board draws it, the red meter with its count (the owner, 2026-10-14), not
     // as words in the strip.
@@ -405,8 +417,8 @@ export class HoverPreview {
     const lines = instance
       ? hoverStateLines({
           exhausted: instance.exhausted,
-          damageNote: model.damageNote,
-          damage: instance.damage,
+          damageNote: hp ? null : model.damageNote,
+          damage: hp ? 0 : instance.damage,
           threatNote: scheme ? null : model.threatNote,
           threat: scheme ? 0 : instance.threat,
           counterNote: model.counterNote,
@@ -424,8 +436,8 @@ export class HoverPreview {
     let size = hoverCardSize(onTable, aspect, scale, area);
     let strip: Phaser.GameObjects.Text | null = null;
     let stripHeight = 0;
-    const meterHeight = scheme ? METER_HEIGHT + 14 : 0;
-    if (scheme && lines.length === 0) {
+    const meterHeight = hp ? HP_PLATE_HEIGHT + 14 : scheme ? METER_HEIGHT + 14 : 0;
+    if ((scheme || hp) && lines.length === 0) {
       const room: Rect = { ...area, height: Math.max(1, area.height - meterHeight - STRIP_GAP) };
       const fitted = hoverCardSize(onTable, aspect, scale, room);
       if (fitted.width < size.width) size = fitted;
@@ -449,13 +461,13 @@ export class HoverPreview {
     const shadow = this.scene.add.graphics();
     shadow
       .fillStyle(surface.ink.hex, 0.35)
-      .fillRect(5, 6, size.width, size.height + (strip || scheme ? STRIP_GAP + stripHeight + meterHeight : 0));
+      .fillRect(5, 6, size.width, size.height + (strip || meterHeight ? STRIP_GAP + stripHeight + meterHeight : 0));
     container.add(shadow);
     const image = drawArt(this.scene, key, card);
     if (image) container.add(image);
     else container.add(this.#plainFrame(card, model));
     const bandTop = size.height + STRIP_GAP;
-    if (strip || scheme) {
+    if (strip || meterHeight) {
       const bar = this.scene.add.graphics();
       bar.fillStyle(surface.ink.hex, 1).fillRect(0, bandTop, size.width, stripHeight + meterHeight);
       container.add(bar);
@@ -468,11 +480,22 @@ export class HoverPreview {
       meterText.setOrigin(0.5).setPosition(meter.x + meter.width / 2, meter.y + meter.height / 2);
       container.add([mg, meterText]);
     }
+    if (hp) {
+      // What the attack would leave it, as the villain's own plate previews an attack on it: "2→0" with the loss hatched.
+      const plate = new McHpPlate(this.scene, {
+        rect: { x: 10, y: bandTop + 7, width: size.width - 20, height: HP_PLATE_HEIGHT },
+        current: hp.current,
+        max: hp.max,
+        after: hp.low,
+        afterHigh: hp.high,
+      });
+      container.add(plate.container);
+    }
     if (strip) {
       strip.setPosition(10, bandTop + meterHeight + 7);
       container.add(strip);
     }
-    const extra = strip || scheme ? STRIP_GAP + stripHeight + meterHeight : 0;
+    const extra = strip || meterHeight ? STRIP_GAP + stripHeight + meterHeight : 0;
     return {
       container,
       size: { width: size.width, height: size.height + extra },
@@ -619,20 +642,33 @@ export function hoverCardIdsOf(scene: Phaser.Scene): ReadonlyMap<string, HoverCa
  * villain phase's rail and recap) can note each card it draws without threading a map through every signature. The
  * scene clears it before each draw (`resetHoverCards`); a scene with no popover has none, and noting is a no-op.
  */
-export function noteHoverCard(scene: Phaser.Scene, id: InstanceId, rect: Rect): void {
+export function noteHoverCard(scene: Phaser.Scene, id: InstanceId, rect: Rect, hp?: HoverHpPreview): void {
   (scene.data?.get(HOVER_CARDS_KEY) as Map<InstanceId, Rect> | undefined)?.set(id, rect);
-  (scene.data?.get(HOVER_HITS_KEY) as NotedHit[] | undefined)?.push({ id, rect });
+  (scene.data?.get(HOVER_HITS_KEY) as NotedHit[] | undefined)?.push(hp ? { id, rect, hp } : { id, rect });
+}
+
+/**
+ * The health a picture's popover previews: the character has `current` of `max` now, and the effect the picture
+ * stands for (a defend option) leaves it `low` to `high` (issue #298).
+ */
+export interface HoverHpPreview {
+  readonly current: number;
+  readonly max: number;
+  readonly low: number;
+  readonly high: number;
 }
 
 /** One picture of a game card the popover can open over, in screen coordinates as it is now. */
 export interface HoverCardHit {
   readonly id: InstanceId;
   readonly rect: Rect;
+  readonly hp?: HoverHpPreview;
 }
 
 interface NotedHit {
   readonly id: InstanceId;
   readonly rect: Rect;
+  readonly hp?: HoverHpPreview;
   /** A scrolling region's content and viewport: the card moves with the content and only its visible part counts. */
   scroll?: { readonly content: Phaser.GameObjects.Container; readonly viewport: Rect };
 }
@@ -661,15 +697,15 @@ export function scrollHoverCards(
 export function hoverCardHitsOf(scene: Phaser.Scene): readonly HoverCardHit[] {
   const hits = (scene.data?.get(HOVER_HITS_KEY) as NotedHit[] | undefined) ?? [];
   const out: HoverCardHit[] = [];
-  for (const { id, rect, scroll } of hits) {
+  for (const { id, rect, scroll, hp } of hits) {
     if (!scroll) {
-      out.push({ id, rect });
+      out.push(hp ? { id, rect, hp } : { id, rect });
       continue;
     }
     if (!scroll.content.active) continue;
     const moved = { ...rect, x: rect.x + scroll.content.x, y: rect.y + scroll.content.y };
     const shown = clipHoverRect(moved, scroll.viewport);
-    if (shown) out.push({ id, rect: shown });
+    if (shown) out.push(hp ? { id, rect: shown, hp } : { id, rect: shown });
   }
   return out;
 }

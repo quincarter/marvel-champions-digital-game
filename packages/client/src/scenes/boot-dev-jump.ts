@@ -468,6 +468,16 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.board, data: {} };
   }
 
+  // `?screen=defend-allies`: a real Iron Man game on Rhino's attack with War Machine and Mockingbird ready to defend and
+  // one of them already hurt, for each defender's health in the defend panel (#298).
+  if (screen === "defend-allies") {
+    const { store } = appSession();
+    const { startDefendAlliesGame } = await import("../store/dev-defend-allies-game.js");
+    const finish = gameRunning(store) ? null : await startDefendAlliesGame(store);
+    if (finish) window.setTimeout(() => void finish(), 1500);
+    return { key: SCENES.board, data: {} };
+  }
+
   // `?screen=alliance`: a real two-seat hot-seat game on War Machine's own turn with Cosmic Alliance (an alliance
   // card) in hand and Star-Lord's hand free to help pay — the per-helper approval bar (wave 4 Q10,
   // `scenes/board/controller.ts`'s `confirmingAllianceHelp`) is one play and one pick of a Star-Lord card away.

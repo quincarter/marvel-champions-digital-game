@@ -151,7 +151,13 @@ import {
   seatHeadingName,
   tableHoldOf,
 } from "../view/villain-replay.js";
-import { activationHeadline, breakdownLineOf, breakdownOf, type Breakdown } from "../view/villain-breakdown.js";
+import {
+  activationHeadline,
+  activationHiddenFace,
+  breakdownLineOf,
+  breakdownOf,
+  type Breakdown,
+} from "../view/villain-breakdown.js";
 import { activeVillainWording } from "../view/villain-active-change.js";
 import { decisionNoticeOf, soleAnswerOf } from "../view/villain-decision-notice.js";
 import { villainPhaseLayout } from "../view/villain-phase-layout.js";
@@ -2877,12 +2883,14 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     }
     const breakdown = breakdownLineOf(activation, game);
     const defender = defenderLineOf(game, activation);
+    const hiddenFace = activationHiddenFace(activation);
     // While a window on one boost card is open, that card: the one being counted (Chaos Control, Scarlet Witch's Crest;
     // issue #172) or the one being turned up (Preemptive Strike; issue #253).
     const counted = paused ? (this.#shownPause()?.countedBoost ?? null) : null;
     return {
       kind: "happening",
       enemyInstanceId: activation.enemyInstanceId,
+      ...(hiddenFace ? { enemyFace: hiddenFace } : {}),
       headline: activationHeadline(activation, game, viewer),
       text: [breakdown ?? (paused ? "" : (reveal.current?.text ?? "")), defender ?? ""].filter(Boolean).join(" "),
       boostLine: activationBoostLineOf(activation, counted, game),

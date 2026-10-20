@@ -121,6 +121,7 @@ export type {
   LegalActions,
   PaymentAttempt,
   PaymentContext,
+  PaymentNotFor,
   PaymentQuery,
   PaymentSource,
   CostHelp,
@@ -694,4 +695,4 @@ export {
   type ReportedFactAnswer,
   type SetupOutsideFact,
 } from "./outside-facts.js";
-export { generatedResources, handCardResources } from "./actions.js";
+export { generatedResources, handCardResources, resourcesNotFor } from "./actions.js";
