@@ -17,6 +17,7 @@ import type {
   BoardModel,
   CharacterPanel,
   EnvironmentPanel,
+  FormCardGroup,
   ScenarioDeckPanel,
   SetAsidePanel,
   SeatRow,
@@ -85,7 +86,14 @@ import { drawDealtPile } from "./dealt-pile.js";
 import { dealtPileParts, dealtWords } from "../../view/dealt-pile.js";
 import { addTapTarget } from "./tap-target.js";
 import { dimAlpha, focusKey, targetState } from "./selection.js";
-import { playAreaRow, separateColumnWidth, separateRowHeight, sliceWithin } from "../../view/play-area-row.js";
+import {
+  formCardSlots,
+  formColumnWidth,
+  playAreaRow,
+  separateColumnWidth,
+  separateRowHeight,
+  sliceWithin,
+} from "../../view/play-area-row.js";
 import { setMask } from "../../ui/rex.js";
 import { clipToViewport } from "../../ui/scroll-clip.js";
 
@@ -1251,9 +1259,19 @@ export function drawPlayArea(
   // beside the enemies — present only for the one identity that has one, so
   // every other hero's play area is unchanged (PLAN.md Phase 7: "the board
   // has no Invocation deck; the client never mentions `separateDeck`").
+  // A set of form cards (Spectrum's energy forms, issue #308) shares that column, above any second deck.
   const hasSeparateDecks = model.separateDecks.length > 0;
-  const separateWidth = hasSeparateDecks ? separateColumnWidth(rect.width, rect.height - 30, ctx.cardScale) : 0;
-  const gap = hasSeparateDecks ? 8 : 0;
+  const formGroups = model.formCards;
+  const sideRows = model.separateDecks.length + formGroups.length;
+  const sideHeight = compact ? rect.height - 12 : rect.height - 30;
+  const widestForms = Math.max(0, ...formGroups.map((group) => group.cards.length));
+  const separateWidth =
+    formGroups.length > 0
+      ? formColumnWidth(rect.width, sideHeight, widestForms, sideRows, ctx.cardScale)
+      : hasSeparateDecks
+        ? separateColumnWidth(rect.width, sideHeight, ctx.cardScale)
+        : 0;
+  const gap = sideRows > 0 ? 8 : 0;
   const inner: Rect = compact
     ? {
         x: rect.x + COMPACT_PLAY_CAPTION,
@@ -1267,14 +1285,23 @@ export function drawPlayArea(
         width: rect.width - 16 - separateWidth - gap,
         height: rect.height - 30,
       };
-  if (hasSeparateDecks) {
-    const separateRect: Rect = {
+  if (sideRows > 0) {
+    const sideRect: Rect = {
       x: inner.x + inner.width + gap,
       y: inner.y,
       width: separateWidth,
       height: inner.height,
     };
-    drawSeparateDecks(ctx, separateRect, model.separateDecks, model.perspectiveId);
+    // Each form group takes an even share of the column's height; the second decks lay out in what is left.
+    const formRowHeight = (sideRect.height - (sideRows - 1) * 8) / sideRows;
+    formGroups.forEach((group, index) => {
+      drawFormCards(ctx, { ...sideRect, y: sideRect.y + index * (formRowHeight + 8), height: formRowHeight }, group);
+    });
+    if (hasSeparateDecks) {
+      const used = formGroups.length * (formRowHeight + 8);
+      const separateRect: Rect = { ...sideRect, y: sideRect.y + used, height: sideRect.height - used };
+      drawSeparateDecks(ctx, separateRect, model.separateDecks, model.perspectiveId);
+    }
   }
 
   if (model.myPlayArea.length === 0) {
@@ -1435,6 +1462,53 @@ function drawPlayAreaScrollHint(ctx: BoardDrawContext, area: Rect, scrollX: numb
   };
   draw(scrollX);
   return draw;
+}
+
+/**
+ * A set of form cards side by side under its heading (Spectrum's energy forms, issue #308): every face shown, since their
+ * owner knows them, the active one ringed and marked ACTIVE, the waiting ones dimmed. Each card is its own tap target
+ * (Inspect, or a pick while a target prompt names it) and opens the desktop hover popover through its hit rect.
+ */
+function drawFormCards(ctx: BoardDrawContext, row: Rect, group: FormCardGroup): void {
+  const { scene } = ctx;
+  const slots = formCardSlots(row, group.cards.length);
+  if (slots.length === 0 || slots[0]!.height < 24) return;
+  const heading = label(scene, row.x, row.y, group.title, typeRole.label, surface.ink.hex, ink.label);
+  fitText(heading, row.width, typeRole.label.size);
+  group.cards.forEach((card, index) => {
+    const rect = slots[index]!;
+    const dim = card.active ? 1 : ink.meta;
+    const frame = scene.add.graphics();
+    frame.fillStyle(surface.ink.hex, dim).fillRect(rect.x - 1, rect.y - 1, rect.width + 2, rect.height + 2);
+    frame.fillStyle(surface.paper.hex, dim).fillRect(rect.x, rect.y, rect.width, rect.height);
+    const drawn = drawArt(scene, ctx.art.request(scene, card.art), rect, { fit: "cover", alpha: dim }) !== null;
+    if (!drawn) {
+      const name = scene.add
+        .text(
+          rect.x + rect.width / 2,
+          rect.y + rect.height / 2,
+          card.name,
+          textStyle(typeRole.label, surface.ink.hex, dim),
+        )
+        .setOrigin(0.5);
+      fitText(name, rect.width - 4, typeRole.label.size);
+    }
+    if (card.active) {
+      const ring = scene.add.graphics();
+      ring.lineStyle(3, signal.heal.hex, 1).strokeRect(rect.x - 2, rect.y - 2, rect.width + 4, rect.height + 4);
+      if (rect.height >= 60) {
+        drawFootStrip(
+          scene,
+          { x: rect.x, y: rect.y + rect.height - 16, width: rect.width, height: 16 },
+          "ACTIVE",
+          "ability",
+          1,
+        );
+      }
+    }
+    ctx.frame.hitRects.set(card.instanceId, rect);
+    ctx.makeTapTarget(rect, card.instanceId, () => ctx.controller.onCharacterTap(card.instanceId));
+  });
 }
 
 /**

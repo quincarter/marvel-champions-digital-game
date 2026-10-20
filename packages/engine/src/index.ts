@@ -288,7 +288,15 @@ export {
   threatCannotBeRemoved,
 } from "./rules.js";
 export type { ConsequentialDamage, DamageSourceInfo, FormChangeCost, GrantedAbility } from "./rules.js";
-export { hasKeyword, isPermanent, keywordsOf, keywordTotal, printedKeywordsOf, statusActive } from "./keywords.js";
+export {
+  hasKeyword,
+  isPermanent,
+  keywordsOf,
+  keywordTotal,
+  printedFormTypes,
+  printedKeywordsOf,
+  statusActive,
+} from "./keywords.js";
 export { linkedKeywordNames, linkedKeywordsOf } from "./linked.js";
 export { counterRoom } from "./counter-limit.js";
 export { tuckLimitOf, tuckRoom } from "./tuck-limit.js";

@@ -7,7 +7,10 @@ import { describe, expect, test, vi } from "vitest";
 import type { InstanceId } from "@mc/engine";
 import { CARD_ASPECT, type Rect } from "./layout.js";
 import {
+  FORM_ROW_HEADER,
   PLAY_AREA_GAP,
+  formCardSlots,
+  formColumnWidth,
   PlayAreaScroll,
   playAreaRow,
   separateColumnWidth,
@@ -168,5 +171,43 @@ describe("a second deck's column (Doctor Strange's Invocation)", () => {
   test("its piles keep card proportions across the column, and never exceed the room", () => {
     expect(separateRowHeight(600, 1, 400)).toBeGreaterThan(separateRowHeight(600, 1, 150));
     expect(separateRowHeight(100, 1, 400)).toBe(100);
+  });
+});
+
+describe("form cards beside the play area (issue #308)", () => {
+  const within = (slot: Rect, row: Rect): boolean =>
+    slot.x >= row.x - 0.5 &&
+    slot.y >= row.y + FORM_ROW_HEADER - 0.5 &&
+    slot.x + slot.width <= row.x + row.width + 0.5 &&
+    slot.y + slot.height <= row.y + row.height + 0.5;
+
+  test("a wide desktop row lays Spectrum's three forms side by side, at card proportions, inside the row", () => {
+    const row: Rect = { x: 0, y: 0, width: 330, height: 240 };
+    const slots = formCardSlots(row, 3);
+    expect(new Set(slots.map((slot) => slot.y)).size).toBe(1);
+    for (const slot of slots) {
+      expect(within(slot, row)).toBe(true);
+      expect(slot.width / slot.height).toBeCloseTo(CARD_ASPECT, 5);
+    }
+  });
+
+  test("a tall narrow phone column stacks them into a grid, bigger than three across would be", () => {
+    const row: Rect = { x: 0, y: 0, width: 110, height: 250 };
+    const slots = formCardSlots(row, 3);
+    const threeAcross = (110 - 2 * 6) / 3 / CARD_ASPECT;
+    expect(slots[0]!.height).toBeGreaterThan(threeAcross);
+    for (const slot of slots) expect(within(slot, row)).toBe(true);
+    // No two cards overlap.
+    for (const [i, a] of slots.entries()) {
+      for (const b of slots.slice(i + 1)) {
+        const apart = a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y;
+        expect(apart).toBe(true);
+      }
+    }
+  });
+
+  test("the column never takes more than 30% of the zone, nor less than the second-deck column", () => {
+    expect(formColumnWidth(1000, 240, 3)).toBe(300);
+    expect(formColumnWidth(1000, 40, 3)).toBe(separateColumnWidth(1000, 40));
   });
 });

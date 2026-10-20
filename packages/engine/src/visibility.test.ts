@@ -102,6 +102,52 @@ describe("faceVisible: a set-aside card an open decision offers", () => {
   });
 });
 
+describe("faceVisible: a player's own facedown card in their own play area (issue #308)", () => {
+  /** `owner`'s top deck card, moved facedown into `area`'s play area. */
+  const facedownInPlay = (owner: PlayerId, area: PlayerId) => {
+    const state = start();
+    const id = mustPlayer(state, owner).deck[0]!;
+    const off = withPlayer(state, owner, { deck: mustPlayer(state, owner).deck.slice(1) });
+    const placed = withPlayer(off, area, { playArea: [...mustPlayer(off, area).playArea, id] });
+    expect(locateCard(placed, id)).toEqual({ kind: "playArea", playerId: area });
+    expect(mustInstance(placed, id).faceup).toBe(false);
+    return { state: placed, id };
+  };
+
+  it("is open: its owner put it there knowing its face (Spectrum's inactive energy forms)", () => {
+    const { state, id } = facedownInPlay(P1, P1);
+    expect(eyes(state, id)).toEqual(all(true));
+    // Turning it faceup reveals nothing, so an outcome preview does not stop at it.
+    expect(faceHidden(state, id)).toBe(false);
+  });
+
+  const withRole = (state: GameState, id: InstanceId, kind: "minion" | "blank"): GameState => ({
+    ...state,
+    instances: { ...state.instances, [id]: { ...mustInstance(state, id), facedownAs: { kind, traits: [] } } },
+  });
+
+  it("is open as a blank facedown card too (how Spectrum's Setup and Power Down leave the forms)", () => {
+    const { state, id } = facedownInPlay(P1, P1);
+    expect(eyes(withRole(state, id, "blank"), id)).toEqual(all(true));
+  });
+
+  it("stays closed while it is in play as a facedown minion (a Controlled minion)", () => {
+    const { state, id } = facedownInPlay(P1, P1);
+    expect(eyes(withRole(state, id, "minion"), id)).toEqual(all(false));
+  });
+
+  it("stays closed in another player's play area", () => {
+    const { state, id } = facedownInPlay(P1, P2);
+    expect(eyes(state, id)).toEqual(all(false));
+  });
+
+  it("stays closed when no player owns it (an encounter card)", () => {
+    const taken = offDeck(start());
+    const placed = withPlayer(taken.state, P1, { playArea: [...mustPlayer(taken.state, P1).playArea, taken.id] });
+    expect(eyes(placed, taken.id)).toEqual(all(false));
+  });
+});
+
 describe("faceVisible: what stays closed", () => {
   it("an encounter deck card that no decision offers", () => {
     const state = start();

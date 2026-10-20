@@ -4,9 +4,8 @@
  *
  * Spectrum's own three energy form upgrades (`mts` 21002 Gamma, 21003 Photon, 21004 Pulsar) go into play facedown
  * and unattached at setup (21001b's own "Setup: Put all 3 energy form upgrades into play, facedown"), each with
- * `facedownAs: { kind: "blank", traits: [] }` — deliberately no title while facedown (RRG: nothing reads a blank
- * card's name), but `displayName` used to render that as an empty string (`traits.join(" ")` on an empty array),
- * which reads as a display bug rather than the intentional "no title" the rules mean. Vision's own mass form
+ * `facedownAs: { kind: "blank", traits: [] }`. They are her own cards, placed knowing their faces, so the table shows
+ * them faceup in a column of their own and marks the one she is in (issue #308). Vision's own mass form
  * upgrade (`vision` 26002/26002b) is a double-sided flip card (Intangible/Dense) attached to his identity; the
  * attachment chip used to read the printed front name even once Density Manipulation flipped it to the back.
  */
@@ -17,7 +16,7 @@ import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import type { SessionConfig } from "../engine/host.js";
-import { characterPanel, faceOf } from "./board-model.js";
+import { boardModel, characterPanel, faceOf } from "./board-model.js";
 
 const SPECTRUM_SOLO: SessionConfig = {
   scenarioId: "rhino",
@@ -61,23 +60,37 @@ describe("Spectrum's own energy forms at setup", () => {
     viewer = store.state.perspectiveId!;
   });
 
-  test("all three energy form upgrades sit facedown, unattached, in Spectrum's own play area", () => {
+  test("all three energy form upgrades sit facedown, unattached, in Spectrum's own play area, their faces open to her (#308)", () => {
     const player = state.players.find((seat) => seat.playerId === viewer)!;
     const forms = player.playArea.filter((id) => getInstance(state, id)?.facedownAs?.kind === "blank");
     expect(forms).toHaveLength(3);
     for (const id of forms) {
       expect(getInstance(state, id)?.faceup).toBe(false);
-      expect(faceOf(state, id)).toEqual({ kind: "back", back: "player" });
+      // Her own cards, placed knowing their faces: the table draws them faceup (`faceVisible`'s `playArea` arm).
+      expect(faceOf(state, id)).toEqual({ kind: "front" });
     }
   });
 
-  test("a blank facedown card with no printed traits still shows something legible, not an empty name", () => {
+  test("they sit in an Energy forms column beside the play area, not in the play row, none active in alter-ego form (#308)", () => {
+    const model = boardModel(state, viewer, POOL_DEPS);
+    expect(model.formCards).toHaveLength(1);
+    const [group] = model.formCards;
+    expect(group!.title).toBe("Energy forms");
+    expect(group!.cards.map((card) => card.name).sort()).toEqual(["Gamma", "Photon", "Pulsar"]);
+    expect(group!.cards.every((card) => !card.active && card.art !== null)).toBe(true);
+    const inRow = new Set(model.myPlayArea.map((panel) => panel.instanceId));
+    for (const card of group!.cards) expect(inRow.has(card.instanceId)).toBe(false);
+  });
+
+  test("after Energy Transformation turns one faceup, that one is the active form (#308)", () => {
     const player = state.players.find((seat) => seat.playerId === viewer)!;
-    const forms = player.playArea.filter((id) => getInstance(state, id)?.facedownAs?.kind === "blank");
-    for (const id of forms) {
-      const panel = characterPanel(state, id, POOL_DEPS);
-      expect(panel.name, id).toBe("Facedown card");
-    }
+    const gamma = player.playArea.find((id) => getInstance(state, id)?.cardId === "21002")!;
+    const hero: GameState = {
+      ...state,
+      instances: { ...state.instances, [gamma]: { ...getInstance(state, gamma)!, faceup: true, facedownAs: null } },
+    };
+    const cards = boardModel(hero, viewer, POOL_DEPS).formCards[0]!.cards;
+    expect(cards.filter((card) => card.active).map((card) => card.name)).toEqual(["Gamma"]);
   });
 });
 

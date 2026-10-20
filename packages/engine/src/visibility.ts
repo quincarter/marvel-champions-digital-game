@@ -23,6 +23,8 @@
  *  - a facedown encounter card dealt to a player is closed, except while a look offers it ("look at each encounter
  *    card dealt to each player", docs/phase7-wave9.md §3.12), and then to the looking player alone; a facedown boost
  *    card on an enemy is the same ("look at that card and the top card of the encounter deck", §3.44);
+ *  - a player's own card facedown in their own play area with no disguising role (Spectrum's inactive energy forms,
+ *    issue #308) or attached facedown (George Stacy's events) is open, as its owner knows its face;
  *  - everything else is open exactly when it is faceup, which covers a tucked card and a
  *    set-aside nemesis set without naming any of them. Being offered by a decision does not open any of these: only
  *    the deck, dealt-card and set-aside arms read the open decision.
@@ -231,6 +233,18 @@ export function faceVisible(state: GameState, id: InstanceId, view?: ViewerConte
       // A player's own card attached facedown (George Stacy's events, docs/phase7-wave5.md §3.15) is one its owner may
       // look at and play; table-wide today, as every hand is (see "Whose eyes" above).
       return instance.faceup || (instance.facedownAs !== null && instance.ownerId !== null);
+    case "playArea":
+      // A player's own card put facedown into their own play area as a blank card, not as something else (Spectrum's
+      // inactive energy forms, `mts` 21001b's Setup; issue #308), is one its owner placed knowing its face, so its face
+      // hides nothing from them. A card in play as a facedown minion (a Controlled minion) stays closed. Engine
+      // interpretation: RRG 1.8 has no entry on looking at your own facedown cards (p. 23 "In Play and Out of Play" says
+      // only where a facedown card is), so this follows the attachment arm above.
+      return (
+        instance.faceup ||
+        ((instance.facedownAs === null || instance.facedownAs.kind === "blank") &&
+          instance.ownerId !== null &&
+          instance.ownerId === zone.playerId)
+      );
     default:
       return instance.faceup;
   }
