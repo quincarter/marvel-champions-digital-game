@@ -122,6 +122,7 @@ export default defineConfig({
         "payment-table-tile-tap.spec.ts",
         "org-support-one-way.spec.ts",
         "music-volume-pause.spec.ts",
+        "villain-boost-breakdown.spec.ts",
       ],
     },
   ],

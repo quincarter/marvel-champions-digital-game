@@ -446,8 +446,9 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
 
   // `?screen=villain-boost-interrupt`: a real Scarlet Witch game paused on Chaos Control's boost-count window ("When
   // boost icons on an encounter card would be counted"), the interrupt panel showing the counted boost card (#172).
+  // The boost is Crowd Control, a side scheme lying on its side; `&seed=4` counts "I'm Tough!", a portrait card (#285).
   if (screen === "villain-boost-interrupt") {
-    const finish = await startDevBoostInterruptGame();
+    const finish = await startDevBoostInterruptGame(Number(params.get("seed")) || 1);
     // The villain phase starts a command or two before the window, and the walkthrough only collects beats while
     // Board is mounted: those last commands run once Board is up.
     window.setTimeout(() => void finish(), 1500);
@@ -650,7 +651,7 @@ async function startDevVillainInterruptGame(): Promise<void> {
  * returned function answers that and whatever else comes first with the fewest picks, and stops on Chaos Control's
  * `chooseTriggers` for the boost card Rhino's attack turned faceup (traced with seed 1).
  */
-async function startDevBoostInterruptGame(): Promise<() => Promise<void>> {
+async function startDevBoostInterruptGame(seed: number): Promise<() => Promise<void>> {
   const { store } = appSession();
   const answerUntilBoostCount = async (): Promise<void> => {
     for (let step = 0; step < 20; step++) {
@@ -666,7 +667,7 @@ async function startDevBoostInterruptGame(): Promise<() => Promise<void>> {
     scenarioId: "rhino",
     difficulty: "standard",
     players: [{ starterDeckId: "scw-justice" }],
-    seed: 1,
+    seed,
   });
   if (store.state.game?.pendingChoice) await store.resolveChoice([]);
   const legal = store.state.legal?.actions;
