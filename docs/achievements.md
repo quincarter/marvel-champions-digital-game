@@ -57,8 +57,8 @@ spread so a new player ranks up within the first few sessions.
 
 - **Team-up stories (earned mini comics):** win with a specific pair seated together to unlock a short story extra.
   First: Thor and She-Hulk together unlocks "Badlands Date Night" (placeholder name), the misadventure from Jason
-  Aaron's _Avengers_ #11 (2018). How the pages are shown depends on the owner's call on publishing comic pages
-  (public repo): default is a credited write-up linking to the issue, not the pages themselves.
+  Aaron's _Avengers_ #11 (2018). The extra is a credited write-up linking to the issue (owner, 2026-10-20:
+  no comic pages in this public repo or its builds).
 
 ## Data the client must record
 
