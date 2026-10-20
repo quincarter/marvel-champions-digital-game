@@ -94,6 +94,7 @@ A replacement or an addition keeps the exact local path a card record names
 at. Each one is recorded in assets/card-art/hall-of-heroes-manifest.tsv.
 
   uv run scripts/fetch_card_art.py audit
+  uv run scripts/fetch_card_art.py --self-test
   uv run scripts/fetch_card_art.py trim --dry-run
   uv run scripts/fetch_card_art.py fetch --stamped-only
   uv run scripts/fetch_card_art.py fetch --packs mts sm --dry-run
@@ -218,6 +219,8 @@ MAX_EDGE = 1100
 WEBP_QUALITY = 72
 # Padding is any pixel at least this light on every channel (and near-grey) that connects to the image's edge.
 PAD_WHITE = 225
+# A scan with more than this fraction of transparent pixels walled in by card pixels has a hole (`interior_transparency`).
+INTERIOR_MAX = 0.001
 # A trimmed card's long/short edge ratio must land here (a printed card is 88x63mm, 1.40; local scans run 1.39-1.45).
 CARD_ASPECT = (1.34, 1.50)
 
@@ -376,7 +379,69 @@ def background_mask(img: Image.Image) -> np.ndarray:
     candidate = light | (rgba[..., 3] < 16)
     labels, _ = ndimage.label(candidate)
     edge = np.unique(np.concatenate([labels[0], labels[-1], labels[:, 0], labels[:, -1]]))
-    return np.isin(labels, edge[edge > 0])
+    bg = np.isin(labels, edge[edge > 0])
+    # The flood can leak through a narrow gap in the card frame (a light or worn edge, a JPEG fringe) into a white
+    # area inside the card, such as the rules-text box, and make it transparent. Cut such channels: open the mask
+    # with a structuring element wider than any leak, keep only the opened pieces still touching the image border,
+    # then grow those back into the original mask just far enough to restore the rounded corners and tilted margins.
+    radius = max(2, round(0.008 * min(bg.shape)))
+    core = ndimage.binary_opening(bg, structure=np.ones((2 * radius + 1, 2 * radius + 1), bool))
+    core_labels, _ = ndimage.label(core)
+    core_edge = np.unique(
+        np.concatenate([core_labels[0], core_labels[-1], core_labels[:, 0], core_labels[:, -1]])
+    )
+    core = np.isin(core_labels, core_edge[core_edge > 0])
+    return ndimage.binary_dilation(core, iterations=radius + 3, mask=bg)
+
+
+def interior_transparency(img: Image.Image) -> float:
+    """
+    The fraction of a card's pixels that are transparent where only the card itself should be: transparency that is
+    neither in one of the four rounded corners (a square of 10% of the short side) nor a thin sliver along an edge
+    (the margin of a slightly tilted scan, thinner than 5% of the short side), which is what `trim` is meant to
+    leave. A hole of that size is a text box or title bar `trim` made see-through. 0.0 without an alpha channel.
+    """
+    if "A" not in img.getbands():
+        return 0.0
+    clear = np.asarray(img.convert("RGBA"))[..., 3] < 16
+    h, w = clear.shape
+    short = min(h, w)
+    k = max(3, round(0.05 * short))
+    clear = ndimage.binary_opening(clear, structure=np.ones((k, k), bool))
+    c = round(0.10 * short)
+    for ys, xs in ((slice(0, c), slice(0, c)), (slice(0, c), slice(w - c, w)),
+                   (slice(h - c, h), slice(0, c)), (slice(h - c, h), slice(w - c, w))):
+        clear[ys, xs] = False
+    return float(clear.mean())
+
+
+def self_test() -> None:
+    """Synthetic-image regression check for `trim` and `interior_transparency` (`--self-test`)."""
+    from PIL import ImageDraw
+
+    def card(leak: bool) -> Image.Image:
+        img = Image.new("RGB", (500, 700), (255, 255, 255))
+        d = ImageDraw.Draw(img)
+        d.rounded_rectangle((50, 50, 449, 649), radius=28, fill=(30, 60, 140))
+        d.rectangle((100, 420, 399, 600), fill=(255, 255, 255))  # rules-text box
+        if leak:  # a 3px white gap in the frame's bottom edge joining the text box to the padding
+            d.rectangle((250, 600, 252, 649), fill=(255, 255, 255))
+        return img
+
+    for leak in (False, True):
+        out = trim(card(leak))
+        assert out is not None, "trim rejected the synthetic card"
+        cropped, _ = out
+        a = np.asarray(cropped)[..., 3]
+        h, w = a.shape
+        assert a[h // 2 + 100, w // 2 - 60] == 255, f"text box made transparent (leak={leak})"
+        assert a[0, 0] == 0 and a[0, -1] == 0 and a[-1, 0] == 0 and a[-1, -1] == 0, "corners must be transparent"
+        assert a[h // 2, w // 2] == 255
+        assert interior_transparency(cropped) < INTERIOR_MAX, f"clean card flagged (leak={leak})"
+    holed = np.array(trim(card(False))[0])
+    holed[300:380, 100:300, 3] = 0
+    assert interior_transparency(Image.fromarray(holed, "RGBA")) > INTERIOR_MAX, "interior hole not detected"
+    print("self-test passed")
 
 
 def trim(img: Image.Image) -> tuple[Image.Image, tuple[int, int, int, int]] | None:
@@ -785,6 +850,15 @@ def audit(args: argparse.Namespace) -> list[tuple[float, str, str]]:
     results.sort(reverse=True)
     stamped = [r for r in results if r[0] > STAMP_THRESHOLD]
     if args.command == "audit":
+        holed = []
+        for code, path in local_scans().items():
+            with Image.open(path) as img:
+                frac = interior_transparency(img)
+            if frac > INTERIOR_MAX:
+                holed.append((frac, code))
+        for frac, code in sorted(holed, reverse=True):
+            print(f"interior transparency {frac:.1%}: {code} ({pack_of(code, cards)})")
+        print(f"{len(holed)} scans with interior transparency (a text box trim made see-through)\n")
         by_pack: dict[str, list[str]] = {}
         for _, code, pack in stamped:
             by_pack.setdefault(pack, []).append(code)
@@ -1197,7 +1271,8 @@ def compress(args: argparse.Namespace) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    sub = parser.add_subparsers(dest="command", required=True)
+    parser.add_argument("--self-test", action="store_true", help="run the synthetic-image checks of trim and exit")
+    sub = parser.add_subparsers(dest="command")
     a = sub.add_parser("audit", help="list local scans carrying the FFG watermark")
     a.add_argument("-v", "--verbose", action="store_true", help="also show the highest-scoring clean scans")
     t = sub.add_parser("trim", help="crop white padding off local scans in place")
@@ -1223,6 +1298,11 @@ def main() -> None:
     c.add_argument("--dry-run", action="store_true", help="report what would change without writing")
     c.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
+    if args.self_test:
+        self_test()
+        return
+    if not args.command:
+        parser.error("a command is required")
     commands = {"audit": audit, "trim": trim_local, "fetch": fetch, "grab": grab, "missing": missing, "compress": compress}
     commands[args.command](args)
 
