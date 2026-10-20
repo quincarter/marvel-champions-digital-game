@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { activeScenes, pressAt, settle, waitFor } from "./helpers.js";
 import { continueRect, villainDebugRect } from "./overlay-helpers.js";
-import { installWave6Helpers, trackErrors } from "./wave6-helpers-a.js";
+import { answerChoiceSheet, installWave6Helpers, trackErrors } from "./wave6-helpers-a.js";
 import { declineMulligans, openApp, type Rect } from "./wave6-helpers-b.js";
 
 /**
@@ -9,6 +9,9 @@ import { declineMulligans, openApp, type Rect } from "./wave6-helpers-b.js";
  * facedown, showing its back and a Flip Encounter Card button, and carries on with the card's face once it is pressed.
  * With the setting off nothing stops there. Ultron deals every hero a card each round, so one end turn is enough.
  */
+
+// The suite runs with motion off, under which nothing is paced and there is no gate (by design): this spec needs it on.
+test.use({ reducedMotion: "no-preference" });
 
 async function startAndEndTurn(page: Page, settings: Record<string, unknown>): Promise<void> {
   await page.addInitScript((extra) => {
@@ -68,7 +71,7 @@ const press = async (page: Page, phone: boolean, rect: Rect): Promise<void> => {
   else await pressAt(page, x, y);
 };
 
-/** Presses START / ANSWER / Next card until the recap is up or `stopAtFlip` and a Flip button shows; returns whether Flip showed. */
+/** Presses START / ANSWER / Next card (and answers any choice sheet) until the recap is up or `stopAtFlip` and a Flip button shows; returns whether Flip showed. */
 async function playOn(page: Page, phone: boolean, stopAtFlip: boolean): Promise<boolean> {
   let sawFlip = false;
   const deadline = Date.now() + 90_000;
@@ -79,13 +82,17 @@ async function playOn(page: Page, phone: boolean, stopAtFlip: boolean): Promise<
       sawFlip = true;
       if (stopAtFlip) return true;
     }
+    let pressed = false;
     for (const name of ["startRect", "answerRect", "nextRect"]) {
       const rect = await villainDebugRect(page, name);
       if (rect) {
         await press(page, phone, rect);
+        pressed = true;
         break;
       }
     }
+    // A sheet over the table (the end-of-turn discard, a revealed card's choice): answer it the usual way.
+    if (!pressed && (await activeScenes(page)).includes("ChoiceOverlay")) await answerChoiceSheet(page);
     await page.waitForTimeout(150);
   }
   throw new Error("the villain phase never reached its recap");
