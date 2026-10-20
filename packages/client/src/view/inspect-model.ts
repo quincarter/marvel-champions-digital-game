@@ -39,6 +39,7 @@ import {
   printedCostOf,
   printedResources,
   remainingHitPoints,
+  resourcesNotFor,
   traitsOf,
   type AbilityTriggerSpec,
   type EngineDeps,
@@ -59,6 +60,7 @@ import { cardName, faceUpName } from "./names.js";
 import { maskedStageInspect, type BlindReveal } from "./civil-war-blind.js";
 import { cardTextDisplay } from "./card-text-display.js";
 import { howThisWorksFor } from "./how-this-works.js";
+import { resourceLimitOf } from "./resource-limit.js";
 import { citeLabelOf, everyGlossaryEntry } from "./rules-reference.js";
 import { faceVisible } from "./visibility.js";
 import { poolTeamUpPairs, teamUpNoticeFor, teamUpWhyNot, type TeamUpNotice } from "./team-up-model.js";
@@ -146,6 +148,8 @@ export interface InspectPayment {
   readonly required: number;
   /** Every instance id the open payment could still spend — a superset of what's already spent. */
   readonly spendableInstanceIds: ReadonlySet<InstanceId>;
+  /** Resources shown in the strip that can't pay for this card (`PaymentSourceView.notFor`: Finesse for a hero card). */
+  readonly notForInstanceIds?: ReadonlySet<InstanceId>;
 }
 
 /**
@@ -405,7 +409,9 @@ export function inspectModel(
     currentCost: currentCostFor(state, perspectiveId, instanceId, card, deps),
     priceNote: priceNoteFor(state, perspectiveId, instanceId, deps),
     resourceNote:
-      liveResourceNote(state, instanceId, card, deps) ?? resourceAbilityNote(state, instanceId, deps, payment),
+      liveResourceNote(state, instanceId, card, deps) ??
+      resourceAbilityNote(state, instanceId, deps, payment) ??
+      notForNote(state, instanceId, deps),
     rulesText: cardTextDisplay(textOf(card, face).current),
     printedText: errataDiff(card, face),
     flavor: flavorOf(card, face),
@@ -615,13 +621,50 @@ function resourceAbilityNote(
     let text =
       `Can be used as a resource${form} while you pay for a card: ${exhaust ? "exhaust it to generate" : "generates"} ` +
       `${generates}.`;
+    // "… for an aspect card" (Finesse, `generatesFor`): what it pays for, in the card's own words (issue #292).
+    const limit = definition.generatesFor ? resourceLimitOf(rulesTextOf(state, instanceId)) : null;
+    if (limit) text += ` It pays only for ${limit}${aspectClause(limit)}.`;
     if (exhaust && instance.exhausted) text += " It is exhausted right now, so it has to ready first.";
     else if (payment !== null && payment.spendableInstanceIds.has(instanceId)) {
       text += " Available right now: tap it in the payment row.";
+    } else if (payment?.notForInstanceIds?.has(instanceId) && payment.subjectInstanceId !== null) {
+      text += ` It can't pay for ${cardName(state, payment.subjectInstanceId)}.`;
     }
     return text;
   }
   return null;
+}
+
+/** For "an aspect card": what one is, since a hero's own cards mostly aren't (RRG 1.8 "Aspect Card", p. 8). */
+const aspectClause = (limit: string): string =>
+  /\baspect card\b/i.test(limit)
+    ? ", one that shows an aspect such as Aggression or Justice; a hero's own card counts only if it shows one too"
+    : "";
+
+const rulesTextOf = (state: GameState, instanceId: InstanceId): string => {
+  const card = cardOf(state, instanceId);
+  return card && "text" in card ? card.text.current : "";
+};
+
+/**
+ * For a card in its owner's hand: each of their resources in play that could pay right now but pays only for another
+ * kind of card (Finesse, "for an aspect card", with a hero card that shows no aspect), named with the reason. The
+ * engine decides which (`resourcesNotFor`); this only words it (issue #292). Null when there is none.
+ */
+function notForNote(state: GameState, instanceId: InstanceId, deps: EngineDeps): string | null {
+  const at = locateCard(state, instanceId);
+  if (at?.kind !== "hand") return null;
+  const blocked = resourcesNotFor(state, deps, at.playerId, instanceId);
+  if (blocked.length === 0) return null;
+  return blocked
+    .map(({ instanceId: id }) => {
+      const limit = resourceLimitOf(rulesTextOf(state, id));
+      const why = limit
+        ? `it pays only for ${limit}${/\baspect card\b/i.test(limit) ? ", and this card shows no aspect" : ""}`
+        : "it pays only for another kind of card";
+      return `${cardName(state, id)} can't help pay for this card: ${why}.`;
+    })
+    .join(" ");
 }
 
 /**

@@ -603,6 +603,9 @@ export class InspectOverlay extends Phaser.Scene {
           // on it: several options can share one instance): "is this card usable at all", which every one of its
           // options being spendable still answers the same way.
           spendableInstanceIds: new Set([...paymentView.spendable.values()].map((source) => source.instanceId)),
+          notForInstanceIds: new Set(
+            paymentView.tableSources.filter((source) => source.notFor).map((source) => source.instanceId),
+          ),
         }
       : null;
     return inspectModel(state.game, this.#instanceId, state.legal?.actions ?? null, state.perspectiveId, POOL_DEPS, {
