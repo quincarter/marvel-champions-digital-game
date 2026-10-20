@@ -1,3 +1,0 @@
-kind: Fixed
-body: The release workflow no longer misreads an existing release tag as missing and fails trying to tag it again.
-time: 2026-10-19T19:40:23.4399891-04:00
