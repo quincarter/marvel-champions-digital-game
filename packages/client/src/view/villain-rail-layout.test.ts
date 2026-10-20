@@ -188,6 +188,16 @@ describe("villainTabLayout", () => {
     }
   });
 
+  it("grows happening now on a phone out of the log's room, so a wrapped headline, the breakdown and a boost card fit (#285)", () => {
+    const layout = villainTabLayout({ ...PHONE, revealing: false, interruptOptions: 0 });
+    expect(layout.bodyText.height).toBeGreaterThanOrEqual(220);
+    expect(layout.log.height).toBeGreaterThanOrEqual(60);
+    // With the interrupt window open the log has less to give, and the body never takes the window's place.
+    const open = villainTabLayout({ ...PHONE, revealing: false, interruptOptions: 1 });
+    expect(open.body.height).toBeGreaterThanOrEqual(180);
+    expect(overlaps(open.body, open.interrupt!.frame)).toBe(false);
+  });
+
   it("gives the revealed card most of the body on a phone (#128)", () => {
     const layout = villainTabLayout({ ...PHONE, revealing: true, interruptOptions: 0 });
     expect(layout.bodyArt.width).toBeGreaterThanOrEqual(150);
