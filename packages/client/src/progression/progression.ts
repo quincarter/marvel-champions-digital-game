@@ -37,6 +37,17 @@ import {
 } from "./unlocks.js";
 
 const PREFS_KEY = "mc-unlocks";
+/** Set once "Unlock everything" has been on, for the achievement that names it (kept after it is turned off). */
+const UNLOCKED_EVERYTHING_KEY = "mc-unlocked-everything";
+
+function unlockedEverythingEver(on: boolean): boolean {
+  try {
+    if (on) globalThis.localStorage?.setItem(UNLOCKED_EVERYTHING_KEY, "1");
+    return on || globalThis.localStorage?.getItem(UNLOCKED_EVERYTHING_KEY) === "1";
+  } catch {
+    return on;
+  }
+}
 
 function readPrefs(): UnlockPrefs {
   try {
@@ -109,7 +120,13 @@ export async function refreshUnlocks(): Promise<boolean> {
       .storage.list()
       .catch(() => []),
   ]);
-  const nextHistory = { saves, campaigns, howToPlay: howToPlayProgressOf(guidePrefs()) };
+  const nextHistory = {
+    saves,
+    campaigns,
+    howToPlay: howToPlayProgressOf(guidePrefs()),
+    // The player's own switch, not the `?unlock=all` dev param.
+    unlockedEverything: unlockedEverythingEver((prefs ?? readPrefs()).unlockAll),
+  };
   const nextEarned = achievementStatuses(nextHistory)
     .filter((status) => status.earned)
     .map((status) => status.def.id);
@@ -152,4 +169,6 @@ export function setUnlockPrefs(next: UnlockPrefs): void {
   currentExtras = null;
   writePrefs(next);
   applyEarnedItems();
+  // "Unlock everything" turned on earns its achievement: read again so the popup sees it.
+  if (next.unlockAll) void refreshUnlocks().catch(() => false);
 }

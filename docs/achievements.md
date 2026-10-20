@@ -82,6 +82,13 @@ bar) for finishing every How to Play row: the five basics lessons and each aspec
 (`view/how-to-play-model.ts#howToPlayProgressOf`, read from the guide prefs into `AchievementHistory.howToPlay`). The
 popup re-reads achievements whenever the guide prefs change, since a lesson finished changes no save.
 
+**Hero lines and Unlock everything (owner, 2026-10-20):** each hero has a "played" achievement (`played-<identity>`,
+10 points) for finishing a game as them, win or lose, named for their line in `progression/hero-quotes.ts` (the owner
+chose Captain America's "I can do this all day", Thor's "Another!", Iron Man's "I am Iron Man", She-Hulk's "I object"
+and T'Challa's "Wakanda Forever!"; the rest were drafted for the owner to edit). "Sometimes You Gotta Run Before You Can
+Walk" (`unlock-everything`, funny family, a joke pack) is earned by turning on Settings ▸ Unlocks' "Unlock everything",
+remembered in `mc-unlocked-everything` after it is turned off again.
+
 ## Data the client must record
 
 Most families read the existing `mc-saves` / `mc-campaigns` rows (outcome, scenario, heroes, difficulty, players,

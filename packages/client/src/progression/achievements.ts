@@ -19,6 +19,7 @@
  */
 import { CAMPAIGN_RECORDS } from "../campaign/campaign-service.js";
 import { POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
+import { HERO_QUOTES } from "./hero-quotes.js";
 import { isLessonSave } from "../engine/game-storage.js";
 import type { GameSummary } from "../engine/game-summary.js";
 import { identityOfSeat } from "./extras.js";
@@ -75,6 +76,8 @@ export interface AchievementHistory {
   readonly campaigns: readonly AchievementCampaign[];
   /** How much of How to Play is done (`view/how-to-play-model.ts#howToPlayProgressOf`), from the guide prefs. */
   readonly howToPlay?: { readonly done: number; readonly total: number };
+  /** True once Settings ▸ Unlocks' "Unlock everything" has ever been turned on (`progression.ts`). */
+  readonly unlockedEverything?: boolean;
 }
 
 export const NO_HISTORY: AchievementHistory = { saves: [], campaigns: [] };
@@ -107,6 +110,9 @@ interface Facts {
   readonly noAllyWins: number;
   /** How to Play rows done and in all; null when the history carries no guide progress. */
   readonly howToPlay: { readonly done: number; readonly total: number } | null;
+  /** Identity card ids of heroes seated in a finished game, won or lost. */
+  readonly playedHeroes: ReadonlySet<string>;
+  readonly unlockedEverything: boolean;
 }
 
 /** `{ current, target }`, or null when the history can't answer yet. */
@@ -184,6 +190,8 @@ export function factsOf(history: AchievementHistory): Facts {
     ),
     noAllyWins: wonSaves.filter((s) => s.summary != null && s.summary.alliesPlayed === 0).length,
     howToPlay: history.howToPlay ?? null,
+    playedHeroes: new Set([...wonSaves, ...lostSaves].flatMap(heroesOf)),
+    unlockedEverything: history.unlockedEverything === true,
   };
 }
 
@@ -331,6 +339,17 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
       family: "heroes",
       points: 25,
       measure: (f) => count(f.wonHeroes.has(h.identityCardId) ? 1 : 0, 1),
+    }),
+  ),
+  // Playing a game as each hero, win or lose, named for the hero's line (the owner, 2026-10-20; `hero-quotes.ts`).
+  ...UNLOCK_HEROES.map((h) =>
+    def({
+      id: `played-${h.identityCardId}`,
+      name: `"${HERO_QUOTES[h.name] ?? `Suiting Up as ${h.name}`}"`,
+      description: `Play a game as ${h.name}, win or lose.`,
+      family: "heroes",
+      points: 10,
+      measure: (f) => count(f.playedHeroes.has(h.identityCardId) ? 1 : 0, 1),
     }),
   ),
   ...wavesWithScenarios
@@ -501,6 +520,15 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
       measure: (f) => count(f.losses, target),
     }),
   ),
+  // The owner, 2026-10-20: skipping the climb with Settings ▸ Unlocks' "Unlock everything".
+  def({
+    id: "unlock-everything",
+    name: "Sometimes You Gotta Run Before You Can Walk",
+    description: 'Turn on "Unlock everything" in Settings and skip the climb. (Tony Stark)',
+    family: "funny",
+    rewardPackId: "pack-run-before-you-walk",
+    measure: (f) => count(f.unlockedEverything ? 1 : 0, 1),
+  }),
   def({
     id: "round-one-loss",
     name: "Speedrun (Wrong Direction)",

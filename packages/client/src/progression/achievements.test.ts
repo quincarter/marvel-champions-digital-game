@@ -18,6 +18,7 @@ import {
 } from "./achievements.js";
 import type { GameSummary } from "../engine/game-summary.js";
 import { UNLOCK_HEROES } from "./unlocks.js";
+import { HERO_QUOTES } from "./hero-quotes.js";
 
 const heroId = (name: string): string => UNLOCK_HEROES.find((h) => h.name === name)!.identityCardId;
 const deckOf = (name: string, aspects?: string[]) => ({
@@ -142,6 +143,19 @@ describe("reading the save history", () => {
     expect(earned("feat-four-players", hist([game("rhino", "won", { players: four })]))).toBe(true);
   });
 
+  it("names each hero's played achievement for their line, and earns it for any finished game as them", () => {
+    for (const h of UNLOCK_HEROES) expect(HERO_QUOTES[h.name], `a line for ${h.name}`).toBeTruthy();
+    const thor = ACHIEVEMENTS.find((a) => a.id === `played-${heroId("Thor")}`)!;
+    expect(thor.name).toBe('"Another!"');
+    expect(earned(`played-${heroId("Thor")}`, hist([game("rhino", "lost", { players: [deckOf("Thor")] })]))).toBe(true);
+    expect(earned(`played-${heroId("Thor")}`, hist([game("rhino", "won", { players: [deckOf("Hulk")] })]))).toBe(false);
+  });
+
+  it("earns Sometimes You Gotta Run Before You Can Walk for turning on Unlock everything", () => {
+    expect(earned("unlock-everything", hist([]))).toBe(false);
+    expect(earned("unlock-everything", { ...hist([]), unlockedEverything: true })).toBe(true);
+  });
+
   it("earns Studying Like Doctor Strange once every How to Play row is done, with a progress bar", () => {
     const at = (done: number): AchievementHistory => ({ ...hist([]), howToPlay: { done, total: 9 } });
     expect(earned("feat-how-to-play", at(8))).toBe(false);
@@ -197,7 +211,11 @@ describe("points and rank", () => {
   it("gives the funny achievements no points", () => {
     const h = hist(Array.from({ length: 10 }, () => game("rhino", "lost", { round: 1 })));
     expect(achievementStatuses(h).some((s) => s.earned && s.def.id === "losses-10")).toBe(true);
-    expect(achievementPointsOf(h)).toBe(0);
+    // Only the hero played for those games scores (a game played as a hero counts, win or lose).
+    const funny = achievementStatuses(h).filter((s) => s.earned && s.def.family === "funny");
+    expect(funny.length).toBeGreaterThan(0);
+    expect(funny.every((s) => s.def.points === 0)).toBe(true);
+    expect(achievementPointsOf(h)).toBe(10);
   });
 
   it("has nine ranks whose thresholds rise and whose last needs every point there is", () => {
