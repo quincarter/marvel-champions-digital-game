@@ -359,20 +359,23 @@ const poolTotal = (pool: ResourcePool): number => pool.physical + pool.mental + 
 
 /**
  * What spending a source gives up, lowest first. The warning only ever suggests a source from a lower rung than the
- * card it replaces, so it never trades one card worth keeping for another (issue #299: Tac Team paid for, and the
- * warning offered Relentless Assault, a card just as worth keeping, only because it couldn't be played that moment).
+ * card it replaces, and the cheapest one it finds, so it never trades a card for one just as good to keep (issue #299:
+ * the suggestion used to be whichever other card came first in the hand).
  *
- * - `free`: a resource ability on a card in play that costs nothing else (Pepper Potts, Peter Parker's
- *   Scientist): no card leaves the hand.
+ * - `free`: a resource ability on a card in play that costs nothing else (Pepper Potts, Peter Parker's Scientist): no
+ *   card leaves the hand.
  * - `spare`: a card that is there to be spent — a resource card (RRG 1.8 "Resource Card", p. 37) — or one that can
  *   never be played while its unique twin is in play (RRG 1.8 "Unique", p. 46), and a resource ability whose own cost
  *   takes something (damage, threat).
- * - `keeper`: every other card. Its worth is a judgement the player makes, not one the guide can.
+ * - `idle`: a card with no legal play right now (Relentless Assault with no minion to hit, Spider-Tracer with no
+ *   minion to attach to): it may be wanted later, but it does nothing this round (the owner on #299).
+ * - `keeper`: a card the player could play right now.
  */
-type SpendRung = 0 | 1 | 2;
+type SpendRung = 0 | 1 | 2 | 3;
 const FREE: SpendRung = 0;
 const SPARE: SpendRung = 1;
-const KEEPER: SpendRung = 2;
+const IDLE: SpendRung = 2;
+const KEEPER: SpendRung = 3;
 
 /** The hand card a source discards, or null for a resource ability on a card that stays in play. */
 const cardSpentBy = (source: PaymentSource): InstanceId | null =>
@@ -382,7 +385,8 @@ function spendRungOf(state: GameState, legal: () => LegalActions, source: Paymen
   const card = cardSpentBy(source);
   if (card === null) return source.costSelection ? SPARE : FREE;
   if (cardOf(state, card)?.type === "resource") return SPARE;
-  return isDuplicateUnique(legal(), card) ? SPARE : KEEPER;
+  if (isDuplicateUnique(legal(), card)) return SPARE;
+  return isGenuinelyPlayableNow(legal(), card) ? KEEPER : IDLE;
 }
 
 /**
@@ -428,18 +432,18 @@ const sumPools = (sources: readonly PaymentSource[]): ResourcePool => {
  * Confirming a payment that overpays, or that spends a card worth keeping when something cheaper to lose pays the
  * same cost (§5.2).
  *
- * The swap is only ever suggested when it is a real improvement (issue #299, where the warning recommended cards
- * that were just as good to keep):
+ * The swap is only ever suggested when it is a real improvement (issue #299, where the suggestion was whichever card
+ * came first and could leave the cost unpaid by type):
  *
- * - The spent card is a `keeper` that is a legal, affordable play right now — not merely "not a bare resource card",
- *   which flagged cards with no target (Spider-Tracer with no minion in play) and made the warning ping-pong between
- *   two cards (Aunt May paid with Spider-Tracer vs. with For Justice!, each suggesting the other).
- * - The suggestion is on a lower rung (`SpendRung`): a resource ability, a resource card, or a dead unique copy. Never
- *   another card the player might want, whether or not it happens to be playable this moment.
+ * - The spent card is a `keeper`, a legal, affordable play right now — not merely "not a bare resource card", which
+ *   flagged cards with no target (Spider-Tracer with no minion in play) and made the warning ping-pong between two
+ *   cards (Aunt May paid with Spider-Tracer vs. with For Justice!, each suggesting the other).
+ * - The suggestion is on a lower rung (`SpendRung`), and the lowest one that works: a resource ability before a
+ *   resource card, a resource card before a card with no play this round, then the engine's own order. The warning
+ *   says which rung it is, so the suggestion never reads as a random card.
  * - The swap pays the cost exactly, by type ("1 energy" needs an energy or a wild, `satisfies`) — a suggestion that
  *   overpays or can't pay would only trade this warning for another or for a refusal. The other picks may stay
  *   beside it, or drop out when the suggestion covers their share too (a double resource card in place of two cards).
- * - The cheapest suggestion wins: no card lost before a resource card, then the engine's own order.
  *
  * A "spend up to N" cost is the player's own choice of how much to spend, so it is never second-guessed here.
  */
@@ -483,18 +487,15 @@ export function wastedPayHint(
     .sort((a, b) => a.rung - b.rung);
   if (alternatives.length === 0) return null;
 
-  const keepers = picks.filter((source) => {
-    const card = cardSpentBy(source);
-    return card !== null && spendRungOf(state, legal, source) === KEEPER && isGenuinelyPlayableNow(legal(), card);
-  });
+  const keepers = picks.filter((source) => spendRungOf(state, legal, source) === KEEPER);
   for (const source of keepers) {
     const others = picks.filter((other) => other !== source);
-    for (const { alt } of alternatives) {
+    for (const { alt, rung } of alternatives) {
       const kept = subsetsOf(others).find((subset) => {
         const pool = sumPools([...subset, alt]);
         return poolTotal(pool) === required && satisfies(pool, requirement);
       });
-      if (kept) return wastedCardHint(state, source, alt, kept.length === 0, paid, required);
+      if (kept) return wastedCardHint(state, source, alt, rung, kept.length === 0, paid, required);
     }
   }
   return null;
@@ -504,19 +505,28 @@ function wastedCardHint(
   state: GameState,
   spent: PaymentSource,
   alt: PaymentSource,
+  rung: SpendRung,
   alone: boolean,
   paid: number,
   required: number,
 ): Hint {
   const spentName = cardName(state, spent.instanceId);
   const altName = cardName(state, alt.instanceId);
-  const instead = alone
-    ? `${altName} alone could cover the [[cost|cost]] instead`
-    : `${altName} could pay its share of the [[cost|cost]] instead`;
+  const why =
+    rung === FREE
+      ? `${altName} pays without spending a card`
+      : rung === IDLE
+        ? `${altName} has no play right now`
+        : cardOf(state, alt.instanceId)?.type === "resource"
+          ? `${altName} is a resource card`
+          : alt.kind === "resourceAbility" && cardSpentBy(alt) === null
+            ? `${altName} can pay`
+            : `${altName} can't be played while its unique copy is in play`;
+  const covers = alone ? "and alone could cover the [[cost|cost]] instead" : "and could pay that share instead";
   return {
     key: "wastedPay",
     title: "This spends a card you could keep",
-    body: `${spentName} is spent for [[resource|resources]] here, but ${instead}.`,
+    body: `${spentName} could be played right now, but it is spent for [[resource|resources]] here. ${why}, ${covers}.`,
     facts: { paid, required },
     safeAction: { label: "Change payment" },
     anywayAction: { label: "Confirm payment" },

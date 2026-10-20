@@ -538,9 +538,14 @@ describe("wastedPayHint", () => {
     const paidWithForJustice = togglePayment(openedForForJustice, forJusticeSource.optionId);
     const viewForJustice = paymentView(state, me, paidWithForJustice, "test", CORE_DEPS);
     expect(viewForJustice.paid).toBe(viewForJustice.required);
-    // Spider-Tracer is a card worth keeping too, for when a minion shows up: it can't be played this moment, but that
-    // doesn't make it the card to spend (issue #299), so neither direction warns.
-    expect(wastedPayHint(state, CORE_DEPS, me, viewForJustice)).toBeNull();
+    // For Justice! is a legal thwart right now and Spider-Tracer has no play this round, so this direction warns, and
+    // says why it picked Spider-Tracer.
+    const hint = wastedPayHint(state, CORE_DEPS, me, viewForJustice);
+    expect(hint).not.toBeNull();
+    expect(hint!.body).toContain("Spider-Tracer has no play right now, and alone could cover");
+
+    // The suggested alternative must never itself trigger the warning when paid with alone (the ping-pong check).
+    expect(wastedPayHint(state, CORE_DEPS, me, viewSpiderTracer)).toBeNull();
   });
 
   /** Aunt May (cost 1) opened for payment with exactly `codes` in hand, paid with the card at `payWith`. */
@@ -571,21 +576,22 @@ describe("wastedPayHint", () => {
     return { state, ids, view: paymentView(state, me, payment, "test", CORE_DEPS) };
   }
 
-  // Reported 2026-10-20 (issue #299): Tac Team was paid for and the warning offered Relentless Assault instead, a card
-  // just as worth keeping that only happened not to be playable that moment. The suggestion is now only ever a card
-  // made for paying (a resource card), a dead unique copy, or a resource ability on a card in play.
-  test("suggests a resource card in place of cards worth keeping (#299)", () => {
-    // For Justice! (a thwart the scheme's threat makes playable) and Spider-Tracer pay 2; Energy pays 2 by itself.
-    const { state, view } = blackCatPaidWith(["01060", "01007", "01088"], [0, 1]);
+  // Reported 2026-10-20 (issue #299): the suggestion was whichever other card came first, with no word on why. A
+  // resource card now comes before a card with no play this round, and the warning says which it is.
+  test("suggests a resource card before a card with no play right now (#299)", () => {
+    // For Justice! (a thwart the scheme's threat makes playable) and Spider-Tracer pay 2. Backflip (an interrupt with
+    // nothing to interrupt) has no play either, but Energy is a resource card and pays 2 by itself.
+    const { state, view } = blackCatPaidWith(["01060", "01007", "01003", "01088"], [0, 1]);
     expect(view.paid).toBe(view.required);
     const hint = wastedPayHint(state, CORE_DEPS, me, view);
     expect(hint).not.toBeNull();
-    expect(hint!.body).toContain("For Justice! is spent");
-    expect(hint!.body).toContain("Energy alone could cover");
+    expect(hint!.body).toContain("For Justice! could be played right now");
+    expect(hint!.body).toContain("Energy is a resource card, and alone could cover");
   });
 
-  test("never suggests a card that is just as worth keeping (#299)", () => {
-    const { state, view } = blackCatPaidWith(["01060", "01007", "01003"], [0, 1]);
+  test("never suggests a card that could be played right now as well", () => {
+    // Web-Shooter (an upgrade For Justice! could pay for) is a play this round too: swapping one for the other is no help.
+    const { state, view } = auntMayPaidWith(["01060", "01008"], 0);
     expect(view.paid).toBe(view.required);
     expect(wastedPayHint(state, CORE_DEPS, me, view)).toBeNull();
   });
