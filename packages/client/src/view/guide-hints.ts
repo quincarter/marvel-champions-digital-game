@@ -27,6 +27,7 @@ import {
   mainSchemeValue,
   minionsEngagedWith,
   remainingHitPoints,
+  satisfies,
   statusActive,
   type EngineDeps,
   type GameState,
@@ -34,6 +35,7 @@ import {
   type LegalActions,
   type PaymentSource,
   type PlayerId,
+  type ResourcePool,
 } from "@mc/engine";
 import { thwartUsesAtk } from "./attacker-choice.js";
 import { schemePanel } from "./board-model.js";
@@ -351,10 +353,37 @@ export function flipDangerHint(
 // ---------------------------------------------------------------------------
 
 /** The `PaymentView` fields `wastedPayHint` reads — never the whole mode, so a test can build just these. */
-export type WastedPayView = Pick<PaymentView, "paid" | "required" | "spent" | "spendable">;
+export type WastedPayView = Pick<PaymentView, "paid" | "required" | "requirement" | "overpaid" | "spent" | "spendable">;
 
-const poolTotal = (pool: Readonly<Record<string, number>>): number =>
-  Object.values(pool).reduce((sum, n) => sum + n, 0);
+const poolTotal = (pool: ResourcePool): number => pool.physical + pool.mental + pool.energy + pool.wild;
+
+/**
+ * What spending a source gives up, lowest first. The warning only ever suggests a source from a lower rung than the
+ * card it replaces, so it never trades one card worth keeping for another (issue #299: Tac Team paid for, and the
+ * warning offered Relentless Assault, a card just as worth keeping, only because it couldn't be played that moment).
+ *
+ * - `free`: a resource ability on a card in play that costs nothing else (Pepper Potts, Peter Parker's
+ *   Scientist): no card leaves the hand.
+ * - `spare`: a card that is there to be spent — a resource card (RRG 1.8 "Resource Card", p. 37) — or one that can
+ *   never be played while its unique twin is in play (RRG 1.8 "Unique", p. 46), and a resource ability whose own cost
+ *   takes something (damage, threat).
+ * - `keeper`: every other card. Its worth is a judgement the player makes, not one the guide can.
+ */
+type SpendRung = 0 | 1 | 2;
+const FREE: SpendRung = 0;
+const SPARE: SpendRung = 1;
+const KEEPER: SpendRung = 2;
+
+/** The hand card a source discards, or null for a resource ability on a card that stays in play. */
+const cardSpentBy = (source: PaymentSource): InstanceId | null =>
+  source.kind === "handCard" || source.spendsHandCard ? source.instanceId : null;
+
+function spendRungOf(state: GameState, legal: () => LegalActions, source: PaymentSource): SpendRung {
+  const card = cardSpentBy(source);
+  if (card === null) return source.costSelection ? SPARE : FREE;
+  if (cardOf(state, card)?.type === "resource") return SPARE;
+  return isDuplicateUnique(legal(), card) ? SPARE : KEEPER;
+}
 
 /**
  * Whether `instanceId` (a hand card) has a legal, affordable play *right now*, in the legal actions for the state as
@@ -368,14 +397,51 @@ function isGenuinelyPlayableNow(legal: LegalActions, instanceId: InstanceId): bo
   return legal.legal.some((entry) => entry.action.kind === "playCard" && entry.action.instanceId === instanceId);
 }
 
+/** A hand card the engine refuses only because a copy of its unique card is already in play. */
+function isDuplicateUnique(legal: LegalActions, instanceId: InstanceId): boolean {
+  if (legal.kind !== "turn") return false;
+  return legal.illegal.some(
+    (entry) =>
+      entry.action.kind === "playCard" &&
+      entry.action.instanceId === instanceId &&
+      entry.reason === "duplicate_unique_card",
+  );
+}
+
+/** Every subset of `items`, smallest first, so the fewest sources kept beside a swap are tried first. */
+function subsetsOf<T>(items: readonly T[]): readonly (readonly T[])[] {
+  const all: T[][] = [[]];
+  for (const item of items) for (const subset of [...all]) all.push([...subset, item]);
+  return all.sort((a, b) => a.length - b.length);
+}
+
+const RESOURCE_TYPES = ["physical", "mental", "energy", "wild"] as const;
+
+/** The resources a set of sources generates together. */
+const sumPools = (sources: readonly PaymentSource[]): ResourcePool => {
+  const pool = { physical: 0, mental: 0, energy: 0, wild: 0 };
+  for (const source of sources) for (const type of RESOURCE_TYPES) pool[type] += source.pool[type];
+  return pool;
+};
+
 /**
- * Confirming a payment that overpays (`paid > required`), or that spends a card which is itself a legal,
- * affordable play right now — not merely "not a bare resource card", which flagged cards with no legal target or
- * the wrong form (Spider-Tracer with no minion in play) and made the warning ping-pong between two cards that
- * both looked "playable" by that looser test (Aunt May paid with Spider-Tracer vs. with For Justice!, each
- * suggesting the other) — while another still-spendable source that is *not itself* such a card alone would have
- * covered what's left of the cost (§5.2). If every covering alternative is itself a genuine play, swapping just
- * trades one flagged card for another, so this stays quiet rather than ping-ponging.
+ * Confirming a payment that overpays, or that spends a card worth keeping when something cheaper to lose pays the
+ * same cost (§5.2).
+ *
+ * The swap is only ever suggested when it is a real improvement (issue #299, where the warning recommended cards
+ * that were just as good to keep):
+ *
+ * - The spent card is a `keeper` that is a legal, affordable play right now — not merely "not a bare resource card",
+ *   which flagged cards with no target (Spider-Tracer with no minion in play) and made the warning ping-pong between
+ *   two cards (Aunt May paid with Spider-Tracer vs. with For Justice!, each suggesting the other).
+ * - The suggestion is on a lower rung (`SpendRung`): a resource ability, a resource card, or a dead unique copy. Never
+ *   another card the player might want, whether or not it happens to be playable this moment.
+ * - The swap pays the cost exactly, by type ("1 energy" needs an energy or a wild, `satisfies`) — a suggestion that
+ *   overpays or can't pay would only trade this warning for another or for a refusal. The other picks may stay
+ *   beside it, or drop out when the suggestion covers their share too (a double resource card in place of two cards).
+ * - The cheapest suggestion wins: no card lost before a resource card, then the engine's own order.
+ *
+ * A "spend up to N" cost is the player's own choice of how much to spend, so it is never second-guessed here.
  */
 export function wastedPayHint(
   state: GameState,
@@ -384,35 +450,53 @@ export function wastedPayHint(
   payment: WastedPayView,
   given?: LegalActions,
 ): Hint | null {
-  const { paid, required, spent, spendable } = payment;
+  const { paid, required, requirement, overpaid, spent, spendable } = payment;
   // The host's own list for this seat when the caller has it (computed off the main thread, issue #258); listing them
   // again here took over a second on a slow tablet. Listed at most once otherwise.
   let listed = given;
-  const playable = (instanceId: InstanceId) =>
-    isGenuinelyPlayableNow((listed ??= legalActions(state, playerId, deps)), instanceId);
+  const legal = () => (listed ??= legalActions(state, playerId, deps));
 
-  if (paid > required) {
+  // What the picks pay beyond the cost. An overpay-only source (Mr. Hollywood) is there to overpay, so it isn't
+  // counted against the player.
+  const overpayOnly = poolTotal(sumPools([...spent.values()].filter((source) => source.overpayOnly)));
+  const excess = overpaid - overpayOnly;
+  if (excess > 0) {
     return {
       key: "wastedPay",
       title: "This pays more than needed",
       body: `The [[cost|cost]] is ${required}, and this payment adds up to ${paid}.`,
-      facts: { paid, required, overpay: paid - required },
+      facts: { paid, required, overpay: excess },
       safeAction: { label: "Change payment" },
       anywayAction: { label: "Confirm payment" },
     };
   }
+  // A "spend up to N" cost, or a selection the engine has yet to accept: nothing to compare a swap against.
+  if (paid !== required) return null;
 
-  for (const source of spent.values()) {
-    if (source.kind !== "handCard") continue;
-    if (!playable(source.instanceId)) continue;
-    const withoutThis = paid - poolTotal(source.pool);
-    const alt = [...spendable.values()].find(
-      (other) =>
-        withoutThis + poolTotal(other.pool) >= required && !(other.kind === "handCard" && playable(other.instanceId)),
-    );
-    if (alt) return wastedCardHint(state, source, alt, paid, required);
+  const picks = [...spent.values()].filter((source) => !source.overpayOnly);
+  // One card is spent once: another way of spending a picked card is no alternative to it.
+  const pickedCards = new Set(picks.map(cardSpentBy));
+  const alternatives = [...spendable.values()]
+    .filter((alt) => !alt.overpayOnly && (cardSpentBy(alt) === null || !pickedCards.has(cardSpentBy(alt))))
+    .map((alt) => ({ alt, rung: spendRungOf(state, legal, alt) }))
+    .filter(({ rung }) => rung < KEEPER)
+    .sort((a, b) => a.rung - b.rung);
+  if (alternatives.length === 0) return null;
+
+  const keepers = picks.filter((source) => {
+    const card = cardSpentBy(source);
+    return card !== null && spendRungOf(state, legal, source) === KEEPER && isGenuinelyPlayableNow(legal(), card);
+  });
+  for (const source of keepers) {
+    const others = picks.filter((other) => other !== source);
+    for (const { alt } of alternatives) {
+      const kept = subsetsOf(others).find((subset) => {
+        const pool = sumPools([...subset, alt]);
+        return poolTotal(pool) === required && satisfies(pool, requirement);
+      });
+      if (kept) return wastedCardHint(state, source, alt, kept.length === 0, paid, required);
+    }
   }
-
   return null;
 }
 
@@ -420,15 +504,19 @@ function wastedCardHint(
   state: GameState,
   spent: PaymentSource,
   alt: PaymentSource,
+  alone: boolean,
   paid: number,
   required: number,
 ): Hint {
   const spentName = cardName(state, spent.instanceId);
   const altName = cardName(state, alt.instanceId);
+  const instead = alone
+    ? `${altName} alone could cover the [[cost|cost]] instead`
+    : `${altName} could pay its share of the [[cost|cost]] instead`;
   return {
     key: "wastedPay",
     title: "This spends a card you could keep",
-    body: `${spentName} is spent for [[resource|resources]] here, but ${altName} alone could cover the [[cost|cost]] instead.`,
+    body: `${spentName} is spent for [[resource|resources]] here, but ${instead}.`,
     facts: { paid, required },
     safeAction: { label: "Change payment" },
     anywayAction: { label: "Confirm payment" },
