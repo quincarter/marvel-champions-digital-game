@@ -120,6 +120,33 @@ card scan). The card types are not named anywhere on the page.
 - **PDF insert:** the 11 PDF pages render at 90 dpi well enough to read the text (done); render at 150 dpi for the small
   print of pp. 8 to 9 and 12 to 13 before building.
 
+## 2.1 Locked until the scans are posted (implementation note, owner 2026-10-20)
+
+Shadowland is **locked**: its seven sets stay in `UNSCRIPTED_ENCOUNTER_SET_IDS` (`packages/cards/src/playable/unscripted.ts`),
+so no scenario, modular pick or campaign offers it, and wave 11 ships without it. Re-checked 2026-10-20: the Hall of Heroes
+page (`https://hallofheroeslcg.com/shadowland/`) still shows only the 45 preview faces (`fetch_card_art.py grab` saved
+those 45 plus announcement splashes and a fan of the six Dark Protege A sides), so nothing new can be transcribed.
+
+**What is missing** (collector numbers from the card footers, §1.3):
+
+| Set                       | Missing faces                                                                                                                                                           | Blocks                                        |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| Shadows in the Night (13) | 1, 2, 6, 7, 9 and the rest not previewed, incl. the main scheme faces (1A/1B and any stage 2)                                                                           | scenario #1 record (`shadows-in-the-night`)   |
+| Dark Protege (16)         | the six villain B sides 12B to 17B; linked cards 20 to 25                                                                                                               | the villain choice, each villain's linked set |
+| Ninja Swarm (9)           | 29, 31, 33, 34 (the FFG article names seven Ninja minions; four are seen)                                                                                               | the modular set                               |
+| Shadow Labyrinth (11)     | 38A and 39A (the main scheme fronts; 38B and 39B are held in `SHADOW_LABYRINTH_B_FACES_PENDING_A`), 40, 43 (Whisper in the Dark is one), 42, Shifting Corridors' B side | scenario #2 record (`shadow-labyrinth`)       |
+| Deadly Contraptions (11)  | 49 and 52 to 56 (the other TRAP! treacheries)                                                                                                                           | the trap deck's full contents                 |
+| Heart of Shadow (17)      | 58 to 63 (incl. the main scheme faces), 66, 68, 70, Krahllak's other stage if any                                                                                       | scenario #3 record (`heart-of-shadow`)        |
+| Black Flower (13)         | everything but Creeping Corruption 72A/72B                                                                                                                              | the campaign's Black Flower setup             |
+
+**Where to get them:** Hall of Heroes first (preferred, owner 2026-10-20): when the Shadowland page or a card database
+page lists the full set, run `uv run scripts/fetch_card_art.py fetch --packs shadowland --fill-missing --dry-run -v` (the
+pack's page is mapped in the script on this branch), then without `--dry-run`, then `compress`; anything it cannot match
+by name, `grab --page https://hallofheroeslcg.com/shadowland/ --out <scratch>` and transcribe by hand as §3 describes.
+Fallbacks: MarvelCDB once it carries the pack, or the owner's own photos of the physical cards. Then: transcribe (D2/D3),
+set `scenarios: SHADOWLAND_SCENARIO_RECORDS` in `curation/shadowland.ts` and re-emit (D4), script the new refs, run QA,
+and remove the seven ids from `UNSCRIPTED_ENCOUNTER_SET_IDS` / `GATED_THOUGH_SCRIPTED`.
+
 ## 3. How the data will be produced (the Fear No Evil method)
 
 The Fear No Evil scenario half was pulled from Hall of Heroes with `scripts/fetch_card_art.py` and transcribed by hand as

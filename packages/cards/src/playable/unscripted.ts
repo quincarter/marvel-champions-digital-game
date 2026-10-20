@@ -14,8 +14,9 @@
 import type { Scenario } from "@mc/content";
 
 export const UNSCRIPTED_ENCOUNTER_SET_IDS: ReadonlySet<string> = new Set<string>([
-  // Shadowland (MC65, cycle 11; docs/phase7-shadowland.md): the pack is mid-transcription (40 of 70 cards) and every
-  // ability is unscripted, so none of its sets is playable yet. Delete an id here once its set is scripted.
+  // Shadowland (MC65, cycle 11): locked until its missing scans are posted (owner, 2026-10-20). About 30 faces,
+  // including every main scheme, have no scan yet; docs/phase7-shadowland.md §2.1 lists them and how to fetch them
+  // (Hall of Heroes first). Delete these ids once the pack is transcribed, scripted and QA'd.
   "black_flower",
   "dark_protege",
   "deadly_contraptions",
