@@ -96,11 +96,23 @@ export const reprintImages = (r: RawCard): CardImages | undefined => {
   const schemaType = RAW_TO_SCHEMA_TYPE[r.type_code];
   if (!schemaType) return undefined;
   // The record's own `duplicate_of_code` target names the exact original; the name lookup is the fallback.
+  const named = CORE_ART_BY_NAME.get(`${r.type_code} ${r.name}`);
   const src =
     (r.duplicate_of_code ? ART_BY_CODE.get(r.duplicate_of_code) : undefined) ??
-    CORE_ART_BY_NAME.get(`${r.type_code} ${r.name}`);
+    (named && samePrintedStats(r, named) ? named.imagesrc : undefined);
   return src ? { front: brand("image", src) } : undefined;
 };
+
+/** The printed numbers a reprint shares with its first printing. Text is left out: an errata'd record keeps its art. */
+const PRINTED_STATS = ["cost", "attack", "thwart", "defense", "recover", "health", "scheme", "boost"] as const;
+
+/**
+ * Whether a namesake is the same printed card. A name match alone is not a reprint: the Mad Titan's Shadow campaign
+ * Cosmo (21180b, 0 cost, 2 THW / 2 ATK / 3 HP, no MarvelCDB image) is a different card from Star-Lord's basic Cosmo
+ * (17020) and drew its art (issue #296). Such a card gets no borrowed art, so a missing scan shows up as one.
+ */
+const samePrintedStats = (r: RawCard, original: RawCard): boolean =>
+  PRINTED_STATS.every((stat) => (r[stat] ?? null) === (original[stat] ?? null));
 
 /**
  * The printed faces of a normalized card, for the artwork coverage check. A
