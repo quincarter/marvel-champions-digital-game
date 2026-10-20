@@ -287,3 +287,13 @@ against the photographs) and RRG 1.8. No Shadowland ruling exists yet.
   at setup and the player may deal themself a facedown encounter card to heal to full; a player defeated in a won
   scenario rejoins next time (owner question if no HP is recorded: A, they must take the card to heal to full; B, base
   HP). Extra main scheme threat: +1 per player (s1), +3 per player (s2), none (s3).
+
+## 7. Client items queued (owner, 2026-10-20)
+
+- **Extras.** Every Shadowland picture the owner supplied goes on the Extras ▸ Artwork shelf as something players earn,
+  whether or not a story screen uses it: the five Hall of Heroes panels (`art/scenarios/_pending/shadowland/story/`)
+  and the six Marvel _Shadowland_ (2010) comic pages (`.../comic/`, credited on screen). Today `art/extras/` is always
+  open, so this needs an earned gate (default: each scenario win unlocks its share; finishing the campaign unlocks the
+  rest).
+- **Story.** The comic pages carry the beats between the three scenarios and the panels serve as scenario intros
+  (matched to beats once the scenario text is transcribed).
