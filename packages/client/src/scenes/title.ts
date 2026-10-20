@@ -355,6 +355,21 @@ export class TitleScene extends Phaser.Scene {
     );
     this.#stops.set("extras", { rect: layout.extras, activate: openExtras });
 
+    const openTrophies = (): void => {
+      this.scale.off("resize", this.#rebuild, this);
+      goToScreen(this, SCENES.trophyRoom);
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: menuKind,
+        label: "Trophy Room",
+        type: typeRole.menuButton,
+        rect: layout.trophies,
+        onClick: openTrophies,
+      }),
+    );
+    this.#stops.set("trophies", { rect: layout.trophies, activate: openTrophies });
+
     // "How to play" (guided mode G6c, `docs/guided-mode.md` §4): the learning hub. Not a guided run by itself —
     // starting a lesson from inside the hub is what sets `appSession().guidedRun` (`guide/start-tutorial.ts`).
     const openHowToPlay = (): void => {

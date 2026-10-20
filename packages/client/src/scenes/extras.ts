@@ -14,7 +14,7 @@
  *   own music again. With shuffle on (#191) the shuffle carries on from it instead.
  */
 import Phaser from "phaser";
-import { accent, ink, surface, typeRole } from "../tokens.js";
+import { accent, hit, ink, surface, typeRole } from "../tokens.js";
 import { bangers, campaignFrame, drawPicture, drawTopBar } from "../ui/campaign-chrome.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { cssOf, textStyle } from "../ui/theme.js";
@@ -192,8 +192,30 @@ export class ExtrasScene extends Phaser.Scene {
     if (bar.back) this.#buttons.push(bar.back);
     if (bar.backRect) stops.set("back", { rect: bar.backRect, activate: () => this.#back() });
 
+    // The Trophy Room door: beside the tabs on a wide screen, on a row of its own above them on a phone.
+    const trophyWidth = 168;
+    const trophyRect: Rect = phone
+      ? { x: gutter, y: bar.height + 10, width: width - gutter * 2, height: hit.target }
+      : { x: width - gutter - trophyWidth, y: bar.height + 12, width: trophyWidth, height: TAB_HEIGHT };
+    const openTrophies = (): void => {
+      this.scale.off("resize", this.#draw, this);
+      goToScreen(this, SCENES.trophyRoom);
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "secondary",
+        label: "Trophy Room ▸",
+        type: typeRole.label,
+        rect: trophyRect,
+        onClick: openTrophies,
+      }),
+    );
+    stops.set("trophies", { rect: trophyRect, activate: openTrophies });
+
     const tabs = extrasTabsOf(current);
-    const tabRect: Rect = { x: gutter, y: bar.height + 12, width: width - gutter * 2, height: TAB_HEIGHT };
+    const tabRect: Rect = phone
+      ? { x: gutter, y: trophyRect.y + trophyRect.height + 8, width: width - gutter * 2, height: TAB_HEIGHT }
+      : { x: gutter, y: bar.height + 12, width: width - gutter * 2 - trophyWidth - 12, height: TAB_HEIGHT };
     this.#tabs = new McTabs(this, {
       rect: tabRect,
       tabs: tabs.map((tab) => ({ id: tab.id, label: phone ? tab.name : tab.label })),
@@ -256,7 +278,12 @@ export class ExtrasScene extends Phaser.Scene {
     });
     this.#list = list;
 
-    const order = [...(bar.backRect ? ["back"] : []), ...EXTRAS_TABS.map((tab) => `tab:${tab.id}`), ...playerStops];
+    const order = [
+      ...(bar.backRect ? ["back"] : []),
+      "trophies",
+      ...EXTRAS_TABS.map((tab) => `tab:${tab.id}`),
+      ...playerStops,
+    ];
     tiles.forEach((tile, index) => {
       const rowIndex = Math.floor(index / grid.columns);
       order.push(`tile:${tile.id}`);

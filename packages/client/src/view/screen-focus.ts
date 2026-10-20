@@ -418,6 +418,7 @@ export function titleMenuFocusOrder(input: {
     "campaign",
     ...(input.civilWar ? ["civil-war"] : []),
     "extras",
+    "trophies",
     "how-to-play",
     "settings",
     ...(input.quit ? ["quit"] : []),

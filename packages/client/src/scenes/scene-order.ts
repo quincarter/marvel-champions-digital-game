@@ -39,6 +39,7 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.campaignFrozenDeck,
   SCENES.extras,
   SCENES.extrasReader,
+  SCENES.trophyRoom,
   // Dev-only demo scenes: reachable only through `?screen=…` jumps (`scenes/boot-dev-jump.ts`).
   SCENES.termTextDemo,
   SCENES.guideCalloutDemo,

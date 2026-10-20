@@ -150,6 +150,8 @@ export interface TitleMenuLayout {
   /** "Civil War!", directly under Campaign; null until the Civil War box is unlocked. */
   readonly civilWar: Rect | null;
   readonly extras: Rect;
+  /** "Trophy Room": achievements, rank and lifetime points, right under Extras. */
+  readonly trophies: Rect;
   /** "How to play" (guided mode G6c, `docs/guided-mode.md` §4): opens the learning hub. */
   readonly howToPlay: Rect;
   readonly settings: Rect;
@@ -167,6 +169,7 @@ export function titleMenuLayoutRects(layout: TitleMenuLayout): readonly Rect[] {
     layout.campaign,
     ...(layout.civilWar ? [layout.civilWar] : []),
     layout.extras,
+    layout.trophies,
     layout.howToPlay,
     layout.settings,
     ...(layout.quit ? [layout.quit] : []),
@@ -260,6 +263,8 @@ function titleMenuLayoutAt(
   }
   const extras: Rect = { x: left, y, width: column, height: hit.target };
   y += hit.target + gap;
+  const trophies: Rect = { x: left, y, width: column, height: hit.target };
+  y += hit.target + gap;
   const howToPlay: Rect = { x: left, y, width: column, height: hit.target };
   y += hit.target + gap;
   const settings: Rect = { x: left, y, width: column, height: hit.target };
@@ -293,6 +298,7 @@ function titleMenuLayoutAt(
     campaign,
     civilWar,
     extras,
+    trophies,
     howToPlay,
     settings,
     quit,
