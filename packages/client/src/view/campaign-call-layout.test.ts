@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { callGridOf } from "./campaign-call-layout.js";
+import { callGridOf, callLabelWidthOf } from "./campaign-call-layout.js";
 
 describe("callGridOf", () => {
   test("a dozen options wrap into rows that stay inside the panel width", () => {
@@ -26,6 +26,26 @@ describe("callGridOf", () => {
     expect(new Set(grid.rects.map((rect) => rect.y))).toEqual(new Set([10]));
     expect(grid.rects[0]!.width).toBeGreaterThanOrEqual(150);
     expect(grid.rects[0]!.width).toBeLessThanOrEqual(200);
+  });
+
+  test("a long label gets a cell wide enough for it: columns give way, down to one full-width column", () => {
+    const labels = ["First playthrough", "Not the first playthrough"];
+    const fitWidth = callLabelWidthOf(labels);
+    const wide = callGridOf({ count: 2, x: 0, y: 0, width: 790, fitWidth });
+    for (const rect of wide.rects) expect(rect.width).toBeGreaterThanOrEqual(fitWidth);
+    const narrow = callGridOf({
+      count: 2,
+      x: 0,
+      y: 0,
+      width: 340,
+      fitWidth: callLabelWidthOf(["The next villain on the recommended list"]),
+    });
+    expect(narrow.columns).toBe(1);
+    expect(narrow.rects.every((rect) => rect.width === 340)).toBe(true);
+    // A short label changes nothing.
+    expect(callGridOf({ count: 3, x: 0, y: 0, width: 790, fitWidth: callLabelWidthOf(["Yes"]) })).toEqual(
+      callGridOf({ count: 3, x: 0, y: 0, width: 790 }),
+    );
   });
 
   test("no options leaves the bottom at the top", () => {

@@ -78,6 +78,7 @@ describe("the unlock path", () => {
       "next_evol",
       "aoa",
       "aos",
+      "fne",
     ]);
   });
 

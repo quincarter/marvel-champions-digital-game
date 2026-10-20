@@ -828,6 +828,7 @@ export * from "./fne/index.js";
 export * from "./jj/index.js";
 export * from "./luke_cage/index.js";
 
+import { FNE_CAMPAIGN } from "./fne/campaign.js";
 import { FNE_CARDS } from "./fne/cards.js";
 import { FNE_ENCOUNTER_SETS } from "./fne/encounterSets.js";
 import { FNE_SCENARIOS } from "./fne/scenarios.js";
@@ -919,6 +920,7 @@ export const CAMPAIGNS: readonly Campaign[] = [
   NEXT_EVOL_CAMPAIGN,
   AOA_CAMPAIGN,
   AOS_CAMPAIGN,
+  FNE_CAMPAIGN,
 ];
 
 // ---------------------------------------------------------------------------------------------------------------

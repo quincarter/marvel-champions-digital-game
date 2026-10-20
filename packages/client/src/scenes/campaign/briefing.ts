@@ -10,14 +10,7 @@
 import Phaser from "phaser";
 import type { CampaignChoiceAnswer, CampaignDefinition, CampaignPendingChoice, PlayerSetup } from "@mc/engine";
 import { CAMPAIGN_ACCEPT } from "@mc/engine";
-import {
-  issueNumberOf,
-  issueStoryFor,
-  lineForRoster,
-  setupCallCopyFor,
-  storyFor,
-  type IssueStory,
-} from "../../campaign/story.js";
+import { issueStoryFor, lineForRoster, setupCallCopyFor, storyFor, type IssueStory } from "../../campaign/story.js";
 import {
   bangers,
   drawActionBar,
@@ -68,7 +61,8 @@ import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import type { Rect } from "../../view/layout.js";
 import { formFactorFor } from "../../view/layout.js";
 import { CAMPAIGN_ART, campaignCoverFor } from "../../art/campaign-art.js";
-import { callGridOf } from "../../view/campaign-call-layout.js";
+import { awaitsIssuePick, currentNodeIdOf, issueNumberOfRecord } from "../../view/campaign-issue-pick.js";
+import { callGridOf, callLabelWidthOf } from "../../view/campaign-call-layout.js";
 import { briefingSpeakerOf } from "../../view/campaign-briefing-speaker.js";
 import {
   answersOfAttempt,
@@ -252,23 +246,27 @@ export class CampaignBriefingScene extends Phaser.Scene {
       goToScreen(this, SCENES.campaignSaga);
       return;
     }
-    const nodeId = record.attempt?.nodeId ?? record.position.nextNodeId;
-    if (!nodeId) {
+    const definition = service.definitionFor(record);
+    // A `choice` graph (Fear No Evil) has no next node until the group has drawn and picked one, and that draw is
+    // part of composing this briefing: only a finished run has nowhere left to go.
+    if (!currentNodeIdOf(record) && !awaitsIssuePick(definition, record)) {
       goToScreen(this, SCENES.campaignDossier, { runId: record.id });
       return;
     }
     appSession().music?.playInterlude(record.campaignId as string);
     this.#record = record;
-    this.#story = issueStoryFor(record.campaignId, nodeId);
-    const definition = service.definitionFor(record);
     this.#definition = definition;
     this.#nodeIds = definition.graph.nodes.map((node) => node.id);
-    this.#issueNumber = issueNumberOf(
-      definition.graph.nodes.map((node) => node.id),
-      nodeId,
-    );
+    this.#syncIssue(record);
     this.#draw();
     void this.#compose();
+  }
+
+  /** The issue being briefed: its story and number, from the node the record has settled on (none yet, in a choice). */
+  #syncIssue(record: CampaignRecord): void {
+    const nodeId = currentNodeIdOf(record);
+    this.#story = nodeId ? issueStoryFor(record.campaignId, nodeId) : null;
+    if (this.#definition) this.#issueNumber = issueNumberOfRecord(this.#definition, record);
   }
 
   async #compose(): Promise<void> {
@@ -301,6 +299,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
       this.#resetRoleBuild();
     } else {
       this.#record = result.record;
+      this.#syncIssue(result.record);
       this.#pending = null;
       this.#answers = [];
     }
@@ -1273,6 +1272,12 @@ export class CampaignBriefingScene extends Phaser.Scene {
     // Options that are all cards carry their picture: a taller cell, the scan on its left (it opens Inspect), the
     // option's own button beside it. Anything else stays the plain button grid.
     const optionCards = this.#cardOptionsFor(pending);
+    const optionLabels = optionLabelsOf(
+      pending.options,
+      (id) => CARDS_BY_ID.get(id),
+      packNameOf,
+      (id) => (record ? issueStoryFor(record.campaignId, id)?.title : undefined),
+    );
     const grid = callGridOf({
       count: pending.options.length,
       x: rect.x,
@@ -1280,9 +1285,10 @@ export class CampaignBriefingScene extends Phaser.Scene {
       width: rect.width,
       maxHeight: Math.max(44, rect.y + rect.height - y - reserved),
       page: this.#callPage,
-      ...(optionCards ? CARD_OPTION_GRID : {}),
+      ...(optionCards
+        ? CARD_OPTION_GRID
+        : { fitWidth: callLabelWidthOf(pending.options.map((id) => optionLabels.get(id) ?? cardName(id))) }),
     });
-    const optionLabels = optionLabelsOf(pending.options, (id) => CARDS_BY_ID.get(id), packNameOf);
     pending.options.slice(grid.firstIndex, grid.firstIndex + grid.rects.length).forEach((optionId, shownIndex) => {
       const index = grid.firstIndex + shownIndex;
       const optionLabel = optionLabels.get(optionId) ?? cardName(optionId);

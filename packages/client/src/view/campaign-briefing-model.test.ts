@@ -2,7 +2,12 @@ import { describe, expect, test } from "vitest";
 import type { CardId } from "@mc/content";
 import type { CampaignAttempt, CampaignChoiceAnswer, ResolvedInstruction } from "@mc/engine";
 import { createCampaignLog } from "@mc/engine";
-import { campaignDefinitionOf, SM_CAMPAIGN_DEFINITION, TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
+import {
+  campaignDefinitionOf,
+  GMW_CAMPAIGN_DEFINITION,
+  SM_CAMPAIGN_DEFINITION,
+  TRORS_CAMPAIGN_DEFINITION,
+} from "@mc/cards";
 import { CARDS_BY_ID, POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import { CAMPAIGN_STORAGE_SCHEMA, MemoryCampaignStorage } from "../engine/campaign-storage.js";
 import type { CampaignRecord } from "../engine/campaign-storage.js";
@@ -421,5 +426,40 @@ describe("campaign briefing model, authored notes on a retry", () => {
     expect(retry[0]).not.toHaveProperty("repeatDetail");
     const first = handledRowsOf(attemptWith(false), record, ((id: string) => id) as never, undefined, [], notes);
     expect(first.map((row) => row.detail)).toEqual(["The group picks one.", "No repeat copy."]);
+  });
+});
+
+describe("campaign briefing model, unprinted bookkeeping steps", () => {
+  const step = (instructionId: string, text: string) => ({
+    instructionId,
+    text,
+    citation: "MC60 p. 9",
+    kind: "betweenGames",
+    writes: [],
+    choices: [{ slot: "pick", seatNumber: null, picked: ["01100"] }],
+    removedFromCampaign: [],
+    grants: [],
+  });
+  const record = {
+    seats: [{ seatNumber: 1, identityCardId: "01010", grants: [], fields: {} }],
+  } as unknown as CampaignRecord;
+  const rowsOf = (steps: ReturnType<typeof step>[]) =>
+    handledRowsOf({ steps } as unknown as CampaignAttempt, record, ((id: string) => id) as never);
+
+  test('a step whose text is an engine note, "(Not printed: ...)", is not a row, whatever it did', () => {
+    const fne = campaignDefinitionOf("fne")!
+      .graph.nodes.flatMap((node) => [...(node.composition ?? []), ...node.setup])
+      .find((instruction) => instruction.text.startsWith("(Not printed"));
+    expect(fne, "FNE has an unprinted step to pin").toBeDefined();
+    expect(rowsOf([step(fne!.id, fne!.text)])).toEqual([]);
+  });
+
+  test("a printed step with the same effect still reads as a row, so a linear box shows what it did before", () => {
+    const gmw = GMW_CAMPAIGN_DEFINITION.graph.nodes
+      .flatMap((node) => [...(node.composition ?? []), ...node.setup])
+      .find((instruction) => instruction.text.startsWith("(Not printed"));
+    expect(gmw, "GMW has an unprinted step to pin").toBeDefined();
+    const rows = rowsOf([step("printed", "Each player chooses a card."), step(gmw!.id, gmw!.text)]);
+    expect(rows.map((row) => row.key)).toEqual(["printed"]);
   });
 });

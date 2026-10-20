@@ -18,6 +18,7 @@
  *    behind them, so the box's own cast (`CampaignStory.castIdentityIds`) stands in for the roster and the issue is
  *    numbered by its place in the story.
  */
+import { awaitsIssuePick } from "../../view/campaign-issue-pick.js";
 import Phaser from "phaser";
 import { issueNumberOf, issueStoryFor, storyFor, type IssueStory } from "../../campaign/story.js";
 import type { Picture } from "../../art/pictures.js";
@@ -163,7 +164,10 @@ export class CampaignOpenerScene extends Phaser.Scene {
     }
     const nodeId = this.#data.nodeId ?? record.position.nextNodeId;
     if (!nodeId) {
-      goToScreen(this, SCENES.campaignDossier, { runId: record.id });
+      // A `choice` graph names its issue only once the Briefing has drawn and the group has picked: there is no
+      // opener to read yet, so go straight there. A finished run has nowhere left to go but its Dossier.
+      const choosing = awaitsIssuePick(service.definitionFor(record), record);
+      goToScreen(this, choosing ? SCENES.campaignBriefing : SCENES.campaignDossier, { runId: record.id });
       return;
     }
     this.#reading = { campaignId: record.campaignId, rosterIds: record.seats.map((seat) => seat.identityCardId) };

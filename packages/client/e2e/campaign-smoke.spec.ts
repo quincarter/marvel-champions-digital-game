@@ -217,10 +217,20 @@ for (const volume of OPEN_VOLUMES) {
     const briefing = await visibleTexts(page);
     const handled = briefing.find((t) => /^handled for you$/i.test(t.text.trim()));
     expect(handled, "briefing has a Handled for you section").toBeTruthy();
-    const speech = briefing.filter((t) => t.y > 70 && t.y < handled!.y && t.text.trim().length >= 25);
-    expect(speech.length, "the briefer's line is shown").toBeGreaterThan(0);
+    const briefersLine = (texts: typeof briefing): number =>
+      texts.filter((t) => t.y > 70 && t.y < handled!.y && t.text.trim().length >= 25).length;
+    // A box whose issue is drawn during the briefing (Fear No Evil's choice graph: the progression draw and the
+    // group's pick come after "first playthrough?") has no issue to speak for until those are answered.
+    const drawsIssueInBriefing = volume.id === "fne";
+    if (!drawsIssueInBriefing) expect(briefersLine(briefing), "the briefer's line is shown").toBeGreaterThan(0);
 
     await answerBriefing(page, volume.name);
+    if (drawsIssueInBriefing) {
+      expect(
+        briefersLine(await visibleTexts(page)),
+        "the briefer's line is shown once the issue is drawn",
+      ).toBeGreaterThan(0);
+    }
     expect(await hasStop(page, "open", "CampaignBriefing")).toBe(true);
     await settle(page);
     await assertNoRawText(page, `${volume.name} briefing, all answered`);

@@ -171,6 +171,9 @@ import {
   WAVE10_ENCOUNTER_SETS,
   WAVE10_SCENARIOS,
   WAVE10_STARTER_DECKS,
+  FNE_CYCLE,
+  FNE_PACK,
+  FNE_STARTER_DECKS,
   poolVersionOf,
   type AnyCard,
   type Cycle,
@@ -264,6 +267,8 @@ export const POOL_STARTER_DECKS: readonly StarterDeck[] = [
   ...WAVE9_STARTER_DECKS,
   // Tigra, Hulkling, Wonder Man and Hercules.
   ...WAVE10_STARTER_DECKS,
+  // Daredevil and Echo (Fear No Evil's cast). Jessica Jones and Luke Cage are not offered yet.
+  ...FNE_STARTER_DECKS,
 ];
 
 /**
@@ -343,6 +348,7 @@ export const POOL_PACKS: readonly Pack[] = [
   SYNTHEZOID_PACK,
   WONDER_MAN_PACK,
   HERCULES_PACK,
+  FNE_PACK,
 ];
 
 /** A pack's own display name ("The Wrecking Crew") by its code ("twc"), falling back to the code itself if the pool ever names one this list doesn't have. */
@@ -416,6 +422,7 @@ const POOL_PACK_CYCLES: readonly (readonly [Pack, Cycle])[] = [
   [SYNTHEZOID_PACK, SYNTHEZOID_CYCLE],
   [WONDER_MAN_PACK, WONDER_MAN_CYCLE],
   [HERCULES_PACK, HERCULES_CYCLE],
+  [FNE_PACK, FNE_CYCLE],
 ];
 
 /**

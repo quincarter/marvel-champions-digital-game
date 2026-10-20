@@ -35,6 +35,9 @@ campaign box; the box's own cast joins at once, and every other hero's precon is
 | Age of Apocalypse        | Complete the NeXt Evolution campaign         | Bishop and Magik at once (MC45's cast); Iceman (Unus), Jubilee (Four Horsemen), Nightcrawler (Apocalypse), Magneto (Dark Beast)                                              |
 | Agents of S.H.I.E.L.D.   | Complete the Age of Apocalypse campaign      | Maria Hill and Nick Fury at once (MC50's cast); Black Panther (Shuri) (Black Widow), Silk (Batroc), Falcon (M.O.D.O.K.), Winter Soldier (Thunderbolts)                       |
 | Civil War                | Complete the Agents of S.H.I.E.L.D. campaign | Tigra and Hulkling at once (MC56's cast); Wonder Man (Registration Iron Man), Hercules (Resistance Captain America)                                                          |
+| Fear No Evil             | Complete the Agents of S.H.I.E.L.D. campaign | Daredevil and Echo at once (MC60's cast)                                                                                                                                     |
+
+Fear No Evil (MC60) opens after the Agents of S.H.I.E.L.D. campaign too, since Civil War has no campaign to gate it (owner, 2026-10-19: option A, the same gate as Civil War). Jessica Jones and Luke Cage are not in the pool yet, so no reward names them.
 
 Civil War (MC56) opens after the Agents of S.H.I.E.L.D. campaign (owner, question 25 = A) and has no campaign of its own
 (MC56 p. 3). Its four leader scenarios (Iron Man, Captain Marvel, Captain America, Spider-Woman) open with the box. The

@@ -37,6 +37,7 @@ describe("boxPages", () => {
       "cycle8",
       "cycle9",
       "cycle10",
+      "cycle11",
     ]);
   });
 

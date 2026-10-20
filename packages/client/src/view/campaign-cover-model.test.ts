@@ -1,5 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { GMW_CAMPAIGN_DEFINITION, MOJO_CAMPAIGN_DEFINITION, TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
+import {
+  campaignDefinitionOf,
+  GMW_CAMPAIGN_DEFINITION,
+  MOJO_CAMPAIGN_DEFINITION,
+  TRORS_CAMPAIGN_DEFINITION,
+} from "@mc/cards";
 import { cardId } from "@mc/content";
 import { CAMPAIGN_LOG_SCHEMA, createRng } from "@mc/engine";
 import type { CampaignRecord } from "../engine/campaign-storage.js";
@@ -176,5 +181,35 @@ describe("coverModelOf for MojoMania", () => {
     expect(model.blurb).toBe(storyFor("mojo")!.blurb);
     expect(model.villainScenarioId).toBe("mojo");
     expect(model.pips).toEqual(["empty", "empty", "empty"]);
+  });
+
+  test("a choice graph (Fear No Evil) counts its six nodes and has no fixed-order pips or next issue", () => {
+    const definition = campaignDefinitionOf("fne")!;
+    const model = coverModelOf({
+      campaignId: "fne",
+      boxCode: "MC60",
+      name: "Fear No Evil",
+      record: null,
+      definition,
+      expertUnlocked: false,
+    });
+    expect(definition.graph.kind).toBe("choice");
+    expect(model.totalIssues).toBe(6);
+    expect(model.pips).toEqual(Array.from({ length: 6 }, () => "empty"));
+    expect(model.blurb).toBe(storyFor("fne")!.blurb);
+    expect(model.blurb.length).toBeGreaterThanOrEqual(40);
+  });
+
+  test("a choice graph with no story still gets a blurb that says the issues are dealt, not ordered", () => {
+    const model = coverModelOf({
+      campaignId: "no-story",
+      boxCode: "MC99",
+      name: "Unwritten",
+      record: null,
+      definition: campaignDefinitionOf("fne")!,
+      expertUnlocked: false,
+    });
+    expect(model.blurb).toBe("Six issues, dealt and played as the campaign unfolds.");
+    expect(model.totalIssues).toBe(6);
   });
 });

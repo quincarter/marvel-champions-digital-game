@@ -29,6 +29,7 @@ import {
   WAVE10_SCENARIOS,
   WAVE10_ENCOUNTER_SETS,
   WAVE10_STARTER_DECKS,
+  FNE_STARTER_DECKS,
   MUT_GEN_SCENARIOS,
   MOJO_SCENARIOS,
   poolVersionOf,
@@ -104,6 +105,7 @@ describe("POOL_STARTER_DECKS", () => {
         ...WAVE8_STARTER_DECKS,
         ...WAVE9_STARTER_DECKS,
         ...WAVE10_STARTER_DECKS,
+        ...FNE_STARTER_DECKS,
       ].map((d) => d.id),
     );
     expect(POOL_STARTER_DECKS.length).toBe(
@@ -114,7 +116,8 @@ describe("POOL_STARTER_DECKS", () => {
         WAVE7_STARTER_DECKS.length +
         WAVE8_STARTER_DECKS.length +
         WAVE9_STARTER_DECKS.length +
-        WAVE10_STARTER_DECKS.length,
+        WAVE10_STARTER_DECKS.length +
+        FNE_STARTER_DECKS.length,
     );
     expect(WAVE10_STARTER_DECKS.map((d) => d.id)).toEqual([
       "tigra-aggression",
@@ -147,8 +150,8 @@ describe("packNameOf", () => {
   });
 
   test("POOL_PACKS covers Core and every wave 1, cycle 1, cycle 2, cycle 3 and cycle 4 (shipped-so-far) cycle 6 to cycle 10 pack (Civil War, Synthezoid Smackdown), with no duplicate codes", () => {
-    expect(POOL_PACKS.length).toBe(60);
-    expect(new Set(POOL_PACKS.map((p) => p.code as string)).size).toBe(60);
+    expect(POOL_PACKS.length).toBe(61);
+    expect(new Set(POOL_PACKS.map((p) => p.code as string)).size).toBe(61);
     expect(packNameOf("cw")).toBe("Civil War");
     expect(packNameOf("synthezoid")).toBe("Synthezoid Smackdown");
     expect(packNameOf("wonder_man")).toBe("Wonder Man");

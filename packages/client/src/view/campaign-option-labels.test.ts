@@ -26,4 +26,11 @@ describe("optionLabelsOf", () => {
     expect(labels.get("e")).toBe("Armored Vest · Galaxy's Most Wanted");
   });
   test("unknown ids fall back to the id", () => expect(optionLabelsOf(["zz"], cardOf).get("zz")).toBe("zz"));
+  test("a non-card option takes its issue title, so a graph's scenario reads as a name", () => {
+    const labels = optionLabelsOf(["the-getaway", "zz"], cardOf, undefined, (id) =>
+      id === "the-getaway" ? "The Getaway" : undefined,
+    );
+    expect(labels.get("the-getaway")).toBe("The Getaway");
+    expect(labels.get("zz")).toBe("zz");
+  });
 });

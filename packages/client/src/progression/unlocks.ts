@@ -235,6 +235,17 @@ export const UNLOCK_WAVES: readonly UnlockWave[] = [
       { scenarioId: "resistance-captain-america", identityCardId: "59001a" }, // Hercules
     ],
   },
+  {
+    // Civil War ships no campaign, so the gate stays Agents of S.H.I.E.L.D.'s (the last campaign before it). Daredevil
+    // and Echo are MC60's own cast. Jessica Jones and Luke Cage are not in the pool yet, so no reward names them.
+    // Gate confirmed by the owner: A, the Agents of S.H.I.E.L.D. win, like Civil War.
+    cycleId: "cycle11",
+    name: "Fear No Evil",
+    gate: { kind: "campaignWin", campaignId: "aos", hint: "Complete the Agents of S.H.I.E.L.D. campaign" },
+    campaignId: "fne",
+    starterHeroIds: ["60001a", "60037a"], // Daredevil, Echo: MC60's own cast
+    heroRewards: [],
+  },
 ];
 
 /** What the player has done, read from storage by `progressOf`. */

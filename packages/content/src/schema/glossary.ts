@@ -497,10 +497,10 @@ const INTRODUCED_IN: Record<GlossaryId, Intro> = {
   teamwork: { box: "cycle6" },
   temporary: { box: "cycle6" },
   assault: { box: "cycle7" },
-  discount: { box: "later" },
+  discount: { box: "cycle11" },
   linked: { box: "cycle7" },
   prerequisite: { box: "later" },
-  starting: { box: "later" },
+  starting: { box: "cycle11" },
   vulnerable: { box: "cycle9" },
   // Status cards: all three are in the Core Set.
   confused: { box: "core" },

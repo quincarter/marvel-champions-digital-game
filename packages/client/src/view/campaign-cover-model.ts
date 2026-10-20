@@ -76,7 +76,7 @@ export function coverModelOf(input: CoverModelInput): CoverModel {
   const definition = input.definition;
 
   const linearNodes = definition?.graph.kind === "linear" ? definition.graph.nodes : null;
-  const total = linearNodes?.length ?? 5;
+  const total = linearNodes?.length ?? definition?.graph.nodes.length ?? 5;
   const finalScenarioId =
     (linearNodes?.at(-1)?.scenario.kind === "fixed"
       ? (linearNodes!.at(-1)!.scenario as { scenarioId: string }).scenarioId
@@ -125,7 +125,12 @@ export function coverModelOf(input: CoverModelInput): CoverModel {
     name: input.name,
     blurb:
       story?.blurb ??
-      (linearNodes ? `${capitalize(ISSUE_WORDS[total] ?? String(total))} issues, played in order.` : ""),
+      (linearNodes
+        ? `${capitalize(ISSUE_WORDS[total] ?? String(total))} issues, played in order.`
+        : definition
+          ? // A choice graph (Fear No Evil) deals its issues from the box rather than in a fixed order.
+            `${capitalize(ISSUE_WORDS[total] ?? String(total))} issues, dealt and played as the campaign unfolds.`
+          : ""),
     tagline: story?.tagline ?? `A story in ${ISSUE_WORDS[total] ?? total} issues`,
     villainScenarioId: finalScenarioId,
     hasRun: record !== null,

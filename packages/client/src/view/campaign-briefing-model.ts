@@ -502,7 +502,9 @@ function genericHandledRowsOf(
     .filter((row) => {
       const step = attempt.steps.find((candidate) => candidate.instructionId === row.instructionId);
       if (step && step.grants.length > 0 && step.writes.length === 0 && step.choices.length === 0) return false;
-      return !isPoolDestinationText(row.text);
+      // "(Not printed: ...)" is a note to the engine's own reader (what an unprinted bookkeeping step does), not a
+      // line of the campaign a player reads: dropped here, the way a box's authored `briefingNotes` omit it.
+      return !isPoolDestinationText(row.text) && !row.text?.trimStart().startsWith("(Not printed");
     })
     .flatMap((row): readonly HandledRow[] => {
       const step = attempt.steps.find((candidate) => candidate.instructionId === row.instructionId);

@@ -22,8 +22,10 @@ export function optionLabelsOf(
   options: readonly string[],
   cardOf: (id: string) => AnyCard | undefined,
   packNameOf: (setCode: string) => string = (code) => code,
+  /** A name for an option that is no card: a scenario a choice graph offers ("The Getaway", not "the-getaway"). */
+  titleOf: (id: string) => string | undefined = () => undefined,
 ): ReadonlyMap<string, string> {
-  const nameOf = (id: string): string => cardOf(id)?.name ?? id;
+  const nameOf = (id: string): string => cardOf(id)?.name ?? titleOf(id) ?? id;
   const groups = new Map<string, string[]>();
   for (const id of options) groups.set(nameOf(id), [...(groups.get(nameOf(id)) ?? []), id]);
   const labels = new Map<string, string>();

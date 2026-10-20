@@ -49,6 +49,7 @@ export const BOXES: readonly BoxDef[] = [
   { id: "cycle8", name: "Age of Apocalypse", unlockKey: "cycle8" },
   { id: "cycle9", name: "Agents of S.H.I.E.L.D.", unlockKey: "cycle9" },
   { id: "cycle10", name: "Civil War", unlockKey: "cycle10", notice: COMPETITIVE_NOTICE },
+  { id: "cycle11", name: "Fear No Evil", unlockKey: "cycle11" },
 ];
 
 /** The small line under a row that points at the entry's other home: its box, or the Core rules page. */

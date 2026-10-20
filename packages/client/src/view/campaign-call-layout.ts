@@ -13,6 +13,11 @@ export interface CallGridSpec {
   readonly maxButtonWidth?: number;
   /** Narrowest a button is allowed before the row gives up a column. */
   readonly minButtonWidth?: number;
+  /**
+   * Width the widest label needs on one line (`callLabelWidthOf`). A cell narrower than this gives up columns, down to
+   * one full-width column, so a long label ("The next villain on the recommended list") is never cut off.
+   */
+  readonly fitWidth?: number;
   readonly height?: number;
   readonly gap?: number;
   /** Room for the grid; when every row doesn't fit, the grid pages: `page` picks a page of `perPage` options. */
@@ -39,8 +44,11 @@ export function callGridOf(spec: CallGridSpec): CallGrid {
   const height = spec.height ?? 44;
   const maxButton = spec.maxButtonWidth ?? 200;
   const minButton = Math.min(spec.minButtonWidth ?? 150, spec.width);
-  const columns = Math.max(1, Math.floor((spec.width + gap) / (minButton + gap)));
-  const buttonWidth = Math.min(maxButton, Math.floor((spec.width - gap * (columns - 1)) / columns));
+  const fit = Math.min(spec.fitWidth ?? 0, spec.width);
+  let columns = Math.max(1, Math.floor((spec.width + gap) / (minButton + gap)));
+  const widthFor = (cols: number): number => Math.floor((spec.width - gap * (cols - 1)) / cols);
+  while (columns > 1 && widthFor(columns) < fit) columns--;
+  const buttonWidth = Math.min(Math.max(maxButton, fit), widthFor(columns));
   const rowsFit =
     spec.maxHeight === undefined ? Infinity : Math.max(1, Math.floor((spec.maxHeight + gap) / (height + gap)));
   const perPage = Math.min(Math.max(spec.count, 1), rowsFit * columns);
@@ -70,3 +78,7 @@ export function callGridOf(spec: CallGridSpec): CallGrid {
     bottom: rows === 0 ? spec.y : spec.y + rows * height + (rows - 1) * gap,
   };
 }
+
+/** A rough width for a label on one line in the call buttons' small caps type, plus the button's padding. */
+export const callLabelWidthOf = (labels: readonly string[]): number =>
+  Math.ceil(Math.max(0, ...labels.map((label) => label.length)) * 9.5) + 28;

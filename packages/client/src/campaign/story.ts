@@ -19,6 +19,7 @@ import { NEXT_EVOL_STORY } from "./stories/next_evol.js";
 import { SM_STORY } from "./stories/sm.js";
 import { AOA_STORY } from "./stories/aoa.js";
 import { AOS_STORY } from "./stories/aos.js";
+import { FNE_STORY } from "./stories/fne.js";
 import type { PoolCopy } from "../view/campaign-pool-model.js";
 import type { BriefingNoteCopy } from "../view/campaign-briefing-model.js";
 
@@ -422,6 +423,7 @@ const STORIES: Readonly<Record<string, CampaignStory>> = {
   [NEXT_EVOL_STORY.campaignId]: NEXT_EVOL_STORY,
   [AOA_STORY.campaignId]: AOA_STORY,
   [AOS_STORY.campaignId]: AOS_STORY,
+  [FNE_STORY.campaignId]: FNE_STORY,
 };
 
 export const storyFor = (campaignId: string): CampaignStory | undefined => STORIES[campaignId];
