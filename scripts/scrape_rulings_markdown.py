@@ -20,12 +20,17 @@ as written), and writes one small file per top-level section of each page:
     docs/rulings/<page>/index.md                per-page index
     docs/rulings/<page>/<nn>-<slug>[-part-k].md one section (long ones split)
 
-These are tier-4 sources in CLAUDE.md's rules authority order. The newer
-rulings (post-RRG 1.7) stay in marvel-champions-rulings-post-rrg-1-7.md at the
-repo root; this script does not touch that file.
+These are tier-4 sources in CLAUDE.md's rules authority order.
+
+With `--target newer` it instead transcribes the post-RRG 1.7 rulings page into the single file
+marvel-champions-rulings-post-rrg-1-7.md at the repo root: one `### <date> - Ruling <n>` section per ruling
+(each ruling on the page ends with a signature line, "-Alex – <date>", which gives its date), grouped under
+`## <Month>, <Year>`, with the page's own question and answer text converted to Markdown and nothing edited.
 
 Usage:
-    uv run scripts/scrape_rulings_markdown.py
+    uv run scripts/scrape_rulings_markdown.py                         # older pages -> docs/rulings/
+    uv run scripts/scrape_rulings_markdown.py --target newer          # post-RRG 1.7 page -> repo-root file
+    uv run scripts/scrape_rulings_markdown.py --target all            # both
     uv run scripts/scrape_rulings_markdown.py --html-dir <dir>       # also save the raw HTML
     uv run scripts/scrape_rulings_markdown.py --from-html-dir <dir>  # convert saved HTML, no fetch
 """
@@ -84,6 +89,25 @@ PAGES: List[Page] = [
         coverage="Rulings from May 2023 to July 2024 (after RRG 1.5, before RRG 1.6), sorted by month.",
     ),
 ]
+
+NEWER_PAGE = Page(
+    slug="post-rrg-1-7",
+    url="https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-7/",
+    title="Latest FFG Rulings (post RRG 1.7)",
+    coverage="Rulings from December 2025 onward (after RRG 1.7, and after RRG 1.8 from July 2026).",
+)
+
+MONTHS = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+]
+MONTH_HEADING_RE = re.compile(rf"^({'|'.join(MONTHS)}),? (\d{{4}})$")
+# "-Alex Werner, FFG Game Rules Specialist – December 17, 2025", "-Alex – March 6, 2026".
+SIGNATURE_RE = re.compile(rf"^-\s*Alex\b.*?[–—-]\s*(({'|'.join(MONTHS)}) (\d{{1,2}}), (\d{{4}}))\s*$")
+# Ruling numbers the repo already cites that differ from "n-th ruling of that date, in page order". The earlier
+# hand-made copy numbered the two February 20, 2026 rulings 3 and 4 (continuing February 8's), and code comments
+# and specs cite "February 20, 2026 - Ruling 4" (Cruel Experiment), so those numbers are kept.
+RULING_NUMBER_OFFSET = {"February 20, 2026": 2}
 
 KEYWORDS = [
     "Acceleration", "Aerial", "Alliance", "Amplify", "Assault", "Boost", "Confuse", "Consequential",
@@ -386,7 +410,7 @@ def write_outputs(output_dir: Path, page_files: Dict[str, List[OutFile]], fetche
         "## Newer rulings",
         "",
         f"- [`{NEWER_RULINGS_FILE}`](../../{NEWER_RULINGS_FILE}): post-RRG 1.7 and 1.8 rulings, December 17, 2025 "
-        "through August 13, 2026 (tier 3 where issued after v1.8). Not part of this folder.",
+        "through October 9, 2026 (tier 3 where issued after v1.8). Not part of this folder.",
         "",
     ]
     for page in PAGES:
@@ -431,8 +455,184 @@ def write_outputs(output_dir: Path, page_files: Dict[str, List[OutFile]], fetche
     (output_dir / "README.md").write_bytes(("\n".join(readme).rstrip("\n") + "\n").encode("utf-8"))
 
 
+# ---------------------------------------------------------------------------
+# Newer rulings page (post-RRG 1.7) -> one repo-root file
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class Ruling:
+    date: dt.date
+    label: str
+    number: int
+    elements: List
+    note: Optional[str] = None
+
+    @property
+    def heading(self) -> str:
+        return f"{self.label} - Ruling {self.number}"
+
+
+def date_label(d: dt.date) -> str:
+    return f"{MONTHS[d.month - 1]} {d.day}, {d.year}"
+
+
+def gh_anchor(text: str) -> str:
+    """GitHub's heading anchor: lowercase, punctuation dropped, each space a hyphen."""
+    return re.sub(r"[^\w\- ]", "", text.strip().lower()).replace(" ", "-")
+
+
+def flat_text(el) -> str:
+    text = el.get_text(" ", strip=True) if isinstance(el, Tag) else str(el)
+    return re.sub(r"\s+", " ", text.replace(" ", " ")).strip()
+
+
+def md_escape(text: str) -> str:
+    return re.sub(r"([\\`*_\[\]<>#|])", r"\\\1", text)
+
+
+def inline_md(el: Tag) -> str:
+    return re.sub(r"\s*\n\s*", " ", normalize_md(_CONVERTER.convert(el.decode_contents()))).strip()
+
+
+def parse_newer(entry: Tag) -> tuple:
+    """(front matter elements, rulings). A ruling is every element after the previous signature up to its own."""
+    elements = top_level_elements(entry)
+    starts = [
+        i
+        for i, el in enumerate(elements)
+        if isinstance(el, Tag) and el.name == "h2" and MONTH_HEADING_RE.match(flat_text(el))
+    ]
+    if not starts:
+        raise RuntimeError("no '<Month>, <Year>' heading found on the post-RRG 1.7 page")
+    front, body = elements[: starts[0]], elements[starts[0] :]
+    rulings: List[Ruling] = []
+    counts: Counter = Counter()
+    pending: List = []
+    for el in body:
+        if isinstance(el, Tag) and el.name == "h2":
+            if not MONTH_HEADING_RE.match(flat_text(el)):
+                raise RuntimeError(f"unexpected heading among the rulings: {flat_text(el)!r}")
+            if pending:
+                raise RuntimeError(f"ruling text with no signature before heading {flat_text(el)!r}")
+            continue  # month headings are regenerated from the signature dates
+        if isinstance(el, Tag) and (el.name == "hr" or (not flat_text(el) and not el.find("img"))):
+            continue
+        pending.append(el)
+        m = SIGNATURE_RE.match(flat_text(el)) if isinstance(el, Tag) and el.name == "p" else None
+        if not m:
+            continue
+        d = dt.date(int(m.group(4)), MONTHS.index(m.group(2)) + 1, int(m.group(3)))
+        note = None
+        prev = rulings[-1].date if rulings else None
+        if prev and d < prev:
+            # A year typo on a signature (the page has "February 20, 2025" between two February 2026 rulings):
+            # date it by its place on the page, which is in date order, and say so.
+            fixed = d.replace(year=prev.year)
+            if fixed < prev:
+                raise RuntimeError(f"signature date {m.group(1)!r} is out of order after {date_label(prev)}")
+            note = (
+                f'*Transcription note (script, not page text): the signature line below reads "{m.group(1)}"; '
+                f"the page lists its rulings in date order and this one sits among the {MONTHS[fixed.month - 1]} "
+                f"{fixed.year} rulings, so it is headed {date_label(fixed)}.*"
+            )
+            d = fixed
+        label = date_label(d)
+        counts[label] += 1
+        rulings.append(Ruling(d, label, counts[label] + RULING_NUMBER_OFFSET.get(label, 0), pending, note))
+        pending = []
+    if pending:
+        raise RuntimeError(f"text after the last signature: {flat_text(pending[0])[:80]!r}")
+    return front, rulings
+
+
+def front_matter_md(front: List) -> List[str]:
+    """Intro paragraphs as written, then each navigation heading (and the line under it) as one list item."""
+    out: List[str] = []
+    item: Optional[str] = None
+    for el in front:
+        if not isinstance(el, Tag) or el.name == "hr" or not flat_text(el):
+            continue
+        if el.name == "h2":
+            if item:
+                out.append(item)
+            item = f"- {inline_md(el)}"
+        elif item is not None and el.name == "p":
+            out.append(f"{item}: {inline_md(el)}")
+            item = None
+        else:
+            out += [element_md(el), ""]
+    if item:
+        out.append(item)
+    return out
+
+
+def excerpt(el, limit: int = 110) -> str:
+    text = flat_text(el)
+    if len(text) > limit:
+        text = text[:limit].rsplit(" ", 1)[0].rstrip(" ,;:") + " …"
+    return md_escape(text)
+
+
+def build_newer_markdown(entry: Tag, fetched: str) -> tuple:
+    front, rulings = parse_newer(entry)
+    first, last = date_label(rulings[0].date), date_label(rulings[-1].date)
+    months: Dict[tuple, List[Ruling]] = {}
+    for r in rulings:
+        months.setdefault((r.date.year, r.date.month), []).append(r)
+    lines = [
+        "# Marvel Champions LCG: Latest FFG Rulings (Post-RRG 1.7 & 1.8)",
+        "",
+        f"> **Source:** [Hall of Heroes]({NEWER_PAGE.url})  ",
+        f"> **Coverage:** Official FFG rulings from {first} through {last} (post-RRG 1.7 & 1.8), "
+        f"{len(rulings)} rulings.  ",
+        "> **Rulings Specialist:** Alex Werner, FFG Game Rules Specialist.  ",
+        "> **Contact / Submissions:** `hallofheroescontact(at)gmail.com`  ",
+        f"> **Regenerated:** {fetched}, by script from the live page. Each ruling's question and answer text is the "
+        "page's own, converted to Markdown and not edited; Hall of Heroes is the transcriber, not the authority "
+        "(CLAUDE.md, rules authority order).  ",
+        "> **Headings:** each ruling is headed by the date on its signature line and numbered in page order within "
+        "that date (the two February 20, 2026 rulings keep the numbers 3 and 4 that the repo already cites). Cite a "
+        "ruling by its heading, e.g. \"January 17, 2026 - Ruling 3\".  ",
+        f"> **Regenerate:** `uv run {SCRIPT_REL} --target newer` (do not edit by hand).",
+        "",
+        "---",
+        "",
+        "## Reference Guides & Resources",
+        "",
+        *front_matter_md(front),
+        "",
+        "---",
+        "",
+        "## Table of Contents",
+        "",
+    ]
+    for (year, month), rs in months.items():
+        title = f"{MONTHS[month - 1]}, {year}"
+        lines.append(f"- [{title}](#{gh_anchor(title)})")
+        for r in rs:
+            lines.append(f"  - [{r.heading}](#{gh_anchor(r.heading)}): {excerpt(r.elements[0])}")
+    lines += ["", "---", ""]
+    for (year, month), rs in months.items():
+        lines += [f"## {MONTHS[month - 1]}, {year}", ""]
+        for r in rs:
+            lines += [f"### {r.heading}", ""]
+            if r.note:
+                lines += [r.note, ""]
+            lines += ["\n\n".join(md for md in (element_md(el) for el in r.elements) if md), "", "---", ""]
+    text = "\n".join(lines).rstrip("\n").removesuffix("---").rstrip("\n") + "\n"
+    return text, rulings
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Transcribe Hall of Heroes' older FFG rulings pages to Markdown")
+    parser = argparse.ArgumentParser(description="Transcribe Hall of Heroes' FFG rulings pages to Markdown")
+    parser.add_argument(
+        "--target",
+        choices=["older", "newer", "all"],
+        default="older",
+        help=f"older: the older pages into docs/rulings (default); newer: the post-RRG 1.7 page into "
+        f"{NEWER_RULINGS_FILE}; all: both",
+    )
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR, help="default: docs/rulings")
     parser.add_argument("--html-dir", type=Path, default=None, help="also save each downloaded page as <slug>.html")
     parser.add_argument(
@@ -442,8 +642,8 @@ def main() -> None:
     args = parser.parse_args()
 
     fetched = args.fetch_date or dt.date.today().isoformat()
-    page_files: Dict[str, List[OutFile]] = {}
-    for page in PAGES:
+
+    def load(page: Page) -> Tag:
         if args.from_html_dir:
             html_text = (args.from_html_dir / f"{page.slug}.html").read_bytes().decode("utf-8")
         else:
@@ -452,10 +652,20 @@ def main() -> None:
             if args.html_dir:
                 args.html_dir.mkdir(parents=True, exist_ok=True)
                 (args.html_dir / f"{page.slug}.html").write_bytes(html_text.encode("utf-8"))
-        entry = extract_entry(html_text)
-        sections = split_sections(top_level_elements(entry))
-        page_files[page.slug] = build_files(page, sections)
-    write_outputs(args.output_dir.resolve(), page_files, fetched)
+        return extract_entry(html_text)
+
+    if args.target in ("older", "all"):
+        page_files: Dict[str, List[OutFile]] = {}
+        for page in PAGES:
+            page_files[page.slug] = build_files(page, split_sections(top_level_elements(load(page))))
+        write_outputs(args.output_dir.resolve(), page_files, fetched)
+    if args.target in ("newer", "all"):
+        text, rulings = build_newer_markdown(load(NEWER_PAGE), fetched)
+        (REPO_ROOT / NEWER_RULINGS_FILE).write_bytes(text.encode("utf-8"))
+        print(
+            f"[{NEWER_PAGE.slug}] wrote {len(rulings)} rulings ({rulings[0].label} to {rulings[-1].label}) "
+            f"to {NEWER_RULINGS_FILE}"
+        )
     print("Done.")
 
 

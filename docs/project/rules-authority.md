@@ -72,7 +72,7 @@ FFG's Game Rules Specialist answers rules questions; Hall of Heroes transcribes 
 
 - **Since RRG v1.7 (December 17, 2025 onward):**
   [Latest FFG Rulings (post-RRG 1.7 & 1.8)](https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-7/). A copy
-  through August 13, 2026 is in this repository:
+  through October 9, 2026 is in this repository:
   [`marvel-champions-rulings-post-rrg-1-7.md`](../../marvel-champions-rulings-post-rrg-1-7.md), one Markdown file
   cited by its date headings.
 - **RRG v1.6 era (July 2024 to December 2025):**
