@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   VILLAIN_RECAP_PAUSE_MS,
   defaultSettings,
+  flipDurationMs,
   villainBeatIntervalMs,
   cardHoverFactor,
   cardSizeFactor,
@@ -22,6 +23,11 @@ describe("villain phase settings", () => {
     const settings = defaultSettings();
     expect(settings.villainAutoAdvance).toBe("off");
     expect(settings.holdEncounterCards).toBe(true);
+    expect(settings.flipEncounterCards).toBe(true);
+    expect(settings.flipEncounterSpeed).toBe("normal");
+    expect(flipDurationMs("slow")).toBe(1000);
+    expect(flipDurationMs("normal")).toBe(500);
+    expect(flipDurationMs("off")).toBe(0);
     expect(settings.villainBeatSpeed).toBe("normal");
     expect(settings.villainDockTable).toBe(true);
     expect(settings.cardHoverScale).toBe("2.5x");

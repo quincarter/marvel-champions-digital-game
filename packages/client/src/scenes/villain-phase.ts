@@ -116,7 +116,8 @@
 import Phaser from "phaser";
 import { addPressShield } from "../ui/press-shield.js";
 import { cardOf, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
-import { artFor } from "../art/art-source.js";
+import { artFor, CARD_BACKS } from "../art/art-source.js";
+import { drawFlipCard } from "../ui/flip-card.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { POOL_DEPS } from "../content/pool.js";
 import { accent, border, hit, ink, signal, surface, typeRole } from "../tokens.js";
@@ -135,6 +136,8 @@ import { SOURCE_STRIP_HEIGHT, sourceStripPlacement } from "../view/choice-source
 import { drawSourceCardPanel } from "../ui/source-card-panel.js";
 import {
   encounterHoldAt,
+  flipGateAt,
+  flipLabel,
   revealOf,
   stepCaptionOf,
   type Reveal,
@@ -212,7 +215,7 @@ import { RECAP_SCROLL_SLOTS, drawVillainRecapPanel } from "../ui/villain-recap-p
 import { villainRecapOf } from "../view/villain-recap.js";
 import { recapMarginFor } from "../view/villain-recap-layout.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
-import { VILLAIN_RECAP_PAUSE_MS, cardSizeFactor, villainBeatIntervalMs } from "../settings.js";
+import { VILLAIN_RECAP_PAUSE_MS, cardSizeFactor, flipDurationMs, villainBeatIntervalMs } from "../settings.js";
 import {
   villainDockWidthFor,
   villainPresentationFor,
@@ -324,6 +327,11 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #peeking = false;
   /** Encounter cards the player has moved past under "Hold encounter cards" (`#heldCard`). */
   #released = new Set<string>();
+  /** Facedown encounter cards the player has flipped (`#flipGate`, #287). */
+  #flipped = new Set<string>();
+  /** The flip in progress: its card and when it began, so a redraw mid-turn recreates the card where it had got to. */
+  #flip: { readonly card: string; readonly startedAt: number } | null = null;
+  #flipTimer: Phaser.Time.TimerEvent | null = null;
   /** Where this draw docked the open decision's sheet (#231), published to the sheet once the draw is done. */
   #decisionDock: Rect | null = null;
   /** Defend decisions the player sent to the full-screen sheet (EXPAND) instead of the docked panel. */
@@ -350,6 +358,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#hiddenChoice = null;
     this.#presentation = "full";
     this.#released = new Set();
+    this.#flipped = new Set();
+    this.#flip = null;
+    this.#flipTimer = null;
     this.#expanded = new Set();
     this.#userExpanded = new Set();
     this.#defendPick = null;
@@ -980,6 +991,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
           const currentTotal = totalBeatsOf(this.#walkthrough);
           // Held on a revealed encounter card until the player presses Next card: nothing moves, nothing redraws.
           if (this.#heldCard() !== null) return;
+          // Waiting on Flip Encounter Card, or the card is turning over.
+          if (this.#flipGate() !== null || this.#flipTurning() !== null) return;
           this.#revealed = advanceReveal(this.#revealed, currentTotal);
           this.#draw();
           if (this.#revealed >= currentTotal) {
@@ -1045,9 +1058,78 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #heldCard(): string | null {
     const settings = appSession().settings;
     if (!settings.holdEncounterCards || settings.reducedMotion || this.#shownPause()) return null;
+    if (this.#flipGate() !== null || this.#flipTurning() !== null) return null;
     if (this.#presentation === "full" || this.#presentation === "hidden") return null;
     const beats = this.#walkthrough.steps.flatMap((step) => step.beats);
     return encounterHoldAt(beats, this.#revealed, this.#released);
+  }
+
+  /**
+   * The facedown encounter card the reveal cursor waits on before showing its face ("Flip each encounter card", #287),
+   * or null. Like the hold it never applies under reduced motion (nothing is paced there) and an open decision wins;
+   * it also stands down for a review and a card that is the phase's very last beat (nothing
+   * would draw its button once the recap is up).
+   */
+  #flipGate(): string | null {
+    const settings = appSession().settings;
+    if (!settings.flipEncounterCards || settings.reducedMotion || this.#review) return null;
+    if (this.#shownPause() || this.#waitingToStart()) return null;
+    const total = totalBeatsOf(this.#walkthrough);
+    if (this.#walkthrough.complete && this.#revealed >= total) return null;
+    const beats = this.#walkthrough.steps.flatMap((step) => step.beats);
+    const dealt = new Set<string>(this.#walkthrough.encounter.dealt.map((card) => card.instanceId));
+    return flipGateAt(beats, this.#revealed, dealt, this.#flipped);
+  }
+
+  /** The card turning over right now (the 500 ms after Flip Encounter Card), or null. */
+  #flipTurning(): string | null {
+    const flip = this.#flip;
+    return flip && this.time.now - flip.startedAt < this.#flipMs() ? flip.card : null;
+  }
+
+  /** How long the turn takes: 0 under "Off" (the press still stops on each card). */
+  #flipMs(): number {
+    return flipDurationMs(appSession().settings.flipEncounterSpeed);
+  }
+
+  /** Flip Encounter Card: the front card turns over and the reveal carries on as it does today. */
+  #pressFlip(): void {
+    const card = this.#flipGate();
+    if (card === null) return;
+    this.#flipped.add(card);
+    this.#flip = { card, startedAt: this.time.now };
+    this.#flipTimer?.remove();
+    this.#flipTimer = null;
+    // The card's name and rules stay hidden through the turn; this puts the ordinary reveal in their place.
+    if (this.#flipMs() > 0) {
+      this.#flipTimer = this.time.delayedCall(this.#flipMs() + 20, () => {
+        this.#flipTimer = null;
+        this.#syncTiming();
+        this.#draw();
+      });
+    }
+    this.#syncTiming();
+    this.#draw();
+  }
+
+  /** The gated or turning card's facedown state for the draw: `elapsedMs` null while waiting, else since the press. */
+  #flipState(): { readonly card: string; readonly elapsedMs: number | null; readonly waiting: number } | null {
+    const gate = this.#flipGate();
+    const card = gate ?? this.#flipTurning();
+    if (card === null) return null;
+    const dealt = this.#walkthrough.encounter.dealt;
+    const owner = dealt.find((entry) => entry.instanceId === card)?.playerId;
+    const shown = new Set(
+      this.#walkthrough.steps
+        .flatMap((step) => step.beats)
+        .slice(0, this.#revealed)
+        .map((beat) => beat.encounterInstanceId ?? null),
+    );
+    // The same player's cards not yet up, in the order dealt (RRG p. 47: they are revealed one at a time in that order).
+    const waiting = dealt.filter(
+      (entry) => entry.playerId === owner && entry.instanceId !== card && !shown.has(entry.instanceId),
+    ).length;
+    return { card, elapsedMs: gate !== null ? null : this.time.now - this.#flip!.startedAt, waiting };
   }
 
   /** Next card: release the held card and show the next beat at once. */
@@ -1136,6 +1218,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const phone = formFactor === "phone";
     const reveal = revealOf(this.#walkthrough, this.#revealed);
     const boostCount = reveal.current?.activation?.boosts.length ?? 0;
+    // A flip that is due brings the docked panel forward, the way a held decision does: out of hiding, out of a peek.
+    if (this.#flipGate() !== null || this.#flipTurning() !== null) {
+      this.#hidden = false;
+      this.#hiddenChoice = null;
+      this.#peeking = false;
+    }
 
     // Guided mode G7c (`docs/guided-mode.md` §4 "Left for G7"): on desktop/tablet landscape this full-bleed panel
     // used to draw straight over Board's own guide rail, hiding lesson 4's copy entirely — so it leaves the
@@ -1365,7 +1453,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       const footerClear = layout.footer.y >= merged.y + merged.height || layout.footer.x >= merged.x + merged.width;
       finished = footerClear ? this.#drawFooter(layout.footer, reveal) : false;
     } else {
-      this.#drawHappeningNow(layout.happeningNow, reveal, game, viewer);
+      this.#drawHappeningNow(layout.happeningNow, reveal, game, viewer, stops);
       this.#drawBoosts(layout.boosts, reveal.current?.activation ?? null, game, viewerId, formFactor);
       this.#drawQueued(layout.queued, queuedActivationsOf(game, POOL_DEPS), game, viewer);
       this.#drawTeamStatus(
@@ -1396,11 +1484,14 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       }
     }
     this.#route?.set(
-      villainPhaseFocusOrder(
-        finished,
-        inline?.map((o) => o.optionId) ?? [],
-        guideStrip ? { hasPrimary: Boolean(guideStrip.onPrimary) } : undefined,
-      ),
+      [
+        "flip",
+        ...villainPhaseFocusOrder(
+          finished,
+          inline?.map((o) => o.optionId) ?? [],
+          guideStrip ? { hasPrimary: Boolean(guideStrip.onPrimary) } : undefined,
+        ),
+      ],
       stops,
     );
 
@@ -1411,6 +1502,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       (window as unknown as { __mcVillainPhaseDebug?: unknown }).__mcVillainPhaseDebug = {
         continueRect: () => (finished ? layout.footer : null),
         skipRect: () => layout.skip,
+        flipRect: () => stops.get("flip")?.rect ?? null,
       };
     }
 
@@ -1864,7 +1956,13 @@ export class VillainPhaseOverlay extends Phaser.Scene {
    * pause/narration text outside an activation (step 1, 3-5, or before the
    * phase has produced anything yet).
    */
-  #drawHappeningNow(rect: Rect, reveal: Reveal, state: GameState, viewer: PlayerId | null): void {
+  #drawHappeningNow(
+    rect: Rect,
+    reveal: Reveal,
+    state: GameState,
+    viewer: PlayerId | null,
+    stops: Map<string, FocusStop>,
+  ): void {
     const pause = reveal.current?.pause ?? null;
     const activation = reveal.current?.activation ?? null;
 
@@ -1920,6 +2018,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       return;
     }
 
+    const facedown = this.#flipState();
+    if (facedown && reveal.current?.encounterInstanceId === facedown.card) {
+      this.#drawFacedownHappening(rect, state, facedown, stops);
+      return;
+    }
+
     if (!activation) {
       const body = reveal.current?.text ?? (reveal.total === 0 ? "The villain phase is starting…" : "");
       this.add
@@ -1972,6 +2076,72 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         ink.secondary,
       );
     }
+  }
+
+  /** The full-screen phase on a facedown encounter card (#287): its back, the cards still waiting, and Flip Encounter Card. */
+  #drawFacedownHappening(
+    rect: Rect,
+    state: GameState,
+    facedown: { readonly card: string; readonly elapsedMs: number | null; readonly waiting: number },
+    stops: Map<string, FocusStop>,
+  ): void {
+    const cardHeight = Math.max(40, Math.min(rect.height - 40, 170));
+    const cardWidth = Math.round(cardHeight * (63 / 88));
+    const card: Rect = { x: rect.x + 14, y: rect.y + 30, width: cardWidth, height: cardHeight };
+    const face = inspectModel(state, facedown.card as InstanceId, null, state.firstPlayerId, POOL_DEPS);
+    drawFlipCard(this, card, CARD_BACKS.encounter, face.art, face.name, facedown.elapsedMs, this.#flipMs());
+    const x = card.x + card.width + 16;
+    const width = rect.x + rect.width - 14 - x;
+    const headline = this.add
+      .text(x, rect.y + 30, "FACEDOWN ENCOUNTER CARD", textStyle({ ...typeRole.barTitle, size: 22 }, surface.ink.hex))
+      .setOrigin(0, 0);
+    fitText(headline, width, 22);
+    let cursor = rect.y + 30 + headline.height + 8;
+    if (facedown.waiting > 0) {
+      // The cards still to come, in the order dealt (RRG p. 47); the front card is the one beside the text.
+      const backHeight = 34;
+      const backWidth = Math.round(backHeight * (63 / 88));
+      const shown = Math.min(facedown.waiting, 4);
+      const backKey = cardArt(this).request(this, CARD_BACKS.encounter);
+      for (let i = shown - 1; i >= 0; i--) {
+        const back: Rect = { x: x + i * backWidth * 0.6, y: cursor, width: backWidth, height: backHeight };
+        if (!drawArt(this, backKey, back, { fit: "cover" })) {
+          this.add.graphics().fillStyle(signal.spent.hex, 1).fillRect(back.x, back.y, back.width, back.height);
+        }
+        this.add
+          .graphics()
+          .lineStyle(border.detail, surface.ink.hex, 1)
+          .strokeRect(back.x, back.y, back.width, back.height);
+      }
+      label(
+        this,
+        x + (shown - 1) * backWidth * 0.6 + backWidth + 8,
+        cursor + backHeight / 2 - 6,
+        `+${facedown.waiting} WAITING`,
+        typeRole.label,
+        surface.ink.hex,
+        ink.secondary,
+      );
+    }
+    if (facedown.elapsedMs !== null) return;
+    const press = (): void => this.#pressFlip();
+    const button: Rect = {
+      x,
+      y: rect.y + rect.height - 14 - hit.target,
+      width: Math.min(width, 240),
+      height: hit.target,
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "primary",
+        label: flipLabel,
+        type: typeRole.label,
+        rect: button,
+        tint: { fill: signal.caution.hex, ink: surface.ink.hex },
+        onClick: press,
+      }),
+    );
+    stops.set("flip", { rect: button, activate: press });
   }
 
   /** Returns the vertical room the row used, so the caller can stack something under it. */
@@ -2596,12 +2766,17 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
     // The active counter moving is a beat of its own, even while a card is being revealed (Buddy System).
     const moved = reveal.current?.activeChange !== undefined && inline === null;
-    const current = revealing && !moved ? strip.current : null;
+    const facedown = this.#flipState();
+    const flipping = facedown !== null && facedown.card === strip?.current ? facedown : null;
+    const current = revealing && (!moved || flipping !== null) ? strip.current : null;
     const body: RailBody = current
       ? {
           kind: "reveal",
           instanceId: current,
           footnote: `Dealt to ${strip!.tiles.find((tile) => tile.instanceId === current)?.seat ?? "you"}`,
+          ...(flipping
+            ? { flip: { elapsedMs: flipping.elapsedMs, waiting: flipping.waiting, durationMs: this.#flipMs() } }
+            : {}),
         }
       : this.#happeningBody(reveal, game, viewer, inline !== null);
 
@@ -2635,6 +2810,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       onGateDrawn: (objects) => this.#slideNotice(objects, panel),
       log,
       onNext: this.#heldCard() !== null ? () => this.#nextCard() : null,
+      onFlip: this.#flipGate() !== null ? () => this.#pressFlip() : null,
       autoAdvance: appSession().settings.villainAutoAdvance,
       buttons: this.#buttons,
       onSkip: () => this.#skip(),
@@ -2643,7 +2819,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       onInspect: (instanceId) => this.scene.launch(SCENES.inspect, { instanceId }),
     });
 
-    this.#route?.set(villainRailFocusOrder(inline?.map((o) => o.optionId) ?? [], stops.has("next")), stops);
+    this.#route?.set(
+      ["flip", ...villainRailFocusOrder(inline?.map((o) => o.optionId) ?? [], stops.has("next"))],
+      stops,
+    );
     if (import.meta.env.DEV) {
       (window as unknown as { __mcVillainPhaseDebug?: unknown }).__mcVillainPhaseDebug = {
         continueRect: () => null,
@@ -2654,6 +2833,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         presentation: () => this.#presentation,
         useRect: () => layout.interrupt?.use ?? null,
         nextRect: () => stops.get("next")?.rect ?? null,
+        flipRect: () => stops.get("flip")?.rect ?? null,
         resolveRect: () => (inline ? (layout.interrupt?.resolve ?? null) : null),
         startRect: () => stops.get("start")?.rect ?? null,
         answerRect: () => stops.get("answer")?.rect ?? null,
@@ -2714,11 +2894,13 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const encounter = this.#walkthrough.encounter;
     if (encounter.dealt.length === 0 && encounter.revealed.length === 0) return null;
     const shown = reveal.steps.flatMap((step) => step.beats.map((beat) => beat.encounterInstanceId ?? null));
+    // The card waiting to be flipped (or turning) keeps its name off the strip until it is up.
+    const facedown = this.#flipState()?.card ?? null;
     return encounterStripOf(
       encounter,
       shown,
       viewer,
-      (instanceId) => cardName(game, instanceId),
+      (instanceId) => (instanceId === facedown ? "Facedown" : cardName(game, instanceId)),
       (playerId) => shortSeatName(game, playerId, viewer),
     );
   }

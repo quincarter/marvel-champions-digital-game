@@ -116,3 +116,41 @@ export function encounterHoldAt(
   if (following.encounterInstanceId === card) return null;
   return released.has(card) ? null : card;
 }
+
+/**
+ * "Flip each encounter card" (`settings.flipEncounterCards`, #287): the reveal cursor stops on the first beat of each
+ * encounter card a player was dealt facedown, before the card's face is shown, until the player presses Flip
+ * Encounter Card. Returns the card waiting to be flipped at `revealed` beats shown, or null: the current beat is not a
+ * card's first beat (the cursor is mid-card, or on a step that is not a reveal), the card was not dealt facedown (a
+ * card an effect revealed straight off the deck), or the player already flipped it.
+ */
+export function flipGateAt(
+  beats: readonly WalkthroughBeat[],
+  revealed: number,
+  dealt: ReadonlySet<string>,
+  flipped: ReadonlySet<string>,
+): string | null {
+  const card = beats[revealed - 1]?.encounterInstanceId;
+  if (!card || !dealt.has(card) || flipped.has(card)) return null;
+  const before = beats[revealed - 2]?.encounterInstanceId;
+  return before === card ? null : card;
+}
+
+/** The Flip button's label, in one place for the rail, the peek banner and the full-screen panel. */
+export const flipLabel = "Flip Encounter Card";
+
+/** The default flip: the back narrows to nothing, then the face widens (`flipFrameAt`); `settings.flipEncounterSpeed` sets the real length. */
+export const FLIP_MS = 500;
+
+export interface FlipFrame {
+  /** Which side of the card shows: the back in the first half, the face in the second. */
+  readonly side: "back" | "face";
+  /** Horizontal scale of the card, 1 = full width, 0 = edge-on. */
+  readonly scaleX: number;
+}
+
+/** The flip `elapsedMs` in, as plain data so a full redraw mid-flip recreates it where it was. */
+export function flipFrameAt(elapsedMs: number, durationMs: number = FLIP_MS): FlipFrame {
+  const progress = durationMs <= 0 ? 1 : Math.min(1, Math.max(0, elapsedMs / durationMs));
+  return progress < 0.5 ? { side: "back", scaleX: 1 - progress * 2 } : { side: "face", scaleX: progress * 2 - 1 };
+}

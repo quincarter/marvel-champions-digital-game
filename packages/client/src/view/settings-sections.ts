@@ -20,6 +20,8 @@ export type SettingsItemId =
   | "power-saving"
   | "villain-auto"
   | "villain-hold"
+  | "villain-flip"
+  | "villain-flip-speed"
   | "villain-speed"
   | "villain-dock"
   | GuideSettingsRowId
@@ -54,7 +56,11 @@ export function settingsSectionsOf(input: {
 }): readonly SettingsSection[] {
   return [
     { id: "gameplay", title: "Gameplay", items: ["confirm-end-turn", "same-name-conflict"] },
-    { id: "villain", title: "Villain phase", items: ["villain-auto", "villain-hold", "villain-speed", "villain-dock"] },
+    {
+      id: "villain",
+      title: "Villain phase",
+      items: ["villain-auto", "villain-hold", "villain-flip", "villain-flip-speed", "villain-speed", "villain-dock"],
+    },
     {
       id: "cards",
       title: "Cards",

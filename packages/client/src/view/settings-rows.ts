@@ -30,6 +30,7 @@ import {
   type Settings,
   type VillainAutoAdvance,
   type VillainBeatSpeed,
+  type FlipEncounterSpeed,
   type Resolution,
 } from "../settings.js";
 import { FIRST_PLAYER_TOKEN_MOTION_LABELS } from "./first-player-token-motion.js";
@@ -300,7 +301,19 @@ export const VILLAIN_BEAT_SPEED_OPTIONS: readonly VillainOption<VillainBeatSpeed
   { value: "fast", label: "Fast", detail: "Shortest on screen" },
 ];
 
-export type VillainRowId = "villain-auto" | "villain-hold" | "villain-speed" | "villain-dock";
+export const FLIP_ENCOUNTER_SPEED_OPTIONS: readonly VillainOption<FlipEncounterSpeed>[] = [
+  { value: "slow", label: "Slow", detail: "1 second" },
+  { value: "normal", label: "Normal", detail: "" },
+  { value: "off", label: "Off", detail: "Turns over at once" },
+];
+
+export type VillainRowId =
+  | "villain-auto"
+  | "villain-hold"
+  | "villain-flip"
+  | "villain-flip-speed"
+  | "villain-speed"
+  | "villain-dock";
 
 export interface VillainRowsInfo {
   readonly autoAdvance: {
@@ -310,6 +323,13 @@ export interface VillainRowsInfo {
     readonly selected: VillainAutoAdvance;
   };
   readonly hold: { readonly title: string; readonly detail: string; readonly on: boolean };
+  readonly flip: { readonly title: string; readonly detail: string; readonly on: boolean };
+  readonly flipSpeed: {
+    readonly title: string;
+    readonly detail: string;
+    readonly options: readonly VillainOption<FlipEncounterSpeed>[];
+    readonly selected: FlipEncounterSpeed;
+  };
   readonly beatSpeed: {
     readonly title: string;
     readonly detail: string;
@@ -332,6 +352,17 @@ export function villainRowInfoOf(settings: Settings): VillainRowsInfo {
       detail: "Keep every revealed card on screen until you tap past it, even when you have no answer to it.",
       on: settings.holdEncounterCards,
     },
+    flip: {
+      title: "Flip each encounter card",
+      detail: "Stop on each facedown encounter card until you press Flip Encounter Card.",
+      on: settings.flipEncounterCards,
+    },
+    flipSpeed: {
+      title: "Flip animation",
+      detail: "How long a facedown encounter card takes to turn over. Off turns it at once; you still press Flip.",
+      options: FLIP_ENCOUNTER_SPEED_OPTIONS,
+      selected: settings.flipEncounterSpeed,
+    },
     beatSpeed: {
       title: "Beat speed",
       detail: "How long each step stays up while the phase runs on its own.",
@@ -350,7 +381,7 @@ export function villainRowInfoOf(settings: Settings): VillainRowsInfo {
 export function nextSettingsAfterVillainRow(
   settings: Settings,
   id: VillainRowId,
-  value?: VillainAutoAdvance | VillainBeatSpeed,
+  value?: VillainAutoAdvance | VillainBeatSpeed | FlipEncounterSpeed,
 ): Settings {
   switch (id) {
     case "villain-auto":
@@ -361,8 +392,14 @@ export function nextSettingsAfterVillainRow(
       return VILLAIN_BEAT_SPEED_OPTIONS.some((o) => o.value === value)
         ? { ...settings, villainBeatSpeed: value as VillainBeatSpeed }
         : settings;
+    case "villain-flip-speed":
+      return FLIP_ENCOUNTER_SPEED_OPTIONS.some((o) => o.value === value)
+        ? { ...settings, flipEncounterSpeed: value as FlipEncounterSpeed }
+        : settings;
     case "villain-hold":
       return { ...settings, holdEncounterCards: !settings.holdEncounterCards };
+    case "villain-flip":
+      return { ...settings, flipEncounterCards: !settings.flipEncounterCards };
     case "villain-dock":
       return { ...settings, villainDockTable: !settings.villainDockTable };
   }

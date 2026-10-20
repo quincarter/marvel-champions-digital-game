@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { emptyEncounterTracking, type Walkthrough, type WalkthroughBeat } from "./villain-walkthrough.js";
-import { encounterHoldAt, revealOf, stepCaptionOf } from "./villain-phase-reveal.js";
+import { encounterHoldAt, flipFrameAt, flipGateAt, revealOf, stepCaptionOf } from "./villain-phase-reveal.js";
 
 const beat = (id: string, text: string): WalkthroughBeat => ({ id, text, pause: null, activation: null });
 
@@ -226,5 +226,43 @@ describe("encounterHoldAt", () => {
     expect(encounterHoldAt(beats, 1, new Set())).toBeNull();
     expect(encounterHoldAt(beats, 5, new Set())).toBeNull();
     expect(encounterHoldAt(beats.slice(0, 3), 3, new Set())).toBeNull();
+  });
+});
+
+describe("flipGateAt", () => {
+  const beat = (id: string, encounterInstanceId: string | null): WalkthroughBeat =>
+    ({ id, text: id, pause: null, activation: null, encounterInstanceId }) as WalkthroughBeat;
+  const beats = [beat("deal", null), beat("a1", "a"), beat("a2", "a"), beat("b1", "b"), beat("pass", null)];
+  const dealt = new Set(["a", "b"]);
+
+  test("stops on a dealt card's first beat only, before its face", () => {
+    expect(flipGateAt(beats, 1, dealt, new Set())).toBeNull();
+    expect(flipGateAt(beats, 2, dealt, new Set())).toBe("a");
+    expect(flipGateAt(beats, 3, dealt, new Set())).toBeNull();
+    expect(flipGateAt(beats, 4, dealt, new Set())).toBe("b");
+    expect(flipGateAt(beats, 5, dealt, new Set())).toBeNull();
+  });
+
+  test("each card has its own stop, and a flipped card does not stop again", () => {
+    expect(flipGateAt(beats, 2, dealt, new Set(["a"]))).toBeNull();
+    expect(flipGateAt(beats, 4, dealt, new Set(["a"]))).toBe("b");
+  });
+
+  test("a card that was not dealt facedown never stops", () => {
+    expect(flipGateAt(beats, 2, new Set(["b"]), new Set())).toBeNull();
+    expect(flipGateAt(beats, 0, dealt, new Set())).toBeNull();
+  });
+});
+
+describe("flipFrameAt", () => {
+  test("the back narrows to nothing, then the face widens", () => {
+    expect(flipFrameAt(0)).toEqual({ side: "back", scaleX: 1 });
+    expect(flipFrameAt(125)).toEqual({ side: "back", scaleX: 0.5 });
+    expect(flipFrameAt(250)).toEqual({ side: "face", scaleX: 0 });
+    expect(flipFrameAt(375)).toEqual({ side: "face", scaleX: 0.5 });
+    expect(flipFrameAt(500)).toEqual({ side: "face", scaleX: 1 });
+    expect(flipFrameAt(9999)).toEqual({ side: "face", scaleX: 1 });
+    expect(flipFrameAt(500, 1000)).toEqual({ side: "face", scaleX: 0 });
+    expect(flipFrameAt(0, 0)).toEqual({ side: "face", scaleX: 1 });
   });
 });
