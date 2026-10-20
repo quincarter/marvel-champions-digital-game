@@ -1760,7 +1760,7 @@ export const MTS_CARDS: readonly AnyCard[] = [
         traits: [],
         keywords: [],
         abilities: [{ id: abilityId("21074b.when-revealed") }],
-        image: imageRef("/bundles/cards/21074.png"),
+        image: imageRef("/bundles/cards/21074b.png"),
         aSide: {
           text: {
             printed: "Contents: Ebony Maw (I) and Ebony Maw (II). (Ebony Maw (II) and Ebony Maw (III) instead for expert mode.) Ebony Maw and Standard encounter sets. Two modular encounter set (Armies of Titan and Black Order).",
@@ -1785,7 +1785,7 @@ export const MTS_CARDS: readonly AnyCard[] = [
         keywords: [],
         abilities: [],
         completionLoses: true,
-        image: imageRef("/bundles/cards/21075.png"),
+        image: imageRef("/bundles/cards/21075b.png"),
         aSide: {
           text: {
             printed: "When Revealed: Shuffle the encounter discard pile into the encounter deck. Each player discards cards from the top of the encounter deck until they discard a Spell card and puts that card into play in their play area.",
@@ -2325,7 +2325,7 @@ export const MTS_CARDS: readonly AnyCard[] = [
           { id: abilityId("21098b.under-siege-forced-interrupt") },
         ],
         villainOf: "Proxima Midnight",
-        image: imageRef("/bundles/cards/21098.png"),
+        image: imageRef("/bundles/cards/21098b.png"),
         aSide: {
           text: {
             printed: "Contents: Proxima Midnight I and II (stages (II) and (III) instead for expert mode). Corvus Glaive I and II (stages (II) and (III) instead for expert mode). Tower Defense and Standard sets. One modular encounter set (Armies of Titan).\nSetup: Reveal stage 2A and put it into play next to this stage so there are two main schemes and two villains in play.",
@@ -2355,7 +2355,7 @@ export const MTS_CARDS: readonly AnyCard[] = [
           },
         ],
         villainOf: "Corvus Glaive",
-        image: imageRef("/bundles/cards/21099.png"),
+        image: imageRef("/bundles/cards/21099b.png"),
         aSide: {
           text: {
             printed: "When Revealed: Put the Avengers Tower environment into play, stronghold side faceup. Put the Focused Defense attachment into play attached to this stage. Each player searches the encounter deck for a copy of Black Order Besieger and puts it into play engaged with them. Shuffle the encounter deck.",
@@ -2716,7 +2716,7 @@ export const MTS_CARDS: readonly AnyCard[] = [
         traits: [],
         keywords: [],
         abilities: [{ id: abilityId("21114b.when-revealed") }],
-        image: imageRef("/bundles/cards/21114.png"),
+        image: imageRef("/bundles/cards/21114b.png"),
         aSide: {
           text: {
             printed: "Contents: Thanos I and Thanos II (Thanos II and Thanos III for expert mode). Thanos, Infinity Gaultlet and Standard sets. Two modular sets (Black Order and Children of Thanos). See rules insert for The Infinity Gauntlet rules.",
@@ -2740,7 +2740,7 @@ export const MTS_CARDS: readonly AnyCard[] = [
         traits: [],
         keywords: [],
         abilities: [{ id: abilityId("21115b.when-revealed") }],
-        image: imageRef("/bundles/cards/21115.png"),
+        image: imageRef("/bundles/cards/21115b.png"),
         aSide: {
           text: {
             printed: "If this stage is completed, the players lose the game.",
@@ -3335,7 +3335,7 @@ export const MTS_CARDS: readonly AnyCard[] = [
         keywords: [],
         abilities: [{ id: abilityId("21138b.odins-torment-forced-interrupt") }],
         completionLoses: true,
-        image: imageRef("/bundles/cards/21138.png"),
+        image: imageRef("/bundles/cards/21138b.png"),
         aSide: {
           text: {
             printed: "Contents: Villain deck Hela A (Hela B instead for expert mode). Hela and standard sets. Two modular encounter sets (Legions of Hel and Frost Giants).\nSetup: Attach Odin to the main scheme, captive side faceup. Reveal Gnipahellir and Garm. Set Gjallerbru, Skurge, Hall of Nastrond, and Nidhogg aside, out of play. Shuffle the encounter deck.",
@@ -4037,7 +4037,7 @@ export const MTS_CARDS: readonly AnyCard[] = [
           { id: abilityId("21165b.all-hail-king-loki-constant") },
         ],
         completionLoses: true,
-        image: imageRef("/bundles/cards/21165.png"),
+        image: imageRef("/bundles/cards/21165b.png"),
         aSide: {
           text: {
             printed: "Contents: Loki, Infinity Gauntlet, and Standard encounter sets. Two modular encounter sets. (Enchantress and Frost Giants).\nSetup: Set each copy of the Loki villain aside, out of play. Put the War in Asgard side scheme into play. Shuffle the encounter deck. Reveal 1 set-aside Loki villain at random. Reveal the top card of the infinity stone deck.",

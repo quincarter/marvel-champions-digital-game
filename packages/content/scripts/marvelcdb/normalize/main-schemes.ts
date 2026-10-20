@@ -238,7 +238,11 @@ export function normalizeMainSchemes(ctx: NormalizeContext): Map<string, string>
       // Falls back to that before giving up, the same direction `aSideImage` already falls back to `rb.imagesrc`
       // then `ra.imagesrc` below — backward compatible: this fallback only fires when the aggregate lookup found
       // nothing, so wave 1's own (aggregate-backed) output is unchanged.
-      const bSideImage = ctx.aggregateImage(ra.code) ?? imageOf(rb.imagesrc);
+      // A `…b` scan curated as the printed B side (`PackCuration.printedBSideSchemeScans`) turns that around: it is
+      // the side in play, and the aggregate scan (stamped "A") is the setup side.
+      const printedB = ctx.curation.printedBSideSchemeScans?.includes(rb.code) ? imageOf(rb.imagesrc) : undefined;
+      if (printedB) ctx.usedPrintedBSideScans.add(rb.code);
+      const bSideImage = printedB ?? ctx.aggregateImage(ra.code) ?? imageOf(rb.imagesrc);
       // The Once and Future Kang's stage records go the other way round from the wave 1 packs this originally
       // matched: the "a" record carries its own image and the linked "b" record's `imagesrc` is null (verified —
       // `11008a.png` exists, `11008b` has no `imagesrc` at all). Falling back to the "a" record's own image when
@@ -250,7 +254,14 @@ export function normalizeMainSchemes(ctx: NormalizeContext): Map<string, string>
       // record" documentation (this fallback was previously only wired for `bSideImage`, above). Backward
       // compatible: only fires when both higher-priority lookups already failed, so it cannot change any pack
       // whose A-side image already resolved.
-      const aSideImage = imageOf(rb.imagesrc) ?? imageOf(ra.imagesrc) ?? ctx.aggregateImage(ra.code);
+      // A pack whose records each carry their own printed face (Galaxy's Most Wanted's `16061a.png` stamped "1A",
+      // `16061b.png` "1B", and no aggregate record) would otherwise take the `…b` scan for both sides, so the A
+      // side falls to the A record's own scan whenever the B side already took the `…b` one (issue #295).
+      const ownA = imageOf(ra.imagesrc);
+      const linkedA = imageOf(rb.imagesrc);
+      const aSideImage = printedB
+        ? (ownA ?? ctx.aggregateImage(ra.code))
+        : ((linkedA && linkedA !== bSideImage ? linkedA : (ownA ?? linkedA)) ?? ctx.aggregateImage(ra.code));
       // Threat values printed as X (docs/phase7-wave1.md §1.5, Mutagen Cloud 2B): MarvelCDB encodes a printed X
       // as -1. Held as a flat 0 and the stage's own ability defines it (RRG 1.8 "Non-Numerical Variable").
       const printedX: MainSchemeThreatField[] = [];

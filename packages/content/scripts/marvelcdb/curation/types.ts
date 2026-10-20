@@ -619,6 +619,15 @@ export interface PackCuration {
    */
   readonly imageOverrides?: Readonly<Record<string, string>>;
   /**
+   * Main scheme `…b` records whose local scan (`assets/card-art/bundles/cards/<code>.png`, fetched from Hall of
+   * Heroes and listed in its manifest) is the printed B side. MarvelCDB's own `…b.png` for a wave 1 main scheme is
+   * the setup (A) side and its bare aggregate scan the B side, which is what the normalizer assumes by default; a
+   * pack whose aggregate scan is the A side (Mad Titan's Shadow's `21075.png`, stamped "2A") and whose B side was
+   * fetched under the `…b` code lists those codes here, so the stage plays from the B scan and keeps the aggregate
+   * scan as its A side (issue #295). Absent = none.
+   */
+  readonly printedBSideSchemeScans?: readonly string[];
+  /**
    * `HeroIdentityCard.deckbuilding` overrides, MarvelCDB identity code → the field (wave 2, docs/phase7-wave2.md
    * §1.2). RRG 1.8 FAQ "Jessica Drew (#31B)" (p. 60): "Does Jessica Drew's Double Agent ability require her deck
    * to be built with two aspects? A: Yes. An equal number of cards from two different aspects must be included

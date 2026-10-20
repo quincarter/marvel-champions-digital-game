@@ -20,6 +20,10 @@ export function checkStaleCuration(ctx: NormalizeContext): void {
     if (!ctx.usedImageOverrides.has(code))
       errors.push(`curation imageOverride for ${code} matched no face that needed it`);
   }
+  for (const code of ctx.curation.printedBSideSchemeScans ?? []) {
+    if (!ctx.usedPrintedBSideScans.has(code))
+      errors.push(`curation printedBSideSchemeScans entry ${code} matched no main scheme B side with a scan`);
+  }
 }
 
 /** Step 11: every non-aggregate record became part of a card, and every printed face has an artwork reference. */

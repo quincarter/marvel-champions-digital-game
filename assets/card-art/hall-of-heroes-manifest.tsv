@@ -3,9 +3,9 @@
 # Saved over bundles/cards/<code>.<ext> in the local file's format, scaled to at most a 1100px long edge.
 # Rows fetched on 2026-09-19 or earlier were scaled to a 419px long edge.
 code	pack	name	source_page	image_url	fetched
-01117b	core	Secret Rendezvous	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/klaw5b.jpg	2026-09-26
-01138b	core	Assault on NORAD	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/ultron5b.jpg	2026-09-26
-01139b	core	Countdown to Oblivion	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/ultron6b.jpg	2026-09-26
+01117b	core	Secret Rendezvous	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/klaw5a.jpg	2026-10-20
+01138b	core	Assault on NORAD	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/ultron5a.jpg	2026-10-20
+01139b	core	Countdown to Oblivion	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/ultron6a.jpg	2026-10-20
 02002a	gob	Norman Osborn	https://hallofheroeslcg.com/green-goblin/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/risky2a.jpg	2026-09-26
 02003a	gob	Norman Osborn	https://hallofheroeslcg.com/green-goblin/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/risky3a.jpg	2026-09-26
 02018a	gob	Mutagen Cloud	https://hallofheroeslcg.com/green-goblin/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/mutagen5b.jpg	2026-09-26
@@ -85,7 +85,9 @@ code	pack	name	source_page	image_url	fetched
 21072	mts	Ebony Maw	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e2.jpg	2026-09-26
 21073	mts	Ebony Maw	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e3.jpg	2026-09-26
 21074	mts	Attack on Knowhere	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e4a.jpg	2026-09-26
+21074b	mts	Attack on Knowhere	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e4b.jpg	2026-10-20
 21075	mts	The Power Stone	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e5a.jpg	2026-09-26
+21075b	mts	The Power Stone	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e5b.jpg	2026-10-20
 21076	mts	Fireball	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e6.jpg	2026-09-26
 21077	mts	Manipulation	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e8.jpg	2026-09-26
 21078	mts	Pacification	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e10.jpg	2026-09-26
@@ -109,7 +111,9 @@ code	pack	name	source_page	image_url	fetched
 21096	mts	Corvus Glaive	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t5.jpg	2026-09-26
 21097	mts	Corvus Glaive	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t6.jpg	2026-09-26
 21098	mts	Under Siege	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t7a.jpg	2026-09-26
+21098b	mts	Under Siege	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t7b.jpg	2026-10-20
 21099	mts	The Armies of Thanos	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t8a.jpg	2026-09-26
+21099b	mts	The Armies of Thanos	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t8b.jpg	2026-10-20
 21100	mts	Avengers Tower	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t9a.jpg	2026-09-26
 21101	mts	Focused Defense	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t10.jpg	2026-09-26
 21102	mts	Black Order Besieger	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t11.jpg	2026-09-26
@@ -125,7 +129,9 @@ code	pack	name	source_page	image_url	fetched
 21112	mts	Thanos	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t2-1.jpg	2026-09-26
 21113	mts	Thanos	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t3-1.jpg	2026-09-26
 21114	mts	The Infinity Stones	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t4a.jpg	2026-09-26
+21114b	mts	The Infinity Stones	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t4b.jpg	2026-10-20
 21115	mts	Balance the Scales	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t5a.jpg	2026-09-26
+21115b	mts	Balance the Scales	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t5b.jpg	2026-10-20
 21116	mts	Sanctuary	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t6-1.jpg	2026-09-26
 21117	mts	Thanos's Armor	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t7.jpg	2026-09-26
 21118	mts	Thanos's Helmet	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t8.jpg	2026-09-26
@@ -149,6 +155,7 @@ code	pack	name	source_page	image_url	fetched
 21136a	mts	Hela	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/h1a.jpg	2026-09-26
 21137a	mts	Hela	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/h2a.jpg	2026-09-26
 21138	mts	Odin's Torment	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/h3a.jpg	2026-09-26
+21138b	mts	Odin's Torment	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/h3b.jpg	2026-10-20
 21139a	mts	Odin	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/h4a.jpg	2026-09-26
 21140	mts	Gnipahellir	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/h5.jpg	2026-09-26
 21141	mts	Hall of Nastrond	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/h7.jpg	2026-09-26
@@ -176,6 +183,7 @@ code	pack	name	source_page	image_url	fetched
 21163	mts	Loki	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l4.jpg	2026-09-26
 21164	mts	Loki	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l5.jpg	2026-09-26
 21165	mts	All Hail King Loki	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l6a.jpg	2026-09-26
+21165b	mts	All Hail King Loki	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l6b.jpg	2026-10-20
 21166	mts	Casket of Ancient Winters	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l7.jpg	2026-09-26
 21167	mts	War in Asgard	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l8.jpg	2026-09-26
 21168	mts	Madness on Midgard	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l9.jpg	2026-09-26
