@@ -287,11 +287,32 @@ describe("the insides of each card stay inside it and do not collide", () => {
   test("Side card: shape, name, two pictures and their captions", () => {
     for (const w of widths) {
       const rect: Rect = { x: 10, y: 20, width: w, height: 204 };
-      const p = sideCardParts(rect);
-      for (const r of [p.shape, p.name, ...p.pictures, ...p.captions]) expect(within(r, rect)).toBe(true);
-      expect(rectsOverlap(p.pictures[0], p.pictures[1])).toBe(false);
-      expect(rectsOverlap(p.shape, p.name)).toBe(false);
-      expect(p.pictures[0].y + p.pictures[0].height).toBeLessThan(p.captions[0].y);
+      for (const leaders of [2, 3]) {
+        const p = sideCardParts(rect, leaders);
+        expect(p.pictures).toHaveLength(leaders);
+        for (const r of [p.shape, p.name, ...p.pictures, ...p.captions]) expect(within(r, rect)).toBe(true);
+        p.pictures.forEach((pic, i) => {
+          if (i > 0) expect(rectsOverlap(p.pictures[i - 1]!, pic)).toBe(false);
+          expect(pic.y + pic.height).toBeLessThan(p.captions[i]!.y);
+        });
+        expect(rectsOverlap(p.shape, p.name)).toBe(false);
+      }
+    }
+  });
+
+  test("three leaders and five stage options each get a rectangle inside the scrolling content, at every size", () => {
+    for (const size of SIZES) {
+      const two = civilWarBuilderLayout({ ...size, step: 2, leaderCount: 3 });
+      expect(two.choiceCards).toHaveLength(3);
+      expect(two.contentHeight).toBeGreaterThan(two.choiceCards[2]!.y + two.choiceCards[2]!.height - two.content.y - 1);
+      for (let i = 1; i < 3; i++) expect(rectsOverlap(two.choiceCards[i - 1]!, two.choiceCards[i]!)).toBe(false);
+      const three = civilWarBuilderLayout({ ...size, step: 3, stageOptionCount: 5 });
+      for (const row of three.stageRows) {
+        expect(row.cards).toHaveLength(5);
+        for (let i = 1; i < 5; i++) expect(rectsOverlap(row.cards[i - 1]!, row.cards[i]!)).toBe(false);
+      }
+      const last = three.stageRows[1]!.cards[4]!;
+      expect(three.stageSummary.y).toBeGreaterThanOrEqual(last.y + last.height);
     }
   });
 

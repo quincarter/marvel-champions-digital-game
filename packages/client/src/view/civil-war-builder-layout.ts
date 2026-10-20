@@ -94,6 +94,12 @@ export interface BuilderLayoutInput {
   readonly step?: BuilderStep;
   /** Tiles per modular section: the side's own sets, other products' sets, and the other side's sets. */
   readonly setCounts?: { readonly side: number; readonly other: number; readonly otherSide: number };
+  /** Leaders on the chosen side (step 2's cards); default 2. Three or more wrap into rows. */
+  readonly leaderCount?: number;
+  /** Leaders per side card (step 1's pictures); default 2. */
+  readonly sideLeaderCount?: number;
+  /** Stage cards in each main scheme row (step 3); default 4. Wraps past one line. */
+  readonly stageOptionCount?: number;
   /** The "other side's sets" section expanded (its tiles disabled but visible). Default false: one line. */
   readonly otherSideExpanded?: boolean;
   /** Tiles in the "Extra sets (not counted)" row under the grid. Default 0 (row absent). */
@@ -105,7 +111,7 @@ export interface BuilderLayoutInput {
 
 export interface StageRowLayout {
   readonly label: Rect;
-  /** Four cards: one row where the region is wide (640 and up), else 2 by 2. */
+  /** One card per stage option (four, or five when a leader adds one): one row where the region is wide (640 and up), else 2 by 2. */
   readonly cards: readonly Rect[];
 }
 
@@ -140,7 +146,7 @@ export interface BuilderLayout {
   readonly randomBlind: Rect;
   readonly start: Rect;
 
-  /** Steps 1 and 2: two large cards (side by side, or stacked when the region is narrow). */
+  /** Step 1: two side cards; step 2: one card per leader (two columns, or one when the region is narrow; wraps). */
   readonly choiceCards: readonly Rect[];
   /** Step 3: two rows of four stage cards, and the summary sentence under them. */
   readonly stageRows: readonly StageRowLayout[];
@@ -290,17 +296,18 @@ export function civilWarBuilderLayout(input: BuilderLayoutInput): BuilderLayout 
   const cx = content.x;
   const cw = content.width;
   const stacked = cw < 480;
-  const choiceWidth = stacked ? cw : (cw - ROW_GAP) / 2;
+  const choiceCount = step === 2 ? Math.max(1, input.leaderCount ?? 2) : 2;
+  const choiceColumns = stacked ? 1 : 2;
+  const choiceWidth = (cw - (choiceColumns - 1) * ROW_GAP) / choiceColumns;
   const choiceH = step === 2 ? leaderCardHeight(choiceWidth) : SIDE_CARD_HEIGHT;
-  const choiceCards: Rect[] = stacked
-    ? [0, 1].map((i) => ({ x: cx, y: content.y + i * (choiceH + ROW_GAP), width: cw, height: choiceH }))
-    : [0, 1].map((i) => ({
-        x: cx + i * (choiceWidth + ROW_GAP),
-        y: content.y,
-        width: choiceWidth,
-        height: choiceH,
-      }));
-  const choiceHeight = stacked ? choiceH * 2 + ROW_GAP : choiceH;
+  const choiceCards: Rect[] = Array.from({ length: choiceCount }, (_, i) => ({
+    x: cx + (i % choiceColumns) * (choiceWidth + ROW_GAP),
+    y: content.y + Math.floor(i / choiceColumns) * (choiceH + ROW_GAP),
+    width: choiceWidth,
+    height: choiceH,
+  }));
+  const choiceRows = Math.ceil(choiceCount / choiceColumns);
+  const choiceHeight = choiceRows * choiceH + (choiceRows - 1) * ROW_GAP;
 
   // Step 3: two rows of four stage cards (one row on tablet / desktop, 2 by 2 on phone).
   // A bigger card size asks for more room per card: four in a line from 640 wide at Standard, two from 240, else one.
@@ -308,17 +315,18 @@ export function civilWarBuilderLayout(input: BuilderLayoutInput): BuilderLayout 
   const perLine = cw >= 640 * scale ? 4 : cw >= 240 * scale ? 2 : 1;
   const cardW = (cw - (perLine - 1) * ROW_GAP) / perLine;
   const stageH = stageCardHeight(cardW);
+  const stageCount = Math.max(1, input.stageOptionCount ?? 4);
   let sy = content.y;
   const stageRows: StageRowLayout[] = [0, 1].map(() => {
     const label: Rect = { x: cx, y: sy, width: cw, height: SECTION_LABEL_HEIGHT };
     const cardsTop = sy + SECTION_LABEL_HEIGHT;
-    const cards = Array.from({ length: 4 }, (_, i) => ({
+    const cards = Array.from({ length: stageCount }, (_, i) => ({
       x: cx + (i % perLine) * (cardW + ROW_GAP),
       y: cardsTop + Math.floor(i / perLine) * (stageH + ROW_GAP),
       width: cardW,
       height: stageH,
     }));
-    const lines = 4 / perLine;
+    const lines = Math.ceil(stageCount / perLine);
     sy = cardsTop + lines * stageH + (lines - 1) * ROW_GAP + SECTION_GAP;
     return { label, cards };
   });
@@ -425,14 +433,15 @@ export function civilWarBuilderLayout(input: BuilderLayoutInput): BuilderLayout 
 export interface SideCardParts {
   readonly shape: Rect;
   readonly name: Rect;
-  readonly pictures: readonly [Rect, Rect];
-  readonly captions: readonly [Rect, Rect];
+  readonly pictures: readonly Rect[];
+  readonly captions: readonly Rect[];
 }
 
-export function sideCardParts(rect: Rect): SideCardParts {
+export function sideCardParts(rect: Rect, leaders = 2): SideCardParts {
   const pad = 12;
-  const gap = 12;
-  const pictureW = (rect.width - pad * 2 - gap) / 2;
+  const gap = leaders > 2 ? 8 : 12;
+  const count = Math.max(1, leaders);
+  const pictureW = (rect.width - pad * 2 - gap * (count - 1)) / count;
   const top = rect.y + 52;
   const picture = (i: number): Rect => ({
     x: rect.x + pad + i * (pictureW + gap),
@@ -444,8 +453,8 @@ export function sideCardParts(rect: Rect): SideCardParts {
   return {
     shape: { x: rect.x + 16, y: rect.y + 14, width: 22, height: 24 },
     name: { x: rect.x + 50, y: rect.y + 14, width: rect.width - 50 - 40, height: 26 },
-    pictures: [picture(0), picture(1)],
-    captions: [caption(0), caption(1)],
+    pictures: Array.from({ length: count }, (_, i) => picture(i)),
+    captions: Array.from({ length: count }, (_, i) => caption(i)),
   };
 }
 

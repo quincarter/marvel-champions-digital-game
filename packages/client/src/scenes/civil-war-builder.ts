@@ -13,7 +13,7 @@
  * header, step rail, review column and sticky foot are fixed. Every control is also a focus stop keyed by its action string.
  */
 import Phaser from "phaser";
-import { CW_SCENARIOS, type CardId } from "@mc/content";
+import { WAVE10_SCENARIOS, type CardId } from "@mc/content";
 import { CARDS_BY_ID, POOL_ENCOUNTER_SETS, POOL_SCENARIOS } from "../content/pool.js";
 import { dotGrid, ink, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { artFor } from "../art/art-source.js";
@@ -189,7 +189,7 @@ export class CivilWarBuilderScene extends Phaser.Scene {
   #context(): BuilderContext {
     return {
       cards: CARDS_BY_ID,
-      scenarios: CW_SCENARIOS,
+      scenarios: WAVE10_SCENARIOS,
       encounterSets: POOL_ENCOUNTER_SETS,
       offer: offerOf(this.#draft),
       step: this.#step,
@@ -726,7 +726,7 @@ export class CivilWarBuilderScene extends Phaser.Scene {
     view.sideChoices.forEach((side, i) => {
       const rect = layout.choiceCards[i]!;
       this.#card(rect, { selected: side.selected });
-      const parts = sideCardParts(rect);
+      const parts = sideCardParts(rect, view.layout.sideLeaderCount);
       // A distinct shape per side, never colour alone: a square for one, a triangle for the other.
       const g = this.add.graphics();
       const sh = parts.shape;

@@ -275,6 +275,9 @@ export interface BuilderView {
   /** The counts the layout needs (`civilWarBuilderLayout` input). */
   readonly layout: {
     readonly step: BuilderStep;
+    readonly leaderCount: number;
+    readonly sideLeaderCount: number;
+    readonly stageOptionCount: number;
     readonly setCounts: { readonly side: number; readonly other: number; readonly otherSide: number };
     readonly otherSideExpanded: boolean;
     readonly extraSets: number;
@@ -662,6 +665,9 @@ export function builderViewOf(draft: SetupDraft, ctx: BuilderContext): BuilderVi
     focusOrder,
     layout: {
       step,
+      leaderCount: leaderChoices.length,
+      sideLeaderCount: Math.max(2, ...sideChoices.map((s) => s.leaders.length)),
+      stageOptionCount: Math.max(4, ...stageRows.map((r) => r.options.length)),
       setCounts: { side: ownTiles.length, other: neutralTiles.length, otherSide: otherTiles.length },
       otherSideExpanded: expanded,
       extraSets: ctx.extraSets ?? 0,
