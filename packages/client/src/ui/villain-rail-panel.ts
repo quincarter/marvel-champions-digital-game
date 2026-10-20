@@ -138,6 +138,21 @@ export interface RailPanelArgs {
   readonly onInspect: (instanceId: InstanceId) => void;
 }
 
+/**
+ * The last "happening now" drawn with both a breakdown and boost cards, and the body it was drawn in: kept for the e2e
+ * specs (#285), since the beat can be gone again before a spec reads the screen.
+ */
+export const happeningDebug: {
+  boosted: {
+    readonly text: string;
+    readonly breakdown: Rect;
+    /** True when the breakdown was cut short of its last line. */
+    readonly cut: boolean;
+    readonly boosts: readonly Rect[];
+    readonly body: Rect;
+  } | null;
+} = { boosted: null };
+
 export function drawVillainRailPanel(scene: Phaser.Scene, args: RailPanelArgs): Map<string, FocusStop> {
   const { layout } = args;
   const stops = new Map<string, FocusStop>();
@@ -595,8 +610,9 @@ function drawHappening(
     .text(x, y + 18, body.headline.toUpperCase(), textStyle({ ...typeRole.barTitle, size: 30 }, surface.paper.hex))
     .setOrigin(0, 0);
   // The breakdown goes under the headline, so it is measured first: the headline takes up to three lines of what the
-  // breakdown (all its lines) and the boost card leave, never fewer than two, and shrinks before it is clipped. The
-  // target ends the sentence and must not be what is cut, and the destination ends the breakdown.
+  // breakdown (all its lines) and the boost card leave, two where that is all the room holds, and one (shrinking
+  // first) where even two would push the boost card onto the breakdown (#285). The target ends the sentence and must
+  // not be what is cut, and the damage total ends the breakdown.
   const detail = body.text
     ? scene.add
         .text(x, y, body.text, textStyle({ ...typeRole.body, size: 14 }, surface.paper.hex, ink.secondary))
@@ -609,13 +625,16 @@ function drawHappening(
   const faceup = body.boosts ?? [];
   const boostRow = body.boostLine ? (faceup.length > 0 ? BOOST_THUMB_HEIGHT + 6 : 40) : 0;
   const spare = height - 18 - 6 - (detail ? detailLines * lineHeight + 8 : 0) - boostRow;
-  fitWrapped(headline, width, Math.max(2, Math.min(3, Math.floor(spare / 34))), 30);
+  fitWrapped(headline, width, Math.max(1, Math.min(3, Math.floor(spare / 34))), 30);
   let cursor = headline.y + headline.height + 6;
+  let detailShown = detailLines;
   if (detail) {
     detail.setY(cursor);
+    // Whatever the breakdown is cut to, the boost row starts under what it shows, never on it (#285).
     const room = y + height - cursor - boostRow;
-    detail.setMaxLines(Math.max(1, Math.floor(room / lineHeight)));
-    cursor += Math.min(detail.height, room) + 8;
+    detailShown = Math.max(1, Math.floor(room / lineHeight));
+    detail.setMaxLines(detailShown);
+    cursor += detail.height + 8;
   }
   if (body.boostLine && cursor + 30 <= y + height) {
     const landscape = (id: InstanceId): boolean => {
@@ -639,6 +658,15 @@ function drawHappening(
       }
       textX = thumbs.textX;
       textMid = cursor + thumbs.height / 2;
+      if (detail) {
+        happeningDebug.boosted = {
+          text: body.text,
+          breakdown: { x: detail.x, y: detail.y, width: detail.width, height: detail.height },
+          cut: detailShown < detailLines,
+          boosts: thumbs.cards.map((card) => card.rect),
+          body: layout.body,
+        };
+      }
     } else {
       const box: Rect = { x, y: cursor, width: 26, height: 34 };
       const g = scene.add.graphics();

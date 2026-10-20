@@ -43,6 +43,10 @@ const BODY_MIN = 150;
 const REVEAL_BODY_MAX = 330;
 const HAPPENING_BODY_MAX = 210;
 const LOG_MIN = 60;
+/** "Happening now" on a phone: the label, a two-line headline, a two-line breakdown and the boost card row. */
+const PHONE_HAPPENING_MAX = 240;
+/** What it keeps when the log has nothing to give. */
+const PHONE_HAPPENING_FLOOR = 180;
 
 export interface VillainRailInput {
   /** Where the Board left room for the phase (`VillainDockRects.panel`). */
@@ -463,8 +467,11 @@ export function villainTabLayout(input: VillainRailInput & { readonly footer: Re
   const interruptHeight = input.interruptOptions > 0 ? (narrow ? 196 : 220) + extras * hit.target : 0;
   const room = Math.max(0, bottom - cursor - (interruptHeight > 0 ? interruptHeight + 10 : 0));
   const scale = input.cardScale ?? 1;
-  const bodyMax = Math.round((revealing ? (narrow ? 250 : 380) : narrow ? 180 : 230) * scale);
-  const bodyHeight = Math.min(bodyMax, room);
+  const bodyMax = Math.round((revealing ? (narrow ? 250 : 380) : narrow ? PHONE_HAPPENING_MAX : 230) * scale);
+  const bodyFloor = revealing || !narrow ? bodyMax : Math.round(PHONE_HAPPENING_FLOOR * scale);
+  // On a phone "happening now" grows past its floor out of the log's spare room: a headline that wraps, the
+  // breakdown and a boost card's row don't fit the floor together (#285).
+  const bodyHeight = Math.min(room, Math.max(bodyFloor, Math.min(bodyMax, room - 10 - LOG_MIN)));
   const body: Rect = { x, y: cursor, width, height: bodyHeight };
   const artShare = revealing ? scaledShare(0.42, scale, 0.58) : scaledShare(0.3, scale, 0.42);
   const artWidth = Math.min(Math.round((body.height - 16) * CARD_RATIO), Math.round(width * artShare));
