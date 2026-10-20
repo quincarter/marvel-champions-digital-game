@@ -42,6 +42,7 @@ const BOOLEAN_FIELDS = [
   "villainDockTable",
   "hoverHeroCard",
   "hoverVillainCard",
+  "ultronDroneArt",
   "powerSavingAdjust",
 ] as const;
 

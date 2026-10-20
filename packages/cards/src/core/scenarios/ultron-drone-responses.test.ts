@@ -2,6 +2,7 @@ import { cardId } from "@mc/content";
 import { createGame, type GameState, type InstanceId } from "@mc/engine";
 import { PLAYABLE_DEPS, playableScenario, playableStarterDeckSetup } from "../../playable/index.js";
 import {
+  applyOk,
   endTurn,
   firstLegal,
   identityOf,
@@ -140,5 +141,20 @@ describe("responses to an attack that defeats an Ultron Drone (issue #228)", () 
     expect(offered.some((id) => id.includes("06018.battle-fury-response"))).toBe(true);
     expect(playerOf(after, P1).discard).toContain(valkyrie);
     expect(inst(after, identityOf(after)).exhausted).toBe(false);
+  });
+});
+
+describe("a Drone leaving play says what it was (issue #291)", () => {
+  it("characterDefeated carries the Drone role, so lines written after it can still call it a Drone", () => {
+    const state = thorVsUltron();
+    const drone = droneOf(state);
+    const role = inst(state, drone).facedownAs;
+    const { events } = applyOk(
+      state,
+      { type: "basicAttack", playerId: P1, attackerInstanceId: identityOf(state), targetInstanceId: drone },
+      D,
+    );
+    const defeated = events.find((e) => e.type === "characterDefeated" && e.instanceId === drone);
+    expect(defeated).toMatchObject({ type: "characterDefeated", instanceId: drone, facedownAs: role });
   });
 });

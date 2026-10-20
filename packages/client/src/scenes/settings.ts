@@ -48,6 +48,7 @@ import {
   nextSettingsAfterToggle,
   nextSettingsAfterVillainRow,
   settingsRowInfoOf,
+  earnedItemRowInfoOf,
   villainRowInfoOf,
   type GuideRowInfo,
   type SettingsRowInfo,
@@ -104,7 +105,7 @@ import { SCENES } from "./keys.js";
 import type { RulesSceneData } from "./rules.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion } from "../ui/transitions.js";
-import { unlocks } from "../progression/progression.js";
+import { applyEarnedItems, earnedItems, unlocks } from "../progression/progression.js";
 import { unlocksSummaryOf } from "../view/unlocks-model.js";
 import { SAVE_DATA_ROW_DETAIL, SAVE_DATA_ROW_TITLE } from "../view/save-data-model.js";
 
@@ -298,6 +299,7 @@ export class SettingsOverlay extends Phaser.Scene {
     if (row.id === "sharper-text") setTextResolution(next.textResolution);
     if (row.id === "sound" || row.id === "music-shuffle") appSession().music?.syncSettings(next);
     appSession().settings = next;
+    applyEarnedItems();
     this.#draw();
   }
 
@@ -422,7 +424,10 @@ export class SettingsOverlay extends Phaser.Scene {
    */
   #itemsOf(settings: Settings, guideRows: readonly GuideRowInfo[]): ReadonlyMap<SettingsItemId, SettingsItem> {
     const items = new Map<SettingsItemId, SettingsItem>();
-    for (const row of settingsRowInfoOf(settings, powerSavingOn())) {
+    for (const row of [
+      ...settingsRowInfoOf(settings, powerSavingOn()),
+      ...earnedItemRowInfoOf(settings, earnedItems()),
+    ]) {
       items.set(row.id, {
         spec: { kind: "toggle", id: row.id, detail: row.unavailable ?? row.detail },
         draw: (item, stops) => {

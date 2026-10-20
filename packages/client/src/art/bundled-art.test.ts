@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { POOL_CARDS } from "../content/pool-cards.js";
 import { POOL_CARDS as POOL_CARDS_FROM_POOL } from "../content/pool.js";
-import { CARD_BACKS, artFor, artPathOf, type CardFace } from "./art-source.js";
+import { CARD_BACKS, STAND_IN_ART, artFor, artPathOf, type CardFace } from "./art-source.js";
 import { bundledArtPaths } from "./bundled-art.js";
 
 /**
@@ -63,8 +63,14 @@ describe("bundledArtPaths", () => {
     expect(POOL_CARDS).toBe(POOL_CARDS_FROM_POOL);
   });
 
-  test("always carries the three card backs, even for an empty pool", () => {
-    expect(bundledArtPaths([])).toEqual(Object.values(CARD_BACKS).map(artPathOf).sort());
+  test("always carries the three card backs and the stand-in pictures, even for an empty pool", () => {
+    expect(bundledArtPaths([])).toEqual([...Object.values(CARD_BACKS), ...STAND_IN_ART].map(artPathOf).sort());
+  });
+
+  test("every stand-in picture is a file in assets/card-art (#291)", () => {
+    for (const art of STAND_IN_ART) {
+      expect(ON_DISK.has(artPathOf(art))).toBe(true);
+    }
   });
 
   test("is sorted and free of duplicates", () => {

@@ -87,6 +87,11 @@ export interface Settings {
   /** The hover popover over a villain card. Defaults on. */
   readonly hoverVillainCard: boolean;
   /**
+   * Ultron's facedown Drones drawn with Hall of Heroes' Drone card art, once earned (Settings ▸ More ▸ Earned items,
+   * `progression/earned-items.ts`; issue #291). Defaults on: earning it is what turns it on.
+   */
+  readonly ultronDroneArt: boolean;
+  /**
    * How the first player token travels to a new first player, on the Set the table screen and around the table
    * (`view/first-player-token-motion.ts`). Defaults to a toss (the owner, 2026-10-16). Reduced motion places it instead.
    */
@@ -261,6 +266,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     cardSize: "standard",
     hoverHeroCard: true,
     hoverVillainCard: true,
+    ultronDroneArt: true,
     firstPlayerTokenMotion: "toss",
     displayMode: "windowed",
     resolution: "native",

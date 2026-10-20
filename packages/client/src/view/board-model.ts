@@ -64,8 +64,8 @@ import {
   shownEncounterTop,
   villainStageOf,
 } from "@mc/engine";
-import { artFor, type ArtSource, type CardBack, type CardFace } from "../art/art-source.js";
-import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
+import { artFor, type ArtSource, type CardBack, type CardFace, type StandIn } from "../art/art-source.js";
+import { POOL_DEPS, POOL_ENCOUNTER_SETS } from "../content/pool.js";
 import { breakPointOf } from "./break-point.js";
 import { giftReaderNote, giftSeatNote } from "./gift-count.js";
 import { counterGoalsOf } from "./counter-goal.js";
@@ -75,6 +75,7 @@ import { threatGoalOf } from "./threat-goal.js";
 import { otherFaceVisible } from "./hidden-reverse.js";
 import { keywordLabel } from "./keyword-label.js";
 import { faceVisible } from "./visibility.js";
+import { isDroneRole } from "./facedown-history.js";
 import { foeWord, isLeaderCard } from "./foe-words.js";
 import { deckTopStatus, shownTopOf } from "./deck-top.js";
 import { STATUS_DISABLES } from "../tokens.js";
@@ -1399,6 +1400,16 @@ function backKindOf(state: GameState, instance: CardInstance | undefined): CardB
 }
 
 /**
+ * The Drone picture for a facedown Drone minion (#291), at the ATK the engine gives it now: what every player can
+ * read off the table, never the card underneath. Null for any other hidden card.
+ */
+function standInOf(state: GameState, instance: CardInstance | undefined): StandIn | null {
+  if (!instance || !isDroneRole(instance.facedownAs)) return null;
+  const atk = characterProfile(state, instance.instanceId, POOL_DEPS)?.atk;
+  return atk === undefined ? null : { kind: "ultronDrone", atk };
+}
+
+/**
  * Which printed face this instance is showing right now.
  *
  * A facedown card gets none: the engine deliberately says only what a facedown
@@ -1409,7 +1420,10 @@ export function faceOf(state: GameState, instanceId: InstanceId, view?: ViewerCo
   const instance = getInstance(state, instanceId);
   const card = cardOf(state, instanceId);
   if (!instance || !card || !faceVisible(state, instanceId, view)) {
-    return { kind: "back", back: backKindOf(state, instance) };
+    const standIn = standInOf(state, instance);
+    return standIn
+      ? { kind: "back", back: backKindOf(state, instance), standIn }
+      : { kind: "back", back: backKindOf(state, instance) };
   }
   switch (card.type) {
     case "hero_identity": {

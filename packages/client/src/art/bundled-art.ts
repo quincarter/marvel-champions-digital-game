@@ -1,6 +1,6 @@
 /**
  * Which scans a build has to carry: every picture any card in the pool can ask
- * for, plus the three card backs.
+ * for, plus the three card backs and the stand-in pictures (`StandIn`).
  *
  * Pure, so it is tested here and merely *used* by `vite-card-art.ts`. It is the
  * pool's share of `assets/card-art/`, not the whole folder, for two reasons:
@@ -11,11 +11,11 @@
  */
 import type { AnyCard } from "@mc/content";
 import { POOL_CARDS } from "../content/pool-cards.js";
-import { CARD_BACKS, allArtFor, artPathOf } from "./art-source.js";
+import { CARD_BACKS, STAND_IN_ART, allArtFor, artPathOf } from "./art-source.js";
 
 /** Paths relative to `assets/card-art/` (and to `/card-art/` once served), sorted and unique. */
 export function bundledArtPaths(cards: readonly AnyCard[]): readonly string[] {
-  const paths = new Set<string>(Object.values(CARD_BACKS).map(artPathOf));
+  const paths = new Set<string>([...Object.values(CARD_BACKS), ...STAND_IN_ART].map(artPathOf));
   for (const card of cards) for (const art of allArtFor(card)) paths.add(artPathOf(art));
   return [...paths].sort();
 }
