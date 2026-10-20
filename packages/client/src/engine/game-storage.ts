@@ -19,6 +19,7 @@
 
 import type { Command, GameOutcome } from "@mc/engine";
 import type { SessionConfig, StateWithoutPool } from "./host.js";
+import type { GameSummary } from "./game-summary.js";
 
 /**
  * Bumped when the stored shape changes, so an old save is recognized instead of misread.
@@ -103,10 +104,18 @@ export interface SaveMeta {
    */
   readonly campaignId: string | null;
   readonly campaignNodeId: string | null;
+  /**
+   * What the achievements read about a finished game (`game-summary.ts`), written when the game ends. Absent on a
+   * save from before it existed and on a game still being played (a purely additive field, no `SAVE_SCHEMA` bump):
+   * such a save simply doesn't count toward the achievements that need it. `null` clears it when a rewind reopens a
+   * finished game.
+   */
+  readonly summary?: GameSummary | null;
 }
 
 /** What a command's arrival changes about a game's summary row. */
-export type SaveProgress = Pick<SaveMeta, "round" | "commandCount" | "updatedAt" | "status" | "outcome">;
+export type SaveProgress = Pick<SaveMeta, "round" | "commandCount" | "updatedAt" | "status" | "outcome"> &
+  Partial<Pick<SaveMeta, "summary">>;
 
 export interface StoredGame {
   readonly meta: SaveMeta;

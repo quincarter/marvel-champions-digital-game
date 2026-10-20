@@ -10,16 +10,17 @@
  * "for trying" achievements give none; each names a reward pack instead. Rank reads LIFETIME points earned, never the
  * balance after spending, and rank 9 needs every achievement, scenario and campaign first.
  *
- * **Not tracked yet.** An achievement needing data the rows don't hold (a loss's reason, heroes defeated, a hero's
- * hit points at the win, allies played) is defined with `tracked: false`: it never reports progress and is skipped
- * from `achievementStatuses`' earned counts until the save row gains that summary (docs/achievements.md "Data the
- * client must record").
+ * **The game summary.** A loss's reason, heroes defeated, a winning hero's hit points and allies played come from the
+ * `summary` a save row gains when its game ends (`engine/game-summary.ts`). A save without one (older, or ended
+ * before it existed) simply doesn't count toward those. `tracked: false` is kept for an achievement whose data the
+ * rows can't hold at all: it never reports progress and is skipped from the earned counts (none is untracked now).
  *
  * Pure: no storage, no Phaser.
  */
 import { CAMPAIGN_RECORDS } from "../campaign/campaign-service.js";
 import { POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
 import { isLessonSave } from "../engine/game-storage.js";
+import type { GameSummary } from "../engine/game-summary.js";
 import { identityOfSeat } from "./extras.js";
 import {
   DEFAULT_UNLOCK_PREFS,
@@ -52,6 +53,8 @@ export interface AchievementSave {
   readonly status: string;
   readonly guided?: { readonly kind: string };
   readonly round?: number;
+  /** What the game's end recorded (`SaveMeta.summary`); absent on a save from before it existed. */
+  readonly summary?: GameSummary | null;
   readonly config: {
     readonly scenarioId: string;
     readonly difficulty?: string;
@@ -92,6 +95,14 @@ interface Facts {
   readonly round1Losses: number;
   /** Each won game's seated heroes, for pair achievements. */
   readonly wonTables: readonly ReadonlySet<string>[];
+  /** Hero defeats summed over the games that recorded a summary. */
+  readonly heroesDefeated: number;
+  /** Losses to the main scheme completing. */
+  readonly schemeLosses: number;
+  /** Identity card ids of heroes that won a game while standing at exactly 1 hit point (in hero form). */
+  readonly oneHitPointWinners: ReadonlySet<string>;
+  /** Won games, with a summary, in which no seat played an ally. */
+  readonly noAllyWins: number;
 }
 
 /** `{ current, target }`, or null when the history can't answer yet. */
@@ -160,6 +171,14 @@ export function factsOf(history: AchievementHistory): Facts {
     soloWonScenarios: new Set(wonSaves.filter((s) => s.config.players.length === 1).map((s) => s.config.scenarioId)),
     round1Losses: lostSaves.filter((s) => s.round === 1).length,
     wonTables: wonSaves.map((s) => new Set(heroesOf(s))),
+    heroesDefeated: real.reduce((sum, s) => sum + (s.summary?.heroesDefeated ?? 0), 0),
+    schemeLosses: lostSaves.filter((s) => s.summary?.lossReason === "schemeCompleted").length,
+    oneHitPointWinners: new Set(
+      wonSaves.flatMap((s) =>
+        (s.summary?.winners ?? []).filter((w) => w.hitPoints === 1 && w.inHeroForm).map((w) => w.identityCardId),
+      ),
+    ),
+    noAllyWins: wonSaves.filter((s) => s.summary != null && s.summary.alliesPlayed === 0).length,
   };
 }
 
@@ -176,12 +195,6 @@ function def(
 ): AchievementDef {
   return { tracked: true, showProgress: false, points: 0, ...fields };
 }
-
-/** An achievement whose data the save rows don't hold yet. */
-const pending = (
-  fields: Omit<AchievementDef, "tracked" | "measure" | "needs" | "showProgress">,
-  needs: string,
-): AchievementDef => ({ ...fields, tracked: false, needs, showProgress: false, measure: () => null });
 
 const scenarioIds: readonly string[] = POOL_SCENARIOS.map((s) => s.id as string);
 const campaignIds: readonly string[] = UNLOCK_CAMPAIGNS.map((c) => c.campaignId);
@@ -212,6 +225,7 @@ const wavesWithScenarios = UNLOCK_WAVES.map((wave) => ({
   heroes: UNLOCK_HEROES.filter((h) => h.cycleId === wave.cycleId).map((h) => h.identityCardId),
 })).filter((w) => w.scenarios.length > 0 || w.heroes.length > 0);
 
+const hulk = heroIdNamed("Hulk") ?? "10001a";
 const thor = heroIdNamed("Thor");
 const sheHulk = heroIdNamed("She-Hulk");
 
@@ -426,26 +440,22 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
         ]
       : [];
   }),
-  pending(
-    {
-      id: "feat-one-hit-point",
-      name: "Cutting It Close",
-      description: "Win with a hero at exactly 1 hit point.",
-      family: "feats",
-      points: 150,
-    },
-    "a hero's hit points at the win",
-  ),
-  pending(
-    {
-      id: "feat-no-allies",
-      name: "I Work Alone",
-      description: "Win without playing a single ally.",
-      family: "feats",
-      points: 150,
-    },
-    "allies played during the game",
-  ),
+  def({
+    id: "feat-one-hit-point",
+    name: "Cutting It Close",
+    description: "Win with a hero at exactly 1 hit point.",
+    family: "feats",
+    points: 150,
+    measure: (f) => count(f.oneHitPointWinners.size > 0 ? 1 : 0, 1),
+  }),
+  def({
+    id: "feat-no-allies",
+    name: "I Work Alone",
+    description: "Win without playing a single ally.",
+    family: "feats",
+    points: 150,
+    measure: (f) => count(f.noAllyWins > 0 ? 1 : 0, 1),
+  }),
 
   // Team-up stories
   def({
@@ -484,50 +494,41 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
     rewardPackId: "pack-speedrun-wrong-direction",
     measure: (f) => count(f.round1Losses > 0 ? 1 : 0, 1),
   }),
-  pending(
-    {
-      id: "defeated-25",
-      name: "Respawn Pending",
-      description: "Have your heroes defeated 25 times.",
-      family: "funny",
-      points: 0,
-      rewardPackId: "pack-respawn-pending",
-    },
-    "heroes defeated per game",
-  ),
-  pending(
-    {
-      id: "defeated-100",
-      name: "Respawn Pending II: The Respawning",
-      description: "Have your heroes defeated 100 times.",
-      family: "funny",
-      points: 0,
-      rewardPackId: "pack-respawn-pending-2",
-    },
-    "heroes defeated per game",
-  ),
-  pending(
-    {
-      id: "scheme-losses-10",
-      name: "Read the Room",
-      description: "Lose to the main scheme completing 10 times.",
-      family: "funny",
-      points: 0,
-      rewardPackId: "pack-read-the-room",
-    },
-    "a game's loss reason",
-  ),
-  pending(
-    {
-      id: "hulk-one-hit-point",
-      name: "Gamma-Ray Overdose",
-      description: "Win with Hulk at 1 hit point.",
-      family: "funny",
-      points: 0,
-      rewardPackId: "pack-gamma-ray-overdose",
-    },
-    "a hero's hit points at the win",
-  ),
+  def({
+    id: "defeated-25",
+    name: "Respawn Pending",
+    description: "Have your heroes defeated 25 times.",
+    family: "funny",
+    rewardPackId: "pack-respawn-pending",
+    showProgress: true,
+    measure: (f) => count(f.heroesDefeated, 25),
+  }),
+  def({
+    id: "defeated-100",
+    name: "Respawn Pending II: The Respawning",
+    description: "Have your heroes defeated 100 times.",
+    family: "funny",
+    rewardPackId: "pack-respawn-pending-2",
+    showProgress: true,
+    measure: (f) => count(f.heroesDefeated, 100),
+  }),
+  def({
+    id: "scheme-losses-10",
+    name: "Read the Room",
+    description: "Lose to the main scheme completing 10 times.",
+    family: "funny",
+    rewardPackId: "pack-read-the-room",
+    showProgress: true,
+    measure: (f) => count(f.schemeLosses, 10),
+  }),
+  def({
+    id: "hulk-one-hit-point",
+    name: "Gamma-Ray Overdose",
+    description: "Win with Hulk at 1 hit point.",
+    family: "funny",
+    rewardPackId: "pack-gamma-ray-overdose",
+    measure: (f) => count(f.oneHitPointWinners.has(hulk) ? 1 : 0, 1),
+  }),
 ];
 
 export interface AchievementStatus {

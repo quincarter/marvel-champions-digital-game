@@ -67,9 +67,9 @@ spread so a new player ranks up within the first few sessions.
 ## Data the client must record
 
 Most families read the existing `mc-saves` / `mc-campaigns` rows (outcome, scenario, heroes, difficulty, players,
-round). Counts the rows don't hold yet: a game's loss reason (players defeated or scheme completed), heroes defeated
-during a game, and a hero's hit points at the win. Those come from the engine's game log at game end, so the save row
-gains a small summary; older saves simply don't count toward those achievements.
+round). A finished game's save row also carries a `summary` (`engine/game-summary.ts`, written by `session-core.ts`):
+the loss reason (players defeated, scheme completed, conceded), heroes defeated, each winner's identity and hit points
+(and whether in hero form), and allies played. Saves from before it simply don't count toward those achievements.
 
 ## Decided
 

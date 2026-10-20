@@ -60,7 +60,11 @@ describe("trophyRowsOf", () => {
   });
 
   it("says an untracked one is tracked from a future update, with no bar", () => {
-    const row = achievement(rows, "feat-one-hit-point");
+    // None is untracked today, so mark one by hand to check the row still reads right.
+    const untracked = achievementStatuses(history).map((s) =>
+      s.def.id === "feat-one-hit-point" ? { ...s, def: { ...s.def, tracked: false } } : s,
+    );
+    const row = achievement(trophyRowsOf(untracked), "feat-one-hit-point");
     expect(row.state).toBe("untracked");
     expect(row.stateLabel).toBe("SOON");
     expect(row.detail).toContain(TRACKED_LATER);
