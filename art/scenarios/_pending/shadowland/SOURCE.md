@@ -11,8 +11,11 @@ scenario's id exists. Artwork © 2026 Marvel; Marvel Champions is Fantasy Flight
 - `panel-4-hand-ninja.png`: a masked ninja with sai in purple smoke
 - `panel-5-dojo.png`: an empty dojo corridor with a great gear
 
-## Comic pages (removed)
+## Comic pages (`comic/`)
 
-Six pages from Marvel's 2010 _Shadowland_ event comic were added on 2026-10-20 and removed the same day (owner): full
-interior comic pages are not redistributed from this public repository or its builds. A story or Extras screen can
-credit and link the issue instead.
+Six lettered pages from Marvel's 2010 _Shadowland_ event (the possessed Daredevil and the Hand), found online and
+shared by the owner on 2026-10-20, kept by the owner's decision. Credit them wherever a screen shows them:
+_Shadowland_ (Marvel, 2010), the event series written by Andy Diggle with art by Billy Tan; the exact issue of each
+page is not confirmed yet, so the credits screen should name the series and add per-issue credits once each page is
+matched to its issue. `comic-1.jpg` to `comic-6.jpg` are in the order shared. They stay in `_pending/` (never bundled)
+until a story or Extras screen is wired to them.
