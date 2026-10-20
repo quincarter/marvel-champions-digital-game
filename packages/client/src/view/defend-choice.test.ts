@@ -183,6 +183,12 @@ describe("hpLineFrom: the health now, then what the attack leaves (#298)", () =>
     );
   });
 
+  test("the short form writes HP as the table does", () => {
+    expect(hpLineFrom(3, 3, [band({ damageTaken: 2 }), band({ damageTaken: 3, defeated: true })], true)).toBe(
+      "3/3 HP → 0–1 left",
+    );
+  });
+
   test("with no bands, only the health now", () => {
     expect(hpLineFrom(3, 3, [])).toBe("Now 3 of 3 HP");
   });
