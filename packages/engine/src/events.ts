@@ -16,7 +16,7 @@ import type {
   ZoneId,
 } from "./state.js";
 import type { StackFrameKind, WindowTiming } from "./stack.js";
-import type { TriggerEvent } from "./trigger-events.js";
+import type { EncounterDealSource, TriggerEvent } from "./trigger-events.js";
 import type { KeywordAbilityName } from "./keyword-abilities.js";
 import type { LastingDuration, LastingEffect } from "./lasting.js";
 import type { ResourcePool, ResourceType } from "./resources.js";
@@ -128,6 +128,18 @@ export type GameEvent =
       readonly cardId: CardId;
       readonly from: ZoneId;
       readonly to: ZoneId;
+    }
+  /**
+   * `playerId` was dealt the facedown encounter card `instanceId` (RRG 1.8 "Deal, Deal an Encounter Card", p. 15),
+   * logged right after the `cardMoved` that put it in their dealt pile. `source` says what dealt it: the villain phase,
+   * hazard, a card ability, an encounter deck reset, surge or the unique rule (`EncounterDealSource`). Logged on every
+   * deal, whether or not an ability listens; a card revealed at once instead of dealt logs none.
+   */
+  | {
+      readonly type: "encounterCardDealt";
+      readonly playerId: PlayerId;
+      readonly instanceId: InstanceId;
+      readonly source: EncounterDealSource;
     }
   /**
    * A permanent encounter attachment whose host left play, or whose player was eliminated, resolved its "attach to"

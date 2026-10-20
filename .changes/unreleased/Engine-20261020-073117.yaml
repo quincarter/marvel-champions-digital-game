@@ -1,0 +1,3 @@
+kind: Engine
+body: Log an encounterCardDealt event, with what dealt it, for every facedown encounter card dealt to a player.
+time: 2026-10-20T07:31:17.2458423-04:00

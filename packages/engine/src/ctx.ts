@@ -156,8 +156,17 @@ export type ZonePosition = "top" | "bottom";
  * The single way a card changes zones. Emits `cardMoved` so the log always
  * explains how a card got where it is, then resets a player deck or separate
  * deck, or an encounter deck, the move emptied (`settlePlayerDecks`).
+ * `logged`: an event that says what the move was (`encounterCardDealt`), logged
+ * right after its `cardMoved` and before anything the move sets off, if the card
+ * went where it was sent.
  */
-export function moveCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: ZonePosition = "bottom"): void {
+export function moveCard(
+  ctx: Ctx,
+  id: InstanceId,
+  to: ZoneId,
+  position: ZonePosition = "bottom",
+  logged?: GameEvent,
+): void {
   // A card of a separate deck with no discard pile never reaches a discard pile, a hand or another deck: it goes back
   // into its own deck facedown instead, logged first (docs/phase7-wave6.md §3.46, §4.1 Q26). Every move but a draw
   // passes here; a draw only takes a player deck's top card, which such a card never becomes.
@@ -177,6 +186,7 @@ export function moveCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: ZonePos
   // encounter card (`discardZoneFor`; the owner's decision, 2026-10-03, §4.1 Q54).
   const target = home ?? to;
   const from = relocateCard(ctx, id, target, home ? "bottom" : position);
+  if (logged && !home) emit(ctx, logged);
   settlePlayerDecks(ctx, from, target, id);
 }
 

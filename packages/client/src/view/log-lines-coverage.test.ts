@@ -47,6 +47,7 @@ const SILENT: ReadonlySet<string> = new Set([
   "defenderLeftPlay",
   "discardRefused",
   "drawnObligationPlaced",
+  "encounterCardDealt",
   "encounterCardPassed",
   "encounterLookCostSettled",
   "encounterSetAutoIncluded",
