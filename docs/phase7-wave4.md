@@ -2136,7 +2136,11 @@ Each is implemented the way stated, or not at all, and named here rather than de
     ability: 'When Revealed: …'" ("Incite X", p. 24; "Surge", p. 42), recorded as such. "If no 'When Revealed' ability
     was resolved this way" counts printed abilities only, so a side scheme with only incite or surge leaves the
     fallback's 2 threat on each scheme in force. **Implemented** (§3.56): `resolveSpecials.includeKeywords`, default
-    off, is how a future card that should include them opts in.
+    off, is how a future card that should include them opts in. **REVISED 2026-10-20 (owner), after the FFG ruling of
+    September 22, 2026** (surge and incite count as When Revealed abilities and are ordered with the printed ones): a card
+    that tells players to resolve another card's When Revealed abilities includes incite and surge (the default flips to
+    on), with the players choosing the order; Change of Venue's boost keeps resolving only its non-surge When Revealed,
+    a provisional exception pending FFG's announced erratum (spec §S7 E37 in docs/phase7-wave11-scenarios.md).
 24. **Who breaks a tie for "the highest-cost card from your hand"?** (§3.55, Feisty Heist.) RRG 1.8 "First Player"
     (p. 19) gives the first player an encounter card's choice among "multiple eligible targets", but a hand is hidden
     information its owner holds. Implemented as: the player whose hand it is picks among the tied cards (the same in

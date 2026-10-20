@@ -1589,11 +1589,11 @@ every one except **Q2**, **Q15** (changed from A to B at 23:33 UTC) and **Q28**.
 | 9 (amended) | The "excess readers see it as dealt" half of the default came from ruling Jan 26, 2026 (3), which the user's 2026-09-25 decision already superseded (RRG 1.8 "Overkill", p. 31: excess is damage _taken_, `excessDamageOf`). Built that way: capped damage is neither taken nor prevented and gives no excess. Flagged to the user 2026-10-02. |
 | 16–25       | Defaults as written in §4.2.                                                                                                                                                                                                                                                                                                                   |
 
-| Q             | Decision                                                                                                      |
-| ------------- | ------------------------------------------------------------------------------------------------------------- |
-| 25            | Default, so with Q15 = B Logan's and Jean Grey's Setups use §3.74 too.                                        |
-| 26, 27, 29–31 | Defaults as written in §4.2.                                                                                  |
-| 28            | **Differs from the default:** Rogue's copied traits are live, for as long as Touched stays on that character. |
+| Q             | Decision                                                                                                                                                                                                                                                                                                                                |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 25            | Default, so with Q15 = B Logan's and Jean Grey's Setups use §3.74 too.                                                                                                                                                                                                                                                                  |
+| 26, 27, 29–31 | Defaults as written in §4.2.                                                                                                                                                                                                                                                                                                            |
+| 28            | **Differs from the default:** Rogue's copied traits are live, for as long as Touched stays on that character. **Revised 2026-10-20 (owner, FFG ruling October 9, 2026):** the grant follows its chosen target and ends when that character leaves play, not when Touched moves (the 2022 ruling kept it; Oct 9 does not withdraw that). |
 
 Q32–Q47 answered by the user 2026-10-02 (`32A … 36B … 46B 47A`): defaults except **Q36** and **Q46**.
 
