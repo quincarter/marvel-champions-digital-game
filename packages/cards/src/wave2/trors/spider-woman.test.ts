@@ -1,4 +1,11 @@
-import { activeEncounterDeck, applyCommand, characterProfile, faceVisible, type InstanceId } from "@mc/engine";
+import {
+  activeEncounterDeck,
+  applyCommand,
+  characterProfile,
+  faceVisible,
+  paymentFor,
+  type InstanceId,
+} from "@mc/engine";
 import {
   answer,
   firstLegal,
@@ -197,6 +204,19 @@ describe("Spider-Woman kit", () => {
       WAVE2_DEPS,
     );
     expect(refused.ok).toBe(false);
+
+    // The pay step still names Finesse, as unusable for this card, so the player can see why (issue #292).
+    const query = paymentFor(withFinesse, P1, { kind: "playCard", instanceId: glide }, {}, WAVE2_DEPS);
+    expect(query?.sources.some((source) => source.instanceId === finesse)).toBe(false);
+    expect(query?.notForThisCard).toEqual([
+      { instanceId: finesse, abilityId: "04033.finesse-resource", label: "Finesse" },
+    ]);
+    // Paying for an aspect card, it is an ordinary source.
+    const room = moveToHand(withFinesse, P1, "04048");
+    const [roomId] = room.ids as [InstanceId];
+    const forRoom = paymentFor(room.state, P1, { kind: "playCard", instanceId: roomId }, {}, WAVE2_DEPS);
+    expect(forRoom?.sources.some((source) => source.instanceId === finesse)).toBe(true);
+    expect(forRoom?.notForThisCard).toBeUndefined();
   });
 
   it("Jessica Drew's Apartment: Alter-Ego Action, exhausting it, searches the top 5 cards of the deck for an aspect card into hand, then shuffles", () => {

@@ -40,6 +40,7 @@ import {
   priceOrNull,
   paidForMultiplied,
   paymentOptions,
+  resourcesNotFor,
   paymentsFromOptionIds,
   resourceAbilityGenerates,
   resourceAbilityOptionId,
@@ -115,6 +116,7 @@ import {
   type EffectContext,
 } from "./select.js";
 import type { Form, GameState } from "./state.js";
+import { displayNameOf } from "./visibility.js";
 import { healCostChoices } from "./heal-cost.js";
 import { anyThwartCost } from "./thwart-cost.js";
 
@@ -1672,6 +1674,20 @@ export interface PaymentQuery {
    * reason the query exists; the cost is 0, so paying nothing is a legal default and anything spent is overpaid.
    */
   readonly overpayMatters?: true;
+  /**
+   * The player's resource abilities that cannot pay for this card only because they generate for another kind of card
+   * (`resourcesNotFor`: Finesse's "for an aspect card" while paying for a hero card). Never sources; listed so the pay
+   * step can show them as unusable, with the reason (issue #292).
+   */
+  readonly notForThisCard?: readonly PaymentNotFor[];
+}
+
+/** A resource ability that generates only for another kind of card than the one being paid for (`notForThisCard`). */
+export interface PaymentNotFor {
+  readonly instanceId: InstanceId;
+  readonly abilityId: AbilityId;
+  /** Card name. */
+  readonly label: string;
 }
 
 export type PaymentAttempt =
@@ -2077,10 +2093,17 @@ export function paymentFor(
     !payable.spendable && (sources.some((source) => source.overpayOnly) || readsOverpaid(state, deps, action));
   // A card printed with an X cost always has a pay step: the player names the X there, even when the least X costs 0.
   if (!payable.spendable && !overpayMatters && !printsX(state, action)) return null;
+  const notFor = payable.payingFor
+    ? resourcesNotFor(state, deps, playerId, payable.payingFor).map((use) => ({
+        ...use,
+        label: displayNameOf(state, use.instanceId),
+      }))
+    : [];
   return {
     requirement: payable.requirement,
     sources,
     suggested,
+    ...(notFor.length > 0 ? { notForThisCard: notFor } : {}),
     ...(overpayMatters ? { overpayMatters: true as const } : {}),
     ...(payable.chosenResources ? { chosenResources: payable.chosenResources } : {}),
   };

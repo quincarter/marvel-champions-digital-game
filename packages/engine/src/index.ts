@@ -120,6 +120,7 @@ export type {
   LegalActions,
   PaymentAttempt,
   PaymentContext,
+  PaymentNotFor,
   PaymentQuery,
   PaymentSource,
   CostHelp,
