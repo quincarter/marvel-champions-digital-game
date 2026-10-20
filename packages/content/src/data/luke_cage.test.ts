@@ -136,16 +136,17 @@ describe("luke_cage: the stand-in starter deck (no printed list)", () => {
 });
 
 describe("luke_cage: wave 11 pool wiring", () => {
-  it("WAVE11_CARDS is Core, fne, jj, then luke_cage, with no duplicate ids", () => {
+  it("WAVE11_CARDS is Core, fne, jj, luke_cage, then shadowland, with no duplicate ids", () => {
     const start = CORE_CARDS.length + FNE_CARDS.length + JJ_CARDS.length;
-    expect(WAVE11_CARDS.slice(start)).toEqual(LUKE_CAGE_CARDS);
+    expect(WAVE11_CARDS.slice(start, start + LUKE_CAGE_CARDS.length)).toEqual(LUKE_CAGE_CARDS);
     expect(new Set(WAVE11_CARDS.map((c) => c.id)).size).toBe(WAVE11_CARDS.length);
   });
 
-  it("PLAYABLE_CARDS ends with the luke_cage cards, each once", () => {
+  it("PLAYABLE_CARDS carries the luke_cage cards contiguously, each once (shadowland follows them)", () => {
     const ids = PLAYABLE_CARDS.map((c) => c.id as string);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(ids.slice(-LUKE_CAGE_CARDS.length)).toEqual(LUKE_CAGE_CARDS.map((c) => c.id as string));
+    const first = ids.indexOf(LUKE_CAGE_CARDS[0]!.id as string);
+    expect(ids.slice(first, first + LUKE_CAGE_CARDS.length)).toEqual(LUKE_CAGE_CARDS.map((c) => c.id as string));
   });
 
   it("WAVE11_STARTER_DECKS ends with the luke_cage stand-in", () => {

@@ -194,6 +194,7 @@ describe("matrix over the whole card pool: every identity against every unique c
         "Captain America (Steve Rogers) [hero 03001a] x Captain America [villain 56137]: no match",
         "Captain Marvel (Carol Danvers) [hero 01010a] x Captain Marvel [villain 56092]: no match",
         "Daredevil (Matt Murdock) [hero 60001a] x Daredevil [minion 56189]: no match",
+        "Daredevil (Matt Murdock) [hero 60001a] x Daredevil [villain 65013a]: no match",
         "Falcon (Sam Wilson) [hero 53001a] x Falcon [minion 56150]: no match",
         "Gamora (Gamora) [hero 18001a] x Gamora [minion 22028]: match (RRG)",
         "Hawkeye (Clint Barton) [hero 04001a] x Hawkeye [minion 57056]: no match",

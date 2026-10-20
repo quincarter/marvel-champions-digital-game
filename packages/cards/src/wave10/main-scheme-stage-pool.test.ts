@@ -159,9 +159,11 @@ describe("the stage pool of a side under reading A (M1, owner SS1 open, built A)
   });
 });
 
-describe("with Synthezoid Smackdown playable (playable/unscripted.ts is empty; spec §4.3)", () => {
-  it("has no gated set, so the pack's main scheme sets are in the playable side list", () => {
-    expect(UNSCRIPTED_ENCOUNTER_SET_IDS.size).toBe(0);
+describe("with Synthezoid Smackdown playable (none of its sets is gated; spec §4.3)", () => {
+  it("has no Synthezoid set gated, so the pack's main scheme sets are in the playable side list", () => {
+    // The gate now holds only Shadowland (cycle 11) sets; none of them is a Synthezoid set.
+    for (const set of WAVE10_GAME_ENCOUNTER_SETS)
+      expect(UNSCRIPTED_ENCOUNTER_SET_IDS.has(set.id as string)).toBe(false);
     for (const id of ["synthezoid_registration", "synthezoid_resistance"])
       expect(
         WAVE10_GAME_ENCOUNTER_SETS.some((set) => set.id === id),

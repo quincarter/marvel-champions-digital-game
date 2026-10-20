@@ -7,7 +7,7 @@
  * module
  * agent fills its registry and deletes its own `_SKIPPED` lines; nothing here changes.
  */
-import { FNE_CARDS, JJ_CARDS, LUKE_CAGE_CARDS } from "@mc/content";
+import { FNE_CARDS, JJ_CARDS, LUKE_CAGE_CARDS, SHADOWLAND_CARDS } from "@mc/content";
 import { abilityRefIds } from "../ability-refs.js";
 import { WAVE10_ABILITIES } from "../wave10/index.js";
 import { CARD_GROUPS } from "./card-groups.js";
@@ -15,7 +15,7 @@ import { WAVE11_ABILITIES } from "./index.js";
 import { WAVE11_MODULES } from "./modules.js";
 
 // Fear No Evil: the player half (60001a to 60064) and the encounter half (60065 on).
-const WAVE11_PACK_CARDS = [...JJ_CARDS, ...LUKE_CAGE_CARDS, ...FNE_CARDS];
+const WAVE11_PACK_CARDS = [...JJ_CARDS, ...LUKE_CAGE_CARDS, ...FNE_CARDS, ...SHADOWLAND_CARDS];
 
 describe("wave 11 ability registry", () => {
   it("includes every wave 10 (Core through cycle 10) script, the same definition object", () => {
@@ -37,7 +37,7 @@ describe("wave 11 module ability coverage", () => {
     for (const [id, reason] of Object.entries(m.skipped)) expect(reason.length, `${id} reason`).toBeGreaterThan(20);
   });
 
-  it("every jj, luke_cage and fne ability ref resolves, except its documented skips", () => {
+  it("every jj, luke_cage, fne and shadowland ability ref resolves, except its documented skips", () => {
     const refs = WAVE11_PACK_CARDS.flatMap(abilityRefIds);
     const skipped = WAVE11_MODULES.flatMap((m) => Object.keys(m.skipped));
     const missing = refs.filter((id) => !(id in WAVE11_ABILITIES));
@@ -68,6 +68,7 @@ describe("wave 11 ability id coverage", () => {
         eager: true,
       }),
     ),
+    shadowland: "", // no scripts yet: every Shadowland ref is skipped
     fne: joined(
       (import.meta as unknown as ImportMetaGlob).glob("./fne/**/*.test.ts", {
         query: "?raw",

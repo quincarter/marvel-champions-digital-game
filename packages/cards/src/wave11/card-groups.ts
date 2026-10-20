@@ -121,6 +121,24 @@ export const CARD_GROUPS: Readonly<Record<string, readonly string[]>> = {
   "fne/modular/tracksuit-mafia": ["60200", "60201", "60202", "60203", "60204"],
   "fne/campaign/environments": ["60205a", "60206a", "60207a", "60208a", "60209a"],
   "fne/campaign/typhoid-mary-ally": ["60210a"],
+  "shadowland/shadows-in-the-night": ["65003a", "65004a", "65005", "65008", "65010", "65011"],
+  "shadowland/dark-protege": [
+    "65012a",
+    "65013a",
+    "65014a",
+    "65015a",
+    "65016a",
+    "65017a",
+    "65018",
+    "65019",
+    "65026",
+    "65027",
+  ],
+  "shadowland/ninja-swarm": ["65028", "65030", "65032", "65035", "65036"],
+  "shadowland/shadow-labyrinth": ["65037", "65041", "65042", "65044", "65045"],
+  "shadowland/deadly-contraptions": ["65046", "65047", "65048", "65049", "65050", "65051"],
+  "shadowland/heart-of-shadow": ["65057", "65064", "65065", "65067", "65069", "65070", "65071"],
+  "shadowland/creeping-corruption": ["65072a"],
 };
 
 /** A Fear No Evil card the player half's modules own (60001a to 60064); 60065 on is the box's encounter half. */

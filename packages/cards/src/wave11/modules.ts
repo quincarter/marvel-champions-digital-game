@@ -83,6 +83,23 @@ import {
   FNE_CAMPAIGN_TYPHOID_MARY_ALLY_SKIPPED,
 } from "./fne/campaign/typhoid-mary-ally.js";
 
+import {
+  SHADOWLAND_SHADOWS_IN_THE_NIGHT,
+  SHADOWLAND_SHADOWS_IN_THE_NIGHT_SKIPPED,
+} from "./shadowland/shadows-in-the-night.js";
+import { SHADOWLAND_DARK_PROTEGE, SHADOWLAND_DARK_PROTEGE_SKIPPED } from "./shadowland/dark-protege.js";
+import { SHADOWLAND_NINJA_SWARM, SHADOWLAND_NINJA_SWARM_SKIPPED } from "./shadowland/ninja-swarm.js";
+import { SHADOWLAND_SHADOW_LABYRINTH, SHADOWLAND_SHADOW_LABYRINTH_SKIPPED } from "./shadowland/shadow-labyrinth.js";
+import {
+  SHADOWLAND_DEADLY_CONTRAPTIONS,
+  SHADOWLAND_DEADLY_CONTRAPTIONS_SKIPPED,
+} from "./shadowland/deadly-contraptions.js";
+import { SHADOWLAND_HEART_OF_SHADOW, SHADOWLAND_HEART_OF_SHADOW_SKIPPED } from "./shadowland/heart-of-shadow.js";
+import {
+  SHADOWLAND_CREEPING_CORRUPTION,
+  SHADOWLAND_CREEPING_CORRUPTION_SKIPPED,
+} from "./shadowland/creeping-corruption.js";
+
 /** One wave 11 scripting module: its group key in `CARD_GROUPS`, its registry and its skipped refs with reasons. */
 export interface Wave11Module {
   readonly group: string;
@@ -100,6 +117,33 @@ export interface Wave11Module {
  * (`fne/{villains,scenarios,modular,campaign}`, docs/phase7-wave11-scenarios.md §S6).
  */
 export const WAVE11_MODULES: readonly Wave11Module[] = [
+  {
+    group: "shadowland/shadows-in-the-night",
+    registry: SHADOWLAND_SHADOWS_IN_THE_NIGHT,
+    skipped: SHADOWLAND_SHADOWS_IN_THE_NIGHT_SKIPPED,
+  },
+  { group: "shadowland/dark-protege", registry: SHADOWLAND_DARK_PROTEGE, skipped: SHADOWLAND_DARK_PROTEGE_SKIPPED },
+  { group: "shadowland/ninja-swarm", registry: SHADOWLAND_NINJA_SWARM, skipped: SHADOWLAND_NINJA_SWARM_SKIPPED },
+  {
+    group: "shadowland/shadow-labyrinth",
+    registry: SHADOWLAND_SHADOW_LABYRINTH,
+    skipped: SHADOWLAND_SHADOW_LABYRINTH_SKIPPED,
+  },
+  {
+    group: "shadowland/deadly-contraptions",
+    registry: SHADOWLAND_DEADLY_CONTRAPTIONS,
+    skipped: SHADOWLAND_DEADLY_CONTRAPTIONS_SKIPPED,
+  },
+  {
+    group: "shadowland/heart-of-shadow",
+    registry: SHADOWLAND_HEART_OF_SHADOW,
+    skipped: SHADOWLAND_HEART_OF_SHADOW_SKIPPED,
+  },
+  {
+    group: "shadowland/creeping-corruption",
+    registry: SHADOWLAND_CREEPING_CORRUPTION,
+    skipped: SHADOWLAND_CREEPING_CORRUPTION_SKIPPED,
+  },
   {
     group: "jj/jessica-jones/identity",
     registry: JJ_JESSICA_JONES_IDENTITY,

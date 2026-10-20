@@ -16,9 +16,25 @@ const unscriptedRefsOf = (setId: string): string[] =>
   ).flatMap((card) => abilityRefIds(card).filter((id) => !(id in PLAYABLE_ABILITIES)));
 
 describe("UNSCRIPTED_ENCOUNTER_SET_IDS", () => {
-  it("is empty: Synthezoid Smackdown's fourteen sets (docs/phase7-synthezoid.md §4.3) are all playable sets", () => {
-    expect(UNSCRIPTED_ENCOUNTER_SET_IDS.size).toBe(0);
-    expect(Object.keys(GATED_THOUGH_SCRIPTED)).toEqual([]);
+  it("gates exactly Shadowland's seven sets (mid-transcription, docs/phase7-shadowland.md) and keeps them out of the playable sets", () => {
+    expect([...UNSCRIPTED_ENCOUNTER_SET_IDS].sort()).toEqual([
+      "black_flower",
+      "dark_protege",
+      "deadly_contraptions",
+      "heart_of_shadow",
+      "ninja_swarm",
+      "shadow_labyrinth",
+      "shadows_in_the_night",
+    ]);
+    expect(Object.keys(GATED_THOUGH_SCRIPTED)).toEqual(["black_flower"]);
+    for (const id of UNSCRIPTED_ENCOUNTER_SET_IDS)
+      expect(
+        PLAYABLE_ENCOUNTER_SETS.some((s) => s.id === id),
+        id,
+      ).toBe(false);
+  });
+
+  it("keeps Synthezoid Smackdown's fourteen sets (docs/phase7-synthezoid.md §4.3) playable", () => {
     const synthezoid = WAVE10_ENCOUNTER_SETS.filter((set) =>
       (set.packCodes as readonly string[]).includes("synthezoid"),
     );

@@ -14,15 +14,25 @@
 import type { Scenario } from "@mc/content";
 
 export const UNSCRIPTED_ENCOUNTER_SET_IDS: ReadonlySet<string> = new Set<string>([
-  // Empty: Synthezoid Smackdown (cycle 10; docs/phase7-synthezoid.md) is fully scripted and joined the playable pool.
+  // Shadowland (MC65, cycle 11; docs/phase7-shadowland.md): the pack is mid-transcription (40 of 70 cards) and every
+  // ability is unscripted, so none of its sets is playable yet. Delete an id here once its set is scripted.
+  "black_flower",
+  "dark_protege",
+  "deadly_contraptions",
+  "heart_of_shadow",
+  "ninja_swarm",
+  "shadow_labyrinth",
+  "shadows_in_the_night",
 ]);
 
 /**
  * Gated sets whose every ability is scripted but which are held back for another reason, each with that reason. The
  * "fully scripted: remove it" check skips these; delete an entry with its reason gone, then un-gate the set above.
- * Empty: Synthezoid Smackdown left with its last set scripted.
+ * Black Flower is held back because no card of it is transcribed yet (it has no ability ref to script).
  */
-export const GATED_THOUGH_SCRIPTED: Readonly<Record<string, string>> = {};
+export const GATED_THOUGH_SCRIPTED: Readonly<Record<string, string>> = {
+  black_flower: "Shadowland is mid-transcription: this set has no cards transcribed yet, so there is nothing to script",
+};
 
 /** Whether a scenario is playable: none of its own sets (or its villains' own sets) is gated. */
 export function scenarioIsScripted(scenario: Pick<Scenario, "encounterSetIds" | "multipleVillains">): boolean {

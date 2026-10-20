@@ -3,14 +3,14 @@
  * checked
  * against the emitted data, against the modules on disk, and against each module's header list.
  */
-import { FNE_CARDS, JJ_CARDS, LUKE_CAGE_CARDS } from "@mc/content";
+import { FNE_CARDS, JJ_CARDS, LUKE_CAGE_CARDS, SHADOWLAND_CARDS } from "@mc/content";
 import { CARD_GROUPS } from "./card-groups.js";
 import { WAVE11_MODULES } from "./modules.js";
 
-const PACK_PREFIX: Readonly<Record<string, string>> = { jj: "61", luke_cage: "62", fne: "60" };
+const PACK_PREFIX: Readonly<Record<string, string>> = { jj: "61", luke_cage: "62", fne: "60", shadowland: "65" };
 
 describe("wave 11 card groups", () => {
-  it("holds every jj, luke_cage and fne card in exactly one group", () => {
+  it("holds every jj, luke_cage, fne and shadowland card in exactly one group", () => {
     const seen = new Map<string, string[]>();
     for (const [group, ids] of Object.entries(CARD_GROUPS)) {
       for (const id of ids) seen.set(id, [...(seen.get(id) ?? []), group]);
@@ -18,7 +18,7 @@ describe("wave 11 card groups", () => {
     const twice = [...seen].filter(([, groups]) => groups.length > 1).map(([id, groups]) => `${id}: ${groups}`);
     expect(twice).toEqual([]);
     expect([...seen.keys()].sort()).toEqual(
-      [...JJ_CARDS, ...LUKE_CAGE_CARDS, ...FNE_CARDS].map((card) => card.id as string).sort(),
+      [...JJ_CARDS, ...LUKE_CAGE_CARDS, ...FNE_CARDS, ...SHADOWLAND_CARDS].map((card) => card.id as string).sort(),
     );
   });
 
@@ -33,7 +33,11 @@ describe("wave 11 card groups", () => {
   it("has one module file per group, wired into modules.ts, with a header listing exactly its ids", () => {
     const sources = (
       import.meta as unknown as { glob: (p: string | string[], o: object) => Record<string, string> }
-    ).glob(["./jj/**/*.ts", "./luke_cage/**/*.ts", "./fne/**/*.ts"], { query: "?raw", import: "default", eager: true });
+    ).glob(["./jj/**/*.ts", "./luke_cage/**/*.ts", "./fne/**/*.ts", "./shadowland/**/*.ts"], {
+      query: "?raw",
+      import: "default",
+      eager: true,
+    });
     expect(WAVE11_MODULES.map((m) => m.group).sort()).toEqual(Object.keys(CARD_GROUPS).sort());
     for (const [group, ids] of Object.entries(CARD_GROUPS)) {
       const text = sources[`./${group}.ts`];
