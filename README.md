@@ -162,7 +162,7 @@ They see everything. Reporters and feature requesters with at least two issues t
 
 <!-- credits:reporters:start -->
 <table>
-<tr><td align="center"><a href="https://github.com/PermaKarma"><img src="https://github.com/PermaKarma.png?size=128" width="64" height="64" alt="PermaKarma"><br><sub><b>PermaKarma</b></sub></a></td><td align="center"><a href="https://github.com/dwballance"><img src="https://github.com/dwballance.png?size=128" width="64" height="64" alt="dwballance"><br><sub><b>dwballance</b></sub></a></td><td align="center"><a href="https://github.com/Joelstrd"><img src="https://github.com/Joelstrd.png?size=128" width="64" height="64" alt="Joelstrd"><br><sub><b>Joelstrd</b></sub></a></td><td align="center"><a href="https://github.com/zackburnley"><img src="https://github.com/zackburnley.png?size=128" width="64" height="64" alt="Zack Burnley"><br><sub><b>Zack Burnley</b></sub></a></td></tr>
+<tr><td align="center"><a href="https://github.com/PermaKarma"><img src="https://github.com/PermaKarma.png?size=128" width="64" height="64" alt="PermaKarma"></a><br><sub><b>PermaKarma</b></sub></td><td align="center"><a href="https://github.com/dwballance"><img src="https://github.com/dwballance.png?size=128" width="64" height="64" alt="dwballance"></a><br><sub><b>dwballance</b></sub></td><td align="center"><a href="https://github.com/Joelstrd"><img src="https://github.com/Joelstrd.png?size=128" width="64" height="64" alt="Joelstrd"></a><br><sub><b>Joelstrd</b></sub></td><td align="center"><a href="https://github.com/zackburnley"><img src="https://github.com/zackburnley.png?size=128" width="64" height="64" alt="Zack Burnley"></a><br><sub><b>Zack Burnley</b></sub></td></tr>
 </table>
 <!-- credits:reporters:end -->
 
@@ -172,7 +172,7 @@ Everyone whose code is in the game.
 
 <!-- credits:contributors:start -->
 <table>
-<tr><td align="center"><a href="https://github.com/quincarter"><img src="https://github.com/quincarter.png?size=128" width="64" height="64" alt="Quin Carter"><br><sub><b>Quin Carter</b></sub></a></td><td align="center"><a href="https://github.com/bluefireF5ran"><img src="https://github.com/bluefireF5ran.png?size=128" width="64" height="64" alt="Francisco Merchán Cordero"><br><sub><b>Francisco Merchán Cordero</b></sub></a></td></tr>
+<tr><td align="center"><a href="https://github.com/quincarter"><img src="https://github.com/quincarter.png?size=128" width="64" height="64" alt="Quin Carter"></a><br><sub><b>Quin Carter</b></sub></td><td align="center"><a href="https://github.com/bluefireF5ran"><img src="https://github.com/bluefireF5ran.png?size=128" width="64" height="64" alt="Francisco Merchán Cordero"></a><br><sub><b>Francisco Merchán Cordero</b></sub></td></tr>
 </table>
 <!-- credits:contributors:end -->
 

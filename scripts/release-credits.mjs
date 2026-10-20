@@ -133,12 +133,13 @@ function escapeHtml(text) {
 function cell(person) {
   const name = escapeHtml(person.name);
   const link = person.github ? `https://github.com/${person.github}` : person.url;
-  const avatar = person.github
-    ? `<img src="https://github.com/${person.github}.png?size=128" width="64" height="64" alt="${name}"><br>`
-    : "";
-  const label = `${avatar}<sub><b>${name}</b></sub>`;
+  const label = `<sub><b>${name}</b></sub>`;
   const note = person.note ? `<br><sub>${escapeHtml(person.note)}</sub>` : "";
-  return `<td align="center">${link ? `<a href="${link}">${label}</a>` : label}${note}</td>`;
+  if (!person.github) return `<td align="center">${link ? `<a href="${link}">${label}</a>` : label}${note}</td>`;
+  // Only the avatar is the link: a link around the name too draws its underline as stray marks at the name's spaces
+  // and edges in GitHub's README view, so under an avatar the name is plain text.
+  const avatar = `<img src="https://github.com/${person.github}.png?size=128" width="64" height="64" alt="${name}">`;
+  return `<td align="center"><a href="${link}">${avatar}</a><br>${label}${note}</td>`;
 }
 
 function grid(people) {
