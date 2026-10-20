@@ -118,9 +118,9 @@ export interface Settings {
    * 5 s (the owner, 2026-10-20).
    */
   readonly achievementPopupTime: AchievementPopupTime;
-  /** Where the "Achievement unlocked" popup shows. Defaults to the middle of the screen (the owner, 2026-10-20). */
+  /** Where the "Achievement unlocked" popup shows. Defaults to the title bar (the owner, 2026-10-20: keep it out of the way). */
   readonly achievementPopupPlace: AchievementPopupPlace;
-  /** How large the "Achievement unlocked" popup is drawn. Defaults to medium (the owner, 2026-10-20). */
+  /** How large the "Achievement unlocked" popup is drawn. Defaults to small (the owner, 2026-10-20). Its opened list keeps one size. */
   readonly achievementPopupSize: AchievementPopupSize;
 }
 
@@ -301,7 +301,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     resolution: "native",
     powerSavingAdjust: true,
     achievementPopupTime: "5s",
-    achievementPopupPlace: "middle",
-    achievementPopupSize: "medium",
+    achievementPopupPlace: "titleBar",
+    achievementPopupSize: "small",
   };
 }

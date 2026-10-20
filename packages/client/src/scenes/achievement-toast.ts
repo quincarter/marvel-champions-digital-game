@@ -36,12 +36,14 @@ import {
   TOAST_OPEN_MS,
   TOAST_POP_MS,
   type ExtrasToastSource,
+  type ToastListLayout,
   sampleAchievementToast,
   toastFrameAt,
   toastShapeAt,
   type AchievementToast,
 } from "../view/achievement-toast.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
+import { lerp } from "../view/motion-math.js";
 import { CHROME_SCENES, SCENES } from "./keys.js";
 
 /** How often it looks for something newly earned. */
@@ -64,14 +66,23 @@ interface Showing {
   readonly zone: Phaser.GameObjects.Zone | null;
 }
 
-/** An opened stack's list, and the screens whose input it holds while it is open. */
+/** An opened stack's list: where it grows from and to, what it drew, and the screens whose input it holds. */
 interface OpenList {
-  readonly objects: readonly Phaser.GameObjects.GameObject[];
-  readonly buttons: readonly McButton[];
+  phase: "opening" | "open" | "closing";
+  /** The popup the panel grows out of and shrinks back into. */
+  readonly from: Rect;
+  readonly layout: ToastListLayout;
   readonly held: readonly { readonly scene: Phaser.Scene; readonly pointer: boolean; readonly keyboard: boolean }[];
-  readonly collapse: Rect;
-  readonly dismiss: Rect;
+  /** The scrim's tap zone first, then the open list's contents. */
+  readonly objects: Phaser.GameObjects.GameObject[];
+  readonly buttons: McButton[];
+  /** The panel's outline while it grows or shrinks. */
+  motion?: Phaser.GameObjects.Graphics | null;
 }
+
+/** How long the list takes to grow out of the popup, and to shrink back. */
+const LIST_OPEN_MS = 220;
+const LIST_CLOSE_MS = 180;
 
 export class AchievementToastScene extends Phaser.Scene {
   #queue: AchievementToast[] = [];
@@ -109,9 +120,9 @@ export class AchievementToastScene extends Phaser.Scene {
       queued: this.#queue.length,
       shown: this.#shownCount,
       place: appSession().settings.achievementPopupPlace,
-      expanded: this.#list !== null,
-      collapseRect: this.#list?.collapse ?? null,
-      dismissRect: this.#list?.dismiss ?? null,
+      expanded: this.#list?.phase === "open",
+      collapseRect: this.#list?.phase === "open" ? this.#list.layout.collapse : null,
+      dismissRect: this.#list?.phase === "open" ? this.#list.layout.dismiss : null,
     };
   }
 
@@ -327,7 +338,9 @@ export class AchievementToastScene extends Phaser.Scene {
 
   /**
    * Opens the stack on screen into its list: every line, Collapse and Dismiss, in place of the popup. The popup's clock
-   * stops, and every screen under it stops taking input (as the music player does) until the list closes.
+   * stops, and every screen under it stops taking input (as the music player does) until the list closes. The panel
+   * grows out of the popup and shrinks back into it (reduced motion: no movement). The list's size and place never
+   * follow the popup's own Settings.
    */
   expand(): void {
     const showing = this.#showing;
@@ -344,14 +357,109 @@ export class AchievementToastScene extends Phaser.Scene {
     const { width, height } = this.scale.gameSize;
     const formFactor = formFactorFor(width, height);
     const phone = formFactor === "phone" || formFactor === "phoneLandscape";
-    const { toast } = showing;
-    const layout = toastListLayout(toast.items.length, width, height, phone);
-    // Drawn after the popup's own pieces, so in front of them; the popup hides while the list is open.
-    const scrim = this.add.graphics();
-    scrim.fillStyle(surface.void.hex, 0.6).fillRect(0, 0, width, height);
-    // A tap on the dimmed screen outside the list collapses it, like Collapse.
+    const layout = toastListLayout(showing.toast.items.length, width, height, phone);
+    // A tap on the dimmed screen outside the list collapses it, like Collapse (only once it is open).
     const scrimZone = this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
     onTap(scrimZone, () => this.collapse(), "achievement-toast:scrim");
+    const list: OpenList = {
+      phase: "opening",
+      from: showing.rect,
+      layout,
+      held,
+      objects: [scrimZone],
+      buttons: [],
+    };
+    this.#list = list;
+    this.#animatePanel(list, 0, 1, LIST_OPEN_MS, "Cubic.easeOut", () => {
+      if (this.#list === list) this.#fillList(list);
+    });
+  }
+
+  /** Closes the list back into the popup, which then holds open for its full time again. */
+  collapse(): void {
+    this.#closeAnimated("collapse");
+  }
+
+  /** Closes the list and the popup with it; the next one queued, if any, follows. */
+  dismiss(): void {
+    this.#closeAnimated("dismiss");
+  }
+
+  #closeAnimated(how: "collapse" | "dismiss"): void {
+    const list = this.#list;
+    if (!list || list.phase !== "open") return;
+    // The contents go at once; the panel shrinks back into the popup.
+    for (const object of list.objects.slice(1)) object.destroy();
+    for (const button of list.buttons) button.destroy();
+    list.objects.length = 1;
+    list.buttons.length = 0;
+    list.phase = "closing";
+    this.#animatePanel(list, 1, 0, LIST_CLOSE_MS, "Cubic.easeIn", () => {
+      if (this.#list !== list) return;
+      this.#closeList();
+      const showing = this.#showing;
+      if (!showing) return;
+      if (how === "dismiss") {
+        this.#clear();
+        return;
+      }
+      this.#setPopupVisible(showing, true);
+      // Fully open, at the start of its hold.
+      showing.startedAt = this.time.now - (appSession().settings.reducedMotion ? 0 : TOAST_POP_MS + TOAST_OPEN_MS);
+    });
+  }
+
+  /**
+   * The panel's outline moving between the popup (`t` 0) and the open list (`t` 1), with the screen dimming in step;
+   * `done` runs at the end. Reduced motion skips straight to the end.
+   */
+  #animatePanel(list: OpenList, from: number, to: number, ms: number, ease: string, done: () => void): void {
+    if (appSession().settings.reducedMotion) {
+      done();
+      return;
+    }
+    const motion = this.add.graphics();
+    list.motion = motion;
+    const { width, height } = this.scale.gameSize;
+    const draw = (t: number): void => {
+      const a = list.from;
+      const b = list.layout.panel;
+      const rect = {
+        x: lerp(a.x, b.x, t),
+        y: lerp(a.y, b.y, t),
+        width: lerp(a.width, b.width, t),
+        height: lerp(a.height, b.height, t),
+      };
+      motion.clear();
+      motion.fillStyle(surface.void.hex, 0.6 * t).fillRect(0, 0, width, height);
+      motion.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+      motion.lineStyle(2, signal.caution.hex, 1).strokeRect(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2);
+    };
+    draw(from);
+    const state = { t: from };
+    this.tweens.add({
+      targets: state,
+      t: to,
+      duration: ms,
+      ease,
+      onUpdate: () => draw(state.t),
+      onComplete: () => {
+        motion.destroy();
+        if (list.motion === motion) list.motion = null;
+        done();
+      },
+    });
+  }
+
+  /** The open list's contents, drawn once the panel has grown to its place. */
+  #fillList(list: OpenList): void {
+    const showing = this.#showing;
+    if (!showing) return;
+    const { toast } = showing;
+    const { layout } = list;
+    const { width, height } = this.scale.gameSize;
+    const scrim = this.add.graphics();
+    scrim.fillStyle(surface.void.hex, 0.6).fillRect(0, 0, width, height);
     const panel = this.add.graphics();
     const { x, y, width: w, height: h } = layout.panel;
     panel.fillStyle(surface.ink.hex, 1).fillRect(x, y, w, h);
@@ -359,7 +467,7 @@ export class AchievementToastScene extends Phaser.Scene {
     // The panel swallows its own taps, so one between its rows never reaches the scrim.
     const panelZone = this.add.zone(x, y, w, h).setOrigin(0, 0).setInteractive();
     onTap(panelZone, () => undefined, "achievement-toast:panel");
-    const objects: Phaser.GameObjects.GameObject[] = [scrim, scrimZone, panel, panelZone];
+    list.objects.push(scrim, panel, panelZone);
     const headingText = this.add.text(
       layout.heading.x,
       layout.heading.y,
@@ -367,7 +475,7 @@ export class AchievementToastScene extends Phaser.Scene {
       textStyle(typeRole.barTitle, signal.caution.hex),
     );
     fitText(headingText, layout.heading.width, typeRole.barTitle.size);
-    objects.push(headingText);
+    list.objects.push(headingText);
     layout.rows.forEach((row, i) => {
       const line = toast.items[i]!;
       panel.lineStyle(1, surface.paper.hex, 0.18).lineBetween(row.x, row.y, row.x + row.width, row.y);
@@ -379,11 +487,11 @@ export class AchievementToastScene extends Phaser.Scene {
         .setOrigin(0, 0.5)
         .setFontSize(15);
       fitText(name, row.width - detail.width - 16, 15);
-      objects.push(detail, name);
+      list.objects.push(detail, name);
     });
     if (layout.moreRow) {
       const where = toast.kind === "extra" ? "in Extras" : "in the Trophy Room";
-      objects.push(
+      list.objects.push(
         this.add
           .text(
             layout.moreRow.x,
@@ -394,7 +502,7 @@ export class AchievementToastScene extends Phaser.Scene {
           .setOrigin(0, 0.5),
       );
     }
-    const buttons = [
+    list.buttons.push(
       new McButton(this, {
         kind: "secondary",
         label: "Collapse",
@@ -409,25 +517,8 @@ export class AchievementToastScene extends Phaser.Scene {
         rect: layout.dismiss,
         onClick: () => this.dismiss(),
       }),
-    ];
-    this.#list = { objects, buttons, held, collapse: layout.collapse, dismiss: layout.dismiss };
-  }
-
-  /** Closes the list back into the popup, which then holds open for its full time again. */
-  collapse(): void {
-    if (!this.#list) return;
-    this.#closeList();
-    const showing = this.#showing;
-    if (!showing) return;
-    this.#setPopupVisible(showing, true);
-    // Fully open, at the start of its hold.
-    showing.startedAt = this.time.now - (appSession().settings.reducedMotion ? 0 : TOAST_POP_MS + TOAST_OPEN_MS);
-  }
-
-  /** Closes the list and the popup with it; the next one queued, if any, follows. */
-  dismiss(): void {
-    this.#closeList();
-    this.#clear();
+    );
+    list.phase = "open";
   }
 
   #setPopupVisible(showing: Showing, visible: boolean): void {
@@ -440,10 +531,12 @@ export class AchievementToastScene extends Phaser.Scene {
     }
   }
 
+  /** Takes the list down at once (no animation) and gives the screens under it their input back. */
   #closeList(): void {
     const list = this.#list;
     if (!list) return;
     this.#list = null;
+    list.motion?.destroy();
     for (const object of list.objects) object.destroy();
     for (const button of list.buttons) button.destroy();
     for (const { scene, pointer, keyboard } of list.held) {

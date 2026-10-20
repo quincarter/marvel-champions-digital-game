@@ -213,7 +213,8 @@ export function achievementToastRect(
 ): Rect {
   const margin = phone ? 8 : 16;
   const h = Math.round(achievementToastHeight(place) * scale);
-  const w = Math.min(Math.round((place === "titleBar" ? 380 : 460) * scale), width - 2 * margin);
+  // Small only shrinks the height and the type: the bar keeps its width, so the words still fit on one line.
+  const w = Math.min(Math.round((place === "titleBar" ? 380 : 460) * Math.max(1, scale)), width - 2 * margin);
   const x = Math.round((width - w) / 2);
   let y: number;
   switch (place) {

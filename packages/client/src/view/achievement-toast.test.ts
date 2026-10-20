@@ -146,6 +146,7 @@ describe("achievementToastRect", () => {
     const small = achievementToastRect("middle", W, H, false, 0.8);
     const large = achievementToastRect("middle", W, H, false, 1.3);
     expect(small.height).toBeLessThan(medium.height);
+    expect(small.width, "small keeps the bar's width").toBe(medium.width);
     expect(large.height).toBeGreaterThan(medium.height);
     expect(large.width).toBeGreaterThan(medium.width);
     expect(large.x + large.width / 2).toBe(W / 2);

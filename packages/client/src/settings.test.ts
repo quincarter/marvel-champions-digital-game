@@ -35,8 +35,8 @@ describe("villain phase settings", () => {
     expect(settings.cardHoverScale).toBe("2.5x");
     expect(settings.cardSize).toBe("standard");
     expect(settings.achievementPopupTime).toBe("5s");
-    expect(settings.achievementPopupPlace).toBe("middle");
-    expect(settings.achievementPopupSize).toBe("medium");
+    expect(settings.achievementPopupPlace).toBe("titleBar");
+    expect(settings.achievementPopupSize).toBe("small");
     expect(achievementPopupScale("small")).toBeLessThan(1);
     expect(achievementPopupScale("medium")).toBe(1);
     expect(achievementPopupScale("large")).toBeGreaterThan(1);

@@ -71,7 +71,7 @@ Built 2026-10-20 (owner's request): an Xbox-style "Achievement unlocked" popup (
 what it earned, holds, and folds away, with `audio/sfx/achievement-unlocked.mp3` (Universfield's "Level Complete").
 Two or more achievements at once stack into one popup ("5 achievements unlocked", their points summed); a tap (or
 click) opens it into a list of them all, with Collapse (back to the popup, which then holds its full time again) and
-Dismiss; Escape or a tap outside the list collapses it, and every screen under it holds its input while it is open.
+Dismiss; the list grows out of the popup and shrinks back into it, keeps one size and sits in the middle whatever the popup's own settings; Escape or a tap outside the list collapses it, and every screen under it holds its input while it is open.
 What opens in Extras uses the same popup on its own beat after the achievements' ("New song earned", or "5 extras in
 the vault" stacked), with the Extras sting; it replaced the music button's "New song earned" notice (owner,
 2026-10-20). It checks once a second against what the last `refreshUnlocks()` read (`earnedAchievementIds()`), remembers what it
@@ -79,7 +79,7 @@ announced in `mc-achievements-seen` (`platform/achievements-seen.ts`; a first ru
 and folds more than four at once into one summary. It takes no input.
 
 Settings ▸ More ▸ Achievements: **Achievement popup** (Off, 3, 5, 8 or 10 s; default 5 s) and **Popup position**
-(Title bar, Top, Middle, Bottom; default Middle), and **Popup size** (Small, Medium, Large; default Medium; owner,
+(Title bar, Top, Middle, Bottom; default Title bar), and **Popup size** (Small, Medium, Large; default Small; owner,
 2026-10-20). Picking any of them shows a sample.
 
 **How to Play (owner, 2026-10-20):** "Studying Like Doctor Strange" (`feat-how-to-play`, 50 points, with a progress

@@ -149,7 +149,7 @@ test("the popup position changes on a tap, never on a swipe's lift, and shows a 
   expect(errors).toEqual([]);
 });
 
-test("a newly earned achievement pops up once, in the middle by default", async ({ page }, info) => {
+test("a newly earned achievement pops up once, small in the title bar by default", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "one size is enough for the announcement itself");
   const errors = trackPageErrors(page);
   // Nothing earned yet, already looked: the next achievement is new.
@@ -174,9 +174,9 @@ test("a newly earned achievement pops up once, in the middle by default", async 
     5000,
   );
   expect(state.showing!.heading).toBe("Achievement unlocked");
-  const viewport = page.viewportSize()!;
-  const middle = state.rect!.y + state.rect!.height / 2;
-  expect(Math.abs(middle - viewport.height / 2)).toBeLessThan(4);
+  // The title bar strip at the top, drawn small (the owner's defaults, 2026-10-20).
+  expect(state.rect!.y + state.rect!.height).toBeLessThanOrEqual(60);
+  expect(state.rect!.height).toBeLessThan(48);
   // Gone after its 5 s, and not shown again.
   await waitFor(async () => ((await toastState(page)).showing ? null : true), "the popup goes away", 9000);
   expect((await toastState(page)).shown).toBe(1);
@@ -211,9 +211,15 @@ test("several achievements stack into one popup that opens, collapses and dismis
   );
   expect(open.collapseRect).not.toBeNull();
   await page.mouse.click(...middle(open.collapseRect!));
-  await settle(page, { quietMs: 300, maxMs: 1500 });
-  const collapsed = await toastState(page);
-  expect(collapsed.expanded, "Collapse closes the list").toBe(false);
+  // The list shrinks back into the popup, then the popup shows again.
+  const collapsed = await waitFor(
+    async () => {
+      const s = await toastState(page);
+      return !s.expanded && s.rect ? s : null;
+    },
+    "the list closes",
+    3000,
+  );
   expect(collapsed.showing?.heading, "and the popup stays").toBe("3 achievements unlocked");
 
   await page.mouse.click(...middle(collapsed.rect!));
@@ -251,9 +257,7 @@ test("a swipe that lifts on a stacked popup never opens it; a tap does", async (
     3000,
   );
   await page.touchscreen.tap(...middle(open.dismissRect!));
-  await settle(page, { quietMs: 300, maxMs: 1500 });
-  const after = await toastState(page);
-  expect(after.expanded).toBe(false);
-  expect(after.showing).toBeNull();
+  await waitFor(async () => ((await toastState(page)).showing ? null : true), "the popup goes with it", 3000);
+  expect((await toastState(page)).expanded).toBe(false);
   expect(errors).toEqual([]);
 });
