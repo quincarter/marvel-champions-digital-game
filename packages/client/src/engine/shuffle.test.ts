@@ -15,12 +15,15 @@ const player = corePlayerFromDeck(preconDecks(POOL_VERSION)[0]!);
 
 async function dealFor(scenarioId: string, seed: number): Promise<string> {
   const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
+  // Protection Racket: each seat picks a main scheme in Standard (the setup screen sends one per seat).
+  const choice = POOL_SCENARIOS.find((scenario) => scenario.id === scenarioId)?.mainSchemeChoice;
   const { state } = (
     await core.start({
       scenarioId,
       difficulty: "standard",
       players: [player],
       seed,
+      ...(choice ? { mainSchemePicks: choice.cardIds.slice(0, 1).map((id) => id as string) } : {}),
     })
   ).snapshot;
   return orderOf(state);
