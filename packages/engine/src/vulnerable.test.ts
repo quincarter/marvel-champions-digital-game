@@ -204,7 +204,8 @@ describe("§3.1 vulnerable (RRG 1.8 p. 48)", () => {
     const { state, events } = play(before, STUN);
     expect(inPlay(state, id)).toBe(true);
     expect(mustInstance(state, id).statuses.stunned).toBe(1);
-    expect(typesFor(events, id)).toEqual([]);
+    // Only the log line that the give did not fully resolve (`PreThenFailure statusNotGiven`; MC65 FAQ p. 18).
+    expect(typesFor(events, id)).toEqual(["preThenUnresolved"]);
   });
 
   it("stalwart and vulnerable: no status card can be placed, so it is never discarded", () => {

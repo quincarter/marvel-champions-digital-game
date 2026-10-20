@@ -1514,7 +1514,8 @@ function separateDeckListErrors(decks: unknown, owner: string): string[] {
       (sets === undefined &&
         contents.cardType === undefined &&
         contents.trait === undefined &&
-        contents.cardIds === undefined)
+        contents.cardIds === undefined &&
+        contents.wholeEncounterSetIds === undefined)
     ) {
       errors.push(`${label} contents must name encounter sets, a card type, a trait, card ids, or several`);
     } else {
@@ -1531,7 +1532,20 @@ function separateDeckListErrors(decks: unknown, owner: string): string[] {
         (!Array.isArray(ids) || ids.length === 0 || !ids.every(isNonEmptyString) || new Set(ids).size !== ids.length)
       )
         errors.push(`${label} contents.cardIds must list card ids, each once`);
+      const whole = contents.wholeEncounterSetIds;
+      if (
+        whole !== undefined &&
+        (!Array.isArray(whole) ||
+          whole.length === 0 ||
+          !whole.every(isNonEmptyString) ||
+          new Set(whole).size !== whole.length)
+      )
+        errors.push(`${label} contents.wholeEncounterSetIds must list encounter set ids, each once`);
     }
+    if (deck?.discardByTrait !== undefined && (!isNonEmptyString(deck.discardByTrait) || deck.discardPile !== "own"))
+      errors.push(`${label} discardByTrait must be a trait, on a deck with a discard pile of its own`);
+    if (deck?.buildAtSetup !== undefined && deck.buildAtSetup !== true)
+      errors.push(`${label} buildAtSetup must be true when present`);
     if (deck?.discardPile !== "own" && deck?.discardPile !== "encounter" && deck?.discardPile !== "none")
       errors.push(`${label} discardPile must be 'own', 'encounter' or 'none'`);
     if (deck?.closedToPlayerCards !== undefined && deck.closedToPlayerCards !== true)

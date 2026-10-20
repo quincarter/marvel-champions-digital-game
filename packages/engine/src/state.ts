@@ -433,7 +433,14 @@ export interface ScenarioDeckState {
     readonly trait?: string;
     /** Cards that join by id besides the ones the other fields match (Cornered! in the show deck; wave 6 §3.66). */
     readonly cardIds?: readonly string[];
+    /** Encounter sets whose every card joins (`ScenarioSeparateDeck.contents.wholeEncounterSetIds`, the trap deck). */
+    readonly wholeEncounterSetIds?: readonly string[];
   };
+  /**
+   * `ScenarioSeparateDeck.discardByTrait` (the trap deck, MC65 pp. 12-13): a card printing this trait goes to this
+   * deck's discard pile wherever it is discarded from, any other to its encounter discard pile (`discardZoneFor`).
+   */
+  readonly discardByTrait?: string;
   /**
    * `ScenarioSeparateDeck.closedToPlayerCards` (the show deck "cannot be affected by player card effects", MojoMania
    * insert p. 11): a player card's ability never selects, looks at, reorders or moves a card in this deck, nor puts one

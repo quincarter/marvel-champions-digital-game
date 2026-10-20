@@ -25,6 +25,7 @@ import { describeFrame, type StackFrame } from "./stack.js";
 import type { EngineDeps } from "./abilities.js";
 import { loseIfEncounterCardsExhausted, resetEncounterDeckIfEmpty, resetPlayerDeckIfEmpty } from "./effects.js";
 import { resetSeparateDeckIfEmpty } from "./resolve/separate-decks.js";
+import { resetScenarioDeckIfEmpty } from "./resolve/cards.js";
 import { syncTreatedAs } from "./treat-as.js";
 import { announceDeckTops } from "./deck-top.js";
 import { shownCardId } from "./hidden-reverse.js";
@@ -48,6 +49,11 @@ export interface Ctx {
    * such a host alone, since the card is going whatever its attachments made it. Working memory of one command.
    */
   leavingHosts?: InstanceId[];
+  /**
+   * Open `moveCardsTo` batches: while above zero, `settlePlayerDecks` leaves empty scenario decks alone, and the batch
+   * resets them once every card of it has moved (`resetScenarioDeckIfEmpty`). Working memory of one command.
+   */
+  scenarioResetsHeld?: number;
 }
 
 export const createCtx = (state: GameState, deps: EngineDeps): Ctx => ({ state, events: [], deps });
@@ -255,6 +261,13 @@ export function settlePlayerDecks(ctx: Ctx, from: ZoneId | null, to: ZoneId, id?
       ...ctx.state,
       pendingDeckRunOuts: [...(ctx.state.pendingDeckRunOuts ?? []), { deck: "scenario", name: from.name }],
     };
+  }
+  // A scenario deck that reshuffles its discard pile does so at the move that empties it (the trap deck, MC65 p. 12:
+  // "Once the trap deck is empty"; `resetScenarioDeckIfEmpty`), after the run-out above is recorded. Inside a
+  // `moveCardsTo` batch it waits for the batch's end, so cards discarded together are shuffled in together.
+  if (!ctx.scenarioResetsHeld) {
+    if (from?.kind === "scenarioDeck") resetScenarioDeckIfEmpty(ctx, from.name);
+    if (to.kind === "scenarioDiscard") resetScenarioDeckIfEmpty(ctx, to.name);
   }
 }
 

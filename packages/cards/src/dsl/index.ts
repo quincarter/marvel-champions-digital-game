@@ -5,5 +5,6 @@
  */
 export * from "./values.js";
 export * from "./effects.js";
+export * from "./extra-encounter-deck.js";
 export * from "./abilities.js";
 export * from "./validate.js";

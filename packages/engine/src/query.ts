@@ -584,12 +584,31 @@ export function discardZoneFor(state: GameState, id: InstanceId): ZoneId {
   // (docs/phase7-wave6.md §4.1 Q54): the encounter discard pile, as for any other encounter card.
   if (instance?.home.kind === "scenarioDeck" && state.scenarioDecks[instance.home.name]?.discardPile === "own")
     return { kind: "scenarioDiscard", name: instance.home.name };
+  const byTrait = instance && instance.home.kind !== "player" ? traitRoutedDiscard(state, id) : undefined;
+  if (byTrait !== undefined) return { kind: "scenarioDiscard", name: byTrait };
   if (instance && instance.home.kind !== "player")
     return { kind: "encounterDiscard", deckId: homeEncounterDeckId(state, id) };
   // A player card whose owner is unknown cannot exist; keep encounter routing as the safe default.
   return instance?.ownerId
     ? { kind: "discard", playerId: instance.ownerId }
     : { kind: "encounterDiscard", deckId: activeEncounterDeckId(state) };
+}
+
+/**
+ * The scenario deck whose discard pile takes `id` by its trait (`ScenarioDeckState.discardByTrait`), if any. MC65
+ * pp. 12-13: "Whenever a card with the TRAP! trait would be discarded, place that card into [...] the trap discard
+ * pile", and a card without it goes "in the encounter discard pile, even if it was previously drawn from the trap
+ * deck". The trait is read from the face showing as printed (a card being discarded is leaving play, so no gained
+ * trait is read). Engine reading (authority level 5, CLAUDE.md): the insert does not say whether a trait gained or
+ * lost in play counts.
+ */
+function traitRoutedDiscard(state: GameState, id: InstanceId): string | undefined {
+  const card = cardOf(state, id);
+  if (!card) return undefined;
+  const traits: readonly string[] = encounterFace(state, id)?.traits ?? ("traits" in card ? card.traits : []);
+  for (const [name, piles] of Object.entries(state.scenarioDecks))
+    if (piles.discardByTrait !== undefined && traits.includes(piles.discardByTrait)) return name;
+  return undefined;
 }
 
 /**

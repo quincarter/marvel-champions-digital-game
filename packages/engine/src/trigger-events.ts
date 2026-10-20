@@ -1042,6 +1042,11 @@ export type TriggerEventBody =
       readonly sourceInstanceId: InstanceId | null;
       readonly playerId: PlayerId | null;
       readonly countOn?: { readonly frameId: FrameId; readonly name: string };
+      /**
+       * The effects frame of the `giveStatus` that gives it: a card that is not given after all (no room left, or
+       * replaced by an "instead" interrupt) marks that frame's pre-"then" text unresolved (`statusNotGiven`).
+       */
+      readonly givingFrameId?: FrameId;
     }
   /**
    * A character's hit points were reset (docs/phase7-wave6.md §3.67): "Forced Response: After MaGog's hit points are

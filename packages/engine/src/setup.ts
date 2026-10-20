@@ -1211,6 +1211,8 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     // A deck with no discard pile has nothing to reshuffle (docs/phase7-wave6.md §3.66).
     if (deck.discardPile === "none" && deck.whenEmpty === "reshuffleDiscardWithoutPenalty")
       return invalid(`scenario deck ${deck.name} has no discard pile to reshuffle`);
+    if (deck.discardByTrait !== undefined && deck.discardPile !== "own")
+      return invalid(`scenario deck ${deck.name} routes discards by trait without a discard pile of its own`);
     for (const cardId of deck.contents.cardIds ?? [])
       if (!pool[cardId]) return invalid(`scenario deck ${deck.name} names unknown card ${cardId}`);
     scenarioDecks[deck.name] = {
@@ -1220,6 +1222,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       whenEmpty: deck.whenEmpty,
       contents: deck.contents,
       ...(deck.buildAtSetup ? { buildAtSetup: true as const } : {}),
+      ...(deck.discardByTrait !== undefined ? { discardByTrait: deck.discardByTrait } : {}),
       ...(deck.closedToPlayerCards ? { closedToPlayerCards: true as const } : {}),
       ...(deck.topCardInPlay ? { topCardInPlay: true as const } : {}),
     };

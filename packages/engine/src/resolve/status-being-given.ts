@@ -13,6 +13,7 @@ import { canTakeStatus } from "../keywords.js";
 import type { StatusName } from "../spec.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { addFrameVars, pushEvents } from "./frames.js";
+import { markPreThenUnresolved } from "./then.js";
 import { heard } from "./triggers.js";
 
 type BeingGiven = Extract<TriggerEvent, { kind: "statusBeingGiven" }>;
@@ -52,6 +53,11 @@ export interface StatusGive {
  * Returns how many cards were given at once. `countOn` is the giving frame's "given this way" variable
  * (`<bind>.amount`): the caller adds the returned number to it, and each waiting card raises it by one if it lands
  * (`applyStatusBeingGiven`), before the giving ability's next effect reads it.
+ *
+ * `givingFrameId`: the giving effect's frame. Each card it names that is not given (no room for it, RRG 1.8 "Status
+ * Cards", p. 41; or replaced in its window, `statusGiveNotMade`) leaves that effect not fully resolved, so a later
+ * "then" is skipped (RRG 1.8 "'Then'", p. 44). MC65 FAQ p. 18: "Place 3 threat … and stun your identity" with the
+ * identity already stunned does not flip the card. Read when the card would land, never before its window.
  */
 export function giveStatusOrAnnounce(
   ctx: Ctx,
@@ -59,6 +65,7 @@ export function giveStatusOrAnnounce(
   status: StatusName,
   by: StatusGiver,
   countOn?: { readonly frameId: FrameId; readonly name: string },
+  givingFrameId?: FrameId,
 ): number {
   const listens = listensForStatusBeingGiven(ctx.deps);
   const waiting: TriggerEvent[] = [];
@@ -72,12 +79,14 @@ export function giveStatusOrAnnounce(
         sourceInstanceId: by.sourceInstanceId,
         playerId: by.playerId,
         ...(countOn ? { countOn } : {}),
+        ...(givingFrameId ? { givingFrameId } : {}),
       };
       const waits =
         waiting.length > 0 ||
         (listens && canTakeStatus(ctx.state, instanceId, status, ctx.deps) && heard(ctx.state, ctx.deps, event));
       if (waits) waiting.push(event);
       else if (giveStatus(ctx, instanceId, status, by)) given += 1;
+      else markPreThenUnresolved(ctx, givingFrameId, "statusNotGiven", instanceId);
     }
   }
   if (waiting.length > 0) pushEvents(ctx, waiting);
@@ -94,7 +103,20 @@ export const statusStillToGive = (ctx: Ctx, event: BeingGiven): boolean =>
  */
 export function applyStatusBeingGiven(ctx: Ctx, event: BeingGiven): boolean {
   const by = { sourceInstanceId: event.sourceInstanceId, playerId: event.playerId };
-  if (!giveStatus(ctx, event.instanceId, event.status, by)) return false;
+  if (!giveStatus(ctx, event.instanceId, event.status, by)) {
+    statusGiveNotMade(ctx, event);
+    return false;
+  }
   if (event.countOn) addFrameVars(ctx, event.countOn.frameId, { [event.countOn.name]: 1 });
   return true;
+}
+
+/**
+ * A waiting give that placed nothing: its character lost the room for it, or an interrupt replaced it ("discard this
+ * card instead", Solid Sound Constructs, `aos` 50144). Either way the giving effect did not fully resolve. That a
+ * replaced give did not resolve is an engine reading of RRG 1.8 "'Then'" (p. 44) with "Replacement Effect" (p. 37):
+ * the specified effect was replaced, not applied, as a cancelled attack or reveal is reported (`resolve/then.ts`).
+ */
+export function statusGiveNotMade(ctx: Ctx, event: BeingGiven): void {
+  markPreThenUnresolved(ctx, event.givingFrameId, "statusNotGiven", event.instanceId);
 }

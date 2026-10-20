@@ -2,7 +2,7 @@
 
 import { applyMainSchemeTurnsToB } from "./main-scheme-side.js";
 import type { CardId } from "@mc/content";
-import { applyStatusBeingGiven, statusStillToGive } from "./status-being-given.js";
+import { applyStatusBeingGiven, statusGiveNotMade, statusStillToGive } from "./status-being-given.js";
 import { resolveTuck } from "./tuck.js";
 import { resolveImminentAttach } from "./imminent-attach.js";
 import { applyCountersBeingPlaced } from "./counters-being-placed.js";
@@ -175,9 +175,10 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         return;
       }
       // A status card its character no longer has room for (an earlier give of the same effect landed first, or the
-      // character left play) is not about to be given: no "would gain" window, and nothing is logged, as for a give
-      // that places nothing (docs/phase7-wave9.md §3.33; RRG 1.8 "Status Cards", p. 41).
+      // character left play) is not about to be given: no "would gain" window and no give logged, as for a give that
+      // places nothing (docs/phase7-wave9.md §3.33; RRG 1.8 "Status Cards", p. 41); its pre-"then" text is unresolved.
       if (frame.event.kind === "statusBeingGiven" && !statusStillToGive(ctx, frame.event)) {
+        statusGiveNotMade(ctx, frame.event);
         popFrame(ctx);
         return;
       }
@@ -384,6 +385,8 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         if (frame.responsesLater) noLaterResponses(ctx, frame.frameId);
         // A replaced discard from a hand or a deck did not discard its card (docs/phase7-wave9.md §4.1 Q20).
         if (frame.event.kind === "cardBeingDiscarded") wouldDiscardNotMade(ctx, frame.event);
+        // A replaced status card was not given: the giving effect did not fully resolve (`statusGiveNotMade`).
+        if (frame.event.kind === "statusBeingGiven") statusGiveNotMade(ctx, frame.event);
         // A replaced attack or thwart of a labeled ability: the ability waiting beneath resolves no effect
         // (docs/phase7-wave10.md §3.21). A replaced basic power pushed nothing, so there is nothing to undo.
         if (frame.event.kind === "characterWouldAct" && frame.event.abilityFrameId) {

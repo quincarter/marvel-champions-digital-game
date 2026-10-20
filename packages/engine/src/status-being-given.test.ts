@@ -232,6 +232,8 @@ describe("§3.33 statusBeingGiven: an interrupt to a status card about to be giv
         status,
         sourceInstanceId: expect.any(String),
         playerId: P1,
+        // The giving effect's frame, which a give that does not land marks unresolved for a later "then".
+        givingFrameId: expect.any(String),
       };
       expect(beingGiven(result.events, "initiated")).toEqual([expected]);
       expect(beingGiven(result.events, "cancelled")).toEqual([expected]);
@@ -279,6 +281,7 @@ describe("§3.33 statusBeingGiven: an interrupt to a status card about to be giv
         status: "stunned",
         sourceInstanceId: expect.any(String),
         playerId: null,
+        givingFrameId: expect.any(String),
       },
     ]);
     expectReplays(result);

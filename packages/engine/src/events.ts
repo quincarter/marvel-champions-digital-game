@@ -93,7 +93,13 @@ export type PreThenFailure =
    * A `removeCounters` asked for a number of counters and a card it named held fewer (none included), so fewer were
    * removed than the text says. "Remove all counters" asks for no number and never marks.
    */
-  | "countersNotRemoved";
+  | "countersNotRemoved"
+  /**
+   * A `giveStatus` could not give its status card to a card it named: the card is already at its capacity for that
+   * status (RRG 1.8 "Status Cards", p. 41) or is not a character in play. "Place 3 threat on the main scheme and stun
+   * your identity" with the identity already stunned does not fully resolve (MC65 Shadowland insert, FAQ p. 18).
+   */
+  | "statusNotGiven";
 
 export type GameEvent =
   | {

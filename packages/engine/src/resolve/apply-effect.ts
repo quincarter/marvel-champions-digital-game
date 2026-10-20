@@ -1668,7 +1668,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // waits for its "would gain a status card" window (docs/phase7-wave9.md §3.33) counts once it lands.
       const countOn = effect.bind ? { frameId: frame.frameId, name: `${effect.bind}.amount` } : undefined;
       const gives = targets(effect.target).map((instanceId) => ({ instanceId, count: 1 }));
-      const given = giveStatusOrAnnounce(ctx, gives, effect.status, by, countOn);
+      // A card that is not given (no room, or replaced in its window) marks this frame's pre-"then" text unresolved.
+      const given = giveStatusOrAnnounce(ctx, gives, effect.status, by, countOn, frame.frameId);
       if (countOn) addFrameVars(ctx, frame.frameId, { [countOn.name]: given });
       return;
     }

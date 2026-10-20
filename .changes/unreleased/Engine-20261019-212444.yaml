@@ -1,0 +1,3 @@
+kind: Engine
+body: 'Scenario decks can be gathered by trait at setup (the Shadowland trap deck): discards route by printed trait, and a deck reshuffles its discard the moment it runs out, once per batch.'
+time: 2026-10-19T21:24:44.1602043-04:00

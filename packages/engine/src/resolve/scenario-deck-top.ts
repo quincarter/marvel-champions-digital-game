@@ -54,8 +54,15 @@ export function scenarioDeckIsMadeOf(state: GameState, name: string, cardId: Car
   const contents = state.scenarioDecks[name]?.contents;
   const card = state.cardPool[cardId];
   if (!contents || !card) return false;
-  const { encounterSetIds, cardType, trait, cardIds } = contents;
+  const { encounterSetIds, cardType, trait, cardIds, wholeEncounterSetIds } = contents;
   if (cardIds?.includes(card.id)) return true;
+  // A whole set joins, like `cardIds`, whatever the other fields say (the trap deck's Deadly Contraptions, MC65 p. 12).
+  if (
+    wholeEncounterSetIds !== undefined &&
+    "encounterSetIds" in card &&
+    card.encounterSetIds.some((set: string) => wholeEncounterSetIds.includes(set))
+  )
+    return true;
   if (encounterSetIds === undefined && cardType === undefined && trait === undefined) return false;
   if (cardType !== undefined && card.type !== cardType) return false;
   if (trait !== undefined && !("traits" in card && (card.traits as readonly string[]).includes(trait))) return false;

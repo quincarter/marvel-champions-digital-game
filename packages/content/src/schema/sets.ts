@@ -345,7 +345,23 @@ export interface ScenarioSeparateDeck {
      * together with the Cornered! treachery to create the show deck" (`mojo` 39015a; docs/phase7-wave6.md §3.66).
      */
     readonly cardIds?: readonly CardId[];
+    /**
+     * Encounter sets every card of which joins the deck, besides the ones the other fields match: the trap deck takes
+     * "each TRAP! treachery from the encounter deck [...] together with the Deadly Contraptions set" (MC65 p. 12).
+     */
+    readonly wholeEncounterSetIds?: readonly EncounterSetId[];
   };
+  /**
+   * Discards routed by trait (the trap deck, MC65 pp. 12-13): a card with this printed trait that would be discarded
+   * goes to this deck's discard pile wherever it is, and a card without it goes to its encounter discard pile even when
+   * it was drawn from this deck. Needs `discardPile: "own"`; the deck never becomes its cards' home.
+   */
+  readonly discardByTrait?: Trait;
+  /**
+   * Built during scenario setup, right after the encounter deck, with no card text asking ("During setup, in addition
+   * to creating the encounter deck, find each TRAP! treachery", MC65 p. 12). Absent: a card's `Setup:` builds it.
+   */
+  readonly buildAtSetup?: true;
   /**
    * `own`: a discard pile of its own. `encounter`: its cards are discarded to the encounter discard pile. `none`: the
    * deck has no discard pile (the show deck, insert p. 11): its cards print where they go when discarded, and one
