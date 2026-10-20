@@ -156,17 +156,23 @@ describe("abilityFaceOf for a main scheme's Setup", () => {
 void (null as unknown as PlayerId);
 
 describe("facedown encounter cards dealt to the players", () => {
-  test("the board counts them, as a number and never a card, and counts none when none are out", async () => {
+  test("each seat lists its own, as ids and never a card, and lists none when none are out", async () => {
     const { store } = await started(HORSEMEN);
     const game = store.state.game!;
     const me = store.state.perspectiveId!;
-    expect(boardModel(game, me, POOL_DEPS).dealtFacedown).toBe(0);
+    const before = boardModel(game, me, POOL_DEPS);
+    expect(before.myDealt).toEqual([]);
+    expect(before.team.every((seat) => seat.dealtFacedown.length === 0)).toBe(true);
     const dealt = {
       ...game,
-      players: game.players.map((player, index) =>
-        index === 0 ? { ...player, dealtEncounter: [game.mainScheme.instanceId] } : player,
+      players: game.players.map((player) =>
+        player.playerId === me
+          ? { ...player, dealtEncounter: [game.mainScheme.instanceId] }
+          : { ...player, dealtEncounter: [game.mainScheme.instanceId, game.mainScheme.instanceId] },
       ),
     };
-    expect(boardModel(dealt, me, POOL_DEPS).dealtFacedown).toBe(1);
+    const after = boardModel(dealt, me, POOL_DEPS);
+    expect(after.myDealt).toEqual([game.mainScheme.instanceId]);
+    for (const seat of after.team) expect(seat.dealtFacedown).toHaveLength(2);
   });
 });

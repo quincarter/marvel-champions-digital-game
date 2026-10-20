@@ -81,6 +81,8 @@ import {
 import { bandHeightWithMinions, MINION_ROW_MIN_HEIGHT } from "../../view/enemies-band.js";
 import { pileKey, type BoardDrawContext } from "./context.js";
 import { drawPile } from "./piles.js";
+import { drawDealtPile } from "./dealt-pile.js";
+import { dealtPileParts, dealtWords } from "../../view/dealt-pile.js";
 import { addTapTarget } from "./tap-target.js";
 import { dimAlpha, focusKey, targetState } from "./selection.js";
 import { playAreaRow, separateColumnWidth, separateRowHeight, sliceWithin } from "../../view/play-area-row.js";
@@ -879,13 +881,7 @@ export function drawEncounter(
 ): void {
   const { scene } = ctx;
   type Pile = {
-    readonly kind:
-      | "encounterDeck"
-      | "encounterDiscard"
-      | "dealtFacedown"
-      | "scenarioArea"
-      | "scenarioDeck"
-      | "scenarioDiscard";
+    readonly kind: "encounterDeck" | "encounterDiscard" | "scenarioArea" | "scenarioDeck" | "scenarioDiscard";
     readonly name: string;
     readonly count: number;
     /** What the count chip reads when it is not the bare count: a scenario area's "3/5" against its limit. */
@@ -941,19 +937,6 @@ export function drawEncounter(
       instanceId: model.encounterDiscardTopInstanceId,
       siblings: model.encounterDiscard,
     },
-    // Cards dealt to the players facedown (Expert setup): a pile with a count and no tap target, since nobody reads them.
-    ...(model.dealtFacedown > 0
-      ? [
-          {
-            kind: "dealtFacedown" as const,
-            name: "FACEDOWN",
-            count: model.dealtFacedown,
-            art: CARD_BACKS.encounter,
-            instanceId: null,
-            siblings: [],
-          },
-        ]
-      : []),
     ...model.scenarioDecks.flatMap(scenarioDeckPiles),
     ...model.scenarioAreas.map((area): Pile => ({
       kind: "scenarioArea",
@@ -1565,6 +1548,8 @@ export function drawTeam(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
     if (seat.eliminated) drawEliminatedSeat(scene, drawn, seat, layout.rowStyle);
     else drawLiveSeat(ctx, drawn, seat, layout.rowStyle);
     ctx.makeTapTarget(drawn, seat.identityInstanceId, () => ctx.inspect(seat.identityInstanceId));
+    if (!seat.eliminated)
+      drawDealtPile(ctx, drawn, "seat", seat.playerId, seat.dealtFacedown, layout.rowStyle === "one-line");
     // A seat holding an Action for this turn (RRG "Player Turn", pp. 34-35): a button takes the board to that seat.
     if (!seat.eliminated && appSession().store.state.offTurnSeats.includes(seat.playerId)) {
       const oneLine = layout.rowStyle === "one-line";
@@ -1638,7 +1623,15 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow, rowStyle:
       scene,
       row.x + row.width - 6,
       row.y + row.height / 2,
-      [seat.isFirstPlayer ? "1st" : "", seat.done ? "done" : "", hp].filter(Boolean).join(" \u00b7 ").toUpperCase(),
+      [
+        seat.dealtFacedown.length > 0 ? dealtWords(seat.dealtFacedown.length) : "",
+        seat.isFirstPlayer ? "1st" : "",
+        seat.done ? "done" : "",
+        hp,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+        .toUpperCase(),
       typeRole.label,
       surface.ink.hex,
       ink.label * dim,
@@ -1652,9 +1645,11 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow, rowStyle:
     );
     return;
   }
+  // Facedown cards dealt to this hero ride on the name line (`dealt-pile.ts`): the name gives up the width they take.
+  const pile = seat.dealtFacedown.length > 0 ? dealtPileParts(row, "seat") : null;
   fitText(
     scene.add.text(row.x + 6, row.y + offsets.name, seat.name, textStyle(typeRole.rowTitle, surface.ink.hex, dim)),
-    row.width - 12 - rightColumn,
+    pile ? Math.max(40, pile.rect.x - 6 - (row.x + 6)) : row.width - 12 - rightColumn,
     typeRole.rowTitle.size,
   );
   // "turn done" sits at the right of this line, and a Team-Up ring takes the row's right edge: when the line does not

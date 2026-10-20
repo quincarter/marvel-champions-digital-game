@@ -56,6 +56,16 @@ export interface BoardFrame {
   readonly innerScroll: Rect[];
   /** The tabbed hand's clipped strip this draw (empty elsewhere): where a hand card shows and takes presses. */
   readonly handStrip: Rect[];
+  /** Each pile of facedown encounter cards dealt to a player, drawn this draw: where the hover popover opens on the card back. */
+  readonly facedownHovers: FacedownHover[];
+}
+
+/** A pile of facedown dealt encounter cards the desktop hover popover can open on: the card back, with `caption` under it. */
+export interface FacedownHover {
+  /** Unique per player, and never an instance id (the popover shares one pending/shown slot with the cards). */
+  readonly key: string;
+  readonly rect: Rect;
+  readonly caption: string;
 }
 
 export const emptyFrame = (): BoardFrame => ({
@@ -63,6 +73,7 @@ export const emptyFrame = (): BoardFrame => ({
   focusRects: new Map(),
   pileRects: new Map(),
   handStrip: [],
+  facedownHovers: [],
   buttons: [],
   rings: [],
   masks: [],
@@ -85,7 +96,8 @@ export const pileKey = (
     | "separateDeck"
     | "separateDiscard"
     | "scenarioDeck"
-    | "scenarioDiscard",
+    | "scenarioDiscard"
+    | "dealt",
   playerId?: PlayerId,
   name?: string,
 ): string => [kind, playerId, name].filter((part) => part !== undefined).join(":");
@@ -134,6 +146,8 @@ export interface BoardDrawContext {
     /** The clipped strip the card sits in (the phone's hand): presses outside it are not the card's. */
     clip?: Rect,
   ): void;
+  /** The hover caption for a player's pile of facedown dealt encounter cards: what it is, why it is there, when it flips. */
+  dealtCaptionOf(ids: readonly InstanceId[]): string;
   /** Opens a card. `siblings` is the list ◂ ▸ steps through; without it, the hand when the card is in it. */
   inspect(id: InstanceId, siblings?: readonly InstanceId[]): void;
   /** Fans a pile out (`scenes/pile-view.ts`): every card in it, most recent first. */

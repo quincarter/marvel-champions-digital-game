@@ -8,7 +8,7 @@
  */
 
 import type Phaser from "phaser";
-import { cardOf, type GameEvent, type InstanceId, type PlayerId, type ZoneId } from "@mc/engine";
+import { cardOf, getPlayer, type GameEvent, type InstanceId, type PlayerId, type ZoneId } from "@mc/engine";
 import { artFor, CARD_BACKS, type ArtSource } from "../../art/art-source.js";
 import { drawArt } from "../../art/card-art.js";
 import { appSession } from "../../session.js";
@@ -72,6 +72,7 @@ const WIPE_COLORS: Record<
 };
 import { beatsFrom, type Beat } from "../../view/beats.js";
 import { faceOf } from "../../view/board-model.js";
+import { dealtPileParts } from "../../view/dealt-pile.js";
 import { exhaustMotionsFrom, type ExhaustDirection } from "../../view/exhaust-motion.js";
 import { defeatFlashesFrom, hpTicksFrom, type HpTick } from "../../view/hp-motion.js";
 import type { BoardLayout, Rect } from "../../view/layout.js";
@@ -786,8 +787,12 @@ export class BoardMotion {
 
     const anchorBefore = (instanceId: InstanceId, zone: ZoneId): Rect | null =>
       previous.hitRects.get(instanceId) ?? pileAnchor(zone, layout, perspectiveId, previous);
+    // A card dealt facedown flies to its player's pile even when it is already in play by now (dealt and revealed in
+    // one command): the pile's place, never the card's.
     const anchorAfter = (instanceId: InstanceId, zone: ZoneId): Rect | null =>
-      current.hitRects.get(instanceId) ?? pileAnchor(zone, layout, perspectiveId, current);
+      zone.kind === "dealtEncounter"
+        ? pileAnchor(zone, layout, perspectiveId, current)
+        : (current.hitRects.get(instanceId) ?? pileAnchor(zone, layout, perspectiveId, current));
     // Only a scan already on the GPU — never a fresh request, which would ask the network for a card just to
     // decorate a 220ms ghost that will usually finish before the fetch does. `scene.textures.exists` is exactly
     // the same check `card-art.ts`'s own `request()` makes before it would otherwise queue a load.
@@ -910,7 +915,9 @@ export class BoardMotion {
       // "that card" rather than as a generic parchment tile; the plain
       // rectangle is the fallback for everything else — see `view/travel.ts`.
       // A draw comes off the top of a facedown deck, so it flies as the card back; its face shows once it lands.
-      const backKey = travel.draw && this.#scene.textures.exists(CARD_BACKS.player.key) ? CARD_BACKS.player.key : null;
+      // A facedown deal is the encounter card back, whatever the card turned out to be.
+      const backArt = travel.facedown ? CARD_BACKS.encounter : CARD_BACKS.player;
+      const backKey = (travel.draw || travel.facedown) && this.#scene.textures.exists(backArt.key) ? backArt.key : null;
       const image =
         (backKey ?? travel.art?.key)
           ? drawArt(
@@ -923,7 +930,7 @@ export class BoardMotion {
       const ghost = scene.add.graphics();
       if (!image)
         ghost
-          .fillStyle(surface.parchment.hex, travel.draw ? 1 : 0.55)
+          .fillStyle(surface.parchment.hex, travel.draw || travel.facedown ? 1 : 0.55)
           .fillRect(-halfW, -halfH, travel.from.width, travel.from.height);
       ghost.lineStyle(3, accent.heroRed.hex, 0.85).strokeRect(-halfW, -halfH, travel.from.width, travel.from.height);
 
@@ -973,6 +980,21 @@ function pileAnchor(zone: ZoneId, layout: BoardLayout, perspectiveId: PlayerId, 
       return frame.pileRects.get(pileKey(zone.kind)) ?? layout.zones.encounter;
     case "villainArea":
       return layout.zones.enemies;
+    // Facedown cards dealt to a player sit in a small pile on their identity card or team row (`dealt-pile.ts`). A deal
+    // flown on a frame that did not draw the pile (it was revealed in the same command) lands where the pile would be.
+    case "dealtEncounter": {
+      const drawn = frame.pileRects.get(pileKey("dealt", zone.playerId));
+      if (drawn) return drawn;
+      const game = appSession().store.state.game;
+      const identity = game ? getPlayer(game, zone.playerId)?.identity.instanceId : undefined;
+      const anchor = identity ? frame.hitRects.get(identity) : undefined;
+      const mine = zone.playerId === perspectiveId;
+      if (anchor) {
+        const kind = mine ? (layout.compactPlayerRow === true ? "compact" : "wide") : "seat";
+        return dealtPileParts(anchor, kind)?.rect ?? anchor;
+      }
+      return mine ? layout.zones.me : layout.zones.team;
+    }
     case "deck":
     case "discard":
       if (zone.playerId !== perspectiveId) return layout.zones.team;

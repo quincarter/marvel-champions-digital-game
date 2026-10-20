@@ -86,6 +86,8 @@ import { MECHANIC_TRYIT_LESSONS } from "../guide/mechanic-lessons.js";
 import { MECHANIC_TRYITS, mechanicLessonDoneKey } from "../guide/mechanic-tryits.js";
 import { drawActionBar } from "./board/action-bar.js";
 import { drawCharacter } from "./board/character-panel.js";
+import { drawDealtPile } from "./board/dealt-pile.js";
+import { dealtCaption, dealtReasonsOf } from "../view/dealt-pile.js";
 import { drawChrome, drawPhoneTabs } from "./board/chrome.js";
 import { BoardFirstPlayerToken } from "./board/first-player-token.js";
 import { emptyFrame, type BoardDrawContext, type BoardFrame } from "./board/context.js";
@@ -400,6 +402,7 @@ export class BoardScene extends Phaser.Scene {
     // The desktop card hover popover: one listener set on the scene's pointer, not one per card.
     this.#hover = new HoverPreview(this, {
       cards: () => this.#frame.hitRects,
+      facedown: () => this.#frame.facedownHovers,
       area: (pointer) => {
         const { width, height } = this.scale.gameSize;
         // A choice sheet the docked villain phase covers is hidden and inert (`sheetIsCovered`): it is no overlay.
@@ -1264,6 +1267,10 @@ export class BoardScene extends Phaser.Scene {
       actionsHeld: this.#villainReplay !== null,
       makeTapTarget: (rect, id, onTap, drag, onHover, clip) =>
         this.#makeTapTarget(rect, id, onTap, drag, onHover, clip),
+      dealtCaptionOf: (ids) => {
+        const game = appSession().store.state.game;
+        return dealtCaption(ids.length, game ? dealtReasonsOf(this.#cardHistory, ids, game) : []);
+      },
       inspect: (id, siblings) => this.#inspect(id, siblings),
       openPile: (name, ids) => this.#openPile(name, ids),
       inspectReference: (reference) => this.scene.launch(SCENES.inspect, { reference }),
@@ -1326,6 +1333,8 @@ export class BoardScene extends Phaser.Scene {
     const compactRow = layout.compactPlayerRow === true;
     if (zones.me && compactRow) drawCompactIdentity(ctx, zones.me, model.me, this.#villainSeatNote);
     else if (zones.me) drawCharacter(ctx, zones.me, model.me, { shape: "wide", playerId: model.perspectiveId });
+    // The facedown encounter cards dealt to you, tucked in the identity card's corner; after the panel, so the pile takes the pointer.
+    if (zones.me) drawDealtPile(ctx, zones.me, compactRow ? "compact" : "wide", model.perspectiveId, model.myDealt);
     if (zones.playArea) drawPlayArea(ctx, zones.playArea, model, compactRow ? { compact: true } : {});
     if (zones.team) drawTeam(ctx, zones.team, model);
     if (zones.log && !logGate.locked) this.#frame.innerScroll.push(setAside?.log ?? zones.log);

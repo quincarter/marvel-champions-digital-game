@@ -12,9 +12,10 @@
 
 import Phaser from "phaser";
 import { cardOf, getInstance, type InstanceId } from "@mc/engine";
-import { defaultFaceFor, type CardFace } from "../art/art-source.js";
+import { CARD_BACKS, defaultFaceFor, type CardFace } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { CARDS_BY_ID, POOL_DEPS } from "../content/pool.js";
+import type { FacedownHover } from "../scenes/board/context.js";
 import { SCENES } from "../scenes/keys.js";
 import { appSession } from "../session.js";
 import { surface, typeRole } from "../tokens.js";
@@ -43,6 +44,8 @@ import { formFactorFor, type Rect } from "../view/layout.js";
 /** Above every other thing the Board draws (the phase band is 1150). */
 const HOVER_DEPTH = 2000;
 const STRIP_GAP = 6;
+/** A card back's shape, for a popover whose scan has not arrived. */
+const BACK_SHAPE: Rect = { x: 0, y: 0, width: 69, height: 100 };
 /** The scheme's threat meter under a scheme's popover: the board's own, a little taller to read at a glance. */
 const METER_HEIGHT = 26;
 const FADE_MS = 90;
@@ -62,6 +65,11 @@ export interface HoverPreviewDeps {
    * here from its own scroll and clips them to its viewport (`clipHoverRect`) rather than noting them at draw time.
    */
   readonly cardIds?: () => ReadonlyMap<string, HoverCardIdRect>;
+  /**
+   * Piles of facedown encounter cards dealt to a player (`FacedownHover`): the popover shows the encounter card back
+   * with the pile's caption under it, never a card's face. Checked before `cards`, since a pile sits on an identity card.
+   */
+  readonly facedown?: () => readonly FacedownHover[];
   /**
    * The area the popover may use for this pointer, or null when it must not show at all (`view/card-hover.ts`
    * `hoverArea` for the table, `villainHoverArea` for the villain phase).
@@ -248,6 +256,11 @@ export class HoverPreview {
     const bounds = top ? (top as Phaser.GameObjects.Zone).getBounds() : null;
     const topmost = bounds ? { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height } : null;
     const settings = appSession().settings;
+    const piles = this.deps.facedown?.() ?? [];
+    if (piles.length > 0) {
+      const pile = hoverCandidateAt(x, y, new Map(piles.map((entry) => [entry.key, entry.rect])), topmost);
+      if (pile !== null) return pile;
+    }
     const found = this.#gameCardAt(x, y, topmost);
     if (found !== null) {
       const { id, rect } = found;
@@ -312,6 +325,20 @@ export class HoverPreview {
     const area = this.#area();
     if (this.#destroyed || !pointer || !area || pointer.isDown || this.#candidate(pointer, area) !== id) {
       this.#clear();
+      return;
+    }
+    const pile = this.deps.facedown?.().find((entry) => entry.key === id);
+    if (pile) {
+      const built = this.#buildFacedown(pile, area);
+      this.#pendingId = null;
+      this.#shownId = id;
+      this.#waitingKey = built.waitingFor;
+      this.#visual = built.container;
+      this.#size = built.size;
+      this.#place(pointer, area);
+      if (appSession().settings.reducedMotion) return;
+      built.container.setAlpha(0);
+      this.scene.tweens.add({ targets: built.container, alpha: 1, duration: FADE_MS });
       return;
     }
     const slot = slotOfHoverKey(id);
@@ -450,6 +477,57 @@ export class HoverPreview {
       container,
       size: { width: size.width, height: size.height + extra },
       waitingFor: image ? null : (model.art?.key ?? null),
+    };
+  }
+
+  /** The popover for a pile of facedown dealt encounter cards: the encounter card back, and under it what it is and why it is there. */
+  #buildFacedown(
+    pile: FacedownHover,
+    area: Rect,
+  ): {
+    readonly container: Phaser.GameObjects.Container;
+    readonly size: Size;
+    readonly waitingFor: string | null;
+  } {
+    const key = cardArt(this.scene).request(this.scene, CARD_BACKS.encounter);
+    const source = key && this.scene.textures.exists(key) ? this.scene.textures.get(key).getSourceImage() : null;
+    const aspect = source && source.width > 0 && source.height > 0 ? source.width / source.height : null;
+    const scale = appSession().settings.cardHoverScale;
+    const container = this.scene.add.container(0, 0).setDepth(HOVER_DEPTH);
+    // The pile's rect is a small corner, so the popover is sized as a whole card (`BACK_SHAPE` when the scan is not here yet).
+    let size = hoverCardSize(BACK_SHAPE, aspect, scale, area);
+    const caption = this.scene.add.text(0, 0, pile.caption, {
+      ...textStyle({ ...typeRole.body, size: 18, weight: 700 }, surface.paper.hex),
+      wordWrap: { width: Math.max(1, size.width - 20) },
+    });
+    const room: Rect = { ...area, height: Math.max(1, area.height - caption.height - 14 - STRIP_GAP) };
+    const fitted = hoverCardSize(BACK_SHAPE, aspect, scale, room);
+    if (fitted.width < size.width) {
+      size = fitted;
+      caption.setWordWrapWidth(Math.max(1, size.width - 20));
+    }
+    const stripHeight = caption.height + 14;
+    const card: Rect = { x: 0, y: 0, width: size.width, height: size.height };
+    const shadow = this.scene.add.graphics();
+    shadow.fillStyle(surface.ink.hex, 0.35).fillRect(5, 6, size.width, size.height + STRIP_GAP + stripHeight);
+    container.add(shadow);
+    const image = drawArt(this.scene, key, card);
+    if (image) container.add(image);
+    else {
+      const plain = this.scene.add.graphics();
+      plain.fillStyle(surface.paper.hex, 1).fillRect(0, 0, size.width, size.height);
+      plain.lineStyle(4, surface.ink.hex, 1).strokeRect(2, 2, size.width - 4, size.height - 4);
+      container.add(plain);
+    }
+    const bandTop = size.height + STRIP_GAP;
+    const bar = this.scene.add.graphics();
+    bar.fillStyle(surface.ink.hex, 1).fillRect(0, bandTop, size.width, stripHeight);
+    caption.setPosition(10, bandTop + 7);
+    container.add([bar, caption]);
+    return {
+      container,
+      size: { width: size.width, height: size.height + STRIP_GAP + stripHeight },
+      waitingFor: image ? null : key,
     };
   }
 

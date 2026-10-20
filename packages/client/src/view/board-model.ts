@@ -692,6 +692,8 @@ export interface SeatRow {
   readonly effects: readonly string[];
   /** Cards this seat controls that another player owns: "Heroic Intuition · from Black Panther". */
   readonly borrowed: readonly string[];
+  /** Facedown encounter cards dealt to this seat and not yet revealed, oldest first. Ids only: nobody reads the cards. */
+  readonly dealtFacedown: readonly InstanceId[];
 }
 
 /** The faceup top card of a player's deck (Magik): the card itself, its price from the top, and whether it can be played. */
@@ -791,11 +793,11 @@ export interface BoardModel {
   readonly myDiscardTop: ArtSource | null;
   readonly encounterPiles: PileCounts;
   /**
-   * Encounter cards dealt facedown to the players and not yet revealed (Expert setup deals one per player in the Age
-   * of Apocalypse; they flip in step four of the first villain phase). Public as a count, never as a card: nobody
-   * looks at them (MC45 p. 3). Zero when none are out.
+   * Encounter cards dealt facedown to you and not yet revealed (Expert setup deals one per player in the Age of
+   * Apocalypse; the villain phase deals them; they flip in step four). Public as a count, never as a card: nobody looks
+   * at them (MC45 p. 3). A teammate's are on their `SeatRow`. Empty when none are out.
    */
-  readonly dealtFacedown: number;
+  readonly myDealt: readonly InstanceId[];
   /** The top of the encounter discard, which is faceup at the table. */
   readonly encounterDiscardTop: ArtSource | null;
   /** The encounter deck's own top card, for Inspect — facedown at the table (D08's own subtitle: "any card, anywhere, including facedown counts"), so the sheet shows a card back rather than its face. Null with an empty deck. */
@@ -1146,7 +1148,7 @@ export function boardModel(
       deck: activeEncounterDeck(state).deck.length,
       discard: activeEncounterDeck(state).discard.length,
     },
-    dealtFacedown: state.players.reduce((total, player) => total + player.dealtEncounter.length, 0),
+    myDealt: [...me.dealtEncounter],
     myDiscard: me.discard,
     myDiscardTop: topOfDiscard(state, me.discard),
     encounterDiscardTop: topOfDiscard(state, activeEncounterDeck(state).discard),
@@ -2222,6 +2224,7 @@ export function seatRow(state: GameState, playerId: PlayerId, deps: EngineDeps):
         ? [`${cardOf(state, id)?.name ?? "a card"} · from ${playerName(state, ownerId)}`]
         : [];
     }),
+    dealtFacedown: [...player.dealtEncounter],
   };
 }
 
