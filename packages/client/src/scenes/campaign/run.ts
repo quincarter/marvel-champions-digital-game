@@ -377,12 +377,15 @@ export class CampaignRunScene extends Phaser.Scene {
     const footerY = artRect.y + artRect.height + 8;
     // Current's footer sits on the ink ground (paper text); finished's is now paper itself, and sealed's is
     // parchment — both read with ink text.
-    const footerColor = current ? surface.paper.hex : surface.ink.hex;
+    const open = issue.status === "open";
+    const footerColor = current || open ? surface.paper.hex : surface.ink.hex;
     const kicker = sealed
       ? `#${issue.number} · SEALED`
-      : current
-        ? `#${issue.number} · ${(issue.villain ?? "").toUpperCase()} · UP NEXT`
-        : `#${issue.number} · ${(issue.villain ?? "").toUpperCase()}`;
+      : open
+        ? "OPEN"
+        : current
+          ? `#${issue.number} · ${(issue.villain ?? "").toUpperCase()} · UP NEXT`
+          : `#${issue.number} · ${(issue.villain ?? "").toUpperCase()}`;
     const kickerLabel = this.add
       .text(rect.x + 10, footerY, kicker, textStyle(typeRole.label, footerColor, current ? 0.9 : sealed ? 0.6 : 0.75))
       .setFontSize(11)
@@ -561,12 +564,15 @@ export class CampaignRunScene extends Phaser.Scene {
       order.push(key);
     }
 
-    const footerColor = current ? surface.paper.hex : surface.ink.hex;
+    const open = issue.status === "open";
+    const footerColor = current || open ? surface.paper.hex : surface.ink.hex;
     const kicker = sealed
       ? `#${issue.number} · SEALED`
-      : current
-        ? `#${issue.number} · ${(issue.villain ?? "").toUpperCase()} · UP NEXT`
-        : `#${issue.number} · ${(issue.villain ?? "").toUpperCase()}`;
+      : open
+        ? "OPEN"
+        : current
+          ? `#${issue.number} · ${(issue.villain ?? "").toUpperCase()} · UP NEXT`
+          : `#${issue.number} · ${(issue.villain ?? "").toUpperCase()}`;
     let textY = artRect.y + artRect.height + 6;
     const kickerLabel = this.add
       .text(rect.x + pad, textY, kicker, textStyle(typeRole.label, footerColor, current ? 0.9 : sealed ? 0.6 : 0.75))
@@ -649,7 +655,11 @@ export class CampaignRunScene extends Phaser.Scene {
     const textX = current ? rect.x + 10 : thumbRect.x + thumbRect.width + 10;
     const textWidth = current ? rect.width - 20 : rect.width - (textX - rect.x) - 10;
     const footerColor = current ? surface.paper.hex : surface.ink.hex;
-    const kicker = sealed ? `#${issue.number} · SEALED` : `#${issue.number} · ${(issue.villain ?? "").toUpperCase()}`;
+    const kicker = sealed
+      ? `#${issue.number} · SEALED`
+      : issue.status === "open"
+        ? "OPEN"
+        : `#${issue.number} · ${(issue.villain ?? "").toUpperCase()}`;
     let textY = current ? thumbRect.y + thumbRect.height + 6 : rect.y + 8;
     const kickerLabel = this.add
       .text(textX, textY, kicker, textStyle(typeRole.label, footerColor, sealed && !current ? 0.6 : 0.75))

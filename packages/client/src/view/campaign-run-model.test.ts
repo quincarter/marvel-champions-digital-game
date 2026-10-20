@@ -14,7 +14,7 @@ import {
   type CampaignRunnerResult,
   type CampaignSeatSetup,
 } from "@mc/engine";
-import { GMW_CAMPAIGN_DEFINITION, TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
+import { campaignDefinitionOf, GMW_CAMPAIGN_DEFINITION, TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
 import { TRORS_STARTER_DECKS } from "@mc/content";
 import { buildScenario, POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import type { SessionConfig } from "../engine/host.js";
@@ -245,5 +245,69 @@ describe("campaignRunModel", () => {
       cardName,
     );
     expect(trorsModel.issues[0]?.pageCrop?.file).toBe("01-siege");
+  });
+});
+
+describe("campaignRunModel on a choice graph (Fear No Evil)", () => {
+  const FNE = campaignDefinitionOf("fne")!;
+  const run = (over: Record<string, unknown> = {}) =>
+    ({
+      ...freshLog(),
+      name: "Fear No Evil",
+      box: "MC60",
+      position: { nextNodeId: null, resolved: {}, progress: {} },
+      ...over,
+    }) as unknown as Parameters<typeof campaignRunModel>[0];
+
+  it("a fresh run: the five underlings are open with a title, the Kingpin sealed, issue 1 of 6, not finished", () => {
+    const model = campaignRunModel(run(), FNE, storyFor("fne"), cardName);
+    expect(model.finished).toBe(false);
+    expect(model.issueNumber).toBe(1);
+    expect(model.totalIssues).toBe(6);
+    const open = model.issues.filter((issue) => issue.status === "open");
+    expect(open).toHaveLength(5);
+    expect(open.every((issue) => issue.title !== "Sealed" && issue.number === 0)).toBe(true);
+    expect(model.issues.at(-1)).toMatchObject({ nodeId: "kingpin", status: "sealed", number: 6 });
+  });
+
+  it("a composed scenario is current and numbered after the settled ones; a win moves up the count", () => {
+    const model = campaignRunModel(
+      run({
+        attempt: { nodeId: "protection-racket" },
+        position: { nextNodeId: null, resolved: { "the-getaway": "completed" }, progress: {} },
+      }),
+      FNE,
+      storyFor("fne"),
+      cardName,
+    );
+    expect(model.issueNumber).toBe(2);
+    expect(model.issues.map((issue) => [issue.nodeId, issue.status, issue.number])).toEqual([
+      ["the-getaway", "finished", 1],
+      ["protection-racket", "current", 2],
+      ["art-museum-heist", "open", 0],
+      ["the-raft-breakout", "open", 0],
+      ["stop-the-presses", "open", 0],
+      ["kingpin", "sealed", 6],
+    ]);
+  });
+
+  it("the Kingpin opens once every underling is down", () => {
+    const resolved = Object.fromEntries(
+      FNE.graph.nodes.filter((node) => node.id !== "kingpin").map((node) => [node.id, "completed"]),
+    );
+    const model = campaignRunModel(
+      run({ position: { nextNodeId: null, resolved, progress: {} } }),
+      FNE,
+      storyFor("fne"),
+      cardName,
+    );
+    expect(model.issues.at(-1)).toMatchObject({ nodeId: "kingpin", status: "open" });
+    expect(model.issueNumber).toBe(6);
+  });
+
+  it("a lost campaign seals what was left", () => {
+    const model = campaignRunModel(run({ status: "lost" }), FNE, storyFor("fne"), cardName);
+    expect(model.finished).toBe(true);
+    expect(model.issues.some((issue) => issue.status === "open")).toBe(false);
   });
 });

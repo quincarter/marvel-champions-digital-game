@@ -103,7 +103,12 @@ export function lostAtLineOf(
   return nodeId === null ? null : `Campaign lost at issue #${nodeIds.indexOf(nodeId) + 1}`;
 }
 
-export type RunIssueStatus = "finished" | "current" | "sealed";
+/**
+ * `open` is a `choice` graph's (Fear No Evil) unresolved scenario the group may still pick: nothing about it is a
+ * spoiler (the briefing lists the same scenarios), so its art shows. `sealed` stays for what is not yet reachable
+ * (the finale before every underling is down) and for everything left once a run has ended.
+ */
+export type RunIssueStatus = "finished" | "current" | "open" | "sealed";
 
 /**
  * Where a page-based issue's own comic page (`docs/campaign-client-per-box.md` §4) crops for The Run: the page
@@ -127,6 +132,7 @@ export interface RunPageCrop {
 
 export interface RunIssueRow {
   readonly nodeId: string;
+  /** 1-based. A `choice` graph numbers by play order, so an `open` issue (not yet played) has no number: 0. */
   readonly number: number;
   /** The villain's billed name — only known for a finished or current issue; null while sealed. */
   readonly villain: string | null;
@@ -323,21 +329,66 @@ function resultLineFor(
   return detail ? `${head} · ${detail}` : head;
 }
 
+const finaleIdOf = (definition: CampaignDefinition): string | null =>
+  definition.graph.kind === "choice" ? (definition.graph.finale?.nodeId ?? null) : null;
+
+/** A `choice` graph's run order: settled issues as resolved, the composed attempt, the open ones, the finale last. */
+function choiceOrder(
+  definition: CampaignDefinition,
+  resolved: Readonly<Record<string, string>>,
+  attemptId: string | null,
+): readonly string[] {
+  const ids = definition.graph.nodes.map((node) => node.id);
+  const finaleId = finaleIdOf(definition);
+  const done = Object.keys(resolved).filter((id) => ids.includes(id));
+  const rest = ids.filter((id) => !done.includes(id) && id !== finaleId);
+  const current = attemptId && rest.includes(attemptId) ? [attemptId] : [];
+  return [
+    ...done,
+    ...current,
+    ...rest.filter((id) => !current.includes(id)),
+    ...(finaleId && !done.includes(finaleId) ? [finaleId] : []),
+  ];
+}
+
 export function campaignRunModel(
-  record: CampaignLog & { readonly name: string; readonly box: string },
+  record: CampaignLog & {
+    readonly name: string;
+    readonly box: string;
+    /** The composed attempt (`CampaignRecord.attempt`): the one place a `choice` graph names its current issue. */
+    readonly attempt?: { readonly nodeId: string } | null;
+  },
   definition: CampaignDefinition,
   story: CampaignStory | undefined,
   cardName: CardNameOf = (id) => id as string,
 ): CampaignRunModel {
-  const nodeIds = definition.graph.nodes.map((node) => node.id);
-  const currentId = record.position.nextNodeId;
+  const choice = definition.graph.kind === "choice";
+  const currentId = record.attempt?.nodeId ?? record.position.nextNodeId;
+  // A `choice` graph has no printed order: issues are numbered in the order they are played (settled ones as they
+  // were resolved, then the one in hand), and the rest follow, the finale last.
+  const nodeIds = choice
+    ? choiceOrder(definition, record.position.resolved, currentId)
+    : definition.graph.nodes.map((node) => node.id);
+  const ended = record.status !== "active";
+  const finaleId = finaleIdOf(definition);
+  const finaleReady = definition.graph.nodes.every(
+    (node) => node.id === finaleId || record.position.resolved[node.id] === "completed",
+  );
   const heroLabel = heroLabelOf(record.seats, cardName);
   const unlisted = unlistedFieldIds(definition);
-  const lostAt = lostAtNodeIdOf(record, nodeIds);
-  const issues: RunIssueRow[] = definition.graph.nodes.map((node) => {
+  const lostAt = choice ? null : lostAtNodeIdOf(record, nodeIds);
+  const nodes = nodeIds.map((id) => definition.graph.nodes.find((node) => node.id === id)!);
+  const issues: RunIssueRow[] = nodes.map((node) => {
     const resolved = record.position.resolved[node.id];
     const isCurrent = node.id === currentId;
-    const status: RunIssueStatus = isCurrent ? "current" : resolved || node.id === lostAt ? "finished" : "sealed";
+    const reachable = !choice || (!ended && (node.id !== finaleId || finaleReady));
+    const status: RunIssueStatus = isCurrent
+      ? "current"
+      : resolved || node.id === lostAt
+        ? "finished"
+        : reachable && choice
+          ? "open"
+          : "sealed";
     const issueStory = issueStoryFor(definition.campaignId as string, node.id);
     const title = issueStory?.title ?? node.label;
     // A page-based issue's own crop is just art layout — never a spoiler on its own (it's shown pixelated while
@@ -387,6 +438,21 @@ export function campaignRunModel(
         pageCrop,
       };
     }
+    if (status === "open") {
+      return {
+        nodeId: node.id,
+        number: 0,
+        villain: null,
+        title,
+        status,
+        won: null,
+        resultLine: null,
+        teaser: null,
+        blurb: null,
+        pageProgressLine: null,
+        pageCrop,
+      };
+    }
     return {
       nodeId: node.id,
       number: issueNumberOf(nodeIds, node.id),
@@ -405,10 +471,16 @@ export function campaignRunModel(
   return {
     campaignName: record.name,
     box: record.box,
-    issueNumber: currentIndex >= 0 ? currentIndex + 1 : nodeIds.length,
+    issueNumber:
+      currentIndex >= 0
+        ? currentIndex + 1
+        : choice && !ended
+          ? Math.min(Object.keys(record.position.resolved).length + 1, nodeIds.length)
+          : nodeIds.length,
     totalIssues: nodeIds.length,
     issues,
-    finished: currentId === null,
+    // A `choice` graph names no issue until the briefing has drawn and the group picked: that is not "finished".
+    finished: choice ? ended : currentId === null,
     won: record.status === "won",
     lost: record.status === "lost",
   };

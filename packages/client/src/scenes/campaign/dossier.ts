@@ -1418,7 +1418,11 @@ export class CampaignDossierScene extends Phaser.Scene {
       });
     }
     const textX = thumbRect.x + thumbRect.width + 10;
-    const kicker = sealed ? `#${issue.number} · SEALED` : `#${issue.number} · ${(issue.villain ?? "").toUpperCase()}`;
+    const kicker = sealed
+      ? `#${issue.number} · SEALED`
+      : issue.status === "open"
+        ? "OPEN"
+        : `#${issue.number} · ${(issue.villain ?? "").toUpperCase()}`;
     this.add.text(textX, rect.y + 10, kicker, { ...textStyle(typeRole.label, color, 0.7), fontSize: "10px" });
     this.add.text(textX, rect.y + 24, issue.title, textStyle(bangers(15), color));
     if (finished && issue.resultLine) {
