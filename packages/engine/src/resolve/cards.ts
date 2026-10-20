@@ -27,6 +27,7 @@ import {
   recordDeckDiscard,
   recordEncounterDeckDiscard,
   shuffleZone,
+  encounterCardDealtEvent,
   markDealtFromEncounterDeck,
   recordEncounterCardDealt,
   recordTuckedDiscard,
@@ -848,7 +849,7 @@ export function dealAsEncounterCards(
       continue;
     }
     updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
-    moveCard(ctx, id, { kind: "dealtEncounter", playerId });
+    moveCard(ctx, id, { kind: "dealtEncounter", playerId }, "bottom", encounterCardDealtEvent(playerId, id, "ability"));
     markDealtFromEncounterDeck(ctx, id);
     recordEncounterCardDealt(ctx, playerId, id, "ability");
     dealt.push(id);

@@ -42,6 +42,8 @@ const BASE: Settings = {
   sameNameHeroAllyConflict: true,
   villainAutoAdvance: "off",
   holdEncounterCards: true,
+  flipEncounterCards: true,
+  flipEncounterSpeed: "normal",
   villainBeatSpeed: "normal",
   villainDockTable: true,
   cardHoverScale: "2.5x",
@@ -69,6 +71,8 @@ describe("settingsRowInfoOf", () => {
       sameNameHeroAllyConflict: false,
       villainAutoAdvance: "off",
       holdEncounterCards: true,
+      flipEncounterCards: true,
+      flipEncounterSpeed: "normal",
       villainBeatSpeed: "normal",
       villainDockTable: true,
       cardHoverScale: "2.5x",
@@ -267,11 +271,17 @@ describe("villain phase rows", () => {
     expect(info.autoAdvance.options[1]!.detail).toBe("Recap closes itself after 6 seconds");
     expect(info.beatSpeed.selected).toBe("fast");
     expect(info.hold.on).toBe(true);
+    expect(info.flip.on).toBe(true);
+    expect(info.flipSpeed.selected).toBe("normal");
+    expect(info.flipSpeed.options.map((o) => o.label)).toEqual(["Slow", "Normal", "Off"]);
     expect(info.dock.on).toBe(true);
   });
 
   test("toggles flip, choices set, and a bad value changes nothing", () => {
     expect(nextSettingsAfterVillainRow(BASE, "villain-hold").holdEncounterCards).toBe(false);
+    expect(nextSettingsAfterVillainRow(BASE, "villain-flip").flipEncounterCards).toBe(false);
+    expect(nextSettingsAfterVillainRow(BASE, "villain-flip-speed", "off").flipEncounterSpeed).toBe("off");
+    expect(nextSettingsAfterVillainRow(BASE, "villain-flip-speed", "fast")).toBe(BASE);
     expect(nextSettingsAfterVillainRow(BASE, "villain-dock").villainDockTable).toBe(false);
     expect(nextSettingsAfterVillainRow(BASE, "villain-auto", "on").villainAutoAdvance).toBe("on");
     expect(nextSettingsAfterVillainRow(BASE, "villain-speed", "slow").villainBeatSpeed).toBe("slow");

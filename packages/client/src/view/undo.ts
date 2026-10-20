@@ -152,6 +152,7 @@ export const UNDO_EVENT_VERDICTS: Readonly<Record<GameEvent["type"], readonly [V
   defenseDeclined: [ALLOWED, "combat, all face up"],
   discardRefused: [ALLOWED, "rules bookkeeping, nothing hidden"],
   drawnObligationPlaced: [STOPS, "an obligation dealt from the deck"],
+  encounterCardDealt: [ALLOWED, "names why: the cardMoved beside it is the deal"],
   encounterCardPassed: [STOPS, "an encounter card dealt to a player"],
   encounterCardRevealed: [STOPS, "an encounter card revealed"],
   encounterDiscardCostSettled: [STOPS, "encounter deck cards discarded"],

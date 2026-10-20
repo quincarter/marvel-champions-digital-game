@@ -63,6 +63,10 @@ export interface Settings {
   readonly villainAutoAdvance: VillainAutoAdvance;
   /** Keep every revealed encounter card on screen until the player taps past it, even one with no answer to give. Defaults on. */
   readonly holdEncounterCards: boolean;
+  /** Stop on each encounter card dealt facedown and show its back until the player presses Flip Encounter Card (#287). Defaults on. */
+  readonly flipEncounterCards: boolean;
+  /** How long Flip Encounter Card takes to turn the card over: 1 s, 0.5 s, or instantly (`flipDurationMs`). Defaults normal. */
+  readonly flipEncounterSpeed: FlipEncounterSpeed;
   /** How long each step stays up while the villain phase runs on its own (`villainBeatIntervalMs`). */
   readonly villainBeatSpeed: VillainBeatSpeed;
   /** Desktop and tablet dock the villain phase on the right with the table beside it; off draws it full screen. Defaults on. */
@@ -190,6 +194,21 @@ export const VILLAIN_AUTO_ADVANCE_VALUES: readonly VillainAutoAdvance[] = ["off"
 export type VillainBeatSpeed = "slow" | "normal" | "fast";
 export const VILLAIN_BEAT_SPEED_VALUES: readonly VillainBeatSpeed[] = ["slow", "normal", "fast"];
 
+export type FlipEncounterSpeed = "slow" | "normal" | "off";
+export const FLIP_ENCOUNTER_SPEED_VALUES: readonly FlipEncounterSpeed[] = ["slow", "normal", "off"];
+
+/** Milliseconds the facedown encounter card takes to turn over; 0 turns it at once (the press still stops on each card). */
+export function flipDurationMs(speed: FlipEncounterSpeed): number {
+  switch (speed) {
+    case "slow":
+      return 1000;
+    case "normal":
+      return 500;
+    case "off":
+      return 0;
+  }
+}
+
 /** How long the villain-phase recap stays before closing itself under `villainAutoAdvance: "afterPause"`. */
 export const VILLAIN_RECAP_PAUSE_MS = 6000;
 
@@ -239,6 +258,8 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     sameNameHeroAllyConflict: true,
     villainAutoAdvance: "off",
     holdEncounterCards: true,
+    flipEncounterCards: true,
+    flipEncounterSpeed: "normal",
     villainBeatSpeed: "normal",
     villainDockTable: true,
     cardHoverScale: "2.5x",

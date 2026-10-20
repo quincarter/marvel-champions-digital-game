@@ -16,6 +16,7 @@ import {
   SHARP_TEXT_RESOLUTION_CEILING,
   VILLAIN_AUTO_ADVANCE_VALUES,
   VILLAIN_BEAT_SPEED_VALUES,
+  FLIP_ENCOUNTER_SPEED_VALUES,
   clampMusicVolume,
   defaultSettings,
   resolutionPixelsOf,
@@ -37,6 +38,7 @@ const BOOLEAN_FIELDS = [
   "confirmBeforeEndTurn",
   "sameNameHeroAllyConflict",
   "holdEncounterCards",
+  "flipEncounterCards",
   "villainDockTable",
   "hoverHeroCard",
   "hoverVillainCard",
@@ -65,6 +67,8 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   const beatSpeed = source["villainBeatSpeed"];
   const beatSpeedValue = VILLAIN_BEAT_SPEED_VALUES.find((value) => value === beatSpeed);
   if (beatSpeedValue !== undefined) out.villainBeatSpeed = beatSpeedValue;
+  const flipSpeedValue = FLIP_ENCOUNTER_SPEED_VALUES.find((value) => value === source["flipEncounterSpeed"]);
+  if (flipSpeedValue !== undefined) out.flipEncounterSpeed = flipSpeedValue;
   const hoverScaleValue = CARD_HOVER_SCALE_VALUES.find((value) => value === source["cardHoverScale"]);
   if (hoverScaleValue !== undefined) out.cardHoverScale = hoverScaleValue;
   const cardSizeValue = CARD_SIZE_VALUES.find((value) => value === source["cardSize"]);

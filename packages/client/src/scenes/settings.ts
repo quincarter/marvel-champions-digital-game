@@ -64,6 +64,7 @@ import type {
   Settings,
   VillainAutoAdvance,
   VillainBeatSpeed,
+  FlipEncounterSpeed,
   Resolution,
 } from "../settings.js";
 import {
@@ -506,9 +507,13 @@ export class SettingsOverlay extends Phaser.Scene {
         return villain.autoAdvance.options.map((o) => `villain-auto:${o.value}`);
       },
     });
+    segmented("villain-flip-speed", villain.flipSpeed, SPEED_CONTROL_WIDTH, (v) =>
+      this.#setVillain("villain-flip-speed", v),
+    );
     segmented("villain-speed", villain.beatSpeed, SPEED_CONTROL_WIDTH, (v) => this.#setVillain("villain-speed", v));
     for (const [id, row] of [
       ["villain-hold", villain.hold],
+      ["villain-flip", villain.flip],
       ["villain-dock", villain.dock],
       ["power-saving", powerSavingRowOf(settings, powerSavingState().detected)],
     ] as const) {
@@ -710,7 +715,7 @@ export class SettingsOverlay extends Phaser.Scene {
     this.#draw();
   }
 
-  #setVillain(id: VillainRowId, value?: VillainAutoAdvance | VillainBeatSpeed): void {
+  #setVillain(id: VillainRowId, value?: VillainAutoAdvance | VillainBeatSpeed | FlipEncounterSpeed): void {
     appSession().settings = nextSettingsAfterVillainRow(appSession().settings, id, value);
     this.#draw();
   }
@@ -994,7 +999,7 @@ export class SettingsOverlay extends Phaser.Scene {
 
   #drawVillainToggle(
     rect: Rect,
-    id: "villain-hold" | "villain-dock" | "power-saving",
+    id: "villain-hold" | "villain-flip" | "villain-dock" | "power-saving",
     row: { readonly title: string; readonly detail: string; readonly on: boolean },
     index: number,
     stops: Map<string, FocusStop>,
