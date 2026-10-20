@@ -243,6 +243,8 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   }
   // `?screen=trophies`: the Trophy Room; seed saves into IndexedDB first to see earned rows.
   if (screen === "trophies") return { key: SCENES.trophyRoom, data: {} };
+  // `?screen=credits`: Art & Credits.
+  if (screen === "credits") return { key: SCENES.credits, data: {} };
   // `?screen=extras-reader&book=book:rrg`: one rulebook in the Extras reader.
   if (screen === "extras-reader")
     return { key: SCENES.extrasReader, data: { bookId: params.get("book") ?? "book:rrg" } };

@@ -40,6 +40,7 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.extras,
   SCENES.extrasReader,
   SCENES.trophyRoom,
+  SCENES.credits,
   // Dev-only demo scenes: reachable only through `?screen=…` jumps (`scenes/boot-dev-jump.ts`).
   SCENES.termTextDemo,
   SCENES.guideCalloutDemo,
