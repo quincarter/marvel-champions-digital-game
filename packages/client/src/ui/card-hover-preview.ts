@@ -12,7 +12,7 @@
 
 import Phaser from "phaser";
 import { cardOf, getInstance, type InstanceId } from "@mc/engine";
-import { CARD_BACKS, defaultFaceFor, type CardFace } from "../art/art-source.js";
+import { CARD_BACKS, defaultFaceFor, isStandInArt, type CardFace } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { CARDS_BY_ID, POOL_DEPS } from "../content/pool.js";
 import type { FacedownHover } from "../scenes/board/context.js";
@@ -394,8 +394,9 @@ export class HoverPreview {
     const game = state.game;
     if (!game || state.perspectiveId === null) return null;
     const model = inspectModel(game, id, null, state.perspectiveId, POOL_DEPS);
-    // A facedown card or pile shows nothing the table doesn't: no popover.
-    if (model.hidden) return null;
+    // A facedown card or pile shows nothing the table doesn't: no popover. A Drone drawn with its earned Drone art
+    // (#291) is the exception: the popover shows that picture, which is all the table sees of it too.
+    if (model.hidden && !isStandInArt(model.art)) return null;
     const instance = getInstance(game, id);
     // A scheme's threat is drawn as the board draws it, the red meter with its count (the owner, 2026-10-14), not
     // as words in the strip.

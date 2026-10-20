@@ -276,7 +276,10 @@ export function allArtFor(card: AnyCard): readonly ArtSource[] {
   return [...byKey.values()];
 }
 
+/** Whether this picture is a stand-in (`StandIn`): a hidden card's picture with something to look at, worth a hover. */
+export const isStandInArt = (art: ArtSource | null): boolean =>
+  art !== null && STAND_IN_ART.some((standIn) => standIn.key === art.key);
+
 /** Whether this picture is a card back or a stand-in: what a hidden card draws, so no fallback may print its name. */
 export const isHiddenArt = (art: ArtSource | null): boolean =>
-  art !== null &&
-  (Object.values(CARD_BACKS).some((back) => back.key === art.key) || STAND_IN_ART.some((s) => s.key === art.key));
+  art !== null && (Object.values(CARD_BACKS).some((back) => back.key === art.key) || isStandInArt(art));
