@@ -18,6 +18,7 @@ import {
   cardTapOption,
   clearPayment,
   paymentView,
+  sourceTagText,
   spentTagText,
   togglePayment,
 } from "./payment-model.js";
@@ -85,6 +86,32 @@ describe("payment mode", () => {
     expect(view.command).not.toBeNull();
     // Not "the client thinks this is enough" — the engine took the command.
     expect(applyCommand(state, view.command!, CORE_DEPS).ok).toBe(true);
+  });
+
+  // Issue #292: Finesse while paying for a hero card. The engine names it in `notForThisCard`; the strip shows it,
+  // locked, never as a source. Any card in play stands in for it here.
+  test("shows a resource that pays only for another kind of card, locked, with the reason, and never spends it", () => {
+    const entry = costedPlay();
+    const opened = beginPayment(state, me, entry.action, null, CORE_DEPS)!;
+    const stand = state.players[0]!.identity.instanceId;
+    const payment: PaymentState = {
+      ...opened,
+      query: {
+        ...opened.query,
+        notForThisCard: [{ instanceId: stand, abilityId: "x.resource" as never, label: "Finesse" }],
+      },
+    };
+    const view = paymentView(state, me, payment, "test", CORE_DEPS);
+    const tile = view.tableSources.find((source) => source.notFor);
+    expect(tile).toMatchObject({
+      instanceId: stand,
+      label: "Finesse",
+      spent: false,
+      lockedReason: "Can't pay for this card",
+    });
+    expect(view.sources.some((source) => source.notFor)).toBe(false);
+    expect(view.lockedNote).toBe("Finesse: Can't pay for this card");
+    expect(sourceTagText(tile!)).toBe("can't pay this");
   });
 
   test("never offers the card being paid for as a way to pay for itself", () => {

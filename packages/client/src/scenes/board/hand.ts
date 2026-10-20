@@ -300,7 +300,8 @@ function drawPaymentTable(ctx: BoardDrawContext, row: HandRowLayout, payment: Pa
     const ordered = source.spent && source.amountNote === null;
     tableTag(scene, tile, where, surface.ink.hex, "top");
     if (ordered) tableTag(scene, tile, spentTagText(source, compact), surface.ink.hex, "top", 1);
-    tableTag(scene, tile, poolText(source.pool), signal.cost.hex, "bottom");
+    // A resource that can't pay for this card (`notFor`) has no pips to offer; the bar says what it pays for.
+    if (!source.notFor) tableTag(scene, tile, poolText(source.pool), signal.cost.hex, "bottom");
     ctx.frame.focusRects.set(focusKey({ kind: "card", instanceId: source.instanceId }), tile);
     // By option as well: one card's several ways to pay are several tiles, and the hand tile drawn later takes the
     // card key (e2e presses a mode's tile by this one).
@@ -308,7 +309,9 @@ function drawPaymentTable(ctx: BoardDrawContext, row: HandRowLayout, payment: Pa
     const onHover = onTopHover(scene, tile, source.instanceId, source.orderNote);
     // By option, not by card: a card offering two resource abilities is two tiles.
     addTapTarget(scene, tile, {
-      onTap: () => ctx.controller.togglePaymentOption(source.optionId),
+      // A `notFor` tile is never spent: a tap opens its card, whose inspect panel says why (issue #292).
+      onTap: () =>
+        source.notFor ? ctx.inspect(source.instanceId) : ctx.controller.togglePaymentOption(source.optionId),
       onInspect: () => ctx.inspect(source.instanceId),
       onHover,
     });
