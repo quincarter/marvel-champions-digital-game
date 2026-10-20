@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
-import { activeScenes, findText, settle, waitFor } from "./helpers.js";
+import { findText, settle, waitFor } from "./helpers.js";
 import { installWave6Helpers, trackErrors, visibleTexts } from "./wave6-helpers-a.js";
-import { declineMulligans, openApp, startGame } from "./wave6-helpers-b.js";
+import { declineMulligans, inspectAt, openApp, startGame } from "./wave6-helpers-b.js";
 import { press } from "./x-men-helpers.js";
 
 /**
@@ -51,12 +51,33 @@ test("issue #295: Inspect on the main scheme flips to its other side and back", 
   await declineMulligans(page);
   await settle(page);
 
+  // Opened the way a player does: a right-click on the scheme on the desktop, a press-and-hold on a phone after
+  // tapping the Threat tab (the phone board shows one tab at a time).
+  if (phone) {
+    const tab = await waitFor(
+      async () => (await findText(page, "THREAT")).find((t) => t.text.trim().toUpperCase() === "THREAT") ?? null,
+      "the Threat tab",
+      15_000,
+    );
+    await press(page, phone, tab.x, tab.y);
+    await settle(page, { quietMs: 400, maxMs: 3000 });
+  }
   const schemeId = await mainSchemeId(page);
-  await page.evaluate((instanceId) => {
-    const game = (window as unknown as { __mcGame: { scene: { launch: (k: string, d: unknown) => void } } }).__mcGame;
-    game.scene.launch("InspectOverlay", { instanceId });
-  }, schemeId);
-  await waitFor(async () => ((await activeScenes(page)).includes("InspectOverlay") ? true : null), "Inspect", 10_000);
+  const rect = await waitFor(
+    () =>
+      page.evaluate(
+        (id) =>
+          (
+            window as unknown as {
+              __mcBoardDebug?: { hitRect(i: string): { x: number; y: number; width: number; height: number } | null };
+            }
+          ).__mcBoardDebug?.hitRect(id) ?? null,
+        schemeId,
+      ),
+    "the main scheme on the table",
+    15_000,
+  );
+  await inspectAt(page, rect, phone ? "hold" : "right");
   await settle(page, { quietMs: 500, maxMs: 3000 });
 
   // The scheme in play shows its B side, so the button offers the A side.
@@ -65,8 +86,10 @@ test("issue #295: Inspect on the main scheme flips to its other side and back", 
   expect(await findText(page, "Show B side", "InspectOverlay")).toEqual([]);
 
   await press(page, phone, toA.x, toA.y);
+  await toggleAt(page, "Show B side");
+  // The other side's scan may still be loading, and the sheet re-centres when it arrives: find the button after that.
+  await settle(page, { quietMs: 600, maxMs: 5000 });
   const toB = await toggleAt(page, "Show B side");
-  await settle(page, { quietMs: 400, maxMs: 3000 });
   const aAfter = await inspectTexts(page);
   expect(aAfter, "the sheet redrew with the A side's text").not.toEqual(bBefore);
   // Rhino's 1A is the setup side: it lists the scenario's contents.
