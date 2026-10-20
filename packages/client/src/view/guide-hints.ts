@@ -522,7 +522,9 @@ function wastedCardHint(
           : alt.kind === "resourceAbility" && cardSpentBy(alt) === null
             ? `${altName} can pay`
             : `${altName} can't be played while its unique copy is in play`;
-  const covers = alone ? "and alone could cover the [[cost|cost]] instead" : "and could pay that share instead";
+  const covers = alone
+    ? "and alone could cover the [[cost|cost]] instead"
+    : `and could pay ${spentName}'s share instead`;
   return {
     key: "wastedPay",
     title: "This spends a card you could keep",
