@@ -177,9 +177,7 @@ test.describe("Team-Up: Gambit and Rogue", () => {
 
     await flipByClick(page, 0);
     expect(await teamUpRings(page), "still quiet with only Gambit a hero").toHaveLength(2);
-    expect((await findVisibleText(page, "team-up:", "Board")).length, "only Rogue's panel keeps the blurb").toBe(
-      1,
-    );
+    expect((await findVisibleText(page, "team-up:", "Board")).length, "only Rogue's panel keeps the blurb").toBe(1);
     await endTurnByClick(page);
     await flipByClick(page, 1);
     // An absence has no state to wait for: hold the window open long enough for a wrongly re-opened splash to show.
