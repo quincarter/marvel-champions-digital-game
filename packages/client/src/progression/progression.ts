@@ -12,6 +12,7 @@
  */
 import { setShownStandIns } from "../art/art-source.js";
 import { appSession, campaignService } from "../session.js";
+import { NO_HISTORY, isAchievementEarned, type AchievementHistory } from "./achievements.js";
 import { earnedItemIdsOf, shownStandInsOf, type EarnedItemId } from "./earned-items.js";
 import { Extras, NO_EXTRAS_PROGRESS, extrasProgressOf, type ExtrasProgress } from "./extras.js";
 import {
@@ -47,6 +48,8 @@ function writePrefs(prefs: UnlockPrefs): void {
 const devUnlockAll = typeof location !== "undefined" && devUnlockAllFrom(location.search);
 
 let progress: UnlockProgress = NO_PROGRESS;
+/** The rows achievements read, kept from the last refresh. */
+let history: AchievementHistory = NO_HISTORY;
 let prefs: UnlockPrefs | null = null;
 let current: Unlocks | null = null;
 let extrasProgress: ExtrasProgress = NO_EXTRAS_PROGRESS;
@@ -75,6 +78,7 @@ export async function refreshUnlocks(): Promise<boolean> {
       .storage.list()
       .catch(() => []),
   ]);
+  history = { saves, campaigns };
   const nextExtras = extrasProgressOf(saves, campaigns);
   if (JSON.stringify(nextExtras) !== JSON.stringify(extrasProgress)) {
     extrasProgress = nextExtras;
@@ -92,10 +96,9 @@ export async function refreshUnlocks(): Promise<boolean> {
   return true;
 }
 
-/** The earned items this player has (`earned-items.ts`), from the same reads as `extras()`. */
+/** The earned items this player has (`earned-items.ts`): their achievements, from the same reads as `unlocks()`. */
 export function earnedItems(): ReadonlySet<EarnedItemId> {
-  const open = extras();
-  return earnedItemIdsOf((unlock) => open.isOpen(unlock));
+  return earnedItemIdsOf((id) => isAchievementEarned(id, history), unlocks().everything);
 }
 
 /** Tells the art which earned pictures to draw: call after progress, unlock preferences or settings change. */

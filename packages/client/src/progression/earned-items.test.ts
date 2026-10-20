@@ -2,22 +2,27 @@ import { describe, expect, test } from "vitest";
 import { defaultSettings } from "../settings.js";
 import { earnedItemRowInfoOf, nextSettingsAfterToggle } from "../view/settings-rows.js";
 import { EARNED_ITEMS, earnedItemIdsOf, shownStandInsOf } from "./earned-items.js";
-import { Extras, NO_EXTRAS_PROGRESS } from "./extras.js";
+import { ACHIEVEMENTS, NO_HISTORY, isAchievementEarned, type AchievementHistory } from "./achievements.js";
 
-/** Issue #291: the Drone art is earned with a win against Ultron, then switched on or off in Settings ▸ More. */
+/** Issue #291: the Drone art is earned with the Drone On achievement, then switched on or off in Settings ▸ More. */
 describe("earned items", () => {
-  const fresh = new Extras(NO_EXTRAS_PROGRESS);
-  const wonUltron = new Extras({ ...NO_EXTRAS_PROGRESS, wonScenarioIds: ["ultron"] });
-  const openIn = (extras: Extras) => earnedItemIdsOf((unlock) => extras.isOpen(unlock));
+  const game = (scenarioId: string, status: string) => ({ status, config: { scenarioId, players: [{}] } });
+  const fresh = NO_HISTORY;
+  const wonUltron: AchievementHistory = { saves: [game("ultron", "won")], campaigns: [] };
+  const openIn = (history: AchievementHistory) => earnedItemIdsOf((id) => isAchievementEarned(id, history));
 
-  test("nothing is earned before a win against Ultron, and the Drone art is after one", () => {
+  test("nothing is earned before Drone On (a win against Ultron), and the Drone art is after it", () => {
     expect([...openIn(fresh)]).toEqual([]);
-    expect([...openIn(new Extras({ ...NO_EXTRAS_PROGRESS, lostScenarioIds: ["ultron"] }))]).toEqual([]);
+    expect([...openIn({ saves: [game("ultron", "lost"), game("rhino", "won")], campaigns: [] })]).toEqual([]);
     expect([...openIn(wonUltron)]).toEqual(["ultron-drone-art"]);
   });
 
+  test("every earned item names an achievement that exists and is tracked", () => {
+    for (const item of EARNED_ITEMS) expect(ACHIEVEMENTS.find((a) => a.id === item.achievementId)?.tracked).toBe(true);
+  });
+
   test("Unlock everything earns them too", () => {
-    expect([...openIn(new Extras(NO_EXTRAS_PROGRESS, { everything: true }))]).toEqual(["ultron-drone-art"]);
+    expect([...earnedItemIdsOf(() => false, true)]).toEqual(["ultron-drone-art"]);
   });
 
   test("the art is drawn only when earned and switched on", () => {

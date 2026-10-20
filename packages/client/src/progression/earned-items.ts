@@ -6,15 +6,13 @@
  * current ATK rather than a plain player card back (`StandIn`, `art/art-source.ts`). Like the rest of `progression/`,
  * an earned item never changes how a game plays; it only changes a picture.
  *
- * **Earned how.** Each item names the `ExtrasUnlock` that opens it, read through `Extras.isOpen`, so progress stays
- * derived from the save history and "Unlock everything" opens these too. The achievements of docs/achievements.md
- * (wave 11) can take over as the gate once they exist; until then the Drone art opens with a win against Ultron.
+ * **Earned how.** Each item names the achievement that earns it (`achievements.ts`, read with `isAchievementEarned`),
+ * so progress stays derived from the save history. "Unlock everything" opens these too.
  *
  * Pure: no storage, no Phaser.
  */
 import type { StandIn } from "../art/art-source.js";
 import type { Settings } from "../settings.js";
-import type { ExtrasUnlock } from "./extras.js";
 
 export type EarnedItemId = "ultron-drone-art";
 
@@ -25,7 +23,8 @@ export interface EarnedItem {
   readonly detail: string;
   /** How to earn it, shown in its place until then. */
   readonly howToEarn: string;
-  readonly unlock: ExtrasUnlock;
+  /** The achievement that earns it (`ACHIEVEMENTS` id). */
+  readonly achievementId: string;
   /** The setting that turns it on or off once earned. */
   readonly setting: keyof Pick<Settings, "ultronDroneArt">;
   /** The stand-in picture it shows, when it is one. */
@@ -37,16 +36,19 @@ export const EARNED_ITEMS: readonly EarnedItem[] = [
     id: "ultron-drone-art",
     title: "Ultron Drone art",
     detail: "Facedown Drones show a Drone card with their ATK instead of a card back. Art by Hall of Heroes.",
-    howToEarn: "Earn it by winning a game against Ultron.",
-    unlock: { kind: "scenarioWon", scenarioId: "ultron" },
+    howToEarn: "Earn the Drone On achievement: win a game against Ultron.",
+    achievementId: "ultron-drone",
     setting: "ultronDroneArt",
     standIn: "ultronDrone",
   },
 ];
 
-/** The items this player has earned, given what is open (`Extras.isOpen`). */
-export function earnedItemIdsOf(isOpen: (unlock: ExtrasUnlock) => boolean): ReadonlySet<EarnedItemId> {
-  return new Set(EARNED_ITEMS.filter((item) => isOpen(item.unlock)).map((item) => item.id));
+/** The items this player has earned: their achievement is, or "Unlock everything" is on. */
+export function earnedItemIdsOf(
+  isEarned: (achievementId: string) => boolean,
+  everything = false,
+): ReadonlySet<EarnedItemId> {
+  return new Set(EARNED_ITEMS.filter((item) => everything || isEarned(item.achievementId)).map((item) => item.id));
 }
 
 /** The stand-in pictures to draw: earned, and switched on. */
