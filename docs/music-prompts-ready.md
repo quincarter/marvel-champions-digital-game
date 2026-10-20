@@ -1,4 +1,4 @@
-# Music prompts, ready to paste (2026-10-10)
+# Music prompts, ready to paste (2026-10-10, wave 11 added 2026-10-20)
 
 One block per track still to make. Copy a whole block into the generator; nothing needs to be added. Within a scenario, do the three in order **in the same chat**, so the second and third reuse the battle track's melody. Built from [music-prompts-missing.md](music-prompts-missing.md); the titles are the ones the files and jukebox entries will carry.
 
@@ -188,6 +188,550 @@ Use the same main melody and instruments as the battle track I just generated.
 A former top spy with spider powers who has gone on the run, fighting with speed and finesse across city rooftops and back alleys beside street-level vigilantes, building up skill before one perfect strike. Nimble urban spy action: a slinky bass line and brushed breakbeat drums, quick pizzicato and plucked harp runs, wah guitar and muted trumpet, tension that winds up bar by bar then snaps into a sharp full-orchestra hit. About 120 BPM, C-sharp minor, agile and street-smart.
 
 Title: "Neighborhood Watch"
+```
+
+# Wave 11: Fear No Evil
+
+The six Fear No Evil scenarios and the campaign's two tracks. Five scenarios are named by their main scheme and take any of five underling villains (Bullseye, Electro, Hammerhead, Purple Man, Typhoid Mary), so each scenario's music follows the scheme, not the villain. Until a scenario is playable its files wait in `music/scenarios/_pending/<folder name>/`, and the campaign's in `music/campaigns/_pending/fne/`.
+
+## Art Museum Heist
+
+Folder: `music/scenarios/_pending/art-museum-heist/`
+
+### Gallery After Hours (battle, `battle.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
+
+Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. A crew of thieves strips a city art museum after hours, slipping priceless paintings out past laser grids while the heroes chase them through dark galleries. Sly heist energy: a walking upright bass and brushed snare under a sneaking clarinet and muted trumpet melody, harpsichord-like plucks for the gilded halls, sudden full-orchestra stabs when an alarm trips. About 124 BPM, A minor, cool and cunning.
+
+Title: "Gallery After Hours"
+```
+
+### The Masterpiece Walks (villain wins, `villain-wins.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. A crew of thieves strips a city art museum after hours, slipping priceless paintings out past laser grids while the heroes chase them through dark galleries. Sly heist energy: a walking upright bass and brushed snare under a sneaking clarinet and muted trumpet melody, harpsichord-like plucks for the gilded halls, sudden full-orchestra stabs when an alarm trips. About 124 BPM, A minor, cool and cunning.
+
+Title: "The Masterpiece Walks"
+```
+
+### Returned to the Wall (heroes win, `villain-loses.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. A crew of thieves strips a city art museum after hours, slipping priceless paintings out past laser grids while the heroes chase them through dark galleries. Sly heist energy: a walking upright bass and brushed snare under a sneaking clarinet and muted trumpet melody, harpsichord-like plucks for the gilded halls, sudden full-orchestra stabs when an alarm trips. About 124 BPM, A minor, cool and cunning.
+
+Title: "Returned to the Wall"
+```
+
+## The Getaway
+
+Folder: `music/scenarios/_pending/the-getaway/`
+
+### Floor It (battle, `battle.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
+
+Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. The villain's driver tears through rain-soaked streets with the loot while the heroes give chase, swerving through traffic and under elevated trains. Car-chase thriller: a pounding tom-and-snare groove, a revving low-brass ostinato, gritty surf-rock guitar, string runs that rise like a gear change, horn hits at every corner. About 150 BPM, E minor, fast and reckless.
+
+Title: "Floor It"
+```
+
+### Clean Getaway (villain wins, `villain-wins.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. The villain's driver tears through rain-soaked streets with the loot while the heroes give chase, swerving through traffic and under elevated trains. Car-chase thriller: a pounding tom-and-snare groove, a revving low-brass ostinato, gritty surf-rock guitar, string runs that rise like a gear change, horn hits at every corner. About 150 BPM, E minor, fast and reckless.
+
+Title: "Clean Getaway"
+```
+
+### End of the Road (heroes win, `villain-loses.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. The villain's driver tears through rain-soaked streets with the loot while the heroes give chase, swerving through traffic and under elevated trains. Car-chase thriller: a pounding tom-and-snare groove, a revving low-brass ostinato, gritty surf-rock guitar, string runs that rise like a gear change, horn hits at every corner. About 150 BPM, E minor, fast and reckless.
+
+Title: "End of the Road"
+```
+
+## Protection Racket
+
+Folder: `music/scenarios/_pending/protection-racket/`
+
+### Pay Up or Else (battle, `battle.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
+
+Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. Gangsters squeeze every corner shop on the block for protection money while the heroes go door to door to stand up for the neighbors. Menacing mob swagger: a slow heavy swing in low strings and baritone sax, a smoky jazz piano, brass that leans in like a threat, a defiant rising string line for the shopkeepers fighting back. About 112 BPM, C minor, tough and smoky.
+
+Title: "Pay Up or Else"
+```
+
+### The Whole Block Pays (villain wins, `villain-wins.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. Gangsters squeeze every corner shop on the block for protection money while the heroes go door to door to stand up for the neighbors. Menacing mob swagger: a slow heavy swing in low strings and baritone sax, a smoky jazz piano, brass that leans in like a threat, a defiant rising string line for the shopkeepers fighting back. About 112 BPM, C minor, tough and smoky.
+
+Title: "The Whole Block Pays"
+```
+
+### Open for Business (heroes win, `villain-loses.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. Gangsters squeeze every corner shop on the block for protection money while the heroes go door to door to stand up for the neighbors. Menacing mob swagger: a slow heavy swing in low strings and baritone sax, a smoky jazz piano, brass that leans in like a threat, a defiant rising string line for the shopkeepers fighting back. About 112 BPM, C minor, tough and smoky.
+
+Title: "Open for Business"
+```
+
+## The Raft Breakout
+
+Folder: `music/scenarios/_pending/the-raft-breakout/`
+
+### Riot on the Raft (battle, `battle.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
+
+Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. Alarms howl across an island super-prison as a villain springs every cell, and the heroes fight inmates down steel corridors before the island empties. Prison-riot urgency: blaring alarm-like brass, clanging metallic percussion, a driving staccato string ostinato, distorted synth bass, a heroic horn line fighting through the chaos. About 140 BPM, B minor, loud and desperate.
+
+Title: "Riot on the Raft"
+```
+
+### Every Cell Open (villain wins, `villain-wins.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. Alarms howl across an island super-prison as a villain springs every cell, and the heroes fight inmates down steel corridors before the island empties. Prison-riot urgency: blaring alarm-like brass, clanging metallic percussion, a driving staccato string ostinato, distorted synth bass, a heroic horn line fighting through the chaos. About 140 BPM, B minor, loud and desperate.
+
+Title: "Every Cell Open"
+```
+
+### The Raft Holds (heroes win, `villain-loses.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. Alarms howl across an island super-prison as a villain springs every cell, and the heroes fight inmates down steel corridors before the island empties. Prison-riot urgency: blaring alarm-like brass, clanging metallic percussion, a driving staccato string ostinato, distorted synth bass, a heroic horn line fighting through the chaos. About 140 BPM, B minor, loud and desperate.
+
+Title: "The Raft Holds"
+```
+
+## Stop the Presses!
+
+Folder: `music/scenarios/_pending/stop-the-presses/`
+
+### Ink and Gunfire (battle, `battle.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
+
+Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. Thugs storm a city newspaper to bury the story that would expose their boss, and the heroes defend the newsroom while the presses keep rolling. Newsroom thriller: typewriter-clatter percussion and a pulsing printing-press rhythm, urgent pizzicato strings, a determined trumpet melody, low-brass blows from the thugs. About 132 BPM, G minor, urgent and righteous.
+
+Title: "Ink and Gunfire"
+```
+
+### The Story Dies Tonight (villain wins, `villain-wins.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. Thugs storm a city newspaper to bury the story that would expose their boss, and the heroes defend the newsroom while the presses keep rolling. Newsroom thriller: typewriter-clatter percussion and a pulsing printing-press rhythm, urgent pizzicato strings, a determined trumpet melody, low-brass blows from the thugs. About 132 BPM, G minor, urgent and righteous.
+
+Title: "The Story Dies Tonight"
+```
+
+### Extra! Extra! (heroes win, `villain-loses.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. Thugs storm a city newspaper to bury the story that would expose their boss, and the heroes defend the newsroom while the presses keep rolling. Newsroom thriller: typewriter-clatter percussion and a pulsing printing-press rhythm, urgent pizzicato strings, a determined trumpet melody, low-brass blows from the thugs. About 132 BPM, G minor, urgent and righteous.
+
+Title: "Extra! Extra!"
+```
+
+## Kingpin
+
+Folder: `music/scenarios/_pending/kingpin/`
+
+### The King of Hell's Kitchen (battle, `battle.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
+
+Street-level noir in a rough New York neighborhood at night. The crime lord who owns the city at last steps out himself: a huge, calm, terrifyingly strong man in a white suit, running his empire from a high-rise office while the public turns for or against the heroes. Imperial crime-boss menace: a slow, crushing low-brass and timpani march, a cold string-quartet theme played with aristocratic poise, a deep choir-like pad, jazz-noir saxophone for the streets below, the whole orchestra slamming down like a fist. About 96 BPM, F minor, massive and controlled.
+
+Title: "The King of Hell's Kitchen"
+```
+
+### Long Live the Kingpin (villain wins, `villain-wins.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+Street-level noir in a rough New York neighborhood at night. The crime lord who owns the city at last steps out himself: a huge, calm, terrifyingly strong man in a white suit, running his empire from a high-rise office while the public turns for or against the heroes. Imperial crime-boss menace: a slow, crushing low-brass and timpani march, a cold string-quartet theme played with aristocratic poise, a deep choir-like pad, jazz-noir saxophone for the streets below, the whole orchestra slamming down like a fist. About 96 BPM, F minor, massive and controlled.
+
+Title: "Long Live the Kingpin"
+```
+
+### The Kingdom Falls (heroes win, `villain-loses.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+Street-level noir in a rough New York neighborhood at night. The crime lord who owns the city at last steps out himself: a huge, calm, terrifyingly strong man in a white suit, running his empire from a high-rise office while the public turns for or against the heroes. Imperial crime-boss menace: a slow, crushing low-brass and timpani march, a cold string-quartet theme played with aristocratic poise, a deep choir-like pad, jazz-noir saxophone for the streets below, the whole orchestra slamming down like a fist. About 96 BPM, F minor, massive and controlled.
+
+Title: "The Kingdom Falls"
+```
+
+## Fear No Evil campaign interlude
+
+### Hell's Kitchen After Dark (`music/campaigns/_pending/fne/interlude.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Campaign interlude, about 2 minutes, loops: the heroes regroup in a law office and a private eye's cluttered back room between nights on the street, piecing together which underling the crime boss sends next. Quiet noir: a slow brushed snare, a lonely muted trumpet motif, soft upright bass, rain-on-the-window synth pads, a distant city hum. No big drums, no climax, steady so it can loop under menus. About 72 BPM, D minor with brief turns to F major.
+
+Title: "Hell's Kitchen After Dark"
+```
+
+## Fear No Evil campaign finale
+
+### The Neighborhood Breathes Again (`music/campaigns/_pending/fne/finale.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Campaign finale, 2-3 minutes: the crime lord's empire is broken, his underlings are behind bars, and the heroes watch the sun come up over the neighborhood they saved. Starts quiet with solo muted trumpet and soft piano, a steady brushed snare enters, then it grows into a warm, proud street-level anthem for full orchestra with a hint of soulful guitar. Relief turning to quiet pride, about 84 BPM, ending on a long warm major chord.
+
+Title: "The Neighborhood Breathes Again"
+```
+
+# Synthezoid Smackdown
+
+The two Synthezoid leaders' scenarios, one set of three each, in the same shape as the four Civil War leaders above (a custom scenario plays its leader's music). Until a scenario is playable its files wait in `music/scenarios/_pending/<folder name>/`.
+
+## She-Hulk (Registration)
+
+Folder: `music/scenarios/_pending/registration-she-hulk/`
+
+### Objection Overruled (battle, `battle.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
+
+A brilliant lawyer who is also a towering green powerhouse, siding with the law that makes every superhero register, arguing her case and then smashing through anyone who resists. Confident courtroom muscle: a strutting funk bass and big-band brass, a stately legal-drama string theme that keeps getting knocked off its feet by thunderous drum hits, crowd-like brass swells. About 126 BPM, B-flat minor, bold and unstoppable.
+
+Title: "Objection Overruled"
+```
+
+### Case Closed (villain wins, `villain-wins.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+A brilliant lawyer who is also a towering green powerhouse, siding with the law that makes every superhero register, arguing her case and then smashing through anyone who resists. Confident courtroom muscle: a strutting funk bass and big-band brass, a stately legal-drama string theme that keeps getting knocked off its feet by thunderous drum hits, crowd-like brass swells. About 126 BPM, B-flat minor, bold and unstoppable.
+
+Title: "Case Closed"
+```
+
+### Verdict Reversed (heroes win, `villain-loses.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+A brilliant lawyer who is also a towering green powerhouse, siding with the law that makes every superhero register, arguing her case and then smashing through anyone who resists. Confident courtroom muscle: a strutting funk bass and big-band brass, a stately legal-drama string theme that keeps getting knocked off its feet by thunderous drum hits, crowd-like brass swells. About 126 BPM, B-flat minor, bold and unstoppable.
+
+Title: "Verdict Reversed"
+```
+
+## Vision (Resistance)
+
+Folder: `music/scenarios/_pending/resistance-vision/`
+
+### Phase Shift (battle, `battle.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
+
+An android hero who can turn as dense as a diamond or as thin as a ghost, refusing the registration law and phasing through walls to protect the resisting heroes. Synthetic and soulful: crystalline synth arpeggios that flicker in and out of phase, a heavy pulsing low end when he turns dense, a yearning string melody for the machine with a human heart, glassy chimes and reversed-sound swells. About 118 BPM, E minor, otherworldly and determined.
+
+Title: "Phase Shift"
+```
+
+### Density Absolute (villain wins, `villain-wins.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+An android hero who can turn as dense as a diamond or as thin as a ghost, refusing the registration law and phasing through walls to protect the resisting heroes. Synthetic and soulful: crystalline synth arpeggios that flicker in and out of phase, a heavy pulsing low end when he turns dense, a yearning string melody for the machine with a human heart, glassy chimes and reversed-sound swells. About 118 BPM, E minor, otherworldly and determined.
+
+Title: "Density Absolute"
+```
+
+### A Synthetic Heart (heroes win, `villain-loses.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+An android hero who can turn as dense as a diamond or as thin as a ghost, refusing the registration law and phasing through walls to protect the resisting heroes. Synthetic and soulful: crystalline synth arpeggios that flicker in and out of phase, a heavy pulsing low end when he turns dense, a yearning string melody for the machine with a human heart, glassy chimes and reversed-sound swells. About 118 BPM, E minor, otherworldly and determined.
+
+Title: "A Synthetic Heart"
+```
+
+# Shadowland
+
+The three Shadowland scenarios and the campaign's two tracks. The scenarios have no ids yet; the folder names below follow their titles and are confirmed when the scenarios are added. Until then their files wait in `music/scenarios/_pending/<folder name>/`, and the campaign's in `music/campaigns/_pending/shadowland/`.
+
+## Shadows in the Night
+
+Folder: `music/scenarios/_pending/shadows-in-the-night/`
+
+### Midnight Belongs to the Hand (battle, `battle.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
+
+A city neighborhood swallowed by an ancient ninja cult's black fortress, its martial-arts fighters possessed by a demonic darkness. One of the cult's possessed champions leads waves of ninjas across moonlit rooftops while the heroes fight to keep the darkness from spreading. Martial-arts horror: taiko drums and fast shamisen-like plucks, shakuhachi-style flute over a dark string ostinato, whispered choir-like synth pads, sharp blade-swish percussion. About 138 BPM, D minor, swift and sinister.
+
+Title: "Midnight Belongs to the Hand"
+```
+
+### Swallowed by the Dark (villain wins, `villain-wins.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+A city neighborhood swallowed by an ancient ninja cult's black fortress, its martial-arts fighters possessed by a demonic darkness. One of the cult's possessed champions leads waves of ninjas across moonlit rooftops while the heroes fight to keep the darkness from spreading. Martial-arts horror: taiko drums and fast shamisen-like plucks, shakuhachi-style flute over a dark string ostinato, whispered choir-like synth pads, sharp blade-swish percussion. About 138 BPM, D minor, swift and sinister.
+
+Title: "Swallowed by the Dark"
+```
+
+### First Light on the Rooftops (heroes win, `villain-loses.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+A city neighborhood swallowed by an ancient ninja cult's black fortress, its martial-arts fighters possessed by a demonic darkness. One of the cult's possessed champions leads waves of ninjas across moonlit rooftops while the heroes fight to keep the darkness from spreading. Martial-arts horror: taiko drums and fast shamisen-like plucks, shakuhachi-style flute over a dark string ostinato, whispered choir-like synth pads, sharp blade-swish percussion. About 138 BPM, D minor, swift and sinister.
+
+Title: "First Light on the Rooftops"
+```
+
+## Shadow Labyrinth
+
+Folder: `music/scenarios/_pending/shadow-labyrinth/`
+
+### Labyrinth of Blades (battle, `battle.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
+
+A city neighborhood swallowed by an ancient ninja cult's black fortress, its martial-arts fighters possessed by a demonic darkness. The heroes push through the fortress's maze of trapped halls, never sure what the next corridor springs on them. Claustrophobic trap-maze tension: a ticking mechanical pulse, low taiko and frame drums, spiky string clusters and sudden metallic hits for each trap, a winding flute line that never finds its way out, until brass breaks through. About 128 BPM, G minor, tense and twisting.
+
+Title: "Labyrinth of Blades"
+```
+
+### No Way Out (villain wins, `villain-wins.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+A city neighborhood swallowed by an ancient ninja cult's black fortress, its martial-arts fighters possessed by a demonic darkness. The heroes push through the fortress's maze of trapped halls, never sure what the next corridor springs on them. Claustrophobic trap-maze tension: a ticking mechanical pulse, low taiko and frame drums, spiky string clusters and sudden metallic hits for each trap, a winding flute line that never finds its way out, until brass breaks through. About 128 BPM, G minor, tense and twisting.
+
+Title: "No Way Out"
+```
+
+### The Way Out Found (heroes win, `villain-loses.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+A city neighborhood swallowed by an ancient ninja cult's black fortress, its martial-arts fighters possessed by a demonic darkness. The heroes push through the fortress's maze of trapped halls, never sure what the next corridor springs on them. Claustrophobic trap-maze tension: a ticking mechanical pulse, low taiko and frame drums, spiky string clusters and sudden metallic hits for each trap, a winding flute line that never finds its way out, until brass breaks through. About 128 BPM, G minor, tense and twisting.
+
+Title: "The Way Out Found"
+```
+
+## Heart of Shadow
+
+Folder: `music/scenarios/_pending/heart-of-shadow/`
+
+### The Beast at the Heart (battle, `battle.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
+
+A city neighborhood swallowed by an ancient ninja cult's black fortress, its martial-arts fighters possessed by a demonic darkness. At the fortress's core a monstrous demon beast rises, feeding on the darkness that has crept into the heroes themselves. Demonic finale battle: crushing taiko and timpani, a huge dark choir-like synth wall, a grinding low-brass beast theme, desperate heroic strings and horns clawing upward, shamisen-like flurries. About 104 BPM, C minor, colossal and terrifying.
+
+Title: "The Beast at the Heart"
+```
+
+### Shadowland Rises (villain wins, `villain-wins.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+A city neighborhood swallowed by an ancient ninja cult's black fortress, its martial-arts fighters possessed by a demonic darkness. At the fortress's core a monstrous demon beast rises, feeding on the darkness that has crept into the heroes themselves. Demonic finale battle: crushing taiko and timpani, a huge dark choir-like synth wall, a grinding low-brass beast theme, desperate heroic strings and horns clawing upward, shamisen-like flurries. About 104 BPM, C minor, colossal and terrifying.
+
+Title: "Shadowland Rises"
+```
+
+### The Darkness Driven Out (heroes win, `villain-loses.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+A city neighborhood swallowed by an ancient ninja cult's black fortress, its martial-arts fighters possessed by a demonic darkness. At the fortress's core a monstrous demon beast rises, feeding on the darkness that has crept into the heroes themselves. Demonic finale battle: crushing taiko and timpani, a huge dark choir-like synth wall, a grinding low-brass beast theme, desperate heroic strings and horns clawing upward, shamisen-like flurries. About 104 BPM, C minor, colossal and terrifying.
+
+Title: "The Darkness Driven Out"
+```
+
+## Shadowland campaign interlude
+
+### Before the Tower (`music/campaigns/_pending/shadowland/interlude.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Campaign interlude, about 2 minutes, loops: the heroes catch their breath in the shadow of the black fortress, each feeling the darkness creeping into them. Uneasy calm: a soft low taiko heartbeat, a slow shakuhachi-style flute motif, quiet sustained strings with an eerie shimmer, a distant temple-bell tone. No big drums, no climax, steady so it can loop under menus. About 70 BPM, A minor with brief turns to C major.
+
+Title: "Before the Tower"
+```
+
+## Shadowland campaign finale
+
+### The Shadow Lifts (`music/campaigns/_pending/shadowland/finale.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Campaign finale, 2-3 minutes: the demon is beaten, the black fortress crumbles, and dawn breaks over the freed neighborhood. Starts quiet with solo flute and soft strings, a steady taiko pulse enters, then it grows into a broad, triumphant anthem for full orchestra with a shining choir-like pad. Relief turning to triumph, about 84 BPM, ending on a long warm major chord.
+
+Title: "The Shadow Lifts"
 ```
 
 # Earlier boxes: scenarios with no music
