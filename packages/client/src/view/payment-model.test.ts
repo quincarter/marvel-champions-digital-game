@@ -15,6 +15,7 @@ import type { SessionConfig } from "../engine/host.js";
 import {
   allianceHelpersOf,
   beginPayment,
+  cardTapOption,
   clearPayment,
   paymentView,
   spentTagText,
@@ -333,5 +334,49 @@ describe("the pay bar's denominator", () => {
     expect(requiredLabelOf(0, { min: 1, max: 2 })).toBe("1–2");
     expect(requiredLabelOf(1, { min: 1, max: null })).toBe("2+");
     expect(requiredLabelOf(0, { min: 2, max: 2 })).toBe("2");
+  });
+});
+
+describe("one hand card, spent one way at a time (issue #279)", () => {
+  const pool = { physical: 0, mental: 1, energy: 0, wild: 0 };
+  const org = "org" as InstanceId;
+  const other = "other" as InstanceId;
+  const plain = { optionId: `hand:${org}`, kind: "handCard", instanceId: org, label: "Organizational Support", pool };
+  const exhaustOne = {
+    ...plain,
+    optionId: `hand:${org}:50014.organizational-support-interrupt@#exhaust=a`,
+    kind: "resourceAbility",
+    spendsHandCard: true,
+    pool: { ...pool, mental: 2 },
+  };
+  const exhaustTwo = { ...exhaustOne, optionId: `${exhaustOne.optionId},b`, pool: { ...pool, mental: 3 } };
+  const otherCard = { optionId: `hand:${other}`, kind: "handCard", instanceId: other, label: "Energy", pool };
+  const opened = {
+    action: { kind: "playCard", instanceId: "victoria" },
+    target: null,
+    controllerId: null,
+    query: { requirement: { generic: 3 }, sources: [plain, exhaustOne, exhaustTwo, otherCard], suggested: [] },
+    picked: [],
+    reductions: [],
+  } as unknown as PaymentState;
+
+  test("picking an exhaust mode after the plain resource replaces it, and another card's pick stays", () => {
+    const both = togglePayment(togglePayment(opened, otherCard.optionId), plain.optionId);
+    expect(togglePayment(both, exhaustOne.optionId).picked).toEqual([otherCard.optionId, exhaustOne.optionId]);
+  });
+
+  test("picking a second exhaust mode replaces the first, and picking the plain resource replaces either", () => {
+    const one = togglePayment(opened, exhaustOne.optionId);
+    const two = togglePayment(one, exhaustTwo.optionId);
+    expect(two.picked).toEqual([exhaustTwo.optionId]);
+    expect(togglePayment(two, plain.optionId).picked).toEqual([plain.optionId]);
+  });
+
+  test("a tap on the card itself takes back the way it is spent, or spends it plainly when it is not", () => {
+    expect(cardTapOption(opened, org)).toBe(plain.optionId);
+    const spent = togglePayment(opened, exhaustTwo.optionId);
+    expect(cardTapOption(spent, org)).toBe(exhaustTwo.optionId);
+    expect(togglePayment(spent, cardTapOption(spent, org)!).picked).toEqual([]);
+    expect(cardTapOption(opened, "missing" as InstanceId)).toBeNull();
   });
 });
