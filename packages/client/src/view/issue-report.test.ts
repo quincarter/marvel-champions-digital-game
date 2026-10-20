@@ -6,6 +6,7 @@ import {
   issueReportFileName,
   issuePlatformOf,
   issueReportText,
+  jsonBlock,
   newIssueUrl,
   screenshotDeviceOf,
   screenshotTipOf,
@@ -59,7 +60,12 @@ describe("issueReportText", () => {
     expect(text).toContain("Seed: 83069");
     expect(text).toContain("Round: 2");
     expect(text.indexOf("R1.1  Spider-Man drew 5")).toBeLessThan(text.indexOf("R1.2  Rhino is TOUGH"));
-    expect(text).toContain('{"config":{"seed":83069},"commands":[{"kind":"mulligan"}]}');
+    expect(text).toContain('```json\n{"config":{"seed":83069},"commands":[{"kind":"mulligan"}]}\n```');
+  });
+
+  test("the replay and the snapshot are json code blocks, so they render as code once pasted into an issue", () => {
+    const text = issueReportText({ environment, game: null, snapshot: { frame: 12 } });
+    expect(text).toContain('== Debug snapshot ==\n```json\n{\n  "frame": 12\n}\n```');
   });
 
   test("an empty game log says so", () => {
@@ -80,6 +86,10 @@ test("the feature and deck buttons open the repo's own forms", () => {
   expect(DECK_REQUEST_URL).toBe(
     "https://github.com/quincarter/marvel-champions-digital-game/issues/new?template=tested_deck_request.yml",
   );
+});
+
+test("a json block's fence outlasts any backticks inside it", () => {
+  expect(jsonBlock('{"text":"a ``` b"}')).toBe('````json\n{"text":"a ``` b"}\n````');
 });
 
 test("the file name is the player's local date and time", () => {

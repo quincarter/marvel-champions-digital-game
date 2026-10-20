@@ -84,11 +84,22 @@ export function issueReportText(input: ReportInput): string {
       ...(game.lines.length === 0 ? ["(empty)"] : game.lines.map((line) => `${line.ref}  ${logLineWords(line)}`)),
       "",
       "== Replay (setup and commands) ==",
-      JSON.stringify({ config: game.config, commands: game.commands }),
+      jsonBlock(JSON.stringify({ config: game.config, commands: game.commands })),
     );
   }
-  sections.push("", "== Debug snapshot ==", JSON.stringify(input.snapshot, null, 2), "");
+  sections.push("", "== Debug snapshot ==", jsonBlock(JSON.stringify(input.snapshot, null, 2)), "");
   return sections.join("\n");
+}
+
+/**
+ * JSON fenced as a Markdown `json` code block, so a log pasted into an issue's text renders as highlighted code
+ * rather than one long paragraph. The fence is longer than any run of backticks inside, so a card's text can't
+ * close it early.
+ */
+export function jsonBlock(json: string): string {
+  const longestRun = Math.max(0, ...(json.match(/`+/g) ?? []).map((run) => run.length));
+  const fence = "`".repeat(Math.max(3, longestRun + 1));
+  return `${fence}json\n${json}\n${fence}`;
 }
 
 /** `mc-report-2026-10-16-1209.txt`, in the player's own clock. */
