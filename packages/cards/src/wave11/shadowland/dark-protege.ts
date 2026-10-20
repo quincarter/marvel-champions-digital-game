@@ -53,7 +53,6 @@ import {
   varAtLeast,
   varOf,
   whenRevealed,
-  yourIdentity,
   you,
 } from "../../dsl/index.js";
 
@@ -145,7 +144,11 @@ export const SHADOWLAND_DARK_PROTEGE: AbilityRegistry = defineAbilities({
     attacksYou,
     chooseOne(
       option("Spend a [physical] resource", spendResources({ physical: 1 }, "spent")),
-      option("Stun your identity", stun(yourIdentity)),
+      option(
+        "Stun your identity",
+        chooseTarget("identity", query("identity", { controller: "you", ...canTakeStatus("stunned") })),
+        stun(chosen("identity")),
+      ),
       option("Take 2 indirect damage", dealIndirectDamage(you, 2)),
     ),
   ),

@@ -584,6 +584,21 @@ describe("Enthralled Lackey (55017)", () => {
   });
 });
 
+describe("Enthralled Lackey boost (55017), barred option", () => {
+  it("the confuse option is not offered to an identity that is already confused (RRG 1.8 p. 12, p. 42)", () => {
+    const sim = open();
+    sim.state = patchInstance(sim.state, identityOf(sim.state), { statuses: { stunned: 0, confused: 1, tough: 0 } });
+    const labels: string[] = [];
+    round(sim, ["55017", BLANK], (s) => {
+      if (s.pendingChoice?.prompt.kind === "chooseOption") labels.push(...s.pendingChoice.options.map((o) => o.label));
+      return firstLegal(s);
+    });
+    expect(labels.some((l) => /Confuse/.test(l))).toBe(false);
+    // The one option left resolves on its own: the charm counter is placed.
+    expect(charm(sim.state, gazeOn(sim.state))).toBe(2);
+  });
+});
+
 describe("Enthralled Brute (55018)", () => {
   it("gets +3 hit points only while engaged with a player whose identity is Enthralled", () => {
     const defiant = open();

@@ -1,7 +1,6 @@
 import { trait } from "@mc/content";
 import type { AbilityRegistry, TargetQuery } from "@mc/engine";
 import {
-  allOf,
   canTakeStatus,
   boost,
   chooseOne,
@@ -14,7 +13,6 @@ import {
   discardAtRandom,
   discardFromHand,
   each,
-  exists,
   firstPlayer,
   giveTough,
   ifThen,
@@ -79,7 +77,9 @@ export const SHADOWLAND_DEADLY_CONTRAPTIONS: AbilityRegistry = defineAbilities({
       ),
       option(
         "Disarm: discard 2 cards at random from your hand, then give a character you control a tough status card",
-        { when: allOf(handHas({}), exists(TOUGH_TARGET)) },
+        // Offered while its discard can resolve; the "then" part with no target does not bar it (RRG 1.8 "Choose
+        // (Option)", p. 12: an independent part keeps the option).
+        { when: handHas({}) },
         setVar("handBefore", handCountOf(you)),
         discardAtRandom(2),
         // "Then" (RRG 1.8 p. 44): only if both cards were discarded. Read from the hand as it was, because the engine's
@@ -102,14 +102,12 @@ export const SHADOWLAND_DEADLY_CONTRAPTIONS: AbilityRegistry = defineAbilities({
       ),
       option(
         "Disarm: discard 1 identity-specific card from your hand, then deal 2 damage to an enemy",
-        { when: allOf(handHas(IDENTITY_SPECIFIC), exists(query("enemy"))) },
-        setVar("matching", handCountOf(you, IDENTITY_SPECIFIC)),
+        // The gate guarantees a matching card, so the discard always happens and the "then" part follows it; with no
+        // enemy to target it does nothing and does not bar the option (RRG 1.8 "Choose (Option)", p. 12).
+        { when: handHas(IDENTITY_SPECIFIC) },
         discardFromHand(1, you, { filter: IDENTITY_SPECIFIC }),
-        // "Then": only if a card was discarded (see Blinding Powder's Disarm).
-        ifThen(valueAtLeast(varOf("matching"), 1), [
-          chooseTarget("foe", query("enemy"), { chooser: firstPlayer }),
-          dealDamage(2, chosen("foe")),
-        ]),
+        chooseTarget("foe", query("enemy"), { chooser: firstPlayer }),
+        dealDamage(2, chosen("foe")),
       ),
       option("Trip: deal 2 damage to your identity and stun it", dealDamage(2, yourIdentity), stun(yourIdentity)),
     ),

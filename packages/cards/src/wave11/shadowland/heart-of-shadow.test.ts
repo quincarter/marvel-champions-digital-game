@@ -437,6 +437,19 @@ describe("Submit or Suffer 65071", () => {
     expect(damage(run.state)).toBe(0);
   });
 
+  it("boost: the stun option is not offered to an identity that is already stunned (RRG 1.8 p. 12, p. 42)", () => {
+    const base = heroGame({ villain: KRAHLLAK, encounter: [SUBMIT] });
+    const hero = patchInstance(base, identityOf(base), { statuses: { stunned: 1, confused: 0, tough: 0 } });
+    const labels: string[] = [];
+    const run = villainPhase(hero, [SUBMIT, FILLER_A], (s) => {
+      if (s.pendingChoice?.prompt.kind === "chooseOption") labels.push(...s.pendingChoice.options.map((o) => o.label));
+      return firstLegal(s);
+    });
+    expect(labels.some((l) => l.startsWith("Stun"))).toBe(false);
+    // The one option left resolves on its own.
+    expect(corruption(run.state)).toBe(1);
+  });
+
   it("boost: the defending player places a counter, or has their identity stunned", () => {
     const hero = () => heroGame({ villain: KRAHLLAK, encounter: [SUBMIT] });
     const placed = villainPhase(hero(), [SUBMIT, FILLER_A], byLabel(place));

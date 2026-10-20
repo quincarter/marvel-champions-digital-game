@@ -245,6 +245,34 @@ describe("Art Museum Heist, Failed 60205b", () => {
   });
 });
 
+describe("Art Museum Heist, Failed 60205b: barred options (RRG 1.8 p. 12, p. 42)", () => {
+  it("60205b.setup: the stun option is not offered to an identity that is already stunned", () => {
+    const labels: string[] = [];
+    const { state } = newGame({
+      envs: [{ id: "60205a", failed: true }],
+      prep: (s) => patchInstance(s, identityOf(s, P1), { statuses: { stunned: 1, confused: 0, tough: 0 } }),
+      pick: (s) => {
+        if (s.pendingChoice!.prompt.kind === "chooseOption")
+          labels.push(...s.pendingChoice!.options.map((o) => o.label));
+        return firstLegal(s);
+      },
+    });
+    expect(labels.some((l) => l.includes("Stun"))).toBe(false);
+    // The one option left resolves on its own.
+    expect([statuses(state, P1).stunned, statuses(state, P1).confused]).toEqual([1, 1]);
+  });
+  it("60205b.setup: a second player's own identity is the one checked and given the status", () => {
+    const { state } = newGame({
+      players: 2,
+      envs: [{ id: "60205a", failed: true }],
+      prep: (s) => patchInstance(s, identityOf(s, P2), { statuses: { stunned: 1, confused: 0, tough: 0 } }),
+      pick: perPlayer({ p1: ["Stun"], p2: ["Stun"] }),
+    });
+    expect([statuses(state, P1).stunned, statuses(state, P1).confused]).toEqual([1, 0]);
+    expect([statuses(state, P2).stunned, statuses(state, P2).confused]).toEqual([1, 1]);
+  });
+});
+
 const TYPE_OF = new Map((PLAYABLE_CARDS as readonly any[]).map((c) => [c.id as string, c.type as string]));
 /** Surgery at the first mulligan: every card of `type` in the player's deck and discard pile is taken out of the game. */
 const withoutCards =

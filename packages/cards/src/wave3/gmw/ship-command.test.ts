@@ -3,6 +3,7 @@ import {
   inst,
   instancesOf,
   moveToHand,
+  patchInstance,
   P1,
   play,
   payWith,
@@ -118,6 +119,27 @@ describe("Blind Side, Hull Breach, Power Siphon — When Revealed: Choose one (1
       WAVE3_DEPS,
     );
     expect(inst(revealed, milano!).exhausted).toBe(true);
+  });
+
+  it("Blind Side: the stun option is not offered when the first player's identity is already stunned (RRG 1.8 p. 12, p. 42)", () => {
+    const state = brotherhoodOfBadoon();
+    const identity = state.players[0]!.identity.instanceId;
+    const stunned = patchInstance(stackEncounterDeck(state, "01186", "16145"), identity, {
+      statuses: { stunned: 1, confused: 0, tough: 0 },
+    });
+    const labels: string[] = [];
+    settle(
+      runWave3(stunned, { type: "endTurn", playerId: P1 }),
+      (s) => {
+        if (s.pendingChoice?.prompt.kind === "chooseOption")
+          labels.push(...s.pendingChoice.options.map((o) => o.label));
+        return pickingLabelStartingWith("Exhaust")(s);
+      },
+      undefined,
+      WAVE3_DEPS,
+    );
+    expect(labels.length).toBeGreaterThan(0);
+    expect(labels.some((l) => l.startsWith("Stun"))).toBe(false);
   });
 
   it("Hull Breach: choosing to deal 3 damage to the first player deals it (16146.when-revealed, 16146.hull-breach-constant, 16146.hull-breach-constant-2, 16146.hull-breach-constant-3)", () => {

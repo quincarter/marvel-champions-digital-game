@@ -1,6 +1,15 @@
 import { cardsInPlay, type GameEvent, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
-import { P1, P2, firstLegal, identityOf, inst, stackEncounterDeck, type Picker } from "../../testing/harness.js";
+import {
+  P1,
+  P2,
+  firstLegal,
+  identityOf,
+  inst,
+  patchInstance,
+  stackEncounterDeck,
+  type Picker,
+} from "../../testing/harness.js";
 import { playFromHand } from "../../testing/staging.js";
 import { CAPTAIN_MARVEL, SPIDER_MAN, codeOf, heroForm, types } from "../../wave9/testing.js";
 import { SHADOWLAND_DEADLY_CONTRAPTIONS, SHADOWLAND_DEADLY_CONTRAPTIONS_SKIPPED } from "./deadly-contraptions.js";
@@ -91,6 +100,26 @@ describe("Blinding Powder (65050): Avoid, Disarm or Trip", () => {
     expect(damage(r.state)).toBe(damage(r.before));
   });
 
+  // RRG 1.8 "Choose (Option)" (p. 12): the discard is a part of its own, so a missing target for the "then" part does not
+  // bar Disarm.
+  it("Disarm is still offered when the identity already holds a tough status card: the discard resolves, no second card is given", () => {
+    const base = trapGame({ trapCards: [BLINDING, CALTROPS], encounter: [FILLER, FILLER, FILLER] });
+    const state = patchInstance(
+      heroForm(stackTraps(withHandOnly(base, P1, OTHER, DEFENSE_EVENT, THWART_EVENT), BLINDING), P1),
+      identityOf(base),
+      { statuses: { stunned: 0, confused: 0, tough: 1 } },
+    );
+    let offered: string[] | null = null;
+    const run = endTurnAnswering(state, (s) => {
+      if (s.pendingChoice!.prompt.kind === "chooseOption" && offered === null)
+        offered = s.pendingChoice!.options.map((o) => o.label.split(":")[0]!);
+      return choosingOption("Disarm")(s);
+    });
+    expect(offered).toContain("Disarm");
+    expect(discarded(run.state, run.events)).toHaveLength(2);
+    expect(statuses(run.state).tough).toBe(1);
+  });
+
   it("Trip deals 2 damage to the identity and confuses it", () => {
     const r = reveal(BLINDING, [], choosingOption("Trip"));
     expect(damage(r.state)).toBe(damage(r.before) + 2);
@@ -145,6 +174,12 @@ describe("Caltrops (65051): Avoid, Disarm or Trip", () => {
     const r = reveal(CALTROPS, [THWART_EVENT], choosingOption("Trip"));
     expect(r.offered).toBeNull();
     expect(damage(r.state)).toBe(damage(r.before) + 2);
+  });
+
+  it("Disarm is offered with an identity-specific card in hand (the card is the only requirement)", () => {
+    const r = reveal(CALTROPS, [DEFENSE_EVENT], choosingOption("Disarm"));
+    expect(r.offered).toContain("Disarm");
+    expect(r.discarded).toEqual([DEFENSE_EVENT]);
   });
 
   it("Trip deals 2 damage to the identity and stuns it", () => {

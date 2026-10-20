@@ -3,7 +3,10 @@ import {
   addCounters,
   attachCard,
   boost,
+  canTakeStatus,
   chooseOne,
+  chooseTarget,
+  chosen,
   defeatingPlayer,
   confuse,
   countersOn,
@@ -23,6 +26,7 @@ import {
   modifyAttack,
   on,
   option,
+  query,
   remainingHpOf,
   removeThreat,
   self,
@@ -177,7 +181,12 @@ export const SHADOWLAND_HEART_OF_SHADOW: AbilityRegistry = defineAbilities({
         { when: youHaveCreepingCorruption },
         placeCorruption(1),
       ),
-      option("Stun your identity", stun(yourIdentity)),
+      // Barred when the identity cannot take the status (RRG 1.8 "Choose (Option)", p. 12; "Target", p. 42).
+      option(
+        "Stun your identity",
+        chooseTarget("identity", query("identity", { controller: "you", ...canTakeStatus("stunned") })),
+        stun(chosen("identity")),
+      ),
     ),
   ),
 });

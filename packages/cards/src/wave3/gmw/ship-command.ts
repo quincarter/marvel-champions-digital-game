@@ -1,5 +1,8 @@
 import {
+  canTakeStatus,
   chooseOne,
+  chooseTarget,
+  chosen,
   constant,
   dealDamage,
   defineAbilities,
@@ -76,7 +79,12 @@ export const SHIP_COMMAND = defineAbilities({
     chooseOne(
       option("Exhaust the Milano", { when: milanoReady }, exhaust(named("Milano"))),
       option("Spend physical physical resources", spendResources({ physical: 2 }, "spent")),
-      option("Stun the first player", stun(identityOf(firstPlayer))),
+      // Barred when the first player's identity cannot take the status (RRG 1.8 "Choose (Option)", p. 12; "Target", p. 42).
+      option(
+        "Stun the first player",
+        chooseTarget("identity", query("identity", { controlledBy: firstPlayer, ...canTakeStatus("stunned") })),
+        stun(chosen("identity")),
+      ),
     ),
   ),
   "16145.blind-side-constant": partOf("16145.when-revealed"),

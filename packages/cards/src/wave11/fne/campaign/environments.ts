@@ -1,5 +1,7 @@
 import type { AbilityRegistry } from "@mc/engine";
 import {
+  chooseTarget,
+  canTakeStatus,
   allOf,
   applyRuleUntil,
   cards,
@@ -132,8 +134,21 @@ export const FNE_CAMPAIGN_ENVIRONMENTS: AbilityRegistry = defineAbilities({
         [stun(identityOf(thatPlayer)), confuse(identityOf(thatPlayer))],
         chooseOneBy(
           thatPlayer,
-          option("Stun your identity", stun(identityOf(thatPlayer))),
-          option("Confuse your identity", confuse(identityOf(thatPlayer))),
+          // Barred when the identity cannot take the status (RRG 1.8 "Choose (Option)", p. 12; "Target", p. 42).
+          option(
+            "Stun your identity",
+            chooseTarget("identity", query("identity", { controlledBy: thatPlayer, ...canTakeStatus("stunned") }), {
+              chooser: thatPlayer,
+            }),
+            stun(chosen("identity")),
+          ),
+          option(
+            "Confuse your identity",
+            chooseTarget("identity", query("identity", { controlledBy: thatPlayer, ...canTakeStatus("confused") }), {
+              chooser: thatPlayer,
+            }),
+            confuse(chosen("identity")),
+          ),
         ),
       ),
     ),

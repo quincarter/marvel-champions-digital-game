@@ -421,7 +421,11 @@ export const ENCHANTRESS: AbilityRegistry = defineAbilities({
   "55017.boost": boost(
     chooseOne(
       option("Place 1 charm counter on your Enchantment card", placeCharm()),
-      option("Confuse your identity", confuse(identityOf(you))),
+      option(
+        "Confuse your identity",
+        chooseTarget("identity", YOUR_IDENTITY_CAN_BE("confused")),
+        confuse(chosen("identity")),
+      ),
     ),
   ),
 

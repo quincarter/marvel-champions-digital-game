@@ -296,6 +296,18 @@ describe("Gorgon 65015a", () => {
     expect(damage(run.state)).toBe(2);
   });
 
+  it("forced interrupt: the stun option is not offered to an identity that is already stunned (RRG 1.8 p. 12, p. 42)", () => {
+    const stunned = patchInstance(game(), identityOf(game()), { statuses: { stunned: 1, confused: 0, tough: 0 } });
+    const labels: string[] = [];
+    const run = villainPhase(stunned, [ADVANCE, FILLER_A], (s) => {
+      if (s.pendingChoice?.prompt.kind === "chooseOption") labels.push(...s.pendingChoice.options.map((o) => o.label));
+      return byLabel(/^Take 2 indirect/)(s);
+    });
+    expect(labels.length).toBeGreaterThan(0);
+    expect(labels.some((l) => l.startsWith("Stun"))).toBe(false);
+    expect(damage(run.state)).toBe(4);
+  });
+
   it("forced interrupt: or take 2 indirect damage (on top of the attack's 2)", () => {
     const run = villainPhase(game(), [ADVANCE, FILLER_A], byLabel(/^Take 2 indirect/));
     expect(damage(run.state)).toBe(4);
