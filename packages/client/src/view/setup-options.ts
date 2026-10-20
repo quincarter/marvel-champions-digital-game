@@ -15,8 +15,14 @@
  * Every control is an action string (`standardSet:standard_iii`, `genePool:up`, `horseman:2:B`, `easierStart:toggle`):
  * the scene hands the string back and never interprets it, and the focus order lists the same strings.
  */
-import { playableScenarioOffer, type HorsemanSide, type PlayableScenarioOffer } from "@mc/cards";
-import { encounterSetId, type DifficultySetChoice } from "@mc/content";
+import {
+  playableScenarioOffer,
+  scenarioWithVillain,
+  type HorsemanSide,
+  type PlayableScenarioOffer,
+  type VillainChoiceOffer,
+} from "@mc/cards";
+import { encounterSetId, type DifficultySetChoice, type Scenario } from "@mc/content";
 import type { SetupDraft } from "./setup-draft.js";
 
 /** What every scenario offers when it is not in the playable pool (a draft naming it never builds). */
@@ -87,6 +93,10 @@ export function reconcileWithOffer(draft: SetupDraft, offer: PlayableScenarioOff
     difficultySets,
     genePoolThreatPerPlayer: genePool ? Math.min(Math.max(0, draft.genePoolThreatPerPlayer), genePool.max) : 0,
     horsemanSides: offer.horsemanSides ? draft.horsemanSides : null,
+    villainSetId:
+      offer.villains && offer.villains.options.some((option) => option.villainSetId === draft.villainSetId)
+        ? draft.villainSetId
+        : null,
     easierStart: offer.easierStart ? draft.easierStart : false,
   };
 }
@@ -159,10 +169,17 @@ export type OptionControl =
   /** The whole card is the button. */
   | { readonly kind: "toggle"; readonly action: string }
   /** A minus, the value and a plus. */
-  | { readonly kind: "stepper"; readonly down: OptionChip; readonly up: OptionChip; readonly valueLabel: string };
+  | {
+      readonly kind: "stepper";
+      readonly down: OptionChip;
+      readonly up: OptionChip;
+      readonly valueLabel: string;
+      /** The value is a name: the buttons sit at the two ends of the control and the value is centered between them. */
+      readonly wide?: boolean;
+    };
 
 export interface SetupOptionRow {
-  readonly id: "standardSet" | "expertSet" | "genePool" | "horsemanSides" | "easierStart";
+  readonly id: "standardSet" | "expertSet" | "genePool" | "horsemanSides" | "easierStart" | "villain";
   /** The card's name: a few words. */
   readonly name: string;
   /** One short line of state under the name; empty when the name and the chips say it all. */
@@ -278,6 +295,27 @@ export function setupOptionRowsOf(
     });
   }
 
+  const villains = offer.villains;
+  if (villains && villains.options.length > 1) {
+    const chosen = villainChosenOf(draft, villains);
+    const index = villains.options.findIndex((option) => option.villainSetId === chosen);
+    rows.push({
+      id: "villain",
+      name: "Villain",
+      meta: `${index + 1} of ${villains.options.length}`,
+      span: 2,
+      active: chosen !== villains.defaultSetId,
+      help: "Fear No Evil: every scenario can be played against any of its five villains. The villain brings its own encounter set and stages.",
+      control: {
+        kind: "stepper",
+        down: { action: "villain:prev", label: "‹", selected: false, enabled: true },
+        up: { action: "villain:next", label: "›", selected: false, enabled: true },
+        valueLabel: villains.options[index]?.name ?? "",
+        wide: true,
+      },
+    });
+  }
+
   if (offer.easierStart) {
     rows.push({
       id: "easierStart",
@@ -290,6 +328,24 @@ export function setupOptionRowsOf(
     });
   }
   return rows;
+}
+
+/** The villain the draft plays against: its pick, else the scenario's default. */
+export function villainChosenOf(draft: Pick<SetupDraft, "villainSetId">, villains: VillainChoiceOffer): string {
+  return draft.villainSetId ?? villains.defaultSetId;
+}
+
+/**
+ * The scenario record as this draft plays it: a Fear No Evil scenario with the chosen villain's card, stages and encounter
+ * set in place of the default's (`scenarioWithVillain`), the record itself for every other draft.
+ */
+export function scenarioOfDraft(draft: Pick<SetupDraft, "villainSetId">, record: Scenario): Scenario {
+  if (!draft.villainSetId) return record;
+  try {
+    return scenarioWithVillain(record, draft.villainSetId);
+  } catch {
+    return record;
+  }
 }
 
 /** The Standard and Expert set rows: a few chips each, drawn inside the difficulty row (not as option cards of their own). */
@@ -350,6 +406,15 @@ export function applySetupOption(draft: SetupDraft, action: string): SetupDraft 
     if (index < 0 || index >= sides.length) return draft;
     sides[index] = second;
     return { ...draft, horsemanSides: sides };
+  }
+
+  if (kind === "villain") {
+    const villains = offer.villains;
+    if (!villains || (first !== "next" && first !== "prev")) return draft;
+    const ids = villains.options.map((option) => option.villainSetId);
+    const at = ids.indexOf(villainChosenOf(draft, villains));
+    const next = ids[(at + (first === "next" ? 1 : ids.length - 1)) % ids.length]!;
+    return { ...draft, villainSetId: next === villains.defaultSetId ? null : next };
   }
 
   if (kind === "easierStart") {

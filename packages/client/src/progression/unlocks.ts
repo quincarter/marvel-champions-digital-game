@@ -237,14 +237,19 @@ export const UNLOCK_WAVES: readonly UnlockWave[] = [
   },
   {
     // Civil War ships no campaign, so the gate stays Agents of S.H.I.E.L.D.'s (the last campaign before it). Daredevil
-    // and Echo are MC60's own cast. Jessica Jones and Luke Cage are not in the pool yet, so no reward names them.
+    // and Echo are MC60's own cast. Jessica Jones (MC61) and Luke Cage (MC62) are single-hero packs, each opened by one
+    // win here: Jessica Jones by Stop the Presses, Luke Cage by Protection Racket. The scenario for each is the client's
+    // default pending the owner's call (the two are paired with the scenarios by theme, not by any printed rule).
     // Gate confirmed by the owner: A, the Agents of S.H.I.E.L.D. win, like Civil War.
     cycleId: "cycle11",
     name: "Fear No Evil",
     gate: { kind: "campaignWin", campaignId: "aos", hint: "Complete the Agents of S.H.I.E.L.D. campaign" },
     campaignId: "fne",
     starterHeroIds: ["60001a", "60037a"], // Daredevil, Echo: MC60's own cast
-    heroRewards: [],
+    heroRewards: [
+      { scenarioId: "stop-the-presses", identityCardId: "61001a" }, // Jessica Jones
+      { scenarioId: "protection-racket", identityCardId: "62001a" }, // Luke Cage
+    ],
   },
 ];
 

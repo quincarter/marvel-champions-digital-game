@@ -93,6 +93,13 @@ export interface SessionConfig {
   /** Apocalypse begins at stage I (standard mode only). */
   readonly easierStart?: boolean;
   /**
+   * A Fear No Evil scenario's villain (docs/phase7-wave11-scenarios.md §S3.3, MC60 p. 5): the encounter set id of one of
+   * `Scenario.villainOptions`. Absent is the record's default villain, and absent on every other scenario and every older save.
+   */
+  readonly villainSetId?: string;
+  /** Protection Racket (standard mode): each seat's main scheme card, in seat order. Absent everywhere else. */
+  readonly mainSchemePicks?: readonly string[];
+  /**
    * The Hood's own seven-of-nine modular encounter set choice (docs/phase7-wave4.md §2.3, §3.18: "Choose 7 modular
    * encounter sets and set them aside — you may choose randomly"). Absent for every other scenario — the scenario
    * builder's own default (the pack's first seven in declaration order) applies.

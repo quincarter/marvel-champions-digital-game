@@ -353,3 +353,42 @@ describe("the set choices folded into the difficulty row", () => {
     expect(row.span).toBe(1);
   });
 });
+
+describe("Fear No Evil villain choice (docs/phase7-wave11-scenarios.md S1.2)", () => {
+  test("an underling scenario offers a villain row, Kingpin does not", () => {
+    expect(rowIds(draftFor("art-museum-heist"))).toContain("villain");
+    expect(rowIds(draftFor("kingpin"))).not.toContain("villain");
+    expect(rowIds(draftFor("rhino"))).not.toContain("villain");
+  });
+
+  test("next and prev step through the five villains and wrap; the default is stored as null", () => {
+    const offer = offerOf(draftFor("the-getaway")).villains!;
+    const ids = offer.options.map((o) => o.villainSetId);
+    expect(ids).toHaveLength(5);
+    const first = apply(draftFor("the-getaway"), "villain:next");
+    expect(first.villainSetId).toBe(ids[1]);
+    expect(apply(first, "villain:prev").villainSetId).toBeNull();
+    expect(apply(draftFor("the-getaway"), "villain:prev").villainSetId).toBe(ids[4]);
+    const row = rowsOf(first).find((r) => r.id === "villain")!;
+    expect(row.control).toMatchObject({ kind: "stepper", wide: true, valueLabel: offer.options[1]!.name });
+    expect(row.meta).toBe("2 of 5");
+  });
+
+  test("the choice reaches the session config, resets with the scenario, and a villain the scenario lacks is dropped", () => {
+    const draft = apply(draftFor("the-getaway"), "villain:next");
+    const scenario = POOL_SCENARIOS.find((s) => s.id === "the-getaway");
+    expect(toSessionConfig(draft, PLAYERS as never, scenario).villainSetId).toBe(draft.villainSetId);
+    expect(setScenario(draft, scenario, "art-museum-heist").villainSetId).toBeNull();
+    expect(reconcileWithOffer({ ...draftFor("kingpin"), villainSetId: "hammerhead" }).villainSetId).toBeNull();
+  });
+
+  test("Protection Racket sends one distinct main scheme per seat in standard and none in expert", () => {
+    const scenario = POOL_SCENARIOS.find((s) => s.id === "protection-racket")!;
+    const two = [...PLAYERS, ...PLAYERS] as never;
+    const standard = toSessionConfig(draftFor("protection-racket"), two, scenario);
+    expect(new Set(standard.mainSchemePicks).size).toBe(2);
+    expect(
+      toSessionConfig(setDifficulty(draftFor("protection-racket"), "expert"), two, scenario).mainSchemePicks,
+    ).toBeUndefined();
+  });
+});
