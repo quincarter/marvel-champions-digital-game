@@ -192,14 +192,24 @@ export class ExtrasScene extends Phaser.Scene {
     if (bar.back) this.#buttons.push(bar.back);
     if (bar.backRect) stops.set("back", { rect: bar.backRect, activate: () => this.#back() });
 
-    // The Trophy Room door: beside the tabs on a wide screen, on a row of its own above them on a phone.
-    const trophyWidth = 168;
+    // The Trophy Room and Art & Credits doors: beside the tabs on a wide screen, on a row of their own above them on
+    // a phone.
+    const doorWidth = 150;
+    const trophyWidth = doorWidth * 2 + 8;
+    const rowGap = 8;
     const trophyRect: Rect = phone
-      ? { x: gutter, y: bar.height + 10, width: width - gutter * 2, height: hit.target }
-      : { x: width - gutter - trophyWidth, y: bar.height + 12, width: trophyWidth, height: TAB_HEIGHT };
+      ? { x: gutter, y: bar.height + 10, width: (width - gutter * 2 - rowGap) / 2, height: hit.target }
+      : { x: width - gutter - doorWidth, y: bar.height + 12, width: doorWidth, height: TAB_HEIGHT };
+    const creditsRect: Rect = phone
+      ? { ...trophyRect, x: trophyRect.x + trophyRect.width + rowGap }
+      : { ...trophyRect, x: trophyRect.x - doorWidth - rowGap };
     const openTrophies = (): void => {
       this.scale.off("resize", this.#draw, this);
       goToScreen(this, SCENES.trophyRoom);
+    };
+    const openCredits = (): void => {
+      this.scale.off("resize", this.#draw, this);
+      goToScreen(this, SCENES.credits);
     };
     this.#buttons.push(
       new McButton(this, {
@@ -209,8 +219,16 @@ export class ExtrasScene extends Phaser.Scene {
         rect: trophyRect,
         onClick: openTrophies,
       }),
+      new McButton(this, {
+        kind: "secondary",
+        label: "Credits ▸",
+        type: typeRole.label,
+        rect: creditsRect,
+        onClick: openCredits,
+      }),
     );
     stops.set("trophies", { rect: trophyRect, activate: openTrophies });
+    stops.set("credits", { rect: creditsRect, activate: openCredits });
 
     const tabs = extrasTabsOf(current);
     const tabRect: Rect = phone
@@ -281,6 +299,7 @@ export class ExtrasScene extends Phaser.Scene {
     const order = [
       ...(bar.backRect ? ["back"] : []),
       "trophies",
+      "credits",
       ...EXTRAS_TABS.map((tab) => `tab:${tab.id}`),
       ...playerStops,
     ];

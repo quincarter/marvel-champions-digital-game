@@ -34,6 +34,10 @@ const TITLE_BLOCK_RATIO = 1.35;
 /** The red divider's own width, and the left art panel's share of a split screen. */
 const DIVIDER_WIDTH = 4;
 const ART_PANEL_SHARE = 0.45;
+/** The rank badge's plate. */
+export const RANK_BADGE_HEIGHT = 58;
+const RANK_BADGE_PHONE_WIDTH = 124;
+const RANK_BADGE_MAX_WIDTH = 300;
 
 /**
  * The update banner. Wide enough, it is one row: two lines of text on the left, the buttons on the right. On a narrow
@@ -155,6 +159,13 @@ export interface TitleMenuLayout {
   /** "How to play" (guided mode G6c, `docs/guided-mode.md` §4): opens the learning hub. */
   readonly howToPlay: Rect;
   readonly settings: Rect;
+  /**
+   * The rank badge (docs/achievements.md): a corner plate with the rank, lifetime points and the bar to the next
+   * rank; a tap opens the Trophy Room. Split screens put it at the art panel's bottom-left, clear of the menu and of
+   * the report and music buttons; a phone puts it right of the logo, just above the rule, where "CHAMPIONS" leaves
+   * the column's right end empty.
+   */
+  readonly rankBadge: Rect;
   /** "Quit to desktop", under Settings; null outside the desktop app. */
   readonly quit: Rect | null;
   readonly footer: Rect;
@@ -172,6 +183,7 @@ export function titleMenuLayoutRects(layout: TitleMenuLayout): readonly Rect[] {
     layout.trophies,
     layout.howToPlay,
     layout.settings,
+    layout.rankBadge,
     ...(layout.quit ? [layout.quit] : []),
     layout.footer,
   ];
@@ -275,6 +287,20 @@ function titleMenuLayoutAt(
     y += hit.target + gap;
   }
 
+  const rankBadge: Rect = split
+    ? {
+        x: pad,
+        y: height - pad - RANK_BADGE_HEIGHT,
+        width: Math.min(artPanel!.width - pad * 2, RANK_BADGE_MAX_WIDTH),
+        height: RANK_BADGE_HEIGHT,
+      }
+    : {
+        x: left + column - RANK_BADGE_PHONE_WIDTH,
+        y: rule.y - RANK_BADGE_HEIGHT - 6,
+        width: RANK_BADGE_PHONE_WIDTH,
+        height: RANK_BADGE_HEIGHT,
+      };
+
   const footerY = Math.max(y, menuPanel.y + menuPanel.height - pad - hit.target);
   const fits = footerY + hit.target <= menuPanel.y + menuPanel.height;
   const footer: Rect = { x: left, y: footerY, width: column, height: hit.target };
@@ -301,6 +327,7 @@ function titleMenuLayoutAt(
     trophies,
     howToPlay,
     settings,
+    rankBadge,
     quit,
     footer,
   };

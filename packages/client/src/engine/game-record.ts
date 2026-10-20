@@ -31,6 +31,8 @@ export interface SeatRecord {
   /** Threat removed by cards this seat controls or owns. */
   readonly thwart: number;
   readonly cardsPlayed: number;
+  /** Allies this seat played (a `cardPlayed` of an ally card). Absent on a record written before the field existed. */
+  readonly alliesPlayed?: number;
   /** The round this seat's hero was defeated in, or null if they stood to the end. */
   readonly defeatedInRound: number | null;
   /**
@@ -248,7 +250,11 @@ export function recordEvents(record: GameRecord, events: readonly GameEvent[], s
         if (event.reason === "crisis") onRound((entry) => ({ ...entry, crisisBlocks: entry.crisisBlocks + 1 }));
         break;
       case "cardPlayed":
-        onSeat(event.playerId, (seat) => ({ ...seat, cardsPlayed: seat.cardsPlayed + 1 }));
+        onSeat(event.playerId, (seat) => ({
+          ...seat,
+          cardsPlayed: seat.cardsPlayed + 1,
+          alliesPlayed: (seat.alliesPlayed ?? 0) + (state.cardPool[event.cardId]?.type === "ally" ? 1 : 0),
+        }));
         break;
       case "playerEliminated":
         onSeat(event.playerId, (seat) => ({ ...seat, defeatedInRound: seat.defeatedInRound ?? round }));

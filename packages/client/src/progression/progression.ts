@@ -15,6 +15,7 @@ import { appSession, campaignService } from "../session.js";
 import {
   NO_HISTORY,
   achievementPointsOf,
+  achievementStatuses,
   isAchievementEarned,
   lifetimePointsOf,
   type AchievementHistory,
@@ -95,12 +96,16 @@ export async function refreshUnlocks(): Promise<boolean> {
       .storage.list()
       .catch(() => []),
   ]);
-  const nextExtras = extrasProgressOf(saves, campaigns);
+  const nextHistory = { saves, campaigns };
+  const earnedIds = achievementStatuses(nextHistory)
+    .filter((status) => status.earned)
+    .map((status) => status.def.id);
+  const nextExtras = extrasProgressOf(saves, campaigns, earnedIds);
   if (JSON.stringify(nextExtras) !== JSON.stringify(extrasProgress)) {
     extrasProgress = nextExtras;
     currentExtras = null;
   }
-  history = { saves, campaigns };
+  history = nextHistory;
   lifetimePoints = lifetimePointsOf(history);
   const next = progressOf(saves, campaigns);
   const nextAchievementPoints = achievementPointsOf(history);

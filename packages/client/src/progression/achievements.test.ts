@@ -16,6 +16,7 @@ import {
   type AchievementHistory,
   type AchievementSave,
 } from "./achievements.js";
+import type { GameSummary } from "../engine/game-summary.js";
 import { UNLOCK_HEROES } from "./unlocks.js";
 
 const heroId = (name: string): string => UNLOCK_HEROES.find((h) => h.name === name)!.identityCardId;
@@ -37,6 +38,7 @@ const game = (
   status,
   round: extra.round ?? 5,
   ...(extra.guided ? { guided: extra.guided } : {}),
+  ...(extra.summary ? { summary: extra.summary } : {}),
   config: {
     scenarioId,
     difficulty: extra.difficulty ?? "standard",
@@ -77,22 +79,8 @@ describe("the achievement list", () => {
     expect(ACHIEVEMENTS.find((a) => a.id === "worthy-of-a-second-date")?.name).toBe("Worthy of a Second Date?");
   });
 
-  it("marks exactly the ones needing new data as untracked, and they never report progress", () => {
-    expect([...UNTRACKED_ACHIEVEMENT_IDS].sort()).toEqual(
-      [
-        "defeated-100",
-        "defeated-25",
-        "feat-no-allies",
-        "feat-one-hit-point",
-        "hulk-one-hit-point",
-        "scheme-losses-10",
-      ].sort(),
-    );
-    const every = achievementStatuses(hist([game("rhino", "won")]));
-    for (const s of every.filter((s) => !s.def.tracked)) {
-      expect(s.earned, s.def.id).toBe(false);
-      expect(s.progress, s.def.id).toBeNull();
-    }
+  it("tracks every achievement now that the save row holds a game summary", () => {
+    expect([...UNTRACKED_ACHIEVEMENT_IDS]).toEqual([]);
   });
 
   it("earns nothing from an empty history", () => {
@@ -229,5 +217,58 @@ describe("points and rank", () => {
     const top = rankProgressOf(MAX_LIFETIME_POINTS);
     expect(top.next).toBeNull();
     expect(top.fraction).toBe(1);
+  });
+});
+
+describe("achievements read from the game summary", () => {
+  const summary = (over: Partial<GameSummary> = {}): GameSummary => ({
+    lossReason: null,
+    heroesDefeated: 0,
+    winners: [],
+    alliesPlayed: 1,
+    ...over,
+  });
+  const lost = (over: Partial<GameSummary>): AchievementSave =>
+    game("rhino", "lost", { summary: summary({ lossReason: "playersDefeated", ...over }) });
+
+  it("counts heroes defeated across games, and ignores a save with no summary", () => {
+    const rows = [...Array.from({ length: 5 }, () => lost({ heroesDefeated: 5 })), game("rhino", "lost")];
+    const h = hist(rows);
+    expect(earned("defeated-25", h)).toBe(true);
+    expect(earned("defeated-100", h)).toBe(false);
+    const bar = achievementStatuses(h).find((s) => s.def.id === "defeated-100")!;
+    expect(bar.progress).toEqual({ current: 25, target: 100 });
+    expect(earned("defeated-25", hist([game("rhino", "lost")]))).toBe(false);
+  });
+
+  it("counts only the losses to the main scheme completing", () => {
+    const scheme = Array.from({ length: 9 }, () => lost({ lossReason: "schemeCompleted" }));
+    expect(earned("scheme-losses-10", hist([...scheme, lost({ lossReason: "playersDefeated" })]))).toBe(false);
+    expect(earned("scheme-losses-10", hist([...scheme, lost({ lossReason: "schemeCompleted" })]))).toBe(true);
+  });
+
+  it("earns the one-hit-point feats from a winning hero at 1 hit point in hero form", () => {
+    const spidey = heroId("Spider-Man (Peter Parker)");
+    const win = (hitPoints: number | null, inHeroForm = true, id = spidey) =>
+      hist([game("rhino", "won", { summary: summary({ winners: [{ identityCardId: id, hitPoints, inHeroForm }] }) })]);
+    expect(earned("feat-one-hit-point", win(1))).toBe(true);
+    expect(earned("feat-one-hit-point", win(2))).toBe(false);
+    expect(earned("feat-one-hit-point", win(1, false))).toBe(false);
+    expect(earned("feat-one-hit-point", win(null))).toBe(false);
+    expect(earned("hulk-one-hit-point", win(1))).toBe(false);
+    expect(earned("hulk-one-hit-point", win(1, true, heroId("Hulk")))).toBe(true);
+  });
+
+  it("earns I Work Alone only from a won game whose summary shows no ally played", () => {
+    expect(earned("feat-no-allies", hist([game("rhino", "won", { summary: summary({ alliesPlayed: 0 }) })]))).toBe(
+      true,
+    );
+    expect(earned("feat-no-allies", hist([game("rhino", "won", { summary: summary({ alliesPlayed: 2 }) })]))).toBe(
+      false,
+    );
+    expect(earned("feat-no-allies", hist([game("rhino", "won")]))).toBe(false);
+    expect(earned("feat-no-allies", hist([game("rhino", "lost", { summary: summary({ alliesPlayed: 0 }) })]))).toBe(
+      false,
+    );
   });
 });

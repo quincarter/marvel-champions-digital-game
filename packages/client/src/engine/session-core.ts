@@ -52,6 +52,7 @@ import type { PaymentState } from "../view/payment-model.js";
 import { judgePayment, type JudgedPayment } from "../view/payment-verdict.js";
 import { actingPlayer } from "./acting-player.js";
 import { emptyRecord, recordEvents, type GameRecord } from "./game-record.js";
+import { summarizeGame } from "./game-summary.js";
 import { isCurrentSchema, SAVE_SCHEMA, type GameStorage, type SaveMeta, type SaveStatus } from "./game-storage.js";
 import type {
   CardPool,
@@ -436,6 +437,7 @@ export class EngineSessionCore {
         updatedAt: this.#now(),
         status: statusOf(state),
         outcome: state.outcome,
+        summary: summarizeGame(state, record, POOL_DEPS),
       };
       // Chained onto `#writes`, the same queue `#persist` appends onto — a command dispatched just before this
       // rewind may still have an `append` in flight, and truncating ahead of it would let that append land
@@ -526,6 +528,7 @@ export class EngineSessionCore {
       updatedAt: this.#now(),
       status: statusOf(state),
       outcome: state.outcome,
+      summary: summarizeGame(state, this.#record, POOL_DEPS),
     };
     this.#writes = this.#writes
       .then(() => storage.append(gameId, seq, command, progress))

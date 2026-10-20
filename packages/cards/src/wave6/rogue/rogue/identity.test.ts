@@ -314,10 +314,30 @@ describe("Rogue / Anna Marie (38001a/b) and Touched (38002)", () => {
       const attached = skinContact(runner.state, runner.id).state;
       for (const t of runnerTraits) expect(rogueTraits(attached)).toContain(t);
       expect(rogueTraits(attached)).toEqual([...new Set([...printed, ...runnerTraits])].sort());
-      // Defeating the host sends Touched away: the copied traits go with it (Q28), not at the end of the round.
+      // Defeating the host: the copied traits end because the chosen character left play (FFG ruling October 9, 2026 -
+      // Ruling 1, which revises Q28), not at the end of the round.
       const { after } = attack(attached, runner.id);
-      expect(inst(after, touchedOf(after)).attachedTo).toBeNull();
       expect(rogueTraits(after)).toEqual(printed);
+      expect(after.lastingEffects.some((e) => e.kind === "traitGrant" && e.copiedFrom)).toBe(false);
+    });
+
+    it("Touched moving while the copied character stays in play does not end the grant (October 9, 2026 - Ruling 1)", () => {
+      const runner = withRunner(rogueHero());
+      const printed = rogueTraits(runner.state);
+      const attached = skinContact(runner.state, runner.id).state;
+      const copied = rogueTraits(attached);
+      expect(copied).not.toEqual(printed);
+      // Touched leaves the runner (moved elsewhere, set aside...): the runner is still the chosen character.
+      const moved = patchInstance(patchInstance(attached, runner.id, { attachments: [] }), touchedOf(attached), {
+        attachedTo: null,
+      });
+      expect(rogueTraits(moved)).toEqual(copied);
+      expect(moved.lastingEffects.some((e) => e.kind === "traitGrant" && e.copiedFrom)).toBe(true);
+      // A state check after the move (a command) must not end the grant for being detached.
+      const { events } = drive(moved, endTurn(P1));
+      expect(
+        ofType(events, "lastingEffectEnded").filter((e) => e.reason === "detached" || e.reason === "targetLeftPlay"),
+      ).toEqual([]);
     });
 
     it("the copied traits also end with the round when Touched stays", () => {

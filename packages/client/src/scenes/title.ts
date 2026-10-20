@@ -19,7 +19,7 @@ import Phaser from "phaser";
 import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
 import { cssOf, textStyle } from "../ui/theme.js";
-import { McButton, paintDotGrid } from "../ui/widgets.js";
+import { McButton, fitText, paintDotGrid } from "../ui/widgets.js";
 import { TITLE_ART, coverFit, pickTitleArt, type TitleArt } from "../art/title-art.js";
 import { ensurePictureLoaded } from "../art/pictures.js";
 import {
@@ -57,7 +57,9 @@ import {
   enterBuilder,
   setBuilderOrigin,
 } from "../view/civil-war-entry.js";
-import { unlocks } from "../progression/progression.js";
+import { lifetimeChampionPoints, refreshUnlocks, unlocks } from "../progression/progression.js";
+import { lastRankSeen, rememberRankSeen } from "../platform/rank-seen.js";
+import { rankUpAnnouncementOf, titleRankBadgeOf } from "../view/title-rank-badge.js";
 import type { CivilWarBuilderData } from "./civil-war-builder.js";
 import { tutorialResumeDecisionFor } from "../guide/tutorial-resume.js";
 import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
@@ -112,6 +114,8 @@ export class TitleScene extends Phaser.Scene {
   #artPanel: { x: number; y: number; width: number; height: number } | null = null;
   /** Bumped by every `#rebuild`, so a picture that finishes loading after a redraw is placed by the current one only. */
   #artGeneration = 0;
+  /** "Rank up: <title>" while the badge shows the fanfare (a few seconds after the Title opens), else null. */
+  #rankUp: string | null = null;
   #route: FocusRoute | null = null;
   #stops = new Map<string, FocusStop>();
 
@@ -144,11 +148,21 @@ export class TitleScene extends Phaser.Scene {
     // (a stuck "Starting…", a stale Continue) must not survive into this one.
     this.#continuable = null;
     this.#starting = false;
+    this.#rankUp = null;
     this.#art = pickTitleArt(TITLE_ART, lastTitleArtKey);
     lastTitleArtKey = this.#art?.key ?? null;
     appSession().music?.playTitle();
+    this.#checkRankUp();
     this.#rebuild();
     fadeScreenIn(this);
+    // Points may have moved since Boot read them (a game just ended): read again, and announce a rank gained.
+    void refreshUnlocks()
+      .catch(() => false)
+      .then(() => {
+        if (!this.sys.isActive()) return;
+        this.#checkRankUp();
+        this.#rebuild();
+      });
     void appSession()
       .store.latestSave()
       .then((save) => {
@@ -160,6 +174,24 @@ export class TitleScene extends Phaser.Scene {
       // A banner the player closed for this very release stays closed; a newer release brings it back.
       if (!update || !this.sys.isActive() || isUpdateDismissed(update.version, dismissedUpdateVersion())) return;
       this.#update = update;
+      this.#rebuild();
+    });
+  }
+
+  /**
+   * The rank-up fanfare (docs/achievements.md): when the Title shows a higher rank than the last visit stored, the
+   * badge turns red and reads "Rank up: <name>" for a few seconds, with the short Extras sting. The rank is
+   * remembered at once, so a second check (after the refresh) or a redraw never repeats it.
+   */
+  #checkRankUp(): void {
+    const result = rankUpAnnouncementOf(lastRankSeen(), lifetimeChampionPoints());
+    rememberRankSeen(result.remember);
+    if (!result.announce) return;
+    this.#rankUp = result.text;
+    appSession().music?.playEffect("extras-unlocked");
+    this.time.delayedCall(RANK_UP_MS, () => {
+      if (!this.sys.isActive()) return;
+      this.#rankUp = null;
       this.#rebuild();
     });
   }
@@ -470,13 +502,17 @@ export class TitleScene extends Phaser.Scene {
       .setWordWrapWidth(layout.column);
 
     const bannerStops = this.#drawUpdateBanner(layout.updateBanner);
+    this.#drawRankBadge(layout.rankBadge, openTrophies);
     this.#route?.set(
-      titleMenuFocusOrder({
-        continuable: this.#continuable !== null,
-        civilWar: civilWar !== null,
-        quit: layout.quit !== null,
-        updateActions: bannerStops,
-      }),
+      [
+        ...titleMenuFocusOrder({
+          continuable: this.#continuable !== null,
+          civilWar: civilWar !== null,
+          quit: layout.quit !== null,
+          updateActions: bannerStops,
+        }),
+        "rank-badge",
+      ],
       this.#stops,
     );
     this.#drawArt();
@@ -531,6 +567,54 @@ export class TitleScene extends Phaser.Scene {
     );
     this.#stops.set(UPDATE_DISMISS_ID, { rect: parts.dismiss, activate: close });
     return actions.map((action) => action.id);
+  }
+
+  /**
+   * The rank badge: rank, lifetime points and a thin bar to the next rank on an ink plate; a tap opens the Trophy
+   * Room. While a rank-up is being announced the plate turns red and names the new rank instead of the bar.
+   */
+  #drawRankBadge(rect: Rect, open: () => void): void {
+    const badge = titleRankBadgeOf(lifetimeChampionPoints());
+    const up = this.#rankUp;
+    const pad = 8;
+    const inner = rect.width - pad * 2;
+    this.add
+      .rectangle(rect.x, rect.y, rect.width, rect.height, up ? accent.heroRed.hex : surface.ink.hex, up ? 1 : 0.9)
+      .setOrigin(0, 0)
+      .setStrokeStyle(2, surface.paper.hex);
+    const paper = surface.paper.hex;
+    const label = this.add
+      .text(rect.x + pad, rect.y + 5, up ? "RANK UP" : badge.rankLabel, textStyle(typeRole.label, paper))
+      .setLetterSpacing(1);
+    if (!up) {
+      const points = this.add.text(0, rect.y + 5, badge.pointsLabel, textStyle(typeRole.label, paper));
+      points.setX(rect.x + rect.width - pad - points.width);
+      fitText(label, Math.max(20, inner - points.width - 6), typeRole.label.size);
+    }
+    const title = this.add.text(rect.x + pad, rect.y + 19, up ? up.replace(/^Rank up: /, "") : badge.title, {
+      ...textStyle(typeRole.rowTitle, paper),
+    });
+    fitText(title, inner, typeRole.rowTitle.size);
+    if (!up) {
+      const barY = rect.y + 37;
+      this.add.rectangle(rect.x + pad, barY, inner, 4, paper, 0.3).setOrigin(0, 0);
+      if (badge.fraction > 0) {
+        this.add.rectangle(rect.x + pad, barY, Math.max(2, inner * badge.fraction), 4, paper).setOrigin(0, 0);
+      }
+      const next = this.add.text(
+        rect.x + pad,
+        rect.y + 44,
+        inner < 170 ? badge.shortNextLabel : badge.nextLabel,
+        textStyle(typeRole.label, paper, ink.meta),
+      );
+      fitText(next, inner, typeRole.label.size);
+    }
+    const zone = this.add
+      .zone(rect.x, rect.y, rect.width, rect.height)
+      .setOrigin(0, 0)
+      .setInteractive({ useHandCursor: true });
+    onTap(zone, open, "title:rank-badge");
+    this.#stops.set("rank-badge", { rect, activate: open });
   }
 
   /** Draws this visit's picture if its texture is ready, otherwise loads it once and draws on arrival. */
@@ -671,6 +755,9 @@ export class TitleScene extends Phaser.Scene {
 const ART_GROUND_DEPTH = -3;
 const ART_DEPTH = -2;
 const ART_SCRIM_DEPTH = -1;
+
+/** How long the rank-up fanfare holds the badge. */
+const RANK_UP_MS = 5000;
 
 /** The picture the last Title visit showed, so the next visit shows a different one (`pickTitleArt`). */
 let lastTitleArtKey: string | null = null;

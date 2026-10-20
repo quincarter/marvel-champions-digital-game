@@ -690,7 +690,7 @@ export function traitsOf(state: GameState, id: InstanceId, deps: EngineDeps = DE
 /**
  * `traitsOf`, with the cards whose traits are already being worked out (`reading`). A copied-traits grant
  * (`traitGrant.copiedFrom`, "you gain each of the attached character's TRAITS", docs/phase7-wave6.md §3.50) reads its
- * source's traits live (§4.1 Q28), printed and granted; a source already being read in this chain (two characters
+ * source's traits live (ruling October 9, 2026 - Ruling 1, revising §4.1 Q28), printed and granted; a source already being read in this chain (two characters
  * copying each other) gives its printed traits only, so the read terminates and neither side's answer depends on which
  * is asked first.
  */

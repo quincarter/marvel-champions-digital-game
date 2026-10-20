@@ -169,9 +169,10 @@ export type LastingEffectBody =
    * "Gain the [trait] trait until the end of the phase" (`trait`), or "you gain each of the attached character's TRAITS
    * until the end of the round" (`copiedFrom`, Rogue's Skin Contact and Energy Transfer, `rogue` 38001a / 38007;
    * docs/phase7-wave6.md §3.50): the reached cards gain every trait the `copiedFrom` characters have **at the time of
-   * each read**, printed and granted (`traitsOf`), never their keywords or text. Owner decision §4.1 Q28: "Rogue's copied
-   * traits are live, for as long as Touched stays on that character", so the copy follows the host's trait changes and
-   * is paired with `LastingEffect.whileAttached`. A `copiedFrom` card that has left play gives nothing.
+   * each read**, printed and granted (`traitsOf`), never their keywords or text. The copy follows the copied
+   * character's trait changes and ends when that character leaves play (FFG ruling October 9, 2026 - Ruling 1, which
+   * revises wave 6 Q28), whatever happens to Touched; a `copiedFrom` card that has left play gives nothing and the
+   * effect ends (`targetLeftPlay`). `LastingEffect.whileAttached` remains as a generic, optional extra bound.
    */
   | (LastingReach & { readonly kind: "traitGrant"; readonly scope: LastingScope } & (
         | { readonly trait: Trait; readonly copiedFrom?: undefined }
