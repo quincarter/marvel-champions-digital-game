@@ -65,7 +65,7 @@
 
 import type { PerPlayerCost } from "../view/per-player-cost.js";
 import Phaser from "phaser";
-import type { InstanceId } from "@mc/engine";
+import { cardOf, type InstanceId } from "@mc/engine";
 import type { AnyCard, CardId, ResourceIconType } from "@mc/content";
 import { POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import { cardArt, drawArt } from "../art/card-art.js";
@@ -104,6 +104,8 @@ import {
   type InspectPayment,
 } from "../view/inspect-model.js";
 import { tuckedSiblings, type CardLink } from "../view/inspect-notes.js";
+import { schemeSideToggle, type SchemeSideToggle } from "../view/scheme-side-toggle.js";
+import { faceOf } from "../view/board-model.js";
 import { linearIntent, type GamepadIntent } from "../view/gamepad.js";
 import { PressArm } from "../view/press-arm.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
@@ -266,6 +268,8 @@ export class InspectOverlay extends Phaser.Scene {
   #unsubscribe: (() => void) | null = null;
   /** Phone only — "Full rules text" grows the sheet to the full viewport (P14's own instruction). Resets on step/reopen. */
   #expanded = false;
+  /** A main scheme shown on its other side (the "Show A side" / "Show B side" toggle, issue #295). Resets on step/reopen. */
+  #flipped = false;
   /**
    * Phone only — the sheet's own scroll position (`ui/scroll-region.ts`'s convention: caller-owned, persisted
    * across rebuilds so an ordinary store-driven redraw doesn't snap the sheet back to the top). Reset on step/reopen,
@@ -318,6 +322,7 @@ export class InspectOverlay extends Phaser.Scene {
     this.#reference = data.reference;
     this.#note = data.note;
     this.#expanded = false;
+    this.#flipped = false;
     this.#sheetScroll = new VariableListScroll();
     this.#motion = new OverlayMotion();
 
@@ -427,6 +432,7 @@ export class InspectOverlay extends Phaser.Scene {
     if (!this.#siblings.includes(id) && game) this.#siblings = [...tuckedSiblings(game, id)];
     this.#instanceId = id;
     this.#expanded = false;
+    this.#flipped = false;
     this.#sheetScroll = new VariableListScroll();
     this.#rebuild();
   }
@@ -440,6 +446,7 @@ export class InspectOverlay extends Phaser.Scene {
     if (next) {
       this.#instanceId = next;
       this.#expanded = false;
+      this.#flipped = false;
       this.#sheetScroll = new VariableListScroll();
       this.#rebuild();
     }
@@ -588,7 +595,11 @@ export class InspectOverlay extends Phaser.Scene {
    */
   #model(): InspectModel | null {
     if (this.#reference) return referenceInspectModel(this.#reference);
-    if (this.#card) return cardInspectModel(CARDS_BY_ID.get(this.#card.cardId as string), this.#card.face);
+    if (this.#card)
+      return cardInspectModel(
+        CARDS_BY_ID.get(this.#card.cardId as string),
+        this.#sideToggle()?.face ?? this.#card.face,
+      );
     const { store } = appSession();
     const state = store.state;
     if (!state.game || state.perspectiveId === null || !this.#instanceId) return null;
@@ -611,7 +622,29 @@ export class InspectOverlay extends Phaser.Scene {
     return inspectModel(state.game, this.#instanceId, state.legal?.actions ?? null, state.perspectiveId, POOL_DEPS, {
       history: board?.cardHistory() ?? emptyCardHistoryLog(),
       payment,
+      ...(this.#flipped ? this.#flippedFace() : {}),
     });
+  }
+
+  /** The "Show A side" / "Show B side" toggle for this sheet's subject, or null when it is not a main scheme stage. */
+  #sideToggle(): SchemeSideToggle | null {
+    if (this.#reference) return null;
+    if (this.#card)
+      return schemeSideToggle(CARDS_BY_ID.get(this.#card.cardId as string), this.#card.face, this.#flipped);
+    const game = appSession().store.state.game;
+    if (!game || !this.#instanceId) return null;
+    return schemeSideToggle(cardOf(game, this.#instanceId), faceOf(game, this.#instanceId), this.#flipped);
+  }
+
+  /** The face an in-game scheme shows once flipped, as `inspectModel`'s `face` option; nothing without a toggle. */
+  #flippedFace(): { readonly face?: CardFace } {
+    const toggle = this.#sideToggle();
+    return toggle ? { face: toggle.face } : {};
+  }
+
+  #flipSide(): void {
+    this.#flipped = !this.#flipped;
+    this.#rebuild();
   }
 
   // ---------------------------------------------------------------------
@@ -913,6 +946,7 @@ export class InspectOverlay extends Phaser.Scene {
   /** "Right now" / "Timing" / "Keywords on this card" / "Traits", whichever apply, in D08's own order. */
   #rulesSectionHeights(inner: number, model: InspectModel): number[] {
     const heights: number[] = [];
+    if (this.#sideToggle()) heights.push(hit.target);
     if (model.teamUpNotice) heights.push(this.#teamUpNoticeHeight(inner, model.teamUpNotice));
     if (model.campaignNotice) heights.push(this.#campaignNoticeHeight(inner, model.campaignNotice));
     if ((model.status.message || model.priceNote || model.resourceNote) && !this.#choice)
@@ -1144,6 +1178,21 @@ export class InspectOverlay extends Phaser.Scene {
 
     const buttonsTop = rect.y + rect.height - pad - hit.primary;
     let y = rect.y + pad + RULES_TITLE_HEIGHT + RULES_SECTION_GAP;
+
+    // A main scheme's other side (issue #295): a secondary button, never the Enter default (`#primaryAction` below).
+    const sideToggle = this.#sideToggle();
+    if (sideToggle) {
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "onInk",
+          label: sideToggle.label,
+          type: typeRole.label,
+          rect: { x: rect.x + pad, y, width: inner, height: hit.target },
+          onClick: () => this.#flipSide(),
+        }),
+      );
+      y += hit.target + RULES_SECTION_GAP;
+    }
 
     // The Team-Up callout leads everything: it is why this card can (or cannot yet) be played at all.
     if (model.teamUpNotice) {
@@ -2083,13 +2132,29 @@ export class InspectOverlay extends Phaser.Scene {
       );
       return;
     }
-    const quietWidth = (quietRow.width - 6) / 2;
+    // A main scheme's other side (issue #295) takes a third of the quiet row; it is never the primary action.
+    const sideToggle = this.#sideToggle();
+    const quietCount = sideToggle ? 3 : 2;
+    const quietWidth = (quietRow.width - 6 * (quietCount - 1)) / quietCount;
+    if (sideToggle) {
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "onInk",
+          label: sideToggle.label,
+          type: typeRole.label,
+          rect: { x: quietRow.x + quietWidth * 2 + 12, y: quietRow.y, width: quietWidth, height: quietRow.height },
+          onClick: () => this.#flipSide(),
+          wrap: true,
+        }),
+      );
+    }
     this.#buttons.push(
       new McButton(this, {
         kind: "onInk",
         label: this.#expanded ? "Collapse" : "Full rules text",
         type: typeRole.label,
         rect: { x: quietRow.x, y: quietRow.y, width: quietWidth, height: quietRow.height },
+        wrap: true,
         onClick: () => {
           this.#expanded = !this.#expanded;
           this.#rebuild();
@@ -2102,6 +2167,7 @@ export class InspectOverlay extends Phaser.Scene {
         label: "Close",
         type: typeRole.label,
         rect: { x: quietRow.x + quietWidth + 6, y: quietRow.y, width: quietWidth, height: quietRow.height },
+        wrap: true,
         onClick: () => this.#close(),
       }),
     );
