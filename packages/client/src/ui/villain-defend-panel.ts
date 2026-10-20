@@ -10,7 +10,7 @@ import { CARD_BACKS, artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import type { FocusStop } from "../scenes/focus-route.js";
 import { SCENES } from "../scenes/keys.js";
-import { noteHoverCard } from "./card-hover-preview.js";
+import { noteHoverCard, type HoverHpPreview } from "./card-hover-preview.js";
 import { bindHoldTarget } from "./hold-target.js";
 import { accent, border, ink, signal, surface, typeRole } from "../tokens.js";
 import { faceOf } from "../view/board-model.js";
@@ -120,7 +120,9 @@ export function drawVillainDefendPanel(scene: Phaser.Scene, args: DefendPanelArg
     onTap(zone, () => args.onSelect(option.optionId), `villain-defend:${option.optionId}`);
     // Over the option's own zone: the picture hovers on desktop, and a tap on it still picks the option.
     const picture = villainDefendOptionParts(slot, layout.orientation).picture;
-    if (picture) readableScan(scene, option.pictureInstanceId, picture, () => args.onSelect(option.optionId));
+    // Its popover previews the health this option leaves the character, as the villain's plate previews an attack.
+    const hp = option.hpNow && option.hpAfterRange ? { ...option.hpNow, ...option.hpAfterRange } : undefined;
+    if (picture) readableScan(scene, option.pictureInstanceId, picture, () => args.onSelect(option.optionId), hp);
     stops.set(`option:${option.optionId}`, { rect: slot, activate: () => args.onSelect(option.optionId) });
   });
 
@@ -172,7 +174,13 @@ function drawScan(scene: Phaser.Scene, game: GameState, instanceId: InstanceId, 
  * own tap target) and a hold or right-click reads it in Inspect, as on the full defend sheet. A tap does `tap`, or
  * opens Inspect too.
  */
-function readableScan(scene: Phaser.Scene, instanceId: InstanceId, rect: Rect, tap?: () => void): void {
+function readableScan(
+  scene: Phaser.Scene,
+  instanceId: InstanceId,
+  rect: Rect,
+  tap?: () => void,
+  hp?: HoverHpPreview,
+): void {
   if (rect.width <= 0 || rect.height <= 0) return;
   const zone = scene.add
     .zone(rect.x, rect.y, rect.width, rect.height)
@@ -187,7 +195,7 @@ function readableScan(scene: Phaser.Scene, instanceId: InstanceId, rect: Rect, t
     onTap: tap ?? inspect,
     onInspect: inspect,
   });
-  noteHoverCard(scene, instanceId, rect);
+  noteHoverCard(scene, instanceId, rect, hp);
 }
 
 /** The attacker, BASE ATK and an arrow, the defender, the facedown boost, and the note (the sheet's "incoming attack"). */

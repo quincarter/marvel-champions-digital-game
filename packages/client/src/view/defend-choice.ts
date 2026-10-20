@@ -54,6 +54,8 @@ export interface DefendOptionView {
    * (#298: an ally's damage is not on its card picture), or null when its HP isn't modeled.
    */
   readonly hpLine: string | null;
+  /** The target's hit points now, as numbers, for the hover popover's health plate (#298); null when not modeled. */
+  readonly hpNow: { readonly current: number; readonly max: number } | null;
   /** The same range as numbers, `low` to `high` hit points left, for the compact identity panel (TB1's "10 → 8–10"). */
   readonly hpAfterRange: { readonly low: number; readonly high: number } | null;
   /** The lowest damage at which this option's target is defeated ("DEFEATED AT 2+"), or null when no band defeats it. */
@@ -140,6 +142,16 @@ export function hpLineFrom(current: number, max: number, bands: readonly DefendB
   if (!range) return now;
   const left = range.low === range.high ? hpNumber(range.low) : `${hpNumber(range.low)}–${hpNumber(range.high)}`;
   return `${now} → ${left} left`;
+}
+
+function hpNowOf(
+  state: GameState,
+  preview: DefendOptionPreview,
+  deps: EngineDeps,
+): { readonly current: number; readonly max: number } | null {
+  const max = maxHitPoints(state, preview.targetInstanceId, deps);
+  const current = remainingHitPoints(state, preview.targetInstanceId, deps);
+  return max === undefined || current === undefined ? null : { current, max };
 }
 
 function hpLineOf(state: GameState, preview: DefendOptionPreview, deps: EngineDeps): string | null {
@@ -258,6 +270,7 @@ function optionViewOf(
     defenseReduction: preview.defenseReduction,
     damageHeadline: damageHeadline(preview.bands),
     hpLine: hpLineOf(state, preview, deps),
+    hpNow: hpNowOf(state, preview, deps),
     hpAfterRange: hpAfterRange(state, preview, deps),
     defeatAt: bandFactsOf(preview.bands).defeatAt,
     consequences: consequenceLines(state, attackerInstanceId, preview),

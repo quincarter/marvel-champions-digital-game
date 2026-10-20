@@ -1626,6 +1626,12 @@ export interface McHpPlateOptions {
    * reads "current → after". Absent or not below `current`: the plain plate.
    */
   readonly after?: number | null;
+  /**
+   * The best case when the effect's outcome is a range (a defend while the boost cards are still facedown): `after`
+   * is then the worst case. The loss certain at the best case is hatched solid and the rest of the range lightly, and
+   * the number reads "current → after–afterHigh".
+   */
+  readonly afterHigh?: number | null;
 }
 
 /**
@@ -1675,6 +1681,8 @@ export class McHpPlate {
   redraw(): void {
     const { rect, current, max, bonus = 0, alpha = 1, tough = false, after = null } = this.#options;
     const previewed = after !== null && after < current;
+    const afterHigh = this.#options.afterHigh ?? null;
+    const best = previewed && afterHigh !== null && afterHigh > after ? Math.min(current, afterHigh) : null;
     const { width, height } = rect;
     this.container.setPosition(rect.x, rect.y);
 
@@ -1698,7 +1706,14 @@ export class McHpPlate {
         height: meter,
       };
       this.#graphics.fillStyle(surface.paper.hex, alpha).fillRect(lost.x, lost.y, lost.width, lost.height);
-      hatchRect(this.#graphics, lost, accent.heroRed.hex, alpha, 6, 3);
+      if (best !== null && max > 0) {
+        // Only the loss down to the best case is certain; the rest of the range may or may not go.
+        const split = 2 + (width - 4) * Math.max(0, Math.min(1, best / max));
+        const maybe: Rect = { ...lost, width: split - lost.x };
+        const sure: Rect = { ...lost, x: split, width: lost.x + lost.width - split };
+        hatchRect(this.#graphics, maybe, accent.heroRed.hex, alpha * 0.4, 6, 3);
+        hatchRect(this.#graphics, sure, accent.heroRed.hex, alpha, 6, 3);
+      } else hatchRect(this.#graphics, lost, accent.heroRed.hex, alpha, 6, 3);
     }
     if (tough) {
       const track: Rect = { x: 2, y: height - meter - 2, width: width - 4, height: meter };
@@ -1728,7 +1743,7 @@ export class McHpPlate {
     // no printed maximum to repeat (docs/phase7-wave3.md §3.1).
     const left = 6 + Math.ceil(this.#caption.width) + 6;
     this.#current
-      .setText(infinite ? "∞" : previewed ? `${current}\u2192${after}` : String(current))
+      .setText(infinite ? "∞" : previewed ? `${current}→${after}${best !== null ? `–${best}` : ""}` : String(current))
       .setColor(cssOf(surface.ink.hex, alpha));
     this.#max.setText(infinite ? "" : `/${max}`).setColor(cssOf(surface.ink.hex, ink.meta * alpha));
     let big = Math.max(CAPTION_FLOOR + 2, Math.round(body * 0.86));
