@@ -894,14 +894,14 @@ export class CampaignRosterScene extends Phaser.Scene {
       let reasonText: Phaser.GameObjects.Text | null = null;
       if (rec) {
         if (rec.teamUps.length > 0) {
-          // Quiet: the accent as an outline and as the text on an ink plate (not a solid red block), so it does not
-          // compete with the aspect badges.
+          // Quiet: the accent as an outline on an ink plate (not a solid red block), so it does not compete with the
+          // aspect badges; the label is paper-white, since red on ink was hard to read (owner, 2026-10-20).
           const tag = this.add
             .text(
               rowRect.x + rowRect.width - 10,
               rowRect.y + 8,
               "TEAM-UP",
-              textStyle(typeRole.label, accent.heroRed.hex, 1),
+              textStyle(typeRole.label, surface.paper.hex, 1),
             )
             .setOrigin(1, 0)
             .setPadding(5, 2, 5, 2);
