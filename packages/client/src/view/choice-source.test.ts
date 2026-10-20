@@ -626,6 +626,23 @@ describe("choiceHeaderOf: a card pick out of a deck", () => {
     expect(header).toEqual({ title: "Choose cards from your deck", subtitle: null });
   });
 
+  test("a hidden-hand facedown pick names whose hand and nothing of the cards", async () => {
+    const state = await realState();
+    const owner = state.players[0]!.playerId;
+    const base = pick(state, [], null);
+    const choice: PendingChoice = {
+      ...base,
+      options: [1, 2].map((n) => ({
+        optionId: `facedown:${owner}:${n}`,
+        label: `Facedown card ${n} from ${owner}'s hand`,
+        ref: { kind: "facedownCard", ownerId: owner },
+      })),
+    };
+    const header = choiceHeaderOf(state, choice, POOL_DEPS, "Choose cards");
+    expect(header.title).toMatch(/^Choose cards from .+'s hand$/);
+    for (const id of state.players[0]!.hand) expect(JSON.stringify(header)).not.toContain(id);
+  });
+
   test("any other choice keeps the one-line header with its source first", async () => {
     const state = await realState();
     const hand = state.players[0]!.hand.slice(0, 2);

@@ -27,7 +27,13 @@ import { setMask } from "../../ui/rex.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import { McButton, fitText, label, paintDotGrid } from "../../ui/widgets.js";
-import { rewindIntroOf, rewindViewOf, type RewindView } from "../../view/campaign-rewind-model.js";
+import {
+  rewindActionLabelOf,
+  rewindHeadlineOf,
+  rewindIntroOf,
+  rewindViewOf,
+  type RewindView,
+} from "../../view/campaign-rewind-model.js";
 import type { Rect } from "../../view/layout.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
@@ -397,7 +403,7 @@ export class CampaignRewindScene extends Phaser.Scene {
       .text(
         rect.x,
         y,
-        `Rewind\nIssue #${view.issueNumber}`,
+        rewindHeadlineOf(view),
         textStyle({ ...typeRole.barTitle, size: phone ? 40 : 60 }, surface.paper.hex),
       )
       .setOrigin(0, 0)
@@ -456,7 +462,7 @@ export class CampaignRewindScene extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
-        label: "Rewind, new shuffle ▸",
+        label: rewindActionLabelOf(view),
         type: typeRole.barTitle,
         rect: rewindRect,
         onClick: () => this.#rewind(),
