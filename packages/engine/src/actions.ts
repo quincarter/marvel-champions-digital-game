@@ -1217,14 +1217,43 @@ function resourceAbilityFault(
   if (limitReached(state, instanceId, asAbilityId(abilityId), definition, null, spender)) {
     return { code: "limit_reached", message: `${abilityId} has reached its limit` };
   }
-  // "Generate a [wild] resource for an event": only while paying for a matching card.
+  const plan = planCost(state, deps, instanceId, spender, definition.cost, choices, new Set());
+  if (isFault(plan)) return plan;
+  // "Generate a [wild] resource for an event": only while paying for a matching card. Checked last, so this fault
+  // means the ability could be used now for another kind of card (`resourcesNotFor`).
   if (definition.generatesFor) {
     if (payingFor === null || !matchesQuery(state, payingFor, definition.generatesFor, context)) {
-      return { code: "no_valid_target", message: `${abilityId} only generates resources for a certain kind of card` };
+      return { code: "no_valid_target", message: notForMessage(abilityId) };
     }
   }
-  const plan = planCost(state, deps, instanceId, spender, definition.cost, choices, new Set());
-  return isFault(plan) ? plan : null;
+  return null;
+}
+
+const notForMessage = (abilityId: string): string => `${abilityId} only generates resources for a certain kind of card`;
+
+/**
+ * The resource abilities on a player's cards that they could use right now, except that they generate only for
+ * another kind of card than `payingFor` ("generate a [wild] resource for an aspect card", Finesse 04033,
+ * `generatesFor`). `paymentOptions` leaves these out; the pay step lists them as unusable, with the reason (issue
+ * #292). An ability whose cost picks cards in play is not listed.
+ */
+export function resourcesNotFor(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  payingFor: InstanceId,
+): readonly { readonly instanceId: InstanceId; readonly abilityId: AbilityId }[] {
+  const found: { readonly instanceId: InstanceId; readonly abilityId: AbilityId }[] = [];
+  for (const id of cardsInPlay(state)) {
+    if (controllerOf(state, id) !== playerId) continue;
+    for (const ref of activeAbilityRefs(state, id, deps)) {
+      const definition = deps.abilities[ref.id];
+      if (definition?.trigger.kind !== "resource" || !definition.generatesFor) continue;
+      const fault = resourceAbilityFault(state, deps, id, ref.id, playerId, payingFor);
+      if (fault?.message === notForMessage(ref.id)) found.push({ instanceId: id, abilityId: asAbilityId(ref.id) });
+    }
+  }
+  return found;
 }
 
 /**
