@@ -212,6 +212,12 @@ export interface IssueStory {
    */
   readonly comicBeats?: readonly ComicBeatRef[];
   /**
+   * A conditional comic built at read time from the villain the campaign log names for this issue (Fear No Evil's
+   * modular pack, `stories/fne.ts`): given that villain (null when no run is behind the read), the beats to read.
+   * Absent: `comicBeats` always.
+   */
+  readonly comicFor?: (villain: string | null) => readonly ComicBeatRef[];
+  /**
    * The beat Rewind shows as this issue's last-read panel, when it is not the last of `comicBeats` (an opener that
    * ends on a cutaway or a placeholder would otherwise put that picture on the villain's taunt).
    */

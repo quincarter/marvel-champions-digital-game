@@ -1,6 +1,12 @@
 import { describe, expect, it, test } from "vitest";
 import { campaignDefinitionOf } from "@mc/cards";
-import { awaitsIssuePick, choiceIssueNumberOf, currentNodeIdOf, issueNumberOfRecord } from "./campaign-issue-pick.js";
+import {
+  awaitsIssuePick,
+  choiceIssueNumberOf,
+  currentNodeIdOf,
+  issueNumberOfRecord,
+  issueVillainOf,
+} from "./campaign-issue-pick.js";
 
 const fne = campaignDefinitionOf("fne")!;
 const trors = campaignDefinitionOf("trors")!;
@@ -58,5 +64,13 @@ describe("choiceIssueNumberOf", () => {
     expect(choiceIssueNumberOf(played, "art-museum-heist")).toBe(2);
     expect(choiceIssueNumberOf(played, "protection-racket")).toBe(3);
     expect(choiceIssueNumberOf(at({}), "the-raft-breakout")).toBe(1);
+  });
+});
+
+describe("issueVillainOf", () => {
+  it("reads the villain the log chose for an issue, and null when it chose none", () => {
+    const shared = { "villain.the-getaway": { kind: "choice", option: "purple_man" } } as never;
+    expect(issueVillainOf({ shared }, "the-getaway")).toBe("purple_man");
+    expect(issueVillainOf({ shared }, "art-museum-heist")).toBeNull();
   });
 });

@@ -2,18 +2,34 @@
  * Fear No Evil (MC60): the copy for the box. Everything here is original flavor for this app; no rule lives here (see
  * `../story.ts`).
  *
- * **Comic pages.** All five underling issues each open on five lettered pages the owner put
- * together (2026-10-20; the first two from panels of Black Cat (2019) #1, Protection Racket mostly from Daredevil (2019) #17, The Raft Breakout from New Avengers (2004) #1-3, Stop the Presses! from Devil's Reign (2021)), with each title box's "Issue N:" removed
- * (the owner: the underling issues play in any order), in `art/campaigns/fne/pages/<issue>-<n>.jpg` (1672x941 each), read panel by panel
- * with the reader's lettered mode (the captions and balloons are printed in). Panel rectangles were measured from each
- * page's white gutters. The other issues have no pages yet, so the reader skips them (no `comicBeats`). The five
- * underling issues are dealt from the box in no fixed order (a `choice` graph), so they carry no number in the copy;
- * Kingpin is always last.
+ * **Comic pages (the owner's modular comic pack, 2026-10-20; `art/campaigns/fne/COMIC-PACK.md`).** Every issue's comic
+ * is built from its scenario and the villain the campaign log names for it (`villain.<node>`), at read time
+ * (`IssueStory.comicFor`). Each scenario's full five-page story (`art/campaigns/fne/pages/<scenario>-<n>.jpg`, lettered)
+ * is kept as its canned story, read whole when the villain is the one it was told around; any other villain gets a
+ * modular read: the scenario's neutral pages and the pack's text-free environment plate (lettered by the reader), that
+ * villain's reveal insert where the pack has one (Bullseye, Purple Man, Typhoid Mary), then the scenario's Suit up page.
+ * Hammerhead has no reveal insert yet, so the neutral stories are canned for him; Electro stars in the Raft's own
+ * story. Black Cat appears only as a cameo in two canned stories, never as the villain (60169 is a Kingpin-set minion).
+ * Kingpin's issue opens on the pack's Final Showdown pages. A read with no run behind it (Extras) gets the canned
+ * story. Panel rectangles were measured from each page's white gutters.
+ *
+ * The five underling issues are dealt from the box in no fixed order (a `choice` graph), so they carry no number in the
+ * copy; Kingpin is always last. Sources: the owner built the stories from panels of Black Cat (2019) #1, Daredevil
+ * (2019) #17, New Avengers (2004) #1-3 and Devil's Reign (2021-2022); the plates, inserts and finale are AI-edited or
+ * generated adaptations (credits in `content/credits.ts`).
  *
  * **Cast:** Daredevil (`60001a`) and Echo (`60037a`) ship in this box, so their lines are written for them; every
  * other hero shows the narrator `fallback` instead.
  */
-import type { CampaignStory, ComicPage, HandledWords, IssueStory, SetupCallCopy, StorySpeaker } from "../story.js";
+import type {
+  CampaignStory,
+  ComicBeatRef,
+  ComicPage,
+  HandledWords,
+  IssueStory,
+  SetupCallCopy,
+  StorySpeaker,
+} from "../story.js";
 
 const DAREDEVIL: StorySpeaker = { kind: "hero", identityId: "60001a", name: "Daredevil" };
 const ECHO: StorySpeaker = { kind: "hero", identityId: "60037a", name: "Echo" };
@@ -50,6 +66,20 @@ const page = (file: string, panels: readonly { x: number; y: number; w: number; 
   lettered: true,
   // No `show`: the cinematic camera tweens panel to panel and pans across each one, like the other boxes' pages.
   beats: panels.map((panel) => ({ panel, lines: [] })),
+});
+
+/**
+ * A text-free page from the pack (an environment plate or a villain insert): the reader letters it, so each panel names
+ * its own caption. The same camera as the lettered pages.
+ */
+const plate = (
+  file: string,
+  panels: readonly { readonly rect: { x: number; y: number; w: number; h: number }; readonly caption?: string }[],
+): ComicPage => ({
+  file,
+  width: 1672,
+  height: 941,
+  beats: panels.map(({ rect, caption }) => ({ panel: rect, lines: [], ...(caption ? { caption } : {}) })),
 });
 
 const PAGES: readonly ComicPage[] = [
@@ -131,11 +161,150 @@ const PAGES: readonly ComicPage[] = [
     { x: 589, y: 50, w: 1071, h: 846 },
   ]),
   page("stop-the-presses-5", [{ x: 10, y: 8, w: 1653, h: 905 }]),
+  // The Final Showdown (Kingpin's issue): captions printed in. Page 4's two panels are slanted: read it whole.
+  page("finale-1", [{ x: 12, y: 11, w: 1649, h: 910 }]),
+  page("finale-2", [
+    { x: 9, y: 6, w: 1656, h: 611 },
+    { x: 9, y: 627, w: 1655, h: 305 },
+  ]),
+  page("finale-3", [
+    { x: 8, y: 7, w: 1656, h: 511 },
+    { x: 9, y: 523, w: 1655, h: 408 },
+  ]),
+  page("finale-4", [{ x: 8, y: 8, w: 1656, h: 923 }]),
+  page("finale-5", [{ x: 7, y: 6, w: 1659, h: 928 }]),
+  // Environment plates: no villain, hero, caption or page marker in the art.
+  plate("env-art-museum", [
+    { rect: { x: 9, y: 7, w: 1654, h: 463 }, caption: "An evening at the museum. A perfect cover for a heist." },
+    { rect: { x: 10, y: 480, w: 1653, h: 450 }, caption: "By the time anyone looks, something is already missing." },
+  ]),
+  plate("env-getaway", [
+    { rect: { x: 12, y: 151, w: 1649, h: 643 }, caption: "The job is done. Getting away is another matter." },
+  ]),
+  plate("env-protection-racket", [
+    { rect: { x: 8, y: 6, w: 1657, h: 593 }, caption: "A neighborhood bar, quiet before opening." },
+    { rect: { x: 8, y: 606, w: 1656, h: 324 }, caption: "The envelope on the counter is this week's cut." },
+  ]),
+  plate("env-raft-breakout", [
+    { rect: { x: 18, y: 19, w: 1635, h: 901 }, caption: "The breach spreads. Every corridor becomes an escape route." },
+  ]),
+  plate("env-stop-the-presses", [
+    {
+      rect: { x: 16, y: 52, w: 1075, h: 834 },
+      caption: "A newsroom holds evidence that could expose a criminal operation.",
+    },
+    { rect: { x: 1105, y: 52, w: 552, h: 834 }, caption: "Someone powerful wants it buried." },
+  ]),
+  // Villain inserts: two portrait panels each, read as one beat per panel; the caption leads the first.
+  plate("villain-bullseye-reveal", [
+    { rect: { x: 9, y: 8, w: 821, h: 925 }, caption: "Bullseye has entered the picture." },
+    { rect: { x: 836, y: 8, w: 828, h: 925 } },
+  ]),
+  plate("villain-purple-man-reveal", [
+    { rect: { x: 11, y: 12, w: 821, h: 917 }, caption: "Purple Man is involved. Trust no easy assumptions." },
+    { rect: { x: 840, y: 12, w: 821, h: 917 } },
+  ]),
+  plate("villain-typhoid-mary-reveal", [
+    { rect: { x: 7, y: 8, w: 825, h: 922 }, caption: "Mary is here. Whatever happens next, stay alert." },
+    { rect: { x: 840, y: 8, w: 824, h: 922 } },
+  ]),
 ];
 
 /** Every beat of each page, in order. */
 const beatsOf = (...files: readonly string[]) =>
   files.flatMap((file) => PAGES.find((p) => p.file === file)!.beats.map((_, beatIndex) => ({ page: file, beatIndex })));
+
+/** The pack's reveal insert for each underling villain that has one; Hammerhead and Electro have none yet. */
+const REVEALS: Readonly<Record<string, string>> = {
+  bullseye: "villain-bullseye-reveal",
+  purple_man: "villain-purple-man-reveal",
+  typhoid_mary: "villain-typhoid-mary-reveal",
+};
+
+/** The villain's reveal beats, or none when the pack has no insert for them (or no villain is known). */
+const revealOf = (villain: string | null): ComicBeatRef[] => {
+  const file = villain ? REVEALS[villain] : undefined;
+  return file ? beatsOf(file) : [];
+};
+
+/**
+ * An issue's conditional comic: `canned` is the scenario's full story, read whole when the issue's villain is one of
+ * `cannedFor` (the villain it was told around) or when no villain is known (an Extras read); any other villain reads
+ * `modular(villain)`.
+ */
+const conditionalComic = (
+  canned: readonly ComicBeatRef[],
+  cannedFor: readonly string[],
+  modular: (villain: string) => readonly ComicBeatRef[],
+): Pick<IssueStory, "comicBeats" | "comicFor"> => ({
+  comicBeats: canned,
+  comicFor: (villain) => (villain === null || cannedFor.includes(villain) ? canned : modular(villain)),
+});
+
+/** Each issue's comic, by node (README "Existing story screens": what each page shows and when it fits). */
+const COMICS: Readonly<Record<string, Pick<IssueStory, "comicBeats" | "comicFor">>> = {
+  // Felicia's gala arrival (page 1) is a cameo only; the modular read opens on the plate instead.
+  "art-museum-heist": conditionalComic(
+    beatsOf("art-heist-1", "art-heist-2", "art-heist-3", "art-heist-4", "art-heist-5"),
+    ["hammerhead"],
+    (villain) => [
+      ...beatsOf("env-art-museum", "art-heist-2", "art-heist-3", "art-heist-4"),
+      ...revealOf(villain),
+      ...beatsOf("art-heist-5"),
+    ],
+  ),
+  // The full story is Black Cat's chase; the modular read keeps only the plate and the neutral interception.
+  "the-getaway": conditionalComic(
+    beatsOf("getaway-1", "getaway-2", "getaway-3", "getaway-4", "getaway-5"),
+    ["hammerhead"],
+    (villain) => [...beatsOf("env-getaway"), ...revealOf(villain), ...beatsOf("getaway-5")],
+  ),
+  // Every page is neutral (unnamed enforcers, Matt as a local): the villain is revealed before Suit up.
+  "protection-racket": conditionalComic(
+    beatsOf(
+      "protection-racket-1",
+      "protection-racket-2",
+      "protection-racket-3",
+      "protection-racket-4",
+      "protection-racket-5",
+    ),
+    ["hammerhead"],
+    (villain) => [
+      ...beatsOf("protection-racket-1", "protection-racket-2", "protection-racket-3", "protection-racket-4"),
+      ...revealOf(villain),
+      ...beatsOf("protection-racket-5"),
+    ],
+  ),
+  // Electro is named and pictured on pages 3 and 4: anyone else gets the breached corridor plate.
+  "the-raft-breakout": conditionalComic(
+    beatsOf("raft-breakout-1", "raft-breakout-2", "raft-breakout-3", "raft-breakout-4", "raft-breakout-5"),
+    ["electro"],
+    (villain) => [
+      ...beatsOf("raft-breakout-1", "raft-breakout-2", "env-raft-breakout"),
+      ...revealOf(villain),
+      ...beatsOf("raft-breakout-5"),
+    ],
+  ),
+  // Fisk with Mary at City Hall (page 1) and Fisk ordering the story buried (page 3): told around Typhoid Mary. The
+  // modular read opens on the newsroom plate, so no earlier heists or rackets are assumed.
+  "stop-the-presses": conditionalComic(
+    beatsOf(
+      "stop-the-presses-1",
+      "stop-the-presses-2",
+      "stop-the-presses-3",
+      "stop-the-presses-4",
+      "stop-the-presses-5",
+    ),
+    ["typhoid_mary"],
+    (villain) => [
+      ...beatsOf("env-stop-the-presses", "stop-the-presses-4"),
+      ...revealOf(villain),
+      ...beatsOf("stop-the-presses-5"),
+    ],
+  ),
+  // The Final Showdown: generic headquarters, no villain named, for the last issue.
+  kingpin: { comicBeats: beatsOf("finale-1", "finale-2", "finale-3", "finale-4", "finale-5") },
+};
 
 /** The five interchangeable scenarios (the finale, Kingpin, has no villain to choose). */
 const UNDERLING_NODES = [
@@ -166,14 +335,8 @@ const nameOf = (id: string): string =>
   NODE_TITLES[id] ??
   id.replace(/[-_]+/g, " ").replace(/(^|\s)([a-z])/g, (_m, lead: string, c: string) => lead + c.toUpperCase());
 
-/** `issue(...)` with the comic read the opener plays before the Briefing. */
-const withComic = (
-  comicBeats: NonNullable<IssueStory["comicBeats"]>,
-  ...args: Parameters<typeof issue>
-): IssueStory => ({
-  ...issue(...args),
-  comicBeats,
-});
+/** `issue(...)` with its comic (`COMICS`), which the opener plays before the Briefing. */
+const withComic = (...args: Parameters<typeof issue>): IssueStory => ({ ...issue(...args), ...COMICS[args[0]] });
 
 const lowerFirst = (text: string): string => text.charAt(0).toLowerCase() + text.slice(1);
 
@@ -251,7 +414,6 @@ export const FNE_STORY: CampaignStory = {
   pages: PAGES,
   issues: [
     withComic(
-      beatsOf("art-heist-1", "art-heist-2", "art-heist-3", "art-heist-4", "art-heist-5"),
       "art-museum-heist",
       "Art Museum Heist",
       "An underling",
@@ -271,7 +433,6 @@ export const FNE_STORY: CampaignStory = {
       "The museum is mine now. Come and take it back.",
     ),
     withComic(
-      beatsOf("getaway-1", "getaway-2", "getaway-3", "getaway-4", "getaway-5"),
       "the-getaway",
       "The Getaway",
       "An underling",
@@ -291,13 +452,6 @@ export const FNE_STORY: CampaignStory = {
       "You will never catch me. Try again, if you like losing.",
     ),
     withComic(
-      beatsOf(
-        "protection-racket-1",
-        "protection-racket-2",
-        "protection-racket-3",
-        "protection-racket-4",
-        "protection-racket-5",
-      ),
       "protection-racket",
       "Protection Racket",
       "An underling",
@@ -317,7 +471,6 @@ export const FNE_STORY: CampaignStory = {
       "Everyone pays. You are no different.",
     ),
     withComic(
-      beatsOf("raft-breakout-1", "raft-breakout-2", "raft-breakout-3", "raft-breakout-4", "raft-breakout-5"),
       "the-raft-breakout",
       "The Raft Breakout",
       "An underling",
@@ -337,13 +490,6 @@ export const FNE_STORY: CampaignStory = {
       "The cells are open. The city is next.",
     ),
     withComic(
-      beatsOf(
-        "stop-the-presses-1",
-        "stop-the-presses-2",
-        "stop-the-presses-3",
-        "stop-the-presses-4",
-        "stop-the-presses-5",
-      ),
       "stop-the-presses",
       "Stop the Presses!",
       "An underling",
@@ -362,7 +508,7 @@ export const FNE_STORY: CampaignStory = {
       },
       "No headline survives me. Try again.",
     ),
-    issue(
+    withComic(
       "kingpin",
       "Kingpin",
       "Kingpin",

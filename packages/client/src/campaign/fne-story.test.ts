@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { campaignDefinitionOf } from "@mc/cards";
 import { FNE_STORY } from "./stories/fne.js";
@@ -26,43 +28,87 @@ describe("the Fear No Evil story", () => {
     }
   });
 
-  test("the five underling issues open on their lettered pages; Kingpin has none yet", () => {
-    const heist = FNE_STORY.issues.find((issue) => issue.nodeId === "art-museum-heist")!;
-    expect(heist.comicBeats?.map((beat) => beat.page)).toEqual([
-      "art-heist-1",
-      "art-heist-1",
-      "art-heist-2",
-      "art-heist-2",
-      "art-heist-3",
-      "art-heist-3",
-      "art-heist-4",
-      "art-heist-4",
-      "art-heist-4",
-      "art-heist-5",
-    ]);
+  const byNode = (nodeId: string) => FNE_STORY.issues.find((issue) => issue.nodeId === nodeId)!;
+  const pagesOf = (beats: readonly { readonly page: string }[] | undefined) => [...new Set(beats?.map((b) => b.page))];
+
+  test("every page fits its panels and has its picture in art/campaigns/fne/pages", () => {
+    const dir = join(process.cwd(), "../../art/campaigns/fne/pages");
     for (const page of FNE_STORY.pages ?? []) {
-      expect(page.lettered, page.file).toBe(true);
+      expect(existsSync(join(dir, `${page.file}.jpg`)), page.file).toBe(true);
       for (const beat of page.beats) {
         expect(beat.panel.x + beat.panel.w, page.file).toBeLessThanOrEqual(page.width);
         expect(beat.panel.y + beat.panel.h, page.file).toBeLessThanOrEqual(page.height);
       }
+      // The pack's text-free plates and inserts are lettered by the reader; the stories carry their own lettering.
+      const plate = page.file.startsWith("env-") || page.file.startsWith("villain-");
+      expect(page.lettered === true, page.file).toBe(!plate);
     }
-    const getaway = FNE_STORY.issues.find((issue) => issue.nodeId === "the-getaway")!;
-    expect(new Set(getaway.comicBeats?.map((beat) => beat.page))).toEqual(
-      new Set(["getaway-1", "getaway-2", "getaway-3", "getaway-4", "getaway-5"]),
-    );
-    expect(getaway.comicBeats).toHaveLength(7);
-    const racket = FNE_STORY.issues.find((issue) => issue.nodeId === "protection-racket")!;
-    expect(racket.comicBeats).toHaveLength(11);
-    expect(racket.comicBeats?.at(-1)).toEqual({ page: "protection-racket-5", beatIndex: 2 });
-    const raft = FNE_STORY.issues.find((issue) => issue.nodeId === "the-raft-breakout")!;
-    expect(raft.comicBeats).toHaveLength(7);
-    const presses = FNE_STORY.issues.find((issue) => issue.nodeId === "stop-the-presses")!;
-    expect(presses.comicBeats).toHaveLength(9);
-    const withPages = ["art-museum-heist", "the-getaway", "protection-racket", "the-raft-breakout", "stop-the-presses"];
-    for (const issue of FNE_STORY.issues.filter((i) => !withPages.includes(i.nodeId))) {
-      expect(issue.comicBeats, issue.nodeId).toBeUndefined();
+  });
+
+  test("each scenario's full story is canned for the villain it was told around, and for a read with no run", () => {
+    const canned: Record<string, string> = {
+      "art-museum-heist": "hammerhead",
+      "the-getaway": "hammerhead",
+      "protection-racket": "hammerhead",
+      "the-raft-breakout": "electro",
+      "stop-the-presses": "typhoid_mary",
+    };
+    for (const [nodeId, villain] of Object.entries(canned)) {
+      const issue = byNode(nodeId);
+      expect(issue.comicFor?.(villain), nodeId).toEqual(issue.comicBeats);
+      expect(issue.comicFor?.(null), nodeId).toEqual(issue.comicBeats);
     }
+    expect(pagesOf(byNode("art-museum-heist").comicBeats)).toEqual([
+      "art-heist-1",
+      "art-heist-2",
+      "art-heist-3",
+      "art-heist-4",
+      "art-heist-5",
+    ]);
+  });
+
+  test("another villain gets the modular read: neutral pages, that villain's reveal where the pack has one, Suit up", () => {
+    // Bullseye's insert lands just before the Suit up page; Black Cat's gala cameo gives way to the museum plate.
+    expect(pagesOf(byNode("art-museum-heist").comicFor?.("bullseye"))).toEqual([
+      "env-art-museum",
+      "art-heist-2",
+      "art-heist-3",
+      "art-heist-4",
+      "villain-bullseye-reveal",
+      "art-heist-5",
+    ]);
+    // The Getaway's Black Cat chase is left out entirely.
+    expect(pagesOf(byNode("the-getaway").comicFor?.("purple_man"))).toEqual([
+      "env-getaway",
+      "villain-purple-man-reveal",
+      "getaway-5",
+    ]);
+    // Electro is pictured only in his own Raft story; anyone else gets the corridor plate.
+    expect(pagesOf(byNode("the-raft-breakout").comicFor?.("typhoid_mary"))).toEqual([
+      "raft-breakout-1",
+      "raft-breakout-2",
+      "env-raft-breakout",
+      "villain-typhoid-mary-reveal",
+      "raft-breakout-5",
+    ]);
+    // No insert for Hammerhead or Electro yet: their modular reads have no reveal (Fisk's pages need Mary).
+    expect(pagesOf(byNode("stop-the-presses").comicFor?.("hammerhead"))).toEqual([
+      "env-stop-the-presses",
+      "stop-the-presses-4",
+      "stop-the-presses-5",
+    ]);
+    expect(pagesOf(byNode("protection-racket").comicFor?.("electro"))).toEqual([
+      "protection-racket-1",
+      "protection-racket-2",
+      "protection-racket-3",
+      "protection-racket-4",
+      "protection-racket-5",
+    ]);
+  });
+
+  test("Kingpin opens on the Final Showdown pages", () => {
+    expect(pagesOf(byNode("kingpin").comicBeats)).toEqual(["finale-1", "finale-2", "finale-3", "finale-4", "finale-5"]);
+    expect(byNode("kingpin").comicFor).toBeUndefined();
   });
 
   test("the cast is Daredevil and Echo", () => {

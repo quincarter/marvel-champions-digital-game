@@ -226,11 +226,11 @@ export const CREDITS: readonly CreditEntry[] = [
   {
     id: "fne-art-heist",
     group: "story",
-    title: "Fear No Evil: issue opener pages",
-    shownIn: "The five underling issue openers in the Fear No Evil campaign",
+    title: "Fear No Evil: issue comics",
+    shownIn: "Every Fear No Evil issue opener, built from the scenario and its villain",
     // The owner, 2026-10-20.
     credit:
-      "Comic pages the owner put together for the issue openers. Art Museum Heist and The Getaway: built from panels of Black Cat (2019) #1 (Marvel Comics), written by Jed MacKay, art by Travel Foreman, Mike Dowling and Nao Fuji, cover by J. Scott Campbell. Protection Racket: mostly from panels of Daredevil (2019) #17 (Marvel Comics), written by Chip Zdarsky, art by Jorge Fornés, cover by Julian Totino Tedesco. The Raft Breakout: from New Avengers (2004) #1-3 (Marvel Comics), written by Brian Michael Bendis, pencils by David Finch, inks by Danny Miki, Mark Morales, Allen Martinez and Victor Olazaba, colors by Frank D'Armata. Stop the Presses!: from Devil's Reign (2021-2022) (Marvel Comics), written by Chip Zdarsky, art and covers by Marco Checchetto.",
+      "The owner's modular comic pack (2026-10-20): AI-edited adaptations of comic panels, plus AI-generated environment plates, villain inserts and the Final Showdown pages, made with an AI image tool; not exact comic panels. Art Museum Heist and The Getaway: built from panels of Black Cat (2019) #1 (Marvel Comics), written by Jed MacKay, art by Travel Foreman, Mike Dowling and Nao Fuji, cover by J. Scott Campbell. Protection Racket: mostly from panels of Daredevil (2019) #17 (Marvel Comics), written by Chip Zdarsky, art by Jorge Fornés, cover by Julian Totino Tedesco. The Raft Breakout: from New Avengers (2004) #1-3 (Marvel Comics), written by Brian Michael Bendis, pencils by David Finch, inks by Danny Miki, Mark Morales, Allen Martinez and Victor Olazaba, colors by Frank D'Armata. Stop the Presses!: from Devil's Reign (2021-2022) (Marvel Comics), written by Chip Zdarsky, art and covers by Marco Checchetto.",
     notice: MARVEL,
     folders: ["art/campaigns/fne/pages"],
   },

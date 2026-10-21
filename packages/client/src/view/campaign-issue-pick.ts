@@ -9,6 +9,15 @@ import { issueNumberOf } from "../campaign/story.js";
 
 type RunPosition = Pick<CampaignRecord, "attempt" | "position" | "status">;
 
+/**
+ * The villain the campaign log names for an issue (`villain.<node>`, Fear No Evil's per-scenario choice), or null when
+ * the log names none: what a conditional comic (`IssueStory.comicFor`) is built from.
+ */
+export function issueVillainOf(record: Pick<CampaignRecord, "shared">, nodeId: string): string | null {
+  const value = record.shared[`villain.${nodeId}`];
+  return value?.kind === "choice" ? value.option : null;
+}
+
 /** The node the run is on: the composed attempt's, else the position's next one, else none yet. */
 export const currentNodeIdOf = (record: RunPosition): string | null =>
   record.attempt?.nodeId ?? record.position.nextNodeId;
