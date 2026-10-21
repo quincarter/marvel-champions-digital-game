@@ -116,7 +116,7 @@ export const UNDO_EVENT_VERDICTS: Readonly<Record<GameEvent["type"], readonly [V
   cardsSetAside: [STOPS, "cards leave for out of play"],
   cardsSwapped: [STOPS, "cards swapped after a look or reveal"],
   characterDefeated: [ALLOWED, "combat, all face up"],
-  choiceFoundNothing: [STOPS, "the end of a search or look"],
+  choiceFoundNothing: [CHECKED, "a target in play found none; a card choice may have read a hand"],
   choiceRequested: [CHECKED, "stops when the prompt looks through a deck"],
   choiceResolved: [ALLOWED, "a choice among public options"],
   consequentialDamageModified: [ALLOWED, "damage and healing, face up"],
@@ -335,6 +335,10 @@ export function eventStopsUndo(event: GameEvent, mover: PlayerId): boolean {
       return !(OPEN_ZONE_KINDS.has(event.from.kind) || (event.from.kind === "hand" && event.from.playerId === mover));
     case "choiceRequested":
       return event.choice.playerId !== mover || DECK_LOOKING_PROMPT_KINDS.has(event.choice.prompt.kind);
+    case "choiceFoundNothing":
+      // No scheme or character in play to choose is open to everyone (issue #330). A required card choice that found
+      // nothing may have looked through other seats' hands ("an ally from any player's hand"), so it still stops.
+      return event.choice !== "chooseTarget";
     case "cardDiscardedFromHand":
       // Another seat's hand is theirs; the mover's own is gated by the RNG count (a random pick spends it).
       return event.playerId !== mover;
