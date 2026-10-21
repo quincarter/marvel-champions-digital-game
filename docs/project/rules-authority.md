@@ -48,7 +48,7 @@ Hall of Heroes hosts every version:
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | **v1.8 (July 2026), current** | [mc_rulesreference_v18_compressed.pdf](https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc_rulesreference_v18_compressed.pdf)         | [`mc_rulesreference_v18_compressed.md`](../../mc_rulesreference_v18_compressed.md) |
 | v1.7 (December 2025)          | [mc_rulesreference_v17-compressed.pdf](https://hallofheroeslcg.com/wp-content/uploads/2025/12/mc_rulesreference_v17-compressed.pdf)         | —                                                                                  |
-| v1.6 (July 2024)              | [mc_rulesreference_v16_compressed.pdf](https://hallofheroeslcg.com/wp-content/uploads/2024/07/mc_rulesreference_v16_compressed.pdf)         | —                                                                                  |
+| v1.6 (July 2024)              | [mc_rulesreference_v16_compressed.pdf](https://hallofheroeslcg.com/wp-content/uploads/2024/07/mc_rulesreference_v16_compressed.pdf)         | [`mc_rulesreference_v16_compressed.md`](../../mc_rulesreference_v16_compressed.md) |
 | v1.5 (May 2023)               | [mc_rulesreference_v15-compressed.pdf](https://hallofheroeslcg.com/wp-content/uploads/2023/05/mc_rulesreference_v15-compressed.pdf)         | —                                                                                  |
 | v1.4.2 (undated)              | [mc_rulesreference_v14_2_compressed_1.pdf](https://hallofheroeslcg.com/wp-content/uploads/2021/05/mc_rulesreference_v14_2_compressed_1.pdf) | —                                                                                  |
 | v1.4 (April 2021)             | [mc_rulesreference_v14.pdf](https://hallofheroeslcg.com/wp-content/uploads/2021/04/mc_rulesreference_v14.pdf)                               | —                                                                                  |
@@ -57,7 +57,8 @@ Hall of Heroes hosts every version:
 | v1.1                          | [mc_rulesreference_v11.pdf](https://hallofheroeslcg.com/wp-content/uploads/2020/04/mc_rulesreference_v11.pdf)                               | —                                                                                  |
 | v1.0                          | [marvelrrg10.pdf](https://hallofheroeslcg.com/wp-content/uploads/2020/09/marvelrrg10.pdf)                                                   | —                                                                                  |
 
-Only v1.8 has a copy here; older versions are history and v1.8 replaces them.
+Only v1.8's PDF is here; older versions are history and v1.8 replaces them. v1.6 also has a Markdown copy, for reading
+the rules the post-RRG 1.6 rulings below were answered under; it is never cited over v1.8.
 [`marvel_champions_rules-marvelcdb.md`](../../marvel_champions_rules-marvelcdb.md) is MarvelCDB's rules page, an older
 RRG text: useful for wording searches, never cited over v1.8.
 
@@ -76,7 +77,10 @@ FFG's Game Rules Specialist answers rules questions; Hall of Heroes transcribes 
   [`marvel-champions-rulings-post-rrg-1-7.md`](../../marvel-champions-rulings-post-rrg-1-7.md), one Markdown file
   cited by its date headings.
 - **RRG v1.6 era (July 2024 to December 2025):**
-  [Latest FFG Rulings (post-RRG 1.6)](https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-6/)
+  [Latest FFG Rulings (post-RRG 1.6)](https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-6/). A copy (July
+  2024 to December 11, 2025) is in this repository, split by month:
+  [`docs/rulings/post-rrg-1-6/`](../rulings/post-rrg-1-6/). The page has no month headings after April 2025, so the
+  script groups the later rulings by the dates on their signature lines and says so in each of those files.
 - **RRG v1.5 era:** [Latest FFG Rulings (post-RRG 1.5)](https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-5/).
   A copy (May 2023 to 2024) is in this repository, split into small files:
   [`docs/rulings/post-rrg-1-5/`](../rulings/post-rrg-1-5/), indexed in [`docs/rulings/README.md`](../rulings/README.md).
@@ -87,7 +91,7 @@ FFG's Game Rules Specialist answers rules questions; Hall of Heroes transcribes 
 The split copies are for searching, not reading end to end: start at the
 [README index](../rulings/README.md) (one line per file, with the cards and keywords it covers), or
 `grep -ril "<card or keyword>" docs/rulings/`, then open only the matching file. They are tier 4 above. Regenerate
-them with `scripts/scrape_rulings_markdown.py`. The post-RRG 1.6 page has no copy here yet.
+them with `scripts/scrape_rulings_markdown.py`.
 
 - **Overturned rulings:** [Legacy Rulings](https://hallofheroeslcg.com/marvel-champions-lcg-legacy-rulings/), rulings
   a later ruling or RRG replaced. These are kept for history and are not followed.
