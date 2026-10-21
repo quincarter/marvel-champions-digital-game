@@ -42,6 +42,7 @@ import { drawPaymentBar } from "./payment-bar.js";
 import { drawMyPiles } from "./piles.js";
 import { focusKey } from "./selection.js";
 import { setMask } from "../../ui/rex.js";
+import { bindDragSurface } from "../../ui/hold-target.js";
 import { addTapTarget } from "./tap-target.js";
 
 import type { HandScroll } from "../../view/hand-scroll.js";
@@ -155,11 +156,20 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
     landscape: model.hand.map((card) => card.landscape),
   });
   const { slots } = row;
+  // The tabbed hand's whole strip takes a sideways drag once it scrolls, not only its cards: a finger that starts in a
+  // gap or above a short card still scrolls the hand. Made before the cards and table tiles, so each keeps its own press.
+  const dragSurface = tabbed
+    ? scene.add.zone(row.cardArea.x, top, row.cardArea.width, rect.y + rect.height - top).setOrigin(0, 0)
+    : null;
   if (payment) drawPaymentTable(ctx, row, payment);
   else if (discard && discard.helperCards.length > 0) drawHelperDiscardTable(ctx, row, discard);
 
   const rowRight = slots.reduce((max, slot) => Math.max(max, slot.x + slot.width), row.cardArea.x);
   hand.measure(row.cardArea, rowRight);
+  if (dragSurface && hand.canScroll) {
+    dragSurface.setInteractive();
+    bindDragSurface(scene, dragSurface, hand.drag);
+  }
 
   const drawCards = (scrollX: number): void => {
     model.hand.forEach((card, index) => {
