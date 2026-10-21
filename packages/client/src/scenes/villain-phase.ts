@@ -123,7 +123,8 @@ import { POOL_DEPS } from "../content/pool.js";
 import { accent, border, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { bindHoldTarget } from "../ui/hold-target.js";
 import { textStyle } from "../ui/theme.js";
-import { McButton, fitText, label, paintPanel } from "../ui/widgets.js";
+import { McButton, fitText, fitWrapped, label, paintPanel } from "../ui/widgets.js";
+import { flipPeekEdge, peekBannerLayout, peekEdge, peekMoveLabel } from "../view/peek-banner.js";
 import { inspectModel } from "../view/inspect-model.js";
 import type { FormFactor, Rect } from "../view/layout.js";
 import { formFactorFor, isTabbed } from "../view/layout.js";
@@ -234,12 +235,7 @@ import { defendChoiceViewOf, type DefendChoiceView } from "../view/defend-choice
 import type { VillainSeatNote } from "../view/villain-seat-note.js";
 import { villainDefendLayout } from "../view/villain-defend-layout.js";
 import { drawVillainDefendPanel } from "../ui/villain-defend-panel.js";
-import {
-  villainBandLayout,
-  villainPeekLayout,
-  villainRailLayout,
-  villainTabLayout,
-} from "../view/villain-rail-layout.js";
+import { villainBandLayout, villainRailLayout, villainTabLayout } from "../view/villain-rail-layout.js";
 import { encounterStripOf, type EncounterStrip } from "../view/villain-encounter-strip.js";
 import { villainHandTagsOf } from "../view/villain-hand-tags.js";
 import { SEAT_AVATAR_READY } from "../ui/seat-avatar.js";
@@ -1341,7 +1337,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         return;
       }
       if (rects?.footer && kind === "peek") {
-        this.#drawPeek(rects.footer, rects.banner ?? rects.footer, reveal, game, viewer, viewerId);
+        this.#drawPeek(rects.footer, rects.peekArea ?? rects.footer, reveal, game, viewer);
         return;
       }
     }
@@ -2925,20 +2921,13 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   }
 
   /**
-   * Peeking at the table (P3): the board and its tabs are the player's; the phase keeps a banner over the bottom of
-   * the board with what it waits on and BACK, and, when the decision is the player's own, its two answers in the
-   * action bar's place.
+   * Peeking at the table (P3): the board and its tabs are the player's; the phase keeps a compact one-line banner over
+   * the table, at the bottom of `area` unless the player moved it (#329), with what it waits on, MOVE and BACK, and,
+   * when the decision is the player's own, its two answers in the action bar's place.
    */
-  #drawPeek(
-    footer: Rect,
-    banner: Rect,
-    reveal: Reveal,
-    game: GameState,
-    viewer: PlayerId | null,
-    viewerId: PlayerId,
-  ): void {
+  #drawPeek(footer: Rect, area: Rect, reveal: Reveal, game: GameState, viewer: PlayerId | null): void {
     this.#presentation = "peek";
-    const layout = villainPeekLayout(banner);
+    const layout = peekBannerLayout(area, peekEdge(), footer.width < 600);
     const pause = this.#shownPause();
     let inline = pause && game.pendingChoice ? inlineInterruptFor(game.pendingChoice, viewer) : null;
     const peekStrip = this.#encounterStrip(reveal, game, viewer);
@@ -2962,50 +2951,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const strip = this.#encounterStrip(reveal, game, viewer);
     const active = reveal.steps.find((step) => step.revealStatus === "active");
     const position = active?.kind === "revealEncounterCards" && strip?.position ? strip.position : null;
-    const heading = [
-      "Villain phase",
-      active ? `Step ${active.number}` : null,
-      position ? `${position.index} of ${position.total}` : null,
-    ]
-      .filter(Boolean)
-      .join(" · ");
     // What the phase waits on (the revealed card or the attacking enemy) and the card the player would answer with.
     const subject =
       position && strip?.current ? strip.current : (this.#walkthrough.activation?.enemyInstanceId ?? null);
     const option = inline?.[0] ?? null;
-    const thumbOf = option?.instanceId ?? subject;
-    if (thumbOf) {
-      const fill = this.add.graphics();
-      fill
-        .fillStyle(surface.paper.hex, 1)
-        .fillRect(layout.thumb.x, layout.thumb.y, layout.thumb.width, layout.thumb.height);
-      const art = inspectModel(game, thumbOf, null, viewerId, POOL_DEPS).art;
-      drawArt(this, cardArt(this).request(this, art), layout.thumb);
-      const frame = this.add.graphics();
-      frame.lineStyle(border.object, signal.caution.hex, 1);
-      frame.strokeRect(layout.thumb.x, layout.thumb.y, layout.thumb.width, layout.thumb.height);
-      // Inspectable like every other card the phase shows: tap, hold or right-click.
-      const zone = this.add
-        .zone(layout.thumb.x, layout.thumb.y, layout.thumb.width, layout.thumb.height)
-        .setOrigin(0, 0)
-        .setInteractive({ useHandCursor: true });
-      const open = (): void => {
-        this.scene.launch(SCENES.inspect, { instanceId: thumbOf });
-      };
-      bindHoldTarget(this, zone, { key: `peek:${thumbOf}`, onTap: open, onInspect: open });
-    }
-    const textX = thumbOf ? layout.text.x : layout.thumb.x;
-    const textWidth = layout.text.x + layout.text.width - textX;
-    const headingText = label(
-      this,
-      textX,
-      layout.text.y,
-      heading,
-      { ...typeRole.label, size: 11 },
-      signal.caution.hex,
-      1,
-    );
-    fitText(headingText, textWidth, 11);
     const line =
       gate?.kind === "start"
         ? "The villain phase waits for you to start it"
@@ -3014,26 +2963,31 @@ export class VillainPhaseOverlay extends Phaser.Scene {
           : inline
             ? `${subject ? cardName(game, subject) : "The villain phase"} waits on your answer`
             : (reveal.current?.text ?? "The villain phase is running.");
+    // Up to two short lines (#329): the step and the question, then MOVE and BACK. The card itself is on the table.
+    const step = active ? `Step ${active.number}` : "Villain phase";
     const main = this.add
-      .text(textX, layout.text.y + 20, line, textStyle({ ...typeRole.rowTitle, size: 16 }, surface.paper.hex))
-      .setOrigin(0, 0)
-      .setWordWrapWidth(textWidth)
-      .setMaxLines(2);
-    if (option) {
-      const detail = label(
-        this,
-        textX,
-        main.y + main.height + 6,
-        `${abilityName(game, option)} · ${game.players.some((p) => p.hand.includes(option.instanceId)) ? "from your hand" : "in play"}`,
-        { ...typeRole.label, size: 10 },
-        surface.paper.hex,
-        ink.secondary,
-      );
-      fitText(detail, textWidth, 10);
-    }
+      .text(
+        layout.text.x,
+        layout.text.y + layout.text.height / 2,
+        `${step}: ${option ? `${line} (${abilityName(game, option)})` : line}`,
+        textStyle({ ...typeRole.rowTitle, size: 14 }, surface.paper.hex),
+      )
+      .setOrigin(0, 0.5);
+    fitWrapped(main, layout.text.width, 2, 14);
 
     const back = (): void => this.#setPeeking(false);
+    const move = (): void => {
+      flipPeekEdge();
+      this.#draw();
+    };
     this.#buttons.push(
+      new McButton(this, {
+        kind: "onInk",
+        label: peekMoveLabel(layout.edge),
+        type: typeRole.label,
+        rect: layout.move,
+        onClick: move,
+      }),
       new McButton(this, {
         kind: "secondary",
         label: "Back ▴",
@@ -3042,6 +2996,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         onClick: back,
       }),
     );
+    stops.set("move", { rect: layout.move, activate: move });
     stops.set("back", { rect: layout.back, activate: back });
 
     if (gate) {
@@ -3092,6 +3047,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         ),
         "start",
         "answer",
+        "move",
         "back",
       ],
       stops,
@@ -3101,6 +3057,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         continueRect: () => null,
         skipRect: () => null,
         backRect: () => layout.back,
+        moveRect: () => layout.move,
+        bannerRect: () => layout.banner,
+        edge: () => layout.edge,
         presentation: () => this.#presentation,
         useRect: () => stops.get(`interrupt:${inline?.[0]?.optionId}`)?.rect ?? stops.get("confirm")?.rect ?? null,
         resolveRect: () => stops.get("resolve")?.rect ?? null,

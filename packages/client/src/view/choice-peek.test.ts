@@ -27,7 +27,7 @@ describe("choicePeekBannerLayout: the banner a peeking sheet leaves at the foot 
     ["desktop", { x: 0, y: 0, width: 1440, height: 980 }, "desktop"],
   ];
   for (const [name, viewport, formFactor] of cases) {
-    it(`${name}: on screen, at the foot, with a full-size BACK TO DECISION beside the question`, () => {
+    it(`${name}: on screen, at the foot, with full-size MOVE and BACK beside the one-line question`, () => {
       const layout = choicePeekBannerLayout(viewport, formFactor);
       expect(inside(layout.banner, viewport)).toBe(true);
       expect(layout.banner.y + layout.banner.height).toBeGreaterThan(viewport.height - 20);
@@ -35,6 +35,9 @@ describe("choicePeekBannerLayout: the banner a peeking sheet leaves at the foot 
       expect(inside(layout.text, layout.banner)).toBe(true);
       expect(overlaps(layout.text, layout.back)).toBe(false);
       expect(layout.back.height).toBeGreaterThanOrEqual(hit.target);
+      expect(layout.move.height).toBeGreaterThanOrEqual(hit.target);
+      expect(inside(layout.move, layout.banner)).toBe(true);
+      expect(layout.banner.height).toBeLessThan(60);
     });
   }
 });

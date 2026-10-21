@@ -3,7 +3,6 @@ import { hit } from "../tokens.js";
 import type { Rect } from "./layout.js";
 import {
   villainBandLayout,
-  villainPeekLayout,
   villainRailLayout,
   villainTabLayout,
   type VillainRailInput,
@@ -201,16 +200,6 @@ describe("villainTabLayout", () => {
   it("gives the revealed card most of the body on a phone (#128)", () => {
     const layout = villainTabLayout({ ...PHONE, revealing: true, interruptOptions: 0 });
     expect(layout.bodyArt.width).toBeGreaterThanOrEqual(150);
-  });
-});
-
-describe("villainPeekLayout", () => {
-  it("lays BACK, the thumbnail and the text inside the banner, BACK at a touch target's size", () => {
-    const peek = villainPeekLayout({ x: 8, y: 110, width: 374, height: 112 });
-    expect(inside(peek.back, peek.banner)).toBe(true);
-    expect(inside(peek.thumb, peek.banner)).toBe(true);
-    expect(peek.back.height).toBeGreaterThanOrEqual(hit.target);
-    expect(overlaps(peek.text, peek.back)).toBe(false);
   });
 });
 
