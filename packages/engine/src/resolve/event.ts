@@ -95,7 +95,7 @@ import {
   openLeavingInterrupts,
   runCarriedHostStep,
 } from "./cards.js";
-import { currentActivationFrameId, type StackFrame, type Vars } from "../stack.js";
+import { currentActivationFrameId, playFrameOf, type StackFrame, type Vars } from "../stack.js";
 import { forgetEnteredWhileApplying } from "../entered-since.js";
 import { STATUS_NAMES, type GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
@@ -528,6 +528,7 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       reportResults(ctx, frame, true);
       expireEventLastingEffects(ctx, frame.frameId);
       popFrame(ctx);
+      sweepAllyEnteredAtZero(ctx, frame.event);
       // "After you ignore guard / patrol / the crisis icon" answers after the attack or thwart (§3.8, §4.1 Q6), so it
       // is pushed first and resolves after the moves `announceAfterward` reports.
       announceKeywordsIgnored(ctx, frame);
@@ -535,6 +536,23 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       return;
     }
   }
+}
+
+/**
+ * An ally put into play (not played) with no hit points is defeated once its "enters play" windows have resolved.
+ * RRG 1.8 "Hit Points" (p. 22): an ally "with zero or fewer remaining hit points is defeated". An ally printed with 0
+ * hit points (Ant-Man 12011, Wasp 13012) gets them from counters its "When [this ally] enters play" interrupt places,
+ * so the check waits for that window, as a play's does (`play-card.ts`, its `done` stage). Put into play by Make the
+ * Call with nothing overpaid, Ant-Man stayed in play at 0 hit points until something else swept defeats (#335). Waits
+ * while another entry of the same moment is still resolving its windows, so one ally's sweep never beats another's
+ * counters.
+ */
+function sweepAllyEnteredAtZero(ctx: Ctx, event: TriggerEvent): void {
+  if (event.kind !== "cardEntersPlay" || cardOf(ctx.state, event.instanceId)?.type !== "ally") return;
+  const stack = ctx.state.stack;
+  if (playFrameOf(stack, event.instanceId)) return;
+  if (stack.some((f) => f.kind === "event" && f.event.kind === "cardEntersPlay")) return;
+  checkDefeats(ctx);
 }
 
 /**

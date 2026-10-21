@@ -29,6 +29,7 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
+import { moveToDiscard } from "../../testing/staging.js";
 import { forceMinionIntoPlay } from "../../wave1/thor/testing.js";
 
 /**
@@ -190,6 +191,37 @@ describe("Ant-Man's leadership cards, from Captain Marvel (Leadership)'s own dec
     expect(cardsInPlay(after)).toContain(antMan);
     expect(inst(after, antMan).counters.pym).toBe(3);
     expect(profileOf(after, antMan).maxHp).toBe(3); // printed 0 hit points + 3 pym counters
+  });
+
+  /** Make the Call (01071) with Ant-Man in P1's discard pile, paying with `overpay` single-icon fillers. */
+  const makeTheCallOnAntMan = (overpay: number): { readonly state: GameState; readonly antMan: InstanceId } => {
+    const { state: opened, id: makeTheCall } = openHandFor("01071", CAP_MARVEL, { extraDeck: ["12011"] });
+    const { state: discarded, id: antMan } = moveToDiscard(opened, P1, "12011");
+    const pay = filler(discarded, overpay, [makeTheCall, antMan]);
+    const state = settle(
+      runWith(PLAYABLE_DEPS, pay.state, play(P1, makeTheCall, pay.ids, { costChoices: { ally: [antMan] } })),
+      firstLegal,
+      undefined,
+      PLAYABLE_DEPS,
+    );
+    return { state, antMan };
+  };
+
+  it("12011 put into play by Make the Call (01071) with nothing overpaid enters at 0 hit points and is defeated (#335)", () => {
+    // RRG 1.8 "Hit Points" (p. 22) / "Defeat" (p. 15): an ally with zero remaining hit points is defeated. Nothing was
+    // overpaid, so his enter-play interrupt places no counters and he falls once it has resolved.
+    const { state, antMan } = makeTheCallOnAntMan(0);
+    expect(cardsInPlay(state)).not.toContain(antMan);
+    expect(playerOf(state, P1).discard).toContain(antMan);
+  });
+
+  it("12011 put into play by Make the Call (01071) can be overpaid for pym counters", () => {
+    // FFG ruling (RRG 1.0–1.4 era, expansion card questions part 3): you can overpay for Hank Pym with Make the Call,
+    // since it pays his printed cost (RRG 1.8 "Cost", p. 13: resources beyond the cost are overpaid for it).
+    const { state, antMan } = makeTheCallOnAntMan(2);
+    expect(cardsInPlay(state)).toContain(antMan);
+    expect(inst(state, antMan).counters.pym).toBe(2);
+    expect(profileOf(state, antMan).maxHp).toBe(2);
   });
 
   it("12012.giant-man-constant: +2 ATK while he has 3 or more remaining hit points", () => {

@@ -293,6 +293,7 @@ import {
   describeFrame,
   PAID_CARDS_SLOT,
   paidAsVars,
+  PRINTED_COST_PAID_SLOT,
   type Bindings,
   type ReportTarget,
   type UndeclaredWilds,
@@ -3419,6 +3420,7 @@ export function planCost(
     const printed = printedCostOf(state, card, pick);
     requirement = combineRequirements(requirement, printed);
     bindings[slot] = [pick];
+    if (entersPlay) bindings[PRINTED_COST_PAID_SLOT] = [pick];
     payingFor = pick;
   }
   // "Choose an ATTACK event in your hand … →" (`AbilityCost.chooseCard`, docs/phase7-wave6.md §3.42).

@@ -978,9 +978,24 @@ export type StackFrameKind = StackFrame["kind"];
  */
 export function playPaymentVars(stack: readonly StackFrame[], instanceId: InstanceId): Vars {
   const play = stack.find((frame) => frame.kind === "playCard" && frame.instanceId === instanceId);
-  if (play?.kind !== "playCard") return {};
-  return paymentVarsIn(play.vars);
+  if (play?.kind === "playCard") return paymentVarsIn(play.vars);
+  // A card put into play by an ability whose cost paid its printed cost ("Pay the printed cost of an ally in any
+  // player's discard pile → put that ally into play", Make the Call 01071): that payment was for the card, so what was
+  // overpaid is overpaid for its cost (FFG ruling, RRG 1.0–1.4 era: "you CAN 'overpay' for Hank Pym if using Make the
+  // Call"; RRG 1.8 "Cost", p. 13). Read while that ability is still resolving, as a play's is (#335).
+  const paidBy = stack.find(
+    (frame) =>
+      (frame.kind === "playCard" || frame.kind === "ability" || frame.kind === "effects") &&
+      frame.bindings[PRINTED_COST_PAID_SLOT]?.includes(instanceId),
+  );
+  return paidBy && "vars" in paidBy ? paymentVarsIn(paidBy.vars) : {};
 }
+
+/**
+ * The slot naming the card whose printed cost an ability's cost paid (`AbilityCost.payPrintedCostOf`), so the payment
+ * reaches that card's own abilities as the ability puts it into play (`playPaymentVars`).
+ */
+export const PRINTED_COST_PAID_SLOT = "printedCostPaid";
 
 /**
  * The payment among a play frame's vars: `paid.*`, and `overpaid.*` and a chosen `x`, which travel the same way ("for
