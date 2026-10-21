@@ -57,15 +57,13 @@ import { AchievementToastScene } from "./scenes/achievement-toast.js";
 // object this game creates from here on must read the resolution it left behind.
 const settings = appSession().settings;
 
-// The Android app draws at the screen's own density (`platform/screen-settings.ts`); everywhere else at 1x.
+// The game draws at the screen's own density (`platform/screen-settings.ts`), unless `?renderscale=off`.
 const screen = screenEnvironment();
 const renderScale = renderScaleFor(settings, screen);
 
 // Every text object the theme creates renders at the device pixel ratio, so
 // text stays sharp. Phaser 4 has no game-level equivalent.
-setTextResolution(
-  textResolutionFor(settings, renderScale, drawsAtScreenDensity(screen.platform, screen.userAgent, screen.search)),
-);
+setTextResolution(textResolutionFor(settings, renderScale, drawsAtScreenDensity(screen.search)));
 
 // Before the canvas first takes its parent's size, which depends on whether #game is inset by the safe area.
 applyViewportFit();
@@ -154,6 +152,19 @@ void readRefreshInfo();
 // moves the defaults of a player who never set Resolution or Frame rate (`platform/device-tier.ts`).
 onHardwareChange(() => applyScreenSettings(game, appSession().settings));
 void readHardware(gpuRendererName());
+// The display's scale changes when the window moves to another monitor, when Windows' scaling changes, and with browser
+// zoom: Native follows it. A media query on the current ratio fires once when it stops matching.
+const followPixelRatio = (): void => {
+  globalThis.matchMedia?.(`(resolution: ${globalThis.devicePixelRatio || 1}dppx)`).addEventListener(
+    "change",
+    () => {
+      applyScreenSettings(game, appSession().settings);
+      followPixelRatio();
+    },
+    { once: true },
+  );
+};
+followPixelRatio();
 onPowerSavingChange(() => applyScreenSettings(game, appSession().settings));
 watchPowerSaving();
 

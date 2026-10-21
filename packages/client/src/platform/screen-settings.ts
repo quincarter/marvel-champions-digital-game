@@ -1,13 +1,12 @@
 /**
- * The phone's screen settings (Settings > Display > Screen): the resolution the Android app draws at, and its frame
- * rate. `applyScreenSettings` puts the session's settings into effect, at launch, on every change in Settings, and
+ * The screen settings (Settings > Display > Screen): the resolution the game draws at, and its frame rate. `applyScreenSettings` puts the session's settings into effect, at launch, on every change in Settings, and
  * when power saving mode moves the defaults.
  *
  * Resolution: the game lays out in CSS pixels, and until now drew one pixel per CSS pixel, so a 3x phone showed a
- * 360-pixel-wide picture stretched to 1080 (a player's report: "Platform: capacitor (phone, 360x788)"). The Android
- * app now draws at the screen's own density by default (`ui/render-scale.ts`), with lighter choices below it. The web,
- * iOS and the desktop app keep drawing at 1x, as before; `?renderscale=<n>|native|on` turns it on anywhere, for a test or
- * a screenshot.
+ * 360-pixel-wide picture stretched to 1080 (a player's report: "Platform: capacitor (phone, 360x788)"). The same
+ * held on desktop and the web under display scaling (Windows at 150%, a Retina screen). Every build now draws at the
+ * screen's own density by default (`ui/render-scale.ts`), with lighter choices below it; `?renderscale=off` draws at
+ * 1x as before, and `?renderscale=<n>|native` forces a scale, for a test or a screenshot.
  *
  * Frame rate: the game loop runs on `requestAnimationFrame`, which follows the screen's refresh rate, so "Match screen"
  * is no cap and 60 or 30 are Phaser's own fps limit. On Android the `DisplayRate` plugin also asks the OS for the
@@ -87,7 +86,7 @@ function requestRefreshRate(rate: FrameRate): void {
 /** Puts the screen settings into effect on a running game: the render scale, sharp text to match, and the frame rate. */
 export function applyScreenSettings(game: Phaser.Game, settings: Settings): void {
   const env = screenEnvironment();
-  const densityOn = drawsAtScreenDensity(env.platform, env.userAgent, env.search);
+  const densityOn = drawsAtScreenDensity(env.search);
   const scale = renderScaleFor(settings, env);
   if (scale !== currentRenderScale()) setRenderScale(scale);
   setTextResolution(textResolutionFor(settings, currentRenderScale(), densityOn));
@@ -101,7 +100,7 @@ export function applyScreenSettings(game: Phaser.Game, settings: Settings): void
  */
 export function displayLineOf(width: number, height: number): { readonly display?: string } {
   const env = screenEnvironment();
-  if (!drawsAtScreenDensity(env.platform, env.userAgent, env.search)) return {};
+  if (!drawsAtScreenDensity(env.search)) return {};
   const scale = currentRenderScale();
   const { renderScale, frameRate } = appSession().settings;
   const hardware = knownHardware();

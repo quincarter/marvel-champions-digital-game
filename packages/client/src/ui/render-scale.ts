@@ -1,5 +1,5 @@
 /**
- * Draws the game at more device pixels than CSS pixels: a phone's own resolution (#320).
+ * Draws the game at more device pixels than CSS pixels: the screen's own resolution (#320).
  *
  * The game runs in Phaser's RESIZE mode, where the canvas is its parent's size in CSS pixels (`main.ts`), and Phaser 4
  * has no renderer resolution of its own. On a 3x phone (360 x 788 CSS pixels, 1080 x 2364 on the glass) the game drew
@@ -16,8 +16,9 @@
  *  - `drawingBufferWidth` / `drawingBufferHeight` report the CSS size the renderer works in.
  * Texture uploads with pixels (card art, text) are untouched: they were always sampled at whatever size they draw.
  *
- * WebGL in RESIZE mode only: the Canvas renderer (`?renderer=canvas`) and FIT mode (the desktop app's fixed
- * resolution, `ui/render-resolution.ts`) keep 1x. `gl.readPixels` is not scaled, and nothing in the game reads pixels
+ * FIT mode (the desktop app's fixed resolution, `ui/render-resolution.ts`) is scaled the same way, so a chosen
+ * "1920 x 1080" at 150% Windows scaling draws 1920 x 1080 pixels rather than its 1280 x 720 CSS size. WebGL only: the
+ * Canvas renderer (`?renderer=canvas`) keeps 1x. `gl.readPixels` is not scaled, and nothing in the game reads pixels
  * back.
  */
 import type Phaser from "phaser";
@@ -176,15 +177,17 @@ function wrapScaleManager(target: Phaser.Game, resizeMode: number, restoreProtot
     const resize = manager.scaleMode === resizeMode;
     const width = manager.gameSize.width;
     const height = manager.gameSize.height;
-    const next = installed === null || !resize ? 1 : scaleWithinGpu(requested, width, height, maxSide);
+    const next = installed === null ? 1 : scaleWithinGpu(requested, width, height, maxSide);
+    css = { width, height };
+    // RESIZE leaves the canvas's CSS size to its intrinsic size, so it is set here; FIT (the desktop app's fixed
+    // resolution, `ui/render-resolution.ts`) sizes and centres it with its own inline styles, left alone.
     if (resize) {
-      css = { width, height };
       canvas.style.width = next === 1 ? "" : `${width}px`;
       canvas.style.height = next === 1 ? "" : `${height}px`;
-      if (next !== 1) {
-        canvas.width = scaledEdge(width, next);
-        canvas.height = scaledEdge(height, next);
-      }
+    }
+    if (next !== 1) {
+      canvas.width = scaledEdge(width, next);
+      canvas.height = scaledEdge(height, next);
     }
     if (next !== scale) {
       scale = next;

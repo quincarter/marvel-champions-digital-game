@@ -5,9 +5,9 @@ import { openApp } from "./wave6-helpers-b.js";
 import { SHOT } from "./x-men-helpers.js";
 
 /**
- * The Android app's screen settings (`platform/screen-settings.ts`). A player's report showed the Android build drawing
+ * The screen settings (`platform/screen-settings.ts`). A player's report showed the Android build drawing
  * 360 x 788 pixels on a 3x phone and stretching them; it now draws at the screen's own density, with Resolution and
- * Frame rate under Settings > Display > Screen. `?renderscale=on` draws as the Android app does, in a 3x phone here.
+ * Frame rate under Settings > Display > Screen. The web and desktop follow their display's scale the same way.
  * The rows sit in the Settings body's scroll region, so a swipe that lifts on one of their segments must press nothing
  * (issue #227).
  */
@@ -57,7 +57,7 @@ test("a 3x phone draws at 1080 x 2364, and Display > Screen changes the resoluti
 }, info) => {
   test.setTimeout(120_000);
   const errors = trackErrors(page);
-  await openApp(page, "unlock=all&renderscale=on");
+  await openApp(page, "unlock=all");
   expect(await canvas(page)).toEqual({ width: 1080, height: 2364, cssWidth: 360 });
 
   await settle(page);
@@ -99,14 +99,24 @@ test("a 3x phone draws at 1080 x 2364, and Display > Screen changes the resoluti
   expect(errors).toEqual([]);
 });
 
-test("the web keeps drawing at 1x and shows no Screen section", async ({ page }) => {
+test("?renderscale=off draws the old 1x picture and leaves the Screen section out", async ({ page }) => {
   test.setTimeout(90_000);
-  await openApp(page, "unlock=all");
+  await openApp(page, "unlock=all&renderscale=off");
   expect((await canvas(page)).width).toBe(360);
   await settle(page);
   await clickText(page, "SETTINGS", { sceneKey: "Title" });
   await waitForScene(page, "SettingsOverlay");
   await tap(page, "tab:display");
   const keys = (await routeStops(page, "SettingsOverlay"))?.stops.map((s) => s.key) ?? [];
-  expect(keys.some((key) => key.startsWith("row:render-scale"))).toBe(false);
+  expect(keys.some((key) => key.startsWith("row:frame-rate"))).toBe(false);
+});
+
+test.describe("a desktop browser at 150% display scaling", () => {
+  test.use({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1.5, isMobile: false, hasTouch: false });
+
+  test("draws 2160 x 1350 pixels for its 1440 x 900 window", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openApp(page, "unlock=all");
+    expect(await canvas(page)).toEqual({ width: 2160, height: 1350, cssWidth: 1440 });
+  });
 });

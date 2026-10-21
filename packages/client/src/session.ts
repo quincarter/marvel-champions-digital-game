@@ -110,9 +110,9 @@ export function appSession(): AppSession {
     // Power saving mode changes the defaults (reduced motion, 1x text) of every setting the player never set, unless the
     // player turned "Lighter play in power saving" off.
     setPowerSavingIgnored(storedSettingsOverrides().powerSavingAdjust === false);
-    // On the Android app, Resolution and Frame rate start from what this phone's hardware is recommended.
+    // Render resolution and Frame rate start from what this device's hardware is recommended.
     const env = screenEnvironment();
-    const density = drawsAtScreenDensity(env.platform, env.userAgent, env.search);
+    const density = drawsAtScreenDensity(env.search);
     const settingsStore = new SettingsStore(undefined, () =>
       defaultSettings({
         powerSaving: powerSavingOn(),

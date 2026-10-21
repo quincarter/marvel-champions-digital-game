@@ -9,20 +9,24 @@ import { detectPlatform, type Platform } from "./platform.js";
 export const MAX_TEXT_RESOLUTION = 3;
 
 /**
- * From a query string: `?renderscale=2` or `?renderscale=native` forces that scale; `?renderscale=on` draws as the
- * Android app does, following the Resolution setting (a browser test of the Screen section). Null without one.
+ * From a query string: `?renderscale=2` or `?renderscale=native` forces that scale; `?renderscale=off` draws at 1x as
+ * every build did before #320 (to compare, or to rule the layer out of a bug); `?renderscale=on` is the default, the
+ * Render resolution setting. Null without one.
  */
-export function forcedRenderScale(search: string): number | "native" | "on" | null {
+export function forcedRenderScale(search: string): number | "native" | "on" | "off" | null {
   const value = new URLSearchParams(search).get("renderscale");
   if (value === null) return null;
-  if (value === "native" || value === "on") return value;
+  if (value === "native" || value === "on" || value === "off") return value;
   const number = Number(value);
   return Number.isFinite(number) && number >= 1 ? number : null;
 }
 
-/** Only the Android app draws at the screen's density by default. */
-export function drawsAtScreenDensity(platform: Platform, userAgent: string, search = ""): boolean {
-  return forcedRenderScale(search) !== null || (platform === "capacitor" && /android/i.test(userAgent));
+/**
+ * Every build draws at the screen's density (#320): the Android app, iOS, the web and the desktop app, where Windows
+ * display scaling, a 4K monitor or a Retina screen all left a 1x picture stretched. `?renderscale=off` turns it off.
+ */
+export function drawsAtScreenDensity(search = ""): boolean {
+  return forcedRenderScale(search) !== "off";
 }
 
 export interface ScreenEnvironment {
@@ -46,7 +50,7 @@ export function renderScaleFor(
   settings: Pick<Settings, "renderScale">,
   env: ScreenEnvironment = screenEnvironment(),
 ): number {
-  if (!drawsAtScreenDensity(env.platform, env.userAgent, env.search)) return 1;
+  if (!drawsAtScreenDensity(env.search)) return 1;
   const forced = forcedRenderScale(env.search);
   if (forced === "native") return renderScaleFactorOf("native", env.devicePixelRatio);
   if (typeof forced === "number") return forced;

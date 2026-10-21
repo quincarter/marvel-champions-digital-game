@@ -468,7 +468,7 @@ describe("the Screen rows' recommendation", () => {
 
   test("Resolution names the recommended size and what it went on", () => {
     expect(renderScaleRowInfoOf(BASE, phone, advice).detail).toContain(
-      "Recommended for this phone (mid-range: 6 GB, Mali-G68 MC4): 720p.",
+      "Recommended for this device (mid-range: 6 GB, Mali-G68 MC4): 720p.",
     );
   });
 
@@ -477,7 +477,7 @@ describe("the Screen rows' recommendation", () => {
   });
 
   test("Frame rate names the recommended rate", () => {
-    expect(frameRateRowInfoOf(BASE, 120, false, advice).detail).toContain("Recommended for this phone: 60 fps.");
-    expect(frameRateRowInfoOf(BASE, 60, false, advice).detail).toContain("Recommended for this phone: Screen.");
+    expect(frameRateRowInfoOf(BASE, 120, false, advice).detail).toContain("Recommended for this device: 60 fps.");
+    expect(frameRateRowInfoOf(BASE, 60, false, advice).detail).toContain("Recommended for this device: Screen.");
   });
 });

@@ -20,18 +20,16 @@ const android = (devicePixelRatio: number, search = ""): ScreenEnvironment => ({
 });
 
 describe("drawsAtScreenDensity", () => {
-  test("the Android app draws at the screen's density; the web, iOS and the desktop app keep 1x", () => {
-    expect(drawsAtScreenDensity("capacitor", ANDROID_UA)).toBe(true);
-    expect(drawsAtScreenDensity("capacitor", IPHONE_UA)).toBe(false);
-    expect(drawsAtScreenDensity("web", ANDROID_UA)).toBe(false);
-    expect(drawsAtScreenDensity("tauri", "Windows")).toBe(false);
+  test("every build draws at the screen's density; ?renderscale=off draws the old 1x", () => {
+    expect(drawsAtScreenDensity("")).toBe(true);
+    expect(drawsAtScreenDensity("?renderscale=on")).toBe(true);
+    expect(drawsAtScreenDensity("?renderscale=off")).toBe(false);
   });
 
-  test("?renderscale= turns it on anywhere, for a test or a screenshot", () => {
-    expect(drawsAtScreenDensity("web", "Windows", "?renderscale=on")).toBe(true);
+  test("?renderscale= forces a scale for a test or a screenshot", () => {
     expect(forcedRenderScale("?renderscale=2")).toBe(2);
     expect(forcedRenderScale("?renderscale=native")).toBe("native");
-    expect(forcedRenderScale("?renderscale=on")).toBe("on");
+    expect(forcedRenderScale("?renderscale=off")).toBe("off");
     expect(forcedRenderScale("?renderscale=0.2")).toBeNull();
     expect(forcedRenderScale("?screen=board")).toBeNull();
   });
@@ -49,9 +47,17 @@ describe("renderScaleFor", () => {
     expect(renderScaleFor({ renderScale: "1x" }, android(3))).toBe(1);
   });
 
-  test("off Android it stays 1x whatever the setting, unless a test link forces it", () => {
+  test("the web and desktop follow the display's scale too: Windows at 150%, a Retina screen", () => {
+    const desktop: ScreenEnvironment = { platform: "tauri", userAgent: "Windows", search: "", devicePixelRatio: 1.5 };
+    expect(renderScaleFor({ renderScale: "native" }, desktop)).toBe(1.5);
+    const mac: ScreenEnvironment = { platform: "web", userAgent: IPHONE_UA, search: "", devicePixelRatio: 2 };
+    expect(renderScaleFor({ renderScale: "native" }, mac)).toBe(2);
+    expect(renderScaleFor({ renderScale: "native" }, { ...desktop, devicePixelRatio: 1 })).toBe(1);
+  });
+
+  test("a test link forces a scale, or 1x with off", () => {
     const web: ScreenEnvironment = { platform: "web", userAgent: ANDROID_UA, search: "", devicePixelRatio: 3 };
-    expect(renderScaleFor({ renderScale: "native" }, web)).toBe(1);
+    expect(renderScaleFor({ renderScale: "native" }, { ...web, search: "?renderscale=off" })).toBe(1);
     expect(renderScaleFor({ renderScale: "1x" }, { ...web, search: "?renderscale=native" })).toBe(3);
     expect(renderScaleFor({ renderScale: "native" }, { ...web, search: "?renderscale=2" })).toBe(2);
     expect(renderScaleFor({ renderScale: "1.5x" }, { ...web, search: "?renderscale=on" })).toBe(1.5);

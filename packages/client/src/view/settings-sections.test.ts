@@ -159,8 +159,8 @@ describe("the Sound tab on a narrow rail (#243)", () => {
   });
 });
 
-describe("the Android app's Screen section", () => {
-  test("it sits on the Display tab before Animation and display, with Resolution then Frame rate", () => {
+describe("the Screen section (#320)", () => {
+  test("it sits on the Display tab before Animation and display, with Render resolution then Frame rate", () => {
     const display = settingsTabsOf({ guideRowIds, cardHover: false, screenSettings: true }).find(
       (t) => t.id === "display",
     )!;
@@ -168,8 +168,15 @@ describe("the Android app's Screen section", () => {
     expect(display.sections[0]!.items).toEqual(["render-scale", "frame-rate"]);
   });
 
-  test("the web, iOS and the desktop app don't show it", () => {
-    const sections = settingsSectionsOf({ guideRowIds, cardHover: true, desktopWindow: true });
+  test("in the desktop app it follows the Window section", () => {
+    const display = settingsTabsOf({ guideRowIds, cardHover: true, desktopWindow: true, screenSettings: true }).find(
+      (t) => t.id === "display",
+    )!;
+    expect(display.sections.map((s) => s.id)).toEqual(["window", "screen", "motion"]);
+  });
+
+  test("with ?renderscale=off it is left out", () => {
+    const sections = settingsSectionsOf({ guideRowIds, cardHover: true, screenSettings: false });
     expect(sections.map((s) => s.id)).not.toContain("screen");
   });
 });

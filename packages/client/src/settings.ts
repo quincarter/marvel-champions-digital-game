@@ -114,10 +114,10 @@ export interface Settings {
    */
   readonly powerSavingAdjust: boolean;
   /**
-   * How many device pixels the Android app draws per CSS pixel (`platform/screen-settings.ts`): "native" for the
-   * screen's own density (1080p on a 1080 x 2400 phone), or a lower multiplier that is lighter on the GPU, memory and
-   * battery. Android app only (and `?renderscale=` anywhere, for tests): the web, iOS and the desktop app draw at 1x.
-   * Defaults to what this phone's hardware is recommended (`platform/device-tier.ts`): native on a high-end phone.
+   * How many device pixels the game draws per CSS pixel (`platform/screen-settings.ts`): "native" for the screen's own
+   * density (1080p on a 1080 x 2400 phone, 1.5x under Windows' 150% scaling), or a lower multiplier that is lighter on
+   * the GPU, memory and battery. Defaults to what this device's hardware is recommended (`platform/device-tier.ts`):
+   * native on a high-end one.
    */
   readonly renderScale: RenderScale;
   /**
@@ -298,8 +298,8 @@ export interface DeviceConditions {
   /** The device is in power saving mode (`platform/power-saving.ts`). */
   readonly powerSaving?: boolean;
   /**
-   * The screen settings recommended for this phone's hardware (`platform/device-tier.ts`), on the Android app only:
-   * Resolution and Frame rate start there instead of Native and the screen's own rate.
+   * The screen settings recommended for this device's hardware (`platform/device-tier.ts`): Render resolution and Frame
+   * rate start there instead of Native and the screen's own rate.
    */
   readonly screen?: { readonly renderScale: RenderScale; readonly frameRate: FrameRate };
 }

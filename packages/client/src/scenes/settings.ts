@@ -156,10 +156,10 @@ const APPLY_WIDTH = 88;
 /** Resolution's and Frame rate's up to four short segments ("Native", "720p"; "Screen", "60 fps"). */
 const SCREEN_CONTROL_WIDTH = 300;
 
-/** The Android app's Screen section (or any build with `?renderscale=`). */
+/** The Screen section: every build, unless `?renderscale=off`. */
 function screenSettingsShown(): boolean {
   const env = screenEnvironment();
-  return drawsAtScreenDensity(env.platform, env.userAgent, env.search);
+  return drawsAtScreenDensity(env.search);
 }
 const LIST_ROW_HEIGHT = 36;
 const LIST_VISIBLE_ROWS = 8;
@@ -531,9 +531,13 @@ export class SettingsOverlay extends Phaser.Scene {
       const hardware = knownHardware();
       const recommended = recommendedScreenOf(hardware);
       const advice = { ...recommended, tier: tierLabelOf(recommended.tier), summary: hardwareSummaryOf(hardware) };
-      segmented("render-scale", renderScaleRowInfoOf(settings, screen, advice), SCREEN_CONTROL_WIDTH, (v) =>
-        setScreen(nextSettingsAfterRenderScale(appSession().settings, v)),
-      );
+      // A 1x screen has nothing below Native to offer, so the row is left out there.
+      const scaleInfo = renderScaleRowInfoOf(settings, screen, advice);
+      if (scaleInfo.options.length > 1) {
+        segmented("render-scale", scaleInfo, SCREEN_CONTROL_WIDTH, (v) =>
+          setScreen(nextSettingsAfterRenderScale(appSession().settings, v)),
+        );
+      }
       segmented(
         "frame-rate",
         frameRateRowInfoOf(settings, knownRefreshInfo()?.maxRefreshRate ?? null, powerSavingOn(), advice),

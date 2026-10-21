@@ -714,7 +714,7 @@ export function nextSettingsAfterDisplayMode(settings: Settings, value: DisplayM
 }
 
 // ---------------------------------------------------------------------------
-// "Resolution" and "Frame rate" under Display > Screen: the Android app's own screen (`platform/screen-settings.ts`).
+// Shown on every build; the desktop app also has its Window section, whose Resolution is the window's own size.
 // The desktop app has its Window section instead; the web and iOS show neither.
 // ---------------------------------------------------------------------------
 
@@ -747,10 +747,10 @@ export interface ScreenAdvice {
   readonly summary: string;
 }
 
-/** " Recommended for this phone (mid-range: 6 GB, Adreno 642L): 720p." */
+/** " Recommended for this device (mid-range: 6 GB, Adreno 642L): 720p." */
 function adviceSentence(advice: ScreenAdvice, choice: string, withReason: boolean): string {
   const reason = withReason ? ` (${advice.tier}${advice.summary ? `: ${advice.summary}` : ""})` : "";
-  return ` Recommended for this phone${reason}: ${choice}.`;
+  return ` Recommended for this device${reason}: ${choice}.`;
 }
 
 export function renderScaleRowInfoOf(
@@ -777,7 +777,7 @@ export function renderScaleRowInfoOf(
       ? `Draws at ${size}, the screen's own. Lower is lighter on the GPU, memory and battery.`
       : `Draws at ${size} and scales it up to the screen. Native is sharpest.`;
   return {
-    title: "Resolution",
+    title: "Render resolution",
     detail: advice && recommended ? detail + adviceSentence(advice, recommended.label, true) : detail,
     options,
     selected,
@@ -807,7 +807,7 @@ export function frameRateRowInfoOf(
   const detail =
     selected === "screen"
       ? `Runs at the screen's own refresh rate${rate}. A cap saves battery; 30 fps saves the most.`
-      : `Holds the game to ${selected} fps and asks the screen to slow down to match, to save battery.`;
+      : `Holds the game to ${selected} fps, which saves battery and heat.`;
   const recommended = advice && (offered.includes(advice.frameRate) ? advice.frameRate : "screen");
   const advised = recommended ? detail + adviceSentence(advice!, FRAME_RATE_LABELS[recommended], false) : detail;
   return {

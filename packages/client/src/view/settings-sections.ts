@@ -70,7 +70,7 @@ export function settingsSectionsOf(input: {
   readonly steamDeck?: boolean;
   /** The Android app, which can read power saving mode, or a forced `?powersave=`: a "Lighter play" row under motion. */
   readonly powerSaving?: boolean;
-  /** The Android app, which draws at the screen's own density: a Screen section with Resolution and Frame rate. */
+  /** A build that draws at the screen's own density (every one, unless `?renderscale=off`): a Screen section. */
   readonly screenSettings?: boolean;
 }): readonly SettingsSection[] {
   return [
