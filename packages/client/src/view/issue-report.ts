@@ -27,6 +27,11 @@ export interface ReportEnvironment {
   readonly userAgent: string;
   readonly viewport: { readonly width: number; readonly height: number };
   readonly formFactor: string;
+  /**
+   * How the game draws on this screen and the hardware check behind it, such as "1080x2364 at 3x, Native, 120 fps cap
+   * off · high-end (8 GB, Adreno 740)". Left out where the game draws at 1x as it always did (the web, desktop).
+   */
+  readonly display?: string;
   /** The screens and overlays running under the report panel, bottom first. */
   readonly screens: readonly string[];
   /** ISO time the report was made. */
@@ -56,6 +61,7 @@ function environmentLines(environment: ReportEnvironment): string[] {
   return [
     `Version: ${environment.version}`,
     `Platform: ${environment.platform} (${environment.formFactor}, ${environment.viewport.width}x${environment.viewport.height})`,
+    ...(environment.display ? [`Display: ${environment.display}`] : []),
     `Screen: ${environment.screens.length > 0 ? environment.screens.join(" > ") : "unknown"}`,
     `Browser: ${environment.userAgent}`,
     `Reported: ${environment.at}`,

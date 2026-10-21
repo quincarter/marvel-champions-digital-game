@@ -157,3 +157,14 @@ describe("screenshot tips", () => {
     expect(screenshotTipOf(screenshotDeviceOf(userAgent))).toContain(tip);
   });
 });
+
+describe("the Display line (#320)", () => {
+  test("the Android app's report says how it draws and what the hardware check found; elsewhere it is left out", () => {
+    const display =
+      "1080x2364 at 3x (devicePixelRatio 3), resolution native, frame rate screen · high-end (8 GB, Adreno 740)";
+    expect(issueReportText({ environment: { ...environment, display }, game: null, snapshot: {} })).toContain(
+      `Display: ${display}`,
+    );
+    expect(issueReportText({ environment, game: null, snapshot: {} })).not.toContain("Display:");
+  });
+});

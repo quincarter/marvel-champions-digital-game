@@ -3,7 +3,6 @@ import {
   MAX_TEXT_RESOLUTION,
   drawsAtScreenDensity,
   forcedRenderScale,
-  isLowMemoryDevice,
   renderScaleFor,
   textResolutionFor,
   type ScreenEnvironment,
@@ -86,10 +85,11 @@ describe("the defaults", () => {
     expect(fpsLimitOf("30")).toBe(30);
   });
 
-  test("a phone with 2 GB of memory or less starts at 1.5x", () => {
-    expect(defaultSettings({ lowMemory: true }).renderScale).toBe("1.5x");
-    expect(isLowMemoryDevice({ deviceMemory: 2 })).toBe(true);
-    expect(isLowMemoryDevice({ deviceMemory: 4 })).toBe(false);
-    expect(isLowMemoryDevice({})).toBe(false);
+  test("the Android app starts from the hardware recommendation; power saving still caps it at 30", () => {
+    expect(defaultSettings({ screen: { renderScale: "2x", frameRate: "60" } })).toMatchObject({
+      renderScale: "2x",
+      frameRate: "60",
+    });
+    expect(defaultSettings({ powerSaving: true, screen: { renderScale: "2x", frameRate: "60" } }).frameRate).toBe("30");
   });
 });

@@ -11,6 +11,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ExternalBrowserPlugin.class);
         registerPlugin(PowerSavingPlugin.class);
         registerPlugin(DisplayRatePlugin.class);
+        registerPlugin(DeviceHardwarePlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

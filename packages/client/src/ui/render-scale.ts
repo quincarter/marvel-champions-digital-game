@@ -34,6 +34,13 @@ let css = { width: 0, height: 0 };
 /** The GPU's largest texture, renderbuffer or viewport side. */
 let maxSide = Number.POSITIVE_INFINITY;
 let game: Phaser.Game | null = null;
+/** The GPU's name as the game's own context reports it, for the hardware check (`platform/device-tier.ts`). */
+let gpuName: string | null = null;
+
+/** The GPU's WebGL renderer name, such as "Adreno (TM) 740"; null before the context exists, or under Canvas. */
+export function gpuRendererName(): string | null {
+  return gpuName;
+}
 
 /** The multiplier the game draws at right now: device pixels per CSS pixel. */
 export function currentRenderScale(): number {
@@ -76,6 +83,12 @@ export function scaleWithinGpu(wanted: number, width: number, height: number, la
 function wrapContext(gl: Gl, canvas: { readonly width: number; readonly height: number }): void {
   if (installed === gl) return;
   installed = gl;
+  try {
+    const debug = gl.getExtension("WEBGL_debug_renderer_info");
+    gpuName = String(gl.getParameter(debug ? debug.UNMASKED_RENDERER_WEBGL : gl.RENDERER));
+  } catch {
+    gpuName = null;
+  }
   const dims = gl.getParameter(gl.MAX_VIEWPORT_DIMS) as Int32Array | null;
   maxSide = Math.min(
     gl.getParameter(gl.MAX_TEXTURE_SIZE) as number,

@@ -117,13 +117,13 @@ export interface Settings {
    * How many device pixels the Android app draws per CSS pixel (`platform/screen-settings.ts`): "native" for the
    * screen's own density (1080p on a 1080 x 2400 phone), or a lower multiplier that is lighter on the GPU, memory and
    * battery. Android app only (and `?renderscale=` anywhere, for tests): the web, iOS and the desktop app draw at 1x.
-   * Defaults to native; a phone that reports 2 GB of memory or less starts at 1.5x.
+   * Defaults to what this phone's hardware is recommended (`platform/device-tier.ts`): native on a high-end phone.
    */
   readonly renderScale: RenderScale;
   /**
    * The frame rate the game holds to: the screen's own refresh rate (120 Hz on a 120 Hz phone), or a 60 or 30 fps cap.
-   * On Android the app also asks the OS for a matching refresh rate. Defaults to the screen's own; power saving mode
-   * defaults it to 30 (`POWER_SAVING_FPS`).
+   * On Android the app also asks the OS for a matching refresh rate. Defaults to the screen's own, or 60 on a phone the
+   * hardware check rates below high-end; power saving mode defaults it to 30 (`POWER_SAVING_FPS`).
    */
   readonly frameRate: FrameRate;
   /**
@@ -297,8 +297,11 @@ export function tableRulesOf(settings: Pick<Settings, "sameNameHeroAllyConflict"
 export interface DeviceConditions {
   /** The device is in power saving mode (`platform/power-saving.ts`). */
   readonly powerSaving?: boolean;
-  /** The device reports 2 GB of memory or less (`navigator.deviceMemory`): a lighter render scale to start with. */
-  readonly lowMemory?: boolean;
+  /**
+   * The screen settings recommended for this phone's hardware (`platform/device-tier.ts`), on the Android app only:
+   * Resolution and Frame rate start there instead of Native and the screen's own rate.
+   */
+  readonly screen?: { readonly renderScale: RenderScale; readonly frameRate: FrameRate };
 }
 
 /**
@@ -337,8 +340,8 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     displayMode: "windowed",
     resolution: "native",
     powerSavingAdjust: true,
-    renderScale: device.lowMemory === true ? "1.5x" : "native",
-    frameRate: powerSaving ? "30" : "screen",
+    renderScale: device.screen?.renderScale ?? "native",
+    frameRate: powerSaving ? "30" : (device.screen?.frameRate ?? "screen"),
     achievementPopupTime: "5s",
     achievementPopupPlace: "titleBar",
     achievementPopupSize: "small",

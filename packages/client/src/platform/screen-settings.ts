@@ -19,6 +19,9 @@ import { fpsLimitOf, type FrameRate, type Settings } from "../settings.js";
 import { setTextResolution } from "../ui/theme.js";
 import { currentRenderScale, setRenderScale } from "../ui/render-scale.js";
 import { drawsAtScreenDensity, renderScaleFor, screenEnvironment, textResolutionFor } from "./screen-density.js";
+import { appSession } from "../session.js";
+import { knownHardware } from "./device-hardware.js";
+import { deviceTierOf, hardwareSummaryOf, tierLabelOf } from "./device-tier.js";
 
 /** The screen's refresh rates as the Android app reports them; null until read, or off Android. */
 export interface RefreshInfo {
@@ -90,4 +93,25 @@ export function applyScreenSettings(game: Phaser.Game, settings: Settings): void
   setTextResolution(textResolutionFor(settings, currentRenderScale(), densityOn));
   game.loop.setFPSLimit(fpsLimitOf(settings.frameRate));
   requestRefreshRate(settings.frameRate);
+}
+
+/**
+ * The issue report's "Display" line where the game draws past 1x: the buffer it draws, the choices in effect, and the
+ * hardware check behind them. Empty elsewhere, so the report reads as it always did there.
+ */
+export function displayLineOf(width: number, height: number): { readonly display?: string } {
+  const env = screenEnvironment();
+  if (!drawsAtScreenDensity(env.platform, env.userAgent, env.search)) return {};
+  const scale = currentRenderScale();
+  const { renderScale, frameRate } = appSession().settings;
+  const hardware = knownHardware();
+  const tier = tierLabelOf(deviceTierOf(hardware));
+  const summary = hardwareSummaryOf(hardware);
+  const refresh = knownRefreshInfo();
+  return {
+    display:
+      `${Math.round(width * scale)}x${Math.round(height * scale)} at ${scale}x (devicePixelRatio ${env.devicePixelRatio}), ` +
+      `resolution ${renderScale}, frame rate ${frameRate}${refresh ? ` (screen up to ${refresh.maxRefreshRate} Hz)` : ""} · ` +
+      `${tier}${summary ? ` (${summary})` : ""}`,
+  };
 }

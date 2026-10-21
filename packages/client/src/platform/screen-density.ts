@@ -25,14 +25,6 @@ export function drawsAtScreenDensity(platform: Platform, userAgent: string, sear
   return forcedRenderScale(search) !== null || (platform === "capacitor" && /android/i.test(userAgent));
 }
 
-/** True on a device that reports 2 GB of memory or less. Chromium only (the Android WebView reports it). */
-export function isLowMemoryDevice(
-  nav: { readonly deviceMemory?: number } | undefined = globalThis.navigator as { readonly deviceMemory?: number },
-): boolean {
-  const memory = nav?.deviceMemory;
-  return typeof memory === "number" && memory > 0 && memory <= 2;
-}
-
 export interface ScreenEnvironment {
   readonly platform: Platform;
   readonly userAgent: string;

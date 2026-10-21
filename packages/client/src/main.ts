@@ -40,7 +40,8 @@ import { storedSettingsOverrides } from "./settings-store.js";
 import { applyRenderSize } from "./ui/render-resolution.js";
 import { isAndroidEdge, rendererOptionsOf } from "./platform/renderer-options.js";
 import { onPowerSavingChange, watchPowerSaving } from "./platform/power-saving.js";
-import { installRenderScale } from "./ui/render-scale.js";
+import { gpuRendererName, installRenderScale } from "./ui/render-scale.js";
+import { onHardwareChange, readHardware } from "./platform/device-hardware.js";
 import {
   drawsAtScreenDensity,
   renderScaleFor,
@@ -149,6 +150,10 @@ watchStartup(game);
 // moves the session's defaults (a 30 fps cap, 1x text), so they are applied again whenever it changes.
 applyScreenSettings(game, settings);
 void readRefreshInfo();
+// The hardware check: the GPU is known once the renderer exists, and the Android app reports the rest. A fuller reading
+// moves the defaults of a player who never set Resolution or Frame rate (`platform/device-tier.ts`).
+onHardwareChange(() => applyScreenSettings(game, appSession().settings));
+void readHardware(gpuRendererName());
 onPowerSavingChange(() => applyScreenSettings(game, appSession().settings));
 watchPowerSaving();
 

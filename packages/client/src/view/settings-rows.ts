@@ -736,7 +736,28 @@ export interface ScreenSize {
  * Native, then each lighter multiplier this screen is denser than, named by its short side the way games name
  * resolutions ("720p"). A 2x phone has no "2x": that is its native.
  */
-export function renderScaleRowInfoOf(settings: Settings, screen: ScreenSize): ScreenChoiceRowInfo<RenderScale> {
+/**
+ * What the hardware check recommends for this phone (`platform/device-tier.ts`), and what it went on: "mid-range" and
+ * "6 GB, Adreno 642L".
+ */
+export interface ScreenAdvice {
+  readonly renderScale: RenderScale;
+  readonly frameRate: FrameRate;
+  readonly tier: string;
+  readonly summary: string;
+}
+
+/** " Recommended for this phone (mid-range: 6 GB, Adreno 642L): 720p." */
+function adviceSentence(advice: ScreenAdvice, choice: string, withReason: boolean): string {
+  const reason = withReason ? ` (${advice.tier}${advice.summary ? `: ${advice.summary}` : ""})` : "";
+  return ` Recommended for this phone${reason}: ${choice}.`;
+}
+
+export function renderScaleRowInfoOf(
+  settings: Settings,
+  screen: ScreenSize,
+  advice?: ScreenAdvice,
+): ScreenChoiceRowInfo<RenderScale> {
   const native = renderScaleFactorOf("native", screen.devicePixelRatio);
   const short = Math.min(screen.width, screen.height);
   const offered = RENDER_SCALE_VALUES.filter(
@@ -745,17 +766,20 @@ export function renderScaleRowInfoOf(settings: Settings, screen: ScreenSize): Sc
   const selected = offered.includes(settings.renderScale) ? settings.renderScale : "native";
   const factor = renderScaleFactorOf(selected, screen.devicePixelRatio);
   const size = `${Math.round(screen.width * factor)} × ${Math.round(screen.height * factor)}`;
+  const options = offered.map((value) => ({
+    value,
+    label:
+      value === "native" ? "Native" : `${Math.round(short * renderScaleFactorOf(value, screen.devicePixelRatio))}p`,
+  }));
+  const recommended = advice && (options.find((o) => o.value === advice.renderScale) ?? options[0]!);
+  const detail =
+    selected === "native"
+      ? `Draws at ${size}, the screen's own. Lower is lighter on the GPU, memory and battery.`
+      : `Draws at ${size} and scales it up to the screen. Native is sharpest.`;
   return {
     title: "Resolution",
-    detail:
-      selected === "native"
-        ? `Draws at ${size}, the screen's own. Lower is lighter on the GPU, memory and battery.`
-        : `Draws at ${size} and scales it up to the screen. Native is sharpest.`,
-    options: offered.map((value) => ({
-      value,
-      label:
-        value === "native" ? "Native" : `${Math.round(short * renderScaleFactorOf(value, screen.devicePixelRatio))}p`,
-    })),
+    detail: advice && recommended ? detail + adviceSentence(advice, recommended.label, true) : detail,
+    options,
     selected,
   };
 }
@@ -775,6 +799,7 @@ export function frameRateRowInfoOf(
   settings: Settings,
   maxRefreshRate: number | null,
   powerSaving = false,
+  advice?: ScreenAdvice,
 ): ScreenChoiceRowInfo<FrameRate> {
   const offered = FRAME_RATE_VALUES.filter((value) => value !== "60" || maxRefreshRate === null || maxRefreshRate > 61);
   const selected = offered.includes(settings.frameRate) ? settings.frameRate : "screen";
@@ -783,9 +808,11 @@ export function frameRateRowInfoOf(
     selected === "screen"
       ? `Runs at the screen's own refresh rate${rate}. A cap saves battery; 30 fps saves the most.`
       : `Holds the game to ${selected} fps and asks the screen to slow down to match, to save battery.`;
+  const recommended = advice && (offered.includes(advice.frameRate) ? advice.frameRate : "screen");
+  const advised = recommended ? detail + adviceSentence(advice!, FRAME_RATE_LABELS[recommended], false) : detail;
   return {
     title: "Frame rate",
-    detail: powerSaving ? `${detail} ${POWER_SAVING_ROW_NOTE}` : detail,
+    detail: powerSaving ? `${advised} ${POWER_SAVING_ROW_NOTE}` : advised,
     options: offered.map((value) => ({ value, label: FRAME_RATE_LABELS[value] })),
     selected,
   };

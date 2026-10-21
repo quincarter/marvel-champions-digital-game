@@ -35,6 +35,7 @@ import { detectPlatform, openExternal } from "../platform/platform.js";
 import { appSession } from "../session.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
+import { displayLineOf } from "../platform/screen-settings.js";
 
 const BUTTON_TYPE: TypeSpec = { ...typeRole.label, size: 12 };
 /** How long "Hide for a screenshot" keeps the panel away. A tap anywhere brings it back sooner. */
@@ -99,6 +100,7 @@ export class ReportIssueOverlay extends Phaser.Scene {
       userAgent: navigator.userAgent,
       viewport: { width, height },
       formFactor: formFactorFor(width, height),
+      ...displayLineOf(width, height),
       screens: this.scene.manager
         .getScenes(true)
         .filter((scene) => scene !== this && scene.sys.settings.visible && scene.scene.key !== SCENES.reportButton)

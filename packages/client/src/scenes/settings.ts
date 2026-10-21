@@ -112,6 +112,8 @@ import { powerSavingRowOf } from "../view/power-saving-notice.js";
 import { detectPlatform } from "../platform/platform.js";
 import { drawsAtScreenDensity, screenEnvironment } from "../platform/screen-density.js";
 import { applyScreenSettings, knownRefreshInfo, readRefreshInfo } from "../platform/screen-settings.js";
+import { knownHardware, onHardwareChange } from "../platform/device-hardware.js";
+import { hardwareSummaryOf, recommendedScreenOf, tierLabelOf } from "../platform/device-tier.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import type { AchievementToastScene } from "./achievement-toast.js";
@@ -229,10 +231,13 @@ export class SettingsOverlay extends Phaser.Scene {
     const unsubscribeGuide = onGuidePrefsChange(() => this.#draw());
     // Power saving mode turning on or off changes the Reduced motion and Sharper text rows.
     const unsubscribePowerSaving = onPowerSavingChange(() => this.#redrawIfOpen());
+    // The hardware check finishing changes the Screen rows' recommendation.
+    const unsubscribeHardware = onHardwareChange(() => this.#redrawIfOpen());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
       unsubscribeGuide();
       unsubscribePowerSaving();
+      unsubscribeHardware();
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
       this.#tabs?.destroy();
@@ -523,12 +528,15 @@ export class SettingsOverlay extends Phaser.Scene {
         applyScreenSettings(this.game, next);
         this.#draw();
       };
-      segmented("render-scale", renderScaleRowInfoOf(settings, screen), SCREEN_CONTROL_WIDTH, (v) =>
+      const hardware = knownHardware();
+      const recommended = recommendedScreenOf(hardware);
+      const advice = { ...recommended, tier: tierLabelOf(recommended.tier), summary: hardwareSummaryOf(hardware) };
+      segmented("render-scale", renderScaleRowInfoOf(settings, screen, advice), SCREEN_CONTROL_WIDTH, (v) =>
         setScreen(nextSettingsAfterRenderScale(appSession().settings, v)),
       );
       segmented(
         "frame-rate",
-        frameRateRowInfoOf(settings, knownRefreshInfo()?.maxRefreshRate ?? null, powerSavingOn()),
+        frameRateRowInfoOf(settings, knownRefreshInfo()?.maxRefreshRate ?? null, powerSavingOn(), advice),
         SCREEN_CONTROL_WIDTH,
         (v) => setScreen(nextSettingsAfterFrameRate(appSession().settings, v)),
       );

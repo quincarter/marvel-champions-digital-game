@@ -461,3 +461,23 @@ describe("the Android app's Screen rows", () => {
     expect(nextSettingsAfterFrameRate(BASE, "30").frameRate).toBe("30");
   });
 });
+
+describe("the Screen rows' recommendation", () => {
+  const phone = { width: 360, height: 788, devicePixelRatio: 3 };
+  const advice = { renderScale: "2x", frameRate: "60", tier: "mid-range", summary: "6 GB, Mali-G68 MC4" } as const;
+
+  test("Resolution names the recommended size and what it went on", () => {
+    expect(renderScaleRowInfoOf(BASE, phone, advice).detail).toContain(
+      "Recommended for this phone (mid-range: 6 GB, Mali-G68 MC4): 720p.",
+    );
+  });
+
+  test("a recommended size this screen has no separate choice for reads as Native", () => {
+    expect(renderScaleRowInfoOf(BASE, { ...phone, devicePixelRatio: 2 }, advice).detail).toContain(": Native.");
+  });
+
+  test("Frame rate names the recommended rate", () => {
+    expect(frameRateRowInfoOf(BASE, 120, false, advice).detail).toContain("Recommended for this phone: 60 fps.");
+    expect(frameRateRowInfoOf(BASE, 60, false, advice).detail).toContain("Recommended for this phone: Screen.");
+  });
+});
