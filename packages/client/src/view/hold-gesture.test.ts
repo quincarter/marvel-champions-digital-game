@@ -150,6 +150,23 @@ describe("HoldGesture drag distances", () => {
     expect(tap.releaseVelocity(5)).toBe(0);
   });
 
+  it("a press that goes up or down further than sideways is the table's scroll: no row drag, no tap", () => {
+    const gesture = handCard();
+    gesture.down(100, 100, false);
+    // A vertical swipe with a thumb's sideways drift past the slop.
+    expect(gesture.dragDelta(100 + HOLD_SLOP_PX + 3, 10, 100 - 40)).toBeNull();
+    expect(gesture.dragDelta(100 + HOLD_SLOP_PX + 20, 20, 100 - 150)).toBeNull();
+    expect(gesture.undecided).toBe(false);
+    expect(gesture.up(false)).toBe(false);
+  });
+
+  it("a sideways press with a little vertical wobble still drags the row", () => {
+    const gesture = handCard();
+    gesture.down(100, 100, false);
+    expect(gesture.dragDelta(100 + HOLD_SLOP_PX + 3, 10, 100 + 6)).toBe(0);
+    expect(gesture.dragDelta(100 + HOLD_SLOP_PX + 13, 20, 100 + 30)).toBe(10);
+  });
+
   it("a card outside a scrollable row never drags", () => {
     const gesture = card();
     gesture.down(100, 50, false);

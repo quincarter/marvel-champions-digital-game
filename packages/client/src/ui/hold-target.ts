@@ -165,7 +165,7 @@ function followDrag(
     if (moved !== pointer) return;
     // A later press on the same pointer is someone else's; this one ended somewhere nobody told us about.
     if (pointer.downTime !== downTime || !pointer.isDown) return stop();
-    const delta = gesture.dragDelta(pointer.x, scene.time.now);
+    const delta = gesture.dragDelta(pointer.x, scene.time.now, pointer.y);
     if (delta) onDrag(delta);
   };
   const end = (released: Phaser.Input.Pointer): void => {
