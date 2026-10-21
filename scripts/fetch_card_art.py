@@ -721,8 +721,10 @@ PACK_FILENAME_CODES: dict[str, dict[str, str]] = {
         "c4-1": "21128",  # Tribute
         "i4": "21132",  # Reality Stone
         "i7": "21135",  # Time Stone
-        "h7": "21141",  # Hall of Nastrond
-        "h6": "21142",  # Gjallerbru
+        # MarvelCDB's codes for these two run opposite to the printed collector numbers: Hall of Nastrond prints 142
+        # but is MarvelCDB 21141, and Gjallerbru prints 141 but is 21142. Match them by name, not by printed number.
+        "h6": "21141",  # Hall of Nastrond
+        "h7": "21142",  # Gjallerbru
         "h8": "21143",  # Garm
         "h13": "21148",  # Hela's Crown
         "h14": "21149",  # Hela's Domain
