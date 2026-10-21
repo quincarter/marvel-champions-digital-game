@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Regression test: a deck left under 40 cards when Fear No Evil removes a recorded title still blocks the next game, and the removed title cannot be added back.'
-time: 2026-10-20T12:09:07.1980984-04:00

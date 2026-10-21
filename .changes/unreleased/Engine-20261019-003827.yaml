@@ -1,3 +1,0 @@
-kind: Engine
-body: putIntoPlay can resolve the Setup abilities of the cards it puts into play (resolveSetup; the first player orders two or more, RRG p. 40) and put a double-sided card into play on its other face without flipping it (otherFace, logged cardEnteredOnOtherFace), for Fear No Evil's campaign environments.
-time: 2026-10-19T00:38:27.4876597-04:00

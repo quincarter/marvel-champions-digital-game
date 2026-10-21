@@ -1,3 +1,0 @@
-kind: Engine
-body: A status card that cannot be placed (no room, or replaced by an 'instead' interrupt) means the effect did not fully resolve, so a following 'then' is skipped (RRG 1.8 'Then', p. 44).
-time: 2026-10-19T21:24:45.5974641-04:00

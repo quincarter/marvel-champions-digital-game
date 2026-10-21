@@ -1,3 +1,0 @@
-kind: Engine
-body: 'Campaign loss policy keepLog: a lost scenario keeps the campaign log and returns to the campaign''s scenario choice instead of restoring the log and replaying the same scenario.'
-time: 2026-10-19T04:55:36.0818798-04:00
