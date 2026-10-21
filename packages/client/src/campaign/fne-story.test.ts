@@ -18,11 +18,36 @@ describe("the Fear No Evil story", () => {
     expect(ids.at(-1)).toBe("kingpin");
   });
 
-  test("every issue has a briefing line and a rewind taunt, and no panel art to wait on", () => {
+  test("every issue has a briefing line and a rewind taunt", () => {
     for (const issue of FNE_STORY.issues) {
       expect(issue.briefing.text.length, issue.nodeId).toBeGreaterThanOrEqual(25);
       expect(issue.briefing.fallback, issue.nodeId).toBeTruthy();
       expect(issue.rewindTaunt.length, issue.nodeId).toBeGreaterThan(0);
+    }
+  });
+
+  test("Art Museum Heist opens on its five lettered pages, every panel in order; the other issues have none yet", () => {
+    const heist = FNE_STORY.issues.find((issue) => issue.nodeId === "art-museum-heist")!;
+    expect(heist.comicBeats?.map((beat) => beat.page)).toEqual([
+      "art-heist-1",
+      "art-heist-1",
+      "art-heist-2",
+      "art-heist-2",
+      "art-heist-3",
+      "art-heist-3",
+      "art-heist-4",
+      "art-heist-4",
+      "art-heist-4",
+      "art-heist-5",
+    ]);
+    for (const page of FNE_STORY.pages ?? []) {
+      expect(page.lettered, page.file).toBe(true);
+      for (const beat of page.beats) {
+        expect(beat.panel.x + beat.panel.w, page.file).toBeLessThanOrEqual(page.width);
+        expect(beat.panel.y + beat.panel.h, page.file).toBeLessThanOrEqual(page.height);
+      }
+    }
+    for (const issue of FNE_STORY.issues.filter((i) => i.nodeId !== "art-museum-heist")) {
       expect(issue.comicBeats, issue.nodeId).toBeUndefined();
     }
   });

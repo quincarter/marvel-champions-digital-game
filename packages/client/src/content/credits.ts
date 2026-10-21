@@ -224,6 +224,16 @@ export const CREDITS: readonly CreditEntry[] = [
     gap: true,
   },
   {
+    id: "fne-art-heist",
+    group: "story",
+    title: "Fear No Evil: Art Museum Heist pages",
+    shownIn: "The Art Museum Heist issue opener in the Fear No Evil campaign",
+    credit: `Five lettered comic pages for the Art Museum Heist, supplied by the owner (2026-10-20). ${ARTIST_NOT_RECORDED}`,
+    notice: MARVEL,
+    folders: ["art/campaigns/fne/pages"],
+    gap: true,
+  },
+  {
     id: "shadowland-comic",
     group: "story",
     title: "Shadowland (2010): comic pages",

@@ -1,13 +1,18 @@
 /**
- * Fear No Evil (MC60): the copy for the box, with no comic pages of its own yet (the reader skips an issue with no
- * `comicBeats`). Everything here is original flavor for this app; no rule lives here (see `../story.ts`). The five
+ * Fear No Evil (MC60): the copy for the box. Everything here is original flavor for this app; no rule lives here (see
+ * `../story.ts`).
+ *
+ * **Comic pages.** Art Museum Heist opens on five lettered pages the owner supplied (2026-10-20), in
+ * `art/campaigns/fne/pages/art-heist-<n>.jpg` (1672x941 each), read panel by panel with the reader's lettered mode
+ * (the captions and balloons are printed in). Panel rectangles were measured from each page's white gutters. The
+ * other issues have no pages yet, so the reader skips them (an issue with no `comicBeats`). The five
  * underling issues are dealt from the box in no fixed order (a `choice` graph), so they carry no number in the copy;
  * Kingpin is always last.
  *
  * **Cast:** Daredevil (`60001a`) and Echo (`60037a`) ship in this box, so their lines are written for them; every
  * other hero shows the narrator `fallback` instead.
  */
-import type { CampaignStory, HandledWords, IssueStory, SetupCallCopy, StorySpeaker } from "../story.js";
+import type { CampaignStory, ComicPage, HandledWords, IssueStory, SetupCallCopy, StorySpeaker } from "../story.js";
 
 const DAREDEVIL: StorySpeaker = { kind: "hero", identityId: "60001a", name: "Daredevil" };
 const ECHO: StorySpeaker = { kind: "hero", identityId: "60037a", name: "Echo" };
@@ -37,6 +42,40 @@ const issue = (
   rewindTaunt,
 });
 
+const page = (file: string, panels: readonly { x: number; y: number; w: number; h: number }[]): ComicPage => ({
+  file,
+  width: 1672,
+  height: 941,
+  lettered: true,
+  // `show`: just the panel, fit whole in the reading area, so a caption at its top edge is never cropped.
+  beats: panels.map((panel) => ({ panel, show: panel, lines: [] })),
+});
+
+const PAGES: readonly ComicPage[] = [
+  page("art-heist-1", [
+    { x: 18, y: 32, w: 1054, h: 881 },
+    { x: 1078, y: 32, w: 575, h: 881 },
+  ]),
+  page("art-heist-2", [
+    { x: 31, y: 30, w: 796, h: 881 },
+    { x: 845, y: 30, w: 796, h: 881 },
+  ]),
+  page("art-heist-3", [
+    { x: 7, y: 7, w: 822, h: 926 },
+    { x: 843, y: 7, w: 822, h: 926 },
+  ]),
+  page("art-heist-4", [
+    { x: 51, y: 95, w: 777, h: 523 },
+    { x: 844, y: 95, w: 779, h: 523 },
+    { x: 51, y: 630, w: 1572, h: 216 },
+  ]),
+  page("art-heist-5", [{ x: 25, y: 58, w: 1622, h: 865 }]),
+];
+
+/** Every beat of each page, in order. */
+const beatsOf = (...files: readonly string[]) =>
+  files.flatMap((file) => PAGES.find((p) => p.file === file)!.beats.map((_, beatIndex) => ({ page: file, beatIndex })));
+
 /** The five interchangeable scenarios (the finale, Kingpin, has no villain to choose). */
 const UNDERLING_NODES = [
   "art-museum-heist",
@@ -65,6 +104,15 @@ const NODE_TITLES: Readonly<Record<string, string>> = {
 const nameOf = (id: string): string =>
   NODE_TITLES[id] ??
   id.replace(/[-_]+/g, " ").replace(/(^|\s)([a-z])/g, (_m, lead: string, c: string) => lead + c.toUpperCase());
+
+/** `issue(...)` with the comic read the opener plays before the Briefing. */
+const withComic = (
+  comicBeats: NonNullable<IssueStory["comicBeats"]>,
+  ...args: Parameters<typeof issue>
+): IssueStory => ({
+  ...issue(...args),
+  comicBeats,
+});
 
 const lowerFirst = (text: string): string => text.charAt(0).toLowerCase() + text.slice(1);
 
@@ -139,8 +187,10 @@ export const FNE_STORY: CampaignStory = {
     ...Object.fromEntries(UNDERLING_NODES.map((id) => [`mc60.${id}.compose.villain`, VILLAIN_CALL])),
   },
   castIdentityIds: ["60001a", "60037a"],
+  pages: PAGES,
   issues: [
-    issue(
+    withComic(
+      beatsOf("art-heist-1", "art-heist-2", "art-heist-3", "art-heist-4", "art-heist-5"),
       "art-museum-heist",
       "Art Museum Heist",
       "An underling",
