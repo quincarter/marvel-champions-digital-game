@@ -17,6 +17,7 @@
  *
  * Pure: no storage, no Phaser.
  */
+import { NO_DECK_FEATS, type DeckFeats } from "./deck-feats.js";
 import { CAMPAIGN_RECORDS } from "../campaign/campaign-service.js";
 import { POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
 import { HERO_QUOTES } from "./hero-quotes.js";
@@ -35,7 +36,16 @@ import {
   villainLabelOf,
 } from "./unlocks.js";
 
-export type AchievementFamily = "wins" | "villains" | "campaigns" | "heroes" | "expert" | "feats" | "funny" | "teamups";
+export type AchievementFamily =
+  | "wins"
+  | "villains"
+  | "campaigns"
+  | "heroes"
+  | "expert"
+  | "feats"
+  | "decks"
+  | "funny"
+  | "teamups";
 
 /** The Trophy Room's grouping order. */
 export const ACHIEVEMENT_FAMILIES: readonly { readonly id: AchievementFamily; readonly label: string }[] = [
@@ -45,6 +55,7 @@ export const ACHIEVEMENT_FAMILIES: readonly { readonly id: AchievementFamily; re
   { id: "heroes", label: "Heroes" },
   { id: "expert", label: "Expert and Heroic" },
   { id: "feats", label: "Feats" },
+  { id: "decks", label: "Deck building" },
   { id: "teamups", label: "Team-up stories" },
   { id: "funny", label: "The funny ones" },
 ];
@@ -78,6 +89,8 @@ export interface AchievementHistory {
   readonly howToPlay?: { readonly done: number; readonly total: number };
   /** True once Settings ▸ Unlocks' "Unlock everything" has ever been turned on (`progression.ts`). */
   readonly unlockedEverything?: boolean;
+  /** The deck building feats noted so far (`deck-feats.ts`), with a built deck in your decks counting as built. */
+  readonly decks?: DeckFeats;
 }
 
 export const NO_HISTORY: AchievementHistory = { saves: [], campaigns: [] };
@@ -115,6 +128,11 @@ interface Facts {
   /** Identity card ids of heroes seated in a finished game, won or lost. */
   readonly playedHeroes: ReadonlySet<string>;
   readonly unlockedEverything: boolean;
+  readonly decks: DeckFeats;
+  /** How many seats were filled, for each finished game (won or lost). */
+  readonly seatCountsPlayed: ReadonlySet<number>;
+  /** Team-Up cards played over the finished games that recorded a summary. */
+  readonly teamUpsPlayed: number;
 }
 
 /** `{ current, target }`, or null when the history can't answer yet. */
@@ -197,6 +215,9 @@ export function factsOf(history: AchievementHistory): Facts {
     ),
     playedHeroes: new Set([...wonSaves, ...lostSaves].flatMap(heroesOf)),
     unlockedEverything: history.unlockedEverything === true,
+    decks: history.decks ?? NO_DECK_FEATS,
+    seatCountsPlayed: new Set([...wonSaves, ...lostSaves].map((s) => s.config.players.length)),
+    teamUpsPlayed: real.reduce((sum, s) => sum + (s.summary?.teamUpsPlayed ?? 0), 0),
   };
 }
 
@@ -512,7 +533,60 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
     measure: (f) => count(f.noAllyWins > 0 ? 1 : 0, 1),
   }),
 
+  // Deck building (the owner, 2026-10-21)
+  def({
+    id: "deck-built",
+    name: "Some Assembly Required",
+    description: "Build a deck in the deck builder and save it.",
+    family: "decks",
+    points: 25,
+    measure: (f) => count(f.decks.built ? 1 : 0, 1),
+  }),
+  def({
+    id: "deck-played-built",
+    name: "Taking It for a Spin",
+    description: "Deal a game with a deck you built.",
+    family: "decks",
+    points: 25,
+    measure: (f) => count(f.decks.playedBuilt ? 1 : 0, 1),
+  }),
+  def({
+    id: "deck-edited",
+    name: "Mark II",
+    description: "Change a deck you already saved and save it again. (Every suit needs a second draft.)",
+    family: "decks",
+    points: 25,
+    measure: (f) => count(f.decks.edited ? 1 : 0, 1),
+  }),
+
+  // Seats filled (the owner, 2026-10-21): a finished game, won or lost, with that many heroes at the table
+  ...(
+    [
+      [1, "Solo Act", "Finish a game with one seat filled."],
+      [2, "Dynamic Duo", "Finish a game with two seats filled."],
+      [3, "Three's Company", "Finish a game with three seats filled."],
+      [4, "Avengers Assemble!", "Finish a game with all four seats filled."],
+    ] as const
+  ).map(([seats, name, description]) =>
+    def({
+      id: `seats-${seats}`,
+      name,
+      description,
+      family: "feats",
+      points: 25,
+      measure: (f) => count(f.seatCountsPlayed.has(seats) ? 1 : 0, 1),
+    }),
+  ),
+
   // Team-up stories
+  def({
+    id: "teamup-first-card",
+    name: "Better Together",
+    description: "Play your first Team-Up card (counted when the game ends).",
+    family: "teamups",
+    points: 50,
+    measure: (f) => count(f.teamUpsPlayed > 0 ? 1 : 0, 1),
+  }),
   def({
     id: "worthy-of-a-second-date",
     name: "Worthy of a Second Date?",

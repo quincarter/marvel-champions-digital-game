@@ -118,6 +118,8 @@ import {
   paintPanel,
 } from "../ui/widgets.js";
 import { drawCostCurveBars, drawGroupedCardList } from "../ui/deck-stats-widgets.js";
+import { noteDeckFeat } from "../progression/deck-feats.js";
+import { refreshUnlocks } from "../progression/progression.js";
 import { appSession, campaignService, deckStorage } from "../session.js";
 import { cardSizeFactor } from "../settings.js";
 import { deckBuilderRowSizes, type DeckBuilderRowSizes } from "../view/deck-builder-rows.js";
@@ -2216,7 +2218,10 @@ export class DeckBuilderScene extends Phaser.Scene {
       return;
     }
     const saved = touch(this.#deck, new Date().toISOString());
+    // A deck already in your decks saved again is a change to it; a new one is a deck built (achievements).
+    const resaved = this.#savedDeck !== null;
     await deckStorage().put(saved);
+    if (noteDeckFeat(resaved ? "edited" : "built")) void refreshUnlocks().catch(() => false);
     this.#deck = saved;
     this.#savedDeck = saved;
     this.#savedDeckId = saved.id as string;

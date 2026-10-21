@@ -39,6 +39,8 @@ export interface GameSummary {
    * on a summary written before the field existed.
    */
   readonly finalBlowBy?: string | null;
+  /** Team-Up cards played by any seat, over the whole game. Absent on a summary written before the field existed. */
+  readonly teamUpsPlayed?: number;
 }
 
 const lossReasonOf = (outcome: NonNullable<GameState["outcome"]>): LossReason | null => {
@@ -77,5 +79,6 @@ export function summarizeGame(state: GameState, record: GameRecord, deps?: Engin
       : [],
     alliesPlayed: record.seats.reduce((sum, seat) => sum + (seat.alliesPlayed ?? 0), 0),
     finalBlowBy: won ? finalBlowIdentityOf(state, record) : null,
+    teamUpsPlayed: record.seats.reduce((sum, seat) => sum + (seat.teamUpsPlayed ?? 0), 0),
   };
 }

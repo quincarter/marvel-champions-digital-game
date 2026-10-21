@@ -211,11 +211,11 @@ describe("points and rank", () => {
   it("gives the funny achievements no points", () => {
     const h = hist(Array.from({ length: 10 }, () => game("rhino", "lost", { round: 1 })));
     expect(achievementStatuses(h).some((s) => s.earned && s.def.id === "losses-10")).toBe(true);
-    // Only the hero played for those games scores (a game played as a hero counts, win or lose).
+    // Only the hero played for those games (a game played as a hero counts, win or lose) and Solo Act score.
     const funny = achievementStatuses(h).filter((s) => s.earned && s.def.family === "funny");
     expect(funny.length).toBeGreaterThan(0);
     expect(funny.every((s) => s.def.points === 0)).toBe(true);
-    expect(achievementPointsOf(h)).toBe(10);
+    expect(achievementPointsOf(h)).toBe(10 + 25);
   });
 
   it("has nine ranks whose thresholds rise and whose last needs every point there is", () => {
@@ -275,6 +275,33 @@ describe("achievements read from the game summary", () => {
     expect(earned("iron-man-thanos", hist([win("thanos", iron)]))).toBe(true);
     expect(earned("iron-man-thanos", hist([win("thanos", heroId("Thor"))]))).toBe(false);
     expect(earned("iron-man-thanos", hist([win("rhino", iron)]))).toBe(false);
+  });
+
+  it("earns the deck building ones from the noted deck feats", () => {
+    const decks = { built: true, edited: false, playedBuilt: true };
+    const h: AchievementHistory = { ...hist([]), decks };
+    expect(earned("deck-built", h)).toBe(true);
+    expect(earned("deck-played-built", h)).toBe(true);
+    expect(earned("deck-edited", h)).toBe(false);
+    expect(earned("deck-edited", { ...h, decks: { ...decks, edited: true } })).toBe(true);
+    expect(earned("deck-built", hist([]))).toBe(false);
+  });
+
+  it("earns a seats-filled one for a finished game, won or lost, with that many seats", () => {
+    const two = [deckOf("Iron Man"), deckOf("Thor")];
+    const four = [...two, deckOf("Hulk"), deckOf("She-Hulk")];
+    const h = hist([game("rhino", "lost", { players: two }), game("rhino", "won", { players: four })]);
+    expect(earned("seats-2", h)).toBe(true);
+    expect(earned("seats-4", h)).toBe(true);
+    expect(earned("seats-1", h)).toBe(false);
+    expect(earned("seats-3", h)).toBe(false);
+    const playing: AchievementSave = { ...game("rhino", "won", { players: two }), status: "playing" };
+    expect(earned("seats-2", hist([playing]))).toBe(false);
+  });
+
+  it("earns Better Together once a finished game recorded a Team-Up card played", () => {
+    expect(earned("teamup-first-card", hist([lost({ teamUpsPlayed: 1 })]))).toBe(true);
+    expect(earned("teamup-first-card", hist([lost({ teamUpsPlayed: 0 }), game("rhino", "won")]))).toBe(false);
   });
 
   it("counts only the losses to the main scheme completing", () => {

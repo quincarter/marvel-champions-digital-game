@@ -24,6 +24,10 @@ import {
   type PlayerId,
 } from "@mc/engine";
 
+/** A card with the Team-Up keyword (RRG 1.8 "Team-Up", p. 43). */
+const isTeamUpCard = (card: GameState["cardPool"][string] | undefined): boolean =>
+  !!card && "keywords" in card && card.keywords.some((keyword) => keyword.name === "teamUp");
+
 export interface SeatRecord {
   readonly playerId: PlayerId;
   /** Damage dealt to the villain and to minions by cards this seat controls or owns. */
@@ -33,6 +37,8 @@ export interface SeatRecord {
   readonly cardsPlayed: number;
   /** Allies this seat played (a `cardPlayed` of an ally card). Absent on a record written before the field existed. */
   readonly alliesPlayed?: number;
+  /** Team-Up cards this seat played (a `teamUp` keyword, RRG 1.8 p. 43). Absent on a record written before the field existed. */
+  readonly teamUpsPlayed?: number;
   /** The round this seat's hero was defeated in, or null if they stood to the end. */
   readonly defeatedInRound: number | null;
   /**
@@ -254,6 +260,7 @@ export function recordEvents(record: GameRecord, events: readonly GameEvent[], s
           ...seat,
           cardsPlayed: seat.cardsPlayed + 1,
           alliesPlayed: (seat.alliesPlayed ?? 0) + (state.cardPool[event.cardId]?.type === "ally" ? 1 : 0),
+          teamUpsPlayed: (seat.teamUpsPlayed ?? 0) + (isTeamUpCard(state.cardPool[event.cardId]) ? 1 : 0),
         }));
         break;
       case "playerEliminated":

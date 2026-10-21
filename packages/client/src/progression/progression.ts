@@ -13,7 +13,8 @@
 import { setShownStandIns } from "../art/art-source.js";
 import { guidePrefs } from "../guide/guide-store.js";
 import { howToPlayProgressOf } from "../view/how-to-play-model.js";
-import { appSession, campaignService } from "../session.js";
+import { appSession, campaignService, deckStorage } from "../session.js";
+import { readDeckFeats } from "./deck-feats.js";
 import {
   NO_HISTORY,
   achievementPointsOf,
@@ -114,18 +115,24 @@ export function extras(): Extras {
  * the same read, and the Extras screen redraws after it regardless.
  */
 export async function refreshUnlocks(): Promise<boolean> {
-  const [saves, campaigns] = await Promise.all([
+  const [saves, campaigns, savedDecks] = await Promise.all([
     appSession().store.listSaves(),
     campaignService()
       .storage.list()
       .catch(() => []),
+    deckStorage()
+      .list()
+      .catch(() => []),
   ]);
+  const deckFeats = readDeckFeats();
   const nextHistory = {
     saves,
     campaigns,
     howToPlay: howToPlayProgressOf(guidePrefs()),
     // The player's own switch, not the `?unlock=all` dev param.
     unlockedEverything: unlockedEverythingEver((prefs ?? readPrefs()).unlockAll),
+    // A deck built before the feat was noted still counts while it is in your decks.
+    decks: { ...deckFeats, built: deckFeats.built || savedDecks.some((deck) => deck.source.kind === "userBuilt") },
   };
   const nextEarned = achievementStatuses(nextHistory)
     .filter((status) => status.earned)

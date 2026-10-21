@@ -46,6 +46,8 @@ import { SET_CARDS_ACTION_EVENT, type SetCardsData } from "./set-cards.js";
 import { drawHeroAvatar, SEAT_AVATAR_READY } from "../ui/seat-avatar.js";
 import { difficultySetLine, difficultySetSections, difficultySetsSubtitle } from "../view/difficulty-sets.js";
 import { setSheetFor } from "../view/civil-war-builder-model.js";
+import { noteDeckFeat } from "../progression/deck-feats.js";
+import { refreshUnlocks } from "../progression/progression.js";
 import { progressionScope } from "../progression/progression-scope.js";
 import { blindRevealOf } from "../view/civil-war-blind.js";
 import { estimateWrappedLines, type Rect } from "../view/layout.js";
@@ -2975,6 +2977,12 @@ export class TableSetupScene extends Phaser.Scene {
       this.#status?.setText(store.state.error ?? "setup failed");
       return;
     }
+    // A game dealt with a deck the player built (achievements).
+    const seated = new Set(this.#draft.seats);
+    const built = this.#deckOptions().some(
+      (option) => seated.has(option.deck.id as string) && option.deck.source.kind === "userBuilt",
+    );
+    if (built && noteDeckFeat("playedBuilt")) void refreshUnlocks().catch(() => false);
     this.scale.off("resize", this.#rebuild, this);
     // W3 (docs/phase4-screen-gaps.md §3): "Deal it out" routes through the dedicated setup deal & mulligan screen,
     // never straight to the Board — that scene hands off to the Board itself once `state.step.phase` leaves "setup".
