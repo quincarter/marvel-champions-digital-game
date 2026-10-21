@@ -118,6 +118,7 @@ import type { AttackKeyword, DefeatFollowUp, DefeatPlacement, EffectSpec, Predic
 import {
   alreadyDefeated,
   applyMainSchemeCompleting,
+  atZero,
   checkDefeats,
   checkMainSchemeCompletion,
   defeatVillainStage,
@@ -552,6 +553,9 @@ function sweepAllyEnteredAtZero(ctx: Ctx, event: TriggerEvent): void {
   const stack = ctx.state.stack;
   if (playFrameOf(stack, event.instanceId)) return;
   if (stack.some((f) => f.kind === "event" && f.event.kind === "cardEntersPlay")) return;
+  // Only when this ally is the one at zero: the sweep is global, and a campaign set-up can hold an identity at zero
+  // until its own heal resolves (MC21 p. 25, `campaigns/mts.qa.test.ts`) while other cards enter play.
+  if (!cardsInPlay(ctx.state).includes(event.instanceId) || !atZero(ctx, event.instanceId)) return;
   checkDefeats(ctx);
 }
 
