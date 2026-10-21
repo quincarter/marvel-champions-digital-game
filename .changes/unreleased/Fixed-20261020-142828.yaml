@@ -1,3 +1,0 @@
-kind: Fixed
-body: The guide's payment warning suggests the cheapest card to spend instead (a free resource ability, then a resource card, then a card with no play this round), says why it picked it, checks resource types, and no longer calls a chosen spend an overpay (#299).
-time: 2026-10-20T14:28:28.6127294-04:00
