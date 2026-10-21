@@ -112,7 +112,9 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
 
   BASICS.forEach((action, index) => {
     const button = marks?.basics.find((basic) => basic.action === action);
-    const targeting = selection.kind === "targeting" && basicKindOf(selection.action) === action;
+    const targeting =
+      (selection.kind === "targeting" && basicKindOf(selection.action) === action) ||
+      (selection.kind === "dividingPower" && basicKindOf(selection.choice.action) === action);
     const cell: Rect = {
       x: rect.x + 10 + index * (cellWidth + 6),
       y: rect.y + 4,

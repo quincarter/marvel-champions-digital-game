@@ -7437,6 +7437,24 @@ export function dividedBasicPowerValue(
   return characterProfile(reading.state, characterId, deps)?.[stat] ?? 0;
 }
 
+/**
+ * What the shares of a divided basic `power` must total when `characterId` divides it among `targets`, in order: the
+ * attacker's ATK, or the thwarter's THW, its ATK when any of the schemes has assault, as the command reads them
+ * (`basicAttackPaying`, `basicThwartWith`). For a client's divide picker; the command still checks the division.
+ */
+export function basicPowerDivisionTotal(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  characterId: InstanceId,
+  power: "attack" | "thwart",
+  targets: readonly InstanceId[],
+): number {
+  const assault = power === "thwart" && targets.some((id) => hasKeyword(state, id, "assault", deps));
+  const stat = power === "attack" || assault ? "atk" : "thw";
+  return dividedBasicPowerValue(state, deps, playerId, characterId, power, stat, targets);
+}
+
 export function basicRecover(ctx: Ctx, command: Command & { type: "basicRecover" }): EngineError | null {
   const invalid = requireActivePlayer(ctx.state, command.playerId, command);
   if (invalid) return invalid;

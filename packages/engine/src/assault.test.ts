@@ -21,6 +21,7 @@
 import { flat, type AnyCard, type KeywordInstance, type PlayerSideSchemeCard } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { AbilityDefinition, EngineDeps } from "./abilities.js";
+import { basicPowerDivisionTotal } from "./actions.js";
 import type { Command } from "./commands.js";
 import { applyCommand, replay, startSession, type GameSession } from "./engine.js";
 import type { InstanceId } from "./ids.js";
@@ -618,6 +619,17 @@ describe("assault: a divided basic thwart (§4.1 Q3)", () => {
     const reversed = run(s.state, thwart(s.hero, back, [back, 1], [front, 2])).session.state;
     expect([threat(reversed, back), threat(reversed, front)]).toEqual([8, 7]);
     expect(refusal(s.state, thwart(s.hero, back, [back, 1], [front, 1]))).toBe("the shares must total 3");
+  });
+
+  it("basicPowerDivisionTotal (a client's divide picker) reads ATK once an assault scheme is among the targets", () => {
+    const s = setup({ schemes: ["front", "back"], supports: ["split"] });
+    const { front, back } = s.scheme;
+    const total = (targets: readonly InstanceId[]) =>
+      basicPowerDivisionTotal(s.state, deps, P1, s.hero, "thwart", targets);
+    expect(total([back])).toBe(2);
+    expect(total([back, front])).toBe(3);
+    expect(total([front])).toBe(3);
+    expect(basicPowerDivisionTotal(s.state, deps, P1, s.hero, "attack", [s.villain])).toBe(3);
   });
 
   it("an ally dividing it across an assault scheme and one without divides ATK 4 and takes 2", () => {

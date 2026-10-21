@@ -42,6 +42,7 @@ import {
   toggleDiscardChoice,
   type DiscardChoiceView,
 } from "../../view/discard-choice-model.js";
+import { beginDividePower, divideCommand, dividePanelOf, tapDivideTarget } from "../../view/divide-power.js";
 import { endTurnConfirmOf } from "../../view/end-turn-confirm.js";
 import { smallHandSizeConfirmOf } from "../../view/hand-size-note.js";
 import {
@@ -404,6 +405,9 @@ export class BoardController {
     if (this.#selection.kind === "choosingInPlayCost") {
       return focusOrder({ kind: "targeting", targets: offeredNow(this.#selection.choice), confirm: true }, marks);
     }
+    if (this.#selection.kind === "dividingPower") {
+      return focusOrder({ kind: "targeting", targets: this.#selection.choice.action.targets, confirm: true }, marks);
+    }
     if (this.#selection.kind === "choosingController") {
       return focusOrder({ kind: "targeting", targets: this.#seatTiles(this.#selection.controllers) }, marks);
     }
@@ -446,6 +450,10 @@ export class BoardController {
     if (this.#selection.kind === "choosingInPlayCost") {
       return inPlayCostPanelOf(game, POOL_DEPS, inPlayCostChoiceView(game, POOL_DEPS, this.#selection.choice));
     }
+    if (this.#selection.kind === "dividingPower") {
+      const { choice } = this.#selection;
+      return dividePanelOf(game, POOL_DEPS, choice, sourceOf(game, choice.action));
+    }
     if (this.#selection.kind === "choosingController") {
       const { action, controllers } = this.#selection;
       return seatPanelOf(game, action, seatOptionsOf(game, controllers, perspectiveId));
@@ -475,7 +483,7 @@ export class BoardController {
       return;
     }
     if (focus.kind === "confirm") {
-      void this.confirmInPlayCost();
+      void this.confirmPick();
       return;
     }
     if (focus.kind === "xLess" || focus.kind === "xMore") {
@@ -544,6 +552,10 @@ export class BoardController {
     }
     if (this.#selection.kind === "choosingInPlayCost") {
       this.toggleInPlayPick(id);
+      return true;
+    }
+    if (this.#selection.kind === "dividingPower") {
+      this.tapDivideTarget(id);
       return true;
     }
     if (this.#selection.kind === "choosingController") {
@@ -708,7 +720,15 @@ export class BoardController {
       void this.#dispatch(entry.example);
       return;
     }
-    const { game } = appSession().store.state;
+    const { game, perspectiveId } = appSession().store.state;
+    // A basic power its character may divide (Wasp's Giant face; issue #322): the player places it point by point. A
+    // power with a hand discard to choose keeps the one-target flow, which asks for the discard.
+    const divide = game ? beginDividePower(game, POOL_DEPS, entry) : null;
+    if (game && divide && (perspectiveId === null || !beginDiscardChoice(game, perspectiveId, entry, POOL_DEPS))) {
+      this.#selection = { kind: "dividingPower", choice: divide };
+      this.#host.redraw();
+      return;
+    }
     const ref = entry.action;
     const who = game && "instanceId" in ref ? cardName(game, ref.instanceId) : null;
     const prompt = who && action ? `Choose a target for ${who}'s ${action}` : `Choose a target to ${action ?? "act"}`;
@@ -1206,6 +1226,26 @@ export class BoardController {
     const { choice, ...rest } = this.#selection;
     this.#selection = { ...rest, choice: toggleInPlayPick(choice, id) };
     this.#host.redraw();
+  }
+
+  /** Places one more point of a divided power on this target, or takes one back once every point is placed. */
+  tapDivideTarget(id: InstanceId): void {
+    if (this.#readOnly || this.#selection.kind !== "dividingPower") return;
+    const { game } = appSession().store.state;
+    if (!game) return;
+    this.#selection = { kind: "dividingPower", choice: tapDivideTarget(game, POOL_DEPS, this.#selection.choice, id) };
+    this.#host.redraw();
+  }
+
+  /** The multi-pick footer's Confirm: a divided power is made, or the in-play cost picker moves on. */
+  async confirmPick(): Promise<void> {
+    if (this.#readOnly) return;
+    if (this.#selection.kind !== "dividingPower") return this.confirmInPlayCost();
+    const { game } = appSession().store.state;
+    const command = game ? divideCommand(game, POOL_DEPS, this.#selection.choice) : null;
+    if (!command) return;
+    this.#selection = { kind: "idle" };
+    await this.#send(command);
   }
 
   /** The in-play cost picker as the engine's own candidates and the picks so far read, or null outside that mode. */

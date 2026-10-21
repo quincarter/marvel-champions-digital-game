@@ -329,7 +329,7 @@ function drawFooter(ctx: BoardDrawContext, rect: Rect, multi: MultiPick): void {
       rect: confirmRect,
       enabled: multi.canConfirm,
       ...(multi.reason ? { reason: multi.reason } : {}),
-      onClick: () => void ctx.controller.confirmInPlayCost(),
+      onClick: () => void ctx.controller.confirmPick(),
     }),
   );
   ctx.frame.focusRects.set(focusKey({ kind: "confirm" }), confirmRect);

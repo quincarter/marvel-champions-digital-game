@@ -18,6 +18,7 @@ import { ink } from "../../tokens.js";
 import type { CostChoicePrompt } from "../../view/cost-choice-model.js";
 import type { ConsentHelper, CostHelpPrompt } from "../../view/cost-help-model.js";
 import type { DiscardChoiceState } from "../../view/discard-choice-model.js";
+import type { DividePowerState } from "../../view/divide-power.js";
 import type { PowerKind, PowerSource } from "../../view/attacker-choice.js";
 import type { FormSource } from "../../view/change-form-choice.js";
 import type { InPlayCostChoiceState } from "../../view/in-play-cost-choice.js";
@@ -45,6 +46,11 @@ export type Selection =
    * "PAYING 1 / 3" bar above a hand you tap), so it lives on the Board.
    */
   | { readonly kind: "paying"; readonly payment: PaymentState }
+  /**
+   * A basic attack or thwart its character may divide among several targets (Wasp's Giant face; issue #322): tap a
+   * target to place a point on it, then Confirm (`view/divide-power.ts`).
+   */
+  | { readonly kind: "dividingPower"; readonly choice: DividePowerState }
   /**
    * A card or ability whose cost is "discard N cards from your hand" (Shield
    * Toss, `03006`) is chosen; now pick which — and for a cost like Shield
@@ -173,6 +179,11 @@ export function targetState(selection: Selection, id: InstanceId): TargetState {
       return "selected";
     }
     return sources.some((source) => source.instanceId === id) ? "rest" : "unavailable";
+  }
+  if (selection.kind === "dividingPower") {
+    const { choice } = selection;
+    if (choice.shares.some((share) => share.targetInstanceId === id)) return "selected";
+    return choice.action.targets.includes(id) ? "rest" : "unavailable";
   }
   if (selection.kind === "choosingDiscard") {
     if (selection.choice.picked.includes(id)) return "selected";

@@ -1505,7 +1505,14 @@ export class BoardScene extends Phaser.Scene {
   #drawTargetingPanel(ctx: BoardDrawContext, viewport: Rect): void {
     const kind = this.#controller.selection.kind;
     // The same panel carries two more questions: which cards pay a cost with a range, and whose play area a card goes to.
-    if (kind !== "targeting" && kind !== "choosingInPlayCost" && kind !== "choosingController") return;
+    if (
+      kind !== "targeting" &&
+      kind !== "choosingInPlayCost" &&
+      kind !== "choosingController" &&
+      kind !== "dividingPower"
+    ) {
+      return;
+    }
     const panel = this.#controller.targetingPanel();
     if (!panel) return;
     const focused = this.#focus?.kind === "card" ? this.#focus.instanceId : null;
