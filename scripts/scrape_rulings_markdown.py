@@ -11,7 +11,7 @@
 Hall of Heroes older FFG rulings pages -> per-section Markdown
 
 Downloads Hall of Heroes' transcriptions of the OLDER official FFG rulings
-(RRG 1.0-1.4 main page & errata, and post-RRG 1.5 rulings), extracts the
+(RRG 1.0-1.4 main page & errata, post-RRG 1.5 and post-RRG 1.6 rulings), extracts the
 WordPress post body (the `entry-content` div), converts it to Markdown
 deterministically (no paraphrasing: headings, lists, links and quotes are kept
 as written), and writes one small file per top-level section of each page:
@@ -87,6 +87,12 @@ PAGES: List[Page] = [
         url="https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-5/",
         title="Latest FFG Rulings (post RRG 1.5)",
         coverage="Rulings from May 2023 to July 2024 (after RRG 1.5, before RRG 1.6), sorted by month.",
+    ),
+    Page(
+        slug="post-rrg-1-6",
+        url="https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-6/",
+        title="Latest FFG Rulings (post RRG 1.6)",
+        coverage="Rulings from July 2024 to December 2025 (after RRG 1.6, before RRG 1.7), sorted by month.",
     ),
 ]
 
@@ -204,7 +210,42 @@ def split_sections(elements: List) -> List[Section]:
             sections.append(Section(title=el.get_text(" ", strip=True), anchor=el.get("id"), elements=[el]))
         else:
             sections[-1].elements.append(el)
-    return sections
+    return [part for s in sections for part in split_by_signature_month(s)]
+
+
+def split_by_signature_month(section: Section) -> List[Section]:
+    """Split a '<Month>, <Year>' section whose rulings run into later months, by each ruling's signature date.
+
+    The post-RRG 1.6 page stops adding month headings after "April, 2025:", so everything from April to December
+    2025 sits under that one heading. Each ruling ends with a signature line ("-Alex – <date>"); a ruling signed in
+    a later month than the section's starts a new section for that month, with a note saying so.
+    """
+    m = MONTH_HEADING_RE.match(section.title.rstrip(":").strip())
+    if not m:
+        return [section]
+    current = (int(m.group(2)), MONTHS.index(m.group(1)) + 1)
+    out = [Section(title=section.title, anchor=section.anchor, elements=[])]
+    pending: List = []
+    for el in section.elements:
+        pending.append(el)
+        sig = SIGNATURE_RE.match(flat_text(el)) if isinstance(el, Tag) and el.name == "p" else None
+        if not sig:
+            continue
+        month = (int(sig.group(4)), MONTHS.index(sig.group(2)) + 1)
+        if month > current:
+            current = month
+            title = f"{MONTHS[month[1] - 1]}, {month[0]}"
+            note = BeautifulSoup(
+                f"<p><em>Transcription note (script, not page text): the source page has no heading for {title}; "
+                f"these rulings sit under its “{section.title}” heading and are grouped here by the dates "
+                "on their signature lines.</em></p>",
+                "html.parser",
+            ).p
+            out.append(Section(title=title, anchor=None, elements=[note]))
+        out[-1].elements.extend(pending)
+        pending = []
+    out[-1].elements.extend(pending)
+    return out
 
 
 # ---------------------------------------------------------------------------
