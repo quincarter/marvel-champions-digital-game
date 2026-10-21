@@ -36,7 +36,11 @@ export interface HoldGestureOptions {
   readonly canDrag: boolean;
 }
 
-type Phase = "idle" | "pressed" | "inspected" | "dragging";
+/**
+ * `"scrolled"`: a row control's press that went up or down past the slop before it went sideways (the table's own
+ * vertical scroll, `view/table-scroll.ts`), so it is neither a sideways drag of the row nor a tap.
+ */
+type Phase = "idle" | "pressed" | "inspected" | "dragging" | "scrolled";
 
 export class HoldGesture {
   readonly #options: HoldGestureOptions;
@@ -76,13 +80,22 @@ export class HoldGesture {
    * The pressed pointer moved. True when this movement is part of a drag —
    * once a gesture reads as a drag it stays one for its whole length, so a
    * hold can't open Inspect out from under a scroll the player is mid-way through.
+   *
+   * With `y`, the axis is locked the way the table's own drag locks it (`TableDrag`): a press that travels further up
+   * or down than sideways is the table's vertical scroll, and never also slides the row (or taps the control) on a
+   * thumb's sideways drift.
    */
-  move(x: number): boolean {
+  move(x: number, y?: number): boolean {
     if (this.#phase === "dragging") return true;
     if (this.#phase !== "pressed" || !this.#options.canDrag) return false;
-    if (Math.abs(x - this.#downX) < HOLD_SLOP_PX) return false;
-    this.#phase = "dragging";
-    return true;
+    const dx = Math.abs(x - this.#downX);
+    const dy = y === undefined ? 0 : Math.abs(y - this.#downY);
+    if (dx >= HOLD_SLOP_PX && dx > dy) {
+      this.#phase = "dragging";
+      return true;
+    }
+    if (dy >= HOLD_SLOP_PX && dy >= dx) this.#phase = "scrolled";
+    return false;
   }
 
   /**
@@ -93,9 +106,9 @@ export class HoldGesture {
    * Measured here rather than read off the framework's pointer: Phaser's `prevPosition` is per frame, and a phone
    * delivers several `touchmove`s in one, which double-counted some of a swipe and dropped the rest.
    */
-  dragDelta(x: number, timeMs: number): number | null {
+  dragDelta(x: number, timeMs: number, y?: number): number | null {
     const wasDragging = this.#phase === "dragging";
-    if (!this.move(x)) return null;
+    if (!this.move(x, y)) return null;
     if (!wasDragging) {
       this.#dragged = true;
       this.#lastX = x;

@@ -97,6 +97,8 @@ import {
 } from "../../view/play-area-row.js";
 import { setMask } from "../../ui/rex.js";
 import { clipToViewport } from "../../ui/scroll-clip.js";
+import { bindDragSurface } from "../../ui/hold-target.js";
+import { onTap } from "../../ui/tap.js";
 
 export function drawEnemies(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {
   const g = ctx.scene.add.graphics();
@@ -1238,6 +1240,10 @@ export function drawPlayArea(
   const compact = options.compact === true;
   const g = scene.add.graphics();
   paintPanel(g, rect, "rail", "rest");
+  // The whole zone takes a sideways drag once the row scrolls: a finger that starts between cards, above or below them
+  // or on the caption still scrolls the row. Made first, so every card, arrow and form card drawn after it sits on top
+  // and keeps its own press; switched on below once the row is measured.
+  const dragSurface = scene.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0);
   if (compact) {
     // The tall villain band's strip (TB1): the caption beside the thumbnails, not above them.
     const caption = label(
@@ -1345,6 +1351,8 @@ export function drawPlayArea(
     if (compact) drawCompactPlayNote(scene, inner, slots, model);
     return;
   }
+  dragSurface.setInteractive();
+  bindDragSurface(scene, dragSurface, row.drag);
   const count = label(
     scene,
     0,
@@ -1430,9 +1438,10 @@ function drawCompactPlayNote(scene: Phaser.Scene, inner: Rect, slots: readonly R
 }
 
 /**
- * A fade and a chevron on whichever edge of the play area has more cards past it. The chevron is a button: a click
- * moves the row most of a zone's width that way, for a mouse with no wheel to hand. Returns the redraw for a new
- * scroll position.
+ * A fade and a chevron on whichever edge of the play area has more cards past it. The chevron is a button: a tap
+ * moves the row most of a zone's width that way, for a mouse with no wheel to hand. Only a real tap (`onTap`): a
+ * swipe that lifts over a chevron is the swipe's, and a drag that starts on one scrolls the row like anywhere else in
+ * the zone. Returns the redraw for a new scroll position.
  */
 function drawPlayAreaScrollHint(ctx: BoardDrawContext, area: Rect, scrollX: number): (scrollX: number) => void {
   const { scene } = ctx;
@@ -1446,11 +1455,9 @@ function drawPlayAreaScrollHint(ctx: BoardDrawContext, area: Rect, scrollX: numb
     const chevron = scene.add
       .text(x + band / 2, area.y + area.height / 2, direction < 0 ? "‹" : "›", style)
       .setOrigin(0.5);
-    const zone = scene.add
-      .zone(x, area.y, band, area.height)
-      .setOrigin(0, 0)
-      .setInteractive({ useHandCursor: true })
-      .on("pointerup", () => row.scrollBy(direction * area.width * 0.8));
+    const zone = scene.add.zone(x, area.y, band, area.height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+    bindDragSurface(scene, zone, row.drag);
+    onTap(zone, () => row.scrollBy(direction * area.width * 0.8), `playAreaChevron:${direction}`);
     return { direction, chevron, zone };
   });
   const draw = (at: number): void => {
@@ -1536,7 +1543,12 @@ function drawFormCards(ctx: BoardDrawContext, row: Rect, group: FormCardGroup): 
     cards.forEach((card, index) => {
       const rect = layout.cards[index]!;
       ctx.frame.hitRects.set(card.instanceId, rect);
-      ctx.makeTapTarget(rect, card.instanceId, () => ctx.controller.onCharacterTap(card.instanceId));
+      ctx.makeTapTarget(
+        rect,
+        card.instanceId,
+        () => ctx.controller.onCharacterTap(card.instanceId),
+        ctx.playAreaScroll.row.drag,
+      );
     });
     if (layout.footer) {
       const width = Math.min(layout.footer.width, 140);
@@ -1571,7 +1583,9 @@ function drawFormCards(ctx: BoardDrawContext, row: Rect, group: FormCardGroup): 
     if (!isSet || ctx.controller.selection.kind === "targeting") ctx.controller.onCharacterTap(top);
     else fan.setOpen(true);
   };
-  ctx.makeTapTarget(layout.stack, top, onTap);
+  // A sideways swipe from the stack scrolls the play row beside it, like a drag anywhere else in the zone, and is never
+  // a tap on the stack.
+  ctx.makeTapTarget(layout.stack, top, onTap, ctx.playAreaScroll.row.drag);
 }
 
 /**
@@ -1590,6 +1604,9 @@ function drawSeparateDecks(
   perspectiveId: PlayerId,
 ): void {
   const { scene } = ctx;
+  // A sideways swipe from a pile scrolls the play row beside it, like a drag anywhere else in the zone.
+  const { onDrag, onDragEnd } = ctx.playAreaScroll.row.drag;
+  const rowDrag = { onDrag, onDragEnd };
   const rowHeight = separateRowHeight(
     rect.height,
     decks.length,
@@ -1635,6 +1652,7 @@ function drawSeparateDecks(
         { x: row.x, y: boxTop + boxHeight + 2 + at * 12, width: row.width, height: 12 },
         card.instanceId,
         () => ctx.inspect(card.instanceId),
+        rowDrag,
       );
     });
 
@@ -1645,7 +1663,7 @@ function drawSeparateDecks(
     if (deck.topInstanceId) {
       const top = deck.topInstanceId;
       ctx.frame.hitRects.set(top, deckBox);
-      addTapTarget(scene, deckBox, { onTap: () => ctx.inspect(top), onInspect: () => ctx.inspect(top) });
+      addTapTarget(scene, deckBox, { onTap: () => ctx.inspect(top), onInspect: () => ctx.inspect(top), ...rowDrag });
     }
     if (deck.discardTopInstanceId) {
       const top = deck.discardTopInstanceId;
@@ -1653,7 +1671,7 @@ function drawSeparateDecks(
       // Special and moved to this deck's own discard (Spell Mastery, Natural Talent) needs a rect here to land its
       // beat on — without it, "resolve → discard" was a state change with nowhere on screen to point at.
       ctx.frame.hitRects.set(top, discardBox);
-      addTapTarget(scene, discardBox, { onTap: () => ctx.inspect(top), onInspect: () => ctx.inspect(top) });
+      addTapTarget(scene, discardBox, { onTap: () => ctx.inspect(top), onInspect: () => ctx.inspect(top), ...rowDrag });
     }
   });
 }

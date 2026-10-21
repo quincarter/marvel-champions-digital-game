@@ -115,6 +115,31 @@ export function bindHoldTarget(scene: Phaser.Scene, zone: Phaser.GameObjects.Zon
 }
 
 /**
+ * A drag-only surface under a scrollable row's controls: a sideways drag that starts anywhere on it (a gap between
+ * cards, the band above or below them, the caption) scrolls the row, and a press on it is never a tap. Drawn before
+ * the row's controls, so a press on a card or an arrow still goes to that control. The press is recorded like any
+ * card's, so a drag that ends over a card is that drag's, never the card's tap.
+ */
+export function bindDragSurface(
+  scene: Phaser.Scene,
+  zone: Phaser.GameObjects.Zone,
+  drag: { onDrag(deltaX: number): void; onDragEnd(velocityPxPerMs: number): void },
+): void {
+  zone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+    const gesture = new HoldGesture({ canInspect: false, canDrag: true });
+    livePresses.set(pointer, { downTime: pointer.downTime, key: undefined, gesture });
+    gesture.down(pointer.x, pointer.y, pointer.rightButtonDown());
+    // Once it is a drag, the scene's tap router must not read its release as a tap on a control the surface is under
+    // (a chevron's own tap, after a mouse drag that started and ended on it).
+    const onDrag = (deltaX: number): void => {
+      noteTapFired(scene, pointer);
+      drag.onDrag(deltaX);
+    };
+    followDrag(scene, pointer, gesture, onDrag, drag.onDragEnd);
+  });
+}
+
+/**
  * Follows one press's drag from the scene, not from the zone it began on.
  *
  * A zone only hears `pointermove` while the pointer is over it. Fed from the zones, a hand scroll stopped dead the
@@ -140,7 +165,7 @@ function followDrag(
     if (moved !== pointer) return;
     // A later press on the same pointer is someone else's; this one ended somewhere nobody told us about.
     if (pointer.downTime !== downTime || !pointer.isDown) return stop();
-    const delta = gesture.dragDelta(pointer.x, scene.time.now);
+    const delta = gesture.dragDelta(pointer.x, scene.time.now, pointer.y);
     if (delta) onDrag(delta);
   };
   const end = (released: Phaser.Input.Pointer): void => {
