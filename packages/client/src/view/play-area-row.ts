@@ -120,41 +120,66 @@ export function separateColumnWidth(zoneWidth: number, zoneHeight: number, cardS
 
 /** The heading line over a form stack (`formStackLayout`). */
 export const FORM_ROW_HEADER = 16;
-/** The "Tap to see all 3" line under a stack of more than one card. */
-export const FORM_ROW_FOOTER = 14;
-/** How much of each card behind the front one shows, as a share of a card's width. */
+/** The line under a stack of more than one card: "Tap to see all 3" folded, the Collapse button fanned out. */
+export const FORM_ROW_FOOTER = 26;
+/** How much of each card behind the front one shows while folded, as a share of a card's width. */
 const FORM_PEEK = 0.16;
+/** The gap between fanned-out cards. */
+const FORM_GAP = 6;
+/** Fanned out, the column may take this much of the zone; the play row beside it scrolls for the rest. */
+const FORM_FAN_SHARE = 0.7;
 
-/** How wide a stack of `count` cards is, as a multiple of one card's width. */
-const stackSpan = (count: number): number => 1 + FORM_PEEK * Math.max(0, count - 1);
+const lerp = (from: number, to: number, t: number): number => from + (to - from) * t;
+
+/** One card's step to the next, as a share of a card's width, at fan-out `t` (0 folded, 1 fanned out). */
+const stepShare = (t: number): number => lerp(FORM_PEEK, 1, t);
 
 /**
- * The column beside the play area that holds a hero's form cards as a stack (Spectrum's energy forms, issue #308): as
- * wide as the stack at the zone's height needs, at least as wide as the second-deck column, never more than 30% of the
- * zone. `rows` is how many rows share the column's height (a form stack and any second decks).
+ * The column beside the play area that holds a hero's form cards (Spectrum's energy forms, issue #308). Folded (`t` 0)
+ * it is as wide as the stack at the zone's height needs, at least as wide as the second-deck column and never more than
+ * 30% of the zone; fanned out (`t` 1) it is as wide as every card side by side, up to 70% of the zone, and the play row
+ * beside it scrolls. In between, the board is animating from one to the other. `rows` is how many rows share the
+ * column's height (a form stack and any second decks).
  */
-export function formColumnWidth(zoneWidth: number, zoneHeight: number, count: number, rows = 1, cardScale = 1): number {
+export function formColumnWidth(
+  zoneWidth: number,
+  zoneHeight: number,
+  count: number,
+  rows = 1,
+  cardScale = 1,
+  t = 0,
+): number {
   const footer = count > 1 ? FORM_ROW_FOOTER : 0;
-  const rowHeight = (zoneHeight - (rows - 1) * 8) / Math.max(1, rows) - FORM_ROW_HEADER - footer;
-  const wanted = Math.max(0, rowHeight) * CARD_ASPECT * stackSpan(count);
-  const cap = Math.round(zoneWidth * 0.3);
-  return Math.min(cap, Math.max(separateColumnWidth(zoneWidth, zoneHeight, cardScale), Math.round(wanted)));
+  const rowHeight = Math.max(0, (zoneHeight - (rows - 1) * 8) / Math.max(1, rows) - FORM_ROW_HEADER - footer);
+  const cardWidth = rowHeight * CARD_ASPECT;
+  const floor = separateColumnWidth(zoneWidth, zoneHeight, cardScale);
+  const folded = Math.min(
+    Math.round(zoneWidth * 0.3),
+    Math.max(floor, Math.round(cardWidth * (1 + FORM_PEEK * Math.max(0, count - 1)))),
+  );
+  if (t <= 0 || count <= 1) return folded;
+  const fanned = Math.min(
+    Math.round(zoneWidth * FORM_FAN_SHARE),
+    Math.max(folded, Math.round(count * cardWidth + (count - 1) * FORM_GAP)),
+  );
+  return Math.round(lerp(folded, fanned, Math.min(1, t)));
 }
 
 export interface FormStackLayout {
-  /** One rect per card, front card first; each card behind sits a peek further right. */
+  /** One rect per card, front card first; each card behind sits a step further right. */
   readonly cards: readonly Rect[];
-  /** The whole stack, the one tap target that fans it out. */
+  /** The whole stack: the one tap target that fans a folded stack out. */
   readonly stack: Rect;
-  /** The "Tap to see all" line under a stack of more than one card; null for one card. */
+  /** The line under a stack of more than one card ("Tap to see all 3", or Collapse); null for one card. */
   readonly footer: Rect | null;
 }
 
 /**
- * `count` cards stacked under the row's heading, as large as the row allows: the front card whole and an edge of each
- * card behind it, so a set of forms takes one card's room on the table and a tap fans it out.
+ * `count` cards under the row's heading, as large as the row allows. Folded (`t` 0) they stack: the front card whole and
+ * an edge of each card behind it, so a set of forms takes one card's room. Fanned out (`t` 1) they sit side by side.
+ * In between, each card slides from its folded place to its fanned-out one.
  */
-export function formStackLayout(row: Rect, count: number): FormStackLayout | null {
+export function formStackLayout(row: Rect, count: number, t = 0): FormStackLayout | null {
   if (count <= 0) return null;
   const footerHeight = count > 1 ? FORM_ROW_FOOTER : 0;
   const room = {
@@ -163,17 +188,19 @@ export function formStackLayout(row: Rect, count: number): FormStackLayout | nul
     width: row.width,
     height: row.height - FORM_ROW_HEADER - footerHeight,
   };
-  const height = Math.max(0, Math.min(room.height, room.width / stackSpan(count) / CARD_ASPECT));
+  const gaps = (count - 1) * FORM_GAP * t;
+  const widthByRoom = (room.width - gaps) / (1 + (count - 1) * stepShare(t));
+  const height = Math.max(0, Math.min(room.height, widthByRoom / CARD_ASPECT));
   const width = height * CARD_ASPECT;
-  const peek = width * FORM_PEEK;
-  const span = width * stackSpan(count);
+  const step = width * stepShare(t) + FORM_GAP * t;
+  const span = width + (count - 1) * step;
   const left = room.x + (room.width - span) / 2;
   const top = room.y + (room.height - height) / 2;
-  const cards = Array.from({ length: count }, (_unused, index) => ({ x: left + index * peek, y: top, width, height }));
+  const cards = Array.from({ length: count }, (_unused, index) => ({ x: left + index * step, y: top, width, height }));
   return {
     cards,
     stack: { x: left, y: top, width: span, height },
-    footer: count > 1 ? { x: row.x, y: top + height + 2, width: row.width, height: FORM_ROW_FOOTER - 2 } : null,
+    footer: count > 1 ? { x: row.x, y: top + height + 4, width: row.width, height: FORM_ROW_FOOTER - 4 } : null,
   };
 }
 

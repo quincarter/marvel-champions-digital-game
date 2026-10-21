@@ -204,6 +204,32 @@ describe("form cards beside the play area (issue #308)", () => {
     expect(layout.stack).toEqual(layout.cards[0]);
   });
 
+  test("fanned out, the three cards sit side by side without overlapping, in a column that widens to fit them", () => {
+    const folded = formColumnWidth(2000, 260, 3);
+    const fanned = formColumnWidth(2000, 260, 3, 1, 1, 1);
+    expect(fanned).toBeGreaterThan(folded * 2);
+    expect(formColumnWidth(2000, 260, 3, 1, 1, 0.5)).toBeGreaterThan(folded);
+    expect(formColumnWidth(2000, 260, 3, 1, 1, 0.5)).toBeLessThan(fanned);
+    const row: Rect = { x: 0, y: 0, width: fanned, height: 260 };
+    const layout = formStackLayout(row, 3, 1)!;
+    for (const [i, card] of layout.cards.entries()) {
+      expect(inside(card, row)).toBe(true);
+      const next = layout.cards[i + 1];
+      if (next) expect(next.x).toBeGreaterThanOrEqual(card.x + card.width);
+    }
+    // The cards keep the size they had folded: the column grew instead.
+    const foldedCard = formStackLayout({ x: 0, y: 0, width: folded, height: 260 }, 3, 0)!.cards[0]!;
+    expect(layout.cards[0]!.height).toBeCloseTo(foldedCard.height, 0);
+  });
+
+  test("fanned out, the column stops at 70% of the zone and the cards shrink to fit", () => {
+    expect(formColumnWidth(500, 400, 3, 1, 1, 1)).toBe(350);
+  });
+
+  test("one card never fans out", () => {
+    expect(formColumnWidth(2000, 260, 1, 1, 1, 1)).toBe(formColumnWidth(2000, 260, 1));
+  });
+
   test("the column never takes more than 30% of the zone, nor less than the second-deck column", () => {
     expect(formColumnWidth(1000, 240, 3)).toBeLessThanOrEqual(300);
     expect(formColumnWidth(1000, 40, 3)).toBe(separateColumnWidth(1000, 40));

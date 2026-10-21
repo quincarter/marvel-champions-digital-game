@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { activeScenes, pressAt, settle, waitFor, zoneRect } from "./helpers.js";
+import { activeScenes, findText, pressAt, settle, waitFor, zoneRect } from "./helpers.js";
 import { installWave6Helpers, trackErrors } from "./wave6-helpers-a.js";
 import { declineMulligans, gameFacts, hook, openApp, startGame, type Rect } from "./wave6-helpers-b.js";
 import { SHOT } from "./x-men-helpers.js";
@@ -7,8 +7,9 @@ import { SHOT } from "./x-men-helpers.js";
 /**
  * Issue #308: Spectrum's three energy form upgrades sat facedown in the play row, and the form picker showed their
  * backs. They now sit faceup, stacked, in an "Energy forms" column beside the play area: the desktop hover popover
- * opens on the front card and a tap fans all three out in the pile view. The column is next to the play row, which
- * scrolls sideways, so a swipe of the row that lifts over the stack must not press it (issue #227).
+ * opens on the front card, a tap fans all three out in place (the column widens and pushes the play row over), and
+ * Collapse folds them back. The column is next to the play row, which scrolls sideways, so a swipe of the row that
+ * lifts over the stack must not press it (issue #227).
  */
 
 const FORM_CODES = ["21002", "21003", "21004"];
@@ -40,7 +41,7 @@ async function drag(page: Page, phone: boolean, from: { x: number; y: number }, 
   await cdp.detach();
 }
 
-test("issue #308: Spectrum's energy forms sit faceup beside the play area; stacked beside the play area; a swipe that lifts on the stack opens nothing, a tap fans them out", async ({
+test("issue #308: Spectrum's energy forms sit faceup, stacked beside the play area; a swipe that lifts on the stack opens nothing, a tap fans them out in place, Collapse folds them", async ({
   page,
 }, info) => {
   test.setTimeout(180_000);
@@ -89,20 +90,39 @@ test("issue #308: Spectrum's energy forms sit faceup beside the play area; stack
   await drag(page, phone, { x: play.x + 30, y }, { x: target.x + target.width / 2, y });
   await settle(page);
   const opened = await activeScenes(page);
-  expect(opened, "a swipe that lifted on the stack opens nothing").not.toContain("PileViewOverlay");
-  expect(opened).not.toContain("InspectOverlay");
+  expect(opened, "a swipe that lifted on the stack opens nothing").not.toContain("InspectOverlay");
+  expect(
+    await hitRect(
+      page,
+      forms.find((id) => id !== front.id)!,
+    ),
+    "the stack is still folded",
+  ).toBeNull();
 
-  // A tap on the stack fans every form out, faceup.
+  // A tap on the stack fans every form out in place: each is a card of its own, and the column grows to the left.
   if (phone) await page.touchscreen.tap(target.x + target.width / 2, y);
   else await pressAt(page, target.x + target.width / 2, y);
-  await waitFor(
-    async () => ((await activeScenes(page)).includes("PileViewOverlay") ? true : null),
-    "the forms fan out on a tap of the stack",
-    15_000,
-  );
-  if (SHOT) {
-    await settle(page);
-    await page.screenshot({ path: `${SHOT}/spectrum-energy-forms-fanned-${info.project.name}.png` });
-  }
+  const fanned = await waitFor(async () => {
+    const all = await Promise.all(forms.map((id) => hitRect(page, id)));
+    return all.every((rect) => rect !== null) ? (all as Rect[]) : null;
+  }, "the forms fanned out beside the play area");
+  await settle(page);
+  const xs = (await Promise.all(forms.map((id) => hitRect(page, id)))).map((rect) => rect!.x).sort((a, b) => a - b);
+  expect(xs[0]!, "the fanned-out column pushed the play row over").toBeLessThan(target.x);
+  expect(fanned).toHaveLength(3);
+  expect(await activeScenes(page), "no popup: the forms fan out on the table").not.toContain("PileViewOverlay");
+  if (SHOT) await page.screenshot({ path: `${SHOT}/spectrum-energy-forms-fanned-${info.project.name}.png` });
+
+  // Collapse folds them back to one stack.
+  const collapse = await waitFor(async () => {
+    const found = await findText(page, "COLLAPSE", "Board");
+    return found[0] ?? null;
+  }, "the Collapse button");
+  if (phone) await page.touchscreen.tap(collapse.x, collapse.y);
+  else await pressAt(page, collapse.x, collapse.y);
+  await waitFor(async () => {
+    const shown = await Promise.all(forms.map((id) => hitRect(page, id)));
+    return shown.filter((rect) => rect !== null).length === 1 ? true : null;
+  }, "the forms folded back into a stack");
   expect(errors).toEqual([]);
 });
