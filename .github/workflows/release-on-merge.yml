@@ -149,7 +149,7 @@ jobs:
             NEXT_TAG=$(changie next auto 2>/dev/null || changie next patch)
           fi
           TAG="v${NEXT_TAG#v}"
-          PREV_TAG=$(git describe --tags --abbrev=0)
+          PREV_TAG=$(git describe --tags --abbrev=0 --match "v*")
           echo "Preparing ${TAG}."
 
           # Batch the fragments into .changes/${TAG}.md, rebuild CHANGELOG.md and run the version replacements
@@ -219,7 +219,7 @@ jobs:
           NOTES_FILE=""
           if [ -f ".changes/${TAG}.md" ]; then
             NOTES_FILE="$(mktemp)"
-            PREV_TAG=$(git describe --tags --abbrev=0 "${TAG}^")
+            PREV_TAG=$(git describe --tags --abbrev=0 --match "v*" "${TAG}^")
             CREDITS=$(node scripts/release-credits.mjs notes "${PREV_TAG}" "${TAG}") ||
               { echo "::warning::Couldn't list this release's Special thanks."; CREDITS=""; }
             {

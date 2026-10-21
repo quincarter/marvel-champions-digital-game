@@ -26,6 +26,7 @@ import TextArea from "phaser4-rex-plugins/templates/ui/textarea/TextArea.js";
 import InputText from "phaser4-rex-plugins/templates/ui/inputtext/InputText.js";
 import TextAreaInput from "phaser4-rex-plugins/templates/ui/textareainput/TextAreaInput.js";
 import { SetMask, ClearMask, type MaskType } from "phaser4-rex-plugins/plugins/utils/mask/MaskMethods.js";
+import { addScissorClip, removeScissorClip } from "./scissor-clip.js";
 
 export { TextArea, InputText, TextAreaInput };
 
@@ -63,9 +64,12 @@ export function setMask(
   invert = false,
 ): void {
   SetMask(gameObject, maskGameObject, invert, maskType);
+  // A plain rectangle clips with the scissor test rather than the Mask filter's full-screen passes (#328).
+  addScissorClip(gameObject);
 }
 
 export function clearMask(gameObject: Phaser.GameObjects.GameObject): void {
+  removeScissorClip(gameObject);
   ClearMask(gameObject);
 }
 
