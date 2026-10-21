@@ -1,3 +1,0 @@
-kind: Fixed
-body: Hovering a defender's picture in the defend picker shows its health bar with the attack's damage hatched ("2→0"), as the villain's own preview does (#298).
-time: 2026-10-20T14:48:28.9204954-04:00

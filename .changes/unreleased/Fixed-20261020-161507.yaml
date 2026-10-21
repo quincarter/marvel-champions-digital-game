@@ -1,3 +1,0 @@
-kind: Fixed
-body: On a narrow desktop window the defend picker writes each defender's health as "3/3 HP → 0–1 LEFT" instead of cutting the line off (#298).
-time: 2026-10-20T16:15:07.8071565-04:00
