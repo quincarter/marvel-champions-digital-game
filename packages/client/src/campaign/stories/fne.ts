@@ -47,8 +47,8 @@ const page = (file: string, panels: readonly { x: number; y: number; w: number; 
   width: 1672,
   height: 941,
   lettered: true,
-  // `show`: just the panel, fit whole in the reading area, so a caption at its top edge is never cropped.
-  beats: panels.map((panel) => ({ panel, show: panel, lines: [] })),
+  // No `show`: the cinematic camera tweens panel to panel and pans across each one, like the other boxes' pages.
+  beats: panels.map((panel) => ({ panel, lines: [] })),
 });
 
 const PAGES: readonly ComicPage[] = [
