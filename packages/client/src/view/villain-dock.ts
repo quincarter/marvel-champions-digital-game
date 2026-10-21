@@ -76,14 +76,13 @@ export interface VillainDockRects {
   /** The thumb strip for the phase's own buttons on tabbed layouts (the action bar's place); null elsewhere. */
   readonly footer: Rect | null;
   /**
-   * Where the peek banner sits (P3): under the chrome and the board's tab rail, so the hand stays in view (the owner
-   * found the first version, over the action bar, covering the hand). Null outside peek.
+   * The band the peek banner may use (P3): from under the chrome and the board's tab rail down to just above the
+   * hand, so the hand and the action bar (the phase's own answer) stay clear (the owner found the first version, over
+   * the action bar, covering the hand). The banner (`view/peek-banner.ts`) pins itself to the bottom or the top of it, as the player chose
+   * (#329). Null outside peek.
    */
-  readonly banner: Rect | null;
+  readonly peekArea: Rect | null;
 }
-
-/** The peek banner's height. */
-export const PEEK_BANNER_HEIGHT = 112;
 
 /**
  * The rectangles for `request`, read off the layout the Board drew with it (`rail` must have been laid out with
@@ -104,7 +103,7 @@ export function villainDockRects(
       return {
         panel: { x: viewport.x + viewport.width - dockWidth, y: top, width: dockWidth, height: bottom - top },
         footer: null,
-        banner: null,
+        peekArea: null,
       };
     case "band": {
       // Down to the player band: the hero and the play area are what the player answers with.
@@ -113,7 +112,7 @@ export function villainDockRects(
       return {
         panel: { x: left, y: top, width: viewport.x + viewport.width - left, height: Math.max(0, playerTop - 8 - top) },
         footer: null,
-        banner: null,
+        peekArea: null,
       };
     }
     case "tab":
@@ -126,9 +125,14 @@ export function villainDockRects(
       return {
         panel: request === "tab" ? { x, y: top, width, height: Math.max(0, handTop - top) } : null,
         footer: zones.actionBar ?? null,
-        banner:
+        peekArea:
           request === "peek"
-            ? { x: x + 8, y: bannerTop, width: Math.max(0, width - 16), height: PEEK_BANNER_HEIGHT }
+            ? {
+                x: x + 8,
+                y: bannerTop,
+                width: Math.max(0, width - 16),
+                height: Math.max(0, handTop - 4 - bannerTop),
+              }
             : null,
       };
     }

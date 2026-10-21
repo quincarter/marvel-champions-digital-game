@@ -1971,7 +1971,7 @@ function choseNothing(
   const required = noCandidates && isRequiredChoice(effect);
   const search = noCandidates && isRequiredSearch(effect);
   const unresolved = required || search;
-  if (required) emit(ctx, { type: "choiceFoundNothing", slot: effect.slot });
+  if (required) emit(ctx, { type: "choiceFoundNothing", slot: effect.slot, choice: effect.kind });
   if (search) emit(ctx, { type: "preThenUnresolved", cause: "searchFoundNothing" });
   setFrame(ctx, {
     ...frame,

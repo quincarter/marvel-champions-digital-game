@@ -344,7 +344,13 @@ export function formFactorFor(width: number, height: number): FormFactor {
 }
 
 const GUTTER = { phone: 8, phoneLandscape: 6, tabletPortrait: 12, tabletLandscape: 12, desktop: 16 } as const;
-const CHROME_HEIGHT = { phone: 36, phoneLandscape: 32, tabletPortrait: 44, tabletLandscape: 44, desktop: 44 } as const;
+export const CHROME_HEIGHT = {
+  phone: 36,
+  phoneLandscape: 32,
+  tabletPortrait: 44,
+  tabletLandscape: 44,
+  desktop: 44,
+} as const;
 
 /**
  * The phone action bar is two fixed rows on an ink ground: an abilities row at

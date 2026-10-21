@@ -1,7 +1,7 @@
 /**
  * PEEK AT TABLE on the full-screen decision sheet (#231, the owner's follow-up: She-Hulk's "Do You Even Lift?" target
- * pick covered the table as the villain phase's decisions used to). The sheet steps aside for a banner at the foot of
- * the screen that keeps the question and a way back, and the table above it is the player's to look over, tabs and
+ * pick covered the table as the villain phase's decisions used to). The sheet steps aside for a compact banner (at the foot of
+ * the screen unless the player moved it, #329) that keeps the question and a way back, and the table above it is the player's to look over, tabs and
  * all, until they go back to the decision.
  *
  * Pure: `scenes/choice.ts` draws into these rectangles. While a sheet is peeking, `choicePeeking()` says so, so the
@@ -9,41 +9,31 @@
  */
 import { hit } from "../tokens.js";
 import type { FormFactor, Rect } from "./layout.js";
-
-export interface ChoicePeekBannerLayout {
-  readonly banner: Rect;
-  readonly text: Rect;
-  readonly back: Rect;
-}
+import { peekBannerLayout, peekEdge, peekTopClear, type PeekBannerLayout, type PeekEdge } from "./peek-banner.js";
 
 const INSET = 8;
-const PAD = 12;
 
-/** The banner at the foot of the screen, over the action bar, so the hand above it stays in view. */
-export function choicePeekBannerLayout(viewport: Rect, formFactor: FormFactor): ChoicePeekBannerLayout {
+export type ChoicePeekBannerLayout = PeekBannerLayout;
+
+/**
+ * The compact banner (#329, `view/peek-banner.ts`) at the player's chosen edge: the foot of the screen by default,
+ * over the action bar, or under the title bar and tab rail at the top.
+ */
+export function choicePeekBannerLayout(
+  viewport: Rect,
+  formFactor: FormFactor,
+  edge: PeekEdge = peekEdge(),
+): ChoicePeekBannerLayout {
   const phone = formFactor === "phone" || formFactor === "phoneLandscape";
-  const height = phone ? 88 : 76;
-  const width = Math.min(viewport.width - INSET * 2, 720);
-  const banner: Rect = {
-    x: viewport.x + (viewport.width - width) / 2,
-    y: viewport.y + viewport.height - INSET - height,
-    width,
-    height,
+  const top = viewport.y + peekTopClear(formFactor);
+  const bottom = viewport.y + viewport.height - INSET;
+  const area: Rect = {
+    x: viewport.x + INSET,
+    y: top,
+    width: Math.max(0, viewport.width - INSET * 2),
+    height: Math.max(0, bottom - top),
   };
-  const backWidth = Math.round(Math.min(220, Math.max(130, width * 0.38)));
-  const back: Rect = {
-    x: banner.x + banner.width - PAD - backWidth,
-    y: banner.y + (banner.height - Math.max(hit.target, height - PAD * 2)) / 2,
-    width: backWidth,
-    height: Math.max(hit.target, height - PAD * 2),
-  };
-  const text: Rect = {
-    x: banner.x + PAD,
-    y: banner.y + PAD,
-    width: Math.max(0, back.x - PAD - (banner.x + PAD)),
-    height: banner.height - PAD * 2,
-  };
-  return { banner, text, back };
+  return peekBannerLayout(area, edge, phone);
 }
 
 /** The thumb strip PEEK AT TABLE takes under the sheet on a tabbed layout: a full-size control and its gap. */

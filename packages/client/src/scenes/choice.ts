@@ -23,6 +23,7 @@ import {
   choicePeekLabel,
   setChoicePeeking,
 } from "../view/choice-peek.js";
+import { flipPeekEdge, peekMoveLabel } from "../view/peek-banner.js";
 import { triggerWindowContextOf, type TriggerWindowContext } from "../view/trigger-window-context.js";
 import Phaser from "phaser";
 import {
@@ -1098,35 +1099,48 @@ export class ChoiceOverlay extends Phaser.Scene {
       layout.banner.width - 3,
       layout.banner.height - 3,
     );
-    label(this, layout.text.x, layout.text.y, "Your decision", { ...typeRole.label, size: 11 }, signal.caution.hex, 1);
+    // One band (#329): the question in up to two short lines, MOVE and BACK, so the banner covers as little table as it
+    // can.
     const line = this.add
       .text(
         layout.text.x,
-        layout.text.y + 18,
-        question,
-        textStyle({ ...typeRole.rowTitle, size: 15 }, surface.paper.hex),
+        layout.text.y + layout.text.height / 2,
+        `Your decision: ${question}`,
+        textStyle({ ...typeRole.rowTitle, size: 14 }, surface.paper.hex),
       )
-      .setOrigin(0, 0)
-      .setWordWrapWidth(layout.text.width)
-      .setMaxLines(2);
-    fitWrapped(line, layout.text.width, 2, 15);
+      .setOrigin(0, 0.5);
+    fitWrapped(line, layout.text.width, 2, 14);
     const back = (): void => this.#setPeek(null);
+    const move = (): void => {
+      flipPeekEdge();
+      this.#rebuild();
+    };
     this.#buttons.push(
       new McButton(this, {
+        kind: "onInk",
+        label: peekMoveLabel(layout.edge),
+        type: typeRole.label,
+        rect: layout.move,
+        onClick: move,
+      }),
+      new McButton(this, {
         kind: "primary",
-        label: "Back to decision ▴",
+        label: "Back ▴",
         type: typeRole.label,
         rect: layout.back,
         tint: { fill: signal.caution.hex, ink: surface.ink.hex },
         onClick: back,
       }),
     );
+    this.#focusRects.set("peek-move", layout.move);
     this.#focusRects.set("peek-back", layout.back);
     if (import.meta.env.DEV) {
       (window as unknown as { __mcChoicePeekDebug?: unknown }).__mcChoicePeekDebug = {
         peeking: () => true,
         backRect: () => layout.back,
+        moveRect: () => layout.move,
         bannerRect: () => layout.banner,
+        edge: () => layout.edge,
       };
     }
     this.#motion.enter(this, { scrim: [], panels: this.children.list.slice(panelsFrom) });

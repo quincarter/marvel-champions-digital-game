@@ -1735,7 +1735,15 @@ export type GameEvent =
    * A required choice found nothing to choose (RRG 1.8 "Choose (Game Element)", p. 12), so the text before a "then"
    * did not fully resolve: `thenSkipped` follows for each "then" it gates.
    */
-  | { readonly type: "choiceFoundNothing"; readonly slot: string }
+  | {
+      readonly type: "choiceFoundNothing";
+      readonly slot: string;
+      /**
+       * Which effect found nothing: a `chooseTarget` reads only cards in play, a `chooseCards` may read hands (another
+       * seat's, which the client's Undo must not let a player learn and take back).
+       */
+      readonly choice: "chooseTarget" | "chooseCards";
+    }
   /**
    * The text before a "then" did not fully resolve for a reason other than a required choice finding nothing
    * (`PreThenFailure`; `resolve/then.ts`). `thenSkipped` follows for each "then" it gates. `instanceId`: the card the

@@ -67,17 +67,18 @@ describe("villainDockRects", () => {
     expect(peek.footer).toEqual(layout.zones.actionBar);
   });
 
-  test("peek: the banner sits under the tab rail and leaves the hand and the action bar clear", () => {
+  test("peek: the banner's band runs from under the tab rail to just above the hand, the action bar clear", () => {
     for (const [w, h] of [
       [390, 844],
       [768, 1024],
     ] as const) {
       const layout = boardLayout(rect(w, h), { playerCount: 2 });
-      const { banner } = villainDockRects("peek", layout, 0);
+      const { peekArea } = villainDockRects("peek", layout, 0);
       const tabs = layout.zones.tabs!;
-      expect(banner!.y).toBeGreaterThanOrEqual(tabs.y + tabs.height);
-      expect(overlaps(banner!, layout.zones.hand!)).toBe(false);
-      expect(overlaps(banner!, layout.zones.actionBar!)).toBe(false);
+      expect(peekArea!.y).toBeGreaterThanOrEqual(tabs.y + tabs.height);
+      expect(overlaps(peekArea!, layout.zones.hand!)).toBe(false);
+      expect(overlaps(peekArea!, layout.zones.actionBar!)).toBe(false);
+      expect(villainDockRects("tab", layout, 0).peekArea).toBeNull();
     }
   });
 });

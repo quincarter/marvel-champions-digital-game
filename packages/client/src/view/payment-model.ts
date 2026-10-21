@@ -146,6 +146,13 @@ export interface PaymentSourceView extends PaymentSource {
    * washed out and locked, with `lockedReason` saying what it pays for (issue #292). Tapping it opens its card.
    */
   readonly notFor?: true;
+  /**
+   * This tile is a card in play that a hand card's "When you spend this card, exhaust up to 3 … → generate …" cost can
+   * exhaust (Organizational Support, issue #326), not an engine option: `instanceId` is the card to exhaust, `pool`
+   * what exhausting it adds, `spent` whether the hand card's picked way exhausts it. The engine lists one option per
+   * set of cards (`exhaustPickOptionId` maps a tap back to one); the strip shows one tile per card instead.
+   */
+  readonly exhaustFor?: InstanceId;
 }
 
 /** The stepper beside the requirement: the chosen X and the range the engine allows right now. */
@@ -424,12 +431,120 @@ export function setPaymentX(
  * that card (issue #279: the engine refused both, and the bar never said why).
  */
 export function togglePayment(payment: PaymentState, optionId: string): PaymentState {
+  const exhaust = parseExhaustPick(optionId);
+  if (exhaust) {
+    const next = exhaustPickOptionId(payment, exhaust.card, exhaust.candidate);
+    if (next === null) return payment;
+    const others = payment.picked.filter((id) => handCardSpentBy(payment, id) !== exhaust.card);
+    return { ...payment, picked: [...others, next] };
+  }
   if (payment.picked.includes(optionId)) {
     return { ...payment, picked: payment.picked.filter((id) => id !== optionId) };
   }
   const card = handCardSpentBy(payment, optionId);
   const kept = card ? payment.picked.filter((id) => handCardSpentBy(payment, id) !== card) : payment.picked;
   return { ...payment, picked: [...kept, optionId] };
+}
+
+/**
+ * A hand card spent through its own "When you spend this card, exhaust up to N … → generate …" ability is one engine
+ * option per set of cards exhausted (Organizational Support with four S.H.I.E.L.D. cards ready: 14 options, issue
+ * #326). These are the options of `card` whose only choice is that set: none with an amount (`costSelection`; Energy
+ * Siphon's damage stays one tile per amount).
+ */
+function exhaustPickOptions(sources: readonly PaymentSource[], card: InstanceId): readonly PaymentSource[] {
+  return sources.filter(
+    (source) =>
+      source.spendsHandCard && source.instanceId === card && source.costChoices && source.costSelection === undefined,
+  );
+}
+
+/** The cards a source's own cost picks. */
+const picksOf = (source: PaymentSource | undefined): readonly InstanceId[] =>
+  Object.values(source?.costChoices ?? {}).flat();
+
+/** A set of picked cards as one key: two options exhausting the same cards have the same key. */
+const pickKey = (ids: Iterable<InstanceId>): string => [...ids].sort().join(",");
+
+const EXHAUST_PICK = "exhaust:";
+const exhaustPickId = (card: InstanceId, candidate: InstanceId): string => `${EXHAUST_PICK}${card}:${candidate}`;
+function parseExhaustPick(optionId: string): { readonly card: InstanceId; readonly candidate: InstanceId } | null {
+  if (!optionId.startsWith(EXHAUST_PICK)) return null;
+  const [card, candidate] = optionId.slice(EXHAUST_PICK.length).split(":");
+  return card && candidate ? { card: card as InstanceId, candidate: candidate as InstanceId } : null;
+}
+
+/**
+ * The engine option a tap on one exhaust tile (`PaymentSourceView.exhaustFor`) picks: the set of cards the hand card's
+ * picked way exhausts now, with `candidate` added or taken out. Taking out the last one spends the card plainly, so it
+ * stays picked. Null when no option exhausts that set (one card more than "up to 3").
+ */
+export function exhaustPickOptionId(payment: PaymentState, card: InstanceId, candidate: InstanceId): string | null {
+  const { sources } = payment.query;
+  const ways = exhaustPickOptions(sources, card);
+  const set = new Set(picksOf(ways.find((way) => payment.picked.includes(way.optionId))));
+  if (set.has(candidate)) set.delete(candidate);
+  else set.add(candidate);
+  if (set.size === 0) {
+    return sources.find((source) => source.kind === "handCard" && source.instanceId === card)?.optionId ?? null;
+  }
+  const key = pickKey(set);
+  return ways.find((way) => pickKey(picksOf(way)) === key)?.optionId ?? null;
+}
+
+/**
+ * The strip's tiles for a hand card whose way of spending picks cards to exhaust: one tile per card it could exhaust,
+ * in place of one per set (`PaymentSourceView.exhaustFor`). With two copies in hand, only one copy's tiles show: the
+ * copy whose interrupt is picked, else the first. Both copies' tiles would show every card twice, the same face and
+ * tag, and two picked ways exhausting one card are refused by the engine (the #279 symptom again).
+ */
+export function exhaustPickTiles(state: GameState, payment: PaymentState): readonly PaymentSourceView[] {
+  const { sources } = payment.query;
+  const cards = [
+    ...new Set(sources.filter((source) => source.spendsHandCard).map((source) => source.instanceId)),
+  ].filter((card) => exhaustPickOptions(sources, card).length > 0);
+  const using = cards.find((card) =>
+    exhaustPickOptions(sources, card).some((way) => payment.picked.includes(way.optionId)),
+  );
+  const shown = using ?? cards[0];
+  return (shown ? [shown] : []).flatMap((card) => {
+    const ways = exhaustPickOptions(sources, card);
+    const plain = sources.find((source) => source.kind === "handCard" && source.instanceId === card);
+    const exhausted = new Set(picksOf(ways.find((way) => payment.picked.includes(way.optionId))));
+    const most = Math.max(...ways.map((way) => picksOf(way).length));
+    const candidates = [...new Set(ways.flatMap(picksOf))];
+    return candidates.map((candidate): PaymentSourceView => {
+      const alone = ways.find((way) => pickKey(picksOf(way)) === candidate);
+      const spent = exhausted.has(candidate);
+      const reachable = spent || exhaustPickOptionId(payment, card, candidate) !== null;
+      return {
+        optionId: exhaustPickId(card, candidate),
+        kind: "resourceAbility",
+        instanceId: candidate,
+        label: cardName(state, candidate),
+        pool: alone ? poolLess(alone.pool, plain?.pool) : { physical: 0, mental: 0, energy: 0, wild: 0 },
+        spent,
+        helperName: null,
+        amountNote: "exhaust",
+        discardOrder: null,
+        onTop: false,
+        underSubject: null,
+        orderNote: null,
+        lockedReason: reachable ? null : `exhausts up to ${most} cards`,
+        exhaustFor: card,
+      };
+    });
+  });
+}
+
+/** What one pool adds over another, by type: an exhaust tile's share of its hand card's way of spending. */
+function poolLess(
+  pool: Readonly<Record<ResourceIconType, number>>,
+  less: Readonly<Record<ResourceIconType, number>> | undefined,
+): Record<ResourceIconType, number> {
+  const out = { ...pool };
+  for (const type of Object.keys(out) as ResourceIconType[]) out[type] = Math.max(0, out[type] - (less?.[type] ?? 0));
+  return out;
 }
 
 /** The hand card a source discards when it is picked, or null for a resource ability on a card that stays put. */
@@ -539,6 +654,7 @@ export function paymentView(
   });
   // A chosen-size cost (`chosenResources`) spends up to `max` and overpays the rest; any other cost spends what it
   // requires. Only counted once the engine accepts the selection.
+  const exhaustTiles = exhaustPickTiles(state, payment);
   const requiredTotal = poolTotal(requirement) + (query.chosenResources?.max ?? 0);
   const overpaid = accepted ? Math.max(0, paid - requiredTotal) + overpayOnlyPaid : 0;
   return {
@@ -556,14 +672,20 @@ export function paymentView(
     spent,
     sources,
     tableSources: [
-      ...sources.filter((source) => source.kind === "resourceAbility" || source.helperName !== null),
+      ...sources.filter(
+        (source) =>
+          (source.kind === "resourceAbility" || source.helperName !== null) &&
+          !exhaustPickOptions(query.sources, source.instanceId).some((way) => way.optionId === source.optionId),
+      ),
+      ...exhaustTiles,
       ...notForSources(state, query),
     ],
     subjectInHand: subject !== null && locateCard(state, subject)?.kind === "hand",
     overpaid,
-    lockedNote: ((held) => (held ? `${held.label}: ${held.lockedReason}` : null))(
-      sources.find((source) => source.lockedReason !== null) ?? notForSources(state, query)[0],
-    ),
+    lockedNote:
+      ((held) => (held ? `${held.label}: ${held.lockedReason}` : null))(
+        sources.find((source) => source.lockedReason !== null) ?? notForSources(state, query)[0],
+      ) ?? exhaustLockedNote(state, exhaustTiles),
     payLabel:
       picked.length === 0 && poolTotal(requirement) === 0 && query.overpayMatters ? "Play without overpaying" : null,
     overpaidNote: overpaid > 0 ? `Overpaid by ${overpaid}` : null,
@@ -768,6 +890,12 @@ function discardOrderOf(
     });
   }
   return order;
+}
+
+/** "Organizational Support exhausts up to 3 cards", once the picked way exhausts as many as it can; else null. */
+function exhaustLockedNote(state: GameState, tiles: readonly PaymentSourceView[]): string | null {
+  const held = tiles.find((tile) => tile.lockedReason !== null);
+  return held?.exhaustFor ? `${cardName(state, held.exhaustFor)} ${held.lockedReason}` : null;
 }
 
 /** Whose hand an alliance helper's card sits in, by hero name; null for anything the payer holds or in play. */

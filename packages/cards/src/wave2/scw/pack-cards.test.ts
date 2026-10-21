@@ -1,5 +1,5 @@
 import { cardId } from "@mc/content";
-import { activeEncounterDeck, type CardInstance, type GameState, type InstanceId } from "@mc/engine";
+import { activeEncounterDeck, applyCommand, type CardInstance, type GameState, type InstanceId } from "@mc/engine";
 import {
   endTurn,
   firstLegal,
@@ -17,11 +17,14 @@ import {
   type Picker,
 } from "../../testing/harness.js";
 import { conjure, playOut } from "../../testing/qa-bench.js";
+import { minionEngaged } from "../../testing/wave10-engine-qa-bench.js";
 import { driveStepwise, withDamage } from "../../testing/staging.js";
 import { game, villainOf } from "../../wave7/rulings-2026-10-06-harness.js";
 import { wave2Scenario } from "../setup.js";
 import { playFromHand, runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { SCW_PACK_CARDS } from "./pack-cards.js";
+import { mergeRegistries } from "../../dsl/index.js";
+import { CAP_ABILITIES } from "../../wave1/cap/index.js";
 
 // Real wave 2 content: the Scarlet Witch (Justice) precon against Rhino, standard, solo. Wanda starts in alter-ego.
 const scwVsRhino = () =>
@@ -99,6 +102,26 @@ describe("Scarlet Witch's pack cards (Justice, Basic; Aggression/Leadership/Prot
     const hero = withThreat(runWave2(scwVsRhino(), toHero()), 6);
     const { state } = playFromHand(hero, "15013", 1);
     expect(mainThreat(state)).toBe(4); // only one scheme (the main scheme) exists in this scenario, so only one removal applies
+  });
+
+  it("issue #330: Multitasking cannot be played while Baron Zemo is engaged with you ('you cannot thwart'; RRG 1.8 'Target', p. 43)", () => {
+    const hero = withThreat(runWave2(scwVsRhino(), toHero()), 6);
+    const given = conjure(minionEngaged(hero, "03028").state, "15013");
+    const spare = playerOf(given.state, P1).hand.find((id) => id !== given.id)!;
+    const refused = applyCommand(
+      given.state,
+      {
+        type: "playCard",
+        playerId: P1,
+        cardInstanceId: given.id,
+        payment: [{ fromHand: spare }],
+        attachToInstanceId: null,
+      },
+      // Zemo is Captain America's (wave 1), outside the wave 2 registry.
+      { abilities: mergeRegistries(WAVE2_DEPS.abilities, CAP_ABILITIES) },
+    );
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error.code).toBe("no_valid_target");
   });
 
   it("Swift Retribution: Hero Action (attack), the villain schemes and then takes 4 damage", () => {
