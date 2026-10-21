@@ -90,6 +90,12 @@ async function answerBriefing(page: Page, boxName: string): Promise<void> {
       await settle(page);
       continue;
     }
+    if (scenes.includes("CampaignOpener")) {
+      // A choice graph (Fear No Evil) plays the picked issue's comic mid-Briefing, then returns: skip it.
+      await clickStop(page, "skip", "CampaignOpener");
+      await settle(page);
+      continue;
+    }
     const route = await routeStops(page, "CampaignBriefing");
     if (!route) {
       await settle(page);

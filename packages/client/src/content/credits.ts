@@ -241,10 +241,10 @@ export const CREDITS: readonly CreditEntry[] = [
     title: "Shadowland (2010): comic pages",
     shownIn: "Not shown yet; kept for the Shadowland story and Extras",
     credit:
-      "Six lettered pages from Marvel's 2010 Shadowland event (the possessed Daredevil and the Hand), written by Andy Diggle with art by Billy Tan. The issue each page comes from is not confirmed yet.",
+      "Six lettered pages from Marvel's Shadowland (2010) #1-5, the possessed Daredevil and the Hand (the owner, 2026-10-20), some from #5. Written by Andy Diggle; pencils by Billy Tan. The issue each page comes from is not recorded.",
+    url: "https://www.marvel.com/comics/series/9934/shadowland_2010",
     notice: MARVEL,
     folders: ["art/scenarios/_pending/shadowland"],
-    gap: true,
   },
   {
     id: "shadowland-panels",
