@@ -60,6 +60,17 @@ export interface BoardFrame {
   readonly facedownHovers: FacedownHover[];
 }
 
+/**
+ * The form cards' fan (issue #308): folded they stack beside the play area, fanned out they sit side by side and push the
+ * play row over. `t` runs 0 (folded) to 1 (fanned out) while the board animates between them; `open` is where it is
+ * going. The Board keeps it across draws.
+ */
+export interface FormFan {
+  readonly open: boolean;
+  readonly t: number;
+  setOpen(open: boolean): void;
+}
+
 /** A pile of facedown dealt encounter cards the desktop hover popover can open on: the card back, with `caption` under it. */
 export interface FacedownHover {
   /** Unique per player, and never an instance id (the popover shares one pending/shown slot with the cards). */
@@ -119,6 +130,8 @@ export interface BoardDrawContext {
   readonly focusedCard: InstanceId | null;
   /** The play area row's scroll, kept across draws like the hand's (`view/play-area-row.ts`). */
   readonly playAreaScroll: PlayAreaScroll;
+  /** Whether the form cards beside the play area are fanned out, and how far the animation has got (issue #308). */
+  readonly formFan: FormFan;
   /** Called when the schemes column or the play area row scrolls without a redraw, so rings that follow its cards move with them. */
   readonly onRegionScroll: () => void;
   readonly frame: BoardFrame;

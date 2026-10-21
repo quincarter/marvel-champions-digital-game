@@ -17,6 +17,7 @@ import type {
   BoardModel,
   CharacterPanel,
   EnvironmentPanel,
+  FormCardGroup,
   ScenarioDeckPanel,
   SetAsidePanel,
   SeatRow,
@@ -86,6 +87,8 @@ import { dealtPileParts, dealtWords } from "../../view/dealt-pile.js";
 import { addTapTarget } from "./tap-target.js";
 import { dimAlpha, focusKey, targetState } from "./selection.js";
 import {
+  formStackLayout,
+  formColumnWidth,
   playAreaRow,
   separateColumnWidth,
   separatePileBoxes,
@@ -1248,18 +1251,30 @@ export function drawPlayArea(
     );
     caption.setOrigin(0, 0.5);
     fitText(caption, COMPACT_PLAY_CAPTION - 10, typeRole.label.size);
-  } else {
-    label(scene, rect.x + 8, rect.y + 6, "your play area", typeRole.label, surface.ink.hex, ink.label);
   }
+  // Fitted to the row once its width is known (a fanned-out form column leaves a phone's row narrow).
+  const wideCaption = compact
+    ? null
+    : label(scene, rect.x + 8, rect.y + 6, "your play area", typeRole.label, surface.ink.hex, ink.label);
 
   // A second deck the identity brings (Doctor Strange's Invocation deck) gets
   // its own column beside the play area, the way the encounter piles sit
   // beside the enemies — present only for the one identity that has one, so
   // every other hero's play area is unchanged (PLAN.md Phase 7: "the board
   // has no Invocation deck; the client never mentions `separateDeck`").
+  // A set of form cards (Spectrum's energy forms, issue #308) shares that column, above any second deck.
   const hasSeparateDecks = model.separateDecks.length > 0;
-  const separateWidth = hasSeparateDecks ? separateColumnWidth(rect.width, rect.height - 30, ctx.cardScale) : 0;
-  const gap = hasSeparateDecks ? 8 : 0;
+  const formGroups = model.formCards;
+  const sideRows = model.separateDecks.length + formGroups.length;
+  const sideHeight = compact ? rect.height - 12 : rect.height - 30;
+  const widestForms = Math.max(0, ...formGroups.map((group) => group.cards.length));
+  const separateWidth =
+    formGroups.length > 0
+      ? formColumnWidth(rect.width, sideHeight, widestForms, sideRows, ctx.cardScale, ctx.formFan.t)
+      : hasSeparateDecks
+        ? separateColumnWidth(rect.width, sideHeight, ctx.cardScale)
+        : 0;
+  const gap = sideRows > 0 ? 8 : 0;
   const inner: Rect = compact
     ? {
         x: rect.x + COMPACT_PLAY_CAPTION,
@@ -1273,28 +1288,43 @@ export function drawPlayArea(
         width: rect.width - 16 - separateWidth - gap,
         height: rect.height - 30,
       };
-  if (hasSeparateDecks) {
-    const separateRect: Rect = {
+  if (sideRows > 0) {
+    const sideRect: Rect = {
       x: inner.x + inner.width + gap,
       y: inner.y,
       width: separateWidth,
       height: inner.height,
     };
-    drawSeparateDecks(ctx, separateRect, model.separateDecks, model.perspectiveId);
+    // Each form group takes an even share of the column's height; the second decks lay out in what is left. The form
+    // column starts at the zone's own caption line, so its heading reads on one line with "your play area".
+    const formRect: Rect = compact
+      ? sideRect
+      : { ...sideRect, y: rect.y + 6, height: sideRect.height + (inner.y - rect.y - 6) };
+    const formRowHeight = (formRect.height - (sideRows - 1) * 8) / sideRows;
+    formGroups.forEach((group, index) => {
+      drawFormCards(ctx, { ...formRect, y: formRect.y + index * (formRowHeight + 8), height: formRowHeight }, group);
+    });
+    if (hasSeparateDecks) {
+      const used = formRect.y - sideRect.y + formGroups.length * (formRowHeight + 8);
+      const separateRect: Rect = { ...sideRect, y: sideRect.y + used, height: sideRect.height - used };
+      drawSeparateDecks(ctx, separateRect, model.separateDecks, model.perspectiveId);
+    }
   }
+
+  if (wideCaption) fitText(wideCaption, inner.width, typeRole.label.size);
 
   if (model.myPlayArea.length === 0) {
     // A dashed slot: present, not yet filled.
     const empty = scene.add.graphics();
     paintPanel(empty, inner, "quiet", "unavailable");
-    scene.add
-      .text(
-        inner.x + inner.width / 2,
-        inner.y + inner.height / 2,
-        "Play a card to put it here",
-        textStyle(typeRole.body, surface.ink.hex, ink.meta),
-      )
+    const hint = scene.add
+      .text(inner.x + inner.width / 2, inner.y + inner.height / 2, "Play a card to put it here", {
+        ...textStyle(typeRole.body, surface.ink.hex, ink.meta),
+        align: "center",
+      })
       .setOrigin(0.5);
+    // Narrow beside fanned-out form cards on a phone: wrap rather than run past the slot.
+    fitWrapped(hint, inner.width - 12, 3, typeRole.body.size);
     // (a compact strip shows the same line, shortened by its caption)
     return;
   }
@@ -1325,6 +1355,8 @@ export function drawPlayArea(
     ink.label,
   );
   count.setX(inner.x + inner.width - count.width);
+  // No room beside the caption (a narrow row): the scroll chevrons still say there is more.
+  if (wideCaption && count.x < wideCaption.x + wideCaption.width + 8) count.destroy();
 
   // Every tap target the cards register (the card, and each attachment strip on it), where it was drawn, so its focus
   // rect can follow the scroll. A sideways drag that starts on any of them scrolls the row.
@@ -1441,6 +1473,105 @@ function drawPlayAreaScrollHint(ctx: BoardDrawContext, area: Rect, scrollX: numb
   };
   draw(scrollX);
   return draw;
+}
+
+/**
+ * A hero's form cards under their heading (issue #308). Folded, they stack so they take one card's room beside a busy
+ * play area: the front card whole and an edge of each card behind it, "Tap to see all 3" under them, and a tap on the
+ * stack fans them out. Fanned out, the column widens and pushes the play row over (it scrolls if it must), every card
+ * sits side by side as its own card (hover popover, a tap reads it), and Collapse under them folds the stack back. The
+ * board animates between the two (`formFan.t`). Spectrum's energy forms put the active one in front, ringed and marked
+ * ACTIVE (in alter-ego form none is), every face shown since their owner knows them. One double-sided form card (Vision,
+ * Shadowcat, Nick Fury) is a stack of one, marked with the form a flip changes to, and a tap reads it.
+ */
+function drawFormCards(ctx: BoardDrawContext, row: Rect, group: FormCardGroup): void {
+  const { scene } = ctx;
+  // The form in use in front, the rest behind it in printed order.
+  const cards = [...group.cards].sort((a, b) => Number(b.active) - Number(a.active));
+  const isSet = cards.length > 1;
+  const fan = isSet ? ctx.formFan : { ...ctx.formFan, open: false, t: 0 };
+  const layout = formStackLayout(row, cards.length, fan.t);
+  if (!layout || layout.cards[0]!.height < 24) return;
+  const heading = label(scene, row.x, row.y, group.title, typeRole.label, surface.ink.hex, ink.label);
+  fitText(heading, row.width, typeRole.label.size);
+  // Back to front, so the front card is drawn last, over the edges of the rest.
+  for (let index = cards.length - 1; index >= 0; index--) {
+    const card = cards[index]!;
+    const rect = layout.cards[index]!;
+    const front = index === 0;
+    // Folded, the cards behind are dimmed edges; they brighten as they fan out.
+    const dim = front ? 1 : ink.secondary + (1 - ink.secondary) * fan.t;
+    const frame = scene.add.graphics();
+    frame.fillStyle(surface.ink.hex, 1).fillRect(rect.x - 1, rect.y - 1, rect.width + 2, rect.height + 2);
+    frame.fillStyle(surface.paper.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+    const drawn = drawArt(scene, ctx.art.request(scene, card.art), rect, { fit: "cover", alpha: dim }) !== null;
+    if (!drawn && (front || fan.open)) {
+      const name = scene.add
+        .text(
+          rect.x + rect.width / 2,
+          rect.y + rect.height / 2,
+          card.name,
+          textStyle(typeRole.label, surface.ink.hex, 1),
+        )
+        .setOrigin(0.5);
+      fitText(name, rect.width - 4, typeRole.label.size);
+    }
+    if (!front && !fan.open) continue;
+    const foot = { x: rect.x, y: rect.y + rect.height - 16, width: rect.width, height: 16 };
+    if (isSet && card.active) {
+      const ring = scene.add.graphics();
+      ring.lineStyle(3, signal.heal.hex, 1).strokeRect(rect.x - 2, rect.y - 2, rect.width + 4, rect.height + 4);
+      if (rect.height >= 60) drawFootStrip(scene, foot, "ACTIVE", "ability", 1);
+    } else if (!isSet && card.otherFace && rect.height >= 60) {
+      drawFootStrip(scene, foot, `FLIPS TO ${card.otherFace.toUpperCase()}`, "ability", 1);
+    }
+    // Threat and counters the card holds (Nick Fury's suit form), over the top of the card.
+    if (card.tokens && rect.height >= 60) {
+      drawFootStrip(scene, { x: rect.x, y: rect.y, width: rect.width, height: 16 }, card.tokens, "threat", 1);
+    }
+  }
+  const ids = cards.map((card) => card.instanceId);
+  if (fan.open) {
+    // Fanned out: each card is a card on the table, and Collapse folds them back.
+    cards.forEach((card, index) => {
+      const rect = layout.cards[index]!;
+      ctx.frame.hitRects.set(card.instanceId, rect);
+      ctx.makeTapTarget(rect, card.instanceId, () => ctx.controller.onCharacterTap(card.instanceId));
+    });
+    if (layout.footer) {
+      const width = Math.min(layout.footer.width, 140);
+      ctx.frame.buttons.push(
+        new McButton(scene, {
+          kind: "secondary",
+          label: "Collapse",
+          type: typeRole.label,
+          rect: { ...layout.footer, x: layout.footer.x + (layout.footer.width - width) / 2, width },
+          onClick: () => fan.setOpen(false),
+        }),
+      );
+    }
+    return;
+  }
+  if (layout.footer) {
+    const hint = label(
+      scene,
+      layout.footer.x + layout.footer.width / 2,
+      layout.footer.y + layout.footer.height / 2,
+      `Tap to see all ${cards.length}`,
+      typeRole.label,
+      surface.ink.hex,
+      ink.label,
+    ).setOrigin(0.5, 0.5);
+    fitText(hint, layout.footer.width, typeRole.label.size);
+  }
+  const top = ids[0]!;
+  ctx.frame.hitRects.set(top, layout.cards[0]!);
+  // While a target prompt is open the stack answers it as the front card; otherwise a set fans out and a lone card reads.
+  const onTap = (): void => {
+    if (!isSet || ctx.controller.selection.kind === "targeting") ctx.controller.onCharacterTap(top);
+    else fan.setOpen(true);
+  };
+  ctx.makeTapTarget(layout.stack, top, onTap);
 }
 
 /**

@@ -84,6 +84,7 @@ import type { StatusName } from "./log-lines.js";
 import { heroFaceDisplayName, qualifiedHeroName } from "./hero-names.js";
 import { faceUpName, playerName } from "./names.js";
 import { aspectName } from "./aspect-stamp.js";
+import { formCardGroupIds, formCardTokens, otherFormFaceName } from "./form-cards.js";
 
 /** One of the 2px inner stat boxes in the design's entity card. */
 export interface StatTile {
@@ -828,6 +829,11 @@ export interface BoardModel {
    * action reads its top card had nothing on the table to point at.
    */
   readonly separateDecks: readonly SeparateDeckPile[];
+  /**
+   * Your identity's set of form cards (Spectrum's energy forms, `view/form-cards.ts`), drawn in a column beside the play
+   * area rather than in the play row (issue #308). Empty for every identity that has none.
+   */
+  readonly formCards: readonly FormCardGroup[];
   readonly team: readonly SeatRow[];
   readonly outcome: GameState["outcome"];
   /**
@@ -837,6 +843,41 @@ export interface BoardModel {
    * showed nothing counting toward it.
    */
   readonly victoryCondition: { readonly count: number; readonly target: number } | null;
+}
+
+/** One set of form cards in the column beside the play area: "Energy forms", Gamma, Photon and Pulsar. */
+export interface FormCardGroup {
+  readonly formType: string;
+  readonly title: string;
+  readonly cards: readonly FormCardView[];
+}
+
+export interface FormCardView {
+  readonly instanceId: InstanceId;
+  readonly name: string;
+  /** The card's face: open to its owner while it is facedown too (`faceVisible`'s `playArea` arm). */
+  readonly art: ArtSource | null;
+  /** Faceup: the form the player is in now. */
+  readonly active: boolean;
+  /** "Dense": the face of a double-sided form card that is not showing, the form a flip changes to. Null for a single-faced card. */
+  readonly otherFace: string | null;
+  /** "3 threat · 2 all-purpose" on the card (Nick Fury's suit form gathers threat), or null. */
+  readonly tokens: string | null;
+}
+
+function formCardGroups(state: GameState, me: PlayerState): readonly FormCardGroup[] {
+  return formCardGroupIds(state, me).map((group) => ({
+    formType: group.formType,
+    title: group.title,
+    cards: group.ids.map((id) => ({
+      instanceId: id,
+      name: faceUpName(state, id),
+      art: artFor(cardOf(state, id), faceOf(state, id)),
+      active: getInstance(state, id)?.faceup === true,
+      otherFace: otherFormFaceName(state, id),
+      tokens: formCardTokens(state, id),
+    })),
+  }));
 }
 
 export interface SeparateDeckPile {
@@ -1095,6 +1136,8 @@ export function boardModel(
   const mainSchemeIds = new Set([state.mainScheme.instanceId, ...otherMainSchemes.map((scheme) => scheme.instanceId)]);
   const scenarioAreas = scenarioAreaPanels(state, deps, [...mainSchemeIds]);
   const sideSchemes = schemes.filter((id) => !mainSchemeIds.has(id)).map((id) => schemePanel(state, id, deps, false));
+  const formCards = formCardGroups(state, me);
+  const inFormColumn = new Set(formCards.flatMap((group) => group.cards.map((card) => card.instanceId)));
 
   return {
     round: state.round,
@@ -1126,12 +1169,14 @@ export function boardModel(
     // from there; what the encounter deck hangs on you stays on the identity.
     myPlayArea: [
       ...(getInstance(state, me.identity.instanceId)?.attachments ?? []).filter(
-        (id) => cardOf(state, id)?.type === "upgrade" && !me.playArea.includes(id),
+        (id) => cardOf(state, id)?.type === "upgrade" && !me.playArea.includes(id) && !inFormColumn.has(id),
       ),
       ...me.playArea.filter((id) => {
         // An engaged minion lives in `playArea` too (engine/src/query.ts `minionsEngagedWith`), but it belongs to
         // the enemies zone, not this player's own cards — `minionsOf` already draws it there.
         if (isMinion(state, id)) return false;
+        // Form cards sit in their own column beside the play area (`formCards`).
+        if (inFormColumn.has(id)) return false;
         const attachedTo = getInstance(state, id)?.attachedTo ?? null;
         return attachedTo === null || attachedTo === me.identity.instanceId;
       }),
@@ -1161,6 +1206,7 @@ export function boardModel(
     encounterDiscardTopInstanceId: activeEncounterDeck(state).discard[0] ?? null,
     encounterDiscard: activeEncounterDeck(state).discard,
     separateDecks: separateDeckPiles(state, me),
+    formCards,
     team: state.players
       .filter((player) => player.playerId !== perspectiveId)
       .map((player) => seatRow(state, player.playerId, deps)),

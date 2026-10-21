@@ -126,6 +126,7 @@ export default defineConfig({
         "villain-boost-breakdown.spec.ts",
         "settings-earned-items.spec.ts",
         "achievement-popup.spec.ts",
+        "spectrum-energy-forms.spec.ts",
       ],
     },
   ],

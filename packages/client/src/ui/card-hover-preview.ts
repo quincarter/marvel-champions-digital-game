@@ -20,7 +20,7 @@ import { SCENES } from "../scenes/keys.js";
 import { appSession } from "../session.js";
 import { surface, typeRole } from "../tokens.js";
 import { textStyle } from "./theme.js";
-import { McHpPlate, paintThreatMeter } from "./widgets.js";
+import { McHpPlate, fieldsOf, paintThreatMeter } from "./widgets.js";
 import { schemePanel } from "../view/board-model.js";
 import {
   HOVER_DELAY_MS,
@@ -181,6 +181,12 @@ export class HoverPreview {
       this.#clear();
       if (pointer) this.#update(pointer, true);
     });
+  }
+
+  /** Where the popover is on screen, or null while none shows: a screen with a DOM field moves the field aside (`McTextInput.coverWith`). */
+  get shownRect(): Rect | null {
+    const visual = this.#visual;
+    return visual ? { x: visual.x, y: visual.y, width: this.#size.width, height: this.#size.height } : null;
   }
 
   /** The key of the card the popover is showing, or null: for the e2e debug hooks. */
@@ -377,6 +383,13 @@ export class HoverPreview {
   #place(pointer: Phaser.Input.Pointer, area: Rect): void {
     const at = hoverPlacement({ x: pointer.x, y: pointer.y }, this.#size, area);
     this.#visual?.setPosition(at.x, at.y);
+    this.#coverFields();
+  }
+
+  /** A DOM text field draws above the canvas, so one the popover overlaps steps aside while it shows (#308 feedback). */
+  #coverFields(): void {
+    const rect = this.shownRect;
+    for (const field of fieldsOf(this.scene)) field.coverWith(rect);
   }
 
   #clear(): void {
@@ -388,6 +401,7 @@ export class HoverPreview {
     this.#visual?.destroy();
     this.#visual = null;
     this.#waitingKey = null;
+    if (!this.#destroyed) this.#coverFields();
   }
 
   /** The popover for one card: its scan (or a plain frame when the scan is missing) with the state strip under it. */

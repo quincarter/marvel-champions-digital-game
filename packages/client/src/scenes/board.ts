@@ -149,6 +149,8 @@ const HANDLE_DEPTH = 950;
 /** Emitted on the Board's own `events` on every step of a dock resize (and when it snaps), with the current `VillainDockRects`. */
 export const VILLAIN_DOCK_CHANGED = "villain-dock-changed";
 const VILLAIN_DOCK_TWEEN_MS = 280;
+/** The form cards' fan-out and fold beside the play area (issue #308). */
+const FORM_FAN_TWEEN_MS = 280;
 
 /** A card's name and traits, for its sound (`view/sound-effects.ts`). An identity's traits sit on its faces and never count. */
 function soundInfoOfCard(cardId: CardId): CardSoundInfo | null {
@@ -283,6 +285,10 @@ export class BoardScene extends Phaser.Scene {
   readonly #hand = new HandScroll(() => this.#draw());
   /** The play area row's scroll: a crowded row keeps its cards readable and scrolls sideways, on every layout. */
   readonly #playAreaScroll = new PlayAreaScroll(() => this.#draw());
+  /** The form cards' fan beside the play area (issue #308): where it is going, and how far the animation has got. */
+  #formFanOpen = false;
+  #formFanT = 0;
+  #formFanTween: Phaser.Tweens.Tween | null = null;
   readonly #logPanel = new LogPanel(() => this.#draw());
   readonly #motion = new BoardMotion(this);
   readonly #firstPlayerToken = new BoardFirstPlayerToken();
@@ -399,6 +405,10 @@ export class BoardScene extends Phaser.Scene {
     // Fresh scheduler state for a fresh game (guided mode G10e part 2) — "Run it back"/"Continue" reuse this same
     // scene instance, and the opening-turn hold/one-per-turn cap must reset the same way `#guide` does above.
     this.#tip = new BoardTipMount(this);
+    // A fresh game starts with its form cards folded.
+    this.#formFanOpen = false;
+    this.#formFanT = 0;
+    this.#formFanTween = null;
     // The desktop card hover popover: one listener set on the scene's pointer, not one per card.
     this.#hover = new HoverPreview(this, {
       cards: () => this.#frame.hitRects,
@@ -1258,6 +1268,7 @@ export class BoardScene extends Phaser.Scene {
       schemeScroll: this.#schemeScroll,
       focusedCard: this.#focusRegion === "board" && this.#focus?.kind === "card" ? this.#focus.instanceId : null,
       playAreaScroll: this.#playAreaScroll,
+      formFan: { open: this.#formFanOpen, t: this.#formFanT, setOpen: (open) => this.#setFormFan(open) },
       onRegionScroll: () => this.#refreshRings(),
       frame: this.#frame,
       motion: this.#motion,
@@ -1855,6 +1866,39 @@ export class BoardScene extends Phaser.Scene {
     this.scene.launch(SCENES.inspect, {
       instanceId: id,
       ...(list.includes(id) ? { siblings: list } : {}),
+    });
+  }
+
+  /**
+   * Fans the form cards beside the play area out, or folds them back (issue #308). The column widens or narrows over a
+   * short tween, redrawing the table each frame so the play row slides over with it; reduced motion snaps.
+   */
+  #setFormFan(open: boolean): void {
+    if (this.#formFanOpen === open) return;
+    this.#formFanOpen = open;
+    this.#formFanTween?.stop();
+    this.#formFanTween = null;
+    const target = open ? 1 : 0;
+    if (appSession().settings.reducedMotion || !this.scene.isActive()) {
+      this.#formFanT = target;
+      this.#draw();
+      return;
+    }
+    const from = this.#formFanT;
+    this.#formFanTween = this.tweens.addCounter({
+      from,
+      to: target,
+      duration: FORM_FAN_TWEEN_MS,
+      ease: "Cubic.easeOut",
+      onUpdate: (tween) => {
+        this.#formFanT = tween.getValue() ?? target;
+        this.#draw();
+      },
+      onComplete: () => {
+        this.#formFanTween = null;
+        this.#formFanT = target;
+        this.#draw();
+      },
     });
   }
 

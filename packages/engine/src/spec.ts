@@ -695,8 +695,9 @@ export interface TargetQuery {
   /**
    * The card prints the form keyword of this type on either face ("Energy form.", "Mass form."; docs/phase7-wave4.md
    * §3.1), read from the printed card even while it is facedown: "choose a facedown energy form upgrade" (Spectrum's
-   * Energy Transformation, `mts` 21001a) names cards whose own text a facedown card does not show. A player knows their
-   * own facedown cards (RRG 1.8 "Facedown", owner may look), so this is the owner's reading.
+   * Energy Transformation, `mts` 21001a) names cards whose own text a facedown card does not show. A player knows the
+   * faces of their own facedown cards (an engine interpretation, `faceVisible`'s `playArea` arm: RRG 1.8 has no entry
+   * on it), so this is the owner's reading.
    */
   readonly printedForm?: string;
   /**
