@@ -196,7 +196,7 @@ describe("a required choice with nothing to choose", () => {
     const before = handSize(withWidget);
     const { state, events } = playFree(withWidget, deps, EMPTIED.card.id);
     expect(handSize(state)).toBe(before - 1);
-    expect(events).toContainEqual({ type: "choiceFoundNothing", slot: "widget" });
+    expect(events).toContainEqual({ type: "choiceFoundNothing", slot: "widget", choice: "chooseCards" });
     expect(events).toContainEqual({ type: "thenSkipped" });
   });
 
