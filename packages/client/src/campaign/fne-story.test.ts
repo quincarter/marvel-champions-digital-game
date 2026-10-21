@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
 import { campaignDefinitionOf } from "@mc/cards";
 import { FNE_STORY } from "./stories/fne.js";
@@ -32,7 +33,8 @@ describe("the Fear No Evil story", () => {
   const pagesOf = (beats: readonly { readonly page: string }[] | undefined) => [...new Set(beats?.map((b) => b.page))];
 
   test("every page fits its panels and has its picture in art/campaigns/fne/pages", () => {
-    const dir = join(process.cwd(), "../../art/campaigns/fne/pages");
+    // From this file, not the working directory: CI runs the suite from the repo root.
+    const dir = fileURLToPath(new URL("../../../../art/campaigns/fne/pages", import.meta.url));
     for (const page of FNE_STORY.pages ?? []) {
       expect(existsSync(join(dir, `${page.file}.jpg`)), page.file).toBe(true);
       for (const beat of page.beats) {
