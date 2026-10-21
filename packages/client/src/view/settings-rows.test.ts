@@ -1,6 +1,10 @@
 import { describe, expect, test } from "vitest";
 import {
   displayModeRowInfoOf,
+  frameRateRowInfoOf,
+  nextSettingsAfterFrameRate,
+  nextSettingsAfterRenderScale,
+  renderScaleRowInfoOf,
   nextSettingsAfterDisplayMode,
   nextSettingsAfterResolution,
   resolutionRowInfoOf,
@@ -58,6 +62,8 @@ const BASE: Settings = {
   achievementPopupTime: "5s",
   achievementPopupPlace: "middle",
   achievementPopupSize: "medium",
+  renderScale: "native",
+  frameRate: "screen",
 };
 
 describe("settingsRowInfoOf", () => {
@@ -90,6 +96,8 @@ describe("settingsRowInfoOf", () => {
       achievementPopupTime: "5s",
       achievementPopupPlace: "middle",
       achievementPopupSize: "medium",
+      renderScale: "1x",
+      frameRate: "30",
     });
     expect(rows.find((r) => r.id === "reduced-motion")?.on).toBe(true);
     expect(rows.find((r) => r.id === "sharper-text")?.on).toBe(true);
@@ -414,5 +422,42 @@ describe("the volume rows (#243)", () => {
     expect(effectsVolumeRowInfoOf({ ...defaultSettings(), effectsVolume: 30 }).selected).toBe("25");
     expect(gameVolumeRowInfoOf(64).selected).toBe("75");
     expect(gameVolumeRowInfoOf(64).title).toBe("Game volume");
+  });
+});
+
+describe("the Android app's Screen rows", () => {
+  const phone = { width: 360, height: 788, devicePixelRatio: 3 };
+
+  test("Resolution offers Native and each lighter size the screen is denser than, named by its short side", () => {
+    const row = renderScaleRowInfoOf(BASE, phone);
+    expect(row.options.map((o) => o.label)).toEqual(["Native", "720p", "540p", "360p"]);
+    expect(row.selected).toBe("native");
+    expect(row.detail).toContain("1080 × 2364");
+  });
+
+  test("a 2x phone has no separate 720p: that is its native, and a saved 2x shows as Native", () => {
+    const row = renderScaleRowInfoOf({ ...BASE, renderScale: "2x" }, { ...phone, devicePixelRatio: 2 });
+    expect(row.options.map((o) => o.value)).toEqual(["native", "1.5x", "1x"]);
+    expect(row.selected).toBe("native");
+  });
+
+  test("a lighter choice says the size it draws at", () => {
+    const row = renderScaleRowInfoOf({ ...BASE, renderScale: "1.5x" }, phone);
+    expect(row.detail).toContain("540 × 1182");
+    expect(nextSettingsAfterRenderScale(BASE, "1x").renderScale).toBe("1x");
+  });
+
+  test("Frame rate names the screen's rate once known, and a 60 Hz screen gets no separate 60 fps", () => {
+    expect(frameRateRowInfoOf(BASE, 120).detail).toContain("120 Hz");
+    expect(frameRateRowInfoOf(BASE, 120).options.map((o) => o.value)).toEqual(["screen", "60", "30"]);
+    expect(frameRateRowInfoOf(BASE, null).options.map((o) => o.value)).toEqual(["screen", "60", "30"]);
+    const sixty = frameRateRowInfoOf({ ...BASE, frameRate: "60" }, 60);
+    expect(sixty.options.map((o) => o.value)).toEqual(["screen", "30"]);
+    expect(sixty.selected).toBe("screen");
+  });
+
+  test("in power saving mode the row says it follows the mode", () => {
+    expect(frameRateRowInfoOf({ ...BASE, frameRate: "30" }, 120, true).detail).toContain(POWER_SAVING_ROW_NOTE);
+    expect(nextSettingsAfterFrameRate(BASE, "30").frameRate).toBe("30");
   });
 });

@@ -39,7 +39,15 @@ import { applyDesktopWindowOnLaunch, desktopLaunchSettings, setRenderSizeHandler
 import { storedSettingsOverrides } from "./settings-store.js";
 import { applyRenderSize } from "./ui/render-resolution.js";
 import { isAndroidEdge, rendererOptionsOf } from "./platform/renderer-options.js";
-import { POWER_SAVING_FPS, onPowerSavingChange, watchPowerSaving } from "./platform/power-saving.js";
+import { onPowerSavingChange, watchPowerSaving } from "./platform/power-saving.js";
+import { installRenderScale } from "./ui/render-scale.js";
+import {
+  drawsAtScreenDensity,
+  renderScaleFor,
+  screenEnvironment,
+  textResolutionFor,
+} from "./platform/screen-density.js";
+import { applyScreenSettings, readRefreshInfo } from "./platform/screen-settings.js";
 import { PowerSavingNoticeScene } from "./scenes/power-saving-notice.js";
 import { AchievementToastScene } from "./scenes/achievement-toast.js";
 
@@ -48,9 +56,15 @@ import { AchievementToastScene } from "./scenes/achievement-toast.js";
 // object this game creates from here on must read the resolution it left behind.
 const settings = appSession().settings;
 
+// The Android app draws at the screen's own density (`platform/screen-settings.ts`); everywhere else at 1x.
+const screen = screenEnvironment();
+const renderScale = renderScaleFor(settings, screen);
+
 // Every text object the theme creates renders at the device pixel ratio, so
 // text stays sharp. Phaser 4 has no game-level equivalent.
-setTextResolution(settings.textResolution);
+setTextResolution(
+  textResolutionFor(settings, renderScale, drawsAtScreenDensity(screen.platform, screen.userAgent, screen.search)),
+);
 
 // Before the canvas first takes its parent's size, which depends on whether #game is inset by the safe area.
 applyViewportFit();
@@ -78,6 +92,8 @@ const game = new Phaser.Game({
     ...(rendererOptions.powerPreference ? { powerPreference: rendererOptions.powerPreference } : {}),
   },
   parent: "game",
+  // Before the renderer asks the canvas for its WebGL context, so the context is wrapped from its first call.
+  callbacks: { preBoot: (booting: Phaser.Game) => installRenderScale(booting, renderScale, Phaser.Scale.RESIZE) },
   backgroundColor: cssOf(surface.void.hex),
   // Off by default in Phaser 4; the Board's focus route is otherwise wired
   // for it already (`view/gamepad.ts`, `scenes/board/input.ts#bindGamepad`).
@@ -129,12 +145,11 @@ void desktopLaunchSettings(settings, storedSettingsOverrides().displayMode !== u
 });
 watchStartup(game);
 
-// Power saving mode (`platform/power-saving.ts`): the session's settings already follow it; the frame rate cap and the
-// text resolution new labels draw at are applied here.
-onPowerSavingChange(({ applied }) => {
-  game.loop.setFPSLimit(applied ? POWER_SAVING_FPS : 0);
-  setTextResolution(appSession().settings.textResolution);
-});
+// The frame rate, and on Android the refresh rate the app asks the OS for. Power saving mode (`platform/power-saving.ts`)
+// moves the session's defaults (a 30 fps cap, 1x text), so they are applied again whenever it changes.
+applyScreenSettings(game, settings);
+void readRefreshInfo();
+onPowerSavingChange(() => applyScreenSettings(game, appSession().settings));
 watchPowerSaving();
 
 // Registered before any scene's own resize listener, so a screen redrawing on resize already draws at the new size.

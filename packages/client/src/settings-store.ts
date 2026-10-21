@@ -16,6 +16,8 @@ import {
   CARD_SIZE_VALUES,
   DISPLAY_MODE_VALUES,
   FIRST_PLAYER_TOKEN_MOTION_VALUES,
+  FRAME_RATE_VALUES,
+  RENDER_SCALE_VALUES,
   SHARP_TEXT_RESOLUTION_CEILING,
   VILLAIN_AUTO_ADVANCE_VALUES,
   VILLAIN_BEAT_SPEED_VALUES,
@@ -84,6 +86,10 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   if (popupPlaceValue !== undefined) out.achievementPopupPlace = popupPlaceValue;
   const popupSizeValue = ACHIEVEMENT_POPUP_SIZE_VALUES.find((value) => value === source["achievementPopupSize"]);
   if (popupSizeValue !== undefined) out.achievementPopupSize = popupSizeValue;
+  const renderScaleValue = RENDER_SCALE_VALUES.find((value) => value === source["renderScale"]);
+  if (renderScaleValue !== undefined) out.renderScale = renderScaleValue;
+  const frameRateValue = FRAME_RATE_VALUES.find((value) => value === source["frameRate"]);
+  if (frameRateValue !== undefined) out.frameRate = frameRateValue;
   const displayModeValue = DISPLAY_MODE_VALUES.find((value) => value === source["displayMode"]);
   if (displayModeValue !== undefined) out.displayMode = displayModeValue;
   const drawResolution = source["resolution"];

@@ -23,9 +23,14 @@ import {
   CARD_SIZE_VALUES,
   DISPLAY_MODE_VALUES,
   FIRST_PLAYER_TOKEN_MOTION_VALUES,
+  FRAME_RATE_VALUES,
+  RENDER_SCALE_VALUES,
   SHARP_TEXT_RESOLUTION_CEILING,
   clampMusicVolume,
+  renderScaleFactorOf,
   resolutionPixelsOf,
+  type FrameRate,
+  type RenderScale,
   type AchievementPopupPlace,
   type AchievementPopupSize,
   type AchievementPopupTime,
@@ -706,6 +711,89 @@ export function displayModeRowInfoOf(settings: Settings): DisplayModeRowInfo {
 /** `settings` with the window mode set; a value that is not one of the three changes nothing. */
 export function nextSettingsAfterDisplayMode(settings: Settings, value: DisplayMode): Settings {
   return DISPLAY_MODE_VALUES.includes(value) ? { ...settings, displayMode: value } : settings;
+}
+
+// ---------------------------------------------------------------------------
+// "Resolution" and "Frame rate" under Display > Screen: the Android app's own screen (`platform/screen-settings.ts`).
+// The desktop app has its Window section instead; the web and iOS show neither.
+// ---------------------------------------------------------------------------
+
+export interface ScreenChoiceRowInfo<V extends string> {
+  readonly title: string;
+  readonly detail: string;
+  readonly options: readonly { readonly value: V; readonly label: string }[];
+  readonly selected: V;
+}
+
+/** The screen in CSS pixels and its density, as the row needs to name the sizes. */
+export interface ScreenSize {
+  readonly width: number;
+  readonly height: number;
+  readonly devicePixelRatio: number;
+}
+
+/**
+ * Native, then each lighter multiplier this screen is denser than, named by its short side the way games name
+ * resolutions ("720p"). A 2x phone has no "2x": that is its native.
+ */
+export function renderScaleRowInfoOf(settings: Settings, screen: ScreenSize): ScreenChoiceRowInfo<RenderScale> {
+  const native = renderScaleFactorOf("native", screen.devicePixelRatio);
+  const short = Math.min(screen.width, screen.height);
+  const offered = RENDER_SCALE_VALUES.filter(
+    (value) => value === "native" || renderScaleFactorOf(value, screen.devicePixelRatio) < native,
+  );
+  const selected = offered.includes(settings.renderScale) ? settings.renderScale : "native";
+  const factor = renderScaleFactorOf(selected, screen.devicePixelRatio);
+  const size = `${Math.round(screen.width * factor)} × ${Math.round(screen.height * factor)}`;
+  return {
+    title: "Resolution",
+    detail:
+      selected === "native"
+        ? `Draws at ${size}, the screen's own. Lower is lighter on the GPU, memory and battery.`
+        : `Draws at ${size} and scales it up to the screen. Native is sharpest.`,
+    options: offered.map((value) => ({
+      value,
+      label:
+        value === "native" ? "Native" : `${Math.round(short * renderScaleFactorOf(value, screen.devicePixelRatio))}p`,
+    })),
+    selected,
+  };
+}
+
+/** `settings` with the render scale set; a value that is not one of the four changes nothing. */
+export function nextSettingsAfterRenderScale(settings: Settings, value: RenderScale): Settings {
+  return RENDER_SCALE_VALUES.includes(value) ? { ...settings, renderScale: value } : settings;
+}
+
+const FRAME_RATE_LABELS: Readonly<Record<FrameRate, string>> = { screen: "Screen", "60": "60 fps", "30": "30 fps" };
+
+/**
+ * Match screen, 60 and 30. `maxRefreshRate` is the screen's fastest mode as the app reports it (null until read): a
+ * 60 Hz screen gets no separate 60 fps choice. `powerSaving`: the device is in power saving mode, which caps it at 30.
+ */
+export function frameRateRowInfoOf(
+  settings: Settings,
+  maxRefreshRate: number | null,
+  powerSaving = false,
+): ScreenChoiceRowInfo<FrameRate> {
+  const offered = FRAME_RATE_VALUES.filter((value) => value !== "60" || maxRefreshRate === null || maxRefreshRate > 61);
+  const selected = offered.includes(settings.frameRate) ? settings.frameRate : "screen";
+  const rate = maxRefreshRate === null ? "" : ` (${maxRefreshRate} Hz)`;
+  const detail =
+    selected === "screen"
+      ? `Runs at the screen's own refresh rate${rate}. A cap saves battery; 30 fps saves the most.`
+      : `Holds the game to ${selected} fps and asks the screen to slow down to match, to save battery.`;
+  return {
+    title: "Frame rate",
+    detail: powerSaving ? `${detail} ${POWER_SAVING_ROW_NOTE}` : detail,
+    options: offered.map((value) => ({ value, label: FRAME_RATE_LABELS[value] })),
+    selected,
+  };
+}
+
+/** `settings` with the frame rate set; a value that is not one of the three changes nothing. */
+export function nextSettingsAfterFrameRate(settings: Settings, value: FrameRate): Settings {
+  return FRAME_RATE_VALUES.includes(value) ? { ...settings, frameRate: value } : settings;
 }
 
 export interface ResolutionRowInfo {

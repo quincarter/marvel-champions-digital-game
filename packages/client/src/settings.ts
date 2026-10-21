@@ -114,6 +114,19 @@ export interface Settings {
    */
   readonly powerSavingAdjust: boolean;
   /**
+   * How many device pixels the Android app draws per CSS pixel (`platform/screen-settings.ts`): "native" for the
+   * screen's own density (1080p on a 1080 x 2400 phone), or a lower multiplier that is lighter on the GPU, memory and
+   * battery. Android app only (and `?renderscale=` anywhere, for tests): the web, iOS and the desktop app draw at 1x.
+   * Defaults to native; a phone that reports 2 GB of memory or less starts at 1.5x.
+   */
+  readonly renderScale: RenderScale;
+  /**
+   * The frame rate the game holds to: the screen's own refresh rate (120 Hz on a 120 Hz phone), or a 60 or 30 fps cap.
+   * On Android the app also asks the OS for a matching refresh rate. Defaults to the screen's own; power saving mode
+   * defaults it to 30 (`POWER_SAVING_FPS`).
+   */
+  readonly frameRate: FrameRate;
+  /**
    * How long the "Achievement unlocked" popup stays up (`scenes/achievement-toast.ts`), or "off" for none. Defaults to
    * 5 s (the owner, 2026-10-20).
    */
@@ -143,6 +156,28 @@ export function achievementPopupScale(size: AchievementPopupSize): number {
 }
 
 export const ACHIEVEMENT_POPUP_PLACE_VALUES: readonly AchievementPopupPlace[] = ["titleBar", "top", "middle", "bottom"];
+
+/** "native": the screen's own pixel density. A multiplier is capped at the screen's own (`renderScaleFactorOf`). */
+export type RenderScale = "native" | "2x" | "1.5x" | "1x";
+export const RENDER_SCALE_VALUES: readonly RenderScale[] = ["native", "2x", "1.5x", "1x"];
+
+/** No phone is denser than this; above it the buffer would cost more than any screen can show. */
+export const MAX_RENDER_SCALE = 4;
+
+/** The device pixels per CSS pixel a `renderScale` draws at on a screen of this density. */
+export function renderScaleFactorOf(choice: RenderScale, devicePixelRatio: number): number {
+  const native = Math.min(MAX_RENDER_SCALE, Math.max(1, devicePixelRatio || 1));
+  return choice === "native" ? native : Math.min(native, Number.parseFloat(choice));
+}
+
+/** "screen": no cap, the screen's own refresh rate. */
+export type FrameRate = "screen" | "60" | "30";
+export const FRAME_RATE_VALUES: readonly FrameRate[] = ["screen", "60", "30"];
+
+/** The game loop's fps limit for a `frameRate`: 0 for none. */
+export function fpsLimitOf(rate: FrameRate): number {
+  return rate === "screen" ? 0 : Number(rate);
+}
 
 export type DisplayMode = "windowed" | "borderless" | "fullscreen";
 export const DISPLAY_MODE_VALUES: readonly DisplayMode[] = ["windowed", "borderless", "fullscreen"];
@@ -262,11 +297,13 @@ export function tableRulesOf(settings: Pick<Settings, "sameNameHeroAllyConflict"
 export interface DeviceConditions {
   /** The device is in power saving mode (`platform/power-saving.ts`). */
   readonly powerSaving?: boolean;
+  /** The device reports 2 GB of memory or less (`navigator.deviceMemory`): a lighter render scale to start with. */
+  readonly lowMemory?: boolean;
 }
 
 /**
- * The settings a player who changed nothing gets on this device. Power saving mode turns reduced motion on and text
- * down to 1x while it lasts; a player who set either themselves keeps their own choice (`resolveSettings`).
+ * The settings a player who changed nothing gets on this device. Power saving mode turns reduced motion on, text down
+ * to 1x and the frame rate down to 30 fps while it lasts; a player who set either themselves keeps their own choice (`resolveSettings`).
  */
 export function defaultSettings(device: DeviceConditions = {}): Settings {
   const prefersReduced =
@@ -300,6 +337,8 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     displayMode: "windowed",
     resolution: "native",
     powerSavingAdjust: true,
+    renderScale: device.lowMemory === true ? "1.5x" : "native",
+    frameRate: powerSaving ? "30" : "screen",
     achievementPopupTime: "5s",
     achievementPopupPlace: "titleBar",
     achievementPopupSize: "small",

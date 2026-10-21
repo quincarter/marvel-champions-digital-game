@@ -28,6 +28,7 @@ import { SettingsStore, storedSettingsOverrides } from "./settings-store.js";
 import { emptyLog, type LogState } from "./view/log-lines.js";
 import type { MusicController } from "./audio/music-controller.js";
 import { onPowerSavingChange, powerSavingOn, setPowerSavingIgnored } from "./platform/power-saving.js";
+import { isLowMemoryDevice } from "./platform/screen-density.js";
 
 export interface AppSession {
   readonly host: EngineHost;
@@ -107,7 +108,10 @@ export function appSession(): AppSession {
     // Power saving mode changes the defaults (reduced motion, 1x text) of every setting the player never set, unless the
     // player turned "Lighter play in power saving" off.
     setPowerSavingIgnored(storedSettingsOverrides().powerSavingAdjust === false);
-    const settingsStore = new SettingsStore(undefined, () => defaultSettings({ powerSaving: powerSavingOn() }));
+    const lowMemory = isLowMemoryDevice();
+    const settingsStore = new SettingsStore(undefined, () =>
+      defaultSettings({ powerSaving: powerSavingOn(), lowMemory }),
+    );
     onPowerSavingChange(() => settingsStore.refreshDefaults());
     session = {
       host,

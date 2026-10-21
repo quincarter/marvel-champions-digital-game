@@ -17,6 +17,8 @@ export type SettingsItemId =
   | "token-motion"
   | "display-mode"
   | "resolution"
+  | "render-scale"
+  | "frame-rate"
   | "steam-deck"
   | "power-saving"
   | "villain-auto"
@@ -38,6 +40,7 @@ export type SettingsSectionId =
   | "villain"
   | "cards"
   | "window"
+  | "screen"
   | "motion"
   | "sound"
   | "guide"
@@ -67,6 +70,8 @@ export function settingsSectionsOf(input: {
   readonly steamDeck?: boolean;
   /** The Android app, which can read power saving mode, or a forced `?powersave=`: a "Lighter play" row under motion. */
   readonly powerSaving?: boolean;
+  /** The Android app, which draws at the screen's own density: a Screen section with Resolution and Frame rate. */
+  readonly screenSettings?: boolean;
 }): readonly SettingsSection[] {
   return [
     { id: "gameplay", title: "Gameplay", items: ["confirm-end-turn", "same-name-conflict"] },
@@ -94,6 +99,9 @@ export function settingsSectionsOf(input: {
             items: ["display-mode", "resolution", ...(input.steamDeck ? (["steam-deck"] as const) : [])],
           } satisfies SettingsSection,
         ]
+      : []),
+    ...(input.screenSettings
+      ? [{ id: "screen", title: "Screen", items: ["render-scale", "frame-rate"] } satisfies SettingsSection]
       : []),
     {
       id: "motion",
@@ -143,7 +151,7 @@ const TAB_SECTIONS: readonly {
 }[] = [
   { id: "gameplay", label: "Game", sections: ["gameplay", "villain"] },
   { id: "cards", label: "Cards", sections: ["cards"] },
-  { id: "display", label: "Display", sections: ["window", "motion"] },
+  { id: "display", label: "Display", sections: ["window", "screen", "motion"] },
   { id: "sound", label: "Sound", sections: ["sound"] },
   { id: "guide", label: "Guide", sections: ["guide"] },
   { id: "more", label: "More", sections: ["more", "achievements", "earned"] },

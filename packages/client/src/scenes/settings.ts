@@ -38,6 +38,10 @@ import {
   nextSettingsAfterMusicVolume,
   cardSizeRowInfoOf,
   displayModeRowInfoOf,
+  frameRateRowInfoOf,
+  nextSettingsAfterFrameRate,
+  nextSettingsAfterRenderScale,
+  renderScaleRowInfoOf,
   nextSettingsAfterCardSize,
   nextSettingsAfterDisplayMode,
   nextSettingsAfterResolution,
@@ -106,6 +110,8 @@ import { guidePrefs, onGuidePrefsChange, setGuidePrefs } from "../guide/guide-st
 import { canReadPowerSaving, onPowerSavingChange, powerSavingOn, powerSavingState } from "../platform/power-saving.js";
 import { powerSavingRowOf } from "../view/power-saving-notice.js";
 import { detectPlatform } from "../platform/platform.js";
+import { drawsAtScreenDensity, screenEnvironment } from "../platform/screen-density.js";
+import { applyScreenSettings, knownRefreshInfo, readRefreshInfo } from "../platform/screen-settings.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import type { AchievementToastScene } from "./achievement-toast.js";
@@ -145,6 +151,14 @@ const DISPLAY_MODE_CONTROL_WIDTH = 480;
 /** Resolution is a dropdown and an Apply button: up to seventeen sizes is too many segments. */
 const RESOLUTION_CONTROL_WIDTH = 320;
 const APPLY_WIDTH = 88;
+/** Resolution's and Frame rate's up to four short segments ("Native", "720p"; "Screen", "60 fps"). */
+const SCREEN_CONTROL_WIDTH = 300;
+
+/** The Android app's Screen section (or any build with `?renderscale=`). */
+function screenSettingsShown(): boolean {
+  const env = screenEnvironment();
+  return drawsAtScreenDensity(env.platform, env.userAgent, env.search);
+}
 const LIST_ROW_HEIGHT = 36;
 const LIST_VISIBLE_ROWS = 8;
 
@@ -228,6 +242,8 @@ export class SettingsOverlay extends Phaser.Scene {
     });
     this.#draw();
     if (hasDesktopWindow()) void refreshDesktopMonitor().then(() => this.#redrawIfOpen());
+    // The Frame rate row names the screen's refresh rate once the Android app has said it.
+    if (screenSettingsShown() && knownRefreshInfo() === null) void readRefreshInfo().then(() => this.#redrawIfOpen());
     // The game's volume in the Windows mixer may have moved there since: read it fresh for the Game volume row.
     if (followsWindowsMixer()) {
       // Read it now, then follow the shell's change events, so a change in the Windows mixer shows on the Game volume
@@ -349,6 +365,7 @@ export class SettingsOverlay extends Phaser.Scene {
       steamDeck: onHandheldLinux(),
       powerSaving:
         canReadPowerSaving(detectPlatform(), globalThis.navigator?.userAgent ?? "") || powerSavingState().detected,
+      screenSettings: screenSettingsShown(),
     });
     const active = tabs.find((tab) => tab.id === lastTab) ?? tabs[0]!;
     const layout = settingsLayout(
@@ -497,6 +514,25 @@ export class SettingsOverlay extends Phaser.Scene {
     segmented("achievement-popup-size", achievementPopupSizeRowInfoOf(settings), POPUP_SIZE_CONTROL_WIDTH, (v) =>
       setPopup(nextSettingsAfterAchievementPopupSize(appSession().settings, v)),
     );
+    if (screenSettingsShown()) {
+      // The game's own size (inside the safe area) at each choice: the pixels it actually draws.
+      const { width, height } = this.scale.gameSize;
+      const screen = { width, height, devicePixelRatio: globalThis.devicePixelRatio || 1 };
+      const setScreen = (next: Settings): void => {
+        appSession().settings = next;
+        applyScreenSettings(this.game, next);
+        this.#draw();
+      };
+      segmented("render-scale", renderScaleRowInfoOf(settings, screen), SCREEN_CONTROL_WIDTH, (v) =>
+        setScreen(nextSettingsAfterRenderScale(appSession().settings, v)),
+      );
+      segmented(
+        "frame-rate",
+        frameRateRowInfoOf(settings, knownRefreshInfo()?.maxRefreshRate ?? null, powerSavingOn()),
+        SCREEN_CONTROL_WIDTH,
+        (v) => setScreen(nextSettingsAfterFrameRate(appSession().settings, v)),
+      );
+    }
     if (hasDesktopWindow()) {
       const monitor = desktopMonitor();
       const sizes = monitor === null ? [] : resolutionOptionsFor(monitor, settings.displayMode);
