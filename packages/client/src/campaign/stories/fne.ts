@@ -2,10 +2,10 @@
  * Fear No Evil (MC60): the copy for the box. Everything here is original flavor for this app; no rule lives here (see
  * `../story.ts`).
  *
- * **Comic pages.** Art Museum Heist opens on five lettered pages the owner built from Black Cat (2019) #1 (2026-10-20), in
- * `art/campaigns/fne/pages/art-heist-<n>.jpg` (1672x941 each), read panel by panel with the reader's lettered mode
- * (the captions and balloons are printed in). Panel rectangles were measured from each page's white gutters. The
- * other issues have no pages yet, so the reader skips them (an issue with no `comicBeats`). The five
+ * **Comic pages.** Art Museum Heist and The Getaway each open on five lettered pages the owner built from panels of
+ * Black Cat (2019) #1 (2026-10-20), in `art/campaigns/fne/pages/<issue>-<n>.jpg` (1672x941 each), read panel by panel
+ * with the reader's lettered mode (the captions and balloons are printed in). Panel rectangles were measured from each
+ * page's white gutters. The other issues have no pages yet, so the reader skips them (no `comicBeats`). The five
  * underling issues are dealt from the box in no fixed order (a `choice` graph), so they carry no number in the copy;
  * Kingpin is always last.
  *
@@ -70,6 +70,17 @@ const PAGES: readonly ComicPage[] = [
     { x: 51, y: 630, w: 1572, h: 216 },
   ]),
   page("art-heist-5", [{ x: 25, y: 58, w: 1622, h: 865 }]),
+  page("getaway-1", [{ x: 14, y: 13, w: 1644, h: 914 }]),
+  page("getaway-2", [
+    { x: 19, y: 16, w: 584, h: 905 },
+    { x: 619, y: 16, w: 1034, h: 905 },
+  ]),
+  page("getaway-3", [{ x: 22, y: 14, w: 1632, h: 908 }]),
+  page("getaway-4", [
+    { x: 18, y: 62, w: 1037, h: 798 },
+    { x: 1068, y: 62, w: 588, h: 798 },
+  ]),
+  page("getaway-5", [{ x: 26, y: 63, w: 1620, h: 814 }]),
 ];
 
 /** Every beat of each page, in order. */
@@ -209,7 +220,8 @@ export const FNE_STORY: CampaignStory = {
       },
       "The museum is mine now. Come and take it back.",
     ),
-    issue(
+    withComic(
+      beatsOf("getaway-1", "getaway-2", "getaway-3", "getaway-4", "getaway-5"),
       "the-getaway",
       "The Getaway",
       "An underling",
