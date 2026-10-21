@@ -2,8 +2,8 @@
  * Fear No Evil (MC60): the copy for the box. Everything here is original flavor for this app; no rule lives here (see
  * `../story.ts`).
  *
- * **Comic pages.** Art Museum Heist, The Getaway, Protection Racket and The Raft Breakout each open on five lettered pages the owner put
- * together (2026-10-20; the first two from panels of Black Cat (2019) #1, Protection Racket mostly from Daredevil (2019) #17, The Raft Breakout from New Avengers (2004) #1-3), with each title box's "Issue N:" removed
+ * **Comic pages.** All five underling issues each open on five lettered pages the owner put
+ * together (2026-10-20; the first two from panels of Black Cat (2019) #1, Protection Racket mostly from Daredevil (2019) #17, The Raft Breakout from New Avengers (2004) #1-3, Stop the Presses! from Devil's Reign (2021)), with each title box's "Issue N:" removed
  * (the owner: the underling issues play in any order), in `art/campaigns/fne/pages/<issue>-<n>.jpg` (1672x941 each), read panel by panel
  * with the reader's lettered mode (the captions and balloons are printed in). Panel rectangles were measured from each
  * page's white gutters. The other issues have no pages yet, so the reader skips them (no `comicBeats`). The five
@@ -113,6 +113,24 @@ const PAGES: readonly ComicPage[] = [
   ]),
   page("raft-breakout-4", [{ x: 13, y: 64, w: 1646, h: 826 }]),
   page("raft-breakout-5", [{ x: 18, y: 19, w: 1636, h: 901 }]),
+  page("stop-the-presses-1", [
+    // The title strip alone would crop to a sliver: the page pulled back first, then the press conference.
+    { x: 13, y: 14, w: 1647, h: 910 },
+    { x: 14, y: 303, w: 1646, h: 621 },
+  ]),
+  page("stop-the-presses-2", [
+    { x: 15, y: 53, w: 1077, h: 834 },
+    { x: 1105, y: 53, w: 553, h: 834 },
+  ]),
+  page("stop-the-presses-3", [
+    { x: 26, y: 77, w: 967, h: 777 },
+    { x: 1007, y: 77, w: 643, h: 777 },
+  ]),
+  page("stop-the-presses-4", [
+    { x: 11, y: 50, w: 565, h: 846 },
+    { x: 589, y: 50, w: 1071, h: 846 },
+  ]),
+  page("stop-the-presses-5", [{ x: 10, y: 8, w: 1653, h: 905 }]),
 ];
 
 /** Every beat of each page, in order. */
@@ -318,7 +336,14 @@ export const FNE_STORY: CampaignStory = {
       },
       "The cells are open. The city is next.",
     ),
-    issue(
+    withComic(
+      beatsOf(
+        "stop-the-presses-1",
+        "stop-the-presses-2",
+        "stop-the-presses-3",
+        "stop-the-presses-4",
+        "stop-the-presses-5",
+      ),
       "stop-the-presses",
       "Stop the Presses!",
       "An underling",
