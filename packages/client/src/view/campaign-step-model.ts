@@ -35,6 +35,7 @@ import {
   type GameEvent,
   type GameState,
 } from "@mc/engine";
+import { POOL_SCENARIOS } from "../content/pool.js";
 import type { SessionConfig } from "../engine/host.js";
 import type { HandledWords } from "../campaign/story.js";
 import { renderLogValue, type CardNameOf } from "./campaign-log-model.js";
@@ -251,6 +252,21 @@ export function modularPicksOf(
 }
 
 /**
+ * Protection Racket's "each player chooses a main scheme" (MC60, standard mode) for a campaign issue: seat N takes the
+ * Nth of the scenario's schemes, all different, as quick play's setup does (`setup-draft.ts`) until the Briefing has a
+ * picker. Expert draws them at random in the engine, and every other scenario has one main scheme: none are sent.
+ */
+function campaignMainSchemePicks(
+  scenarioId: string,
+  difficulty: SessionConfig["difficulty"],
+  seats: number,
+): readonly string[] | undefined {
+  const choice = POOL_SCENARIOS.find((scenario) => (scenario.id as string) === scenarioId)?.mainSchemeChoice;
+  if (!choice || difficulty === "expert") return undefined;
+  return choice.cardIds.slice(0, seats).map((id) => id as string);
+}
+
+/**
  * A composed log (`log.attempt` present — `resolveBetweenGames`'s `"done"` result) as the `SessionConfig` the
  * existing host path starts (`session-core.ts`'s `scenarioFor` attaches `config.campaign` to `GameSetupConfig`
  * unchanged, and turns `config.campaignEncounterSets` into the composed sets' actual cards the same way). Throws
@@ -269,9 +285,11 @@ export function campaignLaunchConfig(definition: CampaignDefinition, log: Campai
   const picks = modularPicksOf(definition, log, start.scenarioId);
   // A node's required modular sets (MC40 p. 14) ride along as fixed: the picks come back untouched when it names none.
   const modularSetIds = campaignModularSetIds(start, [], picks.modularSetIds);
+  const difficulty = difficultyOf(start.modes);
+  const mainSchemePicks = campaignMainSchemePicks(start.scenarioId as string, difficulty, start.input.seats.length);
   return {
     scenarioId: start.scenarioId,
-    difficulty: difficultyOf(start.modes),
+    difficulty,
     modes: start.modes,
     players: start.input.seats.map((seat) => ({
       identityCardId: seat.identityCardId,
@@ -283,6 +301,10 @@ export function campaignLaunchConfig(definition: CampaignDefinition, log: Campai
     campaignEncounterSets: start.encounterSets,
     ...picks,
     ...(modularSetIds ? { modularSetIds } : {}),
+    // MC60 p. 9 step 5's villain, recorded by the Briefing (once never sent, so every Fear No Evil
+    // game was built with the scenario's default villain, Hammerhead).
+    ...(start.villain ? { villainSetId: start.villain } : {}),
+    ...(mainSchemePicks ? { mainSchemePicks } : {}),
     ...(log.removedFromCampaign.length > 0
       ? { campaignRemovedCards: log.removedFromCampaign.map((face) => face.cardId) }
       : {}),
