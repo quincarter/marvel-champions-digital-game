@@ -3,9 +3,10 @@
 > **Source:** [mc_rulesreference_v16_compressed.pdf](https://hallofheroeslcg.com/wp-content/uploads/2024/07/mc_rulesreference_v16_compressed.pdf)
 > (FFG, hosted by Hall of Heroes). Converted mechanically with pymupdf4llm on 2026-10-21; layout artifacts
 > (broken columns, index dot leaders) are left as converted.
-> **Superseded:** RRG v1.8 ([`mc_rulesreference_v18_compressed.md`](mc_rulesreference_v18_compressed.md)) is the
-> current rules authority. Use this copy to read what the rules said while the post-RRG 1.6 rulings
-> ([`docs/rulings/post-rrg-1-6/`](docs/rulings/post-rrg-1-6/)) were issued, never to overrule v1.8.
+> **Historical, not current:** RRG v1.8 ([`mc_rulesreference_v18_compressed.md`](mc_rulesreference_v18_compressed.md))
+> is the current rules authority and wins wherever this version differs. This copy is kept for history and for
+> resolving conflicts, such as reading what the rules said when the post-RRG 1.6 rulings
+> ([`docs/rulings/post-rrg-1-6/`](docs/rulings/post-rrg-1-6/)) were issued.
 > Each `<!-- PDF page N -->` marker starts a page of the PDF; the printed page number appears near the end of it.
 
 <!-- PDF page 1 -->

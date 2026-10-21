@@ -57,8 +57,9 @@ Hall of Heroes hosts every version:
 | v1.1                          | [mc_rulesreference_v11.pdf](https://hallofheroeslcg.com/wp-content/uploads/2020/04/mc_rulesreference_v11.pdf)                               | —                                                                                  |
 | v1.0                          | [marvelrrg10.pdf](https://hallofheroeslcg.com/wp-content/uploads/2020/09/marvelrrg10.pdf)                                                   | —                                                                                  |
 
-Only v1.8's PDF is here; older versions are history and v1.8 replaces them. v1.6 also has a Markdown copy, for reading
-the rules the post-RRG 1.6 rulings below were answered under; it is never cited over v1.8.
+Only v1.8's PDF is here; older versions are history and v1.8 replaces them. v1.6 also has a Markdown copy, kept for history
+and for resolving conflicts (what the rules said when the post-RRG 1.6 rulings below were issued); like every RRG
+before v1.8, it is never cited over v1.8.
 [`marvel_champions_rules-marvelcdb.md`](../../marvel_champions_rules-marvelcdb.md) is MarvelCDB's rules page, an older
 RRG text: useful for wording searches, never cited over v1.8.
 
