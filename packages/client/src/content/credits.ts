@@ -227,10 +227,11 @@ export const CREDITS: readonly CreditEntry[] = [
     id: "fne-art-heist",
     group: "story",
     title: "Fear No Evil: issue opener pages",
-    shownIn: "The Art Museum Heist, The Getaway and Protection Racket openers in the Fear No Evil campaign",
+    shownIn:
+      "The Art Museum Heist, The Getaway, Protection Racket and The Raft Breakout openers in the Fear No Evil campaign",
     // The owner, 2026-10-20.
     credit:
-      "Comic pages the owner put together for the issue openers. Art Museum Heist and The Getaway: built from panels of Black Cat (2019) #1 (Marvel Comics), written by Jed MacKay, art by Travel Foreman, Mike Dowling and Nao Fuji, cover by J. Scott Campbell. Protection Racket: mostly from panels of Daredevil (2019) #17 (Marvel Comics), written by Chip Zdarsky, art by Jorge Fornés, cover by Julian Totino Tedesco.",
+      "Comic pages the owner put together for the issue openers. Art Museum Heist and The Getaway: built from panels of Black Cat (2019) #1 (Marvel Comics), written by Jed MacKay, art by Travel Foreman, Mike Dowling and Nao Fuji, cover by J. Scott Campbell. Protection Racket: mostly from panels of Daredevil (2019) #17 (Marvel Comics), written by Chip Zdarsky, art by Jorge Fornés, cover by Julian Totino Tedesco. The Raft Breakout: from New Avengers (2004) #1-3 (Marvel Comics), written by Brian Michael Bendis, pencils by David Finch, inks by Danny Miki, Mark Morales, Allen Martinez and Victor Olazaba, colors by Frank D'Armata.",
     notice: MARVEL,
     folders: ["art/campaigns/fne/pages"],
   },

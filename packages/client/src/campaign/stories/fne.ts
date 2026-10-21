@@ -2,8 +2,8 @@
  * Fear No Evil (MC60): the copy for the box. Everything here is original flavor for this app; no rule lives here (see
  * `../story.ts`).
  *
- * **Comic pages.** Art Museum Heist, The Getaway and Protection Racket each open on five lettered pages the owner put
- * together (2026-10-20; the first two from panels of Black Cat (2019) #1, Protection Racket mostly from Daredevil (2019) #17), with each title box's "Issue N:" removed
+ * **Comic pages.** Art Museum Heist, The Getaway, Protection Racket and The Raft Breakout each open on five lettered pages the owner put
+ * together (2026-10-20; the first two from panels of Black Cat (2019) #1, Protection Racket mostly from Daredevil (2019) #17, The Raft Breakout from New Avengers (2004) #1-3), with each title box's "Issue N:" removed
  * (the owner: the underling issues play in any order), in `art/campaigns/fne/pages/<issue>-<n>.jpg` (1672x941 each), read panel by panel
  * with the reader's lettered mode (the captions and balloons are printed in). Panel rectangles were measured from each
  * page's white gutters. The other issues have no pages yet, so the reader skips them (no `comicBeats`). The five
@@ -104,6 +104,15 @@ const PAGES: readonly ComicPage[] = [
     // The page pulled back to show its "Suit up!" strip with the panels above it (a strip alone would crop to a sliver).
     { x: 30, y: 25, w: 1614, h: 895 },
   ]),
+  page("raft-breakout-1", [{ x: 31, y: 101, w: 1610, h: 746 }]),
+  page("raft-breakout-2", [{ x: 17, y: 16, w: 1639, h: 891 }]),
+  page("raft-breakout-3", [
+    { x: 20, y: 18, w: 659, h: 896 },
+    { x: 693, y: 18, w: 959, h: 450 },
+    { x: 693, y: 478, w: 959, h: 436 },
+  ]),
+  page("raft-breakout-4", [{ x: 13, y: 64, w: 1646, h: 826 }]),
+  page("raft-breakout-5", [{ x: 18, y: 19, w: 1636, h: 901 }]),
 ];
 
 /** Every beat of each page, in order. */
@@ -289,7 +298,8 @@ export const FNE_STORY: CampaignStory = {
       },
       "Everyone pays. You are no different.",
     ),
-    issue(
+    withComic(
+      beatsOf("raft-breakout-1", "raft-breakout-2", "raft-breakout-3", "raft-breakout-4", "raft-breakout-5"),
       "the-raft-breakout",
       "The Raft Breakout",
       "An underling",
