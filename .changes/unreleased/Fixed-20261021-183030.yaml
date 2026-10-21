@@ -1,3 +1,0 @@
-kind: Fixed
-body: The game no longer repaints a frame that looks the same as the last one, and draws without 4x multisampling at 2x density and up, so a high-resolution phone's GPU isn't kept busy while you read or scroll (#328)
-time: 2026-10-21T18:30:30.0121935-04:00

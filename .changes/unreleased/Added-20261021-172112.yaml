@@ -1,3 +1,0 @@
-kind: Added
-body: Every pull request now builds an Android preview APK next to its Netlify preview, signed with the release key so testers can install it over the app, and links it in a PR comment (#328)
-time: 2026-10-21T17:21:12.9834976-04:00
