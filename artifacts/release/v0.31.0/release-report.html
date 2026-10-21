@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fear No Evil + More</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f2ede1;
+    --paper-2: #e8e1d1;
+    --ink: #15110e;
+    --red: #c8102e;
+    --blue: #1f5fae;
+    --green: #1e7a4c;
+    --gold: #f0b42a;
+    --muted: #5d554c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--paper); color: var(--ink); font-family: "Public Sans", sans-serif; width: 1440px; }
+  .display { font-family: "Bangers", cursive; font-weight: 400; letter-spacing: 0.5px; }
+  .mono { font-family: "IBM Plex Mono", monospace; }
+  .eyebrow { font-size: 13px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; }
+
+  /* Header */
+  header { background: var(--ink); color: var(--paper); padding: 40px 52px 44px; position: relative; overflow: hidden; }
+  header .eyebrow { color: #cfc6b6; }
+  header h1 { font-size: 112px; line-height: 0.92; margin-top: 14px; color: var(--paper); }
+  header h1 .plus { color: var(--gold); }
+  header .meta { position: absolute; right: 52px; bottom: 44px; text-align: right; font-size: 14px; line-height: 1.9; color: #cfc6b6; }
+
+  /* The in-game popup, rebuilt at release-notes size with the game's own trophy */
+  .popup-wrap { padding: 34px 52px 0; display: flex; align-items: center; gap: 28px; }
+  .popup { display: flex; align-items: center; background: var(--ink); border: 3px solid var(--gold); border-radius: 70px; height: 112px; padding-right: 40px; box-shadow: 0 10px 0 rgba(21, 17, 14, 0.18); flex: 0 0 auto; }
+  .popup .trophy { width: 124px; height: 124px; margin-left: -6px; border-radius: 50%; overflow: hidden; flex: 0 0 auto;
+    background: url(img/popup-source.png) no-repeat; background-size: 2880px 1800px; background-position: -873px -837px; }
+  .popup .text { margin-left: 22px; }
+  .popup .kicker { color: var(--gold); font-size: 17px; font-weight: 800; letter-spacing: 2.4px; }
+  .popup .title { color: var(--paper); font-size: 34px; font-weight: 800; margin-top: 2px; }
+  .popup .pts { color: var(--paper); font-size: 17px; font-weight: 800; letter-spacing: 1.5px; margin-left: 44px; align-self: flex-start; margin-top: 26px; }
+  .popup-note { font-size: 15px; color: var(--muted); line-height: 1.5; max-width: 360px; }
+  .popup-note b { color: var(--ink); }
+
+  main { padding: 34px 52px 0; }
+  .grid { display: grid; grid-template-columns: 1.45fr 1fr 1fr 1fr; grid-template-rows: auto auto; gap: 22px; }
+  .tile { border: 3px solid var(--ink); background: #fff; padding: 22px 22px 20px; }
+  .tile h3 { font-size: 30px; line-height: 1; }
+  .tile .num { font-size: 84px; line-height: 1; margin-top: 12px; }
+  .tile p { font-size: 15px; line-height: 1.45; color: var(--muted); margin-top: 12px; }
+  .tile.hero { grid-row: span 2; background: var(--red); color: var(--paper); border-color: var(--red); display: flex; flex-direction: column; }
+  .tile.hero h3 { font-size: 36px; }
+  .tile.hero .num { font-size: 240px; line-height: 0.9; margin-top: 18px; }
+  .tile.hero p { color: var(--paper); font-size: 18px; font-weight: 700; margin-top: auto; }
+  .blue { color: var(--blue); } .green { color: var(--green); } .red { color: var(--red); }
+
+  section { margin-top: 26px; border: 3px solid var(--ink); background: #fff; }
+  section > .bar { background: var(--ink); color: var(--paper); padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; }
+  section > .bar h2 { font-size: 30px; line-height: 1; }
+  section > .bar .eyebrow { color: #cfc6b6; font-size: 12px; }
+  .body { padding: 24px; }
+
+  /* Cards */
+  .cards { display: grid; gap: 18px; }
+  .cards.heroes { grid-template-columns: repeat(6, 1fr); }
+  .cards.villains { grid-template-columns: repeat(6, 1fr); }
+  .card img { width: 100%; aspect-ratio: 5 / 7; object-fit: cover; border-radius: 10px; border: 2px solid var(--ink); display: block; background: var(--paper-2); }
+  .card.side img { aspect-ratio: auto; height: auto; }
+  .card .name { font-size: 22px; margin-top: 10px; line-height: 1; }
+  .card .what { font-size: 13px; color: var(--muted); margin-top: 4px; line-height: 1.35; }
+  .tag { display: inline-block; border: 2px solid var(--ink); font-size: 11px; font-weight: 800; letter-spacing: 1.4px; padding: 2px 7px; margin-top: 6px; }
+  .tag.new { background: var(--gold); border-color: var(--gold); }
+
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  .two > section { margin-top: 26px; }
+  .feature { padding: 18px 0; border-top: 1px solid #d6cfc0; display: grid; grid-template-columns: 130px 1fr; gap: 18px; }
+  .feature:first-child { border-top: none; padding-top: 0; }
+  .feature .big { font-size: 56px; line-height: 0.9; }
+  .feature .big small { display: block; font-family: "Public Sans", sans-serif; font-size: 11px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
+  .feature h4 { font-size: 19px; font-weight: 800; }
+  .feature p { font-size: 15px; line-height: 1.5; color: var(--muted); margin-top: 4px; }
+
+  .comics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .comics figure img { width: 100%; height: auto; border: 2px solid var(--ink); display: block; }
+  .comics figcaption { font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; margin-top: 8px; }
+  .comics-note { font-size: 15px; color: var(--muted); line-height: 1.5; margin-top: 18px; }
+
+  .eggs { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 26px; }
+  .egg { display: flex; gap: 14px; align-items: flex-start; }
+  .egg .dot { flex: 0 0 34px; height: 34px; border-radius: 50%; background: var(--gold); display: flex; align-items: center; justify-content: center; font-family: "Bangers", cursive; font-size: 20px; }
+  .egg b { font-size: 16px; }
+  .egg p { font-size: 14px; color: var(--muted); line-height: 1.45; margin-top: 2px; }
+  .egg-art { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 20px; }
+  .egg-art img { width: 100%; height: 190px; object-fit: cover; object-position: center 30%; border: 2px solid var(--ink); display: block; }
+  .egg-art figcaption { font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; margin-top: 6px; }
+
+  /* Fix board */
+  table { width: 100%; border-collapse: collapse; }
+  thead th { background: var(--paper-2); text-align: left; font-size: 12px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase; padding: 12px 20px; }
+  tbody td { padding: 13px 20px; border-top: 1px solid #ddd6c6; font-size: 15px; vertical-align: top; }
+  tbody td:first-child { font-weight: 700; width: 46%; }
+  tbody td.area { color: var(--muted); width: 22%; }
+  .kind { display: inline-block; border: 2px solid var(--ink); font-size: 11px; font-weight: 800; letter-spacing: 1.4px; padding: 2px 8px; }
+  .kind.rules { background: #dfe8f5; border-color: var(--blue); color: var(--blue); }
+  .kind.fix { background: #fff; }
+  .kind.feel { background: #e2f0e7; border-color: var(--green); color: var(--green); }
+
+  /* Code shipped */
+  .code { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .box { background: var(--paper-2); border: 2px solid var(--ink); padding: 14px 16px; }
+  .box .eyebrow { font-size: 11px; color: var(--muted); }
+  .box .display { font-size: 52px; line-height: 1; margin-top: 6px; }
+  .lines { margin-top: 18px; display: flex; align-items: baseline; gap: 14px; }
+  .lines .display { font-size: 44px; }
+  .kinds { margin-top: 18px; }
+  .kinds .row { display: grid; grid-template-columns: 90px 1fr 44px; gap: 12px; align-items: center; margin-top: 9px; font-size: 14px; font-weight: 800; }
+  .kinds .track { height: 16px; border: 2px solid var(--ink); background: var(--paper); position: relative; }
+  .kinds .fill { position: absolute; inset: 0 auto 0 0; background: var(--ink); }
+  .kinds .n { text-align: right; font-family: "Bangers", cursive; font-weight: 400; font-size: 24px; }
+
+
+  /* Spotlights: the release's headline features, each a screenshot-led band */
+  .spot { margin-top: 30px; border: 3px solid var(--ink); background: #fff; }
+  .spot .head { padding: 26px 28px 22px; display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; }
+  .spot .head h2 { font-size: 64px; line-height: 0.95; }
+  .spot .head .eyebrow { color: inherit; opacity: 0.85; text-align: right; line-height: 1.6; }
+  .spot-red .head { background: var(--red); color: var(--paper); }
+  .spot-ink .head { background: var(--ink); color: var(--paper); }
+  .spot .head h2 .gold { color: var(--gold); }
+  .spot .content { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 28px; padding: 28px; }
+  .spot .content.flip { grid-template-columns: 1.1fr 0.9fr; }
+  .lede { font-size: 20px; line-height: 1.5; font-weight: 600; }
+  .facts { margin-top: 20px; display: grid; gap: 12px; }
+  .fact { display: grid; grid-template-columns: 92px 1fr; gap: 14px; align-items: start; border-top: 1px solid #ddd6c6; padding-top: 12px; }
+  .fact .display { font-size: 40px; line-height: 0.9; }
+  .fact b { font-size: 16px; }
+  .fact p { font-size: 14px; color: var(--muted); line-height: 1.45; margin-top: 2px; }
+  .shot { border: 2px solid var(--ink); display: block; width: 100%; height: auto; }
+  .shots { display: grid; gap: 16px; align-content: start; }
+  .shots figcaption { font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; margin-top: 6px; }
+  .popcrop { width: 100%; aspect-ratio: 1036 / 490; border: 2px solid var(--gold); background: url(img/popup-stack-open.png) no-repeat; background-size: 278% auto; background-position: 50% 50%; }
+  .families { margin-top: 22px; }
+  .families .row { display: grid; grid-template-columns: 130px 1fr 40px; gap: 10px; align-items: center; margin-top: 7px; font-size: 12px; font-weight: 800; letter-spacing: 0.8px; }
+  .families .track { height: 12px; border: 2px solid var(--ink); background: var(--paper); position: relative; }
+  .families .fill { position: absolute; inset: 0 auto 0 0; background: var(--red); }
+  .families .n { text-align: right; font-family: "Bangers", cursive; font-weight: 400; font-size: 20px; }
+
+  footer { display: flex; justify-content: space-between; align-items: flex-end; padding: 28px 52px 40px; gap: 40px; }
+  footer p { font-size: 17px; font-weight: 700; line-height: 1.45; max-width: 860px; }
+  footer .mono { font-size: 12px; color: var(--muted); text-align: right; line-height: 1.8; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">Marvel Champions: Digital Edition · Release report</div>
+  <h1 class="display">Fear No Evil<br><span class="plus">+ More</span></h1>
+  <div class="meta mono">v0.30.0 → v0.31.0 · Sun Oct 18 → Wed Oct 21<br>quincarter/marvel-champions-digital-game</div>
+</header>
+
+<div class="popup-wrap">
+  <div class="popup">
+    <div class="trophy" role="img" aria-label="The game's trophy badge"></div>
+    <div class="text">
+      <div class="kicker">ACHIEVEMENT UNLOCKED</div>
+      <div class="title">Fear No Evil + More</div>
+    </div>
+    <div class="pts">+202 changes</div>
+  </div>
+  <p class="popup-note"><b>That's the real popup.</b> It slides in when you earn something: title bar or mid-screen, small to large, and several at once stack into one you can tap open.</p>
+</div>
+
+<main>
+  <div class="grid">
+    <div class="tile hero">
+      <h3 class="display">Achievements</h3>
+      <div class="num display">312</div>
+      <p>A Trophy Room, nine ranks from Sidekick in Training to Ultimate Champion, champion points, a rank badge on the Title and an in-game popup.</p>
+    </div>
+    <div class="tile">
+      <h3 class="display">Heroes suited up</h3>
+      <div class="num display blue">+4</div>
+      <p>Daredevil, Echo, Jessica Jones and Luke Cage, fully scripted with starter decks. Plus She-Hulk and Vision as Civil War leaders.</p>
+    </div>
+    <div class="tile">
+      <h3 class="display">Villains defeated</h3>
+      <div class="num display red">+6</div>
+      <p>Hammerhead, Bullseye, Electro, Purple Man, Typhoid Mary and Kingpin, with 6 new modular sets and 6 scenarios.</p>
+    </div>
+    <div class="tile">
+      <h3 class="display">Cards added</h3>
+      <div class="num display">401</div>
+      <p>Fear No Evil 199, Synthezoid Smackdown 83, Jessica Jones 42, Luke Cage 37, and 40 Shadowland previews.</p>
+    </div>
+    <div class="tile">
+      <h3 class="display">Comic pages</h3>
+      <div class="num display green">38</div>
+      <p>Each Fear No Evil issue opens on its own comic, built from the scenario and the villain you face.</p>
+    </div>
+    <div class="tile">
+      <h3 class="display">Rules engine</h3>
+      <div class="num display blue">62</div>
+      <p>Engine changes: per-player main schemes, villain choices, side decks and dozens of RRG 1.8 rulings.</p>
+    </div>
+    <div class="tile">
+      <h3 class="display">Credits rolled</h3>
+      <div class="num display">34</div>
+      <p>A new Art &amp; Credits screen names who made the scans, art, comics, music and tools.</p>
+    </div>
+  </div>
+
+
+  <div class="spot spot-red">
+    <div class="head"><h2 class="display">Achievements<br>+ the Trophy Room</h2><span class="eyebrow">New in this release<br>312 to earn · 9 ranks</span></div>
+    <div class="content">
+      <div>
+        <p class="lede">Everything you do now counts. Wins, villains, campaigns, every hero you play, and a few things you'd rather forget earn achievements, and their points climb you from Sidekick in Training to Ultimate Champion.</p>
+        <div class="facts">
+          <div class="fact"><span class="display red">312</span><div><b>Achievements in nine groups</b><p>Every hero gets one named for their line: "Another!", "I Am Iron Man", "Wakanda Forever!".</p></div></div>
+          <div class="fact"><span class="display">9</span><div><b>Ranks, shown on the Title</b><p>A rank badge with your points and the bar to the next rank, a Rank up banner and its own sound.</p></div></div>
+          <div class="fact"><span class="display">3</span><div><b>Popup settings</b><p>How long it stays, where it shows (title bar, top, middle, bottom) and its size. Several at once stack into one you tap open.</p></div></div>
+          <div class="fact"><span class="display">9</span><div><b>Silly packs</b><p>The funny achievements pay in silly packs instead of points, and achievements open new Extras.</p></div></div>
+        </div>
+        <div class="families"><div class="row"><span>HEROES</span><div class="track"><div class="fill" style="width:100.0%"></div></div><span class="n">157</span></div><div class="row"><span>VILLAINS</span><div class="track"><div class="fill" style="width:50.3%"></div></div><span class="n">79</span></div><div class="row"><span>CAMPAIGNS</span><div class="track"><div class="fill" style="width:13.4%"></div></div><span class="n">21</span></div><div class="row"><span>FEATS</span><div class="track"><div class="fill" style="width:12.7%"></div></div><span class="n">20</span></div><div class="row"><span>EXPERT &amp; HEROIC</span><div class="track"><div class="fill" style="width:8.9%"></div></div><span class="n">14</span></div><div class="row"><span>THE FUNNY ONES</span><div class="track"><div class="fill" style="width:5.7%"></div></div><span class="n">9</span></div><div class="row"><span>BATTLES WON</span><div class="track"><div class="fill" style="width:4.5%"></div></div><span class="n">7</span></div><div class="row"><span>DECK BUILDING</span><div class="track"><div class="fill" style="width:1.9%"></div></div><span class="n">3</span></div><div class="row"><span>TEAM-UP STORIES</span><div class="track"><div class="fill" style="width:1.3%"></div></div><span class="n">2</span></div></div>
+      </div>
+      <div class="shots">
+        <figure><img class="shot" src="img/trophies-decks.png" alt="The Trophy Room, with the Deck building group earned"><figcaption>The Trophy Room</figcaption></figure>
+        <figure><div class="popcrop" role="img" aria-label="Three achievements unlocked, opened into a list"></div><figcaption>Three at once, tapped open</figcaption></figure>
+      </div>
+    </div>
+  </div>
+
+  <div class="spot spot-ink">
+    <div class="head"><h2 class="display">The Fear No Evil<br><span class="gold">campaign</span></h2><span class="eyebrow">Daredevil's box · 6 scenarios<br>Kingpin waits at the end</span></div>
+    <div class="content flip">
+      <div class="shots">
+        <figure><img class="shot" src="img/fne-art-heist-reader.png" alt="An issue's comic in the reader"><figcaption>Every issue opens on its comic</figcaption></figure>
+        <figure><img class="shot" src="img/villain-loses-with-60001a.jpg" alt="Kingpin's transfer with Matt Murdock" style="aspect-ratio: 16 / 7; object-fit: cover; object-position: center 35%;"><figcaption>The ending you get with Daredevil seated</figcaption></figure>
+      </div>
+      <div>
+        <p class="lede">Five scenarios you can play in any order against the villain the campaign gives you, then the Kingpin finale. Two are drawn before each issue, and the ones you leave behind keep progressing.</p>
+        <div class="facts">
+          <div class="fact"><span class="display red">5×5</span><div><b>Schemes and villains, mixed</b><p>Hammerhead, Bullseye, Electro, Purple Man or Typhoid Mary against any of the five schemes. A first playthrough can follow the recommended order, or go random.</p></div></div>
+          <div class="fact"><span class="display">38</span><div><b>Comic pages</b><p>A five-page story for each scheme, built around the villain you face, and the Final Showdown.</p></div></div>
+          <div class="fact"><span class="display">8</span><div><b>Outcome scenes</b><p>Game Over shows that villain winning or going down. Win the finale with Daredevil seated for a different ending.</p></div></div>
+          <div class="fact"><span class="display">4</span><div><b>New heroes</b><p>Daredevil and Echo from the box, Jessica Jones and Luke Cage from their packs, each with a starter deck.</p></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="spot">
+    <div class="head" style="border-bottom: 3px solid var(--ink)"><h2 class="display">Extras +<br>Art &amp; Credits</h2><span class="eyebrow">378 things to open<br>34 credits</span></div>
+    <div class="content">
+      <div>
+        <p class="lede">Extras is where everything you unlock lives: stories, rulebooks, heroes, villains, artwork and 160 songs. It now links to the Trophy Room and to a new Art &amp; Credits screen.</p>
+        <div class="facts">
+          <div class="fact"><span class="display">34</span><div><b>Credits, by name</b><p>Card scans, comic runs and their creators, the soundtrack, the sound effects and the tools, under the fan-project notice.</p></div></div>
+          <div class="fact"><span class="display">6</span><div><b>New issue comics</b><p>The Fear No Evil stories join Stories, readable again any time.</p></div></div>
+          <div class="fact"><span class="display">1</span><div><b>Earned item</b><p>Beat Ultron to earn Hall of Heroes' Drone art for facedown Drones, switchable in Settings.</p></div></div>
+        </div>
+      </div>
+      <div class="shots">
+        <figure><img class="shot" src="img/extras.png" alt="Extras"><figcaption>Extras</figcaption></figure>
+        <figure><img class="shot" src="img/credits.png" alt="Art and Credits"><figcaption>Art &amp; Credits</figcaption></figure>
+      </div>
+    </div>
+  </div>
+
+  <section>
+    <div class="bar"><h2 class="display">Heroes suited up</h2><span class="eyebrow">Playable now · starter decks included</span></div>
+    <div class="body">
+      <div class="cards heroes">
+        <div class="card"><img src="img/60001a.png" alt="Daredevil"><div class="name display">Daredevil</div><div class="what">Justice · his own Sense deck</div><span class="tag new">FEAR NO EVIL</span></div>
+        <div class="card"><img src="img/60037a.png" alt="Echo"><div class="name display">Echo</div><div class="what">Protection · copies what she watches</div><span class="tag new">FEAR NO EVIL</span></div>
+        <div class="card"><img src="img/61001a.png" alt="Jessica Jones"><div class="name display">Jessica Jones</div><div class="what">Justice · her own nemesis, Purple Man</div><span class="tag">HERO PACK</span></div>
+        <div class="card"><img src="img/62001a.png" alt="Luke Cage"><div class="name display">Luke Cage</div><div class="what">Leadership · any number of tough cards</div><span class="tag">HERO PACK</span></div>
+        <div class="card"><img src="img/57001.png" alt="She-Hulk leader"><div class="name display">She-Hulk</div><div class="what">Civil War leader · her own encounter set</div><span class="tag">SYNTHEZOID</span></div>
+        <div class="card"><img src="img/57040.png" alt="Vision leader"><div class="name display">Vision</div><div class="what">Civil War leader · Dense and Intangible</div><span class="tag">SYNTHEZOID</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="bar"><h2 class="display">The rogues' gallery</h2><span class="eyebrow">Fear No Evil · pick the villain, keep the scheme</span></div>
+    <div class="body">
+      <div class="cards villains">
+        <div class="card"><img src="img/60086.png" alt="Hammerhead"><div class="name display">Hammerhead</div><div class="what">Stuns whoever he damages</div></div>
+        <div class="card"><img src="img/60065.png" alt="Bullseye"><div class="name display">Bullseye</div><div class="what">Every boost card hits back</div></div>
+        <div class="card"><img src="img/60076.png" alt="Electro"><div class="name display">Electro</div><div class="what">Charges up, then overloads</div></div>
+        <div class="card"><img src="img/60097.png" alt="Purple Man"><div class="name display">Purple Man</div><div class="what">Turns your allies against you</div></div>
+        <div class="card"><img src="img/60110a.png" alt="Typhoid Mary"><div class="name display">Typhoid Mary</div><div class="what">Flips every villain phase</div></div>
+        <div class="card"><img src="img/60159a.png" alt="Kingpin"><div class="name display">Kingpin</div><div class="what">The finale: earn Public Support first</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="bar"><h2 class="display">New comic extras</h2><span class="eyebrow">Read them on the Briefing, keep them in Extras</span></div>
+    <div class="body">
+      <div class="comics">
+        <figure><img src="img/art-heist-1.jpg" alt=""><figcaption>Art Museum Heist</figcaption></figure>
+        <figure><img src="img/getaway-1.jpg" alt=""><figcaption>The Getaway</figcaption></figure>
+        <figure><img src="img/protection-racket-1.jpg" alt=""><figcaption>Protection Racket</figcaption></figure>
+        <figure><img src="img/raft-breakout-1.jpg" alt=""><figcaption>The Raft Breakout</figcaption></figure>
+        <figure><img src="img/stop-the-presses-1.jpg" alt=""><figcaption>Stop the Presses!</figcaption></figure>
+        <figure><img src="img/finale-1.jpg" alt=""><figcaption>Kingpin finale</figcaption></figure>
+      </div>
+      <p class="comics-note">Adapted from panels of Black Cat (2019) #1, Daredevil (2019) #17, New Avengers (2004) #1-3 and Devil's Reign, credited in full in Art &amp; Credits. Issues no longer print an issue number, since they play in any order.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="bar"><h2 class="display">Easter eggs</h2><span class="eyebrow">Go find them</span></div>
+    <div class="body">
+      <div class="eggs">
+          <div class="egg"><div class="dot">1</div><div><b>I Love You 3000</b><p>Land the final blow on Thanos as Iron Man.</p></div></div>
+          <div class="egg"><div class="dot">2</div><div><b>Studying Like Doctor Strange</b><p>Finish every How to Play lesson.</p></div></div>
+          <div class="egg"><div class="dot">3</div><div><b>Run Before You Can Walk</b><p>Flip on Unlock everything. Tony approves.</p></div></div>
+          <div class="egg"><div class="dot">4</div><div><b>Drone On</b><p>Beat Ultron to earn Hall of Heroes' Drone art for facedown Drones.</p></div></div>
+          <div class="egg"><div class="dot">5</div><div><b>The Murdock ending</b><p>Win the finale with Daredevil seated for a different Kingpin scene.</p></div></div>
+          <div class="egg"><div class="dot">6</div><div><b>Silly packs</b><p>Lose enough and the funny achievements pay out in silly packs, not points.</p></div></div>
+        </div>
+        <div class="egg-art">
+          <figure><img src="img/villain-loses-with-60001a.jpg" alt="Kingpin's transfer with Matt Murdock"><figcaption>The Murdock ending</figcaption></figure>
+          <figure><img src="img/purple-man-wins.jpg" alt="Purple Man wins"><figcaption>When Purple Man wins</figcaption></figure>
+        </div>
+      </div>
+  </section>
+
+  <section>
+    <div class="bar"><h2 class="display">The threat board</h2><span class="eyebrow">Big fixes and enhancements</span></div>
+    <table>
+      <thead><tr><th>Change</th><th>Where</th><th>Kind</th></tr></thead>
+      <tbody>
+        <tr><td>A facedown encounter card stays a card back until the villain phase reveals it (#311)</td><td class="area">Villain phase</td><td><span class="kind fix">BUG</span></td></tr>
+        <tr><td>Ultron Drones no longer tell you which card is underneath (#291)</td><td class="area">Log and recap</td><td><span class="kind fix">BUG</span></td></tr>
+        <tr><td>"Each player" picks from a shared pile go in the order the first player chooses</td><td class="area">Zola, Kingpin's Underlings, the Raft</td><td><span class="kind rules">RULES</span></td></tr>
+        <tr><td>Untargeted picks and ties on most or least threat go to the first player</td><td class="area">Wrecking Crew, Crossfire</td><td><span class="kind rules">RULES</span></td></tr>
+        <tr><td>Thanos's Armor and Sanctuary resolve in the right order, tough card first</td><td class="area">Thanos</td><td><span class="kind rules">RULES</span></td></tr>
+        <tr><td>Reveal responses no longer fire on cards from under a card or a search (FFG, Sep 14)</td><td class="area">Black Widow and 13 more</td><td><span class="kind rules">RULES</span></td></tr>
+        <tr><td>Encounter options you can't resolve are no longer offered</td><td class="area">Stun, confuse, Disarm</td><td><span class="kind rules">RULES</span></td></tr>
+        <tr><td>148 card scans with see-through text boxes are solid again</td><td class="area">Card art</td><td><span class="kind fix">BUG</span></td></tr>
+        <tr><td>Hero art crops around the hero, not the middle of the picture</td><td class="area">Seats, cards, avatars</td><td><span class="kind feel">POLISH</span></td></tr>
+        <tr><td>Side decks sit beside the play area as full cards</td><td class="area">Sense and Invocation decks</td><td><span class="kind feel">POLISH</span></td></tr>
+        <tr><td>Coming back to an issue left on the table resumes that game and its comic</td><td class="area">Campaigns</td><td><span class="kind fix">BUG</span></td></tr>
+        <tr><td>Hidden-hand picks show card backs you can choose but never peek at</td><td class="area">Choices</td><td><span class="kind feel">POLISH</span></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <div class="bar"><h2 class="display">Code shipped</h2><span class="eyebrow">One release, one pull request</span></div>
+    <div class="body two" style="margin-top:0">
+      <div>
+        <div class="code">
+          <div class="box"><div class="eyebrow">Commits</div><div class="display">285</div></div>
+          <div class="box"><div class="eyebrow">Files touched</div><div class="display">1,697</div></div>
+        </div>
+        <div class="lines"><span class="display green">+139,598</span><span class="display">−3,394</span><span class="eyebrow" style="color:var(--muted)">lines</span></div>
+        <p style="font-size:14px;color:var(--muted);line-height:1.5;margin-top:8px">Most of that is card data and scripts for 401 cards. Without card data: <b style="color:var(--ink)">+110,461 / −3,338</b>.</p>
+      </div>
+      <div>
+        <div class="eyebrow" style="font-size:12px;color:var(--muted)">202 changelog entries, by kind</div>
+        <div class="kinds">
+          <div class="row"><span>CONTENT</span><div class="track"><div class="fill" style="width:100%"></div></div><span class="n">76</span></div>
+          <div class="row"><span>ENGINE</span><div class="track"><div class="fill" style="width:81.6%"></div></div><span class="n">62</span></div>
+          <div class="row"><span>FIXED</span><div class="track"><div class="fill" style="width:35.5%"></div></div><span class="n">27</span></div>
+          <div class="row"><span>ADDED</span><div class="track"><div class="fill" style="width:25%"></div></div><span class="n">19</span></div>
+          <div class="row"><span>CHANGED</span><div class="track"><div class="fill" style="width:14.5%"></div></div><span class="n">11</span></div>
+          <div class="row"><span>DOCS</span><div class="track"><div class="fill" style="width:9.2%"></div></div><span class="n">7</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <p>Thank you zackburnley for the Ultron Drone report, and Hall of Heroes for the scans and rulings that made Fear No Evil possible. Keep the reports coming.</p>
+  <div class="mono">Source: .changes/unreleased · git (since v0.30.0)<br>Oct 21, 2026</div>
+</footer>
+
+</body>
+</html>
