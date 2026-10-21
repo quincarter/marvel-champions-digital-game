@@ -26,7 +26,7 @@ describe("the Fear No Evil story", () => {
     }
   });
 
-  test("Art Museum Heist and The Getaway open on their five lettered pages, every panel in order; the others have none yet", () => {
+  test("Art Museum Heist, The Getaway and Protection Racket open on their lettered pages; the others have none yet", () => {
     const heist = FNE_STORY.issues.find((issue) => issue.nodeId === "art-museum-heist")!;
     expect(heist.comicBeats?.map((beat) => beat.page)).toEqual([
       "art-heist-1",
@@ -52,7 +52,11 @@ describe("the Fear No Evil story", () => {
       new Set(["getaway-1", "getaway-2", "getaway-3", "getaway-4", "getaway-5"]),
     );
     expect(getaway.comicBeats).toHaveLength(7);
-    for (const issue of FNE_STORY.issues.filter((i) => !["art-museum-heist", "the-getaway"].includes(i.nodeId))) {
+    const racket = FNE_STORY.issues.find((issue) => issue.nodeId === "protection-racket")!;
+    expect(racket.comicBeats).toHaveLength(11);
+    expect(racket.comicBeats?.at(-1)).toEqual({ page: "protection-racket-5", beatIndex: 2 });
+    const withPages = ["art-museum-heist", "the-getaway", "protection-racket"];
+    for (const issue of FNE_STORY.issues.filter((i) => !withPages.includes(i.nodeId))) {
       expect(issue.comicBeats, issue.nodeId).toBeUndefined();
     }
   });

@@ -2,8 +2,9 @@
  * Fear No Evil (MC60): the copy for the box. Everything here is original flavor for this app; no rule lives here (see
  * `../story.ts`).
  *
- * **Comic pages.** Art Museum Heist and The Getaway each open on five lettered pages the owner built from panels of
- * Black Cat (2019) #1 (2026-10-20), in `art/campaigns/fne/pages/<issue>-<n>.jpg` (1672x941 each), read panel by panel
+ * **Comic pages.** Art Museum Heist, The Getaway and Protection Racket each open on five lettered pages the owner put
+ * together (2026-10-20; the first two from panels of Black Cat (2019) #1), with each title box's "Issue N:" removed
+ * (the owner: the underling issues play in any order), in `art/campaigns/fne/pages/<issue>-<n>.jpg` (1672x941 each), read panel by panel
  * with the reader's lettered mode (the captions and balloons are printed in). Panel rectangles were measured from each
  * page's white gutters. The other issues have no pages yet, so the reader skips them (no `comicBeats`). The five
  * underling issues are dealt from the box in no fixed order (a `choice` graph), so they carry no number in the copy;
@@ -81,6 +82,28 @@ const PAGES: readonly ComicPage[] = [
     { x: 1068, y: 62, w: 588, h: 798 },
   ]),
   page("getaway-5", [{ x: 26, y: 63, w: 1620, h: 814 }]),
+  page("protection-racket-1", [
+    { x: 31, y: 26, w: 660, h: 896 },
+    { x: 701, y: 98, w: 942, h: 824 },
+  ]),
+  page("protection-racket-2", [
+    { x: 33, y: 25, w: 1606, h: 573 },
+    { x: 33, y: 607, w: 1606, h: 311 },
+  ]),
+  page("protection-racket-3", [
+    { x: 18, y: 66, w: 1088, h: 818 },
+    { x: 1121, y: 66, w: 533, h: 818 },
+  ]),
+  page("protection-racket-4", [
+    { x: 33, y: 103, w: 885, h: 764 },
+    { x: 933, y: 103, w: 707, h: 764 },
+  ]),
+  page("protection-racket-5", [
+    { x: 30, y: 25, w: 991, h: 778 },
+    { x: 1040, y: 25, w: 604, h: 778 },
+    // The page pulled back to show its "Suit up!" strip with the panels above it (a strip alone would crop to a sliver).
+    { x: 30, y: 25, w: 1614, h: 895 },
+  ]),
 ];
 
 /** Every beat of each page, in order. */
@@ -240,7 +263,14 @@ export const FNE_STORY: CampaignStory = {
       },
       "You will never catch me. Try again, if you like losing.",
     ),
-    issue(
+    withComic(
+      beatsOf(
+        "protection-racket-1",
+        "protection-racket-2",
+        "protection-racket-3",
+        "protection-racket-4",
+        "protection-racket-5",
+      ),
       "protection-racket",
       "Protection Racket",
       "An underling",
