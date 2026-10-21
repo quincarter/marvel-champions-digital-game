@@ -1,6 +1,13 @@
 import { describe, expect, test } from "vitest";
 import { emptyEncounterTracking, type Walkthrough, type WalkthroughBeat } from "./villain-walkthrough.js";
-import { encounterHoldAt, flipFrameAt, flipGateAt, revealOf, stepCaptionOf } from "./villain-phase-reveal.js";
+import {
+  encounterHoldAt,
+  flipFrameAt,
+  flipGateAt,
+  flipTurningAt,
+  revealOf,
+  stepCaptionOf,
+} from "./villain-phase-reveal.js";
 
 const beat = (id: string, text: string): WalkthroughBeat => ({ id, text, pause: null, activation: null });
 
@@ -264,5 +271,22 @@ describe("flipFrameAt", () => {
     expect(flipFrameAt(9999)).toEqual({ side: "face", scaleX: 1 });
     expect(flipFrameAt(500, 1000)).toEqual({ side: "face", scaleX: 0 });
     expect(flipFrameAt(0, 0)).toEqual({ side: "face", scaleX: 1 });
+  });
+});
+
+describe("flipTurningAt", () => {
+  const flip = { card: "i55", startedAt: 1000, settled: false };
+
+  test("the card turns for the flip's length, then is done", () => {
+    expect(flipTurningAt(null, 1200, 500)).toBeNull();
+    expect(flipTurningAt(flip, 1200, 500)).toBe("i55");
+    expect(flipTurningAt(flip, 1500, 500)).toBeNull();
+    expect(flipTurningAt(flip, 1000, 0)).toBeNull();
+  });
+
+  // #315: the end timer fired at 1497 on a phone capped to 30 fps; the redraw from it must see the card done, or the
+  // panel keeps the facedown text with no Next card button and the phase never moves on.
+  test("a flip whose end timer fired is done even when the clock is a few ms short", () => {
+    expect(flipTurningAt({ ...flip, settled: true }, 1497, 500)).toBeNull();
   });
 });

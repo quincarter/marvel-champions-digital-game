@@ -136,6 +136,25 @@ export function flipGateAt(
   return before === card ? null : card;
 }
 
+/** A Flip Encounter Card press: which card, when (the scene clock's `now`), and whether its end timer has fired. */
+export interface FlipInProgress {
+  readonly card: string;
+  readonly startedAt: number;
+  readonly settled: boolean;
+}
+
+/**
+ * The card still turning over at `now`, or null. Once the turn's end timer has fired (`settled`) the card is done,
+ * whatever the clock says: Phaser elapses timers on the loop's smoothed frame delta but sets `now` from the raw frame
+ * time, so the timer can fire a few ms before `now - startedAt` reaches the duration. Going by the clock alone, the
+ * redraw from that timer still saw the card turning, drew it with no Next card button, and nothing redrew it again: the
+ * phase stopped on the card for good (#315, an Android phone capped to 30 fps by power saving).
+ */
+export function flipTurningAt(flip: FlipInProgress | null, now: number, durationMs: number): string | null {
+  if (!flip || flip.settled) return null;
+  return now - flip.startedAt < durationMs ? flip.card : null;
+}
+
 /** The Flip button's label, in one place for the rail, the peek banner and the full-screen panel. */
 export const flipLabel = "Flip Encounter Card";
 
