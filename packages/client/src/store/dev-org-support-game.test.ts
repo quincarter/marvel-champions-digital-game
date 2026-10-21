@@ -52,6 +52,9 @@ describe("the Organizational Support dev game (issues #279, #326)", () => {
     expect(strip.filter((tile) => tile.instanceId === org)).toEqual([]);
     const tiles = strip.filter((tile) => tile.exhaustFor === org);
     expect(tiles.map((tile) => code(tile.instanceId)).sort()).toEqual([COMMAND_TEAM_CARD, GRANT_WARD_CARD].sort());
+    // Each shows what exhausting it adds: the card's printed resource.
+    const total = (pool: Record<string, number>) => Object.values(pool).reduce((a, b) => a + b, 0);
+    expect(tiles.map((tile) => total(tile.pool))).toEqual([1, 1]);
     const tapped = tiles.reduce((state, tile) => togglePayment(state, tile.optionId), opened);
     expect(tapped.picked).toEqual([richest.optionId]);
     const after = paymentView(game, me.playerId, tapped, "Victoria Hand", POOL_DEPS);

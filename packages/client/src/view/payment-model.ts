@@ -494,14 +494,21 @@ export function exhaustPickOptionId(payment: PaymentState, card: InstanceId, can
 
 /**
  * The strip's tiles for a hand card whose way of spending picks cards to exhaust: one tile per card it could exhaust,
- * in place of one per set (`PaymentSourceView.exhaustFor`).
+ * in place of one per set (`PaymentSourceView.exhaustFor`). With two copies in hand, only one copy's tiles show: the
+ * copy whose interrupt is picked, else the first. Both copies' tiles would show every card twice, the same face and
+ * tag, and two picked ways exhausting one card are refused by the engine (the #279 symptom again).
  */
-function exhaustPickTiles(state: GameState, payment: PaymentState): readonly PaymentSourceView[] {
+export function exhaustPickTiles(state: GameState, payment: PaymentState): readonly PaymentSourceView[] {
   const { sources } = payment.query;
-  const cards = [...new Set(sources.filter((source) => source.spendsHandCard).map((source) => source.instanceId))];
-  return cards.flatMap((card) => {
+  const cards = [
+    ...new Set(sources.filter((source) => source.spendsHandCard).map((source) => source.instanceId)),
+  ].filter((card) => exhaustPickOptions(sources, card).length > 0);
+  const using = cards.find((card) =>
+    exhaustPickOptions(sources, card).some((way) => payment.picked.includes(way.optionId)),
+  );
+  const shown = using ?? cards[0];
+  return (shown ? [shown] : []).flatMap((card) => {
     const ways = exhaustPickOptions(sources, card);
-    if (ways.length === 0) return [];
     const plain = sources.find((source) => source.kind === "handCard" && source.instanceId === card);
     const exhausted = new Set(picksOf(ways.find((way) => payment.picked.includes(way.optionId))));
     const most = Math.max(...ways.map((way) => picksOf(way).length));

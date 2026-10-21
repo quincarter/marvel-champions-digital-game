@@ -18,6 +18,7 @@ import {
   cardTapOption,
   clearPayment,
   exhaustPickOptionId,
+  exhaustPickTiles,
   paymentView,
   sourceTagText,
   spentTagText,
@@ -455,6 +456,43 @@ describe("Organizational Support's cards to exhaust, one tile per card (issue #3
     expect(exhaustPickOptionId(three, org, "d" as InstanceId)).toBeNull();
     expect(tap(three, "d")).toBe(three);
     expect(tap(tap(tap(three, "a"), "b"), "c").picked).toEqual([plain.optionId]);
+  });
+
+  const noGame = { instances: {} } as unknown as GameState;
+
+  test("one tile per card, each with the resources exhausting it adds; a fourth is held once three are picked", () => {
+    const tiles = exhaustPickTiles(noGame, opened);
+    expect(tiles.map((tile) => tile.instanceId)).toEqual(cards);
+    expect(tiles.every((tile) => tile.exhaustFor === org && tile.pool.mental === 1 && !tile.spent)).toBe(true);
+    const three = exhaustPickTiles(noGame, tap(tap(tap(opened, "a"), "b"), "c"));
+    expect(three.filter((tile) => tile.spent).map((tile) => tile.instanceId)).toEqual(["a", "b", "c"]);
+    expect(three.find((tile) => tile.instanceId === "d")?.lockedReason).toBe("exhausts up to 3 cards");
+  });
+
+  test("with two copies in hand, only the copy being used shows its cards (else the first)", () => {
+    const org2 = "org2" as InstanceId;
+    const copy = (source: (typeof ways)[number] | typeof plain) => ({
+      ...source,
+      instanceId: org2,
+      optionId: source.optionId.replace(`hand:${org}`, `hand:${org2}`),
+    });
+    const two = {
+      ...opened,
+      query: { ...opened.query, sources: [plain, ...ways, copy(plain), ...ways.map(copy)] },
+    } as unknown as PaymentState;
+    expect(new Set(exhaustPickTiles(noGame, two).map((tile) => tile.exhaustFor))).toEqual(new Set([org]));
+    const usingSecond = togglePayment(two, `exhaust:${org2}:a`);
+    expect(new Set(exhaustPickTiles(noGame, usingSecond).map((tile) => tile.exhaustFor))).toEqual(new Set([org2]));
+  });
+
+  test("an amount to choose (Energy Siphon's damage) keeps one tile per amount, not exhaust tiles", () => {
+    const siphon = ways.map((way) => ({ ...way, costSelection: { damageSelf: 1 } }));
+    expect(
+      exhaustPickTiles(noGame, {
+        ...opened,
+        query: { ...opened.query, sources: [plain, ...siphon] },
+      } as unknown as PaymentState),
+    ).toEqual([]);
   });
 
   test("a tap on the card in hand takes back the interrupt with all its exhausted cards", () => {
