@@ -57,3 +57,15 @@ describe("the device workaround (issue #157)", () => {
     expect(rendererOptionsOf("?gl=aa", EDGE_PIXEL)).toEqual({ canvas: false });
   });
 });
+
+describe("drawing at the screen's density (#328)", () => {
+  test("at 2x and up there is no multisampled buffer", () => {
+    expect(rendererOptionsOf("", null, 3)).toEqual({ canvas: false, antialiasGL: false });
+    expect(rendererOptionsOf("", null, 2)).toEqual({ canvas: false, antialiasGL: false });
+  });
+
+  test("under 2x it stays, and ?gl=aa keeps it at any scale", () => {
+    expect(rendererOptionsOf("", null, 1.5)).toEqual({ canvas: false });
+    expect(rendererOptionsOf("?gl=aa", null, 3)).toEqual({ canvas: false });
+  });
+});

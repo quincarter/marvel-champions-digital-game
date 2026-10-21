@@ -5,7 +5,9 @@
 # are free for this public repo. Netlify dedupes uploads by file hash, so the card art only uploads when it changes.
 #
 #   push to main   -> production deploy (the live site)
-#   pull request   -> preview deploy at https://pr-<number>--<site>.netlify.app, linked in a PR comment
+#   pull request   -> preview deploy at https://pr-<number>--<site>.netlify.app, linked in a PR comment, and an
+#                     Android preview APK (signed with the release key, so it installs over the store build) as the
+#                     pre-release `android-preview-pr-<number>`, also linked in a PR comment
 #
 # Either way the tests stage (tests.yml: a typecheck and the unit tests, in parallel on their own runners) runs first,
 # and the deploy job starts only once all of it passes. The deploy job itself only installs, builds the client and
@@ -149,11 +151,110 @@ jobs:
             gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -f body="$body" > /dev/null
           fi
 
+  # An APK of the pull request for testers on Android (#328), next to the Netlify preview. Signed with the release key so
+  # it installs over the released app and keeps its saves. It goes up as the pre-release `android-preview-pr-<number>`,
+  # replaced on every push and deleted when the pull request closes (android-preview-cleanup.yml); the in-app update
+  # check skips pre-releases (platform/update-check.ts). Not required: the gate ignores its result.
+  android-preview:
+    name: Android preview APK
+    runs-on: ubuntu-latest
+    needs: tests
+    # Fork PRs get no secrets, so there is no release key to sign with.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      PR: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      TAG: android-preview-pr-${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "21"
+      - name: Accept the Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+      - run: pnpm install --frozen-lockfile
+
+      # The release key only (release-on-merge.yml's Setup Keystore): an APK signed with any other key won't install
+      # over the player's app.
+      - name: Setup Keystore
+        id: keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || secrets.ANDROID_KEYSTORE_ALIAS || 'marvel-champions' }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "::warning::No release keystore secrets; skipping the Android preview."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > marvel-champions.keystore
+          {
+            echo "ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "ANDROID_KEY_PASSWORD=${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
+            echo "ANDROID_KEYSTORE_ALIAS=$KEY_ALIAS"
+          } >> "$GITHUB_ENV"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Build the APK
+        if: steps.keystore.outputs.ready == 'true'
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/marvel-champions.keystore
+          # A PR checkout is GitHub's merge commit; stamp the Title footer with the branch head instead (vite.config.ts).
+          COMMIT_REF: ${{ github.event.pull_request.head.sha }}
+        run: pnpm android:build
+
+      - name: Publish the pre-release
+        id: publish
+        if: steps.keystore.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          built=$(find release -name "*-Android.apk" | head -n 1)
+          if [ ! -f "$built" ]; then
+            echo "::error::The signed APK was not found under release/."
+            exit 1
+          fi
+          name="$(basename "$built" -Android.apk)-PR${PR}-${HEAD_SHA:0:7}-Android.apk"
+          mv "$built" "$name"
+          # Recreated on every push, so the tag sits on the commit the APK was built from.
+          gh release delete "$TAG" --cleanup-tag --yes 2> /dev/null || true
+          gh release create "$TAG" "$name" --prerelease --target "$HEAD_SHA"             --title "Android preview: PR #${PR}"             --notes "A test build of #${PR} at ${HEAD_SHA:0:7}, not a release. It installs over the released app and keeps its saves; the next release installs over it. Deleted when the pull request closes."
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${name}"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Android preview: $url" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment the APK link
+        if: steps.publish.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          URL: ${{ steps.publish.outputs.url }}
+        run: |
+          marker="<!-- android-preview -->"
+          body="$marker
+          **Android preview APK:** $URL (built from ${HEAD_SHA:0:7}; installs over the released app)"
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate             --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$body" > /dev/null
+          else
+            gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -f body="$body" > /dev/null
+          fi
+
   # A needed job's result covers every job inside it, so `tests` stands for the whole of tests.yml, matrix shards
   # included. The first step fails if a job is added to this file without being added to `needs`.
   gate:
     name: All checks
-    needs: [lint, yaml, changelog, tests, deploy]
+    needs: [lint, yaml, changelog, tests, deploy, android-preview]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -175,9 +276,11 @@ jobs:
           NEEDS: ${{ toJSON(needs) }}
         run: |
           echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
-          # The deploy job's own result counts only through its build step; a skipped job passes.
+          # The deploy job's own result counts only through its build step; the Android preview doesn't count; a
+          # skipped job passes.
           bad=$(echo "$NEEDS" | jq -r '
             to_entries[]
+            | select(.key != "android-preview")
             | select(if .key == "deploy" then .value.outputs.build != "success"
                      else .value.result == "failure" or .value.result == "cancelled" end)
             | .key')

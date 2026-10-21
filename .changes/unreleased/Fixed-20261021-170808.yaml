@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Scrolling menus and the hand no longer lag behind the finger on high-resolution phones at Native or 720p: rectangular clips now use the GPU''s scissor test instead of three full-screen passes a frame (#328)'
+time: 2026-10-21T17:08:08.4583037-04:00

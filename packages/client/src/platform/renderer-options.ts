@@ -9,11 +9,15 @@
  * buffer, which costs nothing (it is cheaper than the default) and leaves texture filtering (`antialias`) as it is.
  * Every other device keeps the usual config.
  *
+ * A game drawn at 2x or more (the screen's own density, `ui/render-scale.ts`) gets no multisampled buffer either
+ * (#328): its edges are already as fine as the glass, and on a 3x phone 4x multisampling meant resolving four samples
+ * for each of 2.5 million pixels every frame, for edges no one could see.
+ *
  * Test links, for the next device like it:
  *  - `?gl=alpha`: a transparent canvas (`transparent: true`, context `alpha: true`); the page's VOID shows through.
  *  - `?gl=preserve`: `preserveDrawingBuffer: true`.
  *  - `?gl=noaa`: no multisampled drawing buffer (`antialiasGL: false`).
- *  - `?gl=aa`: the multisampled buffer even on a device that matches, to check the workaround is still needed.
+ *  - `?gl=aa`: the multisampled buffer even on a device that matches, or at 2x and up, to compare.
  *  - `?gl=lowpower`: `powerPreference: "low-power"`.
  *  - `?renderer=canvas`: the Canvas renderer instead of WebGL.
  */
@@ -39,10 +43,16 @@ export function needsSingleSampledCanvas(device: DeviceInfo): boolean {
 /** Edge on Android names itself `EdgA/`: only there is the WebGL renderer worth reading before the game starts. */
 export const isAndroidEdge = (userAgent: string): boolean => /\bEdgA\//.test(userAgent);
 
-export function rendererOptionsOf(search: string, device: DeviceInfo | null = null): RendererOptions {
+/** At this render scale and above the drawing buffer is fine enough that multisampling adds nothing. */
+export const SINGLE_SAMPLED_FROM_SCALE = 2;
+
+export function rendererOptionsOf(search: string, device: DeviceInfo | null = null, renderScale = 1): RendererOptions {
   const params = new URLSearchParams(search);
   const flags = new Set((params.get("gl") ?? "").split(",").map((flag) => flag.trim()));
-  const singleSampled = flags.has("noaa") || (!flags.has("aa") && device !== null && needsSingleSampledCanvas(device));
+  const singleSampled =
+    flags.has("noaa") ||
+    (!flags.has("aa") &&
+      ((device !== null && needsSingleSampledCanvas(device)) || renderScale >= SINGLE_SAMPLED_FROM_SCALE));
   return {
     canvas: params.get("renderer") === "canvas",
     ...(flags.has("alpha") ? { transparent: true } : {}),

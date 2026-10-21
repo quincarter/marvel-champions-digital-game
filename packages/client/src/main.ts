@@ -41,6 +41,7 @@ import { applyRenderSize } from "./ui/render-resolution.js";
 import { isAndroidEdge, rendererOptionsOf } from "./platform/renderer-options.js";
 import { onPowerSavingChange, watchPowerSaving } from "./platform/power-saving.js";
 import { gpuRendererName, installRenderScale } from "./ui/render-scale.js";
+import { installIdleRender } from "./ui/idle-render.js";
 import { onHardwareChange, readHardware } from "./platform/device-hardware.js";
 import {
   drawsAtScreenDensity,
@@ -74,11 +75,13 @@ setDesktopType(formFactorFor(window.innerWidth, window.innerHeight) === "desktop
 // A device whose WebGL cannot draw gets a plain-text reason instead of a black page (`ui/startup-watchdog.ts`).
 const watchStartup = installStartupWatchdog();
 // Edge on Android reads its WebGL renderer first: on ANGLE's Vulkan backend its multisampled canvas shows black (#157).
+// At 2x and up there is no multisampled canvas either (#328).
 const rendererOptions = rendererOptionsOf(
   window.location.search,
   isAndroidEdge(navigator.userAgent)
     ? { userAgent: navigator.userAgent, webglRenderer: probeWebgl()?.renderer ?? null }
     : null,
+  renderScale,
 );
 
 const game = new Phaser.Game({
@@ -177,6 +180,10 @@ game.scale.on("resize", (size: Phaser.Structs.Size) =>
 // stay out of the way of it. Phaser 4 has no game-config flag for this, only
 // this call on the mouse manager.
 game.input.mouse?.disableContextMenu();
+
+// A frame that would look exactly like the last one isn't drawn again (#328, `ui/idle-render.ts`). Before the frame
+// guard, which wraps whatever `step` is by then.
+installIdleRender(game, Phaser, window.location.search);
 
 // One bad frame must not end the game: a throwing tween is removed, anything else skips that frame (`ui/frame-guard.ts`).
 installFrameGuard(game);
