@@ -3,7 +3,7 @@
  * `../story.ts`).
  *
  * **Comic pages.** Art Museum Heist, The Getaway and Protection Racket each open on five lettered pages the owner put
- * together (2026-10-20; the first two from panels of Black Cat (2019) #1), with each title box's "Issue N:" removed
+ * together (2026-10-20; the first two from panels of Black Cat (2019) #1, Protection Racket mostly from Daredevil (2019) #17), with each title box's "Issue N:" removed
  * (the owner: the underling issues play in any order), in `art/campaigns/fne/pages/<issue>-<n>.jpg` (1672x941 each), read panel by panel
  * with the reader's lettered mode (the captions and balloons are printed in). Panel rectangles were measured from each
  * page's white gutters. The other issues have no pages yet, so the reader skips them (no `comicBeats`). The five

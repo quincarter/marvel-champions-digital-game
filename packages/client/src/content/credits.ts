@@ -230,10 +230,9 @@ export const CREDITS: readonly CreditEntry[] = [
     shownIn: "The Art Museum Heist, The Getaway and Protection Racket openers in the Fear No Evil campaign",
     // The owner, 2026-10-20.
     credit:
-      "Comic pages the owner put together for the issue openers. Art Museum Heist and The Getaway: built from panels of Black Cat (2019) #1 (Marvel Comics), written by Jed MacKay, art by Travel Foreman, Mike Dowling and Nao Fuji, cover by J. Scott Campbell. Protection Racket: the source comic is not recorded yet.",
+      "Comic pages the owner put together for the issue openers. Art Museum Heist and The Getaway: built from panels of Black Cat (2019) #1 (Marvel Comics), written by Jed MacKay, art by Travel Foreman, Mike Dowling and Nao Fuji, cover by J. Scott Campbell. Protection Racket: mostly from panels of Daredevil (2019) #17 (Marvel Comics), written by Chip Zdarsky, art by Jorge Fornés, cover by Julian Totino Tedesco.",
     notice: MARVEL,
     folders: ["art/campaigns/fne/pages"],
-    gap: true,
   },
   {
     id: "shadowland-comic",
