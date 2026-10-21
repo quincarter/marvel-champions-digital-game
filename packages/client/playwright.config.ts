@@ -128,6 +128,7 @@ export default defineConfig({
         "settings-earned-items.spec.ts",
         "achievement-popup.spec.ts",
         "spectrum-energy-forms.spec.ts",
+        "play-area-drag.spec.ts",
       ],
     },
   ],
