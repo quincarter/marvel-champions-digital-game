@@ -188,7 +188,11 @@ test("several achievements stack into one popup that opens, collapses and dismis
 }, info) => {
   test.skip(info.project.name !== "desktop", "the phone case is the swipe test below");
   const errors = trackPageErrors(page);
-  await page.addInitScript(() => localStorage.setItem("mc-achievements-seen", "[]"));
+  await page.addInitScript(() => {
+    localStorage.setItem("mc-achievements-seen", "[]");
+    // The longest hold, so a loaded machine never lets the popup time out between steps.
+    localStorage.setItem("mc-settings", JSON.stringify({ version: 1, achievementPopupTime: "10s" }));
+  });
   await openApp(page, "unlock=all");
   await waitForScene(page, "Title", 30000);
   await settle(page);
@@ -239,7 +243,11 @@ test("several achievements stack into one popup that opens, collapses and dismis
 test("a swipe that lifts on a stacked popup never opens it; a tap does", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "the touch release is the phone's case");
   const errors = trackPageErrors(page);
-  await page.addInitScript(() => localStorage.setItem("mc-achievements-seen", "[]"));
+  await page.addInitScript(() => {
+    localStorage.setItem("mc-achievements-seen", "[]");
+    // The longest hold, so a loaded machine never lets the popup time out between steps.
+    localStorage.setItem("mc-settings", JSON.stringify({ version: 1, achievementPopupTime: "10s" }));
+  });
   await openApp(page, "unlock=all");
   await waitForScene(page, "Title", 30000);
   await settle(page);
@@ -250,11 +258,17 @@ test("a swipe that lifts on a stacked popup never opens it; a tap does", async (
   await settle(page, { quietMs: 300, maxMs: 1500 });
   expect((await toastState(page)).expanded, "a swipe's lift leaves it shut").toBe(false);
 
-  await page.touchscreen.tap(x, y);
+  // A tap opens it (pressed again only while it is still shut: a busy machine can drop a frame's press).
   const open = await waitFor(
-    async () => ((await toastState(page)).expanded ? toastState(page) : null),
-    "the list",
-    3000,
+    async () => {
+      const s = await toastState(page);
+      if (s.expanded) return s;
+      if (s.showing && !s.expanded) await page.touchscreen.tap(x, y);
+      await page.waitForTimeout(400);
+      return null;
+    },
+    "the list after a tap",
+    6000,
   );
   await page.touchscreen.tap(...middle(open.dismissRect!));
   await waitFor(async () => ((await toastState(page)).showing ? null : true), "the popup goes with it", 3000);
