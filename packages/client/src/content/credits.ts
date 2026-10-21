@@ -235,6 +235,17 @@ export const CREDITS: readonly CreditEntry[] = [
     folders: ["art/campaigns/fne/pages"],
   },
   {
+    id: "fne-villain-outcomes",
+    group: "story",
+    title: "Fear No Evil: villain outcome scenes",
+    shownIn: "Game Over after a Fear No Evil game, by the villain faced; Kingpin's transfer in Extras",
+    // The owner, 2026-10-20 (`art/villains/SOURCE.md`).
+    credit:
+      "Eight text-free outcome pictures (Hammerhead, Bullseye, Purple Man, Typhoid Mary, Kingpin) the owner supplied, generated with an AI image tool. Imagined outcomes, not comic panels.",
+    notice: MARVEL,
+    folders: ["art/villains"],
+  },
+  {
     id: "shadowland-comic",
     group: "story",
     title: "Shadowland (2010): comic pages",

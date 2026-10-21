@@ -6,6 +6,8 @@
  *   art/scenarios/<scenarioId>/villain-wins.<ext>    shown when the players lose to it
  *   art/scenarios/<scenarioId>/villain-loses.<ext>   shown when the players beat it
  *   art/scenarios/<scenarioId>/intro.<ext>           OPTIONAL: the artboard a one-off game opens on (`campaign/scenario-intros.ts`)
+ *   art/villains/<villainSetId>/villain-wins.<ext>   a scenario whose villain is chosen (Fear No Evil), when that
+ *   art/villains/<villainSetId>/villain-loses.<ext>  villain beats the players / is beaten; ahead of the scenario's
  *   art/outcomes/defeat.<ext>                        any loss with no scene of its own
  *   art/outcomes/victory.<ext>                       any win with no scene of its own
  *   art/packs/<packCode>/cover.<ext>                 OPTIONAL: a pack's shelf-header thumbnail (W2b)
@@ -34,6 +36,8 @@ export type PackArtSlot = (typeof PACK_SLOTS)[number];
 export interface ArtCatalog {
   readonly scenarios: ReadonlyMap<string, Readonly<Record<ScenarioArtSlot, readonly Picture[]>>>;
   readonly outcomes: Readonly<Record<OutcomeArtSlot, readonly Picture[]>>;
+  /** By villain encounter set id (`villains/<id>/`): a chosen villain's own outcome scenes. */
+  readonly villains: ReadonlyMap<string, Readonly<Record<"villain-wins" | "villain-loses", readonly Picture[]>>>;
   /** A pack's own cover art (W2b's shelf-header thumbnail), by `Pack.code` — optional; most packs have none yet. */
   readonly packs: ReadonlyMap<string, Readonly<Record<PackArtSlot, readonly Picture[]>>>;
   /** Files under `art/scenarios/`, `art/outcomes/` or `art/packs/` whose name fits no slot — a typo, by any other name. */
@@ -52,6 +56,7 @@ function slotOf<S extends string>(stem: string, slots: readonly S[]): S | null {
 export function parseArtCatalog(files: Readonly<Record<string, string>>): ArtCatalog {
   const scenarios = new Map<string, Record<ScenarioArtSlot, Picture[]>>();
   const outcomes: Record<OutcomeArtSlot, Picture[]> = { defeat: [], victory: [] };
+  const villains = new Map<string, Record<"villain-wins" | "villain-loses", Picture[]>>();
   const packs = new Map<string, Record<PackArtSlot, Picture[]>>();
   const unrecognized: string[] = [];
 
@@ -73,6 +78,15 @@ export function parseArtCatalog(files: Readonly<Record<string, string>>): ArtCat
       const entry = scenarios.get(scenarioId) ?? { villain: [], "villain-wins": [], "villain-loses": [], intro: [] };
       entry[slot].push(picture);
       scenarios.set(scenarioId, entry);
+    } else if (parts[0] === "villains" && parts.length === 3) {
+      const slot = slotOf(stem, ["villain-wins", "villain-loses"] as const);
+      if (!slot) {
+        unrecognized.push(underArt);
+        continue;
+      }
+      const entry = villains.get(parts[1]!) ?? { "villain-wins": [], "villain-loses": [] };
+      entry[slot].push(picture);
+      villains.set(parts[1]!, entry);
     } else if (parts[0] === "outcomes" && parts.length === 2) {
       const slot = slotOf(stem, OUTCOME_SLOTS);
       if (slot) outcomes[slot].push(picture);
@@ -91,7 +105,7 @@ export function parseArtCatalog(files: Readonly<Record<string, string>>): ArtCat
       unrecognized.push(underArt);
     }
   }
-  return { scenarios, outcomes, packs, unrecognized };
+  return { scenarios, outcomes, villains, packs, unrecognized };
 }
 
 /** The villain's own artwork for a scenario, or null when there is none. */
@@ -121,7 +135,9 @@ export function packCoverFor(
  * The scene for how a game ended.
  *
  * A loss shows the villain winning, a win shows it losing; each falls back to
- * the generic scene when that scenario has none of its own. A concession shows
+ * the generic scene when that scenario has none of its own. A scenario whose villain was chosen (`villainSetId`, Fear
+ * No Evil's underlings) shows that villain's own scene first (`art/villains/<id>/`), since the scenario's art does
+ * not know who was faced; a villain with none of its own falls back the same way. A concession shows
  * only the generic defeat — the team stopped, the villain didn't beat them, so
  * its victory scene would claim something that didn't happen.
  */
@@ -130,10 +146,12 @@ export function outcomeArtFor(
   scenarioId: string,
   result: "win" | "loss" | "conceded",
   random: () => number = Math.random,
+  villainSetId?: string,
 ): Picture | null {
+  const slot = result === "win" ? "villain-loses" : result === "loss" ? "villain-wins" : null;
+  const villain = slot && villainSetId ? catalog.villains.get(villainSetId)?.[slot] : undefined;
   const scenario = catalog.scenarios.get(scenarioId);
-  const own =
-    result === "win" ? scenario?.["villain-loses"] : result === "loss" ? scenario?.["villain-wins"] : undefined;
+  const own = villain && villain.length > 0 ? villain : slot ? scenario?.[slot] : undefined;
   const generic = catalog.outcomes[result === "win" ? "victory" : "defeat"];
   return pickPicture(own && own.length > 0 ? own : generic, null, random);
 }
@@ -141,6 +159,11 @@ export function outcomeArtFor(
 // Three literal patterns (a glob pattern cannot be built from a variable) covering the three conventions above.
 const files = {
   ...(import.meta.glob("../../../../art/scenarios/*/*.{png,jpg,jpeg,webp,avif}", {
+    eager: true,
+    query: "?url",
+    import: "default",
+  }) as Record<string, string>),
+  ...(import.meta.glob("../../../../art/villains/*/*.{png,jpg,jpeg,webp,avif}", {
     eager: true,
     query: "?url",
     import: "default",

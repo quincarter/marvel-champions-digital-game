@@ -108,7 +108,9 @@ export class GameOverScene extends Phaser.Scene {
     this.#route = new FocusRoute(this, { blocked: () => this.scene.isActive(SCENES.inspect) });
     const { game, config } = appSession().store.state;
     this.#outcomeArt =
-      game?.outcome && config ? outcomeArtFor(ART_CATALOG, config.scenarioId, game.outcome.result) : null;
+      game?.outcome && config
+        ? outcomeArtFor(ART_CATALOG, config.scenarioId, game.outcome.result, Math.random, config.villainSetId)
+        : null;
     this.#news = null;
     this.#extrasNews = 0;
     if (game?.outcome && config) {

@@ -1,0 +1,26 @@
+# Optional villain outcome screens
+
+Eight newly generated, text-free comic illustrations. These are imagined alternate outcomes, not extracted comic panels or events claimed to occur in the supplied comics. Made with the built-in image generation tool; prompt records are in prompts.json. Some requested variants could not be generated because the image tool rejected them with an unspecified flag.
+
+## Loading and placement
+
+Use only AFTER actual gameplay has resolved, before the campaign debrief. Pick one outcome screen; these are alternatives, not an eight-beat sequence. Filename outcomes are from the VILLAIN'S perspective: defeat = players win; victory = players lose. Do not use a pose to calculate gameplay results.
+
+Match the active villain independently of scenario selection and recommended villain order. Black Cat is not an underling villain and has no outcome screen here. Kingpin belongs to the finale. Generic background images do not establish an exact location or transition to another scenario. Approximate 16:9 sizes vary; use contain/letterbox instead of stretching.
+
+| File                                     | Actual result / use                                                                                                                                                                                                                                                                                         |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| hammerhead-defeat.png                    | Players win; Hammerhead kneels, exhausted. No named hero, capture or arrest implied.                                                                                                                                                                                                                        |
+| bullseye-defeat.png                      | Players win; Bullseye sits slumped against a wall. No named hero or custody implied.                                                                                                                                                                                                                        |
+| purple-man-defeat.png                    | Players win; Purple Man sits frustrated after his setback. Does not imply a particular mind-control effect was broken.                                                                                                                                                                                      |
+| purple-man-victory.png                   | Players lose; Purple Man stands confidently adjusting a cuff. No hero death or capture implied.                                                                                                                                                                                                             |
+| typhoid-mary-defeat.png                  | Players win; Mary kneels, exhausted. Civilian black outfit and red tied-back curly hair; no combat face paint.                                                                                                                                                                                              |
+| typhoid-mary-victory.png                 | Players lose; Mary stands triumphant. Same civilian look; no hero death or capture implied.                                                                                                                                                                                                                 |
+| kingpin-defeat.png                       | Players win finale; Fisk sits defeated beside an overturned chair. No named hero or capture implied.                                                                                                                                                                                                        |
+| kingpin-defeat-matt-murdock-transfer.png | Players win AND Kingpin is taken into custody. Matt Murdock accompanies Fisk and a corrections officer at a secure prison entrance. Load only if Matt's presence and this explicit capture ending fit your story. Matt is accompanying the transfer as a lawyer; this does not select him as a player hero. |
+
+## Coverage gaps
+
+Not included: Hammerhead victory, Bullseye victory, Electro defeat/victory, Kingpin victory, or the Daredevil-and-Echo Kingpin arrest alternate. The generation tool rejected those variants. Use a neutral result card or your own overlay until matching artwork is available; do not substitute a different villain's image. Standalone defeat screens leave the heroes offscreen and therefore work with any compatible player roster.
+
+These are aftermath panels, not procedural prison scenes. The Matt/Fisk image shows front wrist handcuffs; no leg shackles. Capture is a narrative condition for this image, not an extra campaign rule.
