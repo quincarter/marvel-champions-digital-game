@@ -246,7 +246,7 @@ describe("Nebula II (16089) — resolves Special on each, then chooses and disca
   it("with no Technique attachment in play, the required choose-and-discard finds nothing and discards nothing", () => {
     const state = atNebulaStage(nebula(), 1);
     const { events } = driveEvents(WAVE3_DEPS, state, endTurn());
-    expect(events).toContainEqual({ type: "choiceFoundNothing", slot: "technique" });
+    expect(events).toContainEqual({ type: "choiceFoundNothing", slot: "technique", choice: "chooseTarget" });
     expect(events.some((e) => e.type === "cardDiscardedFromPlay")).toBe(false);
   });
 });

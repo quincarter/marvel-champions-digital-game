@@ -212,7 +212,7 @@ describe("an ability that opens with two required choices", () => {
     const after = resolve(state, source, TWO_PARTS.ability.ref.id);
     expect(names(after.state, "discard")).toEqual([]);
     expect(names(after.state, "deck")).toEqual(["widget", "gadget"]);
-    expect(after.events).toContainEqual({ type: "choiceFoundNothing", slot: "mine" });
+    expect(after.events).toContainEqual({ type: "choiceFoundNothing", slot: "mine", choice: "chooseCards" });
   });
 
   it("…but not when neither choice has a card", () => {

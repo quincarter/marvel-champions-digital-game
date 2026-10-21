@@ -582,6 +582,17 @@ describe("owner decision 2026-10-03: a '(thwart)' whose threat removal names no 
     expect(refusedCode(patrolled(alone), SPREAD_UNLABELED_CARD.id)).toBeNull();
   });
 
+  it("issue #330: 'remove 2 threat from a different scheme' (Multitasking's shape) is not playable while you cannot thwart", () => {
+    const t = table();
+    const warded = minionEngagedWith(t.state, WARDEN.id).state;
+    expect(refusedCode(warded, TWICE_CARD.id)).toBe("no_valid_target");
+    expect(refusedCode(warded, TWICE_BRANCHED_CARD.id)).toBe("no_valid_target");
+    expect(refusedCode(t.state, TWICE_CARD.id)).toBeNull();
+    expect(refusedCode(t.state, TWICE_BRANCHED_CARD.id)).toBeNull();
+    // Patrolled, the side scheme is still a target for the first removal.
+    expect(refusedCode(patrolled(t.state), TWICE_BRANCHED_CARD.id)).toBeNull();
+  });
+
   it("a scheme that becomes unthwartable as the ability resolves (the minion it puts into play has patrol) is not thwarted: no thwart event, no 'after you thwart'", () => {
     const t = table();
     const { state: after, events } = playing(t.state, FETCH_CARD.id);

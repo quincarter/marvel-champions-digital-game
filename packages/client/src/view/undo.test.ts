@@ -77,6 +77,22 @@ describe("undoOf", () => {
     expect(undoOf(trail, turnOf(P1), P1)).toEqual({ kind: "unavailable", reason: UNDO_REASONS.revealed });
   });
 
+  test("issue #330: a target choice that found no scheme it could thwart reveals nothing, so the move can be undone", () => {
+    const trail = [
+      entry(command("playCard"), [
+        event("cardPlayed"),
+        event("choiceFoundNothing", { slot: "scheme", choice: "chooseTarget" }),
+      ]),
+      entry(command("resolveChoice"), [event("choiceFoundNothing", { slot: "scheme2", choice: "chooseTarget" })]),
+    ];
+    expect(undoOf(trail, turnOf(P1), P1)).toMatchObject({ kind: "available", target: 0 });
+  });
+
+  test("a card choice that found nothing may have looked through other hands, so it still stops Undo", () => {
+    const trail = [entry(command("playCard"), [event("choiceFoundNothing", { slot: "ally", choice: "chooseCards" })])];
+    expect(undoOf(trail, turnOf(P1), P1)).toEqual({ kind: "unavailable", reason: UNDO_REASONS.revealed });
+  });
+
   test("never takes back another player's move or answer", () => {
     expect(undoOf([entry(command("useAbility", P2))], turnOf(P1), P1)).toEqual({
       kind: "unavailable",

@@ -1213,9 +1213,16 @@ function thwartNamesNoValidScheme(
       else if (effect.target.kind === "slot") {
         const slot = effect.target.slot;
         const choice = all.find((other) => other.kind === "chooseTarget" && other.slot === slot);
-        if (choice?.kind !== "chooseTarget" || !isRequiredChoice(choice) || readsBindings(choice.query)) {
-          verdicts.push("unknown");
-        } else verdicts.push(among(selectTargets(state, choice.query, context), thwart));
+        if (choice?.kind !== "chooseTarget" || !isRequiredChoice(choice)) verdicts.push("unknown");
+        else if (!readsBindings(choice.query))
+          verdicts.push(among(selectTargets(state, choice.query, context), thwart));
+        else {
+          // "Remove 2 threat from a different scheme" (Multitasking): `excludeSlots` only narrows the candidates, so
+          // if none of the wider set can be thwarted, none of the narrower one can either (issue #330).
+          const { excludeSlots: _narrows, ...wider } = choice.query;
+          const judged = readsBindings(wider) ? "unknown" : among(selectTargets(state, wider, context), thwart);
+          verdicts.push(judged === "invalid" ? "invalid" : "unknown");
+        }
       } else if (readsBindings(effect.target)) verdicts.push("unknown");
       else {
         const named = resolveRef(state, effect.target, context);
