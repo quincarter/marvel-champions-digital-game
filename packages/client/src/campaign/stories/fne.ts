@@ -2,7 +2,7 @@
  * Fear No Evil (MC60): the copy for the box. Everything here is original flavor for this app; no rule lives here (see
  * `../story.ts`).
  *
- * **Comic pages.** Art Museum Heist opens on five lettered pages the owner supplied (2026-10-20), in
+ * **Comic pages.** Art Museum Heist opens on five lettered pages the owner built from Black Cat (2019) #1 (2026-10-20), in
  * `art/campaigns/fne/pages/art-heist-<n>.jpg` (1672x941 each), read panel by panel with the reader's lettered mode
  * (the captions and balloons are printed in). Panel rectangles were measured from each page's white gutters. The
  * other issues have no pages yet, so the reader skips them (an issue with no `comicBeats`). The five

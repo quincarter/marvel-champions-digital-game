@@ -228,10 +228,11 @@ export const CREDITS: readonly CreditEntry[] = [
     group: "story",
     title: "Fear No Evil: Art Museum Heist pages",
     shownIn: "The Art Museum Heist issue opener in the Fear No Evil campaign",
-    credit: `Five lettered comic pages for the Art Museum Heist, supplied by the owner (2026-10-20). ${ARTIST_NOT_RECORDED}`,
+    // The owner, 2026-10-20.
+    credit:
+      "Five comic pages built from panels of Black Cat (2019) #1 (Marvel Comics). Written by Jed MacKay; art by Travel Foreman, Mike Dowling and Nao Fuji; cover by J. Scott Campbell.",
     notice: MARVEL,
     folders: ["art/campaigns/fne/pages"],
-    gap: true,
   },
   {
     id: "shadowland-comic",
