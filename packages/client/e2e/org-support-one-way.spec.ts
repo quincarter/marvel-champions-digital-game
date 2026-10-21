@@ -7,9 +7,26 @@ import { SHOT, boardText, boardUp, bringIntoView, idsOf, payWith, playFromHand, 
 /**
  * Issue #279: Organizational Support (50014) pays plainly or through its interrupt, one tile per set of cards it can
  * exhaust, and the strip let the player pick several of those at once for the one card; the engine then refused Pay
- * with nothing said. Now a second way of spending the card replaces the first. The dev game
+ * with nothing said. Now a second way of spending the card replaces the first. Issue #326: one tile per set filled the
+ * strip (14 with four S.H.I.E.L.D. cards ready), so the strip now shows one tile per card the interrupt can exhaust,
+ * and tapping them builds the set. The dev game
  * (`store/dev-org-support-game.ts`) stops with Grant Ward and Command Team ready and Victoria Hand (3) to pay for.
  */
+
+interface Tile {
+  readonly optionId: string;
+  readonly instanceId: string;
+  readonly exhaustFor?: string;
+  readonly spent: boolean;
+}
+
+const stripTiles = (page: Page): Promise<Tile[]> =>
+  page.evaluate(
+    () =>
+      (
+        window as unknown as { __mcBoardDebug?: { paymentView(): { tableSources: Tile[] } | null } }
+      ).__mcBoardDebug?.paymentView()?.tableSources ?? [],
+  );
 
 interface Way {
   readonly optionId: string;
@@ -89,15 +106,23 @@ test("Organizational Support: picking a second way to spend it replaces the firs
   await settle(page, { quietMs: 400, maxMs: 2000 });
   if (SHOT) await page.screenshot({ path: `${SHOT}/org-support-plain-${info.project.name}.png` });
 
-  // Then the exhaust mode's own tile in the strip: it takes the plain pick's place.
-  const tile = await waitFor(() => focusRect(page, `payment:${richest.optionId}`), "the exhaust mode's tile");
-  await pressUntil(
-    page,
-    () => press(page, phone, tile.x + tile.width / 2, tile.y + tile.height / 2),
-    async () => (await spentWays(page, org!)).includes(richest.optionId),
-    "the exhaust mode is picked",
-    { minWaitMs: 2000 },
-  );
+  // The strip shows one tile per card the interrupt can exhaust, and none per set (issue #326).
+  const strip = await stripTiles(page);
+  expect(strip.filter((tile) => tile.instanceId === org)).toEqual([]);
+  const exhaust = strip.filter((tile) => tile.exhaustFor === org);
+  expect(exhaust).toHaveLength(2);
+
+  // Tapping both cards to exhaust spends the card through its interrupt, in the plain pick's place.
+  for (const [index, way] of exhaust.entries()) {
+    const tile = await waitFor(() => focusRect(page, `payment:${way.optionId}`), "an exhaust tile");
+    await pressUntil(
+      page,
+      () => press(page, phone, tile.x + tile.width / 2, tile.y + tile.height / 2),
+      async () => (await stripTiles(page)).filter((t) => t.exhaustFor === org && t.spent).length === index + 1,
+      "the card is picked to exhaust",
+      { minWaitMs: 2000 },
+    );
+  }
   expect(await spentWays(page, org!)).toEqual([richest.optionId]);
   await settle(page, { quietMs: 400, maxMs: 2000 });
   if (SHOT) await page.screenshot({ path: `${SHOT}/org-support-one-way-${info.project.name}.png` });

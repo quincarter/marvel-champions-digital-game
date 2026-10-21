@@ -17,6 +17,7 @@ import {
   beginPayment,
   cardTapOption,
   clearPayment,
+  exhaustPickOptionId,
   paymentView,
   sourceTagText,
   spentTagText,
@@ -405,5 +406,59 @@ describe("one hand card, spent one way at a time (issue #279)", () => {
     expect(cardTapOption(spent, org)).toBe(exhaustTwo.optionId);
     expect(togglePayment(spent, cardTapOption(spent, org)!).picked).toEqual([]);
     expect(cardTapOption(opened, "missing" as InstanceId)).toBeNull();
+  });
+});
+
+describe("Organizational Support's cards to exhaust, one tile per card (issue #326)", () => {
+  const pool = { physical: 0, mental: 1, energy: 0, wild: 0 };
+  const org = "org" as InstanceId;
+  const plain = { optionId: `hand:${org}`, kind: "handCard", instanceId: org, label: "Organizational Support", pool };
+  const cards = ["a", "b", "c", "d"];
+  // The engine's options: one per set of 1 to 3 of the four cards, as `paymentOptions` lists them.
+  const sets = cards.flatMap((x, i) => [
+    [x],
+    ...cards.slice(i + 1).flatMap((y, j) => [[x, y], ...cards.slice(i + j + 2).map((z) => [x, y, z])]),
+  ]);
+  const ways = sets.map((set) => ({
+    ...plain,
+    optionId: `hand:${org}:50014.organizational-support-interrupt@exhaust=${set.join(",")}`,
+    kind: "resourceAbility",
+    spendsHandCard: true,
+    costChoices: { exhaust: set },
+    pool: { ...pool, mental: 1 + set.length },
+  }));
+  const wayOf = (...set: string[]) => ways.find((way) => way.costChoices.exhaust.join(",") === set.join(","))!;
+  const opened = {
+    action: { kind: "playCard", instanceId: "victoria" },
+    target: null,
+    controllerId: null,
+    query: { requirement: { generic: 3 }, sources: [plain, ...ways], suggested: [] },
+    picked: [],
+    reductions: [],
+  } as unknown as PaymentState;
+  const tap = (payment: PaymentState, card: string) => togglePayment(payment, `exhaust:${org}:${card}`);
+
+  test("the engine lists 14 sets for four cards", () => {
+    expect(ways).toHaveLength(14);
+  });
+
+  test("tapping cards to exhaust builds up the set, and replaces the plain spending", () => {
+    const one = tap(togglePayment(opened, plain.optionId), "b");
+    expect(one.picked).toEqual([wayOf("b").optionId]);
+    const two = tap(one, "a");
+    expect(two.picked).toEqual([wayOf("a", "b").optionId]);
+    expect(tap(two, "d").picked).toEqual([wayOf("a", "b", "d").optionId]);
+  });
+
+  test("a fourth card is refused, and taking the last one out spends the card plainly", () => {
+    const three = tap(tap(tap(opened, "a"), "b"), "c");
+    expect(exhaustPickOptionId(three, org, "d" as InstanceId)).toBeNull();
+    expect(tap(three, "d")).toBe(three);
+    expect(tap(tap(tap(three, "a"), "b"), "c").picked).toEqual([plain.optionId]);
+  });
+
+  test("a tap on the card in hand takes back the interrupt with all its exhausted cards", () => {
+    const two = tap(tap(opened, "a"), "c");
+    expect(togglePayment(two, cardTapOption(two, org)!).picked).toEqual([]);
   });
 });

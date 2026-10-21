@@ -12,7 +12,7 @@ import {
 } from "./dev-org-support-game.js";
 import { SessionStore } from "./session-store.js";
 
-describe("the Organizational Support dev game (issue #279)", () => {
+describe("the Organizational Support dev game (issues #279, #326)", () => {
   test("Maria Hill with Grant Ward and Command Team ready, and Organizational Support's ways to pay swap", async () => {
     const store = new SessionStore(new LocalEngineHost());
     await startOrgSupportDevGame(store);
@@ -45,5 +45,17 @@ describe("the Organizational Support dev game (issue #279)", () => {
     const view = paymentView(game, me.playerId, payment, "Victoria Hand", POOL_DEPS);
     expect(view.paid).toBe(3);
     expect(view.command).not.toBeNull();
+
+    // The strip shows one tile per card the interrupt can exhaust, not one per set (issue #326), and tapping both
+    // tiles picks the same way of spending as the richest set.
+    const strip = paymentView(game, me.playerId, opened, "Victoria Hand", POOL_DEPS).tableSources;
+    expect(strip.filter((tile) => tile.instanceId === org)).toEqual([]);
+    const tiles = strip.filter((tile) => tile.exhaustFor === org);
+    expect(tiles.map((tile) => code(tile.instanceId)).sort()).toEqual([COMMAND_TEAM_CARD, GRANT_WARD_CARD].sort());
+    const tapped = tiles.reduce((state, tile) => togglePayment(state, tile.optionId), opened);
+    expect(tapped.picked).toEqual([richest.optionId]);
+    const after = paymentView(game, me.playerId, tapped, "Victoria Hand", POOL_DEPS);
+    expect(after.tableSources.filter((tile) => tile.exhaustFor === org).every((tile) => tile.spent)).toBe(true);
+    expect(after.paid).toBe(3);
   }, 120_000);
 });
