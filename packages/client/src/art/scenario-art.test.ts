@@ -161,3 +161,21 @@ describe("a chosen villain's own outcome scene (Fear No Evil)", () => {
     expect(ART_CATALOG.scenarios.get("kingpin")?.["villain-loses"].length).toBeGreaterThan(0);
   });
 });
+
+describe("an outcome scene for a hero at the table", () => {
+  const catalog = parseArtCatalog({
+    "art/scenarios/kingpin/villain-loses.jpg": "/kp-loses.jpg",
+    "art/scenarios/kingpin/villain-loses-with-60001a.jpg": "/kp-transfer.jpg",
+  });
+  const first = () => 0;
+
+  it("shows Kingpin's transfer only when Daredevil played, and never as a plain variant", () => {
+    expect(outcomeArtFor(catalog, "kingpin", "win", first, undefined, ["60037a", "60001a"])?.url).toBe(
+      "/kp-transfer.jpg",
+    );
+    expect(outcomeArtFor(catalog, "kingpin", "win", first, undefined, ["60037a"])?.url).toBe("/kp-loses.jpg");
+    expect(outcomeArtFor(catalog, "kingpin", "win", () => 0.99)?.url).toBe("/kp-loses.jpg");
+    expect(catalog.scenarios.get("kingpin")?.["villain-loses"]).toHaveLength(1);
+    expect(ART_CATALOG.withHero.get("kingpin")?.some((s) => s.identityId === "60001a")).toBe(true);
+  });
+});

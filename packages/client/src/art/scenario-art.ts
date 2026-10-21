@@ -38,6 +38,18 @@ export interface ArtCatalog {
   readonly outcomes: Readonly<Record<OutcomeArtSlot, readonly Picture[]>>;
   /** By villain encounter set id (`villains/<id>/`): a chosen villain's own outcome scenes. */
   readonly villains: ReadonlyMap<string, Readonly<Record<"villain-wins" | "villain-loses", readonly Picture[]>>>;
+  /**
+   * A scenario's outcome scene for when a given hero is at the table (`scenarios/<id>/villain-loses-with-<identity>.*`):
+   * Kingpin taken in with Matt Murdock beside him, only when Daredevil played (the owner, 2026-10-20). By scenario id.
+   */
+  readonly withHero: ReadonlyMap<
+    string,
+    readonly {
+      readonly slot: "villain-wins" | "villain-loses";
+      readonly identityId: string;
+      readonly picture: Picture;
+    }[]
+  >;
   /** A pack's own cover art (W2b's shelf-header thumbnail), by `Pack.code` — optional; most packs have none yet. */
   readonly packs: ReadonlyMap<string, Readonly<Record<PackArtSlot, readonly Picture[]>>>;
   /** Files under `art/scenarios/`, `art/outcomes/` or `art/packs/` whose name fits no slot — a typo, by any other name. */
@@ -57,6 +69,10 @@ export function parseArtCatalog(files: Readonly<Record<string, string>>): ArtCat
   const scenarios = new Map<string, Record<ScenarioArtSlot, Picture[]>>();
   const outcomes: Record<OutcomeArtSlot, Picture[]> = { defeat: [], victory: [] };
   const villains = new Map<string, Record<"villain-wins" | "villain-loses", Picture[]>>();
+  const withHero = new Map<
+    string,
+    { slot: "villain-wins" | "villain-loses"; identityId: string; picture: Picture }[]
+  >();
   const packs = new Map<string, Record<PackArtSlot, Picture[]>>();
   const unrecognized: string[] = [];
 
@@ -69,6 +85,14 @@ export function parseArtCatalog(files: Readonly<Record<string, string>>): ArtCat
 
     if (parts[0] === "scenarios" && parts.length === 3) {
       if (parts[1]!.startsWith("_")) continue;
+      // Read before the plain slots: `villain-loses-with-60001a` would otherwise pass as a `villain-loses` variant.
+      const withMatch = /^(villain-wins|villain-loses)-with-([0-9a-z]+?)(?:-\d+)?$/.exec(stem);
+      if (withMatch) {
+        const list = withHero.get(parts[1]!) ?? [];
+        list.push({ slot: withMatch[1] as "villain-wins" | "villain-loses", identityId: withMatch[2]!, picture });
+        withHero.set(parts[1]!, list);
+        continue;
+      }
       const slot = slotOf(stem, SCENARIO_SLOTS);
       if (!slot) {
         unrecognized.push(underArt);
@@ -105,7 +129,7 @@ export function parseArtCatalog(files: Readonly<Record<string, string>>): ArtCat
       unrecognized.push(underArt);
     }
   }
-  return { scenarios, outcomes, villains, packs, unrecognized };
+  return { scenarios, outcomes, villains, withHero, packs, unrecognized };
 }
 
 /** The villain's own artwork for a scenario, or null when there is none. */
@@ -137,7 +161,8 @@ export function packCoverFor(
  * A loss shows the villain winning, a win shows it losing; each falls back to
  * the generic scene when that scenario has none of its own. A scenario whose villain was chosen (`villainSetId`, Fear
  * No Evil's underlings) shows that villain's own scene first (`art/villains/<id>/`), since the scenario's art does
- * not know who was faced; a villain with none of its own falls back the same way. A concession shows
+ * not know who was faced; a villain with none of its own falls back the same way. Ahead of both, a scene drawn for a
+ * hero at the table (`villain-loses-with-<identity>`, `heroIds`). A concession shows
  * only the generic defeat — the team stopped, the villain didn't beat them, so
  * its victory scene would claim something that didn't happen.
  */
@@ -147,8 +172,16 @@ export function outcomeArtFor(
   result: "win" | "loss" | "conceded",
   random: () => number = Math.random,
   villainSetId?: string,
+  heroIds: readonly string[] = [],
 ): Picture | null {
   const slot = result === "win" ? "villain-loses" : result === "loss" ? "villain-wins" : null;
+  // Most specific first: a scene drawn for a hero at the table.
+  const forHero = slot
+    ? (catalog.withHero.get(scenarioId) ?? [])
+        .filter((scene) => scene.slot === slot && heroIds.includes(scene.identityId))
+        .map((scene) => scene.picture)
+    : [];
+  if (forHero.length > 0) return pickPicture(forHero, null, random);
   const villain = slot && villainSetId ? catalog.villains.get(villainSetId)?.[slot] : undefined;
   const scenario = catalog.scenarios.get(scenarioId);
   const own = villain && villain.length > 0 ? villain : slot ? scenario?.[slot] : undefined;

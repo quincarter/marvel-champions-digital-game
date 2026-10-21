@@ -107,15 +107,16 @@ export class GameOverScene extends Phaser.Scene {
     // Inspect opens over this screen for the card that ended the game, and has the keys while it is up.
     this.#route = new FocusRoute(this, { blocked: () => this.scene.isActive(SCENES.inspect) });
     const { game, config } = appSession().store.state;
+    const seated = config ? config.players.map(identityOfSeat).filter((id): id is string => id !== null) : [];
     this.#outcomeArt =
       game?.outcome && config
-        ? outcomeArtFor(ART_CATALOG, config.scenarioId, game.outcome.result, Math.random, config.villainSetId)
+        ? outcomeArtFor(ART_CATALOG, config.scenarioId, game.outcome.result, Math.random, config.villainSetId, seated)
         : null;
     this.#news = null;
     this.#extrasNews = 0;
     if (game?.outcome && config) {
       const before = extras();
-      const heroIds = config.players.map(identityOfSeat).filter((id): id is string => id !== null);
+      const heroIds = seated;
       const after = new Extras(
         withEndedGame(before.progress, { scenarioId: config.scenarioId, result: game.outcome.result, heroIds }),
         { everything: before.everything },
