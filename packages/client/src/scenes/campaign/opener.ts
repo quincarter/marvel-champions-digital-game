@@ -18,7 +18,7 @@
  *    behind them, so the box's own cast (`CampaignStory.castIdentityIds`) stands in for the roster and the issue is
  *    numbered by its place in the story.
  */
-import { awaitsIssuePick } from "../../view/campaign-issue-pick.js";
+import { awaitsIssuePick, choiceIssueNumberOf } from "../../view/campaign-issue-pick.js";
 import Phaser from "phaser";
 import { issueNumberOf, issueStoryFor, storyFor, type IssueStory } from "../../campaign/story.js";
 import type { Picture } from "../../art/pictures.js";
@@ -176,6 +176,9 @@ export class CampaignOpenerScene extends Phaser.Scene {
     this.#startReading(
       nodeId,
       definition.graph.nodes.map((node) => node.id),
+      // A choice graph plays its issues in the group's order, not the graph's: a finished one keeps the number it was
+      // played as (its place among the resolved issues), the one being opened is the next.
+      definition.graph.kind === "choice" ? choiceIssueNumberOf(record, nodeId) : undefined,
     );
   }
 
@@ -224,7 +227,7 @@ export class CampaignOpenerScene extends Phaser.Scene {
     this.#draw();
   }
 
-  #startReading(nodeId: string, nodeIds: readonly string[]): void {
+  #startReading(nodeId: string, nodeIds: readonly string[], issueNumber?: number): void {
     const campaignId = this.#reading!.campaignId;
     this.#story = issueStoryFor(campaignId, nodeId);
     // A box with no story for this issue (MojoMania: its insert has no art or text to tell it with) has nothing to
@@ -233,7 +236,7 @@ export class CampaignOpenerScene extends Phaser.Scene {
       this.#leave();
       return;
     }
-    this.#issueNumber = issueNumberOf(nodeIds, nodeId);
+    this.#issueNumber = issueNumber ?? issueNumberOf(nodeIds, nodeId);
     this.#issueTotal = nodeIds.length;
     const pages = storyFor(campaignId)?.pages;
     this.#comicSteps = this.#story?.comicBeats && pages ? resolveComicBeats(pages, this.#story.comicBeats) : [];

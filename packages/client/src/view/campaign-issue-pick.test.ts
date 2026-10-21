@@ -1,6 +1,6 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it, test } from "vitest";
 import { campaignDefinitionOf } from "@mc/cards";
-import { awaitsIssuePick, currentNodeIdOf, issueNumberOfRecord } from "./campaign-issue-pick.js";
+import { awaitsIssuePick, choiceIssueNumberOf, currentNodeIdOf, issueNumberOfRecord } from "./campaign-issue-pick.js";
 
 const fne = campaignDefinitionOf("fne")!;
 const trors = campaignDefinitionOf("trors")!;
@@ -44,5 +44,19 @@ describe("issueNumberOfRecord", () => {
     expect(issueNumberOfRecord(trors, next(trorsIds[0]!))).toBe(1);
     expect(issueNumberOfRecord(trors, next(trorsIds[2]!))).toBe(3);
     expect(currentNodeIdOf(next(trorsIds[2]!))).toBe(trorsIds[2]);
+  });
+});
+
+describe("choiceIssueNumberOf", () => {
+  const at = (resolved: Record<string, "completed" | "failed">) => ({
+    position: { nextNodeId: null, resolved, progress: {} },
+  });
+
+  it("numbers an issue by the order it was played, and the one being opened next", () => {
+    const played = at({ "the-getaway": "completed", "art-museum-heist": "failed" });
+    expect(choiceIssueNumberOf(played, "the-getaway")).toBe(1);
+    expect(choiceIssueNumberOf(played, "art-museum-heist")).toBe(2);
+    expect(choiceIssueNumberOf(played, "protection-racket")).toBe(3);
+    expect(choiceIssueNumberOf(at({}), "the-raft-breakout")).toBe(1);
   });
 });

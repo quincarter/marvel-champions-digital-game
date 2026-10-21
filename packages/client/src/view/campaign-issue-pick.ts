@@ -34,3 +34,13 @@ export function issueNumberOfRecord(definition: Pick<CampaignDefinition, "graph"
       )
     : 1;
 }
+
+/**
+ * A `choice` graph's issue number for `nodeId`, in the order the group played them: a resolved issue's place among the
+ * resolved ones (in the order they were recorded), else the next number after them.
+ */
+export function choiceIssueNumberOf(record: Pick<CampaignRecord, "position">, nodeId: string): number {
+  const resolved = Object.keys(record.position.resolved);
+  const index = resolved.indexOf(nodeId);
+  return index >= 0 ? index + 1 : resolved.length + 1;
+}

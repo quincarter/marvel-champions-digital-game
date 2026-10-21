@@ -135,7 +135,7 @@ import {
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
 import { routeUnfoldedGame } from "./unfolded-game-route.js";
-import type { CampaignBriefingData } from "./routes.js";
+import type { CampaignBriefingData, CampaignOpenerData } from "./routes.js";
 
 const cardName = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
 /** A seat's hero as the table names it ("Colossus"; "Spider-Man (Peter Parker)" where a name is shared). */
@@ -158,6 +158,11 @@ export class CampaignBriefingScene extends Phaser.Scene {
   #data!: CampaignBriefingData;
   #record: CampaignRecord | null = null;
   #story: IssueStory | null = null;
+  /**
+   * The issue the run was on when this screen opened: null for a `choice` graph (Fear No Evil) still to pick one. The
+   * pick settles the issue mid-Briefing, after the opener would have played, so its comic plays then (`#compose`).
+   */
+  #nodeAtLoad: string | null = null;
   #definition: CampaignDefinition | null = null;
   #nodeIds: readonly string[] = [];
   #issueNumber = 1;
@@ -257,6 +262,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
     appSession().music?.playInterlude(record.campaignId as string);
     this.#record = record;
     this.#definition = definition;
+    this.#nodeAtLoad = currentNodeIdOf(record);
     this.#nodeIds = definition.graph.nodes.map((node) => node.id);
     this.#syncIssue(record);
     this.#draw();
@@ -303,6 +309,24 @@ export class CampaignBriefingScene extends Phaser.Scene {
       this.#syncIssue(result.record);
       this.#pending = null;
       this.#answers = [];
+      // A choice graph's issue was only just picked, so its opener never played: play its comic now, then come back
+      // here (the composed issue is saved, so this screen reopens on it). An issue with no comic needs no detour.
+      const picked = currentNodeIdOf(result.record);
+      if (this.#nodeAtLoad === null && picked !== null && (this.#story?.comicBeats?.length ?? 0) > 0) {
+        this.scale.off("resize", this.#draw, this);
+        goToScreen(this, SCENES.campaignOpener, {
+          runId: result.record.id,
+          nodeId: picked,
+          returnTo: {
+            key: SCENES.campaignBriefing,
+            data: {
+              runId: result.record.id,
+              ...(this.#data.replaySeed === undefined ? {} : { replaySeed: this.#data.replaySeed }),
+            },
+          },
+        } satisfies CampaignOpenerData);
+        return;
+      }
     }
     this.#draw();
   }
