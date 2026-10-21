@@ -11,14 +11,15 @@
  * untouched.
  *
  * Two entries (`routes.ts`'s `CampaignOpenerData`):
- *  - The run's own next issue (`data.nodeId` absent): `record.position.nextNodeId`. Skip/finish go to Briefing.
+ *  - The run's own issue (`data.nodeId` absent): a composed attempt's node, else `record.position.nextNodeId`
+ *    (`currentNodeIdOf`). Skip/finish go to Briefing.
  *  - A reread of a finished issue (`data.nodeId` + `data.returnTo`, Run's "Reread issue #2"): the same panels, then
  *    back to `returnTo` instead of Briefing — nothing here needs to know it's a reread beyond that one branch.
  *  - A read from Extras (`data.campaignId` + `data.nodeId` + `data.returnTo`, no `runId`): the same panels with no run
  *    behind them, so the box's own cast (`CampaignStory.castIdentityIds`) stands in for the roster and the issue is
  *    numbered by its place in the story.
  */
-import { awaitsIssuePick, choiceIssueNumberOf } from "../../view/campaign-issue-pick.js";
+import { awaitsIssuePick, choiceIssueNumberOf, currentNodeIdOf } from "../../view/campaign-issue-pick.js";
 import Phaser from "phaser";
 import { issueNumberOf, issueStoryFor, storyFor, type IssueStory } from "../../campaign/story.js";
 import type { Picture } from "../../art/pictures.js";
@@ -162,7 +163,10 @@ export class CampaignOpenerScene extends Phaser.Scene {
       this.#startFinaleReading();
       return;
     }
-    const nodeId = this.#data.nodeId ?? record.position.nextNodeId;
+    // The issue the run is on: a composed attempt's node first. A choice graph (Fear No Evil) names no next node once
+    // its issue is picked and composed, so reading only `position.nextNodeId` sent a run with a game in progress to
+    // the Dossier instead of back into its issue (the owner's report, 2026-10-20).
+    const nodeId = this.#data.nodeId ?? currentNodeIdOf(record);
     if (!nodeId) {
       // A `choice` graph names its issue only once the Briefing has drawn and the group has picked: there is no
       // opener to read yet, so go straight there. A finished run has nowhere left to go but its Dossier.
@@ -171,7 +175,7 @@ export class CampaignOpenerScene extends Phaser.Scene {
       return;
     }
     this.#reading = { campaignId: record.campaignId, rosterIds: record.seats.map((seat) => seat.identityCardId) };
-    this.#nextNodeId = record.position.nextNodeId;
+    this.#nextNodeId = currentNodeIdOf(record);
     const definition = service.definitionFor(record);
     this.#startReading(
       nodeId,

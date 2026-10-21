@@ -135,6 +135,7 @@ import {
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
 import { routeUnfoldedGame } from "./unfolded-game-route.js";
+import { gameInProgressOf } from "../../campaign/unfolded-game.js";
 import type { CampaignBriefingData, CampaignOpenerData } from "./routes.js";
 
 const cardName = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
@@ -163,6 +164,8 @@ export class CampaignBriefingScene extends Phaser.Scene {
    * pick settles the issue mid-Briefing, after the opener would have played, so its comic plays then (`#compose`).
    */
   #nodeAtLoad: string | null = null;
+  /** True when this issue's game is already on the table: the CTA continues it instead of opening a new one. */
+  #inProgress = false;
   #definition: CampaignDefinition | null = null;
   #nodeIds: readonly string[] = [];
   #issueNumber = 1;
@@ -260,6 +263,9 @@ export class CampaignBriefingScene extends Phaser.Scene {
       return;
     }
     appSession().music?.playInterlude(record.campaignId as string);
+    this.#inProgress =
+      this.#data.replaySeed === undefined && gameInProgressOf(record, await appSession().store.listSaves()) !== null;
+    if (!this.sys.isActive()) return;
     this.#record = record;
     this.#definition = definition;
     this.#nodeAtLoad = currentNodeIdOf(record);
@@ -423,10 +429,22 @@ export class CampaignBriefingScene extends Phaser.Scene {
     this.#starting = true;
     this.#startError = null;
     this.#draw();
+    const { store } = appSession();
+    // This issue is already on the table (left by a refresh or Back to title): pick that game up, never deal anew.
+    // Not on Rewind's "Same hands", which deals the issue again on purpose.
+    const playing = this.#data.replaySeed === undefined ? gameInProgressOf(record, await store.listSaves()) : null;
+    if (playing) {
+      await store.resume(playing.id);
+      if (!this.sys.isActive()) return;
+      if (store.state.status !== "failed") {
+        this.scale.off("resize", this.#draw, this);
+        goToScreen(this, store.state.game?.step.phase === "setup" ? SCENES.setupDeal : SCENES.board);
+        return;
+      }
+    }
     const composed = campaignService().launchConfig(record);
     const replaySeed = this.#data.replaySeed;
     const config = replaySeed === undefined ? composed : { ...composed, seed: replaySeed };
-    const { store } = appSession();
     await store.start(config);
     if (!this.sys.isActive()) return;
     if (store.state.status === "failed") {
@@ -784,7 +802,13 @@ export class CampaignBriefingScene extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
-        label: this.#starting ? "Opening…" : blocked ? "Fix a deck first" : `Open issue #${this.#issueNumber} ▸`,
+        label: this.#starting
+          ? "Opening…"
+          : blocked
+            ? "Fix a deck first"
+            : this.#inProgress
+              ? `Continue issue #${this.#issueNumber} ▸`
+              : `Open issue #${this.#issueNumber} ▸`,
         type: typeRole.barTitle,
         rect: openRect,
         onClick: openIssue,

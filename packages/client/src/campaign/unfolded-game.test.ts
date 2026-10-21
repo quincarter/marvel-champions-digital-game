@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CampaignRecord } from "../engine/campaign-storage.js";
 import type { SaveMeta } from "../engine/game-storage.js";
-import { unfoldedGameOf } from "./unfolded-game.js";
+import { gameInProgressOf, unfoldedGameOf } from "./unfolded-game.js";
 
 // Only the fields `unfoldedGameOf` reads; the rest of a record or save never matters to it.
 const recordOf = (
@@ -70,5 +70,21 @@ describe("unfoldedGameOf (issue #265)", () => {
     expect(unfoldedGameOf(recordOf(), [saveOf("b", { campaignNodeId: "absorbing-man" })])).toBeNull();
     expect(unfoldedGameOf(recordOf(), [saveOf("c", { campaignId: null, campaignNodeId: null })])).toBeNull();
     expect(unfoldedGameOf(recordOf(), [saveOf("d", { status: "incompatible" })])).toBeNull();
+  });
+});
+
+describe("gameInProgressOf", () => {
+  it("finds the composed issue's game still being played, so Open issue resumes it", () => {
+    const playing = saveOf("g1", { status: "active", outcome: null });
+    expect(gameInProgressOf(recordOf(), [playing])?.id).toBe("g1");
+  });
+
+  it("finds nothing once that game has ended, for another node, or with no composed issue", () => {
+    expect(gameInProgressOf(recordOf(), [saveOf("g1")])).toBeNull();
+    const elsewhere = saveOf("g2", { status: "active", outcome: null, campaignNodeId: "absorbing-man" });
+    expect(gameInProgressOf(recordOf(), [elsewhere])).toBeNull();
+    expect(
+      gameInProgressOf(recordOf({ attempt: null }), [saveOf("g3", { status: "active", outcome: null })]),
+    ).toBeNull();
   });
 });

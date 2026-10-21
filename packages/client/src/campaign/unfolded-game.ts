@@ -16,6 +16,24 @@ import type { SaveMeta } from "../engine/game-storage.js";
  * attempt that is already in the history.
  */
 export function unfoldedGameOf(record: CampaignRecord, saves: readonly SaveMeta[]): SaveMeta | null {
+  const newest = newestAttemptGameOf(record, saves);
+  if (!newest || newest.outcome === null || newest.status === "incompatible") return null;
+  return newest;
+}
+
+/**
+ * The game the record's composed attempt is being played as, still unfinished: the same newest save `unfoldedGameOf`
+ * reads, with no outcome yet. The Briefing resumes it on Open issue rather than dealing a fresh game, so leaving the
+ * table (a refresh, Back to title) and coming back through the campaign picks up where the table was (the owner's
+ * report, 2026-10-20).
+ */
+export function gameInProgressOf(record: CampaignRecord, saves: readonly SaveMeta[]): SaveMeta | null {
+  const newest = newestAttemptGameOf(record, saves);
+  if (!newest || newest.outcome !== null || newest.status === "incompatible") return null;
+  return newest;
+}
+
+function newestAttemptGameOf(record: CampaignRecord, saves: readonly SaveMeta[]): SaveMeta | null {
   const attempt = record.attempt;
   if (!attempt) return null;
   const lastFold = record.history.reduce((latest, entry) => Math.max(latest, entry.at), record.createdAt);
@@ -29,6 +47,5 @@ export function unfoldedGameOf(record: CampaignRecord, saves: readonly SaveMeta[
         !folded.has(save.id),
     )
     .sort((a, b) => b.createdAt - a.createdAt)[0];
-  if (!newest || newest.outcome === null || newest.status === "incompatible") return null;
-  return newest;
+  return newest ?? null;
 }
