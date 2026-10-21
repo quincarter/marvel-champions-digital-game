@@ -1,3 +1,0 @@
-kind: Fixed
-body: The web and the desktop app draw at the display's own scale (Windows scaling, 4K, Retina) instead of a stretched 1x picture, with the same Render resolution and Frame rate settings.
-time: 2026-10-21T12:37:19.682706-04:00
