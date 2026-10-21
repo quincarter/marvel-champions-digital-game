@@ -1141,6 +1141,12 @@ export interface McTextInputOptions {
  * control gets everywhere else — so it doesn't read as a foreign control next
  * to the native widgets beside it.
  */
+/** Every live text field by scene, so a card hover popover can move the fields it covers aside (`fieldsOf`). */
+const FIELDS = new WeakMap<Phaser.Scene, Set<McTextInput>>();
+
+/** The scene's live text fields: the DOM elements a canvas popover can't draw over. */
+export const fieldsOf = (scene: Phaser.Scene): readonly McTextInput[] => [...(FIELDS.get(scene) ?? [])];
+
 export class McTextInput {
   readonly #input: RexInputText;
   readonly #ring: McSelectionRing;
@@ -1152,8 +1158,16 @@ export class McTextInput {
   #coveredByOtherScene = false;
   /** The caller's own last `setVisible` request — combined with `#coveredByOtherScene` in `#applyVisibility`. */
   #requestedVisible = true;
+  /** A card hover popover sits over the field (`coverWith`): a DOM field draws above the canvas, so it steps aside. */
+  #underPopover = false;
+
+  readonly #scene: Phaser.Scene;
 
   constructor(scene: Phaser.Scene, options: McTextInputOptions) {
+    this.#scene = scene;
+    const fields = FIELDS.get(scene) ?? new Set<McTextInput>();
+    fields.add(this);
+    FIELDS.set(scene, fields);
     this.#rect = options.rect;
     this.#onChange = options.onChange;
     this.#numeric = options.numeric ?? false;
@@ -1307,6 +1321,25 @@ export class McTextInput {
   }
 
   /**
+   * Hides the field while `popover` (a card hover popover's rect, or null) overlaps it. The field is a DOM element over
+   * the canvas, so a popover drawn on the canvas would otherwise show under it (the Seats search bar cut a hero's
+   * popover in half). Never hides a field being typed in. Combined with the other reasons in `#applyVisibility`.
+   */
+  coverWith(popover: Rect | null): void {
+    const r = this.#rect;
+    const over =
+      popover !== null &&
+      !this.#input.isFocused &&
+      popover.x < r.x + r.width &&
+      popover.x + popover.width > r.x &&
+      popover.y < r.y + r.height &&
+      popover.y + popover.height > r.y;
+    if (this.#underPopover === over) return;
+    this.#underPopover = over;
+    this.#applyVisibility();
+  }
+
+  /**
    * Applies `#requestedVisible && !#coveredByOtherScene` via Phaser's own native `setVisible` — **not** a direct
    * `node.style.display` write. Browser verification (2026-09-18, the phone Table setup scroll region) found and
    * ruled out that shortcut: `DOMElementCSSRenderer` (Phaser's own per-*frame* DOM sync, not a one-shot render)
@@ -1317,7 +1350,7 @@ export class McTextInput {
    * screen's own focus route blocked on `focused`) after either reason makes it invisible.
    */
   #applyVisibility(): void {
-    const visible = this.#requestedVisible && !this.#coveredByOtherScene;
+    const visible = this.#requestedVisible && !this.#coveredByOtherScene && !this.#underPopover;
     if (this.#hidden === !visible) return;
     this.#hidden = !visible;
     this.#input.setVisible(visible);
@@ -1326,6 +1359,7 @@ export class McTextInput {
 
   destroy(): void {
     this.#ring.destroy();
+    FIELDS.get(this.#scene)?.delete(this);
     this.#input.destroy();
   }
 }

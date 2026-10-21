@@ -9,7 +9,7 @@ import { CARD_ASPECT, type Rect } from "./layout.js";
 import {
   FORM_ROW_HEADER,
   PLAY_AREA_GAP,
-  formCardSlots,
+  formStackLayout,
   formColumnWidth,
   PlayAreaScroll,
   playAreaRow,
@@ -175,39 +175,39 @@ describe("a second deck's column (Doctor Strange's Invocation)", () => {
 });
 
 describe("form cards beside the play area (issue #308)", () => {
-  const within = (slot: Rect, row: Rect): boolean =>
-    slot.x >= row.x - 0.5 &&
-    slot.y >= row.y + FORM_ROW_HEADER - 0.5 &&
-    slot.x + slot.width <= row.x + row.width + 0.5 &&
-    slot.y + slot.height <= row.y + row.height + 0.5;
+  const inside = (inner: Rect, outer: Rect): boolean =>
+    inner.x >= outer.x - 0.5 &&
+    inner.y >= outer.y - 0.5 &&
+    inner.x + inner.width <= outer.x + outer.width + 0.5 &&
+    inner.y + inner.height <= outer.y + outer.height + 0.5;
 
-  test("a wide desktop row lays Spectrum's three forms side by side, at card proportions, inside the row", () => {
-    const row: Rect = { x: 0, y: 0, width: 330, height: 240 };
-    const slots = formCardSlots(row, 3);
-    expect(new Set(slots.map((slot) => slot.y)).size).toBe(1);
-    for (const slot of slots) {
-      expect(within(slot, row)).toBe(true);
-      expect(slot.width / slot.height).toBeCloseTo(CARD_ASPECT, 5);
-    }
+  test("Spectrum's three forms stack into one card's room: the front card whole, an edge of each behind it", () => {
+    const row: Rect = { x: 0, y: 0, width: 200, height: 260 };
+    const layout = formStackLayout(row, 3)!;
+    const [front, second, third] = layout.cards;
+    expect(front!.width / front!.height).toBeCloseTo(CARD_ASPECT, 5);
+    expect(second!.x).toBeGreaterThan(front!.x);
+    expect(second!.x - front!.x).toBeLessThan(front!.width / 4);
+    expect(third!.x - second!.x).toBeCloseTo(second!.x - front!.x, 5);
+    // The stack, its heading and the "Tap to see all" line all fit the row.
+    expect(inside(layout.stack, row)).toBe(true);
+    expect(layout.stack.y).toBeGreaterThanOrEqual(FORM_ROW_HEADER);
+    expect(layout.footer).not.toBeNull();
+    expect(inside(layout.footer!, row)).toBe(true);
+    expect(layout.footer!.y).toBeGreaterThanOrEqual(front!.y + front!.height);
   });
 
-  test("a tall narrow phone column stacks them into a grid, bigger than three across would be", () => {
-    const row: Rect = { x: 0, y: 0, width: 110, height: 250 };
-    const slots = formCardSlots(row, 3);
-    const threeAcross = (110 - 2 * 6) / 3 / CARD_ASPECT;
-    expect(slots[0]!.height).toBeGreaterThan(threeAcross);
-    for (const slot of slots) expect(within(slot, row)).toBe(true);
-    // No two cards overlap.
-    for (const [i, a] of slots.entries()) {
-      for (const b of slots.slice(i + 1)) {
-        const apart = a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y;
-        expect(apart).toBe(true);
-      }
-    }
+  test("one double-sided form card is a stack of one with no fan-out line", () => {
+    const layout = formStackLayout({ x: 0, y: 0, width: 150, height: 240 }, 1)!;
+    expect(layout.cards).toHaveLength(1);
+    expect(layout.footer).toBeNull();
+    expect(layout.stack).toEqual(layout.cards[0]);
   });
 
   test("the column never takes more than 30% of the zone, nor less than the second-deck column", () => {
-    expect(formColumnWidth(1000, 240, 3)).toBe(300);
+    expect(formColumnWidth(1000, 240, 3)).toBeLessThanOrEqual(300);
     expect(formColumnWidth(1000, 40, 3)).toBe(separateColumnWidth(1000, 40));
+    // A stack is about one card wide, far narrower than three cards side by side.
+    expect(formColumnWidth(2000, 240, 3)).toBeLessThan(3 * (240 - FORM_ROW_HEADER) * CARD_ASPECT * 0.6);
   });
 });

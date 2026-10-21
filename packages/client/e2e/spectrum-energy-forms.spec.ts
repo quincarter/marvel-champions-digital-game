@@ -6,9 +6,9 @@ import { SHOT } from "./x-men-helpers.js";
 
 /**
  * Issue #308: Spectrum's three energy form upgrades sat facedown in the play row, and the form picker showed their
- * backs. They now sit faceup in an "Energy forms" column beside the play area. Each one is a card on the table: the
- * desktop hover popover opens on it and a tap opens Inspect. The column is next to the play row, which scrolls
- * sideways, so a swipe of the row that lifts over a form must not press it (issue #227).
+ * backs. They now sit faceup, stacked, in an "Energy forms" column beside the play area: the desktop hover popover
+ * opens on the front card and a tap fans all three out in the pile view. The column is next to the play row, which
+ * scrolls sideways, so a swipe of the row that lifts over the stack must not press it (issue #227).
  */
 
 const FORM_CODES = ["21002", "21003", "21004"];
@@ -40,7 +40,7 @@ async function drag(page: Page, phone: boolean, from: { x: number; y: number }, 
   await cdp.detach();
 }
 
-test("issue #308: Spectrum's energy forms sit faceup beside the play area; a swipe that lifts on one opens nothing, a tap reads it", async ({
+test("issue #308: Spectrum's energy forms sit faceup beside the play area; stacked beside the play area; a swipe that lifts on the stack opens nothing, a tap fans them out", async ({
   page,
 }, info) => {
   test.setTimeout(180_000);
@@ -57,20 +57,21 @@ test("issue #308: Spectrum's energy forms sit faceup beside the play area; a swi
     `(s) => s.game.players[0].playArea.filter((id) => ${JSON.stringify(FORM_CODES)}.includes(s.game.instances[id].cardId))`,
   );
   expect(forms).toHaveLength(3);
-  const rects = await waitFor(async () => {
-    const all = await Promise.all(forms.map((id) => hitRect(page, id)));
-    return all.every((rect) => rect !== null) ? (all as Rect[]) : null;
-  }, "the three energy forms on the table");
+  // The forms are a stack: the front card is the one on the table (in alter-ego form, the first printed, Gamma).
+  const front = await waitFor(async () => {
+    for (const id of forms) {
+      const rect = await hitRect(page, id);
+      if (rect) return { id, rect };
+    }
+    return null;
+  }, "the energy form stack on the table");
   const play = (await zoneRect(page, "playArea"))!;
-  for (const rect of rects) {
-    expect(rect.x, "each form sits in the play area's right-hand column").toBeGreaterThan(play.x + play.width / 2);
-    expect(rect.x + rect.width).toBeLessThanOrEqual(play.x + play.width + 0.5);
-  }
+  expect(front.rect.x, "the stack sits in the play area's right-hand column").toBeGreaterThan(play.x + play.width / 2);
+  expect(front.rect.x + front.rect.width).toBeLessThanOrEqual(play.x + play.width + 0.5);
 
   if (!phone) {
-    // The desktop hover popover opens on a form card.
-    const gamma = rects[0]!;
-    await page.mouse.move(gamma.x + gamma.width / 2, gamma.y + gamma.height / 2);
+    // The desktop hover popover opens on the front card.
+    await page.mouse.move(front.rect.x + front.rect.width / 2, front.rect.y + front.rect.height / 2);
     await waitFor(
       async () => ((await hook<string>(page, "__mcBoardDebug", "hoverShown")) ? true : null),
       "the hover popover on an energy form",
@@ -79,23 +80,29 @@ test("issue #308: Spectrum's energy forms sit faceup beside the play area; a swi
     await page.mouse.move(5, 5);
   }
 
-  // A crowded play row scrolls sideways, as in issue #227: swipe it and lift on a form card.
+  // A crowded play row scrolls sideways, as in issue #227: swipe it and lift on the stack.
   await hook(page, "__mcBoardDebug", "setBoardPad", { playArea: 8 });
   await settle(page);
-  const target = (await hitRect(page, forms[1]!))!;
+  const target = (await hitRect(page, front.id))!;
   const y = target.y + target.height / 2;
   if (SHOT) await page.screenshot({ path: `${SHOT}/spectrum-energy-forms-${info.project.name}.png` });
   await drag(page, phone, { x: play.x + 30, y }, { x: target.x + target.width / 2, y });
   await settle(page);
-  expect(await activeScenes(page), "a swipe that lifted on a form opens nothing").not.toContain("InspectOverlay");
+  const opened = await activeScenes(page);
+  expect(opened, "a swipe that lifted on the stack opens nothing").not.toContain("PileViewOverlay");
+  expect(opened).not.toContain("InspectOverlay");
 
-  // A tap on the form reads it.
+  // A tap on the stack fans every form out, faceup.
   if (phone) await page.touchscreen.tap(target.x + target.width / 2, y);
   else await pressAt(page, target.x + target.width / 2, y);
   await waitFor(
-    async () => ((await activeScenes(page)).includes("InspectOverlay") ? true : null),
-    "Inspect opens on a tap of a form",
+    async () => ((await activeScenes(page)).includes("PileViewOverlay") ? true : null),
+    "the forms fan out on a tap of the stack",
     15_000,
   );
+  if (SHOT) {
+    await settle(page);
+    await page.screenshot({ path: `${SHOT}/spectrum-energy-forms-fanned-${info.project.name}.png` });
+  }
   expect(errors).toEqual([]);
 });

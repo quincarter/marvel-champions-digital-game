@@ -87,7 +87,7 @@ import { dealtPileParts, dealtWords } from "../../view/dealt-pile.js";
 import { addTapTarget } from "./tap-target.js";
 import { dimAlpha, focusKey, targetState } from "./selection.js";
 import {
-  formCardSlots,
+  formStackLayout,
   formColumnWidth,
   playAreaRow,
   separateColumnWidth,
@@ -1292,13 +1292,17 @@ export function drawPlayArea(
       width: separateWidth,
       height: inner.height,
     };
-    // Each form group takes an even share of the column's height; the second decks lay out in what is left.
-    const formRowHeight = (sideRect.height - (sideRows - 1) * 8) / sideRows;
+    // Each form group takes an even share of the column's height; the second decks lay out in what is left. The form
+    // column starts at the zone's own caption line, so its heading reads on one line with "your play area".
+    const formRect: Rect = compact
+      ? sideRect
+      : { ...sideRect, y: rect.y + 6, height: sideRect.height + (inner.y - rect.y - 6) };
+    const formRowHeight = (formRect.height - (sideRows - 1) * 8) / sideRows;
     formGroups.forEach((group, index) => {
-      drawFormCards(ctx, { ...sideRect, y: sideRect.y + index * (formRowHeight + 8), height: formRowHeight }, group);
+      drawFormCards(ctx, { ...formRect, y: formRect.y + index * (formRowHeight + 8), height: formRowHeight }, group);
     });
     if (hasSeparateDecks) {
-      const used = formGroups.length * (formRowHeight + 8);
+      const used = formRect.y - sideRect.y + formGroups.length * (formRowHeight + 8);
       const separateRect: Rect = { ...sideRect, y: sideRect.y + used, height: sideRect.height - used };
       drawSeparateDecks(ctx, separateRect, model.separateDecks, model.perspectiveId);
     }
@@ -1465,37 +1469,44 @@ function drawPlayAreaScrollHint(ctx: BoardDrawContext, area: Rect, scrollX: numb
 }
 
 /**
- * A hero's form cards under their heading (issue #308): Spectrum's set of energy forms, every face shown since their
- * owner knows them, the active one ringed and marked ACTIVE and the waiting ones dimmed; or one double-sided form card
- * (Vision, Shadowcat, Nick Fury) marked with the form a flip changes to. Each card is its own tap target
- * (Inspect, or a pick while a target prompt names it) and opens the desktop hover popover through its hit rect.
+ * A hero's form cards under their heading (issue #308), stacked so they take one card's room beside a busy play area:
+ * the front card whole and an edge of each card behind it. Spectrum's energy forms put the active one in front, ringed
+ * and marked ACTIVE (in alter-ego form none is), with every face shown since their owner knows them; a tap on the stack
+ * fans them all out in the pile overlay, and "Tap to see all" under it says so. One double-sided form card (Vision,
+ * Shadowcat, Nick Fury) is a stack of one, marked with the form a flip changes to, and a tap reads it. The front card
+ * opens the desktop hover popover through its hit rect; a hold or right-click opens Inspect on it.
  */
 function drawFormCards(ctx: BoardDrawContext, row: Rect, group: FormCardGroup): void {
   const { scene } = ctx;
-  const slots = formCardSlots(row, group.cards.length);
-  if (slots.length === 0 || slots[0]!.height < 24) return;
+  // The form in use in front, the rest behind it in printed order.
+  const cards = [...group.cards].sort((a, b) => Number(b.active) - Number(a.active));
+  const layout = formStackLayout(row, cards.length);
+  if (!layout || layout.cards[0]!.height < 24) return;
   const heading = label(scene, row.x, row.y, group.title, typeRole.label, surface.ink.hex, ink.label);
   fitText(heading, row.width, typeRole.label.size);
-  // A set marks which form is up; a lone double-sided card is always up, so it names the form a flip changes to instead.
-  const isSet = group.cards.length > 1;
-  group.cards.forEach((card, index) => {
-    const rect = slots[index]!;
-    const dim = card.active || !isSet ? 1 : ink.meta;
+  const isSet = cards.length > 1;
+  // Back to front, so the front card is drawn last, over the edges of the rest.
+  for (let index = cards.length - 1; index >= 0; index--) {
+    const card = cards[index]!;
+    const rect = layout.cards[index]!;
+    const front = index === 0;
+    const dim = front ? 1 : ink.secondary;
     const frame = scene.add.graphics();
-    frame.fillStyle(surface.ink.hex, dim).fillRect(rect.x - 1, rect.y - 1, rect.width + 2, rect.height + 2);
-    frame.fillStyle(surface.paper.hex, dim).fillRect(rect.x, rect.y, rect.width, rect.height);
+    frame.fillStyle(surface.ink.hex, 1).fillRect(rect.x - 1, rect.y - 1, rect.width + 2, rect.height + 2);
+    frame.fillStyle(surface.paper.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     const drawn = drawArt(scene, ctx.art.request(scene, card.art), rect, { fit: "cover", alpha: dim }) !== null;
-    if (!drawn) {
+    if (!drawn && front) {
       const name = scene.add
         .text(
           rect.x + rect.width / 2,
           rect.y + rect.height / 2,
           card.name,
-          textStyle(typeRole.label, surface.ink.hex, dim),
+          textStyle(typeRole.label, surface.ink.hex, 1),
         )
         .setOrigin(0.5);
       fitText(name, rect.width - 4, typeRole.label.size);
     }
+    if (!front) continue;
     const foot = { x: rect.x, y: rect.y + rect.height - 16, width: rect.width, height: 16 };
     if (isSet && card.active) {
       const ring = scene.add.graphics();
@@ -1508,9 +1519,28 @@ function drawFormCards(ctx: BoardDrawContext, row: Rect, group: FormCardGroup): 
     if (card.tokens && rect.height >= 60) {
       drawFootStrip(scene, { x: rect.x, y: rect.y, width: rect.width, height: 16 }, card.tokens, "threat", 1);
     }
-    ctx.frame.hitRects.set(card.instanceId, rect);
-    ctx.makeTapTarget(rect, card.instanceId, () => ctx.controller.onCharacterTap(card.instanceId));
-  });
+  }
+  if (layout.footer) {
+    const hint = label(
+      scene,
+      layout.footer.x + layout.footer.width / 2,
+      layout.footer.y,
+      `Tap to see all ${cards.length}`,
+      typeRole.label,
+      surface.ink.hex,
+      ink.label,
+    ).setOrigin(0.5, 0);
+    fitText(hint, layout.footer.width, typeRole.label.size);
+  }
+  const top = cards[0]!.instanceId;
+  const ids = cards.map((card) => card.instanceId);
+  ctx.frame.hitRects.set(top, layout.cards[0]!);
+  // While a target prompt is open the stack answers it as the front card; otherwise a set fans out and a lone card reads.
+  const onTap = (): void => {
+    if (!isSet || ctx.controller.selection.kind === "targeting") ctx.controller.onCharacterTap(top);
+    else ctx.openPile(group.title, ids);
+  };
+  ctx.makeTapTarget(layout.stack, top, onTap);
 }
 
 /**

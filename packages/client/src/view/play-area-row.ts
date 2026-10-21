@@ -118,47 +118,63 @@ export function separateColumnWidth(zoneWidth: number, zoneHeight: number, cardS
   return Math.min(Math.round(Math.max(base * cardScale, zoneHeight * 0.8)), Math.round(zoneWidth * 0.3));
 }
 
-/** The heading line over a form-card row (`formCardSlots`). */
-export const FORM_ROW_HEADER = 14;
-const FORM_GAP = 6;
+/** The heading line over a form stack (`formStackLayout`). */
+export const FORM_ROW_HEADER = 16;
+/** The "Tap to see all 3" line under a stack of more than one card. */
+export const FORM_ROW_FOOTER = 14;
+/** How much of each card behind the front one shows, as a share of a card's width. */
+const FORM_PEEK = 0.16;
+
+/** How wide a stack of `count` cards is, as a multiple of one card's width. */
+const stackSpan = (count: number): number => 1 + FORM_PEEK * Math.max(0, count - 1);
 
 /**
- * The column beside the play area that holds a set of form cards side by side (Spectrum's energy forms, issue #308): as
- * wide as `count` cards at the zone's height need, at least as wide as the second-deck column, and never more than 30% of
- * the zone. `rows` is how many rows share the column's height (a form row and any second decks).
+ * The column beside the play area that holds a hero's form cards as a stack (Spectrum's energy forms, issue #308): as
+ * wide as the stack at the zone's height needs, at least as wide as the second-deck column, never more than 30% of the
+ * zone. `rows` is how many rows share the column's height (a form stack and any second decks).
  */
 export function formColumnWidth(zoneWidth: number, zoneHeight: number, count: number, rows = 1, cardScale = 1): number {
-  const rowHeight = (zoneHeight - (rows - 1) * 8) / Math.max(1, rows) - FORM_ROW_HEADER;
-  const wanted = count * Math.max(0, rowHeight) * CARD_ASPECT + (count - 1) * FORM_GAP;
+  const footer = count > 1 ? FORM_ROW_FOOTER : 0;
+  const rowHeight = (zoneHeight - (rows - 1) * 8) / Math.max(1, rows) - FORM_ROW_HEADER - footer;
+  const wanted = Math.max(0, rowHeight) * CARD_ASPECT * stackSpan(count);
   const cap = Math.round(zoneWidth * 0.3);
   return Math.min(cap, Math.max(separateColumnWidth(zoneWidth, zoneHeight, cardScale), Math.round(wanted)));
 }
 
+export interface FormStackLayout {
+  /** One rect per card, front card first; each card behind sits a peek further right. */
+  readonly cards: readonly Rect[];
+  /** The whole stack, the one tap target that fans it out. */
+  readonly stack: Rect;
+  /** The "Tap to see all" line under a stack of more than one card; null for one card. */
+  readonly footer: Rect | null;
+}
+
 /**
- * `count` cards under the row's heading, as large as the row allows, centered in it: side by side in a wide row, stacked
- * in a tall narrow one (a phone's play area), in whichever grid gives the biggest card.
+ * `count` cards stacked under the row's heading, as large as the row allows: the front card whole and an edge of each
+ * card behind it, so a set of forms takes one card's room on the table and a tap fans it out.
  */
-export function formCardSlots(row: Rect, count: number): readonly Rect[] {
-  if (count <= 0) return [];
-  const room = { x: row.x, y: row.y + FORM_ROW_HEADER, width: row.width, height: row.height - FORM_ROW_HEADER };
-  let best = { columns: count, rows: 1, height: 0 };
-  for (let columns = 1; columns <= count; columns++) {
-    const rows = Math.ceil(count / columns);
-    const byWidth = (room.width - (columns - 1) * FORM_GAP) / columns / CARD_ASPECT;
-    const byHeight = (room.height - (rows - 1) * FORM_GAP) / rows;
-    const height = Math.max(0, Math.min(byWidth, byHeight));
-    if (height > best.height + 0.5) best = { columns, rows, height };
-  }
-  const { columns, rows, height } = best;
+export function formStackLayout(row: Rect, count: number): FormStackLayout | null {
+  if (count <= 0) return null;
+  const footerHeight = count > 1 ? FORM_ROW_FOOTER : 0;
+  const room = {
+    x: row.x,
+    y: row.y + FORM_ROW_HEADER,
+    width: row.width,
+    height: row.height - FORM_ROW_HEADER - footerHeight,
+  };
+  const height = Math.max(0, Math.min(room.height, room.width / stackSpan(count) / CARD_ASPECT));
   const width = height * CARD_ASPECT;
-  const top = room.y + (room.height - (rows * height + (rows - 1) * FORM_GAP)) / 2;
-  return Array.from({ length: count }, (_unused, index) => {
-    const row = Math.floor(index / columns);
-    // A short last row is centered too.
-    const inRow = Math.min(columns, count - row * columns);
-    const left = room.x + (room.width - (inRow * width + (inRow - 1) * FORM_GAP)) / 2;
-    return { x: left + (index % columns) * (width + FORM_GAP), y: top + row * (height + FORM_GAP), width, height };
-  });
+  const peek = width * FORM_PEEK;
+  const span = width * stackSpan(count);
+  const left = room.x + (room.width - span) / 2;
+  const top = room.y + (room.height - height) / 2;
+  const cards = Array.from({ length: count }, (_unused, index) => ({ x: left + index * peek, y: top, width, height }));
+  return {
+    cards,
+    stack: { x: left, y: top, width: span, height },
+    footer: count > 1 ? { x: row.x, y: top + height + 2, width: row.width, height: FORM_ROW_FOOTER - 2 } : null,
+  };
 }
 
 /** One second-deck row's height: its two piles at card proportions across the column, within the room the column has. */
