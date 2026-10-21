@@ -6,7 +6,7 @@
  * Everything here is a plain function of the walkthrough and the reveal cursor, so the scene can hold each of those back
  * until the rail reaches them (the QA of 2026-10-15: the board showed round 2 and "Your turn" over round 1's step 2).
  */
-import type { GameOutcome } from "@mc/engine";
+import { locateCard, type GameOutcome, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
 import { revealOf } from "./villain-phase-reveal.js";
 import { VILLAIN_STEPS, type Walkthrough } from "./villain-walkthrough.js";
 
@@ -27,21 +27,105 @@ export interface TableHold {
   readonly round: number;
   /** "Villain phase · step 2 of 5". */
   readonly stepLabel: string;
+  /**
+   * Encounter cards dealt this phase that the rail has not revealed yet, in the order dealt (issue #311). The engine
+   * has already revealed them, so the live table shows their faces (an obligation in your play area, a treachery
+   * attached to the villain) while the rail is still on the deal. The table draws them as the facedown pile they were
+   * dealt into until the rail reaches their reveal. Absent when there are none.
+   */
+  readonly facedown?: readonly FacedownCard[];
+}
+
+/** A card dealt facedown to a player and not yet shown revealed by the rail. */
+export interface FacedownCard {
+  readonly instanceId: InstanceId;
+  readonly playerId: PlayerId;
 }
 
 /**
  * The chrome the table wears while the replay is behind the engine; null once the replay has caught up (the live game
  * is then the game being shown) or when there is nothing to replay.
  */
-export function tableHoldOf(walkthrough: Walkthrough, revealed: number): TableHold | null {
+export function tableHoldOf(
+  walkthrough: Walkthrough,
+  revealed: number,
+  /** The card the rail is holding facedown for Flip Encounter Card (or turning over), whose reveal beat is up already. */
+  unflipped: InstanceId | null = null,
+): TableHold | null {
   const total = totalBeats(walkthrough);
-  if (total === 0 || revealed >= total) return null;
+  // Caught up, unless the last card is still waiting on Flip Encounter Card.
+  if (total === 0 || (revealed >= total && unflipped === null)) return null;
   const active = revealOf(walkthrough, revealed).steps.find((step) => step.revealStatus === "active");
+  const shown = new Set(
+    walkthrough.steps
+      .flatMap((step) => step.beats)
+      .slice(0, revealed)
+      .map((beat) => beat.encounterInstanceId ?? null),
+  );
+  if (unflipped !== null) shown.delete(unflipped);
+  const facedown = walkthrough.encounter.dealt
+    .filter((card) => !shown.has(card.instanceId))
+    .map((card) => ({ instanceId: card.instanceId, playerId: card.playerId }));
   return {
     round: walkthrough.round,
     stepLabel: active
       ? `Villain phase · step ${active.number} of ${VILLAIN_STEPS.length}`
       : "Villain phase · about to begin",
+    ...(facedown.length > 0 ? { facedown } : {}),
+  };
+}
+
+/** Whether two holds hide the same cards (the table redraws only when this or the chrome changes). */
+export const sameFacedown = (a: TableHold | null | undefined, b: TableHold | null | undefined): boolean =>
+  (a?.facedown ?? []).map((card) => card.instanceId).join() ===
+  (b?.facedown ?? []).map((card) => card.instanceId).join();
+
+/**
+ * The game as the table should draw it while the rail is behind: each card in `facedown` taken out of wherever the
+ * engine has put it since its reveal (a play area, the villain area, an attachment, a discard pile) and put back in its
+ * player's facedown pile, so the table shows a card back until the rail reveals it. A card back in a deck is hidden
+ * already and is left there. A view of the state only: the engine's game is never changed.
+ */
+export function withFacedownHeld(game: GameState, facedown: readonly FacedownCard[]): GameState {
+  const held = facedown.filter((card) => {
+    const zone = locateCard(game, card.instanceId);
+    return zone !== null && zone.kind !== "deck" && zone.kind !== "encounterDeck" && zone.kind !== "dealtEncounter";
+  });
+  if (held.length === 0) return game;
+  const ids = new Set<InstanceId>(held.map((card) => card.instanceId));
+  const keep = (list: readonly InstanceId[]): readonly InstanceId[] =>
+    list.some((id) => ids.has(id)) ? list.filter((id) => !ids.has(id)) : list;
+
+  const instances: Record<string, GameState["instances"][string]> = { ...game.instances };
+  for (const [key, instance] of Object.entries(game.instances)) {
+    if (ids.has(instance.instanceId) && instance.attachedTo !== null) {
+      instances[key] = { ...instance, attachedTo: null };
+    } else if (instance.attachments.some((id) => ids.has(id))) {
+      instances[key] = { ...instance, attachments: keep(instance.attachments) };
+    }
+  }
+  const encounterDecks: Record<string, GameState["encounterDecks"][string]> = {};
+  for (const [deckId, piles] of Object.entries(game.encounterDecks)) {
+    encounterDecks[deckId] = { ...piles, discard: keep(piles.discard) };
+  }
+  return {
+    ...game,
+    instances,
+    encounterDecks,
+    villainArea: keep(game.villainArea),
+    victoryDisplay: keep(game.victoryDisplay),
+    removedFromGame: keep(game.removedFromGame),
+    players: game.players.map((player) => {
+      const mine = held.filter((card) => card.playerId === player.playerId).map((card) => card.instanceId);
+      return {
+        ...player,
+        hand: keep(player.hand),
+        discard: keep(player.discard),
+        playArea: keep(player.playArea),
+        resolving: keep(player.resolving),
+        dealtEncounter: [...player.dealtEncounter, ...mine],
+      };
+    }),
   };
 }
 

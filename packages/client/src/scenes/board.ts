@@ -67,7 +67,7 @@ import { sameSeatNote, type VillainSeatNote } from "../view/villain-seat-note.js
 import { drawCompactIdentity } from "./board/compact-identity.js";
 import { sameHandTags, type VillainHandTag } from "../view/villain-hand-tags.js";
 import { REVIEW_HANDLE_WIDTH, reviewHandleRect, showReviewHandle } from "../view/villain-review.js";
-import type { TableHold } from "../view/villain-replay.js";
+import { sameFacedown, withFacedownHeld, type TableHold } from "../view/villain-replay.js";
 import type { SessionState } from "../store/session-store.js";
 import { CHROME_SCENES, SCENES } from "./keys.js";
 import { tableSoundsOf, type CardSoundInfo } from "../view/sound-effects.js";
@@ -691,6 +691,8 @@ export class BoardScene extends Phaser.Scene {
     if (fresh) this.#previousGame = state.game;
     // Back out rewound the game: put the log back as it was at that version, and skip this update's replay events.
     const rewound = fresh && state.version < this.#version ? this.#logAt.get(state.version) : undefined;
+    /** The log as it stood before this command's lines, for a villain phase this command begins (`#logBeforePhase`). */
+    let logBefore = this.#log;
     if (rewound) {
       this.#log = rewound.log;
       this.#cardHistory = rewound.cardHistory;
@@ -712,6 +714,7 @@ export class BoardScene extends Phaser.Scene {
         this.#log = appendEvents(this.#log, history, state.game, state.perspectiveId, POOL_DEPS);
       }
       const latest = eventsForBlindLog(state.lastEvents, blind);
+      logBefore = this.#log;
       this.#log = appendEvents(this.#log, latest, state.game, state.perspectiveId, POOL_DEPS);
       this.#cardHistory = appendCardHistory(this.#cardHistory, state.lastEvents);
       // Mirrored for Pause's "Jump to a moment" (`session.ts`'s own doc comment on `gameLog`).
@@ -778,7 +781,7 @@ export class BoardScene extends Phaser.Scene {
     if (state.game.outcome) {
       // The engine finished the game inside the command; the rail may still be replaying the beats that ended it, so the
       // outcome waits for it (`releaseOutcome`). A command that ran the whole villain phase to the end opens it too.
-      if (fresh) this.#openVillainWalkthrough(state.lastEvents, previousGame);
+      if (fresh) this.#openVillainWalkthrough(state.lastEvents, previousGame, logBefore);
       if (this.#villainReplayHoldsOutcome()) {
         this.#outcomeHeld = true;
         this.#draw();
@@ -789,7 +792,7 @@ export class BoardScene extends Phaser.Scene {
     }
     // Only a *new* command can start a villain phase; a plain redraw re-reads
     // the same `lastEvents` and must not re-open a walkthrough the player skipped.
-    if (fresh) this.#openVillainWalkthrough(state.lastEvents, previousGame);
+    if (fresh) this.#openVillainWalkthrough(state.lastEvents, previousGame, logBefore);
     if (fresh) this.#queueCampaignBeat(state);
     // Guided mode G8 part 2: only a *new* command's own events ever get folded into the round debrief's
     // accumulator — same reasoning as the villain-phase walkthrough just above (`fresh`'s own doc comment on
@@ -1073,12 +1076,13 @@ export class BoardScene extends Phaser.Scene {
    * reveal cursor mid-phase. (`run()` is no safer: a RUNNING scene falls through
    * its sleeping/paused branches to the same `start()`.)
    */
-  #openVillainWalkthrough(events: readonly GameEvent[], before: GameState | null): void {
+  #openVillainWalkthrough(events: readonly GameEvent[], before: GameState | null, logBefore: LogState): void {
     if (this.scene.isActive(SCENES.villainPhase)) return;
     const begins = events.some(
       (event) => event.type === "stepChanged" && event.to.phase === "villain" && event.to.kind === "placeThreat",
     );
     if (!begins) return;
+    this.#logBeforePhase = logBefore;
     this.scene.launch(SCENES.villainPhase, { before } satisfies VillainPhaseLaunchData);
     this.#walkthroughLaunching = true;
     // Cleared when the walkthrough has been created, not only when a draw happens to see it active: the Board's time
@@ -1206,9 +1210,9 @@ export class BoardScene extends Phaser.Scene {
   }
 
   #draw(): void {
-    const live = this.#model;
-    if (!live) return;
     const hold = this.#villainReplay?.hold ?? null;
+    const live = this.#heldModel(hold);
+    if (!live) return;
     // The table's chrome says the phase the rail is on, not the one the engine has already reached.
     const model: BoardModel = hold ? { ...live, round: hold.round, phase: "villain", stepLabel: hold.stepLabel } : live;
 
@@ -1337,7 +1341,7 @@ export class BoardScene extends Phaser.Scene {
     // is done. `logGate` is `{ locked: false }` off a guided run, so a plain game never takes this branch.
     const logGate = this.#guide?.logGate() ?? { locked: false, reason: null };
     if (zones.log && logGate.locked) this.#logPanel.drawLocked(this, setAside?.log ?? zones.log, logGate.reason ?? "");
-    else if (zones.log) this.#logPanel.draw(this, setAside?.log ?? zones.log, this.#log);
+    else if (zones.log) this.#logPanel.draw(this, setAside?.log ?? zones.log, this.#tableLog());
     else this.#logPanel.hide();
     // Always the wide panel: the identity's attachments only show as chips
     // beside its card, and a tall window can give this slot a card-like shape.
@@ -2063,10 +2067,44 @@ export class BoardScene extends Phaser.Scene {
       (was === null) === (replay === null) &&
       was?.hold?.round === replay?.hold?.round &&
       was?.hold?.stepLabel === replay?.hold?.stepLabel &&
+      sameFacedown(was?.hold, replay?.hold) &&
       (was?.hold === null) === (replay?.hold === null);
     if (same) return;
     this.#villainReplay = replay;
     this.#draw();
+  }
+
+  /**
+   * The log as it stood when the villain phase being replayed began. The engine has logged the whole phase already
+   * ("You revealed Eviction Notice."), so while the rail is behind, the table's log waits where the phase began and the
+   * rail's own phase log tells the phase (issue #311). Null when no phase has begun since the table opened.
+   */
+  #logBeforePhase: LogState | null = null;
+
+  /** The log the table shows: the live one, or the one from before the phase while the rail is behind the engine. */
+  #tableLog(): LogState {
+    return this.#villainReplay?.hold && this.#logBeforePhase ? this.#logBeforePhase : this.#log;
+  }
+
+  #heldModelCache: { readonly base: BoardModel; readonly key: string; readonly model: BoardModel } | null = null;
+
+  /**
+   * The model the table draws: the live one, or while the villain phase replays, one with the encounter cards the rail
+   * has not revealed yet back in their facedown piles (`withFacedownHeld`, issue #311).
+   */
+  #heldModel(hold: TableHold | null): BoardModel | null {
+    const live = this.#model;
+    const facedown = hold?.facedown;
+    const state = appSession().store.state;
+    if (!live || !facedown || !state.game || state.perspectiveId === null) return live;
+    const key = facedown.map((card) => card.instanceId).join();
+    const cached = this.#heldModelCache;
+    if (cached && cached.base === live && cached.key === key) return cached.model;
+    const model = this.#withDebugSideSchemes(
+      boardModel(withFacedownHeld(state.game, facedown), state.perspectiveId, POOL_DEPS),
+    );
+    this.#heldModelCache = { base: live, key, model };
+    return model;
   }
 
   /** Whether a villain phase replay is (or is about to be) open over this game, so its outcome should wait. */

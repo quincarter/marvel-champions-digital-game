@@ -1209,7 +1209,13 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // The table keeps the round and step the rail is on while the engine's run is ahead of it, and has no End turn or
     // Undo until the phase closes (`BoardScene.setVillainReplay`).
     if (!this.#review) {
-      this.#boardScene()?.setVillainReplay({ hold: tableHoldOf(this.#walkthrough, this.#revealed) });
+      this.#boardScene()?.setVillainReplay({
+        hold: tableHoldOf(
+          this.#walkthrough,
+          this.#revealed,
+          (this.#flipGate() ?? this.#flipTurning()) as InstanceId | null,
+        ),
+      });
     }
     // `inspectModel` wants a real seat; every render past setup has one, and
     // the rare moment it doesn't (no perspective assigned yet) falls back to
