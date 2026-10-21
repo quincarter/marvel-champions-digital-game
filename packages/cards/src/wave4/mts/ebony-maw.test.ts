@@ -441,7 +441,7 @@ describe("MC21 p. 6's Spell rule, seeded at setup (docs/phase7-wave4.md §3.40)"
   });
 });
 
-describe("Restrained (21083) with only an alter-ego in play (FFG ruling 69.42, Apr 17, 2025)", () => {
+describe("Restrained (21083) with only an alter-ego in play (FFG ruling Apr 17, 2025)", () => {
   // "Since Alter-Egos do not have an ATK value, they are not valid targets for Restrained. Restrained would not attach
   // to anything if there was only an Alter-Ego in play."
   it.fails("a solo alter-ego with no allies gets no Restrained attached", () => {

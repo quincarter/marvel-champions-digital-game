@@ -14,8 +14,9 @@ import {
   defineAbilities,
   discardThis,
   draw,
+  each,
   enemyAttack,
-  eventResult,
+  eventDamageTakenBy,
   eventSource,
   exhaustThis,
   forcedResponse,
@@ -32,9 +33,11 @@ import {
   self,
   stun,
   thwartAScheme,
+  valueAtLeast,
   varOf,
   when,
   YOUR_HERO,
+  YOUR_IDENTITY,
   you,
 } from "../../dsl/index.js";
 import { moveThreat, paidOnly, resourceForCard } from "./local.js";
@@ -76,14 +79,17 @@ export const HLK_PACK_CARDS = defineAbilities({
   ),
 
   // "You'll Pay for That!" — Hero Response (thwart): After the villain attacks you, remove 1 threat from a scheme
-  // for each damage you took from the attack (to a maximum of 5). `eventResult("damage")` reads the villain
-  // attack's own dealt-damage result (`applyDamage`'s `addFrameVars(event.parentFrameId, { damage: … })` in
-  // `packages/engine/src/resolve/event.ts`), the same key `when.villainAttacks({ damages: true })`'s
-  // `requireResults: { damage: 1 }` gates on.
+  // for each damage you took from the attack (to a maximum of 5). "After the villain attacks you" is the exception
+  // RRG 1.8 "You, Your" (p. 49) carves out, the attacked player, so the trigger stays `againstYou`. Only the count,
+  // "damage you took", is your identity's: `eventDamageTakenBy` reads the attack's per-character damage taken
+  // (`damageTakenKey`), an overkill spill onto your identity included and an ally's damage not. When your identity
+  // took no damage (an ally defended and took it all), removing 0 threat affects no scheme, so the card has no valid
+  // target and can't be played: RRG 1.8 "Target" (p. 43; its 0-value exception covers only an activation or basic
+  // power), "Event" (p. 18).
   "10016.youll-pay-for-that-response": response(
-    when.villainAttacks({ againstYou: true, damages: true }),
-    { label: "thwart" },
-    removeThreatFromAScheme(scaled(eventResult("damage"), { max: 5 })),
+    when.villainAttacks({ againstYou: true }),
+    { label: "thwart", while: valueAtLeast(eventDamageTakenBy(each(YOUR_IDENTITY)), 1) },
+    removeThreatFromAScheme(scaled(eventDamageTakenBy(each(YOUR_IDENTITY)), { max: 5 })),
   ),
 
   // Martial Prowess — Play under any player's control. Max 1 per player (data). Resource: Exhaust Martial Prowess

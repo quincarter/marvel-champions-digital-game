@@ -6,7 +6,8 @@
  *
  * Sources: RRG 1.8 "Acceleration Token" (p. 5): tokens "placed on cards other than the main scheme still add threat to
  * the main scheme during step one of the villain phase" and "are removed from play when the card they are placed on
- * leaves play"; "Encounter Deck" (p. 17) for the empty-deck token.
+ * leaves play"; "Acceleration tokens on the main scheme cannot be removed from play"; "Encounter Deck" (p. 17) for
+ * the empty-deck token.
  */
 
 import { flat } from "@mc/content";
@@ -60,7 +61,10 @@ const TO_MAIN = event("to-main", [
   { kind: "moveCounters", from: prey, to: { kind: "mainScheme" }, counterType: "acceleration" },
 ]);
 const CLEAR_PREY = event("clear-prey", [{ kind: "removeThreat", target: prey, amount: { kind: "const", value: 5 } }]);
-const EVENTS = [REVEAL_PREY, TOKEN, TO_MAIN, CLEAR_PREY];
+const REMOVE = event("remove", [{ kind: "removeAccelerationToken" }]);
+const REMOVE_MAIN = event("remove-main", [{ kind: "removeAccelerationToken", from: { kind: "mainScheme" } }]);
+const REMOVE_PREY = event("remove-prey", [{ kind: "removeAccelerationToken", from: prey }]);
+const EVENTS = [REVEAL_PREY, TOKEN, TO_MAIN, CLEAR_PREY, REMOVE, REMOVE_MAIN, REMOVE_PREY];
 
 const deps: EngineDeps = depsOf(PEDESTRIANS, ...EVENTS.map((e) => e.ability));
 
@@ -131,5 +135,29 @@ describe("§3.4 'After an acceleration token is placed on this scheme'", () => {
     expect(heardCount(placed)).toBe(1);
     const elsewhere = playFree(start(), deps, REVEAL_PREY.card.id).state;
     expect(heardCount(elsewhere)).toBe(0);
+  });
+});
+
+describe("removing an acceleration token (RRG 1.8 p. 5)", () => {
+  // A card that says to remove an acceleration token overrides p. 5's "cannot be removed": RRG 1.8 "Cannot" (p. 11)
+  // lets an ability override a cannot-rule per the Golden Rules (p. 4). The #213 audit expected nothing here; corrected
+  // when it merged with wave 11's De-escalation (60024), after a rules check (2026-10-20).
+  it("a card's own instruction removes an acceleration token from the main scheme", () => {
+    const placed = playFree(start(), deps, TOKEN.card.id).state;
+    expect(placed.mainScheme.accelerationTokens).toBe(1);
+    expect(playFree(placed, deps, REMOVE.card.id).state.mainScheme.accelerationTokens).toBe(0);
+    expect(playFree(placed, deps, REMOVE_MAIN.card.id).state.mainScheme.accelerationTokens).toBe(0);
+  });
+
+  it("removes a token placed on a card that is not the main scheme, leaving the main scheme's", () => {
+    const withMain = playFree(start(), deps, TOKEN.card.id).state;
+    const withPrey = playFree(withMain, deps, REVEAL_PREY.card.id).state;
+    expect(mustInstance(withPrey, preyId(withPrey)!).counters["acceleration"]).toBe(1);
+    const { state, session } = playFree(withPrey, deps, REMOVE_PREY.card.id);
+    expect(mustInstance(state, preyId(state)!).counters["acceleration"] ?? 0).toBe(0);
+    expect(state.mainScheme.accelerationTokens).toBe(1);
+    const replayed = replay(session.log, deps);
+    if (!replayed.ok) throw new Error(replayed.error.message);
+    expect(replayed.state).toEqual(session.state);
   });
 });

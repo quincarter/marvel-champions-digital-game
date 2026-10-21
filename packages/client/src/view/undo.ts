@@ -128,6 +128,7 @@ export const UNDO_EVENT_VERDICTS: Readonly<Record<GameEvent["type"], readonly [V
   counterRemoved: [ALLOWED, "counters, face up"],
   countersMoved: [ALLOWED, "counters, face up"],
   countersNotPlaced: [ALLOWED, "counters, face up"],
+  damageAboveCapRemoved: [ALLOWED, "damage and healing, face up"],
   damageBeyondZeroLost: [ALLOWED, "damage and healing, face up"],
   damageCapped: [ALLOWED, "damage and healing, face up"],
   damageNotDealt: [ALLOWED, "damage and healing, face up"],

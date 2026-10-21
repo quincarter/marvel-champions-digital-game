@@ -51,7 +51,7 @@ import {
 } from "../select.js";
 import type { StackFrame } from "../stack.js";
 import type { GameState } from "../state.js";
-import { defeatHeldOff, notDefeatedWithoutThreat } from "../rules.js";
+import { defeatHeldOff, maxSustainedDamageOf, notDefeatedWithoutThreat } from "../rules.js";
 import { limitReached } from "./ability.js";
 import { atZero, checkDefeats, checkOneMainScheme, defeatPending } from "./defeat.js";
 import { settleUpgradeControl } from "./attach.js";
@@ -149,6 +149,8 @@ export function checkStateTriggers(ctx: Ctx): boolean {
   if (checkSchemeTargetsFell(ctx)) return true;
   // …and an identity or villain left standing past zero has a dial that reads zero (RRG 1.8 p. 22).
   settleDials(ctx);
+  // …and a character with more sustained damage than a cap allows sheds the rest (ruling Oct 10, 2025).
+  applySustainedDamageCaps(ctx);
   // …and the top card of a deck kept faceup is logged when the rule itself turns on or off with nothing moved (a form
   // change, a blank text box; docs/phase7-wave8.md §3.48). Card moves log theirs as they happen.
   announceDeckTops(ctx);
@@ -608,6 +610,41 @@ function settleDials(ctx: Ctx): void {
       cardId: instance.cardId,
       amount: instance.damage - hp,
       damage: hp,
+    });
+  }
+}
+
+/**
+ * "Magneto cannot have more than 6[per_hero] sustained damage" (`RuleSpec maxSustainedDamage`) as a level, not only a
+ * limit on damage taken: every pass between frames lowers each character in play above its lowest cap to that cap.
+ * Ruling October 10, 2025, Boarding Party blanked by Vivian and Magneto dealt damage past the cap: "once
+ * Boarding Party's ability is back in effect, it will immediately affect the amount of sustained damage Magneto has,
+ * possibly resulting in less damage on Magneto." RRG 1.8 "Constant Abilities" (p. 5) backs it: a constant ability
+ * "remains active while the card is in play", so the cap holds at every moment, not only when damage is taken. RRG 1.8
+ * "Sustained Damage" (p. 42) is the `damage` on the card. The removal is a rules correction, not a heal
+ * (`damageAboveCapRemoved`). A character whose defeat is already under way
+ * is left alone.
+ */
+function applySustainedDamageCaps(ctx: Ctx): void {
+  if (
+    !hasRuleKind(ctx.deps.abilities, "maxSustainedDamage") &&
+    !scenarioHasRule(ctx, "maxSustainedDamage") &&
+    !ctx.state.lastingEffects.some((e) => e.kind === "ruleGrant" && e.rule.kind === "maxSustainedDamage")
+  )
+    return;
+  if (ctx.state.outcome) return;
+  for (const id of cardsInPlay(ctx.state)) {
+    const instance = ctx.state.instances[id];
+    if (!instance || instance.damage <= 0 || defeatPending(ctx.state, id)) continue;
+    const cap = maxSustainedDamageOf(ctx.state, ctx.deps, id);
+    if (cap === null || instance.damage <= cap) continue;
+    updateInstance(ctx, id, (i) => ({ ...i, damage: cap }));
+    emit(ctx, {
+      type: "damageAboveCapRemoved",
+      instanceId: id,
+      cardId: instance.cardId,
+      amount: instance.damage - cap,
+      damage: cap,
     });
   }
 }

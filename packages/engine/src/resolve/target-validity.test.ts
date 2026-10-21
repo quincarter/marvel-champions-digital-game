@@ -2,7 +2,7 @@
  * Target validity of an attack against a Tough enemy that cannot take damage (`target-validity.ts`,
  * `pierceForDamage`): a piercing attack keeps a target with a tough status card that "cannot take damage", and removes
  * its tough card. RRG 1.8 "Target" (p. 43): a target is valid "if any part of that ability can affect that target";
- * "Piercing" (p. 32) discards tough cards before the attack deals damage. Ruling July 11, 2025 (69.76): "A target that
+ * "Piercing" (p. 32) discards tough cards before the attack deals damage. Ruling July 11, 2025: "A target that
  * 'cannot take damage' is only an invalid target for an ability that solely deals damage to it; Piercing Strike's
  * alteration effect makes it so that an enemy with Tough can still be its target, even if that same enemy 'cannot take
  * damage,' resulting in the Tough status card being removed."
@@ -124,7 +124,7 @@ const basicAttack = (attacker: InstanceId, target: InstanceId): Command => ({
 });
 
 describe("a piercing attack on a Tough enemy that cannot take damage (RRG 1.8 pp. 32, 43; ruling Jul 11, 2025)", () => {
-  it("Piercing Strike: the Tough status card is discarded although the villain cannot take the damage (Ruling 69.76)", () => {
+  it("Piercing Strike: the Tough status card is discarded although the villain cannot take the damage", () => {
     // RRG 1.8 p. 43 "Target" matches the first half of the ruling; p. 32 "Piercing" says the attack discards the tough
     // cards before it deals damage and is silent about a target that cannot take it. The engine (`pierceForDamage`)
     // skips piercing when the damage cannot be taken, so the tough card stays.

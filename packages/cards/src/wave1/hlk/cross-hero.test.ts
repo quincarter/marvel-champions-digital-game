@@ -267,6 +267,89 @@ describe("Hulk pack aggression cards, from She-Hulk (Aggression)'s own deck", ()
     expect(inst(after, after.mainScheme.instanceId).threat).toBe(threatBefore - Math.min(damageTaken, 5));
   });
 
+  // "After the villain attacks you" is the RRG 1.8 p. 49 ("You, Your") exception, the attacked player, but "for each
+  // damage you took" counts your identity's damage only. With an ally taking it all that is 0, and removing 0 threat
+  // affects no scheme: no valid target (RRG 1.8 "Target", p. 43), so the card is not offered.
+  it("10016.youll-pay-for-that-response: not offered when an ally defends and takes all the damage", () => {
+    const { state: opened, id: pay4 } = openHandFor("10016", SHE_HULK, { extraDeck: ["10011", "10015"] });
+    const given = moveToHand(opened, P1, "10011", "10015");
+    const [brawn, toeToToe] = given.ids as readonly [InstanceId, InstanceId];
+    const allyCost = filler(given.state, 3, [pay4, brawn, toeToToe]);
+    const withAlly = playCard(allyCost.state, brawn, allyCost.ids);
+    expect(playerOf(withAlly, P1).playArea).toContain(brawn);
+    const staged = patchInstance(withAlly, withAlly.mainScheme.instanceId, { threat: 20 });
+    const identity = identityOf(staged);
+    const cost = filler(staged, 2, [pay4, toeToToe]);
+    const midPlay = runWith(PLAYABLE_DEPS, cost.state, play(P1, toeToToe, [cost.ids[0]!]));
+    const atDefend = settle(
+      midPlay,
+      firstLegal,
+      (s) => s.pendingChoice?.prompt.kind === "declareDefender",
+      PLAYABLE_DEPS,
+    );
+    const threatBefore = inst(atDefend, atDefend.mainScheme.instanceId).threat;
+    const offered: string[] = [];
+    const pick: Picker = (st) => {
+      const choice = st.pendingChoice;
+      if (choice?.prompt.kind === "chooseTriggers") offered.push(...choice.options.map((o) => o.optionId));
+      return firstLegal(st);
+    };
+    const defended = answer(atDefend, [brawn], PLAYABLE_DEPS);
+    expect(inst(defended, identity).damage).toBe(inst(staged, identity).damage);
+    const after = settle(defended, pick, undefined, PLAYABLE_DEPS);
+    expect(offered.some((id) => id.includes("10016.youll-pay-for-that-response"))).toBe(false);
+    expect(playerOf(after, P1).hand).toContain(pay4);
+    expect(inst(after, after.mainScheme.instanceId).threat).toBe(threatBefore);
+  });
+
+  // The other side: Rhino with Charge (01099, "+3 ATK and overkill") attacks for 5, Brawn (5 hit points, 3 damage
+  // staged on him) defends and is defeated, and the excess 3 spills onto your identity (RRG 1.8 "Overkill", p. 31).
+  // That is damage you took from the attack, so the response is offered and removes 3 threat.
+  it("10016.youll-pay-for-that-response: an overkill spill onto your identity counts, so it is offered", () => {
+    const { state: opened, id: pay4 } = openHandFor("10016", SHE_HULK, { extraDeck: ["10011", "10015"] });
+    const given = moveToHand(opened, P1, "10011", "10015");
+    const [brawn, toeToToe] = given.ids as readonly [InstanceId, InstanceId];
+    const allyCost = filler(given.state, 3, [pay4, brawn, toeToToe]);
+    const withAlly = playCard(allyCost.state, brawn, allyCost.ids);
+    const rhino = activeVillain(withAlly).instanceId;
+    const charge = activeEncounterDeck(withAlly).deck.find((id) => withAlly.instances[id]?.cardId === "01099")!;
+    const deckId = Object.keys(withAlly.encounterDecks).find((d) => withAlly.encounterDecks[d]!.deck.includes(charge))!;
+    const piles = withAlly.encounterDecks[deckId]!;
+    const charged: GameState = {
+      ...withAlly,
+      encounterDecks: {
+        ...withAlly.encounterDecks,
+        [deckId]: { ...piles, deck: piles.deck.filter((x) => x !== charge) },
+      },
+      instances: {
+        ...withAlly.instances,
+        [rhino]: { ...withAlly.instances[rhino]!, attachments: [...withAlly.instances[rhino]!.attachments, charge] },
+        [charge]: { ...withAlly.instances[charge]!, attachedTo: rhino, faceup: true },
+      },
+    };
+    const staged = patchInstance(patchInstance(charged, charged.mainScheme.instanceId, { threat: 20 }), brawn, {
+      damage: 3,
+    });
+    const identity = identityOf(staged);
+    const cost = filler(staged, 2, [pay4, toeToToe]);
+    const midPlay = runWith(PLAYABLE_DEPS, cost.state, play(P1, toeToToe, [cost.ids[0]!]));
+    const atDefend = settle(
+      midPlay,
+      firstLegal,
+      (s) => s.pendingChoice?.prompt.kind === "declareDefender",
+      PLAYABLE_DEPS,
+    );
+    const defended = answer(atDefend, [brawn], PLAYABLE_DEPS);
+    expect(playerOf(defended, P1).playArea).not.toContain(brawn);
+    const spilled = inst(defended, identity).damage - inst(staged, identity).damage;
+    expect(spilled).toBe(3);
+    const threatBefore = inst(defended, defended.mainScheme.instanceId).threat;
+    const triggered = answer(defended, [`${pay4}:10016.youll-pay-for-that-response`], PLAYABLE_DEPS);
+    const paid = answer(triggered, [`hand:${cost.ids[1]!}`], PLAYABLE_DEPS);
+    const after = settle(paid, firstLegal, undefined, PLAYABLE_DEPS);
+    expect(inst(after, after.mainScheme.instanceId).threat).toBe(threatBefore - 3);
+  });
+
   it("10018.martial-prowess-resource: generates a [physical] resource for an Attack event only", () => {
     const { state: opened, id: prowess } = openHandFor("10018", SHE_HULK, { extraDeck: ["10014", "10019"] });
     const given = moveToHand(opened, P1, "10014"); // Drop Kick: an Attack event, cost 3

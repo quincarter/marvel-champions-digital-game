@@ -489,6 +489,8 @@ describe('"Head First!" 60096', () => {
     const run = villainPhase(ally.state, 0, [HEAD_FIRST, ASSAULT], defends);
     expect(hp).toBeLessThan(3);
     expect(playerOf(run.state, P1).playArea).not.toContain(ally.id);
-    expect(damageOf(run.state)).toBe(3 - hp);
+    // The spill damaged the hero, so Hammerhead's "attacks and damages a character" also resolves for the hero (ruling
+    // January 11, 2026 (2), Captain Marvel / Jigsaw; RRG 1.8 p. 31, from #213), and the hero was already stunned: 1 more.
+    expect(damageOf(run.state)).toBe(3 - hp + 1);
   });
 });

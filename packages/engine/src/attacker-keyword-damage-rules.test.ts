@@ -452,11 +452,11 @@ describe("§3.30 'cannot take damage unless the attacker or attack has the trait
     expect(damageOn(play(open, SPREAD).state, open.hero)).toBe(3);
   });
 
-  it("piercing does not get around it, but still discards the tough status card (ruling Jul 11, 2025, 69.76)", () => {
+  it("piercing does not get around it, but still discards the tough status card (ruling Jul 11, 2025)", () => {
     const t = table(REACH_V);
     const after = playFree(withTough(t.state, t.villain), deps, PIERCING_CONFUSING.card.id);
     expect(damageOn(after.state, t.villain)).toBe(0);
-    // Ruling July 11, 2025 (69.76): the damage is dealt though not taken, so piercing removes the Tough card.
+    // Ruling July 11, 2025: the damage is dealt though not taken, so piercing removes the Tough card.
     expect(mustInstance(after.state, t.villain).statuses.tough).toBe(0);
   });
 

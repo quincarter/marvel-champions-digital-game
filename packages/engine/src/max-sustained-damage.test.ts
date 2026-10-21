@@ -219,9 +219,11 @@ describe("§3.3 maxSustainedDamage: 'Magneto cannot have more than 6[per_hero] s
     ]);
   });
 
-  it("the cap does not stop healing, and does not heal a villain already above it", () => {
+  it("the cap does not stop healing, and lowers a villain already above it to the cap", () => {
     const above = start([BOARDING.id]);
-    expect(villainDamage(playFree(withDamage(above, 8), deps, ZAP_4.card.id).state)).toBe(8);
+    // Ruling Oct 10, 2025 (https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-6/): a cap in effect "will
+    // immediately affect the amount of sustained damage Magneto has".
+    expect(villainDamage(playFree(withDamage(above, 8), deps, ZAP_4.card.id).state)).toBe(6);
     expect(villainDamage(playFree(withDamage(above, 6), deps, HEAL_3.card.id).state)).toBe(3);
   });
 
@@ -242,16 +244,15 @@ describe("§3.3 maxSustainedDamage: 'Magneto cannot have more than 6[per_hero] s
 });
 
 /**
- * Ruling 69.114 (October 10, 2025, Alex), question 2: Vivian blanks Boarding Party ("Magneto cannot have more than
+ * Ruling October 10, 2025 (Alex), question 2: Vivian blanks Boarding Party ("Magneto cannot have more than
  * 6[per_hero] sustained damage"), damage on Magneto then exceeds that. "Yes; once Boarding Party's ability is back in
  * effect, it will immediately affect the amount of sustained damage Magneto has, possibly resulting in less damage on
  * Magneto." RRG 1.8 "Sustained Damage" (p. 42) is silent on a cap coming back after damage was placed.
  *
- * The engine holds the cap only as damage is dealt (`maxSustainedDamage`; "the cap does not stop healing, and does not
- * heal a villain already above it" above pins 8 damage staying 8 under a 6 cap), so damage taken while the scheme was
- * blanked stays once the blank ends. That test and this ruling disagree about a villain left above a returning cap.
+ * The engine held the cap only as damage was dealt, so damage taken while the scheme was blanked stayed once the blank
+ * ended. Fixed: `applySustainedDamageCaps` (`resolve/state-checks.ts`) lowers it between frames.
  */
-describe("a sustained-damage cap that comes back after a blank applies at once (ruling Oct 10, 2025, 69.114)", () => {
+describe("a sustained-damage cap that comes back after a blank applies at once (ruling Oct 10, 2025)", () => {
   const MAGNETO_30 = stubVillain({ id: "magneto-30", stages: [{ hp: flat(30), atk: 0, sch: 0 }] });
   const BLANK_IT = actionEvent("blank-it", [
     { kind: "blankTextBox", target: sideSchemes, until: "endOfPhase" },
@@ -259,7 +260,7 @@ describe("a sustained-damage cap that comes back after a blank applies at once (
   const HIT_5 = actionEvent("hit-5", [{ kind: "dealDamage", target: theVillain, amount: n(5) }]);
   const blankDeps = depsOf(CAP_RULE, BLANK_IT.ability, HIT_5.ability);
 
-  it.fails("5 + 5 damage dealt while blanked drops to the 6 cap when the blank ends", () => {
+  it("5 + 5 damage dealt while blanked drops to the 6 cap when the blank ends", () => {
     const base = gameAtFirstTurn({
       cards: [MAGNETO_30, BOARDING, BLANK_IT.card, HIT_5.card],
       deps: blankDeps,

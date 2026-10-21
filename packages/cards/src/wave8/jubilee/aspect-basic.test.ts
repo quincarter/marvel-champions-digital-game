@@ -859,8 +859,9 @@ describe("Multitalented (47021): Hero Action (attack/thwart), if you paid using 
     expect(attacks[0]).toMatchObject({ attackerInstanceId: b.jubilee, labeled: true });
     expect(attacks[0]!.attacked).toEqual([b.rhino]);
     expect(attacks[0]!.results?.damage).toBe(2);
-    // RRG 1.8 p. 26, FFG ruling 69.67 (June 26, 2025) and the contributor's rules call (bluefireF5ran) of 2026-10-15: "Regardless of which
-    // resources were paid … your hero is considered to have 'attacked'" (reverses Q48's "no damage, no attack").
+    // RRG 1.8 p. 26, FFG ruling June 26, 2025 and the contributor's rules call (bluefireF5ran) of 2026-10-15:
+    // "Regardless of which resources were paid … your hero is considered to have 'attacked'" (reverses Q48's "no
+    // damage, no attack").
     const unpaid = attacksIn(run(b, [E, M, M]).events);
     expect(unpaid).toHaveLength(1);
     expect(unpaid[0]).toMatchObject({

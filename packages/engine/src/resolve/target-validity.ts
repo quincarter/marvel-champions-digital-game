@@ -217,7 +217,7 @@ export const canDiscardFromPlay = (
  * Whether an attack with these keywords would discard a tough status card from `id`, the character it attacks: it has
  * piercing (not lost against `id`, `attacksLoseKeywords`) and `id` has a tough card. RRG 1.8 "Piercing" (p. 32) discards
  * them "before this attack deals damage", so piercing is an effect of the attack on its target besides its damage, and
- * one the target "cannot take damage" does not stop: ruling July 11, 2025 (Ruling 69.76), "Piercing Strike's alteration
+ * one the target "cannot take damage" does not stop: ruling July 11, 2025, "Piercing Strike's alteration
  * effect makes it so that an enemy with Tough can still be its target, even if that same enemy 'cannot take damage,'
  * resulting in the Tough status card being removed" (RRG 1.8 "Target", p. 43: valid if any part can affect it).
  */

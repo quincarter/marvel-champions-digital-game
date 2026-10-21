@@ -158,7 +158,7 @@ test("an enemy with a printed '—' SCH skips its scheme activation; an 'X' stat
   expect(characterProfile(titanRound, titanId, deps)?.missing).toEqual([]);
 });
 
-describe("a character with a dash THW cannot thwart The Red House (Ruling 69.62, June 17, 2025)", () => {
+describe("a character with a dash THW cannot thwart The Red House (ruling June 17, 2025)", () => {
   // "Hulk cannot thwart The Red House; a character needs to be able to initiate a thwart against The Red House before
   // triggering its interrupt to use their ATK, and since Hulk has a 'dash' (-) value for his THW, he cannot exhaust to
   // initiate a basic thwart this way." Assault is different (always in effect): a dash-THW character can thwart it.

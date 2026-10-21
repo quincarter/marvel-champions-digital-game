@@ -329,11 +329,11 @@ function takingDiscard(seen: string[][]): Picker {
  * there are no valid targets". Inferiority Complex is an encounter card, so a ready alter-ego may take the discard
  * option with fewer than 2 Technique upgrades (or none: the card itself plans for that with its surge line).
  *
- * Conflict noted: ruling 69.105 (September 15, 2025, post-RRG 1.6) says a player "must choose the option they can
+ * Conflict noted: ruling September 15, 2025 (post-RRG 1.6) says a player "must choose the option they can
  * fully resolve" on an encounter card and applies it to exactly this card. It predates RRG 1.8, which narrows that
  * test to player cards, so the engine follows p. 12 here and these tests pin that reading.
  */
-describe("Inferiority Complex keeps the discard option for a ready alter-ego (RRG 1.8 p. 12, overrides ruling 69.105)", () => {
+describe("Inferiority Complex keeps the discard option for a ready alter-ego (RRG 1.8 p. 12, overrides ruling September 15, 2025)", () => {
   it("with one Technique upgrade, both options are offered and the discard option discards that upgrade", () => {
     const hero = runWith(WAVE4_DEPS, startWave4Game(nebulaScenario("rhino", { seed: 2 })), toHero());
     const { state: withOne, id: technique } = playFromHand(hero, "22004", 1);

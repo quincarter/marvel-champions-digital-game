@@ -17,7 +17,7 @@ import {
   each,
   eachPlayer,
   enemyAttack,
-  eventResult,
+  attackDamageDealt,
   exists,
   firstPlayer,
   flipCard,
@@ -153,7 +153,7 @@ export const JUGGERNAUT: AbilityRegistry = defineAbilities({
   // card. X is read from the attack being answered; Q15 = A: a 0-damage attack costs 0 and the card may be discarded.
   "40123.head-of-steam-response": heroResponse(
     on.enemyAttacks("host", { againstYou: true }),
-    { cost: spendEqualTo(eventResult("damage")) },
+    { cost: spendEqualTo(attackDamageDealt) },
     discard(self),
   ),
 

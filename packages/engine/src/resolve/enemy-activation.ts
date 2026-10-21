@@ -479,6 +479,7 @@ function stepBoostCard(
       activation,
       boostIcons: icons,
       playerId,
+      ...(frame.kind === "enemyAttack" ? { targetInstanceId: frame.targetInstanceId } : {}),
     });
     setFrame(ctx, {
       ...frame,
@@ -541,6 +542,8 @@ function stepBoostCard(
         activation,
         boostIcons: boost.iconsCancelled || boost.ignored ? 0 : (boost.turnedIcons ?? 0),
         playerId,
+        // As on the interrupt frame above: "an enemy attacking you" reads the defender (`EventPattern.youAreIdentity`).
+        ...(frame.kind === "enemyAttack" ? { targetInstanceId: frame.targetInstanceId } : {}),
       });
       pushFrames(ctx, [responses.kind === "event" ? { ...responses, stage: "responses" } : responses]);
       return "busy";

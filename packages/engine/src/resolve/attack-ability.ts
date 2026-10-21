@@ -140,7 +140,7 @@
  *   attack-labeled ability"; owner decision, 2026-10-08, row 64). So this case is left to an ability whose enemies
  *   are not known as it is initiated (a branch, "each minion" with none in play) or become guarded as it resolves.
  * - **Every "(attack)" ability begins an attack, damage or no damage** (official rule, p. 26, read as written; FFG
- *   ruling 69.67, June 26, 2025, on Multitalented: "Regardless of which resources were paid or which effects were
+ *   ruling June 26, 2025, on Multitalented: "Regardless of which resources were paid or which effects were
  *   resolved, Multitalented is still labeled as an 'attack' … and by playing it your hero is considered to have
  *   'attacked'"; contributor's rules call (bluefireF5ran), 2026-10-15, which reverses upstream rows 61/73 and Q48's "with no damage there
  *   is no attack"). The attack begins as the ability begins resolving, whatever its instructions then do: one whose
@@ -177,19 +177,19 @@
  * Interpretations (not official text), each with its alternative:
  *
  * - **What is read ahead as the ability begins** (`attackAhead`). The engine follows the ability's instructions in
- *   order from its first one that is not an opening target choice, as far as their outcome is already decided: an
- *   `if` by its condition as it stands now ("if you paid for this card using a [physical] resource"), post-"then"
- *   text as resolving, a choice among options only when every option offered leads to an attack ("discard up to 4
- *   cards → deal …"). The attack begins with the ability when that path reaches an instruction that makes an attack
- *   (an `attack` instruction by the identity, or a damage instruction able to name an enemy) and something resolves
- *   before it. An attack reached only through something not decided yet (a branch whose condition does not hold yet,
- *   a loop, one option of several) begins with the ability too, with no target, and the `attack` instruction takes it
- *   over if it is reached; a branch not taken leaves it an attack on nobody (owner decision, 2026-10-15). An attack
- *   whose own `attack` instruction is the first to resolve begins there, which is the same moment, unless that
+ *   order from its first one that is not an opening target choice, as far as their outcome is already decided: an `if`
+ *   by its condition as it stands now ("if you paid for this card using a [physical] resource"), post-"then" text as
+ *   resolving, a choice among options only when every option offered leads to an attack ("discard up to 4 cards → deal
+ *   …"). The attack begins with the ability when that path reaches an instruction that makes an attack (an `attack`
+ *   instruction by the identity, or a damage instruction able to name an enemy) and something resolves before it. An
+ *   attack reached only through something not decided yet (a branch whose condition does not hold yet, a loop, one
+ *   option of several) begins with the ability too, with no target, and the `attack` instruction takes it over if it is
+ *   reached; a branch not taken leaves it an attack on nobody (contributor's rules call 2026-10-15, bluefireF5ran). An
+ *   attack whose own `attack` instruction is the first to resolve begins there, which is the same moment, unless that
  *   instruction would make no event (no enemy it may attack, no damage to move): then it begins with the ability, on
- *   nobody. What is read ahead only decides the target the window hears. (Alternative: never read into a branch,
- *   which leaves "Stun an enemy. If you paid with [physical], deal 3 damage to that enemy" beginning its attack with
- *   no target.)
+ *   nobody. What is read ahead only decides the target the window hears. (Alternative: never read into a branch, which
+ *   leaves "Stun an enemy. If you paid with [physical], deal 3 damage to that enemy" beginning its attack with no
+ *   target.)
  * - **What its window hears.** The target is read as for a label-only attack: the first enemy the identity may
  *   attack that an instruction of the attack names, taken in order (a damage instruction before the `attack`
  *   instruction first), or none (`null`) when it is chosen later. The keywords and overkill are the `attack`

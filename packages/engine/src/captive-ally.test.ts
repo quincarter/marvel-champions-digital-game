@@ -242,7 +242,7 @@ describe("§3.75 an ally attached to a card is still a character in play", () =>
  * RRG 1.8 p. 48 "Winning the Game": "Alternate win or loss conditions cannot be blanked or canceled."
  */
 describe("an alternate loss condition cannot be blanked (RRG 1.8 p. 48; Ruling 115)", () => {
-  it.fails("a blanked (treated-as-minion) Hope/Odin that is defeated still loses the game", () => {
+  it("a blanked (treated-as-minion) Hope/Odin that is defeated still loses the game", () => {
     const detached = playFree(start(), deps, NASTROND.card.id).state;
     const odin = odinId(detached);
     const blanked: GameState = {

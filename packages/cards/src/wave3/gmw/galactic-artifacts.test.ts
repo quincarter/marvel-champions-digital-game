@@ -458,10 +458,10 @@ describe("The Poison / Obedience Potion: 'Any player can do this' is rules text 
     expect(result.ok).toBe(true);
   });
 
-  it.fails("another player can use Obedience Potion's Hero Action on a teammate's identity", () => {
+  it("another player can use Obedience Potion's Hero Action on a teammate's identity", () => {
     const { state, potion, pay } = staged(P2);
     const result = applyCommand(state, use(P2, potion, "16123.obedience-potion-action", pay), WAVE3_DEPS);
-    // Today: ok === false, "only the player it is attached to can use that card".
+    // Fixed: `triggerableBy: eachPlayer` replaces the attachment rule of RRG 1.8 p. 8 for this card.
     expect(result.ok ? "" : result.error.message).toBe("");
   });
 });

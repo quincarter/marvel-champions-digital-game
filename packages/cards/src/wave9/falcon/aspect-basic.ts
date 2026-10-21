@@ -238,7 +238,7 @@ export const FALCON_ASPECT_BASIC: AbilityRegistry = defineAbilities({
     gets("thw", 2, SPECTRUM_SELF, { while: tuckedPrints("mental") }),
     gets("atk", 2, SPECTRUM_SELF, { while: tuckedPrints("physical") }),
     gets("hp", 2, SPECTRUM_SELF, { while: tuckedPrints("energy") }),
-    // FFG ruling Aug 22, 2025 (69.95): each matching icon adds its bonus, so a [mental] + [wild] card gives +4 THW.
+    // FFG ruling Aug 22, 2025: each matching icon adds its bonus, so a [mental] + [wild] card gives +4 THW.
     // [wild] is "all of the above", so it adds one bonus of each kind on top of any matching specific icon.
     gets("thw", 2, SPECTRUM_SELF, { while: tuckedPrints("wild") }),
     gets("atk", 2, SPECTRUM_SELF, { while: tuckedPrints("wild") }),

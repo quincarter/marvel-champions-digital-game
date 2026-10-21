@@ -265,7 +265,7 @@ describe("§3.2 two main schemes, each belonging to a villain", () => {
 });
 
 /**
- * Ruling 69.111 (October 10, 2025, Alex), question 2: Tower Defense (two main schemes), M.U.S.I.C. is defeated while
+ * Ruling October 10, 2025 (Alex), question 2: Tower Defense (two main schemes), M.U.S.I.C. is defeated while
  * Manipulated M.U.S.I.C. is in play: "move all threat from Manipulated M.U.S.I.C. to just the main scheme with the
  * Focused Defense attachment. (Since threat is being 'moved' from one scheme to another, the number of tokens placed
  * should be fixed; and the player should not be able to split the tokens, so this is the simplest way to progress.)"
@@ -277,7 +277,7 @@ describe("§3.2 two main schemes, each belonging to a villain", () => {
  * `moveThreat` takes the first of the targets `{ kind: "mainScheme" }` resolves to for an encounter card, which is
  * both main schemes in `sharedMainSchemes` order, not the one holding Focused Defense.
  */
-describe("M.U.S.I.C. defeated in Tower Defense moves the threat to the Focused Defense scheme (ruling Oct 10, 2025, 69.111)", () => {
+describe("M.U.S.I.C. defeated in Tower Defense moves the threat to the Focused Defense scheme (ruling Oct 10, 2025)", () => {
   const MANIPULATED = stubSideScheme({ id: "manipulated-music", startingThreat: 3 });
   const WHEN_DEFEATED = stubAbility("music.when-defeated", {
     trigger: { kind: "whenDefeated" },

@@ -124,6 +124,7 @@ import {
   canHaveAttached,
   cannotEnterPlay,
   damageUsedStat,
+  formOnlyFault,
   maxPerPlayerReached,
   cannotFlip,
   canTakePlayerAttack,
@@ -1504,6 +1505,9 @@ export function explainQuery(
             putIntoPlayHostCandidates(state, deps, id, forPlayer).length === 0
           : maxPerPlayerReached(state, id, forPlayer) !== null;
       if (overMax) return "cannotEnterPlay";
+      // Nor a "[type] form only" card while that player's identity is in another form (RRG 1.8 "Play, Put into Play",
+      // p. 32), as the effect refuses it (`admitFormOnly`).
+      if (formOnlyFault(state, id, forPlayer) !== null) return "cannotEnterPlay";
     }
   }
   if (query.canFlip && cannotFlip(state, context.deps ?? DEFAULT_DEPS, id)) return "cannotFlip";
@@ -2933,8 +2937,13 @@ export function resolveValue(
         return resolveRef(state, value.of, context).reduce((sum, id) => sum + (perCard[`${value.name}.${id}`] ?? 0), 0);
       }
       return context.vars?.[value.name] ?? 0;
-    case "eventResult":
-      return context.event?.results?.[value.key] ?? 0;
+    case "eventResult": {
+      const results = context.event?.results ?? {};
+      if (value.of) {
+        return resolveRef(state, value.of, context).reduce((sum, id) => sum + (results[`${value.key}.${id}`] ?? 0), 0);
+      }
+      return results[value.key] ?? 0;
+    }
     case "defeatExcessDamage": {
       const defeat = context.event?.kind === "characterDefeated" ? context.event : undefined;
       if (!defeat) return 0;
@@ -4299,7 +4308,7 @@ export function constantAbilityRefs(
  * A facedown card and a card treated as another type still have none: neither is a text box "treated as if it were
  * blank", so a `textBoxCannotBeBlanked` rule (§3.31 of wave 5) does not bring them back.
  */
-function unblankedAbilityRefs(state: GameState, id: InstanceId): readonly AbilityReference[] {
+export function unblankedAbilityRefs(state: GameState, id: InstanceId): readonly AbilityReference[] {
   const card = cardOf(state, id);
   if (!card) return [];
   // A facedown card's own text is blank while it is facedown, and so is a card whose text box is treated as blank

@@ -107,7 +107,13 @@ import {
   recordKeywordsIgnored,
   thwartBlockersIgnored,
 } from "./keyword-ignored.js";
-import { damageTakenKey, EXCESS_AS_DEALT_RESULT } from "../trigger-events.js";
+import {
+  ATTACK_DAMAGE_RESULT,
+  damageTakenKey,
+  eventSubjects,
+  EXCESS_AS_DEALT_RESULT,
+  spillDefeatedKey,
+} from "../trigger-events.js";
 import type { AttackKeyword, DefeatFollowUp, DefeatPlacement, EffectSpec, Predicate } from "../spec.js";
 import {
   alreadyDefeated,
@@ -481,7 +487,11 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       const { joinedResponses: handed = [], deferredResponses: held = [], ...unjoined } = frame;
       const joinsLater =
         frame.responsesWith !== undefined && findFrame(ctx.state, frame.responsesWith)?.kind === "event";
-      const joined = joinsLater ? handed : [...handed, ...held.map((deferred) => withResults(deferred, frame.vars))];
+      // So do the characters its overkill damaged, each a condition of its own (`overkillSpillConditions`).
+      const spills = overkillSpillConditions(frame, event);
+      const joined = joinsLater
+        ? [...handed, ...spills]
+        : [...handed, ...spills, ...held.map((deferred) => withResults(deferred, frame.vars))];
       setFrame(ctx, {
         ...unjoined,
         ...(joinsLater && held.length > 0 ? { deferredResponses: held } : {}),
@@ -489,7 +499,7 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         stage: "done",
         ...(forcedResponses > 0 ? { vars: { ...frame.vars, forcedResponses } } : {}),
       });
-      if (joinLaterResponses(ctx, frame, event)) {
+      if (joinLaterResponses(ctx, frame, event, spills)) {
         // Its responses wait for the later frame's window (`pushEventsSharingResponses`).
       } else if (
         hasCandidates(ctx.state, ctx.deps, event, "response") ||
@@ -678,6 +688,41 @@ const damageDealtAndTaken = (event: DamageEvent, vars: Vars): DamageEvent => ({
 const withResults = (event: TriggerEvent, vars: Vars): TriggerEvent =>
   Object.keys(vars).length === 0 ? event : { ...event, results: vars };
 
+/** The attack frame's slot naming each character an overkill spill of that attack damaged (`recordDamageTaken`). */
+const OVERKILL_DAMAGED_SLOT = "overkillDamaged";
+
+/**
+ * One condition per character the attack's overkill damaged beyond the characters it attacked, each sharing the
+ * attack's response window (RRG 1.8 "Triggering Condition", p. 45). FFG ruling January 11, 2026 (2): "if Jigsaw
+ * attacks with overkill and damages both an ally and an identity, his Forced Response triggers twice"; ruling 215
+ * (June 20, 2024): Cypher "did 'damage a confused enemy' via overkill". RRG 1.8 "Overkill" (p. 31): the spill "is
+ * considered damage from an attack, but does not constitute an attack against that character", so each condition is
+ * the attack with that character as its target and its damage alone as the results, heard only by an "attacks and
+ * damages" or "attacks and defeats" pattern (`TriggerEvent attack.overkillSpill`, `resolve/triggers.ts`). A defeat by
+ * the spill is reported on it as `defeated` (`spillDefeatedKey`): the same ruling's Captain Marvel answer, overkill
+ * defeating an ally and an identity, "triggers for both instances".
+ */
+function overkillSpillConditions(frame: Frame<"event">, event: TriggerEvent): readonly TriggerEvent[] {
+  if (event.kind !== "attack" && event.kind !== "enemyAttack") return [];
+  const spilled = frame.slots[OVERKILL_DAMAGED_SLOT] ?? [];
+  if (spilled.length === 0) return [];
+  const attacked = new Set(eventSubjects(event).targets);
+  return spilled.flatMap((id): TriggerEvent[] => {
+    const taken = frame.vars[damageTakenKey(id)] ?? 0;
+    if (attacked.has(id) || taken <= 0) return [];
+    const results: Vars = {
+      damage: taken,
+      damaged: 1,
+      [damageTakenKey(id)]: taken,
+      ...(frame.vars[spillDefeatedKey(id)] ? { defeated: 1 } : {}),
+    };
+    if (event.kind === "enemyAttack") return [{ ...event, targetInstanceId: id, overkillSpill: true, results }];
+    // The attacked character's snapshot (`targetAsDamaged`) is not this one's: its target is read as it is now.
+    const { attacked: _attacked, targetAsDamaged: _snapshot, ...single } = event;
+    return [{ ...single, targetInstanceId: id, overkillSpill: true, results }];
+  });
+}
+
 /**
  * Whether this event's *response* window waits for the activation it belongs to to finish.
  *
@@ -729,14 +774,20 @@ function stepDeferredResponses(ctx: Ctx, frame: Frame<"event">): boolean {
  * shares (RRG 1.8 "Triggering Condition", p. 45). False when it shares none, or that frame is no longer on the stack
  * (then it opens its own window, as any event does).
  */
-function joinLaterResponses(ctx: Ctx, frame: Frame<"event">, event: TriggerEvent): boolean {
+function joinLaterResponses(
+  ctx: Ctx,
+  frame: Frame<"event">,
+  event: TriggerEvent,
+  /** Conditions derived from the event that share its window (`overkillSpillConditions`), handed over with it. */
+  derived: readonly TriggerEvent[] = [],
+): boolean {
   const leader = frame.responsesWith;
   if (leader === undefined || findFrame(ctx.state, leader)?.kind !== "event") return false;
   // Damage of 0 (a 0 ATK attack, one a defense covered) opens no window (`nothingToAnswer`): it is not handed over, so
   // the shared window it would have joined neither lists it nor offers anything for it.
   if (answeredByNoResponse(event)) return true;
   updateFrame(ctx, leader, (f) =>
-    f.kind === "event" ? { ...f, joinedResponses: [...(f.joinedResponses ?? []), event] } : f,
+    f.kind === "event" ? { ...f, joinedResponses: [...(f.joinedResponses ?? []), event, ...derived] } : f,
   );
   return true;
 }
@@ -1063,7 +1114,7 @@ function beginOneDefeat(
   // here means no interrupt replaced the defeat ("set his hit point dial to 1 instead", Captain America's Helmet).
   const player = ctx.state.players.find((seat) => seat.identity.instanceId === id);
   if (player) {
-    recordIdentityDefeat(ctx, id, event.parentFrameId, event.reportFrameId);
+    recordIdentityDefeat(ctx, id, event.parentFrameId, event.reportFrameId, event.spilledFromFrameId);
     eliminatePlayer(ctx, player.playerId);
     return true;
   }
@@ -1097,6 +1148,7 @@ function beginOneDefeat(
   if (event.reportFrameId && event.reportFrameId !== event.parentFrameId) {
     addFrameVars(ctx, event.reportFrameId, { defeated: 1 });
   }
+  addFrameVars(ctx, event.spilledFromFrameId, { [spillDefeatedKey(id)]: 1 });
   let spill: DefeatFollowUp["spill"];
   if (event.overkill && !ctx.state.outcome && getInstance(ctx.state, event.overkill.toInstanceId)) {
     emit(ctx, {
@@ -1241,7 +1293,7 @@ const attackLost = (ctx: Ctx, event: DamageEvent, keyword: AttackKeyword): boole
  * does not matter: ruling January 17, 2026 (3) #1, "Effects that 'prevent damage' prevent damage taken, not dealt. If
  * Rogue plays Bulletproof Belle and gains a Tough status card, an attack with Piercing that still deals damage to her
  * will remove that Tough status card". So this runs ahead of every prevention, "cannot take damage" included: ruling
- * July 11, 2025 (Ruling 69.76), an enemy with Tough that "cannot take damage" is still Piercing Strike's target,
+ * July 11, 2025, an enemy with Tough that "cannot take damage" is still Piercing Strike's target,
  * "resulting in the Tough status card being removed".
  */
 function pierceForDamage(ctx: Ctx, event: DamageEvent): readonly StatusDiscarded[] {
@@ -1623,6 +1675,14 @@ export function applyDamage(
     addFrameVars(ctx, frameId, { [EXCESS_AS_DEALT_RESULT]: excessAsDealt });
     addFrameVars(ctx, event.parentFrameId, { [EXCESS_AS_DEALT_RESULT]: excessAsDealt });
   }
+  // The whole attack's damage dealt, its overkill spill included (`ATTACK_DAMAGE_RESULT`, RRG 1.8 "Overkill", p. 31):
+  // recorded before anything below keeps the target from taking it, since a change to the damage taken does not change
+  // the damage dealt (RRG 1.8 "Damage", p. 14; a tough status card prevents it, "Tough", p. 44, ruling January 17, 2026
+  // (3)). Damage of 0 as it would be dealt (a defense that covered the attack) was never dealt.
+  const dealt = event.dealt ?? event.amount;
+  if (inPlay && dealt > 0 && event.notAttacked !== true) {
+    addFrameVars(ctx, event.parentFrameId ?? event.spilledFromFrameId, { [ATTACK_DAMAGE_RESULT]: dealt });
+  }
   if (event.amount <= 0) return;
   if (!inPlay) return;
   const source = event.sourceInstanceId;
@@ -1637,7 +1697,7 @@ export function applyDamage(
   // RRG "Cannot": "cannot take damage" beats everything, including tough (which then isn't used). RRG 1.8 "Tough"
   // (p. 44) replaces damage the character "would take", and one that cannot take it would take none, so the status
   // card stays and nothing is excess (docs/phase7-wave7.md §3.30). Piercing (above) still discarded its tough cards:
-  // the damage is dealt though not taken (ruling July 11, 2025, Ruling 69.76).
+  // the damage is dealt though not taken (ruling July 11, 2025).
   if (damageCannotBeTaken(ctx, event)) {
     emit(ctx, {
       type: "damagePrevented",
@@ -1818,6 +1878,8 @@ export function applyDamage(
     defeatedByPlayerId: sourcePlayerOf(ctx.state, event),
     sourceInstanceId: source,
     reportFrameId: frameId,
+    // An overkill spill's defeat is told to its attack (`spillDefeatedKey`), so "attacks and defeats" answers it too.
+    ...(!event.parentFrameId && event.spilledFromFrameId ? { spilledFromFrameId: event.spilledFromFrameId } : {}),
     ...(excessDealt > 0 ? { excessDamage: excessDealt } : {}),
     ...(event.consequential === true ? { consequential: true } : {}),
   });
@@ -1831,6 +1893,8 @@ export function applyDamage(
   ) {
     addFrameVars(ctx, event.parentFrameId, { defeated: 1 });
     addFrameVars(ctx, frameId, { defeated: 1 });
+    if (!event.parentFrameId)
+      addFrameVars(ctx, event.spilledFromFrameId, { [spillDefeatedKey(event.targetInstanceId)]: 1 });
   }
 }
 
@@ -1872,6 +1936,11 @@ function recordDamageTaken(
     [damageTakenKey(event.targetInstanceId)]: taken,
   });
   if (event.notAttacked !== true) addFrameSlots(ctx, event.parentFrameId, { damaged: [event.targetInstanceId] });
+  // An overkill spill's character, so the attack's "attacks and damages" abilities answer it too
+  // (`overkillSpillConditions`; ruling January 11, 2026 (2)).
+  if (!event.parentFrameId && event.spilledFromFrameId) {
+    addFrameSlots(ctx, event.spilledFromFrameId, { [OVERKILL_DAMAGED_SLOT]: [event.targetInstanceId] });
+  }
 }
 
 /**

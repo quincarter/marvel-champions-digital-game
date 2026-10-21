@@ -11,12 +11,12 @@ const EMPATHY = "51017";
 const SHOCKER = "01103"; // minion: 3 hit points, not Elite
 const BEAT_COP = "10029";
 
-// FFG ruling Nov 21, 2025 (Ruling 69.131, Alex): "If you use Beat Cop's first ability to move threat from Show of
+// FFG ruling Nov 21, 2025 (Alex): "If you use Beat Cop's first ability to move threat from Show of
 // Empathy, then Show of Empathy's Forced Interrupt will trigger and change the destination of the threat token, and
 // you'd place the token on a non-Elite minion instead." RRG 1.8 "Move" (p. 30) makes a move a removal from one
 // placement and a placement on the other; Show of Empathy replaces where the removed threat goes ("instead"), so the
 // moved token must not also land on Beat Cop.
-describe("Beat Cop moving threat off Show of Empathy (FFG ruling Nov 21, 2025, 69.131)", () => {
+describe("Beat Cop moving threat off Show of Empathy (FFG ruling Nov 21, 2025)", () => {
   it.fails("the moved threat goes to a non-Elite minion instead; none lands on Beat Cop", () => {
     const hero = bpHeroGame();
     const M = "m-target" as InstanceId;

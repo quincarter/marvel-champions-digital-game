@@ -47,6 +47,18 @@ export interface EventPattern {
    * the attacked player when nobody else defended (RRG 1.8 "Defend, Defense", pp. 15-16; `attackYouOf`).
    */
   readonly usesAttackedPlayer?: boolean;
+  /**
+   * With `playerIs: "controller"`: "you" is that player's **identity** (RRG 1.8 "You, Your", p. 49: "if the word
+   * 'you' can be resolved as referring to the player's identity, it must be resolved as such"), so the character the
+   * attack is against must be it. "After [enemy] attacks and damages you" (FFG rulings 225.1 (undated) and 226 (July 18, 2024):
+   * it "checks if the attacked player's identity was damaged", i.e. "after X damages you with an attack"): a
+   * defending ally's damage is not heard, and an overkill spill onto the identity is (its own condition, ruling
+   * January 11, 2026 (2)). "When a boost card on an enemy attacking you would be turned faceup" (Defiance; ruling 151,
+   * March 15, 2024: not while your ally defends). Read on `enemyAttack` (its target character) and on an attack's
+   * `boostCardTurnedFaceup`; any other event never matches. The p. 49 exception, "after [enemy] attacks you" (the
+   * attacked player even when an ally defended), is `usesAttackedPlayer` without this.
+   */
+  readonly youAreIdentity?: boolean;
   readonly targetIs?: TargetQuery;
   /** The event's source must match: "When Rhino attacks" → `{ categories: ["villain"] }`; "When attached enemy attacks" → `{ hostOfSelf: true }`. */
   readonly sourceIs?: TargetQuery;
@@ -2130,7 +2142,10 @@ export type RuleSpec =
    * `amount` (read live from the rule's card); with several rules the lowest wins. Damage placed (not dealt) is held to
    * it too. Damage above the cap is neither taken nor prevented (§4.1 Q9): it announces no `damagePrevented` and uses
    * no tough card, and it yields no excess damage (measured on damage taken, RRG 1.8 "Overkill", p. 31). It never heals and never changes maximum hit
-   * points.
+   * points, but a character found above it between frames is lowered to it (`damageAboveCapRemoved`, a rules
+   * correction rather than a heal; ruling October 10, 2025; RRG 1.8 "Constant Abilities", p. 5). `counterLimit` keeps
+   * counters already over its limit instead: "cannot have more than N sustained damage" describes the card's state,
+   * which the ruling enforces at once, while "Max N counters here" limits what is placed.
    */
   | {
       readonly kind: "maxSustainedDamage";

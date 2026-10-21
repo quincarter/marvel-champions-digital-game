@@ -53,7 +53,7 @@ import {
   type VillainState,
   type ZoneId,
 } from "../state.js";
-import type { TriggerEvent } from "../trigger-events.js";
+import { spillDefeatedKey, type TriggerEvent } from "../trigger-events.js";
 import { defeatedTogetherDefeated, defeatedTogetherPending, defeatFrames } from "./defeated-together.js";
 import { addFrameVars, base, eventFrame, gameAbilityFrames } from "./frames.js";
 import { mainSchemeStageFrames } from "./main-scheme-side.js";
@@ -533,6 +533,8 @@ interface DefeatHint {
   readonly fromAttack?: boolean;
   /** The damage event's own frame: its `defeated` result, so `dealDamage`'s `<bind>.defeated` reads it (§3.54). */
   readonly reportFrameId?: FrameId | null;
+  /** The attack an overkill spill belongs to, when the damage is that spill (`spillDefeatedKey`). */
+  readonly spilledFromFrameId?: FrameId | null;
   /** The damage's excess over remaining hit points (`excessDamageOf`), carried onto the defeat (§4.1 Q68). */
   readonly excessDamage?: number;
   /** The damage was an ally's consequential damage (`dealDamage.consequential`), carried onto the defeat. */
@@ -659,6 +661,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
             ...(hint.sourceInstanceId ? { sourceInstanceId: hint.sourceInstanceId } : {}),
             ...(hint.fromAttack ? { fromAttack: true as const } : {}),
             ...(hint.reportFrameId ? { reportFrameId: hint.reportFrameId } : {}),
+            ...(hint.spilledFromFrameId ? { spilledFromFrameId: hint.spilledFromFrameId } : {}),
             ...(hint.excessDamage ? { excessDamage: hint.excessDamage } : {}),
             ...(hint.consequential ? { consequential: true as const } : {}),
           }
@@ -717,6 +720,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
             ...(hint.sourceInstanceId ? { sourceInstanceId: hint.sourceInstanceId } : {}),
             ...(hint.fromAttack ? { fromAttack: true as const } : {}),
             ...(hint.reportFrameId ? { reportFrameId: hint.reportFrameId } : {}),
+            ...(hint.spilledFromFrameId ? { spilledFromFrameId: hint.spilledFromFrameId } : {}),
             ...(hint.excessDamage ? { excessDamage: hint.excessDamage } : {}),
             ...(hint.consequential ? { consequential: true as const } : {}),
           }
@@ -757,6 +761,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
             ...(hint.sourceInstanceId ? { sourceInstanceId: hint.sourceInstanceId } : {}),
             ...(hint.fromAttack ? { fromAttack: true as const } : {}),
             ...(hint.reportFrameId ? { reportFrameId: hint.reportFrameId } : {}),
+            ...(hint.spilledFromFrameId ? { spilledFromFrameId: hint.spilledFromFrameId } : {}),
             ...(hint.excessDamage ? { excessDamage: hint.excessDamage } : {}),
             ...(hint.consequential ? { consequential: true as const } : {}),
           }
@@ -766,7 +771,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
       pushFrames(ctx, [eventFrame(ctx, defeat)]);
       continue;
     }
-    recordIdentityDefeat(ctx, identityId, hint?.parentFrameId, hint?.reportFrameId);
+    recordIdentityDefeat(ctx, identityId, hint?.parentFrameId, hint?.reportFrameId, hint?.spilledFromFrameId);
     eliminatePlayer(ctx, player.playerId);
     if (ctx.state.outcome) return;
   }
@@ -784,12 +789,14 @@ export function recordIdentityDefeat(
   identityId: InstanceId,
   parentFrameId: FrameId | null | undefined,
   reportFrameId: FrameId | null | undefined,
+  spilledFromFrameId?: FrameId | null,
 ): void {
   const instance = getInstance(ctx.state, identityId);
   if (!instance) return;
   emit(ctx, { type: "characterDefeated", instanceId: identityId, cardId: instance.cardId });
   addFrameVars(ctx, parentFrameId, { defeated: 1 });
   if (reportFrameId && reportFrameId !== parentFrameId) addFrameVars(ctx, reportFrameId, { defeated: 1 });
+  addFrameVars(ctx, spilledFromFrameId, { [spillDefeatedKey(identityId)]: 1 });
 }
 
 /** An identity at zero remaining hit points that can be defeated: the sweep defeats it. */

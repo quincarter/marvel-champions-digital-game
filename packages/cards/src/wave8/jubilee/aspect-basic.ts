@@ -142,8 +142,8 @@ const stepInstance = (k: number) =>
  *
  * **Multitalented (47021)** is (attack)/(thwart) in one ability and resolves in the printed order: damage, threat,
  * heal. Like Waylay its damage line is damage only, and is the ability's one attack (Q48). Whatever was paid it is an
- * attack and a thwart by Jubilee (FFG ruling 69.67, June 26, 2025; RRG 1.8 p. 26; contributor's rules call (bluefireF5ran), 2026-10-15):
- * with no [physical] paid it is an attack on nobody (nothing retaliates; "after you attack" answers).
+ * attack and a thwart by Jubilee (FFG ruling June 26, 2025; RRG 1.8 p. 26; contributor's rules call (bluefireF5ran),
+ * 2026-10-15): with no [physical] paid it is an attack on nobody (nothing retaliates; "after you attack" answers).
  *
  * **Unlikely Duo (47022)**: confuse an enemy, then attack a confused enemy (possibly another) for 4.
  *

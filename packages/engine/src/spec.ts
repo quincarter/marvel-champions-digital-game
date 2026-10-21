@@ -1073,8 +1073,12 @@ export type ValueSpec =
        */
       readonly of?: TargetRef;
     }
-  /** A result of the triggering event ("for each damage dealt by this attack" → `damage`). */
-  | { readonly kind: "eventResult"; readonly key: string }
+  /**
+   * A result of the triggering event ("for each damage dealt by this attack" → `damage`). With `of`, the result recorded
+   * for a card, `<key>.<instanceId>`, summed over the cards `of` names, as `var`'s `of` does: `damageTaken` of your
+   * identity is the damage your identity took from the attack (`damageTakenKey`, overkill spill included).
+   */
+  | { readonly kind: "eventResult"; readonly key: string; readonly of?: TargetRef }
   /**
    * The excess damage the triggering `characterDefeated` event recorded (docs/phase7-wave5.md §4.1 Q68): how far the
    * defeating damage went past the character's remaining hit points (RRG 1.8 "Excess Damage", p. 19), measured as
@@ -4810,7 +4814,8 @@ export type EffectSpec =
    * scheme only; card scripts use the DSL's `removeAnAccelerationToken`, which always names `from`. The holder is
    * the effect's choice: bind it with `chooseTarget` over `{ hasAccelerationToken: true }` (the DSL's
    * `removeAnAccelerationToken`). A card's instruction overrides RRG 1.8 "Acceleration Token" (p. 5), "Acceleration
-   * tokens on the main scheme cannot be removed from play", by the Golden Rules (p. 4) and "Cannot" (p. 11).
+   * tokens on the main scheme cannot be removed from play", by the Golden Rules (p. 4) and "Cannot" (p. 11): "an ability
+   * can override a rule with 'cannot'". (The #213 audit read p. 5 as absolute; resolved for the card at its merge.)
    */
   | { readonly kind: "removeAccelerationToken"; readonly from?: TargetRef }
   /**

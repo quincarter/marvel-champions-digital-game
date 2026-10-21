@@ -1728,7 +1728,7 @@ describe("53018 Spectrum: after you play her, tuck 1 card used to pay for her un
 });
 
 /*
- * Ruling 69.95 (August 22, 2025, Alex): Spectrum (`falcon` 53018, "[mental] - +2 THW. [physical] - +2 ATK. [energy] -
+ * Ruling August 22, 2025 (Alex): Spectrum (`falcon` 53018, "[mental] - +2 THW. [physical] - +2 ATK. [energy] -
  * +2 hit points. [wild] - All of the above.") tucking Salvage (`gmw` 16033, which produces one [mental] and one
  * [wild]) "would give her both the Mental and Wild resource bonuses, so +4 THW, +2 ATK, and +2 HP". RRG 1.8 is silent;
  * the June 2, 2026 Ruling 2 (2) on Spectrum only says the bonuses last while the card stays tucked.
@@ -1736,7 +1736,7 @@ describe("53018 Spectrum: after you play her, tuck 1 card used to pay for her un
  * The script (`wave9/falcon/aspect-basic.ts` `tuckedPrints`) gives each bonus once however many icons match, so a
  * [mental] + [wild] card gives +2 THW, not +4.
  */
-describe("Spectrum tucking a [mental] + [wild] card (ruling Aug 22, 2025, 69.95)", () => {
+describe("Spectrum tucking a [mental] + [wild] card (ruling Aug 22, 2025)", () => {
   it("gets +4 THW, +2 ATK (Mental and Wild both count)", () => {
     const base = aspectHero();
     const given = moveToHand(base, P1, SPECTRUM, ENERGY, GENIUS, REDWING);
@@ -1773,7 +1773,7 @@ describe("Spectrum tucking a [mental] + [wild] card (ruling Aug 22, 2025, 69.95)
 });
 
 /*
- * Ruling 69.98 (August 22, 2025, Alex), question 2: "Can I use the resource ability of a support or upgrade card to
+ * Ruling August 22, 2025 (Alex), question 2: "Can I use the resource ability of a support or upgrade card to
  * pay for the cost of Spectrum (leadership ally) and tuck this card under Spectrum? Yes, you can use a resource
  * ability to pay for Spectrum and then tuck that card under her." RRG 1.8 is silent on this.
  *
@@ -1781,7 +1781,7 @@ describe("Spectrum tucking a [mental] + [wild] card (ruling Aug 22, 2025, 69.95)
  * and the script's own docblock says "never a resource a 'Resource' ability generated", so a card in play whose
  * resource ability paid (here Falcon's Flock, an Aerial support that pays [energy] for Spectrum) is not offered.
  */
-describe("Spectrum may tuck the support whose resource ability paid for her (ruling Aug 22, 2025, 69.98)", () => {
+describe("Spectrum may tuck the support whose resource ability paid for her (ruling Aug 22, 2025)", () => {
   it.fails("Falcon's Flock, used to pay for Spectrum, is among the cards offered to tuck", () => {
     const base = falconHeroGame();
     const flock = stagedInPlay(base, "53006", { counters: { bird: 5 } });

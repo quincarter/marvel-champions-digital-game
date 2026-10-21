@@ -633,7 +633,7 @@ describe("Jigsaw (56028) with overkill: FFG ruling January 11, 2026 - Ruling 2 (
       return firstLegal(s);
     };
 
-  it.fails("places 2 threat for the ally it damages and 2 for the identity the overkill damages: 4 in all", () => {
+  it("places 2 threat for the ally it damages and 2 for the identity the overkill damages: 4 in all", () => {
     const t = board();
     const run = driveEventsPicking(WAVE10_DEPS, t.s, defendWith(t.ally), endTurn(P1));
     expect(playerOf(run.state, P1).discard).toContain(t.ally);

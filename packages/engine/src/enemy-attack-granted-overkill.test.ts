@@ -192,8 +192,77 @@ describe("'After [enemy] attacks and damages ...' with overkill damaging an ally
     return mustInstance(after, after.mainScheme.instanceId).counters["toad"] ?? 0;
   }
 
-  it.fails("the villain's attack damages the ally (3) and, by overkill, the identity (1): the response resolves twice", () => {
-    // Actual: once (the attack event is announced once, whoever it damaged).
+  it("the villain's attack damages the ally (3) and, by overkill, the identity (1): the response resolves twice", () => {
+    // Before the fix: once (the attack event was announced once, whoever it damaged).
     expect(overkillAttack()).toBe(2);
+  });
+});
+
+/** "Forced Response: After [enemy] attacks and defeats a character, ...": a defeat-gated response to any enemy's attack. */
+const DEFEATS = stubAbility("defeats.forced-response", {
+  trigger: {
+    kind: "response",
+    forced: true,
+    on: { on: "enemyAttack", requireResults: { defeated: 1 } },
+  },
+  effects: [
+    {
+      kind: "addCounters",
+      target: { kind: "mainScheme" },
+      counterType: "defeats",
+      amount: { kind: "const", value: 1 },
+    },
+  ],
+} as AbilityDefinition);
+const WESTERN_DEFEATS = stubSupport({ id: "western-defeats", cost: 0, abilities: [EACH_ENEMY.ref, DEFEATS.ref] });
+const defeatDeps: EngineDeps = depsOf(EACH_ENEMY, DEFEATS);
+
+describe("'After [enemy] attacks and defeats ...' with overkill defeating an ally and the identity (ruling Jan 11, 2026 (2))", () => {
+  // The same ruling's Captain Marvel answer: overkill defeating both an ally and an identity "triggers for both
+  // instances". Two players, so the game goes on once p1's identity is defeated; the support is p2's, so it stays in
+  // play when p1 is eliminated.
+  it("the villain's attack defeats p1's ally and, by overkill, p1's identity (1 hit point left): the response resolves twice", () => {
+    const p2 = playerId("p2");
+    const start = newGame({
+      players: 2,
+      villain: VILLAIN,
+      mainScheme: SCHEME,
+      extraCards: [BLANK, BUDDY, WESTERN_DEFEATS],
+      encounterDeck: Array.from({ length: 12 }, () => BLANK.id),
+      deck: [...Array.from({ length: 18 }, () => RESOURCE.id), BUDDY.id, WESTERN_DEFEATS.id],
+      deps: defeatDeps,
+    });
+    const ally = giveCard(start, p1, BUDDY.id);
+    let state = runWith(
+      defeatDeps,
+      ally.state,
+      { type: "changeForm", playerId: p1 },
+      {
+        type: "playCard",
+        playerId: p1,
+        cardInstanceId: ally.id,
+        payment: payFor(ally.state, p1, 2),
+        attachToInstanceId: null,
+      },
+      { type: "endTurn", playerId: p1 },
+    );
+    const rule = giveCard(state, p2, WESTERN_DEFEATS.id);
+    state = runWith(defeatDeps, rule.state, {
+      type: "playCard",
+      playerId: p2,
+      cardInstanceId: rule.id,
+      payment: [],
+      attachToInstanceId: null,
+    });
+    const hero = mustPlayer(state, p1).identity.instanceId;
+    state = { ...state, instances: { ...state.instances, [hero]: { ...mustInstance(state, hero), damage: 9 } } };
+    state = settleUntil(runWith(defeatDeps, state, { type: "endTurn", playerId: p2 }), "declareDefender", defeatDeps);
+    const pick = (s: GameState): readonly string[] =>
+      s.pendingChoice?.prompt.kind === "declareDefender" && s.pendingChoice.options.some((o) => o.optionId === ally.id)
+        ? [ally.id as string]
+        : defaultPick(s);
+    const { state: after } = runCommandsPicking(state, defeatDeps, pick);
+    expect(after.players.find((seat) => seat.playerId === p1)?.eliminated).toBe(true);
+    expect(mustInstance(after, after.mainScheme.instanceId).counters["defeats"] ?? 0).toBe(2);
   });
 });

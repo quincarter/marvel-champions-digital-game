@@ -87,10 +87,17 @@ export const VISION_PACK_CARDS = defineAbilities({
   "26016.flow-like-water-response": response(on.youPlayedCard({ trait: DEFENSE }), dealDamage(1, attackingEnemy)),
 
   // Defiance (event, 26018) — Hero Interrupt (defense): When a boost card on an enemy attacking you would be turned
-  // faceup, discard it instead (`discardBoostCard`, docs/phase7-wave4.md §3.35).
-  // "On an enemy": not a villainous ally's or hero's own boost card (docs/phase7-wave11-scenarios.md §S3.7).
+  // faceup, discard it instead (`discardBoostCard`, docs/phase7-wave4.md §3.35). "You" is your identity, so not while
+  // your ally defends (ruling 151, March 15, 2024; RRG 1.8 "You, Your", p. 49). "On an enemy": not a villainous ally's
+  // or hero's own boost card (docs/phase7-wave11-scenarios.md §S3.7).
   "26018.defiance-interrupt": heroInterrupt(
-    { on: "boostCardTurnedFaceup", sourceIs: { categories: ["enemy"] }, playerIs: "controller", activation: "attack" },
+    {
+      on: "boostCardTurnedFaceup",
+      sourceIs: { categories: ["enemy"] },
+      playerIs: "controller",
+      activation: "attack",
+      youAreIdentity: true,
+    },
     { label: "defense" },
     discardBoostCard(),
   ),

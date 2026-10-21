@@ -8,7 +8,8 @@
  * Sources: The Once and Future Kang insert, "Setup", "Create Separate Game Areas", "Playing With Separate Game Areas",
  * "Joining Another Game Area" and "Rules Clarifications" (quoted in docs/phase7-wave2.md §3.1); RRG 1.8 FAQ "The Once
  * and Future Kang Scenario Pack" (p. 60); RRG 1.8 "Villain Defeat" (p. 47), "Dash (Value)" (p. 15), "Unique Icon"
- * (pp. 45–46), "Lasting Effects" (p. 26); the Golden Rules (p. 4).
+ * (pp. 45–46), "Lasting Effects" (p. 26), "Obligation" (p. 30); the Golden Rules (p. 4); FFG ruling September 21,
+ * 2023 (post-RRG 1.5 #89).
  */
 
 import {
@@ -19,6 +20,7 @@ import {
   unerrataedText,
   type AbilityReference,
   type AnyCard,
+  type CardId,
   type MainSchemeCard,
   type MainSchemeStage,
   type VillainCard,
@@ -28,13 +30,15 @@ import type { AbilityTriggerSpec, EngineDeps } from "./abilities.js";
 import type { Command } from "./commands.js";
 import { applyCommand, replay, sessionApply, startSession, type GameSession } from "./engine.js";
 import type { GameEvent } from "./events.js";
-import { playerId, type InstanceId, type PlayerId } from "./ids.js";
+import { gameAreaId, playerId, type InstanceId, type PlayerId } from "./ids.js";
 import {
+  activeEncounterDeck,
   activeEncounterDeckId,
   areaOfCard,
   areaOfPlayer,
   mainSchemeStateOf,
   mustInstance,
+  mustPlayer,
   villainOf,
 } from "./query.js";
 import { cardsInPlay, contextArea, matchesQuery, resolvePlayers, resolveRef, type EffectContext } from "./select.js";
@@ -42,16 +46,27 @@ import { createGame, villainsForDifficulty } from "./setup.js";
 import type { EffectSpec, Predicate } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
-import { stubAlly, stubEnvironment, stubIdentity, stubVillain } from "./testing/fixtures.js";
+import {
+  stubAlly,
+  stubEnvironment,
+  stubIdentity,
+  stubMainScheme,
+  stubObligation,
+  stubTreachery,
+  stubVillain,
+} from "./testing/fixtures.js";
 import {
   DEFAULT_CARDS,
   DEFAULT_DECK,
   defaultPick,
   giveCard,
   HERO,
+  RESOURCE,
+  runWith,
   seatIdentities,
   settle,
   TREACHERY,
+  withEncounterPiles,
 } from "./testing/scenario.js";
 
 const p1 = playerId("p1");
@@ -798,5 +813,121 @@ describe("separate game areas (docs/phase7-wave2.md §3.1)", () => {
         (i) => i.cardId === UNIQUE_ALLY.id && after.players.some((p) => p.playArea.includes(i.instanceId)),
       ),
     ).toHaveLength(1);
+  });
+  /**
+   * FFG ruling Sep 21, 2023 (post-RRG 1.5 #89): a player who reveals another player's identity-specific obligation
+   * while that player is in a different game area (Kang Stage 2B) treats it "as if the player was eliminated from the
+   * game: ignore the obligation's ability, remove it from the game, and reveal a new encounter card to replace it.
+   * (Otherwise, play with the obligation as normal.)" RRG 1.8 "Obligation" (p. 30): "If an obligation cannot be given
+   * to the specified player for any reason, ignore the card's ability, remove it from the game, and reveal an
+   * additional encounter card."
+   * Ruling: https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-5/ (September 21, 2023, Ruling 89).
+   */
+  describe("another player's obligation revealed in a different game area (ruling Sep 21, 2023, #89)", () => {
+    const copies = (id: CardId, n: number): readonly CardId[] => Array.from({ length: n }, () => id);
+    const BLANK = stubTreachery({ id: "blank", boostIcons: 0 });
+    const PLAIN_SCHEME = stubMainScheme({
+      id: "scheme",
+      stages: [{ startingThreat: flat(5), targetThreat: flat(40), acceleration: flat(0) }],
+    });
+    const PLAIN_VILLAIN = stubVillain({ id: "villain", stages: [{ hp: flat(30), atk: 0, sch: 0 }] });
+    const obligationHero = (id: string) =>
+      stubIdentity({ id, hp: 10, atk: 2, thw: 1, def: 2, rec: 3, heroHandSize: 5, alterEgoHandSize: 6 });
+    const HERO_A = obligationHero("a");
+    const HERO_B = obligationHero("b");
+    // "a-obligation" is HERO_A's obligation (the stub identity links `<id>-obligation`).
+    const loud = stubAbility("a-obligation.revealed", {
+      trigger: { kind: "whenRevealed" },
+      effects: [{ kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "const", value: 9 } }],
+    });
+    const OBLIGATION = stubObligation({ id: "a-obligation", abilities: [loud.ref] });
+    const obligationDeps = depsOf(loud);
+
+    const decline = (state: GameState): readonly string[] =>
+      state.pendingChoice?.prompt.kind === "declareDefender"
+        ? ["decline"]
+        : (state.pendingChoice?.options.slice(0, state.pendingChoice.minSelections).map((o) => o.optionId) ?? []);
+
+    /** Test surgery: p1 and p2 in two separate game areas (Kang Stage 2B), or still sharing one. */
+    function withAreas(state: GameState, split: boolean): GameState {
+      if (!split) return state;
+      const area = (id: string, player: PlayerId) => ({
+        areaId: gameAreaId(id),
+        playerIds: [player],
+        mainScheme: null,
+        villainIds: [],
+        activeVillainId: null,
+        sideSchemeIds: [],
+        formerSchemeIds: [],
+      });
+      return { ...state, gameAreas: [area("area-1", p1), area("area-2", p2)], nextGameAreaSeq: 3 };
+    }
+
+    /**
+     * Stacks the encounter deck so p2's dealt card is the obligation: the deck is dealt to p1 then p2 after any boost
+     * cards, so the obligation goes right after p1's card and the boost cards this game draws in round 1.
+     */
+    function placeObligationForP2(state: GameState): {
+      readonly stacked: GameState;
+      readonly obligationId: InstanceId;
+    } {
+      const deck = activeEncounterDeck(state).deck;
+      const obligation = deck.find((id) => state.instances[id]?.cardId === OBLIGATION.id) as InstanceId;
+      const blanks = deck.filter((id) => id !== obligation);
+      // Round 1 boosts: one per villain activation. With separate areas and no villain in either, no one activates.
+      const before = state.gameAreas.length > 0 ? 1 : 3;
+      const stacked = withEncounterPiles(state, {
+        deck: [...blanks.slice(0, before), obligation, ...blanks.slice(before)],
+      });
+      return { stacked, obligationId: obligation };
+    }
+
+    /** Plays round 1 with every encounter card a blank except the one p2 is dealt, which is p1's obligation. */
+    function playRound(split: boolean) {
+      const created = createGame(
+        {
+          seed: 3,
+          cards: [...DEFAULT_CARDS, HERO_A, HERO_B, OBLIGATION, BLANK, PLAIN_VILLAIN, PLAIN_SCHEME],
+          villainCardId: PLAIN_VILLAIN.id,
+          mainSchemeCardId: PLAIN_SCHEME.id,
+          encounterDeck: [OBLIGATION.id, ...copies(BLANK.id, 12)],
+          players: [
+            { identityCardId: HERO_A.id, deck: copies(RESOURCE.id, 20) },
+            { identityCardId: HERO_B.id, deck: copies(RESOURCE.id, 20) },
+          ],
+        },
+        obligationDeps,
+      );
+      if (!created.ok) throw new Error(created.error.message);
+      return placeObligationForP2(withAreas(settle(created.state, decline, obligationDeps), split));
+    }
+
+    const threat = (state: GameState) => state.instances[state.mainScheme.instanceId]!.threat;
+    const endRound = (state: GameState): GameState =>
+      settle(
+        runWith(obligationDeps, state, { type: "endTurn", playerId: p1 }, { type: "endTurn", playerId: p2 }),
+        decline,
+        obligationDeps,
+      );
+
+    it("is ignored, removed from the game, and replaced by a new encounter card", () => {
+      const { stacked, obligationId } = playRound(true);
+      const after = endRound(stacked);
+      expect(after.removedFromGame).toContain(obligationId);
+      expect(mustPlayer(after, p1).playArea).not.toContain(obligationId);
+      expect(threat(after)).toBe(5);
+      // p1 revealed one blank, p2 the replacement: both in the encounter discard.
+      const blanksDiscarded = activeEncounterDeck(after).discard.filter(
+        (id) => after.instances[id]?.cardId === BLANK.id,
+      );
+      expect(blanksDiscarded).toHaveLength(2);
+    });
+
+    it("control: in one shared game area it is given to its owner and resolves as normal", () => {
+      const { stacked, obligationId } = playRound(false);
+      const after = endRound(stacked);
+      expect(after.removedFromGame).not.toContain(obligationId);
+      expect(threat(after)).toBe(14);
+    });
   });
 });

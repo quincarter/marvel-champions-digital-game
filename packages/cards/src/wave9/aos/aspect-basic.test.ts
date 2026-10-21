@@ -1197,7 +1197,7 @@ describe("50023.melinda-may-response: after she uses a basic power, look at the 
   });
 });
 
-describe("Melinda May defending (Ruling 69.17, Mar 16, 2025)", () => {
+describe("Melinda May defending (ruling Mar 16, 2025)", () => {
   // "allies don't have a DEF stat, they aren't considered to 'use a basic power' when they defend attacks."
   it.fails("an ally defending an attack is not a basic power: Melinda May's response is not offered", () => {
     const base = withForm(aspectGame(), { heroForm: 0 });

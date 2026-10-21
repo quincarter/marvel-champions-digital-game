@@ -483,7 +483,7 @@ describe("Battery Pack (16034) moving a counter to a Tech card with another coun
   // "Q: Can Battery Pack move a charge counter to a Tech card that does not use 'charge counters'? A: Yes. The card that
   // an all-purpose counter is on defines the type of that counter, so Battery Pack can move a counter to any Tech card
   // and that counter will take on the type defined by that card (if any)."
-  it.fails("a counter moved to Energy Barrier (Tech, Uses 3 reflection counters) becomes a reflection counter", () => {
+  it("a counter moved to Energy Barrier (Tech, Uses 3 reflection counters) becomes a reflection counter", () => {
     const battery = intoPlay(rhino(), "16034", { charge: 2 }, 2);
     const barrier = intoPlay(battery.state, "05017", { reflection: 3 }, 3);
     const done = drive(barrier.state, use(P1, battery.id, "16034.battery-pack-action"), { target: barrier.id });

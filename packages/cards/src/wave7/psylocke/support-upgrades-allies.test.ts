@@ -942,10 +942,9 @@ describe("Cypher (41013)", () => {
 describe("June 20, 2024 - Ruling 215 answer 3 (post-RRG 1.5): Cypher and overkill damage to a confused villain", () => {
   // Ruling 215: Cypher (41013, "After Cypher attacks and damages a confused enemy, draw 1 card") with overkill that
   // defeats a minion and damages a confused villain "did 'damage a confused enemy' via overkill, so you can draw 1
-  // card". RRG 1.8 p. 31 "Overkill": the spill is damage dealt by the attack. The engine reads "damages" only on the
-  // enemy the attack targeted (`trigger-events.ts` `attacked`: "never an enemy that only lost hit points to it (an
-  // overkill spill)"), so the unconfused minion fails the confused-enemy test.
-  it.fails("Cypher (ATK 5 with overkill) defeats an unconfused minion and spills onto the confused villain: he draws", () => {
+  // card". RRG 1.8 p. 31 "Overkill": the spill is damage dealt by the attack, so the attack event is announced again for
+  // the villain the spill damaged.
+  it("Cypher (ATK 5 with overkill) defeats an unconfused minion and spills onto the confused villain: he draws", () => {
     const base = openedHero("41013");
     const given = moveToHand(base, P1, "41013");
     const cypher = given.ids[0]!;

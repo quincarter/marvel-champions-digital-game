@@ -910,7 +910,7 @@ describe("Attacrobatics (50076)", () => {
   });
 });
 
-describe("Attacrobatics prevents only the damage dealt to Black Widow (Ruling 69.71, July 11, 2025)", () => {
+describe("Attacrobatics prevents only the damage dealt to Black Widow (ruling July 11, 2025)", () => {
   // "Like Temporal Shield preventing just the damage dealt to Kang, Attacrobatics only prevents the damage that would be
   // dealt to Black Widow during the attack. Spray Fire would still deal damage to engaged minions."
   // RRG 1.8 p. 10 ("an ability labeled as an attack is considered a single attack") does not say that a Preparation's

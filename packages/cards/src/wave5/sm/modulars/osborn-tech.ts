@@ -63,7 +63,7 @@ export const OSBORN_TECH = defineAbilities({
   // the same shape Bulldozer's Helmet, `twc` 07049, uses for its own "attach to the villain"/"after [host] attacks
   // you" pair).
   "27148.ionic-boots-forced-response": forcedResponse(
-    after.enemyAttacks("host", { againstYou: true, damages: true }),
+    after.enemyAttacks("host", { damagesYou: true }),
     placeThreat(2, theMainScheme),
   ),
   // Ionic Boots — Hero Action: Spend [energy][mental][physical] resources → discard this card (`we-are-one`'s own

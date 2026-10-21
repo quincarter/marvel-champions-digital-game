@@ -74,7 +74,7 @@ export const SINISTER_SYNDICATE = defineAbilities({
   // Beetle (24043, minion; CRIMINAL, starIcon are data) — [star] Forced Response: after Beetle attacks and damages
   // you, discard the lowest-cost upgrade you control. [star] Boost: choose and discard an upgrade you control.
   "24043.beetle-forced-response": forcedResponse(
-    after.enemyAttacks("self", { againstYou: true, damages: true }),
+    after.enemyAttacks("self", { damagesYou: true }),
     bindTargets(
       "lowest",
       superlative("lowest", each(query("upgrade", { controller: "you" })), printedCostOf(chosen("candidate"))),

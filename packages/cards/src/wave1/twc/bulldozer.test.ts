@@ -4,11 +4,14 @@ import {
   notDefeatedWithoutThreat,
   schemeThreatDestination,
   villainOf,
+  type GameEvent,
   type GameState,
+  type InstanceId,
 } from "@mc/engine";
 import {
   P1,
   endTurn,
+  firstLegal,
   identityOf,
   inst,
   patchInstance,
@@ -18,7 +21,7 @@ import {
   toHero,
   use,
 } from "../../testing/harness.js";
-import { withActive } from "../../testing/staging.js";
+import { driveEventsPicking, playFromHand, withActive } from "../../testing/staging.js";
 import { wave1Scenario } from "../setup.js";
 import { findInstance, forceAttachToVillain, runTwc, startTwcGame, TWC_DEPS } from "./testing.js";
 
@@ -93,6 +96,79 @@ describe("Bulldozer's Helmet (07049)", () => {
     expect(inst(after, identity).exhausted).toBe(true);
     expect(inst(after, bulldozer).attachments).not.toContain(helmet);
     expect(Object.values(after.encounterDecks).some((piles) => piles.discard.includes(helmet))).toBe(true);
+  });
+});
+
+describe("Bulldozer's Helmet (07049) with overkill spilling past a defending ally", () => {
+  const HELMET_RESPONSE = "07049.bulldozers-helmet-forced-response";
+  /** Black Cat (2 hit points, no DEF) defends Bulldozer's attack, which has overkill (his Forced Interrupt). */
+  function bulldozerAttacksBlackCat(): {
+    readonly events: readonly GameEvent[];
+    readonly state: GameState;
+    readonly deckBefore: number;
+  } {
+    let state = withActive(spiderManVsBreakout(), bulldozerId(spiderManVsBreakout()));
+    // As the tests above: keeps Bulldozer the active villain without tripping Charge!.
+    state = patchInstance(state, clearTheRoadId(state), { threat: 8 });
+    const bulldozer = bulldozerId(state);
+    state = runTwc(forceAttachToVillain(state, findInstance(state, "07049"), bulldozer), toHero());
+    state = patchInstance(state, identityOf(state, P1), { exhausted: false });
+    const { state: withAlly, id: ally } = playFromHand(TWC_DEPS, state, "01002", 2);
+    const deckBefore = playerOf(withAlly, P1).deck.length;
+    let defended = false;
+    const pick = (s: GameState): readonly string[] => {
+      const choice = s.pendingChoice!;
+      if (!defended && choice.prompt.kind === "declareDefender" && choice.prompt.attack.enemyInstanceId === bulldozer) {
+        defended = true;
+        return [ally as InstanceId];
+      }
+      return choice.prompt.kind === "declareDefender" ? ["decline"] : firstLegal(s);
+    };
+    const { events, state: after } = driveEventsPicking(TWC_DEPS, withAlly, pick, endTurn(P1));
+    return { events, state: after, deckBefore };
+  }
+  /** Bulldozer's first attack's events (a later attack would answer the Helmet again). */
+  const firstAttackOf = (events: readonly GameEvent[]): readonly GameEvent[] => {
+    const first = events.findIndex((e) => e.type === "attackResolved");
+    const next = events.findIndex((e, i) => i > first && e.type === "attackResolved");
+    return events.slice(first, next < 0 ? undefined : next);
+  };
+
+  it("'After Bulldozer attacks you' resolves once, discarding 1 card per damage the whole attack dealt", () => {
+    // RRG 1.8 "You, Your" (p. 49): "attacks you" is the attacked player, attacked once; "Overkill" (p. 31): the spill
+    // is damage from the attack but not another attack. Ruling January 11, 2026 (2) (https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-7/)
+    // makes "attacks and damages" a condition per damaged character, which "attacks you" is not.
+    const { events, state } = bulldozerAttacksBlackCat();
+    const attack = firstAttackOf(events);
+    const hits = attack.filter((e) => e.type === "damageDealt");
+    // The setup's own check: the ally and, by overkill, the identity were both damaged.
+    expect(hits.map((e) => e.targetInstanceId)).toContain(identityOf(state, P1));
+    expect(hits.length).toBe(2);
+    const total = hits.reduce((sum, e) => sum + (e.type === "damageDealt" ? e.amount : 0), 0);
+    const resolved = attack.filter((e) => e.type === "abilityResolved" && String(e.abilityId) === HELMET_RESPONSE);
+    expect(resolved).toHaveLength(1);
+    const milled = attack.filter((e) => e.type === "cardMoved" && e.from.kind === "deck" && e.to.kind === "discard");
+    expect(milled).toHaveLength(total);
+  });
+
+  it("counts damage a tough status card stops: it was dealt, not taken", () => {
+    // RRG 1.8 "Damage" (p. 14): when the damage taken is modified "(such as by damage being prevented), the amount of
+    // damage dealt is not modified"; "Tough" (p. 44) prevents it (ruling January 17, 2026 (3)).
+    let state = withActive(spiderManVsBreakout(), bulldozerId(spiderManVsBreakout()));
+    state = patchInstance(state, clearTheRoadId(state), { threat: 8 });
+    const bulldozer = bulldozerId(state);
+    state = runTwc(forceAttachToVillain(state, findInstance(state, "07049"), bulldozer), toHero());
+    const identity = identityOf(state, P1);
+    state = patchInstance(state, identity, { statuses: { ...inst(state, identity).statuses, tough: 1 } });
+    const pick = (s: GameState): readonly string[] =>
+      s.pendingChoice!.prompt.kind === "declareDefender" ? ["decline"] : firstLegal(s);
+    const { events } = driveEventsPicking(TWC_DEPS, state, pick, endTurn(P1));
+    const attack = firstAttackOf(events);
+    const stopped = attack.filter((e) => e.type === "damagePrevented" && e.reason === "tough");
+    expect(stopped).toHaveLength(1);
+    expect(attack.some((e) => e.type === "damageDealt")).toBe(false);
+    const milled = attack.filter((e) => e.type === "cardMoved" && e.from.kind === "deck" && e.to.kind === "discard");
+    expect(milled).toHaveLength(stopped[0]!.type === "damagePrevented" ? stopped[0]!.amount : -1);
   });
 });
 

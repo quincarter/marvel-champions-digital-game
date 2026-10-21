@@ -15,7 +15,7 @@ import {
   enemyAttack,
   enemyScheme,
   encounterCards,
-  eventResult,
+  attackDamageDealt,
   exhaustYourHero,
   exists,
   forcedInterrupt,
@@ -114,10 +114,13 @@ export const BULLDOZER_SET = defineAbilities({
   ),
 
   // Bulldozer's Helmet — Attach to Bulldozer. [star] Forced Response: After Bulldozer attacks you, discard 1 card
-  // from the top of your deck for each point of damage dealt by this attack.
+  // from the top of your deck for each point of damage dealt by this attack. No "and damages": the response answers the
+  // attack once, not once per character its overkill damaged (only "attacks and damages" is a condition per damaged
+  // character, ruling January 11, 2026 (2); engine `spillUnheard`), and a 0-damage attack discards 0. The amount counts
+  // the spill (RRG 1.8 "Overkill", p. 31: "considered damage from an attack").
   "07049.bulldozers-helmet-forced-response": forcedResponse(
-    after.enemyAttacks("host", { againstYou: true, damages: true }),
-    moveCards(topOfDeck(eventResult("damage"), you), "discard"),
+    after.enemyAttacks("host", { againstYou: true }),
+    moveCards(topOfDeck(attackDamageDealt, you), "discard"),
   ),
   // Hero Action: Exhaust your hero and discard 1 card at random from your hand → discard this card. Same
   // `discardRandomFromHandCost` shape as Magic Crowbar (`wrecker.ts`).

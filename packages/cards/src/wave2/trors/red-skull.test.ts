@@ -404,13 +404,13 @@ describe("Red Skull scenario", () => {
 // "[star] Boost: Give the villain a tough status card and another boost card." Official source: FFG ruling February 28,
 // 2026 - Ruling 6 (Hall of Heroes, "Latest FFG Rulings (post-RRG 1.7 & 1.8)",
 // https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-7/; `marvel-champions-rulings-post-rrg-1-7.md`), on Pirate
-// Lackey, a boost card that gives the villain a boost card when a Villainous minion activates: "No. Because the
-// villain is not activating, do not give it a boost card." (pinned in `wave6/mut_gen/qa.test.ts`). The same reasoning
-// applies to Exo-Soldier's "another boost card" when a Villainous minion flips it: the tough status card still goes to
-// the villain, but the minion's activation is not given another boost card. A ruling on Exo-Soldier itself dated
-// December 11, 2025 is unconfirmed (no primary source found: the only December 11, 2025 ruling in the transcripts,
-// post-RRG 1.6 #69.132, is about other cards), so it does not drive this test. The script used to hand the extra card
-// to the activation in progress, here the minion's; it now uses `extraBoostCardsForVillain()`.
+// Lackey, a boost card that gives the villain a boost card when a Villainous minion activates: "No. Because the villain
+// is not activating, do not give it a boost card." (pinned in `wave6/mut_gen/qa.test.ts`). The same reasoning applies
+// to Exo-Soldier's "another boost card" when a Villainous minion flips it: the tough status card still goes to the
+// villain, but the minion's activation is not given another boost card. A ruling on Exo-Soldier itself dated December
+// 11, 2025 is unconfirmed (no primary source found: the only December 11, 2025 ruling in the transcripts, post-RRG 1.6,
+// December 11, 2025, is about other cards), so it does not drive this test. The script used to hand the extra card to
+// the activation in progress, here the minion's; it now uses `extraBoostCardsForVillain()`.
 describe("Hydra Exo-Soldier (04131) as a Villainous minion's boost card: FFG ruling Feb 28, 2026 (6), Pirate Lackey", () => {
   it("the villain has no boost card (its own was spent), so the minion's activation is not given another", () => {
     const base = mansionAttackGame({ villain: "Avalanche", modularSetIds: ["future_past"] });

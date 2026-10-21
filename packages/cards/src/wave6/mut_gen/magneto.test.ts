@@ -285,9 +285,11 @@ describe("the double-sided side schemes (32144, 32145)", () => {
 
   it("Q9: capped damage is neither taken nor prevented and gives no excess, so Magneto is not defeated by it", () => {
     const base = start();
-    // 17 of Magneto I's 18 hit points are gone: an uncapped hit would defeat him with excess damage.
+    // 17 of Magneto I's 18 hit points are gone: an uncapped hit would defeat him with excess damage. Boarding Party's
+    // cap lowers him to 6 at once (ruling Oct 10, 2025, https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-6/:
+    // it "will immediately affect" his sustained damage).
     const { state, events } = attackMagneto(patchInstance(base, villain(base), { damage: 17 }));
-    expect(damageOf(state, villain(state))).toBe(17);
+    expect(damageOf(state, villain(state))).toBe(6);
     expect(of(events, "damageCapped")).toHaveLength(1);
     expect(of(events, "damageDealt")).toHaveLength(0);
     expect(of(events, "damagePrevented")).toEqual([]);

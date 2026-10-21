@@ -24,9 +24,10 @@
  *   before that instruction, and the effect deals the damage of the attack already begun. Same sentence of p. 26.
  *   The readings on top of it (what is read ahead, several attacks, a stun received meanwhile) are interpretations,
  *   stated with their alternatives in `resolve/attack-ability.ts`.
- * - **Every "(attack)" ability, contributor's rules call (bluefireF5ran) 2026-10-15** (RRG 1.8 p. 26 as written; FFG ruling 69.67): the
- *   ability is an attack by the identity from when it begins resolving, whether or not it deals an enemy damage. The
- *   tests that pinned "with no damage there is no attack" (rows 61/73, Q48) now expect an attack on nobody.
+ * - **Every "(attack)" ability, contributor's rules call (bluefireF5ran) 2026-10-15** (RRG 1.8 p. 26 as written; FFG
+ *   ruling June 26, 2025): the ability is an attack by the identity from when it begins resolving, whether or not it
+ *   deals an enemy damage. The tests that pinned "with no damage there is no attack" (rows 61/73, Q48) now expect an
+ *   attack on nobody.
  *
  * Synthetic cards only: every event costs 0 and the hero is the default test hero (10 hit points, ATK 2). Every play
  * is replayed from its log and compared (`play`).
@@ -585,8 +586,9 @@ describe("Q48: an '(attack)' ability with no attack effect is still one attack",
   });
 
   it("an ability whose only damage is to its player's own character is an attack on nobody; that damage is plain", () => {
-    // RRG 1.8 p. 26 ("considered to be an attack made by that player's identity"), FFG ruling 69.67 and the fork
-    // owner's decision of 2026-10-15: every "(attack)" ability is an attack, damage or no damage (reverses rows 61/73, Q48).
+    // RRG 1.8 p. 26 ("considered to be an attack made by that player's identity"), FFG ruling June 26, 2025 and the
+    // contributor's rules call 2026-10-15 (bluefireF5ran): every "(attack)" ability is an attack, damage or no damage
+    // (reverses rows 61/73, Q48).
     const t = table(THORNY_V, [FOLLOW_UP_S]);
     const after = play(t, WINCE);
     expect(amountsTo(after.events, t.hero)).toEqual([2]);
@@ -684,8 +686,9 @@ describe("Row 61 (A1): a label-only attack begins as its ability begins resolvin
   });
 
   it("an ability that can only damage its player's own character still begins its attack first, on nobody", () => {
-    // RRG 1.8 p. 26 ("considered to be an attack made by that player's identity"), FFG ruling 69.67 and the fork
-    // owner's decision of 2026-10-15: every "(attack)" ability is an attack, damage or no damage (reverses rows 61/73, Q48).
+    // RRG 1.8 p. 26 ("considered to be an attack made by that player's identity"), FFG ruling June 26, 2025 and the
+    // contributor's rules call 2026-10-15 (bluefireF5ran): every "(attack)" ability is an attack, damage or no damage
+    // (reverses rows 61/73, Q48).
     const t = table(THORNY_V, [PREP_S, FOLLOW_UP_S]);
     const after = play(t, PREP_WINCE);
     expect(attacksOf(after.events, "initiated")).toHaveLength(1);
@@ -918,8 +921,9 @@ describe("Row 73 (A1, second half): an ability with an attack effect begins its 
   });
 
   it("an attack inside a branch that is not taken is still an attack, on nobody: no damage, no retaliate", () => {
-    // RRG 1.8 p. 26 ("considered to be an attack made by that player's identity"), FFG ruling 69.67 and the fork
-    // owner's decision of 2026-10-15: every "(attack)" ability is an attack, damage or no damage (reverses rows 61/73, Q48).
+    // RRG 1.8 p. 26 ("considered to be an attack made by that player's identity"), FFG ruling June 26, 2025 and the
+    // contributor's rules call 2026-10-15 (bluefireF5ran): every "(attack)" ability is an attack, damage or no damage
+    // (reverses rows 61/73, Q48).
     const t = table(THORNY_V, [PREP_S, FOLLOW_UP_S, SHARPENED_S]);
     const after = play(t, PREP_NEVER_HIT);
     expect(attacksOf(after.events, "initiated")).toHaveLength(1);
@@ -933,7 +937,8 @@ describe("Row 73 (A1, second half): an ability with an attack effect begins its 
   });
 
   it("an attack instruction that resolves first but names no enemy still makes the ability an attack, on nobody", () => {
-    // RRG 1.8 p. 26; FFG ruling 69.67; owner decision, 2026-10-15: "attack each minion" with no minion in play.
+    // RRG 1.8 p. 26; FFG ruling June 26, 2025; contributor's rules call 2026-10-15 (bluefireF5ran): "attack each
+    // minion" with no minion in play.
     const t = table(PLAIN_V, [FOLLOW_UP_S, MINION_HUNTER_S]);
     const after = play(t, CLEAVE);
     expect(attacksOf(after.events, "initiated")).toHaveLength(1);
@@ -956,8 +961,9 @@ describe("Row 73 (A1, second half): an ability with an attack effect begins its 
   });
 
   it("interpretation: a branch the earlier instruction decides begins its attack with the ability, with no target yet", () => {
-    // RRG 1.8 p. 26 ("considered to be an attack made by that player's identity"), FFG ruling 69.67 and the fork
-    // owner's decision of 2026-10-15: every "(attack)" ability is an attack, damage or no damage (reverses rows 61/73, Q48).
+    // RRG 1.8 p. 26 ("considered to be an attack made by that player's identity"), FFG ruling June 26, 2025 and the
+    // contributor's rules call 2026-10-15 (bluefireF5ran): every "(attack)" ability is an attack, damage or no damage
+    // (reverses rows 61/73, Q48).
     const t = table(PLAIN_V, [PREP_S, SHARPENED_S]);
     const after = play(t, PREP_MAYBE_HIT);
     expect(at(after.events, begins)).toBeLessThan(at(after.events, prepared));
@@ -974,8 +980,9 @@ describe("Row 73 (A1, second half): an ability with an attack effect begins its 
     expect(attacksOf(either.events, "initiated")[0]).toMatchObject({ begun: true, targetInstanceId: t.villain });
     // The first option is the default pick: 2 + 1.
     expect(amountsTo(either.events, t.villain)).toEqual([3]);
-    // One option does not attack: the attack still begins with the ability, with no target, and the attack
-    // instruction of the option chosen takes it over (RRG 1.8 p. 26; ruling 69.67; owner decision, 2026-10-15).
+    // One option does not attack: the attack still begins with the ability, with no target, and the attack instruction
+    // of the option chosen takes it over (RRG 1.8 p. 26; ruling June 26, 2025; contributor's rules call 2026-10-15
+    // (bluefireF5ran)).
     const maybe = table(PLAIN_V, [PREP_S, SHARPENED_S]);
     const orHit = play(maybe, PREP_OR_HIT);
     expect(at(orHit.events, begins)).toBeLessThan(at(orHit.events, prepared));

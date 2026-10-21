@@ -6867,7 +6867,7 @@ function basicAttackPaying(
       keywords: attackKeywordsOf(ctx.state, ctx.deps, { attackerInstanceId: command.attackerInstanceId, basic: true }),
     };
     // A piercing attack on a character with a tough card affects it through piercing (`attackPiercesTough`; ruling
-    // July 11, 2025, Ruling 69.76), so that target stays valid. Not when the damage cannot even be dealt
+    // July 11, 2025), so that target stays valid. Not when the damage cannot even be dealt
     // (`cannotBeDealtDamage`, docs/phase7-wave11-scenarios.md §S3.5): RRG 1.8 "Piercing" (p. 32) discards tough cards
     // only for damage the attack deals.
     const sources = [command.attackerInstanceId];
@@ -7112,7 +7112,7 @@ function basicThwartWith(
     return engineError("no_valid_target", "this thwart cannot use ATK", command);
   }
   const missingStats = characterProfile(ctx.state, command.thwarterInstanceId, ctx.deps)?.missing ?? [];
-  // Ruling 69.62 (June 17, 2025; RRG 1.8 "Dash (Value)", p. 15): a triggered "may use their ATK instead" applies only
+  // Ruling June 17, 2025 (RRG 1.8 "Dash (Value)", p. 15): a triggered "may use their ATK instead" applies only
   // once the character can initiate a basic thwart, which a '—' THW forbids. Assault (always in effect) is exempt.
   if (command.useAtk && !assault && missingStats.includes("thw")) {
     return engineError("no_valid_target", "a character with a printed '—' THW cannot initiate a thwart", command);

@@ -313,7 +313,7 @@ describe("§3.21 'When a character attacks Speed Demon, Speed Demon attacks that
 });
 
 /**
- * Ruling 69.82 (July 25, 2025, Alex), question 2: Hope Summers is a minion engaged with a player (an ally under
+ * Ruling July 25, 2025 (Alex), question 2: Hope Summers is a minion engaged with a player (an ally under
  * 'Pool-ized) while Sinister Ends is in play. "Yes, in that case Mister Sinister will attack the Hope Summers minion.
  * As this is still an enemy attack activation, a player can still defend against this attack." RRG 1.8 is silent
  * on a forced interrupt that moves an enemy attack onto a minion (p. 8 "Attack (Enemy Activation)" only names a
@@ -323,7 +323,7 @@ describe("§3.21 'When a character attacks Speed Demon, Speed Demon attacks that
  * null, and an engaged minion has no controller (`engageInPlayMinion` sets `controllerId: null`), so the attack
  * stays on the player's hero.
  */
-describe("an enemy attack moved onto a minion (ruling July 25, 2025, 69.82)", () => {
+describe("an enemy attack moved onto a minion (ruling July 25, 2025)", () => {
   const SNARE_RULE = stubAbility("snare.forced-interrupt", {
     trigger: { kind: "interrupt", forced: true, on: { on: "enemyAttack", sourceIs: { categories: ["villain"] } } },
     effects: [{ kind: "retargetAttack", character: { kind: "named", name: "grunt" } }],

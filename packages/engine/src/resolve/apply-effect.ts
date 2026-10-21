@@ -171,6 +171,7 @@ import {
   cannotActivate,
   cannotChangeForm,
   cannotEnterPlay,
+  formOnlyFault,
   maxPerPlayerReached,
   cannotFlip,
   cannotThwart,
@@ -360,6 +361,22 @@ function admitUnderPlayerMax(ctx: Ctx, ids: readonly InstanceId[], forPlayer: Pl
         : maxPerPlayerReached(ctx.state, id, forPlayer) !== null;
     if (refused) emit(ctx, { type: "putIntoPlayRefused", instanceId: id, playerId: forPlayer, reason: "maxPerPlayer" });
     return !refused;
+  });
+}
+
+/**
+ * RRG 1.8 "Play, Put into Play" (p. 32): "Cards with the text '[type] form only' can only be played or put into play by
+ * a player whose identity is in the specified form." The player is the one the card would enter play under. A refused
+ * card stays where it was, logged `putIntoPlayRefused { reason: "wrongForm" }`. A card already in play is not entering,
+ * and one put into play facedown is exempt: its text is hidden (owner decision 2026-10-20, an engine interpretation; no
+ * official source covers a "[type] form only" card put into play facedown). Returns the ids that may proceed.
+ */
+function admitFormOnly(ctx: Ctx, ids: readonly InstanceId[], forPlayer: PlayerId): readonly InstanceId[] {
+  const inPlay = cardsInPlay(ctx.state);
+  return ids.filter((id) => {
+    if (inPlay.includes(id) || formOnlyFault(ctx.state, id, forPlayer) === null) return true;
+    emit(ctx, { type: "putIntoPlayRefused", instanceId: id, playerId: forPlayer, reason: "wrongForm" });
+    return false;
   });
 }
 
@@ -1818,7 +1835,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // window, and so does every card after it, so the cards land in the order the effect named them.
       const plain = effect.facedown !== true && effect.as === undefined;
       const waiting: TriggerEvent[] = [];
-      const attached = targets(effect.card)
+      // A "[type] form only" card attached from out of play enters play by it, so the form check of a put into play
+      // applies (RRG 1.8 "Play, Put into Play", p. 32; `admitFormOnly`, which passes a card already in play).
+      const cards =
+        effect.facedown === true || !context.controllerId
+          ? targets(effect.card)
+          : admitFormOnly(ctx, targets(effect.card), context.controllerId);
+      const attached = cards
         .flatMap((id) => {
           // "(Players cannot look at the reverse sides)" (docs/phase7-wave9.md §3.54): hidden before it is attached,
           // so a "would be attached" window that makes this attach wait holds a card that is already hidden.
@@ -2013,7 +2036,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         // The unique rule is about entering play (RRG 1.8 "Unique Icon", pp. 45–46): a card moved there was in play.
         const admitted = admitUniqueEntry(
           ctx,
-          named.filter((id) => !alreadyInPlay.includes(id)),
+          admitFormOnly(
+            ctx,
+            named.filter((id) => !alreadyInPlay.includes(id)),
+            controller,
+          ),
           controller,
           frame.selfInstanceId,
         );
@@ -2047,7 +2074,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         afterEntry(entered);
         return;
       }
-      const unmatched = admitUniqueEntry(ctx, targets(effect.card), controller, frame.selfInstanceId);
+      const named =
+        effect.facedown === true ? targets(effect.card) : admitFormOnly(ctx, targets(effect.card), controller);
+      const unmatched = admitUniqueEntry(ctx, named, controller, frame.selfInstanceId);
       // A card put into play facedown shows no title, so it is no copy of anything ("copies … by title", p. 28).
       const admitted = effect.facedown === true ? unmatched : admitUnderPlayerMax(ctx, unmatched, controller);
       const placed: InstanceId[] = [];

@@ -470,6 +470,12 @@ the damage taken is lowered to what keeps sustained damage at most `amount`; wit
 Damage above the cap is not taken and not prevented (§4 Q9). It does not stop healing or change the dial's maximum.
 Log `damageCapped { targetInstanceId, amount }`. **DSL:** `constant(maxSustainedDamage(target, amount))`.
 
+**Damage already above the cap.** A character with more sustained damage than a cap allows (the cap was blanked, or came
+into play after the damage) is lowered to the cap between frames, logged `damageAboveCapRemoved`: a rules correction,
+not a heal. Ruling October 10, 2025 (Boarding Party blanked by Vivian): "once Boarding Party's ability is back in effect,
+it will immediately affect the amount of sustained damage Magneto has"; RRG 1.8 "Constant Abilities" (p. 5). Unlike
+`counterLimit`, which keeps counters already over its limit, the card states a level rather than limiting what is placed.
+
 ### 3.4 A per-phase cap on damage taken
 
 > **Status: partial.** `maxDamageTakenPerAttack` exists (`abilities.ts` ~line 801, `damage-limits.test.ts`).

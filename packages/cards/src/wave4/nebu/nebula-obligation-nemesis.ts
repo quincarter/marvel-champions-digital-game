@@ -81,10 +81,10 @@ export const NEBULA_OBLIGATION_NEMESIS = defineAbilities({
     discard(each(query("ally", { name: "Gamora" }))),
   ),
   // Gamora (nemesis minion, 22028) — [star] Forced Response: After Gamora attacks and damages you, choose and
-  // discard an upgrade you control. "You" is whoever this minion is engaged with, so an ordinary "against you"
-  // enemy-attack pattern already reads it correctly (RRG 1.8 "You, Your", p. 49).
+  // discard an upgrade you control. "Attacks and damages you" is damage to your identity (RRG 1.8 "You, Your", p. 49),
+  // so `damagesYou`: an ally defending does not trigger it, and an overkill spill onto your identity does.
   "22028.gamora-forced-response": forcedResponse(
-    on.enemyAttacks("self", { againstYou: true, damages: true }),
+    on.enemyAttacks("self", { damagesYou: true }),
     chooseTarget("upgrade", query("upgrade", { controller: "you" })),
     discard(chosen("upgrade")),
   ),

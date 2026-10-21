@@ -348,39 +348,58 @@ describe("TargetQuery canAttachTo: 'an upgrade that can be attached to [that car
 /**
  * RRG 1.8 "Play, Put into Play" (p. 32): "Cards with the text '[type] form only' can only be played or put into play by
  * a player whose identity is in the specified form." `playCard` enforces a printed `playRestrictions.form`
- * (`actions.ts`, `wrong_form`), but the `putIntoPlay` effect (`resolve/apply-effect.ts`) never reads it, so an effect
- * such as Superpower Training's "put it into play" puts a "Hero Form only" upgrade onto an alter-ego.
+ * (`actions.ts`, `wrong_form`), and so do the `putIntoPlay` and `attach` effects (`resolve/apply-effect.ts`
+ * `admitFormOnly`), so an effect such as Superpower Training's "put it into play" cannot put a "Hero Form only" upgrade
+ * onto an alter-ego.
  */
 /** "Hero Form only." */
 const FORM_RAGE = { ...stubUpgrade({ id: "rage-ish", cost: 1 }), playRestrictions: { form: "hero" as const } };
+/** Choose the "Hero Form only" upgrade from your deck, discard pile or hand. */
+const FIND_RAGE: EffectSpec = {
+  kind: "chooseCards",
+  slot: "found",
+  from: {
+    kind: "zone",
+    zone: ["deck", "discard", "hand"],
+    player: { kind: "controller" },
+    filter: { name: FORM_RAGE.name },
+  },
+  chooser: { kind: "controller" },
+  min: 1,
+  max: 1,
+};
 const FORM_FETCH_ABILITY = stubAbility("fetch-rage.action", {
   trigger: { kind: "action" },
   effects: [
-    {
-      kind: "chooseCards",
-      slot: "found",
-      from: {
-        kind: "zone",
-        zone: ["deck", "discard", "hand"],
-        player: { kind: "controller" },
-        filter: { name: FORM_RAGE.name },
-      },
-      chooser: { kind: "controller" },
-      min: 1,
-      max: 1,
-    },
+    FIND_RAGE,
     { kind: "putIntoPlay", card: { kind: "slot", slot: "found" }, controller: { kind: "controller" } },
   ],
 });
 /** "Search your deck for a Hero Form only upgrade and put it into play." */
 const FORM_FETCH = stubEvent({ id: "fetch-rage", cost: 0, abilities: [FORM_FETCH_ABILITY.ref] });
-const formDeps: EngineDeps = depsOf(FORM_FETCH_ABILITY);
+/** "Search your deck for a Hero Form only upgrade and attach it to your identity.": an `attach`, not a `putIntoPlay`. */
+const FORM_ATTACH_ABILITY = stubAbility("attach-rage.action", {
+  trigger: { kind: "action" },
+  effects: [
+    FIND_RAGE,
+    {
+      kind: "attach",
+      card: { kind: "slot", slot: "found" },
+      to: { kind: "each", query: { categories: ["identity"], controller: "you" } },
+    },
+  ],
+});
+const FORM_ATTACH = stubEvent({ id: "attach-rage", cost: 0, abilities: [FORM_ATTACH_ABILITY.ref] });
+const formDeps: EngineDeps = depsOf(FORM_FETCH_ABILITY, FORM_ATTACH_ABILITY);
 
-function runFormFetch(form: "hero" | "alterEgo"): { state: GameState; rage: InstanceId } {
+function runFormFetch(
+  form: "hero" | "alterEgo",
+  fetch: typeof FORM_FETCH = FORM_FETCH,
+): { state: GameState; rage: InstanceId } {
   const base = gameAtFirstTurn({
-    cards: [FORM_RAGE, FORM_FETCH, BRUTE],
+    cards: [FORM_RAGE, FORM_FETCH, FORM_ATTACH, BRUTE],
     deps: formDeps,
-    deck: [FORM_RAGE.id, FORM_FETCH.id],
+    deck: [FORM_RAGE.id, FORM_FETCH.id, FORM_ATTACH.id],
     encounter: [BRUTE.id],
   });
   const posed: GameState = {
@@ -389,7 +408,7 @@ function runFormFetch(form: "hero" | "alterEgo"): { state: GameState; rage: Inst
   };
   const seat = mustPlayer(posed, P1);
   const rage = [...seat.deck, ...seat.discard, ...seat.hand].find((i) => posed.instances[i]?.cardId === FORM_RAGE.id)!;
-  const given = giveCard(posed, P1, FORM_FETCH.id);
+  const given = giveCard(posed, P1, fetch.id);
   const command: Command = {
     type: "playCard",
     playerId: P1,
@@ -410,8 +429,15 @@ describe("a 'Hero Form only' upgrade put into play (RRG 1.8 'Play, Put into Play
     expect(mustInstance(state, rage).attachedTo).toBe(mustPlayer(state, P1).identity.instanceId);
   });
 
-  it.fails("an alter-ego player cannot: it stays out of play", () => {
+  it("an alter-ego player cannot: it stays out of play", () => {
     const { state, rage } = runFormFetch("alterEgo");
     expect(mustInstance(state, rage).attachedTo).toBeNull();
+  });
+
+  it("the same for an effect that attaches it from out of play: a hero-form player may, an alter-ego player cannot", () => {
+    const hero = runFormFetch("hero", FORM_ATTACH);
+    expect(mustInstance(hero.state, hero.rage).attachedTo).toBe(mustPlayer(hero.state, P1).identity.instanceId);
+    const alterEgo = runFormFetch("alterEgo", FORM_ATTACH);
+    expect(mustInstance(alterEgo.state, alterEgo.rage).attachedTo).toBeNull();
   });
 });
