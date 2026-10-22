@@ -190,6 +190,28 @@ describe("Scarlet Witch's pack cards (Justice, Basic; Aggression/Leadership/Prot
     expect(playerOf(thwarted, P1).discard).toContain(turnTheTide);
   });
 
+  it("Turn the Tide: thwarting the main scheme down to 0 threat counts too (RRG 1.8 'Scheme (Card Type)', p. 39)", () => {
+    const hero = runWave2(scwVsRhino(), toHero());
+    const villain = hero.villains[0]!.instanceId;
+    const main = hero.mainScheme.instanceId;
+    const nearlyClear = patchInstance(withDamage(hero, villain, 0), main, { threat: 1 });
+    const given = moveToHand(nearlyClear, P1, "15015");
+    const [turnTheTide] = given.ids as [InstanceId];
+    const thwarted = settle(
+      runWave2(given.state, {
+        type: "basicThwart",
+        playerId: P1,
+        thwarterInstanceId: identityOf(given.state),
+        schemeInstanceId: main,
+      }),
+      accepting("15015.turn-the-tide-response"),
+      undefined,
+      WAVE2_DEPS,
+    );
+    expect(inst(thwarted, villain).damage).toBe(3);
+    expect(playerOf(thwarted, P1).discard).toContain(turnTheTide);
+  });
+
   it("Order and Chaos: Team-Up, Hero Interrupt cancels a revealed treachery's 'When Revealed' effects and deals 2 damage to the villain", () => {
     // Team-Up (Quicksilver and Scarlet Witch): the Quicksilver ally (15002, her own kit) must be in play — the
     // same "play the matching partner card the deck actually carries" precedent `qsv/pack-cards.test.ts`'s own
