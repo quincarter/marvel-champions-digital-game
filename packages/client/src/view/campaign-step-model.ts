@@ -262,7 +262,11 @@ export type CampaignStepView =
   | { readonly kind: "steps"; readonly steps: readonly CampaignStepRow[] }
   | { readonly kind: "pending"; readonly choice: CampaignChoicePrompt };
 
-/** Renders whichever half of `CampaignRunnerResult` the caller got back, without the caller re-deriving the shape. */
+/**
+ * Renders whichever half of `CampaignRunnerResult` the caller got back, without the caller re-deriving the shape.
+ * It is unfiltered: every step the trace carries is a row, so a caller that must hide a step for a seat or a mode
+ * filters `stepsOf`'s traces first.
+ */
 export function campaignStepView<T>(
   result: CampaignRunnerResult<T>,
   stepsOf: (value: T) => readonly CampaignStepTrace[],

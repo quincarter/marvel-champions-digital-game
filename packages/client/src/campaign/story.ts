@@ -20,6 +20,7 @@ import { SM_STORY } from "./stories/sm.js";
 import { AOA_STORY } from "./stories/aoa.js";
 import { AOS_STORY } from "./stories/aos.js";
 import { FNE_STORY } from "./stories/fne.js";
+import { SHADOWLAND_STORY } from "./stories/shadowland.js";
 import type { PoolCopy } from "../view/campaign-pool-model.js";
 import type { BriefingNoteCopy } from "../view/campaign-briefing-model.js";
 import type { LogValue } from "@mc/engine";
@@ -427,7 +428,7 @@ export interface SagaVolume {
 }
 
 /**
- * The ten campaign boxes in release order (MojoMania is a three-scenario insert campaign) (PLAN.md C3). Civil War (MC56) is not one: "the Civil War expansion
+ * The eleven campaign boxes in release order (MojoMania and Shadowland are three-scenario insert campaigns) (PLAN.md C3). Civil War (MC56) is not one: "the Civil War expansion
  * does not include five interconnected scenarios and a campaign mode" (MC56 p. 3).
  */
 export const SAGA_VOLUMES: readonly SagaVolume[] = [
@@ -441,6 +442,7 @@ export const SAGA_VOLUMES: readonly SagaVolume[] = [
   { number: 8, campaignId: "aoa", boxCode: "MC45", name: "Age of Apocalypse" },
   { number: 9, campaignId: "aos", boxCode: "MC50", name: "Agents of S.H.I.E.L.D." },
   { number: 10, campaignId: "fne", boxCode: "MC60", name: "Fear No Evil" },
+  { number: 11, campaignId: "shadowland", boxCode: "MC65", name: "Shadowland" },
 ];
 
 // Matches the current design canvas (`Marvel Champions game screens/Campaign - *.dc.html`'s `saga()`), the
@@ -460,6 +462,7 @@ const STORIES: Readonly<Record<string, CampaignStory>> = {
   [AOA_STORY.campaignId]: AOA_STORY,
   [AOS_STORY.campaignId]: AOS_STORY,
   [FNE_STORY.campaignId]: FNE_STORY,
+  [SHADOWLAND_STORY.campaignId]: SHADOWLAND_STORY,
 };
 
 export const storyFor = (campaignId: string): CampaignStory | undefined => STORIES[campaignId];

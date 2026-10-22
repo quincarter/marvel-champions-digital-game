@@ -244,6 +244,9 @@ export const UNLOCK_WAVES: readonly UnlockWave[] = [
     name: "Fear No Evil",
     gate: { kind: "campaignWin", campaignId: "aos", hint: "Complete the Agents of S.H.I.E.L.D. campaign" },
     campaignId: "fne",
+    // Shadowland (MC65) is cycle 11 too and opens with it: no new hero reward, its three scenarios and its campaign
+    // open under Fear No Evil's gate (docs/phase7-shadowland.md section 5 Q3, owner default).
+    alsoCampaignIds: ["shadowland"],
     starterHeroIds: ["60001a", "60037a", "61001a", "62001a"], // Daredevil, Echo, Jessica Jones, Luke Cage
     heroRewards: [],
   },

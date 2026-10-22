@@ -182,6 +182,9 @@ import {
   LUKE_CAGE_PACK,
   LUKE_CAGE_STARTER_DECKS,
   WAVE11_ENCOUNTER_SETS,
+  SHADOWLAND_CYCLE,
+  SHADOWLAND_PACK,
+  SHADOWLAND_SCENARIOS,
   poolVersionOf,
   type AnyCard,
   type Cycle,
@@ -215,7 +218,7 @@ export const POOL_ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...WAVE9_ENCOUNTER_SETS.filter((set) => !UNSCRIPTED_ENCOUNTER_SET_IDS.has(set.id as string)),
   // Cycle 10: Civil War's sixteen modular sets, four leaders' sets and difficulty sets, both hero packs' nemesis sets and All Versus All.
   ...WAVE10_ENCOUNTER_SETS.filter((set) => !UNSCRIPTED_ENCOUNTER_SET_IDS.has(set.id as string)),
-  // Cycle 11: Fear No Evil's, Jessica Jones' and Luke Cage's sets (Shadowland's stay gated, `playable/unscripted.ts`).
+  // Cycle 11: Fear No Evil's, Jessica Jones' and Luke Cage's sets and Shadowland's seven (unlocked 2026-10-22).
   ...WAVE11_ENCOUNTER_SETS.filter((set) => !UNSCRIPTED_ENCOUNTER_SET_IDS.has(set.id as string)),
 ];
 
@@ -262,6 +265,8 @@ export const POOL_SCENARIOS: readonly Scenario[] = [
   ...PLAYABLE_SCENARIO_RECORDS.filter((scenario) => WAVE10_SCENARIOS.some((s) => s.id === scenario.id)),
   // Fear No Evil's six (Art Museum Heist, The Getaway, Protection Racket, The Raft Breakout, Stop the Presses, Kingpin): the five underling scenarios are played against a villain picked at setup (`Scenario.villainOptions`). `@mc/cards` builds them from the record (`wave11Scenario`) before `PLAYABLE_SCENARIO_RECORDS` lists them, so they come from the content record here.
   ...FNE_SCENARIOS,
+  // Shadowland's three (Shadows in the Night, Shadow Labyrinth, Heart of Shadow), each played against a villain picked at setup (`Scenario.villainOptions`, keyed by card). Also cycle 11 and unlocked with it.
+  ...SHADOWLAND_SCENARIOS,
 ];
 
 /** Every starter deck, Core's six precons first, then the six wave 1 hero packs', then cycle 1's six, then cycle 2's six (Groot, Rocket Raccoon, Star-Lord, Gamora, Drax, Venom), then cycle 3's six (Spectrum, Adam Warlock, Nebula, War Machine, Vision, Valkyrie). */
@@ -365,6 +370,7 @@ export const POOL_PACKS: readonly Pack[] = [
   FNE_PACK,
   JJ_PACK,
   LUKE_CAGE_PACK,
+  SHADOWLAND_PACK,
 ];
 
 /** A pack's own display name ("The Wrecking Crew") by its code ("twc"), falling back to the code itself if the pool ever names one this list doesn't have. */
@@ -441,6 +447,7 @@ const POOL_PACK_CYCLES: readonly (readonly [Pack, Cycle])[] = [
   [FNE_PACK, FNE_CYCLE],
   [JJ_PACK, JJ_CYCLE],
   [LUKE_CAGE_PACK, LUKE_CAGE_CYCLE],
+  [SHADOWLAND_PACK, SHADOWLAND_CYCLE],
 ];
 
 /**

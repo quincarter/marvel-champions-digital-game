@@ -35,7 +35,7 @@ const nameOf = (id: string): string => ({ "04001a": "Hawkeye", "04031a": "Spider
 describe("campaignSagaRows", () => {
   test("volume 1 is always open; the rest are sealed with no runs at all", () => {
     const rows = campaignSagaRows([], { definitionOf: lookup, identityNameOf: nameOf });
-    expect(rows).toHaveLength(10);
+    expect(rows).toHaveLength(11);
     expect(rows[0]).toMatchObject({ status: "fresh", unlocked: true, hasDefinition: true, lockReason: null });
     for (const row of rows.slice(1)) {
       expect(row.status).toBe("sealed");

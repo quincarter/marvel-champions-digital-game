@@ -31,6 +31,7 @@ import {
   WAVE10_STARTER_DECKS,
   FNE_STARTER_DECKS,
   FNE_SCENARIOS,
+  SHADOWLAND_SCENARIOS,
   JJ_STARTER_DECKS,
   LUKE_CAGE_STARTER_DECKS,
   MUT_GEN_SCENARIOS,
@@ -79,6 +80,7 @@ describe("POOL_SCENARIOS", () => {
         ...WAVE9_SCENARIOS,
         ...WAVE10_SCENARIOS,
         ...FNE_SCENARIOS,
+        ...SHADOWLAND_SCENARIOS,
       ].map((s) => s.id),
     );
     expect(POOL_SCENARIOS.length).toBe(
@@ -90,7 +92,8 @@ describe("POOL_SCENARIOS", () => {
         WAVE8_SCENARIOS.length +
         7 +
         WAVE10_SCENARIOS.length +
-        FNE_SCENARIOS.length,
+        FNE_SCENARIOS.length +
+        SHADOWLAND_SCENARIOS.length,
     );
   });
 });
@@ -159,25 +162,23 @@ describe("packNameOf", () => {
   });
 
   test("POOL_PACKS covers Core and every wave 1, cycle 1, cycle 2, cycle 3 and cycle 4 (shipped-so-far) cycle 6 to cycle 10 pack (Civil War, Synthezoid Smackdown), with no duplicate codes", () => {
-    expect(POOL_PACKS.length).toBe(63);
-    expect(new Set(POOL_PACKS.map((p) => p.code as string)).size).toBe(63);
+    expect(POOL_PACKS.length).toBe(64);
+    expect(new Set(POOL_PACKS.map((p) => p.code as string)).size).toBe(64);
     expect(packNameOf("cw")).toBe("Civil War");
     expect(packNameOf("synthezoid")).toBe("Synthezoid Smackdown");
     expect(packNameOf("wonder_man")).toBe("Wonder Man");
     expect(packNameOf("hercules")).toBe("Hercules");
     expect(packNameOf("jj")).toBe("Jessica Jones");
     expect(packNameOf("luke_cage")).toBe("Luke Cage");
+    expect(packNameOf("shadowland")).toBe("Shadowland");
   });
 });
 
-describe("Fear No Evil scenarios", () => {
+describe("Fear No Evil and Shadowland scenarios", () => {
   test("every scenario builds and starts against every villain it offers", () => {
-    for (const scenario of FNE_SCENARIOS) {
+    for (const scenario of [...FNE_SCENARIOS, ...SHADOWLAND_SCENARIOS]) {
       const options = scenario.villainOptions?.options ?? [];
-      // Only `FNE_SCENARIOS` is iterated today, so the card-keyed branch below runs once Shadowland's scenarios are in
-      // `POOL_SCENARIOS` (and this list widens to them); it is here so that unlock does not throw "choose one by
-      // villainCardId".
-      // Set-keyed (Fear No Evil): one record per villain set; card-keyed (Shadowland, once it joins the pool): one per
+      // Set-keyed (Fear No Evil): one record per villain set; card-keyed (Shadowland): one per
       // villain card, since its options share a set and the builder asks for `villainCardId`.
       const byCard = scenario.villainOptions?.keyedBy === "card";
       const picks: readonly Record<string, string>[] =

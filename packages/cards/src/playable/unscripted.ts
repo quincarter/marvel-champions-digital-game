@@ -14,35 +14,15 @@
 import type { Scenario } from "@mc/content";
 
 export const UNSCRIPTED_ENCOUNTER_SET_IDS: ReadonlySet<string> = new Set<string>([
-  // Shadowland (MC65, cycle 11): every face is transcribed (2026-10-22); the pack is unlocked as a whole once it is
-  // scripted, its campaign exists and QA has played it (docs/phase7-shadowland.md §2.1).
-  "black_flower",
-  "dark_protege",
-  "deadly_contraptions",
-  "heart_of_shadow",
-  "ninja_swarm",
-  "shadow_labyrinth",
-  "shadows_in_the_night",
+  // Empty: Shadowland (MC65, cycle 11) was the last gated pack and was unlocked as a whole on 2026-10-22, once it was
+  // scripted, its campaign existed and QA had played it (docs/phase7-shadowland.md section 2.1).
 ]);
 
 /**
  * Gated sets whose every ability is scripted but which are held back for another reason, each with that reason. The
  * "fully scripted: remove it" check skips these; delete an entry with its reason gone, then un-gate the set above.
  */
-export const GATED_THOUGH_SCRIPTED: Readonly<Record<string, string>> = Object.fromEntries(
-  [
-    "black_flower",
-    "dark_protege",
-    "deadly_contraptions",
-    "heart_of_shadow",
-    "ninja_swarm",
-    "shadow_labyrinth",
-    "shadows_in_the_night",
-  ].map((id) => [
-    id,
-    "Shadowland is unlocked as one pack once every set is scripted, the campaign exists and QA has played it (feature/shadowland-unlock)",
-  ]),
-);
+export const GATED_THOUGH_SCRIPTED: Readonly<Record<string, string>> = {};
 
 /** Whether a scenario is playable: none of its own sets (or its villains' own sets) is gated. */
 export function scenarioIsScripted(scenario: Pick<Scenario, "encounterSetIds" | "multipleVillains">): boolean {

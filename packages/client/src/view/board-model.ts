@@ -1070,16 +1070,16 @@ export function areaLabelOf(state: GameState, id: InstanceId): string | null {
   return `vs ${names.join(" + ")}`;
 }
 
-/**
- * Every villain of the scenario, printed order, defeated ones included — The Wrecking Crew's Breakout has four;
- * every other scenario so far has one. Built from `state.villains`/`state.activeVillainId` directly rather than
- * from `activeVillain(state)`, which only ever names the one with the active counter.
- */
 /** A villain set aside or removed from the game is not on the table (Shadow Labyrinth's 2A with no chosen villain to reveal). */
 function villainIsOut(state: GameState, id: InstanceId): boolean {
   return state.encounterSetAside.includes(id) || state.removedFromGame.includes(id);
 }
 
+/**
+ * Every villain of the scenario, printed order, defeated ones included — The Wrecking Crew's Breakout has four;
+ * every other scenario so far has one. Built from `state.villains`/`state.activeVillainId` directly rather than
+ * from `activeVillain(state)`, which only ever names the one with the active counter.
+ */
 function villainPanels(state: GameState, deps: EngineDeps): readonly VillainPanel[] {
   // A villain tucked under a card (Routed) is out of play: not on the table, not a target, not "defeated" in the row.
   const tucked = new Set(Object.values(state.instances).flatMap((instance) => instance.tucked));

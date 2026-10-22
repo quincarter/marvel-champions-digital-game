@@ -79,6 +79,7 @@ describe("the unlock path", () => {
       "aoa",
       "aos",
       "fne",
+      "shadowland",
     ]);
   });
 
@@ -87,6 +88,21 @@ describe("the unlock path", () => {
     expect(mut.campaignLock("mojo")).toBeNull();
     expect(make().campaignLock("mojo")).toBe(make().campaignLock("mut_gen"));
     expect(make().campaignLock("mojo")).not.toBeNull();
+  });
+
+  it("Shadowland opens with Fear No Evil's wave (cycle 11), under the Agents of S.H.I.E.L.D. campaign win, with no hero reward", () => {
+    const won = make({ ...NO_PROGRESS, wonCampaignIds: ["aos"] });
+    expect(won.campaignLock("shadowland")).toBeNull();
+    expect(make().campaignLock("shadowland")).toBe(make().campaignLock("fne"));
+    expect(make().campaignLock("shadowland")).not.toBeNull();
+    const wave = UNLOCK_WAVES.find((w) => w.alsoCampaignIds?.includes("shadowland"));
+    expect(wave?.cycleId).toBe("cycle11");
+    expect(wave?.heroRewards).toEqual([]);
+    for (const s of POOL_SCENARIOS.filter((s) => s.packCode === "shadowland")) {
+      expect(scenarioCycleOf(s), s.id as string).toBe("cycle11");
+      expect(won.scenarioLock(s), s.id as string).toBeNull();
+      expect(make().scenarioLock(s), s.id as string).not.toBeNull();
+    }
   });
 
   it("keeps the Core Set fully open and nothing else on a first launch", () => {

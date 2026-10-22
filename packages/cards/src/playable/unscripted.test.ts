@@ -1,9 +1,9 @@
-import { PLAYABLE_CARDS, WAVE10_ENCOUNTER_SETS } from "@mc/content";
+import { PLAYABLE_CARDS, SHADOWLAND_SCENARIOS, WAVE10_ENCOUNTER_SETS } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import { abilityRefIds } from "../ability-refs.js";
 import { PLAYABLE_ENCOUNTER_SETS } from "../modular-pool.js";
 import { PLAYABLE_ABILITIES } from "./index.js";
-import { GATED_THOUGH_SCRIPTED, UNSCRIPTED_ENCOUNTER_SET_IDS } from "./unscripted.js";
+import { GATED_THOUGH_SCRIPTED, UNSCRIPTED_ENCOUNTER_SET_IDS, scenarioIsScripted } from "./unscripted.js";
 
 /**
  * The gate's own bookkeeping (`unscripted.ts`): every gated id is a real set kept out of the playable sets, and a set
@@ -16,30 +16,10 @@ const unscriptedRefsOf = (setId: string): string[] =>
   ).flatMap((card) => abilityRefIds(card).filter((id) => !(id in PLAYABLE_ABILITIES)));
 
 describe("UNSCRIPTED_ENCOUNTER_SET_IDS", () => {
-  it("gates exactly Shadowland's seven sets (unlocked as one pack, docs/phase7-shadowland.md) and keeps them out of the playable sets", () => {
-    expect([...UNSCRIPTED_ENCOUNTER_SET_IDS].sort()).toEqual([
-      "black_flower",
-      "dark_protege",
-      "deadly_contraptions",
-      "heart_of_shadow",
-      "ninja_swarm",
-      "shadow_labyrinth",
-      "shadows_in_the_night",
-    ]);
-    expect(Object.keys(GATED_THOUGH_SCRIPTED).sort()).toEqual([
-      "black_flower",
-      "dark_protege",
-      "deadly_contraptions",
-      "heart_of_shadow",
-      "ninja_swarm",
-      "shadow_labyrinth",
-      "shadows_in_the_night",
-    ]);
-    for (const id of UNSCRIPTED_ENCOUNTER_SET_IDS)
-      expect(
-        PLAYABLE_ENCOUNTER_SETS.some((s) => s.id === id),
-        id,
-      ).toBe(false);
+  it("gates nothing now that Shadowland (unlocked as one pack, docs/phase7-shadowland.md) is open, and its three scenarios are playable", () => {
+    expect([...UNSCRIPTED_ENCOUNTER_SET_IDS]).toEqual([]);
+    expect(Object.keys(GATED_THOUGH_SCRIPTED)).toEqual([]);
+    for (const scenario of SHADOWLAND_SCENARIOS) expect(scenarioIsScripted(scenario), scenario.id as string).toBe(true);
   });
 
   it("keeps Synthezoid Smackdown's fourteen sets (docs/phase7-synthezoid.md §4.3) playable", () => {

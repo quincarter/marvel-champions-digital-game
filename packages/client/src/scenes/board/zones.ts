@@ -289,6 +289,12 @@ function drawSingleVillain(
   const villainRect: Rect = { x: rect.x + 10, y: rect.y + 10, width: villainWidth, height: villainHeight };
   // No panel when no villain is in play (Shadow Labyrinth, chosen villain gone from the game): the band stays, empty.
   if (model.villain) drawCharacter(ctx, villainRect, model.villain);
+  else {
+    // A short caption so the empty band reads as a state, not a board that failed to draw.
+    ctx.scene.add
+      .text(villainRect.x + 8, villainRect.y + 8, "No villain in play", textStyle(typeRole.label, surface.ink.hex, 0.7))
+      .setOrigin(0, 0);
+  }
 
   // The environment sits beside the villain, in the space to the right of its panel. It belongs next to him
   // rather than down with the minions because in the one scenario that has one it *is* the villain's health bar:
