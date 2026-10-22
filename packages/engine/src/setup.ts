@@ -289,6 +289,12 @@ export interface GameSetupConfig {
    */
   readonly randomStartingVillain?: true;
   /**
+   * A villain chosen at setup among several villain cards of one set aside encounter set, each bringing its own linked
+   * cards (`VillainChoiceSetup`; Shadowland's Dark Protégé, docs/phase7-shadowland.md §4.1). Not with `villains`,
+   * `randomStartingVillain` or `villainsStartSetAside`.
+   */
+  readonly villainChoice?: VillainChoiceSetup;
+  /**
    * The number `Scenario.victoryCondition` gives for the modes being played (the scenario builder picks it): "If the
    * number of Lokis in the victory display is equal to the victory condition, the players win the game" (All Hail King
    * Loki 1B). Read by `ValueSpec victoryCondition`. docs/phase7-wave4.md §3.7.
@@ -432,6 +438,133 @@ export function villainsForDifficulty(
 ): { readonly villainCardId: CardId; readonly setAsideVillainCardIds: readonly CardId[] } {
   if (difficulty === "expert" && scenario.expertVillains) return scenario.expertVillains;
   return { villainCardId: scenario.villainCardId, setAsideVillainCardIds: scenario.setAsideVillainCardIds ?? [] };
+}
+
+/**
+ * `GameSetupConfig.villainChoice`: a scenario whose setup chooses its villain among the villain cards of an encounter
+ * set it sets aside, and shuffles the cards linked to the chosen one into the encounter deck. Shadows in the Night 1A
+ * (65001a): "Set the Dark Protégé encounter set aside. Choose 1 random villain from that set and reveal its side A,
+ * then shuffle each card linked to that villain into the encounter deck." Shadow Labyrinth 1A (65038a): the same,
+ * "(keep the chosen villain set aside)". RRG 1.8 "Linked" (p. 27): a linked card is never in a deck and is set aside at
+ * setup; the scenario's own Setup text is what brings the chosen villain's into the deck.
+ *
+ * - `options`: each villain card, with the cards linked to it, one entry per copy shuffled in when it is chosen. A
+ *   card may be linked to several villains and is listed under each; the game holds its product's `quantityInSet`
+ *   copies, and those the chosen option does not shuffle in wait set aside. No option may be in
+ *   `setAsideVillainCardIds`, and no linked card in `encounterDeck` or `setAside`: the choice places them all.
+ * - `pick`: the villain card the players chose. Absent: drawn with the game's seeded RNG, before anything else setup
+ *   draws, so a replay of `{ seed, config }` draws the same one.
+ * - `chosenVillain`: `"inPlay"`, the chosen card is the villain (`villainCardId` must name one of the options and is
+ *   replaced by the chosen one; the side and stage fields apply to it); `"setAside"`, `villainCardId` is the scenario's
+ *   own villain (not an option) and the chosen card waits set aside for card text to bring in (`addVillain`).
+ *
+ * The chosen card is recorded as `GameState.chosenVillainId` ("the chosen villain"; `TargetQuery chosenVillain`). Its
+ * linked cards join the first encounter deck before setup's shuffle; every other option's villain card and every other
+ * linked card is created set aside (`encounterSetAside`), so the whole set is in the game and none of the rest in a
+ * deck. The set's cards are only those the options list: a builder leaves the set out of the encounter deck itself.
+ */
+export interface VillainChoiceSetup {
+  readonly options: readonly { readonly villainCardId: CardId; readonly linkedCardIds: readonly CardId[] }[];
+  readonly pick?: CardId;
+  readonly chosenVillain: "inPlay" | "setAside";
+}
+
+/** "The chosen villain" of a game set up with `GameSetupConfig.villainChoice` (`GameState.chosenVillainId`), or null. */
+export const chosenVillainOf = (state: GameState): InstanceId | null => state.chosenVillainId ?? null;
+
+/** `config.villainChoice` checked and resolved: the config to build, the chosen card, and the RNG after any draw. */
+function resolveVillainChoice(
+  config: GameSetupConfig,
+  pool: Readonly<Record<string, AnyCard>>,
+  rng: RngState,
+):
+  | {
+      readonly config: GameSetupConfig;
+      readonly chosen: CardId;
+      readonly linkedIds: ReadonlySet<CardId>;
+      rng: RngState;
+    }
+  | string {
+  const choice = config.villainChoice!;
+  if (config.villains) return "villainChoice cannot be used with villains";
+  if (config.randomStartingVillain) return "villainChoice cannot be used with randomStartingVillain";
+  if (config.villainsStartSetAside) return "villainChoice cannot be used with villainsStartSetAside";
+  if (choice.chosenVillain !== "inPlay" && choice.chosenVillain !== "setAside")
+    return `villainChoice chosenVillain must be "inPlay" or "setAside", not ${String(choice.chosenVillain)}`;
+  const ids = choice.options.map((option) => option.villainCardId);
+  if (ids.length === 0) return "villainChoice lists no villain";
+  for (const [at, id] of ids.entries()) {
+    if (pool[id]?.type !== "villain") return `${id} in villainChoice is not a villain card`;
+    if (ids.indexOf(id) !== at) return `${id} is listed twice in villainChoice`;
+  }
+  // The input may come from a save file or another device.
+  if (choice.options.some((option) => !Array.isArray(option.linkedCardIds)))
+    return "each villainChoice option needs a linkedCardIds list";
+  const alreadyAside = new Set<CardId>(config.setAsideVillainCardIds ?? []);
+  const taken = ids.find((id) => alreadyAside.has(id));
+  if (taken) return `${taken} is both a villainChoice villain and in setAsideVillainCardIds`;
+  const linkedIds = new Set<CardId>(choice.options.flatMap((option) => option.linkedCardIds));
+  for (const id of linkedIds) {
+    const card = pool[id];
+    if (!card) return `unknown linked card ${id} in villainChoice`;
+    if (card.type === "villain" || card.type === "main_scheme" || card.type === "evidence")
+      return `${id} cannot be a linked card of villainChoice`;
+    // The choice places every copy of its linked cards itself; the deck or set-aside lists holding one too would
+    // put more copies in the game than the product has.
+    if (config.encounterDeck.includes(id) || (config.setAside ?? []).includes(id))
+      return `${id} is a villainChoice linked card and already in the encounter deck or set aside`;
+  }
+  for (const option of choice.options)
+    for (const id of new Set(option.linkedCardIds)) {
+      const copies = option.linkedCardIds.filter((other) => other === id).length;
+      if (copies > Math.max(1, (pool[id] as AnyCard).quantityInSet))
+        return `villainChoice shuffles in ${copies} copies of ${id}, more than its product holds`;
+    }
+  const inPlay = choice.chosenVillain === "inPlay";
+  if (inPlay !== ids.includes(config.villainCardId))
+    return inPlay
+      ? `villainCardId ${config.villainCardId} must be one of the villainChoice villains when the chosen one is in play`
+      : `villainCardId ${config.villainCardId} is the scenario's villain and cannot be a villainChoice villain set aside`;
+  let next = rng;
+  let chosen: CardId;
+  if (choice.pick === undefined) {
+    const [index, after] = nextInt(next, ids.length);
+    next = after;
+    chosen = ids[index] as CardId;
+  } else {
+    if (!ids.includes(choice.pick)) return `villainChoice pick ${choice.pick} is not one of its villains`;
+    chosen = choice.pick;
+  }
+  const option = choice.options.find((candidate) => candidate.villainCardId === chosen)!;
+  // The chosen option's cards, one entry per copy; every other copy the product holds of each linked card waits set
+  // aside (RRG 1.8 "Linked", p. 27: as many as the product holds).
+  const shuffledIn = option.linkedCardIds;
+  const setAside = [...linkedIds].flatMap((id) => {
+    const left = Math.max(1, (pool[id] as AnyCard).quantityInSet) - shuffledIn.filter((other) => other === id).length;
+    return Array.from({ length: Math.max(0, left) }, () => id);
+  });
+  // Every unchosen villain card and unchosen linked card goes through `setAsideVillainCardIds` / `setAside`, so it is
+  // created facedown, as is a `"setAside"` chosen villain: a villain choice reveals nothing but what card text reveals
+  // (the scenario's Setup naming the villain to reveal, or a later "reveal the chosen villain"). Unlike the generic
+  // linked-card path (`setAsideLinked`, faceup), which sets aside cards everyone already knows are in the game, these
+  // would tell the players which villain was drawn. RRG 1.8 "Set Aside" (p. 39) is silent on visibility; this is the
+  // engine's reading of the card text (docs/phase7-shadowland.md; the scenario citation is at the cards package's
+  // `villainChoiceOf`).
+  return {
+    config: {
+      ...config,
+      ...(inPlay ? { villainCardId: chosen } : {}),
+      setAsideVillainCardIds: [
+        ...(config.setAsideVillainCardIds ?? []),
+        ...ids.filter((id) => !inPlay || id !== chosen),
+      ],
+      encounterDeck: [...config.encounterDeck, ...shuffledIn],
+      setAside: [...(config.setAside ?? []), ...setAside],
+    },
+    chosen,
+    linkedIds,
+    rng: next,
+  };
 }
 
 /**
@@ -855,6 +988,15 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
   }
   const pool: Record<string, AnyCard> = {};
   for (const card of config.cards) pool[card.id] = card;
+  // A villain chosen among a set-aside set's villains (`VillainChoiceSetup`), drawn here when random, ahead of every
+  // other draw and shuffle, as Loki's is.
+  let villainChoice: { readonly chosen: CardId; readonly linkedIds: ReadonlySet<CardId> } | null = null;
+  if (config.villainChoice) {
+    const resolved = resolveVillainChoice(config, pool, rng);
+    if (typeof resolved === "string") return invalid(resolved);
+    ({ config, rng } = resolved);
+    villainChoice = resolved;
+  }
 
   const plannedVillains = planVillains(config, pool);
   if (typeof plannedVillains === "string") return invalid(plannedVillains);
@@ -1250,6 +1392,9 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     }
     setAsideModularSets.push({ encounterSetId: set.encounterSetId, instanceIds });
   }
+  // "The chosen villain" (`VillainChoiceSetup`): the villain itself, or its set-aside card created just below.
+  let chosenVillainId: InstanceId | undefined =
+    villainChoice && villainChoice.chosen === plannedVillains[0]?.card.id ? villainInstanceIds[0] : undefined;
   for (const cardId of config.setAsideVillainCardIds ?? []) {
     const card = pool[cardId];
     if (!card || card.type !== "villain") return invalid(`${cardId} is not a villain card`);
@@ -1258,6 +1403,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     const id = nextId();
     instances[id] = blankInstance(id, card.id, null, { kind: "encounterDeck", deckId: deckIds[0] as EncounterDeckId });
     encounterSetAside.push(id);
+    if (villainChoice && chosenVillainId === undefined && cardId === villainChoice.chosen) chosenVillainId = id;
   }
   const villains: VillainState[] = plannedVillains.map((planned, index) => {
     let signatureSideSchemeId: InstanceId | null = null;
@@ -1381,6 +1527,8 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
         // (MC55 p. 2: set aside "for any scenario using Trickster Magic as a modular set"). Another product's
         // encounter card of the same title and type (a nemesis minion of that name) brings nothing into play.
         if (!named.some((encounter) => encounter.setCode === card.setCode)) continue;
+        // A villain choice placed its linked cards itself, in the deck or set aside (`VillainChoiceSetup`).
+        if (villainChoice?.linkedIds.has(card.id)) continue;
         const missing = Math.max(1, card.quantityInSet) - (alreadyAside.get(card.id) ?? 0);
         for (let copy = 0; copy < missing; copy++) setAsideLinked(card, cardIds, instanceIds);
       }
@@ -1583,6 +1731,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     ...(setupStack ? { setupStack } : {}),
     // No villain is in play until setup text puts one in; open until Appendix II step 12c (docs/phase7-wave7.md §3.42).
     ...(config.villainsStartSetAside ? { villainsEnteringAtSetup: [] } : {}),
+    ...(chosenVillainId !== undefined ? { chosenVillainId } : {}),
     pendingChoice: null,
     outcome: null,
     rng,

@@ -17,8 +17,9 @@
  *   whether this leader may use it (`modularSets`), and the game modes (`gameModes`). All four are null at a scenario
  *   that is not a Civil War leader. `modularSetCount` is the count of modular picks any scenario takes, as a range.
  * - **The villain** (`villainChoiceOffer`; docs/phase7-wave11-scenarios.md §S3.3, MC60 p. 5): the villains a Fear No
- *   Evil scenario may be played against and its default, answered as `PlayableScenarioOptions.villainSetId`. Null at
- *   every scenario whose villain is fixed (`Scenario.villainOptions` absent).
+ *   Evil scenario may be played against and its default, answered as `PlayableScenarioOptions.villainSetId`; at a
+ *   card-keyed choice (Shadowland's Dark Protégé, docs/phase7-shadowland.md §4.1) answered as `villainCardId`, with
+ *   "random" the default. Null at every scenario whose villain is fixed (`Scenario.villainOptions` absent).
  */
 import {
   PLAYABLE_CARDS,
@@ -44,12 +45,14 @@ import {
   scenarioOwnSetIds,
 } from "../modular-pool.js";
 import { WAVE10_GAME_ENCOUNTER_SETS, wave10MainSchemeCard } from "../wave10/setup.js";
-import { WAVE11_GAME_ENCOUNTER_SETS } from "../wave11/setup.js";
+import { WAVE11_CARDS } from "../wave11/cards.js";
+import { RANDOM_VILLAIN, WAVE11_GAME_ENCOUNTER_SETS } from "../wave11/setup.js";
 import { scenarioIsScripted } from "./unscripted.js";
 import { INFINITES_GENE_POOL_THREAT_MAX, infinitesGenePoolThreatRecommendation } from "../wave8/aoa/infinites.js";
 import { offersEasierStart, offersGenePoolThreat, standardSetReplaceable, type HorsemanSide } from "../wave8/setup.js";
 
 export { offersEasierStart, offersGenePoolThreat, standardSetReplaceable };
+export { RANDOM_VILLAIN };
 export { infinitesGenePoolThreatRecommendation, INFINITES_GENE_POOL_THREAT_MAX };
 
 /**
@@ -211,9 +214,17 @@ export interface MainSchemeStagesChoiceOffer extends MainSchemeStagesOffer {
 
 /** One villain a scenario may be played against (`Scenario.villainOptions`). */
 export interface VillainChoice {
-  /** What `PlayableScenarioOptions.villainSetId` is given to pick it. */
+  /**
+   * What picks it: the value of `PlayableScenarioOptions.villainSetId` (`VillainChoiceOffer.keyedBy` `"set"`) or of
+   * `villainCardId` (`"card"`, where every option shares one set).
+   */
+  readonly id: string;
+  /** The villain's encounter set (the same for every option of a card-keyed choice). */
   readonly villainSetId: string;
-  /** The villain's encounter set name ("Typhoid Mary"): the villain card's own may name its other face. */
+  /**
+   * The villain's name: its encounter set's at a set-keyed choice ("Typhoid Mary": the villain card's own may name its
+   * other face), the card's at a card-keyed one (the set, Dark Protégé, names none of them).
+   */
   readonly name: string;
   /** The villain card, for its art. */
   readonly villainCardId: string;
@@ -221,7 +232,18 @@ export interface VillainChoice {
 
 /** The villains of a scenario whose villain is a setup choice, in printed order, and the one absent picks. */
 export interface VillainChoiceOffer {
+  /** Which option answers the choice: `"set"` is `villainSetId`, `"card"` is `villainCardId`. */
+  readonly keyedBy: "set" | "card";
+  /** The `id` absent picks: the default option's, or `RANDOM_VILLAIN` where the setup draws the villain. */
+  readonly defaultId: string;
   readonly defaultSetId: string;
+  /** The printed setup draws the villain at random ("Choose 1 random villain"); `RANDOM_VILLAIN` is then an answer. */
+  readonly random: boolean;
+  /**
+   * Where the chosen villain goes: `"inPlay"`, it is the villain; `"setAside"`, it waits set aside for card text beside
+   * the scenario's own villain (Shadow Labyrinth). A screen may want to keep a random set-aside pick hidden.
+   */
+  readonly chosenVillain: "inPlay" | "setAside";
   readonly options: readonly VillainChoice[];
 }
 
@@ -331,14 +353,28 @@ export function villainChoiceOffer(
 ): VillainChoiceOffer | null {
   const choice = scenario.villainOptions;
   if (!choice) return null;
+  const byCard = choice.keyedBy === "card";
+  const random = choice.selection === "random";
+  const cardName = (id: string): string | undefined =>
+    (PLAYABLE_CARDS.find((card) => card.id === id) ?? WAVE11_CARDS.find((card) => card.id === id))?.name;
   return {
+    keyedBy: byCard ? "card" : "set",
+    defaultId: byCard
+      ? random
+        ? RANDOM_VILLAIN
+        : ((choice.defaultCardId ?? choice.options[0]?.villainCardId ?? "") as string)
+      : (choice.defaultSetId as string),
     defaultSetId: choice.defaultSetId as string,
+    random,
+    chosenVillain: choice.chosenVillain ?? "inPlay",
     options: choice.options.map((option) => ({
+      id: (byCard ? option.villainCardId : option.villainSetId) as string,
       villainSetId: option.villainSetId as string,
-      name:
-        encounterSets.find((set) => set.id === option.villainSetId)?.name ??
-        PLAYABLE_CARDS.find((card) => card.id === option.villainCardId)?.name ??
-        (option.villainSetId as string),
+      name: byCard
+        ? (cardName(option.villainCardId) ?? (option.villainCardId as string))
+        : (encounterSets.find((set) => set.id === option.villainSetId)?.name ??
+          cardName(option.villainCardId) ??
+          (option.villainSetId as string)),
       villainCardId: option.villainCardId as string,
     })),
   };

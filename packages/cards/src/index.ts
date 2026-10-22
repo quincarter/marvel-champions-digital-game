@@ -62,6 +62,7 @@ export {
   WAVE11_GAME_ENCOUNTER_SETS,
   buildWave11Scenario,
   scenarioWithVillain,
+  villainChoiceOf,
   villainOptionOf,
   wave11Scenario,
   wave11ScenarioRecord,
@@ -81,6 +82,7 @@ export { UNSCRIPTED_ENCOUNTER_SET_IDS } from "./playable/unscripted.js";
 // Apocalypse start, threat on Gene Pool): what a setup screen asks before it draws a control.
 export {
   INFINITES_GENE_POOL_THREAT_MAX,
+  RANDOM_VILLAIN,
   checkPlayableDifficultySets,
   civilWarGameModes,
   civilWarModularSets,

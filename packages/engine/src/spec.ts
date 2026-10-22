@@ -205,6 +205,12 @@ export interface TargetQuery {
    * state, so an ability on another card, resolving later, names the same card.
    */
   readonly accusation?: "accused" | "mole";
+  /**
+   * "The chosen villain" (`GameState.chosenVillainId`, written by setup's `GameSetupConfig.villainChoice`): that card
+   * and no other, in play or set aside. Nothing matches in a game without a villain choice. Shadow Labyrinth's Whisper
+   * in the Dark, "put the set-aside chosen villain into play", is `addVillain(find({ chosenVillain: true }))`.
+   */
+  readonly chosenVillain?: true;
   /** Exact printed card name ("the Breakin' & Takin' side scheme", "the Ultron Drones environment"). */
   readonly name?: string;
   /**

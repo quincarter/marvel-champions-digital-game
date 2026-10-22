@@ -9,10 +9,20 @@ import {
   type Scenario,
   type VillainOption,
 } from "@mc/content";
-import { createGame, type GameSetupConfig, type GameState, type InstanceId } from "@mc/engine";
+import {
+  chosenVillainOf,
+  createGame,
+  matchesQuery,
+  playerId,
+  resolveRef,
+  type GameSetupConfig,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
+import { chosenVillain } from "../dsl/index.js";
 import { playableScenario } from "../playable/index.js";
-import { playableScenarioOffer, villainChoiceOffer } from "../playable/scenario-options.js";
+import { RANDOM_VILLAIN, playableScenarioOffer, villainChoiceOffer } from "../playable/scenario-options.js";
 import { firstLegal, patchInstance, settle } from "../testing/harness.js";
 import { defeatWithAttack, withForm } from "../testing/staging.js";
 import { WAVE11_CARDS } from "./cards.js";
@@ -21,7 +31,10 @@ import {
   WAVE11_GAME_ENCOUNTER_SETS,
   buildWave11Scenario,
   scenarioWithVillain,
+  villainChoiceOf,
   villainOptionOf,
+  wave11Scenario,
+  wave11ScenarioRecord,
   type Wave11ScenarioOptions,
 } from "./setup.js";
 
@@ -183,15 +196,20 @@ describe("Typhoid Mary's game is won by three tokens on Disturbed Psyche, not by
 
 describe("the villain choice offered to a setup screen", () => {
   it("lists the five villains by set name, in printed order, with the default", () => {
+    const option = (id: string, name: string, card: string) => ({ id, villainSetId: id, name, villainCardId: card });
     expect(villainChoiceOffer(HEIST)).toEqual({
+      keyedBy: "set",
+      defaultId: "hammerhead",
       defaultSetId: "hammerhead",
+      random: false,
+      chosenVillain: "inPlay",
       options: [
-        { villainSetId: "hammerhead", name: "Hammerhead", villainCardId: "60086" },
-        { villainSetId: "bullseye", name: "Bullseye", villainCardId: "60065" },
-        { villainSetId: "electro", name: "Electro", villainCardId: "60076" },
-        { villainSetId: "purple_man", name: "Purple Man", villainCardId: "60097" },
+        option("hammerhead", "Hammerhead", "60086"),
+        option("bullseye", "Bullseye", "60065"),
+        option("electro", "Electro", "60076"),
+        option("purple_man", "Purple Man", "60097"),
         // The card's first face is Bloody Mary; the set names the villain.
-        { villainSetId: "typhoid_mary", name: "Typhoid Mary", villainCardId: "60110b" },
+        option("typhoid_mary", "Typhoid Mary", "60110b"),
       ],
     });
   });
@@ -205,5 +223,207 @@ describe("the villain choice offered to a setup screen", () => {
     expect(() => playableScenario("rhino", { players: seats, seed: 1, mainSchemePicks: ["01097"] })).toThrow(
       "rhino: there is one main scheme, not one per player",
     );
+  });
+});
+
+/**
+ * docs/phase7-shadowland.md §4.1: Shadowland's Dark Protégé set holds six villains, each with five of the set's ten
+ * linked cards (RRG 1.8 "Linked", p. 27). Shadows in the Night 1A (65001a): "Set the Dark Protégé encounter set aside.
+ * Choose 1 random villain from that set and reveal its side A, then shuffle each card linked to that villain into the
+ * encounter deck." Shadow Labyrinth 1A (65038a): the same, "(keep the chosen villain set aside)", against Shifting
+ * Corridors (65037).
+ */
+describe("Shadowland: the card-keyed Dark Protégé villain choice", () => {
+  const SITN = wave11ScenarioRecord("shadows-in-the-night");
+  const LABYRINTH = wave11ScenarioRecord("shadow-labyrinth");
+  const DARK_PROTEGE = SITN.villainOptions!.options;
+  const VILLAIN_IDS = DARK_PROTEGE.map((option) => option.villainCardId as string);
+  const LINKED_IDS = [...new Set(DARK_PROTEGE.flatMap((option) => option.linkedCardIds ?? []))] as string[];
+  const linkedOf = (villain: string): readonly string[] =>
+    DARK_PROTEGE.find((option) => option.villainCardId === villain)!.linkedCardIds ?? [];
+  const seats = [{ starterDeckId: "core-spider-man-justice" }];
+  const buildShadow = (id: string, extra: Partial<Wave11ScenarioOptions> = {}): GameSetupConfig =>
+    wave11Scenario(id, { players: seats, seed: 7, ...extra });
+
+  /** Where each copy of `cardId` is: "deck" (any encounter deck), "setAside", "villain" or "other". */
+  const whereIs = (s: GameState, cardId: string): string[] =>
+    (Object.keys(s.instances) as InstanceId[])
+      .filter((id) => (s.instances[id]!.cardId as string) === cardId)
+      .map((id) => {
+        if (s.villains.some((v) => v.instanceId === id && !v.defeated)) return "villain";
+        if (s.encounterSetAside.includes(id)) return "setAside";
+        if (Object.values(s.encounterDecks).some((deck) => deck.deck.includes(id))) return "deck";
+        return "other";
+      });
+
+  /** The chosen villain's five linked cards are each once in the deck; the other five each once set aside. */
+  const expectLinkedSplit = (s: GameState, villain: string): void => {
+    const own = linkedOf(villain);
+    expect(own).toHaveLength(5);
+    expect(LINKED_IDS).toHaveLength(10);
+    for (const id of LINKED_IDS) expect(whereIs(s, id), id).toEqual([own.includes(id) ? "deck" : "setAside"]);
+  };
+
+  const chosenCard = (s: GameState): string => s.instances[chosenVillainOf(s)!]!.cardId as string;
+  const chosenMatches = (s: GameState): InstanceId[] =>
+    (Object.keys(s.instances) as InstanceId[]).filter((id) =>
+      matchesQuery(
+        s,
+        id,
+        { chosenVillain: true },
+        { selfInstanceId: null, controllerId: playerId("p1"), event: null, bindings: {}, deps: WAVE11_DEPS },
+      ),
+    );
+
+  it("the builders read the card-keyed record: no set-keyed swap, a random choice for the engine", () => {
+    expect(scenarioWithVillain(SITN)).toBe(SITN);
+    expect(villainOptionOf(SITN)?.villainCardId).toBe("65012a");
+    expect(() => villainOptionOf(SITN, "dark_protege")).toThrow(/choose one by villainCardId/);
+    const random = villainChoiceOf(SITN)!;
+    expect(random.pick).toBeUndefined();
+    expect(random.chosenVillain).toBe("inPlay");
+    expect(random.options.map((option) => option.villainCardId)).toEqual(VILLAIN_IDS);
+    expect(villainChoiceOf(SITN, RANDOM_VILLAIN)).toEqual(random);
+    expect(villainChoiceOf(SITN, "65014a")!.pick).toBe("65014a");
+    expect(villainChoiceOf(LABYRINTH)!.chosenVillain).toBe("setAside");
+    expect(() => villainChoiceOf(SITN, "65037")).toThrow(/65037 is not one of its villains/);
+    expect(villainChoiceOf(HEIST)).toBeNull();
+    expect(() => villainChoiceOf(HEIST, "60065")).toThrow(/not chosen by card here/);
+    expect(() => buildShadow("shadows-in-the-night", { villainSetId: "dark_protege" })).toThrow(/villainCardId/);
+  });
+
+  it("Fear No Evil's set-keyed path is unchanged: no villainChoice in its config", () => {
+    expect(build().villainChoice).toBeUndefined();
+    expect(build({ villainSetId: "bullseye" }).villainChoice).toBeUndefined();
+    expect(() => build({ villainCardId: "60065" })).toThrow(/not chosen by card here/);
+  });
+
+  describe("Shadows in the Night: the chosen villain is the villain, side A", () => {
+    it.each(VILLAIN_IDS)(
+      "%s picked: it is the villain; its linked cards are in the deck, the rest set aside",
+      (pick) => {
+        const config = buildShadow("shadows-in-the-night", { villainCardId: pick });
+        expect(config.villainCardId).toBe(pick);
+        expect(config.villainSide).toBe("A");
+        // The set itself is not among the deck's sets: the engine adds the chosen villain's five cards only.
+        expect(deckSets(config).has("dark_protege")).toBe(false);
+        const s = create(config);
+        const villain = s.villains.find((v) => v.instanceId === s.activeVillainId)!;
+        expect(villain.cardId).toBe(pick);
+        expect(villain.side).toBe("A");
+        expect(chosenVillainOf(s)).toBe(villain.instanceId);
+        expect(chosenMatches(s)).toEqual([villain.instanceId]);
+        for (const other of VILLAIN_IDS)
+          expect(whereIs(s, other), other).toEqual([other === pick ? "villain" : "setAside"]);
+        expectLinkedSplit(s, pick);
+      },
+    );
+
+    it("no pick draws one with the game's seed: the same seed the same villain, and the seeds reach several", () => {
+      const drawn = (seed: number): string => chosenCard(create(buildShadow("shadows-in-the-night", { seed })));
+      expect(create(buildShadow("shadows-in-the-night"))).toEqual(create(buildShadow("shadows-in-the-night")));
+      expect(buildShadow("shadows-in-the-night", { villainCardId: RANDOM_VILLAIN })).toEqual(
+        buildShadow("shadows-in-the-night"),
+      );
+      const seen = new Set(Array.from({ length: 12 }, (_, seed) => drawn(seed)));
+      expect(seen.size).toBeGreaterThan(1);
+      for (const villain of seen) expect(VILLAIN_IDS).toContain(villain);
+      for (const seed of [0, 1, 2, 3]) {
+        const s = create(buildShadow("shadows-in-the-night", { seed }));
+        expect(s.villains[0]!.cardId).toBe(chosenCard(s));
+        expectLinkedSplit(s, chosenCard(s));
+      }
+    });
+  });
+
+  describe("Shadow Labyrinth: Shifting Corridors is the villain, the chosen one waits set aside", () => {
+    it.each(VILLAIN_IDS)("%s picked: set aside as the chosen villain; its linked cards are in the deck", (pick) => {
+      const config = buildShadow("shadow-labyrinth", { villainCardId: pick });
+      expect(config.villainCardId).toBe("65037");
+      const s = create(config);
+      expect(s.villains.filter((v) => !v.defeated).map((v) => v.cardId)).toEqual(["65037"]);
+      const chosenId = chosenVillainOf(s)!;
+      expect(s.instances[chosenId]!.cardId).toBe(pick);
+      expect(s.encounterSetAside).toContain(chosenId);
+      expect(chosenMatches(s)).toEqual([chosenId]);
+      for (const villain of VILLAIN_IDS) expect(whereIs(s, villain), villain).toEqual(["setAside"]);
+      expectLinkedSplit(s, pick);
+      // Hidden while set aside (rules expert, reading (a)): the chosen villain and the unchosen linked cards facedown.
+      const darkProtege = new Set<string>([...VILLAIN_IDS, ...LINKED_IDS]);
+      for (const id of s.encounterSetAside)
+        if (darkProtege.has(s.instances[id]!.cardId as string)) expect(s.instances[id]!.faceup, id).toBe(false);
+    });
+
+    it("a random draw is seeded and the record's villain never changes", () => {
+      const a = create(buildShadow("shadow-labyrinth", { seed: 11 }));
+      const b = create(buildShadow("shadow-labyrinth", { seed: 11 }));
+      expect(chosenCard(a)).toBe(chosenCard(b));
+      expect(a).toEqual(b);
+      expect(a.villains[0]!.cardId).toBe("65037");
+      expectLinkedSplit(a, chosenCard(a));
+    });
+
+    it("the scripts' helper names the chosen villain", () => {
+      expect(chosenVillain).toEqual({ kind: "find", query: { chosenVillain: true } });
+    });
+
+    it("the scripts' helper resolves to the set-aside chosen villain, and to nothing without a choice", () => {
+      const context = {
+        selfInstanceId: null,
+        controllerId: playerId("p1"),
+        event: null,
+        bindings: {},
+        deps: WAVE11_DEPS,
+      };
+      for (const pick of ["65013a", "65016a"]) {
+        const s = create(buildShadow("shadow-labyrinth", { villainCardId: pick }));
+        const found = resolveRef(s, chosenVillain, context);
+        expect(found).toEqual([chosenVillainOf(s)]);
+        expect(s.instances[found[0]!]!.cardId).toBe(pick);
+        expect(s.encounterSetAside).toContain(found[0]);
+      }
+      const heist = create(build());
+      expect(chosenVillainOf(heist)).toBeNull();
+      expect(resolveRef(heist, chosenVillain, context)).toEqual([]);
+    });
+  });
+
+  it("offers the six villains by card name, with random the default", () => {
+    const offer = villainChoiceOffer(SITN)!;
+    expect(offer).toMatchObject({ keyedBy: "card", defaultId: RANDOM_VILLAIN, random: true, chosenVillain: "inPlay" });
+    expect(offer.options.map((option) => [option.id, option.name])).toEqual([
+      ["65012a", "Archpriestess"],
+      ["65013a", "Daredevil"],
+      ["65014a", "Elektra"],
+      ["65015a", "Gorgon"],
+      ["65016a", "Lady Bullseye"],
+      ["65017a", "White Tiger"],
+    ]);
+    expect(villainChoiceOffer(LABYRINTH)!.chosenVillain).toBe("setAside");
+  });
+});
+
+describe("the engine refuses a malformed villainChoice", () => {
+  const refusal = (config: GameSetupConfig): string => {
+    const created = createGame(config, WAVE11_DEPS);
+    return created.ok ? "created" : created.error.message;
+  };
+
+  it("names the problem", () => {
+    const config = wave11Scenario("shadows-in-the-night", {
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 1,
+    });
+    const choice = config.villainChoice!;
+    expect(refusal(config)).toBe("created");
+    expect(refusal({ ...config, villainChoice: { ...choice, pick: cardId("65037") } })).toMatch(
+      /not one of its villains/,
+    );
+    expect(refusal({ ...config, villainCardId: cardId("65037") })).toMatch(/must be one of the villainChoice villains/);
+    expect(refusal({ ...config, villainChoice: { ...choice, chosenVillain: "setAside" } })).toMatch(
+      /cannot be a villainChoice villain set aside/,
+    );
+    expect(refusal({ ...config, villainChoice: { ...choice, options: [] } })).toMatch(/lists no villain/);
+    expect(refusal({ ...config, randomStartingVillain: true })).toMatch(/cannot be used with randomStartingVillain/);
   });
 });

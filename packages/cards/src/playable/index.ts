@@ -119,7 +119,7 @@ export type PlayableScenarioOptions = Wave1ScenarioOptions &
   Pick<Wave4ScenarioOptions, "setAsideModularSetIds"> &
   Pick<Wave6ScenarioOptions, "extraModularSetIds"> &
   Pick<Wave8ScenarioOptions, "genePoolThreatPerPlayer" | "horsemanSides" | "easierStart"> &
-  Pick<Wave11ScenarioOptions, "villainSetId" | "mainSchemePicks">;
+  Pick<Wave11ScenarioOptions, "villainSetId" | "villainCardId" | "mainSchemePicks">;
 
 const STARTER_DECKS: readonly StarterDeck[] = [
   ...CORE_STARTER_DECKS,
@@ -345,7 +345,8 @@ function playableScenarioUnstacked(scenarioId: string, options: PlayableScenario
   if (isWave11Scenario(scenarioId)) return wave11Playable(scenarioId, options, players);
   // The villain is a setup choice, and there is a main scheme per player, only at a wave 11 scenario that says so
   // (`Scenario.villainOptions`, `mainSchemeChoice`); every other builder would drop the option silently.
-  if (options.villainSetId !== undefined) throw new Error(`${scenarioId}: the villain is not a setup choice here`);
+  if (options.villainSetId !== undefined || options.villainCardId !== undefined)
+    throw new Error(`${scenarioId}: the villain is not a setup choice here`);
   if (options.mainSchemePicks !== undefined)
     throw new Error(`${scenarioId}: there is one main scheme, not one per player`);
   if (isWave10Scenario(scenarioId)) return wave10Playable(scenarioId, options, players);

@@ -12,7 +12,7 @@ import {
   type Scenario,
   type VillainOption,
 } from "@mc/content";
-import { playerId, type GameSetupConfig, type PlayerSetup } from "@mc/engine";
+import { playerId, type GameSetupConfig, type PlayerSetup, type VillainChoiceSetup } from "@mc/engine";
 import {
   checkScenarioSetupOptions,
   encounterCardsOf,
@@ -37,8 +37,13 @@ import { WAVE11_CARDS } from "./cards.js";
  * (docs/phase7-wave11-scenarios.md §S1.1, §S3.3).
  *
  * - `villainSetId`: one of the record's `villainOptions` by its villain set ("hammerhead", "typhoid_mary"). Absent is
- *   the record's default (MC60 p. 8's first, Hammerhead). Refused at a scenario whose villain is not a choice (Kingpin).
- *   In a campaign it is `CampaignGameStart.villain`, which the node's `composeVillain` named (MC60 p. 9 step 5).
+ *   the record's default (MC60 p. 8's first, Hammerhead). Refused at a scenario whose villain is not a choice (Kingpin)
+ *   and at a card-keyed choice. In a campaign it is `CampaignGameStart.villain`, which the node's `composeVillain`
+ *   named (MC60 p. 9 step 5).
+ * - `villainCardId`: at a card-keyed choice (`villainOptions.keyedBy: "card"`, Shadowland's six Dark Protégé villains
+ *   in one set), one option by its villain card ("65013a"). Absent or `"random"`: drawn by the engine with the game's
+ *   seeded RNG where the record says `selection: "random"` ("Choose 1 random villain from that set"), else the
+ *   default card. Refused at every other scenario.
  * - `mainSchemePicks`: at a scenario with a main scheme per player (`Scenario.mainSchemeChoice`, Protection Racket), each
  *   seat's main scheme card in seat order. Required in standard mode ("Each player chooses"), refused in expert mode
  *   ("at random in expert mode", drawn by the engine from the game seed) and at every other scenario.
@@ -47,6 +52,7 @@ import { WAVE11_CARDS } from "./cards.js";
 export interface Wave11ScenarioOptions extends Omit<CoreScenarioOptions, "cardPool" | "difficulty"> {
   readonly difficulty?: CoreDifficulty;
   readonly villainSetId?: string;
+  readonly villainCardId?: string;
   readonly mainSchemePicks?: readonly string[];
   /** Extra modular sets shuffled in on top, never counted (`EncounterSet.extraModular`). */
   readonly extraModularSetIds?: readonly string[];
@@ -84,6 +90,12 @@ export function villainOptionOf(scenario: Scenario, villainSetId?: string): Vill
       throw new Error(`${scenario.name}: the villain is not a setup choice (no villainOptions), got ${villainSetId}`);
     return null;
   }
+  if (choice.keyedBy === "card") {
+    // Every option shares one set (Dark Protégé), so a set names none of them: the default card's option.
+    if (villainSetId !== undefined)
+      throw new Error(`${scenario.name}: its villains share one encounter set; choose one by villainCardId`);
+    return cardKeyedOption(scenario, choice.defaultCardId);
+  }
   const wanted = villainSetId ?? choice.defaultSetId;
   const option = choice.options.find((candidate) => candidate.villainSetId === wanted);
   if (!option)
@@ -101,7 +113,8 @@ export function villainOptionOf(scenario: Scenario, villainSetId?: string): Vill
  */
 export function scenarioWithVillain(scenario: Scenario, villainSetId?: string): Scenario {
   const option = villainOptionOf(scenario, villainSetId);
-  if (!option) return scenario;
+  // A card-keyed choice is resolved by the engine at setup (`villainChoiceOf`), not by rewriting the record.
+  if (!option || scenario.villainOptions?.keyedBy === "card") return scenario;
   const defaultSetId = scenario.villainOptions!.defaultSetId;
   const { expertVillains: _expert, victory: _victory, ...rest } = scenario;
   return {
@@ -113,6 +126,56 @@ export function scenarioWithVillain(scenario: Scenario, villainSetId?: string): 
     ...(option.expertVillainCardId
       ? { expertVillains: { villainCardId: option.expertVillainCardId, setAsideVillainCardIds: [] } }
       : {}),
+  };
+}
+
+/** What a card-keyed choice's `villainCardId` is given to leave the pick to the game's seeded draw. */
+export const RANDOM_VILLAIN = "random";
+
+/** A card-keyed choice's option by its villain card, or a throw naming the options. */
+function cardKeyedOption(scenario: Scenario, villainCardId: string | undefined): VillainOption {
+  const options = scenario.villainOptions?.options ?? [];
+  const option = options.find((candidate) => candidate.villainCardId === villainCardId);
+  if (!option)
+    throw new Error(
+      `${scenario.name}: ${villainCardId ?? "no card"} is not one of its villains (${options.map((o) => o.villainCardId).join(", ")})`,
+    );
+  return option;
+}
+
+/**
+ * A card-keyed villain choice (`villainOptions.keyedBy: "card"`; docs/phase7-shadowland.md §4.1) as the engine's
+ * `GameSetupConfig.villainChoice`, or null at a scenario without one. `villainCardId` picks an option; absent or
+ * `"random"` leaves the draw to the engine's seeded RNG when the record's `selection` is `"random"`, and is the default
+ * card otherwise. The options carry their `linkedCardIds`: the chosen villain's are shuffled into the encounter deck,
+ * the rest of the set waits set aside (RRG 1.8 "Linked", p. 27; Shadows in the Night 1A, Shadow Labyrinth 1A).
+ * Throws for a card that is not an option, and for a card at a scenario whose choice is not card-keyed.
+ *
+ * Hidden while set aside (rules expert, reading (a)): 65038A prints no "reveal" (unlike 65001A "and reveal its side
+ * A"); 65039 2A "Reveal the chosen villain's side A" and 65040 "side A faceup" are the first reveals, so the choice and
+ * the unchosen linked cards stay facedown while set aside. RRG 1.8 "Set Aside" p. 39 is silent on visibility; engine
+ * reading from the card text (docs/phase7-shadowland.md).
+ */
+export function villainChoiceOf(scenario: Scenario, villainCardId?: string): VillainChoiceSetup | null {
+  const choice = scenario.villainOptions;
+  if (choice?.keyedBy !== "card") {
+    if (villainCardId !== undefined)
+      throw new Error(`${scenario.name}: the villain is not chosen by card here, got ${villainCardId}`);
+    return null;
+  }
+  const random = choice.selection === "random";
+  const asked = villainCardId === RANDOM_VILLAIN ? undefined : villainCardId;
+  if (villainCardId === RANDOM_VILLAIN && !random)
+    throw new Error(`${scenario.name}: the players choose the villain; it is not drawn at random`);
+  const pick = asked ?? (random ? undefined : choice.defaultCardId);
+  if (pick !== undefined) cardKeyedOption(scenario, pick);
+  return {
+    options: choice.options.map((option) => ({
+      villainCardId: option.villainCardId,
+      linkedCardIds: option.linkedCardIds ?? [],
+    })),
+    ...(pick !== undefined ? { pick: pick as CardId } : {}),
+    chosenVillain: choice.chosenVillain ?? "inPlay",
   };
 }
 
@@ -188,13 +251,47 @@ function encounterBackedCardIds(sets: readonly string[]): CardId[] {
 }
 
 /**
+ * The villain fields of a game whose card-keyed choice puts the chosen villain in play (`chosenVillain: "inPlay"`):
+ * the pick's when there is one. A random draw happens in the engine, after this config is built, so every option must
+ * start on the same side and stage indexes and none may carry its own victory or expert card: the config's fields then
+ * hold whichever is drawn (the engine puts the drawn card in `villainCardId`'s place). Throws when they differ, rather
+ * than build a game whose stages fit one villain only.
+ */
+function chosenVillainPlan<
+  Plan extends { readonly side: { readonly side: string }; readonly start: number; readonly last: number },
+>(record: Scenario, choice: VillainChoiceSetup, planOf: (option: VillainOption) => Plan): Plan {
+  const options = record.villainOptions!.options;
+  // `villainPlan` starts an `expertVillains` card at its own first stage; a chosen villain has no such card.
+  if (record.expertVillains)
+    throw new Error(`${record.name}: a card-keyed villain choice cannot be combined with expertVillains`);
+  for (const option of options)
+    if (option.victory !== undefined || option.expertVillainCardId !== undefined)
+      throw new Error(`${record.name}: a card-keyed villain option cannot carry its own victory or expert villain`);
+  const wanted = choice.pick ?? record.villainOptions!.defaultCardId ?? options[0]?.villainCardId;
+  const chosen = cardKeyedOption(record, wanted);
+  const plan = planOf(chosen);
+  if (choice.pick === undefined)
+    for (const option of options) {
+      const other = planOf(option);
+      if (other.side.side !== plan.side.side || other.start !== plan.start || other.last !== plan.last)
+        throw new Error(
+          `${record.name}: its villains start on different sides or stages; a random draw needs them alike`,
+        );
+    }
+  return plan;
+}
+
+/**
  * A wave 11 scenario's `GameSetupConfig` from a scenario record and the players' choices (RRG 1.8 Appendix II, p. 51;
  * MC60 p. 5). Throws for a choice the rules forbid.
  *
  * - **Villain** (§S3.3): the chosen option's card, started at the difficulty's first stage and ending at its last
  *   (I-II standard, II-III expert; Typhoid Mary A standard, B expert, MC60 p. 5), and its victory (Typhoid Mary's
  *   Disturbed Psyche wins the game, so `"cardAbility"`). An `expertVillains` card (Kingpin's B1/B2) replaces the villain
- *   in expert mode, started at its first stage.
+ *   in expert mode, started at its first stage. A card-keyed choice (Shadowland's Dark Protégé) is passed to the engine
+ *   as `villainChoice` (`villainChoiceOf`): it draws the villain, shuffles that villain's linked cards in and sets the
+ *   rest of the set aside, the chosen card being the villain (`"inPlay"`) or set aside beside the record's own villain
+ *   (`"setAside"`, Shadow Labyrinth's Shifting Corridors).
  * - **Encounter deck**: the scenario's sets with the chosen villain's, the modular sets, and the Standard (plus Expert)
  *   sets, a double-sided card once by its front face. Permanent and Setup cards stay in it: the villains' and stage
  *   1A's Setup texts find them there, and step 11 puts setup cards into play (RRG 1.8 "Find", "Setup (Keyword)").
@@ -203,20 +300,34 @@ function encounterBackedCardIds(sets: readonly string[]): CardId[] {
 export function buildWave11Scenario(record: Scenario, options: Wave11ScenarioOptions): GameSetupConfig {
   checkScenarioSetupOptions(record.id, options.setupOptions);
   const scenario = scenarioWithVillain(record, options.villainSetId);
+  const villainChoice = villainChoiceOf(record, options.villainCardId);
   const modes = resolveModes(options.difficulty, options.modes);
   const difficulty = difficultyOf(modes);
   const expertVillain = difficulty === "expert" ? scenario.expertVillains : undefined;
-  const villainCardId = expertVillain ? expertVillain.villainCardId : scenario.villainCardId;
-  const villain = cardsById.get(villainCardId);
-  if (!villain || villain.type !== "villain") throw new Error(`${villainCardId} is not a villain`);
-  const side = villain.sides[0];
-  if (!side) throw new Error(`${villain.name} has no sides`);
-  const stageIndex = (stageNumber: number): number => {
-    const index = side.stages.findIndex((stage) => stage.stageNumber === stageNumber);
-    if (index < 0) throw new Error(`${villain.name} has no stage ${stageNumber}`);
-    return index;
+  /** A villain card's first side and the stage indexes `stages[difficulty]` names on it. */
+  const villainPlan = (cardId: CardId, stages: Scenario["villainStages"]) => {
+    const villain = cardsById.get(cardId);
+    if (!villain || villain.type !== "villain") throw new Error(`${cardId} is not a villain`);
+    const side = villain.sides[0];
+    if (!side) throw new Error(`${villain.name} has no sides`);
+    const stageIndex = (stageNumber: number): number => {
+      const index = side.stages.findIndex((stage) => stage.stageNumber === stageNumber);
+      if (index < 0) throw new Error(`${villain.name} has no stage ${stageNumber}`);
+      return index;
+    };
+    const [firstStage, lastStage] = stages[difficulty];
+    return {
+      villainCardId: cardId,
+      side,
+      // An `expertVillains` card is its own card whose printed stage need not match `villainStages`.
+      start: expertVillain ? 0 : stageIndex(firstStage),
+      last: expertVillain ? side.stages.length - 1 : stageIndex(lastStage),
+    };
   };
-  const [firstStage, lastStage] = scenario.villainStages[difficulty];
+  const plan =
+    villainChoice?.chosenVillain === "inPlay"
+      ? chosenVillainPlan(record, villainChoice, (option) => villainPlan(option.villainCardId, option.villainStages))
+      : villainPlan(expertVillain ? expertVillain.villainCardId : scenario.villainCardId, scenario.villainStages);
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
 
   checkModularPickCount(scenario, options.modularSetIds);
@@ -245,11 +356,11 @@ export function buildWave11Scenario(record: Scenario, options: Wave11ScenarioOpt
   return {
     seed: options.seed,
     cards: WAVE11_CARDS,
-    villainCardId,
-    villainSide: side.side,
-    // An `expertVillains` card is its own card whose printed stage need not match `villainStages`.
-    villainStartStageIndex: expertVillain ? 0 : stageIndex(firstStage),
-    villainLastStageIndex: expertVillain ? side.stages.length - 1 : stageIndex(lastStage),
+    villainCardId: plan.villainCardId,
+    villainSide: plan.side.side,
+    villainStartStageIndex: plan.start,
+    villainLastStageIndex: plan.last,
+    ...(villainChoice ? { villainChoice } : {}),
     mainSchemeCardId: scenario.mainSchemeCardId,
     ...(mainSchemeChoice ? { mainSchemeChoice } : {}),
     encounterDeck,

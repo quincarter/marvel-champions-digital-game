@@ -82,6 +82,7 @@ export const PROBE_FIELDS: { readonly [K in keyof Required<GameState>]: "game" |
   hiddenPileSizes: "game",
   revealedPileCards: "game",
   accusation: "game",
+  chosenVillainId: "game",
   pod: "game",
   gameMode: "game",
   teams: "game",

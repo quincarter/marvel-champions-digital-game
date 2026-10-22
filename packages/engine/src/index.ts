@@ -588,6 +588,7 @@ export {
   isAttackTarget,
   isHeldMinion,
   matchesQuery,
+  resolveRef,
   resolveValue,
   selectTargets,
   shownDeckTop,
@@ -624,9 +625,16 @@ export type {
   PlayerSetup,
   SetupResult,
   SetupStack,
+  VillainChoiceSetup,
   VillainSetup,
 } from "./setup.js";
-export { autoIncludedSetsInGame, createGame, illegalDecksOf, mainSchemeStageIndexesProblem } from "./setup.js";
+export {
+  autoIncludedSetsInGame,
+  chosenVillainOf,
+  createGame,
+  illegalDecksOf,
+  mainSchemeStageIndexesProblem,
+} from "./setup.js";
 
 export type { CommandResult, GameLog, GameSession, ReplayResult, SessionResult } from "./engine.js";
 export { appendCommand, applyCommand, applyCommands, createLog, replay, sessionApply, startSession } from "./engine.js";

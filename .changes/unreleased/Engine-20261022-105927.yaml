@@ -1,0 +1,3 @@
+kind: Engine
+body: Scenario setup can choose its villain among the villain cards of a set-aside set (seeded random or picked), shuffling in that villain's linked cards and recording it as the chosen villain.
+time: 2026-10-22T10:59:27.7077051-04:00

@@ -1364,6 +1364,10 @@ export function explainQuery(
   // docs/phase7-wave9.md §3.29 (b): the accused or the mole of the game's accusation, a card named by its printed id
   // (either face), so the exclusion is the one `printedId` gives.
   if (query.accusation !== undefined && !isAccusationBoardMember(state, id, query.accusation)) return "wrongPrintedId";
+  // "The chosen villain": the card setup recorded (`GameState.chosenVillainId`), by instance. Reported as
+  // "wrongPrintedId", as the accusation is: a card named by the game rather than by its traits, and a new reason
+  // would need a word in every client's exhaustive reason table for no difference a player sees.
+  if (query.chosenVillain && state.chosenVillainId !== id) return "wrongPrintedId";
   if (query.controller) {
     const controller = controllerOf(state, id);
     if (query.controller === "encounter" && controller !== null) return "wrongController";
