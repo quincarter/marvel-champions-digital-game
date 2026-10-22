@@ -44,6 +44,12 @@ export const SAVE_SCHEMA = 4;
 export const isCurrentSchema = (meta: Pick<SaveMeta, "schema">): boolean => meta.schema === SAVE_SCHEMA;
 
 /**
+ * Whether a save was written by a newer build than this one (another linked device that updated first). It is not
+ * retired and not written to: the game is fine, this build just can't read it, so it is skipped and left as it is.
+ */
+export const isNewerSchema = (meta: Pick<SaveMeta, "schema">): boolean => meta.schema > SAVE_SCHEMA;
+
+/**
  * Upgrades a `SaveMeta` written under schema 3 to schema 4 by filling `campaignId`/`campaignNodeId` with `null` —
  * the purely-additive migration schema 4 needs (see `SAVE_SCHEMA`'s doc comment). Anything else — already current,
  * or older than 3 — passes through untouched; an older schema is still retired by `isCurrentSchema`, not migrated

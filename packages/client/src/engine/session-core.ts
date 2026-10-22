@@ -53,7 +53,14 @@ import { judgePayment, type JudgedPayment } from "../view/payment-verdict.js";
 import { actingPlayer } from "./acting-player.js";
 import { emptyRecord, recordEvents, type GameRecord } from "./game-record.js";
 import { summarizeGame } from "./game-summary.js";
-import { isCurrentSchema, SAVE_SCHEMA, type GameStorage, type SaveMeta, type SaveStatus } from "./game-storage.js";
+import {
+  isCurrentSchema,
+  isNewerSchema,
+  SAVE_SCHEMA,
+  type GameStorage,
+  type SaveMeta,
+  type SaveStatus,
+} from "./game-storage.js";
 import type {
   CardPool,
   LegalActionsFor,
@@ -62,6 +69,9 @@ import type {
   SessionConfig,
   StateWithoutPool,
 } from "./host.js";
+
+/** Shown when a save is from a newer build (a linked device that updated first). */
+export const NEWER_SAVE_MESSAGE = "This game was saved by a newer version. Update the game to continue it.";
 
 /** An update as it crosses a thread boundary: no card pool, so it stays ~68 KB. */
 export interface Snapshot {
@@ -367,6 +377,9 @@ export class EngineSessionCore {
     if (!stored) throw new Error("that saved game is no longer there");
     // A save from an older schema is retired deliberately, before any replay is attempted: its baseline state is a
     // shape this engine no longer has, even if its commands would happen to apply.
+    // A save from a NEWER build (another linked device) is left exactly as it is: marking it would sync back and
+    // hide a game the other device can still play.
+    if (isNewerSchema(stored.meta)) throw new Error(NEWER_SAVE_MESSAGE);
     if (!isCurrentSchema(stored.meta)) {
       await storage.setStatus(gameId, "incompatible");
       throw new Error(
@@ -506,12 +519,15 @@ export class EngineSessionCore {
   async latestSave(): Promise<SaveMeta | null> {
     const storage = this.#storage;
     if (!storage) return null;
-    // Each pass retires one game, so this ends when the newest active game is current or none is left.
-    for (;;) {
-      const latest = await storage.latestActive();
-      if (!latest || isCurrentSchema(latest)) return latest;
-      await storage.setStatus(latest.id, "incompatible");
+    // Newest first: a current game is offered, an older-schema one is retired on the way, and one from a newer
+    // build is skipped untouched.
+    const active = (await storage.list()).filter((meta) => meta.status === "active");
+    for (const meta of active.sort((a, b) => b.updatedAt - a.updatedAt)) {
+      if (isNewerSchema(meta)) continue;
+      if (isCurrentSchema(meta)) return meta;
+      await storage.setStatus(meta.id, "incompatible");
     }
+    return null;
   }
 
   /**
@@ -525,6 +541,7 @@ export class EngineSessionCore {
     const found: SaveMeta[] = [];
     for (const meta of await storage.list()) {
       if (meta.status !== "active" || meta.guided) continue;
+      if (isNewerSchema(meta)) continue;
       if (isCurrentSchema(meta)) found.push(meta);
       else await storage.setStatus(meta.id, "incompatible");
     }

@@ -640,7 +640,7 @@ export class SaveDataOverlay extends Phaser.Scene {
     stops: Map<string, FocusStop>,
     order: string[],
   ): number {
-    const confirm = replaceConfirmOf(file);
+    const confirm = replaceConfirmOf(file, syncService().isOn());
     const title = this.add
       .text(x, top, confirm.title, textStyle(typeRole.sectionHeader, surface.paper.hex))
       .setWordWrapWidth(rowWidth);

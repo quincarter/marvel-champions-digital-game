@@ -9,8 +9,8 @@
  *
  * Conflicts: when both devices changed a game and neither log extends the other, the engine awaits the player. The
  * service queues each as a `PendingConflict` and hands it to the listener (the conflict overlay); with no listener it
- * waits in the queue. Unlinking or deleting the cloud copy answers whatever is still queued with "keep this device's",
- * which loses nothing.
+ * waits in the queue. Unlinking, deleting the cloud copy or joining another space answers whatever is still queued with
+ * "later": nothing is written on either side, and the game is asked about again at the next sync.
  */
 import { parseRecoveryCode } from "@mc/sync-worker/sync-protocol";
 import type { SpaceInfo } from "@mc/sync-worker/sync-protocol";
@@ -408,7 +408,7 @@ export class SyncService {
 
   /** Waits out a run in progress (answering its questions), then forgets the space, the code and the sync state. */
   async #stopSyncing(): Promise<void> {
-    for (const pending of [...this.#queue]) pending.answer("keep-local");
+    for (const pending of [...this.#queue]) pending.answer("later");
     const running = this.#inFlight;
     this.#engine = null;
     if (running) {
@@ -418,7 +418,7 @@ export class SyncService {
         // The run's own failure was already shown; the space is being left anyway.
       }
     }
-    for (const pending of [...this.#queue]) pending.answer("keep-local");
+    for (const pending of [...this.#queue]) pending.answer("later");
     this.#inFlight = null;
     clearSyncCode(this.#d.storage);
     this.#code = null;

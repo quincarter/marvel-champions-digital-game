@@ -166,7 +166,9 @@ export function syncFailureStatusOf(failure: SyncServiceFailure): SaveDataStatus
     case "blocked":
       return error("Too many wrong codes from this device. Online sync is paused here for a while; try again later.");
     case "space-full":
-      return error("Your cloud space is full. Delete a deck or an old game on this device, then sync again.");
+      return error(
+        "Your cloud space is full (10 MB). Removing decks you no longer use frees space; finished games stay in it.",
+      );
     case "too-large":
       return error("A save is too large to sync.");
     case "storage":

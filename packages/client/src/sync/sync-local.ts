@@ -271,7 +271,10 @@ export class IdbLocalSaveData implements LocalSaveData {
           this.#cache.set(id, entry);
         }
         seen.add(id);
-        const value = { ...meta, logHash: entry.logHash };
+        // "incompatible" is only this build's judgement that it can't read the game (its stamp is untouched, so it
+        // could not win a merge either): sync sees the status the game had, so the device that can play it keeps it.
+        const synced = meta.status === "incompatible" ? { ...meta, status: "active" } : meta;
+        const value = { ...synced, logHash: entry.logHash };
         records.push({ key: `game:${id}:meta`, value, hash: await hashValue(value), stamp: stampOf(meta) });
         if (entry.baseline) records.push(entry.baseline);
         records.push(...entry.chunks);

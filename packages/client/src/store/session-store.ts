@@ -359,7 +359,7 @@ export class SessionStore {
       record: update.record,
       saveError: update.saveError,
       config: update.config,
-      gameId: update.gameId ?? this.#state.gameId,
+      gameId: update.gameId !== undefined ? update.gameId : this.#state.gameId,
       // A resumed game's first update carries the replayed commands' own trail, so `commandTrail.length === version`
       // holds from the first frame and a trail index is always a command count (`rewindTo`'s argument).
       commandTrail: options.commandTrail ?? update.trail ?? this.#state.commandTrail,

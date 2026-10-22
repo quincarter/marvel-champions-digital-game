@@ -38,6 +38,16 @@ describe("syncIsAvailable", () => {
     expect(await check({ baseUrl: "https://s", fetch: down })).toBe(false);
   });
 
+  test("available is remembered for the page load too: the next ask makes no request", async () => {
+    const calls: { url: string }[] = [];
+    const memory = { unavailable: false };
+    expect(await syncIsAvailable({ baseUrl: "https://s", fetch: answering(200, { sync: true }, calls) }, memory)).toBe(
+      true,
+    );
+    expect(await syncIsAvailable({ baseUrl: "https://s", fetch: answering(503, {}, calls) }, memory)).toBe(true);
+    expect(calls).toHaveLength(1);
+  });
+
   test("unavailable is remembered for the page load: the next ask makes no request", async () => {
     const calls: { url: string }[] = [];
     const memory = { unavailable: false };

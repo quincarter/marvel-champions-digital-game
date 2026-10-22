@@ -339,6 +339,19 @@ describe("conflicts", () => {
     expect(seen).toEqual(["g1"]);
   });
 
+  test("unlinking with a question waiting answers it later: the run ends and nothing is written", async () => {
+    const { a, b } = await conflictSetup();
+    await a.service.syncNow();
+    const before = b.local.gameCommands("g1");
+    const run = b.service.syncNow();
+    await settle();
+    expect(b.service.pendingConflicts()).toHaveLength(1);
+    await b.service.unlink();
+    await run;
+    expect(b.service.pendingConflicts()).toHaveLength(0);
+    expect(b.local.gameCommands("g1")).toEqual(before);
+  });
+
   test("keep-both on a campaign game is refused", async () => {
     const { a, b } = await conflictSetup("c");
     await a.service.syncNow();

@@ -235,6 +235,19 @@ describe.each<[string, () => GameStorage]>([
     expect((await core.latestSave())?.id).toBe("newest");
   });
 
+  test("a save from a NEWER build is skipped and never written to: not listed, not Continue, not resumed, not marked", async () => {
+    const storage = make();
+    await storage.create(meta("from-newer", 9, { schema: SAVE_SCHEMA + 1 }), BASELINE);
+    await storage.create(meta("mine", 2), BASELINE);
+    const core = new EngineSessionCore({ storage });
+
+    expect((await core.activeSaves()).map((game) => game.id)).toEqual(["mine"]);
+    expect((await core.latestSave())?.id).toBe("mine");
+    await expect(core.resume("from-newer")).rejects.toThrow(/newer version.*Update the game/);
+    const rows = Object.fromEntries((await storage.list()).map((game) => [game.id, game]));
+    expect(rows["from-newer"]).toMatchObject({ status: "active", updatedAt: 9 });
+  });
+
   test("retireSave abandons a game and stamps it as written now, so sync carries it; other games are untouched", async () => {
     const storage = make();
     await storage.create(meta("keep", 5), BASELINE);

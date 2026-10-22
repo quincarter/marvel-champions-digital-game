@@ -9,6 +9,7 @@
  *
  * The factory and storage are injectable so the tests run on `fake-indexeddb` and a plain map.
  */
+import { IdbSyncStateStore } from "../sync/sync-state.js";
 import { CLIENT_VERSION } from "../version.js";
 import { SAVED_DATABASES, SAVED_LOCAL_STORAGE_PREFIX, type DatabaseSpec } from "./databases.js";
 import { SAVE_FILE_FORMAT, SAVE_FILE_VERSION, type SavedDatabase, type SaveFile } from "./save-file.js";
@@ -127,8 +128,15 @@ export async function exportSaveData(deps: SaveDataDeps = browserSaveDataDeps())
   };
 }
 
-/** Replaces everything on this device with `file`'s contents. `file` must come from `parseSaveFile`. */
+/**
+ * Replaces everything on this device with `file`'s contents. `file` must come from `parseSaveFile`.
+ *
+ * Device sync's memory of what it last saw is forgotten first: otherwise everything the file lacks would look deleted
+ * here and sync would delete it on every linked device. With it gone the next run is a first join, where absence is
+ * not a delete and games that differ are asked about.
+ */
 export async function importSaveData(file: SaveFile, deps: SaveDataDeps = browserSaveDataDeps()): Promise<void> {
+  await new IdbSyncStateStore(deps.indexedDB).clear();
   for (const spec of SAVED_DATABASES) await writeDatabase(deps.indexedDB, spec, file.databases[spec.name]);
   const storage = deps.localStorage;
   if (!storage) return;

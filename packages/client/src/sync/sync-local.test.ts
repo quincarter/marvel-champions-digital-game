@@ -130,6 +130,17 @@ describe("IdbLocalSaveData", () => {
     expect(after.get("game:g1:log:0")?.hash).toBe(before.get("game:g1:log:0")?.hash);
   });
 
+  test("a game this build marks incompatible is still reported as active, so that mark is never pushed", async () => {
+    const d = device();
+    await makeGame(d, "g1", 2, 5000);
+    const before = byKey(await d.local.snapshot());
+    await d.games.setStatus("g1", "incompatible");
+    const after = byKey(await d.local.snapshot());
+    expect((after.get("game:g1:meta")!.value as { status: string }).status).toBe("active");
+    expect(after.get("game:g1:meta")?.hash).toBe(before.get("game:g1:meta")?.hash);
+    expect(after.get("game:g1:meta")?.stamp).toBe(5000);
+  });
+
   test("hashes are stable under key order and differ when the value does", async () => {
     expect(canonicalJson({ b: 1, a: { d: 1, c: 2 } })).toBe(canonicalJson({ a: { c: 2, d: 1 }, b: 1 }));
     expect(await hashValue({ a: 1, b: 2 })).toBe(await hashValue({ b: 2, a: 1 }));

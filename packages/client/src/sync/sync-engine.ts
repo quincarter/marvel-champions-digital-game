@@ -12,8 +12,9 @@
  *    with the other side's chunks unchanged where it didn't touch them) the longer wins; otherwise it has diverged
  *    and the player chooses, through `resolveConflict`: keep this device's, keep the other's, or keep both.
  *
- * Last-write-wins trusts the devices' clocks (accepted). A space that was wiped is refilled from this device on its
- * next sync (intended: local data is the source of truth).
+ * Last-write-wins trusts the devices' clocks (accepted). A space that was deleted is not refilled by the other
+ * devices: their next sync answers "not found", shows "Cloud data not found" and halts until the player unlinks or sets
+ * up again. Only a space recreated under the same code (a new epoch) is filled again from this device.
  *
  * Every successful step is saved before the next (applied records and pushed records as entries, the cursor once a
  * round has pushed cleanly), so a run cut short resumes: anything not yet recorded is simply seen again, and a record

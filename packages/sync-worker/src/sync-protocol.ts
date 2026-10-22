@@ -131,7 +131,7 @@ export interface SyncBatchResult {
 export type SyncErrorReason = "space-full" | "too-many-ops";
 
 /**
- * Every non-2xx answer's body on a /sync route. Status by reason: `disabled` 503, `origin` 403, `bad-request` 400 (also a
+ * Every non-2xx answer's body on a /sync route. Status by reason: `disabled` 503, `origin` 403, `turnstile` 403 (a missing or bad token on space creation), `bad-request` 400 (also a
  * malformed batch), `too-many-ops` 400, `too-large` 413 (a record over MAX_RECORD_BYTES, a batch over MAX_BATCH_BYTES),
  * `space-full` 413, `rate-limited` 429 (per IP, or the space's batch-write cap), `blocked` 429 (too many failed
  * attempts from the IP), `not-found` 404 (no such space, wrong token, or a malformed id or token), `server` 500.

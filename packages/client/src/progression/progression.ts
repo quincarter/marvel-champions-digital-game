@@ -44,7 +44,8 @@ const UNLOCKED_EVERYTHING_KEY = "mc-unlocked-everything";
 
 function unlockedEverythingEver(on: boolean): boolean {
   try {
-    if (on) {
+    // Written and announced only when the stored value changes, so reading progress never triggers a sync.
+    if (on && globalThis.localStorage?.getItem(UNLOCKED_EVERYTHING_KEY) !== "1") {
       globalThis.localStorage?.setItem(UNLOCKED_EVERYTHING_KEY, "1");
       notifySaveDataChanged("progress");
     }

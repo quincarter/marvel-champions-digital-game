@@ -120,14 +120,16 @@ Until this is done the Worker isn't deployed, and the game says online transfer 
 
 Optional: to turn on [Turnstile](https://developers.cloudflare.com/turnstile/) bot checks for uploads, create a
 Turnstile widget and set its secret with `pnpm --filter @mc/sync-worker exec wrangler secret put TURNSTILE_SECRET`
-(add `--env staging` for the staging Worker). The client doesn't send a token yet, so uploads fail while it is set;
-leave it off until the client side lands.
+(add `--env staging` for the staging Worker). The client doesn't send a token yet, so while it is set transfer uploads fail
+and so does setting up or joining device sync (the engine calls createSpace on a first sync); leave it off until the
+client side lands.
 
 **Kill switch:** set `TRANSFERS_ENABLED` to anything but `"true"` in `packages/sync-worker/wrangler.jsonc` and deploy
 (or edit the variable in the dashboard). Every transfer then answers 503 and the game falls back to its export message.
 `SYNC_ENABLED` does the same for device sync: the game then says online sync is unavailable and keeps saving on the
-device. Each switch leaves the other feature running. The Turnstile secret also gates creating a sync space; the client
-doesn't send a token there yet either.
+device. Each switch leaves the other feature running, with one overlap: "Link another device" (QR or short code) moves
+the recovery code through transfer rooms, so `TRANSFERS_ENABLED=false` stops that linking too (typing the recovery
+code on the other device still works).
 
 ## Conventions
 

@@ -55,12 +55,14 @@ export interface ReplaceConfirm {
   readonly cancelLabel: string;
 }
 
-export function replaceConfirmOf(file: SaveFile): ReplaceConfirm {
+/** `syncOn`: this device is linked for device sync, whose other devices are not touched by a replace. */
+export function replaceConfirmOf(file: SaveFile, syncOn = false): ReplaceConfirm {
   return {
     title: "Replace everything on this device?",
     body:
       `This file has ${describeSaveFileSummary(saveFileSummaryOf(file))}. ` +
-      "Your current saved games, decks, campaigns, unlocks and settings will be overwritten. This can't be undone.",
+      "Your current saved games, decks, campaigns, unlocks and settings will be overwritten. This can't be undone." +
+      (syncOn ? " Sync is on: your other devices keep their saves, and anything only there comes back here." : ""),
     confirmLabel: "Replace",
     cancelLabel: "Cancel",
   };

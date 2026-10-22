@@ -49,7 +49,7 @@ const notFound = (route: Route) => json(route, 404, { reason: "not-found", error
  * id, a bearer token per space, a version counter and base-version conflicts, plus the transfer route that a device
  * link's QR code uploads to. Two browser contexts installing the same server see one cloud.
  */
-export function fakeSyncServer(): FakeSyncServer {
+export function fakeSyncServer(options: { promptAnswered?: boolean } = {}): FakeSyncServer {
   const spaces = new Map<string, Space>();
   const requests: string[] = [];
   const server: FakeSyncServer = {
@@ -59,6 +59,14 @@ export function fakeSyncServer(): FakeSyncServer {
     disabled: false,
     latencyMs: 0,
     async install(target) {
+      // The one-time "Set up cross-device sync?" question (#276) would sit over Title and block these flows, so a
+      // device is marked as already asked unless the spec is about the question itself.
+      if (options.promptAnswered !== false)
+        await target.addInitScript(() => {
+          try {
+            if (localStorage.getItem("mcsync.prompted") === null) localStorage.setItem("mcsync.prompted", "1");
+          } catch {}
+        });
       await target.route(`${SYNC}/**`, async (route) => {
         const request = route.request();
         if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers: CORS });

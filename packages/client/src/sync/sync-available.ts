@@ -5,7 +5,7 @@
  *
  * The probe is `GET /sync/status` (`@mc/sync-worker/sync-protocol`): no credential, no preflight, answered before any
  * rate limiter or space object, so it costs the caller nothing. "Unavailable" is remembered for the page load, so
- * Title coming back around does not ask again; "available" is asked every time (it is only asked when the prompt is due).
+ * Title coming back around does not ask again; "available" is too, so the probe runs once per page load either way.
  */
 import { syncServiceUrl } from "../save-data/transfer-config.js";
 
@@ -19,6 +19,8 @@ export interface SyncAvailabilityDeps {
 /** What this page load has learned; a fresh object per test. */
 export interface AvailabilityMemory {
   unavailable: boolean;
+  /** Set once the probe has answered "available" (cached for the page load too). */
+  available?: boolean;
 }
 
 const pageLoad: AvailabilityMemory = { unavailable: false };
@@ -28,10 +30,14 @@ export async function syncIsAvailable(
   memory: AvailabilityMemory = pageLoad,
 ): Promise<boolean> {
   if (memory.unavailable || !deps.baseUrl) return false;
+  if (memory.available) return true;
   try {
     const response = await deps.fetch(`${deps.baseUrl}/sync/status`, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) });
     const body = response.status === 200 ? ((await response.json()) as { sync?: unknown } | null) : null;
-    if (body?.sync === true) return true;
+    if (body?.sync === true) {
+      memory.available = true;
+      return true;
+    }
   } catch {
     // A dropped connection reads the same as an answer of "no".
   }

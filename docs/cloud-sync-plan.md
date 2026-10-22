@@ -69,6 +69,8 @@ day, and 300 sync requests in 10 minutes; per space: 60 pushes and 1,500 record 
 serve a few hundred active players. A space untouched for a year is deleted. `SYNC_ENABLED` in `wrangler.jsonc` is the
 kill switch; the game then says online sync is unavailable and keeps everything on the device.
 
+**Known limit: finished games accumulate.** A game can only be marked abandoned, never deleted, so won, lost and abandoned games stay in the space and count toward the 10 MiB. Removing decks frees space; a future change can prune old finished games.
+
 **The short link code: a tradeoff the owner accepted (2026-10-22).** "Link another device" shows a QR code whose key
 is about 109 bits, plus a typed code: 8 characters naming a transfer room and 8 digits of key (about 27 bits), valid
 for 15 minutes and one use, deleted after 5 wrong tries. Outsiders get at most those 5 guesses. Whoever runs the

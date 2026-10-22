@@ -579,6 +579,25 @@ describe("data-loss guards", () => {
     expect(a.local.values.get("ls:mc-other")).toBe("mine");
   });
 
+  test("after an import clears the sync state, records the file lacks are not deleted in the cloud", async () => {
+    const server = new FakeServer();
+    const a = device(server);
+    const b = device(server);
+    a.local.setDeck("d1", "One", 5);
+    a.local.setDeck("d2", "Two", 5);
+    ok(await a.sync());
+    ok(await b.sync());
+    // B imports a file holding only d1: its data is replaced and its sync state forgotten (`importSaveData`).
+    b.local.values.clear();
+    b.local.setDeck("d1", "One", 5);
+    await b.state.clear();
+    ok(await b.sync());
+    ok(await a.sync());
+    expect([...a.local.values.keys()].some((key) => key.endsWith(":d2"))).toBe(true);
+    ok(await b.sync());
+    expect([...b.local.values.keys()].some((key) => key.endsWith(":d2"))).toBe(true);
+  });
+
   test("an unreadable record is parked: the cursor passes it, its key waits, nothing loops on retry-later", async () => {
     const server = new FakeServer();
     const a = device(server);

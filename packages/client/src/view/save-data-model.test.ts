@@ -47,5 +47,12 @@ describe("replace confirm", () => {
     expect(confirm.body).toContain("This file has unlocks and points");
     expect(confirm.body).toContain("overwritten. This can't be undone.");
     expect([confirm.confirmLabel, confirm.cancelLabel]).toEqual(["Replace", "Cancel"]);
+    expect(confirm.body).not.toContain("Sync is on");
+  });
+
+  test("with sync on, says the other devices keep their saves", () => {
+    expect(replaceConfirmOf(FILE, true).body).toContain(
+      "Sync is on: your other devices keep their saves, and anything only there comes back here.",
+    );
   });
 });

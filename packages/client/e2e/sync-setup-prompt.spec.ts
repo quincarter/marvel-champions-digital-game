@@ -78,7 +78,7 @@ test("a returning player is asked once; Not now shows the notice, taps pass thro
   const phone = info.project.name === "phone";
   await page.setViewportSize(viewportOf(phone));
   const errors = trackPageErrors(page);
-  await fakeSyncServer().install(context);
+  await fakeSyncServer({ promptAnswered: false }).install(context);
   await seedSavedGame(page);
   expect(await promptedMarker(page)).toBeNull();
   await loadTitle(page);
@@ -117,7 +117,7 @@ test("a brand-new player is not asked, even though Title and the toast write the
 }, info) => {
   test.setTimeout(120_000);
   await page.setViewportSize(viewportOf(info.project.name === "phone"));
-  const cloud = fakeSyncServer();
+  const cloud = fakeSyncServer({ promptAnswered: false });
   await cloud.install(context);
   await openApp(page);
   await quiet(page);
@@ -137,7 +137,7 @@ test("an existing player with progress but no saved game is asked once, then nev
   test.setTimeout(150_000);
   const phone = info.project.name === "phone";
   await page.setViewportSize(viewportOf(phone));
-  await fakeSyncServer().install(context);
+  await fakeSyncServer({ promptAnswered: false }).install(context);
   await openApp(page);
   await quiet(page);
   await page.evaluate(() => localStorage.setItem("mc-unlocks", JSON.stringify({ version: 1 })));
@@ -154,7 +154,7 @@ test("Escape closes the prompt as Not now", async ({ page, context }, info) => {
   test.skip(info.project.name === "phone", "keyboard case");
   test.setTimeout(180_000);
   await page.setViewportSize(viewportOf(false));
-  await fakeSyncServer().install(context);
+  await fakeSyncServer({ promptAnswered: false }).install(context);
   await seedSavedGame(page);
   await loadTitle(page);
   await waitForPrompt(page);
@@ -171,7 +171,7 @@ test("the prompt holds Title's keys, and a conflict raised meanwhile keeps its o
   test.setTimeout(180_000);
   await page.setViewportSize(viewportOf(false));
   const errors = trackPageErrors(page);
-  await fakeSyncServer().install(context);
+  await fakeSyncServer({ promptAnswered: false }).install(context);
   await seedSavedGame(page);
   await loadTitle(page);
   await waitForPrompt(page);
@@ -226,7 +226,7 @@ test("Set up shows the recovery code to acknowledge; Join opens the join field",
   const phone = info.project.name === "phone";
   await page.setViewportSize(viewportOf(phone));
   const errors = trackPageErrors(page);
-  const cloud = fakeSyncServer();
+  const cloud = fakeSyncServer({ promptAnswered: false });
   await cloud.install(context);
   await seedSavedGame(page);
   await loadTitle(page);
@@ -273,7 +273,7 @@ test("no prompt, and nothing spent, when online sync is down or switched off (50
 }, info) => {
   test.setTimeout(180_000);
   await page.setViewportSize(viewportOf(info.project.name === "phone"));
-  const cloud = fakeSyncServer();
+  const cloud = fakeSyncServer({ promptAnswered: false });
   await cloud.install(context);
   await seedSavedGame(page);
 
@@ -303,7 +303,7 @@ test("the prompt stays away from a link's Settings and from anything else over T
 }, info) => {
   test.setTimeout(240_000);
   await page.setViewportSize(viewportOf(info.project.name === "phone"));
-  const cloud = fakeSyncServer();
+  const cloud = fakeSyncServer({ promptAnswered: false });
   await cloud.install(context);
   await seedSavedGame(page);
 
@@ -354,7 +354,7 @@ test("a swipe that lifts over Set up, Join or Not now presses nothing", async ({
   test.setTimeout(180_000);
   await page.setViewportSize(viewportOf(true));
   const errors = trackPageErrors(page);
-  const cloud = fakeSyncServer();
+  const cloud = fakeSyncServer({ promptAnswered: false });
   await cloud.install(context);
   await seedSavedGame(page);
   await loadTitle(page);
