@@ -152,3 +152,14 @@ describe("visibleComicBeats: narrowOnly halves (MojoMania)", () => {
     expect(narrow).toHaveLength(9);
   });
 });
+
+describe("a page's credit", () => {
+  test("passes through to the step view, and is null for a page without one", () => {
+    const story = storyFor("shadowland")!;
+    const issue = story.issues[0]!;
+    const opener = resolveComicBeats(story.pages!, issue.comicBeats!);
+    const aftermath = resolveComicBeats(story.pages!, issue.aftermathBeats!);
+    expect(comicReaderViewOf(opener, 0, []).step.credit).toBeNull();
+    expect(comicReaderViewOf(aftermath, 0, []).step.credit).toMatch(/Shadowland.*2010/);
+  });
+});

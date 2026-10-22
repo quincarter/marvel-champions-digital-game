@@ -549,7 +549,12 @@ export class CampaignOpenerScene extends Phaser.Scene {
       .text(
         headerPad,
         26 + title.height + 4,
-        `${view.step.pageLabel} · ${view.step.beatLabel}`,
+        `${view.step.pageLabel} · ${view.step.beatLabel}${
+          view.step.credit
+            ? `
+${view.step.credit}`
+            : ""
+        }`,
         textStyle(typeRole.label, surface.paper.hex, ink.secondary),
       )
       .setOrigin(0, 0)

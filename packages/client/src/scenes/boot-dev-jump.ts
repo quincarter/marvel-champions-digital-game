@@ -523,6 +523,19 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.campaignBriefing, data: { runId: record.id } };
   }
 
+  // `?screen=saga`: the Saga shelf. `?screen=campaign-opener&campaign=shadowland&node=heart-of-shadow`: that issue's opener
+  // read from Extras (no run needed), for checking a story's pictures. Dev builds only.
+  if (screen === "saga" && import.meta.env.DEV) return { key: SCENES.campaignSaga, data: {} };
+  if (screen === "campaign-opener" && import.meta.env.DEV) {
+    return {
+      key: SCENES.campaignOpener,
+      data: {
+        campaignId: params.get("campaign") ?? "shadowland",
+        nodeId: params.get("node") ?? "shadows-in-the-night",
+      },
+    };
+  }
+
   // `?screen=shadowland-dossier[&view=briefing][&expert=1][&fresh=1]`: Shadowland (Daredevil and Echo) after scenario 1 on the
   // Dossier (its log sheet), or on the Briefing before scenario 1 (`&fresh=1`, `&view=briefing`). Dev builds only.
   if (screen === "shadowland-dossier" && import.meta.env.DEV) {

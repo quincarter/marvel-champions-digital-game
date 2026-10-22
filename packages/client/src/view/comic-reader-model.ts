@@ -35,6 +35,8 @@ export interface ComicReaderStepView {
   readonly pageLabel: string;
   /** "BEAT 1 OF 28". */
   readonly beatLabel: string;
+  /** The page's credit line (`ComicPage.credit`), or null when the page carries none. */
+  readonly credit: string | null;
 }
 
 export interface ComicPageStripEntry {
@@ -113,6 +115,7 @@ export function comicReaderViewOf(
       sfx: resolved.beat.sfx ?? null,
       pageLabel: `PAGE ${pageNumber} · PANEL ${resolved.beatIndexInPage + 1}`,
       beatLabel: `BEAT ${clamped + 1} OF ${total}`,
+      credit: resolved.page.credit ?? null,
     },
     pageStrip,
     isFirst: clamped === 0,

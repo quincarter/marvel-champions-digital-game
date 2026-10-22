@@ -175,7 +175,9 @@ describe("the catalog", () => {
 
   it("has a file for every hero and every scenario in the pool", () => {
     expect(EXTRAS_ENTRIES.heroes.map((e) => e.id)).toEqual(UNLOCK_HEROES.map((h) => `hero:${h.identityCardId}`));
-    expect(EXTRAS_ENTRIES.villains.map((e) => e.id)).toEqual(POOL_SCENARIOS.map((s) => `villain:${s.id as string}`));
+    expect(EXTRAS_ENTRIES.villains.map((e) => e.id)).toEqual(
+      POOL_SCENARIOS.filter((s) => (s.packCode as string) !== "shadowland").map((s) => `villain:${s.id as string}`),
+    );
   });
 
   it("has every issue of every campaign story, in Saga order", () => {

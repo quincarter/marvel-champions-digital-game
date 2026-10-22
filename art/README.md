@@ -38,8 +38,8 @@ one (just the pack's name and a rule, no thumbnail).
 `<campaignId>` is the content package's `Campaign.id`, which is the campaign box's pack code, the same key
 `music/campaigns/` uses: `trors` (The Rise of Red Skull), `gmw` (The Galaxy's Most Wanted), `mts` (The Mad
 Titan's Shadow), `sm` (Sinister Motives), `mut_gen` (Mutant Genesis), `next_evol` (NeXt Evolution), `aoa` (Age of
-Apocalypse), `aos` (Agents of S.H.I.E.L.D.) and `fne` (Fear No Evil). Civil War has no campaign mode, so no folder.
-All nine folders exist; one with just a `.gitkeep` is still waiting for its cover or panels. A cover shows on the
+Apocalypse), `aos` (Agents of S.H.I.E.L.D.), `fne` (Fear No Evil) and `shadowland` (Shadowland: a cover, five panels as artboards and six lettered pages of Marvel's 2010 event as the Aftermath's read; see its `SOURCE.md`). Civil War has no campaign mode, so no folder.
+All eleven folders exist; one with just a `.gitkeep` is still waiting for its cover or panels. A cover shows on the
 Saga tile and the Cover screen. An artboard shows wherever a panel in `packages/client/src/campaign/stories/<campaignId>.ts` names it
 (`mountain-facility` → `artboards/mountain-facility.webp`); until the file exists the panel keeps its "Panel art: …"
 note. `packages/client/src/art/campaign-art.test.ts` fails if an artboard file matches no name a story uses.

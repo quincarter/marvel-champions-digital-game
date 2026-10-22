@@ -531,7 +531,18 @@ export class CampaignAftermathScene extends Phaser.Scene {
       .setOrigin(1, 0)
       .setLetterSpacing(1);
     void counter;
-    const headerBottom = Math.max(26 + title.height, 60) + 12;
+    // A page's credit sits under the title, as the opener's does, never on the right where a phone's title runs to.
+    const credit = view.step.credit
+      ? this.add
+          .text(
+            headerPad,
+            26 + title.height + 4,
+            view.step.credit,
+            textStyle(typeRole.label, surface.paper.hex, ink.secondary),
+          )
+          .setOrigin(0, 0)
+      : null;
+    const headerBottom = Math.max(credit ? credit.y + credit.height : 26 + title.height, 60) + 12;
 
     const actionBarHeight = phone ? 68 : 88;
     const dotsHeight = 22;

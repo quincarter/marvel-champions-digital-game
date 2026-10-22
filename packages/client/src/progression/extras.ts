@@ -42,6 +42,7 @@ import { CAMPAIGN_RECORDS } from "../campaign/campaign-service.js";
 import { UNLOCK_HEROES, villainLabelOf } from "./unlocks.js";
 import { isLessonSave } from "../engine/game-storage.js";
 import { ACHIEVEMENTS } from "./achievements.js";
+import { SHADOWLAND_COMIC_CREDIT, SHADOWLAND_EXTRAS } from "./shadowland-extras.js";
 
 /** What the player has done, as far as Extras cares, read from storage by `extrasProgressOf`. */
 export interface ExtrasProgress {
@@ -225,6 +226,18 @@ const packName = (code: string): string => POOL_PACKS.find((pack) => (pack.code 
 const campaignName = (campaignId: string): string =>
   SAGA_VOLUMES.find((volume) => volume.campaignId === campaignId)?.name ?? campaignId;
 
+/**
+ * What a scenario-keyed hint calls the scenario: its own name when its villain is chosen per game (`villainOptions`: a
+ * random draw in Shadowland's Dark Protégé, a player's pick in Fear No Evil) or the box's win is not a villain's defeat
+ * (Shadow Labyrinth is won on the scheme), where "Beat <villain>" would name a card the player may never meet. Null
+ * keeps the villain's label.
+ */
+function scenarioNamedHint(scenarioId: string): string | null {
+  const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === scenarioId);
+  if (!scenario) return null;
+  return scenario.villainOptions || (scenario.packCode as string) === "shadowland" ? scenario.name : null;
+}
+
 /** How to open something, in the same "Beat Rhino" voice as the unlock path's own hints. */
 export function unlockHint(unlock: ExtrasUnlock): string {
   switch (unlock.kind) {
@@ -232,12 +245,18 @@ export function unlockHint(unlock: ExtrasUnlock): string {
       return "Open from the start";
     case "heroPlayed":
       return `Finish a game as ${cardName(unlock.identityCardId)}`;
-    case "scenarioPlayed":
-      return `Finish a game against ${villainLabelOf(unlock.scenarioId)}`;
-    case "scenarioWon":
-      return `Beat ${villainLabelOf(unlock.scenarioId)}`;
-    case "scenarioLost":
-      return `Lose to ${villainLabelOf(unlock.scenarioId)}`;
+    case "scenarioPlayed": {
+      const named = scenarioNamedHint(unlock.scenarioId);
+      return named ? `Finish a game of ${named}` : `Finish a game against ${villainLabelOf(unlock.scenarioId)}`;
+    }
+    case "scenarioWon": {
+      const named = scenarioNamedHint(unlock.scenarioId);
+      return named ? `Win ${named}` : `Beat ${villainLabelOf(unlock.scenarioId)}`;
+    }
+    case "scenarioLost": {
+      const named = scenarioNamedHint(unlock.scenarioId);
+      return named ? `Lose ${named}` : `Lose to ${villainLabelOf(unlock.scenarioId)}`;
+    }
     case "packWon":
       return `Win a scenario from ${packName(unlock.packCode)}`;
     case "packLost":
@@ -252,8 +271,10 @@ export function unlockHint(unlock: ExtrasUnlock): string {
         : `Reach issue #${unlock.issue} of ${campaignName(unlock.campaignId)}`;
     case "campaignStarted":
       return `Start ${campaignName(unlock.campaignId)}`;
-    case "campaignWon":
-      return `Complete ${campaignName(unlock.campaignId)}`;
+    case "campaignWon": {
+      const name = campaignName(unlock.campaignId);
+      return `Complete ${name.startsWith("The ") ? "" : "the "}${name} campaign`;
+    }
     case "achievement":
       return `Earn the ${ACHIEVEMENTS.find((a) => a.id === unlock.achievementId)?.name ?? unlock.achievementId} achievement`;
     case "any":
@@ -654,41 +675,45 @@ export function heroEntriesOf(): ExtrasEntry[] {
 
 /** Every scenario in the pool, in pool order: the villain's artwork and its victory and defeat scenes. */
 export function villainEntriesOf(): ExtrasEntry[] {
-  return POOL_SCENARIOS.map((scenario: Scenario): ExtrasEntry => {
-    const scenarioId = scenario.id as string;
-    const villain = CARDS_BY_ID.get(scenario.villainCardId as string);
-    const name = villain?.name ?? scenario.name;
-    const art = ART_CATALOG.scenarios.get(scenarioId);
-    const played: ExtrasUnlock = { kind: "scenarioPlayed", scenarioId };
-    const slides: ExtrasSlide[] = [
-      ...(art?.villain ?? []).map((picture) => ({ picture, caption: name, unlock: played })),
-      ...(art?.["villain-loses"] ?? []).map((picture) => ({
-        picture,
-        caption: `${name} falls`,
-        unlock: { kind: "scenarioWon", scenarioId } as const,
-      })),
-      ...(art?.["villain-wins"] ?? []).map((picture) => ({
-        picture,
-        caption: `${name} wins`,
-        unlock: { kind: "scenarioLost", scenarioId } as const,
-      })),
-    ];
-    const stage = villain?.type === "villain" ? villain.sides[0]?.stages[0] : undefined;
-    const traits = (stage?.traits ?? []).join(" · ");
-    return {
-      id: `villain:${scenarioId}`,
-      tab: "villains",
-      title: name,
-      subtitle: name === scenario.name ? packName(scenario.packCode as string) : scenario.name,
-      thumb: art?.villain[0] ?? null,
-      unlock: played,
-      content: {
-        kind: "gallery",
-        slides,
-        lines: [...(traits ? [traits] : []), `Scenario: ${scenario.name} (${packName(scenario.packCode as string)})`],
-      },
-    };
-  });
+  // Shadowland's scenarios have no villain of their own to file (the Dark Protégé is drawn at random, Shadow Labyrinth
+  // is won on its scheme), and their `villain.png` is box art that Artwork already gates on a win.
+  return POOL_SCENARIOS.filter((scenario) => (scenario.packCode as string) !== "shadowland").map(
+    (scenario: Scenario): ExtrasEntry => {
+      const scenarioId = scenario.id as string;
+      const villain = CARDS_BY_ID.get(scenario.villainCardId as string);
+      const name = villain?.name ?? scenario.name;
+      const art = ART_CATALOG.scenarios.get(scenarioId);
+      const played: ExtrasUnlock = { kind: "scenarioPlayed", scenarioId };
+      const slides: ExtrasSlide[] = [
+        ...(art?.villain ?? []).map((picture) => ({ picture, caption: name, unlock: played })),
+        ...(art?.["villain-loses"] ?? []).map((picture) => ({
+          picture,
+          caption: `${name} falls`,
+          unlock: { kind: "scenarioWon", scenarioId } as const,
+        })),
+        ...(art?.["villain-wins"] ?? []).map((picture) => ({
+          picture,
+          caption: `${name} wins`,
+          unlock: { kind: "scenarioLost", scenarioId } as const,
+        })),
+      ];
+      const stage = villain?.type === "villain" ? villain.sides[0]?.stages[0] : undefined;
+      const traits = (stage?.traits ?? []).join(" · ");
+      return {
+        id: `villain:${scenarioId}`,
+        tab: "villains",
+        title: name,
+        subtitle: name === scenario.name ? packName(scenario.packCode as string) : scenario.name,
+        thumb: art?.villain[0] ?? null,
+        unlock: played,
+        content: {
+          kind: "gallery",
+          slides,
+          lines: [...(traits ? [traits] : []), `Scenario: ${scenario.name} (${packName(scenario.packCode as string)})`],
+        },
+      };
+    },
+  );
 }
 
 /** One picture as its own gallery entry. */
@@ -698,6 +723,7 @@ function pictureEntry(
   subtitle: string,
   picture: Picture,
   unlock: ExtrasUnlock,
+  lines: readonly string[] = [],
 ): ExtrasEntry {
   return {
     id,
@@ -706,7 +732,7 @@ function pictureEntry(
     subtitle,
     thumb: picture,
     unlock,
-    content: { kind: "gallery", slides: [{ picture, caption: title, unlock }], lines: [] },
+    content: { kind: "gallery", slides: [{ picture, caption: title, unlock }], lines },
   };
 }
 
@@ -747,7 +773,23 @@ export function artEntriesOf(): ExtrasEntry[] {
           ]
         : [];
     }),
+    ...shadowlandArtEntriesOf(),
   ];
+}
+
+/** Shadowland's panels and comic pages, each opened by the scenario win (or the campaign win) it belongs to. */
+export function shadowlandArtEntriesOf(): ExtrasEntry[] {
+  return SHADOWLAND_EXTRAS.flatMap((extra) => {
+    const picture =
+      extra.kind === "page"
+        ? CAMPAIGN_ART.pages.get(`shadowland/${extra.file}`)
+        : CAMPAIGN_ART.artboards.get(`shadowland/${extra.file}`)?.[0];
+    // A comic page's credit is also a line of its entry, so the full-size viewer (which draws lines) shows it.
+    const lines = extra.kind === "page" ? [SHADOWLAND_COMIC_CREDIT] : [];
+    return picture
+      ? [pictureEntry(`art:${picture.key}`, extra.title, extra.subtitle, picture, extra.unlock, lines)]
+      : [];
+  });
 }
 
 /**

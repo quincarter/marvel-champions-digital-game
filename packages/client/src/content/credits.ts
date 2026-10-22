@@ -249,21 +249,21 @@ export const CREDITS: readonly CreditEntry[] = [
     id: "shadowland-comic",
     group: "story",
     title: "Shadowland (2010): comic pages",
-    shownIn: "Not shown yet; kept for the Shadowland story and Extras",
+    shownIn: "Shadowland campaign story (the aftermath reads between issues); Extras artwork",
     credit:
       "Six lettered pages from Marvel's Shadowland (2010) #1-5, the possessed Daredevil and the Hand (the owner, 2026-10-20), some from #5. Written by Andy Diggle; pencils by Billy Tan. The issue each page comes from is not recorded.",
     url: "https://www.marvel.com/comics/series/9934/shadowland_2010",
     notice: MARVEL,
-    folders: ["art/scenarios/_pending/shadowland"],
+    folders: ["art/campaigns/shadowland"],
   },
   {
     id: "shadowland-panels",
     group: "story",
-    title: "Shadowland story panels",
-    shownIn: "Not shown yet; raw material for the Shadowland scenario intro",
-    // The owner, 2026-10-20, from their library entry for the issue.
+    title: "Shadowland (MC65) story panels",
+    shownIn: "Shadowland campaign cover, issue openers and scenario tile; Extras artwork",
     credit:
-      "Five panel pictures from Shadowland #5 (of 5) (Marvel Comics, 2010), found at the foot of Hall of Heroes' Shadowland page. Written by Andy Diggle; pencils by Billy Tan; inks by Victor Olazaba; colors by Guru eFX; cover by John Cassaday.",
+      "Five panel pictures of Marvel Champions: Shadowland (MC65) promotional art, from the foot of Hall of Heroes' Shadowland page (the owner, 2026-10-20). The artist is not recorded yet.",
+    gap: true,
     notice: MARVEL,
     url: "https://hallofheroeslcg.com/shadowland/",
   },

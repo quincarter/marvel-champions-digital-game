@@ -187,6 +187,11 @@ export interface ComicPage {
    * picture's file does not exist yet. Ignored once the file is on disk.
    */
   readonly note?: string;
+  /**
+   * A credit line the readers print under the page counter wherever this page is shown ("Shadowland (Marvel, 2010) ·
+   * Andy Diggle, Billy Tan"): required for found art that carries someone else's name, such as Shadowland's pages.
+   */
+  readonly credit?: string;
 }
 
 /** Points an issue at one beat of one page, in the order the issue's guided read shows them. */
