@@ -28,6 +28,7 @@ import type { EventAbilityOption } from "../../view/event-ability-choice.js";
 import type { PaymentState } from "../../view/payment-model.js";
 import { aimedAt, type SearchedPickView } from "../../view/play-aim.js";
 import type { PlayDestinationChoice } from "../../view/play-destination.js";
+import type { ThwartStatOption } from "../../view/thwart-stat-choice.js";
 
 /** What the player has picked so far, when an action needs a target or a payment. */
 export type Selection =
@@ -95,6 +96,16 @@ export type Selection =
    * whichever `legalActions` listed first.
    */
   | { readonly kind: "choosingForm"; readonly sources: readonly FormSource[] }
+  /**
+   * A basic thwart is aimed at a scheme that lets the player use ATK instead of THW (The Red House, issue #365):
+   * which stat is the player's call (`view/thwart-stat-choice.ts`), asked before any cost. Cancel sends nothing.
+   */
+  | {
+      readonly kind: "choosingThwartStat";
+      readonly action: LegalAction;
+      readonly schemeId: InstanceId;
+      readonly options: readonly ThwartStatOption[];
+    }
   /**
    * An event with more than one usable Action ability was played (RRG 1.8 "Event", p. 18): which one is the player's
    * call, asked before anything is paid (`view/event-ability-choice.ts`). Cancel puts the card back with nothing spent.
@@ -210,6 +221,10 @@ export function targetState(selection: Selection, id: InstanceId): TargetState {
     // The card being asked about wears the ring; everything else steps back, as in any other open decision.
     const { action } = selection.action;
     return action.kind === "playCard" && action.instanceId === id ? "selected" : "unavailable";
+  }
+  if (selection.kind === "choosingThwartStat") {
+    // The scheme being thwarted wears the ring, as the card does in the other over-the-hand questions.
+    return selection.schemeId === id ? "selected" : "unavailable";
   }
   if (selection.kind === "choosingSource") {
     return selection.sources.some((source) => source.instanceId === id) ? "selected" : "unavailable";

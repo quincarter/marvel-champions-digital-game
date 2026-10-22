@@ -291,6 +291,7 @@ export {
   iconsInPlay,
   iconsOn,
   losesIcon,
+  mayThwartWithAtk,
   mustDefendWithAlly,
   nonSchemeIcons,
   notDefeatedWithoutThreat,

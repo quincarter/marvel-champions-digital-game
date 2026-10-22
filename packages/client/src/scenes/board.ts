@@ -518,6 +518,13 @@ export class BoardScene extends Phaser.Scene {
         if (option && !binding.blocked()) void this.#controller.chooseEventAbility(option.abilityId);
       });
     });
+    // 1 and 2 answer "Thwart with?" (THW or ATK against The Red House).
+    ["ONE", "TWO"].forEach((key, index) => {
+      this.input.keyboard?.on(`keydown-${key}`, () => {
+        const option = this.#controller.thwartStatChoice()?.options[index];
+        if (option && !binding.blocked()) void this.#controller.chooseThwartStat(option.useAtk);
+      });
+    });
     // 1 and 2 answer "Where does it go?" (an ally that may enter the mission area as well as the player's own).
     ["ONE", "TWO"].forEach((key, index) => {
       this.input.keyboard?.on(`keydown-${key}`, () => {

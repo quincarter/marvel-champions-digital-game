@@ -67,6 +67,7 @@ import {
   type UsableAbilityAction,
 } from "../../view/highlights.js";
 import { cardName, seatIdentityName } from "../../view/names.js";
+import { thwartStatOptions, type ThwartStatOption } from "../../view/thwart-stat-choice.js";
 import {
   allianceHelpersOf,
   beginPayment,
@@ -159,6 +160,12 @@ export interface FormChoiceView {
 export interface AbilityChoiceView {
   readonly subject: string;
   readonly options: readonly EventAbilityOption[];
+}
+
+/** What the "Thwart with?" bar shows: who is thwarting, and THW or ATK (The Red House; `view/thwart-stat-choice.ts`). */
+export interface ThwartStatChoiceView {
+  readonly subject: string;
+  readonly options: readonly ThwartStatOption[];
 }
 
 /** What the "Where?" bar shows: each place the ally may be played, with what it costs there. */
@@ -402,6 +409,9 @@ export class BoardController {
     if (this.#selection.kind === "choosingSource") {
       return focusOrder({ kind: "targeting", targets: this.#selection.sources.map((s) => s.instanceId) }, marks);
     }
+    if (this.#selection.kind === "choosingThwartStat") {
+      return focusOrder({ kind: "targeting", targets: [this.#selection.schemeId] }, marks);
+    }
     if (this.#selection.kind === "choosingInPlayCost") {
       return focusOrder({ kind: "targeting", targets: offeredNow(this.#selection.choice), confirm: true }, marks);
     }
@@ -569,6 +579,11 @@ export class BoardController {
       this.chooseSource(id);
       return true;
     }
+    if (this.#selection.kind === "choosingThwartStat") {
+      // A second tap on the scheme puts the thwart back; the bar's buttons are the only way to answer.
+      if (this.#selection.schemeId === id) this.cancel();
+      return true;
+    }
     if (
       this.#selection.kind === "choosingAbility" ||
       this.#selection.kind === "choosingDestination" ||
@@ -714,6 +729,15 @@ export class BoardController {
       // A change of form with an additional cost (`RuleSpec formChangeCost`, wave 8 §3.63) owes the player the payment
       // decision like any costed action; `entry.example` is only the engine's proof that some payment works.
       if (action === "changeForm" && entry.needsPayment && this.#openPayment(entry, null)) return;
+      // The one scheme to thwart may still let the thwart use ATK (The Red House; issue #365): that is a decision.
+      const only = entry.targets[0];
+      const { game } = appSession().store.state;
+      const stats = game && only !== undefined ? thwartStatOptions(game, POOL_DEPS, entry, only) : [];
+      if (only !== undefined && stats.length > 1) {
+        this.#selection = { kind: "choosingThwartStat", action: entry, schemeId: only, options: stats };
+        this.#host.redraw();
+        return;
+      }
       // A basic power whose own cost discards from hand (Wonder Man, `03014`): which card is the player's choice.
       if (this.#tryOpenDiscardChoice(entry)) return;
       // No target, or one legal target: not a decision; aim and go.
@@ -747,6 +771,42 @@ export class BoardController {
       return;
     }
     const { game } = appSession().store.state;
+    // A scheme that lets the thwart use ATK instead of THW (The Red House; issue #365) asks which, before any cost.
+    const stats = game ? thwartStatOptions(game, POOL_DEPS, action, id) : [];
+    if (stats.length > 1) {
+      this.#selection = { kind: "choosingThwartStat", action, schemeId: id, options: stats };
+      this.#host.redraw();
+      return;
+    }
+    await this.#commitAimed(action, id);
+  }
+
+  /** The "Thwart with?" bar's answer: the thwart goes on at its scheme with that stat. */
+  async chooseThwartStat(useAtk: boolean): Promise<void> {
+    if (this.#readOnly || this.#selection.kind !== "choosingThwartStat") return;
+    const { action, schemeId, options } = this.#selection;
+    if (!options.some((option) => option.useAtk === useAtk)) return;
+    this.#selection = { kind: "idle" };
+    const { example } = action;
+    if (!useAtk || example.type !== "basicThwart") {
+      await this.#commitAimed(action, schemeId);
+      return;
+    }
+    await this.#commitAimed({ ...action, example: { ...example, useAtk: true } }, schemeId, true);
+  }
+
+  /** The stats the "Thwart with?" bar offers, or null when it isn't open. */
+  thwartStatChoice(): ThwartStatChoiceView | null {
+    if (this.#selection.kind !== "choosingThwartStat") return null;
+    const { game } = appSession().store.state;
+    const { action, options } = this.#selection;
+    if (!game || action.action.kind !== "basicThwart") return null;
+    return { subject: cardName(game, action.action.instanceId), options };
+  }
+
+  /** An aimed action from here on: its discard choice, its payment, or straight to the engine. */
+  async #commitAimed(action: LegalAction, id: InstanceId, useAtk = false): Promise<void> {
+    const { game } = appSession().store.state;
     // A basic power whose own cost discards from hand (Wonder Man, `03014`) asks which card, aimed at this target.
     if (
       game &&
@@ -757,7 +817,13 @@ export class BoardController {
     }
     // An aimed action that also costs something still owes the player the
     // payment decision; only a free one goes straight to the engine.
-    if (action.needsPayment && this.#openPayment(action, id)) return;
+    if (action.needsPayment && this.#openPayment(action, id)) {
+      // The payment builds its command from the action and target alone, so the stat rides on the payment itself.
+      if (useAtk && this.#selection.kind === "paying") {
+        this.#selection = { kind: "paying", payment: { ...this.#selection.payment, useAtk: true } };
+      }
+      return;
+    }
     await this.#send(game ? retarget(game, action.example, id) : action.example);
   }
 
@@ -1521,7 +1587,10 @@ export class BoardController {
     // A payment that spends another seat's card (RRG 1.8 "Alliance", p. 6) or hands one of them a part of the cost
     // (`costSelection.paidBy`): each of those players agrees to their own share before the command goes anywhere
     // (docs/phase7-wave4.md §4 Q10). Hot-seat: `allianceHelpersOf`'s own doc comment on why this is a same-device prompt.
-    await this.#send(payment.command, this.#selection.payment);
+    const { command } = payment;
+    const withStat: Command =
+      this.#selection.payment.useAtk && command.type === "basicThwart" ? { ...command, useAtk: true } : command;
+    await this.#send(withStat, this.#selection.payment);
   }
 
   /**
