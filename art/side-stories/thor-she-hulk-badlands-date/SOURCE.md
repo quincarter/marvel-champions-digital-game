@@ -1,4 +1,4 @@
-# Thor and She-Hulk's Badlands date (pending earned extra)
+# Thor and She-Hulk's Badlands date (earned side story)
 
 An excerpt of four pages from _Avengers_ #11 (Marvel, 2019, cover-dated January 2019; "Avengers (2018) #11" on
 marvel.com: https://www.marvel.com/comics/issue/67768/avengers_2018_11), written by Jason Aaron. Thor takes Jennifer
@@ -11,5 +11,5 @@ credits screen show this bibliography (title, issue, year, writer, artists, publ
 Writer: Jason Aaron. Pencillers: Cory Smith, Ed McGuinness, Karl Kesel. Cover: Ed McGuinness. Inkers, colorist and
 letterer are not listed there; add them from marvel.com's issue page when the credits screen is built.
 
-Files are the issue's pages 6, 11, 16 and 17 (page numbers from the shared file names). This folder is not read by the
-Extras glob (`art/extras/*` only) until the achievement wires it.
+Files are the issue's pages 6, 11, 16 and 17 (page numbers from the shared file names). Shown on Extras ▸ Side Stories
+once the "Worthy of a Second Date?" achievement is earned (`packages/client/src/content/side-stories.ts`).

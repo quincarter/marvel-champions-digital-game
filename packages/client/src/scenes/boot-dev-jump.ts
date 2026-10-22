@@ -254,6 +254,9 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   // `?screen=extras-reader&book=book:rrg`: one rulebook in the Extras reader.
   if (screen === "extras-reader")
     return { key: SCENES.extrasReader, data: { bookId: params.get("book") ?? "book:rrg" } };
+  // `?screen=side-story&story=thor-she-hulk-badlands-date`: a side story in its comic reader.
+  if (screen === "side-story")
+    return { key: SCENES.sideStoryReader, data: { storyId: params.get("story") ?? "thor-she-hulk-badlands-date" } };
 
   // `?screen=board&guidedemo=1`: G5a's `TUTORIAL_CONFIG` game, for G4c's spotlight/tag keyboard demo
   // (`scenes/guide-spotlight-demo.ts`, → / Space / ← to cycle, Esc to hide) — screenshottable well ahead of G5c's
