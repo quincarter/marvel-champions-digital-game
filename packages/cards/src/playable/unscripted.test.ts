@@ -16,7 +16,7 @@ const unscriptedRefsOf = (setId: string): string[] =>
   ).flatMap((card) => abilityRefIds(card).filter((id) => !(id in PLAYABLE_ABILITIES)));
 
 describe("UNSCRIPTED_ENCOUNTER_SET_IDS", () => {
-  it("gates exactly Shadowland's seven sets (mid-transcription, docs/phase7-shadowland.md) and keeps them out of the playable sets", () => {
+  it("gates exactly Shadowland's seven sets (unlocked as one pack, docs/phase7-shadowland.md) and keeps them out of the playable sets", () => {
     expect([...UNSCRIPTED_ENCOUNTER_SET_IDS].sort()).toEqual([
       "black_flower",
       "dark_protege",
@@ -29,6 +29,7 @@ describe("UNSCRIPTED_ENCOUNTER_SET_IDS", () => {
     expect(Object.keys(GATED_THOUGH_SCRIPTED).sort()).toEqual([
       "black_flower",
       "dark_protege",
+      "deadly_contraptions",
       "heart_of_shadow",
       "ninja_swarm",
       "shadow_labyrinth",

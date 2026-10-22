@@ -91,10 +91,10 @@ const IDENTITY_SPECIFIC: TargetQuery = { classification: "identitySpecific" };
  * Every TRAP! card's When Revealed is a choice of Avoid, Disarm or Trip, each option tagged `avoid` / `disarm` /
  * `trip` (engine `EffectSpec chooseOne` option `tag`), which is how the cards that name "the 'Avoid' effect on a Trap!
  * card" find it, without reading the display label:
- * - **Nervous Jitters (65046)**, **Hall of Punishment (65048)**, **Path of a Thousand Cuts (65049)**: "Forced
+ * **Nervous Jitters (65046)**, **Hall of Punishment (65048)**, **Path of a Thousand Cuts (65049)**: "Forced
  *   Interrupt: When you choose the ... effect on a Trap! card" is `on.optionChosen(tags, { source: TRAP })`, which
  *   resolves after the choice and before the chosen option (RRG 1.8 "Interrupt", p. 25).
- * - **Iron Monk (65047)**: "you cannot choose the 'Avoid' effect" is a `cannotChooseOption` rule for the player it is
+ * **Iron Monk (65047)**: "you cannot choose the 'Avoid' effect" is a `cannotChooseOption` rule for the player it is
  *   engaged with. The other options are then chosen among as RRG 1.8 "Choose (Option)" (p. 12) has it: one left
  *   resolves without asking.
  *
@@ -104,9 +104,18 @@ const IDENTITY_SPECIFIC: TargetQuery = { classification: "identitySpecific" };
  * gate bars it, since the engine treats the "then" part as independent and would not. "Discard cards until a minion /
  * side scheme is discarded, then reveal it" reveals the match for the revealing player.
  *
- * Cards: 65046 Nervous Jitters (attachment), 65047 Iron Monk (minion), 65048 Hall of Punishment and 65049 Path of a
- * Thousand Cuts (side schemes), 65050 Blinding Powder, 65051 Caltrops, 65052 Flame Spout, 65053 Oil Slick, 65054
- * Poison Darts, 65055 Pressure Plate, 65056 Tripwire (TRAP! treacheries).
+ * Cards (11):
+ * - 65046 Nervous Jitters (attachment)
+ * - 65047 Iron Monk (minion)
+ * - 65048 Hall of Punishment (side scheme)
+ * - 65049 Path of a Thousand Cuts (side scheme)
+ * - 65050 Blinding Powder (TRAP! treachery)
+ * - 65051 Caltrops (TRAP! treachery)
+ * - 65052 Flame Spout (TRAP! treachery)
+ * - 65053 Oil Slick (TRAP! treachery)
+ * - 65054 Poison Darts (TRAP! treachery)
+ * - 65055 Pressure Plate (TRAP! treachery)
+ * - 65056 Tripwire (TRAP! treachery)
  */
 export const SHADOWLAND_DEADLY_CONTRAPTIONS: AbilityRegistry = defineAbilities({
   // Nervous Jitters (65046), attached to your identity. "Name an encounter card type" offers the eight encounter card
