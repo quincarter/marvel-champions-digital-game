@@ -2,6 +2,8 @@ packages:
   - packages/*
 allowBuilds:
   esbuild: true
+  # wrangler's local runtime (`pnpm dev:sync`) downloads its workerd binary in a postinstall script.
+  workerd: true
 minimumReleaseAgeExclude:
   - "@vitest/mocker@5.0.4"
   - "@vitest/spy@5.0.4"

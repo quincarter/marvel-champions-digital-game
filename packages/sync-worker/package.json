@@ -1,0 +1,21 @@
+{
+  "name": "@mc/sync-worker",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Cloudflare Worker for moving saves between devices: one-time, end-to-end encrypted transfer rooms held by Durable Objects. Never sees a save in the clear.",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "exports": {
+    "./protocol": "./src/protocol.ts"
+  },
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "wrangler": "4.151.1"
+  }
+}
