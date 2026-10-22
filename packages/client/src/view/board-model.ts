@@ -1295,6 +1295,15 @@ function liveStepLabel(state: GameState, perspectiveId: PlayerId): string {
   }
 }
 
+/**
+ * The enemies in the left-to-right order the table draws them: the villains (in their row's order), then the minions
+ * (`minionsOf`). A list of targets sorted by this reads in the same order as the board (issue #357), so two facedown
+ * Drones can be told apart by where they sit.
+ */
+export function enemyTableOrder(state: GameState, deps: EngineDeps): readonly InstanceId[] {
+  return [...villainPanels(state, deps).map((villain) => villain.panel.instanceId), ...minionsOf(state)];
+}
+
 /** Enemies in the villain area and engaged with a player, villain excluded. */
 function minionsOf(state: GameState): readonly InstanceId[] {
   const fromVillainArea = state.villainArea.filter((id) => !isVillain(state, id) && isMinion(state, id));
