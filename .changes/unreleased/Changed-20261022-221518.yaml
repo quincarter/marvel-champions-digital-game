@@ -1,0 +1,3 @@
+kind: Changed
+body: The table-setup screen jumps (`screen=table-setup` and the screens after it) take `&seed=<n>` for a fixed deal, and the Shadow King setup spec uses it, so it no longer fails now and then when the hero loses before round 2.
+time: 2026-10-22T22:15:18.2245705+02:00
