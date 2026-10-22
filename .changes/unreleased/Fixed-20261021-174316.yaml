@@ -1,3 +1,0 @@
-kind: Fixed
-body: Thwart events like Multitasking can no longer be played while you cannot thwart (Baron Zemo engaged with you), and a move whose target choice found nothing can be undone again (#330)
-time: 2026-10-21T17:43:16.7919736-04:00

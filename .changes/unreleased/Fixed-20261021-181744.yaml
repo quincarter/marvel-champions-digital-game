@@ -1,3 +1,0 @@
-kind: Fixed
-body: On a phone, a swipe of the play area that lifts over its ‹ › arrows no longer pages the row, and a drag that starts anywhere in the play area (or the phone's hand strip) scrolls it, not only one that starts on a card.
-time: 2026-10-21T18:17:44.0198595-04:00
