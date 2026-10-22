@@ -67,7 +67,16 @@ export function clipRowInteractivity(
   setAllInteractiveEnabled(objects, visible);
 }
 
+/** A rectangular hit area (a Zone's own default), which `clipToViewport` can crop. */
+interface MaybeRectHitArea {
+  readonly setTo?: (x: number, y: number, width: number, height: number) => unknown;
+}
+
 interface MaybeBounded extends MaybeInteractive {
+  readonly input?: { enabled: boolean; hitArea?: MaybeRectHitArea } | null;
+  /** A Zone's own unscaled size, the frame its hit area is measured in. */
+  readonly width?: number;
+  readonly height?: number;
   readonly getBounds?: () => {
     readonly x: number;
     readonly y: number;
@@ -84,6 +93,10 @@ const VIEWPORT_TOLERANCE_PX = 2;
  * — for a `McScrollRegion` (`clipInteractive`) whose content holds controls that pass no `clip` of their own, so a
  * button scrolled up under the screen's header can't answer a tap meant for whatever is drawn there. Wholly, not
  * partly: the hidden part of a half-visible button would otherwise catch taps outside the region too.
+ *
+ * A control too big to ever fit wholly inside (a signature card on a landscape phone's short lesson column) would stay
+ * dead at every scroll position under that rule, so one with a rectangular hit area (a Zone) answers on the part of it
+ * that is on screen instead: its hit area is cropped to the viewport, and it is off only while none of it shows.
  */
 export function clipToViewport(
   objects: readonly Phaser.GameObjects.GameObject[],
@@ -93,11 +106,26 @@ export function clipToViewport(
     if (obj.input && obj.getBounds) {
       const b = obj.getBounds();
       const t = VIEWPORT_TOLERANCE_PX;
-      obj.input.enabled =
-        b.x >= viewport.x - t &&
-        b.y >= viewport.y - t &&
-        b.x + b.width <= viewport.x + viewport.width + t &&
-        b.y + b.height <= viewport.y + viewport.height + t;
+      const oversized = b.width > viewport.width + 2 * t || b.height > viewport.height + 2 * t;
+      const hitArea = obj.input.hitArea;
+      if (oversized && hitArea?.setTo && obj.width && obj.height && b.width > 0 && b.height > 0) {
+        const left = Math.max(b.x, viewport.x);
+        const top = Math.max(b.y, viewport.y);
+        const right = Math.min(b.x + b.width, viewport.x + viewport.width);
+        const bottom = Math.min(b.y + b.height, viewport.y + viewport.height);
+        obj.input.enabled = right > left && bottom > top;
+        // The hit area is in the object's own unscaled frame, measured from its top-left.
+        const sx = obj.width / b.width;
+        const sy = obj.height / b.height;
+        if (obj.input.enabled)
+          hitArea.setTo((left - b.x) * sx, (top - b.y) * sy, (right - left) * sx, (bottom - top) * sy);
+      } else {
+        obj.input.enabled =
+          b.x >= viewport.x - t &&
+          b.y >= viewport.y - t &&
+          b.x + b.width <= viewport.x + viewport.width + t &&
+          b.y + b.height <= viewport.y + viewport.height + t;
+      }
     }
     if (obj.list) for (const child of obj.list) walk(child as unknown as MaybeBounded);
   };

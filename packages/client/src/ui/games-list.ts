@@ -67,7 +67,9 @@ function drawRows(scene: Phaser.Scene, options: GamesListOptions): DrawnGamesLis
   const stops = new Map<string, FocusStop>();
   const layout = gameRowRects(area, rows.length);
   const heights = [Math.max(area.height, layout.height)];
-  const region = new McScrollRegion(scene, { rect: area, heights, scroll: options.scroll });
+  // `clipInteractive`: a mask hides pixels, not hit areas, so a row scrolled up under the phone overlay's ✕ would
+  // still win the press on it. `refresh()` below syncs it once the rows are in.
+  const region = new McScrollRegion(scene, { rect: area, heights, scroll: options.scroll, clipInteractive: true });
   const inRegion = (): Rect => area;
   const suppress = (): boolean => region.isDragSuppressingClick;
   const before = scene.children.list.length;
