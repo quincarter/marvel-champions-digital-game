@@ -88,6 +88,9 @@ export function triggerHeadlineOf(
         : `${cardName(state, event.instanceId)} was revealed`;
     case "encounterCardRevealing":
       return `${cardName(state, event.instanceId)} is about to be revealed`;
+    // Still facedown while this window is open, so the card is not named.
+    case "encounterCardBeingRevealed":
+      return "A facedown encounter card is about to be revealed";
     case "cardEntersPlay":
       return before
         ? `${cardName(state, event.instanceId)} is about to enter play`

@@ -211,8 +211,10 @@ export const SPDR_SUPPORT_UPGRADES = defineAbilities({
     removeCountersFrom(self, "energy", min(eventAmount, countersOn(self, "energy"))),
   ),
 
+  // "When you would reveal an encounter card": your reveal, while the card is still facedown, so the damage is paid
+  // without knowing whether it is a treachery (RRG 1.8 "Interrupt", p. 25; "Reveal", p. 38).
   "31020.spider-tingle-interrupt": interrupt(
-    on.encounterCardRevealed(),
+    { on: "encounterCardBeingRevealed", playerIn: you },
     { cost: damageCardsCost(query("character", { trait: WEB_WARRIOR, controller: "you" }), 1) },
     ifThen(refMatches(eventTarget, query("treachery"), { anywhere: true }), [cancelWhenRevealed(), discard(self)]),
   ),

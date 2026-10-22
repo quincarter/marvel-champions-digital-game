@@ -747,6 +747,8 @@ export type StackFrame =
       readonly kind: "reveal";
       readonly instanceId: InstanceId;
       readonly playerId: PlayerId;
+      /** Its facedown "would reveal" interrupt window (`encounterCardBeingRevealed`) has been opened. */
+      readonly wouldRevealAsked?: true;
       /** "Cancel its When Revealed effects" (incite and surge are When Revealed effects too). */
       readonly whenRevealedCancelled: boolean;
       /** "Cancel the effects of that card and discard it": it is still revealed, nothing else happens. */

@@ -1,6 +1,7 @@
 /** Revealing encounter cards and placing them (attachment hosts included). */
 
 import { placeAttachment } from "./imminent-attach.js";
+import type { EngineDeps } from "../abilities.js";
 import { displayNameOf } from "../visibility.js";
 import type { AbilityId, AnyCard, AttachmentHost } from "@mc/content";
 import {
@@ -213,6 +214,22 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
   const card = mustCardOf(ctx.state, frame.instanceId);
   switch (frame.stage) {
     case "faceup": {
+      // "When you would reveal an encounter card" (Scarlet Spider 30020, Spider-Tingle 31020) answers before step 1
+      // turns the card faceup (RRG 1.8 "Interrupt", p. 25, "Reveal", p. 38), so the player answers without seeing it.
+      // Only when an ability could answer, so other games keep their log, state and replay.
+      if (!frame.newFace && !frame.wouldRevealAsked && listensForWouldReveal(ctx.deps)) {
+        const would: TriggerEvent = {
+          kind: "encounterCardBeingRevealed",
+          instanceId: frame.instanceId,
+          playerId: frame.playerId,
+          ...revealedFrom(frame),
+        };
+        setFrame(ctx, { ...frame, wouldRevealAsked: true });
+        if (heard(ctx.state, ctx.deps, would)) {
+          pushEvent(ctx, would);
+          return;
+        }
+      }
       if (UNREVEALABLE.has(card.type) && !frame.newFace) {
         const from = frame.revealedFrom ? JSON.stringify(frame.revealedFrom) : "nowhere";
         throw new EngineInvariantError(
@@ -1139,4 +1156,20 @@ function resolveAttachmentTarget(ctx: Ctx, frame: Frame<"reveal">, attachesTo: A
     frameId: frame.frameId,
   });
   return false;
+}
+
+const LISTENS_FOR_WOULD_REVEAL = new WeakMap<EngineDeps, boolean>();
+
+/** Whether any ability in the registry triggers on `encounterCardBeingRevealed`; cached per registry. */
+function listensForWouldReveal(deps: EngineDeps): boolean {
+  const cached = LISTENS_FOR_WOULD_REVEAL.get(deps);
+  if (cached !== undefined) return cached;
+  const listens = Object.values(deps.abilities).some((definition) => {
+    const trigger = definition.trigger;
+    if (!("on" in trigger) || !trigger.on) return false;
+    const kinds = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+    return kinds.includes("encounterCardBeingRevealed");
+  });
+  LISTENS_FOR_WOULD_REVEAL.set(deps, listens);
+  return listens;
 }

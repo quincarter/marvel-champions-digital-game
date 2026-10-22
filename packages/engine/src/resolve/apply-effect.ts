@@ -3253,7 +3253,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "cancelWhenRevealed":
     case "cancelRevealedCard": {
-      const revealing = frame.event?.kind === "encounterCardRevealing" ? frame.event.instanceId : null;
+      // From a "would reveal" interrupt too (Spider-Tingle, 31020): the reveal frame is beneath it, not yet faceup.
+      const revealing =
+        frame.event?.kind === "encounterCardRevealing" || frame.event?.kind === "encounterCardBeingRevealed"
+          ? frame.event.instanceId
+          : null;
       const reveal = ctx.state.stack.find(
         (f): f is Frame<"reveal"> => f.kind === "reveal" && f.instanceId === revealing,
       );

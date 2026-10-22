@@ -875,6 +875,19 @@ export type TriggerEventBody =
       readonly from?: "encounterDeck";
     }
   /**
+   * An encounter card is about to be revealed and is still facedown: "When you would reveal an encounter card"
+   * (Scarlet Spider 30020, Spider-Tingle 31020). RRG 1.8 "Interrupt" (p. 25): a "would" interrupt resolves before its
+   * triggering condition initiates, and "Reveal" (p. 38) step 1 turns the card faceup, so the player answers without
+   * seeing the card. Interrupt only; announced only when an ability could answer it. `from` as on
+   * `encounterCardRevealing`.
+   */
+  | {
+      readonly kind: "encounterCardBeingRevealed";
+      readonly instanceId: InstanceId;
+      readonly playerId: PlayerId;
+      readonly from?: "encounterDeck";
+    }
+  /**
    * A side scheme reached no threat and is defeated (RRG 1.8 "Defeat", p. 15). `defeatedByPlayerId` is the player
    * whose thwart or card effect removed the last threat — "the player who defeated this scheme" (Crossbones' Assault
    * 04070), "the defeating player" (Mystique's Manipulations errata, RRG 1.8 p. 66). Null when no player did it.
@@ -2315,6 +2328,8 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "characterAttacked":
     case "characterDefeated":
     case "encounterCardRevealing":
+    // "When you would reveal an encounter card": the reveal is still to come.
+    case "encounterCardBeingRevealed":
     case "boostCardTurnedFaceup":
     // "When boost icons on an encounter card would be counted" (docs/phase7-wave2.md §3.6): the count is still to come.
     case "boostIconsCounting":
@@ -2464,6 +2479,7 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     case "cardBeingPlayed":
     case "cardRevealed":
     case "encounterCardRevealing":
+    case "encounterCardBeingRevealed":
     // "That treachery" is `eventTarget`; "you" (the player who resolved it) the player subject.
     case "encounterCardResolved":
       return of([event.instanceId], [event.instanceId], [event.playerId]);

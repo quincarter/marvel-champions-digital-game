@@ -815,6 +815,8 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
       problems.push("encounterCardBeingDealt is interrupt-only: after a player is dealt a card is encounterCardDealt");
     if (kinds.includes("boostCardBeingGiven"))
       problems.push("boostCardBeingGiven is interrupt-only: after a boost card is given is boostCardGiven");
+    if (kinds.includes("encounterCardBeingRevealed"))
+      problems.push("encounterCardBeingRevealed is interrupt-only: after a card is revealed is cardRevealed");
   }
   // docs/phase7-wave7.md §3.35: the card's "attach to" text as an ability. It is forced and free, and attaches itself.
   if (definition.attachInstruction) {

@@ -47,6 +47,7 @@ const HIT: ReadonlySet<string> = new Set([
 ]);
 const TREACHERY: ReadonlySet<string> = new Set([
   "encounterCardRevealing",
+  "encounterCardBeingRevealed",
   "cardRevealed",
   "encounterCardResolved",
   "encounterCardBeingDealt",
