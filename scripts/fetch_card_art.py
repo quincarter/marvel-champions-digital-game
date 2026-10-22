@@ -831,7 +831,7 @@ def page_images(http: Http, page_url: str) -> list[tuple[str, str]]:
 def read_manifest() -> tuple[list[str], dict[str, list[str]]]:
     header, rows = [], {}
     if MANIFEST.exists():
-        for line in MANIFEST.read_text().splitlines():
+        for line in MANIFEST.read_text(encoding="utf-8").splitlines():
             if line.startswith("#") or line.startswith("code\t"):
                 header.append(line)
             elif line.strip():
@@ -852,7 +852,7 @@ def write_manifest(rows: dict[str, list[str]]) -> None:
     for code in sorted(rows):
         cols = rows[code] + [""] * (6 - len(rows[code]))
         lines.append("\t".join(cols[:6]))
-    MANIFEST.write_text("\n".join(lines) + "\n")
+    MANIFEST.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 # --------------------------------------------------------------------------- commands
