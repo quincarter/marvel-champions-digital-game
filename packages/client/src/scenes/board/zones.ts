@@ -39,7 +39,8 @@ import {
   minionSlots,
   type Rect,
 } from "../../view/layout.js";
-import { drawCharacter, drawFootStrip, type DrawCharacterOptions } from "./character-panel.js";
+import { drawCharacter, drawFootStrip, type DrawCharacterOptions, type LeadChip } from "./character-panel.js";
+import { villainPanelPlan } from "../../view/villain-panel-layout.js";
 import { drawScheme } from "./schemes.js";
 import { missionSlots, neutralRow, neutralStack } from "../../view/mission-area-layout.js";
 import type { ReferenceCardView } from "../../view/reference-cards.js";
@@ -111,7 +112,13 @@ export function drawEnemies(ctx: BoardDrawContext, rect: Rect, model: BoardModel
   // were in play with nothing drawn for them.
   let beside: Rect | null = null;
   let villainAreaBottom: number;
-  if (model.villains.length > 1) villainAreaBottom = drawVillainRow(ctx, rect, model);
+  // Two or three villains are drawn as full panels, as a lone villain is, when they fit at a readable size; many
+  // villains (or a short table) keep the compact tile row.
+  const panels = model.villains.length > 1 ? drawVillainPanels(ctx, rect, model) : null;
+  if (panels) {
+    villainAreaBottom = panels.bottom;
+    beside = panels.minionsBeside;
+  } else if (model.villains.length > 1) villainAreaBottom = drawVillainRow(ctx, rect, model);
   else {
     const single = drawSingleVillain(ctx, rect, model);
     villainAreaBottom = single.bottom;
@@ -360,6 +367,61 @@ function drawEnvironmentStrip(
     bottom = slot.y + slot.height;
   });
   return bottom;
+}
+
+/** The markers a villain among several carries as words (`drawCompactVillain` draws the same ones). */
+function villainLeadChips(villain: VillainPanel): LeadChip[] {
+  const chips: LeadChip[] = [];
+  if (villain.active) chips.push({ words: "ACTIVE", fill: signal.heal.hex, color: surface.paper.hex });
+  if (villain.activationOrder !== null)
+    chips.push({ words: `ORDER ${villain.activationOrder}`, fill: surface.ink.hex, color: surface.paper.hex });
+  if (villain.areaLabel)
+    chips.push({ words: villain.areaLabel.toUpperCase(), fill: surface.ink.hex, color: surface.paper.hex });
+  return chips;
+}
+
+/**
+ * Two or three villains as full panels side by side (`view/villain-panel-layout.ts`), each drawn exactly as a lone
+ * villain is, with any environment as a card-sized tile beside them. Null when they would not fit at a readable size
+ * (or on the phone's tabbed board): the caller draws the compact tile row instead.
+ */
+function drawVillainPanels(
+  ctx: BoardDrawContext,
+  rect: Rect,
+  model: BoardModel,
+): { readonly bottom: number; readonly minionsBeside: Rect | null } | null {
+  if (ctx.tabbed) return null;
+  const height = villainBandHeight(ctx, rect, model, 128, VILLAIN_PANEL_MAX_HEIGHT, 128);
+  const envCount = model.environments.length;
+  const band: Rect = { x: rect.x + 10, y: rect.y + 10, width: rect.width - 20, height };
+  const reserve = envCount === 0 ? 0 : envCount === 1 ? 160 : 330;
+  const plan = villainPanelPlan(band, model.villains.length, height, reserve);
+  if (!plan) return null;
+  const envLeft = plan.right + 10;
+  const envRoom = rect.x + rect.width - 10 - envLeft;
+  if (envCount > 0 && envRoom < ENVIRONMENT_MIN_WIDTH) return null;
+
+  model.villains.forEach((villain, index) => {
+    const slot = plan.slots[index]!;
+    if (villain.defeated) {
+      ctx.frame.hitRects.set(villain.panel.instanceId, slot);
+      drawDefeatedVillainSlot(ctx.scene, slot, villain.panel.name);
+      ctx.makeTapTarget(slot, villain.panel.instanceId, () => ctx.inspect(villain.panel.instanceId));
+      return;
+    }
+    drawCharacter(ctx, slot, villain.panel, { shape: "wide", leadChips: villainLeadChips(villain) });
+  });
+  const bottom = band.y + plan.tileHeight;
+  if (envCount > 0) {
+    const slots = environmentSlots({ x: envLeft, y: band.y, width: envRoom, height: plan.tileHeight }, envCount);
+    model.environments.forEach((environment, index) => drawEnvironment(ctx, slots[index]!, environment));
+    const free = model.minions.length > 0 ? minionRoomBesideEnvironments(rect, slots, MINION_BESIDE_MIN_WIDTH) : null;
+    return { bottom, minionsBeside: free };
+  }
+  const roomBelow = rect.y + rect.height - (bottom + 8) - 10;
+  const besideRoom: Rect = { x: envLeft, y: band.y, width: envRoom, height: plan.tileHeight };
+  const useBeside = model.minions.length > 0 && roomBelow < MINION_ROW_MIN_HEIGHT && envRoom >= MINION_BESIDE_MIN_WIDTH;
+  return { bottom, minionsBeside: useBeside ? besideRoom : null };
 }
 
 /**
@@ -660,31 +722,18 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
     .text(inner.x + 6, inner.y + 3, environment.name, textStyle(typeRole.rowTitle, onArt, dim))
     .setWordWrapWidth(inner.width - 12);
   fitWrapped(nameText, inner.width - 12, 2, typeRole.rowTitle.size);
-  const titleBox: Rect = {
-    x: inner.x,
-    y: inner.y,
-    width: inner.width,
-    height: Math.max(30, Math.ceil(nameText.height) + 3 + 14),
-  };
-  if (drawn) {
-    const wash = scene.add.graphics();
-    wash.fillStyle(surface.ink.hex, dim).fillRect(titleBox.x, titleBox.y, titleBox.width, titleBox.height);
-    scene.children.bringToTop(nameText);
-  }
-  fitText(
-    label(
-      scene,
-      titleBox.x + 6,
-      titleBox.y + 3 + Math.ceil(nameText.height),
-      environment.subtitle,
-      typeRole.label,
-      onArt,
-      ink.label * dim,
-    ),
-    titleBox.width - 12,
-    typeRole.label.size,
+  // The subtitle carries the tile's damage ("ENVIRONMENT · 1/9 DAMAGE"), so it wraps to a second line and the band grows
+  // to hold it, never "1/9 DA…".
+  const subtitleText = label(
+    scene,
+    inner.x + 6,
+    inner.y + 3 + Math.ceil(nameText.height),
+    environment.subtitle,
+    typeRole.label,
+    onArt,
+    ink.label * dim,
   );
-
+  fitWrapped(subtitleText, inner.width - 12, 2, typeRole.label.size);
   // Each counter kind as its own chip along the bottom: the number big, the kind spelled out beside it, so
   // "4 INFAMY" never has to be inferred from a color or a pip count.
   const chipHeight = 24;
@@ -693,6 +742,22 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
     counterCount > 0
       ? inner.y + inner.height - 4 - counterCount * chipHeight - (counterCount - 1) * 3
       : inner.y + inner.height - 22;
+  // A short tile with counter chips keeps the subtitle to one line rather than letting the chips paint over it.
+  if (subtitleText.y + subtitleText.height > countersTop - 4) {
+    fitWrapped(subtitleText, inner.width - 12, 1, typeRole.label.size);
+  }
+  const titleBox: Rect = {
+    x: inner.x,
+    y: inner.y,
+    width: inner.width,
+    height: Math.max(30, Math.ceil(nameText.height) + 3 + Math.max(14, Math.ceil(subtitleText.height) + 2)),
+  };
+  if (drawn) {
+    const wash = scene.add.graphics();
+    wash.fillStyle(surface.ink.hex, dim).fillRect(titleBox.x, titleBox.y, titleBox.width, titleBox.height);
+    scene.children.bringToTop(nameText);
+    scene.children.bringToTop(subtitleText);
+  }
 
   // A printed Hero/Alter-Ego Action or resource ability on the environment itself (Library Labyrinth's "This
   // way?"), the same `▶` affordance a character panel's own foot strip gives its usable ability — drawn only

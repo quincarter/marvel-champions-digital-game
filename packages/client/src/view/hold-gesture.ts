@@ -160,10 +160,14 @@ export class HoldGesture {
    * The press was released on the control. True when that release is a tap:
    * not a hold, not a right-click, not a drag, and not a touch the system took
    * away (`touchcancel` — a notification shade, a native long-press menu),
-   * which the player never meant as anything.
+   * which the player never meant as anything. Given where it was released, a release past the slop from where the
+   * press began is not a tap either: a control that cannot drag hears no moves, so a swipe across the table that
+   * started on a card would otherwise read as a tap on it (and open Inspect on the hero card, under the tabbed board's
+   * scroll).
    */
-  up(canceled: boolean): boolean {
-    const tapped = this.#phase === "pressed" && !canceled;
+  up(canceled: boolean, x?: number, y?: number): boolean {
+    const wandered = x !== undefined && y !== undefined && Math.hypot(x - this.#downX, y - this.#downY) > HOLD_SLOP_PX;
+    const tapped = this.#phase === "pressed" && !canceled && !wandered;
     this.#phase = "idle";
     return tapped;
   }
