@@ -12,10 +12,7 @@ export interface ExtrasNewsItem {
   readonly title: string;
 }
 
-/**
- * Everything open, by id: each entry, and each picture of a gallery past its first that opens on its own (a villain's
- * defeat scene). A picture opened by the entry's own unlock (a side story's later pages) is part of the entry.
- */
+/** Everything open, by id: each entry, and each picture of a gallery past its first (a villain's defeat scene). */
 export function openExtrasOf(
   extras: Pick<Extras, "isOpen" | "openSlides">,
   entries: readonly ExtrasEntry[] = Object.values(EXTRAS_ENTRIES).flat(),
@@ -25,7 +22,7 @@ export function openExtrasOf(
     if (!extras.isOpen(entry.unlock)) continue;
     open.set(entry.id, { id: entry.id, tab: entry.tab, title: entry.title });
     extras.openSlides(entry.content).forEach((slide, index) => {
-      if (index === 0 || slide.unlock === entry.unlock) return;
+      if (index === 0) return;
       const id = `${entry.id}#${slide.caption}#${index}`;
       open.set(id, { id, tab: entry.tab, title: slide.caption });
     });

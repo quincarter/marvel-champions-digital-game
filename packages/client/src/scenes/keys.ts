@@ -48,6 +48,7 @@ export const SCENES = {
   credits: "Credits",
   /** One rulebook as plain text (`scenes/extras-reader.ts`), reached from Extras' Rulebooks tab. */
   extrasReader: "ExtrasReader",
+  sideStoryReader: "SideStoryReader",
   /** `McTermText`/`McTooltip` dev demo (guided mode G3b, `docs/guided-mode.md` §4): `?screen=termtext` only, never reached in-game. */
   termTextDemo: "TermTextDemo",
   /** `McGuideCallout` dev demo (guided mode G4a, `docs/guided-mode.md` §4): `?screen=guidecallout` only, never reached in-game. */

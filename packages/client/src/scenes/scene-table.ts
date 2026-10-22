@@ -41,6 +41,7 @@ export const SCENE_LOADERS: Readonly<Record<string, () => Promise<SceneClass>>> 
   [SCENES.credits]: () => import("./credits.js").then((m) => m.CreditsScene),
   [SCENES.trophyRoom]: () => import("./trophy-room.js").then((m) => m.TrophyRoomScene),
   [SCENES.extrasReader]: () => import("./extras-reader.js").then((m) => m.ExtrasReaderScene),
+  [SCENES.sideStoryReader]: () => import("./side-story-reader.js").then((m) => m.SideStoryReaderScene),
   [SCENES.guideChooser]: () => import("./guide-chooser.js").then((m) => m.GuideChooserScene),
   [SCENES.howToWin]: () => import("./how-to-win.js").then((m) => m.HowToWinScene),
   [SCENES.howToPlay]: () => import("./how-to-play.js").then((m) => m.HowToPlayScene),

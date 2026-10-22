@@ -9,7 +9,8 @@
  * - **Stories** start the campaign opener with no run behind it (`CampaignOpenerData`'s Extras read), which comes
  *   back here to the same tab.
  * - **Rulebooks** open the reader (`scenes/extras-reader.ts`): the book as plain text, with links to its PDFs.
- * - **Side Stories, Heroes, Villains, Artwork** open the viewer overlay (`scenes/extras-viewer.ts`) over this screen.
+ * - **Side Stories** open the side-story reader (`scenes/side-story-reader.ts`): the comic beat by beat.
+ * - **Heroes, Villains, Artwork** open the viewer overlay (`scenes/extras-viewer.ts`) over this screen.
  * - **Music** plays the song through the music controller's jukebox, until Title (or any other screen) asks for its
  *   own music again. With shuffle on (#191) the shuffle carries on from it instead.
  */
@@ -44,6 +45,7 @@ import { SCENES } from "./keys.js";
 import type { CampaignOpenerData } from "./campaign/routes.js";
 import type { ExtrasViewerData } from "./extras-viewer.js";
 import type { ExtrasReaderData } from "./extras-reader.js";
+import type { SideStoryReaderData } from "./side-story-reader.js";
 
 export interface ExtrasSceneData {
   /** The tab to open on: a story read comes back to Stories. Defaults to the tab open last time. */
@@ -142,6 +144,11 @@ export class ExtrasScene extends Phaser.Scene {
         nodeId: content.nodeId,
         returnTo: { key: SCENES.extras, data: { tab: "stories" } satisfies ExtrasSceneData },
       } satisfies CampaignOpenerData);
+      return;
+    }
+    if (content.kind === "comic") {
+      this.scale.off("resize", this.#draw, this);
+      goToScreen(this, SCENES.sideStoryReader, { storyId: content.storyId } satisfies SideStoryReaderData);
       return;
     }
     if (content.kind === "book") {

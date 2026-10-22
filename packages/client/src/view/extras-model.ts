@@ -42,7 +42,7 @@ export function extrasTabsOf(extras: Extras): readonly ExtrasTabView[] {
 }
 
 const actionOf = (entry: ExtrasEntry): string =>
-  entry.content.kind === "issue" || entry.content.kind === "book" || entry.tab === "side"
+  entry.content.kind === "issue" || entry.content.kind === "book" || entry.content.kind === "comic"
     ? "READ"
     : entry.content.kind === "track"
       ? "PLAY"

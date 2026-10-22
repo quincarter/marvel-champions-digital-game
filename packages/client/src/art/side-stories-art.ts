@@ -25,6 +25,15 @@ export function parseSideStoryArt(files: Readonly<Record<string, string>>): Read
   return stories;
 }
 
+/** A page's picture: the file in the story's folder named for the page (`page-06` → `page-06.jpg`). */
+export function sideStoryPageArt(
+  art: ReadonlyMap<string, readonly Picture[]>,
+  storyId: string,
+  file: string,
+): Picture | null {
+  return (art.get(storyId) ?? []).find((picture) => picture.key.replace(/\.[^.]+$/, "").endsWith(`/${file}`)) ?? null;
+}
+
 const files = import.meta.glob("../../../../art/side-stories/*/*.{png,jpg,jpeg,webp,avif}", {
   eager: true,
   query: "?url",

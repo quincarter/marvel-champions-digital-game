@@ -211,7 +211,9 @@ export type ExtrasContent =
   | { readonly kind: "gallery"; readonly slides: readonly ExtrasSlide[]; readonly lines: readonly string[] }
   | { readonly kind: "track"; readonly track: Track }
   /** A rulebook, read in the Extras reader (`content/books.ts`). */
-  | { readonly kind: "book"; readonly bookId: string };
+  | { readonly kind: "book"; readonly bookId: string }
+  /** A side story, read beat by beat in the side-story reader (`content/side-stories.ts`). */
+  | { readonly kind: "comic"; readonly storyId: string };
 
 export interface ExtrasEntry {
   readonly id: string;
@@ -621,7 +623,7 @@ export function storyEntriesOf(): ExtrasEntry[] {
   });
 }
 
-/** Every side story whose pages are in `art/side-stories/`, opened by its achievement and read page by page. */
+/** Every side story whose pages are in `art/side-stories/`, opened by its achievement and read in the comic reader. */
 export function sideStoryEntriesOf(
   stories: readonly SideStory[] = SIDE_STORIES,
   art: ReadonlyMap<string, readonly Picture[]> = SIDE_STORY_ART,
@@ -629,7 +631,6 @@ export function sideStoryEntriesOf(
   return stories.flatMap((story): ExtrasEntry[] => {
     const pages = art.get(story.id) ?? [];
     if (pages.length === 0) return [];
-    const unlock: ExtrasUnlock = { kind: "achievement", achievementId: story.achievementId };
     return [
       {
         id: `side:${story.id}`,
@@ -637,16 +638,8 @@ export function sideStoryEntriesOf(
         title: story.title,
         subtitle: story.subtitle,
         thumb: pages[0]!,
-        unlock,
-        content: {
-          kind: "gallery",
-          slides: pages.map((picture) => ({
-            picture,
-            caption: story.title,
-            unlock,
-          })),
-          lines: story.lines,
-        },
+        unlock: { kind: "achievement", achievementId: story.achievementId },
+        content: { kind: "comic", storyId: story.id },
       },
     ];
   });
