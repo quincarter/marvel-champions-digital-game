@@ -24,7 +24,7 @@ import { LocalEngineHost } from "../engine/local-host.js";
 import type { SessionConfig } from "../engine/host.js";
 import { SessionStore } from "../store/session-store.js";
 import { EXCLUSION_TEST_ONLY } from "./highlights.js";
-import { cardName } from "./names.js";
+import { cardName, playerName } from "./names.js";
 import {
   excludedGroupsOf,
   groupBlockedByMessage,
@@ -404,6 +404,61 @@ describe("targetingPanelOf, against a real engine game", () => {
       { code: "wrongCategory", label: "not the right kind of card", names: [cardName(state, villainId)] },
     ]);
   });
+});
+
+describe("targetingPanelOf, with facedown Drones on two seats (issue #357)", () => {
+  /**
+   * Ultron's setup deals each seat a facedown Drone. Every Drone tile is a card back and "Depends on hidden cards.",
+   * so the panel names who each one is engaged with and its hit points, and lists the targets in the board's order
+   * rather than the engine's.
+   */
+  test("each Drone is labeled with its seat and HP, in the table's order", async () => {
+    const store = new SessionStore(new LocalEngineHost());
+    await store.start({
+      scenarioId: "ultron",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }, { starterDeckId: "core-she-hulk-aggression" }],
+      seed: 1,
+    });
+    for (let step = 0; step < 12 && store.state.legal?.actions.kind === "choice"; step++) {
+      const { choice } = store.state.legal.actions as {
+        choice: { options: readonly { optionId: string }[]; minSelections: number };
+      };
+      await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((option) => option.optionId));
+    }
+    const turn = store.state.legal?.actions;
+    const flip = turn?.kind === "turn" ? turn.legal.find((entry) => entry.action.kind === "changeForm") : undefined;
+    if (flip) await store.dispatch(flip.example);
+    const state = store.state.game!;
+    const actions = legalActions(state, state.players[0]!.playerId, CORE_DEPS);
+    if (actions.kind !== "turn") throw new Error("expected a turn");
+    const attack = actions.legal.find((entry) => entry.action.kind === "basicAttack");
+    if (!attack || attack.action.kind !== "basicAttack") throw new Error("expected a legal basic attack");
+    const drones = attack.targets.filter((target) => state.instances[target]?.facedownAs?.kind === "minion");
+    expect(new Set(drones.map((drone) => state.instances[drone]!.engagedWith)).size).toBe(2);
+
+    const retargetAttack = (target: InstanceId): Command =>
+      attack.example.type === "basicAttack" ? { ...attack.example, targetInstanceId: target } : attack.example;
+    const source = {
+      label: "Attack",
+      name: cardName(state, attack.action.instanceId),
+      instanceId: attack.action.instanceId,
+    };
+    // Handed the targets backwards, the panel still reads in the table's order: the villain, then each seat's Drone.
+    const reversed = { ...attack, targets: [...attack.targets].reverse() };
+    const panel = targetingPanelOf(state, reversed, source, retargetAttack, CORE_DEPS);
+    const forwards = targetingPanelOf(state, attack, source, retargetAttack, CORE_DEPS);
+    expect(panel.options.map((option) => option.instanceId)).toEqual(
+      forwards.options.map((option) => option.instanceId),
+    );
+    expect(panel.options[0]!.instanceId).toBe(state.villains[0]!.instanceId);
+    const droneOptions = panel.options.filter((option) => drones.includes(option.instanceId));
+    expect(droneOptions.map((option) => state.instances[option.instanceId]!.engagedWith)).toEqual(["p1", "p2"]);
+    for (const option of droneOptions) {
+      const seat = state.players.find((player) => player.playerId === state.instances[option.instanceId]!.engagedWith)!;
+      expect(option.lines[0]).toBe(`Engaged with ${playerName(state, seat.playerId)} · 1/1 HP`);
+    }
+  }, 60_000);
 });
 
 describe("touchWorded", () => {

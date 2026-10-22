@@ -222,6 +222,13 @@ describe("parseSettingsOverrides", () => {
     expect(parseSettingsOverrides('{"cardSize":"huge"}')).toEqual({});
   });
 
+  test("inspectCard: large or sideBySide are read, anything else falls back to the default (#358)", () => {
+    expect(parseSettingsOverrides('{"inspectCard":"sideBySide"}')).toEqual({ inspectCard: "sideBySide" });
+    expect(parseSettingsOverrides('{"inspectCard":"large"}')).toEqual({ inspectCard: "large" });
+    expect(parseSettingsOverrides('{"inspectCard":"small"}')).toEqual({});
+    expect(parseSettingsOverrides('{"inspectCard":true}')).toEqual({});
+  });
+
   test("cardHoverScale: only the five known values are read (a saved 5x falls back to the default)", () => {
     expect(parseSettingsOverrides('{"cardHoverScale":"1.5x"}')).toEqual({ cardHoverScale: "1.5x" });
     expect(parseSettingsOverrides('{"cardHoverScale":"off"}')).toEqual({ cardHoverScale: "off" });

@@ -11,6 +11,8 @@ import {
   inspectLayoutRects,
   rulesPanelMode,
   sheetPlayPayWidths,
+  sheetStacked,
+  stackedScanSize,
   sheetTextColumn,
 } from "./inspect-layout.js";
 
@@ -136,7 +138,7 @@ describe("inspectLayout", () => {
     expect(expanded.sheet.height).toBe(844);
   });
 
-  test("the collapsed sheet hugs its measured content, between half the viewport and the 78% ceiling", () => {
+  test("the collapsed sheet hugs its measured content, between half the viewport and the 92% ceiling (portrait)", () => {
     const viewport = { x: 0, y: 0, width: 390, height: 844 };
     const heightFor = (sheetContentHeight: number): number => {
       const layout = inspectLayout(viewport, { sheetContentHeight });
@@ -152,7 +154,7 @@ describe("inspectLayout", () => {
     expect(short).toBe(Math.round(844 * 0.5));
     expect(medium).toBeGreaterThan(short);
     expect(medium).toBeLessThan(long);
-    expect(long).toBe(Math.round(844 * 0.78));
+    expect(long).toBe(Math.round(844 * 0.92));
     // A body that fits is shown whole: no scrolling for content the sheet had room for.
     const fitted = inspectLayout(viewport, { sheetContentHeight: 340 });
     if (fitted.mode !== "sheet") throw new Error("expected sheet mode");
@@ -330,5 +332,42 @@ describe("the compact Rules & state panel", () => {
     const rules = { x: 700, y: 100, width: 440, height: 500 };
     expect(compactRulesRect(rules, 22, 56)).toEqual({ x: 700, y: 100 + 500 - 100, width: 440, height: 100 });
     expect(compactRulesRect({ ...rules, height: 60 }, 22, 56).height).toBe(60);
+  });
+});
+
+describe("portrait phone stacked header (#358)", () => {
+  test("a phone held upright stacks, one held sideways does not", () => {
+    const upright = inspectLayout({ x: 0, y: 0, width: 390, height: 844 });
+    const sideways = inspectLayout({ x: 0, y: 0, width: 700, height: 390 });
+    if (upright.mode !== "sheet" || sideways.mode !== "sheet") throw new Error("expected sheet mode");
+    expect(upright.stacked).toBe(true);
+    expect(sideways.stacked).toBe(false);
+    expect(sheetStacked({ width: 390, height: 844 })).toBe(true);
+  });
+
+  test('the "sideBySide" setting keeps the older header on a portrait phone', () => {
+    const viewport = { x: 0, y: 0, width: 390, height: 844 };
+    const old = inspectLayout(viewport, { inspectCard: "sideBySide" });
+    if (old.mode !== "sheet") throw new Error("expected sheet mode");
+    expect(old.stacked).toBe(false);
+    const tallest = inspectLayout(viewport, { inspectCard: "sideBySide", sheetContentHeight: 5000 });
+    if (tallest.mode !== "sheet") throw new Error("expected sheet mode");
+    expect(tallest.sheet.height).toBe(Math.round(844 * 0.78));
+    expect(sheetStacked(viewport, "sideBySide")).toBe(false);
+  });
+
+  test("the scan spans the sheet less its padding, in the scan's own proportions", () => {
+    expect(stackedScanSize(390, { width: 300, height: 420 })).toEqual({ width: 362, height: 507 });
+    // A landscape scheme is short and wide.
+    expect(stackedScanSize(390, { width: 420, height: 300 })).toEqual({ width: 362, height: 259 });
+    // Not loaded yet: the portrait card's proportions.
+    expect(stackedScanSize(390, null)).toEqual({ width: 362, height: 512 });
+  });
+
+  test("a stacked sheet may stand taller than a side-by-side one before it scrolls", () => {
+    const tall = inspectLayout({ x: 0, y: 0, width: 390, height: 844 });
+    const wide = inspectLayout({ x: 0, y: 0, width: 700, height: 390 });
+    if (tall.mode !== "sheet" || wide.mode !== "sheet") throw new Error("expected sheet mode");
+    expect(tall.sheet.height / 844).toBeGreaterThan(wide.sheet.height / 390);
   });
 });

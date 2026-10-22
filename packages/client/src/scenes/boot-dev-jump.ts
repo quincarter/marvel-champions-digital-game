@@ -254,6 +254,9 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   // `?screen=extras-reader&book=book:rrg`: one rulebook in the Extras reader.
   if (screen === "extras-reader")
     return { key: SCENES.extrasReader, data: { bookId: params.get("book") ?? "book:rrg" } };
+  // `?screen=side-story&story=thor-she-hulk-badlands-date`: a side story in its comic reader.
+  if (screen === "side-story")
+    return { key: SCENES.sideStoryReader, data: { storyId: params.get("story") ?? "thor-she-hulk-badlands-date" } };
 
   // `?screen=board&guidedemo=1`: G5a's `TUTORIAL_CONFIG` game, for G4c's spotlight/tag keyboard demo
   // (`scenes/guide-spotlight-demo.ts`, → / Space / ← to cycle, Esc to hide) — screenshottable well ahead of G5c's
@@ -317,6 +320,27 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.board, data: {} };
   }
 
+  // `&fixture=drones`: a two-seat Ultron game at the first turn, each seat with its own facedown Drone, in hero form
+  // (the attack target picker's Drone labels, issue #357; `view/targeting-panel.test.ts` plays the same game).
+  if (screen === "board" && params.get("fixture") === "drones") {
+    const { store } = appSession();
+    if (!gameRunning(store)) {
+      await store.start({
+        scenarioId: "ultron",
+        difficulty: "standard",
+        players: [{ starterDeckId: "core-spider-man-justice" }, { starterDeckId: "core-she-hulk-aggression" }],
+        seed: 1,
+      });
+      for (let step = 0; step < 12 && store.state.legal?.actions.kind === "choice"; step++) {
+        const { choice } = store.state.legal.actions;
+        await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((option) => option.optionId));
+      }
+      const turn = store.state.legal?.actions;
+      const flip = turn?.kind === "turn" ? turn.legal.find((entry) => entry.action.kind === "changeForm") : undefined;
+      if (flip) await store.dispatch(flip.example);
+    }
+    return { key: SCENES.board, data: {} };
+  }
   // `&fixture=crowded`: three seats (Doctor Strange first) with the table full, for the Card size QA
   // (`store/dev-crowded-game.ts`).
   if (screen === "board" && params.get("fixture") === "crowded") {

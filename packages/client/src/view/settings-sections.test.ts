@@ -70,6 +70,14 @@ describe("settingsSectionsOf", () => {
     expect(motion.items).toContain("reduced-motion");
   });
 
+  test("Inspect card is shown on a phone only (#358)", () => {
+    const items = (inspectCard: boolean) =>
+      settingsSectionsOf({ guideRowIds, cardHover: false, inspectCard }).find((s) => s.id === "cards")!.items;
+    expect(items(true)).toContain("inspect-card");
+    expect(items(false)).not.toContain("inspect-card");
+    expect(settingsSectionsOf({ guideRowIds, cardHover: true }).flatMap((s) => s.items)).not.toContain("inspect-card");
+  });
+
   test("Card size on hover is left out off desktop, where there's no mouse popover", () => {
     const cards = settingsSectionsOf({ guideRowIds, cardHover: false }).find((s) => s.id === "cards")!;
     expect(cards.items).not.toContain("card-hover");

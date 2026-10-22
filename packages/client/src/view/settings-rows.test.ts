@@ -12,6 +12,8 @@ import {
   nextGuidePrefsAfterRow,
   nextSettingsAfterToggle,
   cardHoverRowInfoOf,
+  inspectCardRowInfoOf,
+  nextSettingsAfterInspectCard,
   effectsVolumeRowInfoOf,
   gameVolumeRowInfoOf,
   musicVolumeRowInfoOf,
@@ -51,6 +53,7 @@ const BASE: Settings = {
   villainBeatSpeed: "normal",
   villainDockTable: true,
   cardHoverScale: "2.5x",
+  inspectCard: "large",
   cardSize: "standard",
   hoverHeroCard: true,
   hoverVillainCard: true,
@@ -85,6 +88,7 @@ describe("settingsRowInfoOf", () => {
       villainBeatSpeed: "normal",
       villainDockTable: true,
       cardHoverScale: "2.5x",
+      inspectCard: "large",
       cardSize: "standard",
       hoverHeroCard: true,
       hoverVillainCard: true,
@@ -301,6 +305,21 @@ describe("villain phase rows", () => {
     expect(nextSettingsAfterVillainRow(BASE, "villain-speed", "slow").villainBeatSpeed).toBe("slow");
     expect(nextSettingsAfterVillainRow(BASE, "villain-speed", "on")).toBe(BASE);
     expect(nextSettingsAfterVillainRow(BASE, "villain-auto")).toBe(BASE);
+  });
+});
+
+describe("inspect card row (#358)", () => {
+  test("offers Large card and Side by side with the selected one marked", () => {
+    const info = inspectCardRowInfoOf(BASE);
+    expect(info.title).toBe("Inspect card");
+    expect(info.options.map((o) => o.label)).toEqual(["Large card", "Side by side"]);
+    expect(info.selected).toBe("large");
+    expect(inspectCardRowInfoOf({ ...BASE, inspectCard: "sideBySide" }).selected).toBe("sideBySide");
+  });
+
+  test("a choice sets it, and a bad value changes nothing", () => {
+    expect(nextSettingsAfterInspectCard(BASE, "sideBySide").inspectCard).toBe("sideBySide");
+    expect(nextSettingsAfterInspectCard(BASE, "huge" as never)).toBe(BASE);
   });
 });
 

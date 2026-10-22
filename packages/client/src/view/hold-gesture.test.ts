@@ -72,6 +72,19 @@ describe("HoldGesture", () => {
     expect(gesture.active).toBe(false);
   });
 
+  // Issue #356's e2e: a swipe across the table that began on the hero card read its lift as a tap and opened Inspect.
+  it("a release past the slop from where the press began is not a tap, on a card that hears no moves", () => {
+    const gesture = card();
+    gesture.down(100, 100, false);
+    expect(gesture.up(false, 100, 100 - 160)).toBe(false);
+  });
+
+  it("a release inside the slop is still a tap", () => {
+    const gesture = card();
+    gesture.down(100, 100, false);
+    expect(gesture.up(false, 100 + HOLD_SLOP_PX - 1, 100)).toBe(true);
+  });
+
   it("a touch the system cancelled is not a tap", () => {
     const gesture = card();
     gesture.down(100, 100, false);

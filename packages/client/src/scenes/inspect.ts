@@ -81,6 +81,7 @@ import { pointInRect } from "../view/drag-gesture.js";
 import {
   SHEET_CONTENT_PAD,
   thumbSizeFor,
+  stackedScanSize,
   cardFaceContentHeight,
   DESKTOP_ART_ASPECT,
   cardFaceLayout,
@@ -512,13 +513,18 @@ export class InspectOverlay extends Phaser.Scene {
     // Two passes for panels mode: the first learns each panel's own (content-independent) width; the second, after
     // measuring both panels' natural content height at that width, gets the final centered rect pair
     // (`view/inspect-layout.ts`'s own header comment on why the pure layout functions can't do this in one call).
-    const provisional = inspectLayout({ x: 0, y: 0, width, height: layoutHeight }, { expanded: this.#expanded });
+    const inspectCard = appSession().settings.inspectCard;
+    const provisional = inspectLayout(
+      { x: 0, y: 0, width, height: layoutHeight },
+      { expanded: this.#expanded, inspectCard },
+    );
     const layout: InspectLayout =
       provisional.mode === "panels"
         ? inspectLayout(
             { x: 0, y: 0, width, height: layoutHeight },
             {
               expanded: this.#expanded,
+              inspectCard,
               cardContentHeight: cardFaceContentHeight(
                 provisional.card.width,
                 this.#cardFaceContent(model, provisional.card.width),
@@ -571,7 +577,7 @@ export class InspectOverlay extends Phaser.Scene {
       // within the same frame, so the player never sees the first one.
       const hugged = inspectLayout(
         { x: 0, y: 0, width, height: layoutHeight },
-        { expanded: this.#expanded, sheetContentHeight: contentHeight },
+        { expanded: this.#expanded, sheetContentHeight: contentHeight, inspectCard },
       );
       if (hugged.mode === "sheet" && hugged.sheet.height !== layout.sheet.height) {
         // `#drawSheet` assigned the region; the compiler still has it narrowed to the `null` set at the top.
@@ -1681,7 +1687,7 @@ export class InspectOverlay extends Phaser.Scene {
     const pill = this.add.graphics();
     pill.fillStyle(surface.ink.hex, 0.35).fillRect(handlePill.x, handlePill.y, handlePill.width, handlePill.height);
 
-    const contentHeight = this.#drawSheetContent(content, model);
+    const contentHeight = this.#drawSheetContent(content, model, layout.stacked);
     this.#drawSheetFooter(footer, footerPrimaryRow, footerQuietRow, model);
     return contentHeight;
   }
@@ -1701,16 +1707,21 @@ export class InspectOverlay extends Phaser.Scene {
    * screen position, then move it into the masked/translated layer" trick `table-setup.ts#captureInto` already
    * uses for the identical widget.
    */
-  #drawSheetContent(rect: Rect, model: InspectModel): number {
+  #drawSheetContent(rect: Rect, model: InspectModel, stacked: boolean): number {
     const before = this.children.list.length;
     const pad = SHEET_CONTENT_PAD;
-    const column = sheetTextColumn(rect.width);
+    // Portrait phone (#358): the scan spans the sheet and the text runs full width beneath it.
+    const column = stacked ? { x: pad, width: Math.max(1, rect.width - pad * 2) } : sheetTextColumn(rect.width);
     const textLeft = rect.x + column.x;
     const textWidth = column.width;
 
     const key = cardArt(this).request(this, model.art);
     const scan = key && this.textures.exists(key) ? this.textures.get(key).getSourceImage() : null;
-    const thumb: Rect = { x: rect.x + pad, y: rect.y, ...thumbSizeFor(scan) };
+    const thumb: Rect = {
+      x: rect.x + pad,
+      y: rect.y,
+      ...(stacked ? stackedScanSize(rect.width, scan) : thumbSizeFor(scan)),
+    };
     const frame = this.add.graphics();
     frame.fillStyle(surface.parchment.hex, 1).fillRect(thumb.x, thumb.y, thumb.width, thumb.height);
     frame.lineStyle(border.object, surface.ink.hex, 1).strokeRect(thumb.x, thumb.y, thumb.width, thumb.height);
@@ -1728,7 +1739,7 @@ export class InspectOverlay extends Phaser.Scene {
 
     // Name: "fit to width" (a shrinking single line, `fitText`), not a wrap — the same treatment the panels' card
     // panel gives its own name, for a name too long to fit even a hero's own longest printed one.
-    let ty = rect.y;
+    let ty = stacked ? thumb.y + thumb.height + SHEET_ROW_GAP : rect.y;
     const name = this.add
       .text(textLeft, ty, caseOf(typeRole.barTitle, model.name), {
         ...textStyle(typeRole.barTitle, surface.ink.hex),

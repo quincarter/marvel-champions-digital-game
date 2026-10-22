@@ -13,6 +13,7 @@ import {
   ACHIEVEMENT_POPUP_SIZE_VALUES,
   ACHIEVEMENT_POPUP_TIME_VALUES,
   CARD_HOVER_SCALE_VALUES,
+  INSPECT_CARD_VALUES,
   CARD_SIZE_VALUES,
   DISPLAY_MODE_VALUES,
   FIRST_PLAYER_TOKEN_MOTION_VALUES,
@@ -78,6 +79,8 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   if (hoverScaleValue !== undefined) out.cardHoverScale = hoverScaleValue;
   const cardSizeValue = CARD_SIZE_VALUES.find((value) => value === source["cardSize"]);
   if (cardSizeValue !== undefined) out.cardSize = cardSizeValue;
+  const inspectCardValue = INSPECT_CARD_VALUES.find((value) => value === source["inspectCard"]);
+  if (inspectCardValue !== undefined) out.inspectCard = inspectCardValue;
   const tokenMotionValue = FIRST_PLAYER_TOKEN_MOTION_VALUES.find((value) => value === source["firstPlayerTokenMotion"]);
   if (tokenMotionValue !== undefined) out.firstPlayerTokenMotion = tokenMotionValue;
   const popupTimeValue = ACHIEVEMENT_POPUP_TIME_VALUES.find((value) => value === source["achievementPopupTime"]);
