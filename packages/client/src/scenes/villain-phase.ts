@@ -190,6 +190,7 @@ import {
   toggleInlinePick,
   readyToAutoClose,
   recapPlacementFor,
+  choiceHiddenBy,
   type ActivationBeat,
   type RecapPlacement,
   type InlineInterruptOption,
@@ -592,7 +593,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   /** HIDE ▸: undock and keep only a handle; the handle brings the rail back. */
   #setHidden(hidden: boolean): void {
     this.#hidden = hidden;
-    this.#hiddenChoice = hidden ? (this.#latest?.game?.pendingChoice?.choiceId ?? null) : null;
+    this.#hiddenChoice = hidden
+      ? choiceHiddenBy(this.#latest?.game?.pendingChoice?.choiceId ?? null, this.#decisionDue())
+      : null;
     this.#draw();
   }
 
