@@ -72,32 +72,50 @@ export function gameRowsOf(saves: readonly SaveMeta[], names: GamesListNames, no
 }
 
 /** A row's height, and the gap under each. */
-export const GAME_ROW_HEIGHT = 68;
+export const GAME_ROW_HEIGHT = 124;
 export const GAME_ROW_GAP = 8;
 const ROW_PAD = 12;
-const REMOVE_WIDTH = 88;
+const REMOVE_WIDTH = 96;
+/** Between Resume and Remove: wide enough that a thumb aimed at one cannot land on the other. */
+export const GAME_BUTTON_GAP = 12;
 
 export interface GameRowParts {
   /** Room kept clear at the row's left edge for the platform mark. */
   readonly iconInset: number;
-  /** The title, kicker and detail lines run in this column. */
+  /** The title, kicker and detail lines run in this column, above the buttons. */
   readonly text: Rect;
-  /** The Remove control: a touch-sized button at the row's right end. */
+  /** Resume: the row's main action, a primary-height button along the bottom, taking the width Remove leaves. */
+  readonly resume: Rect;
+  /** Remove: the secondary, smaller control after Resume, touch-sized. */
   readonly remove: Rect;
 }
 
 /** Where the parts of the row at `row` sit. */
 export function gameRowParts(row: Rect): GameRowParts {
+  const bottom = row.y + row.height - 8;
   const remove: Rect = {
     x: row.x + row.width - ROW_PAD - REMOVE_WIDTH,
-    y: row.y + (row.height - hit.target) / 2,
+    // Centred on Resume's line.
+    y: bottom - hit.primary + (hit.primary - hit.target) / 2,
     width: REMOVE_WIDTH,
     height: hit.target,
+  };
+  const resume: Rect = {
+    x: row.x + ROW_PAD,
+    y: bottom - hit.primary,
+    width: remove.x - GAME_BUTTON_GAP - (row.x + ROW_PAD),
+    height: hit.primary,
   };
   const iconInset = ROW_PAD + 28 + 10;
   return {
     iconInset,
-    text: { x: row.x + iconInset, y: row.y + 8, width: remove.x - 10 - (row.x + iconInset), height: row.height - 16 },
+    text: {
+      x: row.x + iconInset,
+      y: row.y + 8,
+      width: row.x + row.width - ROW_PAD - (row.x + iconInset),
+      height: resume.y - 4 - (row.y + 8),
+    },
+    resume,
     remove,
   };
 }

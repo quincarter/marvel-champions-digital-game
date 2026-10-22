@@ -32,6 +32,7 @@ import {
   SYNC_SETUP_TITLE,
   markSyncPromptAnswered,
   syncSetupAnswerOutcome,
+  syncSetupButtonSpan,
   type SyncSetupAnswer,
 } from "../view/sync-setup-prompt.js";
 import { syncService } from "../sync/sync-wiring.js";
@@ -130,7 +131,7 @@ export class SyncSetupPromptOverlay extends Phaser.Scene {
     const panelWidth = Math.min(PANEL_MAX, width - 24);
     const x = Math.round((width - panelWidth) / 2);
     const inner = panelWidth - PAD * 2;
-    const buttonWidth = Math.min(inner, 400);
+    const buttons = syncSetupButtonSpan(x + PAD, inner);
 
     type Row = { readonly height: number; readonly place: (y: number) => void };
     const rows: Row[] = [];
@@ -152,7 +153,7 @@ export class SyncSetupPromptOverlay extends Phaser.Scene {
       rows.push({
         height: hit.primary + 10,
         place: (y) => {
-          const rect: Rect = { x: x + PAD, y, width: buttonWidth, height: hit.primary };
+          const rect: Rect = { x: buttons.x, y, width: buttons.width, height: hit.primary };
           this.#buttons.push(
             new McButton(this, { kind: primary ? "primary" : "secondary", label, type: buttonType, rect, onClick }),
           );

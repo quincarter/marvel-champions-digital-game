@@ -12,8 +12,24 @@ import {
   syncPromptAnswered,
   syncPromptSeen,
   syncSetupAnswerOutcome,
+  syncSetupButtonSpan,
+  SYNC_SETUP_BUTTON_MAX,
   type SyncSetupPromptInputs,
 } from "./sync-setup-prompt.js";
+
+describe("the prompt's button stack", () => {
+  test("is centred in a content box wider than the cap (desktop: a 520 panel with 20 padding)", () => {
+    const left = 400;
+    const width = 480;
+    const span = syncSetupButtonSpan(left, width);
+    expect(span.width).toBe(SYNC_SETUP_BUTTON_MAX);
+    expect(span.x - left).toBe(left + width - (span.x + span.width));
+  });
+
+  test("fills a narrower content box (phone portrait)", () => {
+    expect(syncSetupButtonSpan(32, 311)).toEqual({ x: 32, width: 311 });
+  });
+});
 
 const base: SyncSetupPromptInputs = {
   syncOn: false,

@@ -28,6 +28,22 @@ export const SYNC_SETUP_BUTTONS = {
 
 export type SyncSetupAnswer = "set-up" | "join" | "not-now";
 
+/** The prompt's buttons are at most this wide, so a wide panel shows a centred stack rather than a full-width bar. */
+export const SYNC_SETUP_BUTTON_MAX = 400;
+
+/**
+ * Where a button sits in a popup's content box (`left` and `width`): centred, at most `max` wide. The sync popups (this
+ * prompt and the conflict prompt) share it.
+ */
+export function syncSetupButtonSpan(
+  left: number,
+  width: number,
+  max: number = SYNC_SETUP_BUTTON_MAX,
+): { readonly x: number; readonly width: number } {
+  const span = Math.min(width, max);
+  return { x: Math.round(left + (width - span) / 2), width: span };
+}
+
 /** The notice that follows "Not now": the same pointer, short enough for a few seconds on screen. */
 export const SYNC_NOTICE_HEADING = "Cross-device sync is off";
 export const SYNC_NOTICE_BODY = SYNC_SETUP_LATER;

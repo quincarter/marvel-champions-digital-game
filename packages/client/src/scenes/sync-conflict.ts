@@ -18,6 +18,7 @@ import { OverlayMotion } from "../ui/transitions.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import { peekBannerLayout, peekEdge, peekMoveLabel, flipPeekEdge } from "../view/peek-banner.js";
 import { CONFLICT_CLOSED, conflictPromptOf } from "../view/sync-model.js";
+import { syncSetupButtonSpan } from "../view/sync-setup-prompt.js";
 import type { PendingConflict } from "../sync/sync-service.js";
 import type { ConflictChoice } from "../sync/sync-types.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
@@ -165,16 +166,22 @@ export class SyncConflictOverlay extends Phaser.Scene {
       spec: { id: string; label: string; primary: boolean; onClick: () => void; width?: number },
       detail: string | null,
     ): void => {
+      // Each button and its line sit centred in the panel, however narrow the button is.
+      const span = syncSetupButtonSpan(x + PAD, inner, spec.width ?? buttonWidth);
       const detailObject = detail
         ? this.add
-            .text(x + PAD, 0, detail, textStyle(typeRole.body, surface.paper.hex, 0.75))
+            .text(span.x + span.width / 2, 0, detail, {
+              ...textStyle(typeRole.body, surface.paper.hex, 0.75),
+              align: "center",
+            })
+            .setOrigin(0.5, 0)
             .setFontSize(11)
-            .setWordWrapWidth(inner)
+            .setWordWrapWidth(span.width)
         : null;
       rows.push({
         height: hit.primary + 2 + (detailObject ? detailObject.height : 0) + 8,
         place: (y) => {
-          const rect: Rect = { x: x + PAD, y, width: spec.width ?? buttonWidth, height: hit.primary };
+          const rect: Rect = { x: span.x, y, width: span.width, height: hit.primary };
           this.#buttons.push(
             new McButton(this, {
               kind: spec.primary ? "primary" : "secondary",

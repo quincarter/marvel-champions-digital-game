@@ -2,7 +2,8 @@
  * Draws the "In-progress games" list (device sync, #276) onto an ink ground: the Title's panel in its art panel and the
  * phone's full-screen overlay both call this, so a game reads and behaves the same in either.
  *
- * Each row is one whole-row tap target (resume) with a Remove button at its right end. The rows scroll inside a masked
+ * Each row is one whole-row tap target (resume) with, along its bottom, a red primary Resume button (the main action)
+ * and a smaller outlined Remove after it. The rows scroll inside a masked
  * region; every control in it follows the "no tap on finger lift" rule (issue #227): a press and its release both on
  * the control, within the tap slop (`McButton`, `addRowTapZone`), honoring the region's clip and its drag, so the end
  * of a swipe that lifts over a row or over Remove presses nothing. Remove asks "Remove this game?" in place of the
@@ -79,7 +80,7 @@ function drawRows(scene: Phaser.Scene, options: GamesListOptions): DrawnGamesLis
       .rectangle(rect.x, rect.y, rect.width, rect.height, PAPER, 0.1)
       .setOrigin(0, 0)
       .setStrokeStyle(2, PAPER, 0.55);
-    // Created before the Remove button, so the button, drawn above it, takes the presses on itself.
+    // Created before the buttons, so each button, drawn above it, takes the presses on itself.
     addRowTapZone(scene, rect, {
       onClick: go,
       enabled: options.enabled,
@@ -88,7 +89,7 @@ function drawRows(scene: Phaser.Scene, options: GamesListOptions): DrawnGamesLis
     });
     const mark = playPlatformMarkOf(row.save.lastPlayedOn);
     if (mark) {
-      const slot = playPlatformSlotIn({ ...rect, width: parts.iconInset + 14 });
+      const slot = playPlatformSlotIn({ ...rect, width: parts.iconInset + 14, height: parts.resume.y - rect.y });
       drawPlayPlatformIcon(scene.add.graphics(), mark, slot.box, PAPER, 0.9);
     }
     const title = scene.add.text(parts.text.x, parts.text.y, row.title, textStyle(typeRole.rowTitle, PAPER));
@@ -108,6 +109,16 @@ function drawRows(scene: Phaser.Scene, options: GamesListOptions): DrawnGamesLis
     );
     fitText(detail, parts.text.width, 12);
     buttons.push(
+      new McButton(scene, {
+        kind: "primary",
+        label: "Resume",
+        type: typeRole.menuButton,
+        rect: parts.resume,
+        enabled: options.enabled,
+        onClick: go,
+        clip: inRegion,
+        suppressClick: suppress,
+      }),
       new McButton(scene, {
         kind: "onInk",
         label: "Remove",
@@ -129,7 +140,7 @@ function drawRows(scene: Phaser.Scene, options: GamesListOptions): DrawnGamesLis
       if (top < 0) region.scrollByPx(top);
       else if (over > 0) region.scrollByPx(over);
     };
-    stops.set(`game:${row.id}`, { rect: offsetBy(rect), activate: go, ensureVisible: bringIntoView });
+    stops.set(`game:${row.id}`, { rect: offsetBy(parts.resume), activate: go, ensureVisible: bringIntoView });
     stops.set(`game-remove:${row.id}`, { rect: offsetBy(parts.remove), activate: ask, ensureVisible: bringIntoView });
   });
 

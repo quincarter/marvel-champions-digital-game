@@ -117,6 +117,12 @@ async function press(page: Page, phone: boolean, scene: string, key: string): Pr
   await page.touchscreen.tap(at.x, at.y);
 }
 
+/** A point on a game row's text, above its buttons: a row tap there resumes the game. */
+async function rowTextPoint(page: Page, scene: string, id: string) {
+  const resume = await stopRect(page, scene, `game:${id}`);
+  return { x: resume.x + 60, y: resume.y - 30 };
+}
+
 async function onBoard(page: Page): Promise<void> {
   await waitFor(
     async () => {
@@ -172,6 +178,7 @@ test("two games in progress are both listed; each resumes on its own board; Remo
   expect(stops).toContain(`game:${rhino.id}`);
   expect(stops.indexOf(`game:${klaw.id}`)).toBeLessThan(stops.indexOf(`game:${rhino.id}`));
   expect(stops).toContain(`game-remove:${rhino.id}`);
+  expect(await hasText(page, "Resume", scene)).toBe(true);
   expect(await hasText(page, "2 h ago", scene)).toBe(true);
   expect(await hasText(page, "yesterday", scene)).toBe(true);
   if (!phone) expect(stops).toContain("continue");
@@ -180,6 +187,7 @@ test("two games in progress are both listed; each resumes on its own board; Remo
   }
 
   // Each game opens on its own board: one seat (Rhino) or two (Klaw).
+  // Press Resume on the Rhino row.
   await press(page, phone, scene, `game:${rhino.id}`);
   await onBoard(page);
   await waitFor(
@@ -188,9 +196,12 @@ test("two games in progress are both listed; each resumes on its own board; Remo
   );
   expect(await gameFacts<number>(page, "(s) => s.game.players.length")).toBe(1);
 
+  // The rest of the row (its text) resumes too.
   await toTitle(page);
   await openList(page, phone);
-  await press(page, phone, scene, `game:${klaw.id}`);
+  const rowTap = await rowTextPoint(page, scene, klaw.id);
+  if (phone) await page.touchscreen.tap(rowTap.x, rowTap.y);
+  else await page.mouse.click(rowTap.x, rowTap.y);
   await onBoard(page);
   await waitFor(
     async () => ((await gameFacts<number>(page, "(s) => s.game?.players.length ?? 0")) ? true : null),
@@ -232,7 +243,7 @@ test("two games in progress are both listed; each resumes on its own board; Remo
   expect(errors).toEqual([]);
 });
 
-test("a swipe lifting over a game row or over Remove presses nothing; a tap does", async ({ page }, info) => {
+test("a swipe lifting over a game row, Resume or Remove presses nothing; a tap does", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "the touch release is the phone's case");
   test.setTimeout(300_000);
   await page.setViewportSize({ width: 375, height: 812 });
@@ -242,8 +253,12 @@ test("a swipe lifting over a game row or over Remove presses nothing; a tap does
   await toTitle(page);
   await openList(page, true);
 
-  const row = await stopRect(page, "GamesListOverlay", `game:${klaw.id}`);
+  const resume = await stopRect(page, "GamesListOverlay", `game:${klaw.id}`);
   const remove = await stopRect(page, "GamesListOverlay", `game-remove:${klaw.id}`);
+  const text = await rowTextPoint(page, "GamesListOverlay", klaw.id);
+  expect(resume.height, "Resume is primary height").toBeGreaterThanOrEqual(52);
+  expect(remove.height, "Remove is touch height").toBeGreaterThanOrEqual(44);
+  expect(remove.x - (resume.x + resume.width), "a 12 px gap between them").toBeGreaterThanOrEqual(12);
   const quiet = async (what: string): Promise<void> => {
     await settle(page, { quietMs: 500, maxMs: 2500 });
     expect(await activeScenes(page), `${what} resumed nothing`).toContain("GamesListOverlay");
@@ -251,18 +266,18 @@ test("a swipe lifting over a game row or over Remove presses nothing; a tap does
     expect(await hasText(page, "Remove this game?", "GamesListOverlay"), `${what} asked nothing`).toBe(false);
   };
 
-  // Up from below the list, lifting on the row's text and on Remove.
-  await touchSwipe(
-    page,
-    { x: row.x + 120, y: row.y + row.height + 200 },
-    { x: row.x + 120, y: row.y + row.height / 2 },
-  );
+  // Up from below the list, lifting on the row's text, on Resume and on Remove.
+  await touchSwipe(page, { x: text.x, y: text.y + 200 }, text);
   await quiet("a swipe lifting on a row");
+  await touchSwipe(page, { x: resume.x + 60, y: resume.y + resume.height + 200 }, center(resume));
+  await quiet("a swipe lifting on Resume");
   await touchSwipe(page, { x: remove.x + 40, y: remove.y + remove.height + 200 }, center(remove));
   await quiet("a swipe lifting on Remove");
   // Dragging the list itself (a press that began on a row) and lifting on Remove.
-  await touchSwipe(page, { x: row.x + 120, y: row.y + 10 }, center(remove));
+  await touchSwipe(page, { x: text.x, y: text.y - 10 }, center(remove));
   await quiet("a drag of the list lifting on Remove");
+  await touchSwipe(page, { x: text.x, y: text.y - 10 }, center(resume));
+  await quiet("a drag of the list lifting on Resume");
   expect((await savedGames(page)).map((game) => game.status)).toEqual(["active", "active"]);
 
   // A real tap on Remove asks.
@@ -278,14 +293,20 @@ test("a swipe lifting over a game row or over Remove presses nothing; a tap does
     async () => ((await hasText(page, "Remove this game?", "GamesListOverlay")) ? null : true),
     "the question closes",
   );
-  // A tap on the row resumes it.
-  const again = center(await stopRect(page, "GamesListOverlay", `game:${klaw.id}`));
+  // A tap on the row's text resumes it.
+  const again = await rowTextPoint(page, "GamesListOverlay", klaw.id);
   await page.touchscreen.tap(again.x, again.y);
+  await onBoard(page);
+  await toTitle(page);
+  await openList(page, true);
+  // And a tap on Resume itself.
+  const go = center(await stopRect(page, "GamesListOverlay", `game:${klaw.id}`));
+  await page.touchscreen.tap(go.x, go.y);
   await onBoard(page);
   expect(errors).toEqual([]);
 });
 
-test("on a touch tablet, a swipe lifting over the Title panel's Remove or a row presses nothing; a tap asks", async ({
+test("on a touch tablet, a swipe lifting over the Title panel's Remove, Resume or a row presses nothing; a tap asks", async ({
   page,
 }, info) => {
   test.skip(info.project.name !== "phone", "the touch release is the touch project's case");
@@ -297,8 +318,9 @@ test("on a touch tablet, a swipe lifting over the Title panel's Remove or a row 
   await toTitle(page);
 
   // A tablet is a split screen: the list is the panel in the art panel, no menu row.
-  const row = await stopRect(page, "Title", `game:${klaw.id}`);
+  const resume = await stopRect(page, "Title", `game:${klaw.id}`);
   const remove = await stopRect(page, "Title", `game-remove:${klaw.id}`);
+  const text = await rowTextPoint(page, "Title", klaw.id);
   const quiet = async (what: string): Promise<void> => {
     await settle(page, { quietMs: 500, maxMs: 2500 });
     expect(await activeScenes(page), `${what} resumed nothing`).toContain("Title");
@@ -307,13 +329,11 @@ test("on a touch tablet, a swipe lifting over the Title panel's Remove or a row 
   };
   await touchSwipe(page, { x: remove.x + 40, y: remove.y + remove.height + 160 }, center(remove));
   await quiet("a swipe lifting on Remove");
-  await touchSwipe(
-    page,
-    { x: row.x + 100, y: row.y + row.height + 160 },
-    { x: row.x + 100, y: row.y + row.height / 2 },
-  );
+  await touchSwipe(page, { x: resume.x + 60, y: resume.y + resume.height + 160 }, center(resume));
+  await quiet("a swipe lifting on Resume");
+  await touchSwipe(page, { x: text.x, y: text.y + 160 }, text);
   await quiet("a swipe lifting on a row");
-  await touchSwipe(page, { x: row.x + 100, y: row.y + 10 }, center(remove));
+  await touchSwipe(page, { x: text.x, y: text.y - 10 }, center(remove));
   await quiet("a drag of the list lifting on Remove");
   expect((await savedGames(page)).map((game) => game.status)).toEqual(["active", "active"]);
 
