@@ -13,7 +13,7 @@
 Card art upgrader: replaces scans in assets/card-art/bundles/cards/ with better
 copies from Hall of Heroes (hallofheroeslcg.com).
 
-Six commands:
+Seven commands:
 
   audit   Score every local scan for the Fantasy Flight Games diamond watermark
           (the "FF stamp" on the preview images some sets were first scanned
@@ -75,6 +75,16 @@ Six commands:
           delete them once you're done reading them (CLAUDE.md "Content & IP
           boundaries": no art bytes belong in the repo).
 
+  simulator
+          Replaces local scans with Marvel Simulator's copies
+          (play.marvelsimulator.com/images/cards/<code>.webp, keyed by the
+          MarvelCDB code, 710px, unpadded): `--codes` for named cards, and
+          `--max-local-edge PX` for every scan no longer than PX that the
+          download beats on size. Used for the faintly stamped 300px MarvelCDB
+          scans Hall of Heroes has no copy of. Same stamp and shape checks as
+          `fetch`, but no trim (they are unpadded, and trimming one punches
+          holes in its text box); recorded in the same manifest.
+
   compress
           (`mise run card-art-compress`, or `pnpm card-art:compress`)
           Re-encodes every local scan that isn't WebP yet as lossy WebP
@@ -103,6 +113,7 @@ at. Each one is recorded in assets/card-art/hall-of-heroes-manifest.tsv.
   uv run scripts/fetch_card_art.py grab --image https://marvelcdb.com/bundles/cards/28022.png --out /tmp/scratch
   uv run scripts/fetch_card_art.py missing
   uv run scripts/fetch_card_art.py missing --dry-run -v
+  uv run scripts/fetch_card_art.py simulator --max-local-edge 450 --dry-run
   uv run scripts/fetch_card_art.py compress --dry-run
 """
 
@@ -136,6 +147,10 @@ TEMPLATE_DIR = Path(__file__).resolve().parent / "card-art"
 
 HOH = "https://hallofheroeslcg.com"
 MARVELCDB_BASE = "https://marvelcdb.com"
+# Marvel Simulator (play.marvelsimulator.com) serves every card as `<MarvelCDB code>.webp`, 710px on the long edge,
+# with no white padding and no FFG stamp: the source `simulator` uses for scans Hall of Heroes doesn't carry.
+SIMULATOR_IMAGES = "https://play.marvelsimulator.com/images/cards/"
+SIMULATOR_PAGE = "https://play.marvelsimulator.com/cards"
 
 # Each pack's Hall of Heroes page (the ones packages/content/src/data/*/packs.ts and the manifest already cite). A box
 # page links its encounter-card page ("<slug>-encounters-and-mods"), which is followed automatically. Packs missing
@@ -827,8 +842,9 @@ def read_manifest() -> tuple[list[str], dict[str, list[str]]]:
 
 def write_manifest(rows: dict[str, list[str]]) -> None:
     lines = [
-        "# Card images fetched from Hall of Heroes (hallofheroeslcg.com) by scripts/fetch_card_art.py: scans MarvelCDB",
-        "# does not publish, and better copies of ones it does (larger, or free of the FFG preview watermark).",
+        "# Card images fetched from Hall of Heroes (hallofheroeslcg.com), or Marvel Simulator (play.marvelsimulator.com)",
+        "# where Hall of Heroes has no usable copy, by scripts/fetch_card_art.py: scans MarvelCDB does not publish, and",
+        "# better copies of ones it does (larger, or free of the FFG preview watermark).",
         "# Saved over bundles/cards/<code>.<ext> in the local file's format, scaled to at most a 1100px long edge.",
         "# Rows fetched on 2026-09-19 or earlier were scaled to a 419px long edge.",
         "code\tpack\tname\tsource_page\timage_url\tfetched",
@@ -1239,6 +1255,74 @@ def _fetch_one(
     return True
 
 
+def simulator(args: argparse.Namespace) -> None:
+    """
+    Replaces local scans with Marvel Simulator's copy, looked up by code. Targets the scans named by `--codes` (always
+    replaced when the download is clean and the same shape) and, with `--max-local-edge`, every scan no longer than
+    that which the download beats on size. `--all` targets every scan whose manifest row doesn't already name
+    Marvel Simulator as its source, so a rerun picks up only what is left.
+    """
+    cards, detector, scans = load_cards(), StampDetector(), local_scans()
+    header, manifest = read_manifest()
+    forced = set(args.codes or [])
+    targets = set(forced)
+    if args.all:
+        targets |= {c for c in scans if not manifest.get(c, ["", "", "", ""])[3].startswith(SIMULATOR_PAGE)}
+    if args.max_local_edge:
+        for code, path in scans.items():
+            with Image.open(path) as img:
+                if max(img.size) <= args.max_local_edge:
+                    targets.add(code)
+    http = Http(args.delay)
+    today = date.today().isoformat()
+    stats = {"replaced": 0, "kept": 0, "failed": 0}
+    for code in sorted(targets):
+        local = scans.get(code)
+        if local is None:
+            print(f"    ? {code}: no local scan; skipped")
+            stats["failed"] += 1
+            continue
+        url = f"{SIMULATOR_IMAGES}{code}.webp"
+        data = http.get(url)
+        if not data:
+            print(f"    - {code}: not on Marvel Simulator")
+            stats["failed"] += 1
+            continue
+        # Not `trim`med: these scans are already cut to the card edge with square corners, so the white text box
+        # touches the border and `trim`'s flood fill from the edge would turn it see-through.
+        try:
+            new = Image.open(io.BytesIO(data)).convert("RGBA")
+        except Exception as e:  # an unknown code can come back as the site's HTML page rather than a 404
+            print(f"    - {code}: not an image from Marvel Simulator ({e})")
+            stats["failed"] += 1
+            continue
+        if detector.stamped(new):
+            print(f"    - {code}: Marvel Simulator copy is stamped; skipped")
+            stats["failed"] += 1
+            continue
+        with Image.open(local) as old:
+            old_size, old_aspect, old_landscape = old.size, aspect(old), old.width > old.height
+        if (new.width > new.height) != old_landscape or abs(aspect(new) - old_aspect) > 0.06:
+            print(f"    - {code}: shape {new.size} doesn't match local {old_size}; skipped")
+            stats["failed"] += 1
+            continue
+        if code not in forced and max(new.size) < max(old_size) * UPGRADE_FACTOR:
+            stats["kept"] += 1
+            continue
+        print(f"    + {code}: replace {local.name} {old_size} -> {new.size}")
+        stats["replaced"] += 1
+        if not args.dry_run:
+            save_like(new, local)
+            card = card_for(code, cards)
+            manifest[code] = [code, card.pack if card else "?", card.name if card else "", SIMULATOR_PAGE, url, today]
+    if not args.dry_run and stats["replaced"]:
+        write_manifest(manifest)
+    print(
+        f"\n[=] {stats['replaced']} replaced, {stats['kept']} kept (no bigger copy), {stats['failed']} not usable"
+        + (" (dry run: nothing written)" if args.dry_run else "")
+    )
+
+
 def trim_local(args: argparse.Namespace) -> None:
     """Crops white padding off the local scans in place (the photographed ones carry it)."""
     changed = 0
@@ -1320,6 +1404,12 @@ def main() -> None:
     m.add_argument("--dry-run", action="store_true", help="report what would be fetched without writing")
     m.add_argument("--delay", type=float, default=0.5, help="seconds between requests (default 0.5)")
     m.add_argument("-v", "--verbose", action="store_true")
+    s = sub.add_parser("simulator", help="replace local scans with Marvel Simulator copies, looked up by code")
+    s.add_argument("--codes", nargs="+", help="card codes to replace even when the download isn't larger")
+    s.add_argument("--max-local-edge", type=int, metavar="PX", help="also replace scans whose long edge is at most PX")
+    s.add_argument("--all", action="store_true", help="every scan the manifest doesn't already credit to Marvel Simulator")
+    s.add_argument("--dry-run", action="store_true", help="report what would change without writing")
+    s.add_argument("--delay", type=float, default=0.5, help="seconds between requests (default 0.5)")
     c = sub.add_parser("compress", help="re-encode local scans that aren't WebP yet as WebP, in place")
     c.add_argument("--dry-run", action="store_true", help="report what would change without writing")
     c.add_argument("-v", "--verbose", action="store_true")
@@ -1329,7 +1419,8 @@ def main() -> None:
         return
     if not args.command:
         parser.error("a command is required")
-    commands = {"audit": audit, "trim": trim_local, "fetch": fetch, "grab": grab, "missing": missing, "compress": compress}
+    commands = {"audit": audit, "trim": trim_local, "fetch": fetch, "grab": grab, "missing": missing, "compress": compress,
+        "simulator": simulator}
     commands[args.command](args)
 
 
