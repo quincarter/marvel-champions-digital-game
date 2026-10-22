@@ -78,9 +78,12 @@ const THWART_EVENT = query("event", { trait: trait("THWART") });
 const DEFENSE_EVENT = query("event", { trait: trait("DEFENSE") });
 const ALLY = query("ally");
 const UPGRADE = query("upgrade");
-const OWN_ALLY = query("ally", { controller: "you" });
-const OWN_UPGRADE = query("upgrade", { controller: "you" });
-const OWN_SUPPORT = query("support", { controller: "you" });
+// A Permanent card cannot be discarded by a card from another set (insert p. 3), so it is no target for a Disarm's
+// "discard ... you control" (e.g. Black Flower's Creeping Corruption); with none other, the option is not offered and its
+// "then" never resolves (RRG 1.8 "Choose (Option)" p. 12, "Then" p. 44).
+const OWN_ALLY = query("ally", { controller: "you", withoutKeyword: "permanent" });
+const OWN_UPGRADE = query("upgrade", { controller: "you", withoutKeyword: "permanent" });
+const OWN_SUPPORT = query("support", { controller: "you", withoutKeyword: "permanent" });
 const ATTACK_EVENT = query("event", { trait: trait("ATTACK") });
 const IDENTITY_SPECIFIC: TargetQuery = { classification: "identitySpecific" };
 
