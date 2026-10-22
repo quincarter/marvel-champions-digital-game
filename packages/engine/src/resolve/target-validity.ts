@@ -62,13 +62,31 @@
  * An effect that names the chosen slot and is not one of the judged kinds (`thwart`, `removeThreat`, `dealDamage`,
  * `attack`, `discardFromPlay`, `flipCard`, `defeat`, `heal` aimed straight at the slot, `moveThreat` from it) is assumed able to affect
  * the target: the "multiple effects" bullet makes the target valid if any one effect can, so an effect this module
- * cannot judge never makes a target invalid. An attack that also stuns its target keeps a target that cannot take its
- * damage, and so does a piercing attack on a target with a tough card (`attackPiercesTough`; ruling Jul 11, 2025).
+ * cannot judge never makes a target invalid.
+ *
+ * A replacement of a status card (`giveStatus` with `replacing`) is one effect, judged as a whole: it can affect a
+ * character holding the card to replace that has room for the new one (`replacesStatusOn`). So "Replace that status
+ * card with a different status card" cannot take the tough card off a Stalwart enemy, which can be neither stunned nor
+ * confused (ruling Jun 20, 2024, post-RRG 1.5 #215: "a Stalwart enemy with Tough is not a valid target for Vapors of
+ * Valtorr's ability"). #215 is FFG's reading of the "Target" bullets (RRG 1.8 p. 43: valid "if any part of that ability
+ * can affect that target"; with multiple effects, "if at least one of those effects can"), which are word for word the
+ * same in RRG v1.6, under which it was answered: "replace" is one effect, not a discard plus a give. Older rulings read
+ * it the same way (docs/rulings/rrg-1-0-to-1-4/17-doctor-strange.md, 18-ronan-kree-fanatic-modular-set.md). So the
+ * authority order settles it (docs/phase7-wave6.md §4.0). A plain give or discard of a status card is not judged.
+ * An attack that also stuns its target keeps a target that cannot take its damage, and so does a piercing attack on a
+ * target with a tough card (`attackPiercesTough`; ruling Jul 11, 2025).
  */
 
 import type { AbilityDefinition, EngineDeps } from "../abilities.js";
 import type { InstanceId, PlayerId } from "../ids.js";
-import { ATTACK_KEYWORDS, attackKeywordsOf, hasKeyword, isPermanent, statusActive } from "../keywords.js";
+import {
+  ATTACK_KEYWORDS,
+  attackKeywordsOf,
+  canTakeStatus,
+  hasKeyword,
+  isPermanent,
+  statusActive,
+} from "../keywords.js";
 import { permanentStopsLeaving } from "../effects.js";
 import { areaOfPlayer, getInstance, getPlayer, isScheme } from "../query.js";
 import { tuckRoom } from "../tuck-limit.js";
@@ -97,7 +115,7 @@ import {
   selectTargets,
   reachOf,
 } from "../select.js";
-import type { AttackKeyword, CardSelector, EffectSpec, TargetRef } from "../spec.js";
+import type { AttackKeyword, CardSelector, EffectSpec, StatusName, TargetRef } from "../spec.js";
 import type { GameState } from "../state.js";
 import { carriedByEvent, type TriggerEvent } from "../trigger-events.js";
 import { createCtx } from "../ctx.js";
@@ -180,10 +198,31 @@ function refersToSlot(value: unknown, slot: string): boolean {
 
 const isSlotRef = (ref: TargetRef, slot: string): boolean => ref.kind === "slot" && ref.slot === slot;
 
-type JudgedEffect = Extract<
-  EffectSpec,
-  { kind: "thwart" | "removeThreat" | "dealDamage" | "attack" | "discardFromPlay" | "flipCard" | "defeat" | "heal" }
->;
+type JudgedEffect =
+  | Extract<
+      EffectSpec,
+      { kind: "thwart" | "removeThreat" | "dealDamage" | "attack" | "discardFromPlay" | "flipCard" | "defeat" | "heal" }
+    >
+  | ReplaceStatus;
+
+/** A `giveStatus` that replaces a status card the target holds ("replace that status card with …"). */
+type ReplaceStatus = Extract<EffectSpec, { kind: "giveStatus" }> & { readonly replacing: StatusName };
+
+const isReplaceStatus = (effect: EffectSpec): effect is ReplaceStatus =>
+  effect.kind === "giveStatus" && effect.replacing !== undefined;
+
+/**
+ * Whether a `replacing` status card on `id` can be replaced with a `status` card: `id` holds one and has room for the
+ * other (`canTakeStatus`; RRG 1.8 "Status Cards", p. 41, "Stalwart", p. 40). The one check the replacement makes as it
+ * resolves and target validity makes before (ruling Jun 20, 2024, post-RRG 1.5 #215).
+ */
+export const replacesStatusOn = (
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  replacing: StatusName,
+  status: StatusName,
+): boolean => (getInstance(state, id)?.statuses[replacing] ?? 0) > 0 && canTakeStatus(state, id, status, deps);
 
 const isJudged = (effect: EffectSpec): effect is JudgedEffect =>
   effect.kind === "thwart" ||
@@ -193,7 +232,8 @@ const isJudged = (effect: EffectSpec): effect is JudgedEffect =>
   effect.kind === "discardFromPlay" ||
   effect.kind === "flipCard" ||
   effect.kind === "defeat" ||
-  effect.kind === "heal";
+  effect.kind === "heal" ||
+  isReplaceStatus(effect);
 
 /**
  * Whether this card can be discarded from play by an ability of `source`: no `cannotLeavePlay` (one limited to card
@@ -370,6 +410,7 @@ function judgedCanAffect(
   if (effect.kind === "flipCard") return !cannotFlip(state, deps, id);
   // A card a `cannotBeHealed` rule names for this source is no target for its heal (Ruling 125, Dec 8, 2023).
   if (effect.kind === "heal") return !cannotBeHealed(state, deps, id, context.selfInstanceId);
+  if (effect.kind === "giveStatus") return replacesStatusOn(state, deps, id, effect.replacing, effect.status);
   // A card already defeated, in play only while its When Defeated abilities resolve, cannot be defeated again
   // (`alreadyDefeated`; RRG 1.8 "When Defeated Abilities", p. 48). The rules that stop a defeat as it applies
   // ("cannot be defeated", Permanent) are not judged here, as before.
@@ -997,7 +1038,11 @@ function effectsTargetFault(
   // An "(attack)" ability's named enemy can be one its player may not attack (guard): judged whatever else is in play.
   // A removal of threat is judged whatever is in play: a scheme with no threat is no target for it.
   const judge =
-    moves || context.attackLabeled === true || removesThreat(effects) || targetsCanBeInvalid(state, deps, playerId);
+    moves ||
+    context.attackLabeled === true ||
+    removesThreat(effects) ||
+    flattenEffects(effects).some(isReplaceStatus) ||
+    targetsCanBeInvalid(state, deps, playerId);
   const judging: Judging = { state, deps, context, judge };
   // What follows the printed cost is the effect (RRG 1.8 "Cost", p. 13: "An ability's cost cannot be paid if that
   // ability's effect requires one or more targets and there is not at least one valid target"): a cost scripted as

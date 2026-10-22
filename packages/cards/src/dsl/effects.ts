@@ -167,11 +167,20 @@ export const takeDamage = (
   taken: true,
   ...(opts.unpreventable ? { unpreventable: true } : {}),
 });
-export const placeThreat = (n: Amount, target: TargetRef, opts: { readonly bind?: string } = {}): EffectSpec => ({
+/**
+ * `ofRemovedThreat`: "place that threat on …" in an interrupt to a removal; when the removal is part of a move, the
+ * moved threat goes here instead of to the move's destination (`EffectSpec placeThreat.ofRemovedThreat`).
+ */
+export const placeThreat = (
+  n: Amount,
+  target: TargetRef,
+  opts: { readonly bind?: string; readonly ofRemovedThreat?: true } = {},
+): EffectSpec => ({
   kind: "placeThreat",
   target,
   amount: amount(n),
   ...withBind(opts.bind),
+  ...(opts.ofRemovedThreat ? { ofRemovedThreat: true as const } : {}),
 });
 /**
  * "Remove N threat" — not a thwart, unless the ability is labeled "(thwart)": the engine then resolves it as `thwart`
@@ -345,6 +354,18 @@ export const removeStatus = (
   status,
   ...(opts.count !== undefined ? { count: opts.count } : {}),
   ...(opts.bind !== undefined ? { bind: opts.bind } : {}),
+});
+/**
+ * "Replace that [`from`] status card with a [`to`] status card" (Vapors of Valtorr, `drs` 09035): one effect, so a
+ * target is replaced only if it holds a `from` card and has room for a `to` card, and is a valid target only then
+ * (`EffectSpec giveStatus.replacing`; ruling Jun 20, 2024, post-RRG 1.5 #215: a Stalwart enemy's tough card cannot be
+ * replaced).
+ */
+export const replaceStatus = (target: TargetRef, from: StatusName, to: StatusName): EffectSpec => ({
+  kind: "giveStatus",
+  target,
+  status: to,
+  replacing: from,
 });
 export const exhaust = (target: TargetRef): EffectSpec => ({ kind: "exhaust", target });
 export const ready = (target: TargetRef): EffectSpec => ({ kind: "ready", target });

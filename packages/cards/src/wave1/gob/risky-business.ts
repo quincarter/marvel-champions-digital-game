@@ -114,8 +114,9 @@ export const RISKY_BUSINESS = defineAbilities({
     { would: true },
     instead(removeCounters("madness", 1, named(STATE_OF_MADNESS))),
   ),
-  // Green Goblin (II) — When Revealed: Deal 3 indirect damage to each player (no hero-form restriction this stage).
-  "02002b.when-revealed": whenRevealed(dealIndirectDamage(3, eachPlayer)),
+  // Green Goblin (II) — When Revealed: Deal 4 indirect damage to each player (no hero-form restriction this stage).
+  // The card prints 4; MarvelCDB's 3 is corrected in the gob curation (issue #361).
+  "02002b.when-revealed": whenRevealed(dealIndirectDamage(4, eachPlayer)),
   "02002b.green-goblin-forced-interrupt": forcedInterrupt(
     when.enemySchemes("self"),
     { would: true },

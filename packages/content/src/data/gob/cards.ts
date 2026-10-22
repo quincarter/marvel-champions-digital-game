@@ -108,8 +108,8 @@ export const GOB_CARDS: readonly AnyCard[] = [
             sch: 0,
             dashedStats: ["sch"],
             text: {
-              printed: "When Revealed: Deal 3 indirect damage to each player.\n[star] Forced Interrupt: When Green Goblin would scheme, remove 1 madness counter from State of Madness instead.",
-              current: "When Revealed: Deal 3 indirect damage to each player.\n[star] Forced Interrupt: When Green Goblin would scheme, remove 1 madness counter from State of Madness instead.",
+              printed: "When Revealed: Deal 4 indirect damage to each player.\n[star] Forced Interrupt: When Green Goblin would scheme, remove 1 madness counter from State of Madness instead.",
+              current: "When Revealed: Deal 4 indirect damage to each player.\n[star] Forced Interrupt: When Green Goblin would scheme, remove 1 madness counter from State of Madness instead.",
             },
             traits: [trait("GOBLIN")],
             keywords: [],

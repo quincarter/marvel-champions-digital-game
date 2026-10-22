@@ -77,7 +77,9 @@ export const SINISTER_SYNDICATE = defineAbilities({
     after.enemyAttacks("self", { damagesYou: true }),
     bindTargets(
       "lowest",
-      superlative("lowest", each(query("upgrade", { controller: "you" })), printedCostOf(chosen("candidate"))),
+      superlative("lowest", each(query("upgrade", { controller: "you" })), printedCostOf(chosen("candidate")), {
+        leavesPlay: true,
+      }),
     ),
     // No "choose": an encounter card targeting one of several eligible cards; the first player selects
     // (RRG 1.8 "First Player", p. 19).
@@ -120,7 +122,9 @@ export const SINISTER_SYNDICATE = defineAbilities({
   "24046.boost": boost(
     bindTargets(
       "lowest",
-      superlative("lowest", each(query("support", { controller: "you" })), printedCostOf(chosen("candidate"))),
+      superlative("lowest", each(query("support", { controller: "you" })), printedCostOf(chosen("candidate")), {
+        leavesPlay: true,
+      }),
     ),
     chooseTarget("pick", { inSlot: "lowest" }, { chooser: firstPlayer }),
     discard(chosen("pick")),

@@ -88,10 +88,13 @@ export const generatesFor = (def: AbilityDefinition, filter: TargetQuery): Abili
  * `ValueSpec.printedCost` are landed (`packages/engine/src/spec.ts`, whose own `superlative` doc comment names
  * this exact card); no `dsl/values.ts` wrapper yet. Ties resolve to every tied card (the `superlative` doc
  * comment's documented default — Burn Notice's "the" is singular, but nothing in its text breaks a tie itself).
+ * With `leavesPlay`, for a card that discards it, a permanent card it cannot remove is skipped (RRG 1.8 "Permanent",
+ * p. 32: "that effect instead targets the non-permanent card that fits its criteria").
  */
-export const theCardWithHighestCost = (pool: TargetQuery): TargetRef => ({
+export const theCardWithHighestCost = (pool: TargetQuery, opts: { readonly leavesPlay?: true } = {}): TargetRef => ({
   kind: "superlative",
   among: { kind: "each", query: pool },
   order: "highest",
   measure: { kind: "printedCost", of: { kind: "slot", slot: "candidate" } },
+  ...(opts.leavesPlay ? { leavesPlay: true } : {}),
 });

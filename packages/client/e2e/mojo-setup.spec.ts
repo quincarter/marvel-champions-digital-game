@@ -248,7 +248,7 @@ test.describe("Table setup: every unlocked modular set", () => {
     test.setTimeout(240_000);
     const errors = trackPageErrors(page);
     await installWave6Helpers(page);
-    await openApp(page, "unlock=all&screen=table-setup&scenario=rhino", { landing: "Setup" });
+    await openApp(page, "unlock=all&screen=table-setup&scenario=rhino&seed=1", { landing: "Setup" });
     await waitFor(
       async () => (await hook<unknown[]>(page, "__mcTableSetupDebug", "options")) ?? null,
       "setup hook",
@@ -277,6 +277,14 @@ test.describe("Table setup: every unlocked modular set", () => {
       ).length;
     });
     expect(shadowKingCards, "The Shadow King's five cards are in the game").toBe(5);
+    // A fixed deal (`&seed=1` above): with a rolled one, now and then the hero lost before round 2.
+    const seed = await page.evaluate(async () => {
+      const { appSession } = (await import("/src/session.ts")) as unknown as {
+        appSession: () => { store: { state: { config: { seed: number } | null } } };
+      };
+      return appSession().store.state.config?.seed;
+    });
+    expect(seed, "the game is dealt from the seed in the URL").toBe(1);
     expect(await boardRound(page), "round 1").toBe(1);
     expect(await endTurnToNextRound(page, 1, { timeoutMs: 90000 }), "round 2 begins").toBe(2);
     expect(errors).toEqual([]);
