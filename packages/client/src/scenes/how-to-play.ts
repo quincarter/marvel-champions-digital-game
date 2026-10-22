@@ -34,6 +34,7 @@ import { dotGrid, ink, signal, surface, typeRole, type TypeSpec } from "../token
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, label, paintDotGrid } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
+import { onTap } from "../ui/tap.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import type { Rect } from "../view/layout.js";
 import {
@@ -121,7 +122,14 @@ export class HowToPlayScene extends Phaser.Scene {
       width,
       height: height - header.header.height,
     };
-    this.#region = new McScrollRegion(this, { rect: viewport, heights: content.heights, scroll: this.#scroll });
+    // `clipInteractive`: a mask hides pixels, not hit areas, so a row scrolled up under the header would still win the
+    // press on its ×.
+    this.#region = new McScrollRegion(this, {
+      rect: viewport,
+      heights: content.heights,
+      scroll: this.#scroll,
+      clipInteractive: true,
+    });
     const container = this.#region.content;
     const toScreen = (rect: Rect): Rect => ({ ...rect, y: viewport.y + rect.y });
 
@@ -148,7 +156,7 @@ export class HowToPlayScene extends Phaser.Scene {
         .zone(screenRect.x, screenRect.y, screenRect.width, screenRect.height)
         .setOrigin(0, 0)
         .setInteractive({ useHandCursor: true });
-      zone.on("pointerup", activate);
+      onTap(zone, activate);
       container.add(zone);
       stops.set(`lesson:${lesson.id}`, this.#bodyStop(rowRect, content.lessonScrollIndex[i]!, activate));
     });
@@ -173,7 +181,7 @@ export class HowToPlayScene extends Phaser.Scene {
         .zone(screenRect.x, screenRect.y, screenRect.width, screenRect.height)
         .setOrigin(0, 0)
         .setInteractive({ useHandCursor: true });
-      zone.on("pointerup", activate);
+      onTap(zone, activate);
       container.add(zone);
       stops.set(`aspect:${aspectRow.aspect}`, this.#bodyStop(rowRect, content.aspectScrollIndex[i]!, activate));
     });
@@ -197,7 +205,7 @@ export class HowToPlayScene extends Phaser.Scene {
         .zone(screenRect.x, screenRect.y, screenRect.width, screenRect.height)
         .setOrigin(0, 0)
         .setInteractive({ useHandCursor: true });
-      zone.on("pointerup", activate);
+      onTap(zone, activate);
       container.add(zone);
       stops.set("reference", this.#bodyStop(content.referenceRow, content.referenceScrollIndex, activate));
     }
@@ -225,12 +233,13 @@ export class HowToPlayScene extends Phaser.Scene {
         .zone(screenRect.x, screenRect.y, screenRect.width, screenRect.height)
         .setOrigin(0, 0)
         .setInteractive({ useHandCursor: true });
-      zone.on("pointerup", activate);
+      onTap(zone, activate);
       container.add(zone);
       stops.set(`box:${boxRow.id}`, this.#bodyStop(rowRect, content.boxScrollIndex[i]!, activate));
     });
 
     this.#captureInto(container, () => this.#drawContinueLearning(toScreen(content.continueLearning), modules));
+    this.#region.syncInteractivity();
     stops.set(
       "continue-learning",
       this.#bodyStop(content.continueLearning, content.continueScrollIndex, () => void this.#continueLearning(modules)),
@@ -294,7 +303,7 @@ export class HowToPlayScene extends Phaser.Scene {
       .zone(header.close.x, header.close.y, header.close.width, header.close.height)
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
-    zone.on("pointerup", () => this.#leave());
+    onTap(zone, () => this.#leave(), "close");
 
     this.add
       .text(header.title.x, header.header.height / 2, "HOW TO PLAY", {

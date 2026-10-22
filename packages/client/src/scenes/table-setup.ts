@@ -948,11 +948,14 @@ export class TableSetupScene extends Phaser.Scene {
 
     const rects = compactRowRects(layout);
     const heights = layout.rows.map((row) => row.height);
+    // `clipInteractive`: a mask hides pixels, not hit areas, so a row scrolled up under the header would still win the
+    // press on its back button.
     this.#compactRegion = new McScrollRegion(this, {
       rect: layout.viewport,
       heights,
       scroll: this.#compactScroll,
       onScroll: () => this.#syncCompactSeedInput(),
+      clipInteractive: true,
     });
     const container = this.#compactRegion.content;
 
@@ -966,6 +969,7 @@ export class TableSetupScene extends Phaser.Scene {
       };
       this.#captureInto(container, () => this.#drawCompactRow(row.id, screenRect, layout, rowData));
     });
+    this.#compactRegion.syncInteractivity();
 
     if (this.#compactSeedBoxRect) {
       if (this.#seedInput) this.#seedInput.layout(this.#compactSeedBoxRect);
