@@ -13,19 +13,22 @@ Committed test: `built-deck-games.qa.test.ts` (30 pinned games, about 60 s; `QA_
 | Domino   | 0W 26m 7d 15c     | 0W 48m     | 0W 45d 3c  | 0W 17m 27d 4c     | 0W 46m 2d  |
 | Psylocke | 0W 19m 3d 26c (*) | 0W 41m 7d  | 0W 47d 1c  | 0W 14m 32d 2c     | 0W 29m 19d |
 | Angel    | 0W 20m 1d 27c     | 0W 47m 1d  | 0W 44d 4c  | 0W 17m 24d 7c     | 0W 44m 4d  |
-| X-23     | 0W 18m 11d 19c    | 0W 44m 4d  | 0W 48d     | **1W** 12m 29d 6c | 0W 26m 22d |
+| X-23     | 0W 18m 11d 19c    | 0W 44m 4d  | 0W 48d     | 0W (†) 12m 29d 6c | 0W 26m 22d |
 | Deadpool | 0W 39m 2d 7c (*)  | 0W 45m 3d  | 0W 47d 1c  | 0W 35m 9d 4c      | 0W 45m 3d  |
 
 (*) Wins exist with the `balanced` defense mode (section 2): Psylocke 3 of 72 (seed 10, jitter 6, 7, 9), Deadpool 1 of 72
-(seed 6, jitter 6). Over 10,000 games were played in all (several driver versions); 5 winning games at the final
-engine (Psylocke seed 10 at three jitters, Deadpool, X-23). **No win in the other 26 pairings.** Closest losses (villain stage reached, rounds): Cable/Sinister seed 7 r10, Psylocke,
+(seed 6, jitter 6). (†) The scan found 1 win (seed 2, default driver, jitter 0); it became a loss in round 7 once a
+superlative that removes a card skips the permanent cards it cannot remove (RRG 1.8 "Permanent", p. 32), and a rescan
+(seeds 1-12 x jitter 0-2 x both defenses, 72 games) found no win. Over 10,000 games were played in all (several driver versions); 5 winning games at the final
+engine (Psylocke seed 10 at three jitters, Deadpool, X-23; the X-23 one is a loss since the permanent fix, (†)). **No win in the other 26 pairings.** Closest losses (villain stage reached, rounds): Cable/Sinister seed 7 r10, Psylocke,
 X-23 and Deadpool Morlock Siege with 2 villains routed (needed 3), Psylocke/Stryfe and Angel/Sinister at stage II, Psylocke/On the Run r8.
 
 **Pinned (all 30 are in `PINS`; wins assert the rule and the final state):**
 
 - Psylocke / Morlock Siege, seed 10, `balanced`, jitter 6: win in round 6 (89 commands). Routed holds Greycrow, Chimera, Arclight.
 - Deadpool / Morlock Siege, seed 6, `balanced`, jitter 6: win in round 9 (143 commands). Routed holds Arclight, Blockbuster, Vertigo; the victory display holds a Morlock (Victory -1).
-- X-23 / Mister Sinister, seed 2, default driver, jitter 0: win in round 8 (104 commands), Sinister stage II (the last) defeated.
+- X-23 / Mister Sinister, seed 2, default driver, jitter 0: a win in round 8 (Sinister stage II defeated) until the
+  permanent fix (†); now pinned as the loss in round 7 it has become.
 - The other 27 are the quickest loss seen per pairing (rounds 1-5), pinned for regression, not as examples of play.
 
 Win assertions: outcome `win`, game over (step `gameOver`, no prompt, `legalActions` says `gameOver`, `endTurn` refused), Hope Summers

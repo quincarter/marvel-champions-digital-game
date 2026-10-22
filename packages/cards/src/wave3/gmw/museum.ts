@@ -21,7 +21,7 @@ import {
   endGame,
   enemyAttack,
   exhaustYourHero,
-  exists,
+  anyIn,
   firstPlayer,
   firstPlayerPicksFromHand,
   forcedInterrupt,
@@ -129,6 +129,10 @@ const collectorRedirect = (thenPlaceThreat?: number) =>
   );
 
 const CARDS_YOU_CONTROL: TargetQuery = { categories: ["ally", "support", "upgrade"], controller: "you" };
+/** Inconspicuous Box's pool: the lowest-cost of them that can leave play (RRG 1.8 "Permanent", p. 32). */
+const LOWEST_COST_YOU_CONTROL = superlative("lowest", each(CARDS_YOU_CONTROL), printedCostOf(chosen("candidate")), {
+  leavesPlay: true,
+});
 
 export const MUSEUM = defineAbilities({
   // Collector I — Forced Interrupt: When a card (player or encounter) would be placed into a discard pile from
@@ -198,12 +202,12 @@ export const MUSEUM = defineAbilities({
   "16074.boost": boost(revealCard(self, firstPlayer)),
 
   // Inconspicuous Box — When Revealed: Put the lowest cost card you control faceup into The Collection. If you
-  // cannot, this card gains surge.
+  // cannot, this card gains surge. A permanent card is neither moved nor counted (RRG 1.8 "Permanent", p. 32).
   "16076.when-revealed": whenRevealed(
     ifThen(
-      exists(CARDS_YOU_CONTROL),
+      anyIn(LOWEST_COST_YOU_CONTROL),
       [
-        bindTargets("lowest", superlative("lowest", each(CARDS_YOU_CONTROL), printedCostOf(chosen("candidate")))),
+        bindTargets("lowest", LOWEST_COST_YOU_CONTROL),
         // No "choose": an encounter card targeting one of several eligible cards; the first player selects
         // (RRG 1.8 "First Player", p. 19).
         chooseTarget("moved", { inSlot: "lowest" }, { chooser: firstPlayer }),

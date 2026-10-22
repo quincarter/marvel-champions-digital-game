@@ -1003,6 +1003,25 @@ export function baseStat(
   return Math.max(0, baseOverride(state, deps, id, stat) ?? printed[stat]);
 }
 
+/**
+ * Whether a character has a value for `stat` at all, as opposed to one the card simply does not print: an alter-ego
+ * has no ATK, THW or DEF, a hero no REC. Ruling April 17, 2025 (docs/rulings/post-rrg-1-6/09-april-2025.md): "Since
+ * Alter-Egos do not have an ATK value, they are not valid targets for Restrained" ("the friendly character with the
+ * highest ATK"). Only an identity's face is judged; every other character has every stat, a dash being "an unmodifiable
+ * 0" (RRG 1.8 "Dash (Value)", p. 15, whose example ranks allies by SCH). The ruling names ATK; the identity's other
+ * missing stats follow it, an engine interpretation.
+ */
+export function hasStat(state: GameState, id: InstanceId, stat: "atk" | "thw" | "def" | "rec" | "sch"): boolean {
+  const printed = printedProfile(state, id);
+  if (!printed) return false;
+  if (printed.kind !== "identity") return true;
+  const player = state.players.find((p) => p.identity.instanceId === id);
+  if (!player) return false;
+  return identityFace(state, player).form === "hero"
+    ? stat === "atk" || stat === "thw" || stat === "def"
+    : stat === "rec";
+}
+
 /** "X" is defined by the card's own ability (base 0 here); "—" is 0 plus a `missing` entry. */
 const statValue = (value: PrintedStat): number => (typeof value === "number" ? value : 0);
 const dashes = (stats: Readonly<Record<"atk" | "thw" | "sch", PrintedStat | undefined>>): ("atk" | "thw" | "sch")[] =>

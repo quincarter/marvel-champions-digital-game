@@ -15,6 +15,7 @@ import {
   enemyAttack,
   enemyScheme,
   encounterCards,
+  anyIn,
   exists,
   forcedResponse,
   forEachPlayer,
@@ -74,6 +75,17 @@ const PILEDRIVER = query("villain", { name: "Piledriver" });
  * (07040), I've Been Waiting For This! (07041), Oversized Hands (07042), Escape Plan (07043), Pummel (07044),
  * Uncanny Resilience (07045). Piledriver's Retaliate 1 is card data (`keywords`), no script.
  */
+/**
+ * Oversized Hands' pool: the highest-cost support you control that can leave play. "If no support was discarded this
+ * way" reads the same pool, so permanent supports alone place the threat (RRG 1.8 "Permanent", p. 32).
+ */
+const HIGHEST_COST_SUPPORT = superlative(
+  "highest",
+  each(query("support", { controller: "you" })),
+  printedCostOf(chosen("candidate")),
+  { leavesPlay: true },
+);
+
 export const PILEDRIVER_SET = defineAbilities({
   // Piledriver (I/II) — [star] When Piledriver schemes, place the threat on his side scheme instead of the main
   // scheme.
@@ -183,12 +195,9 @@ export const PILEDRIVER_SET = defineAbilities({
   // discarded this way, place 2 threat on the active villain's scheme.
   "07042.when-revealed": whenRevealed(
     ifThen(
-      exists(query("support", { controller: "you" })),
+      anyIn(HIGHEST_COST_SUPPORT),
       [
-        bindTargets(
-          "oversized-hands-highest",
-          superlative("highest", each(query("support", { controller: "you" })), printedCostOf(chosen("candidate"))),
-        ),
+        bindTargets("oversized-hands-highest", HIGHEST_COST_SUPPORT),
         chooseTarget("oversized-hands-tied", { inSlot: "oversized-hands-highest" }, { chooser: firstPlayer }),
         discard(chosen("oversized-hands-tied")),
       ],

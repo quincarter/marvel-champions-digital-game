@@ -78,10 +78,10 @@ export const DEADPOOL_CURATION: PackCuration = {
   //   crisis icon with no other scheme the Action cannot be started and nothing is spent (2026-10-06, RRG "Move",
   //   p. 30). 44056 Rock, Paper, Scissors and 44057 Tic-Tac-Toe use the scan's diagrams (spec §3.84, §3.87); 44058
   //   War reads star and boost icons. pack-cards.ts.
-  // - 44055 Laser Swords: "counts as 2 restricted cards" is `restrictedWeight`: one restricted card weighing 2, seen
-  //   by text that names restricted cards and offered for the limit's discard (contributor's rules call (bluefireF5ran) 2026-10-16,
-  //   reverses upstream Q52 = B). With Psylocke's two Katanas it can never stay in play. A restricted card played over the limit resolves, then the
-  //   player discards down (2026-10-06). pack-cards.ts.
+  // - 44055 Laser Swords: "counts as 2 restricted cards" is `restrictedWeight`: one restricted card weighing 2, seen by
+  //   text that names restricted cards and offered for the limit's discard (contributor's rules call 2026-10-16
+  //   (bluefireF5ran), reverses upstream Q52 = B). With Psylocke's two Katanas it can never stay in play. A restricted
+  //   card played over the limit resolves, then the player discards down (2026-10-06). pack-cards.ts.
   // - 44037 Crisis of Infinite Deadpools and the Dreadpool set: auto-included exactly when a seat chose 'Pool (Q44 = A,
   //   `encounterSets` above); the rest of the set starts set aside. 44041 'Pool-ized carries the RRG 1.8 erratum
   //   (`errata` above). dreadpool.ts.

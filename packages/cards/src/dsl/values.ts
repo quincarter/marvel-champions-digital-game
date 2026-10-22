@@ -298,12 +298,16 @@ export const named = (name: string): TargetRef => ({ kind: "named", name });
  * then `chooseTarget({ inSlot })`). Several packs (`wave1/{gob,hlk,twc,bkw,drs}/local.ts`) carry an identical
  * per-pack copy of this builder predating its centralization here — not deduplicated by this change, since doing so
  * safely means touching every one of those packs' own files.
+ *
+ * `leavesPlay: true` when the effect it feeds makes the card leave play ("discard the lowest-cost upgrade you
+ * control"): a permanent card that ability cannot remove is not ranked, so the next card that fits is the one
+ * (RRG 1.8 "Permanent", p. 32).
  */
 export const superlative = (
   order: "highest" | "lowest",
   among: TargetRef,
   measure: ValueSpec,
-  opts: { readonly ties?: "all" | "first"; readonly slot?: string } = {},
+  opts: { readonly ties?: "all" | "first"; readonly slot?: string; readonly leavesPlay?: true } = {},
 ): TargetRef => ({ kind: "superlative", among, order, measure, ...opts });
 
 // ---------------------------------------------------------------------------
@@ -1029,6 +1033,27 @@ export const max = (...values: readonly [Amount, Amount, ...Amount[]]): ValueSpe
   values: values.map(amount) as [ValueSpec, ...ValueSpec[]],
 });
 /**
+ * `value` read with `theMainScheme` as the main scheme its player would choose, keeping the reading `prefer` names
+ * (`most` / `least`) when several main schemes share the play area (RRG 1.8 p. 63, Venom Goblin FAQ; post-RRG 1.5 #132,
+ * Dec 22, 2023): "1 more for each acceleration token on the main scheme" (Cable 44002) is `"most"`. Engine
+ * interpretation: the FAQ and the ruling let the player choose at each use; the engine makes the choice best for the
+ * player instead of asking.
+ */
+export const onChosenMainScheme = (value: Amount, prefer: "most" | "least"): ValueSpec => ({
+  kind: "chosenMainSchemeValue",
+  value: amount(value),
+  prefer,
+});
+/**
+ * `condition` with `theMainScheme` as the main scheme its player would choose: true when it holds for any of them (RRG
+ * 1.8 p. 63; post-RRG 1.5 #132, Dec 22, 2023; the best choice for the player, an engine interpretation). "While there
+ * is no threat on the main scheme" (Venom 22013).
+ */
+export const whileOnChosenMainScheme = (condition: Predicate): Predicate => ({
+  kind: "onChosenMainScheme",
+  of: condition,
+});
+/**
  * "The highest SCH or THW among characters in play" (Purple Man, 61031; docs/phase7-wave11-hero-packs.md H3.10):
  * `highestStatAmong(["sch", "thw"])`. Each card is measured by the larger of its current `stats`; the card whose stat
  * this modifier is part of, alter-egos and printed "—" stats never count, and nothing measured is 0 (engine `ValueSpec highestStat`).
@@ -1135,6 +1160,11 @@ export const inAdditionalForm = (formType: string, name?: string, player: Player
 });
 export const isAlterEgo = (player: PlayerRef = you): Predicate => inForm("alterEgo", player);
 export const exists = (q: TargetQuery): Predicate => ({ kind: "exists", query: q });
+/**
+ * True when `ref` names at least one card right now. With a superlative marked `leavesPlay`, "If you cannot" reads the
+ * same pool the removal does, so a player whose only matching cards are permanent "cannot" (RRG 1.8 "Permanent", p. 32).
+ */
+export const anyIn = (ref: TargetRef): Predicate => valueAtLeast(refCount(ref), 1);
 /** "If Bomb Scare is in play" (exact printed name). */
 export const inPlay = (name: string): Predicate => exists({ name });
 export const not = (of: Predicate): Predicate => ({ kind: "not", of });

@@ -14,6 +14,7 @@ import {
   characterProfile,
   currentName,
   getPlayer,
+  hasStat,
   mainSchemeFor,
   mustInstance,
   printedCostOf,
@@ -113,10 +114,16 @@ function hostMeasure(state: GameState, id: InstanceId, measure: SuperlativeHost[
   }
 }
 
-/** Whether a card has a value for this measure at all (a villain with no printed activation order has none). */
+/**
+ * Whether a card has a value for this measure at all (a villain with no printed activation order has none, an alter-ego
+ * no ATK: ruling April 17, 2025, so Restrained attaches to nothing when only an alter-ego is in play; `hasStat` judges
+ * only an identity's face).
+ */
 function hasMeasure(state: GameState, id: InstanceId, measure: SuperlativeHost["measure"]): boolean {
   const card = cardOf(state, id);
   if (measure === "printedCost") return card !== undefined && "cost" in card && typeof card.cost === "number";
+  if (measure === "atk" || measure === "printedAtk") return hasStat(state, id, "atk");
+  if (measure === "thw" || measure === "sch") return hasStat(state, id, measure);
   if (measure !== "activationOrder") return true;
   return card?.type === "villain" && card.activationOrder !== undefined;
 }

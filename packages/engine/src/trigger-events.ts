@@ -245,6 +245,12 @@ export type TriggerEventBody =
        * player. It is still a player card's removal: a crisis icon stops it (RRG 1.8 "Crisis Icon", p. 14).
        */
       readonly noPlayer?: true;
+      /**
+       * This removal is the first half of a move (`EffectSpec moveThreat`; RRG 1.8 "Move", p. 30): the frame of the
+       * move's `placeThreat`, still on the stack below it. An interrupt that places "that threat" elsewhere
+       * (`EffectSpec placeThreat.ofRemovedThreat`) takes its tokens out of that placement (ruling Nov 21, 2025).
+       */
+      readonly movePlacementFrameId?: FrameId;
     }
   | {
       readonly kind: "attack";
@@ -1104,6 +1110,8 @@ export type TriggerEventBody =
       readonly status: StatusName;
       readonly sourceInstanceId: InstanceId | null;
       readonly playerId: PlayerId | null;
+      /** The card replaces another (`StatusGiver.replacing`): landed, it is not announced as `statusPlaced` (post-RRG 1.5 #181). */
+      readonly replacing?: true;
       readonly countOn?: { readonly frameId: FrameId; readonly name: string };
       /**
        * The effects frame of the `giveStatus` that gives it: a card that is not given after all (no room left, or

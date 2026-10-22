@@ -20,7 +20,7 @@
  */
 
 import type { EngineDeps } from "./abilities.js";
-import type { PlayerId } from "./ids.js";
+import type { InstanceId, PlayerId } from "./ids.js";
 import { cardsInPlay, controllerOf, DEFENDER_SLOT } from "./select.js";
 import type { StackFrame, TriggerCandidate } from "./stack.js";
 import type { GameState } from "./state.js";
@@ -52,14 +52,25 @@ export interface DefenseClaim {
   readonly labeledPlayerId: PlayerId | null;
 }
 
-export function defenseClaimOf(state: GameState): DefenseClaim | null {
+/**
+ * The character defending the enemy attack in progress right now, or null (no attack, no defender, or a defender that
+ * left play). The procedure is the authority while it runs; before it starts and after it ends, the event's record.
+ */
+export function defendingCharacterOf(state: GameState): InstanceId | null {
   const attack = currentEnemyAttackFrame(state);
   if (!attack) return null;
   const procedure = state.stack.find((f) => f.kind === "enemyAttack" && f.eventFrameId === attack.frameId);
-  // The procedure is the authority while it runs: a defending ally that left play is no longer its defender.
   const defender =
     procedure?.kind === "enemyAttack" ? procedure.defenderInstanceId : ((attack.slots[DEFENDER_SLOT] ?? [])[0] ?? null);
-  const defending = defender !== null && cardsInPlay(state).includes(defender) ? controllerOf(state, defender) : null;
+  // A defending ally that left play is no longer the defender.
+  return defender !== null && cardsInPlay(state).includes(defender) ? defender : null;
+}
+
+export function defenseClaimOf(state: GameState): DefenseClaim | null {
+  const attack = currentEnemyAttackFrame(state);
+  if (!attack) return null;
+  const defender = defendingCharacterOf(state);
+  const defending = defender !== null ? controllerOf(state, defender) : null;
   return { defendingPlayerId: defending, labeledPlayerId: attack.defenseLabeledBy ?? null };
 }
 

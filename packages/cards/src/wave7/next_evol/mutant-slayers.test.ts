@@ -526,6 +526,23 @@ describe("Greycrow (40097)", () => {
     expectAttack(o, "Greycrow", minionOf(base, "Greycrow"), 0);
   });
 
+  it("only a permanent card with a cost in play: the discard is not offered, and X still counts it (RRG 1.8 p. 32)", () => {
+    const placed = withInPlay(withHand(start(), P1, NO_MENTAL), P1, ["Helicarrier"]);
+    const helicarrier = findByName(placed, P1, "Helicarrier");
+    const card = placed.cardPool[placed.instances[helicarrier]!.cardId];
+    if (card?.type !== "support") throw new Error("Helicarrier is not a support");
+    // Helicarrier made permanent (by surgery): Greycrow's discard cannot remove it.
+    const base: GameState = {
+      ...placed,
+      cardPool: { ...placed.cardPool, [card.id]: { ...card, keywords: [...card.keywords, { name: "permanent" }] } },
+    };
+    const o = villainPhase(base, { choose: "Discard" });
+    expect(o.offered).toEqual([]);
+    expect(o.resolved).toEqual(["Greycrow gets +X ATK for this attack"]);
+    expect(playerOf(o.state, P1).playArea).toContain(helicarrier);
+    expectAttack(o, "Greycrow", minionOf(base, "Greycrow"), 3);
+  });
+
   it("an attack on an ally: the ally's controller chooses (Q5); X counts the ally's own printed cost (2)", () => {
     const base = withInPlay(withHand(start(), P1, NO_MENTAL), P1, ["Black Cat"]);
     const cat = findByName(base, P1, "Black Cat");
