@@ -1,6 +1,11 @@
 import { describe, expect, test } from "vitest";
 import { rectsOverlap } from "./layout.js";
-import { titleMenuLayout, titleMenuLayoutRects, updateBannerParts } from "./title-menu-layout.js";
+import {
+  titleMenuLayout,
+  titleMenuLayoutRects,
+  updateBannerActionCount,
+  updateBannerParts,
+} from "./title-menu-layout.js";
 
 const SIZES: readonly { readonly width: number; readonly height: number }[] = [
   { width: 440, height: 900 },
@@ -30,6 +35,114 @@ describe("titleMenuLayout", () => {
       });
     }
   }
+
+  describe("the in-progress games list", () => {
+    const sizes = [
+      ...SIZES,
+      { width: 1024, height: 768 },
+      { width: 360, height: 740 },
+      { width: 375, height: 667 },
+      { width: 768, height: 1024 },
+    ];
+    for (const size of sizes) {
+      for (const update of [false, true]) {
+        for (const games of [1, 2, 6]) {
+          test(`fits without overlap at ${size.width}x${size.height}, update=${update}, games=${games}`, () => {
+            const layout = titleMenuLayout({ ...size, continuable: true, update, games, civilWar: true, quit: true });
+            const rects = titleMenuLayoutRects(layout);
+            expect(layout.gamesPanel === null || layout.gamesRow === null).toBe(true);
+            expect(layout.gamesPanel !== null || layout.gamesRow !== null).toBe(true);
+            for (let i = 0; i < rects.length; i++) {
+              for (let j = i + 1; j < rects.length; j++) expect(rectsOverlap(rects[i]!, rects[j]!)).toBe(false);
+            }
+            for (const rect of rects) {
+              expect(rect.x).toBeGreaterThanOrEqual(0);
+              expect(rect.y).toBeGreaterThanOrEqual(0);
+              expect(rect.x + rect.width).toBeLessThanOrEqual(size.width + 0.01);
+            }
+          });
+        }
+      }
+    }
+
+    test("a games row or panel never pushes a menu that fits off the bottom of the screen", () => {
+      for (const size of sizes) {
+        for (const update of [false, true]) {
+          for (const civilWar of [false, true]) {
+            const input = { ...size, continuable: true, update, civilWar };
+            const bottomOf = (games: number) =>
+              Math.max(...titleMenuLayoutRects(titleMenuLayout({ ...input, games })).map((r) => r.y + r.height));
+            if (bottomOf(0) > size.height) continue;
+            // Known limit: a 667-high phone with the update banner, Civil War! and Continue is full at the compact
+            // floor already, so a games row has nowhere to go (the Title is not scrollable).
+            if (size.height < 700 && update && civilWar) continue;
+            for (const games of [1, 2, 6]) {
+              expect(
+                bottomOf(games),
+                `${size.width}x${size.height} update=${update} civilWar=${civilWar} games=${games}`,
+              ).toBeLessThanOrEqual(size.height + 0.01);
+            }
+          }
+        }
+      }
+    });
+
+    test("a short phone with the update banner, Continue and the games row still fits (375x667, 360x740)", () => {
+      for (const size of [
+        { width: 375, height: 667 },
+        { width: 360, height: 740 },
+      ]) {
+        const layout = titleMenuLayout({ ...size, continuable: true, update: true, games: 2 });
+        for (const rect of titleMenuLayoutRects(layout))
+          expect(rect.y + rect.height).toBeLessThanOrEqual(size.height + 0.01);
+        expect(layout.gamesRow).not.toBeNull();
+        // The one-row banner keeps a single button there.
+        expect(updateBannerActionCount(layout.updateBanner!, 2)).toBeLessThanOrEqual(2);
+      }
+      const short = titleMenuLayout({ width: 375, height: 667, continuable: true, update: true, games: 2 });
+      expect(updateBannerActionCount(short.updateBanner!, 2)).toBe(1);
+      const parts = updateBannerParts(short.updateBanner!, 1);
+      expect(parts.buttons).toHaveLength(1);
+    });
+
+    test("a split screen's panel stays on the screen", () => {
+      for (const size of sizes) {
+        const { gamesPanel } = titleMenuLayout({ ...size, continuable: true, games: 3 });
+        if (gamesPanel) {
+          expect(gamesPanel.y).toBeGreaterThanOrEqual(0);
+          expect(gamesPanel.y + gamesPanel.height).toBeLessThanOrEqual(size.height);
+        }
+      }
+    });
+
+    test("a split screen with room puts the panel in the art panel, its list inside it; a phone gets a menu row", () => {
+      const desktop = titleMenuLayout({ width: 1280, height: 800, continuable: true, games: 3 });
+      expect(desktop.gamesRow).toBeNull();
+      expect(desktop.gamesPanel).not.toBeNull();
+      expect(desktop.gamesPanel!.x + desktop.gamesPanel!.width).toBeLessThanOrEqual(desktop.artPanel!.width);
+      const list = desktop.gamesPanelList!;
+      expect(list.y).toBeGreaterThan(desktop.gamesPanel!.y);
+      expect(list.y + list.height).toBeLessThanOrEqual(desktop.gamesPanel!.y + desktop.gamesPanel!.height);
+      expect(list.height).toBeGreaterThanOrEqual(3 * 68);
+      const phone = titleMenuLayout({ width: 375, height: 812, continuable: true, games: 3 });
+      expect(phone.gamesPanel).toBeNull();
+      expect(phone.gamesRow).not.toBeNull();
+      expect(phone.gamesRow!.y).toBeGreaterThanOrEqual(phone.continueRow!.y + phone.continueRow!.height);
+    });
+
+    test("no games to list draw neither", () => {
+      for (const games of [undefined, 0]) {
+        const layout = titleMenuLayout({
+          width: 1280,
+          height: 800,
+          continuable: true,
+          ...(games === undefined ? {} : { games }),
+        });
+        expect(layout.gamesPanel).toBeNull();
+        expect(layout.gamesRow).toBeNull();
+      }
+    });
+  });
 
   test("desktop and tablet split into an ink art panel and a paper menu panel, divided by a thin red rule", () => {
     const layout = titleMenuLayout({ width: 1280, height: 1000, continuable: false });

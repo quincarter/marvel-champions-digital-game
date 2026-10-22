@@ -28,7 +28,7 @@
 import { cardsOfComposedSets } from "@mc/cards";
 import { cardId } from "@mc/content";
 import { previousGameFacts } from "./previous-game-facts.js";
-import { POOL_CARDS, POOL_DEPS, buildScenario } from "../content/pool.js";
+import { POOL_CARDS, POOL_DEPS, POOL_VERSION, buildScenario } from "../content/pool.js";
 import {
   applyCommand,
   createGame,
@@ -51,9 +51,21 @@ import { sealForTable } from "../view/hidden-reverse.js";
 import type { PaymentState } from "../view/payment-model.js";
 import { judgePayment, type JudgedPayment } from "../view/payment-verdict.js";
 import { actingPlayer } from "./acting-player.js";
+import { CLIENT_VERSION } from "../version.js";
+import { buildCommit } from "../view/app-version.js";
 import { emptyRecord, recordEvents, type GameRecord } from "./game-record.js";
 import { summarizeGame } from "./game-summary.js";
-import { isCurrentSchema, SAVE_SCHEMA, type GameStorage, type SaveMeta, type SaveStatus } from "./game-storage.js";
+import {
+  isCurrentSchema,
+  isNewerSchema,
+  SAVE_SCHEMA,
+  writtenByNewerApp,
+  writtenByOtherBuild,
+  type GameStorage,
+  type WriterStamp,
+  type SaveMeta,
+  type SaveStatus,
+} from "./game-storage.js";
 import type {
   CardPool,
   LegalActionsFor,
@@ -62,6 +74,9 @@ import type {
   SessionConfig,
   StateWithoutPool,
 } from "./host.js";
+
+/** Shown when a save is from a newer build (a linked device that updated first). */
+export const NEWER_SAVE_MESSAGE = "This game was saved by a newer version. Update the game to continue it.";
 
 /** An update as it crosses a thread boundary: no card pool, so it stays ~68 KB. */
 export interface Snapshot {
@@ -79,6 +94,8 @@ export interface Snapshot {
    * player should be told rather than find out by losing it.
    */
   readonly saveError: string | null;
+  /** The id this game is stored under, or null when it isn't being saved; device sync leaves the open game alone. */
+  readonly gameId?: string | null;
   /** A resumed game only: every event the replay produced (setup, then each command), so the board's log can show the game so far. Absent otherwise. */
   readonly history?: readonly GameEvent[];
   /** A resumed game only: each replayed command with its events and RNG draw counts (`EngineUpdate.trail`). */
@@ -115,6 +132,11 @@ export interface CoreOptions {
   readonly storage?: GameStorage | null;
   readonly now?: () => number;
   readonly newId?: () => string;
+  /** The build's version (default `CLIENT_VERSION`); a game last written by a newer one is not resumed. */
+  readonly appVersion?: string;
+  /** The card-pool fingerprint (default `POOL_VERSION`) and build commit (default `buildCommit()`) this build writes. */
+  readonly contentVersion?: string;
+  readonly build?: string;
 }
 
 /** Splits the card pool off a state; the host re-attaches it on the other side. */
@@ -250,6 +272,10 @@ export class EngineSessionCore {
   readonly #storage: GameStorage | null;
   readonly #now: () => number;
   readonly #newId: () => string;
+  /** This build's version: a game last written by a newer one is never resumed here. */
+  readonly #appVersion: string;
+  /** What this build stamps on a game and compares a game's stamp against. */
+  readonly #writer: WriterStamp;
   /** The stored game this session writes to; null when there is no storage or its creation failed. */
   #gameId: string | null = null;
   /**
@@ -264,6 +290,12 @@ export class EngineSessionCore {
     this.#storage = options.storage ?? null;
     this.#now = options.now ?? (() => Date.now());
     this.#newId = options.newId ?? (() => crypto.randomUUID());
+    this.#appVersion = options.appVersion ?? CLIENT_VERSION;
+    this.#writer = {
+      appVersion: this.#appVersion,
+      contentVersion: options.contentVersion ?? POOL_VERSION,
+      build: options.build ?? buildCommit(),
+    };
   }
 
   /**
@@ -321,12 +353,33 @@ export class EngineSessionCore {
         // has nothing for its first command to append to.
         await this.#storage.create(meta, stripPool(setup.state));
         this.#gameId = id;
+        if (config.guided) await this.#retireOlderGuided(id, config.guided.kind);
       } catch (cause) {
         this.#saveError = describeCause(cause);
       }
     }
 
     return { cardPool: setup.state.cardPool, snapshot: this.#snapshot(setup.events) };
+  }
+
+  /**
+   * A guided run (tutorial, Try-it, lesson) replaces the older one of its kind, so lessons don't pile up now that
+   * several games can be in progress (#276). A storage failure here leaves the older run active, which is harmless.
+   */
+  async #retireOlderGuided(keepId: string, kind: string): Promise<void> {
+    // Keyed on `guided.kind` alone, on purpose (owner decision): a new aspect or mechanic Try-it replaces the older
+    // one, whichever aspect or mechanic it was, so lessons never pile up.
+    const storage = this.#storage;
+    if (!storage) return;
+    try {
+      for (const save of await storage.list()) {
+        if (save.id !== keepId && save.status === "active" && save.guided?.kind === kind) {
+          await storage.setStatus(save.id, "abandoned");
+        }
+      }
+    } catch {
+      // see above
+    }
   }
 
   /**
@@ -345,6 +398,13 @@ export class EngineSessionCore {
     if (!stored) throw new Error("that saved game is no longer there");
     // A save from an older schema is retired deliberately, before any replay is attempted: its baseline state is a
     // shape this engine no longer has, even if its commands would happen to apply.
+    // A save from a NEWER build (another linked device) is left exactly as it is: marking it would sync back and
+    // hide a game the other device can still play.
+    // Likewise a game last written by a newer APP: it may hold commands this build's rules do not know, and replaying
+    // or appending would either fail (and mark it incompatible, which syncs) or write over what the newer build made.
+    if (isNewerSchema(stored.meta) || writtenByNewerApp(stored.meta, this.#appVersion)) {
+      throw new Error(NEWER_SAVE_MESSAGE);
+    }
     if (!isCurrentSchema(stored.meta)) {
       await storage.setStatus(gameId, "incompatible");
       throw new Error(
@@ -356,6 +416,8 @@ export class EngineSessionCore {
     try {
       baseline = rebuildBaseline(stored.meta.config, stored.initialState);
     } catch (cause) {
+      // A game another build wrote (other card pool or commit) may simply be one this build cannot read: untouched.
+      if (writtenByOtherBuild(stored.meta, this.#writer)) throw new Error(NEWER_SAVE_MESSAGE);
       await storage.setStatus(gameId, "incompatible");
       throw cause;
     }
@@ -369,6 +431,7 @@ export class EngineSessionCore {
     for (const [index, command] of stored.commands.entries()) {
       const result = applyCommand(state, command, POOL_DEPS);
       if (!result.ok) {
+        if (writtenByOtherBuild(stored.meta, this.#writer)) throw new Error(NEWER_SAVE_MESSAGE);
         await storage.setStatus(gameId, "incompatible");
         throw new Error(
           `this saved game no longer replays (command ${index + 1} of ${stored.commands.length}: ${result.error.message})`,
@@ -484,12 +547,43 @@ export class EngineSessionCore {
   async latestSave(): Promise<SaveMeta | null> {
     const storage = this.#storage;
     if (!storage) return null;
-    // Each pass retires one game, so this ends when the newest active game is current or none is left.
-    for (;;) {
-      const latest = await storage.latestActive();
-      if (!latest || isCurrentSchema(latest)) return latest;
-      await storage.setStatus(latest.id, "incompatible");
+    // Newest first: a current game is offered, an older-schema one is retired on the way, and one from a newer
+    // build is skipped untouched.
+    const active = (await storage.list()).filter((meta) => meta.status === "active");
+    for (const meta of active.sort((a, b) => b.updatedAt - a.updatedAt)) {
+      // Continue never offers a game this build cannot play; the games list shows it as "update to continue".
+      if (isNewerSchema(meta) || writtenByNewerApp(meta, this.#appVersion)) continue;
+      if (isCurrentSchema(meta)) return meta;
+      await storage.setStatus(meta.id, "incompatible");
     }
+    return null;
+  }
+
+  /**
+   * Every game in progress that this build can resume, newest first, for the title's "In-progress games" list
+   * (#276). Guided lesson saves (`meta.guided`) are left out: they are teaching runs, not games to come back to.
+   * A save under an older `SAVE_SCHEMA` is retired on the way, as `latestSave` does.
+   */
+  async activeSaves(): Promise<readonly SaveMeta[]> {
+    const storage = this.#storage;
+    if (!storage) return [];
+    const found: SaveMeta[] = [];
+    for (const meta of await storage.list()) {
+      if (meta.status !== "active" || meta.guided) continue;
+      if (isNewerSchema(meta)) continue;
+      // Returned for a newer-app game too (untouched): the list rows it as "update to continue" (`gameRowsOf`).
+      if (isCurrentSchema(meta)) found.push(meta);
+      else await storage.setStatus(meta.id, "incompatible");
+    }
+    return found;
+  }
+
+  /**
+   * Retires a game the player chose to drop: "abandoned", stamped as written now so device sync carries the change.
+   * Done here, where the game's appends are, so a retirement and a write can't interleave from two threads.
+   */
+  async retireSave(gameId: string): Promise<void> {
+    await this.#storage?.setStatus(gameId, "abandoned", this.#now());
   }
 
   /**
@@ -555,6 +649,7 @@ export class EngineSessionCore {
       record: this.#record,
       saveError: this.#saveError,
       config: this.#config,
+      gameId: this.#gameId,
     };
   }
 

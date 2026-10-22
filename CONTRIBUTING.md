@@ -82,10 +82,12 @@ so the same code is not tested twice. `pnpm e2e:verify` runs the same gate ahead
 
 ## The save-transfer Worker
 
-Settings → Save data → **Send to another device** uploads an encrypted save to a small Cloudflare Worker
-(`packages/sync-worker`) and shows a code and a QR code; **Receive** on the other device fetches it once. The Worker
-runs on Cloudflare's free plan, apart from the Netlify site, so it can never bill or take down the game. The design is
-in [docs/cloud-sync-plan.md](docs/cloud-sync-plan.md) and the format in [docs/save-data.md](docs/save-data.md).
+Settings → More → Save data → **Send to another device** uploads an encrypted save to a small Cloudflare Worker
+(`packages/sync-worker`) and shows a code and a QR code; **Receive** on the other device fetches it once. **Sync across
+devices** in the same screen keeps a player's devices in step through the same Worker (`/sync`, one `SyncSpace`
+Durable Object per player). The Worker runs on Cloudflare's free plan, apart from the Netlify site, so it can never
+bill or take down the game. The design is in [docs/cloud-sync-plan.md](docs/cloud-sync-plan.md) and the format in
+[docs/save-data.md](docs/save-data.md).
 
 ### Running it locally
 
@@ -118,11 +120,16 @@ Until this is done the Worker isn't deployed, and the game says online transfer 
 
 Optional: to turn on [Turnstile](https://developers.cloudflare.com/turnstile/) bot checks for uploads, create a
 Turnstile widget and set its secret with `pnpm --filter @mc/sync-worker exec wrangler secret put TURNSTILE_SECRET`
-(add `--env staging` for the staging Worker). The client doesn't send a token yet, so uploads fail while it is set;
-leave it off until the client side lands.
+(add `--env staging` for the staging Worker). The client doesn't send a token yet, so while it is set transfer uploads fail
+and so does setting up or joining device sync (the engine calls createSpace on a first sync); leave it off until the
+client side lands.
 
 **Kill switch:** set `TRANSFERS_ENABLED` to anything but `"true"` in `packages/sync-worker/wrangler.jsonc` and deploy
 (or edit the variable in the dashboard). Every transfer then answers 503 and the game falls back to its export message.
+`SYNC_ENABLED` does the same for device sync: the game then says online sync is unavailable and keeps saving on the
+device. Each switch leaves the other feature running, with one overlap: "Link another device" (QR or short code) moves
+the recovery code through transfer rooms, so `TRANSFERS_ENABLED=false` stops that linking too (typing the recovery
+code on the other device still works).
 
 ## Conventions
 

@@ -22,6 +22,8 @@ export const KEEPS_REPORT_SLOT: ReadonlySet<string> = new Set([
   "MusicButton",
   "MusicPlayerOverlay",
   "PowerSavingNotice",
+  "SyncPrompt",
+  "SyncSetupNotice",
 ]);
 
 export interface RunningScene {

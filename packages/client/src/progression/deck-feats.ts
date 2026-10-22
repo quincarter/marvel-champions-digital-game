@@ -4,6 +4,7 @@
  * not say which deck a seat came from, so each is noted once, when it happens, and kept ("ever"), like "Unlock
  * everything" (`progression.ts`).
  */
+import { notifySaveDataChanged } from "../sync/save-data-changed.js";
 
 export interface DeckFeats {
   /** A new deck was saved from the deck builder. */
@@ -41,6 +42,7 @@ export function noteDeckFeat(feat: keyof DeckFeats): boolean {
   if (feats[feat]) return false;
   try {
     globalThis.localStorage?.setItem(KEY, JSON.stringify({ ...feats, [feat]: true }));
+    notifySaveDataChanged("progress");
   } catch {
     // Private mode or a full quota: the feat is noted again the next time it happens.
   }

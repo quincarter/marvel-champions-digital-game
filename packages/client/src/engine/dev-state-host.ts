@@ -93,6 +93,12 @@ export class DevStateHost implements EngineHost {
     return null;
   }
 
+  async activeSaves(): Promise<readonly SaveMeta[]> {
+    return [];
+  }
+
+  async retireSave(_gameId: string): Promise<void> {}
+
   async listSaves(): Promise<readonly SaveMeta[]> {
     return [];
   }

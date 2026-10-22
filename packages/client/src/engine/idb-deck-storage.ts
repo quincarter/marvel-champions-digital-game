@@ -6,6 +6,7 @@
  * stores.
  */
 import type { Deck, DeckId } from "@mc/content";
+import { notifySaveDataChanged } from "../sync/save-data-changed.js";
 import type { DeckStorage } from "./deck-storage.js";
 
 const DB_NAME = "mc-decks";
@@ -42,6 +43,7 @@ export class IdbDeckStorage implements DeckStorage {
     const done = committed(transaction);
     transaction.objectStore(STORE).put(deck);
     await done;
+    notifySaveDataChanged("deck");
   }
 
   async get(id: DeckId): Promise<Deck | null> {
@@ -68,6 +70,7 @@ export class IdbDeckStorage implements DeckStorage {
     const done = committed(transaction);
     transaction.objectStore(STORE).delete(id as string);
     await done;
+    notifySaveDataChanged("deck");
   }
 
   #open(): Promise<IDBDatabase> {

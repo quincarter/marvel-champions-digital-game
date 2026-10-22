@@ -3,21 +3,58 @@
  * directly (one instance per name, like the real thing). Not part of the Worker bundle.
  */
 
-import { RateLimiter, TransferRoom } from "./durable-objects.js";
+import { RateLimiter, SyncSpace, TransferRoom } from "./durable-objects.js";
 import type { DurableObjectNamespaceLike, Env, KeyValueStorage } from "./env.js";
 
 export class MemoryStorage implements KeyValueStorage {
   readonly map = new Map<string, unknown>();
   alarm: number | null = null;
+  /** Rows written so far: one per key put or deleted, the way the free plan counts them. */
+  rowsWritten = 0;
 
-  async get<T>(key: string): Promise<T | undefined> {
+  get<T>(key: string): Promise<T | undefined>;
+  get<T>(keys: string[]): Promise<Map<string, T>>;
+  async get<T>(key: string | string[]): Promise<T | undefined | Map<string, T>> {
+    if (typeof key !== "string") {
+      if (key.length > 128) throw new Error("get: more than 128 keys");
+      const found = new Map<string, T>();
+      for (const k of key) if (this.map.has(k)) found.set(k, this.map.get(k) as T);
+      return found;
+    }
     return this.map.get(key) as T | undefined;
   }
-  async put(key: string, value: unknown): Promise<void> {
+  put(key: string, value: unknown): Promise<void>;
+  put(entries: Record<string, unknown>): Promise<void>;
+  async put(key: string | Record<string, unknown>, value?: unknown): Promise<void> {
+    if (typeof key !== "string") {
+      const entries = Object.entries(key);
+      if (entries.length > 128) throw new Error("put: more than 128 keys");
+      for (const [k, v] of entries) this.map.set(k, v);
+      this.rowsWritten += entries.length;
+      return;
+    }
     this.map.set(key, value);
+    this.rowsWritten += 1;
   }
-  async delete(key: string): Promise<boolean> {
-    return this.map.delete(key);
+  delete(key: string): Promise<boolean>;
+  delete(keys: string[]): Promise<number>;
+  async delete(key: string | string[]): Promise<boolean | number> {
+    if (typeof key !== "string") {
+      if (key.length > 128) throw new Error("delete: more than 128 keys");
+      let count = 0;
+      for (const k of key) if (this.map.delete(k)) count += 1;
+      this.rowsWritten += count;
+      return count;
+    }
+    const existed = this.map.delete(key);
+    if (existed) this.rowsWritten += 1;
+    return existed;
+  }
+  async list<T>(options: { prefix?: string; start?: string; limit?: number }): Promise<Map<string, T>> {
+    const keys = [...this.map.keys()]
+      .filter((k) => k.startsWith(options.prefix ?? "") && (options.start === undefined || k >= options.start))
+      .sort();
+    return new Map(keys.slice(0, options.limit).map((k) => [k, this.map.get(k) as T]));
   }
   async deleteAll(): Promise<void> {
     this.map.clear();
@@ -69,13 +106,16 @@ export function fakeNamespace<T extends { fetch(request: Request): Promise<Respo
 export interface TestEnv extends Env {
   TRANSFER_ROOM: FakeNamespace<TransferRoom>;
   RATE_LIMITER: FakeNamespace<RateLimiter>;
+  SYNC_SPACE: FakeNamespace<SyncSpace>;
 }
 
 export function makeEnv(overrides: Partial<Env> = {}): TestEnv {
   return {
     TRANSFER_ROOM: fakeNamespace((storage) => new TransferRoom({ storage })),
     RATE_LIMITER: fakeNamespace((storage) => new RateLimiter({ storage })),
+    SYNC_SPACE: fakeNamespace((storage) => new SyncSpace({ storage })),
     TRANSFERS_ENABLED: "true",
+    SYNC_ENABLED: "true",
     MAX_UPLOAD_BYTES: "1000",
     ALLOWED_ORIGINS:
       "https://marvel-champions-digital-game.netlify.app,https://*--marvel-champions-digital-game.netlify.app,http://localhost:*",

@@ -60,6 +60,12 @@ export const SCENE_LOADERS: Readonly<Record<string, () => Promise<SceneClass>>> 
   [SCENES.nameConflict]: () => import("./name-conflict.js").then((m) => m.NameConflictOverlay),
   [SCENES.heroDecks]: () => import("./hero-decks-sheet.js").then((m) => m.HeroDecksSheet),
   [SCENES.saveData]: () => import("./save-data.js").then((m) => m.SaveDataOverlay),
+  [SCENES.syncData]: () => import("./sync-data.js").then((m) => m.SyncDataOverlay),
+  [SCENES.syncConflict]: () => import("./sync-conflict.js").then((m) => m.SyncConflictOverlay),
+  [SCENES.syncSetupPrompt]: () => import("./sync-setup-prompt.js").then((m) => m.SyncSetupPromptOverlay),
+  [SCENES.syncSetupNotice]: () => import("./sync-setup-prompt.js").then((m) => m.SyncSetupNotice),
+  [SCENES.syncPrompt]: () => import("./sync-prompt.js").then((m) => m.SyncPromptScene),
+  [SCENES.gamesList]: () => import("./games-list.js").then((m) => m.GamesListOverlay),
   [SCENES.endTurnConfirm]: () => import("./end-turn-confirm.js").then((m) => m.EndTurnConfirmOverlay),
   [SCENES.tutorialResumeConfirm]: () =>
     import("./tutorial-resume-confirm.js").then((m) => m.TutorialResumeConfirmOverlay),

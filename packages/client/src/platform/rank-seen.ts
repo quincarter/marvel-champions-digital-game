@@ -3,6 +3,7 @@
  * save-data export carries it, with the storage passed in so the rule is tested without a browser. It only decides
  * whether the next Title visit plays the rank-up fanfare (`view/title-rank-badge.ts`).
  */
+import { notifySaveDataChanged } from "../sync/save-data-changed.js";
 export const RANK_SEEN_KEY = "mc-rank-seen";
 
 type PrefStorage = Pick<Storage, "getItem" | "setItem">;
@@ -29,6 +30,7 @@ export function lastRankSeen(storage: PrefStorage | null = browserStorage()): nu
 export function rememberRankSeen(rank: number, storage: PrefStorage | null = browserStorage()): void {
   try {
     storage?.setItem(RANK_SEEN_KEY, String(rank));
+    notifySaveDataChanged("progress");
   } catch {
     // A full or blocked store only means the fanfare may play again.
   }

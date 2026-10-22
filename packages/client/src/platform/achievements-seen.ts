@@ -3,6 +3,7 @@
  * `localStorage` under an `mc-*` key, so the save-data export carries it with the saves it was earned from, and with
  * the storage passed in so the rule is tested without a browser.
  */
+import { notifySaveDataChanged } from "../sync/save-data-changed.js";
 export const ACHIEVEMENTS_SEEN_KEY = "mc-achievements-seen";
 
 type PrefStorage = Pick<Storage, "getItem" | "setItem">;
@@ -34,6 +35,7 @@ export function achievementsSeen(storage: PrefStorage | null = browserStorage())
 export function rememberAchievementsSeen(ids: Iterable<string>, storage: PrefStorage | null = browserStorage()): void {
   try {
     storage?.setItem(ACHIEVEMENTS_SEEN_KEY, JSON.stringify([...ids].sort()));
+    notifySaveDataChanged("progress");
   } catch {
     // A full or blocked store only means a popup may show again next launch.
   }
