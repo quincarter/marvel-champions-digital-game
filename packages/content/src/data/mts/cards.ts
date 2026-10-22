@@ -2401,6 +2401,7 @@ export const MTS_CARDS: readonly AnyCard[] = [
         { id: abilityId("21100b.when-revealed") },
         { id: abilityId("21100b.avengers-tower-forced-response") },
       ],
+      image: imageRef("/bundles/cards/21100b.png"),
     },
   },
   {
@@ -3387,6 +3388,7 @@ export const MTS_CARDS: readonly AnyCard[] = [
         { id: abilityId("21139b.odin-constant-2") },
         { id: abilityId("21139b.odin-forced-interrupt") },
       ],
+      image: imageRef("/bundles/cards/21139b.png"),
       thw: 3,
       atk: 4,
     },
