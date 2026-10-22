@@ -410,7 +410,8 @@ export class BoardController {
       return focusOrder({ kind: "targeting", targets: this.#selection.sources.map((s) => s.instanceId) }, marks);
     }
     if (this.#selection.kind === "choosingThwartStat") {
-      return focusOrder({ kind: "targeting", targets: [this.#selection.schemeId] }, marks);
+      // Only the way out: the scheme is ringed, but Enter on it would put the thwart back, not answer the bar.
+      return focusOrder({ kind: "targeting", targets: [] }, marks);
     }
     if (this.#selection.kind === "choosingInPlayCost") {
       return focusOrder({ kind: "targeting", targets: offeredNow(this.#selection.choice), confirm: true }, marks);
@@ -1308,8 +1309,17 @@ export class BoardController {
     if (this.#readOnly) return;
     if (this.#selection.kind !== "dividingPower") return this.confirmInPlayCost();
     const { game } = appSession().store.state;
-    const command = game ? divideCommand(game, POOL_DEPS, this.#selection.choice) : null;
+    const { choice } = this.#selection;
+    const command = game ? divideCommand(game, POOL_DEPS, choice) : null;
     if (!command) return;
+    // Every point on one scheme is an undivided thwart, which The Red House lets use ATK (issue #365): ask which.
+    const only = choice.shares.length === 1 ? choice.shares[0]!.targetInstanceId : null;
+    const stats = game && only !== null ? thwartStatOptions(game, POOL_DEPS, choice.action, only) : [];
+    if (only !== null && stats.length > 1) {
+      this.#selection = { kind: "choosingThwartStat", action: choice.action, schemeId: only, options: stats };
+      this.#host.redraw();
+      return;
+    }
     this.#selection = { kind: "idle" };
     await this.#send(command);
   }
@@ -1587,6 +1597,8 @@ export class BoardController {
     // A payment that spends another seat's card (RRG 1.8 "Alliance", p. 6) or hands one of them a part of the cost
     // (`costSelection.paidBy`): each of those players agrees to their own share before the command goes anywhere
     // (docs/phase7-wave4.md §4 Q10). Hot-seat: `allianceHelpersOf`'s own doc comment on why this is a same-device prompt.
+    // Judged as the THW thwart (the payment's command is built from the action and target alone); the stat changes no
+    // cost, and `thwartStatOptions` only offered ATK where the engine takes it.
     const { command } = payment;
     const withStat: Command =
       this.#selection.payment.useAtk && command.type === "basicThwart" ? { ...command, useAtk: true } : command;

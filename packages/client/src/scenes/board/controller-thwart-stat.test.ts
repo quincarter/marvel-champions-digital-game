@@ -88,7 +88,7 @@ describe("Thwart with? (The Red House)", () => {
     aimThwart(controller);
     expect(controller.selection.kind).toBe("choosingThwartStat");
     expect(controller.thwartStatChoice()!.options.map((option) => option.useAtk)).toEqual([false, true]);
-    expect(controller.focusOrder().map((target) => target.kind)).toEqual(["card", "cancel"]);
+    expect(controller.focusOrder().map((target) => target.kind)).toEqual(["cancel"]);
     expect(dispatch).not.toHaveBeenCalled();
   });
 
@@ -122,5 +122,41 @@ describe("Thwart with? (The Red House)", () => {
     expect(controller.tapInMode(redHouse)).toBe(true);
     expect(controller.selection.kind).toBe("idle");
     expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  /** A round later the villain phase has put threat on the main scheme, so the thwart has two targets to pick from. */
+  async function toRoundTwo(): Promise<InstanceId> {
+    const end = store.state.legal?.actions.kind === "turn" ? store.state.legal.actions.legal : [];
+    await store.dispatch(end.find((entry) => entry.action.kind === "endTurn")!.example);
+    await settle();
+    const main = store.state.game!.mainScheme.instanceId;
+    const turn = store.state.legal?.actions.kind === "turn" ? store.state.legal.actions.legal : [];
+    expect(turn.find((entry) => entry.action.kind === "basicThwart")?.targets).toEqual(
+      expect.arrayContaining([main, redHouse]),
+    );
+    dispatch.mockClear();
+    return main;
+  }
+
+  test("with two schemes to pick from, picking The Red House asks THW or ATK", async () => {
+    await toRoundTwo();
+    const controller = new BoardController(host());
+    controller.chooseBasic("thwart");
+    expect(controller.selection.kind).toBe("targeting");
+    expect(controller.tapInMode(redHouse)).toBe(true);
+    expect(controller.selection.kind).toBe("choosingThwartStat");
+    await controller.chooseThwartStat(true);
+    expect(dispatch.mock.calls[0]![0]).toMatchObject({ type: "basicThwart", schemeInstanceId: redHouse, useAtk: true });
+  });
+
+  test("with two schemes to pick from, picking the main scheme asks nothing and thwarts with THW", async () => {
+    const main = await toRoundTwo();
+    const controller = new BoardController(host());
+    controller.chooseBasic("thwart");
+    expect(controller.tapInMode(main)).toBe(true);
+    await vi.waitFor(() => expect(dispatch).toHaveBeenCalled());
+    const sent = dispatch.mock.calls[0]![0] as Extract<Command, { type: "basicThwart" }>;
+    expect(sent.schemeInstanceId).toBe(main);
+    expect(sent.useAtk).toBeUndefined();
   });
 });
