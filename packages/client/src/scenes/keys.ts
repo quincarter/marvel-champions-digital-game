@@ -98,6 +98,16 @@ export const SCENES = {
   unlocks: "UnlocksOverlay",
   /** Settings ▸ Save data (`scenes/save-data.ts`): export or import every local save. Launched over Settings. */
   saveData: "SaveDataOverlay",
+  /** Save data ▸ Sync across devices (`scenes/sync-data.ts`): set up, join, link, unlink. Launched over Save data. */
+  syncData: "SyncDataOverlay",
+  /** "Which copy do you want?" (`scenes/sync-conflict.ts`): a game both devices changed, over whatever screen is up. */
+  syncConflict: "SyncConflictOverlay",
+  /** Device sync's watcher (`scenes/sync-prompt.ts`): opens the conflict prompt and shows "Checking your other devices…". */
+  syncPrompt: "SyncPrompt",
+  /** The one-time "Set up cross-device sync?" question (`scenes/sync-setup-prompt.ts`), launched over Title. */
+  syncSetupPrompt: "SyncSetupPromptOverlay",
+  /** The note that follows its "Not now" (`scenes/sync-setup-prompt.ts`): where to set sync up later. */
+  syncSetupNotice: "SyncSetupNotice",
   /** "Unlock this by hand?" (`scenes/unlock-confirm.ts`), over whichever screen is spending champion points. */
   unlockConfirm: "UnlockConfirmOverlay",
   /** "Cards that can't be played" (`scenes/name-conflict.ts`): a same-name clash between seated heroes and decks, over either seat screen. */
@@ -106,6 +116,8 @@ export const SCENES = {
   heroDecks: "HeroDecksSheet",
   /** "End your turn? You can still: …" (`scenes/end-turn-confirm.ts`), over the Board. */
   endTurnConfirm: "EndTurnConfirmOverlay",
+  /** "In-progress games" full screen (`scenes/games-list.ts`): the phone's version of the Title's list, over Title. */
+  gamesList: "GamesListOverlay",
   /** "Resume the tutorial at lesson N?" (guided mode §3.12, `scenes/tutorial-resume-confirm.ts`), over Title. */
   tutorialResumeConfirm: "TutorialResumeConfirmOverlay",
   /** Guided mode's "Hold on!" safety net (`scenes/hold-on.ts`, docs/guided-mode.md §4 G9b), over the Board. */
@@ -146,6 +158,8 @@ export const CHROME_SCENES: ReadonlySet<string> = new Set([
   SCENES.musicButton,
   SCENES.powerSavingNotice,
   SCENES.achievementToast,
+  SCENES.syncPrompt,
+  SCENES.syncSetupNotice,
 ]);
 
 export type SceneKey = (typeof SCENES)[keyof typeof SCENES];

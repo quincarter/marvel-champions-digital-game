@@ -217,6 +217,10 @@ export function campaignService(): CampaignService {
     storage: typeof indexedDB !== "undefined" ? new IdbCampaignStorage() : new MemoryCampaignStorage(),
     campaignDeps: { pool: Object.fromEntries(POOL_CARDS.map((card) => [card.id as string, card])) },
     engineDeps: POOL_DEPS,
+    games: {
+      list: () => appSession().store.listSaves(),
+      retire: (gameId) => appSession().store.retireSave(gameId),
+    },
     definitionOf: (campaignId) => campaignDefinitionOf(campaignId) ?? devDefinitions.get(campaignId as string),
   });
   return campaigns;

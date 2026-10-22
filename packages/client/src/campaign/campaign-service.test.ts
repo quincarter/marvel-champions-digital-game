@@ -10,17 +10,27 @@ import { preconDecks } from "../view/deck-list-model.js";
 import { POOL_CARDS, POOL_DEPS, POOL_VERSION } from "../content/pool.js";
 import { MemoryCampaignStorage } from "../engine/campaign-storage.js";
 import { MemoryGameStorage } from "../engine/game-storage.js";
+import { gameInProgressOf } from "./unfolded-game.js";
 import { EngineSessionCore } from "../engine/session-core.js";
 import { campaignDefinitionOf } from "@mc/cards";
 import { CAMPAIGN_RECORDS, CampaignService } from "./campaign-service.js";
 
 const POOL = Object.fromEntries(POOL_CARDS.map((card) => [card.id as string, card]));
 
-function service(): CampaignService {
+function service(games?: MemoryGameStorage): CampaignService {
   let clock = 1_000;
   let ids = 0;
   return new CampaignService({
     storage: new MemoryCampaignStorage(),
+    ...(games
+      ? {
+          // The way the app reaches its games: through the engine that owns them.
+          games: {
+            list: () => new EngineSessionCore({ storage: games }).listSaves(),
+            retire: (id: string) => new EngineSessionCore({ storage: games }).retireSave(id),
+          },
+        }
+      : {}),
     campaignDeps: { pool: POOL },
     engineDeps: POOL_DEPS,
     now: () => (clock += 1),
@@ -220,6 +230,50 @@ describe("CampaignService", () => {
     const edited = await campaigns.setSeatDeck(discarded, 1, { ...hawkeye, aspects: ["justice"] });
     expect(edited.seats[0]!.deck.aspects).toEqual(["justice"]);
     await expect(campaigns.setSeatDeck(edited, 1, ROSTER[1]!.deck)).rejects.toThrow(/locked/);
+  });
+
+  test("starting a run over retires that run's game in progress and no other; dropping a composed issue retires nothing", async () => {
+    const games = new MemoryGameStorage();
+    const campaigns = service(games);
+    await new EngineSessionCore({ storage: games, newId: () => "plain" }).start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 5,
+    });
+    const statuses = async () => Object.fromEntries((await games.list()).map((game) => [game.id, game.status]));
+    const launch = async (id: string, seed: number) => {
+      const signed = await campaigns.start({ campaignId: "trors", seats: ROSTER, poolVersion: POOL_VERSION, seed });
+      const composed = await campaigns.compose(signed);
+      if (composed.kind !== "done") throw new Error("issue #1 asks nothing on standard");
+      await new EngineSessionCore({ storage: games, newId: () => id }).start(campaigns.launchConfig(composed.record));
+      return composed.record;
+    };
+    // Two runs of one box, both at issue #1: their games coexist and belong to their own run.
+    const runA = await launch("game-a", 11);
+    const runB = await launch("game-b", 12);
+    expect(runA.attempt!.nodeId).toBe(runB.attempt!.nodeId);
+    expect(await statuses()).toEqual({ plain: "active", "game-a": "active", "game-b": "active" });
+    const saves = await games.list();
+    expect(gameInProgressOf(runA, saves)?.id).toBe("game-a");
+    expect(gameInProgressOf(runB, saves)?.id).toBe("game-b");
+
+    // Dropping the composed issue (the cover of a Market box, the deck editor, the frozen-deck view) leaves the game.
+    const dropped = await campaigns.discardAttempt(runA);
+    expect(await statuses()).toEqual({ plain: "active", "game-a": "active", "game-b": "active" });
+    // Composed again (same log, same deal), the issue finds its own game still in progress.
+    const recomposed = await campaigns.compose(dropped);
+    if (recomposed.kind !== "done") throw new Error("issue #1 asks nothing on standard");
+    expect(gameInProgressOf(recomposed.record, await games.list())?.id).toBe("game-a");
+
+    // "Start over" on run A retires A's game and neither run B's nor the standalone one.
+    await campaigns.abandon(runA.id);
+    expect(await statuses()).toEqual({ plain: "active", "game-a": "abandoned", "game-b": "active" });
+    expect((await campaigns.load(runA.id))?.status).toBe("abandoned");
+    expect((await campaigns.load(runB.id))?.status).toBe("active");
+    // A removed game is not picked back up by the Briefing; the other run's still is.
+    expect(gameInProgressOf(runA, await games.list())).toBeNull();
+    expect(gameInProgressOf(runB, await games.list())?.id).toBe("game-b");
   });
 
   test("a reward is left out of a deck and put back through the service, and a deck saved without it marks it left out (MC45 p. 24; owner decision, 2026-10-08)", async () => {

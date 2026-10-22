@@ -13,6 +13,7 @@ import {
   tableSetupFocusOrder,
   titleFocusOrder,
   titleMenuFocusOrder,
+  gamesListFocusOrder,
   villainPhaseFocusOrder,
   villainDefendFocusOrder,
   villainRailFocusOrder,
@@ -534,6 +535,30 @@ describe("screen focus routes", () => {
       "row:save-data",
       "row:play-tutorial",
     ]);
+  });
+
+  test("the Title lists each in-progress game's row then its Remove right after Continue; the question replaces them", () => {
+    const withGames = titleMenuFocusOrder({ continuable: true, gameIds: ["a", "b"] });
+    expect(withGames.slice(0, 6)).toEqual([
+      "continue",
+      "game:a",
+      "game-remove:a",
+      "game:b",
+      "game-remove:b",
+      "new-game",
+    ]);
+    expect(titleMenuFocusOrder({ continuable: true, gameIds: ["a", "b"], removeConfirm: true }).slice(0, 4)).toEqual([
+      "continue",
+      "remove-keep",
+      "remove-confirm",
+      "new-game",
+    ]);
+    expect(titleMenuFocusOrder({ continuable: true, gamesRow: true }).slice(0, 3)).toEqual([
+      "continue",
+      "games-row",
+      "new-game",
+    ]);
+    expect(gamesListFocusOrder([], false)).toEqual([]);
   });
 
   test("the Title menu (W2's D01) is Continue (when there's one), New game, Decks, Campaign, Extras, Settings, then the footer's Release notes link", () => {

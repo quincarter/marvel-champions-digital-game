@@ -52,10 +52,14 @@ describe("extras progress", () => {
     expect(progress.lostScenarioIds).toEqual(["klaw"]);
   });
 
-  it("doesn't count a game still in progress, or one that can't be loaded", () => {
+  it("doesn't count a game still in progress (however many are), a lesson, or a game that can't be loaded", () => {
     const progress = extrasProgressOf(
       [
         save("active", "rhino", [{ starterDeckId: spiderManPrecon }]),
+        {
+          ...save("won", "ultron", [{ starterDeckId: spiderManPrecon }]),
+          guided: { kind: "mechanic" },
+        },
         save("incompatible", "klaw", [{ identityCardId: "01010a", deck: [] }]),
       ],
       [],

@@ -88,3 +88,35 @@ describe("gameInProgressOf", () => {
     ).toBeNull();
   });
 });
+
+describe("two runs of one box at the same issue (#276)", () => {
+  const withSeed = (seed: number): CampaignRecord => {
+    const record = recordOf();
+    return { ...record, attempt: { ...record.attempt!, input: { seed } } } as unknown as CampaignRecord;
+  };
+  const saveWithSeed = (id: string, seed: number, over: Partial<SaveMeta> = {}): SaveMeta =>
+    saveOf(id, { config: { campaign: { seed } } as unknown as SaveMeta["config"], ...over });
+
+  it("each run finds its own game in progress, never the other's", () => {
+    const a = saveWithSeed("game-a", 1, { status: "active", outcome: null, createdAt: 300 });
+    const b = saveWithSeed("game-b", 2, { status: "active", outcome: null, createdAt: 400 });
+    expect(gameInProgressOf(withSeed(1), [a, b])?.id).toBe("game-a");
+    expect(gameInProgressOf(withSeed(2), [a, b])?.id).toBe("game-b");
+  });
+
+  it("each run's finished game is its own to fold", () => {
+    const a = saveWithSeed("game-a", 1);
+    const b = saveWithSeed("game-b", 2, { createdAt: 400 });
+    expect(unfoldedGameOf(withSeed(1), [a, b])?.id).toBe("game-a");
+  });
+
+  it("a game the player removed (abandoned, never finished) is not resumed and not folded", () => {
+    const removed = saveWithSeed("gone", 1, { status: "abandoned", outcome: null });
+    expect(gameInProgressOf(withSeed(1), [removed])).toBeNull();
+    expect(unfoldedGameOf(withSeed(1), [removed])).toBeNull();
+    // An older game still in progress is found behind the removed newer one.
+    const older = saveWithSeed("older", 1, { status: "active", outcome: null, createdAt: 150 });
+    const newerGone = { ...removed, createdAt: 500 };
+    expect(gameInProgressOf(withSeed(1), [newerGone, older])?.id).toBe("older");
+  });
+});

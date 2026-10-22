@@ -39,7 +39,7 @@ describe("resultsHistoryOf: empty input", () => {
 });
 
 describe("resultsHistoryOf: which statuses count", () => {
-  test("won and lost are results; abandoned is played but not a result; incompatible and active count for nothing", () => {
+  test("won and lost are results; abandoned and active are played but not a result; incompatible counts for nothing", () => {
     const saves: SaveMeta[] = [
       meta({ status: "won", round: 3 }),
       meta({ status: "lost", round: 5 }),
@@ -50,15 +50,22 @@ describe("resultsHistoryOf: which statuses count", () => {
     const history = resultsHistoryOf(saves);
     expect(history.scenarios).toHaveLength(1);
     const rhino = history.scenarios[0]!;
-    expect(rhino.combined).toEqual({ wins: 1, losses: 1, gamesPlayed: 3, bestClearRounds: 3 });
+    // An active game is played (several can be in progress, so one left behind is not retired), but it is no win
+    // or loss and its round never reaches the best clear.
+    expect(rhino.combined).toEqual({ wins: 1, losses: 1, gamesPlayed: 4, bestClearRounds: 3 });
+  });
+
+  test("a guided lesson in progress is no played game", () => {
+    const lesson = meta({ status: "active", guided: { kind: "aspect", aspect: "justice" } });
+    expect(resultsHistoryOf([lesson]).scenarios).toEqual([]);
   });
 
   test("every SaveStatus is accounted for by the module's own doc comment, not silently ignored", () => {
     const allStatuses: readonly SaveStatus[] = ["active", "won", "lost", "abandoned", "incompatible"];
     const saves = allStatuses.map((status) => meta({ status }));
     const history = resultsHistoryOf(saves);
-    // won + lost + abandoned = 3 played games; active and incompatible contribute to none of it.
-    expect(history.scenarios[0]!.combined.gamesPlayed).toBe(3);
+    // won + lost + abandoned + active = 4 played games; incompatible contributes to none of it.
+    expect(history.scenarios[0]!.combined.gamesPlayed).toBe(4);
   });
 });
 
@@ -141,12 +148,14 @@ describe("resultsHistoryOf: deck attribution", () => {
     expect(history.unattributedSeatCount).toBe(1);
   });
 
-  test("an unattributed seat in a non-played (active) game isn't counted: it isn't in scope at all", () => {
+  test("an unattributed seat in an active game counts like any played game; one in an incompatible save is out of scope", () => {
     const oldShapeSeat = { identityCardId: "01010a", deck: [] } as unknown as CorePlayer;
-    const saves: SaveMeta[] = [meta({ config: config({ players: [oldShapeSeat] }), status: "active" })];
-    const history = resultsHistoryOf(saves);
-    expect(history.unattributedGameCount).toBe(0);
-    expect(history.unattributedSeatCount).toBe(0);
+    const active = resultsHistoryOf([meta({ config: config({ players: [oldShapeSeat] }), status: "active" })]);
+    expect(active.unattributedGameCount).toBe(1);
+    expect(active.unattributedSeatCount).toBe(1);
+    const broken = resultsHistoryOf([meta({ config: config({ players: [oldShapeSeat] }), status: "incompatible" })]);
+    expect(broken.unattributedGameCount).toBe(0);
+    expect(broken.unattributedSeatCount).toBe(0);
   });
 
   test("last played is the max updatedAt across a deck's played games", () => {

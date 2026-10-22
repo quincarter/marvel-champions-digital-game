@@ -147,6 +147,21 @@ void desktopLaunchSettings(settings, storedSettingsOverrides().displayMode !== u
 });
 watchStartup(game);
 
+// Device sync (#276, `sync/sync-wiring.ts`): its code loads after the first frame, so it stays out of the entry chunk. It
+// syncs in the background when this device is linked, and leaves alone the game on the table (the Board, or its deal),
+// which waits for the next sync.
+const startSync = (): void => {
+  void import("./sync/sync-wiring.js").then((wiring) =>
+    wiring.startDeviceSync(() =>
+      [SCENES.board, SCENES.setupDeal].some(
+        (key) => game.scene.isActive(key) || game.scene.isPaused(key) || game.scene.isSleeping(key),
+      ),
+    ),
+  );
+};
+if (game.scene.isBooted) game.events.once(Phaser.Core.Events.POST_RENDER, startSync);
+else game.events.once(Phaser.Core.Events.READY, () => game.events.once(Phaser.Core.Events.POST_RENDER, startSync));
+
 // The frame rate, and on Android the refresh rate the app asks the OS for. Power saving mode (`platform/power-saving.ts`)
 // moves the session's defaults (a 30 fps cap, 1x text), so they are applied again whenever it changes.
 applyScreenSettings(game, settings);

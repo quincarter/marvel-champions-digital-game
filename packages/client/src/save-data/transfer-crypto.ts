@@ -1,5 +1,7 @@
 /**
- * The cryptography of a save transfer: the key part, the proof the server checks, and the sealed upload.
+ * The cryptography of a transfer room: the key part, the proof the server checks, and the sealed upload. The payload is
+ * a save file (`sealSaveFile`) or any bytes (`sealPayload`, used by the device-sync link in `sync/sync-link.ts`), and
+ * the key string can be the 4-character typed key part or a long random key; every function below takes any string.
  * Pure WebCrypto and CompressionStream, so it runs the same in a browser, a webview and Node.
  *
  * A transfer code is an 8-character room (chosen by the server) plus a 4-character key part (chosen here, from
@@ -57,14 +59,19 @@ function buf(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
  * rejected, so no character is likelier than another (256 is not a multiple of 31).
  */
 export function newKeyPart(random: RandomBytes = platformRandom): string {
+  return randomCode(KEY_PART_LENGTH, random);
+}
+
+/** `length` characters of `CODE_ALPHABET`, uniformly (rejection sampling, as `newKeyPart` describes). */
+export function randomCode(length: number, random: RandomBytes = platformRandom): string {
   const size = CODE_ALPHABET.length;
   const limit = 256 - (256 % size);
   let out = "";
-  while (out.length < KEY_PART_LENGTH) {
-    for (const byte of random(KEY_PART_LENGTH * 2)) {
+  while (out.length < length) {
+    for (const byte of random(length * 2)) {
       if (byte >= limit) continue;
       out += CODE_ALPHABET[byte % size]!;
-      if (out.length === KEY_PART_LENGTH) break;
+      if (out.length === length) break;
     }
   }
   return out;
@@ -88,10 +95,19 @@ async function aesKey(keyPart: string, salt: Uint8Array): Promise<CryptoKey> {
   );
 }
 
-function toBase64Url(bytes: Uint8Array): string {
+/** Unpadded base64url; the one helper the transfer proof, the sync credentials and the sync records share. */
+export function toBase64Url(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/** Throws an `Error` when the text is not base64url. */
+export function fromBase64Url(text: string): Uint8Array {
+  if (!/^[A-Za-z0-9_-]*$/.test(text)) throw new Error("Not base64url.");
+  const padded = text.replace(/-/g, "+").replace(/_/g, "/");
+  const binary = atob(padded + "=".repeat((4 - (padded.length % 4)) % 4));
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
 
 /** What the server stores and compares: 32 bytes of HKDF output in unpadded base64url. Deterministic per key part. */
@@ -115,7 +131,16 @@ export async function sealSaveFile(
   keyPart: string,
   random: RandomBytes = platformRandom,
 ): Promise<Uint8Array> {
-  const compressed = await pipe(utf8.encode(JSON.stringify(file)), new CompressionStream("gzip"));
+  return await sealPayload(utf8.encode(JSON.stringify(file)), keyPart, random);
+}
+
+/** The same envelope around any bytes (a device-sync link is a small JSON, not a save): gzip, then AES-256-GCM. */
+export async function sealPayload(
+  payload: Uint8Array,
+  keyPart: string,
+  random: RandomBytes = platformRandom,
+): Promise<Uint8Array> {
+  const compressed = await pipe(payload, new CompressionStream("gzip"));
   const salt = random(SALT_BYTES);
   const iv = random(IV_BYTES);
   const key = await aesKey(keyPart, salt);

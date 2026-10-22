@@ -4,6 +4,7 @@ import { describe, expect, test } from "vitest";
 import { IdbDeckStorage } from "../engine/idb-deck-storage.js";
 import { exportSaveData, importSaveData, type KeyValueStorage } from "./save-data.js";
 import { SettingsStore } from "../settings-store.js";
+import { IdbSyncStateStore } from "../sync/sync-state.js";
 import { parseSaveFile, SAVE_FILE_VERSION } from "./save-file.js";
 
 class MapStorage implements KeyValueStorage {
@@ -80,6 +81,17 @@ describe("exportSaveData / importSaveData", () => {
     const file = await exportSaveData({ indexedDB: new IDBFactory(), localStorage: null });
     await importSaveData(file, { indexedDB: db, localStorage: null });
     expect(await decks.list()).toEqual([]);
+  });
+
+  test("an import forgets what device sync last saw, so the next run is a first join and deletes nothing", async () => {
+    const db = new IDBFactory();
+    const state = new IdbSyncStateStore(db);
+    await state.setMeta({ cursor: 9, lastSyncedAt: 5, spaceId: "space", epoch: 1 });
+    await state.putEntries([{ key: "game:g1:meta", recordKey: "r", version: 3, hash: "h", stamp: 1, deleted: false }]);
+    const file = await exportSaveData({ indexedDB: new IDBFactory(), localStorage: null });
+    await importSaveData(file, { indexedDB: db, localStorage: null });
+    expect((await state.entries()).size).toBe(0);
+    expect(await state.meta()).toMatchObject({ cursor: 0, spaceId: null });
   });
 
   test("without localStorage only the databases travel", async () => {

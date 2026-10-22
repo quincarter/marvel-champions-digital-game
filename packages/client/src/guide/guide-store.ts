@@ -57,6 +57,16 @@ export function onGuidePrefsChange(listener: (prefs: GuidePrefs) => void): () =>
   return () => listeners.delete(listener);
 }
 
+/**
+ * Device sync wrote `mc-guide` (another device's prefs arrived): forgets the cached value, reads the stored one and tells
+ * every listener, so the next setter builds on what is stored and not on what this session read earlier.
+ */
+export function reloadGuidePrefsFromStorage(): void {
+  current = loadGuidePrefs();
+  const prefs = guidePrefs();
+  for (const listener of listeners) listener(prefs);
+}
+
 /** Test-only: drops the cached value (and any run-level override) so the next `guidePrefs()` re-reads `localStorage`. */
 export function resetGuidePrefsCacheForTests(): void {
   current = null;

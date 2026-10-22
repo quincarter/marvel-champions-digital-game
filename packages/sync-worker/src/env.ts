@@ -6,8 +6,16 @@
 /** The slice of `DurableObjectStorage` the logic uses; tests back it with a Map. */
 export interface KeyValueStorage {
   get<T>(key: string): Promise<T | undefined>;
+  /** Up to 128 keys per call on the real storage; the result holds only the keys that exist. */
+  get<T>(keys: string[]): Promise<Map<string, T>>;
   put(key: string, value: unknown): Promise<void>;
+  /** Up to 128 entries per call on the real storage. */
+  put(entries: Record<string, unknown>): Promise<void>;
   delete(key: string): Promise<unknown>;
+  /** Up to 128 keys per call on the real storage. */
+  delete(keys: string[]): Promise<unknown>;
+  /** Keys in ascending order; `start` is inclusive. */
+  list<T>(options: { prefix?: string; start?: string; limit?: number }): Promise<Map<string, T>>;
   deleteAll(): Promise<void>;
   setAlarm(scheduledTime: number): Promise<void>;
   deleteAlarm(): Promise<void>;
@@ -30,9 +38,14 @@ export interface DurableObjectStateLike {
 export interface Env {
   TRANSFER_ROOM: DurableObjectNamespaceLike;
   RATE_LIMITER: DurableObjectNamespaceLike;
+  SYNC_SPACE: DurableObjectNamespaceLike;
   /** Anything other than "true" is the kill switch. */
   TRANSFERS_ENABLED?: string;
   MAX_UPLOAD_BYTES?: string;
+  /** Anything other than "true" turns every /sync route off. */
+  SYNC_ENABLED?: string;
+  /** Live bytes one sync space may hold; defaults to DEFAULT_MAX_SPACE_BYTES. */
+  MAX_SPACE_BYTES?: string;
   ALLOWED_ORIGINS?: string;
   /** A secret, not a var. When set, uploads must carry a valid Turnstile token. */
   TURNSTILE_SECRET?: string;

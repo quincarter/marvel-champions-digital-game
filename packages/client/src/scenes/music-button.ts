@@ -46,6 +46,8 @@ const ABOVE_SCREENS: ReadonlySet<string> = new Set([
   SCENES.music,
   SCENES.powerSavingNotice,
   SCENES.achievementToast,
+  SCENES.syncPrompt,
+  SCENES.syncSetupNotice,
 ]);
 /** How often it looks for something newly open in Extras. */
 const EXTRAS_CHECK_MS = 1000;

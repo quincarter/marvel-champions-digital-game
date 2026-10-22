@@ -8,6 +8,7 @@
  * defaults hold for the session. Nothing here reaches the engine, and nothing here is wired into a scene yet
  * (that's G2b) — this module is pure data plus pure helpers.
  */
+import { notifySaveDataChanged } from "../sync/save-data-changed.js";
 
 export const GUIDE_PREFS_VERSION = 1;
 const PREFS_KEY = "mc-guide";
@@ -117,6 +118,7 @@ export function loadGuidePrefs(): GuidePrefs {
 export function saveGuidePrefs(prefs: GuidePrefs): void {
   try {
     globalThis.localStorage?.setItem(PREFS_KEY, JSON.stringify({ version: GUIDE_PREFS_VERSION, ...prefs }));
+    notifySaveDataChanged("progress");
   } catch {
     // Private mode or a full quota: the choice still holds for this session.
   }

@@ -18,18 +18,13 @@
 import Phaser from "phaser";
 import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
-import { cssOf, textStyle } from "../ui/theme.js";
+import { cssOf, skin, textStyle } from "../ui/theme.js";
+import { drawPlayPlatformIcon } from "../ui/play-platform-icon.js";
+import { playPlatformMarkOf, playPlatformSlotIn } from "../view/play-platform-mark.js";
 import { McButton, fitText, paintDotGrid } from "../ui/widgets.js";
 import { TITLE_ART, coverFit, pickTitleArt, type TitleArt } from "../art/title-art.js";
 import { ensurePictureLoaded } from "../art/pictures.js";
-import {
-  CARDS_BY_ID,
-  POOL_CARDS,
-  POOL_DEPS,
-  POOL_SCENARIOS,
-  POOL_STARTER_DECKS,
-  POOL_VERSION,
-} from "../content/pool.js";
+import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS, POOL_VERSION } from "../content/pool.js";
 import { cardPoolCoverageOf, cardPoolCoverageText } from "../view/card-pool-coverage.js";
 import { UPDATE_DISMISS_ID, appVersionText, buildCommit, releaseNotesUrl, updateActions } from "../view/app-version.js";
 import { dismissUpdate, dismissedUpdateVersion, isUpdateDismissed } from "../platform/update-dismissal.js";
@@ -40,13 +35,25 @@ import { powerSavingFooterOf } from "../view/power-saving-notice.js";
 import { onTap } from "../ui/tap.js";
 import { checkForUpdate, type AvailableUpdate } from "../platform/update-check.js";
 import { preconDecks } from "../view/deck-list-model.js";
-import { cardDisplayName } from "../view/hero-names.js";
 import { initialSetupDraft, withSeatOne } from "../view/setup-draft.js";
 import { rollSeed } from "../view/seed.js";
 import { titleMenuFocusOrder } from "../view/screen-focus.js";
-import { RANK_BADGE_HEIGHT, titleMenuLayout, updateBannerParts } from "../view/title-menu-layout.js";
+import {
+  GAMES_PANEL_HEADER,
+  RANK_BADGE_HEIGHT,
+  titleMenuLayout,
+  updateBannerActionCount,
+  updateBannerParts,
+} from "../view/title-menu-layout.js";
 import type { SaveMeta } from "../engine/game-storage.js";
 import { appSession } from "../session.js";
+import { drawGamesList } from "../ui/games-list.js";
+import { GAME_LABEL_NAMES } from "../view/game-label-names.js";
+import { drawBetaTag, drawBetaTagBeside } from "../ui/beta-tag.js";
+import { BETA_TAG_SIZE } from "../view/beta-tag.js";
+import { gameRowsOf, shouldShowGamesList, type GameRow } from "../view/games-list-model.js";
+import { VariableListScroll } from "../view/variable-list-scroll.js";
+import type { GamesListOverlayData } from "./games-list.js";
 import { guidePrefs, setGuideRunLevelOverride } from "../guide/guide-store.js";
 import { isFirstLaunch } from "../guide/guide-prefs.js";
 import { continueLabelOf } from "../view/continue-label.js";
@@ -66,7 +73,9 @@ import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
 import type { TutorialResumeConfirmData } from "./tutorial-resume-confirm.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { hasDesktopWindow, quitToDesktop } from "../platform/desktop-window.js";
-import { takeReceiveLink } from "../save-data/receive-link.js";
+import { onSyncApplied } from "../sync/sync-events.js";
+import { takeReceiveLink, takeSyncLink } from "../save-data/receive-link.js";
+import { maybeShowSyncSetupPrompt } from "./sync-setup-prompt-launch.js";
 import { SCENES } from "./keys.js";
 import type { ScenarioSelectData } from "./scenario-select.js";
 import type { SeatsData } from "./seats.js";
@@ -105,9 +114,19 @@ export function newGameDraft(): ReturnType<typeof initialSetupDraft> {
 export class TitleScene extends Phaser.Scene {
   #buttons: McButton[] = [];
   #status: Phaser.GameObjects.Text | null = null;
+  #platformTip: Phaser.GameObjects.Text | null = null;
   #starting = false;
   /** The game in progress when this screen opened, if any — looked up asynchronously; the screen draws without it first. */
   #continuable: SaveMeta | null = null;
+  /** Every game in progress (several can be, #276), newest first, without guided lesson saves. */
+  #games: readonly SaveMeta[] = [];
+  /** The games panel's scroll offset, kept across the redraws a resize or a sync makes. */
+  #gamesScroll = new VariableListScroll();
+  /** The game the panel is asking "Remove this game?" about, or null while it lists. */
+  #removing: string | null = null;
+  #removeBusy = false;
+  /** Why the last Remove failed, shown in the question until it is answered again. */
+  #removeError: string | null = null;
   /** A newer release with an installer for this platform (native apps only), once GitHub has answered. */
   #update: AvailableUpdate | null = null;
   /** This visit's picture (`art/title-art.ts`), chosen once per `create` so a resize redraws the same one. */
@@ -138,16 +157,30 @@ export class TitleScene extends Phaser.Scene {
     const unsubscribePowerSaving = onPowerSavingChange(() => {
       if (this.sys.isActive()) this.#rebuild();
     });
+    // A device sync that brought in saves from another device: Continue reads the newest save again (#276).
+    const unsubscribeSync = onSyncApplied(() => {
+      if (!this.sys.isActive()) return;
+      void this.#refreshSaves();
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.#rebuild, this);
       unsubscribePowerSaving();
+      unsubscribeSync();
     });
     this.#route = new FocusRoute(this, {
-      blocked: () => this.scene.isActive(SCENES.inspect) || this.scene.isActive(SCENES.settings),
+      blocked: () =>
+        this.scene.isActive(SCENES.inspect) ||
+        this.scene.isActive(SCENES.settings) ||
+        this.scene.isActive(SCENES.gamesList),
     });
     // Phaser reuses this scene instance across "back to title" round trips, so state from a previous visit
     // (a stuck "Starting…", a stale Continue) must not survive into this one.
     this.#continuable = null;
+    this.#games = [];
+    this.#removing = null;
+    this.#removeBusy = false;
+    this.#removeError = null;
+    this.#gamesScroll = new VariableListScroll();
     this.#starting = false;
     this.#rankUp = null;
     this.#art = pickTitleArt(TITLE_ART, lastTitleArtKey);
@@ -159,6 +192,11 @@ export class TitleScene extends Phaser.Scene {
     // Opened from a Send screen's QR code: straight to Settings, Save data, Receive (read and cleared once).
     const receive = takeReceiveLink();
     if (receive) this.scene.launch(SCENES.settings, { receive });
+    // Opened from a device-sync link's QR code: Save data, Sync across devices, asking to join (read and cleared once).
+    const syncLink = takeSyncLink();
+    if (syncLink) this.scene.launch(SCENES.settings, { syncLink });
+    // The one-time "Set up cross-device sync?" question; it decides for itself and stays out of a link's way.
+    else if (!receive) maybeShowSyncSetupPrompt(this);
     // Points may have moved since Boot read them (a game just ended): read again, and announce a rank gained.
     void refreshUnlocks()
       .catch(() => false)
@@ -167,13 +205,7 @@ export class TitleScene extends Phaser.Scene {
         this.#checkRankUp();
         this.#rebuild();
       });
-    void appSession()
-      .store.latestSave()
-      .then((save) => {
-        if (!save || !this.sys.isActive()) return;
-        this.#continuable = save;
-        this.#rebuild();
-      });
+    void this.#refreshSaves();
     void checkForUpdate().then((update) => {
       // A banner the player closed for this very release stays closed; a newer release brings it back.
       if (!update || !this.sys.isActive() || isUpdateDismissed(update.version, dismissedUpdateVersion())) return;
@@ -200,7 +232,75 @@ export class TitleScene extends Phaser.Scene {
     });
   }
 
+  /** The games the list shows: all of them, or none when Continue already is the only one (`shouldShowGamesList`). */
+  #listedGames(): readonly SaveMeta[] {
+    return shouldShowGamesList(
+      this.#games.map((save) => save.id),
+      this.#continuable?.id ?? null,
+    )
+      ? this.#games
+      : [];
+  }
+
+  /** Reads the newest game (Continue) and every game in progress (the list) again, then redraws. */
+  async #refreshSaves(): Promise<void> {
+    const { store } = appSession();
+    const [latest, games] = await Promise.all([store.latestSave(), store.activeSaves()]);
+    if (!this.sys.isActive()) return;
+    this.#continuable = latest;
+    this.#games = games;
+    // A game asked about that has since gone (synced away, removed on another screen): drop the question.
+    if (this.#removing !== null && !games.some((save) => save.id === this.#removing)) this.#removing = null;
+    this.#rebuild();
+  }
+
+  /** "Remove" confirmed: the game is retired (counts as played, cannot be resumed) and the list reads again. */
+  async #removeGame(row: GameRow): Promise<void> {
+    if (this.#removeBusy) return;
+    this.#removeBusy = true;
+    this.#removeError = null;
+    // Drawn unavailable while the write is in flight, so a second tap can't ask twice.
+    this.#rebuild();
+    try {
+      await appSession().store.retireSave(row.id);
+      this.#removing = null;
+    } catch (cause) {
+      this.#removeError = `Could not remove it: ${cause instanceof Error ? cause.message : String(cause)}`;
+    }
+    this.#removeBusy = false;
+    if (!this.sys.isActive()) return;
+    await this.#refreshSaves();
+  }
+
+  /** The phone's "In-progress games (N)" row: the list full screen, over this one. */
+  #openGamesList(): void {
+    if (this.scene.isActive(SCENES.gamesList)) return;
+    this.scene.launch(SCENES.gamesList, {
+      from: this.scene.key,
+      saves: this.#listedGames(),
+      onResume: (save) => void this.#resume(save),
+      onChanged: () => void this.#refreshSaves(),
+    } satisfies GamesListOverlayData);
+  }
+
+  /** The desktop hover note under the Continue row's platform icon ("Played on Windows"); null closes it. */
+  #showPlatformTip(tip: { readonly text: string; readonly box: Rect } | null): void {
+    this.#platformTip?.destroy();
+    this.#platformTip = null;
+    if (!tip) return;
+    const text = this.add
+      .text(0, 0, tip.text, textStyle(typeRole.label, surface.paper.hex))
+      .setDepth(TIP_DEPTH)
+      .setPadding(10, 6, 10, 6)
+      .setBackgroundColor(cssOf(surface.ink.hex));
+    const x = Math.max(8, Math.min(tip.box.x, this.scale.gameSize.width - text.width - 8));
+    text.setPosition(x, tip.box.y + tip.box.height + 10);
+    this.#platformTip = text;
+  }
+
   #rebuild(): void {
+    this.#platformTip?.destroy();
+    this.#platformTip = null;
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#stops = new Map();
@@ -212,6 +312,7 @@ export class TitleScene extends Phaser.Scene {
       width,
       height,
       continuable: this.#continuable !== null,
+      games: this.#listedGames().length,
       update: this.#update !== null,
       civilWar: civilWar !== null,
       quit: hasDesktopWindow(),
@@ -290,6 +391,9 @@ export class TitleScene extends Phaser.Scene {
     if (layout.continueRow) {
       const save = this.#continuable!;
       const rect = layout.continueRow;
+      // Where the game was last played (device sync, #276): a mark at the row's left edge, beside the label.
+      const mark = playPlatformMarkOf(save.lastPlayedOn);
+      const slot = mark ? playPlatformSlotIn(rect) : null;
       this.#buttons.push(
         new McButton(this, {
           kind: "primary",
@@ -299,13 +403,49 @@ export class TitleScene extends Phaser.Scene {
           type: typeRole.menuButton,
           rect,
           enabled: !this.#starting,
+          ...(slot ? { labelInset: slot.labelInset } : {}),
+          onHover: (over) =>
+            this.#showPlatformTip(
+              over && mark && slot && !this.input.activePointer.wasTouch ? { text: mark.label, box: slot.box } : null,
+            ),
           onClick: () => void this.#resume(save),
         }),
       );
+      // Dev-only e2e hook: the platform whose mark the Continue row drew (never read by product code).
+      if (import.meta.env.DEV) {
+        (window as unknown as { __mcContinuePlatform?: string | null }).__mcContinuePlatform = mark?.platform ?? null;
+      }
+      if (mark && slot) {
+        const s = skin("primary", this.#starting ? "unavailable" : "rest");
+        drawPlayPlatformIcon(this.add.graphics(), mark, slot.box, s.text, s.textAlpha);
+      }
       this.#stops.set("continue", {
         rect,
         activate: () => void this.#resume(save),
       });
+    }
+
+    const gameRows = layout.gamesPanel ? gameRowsOf(this.#listedGames(), GAME_LABEL_NAMES, Date.now()) : [];
+    if (layout.gamesPanel && layout.gamesPanelList) {
+      this.#drawGamesPanel(layout.gamesPanel, layout.gamesPanelList, gameRows);
+    }
+    if (layout.gamesRow) {
+      this.#buttons.push(
+        new McButton(this, {
+          kind: menuKind,
+          label: `In-progress games (${this.#listedGames().length})`,
+          type: typeRole.menuButton,
+          rect: layout.gamesRow,
+          enabled: !this.#starting,
+          onClick: () => this.#openGamesList(),
+        }),
+      );
+      // A decorative tag at the row's right end, over the button but taking no press.
+      if (layout.gamesRow.width >= 300) {
+        const row = layout.gamesRow;
+        drawBetaTag(this, row.x + row.width - 12 - BETA_TAG_SIZE.width, row.y + row.height / 2);
+      }
+      this.#stops.set("games-row", { rect: layout.gamesRow, activate: () => this.#openGamesList() });
     }
 
     this.#buttons.push(
@@ -514,12 +654,54 @@ export class TitleScene extends Phaser.Scene {
           civilWar: civilWar !== null,
           quit: layout.quit !== null,
           updateActions: bannerStops,
+          gameIds: gameRows.map((row) => row.id),
+          removeConfirm: this.#removing !== null && gameRows.some((row) => row.id === this.#removing),
+          gamesRow: layout.gamesRow !== null,
         }),
         "rank-badge",
       ],
       this.#stops,
     );
     this.#drawArt();
+  }
+
+  /** The "In-progress games" panel in the art panel (split screens): heading, then the list or the remove question. */
+  #drawGamesPanel(panel: Rect, list: Rect, rows: readonly GameRow[]): void {
+    this.add
+      .rectangle(panel.x, panel.y, panel.width, panel.height, surface.ink.hex, 0.9)
+      .setOrigin(0, 0)
+      .setStrokeStyle(2, surface.paper.hex);
+    const heading = this.add
+      .text(
+        list.x,
+        panel.y + 12 + (GAMES_PANEL_HEADER - typeRole.sectionHeader.size) / 2,
+        `IN-PROGRESS GAMES (${rows.length})`,
+        textStyle(typeRole.sectionHeader, surface.paper.hex),
+      )
+      .setLetterSpacing(1);
+    drawBetaTagBeside(this, heading, list.x + list.width);
+    const confirming = this.#removing === null ? null : (rows.find((row) => row.id === this.#removing) ?? null);
+    const drawn = drawGamesList(this, {
+      area: list,
+      rows,
+      scroll: this.#gamesScroll,
+      confirming,
+      enabled: !this.#starting && !this.#removeBusy,
+      error: this.#removeError,
+      onResume: (row) => void this.#resume(row.save),
+      onAskRemove: (row) => {
+        this.#removing = row.id;
+        this.#rebuild();
+      },
+      onKeep: () => {
+        this.#removing = null;
+        this.#removeError = null;
+        this.#rebuild();
+      },
+      onRemove: (row) => void this.#removeGame(row),
+    });
+    this.#buttons.push(...drawn.buttons);
+    for (const [key, stop] of drawn.stops) this.#stops.set(key, stop);
   }
 
   /**
@@ -529,7 +711,8 @@ export class TitleScene extends Phaser.Scene {
   #drawUpdateBanner(banner: Rect | null): readonly string[] {
     const update = this.#update;
     if (!update || !banner) return [];
-    const actions = updateActions(update);
+    const all = updateActions(update);
+    const actions = all.slice(all.length - updateBannerActionCount(banner, all.length));
     const parts = updateBannerParts(banner, actions.length);
     this.add
       .rectangle(banner.x, banner.y, banner.width, banner.height, signal.caution.hex)
@@ -780,8 +963,8 @@ export class TitleScene extends Phaser.Scene {
     await store.resume(gameId);
     if (store.state.status === "failed") {
       this.#starting = false;
-      this.#continuable = null;
-      this.#rebuild();
+      // Read the saves again rather than dropping Continue: the failed game was retired by the host, the others stand.
+      await this.#refreshSaves();
       this.#status?.setText(store.state.error ?? "that game could not be resumed");
       return;
     }
@@ -800,6 +983,8 @@ export class TitleScene extends Phaser.Scene {
 const ART_GROUND_DEPTH = -3;
 const ART_DEPTH = -2;
 const ART_SCRIM_DEPTH = -1;
+/** The hover note over the buttons below the Continue row. */
+const TIP_DEPTH = 50;
 
 /** How long the rank-up fanfare holds the badge. */
 const RANK_UP_MS = 5000;
@@ -809,12 +994,5 @@ let lastTitleArtKey: string | null = null;
 
 /** "Continue — Rhino · Spider-Man · round 4". See `view/continue-label.ts`. */
 function continueLabel(save: SaveMeta): string {
-  return continueLabelOf(save, {
-    scenarioName: (id) => POOL_SCENARIOS.find((candidate) => (candidate.id as string) === id)?.name,
-    identityName: (id) => {
-      const identity = CARDS_BY_ID.get(id);
-      return identity ? cardDisplayName(identity) : undefined;
-    },
-    starterDeckName: (id) => POOL_STARTER_DECKS.find((deck) => (deck.id as string) === id)?.name,
-  });
+  return continueLabelOf(save, GAME_LABEL_NAMES);
 }
