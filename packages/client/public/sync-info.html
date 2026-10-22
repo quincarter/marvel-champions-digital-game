@@ -10,7 +10,39 @@
     />
     <style>
       /* Layout: a comic-panel help page. One reading column, each topic a bordered panel, a sticky jump bar of topics.
-   Self-contained on purpose: no web fonts or scripts, so it opens the same from the site, a preview and the apps. */
+   Self-contained on purpose: no scripts and no outside hosts. The fonts are the game's own (the same @fontsource
+   files main.ts bundles, copied to public/fonts/, all SIL Open Font License), so the page matches the game and
+   opens the same from the site, a preview and the apps. */
+      @font-face {
+        font-family: "Bangers";
+        font-weight: 400;
+        font-display: swap;
+        src: url("fonts/bangers-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 400;
+        font-display: swap;
+        src: url("fonts/public-sans-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 700;
+        font-display: swap;
+        src: url("fonts/public-sans-latin-700-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 800;
+        font-display: swap;
+        src: url("fonts/public-sans-latin-800-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "IBM Plex Mono";
+        font-weight: 400;
+        font-display: swap;
+        src: url("fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+      }
       :root {
         --paper: #f3efe3;
         --panel: #fffdf6;
@@ -22,9 +54,9 @@
         --red-ink: #ffffff;
         --soft: #f7e3e3;
         --ok: #1d6b45;
-        --display: Impact, "Haettenschweiler", "Arial Narrow Bold", "Franklin Gothic Bold", sans-serif;
-        --body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        --mono: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+        --display: "Bangers", Impact, "Arial Narrow Bold", sans-serif;
+        --body: "Public Sans", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+        --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
         color-scheme: light;
         padding-top: env(safe-area-inset-top, 0px);
         padding-bottom: env(safe-area-inset-bottom, 0px);
