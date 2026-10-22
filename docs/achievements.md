@@ -59,8 +59,9 @@ spread so a new player ranks up within the first few sessions.
   First: Thor and She-Hulk together unlocks "Worthy of a Second Date?" (owner, 2026-10-20), the misadventure from Jason
   Aaron's _Avengers_ #11 (2018). The extra is a four-page excerpt (`art/side-stories/thor-she-hulk-badlands-date/`) shown
   with a bibliography (title, issue, year, creators, publisher, link) (owner, 2026-10-20). They are read on their own
-  Extras tab, Side Stories, apart from the campaign issues (owner, 2026-10-22); a new one is a row in
-  `content/side-stories.ts` and a folder of pages.
+  Extras tab, Side Stories, apart from the campaign issues, in the comic reader: panel by panel so the printed
+  lettering is readable, each page ending on the whole page (owner, 2026-10-22). A new one is a row in
+  `content/side-stories.ts` (its pages and their panel rectangles) and a folder of pages.
 
 - **Earned items already built:** PR #294 (Ultron Drone art, stacked on this branch) adds an earned item, "Drone art",
   toggled under Settings > More > Earned items and for now gated on "win a game against Ultron" read from the save
