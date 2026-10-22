@@ -316,6 +316,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #hiddenChoice: string | null = null;
   /** How the phase was drawn last (`view/villain-dock.ts`), for the debug hook and the dump. */
   #presentation: VillainDockKind | "hidden" = "full";
+  /** False until this phase's first draw has set `#presentation`; before that the hold asks `#dockedShape` instead. */
+  #shaped = false;
   /**
    * START VILLAIN PHASE has been pressed (the owner's call, 2026-10-14): with Auto-advance off, the docked phase opens
    * on its five steps and waits for the player before anything plays (`#gateEligible`).
@@ -365,6 +367,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#hidden = false;
     this.#hiddenChoice = null;
     this.#presentation = "full";
+    this.#shaped = false;
     this.#released = new Set();
     this.#flipped = new Set();
     this.#flip = null;
@@ -1043,8 +1046,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
      *  - "on": no recap; the last beat gets one beat interval to be read, then the screen closes.
      * Reduced motion never auto-closes, whatever the setting.
      *
-     * With no reveal timer the phase appears at once up to each stop the player asked for, so a close timer would
-     * give the player who asked for less motion the *least* time to read it. The only ways out are the ones the player drives: Start player
+     * With no reveal timer the phase appears at once up to each stop the player asked for, so a close timer
+     * would give the player who asked for less motion the *least* time to read it. The only ways out are the ones the player drives: Start player
      * phase, Hide (Skip), or Esc.
      */
     const mode = appSession().settings.villainAutoAdvance;
@@ -1072,9 +1075,23 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const settings = appSession().settings;
     if (!settings.holdEncounterCards || this.#shownPause()) return null;
     if (this.#flipGate(revealed) !== null || this.#flipTurning() !== null) return null;
-    if (this.#presentation === "full" || this.#presentation === "hidden") return null;
+    // The first catch-up of a phase runs before its first draw, while `#presentation` is still create's "full".
+    const shape = this.#shaped ? this.#presentation : this.#dockedShape();
+    if (shape === "full" || shape === "hidden") return null;
     const beats = this.#walkthrough.steps.flatMap((step) => step.beats);
     return encounterHoldAt(beats, revealed, this.#released);
+  }
+
+  /** The shape the phase opens in before anything is drawn: docked unless full screen or a lesson's guide strip. */
+  #dockedShape(): VillainDockKind {
+    if (this.#guideActive()) return "full";
+    const { width, height } = this.scale.gameSize;
+    return villainPresentationFor({
+      formFactor: formFactorFor(width, height),
+      dockTable: appSession().settings.villainDockTable,
+      recap: false,
+      peeking: false,
+    });
   }
 
   /**
@@ -1200,6 +1217,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       resetHoverCards(this);
       this.#decisionDock = null;
       this.#drawNow();
+      if (this.#latest?.game) this.#shaped = true;
       this.#publishDecisionDock();
       this.#publishSheetHost();
       this.#hover?.onDraw();
