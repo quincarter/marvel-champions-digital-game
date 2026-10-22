@@ -150,6 +150,15 @@ describe("a card flipped by a card, and its counters", () => {
     expect(lines(flipThenReady, as(handCard, "34002a", true))).toHaveLength(2);
     expect(lines([{ type: "cardReadied", instanceId: otherCard }])).toHaveLength(0);
   });
+
+  test("a card ability's ready is told, past the frames between them (Indomitable: discard it → ready your hero)", () => {
+    const ability = [
+      { type: "abilityResolved", instanceId: handCard, abilityId: "01082.indomitable-response" },
+      { type: "framePushed" },
+      { type: "cardReadied", instanceId: otherCard },
+    ] as unknown as GameEvent[];
+    expect(lines(ability).at(-1)).toMatch(/readies\.$/);
+  });
 });
 
 describe("a card an encounter card exhausts (issue 136)", () => {
