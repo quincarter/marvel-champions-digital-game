@@ -727,6 +727,18 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
     ink.label * dim,
   );
   fitWrapped(subtitleText, inner.width - 12, 2, typeRole.label.size);
+  // Each counter kind as its own chip along the bottom: the number big, the kind spelled out beside it, so
+  // "4 INFAMY" never has to be inferred from a color or a pip count.
+  const chipHeight = 24;
+  const counterCount = Math.min(environment.counters.length, 2);
+  const countersTop =
+    counterCount > 0
+      ? inner.y + inner.height - 4 - counterCount * chipHeight - (counterCount - 1) * 3
+      : inner.y + inner.height - 22;
+  // A short tile with counter chips keeps the subtitle to one line rather than letting the chips paint over it.
+  if (subtitleText.y + subtitleText.height > countersTop - 4) {
+    fitWrapped(subtitleText, inner.width - 12, 1, typeRole.label.size);
+  }
   const titleBox: Rect = {
     x: inner.x,
     y: inner.y,
@@ -739,15 +751,6 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
     scene.children.bringToTop(nameText);
     scene.children.bringToTop(subtitleText);
   }
-
-  // Each counter kind as its own chip along the bottom: the number big, the kind spelled out beside it, so
-  // "4 INFAMY" never has to be inferred from a color or a pip count.
-  const chipHeight = 24;
-  const counterCount = Math.min(environment.counters.length, 2);
-  const countersTop =
-    counterCount > 0
-      ? inner.y + inner.height - 4 - counterCount * chipHeight - (counterCount - 1) * 3
-      : inner.y + inner.height - 22;
 
   // A printed Hero/Alter-Ego Action or resource ability on the environment itself (Library Labyrinth's "This
   // way?"), the same `▶` affordance a character panel's own foot strip gives its usable ability — drawn only
