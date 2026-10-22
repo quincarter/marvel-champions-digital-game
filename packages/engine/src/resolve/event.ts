@@ -892,6 +892,9 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
       // Its interrupts resolved with the card not yet given; it is given now (docs/phase7-wave11-scenarios.md E23).
       applyBoostCardBeingGiven(ctx, event);
       return;
+    case "boostCardTurningFaceup":
+      // Its interrupts resolved with the card still facedown; the activation's flip step turns it up (`stepBoostCard`).
+      return;
     case "encounterCardBeingDealt":
       // Its interrupts resolved with the card still on the deck; it is dealt now (docs/phase7-wave9.md §3.45).
       if (event.named) applyNamedEncounterDeal(ctx, { ...event, named: event.named });

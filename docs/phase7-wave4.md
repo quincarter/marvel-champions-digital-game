@@ -1459,6 +1459,12 @@ removes the card from the activation altogether. Survey: Close Call (`gmw` 16158
 > the card faceup and then opens that window, so "would be turned faceup" is answered there. A response "after a
 > boost card is turned faceup" still sees the event; no printed card combines the two. **DSL:** `discardBoostCard()`.
 > **Scripted:** `26018.defiance-interrupt`, off `KNOWN_SKIPPED`.
+>
+> **Revised (2026-10-22, issue #348):** answering in the faceup window let a player see the card before choosing
+> Defiance. FFG's ruling (Alex Werner, RRG 1.0-1.4 rulings, "is" vs "would be" for interrupts) says Defiance discards
+> the card without turning it faceup. The engine now opens a facedown `boostCardTurningFaceup` interrupt window before
+> each enemy activation's boost card is flipped, when an ability could answer it; Defiance triggers there, and a card it
+> discards is never turned up. "When a boost card is turned faceup" (Preemptive Strike) keeps the faceup window.
 
 ### 3.36 An event pattern that accepts several values
 

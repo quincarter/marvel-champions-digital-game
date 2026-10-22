@@ -52,6 +52,7 @@ const TREACHERY: ReadonlySet<string> = new Set([
   "encounterCardBeingDealt",
   "encounterCardDealt",
   "boostCardTurnedFaceup",
+  "boostCardTurningFaceup",
 ]);
 const THREAT: ReadonlySet<string> = new Set(["placeThreat", "enemyScheme", "accelerationTokenPlaced"]);
 
