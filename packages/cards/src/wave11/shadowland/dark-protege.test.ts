@@ -23,7 +23,7 @@ import {
   stackEncounterDeck,
   use,
 } from "../../testing/harness.js";
-import { driveEventsPicking, withForm } from "../../testing/staging.js";
+import { driveEventsPicking, driveStepwise, encounterCardInVillainArea, withForm } from "../../testing/staging.js";
 import { engageMinion, stagedInPlay } from "../../wave9/falcon/testing.js";
 import { BLACK_CAT, CAPTAIN_MARVEL, SHE_HULK, SPIDER_MAN } from "../../wave9/testing.js";
 import { WAVE11_CARDS } from "../cards.js";
@@ -55,12 +55,36 @@ const ART = "65018";
 const BLESSING = "65019";
 const WITHIN = "65026";
 const EMBRACED = "65027";
+const SURGER = "01121";
 const BO_STAFF = "65030";
 const KATANA = "65032";
 const CHARGE = "01099";
 const CORE_MINION = "01101";
 const HELLCAT = "01020";
-const CARDS = [ARCHPRIESTESS, DAREDEVIL, ELEKTRA, GORGON, BULLSEYE, TIGER, ART, BLESSING, WITHIN, EMBRACED];
+const MINION_ARCHPRIESTESS = "65020";
+const MINION_GORGON = "65021";
+const MINION_BULLSEYE = "65022";
+const MINION_TIGER = "65023";
+const RITE = "65024";
+const PLOT = "65025";
+const CARDS = [
+  ARCHPRIESTESS,
+  DAREDEVIL,
+  ELEKTRA,
+  GORGON,
+  BULLSEYE,
+  TIGER,
+  ART,
+  BLESSING,
+  MINION_ARCHPRIESTESS,
+  MINION_GORGON,
+  MINION_BULLSEYE,
+  MINION_TIGER,
+  RITE,
+  PLOT,
+  WITHIN,
+  EMBRACED,
+];
 const REFS = [
   "65012a.archpriestess-forced-response",
   "65013a.daredevil-forced-response",
@@ -68,6 +92,18 @@ const REFS = [
   "65015a.gorgon-forced-interrupt",
   "65016a.lady-bullseye-forced-response",
   "65017a.white-tiger-forced-response",
+  "65012b.archpriestess-forced-response",
+  "65013b.daredevil-forced-response",
+  "65014b.elektra-forced-interrupt",
+  "65015b.gorgon-forced-interrupt",
+  "65016b.lady-bullseye-forced-response",
+  "65017b.white-tiger-forced-response",
+  "65020.when-revealed",
+  "65021.gorgon-forced-response",
+  "65022.lady-bullseye-forced-interrupt",
+  "65023.when-revealed",
+  "65024.when-defeated",
+  "65025.when-defeated",
   "65018.art-of-the-kill-forced-interrupt",
   "65018.art-of-the-kill-action",
   "65019.krahllaks-blessing-forced-interrupt",
@@ -108,7 +144,7 @@ const isEven = (card: any) => card.type !== "resource" && typeof card.cost === "
 const isResource = (card: any) => card.type === "resource";
 
 describe("registry", () => {
-  it("registers every printed ref of the ten cards; nothing is skipped", () => {
+  it("registers every printed ref of the sixteen cards; nothing is skipped", () => {
     const refs = CARDS.flatMap((c) => abilityRefIds(data(c))).sort();
     expect(refs).toEqual([...REFS].sort());
     expect(Object.keys(REGISTRY).sort()).toEqual([...REFS].sort());
@@ -598,5 +634,321 @@ describe("Embraced by Darkness 65027", () => {
     const boosted = villainPhase(start, [EMBRACED, FILLER_A]);
     const plain = villainPhase(start, [ADVANCE, FILLER_A]);
     expect(mainThreat(boosted.state) - mainThreat(plain.state)).toBe(2);
+  });
+});
+
+/** The game with the villain's B side faceup (the flip itself is the main scheme's job, not this module's; this skips the tough status card a real flip gives for Toughness). */
+const onSideB = (s: GameState): GameState => ({
+  ...s,
+  villains: s.villains.map((v) => ({ ...v, side: "B" as const })),
+});
+const toughOfId = (s: GameState, id: string): number => inst(s, id as InstanceId).statuses.tough;
+const defendWith = (id: string) => (st: GameState) => {
+  const c = st.pendingChoice!;
+  return c.prompt.kind === "declareDefender" && c.options.some((o) => o.optionId === id) ? [id] : firstLegal(st);
+};
+
+describe("B sides (65012b to 65017b)", () => {
+  const sideBGame = (villain: string, extra: Parameters<typeof shadowGame>[0] = {}) =>
+    onSideB(heroGame({ villain, ...extra }));
+
+  it("the printed B sides carry Steady and Toughness as data", () => {
+    for (const code of [ARCHPRIESTESS, DAREDEVIL, ELEKTRA, GORGON, BULLSEYE, TIGER]) {
+      const b = data(code).sides.find((x: any) => x.side === "B").stages[0];
+      expect(b.keywords.map((k: any) => k.name)).toEqual(["steady", "toughness"]);
+      expect(b.hp.perPlayer).toBe(18);
+    }
+  });
+
+  it("Archpriestess B: after she attacks you, a minion gets a tough status card", () => {
+    const s = engageMinion(sideBGame(ARCHPRIESTESS), CORE_MINION, "m1", P1);
+    const run = villainPhase(s, [ADVANCE, ASSAULT, FILLER_A, FILLER_B]);
+    expect(toughOfId(run.state, "m1")).toBe(1);
+  });
+
+  it("Archpriestess B: with every minion already tough, discards 3 and deals one of those minions to you", () => {
+    const base = patchInstance(
+      engageMinion(sideBGame(ARCHPRIESTESS, { encounter: [BO_STAFF, KATANA] }), CORE_MINION, "m1", P1),
+      "m1" as InstanceId,
+      { statuses: { stunned: 0, confused: 0, tough: 1 } },
+    );
+    const run = villainPhase(base, [ADVANCE, BO_STAFF, ASSAULT, KATANA, FILLER_A, FILLER_B]);
+    expect(
+      [BO_STAFF, KATANA].filter((code) => idsOf(run.state, code).some((id) => inst(run.state, id).engagedWith === P1)),
+    ).toHaveLength(1);
+    expect(discardCodes(run.state)).toContain(ASSAULT);
+  });
+
+  it("Daredevil B: after you attack him you choose to discard 1 random card or he attacks you, once per round per player", () => {
+    const s = sideBGame(DAREDEVIL);
+    const hand = playerOf(s, P1).hand.length;
+    const discarded = driveEventsPicking(DEPS, s, byLabel(/^Discard 1 random/), basicAttack(s));
+    expect(playerOf(discarded.state, P1).hand.length).toBe(hand - 1);
+    const attacked = driveEventsPicking(DEPS, s, byLabel(/^Daredevil attacks/), basicAttack(s));
+    expect(villainAttacks(attacked.events, attacked.state)).toHaveLength(1);
+    // The same player's second attack in the round has no prompt.
+    const log: { kind: string; player: string; ids: string[] }[] = [];
+    const ally = stagedInPlay(discarded.state, BLACK_CAT);
+    driveEventsPicking(
+      DEPS,
+      ally.state,
+      recording(byLabel(/^Discard 1 random/), log),
+      basicAttack(ally.state, P1, ally.id),
+    );
+    expect(log.filter((l) => l.kind === "chooseOption")).toHaveLength(0);
+  });
+
+  it("Elektra B: an odd printed cost gives +1 ATK, an even one overkill and piercing", () => {
+    const run = (want: (c: any) => boolean) => {
+      const game = sideBGame(ELEKTRA);
+      const top = putOnTopOfDeck(game, P1, deckCode(game, want));
+      const done = villainPhase(top.state, [ADVANCE, FILLER_A]);
+      return { hit: villainAttacks(done.events, done.state)[0]!, state: done.state };
+    };
+    expect(run(isOdd).hit.baseAtk).toBe(3);
+    const even = run(isEven);
+    expect(even.hit.baseAtk).toBe(2);
+    expect(damage(even.state)).toBe(2);
+  });
+
+  it("Gorgon B: choose to stun your identity, or take 2 indirect damage", () => {
+    const stunned = villainPhase(sideBGame(GORGON), [ADVANCE, FILLER_A], byLabel(/^Stun/));
+    expect(inst(stunned.state, identityOf(stunned.state)).statuses.stunned).toBe(1);
+    const indirect = villainPhase(sideBGame(GORGON), [ADVANCE, FILLER_A], byLabel(/^Take 2 indirect/));
+    expect(damage(indirect.state)).toBe(4);
+  });
+
+  it("Lady Bullseye B: an undefended attack deals 1 indirect damage; a defended one places 1 threat", () => {
+    const staged = stagedInPlay(sideBGame(BULLSEYE), BLACK_CAT);
+    const undefended = villainPhase(staged.state, [ADVANCE, FILLER_A]);
+    // B's ATK is 2: the attack's 2 plus the 1 indirect damage.
+    expect(damage(undefended.state)).toBe(3);
+    const defended = villainPhase(staged.state, [ADVANCE, FILLER_A], defendWith(staged.id));
+    expect(mainThreat(defended.state) - mainThreat(undefended.state)).toBe(1);
+  });
+
+  it("White Tiger B: after she attacks you she attacks you again with no +1 ATK, once; the A side's second attack has it", () => {
+    const b = villainPhase(sideBGame(TIGER), [ADVANCE, ASSAULT, FILLER_A, FILLER_B]);
+    const hitsB = villainAttacks(b.events, b.state);
+    expect(hitsB).toHaveLength(2);
+    expect(hitsB[1]!.baseAtk).toBe(hitsB[0]!.baseAtk);
+    const a = villainPhase(heroGame({ villain: TIGER }), [ADVANCE, ASSAULT, FILLER_A, FILLER_B]);
+    const hitsA = villainAttacks(a.events, a.state);
+    expect(hitsA[1]!.baseAtk).toBe(hitsA[0]!.baseAtk + 1);
+  });
+});
+
+describe("Archpriestess minion 65020", () => {
+  const game = (extra: readonly string[] = []) => heroGame({ encounter: [MINION_ARCHPRIESTESS, ...extra] });
+  const attacksBy = (events: readonly GameEvent[], id: string) =>
+    ofType(events, "attackResolved").filter((e) => (e.enemyInstanceId as string) === id);
+
+  it("when revealed: each other minion engaged with you attacks you", () => {
+    const s = engageMinion(engageMinion(game(), CORE_MINION, "m1", P1), CORE_MINION, "m2", P1);
+    const control = villainPhase(s, [ADVANCE, FILLER_A, FILLER_B]);
+    const run = villainPhase(s, [ADVANCE, MINION_ARCHPRIESTESS, FILLER_A, FILLER_B]);
+    expect(attacksBy(run.events, "m1").length - attacksBy(control.events, "m1").length).toBe(1);
+    expect(attacksBy(run.events, "m2").length - attacksBy(control.events, "m2").length).toBe(1);
+  });
+
+  it("when revealed: with no other minion engaged with you, discards the top 3 cards of the encounter deck", () => {
+    const run = villainPhase(game([BO_STAFF, KATANA, ASSAULT]), [
+      ADVANCE,
+      MINION_ARCHPRIESTESS,
+      BO_STAFF,
+      KATANA,
+      ASSAULT,
+      FILLER_A,
+    ]);
+    expect(discardCodes(run.state)).toEqual(expect.arrayContaining([BO_STAFF, KATANA, ASSAULT]));
+  });
+
+  it("when revealed: a minion whose attack is replaced by its stun card made no attack, so the top 3 are discarded", () => {
+    const base = stagedInPlay(engageMinion(game([BO_STAFF, KATANA, ASSAULT]), CORE_MINION, "m1", P1), BLACK_CAT);
+    // Stun the minion once its own activation this phase has resolved (its attack's defender prompt), before the reveal.
+    let prompts = 0;
+    const stunLater = (st: GameState): GameState => {
+      if (st.pendingChoice?.prompt.kind !== "declareDefender") return st;
+      prompts += 1;
+      return prompts === 2
+        ? patchInstance(st, "m1" as InstanceId, { statuses: { stunned: 1, confused: 0, tough: 0 } })
+        : st;
+    };
+    const staged = stackEncounterDeck(base.state, ADVANCE, MINION_ARCHPRIESTESS, BO_STAFF, KATANA, ASSAULT, FILLER_A);
+    const run = driveStepwise(DEPS, runWith(DEPS, staged, endTurn(P1)), firstLegal, stunLater);
+    expect(prompts).toBeGreaterThanOrEqual(2);
+    expect(attacksBy(run.events, "m1")).toHaveLength(1);
+    expect(inst(run.state, "m1" as InstanceId).statuses.stunned).toBe(0);
+    expect(discardCodes(run.state)).toEqual(expect.arrayContaining([BO_STAFF, KATANA, ASSAULT]));
+  });
+
+  it("when revealed: when another minion attacked, nothing is discarded", () => {
+    const s = engageMinion(game([BO_STAFF, KATANA, ASSAULT]), CORE_MINION, "m1", P1);
+    const run = villainPhase(s, [ADVANCE, MINION_ARCHPRIESTESS, BO_STAFF, KATANA, ASSAULT, FILLER_A]);
+    expect(discardCodes(run.state)).not.toContain(BO_STAFF);
+  });
+});
+
+describe("Gorgon minion 65021", () => {
+  const attackGorgon = (s: GameState, attacker?: InstanceId) => ({
+    type: "basicAttack" as const,
+    playerId: P1,
+    attackerInstanceId: attacker ?? identityOf(s, P1),
+    targetInstanceId: "g1" as InstanceId,
+  });
+  const game = () => engageMinion(heroGame(), MINION_GORGON, "g1", P1);
+
+  it("forced response: after a character attacks and damages him, that character is stunned", () => {
+    const s = game();
+    const run = driveEventsPicking(DEPS, s, firstLegal, attackGorgon(s));
+    expect(inst(run.state, "g1" as InstanceId).damage).toBeGreaterThan(0);
+    expect(inst(run.state, identityOf(run.state)).statuses.stunned).toBe(1);
+  });
+
+  it("forced response: an ally that attacks and damages him is the one stunned", () => {
+    const staged = stagedInPlay(game(), BLACK_CAT);
+    const run = driveEventsPicking(DEPS, staged.state, firstLegal, attackGorgon(staged.state, staged.id));
+    expect(inst(run.state, staged.id).statuses.stunned).toBe(1);
+    expect(inst(run.state, identityOf(run.state)).statuses.stunned).toBe(0);
+  });
+});
+
+describe("Lady Bullseye minion 65022", () => {
+  const attackedBy = (events: readonly GameEvent[], id: string) =>
+    ofType(events, "attackResolved").filter((e) => (e.enemyInstanceId as string) === id);
+  const JESSICA = "01059";
+  const MOCKINGBIRD = "01083";
+  /** Runs the phase and reports whether the minion's attack carried the ranged keyword when defenders were declared. */
+  function phase(state: GameState) {
+    let ranged = false;
+    const run = driveStepwise(
+      DEPS,
+      runWith(DEPS, stackEncounterDeck(state, ADVANCE, FILLER_A, FILLER_B), endTurn(P1)),
+      (st) => {
+        if (st.pendingChoice?.prompt.kind === "declareDefender" && JSON.stringify(st.stack).includes('"ranged"'))
+          ranged = true;
+        return firstLegal(st);
+      },
+    );
+    return { ...run, ranged: () => ranged };
+  }
+  const game = () => engageMinion(heroGame(), MINION_BULLSEYE, "b1", P1);
+
+  it("forced interrupt: the same attack is retargeted to the ally with the highest printed cost, and is ranged", () => {
+    const cat = stagedInPlay(game(), BLACK_CAT);
+    const both = stagedInPlay(cat.state, JESSICA);
+    const run = phase(both.state);
+    const hits = attackedBy(run.events, "b1");
+    // One attack only (a Villainous boost is a separate attack by the villain), on the pricier ally (3 over 2).
+    expect(hits).toHaveLength(1);
+    expect(hits[0]!.targetInstanceId).toBe(both.id);
+    expect(run.ranged()).toBe(true);
+  });
+
+  it("forced interrupt: a tie for the highest printed cost is picked by the first player", () => {
+    const cat = stagedInPlay(game(), BLACK_CAT);
+    const jessica = stagedInPlay(cat.state, JESSICA);
+    const mockingbird = stagedInPlay(jessica.state, MOCKINGBIRD);
+    const asked: { player: string; ids: string[] }[] = [];
+    const run = driveStepwise(
+      DEPS,
+      runWith(DEPS, stackEncounterDeck(mockingbird.state, ADVANCE, FILLER_A, FILLER_B), endTurn(P1)),
+      (st) => {
+        const c = st.pendingChoice!;
+        if (c.prompt.kind !== "declareDefender" && c.options.some((o) => o.optionId === jessica.id)) {
+          asked.push({ player: c.playerId as string, ids: c.options.map((o) => o.optionId as string) });
+          return [mockingbird.id as string];
+        }
+        return firstLegal(st);
+      },
+    );
+    expect(asked).toHaveLength(1);
+    expect(asked[0]!.player).toBe(P1);
+    expect(asked[0]!.ids).not.toContain(cat.id as string);
+    expect(attackedBy(run.events, "b1")[0]!.targetInstanceId).toBe(mockingbird.id);
+  });
+
+  it("forced interrupt: with no ally you control the attack stays on you, still ranged", () => {
+    const run = phase(game());
+    const hits = attackedBy(run.events, "b1");
+    expect(hits).toHaveLength(1);
+    expect(hits[0]!.targetInstanceId).toBe(identityOf(run.state));
+    expect(run.ranged()).toBe(true);
+  });
+});
+
+describe("White Tiger minion 65023", () => {
+  it("when revealed: take 2 indirect damage", () => {
+    const run = villainPhase(heroGame({ encounter: [MINION_TIGER] }), [ADVANCE, MINION_TIGER, FILLER_A, FILLER_B]);
+    const control = villainPhase(heroGame(), [ADVANCE, FILLER_A, FILLER_B]);
+    expect(damage(run.state) - damage(control.state)).toBe(2);
+  });
+});
+
+describe("Rite of Offering 65024", () => {
+  const staged = (withAlly: boolean) => {
+    const base = encounterCardInVillainArea(heroGame({ encounter: [RITE] }), RITE, 1);
+    const ally = withAlly ? stagedInPlay(base.state, BLACK_CAT) : { state: base.state, id: null };
+    const thwart = {
+      type: "basicThwart" as const,
+      playerId: P1,
+      thwarterInstanceId: identityOf(ally.state),
+      schemeInstanceId: base.id,
+    };
+    return { state: ally.state, ally: ally.id, thwart };
+  };
+
+  it("when defeated: the defeating player removes an ally they control from the game", () => {
+    const { state, ally, thwart } = staged(true);
+    const run = driveEventsPicking(DEPS, state, firstLegal, thwart);
+    expect(run.state.removedFromGame).toContain(ally);
+    expect(playerOf(run.state, P1).playArea).not.toContain(ally);
+    expect(playerOf(run.state, P1).discard).not.toContain(ally);
+    expect(damage(run.state)).toBe(0);
+  });
+
+  it("when defeated: with no ally to remove, that player takes 3 damage", () => {
+    const { state, thwart } = staged(false);
+    const run = driveEventsPicking(DEPS, state, firstLegal, thwart);
+    expect(damage(run.state)).toBe(3);
+  });
+});
+
+describe("Shadowy Plot 65025", () => {
+  const thwart = (s: GameState, id: InstanceId) => ({
+    type: "basicThwart" as const,
+    playerId: P1,
+    thwarterInstanceId: identityOf(s),
+    schemeInstanceId: id,
+  });
+  const engagedWithP1 = (s: GameState, code: string) => idsOf(s, code).some((id) => inst(s, id).engagedWith === P1);
+
+  it("when defeated: the defeating player reveals the 1 they pick of the top 3 and discards exactly the other two", () => {
+    const base = encounterCardInVillainArea(heroGame({ encounter: [PLOT, BO_STAFF, KATANA] }), PLOT, 1);
+    const s = stackEncounterDeck(base.state, BO_STAFF, KATANA, ASSAULT);
+    const katana = idsOf(s, KATANA)[0]!;
+    const log: { kind: string; player: string; ids: string[] }[] = [];
+    const pickKatana = (st: GameState) =>
+      st.pendingChoice!.options.some((o) => o.optionId === katana) ? [katana as string] : firstLegal(st);
+    const run = driveEventsPicking(DEPS, s, recording(pickKatana, log), thwart(s, base.id));
+    const choice = log.filter((l) => l.ids.includes(katana as string));
+    expect(choice).toHaveLength(1);
+    expect(choice[0]!.player).toBe(P1);
+    expect(engagedWithP1(run.state, KATANA)).toBe(true);
+    expect(discardCodes(run.state)).toEqual(expect.arrayContaining([BO_STAFF, ASSAULT]));
+    expect(discardCodes(run.state)).not.toContain(KATANA);
+  });
+
+  it("when defeated: a surge from the revealed card reveals the next looked-at card, which is not discarded afterwards (RRG 1.8 Surge, p. 42)", () => {
+    const base = encounterCardInVillainArea(heroGame({ encounter: [PLOT, SURGER, BO_STAFF, KATANA] }), PLOT, 1);
+    const s = stackEncounterDeck(base.state, SURGER, BO_STAFF, KATANA);
+    const surger = idsOf(s, SURGER)[0]!;
+    const pickSurger = (st: GameState) =>
+      st.pendingChoice!.options.some((o) => o.optionId === surger) ? [surger as string] : firstLegal(st);
+    const run = driveEventsPicking(DEPS, s, pickSurger, thwart(s, base.id));
+    // Weapons Runner surged, so Bo Staff (the next card) was dealt to the player and is not "the rest"; only Katana, still in the deck, is discarded.
+    expect(playerOf(run.state, P1).dealtEncounter.map((id) => codeOf(run.state, id))).toContain(BO_STAFF);
+    expect(discardCodes(run.state)).not.toContain(BO_STAFF);
+    expect(discardCodes(run.state)).toContain(KATANA);
   });
 });
