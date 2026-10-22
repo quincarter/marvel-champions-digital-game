@@ -16,6 +16,7 @@ import { dotGrid, ink, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { label, paintDotGrid } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
+import { onTap } from "../ui/tap.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import type { Rect } from "../view/layout.js";
 import {
@@ -118,7 +119,14 @@ export class NewInBoxScene extends Phaser.Scene {
     this.#drawHeader(header, page);
 
     const viewport: Rect = { x: 0, y: header.header.height, width, height: height - header.header.height };
-    this.#region = new McScrollRegion(this, { rect: viewport, heights: content.heights, scroll: this.#scroll });
+    // `clipInteractive`: a mask hides pixels, not hit areas, so a row scrolled up under the header would still win the
+    // press on its ×.
+    this.#region = new McScrollRegion(this, {
+      rect: viewport,
+      heights: content.heights,
+      scroll: this.#scroll,
+      clipInteractive: true,
+    });
     const container = this.#region.content;
     const toScreen = (rect: Rect): Rect => ({ ...rect, y: viewport.y + rect.y });
     const done = guidePrefs().aspectLessonsDone;
@@ -158,7 +166,7 @@ export class NewInBoxScene extends Phaser.Scene {
           .zone(screenRect.x, screenRect.y, screenRect.width, screenRect.height)
           .setOrigin(0, 0)
           .setInteractive({ useHandCursor: true });
-        zone.on("pointerup", activate);
+        onTap(zone, activate, stopId);
         container.add(zone);
         stops.set(stopId, {
           rect: () => ({ ...rowRect, y: viewport.y + rowRect.y - this.#scroll.offsetPx }),
@@ -174,7 +182,7 @@ export class NewInBoxScene extends Phaser.Scene {
             .zone(linkScreen.x, linkScreen.y, linkScreen.width, linkScreen.height)
             .setOrigin(0, 0)
             .setInteractive({ useHandCursor: true });
-          linkZone.on("pointerup", open);
+          onTap(linkZone, open, `link:${row.id}`);
           container.add(linkZone);
           const linkId = `link:${row.id}`;
           stops.set(linkId, {
@@ -195,6 +203,8 @@ export class NewInBoxScene extends Phaser.Scene {
         });
       });
     }
+
+    this.#region.syncInteractivity();
 
     // Dev e2e hook: each entry row and link line on screen right now (scroll applied).
     if (import.meta.env.DEV) {
@@ -240,7 +250,7 @@ export class NewInBoxScene extends Phaser.Scene {
       .zone(header.close.x, header.close.y, header.close.width, header.close.height)
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
-    zone.on("pointerup", () => this.#leave());
+    onTap(zone, () => this.#leave(), "close");
     this.add
       .text(header.title.x, header.header.height / 2, page.title.toUpperCase(), {
         ...textStyle(TITLE_TYPE, surface.paper.hex),

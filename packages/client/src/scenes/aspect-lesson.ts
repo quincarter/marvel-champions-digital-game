@@ -34,6 +34,7 @@ import { dotGrid, ink, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, label, paintDotGrid } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
+import { onTap } from "../ui/tap.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { McTermText } from "../ui/term-text.js";
 import { McTooltip } from "../ui/tooltip.js";
@@ -243,7 +244,7 @@ export class AspectLessonScene extends Phaser.Scene {
       .zone(close.x, close.y, close.width, close.height)
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
-    zone.on("pointerup", () => this.#leave());
+    onTap(zone, () => this.#leave(), "close");
   }
 
   /**
@@ -276,8 +277,10 @@ export class AspectLessonScene extends Phaser.Scene {
         heights: [text.height],
         scroll: this.#textScroll,
         onScroll: (offset) => this.#onColumnScroll(offset, text.height, layout.text.height),
+        clipInteractive: true,
       });
       textRegion.content.add(text.objects);
+      textRegion.syncInteractivity();
       this.#textRegion = textRegion;
       this.#onColumnScroll(0, text.height, layout.text.height);
 
@@ -308,9 +311,11 @@ export class AspectLessonScene extends Phaser.Scene {
       heights: [contentHeight],
       scroll: this.#textScroll,
       onScroll: (offset) => this.#onColumnScroll(offset, contentHeight, rect.height),
+      clipInteractive: true,
     });
     region.content.add([...text.objects, ...cards.objects]);
     this.#addZones(region, cards.zones);
+    region.syncInteractivity();
     this.#textRegion = region;
     this.#onColumnScroll(0, contentHeight, rect.height);
   }
@@ -321,12 +326,16 @@ export class AspectLessonScene extends Phaser.Scene {
         .zone(zone.rect.x, zone.rect.y, zone.rect.width, zone.rect.height)
         .setOrigin(0, 0)
         .setInteractive({ useHandCursor: true });
-      z.on("pointerup", zone.activate);
+      // A tap, not any release: a finger swiping the column that lifts over a card is a scroll (`ui/tap.ts`).
+      onTap(z, () => zone.activate());
       region.content.add(z);
     }
   }
 
   #onColumnScroll(offsetPx: number, contentHeight: number, viewportHeight: number): void {
+    // A scroll closes an open tooltip: its term moved away, and the scroll's own clip pass turns back on the terms the
+    // tooltip holds off.
+    this.#tooltip?.hide();
     const maxOffset = Math.max(0, contentHeight - viewportHeight);
     if (offsetPx >= maxOffset - 0.5) this.#markDone();
   }
@@ -657,6 +666,8 @@ export class AspectLessonScene extends Phaser.Scene {
       },
       () => {
         for (const block of this.#termBlocks) block.setTermsEnabled(() => true);
+        // `setTermsEnabled` turns every term back on, scrolled out of the column or not.
+        this.#textRegion?.syncInteractivity();
       },
     );
   }

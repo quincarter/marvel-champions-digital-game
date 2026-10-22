@@ -12,6 +12,7 @@ import {
 } from "./helpers.js";
 import { continueRect, gameMarks, reachVillainRecap, villainDebugRect } from "./overlay-helpers.js";
 import { installWave6Helpers, routeStops } from "./wave6-helpers-a.js";
+import { SHOT } from "./x-men-helpers.js";
 import { declineMulligans, openApp, startGame, type Rect } from "./wave6-helpers-b.js";
 
 /**
@@ -187,6 +188,32 @@ test.describe("Pause menu", () => {
     await openPause(page, phone);
     await pressStop(page, phone, PAUSE, "save-quit", async () => (await activeScenes(page)).includes("Title"));
     expect(await activeScenes(page)).not.toContain("Board");
+  });
+
+  test("the phone's ✕ still closes Pause with the Table and Guide rows scrolled to the bottom", async ({
+    page,
+  }, info) => {
+    test.skip(!isPhone(info), "the scrolling Table and Guide group is the phone sheet's own");
+    test.setTimeout(180_000);
+    const errors = trackPageErrors(page);
+    await newGame(page);
+    await openPause(page, true);
+    const size = page.viewportSize()!;
+    // Scrolled to the foot of the group, the rows above the fold sit (masked, unseen) over the title bar and its ✕.
+    for (let i = 0; i < 8; i++) {
+      await touchSwipe(page, 60, size.height - 200, size.height - 420);
+      await settle(page, { quietMs: 150, maxMs: 600 });
+    }
+    const close = (await stopOf(page, PAUSE, "close"))!;
+    // A swipe of the rows that lifts over the ✕ is a scroll, not a press (issue #227).
+    await touchSwipe(page, close.x + close.width / 2, size.height - 220, close.y + close.height / 2);
+    await settle(page);
+    expect(await isSceneUp(page, PAUSE), "a swipe that lifted on the ✕ left Pause open").toBe(true);
+    if (SHOT) await page.screenshot({ path: `${SHOT}/pause-scrolled-${info.project.name}.png` });
+    // One tap, no retries: a scrolled-out row that still caught the press left the ✕ dead.
+    await page.touchscreen.tap(close.x + close.width / 2, close.y + close.height / 2);
+    await waitFor(sceneGone(page, PAUSE), "a tap on the ✕ closes Pause", 5_000);
+    expect(errors).toEqual([]);
   });
 
   test("the phone's Game log row shows the log, and a swipe that lifts over a row doesn't open it", async ({
