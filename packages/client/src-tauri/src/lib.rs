@@ -1,5 +1,6 @@
 mod app_volume;
 mod display_mode;
+mod save_file;
 
 // The context (and with it all of dist/, embedded) is generated in main.rs, not
 // here: expanded in this lib crate, the embedded assets were also written into
@@ -60,6 +61,9 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
     // default browser: the webview ignores `window.open`. Also scoped in
     // capabilities/default.json.
     .plugin(tauri_plugin_opener::init())
+    // The Save dialog behind save_file::save_text_file. No dialog permission
+    // in capabilities/default.json: the page only reaches it through that command.
+    .plugin(tauri_plugin_dialog::init())
     .invoke_handler(tauri::generate_handler![
       installer_kind,
       display_mode::display_modes,
@@ -70,7 +74,8 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
       app_volume::set_app_volume,
       app_volume::master_muted,
       app_volume::start_app_volume_watch,
-      app_volume::stop_app_volume_watch
+      app_volume::stop_app_volume_watch,
+      save_file::save_text_file
     ])
     // Exclusive fullscreen gives the monitor back while the game is in the background (display_mode.rs).
     .on_window_event(|_, event| {

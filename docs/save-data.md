@@ -55,6 +55,8 @@ the `mc-*` `localStorage` entries, and reloads the page so every cache reads the
 
 ## Platforms
 
-The web downloads the file and picks it with the browser's file picker. The Capacitor and Tauri webviews don't
-download, so there export goes to the system share sheet when the webview can share files and falls back to a
-download link otherwise; this path still needs checking on a device.
+The web downloads the file and picks it with the browser's file picker. The desktop app (Tauri) exports through the
+system's own Save dialog, opened in Downloads with the dated file name filled in (`src-tauri/src/save_file.rs`); the
+page reaches it only through that one command, with no file-system permission of its own. The phone apps (Capacitor)
+don't download, so there export goes to the system share sheet when the webview can share files and falls back to a
+download link otherwise; that path still needs checking on a device.

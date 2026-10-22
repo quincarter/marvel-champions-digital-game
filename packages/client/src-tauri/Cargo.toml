@@ -34,6 +34,8 @@ tauri = { version = "2.12.3", default-features = false, features = [
 tauri-plugin-log = "2"
 tauri-plugin-http = "2.8.2"
 tauri-plugin-opener = "2"
+# The desktop Save dialog for exporting save data (src/save_file.rs).
+tauri-plugin-dialog = "2"
 
 # Exclusive fullscreen: switching the monitor's display mode (src/display_mode.rs).
 [target.'cfg(windows)'.dependencies]

@@ -1,25 +1,46 @@
 /**
  * Getting a save-data file out of the game and back in, through the DOM's own file plumbing (Phaser has none).
  *
- * Out: a browser downloads it through a throwaway `<a download>`. A native shell's webview doesn't download, so
- * there it goes to the system share sheet (Files, AirDrop, Drive) when the webview can share files, and falls back
- * to the same link otherwise. In: a throwaway `<input type="file">`, which every shell routes to its own picker.
+ * Out: a browser downloads it through a throwaway `<a download>`. The desktop app (Tauri) asks the system's own Save
+ * dialog, opened in Downloads with the file name filled in (`src-tauri/src/save_file.rs`): a desktop webview doesn't
+ * download, and macOS's share sheet offers AirDrop and Mail rather than a folder. The phone apps (Capacitor) go to the
+ * share sheet (Files, AirDrop, Drive) when the webview can share files, and fall back to the same link otherwise.
+ * In: a throwaway `<input type="file">`, which every shell routes to its own picker.
  */
-import { detectPlatform, isNativeShell } from "../platform/platform.js";
+import { detectPlatform, type Platform } from "../platform/platform.js";
 import { parseSaveFile, saveFileNameOf, type ParseResult, type SaveFile } from "./save-file.js";
+
+export type ExportRoute = "save-dialog" | "share" | "download";
+
+export function exportRouteFor(platform: Platform, canShareFiles: boolean): ExportRoute {
+  if (platform === "tauri") return "save-dialog";
+  if (platform === "capacitor" && canShareFiles) return "share";
+  return "download";
+}
+
+/** Closing the Save dialog reads as closing the share sheet: an AbortError, which the overlay shows no status for. */
+const cancelled = (): Error => new DOMException("The save dialog was closed.", "AbortError");
 
 export async function deliverSaveFile(file: SaveFile): Promise<void> {
   const name = saveFileNameOf(file.exportedAt);
   const json = JSON.stringify(file);
   const blob = new Blob([json], { type: "application/json" });
+  const shared = new File([blob], name, { type: "application/json" });
+  const nav = globalThis.navigator;
+  const canShareFiles = typeof nav?.share === "function" && nav.canShare?.({ files: [shared] }) === true;
 
-  const share = globalThis.navigator?.share?.bind(globalThis.navigator);
-  if (isNativeShell(detectPlatform()) && share) {
-    const shared = new File([blob], name, { type: "application/json" });
-    if (globalThis.navigator.canShare?.({ files: [shared] }) === true) {
-      await share({ files: [shared], title: name });
+  switch (exportRouteFor(detectPlatform(), canShareFiles)) {
+    case "save-dialog": {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const saved = await invoke<string | null>("save_text_file", { fileName: name, contents: json });
+      if (saved === null) throw cancelled();
       return;
     }
+    case "share":
+      await nav.share({ files: [shared], title: name });
+      return;
+    case "download":
+      break;
   }
 
   const url = URL.createObjectURL(blob);
