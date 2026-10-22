@@ -36,7 +36,10 @@ export const SHADOWLAND_STORY: CampaignStory = {
     "The Hand has raised a fortress in the middle of Hell's Kitchen. Fight through its streets, its trap-filled halls and its heart, while a creeping corruption works on your resolve.",
   rosterBanner:
     "Each hero keeps one identity for the whole campaign, and the corruption each of you carries follows you from issue to issue.",
-  castIdentityIds: [],
+  // The box ships no heroes, so the roster pre-fills two from its own cycle (Fear No Evil, same unlock gate): Luke Cage, of
+  // the Shadowland story's street-level cast, and Jessica Jones. Not Daredevil or Elektra: as an identity either removes
+  // that Dark Protégé villain from the campaign (MC65 p. 9), which a default should not do on its own.
+  castIdentityIds: ["62001a", "61001a"],
   rosterNote: "Shadowland ships no heroes of its own: bring any hero.",
   issues: [
     issue({

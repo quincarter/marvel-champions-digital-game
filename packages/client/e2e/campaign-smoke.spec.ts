@@ -46,7 +46,10 @@ const flat = (text: string): string =>
     .toUpperCase();
 
 /** The default cast a box pre-fills, by volume id, where the issue names it (MojoMania's own roster was once empty). */
-const EXPECTED_CAST: Readonly<Record<string, readonly string[]>> = { mojo: ["GAMBIT", "ROGUE"] };
+const EXPECTED_CAST: Readonly<Record<string, readonly string[]>> = {
+  mojo: ["GAMBIT", "ROGUE"],
+  shadowland: ["LUKE CAGE", "JESSICA JONES"],
+};
 
 /**
  * Sign the roster names a clash when two seated heroes share a name with the other's ally (Groot and Rocket, Colossus and
