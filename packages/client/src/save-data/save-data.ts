@@ -35,14 +35,14 @@ export function browserSaveDataDeps(): SaveDataDeps {
   return { indexedDB: globalThis.indexedDB, localStorage: browserLocalStorage() };
 }
 
-function settle<T>(request: IDBRequest<T>): Promise<T> {
+export function settle<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error("IndexedDB request failed"));
   });
 }
 
-function committed(transaction: IDBTransaction): Promise<void> {
+export function committed(transaction: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error ?? new Error("IndexedDB transaction failed"));
@@ -51,7 +51,7 @@ function committed(transaction: IDBTransaction): Promise<void> {
 }
 
 /** Opens `spec` at its own version, creating any store that isn't there yet, the way its storage class would. */
-function open(factory: IDBFactory, spec: DatabaseSpec): Promise<IDBDatabase> {
+export function open(factory: IDBFactory, spec: DatabaseSpec): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = factory.open(spec.name, spec.version);
     request.onupgradeneeded = () => {
@@ -98,7 +98,7 @@ async function writeDatabase(factory: IDBFactory, spec: DatabaseSpec, saved: Sav
   }
 }
 
-function savedKeys(storage: KeyValueStorage): string[] {
+export function savedKeys(storage: KeyValueStorage): string[] {
   const keys: string[] = [];
   for (let i = 0; i < storage.length; i++) {
     const key = storage.key(i);

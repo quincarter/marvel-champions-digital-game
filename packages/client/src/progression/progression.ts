@@ -14,6 +14,7 @@ import { setShownStandIns } from "../art/art-source.js";
 import { guidePrefs } from "../guide/guide-store.js";
 import { howToPlayProgressOf } from "../view/how-to-play-model.js";
 import { appSession, campaignService, deckStorage } from "../session.js";
+import { notifySaveDataChanged } from "../sync/save-data-changed.js";
 import { readDeckFeats } from "./deck-feats.js";
 import {
   NO_HISTORY,
@@ -43,7 +44,10 @@ const UNLOCKED_EVERYTHING_KEY = "mc-unlocked-everything";
 
 function unlockedEverythingEver(on: boolean): boolean {
   try {
-    if (on) globalThis.localStorage?.setItem(UNLOCKED_EVERYTHING_KEY, "1");
+    if (on) {
+      globalThis.localStorage?.setItem(UNLOCKED_EVERYTHING_KEY, "1");
+      notifySaveDataChanged("progress");
+    }
     return on || globalThis.localStorage?.getItem(UNLOCKED_EVERYTHING_KEY) === "1";
   } catch {
     return on;
@@ -61,6 +65,7 @@ function readPrefs(): UnlockPrefs {
 function writePrefs(prefs: UnlockPrefs): void {
   try {
     globalThis.localStorage?.setItem(PREFS_KEY, JSON.stringify({ version: UNLOCK_PREFS_VERSION, ...prefs }));
+    notifySaveDataChanged("progress");
   } catch {
     // Private mode or a full quota: the choice still holds for this session.
   }

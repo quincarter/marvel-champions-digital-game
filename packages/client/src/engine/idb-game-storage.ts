@@ -18,6 +18,7 @@
  */
 
 import type { Command } from "@mc/engine";
+import { notifySaveDataChanged } from "../sync/save-data-changed.js";
 import type { StateWithoutPool } from "./host.js";
 import {
   migrateSaveMeta,
@@ -81,6 +82,7 @@ export class IdbGameStorage implements GameStorage {
     games.put(meta);
     transaction.objectStore("baselines").put({ gameId: meta.id, state: initialState } satisfies BaselineRow);
     await done;
+    notifySaveDataChanged("game");
   }
 
   async append(gameId: string, seq: number, command: Command, progress: SaveProgress): Promise<void> {
@@ -102,6 +104,7 @@ export class IdbGameStorage implements GameStorage {
     transaction.objectStore("commands").put({ gameId, seq, command } satisfies CommandRow);
     games.put({ ...meta, ...progress });
     await done;
+    notifySaveDataChanged("game");
   }
 
   async truncate(gameId: string, commandCount: number, progress: SaveProgress): Promise<void> {
@@ -132,6 +135,7 @@ export class IdbGameStorage implements GameStorage {
     });
     games.put({ ...meta, ...progress });
     await done;
+    notifySaveDataChanged("game");
   }
 
   async load(gameId: string): Promise<StoredGame | null> {
@@ -169,6 +173,7 @@ export class IdbGameStorage implements GameStorage {
     const meta = await settle(games.get(gameId) as IDBRequest<SaveMeta | undefined>);
     if (meta) games.put({ ...meta, status });
     await done;
+    notifySaveDataChanged("game");
   }
 
   async #allGames(): Promise<SaveMeta[]> {

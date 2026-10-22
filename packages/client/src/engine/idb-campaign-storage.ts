@@ -5,6 +5,7 @@
  * there's no reason to split it across stores the way `mc-saves` splits its ~68 KB baseline off the summary row.
  */
 import type { CampaignStatus } from "@mc/engine";
+import { notifySaveDataChanged } from "../sync/save-data-changed.js";
 import { summaryOf, type CampaignRecord, type CampaignStorage, type CampaignSummary } from "./campaign-storage.js";
 
 const DB_NAME = "mc-campaigns";
@@ -42,6 +43,7 @@ export class IdbCampaignStorage implements CampaignStorage {
     // `add`, not `put`: rejects a duplicate id rather than silently overwriting an existing campaign's whole log.
     transaction.objectStore(STORE).add(record);
     await done;
+    notifySaveDataChanged("campaign");
   }
 
   async put(record: CampaignRecord): Promise<void> {
@@ -50,6 +52,7 @@ export class IdbCampaignStorage implements CampaignStorage {
     const done = committed(transaction);
     transaction.objectStore(STORE).put(record);
     await done;
+    notifySaveDataChanged("campaign");
   }
 
   async load(id: string): Promise<CampaignRecord | null> {
@@ -78,6 +81,7 @@ export class IdbCampaignStorage implements CampaignStorage {
     const record = await settle(store.get(id) as IDBRequest<CampaignRecord | undefined>);
     if (record) store.put({ ...record, status });
     await done;
+    notifySaveDataChanged("campaign");
   }
 
   #open(): Promise<IDBDatabase> {
