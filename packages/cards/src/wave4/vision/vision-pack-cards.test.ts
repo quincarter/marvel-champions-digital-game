@@ -187,6 +187,39 @@ describe("Defiance (event, 26018)", () => {
     expect(playerOf(state, P1).discard).toContain(defiance);
     expect(events).toContainEqual(expect.objectContaining({ type: "boostCancelled", scope: "discarded" }));
   });
+
+  it("is offered while the boost card is still facedown, and the discarded card is never turned up (#348)", () => {
+    const hero = runWith(WAVE4_DEPS, visionVsRhino(22), toHero());
+    const given = moveToHand(hero, P1, "26018");
+    let state = runWith(WAVE4_DEPS, given.state, endTurn());
+    const events: { type: string; instanceId?: string }[] = [];
+    let offeredOn: { boost: InstanceId; faceup: boolean; event: string | undefined } | null = null;
+    while (state.pendingChoice && !state.outcome) {
+      const choice = state.pendingChoice;
+      const offered = choice.options.find((o) => o.optionId.endsWith("26018.defiance-interrupt"));
+      if (offered && !offeredOn) {
+        const event = choice.prompt.kind === "chooseTriggers" ? choice.prompt.event : undefined;
+        const boost = event?.kind === "boostCardTurningFaceup" ? event.boostInstanceId : null;
+        offeredOn = { boost: boost!, faceup: boost ? inst(state, boost).faceup : true, event: event?.kind };
+      }
+      const result = applyOk(
+        state,
+        {
+          type: "resolveChoice",
+          playerId: choice.playerId,
+          choiceId: choice.choiceId,
+          selectedOptionIds: offered ? [offered.optionId] : firstLegal(state),
+        },
+        WAVE4_DEPS,
+      );
+      state = result.state;
+      events.push(...(result.events as never[]));
+    }
+    expect(offeredOn).toMatchObject({ event: "boostCardTurningFaceup", faceup: false });
+    expect(events).not.toContainEqual(
+      expect.objectContaining({ type: "boostCardFlipped", instanceId: offeredOn!.boost }),
+    );
+  });
 });
 
 describe("Machine Man (ally, 26022)", () => {

@@ -100,7 +100,8 @@ export interface ReportTarget {
 }
 
 /**
- * The boost card an activation is resolving (RRG 1.8 "Boost", p. 11): `window` while the interrupts to its
+ * The boost card an activation is resolving (RRG 1.8 "Boost", p. 11): `turning` while the interrupts to its
+ * `boostCardTurningFaceup` event resolve, the card still facedown ("would be turned faceup", Defiance), `window` while the interrupts to its
  * `boostCardTurnedFaceup` event resolve, `ability` while its "Boost" ability resolves, `responses` while that event's
  * responses resolve (RRG 1.8 "Simultaneous Timing Priority", p. 5: interrupts, then the Boost ability, then responses).
  * Its icons are added and it is discarded after that.
@@ -111,7 +112,7 @@ export interface BoostInProgress {
    * `count`: its icons are about to be counted (`boostIconsCounting`; docs/phase7-wave2.md §3.6). `resolved`: counted
    * (`icons`), its `boostCardResolved` response window open before the discard (docs/phase7-wave5.md §3.5).
    */
-  readonly step: "window" | "ability" | "responses" | "count" | "resolved";
+  readonly step: "turning" | "window" | "ability" | "responses" | "count" | "resolved";
   /** With `step: "resolved"`: the icons it adds. */
   readonly icons?: number;
   readonly iconsCancelled: boolean;

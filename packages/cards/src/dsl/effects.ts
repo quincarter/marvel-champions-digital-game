@@ -768,8 +768,8 @@ export const treatAsAlly = (target: TargetRef, traits: readonly Trait[], consequ
 export const takeControl = (target: TargetRef): EffectSpec => ({ kind: "takeControl", target });
 /**
  * "When a boost card on an enemy attacking you would be turned faceup, discard it instead." (Defiance, `vision`
- * 26018): the boost card resolving now is discarded, its Boost ability and icons never applied. docs/phase7-wave4.md
- * §3.35.
+ * 26018): the boost card resolving now is discarded, its Boost ability and icons never applied; from Defiance's
+ * facedown window (`boostCardTurningFaceup`, issue #348) it is never turned up. docs/phase7-wave4.md §3.35.
  */
 export const discardBoostCard = (opts: { readonly bind?: string } = {}): EffectSpec => ({
   kind: "discardBoostCard",

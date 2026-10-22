@@ -83,3 +83,19 @@ describe("HIDE pressed before the replay reaches a decision (missed interrupts)"
     expect(choiceHiddenBy(null, true)).toBeNull();
   });
 });
+
+describe("a boost card discarded while still facedown (Defiance, issue #348)", () => {
+  test("is listed on its activation as discarded, though it was never flipped", async () => {
+    const game = await breakout();
+    const p1 = game.players[0]!.playerId;
+    const enemy = game.villains[0]!.instanceId;
+    const boost = game.villains[2]!.instanceId;
+    const events = [
+      { type: "stepChanged", from: game.step, to: { phase: "villain", kind: "enemyActivations" } },
+      { type: "enemyActivated", enemyInstanceId: enemy, activation: "attack", playerId: p1 },
+      { type: "boostCancelled", instanceId: boost, scope: "discarded" },
+    ] as unknown as GameEvent[];
+    const walkthrough = appendWalkthrough(emptyWalkthrough(1), events, game, p1, POOL_DEPS);
+    expect(walkthrough.activation?.boosts).toEqual([{ instanceId: boost, boostIcons: 0, cancelled: "discarded" }]);
+  });
+});

@@ -586,7 +586,9 @@ function attackYouOf(event: Extract<TriggerEvent, { kind: "enemyAttack" }>, timi
  */
 function attackIsAgainstIdentityOf(state: GameState, event: TriggerEvent, you: PlayerId): boolean {
   const character =
-    event.kind === "enemyAttack" || event.kind === "boostCardTurnedFaceup" ? (event.targetInstanceId ?? null) : null;
+    event.kind === "enemyAttack" || event.kind === "boostCardTurnedFaceup" || event.kind === "boostCardTurningFaceup"
+      ? (event.targetInstanceId ?? null)
+      : null;
   return character !== null && character === getPlayer(state, you)?.identity.instanceId;
 }
 
@@ -762,6 +764,8 @@ function gatherCandidates(
   if (timing === "response" && event.kind === "boostCardBeingGiven") return [];
   // And an encounter card about to be revealed ("after ... reveal" answers `cardRevealed`).
   if (timing === "response" && event.kind === "encounterCardBeingRevealed") return [];
+  // And a boost card about to be turned faceup ("after … is turned faceup" answers `boostCardTurnedFaceup`).
+  if (timing === "response" && event.kind === "boostCardTurningFaceup") return [];
   if (nothingToAnswer(event, timing)) return [];
   // A card discarded from a deck that a response has since moved leaves nothing to act on: no other ability answers
   // its discard (docs/phase7-wave7.md §3.55).

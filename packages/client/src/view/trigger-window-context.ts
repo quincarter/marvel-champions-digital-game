@@ -129,6 +129,9 @@ export function triggerHeadlineOf(
         ? `${boost} is being turned up as a boost card (${icons})`
         : `${boost} was turned up as a boost card (${icons})`;
     }
+    // Still facedown while this window is open, so the card is not named (Defiance, issue #348).
+    case "boostCardTurningFaceup":
+      return before ? "A facedown boost card is about to be turned up" : "A boost card was turned up";
     case "thwart": {
       const thwarter = cardName(state, event.thwarterInstanceId);
       return before ? `${thwarter} is about to thwart` : `${thwarter} thwarted`;

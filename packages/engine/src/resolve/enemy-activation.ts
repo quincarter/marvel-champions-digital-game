@@ -67,7 +67,7 @@ import {
   gainedBoostAbilities,
   isAlly,
 } from "../select.js";
-import { currentActivationFrameId, type Vars } from "../stack.js";
+import { type BoostInProgress, currentActivationFrameId, type Vars } from "../stack.js";
 import type { BoostGiven, GameState, ZoneId } from "../state.js";
 import { type SchemeThreatDivert, TOTAL_ATK_RESULT, type TriggerEvent } from "../trigger-events.js";
 import {
@@ -201,22 +201,32 @@ function activationGivingTo(
 }
 
 const LISTENS_FOR_BOOST_BEING_GIVEN = new WeakMap<EngineDeps, boolean>();
+const LISTENS_FOR_BOOST_TURNING = new WeakMap<EngineDeps, boolean>();
+
+/** Whether any ability in the registry triggers on `kind`, cached per registry in `cache`. */
+function registryListensFor(
+  cache: WeakMap<EngineDeps, boolean>,
+  deps: EngineDeps,
+  kind: TriggerEvent["kind"],
+): boolean {
+  const cached = cache.get(deps);
+  if (cached !== undefined) return cached;
+  const listens = Object.values(deps.abilities).some((definition) => {
+    const trigger = definition.trigger;
+    if (!("on" in trigger) || !trigger.on) return false;
+    const kinds = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+    return kinds.includes(kind);
+  });
+  cache.set(deps, listens);
+  return listens;
+}
 
 /**
  * Whether any ability in the registry triggers on `boostCardBeingGiven` (docs/phase7-wave11-scenarios.md E23); cached
  * per registry. A boost card is given in every villain phase, so nothing is asked for a registry with no such ability.
  */
 export function listensForBoostBeingGiven(deps: EngineDeps): boolean {
-  const cached = LISTENS_FOR_BOOST_BEING_GIVEN.get(deps);
-  if (cached !== undefined) return cached;
-  const listens = Object.values(deps.abilities).some((definition) => {
-    const trigger = definition.trigger;
-    if (!("on" in trigger) || !trigger.on) return false;
-    const kinds = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
-    return kinds.includes("boostCardBeingGiven");
-  });
-  LISTENS_FOR_BOOST_BEING_GIVEN.set(deps, listens);
-  return listens;
+  return registryListensFor(LISTENS_FOR_BOOST_BEING_GIVEN, deps, "boostCardBeingGiven");
 }
 
 type BoostCardBeingGiven = Extract<TriggerEvent, { kind: "boostCardBeingGiven" }>;
@@ -447,55 +457,109 @@ function stepBoostCard(
       (id) => !mustInstance(ctx.state, id).faceup,
     );
     if (!boostId) return null;
-    updateInstance(ctx, boostId, (i) => ({ ...i, faceup: true }));
-    // "When a boost card is turned faceup during an enemy activation, add one additional boost icon to that card for
-    // each amplify icon in play" (RRG 1.8 "Amplify Icon", p. 7; docs/phase7-wave3.md §3.6).
-    // An ignored card has no boost icon to count, printed or gained (an amplify icon's "Each boost card gains
-    // [boost]" gives it a boost icon like any other), so the windows that follow see 0.
-    const ignored = boostIgnored(ctx.state, ctx.deps, frame.enemyInstanceId, frame.eventFrameId);
-    const icons = ignored
-      ? 0
-      : boostIconsFor(ctx.state, ctx.deps, boostId, playerId) +
-        amplifyIconsInPlay(ctx.state, ctx.deps) +
-        boostIconsEachOf(ctx, frame);
-    emit(ctx, {
-      type: "boostCardFlipped",
-      enemyInstanceId: frame.enemyInstanceId,
-      instanceId: boostId,
-      boostIcons: icons,
-    });
-    if (ignored) emit(ctx, { type: "boostIgnored", enemyInstanceId: frame.enemyInstanceId, instanceId: boostId });
-    // RRG 1.8 "Simultaneous Timing Priority" (p. 5) and "Attack (Enemy Activation)" step 3 (p. 8: "a. Flip … b. Resolve
-    // any Boost abilities"): the interrupts to the card being turned faceup, then its Boost ability, then the responses.
-    // So this frame opens only the interrupt window (`responsesLater`); the responses are announced by a second frame
-    // for the same event once the Boost ability has resolved (the `ability` step below). Owner decision, 2026-10-16
-    // (audit finding 10, option B): the latest RRG wins where an older ruling conflicts, so FFG's June 16, 2022 Target
-    // Acquired ruling (its Response before the Boost ability) is superseded; Target Acquired's "cancel that card's boost
-    // ability" now finds nothing to cancel and is not offered (`cancelHasNoTarget`, `resolve/triggers.ts`).
-    const turnedFrame = eventFrame(ctx, {
-      kind: "boostCardTurnedFaceup",
+    // "When a boost card … would be turned faceup" (Defiance 26018): its window opens with the card still facedown, so
+    // it is played without knowing the card (FFG ruling, Alex Werner, RRG 1.0-1.4 rulings: Defiance "allows you to
+    // discard a boost card without turning it faceup"; issue #348). Only when an ability could answer, so a game where
+    // none can keeps its log, state and replay.
+    const turning: TriggerEvent = {
+      kind: "boostCardTurningFaceup",
       enemyInstanceId: frame.enemyInstanceId,
       boostInstanceId: boostId,
       activation,
-      boostIcons: icons,
       playerId,
       ...(frame.kind === "enemyAttack" ? { targetInstanceId: frame.targetInstanceId } : {}),
-    });
-    setFrame(ctx, {
-      ...frame,
-      boost: {
-        instanceId: boostId,
-        step: "window",
-        iconsCancelled: false,
-        abilityCancelled: false,
-        turnedIcons: icons,
-        turnedFrameId: turnedFrame.frameId,
-        ...(ignored ? { ignored: true as const } : {}),
-      },
-    });
-    pushFrames(ctx, [turnedFrame.kind === "event" ? { ...turnedFrame, responsesLater: true } : turnedFrame]);
-    return "busy";
+    };
+    if (
+      registryListensFor(LISTENS_FOR_BOOST_TURNING, ctx.deps, "boostCardTurningFaceup") &&
+      heard(ctx.state, ctx.deps, turning)
+    ) {
+      setFrame(ctx, {
+        ...frame,
+        boost: { instanceId: boostId, step: "turning", iconsCancelled: false, abilityCancelled: false },
+      });
+      pushEvent(ctx, turning);
+      return "busy";
+    }
+    return flipBoostCard(ctx, frame, playerId, activation, boostId);
   }
+  if (turned.step === "turning") {
+    // Its "would be turned faceup" interrupts have resolved. Discarded "instead" (Defiance), it is never turned up and
+    // adds nothing: on to the next card. Otherwise it is turned faceup now.
+    if (locateCard(ctx.state, turned.instanceId)?.kind !== "boost") {
+      setFrame(ctx, { ...frame, boost: null });
+      return "busy";
+    }
+    return flipBoostCard(ctx, { ...frame, boost: null }, playerId, activation, turned.instanceId);
+  }
+  return stepFaceupBoostCard(ctx, frame, playerId, activation, turned);
+}
+
+/** Turns `boostId` faceup and opens its `boostCardTurnedFaceup` interrupt window (`stepBoostCard`). */
+function flipBoostCard(
+  ctx: Ctx,
+  frame: Frame<"enemyAttack"> | Frame<"enemyScheme">,
+  playerId: PlayerId,
+  activation: "attack" | "scheme",
+  boostId: InstanceId,
+): "busy" {
+  updateInstance(ctx, boostId, (i) => ({ ...i, faceup: true }));
+  // "When a boost card is turned faceup during an enemy activation, add one additional boost icon to that card for
+  // each amplify icon in play" (RRG 1.8 "Amplify Icon", p. 7; docs/phase7-wave3.md §3.6).
+  // An ignored card has no boost icon to count, printed or gained (an amplify icon's "Each boost card gains
+  // [boost]" gives it a boost icon like any other), so the windows that follow see 0.
+  const ignored = boostIgnored(ctx.state, ctx.deps, frame.enemyInstanceId, frame.eventFrameId);
+  const icons = ignored
+    ? 0
+    : boostIconsFor(ctx.state, ctx.deps, boostId, playerId) +
+      amplifyIconsInPlay(ctx.state, ctx.deps) +
+      boostIconsEachOf(ctx, frame);
+  emit(ctx, {
+    type: "boostCardFlipped",
+    enemyInstanceId: frame.enemyInstanceId,
+    instanceId: boostId,
+    boostIcons: icons,
+  });
+  if (ignored) emit(ctx, { type: "boostIgnored", enemyInstanceId: frame.enemyInstanceId, instanceId: boostId });
+  // RRG 1.8 "Simultaneous Timing Priority" (p. 5) and "Attack (Enemy Activation)" step 3 (p. 8: "a. Flip … b. Resolve
+  // any Boost abilities"): the interrupts to the card being turned faceup, then its Boost ability, then the responses.
+  // So this frame opens only the interrupt window (`responsesLater`); the responses are announced by a second frame
+  // for the same event once the Boost ability has resolved (the `ability` step below). Owner decision, 2026-10-16
+  // (audit finding 10, option B): the latest RRG wins where an older ruling conflicts, so FFG's June 16, 2022 Target
+  // Acquired ruling (its Response before the Boost ability) is superseded; Target Acquired's "cancel that card's boost
+  // ability" now finds nothing to cancel and is not offered (`cancelHasNoTarget`, `resolve/triggers.ts`).
+  const turnedFrame = eventFrame(ctx, {
+    kind: "boostCardTurnedFaceup",
+    enemyInstanceId: frame.enemyInstanceId,
+    boostInstanceId: boostId,
+    activation,
+    boostIcons: icons,
+    playerId,
+    ...(frame.kind === "enemyAttack" ? { targetInstanceId: frame.targetInstanceId } : {}),
+  });
+  setFrame(ctx, {
+    ...frame,
+    boost: {
+      instanceId: boostId,
+      step: "window",
+      iconsCancelled: false,
+      abilityCancelled: false,
+      turnedIcons: icons,
+      turnedFrameId: turnedFrame.frameId,
+      ...(ignored ? { ignored: true as const } : {}),
+    },
+  });
+  pushFrames(ctx, [turnedFrame.kind === "event" ? { ...turnedFrame, responsesLater: true } : turnedFrame]);
+  return "busy";
+}
+
+/** A faceup boost card's steps after its flip: its Boost ability, responses, count and discard (`stepBoostCard`). */
+function stepFaceupBoostCard(
+  ctx: Ctx,
+  frame: Frame<"enemyAttack"> | Frame<"enemyScheme">,
+  playerId: PlayerId,
+  activation: "attack" | "scheme",
+  turned: BoostInProgress,
+): number | null | "busy" {
   let boost = turned;
   if (
     !boost.ignored &&

@@ -1327,9 +1327,12 @@ function evaluateAbility(
   const cost = costAsDetermined(state, deps, instanceId, playerId, deps.abilities[abilityId]?.cost);
   const picks = discardPicks(state, deps, playerId, instanceId, cost);
   const reserved = new Set(picks);
-  // A cost any player may help pay (`RuleSpec costsPayableByAnyPlayer`, hero-packs H3.19) is paid for its card, which
-  // is what makes the other players' hand cards and resource abilities sources (`paymentOptions`).
-  const payingFor = costsPayableByAnyPlayer(state, deps, instanceId) ? instanceId : null;
+  // `useAbility` pays for the ability's own card, so the wallets are priced for it too: a resource ability that only
+  // generates for that card (Ruby Quartz Visor 33003, "for your 'Optic Blast' ability") is a source, and a cost any
+  // player may help pay (`RuleSpec costsPayableByAnyPlayer`, hero-packs H3.19) has the other players' hand cards and
+  // resource abilities as sources (`paymentOptions`). Priced for no card, the Visor was left out, so Optic Blast with an
+  // empty hand read as unaffordable ("need 1, paid 0", #349).
+  const payingFor = instanceId;
   const spend = spendOrder(state, deps, playerId, reserved, payingFor);
   const chosenSize = resourcesChoiceOf(cost);
   const variants: Variant[] = costChoiceSets(state, deps, playerId, instanceId, cost, picks).flatMap(
