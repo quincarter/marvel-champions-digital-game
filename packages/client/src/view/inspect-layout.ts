@@ -65,6 +65,7 @@
  * testable without a canvas.
  */
 
+import type { InspectCard } from "../settings.js";
 import { hit } from "../tokens.js";
 import { formFactorFor, type Rect } from "./layout.js";
 
@@ -166,7 +167,7 @@ const SHEET_HEADER_GAP = 11;
 /** Portrait phone (taller than wide): the sheet stacks a full-width scan over the text. Landscape keeps the side-by-side header. */
 export function sheetStacked(
   viewport: { readonly width: number; readonly height: number },
-  inspectCard: "large" | "sideBySide" = "large",
+  inspectCard: InspectCard = "large",
 ): boolean {
   return inspectCard === "large" && viewport.width < viewport.height;
 }
@@ -207,7 +208,7 @@ export interface InspectLayoutOptions {
    */
   readonly sheetContentHeight?: number;
   /** Phone only: Settings' "Inspect card" choice. "sideBySide" keeps the small scan beside the text in portrait too. Default "large". */
-  readonly inspectCard?: "large" | "sideBySide";
+  readonly inspectCard?: InspectCard;
 }
 
 export function inspectLayout(viewport: Rect, opts: InspectLayoutOptions = {}): InspectLayout {
@@ -254,7 +255,7 @@ function sheetLayout(
   viewport: Rect,
   expanded: boolean,
   contentHeight?: number,
-  inspectCard?: "large" | "sideBySide",
+  inspectCard?: InspectCard,
 ): InspectSheetLayout {
   const footerHeight =
     SHEET_FOOTER_PAD_TOP +
