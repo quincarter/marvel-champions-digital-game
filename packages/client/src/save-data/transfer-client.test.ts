@@ -119,6 +119,9 @@ describe("failures", () => {
         baseUrl: BASE,
         fetch: ((_: unknown, init?: RequestInit) =>
           new Promise((_resolve, reject) => {
+            // The client can reach fetch after the abort below on a slow runner (it derives its key first): a signal
+            // that is already aborted never fires "abort" again, so reject at once rather than hang the test.
+            if (init?.signal?.aborted) reject(init.signal.reason);
             init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
           })) as typeof fetch,
       };
