@@ -912,12 +912,11 @@ describe("the villain reaches the scenario builder", () => {
   });
 });
 
-describe("expert hit points are set before the scenario's own setup damage (ruling June 2, 2026 (3) #2)", () => {
-  // Reading flag: RRG 1.8 Appendix II step 13 and insert p. 5 ("set up each scenario as normal, then follow...") would
-  // run
-  // the set after the scenario's setup. The wave 2 ruling and every other box set the hit points first, so damage a
-  // scenario deals in its own setup is not erased; this box follows that precedent.
-  it("setup damage dealt by the scenario after the hit point set is kept, on top of the recorded hit points", () => {
+describe("expert hit points are set after the scenario's own setup (owner question 12 = B, 2026-10-22)", () => {
+  // RRG 1.8 Appendix II step 13 and insert p. 5 ("Set up each scenario as normal, then follow ..."): the recorded
+  // remaining hit points are applied after setup, so setup damage does not change them. Other boxes keep the ruling
+  // June 2, 2026 (3) #2 order; only Shadowland follows the RRG order.
+  it("damage dealt during scenario setup is overwritten by the recorded hit points, which stay 4 and 7", () => {
     const log = afterScenarioOne(EXPERT, SEATS, 4242, { hp: [4, 7] });
     const damage: CampaignInstruction = {
       id: "test.setup-damage",
@@ -925,7 +924,7 @@ describe("expert hit points are set before the scenario's own setup damage (ruli
       citation: "test",
       step: {
         kind: "inGame",
-        window: "afterScenarioSetup",
+        window: "beforeScenarioSetup",
         effects: [forEachPlayer(eachPlayer, dealDamage(2, identityOf(thatPlayer)))],
       },
     };
@@ -940,7 +939,7 @@ describe("expert hit points are set before the scenario's own setup damage (ruli
     };
     const state = settledStart(composed, decline);
     const hp = (seat: number) => remainingHitPoints(state, state.players[seat]!.identity.instanceId, WAVE11_DEPS);
-    expect([hp(0), hp(1)]).toEqual([2, 5]);
+    expect([hp(0), hp(1)]).toEqual([4, 7]);
   });
 });
 

@@ -64,8 +64,8 @@
  *    "-" card and may be recorded.
  * 3. Open question: "Each player may take one copy of each card they recorded" (p. 17) lets a player take none, one or
  *    both.
- * 4. The hit point set runs before the scenario's own setup damage, which conflicts with RRG 1.8 Appendix II step 13
- *    and the insert's p. 5 ("set up each scenario as normal, then follow ..."): see `expertSetups`.
+ * 4. Settled (owner question 12 = B, Quin, 2026-10-22, PR #355, docs/phase7-shadowland.md §5.1): the expert hit point
+ *    set runs after the scenario's own setup: see `expertSetups`.
  */
 import {
   DATA_ONLY_CARDS,
@@ -195,10 +195,6 @@ const inGame = (
   effects: readonly EffectSpec[],
   window: CampaignWindow = DEFAULT_CAMPAIGN_WINDOW,
 ): CampaignInstruction => ({ id, text, citation, step: { kind: "inGame", window, effects } });
-
-/** The same in-game instruction at another window. */
-const atWindow = (instruction: CampaignInstruction, window: CampaignWindow): CampaignInstruction =>
-  instruction.step.kind === "inGame" ? { ...instruction, step: { ...instruction.step, window } } : instruction;
 
 // ---------------------------------------------------------------------------------------------------------------
 // The villain (MC65 pp. 5, 9)
@@ -459,17 +455,18 @@ const REJOIN_LABEL = "Rejoin and heal to full · +1 facedown card";
 
 /**
  * Scenarios 2 and 3's two shaded bullets, after the rest of Setup in print. A defeated player is asked before the
- * scenario is set up whether to rejoin (`rejoinOrSitOut`). The hard set of hit points runs before the scenario's own
- * setup damage (ruling June 2, 2026 (3) #2), as every box's does; the heal is dealing a facedown encounter card.
- * CONFLICT, flagged per the authority order: RRG 1.8 Appendix II step 13 puts campaign setup after the scenario's own
- * setup, and the insert (p. 5) says "set up each scenario as normal, then follow" the instructions, so read to the
- * letter the set would erase setup damage. The ruling and every other box keep the set first; so does this one.
+ * scenario is set up whether to rejoin (`rejoinOrSitOut`). The hard set of hit points runs in the campaign
+ * instructions after the scenario's own setup (`afterScenarioSetup`), so it overwrites any damage setup dealt: RRG 1.8
+ * Appendix II step 13 and the insert p. 5 ("Set up each scenario as normal, then follow ..."), owner question 12 = B
+ * (Quin, 2026-10-22, PR #355, docs/phase7-shadowland.md §5.1). This departs from the ruling June 2, 2026 (3) #2 that
+ * the other boxes keep (set first); only Shadowland follows the RRG order. The heal is dealing a facedown encounter
+ * card, which follows the set.
  */
 const expertSetups = (node: string): readonly CampaignInstruction[] => {
   const citation = SETUP_PAGE[node]!;
   return [
     rejoinOrSitOut(`mc65.${node}.setup.rejoin`, PAGE.expert, REJOIN_LABEL),
-    atWindow(hpSet(`mc65.${node}.setup.hp-set`, citation), "beforeScenarioSetup"),
+    hpSet(`mc65.${node}.setup.hp-set`, citation),
     healWithFacedownCard(`mc65.${node}.setup.heal`, citation),
   ];
 };
