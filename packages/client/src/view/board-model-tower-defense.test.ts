@@ -96,7 +96,9 @@ describe("Tower Defense: two main schemes, one attached", () => {
     const panel = before.environments.find((e) => e.instanceId === towerId);
     expect(panel?.damage).toBe(getInstance(state, towerId as InstanceId)?.damage ?? 0);
     const flipsAt = 9 * state.startingPlayerCount;
-    expect(panel?.subtitle).toBe(`Environment · ${panel?.damage ?? 0}/${flipsAt} damage`);
+    // The damage is the tile's first counter chip, "0/9 DAMAGE", not small print in the subtitle (issue #356).
+    expect(panel?.subtitle).toBe("Environment");
+    expect(panel?.counters[0]).toEqual({ name: "damage", count: panel?.damage ?? 0, limit: flipsAt });
 
     // Damage is engine-owned state (already covered by packages/engine/src/damage-on-environment.test.ts); this
     // only checks the view model reads it once it's there.
@@ -111,7 +113,7 @@ describe("Tower Defense: two main schemes, one attached", () => {
     const model = boardModel(damaged, store.state.perspectiveId!, POOL_DEPS);
     const damagedPanel = model.environments.find((e) => e.instanceId === towerId);
     expect(damagedPanel?.damage).toBe(bumped);
-    expect(damagedPanel?.subtitle).toBe(`Environment · ${bumped}/${flipsAt} damage`);
+    expect(damagedPanel?.counters[0]).toEqual({ name: "damage", count: bumped, limit: flipsAt });
   });
 });
 

@@ -17,6 +17,14 @@ const start = async (page: Page, cardSize: string): Promise<void> => {
   await settle(page, { quietMs: 800, maxMs: 6000 });
 };
 
+const inspectOpen = (page: Page): Promise<boolean> =>
+  page.evaluate(
+    () =>
+      (window as unknown as { __mcGame?: { scene: { isActive(key: string): boolean } } }).__mcGame?.scene.isActive(
+        "InspectOverlay",
+      ) ?? false,
+  );
+
 /** A finger drag from (x, y0) to (x, y1) on the page, as a real touch sequence. */
 async function swipe(page: Page, x: number, y0: number, y1: number): Promise<void> {
   const cdp = await page.context().newCDPSession(page);
@@ -56,6 +64,8 @@ test("Extra large: the table scrolls under a pinned chrome, hand and action bar"
   await settle(page, { quietMs: 400, maxMs: 3000 });
   const moved = (await zoneRect(page, "playArea"))!;
   expect(moved.y, "scrolled up").toBeLessThan(before.play.y);
+  // The swipe began on the hero card: its lift, far from where it went down, is not a tap that opens Inspect.
+  expect(await inspectOpen(page), "a swipe opens nothing").toBe(false);
   expect(moved.height, "the zone is not squeezed").toBe(before.play.height);
   for (const name of ["hand", "actionBar", "chrome"] as const) {
     expect(await zoneRect(page, name), `${name} stays put`).toEqual(before[name]);

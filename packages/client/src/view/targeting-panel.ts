@@ -15,7 +15,11 @@
 
 import {
   cardOf,
+  getInstance,
+  isMinion,
+  maxHitPoints,
   preview,
+  remainingHitPoints,
   type BlockedTarget,
   type ChoiceExclusion,
   type Command,
@@ -32,8 +36,9 @@ import {
 import { artFor, type ArtSource } from "../art/art-source.js";
 import { attackRefusalWording } from "./attack-bar.js";
 import { breakPointOf } from "./break-point.js";
-import { faceOf } from "./board-model.js";
+import { engagedNameOf, enemyTableOrder, faceOf } from "./board-model.js";
 import { exclusionWording, exclusionWordingFor } from "./highlights.js";
+import { hpFraction } from "./hp-format.js";
 import { cardName } from "./names.js";
 
 /** One legal target, aimed at and worded. */
@@ -117,7 +122,7 @@ export function targetingPanelOf(
   deps: EngineDeps,
 ): TargetingPanel {
   const attacker = action.action.kind === "basicAttack" ? action.action.instanceId : null;
-  const options = action.targets.map((instanceId) =>
+  const options = inTableOrder(state, deps, action.targets).map((instanceId) =>
     optionOf(state, instanceId, preview(state, buildCommand(instanceId), deps), deps),
   );
   return {
@@ -137,13 +142,51 @@ export function targetingPanelOf(
   };
 }
 
+/**
+ * The targets in the order the table draws them (`enemyTableOrder`): the engine lists them in its own order, which
+ * is not the board's, so two facedown Drones read left to right in the panel the way they sit (issue #357). A target
+ * the table order does not cover (a scheme, an ally) keeps its place after the enemies.
+ */
+function inTableOrder(state: GameState, deps: EngineDeps, targets: readonly InstanceId[]): readonly InstanceId[] {
+  const order = enemyTableOrder(state, deps);
+  const rank = (id: InstanceId): number => {
+    const at = order.indexOf(id);
+    return at < 0 ? order.length : at;
+  };
+  return [...targets].sort((a, b) => rank(a) - rank(b));
+}
+
+/**
+ * A minion's own line: who it is engaged with (in a game of more than one seat) and its hit points, when the
+ * preview's lines don't already say them. A facedown Drone's tile is otherwise a card back and "Depends on hidden
+ * cards.", the same for every Drone (issue #357).
+ */
+function minionLine(
+  state: GameState,
+  instanceId: InstanceId,
+  deps: EngineDeps,
+  lines: readonly string[],
+): string | null {
+  if (!isMinion(state, instanceId)) return null;
+  const engaged = engagedNameOf(state, getInstance(state, instanceId)?.engagedWith ?? null);
+  const current = remainingHitPoints(state, instanceId, deps);
+  const max = maxHitPoints(state, instanceId, deps);
+  // Only the target's own lines start with its HP; another card's are prefixed with that card's name.
+  const said = lines.some((line) => /^(\d+|∞) HP/.test(line));
+  const hp = said || current === undefined || max === undefined ? null : `${hpFraction(Math.max(0, current), max)} HP`;
+  const parts = [engaged ? `Engaged with ${engaged}` : null, hp].filter((part) => part !== null);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 function optionOf(state: GameState, instanceId: InstanceId, result: OutcomePreview, deps: EngineDeps): TargetOption {
-  const lines = outcomeLines(
+  const outcome = outcomeLines(
     result,
     (id) => cardName(state, id),
     instanceId,
     (id) => breakPointOf(state, id, deps),
   );
+  const minion = minionLine(state, instanceId, deps, outcome);
+  const lines = minion ? [minion, ...outcome] : outcome;
   return {
     instanceId,
     name: cardName(state, instanceId),
