@@ -1738,6 +1738,23 @@ export type TriggerEventBody =
    */
   | { readonly kind: "surgeResolving"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   /**
+   * A player chose an option of a "choose one" (`EffectSpec chooseOne`), and it has not resolved yet: "Forced
+   * Interrupt: When you choose the 'Avoid' effect or the 'Trip' effect on a Trap! card, take 2 indirect damage" (Path
+   * of a Thousand Cuts, `shadowland` 65049). RRG 1.8 "Interrupt" (p. 25): an interrupt resolves "when its triggering
+   * condition initiates, but before that triggering condition resolves", so its interrupt window opens with the
+   * option chosen and before the option's effects (it is pushed above them), and its response window follows. It
+   * changes nothing when it applies. `playerId` is the chooser ("you"), `sourceInstanceId` the card whose ability
+   * holds the choice (`EventPattern.sourceIs` reads it: "on a Trap! card"), `tag` the option's name when it has one
+   * (`eventIs: { tag }`), `index` its place in the list. Pushed only when an ability could answer it.
+   */
+  | {
+      readonly kind: "optionChoosing";
+      readonly playerId: PlayerId;
+      readonly sourceInstanceId: InstanceId | null;
+      readonly index: number;
+      readonly tag?: string;
+    }
+  /**
    * An ability resolved: it was triggered and its effects resolved (RRG 1.8 "Resolve", p. 37). "After you resolve the
    * ability of a Preparation card you control" (Black Widow; Synth-Suit too, ruling Feb 28, 2026 (2)).
    *
@@ -2383,6 +2400,8 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     // "After your turn begins" (Quinjet, `cap` 03019) still answers in the response window as before.
     case "turnStarted":
     case "surgeResolving":
+    // "When you choose the 'Avoid' effect" (`optionChoosing`): the option is still to resolve.
+    case "optionChoosing":
     case "cardBeingPlayed":
     // docs/phase7-wave3.md §3.2: "When the villain phase begins/ends" are interrupts to these timing points.
     case "phaseBeginning":
@@ -2611,6 +2630,9 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([event.instanceId], [event.instanceId], [event.playerId]);
     case "abilityResolved":
       return of([event.instanceId], [], [event.controllerId]);
+    // The card whose choice it is ("on a Trap! card") is the source; the chooser is "you".
+    case "optionChoosing":
+      return of([event.sourceInstanceId], [], [event.playerId]);
     // The raising card is the source ("Bishop's 'Energy Absorption'"); the player who resolved it is "you".
     case "momentRaised":
       return of([event.sourceInstanceId], [], [event.playerId]);

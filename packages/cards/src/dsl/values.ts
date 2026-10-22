@@ -1,4 +1,4 @@
-import { cardId, trait, type Trait } from "@mc/content";
+import { cardId, trait, type Trait, type VillainSideLetter } from "@mc/content";
 import {
   ATTACK_DAMAGE_RESULT,
   attackPreventedVars,
@@ -1374,6 +1374,12 @@ export const youHaveTrait = (t: Trait): Predicate => hasTrait(yourIdentity, t);
  * ("When Revealed (Face Name)", docs/phase7-wave1.md §3.3). A title names one face only (RRG 1.8 "Identity", p. 23).
  */
 export const faceNamed = (of: TargetRef, name: string): Predicate => ({ kind: "faceNamed", of, name });
+/** "The villain is on side A / B": the side of a double-sided villain that is up. */
+export const villainOnSide = (side: VillainSideLetter, of: TargetRef = theVillain): Predicate => ({
+  kind: "villainSide",
+  of,
+  side,
+});
 /** "If you are [Archangel]" / "in [Archangel] form" (docs/phase7-wave7.md §3.62): your identity's face showing. */
 export const youAreNamed = (name: string): Predicate => faceNamed(yourIdentity, name);
 /**

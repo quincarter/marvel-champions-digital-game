@@ -1660,6 +1660,8 @@ export type Predicate =
    * encounter card's other face.
    */
   | { readonly kind: "faceNamed"; readonly of: TargetRef; readonly name: string }
+  /** "The villain is on side A / B" (Shadows in the Night 65001b: "defeated on side A"): the side `of` has up. */
+  | { readonly kind: "villainSide"; readonly of: TargetRef; readonly side: VillainSideLetter }
   /**
    * "If you paid for this card using only [physical] resources" (Hulk Smash): something was paid, and every resource was
    * that type or a wild declared as it. FAQ "Unstoppable Force (#6)" (p. 60): at a cost of 0 it fails. `of` as for
@@ -3065,6 +3067,13 @@ export type EffectSpec =
       readonly chooser: PlayerRef;
       readonly options: readonly {
         readonly label: string;
+        /**
+         * The option's name as other cards refer to it, never shown: the TRAP! cards' "Avoid", "Disarm" and "Trip"
+         * effects (`avoid`, `disarm`, `trip`; MC65 pp. 12-13). Carried on `TriggerEvent optionChoosing` ("When you
+         * choose the 'Avoid' effect on a Trap! card") and read by `RuleSpec cannotChooseOption`, so neither reads the
+         * display `label`. Absent, the option has no name and neither hears nor bars it.
+         */
+        readonly tag?: string;
         readonly condition?: Predicate;
         readonly effects: readonly EffectSpec[];
       }[];
@@ -3593,8 +3602,11 @@ export type EffectSpec =
    * shape every "choose from a fixed list" effect shares (`chosenFromList`), so it is gone when the ability finishes
    * and no other ability sees it. `player` naming several players asks the first; inside `forEachPlayer` each player
    * chooses for themselves. No such player: nobody is asked, nothing is bound and `<bind>.made` is 0.
+   *
+   * `of: "encounter"`: "name an **encounter** card type" (Nervous Jitters, `shadowland` 65046): only the eight types
+   * RRG 1.8 "Card Types" (p. 12) lists as encounter card types are offered (`ENCOUNTER_CARD_TYPES`).
    */
-  | { readonly kind: "chooseCardType"; readonly player: PlayerRef; readonly bind: string }
+  | { readonly kind: "chooseCardType"; readonly player: PlayerRef; readonly bind: string; readonly of?: "encounter" }
   /**
    * "Search your collection for 1 …" (docs/phase7-wave7.md §3.81; RRG 1.8 "Search", p. 39): `player` "looks through all
    * of their Marvel Champions cards outside of the current game for the specified card. They become the owner of that

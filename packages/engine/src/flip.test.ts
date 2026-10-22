@@ -384,6 +384,16 @@ describe("§3.3 villain stage cards with two faces", () => {
     expect(counters(norman, villainId(norman)).goblinRevealed).toBeUndefined();
   });
 
+  it("the villainSide predicate reads the side that is up (A: Norman, B: Goblin)", () => {
+    const context = { selfInstanceId: null, controllerId: p1, event: null, bindings: {}, deps };
+    const on = (state: GameState, side: "A" | "B") =>
+      evaluate(state, { kind: "villainSide", of: theVillain, side }, context);
+    const norman = game();
+    const goblin = game({ side: "B" });
+    expect([on(norman, "A"), on(norman, "B")]).toEqual([true, false]);
+    expect([on(goblin, "A"), on(goblin, "B")]).toEqual([false, true]);
+  });
+
   it("a flip keeps damage, statuses, counters, attachments and boost cards, and resolves the new face's When Revealed", () => {
     const start = game();
     const villain = villainId(start);

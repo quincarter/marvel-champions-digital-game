@@ -22,6 +22,7 @@ import {
 } from "../../testing/harness.js";
 import { driveEventsPicking, encounterCardInVillainArea, withForm } from "../../testing/staging.js";
 import { WAVE11_DEPS } from "../index.js";
+import { wave11Scenario } from "../setup.js";
 import {
   SHADOWLAND_SHADOWS_IN_THE_NIGHT as REGISTRY,
   SHADOWLAND_SHADOWS_IN_THE_NIGHT_SKIPPED as SKIPPED,
@@ -38,6 +39,10 @@ import {
 const V_ENV = "65003a";
 const H_ENV = "65004a";
 const TARANTULA = "65005";
+const GHOST_MAKER = "65006";
+const SEALED = "65007";
+const SURROUND = "65009";
+const MAIN_SCHEME = "65001a";
 const STRATEGIC = "65008";
 const CHAOS = "65010";
 const MOONLIT = "65011";
@@ -47,12 +52,26 @@ const ORDINARY_ALLY = "01002";
 const CHANGED = "positionChanged";
 const SPIDER = { starterDeckId: "core-spider-man-justice" };
 const MARVEL = { starterDeckId: "core-captain-marvel-leadership" };
-const POOL_CODES = [V_ENV, H_ENV, TARANTULA, STRATEGIC, CHAOS, MOONLIT];
+const POOL_CODES = [MAIN_SCHEME, V_ENV, H_ENV, TARANTULA, GHOST_MAKER, SEALED, STRATEGIC, SURROUND, CHAOS, MOONLIT];
 const VILLAIN_FIRST = "65003a.the-streets-below-constant";
 const HERO_A = "65004a.the-streets-below-constant";
 const HERO_B = "65004b.atop-the-tenshu-constant";
 
 const REFS = [
+  "65001a.setup",
+  "65001b.a-barricade-of-blades-constant",
+  "65001b.a-barricade-of-blades-forced-interrupt",
+  "65001b.a-barricade-of-blades-constant-2",
+  "65002a.fortress-lockdown-constant",
+  "65002a.fortress-lockdown-constant-2",
+  "65002a.when-revealed",
+  "65002b.fortress-lockdown-constant",
+  "65002b.fortress-lockdown-forced-interrupt",
+  "65002b.fortress-lockdown-constant-2",
+  "65006.when-defeated",
+  "65006.boost",
+  "65007.when-defeated",
+  "65009.when-revealed",
   "65003a.the-streets-below-constant",
   "65003a.the-streets-below-constant-2",
   "65003a.the-streets-below-constant-3",
@@ -174,7 +193,7 @@ const choosing =
 
 describe("registry", () => {
   const printed = POOL_CODES.flatMap((c) => abilityRefIds(data(c))).sort();
-  it("registers every printed ref of the six cards; nothing is skipped", () => {
+  it("registers every printed ref of the ten cards; nothing is skipped", () => {
     expect(printed).toEqual([...REFS].sort());
     expect(Object.keys(REGISTRY).sort()).toEqual([...REFS].sort());
     expect(Object.keys(SKIPPED)).toEqual([]);
@@ -519,5 +538,342 @@ describe("Strategic Positioning (65008)", () => {
     // The hero position environment does not count: only the VILLAIN POSITION card.
     const heroOnly = flip(placed.state, t.hPos);
     expect([icons(heroOnly, "acceleration"), icons(heroOnly, "hazard")]).toEqual([1, 0]);
+  });
+});
+
+/**
+ * Seeded games built through the scenario builder (the real 1A Setup: environments into play, the villain chosen
+ * by card). Archpriestess (65012a, 15 hit points a hero on side A, 18 on side B).
+ */
+function sitnGame(options: { difficulty?: "standard" | "expert"; seats?: readonly { starterDeckId: string }[] } = {}) {
+  const seats = options.seats ?? [SPIDER];
+  const config = wave11Scenario("shadows-in-the-night", {
+    players: seats,
+    seed: 11,
+    villainCardId: "65012a",
+    ...(options.difficulty ? { difficulty: options.difficulty } : {}),
+  });
+  const created = createGame(config, WAVE11_DEPS);
+  if (!created.ok) throw new Error(created.error.message);
+  let state = settle(created.state, firstLegal, (s) => s.step.phase === "player", WAVE11_DEPS);
+  seats.forEach((_, i) => {
+    state = withForm(state, { heroForm: 0 }, [P1, P2][i]);
+  });
+  return state;
+}
+const positionCards = (s: GameState): { v: InstanceId; h: InstanceId } => {
+  const envs = (Object.keys(s.instances) as InstanceId[]).filter((i) => [V_ENV, H_ENV].includes(codeOf(s, i)));
+  const v = envs.find((i) => codeOf(s, i) === V_ENV)!;
+  const h = envs.find((i) => codeOf(s, i) === H_ENV)!;
+  return { v, h };
+};
+const hitPointsOf = (s: GameState, id: InstanceId): number => profile(s, id).maxHp;
+
+describe("1A Setup (65001a): the position environments", () => {
+  it("puts both The Streets Below environments into play on their Streets Below face, out of the deck", () => {
+    const s = sitnGame();
+    const { v, h } = positionCards(s);
+    for (const id of [v, h]) {
+      expect(s.villainArea).toContain(id);
+      expect(inst(s, id).flipped ?? false).toBe(false);
+      expect(Object.values(s.encounterDecks).some((d) => d.deck.includes(id) || d.discard.includes(id))).toBe(false);
+    }
+    expect(villainOf(s)).toBeDefined();
+    expect(codeOf(s, villainOf(s))).toBe("65012a");
+  });
+});
+
+describe("A Barricade of Blades / Fortress Lockdown (65001a): the villain's side A defeat and side B win", () => {
+  const sideOf = (s: GameState): string => s.villains.find((v) => v.instanceId === villainOf(s))!.side;
+  /** The hero's basic attack on the villain, which has `damage` on it already. */
+  const strike = (s: GameState, damage: number) => {
+    const hurt = patchInstance(patchInstance(s, villainOf(s), { damage }), identityOf(s), { exhausted: false });
+    return driveEventsPicking(WAVE11_DEPS, hurt, firstLegal, {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: identityOf(hurt),
+      targetInstanceId: villainOf(hurt),
+    });
+  };
+  const dealt = (r: { events: readonly { type: string }[] }) =>
+    r.events.filter((e) => e.type === "encounterCardDealt").length;
+
+  it("the lethal attack flips the villain to side B instead, resets its hit points, changes the position, deals a card", () => {
+    const s = sitnGame();
+    const { v, h } = positionCards(s);
+    expect(sideOf(s)).toBe("A");
+    expect(hitPointsOf(s, villainOf(s))).toBe(15);
+    const r = strike(s, 14);
+    expect(r.state.outcome).toBeNull();
+    expect(sideOf(r.state)).toBe("B");
+    expect(inst(r.state, villainOf(r.state)).damage).toBe(0);
+    expect(hitPointsOf(r.state, villainOf(r.state))).toBe(18);
+    expect(r.state.villains.find((x) => x.instanceId === villainOf(r.state))!.defeated).toBeFalsy();
+    expect(atop(r.state, v)).toBe(true);
+    expect(atop(r.state, h)).toBe(false);
+    expect(dealt(r)).toBe(1);
+    // Control: damage that is not lethal flips nothing.
+    const soft = strike(s, 5);
+    expect(sideOf(soft.state)).toBe("A");
+    expect(atop(soft.state, v)).toBe(false);
+    expect(dealt(soft)).toBe(0);
+  });
+
+  it("deals each player a facedown encounter card (2 players)", () => {
+    const s = sitnGame({ seats: [SPIDER, MARVEL] });
+    const r = strike(s, 29);
+    expect(sideOf(r.state)).toBe("B");
+    expect(dealt(r)).toBe(2);
+  });
+
+  it("the position change counts as this phase's: a position card then finds it changed", () => {
+    const s = sitnGame();
+    const { v } = positionCards(s);
+    const r = strike(s, 14);
+    expect(inst(r.state, v).counters[CHANGED]).toBe(1);
+  });
+
+  it("defeated on side B: the players win the game (control: side A is not a win)", () => {
+    const s = sitnGame();
+    const a = strike(s, 14);
+    expect(a.state.outcome).toBeNull();
+    // The hero position is flipped to match, so the positions are the same again and the attack hits for full.
+    // Side B has Toughness: the tough status card the flip gave is taken off first.
+    const bare = patchInstance(flip(a.state, positionCards(a.state).h), villainOf(a.state), {
+      statuses: { stunned: 0, confused: 0, tough: 0 },
+    });
+    const b = strike(bare, 17);
+    expect(b.state.outcome).toMatchObject({ result: "win" });
+    // On side B the interrupt does not apply (the villain's real side is read): it is defeated, not flipped again,
+    // and nobody is dealt a card.
+    expect(sideOf(a.state)).toBe("B");
+    expect(b.state.villains.find((v) => v.instanceId === villainOf(b.state))!.defeated).toBe(true);
+    expect(dealt(b)).toBe(0);
+  });
+
+  it("expert mode: +3 hit points a hero, and +1 SCH on the villain (control: standard)", () => {
+    const standard = sitnGame({ difficulty: "standard" });
+    const expert = sitnGame({ difficulty: "expert" });
+    const hp = (st: GameState) => hitPointsOf(st, villainOf(st));
+    const sch = (st: GameState) => profile(st, villainOf(st)).sch;
+    expect(hp(expert) - hp(standard)).toBe(3);
+    expect(sch(expert) - sch(standard)).toBe(1);
+    // Side B keeps the bonus: 18 + 3 for one hero.
+    const flipped = strike(expert, 20);
+    expect(sideOf(flipped.state)).toBe("B");
+    expect(hp(flipped.state)).toBe(21);
+  });
+});
+
+describe("Fortress Lockdown 2A (65002a.when-revealed)", () => {
+  const find = (s: GameState, code: string): InstanceId =>
+    (Object.keys(s.instances) as InstanceId[]).find((i) => codeOf(s, i) === code)!;
+  /** A game one threat short of completing stage 1, the villain phase about to place it. */
+  const nearlyComplete = (seats: readonly { starterDeckId: string }[] = [SPIDER]): GameState => {
+    const s = sitnGame({ seats });
+    return patchInstance(s, s.mainScheme!.instanceId, { threat: 7 * seats.length - 1 });
+  };
+  /** At the minion search, the card titled the next of `titles`; every other prompt takes the fewest legal. */
+  const finding =
+    (...titles: string[]): Picker =>
+    (s) => {
+      if (s.pendingChoice!.prompt.kind !== "chooseCards") return firstLegal(s);
+      const title = titles.shift();
+      if (title === undefined) return firstLegal(s);
+      const hit = s.pendingChoice!.options.find((o) => labelOf(o) === title);
+      if (!hit) throw new Error(`${title} is not offered: ${s.pendingChoice!.options.map(labelOf).join(", ")}`);
+      return [hit.optionId as string];
+    };
+  const complete = (s: GameState, pick: Picker, players: readonly PlayerId[] = [P1]) =>
+    driveEventsPicking(WAVE11_DEPS, s, pick, ...players.map((p) => endTurn(p)));
+  const stageOf = (s: GameState): number => s.mainScheme!.stageIndex + 1;
+  const inAPile = (s: GameState, id: InstanceId): boolean =>
+    Object.values(s.encounterDecks).some((d) => d.deck.includes(id) || d.discard.includes(id));
+
+  it("changes the villain's position, then the player searches the deck for a minion and reveals it", () => {
+    const s = nearlyComplete();
+    const { v } = positionCards(s);
+    const ghost = find(s, GHOST_MAKER);
+    expect(inAPile(s, ghost)).toBe(true);
+    const r = complete(s, finding("Ghost Maker"));
+    expect(stageOf(r.state)).toBe(2);
+    expect(atop(r.state, v)).toBe(true);
+    expect(inAPile(r.state, ghost)).toBe(false);
+    // Control: without the stage change nothing is searched for.
+    const quiet = complete(patchInstance(s, s.mainScheme!.instanceId, { threat: 0 }), finding());
+    expect(stageOf(quiet.state)).toBe(1);
+    expect(atop(quiet.state, v)).toBe(false);
+    expect(inAPile(quiet.state, ghost)).toBe(true);
+  });
+
+  it("finds a minion in the discard pile too", () => {
+    const s = nearlyComplete();
+    const ghost = find(s, GHOST_MAKER);
+    const deckId = Object.keys(s.encounterDecks).find((k) => s.encounterDecks[k]!.deck.includes(ghost))!;
+    const pile = s.encounterDecks[deckId]!;
+    const inDiscard: GameState = {
+      ...s,
+      encounterDecks: {
+        ...s.encounterDecks,
+        [deckId]: { deck: pile.deck.filter((i) => i !== ghost), discard: [...pile.discard, ghost] },
+      },
+    };
+    const r = complete(inDiscard, finding("Ghost Maker"));
+    expect(inAPile(r.state, ghost)).toBe(false);
+  });
+
+  it("each of 2 players finds and reveals a minion; the position changes once", () => {
+    const s = nearlyComplete([SPIDER, MARVEL]);
+    const { v } = positionCards(s);
+    const [ghost, tarantula] = [find(s, GHOST_MAKER), find(s, TARANTULA)];
+    const r = complete(s, finding("Ghost Maker", "Black Tarantula"), [P1, P2]);
+    expect(stageOf(r.state)).toBe(2);
+    expect(inAPile(r.state, ghost) || inAPile(r.state, tarantula)).toBe(false);
+    expect(
+      r.events.filter((e) => e.type === "cardFlipped" && (e as { instanceId?: InstanceId }).instanceId === v),
+    ).toHaveLength(1);
+  });
+});
+
+const withCode = (s: GameState, code: string): InstanceId =>
+  (Object.keys(s.instances) as InstanceId[]).find((i) => codeOf(s, i) === code)!;
+const strikeIt = (s: GameState, target: InstanceId) =>
+  driveEventsPicking(WAVE11_DEPS, patchInstance(s, identityOf(s), { exhausted: false }), firstLegal, {
+    type: "basicAttack",
+    playerId: P1,
+    attackerInstanceId: identityOf(s),
+    targetInstanceId: target,
+  });
+
+describe("Ghost Maker (65006)", () => {
+  /** Ghost Maker revealed (engaged with P1), then wounded to 1 hit point left so the next attack defeats him. */
+  const wounded = (state: GameState): { state: GameState; id: InstanceId } => {
+    const revealed = reveal(state, [GHOST_MAKER]).state;
+    const id = withCode(revealed, GHOST_MAKER);
+    return { state: patchInstance(revealed, id, { damage: 3 }), id };
+  };
+
+  it("defeated Atop the Tenshu: the position changes first, then you discard 1 card you control", () => {
+    const t = newGame([SPIDER], [GHOST_MAKER]);
+    const w = wounded(t.state);
+    const ally = allyInPlay(w.state, ORDINARY_ALLY, "ally-to-discard");
+    const before = damageOf(ally.state);
+    const r = strikeIt(ally.state, w.id);
+    expect(atop(r.state, t.vPos)).toBe(true);
+    expect(inPlayArea(r.state, ally.id)).toBe(false);
+    expect(damageOf(r.state)).toBe(before);
+  });
+
+  it("defeated otherwise (already changed this phase, still The Streets Below): 2 indirect damage, nothing discarded", () => {
+    const t = newGame([SPIDER], [GHOST_MAKER]);
+    const w = wounded(t.state);
+    const ally = allyInPlay(alreadyChanged(w.state, t.vPos), ORDINARY_ALLY, "ally-to-keep");
+    const r = strikeIt(ally.state, w.id);
+    expect(atop(r.state, t.vPos)).toBe(false);
+    expect(inPlayArea(r.state, ally.id)).toBe(true);
+    // The indirect damage is assigned among the player's characters: 2 in all, on the hero and the ally.
+    const taken = damageOf(r.state) + inst(r.state, ally.id).damage;
+    expect(taken - (damageOf(ally.state) + inst(ally.state, ally.id).damage)).toBe(2);
+  });
+
+  it("Atop the Tenshu with nothing to discard: the discard simply does not happen", () => {
+    const t = newGame([SPIDER], [GHOST_MAKER]);
+    const w = wounded(t.state);
+    const r = strikeIt(w.state, w.id);
+    expect(atop(r.state, t.vPos)).toBe(true);
+    expect(damageOf(r.state)).toBe(damageOf(w.state));
+  });
+
+  it("Boost: revealed (after the activation) when an ally defends against the attack", () => {
+    const t = newGame([SPIDER], [GHOST_MAKER]);
+    const ally = allyInPlay(t.state, ORDINARY_ALLY, "defending-ally");
+    const defendWithAlly: Picker = (s) => {
+      const c = s.pendingChoice!;
+      const pick = c.options.find((o) => o.optionId === ally.id);
+      return c.prompt.kind === "declareDefender" && pick ? [pick.optionId as string] : firstLegal(s);
+    };
+    const stacked = stackEncounterDeck(ally.state, GHOST_MAKER, BLANK, BLANK, BLANK);
+    const run = driveEventsPicking(WAVE11_DEPS, stacked, defendWithAlly, endTurn(P1));
+    const id = withCode(run.state, GHOST_MAKER);
+    expect(inst(run.state, id).engagedWith).toBe(P1);
+    // Control: the hero defends, so Ghost Maker stays a boost card and is discarded.
+    const control = driveEventsPicking(
+      WAVE11_DEPS,
+      stackEncounterDeck(t.state, GHOST_MAKER, BLANK, BLANK, BLANK),
+      firstLegal,
+      endTurn(P1),
+    );
+    expect(inst(control.state, withCode(control.state, GHOST_MAKER)).engagedWith ?? null).toBeNull();
+  });
+});
+
+describe("Sealed Entrances (65007)", () => {
+  const sealed = (state: GameState) => encounterCardInVillainArea(state, SEALED, 1);
+  it("defeating it changes the villain's position (control: already changed this phase)", () => {
+    const t = newGame([SPIDER], [SEALED]);
+    const placed = sealed(t.state);
+    const r = driveEventsPicking(
+      WAVE11_DEPS,
+      patchInstance(placed.state, identityOf(placed.state), { exhausted: false }),
+      firstLegal,
+      {
+        type: "basicThwart",
+        playerId: P1,
+        thwarterInstanceId: identityOf(placed.state),
+        schemeInstanceId: placed.id,
+      },
+    );
+    expect(inst(r.state, placed.id).threat).toBe(0);
+    expect(atop(r.state, t.vPos)).toBe(true);
+    const c = alreadyChanged(sealed(t.state).state, t.vPos);
+    const rc = driveEventsPicking(WAVE11_DEPS, patchInstance(c, identityOf(c), { exhausted: false }), firstLegal, {
+      type: "basicThwart",
+      playerId: P1,
+      thwarterInstanceId: identityOf(c),
+      schemeInstanceId: placed.id,
+    });
+    expect(atop(rc.state, t.vPos)).toBe(false);
+  });
+
+  it("Assault: a basic thwart against it uses ATK", () => {
+    expect((data(SEALED) as any).keywords).toContainEqual({ name: "assault" });
+  });
+});
+
+describe("Surround the Fortress (65009)", () => {
+  /** The threat the card itself placed when revealed, as [scheme, amount] pairs (its own entering threat is no placement). */
+  const placedBy = (run: ReturnType<typeof reveal>) => {
+    const id = withCode(run.state, SURROUND);
+    return run.events
+      .filter((e) => e.type === "threatPlaced" && !(e as { entering?: true }).entering)
+      .map((e) => e as unknown as { schemeInstanceId: InstanceId; amount: number; sourceInstanceId: InstanceId | null })
+      .filter((e) => e.sourceInstanceId === id)
+      .map((e) => [e.schemeInstanceId, e.amount] as const);
+  };
+  it("changed to Atop the Tenshu: 1 threat a hero on the main scheme, none here", () => {
+    const t = newGame([SPIDER], [SURROUND]);
+    const run = reveal(t.state, [SURROUND]);
+    expect(atop(run.state, t.vPos)).toBe(true);
+    expect(placedBy(run)).toEqual([[run.state.mainScheme!.instanceId, 1]]);
+  });
+
+  it("not changed (already changed this phase, Streets Below): 1 threat a hero on this scheme instead", () => {
+    const t = newGame([SPIDER], [SURROUND]);
+    const run = reveal(alreadyChanged(t.state, t.vPos), [SURROUND]);
+    expect(atop(run.state, t.vPos)).toBe(false);
+    expect(placedBy(run)).toEqual([[withCode(run.state, SURROUND), 1]]);
+  });
+
+  it("from Atop the Tenshu it changes back to The Streets Below and the threat goes here", () => {
+    const t = newGame([SPIDER], [SURROUND]);
+    const run = reveal(flip(t.state, t.vPos), [SURROUND]);
+    expect(atop(run.state, t.vPos)).toBe(false);
+    expect(placedBy(run)).toEqual([[withCode(run.state, SURROUND), 1]]);
+  });
+
+  it("scales with the heroes: 2 players place 2 threat", () => {
+    const t = newGame([SPIDER, MARVEL], [SURROUND]);
+    const run = reveal(t.state, [BLANK, SURROUND], [P1, P2]);
+    expect(placedBy(run)).toEqual([[run.state.mainScheme!.instanceId, 2]]);
   });
 });

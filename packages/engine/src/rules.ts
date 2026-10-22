@@ -662,6 +662,27 @@ export const cannotRecover = (state: GameState, deps: EngineDeps, playerId: Play
   );
 
 /**
+ * `RuleSpec cannotChooseOption`: whether `playerId` cannot choose the option named `tag` of a "choose one" on an ability
+ * of `sourceId` (Iron Monk, `shadowland` 65047). An untagged option is never barred.
+ */
+export function cannotChooseOption(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  sourceId: InstanceId | null,
+  tag: string | undefined,
+): boolean {
+  if (tag === undefined) return false;
+  return activeRules(state, deps, "cannotChooseOption").some(
+    (active) =>
+      active.rule.tags.includes(tag) &&
+      rulePlayers(state, active.rule, active).includes(playerId) &&
+      (active.rule.sources === undefined ||
+        (sourceId !== null && matchesQuery(state, sourceId, active.rule.sources, active.context))),
+  );
+}
+
+/**
  * "You take the first turn during the player phase" (`RuleSpec takesFirstTurn`, docs/phase7-wave6.md §3.27): the
  * player phase's turn order, `order` (the undefeated players in player order) with the rule's player moved to the front.
  * Two such players at once is not a case the card pool produces (Field Commander is Cyclops's alone); the one earliest

@@ -3475,6 +3475,10 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       const [id] = resolveRef(state, predicate.of, context);
       return id ? currentName(state, id) === predicate.name : false;
     }
+    case "villainSide": {
+      const [id] = resolveRef(state, predicate.of, context);
+      return id ? villainOf(state, id)?.side === predicate.side : false;
+    }
     case "paidWithCard":
       return (paidVarsOf(state, predicate.of, context)[`paid.cards.${predicate.cardType}`] ?? 0) > 0;
     case "paidType":

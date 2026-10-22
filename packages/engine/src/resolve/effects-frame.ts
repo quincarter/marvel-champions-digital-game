@@ -41,7 +41,7 @@ import {
   planFormChangeCosts,
   settleFormChangeCosts,
 } from "../form-change-cost.js";
-import { cardTypeName, isRulesCardType, RULES_CARD_TYPES } from "../card-types.js";
+import { cardTypeName, ENCOUNTER_CARD_TYPES, isRulesCardType, RULES_CARD_TYPES } from "../card-types.js";
 import {
   allPurposeCountersOn,
   ANY_COUNTER,
@@ -115,7 +115,8 @@ import {
   printedCostOf,
   undefeatedVillains,
 } from "../query.js";
-import { cannotBeHealed, cannotChooseToDiscard, cannotTakeDamage, cannotThwart } from "../rules.js";
+import { cannotBeHealed, cannotChooseOption, cannotChooseToDiscard, cannotTakeDamage, cannotThwart } from "../rules.js";
+import { heard } from "./triggers.js";
 import {
   combineRequirements,
   requirementTotal,
@@ -2325,9 +2326,15 @@ function executeChooseOne(
   effect: Extract<EffectSpec, { kind: "chooseOne" }>,
   context: EffectContext,
 ): void {
+  const [optionChooser] = resolvePlayers(ctx.state, effect.chooser, context);
   const available = effect.options
     .map((option, index) => ({ option, index }))
     .filter(({ option }) => !option.condition || evaluate(ctx.state, option.condition, context))
+    // "You cannot choose the 'Avoid' effect" (`RuleSpec cannotChooseOption`): never offered to that chooser.
+    .filter(
+      ({ option }) =>
+        !optionChooser || !cannotChooseOption(ctx.state, ctx.deps, optionChooser, context.selfInstanceId, option.tag),
+    )
     // An option to spend resources is offered only to a player who can pay it (`EffectSpec spendResources.required`).
     // Not for an encounter-side source card: its option is barred only for want of a target (p. 12; owner 2026-10-20).
     .filter(
@@ -2346,13 +2353,12 @@ function executeChooseOne(
   const pickedIndex =
     frame.answer !== null ? Number(frame.answer[0]) : available.length === 1 ? (available[0]?.index ?? -1) : null;
   if (pickedIndex === null) {
-    const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
-    if (!chooser || available.length === 0) {
+    if (!optionChooser || available.length === 0) {
       setFrame(ctx, { ...frame, cursor: frame.cursor + 1 });
       return;
     }
     requestChoice(ctx, {
-      playerId: chooser,
+      playerId: optionChooser,
       prompt: { kind: "chooseOption" },
       options: available.map(({ option, index }) => ({
         optionId: String(index),
@@ -2374,6 +2380,7 @@ function executeChooseOne(
     label: chosen.label,
     index: pickedIndex,
     ...(onlyOption ? { onlyOption: true as const } : {}),
+    ...(chosen.tag !== undefined ? { tag: chosen.tag } : {}),
   });
   pushEffects(ctx, {
     effects: chosen.effects,
@@ -2389,6 +2396,33 @@ function executeChooseOne(
     returnBindingsTo: frame.frameId,
     byPlayer: frame.byPlayer === true,
   });
+  pushOptionChoosing(ctx, context, optionChooser, [{ index: pickedIndex, tag: chosen.tag }]);
+}
+
+/**
+ * "When you choose the 'Avoid' effect on a Trap! card" (`TriggerEvent optionChoosing`): one event per option chosen,
+ * pushed above the chosen options' effects, so its interrupts resolve after the choice and before the option (RRG 1.8
+ * "Interrupt", p. 25: "when its triggering condition initiates, but before that triggering condition resolves"). The
+ * first option chosen is on top. Pushed only when an ability could answer, so a game with no listener is unchanged.
+ */
+function pushOptionChoosing(
+  ctx: Ctx,
+  context: EffectContext,
+  chooser: PlayerId | undefined,
+  picks: readonly { readonly index: number; readonly tag: string | undefined }[],
+): void {
+  if (!chooser) return;
+  const events = picks
+    .map(({ index, tag }): TriggerEvent => ({
+      kind: "optionChoosing",
+      playerId: chooser,
+      sourceInstanceId: context.selfInstanceId,
+      index,
+      ...(tag !== undefined ? { tag } : {}),
+    }))
+    .filter((event) => heard(ctx.state, ctx.deps, event));
+  // `pushEvents` resolves `events[0]` first.
+  if (events.length > 0) pushEvents(ctx, events);
 }
 
 /**
@@ -2436,7 +2470,13 @@ function executeChooseSeveral(
   setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
   for (const index of indexes) {
     const chosen = effect.options[index];
-    if (chosen) emit(ctx, { type: "optionChosen", label: chosen.label, index });
+    if (chosen)
+      emit(ctx, {
+        type: "optionChosen",
+        label: chosen.label,
+        index,
+        ...(chosen.tag !== undefined ? { tag: chosen.tag } : {}),
+      });
   }
   // Pushed last-first, so the first option picked resolves first.
   for (const index of [...indexes].reverse()) {
@@ -2457,6 +2497,14 @@ function executeChooseSeveral(
       byPlayer: frame.byPlayer === true,
     });
   }
+  // Pushed above every chosen option's effects, the first chosen on top (`pushEvents` resolves `events[0]` first): the
+  // options were chosen together, so every "when you choose" interrupt resolves before any chosen option does.
+  pushOptionChoosing(
+    ctx,
+    context,
+    chooser,
+    indexes.map((index) => ({ index, tag: effect.options[index]?.tag })),
+  );
 }
 
 /**
@@ -2684,10 +2732,9 @@ function executeChooseCardType(
   const held = new Set(
     (chooser ? getPlayer(ctx.state, chooser)?.hand : undefined)?.map((id) => cardTypeOf(ctx.state, id)),
   );
-  const types = [
-    ...RULES_CARD_TYPES.filter((type) => held.has(type)),
-    ...RULES_CARD_TYPES.filter((type) => !held.has(type)),
-  ];
+  // "Name an encounter card type" (`of: "encounter"`): the eight encounter card types only.
+  const offered = effect.of === "encounter" ? ENCOUNTER_CARD_TYPES : RULES_CARD_TYPES;
+  const types = [...offered.filter((type) => held.has(type)), ...offered.filter((type) => !held.has(type))];
   const bound = chooseFromList(ctx, frame, context, {
     player: effect.player,
     bind: effect.bind,

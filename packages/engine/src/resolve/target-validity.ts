@@ -744,6 +744,8 @@ function branchLost(judging: Judging, effect: Branching, opening: boolean): bool
  * and is false is not offered either; one whose condition cannot be told yet counts as able.
  */
 function noOptionAvailable(judging: Judging, effect: Extract<EffectSpec, { kind: "chooseOne" }>): boolean {
+  // Not read here: an option `RuleSpec cannotChooseOption` bars (`executeChooseOne` drops it). Only encounter cards'
+  // options are tagged so far, and this judges player abilities; read it here once a player card's option is tagged.
   let targetless = false;
   for (const option of effect.options) {
     const condition = option.condition;

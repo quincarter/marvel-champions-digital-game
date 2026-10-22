@@ -458,11 +458,21 @@ export const andThen = (...effects: readonly EffectArg[]): EffectSpec => ({ kind
 
 export interface ChoiceOption {
   readonly label: string;
+  /** The option's name as other cards refer to it (engine `EffectSpec chooseOne` option `tag`); never shown. */
+  readonly tag?: string;
   readonly condition?: Predicate;
   readonly effects: readonly EffectSpec[];
 }
 /**
- * One option of `chooseOne`; `when` limits it to states where it can happen.
+ * The settings of one `option`: `when` limits it to states where it can happen; `tag` names it for other cards ("the
+ * 'Avoid' effect on a Trap! card": `on.optionChosen`, `cannotChooseOption`), so they never read the display label.
+ */
+export interface OptionSettings {
+  readonly when?: Predicate;
+  readonly tag?: string;
+}
+/**
+ * One option of `chooseOne`; `when` limits it to states where it can happen, `tag` names it (`OptionSettings`).
  *
  * A `spendResources` written as one of the option's own effects is made `required` (engine `EffectSpec
  * spendResources.required`): once chosen, the payment is made in full. Whether an unpayable option is offered is the
@@ -471,12 +481,17 @@ export interface ChoiceOption {
  * 2026 Spell Blast ruling; it reverses wave 7 Q8 and wave 9 Q33). A "may spend ... instead" that is a payment tied to a
  * result keeps `when: canPayResources(...)`. A spend nested deeper (inside an `ifThen`, a `forEachPlayer`) is left as written.
  */
-export const option = (label: string, ...rest: readonly (EffectArg | { readonly when: Predicate })[]): ChoiceOption => {
-  const condition = rest.find((r): r is { readonly when: Predicate } => !Array.isArray(r) && "when" in (r as object));
-  const effects = rest.filter((r): r is EffectArg => Array.isArray(r) || !("when" in (r as object)));
+export const option = (label: string, ...rest: readonly (EffectArg | OptionSettings)[]): ChoiceOption => {
+  // An effect always has a `kind`; the settings object never does.
+  const isSettings = (r: EffectArg | OptionSettings): r is OptionSettings => !Array.isArray(r) && !("kind" in r);
+  const all = rest.filter(isSettings);
+  if (all.length > 1) throw new Error(`option "${label}": give its settings ({ when, tag }) in one object`);
+  const settings = all[0];
+  const effects = rest.filter((r): r is EffectArg => !isSettings(r));
   return {
     label,
-    ...(condition ? { condition: condition.when } : {}),
+    ...(settings?.tag !== undefined ? { tag: settings.tag } : {}),
+    ...(settings?.when ? { condition: settings.when } : {}),
     // Not a "spend X" (`spendXResources`): its X is the player's to set, 0 included, as it resolves.
     effects: flatten(effects).map((effect) =>
       effect.kind === "spendResources" && !effect.x ? { ...effect, required: true as const } : effect,
@@ -2627,6 +2642,13 @@ export const chooseCardType = (bind: string, player: PlayerRef = you): EffectSpe
   kind: "chooseCardType",
   player,
   bind,
+});
+/** "Name an encounter card type" (Nervous Jitters, `shadowland` 65046): `chooseCardType` among the eight encounter types. */
+export const chooseEncounterCardType = (bind: string, player: PlayerRef = you): EffectSpec => ({
+  kind: "chooseCardType",
+  player,
+  bind,
+  of: "encounter",
 });
 /**
  * "Search your collection for 1 WEAPON upgrade from any aspect" (Armed to the Teeth, `deadpool` 44009;

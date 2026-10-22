@@ -988,6 +988,23 @@ export const cannotThwart = (
 export const cannotRecover = (player: PlayerRef, opts: { readonly while?: Predicate } = {}): ConstantPart =>
   rule({ kind: "cannotRecover", player, ...(opts.while ? { while: opts.while } : {}) });
 /**
+ * "You cannot choose the 'Avoid' effect on Trap! cards" (Iron Monk, `shadowland` 65047): `player` is not offered an
+ * option of a "choose one" whose `tag` is one of `tags`, on an ability of a card `sources` matches (any card when
+ * absent). The engine's `RuleSpec cannotChooseOption`.
+ */
+export const cannotChooseOption = (
+  player: PlayerRef,
+  tags: readonly string[],
+  opts: { readonly sources?: TargetQuery; readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "cannotChooseOption",
+    player,
+    tags,
+    ...(opts.sources ? { sources: opts.sources } : {}),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
  * "Attached minion cannot activate" (Mental Paralysis, `phoenix` 34008; docs/phase7-wave6.md §3.34, §4.1 Q19) →
  * `constant(cannotActivate(query("minion", { hostOfSelf: true })))`. A matching enemy's attacks and schemes do not
  * begin: the villain phase's, an effect's "X attacks/schemes", quickstrike and teamwork. Its other abilities still
@@ -3980,6 +3997,22 @@ export const on = {
    * needed to say which one — the same reading `on.mainSchemeCompleted` gives a scenario with one main scheme.
    */
   villainSwapped: (): EventPattern => pattern("villainSwapped"),
+  /**
+   * "When **you** choose the 'Avoid' effect or the 'Trip' effect on a Trap! card" (`TriggerEvent optionChoosing`): a
+   * player chose an option of a "choose one" whose `tag` is one of `tags`, on an ability of a card `source` matches
+   * (any card when absent). Written with `forcedInterrupt`, it resolves after the choice and before the option (RRG
+   * 1.8 "Interrupt", p. 25). `anyPlayer`: "when **a player** chooses …".
+   */
+  optionChosen: (
+    tags: readonly string[],
+    opts: { readonly source?: TargetQuery; readonly anyPlayer?: boolean } = {},
+  ): EventPattern =>
+    pattern(
+      "optionChoosing",
+      opts.anyPlayer ? {} : { playerIs: "controller" },
+      { eventIs: { tag: tags } },
+      opts.source ? { sourceIs: opts.source } : {},
+    ),
   /**
    * "After **you** resolve [a named procedure or ability]": the moment a script raises with `raiseMoment(name, player)`
    * (docs/phase7-wave8.md §3.39), "you" being the player it was raised for. "Forced Response: After you resolve a

@@ -45,5 +45,20 @@ export const isRulesCardType = (type: string): type is RulesCardType =>
 /** The fifteen card types, player card types first, in the RRG's order. */
 export const RULES_CARD_TYPES: readonly RulesCardType[] = Object.keys(CARD_TYPE_NAMES).filter(isRulesCardType);
 
+/**
+ * The encounter card types of RRG 1.8 "Card Types" (p. 12): "Attachment, environment, main scheme, minion, obligation,
+ * side scheme, treachery, and villain cards are types of encounter cards."
+ */
+export const ENCOUNTER_CARD_TYPES: readonly RulesCardType[] = [
+  "attachment",
+  "environment",
+  "main_scheme",
+  "minion",
+  "obligation",
+  "side_scheme",
+  "treachery",
+  "villain",
+];
+
 /** "Event", "Player side scheme": the type's name as a prompt or a log line shows it. */
 export const cardTypeName = (type: RulesCardType): string => CARD_TYPE_NAMES[type] ?? type;

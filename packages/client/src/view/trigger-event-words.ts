@@ -72,6 +72,7 @@ export const TRIGGER_EVENT_WORDS: Readonly<Record<TriggerEventKind, string>> = {
   minionEngaged: "a minion engaging",
   turnEnding: "a turn ending",
   surgeResolving: "a surge",
+  optionChoosing: "an option chosen",
   abilityResolved: "an ability resolved",
   momentRaised: "an ability resolved",
   cardFlipped: "a card flipped",
