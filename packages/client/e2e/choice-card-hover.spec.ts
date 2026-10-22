@@ -81,5 +81,27 @@ test("hovering the source card in a decision sheet opens the card hover popover"
   // Off the card, the popover goes.
   await page.mouse.move(8, 8, { steps: 4 });
   await waitFor(async () => ((await hoverShown(page)) === null ? true : null), "the popover closes off the card");
+
+  // Opened again with every picture already loaded, nothing redraws the sheet after its first draw, so that draw's
+  // cards are the only ones it has: `create` used to clear them after it (the first draw runs inside its subscribe).
+  await page.evaluate(() => {
+    const w = window as unknown as {
+      __mcChoiceDebug: { stale?: boolean };
+      __mcGame: { scene: { getScene: (key: string) => { scene: { restart: () => void } } } };
+    };
+    // Each `create` sets a fresh debug hook, so the marked one going is the new sheet having run its `create`.
+    w.__mcChoiceDebug.stale = true;
+    w.__mcGame.scene.getScene("ChoiceOverlay").scene.restart();
+  });
+  await waitFor(
+    () =>
+      page.evaluate(() =>
+        (window as unknown as { __mcChoiceDebug?: { stale?: boolean } }).__mcChoiceDebug?.stale ? null : true,
+      ),
+    "the reopened decision",
+    30000,
+  );
+  await settle(page);
+  expect((await hoverRects(page)).length, "a reopened sheet registers its cards").toBeGreaterThan(0);
   expect(errors).toEqual([]);
 });
