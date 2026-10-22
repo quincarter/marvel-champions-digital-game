@@ -238,6 +238,36 @@ describe("SessionStore", () => {
     expect(third.state.game).toEqual(second.state.game);
   }, 60_000);
 
+  test("several games can be in progress: each is listed, Continue offers the newest, and each resumes", async () => {
+    const storage = new MemoryGameStorage();
+    const first = new SessionStore(new LocalEngineHost(storage));
+    await first.start(RHINO_SOLO);
+    await first.resolveChoice([]);
+    const second = new SessionStore(new LocalEngineHost(storage));
+    await second.start(KLAW_TWO);
+    await second.resolveChoice([]);
+
+    const reloaded = new SessionStore(new LocalEngineHost(storage));
+    const listed = await reloaded.activeSaves();
+    expect(listed.map((save) => save.config.scenarioId).sort()).toEqual(["klaw", "rhino"]);
+    expect(listed.every((save) => save.status === "active")).toBe(true);
+    expect((await reloaded.latestSave())?.id).toBe(listed[0]!.id);
+
+    // Each one resumes on its own board, not the other's.
+    for (const save of listed) {
+      await reloaded.resume(save.id);
+      expect(reloaded.state.status).not.toBe("failed");
+      expect(reloaded.state.game).not.toBeNull();
+    }
+  });
+
+  test("a storage failure while listing the games in progress reads as none", async () => {
+    const broken = new LocalEngineHost();
+    broken.activeSaves = () => Promise.reject(new Error("storage is gone"));
+    const failing = new SessionStore(broken);
+    expect(await failing.activeSaves()).toEqual([]);
+  });
+
   test("a finished game is recorded as over and is not offered as Continue", async () => {
     const storage = new MemoryGameStorage();
     const host = new LocalEngineHost(storage);

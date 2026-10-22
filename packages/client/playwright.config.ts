@@ -145,6 +145,8 @@ export default defineConfig({
         "sync-ui.spec.ts",
         "sync-ui-touch.spec.ts",
         "sync-ui-flows.spec.ts",
+        "games-list.spec.ts",
+        "sync-setup-prompt.spec.ts",
       ],
     },
   ],

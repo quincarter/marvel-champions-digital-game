@@ -251,7 +251,7 @@ export function conflictPromptOf(conflict: GameConflict, now: number): ConflictP
     buttons,
     defaultChoice: conflict.campaign ? "keep-local" : "keep-both",
     campaignNote: conflict.campaign
-      ? "Keep both isn't offered for a campaign game: a campaign can only have one game in progress."
+      ? "Keep both isn't offered for a campaign game: a campaign mission counts one attempt at a time."
       : null,
   };
 }

@@ -84,12 +84,7 @@ export class IdbGameStorage implements GameStorage {
     const db = await this.#open();
     const transaction = db.transaction(["games", "baselines"], "readwrite");
     const done = committed(transaction);
-    const games = transaction.objectStore("games");
-    const existing = await settle(games.getAll() as IDBRequest<SaveMeta[]>);
-    for (const game of existing) {
-      if (game.status === "active") games.put({ ...game, status: "abandoned" satisfies SaveStatus });
-    }
-    games.put(stampedPlayedOn(meta, this.#playedOn));
+    transaction.objectStore("games").put(stampedPlayedOn(meta, this.#playedOn));
     transaction.objectStore("baselines").put({ gameId: meta.id, state: initialState } satisfies BaselineRow);
     await done;
     notifySaveDataChanged("game");
@@ -175,13 +170,13 @@ export class IdbGameStorage implements GameStorage {
     return (await this.#allGames()).sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
-  async setStatus(gameId: string, status: SaveStatus): Promise<void> {
+  async setStatus(gameId: string, status: SaveStatus, updatedAt?: number): Promise<void> {
     const db = await this.#open();
     const transaction = db.transaction("games", "readwrite");
     const done = committed(transaction);
     const games = transaction.objectStore("games");
     const meta = await settle(games.get(gameId) as IDBRequest<SaveMeta | undefined>);
-    if (meta) games.put({ ...meta, status });
+    if (meta) games.put({ ...meta, status, ...(updatedAt === undefined ? {} : { updatedAt }) });
     await done;
     notifySaveDataChanged("game");
   }

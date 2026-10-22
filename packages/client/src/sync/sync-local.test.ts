@@ -114,6 +114,22 @@ describe("IdbLocalSaveData", () => {
     expect((records.get("game:g1:meta")!.value as { logHash: string }).logHash).toMatch(/^[A-Za-z0-9_-]{43}$/);
   });
 
+  test("retiring a game stamps its meta as newer, so a status-only change syncs as the newer side", async () => {
+    const d = device();
+    await makeGame(d, "g1", 3, 5000);
+    const before = byKey(await d.local.snapshot());
+    await d.games.setStatus("g1", "abandoned", 9000);
+    const after = byKey(await d.local.snapshot());
+    expect(after.get("game:g1:meta")?.stamp).toBe(9000);
+    expect((after.get("game:g1:meta")!.value as { status: string }).status).toBe("abandoned");
+    expect(after.get("game:g1:meta")?.hash).not.toBe(before.get("game:g1:meta")?.hash);
+    // The log itself is the same, so this is no conflict: the log hash the meta carries is unchanged.
+    expect((after.get("game:g1:meta")!.value as { logHash: string }).logHash).toBe(
+      (before.get("game:g1:meta")!.value as { logHash: string }).logHash,
+    );
+    expect(after.get("game:g1:log:0")?.hash).toBe(before.get("game:g1:log:0")?.hash);
+  });
+
   test("hashes are stable under key order and differ when the value does", async () => {
     expect(canonicalJson({ b: 1, a: { d: 1, c: 2 } })).toBe(canonicalJson({ a: { c: 2, d: 1 }, b: 1 }));
     expect(await hashValue({ a: 1, b: 2 })).toBe(await hashValue({ b: 2, a: 1 }));
@@ -244,7 +260,7 @@ describe("IdbLocalSaveData", () => {
     expect((await d.local.snapshot()).map((r) => r.key)).toEqual(["db:mc-decks:decks:d1"]);
   });
 
-  test("copyGame writes a fresh id, abandoned when another game is active", async () => {
+  test("copyGame writes a fresh id and keeps the status, beside the other active game", async () => {
     const a = device();
     await makeGame(a, "g", 70);
     const records = toWrite(await a.local.snapshot());
@@ -254,7 +270,7 @@ describe("IdbLocalSaveData", () => {
     expect(await b.local.copyGame(records)).toBe("new-1");
     const copy = await new IdbGameStorage(b.factory).load("new-1");
     expect(copy?.meta.id).toBe("new-1");
-    expect(copy?.meta.status).toBe("abandoned");
+    expect(copy?.meta.status).toBe("active");
     expect(copy?.commands).toHaveLength(70);
     const rows = byKey(await b.local.snapshot());
     expect((rows.get("game:new-1:baseline")!.value as { gameId: string }).gameId).toBe("new-1");
@@ -374,7 +390,7 @@ describe("IdbLocalSaveData", () => {
     }
   });
 
-  test("a remote active game retires an older local active game, but not the open one or a newer one", async () => {
+  test("a remote active game leaves every local active game in progress", async () => {
     const remote = device();
     await makeGame(remote, "r", 1, 500);
     const records = toWrite(await remote.local.snapshot());
@@ -383,19 +399,13 @@ describe("IdbLocalSaveData", () => {
     await makeGame(d, "old", 1, 100);
     await d.local.apply(records, []);
     const storage = new IdbGameStorage(d.factory);
-    expect((await storage.load("old"))?.meta.status).toBe("abandoned");
+    expect((await storage.load("old"))?.meta.status).toBe("active");
     expect((await storage.load("r"))?.meta.status).toBe("active");
 
     const e = device();
     await makeGame(e, "newer", 1, 900);
     await e.local.apply(records, []);
     expect((await new IdbGameStorage(e.factory).load("newer"))?.meta.status).toBe("active");
-
-    const f = device();
-    await makeGame(f, "playing", 1, 100);
-    f.open = "playing";
-    await f.local.apply(records, []);
-    expect((await new IdbGameStorage(f.factory).load("playing"))?.meta.status).toBe("active");
   });
 
   test("numeric and awkward key parts survive a round trip and delete exactly", async () => {

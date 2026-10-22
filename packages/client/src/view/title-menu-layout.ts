@@ -29,6 +29,7 @@
 import { hit } from "../tokens.js";
 import type { Rect } from "./layout.js";
 import { setupMetrics } from "./setup-metrics.js";
+import { GAME_ROW_GAP, GAME_ROW_HEIGHT } from "./games-list-model.js";
 
 const TITLE_BLOCK_RATIO = 1.35;
 /** The red divider's own width, and the left art panel's share of a split screen. */
@@ -40,6 +41,12 @@ export const RANK_BADGE_HEIGHT = 58;
 export const RANK_BADGE_PHONE_HEIGHT = 42;
 const RANK_BADGE_PHONE_WIDTH = 124;
 const RANK_BADGE_MAX_WIDTH = 300;
+
+/** The "In-progress games" panel (art panel, split screens): its widest, its heading, and the least list it is worth drawing. */
+const GAMES_PANEL_MAX_WIDTH = 520;
+export const GAMES_PANEL_HEADER = 36;
+const GAMES_PANEL_PAD = 12;
+const GAMES_PANEL_MIN_ROWS = 3;
 
 /**
  * The update banner. Wide enough, it is one row: two lines of text on the left, the buttons on the right. On a narrow
@@ -66,6 +73,16 @@ const UPDATE_BANNER_STACKED_HEIGHT = UPDATE_BANNER_PAD * 3 + UPDATE_DISMISS_SIZE
 
 const updateBannerHeight = (width: number): number =>
   width >= UPDATE_BANNER_INLINE_WIDTH ? UPDATE_BANNER_HEIGHT : UPDATE_BANNER_STACKED_HEIGHT;
+
+/**
+ * How many of the update banner's `actions` buttons fit its box: all of them, except in the one-row banner a short
+ * phone gets in compact mode (too narrow for two buttons), which keeps the last (the install button, else the notes).
+ */
+export function updateBannerActionCount(banner: Rect, actions: number): number {
+  return banner.height <= UPDATE_BANNER_HEIGHT && banner.width < UPDATE_BANNER_INLINE_WIDTH
+    ? Math.min(actions, 1)
+    : actions;
+}
 
 export interface UpdateBannerParts {
   /** Where the banner's two lines of text start; they run up to `textWidth`. */
@@ -129,6 +146,8 @@ export interface TitleMenuLayoutInput {
   readonly civilWar?: boolean;
   /** The desktop app: a "Quit to desktop" row under Settings. */
   readonly quit?: boolean;
+  /** How many games the list shows (`shouldShowGamesList` decides whether it is offered at all; 0 draws neither). */
+  readonly games?: number;
 }
 
 export interface TitleMenuLayout {
@@ -150,6 +169,14 @@ export interface TitleMenuLayout {
   readonly eyebrow: Rect;
   readonly rule: Rect;
   readonly continueRow: Rect | null;
+  /**
+   * The "In-progress games" panel: on a split screen, in the art panel under the update banner and above the rank
+   * badge, when it has room for at least two rows. Its list (below the heading) is `gamesPanelList`.
+   */
+  readonly gamesPanel: Rect | null;
+  readonly gamesPanelList: Rect | null;
+  /** "In-progress games (N)", a menu row that opens the list full screen: a phone, or a split screen too short for the panel. */
+  readonly gamesRow: Rect | null;
   readonly newGame: Rect;
   readonly decks: Rect;
   readonly campaign: Rect;
@@ -177,6 +204,8 @@ export function titleMenuLayoutRects(layout: TitleMenuLayout): readonly Rect[] {
   return [
     ...(layout.updateBanner ? [layout.updateBanner] : []),
     ...(layout.continueRow ? [layout.continueRow] : []),
+    ...(layout.gamesPanel ? [layout.gamesPanel] : []),
+    ...(layout.gamesRow ? [layout.gamesRow] : []),
     layout.newGame,
     layout.decks,
     layout.campaign,
@@ -194,6 +223,9 @@ export function titleMenuLayoutRects(layout: TitleMenuLayout): readonly Rect[] {
 /** The least a gap or the logo shrinks to when the menu is too tall for the screen; rows keep their touch height. */
 const GAP_FLOOR = 4;
 const TITLE_SIZE_FLOOR = 28;
+/** The last resort for a screen still too short: Continue and New game drop to the plain touch height, the floors drop. */
+const COMPACT_GAP_FLOOR = 2;
+const COMPACT_TITLE_SIZE_FLOOR = 22;
 const GAP_STEP = 2;
 const TITLE_STEP = 4;
 
@@ -205,15 +237,17 @@ const TITLE_STEP = 4;
 export function titleMenuLayout(input: TitleMenuLayoutInput): TitleMenuLayout {
   const { width, height } = input;
   const { gap } = setupMetrics(width, height);
-  const tightened = (badgeUp: boolean): TitleMenuLayout & { readonly fits: boolean } => {
+  const tightened = (badgeUp: boolean, compact = false): TitleMenuLayout & { readonly fits: boolean } => {
+    const gapFloor = compact ? COMPACT_GAP_FLOOR : GAP_FLOOR;
+    const titleFloor = compact ? COMPACT_TITLE_SIZE_FLOOR : TITLE_SIZE_FLOOR;
     let tight = { gap, titleSize: null as number | null };
-    let layout = titleMenuLayoutAt(input, tight.gap, tight.titleSize, badgeUp);
-    while (!layout.fits && (tight.gap > GAP_FLOOR || layout.titleSize > TITLE_SIZE_FLOOR)) {
+    let layout = titleMenuLayoutAt(input, tight.gap, tight.titleSize, badgeUp, compact);
+    while (!layout.fits && (tight.gap > gapFloor || layout.titleSize > titleFloor)) {
       tight = {
-        gap: Math.max(GAP_FLOOR, tight.gap - GAP_STEP),
-        titleSize: Math.max(TITLE_SIZE_FLOOR, layout.titleSize - (tight.gap > GAP_FLOOR ? 0 : TITLE_STEP)),
+        gap: Math.max(gapFloor, tight.gap - GAP_STEP),
+        titleSize: Math.max(titleFloor, layout.titleSize - (tight.gap > gapFloor ? 0 : TITLE_STEP)),
       };
-      layout = titleMenuLayoutAt(input, tight.gap, tight.titleSize, badgeUp);
+      layout = titleMenuLayoutAt(input, tight.gap, tight.titleSize, badgeUp, compact);
     }
     return layout;
   };
@@ -221,6 +255,11 @@ export function titleMenuLayout(input: TitleMenuLayoutInput): TitleMenuLayout {
   // (a 360x740 phone with Continue, Civil War! and the update banner) does it go back up beside the logo.
   let layout = tightened(false);
   if (!layout.fits && !layout.split) layout = tightened(true);
+  if (!layout.fits) {
+    // Only taken when it makes everything fit: a menu too tall even so keeps the roomier layout.
+    const compact = tightened(!layout.split, true);
+    if (compact.fits) layout = compact;
+  }
   const { fits: _fits, ...rest } = layout;
   return rest;
 }
@@ -230,7 +269,9 @@ function titleMenuLayoutAt(
   gap: number,
   titleOverride: number | null,
   badgeUp: boolean,
+  compact = false,
 ): TitleMenuLayout & { readonly fits: boolean } {
+  const primary = compact ? hit.target : hit.primary;
   const { width, height } = input;
   const { phone, short, pad } = setupMetrics(width, height);
   const split = !phone;
@@ -255,7 +296,13 @@ function titleMenuLayoutAt(
       const bannerWidth = Math.min(artPanel!.width - pad * 2, UPDATE_BANNER_MAX_WIDTH);
       updateBanner = { x: pad, y: pad, width: bannerWidth, height: updateBannerHeight(bannerWidth) };
     } else {
-      updateBanner = { x: left, y: pad, width: column, height: updateBannerHeight(column) };
+      // A short phone (compact) gets the one-row banner with a single button, to keep the menu on screen.
+      updateBanner = {
+        x: left,
+        y: pad,
+        width: column,
+        height: compact ? UPDATE_BANNER_HEIGHT : updateBannerHeight(column),
+      };
       y = pad + updateBanner.height + gap;
     }
   }
@@ -268,12 +315,45 @@ function titleMenuLayoutAt(
 
   let continueRow: Rect | null = null;
   if (input.continuable) {
-    continueRow = { x: left, y, width: column, height: hit.primary };
-    y += hit.primary + gap;
+    continueRow = { x: left, y, width: column, height: primary };
+    y += primary + gap;
   }
 
-  const newGame: Rect = { x: left, y, width: column, height: hit.primary };
-  y += hit.primary + gap;
+  // The games list: a panel in the art panel when it fits (between the update banner and the rank badge), else a menu row.
+  const gameCount = input.games ?? 0;
+  let gamesPanel: Rect | null = null;
+  let gamesPanelList: Rect | null = null;
+  let gamesRow: Rect | null = null;
+  const rankBadgeTop = height - pad - RANK_BADGE_HEIGHT;
+  if (gameCount >= 1) {
+    if (split) {
+      const top = updateBanner ? updateBanner.y + updateBanner.height + pad : pad;
+      const bottom = rankBadgeTop - pad;
+      const rowsHeight = (rows: number): number => rows * (GAME_ROW_HEIGHT + GAME_ROW_GAP) - GAME_ROW_GAP;
+      // Never shorter than three rows, so "Remove this game?" (which replaces the list) always has room.
+      const rowsNeeded = Math.max(rowsHeight(gameCount), rowsHeight(GAMES_PANEL_MIN_ROWS));
+      const chrome = GAMES_PANEL_HEADER + GAMES_PANEL_PAD * 2;
+      const least = chrome + rowsHeight(GAMES_PANEL_MIN_ROWS);
+      if (bottom - top >= least) {
+        const panelHeight = Math.min(bottom - top, chrome + rowsNeeded);
+        const panelWidth = Math.min(artPanel!.width - pad * 2, GAMES_PANEL_MAX_WIDTH);
+        gamesPanel = { x: pad, y: bottom - panelHeight, width: panelWidth, height: panelHeight };
+        gamesPanelList = {
+          x: gamesPanel.x + GAMES_PANEL_PAD,
+          y: gamesPanel.y + GAMES_PANEL_PAD + GAMES_PANEL_HEADER,
+          width: panelWidth - GAMES_PANEL_PAD * 2,
+          height: panelHeight - chrome,
+        };
+      }
+    }
+    if (!gamesPanel) {
+      gamesRow = { x: left, y, width: column, height: hit.target };
+      y += hit.target + gap;
+    }
+  }
+
+  const newGame: Rect = { x: left, y, width: column, height: primary };
+  y += primary + gap;
   const decks: Rect = { x: left, y, width: column, height: hit.target };
   y += hit.target + gap;
   const campaign: Rect = { x: left, y, width: column, height: hit.target };
@@ -338,6 +418,9 @@ function titleMenuLayoutAt(
     eyebrow,
     rule,
     continueRow,
+    gamesPanel,
+    gamesPanelList,
+    gamesRow,
     newGame,
     decks,
     campaign,

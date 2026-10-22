@@ -66,6 +66,11 @@ const GAP = 10;
 export interface SyncDataSceneData {
   /** Opened from a scanned #link= address: ask whether to join with it (the player confirms; nothing joins by itself). */
   readonly link?: SyncLinkAddress;
+  /**
+   * Opened from the one-time setup prompt (`scenes/sync-setup-prompt.ts`): "setup" turns sync on at once and shows the
+   * recovery code to acknowledge; "join" opens the join field. Back from either lands on the usual first screen.
+   */
+  readonly start?: "setup" | "join";
 }
 
 interface ButtonSpec {
@@ -95,7 +100,13 @@ export class SyncDataOverlay extends Phaser.Scene {
   create(data: SyncDataSceneData = {}): void {
     this.sys.settings.data = {};
     this.#motion = new OverlayMotion();
-    this.#step = data.link ? { kind: "join-link", link: data.link, phase: "asking" } : { kind: "home" };
+    this.#step = data.link
+      ? { kind: "join-link", link: data.link, phase: "asking" }
+      : data.start === "join"
+        ? { kind: "join", phase: "typing", input: "" }
+        : data.start === "setup" && !syncService().isOn()
+          ? { kind: "setup", phase: "creating" }
+          : { kind: "home" };
     this.#status = NO_STATUS;
     const service = syncService();
     const onResize = (): void => this.#draw();
@@ -121,6 +132,7 @@ export class SyncDataOverlay extends Phaser.Scene {
       this.#clearControls();
     });
     this.#draw();
+    if (this.#step.kind === "setup") void this.#createSpace();
   }
 
   // ---- navigation ------------------------------------------------------------------------------------------------
@@ -152,6 +164,11 @@ export class SyncDataOverlay extends Phaser.Scene {
   async #setUp(): Promise<void> {
     if (this.#step.kind !== "home" || syncService().isOn()) return;
     this.#set({ kind: "setup", phase: "creating" }, NO_STATUS);
+    await this.#createSpace();
+  }
+
+  /** The setup step's work, from "creating": makes the space, then shows the code (or says why not, back home). */
+  async #createSpace(): Promise<void> {
     const result = await syncService().setUp();
     if (!this.sys.isActive()) return;
     if (result.ok) this.#set({ kind: "setup", phase: { code: result.recoveryCode } }, NO_STATUS);

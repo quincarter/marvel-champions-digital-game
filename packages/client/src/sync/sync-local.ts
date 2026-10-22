@@ -371,7 +371,7 @@ export class IdbLocalSaveData implements LocalSaveData {
       try {
         // Deletions first, so a game removed and written in one apply ends up written.
         for (const { store, key } of dbDeletes) transaction.objectStore(store.name).delete(storeKey(store, key));
-        await this.#writeGames(transaction, gameDeletes, gameWrites, playing);
+        await this.#writeGames(transaction, gameDeletes, gameWrites);
         for (const { store, value } of dbWrites) transaction.objectStore(store.name).put(value);
       } catch (cause) {
         // One bad record undoes the database's whole share, so a retry starts from where this began.
@@ -385,12 +385,11 @@ export class IdbLocalSaveData implements LocalSaveData {
     }
   }
 
-  /** Game deletes and writes inside `transaction`; a written active meta demotes the older active games. */
+  /** Game deletes and writes inside `transaction`. Several games can be in progress, so no status is changed. */
   async #writeGames(
     transaction: IDBTransaction,
     deletes: readonly GameKey[],
     writes: readonly { parsed: GameKey; value: unknown }[],
-    playing: string | null,
   ): Promise<void> {
     if (!deletes.length && !writes.length) return;
     const games = transaction.objectStore("games");
@@ -406,14 +405,10 @@ export class IdbLocalSaveData implements LocalSaveData {
         commands.delete(chunkRange(k.id, k.n));
       }
     }
-    let newestActive: GameMeta | null = null;
     for (const { parsed, value } of writes) {
       if (parsed.part === "meta") {
         const { logHash: _logHash, ...meta } = value as GameMeta & { logHash?: string };
         games.put(meta);
-        if (meta.status === "active" && (!newestActive || (meta.updatedAt ?? 0) > (newestActive.updatedAt ?? 0))) {
-          newestActive = meta;
-        }
       } else if (parsed.part === "baseline") {
         transaction.objectStore("baselines").put(value);
       } else {
@@ -423,13 +418,6 @@ export class IdbLocalSaveData implements LocalSaveData {
           commands.put({ gameId: parsed.id, seq: parsed.n * LOG_CHUNK + i, command } satisfies CommandRow);
         });
       }
-    }
-    if (!newestActive) return;
-    // One game in progress at a time (as `IdbGameStorage.create` keeps it): the older active ones are retired.
-    const winner: GameMeta = newestActive;
-    for (const other of await settle(games.getAll() as IDBRequest<GameMeta[]>)) {
-      if (other.id === winner.id || other.id === playing || other.status !== "active") continue;
-      if ((other.updatedAt ?? 0) < (winner.updatedAt ?? 0)) games.put({ ...other, status: "abandoned" });
     }
   }
 
@@ -443,18 +431,13 @@ export class IdbLocalSaveData implements LocalSaveData {
       const transaction = db.transaction(["games", "baselines", "commands"], "readwrite");
       const done = committed(transaction);
       try {
-        // Read and write in one transaction, so the "another game is active" check can't go stale.
-        const anotherActive = (await settle(transaction.objectStore("games").getAll() as IDBRequest<GameMeta[]>)).some(
-          (game) => game.status === "active",
-        );
         const renamed: { parsed: GameKey; value: unknown }[] = [];
         for (const { key, value } of records) {
           const parsed = parseGameKey(key);
           if (!parsed) continue;
           if (parsed.part === "meta") {
             const meta = value as GameMeta;
-            const status = anotherActive && meta.status === "active" ? "abandoned" : meta.status;
-            renamed.push({ parsed: { id, part: "meta" }, value: { ...meta, id, status } });
+            renamed.push({ parsed: { id, part: "meta" }, value: { ...meta, id } });
           } else if (parsed.part === "baseline") {
             renamed.push({ parsed: { id, part: "baseline" }, value: { ...(value as object), gameId: id } });
           } else {
@@ -462,9 +445,7 @@ export class IdbLocalSaveData implements LocalSaveData {
           }
         }
         if (!renamed.some((r) => r.parsed.part === "meta")) throw new Error("the records to copy have no game meta");
-        // `playing` is null: the copy is a new game, never the open one, and must not demote anything (it was
-        // made abandoned above if another game is active).
-        await this.#writeGames(transaction, [], renamed, null);
+        await this.#writeGames(transaction, [], renamed);
       } catch (cause) {
         transaction.abort();
         await done.catch(() => undefined);

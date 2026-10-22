@@ -27,6 +27,8 @@ export interface FakeSyncServer {
   readonly requests: string[];
   /** Answer every sync route with a dropped connection (the service being unreachable). */
   down: boolean;
+  /** Answer the status route (and every sync route) 503 `disabled`, the Worker's kill switch. */
+  disabled: boolean;
   /** Each sync route answers after this many milliseconds (a slow network). */
   latencyMs: number;
   /** Serves a page or every page of a context. */
@@ -54,6 +56,7 @@ export function fakeSyncServer(): FakeSyncServer {
     spaces,
     requests,
     down: false,
+    disabled: false,
     latencyMs: 0,
     async install(target) {
       await target.route(`${SYNC}/**`, async (route) => {
@@ -63,6 +66,13 @@ export function fakeSyncServer(): FakeSyncServer {
         requests.push(`${request.method()} ${url.pathname}`);
         if (server.down) return route.abort("connectionrefused");
         if (server.latencyMs > 0) await new Promise((resolve) => setTimeout(resolve, server.latencyMs));
+        if (url.pathname === "/sync/status" && request.method() === "GET") {
+          return server.disabled
+            ? json(route, 503, { reason: "disabled", error: "Device sync is turned off right now." })
+            : json(route, 200, { sync: true });
+        }
+        if (server.disabled && url.pathname.startsWith("/sync/"))
+          return json(route, 503, { reason: "disabled", error: "Device sync is turned off right now." });
         if (url.pathname === "/transfer" && request.method() === "POST") {
           return json(route, 201, { code: "ABCDEFGH", expiresAt: Date.now() + 15 * 60_000 });
         }

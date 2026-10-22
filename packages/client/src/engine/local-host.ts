@@ -82,6 +82,14 @@ export class LocalEngineHost implements EngineHost {
     return this.#core.latestSave();
   }
 
+  activeSaves(): Promise<readonly SaveMeta[]> {
+    return this.#core.activeSaves();
+  }
+
+  retireSave(gameId: string): Promise<void> {
+    return this.#core.retireSave(gameId);
+  }
+
   listSaves(): Promise<readonly SaveMeta[]> {
     return this.#core.listSaves();
   }

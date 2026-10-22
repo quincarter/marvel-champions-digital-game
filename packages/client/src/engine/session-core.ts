@@ -322,12 +322,33 @@ export class EngineSessionCore {
         // has nothing for its first command to append to.
         await this.#storage.create(meta, stripPool(setup.state));
         this.#gameId = id;
+        if (config.guided) await this.#retireOlderGuided(id, config.guided.kind);
       } catch (cause) {
         this.#saveError = describeCause(cause);
       }
     }
 
     return { cardPool: setup.state.cardPool, snapshot: this.#snapshot(setup.events) };
+  }
+
+  /**
+   * A guided run (tutorial, Try-it, lesson) replaces the older one of its kind, so lessons don't pile up now that
+   * several games can be in progress (#276). A storage failure here leaves the older run active, which is harmless.
+   */
+  async #retireOlderGuided(keepId: string, kind: string): Promise<void> {
+    // Keyed on `guided.kind` alone, on purpose (owner decision): a new aspect or mechanic Try-it replaces the older
+    // one, whichever aspect or mechanic it was, so lessons never pile up.
+    const storage = this.#storage;
+    if (!storage) return;
+    try {
+      for (const save of await storage.list()) {
+        if (save.id !== keepId && save.status === "active" && save.guided?.kind === kind) {
+          await storage.setStatus(save.id, "abandoned");
+        }
+      }
+    } catch {
+      // see above
+    }
   }
 
   /**
@@ -491,6 +512,31 @@ export class EngineSessionCore {
       if (!latest || isCurrentSchema(latest)) return latest;
       await storage.setStatus(latest.id, "incompatible");
     }
+  }
+
+  /**
+   * Every game in progress that this build can resume, newest first, for the title's "In-progress games" list
+   * (#276). Guided lesson saves (`meta.guided`) are left out: they are teaching runs, not games to come back to.
+   * A save under an older `SAVE_SCHEMA` is retired on the way, as `latestSave` does.
+   */
+  async activeSaves(): Promise<readonly SaveMeta[]> {
+    const storage = this.#storage;
+    if (!storage) return [];
+    const found: SaveMeta[] = [];
+    for (const meta of await storage.list()) {
+      if (meta.status !== "active" || meta.guided) continue;
+      if (isCurrentSchema(meta)) found.push(meta);
+      else await storage.setStatus(meta.id, "incompatible");
+    }
+    return found;
+  }
+
+  /**
+   * Retires a game the player chose to drop: "abandoned", stamped as written now so device sync carries the change.
+   * Done here, where the game's appends are, so a retirement and a write can't interleave from two threads.
+   */
+  async retireSave(gameId: string): Promise<void> {
+    await this.#storage?.setStatus(gameId, "abandoned", this.#now());
   }
 
   /**

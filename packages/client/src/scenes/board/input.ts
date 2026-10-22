@@ -33,7 +33,13 @@ export interface IntentBinding {
  * `blocked` says. Every route and the Board bind through `bindKeyboard` / `bindGamepad`, so this is the one place.
  */
 export function conflictPromptOwnsInput(scene: Phaser.Scene): boolean {
-  return scene.scene.key !== SCENES.syncConflict && scene.scene.manager.isActive(SCENES.syncConflict) === true;
+  const manager = scene.scene.manager;
+  const key = scene.scene.key;
+  if (key !== SCENES.syncConflict && manager.isActive(SCENES.syncConflict) === true) return true;
+  // The one-time "Set up cross-device sync?" question owns them the same way. The sync screen it opens is its own, and
+  // so is a conflict prompt raised meanwhile (a Join can end in one): neither is held by it.
+  if (key === SCENES.syncSetupPrompt || key === SCENES.syncData || key === SCENES.syncConflict) return false;
+  return manager.isActive(SCENES.syncSetupPrompt) === true;
 }
 
 export function bindKeyboard(scene: Phaser.Scene, binding: IntentBinding): void {

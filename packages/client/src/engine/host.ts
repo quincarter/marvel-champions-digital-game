@@ -298,6 +298,14 @@ export interface EngineHost {
   save(): Promise<SavedGame>;
   /** The stored game to offer as "Continue", or null. */
   latestSave(): Promise<SaveMeta | null>;
+  /** Every resumable game in progress, newest first, leaving out guided lesson saves (the title's list, #276). */
+  activeSaves(): Promise<readonly SaveMeta[]>;
+  /**
+   * Retires a game the player chose to drop (the title list's Remove, a campaign run started over): marked
+   * "abandoned" and stamped as just written so sync carries it. Runs in the engine's own storage owner, so it can't
+   * race the game's appends.
+   */
+  retireSave(gameId: string): Promise<void>;
   /** Every saved game (W9's per-deck record and last played, `view/results-history.ts`). */
   listSaves(): Promise<readonly SaveMeta[]>;
   dispose(): void;

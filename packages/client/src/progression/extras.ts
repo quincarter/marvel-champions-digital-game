@@ -70,7 +70,10 @@ export const NO_EXTRAS_PROGRESS: ExtrasProgress = {
   earnedAchievementIds: [],
 };
 
-/** The save statuses of a game that has ended. An `active` game is still being played; `incompatible` never loads. */
+/**
+ * The save statuses of a game that has ended. An `active` game is still being played, however many are (#276), so it
+ * opens nothing yet: Game over announces the files a game opens when it ends. `incompatible` never loads.
+ */
 const ENDED = new Set(["won", "lost", "abandoned"]);
 
 const unique = (ids: readonly string[]): string[] => [...new Set(ids)].sort();

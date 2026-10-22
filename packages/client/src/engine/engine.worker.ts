@@ -86,6 +86,15 @@ async function handle(request: HostRequest): Promise<void> {
         reply({ kind: "latestSave", id: request.id, meta: await core.latestSave() });
         return;
       }
+      case "activeSaves": {
+        reply({ kind: "activeSaves", id: request.id, saves: await core.activeSaves() });
+        return;
+      }
+      case "retireSave": {
+        await core.retireSave(request.gameId);
+        reply({ kind: "retired", id: request.id });
+        return;
+      }
       case "listSaves": {
         reply({ kind: "listSaves", id: request.id, saves: await core.listSaves() });
         return;

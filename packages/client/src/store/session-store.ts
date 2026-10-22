@@ -175,6 +175,20 @@ export class SessionStore {
     }
   }
 
+  /** Every resumable game in progress, newest first, without guided lesson saves (the title's list). A storage failure is "none". */
+  async activeSaves(): Promise<readonly SaveMeta[]> {
+    try {
+      return await this.#host.activeSaves();
+    } catch {
+      return [];
+    }
+  }
+
+  /** Drops a game from the in-progress list ("abandoned"; it counts as played). Rejects when the write fails. */
+  retireSave(gameId: string): Promise<void> {
+    return this.#host.retireSave(gameId);
+  }
+
   /** Every saved game (W9's per-deck record and last played, `view/results-history.ts`). A storage failure is treated as "none recorded". */
   async listSaves(): Promise<readonly SaveMeta[]> {
     try {

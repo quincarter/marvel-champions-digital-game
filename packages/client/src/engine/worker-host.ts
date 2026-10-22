@@ -112,6 +112,17 @@ export class WorkerEngineHost implements EngineHost {
     return response.meta;
   }
 
+  async activeSaves(): Promise<readonly SaveMeta[]> {
+    const response = await this.#request({ kind: "activeSaves", id: this.#id() });
+    if (response.kind !== "activeSaves") throw new Error(`unexpected reply ${response.kind}`);
+    return response.saves;
+  }
+
+  async retireSave(gameId: string): Promise<void> {
+    const response = await this.#request({ kind: "retireSave", id: this.#id(), gameId });
+    if (response.kind !== "retired") throw new Error(`unexpected reply ${response.kind}`);
+  }
+
   async listSaves(): Promise<readonly SaveMeta[]> {
     const response = await this.#request({ kind: "listSaves", id: this.#id() });
     if (response.kind !== "listSaves") throw new Error(`unexpected reply ${response.kind}`);

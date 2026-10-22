@@ -23,6 +23,8 @@ export type HostRequest =
   | { readonly kind: "judgePayment"; readonly id: number; readonly playerId: PlayerId; readonly payment: PaymentState }
   | { readonly kind: "save"; readonly id: number }
   | { readonly kind: "latestSave"; readonly id: number }
+  | { readonly kind: "activeSaves"; readonly id: number }
+  | { readonly kind: "retireSave"; readonly id: number; readonly gameId: string }
   | { readonly kind: "listSaves"; readonly id: number };
 
 /** A save as it crosses the boundary: the baseline state without its card pool. */
@@ -45,6 +47,8 @@ export type HostResponse =
   | { readonly kind: "paymentJudged"; readonly id: number; readonly judged: JudgedPayment }
   | { readonly kind: "save"; readonly id: number; readonly save: SerializedSave }
   | { readonly kind: "latestSave"; readonly id: number; readonly meta: SaveMeta | null }
+  | { readonly kind: "activeSaves"; readonly id: number; readonly saves: readonly SaveMeta[] }
+  | { readonly kind: "retired"; readonly id: number }
   | { readonly kind: "listSaves"; readonly id: number; readonly saves: readonly SaveMeta[] }
   /**
    * Unsolicited (`id` is 0): the worker's storage writes so far have committed. Device sync listens on the main thread,

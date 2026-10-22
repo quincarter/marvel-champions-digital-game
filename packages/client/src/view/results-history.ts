@@ -9,9 +9,9 @@
  * **Which statuses count, and why** (`SaveStatus`, `engine/game-storage.ts`):
  * - `won` / `lost` are results: they count as a win or a loss, and as a
  *   played game.
- * - `abandoned` (today: a game superseded by starting a new one, since
- *   `GameStorage.create` retires any still-`active` game; later also
- *   Concede, per docs/phase4-screen-gaps.md §4) is **not** a win or a loss —
+ * - `abandoned` (a game the player removed from the in-progress list, a campaign
+ *   run started over, and later also Concede, per docs/phase4-screen-gaps.md §4)
+ *   is **not** a win or a loss —
  *   the scenario was never resolved — but it *is* a played game and a real
  *   "last played" moment: the player sat down and made moves, so hiding it
  *   from "games played" would quietly under-report how much a scenario or
@@ -25,13 +25,14 @@
  *   longer replays, not a trustworthy achievement — kept only so the log can
  *   still be exported (`game-storage.ts`'s own doc comment), not as a record
  *   row.
- * - `active` (the one game currently in progress, if any) is excluded too:
- *   it hasn't concluded, so it has no result yet and no final round count.
- *   Once it ends, its own `SaveMeta` row flips to `won`/`lost`/`abandoned`
- *   and is picked up then — there is no double count, since each game is one
- *   `SaveMeta` row updated in place, never accumulated.
+ * - `active` (a game still in progress; several can be, device sync #276) is
+ *   a played game too, since one left behind is no longer retired by the next
+ *   game started. It has no result yet, so it is no win or loss and its round
+ *   never counts toward the best clear. Once it ends, its own `SaveMeta` row
+ *   flips to `won`/`lost`/`abandoned` — there is no double count, since each
+ *   game is one `SaveMeta` row updated in place, never accumulated.
  *
- * So "played" here always means `status === "won" || "lost" || "abandoned"`.
+ * So "played" here always means `status === "won" || "lost" || "abandoned" || "active"`.
  *
  * **Best clear.** `SaveMeta.round` is the round the game's log stands at —
  * for a `won` save, the round the villain was defeated on. "Fewest rounds
@@ -82,7 +83,7 @@ const DIFFICULTIES: readonly Difficulty[] = ["standard", "expert", "extreme"];
 export interface ScenarioTally {
   readonly wins: number;
   readonly losses: number;
-  /** `status` is `won`, `lost` or `abandoned` — see this module's doc comment. */
+  /** `status` is `won`, `lost`, `abandoned` or `active` — see this module's doc comment. */
   readonly gamesPlayed: number;
   /** Fewest `round` among `won` games in scope, or `null` when there are no wins yet. */
   readonly bestClearRounds: number | null;
@@ -126,7 +127,7 @@ export interface ResultsHistory {
   readonly unattributedSeatCount: number;
 }
 
-const PLAYED_STATUSES: ReadonlySet<SaveStatus> = new Set<SaveStatus>(["won", "lost", "abandoned"]);
+const PLAYED_STATUSES: ReadonlySet<SaveStatus> = new Set<SaveStatus>(["won", "lost", "abandoned", "active"]);
 
 function emptyTally(): ScenarioTally {
   return { wins: 0, losses: 0, gamesPlayed: 0, bestClearRounds: null };

@@ -39,6 +39,8 @@ class HeldVerdictHost implements EngineHost {
   subscribe = (listener: Parameters<EngineHost["subscribe"]>[0]) => this.inner.subscribe(listener);
   save = () => this.inner.save();
   latestSave = () => this.inner.latestSave();
+  activeSaves = () => this.inner.activeSaves();
+  retireSave = (gameId: string) => this.inner.retireSave(gameId);
   listSaves = () => this.inner.listSaves();
   dispose = () => this.inner.dispose();
   judgePayment(playerId: PlayerId, payment: PaymentState): Promise<JudgedPayment> {

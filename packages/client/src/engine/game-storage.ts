@@ -137,7 +137,7 @@ export interface StoredGame {
 }
 
 export interface GameStorage {
-  /** Records a new game, retiring any game still marked active: one game in progress at a time. */
+  /** Records a new game. Games already in progress stay so: several can be active at once (device sync, #276). */
   create(meta: SaveMeta, initialState: StateWithoutPool): Promise<void>;
   /**
    * Appends command number `seq` (0-based) and updates the summary row, as one
@@ -152,11 +152,16 @@ export interface GameStorage {
    */
   truncate(gameId: string, commandCount: number, progress: SaveProgress): Promise<void>;
   load(gameId: string): Promise<StoredGame | null>;
-  /** The most recently played game still in progress — the one to offer as "Continue". */
+  /** The most recently played game still in progress (of the several that may be) — the one to offer as "Continue". */
   latestActive(): Promise<SaveMeta | null>;
   /** Every recorded game, most recently played first. */
   list(): Promise<readonly SaveMeta[]>;
-  setStatus(gameId: string, status: SaveStatus): Promise<void>;
+  /**
+   * Sets a status. `updatedAt` stamps the change as the game's newest write (a retirement the player chose: sync
+   * carries a meta change by its stamp, so without one the other device would keep the game active); left out, the
+   * row's stamp is untouched (an incompatible mark is not a play).
+   */
+  setStatus(gameId: string, status: SaveStatus, updatedAt?: number): Promise<void>;
 }
 
 /** `meta` marked as written on this device: unchanged when the device's platform is not known. */
@@ -186,9 +191,6 @@ export class MemoryGameStorage implements GameStorage {
   }
 
   async create(meta: SaveMeta, initialState: StateWithoutPool): Promise<void> {
-    for (const [id, existing] of this.#games) {
-      if (existing.status === "active") this.#games.set(id, { ...existing, status: "abandoned" });
-    }
     this.#games.set(meta.id, structuredClone(stampedPlayedOn(meta, this.#playedOn)));
     this.#baselines.set(meta.id, structuredClone(initialState));
     this.#commands.set(meta.id, []);
@@ -228,9 +230,9 @@ export class MemoryGameStorage implements GameStorage {
     return structuredClone([...this.#games.values()].map(migrateSaveMeta).sort((a, b) => b.updatedAt - a.updatedAt));
   }
 
-  async setStatus(gameId: string, status: SaveStatus): Promise<void> {
+  async setStatus(gameId: string, status: SaveStatus, updatedAt?: number): Promise<void> {
     const meta = this.#games.get(gameId);
-    if (meta) this.#games.set(gameId, { ...meta, status });
+    if (meta) this.#games.set(gameId, { ...meta, status, ...(updatedAt === undefined ? {} : { updatedAt }) });
   }
 }
 
