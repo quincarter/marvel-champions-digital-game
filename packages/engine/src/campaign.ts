@@ -608,7 +608,17 @@ export type CampaignValue =
    * and the copy is traced like any other write: MC60 p. 13, "Place 1 threat … for each check mark in the campaign
    * log beside 'Protection Racket.'" Naming a node the graph does not hold is an `EngineInvariantError`.
    */
-  | { readonly kind: "nodeProgress"; readonly node: string };
+  | { readonly kind: "nodeProgress"; readonly node: string }
+  /**
+   * The identity the scoped seat plays (`CampaignSeat.identityCardId`): MC65 p. 9, "Each player records their identity
+   * in the campaign log ... If Daredevil's name or Elektra's name is recorded for this campaign, check off the villain
+   * with that name". The card id, or with `as: "name"` its printed name ("Daredevil", the hero's, not the alter ego's),
+   * which is what a rulebook compares. The name is read from the card pool, so an identity the pool does not hold has
+   * no name (the value is empty, and an id is still returned for `cardRef`). Written to a
+   * `cardRef` or `text` field the definition declares; read by `fieldContains` like any other field. Inside a
+   * `forEachSeat` it is that seat's identity, and outside one the first seat's (as `field` with a `seat` does).
+   */
+  | { readonly kind: "seatIdentity"; readonly as?: "name" };
 
 export type CampaignPredicate =
   | { readonly kind: "fieldAtLeast"; readonly field: string; readonly amount: number; readonly seat?: "self" }

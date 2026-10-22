@@ -842,6 +842,7 @@ import { LUKE_CAGE_CARDS } from "./luke_cage/cards.js";
 import { LUKE_CAGE_ENCOUNTER_SETS } from "./luke_cage/encounterSets.js";
 import { LUKE_CAGE_SCENARIOS } from "./luke_cage/scenarios.js";
 import { LUKE_CAGE_STARTER_DECKS } from "./luke_cage/starterDecks.js";
+import { SHADOWLAND_CAMPAIGN } from "./shadowland/campaign.js";
 import { SHADOWLAND_CARDS } from "./shadowland/cards.js";
 import { SHADOWLAND_ENCOUNTER_SETS } from "./shadowland/encounterSets.js";
 import { SHADOWLAND_SCENARIOS } from "./shadowland/scenarios.js";
@@ -939,6 +940,7 @@ export const CAMPAIGNS: readonly Campaign[] = [
   AOA_CAMPAIGN,
   AOS_CAMPAIGN,
   FNE_CAMPAIGN,
+  SHADOWLAND_CAMPAIGN,
 ];
 
 // ---------------------------------------------------------------------------------------------------------------

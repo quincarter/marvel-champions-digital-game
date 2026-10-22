@@ -389,6 +389,15 @@ export function campaignValues(run: CampaignRun, value: CampaignValue): readonly
         );
       }
       return [run.working.progress[value.node] ?? 0];
+    case "seatIdentity": {
+      // MC65 p. 9: "Each player records their identity in the campaign log." The seat is fixed for the campaign.
+      const seatNumber = run.seatScope ?? seatNumbers(run)[0];
+      const identity = run.working.seats.find((seat) => seat.seatNumber === seatNumber)?.identityCardId;
+      if (identity === undefined) return [];
+      if (value.as !== "name") return [identity];
+      const card = poolCards(run.deps.pool).find((candidate) => candidate.id === identity);
+      return card ? [card.name] : [];
+    }
   }
 }
 

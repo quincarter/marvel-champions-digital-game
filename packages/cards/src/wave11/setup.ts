@@ -1,5 +1,6 @@
 import {
   CORE_STARTER_DECKS,
+  cardId,
   WAVE11_ENCOUNTER_SETS,
   WAVE11_SCENARIOS,
   WAVE11_STARTER_DECKS,
@@ -12,7 +13,13 @@ import {
   type Scenario,
   type VillainOption,
 } from "@mc/content";
-import { playerId, type GameSetupConfig, type PlayerSetup, type VillainChoiceSetup } from "@mc/engine";
+import {
+  playerId,
+  type GameSetupConfig,
+  type ScenarioSetupInstruction,
+  type PlayerSetup,
+  type VillainChoiceSetup,
+} from "@mc/engine";
 import {
   checkScenarioSetupOptions,
   encounterCardsOf,
@@ -30,6 +37,16 @@ import {
   extraModularCardIds,
 } from "../modular-pool.js";
 import { withoutBackFaces } from "../wave9/setup.js";
+import {
+  chosen,
+  eachPlayer,
+  encounterSetAside,
+  forEachPlayer,
+  putIntoPlay,
+  query,
+  selectCards,
+  thatPlayer,
+} from "../dsl/index.js";
 import { WAVE11_CARDS } from "./cards.js";
 
 /**
@@ -38,8 +55,9 @@ import { WAVE11_CARDS } from "./cards.js";
  *
  * - `villainSetId`: one of the record's `villainOptions` by its villain set ("hammerhead", "typhoid_mary"). Absent is
  *   the record's default (MC60 p. 8's first, Hammerhead). Refused at a scenario whose villain is not a choice (Kingpin)
- *   and at a card-keyed choice. In a campaign it is `CampaignGameStart.villain`, which the node's `composeVillain`
- *   named (MC60 p. 9 step 5).
+ *   and at a card-keyed choice, where it is read as `villainCardId` when it names one of the options' villain cards:
+ *   in a campaign it is `CampaignGameStart.villain`, which the node's `composeVillain` named (MC60 p. 9 step 5; at
+ *   Shadowland's card-keyed choice the campaign draws the villain card, MC65 p. 5).
  * - `villainCardId`: at a card-keyed choice (`villainOptions.keyedBy: "card"`, Shadowland's six Dark Protégé villains
  *   in one set), one option by its villain card ("65013a"). Absent or `"random"`: drawn by the engine with the game's
  *   seeded RNG where the record says `selection: "random"` ("Choose 1 random villain from that set"), else the
@@ -131,6 +149,11 @@ export function scenarioWithVillain(scenario: Scenario, villainSetId?: string): 
 
 /** What a card-keyed choice's `villainCardId` is given to leave the pick to the game's seeded draw. */
 export const RANDOM_VILLAIN = "random";
+
+/** Whether `villainCardId` is one of a card-keyed choice's villain cards. */
+function cardKeyedHasOption(scenario: Scenario, villainCardId: string | undefined): boolean {
+  return (scenario.villainOptions?.options ?? []).some((option) => option.villainCardId === villainCardId);
+}
 
 /** A card-keyed choice's option by its villain card, or a throw naming the options. */
 function cardKeyedOption(scenario: Scenario, villainCardId: string | undefined): VillainOption {
@@ -234,6 +257,28 @@ export function wave11Scenario(scenarioId: string, options: Wave11ScenarioOption
   return buildWave11Scenario(wave11ScenarioRecord(scenarioId), options);
 }
 
+const HEART_OF_SHADOW = "heart-of-shadow";
+/** Creeping Corruption (Black Flower 72A). */
+const CREEPING_CORRUPTION_ID = cardId("65072a");
+
+/**
+ * "Each player puts a Creeping Corruption upgrade into play. Set the rest aside" for a standalone game (Setup keyword,
+ * Max 1 per player). It resolves as scenario text after Appendix II step 12 rather than at step 11, which no effect
+ * between the two can tell apart: the copies are held back from step 11 so that all four do not land under one player.
+ */
+const PUT_CREEPING_CORRUPTION: ScenarioSetupInstruction = {
+  id: "black_flower.creeping-corruption",
+  text: "Each player puts a Creeping Corruption upgrade (72A) into play. Set the rest aside.",
+  citation: "MC65 pp. 4, 9; RRG 1.8 Setup (Keyword)",
+  effects: [
+    forEachPlayer(
+      eachPlayer,
+      selectCards("cc", encounterSetAside(query("upgrade", { printedId: CREEPING_CORRUPTION_ID }), { random: 1 })),
+      putIntoPlay(chosen("cc"), thatPlayer),
+    ),
+  ],
+};
+
 /** Every printed copy of Creeping Corruption (72A). */
 function creepingCorruptionCopies(): CardId[] {
   const card = WAVE11_CARDS.find((c) => (c.id as string) === "65072a");
@@ -306,8 +351,15 @@ function chosenVillainPlan<
  */
 export function buildWave11Scenario(record: Scenario, options: Wave11ScenarioOptions): GameSetupConfig {
   checkScenarioSetupOptions(record.id, options.setupOptions);
-  const scenario = scenarioWithVillain(record, options.villainSetId);
-  const villainChoice = villainChoiceOf(record, options.villainCardId);
+  // A card-keyed choice has no villain set to name (its six villains share one): the campaign hands the drawn villain
+  // card in `villainSetId`, the one field every campaign caller already passes `CampaignGameStart.villain` to.
+  const keyed = record.villainOptions?.keyedBy === "card";
+  const campaignVillainCard =
+    keyed && options.villainCardId === undefined && cardKeyedHasOption(record, options.villainSetId)
+      ? options.villainSetId
+      : undefined;
+  const scenario = scenarioWithVillain(record, campaignVillainCard === undefined ? options.villainSetId : undefined);
+  const villainChoice = villainChoiceOf(record, options.villainCardId ?? campaignVillainCard);
   const modes = resolveModes(options.difficulty, options.modes);
   const difficulty = difficultyOf(modes);
   const expertVillain = difficulty === "expert" ? scenario.expertVillains : undefined;
@@ -359,11 +411,21 @@ export function buildWave11Scenario(record: Scenario, options: Wave11ScenarioOpt
     ...modularSetupCardIds(modular.modularSetIds, WAVE11_CARDS),
     ...extraModularCardIds(modular.extraModularSetIds, WAVE11_CARDS),
   ]);
-  // Creeping Corruption (72A, Setup, Max 1 per player) is a player-typed card with no encounter back, so no encounter set
-  // lists it. Heart of Shadow's Black Flower set brings the four copies, set aside and held back from Appendix II step 11
-  // (which would put every Setup copy into the first player's area), for 1A's Setup to put one into play per player and
-  // leave the rest aside. Shadows in the Night and Shadow Labyrinth use it only through the campaign's setup (a later task).
+  // Creeping Corruption (72A, Setup, Max 1 per player) is a player-typed card with no encounter back, so no encounter
+  // set lists it. Black Flower brings the four copies, set aside and held back from Appendix II step 11 (which would
+  // put every Setup copy into the first player's area), for a Setup text to put one into play per player and leave the
+  // rest aside: Heart of Shadow's 1A, or the standalone step below. Shadows in the Night and Shadow Labyrinth in a
+  // campaign get theirs from the campaign (`campaigns/shadowland.ts` composes four copies set aside,
+  // `CampaignGameInput.setAsideCards`), so every game of the pack holds the card back from step 11, whichever side
+  // supplied the copies.
   const creepingCorruption = sets.includes("black_flower") ? creepingCorruptionCopies() : [];
+  const heldBack = scenario.packCode === "shadowland" ? [CREEPING_CORRUPTION_ID] : creepingCorruption;
+  // A standalone game with Black Flower as a modular set (Shadows in the Night, Shadow Labyrinth, any other scenario):
+  // 72A is "Permanent. Setup. Max 1 per player", so each player begins with one in play and the rest stay aside (RRG 1.8
+  // "Setup (Keyword)", Appendix II step 11; engine reading, the rules expert has not ruled). Heart of Shadow's own 1A
+  // does this, and a campaign's scenarios 1 and 2 never list Black Flower as a set (it is composed), so neither gets
+  // the step.
+  const standaloneCorruption = creepingCorruption.length > 0 && record.id !== HEART_OF_SHADOW;
   const setAside = [...(scenario.setAsideCardIds ?? []), ...creepingCorruption];
   const scenarioDecks = [...(scenario.separateDecks ?? []), ...setSeparateDecks(sets)];
   return {
@@ -376,10 +438,13 @@ export function buildWave11Scenario(record: Scenario, options: Wave11ScenarioOpt
     ...(villainChoice ? { villainChoice } : {}),
     mainSchemeCardId: scenario.mainSchemeCardId,
     ...(mainSchemeChoice ? { mainSchemeChoice } : {}),
-    encounterDeck,
+    // The modular set's Setup cards are listed in the deck; the copies of 72A are the set-aside ones above, never these.
+    encounterDeck:
+      creepingCorruption.length > 0 ? encounterDeck.filter((id) => id !== CREEPING_CORRUPTION_ID) : encounterDeck,
     players: seatsOf(options.players),
     ...(setAside.length > 0 ? { setAside } : {}),
-    ...(creepingCorruption.length > 0 ? { setAsideUntilCalled: { cardIds: [...new Set(creepingCorruption)] } } : {}),
+    ...(standaloneCorruption ? { scenarioSetupInstructions: [PUT_CREEPING_CORRUPTION] } : {}),
+    ...(heldBack.length > 0 ? { setAsideUntilCalled: { cardIds: [...new Set(heldBack)] } } : {}),
     ...(scenarioDecks.length > 0 ? { scenarioDecks } : {}),
     includeIdentitySets: scenario.usesIdentityEncounterSets ?? true,
     requireIdentitySets: true,

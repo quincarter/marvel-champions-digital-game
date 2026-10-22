@@ -22,6 +22,7 @@ const CAMPAIGN_STATUS: Readonly<Record<string, "scripted">> = {
   aoa: "scripted",
   aos: "scripted",
   fne: "scripted",
+  shadowland: "scripted",
 };
 
 describe("CAMPAIGNS registry", () => {

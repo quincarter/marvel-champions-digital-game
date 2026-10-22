@@ -14,6 +14,7 @@ import { MOJO_CAMPAIGN_DEFINITION } from "./mojo.js";
 import { MTS_CAMPAIGN_DEFINITION } from "./mts.js";
 import { MUT_GEN_CAMPAIGN_DEFINITION } from "./mut_gen.js";
 import { NEXT_EVOL_CAMPAIGN_DEFINITION } from "./next_evol.js";
+import { SHADOWLAND_CAMPAIGN_DEFINITION } from "./shadowland.js";
 import { SM_CAMPAIGN_DEFINITION } from "./sm.js";
 import { TRORS_CAMPAIGN_DEFINITION } from "./trors.js";
 
@@ -27,12 +28,14 @@ export {
 } from "./aoa.js";
 export { AOS_CAMPAIGN_DEFINITION } from "./aos.js";
 export { cardsOfComposedSets } from "./composed-sets.js";
+export { campaignModularPickProblem } from "./modular-picks.js";
 export { FNE_CAMPAIGN_DEFINITION } from "./fne.js";
 export { GMW_CAMPAIGN_DEFINITION } from "./gmw.js";
 export { MOJO_CAMPAIGN_DEFINITION, mojoCheckedOffSets, mojoModularSetPicks } from "./mojo.js";
 export { MTS_CAMPAIGN_DEFINITION } from "./mts.js";
 export { MUT_GEN_CAMPAIGN_DEFINITION } from "./mut_gen.js";
 export { NEXT_EVOL_CAMPAIGN_DEFINITION } from "./next_evol.js";
+export { SHADOWLAND_CAMPAIGN_DEFINITION, SHADOWLAND_NODES, SHADOWLAND_VILLAINS } from "./shadowland.js";
 export { SM_CAMPAIGN_DEFINITION } from "./sm.js";
 export { TRORS_CAMPAIGN_DEFINITION } from "./trors.js";
 
@@ -48,6 +51,7 @@ export const CAMPAIGNS: Readonly<Record<string, CampaignDefinition>> = {
   aoa: AOA_CAMPAIGN_DEFINITION,
   aos: AOS_CAMPAIGN_DEFINITION,
   fne: FNE_CAMPAIGN_DEFINITION,
+  shadowland: SHADOWLAND_CAMPAIGN_DEFINITION,
 };
 
 /** A campaign's definition by id, or `undefined` if this build has not shipped one yet (design §9.1's file list). */

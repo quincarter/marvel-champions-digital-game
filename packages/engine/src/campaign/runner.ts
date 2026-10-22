@@ -597,7 +597,8 @@ export interface CampaignGameStart {
   /**
    * MC60 p. 9 step 5's chosen villain, as the `composeVillain` op named it; null when the node names none. At a
    * `fixed` node whose record has `Scenario.villainOptions` it is the villain set id the scenario builder takes
-   * as its `villainSetId`.
+   * as its `villainSetId`, or, at a card-keyed choice (MC65: six villains in one set), the villain card id the builder
+   * takes as its `villainCardId`.
    */
   readonly villain: string | null;
   /**

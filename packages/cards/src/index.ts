@@ -136,6 +136,7 @@ export {
   AOS_CAMPAIGN_DEFINITION,
   CAMPAIGNS,
   campaignDefinitionOf,
+  campaignModularPickProblem,
   cardsOfComposedSets,
   GMW_CAMPAIGN_DEFINITION,
   MOJO_CAMPAIGN_DEFINITION,
@@ -143,6 +144,7 @@ export {
   mojoModularSetPicks,
   MTS_CAMPAIGN_DEFINITION,
   NEXT_EVOL_CAMPAIGN_DEFINITION,
+  SHADOWLAND_CAMPAIGN_DEFINITION,
   SM_CAMPAIGN_DEFINITION,
   TRORS_CAMPAIGN_DEFINITION,
 } from "./campaigns/index.js";
