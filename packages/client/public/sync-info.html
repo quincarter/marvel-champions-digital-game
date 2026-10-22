@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>Cross-Device Sync · Marvel Champions: Digital Edition</title>
+    <meta
+      name="description"
+      content="How cross-device sync works in the fan-made Marvel Champions digital game: setting up, linking devices, conflicts, versions, privacy and why there's no login."
+    />
+    <style>
+      /* Layout: a comic-panel help page. One reading column, each topic a bordered panel, a sticky jump bar of topics.
+   Self-contained on purpose: no scripts and no outside hosts. The fonts are the game's own (the same @fontsource
+   files main.ts bundles, copied to public/fonts/, all SIL Open Font License), so the page matches the game and
+   opens the same from the site, a preview and the apps. */
+      @font-face {
+        font-family: "Bangers";
+        font-weight: 400;
+        font-display: swap;
+        src: url("fonts/bangers-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 400;
+        font-display: swap;
+        src: url("fonts/public-sans-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 700;
+        font-display: swap;
+        src: url("fonts/public-sans-latin-700-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 800;
+        font-display: swap;
+        src: url("fonts/public-sans-latin-800-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "IBM Plex Mono";
+        font-weight: 400;
+        font-display: swap;
+        src: url("fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+      }
+      :root {
+        --paper: #f3efe3;
+        --panel: #fffdf6;
+        --ink: #17140f;
+        --muted: #5d574b;
+        --line: #17140f;
+        --rule: #d9d2bf;
+        --red: #c8102e;
+        --red-ink: #ffffff;
+        --soft: #f7e3e3;
+        --ok: #1d6b45;
+        --display: "Bangers", Impact, "Arial Narrow Bold", sans-serif;
+        --body: "Public Sans", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+        --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+        color-scheme: light;
+        padding-top: env(safe-area-inset-top, 0px);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+          --paper: #0f0d0b;
+          --panel: #1a1714;
+          --ink: #f3efe3;
+          --muted: #b6ae9c;
+          --line: #f3efe3;
+          --rule: #3a342c;
+          --red: #e8304a;
+          --red-ink: #ffffff;
+          --soft: #3a1a1f;
+          --ok: #6fcf97;
+          color-scheme: dark;
+        }
+      }
+      :root[data-theme="dark"] {
+        --paper: #0f0d0b;
+        --panel: #1a1714;
+        --ink: #f3efe3;
+        --muted: #b6ae9c;
+        --line: #f3efe3;
+        --rule: #3a342c;
+        --red: #e8304a;
+        --red-ink: #ffffff;
+        --soft: #3a1a1f;
+        --ok: #6fcf97;
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-padding-top: calc(env(safe-area-inset-top, 0px) + 60px);
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: var(--body);
+        font-size: 16px;
+        line-height: 1.6;
+      }
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0 0 auto;
+        height: env(safe-area-inset-top, 0px);
+        z-index: 10;
+        background: var(--ink);
+      }
+      .wrap {
+        max-width: 760px;
+        margin: 0 auto;
+        padding-block: 28px 72px;
+        padding-left: max(16px, env(safe-area-inset-left, 0px));
+        padding-right: max(16px, env(safe-area-inset-right, 0px));
+        display: grid;
+        gap: 22px;
+      }
+      h1,
+      h2 {
+        font-family: var(--display);
+        font-weight: 400;
+        letter-spacing: 0.03em;
+        line-height: 1.05;
+        margin: 0;
+        text-wrap: balance;
+        text-transform: uppercase;
+      }
+      h1 {
+        font-size: clamp(2.3rem, 8vw, 3.4rem);
+      }
+      h2 {
+        font-size: 1.6rem;
+      }
+      h3 {
+        font-size: 1rem;
+        margin: 0;
+        font-weight: 700;
+      }
+      p {
+        margin: 0;
+        max-width: 64ch;
+      }
+      a {
+        color: var(--red);
+        font-weight: 600;
+      }
+      a:focus-visible,
+      summary:focus-visible {
+        outline: 3px solid var(--red);
+        outline-offset: 2px;
+      }
+      .eyebrow {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--red);
+      }
+      .beta {
+        display: inline-block;
+        vertical-align: middle;
+        font: 700 12px var(--body);
+        letter-spacing: 0.12em;
+        color: var(--red);
+        border: 2px solid var(--red);
+        padding: 1px 7px;
+        margin-left: 8px;
+        transform: translateY(-4px);
+      }
+      .lede {
+        font-size: 1.08rem;
+        color: var(--muted);
+      }
+      .facts {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .fact {
+        font-size: 13px;
+        font-weight: 600;
+        background: var(--panel);
+        border: 2px solid var(--line);
+        padding: 4px 10px;
+      }
+      nav.jump {
+        position: sticky;
+        top: env(safe-area-inset-top, 0px);
+        z-index: 5;
+        background: var(--ink);
+        margin-inline: calc(-1 * max(16px, env(safe-area-inset-left, 0px)));
+        padding: 10px max(16px, env(safe-area-inset-left, 0px));
+        display: flex;
+        gap: 6px 14px;
+        flex-wrap: wrap;
+      }
+      nav.jump a {
+        color: var(--paper);
+        font-size: 13px;
+        font-weight: 600;
+        text-decoration: none;
+      }
+      nav.jump a:hover {
+        text-decoration: underline;
+      }
+      section.panel {
+        background: var(--panel);
+        border: 3px solid var(--line);
+        box-shadow: 6px 6px 0 var(--line);
+        padding: 22px 20px;
+        display: grid;
+        gap: 14px;
+      }
+      section.panel.hot {
+        box-shadow: 6px 6px 0 var(--red);
+      }
+      ol.steps {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        counter-reset: s;
+        display: grid;
+        gap: 12px;
+      }
+      ol.steps li {
+        display: grid;
+        grid-template-columns: 34px 1fr;
+        gap: 12px;
+        align-items: start;
+      }
+      ol.steps li::before {
+        counter-increment: s;
+        content: counter(s);
+        font: 400 1.4rem/1 var(--display);
+        color: var(--red-ink);
+        background: var(--red);
+        width: 34px;
+        height: 34px;
+        display: grid;
+        place-items: center;
+      }
+      ol.steps li > div {
+        min-width: 0;
+        display: grid;
+        gap: 2px;
+      }
+      ul {
+        margin: 0;
+        padding-left: 20px;
+        display: grid;
+        gap: 6px;
+      }
+      .path {
+        font-weight: 600;
+      }
+      .kbd {
+        font-family: var(--mono);
+        font-size: 0.92em;
+        background: var(--soft);
+        padding: 1px 6px;
+        overflow-wrap: anywhere;
+      }
+      .callout {
+        border-left: 5px solid var(--red);
+        background: var(--soft);
+        padding: 10px 14px;
+        display: grid;
+        gap: 4px;
+      }
+      .callout.calm {
+        border: 2px dashed var(--rule);
+        border-left: 5px solid var(--ok);
+        background: transparent;
+      }
+      .ways {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        gap: 12px;
+      }
+      .way {
+        border: 2px solid var(--line);
+        padding: 14px;
+        display: grid;
+        gap: 6px;
+        align-content: start;
+        min-width: 0;
+      }
+      .way .tag {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .icons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .icon {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border: 2px solid var(--line);
+        padding: 6px 10px;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .icon svg {
+        width: 18px;
+        height: 18px;
+        flex: none;
+      }
+      .tablebox {
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 15px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 9px 10px;
+        border-bottom: 1px solid var(--rule);
+        vertical-align: top;
+      }
+      th {
+        font-size: 12px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      details {
+        border-top: 1px solid var(--rule);
+        padding-top: 10px;
+      }
+      summary {
+        cursor: pointer;
+        font-weight: 700;
+      }
+      details p,
+      details ul {
+        margin-top: 6px;
+      }
+      footer {
+        font-size: 13px;
+        color: var(--muted);
+        display: grid;
+        gap: 4px;
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        html {
+          scroll-behavior: smooth;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header style="display: grid; gap: 14px">
+        <span class="eyebrow">Marvel Champions: Digital Edition, fan-made</span>
+        <h1>Cross-device sync <span class="beta">BETA</span></h1>
+        <p class="lede">
+          Play on your phone, pick the same game up on your computer, and keep your decks, campaigns and unlocks in step
+          everywhere. You don't need an account or a password, and your saves are encrypted on your device before they
+          leave it.
+        </p>
+        <div class="facts">
+          <span class="fact">Free</span><span class="fact">No account</span
+          ><span class="fact">Encrypted on your device</span><span class="fact">Works offline</span>
+        </div>
+      </header>
+
+      <nav class="jump" aria-label="Topics">
+        <a href="#setup">Set up</a><a href="#link">Add a device</a><a href="#recovery">Recovery code</a
+        ><a href="#games">Your games</a> <a href="#conflicts">Conflicts</a><a href="#versions">Versions</a
+        ><a href="#nologin">Why no login</a><a href="#privacy">Privacy</a> <a href="#limits">Limits</a
+        ><a href="#stop">Stop syncing</a><a href="#help">Help</a>
+      </nav>
+
+      <section class="panel hot" id="setup">
+        <h2>Set it up on your first device</h2>
+        <ol class="steps">
+          <li>
+            <div>
+              <h3>Open the sync screen</h3>
+              <p>
+                Choose <b>Set up</b> when the game asks "Set up cross-device sync?", or go to
+                <span class="path">Settings → More → Save data → Sync across devices</span> at any time.
+              </p>
+            </div>
+          </li>
+          <li>
+            <div>
+              <h3>Save your recovery code</h3>
+              <p>
+                The game shows a 25-character recovery code, like
+                <span class="kbd">ABCDE-FGHJK-MNPQR-STUVW-XYZ23</span>. Write it down or keep it in a password manager
+                before you continue. It's the only way back into your saves if you lose every device.
+              </p>
+            </div>
+          </li>
+          <li>
+            <div>
+              <h3>That's it</h3>
+              <p>
+                This device now syncs by itself. It sends your changes a few seconds after you play or edit, and when
+                you put the game away, and it fetches the latest from your other devices when the game opens or comes
+                back to the front.
+              </p>
+            </div>
+          </li>
+        </ol>
+        <p>
+          If you chose <b>Not now</b>, nothing changes: your saves stay on this device as before, and you can turn sync
+          on later from the same Settings screen.
+        </p>
+      </section>
+
+      <section class="panel" id="link">
+        <h2>Add another device</h2>
+        <p>
+          On a device that already syncs, open
+          <span class="path">Settings → More → Save data → Sync across devices → Link another device</span>. Then, on
+          the new device, choose <b>Join with a code</b> and use one of these:
+        </p>
+        <div class="ways">
+          <div class="way">
+            <span class="tag">Easiest</span>
+            <h3>Scan the QR code</h3>
+            <p>
+              Point the new device's camera at the QR code. The game opens and asks "Join this device to your synced
+              saves?"
+            </p>
+          </div>
+          <div class="way">
+            <span class="tag">No camera</span>
+            <h3>Type the link code</h3>
+            <p>
+              Type the code shown beside the QR code, like <span class="kbd">ABCD-EFGH 1234-5678</span>. It works once
+              and expires after 15 minutes.
+            </p>
+          </div>
+          <div class="way">
+            <span class="tag">Any time</span>
+            <h3>Type the recovery code</h3>
+            <p>The 25-character code from setup always works, even when no other device is at hand.</p>
+          </div>
+        </div>
+        <div class="callout calm">
+          <p>
+            <b>Already have saves on the new device?</b> They're merged with your synced saves, not wiped. If the same
+            game was played on both, you choose which copy to keep.
+          </p>
+        </div>
+      </section>
+
+      <section class="panel" id="recovery">
+        <h2>Your recovery code</h2>
+        <ul>
+          <li>Anyone with this code can open your synced saves, so keep it private, just like a password.</li>
+          <li>Nobody can reset it for you. We can't read your saves, so we can't recover them either.</li>
+          <li>
+            Lost it but still have a synced device? Your saves are fine. Open the sync screen there and choose
+            <b>Show recovery code</b>, and link new devices from that one.
+          </li>
+        </ul>
+      </section>
+
+      <section class="panel" id="games">
+        <h2>Pick up where you left off</h2>
+        <p>
+          Games in progress on any of your devices show up together under <b>In-progress games</b> on the title screen.
+          Each one shows the scenario and heroes, the round, when it was last played, and where:
+        </p>
+        <div class="icons" aria-label="Platform icons">
+          <span class="icon"
+            ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18" /></svg
+            >Browser</span
+          >
+          <span class="icon"
+            ><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <rect x="3" y="3" width="8" height="8" />
+              <rect x="13" y="3" width="8" height="8" />
+              <rect x="3" y="13" width="8" height="8" />
+              <rect x="13" y="13" width="8" height="8" /></svg
+            >Windows</span
+          >
+          <span class="icon"
+            ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="12" />
+              <path d="M8 20h8M12 16v4" /></svg
+            >macOS</span
+          >
+          <span class="icon"
+            ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="16" />
+              <path d="M7 9l3 3-3 3M12 15h5" /></svg
+            >Linux</span
+          >
+          <span class="icon"
+            ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <rect x="7" y="2" width="10" height="20" />
+              <path d="M11 18h2" /></svg
+            >Android / iOS</span
+          >
+        </div>
+        <p>
+          Tap <b>Resume</b> to carry on. If the game is further along on another device, it fetches those moves first,
+          so you continue exactly where you stopped. <b>Continue</b> picks up the newest one. You can keep several games
+          going at once, and <b>Remove</b> takes one off the list on every device.
+        </p>
+      </section>
+
+      <section class="panel" id="conflicts">
+        <h2>When two devices played the same game</h2>
+        <p>
+          If you kept playing one game on two devices while they were offline, they no longer match. The game notices
+          and asks which copy you want, and never throws one away without asking:
+        </p>
+        <ul>
+          <li><b>Keep this device</b>: keep the copy you're holding.</li>
+          <li><b>Keep the other device</b>: keep the synced copy.</li>
+          <li>
+            <b>Keep both</b>: keep them side by side as two games. Campaign games can't be split, so for those you pick
+            one.
+          </li>
+        </ul>
+        <p>
+          If the clash is in a different game from the one you're playing, the question waits until you leave the table.
+          Decks and other saves simply keep the most recent change.
+        </p>
+      </section>
+
+      <section class="panel" id="versions">
+        <h2>Different game versions</h2>
+        <p>
+          Your devices don't need to be on the same version. The web version updates straight away, while the Android
+          and desktop apps update when you install the new version.
+        </p>
+        <ul>
+          <li>
+            A game last played on a newer version shows <b>"Played on a newer version: update to continue"</b> on older
+            devices, instead of opening with rules that don't match.
+          </li>
+          <li>Anything an older version doesn't understand is kept safely and passed along untouched.</li>
+          <li>
+            The sync screen says <b>"Another device has a newer version of the game"</b> when it's time to update.
+          </li>
+        </ul>
+      </section>
+
+      <section class="panel" id="nologin">
+        <h2>Why there's no login</h2>
+        <p>Most games sync with an account. We chose not to, on purpose:</p>
+        <ul>
+          <li>
+            <b>Nothing stands between you and the game.</b> It has always been playable straight away, with no sign-up,
+            and sync keeps it that way. It's optional, and the game works the same without it.
+          </li>
+          <li>
+            <b>We don't hold your personal details.</b> With no account there's no email address, name or password to
+            store, leak or sell. The server never learns who you are.
+          </li>
+          <li>
+            <b>Your saves stay yours.</b> An account usually means the server can read your data. Here, the key that
+            unlocks your saves lives only on your devices and in your recovery code, so even we can't open them.
+          </li>
+          <li>
+            <b>It suits a free fan project.</b> Accounts bring password resets, account recovery, sign-in providers and
+            data-deletion requests. Skipping all that keeps the service small, free to run, and focused on the game.
+          </li>
+          <li>
+            <b>Your saves never depend on it.</b> Everything lives on your device first. If the sync service is ever
+            down or gone, nothing you've played is lost.
+          </li>
+        </ul>
+        <div class="callout">
+          <p>
+            <b>The trade-off:</b> with no account, there's no "forgot password" button. Keep your recovery code safe. If
+            you lose it and every synced device, nobody can get those saves back. An optional sign-in may come later for
+            players who would rather have one.
+          </p>
+        </div>
+      </section>
+
+      <section class="panel" id="privacy">
+        <h2>Privacy and security</h2>
+        <ul>
+          <li>
+            <b>Encrypted before upload.</b> Your device encrypts your saves before sending them. The sync server stores
+            only scrambled data plus a few sizes and version numbers. It can't see your decks, games or settings, and
+            your recovery code is never sent.
+          </li>
+          <li>
+            <b>No account.</b> There's no email, name or password. Your recovery code, and the devices you've linked,
+            are what open your saves.
+          </li>
+          <li>
+            <b>Where it lives.</b> Encrypted saves are stored by a small sync service on Cloudflare's network, separate
+            from the game's website.
+          </li>
+          <li>
+            <b>About the typed link code.</b> The QR code and the recovery code are fully strong. The short typed code
+            is a convenience. It works once, expires in 15 minutes, and locks after 5 wrong tries, which stops anyone
+            guessing it. Because the 8-digit key is short, though, someone who controlled the sync server during those
+            15 minutes could in theory work it out. If that matters to you, link with the QR code or the recovery code
+            instead.
+          </li>
+          <li>
+            <b>Not synced:</b> settings that belong to one device, such as display, window size, volume and power
+            saving.
+          </li>
+        </ul>
+      </section>
+
+      <section class="panel" id="limits">
+        <h2>Limits while it's in beta</h2>
+        <div class="tablebox">
+          <table>
+            <thead>
+              <tr>
+                <th>Limit</th>
+                <th>What it means for you</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>10 MB of cloud space per player</td>
+                <td>
+                  Plenty for decks, campaigns and many games. Finished games aren't cleared out automatically yet.
+                </td>
+              </tr>
+              <tr>
+                <td>Unused for a year</td>
+                <td>Cloud space nobody has synced for a year is deleted. The saves on your devices stay.</td>
+              </tr>
+              <tr>
+                <td>Shared daily allowance</td>
+                <td>
+                  The service runs on a free plan with a daily limit for all players together. If it's reached, sync
+                  pauses until the next day (00:00 UTC) and your game keeps working on this device.
+                </td>
+              </tr>
+              <tr>
+                <td>Offline play</td>
+                <td>Always works. Changes wait and sync once you're back online.</td>
+              </tr>
+              <tr>
+                <td>Beta</td>
+                <td>
+                  This is new. If something looks wrong, export a save file from Save data as a backup, and please
+                  report it.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" id="stop">
+        <h2>Stop syncing</h2>
+        <ul>
+          <li>
+            <b>Unlink this device</b> stops syncing here. Your saves stay on this device, and your other devices carry
+            on.
+          </li>
+          <li>
+            <b>Delete cloud data</b> erases your synced saves from the server for every device. The game asks you to
+            confirm first. Each device keeps its own local copy.
+          </li>
+        </ul>
+        <p>Both are in <span class="path">Settings → More → Save data → Sync across devices</span>.</p>
+      </section>
+
+      <section class="panel" id="help">
+        <h2>Help</h2>
+        <details>
+          <summary>The code didn't work</summary>
+          <p>
+            Link codes work once and expire after 15 minutes. Make a fresh one on the linked device and try again. After
+            5 wrong tries, the code is locked for safety. A recovery code doesn't expire; check it for typos.
+          </p>
+        </details>
+        <details>
+          <summary>My game doesn't show on the other device</summary>
+          <p>
+            Open the game on the device where you last played, so it can send its changes, then reopen the game on the
+            other device. You can also press <b>Sync now</b> on the sync screen.
+          </p>
+        </details>
+        <details>
+          <summary>It says "Online sync is unavailable right now"</summary>
+          <p>
+            The sync service is paused or has reached its daily limit. Keep playing; your changes are saved here and
+            will sync later. File export in Save data still works.
+          </p>
+        </details>
+        <details>
+          <summary>It says "Offline, changes waiting"</summary>
+          <p>You have no connection right now. Your changes are kept and sent the next time you're online.</p>
+        </details>
+        <details>
+          <summary>It says "Cloud data not found"</summary>
+          <p>
+            The cloud copy was deleted, from another device or after a year unused. Your saves on this device are fine.
+            Set up sync again to start a new cloud copy.
+          </p>
+        </details>
+        <details>
+          <summary>I switched phones and lost the old one</summary>
+          <p>
+            On the new phone, choose <b>Join with a code</b> and type your recovery code. Without the recovery code or
+            another synced device, synced saves can't be recovered.
+          </p>
+        </details>
+        <details>
+          <summary>Can I still move saves without sync?</summary>
+          <p>
+            Yes. <span class="path">Settings → More → Save data</span> still has <b>Send to another device</b> for a
+            one-time copy, and file export and import.
+          </p>
+        </details>
+      </section>
+
+      <footer>
+        <p>
+          Marvel Champions: Digital Edition is a free, non-commercial fan project. Marvel Champions, its card text, art
+          and characters belong to Fantasy Flight Games and Marvel.
+        </p>
+      </footer>
+    </div>
+  </body>
+</html>

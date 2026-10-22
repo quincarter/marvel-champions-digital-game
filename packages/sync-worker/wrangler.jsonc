@@ -1,4 +1,4 @@
-// The save-transfer Worker (GitHub issue #276). Run it locally with `pnpm dev:sync` (no Cloudflare account needed),
+// The save-transfer and device-sync Worker (GitHub issue #276). Run it locally with `pnpm dev:sync` (no Cloudflare account needed),
 // deploy with `pnpm --filter @mc/sync-worker deploy` (production) or `... deploy --env staging`.
 //
 // Free-plan budget: 100,000 Worker requests per day, and Durable Objects are free only when SQLite-backed (hence
@@ -9,8 +9,31 @@
 // A flood still spends quota: each request costs one Worker request plus 1-3 Durable Object requests, even when the
 // caller is blocked. TRANSFERS_ENABLED is the response to a flood.
 //
+// Device sync (/sync, one SyncSpace Durable Object per space) costs, in rows written (the free plan allows 100,000 a
+// day, and rows read 5 million):
+//   - a batch writes 1 row for the space's meta, plus 2 per accepted op that creates a record and 3 per op that rewrites
+//     or deletes one (the record's stub, its new version-index row, and the old index row removed); a conflicting op
+//     writes nothing. A request that only reads writes 2 rows (meta and alarm) once a day, else none.
+//   - every sync request also writes about 2 rows in the caller's RateLimiter object (count, then refund).
+//   - reads: a batch reads the meta and one stub per distinct key; a changes page reads the meta and each record it
+//     returns.
+// A typical session is one changes pull and one push of a few saves: say 3 rewritten records is 1 + 3 x 3 = 10 rows plus
+// 4 for the two requests' limiter rows, about 15 rows and 6 Durable Object requests. At 10 pushes a day that is 150
+// rows per active player, so the 100,000-row cap is about 600 active players a day (the Worker request cap, 100,000,
+// is not close). Each sync request is 3 Durable Object requests (limiter twice, space once) against their own daily
+// cap.
+//
+// Worst case: each IP is held to 5,000 rows of writes per day (the spaces' rows plus the limiter's own, counted as the
+// space reports them), so the account's 100,000 rows are spent by about 19 IPs that each use their whole allowance
+// (the last request may overshoot by a batch, at most 301 rows); a flood from many addresses is what SYNC_ENABLED is
+// for. One IP can also make 3 new spaces a day, 300 requests per 10 minutes, and a space takes 60 batches and 1,500 ops
+// an hour. A space holds at most MAX_SPACE_BYTES (10 MiB, counting encoded data and 64 bytes per record row) and is
+// deleted after a year unused. Set a TURNSTILE_SECRET to require the human check on creating a space too.
+// SYNC_ENABLED is the sync kill switch, as TRANSFERS_ENABLED is the transfer one: anything but "true" makes every /sync
+// route answer 503.
+//
 // Optional bot check: `wrangler secret put TURNSTILE_SECRET` (add `--env staging` for staging). It is a secret, not a
-// var, so it is not listed below; when it is set, an upload must carry a valid CF-Turnstile-Response header.
+// var, so it is not listed below; when it is set, a transfer upload and a sync space creation must carry a valid CF-Turnstile-Response header.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "mc-sync",
@@ -21,13 +44,19 @@
     "bindings": [
       { "name": "TRANSFER_ROOM", "class_name": "TransferRoom" },
       { "name": "RATE_LIMITER", "class_name": "RateLimiter" },
+      { "name": "SYNC_SPACE", "class_name": "SyncSpace" },
     ],
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TransferRoom", "RateLimiter"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["TransferRoom", "RateLimiter"] },
+    { "tag": "v2", "new_sqlite_classes": ["SyncSpace"] },
+  ],
 
   "vars": {
     "TRANSFERS_ENABLED": "true",
     "MAX_UPLOAD_BYTES": "2097152",
+    "SYNC_ENABLED": "true",
+    "MAX_SPACE_BYTES": "10485760",
     // Comma list; a `*` in the host matches a name (or, after a colon, a port). Only these origins get CORS headers.
     // Netlify previews and aliases, local dev servers, and the Capacitor and Tauri webviews.
     "ALLOWED_ORIGINS": "https://marvel-champions-digital-game.netlify.app,https://*--marvel-champions-digital-game.netlify.app,http://localhost:*,http://127.0.0.1:*,https://localhost,capacitor://localhost,tauri://localhost,http://tauri.localhost,https://tauri.localhost",
@@ -41,12 +70,18 @@
         "bindings": [
           { "name": "TRANSFER_ROOM", "class_name": "TransferRoom" },
           { "name": "RATE_LIMITER", "class_name": "RateLimiter" },
+          { "name": "SYNC_SPACE", "class_name": "SyncSpace" },
         ],
       },
-      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TransferRoom", "RateLimiter"] }],
+      "migrations": [
+        { "tag": "v1", "new_sqlite_classes": ["TransferRoom", "RateLimiter"] },
+        { "tag": "v2", "new_sqlite_classes": ["SyncSpace"] },
+      ],
       "vars": {
         "TRANSFERS_ENABLED": "true",
         "MAX_UPLOAD_BYTES": "2097152",
+        "SYNC_ENABLED": "true",
+        "MAX_SPACE_BYTES": "10485760",
         "ALLOWED_ORIGINS": "https://marvel-champions-digital-game.netlify.app,https://*--marvel-champions-digital-game.netlify.app,http://localhost:*,http://127.0.0.1:*,https://localhost,capacitor://localhost,tauri://localhost,http://tauri.localhost,https://tauri.localhost",
       },
     },

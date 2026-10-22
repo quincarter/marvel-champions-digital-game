@@ -410,9 +410,17 @@ export function titleMenuFocusOrder(input: {
   readonly quit?: boolean;
   /** The update banner's link buttons, when it is drawn; last, so the menu's own first stop stays first. Its close button follows them. */
   readonly updateActions?: readonly string[];
+  /** The in-progress games drawn as a panel on this screen, newest first: each gets a row stop and a Remove stop after Continue. */
+  readonly gameIds?: readonly string[];
+  /** The panel is asking "Remove this game?": its two answers replace the rows' stops. */
+  readonly removeConfirm?: boolean;
+  /** The "In-progress games (N)" menu row (a phone) is drawn: a stop after Continue. */
+  readonly gamesRow?: boolean;
 }): readonly string[] {
   return [
     ...(input.continuable ? ["continue"] : []),
+    ...gamesListFocusOrder(input.gameIds ?? [], input.removeConfirm === true),
+    ...(input.gamesRow ? ["games-row"] : []),
     "new-game",
     "decks",
     "campaign",
@@ -425,6 +433,15 @@ export function titleMenuFocusOrder(input: {
     "release-notes",
     ...(input.updateActions && input.updateActions.length > 0 ? [...input.updateActions, UPDATE_DISMISS_ID] : []),
   ];
+}
+
+/**
+ * The in-progress games list's stops (the Title's panel and the phone overlay): each game's row, then its Remove
+ * button, top to bottom; or just the question's "Keep it" and "Remove" while it is asked.
+ */
+export function gamesListFocusOrder(gameIds: readonly string[], removeConfirm: boolean): readonly string[] {
+  if (removeConfirm) return ["remove-keep", "remove-confirm"];
+  return gameIds.flatMap((id) => [`game:${id}`, `game-remove:${id}`]);
 }
 
 export interface ScenarioSelectFocusInput {

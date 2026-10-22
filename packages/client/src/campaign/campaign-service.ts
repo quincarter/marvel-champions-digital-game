@@ -31,6 +31,8 @@ import {
   type TableRules,
 } from "@mc/engine";
 import type { SessionConfig, SavedGame } from "../engine/host.js";
+import type { SaveMeta } from "../engine/game-storage.js";
+import { activeAttemptGamesOf } from "./unfolded-game.js";
 import { CAMPAIGN_STORAGE_SCHEMA, type CampaignRecord, type CampaignStorage } from "../engine/campaign-storage.js";
 import { reconcileRewards, setRewardIncluded } from "../view/campaign-deck-edit-model.js";
 import { campaignLaunchConfig, campaignPostGameFold } from "../view/campaign-step-model.js";
@@ -79,6 +81,17 @@ export interface CampaignServiceOptions {
   /** A fresh id for a new campaign. */
   readonly newId?: () => string;
   readonly definitionOf?: (campaignId: string) => CampaignDefinition | undefined;
+  /**
+   * Where the run's games are kept, through the engine that owns them (`SessionStore.listSaves` / `retireSave`). When
+   * given, starting a run over also retires that run's in-progress game, so it doesn't linger in the title's
+   * "In-progress games" list (#276).
+   */
+  readonly games?: CampaignGames;
+}
+
+export interface CampaignGames {
+  list(): Promise<readonly SaveMeta[]>;
+  retire(gameId: string): Promise<void>;
 }
 
 export class CampaignService {
@@ -88,6 +101,7 @@ export class CampaignService {
   readonly #now: () => number;
   readonly #newId: () => string;
   readonly #definitionOf: (campaignId: string) => CampaignDefinition | undefined;
+  readonly #games: CampaignGames | undefined;
 
   constructor(options: CampaignServiceOptions) {
     this.storage = options.storage;
@@ -97,6 +111,18 @@ export class CampaignService {
     this.#newId =
       options.newId ?? (() => `campaign-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
     this.#definitionOf = options.definitionOf ?? campaignDefinitionOf;
+    this.#games = options.games;
+  }
+
+  /** Marks the record's in-progress attempt game(s) abandoned. A storage failure leaves them active (harmless). */
+  async #retireAttemptGames(record: CampaignRecord): Promise<void> {
+    const games = this.#games;
+    if (!games || !record.attempt) return;
+    try {
+      for (const save of activeAttemptGamesOf(record, await games.list())) await games.retire(save.id);
+    } catch {
+      // see above
+    }
   }
 
   definitionFor(record: Pick<CampaignLog, "campaignId">): CampaignDefinition {
@@ -339,8 +365,10 @@ export class CampaignService {
     });
   }
 
-  /** "Start over": the run is kept on the shelf as abandoned, never deleted. */
+  /** "Start over": the run is kept on the shelf as abandoned, never deleted; its game in progress is retired too. */
   async abandon(id: string): Promise<void> {
+    const record = await this.storage.load(id);
+    if (record) await this.#retireAttemptGames(record);
     await this.storage.setStatus(id, "abandoned");
   }
 

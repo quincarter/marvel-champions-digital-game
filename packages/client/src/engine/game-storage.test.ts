@@ -150,14 +150,15 @@ describe.each<[string, () => GameStorage]>([
     expect((await storage.load("g1"))!.commands).toEqual([command(0), command(9)]);
   });
 
-  test("starting a new game retires the one in progress, and Continue offers the new one", async () => {
+  test("starting a new game leaves the others in progress, and Continue offers the newest", async () => {
     const storage = make();
     await storage.create(meta("old", 1), BASELINE);
     await storage.create(meta("new", 5), BASELINE);
+    await storage.create(meta("mid", 3), BASELINE);
 
     expect((await storage.latestActive())?.id).toBe("new");
     const statuses = Object.fromEntries((await storage.list()).map((game) => [game.id, game.status]));
-    expect(statuses).toEqual({ old: "abandoned", new: "active" });
+    expect(statuses).toEqual({ old: "active", new: "active", mid: "active" });
   });
 
   test("a finished or incompatible game is never offered as Continue", async () => {
@@ -214,6 +215,111 @@ describe.each<[string, () => GameStorage]>([
     expect((await core.latestSave())?.id).toBe("current");
   });
 
+  test("activeSaves lists every current-schema game in progress, newest first, leaving out lessons and finished games", async () => {
+    const storage = make();
+    await storage.create(meta("oldest", 1), BASELINE);
+    await storage.create(meta("newest", 9), BASELINE);
+    await storage.create(meta("middle", 5), BASELINE);
+    await storage.create(meta("won", 7, { status: "won" }), BASELINE);
+    await storage.create(meta("lesson", 8, { guided: { kind: "tutorial" } }), BASELINE);
+    await storage.create(meta("try-it", 6, { guided: { kind: "aspect", aspect: "justice" } }), BASELINE);
+    await storage.create(meta("campaign", 4, { campaignId: "trors", campaignNodeId: "crossbones" }), BASELINE);
+    await storage.create(meta("stale", 3, { schema: 2 }), BASELINE);
+    const core = new EngineSessionCore({ storage });
+
+    expect((await core.activeSaves()).map((game) => game.id)).toEqual(["newest", "middle", "campaign", "oldest"]);
+    // The old-schema save is marked on the way, as Continue does, never offered; the finished one is untouched.
+    const statuses = Object.fromEntries((await storage.list()).map((game) => [game.id, game.status]));
+    expect(statuses).toMatchObject({ stale: "incompatible", won: "won", lesson: "active", oldest: "active" });
+    // Continue still resumes the newest active save, a lesson included (its own resume question handles that).
+    expect((await core.latestSave())?.id).toBe("newest");
+  });
+
+  test("a save from a NEWER build is skipped and never written to: not listed, not Continue, not resumed, not marked", async () => {
+    const storage = make();
+    await storage.create(meta("from-newer", 9, { schema: SAVE_SCHEMA + 1 }), BASELINE);
+    await storage.create(meta("mine", 2), BASELINE);
+    const core = new EngineSessionCore({ storage });
+
+    expect((await core.activeSaves()).map((game) => game.id)).toEqual(["mine"]);
+    expect((await core.latestSave())?.id).toBe("mine");
+    await expect(core.resume("from-newer")).rejects.toThrow(/newer version.*Update the game/);
+    const rows = Object.fromEntries((await storage.list()).map((game) => [game.id, game]));
+    expect(rows["from-newer"]).toMatchObject({ status: "active", updatedAt: 9 });
+  });
+
+  test("a game last written by a NEWER APP is listed but never replayed, appended to, marked or offered as Continue", async () => {
+    const storage = make();
+    const newer = { platform: "windows", appVersion: "9.0.0", contentVersion: "pool-9" } as const;
+    await storage.create(meta("from-newer-app", 9, { lastPlayedOn: newer }), BASELINE);
+    await storage.create(meta("same-app", 5, { lastPlayedOn: { platform: "web", appVersion: "1.2.3" } }), BASELINE);
+    await storage.create(meta("unstamped", 2), BASELINE);
+    const core = new EngineSessionCore({ storage, appVersion: "1.2.3" });
+
+    // The list still shows it (the row says "update to continue"); Continue skips it for the next game.
+    expect((await core.activeSaves()).map((game) => game.id)).toEqual(["from-newer-app", "same-app", "unstamped"]);
+    expect((await core.latestSave())?.id).toBe("same-app");
+    await expect(core.resume("from-newer-app")).rejects.toThrow(
+      "This game was saved by a newer version. Update the game to continue it.",
+    );
+    expect(core.version).toBe(0);
+    // Nothing was written: not marked incompatible, no stamp, no command.
+    const stored = await storage.load("from-newer-app");
+    expect(stored!.meta).toMatchObject({ status: "active", updatedAt: 9, commandCount: 0, lastPlayedOn: newer });
+    expect(stored!.commands).toHaveLength(0);
+    // The same game resumes on a build that is the writer's version or newer.
+    await expect(
+      new EngineSessionCore({ storage, appVersion: "9.0.0" }).resume("from-newer-app"),
+    ).resolves.toBeTruthy();
+    await expect(new EngineSessionCore({ storage, appVersion: "1.2.3" }).resume("same-app")).resolves.toBeTruthy();
+    await expect(new EngineSessionCore({ storage, appVersion: "1.2.3" }).resume("unstamped")).resolves.toBeTruthy();
+  });
+
+  test("retireSave abandons a game and stamps it as written now, so sync carries it; other games are untouched", async () => {
+    const storage = make();
+    await storage.create(meta("keep", 5), BASELINE);
+    await storage.create(meta("drop", 6), BASELINE);
+    const core = new EngineSessionCore({ storage, now: () => 9_000 });
+    await core.retireSave("drop");
+    const rows = Object.fromEntries((await storage.list()).map((game) => [game.id, game]));
+    expect(rows.drop).toMatchObject({ status: "abandoned", updatedAt: 9_000, outcome: null });
+    expect(rows.keep).toMatchObject({ status: "active", updatedAt: 5 });
+    expect((await core.activeSaves()).map((game) => game.id)).toEqual(["keep"]);
+    // An unknown id is a no-op, like any status change.
+    await expect(core.retireSave("nobody")).resolves.toBeUndefined();
+  });
+
+  test("a status change that gives no time leaves the game's stamp alone (an incompatible mark is not a play)", async () => {
+    const storage = make();
+    await storage.create(meta("g", 5), BASELINE);
+    await storage.setStatus("g", "incompatible");
+    expect((await storage.load("g"))!.meta).toMatchObject({ status: "incompatible", updatedAt: 5 });
+  });
+
+  test("with no storage there are no games in progress", async () => {
+    expect(await new EngineSessionCore().activeSaves()).toEqual([]);
+  });
+
+  test("starting a guided run retires the older active run of the same kind, and nothing else", async () => {
+    const storage = make();
+    let ids = 0;
+    const core = () => new EngineSessionCore({ storage, newId: () => `g${++ids}`, now: () => 100 + ids });
+    await core().start(CONFIG);
+    await core().start({ ...CONFIG, guided: { kind: "tutorial" } });
+    await core().start({ ...CONFIG, guided: { kind: "aspect", aspect: "justice" } });
+    await core().start({ ...CONFIG, guided: { kind: "tutorial" } });
+    const status = async () => Object.fromEntries((await storage.list()).map((game) => [game.id, game.status]));
+    // g2 (tutorial) was retired by g4 (tutorial); the plain game g1 and the Try-it g3 stay.
+    expect(await status()).toEqual({ g1: "active", g2: "abandoned", g3: "active", g4: "active" });
+
+    // A plain game retires nothing, guided or not.
+    await core().start(CONFIG);
+    expect(await status()).toEqual({ g1: "active", g2: "abandoned", g3: "active", g4: "active", g5: "active" });
+    // A second aspect Try-it replaces the first (the same guided kind).
+    await core().start({ ...CONFIG, guided: { kind: "aspect", aspect: "leadership" } });
+    expect((await status()).g3).toBe("abandoned");
+  });
+
   test("games list most recently played first", async () => {
     const storage = make();
     await storage.create(meta("a", 1), BASELINE);
@@ -252,5 +358,119 @@ describe.each<[string, () => GameStorage]>([
     expect((listed.find((game) => game.id === "g1")!.config.players[0] as { deckId?: string }).deckId).toBe(
       "local-deck-42",
     );
+  });
+});
+
+describe("IndexedDB game storage stamping the platform (device sync, #276)", () => {
+  const progress = { round: 1, commandCount: 1, updatedAt: 2, status: "active", outcome: null } as const;
+
+  test("create, append and truncate stamp lastPlayedOn, a status change does not; a store without a platform leaves it alone", async () => {
+    const factory = new IDBFactory();
+    const windows = new IdbGameStorage(factory, { platform: "windows" });
+    await windows.create(meta("g1", 1), BASELINE);
+    expect((await windows.load("g1"))!.meta.lastPlayedOn).toEqual({ platform: "windows" });
+
+    // Another device's save, opened here without a platform of its own: the stamp stays.
+    const unstamped = new IdbGameStorage(factory);
+    await unstamped.append("g1", 0, command(0), progress);
+    expect((await unstamped.load("g1"))!.meta.lastPlayedOn).toEqual({ platform: "windows" });
+
+    // A status change (another device's save marked incompatible, a retirement) is not playing the game.
+    const android = new IdbGameStorage(factory, { platform: "android" });
+    await android.setStatus("g1", "incompatible");
+    expect((await android.load("g1"))!.meta.lastPlayedOn).toEqual({ platform: "windows" });
+    await android.append("g1", 1, command(1), { ...progress, commandCount: 2 });
+    expect((await android.load("g1"))!.meta.lastPlayedOn).toEqual({ platform: "android" });
+    await android.truncate("g1", 0, { ...progress, commandCount: 0 });
+    expect((await android.list())[0]!.lastPlayedOn).toEqual({ platform: "android" });
+  });
+
+  test("a game left in progress keeps its own stamp", async () => {
+    const factory = new IDBFactory();
+    await new IdbGameStorage(factory, { platform: "ios" }).create(meta("old", 1), BASELINE);
+    await new IdbGameStorage(factory, { platform: "web" }).create(meta("new", 2), BASELINE);
+    const storage = new IdbGameStorage(factory);
+    expect((await storage.load("old"))!.meta).toMatchObject({ status: "active", lastPlayedOn: { platform: "ios" } });
+    expect((await storage.load("new"))!.meta.lastPlayedOn).toEqual({ platform: "web" });
+  });
+});
+
+test("both storages stamp the writer's app and content version with the platform on create, append and truncate", async () => {
+  const progress = { round: 1, commandCount: 1, updatedAt: 2, status: "active", outcome: null } as const;
+  const writer = { platform: "android", appVersion: "0.33.0", contentVersion: "pool-abc" } as const;
+  for (const storage of [new MemoryGameStorage(writer), new IdbGameStorage(new IDBFactory(), writer)]) {
+    await storage.create(meta("g", 1), BASELINE);
+    expect((await storage.load("g"))!.meta.lastPlayedOn).toEqual(writer);
+  }
+  // Another build writes later: its versions replace the stamp.
+  const factory = new IDBFactory();
+  await new IdbGameStorage(factory, writer).create(meta("g", 1), BASELINE);
+  const update = new IdbGameStorage(factory, { platform: "windows", appVersion: "0.34.0", contentVersion: "pool-def" });
+  await update.append("g", 0, command(0), progress);
+  expect((await update.load("g"))!.meta.lastPlayedOn).toEqual({
+    platform: "windows",
+    appVersion: "0.34.0",
+    contentVersion: "pool-def",
+  });
+  await update.truncate("g", 0, { ...progress, commandCount: 0 });
+  expect((await update.load("g"))!.meta.lastPlayedOn?.appVersion).toBe("0.34.0");
+});
+
+test("the memory storage stamps the same way", async () => {
+  const storage = new MemoryGameStorage({ platform: "linux" });
+  await storage.create(meta("m", 1), BASELINE);
+  expect((await storage.load("m"))!.meta.lastPlayedOn).toEqual({ platform: "linux" });
+});
+
+describe("a game another build wrote that this build cannot replay (the web ships ahead of a release)", () => {
+  /** A real game whose log holds a command this engine rejects, written under `writer`'s stamp. */
+  async function brokenGame(writer: { appVersion: string; contentVersion: string; build?: string }) {
+    const storage = new MemoryGameStorage({ platform: "web", ...writer });
+    await new EngineSessionCore({ storage, newId: () => "g" }).start(CONFIG);
+    const saved = (await storage.load("g"))!.meta;
+    await storage.append("g", 0, { type: "basicRecover", playerId: "nobody" } as never, {
+      round: saved.round,
+      commandCount: 1,
+      updatedAt: saved.updatedAt + 1,
+      status: "active",
+      outcome: null,
+    });
+    return storage;
+  }
+  const here = { appVersion: "1.0.0", contentVersion: "pool-here", build: "aaa111" };
+
+  test("a different card pool, a different commit or a newer app: 'update to continue', and the game is left active", async () => {
+    for (const other of [
+      { ...here, contentVersion: "pool-other" },
+      { ...here, build: "bbb222" },
+      { ...here, appVersion: "2.0.0" },
+    ]) {
+      const storage = await brokenGame(other);
+      const core = new EngineSessionCore({ storage, ...here });
+      await expect(core.resume("g")).rejects.toThrow("Update the game to continue it.");
+      expect((await storage.load("g"))!.meta.status).toBe("active");
+    }
+  });
+
+  test("the same stamp as this build, or no stamp at all: marked incompatible as before", async () => {
+    for (const writer of [here, null]) {
+      const storage = writer
+        ? await brokenGame(writer)
+        : await (async () => {
+            const plain = new MemoryGameStorage();
+            await new EngineSessionCore({ storage: plain, newId: () => "g" }).start(CONFIG);
+            await plain.append("g", 0, { type: "basicRecover", playerId: "nobody" } as never, {
+              round: 1,
+              commandCount: 1,
+              updatedAt: 99,
+              status: "active",
+              outcome: null,
+            });
+            return plain;
+          })();
+      const core = new EngineSessionCore({ storage, ...here });
+      await expect(core.resume("g")).rejects.toThrow(/no longer replays/);
+      expect((await storage.load("g"))!.meta.status).toBe("incompatible");
+    }
   });
 });

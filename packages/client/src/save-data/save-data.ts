@@ -9,6 +9,7 @@
  *
  * The factory and storage are injectable so the tests run on `fake-indexeddb` and a plain map.
  */
+import { IdbSyncStateStore } from "../sync/sync-state.js";
 import { CLIENT_VERSION } from "../version.js";
 import { SAVED_DATABASES, SAVED_LOCAL_STORAGE_PREFIX, type DatabaseSpec } from "./databases.js";
 import { SAVE_FILE_FORMAT, SAVE_FILE_VERSION, type SavedDatabase, type SaveFile } from "./save-file.js";
@@ -35,14 +36,14 @@ export function browserSaveDataDeps(): SaveDataDeps {
   return { indexedDB: globalThis.indexedDB, localStorage: browserLocalStorage() };
 }
 
-function settle<T>(request: IDBRequest<T>): Promise<T> {
+export function settle<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error("IndexedDB request failed"));
   });
 }
 
-function committed(transaction: IDBTransaction): Promise<void> {
+export function committed(transaction: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error ?? new Error("IndexedDB transaction failed"));
@@ -51,7 +52,7 @@ function committed(transaction: IDBTransaction): Promise<void> {
 }
 
 /** Opens `spec` at its own version, creating any store that isn't there yet, the way its storage class would. */
-function open(factory: IDBFactory, spec: DatabaseSpec): Promise<IDBDatabase> {
+export function open(factory: IDBFactory, spec: DatabaseSpec): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = factory.open(spec.name, spec.version);
     request.onupgradeneeded = () => {
@@ -98,7 +99,7 @@ async function writeDatabase(factory: IDBFactory, spec: DatabaseSpec, saved: Sav
   }
 }
 
-function savedKeys(storage: KeyValueStorage): string[] {
+export function savedKeys(storage: KeyValueStorage): string[] {
   const keys: string[] = [];
   for (let i = 0; i < storage.length; i++) {
     const key = storage.key(i);
@@ -127,8 +128,15 @@ export async function exportSaveData(deps: SaveDataDeps = browserSaveDataDeps())
   };
 }
 
-/** Replaces everything on this device with `file`'s contents. `file` must come from `parseSaveFile`. */
+/**
+ * Replaces everything on this device with `file`'s contents. `file` must come from `parseSaveFile`.
+ *
+ * Device sync's memory of what it last saw is forgotten first: otherwise everything the file lacks would look deleted
+ * here and sync would delete it on every linked device. With it gone the next run is a first join, where absence is
+ * not a delete and games that differ are asked about.
+ */
 export async function importSaveData(file: SaveFile, deps: SaveDataDeps = browserSaveDataDeps()): Promise<void> {
+  await new IdbSyncStateStore(deps.indexedDB).clear();
   for (const spec of SAVED_DATABASES) await writeDatabase(deps.indexedDB, spec, file.databases[spec.name]);
   const storage = deps.localStorage;
   if (!storage) return;

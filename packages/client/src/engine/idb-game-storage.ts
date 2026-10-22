@@ -18,11 +18,14 @@
  */
 
 import type { Command } from "@mc/engine";
+import { notifySaveDataChanged } from "../sync/save-data-changed.js";
 import type { StateWithoutPool } from "./host.js";
 import {
   migrateSaveMeta,
   newestActive,
+  stampedPlayedOn,
   type GameStorage,
+  type LastPlayedOn,
   type SaveMeta,
   type SaveProgress,
   type SaveStatus,
@@ -64,23 +67,27 @@ export class IdbGameStorage implements GameStorage {
   readonly #factory: IDBFactory;
   #db: Promise<IDBDatabase> | null = null;
 
-  /** `factory` is injectable so a test can hand in a fresh fake database per case. */
-  constructor(factory: IDBFactory = indexedDB) {
+  readonly #playedOn: LastPlayedOn | undefined;
+
+  /**
+   * `factory` is injectable so a test can hand in a fresh fake database per case. `playedOn` is the platform this
+   * device plays on: a game written through this storage (create, append, truncate; not a status change, which can be
+   * a retirement) stamps it as the game's `lastPlayedOn` (the engine worker is given it by name,
+   * `platform/play-platform.ts`). Left out, writes leave the stamp as it was.
+   */
+  constructor(factory: IDBFactory = indexedDB, playedOn?: LastPlayedOn) {
     this.#factory = factory;
+    this.#playedOn = playedOn;
   }
 
   async create(meta: SaveMeta, initialState: StateWithoutPool): Promise<void> {
     const db = await this.#open();
     const transaction = db.transaction(["games", "baselines"], "readwrite");
     const done = committed(transaction);
-    const games = transaction.objectStore("games");
-    const existing = await settle(games.getAll() as IDBRequest<SaveMeta[]>);
-    for (const game of existing) {
-      if (game.status === "active") games.put({ ...game, status: "abandoned" satisfies SaveStatus });
-    }
-    games.put(meta);
+    transaction.objectStore("games").put(stampedPlayedOn(meta, this.#playedOn));
     transaction.objectStore("baselines").put({ gameId: meta.id, state: initialState } satisfies BaselineRow);
     await done;
+    notifySaveDataChanged("game");
   }
 
   async append(gameId: string, seq: number, command: Command, progress: SaveProgress): Promise<void> {
@@ -100,8 +107,9 @@ export class IdbGameStorage implements GameStorage {
       throw new Error(`save out of order: expected command ${meta.commandCount}, got ${seq}`);
     }
     transaction.objectStore("commands").put({ gameId, seq, command } satisfies CommandRow);
-    games.put({ ...meta, ...progress });
+    games.put(stampedPlayedOn({ ...meta, ...progress }, this.#playedOn));
     await done;
+    notifySaveDataChanged("game");
   }
 
   async truncate(gameId: string, commandCount: number, progress: SaveProgress): Promise<void> {
@@ -130,8 +138,9 @@ export class IdbGameStorage implements GameStorage {
       };
       cursorRequest.onerror = () => reject(cursorRequest.error ?? new Error("IndexedDB cursor failed"));
     });
-    games.put({ ...meta, ...progress });
+    games.put(stampedPlayedOn({ ...meta, ...progress }, this.#playedOn));
     await done;
+    notifySaveDataChanged("game");
   }
 
   async load(gameId: string): Promise<StoredGame | null> {
@@ -161,14 +170,15 @@ export class IdbGameStorage implements GameStorage {
     return (await this.#allGames()).sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
-  async setStatus(gameId: string, status: SaveStatus): Promise<void> {
+  async setStatus(gameId: string, status: SaveStatus, updatedAt?: number): Promise<void> {
     const db = await this.#open();
     const transaction = db.transaction("games", "readwrite");
     const done = committed(transaction);
     const games = transaction.objectStore("games");
     const meta = await settle(games.get(gameId) as IDBRequest<SaveMeta | undefined>);
-    if (meta) games.put({ ...meta, status });
+    if (meta) games.put({ ...meta, status, ...(updatedAt === undefined ? {} : { updatedAt }) });
     await done;
+    notifySaveDataChanged("game");
   }
 
   async #allGames(): Promise<SaveMeta[]> {

@@ -491,6 +491,8 @@ export class BoardScene extends Phaser.Scene {
         this.scene.isActive(SCENES.teamUpInfo) ||
         this.scene.isActive(SCENES.evidence) ||
         this.scene.isActive(SCENES.pileView) ||
+        // Device sync's "which copy?" question owns the keyboard and pad (`conflictPromptOwnsInput`).
+        this.scene.isActive(SCENES.syncConflict) ||
         // "Hold on!" owns Escape (it dismisses with nothing sent); without this the board's own Escape opened Pause
         // on top of it.
         this.scene.isActive(SCENES.holdOn),

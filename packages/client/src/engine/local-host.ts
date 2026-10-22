@@ -82,6 +82,14 @@ export class LocalEngineHost implements EngineHost {
     return this.#core.latestSave();
   }
 
+  activeSaves(): Promise<readonly SaveMeta[]> {
+    return this.#core.activeSaves();
+  }
+
+  retireSave(gameId: string): Promise<void> {
+    return this.#core.retireSave(gameId);
+  }
+
   listSaves(): Promise<readonly SaveMeta[]> {
     return this.#core.listSaves();
   }
@@ -113,6 +121,7 @@ export class LocalEngineHost implements EngineHost {
       record: snapshot.record,
       saveError: snapshot.saveError,
       config: snapshot.config,
+      ...(snapshot.gameId !== undefined ? { gameId: snapshot.gameId } : {}),
       ...(snapshot.history ? { history: snapshot.history } : {}),
       ...(snapshot.trail ? { trail: snapshot.trail } : {}),
     };

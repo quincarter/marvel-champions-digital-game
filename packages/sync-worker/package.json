@@ -6,7 +6,8 @@
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "exports": {
-    "./protocol": "./src/protocol.ts"
+    "./protocol": "./src/protocol.ts",
+    "./sync-protocol": "./src/sync-protocol.ts"
   },
   "scripts": {
     "dev": "wrangler dev",

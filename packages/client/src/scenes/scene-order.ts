@@ -66,7 +66,9 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.nameConflict,
   SCENES.heroDecks,
   SCENES.saveData,
+  SCENES.syncData,
   SCENES.endTurnConfirm,
+  SCENES.gamesList,
   SCENES.tutorialResumeConfirm,
   SCENES.holdOn,
   SCENES.roundDebrief,
@@ -79,7 +81,13 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.music,
   // Above every screen and overlay, below the chrome that takes input.
   SCENES.powerSavingNotice,
+  // Device sync's prompt over everything but the music and report chrome, and the watcher that opens it.
+  SCENES.syncSetupPrompt,
+  // The achievement popup draws above the setup question (it takes no input; a stack's own tap target is its own).
   SCENES.achievementToast,
+  SCENES.syncConflict,
+  SCENES.syncPrompt,
+  SCENES.syncSetupNotice,
   // Last, so they draw above every screen and overlay (#176, #191): the music player and its button, then the report
   // panel and the tab that opens it above that.
   SCENES.musicPlayer,
@@ -122,6 +130,7 @@ const BOARD_SHEETS = [
   SCENES.unlocks,
   SCENES.unlockConfirm,
   SCENES.saveData,
+  SCENES.syncData,
   SCENES.endTurnConfirm,
   SCENES.holdOn,
   SCENES.roundDebrief,
@@ -140,8 +149,17 @@ const BOARD_SHEETS = [
  */
 export const COMPANIONS: Readonly<Record<string, readonly string[]>> = {
   [SCENES.board]: BOARD_SHEETS,
-  [SCENES.pause]: [SCENES.settings, SCENES.rules, SCENES.unlocks, SCENES.saveData, SCENES.unlockConfirm],
-  [SCENES.settings]: [SCENES.unlocks, SCENES.saveData, SCENES.rules, SCENES.unlockConfirm],
+  [SCENES.pause]: [
+    SCENES.settings,
+    SCENES.rules,
+    SCENES.unlocks,
+    SCENES.saveData,
+    SCENES.syncData,
+    SCENES.unlockConfirm,
+  ],
+  [SCENES.settings]: [SCENES.unlocks, SCENES.saveData, SCENES.syncData, SCENES.rules, SCENES.unlockConfirm],
+  [SCENES.saveData]: [SCENES.syncData],
+  [SCENES.syncSetupPrompt]: [SCENES.syncData],
   [SCENES.setupDeal]: [SCENES.choice, SCENES.inspect],
   [SCENES.setup]: [SCENES.setCards, SCENES.inspect, SCENES.nameConflict],
   [SCENES.seats]: [SCENES.setCards, SCENES.inspect, SCENES.nameConflict, SCENES.heroDecks],

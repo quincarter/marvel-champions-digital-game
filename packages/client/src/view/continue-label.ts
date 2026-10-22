@@ -19,9 +19,13 @@ export function continueLabelOf(
   save: { readonly config: SessionConfig; readonly round: number },
   names: ContinueLabelNames,
 ): string {
-  const scenario =
-    describeCivilWar(save.config) ?? names.scenarioName(save.config.scenarioId) ?? save.config.scenarioId;
-  const heroes = save.config.players
+  return `Continue — ${gameLabelOf(save.config, names)} · round ${save.round}`;
+}
+
+/** "Rhino · Spider-Man": what a game is, without its round — the name a sync conflict prompt shows. */
+export function gameLabelOf(config: SessionConfig, names: ContinueLabelNames): string {
+  const scenario = describeCivilWar(config) ?? names.scenarioName(config.scenarioId) ?? config.scenarioId;
+  const heroes = config.players
     .map((player) => {
       if (!("starterDeckId" in player)) {
         return names.identityName(player.identityCardId as string) ?? player.identityCardId;
@@ -29,5 +33,5 @@ export function continueLabelOf(
       return names.starterDeckName(player.starterDeckId)?.split(/ — | \/ /)[0] ?? player.starterDeckId;
     })
     .join(", ");
-  return `Continue — ${scenario} · ${heroes} · round ${save.round}`;
+  return `${scenario} · ${heroes}`;
 }

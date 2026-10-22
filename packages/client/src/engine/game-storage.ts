@@ -20,6 +20,8 @@
 import type { Command, GameOutcome } from "@mc/engine";
 import type { SessionConfig, StateWithoutPool } from "./host.js";
 import type { GameSummary } from "./game-summary.js";
+import type { PlayPlatform } from "../platform/play-platform.js";
+import { isNewerVersion } from "./app-version.js";
 
 /**
  * Bumped when the stored shape changes, so an old save is recognized instead of misread.
@@ -41,6 +43,12 @@ export const SAVE_SCHEMA = 4;
 
 /** Whether this build can read a save: only the current schema. Anything older is retired, not migrated. */
 export const isCurrentSchema = (meta: Pick<SaveMeta, "schema">): boolean => meta.schema === SAVE_SCHEMA;
+
+/**
+ * Whether a save was written by a newer build than this one (another linked device that updated first). It is not
+ * retired and not written to: the game is fine, this build just can't read it, so it is skipped and left as it is.
+ */
+export const isNewerSchema = (meta: Pick<SaveMeta, "schema">): boolean => meta.schema > SAVE_SCHEMA;
 
 /**
  * Upgrades a `SaveMeta` written under schema 3 to schema 4 by filling `campaignId`/`campaignNodeId` with `null` —
@@ -111,7 +119,58 @@ export interface SaveMeta {
    * finished game.
    */
   readonly summary?: GameSummary | null;
+  /**
+   * The platform this game was last written on (device sync, #276), so a list that mixes games from several linked
+   * devices can say where each was last played. Stamped by `IdbGameStorage` on every write this device makes; absent
+   * on a save from before it existed (a purely additive field, no `SAVE_SCHEMA` bump), which shows no platform mark.
+   * `device` is room for a device name; nothing fills it yet.
+   */
+  readonly lastPlayedOn?: LastPlayedOn;
 }
+
+/**
+ * Who last wrote a game (device sync, #276). `platform` is absent when the shell's OS could not be told; the two
+ * versions are the writer stamp: the app build and the card pool (`POOL_VERSION`) that wrote it. A build older than
+ * `appVersion` never replays, appends to or marks the game (`writtenByNewerApp`), because the newer build may have
+ * written commands or state it cannot read. Absent on a game from before the stamp: treated as compatible.
+ */
+export interface LastPlayedOn {
+  readonly platform?: PlayPlatform;
+  readonly device?: string;
+  readonly appVersion?: string;
+  readonly contentVersion?: string;
+  /**
+   * The short commit the writing build was made from (`buildCommit()`), absent in a test run. The web ships ahead of a
+   * release (`appVersion` only moves at release), so this is what tells two web builds of one version apart.
+   */
+  readonly build?: string;
+}
+
+/** The stamp a running build writes, and compares a game's against. */
+export interface WriterStamp {
+  readonly appVersion: string;
+  readonly contentVersion: string;
+  readonly build: string;
+}
+
+/**
+ * Whether a game was last written by a build that is not this one: a newer app, a different card pool or a different
+ * commit. False for a game with no stamp. Such a game that fails to replay here is the other build's to read, so it is
+ * left untouched instead of being marked incompatible.
+ */
+export function writtenByOtherBuild(meta: Pick<SaveMeta, "lastPlayedOn">, here: WriterStamp): boolean {
+  const was = meta.lastPlayedOn;
+  if (!was) return false;
+  return (
+    isNewerVersion(was.appVersion, here.appVersion) ||
+    (was.contentVersion !== undefined && was.contentVersion !== here.contentVersion) ||
+    (was.build !== undefined && was.build !== here.build)
+  );
+}
+
+/** Whether a build running `appVersion` is older than the build that last wrote this game. */
+export const writtenByNewerApp = (meta: Pick<SaveMeta, "lastPlayedOn">, appVersion: string): boolean =>
+  isNewerVersion(meta.lastPlayedOn?.appVersion, appVersion);
 
 /** What a command's arrival changes about a game's summary row. */
 export type SaveProgress = Pick<SaveMeta, "round" | "commandCount" | "updatedAt" | "status" | "outcome"> &
@@ -124,7 +183,7 @@ export interface StoredGame {
 }
 
 export interface GameStorage {
-  /** Records a new game, retiring any game still marked active: one game in progress at a time. */
+  /** Records a new game. Games already in progress stay so: several can be active at once (device sync, #276). */
   create(meta: SaveMeta, initialState: StateWithoutPool): Promise<void>;
   /**
    * Appends command number `seq` (0-based) and updates the summary row, as one
@@ -139,11 +198,21 @@ export interface GameStorage {
    */
   truncate(gameId: string, commandCount: number, progress: SaveProgress): Promise<void>;
   load(gameId: string): Promise<StoredGame | null>;
-  /** The most recently played game still in progress — the one to offer as "Continue". */
+  /** The most recently played game still in progress (of the several that may be) — the one to offer as "Continue". */
   latestActive(): Promise<SaveMeta | null>;
   /** Every recorded game, most recently played first. */
   list(): Promise<readonly SaveMeta[]>;
-  setStatus(gameId: string, status: SaveStatus): Promise<void>;
+  /**
+   * Sets a status. `updatedAt` stamps the change as the game's newest write (a retirement the player chose: sync
+   * carries a meta change by its stamp, so without one the other device would keep the game active); left out, the
+   * row's stamp is untouched (an incompatible mark is not a play).
+   */
+  setStatus(gameId: string, status: SaveStatus, updatedAt?: number): Promise<void>;
+}
+
+/** `meta` marked as written on this device: unchanged when the device's platform is not known. */
+export function stampedPlayedOn(meta: SaveMeta, playedOn: LastPlayedOn | undefined): SaveMeta {
+  return playedOn ? { ...meta, lastPlayedOn: playedOn } : meta;
 }
 
 /** The newest active game in a list, or null. Shared so both storages answer the same way. */
@@ -160,12 +229,15 @@ export class MemoryGameStorage implements GameStorage {
   readonly #games = new Map<string, SaveMeta>();
   readonly #baselines = new Map<string, StateWithoutPool>();
   readonly #commands = new Map<string, Command[]>();
+  readonly #playedOn: LastPlayedOn | undefined;
+
+  /** `playedOn`: as `IdbGameStorage`, stamps `lastPlayedOn` on create, append and truncate. */
+  constructor(playedOn?: LastPlayedOn) {
+    this.#playedOn = playedOn;
+  }
 
   async create(meta: SaveMeta, initialState: StateWithoutPool): Promise<void> {
-    for (const [id, existing] of this.#games) {
-      if (existing.status === "active") this.#games.set(id, { ...existing, status: "abandoned" });
-    }
-    this.#games.set(meta.id, structuredClone(meta));
+    this.#games.set(meta.id, structuredClone(stampedPlayedOn(meta, this.#playedOn)));
     this.#baselines.set(meta.id, structuredClone(initialState));
     this.#commands.set(meta.id, []);
   }
@@ -176,7 +248,7 @@ export class MemoryGameStorage implements GameStorage {
     if (!meta || !commands) throw new Error(`no saved game ${gameId}`);
     if (seq !== commands.length) throw new Error(`save out of order: expected command ${commands.length}, got ${seq}`);
     commands.push(structuredClone(command));
-    this.#games.set(gameId, { ...meta, ...structuredClone(progress) });
+    this.#games.set(gameId, stampedPlayedOn({ ...meta, ...structuredClone(progress) }, this.#playedOn));
   }
 
   async truncate(gameId: string, commandCount: number, progress: SaveProgress): Promise<void> {
@@ -184,7 +256,7 @@ export class MemoryGameStorage implements GameStorage {
     const commands = this.#commands.get(gameId);
     if (!meta || !commands) throw new Error(`no saved game ${gameId}`);
     commands.length = commandCount;
-    this.#games.set(gameId, { ...meta, ...structuredClone(progress) });
+    this.#games.set(gameId, stampedPlayedOn({ ...meta, ...structuredClone(progress) }, this.#playedOn));
   }
 
   async load(gameId: string): Promise<StoredGame | null> {
@@ -204,9 +276,9 @@ export class MemoryGameStorage implements GameStorage {
     return structuredClone([...this.#games.values()].map(migrateSaveMeta).sort((a, b) => b.updatedAt - a.updatedAt));
   }
 
-  async setStatus(gameId: string, status: SaveStatus): Promise<void> {
+  async setStatus(gameId: string, status: SaveStatus, updatedAt?: number): Promise<void> {
     const meta = this.#games.get(gameId);
-    if (meta) this.#games.set(gameId, { ...meta, status });
+    if (meta) this.#games.set(gameId, { ...meta, status, ...(updatedAt === undefined ? {} : { updatedAt }) });
   }
 }
 

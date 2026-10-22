@@ -99,6 +99,7 @@ import {
 import { ink, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
 import { McButton, McTabs, addRowTapZone, fitText, label, paintOnFrame, sectionHeader } from "../ui/widgets.js";
+import type { SyncLinkAddress } from "../sync/sync-link.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import {
   settingsLayout,
@@ -200,6 +201,8 @@ const SOUND_TAB_MIN_CELL = 64;
 /** Launch data: `receive` opens Save data straight onto Receive with that code (a scanned QR link). */
 export interface SettingsSceneData {
   readonly receive?: TransferCode;
+  /** `syncLink` opens Save data, then Sync across devices, asking to join with a scanned `#link=` (device sync, #276). */
+  readonly syncLink?: SyncLinkAddress;
 }
 
 export class SettingsOverlay extends Phaser.Scene {
@@ -259,7 +262,8 @@ export class SettingsOverlay extends Phaser.Scene {
     // Phaser hands a later launch with no data this same object again, so take the code once.
     const receive = data.receive;
     this.sys.settings.data = {};
-    if (receive) this.#openSaveData(receive);
+    const syncLink = data.syncLink;
+    if (receive || syncLink) this.#openSaveData(receive, syncLink);
     if (hasDesktopWindow()) void refreshDesktopMonitor().then(() => this.#redrawIfOpen());
     // The Frame rate row names the screen's refresh rate once the Android app has said it.
     if (screenSettingsShown() && knownRefreshInfo() === null) void readRefreshInfo().then(() => this.#redrawIfOpen());
@@ -295,10 +299,13 @@ export class SettingsOverlay extends Phaser.Scene {
     });
   }
 
-  #openSaveData(receive?: TransferCode): void {
+  #openSaveData(receive?: TransferCode, syncLink?: SyncLinkAddress): void {
     if (this.scene.isActive(SCENES.saveData)) return;
     this.input.enabled = false;
-    this.scene.launch(SCENES.saveData, (receive ? { receive } : {}) satisfies SaveDataSceneData);
+    this.scene.launch(SCENES.saveData, {
+      ...(receive ? { receive } : {}),
+      ...(syncLink ? { syncLink } : {}),
+    } satisfies SaveDataSceneData);
     this.scene.get(SCENES.saveData).events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.input.enabled = true;
       if (this.sys.isActive()) this.#draw();

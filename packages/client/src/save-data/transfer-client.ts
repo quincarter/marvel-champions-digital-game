@@ -13,7 +13,7 @@ import {
 } from "@mc/sync-worker/protocol";
 import { parseSaveFile, type SaveFile } from "./save-file.js";
 import { syncServiceUrl } from "./transfer-config.js";
-import { newKeyPart, openSealed, proofOf, sealSaveFile } from "./transfer-crypto.js";
+import { newKeyPart, openSealed, proofOf, sealPayload } from "./transfer-crypto.js";
 
 /** How long a request may take before it counts as the service being unavailable. */
 export const TRANSFER_TIMEOUT_MS = 20_000;
@@ -86,12 +86,24 @@ async function request(
 }
 
 export async function sendSaveFile(file: SaveFile, deps: TransferDeps = defaultDeps()): Promise<SendResult> {
+  return await sendPayload(new TextEncoder().encode(JSON.stringify(file)), deps);
+}
+
+/**
+ * Seals any bytes and uploads them to a new room; `sendSaveFile` and the sync link share it. The key defaults to a
+ * fresh 4-character key part (the typed transfer); the sync link passes a long one, which rides only in a QR fragment.
+ */
+export async function sendPayload(
+  payload: Uint8Array,
+  deps: TransferDeps = defaultDeps(),
+  key?: string,
+): Promise<SendResult> {
   let keyPart: string;
   let body: Uint8Array;
   let proof: string;
   try {
-    keyPart = newKeyPart();
-    body = await sealSaveFile(file, keyPart);
+    keyPart = key ?? newKeyPart();
+    body = await sealPayload(payload, keyPart);
     proof = await proofOf(keyPart);
   } catch {
     // No crypto.subtle (an insecure origin) or no CompressionStream (an old webview).
@@ -116,6 +128,40 @@ export async function sendSaveFile(file: SaveFile, deps: TransferDeps = defaultD
 }
 
 export async function receiveSaveFile(code: TransferCode, deps: TransferDeps = defaultDeps()): Promise<ReceiveResult> {
+  const got = await receivePayload(code, deps);
+  if (!got.ok) return got;
+  if (isSyncLinkText(got.text)) {
+    return {
+      ok: false,
+      failure: { kind: "damaged", detail: "This is a device-sync link, not a save: use Link a device." },
+    };
+  }
+  const parsed = parseSaveFile(got.text);
+  if (!parsed.ok) return { ok: false, failure: { kind: "damaged", detail: parsed.error } };
+  return { ok: true, file: parsed.file };
+}
+
+/**
+ * True for the small JSON a sync link sends, so a save screen can say what it was given. The kind is spelled out here
+ * because `sync/sync-link.ts` imports this file; importing it back would be a cycle.
+ */
+function isSyncLinkText(text: string): boolean {
+  try {
+    return (JSON.parse(text) as { kind?: unknown } | null)?.kind === "mc-sync-link";
+  } catch {
+    return false;
+  }
+}
+
+export type ReceivePayloadResult =
+  | { readonly ok: true; readonly text: string }
+  | { readonly ok: false; readonly failure: TransferFailure };
+
+/** Fetches and opens a room's upload, returning the decrypted text; the caller decides what it must parse as. */
+export async function receivePayload(
+  code: TransferCode,
+  deps: TransferDeps = defaultDeps(),
+): Promise<ReceivePayloadResult> {
   let proof: string;
   try {
     proof = await proofOf(code.keyPart);
@@ -141,7 +187,5 @@ export async function receiveSaveFile(code: TransferCode, deps: TransferDeps = d
   } catch (error) {
     return { ok: false, failure: { kind: "damaged", detail: error instanceof Error ? error.message : String(error) } };
   }
-  const parsed = parseSaveFile(text);
-  if (!parsed.ok) return { ok: false, failure: { kind: "damaged", detail: parsed.error } };
-  return { ok: true, file: parsed.file };
+  return { ok: true, text };
 }
