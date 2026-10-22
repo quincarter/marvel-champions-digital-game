@@ -20,6 +20,7 @@
 import type { Command, GameOutcome } from "@mc/engine";
 import type { SessionConfig, StateWithoutPool } from "./host.js";
 import type { GameSummary } from "./game-summary.js";
+import type { PlayPlatform } from "../platform/play-platform.js";
 
 /**
  * Bumped when the stored shape changes, so an old save is recognized instead of misread.
@@ -111,6 +112,18 @@ export interface SaveMeta {
    * finished game.
    */
   readonly summary?: GameSummary | null;
+  /**
+   * The platform this game was last written on (device sync, #276), so a list that mixes games from several linked
+   * devices can say where each was last played. Stamped by `IdbGameStorage` on every write this device makes; absent
+   * on a save from before it existed (a purely additive field, no `SAVE_SCHEMA` bump), which shows no platform mark.
+   * `device` is room for a device name; nothing fills it yet.
+   */
+  readonly lastPlayedOn?: LastPlayedOn;
+}
+
+export interface LastPlayedOn {
+  readonly platform: PlayPlatform;
+  readonly device?: string;
 }
 
 /** What a command's arrival changes about a game's summary row. */
@@ -146,6 +159,11 @@ export interface GameStorage {
   setStatus(gameId: string, status: SaveStatus): Promise<void>;
 }
 
+/** `meta` marked as written on this device: unchanged when the device's platform is not known. */
+export function stampedPlayedOn(meta: SaveMeta, playedOn: LastPlayedOn | undefined): SaveMeta {
+  return playedOn ? { ...meta, lastPlayedOn: playedOn } : meta;
+}
+
 /** The newest active game in a list, or null. Shared so both storages answer the same way. */
 export function newestActive(metas: readonly SaveMeta[]): SaveMeta | null {
   return metas.filter((meta) => meta.status === "active").sort((a, b) => b.updatedAt - a.updatedAt)[0] ?? null;
@@ -160,12 +178,18 @@ export class MemoryGameStorage implements GameStorage {
   readonly #games = new Map<string, SaveMeta>();
   readonly #baselines = new Map<string, StateWithoutPool>();
   readonly #commands = new Map<string, Command[]>();
+  readonly #playedOn: LastPlayedOn | undefined;
+
+  /** `playedOn`: as `IdbGameStorage`, stamps `lastPlayedOn` on create, append and truncate. */
+  constructor(playedOn?: LastPlayedOn) {
+    this.#playedOn = playedOn;
+  }
 
   async create(meta: SaveMeta, initialState: StateWithoutPool): Promise<void> {
     for (const [id, existing] of this.#games) {
       if (existing.status === "active") this.#games.set(id, { ...existing, status: "abandoned" });
     }
-    this.#games.set(meta.id, structuredClone(meta));
+    this.#games.set(meta.id, structuredClone(stampedPlayedOn(meta, this.#playedOn)));
     this.#baselines.set(meta.id, structuredClone(initialState));
     this.#commands.set(meta.id, []);
   }
@@ -176,7 +200,7 @@ export class MemoryGameStorage implements GameStorage {
     if (!meta || !commands) throw new Error(`no saved game ${gameId}`);
     if (seq !== commands.length) throw new Error(`save out of order: expected command ${commands.length}, got ${seq}`);
     commands.push(structuredClone(command));
-    this.#games.set(gameId, { ...meta, ...structuredClone(progress) });
+    this.#games.set(gameId, stampedPlayedOn({ ...meta, ...structuredClone(progress) }, this.#playedOn));
   }
 
   async truncate(gameId: string, commandCount: number, progress: SaveProgress): Promise<void> {
@@ -184,7 +208,7 @@ export class MemoryGameStorage implements GameStorage {
     const commands = this.#commands.get(gameId);
     if (!meta || !commands) throw new Error(`no saved game ${gameId}`);
     commands.length = commandCount;
-    this.#games.set(gameId, { ...meta, ...structuredClone(progress) });
+    this.#games.set(gameId, stampedPlayedOn({ ...meta, ...structuredClone(progress) }, this.#playedOn));
   }
 
   async load(gameId: string): Promise<StoredGame | null> {

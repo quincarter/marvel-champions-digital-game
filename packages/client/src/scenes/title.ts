@@ -18,7 +18,9 @@
 import Phaser from "phaser";
 import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
-import { cssOf, textStyle } from "../ui/theme.js";
+import { cssOf, skin, textStyle } from "../ui/theme.js";
+import { drawPlayPlatformIcon } from "../ui/play-platform-icon.js";
+import { playPlatformMarkOf, playPlatformSlotIn } from "../view/play-platform-mark.js";
 import { McButton, fitText, paintDotGrid } from "../ui/widgets.js";
 import { TITLE_ART, coverFit, pickTitleArt, type TitleArt } from "../art/title-art.js";
 import { ensurePictureLoaded } from "../art/pictures.js";
@@ -66,7 +68,8 @@ import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
 import type { TutorialResumeConfirmData } from "./tutorial-resume-confirm.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { hasDesktopWindow, quitToDesktop } from "../platform/desktop-window.js";
-import { takeReceiveLink } from "../save-data/receive-link.js";
+import { onSyncApplied } from "../sync/sync-events.js";
+import { takeReceiveLink, takeSyncLink } from "../save-data/receive-link.js";
 import { SCENES } from "./keys.js";
 import type { ScenarioSelectData } from "./scenario-select.js";
 import type { SeatsData } from "./seats.js";
@@ -105,6 +108,7 @@ export function newGameDraft(): ReturnType<typeof initialSetupDraft> {
 export class TitleScene extends Phaser.Scene {
   #buttons: McButton[] = [];
   #status: Phaser.GameObjects.Text | null = null;
+  #platformTip: Phaser.GameObjects.Text | null = null;
   #starting = false;
   /** The game in progress when this screen opened, if any — looked up asynchronously; the screen draws without it first. */
   #continuable: SaveMeta | null = null;
@@ -138,9 +142,21 @@ export class TitleScene extends Phaser.Scene {
     const unsubscribePowerSaving = onPowerSavingChange(() => {
       if (this.sys.isActive()) this.#rebuild();
     });
+    // A device sync that brought in saves from another device: Continue reads the newest save again (#276).
+    const unsubscribeSync = onSyncApplied(() => {
+      if (!this.sys.isActive()) return;
+      void appSession()
+        .store.latestSave()
+        .then((save) => {
+          if (!this.sys.isActive()) return;
+          this.#continuable = save;
+          this.#rebuild();
+        });
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.#rebuild, this);
       unsubscribePowerSaving();
+      unsubscribeSync();
     });
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.inspect) || this.scene.isActive(SCENES.settings),
@@ -159,6 +175,9 @@ export class TitleScene extends Phaser.Scene {
     // Opened from a Send screen's QR code: straight to Settings, Save data, Receive (read and cleared once).
     const receive = takeReceiveLink();
     if (receive) this.scene.launch(SCENES.settings, { receive });
+    // Opened from a device-sync link's QR code: Save data, Sync across devices, asking to join (read and cleared once).
+    const syncLink = takeSyncLink();
+    if (syncLink) this.scene.launch(SCENES.settings, { syncLink });
     // Points may have moved since Boot read them (a game just ended): read again, and announce a rank gained.
     void refreshUnlocks()
       .catch(() => false)
@@ -200,7 +219,24 @@ export class TitleScene extends Phaser.Scene {
     });
   }
 
+  /** The desktop hover note under the Continue row's platform icon ("Played on Windows"); null closes it. */
+  #showPlatformTip(tip: { readonly text: string; readonly box: Rect } | null): void {
+    this.#platformTip?.destroy();
+    this.#platformTip = null;
+    if (!tip) return;
+    const text = this.add
+      .text(0, 0, tip.text, textStyle(typeRole.label, surface.paper.hex))
+      .setDepth(TIP_DEPTH)
+      .setPadding(10, 6, 10, 6)
+      .setBackgroundColor(cssOf(surface.ink.hex));
+    const x = Math.max(8, Math.min(tip.box.x, this.scale.gameSize.width - text.width - 8));
+    text.setPosition(x, tip.box.y + tip.box.height + 10);
+    this.#platformTip = text;
+  }
+
   #rebuild(): void {
+    this.#platformTip?.destroy();
+    this.#platformTip = null;
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#stops = new Map();
@@ -290,6 +326,9 @@ export class TitleScene extends Phaser.Scene {
     if (layout.continueRow) {
       const save = this.#continuable!;
       const rect = layout.continueRow;
+      // Where the game was last played (device sync, #276): a mark at the row's left edge, beside the label.
+      const mark = playPlatformMarkOf(save.lastPlayedOn);
+      const slot = mark ? playPlatformSlotIn(rect) : null;
       this.#buttons.push(
         new McButton(this, {
           kind: "primary",
@@ -299,9 +338,22 @@ export class TitleScene extends Phaser.Scene {
           type: typeRole.menuButton,
           rect,
           enabled: !this.#starting,
+          ...(slot ? { labelInset: slot.labelInset } : {}),
+          onHover: (over) =>
+            this.#showPlatformTip(
+              over && mark && slot && !this.input.activePointer.wasTouch ? { text: mark.label, box: slot.box } : null,
+            ),
           onClick: () => void this.#resume(save),
         }),
       );
+      // Dev-only e2e hook: the platform whose mark the Continue row drew (never read by product code).
+      if (import.meta.env.DEV) {
+        (window as unknown as { __mcContinuePlatform?: string | null }).__mcContinuePlatform = mark?.platform ?? null;
+      }
+      if (mark && slot) {
+        const s = skin("primary", this.#starting ? "unavailable" : "rest");
+        drawPlayPlatformIcon(this.add.graphics(), mark, slot.box, s.text, s.textAlpha);
+      }
       this.#stops.set("continue", {
         rect,
         activate: () => void this.#resume(save),
@@ -800,6 +852,8 @@ export class TitleScene extends Phaser.Scene {
 const ART_GROUND_DEPTH = -3;
 const ART_DEPTH = -2;
 const ART_SCRIM_DEPTH = -1;
+/** The hover note over the buttons below the Continue row. */
+const TIP_DEPTH = 50;
 
 /** How long the rank-up fanfare holds the badge. */
 const RANK_UP_MS = 5000;

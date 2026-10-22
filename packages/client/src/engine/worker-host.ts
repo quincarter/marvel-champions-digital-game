@@ -21,6 +21,7 @@ import type {
 import type { HostRequest, HostResponse } from "./protocol.js";
 import type { PaymentState } from "../view/payment-model.js";
 import type { JudgedPayment } from "../view/payment-verdict.js";
+import { notifySaveDataChanged } from "../sync/save-data-changed.js";
 import { SetupError, type Snapshot } from "./session-core.js";
 
 type Pending = {
@@ -151,6 +152,11 @@ export class WorkerEngineHost implements EngineHost {
 
   readonly #onMessage = (event: MessageEvent<HostResponse>): void => {
     const response = event.data;
+    // The worker's writes committed: tell device sync, which cannot hear the worker's own notifications.
+    if (response.kind === "saved") {
+      notifySaveDataChanged(response.reason);
+      return;
+    }
     const pending = this.#pending.get(response.id);
     if (!pending) return;
     this.#pending.delete(response.id);
@@ -187,6 +193,7 @@ export class WorkerEngineHost implements EngineHost {
       record: snapshot.record,
       saveError: snapshot.saveError,
       config: snapshot.config,
+      ...(snapshot.gameId !== undefined ? { gameId: snapshot.gameId } : {}),
       ...(snapshot.history ? { history: snapshot.history } : {}),
       ...(snapshot.trail ? { trail: snapshot.trail } : {}),
     };

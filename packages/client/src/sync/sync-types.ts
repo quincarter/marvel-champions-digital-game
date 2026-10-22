@@ -93,4 +93,8 @@ export interface GameConflict {
   readonly campaign: boolean;
 }
 
-export type ConflictChoice = "keep-local" | "keep-remote" | "keep-both";
+/**
+ * "later" leaves the game as it is on both sides: nothing is written, nothing is remembered, and the next sync asks
+ * again (the player is busy on the table, or the game was opened while they decided).
+ */
+export type ConflictChoice = "keep-local" | "keep-remote" | "keep-both" | "later";

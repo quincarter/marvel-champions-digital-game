@@ -23,7 +23,9 @@ import type { StateWithoutPool } from "./host.js";
 import {
   migrateSaveMeta,
   newestActive,
+  stampedPlayedOn,
   type GameStorage,
+  type LastPlayedOn,
   type SaveMeta,
   type SaveProgress,
   type SaveStatus,
@@ -65,9 +67,17 @@ export class IdbGameStorage implements GameStorage {
   readonly #factory: IDBFactory;
   #db: Promise<IDBDatabase> | null = null;
 
-  /** `factory` is injectable so a test can hand in a fresh fake database per case. */
-  constructor(factory: IDBFactory = indexedDB) {
+  readonly #playedOn: LastPlayedOn | undefined;
+
+  /**
+   * `factory` is injectable so a test can hand in a fresh fake database per case. `playedOn` is the platform this
+   * device plays on: a game written through this storage (create, append, truncate; not a status change, which can be
+   * a retirement) stamps it as the game's `lastPlayedOn` (the engine worker is given it by name,
+   * `platform/play-platform.ts`). Left out, writes leave the stamp as it was.
+   */
+  constructor(factory: IDBFactory = indexedDB, playedOn?: LastPlayedOn) {
     this.#factory = factory;
+    this.#playedOn = playedOn;
   }
 
   async create(meta: SaveMeta, initialState: StateWithoutPool): Promise<void> {
@@ -79,7 +89,7 @@ export class IdbGameStorage implements GameStorage {
     for (const game of existing) {
       if (game.status === "active") games.put({ ...game, status: "abandoned" satisfies SaveStatus });
     }
-    games.put(meta);
+    games.put(stampedPlayedOn(meta, this.#playedOn));
     transaction.objectStore("baselines").put({ gameId: meta.id, state: initialState } satisfies BaselineRow);
     await done;
     notifySaveDataChanged("game");
@@ -102,7 +112,7 @@ export class IdbGameStorage implements GameStorage {
       throw new Error(`save out of order: expected command ${meta.commandCount}, got ${seq}`);
     }
     transaction.objectStore("commands").put({ gameId, seq, command } satisfies CommandRow);
-    games.put({ ...meta, ...progress });
+    games.put(stampedPlayedOn({ ...meta, ...progress }, this.#playedOn));
     await done;
     notifySaveDataChanged("game");
   }
@@ -133,7 +143,7 @@ export class IdbGameStorage implements GameStorage {
       };
       cursorRequest.onerror = () => reject(cursorRequest.error ?? new Error("IndexedDB cursor failed"));
     });
-    games.put({ ...meta, ...progress });
+    games.put(stampedPlayedOn({ ...meta, ...progress }, this.#playedOn));
     await done;
     notifySaveDataChanged("game");
   }

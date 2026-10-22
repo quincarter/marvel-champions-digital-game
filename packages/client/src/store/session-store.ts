@@ -22,6 +22,7 @@ import {
   type SealedGameState,
 } from "@mc/engine";
 import { sealForTable } from "../view/hidden-reverse.js";
+import { runBeforeResume } from "./resume-hook.js";
 import { hasOffTurnAction } from "../view/highlights.js";
 import { actingPlayer } from "../engine/acting-player.js";
 import { emptyRecord, type GameRecord } from "../engine/game-record.js";
@@ -92,6 +93,8 @@ export interface SessionState {
   readonly saveError: string | null;
   /** The setup the current game came from, whether it was started or resumed. What a rematch reuses. */
   readonly config: SessionConfig | null;
+  /** The id the current game is stored under (null before a game or when it isn't saved): what device sync must not overwrite. */
+  readonly gameId: string | null;
   /**
    * Every command this store has dispatched since the game started or was resumed, one entry per command, in
    * order — what `view/back-out.ts`'s `backOutTargetOf` reads to decide whether "Back out" applies to the choice
@@ -119,6 +122,7 @@ const INITIAL: SessionState = {
   record: emptyRecord(),
   saveError: null,
   config: null,
+  gameId: null,
   commandTrail: [],
 };
 
@@ -156,7 +160,9 @@ export class SessionStore {
    * Picks a saved game back up. A save that no longer replays fails here with
    * the host's reason, and the host has already retired it, so it isn't offered again.
    */
-  resume(gameId: string): Promise<void> {
+  async resume(gameId: string): Promise<void> {
+    // Device sync pulls in a newer copy of this game first (`store/resume-hook.ts`); a no-op when sync is off.
+    await runBeforeResume(gameId);
     return this.#begin(() => this.#host.resume(gameId));
   }
 
@@ -339,6 +345,7 @@ export class SessionStore {
       record: update.record,
       saveError: update.saveError,
       config: update.config,
+      gameId: update.gameId ?? this.#state.gameId,
       // A resumed game's first update carries the replayed commands' own trail, so `commandTrail.length === version`
       // holds from the first frame and a trail index is always a command count (`rewindTo`'s argument).
       commandTrail: options.commandTrail ?? update.trail ?? this.#state.commandTrail,

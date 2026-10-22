@@ -12,8 +12,13 @@
 import { EngineSessionCore, SetupError } from "./session-core.js";
 import { IdbGameStorage } from "./idb-game-storage.js";
 import type { HostRequest, HostResponse } from "./protocol.js";
+import { playPlatformOfWorkerName } from "../platform/play-platform.js";
 
-const core = new EngineSessionCore({ storage: new IdbGameStorage() });
+// The main thread names this worker for its platform (`create-host.ts`): a worker cannot see the Tauri/Capacitor shell.
+const platform = playPlatformOfWorkerName(self.name);
+const core = new EngineSessionCore({
+  storage: new IdbGameStorage(indexedDB, platform ? { platform } : undefined),
+});
 
 /**
  * The client compiles with the DOM lib (it is one app, one tsconfig), and
@@ -31,12 +36,18 @@ const reply = (response: HostResponse): void => {
   worker.postMessage(response);
 };
 
+/** Tells the main thread once the writes queued so far have committed (device sync pushes only what is on disk). */
+const announceSaved = (reason: "game" | "turn"): void => {
+  void core.flushed().then(() => reply({ kind: "saved", id: 0, reason }));
+};
+
 async function handle(request: HostRequest): Promise<void> {
   try {
     switch (request.kind) {
       case "start": {
         const { cardPool, snapshot } = await core.start(request.config);
         reply({ kind: "started", id: request.id, cardPool, snapshot });
+        announceSaved("game");
         return;
       }
       case "resume": {
@@ -45,11 +56,16 @@ async function handle(request: HostRequest): Promise<void> {
         return;
       }
       case "dispatch": {
-        reply({ kind: "dispatched", id: request.id, result: core.dispatch(request.command) });
+        const result = core.dispatch(request.command);
+        reply({ kind: "dispatched", id: request.id, result });
+        if (result.ok) {
+          announceSaved(result.snapshot.events.some((event) => event.type === "turnEnded") ? "turn" : "game");
+        }
         return;
       }
       case "rewindTo": {
         reply({ kind: "rewound", id: request.id, snapshot: await core.rewindTo(request.commandCount) });
+        announceSaved("game");
         return;
       }
       case "legalActions": {

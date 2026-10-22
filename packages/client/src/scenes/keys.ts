@@ -98,6 +98,12 @@ export const SCENES = {
   unlocks: "UnlocksOverlay",
   /** Settings ▸ Save data (`scenes/save-data.ts`): export or import every local save. Launched over Settings. */
   saveData: "SaveDataOverlay",
+  /** Save data ▸ Sync across devices (`scenes/sync-data.ts`): set up, join, link, unlink. Launched over Save data. */
+  syncData: "SyncDataOverlay",
+  /** "Which copy do you want?" (`scenes/sync-conflict.ts`): a game both devices changed, over whatever screen is up. */
+  syncConflict: "SyncConflictOverlay",
+  /** Device sync's watcher (`scenes/sync-prompt.ts`): opens the conflict prompt and shows "Checking your other devices…". */
+  syncPrompt: "SyncPrompt",
   /** "Unlock this by hand?" (`scenes/unlock-confirm.ts`), over whichever screen is spending champion points. */
   unlockConfirm: "UnlockConfirmOverlay",
   /** "Cards that can't be played" (`scenes/name-conflict.ts`): a same-name clash between seated heroes and decks, over either seat screen. */
@@ -146,6 +152,7 @@ export const CHROME_SCENES: ReadonlySet<string> = new Set([
   SCENES.musicButton,
   SCENES.powerSavingNotice,
   SCENES.achievementToast,
+  SCENES.syncPrompt,
 ]);
 
 export type SceneKey = (typeof SCENES)[keyof typeof SCENES];

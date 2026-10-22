@@ -242,6 +242,8 @@ export interface EngineUpdate {
   readonly saveError: string | null;
   /** The setup this game came from, for a rematch. */
   readonly config: SessionConfig | null;
+  /** The id this game is stored under, or null/absent when it isn't saved (device sync leaves the open game alone). */
+  readonly gameId?: string | null;
   /** A resumed game's first update only: every event the replay produced, oldest first, for the board's log. */
   readonly history?: readonly GameEvent[];
   /**

@@ -23,7 +23,7 @@ import { exportSaveData, importSaveData } from "../save-data/save-data.js";
 import type { SaveFile } from "../save-data/save-file.js";
 import { receiveSaveFile, sendSaveFile } from "../save-data/transfer-client.js";
 import { syncServiceUrl } from "../save-data/transfer-config.js";
-import { encode } from "uqr";
+import { drawQr } from "../ui/qr-draw.js";
 import type { TransferCode } from "@mc/sync-worker/protocol";
 import { overlayPanelLayout } from "../view/overlay-layout.js";
 import type { Rect } from "../view/layout.js";
@@ -50,6 +50,10 @@ import {
   sendFailedStatusOf,
   typedCodeOf,
 } from "../view/save-transfer-model.js";
+import { syncService } from "../sync/sync-wiring.js";
+import { syncStatusDisplay, SYNC_ROW_TITLE } from "../view/sync-model.js";
+import type { SyncLinkAddress } from "../sync/sync-link.js";
+import type { SyncDataSceneData } from "./sync-data.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 
@@ -64,6 +68,8 @@ const WIDE_QR = 220;
 export interface SaveDataSceneData {
   /** Opened from a `#receive=` link: land on Receive with this code typed in (the player presses Receive). */
   readonly receive?: TransferCode;
+  /** Opened from a `#link=` link: land on Sync across devices asking to join with it (device sync, #276). */
+  readonly syncLink?: SyncLinkAddress;
 }
 
 interface PairButton {
@@ -98,14 +104,36 @@ export class SaveDataOverlay extends Phaser.Scene {
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     this.#route = new FocusRoute(this, {
-      blocked: () => this.#field?.focused ?? false,
+      blocked: () => (this.#field?.focused ?? false) || this.scene.isActive(SCENES.syncData),
       onCancel: () => this.#cancel(),
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
       this.#clearControls();
     });
+    // The Sync row's status line follows the scheduler; a redraw only while this menu is what shows.
+    let subscribed = false;
+    const unsubscribe = syncService().status.subscribe(() => {
+      // Not while the sync overlay is over this one: it shows the status itself, and a redraw here would be wasted.
+      if (subscribed && this.sys.isActive() && this.#step.kind === "menu" && !this.scene.isActive(SCENES.syncData)) {
+        this.#draw();
+      }
+    });
+    subscribed = true;
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, unsubscribe);
     this.#draw();
+    if (data.syncLink) this.#openSync(data.syncLink);
+  }
+
+  /** Sync across devices is its own overlay, over this one. */
+  #openSync(link?: SyncLinkAddress): void {
+    if (this.scene.isActive(SCENES.syncData) || this.#working) return;
+    this.input.enabled = false;
+    this.scene.launch(SCENES.syncData, (link ? { link } : {}) satisfies SyncDataSceneData);
+    this.scene.get(SCENES.syncData).events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.input.enabled = true;
+      if (this.sys.isActive()) this.#draw();
+    });
   }
 
   #close(): void {
@@ -380,6 +408,13 @@ export class SaveDataOverlay extends Phaser.Scene {
         run: () => this.#set({ kind: "receive", phase: "typing", input: "" }, NO_STATUS),
         id: "receive",
       },
+      {
+        title: SYNC_ROW_TITLE,
+        detail: `Status: ${syncStatusDisplay(syncService().isOn(), syncService().status.get(), Date.now())}`,
+        label: "Sync",
+        run: () => this.#openSync(),
+        id: "sync",
+      },
     ];
     const per = rowWidth >= WIDE_ROW && room < 560 ? 2 : 1;
     const cell = per === 2 ? (rowWidth - 16) / 2 : rowWidth;
@@ -513,12 +548,12 @@ export class SaveDataOverlay extends Phaser.Scene {
     if (wide) {
       // Beside the text, clamped to the room the panel has left.
       const size = Math.max(112, Math.min(WIDE_QR, bodyBottom - 16 - top));
-      this.#drawQr(link, x + rowWidth - WIDE_QR + (WIDE_QR - size) / 2, top, size);
+      drawQr(this, link, x + rowWidth - WIDE_QR + (WIDE_QR - size) / 2, top, size);
       qrBottom = top + size;
     } else {
       // Room left under the QR: the countdown, the buttons and a status line with its Export button.
       const size = Math.max(112, Math.min(rowWidth, 260, bodyBottom - 16 - y - 230));
-      this.#drawQr(link, x + (rowWidth - size) / 2, y, size);
+      drawQr(this, link, x + (rowWidth - size) / 2, y, size);
       y += size + 12;
     }
 
@@ -534,25 +569,6 @@ export class SaveDataOverlay extends Phaser.Scene {
       ? { id: "new-code", label: "New code", onClick: () => void this.#send() }
       : { id: "copy", label: "Copy code", onClick: () => this.#copy(phase.code) };
     return Math.max(qrBottom, this.#drawPair(x, y, column, first, back, stops, order));
-  }
-
-  /**
-   * The link as a QR code: dark modules on a light ground with a four-module quiet zone, so a phone camera reads it
-   * against the dark panel. Whole pixels per module keep the edges sharp.
-   */
-  #drawQr(text: string, x: number, y: number, size: number): void {
-    const { data } = encode(text, { ecc: "M", border: 0 });
-    const cell = Math.max(1, Math.floor(size / (data.length + 8)));
-    const drawn = cell * (data.length + 8);
-    const left = x + Math.floor((size - drawn) / 2);
-    const graphics = this.add.graphics();
-    graphics.fillStyle(surface.paper.hex, 1).fillRect(left, y, drawn, drawn);
-    graphics.fillStyle(surface.ink.hex, 1);
-    data.forEach((row, r) =>
-      row.forEach((dark, c) => {
-        if (dark) graphics.fillRect(left + (c + 4) * cell, y + (r + 4) * cell, cell, cell);
-      }),
-    );
   }
 
   #drawReceive(

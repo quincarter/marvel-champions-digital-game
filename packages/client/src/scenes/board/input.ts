@@ -9,6 +9,7 @@
 import type Phaser from "phaser";
 import { eventOnce } from "../../view/event-once.js";
 import { gamepadIntentFor, type GamepadIntent } from "../../view/gamepad.js";
+import { SCENES } from "../keys.js";
 
 export interface IntentBinding {
   /** True while something above the board (a decision overlay, Inspect) owns input. */
@@ -26,6 +27,15 @@ export interface IntentBinding {
  * which is the selection ring drawn static rather than pulsing (a pulse means
  * "the board is waiting for you", and focus is not a prompt).
  */
+/**
+ * True while device sync's conflict prompt is up and `scene` is not it: the prompt owns the keyboard and the pad
+ * (it is a question the sync is waiting on), so every other screen's keys and buttons are held, whatever its own
+ * `blocked` says. Every route and the Board bind through `bindKeyboard` / `bindGamepad`, so this is the one place.
+ */
+export function conflictPromptOwnsInput(scene: Phaser.Scene): boolean {
+  return scene.scene.key !== SCENES.syncConflict && scene.scene.manager.isActive(SCENES.syncConflict) === true;
+}
+
 export function bindKeyboard(scene: Phaser.Scene, binding: IntentBinding): void {
   const keyboard = scene.input.keyboard;
   if (!keyboard) return;
@@ -33,7 +43,7 @@ export function bindKeyboard(scene: Phaser.Scene, binding: IntentBinding): void 
   keyboard.on("keydown", (event: KeyboardEvent) => {
     // Phaser replays a frame's queue on every key event, so a chord (Shift+Tab) arrives more than once.
     if (!firstDelivery(event)) return;
-    if (binding.blocked()) return;
+    if (binding.blocked() || conflictPromptOwnsInput(scene)) return;
     switch (event.key) {
       case "Tab":
         event.preventDefault();
@@ -119,7 +129,7 @@ export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
   const gamepad = scene.input.gamepad;
   if (!gamepad) return;
   gamepad.on("down", (_pad: Phaser.Input.Gamepad.Gamepad, button: Phaser.Input.Gamepad.Button) => {
-    if (binding.blocked()) return;
+    if (binding.blocked() || conflictPromptOwnsInput(scene)) return;
     const intent = gamepadIntentFor(button.index);
     if (intent) binding.onIntent(intent);
   });

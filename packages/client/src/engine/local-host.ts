@@ -113,6 +113,7 @@ export class LocalEngineHost implements EngineHost {
       record: snapshot.record,
       saveError: snapshot.saveError,
       config: snapshot.config,
+      ...(snapshot.gameId !== undefined ? { gameId: snapshot.gameId } : {}),
       ...(snapshot.history ? { history: snapshot.history } : {}),
       ...(snapshot.trail ? { trail: snapshot.trail } : {}),
     };

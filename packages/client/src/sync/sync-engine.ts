@@ -201,7 +201,7 @@ class Run {
   readonly #remote = new Map<string, Pulled>();
   readonly #recordKeys = new Map<string, string>();
   /** The answer to a conflict, with the version of the remote meta it was given for (a newer remote asks again). */
-  readonly #choices = new Map<string, { choice: ConflictChoice; remoteMetaVersion: number }>();
+  readonly #choices = new Map<string, { choice: ConflictChoice; remoteMetaVersion: number; localMetaHash: string }>();
   /** Games already copied for "keep both", with the remote meta version copied. */
   readonly #copied = new Map<string, number>();
   /**
@@ -498,6 +498,11 @@ class Run {
       const apply = newApply();
       const didCopy = await this.#planGame(gameId, list, gameId === open, apply, pushes);
       copied ||= didCopy;
+      // Re-checked at the write: a game opened since the plan was made (Continue) is never written under its session.
+      if ((apply.writes.length || apply.deletes.length) && this.#d.local.openGameId() === gameId) {
+        this.#defer(list);
+        continue;
+      }
       await this.#applyAndCommit(apply);
     }
     return { pushes, copied };
@@ -647,7 +652,9 @@ class Run {
       return false;
     }
     let choice = this.#choices.get(gameId)?.choice;
-    if (this.#choices.get(gameId)?.remoteMetaVersion !== remoteMeta.version) choice = undefined;
+    const memo = this.#choices.get(gameId);
+    // A choice answers the two sides as they were when it was asked: new turns here (or a newer remote) ask again.
+    if (memo?.remoteMetaVersion !== remoteMeta.version || memo.localMetaHash !== localMeta.hash) choice = undefined;
     if (choice === undefined) {
       const metaOf = (v: unknown) => (v ?? {}) as { round?: unknown; updatedAt?: unknown; campaignId?: unknown };
       const l = metaOf(localMeta.value);
@@ -660,8 +667,11 @@ class Run {
         label: this.#d.describeGame?.(localMeta.value) ?? gameId,
         campaign: Boolean(l.campaignId ?? r.campaignId),
       });
-      this.#choices.set(gameId, { choice, remoteMetaVersion: remoteMeta.version });
+      // The game may have been opened while the player decided (Continue): its session owns the log now.
+      if (choice === "later" || this.#d.local.openGameId() === gameId) return this.#deferred(list);
+      this.#choices.set(gameId, { choice, remoteMetaVersion: remoteMeta.version, localMetaHash: localMeta.hash });
     }
+    // A remembered "later" never exists (it isn't stored), so what is left is one of the three real choices.
     if (choice === "keep-local") {
       this.#localOverRemote(list, pushes);
       return false;

@@ -53,6 +53,8 @@ export class BootScene extends Phaser.Scene {
         this.scene.launch(SCENES.powerSavingNotice);
         // The "Achievement unlocked" popup (`scenes/achievement-toast.ts`), hidden until one is earned.
         this.scene.launch(SCENES.achievementToast);
+        // Device sync's watcher (`scenes/sync-prompt.ts`): the conflict prompt and "Checking your other devices…".
+        this.scene.launch(SCENES.syncPrompt);
         if (!jump) {
           // Boot's own normal hand-off (no `?screen=` dev jump): a plain fade, same as every other
           // screen-to-screen move. The dev jumps below stay hard cuts — they're QA/screenshot entry

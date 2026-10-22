@@ -79,6 +79,8 @@ export interface Snapshot {
    * player should be told rather than find out by losing it.
    */
   readonly saveError: string | null;
+  /** The id this game is stored under, or null when it isn't being saved; device sync leaves the open game alone. */
+  readonly gameId?: string | null;
   /** A resumed game only: every event the replay produced (setup, then each command), so the board's log can show the game so far. Absent otherwise. */
   readonly history?: readonly GameEvent[];
   /** A resumed game only: each replayed command with its events and RNG draw counts (`EngineUpdate.trail`). */
@@ -554,6 +556,7 @@ export class EngineSessionCore {
       record: this.#record,
       saveError: this.#saveError,
       config: this.#config,
+      gameId: this.#gameId,
     };
   }
 

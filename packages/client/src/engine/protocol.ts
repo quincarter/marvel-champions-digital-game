@@ -47,6 +47,11 @@ export type HostResponse =
   | { readonly kind: "latestSave"; readonly id: number; readonly meta: SaveMeta | null }
   | { readonly kind: "listSaves"; readonly id: number; readonly saves: readonly SaveMeta[] }
   /**
+   * Unsolicited (`id` is 0): the worker's storage writes so far have committed. Device sync listens on the main thread,
+   * where the worker's own change notifications never arrive; `turn` says the command that was written ended a turn.
+   */
+  | { readonly kind: "saved"; readonly id: 0; readonly reason: "game" | "turn" }
+  /**
    * The worker threw: an invariant break, a bad setup, or a save that won't
    * replay. Surfaced, never swallowed. `code`/`illegalDecks` are present when
    * the throw was a `SetupError` (`session-core.ts`), so a `start`/`resume`

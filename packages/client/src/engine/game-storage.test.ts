@@ -254,3 +254,43 @@ describe.each<[string, () => GameStorage]>([
     );
   });
 });
+
+describe("IndexedDB game storage stamping the platform (device sync, #276)", () => {
+  const progress = { round: 1, commandCount: 1, updatedAt: 2, status: "active", outcome: null } as const;
+
+  test("create, append and truncate stamp lastPlayedOn, a status change does not; a store without a platform leaves it alone", async () => {
+    const factory = new IDBFactory();
+    const windows = new IdbGameStorage(factory, { platform: "windows" });
+    await windows.create(meta("g1", 1), BASELINE);
+    expect((await windows.load("g1"))!.meta.lastPlayedOn).toEqual({ platform: "windows" });
+
+    // Another device's save, opened here without a platform of its own: the stamp stays.
+    const unstamped = new IdbGameStorage(factory);
+    await unstamped.append("g1", 0, command(0), progress);
+    expect((await unstamped.load("g1"))!.meta.lastPlayedOn).toEqual({ platform: "windows" });
+
+    // A status change (another device's save marked incompatible, a retirement) is not playing the game.
+    const android = new IdbGameStorage(factory, { platform: "android" });
+    await android.setStatus("g1", "incompatible");
+    expect((await android.load("g1"))!.meta.lastPlayedOn).toEqual({ platform: "windows" });
+    await android.append("g1", 1, command(1), { ...progress, commandCount: 2 });
+    expect((await android.load("g1"))!.meta.lastPlayedOn).toEqual({ platform: "android" });
+    await android.truncate("g1", 0, { ...progress, commandCount: 0 });
+    expect((await android.list())[0]!.lastPlayedOn).toEqual({ platform: "android" });
+  });
+
+  test("the game a new one retires keeps its own stamp", async () => {
+    const factory = new IDBFactory();
+    await new IdbGameStorage(factory, { platform: "ios" }).create(meta("old", 1), BASELINE);
+    await new IdbGameStorage(factory, { platform: "web" }).create(meta("new", 2), BASELINE);
+    const storage = new IdbGameStorage(factory);
+    expect((await storage.load("old"))!.meta).toMatchObject({ status: "abandoned", lastPlayedOn: { platform: "ios" } });
+    expect((await storage.load("new"))!.meta.lastPlayedOn).toEqual({ platform: "web" });
+  });
+});
+
+test("the memory storage stamps the same way", async () => {
+  const storage = new MemoryGameStorage({ platform: "linux" });
+  await storage.create(meta("m", 1), BASELINE);
+  expect((await storage.load("m"))!.meta.lastPlayedOn).toEqual({ platform: "linux" });
+});

@@ -164,6 +164,16 @@ export async function refreshUnlocks(): Promise<boolean> {
   return true;
 }
 
+/**
+ * Device sync wrote `mc-unlocks` (or `mc-unlocked-everything`): forgets the cached preferences and what is built from
+ * them, so `unlocks()` and the next `setUnlockPrefs` start from what is stored. Call `refreshUnlocks()` after for progress.
+ */
+export function dropUnlockCaches(): void {
+  prefs = null;
+  current = null;
+  currentExtras = null;
+}
+
 /** The earned items this player has (`earned-items.ts`): their achievements, from the same reads as `unlocks()`. */
 export function earnedItems(): ReadonlySet<EarnedItemId> {
   return earnedItemIdsOf((id) => isAchievementEarned(id, history), unlocks().everything);
