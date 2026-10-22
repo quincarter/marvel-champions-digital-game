@@ -427,3 +427,52 @@ describe("the engine refuses a malformed villainChoice", () => {
     expect(refusal({ ...config, randomStartingVillain: true })).toMatch(/cannot be used with randomStartingVillain/);
   });
 });
+
+describe("Shadowland: Heart of Shadow's Creeping Corruption", () => {
+  const seats = [{ starterDeckId: "core-spider-man-justice" }, { starterDeckId: "core-captain-marvel-leadership" }];
+  const config = (players = seats) =>
+    wave11Scenario("heart-of-shadow", {
+      players,
+      seed: 1,
+      difficulty: "standard",
+      modularSetIds: ["ninja_swarm"],
+    } as never);
+
+  it("sets the four copies aside, held back from Appendix II step 11", () => {
+    const built = config();
+    expect(built.setAside?.filter((c) => (c as string) === "65072a")).toHaveLength(4);
+    expect(built.setAsideUntilCalled).toEqual({ cardIds: ["65072a"] });
+    expect(built.encounterDeck.some((c) => (c as string) === "65072a")).toBe(false);
+  });
+
+  it.each([1, 2])(
+    "1A's Setup puts exactly one Creeping Corruption on each of %s player(s) and leaves the rest aside",
+    (n) => {
+      const created = createGame(config(seats.slice(0, n)), WAVE11_DEPS);
+      if (!created.ok) throw new Error(created.error.message);
+      const state = settle(created.state, firstLegal, (s) => s.step.phase === "player", WAVE11_DEPS);
+      const copies = (Object.keys(state.instances) as InstanceId[]).filter(
+        (i) => (state.instances[i]!.cardId as string) === "65072a",
+      );
+      const aside = copies.filter((i) => state.encounterSetAside.includes(i));
+      expect(aside).toHaveLength(4 - n);
+      for (const p of state.players) {
+        const mine = copies.filter((i) => state.instances[i]!.controllerId === p.playerId && !aside.includes(i));
+        expect(mine).toHaveLength(1);
+        expect(state.instances[mine[0]!]!.attachedTo).toBe(p.identity.instanceId);
+      }
+    },
+  );
+
+  it("Shadows in the Night and Shadow Labyrinth set none aside (the campaign brings it)", () => {
+    for (const id of ["shadows-in-the-night", "shadow-labyrinth"]) {
+      const built = wave11Scenario(id, {
+        players: seats,
+        seed: 1,
+        difficulty: "standard",
+        modularSetIds: ["ninja_swarm"],
+      } as never);
+      expect((built.setAside ?? []).some((c) => (c as string) === "65072a")).toBe(false);
+    }
+  });
+});

@@ -86,9 +86,9 @@ export const idsOf = (s: GameState, code: string): InstanceId[] =>
   (Object.keys(s.instances) as InstanceId[]).filter((i) => (s.instances[i]!.cardId as string) === code);
 export const codeOf = (s: GameState, id: InstanceId): string => s.instances[id]!.cardId as string;
 
-/** The Creeping Corruption in `player`'s play area (either face). */
+/** The Creeping Corruption `player` controls (either face), loose in their play area or attached to their identity. */
 export const ccOf = (s: GameState, player: PlayerId = P1): InstanceId =>
-  s.players.find((p) => p.playerId === player)!.playArea.find((id) => codeOf(s, id) === CREEPING_CORRUPTION)!;
+  idsOf(s, CREEPING_CORRUPTION).find((id) => inst(s, id).controllerId === player && !s.encounterSetAside.includes(id))!;
 export const corruption = (s: GameState, player: PlayerId = P1): number =>
   inst(s, ccOf(s, player)).counters["corruption"] ?? 0;
 export const withCorruption = (s: GameState, n: number, player: PlayerId = P1): GameState =>

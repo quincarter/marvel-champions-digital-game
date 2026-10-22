@@ -12,7 +12,6 @@ import {
   exhaustThis,
   exists,
   flipCard,
-  inPlayAreaOf,
   placeCountersCost,
   query,
   removeEachCounterFrom,
@@ -32,16 +31,20 @@ import {
  */
 export const CORRUPTION = "corruption";
 
-/** "Creeping Corruption" in the play area of `player`: the Setup upgrade (72A) or its overpowering face (72B). */
+/**
+ * "Creeping Corruption" `player` controls: the Setup upgrade (72A) or its overpowering face (72B). By control, not by
+ * play area: an upgrade with no "attach to" text enters play on its controller's identity (RRG 1.8 "Attach To", p. 8),
+ * which is not their play area.
+ */
 export const creepingCorruptionOf = (player: PlayerRef): TargetRef =>
-  each(query("upgrade", { name: "Creeping Corruption", ...inPlayAreaOf(player) }));
+  each(query("upgrade", { name: "Creeping Corruption", controlledBy: player }));
 
-/** "Your Creeping Corruption": the upgrade in the play area of the player the ability speaks to. */
+/** "Your Creeping Corruption": the upgrade the player the ability speaks to controls. */
 export const YOUR_CREEPING_CORRUPTION: TargetRef = creepingCorruptionOf(you);
 
 /** Whether `player` has a Creeping Corruption to place counters on ("you" by default). */
 export const hasCreepingCorruption = (player: PlayerRef = you) =>
-  exists(query("upgrade", { name: "Creeping Corruption", ...inPlayAreaOf(player) }));
+  exists(query("upgrade", { name: "Creeping Corruption", controlledBy: player }));
 
 /** Whether "you" have a Creeping Corruption to place counters on. */
 export const youHaveCreepingCorruption = hasCreepingCorruption();

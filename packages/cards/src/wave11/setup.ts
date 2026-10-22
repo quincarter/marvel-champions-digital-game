@@ -234,6 +234,13 @@ export function wave11Scenario(scenarioId: string, options: Wave11ScenarioOption
   return buildWave11Scenario(wave11ScenarioRecord(scenarioId), options);
 }
 
+/** Every printed copy of Creeping Corruption (72A). */
+function creepingCorruptionCopies(): CardId[] {
+  const card = WAVE11_CARDS.find((c) => (c.id as string) === "65072a");
+  if (!card) throw new Error("Creeping Corruption (65072a) is not in the wave 11 card pool");
+  return Array.from({ length: card.quantityInSet }, () => card.id);
+}
+
 /**
  * Player-typed cards with an encounter back that belong to one of the game's sets through `specificTo` (a player card
  * type has no `encounterSetIds`): Shop Proprietor (60139), the Protection Racket set's ally, revealed from the encounter
@@ -352,6 +359,12 @@ export function buildWave11Scenario(record: Scenario, options: Wave11ScenarioOpt
     ...modularSetupCardIds(modular.modularSetIds, WAVE11_CARDS),
     ...extraModularCardIds(modular.extraModularSetIds, WAVE11_CARDS),
   ]);
+  // Creeping Corruption (72A, Setup, Max 1 per player) is a player-typed card with no encounter back, so no encounter set
+  // lists it. Heart of Shadow's Black Flower set brings the four copies, set aside and held back from Appendix II step 11
+  // (which would put every Setup copy into the first player's area), for 1A's Setup to put one into play per player and
+  // leave the rest aside. Shadows in the Night and Shadow Labyrinth use it only through the campaign's setup (a later task).
+  const creepingCorruption = sets.includes("black_flower") ? creepingCorruptionCopies() : [];
+  const setAside = [...(scenario.setAsideCardIds ?? []), ...creepingCorruption];
   const scenarioDecks = [...(scenario.separateDecks ?? []), ...setSeparateDecks(sets)];
   return {
     seed: options.seed,
@@ -365,7 +378,8 @@ export function buildWave11Scenario(record: Scenario, options: Wave11ScenarioOpt
     ...(mainSchemeChoice ? { mainSchemeChoice } : {}),
     encounterDeck,
     players: seatsOf(options.players),
-    ...(scenario.setAsideCardIds && scenario.setAsideCardIds.length > 0 ? { setAside: scenario.setAsideCardIds } : {}),
+    ...(setAside.length > 0 ? { setAside } : {}),
+    ...(creepingCorruption.length > 0 ? { setAsideUntilCalled: { cardIds: [...new Set(creepingCorruption)] } } : {}),
     ...(scenarioDecks.length > 0 ? { scenarioDecks } : {}),
     includeIdentitySets: scenario.usesIdentityEncounterSets ?? true,
     requireIdentitySets: true,
