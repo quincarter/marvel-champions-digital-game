@@ -1,5 +1,5 @@
 /**
- * CORS for the transfer API. Only the origins in the `ALLOWED_ORIGINS` var get `Access-Control-Allow-Origin`; the
+ * CORS for the transfer and sync APIs. Only the origins in the `ALLOWED_ORIGINS` var get `Access-Control-Allow-Origin`; the
  * list may use `*` in a host (a Netlify preview name) or as a port (`http://localhost:*`).
  */
 
@@ -33,8 +33,8 @@ export function preflightHeaders(origin: string): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": origin,
     Vary: "Origin",
-    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-    "Access-Control-Allow-Headers": `Content-Type, ${PROOF_HEADER}, ${TURNSTILE_HEADER}`,
+    "Access-Control-Allow-Methods": "POST, GET, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": `Content-Type, Authorization, ${PROOF_HEADER}, ${TURNSTILE_HEADER}`,
     "Access-Control-Expose-Headers": "Retry-After",
     "Access-Control-Max-Age": "86400",
   };

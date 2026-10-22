@@ -1,11 +1,12 @@
 /**
- * The Worker's HTTP surface: `POST /transfer` and `GET /transfer/:room`. The Worker never sees a save in the clear (the
- * client encrypts it), so what it guards is abuse: origin, size, rate and guessing. It logs nothing from a request;
- * bodies and proofs never reach a log line.
+ * The Worker's HTTP surface: `POST /transfer` and `GET /transfer/:room`, plus the device-sync routes under `/sync`
+ * (`sync-handler.ts`). The Worker never sees a save in the clear (the client encrypts it), so what it guards is abuse:
+ * origin, size, rate and guessing. It logs nothing from a request; bodies and proofs never reach a log line.
  *
  * Clock, random bytes and `fetch` (for Turnstile) are injected so tests control them.
  */
 
+import { clientKey } from "./client-key.js";
 import { corsHeaders, originAllowed, preflightHeaders } from "./cors.js";
 import type { DurableObjectNamespaceLike, Env } from "./env.js";
 import {
@@ -19,7 +20,11 @@ import {
   type TransferError,
   type TransferErrorReason,
 } from "./protocol.js";
+import { handleSync, SYNC_PATH } from "./sync-handler.js";
+import { turnstileOk } from "./turnstile.js";
 import { defaultRandomBytes, generateRoomCode, type RandomBytes } from "./room-code.js";
+
+export { clientKey };
 
 export interface HandlerDeps {
   readonly now: () => number;
@@ -34,7 +39,6 @@ export const defaultDeps: HandlerDeps = {
 };
 
 const MAX_CODE_ATTEMPTS = 5;
-const TURNSTILE_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
 const MESSAGES: Record<TransferErrorReason, string> = {
   disabled: "Online transfer is turned off right now.",
@@ -100,35 +104,8 @@ async function readCapped(body: ReadableStream<Uint8Array> | null, cap: number):
   return out;
 }
 
-async function turnstileOk(secret: string, token: string, ip: string, doFetch: typeof fetch): Promise<boolean> {
-  const form = new URLSearchParams({ secret, response: token });
-  if (ip !== "unknown") form.set("remoteip", ip);
-  try {
-    const answer = await doFetch(TURNSTILE_URL, { method: "POST", body: form });
-    return answer.ok && ((await answer.json()) as { success?: boolean }).success === true;
-  } catch {
-    return false;
-  }
-}
-
 function stubFor(namespace: DurableObjectNamespaceLike, name: string) {
   return namespace.get(namespace.idFromName(name));
-}
-
-/** IPv6 clients are keyed by their /64 (one subscriber holds the whole prefix); IPv4 by address. */
-export function clientKey(ip: string): string {
-  if (!ip.includes(":")) return ip;
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(ip);
-  if (mapped) return mapped[1]!;
-  const [head = "", tail] = ip.split("::");
-  const front = head === "" ? [] : head.split(":");
-  const back = tail === undefined || tail === "" ? [] : tail.split(":");
-  const groups =
-    tail === undefined
-      ? front
-      : [...front, ...Array<string>(Math.max(0, 8 - front.length - back.length)).fill("0"), ...back];
-  const prefix = groups.slice(0, 4).map((g) => (Number.parseInt(g || "0", 16) || 0).toString(16));
-  return `v6:${prefix.join(":")}`;
 }
 
 async function limiterCall(env: Env, ip: string, path: string, now: number): Promise<Response> {
@@ -147,6 +124,9 @@ export async function handleRequest(request: Request, env: Env, deps: HandlerDep
   const cors = corsHeaders(origin, env.ALLOWED_ORIGINS);
 
   if (origin && !originAllowed(origin, env.ALLOWED_ORIGINS)) return fail("origin", {});
+
+  const syncMatch = SYNC_PATH.exec(url.pathname);
+  if (syncMatch) return handleSync(request, env, deps, cors, origin, syncMatch);
 
   const roomMatch = /^\/transfer\/([^/]+)$/.exec(url.pathname);
   const isUpload = url.pathname === "/transfer";

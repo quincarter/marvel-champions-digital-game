@@ -276,9 +276,9 @@ describe("CORS", () => {
     const ok = await call(preflight(ORIGIN));
     expect(ok.status).toBe(204);
     expect(ok.headers.get("Access-Control-Allow-Origin")).toBe(ORIGIN);
-    expect(ok.headers.get("Access-Control-Allow-Methods")).toBe("POST, GET, OPTIONS");
+    expect(ok.headers.get("Access-Control-Allow-Methods")).toBe("POST, GET, DELETE, OPTIONS");
     expect(ok.headers.get("Access-Control-Allow-Headers")).toBe(
-      "Content-Type, X-Transfer-Proof, CF-Turnstile-Response",
+      "Content-Type, Authorization, X-Transfer-Proof, CF-Turnstile-Response",
     );
     expect((await call(preflight("https://evil.example"))).status).toBe(403);
   });
