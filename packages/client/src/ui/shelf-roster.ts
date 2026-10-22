@@ -320,6 +320,8 @@ export class McShelfRoster<T> {
     this.#scene.input.off(Phaser.Input.Events.POINTER_UP, this.#onPointerUp, this);
     this.#scene.input.off(Phaser.Input.Events.POINTER_UP_OUTSIDE, this.#onPointerUp, this);
     this.#scene.events.off(Phaser.Scenes.Events.UPDATE, this.#onUpdate, this);
+    // An UPDATE emit already under way still calls `#onUpdate` this frame (see `scroll-region.ts`).
+    this.#momentum.stop();
     this.#destroyLive();
     clearMask(this.#layer);
     this.#maskShape.destroy();

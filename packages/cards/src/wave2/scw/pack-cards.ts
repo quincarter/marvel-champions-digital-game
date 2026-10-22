@@ -56,14 +56,12 @@ import {
  * to `qsv/pack-cards.ts`'s own `14018.order-and-chaos-interrupt`.
  *
  * **Turn the Tide (15015)** — "Response (attack): After your hero thwarts and removes all threat from a scheme,
- * deal 3 damage to an enemy" reads as "your hero defeats a scheme by thwarting it": a scheme is only ever defeated
- * by its threat reaching 0 through a removal (RRG 1.8 "Side Scheme", p. 39), and `schemeDefeated.sourceInstanceId`
- * (§17.2, docs/phase7-wave2.md) already carries whichever character's thwart removed the last threat — basic or
- * "(thwart)"-labeled alike, both read `applyPlayerThwart`'s own `sourceInstanceId: event.thwarterInstanceId`
- * (`packages/engine/src/resolve/event.ts`). A raw `EventPattern` (`{ on: "schemeDefeated", sourceIs: { categories:
- * ["identity"], controller: "you" } }`) says exactly that, the scheme-only sibling of `on.defeats(source)`'s own
- * `["characterDefeated", "schemeDefeated"]` pair (§17.2) — Turn the Tide only ever cares about the scheme half, so
- * the narrower literal avoids also firing on an unrelated attack that defeats a minion.
+ * deal 3 damage to an enemy": any scheme, the main scheme included (RRG 1.8 "Scheme (Card Type)", p. 39: "scheme"
+ * denotes main schemes, player side schemes and side schemes). It was read as "your hero defeats a side scheme"
+ * (`schemeDefeated`), which a main scheme thwarted to 0 never announces, so the card was not offered there. It is
+ * the removal that takes a scheme from some threat to none (`requireResults: { lastThreatRemoved: 1 }` on
+ * `removeThreat`), made by your identity's thwart (`byThwart`), basic or "(thwart)"-labeled alike: a plain "remove
+ * threat" effect of the identity is no thwart (RRG 1.8 "Thwart", p. 44).
  *
  * **Browbeat (15028)** — "Deal 2 damage … Deal X additional damage … (to a maximum of 3)" is one combined `attack`
  * (the same "one attack event for the base plus the bonus" reading Repulsor Blast, 01031, Core, and this pack's own
@@ -116,7 +114,11 @@ export const SCW_PACK_CARDS = defineAbilities({
   // Turn the Tide (15015, Justice event) — Response (attack): After your hero thwarts and removes all threat from
   // a scheme, deal 3 damage to an enemy (module docblock).
   "15015.turn-the-tide-response": response(
-    { on: "schemeDefeated", sourceIs: { categories: ["identity"], controller: "you" } },
+    {
+      on: "removeThreat",
+      sourceIs: { categories: ["identity"], controller: "you" },
+      requireResults: { lastThreatRemoved: 1, byThwart: 1 },
+    },
     { label: "attack" },
     chooseTarget("enemy", query("enemy")),
     dealDamage(3, chosen("enemy")),

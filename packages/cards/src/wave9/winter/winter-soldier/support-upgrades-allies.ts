@@ -29,6 +29,7 @@ import {
   query,
   ready,
   resource,
+  response,
   shuffleEncounterDeck,
   yourIdentity,
   YOUR_HERO,
@@ -103,7 +104,8 @@ export const WINTER_SOLDIER_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbi
     modifyCardEffect(chosen("paidFor"), { damage: 1, note: { name: CYBERNETIC_ARM_NOTE, value: 1 } }),
   ),
 
-  "54003.black-widow-response": heroResponse(
+  // "Response", not "Hero Response": usable in alter-ego form too, when allies are often played.
+  "54003.black-widow-response": response(
     on.youPlayThisFromHand(),
     chooseCards("returned", zone("discard", you, { filter: query("event", { trait: ATTACK }) }), { min: 1, max: 1 }),
     moveCards(cards(chosen("returned")), "hand"),

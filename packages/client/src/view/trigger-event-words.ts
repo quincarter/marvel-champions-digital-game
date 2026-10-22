@@ -18,6 +18,7 @@ export const TRIGGER_EVENT_WORDS: Readonly<Record<TriggerEventKind, string>> = {
   enemyAttackDamageStep: "an enemy attack about to deal its damage",
   enemyScheme: "an enemy scheme",
   boostCardBeingGiven: "a boost card about to be given",
+  encounterCardBeingRevealed: "an encounter card about to be revealed",
   boostCardTurningFaceup: "a boost card about to be turned up",
   boostCardGiven: "a boost card given to an enemy",
   boostCardTurnedFaceup: "a boost card turned up",

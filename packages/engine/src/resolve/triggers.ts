@@ -74,7 +74,7 @@ import { enteredPlaySince } from "../entered-since.js";
 function cancelHasNoTarget(state: GameState, deps: EngineDeps, definition: AbilityDefinition, event: TriggerEvent) {
   if (interruptBarredByUnpreventable(definition, event)) return true;
   if (event.kind === "boostCardTurnedFaceup") return boostAbilityCancelGone(state, definition, event.boostInstanceId);
-  if (event.kind !== "encounterCardRevealing") return false;
+  if (event.kind !== "encounterCardRevealing" && event.kind !== "encounterCardBeingRevealed") return false;
   const cancels = definition.effects.some((e) => e.kind === "cancelWhenRevealed" || e.kind === "cancelRevealedCard");
   return cancels && revealCannotBeCanceled(state, deps, event.instanceId);
 }
@@ -762,6 +762,8 @@ function gatherCandidates(
   if (timing === "response" && event.kind === "encounterCardBeingDealt") return [];
   // And a boost card about to be given ("after … is given" answers `boostCardGiven`; wave 11 scenarios E23).
   if (timing === "response" && event.kind === "boostCardBeingGiven") return [];
+  // And an encounter card about to be revealed ("after ... reveal" answers `cardRevealed`).
+  if (timing === "response" && event.kind === "encounterCardBeingRevealed") return [];
   // And a boost card about to be turned faceup ("after … is turned faceup" answers `boostCardTurnedFaceup`).
   if (timing === "response" && event.kind === "boostCardTurningFaceup") return [];
   if (nothingToAnswer(event, timing)) return [];
