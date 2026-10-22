@@ -1,15 +1,14 @@
 /**
  * Shadowland (MC65) Shadow Labyrinth, the scenario #2 set (11 printed copies, collector 37 to 45). Transcribed from the
- * Hall of Heroes previews; conventions in `common.ts`.
+ * full-size scans (play.marvelsimulator.com, owner-approved 2026-10-22); conventions in `common.ts`.
  *
- * Seen: Shifting Corridors 37 (villain), the main scheme B faces Into the Labyrinth 38B (stage 1B) and Chamber of Vile
- * Secrets 39B (stage 2B; these two are in `SHADOW_LABYRINTH_B_FACES_PENDING_A`, not emitted), Lord Deathstrike 41, Dead End 42 (side scheme), No Time to Think! 44 (two copies, 8/11 and
- * 9/11) and Sudden Shift 45 (two copies, 10/11 and 11/11). Not previewed, so not transcribed: the A faces of the two
- * main schemes (38A, 39A), collector 40 (4/11) and collector 43 (7/11), which with Whisper in the Dark (the TRAP!
- * attachment the insert says is in this set, p. 12) is presumably one of them.
+ * All nine card numbers are transcribed: Shifting Corridors 37 (villain; it has NO B side, the site has no 65037B image),
+ * the main schemes Into the Labyrinth 38A/38B (stage 1) and Chamber of Vile Secrets 39A/39B (stage 2), Whisper in the
+ * Dark 40 (the TRAP! attachment), Lord Deathstrike 41, Dead End 42 and Hall of Hidden Doors 43 (side schemes), No Time to
+ * Think! 44 (two copies, 8/11 and 9/11) and Sudden Shift 45 (two copies, 10/11 and 11/11).
  */
 import type { AddedRecord } from "../types.ts";
-import { added, HR, SHADOW_LABYRINTH as SET, single } from "./common.ts";
+import { added, HR, SHADOW_LABYRINTH as SET, single, twoSided } from "./common.ts";
 
 const SHIFTING_CORRIDORS = single(SET, "villain", "65037", "Shifting Corridors", 1, {
   stage: "A",
@@ -23,23 +22,62 @@ const SHIFTING_CORRIDORS = single(SET, "villain", "65037", "Shifting Corridors",
   text: "Stalwart.\n[star] <b>Forced Interrupt</b>: When Shifting Corridors would activate against you, instead remove 1 passage counter from here and reveal the top card of the trap deck.\n<b>If the last passage counter is removed from here, the players lose the game.</b>",
 });
 
-// Main scheme B faces: threat threshold (top-left circle), starting threat (lower box) and escalation (upper box).
-const INTO_THE_LABYRINTH_B = single(SET, "main_scheme", "65038b", "Into the Labyrinth", 2, {
-  stage: "1B",
-  threat: null,
-  base_threat: 25,
-  escalation_threat: 1,
-  illustrator: "Andrea Di Vito & Laura Villari",
-  text: "<b>When Revealed</b>: Place 10[per_hero] passage counters on Shifting Corridors (7[per_hero] instead in expert mode).\n<b>Forced Interrupt</b>: When Shifting Corridors would take any amount of damage, remove that much threat from here instead.\n<b>Forced Interrupt</b>: When the last threat is removed from this scheme, advance to stage 2A <i>(the players win by advancing)</i>.",
-});
+// Main schemes. B face: threat threshold (top-left circle), starting threat (lower box) and escalation (upper box).
+const INTO_THE_LABYRINTH = twoSided(
+  SET,
+  "main_scheme",
+  "65038",
+  2,
+  {
+    name: "Into the Labyrinth",
+    over: {
+      stage: "1A",
+      illustrator: "Andrea Di Vito & Laura Villari",
+      text: "<b>Contents</b>: Shifting Corridors (A). Shadow Labyrinth, Dark Protégé, Deadly Contraptions, and Standard encounter sets. One modular encounter set <i>(Ninja Swarm)</i>.\n<b>Setup</b>: Create the trap deck <i>(see rulebook, p. 12)</i>. Set the Dark Protégé encounter set aside. Choose 1 random villain from that set, then shuffle each card linked to that villain into the encounter deck <i>(keep the chosen villain set aside)</i>.",
+    },
+  },
+  {
+    name: "Into the Labyrinth",
+    over: {
+      stage: "1B",
+      threat: null,
+      base_threat: 25,
+      escalation_threat: 1,
+      illustrator: "Andrea Di Vito & Laura Villari",
+      text: "<b>When Revealed</b>: Place 10[per_hero] passage counters on Shifting Corridors (7[per_hero] instead in expert mode).\n<b>Forced Interrupt</b>: When Shifting Corridors would take any amount of damage, remove that much threat from here instead.\n<b>Forced Interrupt</b>: When the last threat is removed from this scheme, advance to stage 2A <i>(the players win by advancing)</i>.",
+    },
+  },
+);
 
-const CHAMBER_OF_VILE_SECRETS_B = single(SET, "main_scheme", "65039b", "Chamber of Vile Secrets", 3, {
-  stage: "2B",
-  threat: 9,
-  base_threat: 1,
-  escalation_threat: 1,
-  illustrator: "Andrea Di Vito & Laura Villari",
-  text: "<b>When Revealed</b>: In expert mode, the villain activates against each player.\n<b>Forced Response</b>: After you or an ally you control thwarts this scheme, reveal the top card of the trap deck. (Limit once per round per player.)\n<b>If this stage is completed, the players lose the game.</b>",
+const CHAMBER_OF_VILE_SECRETS = twoSided(
+  SET,
+  "main_scheme",
+  "65039",
+  3,
+  {
+    name: "Chamber of Vile Secrets",
+    over: {
+      stage: "2A",
+      illustrator: "Andrea Di Vito & Laura Villari",
+      text: "<b>When Revealed</b>: Do each of the following:\n1. Set Shifting Corridors aside.\n2. Find the chosen Dark Protégé villain. Discard each status card, token, and attached card from it.\n3. Reveal the chosen villain's side A (side B instead in expert mode).",
+    },
+  },
+  {
+    name: "Chamber of Vile Secrets",
+    over: {
+      stage: "2B",
+      threat: 9,
+      base_threat: 1,
+      escalation_threat: 1,
+      illustrator: "Andrea Di Vito & Laura Villari",
+      text: "<b>When Revealed</b>: In expert mode, the villain activates against each player.\n<b>Forced Response</b>: After you or an ally you control thwarts this scheme, reveal the top card of the trap deck. (Limit once per round per player.)\n<b>If this stage is completed, the players lose the game.</b>",
+    },
+  },
+);
+
+const WHISPER_IN_THE_DARK = single(SET, "attachment", "65040", "Whisper in the Dark", 4, {
+  traits: "Trap!",
+  text: 'Treat attached villain as an [[Elite]] minion with 6 printed hit points. It gains: "Guard. Villainous. <b>When Defeated</b>: Set this minion aside."\n<b>When Revealed</b>: If Shifting Corridors is in play, put the set-aside chosen villain into play engaged with you, side A faceup, with this card attached; otherwise, set this card aside and the villain schemes.',
 });
 
 const LORD_DEATHSTRIKE = single(SET, "minion", "65041", "Lord Deathstrike", 5, {
@@ -58,6 +96,17 @@ const DEAD_END = single(SET, "side_scheme", "65042", "Dead End", 6, {
   boost: 3,
   illustrator: "Andrea Di Vito & Laura Villari",
   text: "Assault. <i>(Basic thwarts against this scheme use ATK instead of THW.)</i>\n<b>When Revealed</b>: If Shifting Corridors is in play, remove 1 passage counter from it; otherwise, place 1[per_hero] threat here.",
+});
+
+// Hall of Hidden Doors prints the house-and-plus glyph, which Strategic Positioning 65008 (shadows-in-the-night.ts) prints
+// as the acceleration icon; Dead End's "!" burst is the crisis icon (RRG v1.8 icon key).
+const HALL_OF_HIDDEN_DOORS = single(SET, "side_scheme", "65043", "Hall of Hidden Doors", 7, {
+  base_threat: 3,
+  base_threat_fixed: true,
+  scheme_acceleration: 1,
+  boost_star: true,
+  illustrator: "Andrea Di Vito & Laura Villari",
+  text: `<b>When Defeated</b>: The defeating player removes 5 threat from the main scheme. They discard cards from the encounter deck until a minion or side scheme is discarded, then reveal it.${HR}[star] <b>Boost</b>: Place 3 threat on the main scheme.`,
 });
 
 const NO_TIME_TO_THINK = single(SET, "treachery", "65044", "No Time to Think!", 8, {
@@ -79,7 +128,7 @@ const SUDDEN_SHIFT = single(SET, "treachery", "65045", "Sudden Shift", 10, {
 export const SHADOW_LABYRINTH_RECORDS: readonly AddedRecord[] = [
   added(
     SHIFTING_CORRIDORS,
-    'Scan mc65_cards_shifting_corridors.png (footer "SHADOW LABYRINTH (1/11) / HIT POINTS (infinity)", 37 with no face letter, Bruno Frenda & Sara Cuomo). VILLAIN, stage letter A (top right), SCH 0 with a star, ATK 0 with a star, "LOCATION.", not unique (no star before the name). "Stalwart. (star) Forced Interrupt: When Shifting Corridors would activate against you, instead remove 1 passage counter from here and reveal the top card of the trap deck. If the last passage counter is removed from here, the players lose the game." (bold). Hit points are the infinity symbol with no per player icon: `infiniteHp` (a correction). Whether the card is double-sided is not shown by the preview; the footer has no A/B letter.',
+    'Scan mc65_cards_shifting_corridors.png (footer "SHADOW LABYRINTH (1/11) / HIT POINTS (infinity)", 37 with no face letter, Bruno Frenda & Sara Cuomo). VILLAIN, stage letter A (top right), SCH 0 with a star, ATK 0 with a star, "LOCATION.", not unique (no star before the name). "Stalwart. (star) Forced Interrupt: When Shifting Corridors would activate against you, instead remove 1 passage counter from here and reveal the top card of the trap deck. If the last passage counter is removed from here, the players lose the game." (bold). Hit points are the infinity symbol with no per player icon: `infiniteHp` (a correction). It has no B side: the full-size set has no 65037B image and the footer has no A/B letter.',
   ),
   added(
     LORD_DEATHSTRIKE,
@@ -87,7 +136,7 @@ export const SHADOW_LABYRINTH_RECORDS: readonly AddedRecord[] = [
   ),
   added(
     DEAD_END,
-    'Scan mc65_cards_dead_end.png (landscape; footer "SHADOW LABYRINTH (6/11)", 42, Andrea Di Vito & Laura Villari). SIDE SCHEME, no traits, starting threat 2 with the per player icon, one crisis icon (the burst with an exclamation mark), three boost icons. "Assault. (italic reminder: Basic thwarts against this scheme use ATK instead of THW.) When Revealed: If Shifting Corridors is in play, remove 1 passage counter from it; otherwise, place 1 (per player) threat here."',
+    'Image 65042.webp (play.marvelsimulator.com; first read from the preview scan mc65_cards_dead_end.png, re-checked at full size with no differences; landscape; footer "SHADOW LABYRINTH (6/11)", 42, Andrea Di Vito & Laura Villari). SIDE SCHEME, no traits, starting threat 2 with the per player icon, one crisis icon (the burst with an exclamation mark), three boost icons. "Assault. (italic reminder: Basic thwarts against this scheme use ATK instead of THW.) When Revealed: If Shifting Corridors is in play, remove 1 passage counter from it; otherwise, place 1 (per player) threat here." Second check (D3, 2026-10-22): agrees.',
   ),
   added(
     NO_TIME_TO_THINK,
@@ -97,21 +146,20 @@ export const SHADOW_LABYRINTH_RECORDS: readonly AddedRecord[] = [
     SUDDEN_SHIFT,
     'Scan mc65_cards_sudden_shift.png (footer "SHADOW LABYRINTH (10/11)", 45, Andrea Di Vito & Laura Villari). TREACHERY, no traits, boost icons star plus two. "When Revealed: Shuffle the trap discard pile and the top 3 cards of the encounter deck into the trap deck. Reveal the top card of the trap deck. [rule] (star) Boost: Shuffle the trap discard pile and the top 2 cards of the encounter deck into the trap deck." Two copies: footer 10/11 and the set total 11 (11/11 is the second copy, not seen).',
   ),
-];
-
-/**
- * Faces transcribed from a scan whose other side has no scan yet. The normalizer needs a main scheme's A and B faces
- * together (stage "1A"/"1B" pair), and the A faces (38A, 39A: Contents and Setup text, scenario #2) are not previewed,
- * so these two are kept here and are NOT in `SHADOW_LABYRINTH_RECORDS`: join them (A face nested as `linked_card`) when
- * the 38A and 39A scans exist. The data below is transcribed and checked like the others.
- */
-export const SHADOW_LABYRINTH_B_FACES_PENDING_A: readonly AddedRecord[] = [
   added(
-    INTO_THE_LABYRINTH_B,
-    'Scan mc65_cards_into_the_labyrinth.png (landscape; footer "SHADOW LABYRINTH (2/11)", 38B, Andrea Di Vito & Laura Villari). MAIN SCHEME stage 1B (top right). Top-left circle: the infinity symbol (threshold). Lower right box: 25 with the per player icon (starting threat); upper box +1 with the per player icon (escalation). "When Revealed: Place 10 (per player) passage counters on Shifting Corridors (7 (per player) instead in expert mode). Forced Interrupt: When Shifting Corridors would take any amount of damage, remove that much threat from here instead. Forced Interrupt: When the last threat is removed from this scheme, advance to stage 2A (italic: the players win by advancing)." UNCERTAIN: the threshold glyph was zoomed 6x and is the infinity sign (two loops), so the stage has no threat threshold; the 1A face (38A) is not previewed.',
+    INTO_THE_LABYRINTH,
+    'Image 65038A.webp and Image 65038B.webp (play.marvelsimulator.com; landscape; footers "SHADOW LABYRINTH (2/11)", 38A and 38B, Andrea Di Vito & Laura Villari). MAIN SCHEME. 1A (stage 1A, top right): "Contents: Shifting Corridors (A). Shadow Labyrinth, Dark Protégé, Deadly Contraptions, and Standard encounter sets. One modular encounter set (Ninja Swarm) [italic]. Setup: Create the trap deck (see rulebook, p. 12) [italic]. Set the Dark Protégé encounter set aside. Choose 1 random villain from that set, then shuffle each card linked to that villain into the encounter deck (keep the chosen villain set aside) [italic]." 1B (stage 1B): top-left circle the infinity symbol (no threshold); lower right box 25 with the per player icon (starting threat); upper box +1 with the per player icon (escalation). "When Revealed: Place 10 (per player) passage counters on Shifting Corridors (7 (per player) instead in expert mode). Forced Interrupt: When Shifting Corridors would take any amount of damage, remove that much threat from here instead. Forced Interrupt: When the last threat is removed from this scheme, advance to stage 2A (italic: the players win by advancing)." The B face was first transcribed from the preview scan mc65_cards_into_the_labyrinth.png and re-read against the full image: no differences (the infinity threshold, formerly marked uncertain, is plain at full size). Second check (D3, 2026-10-22): agrees.',
   ),
   added(
-    CHAMBER_OF_VILE_SECRETS_B,
-    'Scan mc65_cards_chamber_of_vile_secrets.png (landscape; footer "SHADOW LABYRINTH (3/11)", 39B, Andrea Di Vito & Laura Villari). MAIN SCHEME stage 2B. Top-left circle 9 with the per player icon (threshold); lower right box 1 with the per player icon (starting threat); upper box +1 with the per player icon (escalation). "When Revealed: In expert mode, the villain activates against each player. Forced Response: After you or an ally you control thwarts this scheme, reveal the top card of the trap deck. (Limit once per round per player.) If this stage is completed, the players lose the game." (bold). The 2A face (39A) is not previewed.',
+    CHAMBER_OF_VILE_SECRETS,
+    'Image 65039A.webp and Image 65039B.webp (play.marvelsimulator.com; landscape; footers "SHADOW LABYRINTH (3/11)", 39A and 39B, Andrea Di Vito & Laura Villari). MAIN SCHEME. 2A (stage 2A): "When Revealed: Do each of the following: 1. Set Shifting Corridors aside. 2. Find the chosen Dark Protégé villain. Discard each status card, token, and attached card from it. 3. Reveal the chosen villain\'s side A (side B instead in expert mode)." 2B (stage 2B): top-left circle 9 with the per player icon (threshold); lower right box 1 with the per player icon (starting threat); upper box +1 with the per player icon (escalation). "When Revealed: In expert mode, the villain activates against each player. Forced Response: After you or an ally you control thwarts this scheme, reveal the top card of the trap deck. (Limit once per round per player.) If this stage is completed, the players lose the game." (bold). The B face was first transcribed from the preview scan mc65_cards_chamber_of_vile_secrets.png and re-read against the full image: no differences. Second check (D3, 2026-10-22): agrees.',
+  ),
+  added(
+    WHISPER_IN_THE_DARK,
+    'Image 65040.webp (play.marvelsimulator.com; footer "SHADOW LABYRINTH (4/11)", 40, no illustrator printed). ATTACHMENT (side-title layout), trait line "TRAP!", no boost icons, no stat box. "Treat attached villain as an ELITE minion with 6 printed hit points. It gains: "Guard. Villainous. When Defeated: Set this minion aside." When Revealed: If Shifting Corridors is in play, put the set-aside chosen villain into play engaged with you, side A faceup, with this card attached; otherwise, set this card aside and the villain schemes." Elite is in the small-caps keyword face. Second check (D3, 2026-10-22): agrees.',
+  ),
+  added(
+    HALL_OF_HIDDEN_DOORS,
+    'Image 65043.webp (play.marvelsimulator.com; landscape; footer "SHADOW LABYRINTH (7/11)", 43, Andrea Di Vito & Laura Villari). SIDE SCHEME, no traits, starting threat 3 with no per player icon (fixed), one scheme icon in the text box: the house-and-plus glyph (acceleration, per Strategic Positioning 65008), boost icon is the red star only. "When Defeated: The defeating player removes 5 threat from the main scheme. They discard cards from the encounter deck until a minion or side scheme is discarded, then reveal it. [rule] (star) Boost: Place 3 threat on the main scheme." Second check (D3, 2026-10-22): agrees; the glyph matches the acceleration token shape in RRG v1.8 p. 5.',
   ),
 ];

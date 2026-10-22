@@ -1,10 +1,11 @@
 /**
  * Shadowland (MC65) Deadly Contraptions, a modular set (11 printed copies, collector 46 to 56, one copy each; seven
- * TRAP! treacheries per the insert p. 12). Transcribed from the Hall of Heroes previews; conventions in `common.ts`.
+ * TRAP! treacheries per the insert p. 12). Transcribed from the full-size scans (play.marvelsimulator.com, owner-approved
+ * 2026-10-22); conventions in `common.ts`.
  *
- * Seen (6 of 11): Nervous Jitters 46, Iron Monk 47, Hall of Punishment 48, Path of a Thousand Cuts 49, Blinding Powder
- * 50 and Caltrops 51. Not previewed, so not transcribed: collector 52 to 56 (positions 7 to 11; with Blinding Powder
- * and Caltrops they should be the set's seven TRAP! treacheries, so five more cards).
+ * All eleven are transcribed: Nervous Jitters 46, Iron Monk 47, Hall of Punishment 48, Path of a Thousand Cuts 49 and
+ * the seven TRAP! treacheries Blinding Powder 50, Caltrops 51, Flame Spout 52, Oil Slick 53, Poison Darts 54, Pressure
+ * Plate 55 and Tripwire 56.
  */
 import type { AddedRecord } from "../types.ts";
 import { added, DEADLY_CONTRAPTIONS as SET, HR, single } from "./common.ts";
@@ -58,6 +59,40 @@ const CALTROPS = single(SET, "treachery", "65051", "Caltrops", 6, {
   text: "<b>When Revealed</b>: Choose:\n• <i>Avoid</i> — Discard a [[Defense]] event from your hand.\n• <i>Disarm</i> — Discard 1 identity-specific card from your hand, then deal 2 damage to an enemy.\n• <i>Trip</i> — Deal 2 damage to your identity and stun it.",
 });
 
+const FLAME_SPOUT = single(SET, "treachery", "65052", "Flame Spout", 7, {
+  traits: "Trap!",
+  boost: 3,
+  illustrator: "Facundo Moyano",
+  text: "<b>When Revealed</b>: Choose:\n• <i>Avoid</i> — Discard an ally from your hand.\n• <i>Disarm</i> — Discard an ally you control, then draw 2 cards.\n• <i>Trip</i> — Deal 3 damage to your identity. Discard the top 3 cards of your deck.",
+});
+
+const OIL_SLICK = single(SET, "treachery", "65053", "Oil Slick", 8, {
+  traits: "Trap!",
+  boost: 1,
+  illustrator: "Andrea Di Vito & Laura Villari",
+  text: "<b>When Revealed</b>: Choose:\n• <i>Avoid</i> — Discard an upgrade from your hand.\n• <i>Disarm</i> — Discard an upgrade you control, then remove 4 threat from the main scheme.\n• <i>Trip</i> — Discard 1 card from your hand. Discard the top 8 cards of your deck.",
+});
+
+const POISON_DARTS = single(SET, "treachery", "65054", "Poison Darts", 9, {
+  traits: "Trap!",
+  boost: 2,
+  illustrator: "Eduardo Mello",
+  text: "<b>When Revealed</b>: Choose:\n• <i>Avoid</i> — Spend [energy][energy] resources.\n• <i>Disarm</i> — Spend [mental][mental][physical] resources, then deal 3 damage to the villain.\n• <i>Trip</i> — Deal 3 damage to your identity and exhaust it.",
+});
+
+const PRESSURE_PLATE = single(SET, "treachery", "65055", "Pressure Plate", 10, {
+  traits: "Trap!",
+  illustrator: "Eduardo Mello",
+  text: "<b>When Revealed</b>: Choose:\n• <i>Avoid</i> — Spend [mental][mental] resources.\n• <i>Disarm</i> — Spend [energy][physical][physical] resources, then search the top 4 cards of your deck for a card and add it to your hand. <i>(Shuffle.)</i>\n• <i>Trip</i> — Discard cards from the top of the encounter deck until a minion is discarded, then reveal it.",
+});
+
+const TRIPWIRE = single(SET, "treachery", "65056", "Tripwire", 11, {
+  traits: "Trap!",
+  boost: 2,
+  illustrator: "Andrea Di Vito & Laura Villari",
+  text: "<b>When Revealed</b>: Choose:\n• <i>Avoid</i> — Discard an [[Attack]] event from your hand.\n• <i>Disarm</i> — Discard a support you control, then remove 3 threat from a scheme.\n• <i>Trip</i> — Discard cards from the top of the encounter deck until a side scheme is discarded, then reveal it.",
+});
+
 export const DEADLY_CONTRAPTIONS_RECORDS: readonly AddedRecord[] = [
   added(
     NERVOUS_JITTERS,
@@ -73,7 +108,7 @@ export const DEADLY_CONTRAPTIONS_RECORDS: readonly AddedRecord[] = [
   ),
   added(
     PATH_OF_A_THOUSAND_CUTS,
-    'Scan mc65_cards_path_of_a_thousand_cuts.png (landscape; footer "DEADLY CONTRAPTIONS (4/11)", 49, Kyle Petchock). SIDE SCHEME, no traits, starting threat 5 with no per player icon (fixed), no scheme icons, boost icon is the star only. Flavor: "Every step is a test of resilience." "Forced Interrupt: When you choose the "Avoid" effect or the "Trip" effect on a TRAP! card, take 2 indirect damage. [rule] (star) Boost: Deal 1 damage to each character you control."',
+    'Image 65049.webp (play.marvelsimulator.com; first read from the preview scan mc65_cards_path_of_a_thousand_cuts.png, re-checked at full size with no differences; landscape; footer "DEADLY CONTRAPTIONS (4/11)", 49, Kyle Petchock). SIDE SCHEME, no traits, starting threat 5 with no per player icon (fixed), no scheme icons, boost icon is the star only. Flavor: "Every step is a test of resilience." "Forced Interrupt: When you choose the "Avoid" effect or the "Trip" effect on a TRAP! card, take 2 indirect damage. [rule] (star) Boost: Deal 1 damage to each character you control." Second check (D3, 2026-10-22): agrees.',
   ),
   added(
     BLINDING_POWDER,
@@ -82,5 +117,25 @@ export const DEADLY_CONTRAPTIONS_RECORDS: readonly AddedRecord[] = [
   added(
     CALTROPS,
     'Scan mc65_cards_caltrops.png (footer "DEADLY CONTRAPTIONS (6/11)", 51, Aitor Prieto). TREACHERY, "TRAP!", one boost icon. "When Revealed: Choose: * Avoid — Discard a DEFENSE event from your hand. * Disarm — Discard 1 identity-specific card from your hand, then deal 2 damage to an enemy. * Trip — Deal 2 damage to your identity and stun it." Avoid, Disarm and Trip are italic.',
+  ),
+  added(
+    FLAME_SPOUT,
+    'Image 65052.webp (play.marvelsimulator.com; footer "DEADLY CONTRAPTIONS (7/11)", 52, Facundo Moyano). TREACHERY, "TRAP!", three boost icons. "When Revealed: Choose: * Avoid — Discard an ally from your hand. * Disarm — Discard an ally you control, then draw 2 cards. * Trip — Deal 3 damage to your identity. Discard the top 3 cards of your deck." Avoid, Disarm and Trip are italic. Second check (D3, 2026-10-22): agrees.',
+  ),
+  added(
+    OIL_SLICK,
+    'Image 65053.webp (play.marvelsimulator.com; footer "DEADLY CONTRAPTIONS (8/11)", 53, Andrea Di Vito & Laura Villari). TREACHERY, "TRAP!", one boost icon. "When Revealed: Choose: * Avoid — Discard an upgrade from your hand. * Disarm — Discard an upgrade you control, then remove 4 threat from the main scheme. * Trip — Discard 1 card from your hand. Discard the top 8 cards of your deck." Avoid, Disarm and Trip are italic. Second check (D3, 2026-10-22): agrees.',
+  ),
+  added(
+    POISON_DARTS,
+    'Image 65054.webp (play.marvelsimulator.com; footer "DEADLY CONTRAPTIONS (9/11)", 54, Eduardo Mello). TREACHERY, "TRAP!", two boost icons. "When Revealed: Choose: * Avoid — Spend (lightning)(lightning) resources. * Disarm — Spend (node-and-link)(node-and-link)(fist) resources, then deal 3 damage to the villain. * Trip — Deal 3 damage to your identity and exhaust it." Avoid, Disarm and Trip are italic. Second check (D3, 2026-10-22): agrees.',
+  ),
+  added(
+    PRESSURE_PLATE,
+    'Image 65055.webp (play.marvelsimulator.com; footer "DEADLY CONTRAPTIONS (10/11)", 55, Eduardo Mello). TREACHERY, "TRAP!", no boost icons. "When Revealed: Choose: * Avoid — Spend (node-and-link)(node-and-link) resources. * Disarm — Spend (lightning)(fist)(fist) resources, then search the top 4 cards of your deck for a card and add it to your hand. (Shuffle.) [italic] * Trip — Discard cards from the top of the encounter deck until a minion is discarded, then reveal it." Avoid, Disarm and Trip are italic. Second check (D3, 2026-10-22): agrees.',
+  ),
+  added(
+    TRIPWIRE,
+    'Image 65056.webp (play.marvelsimulator.com; footer "DEADLY CONTRAPTIONS (11/11)", 56, Andrea Di Vito & Laura Villari). TREACHERY, "TRAP!", two boost icons. "When Revealed: Choose: * Avoid — Discard an ATTACK event from your hand. * Disarm — Discard a support you control, then remove 3 threat from a scheme. * Trip — Discard cards from the top of the encounter deck until a side scheme is discarded, then reveal it." Avoid, Disarm and Trip are italic. Second check (D3, 2026-10-22): agrees.',
   ),
 ];
