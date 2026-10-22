@@ -244,11 +244,14 @@ export class SaveDataOverlay extends Phaser.Scene {
     } else this.#countdown?.setText(left.text);
   }
 
-  #clearControls(): void {
+  /** `keepField` keeps the code field through a redraw on the typing step (`#draw`). */
+  #clearControls(keepField = false): void {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
-    this.#field?.destroy();
-    this.#field = null;
+    if (!keepField) {
+      this.#field?.destroy();
+      this.#field = null;
+    }
     this.#ticker?.remove(false);
     this.#ticker = null;
     this.#countdown = null;
@@ -256,8 +259,14 @@ export class SaveDataOverlay extends Phaser.Scene {
 
   #draw(): void {
     if (this.#motion.leaving) return;
-    this.#clearControls();
+    // The code field survives a redraw on the typing step. A phone's keyboard shrinks the viewport as it opens, and
+    // the resize redraws this screen: a new `<input>` there would drop focus and the keyboard would close at once.
+    const keepField = this.#step.kind === "receive" && this.#step.phase === "typing";
+    this.#clearControls(keepField);
+    const kept = (keepField && this.#field?.gameObjects) || [];
+    for (const object of kept) this.children.remove(object);
     destroyChildren(this);
+    for (const object of kept) this.children.add(object);
 
     const { width, height } = this.scale.gameSize;
     const { panel, header, body } = overlayPanelLayout({ x: 0, y: 0, width, height }, HEADER_HEIGHT, 0);
@@ -575,14 +584,26 @@ export class SaveDataOverlay extends Phaser.Scene {
       .setWordWrapWidth(rowWidth)
       .setLineSpacing(3);
     const fieldRect: Rect = { x, y: help.y + help.height + 14, width: Math.min(rowWidth, 320), height: hit.primary };
+    // A field kept through the redraw (`#draw`) only moves; a new one is made on entering the step.
+    const field = this.#field ?? this.#newCodeField(fieldRect, step.input);
+    field.layout(fieldRect);
+    stops.set("code", { rect: fieldRect, activate: () => field.focus() });
+    order.push("code");
+
+    const receive = { id: "receive", label: "Receive", onClick: () => void this.#receive() };
+    const back = { id: "back-menu", label: "Back", onClick: () => this.#set({ kind: "menu" }, NO_STATUS) };
+    return this.#drawPair(x, fieldRect.y + fieldRect.height + 14, fieldRect.width, receive, back, stops, order);
+  }
+
+  #newCodeField(rect: Rect, input: string): McTextInput {
     const field = new McTextInput(this, {
-      rect: fieldRect,
-      value: step.input,
+      rect,
+      value: input,
       type: codeFieldType,
       placeholder: "ABCD-EFGH-JKMN",
       maxLength: 24,
       onChange: (value) => {
-        // Kept in the step so a redraw (a status, a resize) puts back what was typed; no redraw per key.
+        // Kept in the step so the field can be rebuilt with what was typed; no redraw per key.
         this.#step = { kind: "receive", phase: "typing", input: value };
       },
     });
@@ -590,14 +611,9 @@ export class SaveDataOverlay extends Phaser.Scene {
     (field.gameObject as unknown as { node: HTMLElement }).node.addEventListener("keydown", (event) => {
       if (event.key === "Enter") void this.#receive();
     });
-    stops.set("code", { rect: fieldRect, activate: () => field.focus() });
-    order.push("code");
     // A keyboard or mouse player can type at once; a phone would have its keyboard cover the screen.
-    if (!this.sys.game.device.input.touch && step.input === "") field.focus();
-
-    const receive = { id: "receive", label: "Receive", onClick: () => void this.#receive() };
-    const back = { id: "back-menu", label: "Back", onClick: () => this.#set({ kind: "menu" }, NO_STATUS) };
-    return this.#drawPair(x, fieldRect.y + fieldRect.height + 14, fieldRect.width, receive, back, stops, order);
+    if (!this.sys.game.device.input.touch && input === "") field.focus();
+    return field;
   }
 
   #drawConfirm(

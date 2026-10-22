@@ -72,3 +72,33 @@ test("a swipe that lifts over Send, Receive or Copy presses nothing; a tap does"
   await waitForStop(page, "row:send");
   expect(errors).toEqual([]);
 });
+
+test("the code field keeps focus while a phone keyboard shrinks the screen, and takes typing", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "phone", "the on-screen keyboard is the phone's case");
+  const errors = trackPageErrors(page);
+  await openApp(page);
+  await openSaveData(page);
+  const receive = center(await waitForStop(page, "row:receive"));
+  await page.touchscreen.tap(receive.x, receive.y);
+  const field = center(await waitForStop(page, "code"));
+  await page.touchscreen.tap(field.x, field.y);
+  const input = page.locator(`input[placeholder="ABCD-EFGH-JKMN"]`);
+  await expect(input).toBeFocused();
+
+  // An Android WebView resizes the page as its keyboard slides up; the redraw that follows must keep the same field.
+  const size = page.viewportSize()!;
+  await page.setViewportSize({ width: size.width, height: Math.round(size.height * 0.55) });
+  await settle(page, { quietMs: 400, maxMs: 2000 });
+  await expect(input).toBeFocused();
+  await page.keyboard.type("abcd efgh");
+  await expect(input).toHaveValue("abcd efgh");
+
+  // And back again as the keyboard slides away.
+  await page.setViewportSize(size);
+  await settle(page, { quietMs: 400, maxMs: 2000 });
+  await expect(input).toHaveValue("abcd efgh");
+  expect(await hasStop(page, "receive"), "still on Receive").toBe(true);
+  expect(errors).toEqual([]);
+});

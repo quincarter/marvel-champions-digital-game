@@ -1292,6 +1292,13 @@ export class McTextInput {
     return this.#input;
   }
 
+  /** Everything the field puts on the display list: the input and its focus ring's Graphics. A scene that keeps the
+   * field through a redraw detaches all of them; keeping only `gameObject` destroys the ring, and the field then
+   * takes keystrokes with no focus ring. */
+  get gameObjects(): readonly Phaser.GameObjects.GameObject[] {
+    return [this.#input, this.#ring.graphics];
+  }
+
   get value(): string {
     return this.#input.text;
   }
