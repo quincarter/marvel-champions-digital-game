@@ -424,3 +424,15 @@ describe("IdbLocalSaveData", () => {
     ]);
   });
 });
+
+describe("row stamps", () => {
+  test("a deck's ISO updatedAt string is its stamp in milliseconds; a bad one is 0", async () => {
+    const d = device();
+    const iso = "2026-10-20T12:00:00.000Z";
+    await new IdbDeckStorage(d.factory).put({ id: "d1", name: "Deck", updatedAt: iso } as never);
+    await new IdbDeckStorage(d.factory).put({ id: "d2", name: "Deck", updatedAt: "not a date" } as never);
+    const records = byKey(await d.local.snapshot());
+    expect(records.get("db:mc-decks:decks:d1")?.stamp).toBe(Date.parse(iso));
+    expect(records.get("db:mc-decks:decks:d2")?.stamp).toBe(0);
+  });
+});

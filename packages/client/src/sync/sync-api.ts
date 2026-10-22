@@ -59,7 +59,8 @@ function isSpaceInfo(value: unknown): value is SpaceInfo {
     isCount(value.bytes) &&
     isCount(value.maxBytes) &&
     isCount(value.records) &&
-    isCount(value.createdAt)
+    isCount(value.createdAt) &&
+    isCount(value.epoch)
   );
 }
 
@@ -74,10 +75,14 @@ function isSyncRecord(value: unknown): value is SyncRecord {
  * (since, cursor] in ascending order, so a client that trusts it can never loop or skip.
  */
 function isSyncChanges(value: unknown, since: number): value is SyncChanges {
-  if (!isObject(value) || !isCount(value.cursor) || typeof value.more !== "boolean") return false;
-  if (value.cursor < since || (value.more && value.cursor <= since)) return false;
+  if (!isObject(value) || !isCount(value.cursor) || !isCount(value.epoch) || typeof value.more !== "boolean")
+    return false;
   if (!Array.isArray(value.records) || !value.records.every(isSyncRecord)) return false;
-  let previous = since;
+  // A cursor below `since` with nothing else is how a re-created space answers an older epoch's cursor: the engine
+  // reads the epoch and starts over. With records or `more` it is nonsense.
+  if (value.cursor < since && (value.more || value.records.length > 0)) return false;
+  if (value.more && value.cursor <= since) return false;
+  let previous = Math.min(since, value.cursor);
   for (const record of value.records as SyncRecord[]) {
     if (record.version <= previous || record.version > value.cursor) return false;
     previous = record.version;

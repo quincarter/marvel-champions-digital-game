@@ -205,10 +205,7 @@ export class IdbLocalSaveData implements LocalSaveData {
       for (const store of spec.stores) {
         if (saves && GAME_STORES.has(store.name)) continue;
         for (const value of rows.get(store.name) ?? []) {
-          const stamp =
-            typeof (value as { updatedAt?: unknown })?.updatedAt === "number"
-              ? (value as { updatedAt: number }).updatedAt
-              : 0;
+          const stamp = rowStamp(value);
           records.push({
             key: `db:${spec.name}:${store.name}:${rowKey(store, value)}`,
             value,
@@ -479,6 +476,20 @@ export class IdbLocalSaveData implements LocalSaveData {
     }
     return id;
   }
+}
+
+/**
+ * A row's own last-change time for last-write-wins: its `updatedAt` as epoch milliseconds, whether stored as a number
+ * or as an ISO date string (decks keep one); 0 when it has none or it can't be read.
+ */
+export function rowStamp(row: unknown): number {
+  const at = (row as { updatedAt?: unknown } | null)?.updatedAt;
+  if (typeof at === "number") return Number.isFinite(at) ? at : 0;
+  if (typeof at === "string") {
+    const parsed = Date.parse(at);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+  return 0;
 }
 
 const sigOf = (meta: GameMeta): string => `${meta.updatedAt}|${meta.commandCount}|${meta.status}`;

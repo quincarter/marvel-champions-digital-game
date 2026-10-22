@@ -7,7 +7,7 @@ const BASE = "https://mc-sync.test";
 const creds = await deriveCredentials("ABCDEFGHJKMNPQRSTUVWXYZ23");
 const KEY_A = "A".repeat(43);
 const KEY_B = "B".repeat(43);
-const INFO = { cursor: 3, bytes: 10, maxBytes: 100, records: 2, createdAt: 5 };
+const INFO = { cursor: 3, bytes: 10, maxBytes: 100, records: 2, createdAt: 5, epoch: 5 };
 
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -45,14 +45,19 @@ describe("requests", () => {
   });
 
   test("changes passes the cursor and returns the page", async () => {
-    const page = { cursor: 7, more: true, records: [{ key: KEY_A, version: 7, deleted: false, data: "abc" }] };
+    const page = {
+      cursor: 7,
+      epoch: 5,
+      more: true,
+      records: [{ key: KEY_A, version: 7, deleted: false, data: "abc" }],
+    };
     const { deps, calls } = serving(() => json(200, page));
     expect(await changes(creds, 4, deps)).toEqual({ ok: true, changes: page });
     expect(calls[0]!.url).toBe(`${BASE}/sync/${creds.spaceId}/changes?since=4`);
   });
 
   test("a tombstone has no data", async () => {
-    const page = { cursor: 8, more: false, records: [{ key: KEY_A, version: 8, deleted: true }] };
+    const page = { cursor: 8, epoch: 5, more: false, records: [{ key: KEY_A, version: 8, deleted: true }] };
     expect(await changes(creds, 0, serving(() => json(200, page)).deps)).toMatchObject({ ok: true });
   });
 
@@ -138,13 +143,16 @@ describe("failures", () => {
   test("a changes page that doesn't fit the cursor is unavailable", async () => {
     const record = (version: number) => ({ key: KEY_A, version, deleted: true });
     const page = (body: unknown, since: number) => changes(creds, since, serving(() => json(200, body)).deps);
-    expect((await page({ cursor: 5, more: false, records: [record(6)] }, 4)).ok).toBe(false); // beyond the cursor
-    expect((await page({ cursor: 5, more: false, records: [record(4)] }, 4)).ok).toBe(false); // not after since
-    expect((await page({ cursor: 6, more: false, records: [record(6), record(5)] }, 4)).ok).toBe(false); // descending
-    expect((await page({ cursor: 3, more: false, records: [] }, 4)).ok).toBe(false); // cursor went back
-    expect((await page({ cursor: 4, more: true, records: [] }, 4)).ok).toBe(false); // more, but no progress
-    expect((await page({ cursor: 4, more: false, records: [] }, 4)).ok).toBe(true);
-    expect((await page({ cursor: 6, more: true, records: [record(5), record(6)] }, 4)).ok).toBe(true);
+    expect((await page({ cursor: 5, epoch: 5, more: false, records: [record(6)] }, 4)).ok).toBe(false); // beyond the cursor
+    expect((await page({ cursor: 5, epoch: 5, more: false, records: [record(4)] }, 4)).ok).toBe(false); // not after since
+    expect((await page({ cursor: 6, epoch: 5, more: false, records: [record(6), record(5)] }, 4)).ok).toBe(false); // descending
+    expect((await page({ cursor: 3, epoch: 5, more: false, records: [record(3)] }, 4)).ok).toBe(false); // went back
+    // A re-created space answers an older cursor with no records and its own epoch: the engine starts over.
+    expect((await page({ cursor: 3, epoch: 6, more: false, records: [] }, 4)).ok).toBe(true);
+    expect((await page({ cursor: 4, more: false, records: [] }, 4)).ok).toBe(false); // no epoch
+    expect((await page({ cursor: 4, epoch: 5, more: true, records: [] }, 4)).ok).toBe(false); // more, but no progress
+    expect((await page({ cursor: 4, epoch: 5, more: false, records: [] }, 4)).ok).toBe(true);
+    expect((await page({ cursor: 6, epoch: 5, more: true, records: [record(5), record(6)] }, 4)).ok).toBe(true);
   });
 
   test("no service, a network error and a timeout are unavailable", async () => {
@@ -173,13 +181,15 @@ describe("failures", () => {
     expect(await bad(json(200, { ...INFO, records: -1 }), (d) => spaceInfo(creds, d))).toBe(false);
     expect(await bad(new Response("not json", { status: 200 }), (d) => spaceInfo(creds, d))).toBe(false);
     expect(
-      await bad(json(200, { cursor: 1, more: false, records: [{ key: "short", version: 1, deleted: true }] }), (d) =>
-        changes(creds, 0, d),
+      await bad(
+        json(200, { cursor: 1, epoch: 5, more: false, records: [{ key: "short", version: 1, deleted: true }] }),
+        (d) => changes(creds, 0, d),
       ),
     ).toBe(false);
     expect(
-      await bad(json(200, { cursor: 1, more: false, records: [{ key: KEY_A, version: 1, deleted: false }] }), (d) =>
-        changes(creds, 0, d),
+      await bad(
+        json(200, { cursor: 1, epoch: 5, more: false, records: [{ key: KEY_A, version: 1, deleted: false }] }),
+        (d) => changes(creds, 0, d),
       ),
     ).toBe(false);
     const ops: SyncOp[] = [{ key: KEY_A, baseVersion: 0, data: "a" }];
