@@ -47,7 +47,6 @@ import {
   heal,
   heroAction,
   host,
-  heroResponse,
   ifElse,
   ifThen,
   inMode,
@@ -67,6 +66,7 @@ import {
   removeCountersFrom,
   removeThreat,
   resetHitPoints,
+  response,
   revealCard,
   selectCards,
   self,
@@ -246,7 +246,8 @@ export const MODOK: AbilityRegistry = defineAbilities({
   "50105a.holding-cell-forced-interrupt": cellFreed(),
   "50105a.holding-cell-action": cellAction("energy"),
   "50105b.flying-inhuman-constant": inhumanLimit(),
-  "50105b.flying-inhuman-response": heroResponse(
+  // "[star] Response", not "Hero Response": the ally thwarts while its player is in alter-ego form too.
+  "50105b.flying-inhuman-response": response(
     after.thwarts("self"),
     chooseTarget("scheme", query("scheme", { excluding: eventTarget })),
     removeThreat(1, chosen("scheme")),
@@ -257,7 +258,7 @@ export const MODOK: AbilityRegistry = defineAbilities({
   "50106a.holding-cell-forced-interrupt": cellFreed(),
   "50106a.holding-cell-action": cellAction("mental"),
   "50106b.psionic-inhuman-constant": inhumanLimit(),
-  "50106b.psionic-inhuman-response": heroResponse(after.thwarts("self"), removeCountersFrom(HOLDING_CELL, "lock", 1)),
+  "50106b.psionic-inhuman-response": response(after.thwarts("self"), removeCountersFrom(HOLDING_CELL, "lock", 1)),
   "50106b.psionic-inhuman-forced-response": inhumanLeaves(),
 
   "50107a.holding-cell-constant": cellEntersPlay(),

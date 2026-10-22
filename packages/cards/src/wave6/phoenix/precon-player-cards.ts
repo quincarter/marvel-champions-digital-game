@@ -1,5 +1,5 @@
 import { trait } from "@mc/content";
-import { amount, defineAbilities, eventTarget, heroInterrupt, on, query } from "../../dsl/index.js";
+import { amount, defineAbilities, eventTarget, interrupt, on, query } from "../../dsl/index.js";
 
 const THWART = trait("THWART");
 
@@ -10,7 +10,8 @@ const THWART = trait("THWART");
  *   paid for, `threatRemoved` +1 (the Shrink shape), offered only for a THWART event.
  */
 export const PHOENIX_PRECON_PLAYER_CARDS = defineAbilities({
-  "34020.passion-for-justice-interrupt": heroInterrupt(on.youSpendThis({ toPlay: query("event", { trait: THWART }) }), {
+  // "Interrupt", not "Hero Interrupt": a THWART event played in alter-ego form is paid for with it too.
+  "34020.passion-for-justice-interrupt": interrupt(on.youSpendThis({ toPlay: query("event", { trait: THWART }) }), {
     kind: "modifyCardEffect",
     card: eventTarget,
     threatRemoved: amount(1),
