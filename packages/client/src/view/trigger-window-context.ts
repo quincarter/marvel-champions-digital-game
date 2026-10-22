@@ -147,6 +147,8 @@ export function triggerHeadlineOf(
 function revealingCard(state: GameState): InstanceId | null {
   for (let i = state.stack.length - 1; i >= 0; i--) {
     const frame = state.stack[i]!;
+    // A reveal still at step 1 (its facedown "would reveal" window, `encounterCardBeingRevealed`) is not resolving yet.
+    if (frame.kind === "reveal" && frame.stage === "faceup") continue;
     if (frame.kind === "reveal" && !frame.whenRevealedCancelled && !frame.effectsCancelled) return frame.instanceId;
   }
   return null;

@@ -60,8 +60,8 @@ import {
  * denotes main schemes, player side schemes and side schemes). It was read as "your hero defeats a side scheme"
  * (`schemeDefeated`), which a main scheme thwarted to 0 never announces, so the card was not offered there. It is
  * the removal that takes a scheme from some threat to none (`requireResults: { lastThreatRemoved: 1 }` on
- * `removeThreat`), made by your identity: a thwart's removal is sourced to the thwarting character, basic or
- * "(thwart)"-labeled alike (`applyPlayerThwart`'s `sourceInstanceId: event.thwarterInstanceId`).
+ * `removeThreat`), made by your identity's thwart (`byThwart`), basic or "(thwart)"-labeled alike: a plain "remove
+ * threat" effect of the identity is no thwart (RRG 1.8 "Thwart", p. 44).
  *
  * **Browbeat (15028)** — "Deal 2 damage … Deal X additional damage … (to a maximum of 3)" is one combined `attack`
  * (the same "one attack event for the base plus the bonus" reading Repulsor Blast, 01031, Core, and this pack's own
@@ -117,7 +117,7 @@ export const SCW_PACK_CARDS = defineAbilities({
     {
       on: "removeThreat",
       sourceIs: { categories: ["identity"], controller: "you" },
-      requireResults: { lastThreatRemoved: 1 },
+      requireResults: { lastThreatRemoved: 1, byThwart: 1 },
     },
     { label: "attack" },
     chooseTarget("enemy", query("enemy")),

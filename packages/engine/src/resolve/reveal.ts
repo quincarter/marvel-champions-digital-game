@@ -216,7 +216,7 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
     case "faceup": {
       // "When you would reveal an encounter card" (Scarlet Spider 30020, Spider-Tingle 31020) answers before step 1
       // turns the card faceup (RRG 1.8 "Interrupt", p. 25, "Reveal", p. 38), so the player answers without seeing it.
-      // Only when an ability could answer, so other games keep their log, state and replay.
+      // Pushed only when an ability could answer, so a game where none can logs nothing new.
       if (!frame.newFace && !frame.wouldRevealAsked && listensForWouldReveal(ctx.deps)) {
         const would: TriggerEvent = {
           kind: "encounterCardBeingRevealed",

@@ -2365,7 +2365,9 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
     sourceInstanceId: event.sourceInstanceId,
     ...(event.noPlayer ? { noPlayer: true as const } : {}),
   });
-  addFrameVars(ctx, frameId, { amount: removed });
+  // `byThwart`: this removal is a thwart's ("After your hero thwarts and removes all threat", Turn the Tide 15015),
+  // not a plain "remove threat" effect of a card or an identity (RRG 1.8 "Thwart", p. 44).
+  addFrameVars(ctx, frameId, { amount: removed, ...(thwart ? { byThwart: 1 } : {}) });
   // A thwart's frame also reports `amount`, the key a plain removal reports, so a `bind` on a "(thwart)" ability's
   // `removeThreat` reads `<bind>.amount` whether or not the label made it a thwart.
   addFrameVars(ctx, event.parentFrameId, { threatRemoved: removed, ...(thwart ? { amount: removed } : {}) });

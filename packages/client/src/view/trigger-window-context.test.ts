@@ -65,6 +65,30 @@ describe("a Klaw setup with She-Hulk (the owner's report)", () => {
     expect(triggerHeadlineOf(setup, event, "response", viewer)).toBe("Defense Network got 2 threat");
   });
 
+  test("a facedown 'would reveal' window names no card and says no When Revealed is resolving", () => {
+    const game = store.state.game!;
+    const viewer = game.players[0]!.playerId;
+    const card = Object.keys(game.instances)[0]! as InstanceId;
+    // The reveal is still at step 1 (`stage: "faceup"`): Scarlet Spider's or Spider-Tingle's window, card facedown.
+    const frame = {
+      kind: "reveal",
+      instanceId: card,
+      stage: "faceup",
+      whenRevealedCancelled: false,
+      effectsCancelled: false,
+    };
+    const revealing = {
+      ...game,
+      step: { phase: "villain", kind: "revealEncounterCards" },
+      stack: [frame],
+    } as unknown as typeof game;
+    const event = { kind: "encounterCardBeingRevealed", instanceId: card, playerId: viewer } as TriggerEvent;
+    expect(triggerHeadlineOf(revealing, event, "interrupt", viewer)).toBe(
+      "A facedown encounter card is about to be revealed",
+    );
+    expect(triggerWhyNowOf(revealing, event)).toBe("Villain phase");
+  });
+
   test("a real trigger window, when the game offers one, yields a headline and effect lines", () => {
     const game = store.state.game!;
     const choice = game.pendingChoice;

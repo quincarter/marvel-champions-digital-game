@@ -212,6 +212,30 @@ describe("Scarlet Witch's pack cards (Justice, Basic; Aggression/Leadership/Prot
     expect(playerOf(thwarted, P1).discard).toContain(turnTheTide);
   });
 
+  it("Turn the Tide: not offered when your identity removes a scheme's last threat without thwarting (Puny Pest)", () => {
+    // Ant-Man's Puny Pest (12001a), "After you change to this form, remove 1 threat from a scheme": the identity's
+    // removal, but no thwart (RRG 1.8 "Thwart", p. 44).
+    const fresh = startWave2Game(
+      wave2Scenario("rhino", { players: [{ starterDeckId: "ant-leadership" }], seed: 2026 }),
+    );
+    const main = fresh.mainScheme.instanceId;
+    const given = conjure(patchInstance(fresh, main, { threat: 1 }), "15015");
+    const offered: string[] = [];
+    const after = settle(
+      runWave2(given.state, { type: "changeForm", playerId: P1, to: { heroForm: 0 } }),
+      (state) => {
+        const ids = state.pendingChoice?.options.map((o) => o.optionId) ?? [];
+        offered.push(...ids.filter((id) => id.endsWith(":15015.turn-the-tide-response")));
+        const pest = ids.filter((id) => id.endsWith(":12001a.puny-pest") || id === main);
+        return pest.length > 0 ? pest.slice(0, 1) : firstLegal(state);
+      },
+      undefined,
+      WAVE2_DEPS,
+    );
+    expect(inst(after, main).threat).toBe(0);
+    expect(offered).toEqual([]);
+  });
+
   it("Order and Chaos: Team-Up, Hero Interrupt cancels a revealed treachery's 'When Revealed' effects and deals 2 damage to the villain", () => {
     // Team-Up (Quicksilver and Scarlet Witch): the Quicksilver ally (15002, her own kit) must be in play — the
     // same "play the matching partner card the deck actually carries" precedent `qsv/pack-cards.test.ts`'s own
