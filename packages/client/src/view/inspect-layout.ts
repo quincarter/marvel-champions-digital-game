@@ -65,6 +65,7 @@
  * testable without a canvas.
  */
 
+import type { InspectCard } from "../settings.js";
 import { hit } from "../tokens.js";
 import { formFactorFor, type Rect } from "./layout.js";
 
@@ -77,6 +78,11 @@ export interface InspectPanelsLayout {
 
 export interface InspectSheetLayout {
   readonly mode: "sheet";
+  /**
+   * Portrait phone: the scan spans the sheet's width with the text and history below it (issue #358), instead of a
+   * thumbnail beside the text. A phone held sideways keeps the side-by-side header.
+   */
+  readonly stacked: boolean;
   readonly sheet: Rect;
   readonly handle: Rect;
   /** The scrolling body: thumbnail/name/type/chips/rules text, the keywords box, "this game" rows. */
@@ -133,6 +139,8 @@ const SHEET_FOOTER_PAD_BOTTOM = 13;
  */
 const SHEET_MIN_FRACTION = 0.5;
 const SHEET_MAX_FRACTION = 0.78;
+/** A stacked (portrait) sheet holds a full-width scan, so it may stand taller before its body scrolls. */
+const SHEET_MAX_FRACTION_STACKED = 0.92;
 /** Air between the last content row and the footer. */
 const SHEET_CONTENT_PAD_BOTTOM = 12;
 /** P14's own header row: a 116×164 thumbnail, an 11px gap, then the text column — plain arithmetic, no text measurement (`sheetTextColumn`'s own doc comment). */
@@ -155,6 +163,31 @@ export function thumbSizeFor(source: { readonly width: number; readonly height: 
   };
 }
 const SHEET_HEADER_GAP = 11;
+
+/** Portrait phone (taller than wide): the sheet stacks a full-width scan over the text. Landscape keeps the side-by-side header. */
+export function sheetStacked(
+  viewport: { readonly width: number; readonly height: number },
+  inspectCard: InspectCard = "large",
+): boolean {
+  return inspectCard === "large" && viewport.width < viewport.height;
+}
+
+/**
+ * The stacked header's scan box: the sheet's width less the content padding, as tall as the scan's own proportions
+ * (a landscape main scheme comes out short, a portrait hero tall). A `null` source (not loaded yet) holds the
+ * portrait card's 116:164 proportions so the sheet does not jump when the scan arrives.
+ */
+export function stackedScanSize(
+  sheetWidth: number,
+  source: { readonly width: number; readonly height: number } | null,
+): { readonly width: number; readonly height: number } {
+  const width = Math.max(1, sheetWidth - SHEET_CONTENT_PAD * 2);
+  const ratio =
+    source && source.width > 0 && source.height > 0
+      ? source.height / source.width
+      : SHEET_THUMB.height / SHEET_THUMB.width;
+  return { width, height: Math.round(width * ratio) };
+}
 /** P14's own 1.4:1 flex ratio between PLAY and PAY WITH when both are shown ("flex:1.4" vs "flex:1" in the source canvas). */
 const SHEET_PLAY_PAY_RATIO = 1.4;
 
@@ -174,11 +207,14 @@ export interface InspectLayoutOptions {
    * sheet can hug it. Omitted on the scene's first pass, which gets the tallest collapsed sheet to measure in.
    */
   readonly sheetContentHeight?: number;
+  /** Phone only: Settings' "Inspect card" choice. "sideBySide" keeps the small scan beside the text in portrait too. Default "large". */
+  readonly inspectCard?: InspectCard;
 }
 
 export function inspectLayout(viewport: Rect, opts: InspectLayoutOptions = {}): InspectLayout {
   const formFactor = formFactorFor(viewport.width, viewport.height);
-  if (formFactor === "phone") return sheetLayout(viewport, opts.expanded ?? false, opts.sheetContentHeight);
+  if (formFactor === "phone")
+    return sheetLayout(viewport, opts.expanded ?? false, opts.sheetContentHeight, opts.inspectCard);
   return panelsLayout(
     viewport,
     opts.cardContentHeight ?? PANEL_MIN_HEIGHT,
@@ -215,14 +251,20 @@ function panelsLayout(viewport: Rect, cardContentHeight: number, rulesContentHei
   return { mode: "panels", card, rules, hint };
 }
 
-function sheetLayout(viewport: Rect, expanded: boolean, contentHeight?: number): InspectSheetLayout {
+function sheetLayout(
+  viewport: Rect,
+  expanded: boolean,
+  contentHeight?: number,
+  inspectCard?: InspectCard,
+): InspectSheetLayout {
   const footerHeight =
     SHEET_FOOTER_PAD_TOP +
     SHEET_FOOTER_PRIMARY_HEIGHT +
     SHEET_FOOTER_GAP +
     SHEET_FOOTER_QUIET_HEIGHT +
     SHEET_FOOTER_PAD_BOTTOM;
-  const tallest = Math.round(viewport.height * SHEET_MAX_FRACTION);
+  const stacked = sheetStacked(viewport, inspectCard);
+  const tallest = Math.round(viewport.height * (stacked ? SHEET_MAX_FRACTION_STACKED : SHEET_MAX_FRACTION));
   const collapsed =
     contentHeight === undefined
       ? tallest
@@ -265,7 +307,7 @@ function sheetLayout(viewport: Rect, expanded: boolean, contentHeight?: number):
     width: sheet.width,
     height: Math.max(0, footer.y - (sheet.y + handle.height)),
   };
-  return { mode: "sheet", sheet, handle, content, footer, footerPrimaryRow, footerQuietRow };
+  return { mode: "sheet", stacked, sheet, handle, content, footer, footerPrimaryRow, footerQuietRow };
 }
 
 export interface SheetTextColumn {

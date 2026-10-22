@@ -35,6 +35,8 @@ import {
   type AchievementPopupSize,
   type AchievementPopupTime,
   type CardHoverScale,
+  type InspectCard,
+  INSPECT_CARD_VALUES,
   type CardSize,
   type DisplayMode,
   type FirstPlayerTokenMotion,
@@ -548,6 +550,34 @@ export const CARD_SIZE_LABELS: Readonly<Record<CardSize, string>> = {
   large: "Large",
   xlarge: "Extra large",
 };
+
+export const INSPECT_CARD_LABELS: Readonly<Record<InspectCard, string>> = {
+  large: "Large card",
+  sideBySide: "Side by side",
+};
+
+export interface InspectCardRowInfo {
+  readonly title: string;
+  readonly detail: string;
+  readonly options: readonly { readonly value: InspectCard; readonly label: string }[];
+  readonly selected: InspectCard;
+}
+
+/** The phone-portrait Inspect layout (#358): the scan across the sheet, or the older small scan beside the text. */
+export function inspectCardRowInfoOf(settings: Settings): InspectCardRowInfo {
+  return {
+    title: "Inspect card",
+    detail:
+      "On a phone held upright, Large card shows the whole scan across the sheet with the text below it. Side by side shows a small scan beside the text.",
+    options: INSPECT_CARD_VALUES.map((value) => ({ value, label: INSPECT_CARD_LABELS[value] })),
+    selected: settings.inspectCard,
+  };
+}
+
+/** `settings` with the Inspect layout set; a value that is not one of the two changes nothing. */
+export function nextSettingsAfterInspectCard(settings: Settings, value: InspectCard): Settings {
+  return INSPECT_CARD_VALUES.includes(value) ? { ...settings, inspectCard: value } : settings;
+}
 
 export interface CardSizeRowInfo {
   readonly title: string;

@@ -11,6 +11,7 @@ export type SettingsItemId =
   | SettingsRowId
   | "card-size"
   | "card-hover"
+  | "inspect-card"
   | "game-volume"
   | "music-volume"
   | "effects-volume"
@@ -64,6 +65,8 @@ export interface SettingsSection {
 export function settingsSectionsOf(input: {
   readonly guideRowIds: readonly GuideSettingsRowId[];
   readonly cardHover: boolean;
+  /** A phone: the "Inspect card" row, which picks the portrait Inspect layout (#358). */
+  readonly inspectCard?: boolean;
   readonly gameVolume?: boolean;
   readonly desktopWindow?: boolean;
   /** SteamOS or Bazzite: a Steam Deck row in the Window section. */
@@ -86,6 +89,7 @@ export function settingsSectionsOf(input: {
       items: [
         "card-size",
         ...(input.cardHover ? (["card-hover"] as const) : []),
+        ...(input.inspectCard ? (["inspect-card"] as const) : []),
         "hover-hero",
         "hover-villain",
         "large-card-text",

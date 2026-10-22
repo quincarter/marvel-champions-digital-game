@@ -73,6 +73,46 @@ export interface DrawCharacterOptions {
    * first), so the caller can carry it somewhere else, as the minion row does on its chip above the tile.
    */
   readonly onTagDropped?: (tag: string) => void;
+  /**
+   * Word chips drawn first in a wide panel's text column ("ACTIVE", "ORDER 2", "VS SPIDER-MAN" on one of several
+   * villains): a status is never color alone.
+   */
+  readonly leadChips?: readonly LeadChip[];
+}
+
+export interface LeadChip {
+  readonly words: string;
+  readonly fill: number;
+  readonly color: number;
+}
+
+/** A row of small word chips, wrapping within `maxWidth`; returns the y under the last row. */
+function drawLeadChips(
+  scene: Phaser.Scene,
+  chips: readonly LeadChip[],
+  x: number,
+  y: number,
+  maxWidth: number,
+  dim: number,
+): number {
+  let cursor = x;
+  let row = y;
+  for (const chip of chips) {
+    const text = label(scene, 0, 0, chip.words, typeRole.label, chip.color, dim);
+    text.setFontSize(10).setLetterSpacing(0.6);
+    fitTight(text, maxWidth - 10, 10);
+    const width = Math.min(maxWidth, Math.ceil(text.width) + 10);
+    if (cursor > x && cursor + width > x + maxWidth) {
+      cursor = x;
+      row += 20;
+    }
+    const g = scene.add.graphics();
+    g.fillStyle(chip.fill, dim).fillRect(cursor, row, width, 16);
+    scene.children.bringToTop(text);
+    text.setPosition(cursor + (width - text.width) / 2, row + (16 - text.height) / 2);
+    cursor += width + 4;
+  }
+  return row + 20;
 }
 
 /** "1 time counter" / "2 time counters, 1 snoop counter" — every counter kind on the card itself, in one short line. */
@@ -190,6 +230,8 @@ export function drawCharacter(
     );
     top += 26;
   }
+  if (options.leadChips && options.leadChips.length > 0)
+    top = drawLeadChips(scene, options.leadChips, left, top, textWidth, dim);
   top = drawStatusTags(ctx, left, top, textWidth, panel, dim, compact);
   // The seat's lasting effects and Gift count, the Gift count a card reads, and an ability the engine refused with the
   // part of its condition that failed (`view/ability-refusal.ts`): all notes in words.

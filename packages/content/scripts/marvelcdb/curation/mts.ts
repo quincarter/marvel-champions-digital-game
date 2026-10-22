@@ -454,6 +454,10 @@ export const MTS_CURATION: PackCuration = {
   // `imageOverrides`' own evidence bar both require a second source to be independently viewed before it is
   // cited, so none of these candidates was entered as an `imageOverrides` URL. If one turns up later, prefer that
   // (a real reference beats an acknowledged gap) and drop the matching entry here.
+  // Four of them did, with Norn Stone's flip side (issue #356, 2026-10-22): the campaign cards' backs are on the `the-mad-titans-shadow` page as
+  // `c<n>b.jpg` beside their fronts' `c<n>a.jpg` (Black Swan c3b, Defensive Protocols c8b, Retrieve Odin's Armor
+  // c13b, Norn Stone's flip side c17b, Jormungand c19b), each read by eye against its printed name and collector
+  // number, so they are bundled scans now (assets/card-art/hall-of-heroes-manifest.tsv). Hela's two backs remain.
   // MarvelCDB hosts only the A side of each main scheme stage here (the aggregate `21075.png` is stamped "2A"); the
   // B sides were fetched from Hall of Heroes' encounter gallery (assets/card-art/hall-of-heroes-manifest.tsv) and
   // checked by eye against their stage stamps (issue #295).
@@ -468,18 +472,5 @@ export const MTS_CURATION: PackCuration = {
     "21137b":
       "MarvelCDB /bundles/cards/21137b.png and the live API both 404/null (checked 2026-09-24). Same search as " +
       "21136b, for Hela's expert-mode Mystic-side back.",
-    "21182b":
-      "Black Swan, the back of Save the Shawarma Place. MarvelCDB /bundles/cards/21182b.png and the live API " +
-      "both 404/null (checked 2026-09-24). No second-source scan found (searched as for 21136b, plus a " +
-      "crazyjackalope.com product listing, which shows only one thumbnail).",
-    "21184b":
-      "Defensive Protocols, the back of Hack Sanctuary's Computer. MarvelCDB /bundles/cards/21184b.png and the " +
-      "live API both 404/null (checked 2026-09-24). Same search as 21182b.",
-    "21186b":
-      "Retrieve Odin's Armor, the back of Find the Norn Stones. MarvelCDB /bundles/cards/21186b.png and the " +
-      "live API both 404/null (checked 2026-09-24). Same search as 21182b.",
-    "21189b":
-      "Jormungand, the back of Open the Dungeons. MarvelCDB /bundles/cards/21189b.png and the live API both " +
-      "404/null (checked 2026-09-24). Same search as 21182b.",
   },
 };

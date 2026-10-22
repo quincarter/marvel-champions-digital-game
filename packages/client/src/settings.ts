@@ -82,6 +82,11 @@ export interface Settings {
    * read them (2026-10-14). Defaults to standard, the size every screen was designed at.
    */
   readonly cardSize: CardSize;
+  /**
+   * Inspect on a phone held upright: "large" stacks a full-width scan over the text (issue #358), "sideBySide" is the
+   * older small scan beside the text. Phone portrait only; every other form factor keeps its own layout. Defaults large.
+   */
+  readonly inspectCard: InspectCard;
   /** The hover popover over a hero (or alter-ego) identity card. Defaults on (the owner, 2026-10-14). */
   readonly hoverHeroCard: boolean;
   /** The hover popover over a villain card. Defaults on. */
@@ -252,6 +257,9 @@ export function cardHoverFactor(scale: CardHoverScale): number | null {
   return scale === "off" ? null : Number.parseFloat(scale);
 }
 
+export type InspectCard = "large" | "sideBySide";
+export const INSPECT_CARD_VALUES: readonly InspectCard[] = ["large", "sideBySide"];
+
 export type VillainAutoAdvance = "off" | "afterPause" | "on";
 export const VILLAIN_AUTO_ADVANCE_VALUES: readonly VillainAutoAdvance[] = ["off", "afterPause", "on"];
 
@@ -333,6 +341,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     villainDockTable: true,
     cardHoverScale: "2.5x",
     cardSize: "standard",
+    inspectCard: "large",
     hoverHeroCard: true,
     hoverVillainCard: true,
     ultronDroneArt: true,

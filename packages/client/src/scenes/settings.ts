@@ -47,6 +47,8 @@ import {
   nextSettingsAfterResolution,
   resolutionRowInfoOf,
   nextSettingsAfterCardHover,
+  nextSettingsAfterInspectCard,
+  inspectCardRowInfoOf,
   nextSettingsAfterTokenMotion,
   tokenMotionRowInfoOf,
   achievementPopupPlaceRowInfoOf,
@@ -69,6 +71,7 @@ import { settingsTabsOf, type SettingsItemId, type SettingsTabId } from "../view
 import type { GuideLevel } from "../guide/guide-prefs.js";
 import type {
   CardHoverScale,
+  InspectCard,
   CardSize,
   FirstPlayerTokenMotion,
   Settings,
@@ -381,6 +384,7 @@ export class SettingsOverlay extends Phaser.Scene {
     const tabs = settingsTabsOf({
       guideRowIds: guideRows.map((row) => row.id),
       cardHover: formFactorFor(width, height) === "desktop",
+      inspectCard: formFactorFor(width, height) === "phone",
       gameVolume: followsWindowsMixer(),
       // Sound's own tab only where six fit with their names whole; a phone keeps five, Sound under Display.
       soundTab: settingsLayout({ x: 0, y: 0, width, height }, []).tabs.width / 6 >= SOUND_TAB_MIN_CELL,
@@ -501,6 +505,7 @@ export class SettingsOverlay extends Phaser.Scene {
         },
       });
     };
+    segmented("inspect-card", inspectCardRowInfoOf(settings), CARD_HOVER_CONTROL_WIDTH, (v) => this.#setInspectCard(v));
     segmented("card-hover", cardHoverRowInfoOf(settings), CARD_HOVER_CONTROL_WIDTH, (v) => this.#setCardHover(v));
     // The game's mixer volume shows once read (`create` reads it); 100 until then, the mixer's own default.
     segmented("game-volume", gameVolumeRowInfoOf(knownMixerVolume() ?? 100), CARD_HOVER_CONTROL_WIDTH, (v) => {
@@ -888,6 +893,11 @@ export class SettingsOverlay extends Phaser.Scene {
 
   #setCardHover(value: CardHoverScale): void {
     appSession().settings = nextSettingsAfterCardHover(appSession().settings, value);
+    this.#draw();
+  }
+
+  #setInspectCard(value: InspectCard): void {
+    appSession().settings = nextSettingsAfterInspectCard(appSession().settings, value);
     this.#draw();
   }
 

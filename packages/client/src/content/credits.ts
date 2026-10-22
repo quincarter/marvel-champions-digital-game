@@ -271,12 +271,12 @@ export const CREDITS: readonly CreditEntry[] = [
     id: "avengers-11",
     group: "story",
     title: 'Avengers (2018) #11, "Worthy of a Second Date?": four pages',
-    shownIn: "Not shown yet; the earned mini comic for the Thor and She-Hulk Team-Up achievement",
+    shownIn: "Extras ▸ Side Stories, opened by the Worthy of a Second Date? achievement",
     credit:
       "Marvel Comics, released December 12, 2018 (cover-dated January 2019). Written by Jason Aaron; pencils by Cory Smith, Ed McGuinness and Karl Kesel; cover by Ed McGuinness. Pages 6, 11, 16 and 17. Inkers, colorist and letterer are not listed in the owner's library entry, so they are not recorded yet.",
     notice: MARVEL,
     url: "https://www.marvel.com/comics/issue/67768/avengers_2018_11",
-    folders: ["art/extras/_pending/thor-she-hulk-badlands-date"],
+    folders: ["art/side-stories"],
     gap: true,
   },
 

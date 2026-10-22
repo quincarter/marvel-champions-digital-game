@@ -90,7 +90,7 @@ export function bindHoldTarget(scene: Phaser.Scene, zone: Phaser.GameObjects.Zon
     if (!gesture) return;
     // This zone judged the press (a tap, a hold, a drag): the scene's tap router must not judge it again.
     noteTapFired(scene, pointer);
-    if (gesture.up(pointer.wasCanceled)) handlers.onTap();
+    if (gesture.up(pointer.wasCanceled, pointer.x, pointer.y)) handlers.onTap();
   });
 
   // A press no zone judged (it went down in the frame after a redraw, before the new zones could be hit, or came up
@@ -106,7 +106,7 @@ export function bindHoldTarget(scene: Phaser.Scene, zone: Phaser.GameObjects.Zon
       const press = livePresses.get(pointer);
       if (press && press.downTime === pointer.downTime && press.key === key) {
         livePresses.delete(pointer);
-        if (press.gesture.up(pointer.wasCanceled)) handlers.onTap();
+        if (press.gesture.up(pointer.wasCanceled, pointer.x, pointer.y)) handlers.onTap();
         return;
       }
       if (pointer.upTime - pointer.downTime < INSPECT_HOLD_MS) handlers.onTap();
