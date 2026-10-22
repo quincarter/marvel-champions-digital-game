@@ -276,7 +276,7 @@ export const CREDITS: readonly CreditEntry[] = [
       "Marvel Comics, released December 12, 2018 (cover-dated January 2019). Written by Jason Aaron; pencils by Cory Smith, Ed McGuinness and Karl Kesel; cover by Ed McGuinness. Pages 6, 11, 16 and 17. Inkers, colorist and letterer are not listed in the owner's library entry, so they are not recorded yet.",
     notice: MARVEL,
     url: "https://www.marvel.com/comics/issue/67768/avengers_2018_11",
-    folders: ["art/side-stories"],
+    folders: ["art/side-stories/thor-she-hulk-badlands-date"],
     gap: true,
   },
 
