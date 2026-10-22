@@ -88,6 +88,9 @@ export function triggerHeadlineOf(
         : `${cardName(state, event.instanceId)} was revealed`;
     case "encounterCardRevealing":
       return `${cardName(state, event.instanceId)} is about to be revealed`;
+    // Still facedown while this window is open, so the card is not named.
+    case "encounterCardBeingRevealed":
+      return "A facedown encounter card is about to be revealed";
     case "cardEntersPlay":
       return before
         ? `${cardName(state, event.instanceId)} is about to enter play`
@@ -144,6 +147,8 @@ export function triggerHeadlineOf(
 function revealingCard(state: GameState): InstanceId | null {
   for (let i = state.stack.length - 1; i >= 0; i--) {
     const frame = state.stack[i]!;
+    // A reveal still at step 1 (its facedown "would reveal" window, `encounterCardBeingRevealed`) is not resolving yet.
+    if (frame.kind === "reveal" && frame.stage === "faceup") continue;
     if (frame.kind === "reveal" && !frame.whenRevealedCancelled && !frame.effectsCancelled) return frame.instanceId;
   }
   return null;

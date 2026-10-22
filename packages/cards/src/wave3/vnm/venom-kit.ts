@@ -51,6 +51,7 @@ import {
   reduceNextCardCost,
   removeCounter,
   removeThreatFromAScheme,
+  response,
   restrictedLimit,
   self,
   setup,
@@ -204,7 +205,8 @@ export const VENOM_KIT = defineAbilities({
 
   // Jack Flag — Response: After Jack Flag thwarts, place 1 ammo counter on him. Hero Action: Exhaust Jack Flag
   // and remove 1 ammo counter from him → deal 2 damage to an enemy.
-  "20011.jack-flag-response": heroResponse(on.thwarts("self"), addCounters("ammo", 1, self)),
+  // "Response", not "Hero Response": he thwarts while his player is in alter-ego form too.
+  "20011.jack-flag-response": response(on.thwarts("self"), addCounters("ammo", 1, self)),
   "20011.jack-flag-action": heroAction({ cost: [exhaustThis, removeCounter("ammo")] }, ...damageAnEnemy(2)),
 
   // Scare Tactic — Hero Action (attack): Deal 3 damage to a confused enemy.
