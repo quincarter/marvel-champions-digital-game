@@ -29,6 +29,7 @@ import {
   canTakeStatus,
   hasGrantedPermanent,
   hasKeyword,
+  isPermanent,
   printedFormTypes,
   queryHasKeyword,
   statusActive,
@@ -85,6 +86,7 @@ import {
   scenarioPlayAreaOf,
   isOwnedEncounterCard,
   playerCardOwnerOf,
+  hasStat,
   textGoneByTreatment,
 } from "./query.js";
 import type { LogValue } from "./campaign.js";
@@ -848,6 +850,36 @@ export function gliderMainSchemeId(state: GameState, deps: EngineDeps): Instance
     if (scheme !== undefined) return scheme;
   }
   return null;
+}
+
+/**
+ * Reads `read` once for each main scheme a player card's "the main scheme" could be chosen as (RRG 1.8 p. 63, Venom
+ * Goblin FAQ; Ruling 132, Dec 22, 2023): every main scheme in the shared area, each bound as the ability's
+ * `MAIN_SCHEME_CHOICE`. Once, as is, when there is nothing to choose: one main scheme, a separate game area's own stage,
+ * a choice already made, a card that is not a player's, or a Focused Defense naming the scheme a player card's constant
+ * "always refers to" (MC21 p. 10). The glider counter (`encounterCards: "focused"`) does not decide it: it names the
+ * encounter cards' main scheme, and the FAQ lets the player choose any.
+ */
+function readEachChoosableMainScheme<T>(
+  state: GameState,
+  context: EffectContext,
+  read: (context: EffectContext) => T,
+): readonly T[] {
+  const deps = context.deps ?? DEFAULT_DEPS;
+  const choosable =
+    (state.extraMainSchemes ?? []).length > 0 &&
+    !contextArea(state, context) &&
+    context.bindings[MAIN_SCHEME_CHOICE] === undefined &&
+    isPlayerCard(state, context.selfInstanceId) &&
+    !activeRules(state, deps, "focusedMainScheme").some(
+      ({ rule, context: ruleContext }) =>
+        rule.encounterCards !== "focused" &&
+        resolveRef(state, rule.scheme, ruleContext).some((id) => mainSchemeStateOf(state, id) !== undefined),
+    );
+  if (!choosable) return [read(context)];
+  return sharedMainSchemes(state).map((scheme) =>
+    read({ ...context, bindings: { ...context.bindings, [MAIN_SCHEME_CHOICE]: [scheme.instanceId] } }),
+  );
 }
 
 /**
@@ -2801,7 +2833,9 @@ function resolveRefAnywhere(state: GameState, ref: TargetRef, context: EffectCon
       // Each candidate is measured with itself bound to `slot`, so the measure can read another card ("the villain
       // whose side scheme has the most threat"). Ties resolve to every tied card; see the `TargetRef` comment.
       const slot = ref.slot ?? "candidate";
-      const candidates = resolveRef(state, ref.among, context).filter((id) => getInstance(state, id) !== undefined);
+      const candidates = resolveRef(state, ref.among, context).filter(
+        (id) => getInstance(state, id) !== undefined && rankedForSuperlative(state, ref, id, context),
+      );
       if (candidates.length === 0) return [];
       const measured = candidates.map((id) => ({
         id,
@@ -2813,6 +2847,31 @@ function resolveRefAnywhere(state: GameState, ref: TargetRef, context: EffectCon
       return ref.ties === "first" ? tied.slice(0, 1) : tied;
     }
   }
+}
+
+/**
+ * Whether a card in a `superlative`'s pool is ranked at all (see the `TargetRef` comment). With `leavesPlay`, a
+ * permanent card this ability cannot make leave play is not: RRG 1.8 "Permanent" (p. 32), "If a permanent card would be
+ * targeted by such an effect (for example, 'discard the lowest-cost support you control'), that effect instead targets
+ * the non-permanent card that fits its criteria." Its own set's ability can (`ofPermanentCardsSet`, the exception
+ * `effects.ts` `permanentStopsLeaving` makes). A measure reading the candidate's own stat skips a candidate without
+ * that stat (`hasStat`; ruling April 17, 2025: an alter-ego is not "the character with the highest ATK").
+ */
+function rankedForSuperlative(
+  state: GameState,
+  ref: Extract<TargetRef, { kind: "superlative" }>,
+  id: InstanceId,
+  context: EffectContext,
+): boolean {
+  if (ref.leavesPlay && isPermanent(state, id, context.deps ?? DEFAULT_DEPS)) {
+    const source = context.selfInstanceId ? getInstance(state, context.selfInstanceId)?.cardId : undefined;
+    if (source === undefined || !ofPermanentCardsSet(state, id, source)) return false;
+  }
+  const measure = ref.measure;
+  if (measure.kind === "stat" && measure.of.kind === "slot" && measure.of.slot === (ref.slot ?? "candidate")) {
+    return hasStat(state, id, measure.stat);
+  }
+  return true;
 }
 
 /**
@@ -3117,6 +3176,12 @@ export function resolveValue(
       return Math.min(...value.values.map((part) => resolveValue(state, part, context, deps)));
     case "max":
       return Math.max(...value.values.map((part) => resolveValue(state, part, context, deps)));
+    case "chosenMainSchemeValue": {
+      const readings = readEachChoosableMainScheme(state, context, (each) =>
+        resolveValue(state, value.value, each, deps),
+      );
+      return value.prefer === "most" ? Math.max(...readings) : Math.min(...readings);
+    }
     case "highestStat":
       return highestStatAmong(state, value, context, deps);
     case "deckCount": {
@@ -3313,6 +3378,8 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
     }
     case "not":
       return !evaluate(state, predicate.of, context);
+    case "onChosenMainScheme":
+      return readEachChoosableMainScheme(state, context, (each) => evaluate(state, predicate.of, each)).some(Boolean);
     case "paidWith": {
       const vars = paidVarsOf(state, predicate.of, context);
       return (vars[`paid.${predicate.resource}`] ?? 0) > 0 || (vars["paid.wild"] ?? 0) > 0;

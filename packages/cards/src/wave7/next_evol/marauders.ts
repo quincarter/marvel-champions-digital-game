@@ -12,6 +12,7 @@ import {
   dealIndirectDamage,
   discard,
   each,
+  anyIn,
   exists,
   firstPlayer,
   forcedInterrupt,
@@ -54,8 +55,11 @@ const GIVE_TOUGH = "Give Blockbuster a tough status card";
 
 /** "The highest-cost card you control": allies, upgrades and supports (the cards a player controls that print a cost). */
 const YOUR_COSTED_CARDS = query(["ally", "upgrade", "support"], { controller: "you" });
-const highestCost = (ties: "all" | "first") =>
-  superlative("highest", each(YOUR_COSTED_CARDS), printedCostOf(chosen("candidate")), { ties });
+const highestCost = (ties: "all" | "first", leavesPlay?: true) =>
+  superlative("highest", each(YOUR_COSTED_CARDS), printedCostOf(chosen("candidate")), {
+    ties,
+    ...(leavesPlay ? { leavesPlay } : {}),
+  });
 /** X: the printed cost of the highest-cost card you control, read when the option resolves (0 with none). */
 const HIGHEST_PRINTED_COST = printedCostOf(highestCost("first"));
 
@@ -168,8 +172,8 @@ export const MARAUDERS: AbilityRegistry = defineAbilities({
     chooseOne(
       option(
         "Discard the highest-cost card you control",
-        { when: exists(YOUR_COSTED_CARDS) },
-        bindTargets("highest", highestCost("all")),
+        { when: anyIn(highestCost("all", true)) },
+        bindTargets("highest", highestCost("all", true)),
         chooseTarget("pick", { inSlot: "highest" }, { chooser: firstPlayer }),
         discard(chosen("pick")),
       ),
@@ -181,8 +185,8 @@ export const MARAUDERS: AbilityRegistry = defineAbilities({
     chooseOne(
       option(
         "Discard each card you control with the highest cost",
-        { when: exists(YOUR_COSTED_CARDS) },
-        bindTargets("highest", highestCost("all")),
+        { when: anyIn(highestCost("all", true)) },
+        bindTargets("highest", highestCost("all", true)),
         discard(chosen("highest")),
       ),
       option("Greycrow gets +X ATK for this attack", modifyAttack({ atkBonus: HIGHEST_PRINTED_COST })),

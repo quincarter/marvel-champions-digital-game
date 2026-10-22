@@ -17,7 +17,7 @@ import {
   encounterCards,
   enemyAttack,
   enemyScheme,
-  exists,
+  anyIn,
   exhaust,
   firstPlayer,
   forEachPlayer,
@@ -58,6 +58,13 @@ import {
  */
 
 const YOUR_UPGRADES_AND_SUPPORTS = query(["upgrade", "support"], { controller: "you" });
+/** The highest-cost of them that can leave play (RRG 1.8 "Permanent", p. 32). */
+const HIGHEST_COST_UPGRADE_OR_SUPPORT = superlative(
+  "highest",
+  each(YOUR_UPGRADES_AND_SUPPORTS),
+  printedCostOf(chosen("candidate")),
+  { leavesPlay: true },
+);
 
 /** "Give the villain 1 additional boost card for this activation." */
 const oneMoreBoostCard = () => modifyAttack({ extraBoostCards: 1 });
@@ -146,12 +153,9 @@ export const STANDARD_EXPERT_II = defineAbilities({
   // eligible targets), as Core's Caught Off Guard does.
   "24052.when-revealed": whenRevealed(
     ifThen(
-      exists(YOUR_UPGRADES_AND_SUPPORTS),
+      anyIn(HIGHEST_COST_UPGRADE_OR_SUPPORT),
       [
-        bindTargets(
-          "highest",
-          superlative("highest", each(YOUR_UPGRADES_AND_SUPPORTS), printedCostOf(chosen("candidate"))),
-        ),
+        bindTargets("highest", HIGHEST_COST_UPGRADE_OR_SUPPORT),
         chooseTarget("pick", { inSlot: "highest" }, { chooser: firstPlayer }),
         discard(chosen("pick")),
       ],

@@ -200,6 +200,7 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
         "highest",
         each(query(["ally", "upgrade", "support"], { controller: "you" })),
         printedCostOf(chosen("candidate")),
+        { leavesPlay: true },
       ),
     ),
     // No "choose": an encounter card targeting one of several eligible cards; the first player selects

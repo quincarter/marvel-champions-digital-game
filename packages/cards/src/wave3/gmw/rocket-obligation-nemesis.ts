@@ -7,7 +7,7 @@ import {
   discard,
   discardEncounterUntil,
   each,
-  exists,
+  anyIn,
   giveTough,
   ifThen,
   printedCostOf,
@@ -26,6 +26,14 @@ import { obligation } from "../../core/obligations.js";
  * amplify side scheme, no ability ref), Blackjack O'Hare (16055, data only — his nemesis minion, no ability ref),
  * Blackjack's Bazooka (16056), Planetary Invasion ×2 (16057).
  */
+/** The highest-cost upgrade you control that can leave play (RRG 1.8 "Permanent", p. 32). */
+const HIGHEST_COST_UPGRADE = superlative(
+  "highest",
+  each(query("upgrade", { controller: "you" })),
+  printedCostOf(chosen("candidate")),
+  { leavesPlay: true },
+);
+
 export const ROCKET_OBLIGATION_NEMESIS = defineAbilities({
   // Crisis on Halfworld — Give to the Rocket Raccoon player. You may flip to alter-ego form. Choose:
   // • Exhaust your alter-ego → remove Crisis on Halfworld from the game.
@@ -35,12 +43,9 @@ export const ROCKET_OBLIGATION_NEMESIS = defineAbilities({
     label: "Discard the highest cost upgrade you control. If no upgrade was discarded this way, this card gains surge",
     effects: [
       ifThen(
-        exists(query("upgrade", { controller: "you" })),
+        anyIn(HIGHEST_COST_UPGRADE),
         [
-          bindTargets(
-            "highest-upgrades",
-            superlative("highest", each(query("upgrade", { controller: "you" })), printedCostOf(chosen("candidate"))),
-          ),
+          bindTargets("highest-upgrades", HIGHEST_COST_UPGRADE),
           // RRG 1.8 "Obligation" p.30 / "Ability" p.4: the obligation's player decides how to resolve it (specific over "First Player" p.19).
           chooseTarget("highest-upgrade", { inSlot: "highest-upgrades" }),
           discard(chosen("highest-upgrade")),
