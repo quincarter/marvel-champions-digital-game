@@ -35,7 +35,11 @@ pub async fn save_text_file(
   let Some(chosen) = dialog.blocking_save_file() else {
     return Ok(None);
   };
-  let path = chosen.into_path().map_err(|e| e.to_string())?;
+  let mut path = chosen.into_path().map_err(|e| e.to_string())?;
+  // Windows adds it through the filter; macOS and Linux may not, and Import only offers .json files.
+  if path.extension().is_none() {
+    path.set_extension("json");
+  }
   std::fs::write(&path, contents).map_err(|e| e.to_string())?;
   Ok(Some(path.to_string_lossy().into_owned()))
 }
