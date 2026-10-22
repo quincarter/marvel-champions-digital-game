@@ -22,12 +22,18 @@ export const GOB_CURATION: PackCuration = {
   outDir: "src/data/gob",
   exportPrefix: "GOB",
 
-  // No hand corrections were found necessary: `gob.json` normalizes cleanly under a zero-correction curation
-  // (`survey.ts`/`--dry-run --allow-bare`), and a targeted re-check of every docs/phase7-wave1.md §1.12 item that
-  // names a Green Goblin pack card (the attach-rule shapes 02019/02033/02048/02049, the guard-minion SCH values,
-  // the "record never turned into a card" faces) found nothing wrong in this pack's own raw text — see this file's
-  // header comment and the card-data-pipeline report for what was checked and how.
-  corrections: [],
+  corrections: [
+    {
+      code: "02002b",
+      reason: 'MarvelCDB reads "Deal 3 indirect damage to each player." on Green Goblin II; the card prints 4 (#361).',
+      evidence:
+        'Card scan assets/card-art/bundles/cards/02002b.png: "When Revealed: Deal 4 indirect damage to each player." The other Norman Osborn / Green Goblin faces (02001a-02003b) and the Mutagen Formula stages (02014-02016) were checked against their scans and match raw.',
+      textReplace: {
+        find: "Deal 3 indirect damage to each player.",
+        replace: "Deal 4 indirect damage to each player.",
+      },
+    },
+  ],
   errata: [],
 
   scriptingNotes: {
