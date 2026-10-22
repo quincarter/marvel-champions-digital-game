@@ -396,6 +396,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // The table takes no game action until the player starts the player phase (or skips).
     this.#boardScene()?.setVillainPhaseOpen(true);
     const { store } = appSession();
+    // Before the subscribe, which runs the first draw (or closes at once, drawing nothing): the last run's cards go.
+    resetHoverCards(this);
     this.#unsubscribe = store.subscribe((state) => this.#onState(state));
     const onResize = (): void => this.#draw();
     // A boost card's scan is requested lazily and may not have arrived on the
@@ -427,8 +429,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     });
 
     // The desktop hover popover over the phase's own cards (the enemy, the revealed card, the interrupt card, the
-    // recap's thumbnails), as on the table: the cards' rects are noted as they are drawn (`noteHoverCard`).
-    resetHoverCards(this);
+    // recap's thumbnails), as on the table: the cards' rects are noted as they are drawn (`noteHoverCard`). The first
+    // draw, which `store.subscribe` above already ran, noted them: a reset here emptied them.
     this.#hover = new HoverPreview(this, {
       // One entry per picture: the recap shows the villain once per attack, and its steps scroll without a redraw.
       hits: () => hoverCardHitsOf(this),

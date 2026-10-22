@@ -9,6 +9,8 @@ import {
   instancesOf,
   moveToHand,
   patchInstance,
+  payWith,
+  play,
   playerOf,
   settle,
   stackEncounterDeck,
@@ -19,6 +21,7 @@ import {
 } from "../../../testing/harness.js";
 import { startWave5Game, runWave5, WAVE5_DEPS } from "../../testing.js";
 import { driveEvents } from "../../../testing/staging.js";
+import { conjure } from "../../../testing/qa-bench.js";
 import { ghostSpiderScenario, ghostSpiderScenarioWithExtras } from "../ghost-spider/support.js";
 
 const venomGame = (seed = 1) =>
@@ -153,6 +156,26 @@ describe("Webbed Up (27166)", () => {
     expect(inst(attempted, attached.id).attachedTo).toBeNull();
     expect(inst(attempted, identity).statuses.stunned).toBeGreaterThan(0);
     expect(inst(attempted, activeVillain(attempted).instanceId).damage).toBe(0); // the attack never happened
+  });
+
+  it("27166.webbed-up-constant: an attack event is replaced too, not only a basic attack (#346)", () => {
+    const state = venomGame();
+    const identity = identityOf(state);
+    const attached = attachToHost(state, "27166", identity);
+    const given = conjure(asHero(attached.state), "01087"); // Haymaker: "Hero Action (attack): Deal 3 damage to an enemy."
+    const villain = activeVillain(given.state).instanceId;
+    const ready = withoutTough(given.state, villain);
+    const before = inst(ready, villain).damage;
+    const after = settle(
+      runWave5(ready, play(P1, given.id, payWith(ready, P1, 2, [given.id]))),
+      firstLegal,
+      undefined,
+      WAVE5_DEPS,
+    );
+    expect(inst(after, attached.id).attachedTo).toBeNull();
+    expect(inst(after, identity).statuses.stunned).toBeGreaterThan(0);
+    expect(inst(after, villain).damage).toBe(before); // the attack never happened
+    expect(playerOf(after, P1).discard).toContain(given.id); // the event was still played and paid for
   });
 
   it("27166.boost: stuns you; a second stun instead deals 2 damage (checked before the new stun is applied)", () => {

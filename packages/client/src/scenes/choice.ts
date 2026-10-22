@@ -335,6 +335,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     setChoicePeeking(false);
     this.sys.setVisible(true);
     const { store } = appSession();
+    // Before the subscribe: it runs the first draw, whose cards the popover below reads.
+    resetHoverCards(this);
     this.#unsubscribe = store.subscribe(() => this.#rebuild());
     const onResize = (): void => this.#rebuild();
     /**
@@ -364,7 +366,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     bindGamepad(this, binding);
     // The table's popover is off while this sheet is up, so the sheet has its own over the cards it draws. Off while
     // Inspect (opened from here) or the villain phase covers it; the villain phase running beneath it does not count.
-    resetHoverCards(this);
+    // The cards it reads were noted by the first draw, which `store.subscribe` above already ran: a reset here emptied
+    // them until the next redraw (a card picture arriving, say).
     this.#hover?.destroy();
     this.#hover = new HoverPreview(this, {
       cards: () => this.#hoverCards(),

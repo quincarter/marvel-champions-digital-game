@@ -369,6 +369,13 @@ class PhaseTracker {
         if (record) record.enemyInstanceId = event.toInstanceId;
         return;
       }
+      case "boostCancelled": {
+        // Discarded while still facedown, "instead" of being turned faceup (Defiance, issue #348): settled, adding 0.
+        if (event.scope !== "discarded" || !this.unflippedBoosts.delete(event.instanceId)) return;
+        const record = this.boostCards.find((b) => b.instanceId === event.instanceId && b.boostIcons === null);
+        if (record) record.boostIcons = 0;
+        return;
+      }
       case "boostCardFlipped": {
         this.unflippedBoosts.delete(event.instanceId);
         const record = this.boostCards.find((b) => b.instanceId === event.instanceId && b.boostIcons === null);

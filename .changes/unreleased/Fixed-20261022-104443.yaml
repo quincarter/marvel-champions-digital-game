@@ -1,0 +1,3 @@
+kind: Fixed
+body: Cards in a decision sheet open the card hover popover as soon as the sheet opens, not only after something redraws it.
+time: 2026-10-22T10:44:43.4584362+02:00

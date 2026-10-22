@@ -459,11 +459,15 @@ export function appendWalkthrough(
         break;
       case "boostCancelled":
         if (activation) {
+          // A card discarded while still facedown (Defiance, issue #348) was never flipped, so it joins the list here,
+          // named: the discard pile is public.
+          const listed =
+            event.scope !== "discarded" || activation.boosts.some((b) => b.instanceId === event.instanceId);
           activation = {
             ...activation,
-            boosts: activation.boosts.map((b) =>
-              b.instanceId === event.instanceId ? { ...b, cancelled: event.scope } : b,
-            ),
+            boosts: listed
+              ? activation.boosts.map((b) => (b.instanceId === event.instanceId ? { ...b, cancelled: event.scope } : b))
+              : [...activation.boosts, { instanceId: event.instanceId, boostIcons: 0, cancelled: event.scope }],
           };
         }
         break;

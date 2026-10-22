@@ -339,6 +339,20 @@ describe("Cyclops supports, upgrades and allies", () => {
       expect(inst(after, villain).damage).toBe(3);
     });
 
+    it("pays for Optic Blast on its own with an empty hand: the ability is listed legal, paid by the Visor (#349)", () => {
+      const { state: armedState, visor } = armed();
+      const state = {
+        ...armedState,
+        players: armedState.players.map((p) => (p.playerId === P1 ? { ...p, hand: [] } : p)),
+      };
+      const actions = legalActions(state, P1, WAVE6_DEPS);
+      if (actions.kind !== "turn") throw new Error("expected a turn");
+      const blast = actions.legal.find(
+        (a) => a.action.kind === "useAbility" && a.action.abilityId === "33001a.cyclops-constant",
+      );
+      expect(blast?.example).toMatchObject({ payment: viaVisor(visor) });
+    });
+
     it("generates for nothing but Cyclops's ability: it cannot pay for a card", () => {
       const { state, visor, villain } = armed();
       const { state: staged, ids } = moveToHand(state, P1, "33005");
