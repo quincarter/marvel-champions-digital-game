@@ -129,4 +129,26 @@ describe("clipToViewport", () => {
     clipToViewport([outer] as unknown as Phaser.GameObjects.GameObject[], viewport);
     expect(zone.input.enabled).toBe(true);
   });
+
+  test("a zone taller than the viewport answers on its visible part only, and is off once none of it shows", () => {
+    const hit = { x: 0, y: 0, width: 100, height: 290 };
+    const setTo = (x: number, y: number, width: number, height: number): void => {
+      Object.assign(hit, { x, y, width, height });
+    };
+    let y = 50;
+    const tall = {
+      input: { enabled: true, hitArea: { setTo } },
+      width: 100,
+      height: 290,
+      getBounds: () => ({ x: 10, y, width: 100, height: 290 }),
+    };
+    const run = (): void => clipToViewport([tall] as unknown as Phaser.GameObjects.GameObject[], viewport);
+    run();
+    // Bounds 50..340 against a viewport of 100..300: the middle 200px, from 50px down the zone.
+    expect(tall.input.enabled).toBe(true);
+    expect(hit).toEqual({ x: 0, y: 50, width: 100, height: 200 });
+    y = 320;
+    run();
+    expect(tall.input.enabled).toBe(false);
+  });
 });

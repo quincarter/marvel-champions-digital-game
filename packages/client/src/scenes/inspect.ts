@@ -76,6 +76,7 @@ import { accent, border, hit, ink, minType, signal, surface, typeRole } from "..
 import { caseOf, cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McScrollPanel, fitText, label, paintDotGrid } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
+import { onTap, tapId } from "../ui/tap.js";
 import { estimateWrappedLines, formFactorFor, isTabbed, type Rect } from "../view/layout.js";
 import { pointInRect } from "../view/drag-gesture.js";
 import {
@@ -1463,9 +1464,9 @@ export class InspectOverlay extends Phaser.Scene {
    * `RULES_SECTION_GAP` before whatever comes next, the same convention every other section here follows.
    * Deliberately raw graphics rather than `McButton` per chip: the design's chip is a transparent outline, and
    * every widget skin (`ui/theme.ts#skin`) fills its control — a `McButton` chip would read as a small filled block
-   * instead. Each chip still gets its own `PressArm` so a chip that appears mid-rebuild is never accidentally
-   * activated by the release of the gesture that opened this sheet (the exact hazard `#dismissArm`'s own comment
-   * documents for the scrim).
+   * instead. Each chip still answers only a tap (`onTap`, its own press and release), so a chip that appears
+   * mid-rebuild is never accidentally activated by the release of the gesture that opened this sheet (the exact
+   * hazard `#dismissArm`'s own comment documents for the scrim).
    */
   #drawChips(rect: Rect, top: number, inner: number, heading: string, items: readonly ChipItem[]): number {
     if (items.length === 0) return top;
@@ -1492,15 +1493,16 @@ export class InspectOverlay extends Phaser.Scene {
       this.children.bringToTop(text);
       if (item.glossaryId || item.onTap) {
         const glossaryId = item.glossaryId ?? null;
-        const arm = new PressArm();
         const zone = this.add.zone(x, y, chipWidth, 22).setOrigin(0, 0).setInteractive({ useHandCursor: true });
-        zone.on("pointerdown", () => arm.down());
-        zone.on("pointerout", () => arm.cancel());
-        zone.on("pointerup", () => {
-          if (!arm.up()) return;
-          if (item.onTap) item.onTap();
-          else if (glossaryId) this.#openRulesAt(glossaryId, item.text);
-        });
+        // A tap, not any release: press and release both on the chip (`ui/tap.ts`).
+        onTap(
+          zone,
+          () => {
+            if (item.onTap) item.onTap();
+            else if (glossaryId) this.#openRulesAt(glossaryId, item.text);
+          },
+          tapId("inspect-chip", { x, y, width: chipWidth, height: 22 }, item.text),
+        );
       }
       x += chipWidth + 7;
     }
@@ -1623,21 +1625,20 @@ export class InspectOverlay extends Phaser.Scene {
     box.lineStyle(border.object, surface.ink.hex, 1).strokeRect(x, y, width, height);
     for (const part of [heading, body, link, underline]) this.children.bringToTop(part);
 
-    const arm = new PressArm();
     // The tap target is the full hit height, centred on the link and spilling into the box's padding, so the box
     // itself stays as tight as its text.
-    const zone = this.add
-      .zone(x, ty - linkHeight / 2 - hit.target / 2, width, hit.target)
-      .setOrigin(0, 0)
-      .setInteractive({ useHandCursor: true });
-    zone.on("pointerdown", () => arm.down());
-    zone.on("pointerout", () => arm.cancel());
-    zone.on("pointerup", (pointer: Phaser.Input.Pointer) => {
-      if (!arm.up()) return;
-      const rect = clip?.() ?? null;
-      if (rect && !pointInRect(pointer.x, pointer.y, rect)) return;
-      this.#openRulesAt(notice.rulesQuery, notice.linkLabel);
-    });
+    const zoneY = ty - linkHeight / 2 - hit.target / 2;
+    const zone = this.add.zone(x, zoneY, width, hit.target).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+    // A tap, not any release: press and release both on the link (`ui/tap.ts`).
+    onTap(
+      zone,
+      (pointer) => {
+        const rect = clip?.() ?? null;
+        if (rect && !pointInRect(pointer.x, pointer.y, rect)) return;
+        this.#openRulesAt(notice.rulesQuery, notice.linkLabel);
+      },
+      tapId("inspect-notice", { x, y: zoneY, width, height: hit.target }, notice.linkLabel),
+    );
     return y + height;
   }
 
@@ -1864,8 +1865,16 @@ export class InspectOverlay extends Phaser.Scene {
 
     const contentHeight = Math.max(1, y - rect.y);
     const added = this.children.list.slice(before);
-    this.#sheetRegion = new McScrollRegion(this, { rect, heights: [contentHeight], scroll: this.#sheetScroll });
+    this.#sheetRegion = new McScrollRegion(this, {
+      rect,
+      heights: [contentHeight],
+      scroll: this.#sheetScroll,
+      clipInteractive: true,
+    });
     this.#sheetRegion.content.add(added);
+    // The chips and the campaign link hold still unless wholly inside the viewport, so one scrolled up under the
+    // handle never swallows the tap that dismisses the sheet.
+    this.#sheetRegion.syncInteractivity();
     return contentHeight;
   }
 
@@ -1898,17 +1907,18 @@ export class InspectOverlay extends Phaser.Scene {
       this.children.bringToTop(text);
       if (chip.glossaryId || chip.onTap) {
         const glossaryId = chip.glossaryId ?? null;
-        const arm = new PressArm();
         const zone = this.add.zone(cx, cy, chipWidth, 18).setOrigin(0, 0).setInteractive({ useHandCursor: true });
-        zone.on("pointerdown", () => arm.down());
-        zone.on("pointerout", () => arm.cancel());
-        zone.on("pointerup", (pointer: Phaser.Input.Pointer) => {
-          if (!arm.up()) return;
-          const clip = this.#sheetRegion?.rect ?? null;
-          if (clip && !pointInRect(pointer.x, pointer.y, clip)) return;
-          if (chip.onTap) chip.onTap();
-          else if (glossaryId) this.#openRulesAt(glossaryId, chip.text);
-        });
+        // A tap, not any release: press and release both on the chip (`ui/tap.ts`).
+        onTap(
+          zone,
+          (pointer) => {
+            const clip = this.#sheetRegion?.rect ?? null;
+            if (clip && !pointInRect(pointer.x, pointer.y, clip)) return;
+            if (chip.onTap) chip.onTap();
+            else if (glossaryId) this.#openRulesAt(glossaryId, chip.text);
+          },
+          tapId("inspect-sheet-chip", { x: cx, y: cy, width: chipWidth, height: 18 }, chip.text),
+        );
       }
       cx += chipWidth + 6;
     }

@@ -1122,7 +1122,14 @@ export class PauseOverlay extends Phaser.Scene {
       content.guideLevelRow,
       ...content.guideRows,
     ]);
-    this.#lowerRegion = new McScrollRegion(this, { rect: viewport, heights, scroll: this.#lowerScroll });
+    // `clipInteractive`: a mask hides pixels, not hit areas, so a row scrolled up under the title bar would still win
+    // the press on the ✕ above it (its own `clip` then drops the click, so nothing happened at all), as Settings had.
+    this.#lowerRegion = new McScrollRegion(this, {
+      rect: viewport,
+      heights,
+      scroll: this.#lowerScroll,
+      clipInteractive: true,
+    });
     const container = this.#lowerRegion.content;
     const toScreen = (contentRect: Rect): Rect => ({ ...contentRect, y: viewport.y + contentRect.y });
 
@@ -1197,6 +1204,7 @@ export class PauseOverlay extends Phaser.Scene {
       );
       stopIds.push(row.id);
     });
+    this.#lowerRegion.syncInteractivity();
     return stopIds;
   }
 
