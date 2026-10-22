@@ -4,7 +4,12 @@ import { receiveSaveFile, sendSaveFile, type TransferDeps } from "../save-data/t
 import { sampleSaveFile } from "../save-data/transfer-fixtures.js";
 import { newRecoveryCode } from "./sync-credentials.js";
 import {
+  LINK_DIGITS_LENGTH,
   LINK_KEY_LENGTH,
+  formatLinkCode,
+  newLinkDigits,
+  parseLinkCode,
+  receiveSyncLinkCode,
   linkFragmentOf,
   newLinkKey,
   parseLinkFragment,
@@ -121,5 +126,84 @@ describe("device link", () => {
     const got = await receiveSaveFile({ room: sent.link.room, keyPart: sent.link.key }, deps);
     expect(got).toMatchObject({ ok: false, failure: { kind: "damaged" } });
     expect(JSON.stringify(got)).toMatch(/device-sync link, not a save/);
+  });
+});
+
+describe("typed link code", () => {
+  test("send returns both rooms, each opening only with its own key", async () => {
+    const { deps, rooms } = fakeServer();
+    const recoveryCode = newRecoveryCode();
+    const sent = await sendSyncLink(recoveryCode, deps);
+    if (!sent.ok) throw new Error("send failed");
+    expect(rooms.size).toBe(2);
+    expect(sent.typed.room).not.toBe(sent.link.room);
+    expect(isRoomCode(sent.typed.room)).toBe(true);
+    expect(sent.typed.digits).toMatch(/^[0-9]{8}$/);
+    // Neither room opens with the other's key.
+    expect(await receiveSyncLink({ room: sent.typed.room, key: sent.link.key }, deps)).toMatchObject({ ok: false });
+    expect(await receiveSyncLinkCode({ room: sent.link.room, digits: sent.typed.digits }, deps)).toMatchObject({
+      ok: false,
+    });
+  });
+
+  test("each room delivers the recovery code with its own key, independently", async () => {
+    const { deps } = fakeServer();
+    const recoveryCode = newRecoveryCode();
+    const sent = await sendSyncLink(recoveryCode, deps);
+    if (!sent.ok) throw new Error("send failed");
+    expect(await receiveSyncLinkCode(sent.typed, deps)).toEqual({ ok: true, recoveryCode });
+    expect(await receiveSyncLink(sent.link, deps)).toEqual({ ok: true, recoveryCode });
+  });
+
+  test("wrong digits fail as not-found", async () => {
+    const { deps } = fakeServer();
+    const sent = await sendSyncLink(newRecoveryCode(), deps);
+    if (!sent.ok) throw new Error("send failed");
+    const digits = sent.typed.digits === "00000000" ? "11111111" : "00000000";
+    expect(await receiveSyncLinkCode({ room: sent.typed.room, digits }, deps)).toEqual({
+      ok: false,
+      failure: { kind: "not-found" },
+    });
+  });
+
+  test("a failing second upload fails the send", async () => {
+    const { deps } = fakeServer();
+    let posts = 0;
+    const flaky: TransferDeps = {
+      ...deps,
+      fetch: ((input, init) =>
+        init?.method === "POST" && ++posts === 2
+          ? Promise.resolve(json(429, { reason: "rate-limited", error: "slow" }))
+          : deps.fetch(input, init)) as typeof fetch,
+    };
+    expect(await sendSyncLink(newRecoveryCode(), flaky)).toEqual({ ok: false, failure: { kind: "rate-limited" } });
+  });
+
+  test("formats and parses in any case and grouping", () => {
+    const code = { room: "ABCDEFGH", digits: "12345678" };
+    expect(formatLinkCode(code)).toBe("ABCD-EFGH 1234-5678");
+    expect(parseLinkCode("ABCD-EFGH 1234-5678")).toEqual(code);
+    expect(parseLinkCode("abcd efgh 1234 5678")).toEqual(code);
+    expect(parseLinkCode("abcdefgh12345678")).toEqual(code);
+  });
+
+  test("rejects wrong lengths, letters in the digits and digits outside the alphabet in the room", () => {
+    expect(parseLinkCode("")).toBeNull();
+    expect(parseLinkCode("ABCD-EFGH 1234-567")).toBeNull();
+    expect(parseLinkCode("ABCD-EFGH 1234-56789")).toBeNull();
+    expect(parseLinkCode("ABCD-EFGH 1234-567A")).toBeNull();
+    expect(parseLinkCode("ABCD-EFG0 1234-5678")).toBeNull(); // 0 is not in the room alphabet
+    expect(parseLinkCode("ABCD-EFGH ABCD-EFGH")).toBeNull();
+  });
+
+  test("digits are unbiased: bytes of 250 and above are rejected", () => {
+    let calls = 0;
+    const digits = newLinkDigits((length) => {
+      calls++;
+      return new Uint8Array(length).fill(calls === 1 ? 255 : 13);
+    });
+    expect(calls).toBe(2);
+    expect(digits).toBe("3".repeat(LINK_DIGITS_LENGTH));
+    expect(newLinkDigits()).toMatch(/^[0-9]{8}$/);
   });
 });
