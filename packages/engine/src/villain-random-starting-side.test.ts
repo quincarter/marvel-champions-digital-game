@@ -85,6 +85,8 @@ const action = (id: string, effects: readonly EffectSpec[]) => {
   return { card: stubEvent({ id, cost: 0, abilities: [ability.ref] }), ability };
 };
 const FLIP = action("flip-villain", [{ kind: "flipCard", target: villain }]);
+/** Disturbed Psyche's flip: MC60 p. 26 FAQ makes the new face's keyword resolve (`resolveToughness`). */
+const FLIP_TOUGH = action("flip-villain-tough", [{ kind: "flipCard", target: villain, resolveToughness: true }]);
 const FORM_NO_REVEAL = (trait: string) =>
   action(`form-${trait}`, [{ kind: "changeVillainForm", villain, toFaceWithTrait: trait as never, reveal: false }]);
 
@@ -97,6 +99,7 @@ const deps: EngineDeps = depsOf(
   SCHEME_A_SETUP,
   SCHEME_B_REVEALED,
   FLIP.ability,
+  FLIP_TOUGH.ability,
 );
 
 function start(seed: number, options: { readonly psyche?: boolean } = {}) {
@@ -107,11 +110,11 @@ function start(seed: number, options: { readonly psyche?: boolean } = {}) {
   const created = createGame(
     {
       seed,
-      cards: [...DEFAULT_CARDS, MARY, SCHEME_WITH_TEXT, PSYCHE, FLIP.card],
+      cards: [...DEFAULT_CARDS, MARY, SCHEME_WITH_TEXT, PSYCHE, FLIP.card, FLIP_TOUGH.card],
       villainCardId: MARY.id,
       mainSchemeCardId: SCHEME_WITH_TEXT.id,
       encounterDeck: encounter,
-      players: [{ identityCardId: HERO.id, deck: [...DEFAULT_DECK, FLIP.card.id] }],
+      players: [{ identityCardId: HERO.id, deck: [...DEFAULT_DECK, FLIP.card.id, FLIP_TOUGH.card.id] }],
     },
     deps,
   );
@@ -201,7 +204,7 @@ describe("§S3.4 (a) a villain put into play on a random side", () => {
   });
 });
 
-describe("§S3.4 (b) toughness on a villain face a flip reveals (MC60 p. 26 FAQ)", () => {
+describe("§S3.4 (b) toughness on a villain face a flip reveals (MC60 p. 26 FAQ, `resolveToughness`)", () => {
   const onSide = (side: "A" | "B") => {
     const seed = SEEDS.find((s) => activeVillain(start(s).state).side === side);
     if (seed === undefined) throw new Error(`no seed lands on ${side}`);
@@ -211,18 +214,18 @@ describe("§S3.4 (b) toughness on a villain face a flip reveals (MC60 p. 26 FAQ)
   it("a flip to the face with toughness gives a tough status card, and resolves that face's When Revealed", () => {
     const before = onSide("A");
     const id = activeVillain(before).instanceId;
-    const { state } = playFree(before, deps, FLIP.card.id);
+    const { state } = playFree(before, deps, FLIP_TOUGH.card.id);
     expect(activeVillain(state).side).toBe("B");
     expect(tough(state)).toBe(1);
     expect(counters(state, id).backRevealed).toBe(1);
   });
 
   it("flipping away keeps the tough card (RRG 1.8 'Flip', p. 20); flipping back gives no second one", () => {
-    const flipped = playFree(onSide("A"), deps, FLIP.card.id).state;
-    const away = playFree(flipped, deps, FLIP.card.id).state;
+    const flipped = playFree(onSide("A"), deps, FLIP_TOUGH.card.id).state;
+    const away = playFree(flipped, deps, FLIP_TOUGH.card.id).state;
     expect(activeVillain(away).side).toBe("A");
     expect(tough(away)).toBe(1);
-    const back = playFree(away, deps, FLIP.card.id).state;
+    const back = playFree(away, deps, FLIP_TOUGH.card.id).state;
     expect(activeVillain(back).side).toBe("B");
     expect(tough(back)).toBe(1);
   });
@@ -237,9 +240,52 @@ describe("§S3.4 (b) toughness on a villain face a flip reveals (MC60 p. 26 FAQ)
         [id]: { ...mustInstance(start, id), statuses: { ...mustInstance(start, id).statuses, tough: 0 } },
       },
     };
-    const away = playFree(spent, deps, FLIP.card.id).state;
+    const away = playFree(spent, deps, FLIP_TOUGH.card.id).state;
     expect(tough(away)).toBe(0);
-    expect(tough(playFree(away, deps, FLIP.card.id).state)).toBe(1);
+    expect(tough(playFree(away, deps, FLIP_TOUGH.card.id).state)).toBe(1);
+  });
+});
+
+describe("toughness on a villain's flip: none by default, a new stage still gives it (shadowland §5.1 Q10 = B)", () => {
+  // Owner decision 2026-10-22 (docs/phase7-shadowland.md §5.1 question 10 = B, PR #355), reading RRG 1.8 "Toughness"
+  // (p. 45, "enters play"): a villain turning over is no entering play.
+  const onA = () => {
+    const seed = SEEDS.find((s) => activeVillain(start(s).state).side === "A");
+    if (seed === undefined) throw new Error("no seed lands on A");
+    return start(seed).state;
+  };
+
+  it("a plain flip to the face with toughness gives no tough status card, but still reveals that face", () => {
+    const before = onA();
+    const id = activeVillain(before).instanceId;
+    const { state, events } = playFree(before, deps, FLIP.card.id);
+    expect(activeVillain(state).side).toBe("B");
+    expect(tough(state) ?? 0).toBe(0);
+    expect(counters(state, id).backRevealed).toBe(1);
+    expect(events.some((e) => e.type === "statusGiven" && e.instanceId === id)).toBe(false);
+  });
+
+  it("a new stage with toughness gives its tough status card", () => {
+    const STAGED = stubVillain({ id: "staged", stages: [stage([]), stage([], true)] });
+    const DEFEAT = action("defeat-villain", [{ kind: "defeat", target: villain }]);
+    const stageDeps = depsOf(DEFEAT.ability);
+    const created = createGame(
+      {
+        seed: 1,
+        cards: [...DEFAULT_CARDS, STAGED, SCHEME, DEFEAT.card],
+        villainCardId: STAGED.id,
+        mainSchemeCardId: SCHEME.id,
+        encounterDeck: copiesOf(TREACHERY.id, 20),
+        players: [{ identityCardId: HERO.id, deck: [...DEFAULT_DECK, DEFEAT.card.id] }],
+      },
+      stageDeps,
+    );
+    if (!created.ok) throw new Error(created.error.message);
+    const before = driveSession(startSession(created.state), stageDeps).session.state;
+    expect(tough(before) ?? 0).toBe(0);
+    const { state } = playFree(before, stageDeps, DEFEAT.card.id);
+    expect(activeVillain(state).stageIndex).toBe(1);
+    expect(tough(state)).toBe(1);
   });
 });
 
@@ -269,6 +315,31 @@ describe("§S3.4 (b) a change of form that is no reveal gives no toughness", () 
     const before = driveSession(startSession(created.state), formDeps).session.state;
     const { state } = playFree(before, formDeps, FORM.card.id);
     expect(activeVillain(state).side).toBe("B");
+    expect(tough(state)).toBe(0);
+  });
+
+  it("changeVillainForm with its default reveal turns and reveals the face, and places no tough card (a flip; Q10 = B)", () => {
+    const FORM_REVEAL = action(`form-reveal-${BACK_TRAIT}`, [
+      { kind: "changeVillainForm", villain, toFaceWithTrait: BACK_TRAIT as never },
+    ]);
+    const revealDeps = depsOf(FORM_REVEAL.ability);
+    const created = createGame(
+      {
+        seed: 1,
+        cards: [...DEFAULT_CARDS, TRAITED, SCHEME, FORM_REVEAL.card],
+        villainCardId: TRAITED.id,
+        mainSchemeCardId: SCHEME.id,
+        encounterDeck: copiesOf(TREACHERY.id, 20),
+        players: [{ identityCardId: HERO.id, deck: [...DEFAULT_DECK, FORM_REVEAL.card.id] }],
+      },
+      revealDeps,
+    );
+    if (!created.ok) throw new Error(created.error.message);
+    const before = driveSession(startSession(created.state), revealDeps).session.state;
+    const id = activeVillain(before).instanceId;
+    const { state, events } = playFree(before, revealDeps, FORM_REVEAL.card.id);
+    expect(activeVillain(state).side).toBe("B");
+    expect(events.some((e) => e.type === "encounterCardRevealed" && e.instanceId === id)).toBe(true);
     expect(tough(state)).toBe(0);
   });
 });

@@ -471,16 +471,14 @@ describe("3. Dark Protege villains in Shadows in the Night", () => {
         expect(inst(flipped, hPos).flipped ?? false).toBe(false);
         // "Deal each player 1 facedown encounter card."
         expect(dealtByAbility(t.events)).toEqual([...heroes].sort());
-        // B side Toughness (data): the villain carries a tough status card after the flip.
-        expect(inst(flipped, villainId(flipped)).statuses.tough).toBeGreaterThanOrEqual(1);
+        // B side Toughness (data) gives no tough status card on a flip: the villain stays in play, and RRG 1.8
+        // "Toughness" (p. 45) places one when a character enters play (owner, docs/phase7-shadowland.md §5.1 Q10 = B).
+        expect(inst(flipped, villainId(flipped)).statuses.tough ?? 0).toBe(0);
 
-        // Side B: win by defeating it. (Surgery: the tough status card is removed and the hero position flipped so the
-        // positions match; both are real effects other tests cover, and this one is about the win.)
+        // Side B: win by defeating it. (Surgery: the hero position flipped so the positions match, a real effect other
+        // tests cover; this one is about the win.)
         t.stage((s) => {
-          let n = patchInstance(s, villainId(s), {
-            damage: hp(s, villainId(s)) - 1,
-            statuses: { ...inst(s, villainId(s)).statuses, tough: 0 },
-          });
+          let n = patchInstance(s, villainId(s), { damage: hp(s, villainId(s)) - 1 });
           n = patchInstance(n, hPos, { flipped: true });
           return ready(n, P1);
         });

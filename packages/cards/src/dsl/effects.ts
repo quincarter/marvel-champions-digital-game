@@ -3418,6 +3418,10 @@ export const setVillainSide = (villain: TargetRef, side: "random" | VillainSideL
  * that flips to its attachment face holds its secret counters (MC50 pp. 11 and 19; Chief Medical Officer, `aos`
  * 50181a): `flipCard(self, { keepCounters: ["secret"] })`. An attachment face finds its host by its own "Attach to"
  * text, with no reveal. An empty list is the plain flip.
+ *
+ * `{ resolveToughness: true }`: a villain's new face gives its tough status card (`EffectSpec flipCard`). A villain's
+ * flip gives none by default (RRG 1.8 "Toughness", p. 45; docs/phase7-shadowland.md §5.1 question 10 = B); set it only
+ * where product rules or the card text say the new face's keyword resolves (Typhoid Mary, MC60 p. 26 FAQ).
  */
 export const flipCard = (
   target: TargetRef,
@@ -3425,6 +3429,7 @@ export const flipCard = (
     readonly reveal?: boolean;
     readonly controller?: PlayerRef;
     readonly keepCounters?: readonly string[];
+    readonly resolveToughness?: boolean;
   } = {},
 ): EffectSpec => ({
   kind: "flipCard",
@@ -3432,6 +3437,7 @@ export const flipCard = (
   ...(options.reveal ? { reveal: true } : {}),
   ...(options.controller ? { controller: options.controller } : {}),
   ...(options.keepCounters && options.keepCounters.length > 0 ? { keepCounters: [...options.keepCounters] } : {}),
+  ...(options.resolveToughness ? { resolveToughness: true as const } : {}),
 });
 /**
  * "Change to Gamma energy form" → `changeAdditionalForm("energy", { toName: "Gamma" })`; "flip that card faceup to change

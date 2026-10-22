@@ -721,6 +721,9 @@ describe("Whisper in the Dark (65040)", () => {
     const after = heroThwarts(WAVE11_DEPS, ready, schemeId(ready)).state;
     expect(after.villains.find((v) => v.instanceId === chosen)).toMatchObject({ side: "B", defeated: false });
     expect(characterProfile(after, chosen, WAVE11_DEPS)!.maxHp).toBe(18);
+    // 2A reveals side B in place of side A: its Toughness gives a tough status card although the villain was already in
+    // play (engine reading of the 2A text; docs/phase7-shadowland.md §5.1 question 10).
+    expect(inst(after, chosen).statuses.tough).toBe(1);
   });
 
   /** The chosen villain moved, out of play, to the encounter discard pile or the bottom of the encounter deck. */

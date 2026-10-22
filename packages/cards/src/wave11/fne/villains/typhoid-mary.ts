@@ -119,7 +119,13 @@ export const FNE_VILLAINS_TYPHOID_MARY: AbilityRegistry = defineAbilities({
   "60111b.when-revealed": whenRevealed(dealDamage(1, each(query("identity")))),
 
   "60112.setup": setup(setVillainSide(theVillain, "random")),
-  "60112.disturbed-psyche-forced-interrupt": forcedInterrupt(on.phaseEnding("villain"), flipCard(theVillain)),
+  // MC60 p. 26 FAQ: when she flips, "the ability or keyword on her new faceup side resolves", so her Toughness does,
+  // where a villain's flip otherwise gives no tough status card (docs/phase7-shadowland.md §5.1 question 10 = B). The
+  // owner confirmed this exception (Quin, 2026-10-22, PR #355 question 10 follow-up: Typhoid Mary keeps the FAQ).
+  "60112.disturbed-psyche-forced-interrupt": forcedInterrupt(
+    on.phaseEnding("villain"),
+    flipCard(theVillain, { resolveToughness: true }),
+  ),
   "60112.disturbed-psyche-constant": stateCheck(
     valueAtLeast(sum(damageOn(self), threatOn(self)), 3),
     endGame("win", "cardAbility"),

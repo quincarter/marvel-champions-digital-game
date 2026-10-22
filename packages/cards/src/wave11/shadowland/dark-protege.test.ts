@@ -637,7 +637,10 @@ describe("Embraced by Darkness 65027", () => {
   });
 });
 
-/** The game with the villain's B side faceup (the flip itself is the main scheme's job, not this module's; this skips the tough status card a real flip gives for Toughness). */
+/**
+ * The game with the villain's B side faceup (the flip itself is the main scheme's job, not this module's). A real flip
+ * gives no tough status card for Toughness either (docs/phase7-shadowland.md §5.1 question 10 = B), so this matches it.
+ */
 const onSideB = (s: GameState): GameState => ({
   ...s,
   villains: s.villains.map((v) => ({ ...v, side: "B" as const })),

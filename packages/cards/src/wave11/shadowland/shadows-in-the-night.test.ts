@@ -638,7 +638,9 @@ describe("A Barricade of Blades / Fortress Lockdown (65001a): the villain's side
     const a = strike(s, 14);
     expect(a.state.outcome).toBeNull();
     // The hero position is flipped to match, so the positions are the same again and the attack hits for full.
-    // Side B has Toughness: the tough status card the flip gave is taken off first.
+    // Side B has Toughness, but the flip gave no tough status card: a villain turning over does not enter play (RRG
+    // 1.8 "Toughness", p. 45; owner, docs/phase7-shadowland.md §5.1 question 10 = B, 2026-10-22).
+    expect(inst(a.state, villainOf(a.state)).statuses.tough ?? 0).toBe(0);
     const bare = patchInstance(flip(a.state, positionCards(a.state).h), villainOf(a.state), {
       statuses: { stunned: 0, confused: 0, tough: 0 },
     });

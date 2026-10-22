@@ -32,6 +32,8 @@ after the stage II defeating attack, so the turn passed to seat 2. The test now 
    are unreachable. Recommended (a).
 2. Toughness (RRG p. 45: "when a character with toughness enters play") on a villain's new stage or flipped side (SITN side B,
    Krahllak II/III): the engine places a tough status card on each. No ruling. (a) keep; (b) only when a new card enters play.
+   **Answered (b) (Quin, 2026-10-22, PR #355 question 10):** a villain's flip gives no tough status card; a new stage (Krahllak
+   II/III) still does. Typhoid Mary's flip keeps it (MC60 p. 26 FAQ), and so does 2A expert's side B reveal (in place of side A, in or out of play).
 3. "After Krahllak is defeated" (Dark Invitation 1B): built per stage, so standard mode advances the scheme when stage I falls and
    expert when II falls (`heart-of-shadow.ts:206-209`). (a) keep; (b) only when the final stage is defeated. Recommended (a): the
    task brief and "1B -> 2A -> 2B" imply it, and RRG p. 47 treats each stage as a defeat.

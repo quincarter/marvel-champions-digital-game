@@ -5152,6 +5152,15 @@ export type EffectSpec =
    * still discarded: attachments, tucked cards, status cards, damage, threat and every counter type not named. Kept
    * counters are not placed, so no `countersPlaced` follows. A flip to the same card type keeps everything anyway,
    * and no other kind of flip reads this.
+   *
+   * `resolveToughness` (villain flips only): the new face's toughness keyword gives the villain a tough status card.
+   * By default a villain's flip gives none: RRG 1.8 "Toughness" (p. 45) places the card "when a character with the
+   * toughness keyword enters play", and a villain turning over is the same card staying in play (owner decision,
+   * docs/phase7-shadowland.md §5.1 question 10 = B, 2026-10-22, PR #355). Set where a product's rules or the card text
+   * make the new face's keyword resolve: Typhoid Mary's flip (MC60 p. 26 FAQ, "the ability or keyword on her new
+   * faceup side resolves"; the owner confirmed she keeps it, Quin, 2026-10-22, PR #355 question 10), or card text that reveals a villain on that face in place of the other (Shadow Labyrinth
+   * 2A, "Reveal the chosen villain's side A (side B instead in expert mode)"). A new villain stage is a different case and
+   * always resolves it (`defeatVillainStage`, `revealNextVillainStage`).
    */
   | {
       readonly kind: "flipCard";
@@ -5159,6 +5168,7 @@ export type EffectSpec =
       readonly reveal?: boolean;
       readonly controller?: PlayerRef;
       readonly keepCounters?: readonly string[];
+      readonly resolveToughness?: true;
     }
   /**
    * "Change to Gamma energy form" / "flip that card faceup to change to that energy form" / "change energy forms" /

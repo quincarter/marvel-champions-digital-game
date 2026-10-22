@@ -155,7 +155,12 @@ export const SHADOWLAND_SHADOW_LABYRINTH: AbilityRegistry = defineAbilities({
   "65038b.into-the-labyrinth-forced-interrupt-2": forcedResponse(on.lastThreatRemoved("self"), advanceMainScheme()),
 
   // Expert side B is a flip of the freshly added villain: `flipCard` logs a flip for what the card calls a reveal
-  // (`setVillainSide` is setup-only). The flip reveals side B, so side A's When Revealed never runs.
+  // (`setVillainSide` is setup-only). The flip reveals side B, so side A's When Revealed never runs. Engine reading of
+  // the 2A text: "Reveal the chosen villain's side A (side B instead in expert mode)" is one card instruction that
+  // reveals side B in place of side A, not a flip of a villain already showing side A, so side B's Toughness gives its
+  // tough status card (`resolveToughness`) wherever the villain was found: out of play (it enters play, RRG 1.8
+  // "Toughness", p. 45) or already in play as Whisper's minion or a second villain (`inPlay: "reveal"`, no entering
+  // play). A villain flipping during play gives none (docs/phase7-shadowland.md §5.1 question 10 = B, 2026-10-22).
   // 2A. When Revealed: 1. Set Shifting Corridors aside. 2. Find the chosen Dark Protege villain wherever it is: set
   // aside, in play as Whisper in the Dark's minion or as a villain, or in a deck or discard pile. RRG v1.8 "Find" p. 19:
   // removed-from-game cards are not searched; the trap deck and trap discard pile are. Discard each status card, token
@@ -172,7 +177,7 @@ export const SHADOWLAND_SHADOW_LABYRINTH: AbilityRegistry = defineAbilities({
     ...discardStatusesTokensAndAttachments(chosenVillain),
     ifThen(
       inMode("expert"),
-      [addVillain(chosenVillain, { inPlay: "reveal" }), flipCard(chosenVillain)],
+      [addVillain(chosenVillain, { inPlay: "reveal" }), flipCard(chosenVillain, { resolveToughness: true })],
       addVillain(chosenVillain, { reveal: true, inPlay: "reveal" }),
     ),
   ),
