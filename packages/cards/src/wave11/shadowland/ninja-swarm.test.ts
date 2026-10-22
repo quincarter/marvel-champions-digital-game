@@ -22,6 +22,7 @@ import { BLACK_CAT, CAPTAIN_MARVEL, SPIDER_MAN } from "../../wave9/testing.js";
 import { WAVE11_CARDS } from "../cards.js";
 import {
   ADVANCE,
+  byLabel,
   ASSAULT,
   DEPS,
   FILLER_A,
@@ -38,17 +39,28 @@ import { SHADOWLAND_NINJA_SWARM as REGISTRY, SHADOWLAND_NINJA_SWARM_SKIPPED as S
 vi.setConfig({ testTimeout: 180_000 });
 
 const MOUNTAIN = "65028";
+const KIRIGI = "65029";
 const BO_STAFF = "65030";
+const FUKIYA = "65031";
 const KATANA = "65032";
+const KUSARIGAMA = "65033";
+const SHURIKEN = "65034";
 const SHADOWS = "65035";
 const COUNTLESS = "65036";
 const CORE_MINION = "01101";
-const CARDS = [MOUNTAIN, BO_STAFF, KATANA, SHADOWS, COUNTLESS];
+const CARDS = [MOUNTAIN, KIRIGI, BO_STAFF, FUKIYA, KATANA, KUSARIGAMA, SHURIKEN, SHADOWS, COUNTLESS];
 const REFS = [
   "65028.black-mountain-constant",
   "65028.boost",
+  "65029.when-defeated",
+  "65029.boost",
   "65030.when-defeated",
+  "65031.fukiya-ninja-constant",
+  "65031.when-defeated",
   "65032.when-defeated",
+  "65033.when-defeated",
+  "65034.shuriken-ninja-constant",
+  "65034.when-defeated",
   "65035.dancing-shadows-constant",
   "65035.dancing-shadows-constant-2",
   "65035.boost",
@@ -60,7 +72,13 @@ const data = (code: string) => (WAVE11_CARDS as readonly any[]).find((c) => (c.i
 const ofType = <T extends GameEvent["type"]>(events: readonly GameEvent[], type: T) =>
   events.filter((e): e is Extract<GameEvent, { type: T }> => e.type === type);
 const heroGame = (opts: Parameters<typeof shadowGame>[0] = {}) =>
-  withForm(shadowGame({ encounter: [MOUNTAIN, BO_STAFF, KATANA, SHADOWS, COUNTLESS], ...opts }), { heroForm: 0 });
+  withForm(
+    shadowGame({
+      encounter: [MOUNTAIN, KIRIGI, BO_STAFF, FUKIYA, KATANA, KUSARIGAMA, SHURIKEN, SHADOWS, COUNTLESS],
+      ...opts,
+    }),
+    { heroForm: 0 },
+  );
 const twoHeroes = () => withForm(heroGame({ seats: [SPIDER_MAN, CAPTAIN_MARVEL] }), { heroForm: 0 }, P2);
 const inPlay = (s: GameState, code: string): InstanceId[] => cardsInPlay(s).filter((i) => codeOf(s, i) === code);
 const accepts = (state: GameState, command: Parameters<typeof applyOk>[1]): boolean => {
@@ -79,7 +97,7 @@ const attack = (s: GameState, player: typeof P1, target: InstanceId) => ({
 });
 
 describe("registry", () => {
-  it("registers every printed ref of the five cards; nothing is skipped", () => {
+  it("registers every printed ref of the nine cards; nothing is skipped", () => {
     const printed = CARDS.flatMap((c) => abilityRefIds(data(c))).sort();
     expect(printed).toEqual([...REFS].sort());
     expect(Object.keys(REGISTRY).sort()).toEqual([...REFS].sort());
@@ -308,4 +326,157 @@ describe("Countless Numbers 65036", () => {
     );
     expect(surges).toEqual([]);
   });
+});
+
+/** The resolved attack damage dealt by `source`. */
+const attackDamageFrom = (events: readonly GameEvent[], source: InstanceId) =>
+  events.flatMap((e) =>
+    e.type === "triggerEvent" &&
+    e.event.kind === "dealDamage" &&
+    e.phase === "resolved" &&
+    e.event.fromAttack &&
+    e.event.sourceInstanceId === source
+      ? [e.event]
+      : [],
+  );
+
+describe("Kirigi 65029", () => {
+  // Kirigi is unique: the game's encounter deck leaves its own copy out, so only the engaged one exists.
+  const noKirigi = () =>
+    heroGame({ encounter: [MOUNTAIN, BO_STAFF, FUKIYA, KATANA, KUSARIGAMA, SHURIKEN, SHADOWS, COUNTLESS] });
+  const engagedKirigi = (base: GameState = noKirigi()) =>
+    engageMinion(stackEncounterDeck(base, ASSAULT, ADVANCE), KIRIGI, "kirigi", P1);
+  const defeat = (pick: Parameters<typeof driveEventsPicking>[2], base?: GameState) => {
+    const near = patchInstance(engagedKirigi(base), "kirigi" as InstanceId, { damage: 999 });
+    return driveEventsPicking(DEPS, near, pick, attack(near, P1, "kirigi" as InstanceId));
+  };
+  const handSize = (s: GameState) => s.players.find((p) => p.playerId === P1)!.hand.length;
+
+  it("when defeated: the defeating player is offered both options (spend 2 or shuffle it in)", () => {
+    const labels: string[] = [];
+    defeat((s) => {
+      labels.push(...s.pendingChoice!.options.map((o) => o.label), s.pendingChoice!.playerId);
+      return byLabel(/Shuffle Kirigi/)(s);
+    });
+    expect(labels.join("|")).toMatch(/Spend 2 resources.*Shuffle Kirigi.*p1/i);
+  });
+
+  it("when defeated, shuffle option: Kirigi goes into the encounter deck, not the discard pile", () => {
+    const copies = (codes: string[]) => codes.filter((c) => c === KIRIGI).length;
+    const beforeDeck = copies(deckCodes(engagedKirigi()));
+    const beforeDiscard = copies(discardCodes(engagedKirigi()));
+    const run = defeat(byLabel(/Shuffle Kirigi/));
+    expect(copies(deckCodes(run.state))).toBe(beforeDeck + 1);
+    expect(copies(discardCodes(run.state))).toBe(beforeDiscard);
+    expect(inPlay(run.state, KIRIGI)).toHaveLength(0);
+  });
+
+  it("when defeated, spend option: 2 resources are paid and Kirigi is discarded as usual", () => {
+    const before = handSize(engagedKirigi());
+    const run = defeat(byLabel(/Spend 2 resources/));
+    const copies = (codes: string[]) => codes.filter((c) => c === KIRIGI).length;
+    expect(copies(discardCodes(run.state))).toBe(copies(discardCodes(engagedKirigi())) + 1);
+    expect(copies(deckCodes(run.state))).toBe(copies(deckCodes(engagedKirigi())));
+    expect(handSize(run.state)).toBe(before - 2);
+  });
+
+  // Owner decision Q33 (docs/phase7-wave9.md section 4.1, revised 2026-10-20): an encounter card's choice may be
+  // taken though the payment cannot be made; the player pays what they can (here nothing).
+  it("when defeated, empty hand: both options are still offered; spending pays nothing and Kirigi is discarded", () => {
+    const base = noKirigi();
+    const emptied = { ...base, players: base.players.map((p) => (p.playerId === P1 ? { ...p, hand: [] } : p)) };
+    const offeredLabels: string[] = [];
+    const run = defeat((s) => {
+      offeredLabels.push(...s.pendingChoice!.options.map((o) => o.label));
+      return byLabel(/Spend 2 resources/)(s);
+    }, emptied);
+    expect(offeredLabels.join("|")).toMatch(/Spend 2 resources.*Shuffle Kirigi/);
+    expect(handSize(run.state)).toBe(0);
+    expect(discardCodes(run.state)).toContain(KIRIGI);
+    expect(deckCodes(run.state)).not.toContain(KIRIGI);
+  });
+
+  /** The Rhino attack on P1 with Kirigi as its boost card, an ally (Black Cat) or the hero defending. */
+  const boosted = (allyDefends: boolean) => {
+    const staged = stagedInPlay(heroGame(), BLACK_CAT);
+    const pick = (s: GameState) => {
+      const c = s.pendingChoice!;
+      const ally = c.options.find((o) => o.optionId === staged.id);
+      if (c.prompt.kind !== "declareDefender") return firstLegal(s);
+      const hero = c.options.find((o) => o.optionId === identityOf(s, P1));
+      const defender = allyDefends ? ally : hero;
+      return defender ? [defender.optionId] : firstLegal(s);
+    };
+    const run = driveEventsPicking(DEPS, stackEncounterDeck(staged.state, KIRIGI, ADVANCE), pick, endTurn(P1));
+    const attackEvent = ofType(run.events, "attackResolved")[0]!;
+    return { run, attackEvent, staged };
+  };
+
+  it("boost: with an ally defending, Kirigi gains 2 boost icons and the attack gains overkill", () => {
+    const { run, attackEvent, staged } = boosted(true);
+    expect(attackEvent.targetInstanceId).toBe(staged.id);
+    expect(attackEvent.boostIcons).toBe(2);
+    expect(attackDamageFrom(run.events, attackEvent.enemyInstanceId).some((d) => d.overkill === true)).toBe(true);
+  });
+
+  it("boost: with the hero defending, no icons are gained and no overkill (control)", () => {
+    const { run, attackEvent } = boosted(false);
+    expect(attackEvent.boostIcons).toBe(0);
+    expect(attackDamageFrom(run.events, attackEvent.enemyInstanceId).some((d) => d.overkill === true)).toBe(false);
+  });
+});
+
+describe("Fukiya Ninja 65031, Kusarigama Ninja 65033 and Shuriken Ninja 65034", () => {
+  /** P1's villain phase with `code` engaged; returns the damage events of that minion's own attack. */
+  const minionAttack = (code: string) => {
+    const s = engageMinion(heroGame(), code, "ninja", P1);
+    const run = driveEventsPicking(
+      DEPS,
+      stackEncounterDeck(s, ASSAULT, ADVANCE, ASSAULT, ADVANCE),
+      firstLegal,
+      endTurn(P1),
+    );
+    return attackDamageFrom(run.events, "ninja" as InstanceId);
+  };
+
+  it("Fukiya Ninja: its attacks gain ranged", () => {
+    const damage = minionAttack(FUKIYA);
+    expect(damage.length).toBeGreaterThan(0);
+    expect(damage.every((d) => d.ranged === true)).toBe(true);
+  });
+
+  it("Shuriken Ninja: its attacks gain piercing", () => {
+    const damage = minionAttack(SHURIKEN);
+    expect(damage.length).toBeGreaterThan(0);
+    expect(damage.every((d) => d.piercing === true)).toBe(true);
+  });
+
+  it("control: a Ninja without the grant (Bo Staff) attacks with neither", () => {
+    const damage = minionAttack(BO_STAFF);
+    expect(damage.length).toBeGreaterThan(0);
+    expect(damage.every((d) => !d.ranged && !d.piercing)).toBe(true);
+  });
+
+  it.each([
+    [KIRIGI, "teamwork"],
+    [FUKIYA, "teamwork"],
+    [KUSARIGAMA, "patrol"],
+    [KUSARIGAMA, "teamwork"],
+    [SHURIKEN, "teamwork"],
+  ])("%s keeps %s as a data keyword", (code, keyword) => {
+    expect(data(code).keywords).toContainEqual(expect.objectContaining({ name: keyword }));
+  });
+
+  it.each([FUKIYA, KUSARIGAMA, SHURIKEN])(
+    "%s when defeated: reveals the first teamwork minion of the top 2 cards",
+    (code) => {
+      const s = engageMinion(stackEncounterDeck(heroGame(), ASSAULT, KATANA, ADVANCE), code, "ninja", P1);
+      const after = defeatWithAttack(DEPS, s, "ninja" as InstanceId, P1);
+      expect(discardCodes(after)).toContain(ASSAULT);
+      const katana = inPlay(after, KATANA);
+      expect(katana).toHaveLength(1);
+      expect(inst(after, katana[0]!).engagedWith).toBe(P1);
+      expect(deckCodes(after)[0]).toBe(ADVANCE);
+    },
+  );
 });

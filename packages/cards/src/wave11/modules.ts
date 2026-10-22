@@ -99,6 +99,7 @@ import {
   SHADOWLAND_CREEPING_CORRUPTION,
   SHADOWLAND_CREEPING_CORRUPTION_SKIPPED,
 } from "./shadowland/creeping-corruption.js";
+import { SHADOWLAND_BLACK_FLOWER, SHADOWLAND_BLACK_FLOWER_SKIPPED } from "./shadowland/black-flower.js";
 
 /** One wave 11 scripting module: its group key in `CARD_GROUPS`, its registry and its skipped refs with reasons. */
 export interface Wave11Module {
@@ -144,6 +145,7 @@ export const WAVE11_MODULES: readonly Wave11Module[] = [
     registry: SHADOWLAND_CREEPING_CORRUPTION,
     skipped: SHADOWLAND_CREEPING_CORRUPTION_SKIPPED,
   },
+  { group: "shadowland/black-flower", registry: SHADOWLAND_BLACK_FLOWER, skipped: SHADOWLAND_BLACK_FLOWER_SKIPPED },
   {
     group: "jj/jessica-jones/identity",
     registry: JJ_JESSICA_JONES_IDENTITY,
