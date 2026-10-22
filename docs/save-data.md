@@ -87,6 +87,16 @@ and could search the key part's ~20 bits, so the encryption guards against every
 If the Worker isn't configured, is switched off, or can't be reached, the game says online transfer is unavailable and
 points to Export.
 
+## Sync across devices
+
+Settings → More → Save data → Sync across devices keeps the same data in step between a player's devices instead of
+moving it once. It doesn't use the save file: each store row, each synced `mc-*` key and each saved game (meta,
+baseline, and its command log in chunks of 64) becomes its own encrypted record, so a turn uploads a chunk rather than
+everything. The databases and the `mc-*` prefix listed above are what it covers, so a store added to
+`save-data/databases.ts` syncs with no other change. Per-device keys stay out of sync but still travel in an export
+(`SYNC_EXCLUDED_KEYS` in `sync/sync-local.ts`), and sync's own state (`mcsync-state` database, `mcsync.*` keys) is in
+neither. Details, merge rules and limits: [docs/cloud-sync-plan.md](cloud-sync-plan.md).
+
 ## Platforms
 
 The web downloads the file and picks it with the browser's file picker. The desktop app (Tauri) exports through the
