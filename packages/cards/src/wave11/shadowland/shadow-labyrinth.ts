@@ -114,8 +114,9 @@ const oncePerRoundPerEventPlayer = { count: 1, period: "round", per: "eventPlaye
  * its attacks. It gains Guard, Villainous and the When Defeated "Set this minion aside", in which `self` is the villain
  * card: back to the encounter set-aside area, and Whisper, discarded with its host, goes to the trap discard pile (M3).
  * Whisper leaving while the minion stays (a player card discards it) leaves a villain card in play: it is one of the
- * game's villains there, beside Shifting Corridors (rules expert; owner confirmation pending), and defeated as that
- * villain it is out of the game with no win. The minion discarded is removed from the game: a Dark Protégé villain is
+ * game's villains there, beside Shifting Corridors (rules expert, 2026-10-22: a status change, ruling Dec 17, 2025
+ * (1) #3; owner question 4, docs/phase7-shadowland.md §5.1, default built), and defeated as that villain it is out of
+ * the game with no win (RRG 1.8 p. 15, p. 17; Grim Rule p. 4; owner question 8, same table, default built). The minion discarded is removed from the game: a Dark Protégé villain is
  * one double-sided card (RRG v1.8 "Double-Sided Card", p. 17). With no set-aside chosen villain to put
  * into play, Whisper has nothing to attach to and is discarded (RRG 1.8 "Attach To", p. 8). Otherwise Whisper is set
  * aside and the villain schemes.

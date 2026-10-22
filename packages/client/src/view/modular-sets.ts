@@ -113,7 +113,11 @@ export interface ModularPickerContext {
   readonly exclusions?: readonly ModularSetExclusion[];
   /** The encounter sets known (default: the app's pool); a test or the builder may pass a wider list. */
   readonly encounterSets?: readonly EncounterSet[];
-  /** The campaign the game is played in: a set it bars is listed disabled (`modularCandidatesFor`). Absent: standalone. */
+  /**
+   * The campaign the game is played in: a set it bars is listed disabled (`modularCandidatesFor`). Absent: standalone.
+   * No production campaign picker passes it yet; the Black Flower ban holds because a campaign launch sends no modular
+   * picks.
+   */
   readonly campaign?: Pick<Campaign, "name" | "prohibited">;
 }
 

@@ -266,8 +266,8 @@ function apply(ctx: Ctx, hostId: InstanceId, current: TreatedAs | null, next: Tr
   } else if (current?.kind === "minion" && isLooseVillainCard(ctx.state, hostId)) {
     // A villain card the attachment made a minion (Whisper in the Dark) is a villain card again where it is, one of the
     // game's villains: a status change, not a zone change (`promoteLooseVillain`, which cites the rules expert's
-    // reading; owner confirmation pending). The side that was up stays up. A card leaving play itself does not come
-    // here (`Ctx.leavingHosts`).
+    // reading, ruling Dec 17, 2025 (1) #3; owner question 4, docs/phase7-shadowland.md §5.1, default built). The side
+    // that was up stays up. A card leaving play itself does not come here (`Ctx.leavingHosts`).
     const side = looseVillainSide(ctx.state, hostId)?.side ?? "A";
     updateInstance(ctx, hostId, (i) => ({ ...i, treatedAs: null }));
     emit(ctx, { type: "treatedAsChanged", instanceId: hostId, as: null });

@@ -330,12 +330,10 @@ const overpoweringCounters = (node: string, text: string, boxes: readonly string
 
 /**
  * Supports and upgrades that print a dash for their cost ("Players cannot choose cards without a cost", pp. 10 and 15)
- * and linked cards (engine reading: a linked card is never in a deck, RRG 1.8 "Linked" p. 27, so it cannot be a recorded
- * card of one). The content record emits a dash
- * as
- * cost 0 with `specialCost: "dash"`, which a cost ceiling cannot tell from a free card, so they are listed from the
- * pool
- * and taken out of what is offered. Creeping Corruption (72A, "-") is one.
+ * and linked cards (engine reading: a linked card is never in a deck, RRG 1.8 "Linked" p. 27, so it cannot be a
+ * recorded card of one). The content record emits a dash as cost 0 with `specialCost: "dash"`, which a cost ceiling
+ * cannot tell from a free card, so they are listed from the pool and taken out of what is offered. Creeping Corruption
+ * (72A, "-") is one.
  */
 const UNRECORDABLE_IDS: readonly CardId[] = [
   ...new Map(

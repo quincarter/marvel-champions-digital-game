@@ -881,7 +881,7 @@ describe("the villain reaches the scenario builder", () => {
     expect(two.chosenVillainId === undefined ? undefined : codeOf(two, two.chosenVillainId)).toBe(second.start.villain);
   });
 
-  it("the campaign villain may be handed over as `villainSetId` (what every campaign caller passes), as the villain card", () => {
+  it("the campaign villain is handed over as `villainCardId`, the villain card", () => {
     const { log, start } = compose(newLog(STANDARD, SOLO_SEATS, 9));
     const config = wave11Scenario(start.scenarioId!, {
       players: start.input.seats.map((seat) => ({
@@ -891,7 +891,7 @@ describe("the villain reaches the scenario builder", () => {
       })),
       seed: start.input.seed,
       modes: log.modes,
-      villainSetId: start.villain!,
+      villainCardId: start.villain!,
       modularSetIds: ["ninja_swarm"],
     });
     expect(config.villainChoice?.pick).toBe(start.villain);

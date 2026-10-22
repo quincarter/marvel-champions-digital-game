@@ -137,6 +137,8 @@ export function modularCandidatesFor(
   /**
    * The campaign the game is played in, when it is: a set the box bars (`Campaign.prohibited.encounterSetIds`, Shadowland's
    * Black Flower, MC65 p. 5) stays listed but disabled with `campaignModularPickProblem`'s reason. Absent for a standalone game.
+   * No production campaign picker passes it yet: the Black Flower ban holds today because a campaign launch sends no
+   * modular picks at all (the campaign composes its own encounter sets).
    */
   campaign?: Pick<Campaign, "name" | "prohibited">,
 ): readonly ModularCandidate[] {

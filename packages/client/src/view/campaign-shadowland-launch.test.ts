@@ -1,8 +1,7 @@
 /**
  * A composed Shadowland scenario on the table (MC65, docs/phase7-shadowland.md section 4.1): the villain the campaign drew
  * is answered as a card (`villainCardId`, the pack's one set holds all six), the composed encounter sets and the campaign
- * input ride along, and the campaign picker refuses Black Flower. The pack is gated out of the playable pool
- * (`playable/unscripted.ts`); a launch config is plain data, so these tests compose and launch without ungating it.
+ * input ride along, and the campaign picker refuses Black Flower.
  */
 import { describe, expect, test } from "vitest";
 import {

@@ -6,9 +6,8 @@ import { modularPickProblem } from "../modular-pool.js";
  * is never a modular pick there, whatever the scenario would otherwise allow. Shadowland's Black Flower (MC65 p. 5:
  * "Cards from the Black Flower modular set are required by some Campaign Instructions, so it cannot be included as a
  * modular set in any scenario while playing the campaign") is a modular set of Shadows in the Night and Shadow
- * Labyrinth
- * on its own, so a picker that filters by `modularPickProblem` alone offers it; the campaign picker asks this.
- * Returns the reason, or null when the set may be picked.
+ * Labyrinth on its own, so a picker that filters by `modularPickProblem` alone offers it; the campaign picker asks
+ * this. Returns the reason, or null when the set may be picked.
  */
 export function campaignModularPickProblem(
   campaign: Pick<Campaign, "name" | "prohibited">,

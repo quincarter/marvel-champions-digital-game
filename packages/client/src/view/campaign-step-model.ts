@@ -312,16 +312,9 @@ function campaignMainSchemePicks(
   return choice.cardIds.slice(0, seats).map((id) => id as string);
 }
 
-/**
- * Whether the scenario's villain choice is keyed by card (`Scenario.villainOptions.keyedBy`), not by set. Read from
- * content, not the playable pool: Shadowland's scenarios are gated out of `POOL_SCENARIOS` but a launch must still
- * answer them the right way once they are open.
- */
+/** Whether the scenario's villain choice is keyed by card (`Scenario.villainOptions.keyedBy`), not by set. */
 function villainIsCardKeyed(scenarioId: string): boolean {
-  return (
-    [...POOL_SCENARIOS, ...SHADOWLAND_SCENARIOS].find((scenario) => (scenario.id as string) === scenarioId)
-      ?.villainOptions?.keyedBy === "card"
-  );
+  return POOL_SCENARIOS.find((scenario) => (scenario.id as string) === scenarioId)?.villainOptions?.keyedBy === "card";
 }
 
 /**

@@ -675,7 +675,8 @@ function registerVillain(
  * in play, and one of the game's villains. Rules expert, 2026-10-22: ending a "treat as" is a status change, not a
  * zone change (RRG 1.8 "Ability", p. 5: constants are active only while their card is in play; ruling Dec 17, 2025
  * (1) #3, Beguiled: "the ally does not leave play ... essentially a status change"; ruling Aug 22, 2025: a blanked
- * Reluctant Foe "would not leave play"; RRG 1.8 "Set Aside", p. 39, needs an instruction). Owner confirmation pending.
+ * Reluctant Foe "would not leave play"; RRG 1.8 "Set Aside", p. 39, needs an instruction). Owner question 4,
+ * docs/phase7-shadowland.md §5.1 (default built).
  *
  * It keeps the side that was up, its damage, tokens, status cards and attachments, and it does not enter play: no
  * toughness status, no When Revealed. It leaves the player's play area, engaged with no one, and takes the active

@@ -351,8 +351,9 @@ function chosenVillainPlan<
  */
 export function buildWave11Scenario(record: Scenario, options: Wave11ScenarioOptions): GameSetupConfig {
   checkScenarioSetupOptions(record.id, options.setupOptions);
-  // A card-keyed choice has no villain set to name (its six villains share one): the campaign hands the drawn villain
-  // card in `villainSetId`, the one field every campaign caller already passes `CampaignGameStart.villain` to.
+  // A card-keyed choice has no villain set to name (its six villains share one), so the drawn villain card comes in
+  // `villainCardId` (the client's campaign launcher passes it). Back-compat path: a card id handed in `villainSetId`
+  // (the field campaign callers used to fill from `CampaignGameStart.villain`) is still read as the villain card.
   const keyed = record.villainOptions?.keyedBy === "card";
   const campaignVillainCard =
     keyed && options.villainCardId === undefined && cardKeyedHasOption(record, options.villainSetId)

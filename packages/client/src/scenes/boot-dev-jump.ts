@@ -323,7 +323,7 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   }
 
   // `&fixture=shadowland[&corruption=N][&traps=N][&flip=1]`: Shadow Labyrinth's trap deck and discard, Creeping Corruption
-  // with counters and The Streets Below in the villain area, while Shadowland is gated (`store/dev-shadowland-game.ts`).
+  // with counters and The Streets Below in the villain area, as a preset board state (`store/dev-shadowland-game.ts`).
   if (screen === "board" && params.get("fixture") === "shadowland") {
     const { startDevShadowlandGame } = await import("../store/dev-shadowland-game.js");
     await startDevShadowlandGame({

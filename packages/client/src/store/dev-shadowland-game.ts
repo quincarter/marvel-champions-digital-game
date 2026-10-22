@@ -1,6 +1,6 @@
 /**
- * The `?screen=board&fixture=shadowland` dev jump (`scenes/boot-dev-jump.ts`): a one-seat game for looking at what
- * Shadowland puts on the board while its sets are gated out of the playable scenarios (`playable/unscripted.ts`).
+ * The `?screen=board&fixture=shadowland` dev jump (`scenes/boot-dev-jump.ts`): a one-seat preset board state for looking
+ * at what Shadowland puts on the board without playing a game up to it.
  * Spider-Man (Justice) against Shifting Corridors (Shadow Labyrinth's villain, with passage counters), the TRAP! cards
  * gathered into the separate "trap" scenario deck with a couple already in its own discard pile, Creeping Corruption
  * in play with corruption counters on it, and The Streets Below (the two position environments) in the villain area.
@@ -9,7 +9,7 @@
  *
  * Dev builds only: the game is built with the cards package's own test builders (`trap-testing.ts`), loaded with
  * `import.meta.glob` the way `dev-mission-game.ts` loads its builder, and handed to a `DevStateHost`. It keeps no
- * storage. It un-gates nothing: the playable pool is untouched.
+ * storage and leaves the playable pool untouched.
  */
 
 import type { EngineDeps, GameState, InstanceId } from "@mc/engine";

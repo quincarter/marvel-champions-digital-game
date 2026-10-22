@@ -5,7 +5,7 @@ import { CARDS_BY_ID, POOL_DEPS, POOL_ENCOUNTER_SETS } from "../content/pool.js"
 import { compositionRowsOf, gameSummaryRowsOf, tableSetupPreviewOf } from "./table-setup-preview.js";
 
 const SETS = [...POOL_ENCOUNTER_SETS, ...SHADOWLAND_ENCOUNTER_SETS];
-// Shadowland is gated out of the playable pool, so the config comes straight from the wave 11 builder.
+// The config comes straight from the wave 11 builder.
 const previewOf = (id: string) => {
   const record = SHADOWLAND_SCENARIOS.find((s) => s.id === id)!;
   const config = wave11Scenario(id, {

@@ -398,7 +398,7 @@ describe("Fear No Evil villain choice (docs/phase7-wave11-scenarios.md S1.2)", (
 });
 
 describe("Shadowland's card-keyed villain choice (docs/phase7-shadowland.md section 4.1)", () => {
-  // Shadowland is gated out of the playable pool, so the offer is built straight from the content record.
+  // The offer is built straight from the content record.
   const offerFor = (scenarioId: string) => {
     const scenario = SHADOWLAND_SCENARIOS.find((s) => s.id === scenarioId)!;
     return { ...offerOf(draftFor("rhino")), villains: villainChoiceOffer(scenario) };

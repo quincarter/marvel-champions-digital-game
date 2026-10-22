@@ -8,9 +8,9 @@
  * any card of the new card type"; the card says nothing of a blank text box), "Printed" (p. 35),
  * "'Gains'" (p. 21), "Guard" (p. 21), "Villainous" (p. 47), "Set Aside" (p. 39), "Find" (p. 19). When nothing treats
  * it as a minion any more it stays in play as one of the game's villains, a status change (rules expert, 2026-10-22;
- * ruling Dec 17, 2025 (1) #3; owner confirmation pending). Discarded as a minion it goes to the encounter discard pile:
- * treated as a minion it is not a villain card (p. 12; ruling Nov 2, 2023 #108), so p. 46's "Villain cards cannot be
- * discarded from play" does not apply. `hostOnlyReleaseZone` is only for a refused put-into-play.
+ * ruling Dec 17, 2025 (1) #3; owner question 4, docs/phase7-shadowland.md §5.1, default built). Discarded as a minion
+ * it goes to the encounter discard pile: treated as a minion it is not a villain card (p. 12; ruling Nov 2, 2023
+ * #108), so p. 46's "Villain cards cannot be discarded from play" does not apply. `hostOnlyReleaseZone` is only for a refused put-into-play.
  */
 
 import { perPlayerOnly, trait, type CardId, type VillainCard } from "@mc/content";
