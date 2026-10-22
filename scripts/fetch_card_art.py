@@ -217,6 +217,9 @@ MAX_EDGE = 1100
 # Every saved scan is lossy WebP at this quality, whatever its file name says (see `compress`). The client sniffs an
 # image's type from its bytes, never its extension, so a scan keeps the exact path its card record names.
 WEBP_QUALITY = 72
+# Scans whose manifest row names this host are stand-ins (card images from play.marvelsimulator.com, owner-approved
+# 2026-10-22): `fetch` replaces one with any official Hall of Heroes scan of the same shape, as it does a stamped one.
+SIMULATOR_HOST = "play.marvelsimulator.com"
 # Padding is any pixel at least this light on every channel (and near-grey) that connects to the image's edge.
 PAD_WHITE = 225
 # A scan with more than this fraction of transparent pixels walled in by card pixels has a hole (`interior_transparency`).
@@ -830,6 +833,8 @@ def write_manifest(rows: dict[str, list[str]]) -> None:
         "# does not publish, and better copies of ones it does (larger, or free of the FFG preview watermark).",
         "# Saved over bundles/cards/<code>.<ext> in the local file's format, scaled to at most a 1100px long edge.",
         "# Rows fetched on 2026-09-19 or earlier were scaled to a 419px long edge.",
+        "# Rows whose source_page is play.marvelsimulator.com are stand-in scans (owner-approved 2026-10-22): `fetch` replaces",
+        "# them with any official Hall of Heroes copy, whatever its size (see SIMULATOR_HOST).",
         "code\tpack\tname\tsource_page\timage_url\tfetched",
     ]
     for code in sorted(rows):
@@ -896,6 +901,7 @@ def fetch(args: argparse.Namespace) -> None:
     header, manifest = read_manifest()
     stats = {"replaced": 0, "added": 0, "kept": 0, "stamped": 0, "untrimmed": 0, "unmatched": 0}
     today = date.today().isoformat()
+    simulator_codes = {c for c, row in manifest.items() if any(SIMULATOR_HOST in col for col in row[3:5])}
 
     def prepare(url: str, code: str) -> tuple[Image.Image, tuple[int, int, int, int]] | None:
         """Downloads and trims one candidate, or None (and a printed reason + stats bump) if it can't be used."""
@@ -928,7 +934,7 @@ def fetch(args: argparse.Namespace) -> None:
                 print(f"    - {code}: shape {new.size} doesn't match local {old_size}; skipped")
                 return False
             bigger = max(new.size) >= max(old_size) * UPGRADE_FACTOR
-            if not (bigger or code in stamped_codes):
+            if not (bigger or code in stamped_codes or code in simulator_codes):
                 stats["kept"] += 1
                 return False
         dest = local or CARDS_DIR / f"{code}.png"

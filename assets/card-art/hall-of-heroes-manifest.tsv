@@ -2,6 +2,8 @@
 # does not publish, and better copies of ones it does (larger, or free of the FFG preview watermark).
 # Saved over bundles/cards/<code>.<ext> in the local file's format, scaled to at most a 1100px long edge.
 # Rows fetched on 2026-09-19 or earlier were scaled to a 419px long edge.
+# Rows whose source_page is play.marvelsimulator.com are stand-in scans (owner-approved 2026-10-22): `fetch` replaces
+# them with any official Hall of Heroes copy, whatever its size (see SIMULATOR_HOST).
 code	pack	name	source_page	image_url	fetched
 01117b	core	Secret Rendezvous	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/klaw5a.jpg	2026-10-20
 01138b	core	Assault on NORAD	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/ultron5a.jpg	2026-10-20
@@ -695,46 +697,96 @@ code	pack	name	source_page	image_url	fetched
 62035	luke_cage	Observe	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62035.jpg	2026-10-18
 62036	luke_cage	Toughen Up	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62036.jpg	2026-10-18
 62037	luke_cage	Black Belt	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/10/62037.jpg	2026-10-18
+65001a	shadowland	A Barricade of Blades	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65001A.webp	2026-10-22
+65001b	shadowland	A Barricade of Blades	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65001B.webp	2026-10-22
+65002a	shadowland	Fortress Lockdown	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65002A.webp	2026-10-22
+65002b	shadowland	Fortress Lockdown	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65002B.webp	2026-10-22
 65003a	shadowland	The Streets Below	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_the_streets_below_villian.png	2026-10-19
 65003b	shadowland	Atop the Tenshu	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_atop_the_tenshu_villian.png	2026-10-19
 65004a	shadowland	The Streets Below	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_the_streets_below_hero.png	2026-10-19
 65004b	shadowland	Atop the Tenshu	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_atop-the-tenshu_hero.png	2026-10-19
 65005	shadowland	Black Tarantula	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_black-tarantula.png	2026-10-19
+65006	shadowland	Ghost Maker	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65006.webp	2026-10-22
+65007	shadowland	Sealed Entrances	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65007.webp	2026-10-22
 65008	shadowland	Strategic Positioning	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_strategic-positioning.png	2026-10-19
+65009	shadowland	Surround the Fortress	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65009.webp	2026-10-22
 65010	shadowland	Chaos in Hell's Kitchen	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_chaos-in-hells-kitchen.png	2026-10-19
 65011	shadowland	Moonlit Silhouette	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_moonlit-silhouette.png	2026-10-19
 65012a	shadowland	Archpriestess	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_archpriestess.png	2026-10-19
+65012b	shadowland	Archpriestess	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65012B.webp	2026-10-22
 65013a	shadowland	Daredevil	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards__daredevil.png	2026-10-19
+65013b	shadowland	65013b	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65013B.webp	2026-10-22
 65014a	shadowland	Elektra	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards__elektra.png	2026-10-19
+65014b	shadowland	65014b	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65014B.webp	2026-10-22
 65015a	shadowland	Gorgon	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards__gorgon.png	2026-10-19
+65015b	shadowland	65015b	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65015B.webp	2026-10-22
 65016a	shadowland	Lady Bullseye	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_lady-bullseye.png	2026-10-19
+65016b	shadowland	65016b	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65016B.webp	2026-10-22
 65017a	shadowland	White Tiger	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_white-tiger.png	2026-10-19
+65017b	shadowland	65017b	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65017B.webp	2026-10-22
 65018	shadowland	Art of the Kill	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_art_of_the_kill.png	2026-10-19
 65019	shadowland	Krahllak's Blessing	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_krahllaks_blessing.png	2026-10-19
+65020	shadowland	Archpriestess	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65020.webp	2026-10-22
+65021	shadowland	Gorgon	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65021.webp	2026-10-22
+65022	shadowland	Lady Bullseye	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65022.webp	2026-10-22
+65023	shadowland	White Tiger	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65023.webp	2026-10-22
+65024	shadowland	Rite of Offering	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65024.webp	2026-10-22
+65025	shadowland	Shadowy Plot	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65025.webp	2026-10-22
 65026	shadowland	Darkness Within	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_darkness_within.png	2026-10-19
 65027	shadowland	Embraced by Darkness	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_embraced_by_darkness.png	2026-10-19
 65028	shadowland	Black Mountain	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_black_mountain.png	2026-10-19
+65029	shadowland	Kirigi	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65029.webp	2026-10-22
 65030	shadowland	Bo Staff Ninja	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_bo_staff_ninja.png	2026-10-19
+65031	shadowland	Fukiya Ninja	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65031.webp	2026-10-22
 65032	shadowland	Katana Ninja	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_katana_ninja.png	2026-10-19
+65033	shadowland	Kusarigama Ninja	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65033.webp	2026-10-22
+65034	shadowland	Shuriken Ninja	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65034.webp	2026-10-22
 65035	shadowland	Dancing Shadows	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_dancing_shadows.png	2026-10-19
 65036	shadowland	Countless Numbers	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_countless_numbers.png	2026-10-19
 65037	shadowland	Shifting Corridors	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_shifting_corridors.png	2026-10-19
+65038a	shadowland	Into the Labyrinth	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65038A.webp	2026-10-22
+65038b	shadowland	Into the Labyrinth	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65038B.webp	2026-10-22
+65039a	shadowland	Chamber of Vile Secrets	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65039A.webp	2026-10-22
+65039b	shadowland	Chamber of Vile Secrets	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65039B.webp	2026-10-22
+65040	shadowland	Whisper in the Dark	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65040.webp	2026-10-22
 65041	shadowland	Lord Deathstrike	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_lord_deathstrike.png	2026-10-19
-65042	shadowland	Dead End	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_dead_end.png	2026-10-19
+65042	shadowland	Dead End	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65042.webp	2026-10-22
+65043	shadowland	Hall of Hidden Doors	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65043.webp	2026-10-22
 65044	shadowland	No Time to Think!	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_no_time_to_think.png	2026-10-19
 65045	shadowland	Sudden Shift	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_sudden_shift.png	2026-10-19
 65046	shadowland	Nervous Jitters	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_nervous_jitters.png	2026-10-19
 65047	shadowland	Iron Monk	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_iron_monk_.png	2026-10-19
 65048	shadowland	Hall of Punishment	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_hall_of_punishment.png	2026-10-19
-65049	shadowland	Path of a Thousand Cuts	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_path_of_a_thousand_cuts.png	2026-10-19
+65049	shadowland	Path of a Thousand Cuts	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65049.webp	2026-10-22
 65050	shadowland	Blinding Powder	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_blinding_powder.png	2026-10-19
 65051	shadowland	Caltrops	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_caltrops.png	2026-10-19
+65052	shadowland	Flame Spout	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65052.webp	2026-10-22
+65053	shadowland	Oil Slick	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65053.webp	2026-10-22
+65054	shadowland	Poison Darts	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65054.webp	2026-10-22
+65055	shadowland	Pressure Plate	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65055.webp	2026-10-22
+65056	shadowland	Tripwire	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65056.webp	2026-10-22
 65057	shadowland	Krahllak	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_krahllak.png	2026-10-19
+65058	shadowland	Krahllak	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65058.webp	2026-10-22
+65059	shadowland	Krahllak	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65059.webp	2026-10-22
+65060a	shadowland	Dark Invitation	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65060A.webp	2026-10-22
+65060b	shadowland	Dark Invitation	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65060B.webp	2026-10-22
+65061a	shadowland	Beast Be Praised	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65061A.webp	2026-10-22
+65061b	shadowland	Beast Be Praised	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65061B.webp	2026-10-22
+65062	shadowland	Dark Shroud	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65062.webp	2026-10-22
+65063	shadowland	Fear Projection	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65063.webp	2026-10-22
 65064	shadowland	Mark of the Wicked	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_mark_of_the_wicked.png	2026-10-19
 65065	shadowland	Pull of Power	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_pull_of_power.png	2026-10-19
+65066	shadowland	Fist	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65066.webp	2026-10-22
 65067	shadowland	Hellbride	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards__hellbride.png	2026-10-19
+65068	shadowland	Retainer	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65068.webp	2026-10-22
 65069	shadowland	Snakeroot Elders	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_snakeroot_elders.png	2026-10-19
-65070	shadowland	Veil of Nightmares	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_veil_of_nightmares.png	2026-10-19
+65070	shadowland	Veil of Nightmares	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65070.webp	2026-10-22
 65071	shadowland	Submit or Suffer	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_submit_or_suffer.png	2026-10-19
 65072a	shadowland	Creeping Corruption	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_creeping_corruption_a-side.png	2026-10-19
 65072b	shadowland	Creeping Corruption	https://hallofheroeslcg.com/shadowland/	https://hallofheroeslcg.com/wp-content/uploads/2026/07/mc65_cards_creeping_corruption-overwhelming_side.png	2026-10-19
+65073	shadowland	Aka	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65073.webp	2026-10-22
+65074	shadowland	Tongue of the Beast	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65074.webp	2026-10-22
+65075	shadowland	Binding Ritual	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65075.webp	2026-10-22
+65076	shadowland	Roots of a Black Flower	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65076.webp	2026-10-22
+65077	shadowland	Malediction	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65077.webp	2026-10-22
+65078	shadowland	Invasive Thoughts	https://play.marvelsimulator.com/	https://play.marvelsimulator.com/images/cards/65078.webp	2026-10-22

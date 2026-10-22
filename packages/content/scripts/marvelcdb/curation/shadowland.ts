@@ -6,10 +6,13 @@
  * the Hall of Heroes preview scans (docs/phase7-shadowland.md section 3), as Fear No Evil's scenario half was.
  *
  * Every printed card is transcribed: 90 printed copies, 73 distinct card records. The Hall of Heroes previews gave 45 card
- * images (300 x 426), the only scans saved under `assets/card-art/bundles/cards/` (those 65xxx scans are tracked there); the
- * remaining faces were transcribed from full-size card images (owner-approved, 2026-10-22) kept outside the repo, so
- * `artUnavailable` below lists the cards with a face that has no saved scan. The three scenario records (`shadowland-scenarios.ts`) are
- * wired in. The pack is not registered in the content index yet.
+ * images (300 x 426); the remaining faces were transcribed from full-size card images, and those full-size images
+ * (card images from play.marvelsimulator.com, owner-approved 2026-10-22) are now saved too, so every face has a scan under
+ * `assets/card-art/bundles/cards/` and no `artUnavailable` entry is left. They are stand-ins: recorded in
+ * `assets/card-art/hall-of-heroes-manifest.tsv` with that source, and `scripts/fetch_card_art.py fetch` replaces them
+ * with an official Hall of Heroes scan once one is published. The previews of 65042, 65049 and 65070 were replaced by
+ * the larger image. The three scenario records (`shadowland-scenarios.ts`) are wired in. The pack is not registered in the
+ * content index yet.
  *
  * Evidence abbreviations: "scan" is the Hall of Heroes preview `mc65_cards_<stem>.png` (https://hallofheroeslcg.com/
  * shadowland/; also saved as `assets/card-art/bundles/cards/<code>.png`), "insert" is the box rules insert
@@ -24,55 +27,6 @@ import { HEART_OF_SHADOW_RECORDS } from "./shadowland-encounter/heart-of-shadow.
 import { NINJA_SWARM_RECORDS } from "./shadowland-encounter/ninja-swarm.ts";
 import { SHADOW_LABYRINTH_RECORDS } from "./shadowland-encounter/shadow-labyrinth.ts";
 import { SHADOWS_IN_THE_NIGHT_RECORDS } from "./shadowland-encounter/shadows-in-the-night.ts";
-
-/**
- * Card ids with at least one printed face that has no saved scan in `assets/card-art/bundles/cards/`: only the 45 Hall of
- * Heroes preview images are saved there; the other faces were transcribed from card images kept outside the repo (spec
- * section 3). Each id exempts only its art-less faces from `checkCoverage`'s "no artwork reference" error;
- * once a scan is saved for every face of a card, ingestion reports the entry as stale: delete it then.
- */
-const NO_LOCAL_SCAN: readonly string[] = [
-  "65001a",
-  "65006",
-  "65007",
-  "65009",
-  "65012a",
-  "65013a",
-  "65014a",
-  "65015a",
-  "65016a",
-  "65017a",
-  "65020",
-  "65021",
-  "65022",
-  "65023",
-  "65024",
-  "65025",
-  "65029",
-  "65031",
-  "65033",
-  "65034",
-  "65038a",
-  "65040",
-  "65043",
-  "65052",
-  "65053",
-  "65054",
-  "65055",
-  "65056",
-  "65057",
-  "65060a",
-  "65062",
-  "65063",
-  "65066",
-  "65068",
-  "65073",
-  "65074",
-  "65075",
-  "65076",
-  "65077",
-  "65078",
-];
 
 export const SHADOWLAND_CURATION: PackCuration = {
   packCode: "shadowland",
@@ -145,12 +99,6 @@ export const SHADOWLAND_CURATION: PackCuration = {
     })),
   ],
   errata: [],
-  artUnavailable: Object.fromEntries(
-    NO_LOCAL_SCAN.map((id) => [
-      id,
-      "Transcribed from a card image kept outside the repo; no scan is saved under assets/card-art (spec section 3, 2026-10-22).",
-    ]),
-  ),
   // Each Dark Protégé villain is ONE double-sided card (A: HP 15 per hero, B: HP 18) flipped by the main scheme.
   villainFlipSets: ["dark_protege"],
 
