@@ -125,7 +125,9 @@ const returnHighestSupport = (): EffectSpec[] => [
     "highest",
     // No "choose": an encounter card targeting one of several eligible cards; the first player selects
     // (RRG 1.8 "First Player", p. 19).
-    superlative("highest", each(query("support", { controller: "you" })), printedCostOf(chosen("candidate"))),
+    superlative("highest", each(query("support", { controller: "you" })), printedCostOf(chosen("candidate")), {
+      leavesPlay: true,
+    }),
   ),
   chooseTarget("pick", { inSlot: "highest" }, { chooser: firstPlayer }),
   moveCards(cards(chosen("pick")), "hand"),

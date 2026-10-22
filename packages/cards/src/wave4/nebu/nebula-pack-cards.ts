@@ -4,7 +4,6 @@ import {
   alterEgoAction,
   attackAnEnemy,
   cards,
-  centralMainScheme,
   chooseCards,
   chooseTarget,
   chosen,
@@ -44,9 +43,11 @@ import {
   self,
   shuffleEncounterDeck,
   statOf,
+  theMainScheme,
   threatOn,
   valueAtMost,
   varOf,
+  whileOnChosenMainScheme,
   you,
   yourIdentity,
   YOUR_HERO,
@@ -94,14 +95,17 @@ export const NEBULA_PACK_CARDS = defineAbilities({
   // Venom (ally, 22013) — While there is no threat on the main scheme, reduce all consequential damage Venom takes
   // by 1. Read as the two consequential-damage stat modifiers (`gets("consequentialAttack"/"consequentialThwart",
   // …)`, `packages/cards/src/dsl/abilities.ts`), not `RuleSpec reduceDamageTaken` (which is for damage dealt *from
-  // an attack*, `fromAttack: true` — consequential damage is neither, RRG 1.8 "Consequential Damage", p. 14). "The
-  // main scheme" with one main scheme in play reads as the central scheme (docs/phase7-wave4.md §4 Q2 precedent).
+  // an attack*, `fromAttack: true` — consequential damage is neither, RRG 1.8 "Consequential Damage", p. 14). With
+  // several main schemes, his controller chooses which is "the main scheme" each time (Ruling 132, Dec 22, 2023), so
+  // the reduction applies while any main scheme has no threat. In Tower Defense a player card's constant "always refers
+  // to the scheme card with the attachment 'Focused Defense'" (MC21 p. 10), so there he reads only that scheme (it was
+  // the central scheme before `theMainScheme` replaced `centralMainScheme` here).
   "22013.venom-constant": constant(
     gets("consequentialAttack", -1, query("ally", { self: true }), {
-      while: valueAtMost(threatOn(centralMainScheme), 0),
+      while: whileOnChosenMainScheme(valueAtMost(threatOn(theMainScheme), 0)),
     }),
     gets("consequentialThwart", -1, query("ally", { self: true }), {
-      while: valueAtMost(threatOn(centralMainScheme), 0),
+      while: whileOnChosenMainScheme(valueAtMost(threatOn(theMainScheme), 0)),
     }),
   ),
 
@@ -131,7 +135,7 @@ export const NEBULA_PACK_CARDS = defineAbilities({
 
   // Determination (resource, 22016) — Max 1 per deck (data). Hero Response: After you spend this card, remove 1
   // threat from the main scheme.
-  "22016.determination-response": heroResponse(on.youSpendThis(), removeThreat(1, centralMainScheme)),
+  "22016.determination-response": heroResponse(on.youSpendThis(), removeThreat(1, theMainScheme)),
 
   // The Power of Justice (resource, 22017) — Max 2 per deck (data). Double the number of resources this card
   // generates while paying for a Justice (yellow) card. Reprints Core's own The Power of Justice (01062,

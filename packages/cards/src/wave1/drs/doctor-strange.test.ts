@@ -391,7 +391,7 @@ describe("Invocation cards", () => {
 describe("Vapors of Valtorr vs Mister Sinister (ruling May 10, 2024, Ruling 181)", () => {
   // Ruling 181: replacing a status card on Mister Sinister does not trigger his "After a status card is placed on
   // Mister Sinister" Forced Response. RRG 1.8 is silent on "replace" for status cards.
-  it.fails("replacing his stunned status with confused places no threat", () => {
+  it("replacing his stunned status with confused places no threat", () => {
     const created = createGame(
       playableScenario("mister-sinister", { seed: 3, players: [{ starterDeckId: "drs-protection" }] }),
       PLAYABLE_DEPS,
@@ -418,9 +418,12 @@ describe("Vapors of Valtorr vs Mister Sinister (ruling May 10, 2024, Ruling 181)
 
 describe("June 20, 2024 - Ruling 215 answer 1 (post-RRG 1.5): Vapors of Valtorr and a Stalwart enemy with Tough", () => {
   // Ruling 215: a Stalwart enemy with a tough status card "is not a valid target for Vapors of Valtorr's ability, as a
-  // Stalwart enemy cannot be stunned or confused". RRG 1.8 p. 43 "Target": a target is valid only if the ability can
-  // affect it (the replacement for Tough can only be stunned or confused). Mister Sinister (33028) is Stalwart.
-  it.fails("Vapors of Valtorr cannot take the tough card off the Stalwart minion Mister Sinister: he keeps it", () => {
+  // Stalwart enemy cannot be stunned or confused". RRG 1.8 "Target" (p. 43): a target is valid "if any part of that
+  // ability can affect that target", and with multiple effects "if at least one of those effects can affect the
+  // target"; the same bullets are in RRG v1.6, under which #215 was answered, so #215 is FFG's reading of them: the
+  // replacement is one effect, and it can only stun or confuse (`target-validity.ts`). Mister Sinister (33028) is
+  // Stalwart. Ruling 169 (May 10, 2024, post-RRG 1.5): the Special still resolves with no status card to choose.
+  it("Vapors of Valtorr cannot take the tough card off the Stalwart minion Mister Sinister: he keeps it", () => {
     const created = createGame(
       playableScenario("mister-sinister", { seed: 3, players: [{ starterDeckId: "drs-protection" }] }),
       PLAYABLE_DEPS,
@@ -449,6 +452,7 @@ describe("June 20, 2024 - Ruling 215 answer 1 (post-RRG 1.5): Vapors of Valtorr 
     const toughened = patchInstance(inPlay, v, { statuses: { ...inst(inPlay, v).statuses, tough: 1 } });
     const stacked = stackInvocation(toughened, P1, "09035");
     const top = playerOf(stacked, P1).separateDecks["Invocation"]!.deck[0]!;
+    const discardedBefore = playerOf(stacked, P1).separateDecks["Invocation"]!.discard.length;
     const invoked = runWith(
       PLAYABLE_DEPS,
       stacked,
@@ -457,5 +461,9 @@ describe("June 20, 2024 - Ruling 215 answer 1 (post-RRG 1.5): Vapors of Valtorr 
     const after = settle(invoked, picking(v, "0"), undefined, PLAYABLE_DEPS);
     expect(inst(after, v).statuses.stunned + inst(after, v).statuses.confused).toBe(0); // stalwart: neither lands
     expect(inst(after, v).statuses.tough).toBe(1);
+    // Ruling 169: Vapors of Valtorr still resolves (not refused outright) and goes to the Invocation discard pile.
+    const invocation = playerOf(after, P1).separateDecks["Invocation"]!;
+    expect(invocation.discard).toContain(top);
+    expect(invocation.discard.length).toBe(discardedBefore + 1);
   });
 });

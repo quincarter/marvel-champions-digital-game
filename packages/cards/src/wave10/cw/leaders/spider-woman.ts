@@ -20,7 +20,7 @@ import {
   encounterCards,
   enemyAttack,
   enemyScheme,
-  exists,
+  anyIn,
   firstPlayer,
   forcedInterrupt,
   giveStatus,
@@ -61,6 +61,8 @@ const SKILL = "skill";
 const SKILL_COUNTERS = countersOn(FINESSE, SKILL);
 /** "A card you control" that has a printed cost: an ally, upgrade or support (an identity prints none). */
 const CARDS_YOU_CONTROL = query(["ally", "upgrade", "support"], { controller: "you" });
+/** Inconspicuous's pool: the highest-cost of them that can leave play (RRG 1.8 "Permanent", p. 32). */
+const HIGHEST_COST_YOU_CONTROL = theCardWithHighestCost(CARDS_YOU_CONTROL, { leavesPlay: true });
 
 /**
  * Setup of stages I and III: "The enemy team finds Finesse and attaches it to Spider-Woman." One Finesse is in the
@@ -183,8 +185,8 @@ export const LEADERS_SPIDER_WOMAN: AbilityRegistry = defineAbilities({
     chooseOne(
       option(
         "Discard the highest-cost card you control",
-        { when: exists(CARDS_YOU_CONTROL) },
-        bindTargets("highest", theCardWithHighestCost(CARDS_YOU_CONTROL)),
+        { when: anyIn(HIGHEST_COST_YOU_CONTROL) },
+        bindTargets("highest", HIGHEST_COST_YOU_CONTROL),
         // No "choose": an encounter card targeting one of several eligible cards; the first player selects
         // (RRG 1.8 "First Player", p. 19).
         chooseTarget("burned", { inSlot: "highest" }, { chooser: firstPlayer }),

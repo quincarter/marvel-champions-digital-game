@@ -46,7 +46,9 @@ const YOUR_CHARACTERS = query(["identity", "ally"], { controller: "you" });
 const highestCost = (category: "upgrade" | "support") =>
   bindTargets(
     "extreme",
-    superlative("highest", each(query(category, { controller: "you" })), printedCostOf(chosen("candidate"))),
+    superlative("highest", each(query(category, { controller: "you" })), printedCostOf(chosen("candidate")), {
+      leavesPlay: true,
+    }),
   );
 
 export const EXTREME_MEASURES: AbilityRegistry = defineAbilities({

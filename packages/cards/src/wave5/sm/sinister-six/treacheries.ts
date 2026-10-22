@@ -108,7 +108,10 @@ export const SINISTER_SIX_TREACHERIES = defineAbilities({
     ifThen(
       villainAlreadyInPlay("Electro"),
       [
-        bindTargets("hf-highest", superlative("highest", each(CARDS_YOU_CONTROL), printedCostOf(chosen("candidate")))),
+        bindTargets(
+          "hf-highest",
+          superlative("highest", each(CARDS_YOU_CONTROL), printedCostOf(chosen("candidate")), { leavesPlay: true }),
+        ),
         chooseTarget("hf-highest-pick", { inSlot: "hf-highest" }, { chooser: firstPlayer }),
         discard(chosen("hf-highest-pick")),
       ],
@@ -117,7 +120,10 @@ export const SINISTER_SIX_TREACHERIES = defineAbilities({
     ifThen(
       villainAlreadyInPlay("Kraven the Hunter"),
       [
-        bindTargets("hf-lowest", superlative("lowest", each(CARDS_YOU_CONTROL), printedCostOf(chosen("candidate")))),
+        bindTargets(
+          "hf-lowest",
+          superlative("lowest", each(CARDS_YOU_CONTROL), printedCostOf(chosen("candidate")), { leavesPlay: true }),
+        ),
         chooseTarget("hf-lowest-pick", { inSlot: "hf-lowest" }, { chooser: firstPlayer }),
         discard(chosen("hf-lowest-pick")),
       ],

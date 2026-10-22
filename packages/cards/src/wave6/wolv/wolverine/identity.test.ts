@@ -322,7 +322,7 @@ function beetleEngaged(state: GameState): GameState {
 // (`wave4/hood/sinister-syndicate.ts`) as a `superlative` over every upgrade you control, then a pick from that slot:
 // Wolverine's Claws (35002, Permanent, cost 0) is the lowest, the discard is stopped, and the choice "found nothing".
 describe("Wolverine's Claws (35002, Permanent): 'the lowest-cost upgrade you control' targets the non-permanent upgrade", () => {
-  it.fails("Claws (cost 0, Permanent) and Spider-Tracer (cost 1): Beetle's discard takes the Spider-Tracer", () => {
+  it("Claws (cost 0, Permanent) and Spider-Tracer (cost 1): Beetle's discard takes the Spider-Tracer", () => {
     let s = beetleEngaged(rhino());
     s = patchInstance(s, s.mainScheme.instanceId, { threat: 0 });
     const claws = intoPlay(s, "35002", {}, 2);

@@ -27,7 +27,7 @@ import {
   updateInstance,
 } from "../ctx.js";
 import { activationVarsOf, plannedAttackDamage } from "../defend-preview.js";
-import { currentEnemyAttackFrame, defenseBarFor, defenseClaimOf } from "../defense-claim.js";
+import { currentEnemyAttackFrame, defenseBarFor, defendingCharacterOf, defenseClaimOf } from "../defense-claim.js";
 import { drawEncounterCard, exhaustCard } from "../effects.js";
 import { type FrameId, type InstanceId, instanceId as asInstanceId, type PlayerId } from "../ids.js";
 import { attackKeywordsOf, hasKeyword } from "../keywords.js";
@@ -859,7 +859,7 @@ export function declareDefenderByLabeledEffect(
   const hero = labeledFor ? mustPlayer(ctx.state, labeledFor).identity.instanceId : null;
   if (labeledFor && (defenderId === null || defenderId === hero)) declareLabeledDefense(ctx, labeledFor);
   if (defenderId === null) return;
-  declareDefenderByEffect(ctx, defenderId, exhaust);
+  if (!declareDefenderByEffect(ctx, defenderId, exhaust)) return;
   if (hero === null || defenderId === hero) return;
   const attack = ctx.state.stack.find((f): f is Frame<"enemyAttack"> => f.kind === "enemyAttack" && !f.versusEnemy);
   addFrameSlots(ctx, attack?.eventFrameId ?? currentActivationFrameId(ctx.state.stack), {
@@ -878,15 +878,26 @@ export function declareDefenderByLabeledEffect(
  * Works on the innermost enemy attack: its procedure once it runs, or its event while the attack is being initiated
  * ("When the enemy … attacks"), where `pushEnemyAttackFrame` picks the declaration up. Re-declaring the character that
  * already defends (a "(defense)" ability's hero) only makes the defense basic; it is not a second defense.
+ *
+ * Returns whether the character is (now) the attack's defender; false when the declaration does not happen.
  */
-export function declareDefenderByEffect(ctx: Ctx, defenderId: InstanceId, exhaust: boolean): void {
+export function declareDefenderByEffect(ctx: Ctx, defenderId: InstanceId, exhaust: boolean): boolean {
   const defenderPlayer = controllerOf(ctx.state, defenderId);
-  if (!defenderPlayer) return;
-  // "While a player is defending, other players cannot defend against that same attack" (p. 14): no character of
-  // another player's is declared, and it is not exhausted for a declaration that does not happen.
-  if (defenseBarFor(ctx.state, defenderPlayer) !== null) return;
-  const basic = cardOf(ctx.state, defenderId)?.type === "hero_identity";
+  if (!defenderPlayer) return false;
+  // "Exhaust it and declare it the defender" (Mutant Protectors, 32017): effects joined by "and" are resolved as far as
+  // each can be (RRG 1.8 "And", p. 7), so the character is exhausted even when the declaration below cannot happen.
+  // FFG ruling Jul 19, 2023 (post-RRG 1.5 #49, item 4): Mutant Protectors can still be played after Powerful Punch;
+  // its ally just cannot defend.
   if (exhaust) exhaustCard(ctx, defenderId);
+  // "While a player is defending, other players cannot defend against that same attack" (RRG 1.8 "Defend, Defense",
+  // p. 15): no character of another player's is declared.
+  if (defenseBarFor(ctx.state, defenderPlayer) !== null) return false;
+  // "While a hero [an ally] is defending against an attack, other friendly characters cannot defend against that
+  // attack" (p. 15). #49: "once one character defends, only that character can defend the attack unless that
+  // character leaves play before the attack finishes." A second declaration does not replace the defender.
+  const defending = defendingCharacterOf(ctx.state);
+  if (defending !== null && defending !== defenderId) return false;
+  const basic = cardOf(ctx.state, defenderId)?.type === "hero_identity";
   const procedure = ctx.state.stack.find((f): f is Frame<"enemyAttack"> => f.kind === "enemyAttack" && !f.versusEnemy);
   // The log's `defenderDeclared`, as the Declare Defender step logs its own (RRG 1.8 "Defend, Defense", p. 15: an
   // ability's declaration makes the character the defender just as the step's does), marked `byEffect`.
@@ -910,11 +921,11 @@ export function declareDefenderByEffect(ctx: Ctx, defenderId: InstanceId, exhaus
     if (!alreadyBasic && (basic || procedure.defenderInstanceId !== defenderId)) {
       announceBasicDefense(ctx, defenderId, defenderPlayer);
     }
-    return;
+    return true;
   }
   const activation = currentActivationFrameId(ctx.state.stack);
   const frame = activation ? ctx.state.stack.find((f) => f.frameId === activation) : undefined;
-  if (frame?.kind !== "event" || frame.event.kind !== "enemyAttack") return;
+  if (frame?.kind !== "event" || frame.event.kind !== "enemyAttack") return false;
   const already = (frame.slots[DEFENDER_SLOT] ?? [])[0] === defenderId;
   const alreadyBasic = already && (frame.vars.declaredBasicDefense ?? 0) > 0;
   setFrame(ctx, {
@@ -934,13 +945,15 @@ export function declareDefenderByEffect(ctx: Ctx, defenderId: InstanceId, exhaus
     });
   }
   if (!alreadyBasic && (basic || !already)) announceBasicDefense(ctx, defenderId, defenderPlayer);
+  return true;
 }
 
 /**
  * The additional cost to defend with the character an effect is about to declare the defender (`RuleSpec
  * additionalPowerCost`, docs/phase7-wave9.md §4.1 Q48 = B), settled on the effect's own frame before the declaration:
  * - `"notOwed"`: no rule asks, the character already defends this attack, or the declaration would not happen (no
- *   enemy attack, or the attack is closed to its controller). The effect resolves as written.
+ *   enemy attack, the attack is closed to its controller, or another character already defends it). The effect
+ *   resolves as written.
  * - `"asked"`: the controller has been asked for the payment (`ChoicePrompt spendResources`); the frame waits.
  * - `"unpaid"`: the controller cannot or did not pay. The character is not declared the defender and the instruction
  *   does nothing to it (RRG 1.8 "Cost", p. 13: unpaid, "the effect associated with the costs does not occur").
@@ -954,13 +967,9 @@ export function settleDeclaredDefenderCost(
   const payer = controllerOf(ctx.state, defenderId);
   const ruled = additionalPowerCostFor(ctx.state, ctx.deps, defenderId, "defend");
   if (!ruled || payer === null || defenseBarFor(ctx.state, payer) !== null) return "notOwed";
-  const attack = currentEnemyAttackFrame(ctx.state);
-  if (!attack) return "notOwed";
-  const procedure = ctx.state.stack.find(
-    (f): f is Frame<"enemyAttack"> => f.kind === "enemyAttack" && f.eventFrameId === attack.frameId,
-  );
-  const defending = procedure ? procedure.defenderInstanceId : ((attack.slots[DEFENDER_SLOT] ?? [])[0] ?? null);
-  if (defending === defenderId) return "notOwed";
+  if (!currentEnemyAttackFrame(ctx.state)) return "notOwed";
+  // Already this character's defense, or another character's that the declaration cannot replace (p. 15).
+  if (defendingCharacterOf(ctx.state) !== null) return "notOwed";
   const notPaid = (): "unpaid" => {
     emit(ctx, {
       type: "additionalPowerCostNotPaid",
