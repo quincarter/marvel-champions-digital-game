@@ -66,6 +66,7 @@ import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
 import type { TutorialResumeConfirmData } from "./tutorial-resume-confirm.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { hasDesktopWindow, quitToDesktop } from "../platform/desktop-window.js";
+import { takeReceiveLink } from "../save-data/receive-link.js";
 import { SCENES } from "./keys.js";
 import type { ScenarioSelectData } from "./scenario-select.js";
 import type { SeatsData } from "./seats.js";
@@ -155,6 +156,9 @@ export class TitleScene extends Phaser.Scene {
     this.#checkRankUp();
     this.#rebuild();
     fadeScreenIn(this);
+    // Opened from a Send screen's QR code: straight to Settings, Save data, Receive (read and cleared once).
+    const receive = takeReceiveLink();
+    if (receive) this.scene.launch(SCENES.settings, { receive });
     // Points may have moved since Boot read them (a game just ended): read again, and announce a rank gained.
     void refreshUnlocks()
       .catch(() => false)

@@ -122,6 +122,8 @@ import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion } from "../ui/transitions.js";
 import { applyEarnedItems, earnedItems, unlocks } from "../progression/progression.js";
 import { unlocksSummaryOf } from "../view/unlocks-model.js";
+import type { TransferCode } from "@mc/sync-worker/protocol";
+import type { SaveDataSceneData } from "./save-data.js";
 import { SAVE_DATA_ROW_DETAIL, SAVE_DATA_ROW_TITLE } from "../view/save-data-model.js";
 
 /** The Unlocks row's own id: a door to `scenes/unlocks.ts`, drawn after the Table toggles and only on this screen. */
@@ -192,6 +194,11 @@ let lastTab: SettingsTabId = "gameplay";
 /** The narrowest tab cell that still shows "Display" and "Sound" whole (#243). */
 const SOUND_TAB_MIN_CELL = 64;
 
+/** Launch data: `receive` opens Save data straight onto Receive with that code (a scanned QR link). */
+export interface SettingsSceneData {
+  readonly receive?: TransferCode;
+}
+
 export class SettingsOverlay extends Phaser.Scene {
   #buttons: McButton[] = [];
   #tabs: McTabs | null = null;
@@ -213,7 +220,7 @@ export class SettingsOverlay extends Phaser.Scene {
     super(SCENES.settings);
   }
 
-  create(): void {
+  create(data: SettingsSceneData = {}): void {
     this.#motion = new OverlayMotion();
     this.input.enabled = true;
     // In the desktop app a resize can also be a move to another monitor, whose sizes the Resolution row lists.
@@ -246,6 +253,10 @@ export class SettingsOverlay extends Phaser.Scene {
       this.#bodyRegion = null;
     });
     this.#draw();
+    // Phaser hands a later launch with no data this same object again, so take the code once.
+    const receive = data.receive;
+    this.sys.settings.data = {};
+    if (receive) this.#openSaveData(receive);
     if (hasDesktopWindow()) void refreshDesktopMonitor().then(() => this.#redrawIfOpen());
     // The Frame rate row names the screen's refresh rate once the Android app has said it.
     if (screenSettingsShown() && knownRefreshInfo() === null) void readRefreshInfo().then(() => this.#redrawIfOpen());
@@ -281,10 +292,10 @@ export class SettingsOverlay extends Phaser.Scene {
     });
   }
 
-  #openSaveData(): void {
+  #openSaveData(receive?: TransferCode): void {
     if (this.scene.isActive(SCENES.saveData)) return;
     this.input.enabled = false;
-    this.scene.launch(SCENES.saveData);
+    this.scene.launch(SCENES.saveData, (receive ? { receive } : {}) satisfies SaveDataSceneData);
     this.scene.get(SCENES.saveData).events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.input.enabled = true;
       if (this.sys.isActive()) this.#draw();

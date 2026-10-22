@@ -3,20 +3,24 @@
  * after each outcome, and the wording of the replace confirm. The scene draws these and does the I/O.
  */
 import { describeSaveFileSummary, saveFileSummaryOf, type SaveFile } from "../save-data/save-file.js";
+import type { TransferStep } from "./save-transfer-model.js";
 
 export const SAVE_DATA_ROW_TITLE = "Save data";
 export const SAVE_DATA_ROW_DETAIL = "Export or import your saved games, decks, campaigns, unlocks and settings.";
 
-/** A step is the file waiting for the player's yes/no, or nothing (the two buttons). */
+/** A step is the file waiting for the player's yes/no, the send or receive screen, or nothing (the action rows). */
 export type SaveDataStep =
   | { readonly kind: "menu" }
   | { readonly kind: "confirm"; readonly file: SaveFile }
-  | { readonly kind: "busy" };
+  | { readonly kind: "busy" }
+  | TransferStep;
 
 /** One line under the buttons: what just happened. `error` is drawn with a "Problem:" word as well as color. */
 export interface SaveDataStatus {
   readonly tone: "none" | "ok" | "error";
   readonly text: string;
+  /** Adds an Export button beside the line: the offline way to move a save when online transfer can't. */
+  readonly offerExport?: boolean;
 }
 
 export const NO_STATUS: SaveDataStatus = { tone: "none", text: "" };
