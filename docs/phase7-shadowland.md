@@ -60,8 +60,9 @@ array and not the date (`docs/phase7-synthezoid.md` §1.2). Open question Q1 bel
 - **One special encounter set, Dark Protege** (16 cards, "six villain cards and 10 other encounter cards linked to those
   villains"; cannot be used outside the pack): Archpriestess, Daredevil (possessed), Elektra (possessed), Gorgon, Lady
   Bullseye, White Tiger (possessed). Scenario #1 uses one of the six as its villain; the FFG article says each has five
-  linked cards that enter the encounter deck only when that villain is chosen. **The article's "five per villain" does not
-  fit "10 other cards" (6 x 5 = 30): unresolved, Q4.**
+  linked cards that enter the encounter deck only when that villain is chosen. **Settled by the cards (Q4, 2026-10-22):
+  both are right.** Each of the 10 linked cards prints "Linked (X, Y, or Z)" naming three villains, so 10 x 3 = 30 links
+  = 6 villains x 5 linked cards each.
 - **Three modular sets:** Black Flower (13), Deadly Contraptions (11), Ninja Swarm (9). Black Flower is **prohibited as a
   modular set in any scenario while playing the campaign** (p. 5) because the campaign instructions use it.
 - **Per-set counts printed on the cards** (footer "SET (n/N)"): Shadows in the Night 13, Dark Protege 16, Ninja Swarm 9,
@@ -80,8 +81,10 @@ array and not the date (`docs/phase7-synthezoid.md` §1.2). Open question Q1 bel
 The page shows 45 images (300 x 426 px, 426 x 300 for landscape faces), 43 names; every card is footer-labelled with its
 set position and collector number. Collector numbers: Shadows in the Night 1 to 11 (with 3A/3B and 4A/4B double-sided),
 Dark Protege 12A to 17A (villains) then 18 to 27, Ninja Swarm 28 to 36, Shadow Labyrinth 37 to 45, Deadly Contraptions
-46 to 56, Heart of Shadow 57 to 71 plus up to 73, Black Flower from 72A (so Heart of Shadow and Black Flower overlap at
-72: the exact numbering must be read from the full-size scans, Q5). All "type" notes below are read from the card
+46 to 56, Heart of Shadow 57 to 71, Black Flower 72 to 78. **Settled by the full-size cards (Q5, 2026-10-22):** the two
+sets do not overlap. Heart of Shadow is 57 to 59 (Krahllak I, II, III), 60A/B and 61A/B (main schemes), 62 to 69, and
+70 and 71 (two copies each) = 17; Black Flower is Creeping Corruption 72A/B (x4, positions 1 to 4), 73 (5/13), 74, 75,
+and 76, 77 and 78 (two copies each) = 13. All "type" notes below are read from the card
 frames and are [unchecked] where marked "?".
 
 | Set (position / printed total) | Seen (collector number; file stem under `.../2026/07/mc65_cards_`)                                                                                                                                                                                                                                     |
@@ -91,7 +94,7 @@ frames and are [unchecked] where marked "?".
 | Ninja Swarm (9)                | Black Mountain 28, Bo Staff Ninja 30, Katana Ninja 32, Dancing Shadows 35 (landscape), Countless Numbers 36                                                                                                                                                                                            |
 | Shadow Labyrinth (11)          | Shifting Corridors 37 (villain, hit points infinity), Into the Labyrinth 38 (landscape, main scheme?), Chamber of Vile Secrets 39 (landscape), Lord Deathstrike 41, No Time to Think 44, Sudden Shift 45, Dead End (6/11, landscape)                                                                   |
 | Deadly Contraptions (11)       | Nervous Jitters 46, Iron Monk 47, Hall of Punishment 48 (landscape), Path of a Thousand Cuts (4/11, landscape), Blinding Powder 50, Caltrops 51                                                                                                                                                        |
-| Heart of Shadow (17)           | Krahllak 57 (villain, stage 1 of 1 listed, SCH 2, ATK 3, 18 per hero, Steady, Interrupt), Mark of the Wicked 64, Pull of Power 65, Hellbride 67, Snakeroot Elders 69, Veil of Nightmares (14/17, landscape), Submit or Suffer 71                                                                       |
+| Heart of Shadow (17)           | Krahllak 57 (villain stage I of three: 57 = I, 58 = II, 59 = III, each one-sided; SCH 2, ATK 3, 18 per hero, Steady, Interrupt), Mark of the Wicked 64, Pull of Power 65, Hellbride 67, Snakeroot Elders 69, Veil of Nightmares (14/17, landscape), Submit or Suffer 71                                |
 | Black Flower (13)              | Creeping Corruption 72A and 72B (A side and "overwhelming" side, one double-sided upgrade, `creeping_corruption_a-side`, `creeping_corruption-overwhelming_side`)                                                                                                                                      |
 
 **Not previewed (about 45 faces):** Dark Protege villain B sides and 6 to 10 linked cards, most of Ninja Swarm (the FFG
@@ -121,6 +124,13 @@ card scan). The card types are not named anywhere on the page.
   print of pp. 8 to 9 and 12 to 13 before building.
 
 ## 2.1 Locked until the scans are posted (implementation note, owner 2026-10-20)
+
+**Update 2026-10-22: the missing faces are now in hand.** All 53 missing faces were transcribed from the card images on
+play.marvelsimulator.com (owner-approved, 2026-10-22; the images are kept outside the repo, no art is committed). Footer
+checks: 40 = Whisper in the Dark (Shadow Labyrinth 4/11), 42 = Dead End (6/11), 43 = Hall of Hidden Doors (7/11).
+Shifting Corridors (37) has **no B side**: the scenario is won through main scheme 1B (Into the Labyrinth: threshold
+infinity, damage to Shifting Corridors removes threat from it, removing the last threat advances to 2A). The table below
+is kept as the record of what was missing; the build to unlock the pack is on `feature/shadowland-unlock`.
 
 Shadowland is **locked**: its seven sets stay in `UNSCRIPTED_ENCOUNTER_SET_IDS` (`packages/cards/src/playable/unscripted.ts`),
 so no scenario, modular pick or campaign offers it, and wave 11 ships without it. Re-checked 2026-10-20: the Hall of Heroes
@@ -209,18 +219,18 @@ a fixed order (no branching; a loss resets with no penalty), and a log with thes
 
 ## 5. Questions (default is built unless the owner says otherwise)
 
-| Q   | Question                                                                                                                                        | Default                                                                                                                                        |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Which cycle? No source says; product numbering suggests cycle 11 with the Fear No Evil box                                                      | `cycle11`, order 11, after Luke Cage by date (§1.1); a separate "cycle 12" only if FFG says so                                                 |
-| 2   | Is the pack's MarvelCDB-style code `shadowland`, `mc65`, `sl`, ...? MarvelCDB has not published it                                              | `shadowland` (matches `PACK_PAGES` and the HoH slug); recode if MarvelCDB differs                                                              |
-| 3   | The pack has no heroes: does anything unlock it? (Synthezoid's precedent: it opens with the cycle's existing gate, no new hero reward)          | no new unlock row; the three scenarios and the campaign open with cycle 11's gate (`progression/unlocks.ts` is client-owned, not touched here) |
-| 4   | Dark Protege: 16 cards = 6 villains + 10 linked, versus the FFG article's "five linked cards per villain"                                       | read the full-size scans; build to the cards, and flag the article                                                                             |
-| 5   | Collector numbers: Heart of Shadow runs to 71 and past while Black Flower starts at 72A; the codes of double-sided and duplicate-numbered cards | read each footer from the full-size scans; **no code is guessed** (a wrong code mismatches MarvelCDB later)                                    |
-| 6   | The index mentions a starter deck: does a precon list exist (heroes are not in the pack)?                                                       | none; do not invent; ask only if a page appears                                                                                                |
-| 7   | Scenario #3's Creeping Corruption: the p. 17 setup prints no "put 1 Creeping Corruption into play" step                                         | it carries over from scenario #2 (the p. 17 text counts corruption on "their Creeping Corruption upgrade"); verify at the PDF                  |
-| 8   | Corruption "turns a hero into a Dark Protege" (FFG article): what does the card text do (take over, lose, or defeat)?                           | read the Overwhelming side and the Dark Protege cards in the second-check pass; rules expert before scripting                                  |
-| 9   | The unrevealed art-less faces (B sides, linked cards): who supplies scans?                                                                      | owner list at D8; HoH's box gallery when published; nothing is transcribed from memory                                                         |
-| 10  | The insert is photographs of a printed booklet, not a clean PDF: is there a text copy?                                                          | the hand transcription stands; the FFG PDF, if published, replaces it                                                                          |
+| Q   | Question                                                                                                                                        | Default                                                                                                                                                                                                                                                                |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Which cycle? No source says; product numbering suggests cycle 11 with the Fear No Evil box                                                      | `cycle11`, order 11, after Luke Cage by date (§1.1); a separate "cycle 12" only if FFG says so                                                                                                                                                                         |
+| 2   | Is the pack's MarvelCDB-style code `shadowland`, `mc65`, `sl`, ...? MarvelCDB has not published it                                              | `shadowland` (matches `PACK_PAGES` and the HoH slug); recode if MarvelCDB differs                                                                                                                                                                                      |
+| 3   | The pack has no heroes: does anything unlock it? (Synthezoid's precedent: it opens with the cycle's existing gate, no new hero reward)          | no new unlock row; the three scenarios and the campaign open with cycle 11's gate (`progression/unlocks.ts` is client-owned, not touched here)                                                                                                                         |
+| 4   | Dark Protege: 16 cards = 6 villains + 10 linked, versus the FFG article's "five linked cards per villain"                                       | read the full-size scans; build to the cards, and flag the article **Settled 2026-10-22:** each linked card names three villains; 10 x 3 = 30 = 6 x 5. Both sources agree.                                                                                             |
+| 5   | Collector numbers: Heart of Shadow runs to 71 and past while Black Flower starts at 72A; the codes of double-sided and duplicate-numbered cards | read each footer from the full-size scans; **no code is guessed** (a wrong code mismatches MarvelCDB later) **Settled 2026-10-22:** Heart of Shadow 57 to 71, Black Flower 72 to 78, no overlap (§1.3).                                                                |
+| 6   | The index mentions a starter deck: does a precon list exist (heroes are not in the pack)?                                                       | none; do not invent; ask only if a page appears                                                                                                                                                                                                                        |
+| 7   | Scenario #3's Creeping Corruption: the p. 17 setup prints no "put 1 Creeping Corruption into play" step                                         | it carries over from scenario #2 (the p. 17 text counts corruption on "their Creeping Corruption upgrade"); verify at the PDF **Settled 2026-10-22:** Dark Invitation 60A Setup prints "Each player puts a Creeping Corruption upgrade into play. Set the rest aside." |
+| 8   | Corruption "turns a hero into a Dark Protege" (FFG article): what does the card text do (take over, lose, or defeat)?                           | read the Overwhelming side and the Dark Protege cards in the second-check pass; rules expert before scripting                                                                                                                                                          |
+| 9   | The unrevealed art-less faces (B sides, linked cards): who supplies scans?                                                                      | owner list at D8; HoH's box gallery when published; nothing is transcribed from memory **Settled 2026-10-22:** transcribed from play.marvelsimulator.com card images (owner-approved).                                                                                 |
+| 10  | The insert is photographs of a printed booklet, not a clean PDF: is there a text copy?                                                          | the hand transcription stands; the FFG PDF, if published, replaces it                                                                                                                                                                                                  |
 
 ### 5.1 Owner answers
 
