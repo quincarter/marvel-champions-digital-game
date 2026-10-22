@@ -37,6 +37,7 @@ import {
   characterProfile,
   discardZoneFor,
   getInstance,
+  isLooseVillainCard,
   isMinion,
   locateCard,
   mustInstance,
@@ -95,9 +96,9 @@ import { pushCharacterBoost, startDefenderBoost } from "./villainous.js";
 export const getsBoostCard = (state: GameState, deps: EngineDeps, enemyId: InstanceId): boolean => {
   const card = cardOf(state, enemyId);
   if (!card) return false;
-  if (card.type === "villain") return true;
-  // A card in play as a minion counts (`isMinion`): a hero an attachment treats as one, with the keyword that
-  // attachment gives it (Reluctant Foe, docs/phase7-wave9.md §3.30).
+  if (card.type === "villain" && !isLooseVillainCard(state, enemyId)) return true;
+  // A card in play as a minion counts (`isMinion`): a hero or a villain card an attachment treats as one, with the
+  // keyword that attachment gives it (Reluctant Foe, docs/phase7-wave9.md §3.30; Whisper in the Dark).
   return isMinion(state, enemyId) && hasKeyword(state, enemyId, "villainous", deps);
 };
 

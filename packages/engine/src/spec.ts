@@ -4726,6 +4726,12 @@ export type EffectSpec =
    * identity (`cardType`), and when the attachment could not be attached or does not treat the card as a minion
    * (`noLegalHost`): the card is then removed from the game, as it is when that attachment leaves play (§4.1 Q39).
    * `bind`: the card, when it entered play (`<bind>.count` 1 or 0).
+   *
+   * The same for a set-aside villain card that is not one of the game's villains (`isLooseVillainCard`): "put the
+   * set-aside chosen villain into play engaged with you, side A faceup, with this card attached. Treat attached villain
+   * as an Elite minion with 6 printed hit points" (Whisper in the Dark, Shadowland 65040). It must be in the encounter
+   * set-aside area; it is a minion, never "the villain" or "a villain" (it gets no `VillainState`), showing the first
+   * stage of `villainSide` (absent: its starting side). Refused, it stays set aside (`hostOnlyReleaseZone`).
    */
   | {
       readonly kind: "putIntoPlayAsHost";
@@ -4733,6 +4739,7 @@ export type EffectSpec =
       readonly attachment: TargetRef;
       readonly engagedWith: PlayerRef;
       readonly bind?: string;
+      readonly villainSide?: "A" | "B";
     }
   /**
    * "Deal an encounter card to each player" / "Deal 2 encounter cards to each player" (Green Goblin II). Cards come
@@ -4973,7 +4980,24 @@ export type EffectSpec =
        * docs/phase7-wave5.md §3.1, the `putIntoPlay.bind` shape (docs/phase7-wave4.md §3.59).
        */
       readonly bind?: string;
+      /**
+       * `"reveal"`: a named villain already in play is revealed where it is ("Find the chosen Dark Protege villain ...
+       * Reveal its side A", Chamber of Vile Secrets 2A, Shadowland 65039a, when Whisper in the Dark's minion has become
+       * that villain): it does not enter play again, its When Revealed resolves when `reveal` is set, and it takes the
+       * active counter when the villain holding it is out of play. Absent: a villain already in play is left alone.
+       *
+       * Out of play, `villain` is found where a "find" looks (RRG 1.8 "Find", p. 19): the encounter set-aside area,
+       * and for a villain card an encounter discard pile or deck too (a deck searched is shuffled after).
+       */
+      readonly inPlay?: "reveal";
     }
+  /**
+   * "Discard each status card, token, and attached card from it" (Chamber of Vile Secrets 2A, Shadowland 65039a): the
+   * tokens half. Each target's damage and threat tokens are discarded (not a heal: nothing a "when healed" ability
+   * answers, and "cannot be healed" does not stop it), logged `tokensDiscarded`. Its counters and status cards are
+   * `removeCounters` and `removeStatus`, its attachments `discardFromPlay`.
+   */
+  | { readonly kind: "discardTokens"; readonly target: TargetRef }
   /**
    * "Set this villain aside." (the Sinister Six villains' When Defeated, `sm` 27094–27099; MC27 p. 15): the villain leaves
    * play (or, already defeated, stays out of it) and returns to the set-aside area, where `addVillain` can bring it back.

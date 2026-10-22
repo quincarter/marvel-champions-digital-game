@@ -25,6 +25,8 @@ import {
   getInstance,
   heroFacesOf,
   isPlayerCardType,
+  isHostOnlyCard,
+  isLooseVillainCard,
   isSeatlessIdentity,
   locateCard,
   mainSchemeStateOf,
@@ -1783,7 +1785,11 @@ function removedAsDoubleSided(state: GameState, id: InstanceId, requested: ZoneI
   // An identity card is double-sided. One in play as a minion (docs/phase7-wave9.md §3.30) is the only identity card
   // that leaves play as a card does, so the rule sends it out of the game whatever discards or moves it; a seat's
   // identity never comes here (`eliminatePlayer`).
-  return (doubleSided || isSeatlessIdentity(state, id)) && !keepsCard;
+  // A villain card printed with two sides, in play as a minion (Whisper in the Dark's), leaves play as one double-sided
+  // card. Dark Protégé villains are one double-sided card: RRG v1.8 "Double-Sided Card" p. 17 removes it from the game
+  // instead of discarding it (FFG ruling 2025-06-10, Magneto's Fortress); "Defeat" p. 15 does the same for a villain.
+  const doubleSidedVillainCard = card?.type === "villain" && card.sides.length > 1;
+  return (doubleSided || doubleSidedVillainCard || isSeatlessIdentity(state, id)) && !keepsCard;
 }
 
 /** Where a card leaving play for `requested` is going (double-sided removal, a discard redirect), read before it moves. */
@@ -2204,7 +2210,13 @@ function leaveNow(
         }
       : null;
   const card = ctx.state.cardPool[instance.cardId];
+  // A villain card in play as a minion (Whisper in the Dark) is not a villain card while it is one (RRG 1.8 p. 12 Card
+  // Types + ruling Nov 2, 2023 #108), so p. 46 "Villain cards cannot be discarded" does not apply; a two-sided one is
+  // removed from the game by `removedAsDoubleSided` instead of reaching a discard pile or deck.
   let to: ZoneId = removedAsDoubleSided(ctx.state, id, requested.kind) ? { kind: "removedFromGame" } : requested;
+  // A villain card going back to the set-aside area is facedown again there, as setup made it (the villain choice
+  // reveals nothing but what card text reveals; `GameSetupConfig.villainChoice`).
+  const asideFacedown = to.kind === "encounterSetAside" && isLooseVillainCard(ctx.state, id);
   // "When a card would be placed into a discard pile from play, put it faceup into The Collection instead"
   // (`discardFromPlayDestination`, docs/phase7-wave3.md §3.14). The discard is still attempted (RRG 1.8 FAQ "Rocket
   // Raccoon (#29A)", p. 61), so it is logged as one.
@@ -2219,9 +2231,10 @@ function leaveNow(
   if (redirect !== null) to = { kind: "scenarioArea", name: redirect.area };
   // Its consequential-scoped damage-taken rules still apply to a pending consequential damage (wave 6 §4.1 Q50).
   keepLingeringConsequentialRules(ctx, id);
-  // A hero in play as a minion (docs/phase7-wave9.md §3.30) is leaving play itself: the attachment that treats it as
-  // one, discarded with it below, is then not what takes it out of play (`syncTreatedAs`).
-  const foe = instance.treatedAs !== undefined && instance.treatedAs !== null && isSeatlessIdentity(ctx.state, id);
+  // A hero or a villain card in play as a minion (docs/phase7-wave9.md §3.30; Whisper in the Dark) is leaving play
+  // itself: the attachment that treats it as one, discarded with it below, is then not what takes it out of play
+  // (`syncTreatedAs`).
+  const foe = instance.treatedAs !== undefined && instance.treatedAs !== null && isHostOnlyCard(ctx.state, id);
   if (foe) (ctx.leavingHosts ??= []).push(id);
   for (const attachment of inLeavingOrder(ctx.state, instance.attachments)) discardWithLeavingHost(ctx, attachment);
   if (foe) ctx.leavingHosts?.pop();
@@ -2256,7 +2269,7 @@ function leaveNow(
     // card, the face of the mode being played (docs/phase7-wave4.md §3.18).
     facedownAs: null,
     ...(i.treatedAs ? { treatedAs: null } : {}),
-    faceup: redirect !== null ? true : i.facedownAs ? true : i.faceup,
+    faceup: redirect !== null ? true : asideFacedown ? false : i.facedownAs ? true : i.faceup,
     flipped: card !== undefined && modeOnlyFlipped(card, ctx.state.scenarioRules.difficulty ?? "standard"),
     // A card no player owns that a player controlled in play (Longshot, docs/phase7-wave6.md §3.71) is nobody's once it
     // is back on the scenario's side: control lasts only while it is in play or in that player's own areas.

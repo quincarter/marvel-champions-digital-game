@@ -13,6 +13,10 @@
  * - a hero from a collection, an identity card that is no seat's identity, is a minion while a `treatHostAsMinion`
  *   card is attached to it, and is in play only for that long (Reluctant Foe, docs/phase7-wave9.md §3.30): when the
  *   attachment goes and the hero is not leaving play itself, the hero is removed from the game (§4.1 Q39 = A).
+ * - a villain card that is not one of the game's villains (`isLooseVillainCard`) is a minion while a
+ *   `treatHostAsMinion` card is attached to it, keeping its own text when the rule says so (Whisper in the Dark,
+ *   Shadowland 65040); when that card goes without it, it stays in play as one of the game's villains
+ *   (`promoteLooseVillain`).
  *
  * `relocateCard` calls `syncTreatedAs` whenever a card moves onto or off a host, which is every attach, detach and
  * discard of an attachment, so the flag never lags a frame behind the attachment ("Attach to the ally with the highest
@@ -24,16 +28,26 @@
 import { type Ctx, emit, moveCard, updateInstance } from "./ctx.js";
 import { leavePlayAtOnce } from "./effects.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { cardOf, getInstance, isSeatlessIdentity, locateCard } from "./query.js";
+import {
+  cardOf,
+  getInstance,
+  isHostOnlyCard,
+  isLooseVillainCard,
+  isSeatlessIdentity,
+  locateCard,
+  looseVillainSide,
+} from "./query.js";
+import { promoteLooseVillain } from "./resolve/game-areas.js";
 import { type ActiveRule, activeAbilityRefs, activeRules, cardsInPlay, controllerOf, matchesQuery } from "./select.js";
-import type { GameState, TreatedAs, TreatedAsAlly } from "./state.js";
+import type { GameState, TreatedAs, TreatedAsAlly, ZoneId } from "./state.js";
 
 /** What the host's own attachments make it, if anything. */
 function fromAttachments(ctx: Ctx, hostId: InstanceId, current: TreatedAs | null): TreatedAs | null {
   const host = getInstance(ctx.state, hostId);
   const type = cardOf(ctx.state, hostId)?.type;
-  // A hero no player is using is treated as an ally is (docs/phase7-wave9.md §3.30); a seat's identity never is.
-  const foe = type === "hero_identity" && isSeatlessIdentity(ctx.state, hostId);
+  // A hero no player is using is treated as an ally is (docs/phase7-wave9.md §3.30); a seat's identity never is. So is
+  // a villain card that is not one of the game's villains (Whisper in the Dark); a villain never is.
+  const foe = isHostOnlyCard(ctx.state, hostId);
   if (!host || (type !== "ally" && type !== "minion" && !foe)) return null;
   for (const attachment of host.attachments) {
     for (const ref of activeAbilityRefs(ctx.state, attachment, ctx.deps)) {
@@ -48,6 +62,8 @@ function fromAttachments(ctx: Ctx, hostId: InstanceId, current: TreatedAs | null
             schFromThw: rule.schFromThw ?? false,
             source: attachment,
             controllerBefore: current?.kind === "minion" ? current.controllerBefore : host.controllerId,
+            ...(rule.keepsText === true ? { keepsText: true as const } : {}),
+            ...(rule.printedHp !== undefined ? { printedHp: rule.printedHp } : {}),
           };
         }
         const controller = controllerOf(ctx.state, attachment);
@@ -217,6 +233,19 @@ export function syncRuleTreatments(ctx: Ctx): void {
   }
 }
 
+/**
+ * Where a host-only card (`isHostOnlyCard`) goes when the attachment that would have made it a minion was refused
+ * (`putIntoPlayAsHost`), so that it never was in play as anything.
+ *
+ * - An identity card no seat is using is removed from the game, as a double-sided card leaving play is (RRG 1.8
+ *   "Double-Sided Card", p. 17; owner decision, docs/phase7-wave9.md §4.1 Q39 = A).
+ * - A villain card that is not one of the game's villains goes back where it was taken from, the encounter set-aside
+ *   area (`putIntoPlayAsHost` takes one from nowhere else).
+ */
+export function hostOnlyReleaseZone(state: GameState, id: InstanceId): ZoneId {
+  return isLooseVillainCard(state, id) ? { kind: "encounterSetAside" } : { kind: "removedFromGame" };
+}
+
 function apply(ctx: Ctx, hostId: InstanceId, current: TreatedAs | null, next: TreatedAs | null): void {
   const host = getInstance(ctx.state, hostId);
   if (!host) return;
@@ -234,6 +263,16 @@ function apply(ctx: Ctx, hostId: InstanceId, current: TreatedAs | null, next: Tr
     updateInstance(ctx, hostId, (i) => ({ ...i, treatedAs: next, controllerId: next.controller, engagedWith: null }));
   } else if (next) {
     updateInstance(ctx, hostId, (i) => ({ ...i, treatedAs: next }));
+  } else if (current?.kind === "minion" && isLooseVillainCard(ctx.state, hostId)) {
+    // A villain card the attachment made a minion (Whisper in the Dark) is a villain card again where it is, one of the
+    // game's villains: a status change, not a zone change (`promoteLooseVillain`, which cites the rules expert's
+    // reading; owner confirmation pending). The side that was up stays up. A card leaving play itself does not come
+    // here (`Ctx.leavingHosts`).
+    const side = looseVillainSide(ctx.state, hostId)?.side ?? "A";
+    updateInstance(ctx, hostId, (i) => ({ ...i, treatedAs: null }));
+    emit(ctx, { type: "treatedAsChanged", instanceId: hostId, as: null });
+    if (cardsInPlay(ctx.state).includes(hostId)) promoteLooseVillain(ctx, hostId, side);
+    return;
   } else if (current?.kind === "minion" && isSeatlessIdentity(ctx.state, hostId)) {
     // The attachment went and nothing else treats the hero as a minion. An identity card cannot stay in play as no
     // player's identity, so it is removed from the game with the attachment (owner decision, docs/phase7-wave9.md
@@ -241,7 +280,7 @@ function apply(ctx: Ctx, hostId: InstanceId, current: TreatedAs | null, next: Tr
     // no When Defeated ability resolves. A hero leaving play itself does not come here (`Ctx.leavingHosts`).
     updateInstance(ctx, hostId, (i) => ({ ...i, treatedAs: null }));
     emit(ctx, { type: "treatedAsChanged", instanceId: hostId, as: null });
-    if (cardsInPlay(ctx.state).includes(hostId)) leavePlayAtOnce(ctx, hostId, { kind: "removedFromGame" });
+    if (cardsInPlay(ctx.state).includes(hostId)) leavePlayAtOnce(ctx, hostId, hostOnlyReleaseZone(ctx.state, hostId));
     return;
   } else if (current?.kind === "minion") {
     // An ally again, in its owner's play area, under its owner's control, whoever controlled it before. MC60 FAQ p. 26

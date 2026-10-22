@@ -12,6 +12,8 @@ import type {
   MinionCard,
   PrintedStat,
   ScalingValue,
+  VillainCard,
+  VillainSide,
   VillainStage,
 } from "@mc/content";
 import { DEFAULT_DEPS, type CardZoneQuery, type EngineDeps } from "./abilities.js";
@@ -118,11 +120,20 @@ export function neutralCardAbilityRefs(state: GameState, id: InstanceId): readon
   const card = cardOf(state, id);
   if (card?.type === "main_scheme") return card.stages[0].abilities;
   if (card?.type !== "villain") return undefined;
+  return villainSideShowing(card, state.instances[id]?.flipped === true).stages[0]?.abilities ?? [];
+}
+
+/**
+ * The side a villain card that has no `VillainState` shows: its starting side (`VillainCard.startingSide`, A when
+ * absent), or the other side when the instance is `flipped`. The pod's neutral villain (`neutralCardAbilityRefs`) and a
+ * loose villain card in play as a minion (`looseVillainSide`) both read it.
+ */
+export function villainSideShowing(card: VillainCard, flipped: boolean): VillainSide {
   const starting = card.startingSide ?? "A";
-  const side = state.instances[id]?.flipped
+  const side = flipped
     ? card.sides.find((candidate) => candidate.side !== starting)
     : card.sides.find((candidate) => candidate.side === starting);
-  return side?.stages[0]?.abilities ?? [];
+  return side ?? card.sides[0];
 }
 
 /** The pod's shared villain as a dial reads it, or null in a game without one (docs/phase7-wave9.md §3.66). */
@@ -243,6 +254,49 @@ export function isSeatlessIdentity(state: GameState, id: InstanceId): boolean {
     !state.players.some((p) => p.identity.instanceId === id)
   );
 }
+
+/**
+ * Whether `id` is a villain card that is not one of the game's villains (no `VillainState`) nor a pod's shared neutral
+ * villain: a set-aside villain card that card text may put into play as something else, "put the set-aside chosen
+ * villain into play engaged with you ... with this card attached. Treat attached villain as an Elite minion" (Whisper
+ * in the Dark, Shadowland 65040). Not "the villain" or "a villain" while it is in play that way: every villain reader
+ * goes through `GameState.villains`.
+ */
+export function isLooseVillainCard(state: GameState, id: InstanceId): boolean {
+  const instance = state.instances[id];
+  return (
+    instance !== undefined &&
+    state.cardPool[instance.cardId]?.type === "villain" &&
+    !state.villains.some((villain) => villain.instanceId === id) &&
+    state.pod?.neutral?.villainInstanceId !== id
+  );
+}
+
+/**
+ * A card that can be in play only as what an attached `treatHostAsMinion` card makes it (`EffectSpec
+ * putIntoPlayAsHost`): an identity card no seat is using (`isSeatlessIdentity`) or a villain card that is not one of
+ * the game's villains (`isLooseVillainCard`).
+ */
+export const isHostOnlyCard = (state: GameState, id: InstanceId): boolean =>
+  isSeatlessIdentity(state, id) || isLooseVillainCard(state, id);
+
+/**
+ * The side a loose villain card shows while it is in play as a minion (`isLooseVillainCard`, `treatedAs` minion): its
+ * starting side (`VillainCard.startingSide`, A when absent), or the other side when the instance is `flipped` ("put ...
+ * into play ..., side A faceup": `putIntoPlayAsHost.villainSide`). Undefined for any other card, a set-aside one
+ * included, so out of play it shows nothing, as before.
+ */
+export function looseVillainSide(state: GameState, id: InstanceId): VillainSide | undefined {
+  const instance = state.instances[id];
+  const card = instance ? state.cardPool[instance.cardId] : undefined;
+  if (!instance || card?.type !== "villain" || instance.treatedAs?.kind !== "minion") return undefined;
+  if (!isLooseVillainCard(state, id)) return undefined;
+  return villainSideShowing(card, instance.flipped === true);
+}
+
+/** The villain stage a loose villain card in play as a minion shows: the first stage of its side up. */
+export const looseVillainStage = (state: GameState, id: InstanceId): VillainStage | undefined =>
+  looseVillainSide(state, id)?.stages[0];
 
 /**
  * The face of this player's identity that is up (docs/phase7-wave2.md §3.2): the hero face `heroFormIndex` names in hero
@@ -652,6 +706,9 @@ export function currentName(state: GameState, id: InstanceId): string | undefine
   const villain = villainOf(state, id);
   if (villain && card.type === "villain")
     return card.sides.find((side) => side.side === villain.side)?.name ?? card.name;
+  // A villain card in play as a minion shows the side that is up (`looseVillainStage`).
+  const loose = looseVillainSide(state, id)?.name;
+  if (loose !== undefined) return loose;
   if (card.type === "hero_identity") {
     const player = state.players.find((p) => p.identity.instanceId === id);
     if (player) return identityFace(state, player).face.faceName;
@@ -869,7 +926,9 @@ export function textGoneByTreatment(state: GameState, id: InstanceId): boolean {
   if (!instance) return false;
   if (instance.facedownAs) return true;
   const treated = instance.treatedAs;
-  return treated !== undefined && treated !== null && !(treated.kind === "ally" && treated.keepsText === true);
+  // `keepsText`: a card its own constant treats as an ally (Black Cat), or a card an attachment treats as a minion with
+  // no blank text box (`TreatedAsMinion.keepsText`, Whisper in the Dark).
+  return treated !== undefined && treated !== null && treated.keepsText !== true;
 }
 
 /** A minion in play: a minion card, or a card facedown as a minion (a facedown Drone). */
@@ -1065,6 +1124,23 @@ export function printedProfile(state: GameState, id: InstanceId): CharacterProfi
       maxHp: card.hp,
     };
   }
+  // A villain card in play as a minion (`isLooseVillainCard`; Whisper in the Dark, Shadowland 65040: "Treat attached
+  // villain as an Elite minion with 6 printed hit points"): the ATK and SCH of the stage it shows, and hit points as
+  // the attachment prints them (`TreatedAsMinion.printedHp`), else that stage's.
+  const loose = instance.treatedAs?.kind === "minion" ? looseVillainStage(state, id) : undefined;
+  if (loose && instance.treatedAs?.kind === "minion") {
+    return {
+      kind: "minion",
+      missing: [...(loose.dashedStats ?? [])],
+      atk: loose.atk,
+      thw: 0,
+      def: 0,
+      rec: 0,
+      sch: loose.sch,
+      maxHp:
+        instance.treatedAs.printedHp ?? (loose.infiniteHp ? Number.POSITIVE_INFINITY : scaleIn(state, loose.hp, id)),
+    };
+  }
   // A minion treated as an ally: its printed ATK and hit points; "Its THW is equal to its printed SCH" (§3.29).
   if (instance.treatedAs?.kind === "ally" && card.type === "minion") {
     const thw = instance.treatedAs.thwFromSch ? card.sch : 0;
@@ -1155,6 +1231,9 @@ export function printedHpNumeral(state: GameState, id: InstanceId): number {
     if (stage.infiniteHp) return 0;
     return stage.hp.perPlayer > 0 ? stage.hp.perPlayer : stage.hp.base;
   }
+  // A villain card in play as a minion with hit points its attachment prints ("6 printed hit points"): that number.
+  const treated = getInstance(state, id)?.treatedAs;
+  if (treated?.kind === "minion" && treated.printedHp !== undefined) return treated.printedHp;
   // A minion's `hp` is already the numeral, whether or not the icon follows it (and whatever it is treated as).
   if (card?.type === "minion" && getInstance(state, id)?.facedownAs?.kind !== "minion") return card.hp;
   return printedProfile(state, id)?.maxHp ?? 0;

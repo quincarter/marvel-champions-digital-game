@@ -12,6 +12,7 @@ import {
   mainSchemeStateOf,
   perPlayerCountAt,
   villainStageOf,
+  looseVillainStage,
   playerCardOwnerOf,
   textGoneByTreatment,
 } from "./query.js";
@@ -70,7 +71,7 @@ export function unblankedPrintedKeywordsOf(state: GameState, id: InstanceId): re
   const face = encounterFace(state, id);
   if (face) return face.keywords;
   if (card.type === "villain") {
-    return isVillain(state, id) ? villainStageOf(state, id).keywords : [];
+    return isVillain(state, id) ? villainStageOf(state, id).keywords : (looseVillainStage(state, id)?.keywords ?? []);
   }
   if (card.type === "main_scheme") {
     const scheme = mainSchemeStateOf(state, id);

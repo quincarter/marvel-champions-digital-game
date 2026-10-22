@@ -2705,13 +2705,24 @@ export const heroNoCharacterIsTitledAs: CollectionSearchFilter = { heroTitleNotI
  */
 export const putIntoPlayAsHost = (
   card: TargetRef,
-  opts: { readonly attachment?: TargetRef; readonly engagedWith?: PlayerRef; readonly bind?: string } = {},
+  opts: {
+    readonly attachment?: TargetRef;
+    readonly engagedWith?: PlayerRef;
+    readonly bind?: string;
+    /**
+     * For a set-aside villain card that is not one of the game's villains: the side it shows ("put the set-aside
+     * chosen villain into play engaged with you, side A faceup, with this card attached", Whisper in the Dark,
+     * Shadowland 65040; its constant carries `treatAttachedVillainAsMinion`). Absent: its starting side.
+     */
+    readonly villainSide?: "A" | "B";
+  } = {},
 ): EffectSpec => ({
   kind: "putIntoPlayAsHost",
   card,
   attachment: opts.attachment ?? self,
   engagedWith: opts.engagedWith ?? you,
   ...withBind(opts.bind),
+  ...(opts.villainSide ? { villainSide: opts.villainSide } : {}),
 });
 /**
  * A fact from outside the game that is known only when the card resolves (docs/phase7-wave7.md §3.83): `player` is
@@ -3281,14 +3292,34 @@ export const endGame = (
  */
 export const addVillain = (
   villain: TargetRef,
-  opts: { readonly reveal?: boolean; readonly bind?: string; readonly row?: "shuffled" } = {},
+  opts: {
+    readonly reveal?: boolean;
+    readonly bind?: string;
+    readonly row?: "shuffled";
+    /** A villain already in play is revealed where it is (`EffectSpec addVillain.inPlay`). */
+    readonly inPlay?: "reveal";
+  } = {},
 ): EffectSpec => ({
   kind: "addVillain",
   villain,
   ...(opts.reveal ? { reveal: true } : {}),
   ...(opts.bind ? { bind: opts.bind } : {}),
   ...(opts.row ? { row: opts.row } : {}),
+  ...(opts.inPlay ? { inPlay: opts.inPlay } : {}),
 });
+/**
+ * "Discard each status card, token, and attached card from it" (Chamber of Vile Secrets 2A, Shadowland 65039a): its
+ * stunned, confused and tough status cards, its counters, its damage and threat tokens (`EffectSpec discardTokens`, not
+ * a heal) and each card attached to it. A card with none of them is left as it is.
+ */
+export const discardStatusesTokensAndAttachments = (target: TargetRef): readonly EffectSpec[] => [
+  removeStatus(target, "stunned"),
+  removeStatus(target, "confused"),
+  removeStatus(target, "tough"),
+  removeAllCountersFrom(target),
+  { kind: "discardTokens", target },
+  discard({ kind: "each", query: { host: target } }),
+];
 /**
  * "Set this villain aside." (the Sinister Six's When Defeated, MC27 p. 15): back to the set-aside area as a new copy,
  * where `addVillain` can bring it back. docs/phase7-wave5.md §3.1.

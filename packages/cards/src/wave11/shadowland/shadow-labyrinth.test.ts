@@ -1,8 +1,15 @@
 import {
+  activeAbilityRefs,
+  applyCommand,
   cardsInPlay,
+  categoriesOf,
   characterProfile,
   chosenVillainOf,
   createGame,
+  hasKeyword,
+  isMinion,
+  minionsEngagedWith,
+  traitsOf,
   type GameEvent,
   type GameState,
   type InstanceId,
@@ -580,14 +587,260 @@ describe("Hall of Hidden Doors (65043)", () => {
   });
 });
 
+const WHISPER = "65040";
+const whisperOf = (s: GameState): InstanceId =>
+  Object.keys(s.instances).find((i) => codeOf(s, i as InstanceId) === WHISPER)! as InstanceId;
+/** P1 ends the turn with Whisper on top of the trap deck: Shifting Corridors' activation reveals it for P1. */
+function whisperRevealed(opts: LabyrinthOptions = {}) {
+  const start = stackTraps(withHandOnly(labyrinth(opts), P1), WHISPER);
+  return { start, ...driveEventsPicking(WAVE11_DEPS, start, firstLegal, endTurn(P1)) };
+}
+/** P1's identity ready and free of status cards (the trap cards revealed on the way may have stunned it). */
+const fresh = (s: GameState): GameState =>
+  patchInstance(s, identityOf(s, P1), { exhausted: false, statuses: { stunned: 0, confused: 0, tough: 0 } });
+/** Each crisis side scheme in play defeated by P1's thwart, one at a time (expert brings Shadowy Plot in). */
+function withoutCrisis(s: GameState): GameState {
+  let current = s;
+  for (const id of cardsInPlay(s).filter((i) => codeOf(s, i) === "65025")) {
+    current = fresh(heroThwarts(WAVE11_DEPS, patchInstance(fresh(current), id, { threat: 1 }), id).state);
+  }
+  return current;
+}
+const isVillainCard = (s: GameState, id: InstanceId): boolean =>
+  codeOf(s, id) === CORRIDORS || codeOf(s, id) === DAREDEVIL;
+const canAttack = (s: GameState, target: InstanceId): boolean =>
+  applyCommand(
+    s,
+    { type: "basicAttack", playerId: P1, attackerInstanceId: identityOf(s, P1), targetInstanceId: target },
+    WAVE11_DEPS,
+  ).ok;
+
 describe("Whisper in the Dark (65040)", () => {
-  it("is skipped with a written reason for each ref: the engine has no villain-as-minion primitive", () => {
-    expect(Object.keys(SHADOWLAND_SHADOW_LABYRINTH_SKIPPED).filter((id) => id.startsWith("65040."))).toHaveLength(3);
+  it("with Shifting Corridors in play: the chosen villain enters play engaged with you, side A, as an Elite minion", () => {
+    const { start, state } = whisperRevealed();
+    const chosen = chosenVillainOf(state)!;
+    expect(codeOf(state, chosen)).toBe(DAREDEVIL);
+    expect(inst(state, chosen).attachments).toEqual([whisperOf(state)]);
+    expect(inst(state, chosen).engagedWith).toBe(P1);
+    expect(state.encounterSetAside).not.toContain(chosen);
+    // A minion, not "the villain": Shifting Corridors keeps the active counter, and no villain was added.
+    expect(categoriesOf(state, chosen)).toEqual(["minion", "enemy", "character"]);
+    expect(state.villains.map((v) => v.instanceId)).toEqual(start.villains.map((v) => v.instanceId));
+    expect(state.activeVillainId).toBe(villainId(start));
+    // Side A's ATK 2 and SCH 1; 6 printed hit points, not 15 per player.
+    expect(characterProfile(state, chosen, WAVE11_DEPS)).toMatchObject({ kind: "minion", atk: 2, sch: 1, maxHp: 6 });
+    expect(traitsOf(state, chosen, WAVE11_DEPS)).toContain("ELITE");
+    for (const keyword of ["guard", "villainous"] as const)
+      expect(hasKeyword(state, chosen, keyword, WAVE11_DEPS)).toBe(true);
+    // Its own text box stays: side A's star ability, and the gained When Defeated.
+    const live = activeAbilityRefs(state, chosen, WAVE11_DEPS).map((ref) => String(ref.id));
+    expect(live).toContain("65013a.daredevil-forced-response");
+    expect(live).toContain("65040.when-defeated");
+  });
+
+  it("6 printed hit points with two players too (no per player icon)", () => {
+    const seats = [SPIDER_MAN, CAPTAIN_MARVEL] as const;
+    const start = stackTraps(withHandOnly(withHandOnly(labyrinth({ seats }), P1), P2), WHISPER);
+    const { state } = driveEventsPicking(WAVE11_DEPS, start, firstLegal, endTurn(P1), endTurn(P2));
+    expect(characterProfile(state, chosenVillainOf(state)!, WAVE11_DEPS)!.maxHp).toBe(6);
+  });
+
+  it("as a villainous minion it attacks you in the same villain phase, with a boost card", () => {
+    const { state, events } = whisperRevealed();
+    const chosen = chosenVillainOf(state)!;
+    expect(attacksOn(state, events, chosen, P1)).toBe(1);
+    expect(types(events, "boostCardDealt").some((e) => e.enemyInstanceId === chosen)).toBe(true);
+  });
+
+  it("Guard: while it is engaged with you, you cannot attack Shifting Corridors; you can attack it", () => {
+    const { start, state } = whisperRevealed();
+    const ready = fresh(state);
+    expect(canAttack(fresh(start), villainId(start))).toBe(true);
+    expect(canAttack(ready, villainId(state))).toBe(false);
+    expect(canAttack(ready, chosenVillainOf(state)!)).toBe(true);
+  });
+
+  it("full path: defeated, it is set aside and Whisper goes to the trap discard pile; 2A then reveals it as the villain", () => {
+    const { state } = whisperRevealed();
+    const chosen = chosenVillainOf(state)!;
+    // One more hit defeats it.
+    const hurt = patchInstance(fresh(state), chosen, { damage: 5 });
+    const killed = heroAttacks(WAVE11_DEPS, hurt, chosen);
+    expect(types(killed.events, "characterDefeated").map((e) => e.instanceId)).toContain(chosen);
+    expect(killed.state.encounterSetAside).toContain(chosen);
+    expect(inst(killed.state, chosen)).toMatchObject({ damage: 0, treatedAs: null, attachments: [] });
+    expect(trapDiscardHas(killed.state)).toContain(WHISPER);
+    expect(encounterPiles(killed.state).discard).not.toContain(chosen);
+    // The scheme's last threat leaves: 2A sets Shifting Corridors aside and reveals the chosen villain's side A.
+    const ready = patchInstance(fresh(killed.state), schemeId(killed.state), { threat: 1 });
+    const advanced = heroThwarts(WAVE11_DEPS, ready, schemeId(ready));
+    expect(advanced.state.mainScheme.stageIndex).toBe(1);
+    expect(advanced.state.activeVillainId).toBe(chosen);
+    expect(advanced.state.villains.find((v) => v.instanceId === chosen)).toMatchObject({ side: "A", defeated: false });
+    expect(characterProfile(advanced.state, chosen, WAVE11_DEPS)).toMatchObject({ kind: "villain", maxHp: 15 });
+  });
+
+  it("2A with the villain still in play as Whisper's minion: Whisper is discarded and the card becomes the villain, once", () => {
+    const { state } = whisperRevealed();
+    const chosen = chosenVillainOf(state)!;
+    const wounded = patchInstance(fresh(state), chosen, {
+      damage: 3,
+      statuses: { stunned: 1, confused: 0, tough: 1 },
+      counters: { all: 1 },
+    });
+    const ready = patchInstance(wounded, schemeId(wounded), { threat: 1 });
+    const advanced = heroThwarts(WAVE11_DEPS, ready, schemeId(ready));
+    const after = advanced.state;
+    expect(after.mainScheme.stageIndex).toBe(1);
+    expect(trapDiscardHas(after)).toContain(WHISPER);
+    expect(after.villains.filter((v) => v.instanceId === chosen)).toHaveLength(1);
+    expect(after.villains.find((v) => v.instanceId === chosen)).toMatchObject({ side: "A", defeated: false });
+    expect(after.activeVillainId).toBe(chosen);
+    expect(isMinion(after, chosen)).toBe(false);
+    expect(minionsEngagedWith(after, P1)).not.toContain(chosen);
+    // Clean: its damage, status cards, counters and attachments are gone.
+    expect(inst(after, chosen)).toMatchObject({
+      damage: 0,
+      statuses: { stunned: 0, confused: 0, tough: 0 },
+      counters: {},
+      attachments: [],
+      treatedAs: null,
+      engagedWith: null,
+    });
+    expect(characterProfile(after, chosen, WAVE11_DEPS)).toMatchObject({ kind: "villain", maxHp: 15 });
+    expect(types(advanced.events, "villainAdded").map((e) => e.instanceId)).toEqual([chosen]);
+  });
+
+  it("expert 2A with the villain in play as a minion: it becomes the villain on side B", () => {
+    const { state } = whisperRevealed({ expert: true });
+    const chosen = chosenVillainOf(state)!;
+    expect(isMinion(state, chosen)).toBe(true);
+    const clear = withoutCrisis(state);
+    expect(isMinion(clear, chosen)).toBe(true);
+    const ready = patchInstance(fresh(clear), schemeId(clear), { threat: 1 });
+    const after = heroThwarts(WAVE11_DEPS, ready, schemeId(ready)).state;
+    expect(after.villains.find((v) => v.instanceId === chosen)).toMatchObject({ side: "B", defeated: false });
+    expect(characterProfile(after, chosen, WAVE11_DEPS)!.maxHp).toBe(18);
+  });
+
+  /** The chosen villain moved, out of play, to the encounter discard pile or the bottom of the encounter deck. */
+  const chosenIn = (s: GameState, pile: "discard" | "deck"): GameState => {
+    const chosen = chosenVillainOf(s)!;
+    const piles = encounterPiles(s);
+    const deckId = s.encounterDeckOrder[0]!;
+    return {
+      ...s,
+      encounterSetAside: s.encounterSetAside.filter((id) => id !== chosen),
+      encounterDecks: { ...s.encounterDecks, [deckId]: { ...piles, [pile]: [...piles[pile], chosen] } },
+    };
+  };
+  /** The chosen villain moved, out of play, into the trap deck or the trap discard pile. */
+  const chosenInTraps = (s: GameState, pile: "discard" | "deck"): GameState => {
+    const chosen = chosenVillainOf(s)!;
+    const traps = trapDeck(s);
+    return {
+      ...s,
+      encounterSetAside: s.encounterSetAside.filter((id) => id !== chosen),
+      scenarioDecks: { ...s.scenarioDecks, trap: { ...traps, [pile]: [...traps[pile], chosen] } },
+    };
+  };
+  for (const pile of ["discard", "deck"] as const) {
+    it(`2A finds the chosen villain in the trap ${pile} (Find searches every game area) and reveals it`, () => {
+      const start = chosenInTraps(labyrinth(), pile);
+      const chosen = chosenVillainOf(start)!;
+      const ready = patchInstance(fresh(start), schemeId(start), { threat: 1 });
+      const run = heroThwarts(WAVE11_DEPS, ready, schemeId(ready));
+      expect(run.state.activeVillainId).toBe(chosen);
+      expect(run.state.villains.find((v) => v.instanceId === chosen)).toMatchObject({ side: "A", defeated: false });
+      expect(trapDeck(run.state)[pile]).not.toContain(chosen);
+      // A deck searched is shuffled after.
+      const shuffledTraps = types(run.events, "deckShuffled").some(
+        (e) => e.zone.kind === "scenarioDeck" && e.zone.name === "trap",
+      );
+      expect(shuffledTraps).toBe(pile === "deck");
+    });
+  }
+
+  for (const pile of ["discard", "deck"] as const) {
+    it(`2A finds the chosen villain in the encounter ${pile} and reveals it as the villain`, () => {
+      const start = chosenIn(labyrinth(), pile);
+      const chosen = chosenVillainOf(start)!;
+      const ready = patchInstance(fresh(start), schemeId(start), { threat: 1 });
+      const after = heroThwarts(WAVE11_DEPS, ready, schemeId(ready)).state;
+      expect(after.mainScheme.stageIndex).toBe(1);
+      expect(after.activeVillainId).toBe(chosen);
+      expect(after.villains.find((v) => v.instanceId === chosen)).toMatchObject({ side: "A", defeated: false });
+      expect(encounterPiles(after)[pile]).not.toContain(chosen);
+    });
+  }
+
+  it("revealed again with the chosen villain not set aside: Whisper has nothing to attach to and is discarded", () => {
+    const { state } = whisperRevealed();
+    const chosen = chosenVillainOf(state)!;
+    // Defeated: Whisper goes to the trap discard pile, the villain set aside. Move the villain into the encounter
+    // discard pile, then reveal Whisper again.
+    const killed = heroAttacks(WAVE11_DEPS, patchInstance(fresh(state), chosen, { damage: 5 }), chosen).state;
+    const elsewhere = chosenIn(killed, "discard");
+    const again = stackTraps(withHandOnly(fresh(elsewhere), P1), WHISPER);
+    const run = driveEventsPicking(WAVE11_DEPS, again, firstLegal, endTurn(P1));
+    expect(revealed(run.state, run.events).map((r) => r.code)).toContain(WHISPER);
+    expect(types(run.events, "putIntoPlayRefused").map((e) => e.instanceId)).toContain(chosen);
+    expect(isMinion(run.state, chosen)).toBe(false);
+    expect(trapDiscardHas(run.state)).toContain(WHISPER);
+  });
+
+  /** The chosen villain out of the game (test surgery standing in for its removal as Whisper's minion or a villain). */
+  const chosenRemoved = (s: GameState): GameState => {
+    const chosen = chosenVillainOf(s)!;
+    return {
+      ...s,
+      encounterSetAside: s.encounterSetAside.filter((id) => id !== chosen),
+      removedFromGame: [...s.removedFromGame, chosen],
+    };
+  };
+
+  it("2A with the chosen villain removed from the game: no villain (Grim Rule), the game goes on, 2B can still lose", () => {
+    const start = chosenRemoved(labyrinth());
+    const chosen = chosenVillainOf(start)!;
+    const ready = patchInstance(fresh(start), schemeId(start), { threat: 1 });
+    const advanced = heroThwarts(WAVE11_DEPS, ready, schemeId(ready));
+    expect(advanced.state.mainScheme.stageIndex).toBe(1);
+    expect(advanced.state.outcome).toBeNull();
+    expect(types(advanced.events, "villainAdded")).toEqual([]);
+    expect(advanced.state.villains.every((v) => v.defeated)).toBe(true);
+    expect(advanced.state.removedFromGame).toContain(chosen);
+    // A whole round with no villain in play: nothing activates, and the game does not end. No Time to Think! ("the
+    // villain activates against you") is dealt and does nothing.
+    const dealt = stackEncounterDeck(fresh(advanced.state), NO_TIME);
+    const round = driveEventsPicking(WAVE11_DEPS, dealt, firstLegal, endTurn(P1));
+    expect(revealed(round.state, round.events).map((r) => r.code)).toContain(NO_TIME);
+    expect(round.state.outcome).toBeNull();
+    expect(round.state.step.phase).toBe("player");
+    expect(types(round.events, "enemyActivated").filter((e) => isVillainCard(round.state, e.enemyInstanceId))).toEqual(
+      [],
+    );
+    // 2B completed: the players lose.
+    const full = patchInstance(round.state, schemeId(round.state), { threat: 30 });
+    const lost = driveEventsPicking(WAVE11_DEPS, fresh(full), firstLegal, endTurn(P1));
+    expect(lost.state.outcome).toMatchObject({ result: "loss" });
+  });
+
+  it("otherwise (Shifting Corridors not in play): Whisper is set aside and the villain schemes", () => {
+    const { state: stage2 } = atStage2();
+    const chosen = chosenVillainOf(stage2)!;
+    // 2B's Forced Response reveals the top trap card for the player who thwarts the scheme.
+    const start = patchInstance(stackTraps(fresh(stage2), WHISPER), schemeId(stage2), { threat: 6 });
+    const run = heroThwarts(WAVE11_DEPS, start, schemeId(start));
+    expect(revealed(run.state, run.events)).toContainEqual({ code: WHISPER, player: P1 });
+    expect(run.state.encounterSetAside).toContain(whisperOf(run.state));
+    expect(trapDiscardHas(run.state)).not.toContain(WHISPER);
+    expect(types(run.events, "schemeResolved").some((e) => e.enemyInstanceId === chosen)).toBe(true);
+    expect(minionsEngagedWith(run.state, P1)).not.toContain(chosen);
   });
 });
 
 describe("registry", () => {
-  it("scripts every ref of its group but Whisper in the Dark's", () => {
+  it("scripts every ref of its group", () => {
     expect(Object.keys(SHADOWLAND_SHADOW_LABYRINTH).sort()).toEqual([
       "65037.shifting-corridors-constant",
       "65037.shifting-corridors-forced-interrupt",
@@ -601,6 +854,9 @@ describe("registry", () => {
       "65039a.when-revealed",
       "65039b.chamber-of-vile-secrets-forced-response",
       "65039b.when-revealed",
+      "65040.when-defeated",
+      "65040.when-revealed",
+      "65040.whisper-in-the-dark-constant",
       "65041.boost",
       "65041.when-revealed",
       "65042.when-revealed",
@@ -611,11 +867,7 @@ describe("registry", () => {
       "65045.boost",
       "65045.when-revealed",
     ]);
-    expect(Object.keys(SHADOWLAND_SHADOW_LABYRINTH_SKIPPED).sort()).toEqual([
-      "65040.when-defeated",
-      "65040.when-revealed",
-      "65040.whisper-in-the-dark-constant",
-    ]);
+    expect(Object.keys(SHADOWLAND_SHADOW_LABYRINTH_SKIPPED)).toEqual([]);
     expect(CORRIDORS).toBe("65037");
   });
 });

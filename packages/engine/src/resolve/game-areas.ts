@@ -14,11 +14,13 @@ import {
   setActiveVillain,
   waitsForHostStep,
 } from "../effects.js";
-import { gameAreaId, type GameAreaId, type InstanceId, type PlayerId } from "../ids.js";
+import type { VillainCard, VillainSideLetter } from "@mc/content";
+import { gameAreaId, type EncounterDeckId, type GameAreaId, type InstanceId, type PlayerId } from "../ids.js";
 import {
   areaOfCard,
   discardZoneFor,
   getInstance,
+  locateCard,
   mainSchemeStageOf,
   mainSchemeValue,
   mainSchemeStates,
@@ -40,12 +42,14 @@ import {
   type GameState,
   type MainSchemeState,
   type VillainState,
+  type ZoneId,
 } from "../state.js";
 import { cardsMatch } from "../unique.js";
 import { schemeEntryThreat } from "./enter-play.js";
 import { base, eventFrame, gameAbilityFrames, pushEvent } from "./frames.js";
 import { mainSchemeStageFrames } from "./main-scheme-side.js";
 import { waitingSetupCardsEnterPlay } from "./setup-cards.js";
+import { shuffleEncounterDeck, shuffleScenarioDeck } from "./cards.js";
 
 const setAreas = (ctx: Ctx, gameAreas: readonly GameAreaState[]): void => {
   ctx.state = { ...ctx.state, gameAreas };
@@ -491,13 +495,27 @@ export function addVillains(
   actingPlayerId: PlayerId,
   /** `addVillain.row`: the villains enter in a shuffled order and form `GameState.villainRow` (wave 8 §3.7). */
   row?: "shuffled",
+  /** `addVillain.inPlay`: a named villain already in play is revealed where it is (`"reveal"`). */
+  inPlay?: "reveal",
 ): { readonly frames: readonly StackFrame[]; readonly entered: readonly InstanceId[] } {
   const frames: StackFrame[] = [];
   const entered: InstanceId[] = [];
-  const entering = ids.filter((id) => {
-    const existing = villainOf(ctx.state, id);
-    return ctx.state.encounterSetAside.includes(id) && !(existing && !existing.defeated);
-  });
+  const entering = ids.filter((id) => outOfPlayVillainZone(ctx.state, id) !== null);
+  // "Reveal its side A" of a villain card that is already one of the game's villains in play (Chamber of Vile Secrets
+  // 2A, Shadowland 65039a, once Whisper in the Dark has left it): it does not enter play again; its When Revealed
+  // resolves where it is, and it takes the active counter when the villain holding it is out of play. The side it shows
+  // is left as it is: no card yet reveals "side A" of a villain in play on its other side (a Whisper minion becomes a
+  // villain on the side it showed, which Whisper's text put faceup as A).
+  if (inPlay === "reveal") {
+    for (const id of ids) {
+      const existing = villainOf(ctx.state, id);
+      if (!existing || existing.defeated || !cardsInPlay(ctx.state).includes(id)) continue;
+      if (!area && villainOf(ctx.state, ctx.state.activeVillainId)?.defeated !== false) {
+        setActiveVillain(ctx, id, "effect");
+      }
+      if (reveal) frames.push(...gameAbilityFrames(ctx, id, ["whenRevealed"], null, undefined, actingPlayerId));
+    }
+  }
   // "Shuffle the … villains, then reveal them in a row from left to right": the seeded RNG decides the order.
   let order: readonly InstanceId[] = entering;
   if (row === "shuffled" && entering.length > 0) {
@@ -505,59 +523,28 @@ export function addVillains(
     ctx.state = { ...ctx.state, rng, villainRow: ctx.state.villainRow ?? [] };
     order = shuffled;
   }
+  const searched = new Set<EncounterDeckId>();
+  const searchedScenarioDecks = new Set<string>();
   for (const id of order) {
-    const existing = villainOf(ctx.state, id);
-    if (!ctx.state.encounterSetAside.includes(id) || (existing && !existing.defeated)) continue;
+    const zone = outOfPlayVillainZone(ctx.state, id);
+    if (zone === null) continue;
     const card = mustCard(ctx.state, mustInstance(ctx.state, id).cardId);
     if (card.type !== "villain") continue;
-    const side = card.startingSide ?? "A";
-    const stages = card.sides.find((s) => s.side === side)?.stages ?? card.sides[0].stages;
-    const home = mustInstance(ctx.state, id).home;
-    const villain: VillainState = {
-      instanceId: id,
-      cardId: card.id,
-      side,
-      stageIndex: 0,
-      lastStageIndex: stages.length - 1,
-      defeated: false,
-      encounterDeckId:
-        existing?.encounterDeckId ??
-        (home.kind === "encounterDeck"
-          ? home.deckId
-          : (ctx.state.encounterDeckOrder[0] as VillainState["encounterDeckId"])),
-      signatureSideSchemeId: existing?.signatureSideSchemeId ?? null,
-    };
-    ctx.state = {
-      ...ctx.state,
-      villains: existing
-        ? ctx.state.villains.map((v) => (v.instanceId === id ? villain : v))
-        : [...ctx.state.villains, villain],
-      encounterSetAside: ctx.state.encounterSetAside.filter((other) => other !== id),
-      // Where villains sit in a row, one entering play joins at the right end (docs/phase7-wave8.md §3.7).
-      ...(ctx.state.villainRow && !ctx.state.villainRow.includes(id)
-        ? { villainRow: [...ctx.state.villainRow, id] }
-        : {}),
-    };
+    // "Find" (RRG 1.8 p. 19) takes the card from wherever it is out of play; a deck searched is shuffled after.
+    if (zone.kind === "encounterDeck") searched.add(zone.deckId);
+    if (zone.kind === "scenarioDeck") searchedScenarioDecks.add(zone.name);
+    takeOutOfZone(ctx, id, zone);
+    registerVillain(ctx, id, card, card.startingSide ?? "A", area);
     entered.push(id);
     updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
-    const current = area ? ctx.state.gameAreas.find((a) => a.areaId === area.areaId) : undefined;
-    if (current) {
-      updateArea(ctx, current.areaId, (a) => ({
-        ...a,
-        villainIds: [...a.villainIds, id],
-        activeVillainId:
-          a.activeVillainId && villainOf(ctx.state, a.activeVillainId)?.defeated === false ? a.activeVillainId : id,
-      }));
-    } else if (villainOf(ctx.state, ctx.state.activeVillainId)?.defeated !== false) {
-      setActiveVillain(ctx, id, "effect");
-    }
-    emit(ctx, { type: "villainAdded", instanceId: id, cardId: card.id, areaId: current?.areaId ?? null });
     // RRG 1.8 "Toughness": the stage enters play with its tough status.
     applyToughness(ctx, id);
     if (reveal) frames.push(...gameAbilityFrames(ctx, id, ["whenRevealed"], null, undefined, actingPlayerId));
     else if (ctx.state.villainsEnteringAtSetup)
       ctx.state = { ...ctx.state, villainsEnteringAtSetup: [...ctx.state.villainsEnteringAtSetup, id] };
   }
+  for (const deckId of searched) shuffleEncounterDeck(ctx, deckId);
+  for (const name of searchedScenarioDecks) shuffleScenarioDeck(ctx, name);
   if (row === "shuffled" && ctx.state.villainRow && entered.length > 0) {
     emit(ctx, { type: "villainRowSet", order: ctx.state.villainRow });
     // "Place the active counter on the leftmost villain" (MC45 p. 11).
@@ -567,6 +554,149 @@ export function addVillains(
   // RRG 1.8 Appendix II step 11 (p. 51): a setup-keyword attachment that found no villain in play now has one.
   if (entered.length > 0) waitingSetupCardsEnterPlay(ctx);
   return { frames, entered };
+}
+
+type VillainWaitZone = Extract<
+  ZoneId,
+  { kind: "encounterSetAside" | "encounterDiscard" | "encounterDeck" | "scenarioDeck" | "scenarioDiscard" }
+>;
+
+/**
+ * Where a villain card `addVillain` can bring in waits out of play: the encounter set-aside area, or (a villain card
+ * that was a minion and was discarded, Whisper in the Dark) an encounter deck or discard pile, or a scenario deck or
+ * its discard pile (an encounter card shuffled into the trap deck), every game area "Find" searches (RRG 1.8 p. 19).
+ * Null for an undefeated villain, a card in play, and anywhere else.
+ */
+function outOfPlayVillainZone(state: GameState, id: InstanceId): VillainWaitZone | null {
+  const existing = villainOf(state, id);
+  if (existing && !existing.defeated) return null;
+  if (state.encounterSetAside.includes(id)) return { kind: "encounterSetAside" };
+  if (state.cardPool[mustInstance(state, id).cardId]?.type !== "villain") return null;
+  const where = locateCard(state, id);
+  return where?.kind === "encounterDiscard" ||
+    where?.kind === "encounterDeck" ||
+    where?.kind === "scenarioDeck" ||
+    where?.kind === "scenarioDiscard"
+    ? where
+    : null;
+}
+
+function takeOutOfZone(ctx: Ctx, id: InstanceId, zone: VillainWaitZone): void {
+  if (zone.kind === "encounterSetAside") {
+    ctx.state = { ...ctx.state, encounterSetAside: ctx.state.encounterSetAside.filter((other) => other !== id) };
+    return;
+  }
+  if (zone.kind === "scenarioDeck" || zone.kind === "scenarioDiscard") {
+    const scenario = ctx.state.scenarioDecks[zone.name]!;
+    const which = zone.kind === "scenarioDeck" ? "deck" : "discard";
+    ctx.state = {
+      ...ctx.state,
+      scenarioDecks: {
+        ...ctx.state.scenarioDecks,
+        [zone.name]: { ...scenario, [which]: scenario[which].filter((other) => other !== id) },
+      },
+    };
+    return;
+  }
+  const piles = ctx.state.encounterDecks[zone.deckId]!;
+  const pile = zone.kind === "encounterDeck" ? "deck" : "discard";
+  ctx.state = {
+    ...ctx.state,
+    encounterDecks: {
+      ...ctx.state.encounterDecks,
+      [zone.deckId]: { ...piles, [pile]: piles[pile].filter((other) => other !== id) },
+    },
+  };
+}
+
+/**
+ * Makes `id` one of the game's villains on `side`, at its first stage: its `GameState.villains` entry (replacing a
+ * set-aside one in place, so its printed order is kept), its place in a villain row, its area, and the active counter
+ * when the villain holding it is out of play. Logs `villainAdded`.
+ */
+function registerVillain(
+  ctx: Ctx,
+  id: InstanceId,
+  card: VillainCard,
+  side: VillainSideLetter,
+  area: GameAreaState | null,
+  asStatusChange?: true,
+): void {
+  const existing = villainOf(ctx.state, id);
+  const stages = card.sides.find((s) => s.side === side)?.stages ?? card.sides[0].stages;
+  const home = mustInstance(ctx.state, id).home;
+  const villain: VillainState = {
+    instanceId: id,
+    cardId: card.id,
+    side,
+    stageIndex: 0,
+    lastStageIndex: stages.length - 1,
+    defeated: false,
+    encounterDeckId:
+      existing?.encounterDeckId ??
+      (home.kind === "encounterDeck"
+        ? home.deckId
+        : (ctx.state.encounterDeckOrder[0] as VillainState["encounterDeckId"])),
+    signatureSideSchemeId: existing?.signatureSideSchemeId ?? null,
+  };
+  ctx.state = {
+    ...ctx.state,
+    villains: existing
+      ? ctx.state.villains.map((v) => (v.instanceId === id ? villain : v))
+      : [...ctx.state.villains, villain],
+    // Where villains sit in a row, one entering play joins at the right end (docs/phase7-wave8.md §3.7).
+    ...(ctx.state.villainRow && !ctx.state.villainRow.includes(id)
+      ? { villainRow: [...ctx.state.villainRow, id] }
+      : {}),
+  };
+  const current = area ? ctx.state.gameAreas.find((a) => a.areaId === area.areaId) : undefined;
+  if (current) {
+    updateArea(ctx, current.areaId, (a) => ({
+      ...a,
+      villainIds: [...a.villainIds, id],
+      activeVillainId:
+        a.activeVillainId && villainOf(ctx.state, a.activeVillainId)?.defeated === false ? a.activeVillainId : id,
+    }));
+  } else if (villainOf(ctx.state, ctx.state.activeVillainId)?.defeated !== false) {
+    setActiveVillain(ctx, id, "effect");
+  }
+  emit(ctx, {
+    type: "villainAdded",
+    instanceId: id,
+    cardId: card.id,
+    areaId: current?.areaId ?? null,
+    ...(asStatusChange ? { asStatusChange } : {}),
+  });
+}
+
+/**
+ * A villain card that is not one of the game's villains, in play as a minion only because an attachment treated it as
+ * one (Whisper in the Dark, Shadowland 65040), with nothing treating it so any more: it is a villain card again, still
+ * in play, and one of the game's villains. Rules expert, 2026-10-22: ending a "treat as" is a status change, not a
+ * zone change (RRG 1.8 "Ability", p. 5: constants are active only while their card is in play; ruling Dec 17, 2025
+ * (1) #3, Beguiled: "the ally does not leave play ... essentially a status change"; ruling Aug 22, 2025: a blanked
+ * Reluctant Foe "would not leave play"; RRG 1.8 "Set Aside", p. 39, needs an instruction). Owner confirmation pending.
+ *
+ * It keeps the side that was up, its damage, tokens, status cards and attachments, and it does not enter play: no
+ * toughness status, no When Revealed. It leaves the player's play area, engaged with no one, and takes the active
+ * counter only when the villain holding it is out of play; otherwise it is a second villain beside that one, attackable
+ * as any villain, and it activates as the engine's multiple-villain rule has villains activate (the active one).
+ */
+export function promoteLooseVillain(ctx: Ctx, id: InstanceId, side: VillainSideLetter): void {
+  const instance = getInstance(ctx.state, id);
+  const card = instance ? ctx.state.cardPool[instance.cardId] : undefined;
+  if (!instance || card?.type !== "villain" || villainOf(ctx.state, id)) return;
+  const where = locateCard(ctx.state, id);
+  if (where?.kind === "playArea") {
+    ctx.state = {
+      ...ctx.state,
+      players: ctx.state.players.map((p) =>
+        p.playerId === where.playerId ? { ...p, playArea: p.playArea.filter((other) => other !== id) } : p,
+      ),
+    };
+  }
+  updateInstance(ctx, id, (i) => ({ ...i, engagedWith: null, controllerId: null, flipped: false, faceup: true }));
+  registerVillain(ctx, id, card, side, null, true);
 }
 
 /** A villain that leaves play leaves the row (`GameState.villainRow`; docs/phase7-wave8.md §3.7). */

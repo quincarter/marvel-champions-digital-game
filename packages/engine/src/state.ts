@@ -149,6 +149,15 @@ export interface TreatedAsMinion {
    * (`syncRuleTreatments`). Absent otherwise.
    */
   readonly byRule?: true;
+  /**
+   * The card keeps its own text box (`RuleSpec treatHostAsMinion.keepsText`): "Treat attached villain as an Elite minion
+   * with 6 printed hit points" (Whisper in the Dark, Shadowland 65040) blanks nothing, so the face it shows keeps its
+   * printed abilities and keywords (RRG 1.8 "Card Types", p. 12: it "functions as would any card of the new card
+   * type"; the card says nothing of a blank text box). Absent otherwise.
+   */
+  readonly keepsText?: true;
+  /** Its printed hit points, as the attachment states them ("with 6 printed hit points"). Absent: as printed. */
+  readonly printedHp?: number;
 }
 
 /**

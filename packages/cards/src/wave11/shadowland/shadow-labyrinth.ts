@@ -1,3 +1,4 @@
+import { trait } from "@mc/content";
 import type { AbilityRegistry, TargetQuery } from "@mc/engine";
 import {
   activationIs,
@@ -6,17 +7,20 @@ import {
   adjustBoostCount,
   advanceMainScheme,
   boost,
+  cards,
   buildScenarioDeck,
   chosenVillain,
   constant,
   countersOn,
   defineAbilities,
   discardEncounterUntil,
+  discardStatusesTokensAndAttachments,
   chosen,
   eachPlayer,
   encounterCards,
   endGame,
   enemyActivates,
+  enemyScheme,
   eventAmount,
   eventPlayer,
   exists,
@@ -25,6 +29,8 @@ import {
   forEachPlayer,
   forcedInterrupt,
   forcedResponse,
+  gainsAbility,
+  gainsKeyword,
   ifThen,
   inMode,
   instead,
@@ -34,6 +40,7 @@ import {
   perHero,
   placeThreat,
   putIntoPlay,
+  putIntoPlayAsHost,
   query,
   removeCountersFrom,
   removeThreat,
@@ -48,6 +55,7 @@ import {
   theVillain,
   thatPlayer,
   toScenarioDeck,
+  treatAttachedVillainAsMinion,
   valueAtMost,
   whenDefeated,
   whenRevealed,
@@ -65,6 +73,9 @@ const shuffleEncounterIntoTraps = (n: number) =>
 /** "Shuffle the trap discard pile into the trap deck." */
 const shuffleTrapDiscardIntoTraps = () =>
   moveCards(scenarioDeck(TRAP_DECK, { zones: ["discard"] }), toScenarioDeck(TRAP_DECK, "shuffle"));
+/** The card Whisper in the Dark is attached to. */
+const ATTACHED: TargetQuery = { hostOfSelf: true };
+const ELITE = trait("ELITE");
 /** "(Limit once per round per player.)": counted for the player the thwart belongs to, not whoever resolves it. */
 const oncePerRoundPerEventPlayer = { count: 1, period: "round", per: "eventPlayer" } as const;
 
@@ -95,9 +106,19 @@ const oncePerRoundPerEventPlayer = { count: 1, period: "round", per: "eventPlaye
  *
  * **Sudden Shift (65045)**: shuffles the trap discard pile and encounter cards into the trap deck.
  *
- * **Whisper in the Dark (65040)** is skipped: an engine primitive is missing (see the skip reason). While it is
- * unscripted a revealed Whisper is placed as a plain attachment and later discarded, so the stage-2 branch "otherwise,
- * set this card aside and the villain schemes" is lost, and the villain never appears as a minion before 2A.
+ * **Whisper in the Dark (65040)**: with Shifting Corridors in play, the set-aside chosen villain enters play engaged
+ * with the revealer, side A faceup, with Whisper attached (`putIntoPlayAsHost`). The constant makes it an Elite minion
+ * (`treatAttachedVillainAsMinion`): never "the villain", side A's ATK and SCH, 6 printed hit points (flat: the card
+ * prints no per player icon), and its own text box kept, since the card blanks nothing (RRG 1.8 "Card Types", p. 12: a
+ * card whose type changes "functions as would any card of the new card type"), so side A's star ability still answers
+ * its attacks. It gains Guard, Villainous and the When Defeated "Set this minion aside", in which `self` is the villain
+ * card: back to the encounter set-aside area, and Whisper, discarded with its host, goes to the trap discard pile (M3).
+ * Whisper leaving while the minion stays (a player card discards it) leaves a villain card in play: it is one of the
+ * game's villains there, beside Shifting Corridors (rules expert; owner confirmation pending), and defeated as that
+ * villain it is out of the game with no win. The minion discarded is removed from the game: a Dark Protégé villain is
+ * one double-sided card (RRG v1.8 "Double-Sided Card", p. 17). With no set-aside chosen villain to put
+ * into play, Whisper has nothing to attach to and is discarded (RRG 1.8 "Attach To", p. 8). Otherwise Whisper is set
+ * aside and the villain schemes.
  *
  * Cards (8):
  * - 65037 Shifting Corridors (villain)
@@ -134,16 +155,24 @@ export const SHADOWLAND_SHADOW_LABYRINTH: AbilityRegistry = defineAbilities({
 
   // Expert side B is a flip of the freshly added villain: `flipCard` logs a flip for what the card calls a reveal
   // (`setVillainSide` is setup-only). The flip reveals side B, so side A's When Revealed never runs.
-  // 2A. When Revealed: 1. Set Shifting Corridors aside. 2. Find the chosen Dark Protege villain; discard each status
-  // card, token and attached card from it (a set-aside card is a new copy with none: `setVillainAside` and
-  // `addVillain` leave it clean; once Whisper in the Dark is scripted the villain may instead be in play as a minion
-  // here, and this must discard its tokens, statuses and attachments). 3. Reveal its side A (side B instead in expert mode).
+  // 2A. When Revealed: 1. Set Shifting Corridors aside. 2. Find the chosen Dark Protege villain wherever it is: set
+  // aside, in play as Whisper in the Dark's minion or as a villain, or in a deck or discard pile. RRG v1.8 "Find" p. 19:
+  // removed-from-game cards are not searched; the trap deck and trap discard pile are. Discard each status card, token
+  // and attached card from it. In play as the minion, Whisper going makes it a
+  // villain where it is (a status change: no leaving or entering play, and no event says so but `villainAdded
+  // asStatusChange`; that it neither leaves nor enters play is an engine reading of the rules expert's verdict). 3.
+  // Reveal its side A (side B instead in expert mode): out of play it enters play as the villain (`addVillain`); in
+  // play it is revealed where it is (`inPlay: "reveal"`), never added twice. Nothing found (the card was removed from the
+  // game: discarded as Whisper's minion, a double-sided card, or defeated as a villain): no villain is in play and the
+  // game goes on, the players unable to win, 2B's completion still losing. That is the Grim Rule (RRG v1.8 p. 4), the
+  // rules expert's recommended default for owner question 8, PR #355.
   "65039a.when-revealed": whenRevealed(
     setVillainAside(find(CORRIDORS)),
+    ...discardStatusesTokensAndAttachments(chosenVillain),
     ifThen(
       inMode("expert"),
-      [addVillain(chosenVillain), flipCard(chosenVillain)],
-      addVillain(chosenVillain, { reveal: true }),
+      [addVillain(chosenVillain, { inPlay: "reveal" }), flipCard(chosenVillain)],
+      addVillain(chosenVillain, { reveal: true, inPlay: "reveal" }),
     ),
   ),
   // 2B. When Revealed: In expert mode, the villain activates against each player.
@@ -200,14 +229,26 @@ export const SHADOWLAND_SHADOW_LABYRINTH: AbilityRegistry = defineAbilities({
     revealTopOfScenarioDeck(TRAP_DECK, you),
   ),
   "65045.boost": boost(shuffleTrapDiscardIntoTraps(), shuffleEncounterIntoTraps(2)),
+
+  // Treat attached villain as an Elite minion with 6 printed hit points. It gains: "Guard. Villainous. When Defeated:
+  // Set this minion aside."
+  "65040.whisper-in-the-dark-constant": constant(
+    treatAttachedVillainAsMinion([ELITE], { printedHp: 6 }),
+    gainsKeyword({ name: "guard" }, ATTACHED),
+    gainsKeyword({ name: "villainous" }, ATTACHED),
+    gainsAbility("65040.when-defeated", { to: ATTACHED }),
+  ),
+  // The gained When Defeated: `self` is the villain card. Whisper is discarded with it (to the trap discard pile).
+  "65040.when-defeated": whenDefeated(moveCards(cards(self), "encounterSetAside")),
+  // When Revealed: If Shifting Corridors is in play, put the set-aside chosen villain into play engaged with you, side A
+  // faceup, with this card attached; otherwise, set this card aside and the villain schemes.
+  "65040.when-revealed": whenRevealed(
+    ifThen(corridorsInPlay, putIntoPlayAsHost(chosenVillain, { villainSide: "A" }), [
+      moveCards(cards(self), "encounterSetAside"),
+      enemyScheme(theVillain),
+    ]),
+  ),
 });
 
-const WHISPER_GAP =
-  'needs an engine primitive that does not exist: a VILLAIN card put into play as an Elite minion engaged with a player (6 printed hit points, gaining Guard, Villainous and a When Defeated that sets it aside) and the attachment that makes it so; the engine\'s treat-as-minion rules (treatAsMinion, treatHostAsMinion) change allies only, and addVillain would make it an additional villain, not a minion, which is a wrong game, not an approximation. While it is unscripted a revealed Whisper is placed as a plain attachment and then discarded, so the stage-2 branch "otherwise, set this card aside and the villain schemes" is lost.';
-
 /** Refs of this module's cards deliberately left unscripted, each with its written reason. */
-export const SHADOWLAND_SHADOW_LABYRINTH_SKIPPED: Readonly<Record<string, string>> = {
-  "65040.whisper-in-the-dark-constant": `Whisper in the Dark, "Treat attached villain as an Elite minion with 6 printed hit points. It gains Guard. Villainous...": ${WHISPER_GAP}`,
-  "65040.when-defeated": `Whisper in the Dark, "When Defeated: Set this minion aside" (granted to the villain it treats as a minion): ${WHISPER_GAP}`,
-  "65040.when-revealed": `Whisper in the Dark, "put the set-aside chosen villain into play engaged with you, side A faceup, with this card attached": ${WHISPER_GAP}`,
-};
+export const SHADOWLAND_SHADOW_LABYRINTH_SKIPPED: Readonly<Record<string, string>> = {};

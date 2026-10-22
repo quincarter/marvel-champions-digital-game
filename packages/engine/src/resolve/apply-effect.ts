@@ -83,7 +83,8 @@ import {
   inAnyEncounterDiscard,
   isMinion,
   isPlayerCardType,
-  isSeatlessIdentity,
+  isHostOnlyCard,
+  isLooseVillainCard,
   locateCard,
   mainSchemeStateOf,
   maxHitPoints,
@@ -263,7 +264,7 @@ import {
 } from "./enter-play.js";
 import { addFrameSlots, addFrameVars, eventFrame, type Frame, pushEffects, pushEvent, pushEvents } from "./frames.js";
 import { insertConsequentialDamage, pushConsequentialDamage, setBasicPowerStat } from "../actions.js";
-import { takeControlAsOwnAlly, treatAsAlly } from "../treat-as.js";
+import { hostOnlyReleaseZone, takeControlAsOwnAlly, treatAsAlly } from "../treat-as.js";
 import {
   enterPlayOnReveal,
   replaceRevealInProgress,
@@ -2210,21 +2211,40 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       };
       bound([]);
       if (!playerId || id === undefined) return;
-      // Only a card that can be in play as nothing else: an identity card no player is using, out of play.
-      if (!isSeatlessIdentity(ctx.state, id) || cardsInPlay(ctx.state).includes(id)) {
+      // Only a card that can be in play as nothing else, out of play: an identity card no player is using, or a
+      // set-aside villain card that is not one of the game's villains.
+      const looseVillain = isLooseVillainCard(ctx.state, id);
+      if (
+        !isHostOnlyCard(ctx.state, id) ||
+        cardsInPlay(ctx.state).includes(id) ||
+        (looseVillain && !ctx.state.encounterSetAside.includes(id))
+      ) {
         emit(ctx, { type: "putIntoPlayRefused", instanceId: id, playerId, reason: "cardType" });
         return;
       }
       if (admitUniqueEntry(ctx, [id], playerId, frame.selfInstanceId).length === 0) return;
+      // "Side A faceup": `flipped` is the side other than its starting one (`looseVillainStage`).
+      const villainCard = looseVillain ? ctx.state.cardPool[mustInstance(ctx.state, id).cardId] : undefined;
+      const flipped =
+        villainCard?.type === "villain" &&
+        effect.villainSide !== undefined &&
+        effect.villainSide !== (villainCard.startingSide ?? "A");
       moveCard(ctx, id, { kind: "playArea", playerId });
-      updateInstance(ctx, id, (i) => ({ ...i, controllerId: null, engagedWith: playerId, faceup: true }));
+      updateInstance(ctx, id, (i) => ({
+        ...i,
+        controllerId: null,
+        engagedWith: playerId,
+        faceup: true,
+        ...(looseVillain ? { flipped } : {}),
+      }));
       const attached =
         attachment === undefined ? [] : attachCardBy(ctx, attachment, id, context.controllerId ?? playerId);
       if (!isMinion(ctx.state, id)) {
-        // Nothing treats it as a minion (the attachment was refused, or has no such rule): an identity card cannot
-        // stay in play as no player's identity, so it goes as it does when that attachment leaves (§4.1 Q39 = A).
+        // Nothing treats it as a minion (the attachment was refused, or has no such rule): the card cannot stay in
+        // play as nothing, so it goes as it does when that attachment leaves (`hostOnlyReleaseZone`: an identity card
+        // is removed from the game, §4.1 Q39 = A; a villain card goes back to the set-aside area).
         emit(ctx, { type: "putIntoPlayRefused", instanceId: id, playerId, reason: "noLegalHost" });
-        leavePlayAtOnce(ctx, id, { kind: "removedFromGame" });
+        leavePlayAtOnce(ctx, id, hostOnlyReleaseZone(ctx.state, id));
         return;
       }
       bound([id]);
@@ -2695,6 +2715,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         effect.reveal ?? false,
         actor,
         effect.row,
+        effect.inPlay,
       );
       // "If no villain was put into play this way" (docs/phase7-wave5.md §3.1).
       if (effect.bind) {
@@ -2743,6 +2764,14 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       pushHeard(events);
       return;
     }
+    case "discardTokens":
+      for (const id of targets(effect.target)) {
+        const instance = getInstance(ctx.state, id);
+        if (!instance || (instance.damage === 0 && instance.threat === 0)) continue;
+        updateInstance(ctx, id, (i) => ({ ...i, damage: 0, threat: 0 }));
+        emit(ctx, { type: "tokensDiscarded", instanceId: id, damage: instance.damage, threat: instance.threat });
+      }
+      return;
     case "setVillainAside":
       setVillainsAside(ctx, targets(effect.villain));
       return;

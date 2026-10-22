@@ -81,6 +81,7 @@ import {
   undefeatedVillains,
   villainOf,
   villainStageOf,
+  looseVillainStage,
   isPlayerCardType,
   scenarioPlayAreaOf,
   isOwnedEncounterCard,
@@ -636,8 +637,14 @@ function printedTraitsOf(state: GameState, id: InstanceId): readonly Trait[] {
   }
   if (treated) {
     if (treated.kind === "ally") return treated.traits;
-    // A hero treated as a minion keeps its hero side's traits (docs/phase7-wave9.md §4.1 Q41 = A).
-    const printed = card.type === "ally" ? card.traits : card.type === "hero_identity" ? foeHeroFace(card).traits : [];
+    // A hero treated as a minion keeps its hero side's traits (docs/phase7-wave9.md §4.1 Q41 = A); a villain card the
+    // traits of the stage it shows (`looseVillainStage`).
+    const printed =
+      card.type === "ally"
+        ? card.traits
+        : card.type === "hero_identity"
+          ? foeHeroFace(card).traits
+          : (looseVillainStage(state, id)?.traits ?? []);
     return treated.keepPrintedTraits ? [...treated.traits, ...printed] : treated.traits;
   }
   const face = encounterFace(state, id);
@@ -4338,7 +4345,7 @@ export function unblankedAbilityRefs(state: GameState, id: InstanceId): readonly
     return identityFace(state, player).face.abilities;
   }
   if (card.type === "villain") {
-    return isVillain(state, id) ? villainStageOf(state, id).abilities : [];
+    return isVillain(state, id) ? villainStageOf(state, id).abilities : (looseVillainStage(state, id)?.abilities ?? []);
   }
   if (card.type === "main_scheme") {
     const scheme = mainSchemeStateOf(state, id);

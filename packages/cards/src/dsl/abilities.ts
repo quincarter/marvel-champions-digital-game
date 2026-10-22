@@ -1789,6 +1789,30 @@ export const treatAttachedHeroAsMinion = (traits: readonly Trait[]): ConstantPar
   rules: [{ kind: "treatHostAsMinion", traits, schFromThw: true, keepPrintedTraits: true }],
 });
 /**
+ * "Treat attached villain as an Elite minion with 6 printed hit points." (Whisper in the Dark, Shadowland 65040) →
+ * `treatAttachedVillainAsMinion([ELITE], { printedHp: 6 })`. The host is a villain card that is not one of the game's
+ * villains, put into play by `putIntoPlayAsHost`: a minion (never "the villain"), with the ATK and SCH of the stage it
+ * shows, its printed traits beside `traits`, and its own text box, keywords and abilities kept (the card blanks
+ * nothing; RRG 1.8 "Card Types", p. 12: a card whose type changes "functions as would any card of the new card type").
+ * `printedHp`: the hit points the attachment prints for it, unscaled (absent: the stage's). What it "gains" is
+ * `gainsKeyword` / `gainsAbility` with `to: { hostOfSelf: true }` beside this. When the attachment leaves without the
+ * minion leaving play, the card stays in play as one of the game's villains (`promoteLooseVillain`).
+ */
+export const treatAttachedVillainAsMinion = (
+  traits: readonly Trait[],
+  opts: { readonly printedHp?: number } = {},
+): ConstantPart => ({
+  rules: [
+    {
+      kind: "treatHostAsMinion",
+      traits,
+      keepPrintedTraits: true,
+      keepsText: true,
+      ...(opts.printedHp !== undefined ? { printedHp: opts.printedHp } : {}),
+    },
+  ],
+});
+/**
  * "Nebula ignores the guard keyword, the patrol keyword, and the crisis icon" (Evasive Maneuvering, `nebu` 22005; Wasp,
  * `ironheart` 29034; Shadowcat, `mut_gen` 32002/32030a; Psionic Training, `psylocke` 41010, guard and patrol only):
  * `constant(ignores(YOUR_IDENTITY, ["guard", "patrol", "crisis"], isHero()))`. docs/phase7-wave4.md §3.24.

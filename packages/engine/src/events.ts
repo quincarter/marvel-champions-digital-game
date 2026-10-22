@@ -375,6 +375,18 @@ export type GameEvent =
       readonly instanceId: InstanceId;
       readonly cardId: CardId;
       readonly areaId: GameAreaId | null;
+      /**
+       * A villain card already in play as a minion became one of the game's villains when nothing treated it as a
+       * minion any more (`promoteLooseVillain`, Whisper in the Dark): a status change, it did not enter play.
+       */
+      readonly asStatusChange?: true;
+    }
+  /** `EffectSpec discardTokens`: the damage and threat tokens discarded from a card (not a heal). */
+  | {
+      readonly type: "tokensDiscarded";
+      readonly instanceId: InstanceId;
+      readonly damage: number;
+      readonly threat: number;
     }
   /** A villain was removed from the game without being defeated (`removeVillain`). */
   | { readonly type: "villainRemoved"; readonly instanceId: InstanceId }

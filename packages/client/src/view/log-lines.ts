@@ -388,7 +388,10 @@ function describe(
       };
     case "villainAdded":
       return {
-        text: `${card(event.instanceId)} joins the fight as another ${foeWord(cardOf(state, event.instanceId), { lower: true })}.`,
+        // A card in play as a minion that is a villain again where it is (Whisper in the Dark leaving it).
+        text: event.asStatusChange
+          ? `${card(event.instanceId)} is a ${foeWord(cardOf(state, event.instanceId), { lower: true })} again.`
+          : `${card(event.instanceId)} joins the fight as another ${foeWord(cardOf(state, event.instanceId), { lower: true })}.`,
         voice: "villain",
       };
     case "villainRemoved":
@@ -510,6 +513,15 @@ function describe(
         // "Tough" is the only prevention with a token to strike through.
         ...(event.reason === "tough" ? { tags: [{ status: "tough", spent: true } as const] } : {}),
         voice: "player",
+      };
+    case "tokensDiscarded":
+      return {
+        text: `${card(event.instanceId)} loses ${
+          [event.damage > 0 ? `${event.damage} damage` : null, event.threat > 0 ? `${event.threat} threat` : null]
+            .filter((part): part is string => part !== null)
+            .join(" and ") || "its tokens"
+        } (discarded, not healed).`,
+        voice: "scenario",
       };
     case "damageHealed":
       return { text: `${card(event.targetInstanceId)} healed ${event.amount} damage.`, voice: "player" };
