@@ -49,6 +49,7 @@ import { tooltipContentOf, type TermTextTerm } from "../view/term-text-model.js"
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { dashedRect, fitWrapped, McButton } from "./widgets.js";
 import { McScrollRegion } from "./scroll-region.js";
+import { onTap } from "./tap.js";
 import { McTermText } from "./term-text.js";
 import { McTooltip } from "./tooltip.js";
 import { textStyle } from "./theme.js";
@@ -275,12 +276,11 @@ export class McGuidePanel {
     // builds a *fresh* `McGuidePanel` every draw (`scenes/board/guide-mount.ts` draw()`'s own header) — that
     // next instance is `update()`d with the full-width rail rect, since `railOptionFor` now reports the
     // uncollapsed width, so it draws expanded correctly the very next frame instead.
-    zone.on("pointerup", () => {
-      this.#options.onExpand?.();
-    });
+    const expand = (): void => this.#options.onExpand?.();
+    onTap(zone, expand, "guide:expand");
     objects.push(zone);
 
-    this.#focusables = [{ rect: tabRect, activate: () => zone.emit("pointerup") }];
+    this.#focusables = [{ rect: tabRect, activate: expand }];
     this.#focusIndex = -1;
     this.#primaryLabel = null;
 
@@ -362,14 +362,15 @@ export class McGuidePanel {
       )
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
-    collapseZone.on("pointerup", () => {
+    const collapse = (): void => {
       this.collapse();
       this.#options.onCollapse?.();
-    });
+    };
+    onTap(collapseZone, collapse, "guide:collapse");
     objects.push(collapseZone);
     focusables.push({
       rect: { x: collapseText.x - collapseText.width, y: headerCy - 12, width: collapseText.width, height: 24 },
-      activate: () => collapseZone.emit("pointerup"),
+      activate: collapse,
     });
 
     // --- Header row 2 (only when at least one §3.10 exit is wired): "Skip this step" / "Stop tutorial",
@@ -410,9 +411,10 @@ export class McGuidePanel {
           .zone(headerExits.skip.x, headerExits.skip.y, headerExits.skip.width, headerExits.skip.height)
           .setOrigin(0, 0)
           .setInteractive({ useHandCursor: true });
-        skipZone.on("pointerup", () => this.#options.onSkip?.());
+        const skip = (): void => this.#options.onSkip?.();
+        onTap(skipZone, skip, "guide:skip");
         objects.push(skipZone);
-        focusables.push({ rect: headerExits.skip, activate: () => skipZone.emit("pointerup") });
+        focusables.push({ rect: headerExits.skip, activate: skip });
       } else {
         skipMeasure?.destroy();
       }
@@ -427,9 +429,10 @@ export class McGuidePanel {
           .zone(headerExits.stop.x, headerExits.stop.y, headerExits.stop.width, headerExits.stop.height)
           .setOrigin(0, 0)
           .setInteractive({ useHandCursor: true });
-        stopZone.on("pointerup", () => this.#options.onStop?.());
+        const stop = (): void => this.#options.onStop?.();
+        onTap(stopZone, stop, "guide:stop");
         objects.push(stopZone);
-        focusables.push({ rect: headerExits.stop, activate: () => stopZone.emit("pointerup") });
+        focusables.push({ rect: headerExits.stop, activate: stop });
       }
     }
 
@@ -616,8 +619,15 @@ export class McGuidePanel {
         rect: layout.body,
         heights: [bodyContentHeight],
         scroll: this.#bodyScroll,
+        // A mask hides pixels, not hit areas: a term zone scrolled out of the body would still win a tap meant for the
+        // lesson list above or the Back / primary buttons below, which are added after it.
+        clipInteractive: true,
+        // A scroll closes an open tooltip: its term moved away, and the scroll's own clip pass turns back on the terms
+        // the tooltip holds off.
+        onScroll: () => this.#tooltip.hide(),
       });
       region.content.add(bodyObjects);
+      region.syncInteractivity();
       this.#scrollRegion = region;
     } else {
       this.#bodyScroll.reset();
@@ -815,7 +825,7 @@ export class McGuidePanel {
         .zone(x, y + height / 2 - zoneHeight / 2, width, zoneHeight)
         .setOrigin(0, 0)
         .setInteractive({ useHandCursor: true });
-      zone.on("pointerup", () => opts.onClick?.());
+      onTap(zone, () => opts.onClick?.(), `guide:row:${opts.index ?? 0}:${opts.label}`);
       objects.push(zone);
       focusable = { rect: { x, y, width, height }, activate: () => opts.onClick?.() };
     }
@@ -832,7 +842,11 @@ export class McGuidePanel {
       content,
       this.#rect,
       () => this.#options.onOpenGlossary?.(content.title),
-      () => this.#body?.setTermsEnabled(() => true),
+      () => {
+        this.#body?.setTermsEnabled(() => true);
+        // `setTermsEnabled` re-enables every zone, scrolled-out ones included.
+        this.#scrollRegion?.syncInteractivity();
+      },
       block,
     );
   }
