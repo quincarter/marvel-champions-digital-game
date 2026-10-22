@@ -1,4 +1,12 @@
-import { cardsInPlay, type GameEvent, type GameState, type InstanceId } from "@mc/engine";
+import {
+  cardsInPlay,
+  characterProfile,
+  chosenVillainOf,
+  createGame,
+  type GameEvent,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import {
   P1,
@@ -7,11 +15,25 @@ import {
   firstLegal,
   identityOf,
   inst,
+  patchInstance,
+  settle,
   stackEncounterDeck,
   type Picker,
 } from "../../testing/harness.js";
-import { driveEventsPicking, playFromHand } from "../../testing/staging.js";
-import { CAPTAIN_MARVEL, SHE_HULK, SPIDER_MAN, codeOf, heroForm, heroThwarts, types } from "../../wave9/testing.js";
+import { driveEventsPicking, encounterCardInVillainArea, playFromHand } from "../../testing/staging.js";
+import { WAVE11_DEPS } from "../index.js";
+import { wave11Scenario, type Wave11ScenarioOptions } from "../setup.js";
+import {
+  CAPTAIN_MARVEL,
+  SHE_HULK,
+  SPIDER_MAN,
+  type Seats,
+  codeOf,
+  heroAttacks,
+  heroForm,
+  heroThwarts,
+  types,
+} from "../../wave9/testing.js";
 import { SHADOWLAND_SHADOW_LABYRINTH, SHADOWLAND_SHADOW_LABYRINTH_SKIPPED } from "./shadow-labyrinth.js";
 import {
   BLINDING,
@@ -295,20 +317,305 @@ describe("Sudden Shift (65045)", () => {
   });
 });
 
+const DAREDEVIL = "65013a";
+const HALL_OF_HIDDEN_DOORS = "65043";
+interface LabyrinthOptions {
+  readonly seats?: Seats;
+  readonly expert?: boolean;
+  readonly pick?: string;
+  readonly seed?: number;
+}
+/**
+ * A real Shadow Labyrinth game, built by `wave11Scenario("shadow-labyrinth", ...)` with the Dark Protege villain picked
+ * (Daredevil unless named); the trap deck is the record's own. Heroes in hero form.
+ */
+function labyrinthConfig(opts: LabyrinthOptions = {}) {
+  const options: Wave11ScenarioOptions = {
+    players: opts.seats ?? [SPIDER_MAN],
+    seed: opts.seed ?? 3,
+    villainCardId: opts.pick ?? DAREDEVIL,
+    modularSetIds: ["ninja_swarm"],
+    ...(opts.expert ? { difficulty: "expert" as const } : {}),
+  };
+  return wave11Scenario("shadow-labyrinth", options);
+}
+function labyrinth(opts: LabyrinthOptions = {}): GameState {
+  const seats = opts.seats ?? [SPIDER_MAN];
+  const created = createGame(labyrinthConfig(opts), WAVE11_DEPS);
+  if (!created.ok) throw new Error(created.error.message);
+  const settled = settle(created.state, firstLegal, (s) => s.step.phase === "player", WAVE11_DEPS);
+  return heroForm(settled, ...seats.map((_, i) => [P1, P2][i]!));
+}
+const schemeId = (s: GameState): InstanceId => s.mainScheme.instanceId;
+const threatOf = (s: GameState, id: InstanceId): number => inst(s, id).threat;
+const readied = (s: GameState, ...players: readonly (typeof P1)[]): GameState =>
+  players.reduce((acc, p) => patchInstance(acc, identityOf(acc, p), { exhausted: false }), s);
+/** The scheme one threat from advancing, then the last threat removed by a real attack on Shifting Corridors. */
+function atStage2(opts: LabyrinthOptions = {}) {
+  const start = labyrinth(opts);
+  const corridors = villainId(start);
+  const run = heroAttacks(WAVE11_DEPS, patchInstance(start, schemeId(start), { threat: 1 }), corridors);
+  return { ...run, corridors, start };
+}
+const attacksOn = (s: GameState, events: readonly GameEvent[], villain: InstanceId, player: typeof P1) =>
+  types(events, "attackResolved").filter(
+    (e) => e.enemyInstanceId === villain && e.targetInstanceId === identityOf(s, player),
+  ).length;
+
+describe("the scenario record's trap deck", () => {
+  it("wave11Scenario alone declares it, and a real game finds the 8 trap cards", () => {
+    const config = labyrinthConfig();
+    expect(config.scenarioDecks).toHaveLength(1);
+    expect(config.scenarioDecks![0]).toMatchObject({ name: "trap", discardPile: "own", buildAtSetup: true });
+    const s = labyrinth();
+    expect(trapHas(s)).toHaveLength(8);
+    expect(trapHas(s)).toContain("65040");
+  });
+});
+
+describe("Into the Labyrinth 1A: Setup (65038a.setup)", () => {
+  it("builds the trap deck: every TRAP! card of the encounter deck, Whisper in the Dark among them", () => {
+    const s = labyrinth();
+    const traps = trapHas(s);
+    expect(traps).toHaveLength(8);
+    expect(traps).toContain("65040");
+    // The seven Deadly Contraptions TRAP! treacheries and Whisper: none of them is still in the encounter deck.
+    const remaining = encounterPiles(s).deck.map((id) => codeOf(s, id));
+    for (const code of traps) expect(remaining).not.toContain(code);
+  });
+
+  it("the chosen Dark Protege villain waits set aside (scenario setup, not this script)", () => {
+    const s = labyrinth({ pick: "65015a" });
+    expect(codeOf(s, chosenVillainOf(s)!)).toBe("65015a");
+    expect(s.encounterSetAside).toContain(chosenVillainOf(s));
+  });
+});
+
+describe("Into the Labyrinth 1B: passage counters (65038b.when-revealed)", () => {
+  it("standard: 10 per hero on Shifting Corridors", () => {
+    expect(passageOn(labyrinth())).toBe(10);
+    expect(passageOn(labyrinth({ seats: [SPIDER_MAN, CAPTAIN_MARVEL] }))).toBe(20);
+  });
+  it("expert: 7 per hero instead", () => {
+    expect(passageOn(labyrinth({ expert: true }))).toBe(7);
+    expect(passageOn(labyrinth({ expert: true, seats: [SPIDER_MAN, CAPTAIN_MARVEL] }))).toBe(14);
+  });
+});
+
+describe("Into the Labyrinth 1B: damage to Shifting Corridors (65038b.into-the-labyrinth-forced-interrupt)", () => {
+  it("removes that much threat from the main scheme instead; Shifting Corridors takes none", () => {
+    const game = labyrinth();
+    const start = patchInstance(game, schemeId(game), { threat: 10 });
+    const run = heroAttacks(WAVE11_DEPS, start, villainId(start));
+    const removed = types(run.events, "threatRemoved").filter((e) => e.schemeInstanceId === schemeId(start));
+    // The attack's damage (Spider-Man's ATK) is the threat removed.
+    expect(removed).toHaveLength(1);
+    expect(removed[0]!.amount).toBeGreaterThan(0);
+    expect(threatOf(run.state, schemeId(start))).toBe(10 - removed[0]!.amount);
+    expect(inst(run.state, villainId(start)).damage).toBe(0);
+    expect(passageOn(run.state)).toBe(10);
+    expect(run.state.mainScheme.stageIndex).toBe(0);
+  });
+
+  it("damage above the remaining threat clamps the removal at 0 (and advances); Shifting Corridors takes none", () => {
+    const game = labyrinth();
+    const start = patchInstance(game, schemeId(game), { threat: 1 });
+    const run = heroAttacks(WAVE11_DEPS, start, villainId(start));
+    expect(types(run.events, "threatRemoved").find((e) => e.schemeInstanceId === schemeId(start))!.amount).toBe(1);
+    expect(inst(run.state, villainId(start)).damage).toBe(0);
+    expect(threatOf(run.state, schemeId(start))).toBeGreaterThanOrEqual(0);
+  });
+
+  it("the control: damage to another enemy is dealt as usual and removes no scheme threat", () => {
+    const game = labyrinth();
+    const minion = encounterCardInVillainArea(game, DEATHSTRIKE);
+    const before = threatOf(minion.state, schemeId(game));
+    const run = heroAttacks(WAVE11_DEPS, minion.state, minion.id);
+    expect(inst(run.state, minion.id).damage).toBeGreaterThan(0);
+    expect(threatOf(run.state, schemeId(game))).toBe(before);
+  });
+});
+
+describe("Into the Labyrinth 1B: the last threat removed (65038b.into-the-labyrinth-forced-interrupt-2)", () => {
+  it("advances to stage 2, and the stage 2A When Revealed puts the chosen villain in play on side A", () => {
+    const { state, corridors, events } = atStage2();
+    expect(state.mainScheme.stageIndex).toBe(1);
+    expect(types(events, "mainSchemeAdvanced")).toHaveLength(1);
+    expect(state.outcome).toBeNull();
+    // 2A step 1: Shifting Corridors is set aside (out of play, no counters left).
+    expect(types(events, "villainSetAside").map((e) => e.instanceId)).toEqual([corridors]);
+    expect(state.encounterSetAside).toContain(corridors);
+    expect(inst(state, corridors).counters).toEqual({});
+    // Steps 2 and 3: the chosen villain, clean, side A, is the villain.
+    const chosen = chosenVillainOf(state)!;
+    expect(codeOf(state, chosen)).toBe(DAREDEVIL);
+    expect(state.encounterSetAside).not.toContain(chosen);
+    expect(state.villains.find((v) => v.instanceId === chosen)).toMatchObject({ side: "A", defeated: false });
+    expect(state.activeVillainId).toBe(chosen);
+    expect(types(events, "villainAdded").map((e) => e.instanceId)).toEqual([chosen]);
+    expect(inst(state, chosen).damage).toBe(0);
+    expect(inst(state, chosen).attachments).toEqual([]);
+  });
+
+  it("expert: the chosen villain is revealed on side B instead (18 hit points per player, tough, no side A reveal)", () => {
+    const { state, events } = atStage2({ expert: true });
+    expect(state.mainScheme.stageIndex).toBe(1);
+    const chosen = chosenVillainOf(state)!;
+    expect(state.villains.find((v) => v.instanceId === chosen)).toMatchObject({ side: "B", defeated: false });
+    expect(characterProfile(state, chosen, WAVE11_DEPS)!.maxHp).toBe(18);
+    // Side B's Toughness.
+    expect(inst(state, chosen).statuses.tough).toBe(1);
+    // flipCard logs a flip for what the card calls a reveal (setVillainSide is setup-only), and side A never resolved.
+    expect(types(events, "villainFlipped").map((e) => e.instanceId)).toContain(chosen);
+    expect(
+      types(events, "abilityResolved").filter(
+        (e) =>
+          e.instanceId === chosen &&
+          String(e.abilityId).startsWith("65013a.") &&
+          /when-revealed/.test(String(e.abilityId)),
+      ),
+    ).toEqual([]);
+  });
+
+  it("any other way the last threat leaves it advances too (a thwart)", () => {
+    const game = labyrinth();
+    const start = patchInstance(game, schemeId(game), { threat: 1 });
+    const run = heroThwarts(WAVE11_DEPS, start, schemeId(start));
+    expect(run.state.mainScheme.stageIndex).toBe(1);
+  });
+
+  it("threat remaining: no advance", () => {
+    const game = labyrinth();
+    const start = patchInstance(game, schemeId(game), { threat: 5 });
+    const run = heroThwarts(WAVE11_DEPS, start, schemeId(start));
+    expect(run.state.mainScheme.stageIndex).toBe(0);
+  });
+});
+
+describe("Chamber of Vile Secrets 2B (65039b)", () => {
+  it("When Revealed, expert: the villain activates against each player", () => {
+    const seats = [SPIDER_MAN, CAPTAIN_MARVEL] as const;
+    const expert = atStage2({ seats, expert: true });
+    const standard = atStage2({ seats });
+    const chosenExpert = chosenVillainOf(expert.state)!;
+    const chosenStandard = chosenVillainOf(standard.state)!;
+    for (const player of [P1, P2]) {
+      expect(attacksOn(expert.state, expert.events, chosenExpert, player)).toBeGreaterThan(
+        attacksOn(standard.state, standard.events, chosenStandard, player),
+      );
+    }
+  });
+
+  it("Forced Response: after you thwart this scheme, you reveal the top card of the trap deck", () => {
+    const { state } = atStage2();
+    const ready = stackTraps(readied(state, P1), BLINDING);
+    const run = heroThwarts(WAVE11_DEPS, patchInstance(ready, schemeId(ready), { threat: 6 }), schemeId(ready));
+    expect(revealed(run.state, run.events)).toContainEqual({ code: BLINDING, player: P1 });
+  });
+
+  // BLOCKER (engine fix pending): the thwart that removes stage 1's last threat must not trigger stage 2B's response (a
+  // stage change counts as entering play, RRG 1.8 p. 27 step 1, p. 23). Today it does, and uses up the player's limit.
+  it.fails("the stage-1 thwart that advances the scheme reveals no trap card and uses no limit", () => {
+    const game = labyrinth();
+    const start = stackTraps(patchInstance(game, schemeId(game), { threat: 1 }), BLINDING);
+    const run = heroThwarts(WAVE11_DEPS, start, schemeId(start));
+    expect(run.state.mainScheme.stageIndex).toBe(1);
+    expect(revealed(run.state, run.events).filter((r) => r.code === BLINDING)).toEqual([]);
+    const next = heroThwarts(
+      WAVE11_DEPS,
+      patchInstance(readied(run.state, P1), schemeId(start), { threat: 6 }),
+      schemeId(start),
+    );
+    expect(revealed(next.state, next.events).filter((r) => r.player === P1)).toHaveLength(1);
+  });
+
+  it("limit once per round per player: a second thwart reveals nothing; another player's still does", () => {
+    const seats = [SPIDER_MAN, CAPTAIN_MARVEL] as const;
+    let { state } = atStage2({ seats });
+    state = patchInstance(readied(state, P1, P2), schemeId(state), { threat: 12 });
+    const first = heroThwarts(WAVE11_DEPS, state, schemeId(state), { player: P1 });
+    expect(revealed(first.state, first.events).filter((r) => r.player === P1)).toHaveLength(1);
+    const again = heroThwarts(WAVE11_DEPS, readied(first.state, P1), schemeId(state), { player: P1 });
+    expect(revealed(again.state, again.events).filter((r) => r.player === P1)).toEqual([]);
+    // P1 ends the turn; it is the same round, and P2's own limit is untouched.
+    const passed = driveEventsPicking(WAVE11_DEPS, again.state, firstLegal, endTurn(P1)).state;
+    const other = heroThwarts(WAVE11_DEPS, readied(passed, P2), schemeId(state), { player: P2 });
+    expect(revealed(other.state, other.events).filter((r) => r.player === P2)).toHaveLength(1);
+  });
+
+  it("completing this stage loses the game", () => {
+    const { state } = atStage2();
+    const full = patchInstance(state, schemeId(state), { threat: 9 });
+    const run = driveEventsPicking(WAVE11_DEPS, full, firstLegal, endTurn(P1));
+    expect(run.state.outcome).toMatchObject({ result: "loss" });
+  });
+});
+
+describe("Hall of Hidden Doors (65043)", () => {
+  it("When Defeated: removes 5 threat from the main scheme, discards until a minion or side scheme, reveals it", () => {
+    const game = labyrinth();
+    const hall = encounterCardInVillainArea(
+      patchInstance(game, schemeId(game), { threat: 20 }),
+      HALL_OF_HIDDEN_DOORS,
+      1,
+    );
+    const state = stackEncounterDeck(hall.state, NO_TIME, DEAD_END);
+    const [noTime, deadEnd] = encounterPiles(state).deck as [InstanceId, InstanceId];
+    const run = heroThwarts(WAVE11_DEPS, state, hall.id);
+    expect(threatOf(run.state, schemeId(state))).toBe(15);
+    expect(encounterPiles(run.state).discard).toContain(noTime);
+    expect(cardsInPlay(run.state)).toContain(deadEnd);
+    expect(revealed(run.state, run.events).map((r) => r.code)).toContain(DEAD_END);
+    // Dead End's own When Revealed ran: Shifting Corridors is in play, so a passage counter went.
+    expect(passageOn(run.state)).toBe(9);
+  });
+
+  it("Boost: places 3 threat on the main scheme", () => {
+    const state = trapGame({ villain: "rhino", trapCards: TRAPS, encounter: [HALL_OF_HIDDEN_DOORS, FILLER, FILLER] });
+    const run = endTurnAnswering(state, firstLegal);
+    const placed = types(run.events, "threatPlaced").filter(
+      (e) => e.schemeInstanceId === run.state.mainScheme.instanceId && e.amount === 3,
+    );
+    expect(placed).toHaveLength(1);
+  });
+});
+
+describe("Whisper in the Dark (65040)", () => {
+  it("is skipped with a written reason for each ref: the engine has no villain-as-minion primitive", () => {
+    expect(Object.keys(SHADOWLAND_SHADOW_LABYRINTH_SKIPPED).filter((id) => id.startsWith("65040."))).toHaveLength(3);
+  });
+});
+
 describe("registry", () => {
-  it("scripts all nine refs and skips none", () => {
+  it("scripts every ref of its group but Whisper in the Dark's", () => {
     expect(Object.keys(SHADOWLAND_SHADOW_LABYRINTH).sort()).toEqual([
       "65037.shifting-corridors-constant",
       "65037.shifting-corridors-forced-interrupt",
+      "65038a.setup",
+      "65038b.into-the-labyrinth-forced-interrupt",
+      "65038b.into-the-labyrinth-forced-interrupt-2",
+      "65038b.when-revealed",
+      "65039a.chamber-of-vile-secrets-constant",
+      "65039a.chamber-of-vile-secrets-constant-2",
+      "65039a.chamber-of-vile-secrets-constant-3",
+      "65039a.when-revealed",
+      "65039b.chamber-of-vile-secrets-forced-response",
+      "65039b.when-revealed",
       "65041.boost",
       "65041.when-revealed",
       "65042.when-revealed",
+      "65043.boost",
+      "65043.when-defeated",
       "65044.boost",
       "65044.when-revealed",
       "65045.boost",
       "65045.when-revealed",
     ]);
-    expect(SHADOWLAND_SHADOW_LABYRINTH_SKIPPED).toEqual({});
+    expect(Object.keys(SHADOWLAND_SHADOW_LABYRINTH_SKIPPED).sort()).toEqual([
+      "65040.when-defeated",
+      "65040.when-revealed",
+      "65040.whisper-in-the-dark-constant",
+    ]);
     expect(CORRIDORS).toBe("65037");
   });
 });

@@ -20,6 +20,7 @@
  *   standard mode, [2, 3] in expert mode.
  * - Shifting Corridors (shadow-labyrinth): one card, one stage, infinite hit points.
  */
+import { traitOf } from "../normalize/brand.ts";
 import type { ScenarioCuration } from "./types.ts";
 
 /**
@@ -92,6 +93,21 @@ export const SHADOWLAND_SCENARIO_RECORDS: readonly ScenarioCuration[] = [
     // Labyrinth, Chamber of Vile Secrets).
     villainStages: { standard: [1, 1], expert: [1, 1] },
     modularSetCount: 1,
+    // The trap deck (MC65 p. 12): "During setup, in addition to creating the encounter deck, find each TRAP! treachery
+    // from the encounter deck and shuffle them together with [...] Whisper in the Dark [...] this forms the 8-card trap
+    // deck": the seven Deadly Contraptions TRAP! treacheries and the Shadow Labyrinth TRAP! attachment, i.e. every
+    // TRAP! card in the deck (any other modular set's TRAP! cards join too). A TRAP! card discarded goes to the trap
+    // discard pile; it is reshuffled when empty with no acceleration token (p. 12).
+    separateDecks: [
+      {
+        name: "trap",
+        contents: { trait: traitOf("TRAP!") },
+        discardPile: "own",
+        whenEmpty: "reshuffleDiscardWithoutPenalty",
+        discardByTrait: traitOf("TRAP!"),
+        buildAtSetup: true,
+      },
+    ],
     villainCardOptions: {
       ...VILLAIN_CARD_OPTIONS,
       // "(keep the chosen villain set aside)": Whisper in the Dark brings it in, 2A reveals it.

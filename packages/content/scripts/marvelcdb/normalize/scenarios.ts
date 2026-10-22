@@ -113,6 +113,8 @@ export function normalizeScenarios(
       whenEmpty: d.whenEmpty,
       ...(d.closedToPlayerCards ? { closedToPlayerCards: true as const } : {}),
       ...(d.topCardInPlay ? { topCardInPlay: true as const } : {}),
+      ...(d.discardByTrait ? { discardByTrait: d.discardByTrait } : {}),
+      ...(d.buildAtSetup ? { buildAtSetup: true as const } : {}),
     }));
 
     // Several villains at once (docs/phase7-wave1.md §1.1 — The Wrecking Crew; docs/phase7-wave4.md §1.6 — Tower

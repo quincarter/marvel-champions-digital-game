@@ -360,6 +360,10 @@ export interface ScenarioSeparateDeckCuration {
   readonly closedToPlayerCards?: true;
   /** `ScenarioSeparateDeck.topCardInPlay` (wave 9, docs/phase7-wave9.md section 3.17: the Holding Cell deck). */
   readonly topCardInPlay?: true;
+  /** `ScenarioSeparateDeck.discardByTrait` (Shadowland's trap deck, MC65 pp. 12-13): a card with this trait is discarded to this deck's own discard pile. */
+  readonly discardByTrait?: Trait;
+  /** `ScenarioSeparateDeck.buildAtSetup`: built at setup with no card text asking (the trap deck, MC65 p. 12). */
+  readonly buildAtSetup?: true;
 }
 
 /**

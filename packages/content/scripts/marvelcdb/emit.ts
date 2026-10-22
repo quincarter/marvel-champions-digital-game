@@ -41,6 +41,7 @@ const KEY_BRANDS: Readonly<Record<string, BrandFn>> = {
   // `HostQualifiers.trait`/`withoutTrait` (`AttachmentHost`'s `qualified`/`superlative` kinds, wave 2).
   trait: "trait",
   withoutTrait: "trait",
+  discardByTrait: "trait",
   withoutAttachmentTrait: "trait",
   // `OffAspectAllowance.anyTrait` (Gamora's Skilled Tactician deckbuilding, wave 3, docs/phase7-wave3.md §1.5).
   anyTrait: "trait",
