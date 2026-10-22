@@ -3,6 +3,7 @@ import { scenarioDetailLines, scenarioDetailOf, shelfSubtitleOf, lockCaptionOf }
 import type { AnyCard, Scenario } from "@mc/content";
 import { randomVillainLabel } from "./random-villain.js";
 import { requiredCardLabel } from "./modular-sets.js";
+import { SHADOWLAND_SCENARIOS } from "@mc/content";
 import { CARDS_BY_ID, POOL_ENCOUNTER_SETS, POOL_SCENARIOS } from "../content/pool.js";
 
 const rhino = POOL_SCENARIOS.find((s) => (s.id as string) === "rhino")!;
@@ -244,5 +245,39 @@ describe("leader wording", () => {
     const plain = scenarioDetailOf(rhino, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
     expect(plain.foeWord).toBe("Villain");
     expect(scenarioDetailLines(plain)[0]).toMatch(/^Villain: /);
+  });
+});
+
+describe("Shadowland's card-keyed villain choice", () => {
+  const shadowland = (id: string) =>
+    scenarioDetailOf(
+      SHADOWLAND_SCENARIOS.find((s) => s.id === id)!,
+      CARDS_BY_ID,
+      POOL_ENCOUNTER_SETS,
+    );
+
+  const villainNamesOf = (id: string): string[] =>
+    SHADOWLAND_SCENARIOS.find((s) => s.id === id)!.villainOptions!.options.map(
+      (o) => CARDS_BY_ID.get(o.villainCardId as string)!.name,
+    );
+
+  test("Shadows in the Night lists the pool once, never the drawn villain's name", () => {
+    const d = shadowland("shadows-in-the-night");
+    expect(d.villainChoices).toEqual([]);
+    expect(d.villainPool).toMatchObject({ count: 6, setAside: false });
+    expect(d.villainIsRandom).toBe(true);
+    const text = scenarioDetailLines(d).join(" | ");
+    expect(text).toMatch(/1 random .* villain of 6/);
+    for (const name of villainNamesOf("shadows-in-the-night")) expect(text).not.toContain(name);
+    expect(shelfSubtitleOf(d)).toMatch(/random$/);
+  });
+
+  test("Shadow Labyrinth names its own villain and says the drawn one is set aside", () => {
+    const d = shadowland("shadow-labyrinth");
+    expect(d.villainPool).toMatchObject({ count: 6, setAside: true });
+    expect(d.villainIsRandom).toBe(false);
+    const first = scenarioDetailLines(d)[0]!;
+    expect(first).toMatch(/set aside/);
+    for (const name of villainNamesOf("shadow-labyrinth")) expect(first).not.toContain(name);
   });
 });

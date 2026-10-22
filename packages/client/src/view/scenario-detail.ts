@@ -66,6 +66,12 @@ export interface ScenarioDetail {
    * Evil, `Scenario.villainOptions`); empty for a scenario whose villain is fixed. `villainName` is then the default's.
    */
   readonly villainChoices: readonly string[];
+  /**
+   * A card-keyed villain choice (Shadowland's Dark Protégé): the pool the villain is drawn from and its size, and
+   * whether the draw stays set aside (`Scenario.villainOptions.chosenVillain`). The drawn villain is never named here,
+   * and `villainChoices` stays empty: the player does not pick one at the scenario shelf. Null for every other scenario.
+   */
+  readonly villainPool: { readonly name: string; readonly count: number; readonly setAside: boolean } | null;
   /** Present only for a multi-villain scenario (Breakout); every other name beside `villainName` that also enters play at setup. */
   readonly otherVillainNames: readonly string[];
   readonly mainSchemeName: string;
@@ -124,7 +130,8 @@ export function scenarioDetailOf(
     .filter((id) => (id as string) !== (scenario.villainCardId as string))
     .map((id) => cardsById.get(id as string)?.name ?? (id as string));
 
-  const randomLabel = randomVillainLabel(scenario, cardsById);
+  const setNames = new Map(encounterSets.map((set) => [set.id as string, set.name]));
+  const randomLabel = randomVillainLabel(scenario, cardsById, setNames);
   const villainIsRandom = hasRandomVillain(scenario);
   const villainName = randomLabel ?? side.name;
   const displayName = villainIsRandom
@@ -139,6 +146,7 @@ export function scenarioDetailOf(
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, " ")
       .trim();
+  const byCard = scenario.villainOptions?.keyedBy === "card";
   const sameName = norm(scenario.name).includes(norm(side.name)) || norm(side.name).includes(norm(scenario.name));
   const titledByScenario = otherVillainNames.length === 0 && (villainIsRandom || !sameName);
   return {
@@ -151,7 +159,17 @@ export function scenarioDetailOf(
     tileTitle: titledByScenario ? scenario.name : displayName,
     titledByScenario,
     villainCardId: scenario.villainCardId,
-    villainChoices: (scenario.villainOptions?.options ?? []).map((o) => setName(o.villainSetId as string, sets)),
+    villainChoices: byCard
+      ? []
+      : (scenario.villainOptions?.options ?? []).map((o) => setName(o.villainSetId as string, sets)),
+    villainPool:
+      byCard && scenario.villainOptions
+        ? {
+            name: setName(scenario.villainOptions.defaultSetId as string, sets),
+            count: scenario.villainOptions.options.length,
+            setAside: scenario.villainOptions.chosenVillain === "setAside",
+          }
+        : null,
     otherVillainNames,
     mainSchemeName: mainScheme.name,
     startingThreat: firstStage.startingThreat,
@@ -180,9 +198,13 @@ export function scenarioDetailOf(
 export function scenarioDetailLines(detail: ScenarioDetail): readonly string[] {
   const lines: string[] = [];
   lines.push(
-    detail.villainChoices.length > 0
-      ? `${detail.foeWord}: your pick of ${detail.villainChoices.join(", ")}`
-      : `${detail.foeWord}: ${detail.villainName}${detail.otherVillainNames.length > 0 ? ` + ${detail.otherVillainNames.length} more (${detail.otherVillainNames.join(", ")})` : ""}`,
+    detail.villainPool
+      ? detail.villainPool.setAside
+        ? `${detail.foeWord}: ${detail.villainName} + 1 random ${detail.villainPool.name} villain, set aside`
+        : `${detail.foeWord}: 1 random ${detail.villainPool.name} villain of ${detail.villainPool.count}`
+      : detail.villainChoices.length > 0
+        ? `${detail.foeWord}: your pick of ${detail.villainChoices.join(", ")}`
+        : `${detail.foeWord}: ${detail.villainName}${detail.otherVillainNames.length > 0 ? ` + ${detail.otherVillainNames.length} more (${detail.otherVillainNames.join(", ")})` : ""}`,
   );
   lines.push(`Main scheme: ${detail.mainSchemeName} — starting threat ${formatScaling(detail.startingThreat)}`);
   lines.push(

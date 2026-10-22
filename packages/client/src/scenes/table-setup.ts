@@ -35,7 +35,8 @@ import { accent, dotGrid, hit, ink, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTextInput, dashedRect, fitText, label, paintDotGrid, sectionHeader } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
-import { artFor } from "../art/art-source.js";
+import { CARD_BACKS, artFor } from "../art/art-source.js";
+import { hasRandomChosenVillain } from "../view/random-villain.js";
 import { cardFaces } from "../art/card-face-baker.js";
 import { artThumbSpec } from "./roster-panel.js";
 import { HoverPreview, resetHoverCards, screenHoverArea } from "../ui/card-hover-preview.js";
@@ -2547,14 +2548,18 @@ export class TableSetupScene extends Phaser.Scene {
     const g = this.add.graphics();
     g.fillStyle(surface.parchment.hex, 0.15).fillRect(picture.x, picture.y, picture.width, picture.height);
     const villainId = scenario.villainCardId as string;
-    const url =
-      villainArtFor(ART_CATALOG, scenario.id as string, () => 0)?.url ??
-      artFor(CARDS_BY_ID.get(villainId), { kind: "villainStage", sideIndex: 0, stageIndex: 0 })?.url ??
-      null;
+    // A villain drawn at random from a pool (Shadows in the Night) is not known yet: the default option's card would
+    // promise one villain, so the picture is the encounter card back and no card hover opens.
+    const unknown = hasRandomChosenVillain(scenario);
+    const url = unknown
+      ? CARD_BACKS.encounter.url
+      : (villainArtFor(ART_CATALOG, scenario.id as string, () => 0)?.url ??
+        artFor(CARDS_BY_ID.get(villainId), { kind: "villainStage", sideIndex: 0, stageIndex: 0 })?.url ??
+        null);
     if (url) this.#thumbs.push({ rect: picture, url, parent: null, alpha: 1, done: false });
     const frame = this.add.graphics();
     frame.lineStyle(2, surface.paper.hex, 1).strokeRect(picture.x, picture.y, picture.width, picture.height);
-    this.#hoverFaces.push({ cardId: villainId, rect: picture, region: "none" });
+    if (!unknown) this.#hoverFaces.push({ cardId: villainId, rect: picture, region: "none" });
   }
 
   /** A seat's hero picture; on desktop it opens the identity card's hover popover like any card picture. */

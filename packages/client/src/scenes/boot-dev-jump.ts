@@ -322,6 +322,18 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.board, data: {} };
   }
 
+  // `&fixture=shadowland[&corruption=N][&traps=N][&flip=1]`: Shadow Labyrinth's trap deck and discard, Creeping Corruption
+  // with counters and The Streets Below in the villain area, while Shadowland is gated (`store/dev-shadowland-game.ts`).
+  if (screen === "board" && params.get("fixture") === "shadowland") {
+    const { startDevShadowlandGame } = await import("../store/dev-shadowland-game.js");
+    await startDevShadowlandGame({
+      corruption: intParam(params.get("corruption"), 4),
+      traps: intParam(params.get("traps"), 5),
+      flip: params.get("flip") === "1",
+    });
+    return { key: SCENES.board, data: {} };
+  }
+
   // `&fixture=zemo[&bare=all|none]`: a Baron Zemo game at the first player turn with the Tactical Board Member bare, for the
   // evidence view and the accusation (`store/dev-zemo-game.ts`).
   if (screen === "board" && params.get("fixture") === "zemo") {
@@ -511,6 +523,18 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.campaignBriefing, data: { runId: record.id } };
   }
 
+  // `?screen=shadowland-dossier[&view=briefing][&expert=1][&fresh=1]`: Shadowland (Daredevil and Echo) after scenario 1 on the
+  // Dossier (its log sheet), or on the Briefing before scenario 1 (`&fresh=1`, `&view=briefing`). Dev builds only.
+  if (screen === "shadowland-dossier" && import.meta.env.DEV) {
+    const fixtures = await import("../campaign/dev-fixtures.js");
+    const fresh = params.get("fresh") === "1";
+    const record = await fixtures.seedShadowlandRun(campaignService(), fresh ? "fresh" : "afterIssue1", {
+      expertCampaign: params.get("expert") === "1",
+    });
+    if (params.get("view") === "briefing" || fresh) return { key: SCENES.campaignBriefing, data: { runId: record.id } };
+    return { key: SCENES.campaignDossier, data: { runId: record.id } };
+  }
+
   // `?screen=campaign-market[&units=N]`: The Galaxy's Most Wanted (Groot and Rocket) after issue #1, on the Market
   // before issue #2. `units` sets both wallets so the whole shelf can be priced as affordable. Dev builds only.
   if (screen === "campaign-market" && import.meta.env.DEV) {
@@ -532,6 +556,12 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   }
 
   return null;
+}
+
+/** A whole-number query parameter, or `fallback` when it is absent or not a number (`?corruption=abc`). */
+function intParam(value: string | null, fallback: number): number {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 /**

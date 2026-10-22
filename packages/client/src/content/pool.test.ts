@@ -173,16 +173,28 @@ describe("packNameOf", () => {
 describe("Fear No Evil scenarios", () => {
   test("every scenario builds and starts against every villain it offers", () => {
     for (const scenario of FNE_SCENARIOS) {
-      const villains = scenario.villainOptions?.options.map((o) => o.villainSetId as string) ?? [undefined];
-      for (const villainSetId of villains) {
+      const options = scenario.villainOptions?.options ?? [];
+      // Only `FNE_SCENARIOS` is iterated today, so the card-keyed branch below runs once Shadowland's scenarios are in
+      // `POOL_SCENARIOS` (and this list widens to them); it is here so that unlock does not throw "choose one by
+      // villainCardId".
+      // Set-keyed (Fear No Evil): one record per villain set; card-keyed (Shadowland, once it joins the pool): one per
+      // villain card, since its options share a set and the builder asks for `villainCardId`.
+      const byCard = scenario.villainOptions?.keyedBy === "card";
+      const picks: readonly Record<string, string>[] =
+        options.length === 0
+          ? [{}]
+          : options.map((o) =>
+              byCard ? { villainCardId: o.villainCardId as string } : { villainSetId: o.villainSetId as string },
+            );
+      for (const pick of picks) {
         const config = buildScenario(scenario.id as string, {
           difficulty: "standard",
           players: [{ starterDeckId: "fne-daredevil-justice" }],
           seed: 1,
-          ...(villainSetId ? { villainSetId } : {}),
+          ...pick,
           ...(scenario.mainSchemeChoice ? { mainSchemePicks: [scenario.mainSchemeChoice.cardIds[0] as string] } : {}),
         });
-        expect(createGame(config, POOL_DEPS).ok, `${scenario.id} vs ${villainSetId}`).toBe(true);
+        expect(createGame(config, POOL_DEPS).ok, `${scenario.id} vs ${JSON.stringify(pick)}`).toBe(true);
       }
     }
   });

@@ -37,8 +37,10 @@ import {
   maxHitPoints,
   activeEncounterDeck,
   activeVillain,
+  isLooseVillainCard,
   isVillain,
   villainOf,
+  villainSideShowing,
   minionsEngagedWith,
   playCostOf,
   playableOutsideHand,
@@ -747,9 +749,11 @@ export interface BoardModel {
   /**
    * The active villain's panel — "the villain" everywhere a screen only ever meant one (PLAN.md Phase 7's own
    * scenarios). Kept as its own field, identical to `villains.find((v) => v.active)!.panel`, so every consumer
-   * from before The Wrecking Crew's four villains keeps working unchanged.
+   * from before The Wrecking Crew's four villains keeps working unchanged. Null when no villain is in play: Shadow
+   * Labyrinth's 2A with its chosen villain gone from the game leaves only the defeated Shifting Corridors, set aside
+   * (`villainIsOut`), and a set-aside card is no panel.
    */
-  readonly villain: CharacterPanel;
+  readonly villain: CharacterPanel | null;
   /**
    * Every villain of the scenario, printed order, defeated ones included (`state.villains`). One entry for every
    * scenario so far; four for The Wrecking Crew's Breakout, where they used to be invisible — the board built only
@@ -1071,6 +1075,11 @@ export function areaLabelOf(state: GameState, id: InstanceId): string | null {
  * every other scenario so far has one. Built from `state.villains`/`state.activeVillainId` directly rather than
  * from `activeVillain(state)`, which only ever names the one with the active counter.
  */
+/** A villain set aside or removed from the game is not on the table (Shadow Labyrinth's 2A with no chosen villain to reveal). */
+function villainIsOut(state: GameState, id: InstanceId): boolean {
+  return state.encounterSetAside.includes(id) || state.removedFromGame.includes(id);
+}
+
 function villainPanels(state: GameState, deps: EngineDeps): readonly VillainPanel[] {
   // A villain tucked under a card (Routed) is out of play: not on the table, not a target, not "defeated" in the row.
   const tucked = new Set(Object.values(state.instances).flatMap((instance) => instance.tucked));
@@ -1084,6 +1093,7 @@ function villainPanels(state: GameState, deps: EngineDeps): readonly VillainPane
   return (
     ordered
       .filter((villain) => !tucked.has(villain.instanceId))
+      .filter((villain) => !villainIsOut(state, villain.instanceId))
       // A `bySetup` scenario (God of Lies, On the Run) starts with a placeholder villain its main scheme's Setup then
       // replaces: defeated and never turned faceup, it was never on the table, so it gets no tile in the row.
       .filter((villain) => !(villain.defeated && getInstance(state, villain.instanceId)?.faceup === false))
@@ -1146,7 +1156,9 @@ export function boardModel(
     meOut: outStatusOf(me),
     firstPlayerId: state.firstPlayerId,
     perspectiveId,
-    villain: characterPanel(state, activeVillain(state).instanceId, deps),
+    villain: villainIsOut(state, activeVillain(state).instanceId)
+      ? null
+      : characterPanel(state, activeVillain(state).instanceId, deps),
     villains: villainPanels(state, deps),
     mainScheme: withAreaNotes(schemePanel(state, state.mainScheme.instanceId, deps, true), scenarioAreas),
     extraMainSchemes: otherMainSchemes.map((scheme) => schemePanel(state, scheme.instanceId, deps, true)),
@@ -1484,6 +1496,12 @@ export function faceOf(state: GameState, instanceId: InstanceId, view?: ViewerCo
       return formIndex > 0 ? { kind: "heroForm", index: formIndex } : { kind: "hero" };
     }
     case "villain": {
+      // A villain card that is no `VillainState` (Whisper in the Dark's chosen villain, in play as an Elite minion)
+      // shows its own first stage on the side that is up, never the active villain's.
+      if (isLooseVillainCard(state, instanceId)) {
+        const side = villainSideShowing(card, instance.flipped === true);
+        return { kind: "villainStage", sideIndex: Math.max(0, card.sides.indexOf(side)), stageIndex: 0 };
+      }
       const villain = villainOf(state, instanceId) ?? activeVillain(state);
       return {
         kind: "villainStage",
@@ -1587,6 +1605,8 @@ function subtitleOf(state: GameState, instance: CardInstance, card: AnyCard | un
   if (!card) return "";
   switch (card.type) {
     case "villain": {
+      if (isLooseVillainCard(state, instance.instanceId))
+        return instance.treatedAs?.kind === "minion" ? "Minion (treated as)" : foeWord(card);
       // The pod's neutral villain (Loki, God of Lies) is no `VillainState`: it has no stage of its own to number.
       if (state.pod?.neutral?.villainInstanceId === instance.instanceId) return "Neutral villain";
       const villain = villainOf(state, instance.instanceId) ?? activeVillain(state);
@@ -1889,6 +1909,8 @@ export interface ScenarioDeckPanel {
   /** Faceup, like every discard pile (`view/visibility.ts`). Null with an empty pile. */
   readonly discardTopInstanceId: InstanceId | null;
   readonly discardTopArt: ArtSource | null;
+  /** Every card in the discard pile, top first, so a tap fans out through the pile as the encounter discard does. */
+  readonly discard: readonly InstanceId[];
 }
 
 /** Every scenario deck in play, by name, in `GameState.scenarioDecks`' own (insertion) order. */
@@ -1902,6 +1924,7 @@ export function scenarioDeckPanels(state: GameState): readonly ScenarioDeckPanel
       hasDiscard: deck.discardPile !== "none",
       discardTopInstanceId: topId,
       discardTopArt: topId ? artFor(cardOf(state, topId), faceOf(state, topId)) : null,
+      discard: deck.discard,
     };
   });
 }

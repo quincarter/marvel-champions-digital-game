@@ -26,7 +26,7 @@ import {
   type CardMetaOf,
   type PoolCopy,
 } from "./campaign-pool-model.js";
-import { campaignStepRows, type CampaignStepRow, type StepWords } from "./campaign-step-model.js";
+import { campaignStepRows, workingFieldsOf, type CampaignStepRow, type StepWords } from "./campaign-step-model.js";
 import { storyFor } from "../campaign/story.js";
 import { idWords } from "./campaign-option-labels.js";
 import { hiddenEvidenceEnvelope, type HiddenEvidenceEnvelope } from "./campaign-hidden-evidence-model.js";
@@ -513,7 +513,10 @@ function genericHandledRowsOf(
 ): readonly HandledRow[] {
   const grants = grantRowsOf(record, cardName, definition);
   const statusById = new Map(attempt.steps.map((step) => [step.instructionId, statusOf(step)] as const));
-  const rows = campaignStepRows(attempt.steps, cardName, stepWordsOf(definition));
+  const rows = campaignStepRows(attempt.steps, cardName, stepWordsOf(definition), {
+    nodeId: attempt.nodeId,
+    workingFields: workingFieldsOf(definition),
+  });
   const stepRows = rows
     // The grants row above already covers every `grantCard`-only step; one that only granted would otherwise
     // repeat the same cards a second time. A pool-reading step ("If Cosmo is in the campaign pool, …") is already

@@ -97,6 +97,11 @@ export interface SessionConfig {
    * `Scenario.villainOptions`. Absent is the record's default villain, and absent on every other scenario and every older save.
    */
   readonly villainSetId?: string;
+  /**
+   * A card-keyed villain choice's pick (Shadowland's Dark Protégé, `VillainChoiceOffer.keyedBy` `"card"`): one of
+   * `Scenario.villainOptions`' villain cards. Absent is the setup's own seeded random draw, and absent everywhere else.
+   */
+  readonly villainCardId?: string;
   /** Protection Racket (standard mode): each seat's main scheme card, in seat order. Absent everywhere else. */
   readonly mainSchemePicks?: readonly string[];
   /**

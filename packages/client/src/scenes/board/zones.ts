@@ -287,7 +287,8 @@ function drawSingleVillain(
     Math.max(280, Math.round((villainHeight - 6) * CARD_ASPECT) + PANEL_TEXT_MIN_WIDTH + PANEL_TEXT_INSETS + 60),
   );
   const villainRect: Rect = { x: rect.x + 10, y: rect.y + 10, width: villainWidth, height: villainHeight };
-  drawCharacter(ctx, villainRect, model.villain);
+  // No panel when no villain is in play (Shadow Labyrinth, chosen villain gone from the game): the band stays, empty.
+  if (model.villain) drawCharacter(ctx, villainRect, model.villain);
 
   // The environment sits beside the villain, in the space to the right of its panel. It belongs next to him
   // rather than down with the minions because in the one scenario that has one it *is* the villain's health bar:
@@ -901,6 +902,8 @@ export function drawEncounter(
     readonly instanceId: InstanceId | null;
     /** Every card in the pile, for a tap to open browsable through — only a scenario area needs more than one. */
     readonly siblings: readonly InstanceId[];
+    /** A discard pile that fans out on a tap (`ctx.openPile`) names itself here; absent, the tap opens the top card. */
+    readonly pileTitle?: string;
   };
   // The pile column is narrow (the same width "ENC DECK"/"DISCARD" are tuned for), so a scenario deck's own
   // printed name ("Infinity Stone") is abbreviated to its last word rather than shown in full — "STONE DECK", not
@@ -925,7 +928,8 @@ export function drawEncounter(
               count: deck.discardCount,
               art: deck.discardTopArt,
               instanceId: deck.discardTopInstanceId,
-              siblings: [],
+              siblings: deck.discard,
+              pileTitle: `${short.charAt(0).toUpperCase()}${short.slice(1)} discard`,
             },
           ]
         : []),
@@ -963,7 +967,7 @@ export function drawEncounter(
   // the piles keep the column whole.
   const slots = encounterPileSlots(rect, piles.length);
   if (model.setAside && setAsideBox) drawSetAside(scene, setAsideBox, model.setAside);
-  piles.forEach(({ kind, name, count, countLabel, art, instanceId, siblings }, index) => {
+  piles.forEach(({ kind, name, count, countLabel, art, instanceId, siblings, pileTitle }, index) => {
     const box: Rect = slots[index]!;
     // A card revealed from the deck or discarded to the pile travels from or to this box itself, not the whole
     // column. A scenario area or scenario deck is not a travel-animation anchor yet — no printed effect moves a
@@ -1064,7 +1068,12 @@ export function drawEncounter(
       const open = (): void => ctx.inspect(instanceId, siblings.length > 0 ? siblings : undefined);
       // A discard pile fans out; a hold still reads the top card.
       addTapTarget(scene, box, {
-        onTap: kind === "encounterDiscard" ? () => ctx.openPile("Encounter discard", siblings) : open,
+        onTap:
+          kind === "encounterDiscard"
+            ? () => ctx.openPile("Encounter discard", siblings)
+            : kind === "scenarioDiscard" && pileTitle
+              ? () => ctx.openPile(pileTitle, siblings)
+              : open,
         onInspect: open,
       });
     }

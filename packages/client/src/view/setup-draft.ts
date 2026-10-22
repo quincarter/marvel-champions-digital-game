@@ -44,7 +44,7 @@ import type { DeckOption } from "./deck-list-model.js";
 import type { DeckSwap, KeptConflict } from "./name-conflicts.js";
 import { EMPTY_ROSTER_FILTER, type RosterFilter } from "./roster-filter.js";
 import { rollSeed } from "./seed.js";
-import { offerOf, reconcileWithOffer } from "./setup-options.js";
+import { offerOf, reconcileWithOffer, villainSessionFields } from "./setup-options.js";
 
 export type SetupDifficulty = "standard" | "expert" | "extreme";
 
@@ -86,10 +86,12 @@ export interface SetupDraft {
   /** Apocalypse begins at stage I (standard only). Q12. */
   readonly easierStart: boolean;
   /**
-   * The villain a Fear No Evil scenario is played against (`Scenario.villainOptions`): an option's encounter set id, or
-   * `null` for the scenario's default. Only ever holds what `playableScenarioOffer` lists (`reconcileWithOffer`).
+   * The villain a scenario with a villain choice is played against (`Scenario.villainOptions`): an option's `id` (its
+   * encounter set id at Fear No Evil, its villain card id at Shadowland's card-keyed choice), or `null` for the offer's
+   * default (the scenario's own villain, or the random draw). Only ever holds what `playableScenarioOffer` lists
+   * (`reconcileWithOffer`).
    */
-  readonly villainSetId: string | null;
+  readonly villainId: string | null;
   /**
    * The Hood's own seven-of-nine modular set choice (docs/phase7-wave4.md §2.3, §3.18). `null` means the scenario
    * builder's own default (the pack's first seven in declaration order) — never a random draw the client makes
@@ -160,7 +162,7 @@ export function initialSetupDraft(options: InitialSetupDraftOptions): SetupDraft
     genePoolThreatPerPlayer: 0,
     horsemanSides: null,
     easierStart: false,
-    villainSetId: null,
+    villainId: null,
     setAsideModularSetIds: null,
     extraModularSetIds: [],
     towerDefenseSetupDamage: false,
@@ -233,7 +235,7 @@ export function setScenario(draft: SetupDraft, scenario: Scenario | undefined, s
     genePoolThreatPerPlayer: 0,
     horsemanSides: null,
     easierStart: false,
-    villainSetId: null,
+    villainId: null,
     setAsideModularSetIds: null,
     towerDefenseSetupDamage: false,
     // A different leader's stage picks never carry over (they may be the other side's); the same leader keeps its own.
@@ -605,7 +607,7 @@ export function toSessionConfig(
       ? { horsemanSides: options.horsemanSides as HorsemanSides }
       : {}),
     ...(options.easierStart ? { easierStart: true } : {}),
-    ...(options.villainSetId ? { villainSetId: options.villainSetId } : {}),
+    ...villainSessionFields(options.villainId, offerOf(draft).villains),
     ...(mainSchemePicks ? { mainSchemePicks } : {}),
     ...(options.civilWar
       ? {

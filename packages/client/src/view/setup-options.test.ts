@@ -1,10 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { playableScenarioOffer } from "@mc/cards";
-import { encounterSetId } from "@mc/content";
+import { RANDOM_VILLAIN, playableScenarioOffer, villainChoiceOffer } from "@mc/cards";
+import { SHADOWLAND_ENCOUNTER_SETS, SHADOWLAND_SCENARIOS, encounterSetId } from "@mc/content";
 import { EngineSessionCore } from "../engine/session-core.js";
 import { POOL_ENCOUNTER_SETS, POOL_SCENARIOS } from "../content/pool.js";
 import { initialSetupDraft, setDifficulty, setModularSetIds, setScenario, toSessionConfig } from "./setup-draft.js";
 import type { SetupDraft } from "./setup-draft.js";
+import { hasRandomVillain } from "./random-villain.js";
 import {
   applySetupOption,
   effectiveHorsemanSides,
@@ -12,9 +13,11 @@ import {
   offerOf,
   optionActionsOf,
   reconcileWithOffer,
+  scenarioOfDraft,
   setChipLabel,
   setupOptionRowsOf,
   splitOptionRows,
+  villainSessionFields,
 } from "./setup-options.js";
 
 const SET_NAMES = new Map(POOL_ENCOUNTER_SETS.map((set) => [set.id as string, set.name]));
@@ -24,7 +27,8 @@ const draftFor = (scenarioId: string): SetupDraft =>
   initialSetupDraft({ scenarioId, seatDeckId: "precon:core-spider-man-justice", seed: 7 });
 const rowsOf = (draft: SetupDraft) => setupOptionRowsOf(draft, SET_NAMES);
 const rowIds = (draft: SetupDraft) => rowsOf(draft).map((row) => row.id);
-const apply = (draft: SetupDraft, ...actions: string[]) => actions.reduce(applySetupOption, draft);
+const apply = (draft: SetupDraft, ...actions: string[]) =>
+  actions.reduce((acc, action) => applySetupOption(acc, action), draft);
 
 describe("offerOf", () => {
   test("is exactly the cards package's offer for every scenario the pool lists", () => {
@@ -363,12 +367,12 @@ describe("Fear No Evil villain choice (docs/phase7-wave11-scenarios.md S1.2)", (
 
   test("next and prev step through the five villains and wrap; the default is stored as null", () => {
     const offer = offerOf(draftFor("the-getaway")).villains!;
-    const ids = offer.options.map((o) => o.villainSetId);
+    const ids = offer.options.map((o) => o.id);
     expect(ids).toHaveLength(5);
     const first = apply(draftFor("the-getaway"), "villain:next");
-    expect(first.villainSetId).toBe(ids[1]);
-    expect(apply(first, "villain:prev").villainSetId).toBeNull();
-    expect(apply(draftFor("the-getaway"), "villain:prev").villainSetId).toBe(ids[4]);
+    expect(first.villainId).toBe(ids[1]);
+    expect(apply(first, "villain:prev").villainId).toBeNull();
+    expect(apply(draftFor("the-getaway"), "villain:prev").villainId).toBe(ids[4]);
     const row = rowsOf(first).find((r) => r.id === "villain")!;
     expect(row.control).toMatchObject({ kind: "stepper", wide: true, valueLabel: offer.options[1]!.name });
     expect(row.meta).toBe("2 of 5");
@@ -377,9 +381,9 @@ describe("Fear No Evil villain choice (docs/phase7-wave11-scenarios.md S1.2)", (
   test("the choice reaches the session config, resets with the scenario, and a villain the scenario lacks is dropped", () => {
     const draft = apply(draftFor("the-getaway"), "villain:next");
     const scenario = POOL_SCENARIOS.find((s) => s.id === "the-getaway");
-    expect(toSessionConfig(draft, PLAYERS as never, scenario).villainSetId).toBe(draft.villainSetId);
-    expect(setScenario(draft, scenario, "art-museum-heist").villainSetId).toBeNull();
-    expect(reconcileWithOffer({ ...draftFor("kingpin"), villainSetId: "hammerhead" }).villainSetId).toBeNull();
+    expect(toSessionConfig(draft, PLAYERS as never, scenario).villainSetId).toBe(draft.villainId);
+    expect(setScenario(draft, scenario, "art-museum-heist").villainId).toBeNull();
+    expect(reconcileWithOffer({ ...draftFor("kingpin"), villainId: "hammerhead" }).villainId).toBeNull();
   });
 
   test("Protection Racket sends one distinct main scheme per seat in standard and none in expert", () => {
@@ -390,5 +394,98 @@ describe("Fear No Evil villain choice (docs/phase7-wave11-scenarios.md S1.2)", (
     expect(
       toSessionConfig(setDifficulty(draftFor("protection-racket"), "expert"), two, scenario).mainSchemePicks,
     ).toBeUndefined();
+  });
+});
+
+describe("Shadowland's card-keyed villain choice (docs/phase7-shadowland.md section 4.1)", () => {
+  // Shadowland is gated out of the playable pool, so the offer is built straight from the content record.
+  const offerFor = (scenarioId: string) => {
+    const scenario = SHADOWLAND_SCENARIOS.find((s) => s.id === scenarioId)!;
+    return { ...offerOf(draftFor("rhino")), villains: villainChoiceOffer(scenario) };
+  };
+  const draftOf = (scenarioId: string): SetupDraft => ({ ...draftFor(scenarioId) });
+  const stepper = (scenarioId: string, draft: SetupDraft = draftOf(scenarioId)) => {
+    const names = new Map([
+      ...SET_NAMES,
+      ...SHADOWLAND_ENCOUNTER_SETS.map((set) => [set.id as string, set.name] as const),
+    ]);
+    const row = setupOptionRowsOf(draft, names, offerFor(scenarioId)).find((r) => r.id === "villain")!;
+    return row;
+  };
+
+  test("Shadows in the Night starts on Random, labelled with the pool, and is not 'active'", () => {
+    const offer = offerFor("shadows-in-the-night").villains!;
+    expect(offer.defaultId).toBe(RANDOM_VILLAIN);
+    const row = stepper("shadows-in-the-night");
+    expect(row.control).toMatchObject({ kind: "stepper", valueLabel: "Random (Dark Protégé)" });
+    expect(row.meta).toBe("6 villains");
+    expect(row.active).toBe(false);
+    expect(row.help).not.toMatch(/Fear No Evil/);
+  });
+
+  test("stepping walks Random then the six villains by card id, and wraps back to Random (stored as null)", () => {
+    const offer = offerFor("shadows-in-the-night");
+    const ids = offer.villains!.options.map((o) => o.id);
+    expect(new Set(ids).size).toBe(6);
+    let draft = draftOf("shadows-in-the-night");
+    draft = applySetupOption(draft, "villain:next", offer);
+    expect(draft.villainId).toBe(ids[0]);
+    expect(stepper("shadows-in-the-night", draft).control).toMatchObject({ valueLabel: "Archpriestess" });
+    expect(stepper("shadows-in-the-night", draft).meta).toBe("House pick · 1 of 6");
+    for (let i = 1; i < 6; i++) draft = applySetupOption(draft, "villain:next", offer);
+    expect(draft.villainId).toBe(ids[5]);
+    expect(applySetupOption(draft, "villain:next", offer).villainId).toBeNull();
+    expect(applySetupOption(draftOf("shadows-in-the-night"), "villain:prev", offer).villainId).toBe(ids[5]);
+  });
+
+  test("a pick goes out as villainCardId, never villainSetId; the default sends neither", () => {
+    const offer = offerFor("shadows-in-the-night");
+    const picked = applySetupOption(draftOf("shadows-in-the-night"), "villain:next", offer);
+    expect(villainSessionFields(picked.villainId, offer.villains)).toEqual({ villainCardId: picked.villainId });
+    expect(villainSessionFields(null, offer.villains)).toEqual({});
+    const fne = offerOf(draftFor("the-getaway")).villains!;
+    expect(villainSessionFields(fne.options[1]!.id, fne)).toEqual({ villainSetId: fne.options[1]!.id });
+  });
+
+  test("Shadow Labyrinth keeps the random draw set aside and never names it", () => {
+    const row = stepper("shadow-labyrinth");
+    expect(row.control).toMatchObject({ valueLabel: "Random, kept set aside" });
+    const offer = offerFor("shadow-labyrinth").villains!;
+    const names = offer.options.map((o) => o.name);
+    expect(names.some((n) => `${row.name} ${row.meta} ${row.help}`.includes(n))).toBe(false);
+    expect(row.help).toMatch(/set aside/);
+  });
+
+  test("a stale villain pick the offer does not list is dropped", () => {
+    const offer = offerFor("shadows-in-the-night");
+    expect(reconcileWithOffer({ ...draftOf("shadows-in-the-night"), villainId: "nope" }, offer).villainId).toBeNull();
+    const ok = offer.villains!.options[2]!.id;
+    expect(reconcileWithOffer({ ...draftOf("shadows-in-the-night"), villainId: ok }, offer).villainId).toBe(ok);
+  });
+});
+
+describe("scenarioOfDraft at a card-keyed choice", () => {
+  const record = (id: string) => SHADOWLAND_SCENARIOS.find((s) => s.id === id)!;
+  const picked = (id: string, index: number): SetupDraft => ({
+    ...draftFor(id),
+    villainId: record(id).villainOptions!.options[index]!.villainCardId as string,
+  });
+
+  test("the default (random) leaves the record, and so its random label", () => {
+    expect(scenarioOfDraft(draftFor("shadows-in-the-night"), record("shadows-in-the-night"))).toBe(
+      record("shadows-in-the-night"),
+    );
+  });
+
+  test("a villain picked for play becomes the villain and is no longer random", () => {
+    const scenario = scenarioOfDraft(picked("shadows-in-the-night", 3), record("shadows-in-the-night"));
+    expect(scenario.villainCardId).toBe(record("shadows-in-the-night").villainOptions!.options[3]!.villainCardId);
+    expect(hasRandomVillain(scenario)).toBe(false);
+    expect(hasRandomVillain(record("shadows-in-the-night"))).toBe(true);
+  });
+
+  test("a pick that stays set aside never replaces the scenario's own villain", () => {
+    const scenario = scenarioOfDraft(picked("shadow-labyrinth", 3), record("shadow-labyrinth"));
+    expect(scenario.villainCardId).toBe(record("shadow-labyrinth").villainCardId);
   });
 });

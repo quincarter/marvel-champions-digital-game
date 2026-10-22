@@ -66,7 +66,7 @@ describe("Loki: the victory count", () => {
 
     const model = boardModel(state, store.state.perspectiveId!, POOL_DEPS);
     expect(model.victoryCondition).toEqual({ count: 0, target: 2 });
-    expect(model.villain.subtitle).toContain("Victory 0/2");
+    expect(model.villain!.subtitle).toContain("Victory 0/2");
   });
 
   test("a defeated Loki in the victory display advances the count, by patching engine-owned state (the swap-to-a-random-Loki mechanic itself is engine-tested)", async () => {
@@ -76,7 +76,7 @@ describe("Loki: the victory count", () => {
     const patched = { ...state, victoryDisplay: [someLoki!.instanceId] };
     const model = boardModel(patched, store.state.perspectiveId!, POOL_DEPS);
     expect(model.victoryCondition).toEqual({ count: 1, target: 2 });
-    expect(model.villain.subtitle).toContain("Victory 1/2");
+    expect(model.villain!.subtitle).toContain("Victory 1/2");
   });
 });
 
@@ -85,6 +85,6 @@ describe("a scenario with no victory count at all", () => {
     const store = await afterSetup(RHINO);
     const model = boardModel(store.state.game!, store.state.perspectiveId!, POOL_DEPS);
     expect(model.victoryCondition).toBeNull();
-    expect(model.villain.subtitle).not.toContain("Victory");
+    expect(model.villain!.subtitle).not.toContain("Victory");
   });
 });

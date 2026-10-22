@@ -65,15 +65,15 @@ describe("environments on the board", () => {
   });
 
   test("the villain panel names the side in play, not the card", () => {
-    expect(boardModel(state, me, WAVE1_DEPS).villain.name).toBe("Norman Osborn");
+    expect(boardModel(state, me, WAVE1_DEPS).villain!.name).toBe("Norman Osborn");
     // Card 02001a is titled "Norman Osborn"; side B is Green Goblin. Flipping the villain must rename the panel,
     // or the table keeps announcing a villain who is no longer the one dealing the damage.
-    const villainId = boardModel(state, me, WAVE1_DEPS).villain.instanceId;
+    const villainId = boardModel(state, me, WAVE1_DEPS).villain!.instanceId;
     const flippedVillain: GameState = {
       ...state,
       villains: state.villains.map((v) => (v.instanceId === villainId ? { ...v, side: "B" as const } : v)),
     };
-    expect(boardModel(flippedVillain, me, WAVE1_DEPS).villain.name).toBe("Green Goblin");
+    expect(boardModel(flippedVillain, me, WAVE1_DEPS).villain!.name).toBe("Green Goblin");
   });
 
   test("a scenario with no environment reports none, rather than an empty-looking panel", async () => {

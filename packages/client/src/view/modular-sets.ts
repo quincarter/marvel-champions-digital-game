@@ -27,7 +27,7 @@
  * this deck", the required ones first and fixed, the rest togglable up to the
  * scenario's own cap.
  */
-import type { AnyCard, EncounterSet, Scenario } from "@mc/content";
+import type { AnyCard, Campaign, EncounterSet, Scenario } from "@mc/content";
 import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
 import { modularSetCountRangeOf, setAsideModularSetCountFor } from "@mc/content";
 import { modularPickCountProblem } from "@mc/cards";
@@ -113,6 +113,8 @@ export interface ModularPickerContext {
   readonly exclusions?: readonly ModularSetExclusion[];
   /** The encounter sets known (default: the app's pool); a test or the builder may pass a wider list. */
   readonly encounterSets?: readonly EncounterSet[];
+  /** The campaign the game is played in: a set it bars is listed disabled (`modularCandidatesFor`). Absent: standalone. */
+  readonly campaign?: Pick<Campaign, "name" | "prohibited">;
 }
 
 export interface RequiredEncounterSet {
@@ -252,7 +254,7 @@ export function modularSetOptionsFor(
   const encounterSets = context.encounterSets ?? POOL_ENCOUNTER_SETS;
   const setsById = new Map(encounterSets.map((set) => [set.id as string, set.name]));
   const scenarioId = scenario.id as string;
-  const candidates = modularCandidatesFor(scenario, scope, encounterSets);
+  const candidates = modularCandidatesFor(scenario, scope, encounterSets, context.campaign);
   const atMaxReason = modularAtMaxReason(
     modularPickRangeFor(scenario, draft.seats.length),
     candidates.filter((c) => chosen.has(c.id)).length,

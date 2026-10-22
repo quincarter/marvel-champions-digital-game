@@ -113,7 +113,7 @@ describe("the local seat once it is out of the game", () => {
   });
 
   test("a villain's dial stops at zero", () => {
-    const villainId = boardModel(state, me, CORE_DEPS).villain.instanceId;
+    const villainId = boardModel(state, me, CORE_DEPS).villain!.instanceId;
     const max = maxHitPoints(state, villainId, CORE_DEPS)!;
     const down: GameState = {
       ...state,

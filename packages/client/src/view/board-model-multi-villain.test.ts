@@ -64,7 +64,7 @@ describe("boardModel with more than one villain (The Wrecking Crew's Breakout)",
     // Breakout 1A's own setup: "Place the active counter on Wrecker."
     expect(active[0]!.panel.name).toBe("Wrecker");
     // The kept convenience accessor names the same villain as the one flagged active in the list.
-    expect(model.villain.instanceId).toBe(active[0]!.panel.instanceId);
+    expect(model.villain!.instanceId).toBe(active[0]!.panel.instanceId);
   });
 
   test("each villain reports its own encounter deck, not the active villain's", async () => {
@@ -110,7 +110,7 @@ describe("boardModel with more than one villain (The Wrecking Crew's Breakout)",
     const active = model.villains.filter((v) => v.active);
     expect(active).toHaveLength(1);
     expect(active[0]!.panel.instanceId).toBe(nextActive.instanceId);
-    expect(model.villain.instanceId).toBe(nextActive.instanceId);
+    expect(model.villain!.instanceId).toBe(nextActive.instanceId);
     // The old active villain reads as inactive now, not stuck on.
     const former = model.villains.find((v) => v.panel.instanceId === state.activeVillainId)!;
     expect(former.active).toBe(false);
@@ -181,7 +181,7 @@ describe("boardModel with one villain (every scenario before The Wrecking Crew)"
     const model = boardModel(state, store.state.perspectiveId!, POOL_DEPS);
 
     expect(model.villains).toHaveLength(1);
-    expect(model.villains[0]!.panel.instanceId).toBe(model.villain.instanceId);
+    expect(model.villains[0]!.panel.instanceId).toBe(model.villain!.instanceId);
     expect(model.villains[0]!.active).toBe(true);
     expect(model.villains[0]!.defeated).toBe(false);
     // Klaw has no signature side scheme (The Wrecking Crew's own mechanic).

@@ -205,7 +205,20 @@ const OVERVIEW_SEAT_FIELD_IDS: readonly string[] = [
   "basicUpgrade",
   "obligations",
   "rescuedAllies",
+  // Shadowland (MC65 p. 20): the recorded supports and upgrades, each scenario's OVERPOWERING flag, and the Expert
+  // Campaign's remaining hit points.
+  "recordedCards",
+  "overpowering1",
+  "overpowering2",
+  "remainingHp",
 ];
+
+/** Short row labels for a seat field whose printed label is a sentence (Shadowland's OVERPOWERING questions, MC65 p. 20). */
+const SEAT_FIELD_LABELS: Readonly<Record<string, string>> = {
+  recordedCards: "Recorded cards",
+  overpowering1: "OVERPOWERING in #1",
+  overpowering2: "OVERPOWERING in #2",
+};
 
 /**
  * A shared field's presentation on "The World" — short, player-facing words in place of the printed sheet's own
@@ -328,6 +341,10 @@ const WORLD_FIELD_PRESENTATION: Readonly<Record<string, FieldPresentation | { re
   secrets2: { hidden: true },
   secrets3: { hidden: true },
   secrets4: { hidden: true },
+  // Shadowland (MC65 pp. 9, 20): the Dark Protege villains a win checks off. The drawn villain itself is a working field
+  // and never shown (Shadow Labyrinth's stays unnamed until it enters play).
+  // The names are appended by `campaignDossierOverview` (a checklist of what has been revealed and removed).
+  removedVillains: { label: "Dark Protégé removed", when: "Removed from the campaign; never drawn again." },
   minionsAndSideSchemes: { label: "Alert Level start", when: "Threat placed on Alert Level in scenario #2." },
   rescuedCaptives: { label: "Rescued Captives", when: "Locks taken off the Holding Cell in scenario #3." },
   adaptoidEnvironments: { label: "Adaptoid environments", when: "Come back into play in scenario #5." },
@@ -377,7 +394,7 @@ export function campaignDossierOverview(
       const empty = row.rendered === "—" || row.rendered === "(none)";
       const earning = empty ? nodeWritingField(definition, id) : null;
       return {
-        label: row.label,
+        label: SEAT_FIELD_LABELS[id] ?? row.label,
         // A choice reads as its words ("brawler" -> "Brawler"), the way the briefing names a role.
         value: isChoiceField(definition, id) && !empty ? idWords(row.rendered) : row.rendered,
         note: earning ? `earned in ${nodeIndexLabel(definition, earning)}` : null,
@@ -409,7 +426,15 @@ export function campaignDossierOverview(
         label: presentation && "label" in presentation ? presentation.label : field.label,
         // A field with no authored sentence shows its label alone: repeating the label as its own description (plus a
         // page ref) told the player nothing.
-        when: presentation && "when" in presentation ? presentation.when : "",
+        when: [
+          // A card list kept as a checklist names each entry (Shadowland's checked-off villains, MC65 p. 20).
+          field.id === "removedVillains" && raw?.kind === "cardList" && raw.cardIds.length > 0
+            ? `Checked off: ${raw.cardIds.map((id) => cardName(id)).join(", ")}.`
+            : "",
+          presentation && "when" in presentation ? presentation.when : "",
+        ]
+          .filter((part) => part !== "")
+          .join(" "),
       };
     });
   return {

@@ -1108,3 +1108,27 @@ export async function seedFneFresh(service: CampaignService): Promise<CampaignRe
     seed: 2026,
   });
 }
+
+/**
+ * Shadowland (MC65) with Daredevil and Echo, scenario 1 played to a win the way `seedMojoRun` plays an issue: the
+ * Briefing composes (the identities are recorded, Daredevil's namesake villain is checked off, a villain is drawn), the
+ * win is substituted with each seat controlling a support or upgrade of cost 1 or 2 from its own precon
+ * (`withMojoCardsInPlay`, no Longshot), and the Victory steps fold in: the used villain is checked off, OVERPOWERING and
+ * the recorded cards are written. `"fresh"` stops before anything is composed. The pack is gated, but a campaign start is
+ * plain data, so this needs no un-gating. Dev builds only (`?screen=shadowland-dossier`).
+ */
+export async function seedShadowlandRun(
+  service: CampaignService,
+  stop: "fresh" | "afterIssue1" = "afterIssue1",
+  options: { readonly expertCampaign?: boolean } = {},
+): Promise<CampaignRecord> {
+  const record = await service.start({
+    campaignId: "shadowland",
+    seats: [smDeck("daredevil"), smDeck("echo")],
+    expertCampaign: options.expertCampaign ?? false,
+    poolVersion: POOL_VERSION,
+    seed: 6565,
+  });
+  if (stop === "fresh") return record;
+  return playIssueWith(service, record, "win", mojoAutoAnswer, (state) => withMojoCardsInPlay(state, false));
+}

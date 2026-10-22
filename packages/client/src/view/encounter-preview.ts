@@ -76,11 +76,19 @@ export interface ObligationShuffledIn {
   readonly obligationName: string;
 }
 
+/** A scenario deck built at setup (the trap deck): its cards come out of the encounter deck, so the deck is counted apart. */
+export interface ScenarioDeckPreview {
+  readonly name: string;
+  readonly count: number;
+}
+
 export interface EncounterDeckPreview {
   /** One entry for a single-villain scenario; one per villain for a multi-villain scenario (Breakout), in `config.villains` order. */
   readonly decks: readonly VillainDeckPreview[];
   readonly nemesisSetsHeldBack: readonly NemesisHeldBack[];
   readonly obligationsShuffledIn: readonly ObligationShuffledIn[];
+  /** The scenario decks the setup builds out of the encounter deck; `decks` already leaves their cards out. */
+  readonly scenarioDecks: readonly ScenarioDeckPreview[];
 }
 
 const cardsOf = (pool: CardPool): readonly AnyCard[] => (Array.isArray(pool) ? pool : Object.values(pool));
@@ -113,6 +121,38 @@ function breakdownOf(
 }
 
 /**
+ * The deck with the cards linked to the villain a setup chooses shuffled in (`GameSetupConfig.villainChoice`; Shadows in
+ * the Night, Shadow Labyrinth: "shuffle each card linked to that villain into the encounter deck"). Which villain is
+ * drawn is the game's seeded draw and the preview does not reveal it, so a game with no `pick` counts the first
+ * option's cards: every option links the same number, so the size is exact and the type mix is a stand-in. They are
+ * listed apart as "<set> (linked)".
+ */
+function withLinkedCards(
+  deck: VillainDeckPreview,
+  config: GameSetupConfig,
+  byId: ReadonlyMap<string, AnyCard>,
+  setNames: ReadonlyMap<string, string>,
+): VillainDeckPreview {
+  const choice = config.villainChoice;
+  if (!choice) return deck;
+  const option = choice.options.find((candidate) => candidate.villainCardId === choice.pick) ?? choice.options[0];
+  if (!option || option.linkedCardIds.length === 0) return deck;
+  const linked = breakdownOf(option.linkedCardIds, byId, setNames);
+  const byType = new Map(deck.byType.map((bucket) => [bucket.type, bucket.count]));
+  for (const bucket of linked.byType) byType.set(bucket.type, (byType.get(bucket.type) ?? 0) + bucket.count);
+  return {
+    ...deck,
+    totalCards: deck.totalCards + linked.totalCards,
+    surgeCount: deck.surgeCount + linked.surgeCount,
+    byType: [...byType.entries()].map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count),
+    bySet: [
+      ...deck.bySet,
+      ...linked.bySet.map((set) => ({ ...set, setId: `${set.setId}:linked`, setName: `${set.setName} (linked)` })),
+    ].sort((a, b) => b.cardCount - a.cardCount),
+  };
+}
+
+/**
  * `config` is a `GameSetupConfig` built by `coreScenario`/`wave1Scenario` for
  * the draft's current scenario/difficulty/modular-sets/seats — the same
  * config `EngineSessionCore.start` would hand to `createGame`. `pool` is the
@@ -126,6 +166,8 @@ export function encounterDeckPreviewOf(
   pool: CardPool,
   encounterSets: readonly EncounterSet[],
   blind: BlindReveal | null = null,
+  /** The scenario decks the setup builds from the encounter deck, whose cards `config` must already leave out. */
+  scenarioDecks: readonly ScenarioDeckPreview[] = [],
 ): EncounterDeckPreview {
   const byId = new Map(cardsOf(pool).map((card) => [card.id as string, card]));
   const setNames = new Map(encounterSets.map((set) => [set.id as string, set.name]));
@@ -133,7 +175,7 @@ export function encounterDeckPreviewOf(
 
   // Several villains over ONE shared deck (Tower Defense, The Sinister Six: `sharedEncounterDeck`): every villain's own
   // `encounterDeck` is empty and the deck is `config.encounterDeck`, so reading the villains' decks alone counted 0.
-  const decks: VillainDeckPreview[] =
+  const baseDecks: VillainDeckPreview[] =
     config.villains && config.villains.length > 0 && config.sharedEncounterDeck !== true
       ? config.villains.map((villain) => ({
           villainCardId: villain.villainCardId,
@@ -147,6 +189,8 @@ export function encounterDeckPreviewOf(
             ...breakdownOf(config.encounterDeck, byId, setNames),
           },
         ];
+
+  const decks = baseDecks.map((deck, index) => (index === 0 ? withLinkedCards(deck, config, byId, setNames) : deck));
 
   const nemesisSetsHeldBack: NemesisHeldBack[] = [];
   const obligationsShuffledIn: ObligationShuffledIn[] = [];
@@ -193,5 +237,6 @@ export function encounterDeckPreviewOf(
     decks: blind ? decks.map((deck) => ({ ...deck, bySet: maskSetRows(deck.bySet, blind) })) : decks,
     nemesisSetsHeldBack,
     obligationsShuffledIn,
+    scenarioDecks,
   };
 }

@@ -73,7 +73,7 @@ describe("boardModel", () => {
   test("names every panel from @mc/content, never from a placeholder", () => {
     const model = boardModel(state, viewer, CORE_DEPS);
 
-    expect(model.villain.name).toBe("Klaw");
+    expect(model.villain!.name).toBe("Klaw");
     expect(model.mainScheme.name.length).toBeGreaterThan(0);
     // The perspective seat is one of the two Core heroes we seated.
     expect(["She-Hulk", "Jennifer Walters", "Black Panther", "T'Challa"]).toContain(model.me.name);
@@ -81,18 +81,18 @@ describe("boardModel", () => {
 
   test("a leader's panel reads Leader where the villain's reads Villain", () => {
     const model = boardModel(asLeader(state), viewer, CORE_DEPS);
-    expect(model.villain.subtitle).toMatch(/^Leader · Stage (I|II|III)$/);
+    expect(model.villain!.subtitle).toMatch(/^Leader · Stage (I|II|III)$/);
   });
 
   test("the villain panel carries the stage, stats and HP the engine reports", () => {
     const model = boardModel(state, viewer, CORE_DEPS);
-    const labels = model.villain.stats.map((tile) => tile.label);
+    const labels = model.villain!.stats.map((tile) => tile.label);
 
-    expect(model.villain.subtitle).toMatch(/^Villain · Stage (I|II|III)$/);
+    expect(model.villain!.subtitle).toMatch(/^Villain · Stage (I|II|III)$/);
     expect(labels).toEqual(["ATK", "SCH", "HP"]);
-    expect(model.villain.hp).not.toBeNull();
-    expect(model.villain.hp!.max).toBeGreaterThan(0);
-    expect(model.villain.hp!.current).toBeLessThanOrEqual(model.villain.hp!.max);
+    expect(model.villain!.hp).not.toBeNull();
+    expect(model.villain!.hp!.max).toBeGreaterThan(0);
+    expect(model.villain!.hp!.current).toBeLessThanOrEqual(model.villain!.hp!.max);
   });
 
   test("the main scheme reports its scaled target threat, side schemes report none", () => {

@@ -20,6 +20,7 @@ import { HoverPreview, isMousePointer, resetHoverCards } from "../ui/card-hover-
 import { destroyChildren } from "../ui/destroy-children.js";
 import { bindHoldTarget } from "../ui/hold-target.js";
 import { addPressShield } from "../ui/press-shield.js";
+import { onTap } from "../ui/tap.js";
 import { textStyle } from "../ui/theme.js";
 import { OverlayMotion } from "../ui/transitions.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
@@ -151,7 +152,7 @@ export class PileViewOverlay extends Phaser.Scene {
     const { panel, bar, close, title, list: listRect, geometry } = layout;
 
     const shield = addPressShield(this, { x: 0, y: 0, width, height });
-    shield.on("pointerup", () => this.#close());
+    onTap(shield, () => this.#close());
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.void.hex, 0.82).fillRect(0, 0, width, height);
 

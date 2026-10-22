@@ -1176,7 +1176,7 @@ export class BoardScene extends Phaser.Scene {
         { length: pad.minions },
         (_unused, index) =>
           model.minions[index] ?? {
-            ...model.villain,
+            ...(model.villain ?? model.me),
             instanceId: `padm-${index}` as InstanceId,
             name: `Minion ${index + 1}`,
           },

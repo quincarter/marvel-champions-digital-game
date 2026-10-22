@@ -65,13 +65,13 @@ describe("a villain tucked under a card", () => {
     expect(model.villains.map((v) => [v.panel.instanceId, v.active, v.defeated])).toEqual([
       [state.activeVillainId, true, false],
     ]);
-    expect(model.villain.instanceId).toBe(state.activeVillainId);
+    expect(model.villain!.instanceId).toBe(state.activeVillainId);
     expect(state.activeVillainId).not.toBe(tuckedVillain);
   });
 
   test("has no tap target of its own: nothing else on the model names it", () => {
     const model = boardModel(state, me, POOL_DEPS);
-    const named = [model.villain, ...model.minions, ...model.villains.map((v) => v.panel)].map((p) => p.instanceId);
+    const named = [model.villain!, ...model.minions, ...model.villains.map((v) => v.panel)].map((p) => p.instanceId);
     expect(named).not.toContain(tuckedVillain);
   });
 });

@@ -54,7 +54,7 @@ import {
 } from "@mc/engine";
 import { POOL_DEPS } from "../content/pool.js";
 import type { BlindReveal } from "./civil-war-blind.js";
-import { encounterDeckPreviewOf, type EncounterDeckPreview } from "./encounter-preview.js";
+import { encounterDeckPreviewOf, type EncounterDeckPreview, type ScenarioDeckPreview } from "./encounter-preview.js";
 import { encounterDeckSizeText } from "./modular-summary.js";
 import { foeWord } from "./foe-words.js";
 import { hasRandomVillain, randomVillainLabel } from "./random-villain.js";
@@ -100,6 +100,12 @@ export interface TableSetupPreview {
   /** How many stages `villainTotalHp` adds up (per villain), so the summary can say what the number covers. */
   readonly villainStageSpan: number;
   readonly mainSchemeThreat: number;
+  /** The first stage prints no threshold (a dash, Into the Labyrinth 1A: it is advanced by thwarting, never completed). */
+  readonly mainSchemeThreatInfinite: boolean;
+  /** A villain stage in range prints infinite hit points (Shifting Corridors): `villainTotalHp` is then not a number to show. */
+  readonly villainHpInfinite: boolean;
+  /** Scenario decks built at setup from the encounter deck (the trap deck): `encounterDeckSize` leaves their cards out. */
+  readonly scenarioDecks: readonly ScenarioDeckPreview[];
   readonly mainSchemeAcceleration: number;
   readonly startingThreat: number;
   /** The printed per-player rate itself (`MainSchemeStage.startingThreat.perPlayer`), not the scaled total — "12 (3 / player)" needs both. */
@@ -147,7 +153,7 @@ function villainTotalHp(
   playerCount: number,
   startStageIndex?: number,
   villains?: GameSetupConfig["villains"],
-): number {
+): { readonly total: number; readonly infinite: boolean } {
   const [lo, hi] = stageRangeFor(scenario, difficulty, startStageIndex);
   const configured = scenario.multipleVillains ? villains : undefined;
   const villainCardIds: readonly CardId[] = configured
@@ -156,6 +162,7 @@ function villainTotalHp(
       ? scenario.multipleVillains.villains.map((v) => v.villainCardId)
       : [scenario.villainCardId];
   let total = 0;
+  let infinite = false;
   villainCardIds.forEach((villainCardId, index) => {
     const card = cardsById.get(villainCardId as string);
     if (!card || card.type !== "villain") return;
@@ -169,16 +176,24 @@ function villainTotalHp(
       const first = pinned.startStageIndex;
       const last = pinned.lastStageIndex ?? side.stages.length - 1;
       side.stages.forEach((stage, stageIndex) => {
-        if (stageIndex >= first && stageIndex <= last) total += scale(stage.hp, playerCount);
+        if (stageIndex >= first && stageIndex <= last) {
+          total += scale(stage.hp, playerCount);
+          if (stage.infiniteHp) infinite = true;
+        }
       });
       return;
     }
     for (const stage of side.stages) {
-      if (stage.stageNumber >= lo && stage.stageNumber <= hi) total += scale(stage.hp, playerCount);
+      if (stage.stageNumber >= lo && stage.stageNumber <= hi) {
+        total += scale(stage.hp, playerCount);
+        if (stage.infiniteHp) infinite = true;
+      }
     }
   });
-  return total;
+  return { total, infinite };
 }
+
+const capitalize = (word: string): string => `${word.charAt(0).toUpperCase()}${word.slice(1)}`;
 
 export interface CompositionRow {
   readonly label: string;
@@ -208,6 +223,8 @@ export function compositionRowsOf(encounterDeck: EncounterDeckPreview): readonly
   const rows: CompositionRow[] = [...bySet.values()]
     .sort((a, b) => b.count - a.count)
     .map((set) => ({ label: set.name, count: set.count, red: false }));
+  for (const deck of encounterDeck.scenarioDecks)
+    rows.push({ label: `${capitalize(deck.name)} deck (set apart)`, count: deck.count, red: false });
   if (encounterDeck.obligationsShuffledIn.length > 0) {
     rows.push({ label: "Obligations (shuffled in)", count: encounterDeck.obligationsShuffledIn.length, red: true });
   }
@@ -278,6 +295,7 @@ export interface GameSummaryRow {
 /** "28 across both stages": the rollup names what it adds up, so it never reads as the first stage's own HP. */
 function villainHpText(preview: TableSetupPreview): string {
   const span = preview.villainStageSpan;
+  if (preview.villainHpInfinite) return "∞ HP";
   if (span <= 1) return `${preview.villainTotalHp} HP`;
   return `${preview.villainTotalHp} HP across ${span === 2 ? "both" : span} stages`;
 }
@@ -298,9 +316,13 @@ export function gameSummaryRowsOf(preview: TableSetupPreview, tableRules?: Table
           ? `${preview.villainCount} villains · ${villainHpText(preview)}`
           : `${preview.villainName} ${preview.villainStageLabel} · ${villainHpText(preview)}`,
     },
-    { label: "Main scheme", value: `${preview.mainSchemeThreat} threat · accel ${preview.mainSchemeAcceleration}` },
+    {
+      label: "Main scheme",
+      value: `${preview.mainSchemeThreatInfinite ? "∞" : preview.mainSchemeThreat} threat · accel ${preview.mainSchemeAcceleration}`,
+    },
     { label: "Starting threat", value: `${preview.startingThreat} (${preview.startingThreatPerPlayer} / player)` },
     { label: "Encounter deck", value: preview.encounterDeckSizeText },
+    ...preview.scenarioDecks.map((deck) => ({ label: `${capitalize(deck.name)} deck`, value: `${deck.count} cards` })),
     {
       label: "Obligations",
       value: preview.obligationsCount === 0 ? "none" : `${preview.obligationsCount} shuffled in`,
@@ -366,6 +388,49 @@ function mainSchemeThreatOf(
   return dealt.ok ? mainSchemeValue(dealt.state, "targetThreat", deps) : 0;
 }
 
+/**
+ * `config` with the cards of every scenario deck the setup builds on its own (`ScenarioSeparateDeck.buildAtSetup`: the
+ * trap deck, MC65 p. 12) taken out of its encounter deck, and what each deck holds. The deal is the engine's own, so
+ * which cards a deck pulls is never decided here; a config the engine refuses, or one with no such deck, is returned
+ * as it was.
+ */
+function scenarioDecksBuiltAtSetup(
+  config: GameSetupConfig,
+  deps: EngineDeps,
+): { readonly config: GameSetupConfig; readonly decks: readonly ScenarioDeckPreview[] } {
+  if (!(config.scenarioDecks ?? []).some((deck) => deck.buildAtSetup)) return { config, decks: [] };
+  const dealt = createGame(config, deps);
+  if (!dealt.ok) return { config, decks: [] };
+  const taken: CardId[] = [];
+  const decks: ScenarioDeckPreview[] = [];
+  for (const [name, pile] of Object.entries(dealt.state.scenarioDecks)) {
+    if (pile.deck.length === 0) continue;
+    decks.push({ name, count: pile.deck.length });
+    for (const id of pile.deck) taken.push(dealt.state.instances[id]!.cardId);
+  }
+  const without = (list: readonly CardId[]): CardId[] => {
+    const owed = [...taken];
+    return list.filter((id) => {
+      const at = owed.indexOf(id);
+      if (at < 0) return true;
+      owed.splice(at, 1);
+      return false;
+    });
+  };
+  return {
+    config: {
+      ...config,
+      encounterDeck: without(config.encounterDeck),
+      ...(config.villains
+        ? {
+            villains: config.villains.map((villain) => ({ ...villain, encounterDeck: without(villain.encounterDeck) })),
+          }
+        : {}),
+    },
+    decks,
+  };
+}
+
 export function tableSetupPreviewOf(
   config: GameSetupConfig,
   scenario: Scenario,
@@ -396,8 +461,25 @@ export function tableSetupPreviewOf(
             ),
           }
         : { ...config, encounterDeck: [...config.encounterDeck, ...shuffledIn] };
-  const encounterDeck = encounterDeckPreviewOf(deckConfig, [...cardsById.values()], encounterSets, blind);
+  // A deck the setup builds out of the encounter deck (the trap deck) takes its cards from it: the engine deals them
+  // (`createGame`, the same deal `mainSchemeThreatOf` reads) and the preview counts the encounter deck without them.
+  const apart = scenarioDecksBuiltAtSetup(deckConfig, deps);
+  const encounterDeck = encounterDeckPreviewOf(
+    apart.config,
+    [...cardsById.values()],
+    encounterSets,
+    blind,
+    apart.decks,
+  );
   const firstStage = mainScheme.stages[0]!;
+  const hp = villainTotalHp(
+    scenario,
+    difficulty,
+    cardsById,
+    playerCount,
+    config.villainStartStageIndex,
+    config.villains,
+  );
   const villainCard = cardsById.get(scenario.villainCardId as string);
   const villainSide =
     villainCard?.type === "villain"
@@ -415,21 +497,21 @@ export function tableSetupPreviewOf(
   }));
   return {
     playerCount,
-    villainName: randomVillainLabel(scenario, cardsById) ?? villainSide?.name ?? villainCard?.name ?? scenario.name,
+    villainName:
+      randomVillainLabel(scenario, cardsById, new Map(encounterSets.map((set) => [set.id as string, set.name]))) ??
+      villainSide?.name ??
+      villainCard?.name ??
+      scenario.name,
     foeWord: foeWord(scenario, { cardsById, plural: false }),
     foeWordPlural: foeWord(scenario, { cardsById, plural: true, lower: true }),
     villainIsRandom,
     addedSets,
     villainCount: scenario.multipleVillains ? scenario.multipleVillains.villains.length : 1,
     villainStageLabel: roman(stageRange[0]),
-    villainTotalHp: villainTotalHp(
-      scenario,
-      difficulty,
-      cardsById,
-      playerCount,
-      config.villainStartStageIndex,
-      config.villains,
-    ),
+    villainTotalHp: hp.total,
+    villainHpInfinite: hp.infinite,
+    mainSchemeThreatInfinite: firstStage.dashedValues?.includes("targetThreat") === true,
+    scenarioDecks: apart.decks,
     villainStageSpan: stageRange[1] - stageRange[0] + 1,
     mainSchemeThreat: mainSchemeThreatOf(firstStage, config, playerCount, deps),
     mainSchemeAcceleration: scale(firstStage.acceleration, playerCount),

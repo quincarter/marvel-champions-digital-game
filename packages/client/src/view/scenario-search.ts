@@ -6,6 +6,7 @@
  */
 import type { AnyCard, EncounterSet, Scenario } from "@mc/content";
 import type { SearchDocument } from "./deck-search.js";
+import { hasRandomChosenVillain } from "./random-villain.js";
 import { scenarioDetailOf } from "./scenario-detail.js";
 
 export function scenarioSearchDocumentOf(
@@ -14,7 +15,10 @@ export function scenarioSearchDocumentOf(
   encounterSets: readonly EncounterSet[],
   packName: (packCode: string) => string,
 ): SearchDocument {
-  const villain = cardsById.get(scenario.villainCardId as string);
+  // A villain drawn at random (Shadows in the Night) is not known yet: its placeholder card must not make the scenario
+  // searchable by that villain's name, traits or text.
+  const hidden = hasRandomChosenVillain(scenario);
+  const villain = hidden ? undefined : cardsById.get(scenario.villainCardId as string);
   const stages = villain?.type === "villain" ? villain.sides.flatMap((side) => side.stages) : [];
   let detail: ReturnType<typeof scenarioDetailOf> | null = null;
   try {
@@ -27,7 +31,9 @@ export function scenarioSearchDocumentOf(
     id: scenario.id as string,
     primary: [
       scenario.name,
-      ...(detail ? [detail.displayName, detail.tileTitle, detail.villainName, ...detail.otherVillainNames] : []),
+      ...(detail
+        ? [detail.displayName, detail.tileTitle, ...(hidden ? [] : [detail.villainName]), ...detail.otherVillainNames]
+        : []),
       ...text(villain?.name),
     ],
     secondary: [

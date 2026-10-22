@@ -24,12 +24,35 @@ export function bySetupVillainLabel(scenario: Scenario, cardsById: ReadonlyMap<s
     .join(" ");
 }
 
+/**
+ * A card-keyed choice drawn at random that puts the drawn villain in play (Shadows in the Night): the record's own
+ * `villainCardId` is only the default option, a placeholder. One that keeps the draw set aside (Shadow Labyrinth) leaves
+ * the scenario's own villain as the villain, so it is not random here.
+ */
+export const hasRandomChosenVillain = (scenario: Scenario): boolean => {
+  const choice = scenario.villainOptions;
+  return choice?.keyedBy === "card" && choice.selection === "random" && choice.chosenVillain !== "setAside";
+};
+
 /** True when the opening villain is not known until the game is dealt. */
 export const hasRandomVillain = (scenario: Scenario): boolean =>
-  scenario.randomVillainName !== undefined || scenario.startingVillain === "bySetup";
+  scenario.randomVillainName !== undefined ||
+  scenario.startingVillain === "bySetup" ||
+  hasRandomChosenVillain(scenario);
 
-/** The label for a random opening villain, or undefined for a scenario that names its villain. */
-export function randomVillainLabel(scenario: Scenario, cardsById: ReadonlyMap<string, AnyCard>): string | undefined {
+/**
+ * The label for a random opening villain, or undefined for a scenario that names its villain. `setNames` (encounter
+ * set id to name) names the pool a random chosen villain comes from ("Dark Protégé").
+ */
+export function randomVillainLabel(
+  scenario: Scenario,
+  cardsById: ReadonlyMap<string, AnyCard>,
+  setNames?: ReadonlyMap<string, string>,
+): string | undefined {
   if (scenario.randomVillainName !== undefined) return scenario.randomVillainName;
+  if (hasRandomChosenVillain(scenario)) {
+    const setId = scenario.villainOptions?.defaultSetId as string | undefined;
+    return (setId ? setNames?.get(setId) : undefined) ?? "Random villain";
+  }
   return scenario.startingVillain === "bySetup" ? bySetupVillainLabel(scenario, cardsById) : undefined;
 }

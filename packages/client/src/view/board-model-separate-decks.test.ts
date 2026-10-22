@@ -135,12 +135,12 @@ describe("a Labor card in play wears its owner", () => {
       ...state,
       instances: { ...state.instances, [villain]: { ...state.instances[villain]!, attachments: [first] } },
     };
-    const chip = boardModel(state, me, DEPS).villain.attachments.find((entry) => entry.instanceId === first)!;
+    const chip = boardModel(state, me, DEPS).villain!.attachments.find((entry) => entry.instanceId === first)!;
     // Short: the chip hangs on a narrow tile, and the full "Hercules's Labor" was cut to "HERCULES'S..." there.
     expect(chip.ownedBy).toBe("Labor (Hercules)");
     expect(chip.name).toBe(cardOf(state, first)!.name);
     // The wording of the chip carries it in text, not colour.
-    const boardChip = boardModel(state, me, DEPS).villain.attachments.find((entry) => entry.instanceId === first)!;
+    const boardChip = boardModel(state, me, DEPS).villain!.attachments.find((entry) => entry.instanceId === first)!;
     expect(`${boardChip.name} · ${boardChip.ownedBy}`).toBe(`${cardOf(state, first)!.name} · Labor (Hercules)`);
     // An ordinary attachment (or any other card) names no owner.
     expect(boardModel(state, me, DEPS).me.attachments.every((entry) => entry.ownedBy === null)).toBe(true);

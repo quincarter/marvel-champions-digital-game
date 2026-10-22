@@ -68,7 +68,7 @@ function allyInstance(state: GameState): InstanceId {
 
 describe("the leader's panel", () => {
   test("is flagged as a leader and says so in its subtitle", () => {
-    const panel = model(game).villain;
+    const panel = model(game).villain!;
     expect(panel.leader).toBe(true);
     expect(panel.subtitle).toBe("Leader · Stage I");
     expect(panel.boostCount).toBe(0);
@@ -88,7 +88,7 @@ describe("facedown boost cards held by the leader between activations", () => {
         [ally]: { ...game.instances[ally]!, faceup: false },
       },
     };
-    const panel = model(state).villain;
+    const panel = model(state).villain!;
     expect(panel.boostCount).toBe(1);
     expect(panel.boostNote).toBe(
       "1 facedown boost card waiting, turned up at the next activation in addition to the one dealt",

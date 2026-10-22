@@ -17,6 +17,7 @@
  */
 import {
   playableScenarioOffer,
+  RANDOM_VILLAIN,
   scenarioWithVillain,
   type HorsemanSide,
   type PlayableScenarioOffer,
@@ -93,10 +94,8 @@ export function reconcileWithOffer(draft: SetupDraft, offer: PlayableScenarioOff
     difficultySets,
     genePoolThreatPerPlayer: genePool ? Math.min(Math.max(0, draft.genePoolThreatPerPlayer), genePool.max) : 0,
     horsemanSides: offer.horsemanSides ? draft.horsemanSides : null,
-    villainSetId:
-      offer.villains && offer.villains.options.some((option) => option.villainSetId === draft.villainSetId)
-        ? draft.villainSetId
-        : null,
+    villainId:
+      offer.villains && villainStepIds(offer.villains).includes(draft.villainId ?? "") ? draft.villainId : null,
     easierStart: offer.easierStart ? draft.easierStart : false,
   };
 }
@@ -298,19 +297,38 @@ export function setupOptionRowsOf(
   const villains = offer.villains;
   if (villains && villains.options.length > 1) {
     const chosen = villainChosenOf(draft, villains);
-    const index = villains.options.findIndex((option) => option.villainSetId === chosen);
+    const random = chosen === RANDOM_VILLAIN;
+    const index = villains.options.findIndex((option) => option.id === chosen);
+    const count = villains.options.length;
+    const poolName = setNames.get(villains.options[0]?.villainSetId ?? "");
+    // A random draw that stays set aside is never named, here or anywhere before it enters play (Shadow Labyrinth).
+    const hidden = villains.chosenVillain === "setAside";
+    const pickedName = villains.options[index]?.name ?? "";
     rows.push({
       id: "villain",
       name: "Villain",
-      meta: `${index + 1} of ${villains.options.length}`,
+      // A villain picked at a card-keyed choice is a house option: the printed setup draws it at random.
+      meta: random
+        ? `${count} villains`
+        : villains.keyedBy === "card"
+          ? `House pick · ${index + 1} of ${count}`
+          : `${index + 1} of ${count}`,
       span: 2,
-      active: chosen !== villains.defaultSetId,
-      help: "Fear No Evil: every scenario can be played against any of its five villains. The villain brings its own encounter set and stages.",
+      active: chosen !== villains.defaultId,
+      help: villainHelp(villains),
       control: {
         kind: "stepper",
         down: { action: "villain:prev", label: "‹", selected: false, enabled: true },
         up: { action: "villain:next", label: "›", selected: false, enabled: true },
-        valueLabel: villains.options[index]?.name ?? "",
+        valueLabel: random
+          ? hidden
+            ? "Random, kept set aside"
+            : poolName
+              ? `Random (${poolName})`
+              : "Random"
+          : hidden
+            ? `${pickedName} (set aside)`
+            : pickedName,
         wide: true,
       },
     });
@@ -330,19 +348,59 @@ export function setupOptionRowsOf(
   return rows;
 }
 
-/** The villain the draft plays against: its pick, else the scenario's default. */
-export function villainChosenOf(draft: Pick<SetupDraft, "villainSetId">, villains: VillainChoiceOffer): string {
-  return draft.villainSetId ?? villains.defaultSetId;
+/** The ids the villain stepper walks, in order: "random" first when the setup draws the villain, then each option. */
+export function villainStepIds(villains: VillainChoiceOffer): readonly string[] {
+  return [...(villains.random ? [RANDOM_VILLAIN] : []), ...villains.options.map((option) => option.id)];
+}
+
+/** The villain the draft plays against: its pick, else the offer's default (the scenario's own, or the random draw). */
+export function villainChosenOf(draft: Pick<SetupDraft, "villainId">, villains: VillainChoiceOffer): string {
+  return draft.villainId ?? villains.defaultId;
+}
+
+/** The villain row's help line, in the words of the choice it is (Fear No Evil's five, Shadowland's six). */
+function villainHelp(villains: VillainChoiceOffer): string {
+  if (villains.keyedBy === "set")
+    return "Fear No Evil: every scenario can be played against any of its five villains. The villain brings its own encounter set and stages.";
+  return villains.chosenVillain === "setAside"
+    ? "A Dark Protégé villain is drawn at random and kept set aside, face down, until a card puts it into play; its name stays hidden until then. Step to a villain to pick one yourself instead (a house option)."
+    : "The villain is drawn at random from the Dark Protégé villains when the game is set up. Step to a villain to pick one yourself instead (a house option).";
+}
+
+/**
+ * The session fields a villain pick sets: `villainSetId` at a set-keyed choice (Fear No Evil), `villainCardId` at a
+ * card-keyed one (Shadowland). Nothing for the default, so the builder draws or defaults as it always has.
+ */
+export function villainSessionFields(
+  villainId: string | null,
+  villains: VillainChoiceOffer | null,
+): { villainSetId?: string; villainCardId?: string } {
+  if (!villainId || !villains) return {};
+  return villains.keyedBy === "card" ? { villainCardId: villainId } : { villainSetId: villainId };
 }
 
 /**
  * The scenario record as this draft plays it: a Fear No Evil scenario with the chosen villain's card, stages and encounter
- * set in place of the default's (`scenarioWithVillain`), the record itself for every other draft.
+ * set in place of the default's (`scenarioWithVillain`), the record itself for every other draft. A card-keyed choice
+ * (Shadowland) is resolved by the engine at setup, so only what the screens read is rewritten: a villain the player
+ * picked for play (`chosenVillain` `"inPlay"`) is shown as the villain, no longer "random". A pick that stays set aside
+ * leaves the scenario's own villain as it is.
  */
-export function scenarioOfDraft(draft: Pick<SetupDraft, "villainSetId">, record: Scenario): Scenario {
-  if (!draft.villainSetId) return record;
+export function scenarioOfDraft(draft: Pick<SetupDraft, "villainId">, record: Scenario): Scenario {
+  const choice = record.villainOptions;
+  if (!draft.villainId) return record;
+  if (choice?.keyedBy === "card") {
+    const option = choice.options.find((candidate) => candidate.villainCardId === draft.villainId);
+    if (!option || choice.chosenVillain === "setAside") return record;
+    return {
+      ...record,
+      villainCardId: option.villainCardId,
+      villainStages: option.villainStages,
+      villainOptions: { ...choice, selection: "player" },
+    };
+  }
   try {
-    return scenarioWithVillain(record, draft.villainSetId);
+    return scenarioWithVillain(record, draft.villainId);
   } catch {
     return record;
   }
@@ -374,8 +432,11 @@ export function optionActionsOf(rows: readonly SetupOptionRow[]): readonly strin
  * Applies one control's action to the draft. An action the offer does not list (a stale tap after the difficulty
  * changed) leaves the draft as it was.
  */
-export function applySetupOption(draft: SetupDraft, action: string): SetupDraft {
-  const offer = offerOf(draft);
+export function applySetupOption(
+  draft: SetupDraft,
+  action: string,
+  offer: PlayableScenarioOffer = offerOf(draft),
+): SetupDraft {
   const [kind, first, second] = action.split(":");
 
   if (kind === "standardSet" || kind === "expertSet") {
@@ -411,10 +472,10 @@ export function applySetupOption(draft: SetupDraft, action: string): SetupDraft 
   if (kind === "villain") {
     const villains = offer.villains;
     if (!villains || (first !== "next" && first !== "prev")) return draft;
-    const ids = villains.options.map((option) => option.villainSetId);
+    const ids = villainStepIds(villains);
     const at = ids.indexOf(villainChosenOf(draft, villains));
     const next = ids[(at + (first === "next" ? 1 : ids.length - 1)) % ids.length]!;
-    return { ...draft, villainSetId: next === villains.defaultSetId ? null : next };
+    return { ...draft, villainId: next === villains.defaultId ? null : next };
   }
 
   if (kind === "easierStart") {

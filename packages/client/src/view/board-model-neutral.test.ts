@@ -46,9 +46,9 @@ describe("the neutral area", () => {
     expect(area?.closed).toBe(true);
     expect(area?.cards.map((card) => card.name)).toEqual(["Loki, God of Lies", "Worlds Collide"]);
     // The villain and main scheme the group plays against are the Avatar and Mischief and Mayhem.
-    expect(m.villain.name).toMatch(/^Loki the /);
+    expect(m.villain!.name).toMatch(/^Loki the /);
     expect(m.mainScheme.name).toBe("Mischief and Mayhem");
-    expect(area?.cards.map((card) => card.instanceId)).not.toContain(m.villain.instanceId);
+    expect(area?.cards.map((card) => card.instanceId)).not.toContain(m.villain!.instanceId);
   });
 
   test("Loki shows the shared dial and the flip point; Worlds Collide the shared threat and the loss", () => {
@@ -129,7 +129,7 @@ describe("Synergy environments and shatter counters", () => {
       ...game,
       instances: { ...game.instances, [avatar]: { ...game.instances[avatar]!, counters: { shatter: 2 } } },
     } as GameState;
-    expect(model(marked).villain.counters).toEqual([{ name: "shatter", count: 2 }]);
+    expect(model(marked).villain!.counters).toEqual([{ name: "shatter", count: 2 }]);
   });
 });
 

@@ -20,6 +20,7 @@ import {
 import { ART_CATALOG, packCoverFor, villainArtFor } from "../art/scenario-art.js";
 import type { Picture } from "../art/pictures.js";
 import { artFor } from "../art/art-source.js";
+import { hasRandomChosenVillain } from "../view/random-villain.js";
 import { cardArt } from "../art/card-art.js";
 import { accent, border, dotGrid, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
@@ -629,7 +630,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
     // card scan, cover-cropped, rather than an empty parchment box (second-pass item 7). Only the URL: the card-face
     // worker fetches and decodes it, downscaled to the card, and the roster redraws when the face arrives.
     const picture = this.#villainArtFor(s);
-    const villainCard = picture ? undefined : CARDS_BY_ID.get(s.villainCardId as string);
+    const villainCard = picture || hasRandomChosenVillain(s) ? undefined : CARDS_BY_ID.get(s.villainCardId as string);
     const artUrl =
       picture?.url ??
       (villainCard ? artFor(villainCard, { kind: "villainStage", sideIndex: 0, stageIndex: 0 }) : null)?.url ??
@@ -979,13 +980,17 @@ export class ScenarioSelectScene extends Phaser.Scene {
   }
 
   #inspectScenario(s: Scenario): void {
-    const card = CARDS_BY_ID.get(s.villainCardId as string);
-    const face =
-      card?.type === "villain"
+    // A villain drawn at random (Shadows in the Night) is not known yet, so the sheet shows the main scheme instead.
+    const unknown = hasRandomChosenVillain(s);
+    const shownId = unknown ? s.mainSchemeCardId : s.villainCardId;
+    const card = CARDS_BY_ID.get(shownId as string);
+    const face = unknown
+      ? ({ kind: "mainSchemeStage", stageIndex: 0, side: "A" } as const)
+      : card?.type === "villain"
         ? ({ kind: "villainStage", sideIndex: 0, stageIndex: 0 } as const)
         : ({ kind: "hero" } as const);
     this.scene.launch(SCENES.inspect, {
-      card: { cardId: s.villainCardId as CardId, face },
+      card: { cardId: shownId as CardId, face },
       choice: {
         optionId: s.id as string,
         label: s.multipleVillains

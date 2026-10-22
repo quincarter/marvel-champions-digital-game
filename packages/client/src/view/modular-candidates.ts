@@ -19,8 +19,8 @@
  * scenario that calls for no modular sets (Breakout, The Hood) keeps the short list it always had, because there is
  * nothing to add a set to.
  */
-import { isScenarioSpecificSet, modularPickProblem } from "@mc/cards";
-import type { EncounterSet, Scenario } from "@mc/content";
+import { campaignModularPickProblem, isScenarioSpecificSet, modularPickProblem } from "@mc/cards";
+import type { Campaign, EncounterSet, Scenario } from "@mc/content";
 import { modularExclusionReason } from "./modular-exclusions.js";
 import { CORE_MODULAR_SET_IDS, POOL_ENCOUNTER_SETS, POOL_HERO_SHELF_PACKS } from "../content/pool.js";
 
@@ -134,6 +134,11 @@ export function modularCandidatesFor(
   scenario: Scenario,
   scope: ModularScope = ALL_OPEN,
   encounterSets: readonly EncounterSet[] = POOL_ENCOUNTER_SETS,
+  /**
+   * The campaign the game is played in, when it is: a set the box bars (`Campaign.prohibited.encounterSetIds`, Shadowland's
+   * Black Flower, MC65 p. 5) stays listed but disabled with `campaignModularPickProblem`'s reason. Absent for a standalone game.
+   */
+  campaign?: Pick<Campaign, "name" | "prohibited">,
 ): readonly ModularCandidate[] {
   const recommended = scenario.recommendedModularSetIds.map((id) => id as string);
   const isRecommended = (id: string): boolean => recommended.includes(id);
@@ -194,7 +199,19 @@ export function modularCandidatesFor(
       });
   }
   out.push(...ownSide, ...neutral, ...otherSide);
-  return out;
+  if (!campaign) return out;
+  return out.map((candidate) => {
+    const problem = campaignModularPickProblem(campaign, scenario, candidate.id, encounterSets);
+    // Only the box's own bar is added here; every other refusal is the candidate rules' above.
+    return candidate.disabledReason === undefined &&
+      campaign.prohibited?.encounterSetIds?.some((id) => id === candidate.id) &&
+      problem
+      ? {
+          ...candidate,
+          disabledReason: problem.replace(candidate.id, setsById.get(candidate.id)?.name ?? candidate.id),
+        }
+      : candidate;
+  });
 }
 
 /** Whether `set` (an extra, such as Longshot) is offered: its pack is open. */

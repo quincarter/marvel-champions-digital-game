@@ -163,6 +163,7 @@ const scenarioFor = (config: SessionConfig) => {
     ...(config.horsemanSides ? { horsemanSides: config.horsemanSides } : {}),
     ...(config.easierStart ? { easierStart: true } : {}),
     ...(config.villainSetId ? { villainSetId: config.villainSetId } : {}),
+    ...(config.villainCardId ? { villainCardId: config.villainCardId } : {}),
     ...(config.mainSchemePicks ? { mainSchemePicks: config.mainSchemePicks } : {}),
     ...(config.setAsideModularSetIds ? { setAsideModularSetIds: config.setAsideModularSetIds } : {}),
     ...(config.extraModularSetIds ? { extraModularSetIds: config.extraModularSetIds } : {}),

@@ -56,6 +56,7 @@ describe("Thanos: the Infinity Stone deck", () => {
     expect(stones!.deckCount).toBeGreaterThan(0);
     expect(stones!.discardCount).toBe(0);
     expect(stones!.discardTopInstanceId).toBeNull();
+    expect(stones!.discard).toEqual([]);
   });
 
   test("a discarded stone shows as the deck's own discard top, by patching engine-owned deck state directly (the discard mechanic itself is the scripted card's own ability, not this view model's concern)", async () => {
@@ -78,6 +79,7 @@ describe("Thanos: the Infinity Stone deck", () => {
     expect(stones!.discardCount).toBe(1);
     expect(stones!.discardTopInstanceId).toBe(stoneId);
     expect(stones!.discardTopArt).not.toBeNull();
+    expect(stones!.discard).toEqual([stoneId]);
   });
 });
 
