@@ -1,0 +1,3 @@
+kind: Fixed
+body: A screen redrawn while a scrolled list is still gliding (the campaign market, once its card pictures load) no longer throws on the old list's scrollbar
+time: 2026-10-21T08:26:27.7201901+02:00
