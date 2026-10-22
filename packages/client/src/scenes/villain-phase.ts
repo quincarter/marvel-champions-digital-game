@@ -1047,8 +1047,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
      * Reduced motion never auto-closes, whatever the setting.
      *
      * With no reveal timer the phase appears at once up to each stop the player asked for, so a close timer
-     * would give the player who asked for less motion the *least* time to read it. The only ways out are the ones the player drives: Start player
-     * phase, Hide (Skip), or Esc.
+     * would give the player who asked for less motion the *least* time to read it. The only ways out are the ones
+     * the player drives: Start player phase, Hide (Skip), or Esc.
      */
     const mode = appSession().settings.villainAutoAdvance;
     const delay =
@@ -1082,12 +1082,16 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     return encounterHoldAt(beats, revealed, this.#released);
   }
 
-  /** The shape the phase opens in before anything is drawn: docked unless full screen or a lesson's guide strip. */
+  /**
+   * The shape the phase opens in before anything is drawn, as `#drawNow` works it out: docked unless the docked table
+   * is off or a lesson's guide strip takes a tabbed layout full screen (a desktop lesson's guide rail still docks).
+   */
   #dockedShape(): VillainDockKind {
-    if (this.#guideActive()) return "full";
     const { width, height } = this.scale.gameSize;
+    const formFactor = formFactorFor(width, height);
+    if (isTabbed(formFactor) && this.#boardScene()?.guideStripContent() != null) return "full";
     return villainPresentationFor({
-      formFactor: formFactorFor(width, height),
+      formFactor,
       dockTable: appSession().settings.villainDockTable,
       recap: false,
       peeking: false,
