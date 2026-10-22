@@ -97,6 +97,7 @@ at. Each one is recorded in assets/card-art/hall-of-heroes-manifest.tsv.
   uv run scripts/fetch_card_art.py --self-test
   uv run scripts/fetch_card_art.py trim --dry-run
   uv run scripts/fetch_card_art.py fetch --stamped-only
+  uv run scripts/fetch_card_art.py fetch --max-local-edge 450
   uv run scripts/fetch_card_art.py fetch --packs mts sm --dry-run
   uv run scripts/fetch_card_art.py grab --page https://hallofheroeslcg.com/sam-alexander-nova/ --match deck1 --out /tmp/scratch
   uv run scripts/fetch_card_art.py grab --image https://marvelcdb.com/bundles/cards/28022.png --out /tmp/scratch
@@ -892,6 +893,23 @@ def fetch(args: argparse.Namespace) -> None:
     else:
         packs = stamped_packs + sorted(set(names) - set(stamped_packs))
 
+    # The old 300px MarvelCDB scans (Core Set, Red Skull, the first hero packs) carry a fainter FFG diamond than the
+    # Mad Titan's Shadow previews the templates were built from, and score under the audit's cutoff (0.13-0.17,
+    # 2026-10-22). `--max-local-edge` targets those by size instead: only scans no longer than that are replaced.
+    small_codes: set[str] | None = None
+    if args.max_local_edge:
+        small_codes = set()
+        for code, path in scans.items():
+            with Image.open(path) as img:
+                if max(img.size) <= args.max_local_edge:
+                    small_codes.add(code)
+        print(f"    {len(small_codes)} local scans with a long edge of {args.max_local_edge}px or less")
+
+    def targeted(code: str) -> bool:
+        if args.stamped_only and code not in stamped_codes:
+            return False
+        return small_codes is None or code in small_codes
+
     http = Http(args.delay)
     header, manifest = read_manifest()
     stats = {"replaced": 0, "added": 0, "kept": 0, "stamped": 0, "untrimmed": 0, "unmatched": 0}
@@ -958,7 +976,7 @@ def fetch(args: argparse.Namespace) -> None:
                         if args.verbose:
                             print(f"    ? unmatched {url} ({alt!r})")
                 continue
-            if code in done or (args.stamped_only and code not in stamped_codes):
+            if code in done or not targeted(code):
                 continue
             local = scans.get(code)
             if local is None and not args.fill_missing:
@@ -971,7 +989,7 @@ def fetch(args: argparse.Namespace) -> None:
         # per-encounter-set sequence (`e1.jpg`, `t7b.jpg`...), not by card code or name, so `match_code` above leaves
         # almost everything unmatched. Whatever it *did* leave over (`leftover`) still might be the very art a
         # not-yet-`done` code needs; match by content instead of name for those only.
-        wanted = (stamped_codes if args.stamped_only else set(scans)) & {c for c in cards if pack_of(c, cards) == pack}
+        wanted = {c for c in scans if targeted(c)} & {c for c in cards if pack_of(c, cards) == pack}
         wanted -= done
         if leftover and wanted:
             local_hashes: dict[str, int] = {}
@@ -1282,6 +1300,12 @@ def main() -> None:
     f = sub.add_parser("fetch", help="replace local scans with better Hall of Heroes copies")
     f.add_argument("--packs", nargs="+", help="MarvelCDB pack codes to fetch (default: stamped packs first, then all)")
     f.add_argument("--stamped-only", action="store_true", help="only replace scans carrying the FFG watermark")
+    f.add_argument(
+        "--max-local-edge",
+        type=int,
+        metavar="PX",
+        help="only replace local scans whose long edge is at most PX (the faintly stamped 300px MarvelCDB scans)",
+    )
     f.add_argument("--fill-missing", action="store_true", help="also add art for cards with no local scan")
     f.add_argument("--dry-run", action="store_true", help="report what would change without writing")
     f.add_argument("--delay", type=float, default=0.5, help="seconds between requests (default 0.5)")
