@@ -9,6 +9,8 @@
  *
  * - **Stories:** a campaign issue opens once a run has reached it (signing a run opens issue #1; each issue won
  *   opens the next). Rereading one goes through the campaign's own opener, told to the box's own cast.
+ * - **Side stories:** a short comic apart from the campaigns (`content/side-stories.ts`) opens with the Trophy Room
+ *   achievement it belongs to: Thor and She-Hulk's Badlands date with "Worthy of a Second Date?".
  * - **Heroes:** a hero's file (their artwork, both faces' names, traits and flavor) opens once a game played as that
  *   hero has ended, in a campaign or on its own.
  * - **Villains:** a villain's file opens once a game against that scenario has ended. Its "villain loses" scene
@@ -32,12 +34,14 @@ import { ART_CATALOG } from "../art/scenario-art.js";
 import { CAMPAIGN_ART } from "../art/campaign-art.js";
 import { HERO_ART } from "../art/hero-art.js";
 import { EXTRAS_ART, extrasArtTitle } from "../art/extras-art.js";
+import { SIDE_STORY_ART } from "../art/side-stories-art.js";
 import { TITLE_ART } from "../art/title-art.js";
 import type { Picture } from "../art/pictures.js";
 import { MUSIC_CATALOG, type MusicCatalog, type Track } from "../audio/music-catalog.js";
 import { SAGA_VOLUMES, storyFor } from "../campaign/story.js";
 import { CARDS_BY_ID, POOL_PACKS, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
 import { BOOKS } from "../content/books.js";
+import { SIDE_STORIES, type SideStory } from "../content/side-stories.js";
 import { CAMPAIGN_RECORDS } from "../campaign/campaign-service.js";
 import { UNLOCK_HEROES, villainLabelOf } from "./unlocks.js";
 import { isLessonSave } from "../engine/game-storage.js";
@@ -180,13 +184,14 @@ export type ExtrasUnlock =
   /** One track filed in several slots (the same song as a campaign finale and a pack's victory theme). */
   | { readonly kind: "any"; readonly of: readonly ExtrasUnlock[] };
 
-export type ExtrasTab = "stories" | "books" | "heroes" | "villains" | "art" | "music";
+export type ExtrasTab = "stories" | "side" | "books" | "heroes" | "villains" | "art" | "music";
 
-/** `short` is a phone's tab label, where six tabs share 390px. */
+/** `short` is a phone's tab label, where seven tabs share 390px. */
 export const EXTRAS_TABS: readonly { readonly id: ExtrasTab; readonly label: string; readonly short: string }[] = [
-  { id: "stories", label: "Stories", short: "Stories" },
+  { id: "stories", label: "Stories", short: "Story" },
+  { id: "side", label: "Side Stories", short: "Side" },
   { id: "books", label: "Rulebooks", short: "Rules" },
-  { id: "heroes", label: "Heroes", short: "Heroes" },
+  { id: "heroes", label: "Heroes", short: "Hero" },
   { id: "villains", label: "Villains", short: "Foes" },
   { id: "art", label: "Artwork", short: "Art" },
   { id: "music", label: "Music", short: "Music" },
@@ -616,6 +621,37 @@ export function storyEntriesOf(): ExtrasEntry[] {
   });
 }
 
+/** Every side story whose pages are in `art/side-stories/`, opened by its achievement and read page by page. */
+export function sideStoryEntriesOf(
+  stories: readonly SideStory[] = SIDE_STORIES,
+  art: ReadonlyMap<string, readonly Picture[]> = SIDE_STORY_ART,
+): ExtrasEntry[] {
+  return stories.flatMap((story): ExtrasEntry[] => {
+    const pages = art.get(story.id) ?? [];
+    if (pages.length === 0) return [];
+    const unlock: ExtrasUnlock = { kind: "achievement", achievementId: story.achievementId };
+    return [
+      {
+        id: `side:${story.id}`,
+        tab: "side",
+        title: story.title,
+        subtitle: story.subtitle,
+        thumb: pages[0]!,
+        unlock,
+        content: {
+          kind: "gallery",
+          slides: pages.map((picture) => ({
+            picture,
+            caption: story.title,
+            unlock,
+          })),
+          lines: story.lines,
+        },
+      },
+    ];
+  });
+}
+
 /** A card's traits and flavor as a hero or villain file's lines, skipping whatever the card doesn't print. */
 function faceLines(face: {
   readonly faceName?: string;
@@ -782,6 +818,7 @@ export function bookEntriesOf(): ExtrasEntry[] {
 /** Every extra, by tab. Built once: the catalogs are build-time globs and the pool never changes at runtime. */
 export const EXTRAS_ENTRIES: Readonly<Record<ExtrasTab, readonly ExtrasEntry[]>> = {
   stories: storyEntriesOf(),
+  side: sideStoryEntriesOf(),
   books: bookEntriesOf(),
   heroes: heroEntriesOf(),
   villains: villainEntriesOf(),

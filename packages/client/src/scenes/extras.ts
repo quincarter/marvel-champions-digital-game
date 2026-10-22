@@ -1,6 +1,6 @@
 /**
- * Extras: the comics, rulebooks, artwork, hero and villain files and the soundtrack, reached from Title. Six tabs
- * (Stories, Rulebooks, Heroes, Villains, Artwork, Music), each a shelf of tiles; a locked tile shows its picture pixelated and says what
+ * Extras: the comics, rulebooks, artwork, hero and villain files and the soundtrack, reached from Title. Seven tabs
+ * (Stories, Side Stories, Rulebooks, Heroes, Villains, Artwork, Music), each a shelf of tiles; a locked tile shows its picture pixelated and says what
  * opens it, an open one reads, views or plays.
  *
  * What is open is `progression/extras.ts`'s (read through `extras()`, refreshed from storage when the screen opens);
@@ -9,7 +9,7 @@
  * - **Stories** start the campaign opener with no run behind it (`CampaignOpenerData`'s Extras read), which comes
  *   back here to the same tab.
  * - **Rulebooks** open the reader (`scenes/extras-reader.ts`): the book as plain text, with links to its PDFs.
- * - **Heroes, Villains, Artwork** open the viewer overlay (`scenes/extras-viewer.ts`) over this screen.
+ * - **Side Stories, Heroes, Villains, Artwork** open the viewer overlay (`scenes/extras-viewer.ts`) over this screen.
  * - **Music** plays the song through the music controller's jukebox, until Title (or any other screen) asks for its
  *   own music again. With shuffle on (#191) the shuffle carries on from it instead.
  */

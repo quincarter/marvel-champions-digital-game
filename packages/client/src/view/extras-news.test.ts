@@ -39,6 +39,22 @@ describe("what opened", () => {
     expect(newExtrasOf(new Set(before.keys()), after).map((item) => item.title)).toEqual(["Song A", "Rhino falls"]);
   });
 
+  test("a side story's pages open with it, as one new side story", () => {
+    const unlock: ExtrasUnlock = { kind: "achievement", achievementId: "date" };
+    const story: ExtrasEntry = {
+      ...entry("side:date", "side", "Worthy of a Second Date?"),
+      unlock,
+      content: { kind: "gallery", lines: [], slides: [slide("page 1", unlock), slide("page 2", unlock)] },
+    };
+    const earned = {
+      isOpen: (u: ExtrasUnlock) => u.kind === "achievement",
+      openSlides: (content: ExtrasContent) => (content.kind === "gallery" ? content.slides : []),
+    };
+    const items = newExtrasOf(new Set(), openExtrasOf(earned, [story]));
+    expect(items.map((item) => item.title)).toEqual(["Worthy of a Second Date?"]);
+    expect(extrasNewsHeadline(items).label).toBe("New side story unlocked");
+  });
+
   test("nothing new, nothing to say", () => {
     const open = openExtrasOf(progress(["music:A"]), entries);
     expect(newExtrasOf(new Set(open.keys()), open)).toEqual([]);

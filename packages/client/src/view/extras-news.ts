@@ -12,7 +12,10 @@ export interface ExtrasNewsItem {
   readonly title: string;
 }
 
-/** Everything open, by id: each entry, and each picture of a gallery past its first (a villain's defeat scene). */
+/**
+ * Everything open, by id: each entry, and each picture of a gallery past its first that opens on its own (a villain's
+ * defeat scene). A picture opened by the entry's own unlock (a side story's later pages) is part of the entry.
+ */
 export function openExtrasOf(
   extras: Pick<Extras, "isOpen" | "openSlides">,
   entries: readonly ExtrasEntry[] = Object.values(EXTRAS_ENTRIES).flat(),
@@ -22,7 +25,7 @@ export function openExtrasOf(
     if (!extras.isOpen(entry.unlock)) continue;
     open.set(entry.id, { id: entry.id, tab: entry.tab, title: entry.title });
     extras.openSlides(entry.content).forEach((slide, index) => {
-      if (index === 0) return;
+      if (index === 0 || slide.unlock === entry.unlock) return;
       const id = `${entry.id}#${slide.caption}#${index}`;
       open.set(id, { id, tab: entry.tab, title: slide.caption });
     });
@@ -38,6 +41,7 @@ export function newExtrasOf(known: ReadonlySet<string>, open: ReadonlyMap<string
 const ONE: Record<ExtrasTab, string> = {
   music: "New song earned",
   stories: "New story unlocked",
+  side: "New side story unlocked",
   heroes: "New hero file",
   villains: "New villain file",
   art: "New artwork",
@@ -47,6 +51,7 @@ const ONE: Record<ExtrasTab, string> = {
 const MANY: Record<ExtrasTab, string> = {
   music: "new songs earned",
   stories: "new stories unlocked",
+  side: "new side stories unlocked",
   heroes: "new hero files",
   villains: "new villain files",
   art: "new artworks",
