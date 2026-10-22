@@ -1,0 +1,3 @@
+kind: Engine
+body: A main scheme's next stage counts as entering play when the scheme advances, so it no longer answers a thwart (or anything else) that happened against the stage before it.
+time: 2026-10-22T11:37:58.7444557-04:00

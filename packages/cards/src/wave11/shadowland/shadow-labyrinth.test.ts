@@ -513,9 +513,9 @@ describe("Chamber of Vile Secrets 2B (65039b)", () => {
     expect(revealed(run.state, run.events)).toContainEqual({ code: BLINDING, player: P1 });
   });
 
-  // BLOCKER (engine fix pending): the thwart that removes stage 1's last threat must not trigger stage 2B's response (a
-  // stage change counts as entering play, RRG 1.8 p. 27 step 1, p. 23). Today it does, and uses up the player's limit.
-  it.fails("the stage-1 thwart that advances the scheme reveals no trap card and uses no limit", () => {
+  // The thwart that removes stage 1's last threat does not trigger stage 2B's response: a stage change counts as the
+  // next stage entering play (RRG 1.8 p. 27 step 1, p. 23).
+  it("the stage-1 thwart that advances the scheme reveals no trap card and uses no limit", () => {
     const game = labyrinth();
     const start = stackTraps(patchInstance(game, schemeId(game), { threat: 1 }), BLINDING);
     const run = heroThwarts(WAVE11_DEPS, start, schemeId(start));

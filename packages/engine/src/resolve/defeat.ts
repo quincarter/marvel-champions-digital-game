@@ -16,6 +16,7 @@ import {
   waitsForHostStep,
 } from "../effects.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
+import { noteReplacedInPlay } from "../entered-since.js";
 import { hasKeyword, isPermanent } from "../keywords.js";
 import { rehostPermanentAttachment } from "./attach.js";
 import {
@@ -486,6 +487,11 @@ export function advanceMainScheme(
     advancedBy,
     faceupSide: "A",
   }));
+  // Step 1 removed the old card from the game; the new top card, out of play until now (RRG 1.8 "In Play and Out of
+  // Play", p. 23), is the scheme in its place under the same instance id. It entered play now: it answers neither a
+  // condition already occurred nor a procedure under way against the old stage (a thwart of it; `entered-since.ts`).
+  // A turn from A to B (`mainSchemeTurnsToB`) is the same card in play, and is not this.
+  ctx.state = noteReplacedInPlay(ctx.state, schemeId);
   const scheme = mainSchemeStateOf(ctx.state, schemeId);
   if (!scheme) return;
   const startingThreat = mainSchemeValue(ctx.state, "startingThreat", ctx.deps, scheme);
@@ -877,6 +883,11 @@ export function defeatVillainStage(ctx: Ctx, villainId: InstanceId, ignoreWhenDe
   }
   // RRG "Villain Defeat": excess damage does not carry over to the new stage. The extreme challenge's A→B (and a
   // per-villain lastStageIndex) is this same advance (docs/phase7-wave1.md §4.6, proposed).
+  // Unlike a main scheme's advance, the new stage is not marked as entering play (`entered-since.ts`). Engine
+  // assumption: the stages of one villain card share its title (the card data names a side, not a stage), and RRG 1.8
+  // "Villain Defeat" (p. 47) makes a new stage of the same title "the same character as the defeated stage for purposes
+  // of card abilities" (retaliate, an activation it resumes). A villain whose next stage had a different title would be
+  // a new card, to be marked as a main scheme stage is (`noteReplacedInPlay`).
   updateVillain(ctx, villainId, (v) => ({ ...v, stageIndex: nextIndex }));
   updateInstance(ctx, villainId, (i) => ({ ...i, damage: 0 }));
   emit(ctx, { type: "villainStageAdvanced", stageIndex: nextIndex, instanceId: villainId });

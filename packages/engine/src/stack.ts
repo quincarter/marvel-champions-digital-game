@@ -85,6 +85,11 @@ export interface ThwartSession {
   readonly results: Vars;
   /** Its resolved event has been pushed (or it had nothing to announce). */
   readonly announced?: true;
+  /**
+   * The cards that do not answer its resolved event (`TriggerEvent.enteredPlaySince`, `entered-since.ts`): a scheme it
+   * thwarted that was replaced by its next stage while the ability resolved. Absent until one is.
+   */
+  readonly enteredPlaySince?: readonly InstanceId[];
 }
 
 /** Where an event frame reports its results when it finishes: `<prefix>.<key>` is added to that frame's vars. */

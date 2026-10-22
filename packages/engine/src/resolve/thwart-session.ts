@@ -100,8 +100,16 @@ export function foldThwartInstance(ctx: Ctx, frame: Frame<"event">): boolean {
       // The modifier is the session's own, already added to each instance.
       if (key !== "extraThreat") results[key] = (results[key] ?? 0) + amount;
     }
+    // A card its instance's event did not reach stays unreached by the ability's one thwart (`entered-since.ts`). An
+    // instance that removed threat from a scheme the session had marked, and is not itself marked, hit the new card
+    // in that slot (a main scheme's next stage): the one thwart did thwart it (RRG 1.8 "Thwart", p. 44), so it answers.
+    const marks = event.enteredPlaySince ?? [];
+    const kept = (session.enteredPlaySince ?? []).filter((id) => id !== event.schemeInstanceId || marks.includes(id));
+    const listed = [...kept, ...marks.filter((id) => !kept.includes(id))];
+    const { enteredPlaySince: _before, ...unlisted } = session;
     return {
-      ...session,
+      ...unlisted,
+      ...(listed.length > 0 ? { enteredPlaySince: listed } : {}),
       instances: [
         ...session.instances,
         { schemeInstanceId: event.schemeInstanceId, amount: frame.vars.threatRemoved ?? 0 },
@@ -131,6 +139,7 @@ export function announceAbilityThwart(ctx: Ctx, frame: Frame<"effects">): boolea
     basic: false,
     sourceInstanceId: session.sourceInstanceId,
     ...(session.instances.length > 1 ? { instances: session.instances } : {}),
+    ...(session.enteredPlaySince !== undefined ? { enteredPlaySince: session.enteredPlaySince } : {}),
   };
   const announced = eventFrame(ctx, event, null, session.results);
   pushFrames(ctx, [announced.kind === "event" ? { ...announced, stage: "responses" } : announced]);
