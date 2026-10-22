@@ -517,6 +517,39 @@ describe("kill switch and CORS", () => {
     expect(transfer.status).toBe(404);
   });
 
+  it("answers GET /sync/status before any limiter or space object, with plain CORS and no credential", async () => {
+    const touched: string[] = [];
+    const trap = (name: string) =>
+      ({
+        idFromName: () => {
+          touched.push(name);
+          throw new Error(`${name} touched`);
+        },
+        get: () => {
+          touched.push(name);
+          throw new Error(`${name} touched`);
+        },
+      }) as never;
+    const status = (e: TestEnv) =>
+      handleRequest(new Request("https://sync.test/sync/status", { headers: { Origin: ORIGIN } }), e, {
+        now: () => 1,
+        randomBytes: (n) => new Uint8Array(n),
+        fetch: async () => Response.json({}),
+      });
+    const on = await status({ ...makeEnv(), RATE_LIMITER: trap("limiter"), SYNC_SPACE: trap("space") } as TestEnv);
+    expect(on.status).toBe(200);
+    expect(await json<{ sync: boolean }>(on)).toEqual({ sync: true });
+    expect(on.headers.get("Access-Control-Allow-Origin")).toBe(ORIGIN);
+    const off = await status({
+      ...makeEnv({ SYNC_ENABLED: "false" }),
+      RATE_LIMITER: trap("limiter"),
+      SYNC_SPACE: trap("space"),
+    } as TestEnv);
+    expect(off.status).toBe(503);
+    expect((await json<SyncError>(off)).reason).toBe("disabled");
+    expect(touched).toEqual([]);
+  });
+
   it("allows the new methods and the Authorization header in a preflight, and refuses other origins", async () => {
     const { call } = setup();
     const preflight = (origin: string) =>

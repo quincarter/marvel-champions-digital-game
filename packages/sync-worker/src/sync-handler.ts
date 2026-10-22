@@ -111,6 +111,12 @@ export async function handleSync(
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: origin ? preflightHeaders(origin) : {} });
   }
+  // `GET /sync/status`: whether sync is on offer, before any limiter or Durable Object is touched (the client asks once
+  // before it invites a player to set sync up). "status" is no space id, so it takes nothing from a real route.
+  if (spaceId === "status" && sub === undefined && request.method === "GET") {
+    if (env.SYNC_ENABLED !== "true") return fail("disabled", cors);
+    return Response.json({ sync: true }, { headers: { ...cors, "Cache-Control": "no-store" } });
+  }
   if (env.SYNC_ENABLED !== "true") return fail("disabled", cors);
 
   // Method and route pairs; anything else is not a route (and costs the caller nothing).

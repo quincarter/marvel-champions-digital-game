@@ -49,6 +49,8 @@ export const SPACE_IDLE_TTL_MS = 365 * 24 * 60 * 60 * 1000;
 //   GET    /sync/<id>/changes?since=N SyncChanges, at most MAX_CHANGES_PAGE records, `more` when there are others
 //   POST   /sync/<id>/batch           SyncBatch → SyncBatchResult
 //   DELETE /sync/<id>                 wipes the space; 204
+//   GET    /sync/status               no token: 200 { sync: true } when sync is on, 503 `disabled` when off. Answered
+//                                     before any rate limiter or space object, with a plain GET (no preflight).
 // Creating answers 201 for a new space and 200 when the space exists and the token matches.
 // A batch holds 1..MAX_BATCH_OPS ops applied in order and independently (a later op on the same key must name the
 // version the earlier one produced); the decoded data of all ops totals at most MAX_BATCH_BYTES.
