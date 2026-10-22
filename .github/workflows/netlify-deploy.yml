@@ -99,11 +99,11 @@ jobs:
       # A PR checkout is GitHub's merge commit; stamp the Title footer with the branch head instead (vite.config.ts).
       COMMIT_REF: ${{ github.event.pull_request.head.sha || github.sha }}
       # The save-transfer Worker the build talks to (save-data/transfer-config.ts): production on main, the staging
-      # Worker on previews. Empty until the CLOUDFLARE_WORKERS_SUBDOMAIN variable is set; the game then says online
-      # transfer is unavailable.
+      # Worker on previews. Empty until CLOUDFLARE_WORKERS_SUBDOMAIN is set (a variable, or a secret); the game then
+      # says online transfer is unavailable.
       VITE_SYNC_URL: >-
-        ${{ vars.CLOUDFLARE_WORKERS_SUBDOMAIN && format('https://{0}.{1}.workers.dev',
-        github.event_name == 'push' && 'mc-sync' || 'mc-sync-staging', vars.CLOUDFLARE_WORKERS_SUBDOMAIN) || '' }}
+        ${{ (vars.CLOUDFLARE_WORKERS_SUBDOMAIN || secrets.CLOUDFLARE_WORKERS_SUBDOMAIN) && format('https://{0}.{1}.workers.dev',
+        github.event_name == 'push' && 'mc-sync' || 'mc-sync-staging', (vars.CLOUDFLARE_WORKERS_SUBDOMAIN || secrets.CLOUDFLARE_WORKERS_SUBDOMAIN)) || '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -219,8 +219,8 @@ jobs:
           # A PR checkout is GitHub's merge commit; stamp the Title footer with the branch head instead (vite.config.ts).
           COMMIT_REF: ${{ github.event.pull_request.head.sha }}
           VITE_SYNC_URL: >-
-            ${{ vars.CLOUDFLARE_WORKERS_SUBDOMAIN && format('https://mc-sync-staging.{0}.workers.dev',
-            vars.CLOUDFLARE_WORKERS_SUBDOMAIN) || '' }}
+            ${{ (vars.CLOUDFLARE_WORKERS_SUBDOMAIN || secrets.CLOUDFLARE_WORKERS_SUBDOMAIN) && format('https://mc-sync-staging.{0}.workers.dev',
+            (vars.CLOUDFLARE_WORKERS_SUBDOMAIN || secrets.CLOUDFLARE_WORKERS_SUBDOMAIN)) || '' }}
         run: pnpm android:build
 
       - name: Publish the pre-release

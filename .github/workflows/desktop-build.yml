@@ -171,8 +171,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # The production save-transfer Worker (save-data/transfer-config.ts); empty until the variable is set.
           VITE_SYNC_URL: >-
-            ${{ vars.CLOUDFLARE_WORKERS_SUBDOMAIN && format('https://mc-sync.{0}.workers.dev',
-            vars.CLOUDFLARE_WORKERS_SUBDOMAIN) || '' }}
+            ${{ (vars.CLOUDFLARE_WORKERS_SUBDOMAIN || secrets.CLOUDFLARE_WORKERS_SUBDOMAIN) && format('https://mc-sync.{0}.workers.dev',
+            (vars.CLOUDFLARE_WORKERS_SUBDOMAIN || secrets.CLOUDFLARE_WORKERS_SUBDOMAIN)) || '' }}
         with:
           projectPath: packages/client
           args: ${{ matrix.args }}
