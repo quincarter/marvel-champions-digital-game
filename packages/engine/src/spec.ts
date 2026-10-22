@@ -2621,9 +2621,9 @@ export type EffectSpec =
   | { readonly kind: "cancelBoostAbility"; readonly bind?: string }
   /**
    * "When a boost card on an enemy attacking you would be turned faceup, discard it instead." (Defiance, `vision`
-   * 26018): the boost card resolving in the current activation is discarded now, in its turned-faceup window, so its
-   * "Boost" ability never resolves and its icons are never counted (both cancelled), and it is not applied to the
-   * activation at all. `bind`: `<bind>.made`. docs/phase7-wave4.md §3.35.
+   * 26018): the boost card resolving in the current activation is discarded now, in its facedown "would be turned
+   * faceup" window (`boostCardTurningFaceup`, issue #348) or its turned-faceup window, so its "Boost" ability never
+   * resolves and its icons are never counted (both cancelled), and it is not applied to the activation at all. `bind`: `<bind>.made`. docs/phase7-wave4.md §3.35.
    */
   | { readonly kind: "discardBoostCard"; readonly bind?: string }
   /** Interrupt to damage: "prevent N of that damage" (Cosmic Flight) / "prevent all" (Backflip, `amount` absent). */

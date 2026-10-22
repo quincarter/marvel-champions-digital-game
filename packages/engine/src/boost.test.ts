@@ -98,12 +98,18 @@ const TARGET_RESPONSE = stubAbility("target.response", {
   effects: [{ kind: "cancelBoostAbility" }],
 });
 const TARGET = stubSupport({ id: "target", cost: 0, abilities: [TARGET_RESPONSE.ref] });
-/** Defiance's shape (`vision` 26018, docs/phase7-wave4.md §3.35): "When a boost card on an enemy attacking you would be turned faceup, discard it instead." */
+/** An interrupt to a faceup boost card that discards it (Close Call's outcome, `gmw` 16158). */
 const DEFY_INTERRUPT = stubAbility("defy.interrupt", {
   trigger: { kind: "interrupt", forced: true, on: { on: "boostCardTurnedFaceup", activation: "attack" } },
   effects: [{ kind: "discardBoostCard" }],
 });
 const DEFY = stubSupport({ id: "defy", cost: 0, abilities: [DEFY_INTERRUPT.ref] });
+/** Defiance's shape (`vision` 26018, issue #348): "When a boost card … would be turned faceup, discard it instead." */
+const FACEDOWN_DEFY_INTERRUPT = stubAbility("facedown-defy.interrupt", {
+  trigger: { kind: "interrupt", forced: true, on: { on: "boostCardTurningFaceup", activation: "attack" } },
+  effects: [{ kind: "discardBoostCard" }],
+});
+const FACEDOWN_DEFY = stubSupport({ id: "facedown-defy", cost: 0, abilities: [FACEDOWN_DEFY_INTERRUPT.ref] });
 /** An interrupt and a response to the same flip, each leaving a counter on the villain so their order shows. */
 const WHEN_INTERRUPT = stubAbility("when.interrupt", {
   trigger: { kind: "interrupt", forced: true, on: { on: "boostCardTurnedFaceup", activation: "attack" } },
@@ -125,10 +131,11 @@ const deps: EngineDeps = depsOf(
   FOIL_INTERRUPT,
   TARGET_RESPONSE,
   DEFY_INTERRUPT,
+  FACEDOWN_DEFY_INTERRUPT,
   WHEN_INTERRUPT,
   AFTER_RESPONSE,
 );
-const SUPPORTS: readonly AnyCard[] = [ACRO, FOIL, TARGET, DEFY, BOTH];
+const SUPPORTS: readonly AnyCard[] = [ACRO, FOIL, TARGET, DEFY, FACEDOWN_DEFY, BOTH];
 
 /** p1's first turn; `top` is the first encounter card (the villain's first boost card), `supports` are in p1's play area. */
 function game(top: AnyCard, supports: readonly AnyCard[] = []): GameState {
@@ -201,6 +208,22 @@ describe("§3.9 boost cards as events", () => {
     expect(ofType(events, "boostCancelled")).toContainEqual(expect.objectContaining({ scope: "discarded" }));
     const two = Object.values(state.instances).find((i) => i.cardId === TWO.id)!.instanceId;
     expect(activeEncounterDeck(state).discard).toContain(two);
+  });
+
+  it("'would be turned faceup, discard it instead' discards it facedown: never flipped, adds nothing (#348)", () => {
+    const { state, events, session } = runCommands(game(TWO, [FACEDOWN_DEFY]), deps, toHero, endTurn);
+    const villain = villainId(state);
+    const two = Object.values(state.instances).find((i) => i.cardId === TWO.id)!.instanceId;
+    expect(villainAttack(events, villain)).toEqual([expect.objectContaining({ baseAtk: 1, boostIcons: 0 })]);
+    expect(ofType(events, "boostCardFlipped").map((e) => e.instanceId)).not.toContain(two);
+    expect(ofType(events, "boostCancelled")).toContainEqual({
+      type: "boostCancelled",
+      instanceId: two,
+      scope: "discarded",
+    });
+    expect(activeEncounterDeck(state).discard).toContain(two);
+    expect(mustInstance(state, two).faceup).toBe(false);
+    expect(auditVillainPhases(session.log, deps).violations).toEqual([]);
   });
 
   it("a boost card with no icons offers nothing to cancel (FAQ 'Attacrobatics (#6)', p. 59)", () => {
