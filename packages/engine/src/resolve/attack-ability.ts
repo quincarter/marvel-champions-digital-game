@@ -140,13 +140,13 @@
  *   attack-labeled ability"; owner decision, 2026-10-08, row 64). So this case is left to an ability whose enemies
  *   are not known as it is initiated (a branch, "each minion" with none in play) or become guarded as it resolves.
  * - **Every "(attack)" ability begins an attack, damage or no damage** (official rule, p. 26, read as written; FFG
- *   ruling June 26, 2025, on Multitalented: "Regardless of which resources were paid or which effects were
- *   resolved, Multitalented is still labeled as an 'attack' … and by playing it your hero is considered to have
- *   'attacked'"; contributor's rules call (bluefireF5ran), 2026-10-15, which reverses upstream rows 61/73 and Q48's "with no damage there
- *   is no attack"). The attack begins as the ability begins resolving, whatever its instructions then do: one whose
- *   damage sits in a branch not taken ("if you paid with [physical], deal 2 damage to an enemy", paid otherwise), one
- *   whose damage names only its player's own characters, one whose every enemy is guarded or gone. It resolves with no
- *   target and an empty `attack.attacked`: nothing retaliates (no enemy was attacked, p. 10), "after you attack"
+ *   ruling June 26, 2025, on Multitalented: "Regardless of which resources were paid or which effects were resolved,
+ *   Multitalented is still labeled as an 'attack' … and by playing it your hero is considered to have 'attacked'";
+ *   contributor's rules call 2026-10-15 (bluefireF5ran), which reverses upstream rows 61/73 and Q48's "with no damage
+ *   there is no attack"). The attack begins as the ability begins resolving, whatever its instructions then do: one
+ *   whose damage sits in a branch not taken ("if you paid with [physical], deal 2 damage to an enemy", paid otherwise),
+ *   one whose damage names only its player's own characters, one whose every enemy is guarded or gone. It resolves with
+ *   no target and an empty `attack.attacked`: nothing retaliates (no enemy was attacked, p. 10), "after you attack"
  *   with no target clause answers it, "after you attack [an enemy]" does not, and "when you attack [an enemy]" did not
  *   hear its window. Damage to a card that is not an enemy is plain damage, never the attack's. The only "(attack)"
  *   abilities that make no attack are those a status card cancels (p. 26, `labelCancels`, `beginEffectAfterCost`: the

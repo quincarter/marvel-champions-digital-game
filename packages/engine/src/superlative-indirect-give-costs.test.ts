@@ -50,6 +50,8 @@ const GIVE = rig("give-rig", {
 });
 const CHEAP = stubUpgrade({ id: "cheap-gear", cost: 1 });
 const PRICEY = stubUpgrade({ id: "pricey-gear", cost: 3 });
+/** A permanent upgrade that costs the most: no card of its set is the rig, so the rig's cost cannot remove it. */
+const BOLTED = stubUpgrade({ id: "bolted-gear", cost: 5, keywords: [{ name: "permanent" }] });
 const STURDY_ALLY = stubAlly({ id: "sturdy-ally", cost: 0, atk: 1, thw: 1, hp: 4 });
 /** "Reduce the damage your identity takes by 1" (any damage, not only an attack's). */
 const PADDING_RULE = stubAbility("padding.constant", {
@@ -62,7 +64,7 @@ const PADDING_RULE = stubAbility("padding.constant", {
 const PADDING = stubSupport({ id: "padding", cost: 0, abilities: [PADDING_RULE.ref] });
 
 const deps: EngineDeps = depsOf(HIGHEST.ability, INDIRECT.ability, GIVE.ability, PADDING_RULE);
-const CARDS = [HIGHEST.card, INDIRECT.card, GIVE.card, CHEAP, PRICEY, STURDY_ALLY, PADDING];
+const CARDS = [HIGHEST.card, INDIRECT.card, GIVE.card, CHEAP, PRICEY, BOLTED, STURDY_ALLY, PADDING];
 
 const start = (): GameState =>
   gameAtFirstTurn({
@@ -76,6 +78,7 @@ const start = (): GameState =>
       STURDY_ALLY.id,
       ...copiesOf(CHEAP.id, 2),
       ...copiesOf(PRICEY.id, 2),
+      BOLTED.id,
     ],
   });
 
@@ -143,6 +146,22 @@ describe("`InPlayCostPick.superlative`: discard the highest-cost upgrade you con
     const { state: after } = run(state, use(rigId, ABILITY, { discarded: [second] }));
     expect(mustPlayer(after, P1).discard).toContain(second);
     expect(mustPlayer(after, P1).playArea).toEqual(expect.arrayContaining([cheap, first]));
+  });
+
+  it("a permanent upgrade it cannot remove is skipped: the next-highest pays (RRG 1.8 'Permanent', p. 32)", () => {
+    const { state, ids } = inPlay(start(), HIGHEST.card.id, CHEAP.id, PRICEY.id, BOLTED.id);
+    const [rigId, cheap, pricey, bolted] = ids as [InstanceId, InstanceId, InstanceId, InstanceId];
+    expect(offered(state, ABILITY)).toBe(true);
+    expect(applyCommand(state, use(rigId, ABILITY, { discarded: [bolted] }), deps).ok).toBe(false);
+    const { state: after } = run(state, use(rigId, ABILITY));
+    expect(mustPlayer(after, P1).discard).toContain(pricey);
+    expect(mustPlayer(after, P1).playArea).toEqual(expect.arrayContaining([cheap, bolted]));
+  });
+
+  it("with only a permanent upgrade it cannot remove, the cost can't be paid", () => {
+    const { state, ids } = inPlay(start(), HIGHEST.card.id, BOLTED.id);
+    expect(offered(state, ABILITY)).toBe(false);
+    expect(applyCommand(state, use(ids[0]!, ABILITY), deps).ok).toBe(false);
   });
 
   it("with no upgrade the cost can't be paid: not offered, refused", () => {

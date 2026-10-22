@@ -151,6 +151,29 @@ describe("Criminal Enterprise / State of Madness — the scenario's win conditio
     expect(inst(after, enterprise).counters.infamy ?? 0).toBe(0);
   });
 
+  // Issue #361: Green Goblin II prints "Deal 4 indirect damage to each player." (scan 02002b.png); MarvelCDB says 3.
+  it.each([
+    ["standard", 3, "Green Goblin I"],
+    ["expert", 4, "Green Goblin II"],
+  ] as const)(
+    "%s: flipping to Green Goblin deals %i indirect damage to the hero (%s)",
+    (difficulty, damage, _stage) => {
+      const start = spiderManVsRiskyBusiness(difficulty);
+      const villain = activeVillain(start).instanceId;
+      const enterprise = criminalEnterpriseId(start);
+      const primed = patchInstance(start, enterprise, { counters: { infamy: 1 } });
+      const after = play(primed, toHero(), {
+        type: "basicAttack",
+        playerId: P1,
+        attackerInstanceId: identityOf(primed),
+        targetInstanceId: villain,
+      });
+      expect(activeVillain(after).side).toBe("B");
+      // Norman's Forced Interrupt replaced the attack's damage, so all the hero's damage is the When Revealed's.
+      expect(inst(after, identityOf(after)).damage).toBe(damage);
+    },
+  );
+
   it("flips back to Norman Osborn when the madness counters run out, and re-arms the infamy side", () => {
     const start = spiderManVsRiskyBusiness();
     const villain = activeVillain(start).instanceId;

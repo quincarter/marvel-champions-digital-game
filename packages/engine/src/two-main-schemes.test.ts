@@ -33,7 +33,7 @@ import {
   stubTreachery,
   stubVillain,
 } from "./testing/fixtures.js";
-import { DEFAULT_CARDS, DEFAULT_DECK, defaultPick, HERO } from "./testing/scenario.js";
+import { DEFAULT_CARDS, DEFAULT_DECK, defaultPick, giveCard, HERO } from "./testing/scenario.js";
 import { copiesOf, encounterCardInVillainArea, minionEngagedWith, P1, playFree } from "./testing/wave3.js";
 
 const PROXIMA = stubVillain({ id: "proxima", name: "Proxima Midnight", stages: [{ hp: flat(30), atk: 0, sch: 2 }] });
@@ -262,10 +262,29 @@ describe("§3.2 two main schemes, each belonging to a villain", () => {
     );
     expect(player).toEqual([scheme(state, "Corvus Glaive")]);
   });
+
+  // MC21 p. 10 "Two Main Schemes": "Each main scheme gains threat during step 1 of the villain phase"; p. 10 "Two
+  // Villains": "When either of the two villains schemes, place the threat on their matching main scheme card only";
+  // p. 11 "The Active Villain": the active villain "is the only villain who activates during step 2".
+  it("over two rounds both schemes get step one's threat every round, and only the active villain schemes, on its own scheme", () => {
+    const start0 = start();
+    expect(activeName(start0)).toBe("Corvus Glaive");
+    // Round 1: Focused Defense moves to Proxima's scheme; she alone activates (SCH 2).
+    const r1 = endRound(start0).state;
+    expect(activeName(r1)).toBe("Proxima Midnight");
+    expect(threat(r1, "Proxima Midnight")).toBe(1 + 1 + 2);
+    expect(threat(r1, "Corvus Glaive")).toBe(1 + 1); // Corvus did not scheme (his SCH 3 is absent)
+    // Round 2: it moves back to Corvus's scheme; he alone activates (SCH 3) onto his own scheme.
+    const r2 = endRound(r1).state;
+    expect(activeName(r2)).toBe("Corvus Glaive");
+    expect(threat(r2, "Corvus Glaive")).toBe(2 + 1 + 3);
+    expect(threat(r2, "Proxima Midnight")).toBe(4 + 1); // step one only; Proxima did not scheme
+  });
 });
 
 /**
- * Ruling October 10, 2025 (Alex), question 2: Tower Defense (two main schemes), M.U.S.I.C. is defeated while
+ * Ruling October 10, 2025 (Alex), answer 2 (docs/rulings/post-rrg-1-6/15-october-2025.md): Tower Defense (two main
+ * schemes), M.U.S.I.C. is defeated while
  * Manipulated M.U.S.I.C. is in play: "move all threat from Manipulated M.U.S.I.C. to just the main scheme with the
  * Focused Defense attachment. (Since threat is being 'moved' from one scheme to another, the number of tokens placed
  * should be fixed; and the player should not be able to split the tokens, so this is the simplest way to progress.)"
@@ -275,7 +294,8 @@ describe("§3.2 two main schemes, each belonging to a villain", () => {
  * The shipped script is `51034.when-defeated` = `whenDefeated(moveThreat(find(Manipulated M.U.S.I.C.), theMainScheme))`
  * (`cards/src/wave9/bp/black-panther/obligation-nemesis.ts`); this is its shape on synthetic cards. The engine's
  * `moveThreat` takes the first of the targets `{ kind: "mainScheme" }` resolves to for an encounter card, which is
- * both main schemes in `sharedMainSchemes` order, not the one holding Focused Defense.
+ * both main schemes in `sharedMainSchemes` order, not the one holding Focused Defense. Fixed: a `moveThreat` whose
+ * destination resolves to more than one scheme moves to the Focused Defense one (`resolve/apply-effect.ts`).
  */
 describe("M.U.S.I.C. defeated in Tower Defense moves the threat to the Focused Defense scheme (ruling Oct 10, 2025)", () => {
   const MANIPULATED = stubSideScheme({ id: "manipulated-music", startingThreat: 3 });
@@ -295,13 +315,28 @@ describe("M.U.S.I.C. defeated in Tower Defense moves the threat to the Focused D
     ],
   });
   const KILL = stubEvent({ id: "kill", cost: 0, abilities: [KILL_ABILITY.ref] });
-  const musicDeps = depsOf(FOCUSED_RULE, FOCUSED_MOVE, SETUP, ARMIES_REVEALED, WHEN_DEFEATED, KILL_ABILITY);
+  // A player card's move: "Move all threat from Manipulated M.U.S.I.C. to the main scheme" (synthetic).
+  const PULL_ABILITY = stubAbility("pull.action", {
+    trigger: { kind: "action" },
+    effects: [{ kind: "moveThreat", from: { kind: "named", name: "manipulated-music" }, to: { kind: "mainScheme" } }],
+  });
+  const PULL = stubEvent({ id: "pull", cost: 0, abilities: [PULL_ABILITY.ref] });
+  const musicDeps = depsOf(
+    FOCUSED_RULE,
+    FOCUSED_MOVE,
+    SETUP,
+    ARMIES_REVEALED,
+    WHEN_DEFEATED,
+    KILL_ABILITY,
+    PULL_ABILITY,
+  );
 
-  it.fails("all 3 threat go to the main scheme with Focused Defense, none to the other", () => {
+  /** Tower Defense with Manipulated M.U.S.I.C. (3 threat) and M.U.S.I.C. engaged with P1. */
+  function musicInPlay() {
     const result = createGame(
       {
         seed: 11,
-        cards: [...DEFAULT_CARDS, PROXIMA, CORVUS, TOWER_SCHEMES, FOCUSED, MUSIC, MANIPULATED, FILLER, KILL],
+        cards: [...DEFAULT_CARDS, PROXIMA, CORVUS, TOWER_SCHEMES, FOCUSED, MUSIC, MANIPULATED, FILLER, KILL, PULL],
         villainCardId: PROXIMA.id,
         villains: [
           { villainCardId: PROXIMA.id, encounterDeck: [] },
@@ -312,7 +347,9 @@ describe("M.U.S.I.C. defeated in Tower Defense moves the threat to the Focused D
         setAside: [FOCUSED.id],
         mainSchemeCardId: TOWER_SCHEMES.id,
         includeIdentitySets: false,
-        players: [{ identityCardId: HERO.id, deck: [...DEFAULT_DECK, ...copiesOf(KILL.id, 2)] }],
+        players: [
+          { identityCardId: HERO.id, deck: [...DEFAULT_DECK, ...copiesOf(KILL.id, 2), ...copiesOf(PULL.id, 2)] },
+        ],
       },
       musicDeps,
     );
@@ -324,10 +361,40 @@ describe("M.U.S.I.C. defeated in Tower Defense moves the threat to the Focused D
     const other = all.find((id) => id !== focusedScheme)!;
     const withSide = encounterCardInVillainArea(started, MANIPULATED.id, 3).state;
     const engaged = minionEngagedWith(withSide, MUSIC.id).state;
+    return { engaged, focusedScheme, other };
+  }
+
+  it("all 3 threat go to the main scheme with Focused Defense, none to the other", () => {
+    const { engaged, focusedScheme, other } = musicInPlay();
     const before = mustInstance(engaged, focusedScheme).threat;
     const beforeOther = mustInstance(engaged, other).threat;
     const after = playFree(engaged, musicDeps, KILL.id).state;
     expect(mustInstance(after, focusedScheme).threat).toBe(before + 3);
     expect(mustInstance(after, other).threat).toBe(beforeOther);
+  });
+
+  it("a player card's move to 'the main scheme' goes to the scheme its controller chose, not Focused Defense's (MC21 p. 10)", () => {
+    const { engaged, focusedScheme, other } = musicInPlay();
+    const before = mustInstance(engaged, focusedScheme).threat;
+    const beforeOther = mustInstance(engaged, other).threat;
+    const given = giveCard(engaged, P1, PULL.id);
+    const play: Command = {
+      type: "playCard",
+      playerId: P1,
+      cardInstanceId: given.id,
+      payment: [],
+      attachToInstanceId: null,
+    };
+    let asked = false;
+    const { events, session } = driveSession(startSession(given.state), musicDeps, [play], (s) => {
+      const options = s.pendingChoice?.options.map((o) => o.optionId) ?? [];
+      if (!options.includes(other)) return defaultPick(s);
+      asked = true;
+      return [other];
+    });
+    expect(asked).toBe(true);
+    expect(events.some((e) => e.type === "targetChosen" && e.slot === MAIN_SCHEME_CHOICE)).toBe(true);
+    expect(mustInstance(session.state, other).threat).toBe(beforeOther + 3);
+    expect(mustInstance(session.state, focusedScheme).threat).toBe(before);
   });
 });

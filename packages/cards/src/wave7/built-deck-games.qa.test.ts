@@ -8,7 +8,7 @@
  *
  * What the committed test does (it must stay fast; the wide scan lives in the doc and in the `QA_FULL` block):
  *
- * - `PINS`: one game per pairing (6 x 5): a win where the scratch scans found one (2 pairings), otherwise the quickest
+ * - `PINS`: one game per pairing (6 x 5): a win where the scratch scans found one (1 pairing now; X-23 / Mister Sinister lost its win to the Permanent ruling, p. 32), otherwise the quickest
  *   game seen (Deadpool / Morlock Siege was a win until a removal of threat could no longer target a scheme with no
  *   threat, RRG 1.8 "Target" p. 42; a rescan of seeds 1-12 x explore 0-8 x both defenses, 216 games, found no win), each named by (seed, driver defense mode, explore). Each is played command by command with the invariants below, replayed from its log to a
  *   deep-equal state, and its outcome and round count asserted exactly (the table is the regression signal: any engine,
@@ -509,8 +509,10 @@ const PINS: readonly Pin[] = [
     style: "rules",
     defense: "hero-ready",
     explore: 0,
-    verdict: "win",
-    rounds: 8,
+    // Was a win in 8 rounds until the "superlative skips permanent cards" fix: a permanent card is no candidate for "discard the highest-cost card you
+    // control" (RRG 1.8 "Permanent", p. 32). A rescan (seeds 1-12 x explore 0-2 x both defenses, 72 games) found no win.
+    verdict: "loss:allPlayersDefeated",
+    rounds: 7,
   },
   {
     hero: "x23",

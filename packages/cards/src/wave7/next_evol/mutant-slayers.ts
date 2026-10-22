@@ -16,7 +16,7 @@ import {
   discard,
   discardEncounterUntil,
   each,
-  exists,
+  anyIn,
   firstPlayer,
   forcedInterrupt,
   gainsKeyword,
@@ -59,6 +59,7 @@ const PLUS_2_ATK = "gets +2 ATK for this attack";
 const YOUR_COSTED_CARDS = query(["ally", "upgrade", "support"], { controller: "you" });
 const highestCost = superlative("highest", each(YOUR_COSTED_CARDS), printedCostOf(chosen("candidate")), {
   ties: "all",
+  leavesPlay: true,
 });
 /** X: the printed cost of the highest-cost card you control, read when the option resolves (0 with none). */
 const HIGHEST_PRINTED_COST = printedCostOf(
@@ -119,7 +120,7 @@ export const MUTANT_SLAYERS: AbilityRegistry = defineAbilities({
     chooseOne(
       option(
         "Discard the highest-cost card you control",
-        { when: exists(YOUR_COSTED_CARDS) },
+        { when: anyIn(highestCost) },
         bindTargets("highest", highestCost),
         chooseTarget("pick", { inSlot: "highest" }, { chooser: firstPlayer }),
         discard(chosen("pick")),

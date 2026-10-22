@@ -18,6 +18,7 @@ import {
   eachPlayer,
   enemyAttack,
   attackDamageDealt,
+  anyIn,
   exists,
   firstPlayer,
   flipCard,
@@ -75,6 +76,13 @@ import {
 const THE_VILLAIN = query("villain");
 /** "An upgrade or support you control". */
 const YOUR_UPGRADES_AND_SUPPORTS = query(["upgrade", "support"], { controller: "you" });
+/** Breakthrough's pool: the highest-cost of them that can leave play (RRG 1.8 "Permanent", p. 32). */
+const HIGHEST_COST_UPGRADE_OR_SUPPORT = superlative(
+  "highest",
+  each(YOUR_UPGRADES_AND_SUPPORTS),
+  printedCostOf(chosen("candidate")),
+  { ties: "all", leavesPlay: true },
+);
 const ATTACHED_VILLAIN = query("villain", { hostOfSelf: true });
 const HIS_ATK = statOf(theVillain, "atk");
 const MOMENTUM = "momentum";
@@ -172,11 +180,8 @@ export const JUGGERNAUT: AbilityRegistry = defineAbilities({
       option("Take damage equal to Juggernaut's ATK", takeDamage(HIS_ATK)),
       option(
         "Discard the highest-cost upgrade or support you control",
-        { when: exists(YOUR_UPGRADES_AND_SUPPORTS) },
-        bindTargets(
-          "highest",
-          superlative("highest", each(YOUR_UPGRADES_AND_SUPPORTS), printedCostOf(chosen("candidate")), { ties: "all" }),
-        ),
+        { when: anyIn(HIGHEST_COST_UPGRADE_OR_SUPPORT) },
+        bindTargets("highest", HIGHEST_COST_UPGRADE_OR_SUPPORT),
         // No "choose": an encounter card targeting one of several eligible cards; the first player selects
         // (RRG 1.8 "First Player", p. 19).
         chooseTarget("pick", { inSlot: "highest" }, { chooser: firstPlayer }),

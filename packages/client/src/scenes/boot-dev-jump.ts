@@ -118,19 +118,25 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     // `&scenario=<id>&deck=<precon deck id>`: which scenario/precon this dev jump seats, for screenshotting a
     // specific setup screen (Standard II/Expert II, The Hood's own modular choice) without clicking through
     // Scenario select/Seats by hand. Falls back to the original fixed Rhino/first-precon draft when either param
-    // is absent or names something the pool doesn't have.
+    // is absent or names something the pool doesn't have. `&seed=<n>` (below) fixes the deal too.
     const params = new URLSearchParams(location.search);
     const scenario = POOL_SCENARIOS.find((s) => s.id === params.get("scenario")) ?? POOL_SCENARIOS[0]!;
     const decks = preconDecks(POOL_VERSION);
     const deck = decks.find((d) => (d.id as string) === params.get("deck")) ?? decks[0]!;
     // `&players=<2-4>` seats the next precons too, for the first player row with more than one seat.
     const players = Math.min(4, Math.max(1, Number(params.get("players")) || 1));
+    // `&seed=<n>` deals a fixed game, for a spec that plays on past the deal (as `board`'s own `&seed=` does).
+    const seed = Number(params.get("seed"));
     const draft = decks
       .filter((d) => d !== deck)
       .slice(0, players - 1)
       .reduce(
         (seated, extra) => addSeat(seated, extra.id as string),
-        initialSetupDraft({ scenarioId: scenario.id as string, seatDeckId: deck.id as string, seed: rollSeed() }),
+        initialSetupDraft({
+          scenarioId: scenario.id as string,
+          seatDeckId: deck.id as string,
+          seed: Number.isFinite(seed) && params.get("seed") ? seed : rollSeed(),
+        }),
       );
     if (screen === "scenario-select")
       return { key: SCENES.scenarioSelect, data: { draft } satisfies ScenarioSelectData };

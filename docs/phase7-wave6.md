@@ -1570,6 +1570,12 @@ re-baselined in the same commit.
 
 ## 4. Open questions (for the user or FFG)
 
+### 4.0 Readings settled by the authority order
+
+| Topic                                        | Reading and source                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Replacing a status card is one effect (#215) | Vapors of Valtorr (09035) cannot target a Stalwart enemy's tough card: post-RRG 1.5 #215 (June 20, 2024), answered under RRG v1.6 "Target", whose bullets ("any part of that ability", "multiple effects", "giving/removing a status card") are word for word the same in v1.8 p. 43. So #215 is FFG's reading of the unchanged rule, not one v1.8 overturned; older rulings agree (docs/rulings/rrg-1-0-to-1-4/17-doctor-strange.md, 18-ronan-kree-fanatic-modular-set.md). `resolve/target-validity.ts` `replacesStatusOn`. |
+
 ### 4.1 Decided by the user
 
 All of Q1–Q31 answered by the user 2026-10-01 in the project thread (`1A 2B 3A … 31A`): the proposed default for

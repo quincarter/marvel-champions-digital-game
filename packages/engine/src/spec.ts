@@ -896,6 +896,15 @@ export type TargetRef =
    * `firstPlayerTargets` authority (RRG 1.8 "First Player", p. 19), or `chooser: controller` on a player card.
    * `ties: "first"` takes the first candidate in the pool's stable order, for a card whose text makes the choice
    * irrelevant.
+   *
+   * `leavesPlay`: the effect this ref feeds makes the card leave play ("discard the lowest-cost upgrade you control",
+   * "return the highest-cost support to its owner's hand"). A permanent card that this ability cannot make leave play
+   * (one not of its source card's set) is no candidate, so the ranking is over the rest: RRG 1.8 "Permanent" (p. 32),
+   * "that effect instead targets the non-permanent card that fits its criteria".
+   *
+   * A `measure` that reads a stat of the candidate itself (`stat` of the `slot`) ranks only candidates that have that
+   * stat at all (`hasStat`): an alter-ego has no ATK, so it is not "the character with the highest ATK" (ruling
+   * April 17, 2025).
    */
   | {
       readonly kind: "superlative";
@@ -904,6 +913,7 @@ export type TargetRef =
       readonly measure: ValueSpec;
       readonly slot?: string;
       readonly ties?: "all" | "first";
+      readonly leavesPlay?: true;
     };
 
 export type PlayerRef =
@@ -1131,6 +1141,15 @@ export type ValueSpec =
    */
   | { readonly kind: "min"; readonly values: readonly [ValueSpec, ...ValueSpec[]] }
   | { readonly kind: "max"; readonly values: readonly [ValueSpec, ...ValueSpec[]] }
+  /**
+   * `value` read with "the main scheme" (`TargetRef mainScheme`) as whichever main scheme its player would choose. RRG
+   * 1.8 p. 63 (Venom Goblin FAQ: "The player using the effect chooses one main scheme on which to count the acceleration
+   * tokens") and Ruling 132 (Dec 22, 2023: a player card's constant affected by "the main scheme" lets its controller
+   * choose any main scheme each time it has an effect). With several main schemes in the shared area, on a player card,
+   * with no choice already made and no Focused Defense naming one, `value` is read once per main scheme and the one
+   * `prefer` names is kept (`most`: the highest, `least`: the lowest); otherwise it is just `value`.
+   */
+  | { readonly kind: "chosenMainSchemeValue"; readonly value: ValueSpec; readonly prefer: "most" | "least" }
   /**
    * "The highest SCH or THW among characters in play" / "the highest ATK among characters in play" (Purple Man, 61031;
    * docs/phase7-wave11-hero-packs.md H3.10): each card `among` names is measured by the largest of its current
@@ -1572,6 +1591,12 @@ export type Predicate =
   | { readonly kind: "counterAtLeast"; readonly of: TargetRef; readonly counterType: string; readonly amount: number }
   | { readonly kind: "damagedAtLeast"; readonly of: TargetRef; readonly amount: number }
   | { readonly kind: "not"; readonly of: Predicate }
+  /**
+   * `of` with "the main scheme" as whichever main scheme its player would choose (the `ValueSpec chosenMainSchemeValue`
+   * reading, RRG 1.8 p. 63 and Ruling 132, Dec 22, 2023): true when `of` holds for any main scheme they could choose.
+   * "While there is no threat on the main scheme" (Venom 22013) holds while any main scheme has no threat.
+   */
+  | { readonly kind: "onChosenMainScheme"; readonly of: Predicate }
   /**
    * "If you paid for this card using a [X] resource" (a wild can be declared as X). Read from the ability's own vars
    * (its own card's play, `abilityFrame`), or with `of`, from the play of the card `of` names while that play is still
@@ -2066,7 +2091,20 @@ export type EffectSpec =
     }
   /** "Heal N damage"; with `bind`, "if no damage was healed this way" reads `<bind>.amount`. */
   | { readonly kind: "heal"; readonly target: TargetRef; readonly amount: ValueSpec; readonly bind?: string }
-  | { readonly kind: "placeThreat"; readonly target: TargetRef; readonly amount: ValueSpec; readonly bind?: string }
+  | {
+      readonly kind: "placeThreat";
+      readonly target: TargetRef;
+      readonly amount: ValueSpec;
+      readonly bind?: string;
+      /**
+       * "When threat is removed from this scheme, place that threat on …" (Show of Empathy, `bp` 51017): the tokens
+       * placed are the ones the triggering `removeThreat` takes. When that removal is the first half of a move
+       * (`TriggerEvent removeThreat.movePlacementFrameId`), the move's placement loses that many tokens: the interrupt
+       * changes the destination of the moved threat rather than adding to it (FFG ruling Nov 21, 2025, on RRG
+       * 1.8 "Move", p. 30). Without a move it is a plain placement.
+       */
+      readonly ofRemovedThreat?: true;
+    }
   /**
    * `ignoreCrisis`: "…, ignoring any crisis icons in play" (Cable Arrow 04008). RRG 1.8 "Crisis Icon" (p. 14) stops
    * *players* removing threat from the main scheme while one is in play; this one effect steps over that check only.
@@ -4248,6 +4286,15 @@ export type EffectSpec =
        * `hood` 24070) is `<bind>.amount` equal to 0, not "no target existed". docs/phase7-wave4.md §3.60.
        */
       readonly bind?: string;
+      /**
+       * "Replace that [`replacing`] status card with a [`status`] status card": one effect, not a discard and a give.
+       * Only a target that holds a `replacing` card and has room for a `status` card is replaced (one `replacing` card
+       * discarded, then the `status` card given); any other target is left as it was. So target validity (RRG 1.8
+       * "Target", p. 43) reads the replacement as a whole: a Stalwart enemy with Tough "is not a valid target for
+       * Vapors of Valtorr's ability, as a Stalwart enemy cannot be stunned or confused" (ruling Jun 20, 2024, post-RRG
+       * 1.5 #215). Differs from `status`.
+       */
+      readonly replacing?: StatusName;
     }
   | {
       /**

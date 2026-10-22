@@ -43,6 +43,7 @@ import {
   removeStatus,
   discardStatusCards,
   type StatusDiscarded,
+  type StatusGiver,
   setActiveVillain,
   shuffleZone,
   swapIdentity,
@@ -110,6 +111,7 @@ import {
   type EffectContext,
   evaluate,
   cannotBeDefeatedAgain,
+  focusedMainSchemeId,
   matchesQuery,
   resolvePlayers,
   isPlayerCard as isAPlayersCard,
@@ -234,7 +236,7 @@ import {
   withMovedAttackTarget,
 } from "./attack-ability.js";
 import { abilityRootFrameId, addSessionExtraThreat } from "./thwart-session.js";
-import { readsDeck } from "./target-validity.js";
+import { readsDeck, replacesStatusOn } from "./target-validity.js";
 import { isUnpreventableDamage } from "./unpreventable.js";
 import { markPreThenUnresolved, UNRESOLVED_VAR } from "./then.js";
 import { heard } from "./triggers.js";
@@ -472,6 +474,26 @@ export function threatRemoverOf(ctx: Ctx, frame: Frame<"effects">): PlayerId | n
 }
 
 /**
+ * "Place that threat on …" answering a removal that is the first half of a move (`placeThreat.ofRemovedThreat`): the
+ * tokens it places are the moved ones, so the move's pending placement loses them, and a placement left with none is
+ * cancelled (it never happens: no "after threat is placed" window). FFG ruling Nov 21, 2025 (Beat Cop moving
+ * threat off Show of Empathy, docs/rulings/post-rrg-1-6/16-november-2025.md): the interrupt "will trigger and change
+ * the destination of the threat token". RRG 1.8 "Move" (p. 30).
+ */
+function redirectMovedThreat(ctx: Ctx, frame: Frame<"effects">, placed: number): void {
+  const removal = frame.event;
+  if (removal?.kind !== "removeThreat" || !removal.movePlacementFrameId || placed <= 0) return;
+  const placement = findFrame(ctx.state, removal.movePlacementFrameId);
+  if (placement?.kind !== "event" || placement.event.kind !== "placeThreat" || placement.cancelled) return;
+  const left = Math.max(0, placement.event.amount - placed);
+  setFrame(ctx, {
+    ...placement,
+    event: { ...placement.event, amount: left },
+    ...(left === 0 ? { cancelled: true } : {}),
+  });
+}
+
+/**
  * One `forEachPlayer` pass per player of `players`, resolving in that order: each pass is its own effects frame with
  * `scopedPlayerId` = that player, sharing the parent frame's source, bindings and vars.
  *
@@ -666,6 +688,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "placeThreat": {
       const amount = value(effect.amount);
+      if (effect.ofRemovedThreat) redirectMovedThreat(ctx, frame, amount * targets(effect.target).length);
       // Replacing a placement: still that threat, placed by the same card for the same activation (`replacesEvent`).
       const replaced = frame.replacesEvent?.kind === "placeThreat" ? frame.replacesEvent : undefined;
       pushEvents(
@@ -1255,7 +1278,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const [character] = targets(effect.character).filter(
         (id) => inPlay.includes(id) && categoriesOf(ctx.state, id).includes("character"),
       );
-      const playerId = character ? controllerOf(ctx.state, character) : null;
+      // A minion has no controller: an attack moved onto one is against the player it is engaged with (ruling
+      // July 25, 2025, answer 2, docs/rulings/post-rrg-1-6/12-july-2025.md: Mister Sinister attacks the engaged Hope
+      // Summers minion, and a player can defend;
+      // extended to any engaged minion, an engine interpretation).
+      const playerId = character
+        ? (controllerOf(ctx.state, character) ?? mustInstance(ctx.state, character).engagedWith)
+        : null;
       if (!character || !playerId) return;
       const attack = ctx.state.stack.find(
         (f): f is Frame<"event"> => f.kind === "event" && f.event.kind === "enemyAttack" && !f.cancelled,
@@ -1683,11 +1712,31 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     case "giveStatus": {
       // Whose effect placed it (`TriggerEvent statusPlaced`, docs/phase7-wave7.md §3.27).
-      const by = { sourceInstanceId: frame.selfInstanceId, playerId: threatRemoverOf(ctx, frame) };
+      // A replacement is not a placement: its card is not announced as placed (`StatusGiver.replacing`; ruling May 10,
+      // 2024, post-RRG 1.5 #181, which names Mister Sinister; other "status placed" triggers follow it by analogy, an
+      // engine interpretation).
+      const by: StatusGiver = {
+        sourceInstanceId: frame.selfInstanceId,
+        playerId: threatRemoverOf(ctx, frame),
+        ...(effect.replacing !== undefined ? { replacing: true as const } : {}),
+      };
       // docs/phase7-wave4.md §3.60: "If no tough status card was given this way" reads `<bind>.amount`. A card that
       // waits for its "would gain a status card" window (docs/phase7-wave9.md §3.33) counts once it lands.
       const countOn = effect.bind ? { frameId: frame.frameId, name: `${effect.bind}.amount` } : undefined;
-      const gives = targets(effect.target).map((instanceId) => ({ instanceId, count: 1 }));
+      let receivers = targets(effect.target);
+      if (effect.replacing !== undefined) {
+        // A replacement is one effect: only a target holding the card to replace and with room for the new one is
+        // replaced, the rest are left as they were (`replacesStatusOn`; ruling Jun 20, 2024, post-RRG 1.5 #215).
+        const replacing = effect.replacing;
+        receivers = receivers.filter((id) => replacesStatusOn(ctx.state, ctx.deps, id, replacing, effect.status));
+        // The replaced card is discarded and announced as such (docs/phase7-wave6.md §3.5): the RRG uses "remove" and
+        // "discard" for the same thing (RRG 1.8 "Tough", p. 44; "Stunned", p. 41), and #181 speaks only to placing.
+        announceStatusDiscarded(
+          ctx,
+          receivers.flatMap((id) => removeStatus(ctx, id, replacing, 1)),
+        );
+      }
+      const gives = receivers.map((instanceId) => ({ instanceId, count: 1 }));
       // A card that is not given (no room, or replaced in its window) marks this frame's pre-"then" text unresolved.
       const given = giveStatusOrAnnounce(ctx, gives, effect.status, by, countOn, frame.frameId);
       if (countOn) addFrameVars(ctx, frame.frameId, { [countOn.name]: given });
@@ -2914,7 +2963,14 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // and then discarded for the player side scheme limit takes no threat (docs/phase7-wave7.md §3.49).
       const schemesInPlay = cardsInPlay(ctx.state);
       const [from] = targets(effect.from).filter((id) => schemesInPlay.includes(id));
-      const [to] = targets(effect.to).filter((id) => schemesInPlay.includes(id));
+      const destinations = targets(effect.to).filter((id) => schemesInPlay.includes(id));
+      // A move places a fixed number of tokens on one card and cannot be split: when "the main scheme" is both of
+      // Tower Defense's, the threat goes to just the one with Focused Defense (ruling Oct 10, 2025, answer 2, on
+      // Manipulated M.U.S.I.C., docs/rulings/post-rrg-1-6/15-october-2025.md; applied to every move with several
+      // candidate schemes, an engine interpretation). A player card's "the main scheme" is already the scheme its
+      // controller chose by now, so this only decides encounter cards' moves (MC21 p. 10).
+      const focused = destinations.length > 1 ? focusedMainSchemeId(ctx.state, ctx.deps) : null;
+      const to = focused && destinations.includes(focused) ? focused : destinations[0];
       const available = from ? mustInstance(ctx.state, from).threat : 0;
       const amount = Math.min(available, effect.amount ? Math.max(0, value(effect.amount)) : available);
       // RRG 1.8 "Move" (p. 30): no move to the current placement, and none without a valid source and destination.
@@ -2938,7 +2994,14 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.made`]: 0 });
         return;
       }
-      // Removed from the source, then placed on the destination; only the placement reports to `bind`.
+      // Removed from the source, then placed on the destination; only the placement reports to `bind`. The removal
+      // names the placement, so an interrupt that sends "that threat" elsewhere takes it out of the move (ruling Nov
+      // 21, 2025; `placeThreat.ofRemovedThreat`).
+      const placement = eventFrame(
+        ctx,
+        { kind: "placeThreat", schemeInstanceId: to, amount, sourceInstanceId: frame.selfInstanceId },
+        reportTo(effect.bind),
+      );
       pushFrames(ctx, [
         eventFrame(ctx, {
           kind: "removeThreat",
@@ -2946,12 +3009,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           amount,
           sourceInstanceId: frame.selfInstanceId,
           playerId: remover,
+          movePlacementFrameId: placement.frameId,
         }),
-        eventFrame(
-          ctx,
-          { kind: "placeThreat", schemeInstanceId: to, amount, sourceInstanceId: frame.selfInstanceId },
-          reportTo(effect.bind),
-        ),
+        placement,
       ]);
       return;
     }

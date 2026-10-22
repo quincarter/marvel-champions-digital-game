@@ -313,15 +313,12 @@ describe("§3.21 'When a character attacks Speed Demon, Speed Demon attacks that
 });
 
 /**
- * Ruling July 25, 2025 (Alex), question 2: Hope Summers is a minion engaged with a player (an ally under
- * 'Pool-ized) while Sinister Ends is in play. "Yes, in that case Mister Sinister will attack the Hope Summers minion.
- * As this is still an enemy attack activation, a player can still defend against this attack." RRG 1.8 is silent
- * on a forced interrupt that moves an enemy attack onto a minion (p. 8 "Attack (Enemy Activation)" only names a
- * player's alter-ego or an ally), so the ruling stands.
- *
- * The engine's `retargetAttack` (enemy form, `resolve/apply-effect.ts`) drops any target whose `controllerOf` is
- * null, and an engaged minion has no controller (`engageInPlayMinion` sets `controllerId: null`), so the attack
- * stays on the player's hero.
+ * Ruling July 25, 2025 (Alex), answer 2 (docs/rulings/post-rrg-1-6/12-july-2025.md): Hope Summers is a minion engaged
+ * with a player (an ally under 'Pool-ized) while Sinister Ends is in play. "Mister Sinister will attack the Hope Summers
+ * minion. As this is still an enemy attack activation, a player can still defend against this attack." RRG 1.8 is
+ * silent on a forced interrupt that moves an enemy attack onto a minion (p. 8 "Attack (Enemy Activation)" only names a
+ * player's alter-ego or an ally), so the ruling stands. `retargetAttack` (enemy form, `resolve/apply-effect.ts`) takes
+ * an engaged minion as the attack's target, against the player it is engaged with.
  */
 describe("an enemy attack moved onto a minion (ruling July 25, 2025)", () => {
   const SNARE_RULE = stubAbility("snare.forced-interrupt", {
@@ -333,7 +330,8 @@ describe("an enemy attack moved onto a minion (ruling July 25, 2025)", () => {
     effects: [{ kind: "enemyAttack", enemies: { kind: "villain" }, against: { kind: "controller" } }],
   } satisfies AbilityDefinition);
 
-  const BOSS = stubVillain({ id: "boss", stages: [{ hp: flat(40), atk: 1, sch: 1 }] });
+  // ATK 6: more than the hero's DEF, so a defending hero still takes damage.
+  const BOSS = stubVillain({ id: "boss", stages: [{ hp: flat(40), atk: 6, sch: 1 }] });
   const PLOT = stubMainScheme({
     id: "plot",
     stages: [{ startingThreat: flat(0), targetThreat: flat(90), acceleration: flat(0) }],
@@ -343,7 +341,8 @@ describe("an enemy attack moved onto a minion (ruling July 25, 2025)", () => {
   const BUTTON = stubSupport({ id: "attack-me", cost: 0, abilities: [ATTACK_ME.ref] });
   const snareDeps = depsOf(SNARE_RULE, ATTACK_ME);
 
-  it.fails("a forced interrupt that makes the villain attack an engaged minion moves the attack onto that minion", () => {
+  /** The villain attacks P1 through the button; the snare moves the attack onto the engaged grunt. */
+  function snaredAttack(pickDefender: (hero: InstanceId) => readonly string[]) {
     const base = gameAtFirstTurn({
       cards: [BOSS, PLOT, GRUNT, SNARE, BLANK, BUTTON],
       deps: snareDeps,
@@ -367,13 +366,37 @@ describe("an enemy attack moved onto a minion (ruling July 25, 2025)", () => {
       abilityId: ATTACK_ME.ref.id as Extract<Command, { type: "useAbility" }>["abilityId"],
       payment: [],
     };
-    const run = driveSession(startSession(placed.state), snareDeps, [command], (s) => {
-      const choice = s.pendingChoice;
-      return choice?.prompt.kind === "declareDefender" ? ["decline"] : defaultPick(s);
-    });
-    const events: readonly GameEvent[] = run.events;
     const hero1: InstanceId = mustPlayer(placed.state, P1).identity.instanceId;
-    expect(events.some((e) => e.type === "attackRetargeted" && e.targetInstanceId === engaged.id)).toBe(true);
+    const offered: GameState[] = [];
+    const run = driveSession(startSession(placed.state), snareDeps, [command], (s) => {
+      if (s.pendingChoice?.prompt.kind !== "declareDefender") return defaultPick(s);
+      offered.push(s);
+      return pickDefender(hero1);
+    });
+    return { events: run.events as readonly GameEvent[], hero1, grunt: engaged.id, offered };
+  }
+
+  it("a forced interrupt that makes the villain attack an engaged minion moves the attack onto that minion", () => {
+    const { events, hero1, grunt, offered } = snaredAttack(() => ["decline"]);
+    expect(events.some((e) => e.type === "attackRetargeted" && e.targetInstanceId === grunt)).toBe(true);
     expect(events.some((e) => e.type === "damageDealt" && e.targetInstanceId === hero1)).toBe(false);
+    expect(events.some((e) => e.type === "damageDealt" && e.targetInstanceId === grunt)).toBe(true);
+    // "As this is still an enemy attack activation, a player can still defend against this attack."
+    expect(offered.length).toBeGreaterThan(0);
+  });
+
+  it("a player defends against the moved attack: the defender takes its damage, not the minion", () => {
+    const { events, hero1, grunt, offered } = snaredAttack((hero) => [hero]);
+    // The prompt is for the moved attack: it names the minion as the character attacked.
+    expect(offered.map((s) => s.pendingChoice?.prompt)).toEqual([
+      expect.objectContaining({
+        kind: "declareDefender",
+        attack: expect.objectContaining({ targetCharacterInstanceId: grunt }),
+      }),
+    ]);
+    expect(events.some((e) => e.type === "attackRetargeted" && e.targetInstanceId === grunt)).toBe(true);
+    expect(events.some((e) => e.type === "defenderDeclared" && e.defenderInstanceId === hero1)).toBe(true);
+    expect(events.some((e) => e.type === "damageDealt" && e.targetInstanceId === grunt)).toBe(false);
+    expect(events.some((e) => e.type === "damageDealt" && e.targetInstanceId === hero1)).toBe(true);
   });
 });

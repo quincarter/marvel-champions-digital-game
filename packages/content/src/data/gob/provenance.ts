@@ -11,7 +11,9 @@ export const GOB_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("02001a"),
     cardSetCode: "risky_business",
     marvelcdbCodes: ["02001a", "02002a", "02003a", "02001b", "02002b", "02003b"],
-    corrections: [],
+    corrections: [
+      "02002b: MarvelCDB reads \"Deal 3 indirect damage to each player.\" on Green Goblin II; the card prints 4 (#361). [evidence: Card scan assets/card-art/bundles/cards/02002b.png: \"When Revealed: Deal 4 indirect damage to each player.\" The other Norman Osborn / Green Goblin faces (02001a-02003b) and the Mutagen Formula stages (02014-02016) were checked against their scans and match raw.]",
+    ],
   },
   {
     cardId: cardId("02004a"),

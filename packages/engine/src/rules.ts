@@ -1788,11 +1788,11 @@ export function restrictedLimitFor(
 /**
  * Where a player stands against the restricted limit (docs/phase7-wave7.md §3.82), counting what they control in play.
  * `load` is `restrictedLoadOf`; `held` is `restrictedCardsOf`, the cards offered for the discard, a weighted card among
- * them (contributor's rules call (bluefireF5ran) 2026-10-16, reversing upstream Q52 = B). A `restrictedLimit` rule's `cards` makes room
- * for every card that weighs on the limit, a card that "counts as N restricted cards" counted N times: FFG ruling 152
- * (March 22, 2024), "Laser Swords counts as two Restricted Weapon cards, so it does interact with Side Holster" (fork
- * owner's decision, overriding upstream Q52 = B on this point).
- * The player is over the limit when `load > limit`.
+ * them (contributor's rules call 2026-10-16 (bluefireF5ran), reversing upstream Q52 = B). A `restrictedLimit` rule's
+ * `cards` makes room for every card that weighs on the limit, a card that "counts as N restricted cards" counted N
+ * times: FFG ruling 152 (March 22, 2024), "Laser Swords counts as two Restricted Weapon cards, so it does interact with
+ * Side Holster" (the same contributor's rules call 2026-10-16 (bluefireF5ran), the fork owner's, overriding upstream
+ * Q52 = B on this point). The player is over the limit when `load > limit`.
  */
 export function restrictedStanding(
   state: GameState,

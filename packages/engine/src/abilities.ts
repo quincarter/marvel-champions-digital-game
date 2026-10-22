@@ -3664,6 +3664,9 @@ export interface InPlayCostPick {
    * payer controls and that tie for the highest (or lowest) `measure` among them can pay; a tie is the payer's pick. The
    * superlative is taken over every matching card before asking whether it can pay, so a highest-cost card that cannot
    * leave play leaves the cost unpayable rather than passing the cost to the next one down (the text names that card).
+   * The exception is a permanent card the source cannot remove, which a discard or return cost skips: RRG 1.8
+   * "Permanent" (p. 32) retargets the effect to "the non-permanent card that fits its criteria" (applied to costs, an
+   * engine interpretation).
    */
   readonly superlative?: { readonly order: "highest" | "lowest"; readonly measure: DiscardCombined["measure"] };
   /**

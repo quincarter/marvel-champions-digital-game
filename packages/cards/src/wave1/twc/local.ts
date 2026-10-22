@@ -45,7 +45,7 @@ export const superlative = (
   order: "highest" | "lowest",
   among: TargetRef,
   measure: ValueSpec,
-  opts: { readonly slot?: string; readonly ties?: "first" } = {},
+  opts: { readonly slot?: string; readonly ties?: "first"; readonly leavesPlay?: true } = {},
 ): TargetRef => ({
   kind: "superlative",
   among,
@@ -53,6 +53,7 @@ export const superlative = (
   measure,
   ...(opts.slot ? { slot: opts.slot } : {}),
   ...(opts.ties ? { ties: opts.ties } : {}),
+  ...(opts.leavesPlay ? { leavesPlay: opts.leavesPlay } : {}),
 });
 
 /**

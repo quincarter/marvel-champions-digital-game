@@ -15,6 +15,7 @@ import {
   each,
   eachPlayer,
   engage,
+  anyIn,
   exists,
   forEachPlayer,
   ifThen,
@@ -53,6 +54,14 @@ const UNDEAD = trait("Undead");
  * ran out) makes every effect after it a no-op — the same reading `nebu/nebula-kit.ts`'s own `discardDeckUntil` use
  * already takes for an unguarded chain.
  */
+/** "The upgrade or support they control with the highest cost" that can leave play (RRG 1.8 "Permanent", p. 32). */
+const HIGHEST_COST_THEIRS = superlative(
+  "highest",
+  each(query(["upgrade", "support"], { controlledBy: thatPlayer })),
+  printedCostOf(chosen("candidate")),
+  { leavesPlay: true },
+);
+
 export const LEGIONS_OF_HEL = defineAbilities({
   // Draugr (21152) — Guard (data). When Revealed: Choose to either take 1 damage or place 1 threat on the main
   // scheme.
@@ -85,15 +94,8 @@ export const LEGIONS_OF_HEL = defineAbilities({
         thatPlayer,
         option(
           "Discard the upgrade or support you control with the highest cost",
-          { when: exists(query(["upgrade", "support"], { controlledBy: thatPlayer })) },
-          bindTargets(
-            "highestCost",
-            superlative(
-              "highest",
-              each(query(["upgrade", "support"], { controlledBy: thatPlayer })),
-              printedCostOf(chosen("candidate")),
-            ),
-          ),
+          { when: anyIn(HIGHEST_COST_THEIRS) },
+          bindTargets("highestCost", HIGHEST_COST_THEIRS),
           // "They control" defines the pool; the tie inside it is the first player's (RRG 1.8 "First Player", p. 19).
           chooseTarget("discarded", { inSlot: "highestCost" }, { chooser: firstPlayer }),
           discard(chosen("discarded")),
