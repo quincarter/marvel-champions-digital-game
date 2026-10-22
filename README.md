@@ -103,29 +103,28 @@ How the packages fit together, and how to run the game locally, is in [Architect
 
 ## Roadmap
 
-| Phase | What it covers                                                                                                | Status                                                                                                       |
-| ----- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| 0     | Foundations: monorepo, card schema, tech stack                                                                | ✅ Done                                                                                                      |
-| 1     | Headless rules engine: state machine, turn structure, timing windows, keywords, replayable command log        | ✅ Done                                                                                                      |
-| 2     | Card content pipeline and the Core Set: MarvelCDB ingestion, the ability DSL, all 233 Core Set cards scripted | ✅ Done                                                                                                      |
-| 3     | Encounter and villain AI: villain phase automation, boost, decisions routed to the player the rules name      | ✅ Done                                                                                                      |
-| 4     | Client: the Phaser 4 tabletop on desktop, tablet and phone                                                    | 🟡 Playable end to end; accessibility pass and remaining design-canvas screens in progress                   |
-| 5     | Online multiplayer: 2–4 players over a network, reconnects, Epic Multiplayer for Loki                         | ⬜ Planned                                                                                                   |
-| 6     | Rules QA: ruling-by-ruling tests, replay fixtures, drift detection on new errata                              | 🟡 Ongoing: per-wave rules audits, random-deck soaks, MarvelCDB decklist games, a Rules Reference v1.8 audit |
-| 7     | Content beyond the Core Set, in release order                                                                 | 🟡 Through cycle 10 (Civil War); Fear No Evil in progress                                                    |
-| 8     | Polish: onboarding, settings, audio, packaging, undo, hero AI                                                 | 🟡 Guided mode, settings, music, desktop and Android builds and undo landed; hero AI planned                 |
-| 9     | Decks: precons, MarvelCDB import, in-app deck builder                                                         | ✅ Done                                                                                                      |
+Every released Marvel Champions product, from the Core Set through Shadowland (October 16, 2026), is playable end to
+end.
+
+| Phase | What it covers                                                                                                | Status                                                                                                                                                                                                                                                                                                                                    |
+| ----- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | Foundations: monorepo, card schema, tech stack                                                                | ✅ Done                                                                                                                                                                                                                                                                                                                                   |
+| 1     | Headless rules engine: state machine, turn structure, timing windows, keywords, replayable command log        | ✅ Done                                                                                                                                                                                                                                                                                                                                   |
+| 2     | Card content pipeline and the Core Set: MarvelCDB ingestion, the ability DSL, all 233 Core Set cards scripted | ✅ Done                                                                                                                                                                                                                                                                                                                                   |
+| 3     | Encounter and villain AI: villain phase automation, boost, decisions routed to the player the rules name      | ✅ Done                                                                                                                                                                                                                                                                                                                                   |
+| 4     | Client: the Phaser 4 tabletop on desktop, tablet and phone                                                    | 🟡 Playable end to end on every device; design-canvas polish left on the deck builder and the phone targeting layout ([screen gaps](docs/phase4-screen-gaps.md))                                                                                                                                                                          |
+| 5     | Online multiplayer: 2–4 players over a network, reconnects, Epic Multiplayer for Loki                         | 🟡 In progress: cross-platform saves and device sync done ([#340](https://github.com/quincarter/marvel-champions-digital-game/pull/340), [#343](https://github.com/quincarter/marvel-champions-digital-game/pull/343), [#354](https://github.com/quincarter/marvel-champions-digital-game/pull/354)); the live relay for 2–4 players next |
+| 6     | Rules QA: ruling-by-ruling tests, replay fixtures, drift detection on new errata                              | 🟡 Ongoing: per-wave rules audits, random-deck soaks, MarvelCDB decklist games, a Rules Reference v1.8 audit                                                                                                                                                                                                                              |
+| 7     | Content beyond the Core Set, in release order                                                                 | ✅ Done: every released product through Shadowland (cycle 11)                                                                                                                                                                                                                                                                             |
+| 8     | Polish: onboarding, settings, audio, packaging, undo                                                          | ✅ Done, with ongoing improvements: Guided mode, settings, music, desktop and Android builds and undo                                                                                                                                                                                                                                     |
+| 9     | Decks: precons, MarvelCDB import, in-app deck builder                                                         | ✅ Done                                                                                                                                                                                                                                                                                                                                   |
 
 Next up:
 
-- **Fear No Evil (cycle 11), in progress** in
-  [#251](https://github.com/quincarter/marvel-champions-digital-game/pull/251): the card data for the box and the
-  Jessica Jones and Luke Cage packs is in, and the heroes are being scripted. The six-scenario campaign and the
-  client come after.
-- **Civil War leftovers**: everything in the Civil War box and the Wonder Man and Hercules packs is playable. Still
-  to come are the separate Synthezoid Smackdown scenario pack (December 2025), held for its own pull request, and
-  competitive (team versus team) mode, which the game marks as coming soon.
-- **Hero AI** to fill seats with computer-controlled heroes, then **online multiplayer** (Phase 5).
+1. **Online multiplayer** (Phase 5): live 2–4 player games over the network, built on the save sync that already
+   carries games between devices. About two-thirds done.
+2. **Civil War's competitive mode** (team versus team), which the game marks as coming soon.
+3. **Hero AI** to fill seats with computer-controlled heroes.
 
 What you can play today is in [Current status](docs/project/current-status.md). The detailed plan, decisions and per-wave specs are in [PLAN.md](PLAN.md) and [`docs/`](docs).
 
