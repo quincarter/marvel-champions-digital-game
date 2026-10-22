@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Battery Pack moves its charge counter rather than removing and adding one, so it arrives as the type the Tech card defines (a reflection counter on Energy Barrier), per RRG p. 6 and the Battery Pack FAQ on p. 62'
+time: 2026-10-16T03:29:31.000000+00:00

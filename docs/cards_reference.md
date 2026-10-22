@@ -23547,7 +23547,7 @@ To few men ruin, but to all men fear." —Thomas Randolph*
   - **Encounter Set Emblem**: Risky Business Set Icon (printed bottom-right next to deck number)
 - **Traits**: *Goblin.*
 - **Rules Text**:
-  > **When Revealed**: Deal 3 indirect damage to each player.
+  > **When Revealed**: Deal 4 indirect damage to each player.
   > [star] **Forced Interrupt**: When Green Goblin would scheme, remove 1 madness counter from State of Madness instead.
 - **Image Asset**: `assets/card-art/bundles/cards/02002b.png` (300×419 px, 38.2 KB)
 

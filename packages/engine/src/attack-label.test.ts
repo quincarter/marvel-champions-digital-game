@@ -24,7 +24,7 @@
  *   before that instruction, and the effect deals the damage of the attack already begun. Same sentence of p. 26.
  *   The readings on top of it (what is read ahead, several attacks, a stun received meanwhile) are interpretations,
  *   stated with their alternatives in `resolve/attack-ability.ts`.
- * - **Every "(attack)" ability, contributor's rules call (bluefireF5ran) 2026-10-15** (RRG 1.8 p. 26 as written; FFG
+ * - **Every "(attack)" ability, contributor's rules call 2026-10-15 (bluefireF5ran)** (RRG 1.8 p. 26 as written; FFG
  *   ruling June 26, 2025): the ability is an attack by the identity from when it begins resolving, whether or not it
  *   deals an enemy damage. The tests that pinned "with no damage there is no attack" (rows 61/73, Q48) now expect an
  *   attack on nobody.

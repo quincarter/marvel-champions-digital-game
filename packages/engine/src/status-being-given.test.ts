@@ -140,7 +140,11 @@ const STUN_TWICE = event("stun-twice", [
   },
   { kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "var", name: "placed.amount" } },
 ]);
-const EVENTS = [STUN, CONFUSE, TOUGHEN, STUN_ENEMIES, STUN_AND_COUNT, STUN_TWICE];
+// Vapors of Valtorr's shape: "Replace that status card with a different status card" (tough → stunned).
+const REPLACE_TOUGH = event("replace-tough", [
+  { kind: "giveStatus", target: villain, status: "stunned", replacing: "tough" },
+]);
+const EVENTS = [STUN, CONFUSE, TOUGHEN, STUN_ENEMIES, STUN_AND_COUNT, STUN_TWICE, REPLACE_TOUGH];
 
 const LISTENERS = [CONSTRUCTS_CONSTANT, CONSTRUCTS_INTERRUPT, SHIELD_INTERRUPT, WATCH_INTERRUPT];
 const deps: EngineDeps = depsOf(...LISTENERS, HUSH_REVEALED, ...EVENTS.map((e) => e.ability));
@@ -256,6 +260,21 @@ describe("§3.33 statusBeingGiven: an interrupt to a status card about to be giv
     expect(attachedTo(result.state, id)).toEqual([CONSTRUCTS.id]);
     // The registry listens but this give matches no ability: it is not announced at all.
     expect(beingGiven(result.events, "initiated")).toEqual([]);
+    expectReplays(result);
+  });
+
+  it("replacing her tough card with a stunned one: the tough card is discarded, then the stun is replaced", () => {
+    // Engine reading, pinned for the #312 review (an open question, not a ruling): "replace" discards the old card
+    // and then gives the new one, whose "would gain" window (§3.33) follows the discard. Solid Sound Constructs (50144)
+    // replaces the stun, so the enemy ends with neither card. #215 (one effect) settles who is a valid target, not this.
+    const toughened = play(songbirdWithConstructs(), TOUGHEN).state;
+    const id = villainId(toughened);
+    expect(statuses(toughened, id).tough).toBe(1); // setup check
+    const result = play(toughened, REPLACE_TOUGH);
+    expect(statuses(result.state, id)).toEqual({ stunned: 0, confused: 0, tough: 0 });
+    expect(attachedTo(result.state, id)).toEqual([]);
+    expect(inEncounterDiscard(result.state, CONSTRUCTS.id)).toBe(true);
+    expect(given(result.events)).toEqual([]);
     expectReplays(result);
   });
 

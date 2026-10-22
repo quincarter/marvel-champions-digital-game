@@ -15,9 +15,11 @@ const BEAT_COP = "10029";
 // Empathy, then Show of Empathy's Forced Interrupt will trigger and change the destination of the threat token, and
 // you'd place the token on a non-Elite minion instead." RRG 1.8 "Move" (p. 30) makes a move a removal from one
 // placement and a placement on the other; Show of Empathy replaces where the removed threat goes ("instead"), so the
-// moved token must not also land on Beat Cop.
+// moved token must not also land on Beat Cop. Fixed: a move's removal names its placement
+// (`removeThreat.movePlacementFrameId`), and Show of Empathy's `placeThreat(..., { ofRemovedThreat: true })` takes the
+// tokens out of it (`resolve/apply-effect.ts`).
 describe("Beat Cop moving threat off Show of Empathy (FFG ruling Nov 21, 2025)", () => {
-  it.fails("the moved threat goes to a non-Elite minion instead; none lands on Beat Cop", () => {
+  it("the moved threat goes to a non-Elite minion instead; none lands on Beat Cop", () => {
     const hero = bpHeroGame();
     const M = "m-target" as InstanceId;
     const withMinion = withDamage(engaged(hero, SHOCKER, "m-target"), M, 0);

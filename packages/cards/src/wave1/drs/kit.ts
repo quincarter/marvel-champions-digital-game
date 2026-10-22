@@ -28,7 +28,6 @@ import {
   forcedResponse,
   gainsTrait,
   gets,
-  giveStatus,
   giveTough,
   hasStatus,
   heal,
@@ -43,8 +42,8 @@ import {
   payPrintedCostOf,
   query,
   ready,
-  removeStatus,
   removeThreat,
+  replaceStatus,
   scaled,
   self,
   shuffleDeck,
@@ -88,8 +87,10 @@ const milled = (bind: string, type: "physical" | "energy" | "mental") =>
  * is an attachment to a character rather than an independently targetable card. Which status it currently has,
  * and therefore which two are genuinely "different", is read with `hasStatus` per option: the outer choice picks
  * the character's current status (exactly one condition is ever true in the normal case of a single status, so it
- * resolves without asking), removes it, and a nested choice offers the other two as the replacement — the
- * printed text names no specific replacement, so RRG "Choose" defaults to the ability's controller deciding.
+ * resolves without asking), and a nested choice offers the other two as the replacement — the printed text names no
+ * specific replacement, so RRG "Choose" defaults to the ability's controller deciding. Each replacement is one
+ * `replaceStatus` effect, so a character whose status card cannot be replaced (a Stalwart enemy's tough card) is no
+ * valid target (ruling Jun 20, 2024, post-RRG 1.5 #215).
  */
 export const DRS_KIT = defineAbilities({
   // Spell Mastery — Action: Exhaust Doctor Strange and pay the cost of the top card of the Invocation deck →
@@ -253,8 +254,8 @@ export const DRS_KIT = defineAbilities({
 
   // Vapors of Valtorr (Invocation) — Special: Choose a status card in play. Replace that status card with a
   // different status card. Place this card in the Invocation deck discard pile. See the module doc comment above
-  // for the reading: choose a character with any status, remove whichever one it has (the outer `chooseOne`
-  // resolves without asking once only one `hasStatus` condition is true), then choose one of the other two to give.
+  // for the reading: choose a character with any status, then (the outer `chooseOne` resolves without asking once
+  // only one `hasStatus` condition is true) choose which of the other two replaces the one it has.
   "09035.vapors-of-valtorr-special": {
     trigger: { kind: "special" },
     effects: [
@@ -263,28 +264,25 @@ export const DRS_KIT = defineAbilities({
         option(
           "It has the stunned status",
           { when: hasStatus(chosen("target"), "stunned") },
-          removeStatus(chosen("target"), "stunned"),
           chooseOne(
-            option("Give it the confused status", giveStatus(chosen("target"), "confused")),
-            option("Give it the tough status", giveStatus(chosen("target"), "tough")),
+            option("Give it the confused status", replaceStatus(chosen("target"), "stunned", "confused")),
+            option("Give it the tough status", replaceStatus(chosen("target"), "stunned", "tough")),
           ),
         ),
         option(
           "It has the confused status",
           { when: hasStatus(chosen("target"), "confused") },
-          removeStatus(chosen("target"), "confused"),
           chooseOne(
-            option("Give it the stunned status", giveStatus(chosen("target"), "stunned")),
-            option("Give it the tough status", giveStatus(chosen("target"), "tough")),
+            option("Give it the stunned status", replaceStatus(chosen("target"), "confused", "stunned")),
+            option("Give it the tough status", replaceStatus(chosen("target"), "confused", "tough")),
           ),
         ),
         option(
           "It has the tough status",
           { when: hasStatus(chosen("target"), "tough") },
-          removeStatus(chosen("target"), "tough"),
           chooseOne(
-            option("Give it the stunned status", giveStatus(chosen("target"), "stunned")),
-            option("Give it the confused status", giveStatus(chosen("target"), "confused")),
+            option("Give it the stunned status", replaceStatus(chosen("target"), "tough", "stunned")),
+            option("Give it the confused status", replaceStatus(chosen("target"), "tough", "confused")),
           ),
         ),
       ),

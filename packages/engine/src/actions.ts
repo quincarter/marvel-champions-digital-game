@@ -1662,7 +1662,7 @@ function resourcePickChoices(
   let sets: CostChoices[] = [{}];
   let choosing = false;
   for (const { mode, pick } of picks) {
-    const candidates = eligibleForInPlayPick(state, deps, instanceId, spender, pick).filter((id) =>
+    const candidates = eligibleForInPlayPick(state, deps, instanceId, spender, pick, mode).filter((id) =>
       canPayInPlayPick(state, deps, instanceId, id, mode, pick),
     );
     // A forced pick (exactly `min` candidates) pays itself; fewer can't pay, which the fault check reports. An `each`
@@ -3771,7 +3771,7 @@ export function inPlayCostCandidates(
   mode: InPlayCostMode,
   pick: InPlayCostPick,
 ): readonly InstanceId[] {
-  const candidates = eligibleForInPlayPick(state, deps, sourceId, playerId, pick).filter((id) =>
+  const candidates = eligibleForInPlayPick(state, deps, sourceId, playerId, pick, mode).filter((id) =>
     canPayInPlayPick(state, deps, sourceId, id, mode, pick),
   );
   if (!pick.includesSelf) return candidates;
@@ -3872,6 +3872,7 @@ function eligibleForInPlayPick(
   sourceId: InstanceId,
   playerId: PlayerId,
   pick: InPlayCostPick,
+  mode: InPlayCostMode,
 ): readonly InstanceId[] {
   const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event: null, bindings: {}, deps };
   // "Discard a card tucked here →" (`TuckedCostPick`): the cards under the one card named, which the payer controls.
@@ -3889,14 +3890,22 @@ function eligibleForInPlayPick(
   const eligible = cardsInPlay(state).filter(
     (id) => (group || controllerOf(state, id) === playerId) && matchesQuery(state, id, pick.query, context),
   );
-  // "The highest-cost upgrade you control" (`InPlayCostPick.superlative`): only the cards tied for it.
+  // "The highest-cost upgrade you control" (`InPlayCostPick.superlative`): only the cards tied for it. A cost that
+  // makes the card leave play ranks only the cards it can remove: RRG 1.8 "Permanent" (p. 32), "If a permanent card
+  // would be targeted by such an effect … that effect instead targets the non-permanent card that fits its criteria"
+  // (Arm Cannon, 27147, an encounter card's "Discard the highest-cost upgrade you control"). p. 32 speaks of effects;
+  // applying it to costs is an engine interpretation.
   const superlative = pick.superlative;
   if (!superlative || eligible.length === 0) return eligible;
+  const sourceCardId = getInstance(state, sourceId)?.cardId;
+  const leaves = mode === "discard" || mode === "return";
+  const ranked = leaves ? eligible.filter((id) => !permanentStopsLeaving(state, deps, id, sourceCardId)) : eligible;
+  if (ranked.length === 0) return [];
   const measure = (id: InstanceId): number =>
     discardCombinedValue(state, id, { measure: superlative.measure, atLeast: 0 });
-  const values = eligible.map(measure);
+  const values = ranked.map(measure);
   const best = superlative.order === "highest" ? Math.max(...values) : Math.min(...values);
-  return eligible.filter((_, index) => values[index] === best);
+  return ranked.filter((_, index) => values[index] === best);
 }
 
 /**
@@ -3948,7 +3957,7 @@ function planInPlayPick(
           : mode === "damage"
             ? "deal damage to"
             : "return to hand";
-  const eligible = eligibleForInPlayPick(state, deps, sourceId, playerId, pick);
+  const eligible = eligibleForInPlayPick(state, deps, sourceId, playerId, pick, mode);
   const candidates = eligible.filter((id) => canPayInPlayPick(state, deps, sourceId, id, mode, pick));
   const tucked = tuckedPickOf(pick) !== null;
   const whyNot = (id: InstanceId): PriceFault =>

@@ -33,6 +33,7 @@ const infiltrateTheMuseum = () =>
   );
 
 const collection = (state: GameState): readonly InstanceId[] => state.scenarioAreas?.["The Collection"] ?? [];
+const cardOf = (state: GameState, id: InstanceId) => state.cardPool[state.instances[id]!.cardId];
 
 /** Reveal `code` from the encounter deck, past the villain's own unconditional boost draw (docs/card-scripting-
  * process.md §7): stack a filler ahead of it, then run the villain phase. */
@@ -319,6 +320,41 @@ describe("Inconspicuous Box (16076)", () => {
     const before = collection(state).length;
     const revealed = reveal(state, "16076");
     expect(collection(revealed).length).toBeGreaterThanOrEqual(before);
+  });
+
+  it("When Revealed with only a permanent card you control: nothing is moved and it gains surge (RRG 1.8 p. 32)", () => {
+    const base = infiltrateTheMuseum();
+    const controlled = (s: GameState) =>
+      playerOf(s, P1).playArea.filter((id) => ["ally", "support", "upgrade"].includes(cardOf(s, id)?.type ?? ""));
+    expect(controlled(base)).toEqual([]); // setup check: nothing to move
+    // A support from P1's deck put into play, its card made permanent (by surgery).
+    const support = [...playerOf(base, P1).deck, ...playerOf(base, P1).hand].find(
+      (id) => cardOf(base, id)?.type === "support",
+    )!;
+    const card = cardOf(base, support);
+    if (card?.type !== "support") throw new Error("no support in P1's deck");
+    const permanent: GameState = {
+      ...base,
+      cardPool: { ...base.cardPool, [card.id]: { ...card, keywords: [...card.keywords, { name: "permanent" }] } },
+      players: base.players.map((p) =>
+        p.playerId === P1
+          ? {
+              ...p,
+              deck: p.deck.filter((id) => id !== support),
+              hand: p.hand.filter((id) => id !== support),
+              playArea: [...p.playArea, support],
+            }
+          : p,
+      ),
+      instances: { ...base.instances, [support]: { ...base.instances[support]!, faceup: true, controllerId: P1 } },
+    };
+    const encounterLeft = (s: GameState) => Object.values(s.encounterDecks).reduce((n, d) => n + d.deck.length, 0);
+    // With nothing to move the card gains surge; a permanent card alone is the same as nothing.
+    const withNothing = reveal(base, "16076");
+    const withPermanent = reveal(permanent, "16076");
+    expect(playerOf(withPermanent, P1).playArea).toContain(support);
+    expect(collection(withPermanent)).not.toContain(support);
+    expect(encounterLeft(withPermanent)).toBe(encounterLeft(withNothing));
   });
 
   it("[star] Boost: with 3[per_hero] or fewer cards in The Collection, puts the top deck card into it (16076.boost)", () => {

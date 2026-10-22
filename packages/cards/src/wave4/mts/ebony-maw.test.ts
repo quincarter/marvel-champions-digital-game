@@ -444,7 +444,7 @@ describe("MC21 p. 6's Spell rule, seeded at setup (docs/phase7-wave4.md §3.40)"
 describe("Restrained (21083) with only an alter-ego in play (FFG ruling Apr 17, 2025)", () => {
   // "Since Alter-Egos do not have an ATK value, they are not valid targets for Restrained. Restrained would not attach
   // to anything if there was only an Alter-Ego in play."
-  it.fails("a solo alter-ego with no allies gets no Restrained attached", () => {
+  it("a solo alter-ego with no allies gets no Restrained attached", () => {
     const start: GameState = startWave4Game(spectrumScenario("ebony-maw", { seed: 3 })); // alter-ego by default
     const staged = stackEncounterDeck(start, "01186", "21083", "01186");
     const already = new Set(cardsInPlay(staged));
@@ -452,7 +452,7 @@ describe("Restrained (21083) with only an alter-ego in play (FFG ruling Apr 17, 
     const id = instancesOf(revealed, "21083").find((c) => cardsInPlay(revealed).includes(c) && !already.has(c)) as
       | InstanceId
       | undefined;
-    // Actual: Restrained is in play attached to the alter-ego identity (verified: attachedTo is the identity).
+    // Before the fix Restrained attached to the alter-ego identity, its missing ATK read as 0.
     expect(id === undefined || inst(revealed, id).attachedTo === null).toBe(true);
   });
 });

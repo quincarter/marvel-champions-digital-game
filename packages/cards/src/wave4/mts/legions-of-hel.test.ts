@@ -118,17 +118,20 @@ describe("Fallen Warrior (21153) in a real reveal", () => {
 });
 
 describe("No Place for the Living (21154.when-revealed)", () => {
-  it("with no upgrades or supports in play, every player just takes 0 damage (the 'take damage' branch, structurally the only one offered)", () => {
-    // Neither Spectrum's own precon nor the encounter set puts an upgrade/support in play by the time this reveals
-    // this early — the "discard the highest cost" option's own `when` guard (`exists(...)`) correctly isn't offered,
-    // proven directly rather than assumed: `option`'s own compiled `when` on the ability.
+  it("with only Spectrum's permanent forms in play, the discard option is not offered: she takes 1 damage per card", () => {
+    // Gamma, Photon and Pulsar (21002-21004) are permanent upgrades: the highest-cost card this encounter card can
+    // discard is none of them (RRG 1.8 "Permanent", p. 32), so "discard" has no target and is not offered (RRG 1.8
+    // "Choose (Option)", p. 12). The damage counts every upgrade and support she controls, permanent ones included.
     const ability = WAVE4_DEPS.abilities["21154.when-revealed"]!;
     expect(ability.effects[0]).toMatchObject({ kind: "forEachPlayer" });
     const state = helaGame();
     const identity = identityOf(state, P1);
+    const permanents = ["21002", "21003", "21004"].flatMap((code) => instancesOf(state, code));
+    expect(permanents.filter((id) => playerOf(state, P1).playArea.includes(id))).toHaveLength(3); // setup check
     const damageBefore = inst(state, identity).damage;
     const revealed = reveal(state, "21154");
-    expect(inst(revealed, identity).damage).toBe(damageBefore); // 0 upgrades/supports controlled — 0 damage
+    expect(inst(revealed, identity).damage).toBe(damageBefore + 3);
+    expect(permanents.filter((id) => playerOf(revealed, P1).playArea.includes(id))).toHaveLength(3);
   });
 });
 

@@ -72,6 +72,7 @@ export const STATE_OF_EMERGENCY = defineAbilities({
         "lowest",
         each(query(["ally", "upgrade", "support"], { controller: "you" })),
         printedCostOf(chosen("candidate")),
+        { leavesPlay: true },
       ),
     ),
     // No "choose": an encounter card targeting one of several eligible cards; the first player selects
