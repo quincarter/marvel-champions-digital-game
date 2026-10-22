@@ -349,7 +349,10 @@ async function touchSwipe(page: Page, from: { x: number; y: number }, to: { x: n
   await cdp.detach();
 }
 
-test("a swipe that lifts over Set up, Join or Not now presses nothing", async ({ page, context }, info) => {
+test("a swipe that lifts over Set up, Join, Not now or More information presses nothing; a tap on More information opens the guide and answers nothing", async ({
+  page,
+  context,
+}, info) => {
   test.skip(info.project.name !== "phone", "the touch release is the phone's case");
   test.setTimeout(180_000);
   await page.setViewportSize(viewportOf(true));
@@ -360,7 +363,9 @@ test("a swipe that lifts over Set up, Join or Not now presses nothing", async ({
   await loadTitle(page);
   await waitForPrompt(page);
 
-  for (const key of ["set-up", "join", "not-now"]) {
+  const opened: string[] = [];
+  context.on("page", (popup) => opened.push(popup.url()));
+  for (const key of ["set-up", "join", "not-now", "more-info"]) {
     const rect = await stopRect(page, key);
     const at = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
     // Up from well below the control (inside the panel's scrim at least), lifting on the button.
@@ -372,6 +377,14 @@ test("a swipe that lifts over Set up, Join or Not now presses nothing", async ({
     expect(scenes).not.toContain(NOTICE);
     expect(await promptedMarker(page), `nothing was answered by the swipe on ${key}`).toBeNull();
   }
+  expect(opened, "no swipe opened the guide").toEqual([]);
+
+  // A real tap on More information opens the guide in a new tab, and the question stays up, unanswered.
+  const popup = context.waitForEvent("page");
+  await press(page, true, "more-info");
+  expect((await popup).url()).toMatch(/\/sync-info\.html$/);
+  expect(await activeScenes(page)).toContain(PROMPT);
+  expect(await promptedMarker(page)).toBeNull();
   expect(cloud.requests.filter((r) => r.includes("/sync/") && r !== "GET /sync/status")).toEqual([]);
   expect(await storedSyncCode(page)).toBeNull();
 

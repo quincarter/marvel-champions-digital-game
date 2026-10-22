@@ -54,6 +54,7 @@ import { syncService } from "../sync/sync-wiring.js";
 import { syncStatusDisplay, SYNC_ROW_TITLE } from "../view/sync-model.js";
 import type { SyncLinkAddress } from "../sync/sync-link.js";
 import type { SyncDataSceneData } from "./sync-data.js";
+import { drawBetaTagBeside } from "../ui/beta-tag.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 
@@ -455,6 +456,7 @@ export class SaveDataOverlay extends Phaser.Scene {
     const titleText = this.add
       .text(at.x, at.y, caseOf(typeRole.sectionHeader, title), textStyle(typeRole.sectionHeader, surface.paper.hex))
       .setWordWrapWidth(at.width);
+    if (id === "sync") drawBetaTagBeside(this, titleText, at.x + at.width);
     const detailText = this.add
       .text(at.x, titleText.y + titleText.height + 4, detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
       .setFontSize(11)

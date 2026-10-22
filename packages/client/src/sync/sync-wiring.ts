@@ -8,7 +8,7 @@
  * command that ended a turn). Decks and campaigns are written on this thread and notify for themselves. Every game-only
  * trigger still re-reads the whole snapshot (non-game records are hashed again): cheap at this size, not yet cached.
  */
-import { CARDS_BY_ID, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
+import { CARDS_BY_ID, POOL_SCENARIOS, POOL_STARTER_DECKS, POOL_VERSION } from "../content/pool.js";
 import { appSession } from "../session.js";
 import { setBeforeResume } from "../store/resume-hook.js";
 import { cardDisplayName } from "../view/hero-names.js";
@@ -61,6 +61,7 @@ export function syncService(): SyncService {
     }),
     state: new IdbSyncStateStore(),
     describeGame: describeGameMeta,
+    contentVersion: POOL_VERSION,
     // A conflict about another game is not put to the player mid-game: it waits until they leave the table.
     onTable: () => gameOnScreen(),
     document,

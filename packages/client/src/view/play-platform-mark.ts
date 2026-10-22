@@ -122,11 +122,12 @@ export interface PlayPlatformMark {
 
 /** The mark for a save's `lastPlayedOn`, or null for a save with none (older saves): no icon, no label. */
 export function playPlatformMarkOf(lastPlayedOn: LastPlayedOn | undefined): PlayPlatformMark | null {
-  const shapes = lastPlayedOn && isPlayPlatform(lastPlayedOn.platform) ? ICONS[lastPlayedOn.platform] : undefined;
-  if (!lastPlayedOn || !shapes) return null;
+  const platform = lastPlayedOn?.platform;
+  if (!lastPlayedOn || !isPlayPlatform(platform)) return null;
+  const shapes = ICONS[platform];
   const device = typeof lastPlayedOn.device === "string" ? lastPlayedOn.device.trim() : "";
-  const base = `${lastPlayedOn.platform === "web" ? "Played in" : "Played on"} ${NAMES[lastPlayedOn.platform]}`;
-  return { platform: lastPlayedOn.platform, label: device ? `${base} (${device})` : base, shapes };
+  const base = `${platform === "web" ? "Played in" : "Played on"} ${NAMES[platform]}`;
+  return { platform, label: device ? `${base} (${device})` : base, shapes };
 }
 
 /** Space around the icon, and the largest it is drawn. */

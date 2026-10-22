@@ -6,7 +6,8 @@
  * was last played. Guided lesson saves never reach this list (`EngineSessionCore.activeSaves`).
  */
 import { hit } from "../tokens.js";
-import type { SaveMeta } from "../engine/game-storage.js";
+import { writtenByNewerApp, type SaveMeta } from "../engine/game-storage.js";
+import { CLIENT_VERSION } from "../version.js";
 import { gameLabelOf, type ContinueLabelNames } from "./continue-label.js";
 import type { Rect } from "./layout.js";
 
@@ -55,11 +56,24 @@ export interface GameRow {
   readonly kicker: string | null;
   /** "Round 4 · 2 h ago". */
   readonly detail: string;
+  /**
+   * True when a newer build last wrote this game (another linked device updated first): it cannot be resumed here,
+   * so the row shows `GAME_NEEDS_UPDATE_TEXT` in place of Resume and a tap on it does nothing but say so.
+   */
+  readonly needsUpdate: boolean;
   readonly save: SaveMeta;
 }
 
-/** One row per save, most recently played first. */
-export function gameRowsOf(saves: readonly SaveMeta[], names: GamesListNames, now: number): readonly GameRow[] {
+/** Said on a row (and on any Continue that would open it) for a game a newer build last wrote. */
+export const GAME_NEEDS_UPDATE_TEXT = "Played on a newer version: update to continue";
+
+/** One row per save, most recently played first. `appVersion` is this build's (default `CLIENT_VERSION`). */
+export function gameRowsOf(
+  saves: readonly SaveMeta[],
+  names: GamesListNames,
+  now: number,
+  appVersion: string = CLIENT_VERSION,
+): readonly GameRow[] {
   return [...saves]
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .map((save) => ({
@@ -67,6 +81,7 @@ export function gameRowsOf(saves: readonly SaveMeta[], names: GamesListNames, no
       title: gameLabelOf(save.config, names),
       kicker: save.campaignId === null ? null : `Campaign: ${names.campaignName(save.campaignId) ?? save.campaignId}`,
       detail: `Round ${save.round} · ${relativeTimeOf(save.updatedAt, now)}`,
+      needsUpdate: writtenByNewerApp(save, appVersion),
       save,
     }));
 }

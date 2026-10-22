@@ -36,11 +36,16 @@ import {
   type SyncSetupAnswer,
 } from "../view/sync-setup-prompt.js";
 import { syncService } from "../sync/sync-wiring.js";
+import { drawBetaTagBeside } from "../ui/beta-tag.js";
+import { isNativeShell, openExternal } from "../platform/platform.js";
+import { SYNC_INFO_LABEL, syncInfoUrl } from "../view/sync-info-link.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import type { SyncDataSceneData } from "./sync-data.js";
 
 const buttonType = { ...typeRole.label, size: 13 };
+/** "More information" is smaller than the three answers. */
+const infoType = { ...typeRole.label, size: 11 };
 const PANEL_MAX = 520;
 const PAD = 20;
 
@@ -140,13 +145,35 @@ export class SyncSetupPromptOverlay extends Phaser.Scene {
       style: Phaser.Types.GameObjects.Text.TextStyle,
       size: number,
       gap: number,
+      afterPlace?: (object: Phaser.GameObjects.Text) => void,
     ): void => {
       const object = this.add
         .text(x + PAD, 0, value, style)
         .setFontSize(size)
         .setWordWrapWidth(inner)
         .setLineSpacing(3);
-      rows.push({ height: object.height + gap, place: (y) => object.setY(y) });
+      rows.push({
+        height: object.height + gap,
+        place: (y) => {
+          object.setY(y);
+          afterPlace?.(object);
+        },
+      });
+    };
+    const infoRow = (): void => {
+      const open = (): void => openExternal(syncInfoUrl(globalThis.location?.href ?? "", isNativeShell()));
+      rows.push({
+        height: hit.target + 10,
+        place: (y) => {
+          // Smaller than the three answers, and not one of them: it opens the guide and the question stays up.
+          const info = syncSetupButtonSpan(buttons.x, buttons.width, 200);
+          const rect: Rect = { x: info.x, y, width: info.width, height: hit.target };
+          this.#buttons.push(
+            new McButton(this, { kind: "secondary", label: SYNC_INFO_LABEL, type: infoType, rect, onClick: open }),
+          );
+          stops.set("more-info", { rect, activate: open });
+        },
+      });
     };
     const buttonRow = (id: string, label: string, primary: boolean, answer: SyncSetupAnswer): void => {
       const onClick = (): void => this.#answer(answer);
@@ -167,9 +194,11 @@ export class SyncSetupPromptOverlay extends Phaser.Scene {
       textStyle(typeRole.sectionHeader, surface.paper.hex),
       20,
       10,
+      (title) => drawBetaTagBeside(this, title, x + panelWidth - PAD),
     );
     textRow(SYNC_SETUP_BODY, textStyle(typeRole.body, surface.paper.hex, 0.9), 14, 10);
-    textRow(SYNC_SETUP_LATER, textStyle(typeRole.body, surface.paper.hex, 0.85), 12, 16);
+    textRow(SYNC_SETUP_LATER, textStyle(typeRole.body, surface.paper.hex, 0.85), 12, 10);
+    infoRow();
     buttonRow("set-up", SYNC_SETUP_BUTTONS.setUp, true, "set-up");
     buttonRow("join", SYNC_SETUP_BUTTONS.join, false, "join");
     buttonRow("not-now", SYNC_SETUP_BUTTONS.notNow, false, "not-now");
@@ -189,7 +218,7 @@ export class SyncSetupPromptOverlay extends Phaser.Scene {
     this.children.sendToBack(scrim);
     this.children.sendToBack(zone);
 
-    this.#route?.set(["set-up", "join", "not-now"], stops);
+    this.#route?.set(["set-up", "join", "not-now", "more-info"], stops);
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.filter((o) => o !== zone && o !== scrim) });
   }
 }

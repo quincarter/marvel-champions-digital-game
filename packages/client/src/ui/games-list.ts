@@ -19,6 +19,7 @@ import { textStyle } from "./theme.js";
 import { McButton, addRowTapZone, fitText } from "./widgets.js";
 import type { FocusStop } from "../scenes/focus-route.js";
 import {
+  GAME_NEEDS_UPDATE_TEXT,
   REMOVE_CONFIRM_TEXT,
   gameRowParts,
   gameRowRects,
@@ -74,7 +75,10 @@ function drawRows(scene: Phaser.Scene, options: GamesListOptions): DrawnGamesLis
   rows.forEach((row, index) => {
     const rect = layout.rows[index]!;
     const parts = gameRowParts(rect);
-    const go = (): void => options.onResume(row);
+    // A game a newer build wrote cannot be resumed here: no Resume, and a tap on the row does nothing (the row says why).
+    const go = (): void => {
+      if (!row.needsUpdate) options.onResume(row);
+    };
     const ask = (): void => options.onAskRemove(row);
     scene.add
       .rectangle(rect.x, rect.y, rect.width, rect.height, PAPER, 0.1)
@@ -83,7 +87,7 @@ function drawRows(scene: Phaser.Scene, options: GamesListOptions): DrawnGamesLis
     // Created before the buttons, so each button, drawn above it, takes the presses on itself.
     addRowTapZone(scene, rect, {
       onClick: go,
-      enabled: options.enabled,
+      enabled: options.enabled && !row.needsUpdate,
       clip: inRegion,
       suppressClick: suppress,
     });
@@ -108,17 +112,28 @@ function drawRows(scene: Phaser.Scene, options: GamesListOptions): DrawnGamesLis
       textStyle(typeRole.body, PAPER, 0.8),
     );
     fitText(detail, parts.text.width, 12);
+    if (row.needsUpdate) {
+      // In Resume's place, in words (never colour alone): the game waits for an update.
+      const note = scene.add
+        .text(parts.resume.x, parts.resume.y, GAME_NEEDS_UPDATE_TEXT, textStyle(typeRole.rowTitle, PAPER))
+        .setWordWrapWidth(parts.resume.width)
+        .setFontSize(13);
+      note.setY(parts.resume.y + Math.max(0, (parts.resume.height - note.height) / 2));
+    } else {
+      buttons.push(
+        new McButton(scene, {
+          kind: "primary",
+          label: "Resume",
+          type: typeRole.menuButton,
+          rect: parts.resume,
+          enabled: options.enabled,
+          onClick: go,
+          clip: inRegion,
+          suppressClick: suppress,
+        }),
+      );
+    }
     buttons.push(
-      new McButton(scene, {
-        kind: "primary",
-        label: "Resume",
-        type: typeRole.menuButton,
-        rect: parts.resume,
-        enabled: options.enabled,
-        onClick: go,
-        clip: inRegion,
-        suppressClick: suppress,
-      }),
       new McButton(scene, {
         kind: "onInk",
         label: "Remove",

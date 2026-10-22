@@ -63,6 +63,34 @@ player leaves the table. Unlink and Delete cloud data are in the same screen.
 - When: on app open, when the app comes back to the foreground, a few seconds after a move or an edit (sooner at the
   end of a turn), when the app goes to the background, and from Sync now. Offline just queues; sync never blocks play.
 
+**Mixed versions.** The web updates at once while the desktop and Android shells lag, so linked devices routinely run
+different builds. We don't force lockstep; the rule is that an older build never damages what a newer one wrote.
+Every game's meta records the app version and card-pool fingerprint that last wrote it (`lastPlayedOn.appVersion` /
+`contentVersion`, additive, no `SAVE_SCHEMA` bump), and every sealed record carries `w: { app, content }` and, for a
+`db:` record, `d`, the writer's database version (records without them are fine). The older build:
+
+- never replays, appends to or marks incompatible a game a newer app wrote (a newer `SAVE_SCHEMA` is treated the same
+  way): it throws "This game was saved by a newer version. Update the game to continue it.", Continue skips it, and the
+  title list shows the row as "Played on a newer version: update to continue" with no Resume. It still syncs the game
+  down (that is fine) but pushes nothing for it, except Remove (a status-only retirement cannot damage the newer
+  build's data, so the other devices see it). A game this build also played, while a newer build played on elsewhere,
+  is an ordinary conflict: the player is asked (keep this device, the other, or both; not both for a campaign game).
+  The web ships ahead of a release, when `CLIENT_VERSION` has not moved, so a game also records the card-pool
+  fingerprint and build commit that wrote it: a game that fails to replay and was written by a different pool, commit
+  or newer app is left untouched with the same "update to continue" message, and only one written by this very build
+  (or by no stamped build) is marked incompatible;
+- keeps a `db:` record whose database version, or whose store, is newer than its own untouched: parked, not applied,
+  not dropped, not overwritten by its pushes, and fetched again after an update;
+- when both sides changed a deck, campaign or other `ls:` record and the remote writer is a newer app, takes the newer
+  writer's record and overwrites its own local edit (not pushed); a record only it changed pushes normally. Unlock
+  picks (`ls:mc-unlocks`) keep their union merge even then (the owner's decision: no silent loss of picks);
+- tells the player in the Sync status line, after the sync time ("Synced 2 min ago · Another device has a newer
+  version of the game"), but only when a run actually withheld something (a push it did not make, or a remote change it
+  did not apply).
+
+Builds from before this guard (for example #340's) know none of it and can still mark a newer game incompatible; that
+is a local mark that syncs as active, so the newer devices keep the game, but it cannot be prevented there.
+
 **Limits on the free plan.** Each space holds up to 10 MiB. Per IP: 3 new spaces a day, 5,000 storage rows written a
 day, and 300 sync requests in 10 minutes; per space: 60 pushes and 1,500 record writes an hour. A push writes about
 2-3 storage rows per changed record, so a typical session costs around 15 rows; the account's 100,000 rows a day

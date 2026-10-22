@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { SaveMeta } from "../engine/game-storage.js";
 import {
+  GAME_NEEDS_UPDATE_TEXT,
   GAME_ROW_HEIGHT,
   gameRowParts,
   gameRowRects,
@@ -133,5 +134,28 @@ describe("geometry", () => {
     expect(rectsOverlap(parts.message, parts.keep)).toBe(false);
     expect(rectsOverlap(parts.message, parts.remove)).toBe(false);
     expect(parts.keep.height).toBeGreaterThanOrEqual(hit.target);
+  });
+});
+
+describe("a game a newer build wrote", () => {
+  test("its row is flagged, with the exact words; a same-or-older writer and an unstamped game are not", () => {
+    const rows = gameRowsOf(
+      [
+        save("newer", 9, { lastPlayedOn: { platform: "web", appVersion: "0.34.0" } }),
+        save("same", 8, { lastPlayedOn: { platform: "web", appVersion: "0.33.0" } }),
+        save("older", 7, { lastPlayedOn: { appVersion: "0.9.0" } }),
+        save("unstamped", 6),
+      ],
+      NAMES,
+      NOW,
+      "0.33.0",
+    );
+    expect(rows.map((row) => [row.id, row.needsUpdate])).toEqual([
+      ["newer", true],
+      ["same", false],
+      ["older", false],
+      ["unstamped", false],
+    ]);
+    expect(GAME_NEEDS_UPDATE_TEXT).toBe("Played on a newer version: update to continue");
   });
 });

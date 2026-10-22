@@ -17,6 +17,8 @@ import type { SaveMeta } from "../engine/game-storage.js";
 import { appSession } from "../session.js";
 import { onSyncApplied } from "../sync/sync-events.js";
 import { GAME_LABEL_NAMES } from "../view/game-label-names.js";
+import { drawBetaTagBeside } from "../ui/beta-tag.js";
+import { SHOW_BETA_TAGS } from "../view/beta-tag.js";
 import { gameRowsOf, type GameRow } from "../view/games-list-model.js";
 import type { Rect } from "../view/layout.js";
 import { gamesListFocusOrder } from "../view/screen-focus.js";
@@ -127,8 +129,18 @@ export class GamesListOverlay extends Phaser.Scene {
     const stops = new Map<string, FocusStop>();
     const rows = this.#rows();
     const paper = surface.paper.hex;
-    this.add.text(pad, pad + 4, `IN-PROGRESS GAMES (${rows.length})`, textStyle(typeRole.pageTitle, paper));
+    const heading = this.add.text(
+      pad,
+      pad + 4,
+      `IN-PROGRESS GAMES (${rows.length})`,
+      textStyle(typeRole.pageTitle, paper),
+    );
     const closeRect: Rect = { x: width - pad - hit.target, y: pad, width: hit.target, height: hit.target };
+    // A narrow screen: the heading steps down a size or two until the tag fits beside it, before the ✕.
+    for (let size = typeRole.pageTitle.size; size >= 18; size--) {
+      heading.setFontSize(size);
+      if (drawBetaTagBeside(this, heading, closeRect.x - 8) || !SHOW_BETA_TAGS) break;
+    }
     const close = (): void => void this.scene.stop();
     this.#buttons.push(
       new McButton(this, {

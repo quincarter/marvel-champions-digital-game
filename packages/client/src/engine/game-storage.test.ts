@@ -248,6 +248,33 @@ describe.each<[string, () => GameStorage]>([
     expect(rows["from-newer"]).toMatchObject({ status: "active", updatedAt: 9 });
   });
 
+  test("a game last written by a NEWER APP is listed but never replayed, appended to, marked or offered as Continue", async () => {
+    const storage = make();
+    const newer = { platform: "windows", appVersion: "9.0.0", contentVersion: "pool-9" } as const;
+    await storage.create(meta("from-newer-app", 9, { lastPlayedOn: newer }), BASELINE);
+    await storage.create(meta("same-app", 5, { lastPlayedOn: { platform: "web", appVersion: "1.2.3" } }), BASELINE);
+    await storage.create(meta("unstamped", 2), BASELINE);
+    const core = new EngineSessionCore({ storage, appVersion: "1.2.3" });
+
+    // The list still shows it (the row says "update to continue"); Continue skips it for the next game.
+    expect((await core.activeSaves()).map((game) => game.id)).toEqual(["from-newer-app", "same-app", "unstamped"]);
+    expect((await core.latestSave())?.id).toBe("same-app");
+    await expect(core.resume("from-newer-app")).rejects.toThrow(
+      "This game was saved by a newer version. Update the game to continue it.",
+    );
+    expect(core.version).toBe(0);
+    // Nothing was written: not marked incompatible, no stamp, no command.
+    const stored = await storage.load("from-newer-app");
+    expect(stored!.meta).toMatchObject({ status: "active", updatedAt: 9, commandCount: 0, lastPlayedOn: newer });
+    expect(stored!.commands).toHaveLength(0);
+    // The same game resumes on a build that is the writer's version or newer.
+    await expect(
+      new EngineSessionCore({ storage, appVersion: "9.0.0" }).resume("from-newer-app"),
+    ).resolves.toBeTruthy();
+    await expect(new EngineSessionCore({ storage, appVersion: "1.2.3" }).resume("same-app")).resolves.toBeTruthy();
+    await expect(new EngineSessionCore({ storage, appVersion: "1.2.3" }).resume("unstamped")).resolves.toBeTruthy();
+  });
+
   test("retireSave abandons a game and stamps it as written now, so sync carries it; other games are untouched", async () => {
     const storage = make();
     await storage.create(meta("keep", 5), BASELINE);
@@ -368,8 +395,82 @@ describe("IndexedDB game storage stamping the platform (device sync, #276)", () 
   });
 });
 
+test("both storages stamp the writer's app and content version with the platform on create, append and truncate", async () => {
+  const progress = { round: 1, commandCount: 1, updatedAt: 2, status: "active", outcome: null } as const;
+  const writer = { platform: "android", appVersion: "0.33.0", contentVersion: "pool-abc" } as const;
+  for (const storage of [new MemoryGameStorage(writer), new IdbGameStorage(new IDBFactory(), writer)]) {
+    await storage.create(meta("g", 1), BASELINE);
+    expect((await storage.load("g"))!.meta.lastPlayedOn).toEqual(writer);
+  }
+  // Another build writes later: its versions replace the stamp.
+  const factory = new IDBFactory();
+  await new IdbGameStorage(factory, writer).create(meta("g", 1), BASELINE);
+  const update = new IdbGameStorage(factory, { platform: "windows", appVersion: "0.34.0", contentVersion: "pool-def" });
+  await update.append("g", 0, command(0), progress);
+  expect((await update.load("g"))!.meta.lastPlayedOn).toEqual({
+    platform: "windows",
+    appVersion: "0.34.0",
+    contentVersion: "pool-def",
+  });
+  await update.truncate("g", 0, { ...progress, commandCount: 0 });
+  expect((await update.load("g"))!.meta.lastPlayedOn?.appVersion).toBe("0.34.0");
+});
+
 test("the memory storage stamps the same way", async () => {
   const storage = new MemoryGameStorage({ platform: "linux" });
   await storage.create(meta("m", 1), BASELINE);
   expect((await storage.load("m"))!.meta.lastPlayedOn).toEqual({ platform: "linux" });
+});
+
+describe("a game another build wrote that this build cannot replay (the web ships ahead of a release)", () => {
+  /** A real game whose log holds a command this engine rejects, written under `writer`'s stamp. */
+  async function brokenGame(writer: { appVersion: string; contentVersion: string; build?: string }) {
+    const storage = new MemoryGameStorage({ platform: "web", ...writer });
+    await new EngineSessionCore({ storage, newId: () => "g" }).start(CONFIG);
+    const saved = (await storage.load("g"))!.meta;
+    await storage.append("g", 0, { type: "basicRecover", playerId: "nobody" } as never, {
+      round: saved.round,
+      commandCount: 1,
+      updatedAt: saved.updatedAt + 1,
+      status: "active",
+      outcome: null,
+    });
+    return storage;
+  }
+  const here = { appVersion: "1.0.0", contentVersion: "pool-here", build: "aaa111" };
+
+  test("a different card pool, a different commit or a newer app: 'update to continue', and the game is left active", async () => {
+    for (const other of [
+      { ...here, contentVersion: "pool-other" },
+      { ...here, build: "bbb222" },
+      { ...here, appVersion: "2.0.0" },
+    ]) {
+      const storage = await brokenGame(other);
+      const core = new EngineSessionCore({ storage, ...here });
+      await expect(core.resume("g")).rejects.toThrow("Update the game to continue it.");
+      expect((await storage.load("g"))!.meta.status).toBe("active");
+    }
+  });
+
+  test("the same stamp as this build, or no stamp at all: marked incompatible as before", async () => {
+    for (const writer of [here, null]) {
+      const storage = writer
+        ? await brokenGame(writer)
+        : await (async () => {
+            const plain = new MemoryGameStorage();
+            await new EngineSessionCore({ storage: plain, newId: () => "g" }).start(CONFIG);
+            await plain.append("g", 0, { type: "basicRecover", playerId: "nobody" } as never, {
+              round: 1,
+              commandCount: 1,
+              updatedAt: 99,
+              status: "active",
+              outcome: null,
+            });
+            return plain;
+          })();
+      const core = new EngineSessionCore({ storage, ...here });
+      await expect(core.resume("g")).rejects.toThrow(/no longer replays/);
+      expect((await storage.load("g"))!.meta.status).toBe("incompatible");
+    }
+  });
 });

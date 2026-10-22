@@ -28,7 +28,7 @@
 import { cardsOfComposedSets } from "@mc/cards";
 import { cardId } from "@mc/content";
 import { previousGameFacts } from "./previous-game-facts.js";
-import { POOL_CARDS, POOL_DEPS, buildScenario } from "../content/pool.js";
+import { POOL_CARDS, POOL_DEPS, POOL_VERSION, buildScenario } from "../content/pool.js";
 import {
   applyCommand,
   createGame,
@@ -51,13 +51,18 @@ import { sealForTable } from "../view/hidden-reverse.js";
 import type { PaymentState } from "../view/payment-model.js";
 import { judgePayment, type JudgedPayment } from "../view/payment-verdict.js";
 import { actingPlayer } from "./acting-player.js";
+import { CLIENT_VERSION } from "../version.js";
+import { buildCommit } from "../view/app-version.js";
 import { emptyRecord, recordEvents, type GameRecord } from "./game-record.js";
 import { summarizeGame } from "./game-summary.js";
 import {
   isCurrentSchema,
   isNewerSchema,
   SAVE_SCHEMA,
+  writtenByNewerApp,
+  writtenByOtherBuild,
   type GameStorage,
+  type WriterStamp,
   type SaveMeta,
   type SaveStatus,
 } from "./game-storage.js";
@@ -127,6 +132,11 @@ export interface CoreOptions {
   readonly storage?: GameStorage | null;
   readonly now?: () => number;
   readonly newId?: () => string;
+  /** The build's version (default `CLIENT_VERSION`); a game last written by a newer one is not resumed. */
+  readonly appVersion?: string;
+  /** The card-pool fingerprint (default `POOL_VERSION`) and build commit (default `buildCommit()`) this build writes. */
+  readonly contentVersion?: string;
+  readonly build?: string;
 }
 
 /** Splits the card pool off a state; the host re-attaches it on the other side. */
@@ -261,6 +271,10 @@ export class EngineSessionCore {
   readonly #storage: GameStorage | null;
   readonly #now: () => number;
   readonly #newId: () => string;
+  /** This build's version: a game last written by a newer one is never resumed here. */
+  readonly #appVersion: string;
+  /** What this build stamps on a game and compares a game's stamp against. */
+  readonly #writer: WriterStamp;
   /** The stored game this session writes to; null when there is no storage or its creation failed. */
   #gameId: string | null = null;
   /**
@@ -275,6 +289,12 @@ export class EngineSessionCore {
     this.#storage = options.storage ?? null;
     this.#now = options.now ?? (() => Date.now());
     this.#newId = options.newId ?? (() => crypto.randomUUID());
+    this.#appVersion = options.appVersion ?? CLIENT_VERSION;
+    this.#writer = {
+      appVersion: this.#appVersion,
+      contentVersion: options.contentVersion ?? POOL_VERSION,
+      build: options.build ?? buildCommit(),
+    };
   }
 
   /**
@@ -379,7 +399,11 @@ export class EngineSessionCore {
     // shape this engine no longer has, even if its commands would happen to apply.
     // A save from a NEWER build (another linked device) is left exactly as it is: marking it would sync back and
     // hide a game the other device can still play.
-    if (isNewerSchema(stored.meta)) throw new Error(NEWER_SAVE_MESSAGE);
+    // Likewise a game last written by a newer APP: it may hold commands this build's rules do not know, and replaying
+    // or appending would either fail (and mark it incompatible, which syncs) or write over what the newer build made.
+    if (isNewerSchema(stored.meta) || writtenByNewerApp(stored.meta, this.#appVersion)) {
+      throw new Error(NEWER_SAVE_MESSAGE);
+    }
     if (!isCurrentSchema(stored.meta)) {
       await storage.setStatus(gameId, "incompatible");
       throw new Error(
@@ -391,6 +415,8 @@ export class EngineSessionCore {
     try {
       baseline = rebuildBaseline(stored.meta.config, stored.initialState);
     } catch (cause) {
+      // A game another build wrote (other card pool or commit) may simply be one this build cannot read: untouched.
+      if (writtenByOtherBuild(stored.meta, this.#writer)) throw new Error(NEWER_SAVE_MESSAGE);
       await storage.setStatus(gameId, "incompatible");
       throw cause;
     }
@@ -404,6 +430,7 @@ export class EngineSessionCore {
     for (const [index, command] of stored.commands.entries()) {
       const result = applyCommand(state, command, POOL_DEPS);
       if (!result.ok) {
+        if (writtenByOtherBuild(stored.meta, this.#writer)) throw new Error(NEWER_SAVE_MESSAGE);
         await storage.setStatus(gameId, "incompatible");
         throw new Error(
           `this saved game no longer replays (command ${index + 1} of ${stored.commands.length}: ${result.error.message})`,
@@ -523,7 +550,8 @@ export class EngineSessionCore {
     // build is skipped untouched.
     const active = (await storage.list()).filter((meta) => meta.status === "active");
     for (const meta of active.sort((a, b) => b.updatedAt - a.updatedAt)) {
-      if (isNewerSchema(meta)) continue;
+      // Continue never offers a game this build cannot play; the games list shows it as "update to continue".
+      if (isNewerSchema(meta) || writtenByNewerApp(meta, this.#appVersion)) continue;
       if (isCurrentSchema(meta)) return meta;
       await storage.setStatus(meta.id, "incompatible");
     }
@@ -542,6 +570,7 @@ export class EngineSessionCore {
     for (const meta of await storage.list()) {
       if (meta.status !== "active" || meta.guided) continue;
       if (isNewerSchema(meta)) continue;
+      // Returned for a newer-app game too (untouched): the list rows it as "update to continue" (`gameRowsOf`).
       if (isCurrentSchema(meta)) found.push(meta);
       else await storage.setStatus(meta.id, "incompatible");
     }

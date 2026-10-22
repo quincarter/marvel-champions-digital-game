@@ -12,6 +12,20 @@
  *    with the other side's chunks unchanged where it didn't touch them) the longer wins; otherwise it has diverged
  *    and the player chooses, through `resolveConflict`: keep this device's, keep the other's, or keep both.
  *
+ * Mixed versions (devices run different builds; we don't force lockstep, but an older build must never damage what a
+ * newer one wrote). Every sealed record carries its writer (`w: { app, content }`) and, for `db:` records, the writer's
+ * database version (`d`). This build, when it is the OLDER one:
+ *  - keeps a `db:` record whose database version is newer than its own `SAVED_DATABASES` version untouched: parked like
+ *    a record of an unknown store (not applied, not dropped, not overwritten by its pushes), and fetched again once the
+ *    build changes;
+ *  - for a plain record (`db:`, `ls:`) both sides changed and the remote writer is a newer app, takes the newer
+ *    writer's record over its own local edit (the edit is overwritten locally, never pushed), skipping the mergers;
+ *    a record only this build changed pushes normally;
+ *  - for a game whose meta (`lastPlayedOn.appVersion`) a newer app wrote, never pushes a local change, and takes the
+ *    remote game whole when a newer-or-equal writer changed it (applying it is fine, it just can't be resumed here);
+ *  - reports `newerElsewhere` on the run result, which the status line turns into "Another device has a newer version
+ *    of the game".
+ *
  * Last-write-wins trusts the devices' clocks (accepted). A space that was deleted is not refilled by the other
  * devices: their next sync answers "not found", shows "Cloud data not found" and halts until the player unlinks or sets
  * up again. Only a space recreated under the same code (a new epoch) is filled again from this device.
@@ -28,7 +42,8 @@ import type { SyncCredentials } from "./sync-credentials.js";
 import { CLIENT_VERSION } from "../version.js";
 import { SYNC_EXCLUDED_KEYS, canonicalJson, hashValue } from "./sync-local.js";
 import { DEFAULT_MERGERS } from "./sync-merge.js";
-import { openRecord, recordKeyOf, sealRecord } from "./sync-records.js";
+import { isNewerVersion } from "../engine/app-version.js";
+import { openRecord, recordKeyOf, sealRecord, type RecordWriter } from "./sync-records.js";
 import type {
   ConflictChoice,
   GameConflict,
@@ -86,6 +101,13 @@ export interface SyncEngineDeps {
   readonly mergers?: Readonly<Record<string, (local: unknown, remote: unknown) => string>>;
   /** The build running now; records parked as unreadable are fetched again once when it changes. */
   readonly clientVersion?: string;
+  /** The card-pool fingerprint sealed into every record this build writes (`POOL_VERSION`); "" when not given. */
+  readonly contentVersion?: string;
+  /**
+   * This build's version of a database, or undefined when it has none by that name. Defaults to `SAVED_DATABASES`. A
+   * `db:` record sealed under a newer database version is kept untouched.
+   */
+  readonly databaseVersion?: (database: string) => number | undefined;
 }
 
 export interface SyncCounts {
@@ -101,6 +123,12 @@ export interface SyncCounts {
   readonly skipped: number;
   /** Games left for the next sync (the open one, or a conflict on it). */
   readonly waiting: number;
+  /**
+   * True when this run parked or skipped something because another device runs a newer build (a record of a newer
+   * database version or unknown store, a newer writer's record or game), or an earlier run's parked record still waits
+   * for one. Absent counts as false.
+   */
+  readonly newerElsewhere?: boolean;
 }
 
 export type SyncRunFailure =
@@ -134,6 +162,10 @@ interface Pulled {
   readonly stamp: number;
   readonly value: unknown;
   readonly hash: string;
+  /** The build that sealed it, when the record says (absent from older builds' records). */
+  readonly writer?: RecordWriter | undefined;
+  /** A `db:` record's database version as its writer had it. */
+  readonly dbVersion?: number | undefined;
 }
 
 interface KeyState {
@@ -172,6 +204,12 @@ function isPrefix(shorter: readonly unknown[], longer: readonly unknown[]): bool
   return shorter.length <= longer.length && shorter.every((c, i) => canonicalJson(c) === canonicalJson(longer[i]));
 }
 
+/** The app version a game's meta says last wrote it (`lastPlayedOn.appVersion`), if any. */
+function appOfMeta(meta: unknown): string | undefined {
+  const app = (meta as { lastPlayedOn?: { appVersion?: unknown } } | null | undefined)?.lastPlayedOn?.appVersion;
+  return typeof app === "string" ? app : undefined;
+}
+
 const num = (value: unknown): number => (typeof value === "number" ? value : 0);
 
 export class SyncEngine {
@@ -197,6 +235,8 @@ class Run {
   readonly #now: () => number;
   readonly #creds: SyncCredentials;
   readonly #counts = { pulled: 0, applied: 0, pushed: 0, conflicts: 0, skipped: 0, waiting: 0 };
+  /** Things this run left alone because another device is on a newer build (becomes `newerElsewhere`). */
+  #newer = 0;
   #entries = new Map<string, SyncedEntry>();
   /** Latest pulled record per record key, kept until the run ends so a later round still sees what is unresolved. */
   readonly #remote = new Map<string, Pulled>();
@@ -210,7 +250,7 @@ class Run {
    * in the sync state as entries named `~parked:<recordKey>` so the cursor can move past them; their key is left alone
    * while they sit newer than what this device knows, and they are fetched again once when the build changes.
    */
-  readonly #parked = new Map<string, { version: number; build: string }>();
+  readonly #parked = new Map<string, { version: number; build: string; newer: boolean }>();
   #refetchFrom: number | null = null;
   #fullState: Map<string, { version: number; deleted: boolean; data?: string | undefined }> | null = null;
   readonly #fullGames = new Map<string, Map<string, Pulled>>();
@@ -229,7 +269,10 @@ class Run {
   }
 
   #result(failure?: SyncRunFailure): SyncRunResult {
-    return failure ? { ok: false, failure, ...this.#counts } : { ok: true, ...this.#counts };
+    // A parked record still waiting on a newer build keeps the note up between runs.
+    const newer = this.#newer > 0 || [...this.#parked.values()].some((p) => p.newer);
+    const counts = { ...this.#counts, ...(newer ? { newerElsewhere: true } : {}) };
+    return failure ? { ok: false, failure, ...counts } : { ok: true, ...counts };
   }
 
   async execute(): Promise<SyncRunResult> {
@@ -258,7 +301,8 @@ class Run {
     this.#parked.clear();
     for (const entry of this.#entries.values()) {
       if (entry.key.startsWith(PARK_PREFIX) && !entry.deleted) {
-        this.#parked.set(entry.recordKey, { version: entry.version, build: entry.hash });
+        // The entry's stamp says why it is parked: 1 for "another device is newer", 0 for unreadable.
+        this.#parked.set(entry.recordKey, { version: entry.version, build: entry.hash, newer: entry.stamp === 1 });
       }
     }
     // A different build may read what the last one could not: pull again from the lowest such record, once.
@@ -346,6 +390,8 @@ class Run {
             stamp: opened.stamp,
             value: opened.value,
             hash: await hashValue(opened.value),
+            writer: opened.writer,
+            dbVersion: opened.db,
           });
           await this.#unpark(record.key);
         } catch {
@@ -367,12 +413,13 @@ class Run {
     return this.#d.clientVersion ?? CLIENT_VERSION;
   }
 
-  async #park(recordKey: string, version: number): Promise<void> {
+  /** `newer`: parked because another device's build is newer (a store or database version this build lacks). */
+  async #park(recordKey: string, version: number, newer = false): Promise<void> {
     const known = this.#parked.get(recordKey);
-    if (known && known.version === version && known.build === this.#build) return;
-    this.#parked.set(recordKey, { version, build: this.#build });
+    if (known && known.version === version && known.build === this.#build && known.newer === newer) return;
+    this.#parked.set(recordKey, { version, build: this.#build, newer });
     await this.#commit([
-      { key: PARK_PREFIX + recordKey, recordKey, version, hash: this.#build, stamp: 0, deleted: false },
+      { key: PARK_PREFIX + recordKey, recordKey, version, hash: this.#build, stamp: newer ? 1 : 0, deleted: false },
     ]);
   }
 
@@ -394,6 +441,19 @@ class Run {
       return knows(db[1]!, db[2]!);
     }
     return gameIdOf(key) !== null;
+  }
+
+  /** Whether a `db:` record was sealed under a newer version of its database than this build has. */
+  #newerDatabase(key: string, pulled: Pulled): boolean {
+    const database = /^db:([^:]+):/.exec(key)?.[1];
+    if (database === undefined || pulled.dbVersion === undefined) return false;
+    const mine = (this.#d.databaseVersion ?? savedDatabaseVersion)(database);
+    return mine !== undefined && pulled.dbVersion > mine;
+  }
+
+  /** Whether `app` is a newer build than this one. */
+  #newerApp(app: string | undefined): boolean {
+    return isNewerVersion(app, this.#build);
   }
 
   async #recordKey(key: string): Promise<string> {
@@ -434,7 +494,17 @@ class Run {
       if (key === undefined) continue;
       if (!this.#isSynced(key)) {
         // A store this build lacks (a newer build's): not applied, and not passed by the cursor either.
-        if (key.startsWith("db:")) await this.#park(pulled.recordKey, pulled.version);
+        if (key.startsWith("db:")) {
+          await this.#park(pulled.recordKey, pulled.version, true);
+          this.#newer++;
+        }
+        continue;
+      }
+      if (!pulled.deleted && this.#newerDatabase(key, pulled)) {
+        // The writer's database is a newer version than this build's: kept as it is, applied after an update.
+        await this.#park(pulled.recordKey, pulled.version, true);
+        this.#newer++;
+        blocked.add(key); // this build's own edit of it must not be pushed over the newer record
         continue;
       }
       if (pulled.version <= (this.#entries.get(key)?.version ?? 0)) continue;
@@ -566,6 +636,13 @@ class Run {
       });
       return;
     }
+    if (!remote.deleted && this.#newerApp(remote.writer?.app)) {
+      // (Records with a merger, unlock picks, are merged above instead: a union loses nothing, so it is kept even then.)
+      // A newer build wrote it: its record wins over this build's local edit, which is overwritten here and not
+      // pushed (an older build must not stamp over, or merge into, a shape it may not fully know).
+      this.#newer++;
+      return this.#applyOf(state, apply);
+    }
     // No stamp history on this side (a first join, a new space): the cloud's copy wins over this device's defaults.
     if (!remote.deleted && !state.entry && state.stampless) return this.#applyOf(state, apply);
     if (remote.deleted || local.stamp >= remote.stamp) return this.#pushOf(state, pushes);
@@ -608,6 +685,14 @@ class Run {
       if (remoteChanged) this.#defer(list);
       else for (const s of list) if (s.localChanged) this.#pushOf(s, pushes);
       return false;
+    }
+    const metaOf = list.find((s) => partOf(s.key) === "meta");
+    const localApp = appOfMeta(metaOf?.local?.value);
+    const remoteApp = metaOf?.remote && !metaOf.remote.deleted ? appOfMeta(metaOf.remote.value) : undefined;
+    // A remote newer writer with changes of this build's own on this side is an ordinary conflict (the player is asked,
+    // keep-both included): only a game with nothing of this build's to lose is taken whole without asking.
+    if (this.#newerApp(localApp) || (this.#newerApp(remoteApp) && !localChanged)) {
+      return this.#planNewerWriterGame(gameId, list, localApp, remoteApp, apply, pushes);
     }
     if (!remoteChanged) {
       for (const s of list) if (s.localChanged) this.#pushOf(s, pushes);
@@ -710,6 +795,57 @@ class Run {
     }
     this.#localOverRemote(this.#rebased(list, full), pushes);
     return copied;
+  }
+
+  /**
+   * A game a build newer than this one wrote (its meta's `lastPlayedOn.appVersion`, here or on the server), and which
+   * this build has no play of its own on (when it has, `#planGame` takes the ordinary conflict path instead). Nothing
+   * of this device's is pushed for it: this build cannot resume it, and a push would stamp over what the newer build
+   * wrote. The one exception is a retirement (status "abandoned", the Remove button): it only changes the meta's
+   * status, so it cannot damage the newer build's data and the other devices must see it. The server's side is taken
+   * whole when it was written by a newer-or-equal app than this device's copy, or deleted the game (applying it is
+   * fine; it just cannot be resumed here); an older writer's change to a game a newer build wrote here is left on the
+   * server. `newerElsewhere` is only raised when something was actually withheld.
+   */
+  async #planNewerWriterGame(
+    gameId: string,
+    list: readonly KeyState[],
+    localApp: string | undefined,
+    remoteApp: string | undefined,
+    apply: Apply,
+    pushes: PushItem[],
+  ): Promise<boolean> {
+    const metaState = list.find((s) => partOf(s.key) === "meta");
+    const remoteDeleted = metaState?.remote?.deleted === true;
+    const localChanged = list.some((s) => s.localChanged);
+    if (!list.some((s) => s.remote)) {
+      if (!localChanged) return false;
+      const metaOnly = list.every((s) => s === metaState || !s.localChanged);
+      const status = (metaState?.local?.value as { status?: unknown } | undefined)?.status;
+      if (metaState && metaOnly && status === "abandoned") this.#pushOf(metaState, pushes);
+      else this.#newer++; // a change of this device's that is not sent
+      return false;
+    }
+    // A copy here written by a newer app than the server's change: that change is not applied over it.
+    if (
+      this.#newerApp(localApp) &&
+      !remoteDeleted &&
+      !(remoteApp !== undefined && !isNewerVersion(localApp, remoteApp))
+    ) {
+      this.#newer++;
+      return false;
+    }
+    if (localChanged) this.#newer++; // this device's change is overwritten, not pushed
+    if (!localChanged) {
+      const writesGame = list.some((s) => s.remote && !s.remote.deleted);
+      if (writesGame && !(await this.#consistent(list))) return this.#deferred(list);
+      for (const s of list) if (s.remote) this.#applyOf(s, apply);
+      return false;
+    }
+    const full = await this.#fullGame(gameId, list);
+    if (full === null || !(await this.#fullConsistent(full))) return this.#deferred(list);
+    this.#remoteOverLocal(list, full, apply);
+    return false;
   }
 
   /** The game's key states as they are once its remote records are this device's last-synced entries. */
@@ -929,7 +1065,13 @@ class Run {
         sealed.push({ item, op: { key: item.recordKey, baseVersion: item.baseVersion, deleted: true }, bytes: 0 });
         continue;
       }
-      const { recordKey, data } = await sealRecord(this.#creds, item.key, item.record.value, item.record.stamp);
+      const database = /^db:([^:]+):/.exec(item.key)?.[1];
+      const dbVersion =
+        database === undefined ? undefined : (this.#d.databaseVersion ?? savedDatabaseVersion)(database);
+      const { recordKey, data } = await sealRecord(this.#creds, item.key, item.record.value, item.record.stamp, {
+        writer: { app: this.#build, content: this.#d.contentVersion ?? "" },
+        ...(dbVersion === undefined ? {} : { db: dbVersion }),
+      });
       const bytes = Math.floor((data.length * 3) / 4);
       if (bytes > MAX_RECORD_BYTES) {
         this.#counts.skipped++;
@@ -981,6 +1123,10 @@ class Run {
     }
     return { conflicts };
   }
+}
+
+function savedDatabaseVersion(database: string): number | undefined {
+  return SAVED_DATABASES.find((db) => db.name === database)?.version;
 }
 
 function knowsSavedStore(database: string, store: string): boolean {

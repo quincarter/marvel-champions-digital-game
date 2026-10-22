@@ -49,6 +49,8 @@ import type { SaveMeta } from "../engine/game-storage.js";
 import { appSession } from "../session.js";
 import { drawGamesList } from "../ui/games-list.js";
 import { GAME_LABEL_NAMES } from "../view/game-label-names.js";
+import { drawBetaTag, drawBetaTagBeside } from "../ui/beta-tag.js";
+import { BETA_TAG_SIZE } from "../view/beta-tag.js";
 import { gameRowsOf, shouldShowGamesList, type GameRow } from "../view/games-list-model.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import type { GamesListOverlayData } from "./games-list.js";
@@ -438,6 +440,11 @@ export class TitleScene extends Phaser.Scene {
           onClick: () => this.#openGamesList(),
         }),
       );
+      // A decorative tag at the row's right end, over the button but taking no press.
+      if (layout.gamesRow.width >= 300) {
+        const row = layout.gamesRow;
+        drawBetaTag(this, row.x + row.width - 12 - BETA_TAG_SIZE.width, row.y + row.height / 2);
+      }
       this.#stops.set("games-row", { rect: layout.gamesRow, activate: () => this.#openGamesList() });
     }
 
@@ -664,7 +671,7 @@ export class TitleScene extends Phaser.Scene {
       .rectangle(panel.x, panel.y, panel.width, panel.height, surface.ink.hex, 0.9)
       .setOrigin(0, 0)
       .setStrokeStyle(2, surface.paper.hex);
-    this.add
+    const heading = this.add
       .text(
         list.x,
         panel.y + 12 + (GAMES_PANEL_HEADER - typeRole.sectionHeader.size) / 2,
@@ -672,6 +679,7 @@ export class TitleScene extends Phaser.Scene {
         textStyle(typeRole.sectionHeader, surface.paper.hex),
       )
       .setLetterSpacing(1);
+    drawBetaTagBeside(this, heading, list.x + list.width);
     const confirming = this.#removing === null ? null : (rows.find((row) => row.id === this.#removing) ?? null);
     const drawn = drawGamesList(this, {
       area: list,

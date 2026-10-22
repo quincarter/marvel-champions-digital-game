@@ -314,3 +314,17 @@ describe("SyncScheduler", () => {
     expect(t.status.get().state).not.toBe("error");
   });
 });
+
+describe("another device is newer", () => {
+  test("a run that left something for a newer build puts the flag on the status, and a clean run clears it", async () => {
+    const t = setup([{ ok: true, ...counts, newerElsewhere: true }]);
+    t.scheduler.start();
+    await flush();
+    expect(t.status.get()).toMatchObject({ state: "synced", newerElsewhere: true });
+    t.change("game");
+    expect(t.status.get()).toMatchObject({ state: "pending", newerElsewhere: true });
+    await t.clock.advance(10_000);
+    expect(t.status.get().state).toBe("synced");
+    expect(t.status.get().newerElsewhere).toBeUndefined();
+  });
+});

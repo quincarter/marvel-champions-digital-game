@@ -21,6 +21,7 @@ import type { Command, GameOutcome } from "@mc/engine";
 import type { SessionConfig, StateWithoutPool } from "./host.js";
 import type { GameSummary } from "./game-summary.js";
 import type { PlayPlatform } from "../platform/play-platform.js";
+import { isNewerVersion } from "./app-version.js";
 
 /**
  * Bumped when the stored shape changes, so an old save is recognized instead of misread.
@@ -127,10 +128,49 @@ export interface SaveMeta {
   readonly lastPlayedOn?: LastPlayedOn;
 }
 
+/**
+ * Who last wrote a game (device sync, #276). `platform` is absent when the shell's OS could not be told; the two
+ * versions are the writer stamp: the app build and the card pool (`POOL_VERSION`) that wrote it. A build older than
+ * `appVersion` never replays, appends to or marks the game (`writtenByNewerApp`), because the newer build may have
+ * written commands or state it cannot read. Absent on a game from before the stamp: treated as compatible.
+ */
 export interface LastPlayedOn {
-  readonly platform: PlayPlatform;
+  readonly platform?: PlayPlatform;
   readonly device?: string;
+  readonly appVersion?: string;
+  readonly contentVersion?: string;
+  /**
+   * The short commit the writing build was made from (`buildCommit()`), absent in a test run. The web ships ahead of a
+   * release (`appVersion` only moves at release), so this is what tells two web builds of one version apart.
+   */
+  readonly build?: string;
 }
+
+/** The stamp a running build writes, and compares a game's against. */
+export interface WriterStamp {
+  readonly appVersion: string;
+  readonly contentVersion: string;
+  readonly build: string;
+}
+
+/**
+ * Whether a game was last written by a build that is not this one: a newer app, a different card pool or a different
+ * commit. False for a game with no stamp. Such a game that fails to replay here is the other build's to read, so it is
+ * left untouched instead of being marked incompatible.
+ */
+export function writtenByOtherBuild(meta: Pick<SaveMeta, "lastPlayedOn">, here: WriterStamp): boolean {
+  const was = meta.lastPlayedOn;
+  if (!was) return false;
+  return (
+    isNewerVersion(was.appVersion, here.appVersion) ||
+    (was.contentVersion !== undefined && was.contentVersion !== here.contentVersion) ||
+    (was.build !== undefined && was.build !== here.build)
+  );
+}
+
+/** Whether a build running `appVersion` is older than the build that last wrote this game. */
+export const writtenByNewerApp = (meta: Pick<SaveMeta, "lastPlayedOn">, appVersion: string): boolean =>
+  isNewerVersion(meta.lastPlayedOn?.appVersion, appVersion);
 
 /** What a command's arrival changes about a game's summary row. */
 export type SaveProgress = Pick<SaveMeta, "round" | "commandCount" | "updatedAt" | "status" | "outcome"> &

@@ -13,7 +13,14 @@ export interface SyncStatus {
   readonly failure?: SyncRunFailure;
   /** Games the player was asked about in the last run. */
   readonly conflicts?: number;
+  /**
+   * The last run left something alone because another device runs a newer build (records of a newer database, a
+   * newer writer's record or game). Said in the status line; it clears when a later run finds nothing of the kind.
+   */
+  readonly newerElsewhere?: boolean;
 }
+
+export const NEWER_ELSEWHERE_TEXT = "Another device has a newer version of the game";
 
 export const OFF_STATUS: SyncStatus = { state: "off", lastSyncedAt: null };
 
@@ -38,6 +45,7 @@ export class SyncStatusStore {
       next.state === this.#status.state &&
       next.lastSyncedAt === this.#status.lastSyncedAt &&
       next.conflicts === this.#status.conflicts &&
+      next.newerElsewhere === this.#status.newerElsewhere &&
       JSON.stringify(next.failure) === JSON.stringify(this.#status.failure);
     this.#status = next;
     if (!same) for (const listener of [...this.#listeners]) listener(next);
@@ -88,6 +96,11 @@ export function failureText(failure: SyncRunFailure | undefined): string {
   }
 }
 
+/** The line with the newer-build note after it ("Synced 2 min ago · Another device has a newer version of the game"). */
+function withNote(line: string, status: SyncStatus): string {
+  return status.newerElsewhere ? `${line} · ${NEWER_ELSEWHERE_TEXT}` : line;
+}
+
 export function statusLine(status: SyncStatus, now: number): string {
   switch (status.state) {
     case "off":
@@ -95,9 +108,9 @@ export function statusLine(status: SyncStatus, now: number): string {
     case "syncing":
       return "Syncing…";
     case "synced":
-      return status.lastSyncedAt === null ? "Synced" : `Synced ${agoText(status.lastSyncedAt, now)}`;
+      return withNote(status.lastSyncedAt === null ? "Synced" : `Synced ${agoText(status.lastSyncedAt, now)}`, status);
     case "pending":
-      return "Changes waiting to sync";
+      return withNote("Changes waiting to sync", status);
     case "offline":
       return "Offline, changes waiting";
     case "error":

@@ -150,7 +150,13 @@ export class SyncScheduler {
     if (this.#halted || !this.#d.engine()) return;
     this.#pending = true;
     const status = this.#d.status.get();
-    if (status.state === "synced") this.#d.status.set({ state: "pending", lastSyncedAt: status.lastSyncedAt });
+    if (status.state === "synced") {
+      this.#d.status.set({
+        state: "pending",
+        lastSyncedAt: status.lastSyncedAt,
+        ...(status.newerElsewhere ? { newerElsewhere: true } : {}),
+      });
+    }
     // While offline the retry timer or the `online` event goes next; a running sync checks `#pending` when it ends.
     if (this.#running || this.#retry !== null) return;
     const delay =
@@ -210,7 +216,12 @@ export class SyncScheduler {
     if (result.ok) {
       this.#attempt = 0;
       const lastSyncedAt = this.#now();
-      status.set({ state: this.#pending ? "pending" : "synced", lastSyncedAt, conflicts: result.conflicts });
+      status.set({
+        state: this.#pending ? "pending" : "synced",
+        lastSyncedAt,
+        conflicts: result.conflicts,
+        ...(result.newerElsewhere ? { newerElsewhere: true } : {}),
+      });
       // Changes arrived mid-run: push again soon.
       if (this.#pending && this.#started) this.#scheduleDebounce(this.#d.debounceMs ?? SYNC_DEBOUNCE_MS);
       return;

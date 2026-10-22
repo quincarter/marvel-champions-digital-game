@@ -53,6 +53,9 @@ import {
 import type { SaveDataStatus } from "../view/save-data-model.js";
 import type { SyncLinkAddress } from "../sync/sync-link.js";
 import { syncService } from "../sync/sync-wiring.js";
+import { drawBetaTagBeside } from "../ui/beta-tag.js";
+import { isNativeShell, openExternal } from "../platform/platform.js";
+import { SYNC_INFO_LABEL, syncInfoUrl } from "../view/sync-info-link.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 
@@ -320,17 +323,35 @@ export class SyncDataOverlay extends Phaser.Scene {
       }),
     );
     stops.set("back", { rect: closeRect, activate: () => this.#close() });
-    this.add
+    const barTitle = this.add
       .text(header.x + 16, header.y + header.height / 2, caseOf(typeRole.barTitle, SYNC_ROW_TITLE), {
         ...textStyle(typeRole.barTitle, surface.paper.hex),
         fontSize: "24px",
       })
       .setOrigin(0, 0.5);
+    drawBetaTagBeside(this, barTitle, closeRect.x - 8);
 
     const x = body.x + 16;
     const rowWidth = body.width - 32;
     const bodyBottom = body.y + body.height;
-    const top = body.y + 16;
+    // "More information" opens the player guide; on the steps with room, a small button above the content.
+    const hasInfo = step.kind === "home" || step.kind === "join" || step.kind === "setup" || step.kind === "show-code";
+    if (hasInfo) {
+      const infoRect: Rect = { x, y: body.y + 12, width: Math.min(rowWidth, 170), height: 32 };
+      const open = (): void => openExternal(syncInfoUrl(globalThis.location?.href ?? "", isNativeShell()));
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: SYNC_INFO_LABEL,
+          type: { ...typeRole.label, size: 11 },
+          rect: infoRect,
+          onClick: open,
+        }),
+      );
+      stops.set("more-info", { rect: infoRect, activate: open });
+      order.push("more-info");
+    }
+    const top = body.y + 16 + (hasInfo ? 44 : 0);
     let y = top;
     switch (step.kind) {
       case "home":

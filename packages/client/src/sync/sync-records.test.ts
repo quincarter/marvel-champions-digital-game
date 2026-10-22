@@ -94,3 +94,27 @@ describe("sealRecord and openRecord", () => {
     await expect(sealRecord(creds, "k", undefined, 1)).rejects.toThrow(/JSON/);
   });
 });
+
+describe("the writer stamp", () => {
+  test("round-trips the writer and the database version, and a record without them opens as before", async () => {
+    const { recordKey, data } = await sealRecord(creds, "db:mc-decks:decks:d1", { n: 1 }, 7, {
+      writer: { app: "0.33.0", content: "pool-x" },
+      db: 2,
+    });
+    expect(await openRecord(creds, recordKey, data)).toEqual({
+      key: "db:mc-decks:decks:d1",
+      stamp: 7,
+      value: { n: 1 },
+      writer: { app: "0.33.0", content: "pool-x" },
+      db: 2,
+    });
+    const plain = await sealRecord(creds, "k", { n: 1 }, 1);
+    expect(await openRecord(creds, plain.recordKey, plain.data)).toEqual({ key: "k", stamp: 1, value: { n: 1 } });
+  });
+
+  test("a malformed writer is read as none", async () => {
+    const recordKey = await recordKeyOf(creds, "k");
+    const sealed = await sealWith("k", { k: "k", s: 1, v: 1, w: { app: 3 }, d: "two" }, recordKey);
+    expect(await openRecord(creds, recordKey, sealed)).toEqual({ key: "k", stamp: 1, value: 1 });
+  });
+});

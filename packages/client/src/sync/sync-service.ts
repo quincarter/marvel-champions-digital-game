@@ -70,6 +70,8 @@ export interface SyncServiceDeps {
   readonly local: LocalSaveData;
   readonly state: SyncStateStore;
   readonly describeGame?: (meta: unknown) => string | null;
+  /** The card-pool fingerprint (`POOL_VERSION`) sealed into every record this build writes. */
+  readonly contentVersion?: string;
   readonly api?: SyncServiceApi;
   readonly engineApi?: SyncEngineApi;
   readonly sendLink?: (recoveryCode: string) => Promise<SendLinkResult>;
@@ -366,6 +368,7 @@ export class SyncService {
       local: this.#d.local,
       state: this.#d.state,
       resolveConflict: (conflict) => this.#ask(conflict),
+      ...(this.#d.contentVersion ? { contentVersion: this.#d.contentVersion } : {}),
       ...(this.#d.engineApi ? { api: this.#d.engineApi } : {}),
       ...(this.#d.describeGame ? { describeGame: this.#d.describeGame } : {}),
       ...(this.#d.now ? { now: this.#d.now } : {}),

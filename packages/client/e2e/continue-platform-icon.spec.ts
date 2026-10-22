@@ -94,7 +94,12 @@ test("the worker stamps the platform; the Continue row shows each platform's mar
   await settle(page);
   // A browser (headless Chromium here) is "web", stamped by the engine worker when it created the game.
   await waitFor(async () => ((await storedStamp(page)) ? true : null), "the game is stamped");
-  expect(await storedStamp(page)).toEqual({ platform: "web" });
+  // The worker also stamps the build and card pool that wrote it (mixed-version sync guard).
+  expect(await storedStamp(page)).toMatchObject({
+    platform: "web",
+    appVersion: expect.stringMatching(/^\d+\.\d+\.\d+/),
+    contentVersion: expect.any(String),
+  });
 
   const order: (Platform | null)[] = ["windows", "macos", "linux", "android", "ios", "web", null];
   for (const platform of order) {

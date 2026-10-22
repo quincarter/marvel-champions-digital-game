@@ -62,6 +62,7 @@ test("set up shows the recovery code once and needs the acknowledge; the status 
   await waitForSyncText(page, "Sync is off");
   await waitForSyncText(page, "Status: Off");
   await shot(page, phone, "1-sync-off");
+  expect(await hasText(page, "More information", SYNC_DATA), "the guide link is on the screen").toBe(true);
 
   await press(page, SYNC_DATA, "sync:setup");
   await waitForSyncText(page, "Your recovery code");

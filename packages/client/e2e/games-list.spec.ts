@@ -38,7 +38,10 @@ async function savedGames(page: Page): Promise<Saved[]> {
 }
 
 /** Marks games as last played on other platforms, and (optionally) a time, the way a synced game arrives. */
-async function stampGames(page: Page, stamps: Record<string, { platform: string; updatedAt?: number }>): Promise<void> {
+async function stampGames(
+  page: Page,
+  stamps: Record<string, { platform: string; updatedAt?: number; appVersion?: string }>,
+): Promise<void> {
   await page.evaluate(async (wanted) => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open("mc-saves", 1);
@@ -56,7 +59,7 @@ async function stampGames(page: Page, stamps: Record<string, { platform: string;
       if (!stamp) continue;
       store.put({
         ...game,
-        lastPlayedOn: { platform: stamp.platform },
+        lastPlayedOn: { platform: stamp.platform, ...(stamp.appVersion ? { appVersion: stamp.appVersion } : {}) },
         ...(stamp.updatedAt === undefined ? {} : { updatedAt: stamp.updatedAt }),
       });
     }
@@ -339,5 +342,51 @@ test("on a touch tablet, a swipe lifting over the Title panel's Remove, Resume o
 
   await page.touchscreen.tap(center(remove).x, center(remove).y);
   await waitFor(async () => ((await hasText(page, "Remove this game?", "Title")) ? true : null), "the question");
+  expect(errors).toEqual([]);
+});
+
+test("a game a newer build last wrote is listed with 'update to continue': no Resume, a tap does nothing, Continue skips it", async ({
+  page,
+}, info) => {
+  test.setTimeout(300_000);
+  const phone = info.project.name === "phone";
+  await page.setViewportSize(phone ? { width: 375, height: 812 } : { width: 1280, height: 800 });
+  const errors = trackPageErrors(page);
+  const [rhino, klaw] = await twoGames(page);
+  const now = Date.now();
+  // Rhino is the newest game but a newer build wrote it; Klaw is older and playable.
+  await stampGames(page, {
+    [rhino.id]: { platform: "windows", updatedAt: now - 5 * 60_000, appVersion: "99.0.0" },
+    [klaw.id]: { platform: "android", updatedAt: now - 2 * 3600_000 },
+  });
+  await toTitle(page);
+  const scene = listScene(phone);
+  await openList(page, phone);
+  expect(await hasText(page, "Played on a newer version: update to continue", scene)).toBe(true);
+  if (SHOTS) {
+    await page.screenshot({
+      path: `${SHOTS}/games-list-${phone ? "phone-375x812" : "desktop-1280x800"}-newer.png`,
+    });
+  }
+
+  // The row's text is not a Resume: a tap there does nothing.
+  const tap = await rowTextPoint(page, scene, rhino.id);
+  if (phone) await page.touchscreen.tap(tap.x, tap.y);
+  else await page.mouse.click(tap.x, tap.y);
+  await settle(page, { quietMs: 500, maxMs: 2500 });
+  expect(await activeScenes(page)).not.toContain("Board");
+  expect(await activeScenes(page)).toContain(phone ? "GamesListOverlay" : "Title");
+  expect((await savedGames(page)).map((game) => game.status)).toEqual(["active", "active"]);
+
+  // Continue offers the playable game, not the newest one.
+  if (!phone) {
+    await clickStop(page, "continue", "Title");
+    await onBoard(page);
+    await waitFor(
+      async () => ((await gameFacts<number>(page, "(s) => s.game?.players.length ?? 0")) ? true : null),
+      "game",
+    );
+    expect(await gameFacts<number>(page, "(s) => s.game.players.length")).toBe(2);
+  }
   expect(errors).toEqual([]);
 });

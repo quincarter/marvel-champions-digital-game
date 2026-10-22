@@ -6,9 +6,11 @@
  *    so every device finds the same record, and unlinkable to game or deck ids for anyone without the code.
  *  - The contents are JSON, gzipped (before encrypting, since ciphertext doesn't compress), then AES-256-GCM with a
  *    random 12-byte IV. The sealed JSON is `{ k: logicalKey, s: stamp, v: value }`, because a device pulling a record
- *    it has never seen holds only the server's record key. The record key is the GCM additional data, so a hostile or
- *    buggy server cannot hand back record A's ciphertext under record B's key, and opening checks that the logical
- *    key inside hashes to the record key it was stored under.
+ *    it has never seen holds only the server's record key. Two optional additions (mixed app versions): `w: { app,
+ *    content }`, the build that sealed it, and `d`, a `db:` record's database version; a build older than the writer
+ *    keeps the record untouched (`sync-engine.ts`). Records without them are fine. The record key is the GCM
+ *    additional data, so a hostile or buggy server cannot hand back record A's ciphertext under record B's key, and
+ *    opening checks that the logical key inside hashes to the record key it was stored under.
  *  - Layout, base64url: "MCS1" | iv(12) | ciphertext. One content key serves every record, which is safe because each
  *    seal uses a fresh random IV (a space holds far fewer than the 2^32 seals where random-IV collisions matter).
  */
@@ -50,15 +52,36 @@ export async function recordKeyOf(creds: SyncCredentials, logicalKey: string): P
   return toBase64Url(new Uint8Array(mac));
 }
 
+/** The build that sealed a record: its app version and its card-pool fingerprint (`POOL_VERSION`). */
+export interface RecordWriter {
+  readonly app: string;
+  readonly content: string;
+}
+
+/** What a seal adds beside the value; all optional, because records from builds before it carry none. */
+export interface RecordExtras {
+  /** Sealed as `w`: lets a build older than the writer see it must not overwrite the record. */
+  readonly writer?: RecordWriter;
+  /** Sealed as `d` for a `db:` record: the writer's version of the record's IndexedDB database. */
+  readonly db?: number;
+}
+
 /** Throws if WebCrypto or CompressionStream is missing, or the value isn't JSON-serializable. */
 export async function sealRecord(
   creds: SyncCredentials,
   logicalKey: string,
   value: unknown,
   stamp: number,
+  extras: RecordExtras = {},
 ): Promise<{ recordKey: string; data: string }> {
   if (value === undefined) throw new Error("A record must be JSON-serializable.");
-  const json = JSON.stringify({ k: logicalKey, s: stamp, v: value });
+  const json = JSON.stringify({
+    k: logicalKey,
+    s: stamp,
+    v: value,
+    ...(extras.writer ? { w: { app: extras.writer.app, content: extras.writer.content } } : {}),
+    ...(extras.db === undefined ? {} : { d: extras.db }),
+  });
   const recordKey = await recordKeyOf(creds, logicalKey);
   const compressed = await pipe(utf8.encode(json), new CompressionStream("gzip"));
   const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
@@ -81,7 +104,7 @@ export async function openRecord(
   creds: SyncCredentials,
   recordKey: string,
   data: string,
-): Promise<{ key: string; stamp: number; value: unknown }> {
+): Promise<{ key: string; stamp: number; value: unknown; writer?: RecordWriter; db?: number }> {
   let bytes: Uint8Array;
   try {
     bytes = fromBase64Url(data);
@@ -108,7 +131,7 @@ export async function openRecord(
   } catch {
     throw new Error("The synced record couldn't be decrypted: wrong recovery code, wrong record or damaged data.");
   }
-  let opened: { k?: unknown; s?: unknown; v?: unknown };
+  let opened: { k?: unknown; s?: unknown; v?: unknown; w?: unknown; d?: unknown };
   try {
     const text = new TextDecoder("utf-8", { fatal: true }).decode(
       await pipe(compressed, new DecompressionStream("gzip")),
@@ -123,5 +146,16 @@ export async function openRecord(
   if ((await recordKeyOf(creds, opened.k)) !== recordKey) {
     throw new Error("The synced record's name doesn't match the key it was stored under.");
   }
-  return { key: opened.k, stamp: opened.s, value: opened.v };
+  // A record from a build before the writer stamp has no `w`/`d`; one that is malformed is read as having none.
+  const w = opened.w as { app?: unknown; content?: unknown } | null | undefined;
+  const writer =
+    w && typeof w.app === "string" && typeof w.content === "string" ? { app: w.app, content: w.content } : undefined;
+  const db = typeof opened.d === "number" && Number.isFinite(opened.d) ? opened.d : undefined;
+  return {
+    key: opened.k,
+    stamp: opened.s,
+    value: opened.v,
+    ...(writer ? { writer } : {}),
+    ...(db === undefined ? {} : { db }),
+  };
 }

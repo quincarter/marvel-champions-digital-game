@@ -13,11 +13,21 @@ import { EngineSessionCore, SetupError } from "./session-core.js";
 import { IdbGameStorage } from "./idb-game-storage.js";
 import type { HostRequest, HostResponse } from "./protocol.js";
 import { playPlatformOfWorkerName } from "../platform/play-platform.js";
+import { POOL_VERSION } from "../content/pool.js";
+import { CLIENT_VERSION } from "../version.js";
+import { buildCommit } from "../view/app-version.js";
 
 // The main thread names this worker for its platform (`create-host.ts`): a worker cannot see the Tauri/Capacitor shell.
+// The app and card-pool versions are compile-time facts of this bundle, so the worker stamps them itself (device sync
+// uses them to keep an older build off a game a newer one wrote, #276).
 const platform = playPlatformOfWorkerName(self.name);
 const core = new EngineSessionCore({
-  storage: new IdbGameStorage(indexedDB, platform ? { platform } : undefined),
+  storage: new IdbGameStorage(indexedDB, {
+    ...(platform ? { platform } : {}),
+    appVersion: CLIENT_VERSION,
+    contentVersion: POOL_VERSION,
+    ...(buildCommit() ? { build: buildCommit() } : {}),
+  }),
 });
 
 /**
