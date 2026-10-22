@@ -2048,7 +2048,13 @@ function neutralCard(state: GameState, id: InstanceId, deps: EngineDeps): Scenar
 export function environmentPanel(state: GameState, id: InstanceId, deps: EngineDeps): EnvironmentPanel {
   const card = cardOf(state, id);
   const damage = getInstance(state, id)?.damage ?? 0;
-  const note = damageNote(damage, breakPointOf(state, id, deps));
+  const damageAt = breakPointOf(state, id, deps);
+  // Damage leads the counter chips ("1/9 DAMAGE", the count drawn big) rather than riding in the subtitle's small
+  // print: Avengers Tower's whole scenario is that number, on every board size (issue #356).
+  const damageEntry =
+    damageAt !== null || damage > 0
+      ? [{ name: "damage", count: damage, ...(damageAt !== null ? { limit: damageAt } : {}) }]
+      : [];
   const tucked = tuckedCardsUnder(state, id);
   const limits = counterLimitsOf(state, id, deps);
   const held = countersOf(state, id);
@@ -2069,6 +2075,7 @@ export function environmentPanel(state: GameState, id: InstanceId, deps: EngineD
   const goalNote =
     goal?.outcome === "loss" ? `Lose at ${goal.goal}` : goal?.outcome === "flip" ? `Flips at ${goal.goal}` : null;
   const counters = [
+    ...damageEntry,
     ...threatEntry,
     ...held.map((counter) => (counter.name in limits ? { ...counter, limit: limits[counter.name]! } : counter)),
     ...Object.entries(limits)
@@ -2079,8 +2086,7 @@ export function environmentPanel(state: GameState, id: InstanceId, deps: EngineD
     instanceId: id,
     // `currentName`, not `card.name`: a flipped card is a different card as far as the table is concerned.
     name: currentName(state, id) ?? card?.name ?? "Environment",
-    // "Environment · 4/9 damage": Avengers Tower flips at 9[per_hero], and the table should see how close it is.
-    subtitle: [goalNote ?? "Environment", note].filter((part) => part !== null).join(" · "),
+    subtitle: goalNote ?? "Environment",
     counters,
     art: artFor(card, faceOf(state, id)),
     damage,
