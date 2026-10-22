@@ -153,6 +153,8 @@ export class McChipRail {
     this.#scene.input.off(Phaser.Input.Events.POINTER_UP, this.#onPointerUp, this);
     this.#scene.input.off(Phaser.Input.Events.POINTER_UP_OUTSIDE, this.#onPointerUp, this);
     this.#scene.events.off(Phaser.Scenes.Events.UPDATE, this.#onUpdate, this);
+    // An UPDATE emit already under way still calls `#onUpdate` this frame (see `scroll-region.ts`).
+    this.#momentum.stop();
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     clearMask(this.#layer);

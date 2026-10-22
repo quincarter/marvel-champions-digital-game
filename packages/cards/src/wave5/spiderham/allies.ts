@@ -144,7 +144,8 @@ export const SPIDERHAM_ALLIES = defineAbilities({
 
   "30020.scarlet-spider-constant": constant(playOnlyIf(exists(A_WEB_WARRIOR_CARD))),
   "30020.scarlet-spider-interrupt": interrupt(
-    { ...on.encounterCardRevealed(), playerIn: you },
+    // "When you would reveal": facedown, before the card is turned up (RRG 1.8 "Interrupt", p. 25; "Reveal", p. 38).
+    { on: "encounterCardBeingRevealed", playerIn: you },
     chooseOne(
       ...(["minion", "sideScheme", "attachment", "treachery", "obligation"] as const).map((category) =>
         option(

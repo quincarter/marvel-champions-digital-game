@@ -4,7 +4,7 @@ import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import { villainRecapOf } from "./villain-recap.js";
-import { appendWalkthrough, emptyWalkthrough } from "./villain-walkthrough.js";
+import { appendWalkthrough, choiceHiddenBy, emptyWalkthrough } from "./villain-walkthrough.js";
 
 async function breakout(): Promise<GameState> {
   const store = new SessionStore(new LocalEngineHost());
@@ -71,6 +71,16 @@ describe("an activation an encounter card starts", () => {
     expect(rows.map((row) => row.kind)).toEqual(["card", "activation"]);
     expect(rows[0]!.effects).toEqual([]);
     expect(rows[1]!.detail).toBe("SCH 2 + boost 1 = 3 → Breakout");
+  });
+});
+
+describe("HIDE pressed before the replay reaches a decision (missed interrupts)", () => {
+  test("puts nothing away, so the decision brings the rail back when the replay gets there", () => {
+    expect(choiceHiddenBy("c7", false)).toBeNull();
+  });
+  test("puts away a decision already on screen, so the rail stays hidden for it", () => {
+    expect(choiceHiddenBy("c7", true)).toBe("c7");
+    expect(choiceHiddenBy(null, true)).toBeNull();
   });
 });
 

@@ -566,6 +566,29 @@ describe("SP//dr's supports, upgrades and resources (31007-31013, 31018-31020, 3
       expect(playerOf(after, P1).discard).toContain(tingle);
     });
 
+    it('is offered while the card about to be revealed is still facedown ("would reveal", RRG 1.8 p. 25)', () => {
+      const hero = runWave5(spdrVsRhino(), toHero(P1));
+      const { state: withCard } = playFromHand(hero, "31020", 1);
+      const staged = stageNemesisCardForReveal(withCard, "31028", P1);
+      const seen: { event: string | undefined; faceup: boolean }[] = [];
+      const pick = accepting("31020.spider-tingle-interrupt");
+      driveEventsPicking(
+        WAVE5_DEPS,
+        staged,
+        (state) => {
+          const choice = state.pendingChoice;
+          if (choice?.options.some((o) => o.optionId.endsWith(":31020.spider-tingle-interrupt"))) {
+            const event = choice.prompt.kind === "chooseTriggers" ? choice.prompt.event : undefined;
+            const revealed = event && "instanceId" in event ? (event.instanceId as InstanceId) : null;
+            seen.push({ event: event?.kind, faceup: revealed ? inst(state, revealed).faceup : true });
+          }
+          return pick(state);
+        },
+        endTurn(P1),
+      );
+      expect(seen).toEqual([{ event: "encounterCardBeingRevealed", faceup: false }]);
+    });
+
     it("declining: Spider-Tingle is never paid, and stays in play", () => {
       const hero = runWave5(spdrVsRhino(), toHero(P1));
       const { state: withCard, id: tingle } = playFromHand(hero, "31020", 1);

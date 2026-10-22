@@ -11,7 +11,7 @@
  *
  * Pure: the engine's ability definitions say what each card waits for.
  */
-import type { AbilityTriggerSpec, EngineDeps, GameState, InstanceId, PlayerId } from "@mc/engine";
+import type { AbilityDefinition, AbilityTriggerSpec, EngineDeps, GameState, InstanceId, PlayerId } from "@mc/engine";
 import { activeAbilityRefs, cardOf } from "@mc/engine";
 
 export type VillainHandTagKind = "now" | "hit" | "treachery" | "threat" | "trigger" | "resource" | "turn";
@@ -47,6 +47,7 @@ const HIT: ReadonlySet<string> = new Set([
 ]);
 const TREACHERY: ReadonlySet<string> = new Set([
   "encounterCardRevealing",
+  "encounterCardBeingRevealed",
   "cardRevealed",
   "encounterCardResolved",
   "encounterCardBeingDealt",
@@ -82,6 +83,22 @@ export function villainHandTagOf(
   return tag(isResource ? "resource" : "turn");
 }
 
+/**
+ * The triggers a card in hand can answer the villain phase with: an event's (it is played as its interrupt or
+ * response), and any ability that works from the hand (`activeIn: "hand"`). An upgrade, support or ally's own
+ * triggers work only once it is in play, so in hand it waits for the player's turn: Indomitable (01082, "Response:
+ * After your hero defends, discard Indomitable → ready your hero") read WHEN HIT in hand, though it can't be played
+ * then and so is never offered.
+ */
+export function handTriggersOf(
+  isEvent: boolean,
+  definitions: readonly (AbilityDefinition | undefined)[],
+): readonly AbilityTriggerSpec[] {
+  return definitions.flatMap((definition) =>
+    definition && (isEvent || definition.activeIn === "hand") ? [definition.trigger] : [],
+  );
+}
+
 /** Whether two tag sets say the same thing, so the Board redraws only when one changes. */
 export function sameHandTags(
   a: ReadonlyMap<InstanceId, VillainHandTag> | null,
@@ -108,10 +125,10 @@ export function villainHandTagsOf(
   const player = state.players.find((candidate) => candidate.playerId === viewer);
   if (!player) return tags;
   for (const id of player.hand) {
-    const triggers = activeAbilityRefs(state, id, deps).flatMap((ref) => {
-      const trigger = deps.abilities[ref.id]?.trigger;
-      return trigger ? [trigger] : [];
-    });
+    const triggers = handTriggersOf(
+      cardOf(state, id)?.type === "event",
+      activeAbilityRefs(state, id, deps).map((ref) => deps.abilities[ref.id]),
+    );
     const tag = villainHandTagOf(triggers, cardOf(state, id)?.type === "resource", playableNow.has(id));
     tags.set(id, fresh.has(id) ? { ...tag, text: `New · ${tag.text}`, fresh: true } : tag);
   }

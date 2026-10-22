@@ -157,6 +157,13 @@ export class McScrollRegion {
     this.#scene.input.off(Phaser.Input.Events.POINTER_UP, this.#onPointerUp, this);
     this.#scene.input.off(Phaser.Input.Events.POINTER_UP_OUTSIDE, this.#onPointerUp, this);
     this.#scene.events.off(Phaser.Scenes.Events.UPDATE, this.#onUpdate, this);
+    // Removing a listener doesn't reach an emit already under way: Phaser's emitter walks the listener array it
+    // started with. The scene clock fires its timers from inside the scene's UPDATE, so a timer that redraws the
+    // screen (the campaign market's redraw once a picture loads, which a swipe sets off as cards come into view)
+    // destroys this region and then still runs its `#onUpdate` for that frame. With the swipe's glide still going,
+    // that tick would draw a thumb that is already gone (and move the scroll the caller hands to the next draw's
+    // region), so the glide stops here and `#onUpdate` / `#applyOffset` skip a destroyed region.
+    this.#momentum.stop();
     clearMask(this.content);
     this.#maskShape.destroy();
     if (destroyRoot) this.#root.destroy(true);
@@ -217,7 +224,7 @@ export class McScrollRegion {
   }
 
   #onUpdate(_time: number, deltaMs: number): void {
-    if (!this.#momentum.active) return;
+    if (this.#destroyed || !this.#momentum.active) return;
     const delta = this.#momentum.tick(deltaMs);
     if (delta === 0) return;
     const moved = this.#scroll.scrollByPx(delta, this.#heights, this.#rect.height);
@@ -229,6 +236,7 @@ export class McScrollRegion {
   }
 
   #applyOffset(): void {
+    if (this.#destroyed) return;
     this.#scroll.clamp(this.#heights, this.#rect.height);
     const offset = this.#scroll.offsetPx;
     this.content.setPosition(0, -offset);

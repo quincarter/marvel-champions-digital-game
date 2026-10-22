@@ -993,3 +993,13 @@ export function recapPlacementFor(input: {
   const onTop = input.inline || input.finished || input.held === true;
   return { recapOnTop: onTop, recapTakesInput: onTop || input.docked === true };
 }
+
+/**
+ * The decision a HIDE press puts away, so the hidden rail does not come straight back for it: the open choice only once
+ * the replay has reached it and the player has seen it. Pressed while the engine is parked on a choice the replay has
+ * not shown yet, it is none, so that choice brings the rail back when the replay gets there. Remembering it then left
+ * the window hidden behind the handle with no prompt and no PLAY NOW tag, read as "my interrupt was never offered".
+ */
+export function choiceHiddenBy(pendingChoiceId: string | null, decisionDue: boolean): string | null {
+  return decisionDue ? pendingChoiceId : null;
+}
