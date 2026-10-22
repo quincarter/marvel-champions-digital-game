@@ -5,6 +5,7 @@
   "license": "AGPL-3.0-or-later",
   "scripts": {
     "dev": "pnpm --filter @mc/client dev",
+    "dev:sync": "pnpm --filter @mc/sync-worker dev",
     "preview": "pnpm --filter @mc/client build && pnpm --filter @mc/client preview",
     "desktop:dev": "pnpm --filter @mc/client desktop:dev",
     "desktop:build": "node scripts/build-desktop.mjs",

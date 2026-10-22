@@ -82,6 +82,10 @@ const include = [
         },
       ]
     : []),
+  // The save-transfer Worker's tests take seconds and need nothing from the other packages.
+  ...(has("sync-worker")
+    ? [{ name: "sync-worker", title: "Sync Worker tests", args: "--project @mc/sync-worker" }]
+    : []),
   ...(has("client")
     ? [
         ...shards(CLIENT_SHARDS).map((part) => ({

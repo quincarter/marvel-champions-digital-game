@@ -100,7 +100,7 @@ export function receiveFragmentOf(code: TransferCode): string {
 
 /** Reads `#receive=ROOM.KEY` (with or without the `#`); `null` for any other hash. */
 export function parseReceiveFragment(hash: string): TransferCode | null {
-  const match = /^#?receive=([^.&]+)\.([^.&]+)$/.exec(hash.trim());
+  const match = /^#?receive=([A-Za-z0-9]{8})\.([A-Za-z0-9]{4})$/.exec(hash.trim());
   if (!match) return null;
   return parseTransferCode(match[1]! + match[2]!);
 }

@@ -98,6 +98,12 @@ jobs:
       NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
       # A PR checkout is GitHub's merge commit; stamp the Title footer with the branch head instead (vite.config.ts).
       COMMIT_REF: ${{ github.event.pull_request.head.sha || github.sha }}
+      # The save-transfer Worker the build talks to (save-data/transfer-config.ts): production on main, the staging
+      # Worker on previews. Empty until the CLOUDFLARE_WORKERS_SUBDOMAIN variable is set; the game then says online
+      # transfer is unavailable.
+      VITE_SYNC_URL: >-
+        ${{ vars.CLOUDFLARE_WORKERS_SUBDOMAIN && format('https://{0}.{1}.workers.dev',
+        github.event_name == 'push' && 'mc-sync' || 'mc-sync-staging', vars.CLOUDFLARE_WORKERS_SUBDOMAIN) || '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -212,6 +218,9 @@ jobs:
           ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/marvel-champions.keystore
           # A PR checkout is GitHub's merge commit; stamp the Title footer with the branch head instead (vite.config.ts).
           COMMIT_REF: ${{ github.event.pull_request.head.sha }}
+          VITE_SYNC_URL: >-
+            ${{ vars.CLOUDFLARE_WORKERS_SUBDOMAIN && format('https://mc-sync-staging.{0}.workers.dev',
+            vars.CLOUDFLARE_WORKERS_SUBDOMAIN) || '' }}
         run: pnpm android:build
 
       - name: Publish the pre-release
@@ -250,11 +259,60 @@ jobs:
             gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -f body="$body" > /dev/null
           fi
 
+  # The save-transfer Worker (packages/sync-worker, #276) on Cloudflare's free plan: production on a push to main,
+  # the staging Worker (`--env staging`, what previews talk to) on a pull request. Its tests run in the tests stage.
+  # Skips with a notice until the owner adds the CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets
+  # (CONTRIBUTING.md, "The save-transfer Worker"). Not required: the gate ignores its result.
+  deploy-sync:
+    name: Deploy the sync Worker
+    runs-on: ubuntu-latest
+    needs: tests
+    # Fork PRs get no secrets.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    # The token goes only to the two steps that need it, so `pnpm install` and dependency scripts never see it.
+    steps:
+      - name: Check for Cloudflare secrets
+        id: secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::notice::No Cloudflare secrets yet; skipping the sync Worker deploy."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.secrets.outputs.ready == 'true'
+        uses: actions/checkout@v4
+      - if: steps.secrets.outputs.ready == 'true'
+        uses: pnpm/action-setup@v4
+      - if: steps.secrets.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - if: steps.secrets.outputs.ready == 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Deploy
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: packages/sync-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # `--env=""` names the top-level (production) config, which wrangler otherwise warns about.
+          if [ "${{ github.event_name }}" = "push" ]; then
+            pnpm exec wrangler deploy --env=""
+          else
+            pnpm exec wrangler deploy --env staging
+          fi
+
   # A needed job's result covers every job inside it, so `tests` stands for the whole of tests.yml, matrix shards
   # included. The first step fails if a job is added to this file without being added to `needs`.
   gate:
     name: All checks
-    needs: [lint, yaml, changelog, tests, deploy, android-preview]
+    needs: [lint, yaml, changelog, tests, deploy, android-preview, deploy-sync]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -276,11 +334,11 @@ jobs:
           NEEDS: ${{ toJSON(needs) }}
         run: |
           echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
-          # The deploy job's own result counts only through its build step; the Android preview doesn't count; a
-          # skipped job passes.
+          # The deploy job's own result counts only through its build step; the Android preview and the sync Worker
+          # deploy don't count; a skipped job passes.
           bad=$(echo "$NEEDS" | jq -r '
             to_entries[]
-            | select(.key != "android-preview")
+            | select(.key != "android-preview" and .key != "deploy-sync")
             | select(if .key == "deploy" then .value.outputs.build != "success"
                      else .value.result == "failure" or .value.result == "cancelled" end)
             | .key')

@@ -6,6 +6,8 @@
 //   - waves of the cards package: a wave's scripts import only from earlier waves. A change inside wave folders can
 //     break those waves and later ones, so the earlier waves are skipped. Anything else in the cards package (core,
 //     campaigns, the DSL, the test harness) runs every wave.
+//   - the sync Worker (packages/sync-worker) stands outside that chain, but the client imports its wire protocol, so
+//     a change there runs its own tests and the client's.
 //   - a changelog fragment affects nothing; any other file outside `packages/` (the lockfile, a config, docs or art
 //     a test may read) runs everything.
 import { readdirSync } from "node:fs";
@@ -16,6 +18,7 @@ export const WAVES_DIR = "packages/cards/src";
 const PROJECTS = ["content", "engine", "cards", "client"];
 const PACKAGE_FILE = /^packages\/(content|engine|cards|client)\//;
 const WAVE_FILE = /^packages\/cards\/src\/wave(\d+)\//;
+const SYNC_WORKER_FILE = /^packages\/sync-worker\//;
 const NEVER_AFFECTS_TESTS = /^\.changes\//;
 
 /** The wave numbers that have a folder in the cards package, ascending. */
@@ -33,8 +36,14 @@ export function wavesOnDisk() {
 export function affectedBy(changedPaths) {
   let lowest = PROJECTS.length;
   let firstWave = Infinity;
+  let syncWorker = false;
   for (const path of changedPaths) {
     if (NEVER_AFFECTS_TESTS.test(path)) continue;
+    if (SYNC_WORKER_FILE.test(path)) {
+      syncWorker = true;
+      lowest = Math.min(lowest, PROJECTS.indexOf("client"));
+      continue;
+    }
     const pkg = PACKAGE_FILE.exec(path);
     if (!pkg) return everything();
     lowest = Math.min(lowest, PROJECTS.indexOf(pkg[1]));
@@ -45,9 +54,9 @@ export function affectedBy(changedPaths) {
   }
   // A change below the cards package reaches every wave.
   if (lowest < PROJECTS.indexOf("cards") || firstWave === Infinity) firstWave = 0;
-  return { projects: PROJECTS.slice(lowest), firstWave };
+  return { projects: [...PROJECTS.slice(lowest), ...(syncWorker ? ["sync-worker"] : [])], firstWave };
 }
 
 export function everything() {
-  return { projects: [...PROJECTS], firstWave: 0 };
+  return { projects: [...PROJECTS, "sync-worker"], firstWave: 0 };
 }

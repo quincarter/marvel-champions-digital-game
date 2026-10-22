@@ -76,6 +76,53 @@ so the same code is not tested twice. `pnpm e2e:verify` runs the same gate ahead
 - **Release on Merge to Main** (`.github/workflows/release-on-merge.yml`): keeps the release pull request current and
   publishes the release when it merges.
 - **E2E** (`.github/workflows/e2e.yml`): dispatch only.
+- **Deploy the sync Worker** (a job in the CI workflow): deploys `packages/sync-worker` to Cloudflare, production on
+  `main` and the staging Worker on pull requests. It skips until the Cloudflare secrets below exist, and "All checks"
+  ignores it.
+
+## The save-transfer Worker
+
+Settings → Save data → **Send to another device** uploads an encrypted save to a small Cloudflare Worker
+(`packages/sync-worker`) and shows a code and a QR code; **Receive** on the other device fetches it once. The Worker
+runs on Cloudflare's free plan, apart from the Netlify site, so it can never bill or take down the game. The design is
+in [docs/cloud-sync-plan.md](docs/cloud-sync-plan.md) and the format in [docs/save-data.md](docs/save-data.md).
+
+### Running it locally
+
+No Cloudflare account is needed. In a second terminal next to `pnpm dev`:
+
+```bash
+pnpm dev:sync
+```
+
+That is `wrangler dev`, which runs the Worker and its Durable Objects on `http://localhost:8787` with local storage
+under `packages/sync-worker/.wrangler/`. The client's dev build talks to that address unless `VITE_SYNC_URL` says
+otherwise. The Worker's unit tests (`pnpm --filter @mc/sync-worker test`) use an in-memory fake and need neither.
+
+### One-time Cloudflare setup (the owner)
+
+Until this is done the Worker isn't deployed, and the game says online transfer is unavailable and points to Export.
+
+1. Create a free account at [dash.cloudflare.com](https://dash.cloudflare.com/sign-up). No payment method is needed.
+2. Open **Workers & Pages** once and choose a `workers.dev` subdomain. The Workers become
+   `https://mc-sync.<subdomain>.workers.dev` (production) and `https://mc-sync-staging.<subdomain>.workers.dev`
+   (pull request previews).
+3. **My Profile → API Tokens → Create Token**, use the **Edit Cloudflare Workers** template (all accounts or just
+   yours, all zones), and copy the token.
+4. Copy the **Account ID** from the Workers & Pages overview (right-hand column).
+5. In GitHub, **Settings → Secrets and variables → Actions**: add the secrets `CLOUDFLARE_API_TOKEN` and
+   `CLOUDFLARE_ACCOUNT_ID`, and on the **Variables** tab the variable `CLOUDFLARE_WORKERS_SUBDOMAIN` (just the
+   subdomain, without `.workers.dev`).
+6. Re-run CI on `main` (or merge anything). The deploy job publishes the Worker, and the next web, Android and desktop
+   builds point at it.
+
+Optional: to turn on [Turnstile](https://developers.cloudflare.com/turnstile/) bot checks for uploads, create a
+Turnstile widget and set its secret with `pnpm --filter @mc/sync-worker exec wrangler secret put TURNSTILE_SECRET`
+(add `--env staging` for the staging Worker). The client doesn't send a token yet, so uploads fail while it is set;
+leave it off until the client side lands.
+
+**Kill switch:** set `TRANSFERS_ENABLED` to anything but `"true"` in `packages/sync-worker/wrangler.jsonc` and deploy
+(or edit the variable in the dashboard). Every transfer then answers 503 and the game falls back to its export message.
 
 ## Conventions
 

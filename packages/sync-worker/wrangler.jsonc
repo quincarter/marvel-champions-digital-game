@@ -1,0 +1,54 @@
+// The save-transfer Worker (GitHub issue #276). Run it locally with `pnpm dev:sync` (no Cloudflare account needed),
+// deploy with `pnpm --filter @mc/sync-worker deploy` (production) or `... deploy --env staging`.
+//
+// Free-plan budget: 100,000 Worker requests per day, and Durable Objects are free only when SQLite-backed (hence
+// `new_sqlite_classes` below), with their own daily caps on requests and on rows read and written. A transfer costs a
+// few of each (one upload, one fetch, one alarm), far under the caps for a hobby game. If the Worker is ever abused,
+// set TRANSFERS_ENABLED to anything but "true" and redeploy: every /transfer route answers 503 at once.
+//
+// A flood still spends quota: each request costs one Worker request plus 1-3 Durable Object requests, even when the
+// caller is blocked. TRANSFERS_ENABLED is the response to a flood.
+//
+// Optional bot check: `wrangler secret put TURNSTILE_SECRET` (add `--env staging` for staging). It is a secret, not a
+// var, so it is not listed below; when it is set, an upload must carry a valid CF-Turnstile-Response header.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mc-sync",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+
+  "durable_objects": {
+    "bindings": [
+      { "name": "TRANSFER_ROOM", "class_name": "TransferRoom" },
+      { "name": "RATE_LIMITER", "class_name": "RateLimiter" },
+    ],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TransferRoom", "RateLimiter"] }],
+
+  "vars": {
+    "TRANSFERS_ENABLED": "true",
+    "MAX_UPLOAD_BYTES": "2097152",
+    // Comma list; a `*` in the host matches a name (or, after a colon, a port). Only these origins get CORS headers.
+    // Netlify previews and aliases, local dev servers, and the Capacitor and Tauri webviews.
+    "ALLOWED_ORIGINS": "https://marvel-champions-digital-game.netlify.app,https://*--marvel-champions-digital-game.netlify.app,http://localhost:*,http://127.0.0.1:*,https://localhost,capacitor://localhost,tauri://localhost,http://tauri.localhost,https://tauri.localhost",
+  },
+
+  // Wrangler environments do not inherit bindings or vars, so staging repeats them.
+  "env": {
+    "staging": {
+      "name": "mc-sync-staging",
+      "durable_objects": {
+        "bindings": [
+          { "name": "TRANSFER_ROOM", "class_name": "TransferRoom" },
+          { "name": "RATE_LIMITER", "class_name": "RateLimiter" },
+        ],
+      },
+      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TransferRoom", "RateLimiter"] }],
+      "vars": {
+        "TRANSFERS_ENABLED": "true",
+        "MAX_UPLOAD_BYTES": "2097152",
+        "ALLOWED_ORIGINS": "https://marvel-champions-digital-game.netlify.app,https://*--marvel-champions-digital-game.netlify.app,http://localhost:*,http://127.0.0.1:*,https://localhost,capacitor://localhost,tauri://localhost,http://tauri.localhost,https://tauri.localhost",
+      },
+    },
+  },
+}
