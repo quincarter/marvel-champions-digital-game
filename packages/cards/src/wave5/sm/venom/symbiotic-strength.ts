@@ -51,9 +51,11 @@ export const SYMBIOTIC_STRENGTH = defineAbilities({
   ),
 
   // Webbed Up (27166, attachment to your identity) — Forced Interrupt: When your hero would attack, discard Webbed
-  // Up instead. Then you are stunned.
+  // Up instead. Then you are stunned. Any attack by your hero, not only its basic attack: an attack-labeled event or
+  // ability too (Photon Beam, issue #346), so it is `characterWouldAct` (docs/phase7-wave10.md §3.21), which both
+  // announce, rather than `basicPowerUsing`.
   "27166.webbed-up-constant": forcedInterrupt(
-    on.basicPowerUsing("host", { power: "attack" }),
+    on.characterWouldAct("host", { act: "attack" }),
     instead(discard(self)),
     stun(yourIdentity),
   ),
