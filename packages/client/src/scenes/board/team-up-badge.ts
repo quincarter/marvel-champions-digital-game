@@ -12,7 +12,6 @@ import type Phaser from "phaser";
 import { ensurePictureLoaded, type Picture } from "../../art/pictures.js";
 import { accent, signal, surface, typeRole } from "../../tokens.js";
 import { ringLabel, teamUpBlurbFor } from "../../view/team-up-model.js";
-import { setMask } from "../../ui/rex.js";
 import { textStyle } from "../../ui/theme.js";
 import { fitWrapped } from "../../ui/widgets.js";
 import { badgeLabelRect, type BadgeSlot } from "../../view/team-up-layout.js";
@@ -68,8 +67,9 @@ export function bakedBadge(
   key: string,
   source: { width: number; height: number },
   bakedSize: number = BAKED_SIZE,
+  disc = false,
 ): string {
-  const bakedKey = `${key}:badge:${bakedSize}`;
+  const bakedKey = `${key}:badge:${bakedSize}${disc ? ":disc" : ""}`;
   if (scene.textures.exists(bakedKey)) return bakedKey;
   const image = scene.textures.get(key).getSourceImage() as CanvasImageSource;
   const crop = badgeCropRect(source, badgeFocusFor(key));
@@ -88,6 +88,18 @@ export function bakedBadge(
     canvas = half;
     size = next;
   }
+  if (disc) {
+    // Corners cut away in the texture itself: a Mask filter in world space lands in the wrong place at a device
+    // pixel ratio above 1 (a phone), leaving the ring's ink ground showing as a black circle (#365).
+    const round = document.createElement("canvas");
+    round.width = round.height = size;
+    const context = round.getContext("2d")!;
+    context.beginPath();
+    context.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+    context.clip();
+    context.drawImage(canvas, 0, 0);
+    canvas = round;
+  }
   scene.textures.addCanvas(bakedKey, canvas);
   return bakedKey;
 }
@@ -100,7 +112,7 @@ export function drawRingImage(
   scene: Phaser.Scene,
   slot: BadgeSlot,
   picture: Picture,
-  masks: Phaser.GameObjects.Graphics[],
+  _masks: Phaser.GameObjects.Graphics[],
   onReady: () => void,
   quiet = false,
 ): void {
@@ -117,14 +129,10 @@ export function drawRingImage(
     };
     // Baked once to a small square with the browser's own smoothing: sampling a large picture straight down to a
     // chip aliases into noise on the GPU (no mipmaps), and the circle should read as two people.
-    const baked = bakedBadge(scene, key, source);
+    const baked = bakedBadge(scene, key, source, BAKED_SIZE, true);
     const image = scene.add.image(box.x, box.y, baked).setOrigin(0, 0).setDisplaySize(box.width, box.height);
     // The quiet state is desaturated (grey tint) and faded, and its ring dashed: shape differs, never color alone.
     if (quiet) image.setTint(0x8c8c8c).setAlpha(0.6);
-    const mask = scene.make.graphics({}, false);
-    mask.fillStyle(0xffffff).fillCircle(slot.cx, slot.cy, slot.radius);
-    masks.push(mask);
-    setMask(image, mask, "world");
   }
   const ring = scene.add.graphics();
   ring.lineStyle(RING_WIDTH, accent.heroRed.hex, quiet ? 0.75 : 1);
