@@ -108,11 +108,11 @@
  * (`view/villain-phase-reveal.ts`). Under reduced motion there is no timer:
  * every beat currently known is shown the instant it arrives, up to the next
  * stop the player asked for (a facedown card's Flip Encounter Card, a held
- * card's Next card, #342), and the player
- * reads at their own pace rather than a timer's — "no travel/animation; the
- * beats still appear and the player can step through" is satisfied because
- * nothing is gated behind a wait, only behind the player's own reading speed
- * and the Skip/Continue controls, which work identically either way.
+ * card's Next card, #342), and the player reads at their own pace rather
+ * than a timer's — "no travel/animation; the beats still appear and the
+ * player can step through" is satisfied because nothing is gated behind a
+ * wait, only behind the player's own reading speed and the controls, which
+ * work identically either way.
  */
 
 import Phaser from "phaser";
@@ -1043,8 +1043,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
      *  - "on": no recap; the last beat gets one beat interval to be read, then the screen closes.
      * Reduced motion never auto-closes, whatever the setting.
      *
-     * With no reveal timer the whole phase appears at once, so a close timer would give the player who asked for
-     * less motion the *least* time to read it. The only ways out are the ones the player drives: Start player
+     * With no reveal timer the phase appears at once up to each stop the player asked for, so a close timer would
+     * give the player who asked for less motion the *least* time to read it. The only ways out are the ones the player drives: Start player
      * phase, Hide (Skip), or Esc.
      */
     const mode = appSession().settings.villainAutoAdvance;
@@ -1194,6 +1194,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // draw already under way reads the new rectangles right after, so the nested one has nothing to add.
     if (this.#drawing) return;
     this.#drawing = true;
+    const presentationBefore = this.#presentation;
+    const revealedBefore = this.#revealed;
     try {
       resetHoverCards(this);
       this.#decisionDock = null;
@@ -1203,6 +1205,13 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       this.#hover?.onDraw();
     } finally {
       this.#drawing = false;
+    }
+    // Only a draw sets the presentation, and the hold stands down where it is "full" or "hidden". With no reveal timer
+    // to pick that up (reduced motion), the first draw of a phase, HIDE or bringing the rail back re-runs the catch-up
+    // here, so it stops on (or moves past) a held card for the shape actually on screen.
+    if (appSession().settings.reducedMotion && this.#presentation !== presentationBefore) {
+      this.#syncTiming();
+      if (this.#revealed !== revealedBefore) this.#draw();
     }
   }
 
