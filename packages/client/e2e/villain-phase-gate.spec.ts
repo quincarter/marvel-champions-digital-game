@@ -36,7 +36,10 @@ const press = async (page: Page, phone: boolean, rect: Rect): Promise<void> => {
 /** Starts the jump's phase, lets Spider-Sense resolve, and presses ANSWER on Rhino's defend notice. */
 async function reachDockedDefend(page: Page, phone: boolean): Promise<void> {
   await page.addInitScript(() =>
-    localStorage.setItem("mc-settings", JSON.stringify({ version: 1, villainAutoAdvance: "off" })),
+    localStorage.setItem(
+      "mc-settings",
+      JSON.stringify({ version: 1, villainAutoAdvance: "off", flipEncounterCards: false, holdEncounterCards: false }),
+    ),
   );
   await installWave6Helpers(page);
   await page.goto("/?screen=villain-interrupt");

@@ -66,7 +66,10 @@ test("issue #329: the villain phase's peek banner moves between the bottom and t
   test.setTimeout(150_000);
   const errors = trackErrors(page);
   await page.addInitScript(() =>
-    localStorage.setItem("mc-settings", JSON.stringify({ version: 1, villainAutoAdvance: "off" })),
+    localStorage.setItem(
+      "mc-settings",
+      JSON.stringify({ version: 1, villainAutoAdvance: "off", flipEncounterCards: false, holdEncounterCards: false }),
+    ),
   );
   await installWave6Helpers(page);
   await page.goto("/?screen=villain-decision");

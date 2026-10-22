@@ -5,6 +5,7 @@ import {
   flipFrameAt,
   flipGateAt,
   flipTurningAt,
+  reducedMotionRevealTo,
   revealOf,
   stepCaptionOf,
 } from "./villain-phase-reveal.js";
@@ -258,6 +259,27 @@ describe("flipGateAt", () => {
   test("a card that was not dealt facedown never stops", () => {
     expect(flipGateAt(beats, 2, new Set(["b"]), new Set())).toBeNull();
     expect(flipGateAt(beats, 0, dealt, new Set())).toBeNull();
+  });
+});
+
+describe("reducedMotionRevealTo", () => {
+  const beat = (id: string, encounterInstanceId: string | null): WalkthroughBeat =>
+    ({ id, text: id, pause: null, activation: null, encounterInstanceId }) as WalkthroughBeat;
+  const beats = [beat("deal", null), beat("a1", "a"), beat("a2", "a"), beat("pass", null)];
+  const dealt = new Set(["a"]);
+
+  test("stops on the facedown card instead of jumping to the end (#342)", () => {
+    const flipped = new Set<string>();
+    const stopsAt = (n: number) => flipGateAt(beats, n, dealt, flipped) !== null;
+    expect(reducedMotionRevealTo(0, beats.length, stopsAt)).toBe(2);
+    flipped.add("a");
+    expect(reducedMotionRevealTo(2, beats.length, stopsAt)).toBe(4);
+  });
+
+  test("with nothing to stop on it shows every beat, and it never moves back", () => {
+    expect(reducedMotionRevealTo(0, 4, () => false)).toBe(4);
+    expect(reducedMotionRevealTo(4, 4, () => true)).toBe(4);
+    expect(reducedMotionRevealTo(3, 4, (n) => n === 1)).toBe(4);
   });
 });
 

@@ -136,6 +136,18 @@ export function flipGateAt(
   return before === card ? null : card;
 }
 
+/**
+ * Where the reveal cursor lands under reduced motion, which has no reveal timer: every known beat at once, except that
+ * it still stops where the player asked to (`stopsAt`: a facedown card waiting on Flip Encounter Card, a held card
+ * waiting on Next card). Reduced motion takes away the pacing, never those stops (#342: the phase jumped straight
+ * to its recap past the facedown card). Never moves the cursor back.
+ */
+export function reducedMotionRevealTo(revealed: number, total: number, stopsAt: (revealed: number) => boolean): number {
+  let at = revealed;
+  while (at < total && !stopsAt(at)) at++;
+  return at;
+}
+
 /** A Flip Encounter Card press: which card, when (the scene clock's `now`), and whether its end timer has fired. */
 export interface FlipInProgress {
   readonly card: string;

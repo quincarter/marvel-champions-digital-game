@@ -256,7 +256,10 @@ test.describe("Pause menu", () => {
     const phone = isPhone(info);
     const errors = trackPageErrors(page);
     await page.addInitScript(() =>
-      localStorage.setItem("mc-settings", JSON.stringify({ version: 1, villainAutoAdvance: "off" })),
+      localStorage.setItem(
+        "mc-settings",
+        JSON.stringify({ version: 1, villainAutoAdvance: "off", flipEncounterCards: false, holdEncounterCards: false }),
+      ),
     );
     await installWave6Helpers(page);
     await page.goto("/?screen=villain-interrupt");

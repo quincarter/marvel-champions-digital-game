@@ -98,7 +98,10 @@ const inside = (inner: Rect, outer: Rect): boolean =>
 /** Opens the jump with Auto-advance off (the game's default), starts the phase, and presses ANSWER on the decision. */
 async function reachDockedDecision(page: Page, phone: boolean): Promise<Rect> {
   await page.addInitScript(() =>
-    localStorage.setItem("mc-settings", JSON.stringify({ version: 1, villainAutoAdvance: "off" })),
+    localStorage.setItem(
+      "mc-settings",
+      JSON.stringify({ version: 1, villainAutoAdvance: "off", flipEncounterCards: false, holdEncounterCards: false }),
+    ),
   );
   await installWave6Helpers(page);
   await page.goto("/?screen=villain-decision");
@@ -213,7 +216,10 @@ test("issue #231: the docked defend hides or peeks to show the table, and a drag
   const phone = info.project.name === "phone";
   const errors = trackErrors(page);
   await page.addInitScript(() =>
-    localStorage.setItem("mc-settings", JSON.stringify({ version: 1, villainAutoAdvance: "off" })),
+    localStorage.setItem(
+      "mc-settings",
+      JSON.stringify({ version: 1, villainAutoAdvance: "off", flipEncounterCards: false, holdEncounterCards: false }),
+    ),
   );
   await installWave6Helpers(page);
   await page.goto("/?screen=villain-interrupt");

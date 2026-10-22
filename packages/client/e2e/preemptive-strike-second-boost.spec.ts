@@ -86,7 +86,10 @@ const shot = async (page: Page, name: string): Promise<void> => {
 async function toFirstBoostWindow(page: Page): Promise<string> {
   // The game's default: the docked phase waits on START and answers the player's interrupt on its own panel.
   await page.addInitScript(() =>
-    localStorage.setItem("mc-settings", JSON.stringify({ version: 1, villainAutoAdvance: "off" })),
+    localStorage.setItem(
+      "mc-settings",
+      JSON.stringify({ version: 1, villainAutoAdvance: "off", flipEncounterCards: false, holdEncounterCards: false }),
+    ),
   );
   await installWave6Helpers(page);
   await openApp(page);

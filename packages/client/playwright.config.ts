@@ -33,13 +33,24 @@ export default defineConfig({
     // Auto-advance on for the suite (2026-10-14): with it off (the game's default) the docked villain phase waits on
     // START VILLAIN PHASE and holds each decision behind ANSWER, which every spec that plays through a villain phase
     // would have to press. `villain-phase-gate.spec.ts` plays the default, gated flow itself; a spec that sets
-    // `mc-settings` on its own replaces this.
+    // `mc-settings` on its own replaces this. Flip each encounter card and Hold encounter cards are off too: they stop
+    // the phase on each encounter card even with motion off (#342), and only the specs about them turn them back on.
     storageState: {
       cookies: [],
       origins: [
         {
           origin: `http://localhost:${PORT}`,
-          localStorage: [{ name: "mc-settings", value: JSON.stringify({ version: 1, villainAutoAdvance: "on" }) }],
+          localStorage: [
+            {
+              name: "mc-settings",
+              value: JSON.stringify({
+                version: 1,
+                villainAutoAdvance: "on",
+                flipEncounterCards: false,
+                holdEncounterCards: false,
+              }),
+            },
+          ],
         },
       ],
     },

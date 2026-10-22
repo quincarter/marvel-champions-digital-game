@@ -66,7 +66,10 @@ test("issue #298: each defender says the health it has now, and a swipe that lif
   const phone = info.project.name === "phone";
   const errors = trackErrors(page);
   await page.addInitScript(() =>
-    localStorage.setItem("mc-settings", JSON.stringify({ version: 1, villainAutoAdvance: "off" })),
+    localStorage.setItem(
+      "mc-settings",
+      JSON.stringify({ version: 1, villainAutoAdvance: "off", flipEncounterCards: false, holdEncounterCards: false }),
+    ),
   );
   await installWave6Helpers(page);
   await page.goto("/?screen=defend-allies");

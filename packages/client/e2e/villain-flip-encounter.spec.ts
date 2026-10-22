@@ -3,6 +3,7 @@ import { activeScenes, pressAt, settle, waitFor } from "./helpers.js";
 import { continueRect, villainDebugRect } from "./overlay-helpers.js";
 import { answerChoiceSheet, installWave6Helpers, trackErrors } from "./wave6-helpers-a.js";
 import { declineMulligans, openApp, type Rect } from "./wave6-helpers-b.js";
+import { SHOT } from "./x-men-helpers.js";
 
 /**
  * "Flip each encounter card" (#287): the docked villain phase stops on each encounter card a player was dealt
@@ -10,7 +11,7 @@ import { declineMulligans, openApp, type Rect } from "./wave6-helpers-b.js";
  * With the setting off nothing stops there. Ultron deals every hero a card each round, so one end turn is enough.
  */
 
-// The suite runs with motion off, under which nothing is paced and there is no gate (by design): this spec needs it on.
+// The suite runs with motion off; most of this spec needs the paced reveal, and the reduced-motion case asks for it itself.
 test.use({ reducedMotion: "no-preference" });
 
 async function startAndEndTurn(page: Page, settings: Record<string, unknown>): Promise<void> {
@@ -135,6 +136,31 @@ test("the full-screen phase (docked table off) stops on Flip Encounter Card too"
   await press(page, phone, flip);
   // The turn takes about half a second; then the button is gone and the reveal goes on (Next card or the next beat).
   await waitFor(async () => ((await villainDebugRect(page, "flipRect")) === null ? true : null), "card flipped", 5000);
+  await playOn(page, phone, false);
+  expect(await continueRect(page), "the phase reaches its recap").not.toBeNull();
+  expect(errors).toEqual([]);
+});
+
+test("reduced motion still stops on the facedown card instead of jumping to the recap (#342)", async ({
+  page,
+}, info) => {
+  test.setTimeout(180_000);
+  const phone = info.project.name === "phone";
+  const errors = trackErrors(page);
+  // Battery saver turns reduced motion on by itself, which is how the reporter met it.
+  await startAndEndTurn(page, { reducedMotion: true });
+
+  expect(await playOn(page, phone, true), "Flip Encounter Card shows on the dealt card").toBe(true);
+  const flip = (await villainDebugRect(page, "flipRect"))!;
+  await page.waitForTimeout(2500);
+  expect(await villainDebugRect(page, "flipRect"), "still waiting on the press").not.toBeNull();
+  expect(await continueRect(page), "no recap yet").toBeNull();
+  if (SHOT) await page.screenshot({ path: `${SHOT}/reduced-motion-flip-${info.project.name}.png` });
+
+  await press(page, phone, flip);
+  // No turn under reduced motion: the card is face up at once.
+  await waitFor(async () => ((await villainDebugRect(page, "flipRect")) === null ? true : null), "card flipped", 5000);
+  if (SHOT) await page.screenshot({ path: `${SHOT}/reduced-motion-flipped-${info.project.name}.png` });
   await playOn(page, phone, false);
   expect(await continueRect(page), "the phase reaches its recap").not.toBeNull();
   expect(errors).toEqual([]);

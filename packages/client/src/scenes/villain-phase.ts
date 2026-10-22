@@ -106,7 +106,9 @@
  * entire five-step phase in one burst (`view/villain-walkthrough.ts`), so
  * normally beats are revealed one at a time on a readable timer
  * (`view/villain-phase-reveal.ts`). Under reduced motion there is no timer:
- * every beat currently known is shown the instant it arrives, and the player
+ * every beat currently known is shown the instant it arrives, up to the next
+ * stop the player asked for (a facedown card's Flip Encounter Card, a held
+ * card's Next card, #342), and the player
  * reads at their own pace rather than a timer's — "no travel/animation; the
  * beats still appear and the player can step through" is satisfied because
  * nothing is gated behind a wait, only behind the player's own reading speed
@@ -140,6 +142,7 @@ import {
   flipGateAt,
   flipLabel,
   flipTurningAt,
+  reducedMotionRevealTo,
   revealOf,
   stepCaptionOf,
   type FlipInProgress,
@@ -987,7 +990,11 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     if (reducedMotion) {
       this.#revealTimer?.remove();
       this.#revealTimer = null;
-      this.#revealed = total;
+      this.#revealed = reducedMotionRevealTo(
+        this.#revealed,
+        total,
+        (at) => this.#flipGate(at) !== null || this.#heldCard(at) !== null,
+      );
     } else if (this.#revealed < total && !this.#revealTimer) {
       this.#revealTimer = this.time.addEvent({
         delay: villainBeatIntervalMs(appSession().settings.villainBeatSpeed),
@@ -1057,33 +1064,34 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
   /**
    * The encounter card the reveal cursor is held on ("Hold encounter cards", S1), or null. Only where the phase is
-   * docked, which is where its Next card button is drawn; never under reduced motion (nothing is paced there), and
-   * never while a decision is open, which the panel shows whatever the cursor says.
+   * docked, which is where its Next card button is drawn, and never while a decision is open, which the panel shows
+   * whatever the cursor says. Reduced motion keeps the stop (`reducedMotionRevealTo`, #342). `revealed` lets that
+   * catch-up ask about a cursor position before moving there.
    */
-  #heldCard(): string | null {
+  #heldCard(revealed = this.#revealed): string | null {
     const settings = appSession().settings;
-    if (!settings.holdEncounterCards || settings.reducedMotion || this.#shownPause()) return null;
-    if (this.#flipGate() !== null || this.#flipTurning() !== null) return null;
+    if (!settings.holdEncounterCards || this.#shownPause()) return null;
+    if (this.#flipGate(revealed) !== null || this.#flipTurning() !== null) return null;
     if (this.#presentation === "full" || this.#presentation === "hidden") return null;
     const beats = this.#walkthrough.steps.flatMap((step) => step.beats);
-    return encounterHoldAt(beats, this.#revealed, this.#released);
+    return encounterHoldAt(beats, revealed, this.#released);
   }
 
   /**
    * The facedown encounter card the reveal cursor waits on before showing its face ("Flip each encounter card", #287),
-   * or null. Like the hold it never applies under reduced motion (nothing is paced there) and an open decision wins;
-   * it also stands down for a review and a card that is the phase's very last beat (nothing
+   * or null. Like the hold, an open decision wins and reduced motion keeps the stop (only the turn itself is instant
+   * there, `#flipMs`); it also stands down for a review and a card that is the phase's very last beat (nothing
    * would draw its button once the recap is up).
    */
-  #flipGate(): string | null {
+  #flipGate(revealed = this.#revealed): string | null {
     const settings = appSession().settings;
-    if (!settings.flipEncounterCards || settings.reducedMotion || this.#review) return null;
+    if (!settings.flipEncounterCards || this.#review) return null;
     if (this.#shownPause() || this.#waitingToStart()) return null;
     const total = totalBeatsOf(this.#walkthrough);
-    if (this.#walkthrough.complete && this.#revealed >= total) return null;
+    if (this.#walkthrough.complete && revealed >= total) return null;
     const beats = this.#walkthrough.steps.flatMap((step) => step.beats);
     const dealt = new Set<string>(this.#walkthrough.encounter.dealt.map((card) => card.instanceId));
-    return flipGateAt(beats, this.#revealed, dealt, this.#flipped);
+    return flipGateAt(beats, revealed, dealt, this.#flipped);
   }
 
   /** The card turning over right now (the 500 ms after Flip Encounter Card), or null. */
@@ -1091,9 +1099,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     return flipTurningAt(this.#flip, this.time.now, this.#flipMs());
   }
 
-  /** How long the turn takes: 0 under "Off" (the press still stops on each card). */
+  /** How long the turn takes: 0 under "Off" or reduced motion (the press still stops on each card). */
   #flipMs(): number {
-    return flipDurationMs(appSession().settings.flipEncounterSpeed);
+    const settings = appSession().settings;
+    return settings.reducedMotion ? 0 : flipDurationMs(settings.flipEncounterSpeed);
   }
 
   /** Flip Encounter Card: the front card turns over and the reveal carries on as it does today. */

@@ -100,7 +100,10 @@ test("every card in the villain-phase recap hovers, the villain's second attack 
   test.setTimeout(240_000);
   const errors = trackErrors(page);
   await page.addInitScript(() =>
-    localStorage.setItem("mc-settings", JSON.stringify({ version: 1, villainAutoAdvance: "off" })),
+    localStorage.setItem(
+      "mc-settings",
+      JSON.stringify({ version: 1, villainAutoAdvance: "off", flipEncounterCards: false, holdEncounterCards: false }),
+    ),
   );
   await installWave6Helpers(page);
   await openApp(page);
