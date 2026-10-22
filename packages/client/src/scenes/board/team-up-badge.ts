@@ -117,7 +117,8 @@ export function drawRingImage(
   quiet = false,
 ): void {
   const ground = scene.add.graphics();
-  ground.fillStyle(surface.ink.hex, 1).fillCircle(slot.cx, slot.cy, slot.radius);
+  // The quiet ring fades its picture over paper, not ink: faded over ink it read as a black disc (#365).
+  ground.fillStyle(quiet ? surface.paper.hex : surface.ink.hex, 1).fillCircle(slot.cx, slot.cy, slot.radius);
   const key = ensurePictureLoaded(scene, picture, onReady);
   if (key) {
     const source = scene.textures.get(key).getSourceImage() as { width: number; height: number };
@@ -131,8 +132,9 @@ export function drawRingImage(
     // chip aliases into noise on the GPU (no mipmaps), and the circle should read as two people.
     const baked = bakedBadge(scene, key, source, BAKED_SIZE, true);
     const image = scene.add.image(box.x, box.y, baked).setOrigin(0, 0).setDisplaySize(box.width, box.height);
-    // The quiet state is desaturated (grey tint) and faded, and its ring dashed: shape differs, never color alone.
-    if (quiet) image.setTint(0x8c8c8c).setAlpha(0.6);
+    // The quiet state is greyed and lightly faded, and its ring dashed: shape differs, never color alone. The picture
+    // must still read as the pair, so the fade stays light.
+    if (quiet) image.setTint(0xd0d0d0).setAlpha(0.8);
   }
   const ring = scene.add.graphics();
   ring.lineStyle(RING_WIDTH, accent.heroRed.hex, quiet ? 0.75 : 1);
