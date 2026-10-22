@@ -1354,21 +1354,36 @@ function villainOptionErrors(scenario: Scenario): string[] {
   const choice: unknown = scenario.villainOptions;
   if (choice === undefined) return [];
   const label = "scenario villainOptions";
-  const { options, defaultSetId } = (typeof choice === "object" && choice !== null ? choice : {}) as Record<
-    string,
-    unknown
-  >;
+  const { options, defaultSetId, keyedBy, defaultCardId, selection, chosenVillain } = (
+    typeof choice === "object" && choice !== null ? choice : {}
+  ) as Record<string, unknown>;
   if (!Array.isArray(options) || options.length < 2) return [`${label} must list at least two villains`];
   const errors: string[] = [];
+  if (keyedBy !== undefined && keyedBy !== "set" && keyedBy !== "card")
+    errors.push(`${label}.keyedBy must be 'set' or 'card' when present`);
+  if (selection !== undefined && selection !== "player" && selection !== "random")
+    errors.push(`${label}.selection must be 'player' or 'random' when present`);
+  if (chosenVillain !== undefined && chosenVillain !== "inPlay" && chosenVillain !== "setAside")
+    errors.push(`${label}.chosenVillain must be 'inPlay' or 'setAside' when present`);
+  const byCard = keyedBy === "card";
+  const cardIds = new Set<string>();
   const ownSets: readonly unknown[] = Array.isArray(scenario.encounterSetIds) ? scenario.encounterSetIds : [];
   const setIds = new Set<string>();
   for (const [index, entry] of options.entries()) {
     const option = (typeof entry === "object" && entry !== null ? entry : {}) as Record<string, unknown>;
     const name = isNonEmptyString(option.villainSetId) ? option.villainSetId : `#${index}`;
     if (!isNonEmptyString(option.villainSetId)) errors.push(`${label} option ${name} missing villainSetId`);
-    else if (setIds.has(option.villainSetId)) errors.push(`${label} lists set ${option.villainSetId} twice`);
+    else if (setIds.has(option.villainSetId) && !byCard) errors.push(`${label} lists set ${option.villainSetId} twice`);
     else setIds.add(option.villainSetId);
     if (!isNonEmptyString(option.villainCardId)) errors.push(`${label} option ${name} missing villainCardId`);
+    else if (byCard && cardIds.has(option.villainCardId))
+      errors.push(`${label} lists villain ${option.villainCardId} twice`);
+    else cardIds.add(option.villainCardId as string);
+    if (
+      option.linkedCardIds !== undefined &&
+      (!Array.isArray(option.linkedCardIds) || !option.linkedCardIds.every(isNonEmptyString))
+    )
+      errors.push(`${label} option ${name} linkedCardIds must be a list of card ids when present`);
     const stages = (typeof option.villainStages === "object" ? option.villainStages : null) as Record<
       string,
       unknown
@@ -1380,28 +1395,44 @@ function villainOptionErrors(scenario: Scenario): string[] {
     if (option.expertVillainCardId !== undefined && !isNonEmptyString(option.expertVillainCardId))
       errors.push(`${label} option ${name} expertVillainCardId must be a card id when present`);
     // Another option's set among the record's own sets would put two villains' sets in the default game.
-    if (isNonEmptyString(option.villainSetId) && option.villainSetId !== defaultSetId && ownSets.includes(name))
+    if (byCard) {
+      if (isNonEmptyString(option.villainSetId) && ownSets.includes(option.villainSetId))
+        errors.push(`${label} option ${name}'s set is set aside whole, so encounterSetIds must not name it`);
+    } else if (isNonEmptyString(option.villainSetId) && option.villainSetId !== defaultSetId && ownSets.includes(name))
       errors.push(`${label} option ${name} is not the default, so encounterSetIds must not name its set`);
   }
   if (!isNonEmptyString(defaultSetId) || !setIds.has(defaultSetId)) {
     errors.push(`${label}.defaultSetId must be one of the options' villainSetId`);
     return errors;
   }
-  const fallback = (options as readonly Record<string, unknown>[]).find((o) => o?.villainSetId === defaultSetId)!;
-  if (fallback.villainCardId !== scenario.villainCardId)
+  if (byCard) {
+    if (!isNonEmptyString(defaultCardId) || !cardIds.has(defaultCardId))
+      errors.push(`${label}.defaultCardId must be one of the options' villainCardId when keyedBy is 'card'`);
+  } else if (defaultCardId !== undefined) errors.push(`${label}.defaultCardId needs keyedBy 'card'`);
+  const fallback = (options as readonly Record<string, unknown>[]).find((o) =>
+    byCard ? o?.villainCardId === defaultCardId : o?.villainSetId === defaultSetId,
+  );
+  if (!fallback) return errors;
+  const inPlay = chosenVillain !== "setAside";
+  if (inPlay && fallback.villainCardId !== scenario.villainCardId)
     errors.push(`${label}: villainCardId must be the default option's (${String(fallback.villainCardId)})`);
+  if (!inPlay && fallback.villainCardId === scenario.villainCardId)
+    errors.push(
+      `${label}: chosenVillain 'setAside' keeps the scenario's own villain, so villainCardId must not be the default option's`,
+    );
   const stages = (typeof fallback.villainStages === "object" ? fallback.villainStages : null) as Record<
     string,
     unknown
   > | null;
   if (
-    !sameStageRange(stages?.standard, scenario.villainStages?.standard) ||
-    !sameStageRange(stages?.expert, scenario.villainStages?.expert)
+    inPlay &&
+    (!sameStageRange(stages?.standard, scenario.villainStages?.standard) ||
+      !sameStageRange(stages?.expert, scenario.villainStages?.expert))
   )
     errors.push(`${label}: villainStages must be the default option's`);
-  if ((fallback.victory ?? "finalVillainStage") !== (scenario.victory ?? "finalVillainStage"))
+  if (inPlay && (fallback.victory ?? "finalVillainStage") !== (scenario.victory ?? "finalVillainStage"))
     errors.push(`${label}: victory must be the default option's`);
-  if (!ownSets.includes(defaultSetId))
+  if (!byCard && !ownSets.includes(defaultSetId))
     errors.push(`${label}: encounterSetIds must name the default villain's set ${defaultSetId}`);
   for (const field of ["multipleVillains", "expertVillains", "setAsideVillainCardIds", "startingVillain"] as const)
     if (scenario[field] !== undefined) errors.push(`${label} cannot be combined with ${field}`);
@@ -1864,6 +1895,27 @@ export function validateScenarioVillainOptions(
       if (!card || card.type !== "villain") errors.push(`${label}: ${id} is not a villain card`);
       else if (!(card.encounterSetIds as readonly string[]).includes(option.villainSetId))
         errors.push(`${label}: villain ${id} is not in set ${option.villainSetId}`);
+    }
+    // Each linked card is a card of the option's set (set aside unless this villain is chosen) that prints this
+    // villain's name in its "Linked (...)" line, and is not a villain card.
+    const villainName = byId.get(option.villainCardId)?.name;
+    for (const id of option.linkedCardIds ?? []) {
+      const linked = byId.get(id);
+      if (
+        !linked ||
+        !("encounterSetIds" in linked) ||
+        !(linked.encounterSetIds as readonly string[]).includes(option.villainSetId)
+      )
+        errors.push(`${label}: linked card ${id} is not a card of set ${option.villainSetId}`);
+      else if (linked.type === "villain") errors.push(`${label}: linked card ${id} is a villain card`);
+      else if (villainName !== undefined) {
+        const printed = /Linked \(([^)]*)\)/.exec(
+          "text" in linked && typeof linked.text === "object" ? linked.text.printed : "",
+        )?.[1];
+        if (printed === undefined) errors.push(`${label}: linked card ${id} prints no "Linked (...)" line`);
+        else if (!printed.split(/,\s*(?:or\s+)?|\s+or\s+/).includes(villainName))
+          errors.push(`${label}: linked card ${id} prints "Linked (${printed})", which does not name ${villainName}`);
+      }
     }
     const villain = byId.get(option.villainCardId);
     if (villain?.type !== "villain") continue;

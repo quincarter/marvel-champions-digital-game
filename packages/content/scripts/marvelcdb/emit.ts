@@ -54,6 +54,9 @@ const KEY_BRANDS: Readonly<Record<string, BrandFn>> = {
   villainSetId: "encounterSetId",
   defaultSetId: "encounterSetId",
   expertVillainCardId: "cardId",
+  // `VillainOption.linkedCardIds` and `villainOptions.defaultCardId` (Shadowland's card-keyed Dark Protégé choice).
+  linkedCardIds: "cardId",
+  defaultCardId: "cardId",
   // `ScenarioVillain.sideBCardId` (wave 8, Four Horsemen: each horseman is a two-card villain).
   sideBCardId: "cardId",
   // `Scenario.setAsideVillainCardIds` and `Scenario.expertVillains.setAsideVillainCardIds` (wave 2 — Kang).

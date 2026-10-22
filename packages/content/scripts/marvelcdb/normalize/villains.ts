@@ -144,10 +144,14 @@ export function normalizeVillains(ctx: NormalizeContext): Map<string, string> {
     // A set may hold both kinds (Trickster Takeover's `god_of_lies`: the numbered Loki, God of Lies and the four
     // `"A1"`..`"D2"` Avatars of Loki): the face-labelled records are split off and built here, and whatever remains
     // continues through the version-pair/stage-chain paths below, decided per record group and not per set.
-    const faceRecords = stageRecords.filter((r) => FACE_LABEL_RE.test(r.stage ?? ""));
+    // `PackCuration.villainFlipSets`: letter-labelled "A"/"B" flip cards take the same path (mode "").
+    const flipSet = ctx.curation.villainFlipSets?.includes(set) === true;
+    const faceRecords = stageRecords.filter(
+      (r) => FACE_LABEL_RE.test(r.stage ?? "") || (flipSet && r.linked_card?.type_code === "villain"),
+    );
     const modeLabelled = faceRecords.length > 0;
     if (modeLabelled) {
-      const modeOf = (r: RawCard) => (FACE_LABEL_RE.exec(r.stage ?? "") as RegExpExecArray)[1] as string;
+      const modeOf = (r: RawCard) => (FACE_LABEL_RE.exec(r.stage ?? "") ?? [])[1] ?? "";
       const modes = [...new Set(faceRecords.map(modeOf))];
       for (const mode of modes) {
         for (const r of faceRecords.filter((rec) => modeOf(rec) === mode)) {

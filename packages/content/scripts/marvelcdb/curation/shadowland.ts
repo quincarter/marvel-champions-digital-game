@@ -5,14 +5,18 @@
  * no raw cache (`scanOnly`) and every record is an added record transcribed from
  * the Hall of Heroes preview scans (docs/phase7-shadowland.md section 3), as Fear No Evil's scenario half was.
  *
- * Only 45 of the 90 faces have a public scan so far (the page's previews, 300 x 426); the rest are listed in
- * `SHADOWLAND_MISSING_FACES` and are not guessed. The pack is not registered in the content index yet.
+ * Every printed card is transcribed: 90 printed copies, 73 distinct card records. The Hall of Heroes previews gave 45 card
+ * images (300 x 426), the only scans saved under `assets/card-art/bundles/cards/` (those 65xxx scans are tracked there); the
+ * remaining faces were transcribed from full-size card images (owner-approved, 2026-10-22) kept outside the repo, so
+ * `artUnavailable` below lists the cards with a face that has no saved scan. The three scenario records (`shadowland-scenarios.ts`) are
+ * wired in. The pack is not registered in the content index yet.
  *
  * Evidence abbreviations: "scan" is the Hall of Heroes preview `mc65_cards_<stem>.png` (https://hallofheroeslcg.com/
- * shadowland/; also saved as `assets/card-art/bundles/cards/<code>.png`, gitignored), "insert" is the box rules insert
+ * shadowland/; also saved as `assets/card-art/bundles/cards/<code>.png`), "insert" is the box rules insert
  * (docs/campaign-modes/markdown/mc65_shadowland.md, printed pages) and "spec" is docs/phase7-shadowland.md.
  */
 import type { Correction, PackCuration } from "./types.ts";
+import { SHADOWLAND_SCENARIO_RECORDS } from "./shadowland-scenarios.ts";
 import { BLACK_FLOWER_RECORDS } from "./shadowland-encounter/black-flower.ts";
 import { DARK_PROTEGE_RECORDS } from "./shadowland-encounter/dark-protege.ts";
 import { DEADLY_CONTRAPTIONS_RECORDS } from "./shadowland-encounter/deadly-contraptions.ts";
@@ -22,18 +26,53 @@ import { SHADOW_LABYRINTH_RECORDS } from "./shadowland-encounter/shadow-labyrint
 import { SHADOWS_IN_THE_NIGHT_RECORDS } from "./shadowland-encounter/shadows-in-the-night.ts";
 
 /**
- * The collector numbers (footer, printed set position where known) with no public scan yet, by set. Not data: a list for
- * the owner and the D6 task (spec section 6). Faces of a card that is partly seen are named "B side" and so on.
+ * Card ids with at least one printed face that has no saved scan in `assets/card-art/bundles/cards/`: only the 45 Hall of
+ * Heroes preview images are saved there; the other faces were transcribed from card images kept outside the repo (spec
+ * section 3). Each id exempts only its art-less faces from `checkCoverage`'s "no artwork reference" error;
+ * once a scan is saved for every face of a card, ingestion reports the entry as stale: delete it then.
  */
-export const SHADOWLAND_MISSING_FACES: Readonly<Record<string, readonly string[]>> = {
-  shadows_in_the_night: ["1", "2", "6", "7", "9 (main scheme faces and the other scenario cards)"],
-  dark_protege: ["12B to 17B (the six villain B sides)", "20 to 25 (positions 9 to 14: six linked cards)"],
-  ninja_swarm: ["29", "31", "33", "34"],
-  shadow_labyrinth: ["38A", "39A (main scheme A faces)", "40", "43 (Whisper in the Dark is in this set)"],
-  deadly_contraptions: ["52 to 56"],
-  heart_of_shadow: ["58 to 63", "66", "68"],
-  black_flower: ["73 onward (the remaining copies of Creeping Corruption and the other cards)"],
-};
+const NO_LOCAL_SCAN: readonly string[] = [
+  "65001a",
+  "65006",
+  "65007",
+  "65009",
+  "65012a",
+  "65013a",
+  "65014a",
+  "65015a",
+  "65016a",
+  "65017a",
+  "65020",
+  "65021",
+  "65022",
+  "65023",
+  "65024",
+  "65025",
+  "65029",
+  "65031",
+  "65033",
+  "65034",
+  "65038a",
+  "65040",
+  "65043",
+  "65052",
+  "65053",
+  "65054",
+  "65055",
+  "65056",
+  "65057",
+  "65060a",
+  "65062",
+  "65063",
+  "65066",
+  "65068",
+  "65073",
+  "65074",
+  "65075",
+  "65076",
+  "65077",
+  "65078",
+];
 
 export const SHADOWLAND_CURATION: PackCuration = {
   packCode: "shadowland",
@@ -70,6 +109,22 @@ export const SHADOWLAND_CURATION: PackCuration = {
         'Scan 65037.png (mc65_cards_shifting_corridors.png), footer "SHADOW LABYRINTH (1/11) / HIT POINTS (infinity)"; insert p. 13 "Infinite Hit Points".',
       infiniteHp: true,
     },
+    {
+      code: "65038b",
+      reason:
+        "Into the Labyrinth 1B prints the infinity symbol in the threshold circle: no threat target, the stage ends only through its own Forced Interrupt (the last threat removed).",
+      evidence:
+        'Image 65038B.webp (play.marvelsimulator.com), top-left circle: infinity symbol; text "When the last threat is removed from this scheme, advance to stage 2A". Encoded as a dashed targetThreat (no value emitted), as the Wave 6 dashed main scheme thresholds are.',
+      dashedThreatFields: ["targetThreat"],
+    },
+    {
+      code: "65040",
+      reason:
+        'Whisper in the Dark prints no "Attach to" sentence: its own When Revealed puts the set-aside chosen villain into play "with this card attached", so it attaches to the villain when it is revealed.',
+      evidence:
+        'Image 65040.webp, When Revealed text; RRG 1.8 "Reveal" (p. 38) step 2 and the ruling of Feb 20, 2026 (4). Never applied to text.',
+      impliedAttachHost: "ownWhenRevealed",
+    },
     ...(
       [
         ["65064", "Mark of the Wicked"],
@@ -90,6 +145,14 @@ export const SHADOWLAND_CURATION: PackCuration = {
     })),
   ],
   errata: [],
+  artUnavailable: Object.fromEntries(
+    NO_LOCAL_SCAN.map((id) => [
+      id,
+      "Transcribed from a card image kept outside the repo; no scan is saved under assets/card-art (spec section 3, 2026-10-22).",
+    ]),
+  ),
+  // Each Dark Protégé villain is ONE double-sided card (A: HP 15 per hero, B: HP 18) flipped by the main scheme.
+  villainFlipSets: ["dark_protege"],
 
   scriptingNotes: {},
   /**
@@ -111,16 +174,15 @@ export const SHADOWLAND_CURATION: PackCuration = {
     "65045": "Two copies are inferred: this card is 10/11 and the set total is 11 (11/11 not previewed).",
     "65018": "Resource icons read by glyph, in print order [energy][mental][physical] (see 65004a).",
     "65057":
-      "Krahllak prints stage numeral I and 'HEART OF SHADOW (1/17)'. Only one stage is previewed; whether the card has further stages is not known from the previews (the rules insert names one villain card).",
+      "Krahllak is a three-card villain: stage I (65057, HP 18), II (65058, HP 21), III (65059, HP 25), each one-sided with no B side. Dark Invitation 1A lists Krahllak (I) and (II) for normal mode and (II) and (III) for expert. Stage I's text ('Steady.' plus the Interrupt; no Toughness) was re-checked 2026-10-22 against the Hall of Heroes preview.",
     "65070":
       "Two copies are inferred: this card is 14/17 and Submit or Suffer (collector 71) is 16/17, so 15/17 is a second copy. The corner scheme icon is the hazard icon (card with a plus), as in-text on Strategic Positioning 65008.",
     "65071": "Two copies are inferred: this card is 16/17 and the set total is 17 (17/17 not previewed).",
     "65072a":
-      "One double-sided upgrade (72A Setup side, 72B OVERPOWERING side). The cost box prints a dash on both faces. The insert (pp. 9, 14) implies more copies than players, but only 1/13 is previewed, so quantityInSet is 1. Answers spec Q8: the printed text on side B is 'If there are at least 5 corruption counters here, you are defeated.'",
+      "One double-sided upgrade (72A Setup side, 72B OVERPOWERING side), four copies (positions 1 to 4: Aka's footer is 5/13). The cost box prints a dash on both faces. Side B prints 'If there are at least 5 corruption counters here, you are defeated' (spec Q8).",
   },
 
-  // The three scenario records are authored in `shadowland-scenarios.ts` (`SHADOWLAND_SCENARIO_RECORDS`) but cannot be
-  // emitted until each scenario's main scheme (A and B faces) is transcribed; see that file's header.
-  scenarios: [],
+  // The three scenario records (`shadowland-scenarios.ts`).
+  scenarios: SHADOWLAND_SCENARIO_RECORDS,
   starterDecks: [],
 };

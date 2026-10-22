@@ -233,6 +233,13 @@ export interface VillainOption {
    * started at its first). Absent: `villainCardId` holds both modes as stages. No Fear No Evil villain needs it.
    */
   readonly expertVillainCardId?: CardId;
+  /**
+   * The cards linked to this villain (each prints "Linked (A, B, or C)"; RRG 1.8 "Linked", p. 27: a linked card is
+   * never in a deck and is set aside at setup), shuffled into the encounter deck when this option is chosen (the
+   * scenario's 1A Setup says so: 65001A, 65038A) and left set aside otherwise (Shadowland's Dark Protégé: five of the ten
+   * linked cards per villain). Absent: none. Meant for a card-keyed choice (`villainOptions.keyedBy: "card"`).
+   */
+  readonly linkedCardIds?: readonly CardId[];
 }
 
 /**
@@ -513,6 +520,30 @@ export interface Scenario {
   readonly villainOptions?: {
     readonly options: readonly VillainOption[];
     readonly defaultSetId: EncounterSetId;
+    /**
+     * What identifies an option. Absent / `"set"`: its `villainSetId` (one option per villain set, Fear No Evil).
+     * `"card"`: its `villainCardId`, because the options share one encounter set (Shadowland's six Dark Protégé
+     * villains share `dark_protege`); `defaultCardId` is then the default option. A card-keyed choice's set is set aside
+     * as a whole: `Scenario.encounterSetIds` does not name it, and the chosen option's `linkedCardIds` are the only
+     * cards of it that join the encounter deck (the villain cards never do).
+     */
+    readonly keyedBy?: "set" | "card";
+    /** With `keyedBy: "card"`: the default option's villain card (`defaultSetId` alone cannot tell the options apart). */
+    readonly defaultCardId?: CardId;
+    /**
+     * How the setup picks. Absent / `"player"`: the players choose (Fear No Evil), the default is only the fallback.
+     * `"random"`: the printed Setup draws one at random with the game's seeded RNG ("Choose 1 random villain from that
+     * set"); the default is then only what a reader that knows nothing of the choice sees.
+     */
+    readonly selection?: "player" | "random";
+    /**
+     * Where the chosen villain goes. Absent / `"inPlay"`: it is the scenario's villain, in the record's own villain
+     * fields' place. `"setAside"`: the scenario's own villain (`villainCardId`) is unchanged and the chosen villain is
+     * kept set aside for a card ability to bring in (Shadow Labyrinth 1A: "keep the chosen villain set aside"; Whisper in
+     * the Dark brings it in, 2A reveals it); the options' `villainStages`/`victory` are then not compared with the
+     * record's own, and `villainCardId` must not be the default option's.
+     */
+    readonly chosenVillain?: "inPlay" | "setAside";
   };
   /**
    * Villain cards of this scenario that are not in the villain deck at setup, but set aside for card abilities to

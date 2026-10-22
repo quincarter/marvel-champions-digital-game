@@ -8,6 +8,12 @@ import type { CardProvenance, DroppedSourceRecord } from "../types.js";
 
 export const SHADOWLAND_PROVENANCE: readonly CardProvenance[] = [
   {
+    cardId: cardId("65001a"),
+    cardSetCode: "shadows_in_the_night",
+    marvelcdbCodes: ["65001a", "65001b", "65002a", "65002b"],
+    corrections: [],
+  },
+  {
     cardId: cardId("65003a"),
     cardSetCode: "shadows_in_the_night",
     marvelcdbCodes: ["65003a", "65003b"],
@@ -30,9 +36,27 @@ export const SHADOWLAND_PROVENANCE: readonly CardProvenance[] = [
     corrections: [],
   },
   {
+    cardId: cardId("65006"),
+    cardSetCode: "shadows_in_the_night",
+    marvelcdbCodes: ["65006"],
+    corrections: [],
+  },
+  {
+    cardId: cardId("65007"),
+    cardSetCode: "shadows_in_the_night",
+    marvelcdbCodes: ["65007"],
+    corrections: [],
+  },
+  {
     cardId: cardId("65008"),
     cardSetCode: "shadows_in_the_night",
     marvelcdbCodes: ["65008"],
+    corrections: [],
+  },
+  {
+    cardId: cardId("65009"),
+    cardSetCode: "shadows_in_the_night",
+    marvelcdbCodes: ["65009"],
     corrections: [],
   },
   {
@@ -54,37 +78,37 @@ export const SHADOWLAND_PROVENANCE: readonly CardProvenance[] = [
   {
     cardId: cardId("65012a"),
     cardSetCode: "dark_protege",
-    marvelcdbCodes: ["65012a"],
+    marvelcdbCodes: ["65012a", "65012b"],
     corrections: [],
   },
   {
     cardId: cardId("65013a"),
     cardSetCode: "dark_protege",
-    marvelcdbCodes: ["65013a"],
+    marvelcdbCodes: ["65013a", "65013b"],
     corrections: [],
   },
   {
     cardId: cardId("65014a"),
     cardSetCode: "dark_protege",
-    marvelcdbCodes: ["65014a"],
+    marvelcdbCodes: ["65014a", "65014b"],
     corrections: [],
   },
   {
     cardId: cardId("65015a"),
     cardSetCode: "dark_protege",
-    marvelcdbCodes: ["65015a"],
+    marvelcdbCodes: ["65015a", "65015b"],
     corrections: [],
   },
   {
     cardId: cardId("65016a"),
     cardSetCode: "dark_protege",
-    marvelcdbCodes: ["65016a"],
+    marvelcdbCodes: ["65016a", "65016b"],
     corrections: [],
   },
   {
     cardId: cardId("65017a"),
     cardSetCode: "dark_protege",
-    marvelcdbCodes: ["65017a"],
+    marvelcdbCodes: ["65017a", "65017b"],
     corrections: [],
   },
   {
@@ -96,11 +120,21 @@ export const SHADOWLAND_PROVENANCE: readonly CardProvenance[] = [
     ],
   },
   { cardId: cardId("65019"), cardSetCode: "dark_protege", marvelcdbCodes: ["65019"], corrections: [] },
+  { cardId: cardId("65020"), cardSetCode: "dark_protege", marvelcdbCodes: ["65020"], corrections: [] },
+  { cardId: cardId("65021"), cardSetCode: "dark_protege", marvelcdbCodes: ["65021"], corrections: [] },
+  { cardId: cardId("65022"), cardSetCode: "dark_protege", marvelcdbCodes: ["65022"], corrections: [] },
+  { cardId: cardId("65023"), cardSetCode: "dark_protege", marvelcdbCodes: ["65023"], corrections: [] },
+  { cardId: cardId("65024"), cardSetCode: "dark_protege", marvelcdbCodes: ["65024"], corrections: [] },
+  { cardId: cardId("65025"), cardSetCode: "dark_protege", marvelcdbCodes: ["65025"], corrections: [] },
   { cardId: cardId("65026"), cardSetCode: "dark_protege", marvelcdbCodes: ["65026"], corrections: [] },
   { cardId: cardId("65027"), cardSetCode: "dark_protege", marvelcdbCodes: ["65027"], corrections: [] },
   { cardId: cardId("65028"), cardSetCode: "ninja_swarm", marvelcdbCodes: ["65028"], corrections: [] },
+  { cardId: cardId("65029"), cardSetCode: "ninja_swarm", marvelcdbCodes: ["65029"], corrections: [] },
   { cardId: cardId("65030"), cardSetCode: "ninja_swarm", marvelcdbCodes: ["65030"], corrections: [] },
+  { cardId: cardId("65031"), cardSetCode: "ninja_swarm", marvelcdbCodes: ["65031"], corrections: [] },
   { cardId: cardId("65032"), cardSetCode: "ninja_swarm", marvelcdbCodes: ["65032"], corrections: [] },
+  { cardId: cardId("65033"), cardSetCode: "ninja_swarm", marvelcdbCodes: ["65033"], corrections: [] },
+  { cardId: cardId("65034"), cardSetCode: "ninja_swarm", marvelcdbCodes: ["65034"], corrections: [] },
   { cardId: cardId("65035"), cardSetCode: "ninja_swarm", marvelcdbCodes: ["65035"], corrections: [] },
   { cardId: cardId("65036"), cardSetCode: "ninja_swarm", marvelcdbCodes: ["65036"], corrections: [] },
   {
@@ -113,6 +147,22 @@ export const SHADOWLAND_PROVENANCE: readonly CardProvenance[] = [
     ],
   },
   {
+    cardId: cardId("65038a"),
+    cardSetCode: "shadow_labyrinth",
+    marvelcdbCodes: ["65038a", "65038b", "65039a", "65039b"],
+    corrections: [
+      "65038b: Into the Labyrinth 1B prints the infinity symbol in the threshold circle: no threat target, the stage ends only through its own Forced Interrupt (the last threat removed). [evidence: Image 65038B.webp (play.marvelsimulator.com), top-left circle: infinity symbol; text \"When the last threat is removed from this scheme, advance to stage 2A\". Encoded as a dashed targetThreat (no value emitted), as the Wave 6 dashed main scheme thresholds are.]",
+    ],
+  },
+  {
+    cardId: cardId("65040"),
+    cardSetCode: "shadow_labyrinth",
+    marvelcdbCodes: ["65040"],
+    corrections: [
+      "65040: Whisper in the Dark prints no \"Attach to\" sentence: its own When Revealed puts the set-aside chosen villain into play \"with this card attached\", so it attaches to the villain when it is revealed. [evidence: Image 65040.webp, When Revealed text; RRG 1.8 \"Reveal\" (p. 38) step 2 and the ruling of Feb 20, 2026 (4). Never applied to text.]",
+    ],
+  },
+  {
     cardId: cardId("65041"),
     cardSetCode: "shadow_labyrinth",
     marvelcdbCodes: ["65041"],
@@ -122,6 +172,12 @@ export const SHADOWLAND_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("65042"),
     cardSetCode: "shadow_labyrinth",
     marvelcdbCodes: ["65042"],
+    corrections: [],
+  },
+  {
+    cardId: cardId("65043"),
+    cardSetCode: "shadow_labyrinth",
+    marvelcdbCodes: ["65043"],
     corrections: [],
   },
   {
@@ -177,12 +233,60 @@ export const SHADOWLAND_PROVENANCE: readonly CardProvenance[] = [
     corrections: [],
   },
   {
+    cardId: cardId("65052"),
+    cardSetCode: "deadly_contraptions",
+    marvelcdbCodes: ["65052"],
+    corrections: [],
+  },
+  {
+    cardId: cardId("65053"),
+    cardSetCode: "deadly_contraptions",
+    marvelcdbCodes: ["65053"],
+    corrections: [],
+  },
+  {
+    cardId: cardId("65054"),
+    cardSetCode: "deadly_contraptions",
+    marvelcdbCodes: ["65054"],
+    corrections: [],
+  },
+  {
+    cardId: cardId("65055"),
+    cardSetCode: "deadly_contraptions",
+    marvelcdbCodes: ["65055"],
+    corrections: [],
+  },
+  {
+    cardId: cardId("65056"),
+    cardSetCode: "deadly_contraptions",
+    marvelcdbCodes: ["65056"],
+    corrections: [],
+  },
+  {
     cardId: cardId("65057"),
     cardSetCode: "heart_of_shadow",
-    marvelcdbCodes: ["65057"],
+    marvelcdbCodes: ["65057", "65058", "65059"],
     corrections: [
-      "data decision: Krahllak prints stage numeral I and 'HEART OF SHADOW (1/17)'. Only one stage is previewed; whether the card has further stages is not known from the previews (the rules insert names one villain card).",
+      "data decision: Krahllak is a three-card villain: stage I (65057, HP 18), II (65058, HP 21), III (65059, HP 25), each one-sided with no B side. Dark Invitation 1A lists Krahllak (I) and (II) for normal mode and (II) and (III) for expert. Stage I's text ('Steady.' plus the Interrupt; no Toughness) was re-checked 2026-10-22 against the Hall of Heroes preview.",
     ],
+  },
+  {
+    cardId: cardId("65060a"),
+    cardSetCode: "heart_of_shadow",
+    marvelcdbCodes: ["65060a", "65060b", "65061a", "65061b"],
+    corrections: [],
+  },
+  {
+    cardId: cardId("65062"),
+    cardSetCode: "heart_of_shadow",
+    marvelcdbCodes: ["65062"],
+    corrections: [],
+  },
+  {
+    cardId: cardId("65063"),
+    cardSetCode: "heart_of_shadow",
+    marvelcdbCodes: ["65063"],
+    corrections: [],
   },
   {
     cardId: cardId("65064"),
@@ -201,9 +305,21 @@ export const SHADOWLAND_PROVENANCE: readonly CardProvenance[] = [
     ],
   },
   {
+    cardId: cardId("65066"),
+    cardSetCode: "heart_of_shadow",
+    marvelcdbCodes: ["65066"],
+    corrections: [],
+  },
+  {
     cardId: cardId("65067"),
     cardSetCode: "heart_of_shadow",
     marvelcdbCodes: ["65067"],
+    corrections: [],
+  },
+  {
+    cardId: cardId("65068"),
+    cardSetCode: "heart_of_shadow",
+    marvelcdbCodes: ["65068"],
     corrections: [],
   },
   {
@@ -235,9 +351,15 @@ export const SHADOWLAND_PROVENANCE: readonly CardProvenance[] = [
     corrections: [
       "65072a: Creeping Corruption prints a dash in the cost box: it never has a cost, it enters play through Setup or the campaign instructions. [evidence: Scan 65072a.png (cost box holds a dash); insert pp. 9 and 14 (put into play under each player's control). RRG Dash (Value), p. 15.]",
       "65072b: Creeping Corruption prints a dash in the cost box: it never has a cost, it enters play through Setup or the campaign instructions. [evidence: Scan 65072b.png (cost box holds a dash); insert pp. 9 and 14 (put into play under each player's control). RRG Dash (Value), p. 15.]",
-      "data decision: One double-sided upgrade (72A Setup side, 72B OVERPOWERING side). The cost box prints a dash on both faces. The insert (pp. 9, 14) implies more copies than players, but only 1/13 is previewed, so quantityInSet is 1. Answers spec Q8: the printed text on side B is 'If there are at least 5 corruption counters here, you are defeated.'",
+      "data decision: One double-sided upgrade (72A Setup side, 72B OVERPOWERING side), four copies (positions 1 to 4: Aka's footer is 5/13). The cost box prints a dash on both faces. Side B prints 'If there are at least 5 corruption counters here, you are defeated' (spec Q8).",
     ],
   },
+  { cardId: cardId("65073"), cardSetCode: "black_flower", marvelcdbCodes: ["65073"], corrections: [] },
+  { cardId: cardId("65074"), cardSetCode: "black_flower", marvelcdbCodes: ["65074"], corrections: [] },
+  { cardId: cardId("65075"), cardSetCode: "black_flower", marvelcdbCodes: ["65075"], corrections: [] },
+  { cardId: cardId("65076"), cardSetCode: "black_flower", marvelcdbCodes: ["65076"], corrections: [] },
+  { cardId: cardId("65077"), cardSetCode: "black_flower", marvelcdbCodes: ["65077"], corrections: [] },
+  { cardId: cardId("65078"), cardSetCode: "black_flower", marvelcdbCodes: ["65078"], corrections: [] },
 ];
 
 /** MarvelCDB records deliberately not ingested, with the reason. */

@@ -495,6 +495,29 @@ export interface ScenarioCuration {
     >
   >;
   /**
+   * `Scenario.villainOptions` keyed by villain CARD (`keyedBy: "card"`), for options that share one encounter set
+   * (Shadowland: the six Dark Protégé villains in `dark_protege`). Each option names its villain card and the linked
+   * cards that join the encounter deck when it is chosen; the option's set is that card's own (first) encounter set.
+   * `villainStages` falls back to this record's. Exclusive with `villainOptionSetCodes`. The record's `villainSetCode`
+   * must NOT be the options' set (the set is set aside whole, so it never reaches `Scenario.encounterSetIds`).
+   */
+  readonly villainCardOptions?: {
+    readonly options: readonly {
+      readonly villainCardCode: string;
+      readonly linkedCardCodes: readonly string[];
+      readonly villainStages?: {
+        readonly standard: readonly [number, number];
+        readonly expert: readonly [number, number];
+      };
+    }[];
+    /** The default option's villain card code (the record's `villainCardCode` unless `chosenVillain` is `"setAside"`). */
+    readonly defaultCardCode: string;
+    /** `villainOptions.selection`. Absent = `"player"`. */
+    readonly selection?: "player" | "random";
+    /** `villainOptions.chosenVillain`. Absent = `"inPlay"`. */
+    readonly chosenVillain?: "inPlay" | "setAside";
+  };
+  /**
    * `Scenario.mainSchemeChoice` (docs/phase7-wave11-scenarios.md §S3.1): the MarvelCDB codes of the main scheme cards
    * the players deal themselves one each from (Protection Racket's five, MC60 p. 13). The first is
    * `Scenario.mainSchemeCardId`'s card; every code must be a main scheme card of the pack (see
@@ -750,6 +773,14 @@ export interface PackCuration {
    * ingestion error (a typo). Absent = none.
    */
   readonly villainFaceNamesMayDiffer?: readonly string[];
+  /**
+   * Villain sets whose top-level villain records are each ONE double-sided card flipped by a card ability, although the
+   * two faces print different stage letters ("A" then "B") that the normalizer would otherwise read as difficulty
+   * versions (MaGog) or collide into one-stage cards (Mansion Attack). Shadowland's six Dark Protégé villains
+   * (`dark_protege`: side A HP 15 per hero, side B HP 18; the main scheme's Forced Interrupt flips A to B). Each record
+   * becomes one `VillainCard` with sides A and B, each a single stage 1 (the letter stays as `stageLabel`). Absent = none.
+   */
+  readonly villainFlipSets?: readonly string[];
   /**
    * An auxiliary `card_set_code` → the pack's hero identity's own (primary) `card_set_code`, for a hero-kit card
    * MarvelCDB files under a themed sub-set instead of the identity's own set — Storm's four Weather Deck supports
