@@ -3,7 +3,7 @@ import type { AbilityId } from "@mc/content";
 import type { AbilityTriggerSpec } from "@mc/engine";
 import { POOL_DEPS } from "../content/pool.js";
 import type { InstanceId } from "@mc/engine";
-import { sameHandTags, triggerTagKindOf, villainHandTagOf } from "./villain-hand-tags.js";
+import { handTriggersOf, sameHandTags, triggerTagKindOf, villainHandTagOf } from "./villain-hand-tags.js";
 
 const triggerOf = (id: string): AbilityTriggerSpec => {
   const trigger = POOL_DEPS.abilities[id as AbilityId]?.trigger;
@@ -45,5 +45,18 @@ describe("villain hand tags", () => {
       text: "Your turn",
       ring: false,
     });
+  });
+});
+
+describe("villain hand tags: cards that only answer from play", () => {
+  it("an upgrade's response waits for the player's turn in hand; an event's is tagged by what it waits for", () => {
+    const definition = (id: string) => POOL_DEPS.abilities[id as AbilityId];
+    // Indomitable (01082), an upgrade: its Response is on the card in play, so in hand it is not WHEN HIT.
+    const indomitable = handTriggersOf(false, [definition("01082.indomitable-response")]);
+    expect(indomitable).toEqual([]);
+    expect(villainHandTagOf(indomitable, false, false).kind).toBe("turn");
+    // Backflip (01003), an event: played as its interrupt.
+    const backflip = handTriggersOf(true, [definition("01003.backflip-interrupt")]);
+    expect(villainHandTagOf(backflip, false, false).kind).toBe("hit");
   });
 });

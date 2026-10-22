@@ -815,6 +815,8 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
       problems.push("encounterCardBeingDealt is interrupt-only: after a player is dealt a card is encounterCardDealt");
     if (kinds.includes("boostCardBeingGiven"))
       problems.push("boostCardBeingGiven is interrupt-only: after a boost card is given is boostCardGiven");
+    if (kinds.includes("encounterCardBeingRevealed"))
+      problems.push("encounterCardBeingRevealed is interrupt-only: after a card is revealed is cardRevealed");
     if (kinds.includes("boostCardTurningFaceup"))
       problems.push(
         "boostCardTurningFaceup is interrupt-only: after a boost card is turned faceup is boostCardTurnedFaceup",

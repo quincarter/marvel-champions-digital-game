@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Pressing HIDE on the villain phase before the replay reaches your decision no longer leaves that decision hidden: the rail comes back for it, so an interrupt or a defense is not missed.'
+time: 2026-10-22T08:44:49.9932567-04:00

@@ -1170,9 +1170,14 @@ function describe(
       if (!source || source === event.instanceId || playerCardOwnerOf(state, source) !== null) return null;
       return { text: `${card(source)} exhausts ${card(event.instanceId)}.`, voice: "villain" };
     }
+    // A card ability's ready is told too ("discard Indomitable → ready your hero"): the log showed only the cost, so a
+    // ready mid villain phase read as a response that did nothing.
     case "cardReadied": {
-      const cause = burst && burst.at > 0 ? burst.events[burst.at - 1] : undefined;
-      if (cause?.type !== "formChanged" && cause?.type !== "cardFlipped") return null;
+      let at = burst ? burst.at - 1 : -1;
+      while (at >= 0 && (burst!.events[at]!.type === "framePushed" || burst!.events[at]!.type === "framePopped")) at--;
+      const cause = at >= 0 ? burst!.events[at] : undefined;
+      if (cause?.type !== "formChanged" && cause?.type !== "cardFlipped" && cause?.type !== "abilityResolved")
+        return null;
       return { text: `${card(event.instanceId)} readies.`, voice: "player" };
     }
     // Storm's Weather Control / Weather Goddess, and every other swap (RRG 1.8 "Swap", p. 42).
