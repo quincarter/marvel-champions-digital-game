@@ -38,6 +38,7 @@ export function newExtrasOf(known: ReadonlySet<string>, open: ReadonlyMap<string
 const ONE: Record<ExtrasTab, string> = {
   music: "New song earned",
   stories: "New story unlocked",
+  side: "New side story unlocked",
   heroes: "New hero file",
   villains: "New villain file",
   art: "New artwork",
@@ -47,6 +48,7 @@ const ONE: Record<ExtrasTab, string> = {
 const MANY: Record<ExtrasTab, string> = {
   music: "new songs earned",
   stories: "new stories unlocked",
+  side: "new side stories unlocked",
   heroes: "new hero files",
   villains: "new villain files",
   art: "new artworks",

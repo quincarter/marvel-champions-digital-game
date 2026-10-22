@@ -12,6 +12,7 @@ import {
   extrasNewsBetween,
   extrasProgressOf,
   musicEntriesOf,
+  sideStoryEntriesOf,
   unlockHint,
   withEndedGame,
   type ExtrasEntry,
@@ -164,6 +165,23 @@ describe("what opens what", () => {
 });
 
 describe("the catalog", () => {
+  it("opens the Thor and She-Hulk side story with its achievement only, read in the comic reader", () => {
+    const story = entry("side:thor-she-hulk-badlands-date");
+    expect(story.tab).toBe("side");
+    expect(story.unlock).toEqual({ kind: "achievement", achievementId: "worthy-of-a-second-date" });
+    expect(open({}).isOpen(story.unlock)).toBe(false);
+    expect(open({ earnedAchievementIds: ["teamup-first-card"] }).isOpen(story.unlock)).toBe(false);
+    expect(open({ earnedAchievementIds: ["worthy-of-a-second-date"] }).isOpen(story.unlock)).toBe(true);
+    expect(unlockHint(story.unlock)).toBe("Earn the Worthy of a Second Date? achievement");
+    expect(story.content).toEqual({ kind: "comic", storyId: "thor-she-hulk-badlands-date" });
+    expect(story.thumb?.key).toBe("side-story-art:thor-she-hulk-badlands-date/page-06.jpg");
+  });
+
+  it("leaves a side story with no pages off the shelf", () => {
+    const story = { id: "nobody", title: "T", subtitle: "S", achievementId: "a", credit: "", pages: [] };
+    expect(sideStoryEntriesOf([story], new Map())).toEqual([]);
+  });
+
   it("shows the loose pictures of art/extras/ as always-open artwork", () => {
     const entry = EXTRAS_ENTRIES.art.find((e) => e.id === "art:extras-art:psylocke-and-angel.png")!;
     expect(entry.title).toBe("Psylocke and Angel");

@@ -590,7 +590,7 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   def({
     id: "worthy-of-a-second-date",
     name: "Worthy of a Second Date?",
-    description: "Win a game with Thor and She-Hulk seated together.",
+    description: "Win a game with Thor and She-Hulk seated together. Opens their side story in Extras.",
     family: "teamups",
     points: 150,
     measure: (f) =>
