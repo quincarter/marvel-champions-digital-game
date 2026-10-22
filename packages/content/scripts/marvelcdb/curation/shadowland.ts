@@ -8,11 +8,10 @@
  * Every printed card is transcribed: 90 printed copies, 73 distinct card records. The Hall of Heroes previews gave 45 card
  * images (300 x 426); the remaining faces were transcribed from full-size card images, and those full-size images
  * (card images from play.marvelsimulator.com, owner-approved 2026-10-22) are now saved too, so every face has a scan under
- * `assets/card-art/bundles/cards/` and no `artUnavailable` entry is left. They are stand-ins: recorded in
- * `assets/card-art/hall-of-heroes-manifest.tsv` with that source, and `scripts/fetch_card_art.py fetch` replaces them
- * with an official Hall of Heroes scan once one is published. The previews of 65042, 65049 and 65070 were replaced by
- * the larger image. The three scenario records (`shadowland-scenarios.ts`) are wired in. The pack is not registered in the
- * content index yet.
+ * `assets/card-art/bundles/cards/` and no `artUnavailable` entry is left. They are recorded in
+ * `assets/card-art/hall-of-heroes-manifest.tsv` with that source, the same Marvel Simulator source `scripts/fetch_card_art.py
+ * simulator` uses for scans Hall of Heroes doesn't carry clean (#360, which also moved the 45 preview scans to it). The
+ * three scenario records (`shadowland-scenarios.ts`) are wired in and the pack is in the content index.
  *
  * Evidence abbreviations: "scan" is the Hall of Heroes preview `mc65_cards_<stem>.png` (https://hallofheroeslcg.com/
  * shadowland/; also saved as `assets/card-art/bundles/cards/<code>.png`), "insert" is the box rules insert
