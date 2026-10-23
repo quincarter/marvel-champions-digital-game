@@ -68,6 +68,7 @@ import { drawCompactIdentity } from "./board/compact-identity.js";
 import { sameHandTags, type VillainHandTag } from "../view/villain-hand-tags.js";
 import { REVIEW_HANDLE_WIDTH, reviewHandleRect, showReviewHandle } from "../view/villain-review.js";
 import { sameFacedown, withFacedownHeld, type TableHold } from "../view/villain-replay.js";
+import { holdTableGame, tableGame } from "../view/table-game.js";
 import type { SessionState } from "../store/session-store.js";
 import { CHROME_SCENES, SCENES } from "./keys.js";
 import { tableSoundsOf, type CardSoundInfo } from "../view/sound-effects.js";
@@ -363,6 +364,7 @@ export class BoardScene extends Phaser.Scene {
     this.#walkthroughLaunching = false;
     this.#outcomeHeld = false;
     this.#villainReplay = null;
+    holdTableGame(null);
     // Phaser reuses this one instance for every game — "Run it back" and
     // "Continue" start this same scene again — so everything about *a game*
     // starts over here. The log didn't, and a rematch was dealt under the
@@ -620,6 +622,8 @@ export class BoardScene extends Phaser.Scene {
         phaseBand: () => this.#motion.debugPhaseBand(),
         phaseBandLog: () => this.#motion.debugPhaseBandLog(),
         pendingChoice: () => appSession().store.state.game?.pendingChoice ?? null,
+        // The game the table draws: the villain phase replay's beat while it is behind the engine (#386), else live.
+        tableGame: () => this.#villainReplay?.hold?.game ?? appSession().store.state.game,
         guideStepId: () => this.#guide?.debugStepId() ?? null,
         guideStopped: () => this.#guide?.stopped ?? false,
         guideNudge: () => this.#guide?.debugNudge() ?? null,
@@ -989,7 +993,7 @@ export class BoardScene extends Phaser.Scene {
    * Null with none, so a game without a Team-Up draws exactly as before.
    */
   #teamUpRings(tabbed: boolean): TeamUpRings | undefined {
-    const game = appSession().store.state.game;
+    const game = tableGame(appSession().store.state.game);
     if (!game || this.#teamUps.length === 0) return undefined;
     const byPlayer = new Map<string, TeamUpBadge[]>();
     for (const pair of this.#teamUps) {
@@ -1031,7 +1035,7 @@ export class BoardScene extends Phaser.Scene {
 
   /** The Team-Up role of each card in this seat's hand, for the tag on it. */
   #teamUpRoles(model: BoardModel): ReadonlyMap<InstanceId, TeamUpRole> {
-    const game = appSession().store.state.game;
+    const game = tableGame(appSession().store.state.game);
     const roles = new Map<InstanceId, TeamUpRole>();
     if (!game) return roles;
     const pairs = poolTeamUpPairs(game);
@@ -1292,7 +1296,7 @@ export class BoardScene extends Phaser.Scene {
       makeTapTarget: (rect, id, onTap, drag, onHover, clip) =>
         this.#makeTapTarget(rect, id, onTap, drag, onHover, clip),
       dealtCaptionOf: (ids) => {
-        const game = appSession().store.state.game;
+        const game = tableGame(appSession().store.state.game);
         return dealtCaption(ids.length, game ? dealtReasonsOf(this.#cardHistory, ids, game) : []);
       },
       inspect: (id, siblings) => this.#inspect(id, siblings),
@@ -2087,6 +2091,7 @@ export class BoardScene extends Phaser.Scene {
       (was?.hold === null) === (replay?.hold === null);
     if (same) return;
     this.#villainReplay = replay;
+    holdTableGame(replay?.hold?.game ?? null);
     this.#draw();
   }
 

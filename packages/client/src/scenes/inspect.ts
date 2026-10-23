@@ -119,6 +119,7 @@ import { destroyChildren } from "../ui/destroy-children.js";
 import { McGuideTag } from "../ui/guide-tag.js";
 import type { TeamUpNotice } from "../view/team-up-model.js";
 import { drawGuideStrip, GUIDE_STRIP_HEIGHT } from "../ui/guide-strip.js";
+import { tableGame } from "../view/table-game.js";
 
 /** What the caller hands over when it launches this overlay. */
 export interface InspectData {
@@ -315,7 +316,7 @@ export class InspectOverlay extends Phaser.Scene {
   create(data: InspectData): void {
     this.#instanceId = data.instanceId ?? null;
     // Opened on a card with cards under it (or on one of those): ◂ ▸ step through the host and what is tucked under it.
-    const game = appSession().store.state.game;
+    const game = tableGame(appSession().store.state.game);
     this.#siblings =
       data.siblings ??
       (game && data.instanceId && !data.choice && !data.card ? [...tuckedSiblings(game, data.instanceId)] : []);
@@ -430,7 +431,7 @@ export class InspectOverlay extends Phaser.Scene {
   /** Opens another card's sheet in place (a link from the host to an attachment, or back), stepping through its group. */
   #openCard(id: InstanceId): void {
     if (id === this.#instanceId) return;
-    const game = appSession().store.state.game;
+    const game = tableGame(appSession().store.state.game);
     if (!this.#siblings.includes(id) && game) this.#siblings = [...tuckedSiblings(game, id)];
     this.#instanceId = id;
     this.#expanded = false;
@@ -626,11 +627,18 @@ export class InspectOverlay extends Phaser.Scene {
           ),
         }
       : null;
-    return inspectModel(state.game, this.#instanceId, state.legal?.actions ?? null, state.perspectiveId, POOL_DEPS, {
-      history: board?.cardHistory() ?? emptyCardHistoryLog(),
-      payment,
-      ...(this.#flipped ? this.#flippedFace() : {}),
-    });
+    return inspectModel(
+      tableGame(state.game)!,
+      this.#instanceId,
+      state.legal?.actions ?? null,
+      state.perspectiveId,
+      POOL_DEPS,
+      {
+        history: board?.cardHistory() ?? emptyCardHistoryLog(),
+        payment,
+        ...(this.#flipped ? this.#flippedFace() : {}),
+      },
+    );
   }
 
   /** The "Show A side" / "Show B side" toggle for this sheet's subject, or null when it is not a main scheme stage. */
@@ -638,7 +646,7 @@ export class InspectOverlay extends Phaser.Scene {
     if (this.#reference) return null;
     if (this.#card)
       return schemeSideToggle(CARDS_BY_ID.get(this.#card.cardId as string), this.#card.face, this.#flipped);
-    const game = appSession().store.state.game;
+    const game = tableGame(appSession().store.state.game);
     if (!game || !this.#instanceId) return null;
     return schemeSideToggle(cardOf(game, this.#instanceId), faceOf(game, this.#instanceId), this.#flipped);
   }

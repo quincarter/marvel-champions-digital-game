@@ -40,6 +40,7 @@ import {
 } from "../view/card-hover.js";
 import { cardInspectModel, inspectModel, type InspectModel } from "../view/inspect-model.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
+import { tableGame } from "../view/table-game.js";
 
 /** Above every other thing the Board draws (the phase band is 1150). */
 const HOVER_DEPTH = 2000;
@@ -277,7 +278,7 @@ export class HoverPreview {
       this.#candidateRect = rect;
       this.#candidateHp = found.hp ?? null;
       // The Hero card popover and Villain card popover settings turn those two kinds off.
-      const game = appSession().store.state.game;
+      const game = tableGame(appSession().store.state.game);
       const type = game ? cardOf(game, id)?.type : undefined;
       if (type === "hero_identity" && !settings.hoverHeroCard) return null;
       if (type === "villain" && !settings.hoverVillainCard) return null;
@@ -416,7 +417,7 @@ export class HoverPreview {
     readonly waitingFor: string | null;
   } | null {
     const state = appSession().store.state;
-    const game = state.game;
+    const game = tableGame(state.game);
     if (!game || state.perspectiveId === null) return null;
     const model = inspectModel(game, id, null, state.perspectiveId, POOL_DEPS);
     // A facedown card or pile shows nothing the table doesn't: no popover. A Drone drawn with its earned Drone art

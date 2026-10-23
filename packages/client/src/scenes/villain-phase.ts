@@ -982,6 +982,15 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       hasCloseTimer: this.#closeTimer !== null,
       reducedMotion: appSession().settings.reducedMotion,
       presentation: this.#presentation,
+      // "N OF M" as the strip shows it, and the "+N WAITING" count (#386).
+      encounterStrip: this.#latest?.game
+        ? (this.#encounterStrip(
+            revealOf(this.#walkthrough, this.#revealed),
+            this.#latest.game,
+            this.#latest.perspectiveId,
+          )?.tiles.map((tile) => tile.status) ?? [])
+        : [],
+      waiting: this.#flipState()?.waiting ?? null,
     };
   }
 

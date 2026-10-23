@@ -86,7 +86,11 @@ export function tableHoldOf(
 
 /**
  * The latest table the rail is past (`WalkthroughTable.atBeat` below `revealed`): before any beat is shown, the phase's
- * opening. Undefined when the host recorded none.
+ * opening. Undefined when the host recorded none. Without an opening (a game resumed mid-phase, whose next command's
+ * tables start past the beats replayed so far) the earliest recorded table stands in: still nearer the rail than the
+ * engine's end state. A command's last tables can sit at `atBeat === total` and never be drawn: the hold lets go of
+ * the table once the rail has caught up, and on a last card waiting on Flip Encounter Card the table rightly stays
+ * at its reveal.
  */
 export function tableAt(walkthrough: Walkthrough, revealed: number): GameState | undefined {
   let found: GameState | undefined;
