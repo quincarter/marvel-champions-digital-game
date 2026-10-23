@@ -9,7 +9,6 @@ import {
   syncStatusDisplay,
   syncStatusNeedsAttention,
   syncStatusText,
-  syncStepMustAcknowledge,
   syncStepWorking,
   UNAVAILABLE_TEXT,
 } from "./sync-model.js";
@@ -45,12 +44,6 @@ describe("steps", () => {
     expect(syncStepWorking({ kind: "link", phase: "uploading" })).toBe(true);
     expect(syncStepWorking({ kind: "home" })).toBe(false);
     expect(syncStepWorking({ kind: "join", phase: "typing", input: "" })).toBe(false);
-  });
-
-  test("the recovery code must be acknowledged before the setup screen can be left", () => {
-    expect(syncStepMustAcknowledge({ kind: "setup", phase: { code: CODE } })).toBe(true);
-    expect(syncStepMustAcknowledge({ kind: "setup", phase: "creating" })).toBe(false);
-    expect(syncStepMustAcknowledge({ kind: "show-code", code: CODE })).toBe(false);
   });
 });
 

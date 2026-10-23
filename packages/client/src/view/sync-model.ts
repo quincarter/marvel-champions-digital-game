@@ -53,11 +53,6 @@ export function syncStepWorking(step: SyncStep): boolean {
   }
 }
 
-/** A step Escape or the ✕ may not leave: the recovery code was shown once and the player has not said they saved it. */
-export function syncStepMustAcknowledge(step: SyncStep): boolean {
-  return step.kind === "setup" && step.phase !== "creating";
-}
-
 // ---- the recovery code ---------------------------------------------------------------------------------------------
 
 /** "ABCDE-FGHJK-MNPQR-STUVW-XYZ23"; a code that isn't a code is returned as it is. */

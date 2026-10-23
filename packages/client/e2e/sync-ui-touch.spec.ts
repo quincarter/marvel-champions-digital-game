@@ -74,6 +74,9 @@ test("a swipe that lifts over a sync control presses nothing; a tap does", async
 
   await swipeOnto(page, "ack");
   expect(await hasText(page, "Your recovery code", SYNC_DATA), "a swipe lifting on the acknowledge stays").toBe(true);
+  // The ✕ closes the code screen too now, so a swipe lifting on it must not.
+  await swipeOnto(page, "back");
+  expect(await hasText(page, "Your recovery code", SYNC_DATA), "a swipe lifting on the close stays").toBe(true);
   await tap(page, "ack");
   await waitForSyncText(page, "Sync is on");
 

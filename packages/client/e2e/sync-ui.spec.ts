@@ -46,7 +46,7 @@ async function press(page: Page, scene: string, key: string): Promise<void> {
   await clickStop(page, key, scene);
 }
 
-test("set up shows the recovery code once and needs the acknowledge; the status line follows", async ({
+test("set up shows the recovery code once; copy and the acknowledge work; the status line follows", async ({
   page,
   context,
 }, info) => {
@@ -72,15 +72,11 @@ test("set up shows the recovery code once and needs the acknowledge; the status 
   await waitForSyncText(page, grouped);
   await shot(page, phone, "2-setup-code");
 
-  // The code was shown once: Escape and the close button leave it up until the player says they have saved it.
-  await pressKey(page, "Escape");
+  // Copy code, then I've saved my code, lands on the sync screen with sync on (the reported stuck dialog came after a
+  // press on this screen).
+  await press(page, SYNC_DATA, "copy");
   await settle(page, { quietMs: 300, maxMs: 1500 });
   expect(await activeScenes(page)).toContain(SYNC_DATA);
-  expect(await hasText(page, "Your recovery code", SYNC_DATA)).toBe(true);
-  await clickStop(page, "back", SYNC_DATA);
-  await settle(page, { quietMs: 300, maxMs: 1500 });
-  expect(await hasText(page, "Your recovery code", SYNC_DATA)).toBe(true);
-
   await press(page, SYNC_DATA, "ack");
   await waitForSyncText(page, "Sync is on");
   await waitForSyncText(page, "Status: Synced");

@@ -46,7 +46,6 @@ import {
   JOIN_LINK_SWITCH_BODY,
   UNLINK_BODY,
   UNLINK_TITLE,
-  syncStepMustAcknowledge,
   syncStepWorking,
   type SyncStep,
 } from "../view/sync-model.js";
@@ -140,14 +139,19 @@ export class SyncDataOverlay extends Phaser.Scene {
 
   // ---- navigation ------------------------------------------------------------------------------------------------
 
+  /**
+   * ✕: closes from any step that isn't waiting on the network. On the new recovery code that counts as the
+   * acknowledge: the code stays on this device, and Show recovery code brings it back (locking ✕ there read as a dialog
+   * that could not be closed).
+   */
   #close(): void {
-    if (syncStepMustAcknowledge(this.#step)) return;
+    if (this.#working) return;
     this.#motion.exit(this, () => this.scene.stop());
   }
 
-  /** Escape: backs out one step, then closes; ignored while something is in flight or a code is unacknowledged. */
+  /** Escape: backs out one step, then closes; ignored while something is in flight. */
   #cancel(): void {
-    if (syncStepWorking(this.#step) || syncStepMustAcknowledge(this.#step)) return;
+    if (syncStepWorking(this.#step)) return;
     if (this.#step.kind === "home") this.#close();
     else this.#set({ kind: "home" }, NO_STATUS);
   }
@@ -311,14 +315,13 @@ export class SyncDataOverlay extends Phaser.Scene {
       width: closeSize,
       height: closeSize,
     };
-    const locked = this.#working || syncStepMustAcknowledge(step);
     this.#buttons.push(
       new McButton(this, {
         kind: "secondary",
         label: "✕",
         type: typeRole.rowTitle,
         rect: closeRect,
-        enabled: !locked,
+        enabled: !this.#working,
         onClick: () => this.#close(),
       }),
     );

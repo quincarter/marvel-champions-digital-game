@@ -253,13 +253,8 @@ test("Set up shows the recovery code to acknowledge; Join opens the join field",
   await waitForSyncText(page, code!.match(/.{5}/g)!.join("-"));
   expect(cloud.spaces.size).toBe(1);
   await shot(page, phone, "4-setup-code");
-  // Not dismissable until the code is acknowledged.
-  await pressKey(page, "Escape");
-  await settle(page, { quietMs: 300, maxMs: 1500 });
-  expect(await hasText(page, "Your recovery code", SYNC_DATA)).toBe(true);
-
-  await press(page, phone, "ack", SYNC_DATA);
-  await waitForSyncText(page, "Sync is on");
+  // The ✕ closes straight from the code (it used to be locked until I've saved my code, which read as a dialog that
+  // could not be closed); the code stays on the device for Show recovery code.
   await press(page, phone, "back", SYNC_DATA);
   await gone(page, SYNC_DATA, "sync screen closes");
   await gone(page, PROMPT, "the prompt closes");

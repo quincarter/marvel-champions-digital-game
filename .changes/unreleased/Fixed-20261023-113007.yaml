@@ -1,0 +1,3 @@
+kind: Fixed
+body: The ✕ and Escape now close Sync across devices while it shows a new recovery code, instead of staying locked until "I've saved my code".
+time: 2026-10-23T11:30:07.8106964-04:00
