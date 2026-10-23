@@ -92,11 +92,13 @@ const VIEWPORT_TOLERANCE_PX = 2;
  * Enables each interactive object under `objects` only while its own on-screen bounds sit wholly inside `viewport`
  * — for a `McScrollRegion` (`clipInteractive`) whose content holds controls that pass no `clip` of their own, so a
  * button scrolled up under the screen's header can't answer a tap meant for whatever is drawn there. Wholly, not
- * partly: the hidden part of a half-visible button would otherwise catch taps outside the region too.
+ * partly, for a control whose hit area cannot be cropped: its hidden part would otherwise catch taps outside the region.
  *
- * A control too big to ever fit wholly inside (a signature card on a landscape phone's short lesson column) would stay
- * dead at every scroll position under that rule, so one with a rectangular hit area (a Zone) answers on the part of it
- * that is on screen instead: its hit area is cropped to the viewport, and it is off only while none of it shows.
+ * A control with a rectangular hit area (a Zone, which every `McButton` presses through) answers on the part of it that
+ * is on screen instead: its hit area is cropped to the viewport, and it is off only while none of it shows. So a
+ * button half scrolled under a footer (an aspect lesson's "Try it", #365) still answers where it is drawn, and a
+ * control too big to ever fit wholly inside (a signature card on a landscape phone's short lesson column) is never
+ * dead, while neither catches a tap outside the region.
  */
 export function clipToViewport(
   objects: readonly Phaser.GameObjects.GameObject[],
@@ -106,9 +108,8 @@ export function clipToViewport(
     if (obj.input && obj.getBounds) {
       const b = obj.getBounds();
       const t = VIEWPORT_TOLERANCE_PX;
-      const oversized = b.width > viewport.width + 2 * t || b.height > viewport.height + 2 * t;
       const hitArea = obj.input.hitArea;
-      if (oversized && hitArea?.setTo && obj.width && obj.height && b.width > 0 && b.height > 0) {
+      if (hitArea?.setTo && obj.width && obj.height && b.width > 0 && b.height > 0) {
         const left = Math.max(b.x, viewport.x);
         const top = Math.max(b.y, viewport.y);
         const right = Math.min(b.x + b.width, viewport.x + viewport.width);
