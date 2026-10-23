@@ -5,7 +5,7 @@
  * "BLACK FLOWER (5/13)", so positions 1 to 4 are four copies of Creeping Corruption (the insert, pp. 9, 14, puts one into
  * play under each player's control and sets the rest aside; "Max 1 per player" for up to four players). The rest of the
  * set (Aka 5, Tongue of the Beast 6, Binding Ritual 7, Roots of a Black Flower 8 to 9, Malediction 10 to 11, Invasive
- * Thoughts 12 to 13) is transcribed from the full-size scans (owner-approved 2026-10-22).
+ * Thoughts 12 to 13) is transcribed from the full-size scans.
  *
  * Icons: the burst with an exclamation mark is the crisis icon (the glyph of Dead End 42 and the other scheme_crisis
  * records), the house with a plus is acceleration and the card with a plus is hazard (Strategic Positioning 65008).

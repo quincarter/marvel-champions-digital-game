@@ -1,6 +1,6 @@
 /**
  * Shadowland (MC65) Shadow Labyrinth, the scenario #2 set (11 printed copies, collector 37 to 45). Transcribed from the
- * full-size scans (owner-approved 2026-10-22); conventions in `common.ts`.
+ * full-size scans; conventions in `common.ts`.
  *
  * All nine card numbers are transcribed: Shifting Corridors 37 (villain; it has NO B side, the site has no 65037B image),
  * the main schemes Into the Labyrinth 38A/38B (stage 1) and Chamber of Vile Secrets 39A/39B (stage 2), Whisper in the

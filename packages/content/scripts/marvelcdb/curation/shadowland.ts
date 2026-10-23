@@ -6,7 +6,7 @@
  * the Hall of Heroes preview scans (docs/phase7-shadowland.md section 3), as Fear No Evil's scenario half was.
  *
  * Every printed card is transcribed: 90 printed copies, 73 distinct card records. The Hall of Heroes previews gave 45 card
- * images (300 x 426); the remaining faces were transcribed from full-size card images (owner-approved 2026-10-22), and
+ * images (300 x 426); the remaining faces were transcribed from full-size card images, and
  * those images are now saved too, so every face has a scan under `assets/card-art/bundles/cards/` and no
  * `artUnavailable` entry is left (#360 also replaced the 45 preview scans with full-size copies). The three scenario
  * records (`shadowland-scenarios.ts`) are wired in and the pack is in the content index.

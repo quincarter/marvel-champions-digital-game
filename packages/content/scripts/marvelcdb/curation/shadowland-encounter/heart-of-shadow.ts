@@ -7,7 +7,7 @@
  * Evil villains are (`fne-encounter/villains-a.ts`: one record per stage numeral): the normalizer groups them by name
  * into one villain with stages 1 to 3. Krahllak I (57), Mark of the Wicked 64, Pull of Power 65, Hellbride 67, Snakeroot
  * Elders 69 and Submit or Suffer 71 are from the Hall of Heroes previews; 58 to 63, 66, 68 and the recheck of 70 are from
- * the full-size scans (owner-approved 2026-10-22). Veil of Nightmares 70 (14/17 and 15/17) and
+ * the full-size scans. Veil of Nightmares 70 (14/17 and 15/17) and
  * Submit or Suffer 71 (16/17 and 17/17) have two copies each.
  */
 import type { AddedRecord } from "../types.ts";

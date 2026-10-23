@@ -1,7 +1,6 @@
 /**
  * Shadowland (MC65) Deadly Contraptions, a modular set (11 printed copies, collector 46 to 56, one copy each; seven
- * TRAP! treacheries per the insert p. 12). Transcribed from the full-size scans (owner-approved
- * 2026-10-22); conventions in `common.ts`.
+ * TRAP! treacheries per the insert p. 12). Transcribed from the full-size scans; conventions in `common.ts`.
  *
  * All eleven are transcribed: Nervous Jitters 46, Iron Monk 47, Hall of Punishment 48, Path of a Thousand Cuts 49 and
  * the seven TRAP! treacheries Blinding Powder 50, Caltrops 51, Flame Spout 52, Oil Slick 53, Poison Darts 54, Pressure
