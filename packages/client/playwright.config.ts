@@ -130,6 +130,7 @@ export default defineConfig({
         "roster-picker-drag.spec.ts",
         "roster-picker-row-text.spec.ts",
         "villain-decision-dock.spec.ts",
+        "villain-threat-interrupt.spec.ts",
         "choice-peek.spec.ts",
         "peek-banner-move.spec.ts",
         "payment-table-tile-tap.spec.ts",

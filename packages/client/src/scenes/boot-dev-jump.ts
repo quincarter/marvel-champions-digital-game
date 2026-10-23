@@ -508,6 +508,15 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.board, data: {} };
   }
 
+  // `?screen=villain-threat-interrupt`: a real Spider-Man game paused at villain step one on Great Responsibility's
+  // window ("When any amount of threat would be placed on a scheme"), whose caption names the scheme and the amount (#371).
+  if (screen === "villain-threat-interrupt") {
+    const finish = await startDevThreatInterruptGame();
+    // As with the boost window: the walkthrough only collects beats while Board is mounted.
+    window.setTimeout(() => void finish(), 1500);
+    return { key: SCENES.board, data: {} };
+  }
+
   // `?screen=villain-decision`: a real Spider-Man game whose round-one villain phase reveals an encounter card that asks
   // the player to choose (`chooseOption`, seed 17), for the decision docked beside the table (#231).
   if (screen === "villain-decision") {
@@ -780,6 +789,41 @@ async function startDevBoostInterruptGame(seed: number): Promise<() => Promise<v
   const end = turn?.kind === "turn" ? turn.legal.find((entry) => entry.action.kind === "endTurn") : undefined;
   if (end) await store.dispatch(end.example);
   return answerUntilBoostCount;
+}
+
+/**
+ * A seeded solo Rhino/Spider-Man (Justice) game in hero form with its turn ended, stopped on the end-of-turn discard.
+ * The returned function answers that with the fewest picks and stops on Great Responsibility's `chooseTriggers` for the
+ * main scheme's step-one threat (traced with seed 3).
+ */
+async function startDevThreatInterruptGame(): Promise<() => Promise<void>> {
+  const { store } = appSession();
+  const answerUntilThreat = async (): Promise<void> => {
+    for (let step = 0; step < 20; step++) {
+      const actions = store.state.legal?.actions;
+      if (actions?.kind !== "choice") return;
+      const prompt = actions.choice.prompt;
+      if (prompt.kind === "chooseTriggers" && prompt.event.kind === "placeThreat") return;
+      await store.resolveChoice(actions.choice.options.slice(0, actions.choice.minSelections).map((o) => o.optionId));
+    }
+  };
+  if (gameRunning(store)) return answerUntilThreat;
+  await store.start({
+    scenarioId: "rhino",
+    difficulty: "standard",
+    players: [{ starterDeckId: "core-spider-man-justice" }],
+    seed: 3,
+  });
+  if (store.state.game?.pendingChoice) await store.resolveChoice([]);
+  const legal = store.state.legal?.actions;
+  if (legal?.kind === "turn") {
+    const flip = legal.legal.find((entry) => entry.action.kind === "changeForm");
+    if (flip) await store.dispatch(flip.example);
+  }
+  const turn = store.state.legal?.actions;
+  const end = turn?.kind === "turn" ? turn.legal.find((entry) => entry.action.kind === "endTurn") : undefined;
+  if (end) await store.dispatch(end.example);
+  return answerUntilThreat;
 }
 
 /**
