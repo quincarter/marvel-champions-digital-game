@@ -1,0 +1,2 @@
+# The downloads as published, kept so a rerun of `pnpm card-art:localize` re-pairs without fetching again.
+.source/
