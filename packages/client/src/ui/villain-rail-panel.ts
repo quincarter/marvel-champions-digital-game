@@ -20,6 +20,7 @@ import { abilityFaceOf } from "../view/board-model.js";
 import { abilityFirst } from "../view/choice-source-panel.js";
 import { inspectModel, triggerLabel } from "../view/inspect-model.js";
 import type { Rect } from "../view/layout.js";
+import { preventedAmountLine, type PreventionPreview } from "../view/interrupt-prevention.js";
 import { BOOST_THUMB_HEIGHT, boostThumbsLayout } from "../view/villain-phase-boosts.js";
 import { isLandscapeCard } from "../view/civil-war-builder-art.js";
 import type { RevealedStep } from "../view/villain-phase-reveal.js";
@@ -83,6 +84,8 @@ export type RailBody =
 export interface RailInterrupt {
   readonly options: readonly InlineInterruptOption[];
   readonly pause: Pause;
+  /** What the first option would prevent of the damage about to be dealt, for the green stamp (#394); null if none. */
+  readonly prevention?: PreventionPreview | null;
   readonly picks: readonly string[];
   readonly onPick: (optionId: string) => void;
   readonly onResolve: (optionIds: readonly string[]) => void;
@@ -451,6 +454,41 @@ function tag(scene: Phaser.Scene, x: number, y: number, text: string, filled: bo
   return width;
 }
 
+/** The stamp's tilt in degrees, rising to the right (the owner's pick, option D). */
+const STAMP_ANGLE = -10;
+/** The stamp's text and edge: white, as the owner asked, not the paper cream of the rest of the panel. */
+const STAMP_INK = 0xffffff;
+
+/**
+ * The green stamp across the interrupt window's top-right corner (#394): "PREVENTS" over "2 DAMAGE", so the player sees
+ * what the card saves before choosing. Built at the corner and returned with its left edge, which the window's title
+ * must stop short of.
+ */
+function drawPreventionStamp(scene: Phaser.Scene, frame: Rect, preview: PreventionPreview): number {
+  const small = scene.add
+    .text(0, 0, "PREVENTS", textStyle({ ...typeRole.label, size: 11 }, STAMP_INK))
+    .setOrigin(0.5, 1);
+  const big = scene.add
+    .text(0, 0, preventedAmountLine(preview).toUpperCase(), textStyle({ ...typeRole.barTitle, size: 22 }, STAMP_INK))
+    .setOrigin(0.5, 0);
+  const width = Math.max(small.width, big.width) + 24;
+  const height = small.height + big.height + 8;
+  small.setY(-height / 2 + 4 + small.height);
+  big.setY(small.y);
+  const ground = scene.add
+    .graphics()
+    .fillStyle(signal.heal.hex, 1)
+    .fillRect(-width / 2, -height / 2, width, height)
+    .lineStyle(border.detail, STAMP_INK, 1)
+    .strokeRect(-width / 2, -height / 2, width, height);
+  // Where the tilted stamp reaches, so it overhangs the window's corner by a little and never the panel's edge.
+  const angle = (Math.abs(STAMP_ANGLE) * Math.PI) / 180;
+  const reachX = (width * Math.cos(angle) + height * Math.sin(angle)) / 2;
+  const centerX = frame.x + frame.width + 6 - reachX;
+  scene.add.container(centerX, frame.y + 6, [ground, small, big]).setAngle(STAMP_ANGLE);
+  return centerX - reachX;
+}
+
 /** How wide `tag` draws `text`. */
 function tagWidth(scene: Phaser.Scene, text: string): number {
   const t = scene.add.text(0, 0, text.toUpperCase(), textStyle({ ...typeRole.label, size: 10 }, surface.paper.hex));
@@ -751,6 +789,10 @@ function drawInterrupt(
     ink.body,
   );
   fitText(windowTitle, layout.title.width, 11);
+  if (interrupt.prevention) {
+    const stampLeft = drawPreventionStamp(scene, frame, interrupt.prevention);
+    fitText(windowTitle, Math.min(layout.title.width, stampLeft - 8 - layout.title.x), 11);
+  }
 
   const { options } = interrupt;
   const multi = !inlineSingle(options);

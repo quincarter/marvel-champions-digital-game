@@ -166,6 +166,7 @@ import {
   breakdownOf,
   type Breakdown,
 } from "../view/villain-breakdown.js";
+import { preventionPreviewOf } from "../view/interrupt-prevention.js";
 import { activeVillainWording } from "../view/villain-active-change.js";
 import { decisionNoticeOf, soleAnswerOf } from "../view/villain-decision-notice.js";
 import { villainPhaseLayout } from "../view/villain-phase-layout.js";
@@ -2809,6 +2810,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // Before START, even the player's own interrupt waits: the gate takes the window's place.
     const gate = this.#gate(game, viewer, subject);
     if (gate?.kind === "start") inline = null;
+    // What the first option on offer would prevent of the damage about to be dealt (#394).
+    const prevention = inline?.[0] ? preventionPreviewOf(game, POOL_DEPS, inline[0]) : null;
     const input = {
       panel,
       revealing,
@@ -2880,6 +2883,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
           ? {
               options: inline,
               pause,
+              prevention,
               ...this.#inlineAnswers(game, inline),
             }
           : null,

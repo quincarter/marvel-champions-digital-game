@@ -8,7 +8,9 @@ import { installWave6Helpers, trackErrors, visibleTexts } from "./wave6-helpers-
  * line and cut its end, the damage total the player decides on. Played from the `?screen=villain-damage-interrupt`
  * jump: a real Rhino game paused on Backflip's window for 2 damage.
  */
-test("Backflip's window keeps the attack's damage total on screen", async ({ page }, info) => {
+test("Backflip's window keeps the attack's damage total on screen and says what it prevents", async ({
+  page,
+}, info) => {
   test.setTimeout(120_000);
   const phone = info.project.name === "phone";
   const errors = trackErrors(page);
@@ -49,6 +51,10 @@ test("Backflip's window keeps the attack's damage total on screen", async ({ pag
     expect(drawn.cut).toBe(true);
     expect(drawn.shown).toMatch(/^DAMAGE 2 = /);
   }
+  // The green stamp on the window says what Backflip saves before the player chooses.
+  const texts = await visibleTexts(page);
+  expect(texts.some((t) => t.text === "PREVENTS")).toBe(true);
+  expect(texts.some((t) => t.text === "2 DAMAGE")).toBe(true);
   // The window's two tags stay inside the screen: on a phone the second stacks under the first.
   const width = page.viewportSize()!.width;
   const tags = (await visibleTexts(page)).filter((t) => /^(CARD ABILITY|FROM YOUR HAND)/.test(t.text));
