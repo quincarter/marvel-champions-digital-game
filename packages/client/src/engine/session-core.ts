@@ -38,6 +38,7 @@ import {
   type Command,
   type EngineError,
   type EngineErrorCode,
+  type EventState,
   type GameEvent,
   type GameSession,
   type GameState,
@@ -70,6 +71,7 @@ import type {
   CardPool,
   LegalActionsFor,
   SavedGame,
+  SealedEventState,
   SealedStateWithoutPool,
   SessionConfig,
   StateWithoutPool,
@@ -100,6 +102,8 @@ export interface Snapshot {
   readonly history?: readonly GameEvent[];
   /** A resumed game only: each replayed command with its events and RNG draw counts (`EngineUpdate.trail`). */
   readonly trail?: readonly BackOutTrailEntry[];
+  /** The table at the villain phase's events, where the command had any (`EngineUpdate.states`). */
+  readonly states?: readonly SealedEventState[];
 }
 
 export type CoreDispatch =
@@ -150,6 +154,27 @@ const stripSealedPool = (state: SealedGameState): SealedStateWithoutPool => {
   const { cardPool: _cardPool, ...rest } = state;
   return rest;
 };
+
+/**
+ * The events whose state the villain phase's replay may draw the table from (issue #386): every event of the phase,
+ * from the step that opens it (its `stepChanged` is emitted with the new step already set).
+ */
+const inVillainPhase = (_event: GameEvent, state: GameState): boolean => state.step.phase === "villain";
+
+/**
+ * The recorded states as the table may read them: sealed like the snapshot's own state, without the pool, and only
+ * where the state changed since the last one kept (an event that moved nothing adds nothing to send).
+ */
+function sealedEventStates(states: readonly EventState[]): readonly SealedEventState[] {
+  const kept: SealedEventState[] = [];
+  let last: GameState | null = null;
+  for (const { at, state } of states) {
+    if (state === last) continue;
+    last = state;
+    kept.push({ at, state: stripSealedPool(sealForTable(state)) });
+  }
+  return kept;
+}
 
 /**
  * The one place a `SessionConfig` becomes a `GameSetupConfig` — shared by `start`, `resume` and the read-only
@@ -519,13 +544,14 @@ export class EngineSessionCore {
 
   dispatch(command: Command): CoreDispatch {
     const session = this.#require();
-    const result = sessionApply(session, command, POOL_DEPS);
+    const result = sessionApply(session, command, POOL_DEPS, { recordStates: inVillainPhase });
     if (!result.ok) return { ok: false, error: result.error };
     this.#session = result.session;
     this.#version += 1;
     this.#record = recordEvents(this.#record, result.events, result.session.state);
     this.#persist(command, this.#version - 1, result.session.state);
-    return { ok: true, snapshot: this.#snapshot(result.events) };
+    const states = sealedEventStates(result.states ?? []);
+    return { ok: true, snapshot: { ...this.#snapshot(result.events), ...(states.length > 0 ? { states } : {}) } };
   }
 
   legalActions(playerId: PlayerId): LegalActions {

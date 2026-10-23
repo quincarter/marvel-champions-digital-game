@@ -54,12 +54,24 @@ export interface Ctx {
    * resets them once every card of it has moved (`resetScenarioDeckIfEmpty`). Working memory of one command.
    */
   scenarioResetsHeld?: number;
+  /**
+   * Set when the caller asked for the state at its events (`ApplyOptions.recordStates`): `emit` keeps the state as it
+   * stands when the event is emitted, for each event the predicate picks. Working memory of one command.
+   */
+  recording?: {
+    readonly pick: (event: GameEvent, state: GameState) => boolean;
+    readonly states: { readonly at: number; readonly state: GameState }[];
+  };
 }
 
 export const createCtx = (state: GameState, deps: EngineDeps): Ctx => ({ state, events: [], deps });
 
 export function emit(ctx: Ctx, event: GameEvent): void {
   ctx.events.push(event);
+  // A reference, not a copy: the state is never mutated, only replaced.
+  if (ctx.recording?.pick(event, ctx.state)) {
+    ctx.recording.states.push({ at: ctx.events.length - 1, state: ctx.state });
+  }
 }
 
 export function updateInstance(ctx: Ctx, id: InstanceId, update: (instance: CardInstance) => CardInstance): void {

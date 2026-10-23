@@ -215,6 +215,13 @@ export type StateWithoutPool = Omit<GameState, "cardPool">;
  */
 export type SealedStateWithoutPool = Omit<SealedGameState, "cardPool">;
 
+/** The table as a command had it at one of its events (`ApplyOptions.recordStates`), as it crosses the worker boundary. */
+export interface SealedEventState {
+  /** The event's index in the command's `events`. */
+  readonly at: number;
+  readonly state: SealedStateWithoutPool;
+}
+
 /** What a player may do, and who they are. Computed ahead of time by the host. */
 export interface LegalActionsFor {
   readonly playerId: PlayerId;
@@ -257,6 +264,11 @@ export interface EngineUpdate {
    * moves (and stop at their turn boundaries) instead of treating its command count as an empty trail.
    */
   readonly trail?: readonly BackOutTrailEntry[];
+  /**
+   * The table as the command had it at each of its villain-phase events that changed it, card pool re-attached (issue
+   * #386): what the villain phase's replay draws while it is behind the engine. Absent when the command had none.
+   */
+  readonly states?: readonly { readonly at: number; readonly state: SealedGameState }[];
 }
 
 export type DispatchResult =

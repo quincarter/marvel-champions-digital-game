@@ -8,7 +8,7 @@
  */
 import { locateCard, type GameOutcome, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
 import { revealOf } from "./villain-phase-reveal.js";
-import { VILLAIN_STEPS, type Walkthrough } from "./villain-walkthrough.js";
+import { dealtByBeat, VILLAIN_STEPS, type Walkthrough } from "./villain-walkthrough.js";
 
 export const totalBeats = (walkthrough: Walkthrough): number =>
   walkthrough.steps.reduce((sum, step) => sum + step.beats.length, 0);
@@ -34,6 +34,12 @@ export interface TableHold {
    * dealt into until the rail reaches their reveal. Absent when there are none.
    */
   readonly facedown?: readonly FacedownCard[];
+  /**
+   * The game as the engine had it at the beat the rail is on (`Walkthrough.tables`, issue #386), for the table to draw
+   * in place of the engine's end state: a minion a side scheme puts into play, a status card given to the villain or a
+   * surge's card dealt facedown appears when the rail gets there, not before. Absent when the host recorded none.
+   */
+  readonly game?: GameState;
 }
 
 /** A card dealt facedown to a player and not yet shown revealed by the rail. */
@@ -63,22 +69,39 @@ export function tableHoldOf(
       .map((beat) => beat.encounterInstanceId ?? null),
   );
   if (unflipped !== null) shown.delete(unflipped);
+  // Only cards dealt as far as the rail has got: a surge's card is not in the pile before the surge (issue #386).
   const facedown = walkthrough.encounter.dealt
-    .filter((card) => !shown.has(card.instanceId))
+    .filter((card) => !shown.has(card.instanceId) && dealtByBeat(card, revealed))
     .map((card) => ({ instanceId: card.instanceId, playerId: card.playerId }));
+  const game = tableAt(walkthrough, revealed);
   return {
     round: walkthrough.round,
     stepLabel: active
       ? `Villain phase · step ${active.number} of ${VILLAIN_STEPS.length}`
       : "Villain phase · about to begin",
     ...(facedown.length > 0 ? { facedown } : {}),
+    ...(game ? { game } : {}),
   };
 }
 
-/** Whether two holds hide the same cards (the table redraws only when this or the chrome changes). */
+/**
+ * The latest table the rail is past (`WalkthroughTable.atBeat` below `revealed`): before any beat is shown, the phase's
+ * opening. Undefined when the host recorded none.
+ */
+export function tableAt(walkthrough: Walkthrough, revealed: number): GameState | undefined {
+  let found: GameState | undefined;
+  for (const table of walkthrough.tables) {
+    if (table.atBeat >= revealed) break;
+    found = table.game;
+  }
+  return found ?? walkthrough.tables[0]?.game;
+}
+
+/** Whether two holds draw the same table: the same cards hidden on the same game (it redraws only when this or the chrome changes). */
 export const sameFacedown = (a: TableHold | null | undefined, b: TableHold | null | undefined): boolean =>
+  a?.game === b?.game &&
   (a?.facedown ?? []).map((card) => card.instanceId).join() ===
-  (b?.facedown ?? []).map((card) => card.instanceId).join();
+    (b?.facedown ?? []).map((card) => card.instanceId).join();
 
 /**
  * The game as the table should draw it while the rail is behind: each card in `facedown` taken out of wherever the

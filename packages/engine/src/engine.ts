@@ -30,15 +30,41 @@ import { afterStartingCardChoice } from "./starting.js";
 import type { GameState } from "./state.js";
 import { choiceExclusions } from "./why-not.js";
 
+/** The state as the command had it when it emitted `events[at]` (`ApplyOptions.recordStates`). */
+export interface EventState {
+  readonly at: number;
+  readonly state: GameState;
+}
+
+export interface ApplyOptions {
+  /**
+   * Picks the events whose state the result should carry in `states`: the state as it stood when the event was emitted,
+   * so a client replaying the events one at a time can show the table as it was at each (issue #386). Recording
+   * changes nothing about what the command does.
+   */
+  readonly recordStates?: (event: GameEvent, state: GameState) => boolean;
+}
+
 export type CommandResult =
-  | { readonly ok: true; readonly state: GameState; readonly events: readonly GameEvent[] }
+  | {
+      readonly ok: true;
+      readonly state: GameState;
+      readonly events: readonly GameEvent[];
+      /** Only when `ApplyOptions.recordStates` was given: the picked events' states, in event order. */
+      readonly states?: readonly EventState[];
+    }
   | { readonly ok: false; readonly error: EngineError };
 
 /**
  * The only way game state changes. Pure: same state + command + deps always
  * produce the same next state and the same events.
  */
-export function applyCommand(state: GameState, command: Command, deps: EngineDeps = DEFAULT_DEPS): CommandResult {
+export function applyCommand(
+  state: GameState,
+  command: Command,
+  deps: EngineDeps = DEFAULT_DEPS,
+  options: ApplyOptions = {},
+): CommandResult {
   try {
     if (state.outcome) {
       return { ok: false, error: engineError("game_over", "the game has ended", command) };
@@ -51,10 +77,16 @@ export function applyCommand(state: GameState, command: Command, deps: EngineDep
       return { ok: false, error: engineError("choice_pending", "a choice must be resolved first", command) };
     }
     const ctx = createCtx(state, deps);
+    if (options.recordStates) ctx.recording = { pick: options.recordStates, states: [] };
     const error = dispatch(ctx, command);
     if (error) return { ok: false, error };
     runFlow(ctx);
-    return { ok: true, state: ctx.state, events: ctx.events };
+    return {
+      ok: true,
+      state: ctx.state,
+      events: ctx.events,
+      ...(ctx.recording ? { states: ctx.recording.states } : {}),
+    };
   } catch (cause) {
     const message = cause instanceof EngineInvariantError ? cause.message : String(cause);
     return { ok: false, error: engineError("internal_error", message, command) };
@@ -343,16 +375,27 @@ export const startSession = (initialState: GameState): GameSession => ({
 });
 
 export type SessionResult =
-  | { readonly ok: true; readonly session: GameSession; readonly events: readonly GameEvent[] }
+  | {
+      readonly ok: true;
+      readonly session: GameSession;
+      readonly events: readonly GameEvent[];
+      readonly states?: readonly EventState[];
+    }
   | { readonly ok: false; readonly error: EngineError };
 
 /** Applies a command and records it, so the session can always be replayed from its log. */
-export function sessionApply(session: GameSession, command: Command, deps: EngineDeps = DEFAULT_DEPS): SessionResult {
-  const result = applyCommand(session.state, command, deps);
+export function sessionApply(
+  session: GameSession,
+  command: Command,
+  deps: EngineDeps = DEFAULT_DEPS,
+  options: ApplyOptions = {},
+): SessionResult {
+  const result = applyCommand(session.state, command, deps, options);
   if (!result.ok) return { ok: false, error: result.error };
   return {
     ok: true,
     session: { state: result.state, log: appendCommand(session.log, command) },
     events: result.events,
+    ...(result.states ? { states: result.states } : {}),
   };
 }

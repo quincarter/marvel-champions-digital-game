@@ -58,6 +58,7 @@ function completedWalkthrough(): Walkthrough {
     pausedAt: null,
     complete: true,
     nextBeatId: 7,
+    tables: [],
     activation: null,
   };
 }
@@ -115,6 +116,7 @@ describe("revealOf", () => {
       pausedAt: null,
       complete: false,
       nextBeatId: 1,
+      tables: [],
       activation: null,
     };
 
@@ -176,6 +178,7 @@ describe("revealOf", () => {
       },
       complete: false,
       nextBeatId: 4,
+      tables: [],
       activation: null,
     };
 

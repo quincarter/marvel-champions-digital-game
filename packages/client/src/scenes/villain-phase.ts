@@ -192,6 +192,7 @@ import {
   readyToAutoClose,
   recapPlacementFor,
   choiceHiddenBy,
+  dealtByBeat,
   type ActivationBeat,
   type RecapPlacement,
   type InlineInterruptOption,
@@ -667,6 +668,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         state.game,
         state.perspectiveId,
         POOL_DEPS,
+        state.lastStates,
       );
       const after = totalBeatsOf(this.#walkthrough);
       // A fresh villain phase clears the previous one's beats (the walkthrough
@@ -1168,8 +1170,13 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         .map((beat) => beat.encounterInstanceId ?? null),
     );
     // The same player's cards not yet up, in the order dealt (RRG p. 47: they are revealed one at a time in that order).
+    // Only those dealt as far as the screen has got: a surge's card is not waiting before the surge (issue #386).
     const waiting = dealt.filter(
-      (entry) => entry.playerId === owner && entry.instanceId !== card && !shown.has(entry.instanceId),
+      (entry) =>
+        entry.playerId === owner &&
+        entry.instanceId !== card &&
+        !shown.has(entry.instanceId) &&
+        dealtByBeat(entry, this.#revealed),
     ).length;
     return { card, elapsedMs: gate !== null ? null : this.time.now - this.#flip!.startedAt, waiting };
   }

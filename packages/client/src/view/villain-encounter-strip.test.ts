@@ -58,6 +58,44 @@ describe("encounterStripOf", () => {
     expect(result.position).toEqual({ index: 2, total: 3 });
   });
 
+  it("does not count a surge's card until the screen reaches its deal (#386)", () => {
+    // One card dealt by the deal step at beat 0; Stampede's reveal is beat 1 and its surge deals a card at beat 3.
+    const surging: EncounterTracking = {
+      dealt: [
+        { instanceId: id("stampede"), playerId: me, duringReveal: false, atBeat: 0 },
+        { instanceId: id("surge"), playerId: me, duringReveal: true, atBeat: 3 },
+      ],
+      revealed: [
+        { instanceId: id("stampede"), cardId: "01104" as CardId, playerId: me },
+        { instanceId: id("surge"), cardId: "01106" as CardId, playerId: me },
+      ],
+      current: null,
+    };
+    const onStampede = strip(surging, [null, id("stampede"), id("stampede")]);
+    expect(onStampede.position).toEqual({ index: 1, total: 1 });
+    expect(onStampede.tiles.map((tile) => tile.instanceId)).toEqual([id("stampede")]);
+
+    const dealtSurge = strip(surging, [null, id("stampede"), id("stampede"), id("stampede")]);
+    expect(dealtSurge.position).toEqual({ index: 1, total: 2 });
+    expect(dealtSurge.tiles.map((tile) => [tile.name, tile.status])).toEqual([
+      ["Stampede", "now"],
+      ["Facedown", "next"],
+    ]);
+  });
+
+  it("leaves out a card put straight into play until its reveal is shown", () => {
+    const straight: EncounterTracking = {
+      dealt: [{ instanceId: id("stampede"), playerId: me, duringReveal: false, atBeat: 0 }],
+      revealed: [
+        { instanceId: id("stampede"), cardId: "01104" as CardId, playerId: me },
+        { instanceId: id("hydra"), cardId: "01105" as CardId, playerId: me },
+      ],
+      current: null,
+    };
+    expect(strip(straight, [null, id("stampede")]).tiles).toHaveLength(1);
+    expect(strip(straight, [null, id("stampede"), id("hydra")]).tiles).toHaveLength(2);
+  });
+
   it("has no position before any reveal is shown", () => {
     expect(strip(tracking, [null]).position).toBeNull();
     expect(strip(tracking, []).tiles[0]!.status).toBe("next");

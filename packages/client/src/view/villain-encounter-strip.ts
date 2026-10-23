@@ -7,7 +7,7 @@
  * two lookups, so this is testable without a game.
  */
 import type { InstanceId, PlayerId } from "@mc/engine";
-import type { EncounterTracking } from "./villain-walkthrough.js";
+import { dealtByBeat, type EncounterTracking } from "./villain-walkthrough.js";
 
 export type EncounterTileStatus = "done" | "now" | "next" | "facedown";
 
@@ -48,14 +48,15 @@ export function encounterStripOf(
     }
   }
 
-  // Every card dealt, in deal order; a card revealed without having been seen dealt (one put straight into play) is
-  // added at the end so the counter never undercounts what the player saw revealed.
-  const order: { instanceId: InstanceId; playerId: PlayerId }[] = encounter.dealt.map((card) => ({
-    instanceId: card.instanceId,
-    playerId: card.playerId,
-  }));
+  // Every card dealt as far as the screen has got, in deal order: a card a surge deals later is not counted until the
+  // screen reaches its deal (issue #386: "1 OF 3" over a facedown first card told the player two surges were coming).
+  // A card revealed without having been seen dealt (one put straight into play) is added at the end once its reveal is
+  // shown, so the counter never undercounts what the player saw revealed.
+  const order: { instanceId: InstanceId; playerId: PlayerId }[] = encounter.dealt
+    .filter((card) => dealtByBeat(card, shownEncounterIds.length))
+    .map((card) => ({ instanceId: card.instanceId, playerId: card.playerId }));
   for (const card of encounter.revealed) {
-    if (!order.some((entry) => entry.instanceId === card.instanceId)) order.push(card);
+    if (shown.has(card.instanceId) && !order.some((entry) => entry.instanceId === card.instanceId)) order.push(card);
   }
 
   let nextMarked = false;

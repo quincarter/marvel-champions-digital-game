@@ -243,6 +243,12 @@ export interface EncounterTracking {
     readonly playerId: PlayerId;
     /** Dealt after the reveal step began (surge and similar), not by the deal step. */
     readonly duringReveal: boolean;
+    /**
+     * How many beats of the phase came before the deal: the screen knows of the card once its cursor is past that many
+     * (issue #386: a surge card was counted on the strip while the card that surges was still facedown). Absent in
+     * hand-built fixtures, read as known from the start.
+     */
+    readonly atBeat?: number;
   }[];
   /** The cards revealed so far, in order. */
   readonly revealed: readonly {
@@ -255,6 +261,20 @@ export interface EncounterTracking {
 }
 
 export const emptyEncounterTracking = (): EncounterTracking => ({ dealt: [], revealed: [], current: null });
+
+/** Whether the screen, `shown` beats into the phase, has got as far as dealing this card (issue #386). */
+export const dealtByBeat = (card: EncounterTracking["dealt"][number], shown: number): boolean =>
+  card.atBeat === undefined || card.atBeat < shown;
+
+/**
+ * The table as the engine had it partway through the phase (`CommandResult.states`, issue #386): shown once the reveal
+ * cursor is past `atBeat` beats, so the table never runs ahead of the rail (a minion a side scheme puts into play, a
+ * status card given to the villain, a surge card dealt facedown).
+ */
+export interface WalkthroughTable {
+  readonly atBeat: number;
+  readonly game: GameState;
+}
 
 export interface Walkthrough {
   readonly round: number;
@@ -272,11 +292,14 @@ export interface Walkthrough {
    * mid-attack; the boosts and the resolution arrive in a later command).
    */
   readonly activation: ActivationBeat | null;
+  /** The table at moments of the phase, oldest first (`WalkthroughTable`); empty when the host sent none. */
+  readonly tables: readonly WalkthroughTable[];
 }
 
 export const emptyWalkthrough = (round: number): Walkthrough => ({
   round,
   encounter: emptyEncounterTracking(),
+  tables: [],
   steps: VILLAIN_STEPS.map((kind, index) => ({
     kind,
     number: index + 1,
@@ -302,8 +325,12 @@ export function appendWalkthrough(
   state: GameState,
   viewer: PlayerId | null,
   deps: EngineDeps,
+  /** The state as each of these events left it, where the host recorded one (`CommandResult.states`). */
+  states: readonly { readonly at: number; readonly state: GameState }[] = [],
 ): Walkthrough {
   let working = current;
+  let tables = [...working.tables];
+  const stateAt = new Map(states.map((entry) => [entry.at, entry.state]));
   let beats = working.steps.map((step) => [...step.beats]);
   let activeIndex = working.activeStep === null ? -1 : working.activeStep - 1;
   let pausedAt = working.pausedAt;
@@ -335,6 +362,21 @@ export function appendWalkthrough(
 
   /** Inside the five steps: recording beats. Outside them, events are ignored. */
   const inPhase = (): boolean => activeIndex >= 0 && !complete;
+
+  const beatCount = (): number => beats.reduce((sum, step) => sum + step.length, 0);
+
+  /**
+   * Keeps the state event `at` left, if the host recorded one, against the beats pushed so far: it goes up with the
+   * next beat (this event's own, when it has wording). Of several events before one beat, the last one's state wins.
+   * The phase's opening is kept apart (`atBeat` -1): it is the table before anything of the phase was shown.
+   */
+  const noteTable = (at: number, opening = false): void => {
+    const game = stateAt.get(at);
+    if (!game) return;
+    const atBeat = opening ? -1 : beatCount();
+    if (tables.at(-1)?.atBeat === atBeat) tables[tables.length - 1] = { atBeat, game };
+    else tables.push({ atBeat, game });
+  };
 
   const push = (text: string, pause: Pause | null, event?: GameEvent): void => {
     if (!inPhase()) return;
@@ -371,7 +413,8 @@ export function appendWalkthrough(
         if (inPhase()) complete = true;
         continue;
       }
-      if (!inPhase()) {
+      const opening = !inPhase();
+      if (opening) {
         // A fresh villain phase: the screen shows one phase at a time, so the
         // previous round's beats are cleared rather than accumulated. Beat ids
         // keep counting up, so nothing reuses a key across the session.
@@ -383,8 +426,10 @@ export function appendWalkthrough(
         activation = null;
         dealt = [];
         revealed = [];
+        tables = [];
       }
       activeIndex = stepIndex;
+      noteTable(at, opening);
       // The enemies' activations are over once their step is: a later step's beats carry only an activation one of
       // its own cards starts (a treachery's "Rhino schemes", #370), never the last attack of step 2.
       if (stepIndex !== VILLAIN_STEPS.indexOf("enemyActivations")) activation = null;
@@ -392,6 +437,7 @@ export function appendWalkthrough(
     }
 
     if (!inPhase()) continue;
+    noteTable(at);
 
     if (event.type === "choiceRequested") {
       const pause = pauseFor(event.choice, state, viewer, activation);
@@ -415,6 +461,7 @@ export function appendWalkthrough(
             instanceId: event.instanceId,
             playerId: event.to.playerId,
             duringReveal: activeIndex >= VILLAIN_STEPS.indexOf("revealEncounterCards"),
+            atBeat: beatCount(),
           });
         }
         break;
@@ -575,6 +622,7 @@ export function appendWalkthrough(
 
   return {
     round,
+    tables,
     encounter: {
       dealt,
       revealed,

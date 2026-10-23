@@ -2102,24 +2102,32 @@ export class BoardScene extends Phaser.Scene {
     return this.#villainReplay?.hold && this.#logBeforePhase ? this.#logBeforePhase : this.#log;
   }
 
-  #heldModelCache: { readonly base: BoardModel; readonly key: string; readonly model: BoardModel } | null = null;
+  #heldModelCache: {
+    readonly base: BoardModel;
+    readonly game: GameState;
+    readonly key: string;
+    readonly model: BoardModel;
+  } | null = null;
 
   /**
-   * The model the table draws: the live one, or while the villain phase replays, one with the encounter cards the rail
-   * has not revealed yet back in their facedown piles (`withFacedownHeld`, issue #311).
+   * The model the table draws: the live one, or while the villain phase replays, the game as it stood at the rail's
+   * beat (`TableHold.game`, issue #386) with the encounter cards the rail has not revealed yet back in their facedown
+   * piles (`withFacedownHeld`, issue #311).
    */
   #heldModel(hold: TableHold | null): BoardModel | null {
     const live = this.#model;
-    const facedown = hold?.facedown;
+    const facedown = hold?.facedown ?? [];
     const state = appSession().store.state;
-    if (!live || !facedown || !state.game || state.perspectiveId === null) return live;
+    if (!live || !hold || !state.game || state.perspectiveId === null) return live;
+    if (!hold.game && facedown.length === 0) return live;
+    const game = hold.game ?? state.game;
     const key = facedown.map((card) => card.instanceId).join();
     const cached = this.#heldModelCache;
-    if (cached && cached.base === live && cached.key === key) return cached.model;
+    if (cached && cached.base === live && cached.game === game && cached.key === key) return cached.model;
     const model = this.#withDebugSideSchemes(
-      boardModel(withFacedownHeld(state.game, facedown), state.perspectiveId, POOL_DEPS),
+      boardModel(withFacedownHeld(game, facedown), state.perspectiveId, POOL_DEPS),
     );
-    this.#heldModelCache = { base: live, key, model };
+    this.#heldModelCache = { base: live, game, key, model };
     return model;
   }
 

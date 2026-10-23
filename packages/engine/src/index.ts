@@ -637,7 +637,15 @@ export {
   mainSchemeStageIndexesProblem,
 } from "./setup.js";
 
-export type { CommandResult, GameLog, GameSession, ReplayResult, SessionResult } from "./engine.js";
+export type {
+  ApplyOptions,
+  CommandResult,
+  EventState,
+  GameLog,
+  GameSession,
+  ReplayResult,
+  SessionResult,
+} from "./engine.js";
 export { appendCommand, applyCommand, applyCommands, createLog, replay, sessionApply, startSession } from "./engine.js";
 
 export type { CharacterKind, CharacterProfile, HeroFaceWithTraits } from "./query.js";

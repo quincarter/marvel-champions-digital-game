@@ -46,6 +46,11 @@ export interface SessionState {
   /** The events of the most recent command — what the Board scene animates. */
   readonly lastEvents: readonly GameEvent[];
   /**
+   * The table as the most recent command had it at its villain-phase events (`EngineUpdate.states`, issue #386), for
+   * the villain phase replay to draw while it is behind the engine. Empty when the command had none.
+   */
+  readonly lastStates: readonly { readonly at: number; readonly state: SealedGameState }[];
+  /**
    * A resumed game's first state only: every event of the game so far, oldest first, so the Board's log opens with
    * the recent lines instead of empty. Empty for a new game and after the first command.
    */
@@ -111,6 +116,7 @@ const INITIAL: SessionState = {
   version: -1,
   game: null,
   lastEvents: [],
+  lastStates: [],
   resumedHistory: [],
   legal: null,
   perspectiveId: null,
@@ -348,6 +354,7 @@ export class SessionStore {
       // Sealed again here, whatever host produced the update: idempotent.
       game: sealForTable(update.state),
       lastEvents: update.events,
+      lastStates: update.states ?? [],
       resumedHistory: update.history ?? [],
       legal: update.legal,
       perspectiveId: toAct ?? this.#state.perspectiveId ?? update.state.firstPlayerId,

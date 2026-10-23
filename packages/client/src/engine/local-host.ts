@@ -113,6 +113,7 @@ export class LocalEngineHost implements EngineHost {
   /** Re-attaches the card pool so consumers get a complete `GameState`. */
   #hydrate(snapshot: Snapshot): EngineUpdate {
     if (!this.#cardPool) throw new Error("the engine session has not been started");
+    const pool = this.#cardPool;
     return {
       version: snapshot.version,
       state: { ...snapshot.state, cardPool: this.#cardPool },
@@ -124,6 +125,9 @@ export class LocalEngineHost implements EngineHost {
       ...(snapshot.gameId !== undefined ? { gameId: snapshot.gameId } : {}),
       ...(snapshot.history ? { history: snapshot.history } : {}),
       ...(snapshot.trail ? { trail: snapshot.trail } : {}),
+      ...(snapshot.states
+        ? { states: snapshot.states.map(({ at, state }) => ({ at, state: { ...state, cardPool: pool } })) }
+        : {}),
     };
   }
 
