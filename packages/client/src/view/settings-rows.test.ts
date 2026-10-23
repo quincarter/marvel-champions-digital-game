@@ -65,6 +65,7 @@ const BASE: Settings = {
   achievementPopupTime: "5s",
   achievementPopupPlace: "middle",
   achievementPopupSize: "medium",
+  cardLanguage: "en",
   renderScale: "native",
   frameRate: "screen",
 };
@@ -100,6 +101,7 @@ describe("settingsRowInfoOf", () => {
       achievementPopupTime: "5s",
       achievementPopupPlace: "middle",
       achievementPopupSize: "medium",
+      cardLanguage: "en",
       renderScale: "1x",
       frameRate: "30",
     });

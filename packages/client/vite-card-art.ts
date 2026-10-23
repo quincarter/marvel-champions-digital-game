@@ -25,6 +25,10 @@
  * embeds `dist/` in its binary), or `none` (skip the copy, e.g. a CI typecheck
  * build).
  *
+ * `MC_CARD_LANGS` adds more languages, each copied to `dist/card-art-<lang>/`
+ * and resolved the same way (the web build, whose player picks one;
+ * `carriedLanguagesOf`). The dev server serves every language on disk.
+ *
  * `MC_CARD_LANG` picks the language of the scans (`src/art/card-language.ts`):
  * `en` (default), or a language whose set `pnpm card-art:localize` wrote to
  * `assets/card-art-locales/<lang>/` under the English scans' own paths. Each
@@ -54,6 +58,31 @@ export function cardLanguageOf(value = process.env.MC_CARD_LANG): CardLanguage {
   const lang = value?.trim() || BASE_CARD_LANGUAGE;
   if (isCardLanguage(lang)) return lang;
   throw new Error(`MC_CARD_LANG must be one of ${CARD_LANGUAGES.join(", ")} (got "${lang}")`);
+}
+
+/**
+ * Every language a build carries, its build language first (`MC_CARD_LANGS`, comma-separated; the build language alone
+ * when unset). The web build carries all of them and the player picks one; a native installer carries one, since its
+ * executable embeds `dist/` and two sets would pass GitHub's 2 GiB limit on a release asset.
+ */
+export function carriedLanguagesOf(
+  build: CardLanguage = cardLanguageOf(),
+  value = process.env.MC_CARD_LANGS,
+): readonly CardLanguage[] {
+  const listed = (value ?? "")
+    .split(",")
+    .map((lang) => lang.trim())
+    .filter((lang) => lang !== "");
+  for (const lang of listed) {
+    if (!isCardLanguage(lang)) throw new Error(`MC_CARD_LANGS must list ${CARD_LANGUAGES.join(", ")} (got "${lang}")`);
+  }
+  const extra = (listed as CardLanguage[]).filter((lang, i) => lang !== build && listed.indexOf(lang) === i);
+  return [build, ...extra];
+}
+
+/** Where `lang`'s scans are served: the build language's at `/card-art/`, any other at `/card-art-<lang>/`. */
+function routeOf(lang: CardLanguage, build: CardLanguage): string {
+  return lang === build ? CARD_ART_ROUTE : `/card-art-${lang}/`;
 }
 
 /**
@@ -135,14 +164,20 @@ function safeArtPath(root: string, requestPath: string): string | null {
 /** In-process memo, so a card re-requested during one session doesn't hit the disk twice. */
 const memory = new Map<string, Buffer>();
 
-const middleware = (roots: readonly string[]): Connect.NextHandleFunction => {
+/**
+ * Answers each language's route from that language's roots (`routeOf`). The dev and preview servers serve every
+ * language that has a set on disk, so the web's card language picker works without a build.
+ */
+const middleware = (routes: ReadonlyMap<string, readonly string[]>): Connect.NextHandleFunction => {
   return (request, response, next) => {
     const url = request.url ?? "";
-    if (!url.startsWith(CARD_ART_ROUTE)) {
+    const route = [...routes.keys()].find((prefix) => url.startsWith(prefix));
+    if (route === undefined) {
       next();
       return;
     }
-    const requestPath = url.slice(CARD_ART_ROUTE.length).split("?")[0] ?? "";
+    const roots = routes.get(route)!;
+    const requestPath = url.slice(route.length).split("?")[0] ?? "";
     const file = safeArtPath(ART_ROOT, requestPath);
     if (!file) {
       response.statusCode = 400;
@@ -151,7 +186,8 @@ const middleware = (roots: readonly string[]): Connect.NextHandleFunction => {
     }
 
     void (async () => {
-      const bytes = memory.get(file) ?? (await readArt(roots, requestPath))?.bytes ?? null;
+      const memo = route + requestPath;
+      const bytes = memory.get(memo) ?? (await readArt(roots, requestPath))?.bytes ?? null;
       const type = bytes ? imageTypeOf(bytes) : "application/octet-stream";
       if (!bytes || type === "application/octet-stream") {
         // No scan (or not an image at all): the client draws the generated frame.
@@ -159,7 +195,7 @@ const middleware = (roots: readonly string[]): Connect.NextHandleFunction => {
         response.end("no art");
         return;
       }
-      memory.set(file, bytes);
+      memory.set(memo, bytes);
       response.statusCode = 200;
       response.setHeader("content-type", type);
       // Card art never changes under a given path, so it is safe to cache hard.
@@ -170,6 +206,20 @@ const middleware = (roots: readonly string[]): Connect.NextHandleFunction => {
   };
 };
 
+/** Every language with a set on disk, the build language first: what the dev and preview servers serve. */
+export function servedLanguages(): readonly CardLanguage[] {
+  const build = cardLanguageOf();
+  const onDisk = CARD_LANGUAGES.filter(
+    (lang) => lang === BASE_CARD_LANGUAGE || existsSync(path.join(LOCALES_ROOT, lang, "bundles")),
+  );
+  return [build, ...onDisk.filter((lang) => lang !== build)];
+}
+
+function servedRoutes(): ReadonlyMap<string, readonly string[]> {
+  const build = cardLanguageOf();
+  return new Map(servedLanguages().map((lang) => [routeOf(lang, build), artRoots(lang)] as const));
+}
+
 type BundleMode = "pool" | "all" | "none";
 
 function bundleMode(): BundleMode {
@@ -178,10 +228,14 @@ function bundleMode(): BundleMode {
   throw new Error(`MC_CARD_ART must be "pool", "all" or "none" (got "${mode}")`);
 }
 
-/** Copies the scans a build carries into `<outDir>/card-art/`, and says what it did. */
+/**
+ * Copies the scans a build carries into `<outDir>/card-art/`, and into `<outDir>/card-art-<lang>/` for each other
+ * language it carries (`carriedLanguagesOf`), and says what it did. `MC_CARD_ART=all` copies the build language only.
+ */
 async function copyArt(outDir: string, log: (message: string) => void, warn: (message: string) => void): Promise<void> {
   const mode = bundleMode();
   const lang = cardLanguageOf();
+  const carried = carriedLanguagesOf(lang);
   const target = path.join(outDir, CARD_ART_ROUTE);
   if (mode === "none") {
     log("card art: skipped (MC_CARD_ART=none) — every card will draw its generated frame");
@@ -197,6 +251,35 @@ async function copyArt(outDir: string, log: (message: string) => void, warn: (me
   }
 
   const { cardCount, paths } = await poolArtPaths();
+  const { missing, lossless } = await copyPool(lang, roots, paths, target, cardCount, log);
+  for (const other of carried.slice(1)) {
+    await copyPool(other, artRoots(other), paths, path.join(outDir, routeOf(other, lang)), cardCount, log);
+  }
+  if (missing.length > 0) {
+    warn(
+      `card art: ${missing.length} scan(s) the pool references are not in assets/card-art/ — those faces will draw their generated frame:\n` +
+        missing.map((relative) => `  ${relative}`).join("\n"),
+    );
+  }
+  if (lossless.length > 0) {
+    // Every bundled scan is paid for in every installer (the desktop shell embeds them in its executable), and a
+    // lossless PNG scan is several times the size of the WebP one `compress` writes.
+    warn(
+      `card art: ${lossless.length} bundled scan(s) are lossless PNGs; \`mise run card-art-compress\` re-encodes them as WebP:\n` +
+        lossless.map((relative) => `  ${relative}`).join("\n"),
+    );
+  }
+}
+
+/** Copies one language's share of `paths` into `target`, first root first; says what it copied and what it lacks. */
+async function copyPool(
+  lang: CardLanguage,
+  roots: readonly string[],
+  paths: readonly string[],
+  target: string,
+  cardCount: number,
+  log: (message: string) => void,
+): Promise<{ readonly missing: readonly string[]; readonly lossless: readonly string[] }> {
   const missing: string[] = [];
   const lossless: string[] = [];
   let bytes = 0;
@@ -220,27 +303,12 @@ async function copyArt(outDir: string, log: (message: string) => void, warn: (me
   );
   if (roots.length > 1) {
     const english = paths.length - missing.length - translated;
-    log(
-      `card art: MC_CARD_LANG=${lang}: ${translated} ${lang} scans, ${english} English where the ${lang} set has none`,
-    );
+    log(`card art: ${lang}: ${translated} ${lang} scans, ${english} English where the ${lang} set has none`);
   }
-  if (missing.length > 0) {
-    warn(
-      `card art: ${missing.length} scan(s) the pool references are not in assets/card-art/ — those faces will draw their generated frame:\n` +
-        missing.map((relative) => `  ${relative}`).join("\n"),
-    );
-  }
-  if (lossless.length > 0) {
-    // Every bundled scan is paid for in every installer (the desktop shell embeds them in its executable), and a
-    // lossless PNG scan is several times the size of the WebP one `compress` writes.
-    warn(
-      `card art: ${lossless.length} bundled scan(s) are lossless PNGs; \`mise run card-art-compress\` re-encodes them as WebP:\n` +
-        lossless.map((relative) => `  ${relative}`).join("\n"),
-    );
-  }
+  return { missing, lossless };
 }
 
-/** Serves `/card-art/*` on `vite dev` and `vite preview`, and bundles the scans on `vite build`. */
+/** Serves `/card-art/*` (and each other language's route) on `vite dev` and `vite preview`, and bundles the scans on `vite build`. */
 export function cardArtPlugin(): Plugin {
   let outDir = "dist";
   return {
@@ -249,10 +317,10 @@ export function cardArtPlugin(): Plugin {
       outDir = path.resolve(config.root, config.build.outDir);
     },
     configureServer(server) {
-      server.middlewares.use(middleware(artRoots(cardLanguageOf())));
+      server.middlewares.use(middleware(servedRoutes()));
     },
     configurePreviewServer(server) {
-      server.middlewares.use(middleware(artRoots(cardLanguageOf())));
+      server.middlewares.use(middleware(servedRoutes()));
     },
     async closeBundle() {
       // `closeBundle` also fires for the worker's own sub-build and in watch mode;

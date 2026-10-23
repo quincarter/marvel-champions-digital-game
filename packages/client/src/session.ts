@@ -24,6 +24,7 @@ import type { EngineHost } from "./engine/host.js";
 import { IdbDeckStorage } from "./engine/idb-deck-storage.js";
 import { SessionStore } from "./store/session-store.js";
 import { defaultSettings, type Settings } from "./settings.js";
+import { setArtLanguage } from "./art/art-source.js";
 import { SettingsStore, storedSettingsOverrides } from "./settings-store.js";
 import { emptyLog, type LogState } from "./view/log-lines.js";
 import type { MusicController } from "./audio/music-controller.js";
@@ -119,6 +120,7 @@ export function appSession(): AppSession {
         ...(density ? { screen: recommendedScreenOf(knownHardware()) } : {}),
       }),
     );
+    setArtLanguage(settingsStore.current.cardLanguage);
     onPowerSavingChange(() => settingsStore.refreshDefaults());
     onHardwareChange(() => settingsStore.refreshDefaults());
     session = {
@@ -130,6 +132,7 @@ export function appSession(): AppSession {
       set settings(next: Settings) {
         settingsStore.set(next);
         setPowerSavingIgnored(!next.powerSavingAdjust);
+        setArtLanguage(next.cardLanguage);
       },
       gameLog: emptyLog(),
       villainReview: null,

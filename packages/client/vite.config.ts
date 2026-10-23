@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
 import { defineConfig } from "vite";
-import { cardArtPlugin, cardLanguageOf } from "./vite-card-art.js";
+import { cardArtPlugin, cardLanguageOf, carriedLanguagesOf, servedLanguages } from "./vite-card-art.js";
 import { marvelcdbImportPlugin } from "./vite-marvelcdb-import.js";
 
 /**
@@ -31,9 +31,14 @@ function buildCommit(): string {
   }
 }
 
-export default defineConfig({
-  // `__CARD_LANG__`: the language of the card scans this build carries (`MC_CARD_LANG`, `src/art/card-language.ts`).
-  define: { __BUILD_COMMIT__: JSON.stringify(buildCommit()), __CARD_LANG__: JSON.stringify(cardLanguageOf()) },
+export default defineConfig(({ command }) => ({
+  // `__CARD_LANG__`: the build language of the card scans (`MC_CARD_LANG`, `src/art/card-language.ts`).
+  // `__CARD_LANGS__`: every language the bundle carries (`MC_CARD_LANGS`), or in dev every one the dev server serves.
+  define: {
+    __BUILD_COMMIT__: JSON.stringify(buildCommit()),
+    __CARD_LANG__: JSON.stringify(cardLanguageOf()),
+    __CARD_LANGS__: JSON.stringify((command === "build" ? carriedLanguagesOf() : servedLanguages()).join(",")),
+  },
   plugins: [cardArtPlugin(), marvelcdbImportPlugin()],
   worker: { format: "es" },
   build: {
@@ -48,4 +53,4 @@ export default defineConfig({
     // of them fails with EBUSY on Windows and takes the whole dev server down.
     watch: { ignored: ["**/src-tauri/**", "**/android/**", "**/ios/**"] },
   },
-});
+}));

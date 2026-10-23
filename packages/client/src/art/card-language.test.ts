@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { assetLanguage, cardLanguage, isCardLanguage } from "./card-language.js";
+import {
+  assetLanguage,
+  availableCardLanguages,
+  cardLanguage,
+  isCardLanguage,
+  preferredCardLanguage,
+} from "./card-language.js";
 
 describe("card language", () => {
   it("is English under Vitest, which runs no build define", () => {
@@ -26,5 +32,20 @@ describe("card language", () => {
     expect(assetLanguage("SHA256SUMS.txt")).toBe("en");
     // A tag for a language this build doesn't know is no language at all, never English.
     expect(assetLanguage("MarvelChampions-0.37.0-FR-Android.apk")).toBeNull();
+  });
+});
+
+describe("languages this bundle carries", () => {
+  it("is the build language alone under Vitest", () => {
+    expect(availableCardLanguages()).toEqual(["en"]);
+  });
+
+  it("starts a new player in the first browser language the bundle carries", () => {
+    expect(preferredCardLanguage(["es-MX", "en-US"], ["en", "es"])).toBe("es");
+    expect(preferredCardLanguage(["fr-FR", "es"], ["en", "es"])).toBe("es");
+    expect(preferredCardLanguage(["fr-FR"], ["en", "es"])).toBe("en");
+    // A native installer carries one language: the browser's never wins over it.
+    expect(preferredCardLanguage(["es-ES"], ["en"])).toBe("en");
+    expect(preferredCardLanguage([], ["es", "en"])).toBe("es");
   });
 });

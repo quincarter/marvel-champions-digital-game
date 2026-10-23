@@ -96,6 +96,9 @@ jobs:
     env:
       NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
       NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+      # The web carries every card language and the player picks one (Settings, or the top bar's language button;
+      # issue #337). Native installers carry one each (release-on-merge.yml).
+      MC_CARD_LANGS: en,es
       # A PR checkout is GitHub's merge commit; stamp the Title footer with the branch head instead (vite.config.ts).
       COMMIT_REF: ${{ github.event.pull_request.head.sha || github.sha }}
       # The save-transfer Worker the build talks to (save-data/transfer-config.ts): production on main, the staging
@@ -113,8 +116,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # Each job is a fresh runner, so the install repeats; the pnpm store comes from the cache, so it takes seconds.
-      # A PR labelled "Spanish preview" builds its preview with the Spanish card art (MC_CARD_LANG, issue #337). The
-      # labels are read now rather than from the event, so re-running the job after adding the label picks it up.
+      # A PR labelled "Spanish preview" makes Spanish its preview's build language (MC_CARD_LANG, issue #337): what a
+      # player who never picked a language sees. The labels are read now rather than from the event, so re-running the
+      # job after adding the label picks it up.
       - name: Card language
         if: github.event_name == 'pull_request'
         env:

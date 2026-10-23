@@ -30,7 +30,7 @@
 
 import type Phaser from "phaser";
 import type { Rect } from "../view/layout.js";
-import { CARD_BACKS, type ArtSource } from "./art-source.js";
+import { CARD_BACKS, onArtLanguageChange, type ArtSource } from "./art-source.js";
 
 /**
  * `Phaser.Loader.Events.FILE_COMPLETE` / `.FILE_LOAD_ERROR` and
@@ -80,6 +80,8 @@ export function cardArt(scene: Phaser.Scene): CardArt {
   if (existing) return existing;
   const created = new CardArt();
   caches.set(scene.game, created);
+  // A new card language (`Settings.cardLanguage`) gives every face a new texture key: redraw, and the screens ask anew.
+  onArtLanguageChange(() => created.redrawAll());
   return created;
 }
 
@@ -164,6 +166,11 @@ export class CardArt {
     // pending, and this scene is alive to run it.
     if (this.#pending.length > 0) this.#schedule(scene);
     return null;
+  }
+
+  /** Tells every screen showing art to redraw, as an arrival does (a card language switch). */
+  redrawAll(): void {
+    this.#fireListeners();
   }
 
   /** True when the server has said it has no scan for this key. */

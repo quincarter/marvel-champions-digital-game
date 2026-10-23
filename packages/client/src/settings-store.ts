@@ -8,6 +8,7 @@
  * `guide/guide-prefs.ts`: unknown fields are ignored, a missing or wrong-typed field falls back to its default, a
  * corrupt record is no record, and a newer `version` is read best-effort.
  */
+import { isCardLanguage } from "./art/card-language.js";
 import {
   ACHIEVEMENT_POPUP_PLACE_VALUES,
   ACHIEVEMENT_POPUP_SIZE_VALUES,
@@ -108,6 +109,8 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   if (typeof effectsVolume === "number" && Number.isFinite(effectsVolume)) {
     out.effectsVolume = clampMusicVolume(effectsVolume);
   }
+  const cardLanguage = source["cardLanguage"];
+  if (typeof cardLanguage === "string" && isCardLanguage(cardLanguage)) out.cardLanguage = cardLanguage;
   const resolution = source["textResolution"];
   if (typeof resolution === "number" && Number.isFinite(resolution)) {
     out.textResolution = Math.min(SHARP_TEXT_RESOLUTION_CEILING, Math.max(1, resolution));

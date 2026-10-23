@@ -10,3 +10,9 @@ declare const __BUILD_COMMIT__: string;
  * `art/card-language.ts`'s `cardLanguage()`.
  */
 declare const __CARD_LANG__: string;
+
+/**
+ * Every language whose card scans this bundle carries, comma-separated (`MC_CARD_LANGS`; the build language alone when
+ * unset). Read it through `art/card-language.ts`'s `availableCardLanguages()`.
+ */
+declare const __CARD_LANGS__: string;

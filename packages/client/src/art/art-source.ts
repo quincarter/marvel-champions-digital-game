@@ -25,9 +25,44 @@
  */
 
 import type { AnyCard, ArtRef, ImageRef } from "@mc/content";
+import { availableCardLanguages, cardLanguage, type CardLanguage } from "./card-language.js";
 
 /** The URL prefix every scan is served under. `vite-card-art.ts` imports this, so the two cannot drift. */
 export const CARD_ART_ROUTE = "/card-art/";
+
+/**
+ * Where a language's scans are served: the build language's at `CARD_ART_ROUTE`, any other language the bundle
+ * carries (the web build, `card-language.ts`) at `/card-art-<lang>/`. Each folder is already resolved to English where
+ * the language has no scan, so the app never falls back by itself.
+ */
+export function cardArtRouteFor(lang: CardLanguage): string {
+  return lang === cardLanguage() ? CARD_ART_ROUTE : `/card-art-${lang}/`;
+}
+
+/** The language card faces are drawn in (`Settings.cardLanguage`); the build language until the session applies it. */
+let artLanguage: CardLanguage = cardLanguage();
+const languageListeners = new Set<() => void>();
+
+/**
+ * Switches the card faces to `lang`, and tells every art cache to redraw. A language this bundle doesn't carry (a
+ * setting synced from the web to a native install) draws the build language instead.
+ */
+export function setArtLanguage(requested: CardLanguage): void {
+  const lang = availableCardLanguages().includes(requested) ? requested : cardLanguage();
+  if (lang === artLanguage) return;
+  artLanguage = lang;
+  for (const listener of [...languageListeners]) listener();
+}
+
+export function artLanguageNow(): CardLanguage {
+  return artLanguage;
+}
+
+/** Called after `setArtLanguage` changes the language (`card-art.ts` redraws its screens). */
+export function onArtLanguageChange(listener: () => void): () => void {
+  languageListeners.add(listener);
+  return () => languageListeners.delete(listener);
+}
 
 /**
  * Which card back a hidden card shows.
@@ -109,9 +144,9 @@ export function artFor(card: AnyCard | undefined, face: CardFace): ArtSource | n
   }
   if (!card) return null;
   const local = localRefFor(card, face);
-  if (local) return source(`${local as string}.png`);
+  if (local) return faceSource(`${local as string}.png`);
   const upstream = imageRefFor(card, face);
-  return upstream ? source(upstream as string) : null;
+  return upstream ? faceSource(upstream as string) : null;
 }
 
 /**
@@ -209,6 +244,19 @@ function source(refPath: string): ArtSource {
 }
 
 /**
+ * A card face's scan in the language faces are drawn in (`setArtLanguage`). Its texture key names a language other
+ * than the build's, so a switch never draws a texture loaded in the other language.
+ */
+function faceSource(refPath: string): ArtSource {
+  const base = source(refPath);
+  if (artLanguage === cardLanguage()) return base;
+  return {
+    key: `art:${artLanguage}:${base.key.slice("art:".length)}`,
+    url: base.url.replace(CARD_ART_ROUTE, cardArtRouteFor(artLanguage)),
+  };
+}
+
+/**
  * The three card backs, from `assets/card-art/` like every other scan. They are
  * not `ImageRef`s: no card names them, because in the physical game the back is
  * a property of the deck a card came from, not of the card.
@@ -234,7 +282,7 @@ export const STAND_IN_ART: readonly ArtSource[] = DRONE_STAND_IN_ATKS.map((atk) 
 
 /** The path under `assets/card-art/` (and under `/card-art/` when served) an `ArtSource` names. */
 export function artPathOf(art: ArtSource): string {
-  return art.url.slice(CARD_ART_ROUTE.length);
+  return art.url.replace(/^\/card-art(-[a-z]{2})?\//, "");
 }
 
 /**

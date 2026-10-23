@@ -7,6 +7,7 @@
  */
 
 import type { TableRules } from "@mc/engine";
+import { preferredCardLanguage, type CardLanguage } from "./art/card-language.js";
 
 /** The sharp, device-pixel-ratio-matched text resolution `defaultSettings` starts from. Also what "off" restores. */
 export const SHARP_TEXT_RESOLUTION_CEILING = 2;
@@ -140,6 +141,12 @@ export interface Settings {
   readonly achievementPopupPlace: AchievementPopupPlace;
   /** How large the "Achievement unlocked" popup is drawn. Defaults to small (the owner, 2026-10-20). Its opened list keeps one size. */
   readonly achievementPopupSize: AchievementPopupSize;
+  /**
+   * The language card faces are drawn in (issue #337), among the ones this bundle carries (`availableCardLanguages`):
+   * the web carries every language, a native installer only its own, so there this follows the build. Defaults to the
+   * browser's language when the bundle has it.
+   */
+  readonly cardLanguage: CardLanguage;
 }
 
 export type AchievementPopupTime = "off" | "3s" | "5s" | "8s" | "10s";
@@ -354,5 +361,6 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     achievementPopupTime: "5s",
     achievementPopupPlace: "titleBar",
     achievementPopupSize: "small",
+    cardLanguage: preferredCardLanguage(globalThis.navigator?.languages ?? []),
   };
 }
