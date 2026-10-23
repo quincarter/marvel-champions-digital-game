@@ -2816,6 +2816,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       panel,
       revealing,
       interruptOptions: inline?.length ?? (gate ? 1 : 0),
+      interruptHpLine: prevention?.hp != null,
       cardScale: cardSizeFactor(appSession().settings.cardSize),
     };
     const layout =

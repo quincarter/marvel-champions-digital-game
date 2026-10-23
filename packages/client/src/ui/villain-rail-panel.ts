@@ -858,6 +858,22 @@ function drawInterrupt(
   const lines = Math.floor((y + height - toggleHeight - cursor) / lineHeight);
   if (lines < 1) rules.setVisible(false);
   else if (rules.getWrappedText(rulesText).length > lines) rules.setMaxLines(lines);
+  const hp = interrupt.prevention?.hp;
+  if (layout.hpLine && hp) {
+    // What the player is choosing between, in hit points (#394): where the hero is, and where letting it resolve
+    // leaves them; with the interrupt too, when it would not keep them where they are (a partial prevention).
+    const parts = [`${hp.targetName}: ${hp.now} HP now`, `${hp.ifResolves} HP if it resolves`];
+    if (hp.withInterrupt !== hp.now) parts.push(`${hp.withInterrupt} HP with ${model.name}`);
+    const line = scene.add
+      .text(
+        layout.hpLine.x,
+        layout.hpLine.y + layout.hpLine.height / 2,
+        parts.join(" · "),
+        textStyle({ ...typeRole.label, size: 12 }, surface.paper.hex),
+      )
+      .setOrigin(0, 0.5);
+    fitText(line, layout.hpLine.width, 12);
+  }
 
   const pickButton = (option: InlineInterruptOption, rect: Rect): void => {
     const onClick = (): void => interrupt.onPick(option.optionId);

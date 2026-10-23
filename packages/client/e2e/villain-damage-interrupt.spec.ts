@@ -55,6 +55,8 @@ test("Backflip's window keeps the attack's damage total on screen and says what 
   const texts = await visibleTexts(page);
   expect(texts.some((t) => t.text === "PREVENTS")).toBe(true);
   expect(texts.some((t) => t.text === "2 DAMAGE")).toBe(true);
+  // And the hit points now and if it resolves, read off the engine resolving the window on a copy.
+  expect(texts.some((t) => t.text === "Spider-Man: 10 HP now · 8 HP if it resolves")).toBe(true);
   // The window's two tags stay inside the screen: on a phone the second stacks under the first.
   const width = page.viewportSize()!.width;
   const tags = (await visibleTexts(page)).filter((t) => /^(CARD ABILITY|FROM YOUR HAND)/.test(t.text));
