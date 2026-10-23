@@ -17,6 +17,7 @@ import type {
   FormChoiceView,
   PlayConfirmationView,
   SourceChoiceView,
+  ThwartStatChoiceView,
 } from "./controller.js";
 
 /** The source bar is a button row plus one line of consequence under each button. */
@@ -246,6 +247,63 @@ export function drawFormBar(ctx: BoardDrawContext, rect: Rect, choice: FormChoic
         type: typeRole.label,
         rect: { x: left + index * (width + gap), y: rect.y + 4, width, height: rect.height - 8 },
         onClick: () => controller.chooseForm(source),
+      }),
+    );
+  });
+  ctx.frame.buttons.push(
+    new McButton(scene, {
+      kind: "quiet",
+      label: "Cancel",
+      type: typeRole.label,
+      rect: { x: rect.x + rect.width - cancelWidth - 10, y: rect.y + 4, width: cancelWidth, height: rect.height - 8 },
+      onClick: () => controller.cancel(),
+    }),
+  );
+}
+
+/**
+ * "Thwart with? — 1 THW 1 · 2 ATK 3 — Cancel", over the hand, once a basic thwart is aimed at a scheme that lets the
+ * character use ATK instead of THW (The Red House, `view/thwart-stat-choice.ts`; issue #365). An ally's button says
+ * what that stat's consequential damage is, since the two columns can differ. The keys 1 and 2 answer it too.
+ */
+export function drawThwartStatBar(ctx: BoardDrawContext, rect: Rect, choice: ThwartStatChoiceView): void {
+  const { scene, controller } = ctx;
+  const g = scene.add.graphics();
+  g.fillStyle(accent.heroRed.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+  g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, 3);
+
+  const narrow = rect.width < 640;
+  const titleWidth = narrow ? 10 : Math.min(220, rect.width * 0.25);
+  if (!narrow) {
+    const title = scene.add
+      .text(
+        rect.x + 12,
+        rect.y + rect.height / 2,
+        `${choice.subject}: thwart with?`,
+        textStyle(typeRole.barTitle, surface.paper.hex),
+      )
+      .setOrigin(0, 0.5)
+      .setLetterSpacing(1);
+    fitText(title, titleWidth - 16, typeRole.barTitle.size);
+  }
+
+  const cancelWidth = Math.max(64, Math.min(110, rect.width * 0.12));
+  const gap = 6;
+  const left = rect.x + titleWidth;
+  const right = rect.x + rect.width - cancelWidth - 10 - gap;
+  const count = Math.max(1, choice.options.length);
+  const width = Math.max(48, (right - left - gap * (count - 1)) / count);
+  const allyDamage = choice.options.some((option) => option.consequential > 0);
+
+  choice.options.forEach((option, index) => {
+    const damage = allyDamage ? ` · ${option.consequential} dmg` : "";
+    ctx.frame.buttons.push(
+      new McButton(scene, {
+        kind: "secondary",
+        label: `${narrow ? "" : `${index + 1} `}${option.label}${damage}`,
+        type: typeRole.label,
+        rect: { x: left + index * (width + gap), y: rect.y + 4, width, height: rect.height - 8 },
+        onClick: () => void controller.chooseThwartStat(option.useAtk),
       }),
     );
   });

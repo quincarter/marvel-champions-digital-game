@@ -135,6 +135,7 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
     const allCancelled = sources.every((source) => source.cancelledBy !== null);
     const choosingSource = selection.kind === "choosingSource" && selection.power === action;
     const choosingForm = action === "changeForm" && selection.kind === "choosingForm";
+    const choosingStat = action === "thwart" && selection.kind === "choosingThwartStat";
     ctx.frame.buttons.push(
       new McButton(scene, {
         kind: "onInk",
@@ -144,7 +145,7 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
         type: typeRole.label,
         rect: cell,
         enabled: button?.enabled ?? false,
-        selected: targeting || choosingSource || choosingForm,
+        selected: targeting || choosingSource || choosingForm || choosingStat,
         ...(cancelledBy ? { hatch: cancelledBy.hex } : {}),
         ...(button?.reason ? { reason: button.reason } : {}),
         onClick: () => controller.chooseBasic(action),

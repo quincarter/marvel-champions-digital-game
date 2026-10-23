@@ -35,6 +35,7 @@ import {
   drawFormBar,
   drawPlayConfirmBar,
   drawSourceBar,
+  drawThwartStatBar,
 } from "./controller-bar.js";
 import { COST_HELP_NOTE_ROW, drawCostChoiceBar, drawCostHelpBar } from "./cost-choice-bar.js";
 import { drawDiscardBar } from "./discard-bar.js";
@@ -85,8 +86,12 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
   const formChoice = ctx.controller.formChoice();
   const abilityChoice = ctx.controller.abilityChoice();
   const destinationChoice = ctx.controller.destinationChoice();
+  const thwartStatChoice = ctx.controller.thwartStatChoice();
   let top = rect.y + HAND_CAPTION_HEIGHT;
-  if (sourceChoice) {
+  if (thwartStatChoice) {
+    drawThwartStatBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: BAR_HEIGHT }, thwartStatChoice);
+    top = rect.y + BAR_HEIGHT + 4;
+  } else if (sourceChoice) {
     const height = hit.target + SOURCE_BAR_NOTE;
     drawSourceBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height }, sourceChoice);
     top = rect.y + height + 4;

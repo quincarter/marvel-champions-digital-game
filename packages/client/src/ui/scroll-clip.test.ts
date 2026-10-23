@@ -130,6 +130,29 @@ describe("clipToViewport", () => {
     expect(zone.input.enabled).toBe(true);
   });
 
+  test("a button half under the viewport's edge answers on its visible part, and on all of it once back inside", () => {
+    // An aspect lesson's "Try it" half under the footer, or a Pause row half under the title bar (#365): dead before.
+    const hit = { x: 0, y: 0, width: 100, height: 44 };
+    const setTo = (x: number, y: number, width: number, height: number): void => {
+      Object.assign(hit, { x, y, width, height });
+    };
+    let y = 280;
+    const button = {
+      input: { enabled: true, hitArea: { setTo } },
+      width: 100,
+      height: 44,
+      getBounds: () => ({ x: 10, y, width: 100, height: 44 }),
+    };
+    const run = (): void => clipToViewport([button] as unknown as Phaser.GameObjects.GameObject[], viewport);
+    run();
+    // Bounds 280..324 against a viewport ending at 300: its top 20px.
+    expect(button.input.enabled).toBe(true);
+    expect(hit).toEqual({ x: 0, y: 0, width: 100, height: 20 });
+    y = 200;
+    run();
+    expect(hit).toEqual({ x: 0, y: 0, width: 100, height: 44 });
+  });
+
   test("a zone taller than the viewport answers on its visible part only, and is off once none of it shows", () => {
     const hit = { x: 0, y: 0, width: 100, height: 290 };
     const setTo = (x: number, y: number, width: number, height: number): void => {

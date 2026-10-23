@@ -73,6 +73,8 @@ export interface PaymentState {
   readonly into?: string;
   /** Why the play can only go to `into` ("Only payable at the mission"): the price note's words in place of the usual one. */
   readonly destinationNote?: string;
+  /** A basic thwart the player chose to make with ATK (The Red House, `view/thwart-stat-choice.ts`), sent with the payment. */
+  readonly useAtk?: true;
   readonly query: PaymentQuery;
   /** Option ids picked so far, in the order they were picked. */
   readonly picked: readonly string[];
