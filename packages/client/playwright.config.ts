@@ -138,6 +138,7 @@ export default defineConfig({
         "music-volume-pause.spec.ts",
         "villain-boost-breakdown.spec.ts",
         "treachery-scheme-boost.spec.ts",
+        "shadowland-notice.spec.ts",
         "settings-earned-items.spec.ts",
         "achievement-popup.spec.ts",
         "spectrum-energy-forms.spec.ts",

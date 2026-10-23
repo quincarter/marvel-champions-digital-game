@@ -85,6 +85,8 @@ import { setReportSlot } from "../ui/report-slot.js";
 import { setMusicSlot } from "../ui/music-slot.js";
 import { musicSlotBeside } from "../view/music-player.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
+import { SHADOWLAND_NOTICE_ON } from "../view/shadowland-notice.js";
+import { drawShadowlandNoticeBar } from "../ui/shadowland-notice-bar.js";
 
 /**
  * "Play this deck ▸" (W9, docs/phase4-screen-gaps.md §3): the Decks screen starts Title with the deck to seat.
@@ -316,6 +318,7 @@ export class TitleScene extends Phaser.Scene {
       update: this.#update !== null,
       civilWar: civilWar !== null,
       quit: hasDesktopWindow(),
+      noticeBar: SHADOWLAND_NOTICE_ON,
     });
     // The Report button's slot (#176): level with the eyebrow, at the menu column's right edge.
     const reportSize = layout.split ? 44 : 40;
@@ -645,6 +648,12 @@ export class TitleScene extends Phaser.Scene {
       .text(layout.left, layout.footer.y - 24, "", textStyle(typeRole.body, textColor))
       .setWordWrapWidth(layout.column);
 
+    // Temporary: the Shadowland notice bar across the top (`view/shadowland-notice.ts`).
+    if (layout.noticeBar) {
+      const openNotice = drawShadowlandNoticeBar(this, layout.noticeBar);
+      this.#stops.set("shadowland-notice", { rect: layout.noticeBar, activate: openNotice });
+    }
+
     const bannerStops = this.#drawUpdateBanner(layout.updateBanner);
     this.#drawRankBadge(layout.rankBadge, openTrophies);
     this.#route?.set(
@@ -659,6 +668,7 @@ export class TitleScene extends Phaser.Scene {
           gamesRow: layout.gamesRow !== null,
         }),
         "rank-badge",
+        ...(layout.noticeBar ? ["shadowland-notice"] : []),
       ],
       this.#stops,
     );

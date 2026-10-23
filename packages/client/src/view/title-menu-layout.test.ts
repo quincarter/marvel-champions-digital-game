@@ -6,6 +6,7 @@ import {
   updateBannerActionCount,
   updateBannerParts,
 } from "./title-menu-layout.js";
+import { NOTICE_BAR_HEIGHT } from "./shadowland-notice.js";
 
 const SIZES: readonly { readonly width: number; readonly height: number }[] = [
   { width: 440, height: 900 },
@@ -320,4 +321,36 @@ describe("the phone rank badge", () => {
     expect(layout.rankBadge.y + layout.rankBadge.height).toBeLessThanOrEqual(layout.footer.y);
     expect(layout.footer.y + layout.footer.height).toBeLessThanOrEqual(667);
   });
+});
+
+describe("the temporary notice bar", () => {
+  const sizes = [
+    { width: 360, height: 740 },
+    { width: 390, height: 844 },
+    { width: 844, height: 390 },
+    { width: 768, height: 1024 },
+    { width: 1024, height: 768 },
+    { width: 1280, height: 800 },
+    { width: 1920, height: 1080 },
+  ];
+  for (const size of sizes) {
+    test(`spans the top and pushes everything under it at ${size.width}x${size.height}`, () => {
+      const plain = titleMenuLayout({ ...size, continuable: true, games: 2 });
+      const layout = titleMenuLayout({ ...size, continuable: true, games: 2, noticeBar: true });
+      const bar = layout.noticeBar!;
+      expect(bar).toEqual({ x: 0, y: 0, width: size.width, height: NOTICE_BAR_HEIGHT });
+      expect(plain.noticeBar).toBeNull();
+      const rects = titleMenuLayoutRects(layout);
+      for (let i = 0; i < rects.length; i++) {
+        for (let j = i + 1; j < rects.length; j++) expect(rectsOverlap(rects[i]!, rects[j]!)).toBe(false);
+      }
+      // The panels start under it too, and the report and music buttons (level with the eyebrow) clear it.
+      if (layout.artPanel) expect(layout.artPanel.y).toBe(NOTICE_BAR_HEIGHT);
+      expect(layout.menuPanel.y).toBe(NOTICE_BAR_HEIGHT);
+      expect(layout.eyebrow.y + 8 - 22).toBeGreaterThanOrEqual(NOTICE_BAR_HEIGHT);
+      // A menu that fitted without the bar still fits with it.
+      const bottom = (l: typeof layout) => Math.max(...titleMenuLayoutRects(l).map((r) => r.y + r.height));
+      if (bottom(plain) <= size.height) expect(bottom(layout)).toBeLessThanOrEqual(size.height + 0.01);
+    });
+  }
 });
