@@ -47,11 +47,21 @@ export function getProjectVersion() {
  * `MarvelChampions-0.21.0-macOS-AppleSilicon-arm64.dmg`. Hyphens, not spaces: GitHub turns a space in an asset name
  * into a dot. Both the CI release job (stage-release-assets.mjs) and local builds name files here, and the in-app
  * update notice matches these names (packages/client/src/platform/update-check.ts).
+ *
+ * A build in a card language other than English (`MC_CARD_LANG`, issue #337) puts the language right after the
+ * version, `MarvelChampions-0.37.0-ES-Windows-x64-Setup.exe`, which is where the update notice reads it
+ * (`assetLanguage` in packages/client/src/art/card-language.ts). An English build's names are unchanged.
  */
 export const ASSET_PREFIX = "MarvelChampions";
 
-export function androidApkName(version) {
-  return `${ASSET_PREFIX}-${version}-Android.apk`;
+/** `MarvelChampions-<version>` and, for a non-English build, its language tag. */
+function assetStem(version, lang = process.env.MC_CARD_LANG) {
+  const tag = lang && lang !== "en" ? `-${lang.toUpperCase()}` : "";
+  return `${ASSET_PREFIX}-${version}${tag}`;
+}
+
+export function androidApkName(version, lang) {
+  return `${assetStem(version, lang)}-Android.apk`;
 }
 
 const DESKTOP_EXTENSIONS = [".app.tar.gz", ".dmg", ".msi", ".exe", ".deb", ".rpm", ".AppImage"];
@@ -60,7 +70,7 @@ const DESKTOP_EXTENSIONS = [".app.tar.gz", ".dmg", ".msi", ".exe", ".deb", ".rpm
  * The release name of one Tauri bundle, from its file name and path (the target triple when built with `--target`,
  * else the name's own arch, else this machine's). Null for anything that isn't an installer.
  */
-export function desktopAssetName(fileName, fullPath, version) {
+export function desktopAssetName(fileName, fullPath, version, lang) {
   const ext = DESKTOP_EXTENSIONS.find((e) => fileName.endsWith(e));
   if (ext === undefined) return null;
   const arm = /aarch64|arm64/i.test(fullPath) || (!/x86_64|x64|amd64/i.test(fullPath) && process.arch === "arm64");
@@ -72,7 +82,7 @@ export function desktopAssetName(fileName, fullPath, version) {
   else if (ext === ".exe") variant = `Windows-${arch}-Setup`;
   else if (ext === ".msi") variant = `Windows-${arch}-AllUsers`;
   else variant = `Linux-${arch}`;
-  return `${ASSET_PREFIX}-${version}-${variant}${ext}`;
+  return `${assetStem(version, lang)}-${variant}${ext}`;
 }
 
 /**

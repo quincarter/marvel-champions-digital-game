@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
 import { defineConfig } from "vite";
-import { cardArtPlugin } from "./vite-card-art.js";
+import { cardArtPlugin, cardLanguageOf } from "./vite-card-art.js";
 import { marvelcdbImportPlugin } from "./vite-marvelcdb-import.js";
 
 /**
@@ -32,7 +32,8 @@ function buildCommit(): string {
 }
 
 export default defineConfig({
-  define: { __BUILD_COMMIT__: JSON.stringify(buildCommit()) },
+  // `__CARD_LANG__`: the language of the card scans this build carries (`MC_CARD_LANG`, `src/art/card-language.ts`).
+  define: { __BUILD_COMMIT__: JSON.stringify(buildCommit()), __CARD_LANG__: JSON.stringify(cardLanguageOf()) },
   plugins: [cardArtPlugin(), marvelcdbImportPlugin()],
   worker: { format: "es" },
   build: {

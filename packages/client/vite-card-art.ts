@@ -24,18 +24,63 @@
  * (the whole folder — over a gigabyte; never for the desktop shell, which
  * embeds `dist/` in its binary), or `none` (skip the copy, e.g. a CI typecheck
  * build).
+ *
+ * `MC_CARD_LANG` picks the language of the scans (`src/art/card-language.ts`):
+ * `en` (default), or a language whose set `pnpm card-art:localize` wrote to
+ * `assets/card-art-locales/<lang>/` under the English scans' own paths. Each
+ * path is answered from that set when it has the scan and from the English
+ * folder when it doesn't, so the English fallback is settled here, in the dev
+ * server and in the copy, and the client never has to know.
  */
 
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { runnerImport, type Plugin, type Connect } from "vite";
 import { CARD_ART_ROUTE } from "./src/art/art-source.js";
+import { BASE_CARD_LANGUAGE, CARD_LANGUAGES, isCardLanguage, type CardLanguage } from "./src/art/card-language.js";
 
 export { CARD_ART_ROUTE };
 
 /** Repo-root `assets/card-art/`. */
 const ART_ROOT = path.resolve(import.meta.dirname, "../../assets/card-art");
+
+/** Repo-root `assets/card-art-locales/`: a folder per language other than English, laid out like `ART_ROOT`. */
+const LOCALES_ROOT = path.resolve(import.meta.dirname, "../../assets/card-art-locales");
+
+/** The language this build's scans are in, from `MC_CARD_LANG`. `vite.config.ts` hands the same answer to the client. */
+export function cardLanguageOf(value = process.env.MC_CARD_LANG): CardLanguage {
+  const lang = value?.trim() || BASE_CARD_LANGUAGE;
+  if (isCardLanguage(lang)) return lang;
+  throw new Error(`MC_CARD_LANG must be one of ${CARD_LANGUAGES.join(", ")} (got "${lang}")`);
+}
+
+/**
+ * The folders a scan is looked up in, first match wins: the language's own set, then English. Fails when the
+ * language has no set on disk, rather than building a Spanish app that is quietly all English.
+ */
+function artRoots(lang: CardLanguage): readonly string[] {
+  if (lang === BASE_CARD_LANGUAGE) return [ART_ROOT];
+  const root = path.join(LOCALES_ROOT, lang);
+  if (!existsSync(path.join(root, "bundles"))) {
+    throw new Error(`MC_CARD_LANG=${lang}, but assets/card-art-locales/${lang}/ has no scans (pnpm card-art:localize)`);
+  }
+  return [root, ART_ROOT];
+}
+
+/** `relative`'s scan from the first of `roots` that has it, and which root that was; null when none does. */
+async function readArt(
+  roots: readonly string[],
+  relative: string,
+): Promise<{ readonly bytes: Buffer; readonly root: number } | null> {
+  for (const [root, dir] of roots.entries()) {
+    const file = safeArtPath(dir, relative);
+    const bytes = file === null ? null : await readFile(file).catch(() => null);
+    if (bytes !== null) return { bytes, root };
+  }
+  return null;
+}
 
 /**
  * Which scans the pool needs, asked of the client's own code
@@ -77,20 +122,20 @@ function imageTypeOf(bytes: Buffer): string {
 }
 
 /**
- * Resolves a request path to a file under the art root, or null if it tries to
+ * Resolves a request path to a file under an art root, or null if it tries to
  * escape it. A path from the network decides a filesystem read here, so this
  * check is not optional.
  */
-function safeArtPath(requestPath: string): string | null {
+function safeArtPath(root: string, requestPath: string): string | null {
   const decoded = decodeURIComponent(requestPath).replace(/^\/+/, "");
-  const resolved = path.resolve(ART_ROOT, decoded);
-  return resolved.startsWith(ART_ROOT + path.sep) ? resolved : null;
+  const resolved = path.resolve(root, decoded);
+  return resolved.startsWith(root + path.sep) ? resolved : null;
 }
 
 /** In-process memo, so a card re-requested during one session doesn't hit the disk twice. */
 const memory = new Map<string, Buffer>();
 
-const middleware = (): Connect.NextHandleFunction => {
+const middleware = (roots: readonly string[]): Connect.NextHandleFunction => {
   return (request, response, next) => {
     const url = request.url ?? "";
     if (!url.startsWith(CARD_ART_ROUTE)) {
@@ -98,7 +143,7 @@ const middleware = (): Connect.NextHandleFunction => {
       return;
     }
     const requestPath = url.slice(CARD_ART_ROUTE.length).split("?")[0] ?? "";
-    const file = safeArtPath(requestPath);
+    const file = safeArtPath(ART_ROOT, requestPath);
     if (!file) {
       response.statusCode = 400;
       response.end("bad card-art path");
@@ -106,7 +151,7 @@ const middleware = (): Connect.NextHandleFunction => {
     }
 
     void (async () => {
-      const bytes = memory.get(file) ?? (await readFile(file).catch(() => null));
+      const bytes = memory.get(file) ?? (await readArt(roots, requestPath))?.bytes ?? null;
       const type = bytes ? imageTypeOf(bytes) : "application/octet-stream";
       if (!bytes || type === "application/octet-stream") {
         // No scan (or not an image at all): the client draws the generated frame.
@@ -136,14 +181,18 @@ function bundleMode(): BundleMode {
 /** Copies the scans a build carries into `<outDir>/card-art/`, and says what it did. */
 async function copyArt(outDir: string, log: (message: string) => void, warn: (message: string) => void): Promise<void> {
   const mode = bundleMode();
+  const lang = cardLanguageOf();
   const target = path.join(outDir, CARD_ART_ROUTE);
   if (mode === "none") {
     log("card art: skipped (MC_CARD_ART=none) — every card will draw its generated frame");
     return;
   }
+  const roots = artRoots(lang);
   if (mode === "all") {
     await cp(ART_ROOT, target, { recursive: true });
-    log(`card art: copied the whole of assets/card-art/ (MC_CARD_ART=all)`);
+    // The language's set over the English one: the same answer, path by path, that the dev server gives.
+    if (roots.length > 1) await cp(path.join(roots[0]!, "bundles"), path.join(target, "bundles"), { recursive: true });
+    log(`card art: copied the whole of assets/card-art/ (MC_CARD_ART=all, MC_CARD_LANG=${lang})`);
     return;
   }
 
@@ -151,12 +200,15 @@ async function copyArt(outDir: string, log: (message: string) => void, warn: (me
   const missing: string[] = [];
   const lossless: string[] = [];
   let bytes = 0;
+  let translated = 0;
   for (const relative of paths) {
-    const scan = await readFile(path.join(ART_ROOT, relative)).catch(() => null);
-    if (scan === null) {
+    const found = await readArt(roots, relative);
+    if (found === null) {
       missing.push(relative);
       continue;
     }
+    const scan = found.bytes;
+    if (roots.length > 1 && found.root === 0) translated++;
     if (imageTypeOf(scan) === "image/png") lossless.push(relative);
     const to = path.join(target, relative);
     await mkdir(path.dirname(to), { recursive: true });
@@ -166,6 +218,12 @@ async function copyArt(outDir: string, log: (message: string) => void, warn: (me
   log(
     `card art: ${paths.length - missing.length} scans for ${cardCount} pool cards → ${path.relative(process.cwd(), target)} (${(bytes / 1e6).toFixed(1)} MB)`,
   );
+  if (roots.length > 1) {
+    const english = paths.length - missing.length - translated;
+    log(
+      `card art: MC_CARD_LANG=${lang}: ${translated} ${lang} scans, ${english} English where the ${lang} set has none`,
+    );
+  }
   if (missing.length > 0) {
     warn(
       `card art: ${missing.length} scan(s) the pool references are not in assets/card-art/ — those faces will draw their generated frame:\n` +
@@ -191,10 +249,10 @@ export function cardArtPlugin(): Plugin {
       outDir = path.resolve(config.root, config.build.outDir);
     },
     configureServer(server) {
-      server.middlewares.use(middleware());
+      server.middlewares.use(middleware(artRoots(cardLanguageOf())));
     },
     configurePreviewServer(server) {
-      server.middlewares.use(middleware());
+      server.middlewares.use(middleware(artRoots(cardLanguageOf())));
     },
     async closeBundle() {
       // `closeBundle` also fires for the worker's own sub-build and in watch mode;

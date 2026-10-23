@@ -11,5 +11,10 @@
 | Linux: any other distro                       | `MarvelChampions-VERSION-Linux-x64.AppImage`                                                                       |
 | Android phone or tablet                       | `MarvelChampions-VERSION-Android.apk`                                                                              |
 
+**Spanish card art (cartas en español):** every download above also comes as a Spanish build, with `-ES` after the
+version, such as `MarvelChampions-VERSION-ES-Windows-x64-Setup.exe` or `MarvelChampions-VERSION-ES-Android.apk`. It
+shows the Spanish card scans, and the English scan for any card that has no Spanish one yet. Installing it replaces the
+English app, and your saves carry over.
+
 Not sure which Mac you have? Apple menu → About This Mac: "Chip" means Apple chip, "Processor" means Intel.
 `SHA256SUMS.txt` lists every file's checksum. The `.app.tar.gz` files are the bare macOS apps; most players want the `.dmg`.

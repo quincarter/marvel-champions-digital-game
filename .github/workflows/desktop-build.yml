@@ -20,6 +20,12 @@ name: Desktop build
 # Automated releases and tag cutting are handled by release-on-merge.yml.
 on:
   workflow_dispatch:
+    inputs:
+      lang:
+        description: "Card language of the installers (issue #337)"
+        type: choice
+        options: [en, es]
+        default: en
 
 permissions:
   contents: write
@@ -54,6 +60,8 @@ jobs:
     name: ${{ matrix.name }}
     needs: [checks, tests]
     runs-on: ${{ matrix.os }}
+    env:
+      MC_CARD_LANG: ${{ inputs.lang }}
     strategy:
       fail-fast: false
       matrix:
@@ -183,6 +191,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: marvel-champions-${{ matrix.artifact }}
+          name: marvel-champions-${{ matrix.artifact }}-${{ inputs.lang }}
           if-no-files-found: error
           path: release/*

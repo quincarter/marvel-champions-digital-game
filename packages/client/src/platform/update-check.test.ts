@@ -201,4 +201,27 @@ describe("updateFor", () => {
       notesUrl: page,
     });
   });
+
+  describe("card language (issue #337)", () => {
+    /** A Spanish build's installers carry the language after the version (scripts/lib/release-collector.mjs). */
+    const spanish = (name: string) => name.replace("MarvelChampions-0.20.0-", "MarvelChampions-0.20.0-ES-");
+    const both = release([...ALL_ASSETS, ...Object.values(DOWNLOADS).map(spanish)]);
+
+    it("links each install to the installer in its own language", () => {
+      for (const [kind, name] of Object.entries(DOWNLOADS) as [InstallerKind, string][]) {
+        const target = { os: (osOf as Record<string, InstallOs>)[kind] ?? "macos", kind };
+        expect(updateFor(both, "0.19.1", target, "en")?.downloadUrl).toBe(file(name));
+        expect(updateFor(both, "0.19.1", target, "es")?.downloadUrl).toBe(file(spanish(name)));
+      }
+    });
+
+    it("offers a Spanish install nothing from a release with no Spanish installers", () => {
+      expect(updateFor(release(ALL_ASSETS), "0.19.1", { os: "windows", kind: "nsis" }, "es")).toBeNull();
+    });
+
+    it("never offers an English install a Spanish installer", () => {
+      const spanishOnly = release(Object.values(DOWNLOADS).map(spanish));
+      expect(updateFor(spanishOnly, "0.19.1", { os: "windows", kind: "nsis" }, "en")).toBeNull();
+    });
+  });
 });

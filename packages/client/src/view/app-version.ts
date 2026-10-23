@@ -6,10 +6,18 @@
  * the release PR that names it — so on the web the release version alone would under-state it. There, the build's
  * commit rides along as semver build metadata: `v0.7.0+a1b2c3d` is "0.7.0, plus whatever landed up to a1b2c3d".
  */
+import { BASE_CARD_LANGUAGE, type CardLanguage } from "../art/card-language.js";
 import type { Platform } from "../platform/platform.js";
 
-export function appVersionText(version: string, platform: Platform, commit: string): string {
-  return platform === "web" && commit !== "" ? `v${version}+${commit}` : `v${version}`;
+export function appVersionText(
+  version: string,
+  platform: Platform,
+  commit: string,
+  language: CardLanguage = BASE_CARD_LANGUAGE,
+): string {
+  const release = platform === "web" && commit !== "" ? `v${version}+${commit}` : `v${version}`;
+  // A build in another card language says so (`art/card-language.ts`), so a bug report names which art it ran with.
+  return language === BASE_CARD_LANGUAGE ? release : `${release} · ${language.toUpperCase()}`;
 }
 
 /** The short commit this bundle was built from, or "" (a test run, or a build with no git to ask). */

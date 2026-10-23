@@ -24,6 +24,7 @@ import { playPlatformMarkOf, playPlatformSlotIn } from "../view/play-platform-ma
 import { McButton, fitText, paintDotGrid } from "../ui/widgets.js";
 import { TITLE_ART, coverFit, pickTitleArt, type TitleArt } from "../art/title-art.js";
 import { ensurePictureLoaded } from "../art/pictures.js";
+import { cardLanguage } from "../art/card-language.js";
 import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS, POOL_VERSION } from "../content/pool.js";
 import { cardPoolCoverageOf, cardPoolCoverageText } from "../view/card-pool-coverage.js";
 import { UPDATE_DISMISS_ID, appVersionText, buildCommit, releaseNotesUrl, updateActions } from "../view/app-version.js";
@@ -609,7 +610,7 @@ export class TitleScene extends Phaser.Scene {
     const versionText = this.add.text(
       0,
       layout.footer.y,
-      appVersionText(CLIENT_VERSION, detectPlatform(), buildCommit()),
+      appVersionText(CLIENT_VERSION, detectPlatform(), buildCommit(), cardLanguage()),
       textStyle(typeRole.label, textColor, ink.meta),
     );
     versionText.setX(layout.footer.x + layout.footer.width - versionText.width);
