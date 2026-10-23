@@ -381,6 +381,9 @@ export function appendWalkthrough(
         revealed = [];
       }
       activeIndex = stepIndex;
+      // The enemies' activations are over once their step is: a later step's beats carry only an activation one of
+      // its own cards starts (a treachery's "Rhino schemes", #370), never the last attack of step 2.
+      if (stepIndex !== VILLAIN_STEPS.indexOf("enemyActivations")) activation = null;
       continue;
     }
 
@@ -413,6 +416,12 @@ export function appendWalkthrough(
         break;
       case "encounterCardRevealed":
         revealed.push({ instanceId: event.instanceId, cardId: event.cardId, playerId: event.playerId });
+        // Each card starts clean: a finished activation from before it is not this card's. One still resolving keeps
+        // going (an attack whose effect reveals a card mid-activation). Only in the reveal step: a card a step-2 effect
+        // reveals (a stage's "reveal a card") stays with the activation it follows, as the recap groups it.
+        if (activeIndex === VILLAIN_STEPS.indexOf("revealEncounterCards") && activation?.resolved !== null) {
+          activation = null;
+        }
         break;
       case "enemyActivated":
         activation =
