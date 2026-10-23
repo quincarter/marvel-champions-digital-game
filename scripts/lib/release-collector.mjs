@@ -48,16 +48,16 @@ export function getProjectVersion() {
  * into a dot. Both the CI release job (stage-release-assets.mjs) and local builds name files here, and the in-app
  * update notice matches these names (packages/client/src/platform/update-check.ts).
  *
- * A build in a card language other than English (`MC_CARD_LANG`, issue #337) puts the language right after the
- * version, `MarvelChampions-0.37.0-ES-Windows-x64-Setup.exe`, which is where the update notice reads it
- * (`assetLanguage` in packages/client/src/art/card-language.ts). An English build's names are unchanged.
+ * Every name carries its card language (`MC_CARD_LANG`, issue #337) right after the version, English included:
+ * `MarvelChampions-0.37.0-EN-Windows-x64-Setup.exe`, `MarvelChampions-0.37.0-ES-Android.apk`. That is where the update
+ * notice reads it (`assetLanguage` in packages/client/src/art/card-language.ts); releases before the tag have none and
+ * are English.
  */
 export const ASSET_PREFIX = "MarvelChampions";
 
-/** `MarvelChampions-<version>` and, for a non-English build, its language tag. */
+/** `MarvelChampions-<version>-<LANG>`; English unless `MC_CARD_LANG` names another language. */
 function assetStem(version, lang = process.env.MC_CARD_LANG) {
-  const tag = lang && lang !== "en" ? `-${lang.toUpperCase()}` : "";
-  return `${ASSET_PREFIX}-${version}${tag}`;
+  return `${ASSET_PREFIX}-${version}-${(lang || "en").toUpperCase()}`;
 }
 
 export function androidApkName(version, lang) {

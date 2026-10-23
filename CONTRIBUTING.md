@@ -192,9 +192,9 @@ release:
   `.AppImage`), Windows 11 (`.msi`, `-setup.exe`).
 - **Android (Capacitor)**: a release `.apk`.
 
-Asset names spell out the OS, architecture and installer kind (`MarvelChampions-<version>-Windows-x64-Setup.exe`,
-`-macOS-AppleSilicon-arm64.dmg`, `-Linux-x64.AppImage`, `-Android.apk` and so on). Every installer is also built in
-Spanish, named with the language after the version (`MarvelChampions-<version>-ES-Windows-x64-Setup.exe`).
+Asset names spell out the card language, OS, architecture and installer kind
+(`MarvelChampions-<version>-EN-Windows-x64-Setup.exe`, `-EN-macOS-AppleSilicon-arm64.dmg`, `-EN-Linux-x64.AppImage`,
+`-EN-Android.apk` and so on). Every installer is built in English (`-EN-`) and Spanish (`-ES-`).
 `scripts/lib/release-collector.mjs` names them for both the workflow (`scripts/stage-release-assets.mjs`) and local
 builds, and every release's notes end with the table in `.github/release-downloads.md`. The README's download buttons name
 the version they fetch and link to that release's files; the release PR updates both through the `replacements` in

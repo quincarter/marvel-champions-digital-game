@@ -16,6 +16,9 @@ describe("card language", () => {
   it("reads a release asset's language from the tag after its version", () => {
     expect(assetLanguage("MarvelChampions-0.37.0-ES-Windows-x64-Setup.exe")).toBe("es");
     expect(assetLanguage("MarvelChampions-0.37.0-ES-Android.apk")).toBe("es");
+    expect(assetLanguage("MarvelChampions-0.37.0-EN-Windows-x64-Setup.exe")).toBe("en");
+    expect(assetLanguage("MarvelChampions-0.37.0-EN-macOS-Intel-x64.app.tar.gz")).toBe("en");
+    // Releases before the language tag.
     expect(assetLanguage("MarvelChampions-0.37.0-Windows-x64-Setup.exe")).toBe("en");
     expect(assetLanguage("MarvelChampions-0.37.0-macOS-AppleSilicon-arm64.dmg")).toBe("en");
     // Tauri's own names from releases before v0.21.0, and the checksum list, have no tag: English.

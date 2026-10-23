@@ -55,8 +55,9 @@ replacements:
     replace: "releases/tag/{{.Version}})"
   # The README's download buttons: each link names the release's files, and each button shows its version.
   - path: README.md
-    find: 'releases/download/v[0-9]+\.[0-9]+\.[0-9]+/MarvelChampions-[0-9]+\.[0-9]+\.[0-9]+-'
-    replace: "releases/download/{{.Version}}/MarvelChampions-{{.VersionNoPrefix}}-"
+    # The buttons are the English downloads; names carry `-EN-` from the first release with Spanish builds (#337).
+    find: 'releases/download/v[0-9]+\.[0-9]+\.[0-9]+/MarvelChampions-[0-9]+\.[0-9]+\.[0-9]+-(EN-)?'
+    replace: "releases/download/{{.Version}}/MarvelChampions-{{.VersionNoPrefix}}-EN-"
   - path: .github/assets/readme/download-windows.svg
     find: 'v[0-9]+\.[0-9]+\.[0-9]+'
     replace: "{{.Version}}"

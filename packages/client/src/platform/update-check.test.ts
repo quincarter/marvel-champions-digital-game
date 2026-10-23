@@ -219,6 +219,21 @@ describe("updateFor", () => {
       expect(updateFor(release(ALL_ASSETS), "0.19.1", { os: "windows", kind: "nsis" }, "es")).toBeNull();
     });
 
+    it("reads English-tagged installers as English", () => {
+      const tagged = (lang: string) => (name: string) =>
+        name.replace("MarvelChampions-0.20.0-", `MarvelChampions-0.20.0-${lang}-`);
+      const current = release([
+        ...Object.values(DOWNLOADS).map(tagged("EN")),
+        ...Object.values(DOWNLOADS).map(spanish),
+      ]);
+      expect(updateFor(current, "0.19.1", { os: "windows", kind: "nsis" }, "en")?.downloadUrl).toBe(
+        file(tagged("EN")(DOWNLOADS.nsis)),
+      );
+      expect(updateFor(current, "0.19.1", { os: "android", kind: "apk" }, "es")?.downloadUrl).toBe(
+        file(spanish(DOWNLOADS.apk)),
+      );
+    });
+
     it("never offers an English install a Spanish installer", () => {
       const spanishOnly = release(Object.values(DOWNLOADS).map(spanish));
       expect(updateFor(spanishOnly, "0.19.1", { os: "windows", kind: "nsis" }, "en")).toBeNull();

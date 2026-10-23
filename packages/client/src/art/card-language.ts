@@ -27,9 +27,9 @@ export function cardLanguage(): CardLanguage {
 }
 
 /**
- * The language a release asset is built in, from its name (`scripts/lib/release-collector.mjs` names a non-English
- * build's installers with the language after the version: `MarvelChampions-0.37.0-ES-Windows-x64-Setup.exe`). An
- * asset without that tag is English, as every release before Spanish was.
+ * The language a release asset is built in, from its name (`scripts/lib/release-collector.mjs` puts it after the
+ * version: `MarvelChampions-0.37.0-EN-Windows-x64-Setup.exe`, `MarvelChampions-0.37.0-ES-Android.apk`). An asset
+ * without that tag is English, as every release before Spanish was.
  */
 export function assetLanguage(name: string): CardLanguage | null {
   const tag = /^MarvelChampions-[^-]+-([A-Z]{2})-/.exec(name)?.[1]?.toLowerCase();
