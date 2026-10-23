@@ -10,6 +10,8 @@ export const SHADOWLAND_NOTICE_ON = true;
 
 /** The bar's height: a slim strip, still a touch-sized target. */
 export const NOTICE_BAR_HEIGHT = 40;
+/** The heights tried in turn on a screen too short for the full bar (`view/title-menu-layout.ts`). */
+export const NOTICE_BAR_HEIGHTS: readonly number[] = [NOTICE_BAR_HEIGHT, 32, 26];
 
 export const SHADOWLAND_NOTICE_TAG = "NOTICE";
 export const SHADOWLAND_NOTICE_TEXT = "Where did the Shadowland content go?";

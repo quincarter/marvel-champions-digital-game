@@ -658,6 +658,8 @@ export class TitleScene extends Phaser.Scene {
     this.#drawRankBadge(layout.rankBadge, openTrophies);
     this.#route?.set(
       [
+        // The notice bar is the top-most control, so it comes first.
+        ...(layout.noticeBar ? ["shadowland-notice"] : []),
         ...titleMenuFocusOrder({
           continuable: this.#continuable !== null,
           civilWar: civilWar !== null,
@@ -668,7 +670,6 @@ export class TitleScene extends Phaser.Scene {
           gamesRow: layout.gamesRow !== null,
         }),
         "rank-badge",
-        ...(layout.noticeBar ? ["shadowland-notice"] : []),
       ],
       this.#stops,
     );

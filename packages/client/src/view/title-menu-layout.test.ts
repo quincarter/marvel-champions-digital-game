@@ -6,7 +6,7 @@ import {
   updateBannerActionCount,
   updateBannerParts,
 } from "./title-menu-layout.js";
-import { NOTICE_BAR_HEIGHT } from "./shadowland-notice.js";
+import { NOTICE_BAR_HEIGHT, NOTICE_BAR_HEIGHTS } from "./shadowland-notice.js";
 
 const SIZES: readonly { readonly width: number; readonly height: number }[] = [
   { width: 440, height: 900 },
@@ -325,8 +325,10 @@ describe("the phone rank badge", () => {
 
 describe("the temporary notice bar", () => {
   const sizes = [
+    { width: 360, height: 640 },
     { width: 360, height: 740 },
     { width: 390, height: 844 },
+    { width: 1024, height: 600 },
     { width: 844, height: 390 },
     { width: 768, height: 1024 },
     { width: 1024, height: 768 },
@@ -337,20 +339,51 @@ describe("the temporary notice bar", () => {
     test(`spans the top and pushes everything under it at ${size.width}x${size.height}`, () => {
       const plain = titleMenuLayout({ ...size, continuable: true, games: 2 });
       const layout = titleMenuLayout({ ...size, continuable: true, games: 2, noticeBar: true });
-      const bar = layout.noticeBar!;
-      expect(bar).toEqual({ x: 0, y: 0, width: size.width, height: NOTICE_BAR_HEIGHT });
+      const bar = layout.noticeBar ?? { x: 0, y: 0, width: size.width, height: 0 };
+      expect(bar).toMatchObject({ x: 0, y: 0, width: size.width });
+      // No bar at all only where no height of it fits (a 360x640 phone at its compact floor).
+      expect([0, ...NOTICE_BAR_HEIGHTS]).toContain(bar.height);
       expect(plain.noticeBar).toBeNull();
       const rects = titleMenuLayoutRects(layout);
       for (let i = 0; i < rects.length; i++) {
         for (let j = i + 1; j < rects.length; j++) expect(rectsOverlap(rects[i]!, rects[j]!)).toBe(false);
       }
       // The panels start under it too, and the report and music buttons (level with the eyebrow) clear it.
-      if (layout.artPanel) expect(layout.artPanel.y).toBe(NOTICE_BAR_HEIGHT);
-      expect(layout.menuPanel.y).toBe(NOTICE_BAR_HEIGHT);
-      expect(layout.eyebrow.y + 8 - 22).toBeGreaterThanOrEqual(NOTICE_BAR_HEIGHT);
+      if (layout.artPanel) expect(layout.artPanel.y).toBe(bar.height);
+      expect(layout.menuPanel.y).toBe(bar.height);
+      expect(layout.eyebrow.y + 8 - 22).toBeGreaterThanOrEqual(bar.height);
       // A menu that fitted without the bar still fits with it.
       const bottom = (l: typeof layout) => Math.max(...titleMenuLayoutRects(l).map((r) => r.y + r.height));
       if (bottom(plain) <= size.height) expect(bottom(layout)).toBeLessThanOrEqual(size.height + 0.01);
     });
   }
+
+  test("a tall screen gets the full bar", () => {
+    expect(titleMenuLayout({ width: 1280, height: 800, continuable: true, noticeBar: true }).noticeBar!.height).toBe(
+      NOTICE_BAR_HEIGHT,
+    );
+  });
+
+  test("a short screen whose menu fits without the bar still fits with it (1024x600, 360x640 with games)", () => {
+    // 1024x600 slims the bar; the 360x640 phone with every row has no room for one and drops it.
+    expect(
+      titleMenuLayout({ width: 1024, height: 600, continuable: true, civilWar: true, noticeBar: true }).noticeBar,
+    ).not.toBeNull();
+    expect(
+      titleMenuLayout({ width: 360, height: 640, continuable: true, civilWar: true, games: 2, noticeBar: true })
+        .noticeBar,
+    ).toBeNull();
+    for (const input of [
+      { width: 1024, height: 600, continuable: true, civilWar: true },
+      { width: 1024, height: 600, continuable: true, civilWar: true, games: 2 },
+      { width: 360, height: 640, continuable: true, civilWar: true, games: 2 },
+    ]) {
+      const bottom = (l: ReturnType<typeof titleMenuLayout>) =>
+        Math.max(...titleMenuLayoutRects(l).map((r) => r.y + r.height));
+      if (bottom(titleMenuLayout(input)) > input.height) continue;
+      expect(bottom(titleMenuLayout({ ...input, noticeBar: true })), JSON.stringify(input)).toBeLessThanOrEqual(
+        input.height + 0.01,
+      );
+    }
+  });
 });

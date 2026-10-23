@@ -30,7 +30,7 @@ import { hit } from "../tokens.js";
 import type { Rect } from "./layout.js";
 import { setupMetrics } from "./setup-metrics.js";
 import { GAME_ROW_GAP, GAME_ROW_HEIGHT } from "./games-list-model.js";
-import { NOTICE_BAR_HEIGHT } from "./shadowland-notice.js";
+import { NOTICE_BAR_HEIGHTS } from "./shadowland-notice.js";
 
 const TITLE_BLOCK_RATIO = 1.35;
 /** The red divider's own width, and the left art panel's share of a split screen. */
@@ -245,8 +245,20 @@ const TITLE_STEP = 4;
  */
 export function titleMenuLayout(input: TitleMenuLayoutInput): TitleMenuLayout {
   if (input.noticeBar !== true) return titleMenuLayoutUnder(input);
-  // The notice bar takes the top strip; the menu is laid out in the rest and moved down under it.
-  const inset = NOTICE_BAR_HEIGHT;
+  // The notice bar takes the top strip; the menu is laid out in the rest and moved down under it. On a screen too short
+  // for the full bar (a 1024x600 tablet) it slims down rather than push a menu that fits without it off the bottom.
+  // A menu that only just fits at its compact floor (a 360x640 phone with Continue, Civil War! and games in progress)
+  // has no room for any bar, so it goes without: Settings stays on screen. A menu that overflows anyway keeps the bar.
+  const plain = titleMenuLayoutUnder(input);
+  if (bottomOf(plain) > input.height) return underNoticeBar(input, NOTICE_BAR_HEIGHTS[0]!);
+  for (const inset of NOTICE_BAR_HEIGHTS) {
+    const layout = underNoticeBar(input, inset);
+    if (bottomOf(layout) <= input.height) return layout;
+  }
+  return plain;
+}
+
+function underNoticeBar(input: TitleMenuLayoutInput, inset: number): TitleMenuLayout {
   const below = titleMenuLayoutUnder({ ...input, height: input.height - inset });
   const shift = (rect: Rect): Rect => ({ ...rect, y: rect.y + inset });
   const shifted = Object.fromEntries(
@@ -255,6 +267,10 @@ export function titleMenuLayout(input: TitleMenuLayoutInput): TitleMenuLayout {
   return { ...shifted, noticeBar: { x: 0, y: 0, width: input.width, height: inset } };
 }
 
+const bottomOf = (layout: TitleMenuLayout): number =>
+  Math.max(...titleMenuLayoutRects(layout).map((rect) => rect.y + rect.height));
+
+/** Top-level `Rect` fields only: a future field holding rects in an array or a nested object would need its own shift. */
 const isRect = (value: unknown): value is Rect =>
   typeof value === "object" && value !== null && "x" in value && "y" in value && "width" in value && "height" in value;
 
