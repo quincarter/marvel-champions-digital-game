@@ -103,7 +103,7 @@ export const NINJA_SWARM_RECORDS: readonly AddedRecord[] = [
   ),
   added(
     KIRIGI,
-    'Image 65029.webp (play.marvelsimulator.com) (footer "NINJA SWARM (2/9)", 29, Sebastián Guidobono). Unique star, MINION, "HAND. NINJA.", SCH 1, ATK 2, hit points 3 (no per player icon), boost icon is the star only. "Teamwork (NINJA). When Defeated: The defeating player either spends 2 resources of any type or shuffles Kirigi into the encounter deck. [rule] (star) Boost: If an ally is defending against this attack, this card gains (boost)(boost) and this attack gains overkill." The two red Y-shaped marks in the boost line are the boost icon, so [boost][boost]. Second check (D3, 2026-10-22): read from the card image, every field agrees with the record.',
+    'Image 65029.webp (footer "NINJA SWARM (2/9)", 29, Sebastián Guidobono). Unique star, MINION, "HAND. NINJA.", SCH 1, ATK 2, hit points 3 (no per player icon), boost icon is the star only. "Teamwork (NINJA). When Defeated: The defeating player either spends 2 resources of any type or shuffles Kirigi into the encounter deck. [rule] (star) Boost: If an ally is defending against this attack, this card gains (boost)(boost) and this attack gains overkill." The two red Y-shaped marks in the boost line are the boost icon, so [boost][boost]. Second check (D3, 2026-10-22): read from the card image, every field agrees with the record.',
   ),
   added(
     BO_STAFF_NINJA,
@@ -111,7 +111,7 @@ export const NINJA_SWARM_RECORDS: readonly AddedRecord[] = [
   ),
   added(
     FUKIYA_NINJA,
-    'Image 65031.webp (play.marvelsimulator.com) (footer "NINJA SWARM (4/9)", 31, Aitor Prieto). MINION, "HAND. NINJA.", SCH 1, ATK 1 with a star, hit points 2, one boost icon. "Teamwork (NINJA). (star) This minion\'s attacks gain ranged. When Defeated: The defeating player discards the top 2 cards of the encounter deck and reveals the first minion with the teamwork keyword discarded this way." Second check (D3, 2026-10-22): read from the card image, every field agrees with the record.',
+    'Image 65031.webp (footer "NINJA SWARM (4/9)", 31, Aitor Prieto). MINION, "HAND. NINJA.", SCH 1, ATK 1 with a star, hit points 2, one boost icon. "Teamwork (NINJA). (star) This minion\'s attacks gain ranged. When Defeated: The defeating player discards the top 2 cards of the encounter deck and reveals the first minion with the teamwork keyword discarded this way." Second check (D3, 2026-10-22): read from the card image, every field agrees with the record.',
   ),
   added(
     KATANA_NINJA,
@@ -119,11 +119,11 @@ export const NINJA_SWARM_RECORDS: readonly AddedRecord[] = [
   ),
   added(
     KUSARIGAMA_NINJA,
-    'Image 65033.webp (play.marvelsimulator.com) (footer "NINJA SWARM (6/9)", 33, no illustrator printed). MINION, "HAND. NINJA.", SCH 1, ATK 1, hit points 2, two boost icons. "Patrol. Teamwork (NINJA). When Defeated: The defeating player discards the top 2 cards of the encounter deck and reveals the first minion with the teamwork keyword discarded this way." Second check (D3, 2026-10-22): read from the card image, every field agrees with the record.',
+    'Image 65033.webp (footer "NINJA SWARM (6/9)", 33, no illustrator printed). MINION, "HAND. NINJA.", SCH 1, ATK 1, hit points 2, two boost icons. "Patrol. Teamwork (NINJA). When Defeated: The defeating player discards the top 2 cards of the encounter deck and reveals the first minion with the teamwork keyword discarded this way." Second check (D3, 2026-10-22): read from the card image, every field agrees with the record.',
   ),
   added(
     SHURIKEN_NINJA,
-    'Image 65034.webp (play.marvelsimulator.com) (footer "NINJA SWARM (7/9)", 34, no illustrator printed). MINION, "HAND. NINJA.", SCH 1, ATK 1 with a star, hit points 2, one boost icon. "Teamwork (NINJA). (star) This minion\'s attacks gain piercing. When Defeated: The defeating player discards the top 2 cards of the encounter deck and reveals the first minion with the teamwork keyword discarded this way." Second check (D3, 2026-10-22): read from the card image, every field agrees with the record.',
+    'Image 65034.webp (footer "NINJA SWARM (7/9)", 34, no illustrator printed). MINION, "HAND. NINJA.", SCH 1, ATK 1 with a star, hit points 2, one boost icon. "Teamwork (NINJA). (star) This minion\'s attacks gain piercing. When Defeated: The defeating player discards the top 2 cards of the encounter deck and reveals the first minion with the teamwork keyword discarded this way." Second check (D3, 2026-10-22): read from the card image, every field agrees with the record.',
   ),
   added(
     DANCING_SHADOWS,

@@ -151,7 +151,7 @@ export const SHADOWLAND_PROVENANCE: readonly CardProvenance[] = [
     cardSetCode: "shadow_labyrinth",
     marvelcdbCodes: ["65038a", "65038b", "65039a", "65039b"],
     corrections: [
-      "65038b: Into the Labyrinth 1B prints the infinity symbol in the threshold circle: no threat target, the stage ends only through its own Forced Interrupt (the last threat removed). [evidence: Image 65038B.webp (play.marvelsimulator.com), top-left circle: infinity symbol; text \"When the last threat is removed from this scheme, advance to stage 2A\". Encoded as a dashed targetThreat (no value emitted), as the Wave 6 dashed main scheme thresholds are.]",
+      "65038b: Into the Labyrinth 1B prints the infinity symbol in the threshold circle: no threat target, the stage ends only through its own Forced Interrupt (the last threat removed). [evidence: Image 65038B.webp, top-left circle: infinity symbol; text \"When the last threat is removed from this scheme, advance to stage 2A\". Encoded as a dashed targetThreat (no value emitted), as the Wave 6 dashed main scheme thresholds are.]",
     ],
   },
   {

@@ -279,14 +279,12 @@ const SHADOWY_PLOT = single(SET, "side_scheme", "65025", "Shadowy Plot", 14, {
   text: "Linked (Daredevil, Gorgon, or Lady Bullseye).\n<b>When Defeated</b>: The defeating player looks at the top 3 cards of the encounter deck, reveals 1 of them, and discards the rest.",
 });
 
-const IMG = "(play.marvelsimulator.com)";
-
 function villainEvidence(scan: string, n: number, collector: string, body: string, bBody: string): string {
   return `Scan ${scan} (footer "${FOOTER} (${n}/16) / HIT POINTS 15" with the per player icon, ${collector}). Unique star, VILLAIN, stage letter A (top right). ${body} ${bBody}`;
 }
 
 function bEvidence(code: string, n: number, collector: string, body: string): string {
-  return `The B side is nested as linked_card. Image ${code}.webp ${IMG}: footer "${FOOTER} (${n}/16) / HIT POINTS 18" with the per player icon, ${collector}. Unique star, VILLAIN, stage letter B (top right). ${body} Second check (D3, 2026-10-22): agrees.`;
+  return `The B side is nested as linked_card. Image ${code}.webp: footer "${FOOTER} (${n}/16) / HIT POINTS 18" with the per player icon, ${collector}. Unique star, VILLAIN, stage letter B (top right). ${body} Second check (D3, 2026-10-22): agrees.`;
 }
 
 export const DARK_PROTEGE_RECORDS: readonly AddedRecord[] = [
@@ -390,27 +388,27 @@ export const DARK_PROTEGE_RECORDS: readonly AddedRecord[] = [
   ),
   added(
     ARCHPRIESTESS_MINION,
-    `Image 65020.webp ${IMG} (footer "${FOOTER} (9/16)", 20, no illustrator printed). MINION, unique star, "HAND. MYSTIC.", SCH 2, ATK 1, hit points 5 (the orange circle at the foot of the art, as Fear No Evil minions), two red boost icons, no boost star. "Linked (Gorgon, Lady Bullseye, or White Tiger). Villainous. When Revealed: Each other minion engaged with you attacks you. If no attack was made this way, discard the top 3 cards of the encounter deck." Second check (D3, 2026-10-22): agrees.`,
+    `Image 65020.webp (footer "${FOOTER} (9/16)", 20, no illustrator printed). MINION, unique star, "HAND. MYSTIC.", SCH 2, ATK 1, hit points 5 (the orange circle at the foot of the art, as Fear No Evil minions), two red boost icons, no boost star. "Linked (Gorgon, Lady Bullseye, or White Tiger). Villainous. When Revealed: Each other minion engaged with you attacks you. If no attack was made this way, discard the top 3 cards of the encounter deck." Second check (D3, 2026-10-22): agrees.`,
   ),
   added(
     GORGON_MINION,
-    `Image 65021.webp ${IMG} (footer "${FOOTER} (10/16)", 21, no illustrator printed). MINION, unique star, "BRUTE. HAND.", SCH 0, ATK 1, hit points 5 (orange circle), two red boost icons, no boost star. "Linked (Daredevil, Elektra, or Lady Bullseye). Guard. Villainous. Forced Response: After a character attacks and damages Gorgon, stun that character." Second check (D3, 2026-10-22): agrees.`,
+    `Image 65021.webp (footer "${FOOTER} (10/16)", 21, no illustrator printed). MINION, unique star, "BRUTE. HAND.", SCH 0, ATK 1, hit points 5 (orange circle), two red boost icons, no boost star. "Linked (Daredevil, Elektra, or Lady Bullseye). Guard. Villainous. Forced Response: After a character attacks and damages Gorgon, stun that character." Second check (D3, 2026-10-22): agrees.`,
   ),
   added(
     LADY_BULLSEYE_MINION,
-    `Image 65022.webp ${IMG} (footer "${FOOTER} (11/16)", 22, no illustrator printed). MINION, unique star, "HAND.", SCH 1, ATK 1 with a star, hit points 5 (orange circle), two red boost icons, no boost star. "Linked (Archpriestess, Gorgon, or White Tiger). Villainous. (star) Forced Interrupt: When Lady Bullseye attacks you, this attack gains ranged and she attacks the ally with the highest printed cost you control, if able." Second check (D3, 2026-10-22): agrees.`,
+    `Image 65022.webp (footer "${FOOTER} (11/16)", 22, no illustrator printed). MINION, unique star, "HAND.", SCH 1, ATK 1 with a star, hit points 5 (orange circle), two red boost icons, no boost star. "Linked (Archpriestess, Gorgon, or White Tiger). Villainous. (star) Forced Interrupt: When Lady Bullseye attacks you, this attack gains ranged and she attacks the ally with the highest printed cost you control, if able." Second check (D3, 2026-10-22): agrees.`,
   ),
   added(
     WHITE_TIGER_MINION,
-    `Image 65023.webp ${IMG} (footer "${FOOTER} (12/16)", 23, no illustrator printed). MINION, unique star, "HAND.", SCH 1, ATK 2, hit points 5 (orange circle), two red boost icons, no boost star. "Linked (Archpriestess, Daredevil, or Elektra). Villainous. When Revealed: Take 2 indirect damage." Second check (D3, 2026-10-22): agrees.`,
+    `Image 65023.webp (footer "${FOOTER} (12/16)", 23, no illustrator printed). MINION, unique star, "HAND.", SCH 1, ATK 2, hit points 5 (orange circle), two red boost icons, no boost star. "Linked (Archpriestess, Daredevil, or Elektra). Villainous. When Revealed: Take 2 indirect damage." Second check (D3, 2026-10-22): agrees.`,
   ),
   added(
     RITE_OF_OFFERING,
-    `Image 65024.webp ${IMG} (landscape, footer "${FOOTER} (13/16)", 24, no illustrator printed). SIDE SCHEME, no traits, starting threat 1 (bare number, no per player icon, so fixed), no boost icons. One scheme icon, the card-and-plus glyph, which Strategic Positioning 65008 prints as the hazard icon, so scheme_hazard 1. "Linked (Archpriestess, Elektra, or White Tiger). When Defeated: The defeating player removes an ally they control from the game. If no ally was removed this way, that player takes 3 damage." Second check (D3, 2026-10-22): agrees.`,
+    `Image 65024.webp (landscape, footer "${FOOTER} (13/16)", 24, no illustrator printed). SIDE SCHEME, no traits, starting threat 1 (bare number, no per player icon, so fixed), no boost icons. One scheme icon, the card-and-plus glyph, which Strategic Positioning 65008 prints as the hazard icon, so scheme_hazard 1. "Linked (Archpriestess, Elektra, or White Tiger). When Defeated: The defeating player removes an ally they control from the game. If no ally was removed this way, that player takes 3 damage." Second check (D3, 2026-10-22): agrees.`,
   ),
   added(
     SHADOWY_PLOT,
-    `Image 65025.webp ${IMG} (landscape, footer "${FOOTER} (14/16)", 25, no illustrator printed). SIDE SCHEME, no traits, starting threat 2 (bare number, so fixed), no boost icons. One scheme icon, the exclamation point in a burst, the glyph Hall of Punishment 65048 and Dead End 65042 print as the crisis icon, so scheme_crisis 1. "Linked (Daredevil, Gorgon, or Lady Bullseye). When Defeated: The defeating player looks at the top 3 cards of the encounter deck, reveals 1 of them, and discards the rest." Second check (D3, 2026-10-22): agrees.`,
+    `Image 65025.webp (landscape, footer "${FOOTER} (14/16)", 25, no illustrator printed). SIDE SCHEME, no traits, starting threat 2 (bare number, so fixed), no boost icons. One scheme icon, the exclamation point in a burst, the glyph Hall of Punishment 65048 and Dead End 65042 print as the crisis icon, so scheme_crisis 1. "Linked (Daredevil, Gorgon, or Lady Bullseye). When Defeated: The defeating player looks at the top 3 cards of the encounter deck, reveals 1 of them, and discards the rest." Second check (D3, 2026-10-22): agrees.`,
   ),
   added(
     DARKNESS_WITHIN,

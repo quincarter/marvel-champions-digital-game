@@ -6,12 +6,10 @@
  * the Hall of Heroes preview scans (docs/phase7-shadowland.md section 3), as Fear No Evil's scenario half was.
  *
  * Every printed card is transcribed: 90 printed copies, 73 distinct card records. The Hall of Heroes previews gave 45 card
- * images (300 x 426); the remaining faces were transcribed from full-size card images, and those full-size images
- * (card images from play.marvelsimulator.com, owner-approved 2026-10-22) are now saved too, so every face has a scan under
- * `assets/card-art/bundles/cards/` and no `artUnavailable` entry is left. They are recorded in
- * `assets/card-art/hall-of-heroes-manifest.tsv` with that source, the same Marvel Simulator source `scripts/fetch_card_art.py
- * simulator` uses for scans Hall of Heroes doesn't carry clean (#360, which also moved the 45 preview scans to it). The
- * three scenario records (`shadowland-scenarios.ts`) are wired in and the pack is in the content index.
+ * images (300 x 426); the remaining faces were transcribed from full-size card images (owner-approved 2026-10-22), and
+ * those images are now saved too, so every face has a scan under `assets/card-art/bundles/cards/` and no
+ * `artUnavailable` entry is left (#360 also replaced the 45 preview scans with full-size copies). The three scenario
+ * records (`shadowland-scenarios.ts`) are wired in and the pack is in the content index.
  *
  * Evidence abbreviations: "scan" is the Hall of Heroes preview `mc65_cards_<stem>.png` (https://hallofheroeslcg.com/
  * shadowland/; also saved as `assets/card-art/bundles/cards/<code>.png`), "insert" is the box rules insert
@@ -67,7 +65,7 @@ export const SHADOWLAND_CURATION: PackCuration = {
       reason:
         "Into the Labyrinth 1B prints the infinity symbol in the threshold circle: no threat target, the stage ends only through its own Forced Interrupt (the last threat removed).",
       evidence:
-        'Image 65038B.webp (play.marvelsimulator.com), top-left circle: infinity symbol; text "When the last threat is removed from this scheme, advance to stage 2A". Encoded as a dashed targetThreat (no value emitted), as the Wave 6 dashed main scheme thresholds are.',
+        'Image 65038B.webp, top-left circle: infinity symbol; text "When the last threat is removed from this scheme, advance to stage 2A". Encoded as a dashed targetThreat (no value emitted), as the Wave 6 dashed main scheme thresholds are.',
       dashedThreatFields: ["targetThreat"],
     },
     {

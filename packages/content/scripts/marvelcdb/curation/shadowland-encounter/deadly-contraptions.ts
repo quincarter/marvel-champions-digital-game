@@ -1,6 +1,6 @@
 /**
  * Shadowland (MC65) Deadly Contraptions, a modular set (11 printed copies, collector 46 to 56, one copy each; seven
- * TRAP! treacheries per the insert p. 12). Transcribed from the full-size scans (play.marvelsimulator.com, owner-approved
+ * TRAP! treacheries per the insert p. 12). Transcribed from the full-size scans (owner-approved
  * 2026-10-22); conventions in `common.ts`.
  *
  * All eleven are transcribed: Nervous Jitters 46, Iron Monk 47, Hall of Punishment 48, Path of a Thousand Cuts 49 and
@@ -108,7 +108,7 @@ export const DEADLY_CONTRAPTIONS_RECORDS: readonly AddedRecord[] = [
   ),
   added(
     PATH_OF_A_THOUSAND_CUTS,
-    'Image 65049.webp (play.marvelsimulator.com; first read from the preview scan mc65_cards_path_of_a_thousand_cuts.png, re-checked at full size with no differences; landscape; footer "DEADLY CONTRAPTIONS (4/11)", 49, Kyle Petchock). SIDE SCHEME, no traits, starting threat 5 with no per player icon (fixed), no scheme icons, boost icon is the star only. Flavor: "Every step is a test of resilience." "Forced Interrupt: When you choose the "Avoid" effect or the "Trip" effect on a TRAP! card, take 2 indirect damage. [rule] (star) Boost: Deal 1 damage to each character you control." Second check (D3, 2026-10-22): agrees.',
+    'Image 65049.webp (first read from the preview scan mc65_cards_path_of_a_thousand_cuts.png, re-checked at full size with no differences; landscape; footer "DEADLY CONTRAPTIONS (4/11)", 49, Kyle Petchock). SIDE SCHEME, no traits, starting threat 5 with no per player icon (fixed), no scheme icons, boost icon is the star only. Flavor: "Every step is a test of resilience." "Forced Interrupt: When you choose the "Avoid" effect or the "Trip" effect on a TRAP! card, take 2 indirect damage. [rule] (star) Boost: Deal 1 damage to each character you control." Second check (D3, 2026-10-22): agrees.',
   ),
   added(
     BLINDING_POWDER,
@@ -120,22 +120,22 @@ export const DEADLY_CONTRAPTIONS_RECORDS: readonly AddedRecord[] = [
   ),
   added(
     FLAME_SPOUT,
-    'Image 65052.webp (play.marvelsimulator.com; footer "DEADLY CONTRAPTIONS (7/11)", 52, Facundo Moyano). TREACHERY, "TRAP!", three boost icons. "When Revealed: Choose: * Avoid — Discard an ally from your hand. * Disarm — Discard an ally you control, then draw 2 cards. * Trip — Deal 3 damage to your identity. Discard the top 3 cards of your deck." Avoid, Disarm and Trip are italic. Second check (D3, 2026-10-22): agrees.',
+    'Image 65052.webp (footer "DEADLY CONTRAPTIONS (7/11)", 52, Facundo Moyano). TREACHERY, "TRAP!", three boost icons. "When Revealed: Choose: * Avoid — Discard an ally from your hand. * Disarm — Discard an ally you control, then draw 2 cards. * Trip — Deal 3 damage to your identity. Discard the top 3 cards of your deck." Avoid, Disarm and Trip are italic. Second check (D3, 2026-10-22): agrees.',
   ),
   added(
     OIL_SLICK,
-    'Image 65053.webp (play.marvelsimulator.com; footer "DEADLY CONTRAPTIONS (8/11)", 53, Andrea Di Vito & Laura Villari). TREACHERY, "TRAP!", one boost icon. "When Revealed: Choose: * Avoid — Discard an upgrade from your hand. * Disarm — Discard an upgrade you control, then remove 4 threat from the main scheme. * Trip — Discard 1 card from your hand. Discard the top 8 cards of your deck." Avoid, Disarm and Trip are italic. Second check (D3, 2026-10-22): agrees.',
+    'Image 65053.webp (footer "DEADLY CONTRAPTIONS (8/11)", 53, Andrea Di Vito & Laura Villari). TREACHERY, "TRAP!", one boost icon. "When Revealed: Choose: * Avoid — Discard an upgrade from your hand. * Disarm — Discard an upgrade you control, then remove 4 threat from the main scheme. * Trip — Discard 1 card from your hand. Discard the top 8 cards of your deck." Avoid, Disarm and Trip are italic. Second check (D3, 2026-10-22): agrees.',
   ),
   added(
     POISON_DARTS,
-    'Image 65054.webp (play.marvelsimulator.com; footer "DEADLY CONTRAPTIONS (9/11)", 54, Eduardo Mello). TREACHERY, "TRAP!", two boost icons. "When Revealed: Choose: * Avoid — Spend (lightning)(lightning) resources. * Disarm — Spend (node-and-link)(node-and-link)(fist) resources, then deal 3 damage to the villain. * Trip — Deal 3 damage to your identity and exhaust it." Avoid, Disarm and Trip are italic. Second check (D3, 2026-10-22): agrees.',
+    'Image 65054.webp (footer "DEADLY CONTRAPTIONS (9/11)", 54, Eduardo Mello). TREACHERY, "TRAP!", two boost icons. "When Revealed: Choose: * Avoid — Spend (lightning)(lightning) resources. * Disarm — Spend (node-and-link)(node-and-link)(fist) resources, then deal 3 damage to the villain. * Trip — Deal 3 damage to your identity and exhaust it." Avoid, Disarm and Trip are italic. Second check (D3, 2026-10-22): agrees.',
   ),
   added(
     PRESSURE_PLATE,
-    'Image 65055.webp (play.marvelsimulator.com; footer "DEADLY CONTRAPTIONS (10/11)", 55, Eduardo Mello). TREACHERY, "TRAP!", no boost icons. "When Revealed: Choose: * Avoid — Spend (node-and-link)(node-and-link) resources. * Disarm — Spend (lightning)(fist)(fist) resources, then search the top 4 cards of your deck for a card and add it to your hand. (Shuffle.) [italic] * Trip — Discard cards from the top of the encounter deck until a minion is discarded, then reveal it." Avoid, Disarm and Trip are italic. Second check (D3, 2026-10-22): agrees.',
+    'Image 65055.webp (footer "DEADLY CONTRAPTIONS (10/11)", 55, Eduardo Mello). TREACHERY, "TRAP!", no boost icons. "When Revealed: Choose: * Avoid — Spend (node-and-link)(node-and-link) resources. * Disarm — Spend (lightning)(fist)(fist) resources, then search the top 4 cards of your deck for a card and add it to your hand. (Shuffle.) [italic] * Trip — Discard cards from the top of the encounter deck until a minion is discarded, then reveal it." Avoid, Disarm and Trip are italic. Second check (D3, 2026-10-22): agrees.',
   ),
   added(
     TRIPWIRE,
-    'Image 65056.webp (play.marvelsimulator.com; footer "DEADLY CONTRAPTIONS (11/11)", 56, Andrea Di Vito & Laura Villari). TREACHERY, "TRAP!", two boost icons. "When Revealed: Choose: * Avoid — Discard an ATTACK event from your hand. * Disarm — Discard a support you control, then remove 3 threat from a scheme. * Trip — Discard cards from the top of the encounter deck until a side scheme is discarded, then reveal it." Avoid, Disarm and Trip are italic. Second check (D3, 2026-10-22): agrees.',
+    'Image 65056.webp (footer "DEADLY CONTRAPTIONS (11/11)", 56, Andrea Di Vito & Laura Villari). TREACHERY, "TRAP!", two boost icons. "When Revealed: Choose: * Avoid — Discard an ATTACK event from your hand. * Disarm — Discard a support you control, then remove 3 threat from a scheme. * Trip — Discard cards from the top of the encounter deck until a side scheme is discarded, then reveal it." Avoid, Disarm and Trip are italic. Second check (D3, 2026-10-22): agrees.',
   ),
 ];
