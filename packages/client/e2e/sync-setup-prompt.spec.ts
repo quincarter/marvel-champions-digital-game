@@ -253,8 +253,19 @@ test("Set up shows the recovery code to acknowledge; Join opens the join field",
   await waitForSyncText(page, code!.match(/.{5}/g)!.join("-"));
   expect(cloud.spaces.size).toBe(1);
   await shot(page, phone, "4-setup-code");
-  // The ✕ closes straight from the code (it used to be locked until I've saved my code, which read as a dialog that
-  // could not be closed); the code stays on the device for Show recovery code.
+  // Not dismissable until the code is acknowledged or copied, and the screen says so.
+  expect(await hasText(page, "To close this, copy your code or press I've saved my code.", SYNC_DATA)).toBe(true);
+  await pressKey(page, "Escape");
+  await settle(page, { quietMs: 300, maxMs: 1500 });
+  expect(await hasText(page, "Your recovery code", SYNC_DATA)).toBe(true);
+
+  // Copying the code counts as saving it: the notice goes and the ✕ closes straight from the code.
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await press(page, phone, "copy", SYNC_DATA);
+  await waitForSyncText(page, "Code copied.");
+  expect(await hasText(page, "To close this", SYNC_DATA)).toBe(false);
+  await shot(page, phone, "5-code-copied");
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(code!.match(/.{5}/g)!.join("-"));
   await press(page, phone, "back", SYNC_DATA);
   await gone(page, SYNC_DATA, "sync screen closes");
   await gone(page, PROMPT, "the prompt closes");

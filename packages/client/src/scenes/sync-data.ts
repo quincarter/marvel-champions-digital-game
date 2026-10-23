@@ -34,6 +34,7 @@ import {
   NO_STATUS,
   RECOVERY_PLACEHOLDER,
   SETUP_HELP,
+  SETUP_LOCK_NOTICE,
   SHOW_CODE_HELP,
   SYNC_OFF_INTRO,
   SYNC_ON_INTRO,
@@ -46,6 +47,7 @@ import {
   JOIN_LINK_SWITCH_BODY,
   UNLINK_BODY,
   UNLINK_TITLE,
+  syncStepMustAcknowledge,
   syncStepWorking,
   type SyncStep,
 } from "../view/sync-model.js";
@@ -139,19 +141,14 @@ export class SyncDataOverlay extends Phaser.Scene {
 
   // ---- navigation ------------------------------------------------------------------------------------------------
 
-  /**
-   * ✕: closes from any step that isn't waiting on the network. On the new recovery code that counts as the
-   * acknowledge: the code stays on this device, and Show recovery code brings it back (locking ✕ there read as a dialog
-   * that could not be closed).
-   */
   #close(): void {
-    if (this.#working) return;
+    if (syncStepMustAcknowledge(this.#step)) return;
     this.#motion.exit(this, () => this.scene.stop());
   }
 
-  /** Escape: backs out one step, then closes; ignored while something is in flight. */
+  /** Escape: backs out one step, then closes; ignored while something is in flight or a code is unacknowledged. */
   #cancel(): void {
-    if (syncStepWorking(this.#step)) return;
+    if (syncStepWorking(this.#step) || syncStepMustAcknowledge(this.#step)) return;
     if (this.#step.kind === "home") this.#close();
     else this.#set({ kind: "home" }, NO_STATUS);
   }
@@ -239,7 +236,14 @@ export class SyncDataOverlay extends Phaser.Scene {
   #copy(text: string): void {
     const clipboard = typeof navigator !== "undefined" ? navigator.clipboard : undefined;
     const done = (status: SaveDataStatus): void => {
-      if (this.sys.isActive()) this.#set(this.#step, status);
+      if (!this.sys.isActive()) return;
+      const step = this.#step;
+      // A copied recovery code counts as saved: the ✕ and Escape unlock.
+      const copied =
+        status === COPIED_STATUS && step.kind === "setup" && typeof step.phase === "object"
+          ? { ...step, phase: { ...step.phase, copied: true } }
+          : step;
+      this.#set(copied, status);
     };
     if (!clipboard?.writeText) {
       done(COPY_FAILED_STATUS);
@@ -315,13 +319,14 @@ export class SyncDataOverlay extends Phaser.Scene {
       width: closeSize,
       height: closeSize,
     };
+    const locked = this.#working || syncStepMustAcknowledge(step);
     this.#buttons.push(
       new McButton(this, {
         kind: "secondary",
         label: "✕",
         type: typeRole.rowTitle,
         rect: closeRect,
-        enabled: !this.#working,
+        enabled: !locked,
         onClick: () => this.#close(),
       }),
     );
@@ -381,6 +386,13 @@ export class SyncDataOverlay extends Phaser.Scene {
           stops,
           order,
         );
+        if (syncStepMustAcknowledge(step)) {
+          const notice = this.add
+            .text(x, y + 14, SETUP_LOCK_NOTICE, textStyle(typeRole.body, signal.caution.hex, 0.95))
+            .setFontSize(12)
+            .setWordWrapWidth(rowWidth);
+          y = notice.y + notice.height;
+        }
         break;
       case "show-code":
         y = this.#drawCode(

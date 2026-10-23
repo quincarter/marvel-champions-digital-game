@@ -46,7 +46,7 @@ async function press(page: Page, scene: string, key: string): Promise<void> {
   await clickStop(page, key, scene);
 }
 
-test("set up shows the recovery code once; copy and the acknowledge work; the status line follows", async ({
+test("set up shows the recovery code once and needs the acknowledge; the status line follows", async ({
   page,
   context,
 }, info) => {
@@ -72,13 +72,20 @@ test("set up shows the recovery code once; copy and the acknowledge work; the st
   await waitForSyncText(page, grouped);
   await shot(page, phone, "2-setup-code");
 
-  // Copy code, then I've saved my code, lands on the sync screen with sync on (the reported stuck dialog came after a
-  // press on this screen).
-  await press(page, SYNC_DATA, "copy");
+  // The code was shown once: Escape and the close button leave it up until the player says they have saved it, and the
+  // screen says so (a locked ✕ with no word read as a dialog that could not be closed).
+  expect(await hasText(page, "To close this, copy your code or press I've saved my code.", SYNC_DATA)).toBe(true);
+  await pressKey(page, "Escape");
   await settle(page, { quietMs: 300, maxMs: 1500 });
   expect(await activeScenes(page)).toContain(SYNC_DATA);
+  expect(await hasText(page, "Your recovery code", SYNC_DATA)).toBe(true);
+  await clickStop(page, "back", SYNC_DATA);
+  await settle(page, { quietMs: 300, maxMs: 1500 });
+  expect(await hasText(page, "Your recovery code", SYNC_DATA)).toBe(true);
+
   await press(page, SYNC_DATA, "ack");
   await waitForSyncText(page, "Sync is on");
+  expect(await hasText(page, "To close this", SYNC_DATA)).toBe(false);
   await waitForSyncText(page, "Status: Synced");
   await shot(page, phone, "3-sync-on");
   expect(cloud.spaces.size).toBe(1);

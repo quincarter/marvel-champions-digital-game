@@ -22,7 +22,11 @@ export const SYNC_ROW_DETAIL = "Keep your saved games, decks and campaigns in st
 export type SyncStep =
   | { readonly kind: "home" }
   /** "creating" while the space is made; then the code, until the player says they have saved it. */
-  | { readonly kind: "setup"; readonly phase: "creating" | { readonly code: string } }
+  | {
+      readonly kind: "setup";
+      /** `copied`: Copy code worked, which counts as saving it (the ✕ and Escape unlock). */
+      readonly phase: "creating" | { readonly code: string; readonly copied?: boolean };
+    }
   | { readonly kind: "show-code"; readonly code: string }
   | { readonly kind: "join"; readonly phase: "typing" | "working"; readonly input: string }
   | {
@@ -51,6 +55,14 @@ export function syncStepWorking(step: SyncStep): boolean {
     default:
       return false;
   }
+}
+
+/**
+ * A step Escape or the ✕ may not leave: the recovery code was shown once and the player has neither said they saved it
+ * nor copied it. `SETUP_LOCK_NOTICE` says so on the screen.
+ */
+export function syncStepMustAcknowledge(step: SyncStep): boolean {
+  return step.kind === "setup" && typeof step.phase === "object" && step.phase.copied !== true;
 }
 
 // ---- the recovery code ---------------------------------------------------------------------------------------------
@@ -89,6 +101,8 @@ export const SYNC_ON_INTRO =
   "This device is synced. Your saves are copied to a private space online, scrambled so only your devices can read them.";
 export const SETUP_HELP =
   "This is your recovery code. It is the only key to your synced saves: nobody, including us, can get it back for you. Write it down or save it somewhere safe. You will need it to sync another device.";
+/** Under the new recovery code while the ✕ is locked, so the screen doesn't read as one that can't be closed. */
+export const SETUP_LOCK_NOTICE = "To close this, copy your code or press I've saved my code.";
 export const SHOW_CODE_HELP =
   "Type this code on another device (Save data, Sync across devices, Join with a recovery code) to bring your saves to it. Keep it private: anyone with this code can read and change your synced saves.";
 export const LINK_HELP =
