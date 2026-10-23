@@ -833,6 +833,7 @@ def write_manifest(rows: dict[str, list[str]]) -> None:
         "# does not publish, and better copies of ones it does (larger, or free of the FFG preview watermark).",
         "# Saved over bundles/cards/<code>.<ext> in the local file's format, scaled to at most a 900px long edge.",
         "# Rows fetched on 2026-09-19 or earlier were scaled to a 419px long edge.",
+        "# The Shadowland (65xxx) rows are Hall of Heroes' 300 x 426 preview images at their own size; its other faces have no scan.",
         "code\tpack\tname\tsource_page\timage_url\tfetched",
     ]
     for code in sorted(rows):

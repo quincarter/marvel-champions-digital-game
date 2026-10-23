@@ -132,6 +132,15 @@ Corridors removes threat from it, removing the last threat advances to 2A). The 
 of `UNSCRIPTED_ENCOUNTER_SET_IDS` on `feature/shadowland-unlock` (PR #355). The rest of this section is kept as the
 record of the lock.
 
+**Scans: Hall of Heroes only (owner, 2026-10-23).** The full-size copies of all 93 faces that PR #355 and #360 had
+saved came from another site, so they were removed: the 43 preview faces Hall of Heroes posted are back as its own 300 x
+426 scans (`assets/card-art/hall-of-heroes-manifest.tsv`), and the 50 faces it has not posted have no scan. Those
+cards are listed in `artUnavailable` in `curation/shadowland.ts` and the client draws them with the art placeholder;
+their transcribed text and the scripting are unchanged. When Hall of Heroes posts them, run
+`uv run scripts/fetch_card_art.py fetch --packs shadowland --fill-missing` (then `compress`), drop the matching
+`artUnavailable` entries and re-ingest. No scan: 1A/1B, 2A/2B (Shadows in the Night main scheme), 6, 7, 9, 12B to 17B,
+20 to 25, 29, 31, 33, 34, 38A/38B, 39A/39B, 40, 43, 52 to 56, 58 to 63, 66, 68, 73 to 78.
+
 Shadowland was **locked** from 2026-10-20 (owner): its seven sets stayed in `UNSCRIPTED_ENCOUNTER_SET_IDS`
 (`packages/cards/src/playable/unscripted.ts`), so no scenario, modular pick or campaign offered it, and wave 11 shipped
 without it. On the 2026-10-20 re-check the Hall of Heroes page (`https://hallofheroeslcg.com/shadowland/`) still showed

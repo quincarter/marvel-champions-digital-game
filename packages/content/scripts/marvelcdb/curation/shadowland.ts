@@ -6,10 +6,11 @@
  * the Hall of Heroes preview scans (docs/phase7-shadowland.md section 3), as Fear No Evil's scenario half was.
  *
  * Every printed card is transcribed: 90 printed copies, 73 distinct card records. The Hall of Heroes previews gave 45 card
- * images (300 x 426); the remaining faces were transcribed from full-size card images, and
- * those images are now saved too, so every face has a scan under `assets/card-art/bundles/cards/` and no
- * `artUnavailable` entry is left (#360 also replaced the 45 preview scans with full-size copies). The three scenario
- * records (`shadowland-scenarios.ts`) are wired in and the pack is in the content index.
+ * images (300 x 426); the remaining faces were transcribed from full-size card images. Only scans from Hall of Heroes
+ * are kept (owner, 2026-10-23): the 43 preview scans under `assets/card-art/bundles/cards/` are Hall of Heroes' own
+ * copies again, and the faces it has not posted have no scan and are listed in `artUnavailable` below (the client draws
+ * them as the art placeholder). The three scenario records (`shadowland-scenarios.ts`) are wired in and the pack is in
+ * the content index.
  *
  * Evidence abbreviations: "scan" is the Hall of Heroes preview `mc65_cards_<stem>.png` (https://hallofheroeslcg.com/
  * shadowland/; also saved as `assets/card-art/bundles/cards/<code>.png`), "insert" is the box rules insert
@@ -24,6 +25,10 @@ import { HEART_OF_SHADOW_RECORDS } from "./shadowland-encounter/heart-of-shadow.
 import { NINJA_SWARM_RECORDS } from "./shadowland-encounter/ninja-swarm.ts";
 import { SHADOW_LABYRINTH_RECORDS } from "./shadowland-encounter/shadow-labyrinth.ts";
 import { SHADOWS_IN_THE_NIGHT_RECORDS } from "./shadowland-encounter/shadows-in-the-night.ts";
+
+/** `artUnavailable`'s reason for each Shadowland face Hall of Heroes has no scan of (owner, 2026-10-23). */
+const NO_HOH_SCAN =
+  "No Hall of Heroes scan: https://hallofheroeslcg.com/shadowland/ shows only the 45 previews (read 2026-10-20); the copy from another site was removed 2026-10-23 (owner: Hall of Heroes scans only).";
 
 export const SHADOWLAND_CURATION: PackCuration = {
   packCode: "shadowland",
@@ -125,6 +130,54 @@ export const SHADOWLAND_CURATION: PackCuration = {
     "65071": "Two copies are inferred: this card is 16/17 and the set total is 17 (17/17 not previewed).",
     "65072a":
       "One double-sided upgrade (72A Setup side, 72B OVERPOWERING side), four copies (positions 1 to 4: Aka's footer is 5/13). The cost box prints a dash on both faces. Side B prints 'If there are at least 5 corruption counters here, you are defeated' (spec Q8).",
+  },
+
+  // The faces Hall of Heroes has not posted a scan of (it shows only the 45 previews on https://hallofheroeslcg.com/
+  // shadowland/). Full-size copies from another site were removed on 2026-10-23 at the owner's request: only Hall of
+  // Heroes scans are kept. Named by card id, which exempts each art-less face of the card (checks.ts): a main scheme's
+  // stages, a villain's later stage or B side. Delete an entry when its scan is fetched from Hall of Heroes
+  // (`scripts/fetch_card_art.py fetch --packs shadowland --fill-missing`).
+  artUnavailable: {
+    "65001a": NO_HOH_SCAN,
+    "65038a": NO_HOH_SCAN,
+    "65060a": NO_HOH_SCAN,
+    "65012a": NO_HOH_SCAN,
+    "65013a": NO_HOH_SCAN,
+    "65014a": NO_HOH_SCAN,
+    "65015a": NO_HOH_SCAN,
+    "65016a": NO_HOH_SCAN,
+    "65017a": NO_HOH_SCAN,
+    "65057": NO_HOH_SCAN,
+    "65006": NO_HOH_SCAN,
+    "65007": NO_HOH_SCAN,
+    "65009": NO_HOH_SCAN,
+    "65020": NO_HOH_SCAN,
+    "65021": NO_HOH_SCAN,
+    "65022": NO_HOH_SCAN,
+    "65023": NO_HOH_SCAN,
+    "65024": NO_HOH_SCAN,
+    "65025": NO_HOH_SCAN,
+    "65029": NO_HOH_SCAN,
+    "65031": NO_HOH_SCAN,
+    "65033": NO_HOH_SCAN,
+    "65034": NO_HOH_SCAN,
+    "65040": NO_HOH_SCAN,
+    "65043": NO_HOH_SCAN,
+    "65052": NO_HOH_SCAN,
+    "65053": NO_HOH_SCAN,
+    "65054": NO_HOH_SCAN,
+    "65055": NO_HOH_SCAN,
+    "65056": NO_HOH_SCAN,
+    "65062": NO_HOH_SCAN,
+    "65063": NO_HOH_SCAN,
+    "65066": NO_HOH_SCAN,
+    "65068": NO_HOH_SCAN,
+    "65073": NO_HOH_SCAN,
+    "65074": NO_HOH_SCAN,
+    "65075": NO_HOH_SCAN,
+    "65076": NO_HOH_SCAN,
+    "65077": NO_HOH_SCAN,
+    "65078": NO_HOH_SCAN,
   },
 
   // The three scenario records (`shadowland-scenarios.ts`).
