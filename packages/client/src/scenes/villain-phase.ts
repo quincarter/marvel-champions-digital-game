@@ -138,6 +138,7 @@ import { triggerLabel } from "../view/inspect-model.js";
 import { SOURCE_STRIP_HEIGHT, sourceStripPlacement } from "../view/choice-source-panel-layout.js";
 import { drawSourceCardPanel } from "../ui/source-card-panel.js";
 import {
+  encounterCardActivates,
   encounterHoldAt,
   flipGateAt,
   flipLabel,
@@ -2825,7 +2826,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const moved = reveal.current?.activeChange !== undefined && inline === null;
     const facedown = this.#flipState();
     const flipping = facedown !== null && facedown.card === strip?.current ? facedown : null;
-    const current = revealing && (!moved || flipping !== null) ? strip.current : null;
+    // A card that makes an enemy activate hands the body to that activation (#370); the strip above still names the card.
+    const cardActivates = flipping === null && encounterCardActivates(reveal.current, strip?.current ?? null);
+    const current = revealing && (!moved || flipping !== null) && !cardActivates ? strip.current : null;
     const body: RailBody = current
       ? {
           kind: "reveal",

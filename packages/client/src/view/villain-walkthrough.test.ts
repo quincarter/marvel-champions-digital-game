@@ -230,7 +230,10 @@ describe("a villain phase that really does pause", () => {
     expect(paused!.step).toBeLessThanOrEqual(5);
     expect(paused!.promptKind.length).toBeGreaterThan(0);
     expect(["player", "firstPlayerTargets", "firstPlayerOrders"]).toContain(paused!.authority);
-    expect(paused!.label).toMatch(/^Auto-advance paused/);
+    // An interrupt or response window says what it is about (#371); any other decision says the screen paused for it.
+    expect(paused!.label).toMatch(
+      paused!.promptKind === "chooseTriggers" ? /is about to|got|took|was/ : /^Auto-advance paused/,
+    );
     // Whatever this decision is, the pause says what it's actually offering,
     // not just who has to make it (PLAN.md, "player actions during the
     // villain phase need the same card visibility").
@@ -417,10 +420,39 @@ describe("pauseFor", () => {
             targetCharacterInstanceId: played.state.players[0]!.identity.instanceId,
           },
         }
-      : { kind }) as ChoicePrompt,
+      : kind === "chooseTriggers"
+        ? { kind, event: placingOne(), timing: "interrupt" }
+        : { kind }) as ChoicePrompt,
     authority,
     soleDecider,
     options,
+  });
+  /** One threat about to land on the main scheme: the window Great Responsibility opens on (#371). */
+  const placingOne = () => ({
+    kind: "placeThreat",
+    schemeInstanceId: played.state.mainScheme.instanceId,
+    amount: 1,
+    sourceInstanceId: null,
+  });
+
+  // Issue #371 (reported by @zackburnley): Great Responsibility's window said only "auto-advance paused for your
+  // interrupt", not how much threat was coming or where.
+  test("an interrupt window says what is about to happen: how much threat, on which scheme", () => {
+    const scheme = cardName(played.state, played.state.mainScheme.instanceId);
+    const window = choice("player", "chooseTriggers");
+
+    expect(pauseFor(window, played.state, played.viewer).label).toBe(`${scheme} is about to get 1 threat`);
+    expect(
+      pauseFor(
+        { ...window, prompt: { ...window.prompt, timing: "response" } as ChoicePrompt },
+        played.state,
+        played.viewer,
+      ).label,
+    ).toBe(`${scheme} got 1 threat`);
+    const other = "player-does-not-exist" as PlayerId;
+    expect(pauseFor({ ...window, playerId: other }, played.state, played.viewer).label).toMatch(
+      new RegExp(`^${scheme} is about to get 1 threat · .+'s interrupt$`),
+    );
   });
 
   test("names the rule that made this player the decider", () => {
