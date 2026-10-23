@@ -162,7 +162,12 @@ test("two games in progress are both listed; each resumes on its own board; Remo
   await page.setViewportSize(phone ? { width: 375, height: 812 } : { width: 1280, height: 800 });
   const errors = trackPageErrors(page);
   const [rhino, klaw] = await twoGames(page);
-  const now = Date.now();
+  // The page's clock reads noon today, so "2 h ago" is still today at any hour the suite runs (just after midnight it
+  // would read "yesterday"). The clock carries over the reload `toTitle` does.
+  const noon = new Date();
+  noon.setHours(12, 0, 0, 0);
+  const now = noon.getTime();
+  await page.clock.setSystemTime(now);
   await stampGames(page, {
     [rhino.id]: { platform: "android", updatedAt: now - 26 * 3600_000 },
     [klaw.id]: { platform: "windows", updatedAt: now - 2 * 3600_000 },
