@@ -162,6 +162,7 @@ import {
   activationHeadline,
   activationHiddenFace,
   breakdownLineOf,
+  breakdownTotalFirstOf,
   breakdownOf,
   type Breakdown,
 } from "../view/villain-breakdown.js";
@@ -2951,6 +2952,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       };
     }
     const breakdown = breakdownLineOf(activation, game);
+    const totalFirst = breakdownTotalFirstOf(activation, game);
     const defender = defenderLineOf(game, activation);
     const hiddenFace = activationHiddenFace(activation);
     // While a window on one boost card is open, that card: the one being counted (Chaos Control, Scarlet Witch's Crest;
@@ -2962,6 +2964,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       ...(hiddenFace ? { enemyFace: hiddenFace } : {}),
       headline: activationHeadline(activation, game, viewer),
       text: [breakdown ?? (paused ? "" : (reveal.current?.text ?? "")), defender ?? ""].filter(Boolean).join(" "),
+      ...(totalFirst ? { cutText: [totalFirst, defender ?? ""].filter(Boolean).join(" ") } : {}),
       boostLine: activationBoostLineOf(activation, counted, game),
       boosts: activation.boosts.map((boost) => boost.instanceId),
       countedBoostId: counted?.instanceId ?? null,

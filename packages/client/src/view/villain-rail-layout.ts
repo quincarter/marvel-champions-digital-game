@@ -464,7 +464,9 @@ export function villainTabLayout(input: VillainRailInput & { readonly footer: Re
   }
 
   const extras = Math.max(0, Math.min(INTERRUPT_MAX_ROWS, input.interruptOptions - 1));
-  const interruptHeight = input.interruptOptions > 0 ? (narrow ? 196 : 220) + extras * hit.target : 0;
+  // A phone's window is as tall as a tablet's: its tags stack beside the narrower card, and the rules text keeps its
+  // lines under them (#394).
+  const interruptHeight = input.interruptOptions > 0 ? 220 + extras * hit.target : 0;
   const room = Math.max(0, bottom - cursor - (interruptHeight > 0 ? interruptHeight + 10 : 0));
   const scale = input.cardScale ?? 1;
   const bodyMax = Math.round((revealing ? (narrow ? 250 : 380) : narrow ? PHONE_HAPPENING_MAX : 230) * scale);

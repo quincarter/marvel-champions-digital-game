@@ -1,0 +1,3 @@
+kind: Fixed
+body: On a narrow phone, an interrupt window during a villain attack (Backflip) no longer cuts the damage total off the attack's breakdown; a cut line now leads with it ("DAMAGE 3 = BASE 2 + …"), and the window's tags stack instead of running off the panel (#394, reported by @zackburnley).
+time: 2026-10-23T18:40:21.5238464-04:00

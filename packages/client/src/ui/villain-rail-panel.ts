@@ -70,6 +70,8 @@ export type RailBody =
       readonly enemyFace?: CardFace;
       readonly headline: string;
       readonly text: string;
+      /** `text` with the breakdown's total first, drawn instead where `text` would be cut (#394); absent without one. */
+      readonly cutText?: string;
       /** Boost cards flipped so far, by name ("1 boost card, facedown — flips after interrupts" before any). */
       readonly boostLine: string | null;
       /** The faceup boost cards flipped so far, drawn as cards beside the boost line (issue #172). */
@@ -147,6 +149,8 @@ export interface RailPanelArgs {
 export const happeningDebug: {
   boosted: {
     readonly text: string;
+    /** The lines actually drawn: `text`'s first lines, or its total-first form's when cut (#394). */
+    readonly shown: string;
     readonly breakdown: Rect;
     /** True when the breakdown was cut short of its last line. */
     readonly cut: boolean;
@@ -447,6 +451,14 @@ function tag(scene: Phaser.Scene, x: number, y: number, text: string, filled: bo
   return width;
 }
 
+/** How wide `tag` draws `text`. */
+function tagWidth(scene: Phaser.Scene, text: string): number {
+  const t = scene.add.text(0, 0, text.toUpperCase(), textStyle({ ...typeRole.label, size: 10 }, surface.paper.hex));
+  const width = t.width + 16;
+  t.destroy();
+  return width;
+}
+
 function drawReveal(
   scene: Phaser.Scene,
   layout: VillainRailLayout,
@@ -638,6 +650,8 @@ function drawHappening(
     const room = y + height - cursor - boostRow;
     detailShown = Math.max(1, Math.floor(room / lineHeight));
     detail.setMaxLines(detailShown);
+    // Cut, the line would lose its end, the damage or threat total; the total-first wording keeps it (#394).
+    if (detailShown < detailLines && body.cutText) detail.setText(body.cutText);
     cursor += detail.height + 8;
   }
   if (body.boostLine && cursor + 30 <= y + height) {
@@ -665,6 +679,7 @@ function drawHappening(
       if (detail) {
         happeningDebug.boosted = {
           text: body.text,
+          shown: detail.getWrappedText(detail.text).slice(0, detailShown).join(" "),
           breakdown: { x: detail.x, y: detail.y, width: detail.width, height: detail.height },
           cut: detailShown < detailLines,
           boosts: thumbs.cards.map((card) => card.rect),
@@ -782,6 +797,12 @@ function drawInterrupt(
       : first.abilityId
         ? "In play"
         : "Free";
+  // Where the two tags don't fit one row beside the card (a phone), the second stacks under the first rather than
+  // running off the panel (#394).
+  if (tx + tagWidth(scene, fromTag) > x + width) {
+    tx = x;
+    cursor += 24;
+  }
   tag(scene, tx, cursor, fromTag, false, surface.paper.hex);
   cursor += 30;
   const trigger = first.abilityId ? POOL_DEPS.abilities[first.abilityId]?.trigger : undefined;

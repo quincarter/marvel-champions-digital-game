@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { InstanceId, PlayerId } from "@mc/engine";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
-import { activationHeadline, boostCell, breakdownLineOf } from "./villain-breakdown.js";
+import { activationHeadline, boostCell, breakdownLineOf, breakdownTotalFirstOf } from "./villain-breakdown.js";
 import type { ActivationBeat } from "./villain-walkthrough.js";
 
 describe("boostCell", () => {
@@ -57,7 +57,10 @@ describe("the activation's headline and breakdown", () => {
     };
     const line = breakdownLineOf(activation, game)!;
     expect(line).toMatch(/^SCH 2 \+ BOOST 1 = THREAT 3 → .+/);
+    expect(breakdownTotalFirstOf(activation, game)).toMatch(/^THREAT 3 → .+ = SCH 2 \+ BOOST 1$/);
     expect(breakdownLineOf({ ...activation, resolved: null }, game)).toBeNull();
+    const modded = { ...activation, resolved: { ...activation.resolved!, threatBonus: 1, threatPlaced: 4 } };
+    expect(breakdownTotalFirstOf(modded, game)).toMatch(/^THREAT 4 → .+ = SCH 2 \+ BOOST 1 \+ THREAT MOD \+1$/);
   });
 
   test("an attack's breakdown line has no destination", async () => {
@@ -77,5 +80,25 @@ describe("the activation's headline and breakdown", () => {
       },
     };
     expect(breakdownLineOf(attack, game)).toBe("BASE 2 + BOOST 1 − DEFENSE 3 = DAMAGE 0");
+  });
+
+  test("cut on a phone, the total-first line keeps the damage an interrupt is decided on (#394)", async () => {
+    const game = await table();
+    const attack: ActivationBeat = {
+      kind: "attack",
+      enemyInstanceId: game.villains[0]!.instanceId,
+      attackedPlayerId: game.players[0]!.playerId,
+      boosts: [{ instanceId: "b1" as InstanceId, boostIcons: 1, cancelled: null }],
+      defender: null,
+      resolved: {
+        targetInstanceId: game.players[0]!.identity.instanceId,
+        baseAtk: 2,
+        boostIcons: 1,
+        defenseReduction: 0,
+        damageDealt: 3,
+      },
+    };
+    expect(breakdownTotalFirstOf(attack, game)).toBe("DAMAGE 3 = BASE 2 + BOOST 1 − DEFENSE 0");
+    expect(breakdownTotalFirstOf({ ...attack, resolved: null }, game)).toBeNull();
   });
 });
