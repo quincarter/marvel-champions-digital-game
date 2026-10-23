@@ -1,10 +1,26 @@
 import { describe, expect, test } from "vitest";
+import type { GameState } from "@mc/engine";
 import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { startDamageInterruptGame } from "../store/dev-damage-interrupt-game.js";
 import { SessionStore } from "../store/session-store.js";
 import { preventedAmountLine, preventionPreviewOf } from "./interrupt-prevention.js";
 import { inlineInterruptFor } from "./villain-walkthrough.js";
+
+/** The window's damage event changed on its own stack frame, and on the prompt, as one copy of the game. */
+function withWindowEvent(game: GameState, change: { readonly amount?: number; readonly unpreventable?: true }) {
+  const choice = game.pendingChoice!;
+  const window = game.stack.find((f) => f.frameId === choice.frameId);
+  const eventFrameId = window?.kind === "window" ? window.eventFrameId : null;
+  const stack = game.stack.map((f) =>
+    f.frameId === eventFrameId && f.kind === "event" && f.event.kind === "dealDamage"
+      ? { ...f, event: { ...f.event, ...change } }
+      : f,
+  );
+  if (choice.prompt.kind !== "chooseTriggers" || choice.prompt.event.kind !== "dealDamage") throw new Error("window");
+  const prompt = { ...choice.prompt, event: { ...choice.prompt.event, ...change } };
+  return { ...game, stack, pendingChoice: { ...choice, prompt } } as GameState;
+}
 
 async function backflipWindow() {
   const store = new SessionStore(new LocalEngineHost());
@@ -36,43 +52,25 @@ describe("preventionPreviewOf (#394)", () => {
     expect(preventionPreviewOf(tough, POOL_DEPS, option)!.hp).toMatchObject({ now: 10, ifResolves: 10 });
   }, 60_000);
 
-  test("a partial prevention is resolved by the engine with what it leaves", async () => {
-    const { game, option } = await backflipWindow();
-    const choice = game.pendingChoice!;
-    if (choice.prompt.kind !== "chooseTriggers" || choice.prompt.event.kind !== "dealDamage") throw new Error("window");
-    // Backflip is all-or-nothing, so a 1-damage copy of the same window stands in for "prevent 1 of 2" here: the
-    // engine's answer for 1 left must be 9.
-    const event = choice.prompt.event;
-    const one = {
-      ...game,
-      stack: game.stack.map((f) =>
-        f.kind === "event" && f.event === event ? { ...f, event: { ...event, amount: 1 } } : f,
-      ),
-      pendingChoice: { ...choice, prompt: { ...choice.prompt, event: { ...event, amount: 1 } } },
-    };
-    expect(preventionPreviewOf(one, POOL_DEPS, option)!.hp).toMatchObject({
-      now: 10,
-      ifResolves: 9,
-      withInterrupt: 10,
-    });
-  }, 60_000);
-
   test("a partial prevention says how much of the damage", () => {
     expect(preventedAmountLine({ incoming: 3, prevented: 1 })).toBe("1 of 3 damage");
   });
 
   test("nothing against unpreventable damage, which the engine will not prevent", async () => {
     const { game, option } = await backflipWindow();
+    expect(preventionPreviewOf(withWindowEvent(game, { unpreventable: true }), POOL_DEPS, option)).toBeNull();
+  }, 60_000);
+
+  test("reads the live amount off the event's frame, as an earlier interrupt in the window left it", async () => {
+    const { game, option } = await backflipWindow();
+    // The prompt still says 2 (the window opened on 2); the event's frame says 1, as a "prevent 1" already answered.
     const choice = game.pendingChoice!;
-    if (choice.prompt.kind !== "chooseTriggers" || choice.prompt.event.kind !== "dealDamage") throw new Error("window");
-    const unpreventable = {
-      ...game,
-      pendingChoice: {
-        ...choice,
-        prompt: { ...choice.prompt, event: { ...choice.prompt.event, unpreventable: true as const } },
-      },
-    };
-    expect(preventionPreviewOf(unpreventable, POOL_DEPS, option)).toBeNull();
+    const live = { ...withWindowEvent(game, { amount: 1 }), pendingChoice: choice };
+    expect(preventionPreviewOf(live, POOL_DEPS, option)).toMatchObject({
+      incoming: 1,
+      prevented: 1,
+      hp: { now: 10, ifResolves: 9, withInterrupt: 10 },
+    });
   }, 60_000);
 
   test("nothing outside a damage window", async () => {

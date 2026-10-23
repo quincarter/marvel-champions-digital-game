@@ -6,11 +6,17 @@
  */
 import type { AbilityId } from "@mc/content";
 import { activeAbilityRefs, applyCommand, remainingHitPoints, resolveValue } from "@mc/engine";
-import type { EngineDeps, EffectContext, GameEvent, GameState, InstanceId, ValueSpec } from "@mc/engine";
+import type { EngineDeps, EffectContext, GameState, InstanceId, StackFrame, ValueSpec } from "@mc/engine";
 import { cardName, shortSeatName } from "./names.js";
 
 /** A value read from what playing the ability binds (`var`: an X paid, an amount removed as its cost) is not known yet. */
-const readsPlayTimeVars = (value: ValueSpec): boolean => JSON.stringify(value).includes('"kind":"var"');
+function readsPlayTimeVars(value: ValueSpec): boolean {
+  const walk = (node: unknown): boolean =>
+    typeof node === "object" &&
+    node !== null &&
+    ((node as { kind?: unknown }).kind === "var" || Object.values(node).some(walk));
+  return walk(value);
+}
 
 export interface PreventionPreview {
   /** The damage about to be dealt. */
@@ -29,51 +35,67 @@ export interface HpPreview {
   readonly withInterrupt: number;
 }
 
-/** The events `applyDamage` emits about a target on the way to the damage it takes, before or instead of `damageDealt`. */
-const ON_THE_WAY = new Set<GameEvent["type"]>(["damagePrevented", "damageCapped", "damageDoubled"]);
+/** The open damage window: its choice, and the live event it is about (an earlier interrupt may have changed it). */
+interface DamageWindow {
+  readonly choice: NonNullable<GameState["pendingChoice"]>;
+  readonly event: Extract<NonNullable<StackFrame & { kind: "event" }>["event"], { kind: "dealDamage" }>;
+  /** The event's frame on the stack, which the window's answer resolves; null when it can't be found. */
+  readonly frameIndex: number | null;
+}
+
+function damageWindowOf(state: GameState): DamageWindow | null {
+  const choice = state.pendingChoice;
+  if (choice?.prompt.kind !== "chooseTriggers" || choice.prompt.event.kind !== "dealDamage") return null;
+  // The prompt keeps the event as the window opened; the engine reads the pending amount off the event's own frame
+  // once an earlier interrupt in the window has changed it (window.ts `answered`), so this does too.
+  const window = state.stack.find((f) => f.frameId === choice.frameId);
+  const eventFrameId = window?.kind === "window" ? window.eventFrameId : null;
+  const index = eventFrameId ? state.stack.findIndex((f) => f.frameId === eventFrameId) : -1;
+  const frame = index >= 0 ? state.stack[index] : undefined;
+  if (frame?.kind === "event" && frame.event.kind === "dealDamage")
+    return { choice, event: frame.event, frameIndex: index };
+  return { choice, event: choice.prompt.event, frameIndex: null };
+}
 
 /**
  * The damage the window's event would have its target take if the window closed with `amount` left to deal: the engine
  * itself answers, by declining the window on a copy of the game, so tough, constant reductions, caps, doubling and an
- * attack's own prevention (Brazen Defense) all count as they will. Null when the damage does not land in that command
- * (another window opens first).
+ * attack's own prevention (Brazen Defense) all count as they will. Only that event's own resolution is read, up to its
+ * frame being popped, never what the rest of the command goes on to do (a card not yet revealed). Null when its frame
+ * can't be found or the command stops before it resolves (another window opens first).
  */
-function takenIf(state: GameState, deps: EngineDeps, amount: number): number | null {
-  const choice = state.pendingChoice!;
-  if (choice.prompt.kind !== "chooseTriggers" || choice.prompt.event.kind !== "dealDamage") return null;
-  const event = choice.prompt.event;
-  let copy = state;
-  if (amount !== event.amount) {
-    // The window's own damage event, on top of the stack, with what the interrupt leaves of it (as `preventDamage` does).
-    let index = -1;
-    state.stack.forEach((f, i) => {
-      if (
-        f.kind === "event" &&
-        f.event.kind === "dealDamage" &&
-        f.event.targetInstanceId === event.targetInstanceId &&
-        f.event.amount === event.amount
-      )
-        index = i;
-    });
-    const frame = state.stack[index];
-    if (frame?.kind !== "event" || frame.event.kind !== "dealDamage") return null;
-    const patched = { ...frame, event: { ...frame.event, amount, dealt: frame.event.dealt ?? event.amount } };
-    copy = { ...state, stack: state.stack.map((f, i) => (i === index ? patched : f)) };
-  }
+function takenIf(state: GameState, deps: EngineDeps, window: DamageWindow, amount: number): number | null {
+  // Damage of 0 is never taken (RRG 1.8 "Prevent", p. 35): nothing to simulate.
+  if (amount <= 0) return 0;
+  if (window.frameIndex === null) return null;
+  const frame = state.stack[window.frameIndex]!;
+  if (frame.kind !== "event" || frame.event.kind !== "dealDamage") return null;
+  const eventFrameId = frame.frameId;
+  const damage = frame.event;
+  // What the interrupt leaves of it, as `preventDamage` writes it.
+  const copy =
+    amount === damage.amount
+      ? state
+      : {
+          ...state,
+          stack: state.stack.map((f, i) =>
+            i === window.frameIndex
+              ? { ...frame, event: { ...damage, amount, dealt: damage.dealt ?? damage.amount } }
+              : f,
+          ),
+        };
+  const { choice } = window;
   const result = applyCommand(
     copy,
     { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: [] },
     deps,
   );
   if (!result.ok) return null;
-  let started = false;
   for (const e of result.events) {
-    const aboutTarget = "targetInstanceId" in e && e.targetInstanceId === event.targetInstanceId;
-    if (aboutTarget && e.type === "damageDealt") return e.amount;
-    if (aboutTarget && ON_THE_WAY.has(e.type)) started = true;
-    else if (started) return 0;
+    if (e.type === "damageDealt" && e.targetInstanceId === damage.targetInstanceId) return e.amount;
+    if (e.type === "framePopped" && e.frameId === eventFrameId) return 0;
   }
-  return started ? 0 : amount <= 0 ? 0 : null;
+  return null;
 }
 
 /**
@@ -102,21 +124,40 @@ function preventAmountOf(
   return null;
 }
 
+/** Per game state and option: the preview runs the engine twice, and the panel redraws on every pick and resize. */
+const previews = new WeakMap<GameState, Map<string, PreventionPreview | null>>();
+
 export function preventionPreviewOf(
   state: GameState,
   deps: EngineDeps,
   option: { readonly instanceId: InstanceId; readonly abilityId: AbilityId | null },
 ): PreventionPreview | null {
-  const prompt = state.pendingChoice?.prompt;
-  if (prompt?.kind !== "chooseTriggers" || prompt.event.kind !== "dealDamage") return null;
+  const key = `${option.instanceId}/${option.abilityId ?? ""}`;
+  let cached = previews.get(state);
+  if (cached?.has(key)) return cached.get(key)!;
+  const preview = computePreview(state, deps, option);
+  if (!cached) previews.set(state, (cached = new Map()));
+  cached.set(key, preview);
+  return preview;
+}
+
+function computePreview(
+  state: GameState,
+  deps: EngineDeps,
+  option: { readonly instanceId: InstanceId; readonly abilityId: AbilityId | null },
+): PreventionPreview | null {
+  const window = damageWindowOf(state);
+  if (!window) return null;
+  const { event } = window;
   // Unpreventable damage (§H3.3) takes no prevention, though an interrupt with another effect is still offered on it.
-  if (prompt.event.unpreventable === true) return null;
-  const incoming = prompt.event.amount;
+  if (event.unpreventable === true) return null;
+  const incoming = event.amount;
   if (incoming <= 0) return null;
+  // "Self" reads the card on offer where it is now: in hand for an event, in play for a support or upgrade.
   const context: EffectContext = {
     selfInstanceId: option.instanceId,
-    controllerId: state.pendingChoice!.playerId,
-    event: prompt.event,
+    controllerId: window.choice.playerId,
+    event,
     bindings: {},
     deps,
   };
@@ -124,17 +165,15 @@ export function preventionPreviewOf(
   if (amount === null) return null;
   const prevented = amount === "all" ? incoming : Math.min(incoming, Math.max(0, amount));
   if (prevented <= 0) return null;
-  return { incoming, prevented, hp: hpPreviewOf(state, deps, incoming - prevented) };
+  return { incoming, prevented, hp: hpPreviewOf(state, deps, window, incoming - prevented) };
 }
 
-function hpPreviewOf(state: GameState, deps: EngineDeps, left: number): HpPreview | null {
-  const prompt = state.pendingChoice?.prompt;
-  if (prompt?.kind !== "chooseTriggers" || prompt.event.kind !== "dealDamage") return null;
-  const target = prompt.event.targetInstanceId;
+function hpPreviewOf(state: GameState, deps: EngineDeps, window: DamageWindow, left: number): HpPreview | null {
+  const target = window.event.targetInstanceId;
   const now = remainingHitPoints(state, target, deps);
   if (now === undefined) return null;
-  const without = takenIf(state, deps, prompt.event.amount);
-  const withIt = takenIf(state, deps, left);
+  const without = takenIf(state, deps, window, window.event.amount);
+  const withIt = takenIf(state, deps, window, left);
   if (without === null || withIt === null) return null;
   const seat = state.players.find((player) => player.identity.instanceId === target);
   return {
