@@ -110,7 +110,10 @@ describe("the table while the villain phase rail is behind (issue #311)", async 
     // The last deal beat before the first reveal: both cards have been dealt by then.
     const beats = walkthrough.steps.flatMap((step) => step.beats);
     const firstReveal = beatIndex(walkthrough, "You revealed Charge.");
-    const atDeal = beats.slice(0, firstReveal).findLastIndex((beat) => beat.text.startsWith("You are dealt")) + 1;
+    const deals = beats
+      .slice(0, firstReveal)
+      .flatMap((beat, at) => (beat.text.startsWith("You are dealt") ? [at] : []));
+    const atDeal = deals.at(-1)! + 1;
     const hold = tableHoldOf(walkthrough, atDeal);
     expect(hold?.facedown?.map((card) => card.instanceId)).toEqual([charge, eviction]);
     const held = withFacedownHeld(state, hold!.facedown!);
