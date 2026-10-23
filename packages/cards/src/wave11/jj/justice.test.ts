@@ -1,6 +1,7 @@
 import { PLAYABLE_CARDS, cardId } from "@mc/content";
 import {
   createGame,
+  legalActions,
   replay,
   sessionApply,
   startSession,
@@ -410,6 +411,21 @@ describe(`${SESSION_A} and ${SESSION_H}`, () => {
     expect(inst(state, only.id).threat).toBe(2);
     expect(inst(state, crowd.id).threat).toBe(4);
     expect(mainThreat(state)).toBe(mainThreat(s));
+  });
+
+  it("in hero form with no player side scheme in play, the refusal names the missing target, not the form (#378)", () => {
+    // The Alter-Ego Action is in the wrong form and the Hero Action has nothing to thwart: the reason reported is
+    // the hero half's, the one the player could otherwise use.
+    const given = handCard(withForm(jjGame(), { heroForm: 0 }), SESSION);
+    const s = given.state;
+    const result = sessionApply(startSession(s), play(P1, given.id, payWith(s, P1, 1, [given.id])), WAVE11_DEPS);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("no_valid_target");
+    const actions = legalActions(s, P1, WAVE11_DEPS);
+    const entry = (actions.kind === "turn" ? actions.illegal : []).find(
+      (e) => e.action.kind === "playCard" && e.action.instanceId === given.id,
+    );
+    expect(entry?.reason).toBe("no_valid_target");
   });
 });
 

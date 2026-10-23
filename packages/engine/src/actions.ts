@@ -4645,6 +4645,20 @@ export function usableEventActions(
 }
 
 /**
+ * The Action ability whose reason explains why an event none of whose abilities can be triggered cannot be played:
+ * the first one in the identity's current form (`reportedFault`), else the first printed.
+ */
+export function eventActionToExplain(
+  ctx: Ctx,
+  card: AnyCard,
+  id: InstanceId,
+  playerId: PlayerId,
+): EventAction | undefined {
+  const actions = eventActions(ctx, card);
+  return actions.find((action) => eventActionFault(ctx, action, id, playerId)?.code !== "wrong_form") ?? actions[0];
+}
+
+/**
  * The Action ability a play of this event triggers (RRG 1.8 "Event", p. 18): the one the player named, else the only
  * one usable now. Undefined for a card with no Action ability. A fault when the named one, or every one, cannot be
  * triggered, and when several could be and none is named: the choice is the player's and is never made for them.
@@ -4668,13 +4682,25 @@ export function eventActionToPlay(
   }
   const [first] = actions;
   if (!first) return undefined;
-  const usable = actions.filter((action) => eventActionFault(ctx, action, id, playerId) === null);
+  const faults = actions.map((action) => eventActionFault(ctx, action, id, playerId));
+  const usable = actions.filter((_, i) => faults[i] === null);
   if (usable.length > 1)
     return {
       code: "invalid_choice",
       message: "this event has more than one ability you could trigger: choose one (abilityId)",
     };
-  return usable[0] ?? eventActionFault(ctx, first, id, playerId) ?? first;
+  return usable[0] ?? reportedFault(faults) ?? first;
+}
+
+/**
+ * The reason to report when none of an event's abilities can be triggered: the first one's that is not about form,
+ * else the first. An event with an Alter-Ego Action and a Hero Action always has one half in the wrong form, so the
+ * half in the identity's current form says what is actually missing (Strategy Session in hero form with no player
+ * side scheme in play is "no valid target", not "wrong form"; issue #378).
+ */
+function reportedFault<T extends { readonly code: string } | string | null>(faults: readonly T[]): T | undefined {
+  const isForm = (fault: T) => (typeof fault === "string" ? fault === "wrong form" : fault?.code === "wrong_form");
+  return faults.find((fault) => fault !== null && !isForm(fault)) ?? faults[0];
 }
 
 /**
@@ -6007,7 +6033,7 @@ function anyEventAction(
 ): string | null {
   const actions = eventActions(ctx, card).filter((action) => abilityId === undefined || action.abilityId === abilityId);
   const faults = actions.map(judge);
-  return faults.includes(null) ? null : (faults[0] ?? none);
+  return faults.includes(null) ? null : (reportedFault(faults) ?? none);
 }
 
 /**

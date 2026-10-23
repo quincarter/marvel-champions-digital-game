@@ -31,6 +31,7 @@ import {
   eventActions,
   isActionEvent,
   usableEventActions,
+  eventActionToExplain,
   handCardResources,
   isAlternativeAmount,
   isWhenSpentUse,
@@ -1091,9 +1092,11 @@ function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id
   const ctx = createCtx(state, deps);
   const actions = eventActions(ctx, card);
   if (actions.length < 2) return evaluatePlayOf(state, deps, playerId, id, card, actions[0]?.definition, undefined);
-  // Only the abilities usable now are offered; with none, the first says why the card cannot be played.
+  // Only the abilities usable now are offered; with none, the one in the current form says why the card cannot be
+  // played (an Alter-Ego/Hero Action pair is always half in the wrong form; issue #378).
   const usable = usableEventActions(ctx, card, id, playerId);
-  const judged = (usable.length > 0 ? usable : actions.slice(0, 1)).map((action) => ({
+  const explaining = eventActionToExplain(ctx, card, id, playerId);
+  const judged = (usable.length > 0 ? usable : explaining ? [explaining] : []).map((action) => ({
     abilityId: action.abilityId,
     evaluated: evaluatePlayOf(state, deps, playerId, id, card, action.definition, action.abilityId),
   }));
