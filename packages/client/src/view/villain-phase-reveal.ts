@@ -148,6 +148,15 @@ export function reducedMotionRevealTo(revealed: number, total: number, stopsAt: 
   return at;
 }
 
+/**
+ * True when the beat on screen is an activation `card` started (a treachery's "Rhino schemes", Dark Designs): the reveal
+ * body then shows that activation, its boost cards and breakdown, the way step 2 shows one, instead of the card (#370).
+ * The walkthrough clears the activation at each reveal, so one stamped on this card's beat is this card's own.
+ */
+export function encounterCardActivates(beat: WalkthroughBeat | null, card: string | null): boolean {
+  return card !== null && beat?.encounterInstanceId === card && beat.activation !== null;
+}
+
 /** A Flip Encounter Card press: which card, when (the scene clock's `now`), and whether its end timer has fired. */
 export interface FlipInProgress {
   readonly card: string;

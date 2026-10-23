@@ -33,6 +33,7 @@ import type {
 import { facedownUntilLater } from "./facedown-history.js";
 import { beatTextWithStatus, logLine } from "./log-lines.js";
 import { cardName, numberWord, optionLabelOf, playerName, shortSeatName } from "./names.js";
+import { triggerHeadlineOf } from "./trigger-window-context.js";
 
 /** The engine's own villain-phase steps, in RRG order. */
 export const VILLAIN_STEPS = [
@@ -74,7 +75,10 @@ export interface Pause {
   readonly authority: DecisionAuthority;
   /** Which kind of window the decision sits in (`prompt.timing`); an interrupt unless the prompt says otherwise. */
   readonly timing: WindowTimingName;
-  /** "Auto-advance paused for your interrupt" (or "response"), in the design's words. */
+  /**
+   * For an interrupt or response window, what it is about ("The Break In is about to get 1 threat"); otherwise
+   * "Auto-advance paused for your decision" and the like, in the design's words.
+   */
   readonly label: string;
   /** RRG "Peril": only this player may decide, and nobody else may act. */
   readonly soleDecider: boolean;
@@ -381,6 +385,9 @@ export function appendWalkthrough(
         revealed = [];
       }
       activeIndex = stepIndex;
+      // The enemies' activations are over once their step is: a later step's beats carry only an activation one of
+      // its own cards starts (a treachery's "Rhino schemes", #370), never the last attack of step 2.
+      if (stepIndex !== VILLAIN_STEPS.indexOf("enemyActivations")) activation = null;
       continue;
     }
 
@@ -413,6 +420,12 @@ export function appendWalkthrough(
         break;
       case "encounterCardRevealed":
         revealed.push({ instanceId: event.instanceId, cardId: event.cardId, playerId: event.playerId });
+        // Each card starts clean: a finished activation from before it is not this card's. One still resolving keeps
+        // going (an attack whose effect reveals a card mid-activation). Only in the reveal step: a card a step-2 effect
+        // reveals (a stage's "reveal a card") stays with the activation it follows, as the recap groups it.
+        if (activeIndex === VILLAIN_STEPS.indexOf("revealEncounterCards") && activation?.resolved !== null) {
+          activation = null;
+        }
         break;
       case "enemyActivated":
         activation =
@@ -655,6 +668,12 @@ export function pauseFor(
   const yours = choice.playerId === viewer;
   const who = shortSeatName(state, choice.playerId, viewer);
   const counted = countedBoostOf(choice, state, activation);
+  // What the window is about ("The Break In is about to get 1 threat"), off the prompt's own event: "auto-advance paused
+  // for your interrupt" alone left the player deciding on Great Responsibility without the amount or the scheme (#371).
+  const about =
+    choice.prompt.kind === "chooseTriggers"
+      ? triggerHeadlineOf(state, choice.prompt.event, windowTimingOf(choice), viewer ?? choice.playerId)
+      : null;
   const base = counted
     ? // Names the boost card: nothing else on screen does while the interrupt panel is up (issue #172), and two boost
       // cards turned up in one attack open two windows alike in everything else (issue #253).
@@ -662,10 +681,14 @@ export function pauseFor(
         counted.reason === "turnedUp" ? `${counted.name} turned up` : `counting the boost icons on ${counted.name}`
       }${counted.icons === null ? "" : ` (${counted.icons} icon${counted.icons === 1 ? "" : "s"})`}`
     : choice.authority === "player" && choice.prompt.kind !== "declareDefender"
-      ? // The design canvas's exact phrase for an ordinary interrupt.
-        yours
-        ? `Auto-advance paused for your ${windowTimingOf(choice)}`
-        : `Auto-advance paused for ${who}`
+      ? about
+        ? yours
+          ? about
+          : `${about} · ${who}'s ${windowTimingOf(choice)}`
+        : // The design canvas's exact phrase for an ordinary interrupt.
+          yours
+          ? `Auto-advance paused for your ${windowTimingOf(choice)}`
+          : `Auto-advance paused for ${who}`
       : `Auto-advance paused — ${lowerFirst(decisionLabel(choice, state, viewer))}`;
 
   return {
