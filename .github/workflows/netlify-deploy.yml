@@ -113,6 +113,18 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # Each job is a fresh runner, so the install repeats; the pnpm store comes from the cache, so it takes seconds.
+      # A PR labelled "Spanish preview" builds its preview with the Spanish card art (MC_CARD_LANG, issue #337). The
+      # labels are read now rather than from the event, so re-running the job after adding the label picks it up.
+      - name: Card language
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/issues/$PR/labels" --jq '.[].name' | grep -qx "Spanish preview"; then
+            echo "MC_CARD_LANG=es" >> "$GITHUB_ENV"
+            echo "Building the preview with Spanish card art." >> "$GITHUB_STEP_SUMMARY"
+          fi
       - id: build
         run: pnpm --filter @mc/client build
 
@@ -147,8 +159,10 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
         run: |
           marker="<!-- netlify-preview -->"
+          language=""
+          if [ "${MC_CARD_LANG:-en}" = "es" ]; then language=", Spanish card art"; fi
           body="$marker
-          **Netlify preview:** $URL (built from ${COMMIT_REF:0:7})"
+          **Netlify preview:** $URL (built from ${COMMIT_REF:0:7}${language})"
           id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
             --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -1)
           if [ -n "$id" ]; then

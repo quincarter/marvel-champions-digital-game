@@ -179,6 +179,9 @@ MC_CARD_LANG=es pnpm --filter @mc/client dev
 MC_CARD_LANG=es pnpm --filter @mc/client build
 ```
 
+A pull request's Netlify preview is English. Add the `Spanish preview` label and re-run the deploy job to build it with
+the Spanish art instead.
+
 Turning a pack into playable content (data, ability scripts, rules QA, client wiring) follows the per-wave process in
 [docs/card-scripting-process.md](docs/card-scripting-process.md) and the wave specs in [`docs/`](docs).
 
