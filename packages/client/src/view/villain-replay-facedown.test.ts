@@ -101,8 +101,16 @@ describe("the table while the villain phase rail is behind (issue #311)", async 
     expect(locateCard(state, charge!)?.kind).toBe("attachment");
   });
 
+  it("each card joins your facedown pile at its own deal, not before (#386)", () => {
+    const atFirstDeal = beatIndex(walkthrough, "You are dealt a facedown encounter card.") + 1;
+    expect(tableHoldOf(walkthrough, atFirstDeal)?.facedown?.map((card) => card.instanceId)).toEqual([charge]);
+  });
+
   it("on the deal, both cards are in your facedown pile and neither face is on the table", () => {
-    const atDeal = beatIndex(walkthrough, "You are dealt a facedown encounter card.") + 1;
+    // The last deal beat before the first reveal: both cards have been dealt by then.
+    const beats = walkthrough.steps.flatMap((step) => step.beats);
+    const firstReveal = beatIndex(walkthrough, "You revealed Charge.");
+    const atDeal = beats.slice(0, firstReveal).findLastIndex((beat) => beat.text.startsWith("You are dealt")) + 1;
     const hold = tableHoldOf(walkthrough, atDeal);
     expect(hold?.facedown?.map((card) => card.instanceId)).toEqual([charge, eviction]);
     const held = withFacedownHeld(state, hold!.facedown!);
