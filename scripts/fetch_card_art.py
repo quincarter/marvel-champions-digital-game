@@ -79,10 +79,11 @@ Six commands:
           (`mise run card-art-compress`, or `pnpm card-art:compress`)
           Re-encodes every local scan that isn't WebP yet as lossy WebP
           (quality 72, transparent corners kept), in place and under its own
-          file name, keeping the original whenever WebP would come out larger.
+          file name, keeping the original whenever WebP would come out larger,
+          and scales any scan longer than MAX_EDGE (900px) down to it.
           A scan is recognised as WebP by its bytes, not its extension, so
-          the ones already converted are only read, never rewritten, and a
-          second run changes nothing.
+          the ones already converted and small enough are only read, never
+          rewritten, and a second run changes nothing.
           Every scan this script saves is already written that way; this is
           for scans that arrived some other way. Offline. Tauri embeds the
           bundled scans in the desktop executable and every installer carries
@@ -213,8 +214,9 @@ STAMP_THRESHOLD = 0.22
 
 # A download counts as larger when its long edge beats the local scan's by this factor.
 UPGRADE_FACTOR = 1.05
-# Replacements are scaled down to this long edge; the best local scans are ~1045px.
-MAX_EDGE = 1100
+# Every saved scan is scaled down to this long edge (`compress` brings older, larger ones down to it too). 1100 until
+# 2026-10-23, when the owner chose 900 to cut the bundled art by about 29%.
+MAX_EDGE = 900
 # Every saved scan is lossy WebP at this quality, whatever its file name says (see `compress`). The client sniffs an
 # image's type from its bytes, never its extension, so a scan keeps the exact path its card record names.
 WEBP_QUALITY = 72
@@ -829,7 +831,7 @@ def write_manifest(rows: dict[str, list[str]]) -> None:
     lines = [
         "# Card images fetched from Hall of Heroes (hallofheroeslcg.com) by scripts/fetch_card_art.py: scans MarvelCDB",
         "# does not publish, and better copies of ones it does (larger, or free of the FFG preview watermark).",
-        "# Saved over bundles/cards/<code>.<ext> in the local file's format, scaled to at most a 1100px long edge.",
+        "# Saved over bundles/cards/<code>.<ext> in the local file's format, scaled to at most a 900px long edge.",
         "# Rows fetched on 2026-09-19 or earlier were scaled to a 419px long edge.",
         "code\tpack\tname\tsource_page\timage_url\tfetched",
     ]
@@ -1258,18 +1260,30 @@ def trim_local(args: argparse.Namespace) -> None:
     print(f"\n[=] {changed} scans {'would be ' if args.dry_run else ''}trimmed")
 
 
+def _too_big(path: Path) -> bool:
+    with Image.open(path) as img:
+        return max(img.size) > MAX_EDGE
+
+
 def _compress_one(path: Path) -> tuple[Path, int, bytes]:
     with Image.open(path) as img:
         img.load()
+    if max(img.size) > MAX_EDGE:
+        img.thumbnail((MAX_EDGE, MAX_EDGE), Image.Resampling.LANCZOS)
     return path, path.stat().st_size, encode_webp(img)
 
 
 def compress(args: argparse.Namespace) -> None:
-    """Re-encodes the local scans that aren't WebP yet, in place, wherever WebP comes out smaller."""
+    """
+    Re-encodes the local scans that aren't WebP yet, in place, wherever WebP comes out smaller, and scales any scan
+    longer than `MAX_EDGE` down to it.
+    """
     # Every file, not `local_scans()`: that is keyed by code, and some codes have both a `.png` and a `.jpg`.
     scans = [p for p in sorted(CARDS_DIR.iterdir()) if p.suffix in (".png", ".jpg", ".jpeg", ".webp")]
-    todo = [p for p in scans if not is_webp(p)]
-    print(f"[*] {len(todo)} of {len(scans)} scans are not WebP yet")
+    with ProcessPoolExecutor() as pool:
+        too_big = dict(zip(scans, pool.map(_too_big, scans, chunksize=32)))
+    todo = [p for p in scans if not is_webp(p) or too_big[p]]
+    print(f"[*] {len(todo)} of {len(scans)} scans are not WebP yet or longer than {MAX_EDGE}px")
     before = after = converted = 0
     with ProcessPoolExecutor() as pool:
         for path, size, webp in pool.map(_compress_one, todo, chunksize=8):

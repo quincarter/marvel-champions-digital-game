@@ -1,6 +1,6 @@
 # Card images fetched from Hall of Heroes (hallofheroeslcg.com) by scripts/fetch_card_art.py: scans MarvelCDB
 # does not publish, and better copies of ones it does (larger, or free of the FFG preview watermark).
-# Saved over bundles/cards/<code>.<ext> in the local file's format, scaled to at most a 1100px long edge.
+# Saved over bundles/cards/<code>.<ext> in the local file's format, scaled to at most a 900px long edge.
 # Rows fetched on 2026-09-19 or earlier were scaled to a 419px long edge.
 code	pack	name	source_page	image_url	fetched
 01001a	core	Spider-Man	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/peter0b.jpg	2026-10-22
