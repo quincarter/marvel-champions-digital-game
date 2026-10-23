@@ -1,3 +1,0 @@
-kind: Fixed
-body: With reduced motion on (or battery saver, which turns it on), the villain phase stops on each facedown encounter card for Flip Encounter Card and on each revealed card for Next card again, instead of jumping straight to the recap (#342, reported by @zackburnley).
-time: 2026-10-21T22:56:12.165713-04:00
