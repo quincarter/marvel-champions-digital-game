@@ -152,15 +152,18 @@ export interface RailPanelArgs {
 export const happeningDebug: {
   boosted: {
     readonly text: string;
-    /** The lines actually drawn: `text`'s first lines, or its total-first form's when cut (#394). */
-    readonly shown: string;
     readonly breakdown: Rect;
     /** True when the breakdown was cut short of its last line. */
     readonly cut: boolean;
     readonly boosts: readonly Rect[];
     readonly body: Rect;
   } | null;
-} = { boosted: null };
+  /**
+   * The last "happening now" breakdown drawn, with or without boost cards (#394): the lines actually on screen (the
+   * full line's first lines, or its total-first form's when cut), whitespace collapsed.
+   */
+  breakdown: { readonly shown: string; readonly cut: boolean } | null;
+} = { boosted: null, breakdown: null };
 
 export function drawVillainRailPanel(scene: Phaser.Scene, args: RailPanelArgs): Map<string, FocusStop> {
   const { layout } = args;
@@ -690,6 +693,10 @@ function drawHappening(
     detail.setMaxLines(detailShown);
     // Cut, the line would lose its end, the damage or threat total; the total-first wording keeps it (#394).
     if (detailShown < detailLines && body.cutText) detail.setText(body.cutText);
+    happeningDebug.breakdown = {
+      shown: detail.getWrappedText(detail.text).slice(0, detailShown).join(" ").replace(/\s+/g, " ").trim(),
+      cut: detailShown < detailLines,
+    };
     cursor += detail.height + 8;
   }
   if (body.boostLine && cursor + 30 <= y + height) {
@@ -717,7 +724,6 @@ function drawHappening(
       if (detail) {
         happeningDebug.boosted = {
           text: body.text,
-          shown: detail.getWrappedText(detail.text).slice(0, detailShown).join(" "),
           breakdown: { x: detail.x, y: detail.y, width: detail.width, height: detail.height },
           cut: detailShown < detailLines,
           boosts: thumbs.cards.map((card) => card.rect),

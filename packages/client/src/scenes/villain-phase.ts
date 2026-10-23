@@ -2920,6 +2920,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         startRect: () => stops.get("start")?.rect ?? null,
         answerRect: () => stops.get("answer")?.rect ?? null,
         boostedBeat: () => happeningDebug.boosted,
+        breakdownBeat: () => happeningDebug.breakdown,
       };
     }
     // Slides in from its edge as the phase begins (the right on desktop, the top on a tablet in landscape, the bottom

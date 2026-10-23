@@ -39,9 +39,9 @@ test("Backflip's window keeps the attack's damage total on screen and says what 
         () =>
           (
             window as unknown as {
-              __mcVillainPhaseDebug?: { boostedBeat(): { shown: string; cut: boolean } | null };
+              __mcVillainPhaseDebug?: { breakdownBeat(): { shown: string; cut: boolean } | null };
             }
-          ).__mcVillainPhaseDebug?.boostedBeat() ?? null,
+          ).__mcVillainPhaseDebug?.breakdownBeat() ?? null,
       ),
     "the attack's breakdown",
     10_000,
