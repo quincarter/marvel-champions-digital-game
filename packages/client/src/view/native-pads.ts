@@ -2,13 +2,19 @@
  * The controllers the desktop app reads natively on Linux (`src-tauri/src/gamepad_bridge.rs`), kept as the browser's
  * Gamepad API would show them, for `platform/native-gamepad.ts` to hand out from `navigator.getGamepads()`.
  *
+ * One object per slot, changed in place, as a browser's own are: Phaser keeps the object it was handed
+ * (`platform/gamepad-live.ts`) and reads `connected` from it, so a pad that drops reads `connected: false` with every
+ * button up rather than freezing with whatever it last held down.
+ *
  * The bridge pushes each pad's state as it changes, with the buttons that went down since its last message (`downs`).
- * The game only looks once a frame, so a tap shorter than a frame would be missed; a button in `downs` therefore reads
- * as pressed for `LATCH_FRAMES` frames even when it is already up again (`endFrame` counts them off).
+ * The game only looks once a step, so a tap shorter than a step would be missed; a button in `downs` therefore reads
+ * as pressed for `LATCH_STEPS` game steps even when it is already up again (`endStep` counts them off). The analog
+ * triggers keep their own value instead, so a latch can't fire a full pull that never happened.
  *
  * With Steam Input on, Steam's virtual pad (Valve's vendor id 28de, product 11ff) mirrors the physical one, so one
- * controller would show up twice and every press would land twice. The virtual pad is left out once a pad of its own
- * has given any input; a virtual pad that is the only one working (Steam's own remap of a pad the app can't read) stays.
+ * controller would show up twice and every press would land twice. The virtual pad reads as disconnected once a pad of
+ * its own has given any input; a virtual pad that is the only one working (Steam's own remap of a pad the app can't
+ * read) stays.
  */
 
 export interface BridgeButton {
@@ -26,10 +32,9 @@ export interface BridgePad {
   readonly downs: readonly number[];
 }
 
-export interface BridgeMessage {
-  readonly kind: "connected" | "disconnected" | "state";
-  readonly pad: BridgePad;
-}
+export type BridgeMessage =
+  | { readonly kind: "connected" | "disconnected" | "state"; readonly pad: BridgePad }
+  | { readonly kind: "stopped" };
 
 /** What `navigator.getGamepads()` returns for one pad: the fields the game and Phaser read. */
 export interface ShimPad {
@@ -39,14 +44,27 @@ export interface ShimPad {
   readonly mapping: "standard";
   readonly timestamp: number;
   readonly axes: readonly number[];
-  readonly buttons: readonly (BridgeButton & { readonly touched: boolean })[];
+  readonly buttons: readonly { readonly pressed: boolean; readonly value: number; readonly touched: boolean }[];
 }
 
-/** Frames a tapped button keeps reading as down: one for the frame that sees it, one to spare for frame order. */
-export const LATCH_FRAMES = 2;
+interface SlotPad {
+  id: string;
+  index: number;
+  connected: boolean;
+  mapping: "standard";
+  timestamp: number;
+  axes: number[];
+  buttons: { pressed: boolean; value: number; touched: boolean }[];
+}
+
+/** Game steps a tapped button keeps reading as down: one for the step that sees it, one to spare. */
+export const LATCH_STEPS = 2;
 
 /** The slots a browser reports, empty ones as null. */
-const SLOTS = 4;
+export const SLOTS = 4;
+
+/** The analog triggers, which keep their own value rather than latching. */
+const TRIGGERS = new Set([6, 7]);
 
 /** Steam Input's virtual gamepad, as the bridge's id spells it. */
 export function isSteamVirtualPad(id: string): boolean {
@@ -58,21 +76,24 @@ function hasInput(pad: BridgePad): boolean {
 }
 
 export class NativePads {
+  /** The last message per slot from a connected pad. */
   readonly #pads = new Map<number, BridgePad>();
-  /** Per pad, each tapped button and the frames it has left. */
+  /** Per slot, each tapped button and the steps it has left. */
   readonly #latched = new Map<number, Map<number, number>>();
-  /** The pads, by slot, that have given any input since they connected. */
+  /** The slots that have given any input since their pad connected. */
   readonly #active = new Set<number>();
-  #cache: (ShimPad | null)[] | null = null;
+  /** What `navigator.getGamepads()` hands out: the same objects, changed in place. */
+  readonly #out: (SlotPad | null)[] = Array.from({ length: SLOTS }, () => null);
 
-  /** Takes one bridge message in; true when a pad came or went. */
-  apply(message: BridgeMessage): boolean {
+  /** Takes one pad message in; true when a pad came or went. */
+  apply(message: { readonly kind: "connected" | "disconnected" | "state"; readonly pad: BridgePad }): boolean {
     const { pad } = message;
-    this.#cache = null;
+    if (pad.index < 0 || pad.index >= SLOTS) return false;
     if (message.kind === "disconnected" || !pad.connected) {
       this.#pads.delete(pad.index);
       this.#latched.delete(pad.index);
       this.#active.delete(pad.index);
+      this.#publish();
       return true;
     }
     const known = this.#pads.has(pad.index);
@@ -80,9 +101,10 @@ export class NativePads {
     if (hasInput(pad)) this.#active.add(pad.index);
     if (pad.downs.length > 0) {
       const latched = this.#latched.get(pad.index) ?? new Map<number, number>();
-      for (const index of pad.downs) latched.set(index, LATCH_FRAMES);
-      this.#latched.set(pad.index, latched);
+      for (const index of pad.downs) if (!TRIGGERS.has(index)) latched.set(index, LATCH_STEPS);
+      if (latched.size > 0) this.#latched.set(pad.index, latched);
     }
+    this.#publish();
     return message.kind === "connected" || !known;
   }
 
@@ -91,10 +113,9 @@ export class NativePads {
     return this.#latched.size > 0;
   }
 
-  /** A frame has passed: each tap held down loses one frame, and goes once it has none left. */
-  endFrame(): void {
+  /** A game step has passed: each tap held down loses one step, and goes once it has none left. */
+  endStep(): void {
     if (this.#latched.size === 0) return;
-    this.#cache = null;
     for (const [pad, latched] of this.#latched) {
       for (const [button, left] of latched) {
         if (left <= 1) latched.delete(button);
@@ -102,47 +123,83 @@ export class NativePads {
       }
       if (latched.size === 0) this.#latched.delete(pad);
     }
+    this.#publish();
   }
 
-  /** The pads as `navigator.getGamepads()` reports them. The same array until something changes. */
-  snapshot(): (ShimPad | null)[] {
-    if (this.#cache) return this.#cache;
-    const out: (ShimPad | null)[] = Array.from({ length: SLOTS }, () => null);
-    const ownPadActive = [...this.#pads.values()].some(
-      (pad) => !isSteamVirtualPad(pad.id) && this.#active.has(pad.index),
-    );
-    for (const pad of this.#pads.values()) {
-      if (pad.index < 0 || pad.index >= SLOTS) continue;
-      if (ownPadActive && isSteamVirtualPad(pad.id)) continue;
-      const latched = this.#latched.get(pad.index);
-      out[pad.index] = {
-        id: pad.id,
-        index: pad.index,
-        connected: true,
-        mapping: "standard",
-        timestamp: pad.timestamp,
-        axes: pad.axes,
-        buttons: pad.buttons.map((button, index) =>
-          !button.pressed && latched?.has(index)
-            ? { pressed: true, value: 1, touched: true }
-            : { ...button, touched: button.pressed },
-        ),
-      };
-    }
-    this.#cache = out;
-    return out;
+  /** Every pad reads as gone, for when the bridge stops. */
+  clear(): void {
+    this.#pads.clear();
+    this.#latched.clear();
+    this.#active.clear();
+    this.#publish();
+  }
+
+  /** The pads as `navigator.getGamepads()` reports them: always the same array and the same objects. */
+  snapshot(): readonly (ShimPad | null)[] {
+    return this.#out;
   }
 
   /** One pad as the browser would hand it to a `gamepadconnected` / `gamepaddisconnected` event. */
-  eventPad(pad: BridgePad): ShimPad {
-    return {
-      id: pad.id,
-      index: pad.index,
-      connected: pad.connected,
-      mapping: "standard",
-      timestamp: pad.timestamp,
-      axes: pad.axes,
-      buttons: pad.buttons.map((button) => ({ ...button, touched: button.pressed })),
-    };
+  eventPad(index: number): ShimPad | null {
+    return this.#out[index] ?? null;
   }
+
+  /** Writes every slot's object from the pads, latches and the Steam rule. */
+  #publish(): void {
+    const ownPadActive = [...this.#pads.values()].some(
+      (pad) => !isSteamVirtualPad(pad.id) && this.#active.has(pad.index),
+    );
+    for (let index = 0; index < SLOTS; index++) {
+      const pad = this.#pads.get(index);
+      const shown = pad !== undefined && !(ownPadActive && isSteamVirtualPad(pad.id));
+      const slot = this.#out[index];
+      if (!pad) {
+        if (slot) release(slot);
+        continue;
+      }
+      const target = slot ?? (this.#out[index] = newSlot(pad));
+      target.id = pad.id;
+      target.index = index;
+      target.timestamp = pad.timestamp;
+      if (!shown) {
+        release(target);
+        continue;
+      }
+      target.connected = true;
+      const latched = this.#latched.get(index);
+      pad.buttons.forEach((button, i) => {
+        const tapped = !button.pressed && latched?.has(i) === true;
+        const out = target.buttons[i] ?? (target.buttons[i] = { pressed: false, value: 0, touched: false });
+        out.pressed = button.pressed || tapped;
+        out.value = tapped ? 1 : button.value;
+        out.touched = out.pressed;
+      });
+      target.buttons.length = pad.buttons.length;
+      pad.axes.forEach((value, i) => (target.axes[i] = value));
+      target.axes.length = pad.axes.length;
+    }
+  }
+}
+
+function newSlot(pad: BridgePad): SlotPad {
+  return {
+    id: pad.id,
+    index: pad.index,
+    connected: false,
+    mapping: "standard",
+    timestamp: pad.timestamp,
+    axes: pad.axes.map(() => 0),
+    buttons: pad.buttons.map(() => ({ pressed: false, value: 0, touched: false })),
+  };
+}
+
+/** A pad that left (or is hidden): disconnected, every button up and every stick centred. */
+function release(slot: SlotPad): void {
+  slot.connected = false;
+  for (const button of slot.buttons) {
+    button.pressed = false;
+    button.value = 0;
+    button.touched = false;
+  }
+  slot.axes.fill(0);
 }

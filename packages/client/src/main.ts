@@ -222,7 +222,7 @@ installDebugDump(game);
 // (`platform/gamepad-live.ts`).
 installGamepadLive(Phaser);
 // On Linux the desktop app reads controllers itself, in place of the webview's (`platform/native-gamepad.ts`).
-startNativeGamepad();
+startNativeGamepad(game);
 // Which input is in use, for the key and button glyphs (`view/input-mode.ts`).
 installInputDeviceTracking();
 // Trims the game box to the visible area where a toolbar overlays the page (`platform/visible-area.ts`).
