@@ -629,7 +629,7 @@ export class RulesOverlay extends Phaser.Scene {
             .zone(textX, y, textWidth, originText.height)
             .setOrigin(0, 0)
             .setInteractive({ useHandCursor: true });
-          hit.on("pointerup", () => this.#openOriginBox(originBoxId));
+          onTap(hit, () => this.#openOriginBox(originBoxId), `origin:${originBoxId}`);
           objects.push(hit);
         }
         y += originText.height + 4;

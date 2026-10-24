@@ -29,6 +29,7 @@ import {
 } from "../view/evidence-model.js";
 import { evidenceRowId } from "@mc/engine";
 import { appSession } from "../session.js";
+import { onTap } from "../ui/tap.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 
@@ -284,11 +285,11 @@ export class EvidenceOverlay extends Phaser.Scene {
         name.setWordWrapWidth(rect.width - 4, true);
       }
       g.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
-      this.add
+      const cardZone = this.add
         .zone(rect.x, rect.y, rect.width, rect.height)
         .setOrigin(0, 0)
-        .setInteractive({ useHandCursor: true })
-        .on("pointerup", () => this.#inspect(card.cardId));
+        .setInteractive({ useHandCursor: true });
+      onTap(cardZone, () => this.#inspect(card.cardId), `evidence:${card.cardId}`);
       register(rect, card);
       // The name beside the thumbnail so a card is never known by its picture alone.
       x += thumbWidth + 4;
