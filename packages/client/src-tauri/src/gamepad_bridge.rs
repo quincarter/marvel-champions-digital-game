@@ -10,7 +10,12 @@
 //! The thread starts on the first `gamepad_bridge_status`, so the page should listen for `mc-gamepad` before calling
 //! it (pads already plugged in are announced once, right after start). State is coalesced to at most one emit per pad
 //! per `MIN_EMIT_INTERVAL_MS`; a press shorter than that still reaches the page through `downs`. Nothing here can
-//! panic the app: a gilrs error (or a panic inside it) is logged and the thread stops.
+//! panic the app: a gilrs error (or a panic inside it) is logged and the thread stops. A thread that stops after a
+//! successful start sends one last `{ "kind": "stopped" }`, and the page then gives the webview's own gamepads back
+//! rather than keep a shim no pad feeds. Failures go to stderr too: the log plugin is only installed in debug builds.
+
+use std::sync::atomic::AtomicU8;
+use std::sync::atomic::Ordering::{AcqRel, Acquire};
 
 use serde::Serialize;
 
@@ -68,9 +73,38 @@ pub struct PadPayload {
 #[derive(Clone, Debug, Serialize)]
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub struct BridgeEvent {
-  /// "connected", "disconnected" or "state".
+  /// "connected", "disconnected" or "state", each with a pad; "stopped" (the bridge thread ended) without one.
   pub kind: &'static str,
-  pub pad: PadPayload,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub pad: Option<PadPayload>,
+}
+
+/// The start handshake between the command, which waits a bounded time for gilrs, and the thread, which may finish
+/// initialising after the command has given up. Exactly one side wins: a thread that starts late exits unpolled, and
+/// a command that times out just as the thread starts still answers true.
+#[derive(Debug, Default)]
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub struct Handshake(AtomicU8);
+
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+impl Handshake {
+  const PENDING: u8 = 0;
+  const STARTED: u8 = 1;
+  const ABANDONED: u8 = 2;
+
+  pub const fn new() -> Self {
+    Handshake(AtomicU8::new(Self::PENDING))
+  }
+
+  /// The thread has a working gilrs: true if it may run, false if the command already answered false.
+  pub fn begin(&self) -> bool {
+    self.0.compare_exchange(Self::PENDING, Self::STARTED, AcqRel, Acquire).is_ok()
+  }
+
+  /// The command stopped waiting: true if the thread had started anyway (so the bridge is on).
+  pub fn give_up(&self) -> bool {
+    self.0.compare_exchange(Self::PENDING, Self::ABANDONED, AcqRel, Acquire) == Err(Self::STARTED)
+  }
 }
 
 /// The id string the client's pad-family detection reads, in the shape Chromium gives a standard-mapped pad.
@@ -193,6 +227,8 @@ pub fn free_slot(taken: impl Iterator<Item = u32>) -> u32 {
 #[cfg(target_os = "linux")]
 mod linux {
   use std::collections::HashMap;
+  use std::sync::atomic::AtomicBool;
+  use std::sync::atomic::Ordering::Release;
   use std::sync::mpsc;
   use std::sync::OnceLock;
   use std::time::{Duration, Instant};
@@ -202,8 +238,17 @@ mod linux {
 
   use super::*;
 
-  /// Whether gilrs initialised; set once, by the first call.
+  /// Whether the first call got the bridge started; set once.
   static ENABLED: OnceLock<bool> = OnceLock::new();
+  /// Whether the thread is polling now; cleared on any exit, so a later call answers false.
+  static RUNNING: AtomicBool = AtomicBool::new(false);
+  static HANDSHAKE: Handshake = Handshake::new();
+
+  /// A failure worth seeing in a release build, where `log` goes nowhere.
+  fn fail(msg: &str) {
+    log::warn!("Gamepad bridge: {msg}");
+    eprintln!("[gamepad-bridge] {msg}");
+  }
 
   /// Standard-mapping index of a gilrs button, `None` for the ones the standard layout has no place for.
   fn button_index(b: Button) -> Option<usize> {
@@ -229,43 +274,58 @@ mod linux {
     })
   }
 
-  /// Starts the thread on the first call and waits for gilrs to initialise; later calls return the same answer.
+  /// Starts the thread on the first call and waits (blocking) for gilrs to initialise. Every call answers whether the
+  /// thread is running now.
   pub fn start(app: AppHandle) -> bool {
-    *ENABLED.get_or_init(|| {
+    let enabled = *ENABLED.get_or_init(|| {
       let (tx, rx) = mpsc::channel::<bool>();
       let spawned = std::thread::Builder::new().name("gamepad-bridge".into()).spawn(move || {
+        let mut started = false;
         // gilrs has `unimplemented!()` paths; a panic there must end this thread only, with a log line.
         let run = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
           // No force feedback: the game doesn't rumble, and it would start gilrs's own FF thread.
           match GilrsBuilder::new().with_force_feedback(false).build() {
             Ok(gilrs) => {
+              if !HANDSHAKE.begin() {
+                fail("gilrs started after the page stopped waiting; not polling");
+                return;
+              }
+              started = true;
+              RUNNING.store(true, Release);
               let _ = tx.send(true);
-              worker(app, gilrs);
+              worker(&app, gilrs);
             }
             Err(e) => {
-              log::warn!("Gamepad bridge: gilrs failed to start: {e}");
+              fail(&format!("gilrs failed to start: {e}"));
               let _ = tx.send(false);
             }
           }
         }));
         if run.is_err() {
-          log::error!("Gamepad bridge: the thread panicked and stopped");
+          fail("the thread panicked");
+        }
+        RUNNING.store(false, Release);
+        if started {
+          fail("stopped; the page falls back to the webview's gamepads");
+          let _ = app.emit(EVENT, BridgeEvent { kind: "stopped", pad: None });
         }
       });
       if let Err(e) = spawned {
-        log::warn!("Gamepad bridge: could not spawn the thread: {e}");
+        fail(&format!("could not spawn the thread: {e}"));
         return false;
       }
-      // udev enumeration is quick; a hang (or a panic before the send) reads as disabled.
-      rx.recv_timeout(Duration::from_secs(3)).unwrap_or(false)
-    })
+      // udev enumeration is quick; a hang (or a panic before the send) reads as disabled, unless the thread started
+      // in the same instant.
+      rx.recv_timeout(Duration::from_secs(3)).unwrap_or(false) || HANDSHAKE.give_up()
+    });
+    enabled && RUNNING.load(Acquire)
   }
 
   fn emit(app: &AppHandle, kind: &'static str, pad: PadPayload) -> bool {
-    match app.emit(EVENT, BridgeEvent { kind, pad }) {
+    match app.emit(EVENT, BridgeEvent { kind, pad: Some(pad) }) {
       Ok(()) => true,
       Err(e) => {
-        log::warn!("Gamepad bridge: emit failed, stopping: {e}");
+        fail(&format!("emit failed, stopping: {e}"));
         false
       }
     }
@@ -277,7 +337,8 @@ mod linux {
     PadState::new(slot, pad_id(gp.name(), gp.vendor_id(), gp.product_id()))
   }
 
-  fn worker(app: AppHandle, mut gilrs: Gilrs) {
+  /// Polls until an emit fails; the caller clears `RUNNING` and sends `stopped`.
+  fn worker(app: &AppHandle, mut gilrs: Gilrs) {
     let start = Instant::now();
     let now_ms = || start.elapsed().as_secs_f64() * 1000.0;
     let mut pads: HashMap<GamepadId, PadState> = HashMap::new();
@@ -287,7 +348,7 @@ mod linux {
     for id in initial {
       let mut pad = connect(&gilrs, &mut pads, id);
       log::info!("Gamepad bridge: {} in slot {}", pad.id, pad.index);
-      if !emit(&app, "connected", pad.take_payload(now_ms(), true)) {
+      if !emit(app, "connected", pad.take_payload(now_ms(), true)) {
         return;
       }
       pads.insert(id, pad);
@@ -301,7 +362,7 @@ mod linux {
             pads.remove(&ev.id);
             let mut pad = connect(&gilrs, &mut pads, ev.id);
             log::info!("Gamepad bridge: {} connected in slot {}", pad.id, pad.index);
-            if !emit(&app, "connected", pad.take_payload(now_ms(), true)) {
+            if !emit(app, "connected", pad.take_payload(now_ms(), true)) {
               return;
             }
             pads.insert(ev.id, pad);
@@ -309,7 +370,7 @@ mod linux {
           EventType::Disconnected => {
             if let Some(mut pad) = pads.remove(&ev.id) {
               log::info!("Gamepad bridge: {} disconnected from slot {}", pad.id, pad.index);
-              if !emit(&app, "disconnected", pad.take_payload(now_ms(), false)) {
+              if !emit(app, "disconnected", pad.take_payload(now_ms(), false)) {
                 return;
               }
             }
@@ -339,7 +400,7 @@ mod linux {
 
       let now = now_ms();
       for pad in pads.values_mut() {
-        if pad.due(now) && !emit(&app, "state", pad.take_payload(now, true)) {
+        if pad.due(now) && !emit(app, "state", pad.take_payload(now, true)) {
           return;
         }
       }
@@ -352,11 +413,12 @@ mod linux {
 // Commands
 
 /// `enabled` is true on Linux once gilrs has initialised; the first call starts the bridge thread. Always false on
-/// Windows and macOS, where the webview's own Gamepad API is used. Async so the wait for gilrs is off the main thread.
+/// Windows and macOS, where the webview's own Gamepad API is used, and false again once the thread has stopped. The
+/// wait for gilrs runs on a blocking thread, off both the main thread and the async runtime's workers.
 #[tauri::command]
 pub async fn gamepad_bridge_status(app: tauri::AppHandle) -> GamepadBridgeStatus {
   #[cfg(target_os = "linux")]
-  let enabled = linux::start(app);
+  let enabled = tauri::async_runtime::spawn_blocking(move || linux::start(app)).await.unwrap_or(false);
   #[cfg(not(target_os = "linux"))]
   let enabled = {
     let _ = app;
@@ -459,7 +521,7 @@ mod tests {
   fn payload_serializes_in_the_contract_shape() {
     let mut p = PadState::new(1, pad_id("Pad", Some(1), Some(2)));
     p.press(0, true);
-    let json = serde_json::to_value(BridgeEvent { kind: "state", pad: p.take_payload(12.5, true) }).unwrap();
+    let json = serde_json::to_value(BridgeEvent { kind: "state", pad: Some(p.take_payload(12.5, true)) }).unwrap();
     assert_eq!(json["kind"], "state");
     assert_eq!(json["pad"]["index"], 1);
     assert_eq!(json["pad"]["buttons"].as_array().unwrap().len(), 17);
@@ -467,5 +529,23 @@ mod tests {
     assert_eq!(json["pad"]["axes"].as_array().unwrap().len(), 4);
     assert_eq!(json["pad"]["timestamp"], 12.5);
     assert_eq!(json["pad"]["downs"], serde_json::json!([0]));
+  }
+
+  #[test]
+  fn stopped_has_no_pad() {
+    let json = serde_json::to_value(BridgeEvent { kind: "stopped", pad: None }).unwrap();
+    assert_eq!(json, serde_json::json!({ "kind": "stopped" }));
+  }
+
+  #[test]
+  fn handshake_lets_exactly_one_side_win() {
+    // The thread starts in time: it runs, and a give-up racing it still reads as started.
+    let h = Handshake::new();
+    assert!(h.begin());
+    assert!(h.give_up());
+    // The command gave up first: the thread must not run.
+    let h = Handshake::new();
+    assert!(!h.give_up());
+    assert!(!h.begin());
   }
 }
