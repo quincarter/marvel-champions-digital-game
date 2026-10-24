@@ -71,11 +71,11 @@ test("Undo takes back a hero's own move, and stops at the turn's start and at a 
   expect(await store(page, (s) => s.version)).toBe(start);
   if (SHOT) await page.screenshot({ path: `${SHOT}/undo-${info.project.name}-3-undone.png` });
 
-  // The Z key is the same Undo.
+  // Ctrl+Z is the same Undo.
   await pressFocus(page, phone, "basic:changeForm");
   await waitFor(async () => ((await formOf()) !== startForm ? true : null), "Spider-Man changes form again", 10000);
-  await page.keyboard.press("z");
-  await waitFor(async () => ((await formOf()) === startForm ? true : null), "Z puts the form back", 10000);
+  await page.keyboard.press("Control+z");
+  await waitFor(async () => ((await formOf()) === startForm ? true : null), "Ctrl+Z puts the form back", 10000);
 
   // Flip once more, then Deadpool plays Mulligan during Spider-Man's turn ("discard your hand, then draw up to your
   // hand size"): Undo never takes back another player's move, nor anything before a new hand was drawn.
@@ -133,7 +133,7 @@ test("Undo takes back a hero's own move, and stops at the turn's start and at a 
   const afterMulligan = await store(page, (s) => s.version as number);
   if (SHOT) await page.screenshot({ path: `${SHOT}/undo-${info.project.name}-4-after-mulligan.png` });
   await pressFocus(page, phone, "undo");
-  await page.keyboard.press("z");
+  await page.keyboard.press("Control+z");
   await settle(page, { quietMs: 400, maxMs: 3000 });
   expect(await store(page, (s) => s.version), "Undo can't take back Deadpool's new hand").toBe(afterMulligan);
   expect(await formOf(), "nor Spider-Man's flip from before it").not.toBe(startForm);

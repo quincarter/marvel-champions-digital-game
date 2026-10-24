@@ -34,14 +34,6 @@ async function setButton(page: Page, index: number, down: boolean): Promise<void
   );
 }
 
-/** Presses and releases one pad button, as a thumb would (long enough for a frame poll to see it). */
-async function tapPadButton(page: Page, index: number): Promise<void> {
-  await setButton(page, index, true);
-  await page.waitForTimeout(150);
-  await setButton(page, index, false);
-  await page.waitForTimeout(100);
-}
-
 test("the table answers the keyboard and a gamepad, and survives a held trigger", async ({ page }) => {
   test.setTimeout(150_000);
   const errors = trackPageErrors(page);
@@ -82,13 +74,22 @@ test("the table answers the keyboard and a gamepad, and survives a held trigger"
   );
   expect(second).not.toBe(first);
 
-  // The pad: D-pad right moves the focus (or left, when the ring already sits at the right-most stop).
-  await tapPadButton(page, BUTTON_DPAD_RIGHT);
-  let padMoved = (await focusedKey(page)) !== second;
-  if (!padMoved) {
-    await tapPadButton(page, BUTTON_DPAD_LEFT);
-    padMoved = (await focusedKey(page)) !== second;
-  }
+  // The pad: D-pad right moves the focus (or left, when the ring already sits at the right-most stop). The button is
+  // held until the ring moves rather than tapped for a fixed 150 ms: the pad is read once per frame, and a loaded
+  // runner can run no frame inside a short press. A held direction repeats, so the ring may step more than once.
+  const holdPadUntilMoved = async (index: number): Promise<boolean> => {
+    await setButton(page, index, true);
+    let moved = false;
+    for (let i = 0; i < 20 && !moved; i++) {
+      await page.waitForTimeout(100);
+      moved = (await focusedKey(page)) !== second;
+    }
+    await setButton(page, index, false);
+    await page.waitForTimeout(100);
+    return moved;
+  };
+  let padMoved = await holdPadUntilMoved(BUTTON_DPAD_RIGHT);
+  if (!padMoved) padMoved = await holdPadUntilMoved(BUTTON_DPAD_LEFT);
   expect(padMoved, "the D-pad moves the focus ring").toBe(true);
 
   // RT held (the layer): the table keeps running; released, input is back.

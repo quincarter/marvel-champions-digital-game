@@ -21,12 +21,28 @@ const listeners = new Set<Listener>();
 let restTimer: ReturnType<typeof setTimeout> | null = null;
 let installed = false;
 
+let notifyQueued = false;
+
 function dispatch(event: InputEvent): void {
   const next = nextInputMode(state, event);
   if (next === state) return;
   const changed = next.mode !== state.mode || next.pad !== state.pad || next.mouseMoving !== state.mouseMoving;
   state = next;
-  if (changed) for (const listener of listeners) listener(state);
+  if (changed) queueNotify();
+}
+
+/**
+ * Listeners hear about a change after the event that caused it has been handled, never from inside it. The window's
+ * capture listeners run before Phaser sees the same press, and a listener that redraws there (a glyph swap on the
+ * first touch after the mouse) destroyed the very zones the press was about to land on. Changes in one turn coalesce.
+ */
+function queueNotify(): void {
+  if (notifyQueued) return;
+  notifyQueued = true;
+  setTimeout(() => {
+    notifyQueued = false;
+    for (const listener of [...listeners]) listener(state);
+  }, 0);
 }
 
 export function inputDevice(): InputModeState {

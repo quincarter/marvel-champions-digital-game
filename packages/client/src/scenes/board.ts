@@ -2326,11 +2326,21 @@ export class BoardScene extends Phaser.Scene {
   /** The guide's "Press G…" line names the key or button in use: redraw the guide when that changes. */
   #watchGuideHint(): void {
     let shown = guideHintText(inputDevice(), appSession().settings);
+    let hintRedrawQueued = false;
     const off = onInputDeviceChange((state) => {
       const next = guideHintText(state, appSession().settings);
       if (next === shown) return;
       shown = next;
-      if (this.#guide || this.#tip) this.requestGuideRedraw();
+      if (!this.#guide && !this.#tip) return;
+      // Not from inside the window's capture listener: that runs before Phaser has handled the very press that changed
+      // the mode (a first touch after the mouse), and a redraw there destroys the zones the press is about to land on.
+      // The next update step is after the frame's queued input has been delivered.
+      if (hintRedrawQueued) return;
+      hintRedrawQueued = true;
+      this.events.once(Phaser.Scenes.Events.UPDATE, () => {
+        hintRedrawQueued = false;
+        if (this.#guide || this.#tip) this.requestGuideRedraw();
+      });
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, off);
   }
