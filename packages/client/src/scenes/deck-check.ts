@@ -215,6 +215,7 @@ export class DeckCheckScene extends Phaser.Scene {
   #cardListScroll = new VariableListScroll();
   #route: FocusRoute | null = null;
   #hints!: GlyphHints;
+  #obstacles: Rect[] = [];
   #stops = new Map<string, FocusStop>();
   /** Which aspect tile's inline tip (G10b) is open, if any — wide only, the rail's own aspect tiles. */
   #aspectTipOpen: CoreAspect | null = null;
@@ -259,10 +260,16 @@ export class DeckCheckScene extends Phaser.Scene {
       this.#cardList?.destroy();
       this.#cardList = null;
     });
-    this.#hints = new GlyphHints(this);
+    this.#hints = new GlyphHints(this, () => this.#obstacles);
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.inspect),
-      onCancel: () => this.#stops.get("back")?.activate(),
+      onCancel: () => {
+        // An open aspect tip closes first; the next B leaves.
+        if (this.#aspectTipOpen !== null) {
+          this.#aspectTipOpen = null;
+          this.#rebuild();
+        } else this.#stops.get("back")?.activate();
+      },
       // LB / RB step Curve, Cards and Aspect on a narrow screen; the wide layout has no strip, so they page the cards.
       onTab: (direction) => {
         if (this.#tabs === null) {
@@ -294,6 +301,7 @@ export class DeckCheckScene extends Phaser.Scene {
     this.#buttons = [];
     this.#stops = new Map();
     this.#hints.reset();
+    this.#obstacles = [];
     this.#tabs?.destroy();
     this.#tabs = null;
     // The card grid only exists on wide, or on narrow's Cards tab; recreated fresh every rebuild like every other
@@ -368,10 +376,12 @@ export class DeckCheckScene extends Phaser.Scene {
         onSelect: (id) => this.#setTab(id as DeckCheckTab),
       });
       const strip = layout.tabs!;
+      this.#obstacles.push(layout.content!);
       this.#hints.custom(
         (set, snapshot) => (set === "pad" ? specsForShortcuts(["zonePrevious", "zoneNext"], snapshot) : null),
         14,
-        ({ width }) => ({ x: strip.x + strip.width - width, y: strip.y + strip.height + 5 }),
+        ({ width }) => ({ x: strip.x + strip.width - width, y: strip.y + strip.height + 11 }),
+        { avoidObstacles: true },
       );
       const tabWidth = layout.tabs!.width / 3;
       this.#stops.set("tab:curve", {

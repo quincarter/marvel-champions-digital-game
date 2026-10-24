@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { activeScenes, trackPageErrors, waitFor } from "./helpers.js";
+import { activeScenes, findText, trackPageErrors, waitFor } from "./helpers.js";
 import { openApp } from "./wave6-helpers-b.js";
 
 /**
@@ -12,6 +12,7 @@ import { openApp } from "./wave6-helpers-b.js";
 const PAD_ID = "Xbox 360 Controller (STANDARD GAMEPAD Vendor: 045e Product: 028e)";
 const A = 0;
 const B = 1;
+const Y = 3;
 const LB = 4;
 const RB = 5;
 const DPAD_DOWN = 13;
@@ -65,6 +66,14 @@ async function press(page: Page, index: number, done?: () => Promise<boolean>): 
   await page.waitForTimeout(300);
 }
 
+/** A short press: down for a few frames, up before the pad's hold-repeat starts (so one press is one press). */
+async function tap(page: Page, index: number): Promise<void> {
+  await setButton(page, index, true);
+  await page.waitForTimeout(160);
+  await setButton(page, index, false);
+  await page.waitForTimeout(250);
+}
+
 const stopKeys = (page: Page, scene: string): Promise<string[]> =>
   page.evaluate(
     (key) => (window as unknown as { __mcFocusRoutes: Routes }).__mcFocusRoutes[key]!().map((s) => s.key),
@@ -83,7 +92,21 @@ const tileKeys = async (page: Page): Promise<string> =>
 async function open(page: Page, screen: string, landing: string): Promise<void> {
   await installPad(page);
   await openApp(page, `screen=${screen}&unlock=all`, { landing });
-  await press(page, DPAD_DOWN);
+  // The first pad press wakes the pad and lands the ring somewhere: wait for that, not a fixed hold.
+  await press(page, DPAD_DOWN, async () => (await focusOf(page, landing)) !== null);
+}
+
+/** Arrow-keys (one press each, so it never overshoots) until the focus key starts with `prefix`. */
+async function walkTo(page: Page, scene: string, prefix: string, arrow = "ArrowDown"): Promise<string> {
+  // The wake press may have landed past the target: after 25 steps one way, walk back the other (up for the default).
+  const back = arrow === "ArrowDown" ? "ArrowUp" : "ArrowLeft";
+  for (let i = 0; i < 120; i += 1) {
+    const focus = await focusOf(page, scene);
+    if (focus?.startsWith(prefix)) return focus;
+    await page.keyboard.press(i < 25 ? arrow : back);
+    await page.waitForTimeout(60);
+  }
+  throw new Error(`never reached ${prefix}, at ${await focusOf(page, scene)}`);
 }
 
 for (const size of [
@@ -131,7 +154,11 @@ test("Decks: the D-pad reaches a deck and A selects it", async ({ page }) => {
     const focus = await focusOf(page, "Decks");
     return focus !== null && focus.startsWith("deck:") && focus !== `deck:${before}`;
   };
-  for (let i = 0; i < 40 && !(await onOtherDeck()); i += 1) await press(page, DPAD_DOWN, async () => false);
+  for (let i = 0; i < 40 && !(await onOtherDeck()); i += 1) {
+    const was = await focusOf(page, "Decks");
+    await press(page, DPAD_DOWN, async () => (await focusOf(page, "Decks")) !== was);
+  }
+  await page.waitForTimeout(500);
   const target = await focusOf(page, "Decks");
   expect(target).toMatch(/^deck:/);
   await press(page, A, async () => (await selected()) !== before);
@@ -164,10 +191,7 @@ test("Decks: A on the search field puts the caret in, B takes it out, and the D-
   await page.setViewportSize({ width: 1280, height: 800 });
   await open(page, "decks", "Decks");
   const typing = (): Promise<boolean> => page.evaluate(() => document.activeElement?.tagName === "INPUT");
-  for (let i = 0; i < 10 && (await focusOf(page, "Decks")) !== "deck-search"; i += 1) {
-    const was = await focusOf(page, "Decks");
-    await press(page, DPAD_DOWN, async () => (await focusOf(page, "Decks")) !== was);
-  }
+  await walkTo(page, "Decks", "deck-search");
   expect(await focusOf(page, "Decks")).toBe("deck-search");
   await press(page, A, typing);
   expect(await typing()).toBe(true);
@@ -178,5 +202,47 @@ test("Decks: A on the search field puts the caret in, B takes it out, and the D-
   const here = await focusOf(page, "Decks");
   await press(page, DPAD_DOWN, async () => (await focusOf(page, "Decks")) !== here);
   expect(await focusOf(page, "Decks")).not.toBe(here);
+  expect(errors).toEqual([]);
+});
+
+test("Deck builder: B with unsaved changes asks to Leave, and a second B leaves", async ({ page }) => {
+  test.setTimeout(120_000);
+  const errors = trackPageErrors(page);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await open(page, "deck-builder", "DeckBuilder");
+  // Rename the deck (A on the name field, type, B out of the field) so there is something unsaved.
+  const typing = (): Promise<boolean> => page.evaluate(() => document.activeElement?.tagName === "INPUT");
+  for (let i = 0; i < 3; i += 1) await page.keyboard.press("ArrowUp");
+  for (let i = 0; i < 3; i += 1) await page.keyboard.press("ArrowUp");
+  await walkTo(page, "DeckBuilder", "name");
+  await press(page, A, typing);
+  await page.keyboard.type(" x");
+  await press(page, B, async () => !(await typing()));
+  await page.waitForTimeout(400);
+  // The first B arms Leave, in pad words, and stays (held only until the line shows, so it cannot repeat into a second).
+  await press(page, B, async () => (await findText(page, "You have unsaved", "DeckBuilder")).length > 0);
+  expect((await findText(page, "You have unsaved", "DeckBuilder")).length).toBeGreaterThan(0);
+  expect(await activeScenes(page)).toContain("DeckBuilder");
+  expect(await activeScenes(page)).not.toContain("Decks");
+  await press(page, B, async () => !(await activeScenes(page)).includes("DeckBuilder"));
+  await waitFor(
+    async () => ((await activeScenes(page)).includes("Decks") ? true : null),
+    "the second B leaves",
+    15_000,
+  ).catch(async (error) => {
+    throw new Error(`${String(error)} scenes=${(await activeScenes(page)).join(",")} errors=${errors.join("|")}`);
+  });
+  expect(errors).toEqual([]);
+});
+
+test("Decks: Y on a pool card opens the inspect view", async ({ page }) => {
+  test.setTimeout(120_000);
+  const errors = trackPageErrors(page);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await open(page, "decks", "Decks");
+  await walkTo(page, "Decks", "deck:");
+  await walkTo(page, "Decks", "pool-card:", "ArrowRight");
+  await press(page, Y, async () => (await activeScenes(page)).includes("InspectOverlay"));
+  expect(await activeScenes(page)).toContain("InspectOverlay");
   expect(errors).toEqual([]);
 });

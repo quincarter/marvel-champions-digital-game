@@ -269,7 +269,8 @@ export class ExtrasScene extends Phaser.Scene {
     this.#hints.custom(
       (set, snapshot) => (set === "pad" ? specsForShortcuts(["zonePrevious", "zoneNext"], snapshot) : null),
       16,
-      ({ width }) => ({ x: tabRect.x + tabRect.width - width, y: tabRect.y + tabRect.height + 7 }),
+      ({ width }) => ({ x: tabRect.x + tabRect.width - width, y: tabRect.y + tabRect.height + 11 }),
+      { avoidObstacles: true },
     );
     this.#obstacles.push(trophyRect, creditsRect, tabRect);
     if (bar.back) this.#hints.button(bar.back, ["cancel"], "paper");
@@ -281,7 +282,8 @@ export class ExtrasScene extends Phaser.Scene {
       });
     });
 
-    let listTop = tabRect.y + tabRect.height + 14;
+    // 22px under the strip: room for the LB / RB hint (14px tall) in the gap.
+    let listTop = tabRect.y + tabRect.height + 22;
     // The Music tab opens on the expanded player: what is playing, how far in, Shuffle and Next.
     const playerStops: string[] = [];
     if (this.#tab === "music") {

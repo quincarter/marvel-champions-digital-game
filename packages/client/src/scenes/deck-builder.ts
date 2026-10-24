@@ -137,6 +137,7 @@ import {
 import type { CampaignReturn } from "./campaign/routes.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
+import { inputDevice } from "../platform/input-device.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
@@ -494,7 +495,8 @@ export class DeckBuilderScene extends Phaser.Scene {
       // Unsaved changes: the first Back says so, the second leaves without saving.
       if (this.#isDirty() && !this.#leaveArmed) {
         this.#leaveArmed = true;
-        this.#status = "You have unsaved changes. Save the deck, or press Leave again to leave without saving.";
+        const again = inputDevice().mode === "pad" ? "press Leave (B) again" : "press Leave again";
+        this.#status = `You have unsaved changes. Save the deck, or ${again} to leave without saving.`;
         this.#rebuild();
         return;
       }

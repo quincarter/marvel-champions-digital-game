@@ -6,6 +6,10 @@
  * was stuck there (the keyboard has Enter and Escape inside the field itself, `ui/widgets.ts`). While a field is
  * focused, B, A and Start take the caret out. The route hears nothing from that press: it is held while the field
  * has the caret, and the caret leaves a frame later, so the same press cannot also back out of the screen.
+ *
+ * Frame order matters. Decks and the deck builder call this BEFORE creating their `FocusRoute`. The press that puts the caret in a field (A on
+ * the field's stop) is handled by the route; if this listener ran after it in the same frame it would see the field
+ * already focused and take the caret straight back out. Bound first, it sees the field unfocused for that press.
  */
 
 import type Phaser from "phaser";
