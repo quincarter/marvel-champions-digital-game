@@ -103,6 +103,11 @@ export interface FocusRouteOptions {
    * presses it (`view/primary-activation.ts`); with a stop focused it presses that stop.
    */
   readonly primary?: () => string | null;
+  /**
+   * For a screen whose stops sit off to the side of each other (a Close in a corner over a card grid): an arrow that
+   * finds nothing in its 90 degree cone goes to the nearest stop strictly that way instead of staying put.
+   */
+  readonly reachAcross?: boolean;
 }
 
 export class FocusRoute {
@@ -117,6 +122,7 @@ export class FocusRoute {
   readonly #primary: (() => string | null) | undefined;
   readonly #onTab: ((direction: 1 | -1) => void) | undefined;
   readonly #onToggle: (() => void) | undefined;
+  readonly #reachAcross: boolean;
   /** The ring is hidden after the mouse takes over, until the next pad or keyboard input. */
   #ringHidden = false;
   #chromeFrame = -1;
@@ -146,6 +152,7 @@ export class FocusRoute {
     this.#primary = options.primary;
     this.#onTab = options.onTab;
     this.#onToggle = options.onToggle;
+    this.#reachAcross = options.reachAcross ?? false;
     // The mouse moving hides the ring (it comes back, on the same stop, at the next pad or keyboard input). The change
     // arrives deferred (platform/input-device.ts), never mid-press.
     const unsubscribe = onInputDeviceChange((state) => {
@@ -362,7 +369,7 @@ export class FocusRoute {
           adjust(intent === "left" ? -1 : 1);
           break;
         }
-        this.#moveTo(spatialStep(this.#order, (key) => this.#rectOf(key), this.#focus, intent));
+        this.#moveTo(spatialStep(this.#order, (key) => this.#rectOf(key), this.#focus, intent, this.#reachAcross));
         break;
       }
       case "activate":

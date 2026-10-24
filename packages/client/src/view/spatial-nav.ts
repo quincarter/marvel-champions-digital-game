@@ -39,6 +39,8 @@ export function spatialPick<K>(
   candidates: readonly SpatialCandidate<K>[],
   from: Rect,
   direction: FocusDirection,
+  /** Skips the 90 degree cone: any stop strictly that way counts, for a control that sits off to one side of its column. */
+  relaxed = false,
 ): K | null {
   const horizontal = direction === "left" || direction === "right";
   const sign = direction === "right" || direction === "down" ? 1 : -1;
@@ -56,7 +58,7 @@ export function spatialPick<K>(
       ? gapBetween(from.y, from.y + from.height, rect.y, rect.y + rect.height)
       : gapBetween(from.x, from.x + from.width, rect.x, rect.x + rect.width);
     // Outside a 90° cone it is not "that way": Down from a short button must not land on a taller one far across.
-    if (across > ahead) continue;
+    if (!relaxed && across > ahead) continue;
     // A stop that shares the row (or column) always beats one that doesn't: Right means "along this row" first.
     const score = (across > 0 ? OFF_ROW_PENALTY : 0) + along + across * OFF_AXIS_WEIGHT;
     const centreDistance = Math.hypot(centre.x - fromCentre.x, centre.y - fromCentre.y);
@@ -76,6 +78,8 @@ export function spatialStep<K>(
   rectOf: (key: K) => Rect | null | undefined,
   current: K | null,
   direction: FocusDirection,
+  /** When the strict cone finds nothing, take the nearest stop strictly that way (Down from a corner button reaches the grid under it). */
+  reachAcross = false,
 ): K | null {
   const from = current === null ? null : rectOf(current);
   if (current === null || !from || !order.includes(current)) return order[0] ?? null;
@@ -85,7 +89,11 @@ export function spatialStep<K>(
     const rect = rectOf(key);
     if (rect) candidates.push({ key, rect });
   }
-  return spatialPick(candidates, from, direction) ?? current;
+  return (
+    spatialPick(candidates, from, direction) ??
+    (reachAcross ? spatialPick(candidates, from, direction, true) : null) ??
+    current
+  );
 }
 
 function centreOf(rect: Rect): { x: number; y: number } {

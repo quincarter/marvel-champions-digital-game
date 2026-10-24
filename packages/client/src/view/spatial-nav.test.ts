@@ -92,4 +92,20 @@ describe("spatialPick", () => {
       ),
     ).toBe("first");
   });
+
+  // A Close in the corner over a card grid: the cone finds nothing, so only `reachAcross` goes on to the nearest card.
+  test("reachAcross takes the nearest stop strictly that way when the cone is empty", () => {
+    const close = rect(1100, 0, 100, 40);
+    const cards = [
+      { key: "a", rect: rect(0, 60, 150, 200) },
+      { key: "b", rect: rect(160, 60, 150, 200) },
+    ];
+    const rects = new Map([["close", close], ...cards.map((c) => [c.key, c.rect] as const)]);
+    const order = ["close", "a", "b"];
+    expect(spatialStep(order, (k) => rects.get(k), "close", "down")).toBe("close");
+    expect(spatialStep(order, (k) => rects.get(k), "close", "down", true)).toBe("b");
+    // Nothing that way at all: still stays put.
+    expect(spatialStep(order, (k) => rects.get(k), "b", "right", true)).toBe("close");
+    expect(spatialStep(order, (k) => rects.get(k), "close", "up", true)).toBe("close");
+  });
 });
