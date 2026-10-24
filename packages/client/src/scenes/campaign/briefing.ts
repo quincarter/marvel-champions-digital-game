@@ -500,7 +500,8 @@ export class CampaignBriefingScene extends Phaser.Scene {
     const top = drawTopBar(this, {
       backLabel: "◂ ISSUES",
       onBack: back,
-      hints: this.#hints,
+      // Not under the "which deck?" scrim.
+      hints: this.#seatPicker ? null : this.#hints,
       title: `Briefing · Issue #${this.#issueNumber}${record.modes.campaign?.expertCampaign ? " · Expert" : ""}`,
       ...(hiddenEvidence
         ? {
@@ -829,7 +830,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
     this.#buttons.push(openButton);
     if (canOpen) {
       stops.set("open", { rect: openRect, activate: openIssue });
-      forwardHint(this.#hints, openButton, "ink");
+      if (!this.#seatPicker) forwardHint(this.#hints, openButton, "ink");
     }
 
     if (blocked) {

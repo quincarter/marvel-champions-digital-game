@@ -76,7 +76,8 @@ import type { FormFactor, Rect } from "../../view/layout.js";
 import { VariableListScroll } from "../../view/variable-list-scroll.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import type { GlyphHints } from "../../ui/glyph-hints.js";
-import { createHints, forwardHint } from "./pad-hints.js";
+import { CardLegend, createHints, forwardHint } from "./pad-hints.js";
+import { onTap } from "../../ui/tap.js";
 import type { CardId } from "@mc/content";
 import { SCENES } from "../keys.js";
 import { artThumbSpec } from "../roster-panel.js";
@@ -190,6 +191,7 @@ export class CampaignMarketScene extends Phaser.Scene {
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
   #hints: GlyphHints | null = null;
+  #legend: CardLegend | null = null;
   /** The focus stops of the last draw, for the legend strip over the focused card. */
   #stops: ReadonlyMap<string, FocusStop> = new Map();
   /** The tier the shoulder buttons last jumped to; cleared by a right-stick scroll. */
@@ -395,6 +397,13 @@ export class CampaignMarketScene extends Phaser.Scene {
     this.#chips = [];
     this.#hints?.reset();
     destroyChildren(this);
+    this.#legend = this.#hints
+      ? new CardLegend(this, this.#hints, [
+          { id: "activate", text: "Add / remove" },
+          { id: "inspect", text: "Inspect" },
+          { id: "cancel", text: this.#cart.length > 0 ? "Clear the cart" : "Back" },
+        ])
+      : null;
     this.#drawScreen();
     this.#fillThumbs();
     this.#hover?.onDraw();
@@ -431,7 +440,8 @@ export class CampaignMarketScene extends Phaser.Scene {
     const top = drawTopBar(this, {
       backLabel: `◂ Issue #${afterIssueNumber}`,
       onBack: back,
-      hints: this.#hints,
+      // B empties a full cart before it leaves, so the top bar claims B only while the cart is empty.
+      hints: this.#cart.length === 0 && !this.#receiptOpen ? this.#hints : null,
       title: "The Market",
       ...(layout === "phoneLandscape" ? {} : { right: `After issue #${afterIssueNumber}` }),
     });
@@ -522,16 +532,14 @@ export class CampaignMarketScene extends Phaser.Scene {
   #syncLegend(): void {
     const key = this.#route?.focused ?? null;
     const stop = key !== null && key.startsWith("cart:") && !this.#receiptOpen ? this.#stops.get(key) : undefined;
-    const { width, height } = this.scale.gameSize;
-    const view: Rect = { x: 0, y: 0, width, height };
     if (!stop) {
-      this.#hints?.legend(null, view);
+      this.#legend?.setAnchor(null);
       return;
     }
     const rect = typeof stop.rect === "function" ? stop.rect() : stop.rect;
     const shelf = this.#shelfRegion?.rect;
     const visible = shelf === undefined || (rect.y + rect.height > shelf.y && rect.y < shelf.y + shelf.height);
-    this.#hints?.legend(visible ? rect : null, view);
+    this.#legend?.setAnchor(visible ? rect : null);
   }
 
   /** The card's full sheet (Inspect), with why it cannot be bought when it cannot. */
@@ -548,12 +556,14 @@ export class CampaignMarketScene extends Phaser.Scene {
     if (this.#receiptOpen) return;
     const tiers = this.#tierTops;
     if (tiers.length === 0) return;
+    // With nothing focused the first press lands on the first tier's cards; after that it steps.
     const from = this.#tabPrice ?? this.#activePrice ?? tiers[0]!.price;
     const index = Math.max(
       0,
       tiers.findIndex((tier) => tier.price === from),
     );
-    const next = tiers[Math.min(tiers.length - 1, Math.max(0, index + direction))]!;
+    const fresh = this.#route?.focused == null;
+    const next = fresh ? tiers[0]! : tiers[Math.min(tiers.length - 1, Math.max(0, index + direction))]!;
     this.#jumpTo(next.price);
     this.#tabPrice = next.price;
     this.#route?.focusKey(next.firstCard === null ? null : `cart:${next.firstCard}`);
@@ -930,7 +940,7 @@ export class CampaignMarketScene extends Phaser.Scene {
       .zone(rect.x, rect.y, rect.width, rect.height)
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
-    zone.on("pointerup", () => this.#jumpTo(price));
+    onTap(zone, () => this.#jumpTo(price), `market:chip:${price}`);
     stops.set(`price:${price}`, { rect, activate: () => this.#jumpTo(price) });
   }
 
@@ -990,7 +1000,7 @@ export class CampaignMarketScene extends Phaser.Scene {
       .zone(rect.x, rect.y, rect.width, rect.height)
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
-    zone.on("pointerup", () => this.#toggleAffordable());
+    onTap(zone, () => this.#toggleAffordable(), "market:affordable");
     stops.set("afford", { rect, activate: () => this.#toggleAffordable() });
   }
 
@@ -1219,7 +1229,7 @@ export class CampaignMarketScene extends Phaser.Scene {
       }
       const zone = this.add.zone(x, y, width, rowHeight).setOrigin(0, 0).setInteractive({ useHandCursor: true });
       const price = card.price;
-      zone.on("pointerup", () => this.#toggleCart(cardId, price));
+      onTap(zone, () => this.#toggleCart(cardId, price), `market:card:${cardId}`);
       stops.set(`cart:${cardId}`, { rect, activate: () => this.#toggleCart(cardId, price), inspect: read });
     };
     return { height, finish };

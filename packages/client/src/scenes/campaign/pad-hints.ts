@@ -10,6 +10,9 @@
 import Phaser from "phaser";
 import { GlyphHints, specsForShortcuts } from "../../ui/glyph-hints.js";
 import type { GlyphGround } from "../../ui/input-glyph.js";
+import { textStyle } from "../../ui/theme.js";
+import { surface, typeRole } from "../../tokens.js";
+import type { ShortcutId } from "../../view/input-shortcuts.js";
 import type { McButton } from "../../ui/widgets.js";
 import type { Rect } from "../../view/layout.js";
 
@@ -28,6 +31,14 @@ export function createHints(scene: Phaser.Scene, obstacles?: () => readonly Rect
  */
 export function forwardHint(hints: GlyphHints | null, button: McButton, ground: GlyphGround): void {
   hints?.button(button, ["pause"], ground, { when: (set) => set === "pad" });
+}
+
+/**
+ * A beside the button that A (or Enter) presses on a screen where Start does something else (skips the whole
+ * sequence): the comic's NEXT, the reveal button.
+ */
+export function advanceHint(hints: GlyphHints | null, button: McButton, ground: GlyphGround): void {
+  hints?.button(button, ["activate"], ground);
 }
 
 /** The pause chord (Start, Esc) beside a control that Start / Esc leaves through. */
@@ -81,4 +92,55 @@ export function forwardHintAtEnd(hints: GlyphHints | null, rect: Rect, ground: G
     place,
     { ground },
   );
+}
+
+/**
+ * A row of glyph-and-word chips (A Add, Y Inspect, B Back) just above a focused card. `GlyphHints#legend` always adds
+ * "hold to zoom" to Inspect, which is not true on a screen whose Y only opens the sheet, so this draws its own from
+ * ordinary hint entries. Register it once per redraw, after `hints.reset()`; `setAnchor` moves it (null hides it) and
+ * refreshes the hints.
+ */
+export class CardLegend {
+  #anchor: Rect | null = null;
+  readonly #fulls: number[] = [];
+  readonly #words: Phaser.GameObjects.Text[] = [];
+
+  constructor(
+    scene: Phaser.Scene,
+    private readonly hints: GlyphHints,
+    items: readonly { readonly id: ShortcutId; readonly text: string }[],
+  ) {
+    const height = 20;
+    const gap = 14;
+    items.forEach((item, index) => {
+      const word = scene.add
+        .text(0, 0, item.text, {
+          ...textStyle(typeRole.label, surface.paper.hex),
+          backgroundColor: surface.ink.css,
+          padding: { x: 4, y: 2 },
+        })
+        .setOrigin(0, 0.5);
+      this.#words.push(word);
+      hints.custom(
+        (set, snapshot, layer) => specsForShortcuts([item.id], snapshot, set === "pad" ? layer : null),
+        height,
+        (size) => {
+          const anchor = this.#anchor;
+          this.#fulls[index] = size.full;
+          if (!anchor) return null;
+          let x = anchor.x + 6;
+          for (let before = 0; before < index; before += 1) {
+            x += (this.#fulls[before] ?? 0) + 6 + (this.#words[before]?.width ?? 0) + gap;
+          }
+          return { x, y: Math.max(height / 2 + 2, anchor.y - height / 2 - 2) };
+        },
+        { ground: "ink", word },
+      );
+    });
+  }
+
+  setAnchor(rect: Rect | null): void {
+    this.#anchor = rect;
+    this.hints.refresh();
+  }
 }

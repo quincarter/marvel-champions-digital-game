@@ -109,7 +109,8 @@ import type { Rect } from "../../view/layout.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import type { GlyphHints } from "../../ui/glyph-hints.js";
 import { bindTextFieldEscape } from "../text-field-escape.js";
-import { createHints, forwardHint } from "./pad-hints.js";
+import { advanceHint, createHints, forwardHint } from "./pad-hints.js";
+import { onTap } from "../../ui/tap.js";
 import { SCENES } from "../keys.js";
 import type { CampaignAftermathData } from "./routes.js";
 
@@ -209,7 +210,8 @@ export class CampaignAftermathScene extends Phaser.Scene {
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.inspect) || (this.#pickerSearchInput?.focused ?? false),
       // The guided read is skippable (B, Start and View leave it for the next stop); a question still open is not.
-      onCancel: () => (this.#comicSummary() ? this.#leaveToNext() : undefined),
+      // The comic is skippable; elsewhere B just drops focus, as it did before (a question still open cannot be backed out of).
+      onCancel: () => (this.#comicSummary() ? this.#leaveToNext() : this.#route?.focusKey(null)),
       onView: () => (this.#comicSummary() ? this.#leaveToNext() : undefined),
       onPause: () => (this.#comicSummary() ? this.#leaveToNext() : this.#press(this.#primaryKey())),
       primary: () => this.#primaryKey(),
@@ -689,7 +691,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
       onClick: onCta,
     });
     this.#buttons.push(nextButton);
-    forwardHint(this.#hints, nextButton, "ink");
+    advanceHint(this.#hints, nextButton, "ink");
     order.push("next");
     stops.set("next", { rect: ctaRect, activate: onCta });
 
@@ -715,7 +717,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
       .zone(0, 0, width, height - actionBarHeight)
       .setOrigin(0, 0)
       .setInteractive();
-    tapZone.on("pointerup", onCta);
+    onTap(tapZone, onCta, "aftermath:comic-page");
     this.children.sendToBack(tapZone);
   }
 
@@ -1126,7 +1128,11 @@ export class CampaignAftermathScene extends Phaser.Scene {
       const key = `picker-card:${row.cardId as string}`;
       stops.set(key, {
         rect: () => poolCellRect(geometry, list.rectFor(rowIndex), col),
-        activate: () => this.#pick(currentSeat, row.cardId),
+        // A on the card already chosen confirms it (the same as Start), so a long grid never needs the walk to Confirm.
+        activate: () =>
+          decision?.kind === "picked" && decision.cardId === row.cardId
+            ? void this.#confirmDealtSeat()
+            : this.#pick(currentSeat, row.cardId),
         inspect: () => this.#inspectCard(row.cardId as string),
         ensureVisible: () => list.scrollIntoView(rowIndex),
       });
@@ -1291,7 +1297,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
           .zone(declineRect.x, declineRect.y, declineRect.width, declineRect.height)
           .setOrigin(0, 0)
           .setInteractive();
-        zone.on("pointerup", () => this.#pick(column.seatNumber, null));
+        onTap(zone, () => this.#pick(column.seatNumber, null), `aftermath:${key}`);
         order.push(key);
         stops.set(key, { rect: declineRect, activate: () => this.#pick(column.seatNumber, null) });
       }
@@ -1388,7 +1394,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
     if (editable) {
       const key = `pick:${column.seatNumber}:${row.option.cardId as string}`;
       const zone = this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setInteractive();
-      zone.on("pointerup", () => this.#pick(column.seatNumber, row.option.cardId));
+      onTap(zone, () => this.#pick(column.seatNumber, row.option.cardId), `aftermath:${key}`);
       order.push(key);
       stops.set(key, {
         rect,

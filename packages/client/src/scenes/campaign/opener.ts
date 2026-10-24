@@ -48,6 +48,7 @@ import {
 import type { ComicBeat } from "../../campaign/story.js";
 import { accent, dotGrid, ink, surface, typeRole } from "../../tokens.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
+import { onTap } from "../../ui/tap.js";
 import { McButton, dashedRect, fitText, label, paintDotGrid } from "../../ui/widgets.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
@@ -65,7 +66,7 @@ import { appSession, campaignService } from "../../session.js";
 import { bindExtraInput } from "../extra-input.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import type { GlyphHints } from "../../ui/glyph-hints.js";
-import { createHints, forwardHint, skipHint } from "./pad-hints.js";
+import { advanceHint, createHints, skipHint } from "./pad-hints.js";
 import { SCENES } from "../keys.js";
 import type { CampaignOpenerData } from "./routes.js";
 
@@ -472,7 +473,7 @@ export class CampaignOpenerScene extends Phaser.Scene {
       onClick: () => this.#reveal(),
     });
     this.#buttons.push(ctaButton);
-    forwardHint(this.#hints, ctaButton, "ink");
+    advanceHint(this.#hints, ctaButton, "ink");
     stops.set("cta", { rect: ctaRect, activate: () => this.#reveal() });
 
     // Tap-anywhere-on-the-page also reveals the next panel — the design's own "TAP ▸" affordance is on the panel
@@ -481,7 +482,7 @@ export class CampaignOpenerScene extends Phaser.Scene {
       .zone(0, 0, width, height - actionBarHeight)
       .setOrigin(0, 0)
       .setInteractive();
-    tapZone.on("pointerup", () => this.#reveal());
+    onTap(tapZone, () => this.#reveal(), "opener:page");
     this.children.sendToBack(tapZone);
 
     this.#route = this.#route ?? this.#newRoute();
@@ -634,7 +635,7 @@ ${view.step.credit}`
       onClick: () => this.#advanceComic(),
     });
     this.#buttons.push(nextButton);
-    forwardHint(this.#hints, nextButton, "ink");
+    advanceHint(this.#hints, nextButton, "ink");
     stops.set("next", { rect: ctaRect, activate: () => this.#advanceComic() });
 
     if (hasBack) {
@@ -656,7 +657,7 @@ ${view.step.credit}`
       .zone(0, 0, width, height - actionBarHeight)
       .setOrigin(0, 0)
       .setInteractive();
-    tapZone.on("pointerup", () => this.#advanceComic());
+    onTap(tapZone, () => this.#advanceComic(), "opener:comic-page");
     this.children.sendToBack(tapZone);
 
     this.#route = this.#route ?? this.#newRoute();
@@ -696,7 +697,7 @@ ${view.step.credit}`
         .setFontSize(16);
       if (panel.isNext) {
         const zone = this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setInteractive();
-        zone.on("pointerup", () => this.#reveal());
+        onTap(zone, () => this.#reveal(), `opener:panel:${panel.index}`);
         stops.set(`panel:${panel.index}`, { rect, activate: () => this.#reveal() });
         void hint;
       }

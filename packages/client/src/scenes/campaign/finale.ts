@@ -546,6 +546,8 @@ export class CampaignFinaleScene extends Phaser.Scene {
     }
     const reread = stops.get("reread");
     if (reread) stops.set("reread", { ...reread, rect: { ...rereadRect, y: rereadRect.y + offset } });
+    const primaryStop = stops.get("primary");
+    if (primaryStop) stops.set("primary", { ...primaryStop, rect: { ...primaryRect, y: primaryRect.y + offset } });
     // After the shift, so the glyph sits where the button ended up.
     forwardHint(this.#hints, primaryButton, "ink");
   }

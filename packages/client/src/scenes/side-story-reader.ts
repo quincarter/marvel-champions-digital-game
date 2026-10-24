@@ -31,7 +31,7 @@ import type { ExtrasSceneData } from "./extras.js";
 import { bindExtraInput } from "./extra-input.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import type { GlyphHints } from "../ui/glyph-hints.js";
-import { createHints, forwardHint, skipHint } from "./campaign/pad-hints.js";
+import { advanceHint, createHints, skipHint } from "./campaign/pad-hints.js";
 import { SCENES } from "./keys.js";
 
 export interface SideStoryReaderData {
@@ -265,7 +265,7 @@ export class SideStoryReaderScene extends Phaser.Scene {
       onClick: () => this.#advance(),
     });
     this.#buttons.push(nextButton);
-    forwardHint(this.#hints, nextButton, "ink");
+    advanceHint(this.#hints, nextButton, "ink");
     stops.set("next", { rect: ctaRect, activate: () => this.#advance() });
     if (hasBack) {
       const backRect: Rect = { x: ctaPad, y: ctaY, width: backWidth, height: ctaHeight };
