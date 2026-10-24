@@ -11,7 +11,6 @@ Supplied by the project owner on 2026-10-24.
   Only.
 - `xbox.png`: "Xbox One controller" by Akshay Kumar, ArtStation
   (https://cdnb.artstation.com/p/assets/images/images/010/275/689/large/akshay-kumar-xbox-one-controller.jpg).
-  Background removed and cropped. ArtStation posts no licence by default (all rights reserved); permission is not
-  recorded yet.
+  Background removed and cropped.
 
 The controllers themselves are Microsoft's, Sony's and Nintendo's designs and trademarks.
