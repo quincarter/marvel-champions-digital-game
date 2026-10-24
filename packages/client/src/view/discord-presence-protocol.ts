@@ -27,6 +27,12 @@ export interface PresenceGameMessage {
   readonly gameKey: string;
 }
 
+/** Presence worker to engine worker, over the same port: whether anyone is listening for the table's summary. */
+export interface PresenceEnabledMessage {
+  readonly kind: "enabled";
+  readonly on: boolean;
+}
+
 /** The presence worker to main: the one activity to send. */
 export interface PresenceOut {
   readonly kind: "activity";

@@ -16,8 +16,8 @@ export interface PresenceTrackerDeps {
   readonly setTimer: (run: () => void, ms: number) => unknown;
   readonly clearTimer: (handle: unknown) => void;
   readonly emit: (activity: DiscordActivity | null) => void;
-  /** The campaign box a stored run belongs to, or null. Optional: absent, a run id names nothing. */
-  readonly runCampaignName?: (runId: string) => Promise<string | null>;
+  /** The stored run's campaign id and name, or null. Optional: absent, a run id names nothing. */
+  readonly runCampaignName?: (runId: string) => Promise<{ readonly campaignId: string; readonly name: string } | null>;
 }
 
 interface SceneData {
@@ -116,9 +116,10 @@ export class PresenceTracker {
       this.#runNames.set(runId, "");
       void this.#deps
         .runCampaignName(runId)
-        .then((name) => {
-          if (!name) return;
-          this.#runNames.set(runId, name);
+        .then((record) => {
+          if (!record) return;
+          // The box's own name when the shelf lists it, else the run's stored name (as the old watcher did).
+          this.#runNames.set(runId, this.#names[record.campaignId] ?? record.name);
           this.#schedule();
         })
         .catch(() => undefined);

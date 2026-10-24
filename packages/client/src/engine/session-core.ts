@@ -662,8 +662,13 @@ export class EngineSessionCore {
       });
   }
 
+  /** The newest table-sealed state and the engine state it was made from. */
+  #sealed: { readonly source: GameState; readonly sealed: GameState } | null = null;
+
   #snapshot(events: readonly GameEvent[]): Snapshot {
     const { state } = this.#require();
+    const sealed = sealForTable(state);
+    this.#sealed = { source: state, sealed };
     const toAct = actingPlayer(state);
     return {
       version: this.#version,
@@ -671,7 +676,7 @@ export class EngineSessionCore {
       // by its stand-in (docs/phase7-wave9.md §3.54), a hidden pile is its size (§3.29 (a)) and the campaign log's
       // sealed values are emptied (§3.75), so none of it leaves the engine session. Legal actions are computed from
       // the full state, here.
-      state: stripSealedPool(sealForTable(state)),
+      state: stripSealedPool(sealed),
       events,
       legal: toAct ? { playerId: toAct, actions: queryLegalActions(state, toAct, POOL_DEPS) } : null,
       record: this.#record,
@@ -687,7 +692,9 @@ export class EngineSessionCore {
    */
   presenceGame(): { readonly game: PresenceGame; readonly gameKey: string } | null {
     if (!this.#session) return null;
-    const state = sealForTable(this.#session.state);
+    // The sealed state the last snapshot already made (every state change builds one); sealed again only if not.
+    const cached = this.#sealed;
+    const state = cached && cached.source === this.#session.state ? cached.sealed : sealForTable(this.#session.state);
     const config = this.#config;
     return {
       game: presenceGameOf(state, config),

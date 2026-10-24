@@ -28,11 +28,16 @@ function rig(enabled = true) {
       },
       clearTimer: (handle) => void timers.delete(handle as number),
       emit: (activity) => sent.push(activity),
-      runCampaignName: async (runId) => (runId === "run1" ? "Sinister Motives" : null),
+      runCampaignName: async (runId) =>
+        runId === "run1"
+          ? { campaignId: "sm", name: "Run 1" }
+          : runId === "run2"
+            ? { campaignId: "mts", name: "My run" }
+            : null,
     },
     enabled,
   );
-  tracker.setCampaignNames({ mts: "The Mad Titan's Shadow" });
+  tracker.setCampaignNames({ mts: "The Mad Titan's Shadow", sm: "Sinister Motives" });
   const advance = (ms: number): void => {
     now += ms;
     for (const [id, timer] of [...timers]) {
@@ -117,6 +122,16 @@ describe("PresenceTracker", () => {
     tracker.sceneUp("Title");
     advance(PRESENCE_DEBOUNCE_MS);
     expect(sent).toHaveLength(2);
+  });
+
+  test("a stored run names its campaign by the shelf's box name, else its own", async () => {
+    const { tracker, sent, advance } = rig();
+    tracker.sceneUp("CampaignRun", { runId: "run2" });
+    advance(PRESENCE_DEBOUNCE_MS);
+    await Promise.resolve();
+    await Promise.resolve();
+    advance(PRESENCE_DEBOUNCE_MS);
+    expect(sent[1]?.details).toBe("Campaign · The Mad Titan's Shadow");
   });
 
   test("a stored run names its campaign once the worker has read it", async () => {

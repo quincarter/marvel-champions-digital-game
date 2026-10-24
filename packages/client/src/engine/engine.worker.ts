@@ -53,10 +53,12 @@ const announceSaved = (reason: "game" | "turn"): void => {
 
 let presencePort: MessagePort | null = null;
 let lastPresence = "";
+/** Off until the presence worker says the setting is on: while off nothing is read, sealed or sent. */
+let presenceOn = false;
 
 /** Posts the table's Discord summary straight to the presence worker, only when it differs from the last one posted. */
 function publishPresence(): void {
-  if (!presencePort) return;
+  if (!presencePort || !presenceOn) return;
   try {
     const summary = core.presenceGame();
     if (!summary) return;
@@ -75,7 +77,15 @@ async function handle(request: HostRequest): Promise<void> {
       case "presencePort": {
         presencePort = request.port;
         lastPresence = "";
-        publishPresence();
+        presenceOn = false;
+        // The presence worker answers over this port with the setting; a summary follows once it is on.
+        presencePort.addEventListener("message", (e: MessageEvent<{ kind: "enabled"; on: boolean }>) => {
+          if (e.data.kind !== "enabled") return;
+          presenceOn = e.data.on;
+          lastPresence = "";
+          publishPresence();
+        });
+        presencePort.start();
         return;
       }
       case "start": {

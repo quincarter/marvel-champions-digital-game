@@ -3,10 +3,9 @@
  * engine's own state with the same helpers the board and Game over use, never recomputed here. It runs in the engine
  * worker (`engine/engine.worker.ts`): nothing here may touch Phaser or the DOM, nor the campaign story text.
  */
-import { activeVillain, cardOf, villainStageOf, type GameState } from "@mc/engine";
-import { artFor } from "../art/art-source.js";
+import { activeVillain, cardOf, villainStageOf, type GameState, type InstanceId } from "@mc/engine";
+import { artFor, type CardFace } from "../art/art-source.js";
 import type { SessionConfig } from "../engine/host.js";
-import { faceOf } from "./board-model.js";
 import type { PresenceGame } from "./discord-presence.js";
 import { cardName, playerName } from "./names.js";
 
@@ -24,6 +23,26 @@ export function difficultyLabelOf(config: SessionConfig | null): string | null {
         : "Standard";
   if (heroic !== undefined && heroic > 0) return base === "Standard" ? `Heroic ${heroic}` : `${base} Heroic ${heroic}`;
   return base;
+}
+
+/**
+ * The picture face of the active villain and of a seated hero's identity: the two public cards presence shows. A
+ * narrow twin of `board-model`'s `faceOf` for those cases (the villain's side and stage, the identity's form and
+ * `heroFormIndex`), kept here so the engine worker does not pull in the whole board model.
+ */
+function villainFaceOf(state: GameState): CardFace {
+  const villain = activeVillain(state);
+  const card = cardOf(state, villain.instanceId);
+  const sideIndex = card?.type === "villain" ? card.sides.findIndex((side) => side.side === villain.side) : 0;
+  return { kind: "villainStage", sideIndex: Math.max(0, sideIndex), stageIndex: villain.stageIndex };
+}
+
+function identityFaceOf(state: GameState, identityId: InstanceId): CardFace {
+  const seat = state.players.find((player) => player.identity.instanceId === identityId);
+  if (!seat) return { kind: "hero" };
+  if (seat.identity.form === "alterEgo") return { kind: "alterEgo" };
+  const index = seat.identity.heroFormIndex ?? 0;
+  return index > 0 ? { kind: "heroForm", index } : { kind: "hero" };
 }
 
 export function presenceGameOf(state: GameState, config: SessionConfig | null): PresenceGame {
@@ -46,9 +65,9 @@ export function presenceGameOf(state: GameState, config: SessionConfig | null): 
     phase,
     difficulty: difficultyLabelOf(config),
     result: outcome ? (outcome.result === "win" ? "win" : outcome.result === "conceded" ? "conceded" : "loss") : null,
-    villainArt: artFor(cardOf(state, villain.instanceId), faceOf(state, villain.instanceId))?.url ?? null,
+    villainArt: artFor(cardOf(state, villain.instanceId), villainFaceOf(state))?.url ?? null,
     heroArt: lead
-      ? (artFor(cardOf(state, lead.identity.instanceId), faceOf(state, lead.identity.instanceId))?.url ?? null)
+      ? (artFor(cardOf(state, lead.identity.instanceId), identityFaceOf(state, lead.identity.instanceId))?.url ?? null)
       : null,
   };
 }

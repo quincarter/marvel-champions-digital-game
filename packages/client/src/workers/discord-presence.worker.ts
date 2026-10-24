@@ -15,6 +15,12 @@ interface WorkerGlobal {
 const worker = self as unknown as WorkerGlobal;
 
 let storage: IdbCampaignStorage | null = null;
+let gamePort: MessagePort | null = null;
+/** Tells the engine worker whether to compute the table's summary at all (nothing is sealed or sent while off). */
+const setEnabled = (on: boolean): void => {
+  tracker.setEnabled(on);
+  gamePort?.postMessage({ kind: "enabled", on });
+};
 const tracker = new PresenceTracker(
   {
     now: () => Date.now(),
@@ -24,7 +30,7 @@ const tracker = new PresenceTracker(
     runCampaignName: async (runId) => {
       storage ??= new IdbCampaignStorage();
       const record = await storage.load(runId);
-      return record ? record.name : null;
+      return record ? { campaignId: record.campaignId as string, name: record.name } : null;
     },
   },
   false,
@@ -35,13 +41,14 @@ worker.addEventListener("message", (event) => {
   switch (message.kind) {
     case "init":
       tracker.setCampaignNames(message.campaignNames);
-      tracker.setEnabled(message.enabled);
       if (message.gamePort) {
+        gamePort = message.gamePort;
         message.gamePort.addEventListener("message", (e: MessageEvent<PresenceGameMessage>) => {
           if (e.data.kind === "game") tracker.setGame(e.data.game, e.data.gameKey);
         });
         message.gamePort.start();
       }
+      setEnabled(message.enabled);
       return;
     case "sceneUp":
       tracker.sceneUp(message.key, { campaignId: message.campaignId, runId: message.runId });
@@ -50,7 +57,7 @@ worker.addEventListener("message", (event) => {
       tracker.sceneDown(message.key);
       return;
     case "enabled":
-      tracker.setEnabled(message.on);
+      setEnabled(message.on);
       return;
     case "clear":
       tracker.clear();
