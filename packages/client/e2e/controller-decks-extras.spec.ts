@@ -66,14 +66,6 @@ async function press(page: Page, index: number, done?: () => Promise<boolean>): 
   await page.waitForTimeout(300);
 }
 
-/** A short press: down for a few frames, up before the pad's hold-repeat starts (so one press is one press). */
-async function tap(page: Page, index: number): Promise<void> {
-  await setButton(page, index, true);
-  await page.waitForTimeout(160);
-  await setButton(page, index, false);
-  await page.waitForTimeout(250);
-}
-
 const stopKeys = (page: Page, scene: string): Promise<string[]> =>
   page.evaluate(
     (key) => (window as unknown as { __mcFocusRoutes: Routes }).__mcFocusRoutes[key]!().map((s) => s.key),
