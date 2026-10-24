@@ -344,7 +344,9 @@ export class GlyphHints {
   #syncLegend(): void {
     const target = this.#legendCard;
     const snapshot = this.#snapshot;
-    const set = snapshot ? glyphSetOf(snapshot.state, snapshot.settings.inputGlyphs, snapshot.settings.glyphSource) : null;
+    const set = snapshot
+      ? glyphSetOf(snapshot.state, snapshot.settings.inputGlyphs, snapshot.settings.glyphSource)
+      : null;
     // Under a held trigger the legend gives way (it would sit where the layer's glyphs go).
     if (!target || !snapshot || set === null || (set === "pad" && this.#layer !== null)) {
       this.#legend?.destroy();

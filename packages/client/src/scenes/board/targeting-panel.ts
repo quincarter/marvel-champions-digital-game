@@ -188,7 +188,10 @@ function drawTitleBar(
     // Scene-scoped: the hints drop this listener at the next redraw and at shutdown, and it only touches the button
     // when the label actually changes.
     ctx.hints.onSnapshot((snapshot) => {
-      const label = cancelLabel(true, glyphSetOf(snapshot.state, snapshot.settings.inputGlyphs, snapshot.settings.glyphSource));
+      const label = cancelLabel(
+        true,
+        glyphSetOf(snapshot.state, snapshot.settings.inputGlyphs, snapshot.settings.glyphSource),
+      );
       if (cancelButton.container.active && label !== cancelButton.label) cancelButton.update({ label });
     });
     ctx.hints.button(cancelButton, ["cancel"], "paper");
