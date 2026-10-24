@@ -86,10 +86,23 @@ function requestRefreshRate(rate: FrameRate): void {
 
 /** The render scale and the sharp text to match, for the settings and couch factor in effect now. */
 function followRenderScale(settings: Settings): void {
-  const env = screenEnvironment();
-  const scale = renderScaleFor(settings, env, couchFactorInUse());
+  const scale = renderScaleFor(settings, screenEnvironment(), couchFactorInUse());
   if (scale !== currentRenderScale()) setRenderScale(scale);
+  applyTextResolution(settings);
+}
+
+/** Sets the text resolution for `settings` at the density the game draws at now (couch mode's scale-up included). */
+export function applyTextResolution(settings: Pick<Settings, "textResolution">): void {
+  const env = screenEnvironment();
   setTextResolution(textResolutionFor(settings, currentRenderScale(), drawsAtScreenDensity(env.search)));
+}
+
+/**
+ * The density Sharper text aims for: the screen's own pixel ratio or the render scale the game draws at, whichever is
+ * higher. At a pixel ratio of 1 under couch mode the game draws at 2x, so text has to as well.
+ */
+export function drawnDensity(): number {
+  return Math.max(globalThis.devicePixelRatio || 1, currentRenderScale());
 }
 
 let followingCouch = false;

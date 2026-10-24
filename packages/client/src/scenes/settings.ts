@@ -25,7 +25,6 @@
  * them does.
  */
 import Phaser from "phaser";
-import { setTextResolution } from "../ui/theme.js";
 import {
   guideRowInfoOf,
   guideRowDetailOf,
@@ -122,7 +121,13 @@ import { powerSavingRowOf } from "../view/power-saving-notice.js";
 import { detectPlatform } from "../platform/platform.js";
 import { padAvailable } from "../platform/input-device.js";
 import { drawsAtScreenDensity, screenEnvironment } from "../platform/screen-density.js";
-import { applyScreenSettings, knownRefreshInfo, readRefreshInfo } from "../platform/screen-settings.js";
+import {
+  applyScreenSettings,
+  applyTextResolution,
+  drawnDensity,
+  knownRefreshInfo,
+  readRefreshInfo,
+} from "../platform/screen-settings.js";
 import { knownHardware, onHardwareChange } from "../platform/device-hardware.js";
 import { hardwareSummaryOf, recommendedScreenOf, tierLabelOf } from "../platform/device-tier.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
@@ -170,8 +175,8 @@ const DISPLAY_MODE_CONTROL_WIDTH = 480;
 /** Resolution is a dropdown and an Apply button: up to seventeen sizes is too many segments. */
 const RESOLUTION_CONTROL_WIDTH = 320;
 const APPLY_WIDTH = 88;
-/** Couch mode's five short segments ("Off" to "200%"). */
-const COUCH_MODE_CONTROL_WIDTH = 400;
+/** Couch mode's five short segments ("Off" to "300%"). */
+const COUCH_MODE_CONTROL_WIDTH = 560;
 /** Resolution's and Frame rate's up to four short segments ("Native", "720p"; "Screen", "60 fps"). */
 const SCREEN_CONTROL_WIDTH = 300;
 
@@ -388,8 +393,8 @@ export class SettingsOverlay extends Phaser.Scene {
 
   #toggle(row: SettingsRowInfo): void {
     const { settings } = appSession();
-    const next = nextSettingsAfterToggle(settings, row.id, globalThis.devicePixelRatio || 1);
-    if (row.id === "sharper-text") setTextResolution(next.textResolution);
+    const next = nextSettingsAfterToggle(settings, row.id, drawnDensity());
+    if (row.id === "sharper-text") applyTextResolution(next);
     if (row.id === "discord-presence") syncDiscordPresence(next.discordPresence);
     if (row.id === "sound" || row.id === "music-shuffle") appSession().music?.syncSettings(next);
     appSession().settings = next;

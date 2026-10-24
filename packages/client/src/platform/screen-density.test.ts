@@ -83,6 +83,10 @@ describe("textResolutionFor", () => {
     expect(textResolutionFor({ textResolution: 2 }, 1.5, true)).toBe(2);
   });
 
+  test("couch mode's scale-up counts: text at 2x in a 2x buffer at a pixel ratio of 1", () => {
+    expect(textResolutionFor({ textResolution: 2 }, 2, true)).toBe(2);
+  });
+
   test("Sharper text off stays 1x, and elsewhere the setting is used as it is", () => {
     expect(textResolutionFor({ textResolution: 1 }, 3, true)).toBe(1);
     expect(textResolutionFor({ textResolution: 2 }, 1, false)).toBe(2);

@@ -79,6 +79,6 @@ describe("villain phase settings", () => {
 describe("couch mode", () => {
   test("it defaults to off and each choice is its scale factor", () => {
     expect(defaultSettings().couchMode).toBe("off");
-    expect(COUCH_MODE_VALUES.map(couchModeFactor)).toEqual([1, 1.25, 1.5, 1.75, 2]);
+    expect(COUCH_MODE_VALUES.map(couchModeFactor)).toEqual([1, 1.25, 1.5, 1.75, 2, 2.5, 3]);
   });
 });

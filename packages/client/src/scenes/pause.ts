@@ -43,7 +43,8 @@ import type { CardSize } from "../settings.js";
 import { playableScenarioOffer } from "@mc/cards";
 import { POOL_DEPS, POOL_ENCOUNTER_SETS, POOL_SCENARIOS } from "../content/pool.js";
 import { accent, hit, ink, signal, status, surface, typeRole, type TypeSpec } from "../tokens.js";
-import { caseOf, setTextResolution, textStyle } from "../ui/theme.js";
+import { caseOf, textStyle } from "../ui/theme.js";
+import { applyTextResolution, drawnDensity } from "../platform/screen-settings.js";
 import {
   McButton,
   McTextInput,
@@ -1079,8 +1080,8 @@ export class PauseOverlay extends Phaser.Scene {
 
   #toggleTableRow(row: SettingsRowInfo): void {
     const { settings } = appSession();
-    const next = nextSettingsAfterToggle(settings, row.id, globalThis.devicePixelRatio || 1);
-    if (row.id === "sharper-text") setTextResolution(next.textResolution);
+    const next = nextSettingsAfterToggle(settings, row.id, drawnDensity());
+    if (row.id === "sharper-text") applyTextResolution(next);
     if (row.id === "sound" || row.id === "music-shuffle") appSession().music?.syncSettings(next);
     appSession().settings = next;
     this.#draw();

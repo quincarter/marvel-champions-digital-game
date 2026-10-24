@@ -217,8 +217,8 @@ export function renderScaleFactorOf(choice: RenderScale, devicePixelRatio: numbe
 }
 
 /** Couch mode: "off", or how much bigger everything is drawn (`ui/render-resolution.ts`). */
-export type CouchMode = "off" | "125%" | "150%" | "175%" | "200%";
-export const COUCH_MODE_VALUES: readonly CouchMode[] = ["off", "125%", "150%", "175%", "200%"];
+export type CouchMode = "off" | "125%" | "150%" | "175%" | "200%" | "250%" | "300%";
+export const COUCH_MODE_VALUES: readonly CouchMode[] = ["off", "125%", "150%", "175%", "200%", "250%", "300%"];
 
 /** The factor a `couchMode` stands for: 1 for "off", 1.5 for "150%". */
 export function couchModeFactor(mode: CouchMode): number {

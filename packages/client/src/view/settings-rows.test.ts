@@ -520,18 +520,36 @@ describe("the Screen rows' recommendation", () => {
 describe("couch mode row", () => {
   test("it offers Off to 200% with the saved one selected, and ignores a value that is not offered", () => {
     const info = couchModeRowInfoOf({ ...defaultSettings(), couchMode: "175%" });
-    expect(info.options.map((o) => o.label)).toEqual(["Off", "125%", "150%", "175%", "200%"]);
+    expect(info.options.map((o) => o.label)).toEqual(["Off", "125%", "150%", "175%", "200%", "250%", "300%"]);
     expect(info.selected).toBe("175%");
     const base = defaultSettings();
     expect(nextSettingsAfterCouchMode(base, "200%").couchMode).toBe("200%");
-    expect(nextSettingsAfterCouchMode(base, "300%" as never)).toBe(base);
+    expect(nextSettingsAfterCouchMode(base, "400%" as never)).toBe(base);
     // A 1280 wide window keeps the game at 768 or more: only 125% and 150% fit (and 175% when it is the saved one).
     const narrow = couchModeRowInfoOf(base, { width: 1920, height: 1080 });
     expect(narrow.options.map((o) => o.label)).toEqual(["Off", "125%", "150%", "175%", "200%"]);
+    // A 4K screen reaches 300%, a 1280 x 720 desktop layout.
+    expect(
+      couchModeRowInfoOf(base, { width: 3840, height: 2160 })
+        .options.map((o) => o.label)
+        .at(-1),
+    ).toBe("300%");
     // 1280 x 720 is 500 tall at 1.44x: only 125% fits whole; the saved one stays offered. A fixed 1280 x 720
     // resolution on a 4K window is judged the same way, by the fixed size (`couchBaseSize`).
     const small = { width: 1280, height: 720 };
     expect(couchModeRowInfoOf(base, small).options.map((o) => o.label)).toEqual(["Off", "125%"]);
     expect(couchModeRowInfoOf({ ...base, couchMode: "200%" }, small).options.map((o) => o.label)).toContain("200%");
+  });
+});
+
+describe("sharper text at the density the game draws at", () => {
+  test("at a pixel ratio of 1 it turns on when couch mode draws at 2x, and off again", () => {
+    const base = defaultSettings();
+    expect(sharperTextTargetResolution(1)).toBe(1);
+    expect(sharperTextTargetResolution(2)).toBe(2);
+    expect(sharperTextTargetResolution(3)).toBe(2);
+    const on = nextSettingsAfterToggle({ ...base, textResolution: 1 }, "sharper-text", 2);
+    expect(on.textResolution).toBe(2);
+    expect(nextSettingsAfterToggle(on, "sharper-text", 2).textResolution).toBe(1);
   });
 });

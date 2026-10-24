@@ -169,7 +169,11 @@ export function earnedItemRowInfoOf(settings: Settings, earned: ReadonlySet<Earn
   }));
 }
 
-/** The value "Sharper text" should switch *to* when it's off, given the screen's own device pixel ratio. What "off" restores is always `1`. */
+/**
+ * The value "Sharper text" should switch *to* when it's off, given the density the game draws at
+ * (`platform/screen-settings.ts#drawnDensity`: the pixel ratio or the render scale, couch mode's included). What "off"
+ * restores is always `1`.
+ */
 export function sharperTextTargetResolution(devicePixelRatio: number): number {
   return Math.min(SHARP_TEXT_RESOLUTION_CEILING, Math.max(1, devicePixelRatio || 1));
 }

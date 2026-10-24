@@ -34,7 +34,7 @@
  * mulliganing at once.
  */
 import { hit } from "../tokens.js";
-import { formFactorFor, type FormFactor, type Rect } from "./layout.js";
+import { CARD_ASPECT, formFactorFor, type FormFactor, type Rect } from "./layout.js";
 import { setupColumnWidth, setupMetrics } from "./setup-metrics.js";
 
 export const HEADER_HEIGHT = 92;
@@ -79,6 +79,12 @@ export interface SetupWalkthroughLayoutInput {
    * (`body`). Tablet landscape draws every hand as text rows, not cards, so it ignores it.
    */
   readonly cardScale?: number;
+  /**
+   * How many cards the deciding seat's opening hand has (none when not given: the usual layout). On desktop and tablet portrait at Fit to
+   * screen the hand grows into the free space (`wideHandHeightFor`): the band spans the full width and the cards take
+   * as much height as the room allows, up to half the screen.
+   */
+  readonly handCount?: number;
 }
 
 export interface SetupWalkthroughLayout {
@@ -173,6 +179,7 @@ export function setupWalkthroughLayout(input: SetupWalkthroughLayoutInput): Setu
     otherSeatCount: Math.max(0, input.otherSeatCount),
     hasRevealedCard,
     cardScale: Math.max(1, input.cardScale ?? 1),
+    handCount: input.handCount === undefined ? null : Math.max(1, input.handCount),
   });
 }
 
@@ -199,12 +206,55 @@ const MIN_HAND_ROW_HEIGHT = 120;
 const MIN_HAND_STRIP_HEIGHT = 180;
 const MIN_REVEALED_HEIGHT_STACKED = 70;
 
+type FocusShared = Shared & {
+  readonly otherSeatCount: number;
+  readonly hasRevealedCard: boolean;
+  readonly cardScale: number;
+  /** The opening hand being shown, or null when none is (the wide arrangement needs one). */
+  readonly handCount: number | null;
+};
+
+/** Gap between opening-hand cards (`view/opening-hand-layout.ts`'s own). */
+const HAND_CARD_GAP = 8;
+/** The smallest revealed-card panel and setup log the wide arrangement leaves beside the commit row and other seats. */
+const MIN_REVEALED_HEIGHT = 160;
+const MIN_LOG_HEIGHT = 80;
+/** The hand must grow by at least this much (over what it draws at now) for the wide arrangement to be worth it. */
+const MIN_WIDE_GAIN = 1.1;
+
+/** The card height at which `count` cards fill `rowWidth` in one row. */
+function handFitHeight(rowWidth: number, count: number): number {
+  return (rowWidth - HAND_CARD_GAP * (count - 1)) / (count * CARD_ASPECT);
+}
+
+/**
+ * The hand band height for the wide arrangement (desktop and tablet portrait at Fit to screen), or null to keep the
+ * usual one. The hand spans the full content width and takes the free height below it, no taller than the width lets
+ * the cards fill, half the screen, or what leaves the commit row, other seats and the sidebar their own room; the
+ * revealed card and the log move down beside the commit row and other seats. Null when that gains under 10% over the
+ * cards as drawn now, so a short screen keeps its layout.
+ */
+export function wideHandHeightFor(shared: FocusShared, current: SetupWalkthroughLayout): number | null {
+  if (shared.formFactor === "phone" || shared.cardScale > 1 || shared.handCount === null) return null;
+  const { width, height, pad, gap, handCount, otherSeatCount, hasRevealedCard } = shared;
+  const top = current.handRow.y;
+  const bottom = height - pad;
+  const sidebarMin = (hasRevealedCard ? MIN_REVEALED_HEIGHT : REVEALED_EMPTY_HEIGHT) + gap + MIN_LOG_HEIGHT;
+  const seatsBlock = SECTION_HEADER_ROOM + (otherSeatCount > 0 ? OTHER_SEAT_CARD_HEIGHT + gap : 0);
+  const byRoom = Math.min(bottom - sidebarMin - gap - top, bottom - (hit.primary + gap + seatsBlock) - gap - top);
+  const wide = Math.min(handFitHeight(width - pad * 2, handCount), height / 2, byRoom);
+  const drawnNow = Math.min(current.handRow.height, handFitHeight(current.handRow.width, handCount));
+  return wide >= drawnNow * MIN_WIDE_GAIN ? Math.floor(wide) : null;
+}
+
 function focusLayoutAt(
-  shared: Shared & { readonly otherSeatCount: number; readonly hasRevealedCard: boolean; readonly cardScale: number },
+  shared: FocusShared,
   handRowHeightOverride?: number,
   revealedHeightOverride?: number,
+  wideHandHeight?: number,
 ): SetupWalkthroughLayout {
   const { width, height, formFactor, bodyTop, pad, gap, otherSeatCount, hasRevealedCard, cardScale } = shared;
+  const wide = wideHandHeight !== undefined;
   const split = formFactor !== "phone";
   const commitSticky = formFactor === "phone";
 
@@ -220,9 +270,12 @@ function focusLayoutAt(
     : { x: 0, y: 0, width: 0, height: 0 }; // placed below, once `by` reaches it in normal flow.
 
   let by = bodyTop + SECTION_HEADER_ROOM;
-  const handRowHeight = handRowHeightOverride ?? Math.min(260, Math.max(160, height * 0.28)) * cardScale;
-  const handLabel: Rect = { x: bodyLeft, y: bodyTop, width: bodyWidth, height: SECTION_HEADER_ROOM };
-  const handRow: Rect = { x: bodyLeft, y: by, width: bodyWidth, height: handRowHeight };
+  const handRowHeight =
+    wideHandHeight ?? handRowHeightOverride ?? Math.min(260, Math.max(160, height * 0.28)) * cardScale;
+  // The wide arrangement's hand spans the whole content width; everything else keeps the body column.
+  const handWidth = wide ? width - pad * 2 : bodyWidth;
+  const handLabel: Rect = { x: bodyLeft, y: bodyTop, width: handWidth, height: SECTION_HEADER_ROOM };
+  const handRow: Rect = { x: bodyLeft, y: by, width: handWidth, height: handRowHeight };
   by += handRowHeight + gap;
 
   let resolvedCommitRow = commitRow;
@@ -267,7 +320,15 @@ function focusLayoutAt(
     const revealedHeight = !hasRevealedCard
       ? REVEALED_EMPTY_HEIGHT
       : (revealedHeightOverride ?? Math.min(230, Math.max(160, height * 0.28)) * cardScale);
-    revealedPanel = { x: sidebarLeft, y: bodyTop, width: sidebarWidth, height: revealedHeight };
+    // Wide: the sidebar starts beside the commit row, under the full-width hand.
+    const sidebarTop = wide ? resolvedCommitRow.y : bodyTop;
+    const sidebarRoom = height - pad - sidebarTop;
+    revealedPanel = {
+      x: sidebarLeft,
+      y: sidebarTop,
+      width: sidebarWidth,
+      height: wide && hasRevealedCard ? Math.min(revealedHeight, sidebarRoom - gap - MIN_LOG_HEIGHT) : revealedHeight,
+    };
     const logTop = revealedPanel.y + revealedPanel.height + gap;
     logPanel = { x: sidebarLeft, y: logTop, width: sidebarWidth, height: Math.max(80, height - pad - logTop) };
   } else {
@@ -318,10 +379,10 @@ function focusLayoutAt(
  * revealed-card panel (down to `MIN_REVEALED_HEIGHT_STACKED`, still enough for a name and one line of rules text)
  * — never the checklist, the commit row's 44px+ touch targets, or the log panel's own floor.
  */
-function focusLayout(
-  shared: Shared & { readonly otherSeatCount: number; readonly hasRevealedCard: boolean; readonly cardScale: number },
-): SetupWalkthroughLayout {
+function focusLayout(shared: FocusShared): SetupWalkthroughLayout {
   const trial = focusLayoutAt(shared);
+  const wideHeight = wideHandHeightFor(shared, trial);
+  if (wideHeight !== null) return focusLayoutAt(shared, undefined, undefined, wideHeight);
   // Enlarged cards scroll rather than squeeze: the squeeze below is for Fit to screen.
   if (shared.cardScale > 1) return trial;
   if (!trial.logPanel) return trial;

@@ -378,6 +378,7 @@ export class SetupDealScene extends Phaser.Scene {
       view.checklist.map((item) => ({ id: item.key, text: item.label, item })),
       width - pad * 2,
     );
+    const mulliganHandCount = this.#mulliganHandCount(view);
     const layout = setupWalkthroughLayout({
       width,
       height,
@@ -386,6 +387,8 @@ export class SetupDealScene extends Phaser.Scene {
       checklistRows: checklistRows.length,
       hasRevealedCard: view.revealedCard !== null,
       cardScale: this.#cardScale,
+      // Only while the mulligan hand is on screen (a docked decision keeps the usual layout and its room).
+      ...(mulliganHandCount === null ? {} : { handCount: mulliganHandCount }),
     });
 
     paintDotGrid(this, { x: 0, y: 0, width, height }, "ink", dotGrid.onInk);
@@ -411,6 +414,13 @@ export class SetupDealScene extends Phaser.Scene {
 
     this.#drawFocusRing();
     this.#hover?.onDraw();
+  }
+
+  /** The deciding seat's hand size while its mulligan is pending, else null. */
+  #mulliganHandCount(view: SetupWalkthroughView): number | null {
+    const choice = appSession().store.state.game?.pendingChoice ?? null;
+    if (choice === null || choice.prompt.kind !== "mulligan") return null;
+    return view.seats.find((seat) => seat.playerId === view.decidingPlayerId)?.hand.length ?? null;
   }
 
   /** Title inline with "Step N of M · …" (fidelity pass): the caption follows the title's own measured width, so it always sits right beside it rather than a fixed far-corner box. */
