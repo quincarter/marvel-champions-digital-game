@@ -20,39 +20,8 @@ const ON_DISK: ReadonlySet<string> = new Set(
  * double-sided records. Empty this list once they are fetched — the test below
  * then guards the folder against any gap at all.
  */
-const KNOWN_MISSING: readonly string[] = [
-  "bundles/cards/01117b.png",
-  "bundles/cards/01138b.png",
-  "bundles/cards/01139b.png",
-  "bundles/cards/02002a.png",
-  "bundles/cards/02003a.png",
-  "bundles/cards/02018a.jpg",
-  "bundles/cards/07001b.png",
-  // Cycle 1: the villains' and Kang's second faces, and Quicksilver's alter-ego, whose record names a Hall of Heroes URL rather than a bundled scan.
-  "bundles/cards/04061b.png",
-  "bundles/cards/04062b.png",
-  "bundles/cards/04063b.png",
-  "bundles/cards/04079b.png",
-  "bundles/cards/04096b.png",
-  "bundles/cards/04112b.png",
-  "bundles/cards/04113b.png",
-  "bundles/cards/04128b.png",
-  "bundles/cards/04129b.png",
-  "bundles/cards/11007a.jpg",
-  "bundles/cards/11008a.jpg",
-  "bundles/cards/11009a.jpg",
-  "bundles/cards/11010a.jpg",
-  "bundles/cards/11011a.jpg",
-  "bundles/cards/11012a.jpg",
-  "bundles/cards/11013a.jpg",
-  "https://hallofheroeslcg.com/wp-content/uploads/2020/12/0b.jpg",
-  // Cycle 3: The Hood's later main scheme stages, and Vision's own second identity face/alter-ego.
-  "bundles/cards/24004a.jpg",
-  "bundles/cards/24005a.jpg",
-  "bundles/cards/24006a.jpg",
-  "bundles/cards/26002a.jpg",
-  "bundles/cards/26002b.png",
-];
+// Every one of these was fetched by 2026-10-24; the faces that have no scan at all are listed in docs/missing-card-art.md.
+const KNOWN_MISSING: readonly string[] = [];
 
 describe("bundledArtPaths", () => {
   test("the build reads the same pool the app runs", () => {
