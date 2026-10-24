@@ -126,6 +126,7 @@ mod imp {
 
 /// What the `app-volume` event carries: the game's mixer volume (0 to 1, `None` before its first sound) and whether the
 /// computer's master volume is muted.
+#[cfg(windows)]
 #[derive(Clone, Copy, PartialEq, serde::Serialize)]
 pub struct AppVolume {
   pub volume: Option<f32>,
@@ -136,6 +137,7 @@ pub struct AppVolume {
 static WATCH_GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 /// How long one watcher thread lives before it hands over to a fresh one.
+#[cfg(windows)]
 const WATCH_RECYCLE: std::time::Duration = std::time::Duration::from_secs(10 * 60);
 
 /// Starts the watcher, replacing any running one: a thread of the shell's own that reads the game's mixer volume and the

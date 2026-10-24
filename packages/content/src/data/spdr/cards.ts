@@ -48,7 +48,7 @@ export const SPDR_CARDS: readonly AnyCard[] = [
         { id: abilityId("31002.psychogenetic-compatibility"), label: "Psychogenetic Compatibility" },
         { id: abilityId("31002.maintenance"), label: "Maintenance" },
       ],
-      image: imageRef("https://hallofheroeslcg.com/wp-content/uploads/2022/09/s0a.jpg"),
+      image: imageRef("/bundles/cards/31002a.png"),
     },
     obligationCardId: cardId("31025"),
     nemesisEncounterSetId: encounterSetId("spdr_nemesis"),

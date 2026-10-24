@@ -141,7 +141,8 @@ export const SPDR_CURATION: PackCuration = {
         text:
           "Psychogenetic Compatibility — Setup: Put SP//dr Suit into play, INACTIVE side faceup.\n" +
           "Maintenance — Alter-Ego Action: Exhaust SP//dr Suit → draw 2 cards.",
-        image: "https://hallofheroeslcg.com/wp-content/uploads/2022/09/s0a.jpg",
+        // The owner's own scan (2026-10-24), in place of the gallery image the build could not bundle.
+        image: "/bundles/cards/31002a.png",
       },
       alterEgoOtherSide: {
         name: "SP//dr",
