@@ -1337,6 +1337,11 @@ export class McTextInput {
     return this.#input.isFocused;
   }
 
+  /** Takes the caret out of the field: a pad has no Enter or Escape to press inside it (`scenes/text-field-escape.ts`). */
+  blur(): void {
+    if (this.#input.isFocused) this.#input.setBlur();
+  }
+
   /** Puts the caret in the field, for a keyboard or pad user who pressed Enter on it. */
   focus(): void {
     this.#input.setFocus();

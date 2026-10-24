@@ -147,6 +147,7 @@ import {
   type TableSetupLayout,
 } from "../view/table-setup-layout.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
+import { bindTextFieldEscape } from "./text-field-escape.js";
 import {
   civilWarTableSummaryOf,
   EDIT_SCENARIO_ID,
@@ -360,7 +361,15 @@ export class TableSetupScene extends Phaser.Scene {
         this.scene.isActive(SCENES.setCards) ||
         (this.#seedInput?.focused ?? false),
       onCancel: () => this.#back(),
+      // Start / Menu (and A with nothing focused) deals: the way forward on this screen.
+      primary: () => (this.#stops.has("deal-it-out") && !this.#starting ? "deal-it-out" : null),
     });
+    // A pad that put the caret in the seed field can take it out again (B, A or Start).
+    bindTextFieldEscape(
+      this,
+      () => this.#seedInput,
+      () => this.scene.isActive(SCENES.inspect) || this.scene.isActive(SCENES.setCards),
+    );
     this.#starting = false;
     this.#savedDecks = [];
     this.#rebuild();
