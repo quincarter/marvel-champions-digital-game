@@ -46,6 +46,7 @@ import { isAndroidEdge, rendererOptionsOf } from "./platform/renderer-options.js
 import { onPowerSavingChange, watchPowerSaving } from "./platform/power-saving.js";
 import { gpuRendererName, installRenderScale } from "./ui/render-scale.js";
 import { installIdleRender } from "./ui/idle-render.js";
+import { fpsReadoutWanted, installFpsReadout } from "./ui/fps-readout.js";
 import { onHardwareChange, readHardware } from "./platform/device-hardware.js";
 import {
   drawsAtScreenDensity,
@@ -206,6 +207,8 @@ game.input.mouse?.disableContextMenu();
 // A frame that would look exactly like the last one isn't drawn again (#328, `ui/idle-render.ts`). Before the frame
 // guard, which wraps whatever `step` is by then.
 installIdleRender(game, Phaser, window.location.search);
+// `?fps=1` shows a frame-rate readout, for checking a slow screen on a real phone (`ui/fps-readout.ts`).
+if (fpsReadoutWanted(window.location.search)) installFpsReadout(game);
 
 // One bad frame must not end the game: a throwing tween is removed, anything else skips that frame (`ui/frame-guard.ts`).
 installFrameGuard(game);
