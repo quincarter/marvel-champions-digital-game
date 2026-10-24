@@ -17,6 +17,15 @@ export function hiddenBottom(layoutHeight: number, visibleHeight: number, offset
   return hidden > 1 ? hidden : 0;
 }
 
+/**
+ * How much of that hidden strip the box gives up. Edge reports its whole floating address bar band as covered, though
+ * its top part stays visible; the owner asked to split the difference (2026-10-24): half, so the table reaches a little
+ * further down without a control going under the bar itself.
+ */
+export function boxTrim(hidden: number): number {
+  return Math.round(hidden / 2);
+}
+
 export function installVisibleArea(game: Phaser.Game): void {
   const viewport = window.visualViewport;
   const box = document.getElementById("game");
@@ -25,7 +34,7 @@ export function installVisibleArea(game: Phaser.Game): void {
   let queued = false;
   const apply = (): void => {
     queued = false;
-    const hidden = hiddenBottom(window.innerHeight, viewport.height, viewport.offsetTop, viewport.scale);
+    const hidden = boxTrim(hiddenBottom(window.innerHeight, viewport.height, viewport.offsetTop, viewport.scale));
     if (hidden === applied) return;
     applied = hidden;
     // The safe-area inset (index.html) still applies; the toolbar's share is added on top of it.
