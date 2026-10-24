@@ -60,6 +60,7 @@ export type SettingsRowId =
   | "same-name-conflict"
   | "hover-hero"
   | "hover-villain"
+  | "discord-presence"
   | EarnedItemId;
 
 export interface SettingsRowInfo {
@@ -140,6 +141,16 @@ export function settingsRowInfoOf(settings: Settings, powerSaving = false): read
   ];
 }
 
+/** The desktop app's "Show my game on Discord" row. Drawn only there, so it is not in `settingsRowInfoOf` (shared with Pause). */
+export function discordRowInfoOf(settings: Settings): SettingsRowInfo {
+  return {
+    id: "discord-presence",
+    title: "Show my game on Discord",
+    detail: "Shows what you're playing on your Discord profile while Discord is open.",
+    on: settings.discordPresence,
+  };
+}
+
 /**
  * Settings ▸ More ▸ Earned items (issue #291): one toggle per earned item. One not earned yet is still listed, dim, and
  * says how to earn it instead of what it does.
@@ -187,6 +198,8 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
       return { ...settings, hoverHeroCard: !settings.hoverHeroCard };
     case "hover-villain":
       return { ...settings, hoverVillainCard: !settings.hoverVillainCard };
+    case "discord-presence":
+      return { ...settings, discordPresence: !settings.discordPresence };
     case "ultron-drone-art":
       return { ...settings, ultronDroneArt: !settings.ultronDroneArt };
   }

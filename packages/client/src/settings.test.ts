@@ -25,6 +25,7 @@ describe("villain phase settings", () => {
     const settings = defaultSettings();
     expect(settings.villainAutoAdvance).toBe("off");
     expect(settings.holdEncounterCards).toBe(true);
+    expect(settings.discordPresence).toBe(true);
     expect(settings.flipEncounterCards).toBe(true);
     expect(settings.flipEncounterSpeed).toBe("normal");
     expect(flipDurationMs("slow")).toBe(1000);

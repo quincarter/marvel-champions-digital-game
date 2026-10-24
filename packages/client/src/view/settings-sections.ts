@@ -81,6 +81,8 @@ export function settingsSectionsOf(input: {
    * player has no controller settings to change. Defaults to shown.
    */
   readonly controls?: boolean;
+  /** The desktop app: the "Show my game on Discord" row under More. */
+  readonly discord?: boolean;
 }): readonly SettingsSection[] {
   return [
     { id: "gameplay", title: "Gameplay", items: ["confirm-end-turn", "same-name-conflict"] },
@@ -138,7 +140,13 @@ export function settingsSectionsOf(input: {
     {
       id: "more",
       title: "More",
-      items: ["unlocks", "save-data", ...(input.controls === false ? [] : (["controls"] as const)), "rules"],
+      items: [
+        "unlocks",
+        "save-data",
+        ...(input.controls === false ? [] : (["controls"] as const)),
+        ...(input.discord ? (["discord-presence"] as const) : []),
+        "rules",
+      ],
     },
     {
       id: "achievements",

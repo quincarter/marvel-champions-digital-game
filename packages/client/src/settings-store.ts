@@ -55,6 +55,7 @@ const BOOLEAN_FIELDS = [
   "powerSavingAdjust",
   "nintendoLayout",
   "inputGlyphs",
+  "discordPresence",
 ] as const;
 
 export function parseSettingsOverrides(raw: string | null): SettingsOverrides {

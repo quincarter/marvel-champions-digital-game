@@ -1,4 +1,5 @@
 mod app_volume;
+mod discord_presence;
 mod display_mode;
 mod save_file;
 
@@ -75,7 +76,9 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
       app_volume::master_muted,
       app_volume::start_app_volume_watch,
       app_volume::stop_app_volume_watch,
-      save_file::save_text_file
+      save_file::save_text_file,
+      discord_presence::discord_set_activity,
+      discord_presence::discord_status
     ])
     // Exclusive fullscreen gives the monitor back while the game is in the background (display_mode.rs).
     .on_window_event(|_, event| {
@@ -101,6 +104,8 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
       // The user's own display mode back on the way out (Windows would also restore it once the process ends).
       if let tauri::RunEvent::Exit = event {
         display_mode::restore(false);
+        // Clear the Discord activity so the profile doesn't keep showing the game after it closes.
+        discord_presence::on_exit();
       }
     });
 }

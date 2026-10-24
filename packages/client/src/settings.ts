@@ -78,6 +78,8 @@ export interface Settings {
   readonly villainAutoAdvance: VillainAutoAdvance;
   /** Keep every revealed encounter card on screen until the player taps past it, even one with no answer to give. Defaults on. */
   readonly holdEncounterCards: boolean;
+  /** Desktop app only: show what you are playing on your Discord profile while Discord is open (`platform/discord-presence.ts`). Defaults on. */
+  readonly discordPresence: boolean;
   /** Stop on each encounter card dealt facedown and show its back until the player presses Flip Encounter Card (#287). Defaults on. */
   readonly flipEncounterCards: boolean;
   /** How long Flip Encounter Card takes to turn the card over: 1 s, 0.5 s, or instantly (`flipDurationMs`). Defaults normal. */
@@ -369,6 +371,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     sameNameHeroAllyConflict: true,
     villainAutoAdvance: "off",
     holdEncounterCards: true,
+    discordPresence: true,
     flipEncounterCards: true,
     flipEncounterSpeed: "normal",
     villainBeatSpeed: "normal",

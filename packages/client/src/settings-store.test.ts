@@ -78,6 +78,7 @@ describe("SettingsStore", () => {
     ["sameNameHeroAllyConflict", false],
     ["villainAutoAdvance", "afterPause"],
     ["holdEncounterCards", false],
+    ["discordPresence", false],
     ["flipEncounterCards", false],
     ["flipEncounterSpeed", "off"],
     ["villainBeatSpeed", "fast"],

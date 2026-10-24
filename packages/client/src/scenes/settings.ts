@@ -60,6 +60,7 @@ import {
   nextSettingsAfterToggle,
   nextSettingsAfterVillainRow,
   settingsRowInfoOf,
+  discordRowInfoOf,
   earnedItemRowInfoOf,
   villainRowInfoOf,
   type GuideRowInfo,
@@ -89,6 +90,7 @@ import {
   refreshDesktopMonitor,
   resolutionOptionsFor,
 } from "../platform/desktop-window.js";
+import { syncDiscordPresence } from "../platform/discord-presence.js";
 import {
   followsWindowsMixer,
   knownMixerVolume,
@@ -369,6 +371,7 @@ export class SettingsOverlay extends Phaser.Scene {
     const { settings } = appSession();
     const next = nextSettingsAfterToggle(settings, row.id, globalThis.devicePixelRatio || 1);
     if (row.id === "sharper-text") setTextResolution(next.textResolution);
+    if (row.id === "discord-presence") syncDiscordPresence(next.discordPresence);
     if (row.id === "sound" || row.id === "music-shuffle") appSession().music?.syncSettings(next);
     appSession().settings = next;
     applyEarnedItems();
@@ -409,6 +412,7 @@ export class SettingsOverlay extends Phaser.Scene {
       // Sound's own tab only where six fit with their names whole; a phone keeps five, Sound under Display.
       soundTab: settingsLayout({ x: 0, y: 0, width, height }, []).tabs.width / 6 >= SOUND_TAB_MIN_CELL,
       desktopWindow: hasDesktopWindow(),
+      discord: hasDesktopWindow(),
       steamDeck: onHandheldLinux(),
       powerSaving:
         canReadPowerSaving(detectPlatform(), globalThis.navigator?.userAgent ?? "") || powerSavingState().detected,
@@ -502,6 +506,7 @@ export class SettingsOverlay extends Phaser.Scene {
     const items = new Map<SettingsItemId, SettingsItem>();
     for (const row of [
       ...settingsRowInfoOf(settings, powerSavingOn()),
+      ...(hasDesktopWindow() ? [discordRowInfoOf(settings)] : []),
       ...earnedItemRowInfoOf(settings, earnedItems()),
     ]) {
       items.set(row.id, {
