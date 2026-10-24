@@ -16,6 +16,7 @@ import { ink, surface, typeRole } from "../tokens.js";
 import { campaignFrame } from "../ui/campaign-chrome.js";
 import { drawComicLettering, drawComicReaderPicture, type ComicReaderTween } from "../ui/comic-reader.js";
 import { destroyChildren } from "../ui/destroy-children.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { McButton, fitText, label } from "../ui/widgets.js";
@@ -68,6 +69,9 @@ export class ScenarioIntroScene extends Phaser.Scene {
     this.#route = null;
   }
 
+  /** The Start glyph on SKIP, for a pad or keyboard. */
+  #hints: GlyphHints | null = null;
+
   create(): void {
     if (!this.#intro || this.#steps.length === 0) {
       this.#leave();
@@ -77,6 +81,7 @@ export class ScenarioIntroScene extends Phaser.Scene {
     // As a campaign issue's opener does: the comic opens on the villain's theme, which Setup and the Board then keep.
     appSession().music?.playVillainTheme(this.#intro.scenarioId);
     this.scale.on("resize", this.#draw, this);
+    this.#hints = new GlyphHints(this);
     const onArrow = (event: KeyboardEvent): void => {
       if (event.key === "ArrowRight") {
         event.preventDefault();
@@ -102,6 +107,8 @@ export class ScenarioIntroScene extends Phaser.Scene {
       this.scale.off("resize", this.#draw, this);
       this.input.keyboard?.off("keydown", onArrow);
       this.#panTween?.stop();
+      this.#hints?.dispose();
+      this.#hints = null;
     });
     // `#draw` only draws a running scene, which this isn't until `create` returns.
     this.events.once(Phaser.Scenes.Events.CREATE, () => this.#draw());
@@ -170,6 +177,7 @@ export class ScenarioIntroScene extends Phaser.Scene {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     destroyChildren(this);
+    this.#hints?.reset();
 
     const { width, height, phone } = campaignFrame(this);
     const { game } = appSession().store.state;
@@ -191,15 +199,15 @@ export class ScenarioIntroScene extends Phaser.Scene {
     // Header: the fight's billing and SKIP, on ink like the campaign reader.
     const headerPad = phone ? 16 : 24;
     const skipRect: Rect = { x: width - headerPad - (phone ? 78 : 96), y: 14, width: phone ? 78 : 96, height: 30 };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "onInk",
-        label: "SKIP ▸▸",
-        type: typeRole.label,
-        rect: skipRect,
-        onClick: () => this.#leave(),
-      }),
-    );
+    const skip = new McButton(this, {
+      kind: "onInk",
+      label: "SKIP ▸▸",
+      type: typeRole.label,
+      rect: skipRect,
+      onClick: () => this.#leave(),
+    });
+    this.#buttons.push(skip);
+    this.#hints?.button(skip, ["pause"], "ink");
     stops.set("skip", { rect: skipRect, activate: () => this.#leave() });
     label(this, headerPad, 14, "ONE-SHOT", typeRole.label, surface.paper.hex, ink.label);
     const title = this.add
@@ -279,7 +287,15 @@ export class ScenarioIntroScene extends Phaser.Scene {
     tapZone.on("pointerup", () => this.#advance());
     this.children.sendToBack(tapZone);
 
-    this.#route = this.#route ?? new FocusRoute(this, { onCancel: () => this.#leave() });
+    this.#route =
+      this.#route ??
+      new FocusRoute(this, {
+        onCancel: () => this.#leave(),
+        // Start / Menu and View skip the comic, as B does; A with nothing focused turns the page.
+        onPause: () => this.#leave(),
+        onView: () => this.#leave(),
+        primary: () => "next",
+      });
     this.#route.set(hasBack ? ["back", "next", "skip"] : ["next", "skip"], stops);
   }
 
