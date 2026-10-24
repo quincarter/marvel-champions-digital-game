@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { boxTrim, hiddenBottom } from "./visible-area.js";
 
 describe("hiddenBottom", () => {
-  it("is the share of the layout viewport the visible area leaves uncovered", () => {
+  it("is how far the box hangs below the visible area", () => {
     expect(hiddenBottom(997, 922, 0, 1)).toBe(75);
   });
   it("accounts for the visible area's offset from the top", () => {
