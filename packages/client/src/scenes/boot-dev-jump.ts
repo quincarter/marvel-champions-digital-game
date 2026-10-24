@@ -119,6 +119,28 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   if (params.get("boardpad") === "1")
     notePadInput(detectPad("Xbox 360 Controller (STANDARD GAMEPAD Vendor: 045e Product: 028e)"));
   // `&padhold=lt|rt` (with `boardpad=1`): the board draws that hold layer's sheet as if the trigger were held.
+  // `&padfake=1`: a connected standard pad whose buttons the page can press, for screenshots of a held trigger and a
+  // bumper press: `__fakePad.buttons[7].value = 1` holds RT, `[5]` is RB (set `pressed` and `value`, then back).
+  if (params.get("padfake") === "1") {
+    const button = () => ({ pressed: false, touched: false, value: 0 });
+    const pad = {
+      connected: true,
+      id: "Xbox 360 Controller (STANDARD GAMEPAD Vendor: 045e Product: 028e)",
+      index: 0,
+      mapping: "standard",
+      timestamp: 0,
+      buttons: Array.from({ length: 17 }, button),
+      axes: [0, 0, 0, 0],
+    };
+    (globalThis as { __fakePad?: unknown }).__fakePad = pad;
+    Object.defineProperty(navigator, "getGamepads", {
+      value: () => {
+        pad.timestamp = performance.now();
+        return [pad];
+      },
+      configurable: true,
+    });
+  }
   const padHold = params.get("padhold");
   if (padHold === "lt" || padHold === "rt") (globalThis as { __devPadHold?: string }).__devPadHold = padHold;
 
@@ -375,6 +397,17 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     if (!gameRunning(store)) {
       const { startCrowdedGame } = await import("../store/dev-crowded-game.js");
       await startCrowdedGame(store);
+    }
+    return { key: SCENES.board, data: {} };
+  }
+
+  // `&fixture=abilities`: Captain Marvel's turn with five or more usable abilities on the table, so the pad's RT layer
+  // has a second page (`store/dev-many-abilities-game.ts`).
+  if (screen === "board" && params.get("fixture") === "abilities") {
+    const { store } = appSession();
+    if (!gameRunning(store)) {
+      const { startManyAbilitiesGame } = await import("../store/dev-many-abilities-game.js");
+      await startManyAbilitiesGame(store);
     }
     return { key: SCENES.board, data: {} };
   }
