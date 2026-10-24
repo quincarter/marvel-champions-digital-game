@@ -357,6 +357,11 @@ export class BoardController {
   /** Escape's own release (§3.10, owner: "no one should ever feel locked into a tutorial"): lifts the active gate
    * immediately and fires its `onGateReleased`. Returns whether a gate was actually open, so `board.ts`'s own
    * Escape handling knows whether to fall through to its usual cancel/Pause behavior. */
+  /** Whether a guided-mode gate is open (Escape would release it), without releasing it. */
+  hasGuideGate(): boolean {
+    return this.#guideGate.current !== null;
+  }
+
   releaseGuideGate(): boolean {
     return this.#guideGate.release();
   }

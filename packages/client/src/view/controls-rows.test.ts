@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { defaultSettings } from "../settings.js";
-import { SHORTCUTS } from "./input-shortcuts.js";
+import { SHORTCUTS, shortcutCaps, type ShortcutId } from "./input-shortcuts.js";
 import {
   controllerCaptionOf,
   controllerStateOf,
   keyboardGroupsOf,
+  keyboardHandRowInfoOf,
+  nextSettingsAfterKeyboardHand,
+  padLayerSectionsOf,
   nextSettingsAfterHints,
   nextSettingsAfterNintendo,
   nextSettingsAfterPadFamily,
@@ -82,11 +85,39 @@ describe("controls rows", () => {
     expect(controllerCaptionOf("xbox", deck, false)).toContain("Steam Input");
   });
 
-  it("lists every keyboard shortcut in three groups", () => {
-    const groups = keyboardGroupsOf();
-    expect(groups.map((g) => g.title)).toEqual(["EVERYWHERE", "ON THE TABLE", "DECISION POPUP"]);
-    const shown = groups.flatMap((g) => g.rows.flatMap((r) => r.glyphs.map((k) => k.label)));
-    for (const shortcut of SHORTCUTS) for (const keyCap of shortcut.keys) expect(shown, shortcut.id).toContain(keyCap);
-    expect(shown).toEqual(expect.arrayContaining(["1", "2", "3", "[", "]", "PgUp", "PgDn", "Tab"]));
+  it("lists the keyboard map for the active hand in three groups", () => {
+    for (const hand of ["left", "right"] as const) {
+      const groups = keyboardGroupsOf(hand);
+      expect(groups.map((g) => g.title)).toEqual(["EVERYWHERE", "ON THE TABLE", "DECISION POPUP"]);
+      const shown = groups.flatMap((g) => g.rows.flatMap((r) => r.glyphs.map((k) => k.label)));
+      const ids: ShortcutId[] = SHORTCUTS.map((shortcut) => shortcut.id).filter(
+        (id) => !["activate", "cancel", "pause", "zonePrevious", "zoneNext"].includes(id),
+      );
+      for (const id of ids) for (const cap of shortcutCaps(id, hand)) expect(shown, `${hand} ${id}`).toContain(cap);
+    }
+    const left = keyboardGroupsOf("left").flatMap((g) => g.rows.flatMap((r) => r.glyphs.map((k) => k.label)));
+    const right = keyboardGroupsOf("right").flatMap((g) => g.rows.flatMap((r) => r.glyphs.map((k) => k.label)));
+    expect(left).toContain("W");
+    expect(left).not.toContain("I");
+    expect(right).toContain("I");
+    expect(right).not.toContain("W");
+  });
+
+  it("offers the keyboard hand as a Left / Right row that changes only keyboardHand", () => {
+    const base = defaultSettings();
+    expect(keyboardHandRowInfoOf(base).options.map((o) => o.label)).toEqual(["Left", "Right"]);
+    expect(keyboardHandRowInfoOf(base).selected).toBe("left");
+    expect(nextSettingsAfterKeyboardHand(base, "right")).toEqual({ ...base, keyboardHand: "right" });
+  });
+
+  it("lists HOLD LT and HOLD RT sections with the trigger beside each button, and no LT / RT rows in BUTTONS", () => {
+    const sections = padLayerSectionsOf("xbox", false);
+    expect(sections.map((s) => s.title)).toEqual(["HOLD LT", "HOLD RT"]);
+    const lt = sections[0]!.rows;
+    expect(lt.map((r) => r.action)).toEqual(["Attack", "Thwart", "Recover", "Change form", "Undo", "End turn"]);
+    expect(lt[0]!.glyphs.map((g) => g.label)).toEqual(["LT", "A"]);
+    expect(lt[5]!.glyphs.map((g) => g.label)).toEqual(["LT", "RB"]);
+    expect(sections[1]!.rows[0]!.glyphs.map((g) => g.label)).toEqual(["RT", "A"]);
+    expect(padRowsOf("xbox", false).some((r) => r.id === "undo" || r.id === "endTurn")).toBe(false);
   });
 });

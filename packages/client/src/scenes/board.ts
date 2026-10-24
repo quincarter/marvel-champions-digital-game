@@ -94,6 +94,11 @@ import { drawDealtPile } from "./board/dealt-pile.js";
 import { dealtCaption, dealtReasonsOf } from "../view/dealt-pile.js";
 import { drawChrome, drawPhoneTabs } from "./board/chrome.js";
 import { BoardFirstPlayerToken } from "./board/first-player-token.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
+import { glyphsFitLayout } from "../view/glyph-placement.js";
+import { escapeMeaning } from "../view/escape-meaning.js";
+import { guideHintText } from "../view/guide-hint.js";
+import { inputDevice, onInputDeviceChange } from "../platform/input-device.js";
 import { emptyFrame, type BoardDrawContext, type BoardFrame } from "./board/context.js";
 import { BoardController, type SourceChoiceView } from "./board/controller.js";
 import type { GuideGate } from "./board/guide-gate.js";
@@ -192,6 +197,8 @@ export class BoardScene extends Phaser.Scene {
   #cardHistory: CardHistoryLog = emptyCardHistoryLog();
   /** What the last draw left behind: hit rects, focus rects, and the widgets to destroy before the next one. */
   #frame: BoardFrame = emptyFrame();
+  /** The key and button glyphs, kept current in place between redraws. */
+  #hints!: GlyphHints;
   #version = -1;
   /** How much of the command trail the table's sounds have played; -1 until the first state, which is never played. */
   #soundTrail = -1;
@@ -371,6 +378,12 @@ export class BoardScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.#hints = new GlyphHints(this, () => [
+      ...this.#frame.hitRects.values(),
+      ...this.#frame.focusRects.values(),
+      ...this.#frame.pileRects.values(),
+    ]);
+    this.#watchGuideHint();
     this.#walkthroughLaunching = false;
     this.#outcomeHeld = false;
     this.#villainReplay = null;
@@ -1255,6 +1268,7 @@ export class BoardScene extends Phaser.Scene {
     this.#tabs?.destroy();
     this.#tabs = null;
     this.#frame = emptyFrame();
+    this.#hints.reset();
     destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
@@ -1302,6 +1316,7 @@ export class BoardScene extends Phaser.Scene {
       formFan: { open: this.#formFanOpen, t: this.#formFanT, setOpen: (open) => this.#setFormFan(open) },
       onRegionScroll: () => this.#refreshRings(),
       frame: this.#frame,
+      hints: this.#hints,
       motion: this.#motion,
       teamUpRings: this.#teamUpRings(layout.tabbed),
       teamUpRoles: this.#teamUpRoles(model),
@@ -1329,6 +1344,12 @@ export class BoardScene extends Phaser.Scene {
         ...(this.#hasEvidence() ? { onEvidence: () => this.#openEvidence() } : {}),
         buttons: this.#frame.buttons,
         motion: this.#motion,
+        ...(glyphsFitLayout(layout.tabbed)
+          ? {
+              hints: this.#hints,
+              menuHintWhen: (set: "keyboard" | "pad") => set === "pad" || this.#escapeMeaning() === "pause",
+            }
+          : {}),
       });
       if (zones.tabs) this.#drawTabs(zones.tabs, model);
     };
@@ -1368,7 +1389,13 @@ export class BoardScene extends Phaser.Scene {
     // is done. `logGate` is `{ locked: false }` off a guided run, so a plain game never takes this branch.
     const logGate = this.#guide?.logGate() ?? { locked: false, reason: null };
     if (zones.log && logGate.locked) this.#logPanel.drawLocked(this, setAside?.log ?? zones.log, logGate.reason ?? "");
-    else if (zones.log) this.#logPanel.draw(this, setAside?.log ?? zones.log, this.#tableLog());
+    else if (zones.log)
+      this.#logPanel.draw(
+        this,
+        setAside?.log ?? zones.log,
+        this.#tableLog(),
+        glyphsFitLayout(layout.tabbed) ? this.#hints : undefined,
+      );
     else this.#logPanel.hide();
     this.#logRect = zones.log && !logGate.locked ? (setAside?.log ?? zones.log) : null;
     // Always the wide panel: the identity's attachments only show as chips
@@ -2001,35 +2028,69 @@ export class BoardScene extends Phaser.Scene {
   }
 
   #drawFocusRing(): void {
+    const card = this.#placeFocusRing();
+    // The legend strip above a focused card: what Select / Inspect / Esc do with it. Moved, not rebuilt, as focus steps.
+    const { width, height } = this.scale.gameSize;
+    this.#hints.legend(card, { x: 0, y: 0, width, height }, this.#escapeMeaning());
+    // Whatever a hint's `when` reads (the Esc glyph under MENU) may have changed with the focus.
+    this.#hints.refresh();
+  }
+
+  /** What Esc / B does right now (`view/escape-meaning.ts`): back out of something, or open Pause. */
+  #escapeMeaning(): "back" | "pause" {
+    return escapeMeaning({
+      guideGateOpen: this.#controller.hasGuideGate(),
+      guideStepActive: this.#guide?.escapeActs() ?? false,
+      logFocused: this.#logFocused,
+      tipShown: this.#tip?.escapeActs() ?? false,
+      selectionIdle: this.#controller.selection.kind === "idle",
+    });
+  }
+
+  /** The guide's "Press G…" line names the key or button in use: redraw the guide when that changes. */
+  #watchGuideHint(): void {
+    let shown = guideHintText(inputDevice(), appSession().settings);
+    const off = onInputDeviceChange((state) => {
+      const next = guideHintText(state, appSession().settings);
+      if (next === shown) return;
+      shown = next;
+      if (this.#guide || this.#tip) this.requestGuideRedraw();
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, off);
+  }
+
+  /** Draws the focus ring; returns the focused card's rect when the legend strip belongs over it, else null. */
+  #placeFocusRing(): Rect | null {
     this.#focusRing?.destroy();
     this.#focusRing = null;
     // While focus is in the guide region (§3.10, §7 fix), the board's own ring stays hidden — the guide/tip
     // widget draws its own ring (`McGuidePanel`/`McGuideCallout`/`McTipToast#focusAt`) so there is never a
     // visible ring on both surfaces at once.
-    if (this.#focusRegion !== "board") return;
+    if (this.#focusRegion !== "board") return null;
     // The log has no stop to ring, so the ring goes round the panel; a tab or layout that no longer shows it ends the focus.
     if (this.#logFocused) {
       if (this.#logRect) {
         this.#focusRing = new McSelectionRing(this);
         this.#focusRing.show(this.#logRect, "static", true);
-        return;
+        return null;
       }
       this.#logFocused = false;
     }
     const focus = this.#focus;
-    if (!focus) return;
+    if (!focus) return null;
     // Focus that has fallen off the route (the card was played) is dropped
     // rather than drawn somewhere stale.
     if (!this.#controller.focusOrder().some((target) => sameTarget(target, focus))) {
       this.#focus = null;
       this.#controller.setUndoFocus(false);
-      return;
+      return null;
     }
     const rect = this.#frame.focusRects.get(focusKey(focus));
-    if (!rect) return;
+    if (!rect) return null;
     this.#focusRing = new McSelectionRing(this);
     // Static, not pulsing: the ring says "here you are", not "act now".
     this.#focusRing.show(rect, "static", true);
+    return focus.kind === "card" && glyphsFitLayout(this.#layout?.tabbed ?? true) ? rect : null;
   }
 
   /**

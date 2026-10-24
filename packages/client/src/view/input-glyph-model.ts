@@ -8,7 +8,8 @@
 import type { Settings } from "../settings.js";
 import { gamepadButtonFor } from "./gamepad.js";
 import { glyphSetOf, type InputModeState } from "./input-mode.js";
-import { shortcutOf, type ShortcutId } from "./input-shortcuts.js";
+import { shortcutCaps, shortcutOf, type KeyboardHand, type ShortcutId } from "./input-shortcuts.js";
+import { LAYER_TRIGGER_INDEX, layerBindingOf, type LayerActionId } from "./pad-layer-bindings.js";
 import {
   faceColorOf,
   padGlyphOf,
@@ -40,7 +41,24 @@ export interface KeyGlyphSpec {
 
 export type GlyphSpec = PadGlyphSpec | KeyGlyphSpec;
 
-export type GlyphSettings = Pick<Settings, "padGlyphFamily" | "nintendoLayout" | "inputGlyphs">;
+export type GlyphSettings = Pick<Settings, "padGlyphFamily" | "nintendoLayout" | "inputGlyphs"> & {
+  /** Which hand the keyboard glyphs show; the left when left out. */
+  readonly keyboardHand?: KeyboardHand;
+};
+
+/** Shortcuts the pad does under a hold layer: drawn as the trigger plus the button ("LT" "A"). */
+const LAYERED: Readonly<Partial<Record<ShortcutId, LayerActionId>>> = {
+  attack: "attack",
+  thwart: "thwart",
+  recover: "recover",
+  changeForm: "changeForm",
+  undo: "undo",
+  endTurn: "endTurn",
+  ability1: "ability1",
+  ability2: "ability2",
+  ability3: "ability3",
+  ability4: "ability4",
+};
 
 const SYMBOLS: Readonly<Record<string, FaceSymbol>> = { "✕": "cross", "○": "circle", "□": "square", "△": "triangle" };
 
@@ -71,8 +89,18 @@ export function glyphsForShortcut(
   if (set === null) return null;
   const shortcut = shortcutOf(id);
   if (set === "keyboard") {
-    if (shortcut.keys.length === 0) return null;
-    return shortcut.keys.map((key): GlyphSpec => ({ kind: "key", label: key, name: `${key} key` }));
+    const caps = shortcutCaps(id, settings.keyboardHand ?? "left");
+    return caps.map((key): GlyphSpec => ({ kind: "key", label: key, name: `${key} key` }));
+  }
+  const layered = LAYERED[id];
+  if (layered !== undefined) {
+    const binding = layerBindingOf(layered);
+    if (binding === null) return null;
+    const family = resolvePadFamily(settings.padGlyphFamily, state.pad);
+    const swap = usesNintendoSwap(family, settings.nintendoLayout, state.pad);
+    const trigger = padGlyphSpec(LAYER_TRIGGER_INDEX[binding.layer], family, false);
+    const button = padGlyphSpec(binding.index, family, swap);
+    return trigger && button ? [trigger, button] : null;
   }
   if (shortcut.padIntent === null) return null;
   const index = gamepadButtonFor(shortcut.padIntent);

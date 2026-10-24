@@ -6,7 +6,8 @@
 
 import type { Settings } from "../settings.js";
 import { padGlyphSpec, type GlyphSpec } from "./input-glyph-model.js";
-import { shortcutOf, type ShortcutId } from "./input-shortcuts.js";
+import { shortcutCaps, shortcutOf, type KeyboardHand, type ShortcutId } from "./input-shortcuts.js";
+import { layerSheet, type LayerRow, type PadLayer } from "./pad-layers.js";
 import {
   padFamilyName,
   PAD_FAMILY_SETTING_VALUES,
@@ -140,6 +141,22 @@ export function nextSettingsAfterHints(settings: Settings): Settings {
   return { ...settings, inputGlyphs: !settings.inputGlyphs };
 }
 
+export function keyboardHandRowInfoOf(settings: Settings): SegmentedRowInfo<KeyboardHand> {
+  return {
+    title: "Keyboard hand",
+    detail: "Right moves every shortcut to the right hand, for a mouse in your left hand.",
+    options: [
+      { value: "left", label: "Left" },
+      { value: "right", label: "Right" },
+    ],
+    selected: settings.keyboardHand,
+  };
+}
+
+export function nextSettingsAfterKeyboardHand(settings: Settings, value: KeyboardHand): Settings {
+  return { ...settings, keyboardHand: value };
+}
+
 export interface ControlsListRow {
   readonly id: string;
   readonly glyphs: readonly GlyphSpec[];
@@ -183,8 +200,6 @@ const PAD_ROWS: readonly PadRowDef[] = [
   { id: "inspect", index: 3, action: "Inspect · hold to zoom", note: "Where a card has focus" },
   { id: "pagePrevious", index: 4, action: "Previous zone · page", note: "Table: previous zone. Lists: previous page" },
   { id: "pageNext", index: 5, action: "Next zone · page", note: "Table: next zone. Lists: next page" },
-  { id: "undo", index: 6, action: "Undo", note: "On the table" },
-  { id: "endTurn", index: 7, action: "End turn", note: "On the table; asks first if actions remain" },
   { id: "view", index: 8, action: "Game log · Peek at table", note: "On the table; Peek on a decision popup" },
   { id: "pause", index: 9, action: "Pause", note: "Anywhere in a game" },
   {
@@ -195,6 +210,46 @@ const PAD_ROWS: readonly PadRowDef[] = [
   },
   { id: "expand", index: 11, action: "Expand · collapse", note: "On a decision popup" },
 ];
+
+/** What each layer row says it does and where. */
+const LAYER_NOTES: Readonly<Record<string, string>> = {
+  attack: "Your hero's basic attack",
+  thwart: "Your hero's basic thwart",
+  recover: "The alter-ego's basic recover",
+  changeForm: "Hero / alter-ego",
+  undo: "Takes back the last step",
+  endTurn: "Asks first if actions remain",
+  ability1: "The first ability usable now on your cards in play",
+  ability2: "The second usable ability",
+  ability3: "The third usable ability",
+  ability4: "The fourth usable ability",
+  pagePrevious: "When there are more than four abilities",
+  pageNext: "When there are more than four abilities",
+};
+
+export interface PadLayerSection {
+  readonly id: "holdLt" | "holdRt";
+  readonly title: string;
+  readonly rows: readonly ControlsListRow[];
+}
+
+function layerRowOf(row: LayerRow, trigger: GlyphSpec | null): ControlsListRow {
+  return {
+    id: row.action,
+    glyphs: [...(trigger ? [trigger] : []), ...(row.glyph ? [row.glyph] : [])],
+    action: row.label,
+    note: LAYER_NOTES[row.action] ?? "",
+  };
+}
+
+/** The "HOLD LT" and "HOLD RT" sections of the BUTTONS list: the trigger plus the button, for this pad. */
+export function padLayerSectionsOf(family: PadFamily, swap: boolean): readonly PadLayerSection[] {
+  const section = (layer: PadLayer, id: PadLayerSection["id"], title: string): PadLayerSection => {
+    const sheet = layerSheet(layer, family, swap);
+    return { id, title, rows: sheet.rows.map((row) => layerRowOf(row, sheet.trigger)) };
+  };
+  return [section("lt", "holdLt", "HOLD LT"), section("rt", "holdRt", "HOLD RT")];
+}
 
 /** The BUTTONS list for a family, with the Nintendo swap already applied to each glyph. */
 export function padRowsOf(family: PadFamily, swap: boolean): readonly ControlsListRow[] {
@@ -212,12 +267,17 @@ export interface KeyboardGroup {
 
 const key = (label: string): GlyphSpec => ({ kind: "key", label, name: `${label} key` });
 
-function shortcutRow(id: ShortcutId, note: string, action?: string): ControlsListRow {
-  const shortcut = shortcutOf(id);
-  return { id, glyphs: shortcut.keys.map(key), action: action ?? shortcut.label, note };
+function capsOf(ids: readonly ShortcutId[], hand: KeyboardHand): readonly GlyphSpec[] {
+  return ids.flatMap((id) => shortcutCaps(id, hand).map(key));
 }
 
-export function keyboardGroupsOf(): readonly KeyboardGroup[] {
+function shortcutRow(id: ShortcutId, hand: KeyboardHand, note: string, action?: string): ControlsListRow {
+  return { id, glyphs: shortcutCaps(id, hand).map(key), action: action ?? shortcutOf(id).label, note };
+}
+
+/** The Keyboard tab's groups for the active hand. Arrows, Enter and Esc work under both hands. */
+export function keyboardGroupsOf(hand: KeyboardHand = "left"): readonly KeyboardGroup[] {
+  const left = hand === "left";
   return [
     {
       id: "everywhere",
@@ -225,15 +285,15 @@ export function keyboardGroupsOf(): readonly KeyboardGroup[] {
       rows: [
         {
           id: "move",
-          glyphs: ["←", "↑", "↓", "→"].map(key),
+          glyphs: capsOf(["moveUp", "moveLeft", "moveDown", "moveRight"], hand),
           action: "Move focus",
-          note: "To the nearest control that way",
+          note: "To the nearest control that way; the arrow keys work too",
         },
+        shortcutRow("select", hand, left ? "Enter works too" : "Everywhere", "Select · press"),
+        shortcutRow("back", hand, "Esc works too; with nothing open on the table, Pause", "Back · cancel"),
+        shortcutRow("inspect", hand, "Where a card has focus"),
+        shortcutRow("guide", hand, "On the table, when the guide is showing"),
         { id: "tab", glyphs: [key("Tab")], action: "Next control", note: "Shift+Tab goes back" },
-        shortcutRow("activate", "Space works too", "Select · press"),
-        shortcutRow("cancel", "With nothing open on the table, Pause", "Back · cancel"),
-        shortcutRow("inspect", "Where a card has focus"),
-        shortcutRow("guide", "On the table, when the guide is showing"),
         {
           id: "page",
           glyphs: [key("PgUp"), key("PgDn")],
@@ -246,32 +306,38 @@ export function keyboardGroupsOf(): readonly KeyboardGroup[] {
       id: "table",
       title: "ON THE TABLE",
       rows: [
-        shortcutRow("attack", "Your hero's basic attack"),
-        shortcutRow("thwart", "Your hero's basic thwart"),
-        shortcutRow("recover", "The alter-ego's basic recover"),
-        shortcutRow("changeForm", "Hero / alter-ego"),
-        shortcutRow("endTurn", "Asks first if actions remain"),
-        shortcutRow("undo", "Takes back the last step"),
+        shortcutRow("attack", hand, "Your hero's basic attack"),
+        shortcutRow("thwart", hand, "Your hero's basic thwart"),
+        shortcutRow("recover", hand, "The alter-ego's basic recover"),
+        shortcutRow("changeForm", hand, "Hero / alter-ego"),
+        {
+          id: "abilities",
+          glyphs: capsOf(["ability1", "ability2", "ability3", "ability4"], hand),
+          action: "Card abilities",
+          note: "The first four usable abilities on your cards in play, in table order",
+        },
+        shortcutRow("endTurn", hand, "Asks first if actions remain"),
+        shortcutRow("undo", hand, "Takes back the last step"),
         {
           id: "zones",
-          glyphs: [key("["), key("]")],
-          action: "Previous · next zone",
+          glyphs: capsOf(["zoneUp", "zoneDown"], hand),
+          action: "Zone up · down",
           note: "Jump between hand, play area, villain and actions",
         },
-        shortcutRow("log", "Opens the game log"),
-        shortcutRow("teamUp", "When a Team-Up is available"),
-        shortcutRow("evidence", "When evidence is on the table"),
+        shortcutRow("log", hand, "Opens the game log"),
+        shortcutRow("teamUp", hand, "When a Team-Up is available"),
+        shortcutRow("evidence", hand, "When evidence is on the table"),
       ],
     },
     {
       id: "popup",
       title: "DECISION POPUP",
       rows: [
-        shortcutRow("peek", "Shows the table behind the popup"),
-        shortcutRow("expand", "Opens or closes the full popup"),
+        shortcutRow("peek", hand, "Shows the table behind the popup"),
+        shortcutRow("expand", hand, "Opens or closes the full popup"),
         {
           id: "choose",
-          glyphs: [key("1"), key("2"), key("3")],
+          glyphs: capsOf(["ability1", "ability2", "ability3"], hand),
           action: "Answer a small choice",
           note: "The numbered option",
         },

@@ -32,13 +32,24 @@ describe("glyphsForShortcut", () => {
     expect(glyphsForShortcut("activate", keyboard, { ...settings, inputGlyphs: false })).toBeNull();
   });
 
-  test("keyboard: one cap per key of the chord", () => {
-    expect(glyphsForShortcut("endTurn", keyboard, settings)?.map((g) => g.label)).toEqual(["Shift", "Enter"]);
-    expect(glyphsForShortcut("inspect", keyboard, settings)?.map((g) => g.label)).toEqual(["I"]);
+  test("keyboard: one cap per key of the chord, for the active hand", () => {
+    expect(glyphsForShortcut("endTurn", keyboard, settings)?.map((g) => g.label)).toEqual(["Shift", "Space"]);
+    expect(glyphsForShortcut("inspect", keyboard, settings)?.map((g) => g.label)).toEqual(["E"]);
+    const right = { ...settings, keyboardHand: "right" as const };
+    expect(glyphsForShortcut("endTurn", keyboard, right)?.map((g) => g.label)).toEqual(["Shift", "Enter"]);
+    expect(glyphsForShortcut("inspect", keyboard, right)?.map((g) => g.label)).toEqual(["O"]);
   });
 
-  test("pad: null for a shortcut with no pad intent", () => {
-    expect(glyphsForShortcut("attack", padState(XBOX), settings)).toBeNull();
+  test("pad: a shortcut under a hold layer is the trigger plus the button", () => {
+    expect(glyphsForShortcut("attack", padState(XBOX), settings)?.map((g) => g.label)).toEqual(["LT", "A"]);
+    expect(glyphsForShortcut("undo", padState(XBOX), settings)?.map((g) => g.label)).toEqual(["LT", "LB"]);
+    expect(glyphsForShortcut("ability2", padState(PS), settings)?.map((g) => g.label)).toEqual(
+      ["L2", "□"].slice(0, 0).concat(["R2", "□"]),
+    );
+  });
+
+  test("pad: null for a keyboard-only shortcut", () => {
+    expect(glyphsForShortcut("teamUp", padState(XBOX), settings)).toBeNull();
   });
 
   test("pad: the bound button in the family's labels", () => {

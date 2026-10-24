@@ -42,7 +42,7 @@ export const CONTROLLER_ASPECT: Readonly<Record<DrawingKind, number>> = {
 };
 
 export interface ControlsGroupRowSpec {
-  readonly id: "labels" | "nintendo" | "hints";
+  readonly id: "labels" | "nintendo" | "hints" | "hand";
   readonly kind: "segmented" | "toggle";
   readonly detail: string;
 }
@@ -109,7 +109,7 @@ export interface ControlsLayout {
 }
 
 /** How many columns of a key chord or glyph the list reserves before the action text. */
-const GLYPH_COLUMN: Readonly<Record<ControlsTab, number>> = { controller: 74, keyboard: 150 };
+const GLYPH_COLUMN: Readonly<Record<ControlsTab, number>> = { controller: 112, keyboard: 150 };
 
 export function controlsLayout(bounds: Rect, input: ControlsLayoutInput): ControlsLayout {
   const { panel, header, body } = overlayPanelLayout(bounds, CONTROLS_HEADER_HEIGHT, 0, PANEL_MAX_WIDTH);

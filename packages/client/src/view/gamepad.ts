@@ -43,7 +43,7 @@ export type GamepadIntent =
    * an opportunistic tip toast) and back out to the board — guided mode's own accessibility gap fix
    * (`docs/guided-mode.md` §3.10, §7). A screen with no guide surface simply never wires this. */
   | "toggleGuide"
-  /** LT and RT: the board's Undo and End turn (`docs/controller-support.md`). Other screens leave them unwired. */
+  /** The board's Undo and End turn: LT + LB and LT + RB (`view/pad-layers.ts`), not a button of their own. */
   | "undo"
   | "endTurn"
   /** Menu / Start / +: Pause, from anywhere a game is open. */
@@ -106,8 +106,7 @@ const INTENT_BY_BUTTON: Readonly<Record<number, GamepadIntent>> = {
   // X was the one face button with no meaning on this board yet — used here as the guide's own focus-region
   // toggle (mirrors the keyboard's "G"), rather than crowding it onto A/B/Y.
   [GAMEPAD_BUTTON.x]: "toggleGuide",
-  [GAMEPAD_BUTTON.l2]: "undo",
-  [GAMEPAD_BUTTON.r2]: "endTurn",
+  // LT and RT are hold layers (`view/pad-layers.ts`): alone they do nothing, so Undo and End turn are not bound here.
   [GAMEPAD_BUTTON.menu]: "pause",
   [GAMEPAD_BUTTON.view]: "view",
   [GAMEPAD_BUTTON.r3]: "expand",

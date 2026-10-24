@@ -25,6 +25,9 @@
  * which only surfaces keywords/statuses — `guide-tips.ts`'s own `glossaryTips` calls `rulesGlossaryOf` without
  * `includeConcepts`) — there's nothing to suppress for those, so this list only names the three that actually fire.
  */
+import { appSession } from "../../session.js";
+import { guideHintText } from "../../view/guide-hint.js";
+import { inputDevice } from "../../platform/input-device.js";
 import type { EngineDeps } from "@mc/engine";
 import { POOL_DEPS } from "../../content/pool.js";
 import { markTipSeen, withLevel } from "../../guide/guide-prefs.js";
@@ -130,7 +133,7 @@ export class BoardTipMount {
       // The guide's own focus-region key hint (§3.10, §7 fix), same "only when nothing else needs the slot and
       // this surface isn't already focused" rule `BoardGuideMount#withFocusHint` uses — this toast has no
       // gate-escape nudge of its own to compete with, so the only guard here is `#regionActive`.
-      hint: this.#regionActive ? null : "Press G (or X on a gamepad) to use these buttons.",
+      hint: this.#regionActive ? null : guideHintText(inputDevice(), appSession().settings),
     };
     const toast = new McTipToast(this.#scene, {
       onGotIt: () => this.#act(() => this.dismiss()),
@@ -157,6 +160,11 @@ export class BoardTipMount {
 
   /** Escape while a tip is drawn: closes its open term tooltip first, else dismisses it like "Got it". Returns false
    * (Escape falls through to the board's usual Pause handling) when no tip is on screen. */
+  /** Whether Escape would act here (a tip toast is up), without doing it. */
+  escapeActs(): boolean {
+    return this.#lastToast !== null;
+  }
+
   handleEscape(): boolean {
     if (!this.#lastToast) return false;
     this.#lastToast.handleEscape();

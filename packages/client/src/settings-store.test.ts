@@ -169,6 +169,16 @@ describe("SettingsStore", () => {
   });
 });
 
+describe("keyboardHand", () => {
+  test("defaults to the left hand and persists a right-hand choice", () => {
+    expect(defaultSettings().keyboardHand).toBe("left");
+    expect(parseSettingsOverrides('{"keyboardHand":"right"}')).toEqual({ keyboardHand: "right" });
+    expect(parseSettingsOverrides('{"keyboardHand":"both"}')).toEqual({});
+    const saved = serializeSettingsOverrides({ ...defaultSettings(), keyboardHand: "right" });
+    expect(parseSettingsOverrides(saved).keyboardHand).toBe("right");
+  });
+});
+
 describe("parseSettingsOverrides", () => {
   test("ignores unknown fields and falls back per field on wrong types", () => {
     expect(

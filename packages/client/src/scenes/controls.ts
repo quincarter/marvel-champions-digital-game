@@ -29,7 +29,11 @@ import {
   nextSettingsAfterPadFamily,
   nintendoToggleInfoOf,
   padFamilyRowInfoOf,
+  keyboardHandRowInfoOf,
+  nextSettingsAfterKeyboardHand,
+  padLayerSectionsOf,
   padRowsOf,
+  type SegmentedRowInfo,
   padStatusOf,
   type ControlsListRow,
   type ControlsTab,
@@ -42,7 +46,7 @@ import {
 } from "../view/controls-layout.js";
 import type { Rect } from "../view/layout.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
-import { detectPad, type PadFamilySetting } from "../view/pad-family.js";
+import { detectPad } from "../view/pad-family.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 
@@ -158,7 +162,9 @@ export class ControlsOverlay extends Phaser.Scene {
     const nintendo = nintendoToggleInfoOf(settings, pad);
     const hints = hintsToggleInfoOf(settings);
     const padRows = padRowsOf(state.family, state.swap);
-    const keyGroups = keyboardGroupsOf();
+    const layerSections = padLayerSectionsOf(state.family, state.swap);
+    const handRow = keyboardHandRowInfoOf(settings);
+    const keyGroups = keyboardGroupsOf(settings.keyboardHand);
 
     const groupRows: ControlsGroupRowSpec[] =
       tab === "controller"
@@ -167,10 +173,20 @@ export class ControlsOverlay extends Phaser.Scene {
             { id: "nintendo", kind: "toggle", detail: nintendo.detail },
             { id: "hints", kind: "toggle", detail: hints.detail },
           ]
-        : [{ id: "hints", kind: "toggle", detail: hints.detail }];
+        : [
+            { id: "hand", kind: "segmented", detail: handRow.detail },
+            { id: "hints", kind: "toggle", detail: hints.detail },
+          ];
     const sections: ControlsListSectionSpec[] =
       tab === "controller"
-        ? [{ id: "buttons", title: "BUTTONS", notes: padRows.map((row) => row.note) }]
+        ? [
+            { id: "buttons", title: "BUTTONS", notes: padRows.map((row) => row.note) },
+            ...layerSections.map((layer) => ({
+              id: layer.id,
+              title: layer.title,
+              notes: layer.rows.map((row) => row.note),
+            })),
+          ]
         : keyGroups.map((group) => ({ id: group.id, title: group.title, notes: group.rows.map((row) => row.note) }));
     const caption = controllerCaptionOf(state.family, pad, state.swap);
     const layout = controlsLayout(
@@ -289,6 +305,10 @@ export class ControlsOverlay extends Phaser.Scene {
           this.#drawSegmented(row, rowRect, control, labelsRow, stops, order, stopOf, clip, suppress, (value) =>
             this.#set(nextSettingsAfterPadFamily(appSession().settings, value)),
           );
+        } else if (row.id === "hand") {
+          this.#drawSegmented(row, rowRect, control, handRow, stops, order, stopOf, clip, suppress, (value) =>
+            this.#set(nextSettingsAfterKeyboardHand(appSession().settings, value)),
+          );
         } else {
           const info = row.id === "nintendo" ? nintendo : hints;
           const activate =
@@ -302,7 +322,12 @@ export class ControlsOverlay extends Phaser.Scene {
 
     // The list sections.
     content.sections.forEach((section, sectionIndex) => {
-      const rows: readonly ControlsListRow[] = tab === "controller" ? padRows : (keyGroups[sectionIndex]?.rows ?? []);
+      const rows: readonly ControlsListRow[] =
+        tab === "controller"
+          ? sectionIndex === 0
+            ? padRows
+            : (layerSections[sectionIndex - 1]?.rows ?? [])
+          : (keyGroups[sectionIndex]?.rows ?? []);
       this.#captureInto(container, () => {
         const heading = toScreen(section.heading);
         sectionHeader(this, heading.x, heading.y, heading.width - 2, sections[sectionIndex]!.title, surface.paper.hex);
@@ -355,17 +380,17 @@ export class ControlsOverlay extends Phaser.Scene {
     else g.lineStyle(2, surface.paper.hex, 0.6).strokeCircle(cx, cy, 5);
   }
 
-  #drawSegmented(
+  #drawSegmented<V extends string>(
     row: ControlsGroupRowLayout,
     rowRect: Rect,
     control: Rect,
-    info: ReturnType<typeof padFamilyRowInfoOf>,
+    info: SegmentedRowInfo<V>,
     stops: Map<string, FocusStop>,
     order: string[],
     stopOf: (rect: Rect, slot: number, activate: () => void) => FocusStop,
     clip: () => Rect | null,
     suppress: () => boolean,
-    choose: (value: PadFamilySetting) => void,
+    choose: (value: V) => void,
   ): void {
     label(this, rowRect.x, rowRect.y + 2, info.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
     this.add
@@ -404,7 +429,7 @@ export class ControlsOverlay extends Phaser.Scene {
         .setFontSize(11)
         .setOrigin(0.5);
       fitText(cellLabel, rect.width - 8, 11);
-      const id = `row:labels:${option.value}`;
+      const id = `row:${row.id}:${option.value}`;
       const contentCell: Rect = {
         x: row.control.x + i * cell,
         y: row.control.y,

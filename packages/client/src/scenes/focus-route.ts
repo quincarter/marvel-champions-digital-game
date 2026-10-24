@@ -20,6 +20,7 @@ import { McSelectionRing } from "../ui/widgets.js";
 import { stepKey } from "../view/focus.js";
 import type { GamepadIntent } from "../view/gamepad.js";
 import type { Rect } from "../view/layout.js";
+import { activationTarget } from "../view/primary-activation.js";
 import { spatialStep } from "../view/spatial-nav.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
 import { bindExtraInput } from "./extra-input.js";
@@ -68,6 +69,11 @@ export interface FocusRouteOptions {
   readonly onView?: () => void;
   /** R3 and the X key, for a screen with an Expand/Collapse control. No-op (and no X key) when omitted. */
   readonly onExpand?: () => void;
+  /**
+   * The key of the screen's primary commit stop right now (Start, Continue), or null. With nothing focused, Enter / A
+   * presses it (`view/primary-activation.ts`); with a stop focused it presses that stop.
+   */
+  readonly primary?: () => string | null;
 }
 
 export class FocusRoute {
@@ -79,6 +85,7 @@ export class FocusRoute {
   readonly #onPause: (() => void) | undefined;
   readonly #onView: (() => void) | undefined;
   readonly #onExpand: (() => void) | undefined;
+  readonly #primary: (() => string | null) | undefined;
   #order: readonly string[] = [];
   #stops: ReadonlyMap<string, FocusStop> = new Map();
   #focus: string | null = null;
@@ -99,6 +106,7 @@ export class FocusRoute {
     this.#onPause = options.onPause;
     this.#onView = options.onView;
     this.#onExpand = options.onExpand;
+    this.#primary = options.primary;
     const binding = {
       blocked: options.blocked ?? (() => false),
       onIntent: (intent: GamepadIntent) => this.#onIntent(intent),
@@ -163,7 +171,11 @@ export class FocusRoute {
         this.#moveTo(spatialStep(this.#order, (key) => this.#rectOf(key), this.#focus, intent));
         break;
       case "activate":
-        if (this.#focus) this.#stops.get(this.#focus)?.activate();
+        {
+          // A stop exists only while its control can be pressed, so a primary that has one is enabled.
+          const key = activationTarget(this.#focus, this.#primary?.() ?? null, true);
+          if (key !== null) this.#stops.get(key)?.activate();
+        }
         break;
       case "inspect":
         if (this.#focus) this.#stops.get(this.#focus)?.inspect?.();

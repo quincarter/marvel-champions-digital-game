@@ -15,6 +15,7 @@
 
 import type Phaser from "phaser";
 import { accent, border, ink, signal, status, surface, typeRole } from "../../tokens.js";
+import type { GlyphHints } from "../../ui/glyph-hints.js";
 import { caseOf, textStyle } from "../../ui/theme.js";
 import { dashedRect, fitText, label, paintPanel } from "../../ui/widgets.js";
 import type { Rect } from "../../view/layout.js";
@@ -124,11 +125,13 @@ export class LogPanel {
       .setWordWrapWidth(rect.width - PAD_X * 2);
   }
 
-  draw(scene: Phaser.Scene, rect: Rect, log: LogState): void {
+  draw(scene: Phaser.Scene, rect: Rect, log: LogState, hints?: GlyphHints): void {
     this.#rect = rect;
     const g = scene.add.graphics();
     paintPanel(g, rect, "rail", "rest");
     label(scene, rect.x + PAD_X, rect.y + 6, "log", typeRole.label, surface.ink.hex, ink.label);
+    // L / View, at the header's right edge (only where the board shows glyphs at all).
+    hints?.rightInRow(rect, rect.y, HEADER_HEIGHT, PAD_X, ["log"], 16);
 
     const x = rect.x + PAD_X;
     const textWidth = Math.max(40, rect.width - PAD_X * 2 - TRACK_GUTTER);

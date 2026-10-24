@@ -41,6 +41,8 @@
  * to appear this frame — cheap, and consistent with how every other Board widget already survives this scene's
  * own redraw discipline.
  */
+import { guideHintText } from "../../view/guide-hint.js";
+import { inputDevice } from "../../platform/input-device.js";
 import { cardsInPlay, type GameEvent } from "@mc/engine";
 import { cardId } from "@mc/content";
 import type { BoardScene } from "../board.js";
@@ -102,14 +104,6 @@ const VILLAIN_ROW_LABELS: readonly string[] = ["Plan advances", "Rhino attacks y
 /** Lesson 5's own thwart step (guided mode G7d, `docs/guided-mode.md` §5.1 tile D01) — the only step that draws
  * `#drawThreatPreview`'s projected-removal overlay on the main scheme's own meter. */
 const THWART_STEP_ID = "thwart";
-
-/**
- * The keyboard/pad focus-region hint (§3.10, §7 accessibility fix): shown in the rail/callout's own `nudge` slot
- * whenever nothing else is already using it and keyboard focus isn't already on this surface, so a player who
- * hasn't discovered "G" yet is told about it without a second, competing line of small text — `#panelContentOf`/
- * `#calloutHintOf` only ever fill this in when `view.panel.nudge` (G5c's own gate-escape line) is null.
- */
-const FOCUS_REGION_HINT = "Press G (or X on a gamepad) to use these buttons.";
 
 /**
  * Lesson 4's own rail extra rows (guided mode G7c): the villain phase's three steps, in order, with the current
@@ -360,6 +354,11 @@ export class BoardGuideMount {
    * back to this whenever `releaseGuideGate()` didn't handle it. Returns whether there was anything to skip, so
    * the caller knows whether to fall through to its own cancel/Pause behavior.
    */
+  /** Whether Escape would act here (a guide step is up), without doing it. */
+  escapeActs(): boolean {
+    return this.#controller.view().active;
+  }
+
   handleEscape(): boolean {
     if (!this.#controller.view().active) return false;
     this.#controller.onGateReleased();
@@ -933,7 +932,7 @@ export class BoardGuideMount {
     // so the hint would just be wrong advice ("Press G") with nothing to press. Once a real key or pad press has
     // been seen (`#nonTouchInputSeen`), the player clearly has one attached, touch device or not, so it shows.
     if (this.#isTouchDevice() && !this.#nonTouchInputSeen) return content;
-    return { ...content, nudge: FOCUS_REGION_HINT };
+    return { ...content, nudge: guideHintText(inputDevice(), appSession().settings) };
   }
 
   /** `game.device.input.touch` — the same synchronous Phaser device sniff every scene shares, so "Hover"/"Tap"

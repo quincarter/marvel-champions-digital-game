@@ -115,6 +115,11 @@
  * work identically either way.
  */
 
+import { GlyphHints } from "../ui/glyph-hints.js";
+import type { GlyphGround } from "../ui/input-glyph.js";
+import { primaryGlyphShown } from "../view/primary-activation.js";
+import { glyphsFitFormFactor } from "../view/glyph-placement.js";
+import type { ShortcutId } from "../view/input-shortcuts.js";
 import Phaser from "phaser";
 import { addPressShield } from "../ui/press-shield.js";
 import { cardOf, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
@@ -303,6 +308,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #revealTimer: Phaser.Time.TimerEvent | null = null;
   #closeTimer: Phaser.Time.TimerEvent | null = null;
   #buttons: McButton[] = [];
+  /** The key and button glyphs on the phase's controls (`ui/glyph-hints.ts`), desktop and tablet landscape only. */
+  #hints!: GlyphHints;
+  /** The stop key of this draw's primary commit (Start, Answer, Continue, Resolve): what Enter / A presses unfocused. */
+  #primaryStop: string | null = null;
   #route: FocusRoute | null = null;
   /**
    * What the pad's View and R3 (and the P and X keys) do on the docked decision this draw: its tuck / PEEK control and
@@ -370,6 +379,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   }
 
   create(data?: VillainPhaseLaunchData): void {
+    this.#hints = new GlyphHints(this);
     this.#motion = new OverlayMotion();
     this.#before = data?.before ?? null;
     this.#recapScrolls.forEach((scroll) => scroll.reset());
@@ -438,6 +448,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       blocked: () =>
         (this.scene.isActive(SCENES.choice) && !this.#placement().recapOnTop) || this.scene.isActive(SCENES.inspect),
       onCancel: () => this.#skip(),
+      primary: () => this.#primaryStop,
+      onFocusChange: () => this.#hints.refresh(),
       onPause: () => openPauseOverBoard(this),
       onView: () => this.padPeek(),
       onExpand: () => this.padExpand(),
@@ -1310,6 +1322,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
+    this.#hints.reset();
+    this.#primaryStop = null;
     this.#padPeek = null;
     this.#padExpand = null;
     destroyChildren(this);
@@ -1477,7 +1491,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       .setLetterSpacing(1);
     fitText(title, layout.title.width, phone ? 22 : 34);
 
-    this.#buttons.push(
+    this.#pushHinted(
+      ["cancel"],
+      "ink",
+      null,
       new McButton(this, {
         kind: "onInk",
         label: "Skip",
@@ -1676,7 +1693,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const expand = (): void => this.#expandDecision(choiceId);
     this.#padPeek = tuck;
     this.#padExpand = expand;
-    this.#buttons.push(
+    this.#pushHinted(
+      ["expand"],
+      "ink",
+      null,
       new McButton(this, {
         kind: "onInk",
         label: "Expand",
@@ -1684,6 +1704,11 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         rect: layout.expand,
         onClick: expand,
       }),
+    );
+    this.#pushHinted(
+      ["peek"],
+      "ink",
+      null,
       new McButton(this, {
         // At the thumb on a phone, in the caution yellow the peek banner's ANSWER wears: the way to the table and back.
         ...(kind === "tab"
@@ -2789,7 +2814,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
           height: resolveHeight,
         }
       : { x: rect.x + 14, y: rect.y + rect.height - 12 - resolveHeight, width: rect.width - 28, height: resolveHeight };
-    this.#buttons.push(
+    const commits = multi && picks.length > 0;
+    // B / Esc skip the whole walkthrough here, not "Let it resolve": only the committing button carries a glyph.
+    this.#pushHinted(
+      commits ? ["activate"] : [],
+      "ink",
+      commits ? "resolve" : null,
       new McButton(this, {
         kind: multi && picks.length > 0 ? "primary" : "secondary",
         label: multi ? inlineConfirmLabel(state, options, picks) : "Let it resolve",
@@ -2899,6 +2929,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       ...(draws ? [{ step: "Draw ·", text: draws }] : []),
     ];
 
+    // View / P do what the rail's Hide (or Peek at table) does, so its glyph is telling the truth.
+    const hide = (): void => (kind === "tab" ? this.#setPeeking(true) : this.#setHidden(true));
+    this.#padPeek = hide;
     const stops = drawVillainRailPanel(this, {
       layout,
       game,
@@ -2925,8 +2958,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       onFlip: this.#flipGate() !== null ? () => this.#pressFlip() : null,
       autoAdvance: appSession().settings.villainAutoAdvance,
       buttons: this.#buttons,
+      hint: (button, ids, ground, primary) => this.#hintButton(button, ids, ground ?? "ink", primary ?? null),
       onSkip: () => this.#skip(),
-      onHide: () => (kind === "tab" ? this.#setPeeking(true) : this.#setHidden(true)),
+      onHide: hide,
       onToggle: () => this.#toggleAutoAdvance(),
       onInspect: (instanceId) => this.scene.launch(SCENES.inspect, { instanceId }),
     });
@@ -3202,13 +3236,38 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#motion.enter(this, { scrim: [], panels: this.children.list.slice() });
   }
 
+  /** Registers a button for cleanup and, where the layout has the room, gives it its key / pad glyph. */
+  #pushHinted(ids: readonly ShortcutId[], ground: GlyphGround, primary: string | null, button: McButton): void {
+    this.#buttons.push(button);
+    this.#hintButton(button, ids, ground, primary);
+  }
+
+  /**
+   * `primary` is the stop key when this is the screen's primary commit: Enter / A presses it while nothing is focused
+   * (`FocusRoute`), so its glyph shows only while focus is null or on it (`view/primary-activation.ts`).
+   */
+  #hintButton(button: McButton, ids: readonly ShortcutId[], ground: GlyphGround, primary: string | null = null): void {
+    if (primary !== null) this.#primaryStop = primary;
+    const { width, height } = this.scale.gameSize;
+    if (!glyphsFitFormFactor(formFactorFor(width, height))) return;
+    this.#hints.button(
+      button,
+      ids,
+      ground,
+      primary === null ? {} : { when: () => primaryGlyphShown(this.#route?.focused ?? null, primary, true) },
+    );
+  }
+
   /** Returns true when the phase is over and Continue is showing. */
   #drawFooter(rect: Rect, reveal: Reveal): boolean {
     const done = this.#walkthrough.complete && reveal.caughtUp;
     const paused = this.#shownPause() !== null;
 
     if (done) {
-      this.#buttons.push(
+      this.#pushHinted(
+        ["activate"],
+        "ink",
+        "continue",
         new McButton(this, {
           kind: "primary",
           label: "Continue",

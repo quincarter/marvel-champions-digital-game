@@ -293,6 +293,7 @@ export class McButton {
   readonly #scene: Phaser.Scene;
   #options: McButtonOptions;
   #hovered = false;
+  #labelShift = 0;
   /**
    * A click needs a pointer-down *and* a pointer-up, both seen by this
    * button (`view/press-arm.ts`). Without this, a button that appears mid-
@@ -435,6 +436,38 @@ export class McButton {
     return this.#options.enabled === false ? (this.#options.reason ?? null) : null;
   }
 
+  /** Where the button is drawn, for a glyph hint that sits inside it (`ui/glyph-hints.ts`). */
+  get rect(): Rect {
+    return this.#options.rect;
+  }
+
+  /**
+   * Where the label really is, before any `nudgeLabel`: its center, drawn width (after fitting), and the room the
+   * button leaves on either side (`labelInset` at the left, the value text's 40px at the right). A glyph hint reads
+   * this rather than assuming a centered label.
+   */
+  get labelBox(): { readonly cx: number; readonly width: number; readonly minX: number; readonly maxX: number } {
+    const { rect } = this.#options;
+    return {
+      cx: this.#label.x - this.#labelShift,
+      width: this.#label.displayWidth,
+      minX: rect.x + (this.#options.labelInset ?? 0),
+      maxX: rect.x + rect.width - (this.#value ? 40 : 0),
+    };
+  }
+
+  /** The label as last set. */
+  get label(): string {
+    return this.#options.label;
+  }
+
+  /** Slides the label sideways by `dx` (a glyph hint making room beside it); 0 puts it back where redraw puts it. */
+  nudgeLabel(dx: number): void {
+    if (dx === this.#labelShift) return;
+    this.#label.x += dx - this.#labelShift;
+    this.#labelShift = dx;
+  }
+
   redraw(): void {
     const { rect, type } = this.#options;
     const state = this.state;
@@ -465,7 +498,10 @@ export class McButton {
     this.#label
       .setText(caseOf(type, this.#options.label))
       .setColor(cssOf(s.text, s.textAlpha))
-      .setPosition(rect.x + inset + (rect.width - inset) / 2 - (hasValue ? 10 : 0), rect.y + rect.height / 2);
+      .setPosition(
+        rect.x + inset + (rect.width - inset) / 2 - (hasValue ? 10 : 0) + this.#labelShift,
+        rect.y + rect.height / 2,
+      );
     // No label ever runs past its own control: a button that says
     // "REMOVE THIS SEA" is worse than one that says it a point smaller.
     const room = rect.width - inset - (hasValue ? 40 : rect.width <= 44 ? 4 : 16);
@@ -502,7 +538,7 @@ export class McButton {
     this.#label
       .setText(caseOf(type, this.#options.label))
       .setColor(cssOf(tint.ink, dim))
-      .setPosition(rect.x + rect.width / 2 - (hasValue ? 10 : 0), rect.y + rect.height / 2);
+      .setPosition(rect.x + rect.width / 2 - (hasValue ? 10 : 0) + this.#labelShift, rect.y + rect.height / 2);
     fitText(this.#label, rect.width - (hasValue ? 40 : rect.width <= 44 ? 4 : 20), type.size);
     this.#value?.setColor(cssOf(tint.ink, dim)).setPosition(rect.x + rect.width - 12, rect.y + rect.height / 2);
   }

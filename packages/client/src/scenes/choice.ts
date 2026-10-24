@@ -12,6 +12,11 @@
  * an encounter-side decision legible as one (docs/phase3-encounter-ai.md).
  */
 
+import { GlyphHints } from "../ui/glyph-hints.js";
+import type { GlyphGround } from "../ui/input-glyph.js";
+import { activationTarget, primaryGlyphShown } from "../view/primary-activation.js";
+import { glyphsFitFormFactor } from "../view/glyph-placement.js";
+import type { ShortcutId } from "../view/input-shortcuts.js";
 import { triggerCaption, triggerOrdinal } from "../view/trigger-caption.js";
 import { choiceDock, choiceDockOptions, choiceSheetHost } from "../view/choice-dock.js";
 import {
@@ -195,6 +200,8 @@ export class ChoiceOverlay extends Phaser.Scene {
   /** Redraws the break clock's digits once a second (the digits are the only thing that moves). */
   #breakTick: Phaser.Time.TimerEvent | null = null;
   #buttons: McButton[] = [];
+  /** The key and button glyphs on the sheet's controls (`ui/glyph-hints.ts`), desktop and tablet landscape only. */
+  #hints!: GlyphHints;
   #unsubscribe: (() => void) | null = null;
   /** The decision this sheet last drew, by `choiceSheetKey` (a bare choice id comes back after an undo). */
   #choiceId: string | null = null;
@@ -332,6 +339,7 @@ export class ChoiceOverlay extends Phaser.Scene {
   }
 
   create(): void {
+    this.#hints = new GlyphHints(this, () => [...this.#focusRects.values()]);
     this.#motion = new OverlayMotion();
     // Phaser keeps this instance across stop and launch: a launch is a fresh sheet, with nothing of the last one
     // still picked or revealed.
@@ -506,6 +514,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.#breakTick = null;
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
+    this.#hints.reset();
     this.#padPeek = null;
     this.#padExpand = null;
     this.#focusRing?.destroy();
@@ -804,7 +813,9 @@ export class ChoiceOverlay extends Phaser.Scene {
     }
     if (peekRect) {
       const peekKey = key;
-      this.#buttons.push(
+      this.#pushHinted(
+        ["peek"],
+        "ink",
         new McButton(this, {
           ...(peekStrip > 0
             ? { kind: "primary" as const, tint: { fill: signal.caution.hex, ink: surface.ink.hex } }
@@ -818,7 +829,9 @@ export class ChoiceOverlay extends Phaser.Scene {
       this.#padPeek = () => (host?.peek ? host.peek() : this.#setPeek(peekKey));
     }
     if (collapseRect && collapse) {
-      this.#buttons.push(
+      this.#pushHinted(
+        ["expand"],
+        "ink",
         new McButton(this, {
           kind: "onInk",
           label: "Collapse",
@@ -1389,7 +1402,9 @@ export class ChoiceOverlay extends Phaser.Scene {
     });
     if (headerControls.peek && host?.peek) {
       const peek = host.peek;
-      this.#buttons.push(
+      this.#pushHinted(
+        ["peek"],
+        "ink",
         new McButton(this, {
           kind: "primary",
           label: choicePeekLabel(layout.formFactor === "phone"),
@@ -1402,7 +1417,9 @@ export class ChoiceOverlay extends Phaser.Scene {
       this.#padPeek = peek;
     }
     if (headerControls.collapse && host?.collapse) {
-      this.#buttons.push(
+      this.#pushHinted(
+        ["expand"],
+        "ink",
         new McButton(this, {
           kind: "onInk",
           label: "Collapse",
@@ -2223,6 +2240,12 @@ export class ChoiceOverlay extends Phaser.Scene {
   }
 
   /** True when Confirm can be pressed with the current picks (a payment asks the engine; the rest count). */
+  /** The focus key of the screen's primary commit (Confirm), when it is drawn and not behind a reveal cover. */
+  #primaryKey(): string | null {
+    const confirm = choiceFocusKey({ kind: "confirm" });
+    return this.#focusRects.has(confirm) && !this.#focusRects.has(choiceFocusKey({ kind: "reveal" })) ? confirm : null;
+  }
+
   #canCommit(choice: PendingChoice): boolean {
     const payment = this.#paymentSheet(choice);
     return payment ? payment.canConfirm : canConfirmChoice(choice, this.#selected.length);
@@ -2260,6 +2283,19 @@ export class ChoiceOverlay extends Phaser.Scene {
     return used;
   }
 
+  /** Registers a button for cleanup and, where the layout has the room, gives it its key / pad glyph. */
+  #pushHinted(
+    ids: readonly ShortcutId[],
+    ground: GlyphGround,
+    button: McButton,
+    when?: (set: "keyboard" | "pad") => boolean,
+  ): void {
+    this.#buttons.push(button);
+    const { width, height } = this.scale.gameSize;
+    if (glyphsFitFormFactor(formFactorFor(width, height)))
+      this.#hints.button(button, ids, ground, when ? { when } : {});
+  }
+
   /** One red commit, plus a quiet alternative when declining is legal. */
   #drawCommit(sheet: Rect, commitTop: number, choice: PendingChoice): void {
     // A payment is judged by the engine, and declining it is its own, named control (view/payment-sheet.ts).
@@ -2268,7 +2304,9 @@ export class ChoiceOverlay extends Phaser.Scene {
     const canDecline = canDeclineChoice(choice);
     const commitWidth = canDecline ? (sheet.width - 32) / 2 : sheet.width - 24;
 
-    this.#buttons.push(
+    this.#pushHinted(
+      ["activate"],
+      "ink",
       new McButton(this, {
         kind: "primary",
         label: payment ? payment.confirmLabel : commitLabelOf(choice),
@@ -2283,8 +2321,16 @@ export class ChoiceOverlay extends Phaser.Scene {
         reason: payment ? payment.confirmLabel : `choose ${confirmMinimum(choice)} to continue`,
         onClick: () => void this.#confirm(),
       }),
+      // The A / Enter glyph shows only while Enter would press it: nothing focused, or this focused, and it is ready.
+      () =>
+        primaryGlyphShown(
+          this.#focus ? choiceFocusKey(this.#focus) : null,
+          choiceFocusKey({ kind: "confirm" }),
+          canCommit,
+        ),
     );
     if (canDecline) {
+      // No glyph: B / Esc only clear focus on this sheet, so it must not promise Decline.
       this.#buttons.push(
         new McButton(this, {
           kind: "quiet",
@@ -2796,7 +2842,14 @@ export class ChoiceOverlay extends Phaser.Scene {
 
   /** Enter on the focused control means exactly what a tap on it means — including nothing, for a Confirm that isn't ready. */
   #activate(choice: PendingChoice): void {
-    const focus = this.#focus;
+    // With nothing focused, Enter / A presses the primary commit when it is ready (`view/primary-activation.ts`),
+    // which is what the glyph on that button promises; with a control focused it presses that control.
+    const target = activationTarget(
+      this.#focus ? choiceFocusKey(this.#focus) : null,
+      this.#primaryKey(),
+      this.#canCommit(choice),
+    );
+    const focus = this.#focus ?? (target === null ? null : { kind: "confirm" as const });
     if (!focus) return;
     if (focus.kind === "reveal") {
       this.#reveal(choice);
@@ -2917,6 +2970,12 @@ export class ChoiceOverlay extends Phaser.Scene {
 
   /** Static, not pulsing: the ring says "here you are", not "act now" — the Board's convention. */
   #drawFocusRing(): void {
+    this.#placeFocusRing();
+    // The Confirm glyph shows only while Enter would press it, which depends on the focus.
+    this.#hints.refresh();
+  }
+
+  #placeFocusRing(): void {
     this.#focusRing?.destroy();
     this.#focusRing = null;
     const focus = this.#focus;

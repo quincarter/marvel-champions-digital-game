@@ -29,6 +29,7 @@ import {
   type Settings,
   type Resolution,
 } from "./settings.js";
+import { KEYBOARD_HAND_VALUES } from "./view/input-shortcuts.js";
 import { PAD_FAMILY_SETTING_VALUES } from "./view/pad-family.js";
 
 export const SETTINGS_KEY = "mc-settings";
@@ -100,6 +101,8 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   if (displayModeValue !== undefined) out.displayMode = displayModeValue;
   const padFamilyValue = PAD_FAMILY_SETTING_VALUES.find((value) => value === source["padGlyphFamily"]);
   if (padFamilyValue !== undefined) out.padGlyphFamily = padFamilyValue;
+  const keyboardHandValue = KEYBOARD_HAND_VALUES.find((value) => value === source["keyboardHand"]);
+  if (keyboardHandValue !== undefined) out.keyboardHand = keyboardHandValue;
   const drawResolution = source["resolution"];
   if (
     drawResolution === "native" ||

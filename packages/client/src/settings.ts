@@ -7,6 +7,7 @@
  */
 
 import type { TableRules } from "@mc/engine";
+import type { KeyboardHand } from "./view/input-shortcuts.js";
 import type { PadFamilySetting } from "./view/pad-family.js";
 
 /** The sharp, device-pixel-ratio-matched text resolution `defaultSettings` starts from. Also what "off" restores. */
@@ -151,6 +152,11 @@ export interface Settings {
    * Switch. Ignored for other pads and under Steam Input, which swaps for itself (the owner, 2026-10-24). Defaults on.
    */
   readonly nintendoLayout: boolean;
+  /**
+   * Which hand the one-handed keyboard map sits under (`view/input-shortcuts.ts`): left (WASD) by default, right (IJKL)
+   * for a mouse in the left hand (the owner, 2026-10-24).
+   */
+  readonly keyboardHand: KeyboardHand;
   /** Key and button glyphs beside the controls they trigger, while a keyboard or controller is in use. Defaults on. */
   readonly inputGlyphs: boolean;
 }
@@ -369,6 +375,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     achievementPopupSize: "small",
     padGlyphFamily: "auto",
     nintendoLayout: true,
+    keyboardHand: "left",
     inputGlyphs: true,
   };
 }

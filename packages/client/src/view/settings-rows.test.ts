@@ -68,6 +68,7 @@ const BASE: Settings = {
   padGlyphFamily: "auto",
   nintendoLayout: true,
   inputGlyphs: true,
+  keyboardHand: "left",
   renderScale: "native",
   frameRate: "screen",
 };
@@ -106,6 +107,7 @@ describe("settingsRowInfoOf", () => {
       padGlyphFamily: "auto",
       nintendoLayout: true,
       inputGlyphs: true,
+      keyboardHand: "left",
       renderScale: "1x",
       frameRate: "30",
     });
