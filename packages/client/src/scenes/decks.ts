@@ -1712,6 +1712,8 @@ export class DecksScene extends Phaser.Scene {
       renderRow,
       scroll: this.#poolListScroll,
       onRowActivate,
+      // A tap here only reads the card, so a long press reads it at once, as on the table.
+      activateOnHold: true,
       background: false,
     });
     const list = this.#poolList;
