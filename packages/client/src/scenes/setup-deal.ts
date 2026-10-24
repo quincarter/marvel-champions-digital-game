@@ -59,6 +59,7 @@ import Phaser from "phaser";
 import type { InstanceId, PendingChoice } from "@mc/engine";
 import { CARDS_BY_ID, POOL_DEPS } from "../content/pool.js";
 import { accent, dotGrid, ink, signal, statHue, surface, typeRole, type TypeSpec } from "../tokens.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
 import { setMask } from "../ui/rex.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McSelectionRing, dashedRect, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
@@ -198,6 +199,9 @@ export class SetupDealScene extends Phaser.Scene {
   #route: readonly string[] = [];
   #focusRects = new Map<string, Rect>();
   #focusRing: McSelectionRing | null = null;
+  #hints!: GlyphHints;
+  /** The hand card Down left from, so Up from Mulligan / Keep returns to it. */
+  #cameFrom: string | null = null;
   /**
    * The opening hand's sideways scroll, on a width where the cards would otherwise not read
    * (`view/opening-hand-layout.ts`). Every scrolled pixel redraws the scene, the way the Board's own tabbed hand
@@ -237,6 +241,8 @@ export class SetupDealScene extends Phaser.Scene {
     this.#selected = [];
     this.#choiceId = null;
     this.#focus = null;
+    this.#cameFrom = null;
+    this.#hints = new GlyphHints(this, () => [...this.#focusRects.values()]);
     this.#hand = new HandScroll(() => this.#draw());
     this.#bodyScroll = new VariableListScroll();
     resetHoverCards(this);
@@ -296,6 +302,7 @@ export class SetupDealScene extends Phaser.Scene {
       this.#artUnsubscribe = null;
       this.#focusRing?.destroy();
       this.#focusRing = null;
+      this.#hints.dispose();
       this.#unsubscribe?.();
       this.#unsubscribe = null;
       if (this.scene.isActive(SCENES.choice)) this.scene.stop(SCENES.choice);
@@ -361,6 +368,7 @@ export class SetupDealScene extends Phaser.Scene {
     this.#focusRing?.destroy();
     this.#focusRing = null;
     this.#focusRects.clear();
+    this.#hints.reset();
     destroyChildren(this);
     this.#stripMask?.destroy();
     this.#stripMask = null;
@@ -974,6 +982,8 @@ export class SetupDealScene extends Phaser.Scene {
       }),
     );
     this.#focusRects.set("confirm", mulliganRect);
+    // A presses it while it has the ring (a glyph only then: A on a card selects, so it must not promise Mulligan).
+    this.#hints.button(this.#buttons.at(-1)!, ["activate"], "ink", { when: () => this.#focus === "confirm" });
 
     this.#buttons.push(
       new McButton(this, {
@@ -988,6 +998,11 @@ export class SetupDealScene extends Phaser.Scene {
       }),
     );
     this.#focusRects.set("decline", keepRect);
+    // Start keeps the hand on a pad (the keyboard has no such key); A presses it while it has the ring.
+    this.#hints.button(this.#buttons.at(-1)!, ["pause"], "paper", {
+      when: (set) => set === "pad" && this.#focus !== "decline",
+    });
+    this.#hints.button(this.#buttons.at(-1)!, ["activate"], "paper", { when: () => this.#focus === "decline" });
 
     if (!phoneOrder) {
       const noteX = rect.x + mulliganWidth + gap + keepWidth + 16;
@@ -1042,7 +1057,20 @@ export class SetupDealScene extends Phaser.Scene {
       case "left":
       case "right": {
         const direction = directionOf(intent);
-        if (direction) {
+        const commit = this.#focus === "confirm" || this.#focus === "decline";
+        if (direction === "down" && this.#focus?.startsWith("option:")) {
+          // The commit row sits under only the leftmost cards: Down from any card reaches the nearer button.
+          const from = this.#focusRects.get(this.#focus);
+          const mid = from ? from.x + from.width / 2 : 0;
+          const near = (key: string): number => {
+            const r = this.#focusRects.get(key);
+            return r ? Math.abs(r.x + r.width / 2 - mid) : Number.POSITIVE_INFINITY;
+          };
+          this.#cameFrom = this.#focus;
+          this.#focus = near("confirm") <= near("decline") ? "confirm" : "decline";
+        } else if (direction === "up" && commit && this.#cameFrom && this.#route.includes(this.#cameFrom)) {
+          this.#focus = this.#cameFrom;
+        } else if (direction) {
           // The arrows and the D-pad: the nearest card or button that way (issue #206).
           this.#focus = spatialStep(this.#route, (key) => this.#focusRects.get(key), this.#focus, direction);
         } else {
@@ -1065,6 +1093,11 @@ export class SetupDealScene extends Phaser.Scene {
           const instanceId = this.#focus.slice("option:".length) as InstanceId;
           this.#inspect(instanceId, this.#selected.includes(this.#focus.slice("option:".length)));
         }
+        break;
+      case "pause":
+        // Start is "forward": keep the hand as dealt.
+        this.#selected = [];
+        void this.#confirm();
         break;
       case "cancel":
         this.#focus = null;
@@ -1094,6 +1127,19 @@ export class SetupDealScene extends Phaser.Scene {
     this.#focusRing?.destroy();
     this.#focusRing = null;
     const focus = this.#focus;
+    // Dev-only e2e hook (never referenced by product code): the focused stop and the route, in order.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcSetupDealDebug?: unknown }).__mcSetupDealDebug = {
+        focus: () => this.#focus,
+        route: () => this.#route,
+        selected: () => this.#selected,
+        rects: () => [...this.#focusRects],
+      };
+    }
+    this.#hints.refresh();
+    const { width, height } = this.scale.gameSize;
+    const cardRect = focus?.startsWith("option:") ? (this.#focusRects.get(focus) ?? null) : null;
+    this.#hints.legend(cardRect, { x: 0, y: 0, width, height }, "back");
     if (!focus) return;
     if (!this.#route.includes(focus)) {
       this.#focus = null;
