@@ -107,6 +107,9 @@ import {
 } from "../../view/comic-reader-model.js";
 import type { Rect } from "../../view/layout.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
+import type { GlyphHints } from "../../ui/glyph-hints.js";
+import { bindTextFieldEscape } from "../text-field-escape.js";
+import { createHints, forwardHint } from "./pad-hints.js";
 import { SCENES } from "../keys.js";
 import type { CampaignAftermathData } from "./routes.js";
 
@@ -133,6 +136,8 @@ export class CampaignAftermathScene extends Phaser.Scene {
   #errorText = "";
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
+  #hints: GlyphHints | null = null;
+  #stopsNow: ReadonlyMap<string, FocusStop> = new Map();
   /** Set only once the fold reaches "summary" for a page-based box's issue that names `aftermathBeats` — see the
    * class doc comment's page-based section. Empty keeps the plain single-picture summary (MC10) untouched. */
   #comicSteps: readonly ResolvedComicBeat[] = [];
@@ -177,6 +182,8 @@ export class CampaignAftermathScene extends Phaser.Scene {
   }
 
   create(): void {
+    // A new route each visit: the scene instance is reused, and its key and pad bindings die with every shutdown.
+    this.#route = null;
     this.cameras.main.setBackgroundColor(cssOf(surface.ink.hex));
     this.scale.on("resize", this.#draw, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -192,6 +199,26 @@ export class CampaignAftermathScene extends Phaser.Scene {
     this.#spotPan = new SpotlightAutoPan(this, () => this.#draw());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.#spotPan?.destroy());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.#cinematic.destroy());
+    this.#hints = createHints(this);
+    // Before the route, so the press that puts the caret in the picker's search field is not also the one that takes it out.
+    bindTextFieldEscape(
+      this,
+      () => this.#pickerSearchInput,
+      () => this.scene.isActive(SCENES.inspect),
+    );
+    this.#route = new FocusRoute(this, {
+      blocked: () => this.scene.isActive(SCENES.inspect) || (this.#pickerSearchInput?.focused ?? false),
+      // The guided read is skippable (B, Start and View leave it for the next stop); a question still open is not.
+      onCancel: () => (this.#comicSummary() ? this.#leaveToNext() : undefined),
+      onView: () => (this.#comicSummary() ? this.#leaveToNext() : undefined),
+      onPause: () => (this.#comicSummary() ? this.#leaveToNext() : this.#press(this.#primaryKey())),
+      primary: () => this.#primaryKey(),
+      // The collection picker: LB / RB step the aspect chips, the right stick and Page Up / Down scroll the grid.
+      onTab: (direction) => this.#stepAspect(direction),
+      onScroll: (_dx, dy) => this.#pickerList?.scrollByPx(dy),
+      onPage: (direction) => this.#pickerList?.scrollByPage(direction),
+      onHomeEnd: (edge) => (edge === "home" ? this.#pickerList?.scrollToStart() : this.#pickerList?.scrollToEnd()),
+    });
     resetHoverCards(this);
     this.#hover = new HoverPreview(this, {
       cardIds: () => {
@@ -440,7 +467,40 @@ export class CampaignAftermathScene extends Phaser.Scene {
     this.#draw();
   }
 
+  /** The guided comic read that follows a page-based issue (not a question, not the plain summary). */
+  #comicSummary(): boolean {
+    return this.#phase === "summary" && this.#comicSteps.length > 0;
+  }
+
+  /** The one forward button of what is on screen right now: Next, Next issue, or Confirm. */
+  #primaryKey(): string | null {
+    if (this.#phase === "error" || this.#phase === "loading") return null;
+    if (this.#comicSummary()) return "next";
+    if (this.#phase === "summary") return "next-issue";
+    return "commit";
+  }
+
+  #press(key: string | null): void {
+    if (key !== null) this.#stopsNow.get(key)?.activate();
+  }
+
+  /** LB / RB on the collection picker: the previous or next aspect chip. */
+  #stepAspect(direction: 1 | -1): void {
+    const keys = [...this.#stopsNow.keys()].filter((key) => key.startsWith("picker-aspect:"));
+    if (keys.length === 0) return;
+    const current = `picker-aspect:${this.#pickerAspectFilter ?? "all"}`;
+    const at = Math.max(0, keys.indexOf(current));
+    this.#press(keys[Math.min(keys.length - 1, Math.max(0, at + direction))] ?? null);
+  }
+
+  /** Y: the card in full. */
+  #inspectCard(cardId: string): void {
+    this.scene.launch(SCENES.inspect, { card: { cardId: cardId as CardId, face: { kind: "front" } } });
+    this.scene.bringToTop(SCENES.inspect);
+  }
+
   #draw(): void {
+    this.#hints?.reset();
     resetHoverCards(this);
     this.#pickerHover = null;
     for (const button of this.#buttons) button.destroy();
@@ -462,8 +522,8 @@ export class CampaignAftermathScene extends Phaser.Scene {
 
     if (this.#phase === "error") {
       label(this, 24, 24, this.#errorText, typeRole.body, surface.paper.hex, 1);
-      this.#route = this.#route ?? new FocusRoute(this);
-      this.#route.set(order, stops);
+      this.#stopsNow = stops;
+      this.#route?.set(order, stops);
       return;
     }
 
@@ -478,8 +538,8 @@ export class CampaignAftermathScene extends Phaser.Scene {
 
     if (this.#phase === "summary" && this.#comicSteps.length > 0) {
       this.#drawComicAftermath(record, definition, nodeId, number, width, height, phone, order, stops);
-      this.#route = this.#route ?? new FocusRoute(this, { onCancel: () => this.#leaveToNext() });
-      this.#route.set(order, stops);
+      this.#stopsNow = stops;
+      this.#route?.set(order, stops);
       return;
     }
 
@@ -489,8 +549,8 @@ export class CampaignAftermathScene extends Phaser.Scene {
     if (phone) this.#drawPhone(width, height, number, story, nodeId, loggedTag, order, stops);
     else this.#drawWide(width, height, number, story, nodeId, loggedTag, order, stops);
 
-    this.#route = this.#route ?? new FocusRoute(this);
-    this.#route.set(order, stops);
+    this.#stopsNow = stops;
+    this.#route?.set(order, stops);
     this.#hover?.onDraw();
   }
 
@@ -621,9 +681,15 @@ export class CampaignAftermathScene extends Phaser.Scene {
         this.#draw();
       }
     };
-    this.#buttons.push(
-      new McButton(this, { kind: "primary", label: ctaLabel, type: typeRole.barTitle, rect: ctaRect, onClick: onCta }),
-    );
+    const nextButton = new McButton(this, {
+      kind: "primary",
+      label: ctaLabel,
+      type: typeRole.barTitle,
+      rect: ctaRect,
+      onClick: onCta,
+    });
+    this.#buttons.push(nextButton);
+    forwardHint(this.#hints, nextButton, "ink");
     order.push("next");
     stops.set("next", { rect: ctaRect, activate: onCta });
 
@@ -1061,6 +1127,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
       stops.set(key, {
         rect: () => poolCellRect(geometry, list.rectFor(rowIndex), col),
         activate: () => this.#pick(currentSeat, row.cardId),
+        inspect: () => this.#inspectCard(row.cardId as string),
         ensureVisible: () => list.scrollIntoView(rowIndex),
       });
       order.push(key);
@@ -1323,7 +1390,11 @@ export class CampaignAftermathScene extends Phaser.Scene {
       const zone = this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setInteractive();
       zone.on("pointerup", () => this.#pick(column.seatNumber, row.option.cardId));
       order.push(key);
-      stops.set(key, { rect, activate: () => this.#pick(column.seatNumber, row.option.cardId) });
+      stops.set(key, {
+        rect,
+        activate: () => this.#pick(column.seatNumber, row.option.cardId),
+        inspect: () => this.#inspectCard(row.option.cardId as string),
+      });
     }
     return rect.y + rect.height;
   }
@@ -1355,15 +1426,15 @@ export class CampaignAftermathScene extends Phaser.Scene {
     if (this.#phase === "summary") {
       // Every seat has already been confirmed (or there was nothing to ask) — the same bar, now the forward CTA.
       const ctaRect = this.#ctaRect(rect, phone);
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "primary",
-          label: this.#nextLabel(),
-          type: typeRole.barTitle,
-          rect: ctaRect,
-          onClick: () => this.#leaveToNext(),
-        }),
-      );
+      const nextIssueButton = new McButton(this, {
+        kind: "primary",
+        label: this.#nextLabel(),
+        type: typeRole.barTitle,
+        rect: ctaRect,
+        onClick: () => this.#leaveToNext(),
+      });
+      this.#buttons.push(nextIssueButton);
+      forwardHint(this.#hints, nextIssueButton, "ink");
       order.push("next-issue");
       stops.set("next-issue", { rect: ctaRect, activate: () => this.#leaveToNext() });
       return;
@@ -1392,17 +1463,17 @@ export class CampaignAftermathScene extends Phaser.Scene {
           .setWordWrapWidth(noteWidth);
       }
       const ctaRect = this.#ctaRect(rect, phone);
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "primary",
-          label: "Confirm",
-          type: typeRole.barTitle,
-          rect: ctaRect,
-          onClick: () => void this.#confirmDealtSeat(),
-          enabled: decided && !this.#busy,
-          ...(decided ? {} : { reason: group.optional ? "pick a card, or keep none, first" : "pick a card first" }),
-        }),
-      );
+      const confirmButton = new McButton(this, {
+        kind: "primary",
+        label: "Confirm",
+        type: typeRole.barTitle,
+        rect: ctaRect,
+        onClick: () => void this.#confirmDealtSeat(),
+        enabled: decided && !this.#busy,
+        ...(decided ? {} : { reason: group.optional ? "pick a card, or keep none, first" : "pick a card first" }),
+      });
+      this.#buttons.push(confirmButton);
+      if (decided) forwardHint(this.#hints, confirmButton, "ink");
       order.push("commit");
       stops.set("commit", { rect: ctaRect, activate: () => (decided ? void this.#confirmDealtSeat() : undefined) });
       return;
@@ -1419,17 +1490,17 @@ export class CampaignAftermathScene extends Phaser.Scene {
     }
     const ctaRect = this.#ctaRect(rect, phone);
     const label_ = ready ? "Confirm picks" : group?.optional ? "Each hero decides" : "Each hero takes one";
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "primary",
-        label: label_,
-        type: typeRole.barTitle,
-        rect: ctaRect,
-        onClick: () => void this.#commit(),
-        enabled: ready && !this.#busy,
-        ...(ready ? {} : { reason: "every seat needs a pick first" }),
-      }),
-    );
+    const commitButton = new McButton(this, {
+      kind: "primary",
+      label: label_,
+      type: typeRole.barTitle,
+      rect: ctaRect,
+      onClick: () => void this.#commit(),
+      enabled: ready && !this.#busy,
+      ...(ready ? {} : { reason: "every seat needs a pick first" }),
+    });
+    this.#buttons.push(commitButton);
+    if (ready) forwardHint(this.#hints, commitButton, "ink");
     order.push("commit");
     stops.set("commit", { rect: ctaRect, activate: () => (ready ? void this.#commit() : undefined) });
   }
