@@ -104,7 +104,7 @@ async function begin(game: Phaser.Game): Promise<void> {
     if (key === lastKey) return;
     lastKey = key;
     invoke("discord_set_activity", { activity }).catch((error: unknown) => {
-      lastKey = "";
+      lastKey = "\u0000failed"; // never equals a real key, so a later clear is not deduped away
       if (!warned) console.warn("discord presence:", error);
       warned = true;
     });

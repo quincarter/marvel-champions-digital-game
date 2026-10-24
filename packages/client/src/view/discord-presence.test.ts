@@ -18,8 +18,8 @@ const GAME: PresenceGame = {
   round: 3,
   phase: "player",
   difficulty: "Expert",
-  villainArt: "/card-art/01094.png",
-  heroArt: "/card-art/01001a.png",
+  villainArt: "/card-art/bundles/cards/01095.png",
+  heroArt: "/card-art/bundles/cards/01001b.png",
 };
 
 describe("presenceOf", () => {
@@ -45,9 +45,9 @@ describe("presenceOf", () => {
       details: "One-off game · Spider-Man vs Rhino",
       state: "Round 3 · Hero form · Expert",
       startTimestamp: 5,
-      largeImage: `${PRESENCE_SITE_URL}/card-art/01094.png`,
+      largeImage: `${PRESENCE_SITE_URL}/card-art/bundles/cards/01095.png`,
       largeText: "Rhino · Stage II",
-      smallImage: `${PRESENCE_SITE_URL}/card-art/01001a.png`,
+      smallImage: `${PRESENCE_SITE_URL}/card-art/bundles/cards/01001b.png`,
       smallText: "Spider-Man",
     });
   });
@@ -98,7 +98,7 @@ describe("presenceOf", () => {
 
   test("without villain art the hero is the big picture, and without either the logo", () => {
     const hero = presenceOf({ screen: "game", startedAt: 1, game: { ...GAME, villainArt: null } });
-    expect(hero?.largeImage).toBe(`${PRESENCE_SITE_URL}/card-art/01001a.png`);
+    expect(hero?.largeImage).toBe(`${PRESENCE_SITE_URL}/card-art/bundles/cards/01001b.png`);
     expect(hero?.smallImage).toBeUndefined();
     const none = presenceOf({ screen: "game", startedAt: 1, game: { ...GAME, villainArt: null, heroArt: null } });
     expect(none).toMatchObject({ largeImage: "logo", largeText: "Marvel Champions Digital Edition" });

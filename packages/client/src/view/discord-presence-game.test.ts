@@ -21,6 +21,9 @@ describe("presenceGameOf", () => {
     const game = presenceGameOf(store.state.game!, store.state.config);
     expect(game).toMatchObject({ kind: "oneOff", villain: "Rhino", difficulty: "Expert" });
     expect(game.heroes).toHaveLength(1);
+    // Expert starts Rhino on stage II; the identity shows its hero face.
+    expect(game.villainArt).toBe("/card-art/bundles/cards/01095.png");
+    expect(game.heroArt).toBe("/card-art/bundles/cards/01001b.png");
     const activity = presenceOf({ screen: "game", startedAt: 1, game });
     expect(activity?.details).toMatch(/^One-off game · .+ vs Rhino$/);
     expect(activity?.state).toMatch(/^(Setting up the table|Round \d+) · .*Expert$/);

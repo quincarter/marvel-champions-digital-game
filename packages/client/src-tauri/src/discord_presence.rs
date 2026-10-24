@@ -6,8 +6,8 @@
 //! one update per `MIN_SEND_INTERVAL_MS` (Discord allows 5 per 20 s), keeping only the newest while it waits.
 //!
 //! The application id is the game's built-in one (`DEFAULT_APP_ID`, public); `MC_DISCORD_APP_ID` set at build time
-//! (a CI variable) replaces it, and set at run time replaces both, for local testing. A blank value is ignored. Nothing here can block the
-//! app or panic it: every Discord error just drops the connection and schedules a retry.
+//! (a CI variable) replaces it, and set at run time replaces both, for local testing. A blank value is ignored.
+//! Nothing here can block the app or panic it: every Discord error just drops the connection and schedules a retry.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError, Sender};
@@ -26,8 +26,10 @@ const RECONNECT_MS: u64 = 15_000;
 const MAX_TEXT: usize = 128;
 /// Discord's limit for a button label.
 const MAX_BUTTON_LABEL: usize = 32;
-/// Discord's limit for a button URL (and, generously, an image key or URL).
+/// Discord's limit for a button URL .
 const MAX_URL: usize = 512;
+/// Cap for an image key or URL.
+const MAX_IMAGE: usize = 256;
 const MAX_BUTTONS: usize = 2;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -92,9 +94,9 @@ impl DiscordActivity {
       details: clean(&self.details, MAX_TEXT, 2),
       state: clean(&self.state, MAX_TEXT, 2),
       start_timestamp: self.start_timestamp,
-      large_image: clean(&self.large_image, MAX_URL, 1),
+      large_image: clean(&self.large_image, MAX_IMAGE, 1),
       large_text: clean(&self.large_text, MAX_TEXT, 2),
-      small_image: clean(&self.small_image, MAX_URL, 1),
+      small_image: clean(&self.small_image, MAX_IMAGE, 1),
       small_text: clean(&self.small_text, MAX_TEXT, 2),
       buttons: if buttons.is_empty() { None } else { Some(buttons) },
     }
@@ -290,13 +292,23 @@ fn worker(app_id: String, rx: mpsc::Receiver<Msg>, connected: &AtomicBool) {
     let sent = match &job {
       Some(a) => c.set_activity(to_activity(a)),
       None => c.clear_activity(),
-    };
-    if sent.is_err() {
-      // Discord closed or restarted: drop the client, retry after the backoff, and resend the latest activity then.
-      client = None;
-      connected.store(false, Ordering::Relaxed);
-      next_connect_ms = now_ms() + RECONNECT_MS;
-      scheduler.resend_latest();
+    }
+    .and_then(|()| c.recv().map(|(_, reply)| reply));
+    match &sent {
+      // Discord rejected this activity but the connection is fine: log it and wait for the next update.
+      Ok(reply) if reply["evt"] == "ERROR" => {
+        log::warn!("Discord rejected the activity: {}", reply["data"]["message"].as_str().unwrap_or("no message"));
+      }
+      Ok(_) => {}
+      // A write or read error (EOF included) means Discord is gone; the reply always follows a send, so the read
+      // returns promptly in practice and a dead socket errors here or on the next send.
+      Err(_) => {
+        // Discord closed or restarted: drop the client, retry after the backoff, and resend the latest activity then.
+        client = None;
+        connected.store(false, Ordering::Relaxed);
+        next_connect_ms = now_ms() + RECONNECT_MS;
+        scheduler.resend_latest();
+      }
     }
   }
 }

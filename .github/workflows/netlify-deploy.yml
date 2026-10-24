@@ -218,8 +218,6 @@ jobs:
           ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/marvel-champions.keystore
           # A PR checkout is GitHub's merge commit; stamp the Title footer with the branch head instead (vite.config.ts).
           COMMIT_REF: ${{ github.event.pull_request.head.sha }}
-          # Discord Rich Presence's public application id, compiled in (src-tauri/src/discord_presence.rs); empty keeps the default.
-          MC_DISCORD_APP_ID: ${{ vars.DISCORD_APP_ID }}
           VITE_SYNC_URL: >-
             ${{ (vars.CLOUDFLARE_WORKERS_SUBDOMAIN || secrets.CLOUDFLARE_WORKERS_SUBDOMAIN) && format('https://mc-sync-staging.{0}.workers.dev',
             (vars.CLOUDFLARE_WORKERS_SUBDOMAIN || secrets.CLOUDFLARE_WORKERS_SUBDOMAIN)) || '' }}
@@ -297,6 +295,8 @@ jobs:
       - name: Build the AppImage
         working-directory: packages/client
         env:
+          # Discord Rich Presence's public application id, compiled in; empty keeps the default.
+          MC_DISCORD_APP_ID: ${{ vars.DISCORD_APP_ID }}
           COMMIT_REF: ${{ github.event.pull_request.head.sha }}
           VITE_SYNC_URL: >-
             ${{ (vars.CLOUDFLARE_WORKERS_SUBDOMAIN || secrets.CLOUDFLARE_WORKERS_SUBDOMAIN) && format('https://mc-sync-staging.{0}.workers.dev',
