@@ -362,6 +362,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VSCMD_SKIP_SENDTELEMETRY: "1"
+          # The production save-transfer Worker (save-data/transfer-config.ts). The Vite build bakes it in; without it
+          # the desktop apps say online sync is unavailable (v0.36.2 and earlier).
+          VITE_SYNC_URL: >-
+            ${{ (vars.CLOUDFLARE_WORKERS_SUBDOMAIN || secrets.CLOUDFLARE_WORKERS_SUBDOMAIN) && format('https://mc-sync.{0}.workers.dev',
+            (vars.CLOUDFLARE_WORKERS_SUBDOMAIN || secrets.CLOUDFLARE_WORKERS_SUBDOMAIN)) || '' }}
         with:
           projectPath: packages/client
           args: ${{ matrix.args }}
