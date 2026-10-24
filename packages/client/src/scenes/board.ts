@@ -95,6 +95,7 @@ import { specsForShortcuts, type CustomSpecs } from "../ui/glyph-hints.js";
 import { abilityActionOfSlot, layerButtonGlyph, layerTriggerGlyph, type GlyphSpec } from "../view/input-glyph-model.js";
 import { abilityPageCount, abilityPageOf, layerActionOf, type PadLayer } from "../view/pad-layers.js";
 import type { LayerActionId } from "../view/pad-layer-bindings.js";
+import { layerMarkerSpot } from "../view/layer-marker.js";
 import { nextAbilityPage } from "../view/pad-layer-hold.js";
 import { drawCharacter } from "./board/character-panel.js";
 import { drawDealtPile } from "./board/dealt-pile.js";
@@ -1295,7 +1296,11 @@ export class BoardScene extends Phaser.Scene {
       focusedCard: this.#focusRegion === "board" && this.#focus?.kind === "card" ? this.#focus.instanceId : null,
       playAreaScroll: this.#playAreaScroll,
       formFan: { open: this.#formFanOpen, t: this.#formFanT, setOpen: (open) => this.#setFormFan(open) },
-      onRegionScroll: () => this.#refreshRings(),
+      onRegionScroll: () => {
+        this.#refreshRings();
+        // The RT layer's glyphs sit on cards: they follow a scrolled row.
+        if (this.#padLayer === "rt") this.#hints.refresh();
+      },
       frame: this.#frame,
       hints: this.#hints,
       motion: this.#motion,
@@ -1878,8 +1883,11 @@ export class BoardScene extends Phaser.Scene {
   /** The usable abilities the numbered slots (and the pad's RT layer) pick from; none while a decision is in progress. */
   #abilitySlots(): readonly { readonly instanceId: InstanceId; readonly abilityId: AbilityId }[] {
     if (this.#controller.selection.kind !== "idle") return [];
-    return abilitySlotsOf(this.#controller.focusOrder(), (id) =>
-      this.#controller.usableAbilitiesFor(id).map((entry) => ({ instanceId: id, abilityId: entry.action.abilityId })),
+    // A card scrolled out of the play area row still holds its slot: the pad's pages must not change as the row scrolls.
+    return abilitySlotsOf(
+      this.#controller.focusOrder((id) => this.#playAreaScroll.has(id)),
+      (id) =>
+        this.#controller.usableAbilitiesFor(id).map((entry) => ({ instanceId: id, abilityId: entry.action.abilityId })),
     );
   }
 
@@ -1894,6 +1902,21 @@ export class BoardScene extends Phaser.Scene {
     this.#layerAssign = null;
     this.#syncPageWord();
     this.#hints.setLayer(layer);
+    this.#revealLayerCard();
+  }
+
+  /**
+   * Under RT on a row that scrolls (the phone's play area), brings the first card carrying one of the page's glyphs into
+   * view, so the page never opens on glyphs the player cannot see. The row redraws itself when it moves.
+   */
+  #revealLayerCard(): void {
+    if (this.#padLayer !== "rt") return;
+    for (const id of this.#layerAssignment().keys()) {
+      if (this.#playAreaScroll.has(id)) {
+        this.#playAreaScroll.revealCard(id);
+        return;
+      }
+    }
   }
 
   /** The "page n/m" word by the play area: the current page of the abilities. */
@@ -1946,6 +1969,7 @@ export class BoardScene extends Phaser.Scene {
         this.#layerPage = nextAbilityPage(this.#layerPage, count, action === "pageNext" ? 1 : -1);
         this.#layerAssign = null;
         this.#syncPageWord();
+        this.#revealLayerCard();
         this.#hints.refresh();
         return;
       }
@@ -1980,9 +2004,11 @@ export class BoardScene extends Phaser.Scene {
     const play = layout.zones.playArea;
     if (!play) return;
     const height = 14;
-    // The caption "YOUR PLAY AREA" is drawn at the zone's top-left (`drawPlayArea`); the glyph goes just past it.
-    const at = () => ({ x: play.x + 8 + 124, y: play.y + 12 });
-    this.#hints.custom(triggerAtRest("rt"), height, at);
+    // Both sit in the zone's header row past its caption, or just above the zone where the scroll count is in the way
+    // (`view/layer-marker.ts`): the long table and the phone's tabbed board share it.
+    const spot = (width: number) =>
+      layerMarkerSpot(play, { width, height, countShown: this.#playAreaScroll.row.canScroll });
+    this.#hints.custom(triggerAtRest("rt"), height, ({ full }) => spot(full));
     this.#pageWord = this.add.text(0, 0, "", textStyle(typeRole.label, surface.ink.hex)).setOrigin(0, 0.5);
     this.#syncPageWord();
     this.#hints.custom(
@@ -1993,13 +2019,11 @@ export class BoardScene extends Phaser.Scene {
         return previous && next ? [previous, next] : null;
       },
       height,
-      at,
+      ({ full }) => spot(full + 6 + (this.#pageWord?.width ?? 0)),
       { ground: "paper", word: this.#pageWord },
     );
     // One glyph per card that has a usable ability: shown only under RT, only for the cards on the page showing.
     for (const instanceId of new Set(this.#abilitySlots().map((slot) => slot.instanceId))) {
-      const rect = this.#frame.focusRects.get(focusKey({ kind: "card", instanceId }));
-      if (!rect) continue;
       this.#hints.custom(
         (set, snapshot, held) => {
           if (set !== "pad" || held !== "rt") return null;
@@ -2010,7 +2034,12 @@ export class BoardScene extends Phaser.Scene {
           return specs.length > 0 ? specs : null;
         },
         18,
-        ({ width }) => ({ x: Math.max(rect.x + 2, rect.x + rect.width - width - 4), y: rect.y + rect.height - 14 }),
+        ({ width }) => {
+          // Looked up as placed: a card scrolled out of the row has no rect, and the glyph waits for it.
+          const rect = this.#frame.focusRects.get(focusKey({ kind: "card", instanceId }));
+          if (!rect) return null;
+          return { x: Math.max(rect.x + 2, rect.x + rect.width - width - 4), y: rect.y + rect.height - 14 };
+        },
         { ground: "ink" },
       );
     }

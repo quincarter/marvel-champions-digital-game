@@ -389,8 +389,11 @@ export class BoardController {
     this.#host.redraw();
   }
 
-  /** The focus route for whatever the board is currently asking for. */
-  focusOrder(): readonly FocusTarget[] {
+  /**
+   * The focus route for whatever the board is currently asking for. `alsoTiled` names cards that count as drawn though
+   * they have no tile this frame (a play area card scrolled out of its row), for a caller that must not depend on scroll.
+   */
+  focusOrder(alsoTiled?: (id: InstanceId) => boolean): readonly FocusTarget[] {
     const model = this.#host.model();
     if (!model) return [];
     const marks = this.#host.marks();
@@ -446,7 +449,9 @@ export class BoardController {
         hand: model.hand.map((card) => card.instanceId),
         teamUps: this.#host.teamUpKeys?.() ?? [],
         undo: this.undoOffer() !== null,
-        ...(this.#host.hasTile ? { tiled: (id: InstanceId) => this.#host.hasTile!(id) } : {}),
+        ...(this.#host.hasTile
+          ? { tiled: (id: InstanceId) => this.#host.hasTile!(id) || (alsoTiled?.(id) ?? false) }
+          : {}),
       },
       marks,
     );
