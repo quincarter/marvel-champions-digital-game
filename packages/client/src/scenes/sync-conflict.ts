@@ -12,6 +12,7 @@
 import Phaser from "phaser";
 import { hit, surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
 import { McButton } from "../ui/widgets.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion } from "../ui/transitions.js";
@@ -38,6 +39,9 @@ export class SyncConflictOverlay extends Phaser.Scene {
   #route: FocusRoute | null = null;
   #motion = new OverlayMotion();
   #peeking = false;
+  #hints!: GlyphHints;
+  /** The choice Start presses: the prompt's default (the peek banner has Back). */
+  #defaultChoice: string | null = null;
   #answered = false;
 
   constructor() {
@@ -52,9 +56,15 @@ export class SyncConflictOverlay extends Phaser.Scene {
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     // Escape does nothing: the question has to be answered (the sync is waiting on it).
-    this.#route = new FocusRoute(this, { onCancel: () => (this.#peeking ? this.#setPeek(false) : undefined) });
+    this.#hints = new GlyphHints(this);
+    this.#route = new FocusRoute(this, {
+      onCancel: () => (this.#peeking ? this.#setPeek(false) : undefined),
+      // Start is "forward": the default choice, or Back out of the peek banner.
+      primary: () => (this.#peeking ? "back" : this.#defaultChoice),
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
+      this.#hints.dispose();
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
       this.game.events.emit(CONFLICT_CLOSED);
@@ -88,8 +98,10 @@ export class SyncConflictOverlay extends Phaser.Scene {
     if (this.#motion.leaving || !this.#pending) return;
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
+    this.#hints.reset();
     destroyChildren(this);
     const prompt = conflictPromptOf(this.#pending.conflict, Date.now());
+    this.#defaultChoice = prompt.defaultChoice;
     const { width, height } = this.scale.gameSize;
     const stops = new Map<string, FocusStop>();
     const order: string[] = [];
@@ -126,8 +138,16 @@ export class SyncConflictOverlay extends Phaser.Scene {
           rect: layout.move,
           onClick: move,
         }),
-        new McButton(this, { kind: "secondary", label: "Back", type: buttonType, rect: layout.back, onClick: back }),
       );
+      const backButton = new McButton(this, {
+        kind: "secondary",
+        label: "Back",
+        type: buttonType,
+        rect: layout.back,
+        onClick: back,
+      });
+      this.#buttons.push(backButton);
+      this.#hints.button(backButton, ["cancel"], "paper");
       stops.set("back", { rect: layout.back, activate: back });
       stops.set("move", { rect: layout.move, activate: move });
       order.push("back", "move");

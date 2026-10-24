@@ -15,6 +15,7 @@ import { textStyle } from "../ui/theme.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
 import { McButton, clampLines, fitText } from "../ui/widgets.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import type { HeroDeckRow } from "../view/hero-deck-groups.js";
@@ -60,6 +61,7 @@ export class HeroDecksSheet extends Phaser.Scene {
   #route: FocusRoute | null = null;
   #scroll = new ListScroll();
   #hover: HoverPreview | null = null;
+  #hints!: GlyphHints;
 
   constructor() {
     super(SCENES.heroDecks);
@@ -77,6 +79,7 @@ export class HeroDecksSheet extends Phaser.Scene {
       cardIds: () => this.#hoverCards(),
       area: (pointer) => screenHoverArea(this, pointer, { blocked: () => this.scene.isActive(SCENES.inspect) }),
     });
+    this.#hints = new GlyphHints(this);
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.inspect),
       onCancel: () => this.#close(),
@@ -86,6 +89,7 @@ export class HeroDecksSheet extends Phaser.Scene {
     const offBaked = cardFaces(this).onBaked(() => this.#list?.layout(this.#list.rect));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       offBaked();
+      this.#hints.dispose();
       this.scale.off("resize", onResize, this);
       this.#hover?.destroy();
       this.#hover = null;
@@ -132,6 +136,7 @@ export class HeroDecksSheet extends Phaser.Scene {
     this.#buttons = [];
     this.#list?.destroy();
     this.#list = null;
+    this.#hints.reset();
     destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
@@ -284,15 +289,15 @@ export class HeroDecksSheet extends Phaser.Scene {
     });
 
     const closeRect: Rect = { x: inner.x, y: footerY, width: inner.width, height: hit.primary };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: "Back",
-        type: BUTTON_TYPE,
-        rect: closeRect,
-        onClick: () => this.#close(),
-      }),
-    );
+    const backButton = new McButton(this, {
+      kind: "secondary",
+      label: "Back",
+      type: BUTTON_TYPE,
+      rect: closeRect,
+      onClick: () => this.#close(),
+    });
+    this.#buttons.push(backButton);
+    this.#hints.button(backButton, ["cancel"], "paper");
     stops.set("back", { rect: closeRect, activate: () => this.#close() });
     order.push("back");
 
