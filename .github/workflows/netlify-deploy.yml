@@ -259,6 +259,82 @@ jobs:
             gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -f body="$body" > /dev/null
           fi
 
+  # A Linux AppImage of the pull request, to test on a Steam Deck (#398), next to the Android preview. It goes up as the
+  # pre-release `linux-preview-pr-<number>`, replaced on every push and deleted when the pull request closes
+  # (android-preview-cleanup.yml). Ubuntu 22.04 for an older glibc, as desktop-build.yml does. Not required: the gate
+  # ignores its result.
+  linux-preview:
+    name: Linux preview AppImage
+    runs-on: ubuntu-22.04
+    needs: tests
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      PR: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      TAG: linux-preview-pr-${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf build-essential curl wget file libssl-dev libxdo-dev
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: packages/client/src-tauri -> target
+          key: linux-preview
+      - run: pnpm install --frozen-lockfile
+      - name: Build the AppImage
+        working-directory: packages/client
+        env:
+          COMMIT_REF: ${{ github.event.pull_request.head.sha }}
+          VITE_SYNC_URL: >-
+            ${{ (vars.CLOUDFLARE_WORKERS_SUBDOMAIN || secrets.CLOUDFLARE_WORKERS_SUBDOMAIN) && format('https://mc-sync-staging.{0}.workers.dev',
+            (vars.CLOUDFLARE_WORKERS_SUBDOMAIN || secrets.CLOUDFLARE_WORKERS_SUBDOMAIN)) || '' }}
+        run: pnpm tauri build --bundles appimage
+
+      - name: Publish the pre-release
+        id: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          built=$(find packages/client/src-tauri/target -path "*bundle/appimage/*.AppImage" | head -n 1)
+          if [ ! -f "$built" ]; then
+            echo "::error::The AppImage was not found under src-tauri/target."
+            exit 1
+          fi
+          name="Marvel-Champions-PR${PR}-${HEAD_SHA:0:7}-x86_64.AppImage"
+          mv "$built" "$name"
+          gh release delete "$TAG" --cleanup-tag --yes 2> /dev/null || true
+          gh release create "$TAG" "$name" --prerelease --target "$HEAD_SHA"             --title "Linux preview: PR #${PR}"             --notes "A test build of #${PR} at ${HEAD_SHA:0:7} for Linux and the Steam Deck, not a release. Deleted when the pull request closes."
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${name}"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Linux preview: $url" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment the AppImage link
+        if: steps.publish.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          URL: ${{ steps.publish.outputs.url }}
+        run: |
+          marker="<!-- linux-preview -->"
+          body="$marker
+          **Linux / Steam Deck preview AppImage:** $URL (built from ${HEAD_SHA:0:7}; on the Deck: Desktop Mode, mark it executable, then add it to Steam as a non-Steam game)"
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate             --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$body" > /dev/null
+          else
+            gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -f body="$body" > /dev/null
+          fi
+
   # The save-transfer Worker (packages/sync-worker, #276) on Cloudflare's free plan: production on a push to main,
   # the staging Worker (`--env staging`, what previews talk to) on a pull request. Its tests run in the tests stage.
   # Skips with a notice until the owner adds the CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets
@@ -312,7 +388,7 @@ jobs:
   # included. The first step fails if a job is added to this file without being added to `needs`.
   gate:
     name: All checks
-    needs: [lint, yaml, changelog, tests, deploy, android-preview, deploy-sync]
+    needs: [lint, yaml, changelog, tests, deploy, android-preview, linux-preview, deploy-sync]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -334,11 +410,11 @@ jobs:
           NEEDS: ${{ toJSON(needs) }}
         run: |
           echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
-          # The deploy job's own result counts only through its build step; the Android preview and the sync Worker
-          # deploy don't count; a skipped job passes.
+          # The deploy job's own result counts only through its build step; the Android and Linux previews and the sync
+          # Worker deploy don't count; a skipped job passes.
           bad=$(echo "$NEEDS" | jq -r '
             to_entries[]
-            | select(.key != "android-preview" and .key != "deploy-sync")
+            | select(.key != "android-preview" and .key != "linux-preview" and .key != "deploy-sync")
             | select(if .key == "deploy" then .value.outputs.build != "success"
                      else .value.result == "failure" or .value.result == "cancelled" end)
             | .key')
