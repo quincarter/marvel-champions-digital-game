@@ -79,7 +79,7 @@ export const SPDR_CARDS: readonly AnyCard[] = [
           current: "Permanent. This card's printed text box cannot be treated as if it were blank.\nSuit Up! — Forced Interrupt: When you flip to this side, flip SP//dr Suit to its ACTIVE side. Attach this card to SP//dr Suit, moving all counters on this card or cards attached to this card to SP//dr Suit.",
         },
         abilities: [{ id: abilityId("31002b.sp-dr-constant") }, { id: abilityId("31002b.suit-up"), label: "Suit Up!" }],
-        image: imageRef("https://hallofheroeslcg.com/wp-content/uploads/2022/09/s2.jpg"),
+        image: imageRef("/bundles/cards/31002b.png"),
         resourceIcons: { wild: 1 },
       },
     },
