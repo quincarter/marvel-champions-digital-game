@@ -24,7 +24,7 @@ import { textStyle } from "../ui/theme.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
-import { GlyphHints } from "../ui/glyph-hints.js";
+import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
 import { McButton, clampLines, fitText } from "../ui/widgets.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import { aspectStampOf } from "../view/aspect-stamp.js";
@@ -126,7 +126,8 @@ export class NameConflictOverlay extends Phaser.Scene {
       cardIds: () => this.#hoverCards(),
       area: (pointer) => screenHoverArea(this, pointer, { blocked: () => this.scene.isActive(SCENES.inspect) }),
     });
-    this.#hints = new GlyphHints(this);
+    // Obstacles: the hint beside the chosen row must not cover the Back or Replace button.
+    this.#hints = new GlyphHints(this, () => this.#buttons.map((button) => button.rect));
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.inspect),
       onCancel: () => (this.#picker ? this.#closePicker() : this.#close()),
@@ -423,6 +424,10 @@ export class NameConflictOverlay extends Phaser.Scene {
     this.#buttons.push(button);
     // B backs out of the sheet (or the picker), so the Back button carries its glyph.
     if (key === "back" || key === "cancel") this.#hints.button(button, ["cancel"], "paper");
+    // Start presses the forward button (Replace, Continue), on a pad.
+    if ((key === "confirm" || key === "continue") && enabled) {
+      this.#hints.button(button, ["pause"], "ink", { when: (set) => set === "pad" });
+    }
     stops.set(key, { rect, activate: () => (enabled ? onClick() : undefined) });
     order.push(key);
   }
@@ -573,16 +578,58 @@ export class NameConflictOverlay extends Phaser.Scene {
     });
     const list = this.#list;
     list.onDestroy(cardFaces(this).onBaked(() => list.layout(list.rect)));
+    this.#drawStartHint(picker, list);
     candidates.forEach(({ card }, index) => {
       const key = `pick:${card.id as string}`;
       stops.set(key, {
         rect: () => list.rectFor(index),
-        activate: () => this.#select(picker, card.id as string),
+        // A on the row already chosen confirms it, so a long list never needs the walk down to Replace.
+        activate: () =>
+          picker.selected === (card.id as string) ? this.#confirmPicker() : this.#select(picker, card.id as string),
         inspect: () => this.#inspect(card),
         ensureVisible: () => list.scrollIntoView(index),
       });
       order.push(key);
     });
+  }
+
+  /**
+   * "Start Replace" beside the chosen row, so a pad player sees it without walking down the list: in the row's lower
+   * left (clear of its name, type line, cost and badge), or pinned to the list's edge while the row is scrolled out.
+   * The list scrolls without a redraw, so `update` re-places it when the row has moved.
+   */
+  #drawStartHint(picker: Picker, list: McVirtualList): void {
+    const index = picker.candidates.findIndex(({ card }) => (card.id as string) === picker.selected);
+    if (index < 0) return;
+    const word = this.add
+      .text(0, 0, "Replace", {
+        ...textStyle(typeRole.label, surface.paper.hex),
+        backgroundColor: surface.ink.css,
+        padding: { x: 4, y: 2 },
+      })
+      .setOrigin(0, 0.5);
+    this.#hints.custom(
+      (set, snapshot, layer) => (set === "pad" ? specsForShortcuts(["pause"], snapshot, layer) : null),
+      20,
+      () => {
+        const row = list.rectFor(index);
+        const view = list.rect;
+        const x = row.x + 4 + 6 + THUMB_WIDTH + 10;
+        const y = Math.min(Math.max(row.y + PICK_ROW_HEIGHT - 26, view.y + 14), view.y + view.height - 14);
+        return { x, y };
+      },
+      { ground: "ink", word, avoidObstacles: true },
+    );
+    let lastY = list.rectFor(index).y;
+    const follow = (): void => {
+      const y = list.rectFor(index).y;
+      if (y === lastY) return;
+      lastY = y;
+      this.#hints.refresh();
+    };
+    this.events.on(Phaser.Scenes.Events.UPDATE, follow);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.events.off(Phaser.Scenes.Events.UPDATE, follow));
+    list.onDestroy(() => this.events.off(Phaser.Scenes.Events.UPDATE, follow));
   }
 
   #select(picker: Picker, cardId: string): void {
