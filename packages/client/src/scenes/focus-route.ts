@@ -202,6 +202,12 @@ export class FocusRoute {
     return this.#focus;
   }
 
+  /** Moves focus to `key` as a pad step would (stop scrolls into view, ring drawn, onFocusChange hears it). A non-stop key drops focus. */
+  focusKey(key: string | null): void {
+    this.#ringHidden = false;
+    this.#moveTo(key !== null && this.#order.includes(key) ? key : null);
+  }
+
   /**
    * This rebuild's route and controls. Call it last in a rebuild, after the
    * scene has cleared and redrawn its display list, so the ring sits over the
