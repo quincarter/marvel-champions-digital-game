@@ -10,7 +10,7 @@ import Phaser from "phaser";
 import type { CardId, Deck } from "@mc/content";
 import { CARDS_BY_ID, POOL_CARDS, POOL_VERSION } from "../../content/pool.js";
 import { HERO_ART, heroArtForIdentity } from "../../art/hero-art.js";
-import { artFor } from "../../art/art-source.js";
+import { artFor, artLanguageNow } from "../../art/art-source.js";
 import type { Picture } from "../../art/pictures.js";
 import { cardDisplayName } from "../../view/hero-names.js";
 import { accent, ink, surface, typeRole } from "../../tokens.js";
@@ -584,12 +584,14 @@ export class CampaignRosterScene extends Phaser.Scene {
 
   /** The hero's artwork as Take your seats picks it, else the identity card's own scan; null draws a plain block. */
   #heroPictureFor(identityId: string): Picture | null {
-    if (!this.#heroArtCache.has(identityId)) {
+    // Keyed by the card language too: the identity scan fallback is a different picture in each (`setArtLanguage`).
+    const key = `${artLanguageNow()}:${identityId}`;
+    if (!this.#heroArtCache.has(key)) {
       const art = heroArtForIdentity(HERO_ART, identityId, POOL_CARDS, () => 0);
       const identity = CARDS_BY_ID.get(identityId);
-      this.#heroArtCache.set(identityId, art ?? (identity ? artFor(identity, { kind: "hero" }) : null));
+      this.#heroArtCache.set(key, art ?? (identity ? artFor(identity, { kind: "hero" }) : null));
     }
-    return this.#heroArtCache.get(identityId) ?? null;
+    return this.#heroArtCache.get(key) ?? null;
   }
 
   // ---- The deck picker overlay ------------------------------------------------------------------------------

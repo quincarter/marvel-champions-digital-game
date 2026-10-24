@@ -90,6 +90,25 @@ Six commands:
           them, so this is most of an installer's size: the whole pool went
           from 665 MB to 207 MB (2026-10-07), checked by eye at full zoom.
 
+  localize
+          (`pnpm card-art:localize --lang es`)
+          Builds one language's art set in assets/card-art-locales/<lang>/:
+          a translated scan for every English scan it has one for, saved
+          under the English scan's own path (`bundles/cards/01001a.png`), so
+          the client build can lay the set over the English folder and every
+          card it lacks keeps its English scan (`vite-card-art.ts`,
+          `MC_CARD_LANG`). The source is a community set fetched by card code
+          (`LOCALE_SOURCES`), pinned in the set's manifest to the commit it
+          was read at. The code is not trusted on its own: a double-sided
+          card's faces can be lettered the other way round from ours (Core's
+          main scheme `01097`/`01097b` is), so within each card code the
+          faces are paired by art (`phash`) rather than by letter, and a pair
+          whose art doesn't match, or whose orientation differs, is left out
+          and keeps its English scan. Scans are scaled to MAX_EDGE and
+          encoded as `compress` does, but not trimmed: the source scans have
+          no padding to remove. A second run downloads only what is new;
+          `--refresh` downloads everything again.
+
 A replacement or an addition keeps the exact local path a card record names
 (`/bundles/cards/<code>.png` or `.jpg`), since that is what `imageRef()` points
 at. Each one is recorded in assets/card-art/hall-of-heroes-manifest.tsv.
@@ -105,6 +124,7 @@ at. Each one is recorded in assets/card-art/hall-of-heroes-manifest.tsv.
   uv run scripts/fetch_card_art.py missing
   uv run scripts/fetch_card_art.py missing --dry-run -v
   uv run scripts/fetch_card_art.py compress --dry-run
+  uv run scripts/fetch_card_art.py localize --lang es --dry-run
 """
 
 from __future__ import annotations
@@ -116,7 +136,7 @@ import re
 import subprocess
 import sys
 import time
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -134,6 +154,22 @@ CARDS_DIR = REPO_ROOT / "assets" / "card-art" / "bundles" / "cards"
 MANIFEST = REPO_ROOT / "assets" / "card-art" / "hall-of-heroes-manifest.tsv"
 RAW_DIR = REPO_ROOT / "packages" / "content" / "raw" / "marvelcdb"
 TEMPLATE_DIR = Path(__file__).resolve().parent / "card-art"
+
+LOCALES_DIR = REPO_ROOT / "assets" / "card-art-locales"
+
+# Where each language's scans come from (`localize`): a GitHub repository and its folder of `<card code>.webp`
+# scans, read at the commit `main` points to when the command runs.
+LOCALE_SOURCES: dict[str, dict[str, str]] = {
+    # Spanish (issue #337): alaintxu/mc-ocr's accepted Spanish card scans, MIT licensed.
+    "es": {"repo": "alaintxu/mc-ocr", "folder": "images/accepted"},
+}
+# A translated scan pairs with an English face only when their art hashes are at most this far apart. The same face
+# in two languages runs 0-8 bits apart (only the text differs); two different faces of one card code 12 or more.
+LOCALE_MAX_DISTANCE = 10
+# How much closer another face's art has to be to win over the same letter, or over the next-closest picture.
+LOCALE_MARGIN = 6
+# A card with a single face and a single translated picture pairs by its code within this distance (`pair_faces`).
+LOCALE_SINGLE_DISTANCE = 16
 
 HOH = "https://hallofheroeslcg.com"
 MARVELCDB_BASE = "https://marvelcdb.com"
@@ -1304,6 +1340,245 @@ def compress(args: argparse.Namespace) -> None:
     print(f"\n[=] {converted} scans {verb}converted: {before / 1e6:.1f} MB -> {after / 1e6:.1f} MB")
 
 
+BASE_CODE = re.compile(r"^(\d{5})")
+
+
+def _get_url(url: str, accept: str = "*/*") -> bytes | None:
+    """GETs `url`, retrying network errors with backoff; None for a 404."""
+    import urllib.error
+    import urllib.request
+
+    req = urllib.request.Request(url, headers={"Accept": accept, "User-Agent": "mc-card-art"})
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as res:
+                return res.read()
+        except urllib.error.HTTPError as e:
+            if e.code in (404, 410):
+                return None
+            print(f"    ! {url}: {e}", file=sys.stderr)
+        except Exception as e:  # network errors: retry with backoff
+            print(f"    ! {url}: {e}", file=sys.stderr)
+        time.sleep(2 ** (attempt + 1))
+    return None
+
+
+def locale_listing(lang: str) -> tuple[str, dict[str, str]]:
+    """The source's commit and its scans as {stem: download URL}, read from the GitHub API."""
+    src = LOCALE_SOURCES[lang]
+    api = f"https://api.github.com/repos/{src['repo']}"
+
+    def get(url: str) -> dict:
+        body = _get_url(url, "application/vnd.github+json")
+        if body is None:
+            raise RuntimeError(f"GitHub API: {url} not found")
+        return json.loads(body)
+
+    sha = get(f"{api}/commits/main")["sha"]
+    tree = get(f"{api}/git/trees/{sha}")
+    for part in src["folder"].split("/"):
+        entry = next((e for e in tree["tree"] if e["path"] == part and e["type"] == "tree"), None)
+        if entry is None:
+            raise RuntimeError(f"{src['folder']} not found in {src['repo']}@{sha}")
+        tree = get(f"{api}/git/trees/{entry['sha']}")
+    if tree.get("truncated"):
+        raise RuntimeError(f"GitHub truncated the listing of {src['folder']}; it needs paging")
+    raw = f"https://raw.githubusercontent.com/{src['repo']}/{sha}/{src['folder']}"
+    images = (e["path"] for e in tree["tree"] if e["path"].endswith((".webp", ".png", ".jpg")))
+    return sha, {Path(name).stem: f"{raw}/{name}" for name in images}
+
+
+def _hash_file(path: Path) -> tuple[Path, int, bool]:
+    with Image.open(path) as img:
+        return path, phash(img), img.width > img.height
+
+
+def _hash_turns(path: Path) -> tuple[Path, dict[int, tuple[int, bool]]]:
+    """A translated scan's art hash and orientation as published, and turned a quarter either way (`TURNS`)."""
+    with Image.open(path) as img:
+        img.load()
+    return path, {
+        turn: (phash(turned), turned.width > turned.height)
+        for turn in TURNS
+        for turned in [img.rotate(turn, expand=True) if turn else img]
+    }
+
+
+# The quarter turns (PIL degrees, counter-clockwise) a translated scan is tried at. Some side schemes are published
+# upright in one language and on their side in the other (Generation Why?, `05026`).
+TURNS = (0, 90, 270)
+
+
+@dataclass(frozen=True)
+class FacePair:
+    scan: str  # the translated scan's stem
+    distance: int
+    turn: int  # how far to turn the scan to stand like the English face (`TURNS`)
+
+
+def pair_faces(
+    english: dict[str, tuple[int, bool]], translated: dict[str, dict[int, tuple[int, bool]]]
+) -> dict[str, FacePair]:
+    """
+    Pairs the faces of one card code: {English file name: the translated scan to show instead}. `english` maps a file
+    name to its art hash and whether it is landscape, `translated` a scan's stem to the same at each of its `TURNS`.
+    Paired per file, not per stem: a stem's `.jpg` and `.png` can be two different faces (Kang's Arrival `11007a`). A scan is only
+    compared at the turn that stands it like the English face, and only counts within `LOCALE_MAX_DISTANCE`.
+
+    The same letter wins unless another scan's art is `LOCALE_MARGIN` closer: two faces with the same picture (a
+    villain's A and B side, Citizen V `50129a`/`50129b`) hash alike, and only the letter tells them apart. Without a
+    same-letter match, the closest scan is taken when every other picture is `LOCALE_MARGIN` further away; that
+    catches a scheme the source letters the other way round (Core's `01097`/`01097b`). It is not one-to-one: some
+    English folders hold one face under two letters (Attack on Mount Athena, `04061`/`04061b`), and both get the scan.
+
+    A card with one English picture and one translated picture has nothing to mix up, so the letter alone pairs it, within the
+    looser `LOCALE_SINGLE_DISTANCE` (a text-heavy card's two languages can differ by more than its art does); that
+    bound still turns away a scan of some other card filed under the code (`45161` in the Spanish set).
+    Anything left unpaired keeps its English scan.
+    """
+    out: dict[str, FacePair] = {}
+    for e, (e_hash, e_landscape) in english.items():
+        # Each scan at its best turn that stands like this face.
+        standing: dict[str, tuple[int, int]] = {}
+        for t, turns in translated.items():
+            fits = [(hamming(e_hash, h), turn) for turn, (h, landscape) in turns.items() if landscape == e_landscape]
+            if fits:
+                standing[t] = min(fits)
+        if not standing:
+            continue
+        first = next(iter(translated.values()))[0][0]
+        alone = all(hamming(h, e_hash) <= LOCALE_MAX_DISTANCE for h, _ in english.values()) and all(
+            hamming(h[0][0], first) <= LOCALE_MAX_DISTANCE for h in translated.values()
+        )
+        near = sorted((d, t) for t, (d, _) in standing.items() if d <= LOCALE_MAX_DISTANCE)
+        letter = Path(e).stem
+        same = standing.get(letter)
+        same_fits = same is not None and (
+            same[0] <= LOCALE_MAX_DISTANCE or (alone and same[0] <= LOCALE_SINGLE_DISTANCE)
+        )
+        if same_fits and (not near or same[0] - near[0][0] < LOCALE_MARGIN):
+            out[e] = FacePair(letter, same[0], same[1])
+            continue
+        if not near:
+            continue
+        best_d, best_t = near[0]
+        best_picture = translated[best_t][0][0]
+        # Every other picture, however far; a source can publish one scan under two letters (`01097`, `01097a`).
+        others = [
+            d for t, (d, _) in standing.items() if hamming(translated[t][0][0], best_picture) > LOCALE_MAX_DISTANCE
+        ]
+        if all(d - best_d >= LOCALE_MARGIN for d in others):
+            out[e] = FacePair(best_t, best_d, standing[best_t][1])
+    return out
+
+
+def _encode_locale(job: tuple[Path, int]) -> bytes:
+    path, turn = job
+    with Image.open(path) as img:
+        img.load()
+    if turn:
+        img = img.rotate(turn, expand=True)
+    if max(img.size) > MAX_EDGE:
+        img.thumbnail((MAX_EDGE, MAX_EDGE), Image.Resampling.LANCZOS)
+    return encode_webp(img)
+
+
+def localize(args: argparse.Namespace) -> None:
+    lang = args.lang
+    root = LOCALES_DIR / lang
+    out_dir = root / "bundles" / "cards"
+    # The downloads as published (git-ignored), so a rerun re-pairs without fetching everything again.
+    cache = root / ".source"
+    manifest = root / "manifest.tsv"
+
+    sha, remote = locale_listing(lang)
+    print(f"[*] {LOCALE_SOURCES[lang]['repo']}@{sha[:7]}: {len(remote)} {lang} scans")
+
+    # Every English scan, by file name: a stem's `.jpg` and `.png` can be different faces, so each is paired itself.
+    english_files = {
+        p.name: p
+        for p in sorted(CARDS_DIR.iterdir())
+        if p.suffix in (".png", ".jpg", ".jpeg", ".webp") and BASE_CODE.match(p.stem)
+    }
+    groups: dict[str, tuple[list[str], list[str]]] = {}
+    for name in english_files:
+        groups.setdefault(BASE_CODE.match(name).group(1), ([], []))[0].append(name)
+    for stem in remote:
+        m = BASE_CODE.match(stem)
+        if m and m.group(1) in groups:
+            groups[m.group(1)][1].append(stem)
+
+    wanted = sorted({t for _, tr in groups.values() for t in tr})
+    cache.mkdir(parents=True, exist_ok=True)
+    todo = [t for t in wanted if args.refresh or not (cache / f"{t}.webp").exists()]
+    print(f"[*] {len(wanted)} scans name a card code we have art for; downloading {len(todo)}")
+    failed: list[str] = []
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for i, (stem, data) in enumerate(zip(todo, pool.map(lambda t: _get_url(remote[t]), todo)), 1):
+            if data is None:
+                failed.append(stem)
+            else:
+                (cache / f"{stem}.webp").write_bytes(data)
+            if i % 500 == 0:
+                print(f"    {i}/{len(todo)}")
+
+    with ProcessPoolExecutor() as pool:
+        en_hash = {p.name: (h, land) for p, h, land in pool.map(_hash_file, english_files.values(), chunksize=32)}
+        cached = [cache / f"{t}.webp" for t in wanted if (cache / f"{t}.webp").exists()]
+        tr_hash = {p.stem: turns for p, turns in pool.map(_hash_turns, cached, chunksize=32)}
+
+    pairs: dict[str, FacePair] = {}
+    left_out: list[str] = []
+    for en, tr in groups.values():
+        got = pair_faces({e: en_hash[e] for e in en}, {t: tr_hash[t] for t in tr if t in tr_hash})
+        pairs.update(got)
+        left_out.extend(e for e in en if e not in got and Path(e).stem in tr_hash)
+    crossed = sorted((e, pair.scan) for e, pair in pairs.items() if Path(e).stem != pair.scan)
+    turned = sorted(e for e, pair in pairs.items() if pair.turn)
+
+    print(f"[=] {len(pairs)} of {len(english_files)} English scans get a {lang} scan")
+    if crossed:
+        print(f"[=] {len(crossed)} paired across letters (the source letters those faces differently):")
+        for e, t in crossed:
+            print(f"    {e} <- {t}")
+    if turned:
+        print(f"[=] {len(turned)} turned a quarter to stand like the English face: {' '.join(turned)}")
+    if left_out:
+        print(f"[!] {len(left_out)} faces with a same-named {lang} scan whose art doesn't match (they stay English):")
+        for e in sorted(left_out):
+            print(f"    {e} (distance {hamming(en_hash[e][0], tr_hash[Path(e).stem][0][0])})")
+    if failed:
+        print(f"[!] {len(failed)} downloads failed: {' '.join(failed)}")
+    if args.dry_run:
+        return
+    if failed:
+        # Writing now would drop those cards' Spanish scans as stale; a rerun fetches only what is still missing.
+        sys.exit("[!] not writing the set with downloads missing; run it again")
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    jobs = sorted(pairs.items())
+    keep: set[str] = set()
+    rows: list[str] = []
+    with ProcessPoolExecutor() as pool:
+        encoded = pool.map(_encode_locale, [(cache / f"{pair.scan}.webp", pair.turn) for _, pair in jobs], chunksize=8)
+        for (e, pair), webp in zip(jobs, encoded):
+            (out_dir / e).write_bytes(webp)
+            keep.add(e)
+            rows.append(f"bundles/cards/{e}\t{pair.scan}\t{pair.distance}\t{pair.turn}")
+    stale = [p for p in out_dir.iterdir() if p.name not in keep]
+    for p in stale:
+        p.unlink()
+    manifest.write_text(
+        f"# {lang} card art from https://github.com/{LOCALE_SOURCES[lang]['repo']} at {sha}, {date.today()}\n"
+        "# path\tsource scan\tart distance\tquarter turn (degrees)\n" + "\n".join(rows) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    size = sum(p.stat().st_size for p in out_dir.iterdir())
+    where = out_dir.relative_to(REPO_ROOT)
+    print(f"[=] wrote {len(keep)} scans to {where} ({size / 1e6:.1f} MB); removed {len(stale)} stale")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--self-test", action="store_true", help="run the synthetic-image checks of trim and exit")
@@ -1338,13 +1613,25 @@ def main() -> None:
     c = sub.add_parser("compress", help="re-encode local scans that aren't WebP yet as WebP, in place")
     c.add_argument("--dry-run", action="store_true", help="report what would change without writing")
     c.add_argument("-v", "--verbose", action="store_true")
+    lo = sub.add_parser("localize", help="build one language's art set in assets/card-art-locales/<lang>/")
+    lo.add_argument("--lang", required=True, choices=sorted(LOCALE_SOURCES), help="language code")
+    lo.add_argument("--refresh", action="store_true", help="download every scan again, not only new ones")
+    lo.add_argument("--dry-run", action="store_true", help="report the pairing without writing the set")
     args = parser.parse_args()
     if args.self_test:
         self_test()
         return
     if not args.command:
         parser.error("a command is required")
-    commands = {"audit": audit, "trim": trim_local, "fetch": fetch, "grab": grab, "missing": missing, "compress": compress}
+    commands = {
+        "audit": audit,
+        "trim": trim_local,
+        "fetch": fetch,
+        "grab": grab,
+        "missing": missing,
+        "compress": compress,
+        "localize": localize,
+    }
     commands[args.command](args)
 
 

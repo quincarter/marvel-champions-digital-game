@@ -25,7 +25,13 @@ const FIRST_FRAME_MS = 20_000;
 const RESTORE_GRACE_MS = 3_000;
 const PANEL_ID = "mc-startup-failure";
 // The Report button (#176) runs from Boot too: it is chrome, not a screen.
-const BOOT_SCENES: ReadonlySet<string> = new Set([SCENES.boot, SCENES.music, SCENES.reportButton, SCENES.musicButton]);
+const BOOT_SCENES: ReadonlySet<string> = new Set([
+  SCENES.boot,
+  SCENES.music,
+  SCENES.reportButton,
+  SCENES.musicButton,
+  SCENES.languageButton,
+]);
 
 export interface WebglInfo {
   readonly version: string;

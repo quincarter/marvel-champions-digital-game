@@ -49,6 +49,8 @@ export class BootScene extends Phaser.Scene {
         this.scene.launch(SCENES.reportButton);
         // The music button (#191), beside it.
         this.scene.launch(SCENES.musicButton);
+        // The card language button (#337), beside that.
+        this.scene.launch(SCENES.languageButton);
         // The power saving notice (`scenes/power-saving-notice.ts`), hidden until the mode turns on or off.
         this.scene.launch(SCENES.powerSavingNotice);
         // The "Achievement unlocked" popup (`scenes/achievement-toast.ts`), hidden until one is earned.

@@ -91,6 +91,8 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.syncSetupNotice,
   // Last, so they draw above every screen and overlay (#176, #191): the music player and its button, then the report
   // panel and the tab that opens it above that.
+  SCENES.languagePopup,
+  SCENES.languageButton,
   SCENES.musicPlayer,
   SCENES.musicButton,
   SCENES.reportIssue,
@@ -104,6 +106,8 @@ export const EAGER_SCENES: readonly string[] = [
   SCENES.music,
   SCENES.powerSavingNotice,
   SCENES.achievementToast,
+  SCENES.languagePopup,
+  SCENES.languageButton,
   SCENES.musicPlayer,
   SCENES.musicButton,
   SCENES.reportIssue,

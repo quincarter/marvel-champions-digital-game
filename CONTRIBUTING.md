@@ -162,6 +162,26 @@ pnpm ingest
 pnpm --filter @mc/content ingest -- --pack core --offline
 ```
 
+### Card art in other languages
+
+Card scans are a build input in `assets/card-art/`. A card language other than English is a second set in
+`assets/card-art-locales/<lang>/`, saved under the English scans' own paths, which `pnpm card-art:localize --lang es`
+fetches and pairs by art (`scripts/fetch_card_art.py`). `MC_CARD_LANG=es` builds the client with that set laid over the
+English scans, so a card without a Spanish scan keeps its English one; the build decides this and the app never falls
+back at runtime. Each release builds every installer once per language (issue #337).
+
+```bash
+# Refresh the Spanish set
+pnpm card-art:localize --lang es
+
+# Run or build the client with Spanish card art
+MC_CARD_LANG=es pnpm --filter @mc/client dev
+MC_CARD_LANG=es pnpm --filter @mc/client build
+```
+
+A pull request's Netlify preview is English. Add the `Spanish preview` label and re-run the deploy job to build it with
+the Spanish art instead.
+
 Turning a pack into playable content (data, ability scripts, rules QA, client wiring) follows the per-wave process in
 [docs/card-scripting-process.md](docs/card-scripting-process.md) and the wave specs in [`docs/`](docs).
 
@@ -175,8 +195,9 @@ release:
   `.AppImage`), Windows 11 (`.msi`, `-setup.exe`).
 - **Android (Capacitor)**: a release `.apk`.
 
-Asset names spell out the OS, architecture and installer kind (`MarvelChampions-<version>-Windows-x64-Setup.exe`,
-`-macOS-AppleSilicon-arm64.dmg`, `-Linux-x64.AppImage`, `-Android.apk` and so on).
+Asset names spell out the card language, OS, architecture and installer kind
+(`MarvelChampions-<version>-EN-Windows-x64-Setup.exe`, `-EN-macOS-AppleSilicon-arm64.dmg`, `-EN-Linux-x64.AppImage`,
+`-EN-Android.apk` and so on). Every installer is built in English (`-EN-`) and Spanish (`-ES-`).
 `scripts/lib/release-collector.mjs` names them for both the workflow (`scripts/stage-release-assets.mjs`) and local
 builds, and every release's notes end with the table in `.github/release-downloads.md`. The README's download buttons name
 the version they fetch and link to that release's files; the release PR updates both through the `replacements` in

@@ -151,6 +151,14 @@ export class SessionStore {
     return this.#state;
   }
 
+  /**
+   * Hands the current state to every subscriber again, unchanged, so each rebuilds what it derives from it. For a change
+   * outside the game that alters how the state is drawn: a language switch (`language-change.ts`).
+   */
+  republish(): void {
+    this.#set(this.#state);
+  }
+
   /** Subscribes and immediately delivers the current state. Returns an unsubscribe. */
   subscribe(listener: SessionListener): () => void {
     this.#listeners.add(listener);

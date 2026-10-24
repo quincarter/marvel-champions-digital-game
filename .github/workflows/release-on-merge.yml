@@ -245,37 +245,44 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
   desktop-builds:
-    name: Desktop (${{ matrix.name }})
+    name: Desktop (${{ matrix.name }}, ${{ matrix.lang }})
     needs: check-and-cut-release
     if: needs.check-and-cut-release.outputs.should_release == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        # Each card language is its own set of installers (issue #337): an installer carries one language's card
+        # scans, never two, which would pass the size limit below. `MC_CARD_LANG` picks the scans at build time,
+        # English wherever the language's set has none (packages/client/vite-card-art.ts).
+        lang: [en, es]
+        artifact: [macos-aarch64, macos-x64, linux-x64, windows-x64]
         include:
           # One build per architecture, not a universal binary: Tauri embeds the whole of `dist/` (card art and
           # music, over a gigabyte) in the executable, so a universal binary carries it twice and its .dmg passes
           # GitHub's 2 GiB limit on a release asset (v0.16.0).
-          - name: macOS (Apple silicon)
+          - artifact: macos-aarch64
+            name: macOS (Apple silicon)
             os: macos-latest
-            artifact: macos-aarch64
             args: --target aarch64-apple-darwin
             rust-targets: aarch64-apple-darwin
-          - name: macOS (Intel)
+          - artifact: macos-x64
+            name: macOS (Intel)
             os: macos-latest
-            artifact: macos-x64
             args: --target x86_64-apple-darwin
             rust-targets: x86_64-apple-darwin
-          - name: Linux (x86_64)
+          - artifact: linux-x64
+            name: Linux (x86_64)
             os: ubuntu-22.04
-            artifact: linux-x64
             args: ""
             rust-targets: ""
-          - name: Windows 11 (x64)
+          - artifact: windows-x64
+            name: Windows 11 (x64)
             os: windows-latest
-            artifact: windows-x64
             args: ""
             rust-targets: ""
+    env:
+      MC_CARD_LANG: ${{ matrix.lang }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -377,7 +384,11 @@ jobs:
       - name: Stage release assets under their release names
         run: node scripts/stage-release-assets.mjs
 
+      # English installers go up as soon as they're built. Other languages wait for finalize-release: an install from
+      # before #337 takes the first asset that fits its OS as its update, whatever its language, so the English ones
+      # must come first in the release's list.
       - name: Upload to the GitHub release
+        if: matrix.lang == 'en'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -385,15 +396,22 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: marvel-champions-${{ matrix.artifact }}
+          name: marvel-champions-${{ matrix.artifact }}-${{ matrix.lang }}
           if-no-files-found: warn
           path: release/*
 
   android-build:
-    name: Android Release APK
+    name: Android Release APK (${{ matrix.lang }})
     needs: check-and-cut-release
     if: needs.check-and-cut-release.outputs.should_release == 'true'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # One APK per card language, like the desktop installers.
+        lang: [en, es]
+    env:
+      MC_CARD_LANG: ${{ matrix.lang }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -465,7 +483,9 @@ jobs:
             (vars.CLOUDFLARE_WORKERS_SUBDOMAIN || secrets.CLOUDFLARE_WORKERS_SUBDOMAIN)) || '' }}
         run: pnpm android:build
 
+      # Other languages wait for finalize-release (see the desktop upload).
       - name: Upload APK to GitHub Release
+        if: matrix.lang == 'en'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -481,7 +501,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: marvel-champions-android
+          name: marvel-champions-android-${{ matrix.lang }}
           if-no-files-found: warn
           path: |
             release/*.apk
@@ -495,6 +515,27 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.check-and-cut-release.outputs.tag }}
+
+      # After every English asset is up (desktop-builds and android-build upload those themselves).
+      - name: Download the other languages' installers
+        uses: actions/download-artifact@v4
+        with:
+          pattern: marvel-champions-*-es
+          path: localized
+          merge-multiple: true
+
+      - name: Upload the other languages' installers
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.check-and-cut-release.outputs.tag }}"
+          FILES=$(find localized -maxdepth 1 -type f)
+          if [ -z "$FILES" ]; then
+            echo "::error::No localized installers were built."
+            exit 1
+          fi
+          ls -la localized
+          gh release upload "${TAG}" $FILES --clobber
 
       - name: Download all assets and generate SHA256SUMS
         env:

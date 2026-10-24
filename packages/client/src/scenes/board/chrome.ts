@@ -12,6 +12,7 @@ import { PHONE_TABS, type PhoneTab, type Rect } from "../../view/layout.js";
 import type { BoardMotion, StatusStampState } from "./motion.js";
 import { setReportSlot } from "../../ui/report-slot.js";
 import { setMusicSlot } from "../../ui/music-slot.js";
+import { languageSlotBeside } from "../../view/language-button.js";
 import { musicSlotBeside } from "../../view/music-player.js";
 
 /** The phone board's "≡" menu icon (see `drawChrome`'s own comment for why this isn't `typeRole.label`). */
@@ -41,7 +42,8 @@ export interface ChromeOptions {
  * may not survive a refresh, and that stays true for the rest of the session.
  *
  * The Report button (#176) has its slot just left of MENU (and EVIDENCE); `scenes/report-button.ts` draws it there.
- * The music button (#191, `scenes/music-button.ts`) has its slot just left of that.
+ * The music button (#191, `scenes/music-button.ts`) has its slot just left of that, and the card language button
+ * (#337, `scenes/language-button.ts`) just left of the music button.
  *
  * The menu button sits at the very right edge, ahead of even the "NOT SAVING"
  * chip and the 1st-player mark — pausing has to stay reachable regardless of
@@ -103,8 +105,8 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, o
   setReportSlot(scene.scene.key, reportRect);
   const musicRect = musicSlotBeside(reportRect);
   setMusicSlot(scene.scene.key, musicRect);
-  // Where the standing chips on the right edge stop: the music button's slot.
-  const anchorX = musicRect.x - 2;
+  // Where the standing chips on the right edge stop: the card language button's slot (#337), left of the music button's.
+  const anchorX = languageSlotBeside(musicRect).x - 2;
 
   // The live round chip is the one red besides the forward action.
   const chip: Rect = { x: rect.x + 8, y: rect.y + 5, width: 54, height: rect.height - 10 };

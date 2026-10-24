@@ -115,6 +115,17 @@ export const CREDITS: readonly CreditEntry[] = [
     url: "https://hallofheroeslcg.com",
     folders: ["assets/card-art"],
   },
+  {
+    id: "card-scans-es",
+    group: "card-art",
+    title: "Spanish card scans",
+    shownIn: "Every card face in the Spanish build, wherever a Spanish scan exists",
+    credit:
+      "Spanish card images from alaintxu's mc-ocr project (github.com/alaintxu/mc-ocr), fetched by the project's content scripts. Cards without a Spanish scan show the English one.",
+    notice: FFG_MARVEL,
+    url: "https://github.com/alaintxu/mc-ocr",
+    folders: ["assets/card-art-locales/es"],
+  },
   ...RULEBOOKS.map(([id, name, pdf]): CreditEntry => ({
     id: `rulebook-${id}`,
     group: "card-art",

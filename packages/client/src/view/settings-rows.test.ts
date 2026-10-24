@@ -32,6 +32,8 @@ import {
   type GuideLevelRowInfo,
   type GuideToggleRowInfo,
 } from "./settings-rows.js";
+import { vi, afterEach } from "vitest";
+import { cardLanguageRowInfoOf, nextSettingsAfterCardLanguage } from "./settings-rows.js";
 import { POWER_SAVING_ROW_NOTE } from "./power-saving-notice.js";
 import { defaultGuidePrefs, withLevel, type GuidePrefs } from "../guide/guide-prefs.js";
 import { defaultSettings, tableRulesOf, type Settings } from "../settings.js";
@@ -65,6 +67,7 @@ const BASE: Settings = {
   achievementPopupTime: "5s",
   achievementPopupPlace: "middle",
   achievementPopupSize: "medium",
+  cardLanguage: "en",
   renderScale: "native",
   frameRate: "screen",
 };
@@ -100,6 +103,7 @@ describe("settingsRowInfoOf", () => {
       achievementPopupTime: "5s",
       achievementPopupPlace: "middle",
       achievementPopupSize: "medium",
+      cardLanguage: "en",
       renderScale: "1x",
       frameRate: "30",
     });
@@ -498,5 +502,29 @@ describe("the Screen rows' recommendation", () => {
   test("Frame rate names the recommended rate", () => {
     expect(frameRateRowInfoOf(BASE, 120, false, advice).detail).toContain("Recommended for this device: 60 fps.");
     expect(frameRateRowInfoOf(BASE, 60, false, advice).detail).toContain("Recommended for this device: Screen.");
+  });
+});
+
+describe("card art language row (#337)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  test("on the web it lists every carried language by its own name", () => {
+    vi.stubGlobal("__CARD_LANGS__", "en,es");
+    const info = cardLanguageRowInfoOf({ ...BASE, cardLanguage: "es" });
+    expect(info.options).toEqual([
+      { value: "en", label: "English" },
+      { value: "es", label: "Español" },
+    ]);
+    expect(info.selected).toBe("es");
+    expect(nextSettingsAfterCardLanguage(BASE, "es").cardLanguage).toBe("es");
+    expect(nextSettingsAfterCardLanguage(BASE, "fr" as never)).toBe(BASE);
+  });
+
+  test("a bundle with one language offers only it and refuses another", () => {
+    vi.stubGlobal("__CARD_LANGS__", "en");
+    const info = cardLanguageRowInfoOf({ ...BASE, cardLanguage: "es" });
+    expect(info.options.map((o) => o.value)).toEqual(["en"]);
+    expect(info.selected).toBe("en");
+    expect(nextSettingsAfterCardLanguage(BASE, "es")).toBe(BASE);
   });
 });
