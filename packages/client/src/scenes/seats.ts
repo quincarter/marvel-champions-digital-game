@@ -137,7 +137,6 @@ import {
   renderShelfHeader,
 } from "./roster-panel.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
-import { canJumpFocus, jumpFocus } from "./focus-jump.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
 import { AreaJump, areaOf, type FocusAreas } from "../view/focus-areas.js";
@@ -305,6 +304,8 @@ export class SeatsScene extends Phaser.Scene {
   #aspectTipOpen: CoreAspect | null = null;
   /** Where the open tip and its "i" are on screen (with the gap between), for the pointer-leaves check. */
   #tipZone: Rect | null = null;
+  /** A screen change is under way (Back, Play, Deck check): later presses do nothing. */
+  #leaving = false;
   /** The circle masks the pair pills made, and what the screen last worked out for the Recommended shelf. */
   #masks: Phaser.GameObjects.Graphics[] = [];
   #insights: SeatInsights | null = null;
@@ -352,6 +353,10 @@ export class SeatsScene extends Phaser.Scene {
   }
 
   create(): void {
+    // Phaser reuses this scene: nothing from the last visit carries over.
+    this.#leaving = false;
+    this.#aspectTipOpen = null;
+    this.#tipZone = null;
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     appSession().music?.playTitle();
     this.scale.on("resize", this.#rebuild, this);
@@ -386,8 +391,17 @@ export class SeatsScene extends Phaser.Scene {
     });
     this.#hints = new GlyphHints(this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.#hints.dispose());
-    // Any press elsewhere shuts an aspect tip that is open (it opens only on a press of its own "i").
-    this.input.on("pointerdown", () => void this.#closeAspectTip());
+    // A tap elsewhere shuts an open aspect tip (it opens only on a press of its own "i"). On release, so a swipe of the
+    // chip rail keeps its drag, and not over another "i", whose own tap switches the tip in the same press.
+    this.input.on("pointerup", (pointer: Phaser.Input.Pointer) => {
+      if (this.#aspectTipOpen === null || pointer.getDistance() > 10) return;
+      for (const [key, stop] of this.#stops) {
+        if (!key.startsWith("hero-chip-info:")) continue;
+        const r = typeof stop.rect === "function" ? stop.rect() : stop.rect;
+        if (pointer.x >= r.x && pointer.x <= r.x + r.width && pointer.y >= r.y && pointer.y <= r.y + r.height) return;
+      }
+      this.#closeAspectTip();
+    });
     const covered = (): boolean =>
       this.scene.isActive(SCENES.inspect) ||
       this.scene.isActive(SCENES.unlockConfirm) ||
@@ -397,7 +411,7 @@ export class SeatsScene extends Phaser.Scene {
       onFocusChange: (key) => {
         this.#focusDeckId = key === null ? null : deckIdOfStop(key);
         this.#drawInsights();
-        this.#yWord?.setText(this.#yWordFor(key));
+        this.#refreshYWord();
         // Focus moving off the open tip's own "i" shuts it.
         if (this.#aspectTipOpen !== null && key !== infoStopKey(this.#aspectTipOpen)) void this.#closeAspectTip();
       },
@@ -462,11 +476,15 @@ export class SeatsScene extends Phaser.Scene {
   }
 
   #goToTableSetup(): void {
+    if (this.#leaving) return;
+    this.#leaving = true;
     this.scale.off("resize", this.#rebuild, this);
     goToScreen(this, SCENES.setup, { draft: this.#draft } satisfies TableSetupData);
   }
 
   #back(): void {
+    if (this.#leaving) return;
+    this.#leaving = true;
     this.scale.off("resize", this.#rebuild, this);
     if (this.#backTo === "civil-war-builder") {
       goToScreen(this, SCENES.civilWarBuilder, { draft: this.#draft, step: 5 } satisfies CivilWarBuilderData);
@@ -971,6 +989,8 @@ export class SeatsScene extends Phaser.Scene {
     this.#stops.set("play", { rect: layout.play, activate: play });
 
     const deckCheck = (): void => {
+      if (this.#leaving) return;
+      this.#leaving = true;
       this.scale.off("resize", this.#rebuild, this);
       goToDeckCheckOrTableSetup(this, this.#draft, this.#deckOptions());
     };
@@ -1034,6 +1054,7 @@ export class SeatsScene extends Phaser.Scene {
       entry: order.find((key) => key.startsWith("hero-chip:")) ?? order.find((key) => key === "hero-search") ?? null,
       list: order.filter((key) => LIST_STOP.test(key)),
     };
+    this.#refreshYWord();
     // Y on a stop with no Inspect of its own jumps between the filters and the list; a hero tile keeps its Inspect.
     for (const [key, stop] of this.#stops) {
       if (!stop.inspect) this.#stops.set(key, { ...stop, inspect: () => this.#jumpAreas(false) });
@@ -1053,7 +1074,7 @@ export class SeatsScene extends Phaser.Scene {
   /** B / Escape: shuts an open tip, then from the list returns to the filters (scrolled back to the top), then backs out. */
   #onCancel(): void {
     if (this.#closeAspectTip()) return;
-    if (canJumpFocus(this.#route) && areaOf(this.#route?.focused ?? null, this.#areas) === "list") {
+    if (areaOf(this.#route?.focused ?? null, this.#areas) === "list") {
       this.#jumpAreas(true);
       return;
     }
@@ -1070,7 +1091,11 @@ export class SeatsScene extends Phaser.Scene {
     const target = fromBack ? this.#areaJump.toFilters(focus, this.#areas) : this.#areaJump.toggle(focus, this.#areas);
     if (target === null) return;
     if (fromBack) (this.#grid ?? this.#roster)?.scrollToStart();
-    jumpFocus(this.#route, target);
+    this.#route?.focusKey(target);
+  }
+
+  #refreshYWord(): void {
+    this.#yWord?.setText(this.#yWordFor(this.#route?.focused ?? null));
   }
 
   /** What Y does with focus where it is: back to the list from the filters, Inspect on a hero tile, else to the filters. */

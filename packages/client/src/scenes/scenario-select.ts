@@ -81,7 +81,6 @@ import { McChipRail } from "../ui/chip-rail.js";
 import { RailScroll } from "../view/rail-scroll.js";
 import { onTap } from "../ui/tap.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
-import { canJumpFocus, jumpFocus } from "./focus-jump.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import { AreaJump, areaOf, type FocusAreas } from "../view/focus-areas.js";
 import { SCENES } from "./keys.js";
@@ -123,6 +122,8 @@ export class ScenarioSelectScene extends Phaser.Scene {
   #roster: McShelfRoster<RosterEntry> | null = null;
   /** Whether "Choose heroes" can be pressed now, for the route's primary stop (Start). */
   #canContinue = false;
+  /** A screen change is under way (Back, Choose heroes): later presses do nothing. */
+  #leaving = false;
   #grid: McVirtualList | null = null;
   /** Narrow only: the sideways-scrolling product chip rail (`ScenarioSelectLayout.chipsScroll`). Null on wide, where the chips wrap. */
   #chipRail: McChipRail | null = null;
@@ -151,6 +152,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.#leaving = false;
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     appSession().music?.playTitle();
     this.scale.on("resize", this.#rebuild, this);
@@ -194,7 +196,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
       blocked: () => covered() || (this.#searchInput?.focused ?? false),
       // B from the list returns to the filters (scrolled back to the top); from the filters it backs out.
       onCancel: () => {
-        if (canJumpFocus(this.#route) && areaOf(this.#route?.focused ?? null, this.#areas) === "list") {
+        if (areaOf(this.#route?.focused ?? null, this.#areas) === "list") {
           this.#jumpAreas(true);
           return;
         }
@@ -237,6 +239,8 @@ export class ScenarioSelectScene extends Phaser.Scene {
   }
 
   #back(): void {
+    if (this.#leaving) return;
+    this.#leaving = true;
     this.scale.off("resize", this.#rebuild, this);
     goToScreen(this, SCENES.title);
   }
@@ -483,10 +487,12 @@ export class ScenarioSelectScene extends Phaser.Scene {
     // Locked, the CTA becomes the door to unlocking this one scenario with champion points, right here.
     const unlockTarget = { kind: "scenario", scenarioId: currentScenario.id as string } as const;
     const next = (): void => {
+      if (this.#leaving) return;
       if (lock) {
         unlockOrAsk(this, unlockTarget, () => this.#rebuild());
         return;
       }
+      this.#leaving = true;
       this.scale.off("resize", this.#rebuild, this);
       goToScreen(this, SCENES.seats, { draft: this.#draft } satisfies SeatsData);
     };
@@ -554,7 +560,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
     const target = fromBack ? this.#areaJump.toFilters(focus, this.#areas) : this.#areaJump.toggle(focus, this.#areas);
     if (target === null) return;
     if (fromBack) (this.#grid ?? this.#roster)?.scrollToStart();
-    jumpFocus(this.#route, target);
+    this.#route?.focusKey(target);
   }
 
   /**

@@ -17,7 +17,8 @@ const X = 2;
 const RB = 5;
 const VIEW = 8;
 const START = 9;
-const DPAD_DOWN = 13;
+const LT = 6;
+const Y = 3;
 
 async function installPad(page: Page): Promise<void> {
   await page.addInitScript((id) => {
@@ -54,21 +55,31 @@ async function setButton(page: Page, index: number, on: boolean): Promise<void> 
 
 /** Holds a button until `done` (the pad is read once a frame, and a loaded runner can run none in a short press). */
 async function press(page: Page, index: number, done?: () => Promise<boolean>): Promise<void> {
-  await setButton(page, index, true);
-  if (!done) await page.waitForTimeout(400);
-  else {
-    for (let i = 0; i < 30; i += 1) {
+  if (!done) {
+    await setButton(page, index, true);
+    await page.waitForTimeout(400);
+    await setButton(page, index, false);
+    await page.waitForTimeout(300);
+    return;
+  }
+  // A press the plugin missed is not re-sent while the button stays down, so release and press again.
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await setButton(page, index, true);
+    for (let i = 0; i < 10; i += 1) {
       await page.waitForTimeout(100);
       if (await done()) break;
     }
+    await setButton(page, index, false);
+    await page.waitForTimeout(300);
+    if (await done()) return;
   }
-  await setButton(page, index, false);
-  await page.waitForTimeout(300);
 }
 
-/** The first pad press wakes the plugin; a D-pad step is harmless on every screen here. */
+/** The first pad press wakes the plugin; the left trigger does nothing alone, so focus stays where it was. */
 async function wakePad(page: Page): Promise<void> {
-  await press(page, DPAD_DOWN);
+  await press(page, LT);
+  // The plugin reports face buttons only a moment after its first poll.
+  await page.waitForTimeout(1000);
 }
 
 async function openScreen(page: Page, screen: string, landing: string): Promise<void> {
@@ -110,9 +121,62 @@ test("B on Set the Table goes back to Take your seats, which then answers the pa
   // RB steps to seat 2: the seat row says it is being picked.
   await press(page, RB, async () => (await findText(page, "SEAT 2 · PICKING", "Seats")).length > 0);
   expect((await findText(page, "SEAT 2 · PICKING", "Seats")).length).toBeGreaterThan(0);
+  // The keyboard: Tab moves the focus ring.
+  const before = await focusOf(page, "Seats");
   await page.keyboard.press("Tab");
-  await page.mouse.click(40, 150);
+  await waitFor(async () => ((await focusOf(page, "Seats")) !== before ? true : null), "Tab moves focus", 10_000);
+  // The mouse: a click on Back reaches Scenario select.
+  const back = await stopRectOf(page, "Seats", "back");
+  await page.mouse.click(back.x + back.width / 2, back.y + back.height / 2);
+  await waitFor(sceneIs(page, "ScenarioSelect"), "a click on Back reaches Scenario select", 15_000);
   expect(errors).toEqual([]);
+});
+
+// Motion on: the race is about the screen fade, which the suite default skips.
+test.describe("inside the fade", () => {
+  test.use({ reducedMotion: "no-preference" });
+
+  test("Back and then Start inside the fade lands on Take your seats and deals nothing", async ({ page }) => {
+    test.setTimeout(120_000);
+    const errors = trackPageErrors(page);
+    await openScreen(page, "table-setup", "Setup");
+    // The pad plugin takes a moment to report buttons: step the D-pad until it does, so B lands first time below.
+    for (let i = 0; i < 20 && (await focusOf(page, "Setup")) === null; i += 1) await press(page, 13);
+    await page.waitForTimeout(300);
+    await setButton(page, B, true);
+    // Start goes in while the screen is fading out, not before or after.
+    await waitFor(
+      () =>
+        page.evaluate(
+          () =>
+            (
+              window as unknown as {
+                __mcGame: {
+                  scene: { getScene(k: string): { cameras: { main: { fadeEffect: { isRunning: boolean } } } } };
+                };
+              }
+            ).__mcGame.scene.getScene("Setup").cameras.main.fadeEffect.isRunning || null,
+        ),
+      "Back starts the fade",
+      10_000,
+    );
+    await setButton(page, B, false);
+    await setButton(page, START, true);
+    await page.waitForTimeout(120);
+    await setButton(page, START, false);
+    await waitFor(sceneIs(page, "Seats"), "Back wins the race", 15_000);
+    await page.waitForTimeout(1500);
+    const scenes = await activeScenes(page);
+    expect(scenes).toContain("Seats");
+    expect(scenes).not.toContain("SetupDeal");
+    const before = await focusOf(page, "Seats");
+    await page.keyboard.press("Tab");
+    await waitFor(async () => ((await focusOf(page, "Seats")) !== before ? true : null), "Tab moves focus", 10_000);
+    const back = await stopRectOf(page, "Seats", "back");
+    await page.mouse.click(back.x + back.width / 2, back.y + back.height / 2);
+    await waitFor(sceneIs(page, "ScenarioSelect"), "a click on Back still works", 15_000);
+    expect(errors).toEqual([]);
+  });
 });
 
 test("B takes the pad out of the seed field instead of holding every button", async ({ page }) => {
@@ -153,6 +217,7 @@ test("X clears a seat, and an aspect's (i) opens only on a press", async ({ page
   await installPad(page);
   await openApp(page, "screen=seats&players=2&unlock=all", { landing: "Seats" });
   await wakePad(page);
+  expect(await focusOf(page, "Seats"), "nothing is focused, so X takes the active seat").toBeNull();
   const filled = async (text: string) => (await findText(page, text, "Seats")).length > 0;
   expect(await filled("2 SEATS FILLED")).toBe(true);
   // X clears the active seat (nothing is focused): the header counts one seat now.
@@ -198,19 +263,20 @@ test("View on the Title opens the Trophy Room", async ({ page }) => {
   await waitFor(sceneIs(page, "TrophyRoom"), "View opens the Trophy Room", 15_000);
 });
 
-/**
- * Y toggles focus between the filters and the list, and B from the list returns to the filters before it backs out.
- * Needs `FocusRoute.focusKey` (the route's way to move focus to a named stop); skipped on a route without it.
- */
-async function routeCanJump(page: Page): Promise<boolean> {
-  return page.evaluate(async () => {
-    const mod = (await import("/src/scenes/focus-route.ts")) as unknown as {
-      FocusRoute: { prototype: { focusKey?: unknown } };
-    };
-    return typeof mod.FocusRoute.prototype.focusKey === "function";
-  });
+type StopRect = { x: number; y: number; width: number; height: number };
+
+async function stopRectOf(page: Page, scene: string, key: string): Promise<StopRect> {
+  const rect = await page.evaluate(
+    ([sceneKey, stopKey]) =>
+      (window as unknown as { __mcFocusRoutes: Record<string, () => { key: string; rect: StopRect }[]> })
+        .__mcFocusRoutes[sceneKey!]!().find((stop) => stop.key === stopKey)?.rect ?? null,
+    [scene, key],
+  );
+  expect(rect, `${key} is a stop on ${scene}`).not.toBeNull();
+  return rect!;
 }
 
+// Y toggles focus between the filters and the list, and B from the list returns to the filters before it backs out.
 const focusOf = (page: Page, scene: string): Promise<string | null> =>
   page.evaluate(
     (key) =>
@@ -243,7 +309,6 @@ for (const screen of [
     test.setTimeout(120_000);
     await installPad(page);
     await openApp(page, `screen=${screen.query}&unlock=all`, { landing: screen.scene });
-    test.skip(!(await routeCanJump(page)), "needs FocusRoute.focusKey");
     // Tab to the first tile of the list.
     let tile: string | null = null;
     for (let i = 0; i < 80 && tile === null; i += 1) {
@@ -276,3 +341,20 @@ for (const screen of [
     await waitFor(sceneIs(page, screen.back), "B from the filters backs out", 15_000);
   });
 }
+
+test("Take your seats: the pad's B and Y make the same jump", async ({ page }) => {
+  test.setTimeout(120_000);
+  await openScreen(page, "seats", "Seats");
+  let tile: string | null = null;
+  for (let i = 0; i < 80 && tile === null; i += 1) {
+    await page.keyboard.press("Tab");
+    const focus = await focusOf(page, "Seats");
+    if (focus?.startsWith("hero:")) tile = focus;
+  }
+  expect(tile).not.toBeNull();
+  await press(page, B, async () => ((await focusOf(page, "Seats")) ?? "").startsWith("hero-chip:"));
+  expect(((await focusOf(page, "Seats")) ?? "").startsWith("hero-chip:")).toBe(true);
+  await press(page, Y, async () => (await focusOf(page, "Seats")) === tile);
+  expect(await focusOf(page, "Seats")).toBe(tile);
+  expect(await activeScenes(page)).toContain("Seats");
+});

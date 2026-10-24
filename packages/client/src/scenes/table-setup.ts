@@ -283,6 +283,8 @@ export class TableSetupScene extends Phaser.Scene {
   /** What the status line reads with no seed error: the wide sidebar's deal hold, or nothing (the phone's footer says it). */
   #statusIdle = "";
   #starting = false;
+  /** A screen change (Back) is under way: later presses do nothing. */
+  #leaving = false;
   #route: FocusRoute | null = null;
   /** Phone's own scroll position (`tableSetupCompactLayout`, the 2026-09-18 correction) — persists across rebuilds like every other scroll owner in the app (`ListScroll`/`VariableListScroll` convention), reset fresh only in `create()`. */
   #compactScroll = new VariableListScroll();
@@ -362,7 +364,7 @@ export class TableSetupScene extends Phaser.Scene {
         (this.#seedInput?.focused ?? false),
       onCancel: () => this.#back(),
       // Start / Menu (and A with nothing focused) deals: the way forward on this screen.
-      primary: () => (this.#stops.has("deal-it-out") && !this.#starting ? "deal-it-out" : null),
+      primary: () => (this.#stops.has("deal-it-out") && !this.#starting && !this.#leaving ? "deal-it-out" : null),
     });
     // A pad that put the caret in the seed field can take it out again (B, A or Start).
     bindTextFieldEscape(
@@ -371,6 +373,7 @@ export class TableSetupScene extends Phaser.Scene {
       () => this.scene.isActive(SCENES.inspect) || this.scene.isActive(SCENES.setCards),
     );
     this.#starting = false;
+    this.#leaving = false;
     this.#savedDecks = [];
     this.#rebuild();
     fadeScreenIn(this);
@@ -384,7 +387,8 @@ export class TableSetupScene extends Phaser.Scene {
   }
 
   #back(): void {
-    if (this.#starting) return;
+    if (this.#starting || this.#leaving) return;
+    this.#leaving = true;
     this.scale.off("resize", this.#rebuild, this);
     goToScreen(this, SCENES.seats, { draft: this.#draft } satisfies SeatsData);
   }
@@ -2959,7 +2963,8 @@ export class TableSetupScene extends Phaser.Scene {
   }
 
   async #start(players: readonly ReturnType<typeof corePlayerForSeat>[]): Promise<void> {
-    if (this.#starting) return;
+    // A press during a screen change (Back, then Start inside the fade) must not deal a game behind the screen.
+    if (this.#starting || this.#leaving) return;
     if (this.#dealBlocked !== null) return;
     if (parseSeed(this.#seedText) === null) {
       this.#status?.setText("seed must be a whole number");
@@ -2978,6 +2983,8 @@ export class TableSetupScene extends Phaser.Scene {
       ),
     );
 
+    // The screen was left while the game was being made: nothing here is on screen any more.
+    if (!this.sys.isActive()) return;
     if (store.state.status === "failed") {
       this.#starting = false;
       this.#rebuild();
