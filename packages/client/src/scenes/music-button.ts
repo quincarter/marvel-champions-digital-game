@@ -20,6 +20,7 @@ import { fitText } from "../ui/widgets.js";
 import { musicSlots, setShownMusicButton, shownMusicButton } from "../ui/music-slot.js";
 import { drawMusicIcon } from "../ui/music-icon.js";
 import { reportButtonSlot } from "../view/report-button.js";
+import { languageSlotBeside } from "../view/language-button.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import { lerp } from "../view/motion-math.js";
 import {
@@ -41,6 +42,8 @@ import { SCENES } from "./keys.js";
 const ABOVE_SCREENS: ReadonlySet<string> = new Set([
   SCENES.musicButton,
   SCENES.musicPlayer,
+  SCENES.languageButton,
+  SCENES.languagePopup,
   SCENES.reportButton,
   SCENES.reportIssue,
   SCENES.music,
@@ -135,6 +138,11 @@ export class MusicButtonScene extends Phaser.Scene {
     const under = playerUp ? SCENES.musicPlayer : top;
     if (under && manager.getIndex(SCENES.musicButton) < manager.getIndex(under)) {
       manager.moveAbove(under, SCENES.musicButton);
+    }
+    // On a phone the banner would sit over the language dropdown's first row: it gives way while that is open.
+    if (manager.isActive(SCENES.languagePopup)) {
+      this.#pending = null;
+      this.#dismiss(true);
     }
     if (playerUp !== this.#playerUp) {
       this.#playerUp = playerUp;
@@ -304,10 +312,14 @@ export class MusicButtonScene extends Phaser.Scene {
       };
     } else {
       const textWidth = Math.max(label.width, name.width);
-      const minX = Math.max(8, icon.x + icon.width - PILL_MAX_WIDTH);
-      const pill = nowPlayingPill(icon, textWidth, minX);
+      // The pill opens out to the left of the card language button (#337), which stays visible beside the note: its
+      // right edge is that button's left edge, so it grows from zero width there.
+      const lang = languageSlotBeside(icon);
+      const edge: Rect = { x: lang.x - 4, y: icon.y, width: 0, height: icon.height };
+      const minX = Math.max(8, edge.x - PILL_MAX_WIDTH);
+      const pill = nowPlayingPill(edge, textWidth, minX);
       const textX = pill.x + 12;
-      const textRoom = pill.width - icon.width - 18;
+      const textRoom = pill.width - 18;
       label.setPosition(textX, pill.y + pill.height / 2 - label.height + 1);
       name.setPosition(textX, pill.y + pill.height / 2 - 1);
       if (pill.height < 34) {
@@ -318,11 +330,12 @@ export class MusicButtonScene extends Phaser.Scene {
       } else {
         fitText(name, Math.max(20, textRoom), 13);
       }
-      const right = icon.x + icon.width;
+      const right = edge.x;
       redraw = (p) => {
         // Opens out of the note to its left; the words come up once there is room for them.
-        const w = lerp(icon.width, pill.width, p);
+        const w = lerp(0, pill.width, p);
         ground.clear();
+        if (w < 4) return;
         ground.fillStyle(surface.ink.hex, 1).fillRect(right - w, pill.y, w, pill.height);
         ground.lineStyle(2, surface.paper.hex, 1).strokeRect(right - w + 1, pill.y + 1, w - 2, pill.height - 2);
         const words = Phaser.Math.Clamp((p - 0.55) / 0.45, 0, 1);

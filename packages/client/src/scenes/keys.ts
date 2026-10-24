@@ -145,6 +145,10 @@ export const SCENES = {
   reportButton: "ReportButton",
   /** The music button (#191, `scenes/music-button.ts`): a note beside the Report button, announcing each new song. */
   musicButton: "MusicButton",
+  /** The card language button (#337, `scenes/language-button.ts`): a globe and "EN"/"ES", beside the music button. */
+  languageButton: "LanguageButton",
+  /** What the language button opens (`scenes/language-popup.ts`): the language list, or "Other languages" on a native install. */
+  languagePopup: "LanguagePopupOverlay",
   /** The music player (#191, `scenes/music-player.ts`), opened from the music button. */
   musicPlayer: "MusicPlayerOverlay",
   /** The note that drops in when power saving mode turns on or off (`scenes/power-saving-notice.ts`). */
@@ -157,6 +161,7 @@ export const SCENES = {
 export const CHROME_SCENES: ReadonlySet<string> = new Set([
   SCENES.reportButton,
   SCENES.musicButton,
+  SCENES.languageButton,
   SCENES.powerSavingNotice,
   SCENES.achievementToast,
   SCENES.syncPrompt,

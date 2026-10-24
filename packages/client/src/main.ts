@@ -29,6 +29,8 @@ import { MusicButtonScene } from "./scenes/music-button.js";
 import { MusicPlayerOverlay } from "./scenes/music-player.js";
 import { ReportIssueOverlay } from "./scenes/report-issue.js";
 import { ReportButtonScene } from "./scenes/report-button.js";
+import { LanguageButtonScene } from "./scenes/language-button.js";
+import { LanguagePopupOverlay } from "./scenes/language-popup.js";
 import { installDebugDump } from "./ui/debug-dump.js";
 import { installFrameGuard } from "./ui/frame-guard.js";
 import { installStartupWatchdog, probeWebgl } from "./ui/startup-watchdog.js";
@@ -120,6 +122,8 @@ const game = new Phaser.Game({
     MusicScene,
     PowerSavingNoticeScene,
     AchievementToastScene,
+    LanguagePopupOverlay,
+    LanguageButtonScene,
     MusicPlayerOverlay,
     MusicButtonScene,
     ReportIssueOverlay,
