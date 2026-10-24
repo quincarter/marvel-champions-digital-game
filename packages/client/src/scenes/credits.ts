@@ -5,6 +5,7 @@
  *
  * Read-only: no row is a control and no web address opens from here, so a swipe that ends over a row can fire
  * nothing (CLAUDE.md, no tap on finger lift); the only presses are the top bar's Back and the list's own scrolling.
+ * A pad or keyboard walks the entries (each a focus stop that does nothing on A; the list follows the ring).
  * An entry whose artist or source the repo does not record says so in its credit line, in words.
  */
 import Phaser from "phaser";
@@ -12,6 +13,7 @@ import { ink, surface, typeRole } from "../tokens.js";
 import { bangers, campaignFrame, drawTopBar } from "../ui/campaign-chrome.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { cssOf, textStyle } from "../ui/theme.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
 import { McButton, fitText } from "../ui/widgets.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
@@ -36,6 +38,7 @@ export class CreditsScene extends Phaser.Scene {
   #list: McVirtualList | null = null;
   #route: FocusRoute | null = null;
   #alive = false;
+  #hints!: GlyphHints;
   /** Kept across redraws and visits (Phaser reuses this scene instance). */
   readonly #scroll = new ListScroll();
 
@@ -47,13 +50,16 @@ export class CreditsScene extends Phaser.Scene {
     this.#alive = true;
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#draw, this);
+    this.#hints = new GlyphHints(this);
     this.#route = new FocusRoute(this, {
       onCancel: () => this.#back(),
       onPage: (direction) => this.#list?.scrollByPage(direction),
+      onHomeEnd: (edge) => (edge === "home" ? this.#list?.scrollToStart() : this.#list?.scrollToEnd()),
       onScroll: (_dx, dy) => this.#list?.scrollByPx(dy),
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
+      this.#hints.dispose();
       this.scale.off("resize", this.#draw, this);
       this.#destroyWidgets();
     });
@@ -81,12 +87,14 @@ export class CreditsScene extends Phaser.Scene {
     const frame = campaignFrame(this);
     const { width, height, phone, gutter } = frame;
     const rows = creditsRowsOf();
+    this.#hints.reset();
     const stops = new Map<string, FocusStop>();
 
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
     const bar = drawTopBar(this, {
       backLabel: phone ? "◂" : "◂ EXTRAS",
       onBack: () => this.#back(),
+      hints: this.#hints,
       title: "Art & Credits",
     });
     if (bar.back) this.#buttons.push(bar.back);
@@ -101,7 +109,7 @@ export class CreditsScene extends Phaser.Scene {
     };
     // Entries wrap inside the box, clear of the scrollbar gutter and the box padding.
     const textWidth = listRect.width - GUTTER - PAD * 2;
-    this.#list = new McVirtualList(this, {
+    const list = new McVirtualList(this, {
       rect: listRect,
       rowHeight: 120,
       rowHeightOf: (index) => creditsRowHeightOf(rows[index]!, textWidth),
@@ -110,8 +118,26 @@ export class CreditsScene extends Phaser.Scene {
       background: false,
       renderRow: (index, rect) => this.#renderRow(rows[index]!, rect, textWidth, phone),
     });
+    this.#list = list;
 
-    this.#route?.set(bar.backRect ? ["back"] : [], stops);
+    const order: string[] = bar.backRect ? ["back"] : [];
+    rows.forEach((row, index) => {
+      if (row.kind === "section") return;
+      const key = `row:${index}`;
+      order.push(key);
+      stops.set(key, {
+        rect: () => {
+          // Clipped to the list, so the ring never floats over the top bar while a row is scrolled partly out.
+          const r = list.rectFor(index);
+          const top = Math.max(r.y, listRect.y);
+          const bottom = Math.min(r.y + r.height, listRect.y + listRect.height);
+          return { x: r.x, y: top, width: r.width - GUTTER, height: Math.max(1, bottom - top) };
+        },
+        activate: () => undefined,
+        ensureVisible: () => list.scrollIntoView(index),
+      });
+    });
+    this.#route?.set(order, stops);
   }
 
   #renderRow(row: CreditsRow, rect: Rect, textWidth: number, phone: boolean): VirtualListRow {
