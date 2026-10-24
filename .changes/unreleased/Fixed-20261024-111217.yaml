@@ -1,3 +1,3 @@
 kind: Fixed
-body: A controller that disconnects and reconnects works again at once, and a webview that stamps controllers on its own clock no longer drops their input
+body: A controller that disconnects and reconnects works again at once, without reopening the screen
 time: 2026-10-24T11:12:17.9462072-04:00
