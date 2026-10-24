@@ -72,6 +72,13 @@ export class ExtrasReaderScene extends Phaser.Scene {
     this.#route = new FocusRoute(this, {
       blocked: () => this.#search?.focused ?? false,
       onCancel: () => this.#back(),
+      // LB / RB read the previous or next section.
+      onTab: (direction) => {
+        const total = this.#sections?.length ?? 0;
+        const showing = this.#sideBySide() || this.#pane === "section";
+        if (total > 0 && showing && this.#current + direction >= 0 && this.#current + direction < total)
+          this.#open(this.#current + direction);
+      },
       onPage: (direction) => this.#region?.scrollByPx(direction * 320),
       onScroll: (_dx, dy) => this.#region?.scrollByPx(dy),
     });

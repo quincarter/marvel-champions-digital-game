@@ -399,6 +399,8 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#deckRegion = null;
     });
     this.#route = new FocusRoute(this, {
+      // B is the Back button (which asks to confirm when there are unsaved changes).
+      onCancel: () => this.#stops.get("back")?.activate(),
       blocked: () =>
         this.scene.isActive(SCENES.inspect) ||
         (this.#nameInput?.focused ?? false) ||
@@ -1878,6 +1880,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#stops.set(`identity:${identity.id as string}`, {
         rect: () => tileRect(list.rectFor(rowIndex), index % cols),
         activate: () => chooseAt(index),
+        inspect: () => this.#inspect(identity),
         ensureVisible: () => list.scrollIntoView(rowIndex),
       });
     });

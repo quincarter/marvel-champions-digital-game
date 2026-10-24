@@ -176,6 +176,7 @@ import {
   STAMP_CHIP_TYPE,
   fitWrapped,
 } from "../ui/widgets.js";
+import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
 import { appSession, deckStorage } from "../session.js";
 import type { DeckBuilderSceneData } from "./deck-builder.js";
 import type { DeckCheckSceneData } from "./deck-check.js";
@@ -362,6 +363,7 @@ export class DecksScene extends Phaser.Scene {
   #buttons: McButton[] = [];
   #tabs: McTabs | null = null;
   #route: FocusRoute | null = null;
+  #hints!: GlyphHints;
   #stops = new Map<string, FocusStop>();
   /** Both lists are recreated every rebuild (`ui/virtual-list.ts`); only their scroll positions persist, in these fields. */
   #list: McVirtualList | null = null;
@@ -455,6 +457,7 @@ export class DecksScene extends Phaser.Scene {
       this.#searchInput = null;
       this.#poolSearchInput?.destroy();
       this.#poolSearchInput = null;
+      this.#hints.dispose();
       this.#tabs?.destroy();
       this.#tabs = null;
       this.#list?.destroy();
@@ -464,7 +467,12 @@ export class DecksScene extends Phaser.Scene {
       this.#notesList?.destroy();
       this.#notesList = null;
     });
+    this.#hints = new GlyphHints(this);
     this.#route = new FocusRoute(this, {
+      // B leaves for Title, as the Back button does (a field being typed in owns the keys, so this is not reached then).
+      onCancel: () => this.#stops.get("back")?.activate(),
+      // LB / RB step Decks, Cards and Stats on a narrow screen; on the three-pane layout there is no strip, so they page.
+      onTab: (direction) => this.#stepTab(direction),
       blocked: () =>
         this.scene.isActive(SCENES.inspect) ||
         (this.#pasteInput?.focused ?? false) ||
@@ -620,6 +628,7 @@ export class DecksScene extends Phaser.Scene {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#stops = new Map();
+    this.#hints.reset();
     this.#tabs?.destroy();
     this.#tabs = null;
     // Both lists are recreated fresh every rebuild, in the normal draw order (`ui/virtual-list.ts` — reattaching
@@ -683,6 +692,7 @@ export class DecksScene extends Phaser.Scene {
       new McButton(this, { kind: "onInk", label: "◂ Title", type: typeRole.rowTitle, rect: backRect, onClick: goBack }),
     );
     this.#stops.set("back", { rect: backRect, activate: goBack });
+    this.#hints.button(this.#buttons.at(-1)!, ["cancel"], "paper");
 
     // The header's right-aligned meta label: the real pool size, never an owned-card claim (docs/phase4-screen-gaps.md
     // §4/§5) — worded "CARD POOL", not the mock's "Core Set", since this pool already spans Core and wave 1. Skipped
@@ -816,6 +826,12 @@ export class DecksScene extends Phaser.Scene {
       this.#stops.set("tab:decks", { rect: tabCell(0), activate: () => this.#setTab("decks") });
       this.#stops.set("tab:cards", { rect: tabCell(1), activate: () => this.#setTab("cards") });
       this.#stops.set("tab:stats", { rect: tabCell(2), activate: () => this.#setTab("stats") });
+      const strip = layout.tabs!;
+      this.#hints.custom(
+        (set, snapshot) => (set === "pad" ? specsForShortcuts(["zonePrevious", "zoneNext"], snapshot) : null),
+        14,
+        ({ width }) => ({ x: strip.x + strip.width - width, y: strip.y + strip.height + 5 }),
+      );
 
       let deckIds: readonly string[] = [];
       let poolCardIds: readonly string[] = [];
@@ -844,6 +860,16 @@ export class DecksScene extends Phaser.Scene {
       );
     }
     this.#hover?.onDraw();
+  }
+
+  #stepTab(direction: 1 | -1): void {
+    if (this.#tabs === null) {
+      (this.#activeTab === "cards" ? this.#poolList : this.#list)?.scrollByPage(direction);
+      return;
+    }
+    const order: readonly DecksTab[] = ["decks", "cards", "stats"];
+    const next = order[order.indexOf(this.#activeTab) + direction];
+    if (next) this.#setTab(next);
   }
 
   #setTab(tab: DecksTab): void {
@@ -1699,6 +1725,7 @@ export class DecksScene extends Phaser.Scene {
       this.#stops.set(`pool-card:${card.id as string}`, {
         rect: () => poolCellRect(geometry, list.rectFor(rowIndex), col),
         activate: () => this.#inspectCard(card),
+        inspect: () => this.#inspectCard(card),
         ensureVisible: () => list.scrollIntoView(rowIndex),
       });
     });

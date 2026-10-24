@@ -20,6 +20,7 @@ import { bangers, campaignFrame, drawPicture, drawTopBar } from "../ui/campaign-
 import { destroyChildren } from "../ui/destroy-children.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTabs, fitText } from "../ui/widgets.js";
+import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { drawNowPlayingPanel, type NowPlayingPanel } from "../ui/now-playing-panel.js";
 import { earnedSongsOf } from "../view/music-player.js";
@@ -62,6 +63,7 @@ export class ExtrasScene extends Phaser.Scene {
   #tabs: McTabs | null = null;
   #list: McVirtualList | null = null;
   #route: FocusRoute | null = null;
+  #hints!: GlyphHints;
   #redrawQueued = false;
   /** Between `create` and shutdown. Not `sys.isActive()`, which is still false while `create` itself draws. */
   #alive = false;
@@ -83,9 +85,12 @@ export class ExtrasScene extends Phaser.Scene {
     this.#alive = true;
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#draw, this);
+    this.#hints = new GlyphHints(this);
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.extrasViewer),
       onCancel: () => this.#back(),
+      // LB / RB (and the zone keys) step the tabs along the top; Page Up / Down still page the shelf.
+      onTab: (direction) => this.#stepTab(direction),
       onPage: (direction) => this.#list?.scrollByPage(direction),
       onScroll: (_dx, dy) => this.#list?.scrollByPx(dy),
     });
@@ -96,6 +101,7 @@ export class ExtrasScene extends Phaser.Scene {
       this.scale.off("resize", this.#draw, this);
       this.#unsubscribe?.();
       this.#unsubscribe = null;
+      this.#hints.dispose();
       this.#destroyWidgets();
     });
     this.#draw();
@@ -123,6 +129,13 @@ export class ExtrasScene extends Phaser.Scene {
     if (tab === this.#tab) return;
     this.#tab = tab;
     this.#draw();
+  }
+
+  /** LB / RB: the previous or next tab, stopping at the ends like the tab strip itself. */
+  #stepTab(direction: 1 | -1): void {
+    const at = EXTRAS_TABS.findIndex((tab) => tab.id === this.#tab);
+    const next = EXTRAS_TABS[at + direction];
+    if (next) this.#select(next.id);
   }
 
   /** A picture arriving redraws once, however many arrive in the same frame. */
@@ -184,6 +197,7 @@ export class ExtrasScene extends Phaser.Scene {
     if (!this.#alive) return;
     this.#destroyWidgets();
     destroyChildren(this);
+    this.#hints.reset();
 
     const frame = campaignFrame(this);
     const { width, height, phone, gutter } = frame;
@@ -248,6 +262,13 @@ export class ExtrasScene extends Phaser.Scene {
       activeId: this.#tab,
       onSelect: (id) => this.#select(id as ExtrasTab),
     });
+    // LB / RB, pad only, in the gap under the strip's right end.
+    this.#hints.custom(
+      (set, snapshot) => (set === "pad" ? specsForShortcuts(["zonePrevious", "zoneNext"], snapshot) : null),
+      16,
+      ({ width }) => ({ x: tabRect.x + tabRect.width - width, y: tabRect.y + tabRect.height + 7 }),
+    );
+    if (bar.back) this.#hints.button(bar.back, ["cancel"], "paper");
     const tabWidth = tabRect.width / tabs.length;
     tabs.forEach((tab, index) => {
       stops.set(`tab:${tab.id}`, {
