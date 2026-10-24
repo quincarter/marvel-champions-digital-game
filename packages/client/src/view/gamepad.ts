@@ -42,7 +42,16 @@ export type GamepadIntent =
   /** Moves keyboard/pad focus into the guide surface (the rail/callout, the villain-phase/defend guide strip, or
    * an opportunistic tip toast) and back out to the board — guided mode's own accessibility gap fix
    * (`docs/guided-mode.md` §3.10, §7). A screen with no guide surface simply never wires this. */
-  | "toggleGuide";
+  | "toggleGuide"
+  /** LT and RT: the board's Undo and End turn (`docs/controller-support.md`). Other screens leave them unwired. */
+  | "undo"
+  | "endTurn"
+  /** Menu / Start / +: Pause, from anywhere a game is open. */
+  | "pause"
+  /** View / Select / −: the board's game log; on a decision popup, Peek at table. */
+  | "view"
+  /** The right stick's press (R3): Expand / Collapse a decision popup. */
+  | "expand";
 
 /**
  * Indices from the Web Gamepad API's "standard" layout, which browsers map

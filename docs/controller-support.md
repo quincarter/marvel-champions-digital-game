@@ -15,6 +15,8 @@ Status: building (owner answers 2026-10-24). Branch `feature/controller-support`
 5. **Glyphs on the board** for the keyboard and the controller, wherever a shortcut applies, only when a keyboard or
    pad is in use (never for touch). While the mouse is moving the glyphs collapse; when it stops they expand again
    (animated). A setting turns glyphs off altogether, in the keyboard and controller settings.
+6. **Glyph set follows the last input.** On desktop, using the mouse brings the keyboard glyphs back; any controller
+   input (a button, the D-pad, a stick wiggle) switches them to the controller's (`view/input-mode.ts`).
 
 ## What exists today
 

@@ -29,6 +29,7 @@ import {
   type Settings,
   type Resolution,
 } from "./settings.js";
+import { PAD_FAMILY_SETTING_VALUES } from "./view/pad-family.js";
 
 export const SETTINGS_KEY = "mc-settings";
 export const SETTINGS_VERSION = 1;
@@ -50,6 +51,8 @@ const BOOLEAN_FIELDS = [
   "hoverVillainCard",
   "ultronDroneArt",
   "powerSavingAdjust",
+  "nintendoLayout",
+  "inputGlyphs",
 ] as const;
 
 export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
@@ -95,6 +98,8 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   if (frameRateValue !== undefined) out.frameRate = frameRateValue;
   const displayModeValue = DISPLAY_MODE_VALUES.find((value) => value === source["displayMode"]);
   if (displayModeValue !== undefined) out.displayMode = displayModeValue;
+  const padFamilyValue = PAD_FAMILY_SETTING_VALUES.find((value) => value === source["padGlyphFamily"]);
+  if (padFamilyValue !== undefined) out.padGlyphFamily = padFamilyValue;
   const drawResolution = source["resolution"];
   if (
     drawResolution === "native" ||

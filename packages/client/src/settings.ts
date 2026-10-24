@@ -7,6 +7,7 @@
  */
 
 import type { TableRules } from "@mc/engine";
+import type { PadFamilySetting } from "./view/pad-family.js";
 
 /** The sharp, device-pixel-ratio-matched text resolution `defaultSettings` starts from. Also what "off" restores. */
 export const SHARP_TEXT_RESOLUTION_CEILING = 2;
@@ -140,6 +141,18 @@ export interface Settings {
   readonly achievementPopupPlace: AchievementPopupPlace;
   /** How large the "Achievement unlocked" popup is drawn. Defaults to small (the owner, 2026-10-20). Its opened list keeps one size. */
   readonly achievementPopupSize: AchievementPopupSize;
+  /**
+   * Which button labels the controller glyphs show (`view/pad-family.ts`): follow the detected pad, or a family the
+   * player picks when detection is wrong. Defaults to auto.
+   */
+  readonly padGlyphFamily: PadFamilySetting;
+  /**
+   * On a Nintendo-layout pad, buttons act by their printed label: A (right) confirms, B (bottom) backs out, as on a
+   * Switch. Ignored for other pads and under Steam Input, which swaps for itself (the owner, 2026-10-24). Defaults on.
+   */
+  readonly nintendoLayout: boolean;
+  /** Key and button glyphs beside the controls they trigger, while a keyboard or controller is in use. Defaults on. */
+  readonly inputGlyphs: boolean;
 }
 
 export type AchievementPopupTime = "off" | "3s" | "5s" | "8s" | "10s";
@@ -354,5 +367,8 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     achievementPopupTime: "5s",
     achievementPopupPlace: "titleBar",
     achievementPopupSize: "small",
+    padGlyphFamily: "auto",
+    nintendoLayout: true,
+    inputGlyphs: true,
   };
 }

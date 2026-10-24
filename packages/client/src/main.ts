@@ -30,6 +30,7 @@ import { MusicPlayerOverlay } from "./scenes/music-player.js";
 import { ReportIssueOverlay } from "./scenes/report-issue.js";
 import { ReportButtonScene } from "./scenes/report-button.js";
 import { installDebugDump } from "./ui/debug-dump.js";
+import { installInputDeviceTracking } from "./platform/input-device.js";
 import { installFrameGuard } from "./ui/frame-guard.js";
 import { installStartupWatchdog, probeWebgl } from "./ui/startup-watchdog.js";
 import { installDesktopType, setDesktopType } from "./ui/desktop-type.js";
@@ -205,6 +206,8 @@ installFrameGuard(game);
 
 // Ctrl/Cmd+Shift+D copies a snapshot of every overlay's and the store's state, in production too (`ui/debug-dump.ts`).
 installDebugDump(game);
+// Which input is in use, for the key and button glyphs (`view/input-mode.ts`).
+installInputDeviceTracking();
 
 // A GPU reset in the native webviews turns every label into a black box
 // unless the text is redrawn once the context is back (`ui/context-recovery.ts`).

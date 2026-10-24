@@ -65,6 +65,9 @@ const BASE: Settings = {
   achievementPopupTime: "5s",
   achievementPopupPlace: "middle",
   achievementPopupSize: "medium",
+  padGlyphFamily: "auto",
+  nintendoLayout: true,
+  inputGlyphs: true,
   renderScale: "native",
   frameRate: "screen",
 };
@@ -100,6 +103,9 @@ describe("settingsRowInfoOf", () => {
       achievementPopupTime: "5s",
       achievementPopupPlace: "middle",
       achievementPopupSize: "medium",
+      padGlyphFamily: "auto",
+      nintendoLayout: true,
+      inputGlyphs: true,
       renderScale: "1x",
       frameRate: "30",
     });
