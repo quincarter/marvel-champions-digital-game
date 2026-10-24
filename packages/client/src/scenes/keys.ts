@@ -153,6 +153,8 @@ export const SCENES = {
   powerSavingNotice: "PowerSavingNotice",
   /** The "Achievement unlocked" popup (`scenes/achievement-toast.ts`), hidden except while one shows. */
   achievementToast: "AchievementToast",
+  /** The "Controller connected" toast (`scenes/pad-toast.ts`): runs only while it shows. */
+  padToast: "PadToast",
 } as const;
 
 /** Scenes that run above every screen but draw only an edge control, so they never count as covering a screen (`ui/widgets.ts`). */
@@ -161,6 +163,7 @@ export const CHROME_SCENES: ReadonlySet<string> = new Set([
   SCENES.musicButton,
   SCENES.powerSavingNotice,
   SCENES.achievementToast,
+  SCENES.padToast,
   SCENES.syncPrompt,
   SCENES.syncSetupNotice,
 ]);

@@ -22,6 +22,7 @@ import { installLazyText } from "./ui/lazy-text.js";
 import { appSession } from "./session.js";
 import { SCENES } from "./scenes/keys.js";
 import { installSceneLoader, startIdlePreload } from "./scenes/scene-loader.js";
+import { startPadToastWatch } from "./scenes/pad-toast-watch.js";
 import { BootScene } from "./scenes/boot.js";
 import { TitleScene } from "./scenes/title.js";
 import { MusicScene } from "./audio/music-controller.js";
@@ -147,6 +148,8 @@ void desktopLaunchSettings(settings, storedSettingsOverrides().displayMode !== u
   applyDesktopWindowOnLaunch(launch);
 });
 watchStartup(game);
+// The "Controller connected" toast (`scenes/pad-toast.ts`), fed by the browser's gamepad events.
+startPadToastWatch(game);
 
 // Device sync (#276, `sync/sync-wiring.ts`): its code loads after the first frame, so it stays out of the entry chunk. It
 // syncs in the background when this device is linked, and leaves alone the game on the table (the Board, or its deal),
