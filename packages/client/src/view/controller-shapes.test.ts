@@ -21,8 +21,9 @@ describe("controller drawings", () => {
     });
 
     it(`${kind} has the L3 and R3 stick labels and the four captions`, () => {
-      for (const text of ["L3", "R3", "Undo", "End turn", "Prev zone", "Next zone"])
-        expect(texts, text).toContain(text);
+      // The Xbox picture's LT and RT are hold layers; the other drawings still caption them Undo and End turn.
+      const lt = ["hold: actions", "hold: abilities"];
+      for (const text of ["L3", "R3", ...lt, "Prev zone", "Next zone"]) expect(texts, text).toContain(text);
     });
 
     it(`${kind} keeps its aspect in step with the layout`, () => {

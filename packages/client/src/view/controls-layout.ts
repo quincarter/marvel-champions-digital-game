@@ -35,7 +35,7 @@ const EDGE_INSET = 4;
 
 /** Each drawing's width over its height, in the drawing module's own design units (`ui/controller-drawing.ts`). */
 export const CONTROLLER_ASPECT: Readonly<Record<DrawingKind, number>> = {
-  xbox: 454 / 453,
+  xbox: 454 / 372,
   playstation: 467 / 368,
   nintendo: 458 / 397,
   handheld: 760 / 470,
