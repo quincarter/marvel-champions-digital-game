@@ -514,6 +514,8 @@ export class BoardScene extends Phaser.Scene {
         this.scene.isActive(SCENES.inspect) ||
         this.scene.isActive(SCENES.villainPhase) ||
         this.scene.isActive(SCENES.pause) ||
+        // The campaign beat splash closes on A, B, Start, View, Y and Enter: the same press must not also act on the table.
+        this.scene.isActive(SCENES.campaignBeat) ||
         this.scene.isActive(SCENES.rules) ||
         this.scene.isActive(SCENES.settings) ||
         this.scene.isActive(SCENES.roundDebrief) ||
