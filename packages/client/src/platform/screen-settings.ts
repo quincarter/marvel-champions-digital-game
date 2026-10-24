@@ -15,7 +15,7 @@
  */
 import type Phaser from "phaser";
 import { couchModeFactor, fpsLimitOf, type FrameRate, type Settings } from "../settings.js";
-import { applyCouchMode } from "../ui/render-resolution.js";
+import { applyCouchMode, couchFactorInUse, setCouchFactorHandler } from "../ui/render-resolution.js";
 import { setTextResolution } from "../ui/theme.js";
 import { currentRenderScale, setRenderScale } from "../ui/render-scale.js";
 import { drawsAtScreenDensity, renderScaleFor, screenEnvironment, textResolutionFor } from "./screen-density.js";
@@ -84,15 +84,25 @@ function requestRefreshRate(rate: FrameRate): void {
   void displayRate().then((boxed) => boxed?.plugin.setFrameRate({ fps }).catch(() => {}));
 }
 
+/** The render scale and the sharp text to match, for the settings and couch factor in effect now. */
+function followRenderScale(settings: Settings): void {
+  const env = screenEnvironment();
+  const scale = renderScaleFor(settings, env, couchFactorInUse());
+  if (scale !== currentRenderScale()) setRenderScale(scale);
+  setTextResolution(textResolutionFor(settings, currentRenderScale(), drawsAtScreenDensity(env.search)));
+}
+
+let followingCouch = false;
+
 /** Puts the screen settings into effect on a running game: the render scale, sharp text to match, and the frame rate. */
 export function applyScreenSettings(game: Phaser.Game, settings: Settings): void {
-  const env = screenEnvironment();
-  const densityOn = drawsAtScreenDensity(env.search);
-  // Couch mode first: the render scale below counts the layout size it sets.
+  if (!followingCouch) {
+    followingCouch = true;
+    // A resize can lower or restore the couch factor in use; the buffer follows it, not just a settings change.
+    setCouchFactorHandler(() => followRenderScale(appSession().settings));
+  }
   applyCouchMode(game, couchModeFactor(settings.couchMode));
-  const scale = renderScaleFor(settings, env);
-  if (scale !== currentRenderScale()) setRenderScale(scale);
-  setTextResolution(textResolutionFor(settings, currentRenderScale(), densityOn));
+  followRenderScale(settings);
   game.loop.setFPSLimit(fpsLimitOf(settings.frameRate));
   requestRefreshRate(settings.frameRate);
 }

@@ -83,6 +83,8 @@ import type {
   FlipEncounterSpeed,
   Resolution,
 } from "../settings.js";
+import { couchBaseSize } from "../ui/render-resolution.js";
+import type { CouchSize } from "../view/couch-mode.js";
 import {
   applyDesktopWindow,
   desktopMonitor,
@@ -174,13 +176,16 @@ const COUCH_MODE_CONTROL_WIDTH = 400;
 const SCREEN_CONTROL_WIDTH = 300;
 
 /**
- * The Couch mode row: every build but a phone, judged by the real window (couch mode shrinks the game's own size, which
- * must not hide the row that undoes it), and always while it is on.
+ * The size couch mode divides, from the real window (couch mode shrinks the game's own size, which must not hide the
+ * row that undoes it): the fixed resolution when one is set, else the window.
  */
-function couchModeShown(settings: Settings): boolean {
-  if (settings.couchMode !== "off") return true;
-  const form = formFactorFor(window.innerWidth, window.innerHeight);
-  return form !== "phone" && form !== "phoneLandscape";
+function couchBaseOf(game: Phaser.Game): CouchSize {
+  return couchBaseSize(game) ?? { width: window.innerWidth, height: window.innerHeight };
+}
+
+/** The Couch mode row: any build with a choice besides Off on this window (a phone has none), and while it is on. */
+function couchModeShown(game: Phaser.Game, settings: Settings): boolean {
+  return settings.couchMode !== "off" || couchModeRowInfoOf(settings, couchBaseOf(game)).options.length > 1;
 }
 
 /** The Screen section: every build, unless `?renderscale=off`. */
@@ -425,7 +430,7 @@ export class SettingsOverlay extends Phaser.Scene {
       gameVolume: followsWindowsMixer(),
       // Sound's own tab only where six fit with their names whole; a phone keeps five, Sound under Display.
       soundTab: settingsLayout({ x: 0, y: 0, width, height }, []).tabs.width / 6 >= SOUND_TAB_MIN_CELL,
-      couchMode: couchModeShown(settings),
+      couchMode: couchModeShown(this.game, settings),
       desktopWindow: hasDesktopWindow(),
       discord: hasDesktopWindow(),
       steamDeck: onHandheldLinux(),
@@ -610,8 +615,8 @@ export class SettingsOverlay extends Phaser.Scene {
         (v) => setScreen(nextSettingsAfterFrameRate(appSession().settings, v)),
       );
     }
-    if (couchModeShown(settings)) {
-      segmented("couch-mode", couchModeRowInfoOf(settings, window.innerWidth), COUCH_MODE_CONTROL_WIDTH, (v) => {
+    if (couchModeShown(this.game, settings)) {
+      segmented("couch-mode", couchModeRowInfoOf(settings, couchBaseOf(this.game)), COUCH_MODE_CONTROL_WIDTH, (v) => {
         const next = nextSettingsAfterCouchMode(appSession().settings, v);
         appSession().settings = next;
         applyScreenSettings(this.game, next);

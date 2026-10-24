@@ -9,8 +9,6 @@ import {
   cardHoverFactor,
   cardSizeFactor,
   couchModeFactor,
-  couchSizeOf,
-  couchFactorFor,
   COUCH_MODE_VALUES,
 } from "./settings.js";
 
@@ -82,22 +80,5 @@ describe("couch mode", () => {
   test("it defaults to off and each choice is its scale factor", () => {
     expect(defaultSettings().couchMode).toBe("off");
     expect(COUCH_MODE_VALUES.map(couchModeFactor)).toEqual([1, 1.25, 1.5, 1.75, 2]);
-  });
-});
-
-describe("couchSizeOf", () => {
-  test("off leaves the size alone and a factor divides it, keeping the aspect", () => {
-    expect(couchSizeOf({ width: 1920, height: 1080 }, 1)).toEqual({ width: 1920, height: 1080 });
-    expect(couchSizeOf({ width: 1920, height: 1080 }, 2)).toEqual({ width: 960, height: 540 });
-    expect(couchSizeOf({ width: 3840, height: 2160 }, 1.5)).toEqual({ width: 2560, height: 1440 });
-    expect(couchSizeOf({ width: 1000, height: 3 }, 4)).toEqual({ width: 250, height: 1 });
-  });
-});
-
-describe("couchFactorFor", () => {
-  test("the choice is lowered so the game stays 768 wide, and never under 1", () => {
-    expect(couchFactorFor(2, 1920)).toBe(2);
-    expect(couchFactorFor(2, 1280)).toBeCloseTo(1280 / 768);
-    expect(couchFactorFor(2, 600)).toBe(1);
   });
 });

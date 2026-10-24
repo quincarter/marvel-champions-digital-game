@@ -526,8 +526,12 @@ describe("couch mode row", () => {
     expect(nextSettingsAfterCouchMode(base, "200%").couchMode).toBe("200%");
     expect(nextSettingsAfterCouchMode(base, "300%" as never)).toBe(base);
     // A 1280 wide window keeps the game at 768 or more: only 125% and 150% fit (and 175% when it is the saved one).
-    const narrow = couchModeRowInfoOf(base, 1280);
-    expect(narrow.options.map((o) => o.label)).toEqual(["Off", "125%", "150%"]);
-    expect(couchModeRowInfoOf({ ...base, couchMode: "200%" }, 1280).options.map((o) => o.label)).toContain("200%");
+    const narrow = couchModeRowInfoOf(base, { width: 1920, height: 1080 });
+    expect(narrow.options.map((o) => o.label)).toEqual(["Off", "125%", "150%", "175%", "200%"]);
+    // 1280 x 720 is 500 tall at 1.44x: only 125% fits whole; the saved one stays offered. A fixed 1280 x 720
+    // resolution on a 4K window is judged the same way, by the fixed size (`couchBaseSize`).
+    const small = { width: 1280, height: 720 };
+    expect(couchModeRowInfoOf(base, small).options.map((o) => o.label)).toEqual(["Off", "125%"]);
+    expect(couchModeRowInfoOf({ ...base, couchMode: "200%" }, small).options.map((o) => o.label)).toContain("200%");
   });
 });

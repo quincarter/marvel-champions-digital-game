@@ -6,6 +6,7 @@
  * still owns the actual toggle (it needs `appSession()`, which view modules never
  * import), keyed by `SettingsRowInfo.id`.
  */
+import { couchFactorFits, type CouchSize } from "./couch-mode.js";
 import {
   SILENCED_WARNING_KEYS,
   silenceWarning,
@@ -24,7 +25,6 @@ import {
   DISPLAY_MODE_VALUES,
   FIRST_PLAYER_TOKEN_MOTION_VALUES,
   FRAME_RATE_VALUES,
-  COUCH_MIN_GAME_WIDTH,
   COUCH_MODE_VALUES,
   couchModeFactor,
   RENDER_SCALE_VALUES,
@@ -761,14 +761,16 @@ export function nextSettingsAfterDisplayMode(settings: Settings, value: DisplayM
 }
 
 // "Couch mode": everything drawn bigger for a TV (`ui/render-resolution.ts`). Every build but a phone.
-export function couchModeRowInfoOf(settings: Settings, windowWidth = Infinity): ScreenChoiceRowInfo<CouchMode> {
+// `base` is the size the game is drawn from (`couchBaseSize`): only the choices it can use whole are offered.
+export function couchModeRowInfoOf(
+  settings: Settings,
+  base: CouchSize = { width: Infinity, height: Infinity },
+): ScreenChoiceRowInfo<CouchMode> {
   return {
     title: "Couch mode",
     detail: "Makes everything bigger, for playing on a TV from across the room.",
-    // Only the sizes that keep the game wide enough for a tablet or desktop layout on this window (the saved one stays).
     options: COUCH_MODE_VALUES.filter(
-      (value) =>
-        value === "off" || value === settings.couchMode || windowWidth / couchModeFactor(value) >= COUCH_MIN_GAME_WIDTH,
+      (value) => value === "off" || value === settings.couchMode || couchFactorFits(couchModeFactor(value), base),
     ).map((value) => ({ value, label: value === "off" ? "Off" : value })),
     selected: settings.couchMode,
   };

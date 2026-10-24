@@ -225,27 +225,6 @@ export function couchModeFactor(mode: CouchMode): number {
   return mode === "off" ? 1 : Number.parseInt(mode, 10) / 100;
 }
 
-/** The narrowest game width couch mode lays out at: under it the layout would switch to a phone's (`formFactorFor`). */
-export const COUCH_MIN_GAME_WIDTH = 768;
-
-/**
- * The factor couch mode really uses on a window `width` wide: the choice, lowered so the game stays at least
- * `COUCH_MIN_GAME_WIDTH` wide. The layout follows the game's size on purpose (it is a smaller window drawn bigger, so a
- * 1080p TV at 200% lays out as a 960 x 540 window), but never as a phone's.
- */
-export function couchFactorFor(factor: number, width: number): number {
-  return Math.max(1, Math.min(factor, width / COUCH_MIN_GAME_WIDTH));
-}
-
-/** The size the game lays out at under couch mode: the window's (or the fixed resolution's) divided by the factor. */
-export function couchSizeOf(
-  base: { readonly width: number; readonly height: number },
-  factor: number,
-): { readonly width: number; readonly height: number } {
-  if (factor <= 1) return base;
-  return { width: Math.max(1, Math.round(base.width / factor)), height: Math.max(1, Math.round(base.height / factor)) };
-}
-
 /** "screen": no cap, the screen's own refresh rate. */
 export type FrameRate = "screen" | "60" | "30";
 export const FRAME_RATE_VALUES: readonly FrameRate[] = ["screen", "60", "30"];

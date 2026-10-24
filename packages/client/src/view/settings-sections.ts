@@ -71,7 +71,7 @@ export function settingsSectionsOf(input: {
   readonly inspectCard?: boolean;
   readonly gameVolume?: boolean;
   readonly desktopWindow?: boolean;
-  /** Every build but a phone (or any build while couch mode is on): the Couch mode row, first under Animation and display. */
+  /** The Couch mode row, first under Animation and display: shown where a choice besides Off fits, or while on. */
   readonly couchMode?: boolean;
   /** SteamOS or Bazzite: a Steam Deck row in the Window section. */
   readonly steamDeck?: boolean;

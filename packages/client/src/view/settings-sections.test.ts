@@ -137,6 +137,10 @@ describe("the desktop app's Window section", () => {
   test("the Android app leads Animation and display with Lighter play in power saving; elsewhere it is left out", () => {
     const motion = (powerSaving: boolean) =>
       settingsSectionsOf({ guideRowIds, cardHover: false, powerSaving }).find((s) => s.id === "motion")!.items;
+    const withCouch = settingsSectionsOf({ guideRowIds, cardHover: false, couchMode: true }).find(
+      (s) => s.id === "motion",
+    )!.items;
+    expect(withCouch[0]).toBe("couch-mode");
     expect(motion(true)).toEqual(["power-saving", "reduced-motion", "token-motion", "sharper-text"]);
     expect(motion(false)).toEqual(["reduced-motion", "token-motion", "sharper-text"]);
   });
