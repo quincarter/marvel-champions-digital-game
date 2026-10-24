@@ -76,3 +76,15 @@ export function resetInputDeviceForTests(): void {
   state = INITIAL_INPUT_MODE;
   listeners.clear();
 }
+
+/** True when a gamepad is connected right now, or one has been used this session. */
+export function padAvailable(
+  nav: { getGamepads?: () => (Gamepad | null)[] } | undefined = globalThis.navigator,
+): boolean {
+  if (state.pad !== null) return true;
+  try {
+    return (nav?.getGamepads?.() ?? []).some((pad) => pad?.connected === true);
+  } catch {
+    return false;
+  }
+}

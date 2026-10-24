@@ -92,6 +92,8 @@ import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion } from "../ui/transitions.js";
 import type { BoardScene } from "./board.js";
 import { withLevel } from "../guide/guide-prefs.js";
+import { detectPlatform } from "../platform/platform.js";
+import { padAvailable } from "../platform/input-device.js";
 
 /** One "Quick reference" row (phone only): a title, an optional detail line, and what opens when it's activated (or, absent that, why it can't be yet). */
 interface QuickReferenceRow {
@@ -300,12 +302,17 @@ export class PauseOverlay extends Phaser.Scene {
         detail: "Sound, card size, villain phase and more.",
         open: () => this.scene.launch(SCENES.settings),
       },
-      {
-        id: "controls",
-        title: "Controls",
-        detail: "Controller buttons, keyboard shortcuts and hints.",
-        open: () => this.scene.launch(SCENES.controls),
-      },
+      // The phone apps show Controls only once a controller is connected (the owner, 2026-10-24).
+      ...(detectPlatform() !== "capacitor" || padAvailable()
+        ? [
+            {
+              id: "controls",
+              title: "Controls",
+              detail: "Controller buttons, keyboard shortcuts and hints.",
+              open: () => this.scene.launch(SCENES.controls),
+            },
+          ]
+        : []),
     );
     return rows;
   }

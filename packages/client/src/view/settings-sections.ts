@@ -76,6 +76,11 @@ export function settingsSectionsOf(input: {
   readonly powerSaving?: boolean;
   /** A build that draws at the screen's own density (every one, unless `?renderscale=off`): a Screen section. */
   readonly screenSettings?: boolean;
+  /**
+   * The Controls row. False in the phone apps until a controller is connected (the owner, 2026-10-24): a touch-only
+   * player has no controller settings to change. Defaults to shown.
+   */
+  readonly controls?: boolean;
 }): readonly SettingsSection[] {
   return [
     { id: "gameplay", title: "Gameplay", items: ["confirm-end-turn", "same-name-conflict"] },
@@ -130,7 +135,11 @@ export function settingsSectionsOf(input: {
       ],
     },
     { id: "guide", title: "Guide", items: input.guideRowIds },
-    { id: "more", title: "More", items: ["unlocks", "save-data", "controls", "rules"] },
+    {
+      id: "more",
+      title: "More",
+      items: ["unlocks", "save-data", ...(input.controls === false ? [] : (["controls"] as const)), "rules"],
+    },
     {
       id: "achievements",
       title: "Achievements",

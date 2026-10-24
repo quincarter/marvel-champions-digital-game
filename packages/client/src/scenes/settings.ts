@@ -114,6 +114,7 @@ import { guidePrefs, onGuidePrefsChange, setGuidePrefs } from "../guide/guide-st
 import { canReadPowerSaving, onPowerSavingChange, powerSavingOn, powerSavingState } from "../platform/power-saving.js";
 import { powerSavingRowOf } from "../view/power-saving-notice.js";
 import { detectPlatform } from "../platform/platform.js";
+import { padAvailable } from "../platform/input-device.js";
 import { drawsAtScreenDensity, screenEnvironment } from "../platform/screen-density.js";
 import { applyScreenSettings, knownRefreshInfo, readRefreshInfo } from "../platform/screen-settings.js";
 import { knownHardware, onHardwareChange } from "../platform/device-hardware.js";
@@ -409,6 +410,8 @@ export class SettingsOverlay extends Phaser.Scene {
       powerSaving:
         canReadPowerSaving(detectPlatform(), globalThis.navigator?.userAgent ?? "") || powerSavingState().detected,
       screenSettings: screenSettingsShown(),
+      // The phone apps show Controls only once a controller is connected (the owner, 2026-10-24).
+      controls: detectPlatform() !== "capacitor" || padAvailable(),
     });
     const active = tabs.find((tab) => tab.id === lastTab) ?? tabs[0]!;
     const layout = settingsLayout(
