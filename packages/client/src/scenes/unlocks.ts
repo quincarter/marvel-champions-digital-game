@@ -14,6 +14,7 @@ import Phaser from "phaser";
 import { ink, surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
 import { McButton, fitText, fitWrapped, label } from "../ui/widgets.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { overlayPanelLayout } from "../view/overlay-layout.js";
 import { formFactorFor, toggleRowHeight, type Rect } from "../view/layout.js";
@@ -53,6 +54,7 @@ export class UnlocksOverlay extends Phaser.Scene {
   #buttons: McButton[] = [];
   #list: McVirtualList | null = null;
   #route: FocusRoute | null = null;
+  #hints!: GlyphHints;
   #motion = new OverlayMotion();
   /** Showing "How it works" (`view/progression-guide.ts`) in place of the switches. */
   #guide = false;
@@ -70,8 +72,18 @@ export class UnlocksOverlay extends Phaser.Scene {
     this.#scroll.reset();
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
+    this.#hints = new GlyphHints(this);
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.unlockConfirm),
+      // LB / RB switch between the switches and "How it works"; PageUp / PageDown page the list or the text.
+      onTab: (direction) => {
+        if (this.#guide !== (direction === 1)) this.#showGuide(direction === 1);
+      },
+      onHomeEnd: (edge) => {
+        if (this.#guide) this.#guideRegion?.scrollByPx(edge === "home" ? -1e6 : 1e6);
+        else if (edge === "home") this.#list?.scrollToStart();
+        else this.#list?.scrollToEnd();
+      },
       onCancel: () => (this.#guide ? this.#showGuide(false) : this.#close()),
       onPage: (direction) => {
         if (this.#guide) this.#guideRegion?.scrollByPx(direction * 240);
@@ -80,6 +92,7 @@ export class UnlocksOverlay extends Phaser.Scene {
       onScroll: (_dx, dy) => (this.#guide ? this.#guideRegion : this.#list)?.scrollByPx(dy),
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#hints.dispose();
       this.scale.off("resize", onResize, this);
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
@@ -128,6 +141,7 @@ export class UnlocksOverlay extends Phaser.Scene {
     this.#guideRegion?.destroy();
     this.#guideRegion = null;
     destroyChildren(this);
+    this.#hints.reset();
 
     const { width, height } = this.scale.gameSize;
     const { panel, header, body } = overlayPanelLayout({ x: 0, y: 0, width, height }, HEADER_HEIGHT, 0);
@@ -164,6 +178,7 @@ export class UnlocksOverlay extends Phaser.Scene {
         onClick: () => this.#close(),
       }),
     );
+    this.#hints.button(this.#buttons.at(-1)!, ["cancel"], "ink");
     stops.set("back", { rect: closeRect, activate: () => this.#close() });
     this.add
       .text(
@@ -189,6 +204,8 @@ export class UnlocksOverlay extends Phaser.Scene {
         onClick: toggleGuide,
       }),
     );
+    // LB / RB (and the zone keys) flip between the two views.
+    this.#hints.button(this.#buttons.at(-1)!, [this.#guide ? "zonePrevious" : "zoneNext"], "ink");
     stops.set("guide", { rect: guideRect, activate: toggleGuide });
 
     if (this.#guide) {
