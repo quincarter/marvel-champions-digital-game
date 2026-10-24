@@ -18,6 +18,7 @@ import {
   DISPLAY_MODE_VALUES,
   FIRST_PLAYER_TOKEN_MOTION_VALUES,
   FRAME_RATE_VALUES,
+  INTERFACE_SIZE_VALUES,
   RENDER_SCALE_VALUES,
   SHARP_TEXT_RESOLUTION_CEILING,
   VILLAIN_AUTO_ADVANCE_VALUES,
@@ -97,6 +98,8 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   if (popupSizeValue !== undefined) out.achievementPopupSize = popupSizeValue;
   const renderScaleValue = RENDER_SCALE_VALUES.find((value) => value === source["renderScale"]);
   if (renderScaleValue !== undefined) out.renderScale = renderScaleValue;
+  const interfaceSizeValue = INTERFACE_SIZE_VALUES.find((value) => value === source["interfaceSize"]);
+  if (interfaceSizeValue !== undefined) out.interfaceSize = interfaceSizeValue;
   const frameRateValue = FRAME_RATE_VALUES.find((value) => value === source["frameRate"]);
   if (frameRateValue !== undefined) out.frameRate = frameRateValue;
   const displayModeValue = DISPLAY_MODE_VALUES.find((value) => value === source["displayMode"]);

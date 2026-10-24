@@ -4,6 +4,8 @@ import {
   frameRateRowInfoOf,
   nextSettingsAfterFrameRate,
   nextSettingsAfterRenderScale,
+  nextSettingsAfterInterfaceSize,
+  interfaceSizeRowInfoOf,
   renderScaleRowInfoOf,
   nextSettingsAfterDisplayMode,
   nextSettingsAfterResolution,
@@ -72,6 +74,7 @@ const BASE: Settings = {
   glyphSize: 130,
   keyboardHand: "left",
   renderScale: "native",
+  interfaceSize: "100%",
   frameRate: "screen",
 };
 
@@ -113,6 +116,7 @@ describe("settingsRowInfoOf", () => {
       glyphSize: 130,
       keyboardHand: "left",
       renderScale: "1x",
+      interfaceSize: "125%",
       frameRate: "30",
     });
     expect(rows.find((r) => r.id === "reduced-motion")?.on).toBe(true);
@@ -510,5 +514,16 @@ describe("the Screen rows' recommendation", () => {
   test("Frame rate names the recommended rate", () => {
     expect(frameRateRowInfoOf(BASE, 120, false, advice).detail).toContain("Recommended for this device: 60 fps.");
     expect(frameRateRowInfoOf(BASE, 60, false, advice).detail).toContain("Recommended for this device: Screen.");
+  });
+});
+
+describe("interface size row", () => {
+  test("it offers 100% to 200% with the saved one selected, and ignores a value that is not offered", () => {
+    const info = interfaceSizeRowInfoOf({ ...defaultSettings(), interfaceSize: "175%" });
+    expect(info.options.map((o) => o.label)).toEqual(["100%", "125%", "150%", "175%", "200%"]);
+    expect(info.selected).toBe("175%");
+    const base = defaultSettings();
+    expect(nextSettingsAfterInterfaceSize(base, "200%").interfaceSize).toBe("200%");
+    expect(nextSettingsAfterInterfaceSize(base, "300%" as never)).toBe(base);
   });
 });

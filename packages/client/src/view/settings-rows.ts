@@ -24,12 +24,14 @@ import {
   DISPLAY_MODE_VALUES,
   FIRST_PLAYER_TOKEN_MOTION_VALUES,
   FRAME_RATE_VALUES,
+  INTERFACE_SIZE_VALUES,
   RENDER_SCALE_VALUES,
   SHARP_TEXT_RESOLUTION_CEILING,
   clampMusicVolume,
   renderScaleFactorOf,
   resolutionPixelsOf,
   type FrameRate,
+  type InterfaceSize,
   type RenderScale,
   type AchievementPopupPlace,
   type AchievementPopupSize,
@@ -754,6 +756,21 @@ export function displayModeRowInfoOf(settings: Settings): DisplayModeRowInfo {
 /** `settings` with the window mode set; a value that is not one of the three changes nothing. */
 export function nextSettingsAfterDisplayMode(settings: Settings, value: DisplayMode): Settings {
   return DISPLAY_MODE_VALUES.includes(value) ? { ...settings, displayMode: value } : settings;
+}
+
+// "Interface size": the desktop app's webview zoom (`platform/desktop-window.ts`), for a TV or 4K screen left at 100%.
+export function interfaceSizeRowInfoOf(settings: Settings): ScreenChoiceRowInfo<InterfaceSize> {
+  return {
+    title: "Interface size",
+    detail: "Makes everything bigger, for a TV or a 4K screen. Ctrl + and Ctrl - work too.",
+    options: INTERFACE_SIZE_VALUES.map((value) => ({ value, label: value })),
+    selected: settings.interfaceSize,
+  };
+}
+
+/** `settings` with the interface size set; a value that is not one of the five changes nothing. */
+export function nextSettingsAfterInterfaceSize(settings: Settings, value: InterfaceSize): Settings {
+  return INTERFACE_SIZE_VALUES.includes(value) ? { ...settings, interfaceSize: value } : settings;
 }
 
 // ---------------------------------------------------------------------------

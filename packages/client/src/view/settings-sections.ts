@@ -18,6 +18,7 @@ export type SettingsItemId =
   | "token-motion"
   | "display-mode"
   | "resolution"
+  | "interface-size"
   | "render-scale"
   | "frame-rate"
   | "steam-deck"
@@ -108,7 +109,12 @@ export function settingsSectionsOf(input: {
           {
             id: "window",
             title: "Window",
-            items: ["display-mode", "resolution", ...(input.steamDeck ? (["steam-deck"] as const) : [])],
+            items: [
+              "display-mode",
+              "resolution",
+              "interface-size",
+              ...(input.steamDeck ? (["steam-deck"] as const) : []),
+            ],
           } satisfies SettingsSection,
         ]
       : []),

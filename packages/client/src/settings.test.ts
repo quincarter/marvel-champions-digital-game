@@ -8,6 +8,8 @@ import {
   villainBeatIntervalMs,
   cardHoverFactor,
   cardSizeFactor,
+  interfaceSizeFactor,
+  INTERFACE_SIZE_VALUES,
 } from "./settings.js";
 
 describe("villain phase settings", () => {
@@ -71,5 +73,12 @@ describe("villain phase settings", () => {
     expect(cardHoverFactor("1.5x")).toBe(1.5);
     expect(cardHoverFactor("2.5x")).toBe(2.5);
     expect(cardHoverFactor("3x")).toBe(3);
+  });
+});
+
+describe("interface size", () => {
+  test("it defaults to 100% and each choice is its webview zoom factor", () => {
+    expect(defaultSettings().interfaceSize).toBe("100%");
+    expect(INTERFACE_SIZE_VALUES.map(interfaceSizeFactor)).toEqual([1, 1.25, 1.5, 1.75, 2]);
   });
 });

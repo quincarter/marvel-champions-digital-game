@@ -143,6 +143,11 @@ export interface Settings {
    */
   readonly renderScale: RenderScale;
   /**
+   * How big the desktop app draws everything (Settings > Window): the webview's zoom, for a 4K TV left at 100% OS
+   * scaling. Only the desktop app reads it; defaults to 100%.
+   */
+  readonly interfaceSize: InterfaceSize;
+  /**
    * The frame rate the game holds to: the screen's own refresh rate (120 Hz on a 120 Hz phone), or a 60 or 30 fps cap.
    * On Android the app also asks the OS for a matching refresh rate. Defaults to the screen's own, or 60 on a phone the
    * hardware check rates below high-end; power saving mode defaults it to 30 (`POWER_SAVING_FPS`).
@@ -209,6 +214,15 @@ export const MAX_RENDER_SCALE = 4;
 export function renderScaleFactorOf(choice: RenderScale, devicePixelRatio: number): number {
   const native = Math.min(MAX_RENDER_SCALE, Math.max(1, devicePixelRatio || 1));
   return choice === "native" ? native : Math.min(native, Number.parseFloat(choice));
+}
+
+/** The desktop app's interface size: the webview zoom (`platform/desktop-window.ts`). */
+export type InterfaceSize = "100%" | "125%" | "150%" | "175%" | "200%";
+export const INTERFACE_SIZE_VALUES: readonly InterfaceSize[] = ["100%", "125%", "150%", "175%", "200%"];
+
+/** The webview zoom factor an `interfaceSize` stands for: 1.5 for "150%". */
+export function interfaceSizeFactor(size: InterfaceSize): number {
+  return Number.parseInt(size, 10) / 100;
 }
 
 /** "screen": no cap, the screen's own refresh rate. */
@@ -387,6 +401,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     resolution: "native",
     powerSavingAdjust: true,
     renderScale: device.screen?.renderScale ?? "native",
+    interfaceSize: "100%",
     frameRate: powerSaving ? "30" : (device.screen?.frameRate ?? "screen"),
     achievementPopupTime: "5s",
     achievementPopupPlace: "titleBar",

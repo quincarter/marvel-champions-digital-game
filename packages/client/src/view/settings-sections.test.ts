@@ -124,14 +124,14 @@ describe("the desktop app's Window section", () => {
       (t) => t.id === "display",
     )!;
     expect(display.sections.map((s) => s.id)).toEqual(["window", "motion"]);
-    expect(display.sections[0]!.items).toEqual(["display-mode", "resolution"]);
+    expect(display.sections[0]!.items).toEqual(["display-mode", "resolution", "interface-size"]);
   });
 
   test("on SteamOS or Bazzite it ends with a Steam Deck row", () => {
     const window = settingsSectionsOf({ guideRowIds, cardHover: true, desktopWindow: true, steamDeck: true }).find(
       (s) => s.id === "window",
     )!;
-    expect(window.items).toEqual(["display-mode", "resolution", "steam-deck"]);
+    expect(window.items).toEqual(["display-mode", "resolution", "interface-size", "steam-deck"]);
   });
 
   test("the Android app leads Animation and display with Lighter play in power saving; elsewhere it is left out", () => {

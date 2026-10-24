@@ -41,6 +41,8 @@ import {
   frameRateRowInfoOf,
   nextSettingsAfterFrameRate,
   nextSettingsAfterRenderScale,
+  nextSettingsAfterInterfaceSize,
+  interfaceSizeRowInfoOf,
   renderScaleRowInfoOf,
   nextSettingsAfterCardSize,
   nextSettingsAfterDisplayMode,
@@ -83,6 +85,7 @@ import type {
 } from "../settings.js";
 import {
   applyDesktopWindow,
+  applyInterfaceSize,
   desktopMonitor,
   HANDHELD_DISPLAY,
   hasDesktopWindow,
@@ -166,6 +169,8 @@ const DISPLAY_MODE_CONTROL_WIDTH = 480;
 /** Resolution is a dropdown and an Apply button: up to seventeen sizes is too many segments. */
 const RESOLUTION_CONTROL_WIDTH = 320;
 const APPLY_WIDTH = 88;
+/** Interface size's five short segments ("100%" to "200%"). */
+const INTERFACE_SIZE_CONTROL_WIDTH = 400;
 /** Resolution's and Frame rate's up to four short segments ("Native", "720p"; "Screen", "60 fps"). */
 const SCREEN_CONTROL_WIDTH = 300;
 
@@ -601,6 +606,12 @@ export class SettingsOverlay extends Phaser.Scene {
       segmented("display-mode", displayModeRowInfoOf(settings), DISPLAY_MODE_CONTROL_WIDTH, (v) => {
         this.#pendingResolution = null;
         this.#setWindow(nextSettingsAfterDisplayMode(appSession().settings, v));
+      });
+      segmented("interface-size", interfaceSizeRowInfoOf(settings), INTERFACE_SIZE_CONTROL_WIDTH, (v) => {
+        const next = nextSettingsAfterInterfaceSize(appSession().settings, v);
+        appSession().settings = next;
+        this.#draw();
+        void applyInterfaceSize(next.interfaceSize);
       });
       const sizeInfo = resolutionRowInfoOf(settings, sizes, monitor, monitor?.displayModes !== undefined);
       items.set("resolution", {

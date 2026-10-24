@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The game window: core APIs, native HTTP to MarvelCDB only (card art and deck import; see src/platform/native-http.ts), opening this repo's GitHub pages and MarvelCDB in the default browser (src/platform/platform.ts openExternal), the window mode and size Settings sets, and the Title screen's Quit to desktop (src/platform/desktop-window.ts).",
+  "description": "The game window: core APIs, native HTTP to MarvelCDB only (card art and deck import; see src/platform/native-http.ts), opening this repo's GitHub pages and MarvelCDB in the default browser (src/platform/platform.ts openExternal), the window mode, size and interface size (webview zoom) Settings sets, and the Title screen's Quit to desktop (src/platform/desktop-window.ts).",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -14,6 +14,7 @@
     "core:window:allow-set-focus",
     "core:window:allow-set-simple-fullscreen",
     "core:window:allow-close",
+    "core:webview:allow-set-webview-zoom",
     {
       "identifier": "http:default",
       "allow": [{ "url": "https://marvelcdb.com/*" }]

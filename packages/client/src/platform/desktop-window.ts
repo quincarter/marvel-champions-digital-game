@@ -20,7 +20,13 @@
  * `applyDesktopWindow` only drives the Tauri window API, and `src-tauri/capabilities/default.json` allows the setters
  * it calls.
  */
-import { resolutionPixelsOf, type DisplayMode, type Resolution } from "../settings.js";
+import {
+  interfaceSizeFactor,
+  resolutionPixelsOf,
+  type DisplayMode,
+  type InterfaceSize,
+  type Resolution,
+} from "../settings.js";
 import { detectPlatform } from "./platform.js";
 
 /** The window `tauri.conf.json` opens at, and its minimum, in logical pixels. */
@@ -258,8 +264,29 @@ async function applyNow(mode: DisplayMode, size: Resolution): Promise<void> {
   await window.center();
 }
 
+/**
+ * Zooms the webview to the interface size (Settings > Window). The CSS viewport shrinks and devicePixelRatio rises, so
+ * the game lays out at a smaller size and `main.ts`'s pixel-ratio watch redraws it crisp. Does nothing off desktop.
+ */
+export async function applyInterfaceSize(size: InterfaceSize): Promise<void> {
+  if (!hasDesktopWindow()) return;
+  try {
+    const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+    await getCurrentWebview().setZoom(interfaceSizeFactor(size));
+  } catch (error) {
+    console.warn("interface size:", error);
+  }
+}
+
 /** At launch: applies the saved choice, unless it is the window the app already opens as. */
-export function applyDesktopWindowOnLaunch(settings: { displayMode: DisplayMode; resolution: Resolution }): void {
+export function applyDesktopWindowOnLaunch(settings: {
+  displayMode: DisplayMode;
+  resolution: Resolution;
+  interfaceSize?: InterfaceSize;
+}): void {
+  if (settings.interfaceSize !== undefined && settings.interfaceSize !== "100%") {
+    void applyInterfaceSize(settings.interfaceSize);
+  }
   if (settings.displayMode === "windowed" && settings.resolution === "native") {
     void refreshDesktopMonitor();
     return;

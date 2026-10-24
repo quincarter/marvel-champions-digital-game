@@ -287,3 +287,10 @@ describe("parseSettingsOverrides", () => {
     expect(resolveSettings({ sound: false }, defaultSettings()).sound).toBe(false);
   });
 });
+
+describe("interface size in the saved record", () => {
+  test("a known choice is read back and anything else falls to the default", () => {
+    expect(parseSettingsOverrides(serializeSettingsOverrides({ interfaceSize: "150%" })).interfaceSize).toBe("150%");
+    expect(parseSettingsOverrides(JSON.stringify({ interfaceSize: "300%" })).interfaceSize).toBe(undefined);
+  });
+});
