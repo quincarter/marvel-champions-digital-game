@@ -40,6 +40,8 @@ export type PresenceScreen = "menus" | "deck" | "setup" | "campaign" | "game" | 
 export interface PresenceGame {
   /** "campaign" when the game is one scenario of a campaign run. */
   readonly kind: "oneOff" | "campaign";
+  /** The campaign's id ("mts"); the presence tracker names it from its table of campaign boxes. */
+  readonly campaignId?: string | null;
   /** The campaign box ("The Mad Titan's Shadow"), for a campaign game. */
   readonly campaignName?: string | null;
   /** Every seat's name, the first seat leading: "Spider-Man", "Black Panther". */

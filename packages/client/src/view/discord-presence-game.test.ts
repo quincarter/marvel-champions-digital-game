@@ -3,8 +3,9 @@ import type { SessionConfig } from "../engine/host.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { MemoryGameStorage } from "../engine/game-storage.js";
 import { SessionStore } from "../store/session-store.js";
-import { screenOf } from "../platform/discord-presence.js";
-import { campaignNameOf, difficultyLabelOf, presenceGameOf } from "./discord-presence-game.js";
+import { screenOf } from "./discord-presence-screen.js";
+import { campaignNameOf } from "./discord-campaign-name.js";
+import { difficultyLabelOf, presenceGameOf } from "./discord-presence-game.js";
 import { presenceOf } from "./discord-presence.js";
 
 const CONFIG: SessionConfig = {

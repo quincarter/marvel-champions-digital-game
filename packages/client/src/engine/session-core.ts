@@ -49,6 +49,8 @@ import {
 } from "@mc/engine";
 import type { BackOutTrailEntry } from "../view/back-out.js";
 import { sealForTable } from "../view/hidden-reverse.js";
+import type { PresenceGame } from "../view/discord-presence.js";
+import { presenceGameOf } from "../view/discord-presence-game.js";
 import type { PaymentState } from "../view/payment-model.js";
 import { judgePayment, type JudgedPayment } from "../view/payment-verdict.js";
 import { actingPlayer } from "./acting-player.js";
@@ -676,6 +678,20 @@ export class EngineSessionCore {
       saveError: this.#saveError,
       config: this.#config,
       gameId: this.#gameId,
+    };
+  }
+
+  /**
+   * What Discord Rich Presence says about the table (`view/discord-presence-game.ts`), read from the table-sealed state
+   * with the pool still on it. Computed here, in the engine worker, so the main thread never copies the state for it.
+   */
+  presenceGame(): { readonly game: PresenceGame; readonly gameKey: string } | null {
+    if (!this.#session) return null;
+    const state = sealForTable(this.#session.state);
+    const config = this.#config;
+    return {
+      game: presenceGameOf(state, config),
+      gameKey: this.#gameId ?? `${config?.scenarioId}:${config?.seed}`,
     };
   }
 

@@ -51,18 +51,44 @@ const announceSaved = (reason: "game" | "turn"): void => {
   void core.flushed().then(() => reply({ kind: "saved", id: 0, reason }));
 };
 
+let presencePort: MessagePort | null = null;
+let lastPresence = "";
+
+/** Posts the table's Discord summary straight to the presence worker, only when it differs from the last one posted. */
+function publishPresence(): void {
+  if (!presencePort) return;
+  try {
+    const summary = core.presenceGame();
+    if (!summary) return;
+    const key = JSON.stringify(summary);
+    if (key === lastPresence) return;
+    lastPresence = key;
+    presencePort.postMessage({ kind: "game", ...summary });
+  } catch {
+    // Presence is a nicety: it never fails a command.
+  }
+}
+
 async function handle(request: HostRequest): Promise<void> {
   try {
     switch (request.kind) {
+      case "presencePort": {
+        presencePort = request.port;
+        lastPresence = "";
+        publishPresence();
+        return;
+      }
       case "start": {
         const { cardPool, snapshot } = await core.start(request.config);
         reply({ kind: "started", id: request.id, cardPool, snapshot });
         announceSaved("game");
+        publishPresence();
         return;
       }
       case "resume": {
         const { cardPool, snapshot } = await core.resume(request.gameId);
         reply({ kind: "started", id: request.id, cardPool, snapshot });
+        publishPresence();
         return;
       }
       case "dispatch": {
@@ -70,12 +96,14 @@ async function handle(request: HostRequest): Promise<void> {
         reply({ kind: "dispatched", id: request.id, result });
         if (result.ok) {
           announceSaved(result.snapshot.events.some((event) => event.type === "turnEnded") ? "turn" : "game");
+          publishPresence();
         }
         return;
       }
       case "rewindTo": {
         reply({ kind: "rewound", id: request.id, snapshot: await core.rewindTo(request.commandCount) });
         announceSaved("game");
+        publishPresence();
         return;
       }
       case "legalActions": {

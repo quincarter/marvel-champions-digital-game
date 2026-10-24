@@ -25,7 +25,9 @@ export type HostRequest =
   | { readonly kind: "latestSave"; readonly id: number }
   | { readonly kind: "activeSaves"; readonly id: number }
   | { readonly kind: "retireSave"; readonly id: number; readonly gameId: string }
-  | { readonly kind: "listSaves"; readonly id: number };
+  | { readonly kind: "listSaves"; readonly id: number }
+  /** Fire and forget: the port the worker posts the Discord presence summary to (no reply). */
+  | { readonly kind: "presencePort"; readonly id: 0; readonly port: MessagePort };
 
 /** A save as it crosses the boundary: the baseline state without its card pool. */
 export interface SerializedSave {
