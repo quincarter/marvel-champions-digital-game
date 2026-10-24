@@ -75,6 +75,9 @@ import {
 import type { FormFactor, Rect } from "../../view/layout.js";
 import { VariableListScroll } from "../../view/variable-list-scroll.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
+import type { GlyphHints } from "../../ui/glyph-hints.js";
+import { createHints, forwardHint } from "./pad-hints.js";
+import type { CardId } from "@mc/content";
 import { SCENES } from "../keys.js";
 import { artThumbSpec } from "../roster-panel.js";
 import type { CampaignMarketData } from "./routes.js";
@@ -186,6 +189,12 @@ export class CampaignMarketScene extends Phaser.Scene {
   #receiptOpen = false;
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
+  #hints: GlyphHints | null = null;
+  /** The focus stops of the last draw, for the legend strip over the focused card. */
+  #stops: ReadonlyMap<string, FocusStop> = new Map();
+  /** The tier the shoulder buttons last jumped to; cleared by a right-stick scroll. */
+  #tabPrice: number | null = null;
+  #activePrice: number | null = null;
   /** What Escape and B do now: close the sheet, or go back. */
   #cancel: () => void = () => undefined;
   /** Every region drawn this pass. Offsets live in the scrolls below, so a redraw keeps the player where they were. */
@@ -195,7 +204,7 @@ export class CampaignMarketScene extends Phaser.Scene {
   #receiptScroll = new VariableListScroll();
   /** The region the tiers scroll in, and the content-space top of each tier's heading: what the chips jump to. */
   #shelfRegion: McScrollRegion | null = null;
-  #tierTops: { readonly price: number; readonly y: number }[] = [];
+  #tierTops: { readonly price: number; readonly y: number; readonly firstCard: string | null }[] = [];
   #chips: PriceChip[] = [];
   /** Every shelf card drawn this pass, in content space, with the region it scrolls in. */
   #shelfCards: { readonly cardId: string; readonly rect: Rect; readonly region: McScrollRegion }[] = [];
@@ -233,8 +242,11 @@ export class CampaignMarketScene extends Phaser.Scene {
   }
 
   create(): void {
+    // A new route each visit: the scene instance is reused, and its key and pad bindings die with every shutdown.
+    this.#route = null;
     this.cameras.main.setBackgroundColor(0xf2ece0);
     this.scale.on("resize", this.#draw, this);
+    this.#hints = createHints(this);
     this.#hover = new HoverPreview(this, {
       cardIds: () => this.#hoverCardIds(),
       area: (pointer) => screenHoverArea(this, pointer, { blocked: () => this.#receiptOpen }),
@@ -381,6 +393,7 @@ export class CampaignMarketScene extends Phaser.Scene {
     this.#tierTops = [];
     this.#thumbs = [];
     this.#chips = [];
+    this.#hints?.reset();
     destroyChildren(this);
     this.#drawScreen();
     this.#fillThumbs();
@@ -406,11 +419,19 @@ export class CampaignMarketScene extends Phaser.Scene {
       if (previousNodeId) goToScreen(this, SCENES.campaignIssue, { runId: record.id, nodeId: previousNodeId });
       else goToScreen(this, SCENES.campaignRun, { runId: record.id });
     };
-    this.#cancel = () => (this.#receiptOpen ? this.#setReceiptOpen(false) : back());
+    // B: close the receipt, then take back what is in the cart, then leave (the pending purchase goes first).
+    this.#cancel = () => {
+      if (this.#receiptOpen) this.#setReceiptOpen(false);
+      else if (this.#cart.length > 0 && !this.#busy) {
+        this.#cart = [];
+        this.#draw();
+      } else back();
+    };
     const wonLabel = `Issue #${afterIssueNumber} · Won`;
     const top = drawTopBar(this, {
       backLabel: `◂ Issue #${afterIssueNumber}`,
       onBack: back,
+      hints: this.#hints,
       title: "The Market",
       ...(layout === "phoneLandscape" ? {} : { right: `After issue #${afterIssueNumber}` }),
     });
@@ -472,14 +493,71 @@ export class CampaignMarketScene extends Phaser.Scene {
   }
 
   #setRoute(stops: Map<string, FocusStop>): void {
+    this.#stops = stops;
     this.#route =
       this.#route ??
       new FocusRoute(this, {
         onCancel: () => this.#cancel(),
+        blocked: () => this.scene.isActive(SCENES.inspect),
         onPage: (direction) => this.#page(direction),
         onHomeEnd: (edge) => this.#page(edge === "home" ? -1 : 1, true),
+        // LB / RB (and the zone keys) step the price tiers, as the chips do.
+        onTab: (direction) => this.#stepTier(direction),
+        // X (G) is the "only what I can afford" filter.
+        onToggle: () => this.#toggleAffordable(),
+        // Start finishes shopping; with the receipt open it closes the sheet.
+        onPause: () => (this.#receiptOpen ? this.#setReceiptOpen(false) : void this.#checkout()),
+        onScroll: (_dx, dy) => {
+          this.#tabPrice = null;
+          this.#shelfRegion?.scrollByPx(dy);
+          this.#syncLegend();
+        },
+        onFocusChange: () => this.#syncLegend(),
       });
     this.#route.set([...stops.keys()], stops);
+    this.#syncLegend();
+  }
+
+  /** Select / Inspect / Back over the focused shelf card, while it is on screen. */
+  #syncLegend(): void {
+    const key = this.#route?.focused ?? null;
+    const stop = key !== null && key.startsWith("cart:") && !this.#receiptOpen ? this.#stops.get(key) : undefined;
+    const { width, height } = this.scale.gameSize;
+    const view: Rect = { x: 0, y: 0, width, height };
+    if (!stop) {
+      this.#hints?.legend(null, view);
+      return;
+    }
+    const rect = typeof stop.rect === "function" ? stop.rect() : stop.rect;
+    const shelf = this.#shelfRegion?.rect;
+    const visible = shelf === undefined || (rect.y + rect.height > shelf.y && rect.y < shelf.y + shelf.height);
+    this.#hints?.legend(visible ? rect : null, view);
+  }
+
+  /** The card's full sheet (Inspect), with why it cannot be bought when it cannot. */
+  #inspectCard(cardId: string, note: string | null): void {
+    this.scene.launch(SCENES.inspect, {
+      card: { cardId: cardId as CardId, face: { kind: "front" } },
+      ...(note ? { note } : {}),
+    });
+    this.scene.bringToTop(SCENES.inspect);
+  }
+
+  /** LB / RB: the previous or next price tier, with focus on its first card. */
+  #stepTier(direction: 1 | -1): void {
+    if (this.#receiptOpen) return;
+    const tiers = this.#tierTops;
+    if (tiers.length === 0) return;
+    const from = this.#tabPrice ?? this.#activePrice ?? tiers[0]!.price;
+    const index = Math.max(
+      0,
+      tiers.findIndex((tier) => tier.price === from),
+    );
+    const next = tiers[Math.min(tiers.length - 1, Math.max(0, index + direction))]!;
+    this.#jumpTo(next.price);
+    this.#tabPrice = next.price;
+    this.#route?.focusKey(next.firstCard === null ? null : `cart:${next.firstCard}`);
+    this.#syncLegend();
   }
 
   /** PgUp/PgDn (or a pad's shoulders): most of a screen of the list; Home/End: its ends. */
@@ -884,6 +962,7 @@ export class CampaignMarketScene extends Phaser.Scene {
       active = this.#tierTops[0]!.price;
       for (const tier of this.#tierTops) if (tier.y + region.content.y <= line) active = tier.price;
     }
+    this.#activePrice = active;
     for (const chip of this.#chips) this.#paintChip(chip, chip.price === active);
   }
 
@@ -947,7 +1026,7 @@ export class CampaignMarketScene extends Phaser.Scene {
     }
     tiers.forEach((tier, tierIndex) => {
       if (tierIndex > 0) y += 30;
-      this.#tierTops.push({ price: tier.price, y });
+      this.#tierTops.push({ price: tier.price, y, firstCard: (tier.cards[0]?.cardId as string | undefined) ?? null });
       const heading = this.add
         .text(
           rect.x,
@@ -1130,13 +1209,18 @@ export class CampaignMarketScene extends Phaser.Scene {
       else frame.lineStyle(border.control, surface.ink.hex, 0.3);
       const inset = inCart ? 2 : 1.5;
       frame.strokeRect(x + inset, y + inset, width - inset * 2, rowHeight - inset * 2);
-      if (!live && !inCart) return;
       const rect: Rect = { x, y, width, height: rowHeight };
-      const zone = this.add.zone(x, y, width, rowHeight).setOrigin(0, 0).setInteractive({ useHandCursor: true });
       const cardId = card.cardId as string;
+      const read = (): void => this.#inspectCard(cardId, tagText);
+      if (!live && !inCart) {
+        // Out of reach (too dear, taken, tier full): A does nothing, as a tap does, but Y still reads the card.
+        stops.set(`cart:${cardId}`, { rect, activate: () => undefined, inspect: read });
+        return;
+      }
+      const zone = this.add.zone(x, y, width, rowHeight).setOrigin(0, 0).setInteractive({ useHandCursor: true });
       const price = card.price;
       zone.on("pointerup", () => this.#toggleCart(cardId, price));
-      stops.set(`cart:${cardId}`, { rect, activate: () => this.#toggleCart(cardId, price) });
+      stops.set(`cart:${cardId}`, { rect, activate: () => this.#toggleCart(cardId, price), inspect: read });
     };
     return { height, finish };
   }
@@ -1427,16 +1511,16 @@ export class CampaignMarketScene extends Phaser.Scene {
     const activeName = view.wallets.find((wallet) => wallet.active)?.heroName ?? "";
     const cartLabel = layout === "phone" || layout === "phoneLandscape" ? "CART" : `${activeName.toUpperCase()}'S CART`;
     const done = (rect: Rect): void => {
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "primary",
-          label: "Done shopping ▸",
-          type: typeRole.barTitle,
-          rect,
-          onClick: () => void this.#checkout(),
-          enabled: !this.#busy,
-        }),
-      );
+      const doneButton = new McButton(this, {
+        kind: "primary",
+        label: "Done shopping ▸",
+        type: typeRole.barTitle,
+        rect,
+        onClick: () => void this.#checkout(),
+        enabled: !this.#busy,
+      });
+      this.#buttons.push(doneButton);
+      forwardHint(this.#hints, doneButton, "ink");
       stops.set("done", { rect, activate: () => void this.#checkout() });
     };
     const receipt = (rect: Rect): void => {

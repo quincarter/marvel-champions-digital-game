@@ -15,6 +15,7 @@ import { ART_CATALOG } from "../art/scenario-art.js";
 import { accent, border, hit, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { formFactorFor, type FormFactor, type Rect } from "../view/layout.js";
 import { cssOf, fontFamilyOf, textStyle } from "./theme.js";
+import type { GlyphHints } from "./glyph-hints.js";
 import { McButton, fitText } from "./widgets.js";
 
 /** Heights the canvases draw at: 60px chrome on desktop/tablet ("60px chrome to match Screens - Desktop"), 52 on phone. */
@@ -66,6 +67,8 @@ export interface TopBarOptions {
   readonly right?: string;
   /** A red chip before the title ("ROUND 4" on the in-game beat). */
   readonly chip?: string;
+  /** The scene's glyph hints: the back button then carries the Cancel glyph (B, Esc) on a pad or keyboard. */
+  readonly hints?: GlyphHints | null;
 }
 
 export interface TopBar {
@@ -98,6 +101,7 @@ export function drawTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBar 
       rect: backRect,
       onClick: options.onBack,
     });
+    options.hints?.button(back, ["cancel"], "ink");
     x += backRect.width + 14;
   }
   if (options.chip) {
