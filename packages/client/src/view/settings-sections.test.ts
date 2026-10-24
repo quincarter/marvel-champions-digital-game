@@ -71,6 +71,10 @@ describe("settingsSectionsOf", () => {
   });
 
   test("Inspect card is shown on a phone only (#358)", () => {
+    const langItems = (cardLanguage: boolean) =>
+      settingsSectionsOf({ guideRowIds, cardHover: false, cardLanguage }).flatMap((s) => s.items);
+    expect(langItems(true)).toContain("card-language");
+    expect(langItems(false)).not.toContain("card-language");
     const items = (inspectCard: boolean) =>
       settingsSectionsOf({ guideRowIds, cardHover: false, inspectCard }).find((s) => s.id === "cards")!.items;
     expect(items(true)).toContain("inspect-card");

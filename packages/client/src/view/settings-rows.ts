@@ -46,6 +46,12 @@ import {
   type FlipEncounterSpeed,
   type Resolution,
 } from "../settings.js";
+import {
+  CARD_LANGUAGES,
+  CARD_LANGUAGE_NAMES,
+  availableCardLanguages,
+  type CardLanguage,
+} from "../art/card-language.js";
 import { FIRST_PLAYER_TOKEN_MOTION_LABELS } from "./first-player-token-motion.js";
 import { POWER_SAVING_ROW_NOTE } from "./power-saving-notice.js";
 import { EARNED_ITEMS, type EarnedItemId } from "../progression/earned-items.js";
@@ -577,6 +583,31 @@ export function inspectCardRowInfoOf(settings: Settings): InspectCardRowInfo {
 /** `settings` with the Inspect layout set; a value that is not one of the two changes nothing. */
 export function nextSettingsAfterInspectCard(settings: Settings, value: InspectCard): Settings {
   return INSPECT_CARD_VALUES.includes(value) ? { ...settings, inspectCard: value } : settings;
+}
+
+export interface CardLanguageRowInfo {
+  readonly title: string;
+  readonly detail: string;
+  readonly options: readonly { readonly value: CardLanguage; readonly label: string }[];
+  readonly selected: CardLanguage;
+}
+
+/** "Card art language" (#337): the languages this bundle carries (the web carries all; a native installer one, so no row). */
+export function cardLanguageRowInfoOf(settings: Settings): CardLanguageRowInfo {
+  const carried = availableCardLanguages();
+  return {
+    title: "Card art language",
+    detail: "Which language the card pictures are printed in. Cards without a translated picture stay in English.",
+    options: carried.map((value) => ({ value, label: CARD_LANGUAGE_NAMES[value] })),
+    selected: carried.includes(settings.cardLanguage) ? settings.cardLanguage : (carried[0] ?? "en"),
+  };
+}
+
+/** `settings` with the card art language set; one this bundle does not carry changes nothing. */
+export function nextSettingsAfterCardLanguage(settings: Settings, value: CardLanguage): Settings {
+  return CARD_LANGUAGES.includes(value) && availableCardLanguages().includes(value)
+    ? { ...settings, cardLanguage: value }
+    : settings;
 }
 
 export interface CardSizeRowInfo {
