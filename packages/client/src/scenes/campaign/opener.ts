@@ -64,6 +64,8 @@ import {
 import { appSession, campaignService } from "../../session.js";
 import { bindExtraInput } from "../extra-input.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
+import type { GlyphHints } from "../../ui/glyph-hints.js";
+import { createHints, forwardHint, skipHint } from "./pad-hints.js";
 import { SCENES } from "../keys.js";
 import type { CampaignOpenerData } from "./routes.js";
 
@@ -105,6 +107,7 @@ export class CampaignOpenerScene extends Phaser.Scene {
   #cinematic = new CinematicDriver(() => this.#draw());
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
+  #hints: GlyphHints | null = null;
 
   constructor() {
     super(SCENES.campaignOpener);
@@ -112,6 +115,7 @@ export class CampaignOpenerScene extends Phaser.Scene {
 
   init(data: CampaignOpenerData): void {
     this.#data = data;
+    this.#route = null;
     this.#reading = null;
     this.#nextNodeId = null;
     this.#story = null;
@@ -127,6 +131,7 @@ export class CampaignOpenerScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#draw, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", this.#draw, this));
+    this.#hints = createHints(this);
     // Direct beat stepping for the comic reader (a no-op outside it). `FocusRoute`'s own keyboard binding also
     // treats these as "move the focused control" for Tab order — both firing on one press is a harmless overlap,
     // not a double action: this steps the panel, that just moves which button the ring frames.
@@ -398,6 +403,7 @@ export class CampaignOpenerScene extends Phaser.Scene {
     const story = this.#story;
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
+    this.#hints?.reset();
     destroyChildren(this);
     if (!reading || !story) return;
 
@@ -418,15 +424,15 @@ export class CampaignOpenerScene extends Phaser.Scene {
     const headerPad = phone ? 16 : 24;
     const stops = new Map<string, FocusStop>();
     const skipRect: Rect = { x: width - headerPad - (phone ? 78 : 96), y: 14, width: phone ? 78 : 96, height: 30 };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: "SKIP ▸▸",
-        type: typeRole.label,
-        rect: skipRect,
-        onClick: () => this.#leave(),
-      }),
-    );
+    const skipButton = new McButton(this, {
+      kind: "secondary",
+      label: "SKIP ▸▸",
+      type: typeRole.label,
+      rect: skipRect,
+      onClick: () => this.#leave(),
+    });
+    this.#buttons.push(skipButton);
+    skipHint(this.#hints, skipButton, "paper");
     stops.set("skip", { rect: skipRect, activate: () => this.#leave() });
 
     label(this, headerPad, 14, view.issueLabel, typeRole.label, surface.ink.hex, ink.label);
@@ -458,15 +464,15 @@ export class CampaignOpenerScene extends Phaser.Scene {
       width: phone ? width - ctaPad * 2 : Math.min(425, width - ctaPad * 2),
       height: 62,
     };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: view.allRevealed ? "primary" : "onInk",
-        label: view.ctaLabel,
-        type: typeRole.barTitle,
-        rect: ctaRect,
-        onClick: () => this.#reveal(),
-      }),
-    );
+    const ctaButton = new McButton(this, {
+      kind: view.allRevealed ? "primary" : "onInk",
+      label: view.ctaLabel,
+      type: typeRole.barTitle,
+      rect: ctaRect,
+      onClick: () => this.#reveal(),
+    });
+    this.#buttons.push(ctaButton);
+    forwardHint(this.#hints, ctaButton, "ink");
     stops.set("cta", { rect: ctaRect, activate: () => this.#reveal() });
 
     // Tap-anywhere-on-the-page also reveals the next panel — the design's own "TAP ▸" affordance is on the panel
@@ -478,8 +484,21 @@ export class CampaignOpenerScene extends Phaser.Scene {
     tapZone.on("pointerup", () => this.#reveal());
     this.children.sendToBack(tapZone);
 
-    this.#route = this.#route ?? new FocusRoute(this, { onCancel: () => this.#leave() });
+    this.#route = this.#route ?? this.#newRoute();
     this.#route.set(["skip", "cta"], stops);
+  }
+
+  /**
+   * B, Start and View all leave the page (the comic reader's SKIP), as on a scenario's one-shot comic; A with nothing
+   * focused takes the screen's main button (reveal the next panel, turn the page).
+   */
+  #newRoute(): FocusRoute {
+    return new FocusRoute(this, {
+      onCancel: () => this.#leave(),
+      onPause: () => this.#leave(),
+      onView: () => this.#leave(),
+      primary: () => (this.#comicSteps.length > 0 ? "next" : "cta"),
+    });
   }
 
   #drawPanelsRow(rect: Rect, panels: readonly OpenerPanelView[], gap: number, stops: Map<string, FocusStop>): void {
@@ -527,15 +546,15 @@ export class CampaignOpenerScene extends Phaser.Scene {
 
     const headerPad = phone ? 16 : 24;
     const skipRect: Rect = { x: width - headerPad - (phone ? 78 : 96), y: 14, width: phone ? 78 : 96, height: 30 };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "onInk",
-        label: "SKIP ▸▸",
-        type: typeRole.label,
-        rect: skipRect,
-        onClick: () => this.#leave(),
-      }),
-    );
+    const skipButton = new McButton(this, {
+      kind: "onInk",
+      label: "SKIP ▸▸",
+      type: typeRole.label,
+      rect: skipRect,
+      onClick: () => this.#leave(),
+    });
+    this.#buttons.push(skipButton);
+    skipHint(this.#hints, skipButton, "ink");
     stops.set("skip", { rect: skipRect, activate: () => this.#leave() });
 
     label(
@@ -607,15 +626,15 @@ ${view.step.credit}`
           width: Math.min(425, width - ctaPad * 2 - backWidth - backGap),
           height: ctaHeight,
         };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "primary",
-        label: this.#data.finale && view.isLast ? "DONE ▸" : view.ctaLabel,
-        type: typeRole.barTitle,
-        rect: ctaRect,
-        onClick: () => this.#advanceComic(),
-      }),
-    );
+    const nextButton = new McButton(this, {
+      kind: "primary",
+      label: this.#data.finale && view.isLast ? "DONE ▸" : view.ctaLabel,
+      type: typeRole.barTitle,
+      rect: ctaRect,
+      onClick: () => this.#advanceComic(),
+    });
+    this.#buttons.push(nextButton);
+    forwardHint(this.#hints, nextButton, "ink");
     stops.set("next", { rect: ctaRect, activate: () => this.#advanceComic() });
 
     if (hasBack) {
@@ -640,7 +659,7 @@ ${view.step.credit}`
     tapZone.on("pointerup", () => this.#advanceComic());
     this.children.sendToBack(tapZone);
 
-    this.#route = this.#route ?? new FocusRoute(this, { onCancel: () => this.#leave() });
+    this.#route = this.#route ?? this.#newRoute();
     this.#route.set(hasBack ? ["back", "next", "skip"] : ["next", "skip"], stops);
   }
 

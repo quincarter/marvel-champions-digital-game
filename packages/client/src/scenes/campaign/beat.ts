@@ -26,6 +26,9 @@ import { OverlayMotion } from "../../ui/transitions.js";
 import { appSession } from "../../session.js";
 import type { Rect } from "../../view/layout.js";
 import { SCENES } from "../keys.js";
+import { specsForShortcuts, type GlyphHints } from "../../ui/glyph-hints.js";
+import { bindExtraInput } from "../extra-input.js";
+import { createHints } from "./pad-hints.js";
 import type { CampaignBeatData } from "./routes.js";
 
 /** How long the splash stays up before dismissing itself, at normal motion. */
@@ -93,6 +96,7 @@ export class CampaignBeatOverlay extends Phaser.Scene {
   #data!: CampaignBeatData;
   #motion = new OverlayMotion();
   #closeTimer: Phaser.Time.TimerEvent | null = null;
+  #hints: GlyphHints | null = null;
 
   constructor() {
     super(SCENES.campaignBeat);
@@ -101,6 +105,13 @@ export class CampaignBeatOverlay extends Phaser.Scene {
   create(data: CampaignBeatData): void {
     this.#data = data;
     this.#motion = new OverlayMotion();
+    this.#hints = createHints(this);
+    // The splash answers every dismissing key and button, as a tap anywhere does (the Board is blocked beneath it).
+    const close = (): void => this.#close();
+    bindExtraInput(this, {
+      keys: { enter: close, " ": close, escape: close },
+      intents: { activate: close, cancel: close, pause: close, view: close, inspect: close },
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#closeTimer?.remove();
       this.#closeTimer = null;
@@ -119,6 +130,7 @@ export class CampaignBeatOverlay extends Phaser.Scene {
 
   #draw(): void {
     if (this.#motion.leaving) return;
+    this.#hints?.reset();
     destroyChildren(this);
     const { width, height, topBar, phone } = campaignFrame(this);
     const story = issueStoryFor(this.#data.campaignId, this.#data.nodeId);
@@ -264,6 +276,16 @@ export class CampaignBeatOverlay extends Phaser.Scene {
     noteBg.setPosition(noteX, noteY);
     noteLabel.setPosition(noteX + (phone ? 12 : 8), noteY + 4);
     this.children.bringToTop(noteLabel);
+    // A / Enter, beside the note, for a pad or keyboard (it dismisses like the tap the note names).
+    this.#hints?.custom(
+      (_set, snapshot) => specsForShortcuts(["activate"], snapshot),
+      Math.max(16, noteBg.height - 4),
+      ({ width: glyphWidth }) => ({
+        x: phone ? width - 12 - glyphWidth : noteX + noteBg.width + 8,
+        y: noteY + noteBg.height / 2,
+      }),
+      { ground: "paper" },
+    );
 
     // Tap anywhere dismisses — sent to the very back so it never sits in front of anything drawn above (there is
     // nothing else interactive on this screen to protect it from, but the convention matches every other full-bleed
