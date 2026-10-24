@@ -48,7 +48,7 @@ export const CONTROLLER_ASPECT: Readonly<Record<DrawingKind, number>> = {
 };
 
 export interface ControlsGroupRowSpec {
-  readonly id: "labels" | "nintendo" | "hints" | "hand" | "hintSize";
+  readonly id: "labels" | "nintendo" | "hints" | "source" | "hand" | "hintSize";
   readonly kind: "segmented" | "toggle" | "slider";
   readonly detail: string;
 }

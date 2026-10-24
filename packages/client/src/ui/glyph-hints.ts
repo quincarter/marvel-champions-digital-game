@@ -296,7 +296,7 @@ export class GlyphHints {
   #applyEntry(entry: Entry, snapshot: InputHintsSnapshot): void {
     // Destroyed by a redraw that did not go through `reset()`: drop it quietly.
     if (entry.glyph && !entry.glyph.active) return;
-    const set = glyphSetOf(snapshot.state, snapshot.settings.inputGlyphs);
+    const set = glyphSetOf(snapshot.state, snapshot.settings.inputGlyphs, snapshot.settings.glyphSource);
     const specs =
       set !== null && (entry.when?.(set) ?? true)
         ? entry.custom
@@ -344,7 +344,7 @@ export class GlyphHints {
   #syncLegend(): void {
     const target = this.#legendCard;
     const snapshot = this.#snapshot;
-    const set = snapshot ? glyphSetOf(snapshot.state, snapshot.settings.inputGlyphs) : null;
+    const set = snapshot ? glyphSetOf(snapshot.state, snapshot.settings.inputGlyphs, snapshot.settings.glyphSource) : null;
     // Under a held trigger the legend gives way (it would sit where the layer's glyphs go).
     if (!target || !snapshot || set === null || (set === "pad" && this.#layer !== null)) {
       this.#legend?.destroy();

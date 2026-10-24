@@ -47,10 +47,11 @@ export interface KeyGlyphSpec {
 
 export type GlyphSpec = PadGlyphSpec | KeyGlyphSpec;
 
-export type GlyphSettings = Pick<Settings, "padGlyphFamily" | "nintendoLayout" | "inputGlyphs"> & {
-  /** Which hand the keyboard glyphs show; the left when left out. */
-  readonly keyboardHand?: KeyboardHand;
-};
+export type GlyphSettings = Pick<Settings, "padGlyphFamily" | "nintendoLayout" | "inputGlyphs"> &
+  Partial<Pick<Settings, "glyphSource">> & {
+    /** Which hand the keyboard glyphs show; the left when left out. */
+    readonly keyboardHand?: KeyboardHand;
+  };
 
 /** Shortcuts the pad does under a hold layer: drawn as the trigger plus the button ("LT" "A"). */
 const LAYERED: Readonly<Partial<Record<ShortcutId, LayerActionId>>> = {
@@ -131,7 +132,7 @@ export function glyphsForShortcut(
   settings: GlyphSettings,
   layer: PadLayer | null = null,
 ): readonly GlyphSpec[] | null {
-  const set = glyphSetOf(state, settings.inputGlyphs);
+  const set = glyphSetOf(state, settings.inputGlyphs, settings.glyphSource ?? "auto");
   if (set === null) return null;
   const shortcut = shortcutOf(id);
   if (set === "keyboard") {

@@ -6,6 +6,7 @@
 
 import { GLYPH_SIZE_MAX, GLYPH_SIZE_MIN, GLYPH_SIZE_STEP, clampGlyphSize, type Settings } from "../settings.js";
 import { padGlyphSpec, type GlyphSpec } from "./input-glyph-model.js";
+import type { GlyphSource } from "./input-mode.js";
 import { shortcutCaps, shortcutOf, type KeyboardHand, type ShortcutId } from "./input-shortcuts.js";
 import { layerSheet, type LayerRow, type PadLayer } from "./pad-layers.js";
 import {
@@ -78,6 +79,8 @@ export interface SegmentedRowInfo<V extends string> {
   readonly detail: string;
   readonly options: readonly { readonly value: V; readonly label: string }[];
   readonly selected: V;
+  /** Drawn faded (but still adjustable), as the hint size row is while hints are off. */
+  readonly dimmed?: boolean;
 }
 
 const PAD_FAMILY_LABELS: Readonly<Record<PadFamilySetting, string>> = {
@@ -98,6 +101,25 @@ export function padFamilyRowInfoOf(settings: Settings): SegmentedRowInfo<PadFami
 
 export function nextSettingsAfterPadFamily(settings: Settings, value: PadFamilySetting): Settings {
   return { ...settings, padGlyphFamily: value };
+}
+
+export function glyphSourceRowInfoOf(settings: Settings): SegmentedRowInfo<GlyphSource> {
+  return {
+    title: "Show hints for",
+    detail:
+      "Auto follows what you used last. On a Steam Deck in Desktop Mode, Steam turns the buttons into keys: pick Controller.",
+    options: [
+      { value: "auto", label: "Auto" },
+      { value: "pad", label: "Controller" },
+      { value: "keyboard", label: "Keyboard" },
+    ],
+    selected: settings.glyphSource,
+    dimmed: !settings.inputGlyphs,
+  };
+}
+
+export function nextSettingsAfterGlyphSource(settings: Settings, value: GlyphSource): Settings {
+  return { ...settings, glyphSource: value };
 }
 
 export const STEAM_NINTENDO_DETAIL = "Off under Steam: Steam Input has its own Nintendo layout option";

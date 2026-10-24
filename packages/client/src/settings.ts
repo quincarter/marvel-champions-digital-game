@@ -8,6 +8,7 @@
 
 import type { TableRules } from "@mc/engine";
 import type { KeyboardHand } from "./view/input-shortcuts.js";
+import type { GlyphSource } from "./view/input-mode.js";
 import type { PadFamilySetting } from "./view/pad-family.js";
 
 /** The sharp, device-pixel-ratio-matched text resolution `defaultSettings` starts from. Also what "off" restores. */
@@ -179,6 +180,11 @@ export interface Settings {
   readonly keyboardHand: KeyboardHand;
   /** Key and button glyphs beside the controls they trigger, while a keyboard or controller is in use. Defaults on. */
   readonly inputGlyphs: boolean;
+  /**
+   * Which hints to show: follow the last input (auto), or pin the controller's or the keyboard's. Pin the controller on
+   * a Steam Deck in Desktop Mode, where Steam turns the buttons into keys. Defaults to auto.
+   */
+  readonly glyphSource: GlyphSource;
   /** How big those hints draw, in percent of the base size: 75 to 200 in steps of 5 (`clampGlyphSize`). Defaults to 130. */
   readonly glyphSize: number;
 }
@@ -419,6 +425,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     nintendoLayout: true,
     keyboardHand: "left",
     inputGlyphs: true,
+    glyphSource: "auto",
     glyphSize: GLYPH_SIZE_DEFAULT,
   };
 }

@@ -47,9 +47,21 @@ export function nextInputMode(state: InputModeState, event: InputEvent): InputMo
   }
 }
 
-/** Which glyph set to draw, or null for none: the setting is off, there's been no keyboard or pad input, or touch. */
-export function glyphSetOf(state: InputModeState, glyphsOn: boolean): "keyboard" | "pad" | null {
-  if (!glyphsOn) return null;
+/** Which hints to show: follow the last input, or pin the controller's or the keyboard's (the "Show hints for" setting). */
+export type GlyphSource = "auto" | "pad" | "keyboard";
+export const GLYPH_SOURCE_VALUES: readonly GlyphSource[] = ["auto", "pad", "keyboard"];
+
+/**
+ * Which glyph set to draw, or null for none: the setting is off, or touch, or (auto only) no keyboard or pad input yet.
+ * A pinned source shows its set whatever was pressed last: under Steam's Desktop layout a pad's buttons arrive as keys.
+ */
+export function glyphSetOf(
+  state: InputModeState,
+  glyphsOn: boolean,
+  source: GlyphSource = "auto",
+): "keyboard" | "pad" | null {
+  if (!glyphsOn || state.mode === "touch") return null;
+  if (source !== "auto") return source;
   return state.mode === "keyboard" || state.mode === "pad" ? state.mode : null;
 }
 

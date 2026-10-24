@@ -33,6 +33,19 @@ describe("input mode", () => {
     expect(glyphSetOf(run({ kind: "pad", pad }), false)).toBeNull();
   });
 
+  test("a pinned source shows its set whatever was used last, never on touch or with hints off", () => {
+    const keys = run({ kind: "key" });
+    expect(glyphSetOf(keys, true, "pad")).toBe("pad");
+    expect(glyphSetOf(INITIAL_INPUT_MODE, true, "pad")).toBe("pad");
+    expect(glyphSetOf(run({ kind: "pad", pad }), true, "keyboard")).toBe("keyboard");
+    expect(glyphSetOf(keys, true, "auto")).toBe("keyboard");
+    expect(glyphSetOf(run({ kind: "touch" }), true, "pad")).toBeNull();
+    expect(glyphSetOf(run({ kind: "touch" }), true, "keyboard")).toBeNull();
+    expect(glyphSetOf(keys, false, "pad")).toBeNull();
+    // The mouse still collapses a pinned set.
+    expect(glyphsExpanded(run({ kind: "mouseMove" }))).toBe(false);
+  });
+
   test("a rest with the mouse already still changes nothing", () => {
     const still = run({ kind: "key" });
     expect(nextInputMode(still, { kind: "mouseRest" })).toBe(still);

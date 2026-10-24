@@ -312,3 +312,14 @@ describe("text resolution follows couch mode until the player sets it", () => {
     expect(store.current.couchMode).toBe("300%");
   });
 });
+
+describe("glyphSource", () => {
+  test("defaults to auto, parses the three values and drops unknown ones", () => {
+    expect(defaultSettings().glyphSource).toBe("auto");
+    expect(parseSettingsOverrides('{"glyphSource":"pad"}')).toEqual({ glyphSource: "pad" });
+    expect(parseSettingsOverrides('{"glyphSource":"keyboard"}')).toEqual({ glyphSource: "keyboard" });
+    expect(parseSettingsOverrides('{"glyphSource":"both"}')).toEqual({});
+    const saved = serializeSettingsOverrides({ ...defaultSettings(), glyphSource: "pad" });
+    expect(parseSettingsOverrides(saved).glyphSource).toBe("pad");
+  });
+});

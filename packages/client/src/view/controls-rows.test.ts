@@ -3,6 +3,8 @@ import { defaultSettings } from "../settings.js";
 import {
   glyphSizeAtTrack,
   glyphSizeShare,
+  glyphSourceRowInfoOf,
+  nextSettingsAfterGlyphSource,
   hintSizeRowInfoOf,
   nextSettingsAfterHintSize,
   steppedGlyphSize,
@@ -159,5 +161,22 @@ describe("hint size row", () => {
     expect(steppedGlyphSize(130, -1)).toBe(125);
     expect(steppedGlyphSize(200, 1)).toBe(200);
     expect(steppedGlyphSize(75, -1)).toBe(75);
+  });
+});
+
+describe("glyphSource row", () => {
+  test("Show hints for: Auto / Controller / Keyboard, dimmed while hints are off", () => {
+    const info = glyphSourceRowInfoOf(defaultSettings());
+    expect(info.title).toBe("Show hints for");
+    expect(info.options).toEqual([
+      { value: "auto", label: "Auto" },
+      { value: "pad", label: "Controller" },
+      { value: "keyboard", label: "Keyboard" },
+    ]);
+    expect(info.selected).toBe("auto");
+    expect(info.dimmed).toBe(false);
+    expect(info.detail).toContain("Steam Deck");
+    expect(glyphSourceRowInfoOf({ ...defaultSettings(), inputGlyphs: false }).dimmed).toBe(true);
+    expect(nextSettingsAfterGlyphSource(defaultSettings(), "pad").glyphSource).toBe("pad");
   });
 });

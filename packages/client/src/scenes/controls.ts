@@ -38,6 +38,8 @@ import {
   nextSettingsAfterHints,
   nextSettingsAfterNintendo,
   nextSettingsAfterPadFamily,
+  glyphSourceRowInfoOf,
+  nextSettingsAfterGlyphSource,
   nintendoToggleInfoOf,
   padFamilyRowInfoOf,
   keyboardHandRowInfoOf,
@@ -211,6 +213,7 @@ export class ControlsOverlay extends Phaser.Scene {
     const labelsRow = padFamilyRowInfoOf(settings);
     const nintendo = nintendoToggleInfoOf(settings, pad);
     const hints = hintsToggleInfoOf(settings);
+    const sourceRow = glyphSourceRowInfoOf(settings);
     const hintSize = hintSizeRowInfoOf(settings);
     const padRows = padRowsOf(state.family, state.swap);
     const layerSections = padLayerSectionsOf(state.family, state.swap);
@@ -223,11 +226,13 @@ export class ControlsOverlay extends Phaser.Scene {
             { id: "labels", kind: "segmented", detail: labelsRow.detail },
             { id: "nintendo", kind: "toggle", detail: nintendo.detail },
             { id: "hints", kind: "toggle", detail: hints.detail },
+            { id: "source", kind: "segmented", detail: sourceRow.detail },
             { id: "hintSize", kind: "slider", detail: hintSize.detail },
           ]
         : [
             { id: "hand", kind: "segmented", detail: handRow.detail },
             { id: "hints", kind: "toggle", detail: hints.detail },
+            { id: "source", kind: "segmented", detail: sourceRow.detail },
             { id: "hintSize", kind: "slider", detail: hintSize.detail },
           ];
     const sections: ControlsListSectionSpec[] =
@@ -379,6 +384,10 @@ export class ControlsOverlay extends Phaser.Scene {
           this.#drawSegmented(row, rowRect, control, labelsRow, stops, order, stopOf, clip, suppress, (value) =>
             this.#set(nextSettingsAfterPadFamily(appSession().settings, value)),
           );
+        } else if (row.id === "source") {
+          this.#drawSegmented(row, rowRect, control, sourceRow, stops, order, stopOf, clip, suppress, (value) =>
+            this.#set(nextSettingsAfterGlyphSource(appSession().settings, value)),
+          );
         } else if (row.id === "hand") {
           this.#drawSegmented(row, rowRect, control, handRow, stops, order, stopOf, clip, suppress, (value) =>
             this.#set(nextSettingsAfterKeyboardHand(appSession().settings, value)),
@@ -468,6 +477,7 @@ export class ControlsOverlay extends Phaser.Scene {
     suppress: () => boolean,
     choose: (value: V) => void,
   ): void {
+    const from = this.children.list.length;
     label(this, rowRect.x, rowRect.y + 2, info.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
     this.add
       .text(rowRect.x, rowRect.y + 20, info.detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
@@ -515,6 +525,11 @@ export class ControlsOverlay extends Phaser.Scene {
       stops.set(id, stopOf(contentCell, row.slot, activate));
       order.push(id);
     });
+    if (info.dimmed) {
+      for (const object of this.children.list.slice(from)) {
+        if ("setAlpha" in object) (object as unknown as Phaser.GameObjects.Components.Alpha).setAlpha(0.5);
+      }
+    }
   }
 
   #drawToggle(
