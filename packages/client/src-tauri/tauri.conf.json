@@ -33,7 +33,8 @@
     "shortDescription": "A fan-made digital edition of Marvel Champions: The Card Game",
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
     "linux": {
-      "rpm": { "compression": { "type": "none" } }
+      "rpm": { "compression": { "type": "none" } },
+      "appimage": { "bundleMediaFramework": true }
     },
     "windows": {
       "nsis": { "compression": "none" }
