@@ -33,6 +33,7 @@ import { ReportIssueOverlay } from "./scenes/report-issue.js";
 import { ReportButtonScene } from "./scenes/report-button.js";
 import { installDebugDump } from "./ui/debug-dump.js";
 import { installInputDeviceTracking } from "./platform/input-device.js";
+import { installVisibleArea } from "./platform/visible-area.js";
 import { installFrameGuard } from "./ui/frame-guard.js";
 import { installStartupWatchdog, probeWebgl } from "./ui/startup-watchdog.js";
 import { installDesktopType, setDesktopType } from "./ui/desktop-type.js";
@@ -213,6 +214,8 @@ installFrameGuard(game);
 installDebugDump(game);
 // Which input is in use, for the key and button glyphs (`view/input-mode.ts`).
 installInputDeviceTracking();
+// Trims the game box to the visible area where a toolbar overlays the page (`platform/visible-area.ts`).
+installVisibleArea(game);
 
 // A GPU reset in the native webviews turns every label into a black box
 // unless the text is redrawn once the context is back (`ui/context-recovery.ts`).
