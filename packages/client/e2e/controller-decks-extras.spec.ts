@@ -72,7 +72,10 @@ const stopKeys = (page: Page, scene: string): Promise<string[]> =>
   );
 
 const focusOf = (page: Page, scene: string): Promise<string | null> =>
-  page.evaluate((key) => (window as unknown as { __mcFocusState: States }).__mcFocusState[key]!().focus, scene);
+  page.evaluate(
+    (key) => (window as unknown as { __mcFocusState?: States }).__mcFocusState?.[key]?.().focus ?? null,
+    scene,
+  );
 
 const tileKeys = async (page: Page): Promise<string> =>
   (await stopKeys(page, "Extras")).filter((key) => key.startsWith("tile:")).join(",");
@@ -152,5 +155,28 @@ test("Decks on a phone: RB and LB step Decks, Cards and Stats", async ({ page })
   expect(await has("pool-card:")).toBe(true);
   await press(page, B, async () => !(await activeScenes(page)).includes("Decks"));
   await waitFor(async () => ((await activeScenes(page)).includes("Title") ? true : null), "B returns to Title", 15_000);
+  expect(errors).toEqual([]);
+});
+
+test("Decks: A on the search field puts the caret in, B takes it out, and the D-pad moves again", async ({ page }) => {
+  test.setTimeout(120_000);
+  const errors = trackPageErrors(page);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await open(page, "decks", "Decks");
+  const typing = (): Promise<boolean> => page.evaluate(() => document.activeElement?.tagName === "INPUT");
+  for (let i = 0; i < 10 && (await focusOf(page, "Decks")) !== "deck-search"; i += 1) {
+    const was = await focusOf(page, "Decks");
+    await press(page, DPAD_DOWN, async () => (await focusOf(page, "Decks")) !== was);
+  }
+  expect(await focusOf(page, "Decks")).toBe("deck-search");
+  await press(page, A, typing);
+  expect(await typing()).toBe(true);
+  await press(page, B, async () => !(await typing()));
+  expect(await typing()).toBe(false);
+  // Still on Decks (the B that left the field did not also go back), and the D-pad moves the ring again.
+  expect(await activeScenes(page)).toContain("Decks");
+  const here = await focusOf(page, "Decks");
+  await press(page, DPAD_DOWN, async () => (await focusOf(page, "Decks")) !== here);
+  expect(await focusOf(page, "Decks")).not.toBe(here);
   expect(errors).toEqual([]);
 });

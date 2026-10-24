@@ -9,12 +9,16 @@
  */
 
 import type Phaser from "phaser";
-import type { McTextInput } from "../ui/widgets.js";
+/** Any field with a caret to take out (`McTextInput`, `McMultilineInput`). */
+export interface CaretField {
+  readonly focused: boolean;
+  blur(): void;
+}
 import { bindExtraInput } from "./extra-input.js";
 
 export function bindTextFieldEscape(
   scene: Phaser.Scene,
-  field: () => McTextInput | null,
+  field: () => CaretField | null,
   /** True while something above the screen owns the pad (a sheet): then the field is not the pad's to leave. */
   covered: () => boolean = () => false,
 ): void {

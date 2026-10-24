@@ -1531,6 +1531,12 @@ export class McMultilineInput {
     child?.open?.();
   }
 
+  /** Takes the caret out (`scenes/text-field-escape.ts`), defensively like `focus()`: the canvas input's own `close()`. */
+  blur(): void {
+    const child = (this.#input as unknown as { childrenMap?: { child?: { close?: () => void } } }).childrenMap?.child;
+    if (this.#focused) child?.close?.();
+  }
+
   get value(): string {
     return this.#input.text;
   }

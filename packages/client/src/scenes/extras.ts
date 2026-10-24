@@ -64,6 +64,7 @@ export class ExtrasScene extends Phaser.Scene {
   #list: McVirtualList | null = null;
   #route: FocusRoute | null = null;
   #hints!: GlyphHints;
+  #obstacles: Rect[] = [];
   #redrawQueued = false;
   /** Between `create` and shutdown. Not `sys.isActive()`, which is still false while `create` itself draws. */
   #alive = false;
@@ -85,7 +86,8 @@ export class ExtrasScene extends Phaser.Scene {
     this.#alive = true;
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#draw, this);
-    this.#hints = new GlyphHints(this);
+    // A glyph that would hang over another control is not drawn (the phone's Back hint, over the Trophy Room button).
+    this.#hints = new GlyphHints(this, () => this.#obstacles);
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.extrasViewer),
       onCancel: () => this.#back(),
@@ -198,6 +200,7 @@ export class ExtrasScene extends Phaser.Scene {
     this.#destroyWidgets();
     destroyChildren(this);
     this.#hints.reset();
+    this.#obstacles = [];
 
     const frame = campaignFrame(this);
     const { width, height, phone, gutter } = frame;
@@ -268,6 +271,7 @@ export class ExtrasScene extends Phaser.Scene {
       16,
       ({ width }) => ({ x: tabRect.x + tabRect.width - width, y: tabRect.y + tabRect.height + 7 }),
     );
+    this.#obstacles.push(trophyRect, creditsRect, tabRect);
     if (bar.back) this.#hints.button(bar.back, ["cancel"], "paper");
     const tabWidth = tabRect.width / tabs.length;
     tabs.forEach((tab, index) => {

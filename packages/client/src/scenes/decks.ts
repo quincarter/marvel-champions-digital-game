@@ -182,6 +182,7 @@ import type { DeckBuilderSceneData } from "./deck-builder.js";
 import type { DeckCheckSceneData } from "./deck-check.js";
 import type { TitleSceneData } from "./title.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
+import { bindTextFieldEscape } from "./text-field-escape.js";
 import { SCENES } from "./keys.js";
 import { fetchMarvelCdbDeck } from "../platform/deck-fetch.js";
 import { openExternal } from "../platform/platform.js";
@@ -468,6 +469,15 @@ export class DecksScene extends Phaser.Scene {
       this.#notesList = null;
     });
     this.#hints = new GlyphHints(this);
+    // A pad that put the caret in a field can take it out again (B, A or Start).
+    const covered = (): boolean => this.scene.isActive(SCENES.inspect);
+    for (const field of [
+      () => this.#searchInput,
+      () => this.#poolSearchInput,
+      () => this.#pasteInput,
+      () => this.#marvelcdbInput,
+    ])
+      bindTextFieldEscape(this, field, covered);
     this.#route = new FocusRoute(this, {
       // B leaves for Title, as the Back button does (a field being typed in owns the keys, so this is not reached then).
       onCancel: () => this.#stops.get("back")?.activate(),

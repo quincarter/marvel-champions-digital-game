@@ -136,6 +136,7 @@ import {
 } from "../view/campaign-deck-edit-model.js";
 import type { CampaignReturn } from "./campaign/routes.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
+import { bindTextFieldEscape } from "./text-field-escape.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
@@ -398,6 +399,9 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#deckRegion?.destroy();
       this.#deckRegion = null;
     });
+    // A pad that put the caret in a field can take it out again (B, A or Start).
+    for (const field of [() => this.#nameInput, () => this.#filterInput, () => this.#identityInput])
+      bindTextFieldEscape(this, field, () => this.scene.isActive(SCENES.inspect));
     this.#route = new FocusRoute(this, {
       // B is the Back button (which asks to confirm when there are unsaved changes).
       onCancel: () => this.#stops.get("back")?.activate(),
