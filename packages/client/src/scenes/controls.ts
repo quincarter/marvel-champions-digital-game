@@ -83,6 +83,8 @@ export class ControlsOverlay extends Phaser.Scene {
   #scroll = new VariableListScroll();
   #motion = new OverlayMotion();
   #tab: ControlsTab = "controller";
+  /** Dev-only e2e read of the Hint size slider as last drawn (`__mcControlsDebug`); null in a production build. */
+  #hintSliderDebug: { slider: McStepSlider; reveal: () => void } | null = null;
 
   constructor() {
     super(SCENES.controls);
@@ -126,6 +128,16 @@ export class ControlsOverlay extends Phaser.Scene {
       this.#region?.destroy();
       this.#region = null;
     });
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcControlsDebug?: unknown }).__mcControlsDebug = {
+        // The slider's parts on screen now, plus the scroll region's viewport (null until drawn).
+        hintSlider: () => {
+          const debug = this.#hintSliderDebug;
+          return debug && this.#region ? { ...debug.slider.debugRects(), viewport: this.#region.rect } : null;
+        },
+        revealHintSlider: () => this.#hintSliderDebug?.reveal(),
+      };
+    }
     this.#draw();
   }
 
@@ -578,6 +590,9 @@ export class ControlsOverlay extends Phaser.Scene {
       },
     });
     this.#buttons.push(...slider.buttons);
+    if (import.meta.env.DEV) {
+      this.#hintSliderDebug = { slider, reveal: () => stops.get(`row:${info.id}`)?.ensureVisible?.() };
+    }
     const id = `row:${info.id}`;
     stops.set(id, { ...stopOf(row.row, row.slot, () => undefined), adjust: (direction) => slider.step(direction) });
     order.push(id);

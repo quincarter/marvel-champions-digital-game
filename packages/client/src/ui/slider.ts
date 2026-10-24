@@ -161,6 +161,24 @@ export class McStepSlider {
     }
   }
 
+  /**
+   * Dev-only e2e read (`__mcControlsDebug`): where the track, "−", "+" and percent sit on screen now, scroll included,
+   * so a spec can aim a real finger at them.
+   */
+  debugRects(): { track: Rect; down: Rect; up: Rect; percent: Rect } {
+    const bounds = this.zone.getBounds();
+    const dx = bounds.x - (this.track.x - KNOB);
+    const dy = bounds.y - this.#options.rect.y;
+    const { rect } = this.#options;
+    const shifted = (x: number, width: number): Rect => ({ x: x + dx, y: rect.y + dy, width, height: rect.height });
+    return {
+      track: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
+      down: shifted(rect.x, STEP_WIDTH),
+      up: shifted(rect.x + rect.width - PERCENT_WIDTH - STEP_WIDTH, STEP_WIDTH),
+      percent: shifted(rect.x + rect.width - PERCENT_WIDTH, PERCENT_WIDTH),
+    };
+  }
+
   destroy(): void {
     for (const button of this.buttons) button.destroy();
     this.buttons.length = 0;

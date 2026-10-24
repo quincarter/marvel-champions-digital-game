@@ -624,6 +624,8 @@ export class BoardScene extends Phaser.Scene {
         focusRect: (key: string) => this.#frame.focusRects.get(key) ?? null,
         hitRect: (id: string) => this.#frame.hitRects.get(id as InstanceId) ?? null,
         hoverShown: () => this.#hover?.shownKey ?? null,
+        // The focus ring's key (keyboard or pad moved it), null when nothing is focused.
+        focusedKey: () => (this.#focus ? focusKey(this.#focus) : null),
         allFocusRects: () => [...this.#frame.focusRects.entries()],
         allPileRects: () => [...this.#frame.pileRects.entries()],
         handStrip: () => this.#frame.handStrip[0] ?? null,

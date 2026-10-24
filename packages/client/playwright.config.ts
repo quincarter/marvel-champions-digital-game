@@ -151,6 +151,7 @@ export default defineConfig({
         "sync-ui-flows.spec.ts",
         "games-list.spec.ts",
         "sync-setup-prompt.spec.ts",
+        "controls-hint-slider.spec.ts",
       ],
     },
   ],
