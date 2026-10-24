@@ -111,11 +111,17 @@ export class AchievementToastScene extends Phaser.Scene {
     this.input.keyboard?.on("keydown-ESC", () => {
       if (this.#list) this.collapse();
     });
-    // B closes the open list as Escape does. A closed popup has nothing to answer, so the pad leaves it alone.
+    // B closes the open list as Escape does, and A / Start dismisses it (the list's two buttons are Collapse and Dismiss,
+    // and a pad has no pointer to press them with). A closed popup has nothing to answer, so the pad leaves it alone.
     bindExtraInput(this, {
+      blocked: () => this.#list === null,
       intents: {
-        cancel: () => {
-          if (this.#list) this.collapse();
+        cancel: () => this.collapse(),
+        activate: () => {
+          if (this.listOpen) this.dismiss();
+        },
+        pause: () => {
+          if (this.listOpen) this.dismiss();
         },
       },
     });
