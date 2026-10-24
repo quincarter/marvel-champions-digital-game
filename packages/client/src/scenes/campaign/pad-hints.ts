@@ -60,19 +60,6 @@ export function tabStripHints(hints: GlyphHints | null, strip: Rect, height = 22
   );
 }
 
-/** The middle of the first and last cells of an evenly divided tab strip: what `tabStripHints` must not cover. */
-export function tabEndLabels(strip: Rect, count: number): readonly Rect[] {
-  const cell = strip.width / count;
-  const inner = cell * 0.6;
-  const at = (index: number): Rect => ({
-    x: strip.x + index * cell + (cell - inner) / 2,
-    y: strip.y,
-    width: inner,
-    height: strip.height,
-  });
-  return [at(0), at(count - 1)];
-}
-
 /**
  * `forwardHint` for a wide row button whose own label is drawn by the screen (`campaignActionButton`: title top-left, a
  * chevron at the right): the glyph sits inside the button's right end, left of the chevron, when the row is wide enough.

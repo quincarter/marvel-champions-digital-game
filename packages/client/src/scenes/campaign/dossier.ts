@@ -48,6 +48,9 @@ import { drawMissionTable } from "./dossier-missions.js";
 import { drawSideSchemeTable } from "./dossier-side-schemes.js";
 import { VariableListScroll } from "../../view/variable-list-scroll.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
+import type { GlyphHints } from "../../ui/glyph-hints.js";
+import { createHints, forwardHint, tabStripHints } from "./pad-hints.js";
+import { tabEndLabels } from "../../view/tab-strip-hints.js";
 import { SCENES } from "../keys.js";
 import { routeUnfoldedGame } from "./unfolded-game-route.js";
 import type { CampaignDossierData, DossierTab } from "./routes.js";
@@ -110,10 +113,14 @@ export class CampaignDossierScene extends Phaser.Scene {
   #seatNumber = 1;
   #status = "";
   #route: FocusRoute | null = null;
+  #stopsNow: ReadonlyMap<string, FocusStop> = new Map();
   #buttons: McButton[] = [];
   #tabs: McTabs | null = null;
   #logRegion: McScrollRegion | null = null;
   #logScroll = new VariableListScroll();
+  #hints: GlyphHints | null = null;
+  /** What a hanging glyph must not cover: the labels at the ends of the tab strip. */
+  #avoid: readonly Rect[] = [];
 
   constructor() {
     super(SCENES.campaignDossier);
@@ -125,7 +132,22 @@ export class CampaignDossierScene extends Phaser.Scene {
     this.#tab = data.tab ?? "overview";
     this.#seatNumber = data.seatNumber ?? 1;
     this.#status = "";
-    this.#route = new FocusRoute(this, { onCancel: () => this.#back() });
+    this.#hints = createHints(this, () => this.#avoid);
+    this.#route = new FocusRoute(this, {
+      onCancel: () => this.#back(),
+      // LB / RB (and the zone keys) step the tabs, wrapping at the ends.
+      onTab: (direction) => {
+        const at = TABS.findIndex((tab) => tab.id === this.#tab);
+        const next = TABS[(at + direction + TABS.length) % TABS.length];
+        if (next && this.#loaded) this.#setTab(next.id);
+      },
+      // The right stick, Page Up / Down and Home / End scroll the Overview and the Log.
+      onScroll: (_dx, dy) => this.#logRegion?.scrollByPx(dy),
+      onPage: (direction) => this.#logRegion?.scrollByPx(direction * this.#logRegion.rect.height * 0.85),
+      onHomeEnd: (edge) => this.#logRegion?.scrollByPx(edge === "home" ? -1_000_000 : 1_000_000),
+      // Start and A with nothing focused: the Heroes tab's one action.
+      primary: () => (this.#stopsNow.has("edit-deck") ? "edit-deck" : null),
+    });
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     const artOff = cardArt(this).onArrived(() => this.#draw());
@@ -225,6 +247,8 @@ export class CampaignDossierScene extends Phaser.Scene {
     this.#buttons = [];
     this.#tabs?.destroy();
     this.#tabs = null;
+    this.#hints?.reset();
+    this.#avoid = [];
     const frame = campaignFrame(this);
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
 
@@ -235,6 +259,7 @@ export class CampaignDossierScene extends Phaser.Scene {
     const top = drawTopBar(this, {
       backLabel: "◂ Cover",
       onBack: () => this.#back(),
+      hints: this.#hints,
       title: "Dossier",
       right: loaded
         ? loaded.lostLine
@@ -255,6 +280,7 @@ export class CampaignDossierScene extends Phaser.Scene {
       this.add
         .text(frame.width / 2, frame.height / 2, this.#status || "Loading…", textStyle(typeRole.body, surface.ink.hex))
         .setOrigin(0.5);
+      this.#stopsNow = stops;
       this.#route?.set(order, stops);
       return;
     }
@@ -267,6 +293,8 @@ export class CampaignDossierScene extends Phaser.Scene {
       activeId: this.#tab,
       onSelect: (id) => this.#setTab(id as DossierTab),
     });
+    this.#avoid = tabEndLabels(tabRect, TABS.length);
+    tabStripHints(this.#hints, tabRect);
     TABS.forEach((tab, index) => {
       const cellWidth = tabRect.width / TABS.length;
       const rect: Rect = { x: tabRect.x + index * cellWidth, y: tabRect.y, width: cellWidth, height: tabRect.height };
@@ -300,6 +328,7 @@ export class CampaignDossierScene extends Phaser.Scene {
         break;
     }
 
+    this.#stopsNow = stops;
     this.#route?.set(order, stops);
   }
 
@@ -321,9 +350,9 @@ export class CampaignDossierScene extends Phaser.Scene {
     };
     stops.set("edit-deck", { rect, activate });
     order.push("edit-deck");
-    this.#buttons.push(
-      new McButton(this, { kind: "primary", label, type: typeRole.barTitle, rect, onClick: activate }),
-    );
+    const editButton = new McButton(this, { kind: "primary", label, type: typeRole.barTitle, rect, onClick: activate });
+    this.#buttons.push(editButton);
+    forwardHint(this.#hints, editButton, "ink");
   }
 
   // -----------------------------------------------------------------------------------------------------------
