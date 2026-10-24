@@ -23,6 +23,10 @@ const LEFT_MAX = 540;
 const GROUP_PAD = 12;
 const MAX_DRAWING_HEIGHT = 560;
 const ROW_GAP = 8;
+/** The hint size row's preview-and-slider line: tall enough for the 200% preview cap. */
+export const SLIDER_LINE_HEIGHT = 48;
+/** Under this panel width the preview and the slider each take a line. */
+export const SLIDER_ONE_LINE_MIN_WIDTH = 460;
 const SEGMENTED_CONTROL_WIDTH = 440;
 const SEGMENTED_TEXT_MIN = 240;
 const HEADING_HEIGHT = 26;
@@ -42,8 +46,8 @@ export const CONTROLLER_ASPECT: Readonly<Record<DrawingKind, number>> = {
 };
 
 export interface ControlsGroupRowSpec {
-  readonly id: "labels" | "nintendo" | "hints" | "hand";
-  readonly kind: "segmented" | "toggle";
+  readonly id: "labels" | "nintendo" | "hints" | "hand" | "hintSize";
+  readonly kind: "segmented" | "toggle" | "slider";
   readonly detail: string;
 }
 
@@ -193,6 +197,23 @@ function contentLayout(width: number, onDesktop: boolean, input: ControlsLayoutI
         : { x: innerX + 2, y: gy + height - 36, width: cw, height: 32 };
       const row: Rect = { x: innerX, y: gy, width: innerWidth, height };
       groupRows.push({ id: spec.id, kind: "segmented", row, control, stacked: !beside, slot });
+      slots.push(row);
+      gy += height + ROW_GAP;
+    } else if (spec.kind === "slider") {
+      // Always stacked: the words on top, the preview glyphs and the slider on a line of their own under them; on a
+      // narrow panel (a phone) the preview takes a line of its own above the slider so the track keeps its length.
+      const lines = innerWidth < SLIDER_ONE_LINE_MIN_WIDTH ? 2 : 1;
+      const lineHeight = lines * SLIDER_LINE_HEIGHT;
+      const textHeight = toggleRowHeight(spec.detail, innerWidth + 100, onDesktop);
+      const height = textHeight - 8 + lineHeight + 8;
+      const row: Rect = { x: innerX, y: gy, width: innerWidth, height };
+      const control: Rect = {
+        x: innerX + 2,
+        y: gy + height - lineHeight - 4,
+        width: innerWidth - 4,
+        height: lineHeight,
+      };
+      groupRows.push({ id: spec.id, kind: "slider", row, control, stacked: true, slot });
       slots.push(row);
       gy += height + ROW_GAP;
     } else {

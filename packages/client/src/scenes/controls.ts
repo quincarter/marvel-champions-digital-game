@@ -13,6 +13,12 @@ import { onInputDeviceChange, inputDevice } from "../platform/input-device.js";
 import { appSession } from "../session.js";
 import { ink, minType, signal, surface, typeRole } from "../tokens.js";
 import { McInputGlyph } from "../ui/input-glyph.js";
+import { notifyHintSettingsChanged } from "../ui/input-hints.js";
+import { McStepSlider } from "../ui/slider.js";
+import { glyphHeightFor, scaledGlyphHeight } from "../view/glyph-placement.js";
+import { type Settings } from "../settings.js";
+import type { GlyphSpec } from "../view/input-glyph-model.js";
+import { padGlyphSpec } from "../view/input-glyph-model.js";
 import { drawController, ensureControllerImage } from "../ui/controller-drawing.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
@@ -22,7 +28,12 @@ import { McButton, McTabs, addRowTapZone, fitText, paintOnFrame, label, sectionH
 import {
   controllerCaptionOf,
   controllerStateOf,
+  glyphSizeAtTrack,
+  glyphSizeShare,
+  hintSizeRowInfoOf,
   hintsToggleInfoOf,
+  nextSettingsAfterHintSize,
+  steppedGlyphSize,
   keyboardGroupsOf,
   nextSettingsAfterHints,
   nextSettingsAfterNintendo,
@@ -39,6 +50,7 @@ import {
   type ControlsTab,
 } from "../view/controls-rows.js";
 import {
+  SLIDER_LINE_HEIGHT,
   controlsLayout,
   type ControlsGroupRowLayout,
   type ControlsGroupRowSpec,
@@ -131,6 +143,8 @@ export class ControlsOverlay extends Phaser.Scene {
 
   #set(next: ReturnType<typeof nextSettingsAfterHints>): void {
     appSession().settings = next;
+    // The board behind this screen draws its hints from the settings: tell it (the hints toggle, the pad's look).
+    notifyHintSettingsChanged();
     this.#draw();
   }
 
@@ -161,6 +175,7 @@ export class ControlsOverlay extends Phaser.Scene {
     const labelsRow = padFamilyRowInfoOf(settings);
     const nintendo = nintendoToggleInfoOf(settings, pad);
     const hints = hintsToggleInfoOf(settings);
+    const hintSize = hintSizeRowInfoOf(settings);
     const padRows = padRowsOf(state.family, state.swap);
     const layerSections = padLayerSectionsOf(state.family, state.swap);
     const handRow = keyboardHandRowInfoOf(settings);
@@ -172,10 +187,12 @@ export class ControlsOverlay extends Phaser.Scene {
             { id: "labels", kind: "segmented", detail: labelsRow.detail },
             { id: "nintendo", kind: "toggle", detail: nintendo.detail },
             { id: "hints", kind: "toggle", detail: hints.detail },
+            { id: "hintSize", kind: "slider", detail: hintSize.detail },
           ]
         : [
             { id: "hand", kind: "segmented", detail: handRow.detail },
             { id: "hints", kind: "toggle", detail: hints.detail },
+            { id: "hintSize", kind: "slider", detail: hintSize.detail },
           ];
     const sections: ControlsListSectionSpec[] =
       tab === "controller"
@@ -309,6 +326,8 @@ export class ControlsOverlay extends Phaser.Scene {
           this.#drawSegmented(row, rowRect, control, handRow, stops, order, stopOf, clip, suppress, (value) =>
             this.#set(nextSettingsAfterKeyboardHand(appSession().settings, value)),
           );
+        } else if (row.id === "hintSize") {
+          this.#drawHintSize(row, rowRect, control, hintSize, state, stops, order, stopOf, clip, suppress);
         } else {
           const info = row.id === "nintendo" ? nintendo : hints;
           const activate =
@@ -480,6 +499,88 @@ export class ControlsOverlay extends Phaser.Scene {
       stops.set(id, stopOf(row.row, row.slot, activate));
       order.push(id);
     }
+  }
+
+  /**
+   * "Hint size": the words, then a line with a live preview (an A button and a Space cap at the size the hints draw now)
+   * and the slider. Dragging repaints the slider and the preview in place and resizes the hints on the board behind;
+   * nothing is redrawn, so a drag is not cut short. The hints toggle off dims the row but leaves it adjustable.
+   */
+  #drawHintSize(
+    row: ControlsGroupRowLayout,
+    rowRect: Rect,
+    control: Rect,
+    info: ReturnType<typeof hintSizeRowInfoOf>,
+    state: ReturnType<typeof controllerStateOf>,
+    stops: Map<string, FocusStop>,
+    order: string[],
+    stopOf: (rect: Rect, slot: number, activate: () => void) => FocusStop,
+    clip: () => Rect | null,
+    suppress: () => boolean,
+  ): void {
+    const alpha = info.dimmed ? 0.5 : 1;
+    label(this, rowRect.x, rowRect.y + 2, info.title, typeRole.label, surface.paper.hex, ink.secondary)
+      .setFontSize(12)
+      .setAlpha(alpha);
+    this.add
+      .text(rowRect.x, rowRect.y + 20, info.detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
+      .setFontSize(10)
+      .setWordWrapWidth(rowRect.width)
+      .setAlpha(alpha);
+    // The preview: the same base height a button's hint has, scaled by the setting.
+    const specs: GlyphSpec[] = [
+      ...(padGlyphSpec(0, state.family, state.swap) ? [padGlyphSpec(0, state.family, state.swap)!] : []),
+      { kind: "key", label: "Space", name: "Space" },
+    ];
+    const baseHeight = glyphHeightFor(40);
+    const twoLines = control.height > SLIDER_LINE_HEIGHT * 1.5;
+    const previewWidth = twoLines ? 0 : Math.min(180, Math.floor(control.width * 0.4));
+    const lineHeight = twoLines ? control.height / 2 : control.height;
+    const midY = control.y + lineHeight / 2;
+    const glyphs = specs.map(
+      (spec) =>
+        new McInputGlyph(this, control.x, midY, [spec], {
+          height: scaledGlyphHeight(baseHeight, info.percent),
+          ground: "ink",
+        }),
+    );
+    for (const glyph of glyphs) glyph.setAlpha(alpha);
+    const layoutPreview = (percent: number): void => {
+      let x = control.x;
+      for (const glyph of glyphs) {
+        glyph.setGlyphHeight(scaledGlyphHeight(baseHeight, percent));
+        glyph.setPosition(x, midY);
+        x += glyph.fullWidth + 8;
+      }
+    };
+    layoutPreview(info.percent);
+    const slider = new McStepSlider(this, {
+      rect: {
+        x: control.x + previewWidth,
+        y: control.y + control.height - lineHeight,
+        width: control.width - previewWidth,
+        height: lineHeight,
+      },
+      ground: "ink",
+      value: info.percent,
+      shareOf: glyphSizeShare,
+      valueAt: glyphSizeAtTrack,
+      step: steppedGlyphSize,
+      format: (value) => `${value}%`,
+      dimmed: info.dimmed,
+      clip,
+      suppressClick: suppress,
+      onChange: (value) => {
+        const current: Settings = appSession().settings;
+        if (current.glyphSize !== value) appSession().settings = nextSettingsAfterHintSize(current, value);
+        layoutPreview(value);
+        notifyHintSettingsChanged();
+      },
+    });
+    this.#buttons.push(...slider.buttons);
+    const id = `row:${info.id}`;
+    stops.set(id, { ...stopOf(row.row, row.slot, () => undefined), adjust: (direction) => slider.step(direction) });
+    order.push(id);
   }
 
   /** One list row: the glyph(s), the action, and where it applies. */

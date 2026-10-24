@@ -45,6 +45,8 @@ export interface FocusStop {
    * brings it on screen instead of leaving the ring nowhere a player can see.
    */
   readonly ensureVisible?: () => void;
+  /** A slider: Left / Right (and the pad's d-pad) step it instead of moving focus. */
+  readonly adjust?: (direction: -1 | 1) => void;
 }
 
 export interface FocusRouteOptions {
@@ -173,9 +175,18 @@ export class FocusRoute {
       case "up":
       case "down":
       case "left":
-      case "right":
+      case "right": {
+        const adjust =
+          this.#focus !== null && (intent === "left" || intent === "right")
+            ? this.#stops.get(this.#focus)?.adjust
+            : undefined;
+        if (adjust) {
+          adjust(intent === "left" ? -1 : 1);
+          break;
+        }
         this.#moveTo(spatialStep(this.#order, (key) => this.#rectOf(key), this.#focus, intent));
         break;
+      }
       case "activate":
         {
           // A stop exists only while its control can be pressed, so a primary that has one is enabled.

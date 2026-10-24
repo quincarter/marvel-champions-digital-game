@@ -155,7 +155,7 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
     // "[ ] Zones" beside the caption: the keys (or LB RB) that jump between zones. Desktop and tablet landscape only,
     // and not when the owed-Forced-Action note above would run into it.
     const zonesX = caption.x + caption.width + 12;
-    if (glyphsFitLayout(tabbed) && zonesHintFits(zonesX, noteLeft)) {
+    if (glyphsFitLayout(tabbed) && zonesHintFits(zonesX, noteLeft, appSession().settings.glyphSize)) {
       // The word sits after the glyph's full width and stays put as the glyph closes: nothing shifts.
       const word = label(scene, 0, 0, "Zones", typeRole.label, surface.paper.hex, ink.label).setOrigin(0, 0.5);
       ctx.hints.inline(zonesX, rect.y + 4 + caption.height / 2, ["zonePrevious", "zoneNext"], 14, { word });

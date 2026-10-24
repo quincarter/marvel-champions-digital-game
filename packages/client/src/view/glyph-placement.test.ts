@@ -10,7 +10,9 @@ import {
   glyphRightInRow,
   glyphsFitFormFactor,
   glyphsFitLayout,
+  legendHeightFor,
   legendLayout,
+  scaledGlyphHeight,
   legendRect,
   legendSegments,
   specsSignature,
@@ -163,5 +165,61 @@ describe("the focused-card legend", () => {
     expect(legendSegments("pause").map((s) => s.text)).toEqual(["Select", "Inspect · hold to zoom", "Pause"]);
     expect(legendSegments("back", false).map((s) => s.text)).toEqual(["Select", "Inspect", "Back"]);
     expect(legendSegments("back").map((s) => s.id)).toEqual(["activate", "inspect", "cancel"]);
+  });
+});
+
+describe("hint size scaling (Settings.glyphSize)", () => {
+  // A round face disc is as wide as it is tall, so a glyph's width follows its height.
+  const button = { x: 100, y: 10, width: 160, height: 36 };
+  const label = { cx: 180, width: 60, minX: 100, maxX: 260 };
+
+  it("scales a base height by percent, to a whole pixel", () => {
+    expect(scaledGlyphHeight(20, 100)).toBe(20);
+    expect(scaledGlyphHeight(20, 75)).toBe(15);
+    expect(scaledGlyphHeight(20, 130)).toBe(26);
+    expect(scaledGlyphHeight(20, 200)).toBe(40);
+    expect(glyphHeightFor(36, 200)).toBe(40);
+    expect(glyphHeightFor(36)).toBe(20);
+    expect(glyphHeightFor(20, 75)).toBe(Math.round(14 * 0.75));
+  });
+
+  it("sits beside the label at 75% and hangs outside at 200% when the pair no longer fits", () => {
+    const small = scaledGlyphHeight(20, 75);
+    const big = scaledGlyphHeight(20, 200);
+    const beside = glyphBesideLabel(button, label, small, small, 1)!;
+    expect(beside).not.toBeNull();
+    // The word slides 10.5 right to make room: its left edge is the glyph's right edge plus the 6px gap.
+    expect(beside.x).toBe(139.5);
+    // Pair = 40 + 6 + 60 = 106, from 127 to 233: still inside the label box's padding.
+    expect(glyphBesideLabel(button, label, big, big, 1)).not.toBeNull();
+    // A narrower button runs out of room at 200% but not at 75%.
+    const narrow = { cx: 150, width: 60, minX: 100, maxX: 200 };
+    expect(glyphBesideLabel(button, narrow, small, small, 1)).not.toBeNull();
+    expect(glyphBesideLabel(button, narrow, big, big, 1)).toBeNull();
+  });
+
+  it("hangs a glyph by its scaled size and skips it when that spot is no longer clear", () => {
+    const anchor = { x: 500, y: 0, width: 80, height: 36 };
+    const obstacle = { x: 480, y: 56, width: 100, height: 20 };
+    for (const [percent, clear] of [
+      [75, true],
+      [200, false],
+    ] as const) {
+      const height = scaledGlyphHeight(16, percent);
+      const point = glyphHangingBelow(anchor, height, height);
+      expect(hangIsClear(glyphRect(point, height, height), [obstacle])).toBe(clear);
+    }
+  });
+
+  it("makes the legend strip taller with bigger glyphs, never below its base", () => {
+    expect(legendHeightFor(75)).toBe(22);
+    expect(legendHeightFor(130)).toBe(27);
+    expect(legendHeightFor(200)).toBe(38);
+  });
+
+  it("scales the Zones hint's room", () => {
+    expect(zonesHintFits(100, 400, 75)).toBe(true);
+    expect(zonesHintFits(100, 330, 200)).toBe(false);
+    expect(zonesHintFits(100, 330, 100)).toBe(true);
   });
 });

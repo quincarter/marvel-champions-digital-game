@@ -22,6 +22,19 @@ export function clampMusicVolume(volume: number): number {
   return Math.round(Math.min(MUSIC_VOLUME_MAX, Math.max(0, volume)));
 }
 
+/** The key and button hints' size, as a percent of their base size (`Settings.glyphSize`): range, step and default. */
+export const GLYPH_SIZE_MIN = 75;
+export const GLYPH_SIZE_MAX = 200;
+export const GLYPH_SIZE_STEP = 5;
+export const GLYPH_SIZE_DEFAULT = 130;
+
+/** A stored or dragged hint size brought into range and to a step of 5. */
+export function clampGlyphSize(percent: number): number {
+  if (!Number.isFinite(percent)) return GLYPH_SIZE_DEFAULT;
+  const stepped = Math.round(percent / GLYPH_SIZE_STEP) * GLYPH_SIZE_STEP;
+  return Math.min(GLYPH_SIZE_MAX, Math.max(GLYPH_SIZE_MIN, stepped));
+}
+
 export interface Settings {
   readonly reducedMotion: boolean;
   /** Text resolution multiplier; set from the device pixel ratio so text stays sharp. */
@@ -159,6 +172,8 @@ export interface Settings {
   readonly keyboardHand: KeyboardHand;
   /** Key and button glyphs beside the controls they trigger, while a keyboard or controller is in use. Defaults on. */
   readonly inputGlyphs: boolean;
+  /** How big those hints draw, in percent of the base size: 75 to 200 in steps of 5 (`clampGlyphSize`). Defaults to 130. */
+  readonly glyphSize: number;
 }
 
 export type AchievementPopupTime = "off" | "3s" | "5s" | "8s" | "10s";
@@ -377,5 +392,6 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     nintendoLayout: true,
     keyboardHand: "left",
     inputGlyphs: true,
+    glyphSize: GLYPH_SIZE_DEFAULT,
   };
 }

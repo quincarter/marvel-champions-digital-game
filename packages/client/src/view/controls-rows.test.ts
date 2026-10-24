@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { defaultSettings } from "../settings.js";
+import {
+  glyphSizeAtTrack,
+  glyphSizeShare,
+  hintSizeRowInfoOf,
+  nextSettingsAfterHintSize,
+  steppedGlyphSize,
+} from "./controls-rows.js";
 import { SHORTCUTS, shortcutCaps, type ShortcutId } from "./input-shortcuts.js";
 import {
   controllerCaptionOf,
@@ -119,5 +126,38 @@ describe("controls rows", () => {
     expect(lt[5]!.glyphs.map((g) => g.label)).toEqual(["LT", "RB"]);
     expect(sections[1]!.rows[0]!.glyphs.map((g) => g.label)).toEqual(["RT", "A"]);
     expect(padRowsOf("xbox", false).some((r) => r.id === "undo" || r.id === "endTurn")).toBe(false);
+  });
+});
+
+describe("hint size row", () => {
+  const track = { x: 100, width: 250 };
+
+  it("reads the setting, dimmed while hints are off", () => {
+    const base = defaultSettings();
+    expect(hintSizeRowInfoOf(base)).toMatchObject({ percent: 130, dimmed: false });
+    expect(hintSizeRowInfoOf({ ...base, inputGlyphs: false }).dimmed).toBe(true);
+  });
+
+  it("changes only glyphSize, clamped to 75-200 in steps of 5", () => {
+    const base = defaultSettings();
+    expect(nextSettingsAfterHintSize(base, 162)).toEqual({ ...base, glyphSize: 160 });
+    expect(nextSettingsAfterHintSize(base, 5).glyphSize).toBe(75);
+    expect(nextSettingsAfterHintSize(base, 900).glyphSize).toBe(200);
+  });
+
+  it("maps the track to the range and back", () => {
+    expect(glyphSizeAtTrack(0, track)).toBe(75);
+    expect(glyphSizeAtTrack(100, track)).toBe(75);
+    expect(glyphSizeAtTrack(225, track)).toBe(140);
+    expect(glyphSizeAtTrack(999, track)).toBe(200);
+    expect(glyphSizeShare(75)).toBe(0);
+    expect(glyphSizeShare(200)).toBe(1);
+  });
+
+  it("steps by 5 and stops at the ends", () => {
+    expect(steppedGlyphSize(130, 1)).toBe(135);
+    expect(steppedGlyphSize(130, -1)).toBe(125);
+    expect(steppedGlyphSize(200, 1)).toBe(200);
+    expect(steppedGlyphSize(75, -1)).toBe(75);
   });
 });

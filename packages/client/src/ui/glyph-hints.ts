@@ -11,7 +11,8 @@
  * Where a glyph goes (`view/glyph-placement.ts` has the rules and the tests): right beside its button's word, the pair
  * centered together, the word sliding over to make room; if the pair does not fit inside the button, the glyph hangs
  * just outside it, below or above, and is not drawn at all when that spot would cover another object (`obstacles`).
- * Nothing is ever resized, shortened or wrapped.
+ * Nothing is ever resized, shortened or wrapped. Every glyph's height is its base times the hint size setting
+ * (`Settings.glyphSize`, percent), so the placement above always works from the glyphs' real, scaled widths.
  */
 
 import Phaser from "phaser";
@@ -25,8 +26,11 @@ import {
   glyphRightInRow,
   hangIsClear,
   legendLayout,
+  legendHeightFor,
   legendRect,
   legendSegments,
+  LEGEND_GLYPH_HEIGHT,
+  scaledGlyphHeight,
   specsSignature,
   type GlyphPoint,
 } from "../view/glyph-placement.js";
@@ -42,7 +46,6 @@ import type { McButton } from "./widgets.js";
 
 /** Above the table's own objects, below the overlays' scrims (those sit in other scenes). */
 const HINT_DEPTH = 950;
-const LEGEND_HEIGHT = 22;
 
 export type GlyphSet = "keyboard" | "pad";
 
@@ -62,10 +65,11 @@ interface Entry {
   readonly ids: readonly ShortcutId[];
   readonly custom: CustomSpecs | null;
   readonly ground: GlyphGround;
+  /** The base height, before the hint size setting scales it. */
   readonly height: number;
   glyph: McInputGlyph | null;
-  /** The point for the glyph at its current size, or null to draw nothing (no room, or it would cover something). */
-  readonly place: (size: { width: number; full: number; openness: number }) => Placed | null;
+  /** The point for the glyph at its current size (`height` is the scaled one), or null to draw nothing (no room, or it would cover something). */
+  readonly place: (size: { width: number; full: number; openness: number; height: number }) => Placed | null;
   readonly word: Phaser.GameObjects.Text | null;
   /** Only while this holds for the input in use (a glyph must not promise what the key would not do). */
   readonly when: ((set: GlyphSet) => boolean) | null;
@@ -166,9 +170,9 @@ export class GlyphHints {
     options: Pick<HintOptions, "when"> = {},
   ): void {
     const rect = button.rect;
-    const height = glyphHeightFor(rect.height);
-    this.#add(ids, ground, height, {
-      place: ({ width, full, openness }) => {
+    const baseHeight = glyphHeightFor(rect.height);
+    this.#add(ids, ground, baseHeight, {
+      place: ({ width, full, openness, height }) => {
         const beside = glyphBesideLabel(rect, button.labelBox, full, width, openness);
         if (beside) return beside;
         // Too narrow for the pair: hung just outside, below the button or above at the screen's edge, if clear.
@@ -208,7 +212,7 @@ export class GlyphHints {
   /** A glyph hanging just below `anchor`, its right edge on the anchor's (the chrome's MENU button), if clear. */
   hang(anchor: Rect, ids: readonly ShortcutId[], height: number, options: HintOptions = {}): void {
     this.#add(ids, options.ground ?? "paper", height, {
-      place: ({ width }) => {
+      place: ({ width, height }) => {
         const point = glyphHangingBelow(anchor, width, height);
         return hangIsClear(glyphRect(point, width, height), this.#obstacles()) ? point : null;
       },
@@ -295,13 +299,15 @@ export class GlyphHints {
       this.#hide(entry);
       return;
     }
+    const height = scaledGlyphHeight(entry.height, snapshot.settings.glyphSize);
     // Built only now that a keyboard or pad is in use.
     if (!entry.glyph) {
-      entry.glyph = new McInputGlyph(this.#scene, 0, 0, specs, { height: entry.height, ground: entry.ground });
+      entry.glyph = new McInputGlyph(this.#scene, 0, 0, specs, { height, ground: entry.ground });
       entry.glyph.setDepth(HINT_DEPTH).setVisible(false);
       entry.signature = specsSignature(specs);
     }
     const glyph = entry.glyph;
+    glyph.setGlyphHeight(height);
     const signature = specsSignature(specs);
     if (signature !== entry.signature) {
       entry.signature = signature;
@@ -309,7 +315,12 @@ export class GlyphHints {
     }
     glyph.setOpenness(snapshot.openness).setAlpha(snapshot.openness);
     entry.word?.setAlpha(snapshot.openness);
-    const placed = entry.place({ width: glyph.glyphWidth, full: glyph.fullWidth, openness: snapshot.openness });
+    const placed = entry.place({
+      width: glyph.glyphWidth,
+      full: glyph.fullWidth,
+      openness: snapshot.openness,
+      height,
+    });
     if (!placed) {
       this.#hide(entry);
       return;
@@ -333,13 +344,15 @@ export class GlyphHints {
     const zoom = snapshot.settings.cardHoverScale !== "off";
     const segments = legendSegments(target.cancelMeans, zoom);
     const specs = segments.map((segment) => glyphsForShortcut(segment.id, snapshot.state, snapshot.settings));
-    const signature = `${set}/${target.cancelMeans}/${zoom}/${specs.map(specsSignature).join(";")}`;
+    const scale = snapshot.settings.glyphSize;
+    const signature = `${set}/${target.cancelMeans}/${zoom}/${scale}/${specs.map(specsSignature).join(";")}`;
     if (!this.#legend || this.#legend.signature !== signature || !this.#legend.container.active) {
       this.#legend?.destroy();
       this.#legend = new LegendStrip(
         this.#scene,
         signature,
         segments.map((segment, index) => ({ text: segment.text, specs: specs[index] ?? null })),
+        scale,
       );
     }
     this.#legend.place(legendRect(target.rect, this.#legend.size, target.viewport), snapshot.openness);
@@ -355,26 +368,29 @@ class LegendStrip {
     scene: Phaser.Scene,
     readonly signature: string,
     items: readonly { readonly text: string; readonly specs: readonly GlyphSpec[] | null }[],
+    scale: number,
   ) {
     const style = textStyle(typeRole.label, surface.paper.hex);
+    const stripHeight = legendHeightFor(scale);
+    const glyphHeight = scaledGlyphHeight(LEGEND_GLYPH_HEIGHT, scale);
     const glyphs = items.map((item) =>
-      item.specs ? new McInputGlyph(scene, 0, 0, item.specs, { height: 16, ground: "ink" }) : null,
+      item.specs ? new McInputGlyph(scene, 0, 0, item.specs, { height: glyphHeight, ground: "ink" }) : null,
     );
     const texts = items.map((item) => scene.add.text(0, 0, item.text, { ...style }).setOrigin(0, 0.5));
     const { slots, width } = legendLayout(
       items.map((_item, index) => ({ glyphWidth: glyphs[index]?.fullWidth ?? 0, textWidth: texts[index]!.width })),
     );
-    this.size = { width, height: LEGEND_HEIGHT };
+    this.size = { width, height: stripHeight };
     const bg = scene.add.graphics();
-    bg.fillStyle(surface.ink.hex, 1).fillRect(0, 0, width, LEGEND_HEIGHT);
-    bg.lineStyle(1, surface.paper.hex, 0.5).strokeRect(0.5, 0.5, width - 1, LEGEND_HEIGHT - 1);
-    const mid = LEGEND_HEIGHT / 2;
+    bg.fillStyle(surface.ink.hex, 1).fillRect(0, 0, width, stripHeight);
+    bg.lineStyle(1, surface.paper.hex, 0.5).strokeRect(0.5, 0.5, width - 1, stripHeight - 1);
+    const mid = stripHeight / 2;
     slots.forEach((slot, index) => {
       glyphs[index]?.setPosition(slot.glyphX, mid);
       texts[index]!.setPosition(slot.textX, mid);
     });
     this.container = scene.add.container(0, 0, [bg, ...glyphs.filter((g) => g !== null), ...texts]);
-    this.container.setDepth(HINT_DEPTH).setSize(width, LEGEND_HEIGHT);
+    this.container.setDepth(HINT_DEPTH).setSize(width, stripHeight);
   }
 
   place(rect: Rect, openness: number): void {

@@ -27,9 +27,18 @@ export const GLYPH_MIN_HEIGHT = 14;
 /** Glyphs are for a keyboard or a pad, which a phone layout (tabbed) is not: desktop and tablet landscape only. */
 export const glyphsFitLayout = (tabbed: boolean): boolean => !tabbed;
 
-/** A glyph's height for a control `controlHeight` tall: it sits inside the control's own padding. */
-export function glyphHeightFor(controlHeight: number): number {
-  return Math.max(GLYPH_MIN_HEIGHT, Math.min(GLYPH_MAX_HEIGHT, Math.floor(controlHeight - 12)));
+/** A base glyph height scaled by the hint size setting (`Settings.glyphSize`, percent), to a whole pixel. */
+export const scaledGlyphHeight = (base: number, percent: number): number =>
+  Math.max(1, Math.round((base * percent) / 100));
+
+/**
+ * A glyph's base height for a control `controlHeight` tall: it sits inside the control's own padding. The hint size
+ * setting then scales it (`percent`, default 100 = the base), so a larger hint may overhang the button's own padding:
+ * `glyphBesideLabel` then finds no room and the glyph hangs outside instead.
+ */
+export function glyphHeightFor(controlHeight: number, percent = 100): number {
+  const base = Math.max(GLYPH_MIN_HEIGHT, Math.min(GLYPH_MAX_HEIGHT, Math.floor(controlHeight - 12)));
+  return scaledGlyphHeight(base, percent);
 }
 
 export interface GlyphPoint {
@@ -126,6 +135,13 @@ export interface LegendSlot {
 }
 
 export const LEGEND_PAD = 8;
+/** The legend strip's base glyph height and strip height (scaled by the hint size setting). */
+export const LEGEND_GLYPH_HEIGHT = 16;
+export const LEGEND_HEIGHT = 22;
+
+/** The strip's height for a hint size: it grows with its glyphs, never below the base. */
+export const legendHeightFor = (percent: number): number =>
+  Math.max(LEGEND_HEIGHT, scaledGlyphHeight(LEGEND_GLYPH_HEIGHT, percent) + 6);
 const LEGEND_GLYPH_TEXT_GAP = 5;
 const LEGEND_ITEM_GAP = 12;
 
@@ -179,8 +195,8 @@ export function legendSegments(cancelMeans: "back" | "pause", zoom = true): read
 export const ZONES_HINT_WIDTH = 150;
 
 /** Whether the "[ ] Zones" hint at `x` clears the owed-Forced-Action note, whose left edge is `noteLeft` (null: no note). */
-export const zonesHintFits = (x: number, noteLeft: number | null): boolean =>
-  noteLeft === null || x + ZONES_HINT_WIDTH + 8 <= noteLeft;
+export const zonesHintFits = (x: number, noteLeft: number | null, percent = 100): boolean =>
+  noteLeft === null || x + Math.round((ZONES_HINT_WIDTH * percent) / 100) + 8 <= noteLeft;
 
 /** The targeting panel's Cancel label: the Esc hint stays as text until a key or pad is in use, then it is a glyph. */
 export const cancelLabel = (hinted: boolean, glyphSet: "keyboard" | "pad" | null): string =>

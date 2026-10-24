@@ -4,7 +4,7 @@
  * `view/input-shortcuts.ts`, so the wording and the glyphs can't drift from the tables the handlers read.
  */
 
-import type { Settings } from "../settings.js";
+import { GLYPH_SIZE_MAX, GLYPH_SIZE_MIN, GLYPH_SIZE_STEP, clampGlyphSize, type Settings } from "../settings.js";
 import { padGlyphSpec, type GlyphSpec } from "./input-glyph-model.js";
 import { shortcutCaps, shortcutOf, type KeyboardHand, type ShortcutId } from "./input-shortcuts.js";
 import { layerSheet, type LayerRow, type PadLayer } from "./pad-layers.js";
@@ -140,6 +140,45 @@ export function hintsToggleInfoOf(settings: Settings): ControlsToggleInfo {
 export function nextSettingsAfterHints(settings: Settings): Settings {
   return { ...settings, inputGlyphs: !settings.inputGlyphs };
 }
+
+export interface HintSizeRowInfo {
+  readonly id: "hintSize";
+  readonly title: string;
+  readonly detail: string;
+  /** The hint size now, in percent of the base size. */
+  readonly percent: number;
+  /** Dimmed (but still adjustable) while the hints are off. */
+  readonly dimmed: boolean;
+}
+
+export function hintSizeRowInfoOf(settings: Settings): HintSizeRowInfo {
+  return {
+    id: "hintSize",
+    title: "Hint size",
+    detail: "How big the key and button hints draw, 75% to 200%.",
+    percent: clampGlyphSize(settings.glyphSize),
+    dimmed: !settings.inputGlyphs,
+  };
+}
+
+export function nextSettingsAfterHintSize(settings: Settings, percent: number): Settings {
+  return { ...settings, glyphSize: clampGlyphSize(percent) };
+}
+
+/** The hint size a press or drag at `x` along the slider's track sets: the share of the track left of it, to a step. */
+export function glyphSizeAtTrack(x: number, track: { readonly x: number; readonly width: number }): number {
+  if (track.width <= 0) return GLYPH_SIZE_MAX;
+  const share = Math.min(1, Math.max(0, (x - track.x) / track.width));
+  return clampGlyphSize(GLYPH_SIZE_MIN + share * (GLYPH_SIZE_MAX - GLYPH_SIZE_MIN));
+}
+
+/** The knob's share along the track (0 to 1) for a hint size. */
+export const glyphSizeShare = (percent: number): number =>
+  (clampGlyphSize(percent) - GLYPH_SIZE_MIN) / (GLYPH_SIZE_MAX - GLYPH_SIZE_MIN);
+
+/** One step of the hint size down (`-1`) or up (`1`): 5 points, kept in range. */
+export const steppedGlyphSize = (percent: number, direction: -1 | 1): number =>
+  clampGlyphSize(clampGlyphSize(percent) + direction * GLYPH_SIZE_STEP);
 
 export function keyboardHandRowInfoOf(settings: Settings): SegmentedRowInfo<KeyboardHand> {
   return {

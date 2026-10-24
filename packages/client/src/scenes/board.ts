@@ -1999,16 +1999,19 @@ export class BoardScene extends Phaser.Scene {
       };
     if (bar && this.#actionBarLive()) {
       const height = 16;
-      this.#hints.custom(triggerAtRest("lt"), height, () => ({ x: bar.x + 8, y: bar.y - height / 2 - 3 }));
+      this.#hints.custom(triggerAtRest("lt"), height, ({ height: shown }) => ({
+        x: bar.x + 8,
+        y: bar.y - shown / 2 - 3,
+      }));
     }
     const play = layout.zones.playArea;
     if (!play) return;
     const height = 14;
     // Both sit in the zone's header row past its caption, or just above the zone where the scroll count is in the way
     // (`view/layer-marker.ts`): the long table and the phone's tabbed board share it.
-    const spot = (width: number) =>
-      layerMarkerSpot(play, { width, height, countShown: this.#playAreaScroll.row.canScroll });
-    this.#hints.custom(triggerAtRest("rt"), height, ({ full }) => spot(full));
+    const spot = (width: number, shown: number) =>
+      layerMarkerSpot(play, { width, height: shown, countShown: this.#playAreaScroll.row.canScroll });
+    this.#hints.custom(triggerAtRest("rt"), height, ({ full, height: shown }) => spot(full, shown));
     this.#pageWord = this.add.text(0, 0, "", textStyle(typeRole.label, surface.ink.hex)).setOrigin(0, 0.5);
     this.#syncPageWord();
     this.#hints.custom(
@@ -2019,7 +2022,7 @@ export class BoardScene extends Phaser.Scene {
         return previous && next ? [previous, next] : null;
       },
       height,
-      ({ full }) => spot(full + 6 + (this.#pageWord?.width ?? 0)),
+      ({ full, height: shown }) => spot(full + 6 + (this.#pageWord?.width ?? 0), shown),
       { ground: "paper", word: this.#pageWord },
     );
     // One glyph per card that has a usable ability: shown only under RT, only for the cards on the page showing.
@@ -2034,11 +2037,11 @@ export class BoardScene extends Phaser.Scene {
           return specs.length > 0 ? specs : null;
         },
         18,
-        ({ width }) => {
+        ({ width, height: shown }) => {
           // Looked up as placed: a card scrolled out of the row has no rect, and the glyph waits for it.
           const rect = this.#frame.focusRects.get(focusKey({ kind: "card", instanceId }));
           if (!rect) return null;
-          return { x: Math.max(rect.x + 2, rect.x + rect.width - width - 4), y: rect.y + rect.height - 14 };
+          return { x: Math.max(rect.x + 2, rect.x + rect.width - width - 4), y: rect.y + rect.height - 5 - shown / 2 };
         },
         { ground: "ink" },
       );
@@ -2726,7 +2729,7 @@ export class BoardScene extends Phaser.Scene {
     this.#hints.custom(
       (set, snapshot, held) => specsForShortcuts(["recap"], snapshot, set === "pad" ? held : null),
       16,
-      ({ width }) => ({ x: rect.x + (rect.width - width) / 2, y: rect.y + 14 }),
+      ({ width, height: shown }) => ({ x: rect.x + (rect.width - width) / 2, y: rect.y + 6 + shown / 2 }),
       { ground: "ink" },
     );
   }

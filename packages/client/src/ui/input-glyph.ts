@@ -46,7 +46,8 @@ interface Cell {
 export class McInputGlyph extends Phaser.GameObjects.Container {
   private readonly gfx: Phaser.GameObjects.Graphics;
   private cells: Cell[] = [];
-  private readonly glyphHeight: number;
+  private glyphHeight: number;
+  private specs: readonly GlyphSpec[] = [];
   private ground: GlyphGround;
   private openness: number;
   /** The drawn width at the current openness. */
@@ -63,7 +64,15 @@ export class McInputGlyph extends Phaser.GameObjects.Container {
     this.setSpecs(specs);
   }
 
+  /** Resizes the glyph (the hint size setting): the cells are measured again at the new height. */
+  setGlyphHeight(height: number): this {
+    if (height === this.glyphHeight) return this;
+    this.glyphHeight = height;
+    return this.setSpecs(this.specs);
+  }
+
   setSpecs(specs: readonly GlyphSpec[]): this {
+    this.specs = specs;
     for (const cell of this.cells) cell.text?.destroy();
     this.cells = specs.map((spec) => this.measure(spec));
     this.redraw();

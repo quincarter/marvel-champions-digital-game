@@ -23,6 +23,7 @@ import {
   VILLAIN_AUTO_ADVANCE_VALUES,
   VILLAIN_BEAT_SPEED_VALUES,
   FLIP_ENCOUNTER_SPEED_VALUES,
+  clampGlyphSize,
   clampMusicVolume,
   defaultSettings,
   resolutionPixelsOf,
@@ -112,6 +113,8 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   }
   const musicVolume = source["musicVolume"];
   if (typeof musicVolume === "number" && Number.isFinite(musicVolume)) out.musicVolume = clampMusicVolume(musicVolume);
+  const glyphSize = source["glyphSize"];
+  if (typeof glyphSize === "number" && Number.isFinite(glyphSize)) out.glyphSize = clampGlyphSize(glyphSize);
   const effectsVolume = source["effectsVolume"];
   if (typeof effectsVolume === "number" && Number.isFinite(effectsVolume)) {
     out.effectsVolume = clampMusicVolume(effectsVolume);

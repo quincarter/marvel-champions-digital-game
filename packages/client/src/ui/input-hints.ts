@@ -32,6 +32,16 @@ export interface InputHints {
   dispose(): void;
 }
 
+const settingsListeners = new Set<() => void>();
+
+/**
+ * Tells every bound scene a setting that changes the hints (their size, whether they show) was just set, so each
+ * redelivers its snapshot: the Controls screen over the board calls it, and the board's glyphs resize behind it.
+ */
+export function notifyHintSettingsChanged(): void {
+  for (const listener of [...settingsListeners]) listener();
+}
+
 export function bindInputHints(scene: Phaser.Scene, apply: (snapshot: InputHintsSnapshot) => void): InputHints {
   const animator = new OpennessAnimator();
   let disposed = false;
@@ -46,7 +56,12 @@ export function bindInputHints(scene: Phaser.Scene, apply: (snapshot: InputHints
   const tick = (): void => {
     if (!disposed && animator.animating(scene.time.now, appSession().settings.reducedMotion)) deliver();
   };
-  const off = onInputDeviceChange(deliver);
+  const offInput = onInputDeviceChange(deliver);
+  settingsListeners.add(deliver);
+  const off = (): void => {
+    offInput();
+    settingsListeners.delete(deliver);
+  };
   scene.events.on(Phaser.Scenes.Events.UPDATE, tick);
   const dispose = (): void => {
     if (disposed) return;

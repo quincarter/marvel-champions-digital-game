@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { MemoryGameStorage } from "./engine/game-storage.js";
 import { EngineSessionCore } from "./engine/session-core.js";
-import { defaultSettings, tableRulesOf, type Settings } from "./settings.js";
+import { clampGlyphSize, defaultSettings, tableRulesOf, type Settings } from "./settings.js";
 import {
   SETTINGS_KEY,
   SettingsStore,
@@ -72,6 +72,7 @@ describe("SettingsStore", () => {
     ["sound", false],
     ["musicShuffle", true],
     ["musicVolume", 35],
+    ["glyphSize", 170],
     ["effectsVolume", 60],
     ["confirmBeforeEndTurn", false],
     ["sameNameHeroAllyConflict", false],
@@ -258,6 +259,15 @@ describe("parseSettingsOverrides", () => {
   test("text resolution is clamped to the sharp range", () => {
     expect(parseSettingsOverrides('{"textResolution":9}')).toEqual({ textResolution: 2 });
     expect(parseSettingsOverrides('{"textResolution":0}')).toEqual({ textResolution: 1 });
+  });
+
+  test("hint size is read as a step of 5 from 75 to 200, default 130", () => {
+    expect(parseSettingsOverrides('{"glyphSize":162}')).toEqual({ glyphSize: 160 });
+    expect(parseSettingsOverrides('{"glyphSize":500}')).toEqual({ glyphSize: 200 });
+    expect(parseSettingsOverrides('{"glyphSize":10}')).toEqual({ glyphSize: 75 });
+    expect(parseSettingsOverrides('{"glyphSize":"big"}')).toEqual({});
+    expect(defaultSettings().glyphSize).toBe(130);
+    expect(clampGlyphSize(Number.NaN)).toBe(130);
   });
 
   test("music volume is read as a whole percent from 0 to 100 (#243)", () => {
