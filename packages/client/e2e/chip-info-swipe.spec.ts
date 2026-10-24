@@ -37,7 +37,10 @@ async function swipe(page: Page, from: { x: number; y: number }, to: { x: number
   await cdp.detach();
 }
 
-test("a swipe of the aspect chip rail that lifts over an (i) opens nothing; a tap opens it", async ({ page }) => {
+test("a swipe of the aspect chip rail that lifts over an (i) opens nothing; a tap opens it", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "phone", "the finger-lift rule is a phone rule");
   test.setTimeout(120_000);
   await openApp(page, "screen=seats&unlock=all", { landing: "Seats" });
   await page.waitForTimeout(800);

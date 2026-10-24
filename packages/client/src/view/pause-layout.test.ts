@@ -272,6 +272,34 @@ describe("pauseLayout", () => {
       expect(sixTwoLayout.quickReferenceRows).toHaveLength(6);
       expect(sixTwoLayout.lowerContent.tableRows).toHaveLength(2);
     });
+
+    test("a compact tail shares one line, so the Table and Guide group keeps the room three full rows would take", () => {
+      const details = [...QUICK_REFERENCE_DETAILS, "Music.", "Report.", "Controls."];
+      const at = (tail: number) =>
+        pauseLayout(
+          { x: 0, y: 0, width: 390, height: 844 },
+          {
+            keywordCount: 0,
+            quickReferenceDetails: details,
+            tableDetails: TABLE_DETAILS,
+            quickReferenceCompactTail: tail,
+          },
+        );
+      const apart = at(0);
+      const shared = at(3);
+      if (apart.kind !== "phone" || shared.kind !== "phone") throw new Error("expected phone");
+      const cells = shared.quickReferenceRows.slice(-3);
+      expect(shared.quickReferenceRows).toHaveLength(details.length);
+      expect(new Set(cells.map((cell) => cell.y)).size, "the three cells sit on one line").toBe(1);
+      for (const cell of cells) expect(cell.height).toBeGreaterThanOrEqual(44);
+      expect(cells[1]!.x).toBeGreaterThan(cells[0]!.x + cells[0]!.width - 1);
+      expect(cells[2]!.x).toBeGreaterThan(cells[1]!.x + cells[1]!.width - 1);
+      expect(shared.lowerViewport.height).toBeGreaterThan(apart.lowerViewport.height + 80);
+      const rects = pauseLayoutRects(shared);
+      for (let i = 0; i < rects.length; i++)
+        for (let j = i + 1; j < rects.length; j++)
+          expect(rectsOverlap(rects[i]!, rects[j]!), `rect ${i} overlaps rect ${j}`).toBe(false);
+    });
   });
 });
 

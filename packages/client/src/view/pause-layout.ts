@@ -451,6 +451,7 @@ function phoneLayout(
   guideRowDetails: readonly string[] = [],
   guidedRunActive = false,
   blindLines = 0,
+  compactTail = 0,
 ): PausePhoneLayout {
   const { panel, header, body, footer } = overlayPanelLayout(
     bounds,
@@ -489,8 +490,23 @@ function phoneLayout(
     height: PHONE_SUBHEADING_HEIGHT,
   };
   const qrTop = quickReferenceHeading.y + quickReferenceHeading.height + 4;
-  const qrHeights = quickReferenceDetails.map((detail) => quickReferenceRowHeight(detail, inset.width));
+  const tail = Math.min(Math.max(0, compactTail), quickReferenceDetails.length);
+  const fullDetails = quickReferenceDetails.slice(0, quickReferenceDetails.length - tail);
+  const qrHeights = fullDetails.map((detail) => quickReferenceRowHeight(detail, inset.width));
   const quickReferenceRows = stackedRowsOf(qrTop, inset.x, inset.width, qrHeights, PHONE_ROW_GAP);
+  if (tail > 0) {
+    // One row of equal cells, each still a full touch-target tall.
+    const last = quickReferenceRows[quickReferenceRows.length - 1];
+    const y = last ? last.y + last.height + PHONE_ROW_GAP : qrTop;
+    const cell = (inset.width - PHONE_ROW_GAP * (tail - 1)) / tail;
+    for (let index = 0; index < tail; index++)
+      quickReferenceRows.push({
+        x: inset.x + index * (cell + PHONE_ROW_GAP),
+        y,
+        width: cell,
+        height: QUICK_REFERENCE_ROW_MIN_HEIGHT,
+      });
+  }
   const qrBottom =
     quickReferenceRows.length > 0
       ? quickReferenceRows[quickReferenceRows.length - 1]!.y + quickReferenceRows[quickReferenceRows.length - 1]!.height
@@ -553,6 +569,12 @@ export interface PauseLayoutInput {
   readonly keywordTexts?: readonly PauseKeywordCardText[];
   /** Phone's own "Quick reference" row details, in row order. */
   readonly quickReferenceDetails: readonly string[];
+  /**
+   * How many of the last Quick reference rows share one row, side by side (Music, Report, Controls): three full rows
+   * took a 844 px phone's room for the scrolling Table and Guide group, leaving a sliver a log or a setting could not
+   * be read or pressed in. Absent or 0, every row has its own line.
+   */
+  readonly quickReferenceCompactTail?: number;
   /** Phone's own "Table" row details, in row order. */
   readonly tableDetails: readonly string[];
   /** Phone's own Guide group row details after the level row, in row order (`guideRowInfoOf` minus its own `"guide-level"` entry) — wide mode ignores this too; Pause's wide layout has no inline Guide group (only the standalone Settings screen does). */
@@ -577,6 +599,7 @@ export function pauseLayout(bounds: Rect, input: PauseLayoutInput): PauseLayout 
       input.guideRowDetails,
       input.guidedRunActive,
       input.blindLineCount ?? 0,
+      input.quickReferenceCompactTail ?? 0,
     );
   return wideLayout(
     bounds,

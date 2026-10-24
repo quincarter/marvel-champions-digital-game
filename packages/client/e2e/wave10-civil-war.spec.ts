@@ -142,6 +142,9 @@ async function seatTigraAndDeal(page: Page): Promise<void> {
 }
 
 async function dealIt(page: Page): Promise<void> {
+  // On a phone the seed field sits below the fold of the Set the table scroll: bring it up, or the click misses it,
+  // the typing goes nowhere and Enter (which deals, with nothing focused) starts the game before this clicks Deal it out.
+  await scrollStopIntoView(page, "seed", "Setup");
   await clickStop(page, "seed", "Setup");
   await page.keyboard.press("ControlOrMeta+A");
   await page.keyboard.type(SEED);

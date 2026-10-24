@@ -103,6 +103,8 @@ interface QuickReferenceRow {
   readonly detail: string;
   readonly open?: () => void;
   readonly unavailable?: string;
+  /** Shares one line with the other compact rows (Music, Report, Controls): a short title in a cell, no detail, no chevron. */
+  readonly compact?: true;
 }
 
 /** The wide menu's own Bangers size — smaller than a bar title, still the display face, matching D13's own read of "RESUME"/"SETTINGS" etc. */
@@ -316,12 +318,14 @@ export class PauseOverlay extends Phaser.Scene {
         id: "music",
         title: "Music",
         detail: "What is playing, and the songs you have earned.",
+        compact: true,
         open: () => this.#openMusic(),
       },
       {
         id: "report",
-        title: "Report a problem",
+        title: "Report",
         detail: "Tell us about a bug or a wrong ruling.",
+        compact: true,
         open: () => this.#openReport(),
       },
       // The phone apps show Controls only once a controller is connected (the owner, 2026-10-24).
@@ -331,6 +335,7 @@ export class PauseOverlay extends Phaser.Scene {
               id: "controls",
               title: "Controls",
               detail: "Controller buttons, keyboard shortcuts and hints.",
+              compact: true as const,
               open: () => this.scene.launch(SCENES.controls),
             },
           ]
@@ -373,6 +378,7 @@ export class PauseOverlay extends Phaser.Scene {
           hasTail: entry.cardRefs.length > 0,
         })),
         quickReferenceDetails: quickReferenceRows.map((row) => row.unavailable ?? row.detail),
+        quickReferenceCompactTail: quickReferenceRows.filter((row) => row.compact).length,
         tableDetails: tableRows.map((row) => row.unavailable ?? row.detail),
         guideRowDetails: guideAfterLevel.map(guideRowDetailOf),
         guidedRunActive,
@@ -1010,6 +1016,24 @@ export class PauseOverlay extends Phaser.Scene {
     const g = this.add.graphics();
     paintPanel(g, rect, "onInk", enabled ? "rest" : "unavailable");
     const alpha = enabled ? 1 : ink.disabled;
+    if (row.compact) {
+      // A cell of a shared line: the title centred, nothing else (the row's detail is its accessible hint, not drawn).
+      const title = label(
+        this,
+        rect.x + rect.width / 2,
+        rect.y + rect.height / 2,
+        row.title,
+        typeRole.rowTitle,
+        surface.paper.hex,
+        alpha,
+      ).setOrigin(0.5);
+      fitText(title, rect.width - 12, typeRole.rowTitle.size);
+      const act = (): void => row.open?.();
+      stops.set(`quick:${row.id}`, { rect, activate: act });
+      const cell = this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0);
+      if (enabled) onTap(cell.setInteractive({ useHandCursor: true }), act, `quick:${row.id}`);
+      return;
+    }
     this.add
       .text(rect.x + 12, rect.y + 6, row.title, textStyle(typeRole.rowTitle, surface.paper.hex, alpha))
       .setWordWrapWidth(rect.width - 60);
