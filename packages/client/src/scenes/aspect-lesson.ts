@@ -32,6 +32,9 @@ import Phaser from "phaser";
 import type { CoreAspect } from "@mc/content";
 import { dotGrid, ink, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
+import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
+import { hintCancelInHeader } from "../ui/header-cancel-hint.js";
 import { McButton, label, paintDotGrid } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import { onTap } from "../ui/tap.js";
@@ -48,6 +51,7 @@ import {
   type AspectLessonSignatureCard,
 } from "../view/aspect-lesson-model.js";
 import { aspectStampOf } from "../view/aspect-stamp.js";
+import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import { CARD_ASPECT, cardRow, type Rect } from "../view/layout.js";
 import { CARDS_BY_ID } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
@@ -101,6 +105,12 @@ export class AspectLessonScene extends Phaser.Scene {
   readonly #textScroll = new VariableListScroll();
   readonly #cardsScroll = new VariableListScroll();
   #done = false;
+  #hints!: GlyphHints;
+  #hover: HoverPreview | null = null;
+  /** The signature cards as focus stops and hover targets: content-space rect, scrolled by the cards column offset. */
+  #cardStops: { readonly cardId: string; readonly rect: Rect; readonly activate: () => void }[] = [];
+  /** The scroll column each kind of body stop lives in, set by `#drawBody` (wide: two columns; narrow: one). */
+  #hosts: { readonly text: BodyHost; readonly cards: BodyHost } | null = null;
   /** Guards "Try it ▸" against a double tap while `startAspectTryItGame` is in flight (mirrors
    * `scenes/how-to-win.ts#startTheFight`'s own `#starting`). */
   #startingTryIt = false;
@@ -115,6 +125,11 @@ export class AspectLessonScene extends Phaser.Scene {
   create(data: AspectLessonSceneData): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.#aspect = data.aspect;
+    this.#hints = new GlyphHints(this);
+    this.#hover = new HoverPreview(this, {
+      cardIds: () => this.#hoverCards(),
+      area: (pointer) => screenHoverArea(this, pointer, { blocked: () => this.scene.isActive(SCENES.inspect) }),
+    });
     this.#backTo = data.backTo === "howToPlay" || data.backTo === "previous" ? data.backTo : "title";
     this.#content = aspectLessonContent(this.#aspect);
     this.#textScroll.reset();
@@ -128,6 +143,9 @@ export class AspectLessonScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.#rebuild, this);
       artOff();
+      this.#hints.dispose();
+      this.#hover?.destroy();
+      this.#hover = null;
       this.#tooltip?.destroy();
       this.#tooltip = null;
       this.#textRegion?.destroy();
@@ -137,9 +155,17 @@ export class AspectLessonScene extends Phaser.Scene {
       if (import.meta.env.DEV) delete (window as unknown as { __mcAspectLessonDebug?: unknown }).__mcAspectLessonDebug;
     });
     this.#route = new FocusRoute(this, {
+      blocked: () => this.scene.isActive(SCENES.inspect),
       onCancel: () => {
         if (this.#tooltip?.handleEscape()) return;
         this.#leave();
+      },
+      // Start is "forward": Try it when it is on offer, otherwise Got it.
+      primary: () => (isAspectTryItId(this.#aspect) ? "try-it" : "got-it"),
+      onScroll: (_dx, dy) => this.#hosts?.text.region()?.scrollByPx(dy),
+      onPage: (direction) => {
+        const host = this.#hosts?.text;
+        host?.region()?.scrollByPx(direction * host.viewport.height * 0.8);
       },
     });
     this.#rebuild();
@@ -153,6 +179,9 @@ export class AspectLessonScene extends Phaser.Scene {
     this.#cardsRegion?.destroy();
     this.#cardsRegion = null;
     destroyChildren(this);
+    this.#hints.reset();
+    this.#cardStops = [];
+    this.#hosts = null;
     this.#tooltip = new McTooltip(this);
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
@@ -208,15 +237,15 @@ export class AspectLessonScene extends Phaser.Scene {
       .text(width / 2, height / 2, "No lesson for this aspect yet.", textStyle(TITLE_TYPE, surface.ink.hex))
       .setOrigin(0.5);
     const back: Rect = { x: 16, y: 16, width: 100, height: 40 };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: "Back",
-        type: typeRole.menuButton,
-        rect: back,
-        onClick: () => this.#leave(),
-      }),
-    );
+    const backButton = new McButton(this, {
+      kind: "secondary",
+      label: "Back",
+      type: typeRole.menuButton,
+      rect: back,
+      onClick: () => this.#leave(),
+    });
+    this.#buttons.push(backButton);
+    this.#hints.button(backButton, ["cancel"], "paper");
     this.#route?.set(["back"], new Map([["back", { rect: back, activate: () => this.#leave() }]]));
   }
 
@@ -233,7 +262,7 @@ export class AspectLessonScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    this.add
+    const title = this.add
       .text(close.x + close.width + 12, layout.header.height / 2, `ASPECT · ${content.name.toUpperCase()}`, {
         ...textStyle(typeRole.barTitle, surface.paper.hex),
         fontSize: "16px",
@@ -245,6 +274,7 @@ export class AspectLessonScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
     onTap(zone, () => this.#leave(), "close");
+    hintCancelInHeader(this.#hints, layout.header, title);
   }
 
   /**
@@ -292,6 +322,10 @@ export class AspectLessonScene extends Phaser.Scene {
       cardsRegion.content.add(cards.objects);
       this.#addZones(cardsRegion, cards.zones);
       this.#cardsRegion = cardsRegion;
+      this.#hosts = {
+        text: { viewport: layout.text, offset: () => this.#textScroll.offsetPx, region: () => this.#textRegion },
+        cards: { viewport: layout.cards, offset: () => this.#cardsScroll.offsetPx, region: () => this.#cardsRegion },
+      };
       return;
     }
 
@@ -318,10 +352,16 @@ export class AspectLessonScene extends Phaser.Scene {
     region.syncInteractivity();
     this.#textRegion = region;
     this.#onColumnScroll(0, contentHeight, rect.height);
+    const host: BodyHost = { viewport: rect, offset: () => this.#textScroll.offsetPx, region: () => this.#textRegion };
+    this.#hosts = { text: host, cards: host };
   }
 
-  #addZones(region: McScrollRegion, zones: readonly { readonly rect: Rect; readonly activate: () => void }[]): void {
+  #addZones(
+    region: McScrollRegion,
+    zones: readonly { readonly cardId?: string; readonly rect: Rect; readonly activate: () => void }[],
+  ): void {
     for (const zone of zones) {
+      if (zone.cardId) this.#cardStops.push({ cardId: zone.cardId, rect: zone.rect, activate: zone.activate });
       const z = this.add
         .zone(zone.rect.x, zone.rect.y, zone.rect.width, zone.rect.height)
         .setOrigin(0, 0)
@@ -417,11 +457,11 @@ export class AspectLessonScene extends Phaser.Scene {
     columnHeight?: number,
   ): {
     readonly objects: Phaser.GameObjects.GameObject[];
-    readonly zones: readonly { readonly rect: Rect; readonly activate: () => void }[];
+    readonly zones: readonly { readonly cardId?: string; readonly rect: Rect; readonly activate: () => void }[];
     readonly height: number;
   } {
     const objects: Phaser.GameObjects.GameObject[] = [];
-    const zones: { readonly rect: Rect; readonly activate: () => void }[] = [];
+    const zones: { readonly cardId?: string; readonly rect: Rect; readonly activate: () => void }[] = [];
     let y = startY;
 
     if (content.signatureCards.length > 0) {
@@ -465,11 +505,11 @@ export class AspectLessonScene extends Phaser.Scene {
     cards: readonly AspectLessonSignatureCard[],
   ): {
     readonly objects: Phaser.GameObjects.GameObject[];
-    readonly zones: readonly { readonly rect: Rect; readonly activate: () => void }[];
+    readonly zones: readonly { readonly cardId?: string; readonly rect: Rect; readonly activate: () => void }[];
     readonly height: number;
   } {
     const objects: Phaser.GameObjects.GameObject[] = [];
-    const zones: { readonly rect: Rect; readonly activate: () => void }[] = [];
+    const zones: { readonly cardId?: string; readonly rect: Rect; readonly activate: () => void }[] = [];
     // `cardRow`'s own bounds.height doubles as a shrink cap *and* its vertical-centering axis: passing the full
     // `CARD_ROW_MAX_HEIGHT` unconditionally left a narrow phone width's width-driven shrink (three cards don't
     // fit at 260px tall under 390px wide) centered inside that taller box — a ~60px dead gap above the actually-
@@ -525,6 +565,7 @@ export class AspectLessonScene extends Phaser.Scene {
 
       maxBottom = Math.max(maxBottom, labelBottom);
       zones.push({
+        cardId: card.cardId,
         rect: { x: slot.x, y: slot.y, width: slot.width, height: labelBottom - slot.y },
         activate: () => this.#inspectCard(card.cardId),
       });
@@ -588,34 +629,78 @@ export class AspectLessonScene extends Phaser.Scene {
   }
 
   #drawFooter(layout: AspectLessonLayout, content: AspectLessonContent): void {
-    this.#buttons.push(
-      new McButton(this, {
-        // "Try it ▸" is this screen's one red primary (`ui/theme.ts`'s own `WidgetKind.primary` doc comment: "one
-        // per screen, by rule") — guided-mode.md §4 G10d fix: two red buttons on the same screen read as two
-        // equally-weighted forward actions. "Got it" is the ink-outline secondary instead.
-        kind: "secondary",
-        label: "Got it",
-        type: typeRole.barTitle,
-        rect: layout.gotIt,
-        onClick: () => {
-          this.#markDone();
-          this.#leave();
-        },
-      }),
-    );
+    const gotIt = new McButton(this, {
+      // "Try it ▸" is this screen's one red primary (`ui/theme.ts`'s own `WidgetKind.primary` doc comment: "one
+      // per screen, by rule") — guided-mode.md §4 G10d fix: two red buttons on the same screen read as two
+      // equally-weighted forward actions. "Got it" is the ink-outline secondary instead.
+      kind: "secondary",
+      label: "Got it",
+      type: typeRole.barTitle,
+      rect: layout.gotIt,
+      onClick: () => {
+        this.#markDone();
+        this.#leave();
+      },
+    });
+    this.#buttons.push(gotIt);
+    this.#hints.button(gotIt, ["cancel"], "paper");
 
     const stops = new Map<string, FocusStop>();
+    const order = ["close"];
     stops.set("close", { rect: layout.close, activate: () => this.#leave() });
-    let index = 0;
-    for (const card of content.signatureCards) {
-      stops.set(`card:${index}`, {
-        rect: { x: layout.cards.x, y: layout.cards.y, width: layout.cards.width, height: 40 },
-        activate: () => this.#inspectCard(card.cardId),
+    const hosts = this.#hosts;
+    // The glossary terms (dotted underlines): A opens the tooltip, B closes it.
+    if (hosts) {
+      this.#termBlocks.forEach((block, b) => {
+        for (const term of block.termStops()) {
+          const key = `term:${b}:${term.id}`;
+          order.push(key);
+          stops.set(key, bodyStop(hosts.text, term.rect, term.activate));
+        }
       });
-      index += 1;
+      // The signature cards: A reads one (Inspect), the same as a tap.
+      this.#cardStops.forEach((card, index) => {
+        const key = `card:${index}`;
+        order.push(key);
+        const shifted = (): Rect => ({ ...card.rect, y: card.rect.y - hosts.cards.offset() });
+        stops.set(key, bodyStop(hosts.cards, shifted, card.activate));
+      });
+      const tryIt = this.#tryItRect;
+      if (tryIt && isAspectTryItId(content.aspect)) {
+        const aspect = content.aspect;
+        order.push("try-it");
+        stops.set(
+          "try-it",
+          bodyStop(
+            hosts.cards,
+            () => ({ ...tryIt, y: tryIt.y - hosts.cards.offset() }),
+            () => this.#onTryIt(aspect),
+          ),
+        );
+      }
     }
-    stops.set("got-it", { rect: layout.gotIt, activate: () => this.#leave() });
-    this.#route?.set(["close", "got-it"], stops);
+    order.push("got-it");
+    stops.set("got-it", {
+      rect: layout.gotIt,
+      activate: () => {
+        this.#markDone();
+        this.#leave();
+      },
+    });
+    this.#route?.set(order, stops);
+    this.#hover?.onDraw();
+  }
+
+  /** The signature cards on screen now, for the desktop hover popover (the columns scroll without a redraw). */
+  #hoverCards(): ReadonlyMap<string, HoverCardIdRect> {
+    const found = new Map<string, HoverCardIdRect>();
+    const host = this.#hosts?.cards;
+    if (!host) return found;
+    this.#cardStops.forEach((card, index) => {
+      const rect = clipHoverRect({ ...card.rect, y: card.rect.y - host.offset() }, host.viewport);
+      if (rect) found.set(hoverSlotOf(card.cardId, `sig${index}`), { ...rect, cardId: card.cardId, through: true });
+    });
+    return found;
   }
 
   #inspectCard(cardId: string): void {
@@ -682,6 +767,45 @@ export class AspectLessonScene extends Phaser.Scene {
     }
     goToScreen(this, this.#backTo === "howToPlay" ? SCENES.howToPlay : SCENES.title);
   }
+}
+
+/** A scrolling column: where it sits, how far it is scrolled, and the region that scrolls it. */
+interface BodyHost {
+  readonly viewport: Rect;
+  readonly offset: () => number;
+  readonly region: () => McScrollRegion | null;
+}
+
+/**
+ * A focus stop inside a scrolling column. `raw` is the stop rect on screen with the column scroll applied but not
+ * clipped; the ring is clipped to the column, and taking focus scrolls the column the least distance that brings the
+ * stop fully into view (a stop taller than the column aligns its top). The right stick scrolls the column too.
+ */
+function bodyStop(host: BodyHost, raw: () => Rect, activate: () => void): FocusStop {
+  return {
+    rect: () => {
+      const r = raw();
+      const top = Math.max(r.y, host.viewport.y);
+      const bottom = Math.min(r.y + r.height, host.viewport.y + host.viewport.height);
+      return { x: r.x, y: top, width: r.width, height: Math.max(1, bottom - top) };
+    },
+    activate,
+    ensureVisible: () => {
+      const r = raw();
+      const view = host.viewport;
+      const delta =
+        r.y < view.y || r.height > view.height
+          ? r.y - view.y
+          : r.y + r.height > view.y + view.height
+            ? r.y + r.height - (view.y + view.height)
+            : 0;
+      if (delta !== 0) host.region()?.scrollByPx(delta);
+    },
+    scroll: (_dx, dy) => {
+      host.region()?.scrollByPx(dy);
+      return true;
+    },
+  };
 }
 
 /** True for the aspects with a "Try it" game (guided mode G10d) — Basic has none, so its button
