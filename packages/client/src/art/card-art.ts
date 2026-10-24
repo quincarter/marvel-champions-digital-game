@@ -30,7 +30,8 @@
 
 import type Phaser from "phaser";
 import type { Rect } from "../view/layout.js";
-import { CARD_BACKS, onArtLanguageChange, type ArtSource } from "./art-source.js";
+import { CARD_BACKS, type ArtSource } from "./art-source.js";
+import { onLanguageChange } from "../language-change.js";
 
 /**
  * `Phaser.Loader.Events.FILE_COMPLETE` / `.FILE_LOAD_ERROR` and
@@ -81,7 +82,7 @@ export function cardArt(scene: Phaser.Scene): CardArt {
   const created = new CardArt();
   caches.set(scene.game, created);
   // A new card language (`Settings.cardLanguage`) gives every face a new texture key: redraw, and the screens ask anew.
-  onArtLanguageChange(() => created.redrawAll());
+  onLanguageChange(() => created.redrawAll());
   return created;
 }
 

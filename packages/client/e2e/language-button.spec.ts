@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { activeScenes, pressAt, settle, tapAt, waitFor } from "./helpers.js";
-import { openApp, type Rect } from "./wave6-helpers-b.js";
+import { declineMulligans, openApp, startGame, type Rect } from "./wave6-helpers-b.js";
 import { SHOT } from "./x-men-helpers.js";
 
 /**
@@ -135,4 +135,41 @@ test("issue #337: on a native install the button opens the Other languages note"
     10_000,
   );
   expect(await savedLanguage(page)).toBe("en");
+});
+
+/** Card face textures the table has loaded in a language other than the build's (`art:<lang>:<path>`). */
+const faceTexturesIn = (page: Page, lang: string): Promise<number> =>
+  page.evaluate(
+    (l) =>
+      (window as unknown as { __mcGame: { textures: { getTextureKeys(): string[] } } }).__mcGame.textures
+        .getTextureKeys()
+        .filter((key) => key.startsWith(`art:${l}:`)).length,
+    lang,
+  );
+
+test("issue #337: switching language mid-game redraws the cards already on the table", async ({ page }, info) => {
+  test.setTimeout(150_000);
+  await openApp(page);
+  await startGame(page, { scenarioId: "rhino", decks: ["core-spider-man-justice"], seed: 43523 });
+  await declineMulligans(page);
+  await settle(page, { quietMs: 800, maxMs: 8000 });
+  expect(await faceTexturesIn(page, "es")).toBe(0);
+
+  // Switched the way the globe and Settings both do (`appSession().settings`; the picker has its own test above):
+  // nothing about the game changes, only the language.
+  await page.evaluate(async () => {
+    const { appSession } = (await import("/src/session.ts")) as unknown as {
+      appSession: () => { settings: Record<string, unknown> };
+    };
+    appSession().settings = { ...appSession().settings, cardLanguage: "es" };
+  });
+
+  // The table's own tiles ask for the Spanish scans without a hover, an Inspect or a game move.
+  await waitFor(
+    async () => ((await faceTexturesIn(page, "es")) >= 4 ? true : null),
+    "Spanish faces on the table",
+    20_000,
+  );
+  await settle(page, { quietMs: 800, maxMs: 8000 });
+  if (SHOT) await page.screenshot({ path: `${SHOT}/language-switch-table-${info.project.name}.png` });
 });

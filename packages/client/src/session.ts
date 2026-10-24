@@ -25,6 +25,7 @@ import { IdbDeckStorage } from "./engine/idb-deck-storage.js";
 import { SessionStore } from "./store/session-store.js";
 import { defaultSettings, type Settings } from "./settings.js";
 import { setArtLanguage } from "./art/art-source.js";
+import { onLanguageChange } from "./language-change.js";
 import { SettingsStore, storedSettingsOverrides } from "./settings-store.js";
 import { emptyLog, type LogState } from "./view/log-lines.js";
 import type { MusicController } from "./audio/music-controller.js";
@@ -140,6 +141,9 @@ export function appSession(): AppSession {
       guidedRunAlreadyDone: undefined,
       guidedRunKind: undefined,
     };
+    // A language switch: every screen built from the game state builds again, now in the new language.
+    const current = session;
+    onLanguageChange(() => current.store.republish());
   }
   return session;
 }

@@ -12,7 +12,8 @@
  */
 import Phaser from "phaser";
 import { availableCardLanguages } from "../art/card-language.js";
-import { artLanguageNow, onArtLanguageChange } from "../art/art-source.js";
+import { artLanguageNow } from "../art/art-source.js";
+import { onLanguageChange } from "../language-change.js";
 import { surface, typeRole } from "../tokens.js";
 import { textStyle } from "../ui/theme.js";
 import { onTap } from "../ui/tap.js";
@@ -64,7 +65,7 @@ export class LanguageButtonScene extends Phaser.Scene {
     this.#zone.on("pointerover", () => this.#setHovered(true));
     this.#zone.on("pointerout", () => this.#setHovered(false));
     onTap(this.#zone, () => this.#toggle(), "language-button");
-    this.#unsubscribe = onArtLanguageChange(() => this.#draw());
+    this.#unsubscribe = onLanguageChange(() => this.#draw());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#unsubscribe?.();
       this.#unsubscribe = null;

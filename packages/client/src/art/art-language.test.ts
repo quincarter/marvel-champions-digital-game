@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { POOL_CARDS } from "../content/pool-cards.js";
-import { CARD_BACKS, artFor, artLanguageNow, artPathOf, onArtLanguageChange, setArtLanguage } from "./art-source.js";
+import { onLanguageChange } from "../language-change.js";
+import { CARD_BACKS, artFor, artLanguageNow, artPathOf, setArtLanguage } from "./art-source.js";
 
 /** Core's Spider-Man: a card with a face scan of its own. */
 const spiderMan = POOL_CARDS.find((card) => card.id === ("01001a" as never)) ?? POOL_CARDS[0]!;
@@ -30,7 +31,7 @@ describe("card art language (issue #337)", () => {
   it("tells listeners once per real change", () => {
     vi.stubGlobal("__CARD_LANGS__", "en,es");
     const heard = vi.fn();
-    const stop = onArtLanguageChange(heard);
+    const stop = onLanguageChange(heard);
     setArtLanguage("es");
     setArtLanguage("es");
     setArtLanguage("en");

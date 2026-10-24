@@ -26,6 +26,7 @@
 
 import type { AnyCard, ArtRef, ImageRef } from "@mc/content";
 import { availableCardLanguages, cardLanguage, type CardLanguage } from "./card-language.js";
+import { announceLanguageChange } from "../language-change.js";
 
 /** The URL prefix every scan is served under. `vite-card-art.ts` imports this, so the two cannot drift. */
 export const CARD_ART_ROUTE = "/card-art/";
@@ -41,27 +42,20 @@ export function cardArtRouteFor(lang: CardLanguage): string {
 
 /** The language card faces are drawn in (`Settings.cardLanguage`); the build language until the session applies it. */
 let artLanguage: CardLanguage = cardLanguage();
-const languageListeners = new Set<() => void>();
 
 /**
- * Switches the card faces to `lang`, and tells every art cache to redraw. A language this bundle doesn't carry (a
- * setting synced from the web to a native install) draws the build language instead.
+ * Switches the card faces to `lang` and announces it (`language-change.ts`), so every screen redraws in it. A language
+ * this bundle doesn't carry (a setting synced from the web to a native install) draws the build language instead.
  */
 export function setArtLanguage(requested: CardLanguage): void {
   const lang = availableCardLanguages().includes(requested) ? requested : cardLanguage();
   if (lang === artLanguage) return;
   artLanguage = lang;
-  for (const listener of [...languageListeners]) listener();
+  announceLanguageChange();
 }
 
 export function artLanguageNow(): CardLanguage {
   return artLanguage;
-}
-
-/** Called after `setArtLanguage` changes the language (`card-art.ts` redraws its screens). */
-export function onArtLanguageChange(listener: () => void): () => void {
-  languageListeners.add(listener);
-  return () => languageListeners.delete(listener);
 }
 
 /**
