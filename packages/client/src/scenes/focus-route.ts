@@ -56,6 +56,12 @@ export interface FocusStop {
   readonly ensureVisible?: () => void;
   /** A slider: Left / Right (and the pad's d-pad) step it instead of moving focus. */
   readonly adjust?: (direction: -1 | 1) => void;
+  /**
+   * The right stick while this stop is focused, for a stop that holds its own scroll (a text block, a card's rules, a
+   * nested list): pixels to scroll this frame (positive down) and the frame's length. Return true when it scrolled;
+   * false (at its end, or nothing to scroll) hands the stick on to the screen's `onScroll`.
+   */
+  readonly scroll?: (dx: number, dy: number, dtMs: number) => boolean;
 }
 
 export interface FocusRouteOptions {
@@ -164,7 +170,11 @@ export class FocusRoute {
     const binding = {
       blocked: options.blocked ?? (() => false),
       onIntent: (intent: GamepadIntent) => this.#onIntent(intent),
-      ...(options.onScroll ? { onScroll: options.onScroll } : {}),
+      onScroll: (dx: number, dy: number, dtMs: number) => {
+        const stop = this.#focus === null ? undefined : this.#stopOf(this.#focus);
+        if (stop?.scroll?.(dx, dy, dtMs)) return;
+        options.onScroll?.(dx, dy, dtMs);
+      },
     };
     bindKeyboard(scene, binding);
     bindGamepad(scene, binding);

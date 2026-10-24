@@ -276,6 +276,7 @@ export class SettingsOverlay extends Phaser.Scene {
     this.scale.on("resize", onResize, this);
     this.#hints = new GlyphHints(this);
     this.#route = new FocusRoute(this, {
+      onScroll: (_dx, dy) => this.#bodyRegion?.scrollByPx(dy),
       // LB / RB (R / F on the keyboard) step through the tabs, wrapping at the ends.
       onTab: (direction) => {
         const ids = this.#tabIds;
