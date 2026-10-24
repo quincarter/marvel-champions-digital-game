@@ -724,7 +724,10 @@ export function drawCompactChipStrip(
         const { isOpen, onOpen, onClose } = cell.info;
         infoRects.set(
           cell.id,
-          drawAspectInfoSegment(scene, split.info, isOpen, onOpen, onClose, cell.tint ? { tint: cell.tint } : {}),
+          drawAspectInfoSegment(scene, split.info, isOpen, onOpen, onClose, {
+            ...(cell.tint ? { tint: cell.tint } : {}),
+            ...(cell.info.pressOnly ? { pressOnly: true } : {}),
+          }),
         );
       }
       stops.set(`${focusPrefix}:${cell.id}`, { rect: mainRect, activate: cell.onClick });

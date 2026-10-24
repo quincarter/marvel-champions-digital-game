@@ -29,6 +29,12 @@ export interface ChipInfoToggle {
   readonly isOpen: boolean;
   readonly onOpen: () => void;
   readonly onClose: () => void;
+  /**
+   * Opens only on a press of the "i" (a click, a tap, Enter or A on its focus stop), never on the pointer resting over
+   * it or on focus alone: a tip that opens by hover stuck open for a pad whose cursor was parked there. It still
+   * closes when the pointer leaves, and the screen closes it on any other press or focus move.
+   */
+  readonly pressOnly?: boolean;
 }
 
 export interface ChipLabel {

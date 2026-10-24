@@ -204,7 +204,13 @@ export class McChipRail {
           chip.info.isOpen,
           chip.info.onOpen,
           chip.info.onClose,
-          { parent: this.#infoLayer, clip, suppressClick, ...(chip.tint ? { tint: chip.tint } : {}) },
+          {
+            parent: this.#infoLayer,
+            clip,
+            suppressClick,
+            ...(chip.tint ? { tint: chip.tint } : {}),
+            ...(chip.info.pressOnly ? { pressOnly: true } : {}),
+          },
         );
       }
     });

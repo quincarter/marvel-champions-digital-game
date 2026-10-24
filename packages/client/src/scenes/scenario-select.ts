@@ -81,6 +81,9 @@ import { McChipRail } from "../ui/chip-rail.js";
 import { RailScroll } from "../view/rail-scroll.js";
 import { onTap } from "../ui/tap.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
+import { canJumpFocus, jumpFocus } from "./focus-jump.js";
+import { bindTextFieldEscape } from "./text-field-escape.js";
+import { AreaJump, areaOf, type FocusAreas } from "../view/focus-areas.js";
 import { SCENES } from "./keys.js";
 import type { SeatsData } from "./seats.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -99,6 +102,10 @@ const DETAIL_TEXT_PAD = 24;
 const ROMAN = ["", "I", "II", "III", "IV", "V", "VI"] as const;
 const roman = (n: number): string => ROMAN[n] ?? String(n);
 
+/** The stops that are the filters (search and the product chips), and the ones that are the list. */
+const FILTER_STOP = /^(scenario-search-toggle|scenario-search|scenario-chip:.*)$/;
+const LIST_STOP = /^(drill-back|scenario-clear|scenario:.*)$/;
+
 const scenarioCountCaption = (count: number): string => `${count} ${count === 1 ? "SCENARIO" : "SCENARIOS"}`;
 
 export class ScenarioSelectScene extends Phaser.Scene {
@@ -114,10 +121,15 @@ export class ScenarioSelectScene extends Phaser.Scene {
   readonly #search = new DeckSearchClient();
   #ranking: ReadonlyMap<string, number> | null = null;
   #roster: McShelfRoster<RosterEntry> | null = null;
+  /** Whether "Choose heroes" can be pressed now, for the route's primary stop (Start). */
+  #canContinue = false;
   #grid: McVirtualList | null = null;
   /** Narrow only: the sideways-scrolling product chip rail (`ScenarioSelectLayout.chipsScroll`). Null on wide, where the chips wrap. */
   #chipRail: McChipRail | null = null;
   #route: FocusRoute | null = null;
+  /** The filters and the list as two areas of the route, for Y and B (`view/focus-areas.ts`). */
+  readonly #areaJump = new AreaJump();
+  #areas: FocusAreas = { filters: [], entry: null, list: [] };
   #drill: ShelfDrillState = ALL_PACKS;
   /** Every scenario's played record, keyed by scenario id, so the side panel reads the *current* selection's row on each redraw (issue 141). */
   #history: ReadonlyMap<string, ScenarioRecord> = new Map();
@@ -177,12 +189,21 @@ export class ScenarioSelectScene extends Phaser.Scene {
       this.#chipRail?.destroy();
       this.#chipRail = null;
     });
+    const covered = (): boolean => this.scene.isActive(SCENES.inspect) || this.scene.isActive(SCENES.unlockConfirm);
     this.#route = new FocusRoute(this, {
-      blocked: () =>
-        this.scene.isActive(SCENES.inspect) ||
-        this.scene.isActive(SCENES.unlockConfirm) ||
-        (this.#searchInput?.focused ?? false),
-      onCancel: () => (this.#drill.packId !== null ? this.#drillOut() : this.#back()),
+      blocked: () => covered() || (this.#searchInput?.focused ?? false),
+      // B from the list returns to the filters (scrolled back to the top); from the filters it backs out.
+      onCancel: () => {
+        if (canJumpFocus(this.#route) && areaOf(this.#route?.focused ?? null, this.#areas) === "list") {
+          this.#jumpAreas(true);
+          return;
+        }
+        if (this.#drill.packId !== null) this.#drillOut();
+        else this.#back();
+      },
+      // Start / Menu (and A with nothing focused) is "Choose heroes ▸".
+      primary: () => (this.#canContinue ? "next" : null),
+      onScroll: (_dx, dy) => (this.#grid ?? this.#roster)?.scrollByPx(dy),
       onPage: (direction) => (this.#grid ?? this.#roster)?.scrollByPage(direction),
       onHomeEnd: (edge) => {
         const active = this.#grid ?? this.#roster;
@@ -190,6 +211,8 @@ export class ScenarioSelectScene extends Phaser.Scene {
         else active?.scrollToEnd();
       },
     });
+    // A pad that put the caret in the search field can take it out again (B, A or Start).
+    bindTextFieldEscape(this, () => this.#searchInput, covered);
     this.game.events.on("mc-choice-toggle", this.#onInspectChoose, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.game.events.off("mc-choice-toggle", this.#onInspectChoose, this);
@@ -477,6 +500,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
         enabled: selection.canContinue,
       }),
     );
+    this.#canContinue = selection.canContinue;
     this.#stops.set("next", { rect: layout.next, activate: selection.canContinue ? next : () => {} });
     if (customize && layout.secondary) {
       const open = (): void => this.#openBuilder("customize", customize.scenarioId);
@@ -504,16 +528,33 @@ export class ScenarioSelectScene extends Phaser.Scene {
     );
     if (lock) footer.setWordWrapWidth(layout.footer.width);
 
-    this.#route?.set(
-      scenarioSelectFocusOrder({
-        scenarioIds: cardIds,
-        scenarioChipIds: chipDefs.map((c) => c.id),
-        stagesToggle: !layout.wide,
-        searchToggle: !layout.wide,
-        customize: customize !== null,
-      }),
-      this.#stops,
-    );
+    const order = scenarioSelectFocusOrder({
+      scenarioIds: cardIds,
+      scenarioChipIds: chipDefs.map((c) => c.id),
+      stagesToggle: !layout.wide,
+      searchToggle: !layout.wide,
+      customize: customize !== null,
+    });
+    this.#areas = {
+      filters: order.filter((key) => FILTER_STOP.test(key)),
+      entry:
+        order.find((key) => key.startsWith("scenario-chip:")) ?? order.find((key) => key === "scenario-search") ?? null,
+      list: order.filter((key) => LIST_STOP.test(key)),
+    };
+    // Y on a stop with no Inspect of its own jumps between the filters and the list; a scenario tile keeps its Inspect.
+    for (const [key, stop] of this.#stops) {
+      if (!stop.inspect) this.#stops.set(key, { ...stop, inspect: () => this.#jumpAreas(false) });
+    }
+    this.#route?.set(order, this.#stops);
+  }
+
+  /** Y toggles focus between the filters and the list (back to the row it left); B (`fromBack`) also scrolls the list to its start. */
+  #jumpAreas(fromBack: boolean): void {
+    const focus = this.#route?.focused ?? null;
+    const target = fromBack ? this.#areaJump.toFilters(focus, this.#areas) : this.#areaJump.toggle(focus, this.#areas);
+    if (target === null) return;
+    if (fromBack) (this.#grid ?? this.#roster)?.scrollToStart();
+    jumpFocus(this.#route, target);
   }
 
   /**

@@ -270,6 +270,11 @@ export class McShelfRoster<T> {
     if (this.#scrollByPx(direction * shelves * step)) this.#sync();
   }
 
+  /** Scrolls by `amount` pixels (positive is down), clamped: the pad's right stick, a little each frame (`FocusRoute.onScroll`). */
+  scrollByPx(amount: number): void {
+    if (this.#scrollByPx(amount)) this.#sync();
+  }
+
   /** Parity with `McVirtualList.scrollToStart`, for `FocusRoute.onHomeEnd`. */
   scrollToStart(): void {
     if (this.#verticalScroll.scrollToStart(1, this.#tops().total, this.#rect.height)) this.#sync();
