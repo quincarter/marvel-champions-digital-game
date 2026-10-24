@@ -116,6 +116,8 @@ export class FocusRoute {
   #focus: string | null = null;
   #ring: McSelectionRing | null = null;
   #ringColor: number | undefined;
+  /** Where the ring was drawn last, to notice a stop that moved under it. */
+  #ringRect: Rect | null = null;
 
   /**
    * Binds the scene's keyboard and pad. Both listeners live on the scene's own
@@ -141,8 +143,24 @@ export class FocusRoute {
       this.#ringHidden = true;
       this.#drawRing();
     });
-    scene.events.once("shutdown", unsubscribe);
-    scene.events.once("destroy", unsubscribe);
+    // A row inside a scrolling list moves when the list scrolls by touch, wheel or drag, not only when focus moves: the
+    // ring follows its stop (a stale ring sat above and left of the button it marked, Settings on the Deck).
+    const follow = (): void => {
+      const stop = this.#focus === null ? undefined : this.#stopOf(this.#focus);
+      if (!this.#ring || !stop || typeof stop.rect !== "function") return;
+      const rect = stop.rect();
+      const last = this.#ringRect;
+      if (last && last.x === rect.x && last.y === rect.y && last.width === rect.width && last.height === rect.height)
+        return;
+      this.#drawRing();
+    };
+    scene.events.on("update", follow);
+    const release = (): void => {
+      unsubscribe();
+      scene.events.off("update", follow);
+    };
+    scene.events.once("shutdown", release);
+    scene.events.once("destroy", release);
     const binding = {
       blocked: options.blocked ?? (() => false),
       onIntent: (intent: GamepadIntent) => this.#onIntent(intent),
@@ -381,10 +399,13 @@ export class FocusRoute {
     // Destroying a ring whose graphics a display-list sweep already took is safe.
     this.#ring?.destroy();
     this.#ring = null;
+    this.#ringRect = null;
     if (this.#focus !== null && !this.#order.includes(this.#focus)) this.#focus = null;
     const stop = this.#focus === null ? undefined : this.#stopOf(this.#focus);
     if (!stop || this.#ringHidden) return;
+    const rect = typeof stop.rect === "function" ? stop.rect() : stop.rect;
+    this.#ringRect = rect;
     this.#ring = new McSelectionRing(this.#scene, this.#ringColor);
-    this.#ring.show(typeof stop.rect === "function" ? stop.rect() : stop.rect, "static", true);
+    this.#ring.show(rect, "static", true);
   }
 }

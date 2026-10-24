@@ -41,6 +41,7 @@ export class ReportButtonScene extends Phaser.Scene {
       this.#setHovered(false);
       openReportIssue(this);
     });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => setShownReportButton(null));
     this.#place(null);
   }
 
