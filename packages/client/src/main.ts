@@ -22,6 +22,8 @@ import { installLazyText } from "./ui/lazy-text.js";
 import { appSession } from "./session.js";
 import { SCENES } from "./scenes/keys.js";
 import { installSceneLoader, startIdlePreload } from "./scenes/scene-loader.js";
+import { startPadToastWatch } from "./scenes/pad-toast-watch.js";
+import { startDiscordPresence } from "./platform/discord-presence.js";
 import { BootScene } from "./scenes/boot.js";
 import { TitleScene } from "./scenes/title.js";
 import { MusicScene } from "./audio/music-controller.js";
@@ -30,6 +32,9 @@ import { MusicPlayerOverlay } from "./scenes/music-player.js";
 import { ReportIssueOverlay } from "./scenes/report-issue.js";
 import { ReportButtonScene } from "./scenes/report-button.js";
 import { installDebugDump } from "./ui/debug-dump.js";
+import { installInputDeviceTracking } from "./platform/input-device.js";
+import { installVisibleArea } from "./platform/visible-area.js";
+import { installGamepadLive } from "./platform/gamepad-live.js";
 import { installFrameGuard } from "./ui/frame-guard.js";
 import { installStartupWatchdog, probeWebgl } from "./ui/startup-watchdog.js";
 import { installDesktopType, setDesktopType } from "./ui/desktop-type.js";
@@ -42,6 +47,7 @@ import { isAndroidEdge, rendererOptionsOf } from "./platform/renderer-options.js
 import { onPowerSavingChange, watchPowerSaving } from "./platform/power-saving.js";
 import { gpuRendererName, installRenderScale } from "./ui/render-scale.js";
 import { installIdleRender } from "./ui/idle-render.js";
+import { fpsReadoutWanted, installFpsReadout } from "./ui/fps-readout.js";
 import { onHardwareChange, readHardware } from "./platform/device-hardware.js";
 import {
   drawsAtScreenDensity,
@@ -146,6 +152,9 @@ void desktopLaunchSettings(settings, storedSettingsOverrides().displayMode !== u
   applyDesktopWindowOnLaunch(launch);
 });
 watchStartup(game);
+// The "Controller connected" toast (`scenes/pad-toast.ts`), fed by the browser's gamepad events.
+startPadToastWatch(game);
+startDiscordPresence(game);
 
 // Device sync (#276, `sync/sync-wiring.ts`): its code loads after the first frame, so it stays out of the entry chunk. It
 // syncs in the background when this device is linked, and leaves alone the game on the table (the Board, or its deal),
@@ -199,12 +208,21 @@ game.input.mouse?.disableContextMenu();
 // A frame that would look exactly like the last one isn't drawn again (#328, `ui/idle-render.ts`). Before the frame
 // guard, which wraps whatever `step` is by then.
 installIdleRender(game, Phaser, window.location.search);
+// `?fps=1` shows a frame-rate readout, for checking a slow screen on a real phone (`ui/fps-readout.ts`).
+if (fpsReadoutWanted(window.location.search)) installFpsReadout(game);
 
 // One bad frame must not end the game: a throwing tween is removed, anything else skips that frame (`ui/frame-guard.ts`).
 installFrameGuard(game);
 
 // Ctrl/Cmd+Shift+D copies a snapshot of every overlay's and the store's state, in production too (`ui/debug-dump.ts`).
 installDebugDump(game);
+// A reconnected controller works at once, and a webview whose pads keep their own clock still reads them
+// (`platform/gamepad-live.ts`).
+installGamepadLive(Phaser);
+// Which input is in use, for the key and button glyphs (`view/input-mode.ts`).
+installInputDeviceTracking();
+// Trims the game box to the visible area where a toolbar overlays the page (`platform/visible-area.ts`).
+installVisibleArea(game);
 
 // A GPU reset in the native webviews turns every label into a black box
 // unless the text is redrawn once the context is back (`ui/context-recovery.ts`).

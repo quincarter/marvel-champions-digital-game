@@ -7,6 +7,8 @@
  */
 
 import type { TableRules } from "@mc/engine";
+import type { KeyboardHand } from "./view/input-shortcuts.js";
+import type { PadFamilySetting } from "./view/pad-family.js";
 
 /** The sharp, device-pixel-ratio-matched text resolution `defaultSettings` starts from. Also what "off" restores. */
 export const SHARP_TEXT_RESOLUTION_CEILING = 2;
@@ -18,6 +20,19 @@ export const MUSIC_VOLUME_MAX = 100;
 export function clampMusicVolume(volume: number): number {
   if (!Number.isFinite(volume)) return MUSIC_VOLUME_MAX;
   return Math.round(Math.min(MUSIC_VOLUME_MAX, Math.max(0, volume)));
+}
+
+/** The key and button hints' size, as a percent of their base size (`Settings.glyphSize`): range, step and default. */
+export const GLYPH_SIZE_MIN = 75;
+export const GLYPH_SIZE_MAX = 200;
+export const GLYPH_SIZE_STEP = 5;
+export const GLYPH_SIZE_DEFAULT = 130;
+
+/** A stored or dragged hint size brought into range and to a step of 5. */
+export function clampGlyphSize(percent: number): number {
+  if (!Number.isFinite(percent)) return GLYPH_SIZE_DEFAULT;
+  const stepped = Math.round(percent / GLYPH_SIZE_STEP) * GLYPH_SIZE_STEP;
+  return Math.min(GLYPH_SIZE_MAX, Math.max(GLYPH_SIZE_MIN, stepped));
 }
 
 export interface Settings {
@@ -63,6 +78,8 @@ export interface Settings {
   readonly villainAutoAdvance: VillainAutoAdvance;
   /** Keep every revealed encounter card on screen until the player taps past it, even one with no answer to give. Defaults on. */
   readonly holdEncounterCards: boolean;
+  /** Desktop app only: show what you are playing on your Discord profile while Discord is open (`platform/discord-presence.ts`). Defaults on. */
+  readonly discordPresence: boolean;
   /** Stop on each encounter card dealt facedown and show its back until the player presses Flip Encounter Card (#287). Defaults on. */
   readonly flipEncounterCards: boolean;
   /** How long Flip Encounter Card takes to turn the card over: 1 s, 0.5 s, or instantly (`flipDurationMs`). Defaults normal. */
@@ -126,6 +143,11 @@ export interface Settings {
    */
   readonly renderScale: RenderScale;
   /**
+   * Couch mode: everything drawn bigger, for a TV across the room. The game lays out at the window's size divided by
+   * the factor and scales it up to fill (`ui/render-resolution.ts`). Defaults to off.
+   */
+  readonly couchMode: CouchMode;
+  /**
    * The frame rate the game holds to: the screen's own refresh rate (120 Hz on a 120 Hz phone), or a 60 or 30 fps cap.
    * On Android the app also asks the OS for a matching refresh rate. Defaults to the screen's own, or 60 on a phone the
    * hardware check rates below high-end; power saving mode defaults it to 30 (`POWER_SAVING_FPS`).
@@ -140,6 +162,25 @@ export interface Settings {
   readonly achievementPopupPlace: AchievementPopupPlace;
   /** How large the "Achievement unlocked" popup is drawn. Defaults to small (the owner, 2026-10-20). Its opened list keeps one size. */
   readonly achievementPopupSize: AchievementPopupSize;
+  /**
+   * Which button labels the controller glyphs show (`view/pad-family.ts`): follow the detected pad, or a family the
+   * player picks when detection is wrong. Defaults to auto.
+   */
+  readonly padGlyphFamily: PadFamilySetting;
+  /**
+   * On a Nintendo-layout pad, buttons act by their printed label: A (right) confirms, B (bottom) backs out, as on a
+   * Switch. Ignored for other pads and under Steam Input, which swaps for itself (the owner, 2026-10-24). Defaults on.
+   */
+  readonly nintendoLayout: boolean;
+  /**
+   * Which hand the one-handed keyboard map sits under (`view/input-shortcuts.ts`): left (WASD) by default, right (IJKL)
+   * for a mouse in the left hand (the owner, 2026-10-24).
+   */
+  readonly keyboardHand: KeyboardHand;
+  /** Key and button glyphs beside the controls they trigger, while a keyboard or controller is in use. Defaults on. */
+  readonly inputGlyphs: boolean;
+  /** How big those hints draw, in percent of the base size: 75 to 200 in steps of 5 (`clampGlyphSize`). Defaults to 130. */
+  readonly glyphSize: number;
 }
 
 export type AchievementPopupTime = "off" | "3s" | "5s" | "8s" | "10s";
@@ -173,6 +214,36 @@ export const MAX_RENDER_SCALE = 4;
 export function renderScaleFactorOf(choice: RenderScale, devicePixelRatio: number): number {
   const native = Math.min(MAX_RENDER_SCALE, Math.max(1, devicePixelRatio || 1));
   return choice === "native" ? native : Math.min(native, Number.parseFloat(choice));
+}
+
+/** Couch mode: "off", or how much bigger everything is drawn (`ui/render-resolution.ts`). */
+export type CouchMode = "off" | "125%" | "150%" | "175%" | "200%";
+export const COUCH_MODE_VALUES: readonly CouchMode[] = ["off", "125%", "150%", "175%", "200%"];
+
+/** The factor a `couchMode` stands for: 1 for "off", 1.5 for "150%". */
+export function couchModeFactor(mode: CouchMode): number {
+  return mode === "off" ? 1 : Number.parseInt(mode, 10) / 100;
+}
+
+/** The narrowest game width couch mode lays out at: under it the layout would switch to a phone's (`formFactorFor`). */
+export const COUCH_MIN_GAME_WIDTH = 768;
+
+/**
+ * The factor couch mode really uses on a window `width` wide: the choice, lowered so the game stays at least
+ * `COUCH_MIN_GAME_WIDTH` wide. The layout follows the game's size on purpose (it is a smaller window drawn bigger, so a
+ * 1080p TV at 200% lays out as a 960 x 540 window), but never as a phone's.
+ */
+export function couchFactorFor(factor: number, width: number): number {
+  return Math.max(1, Math.min(factor, width / COUCH_MIN_GAME_WIDTH));
+}
+
+/** The size the game lays out at under couch mode: the window's (or the fixed resolution's) divided by the factor. */
+export function couchSizeOf(
+  base: { readonly width: number; readonly height: number },
+  factor: number,
+): { readonly width: number; readonly height: number } {
+  if (factor <= 1) return base;
+  return { width: Math.max(1, Math.round(base.width / factor)), height: Math.max(1, Math.round(base.height / factor)) };
 }
 
 /** "screen": no cap, the screen's own refresh rate. */
@@ -335,6 +406,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     sameNameHeroAllyConflict: true,
     villainAutoAdvance: "off",
     holdEncounterCards: true,
+    discordPresence: true,
     flipEncounterCards: true,
     flipEncounterSpeed: "normal",
     villainBeatSpeed: "normal",
@@ -350,9 +422,15 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     resolution: "native",
     powerSavingAdjust: true,
     renderScale: device.screen?.renderScale ?? "native",
+    couchMode: "off",
     frameRate: powerSaving ? "30" : (device.screen?.frameRate ?? "screen"),
     achievementPopupTime: "5s",
     achievementPopupPlace: "titleBar",
     achievementPopupSize: "small",
+    padGlyphFamily: "auto",
+    nintendoLayout: true,
+    keyboardHand: "left",
+    inputGlyphs: true,
+    glyphSize: GLYPH_SIZE_DEFAULT,
   };
 }

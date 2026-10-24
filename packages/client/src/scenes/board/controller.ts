@@ -357,6 +357,11 @@ export class BoardController {
   /** Escape's own release (§3.10, owner: "no one should ever feel locked into a tutorial"): lifts the active gate
    * immediately and fires its `onGateReleased`. Returns whether a gate was actually open, so `board.ts`'s own
    * Escape handling knows whether to fall through to its usual cancel/Pause behavior. */
+  /** Whether a guided-mode gate is open (Escape would release it), without releasing it. */
+  hasGuideGate(): boolean {
+    return this.#guideGate.current !== null;
+  }
+
   releaseGuideGate(): boolean {
     return this.#guideGate.release();
   }
@@ -384,8 +389,11 @@ export class BoardController {
     this.#host.redraw();
   }
 
-  /** The focus route for whatever the board is currently asking for. */
-  focusOrder(): readonly FocusTarget[] {
+  /**
+   * The focus route for whatever the board is currently asking for. `alsoTiled` names cards that count as drawn though
+   * they have no tile this frame (a play area card scrolled out of its row), for a caller that must not depend on scroll.
+   */
+  focusOrder(alsoTiled?: (id: InstanceId) => boolean): readonly FocusTarget[] {
     const model = this.#host.model();
     if (!model) return [];
     const marks = this.#host.marks();
@@ -441,7 +449,9 @@ export class BoardController {
         hand: model.hand.map((card) => card.instanceId),
         teamUps: this.#host.teamUpKeys?.() ?? [],
         undo: this.undoOffer() !== null,
-        ...(this.#host.hasTile ? { tiled: (id: InstanceId) => this.#host.hasTile!(id) } : {}),
+        ...(this.#host.hasTile
+          ? { tiled: (id: InstanceId) => this.#host.hasTile!(id) || (alsoTiled?.(id) ?? false) }
+          : {}),
       },
       marks,
     );

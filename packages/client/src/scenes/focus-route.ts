@@ -10,7 +10,7 @@
  *
  * Same conventions as everywhere else: Tab walks the route, the arrows move to
  * the nearest stop that way on screen (`view/spatial-nav.ts`), Enter or
- * Space presses, `I` reads (where a stop has something to read), Escape backs
+ * Space (or the hand's Select key) presses, Inspect (E / O) reads (where a stop has something to read), Escape backs
  * out, and the ring is the selection ring drawn static — a pulse means "the game
  * is waiting for you", and focus is not a prompt.
  */
@@ -20,8 +20,10 @@ import { McSelectionRing } from "../ui/widgets.js";
 import { stepKey } from "../view/focus.js";
 import type { GamepadIntent } from "../view/gamepad.js";
 import type { Rect } from "../view/layout.js";
+import { activationTarget } from "../view/primary-activation.js";
 import { spatialStep } from "../view/spatial-nav.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
+import { bindExtraInput } from "./extra-input.js";
 
 export interface FocusStop {
   /**
@@ -43,6 +45,8 @@ export interface FocusStop {
    * brings it on screen instead of leaving the ring nowhere a player can see.
    */
   readonly ensureVisible?: () => void;
+  /** A slider: Left / Right (and the pad's d-pad) step it instead of moving focus. */
+  readonly adjust?: (direction: -1 | 1) => void;
 }
 
 export interface FocusRouteOptions {
@@ -56,6 +60,22 @@ export interface FocusRouteOptions {
   readonly onHomeEnd?: (edge: "home" | "end") => void;
   /** Called whenever the focused stop changes by keyboard or pad (null when focus is dropped), so a screen can show what is in focus. */
   readonly onFocusChange?: (key: string | null) => void;
+  /**
+   * The right stick, forwarded as pixels to scroll (positive down) a frame at a time. A screen with a virtualized list
+   * or a scroll region passes its `scrollByPx`; no-op when omitted.
+   */
+  readonly onScroll?: (dx: number, dy: number, dtMs: number) => void;
+  /** Menu / Start / +, for a screen that has a pause or menu of its own. No-op when omitted. */
+  readonly onPause?: () => void;
+  /** View / Select / - and the Peek key (R / P), for a screen with a Peek-style control. No-op (and no key) when omitted. */
+  readonly onView?: () => void;
+  /** R3 and the Expand key (F / ;), for a screen with an Expand/Collapse control. No-op (and no key) when omitted. */
+  readonly onExpand?: () => void;
+  /**
+   * The key of the screen's primary commit stop right now (Start, Continue), or null. With nothing focused, Enter / A
+   * presses it (`view/primary-activation.ts`); with a stop focused it presses that stop.
+   */
+  readonly primary?: () => string | null;
 }
 
 export class FocusRoute {
@@ -64,6 +84,10 @@ export class FocusRoute {
   readonly #onPage: ((direction: 1 | -1) => void) | undefined;
   readonly #onHomeEnd: ((edge: "home" | "end") => void) | undefined;
   readonly #onFocusChange: ((key: string | null) => void) | undefined;
+  readonly #onPause: (() => void) | undefined;
+  readonly #onView: (() => void) | undefined;
+  readonly #onExpand: (() => void) | undefined;
+  readonly #primary: (() => string | null) | undefined;
   #order: readonly string[] = [];
   #stops: ReadonlyMap<string, FocusStop> = new Map();
   #focus: string | null = null;
@@ -81,12 +105,28 @@ export class FocusRoute {
     this.#onPage = options.onPage;
     this.#onHomeEnd = options.onHomeEnd;
     this.#onFocusChange = options.onFocusChange;
+    this.#onPause = options.onPause;
+    this.#onView = options.onView;
+    this.#onExpand = options.onExpand;
+    this.#primary = options.primary;
     const binding = {
       blocked: options.blocked ?? (() => false),
       onIntent: (intent: GamepadIntent) => this.#onIntent(intent),
+      ...(options.onScroll ? { onScroll: options.onScroll } : {}),
     };
     bindKeyboard(scene, binding);
     bindGamepad(scene, binding);
+    // View and R3 arrive as intents above; their keys (Peek and Expand: R / F left-handed, P / ; right-handed) have no
+    // intent in the shared keyboard binding.
+    if (options.onView || options.onExpand) {
+      bindExtraInput(scene, {
+        blocked: binding.blocked,
+        peekExpand: {
+          ...(options.onView ? { peek: options.onView } : {}),
+          ...(options.onExpand ? { expand: options.onExpand } : {}),
+        },
+      });
+    }
   }
 
   get focused(): string | null {
@@ -135,11 +175,24 @@ export class FocusRoute {
       case "up":
       case "down":
       case "left":
-      case "right":
+      case "right": {
+        const adjust =
+          this.#focus !== null && (intent === "left" || intent === "right")
+            ? this.#stops.get(this.#focus)?.adjust
+            : undefined;
+        if (adjust) {
+          adjust(intent === "left" ? -1 : 1);
+          break;
+        }
         this.#moveTo(spatialStep(this.#order, (key) => this.#rectOf(key), this.#focus, intent));
         break;
+      }
       case "activate":
-        if (this.#focus) this.#stops.get(this.#focus)?.activate();
+        {
+          // A stop exists only while its control can be pressed, so a primary that has one is enabled.
+          const key = activationTarget(this.#focus, this.#primary?.() ?? null, true);
+          if (key !== null) this.#stops.get(key)?.activate();
+        }
         break;
       case "inspect":
         if (this.#focus) this.#stops.get(this.#focus)?.inspect?.();
@@ -153,6 +206,15 @@ export class FocusRoute {
       case "end":
         this.#onHomeEnd?.(intent);
         this.#drawRing();
+        break;
+      case "pause":
+        this.#onPause?.();
+        break;
+      case "view":
+        this.#onView?.();
+        break;
+      case "expand":
+        this.#onExpand?.();
         break;
       case "cancel":
         if (this.#onCancel) {

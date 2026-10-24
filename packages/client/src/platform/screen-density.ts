@@ -2,7 +2,7 @@
  * Whether and how densely the game draws past one pixel per CSS pixel (`platform/screen-settings.ts` applies it). Pure,
  * so the choices are tested without a game.
  */
-import { renderScaleFactorOf, type Settings } from "../settings.js";
+import { couchModeFactor, renderScaleFactorOf, type Settings } from "../settings.js";
 import { detectPlatform, type Platform } from "./platform.js";
 
 /** Text past 3x costs texture memory (it grows with the square) for a difference nobody can see on a phone. */
@@ -47,14 +47,17 @@ export function screenEnvironment(): ScreenEnvironment {
 
 /** The device pixels per CSS pixel the game draws at under `settings` here: 1 wherever screen density is off. */
 export function renderScaleFor(
-  settings: Pick<Settings, "renderScale">,
+  settings: Pick<Settings, "renderScale"> & { readonly couchMode?: Settings["couchMode"] },
   env: ScreenEnvironment = screenEnvironment(),
 ): number {
-  if (!drawsAtScreenDensity(env.search)) return 1;
+  // Couch mode lays the game out smaller and scales it up (`ui/render-resolution.ts`), so the buffer needs that many
+  // more pixels per game pixel to stay as sharp as the screen.
+  const couch = couchModeFactor(settings.couchMode ?? "off");
+  if (!drawsAtScreenDensity(env.search)) return couch;
   const forced = forcedRenderScale(env.search);
-  if (forced === "native") return renderScaleFactorOf("native", env.devicePixelRatio);
-  if (typeof forced === "number") return forced;
-  return renderScaleFactorOf(settings.renderScale, env.devicePixelRatio);
+  if (forced === "native") return renderScaleFactorOf("native", env.devicePixelRatio) * couch;
+  if (typeof forced === "number") return forced * couch;
+  return renderScaleFactorOf(settings.renderScale, env.devicePixelRatio) * couch;
 }
 
 /**

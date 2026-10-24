@@ -109,6 +109,11 @@ export function bindHoldTarget(scene: Phaser.Scene, zone: Phaser.GameObjects.Zon
         if (press.gesture.up(pointer.wasCanceled, pointer.x, pointer.y)) handlers.onTap();
         return;
       }
+      // A right-click no zone saw go down is still Inspect, never a tap (the first mouse press after a redraw).
+      if (pointer.button === 2) {
+        onInspect?.();
+        return;
+      }
       if (pointer.upTime - pointer.downTime < INSPECT_HOLD_MS) handlers.onTap();
     },
   );

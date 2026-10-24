@@ -119,7 +119,7 @@ test.describe("v0.20.0 client QA findings", () => {
       g.players[0].hand.every((id: string) => g.instances[id].cardId !== "58009"),
     );
     expect(hollywoodPlayed, "Mr. Hollywood was played before the payment").toBe(true);
-    await page.keyboard.press("z");
+    await page.keyboard.press("Control+z");
     await settle(page, { quietMs: 500, maxMs: 3000 });
     expect(
       await facts(page, (g) => g.players[0].hand.some((id: string) => g.instances[id].cardId === "58009")),

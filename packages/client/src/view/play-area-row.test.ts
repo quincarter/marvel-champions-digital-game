@@ -123,6 +123,19 @@ describe("PlayAreaScroll", () => {
     expect(redraw).not.toHaveBeenCalled();
   });
 
+  test("revealCard scrolls a card that is off screen into view, and knows which cards are in the row", () => {
+    const redraw = vi.fn();
+    const scroll = new PlayAreaScroll(redraw);
+    const row = settle(scroll, 13);
+    expect(scroll.has(ids(13)[12]!)).toBe(true);
+    expect(scroll.has("elsewhere" as InstanceId)).toBe(false);
+    expect(scroll.revealCard(ids(13)[12]!)).toBe(true);
+    const last = row.slots[12]!;
+    expect(last.x + last.width - scroll.row.scrollX).toBeCloseTo(AREA.x + AREA.width);
+    expect(redraw).toHaveBeenCalled();
+    expect(scroll.revealCard("elsewhere" as InstanceId)).toBe(false);
+  });
+
   test("a wheel scroll is kept by the next redraw of the same cards", () => {
     const scroll = new PlayAreaScroll(() => {});
     settle(scroll, 13);

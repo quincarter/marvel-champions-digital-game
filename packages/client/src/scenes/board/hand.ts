@@ -14,6 +14,7 @@ import { drawArt } from "../../art/card-art.js";
 import { appSession } from "../../session.js";
 import { accent, hit, ink, signal, surface, typeRole } from "../../tokens.js";
 import { caseOf, cssOf, textStyle } from "../../ui/theme.js";
+import { glyphsFitLayout, zonesHintFits } from "../../view/glyph-placement.js";
 import { McSelectionRing, fitText, fitWrapped, label, paintPanel } from "../../ui/widgets.js";
 import { faceOf, type BoardModel, type HandCardView } from "../../view/board-model.js";
 import type { DiscardChoiceView } from "../../view/discard-choice-model.js";
@@ -126,7 +127,7 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
     drawDiscardBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: BAR_HEIGHT }, discard);
     top = rect.y + BAR_HEIGHT + 4;
   } else {
-    label(
+    const caption = label(
       scene,
       rect.x + 10,
       rect.y + 4,
@@ -141,6 +142,7 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
     // A Forced Action still owed: End turn waits for it, and the caption row says which card (words, in caution yellow).
     const endTurn = ctx.marks?.basics.find((basic) => basic.action === "endTurn");
     // (The tabbed phone board puts the reason on the End turn button itself.)
+    let noteLeft: number | null = null;
     if (!tabbed && endTurn?.code === FORCED_ACTION_CODE && endTurn.reason) {
       // A long list steps down to fit the room left of the pile column, never over the hand's own tags.
       const note = scene.add
@@ -148,6 +150,15 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
         .setOrigin(1, 0)
         .setMaxLines(1);
       fitText(note, Math.min(rect.width * 0.6, 520), typeRole.label.size);
+      noteLeft = note.x - note.displayWidth;
+    }
+    // "[ ] Zones" beside the caption: the keys (or LB RB) that jump between zones. Desktop and tablet landscape only,
+    // and not when the owed-Forced-Action note above would run into it.
+    const zonesX = caption.x + caption.width + 12;
+    if (glyphsFitLayout(tabbed) && zonesHintFits(zonesX, noteLeft, appSession().settings.glyphSize)) {
+      // The word sits after the glyph's full width and stays put as the glyph closes: nothing shifts.
+      const word = label(scene, 0, 0, "Zones", typeRole.label, surface.paper.hex, ink.label).setOrigin(0, 0.5);
+      ctx.hints.inline(zonesX, rect.y + 4 + caption.height / 2, ["zonePrevious", "zoneNext"], 14, { word });
     }
   }
 

@@ -41,6 +41,8 @@ import {
   frameRateRowInfoOf,
   nextSettingsAfterFrameRate,
   nextSettingsAfterRenderScale,
+  nextSettingsAfterCouchMode,
+  couchModeRowInfoOf,
   renderScaleRowInfoOf,
   nextSettingsAfterCardSize,
   nextSettingsAfterDisplayMode,
@@ -60,6 +62,7 @@ import {
   nextSettingsAfterToggle,
   nextSettingsAfterVillainRow,
   settingsRowInfoOf,
+  discordRowInfoOf,
   earnedItemRowInfoOf,
   villainRowInfoOf,
   type GuideRowInfo,
@@ -89,6 +92,7 @@ import {
   refreshDesktopMonitor,
   resolutionOptionsFor,
 } from "../platform/desktop-window.js";
+import { syncDiscordPresence } from "../platform/discord-presence.js";
 import {
   followsWindowsMixer,
   knownMixerVolume,
@@ -114,6 +118,7 @@ import { guidePrefs, onGuidePrefsChange, setGuidePrefs } from "../guide/guide-st
 import { canReadPowerSaving, onPowerSavingChange, powerSavingOn, powerSavingState } from "../platform/power-saving.js";
 import { powerSavingRowOf } from "../view/power-saving-notice.js";
 import { detectPlatform } from "../platform/platform.js";
+import { padAvailable } from "../platform/input-device.js";
 import { drawsAtScreenDensity, screenEnvironment } from "../platform/screen-density.js";
 import { applyScreenSettings, knownRefreshInfo, readRefreshInfo } from "../platform/screen-settings.js";
 import { knownHardware, onHardwareChange } from "../platform/device-hardware.js";
@@ -143,6 +148,10 @@ const RULES_ROW_TITLE = "Rules reference";
 const STEAM_DECK_DETAIL =
   "Fullscreen at the screen's own resolution (1280 × 800 on the Deck), what this device starts with.";
 
+/** The Controls row: a door to `scenes/controls.ts`, the drawn controller and the keyboard's keys. */
+const CONTROLS_ROW = "controls";
+const CONTROLS_ROW_DETAIL = "Your controller's buttons, the keyboard shortcuts and the on-screen hints.";
+
 const RULES_ROW_DETAIL = "Look up any keyword, rule or ruling, with the cards it applies to.";
 
 type GuideNonLevelRow = Extract<GuideRowInfo, { kind: "action" | "toggle" }>;
@@ -159,8 +168,20 @@ const DISPLAY_MODE_CONTROL_WIDTH = 480;
 /** Resolution is a dropdown and an Apply button: up to seventeen sizes is too many segments. */
 const RESOLUTION_CONTROL_WIDTH = 320;
 const APPLY_WIDTH = 88;
+/** Couch mode's five short segments ("Off" to "200%"). */
+const COUCH_MODE_CONTROL_WIDTH = 400;
 /** Resolution's and Frame rate's up to four short segments ("Native", "720p"; "Screen", "60 fps"). */
 const SCREEN_CONTROL_WIDTH = 300;
+
+/**
+ * The Couch mode row: every build but a phone, judged by the real window (couch mode shrinks the game's own size, which
+ * must not hide the row that undoes it), and always while it is on.
+ */
+function couchModeShown(settings: Settings): boolean {
+  if (settings.couchMode !== "off") return true;
+  const form = formFactorFor(window.innerWidth, window.innerHeight);
+  return form !== "phone" && form !== "phoneLandscape";
+}
 
 /** The Screen section: every build, unless `?renderscale=off`. */
 function screenSettingsShown(): boolean {
@@ -203,6 +224,8 @@ export interface SettingsSceneData {
   readonly receive?: TransferCode;
   /** `syncLink` opens Save data, then Sync across devices, asking to join with a scanned `#link=` (device sync, #276). */
   readonly syncLink?: SyncLinkAddress;
+  /** Opens Controls straight away (the "Controller connected" toast's button), so it stacks over Settings as usual. */
+  readonly openControls?: boolean;
 }
 
 export class SettingsOverlay extends Phaser.Scene {
@@ -236,7 +259,10 @@ export class SettingsOverlay extends Phaser.Scene {
     };
     this.scale.on("resize", onResize, this);
     this.#route = new FocusRoute(this, {
-      blocked: () => this.scene.isActive(SCENES.unlocks) || this.scene.isActive(SCENES.saveData),
+      blocked: () =>
+        this.scene.isActive(SCENES.unlocks) ||
+        this.scene.isActive(SCENES.saveData) ||
+        this.scene.isActive(SCENES.controls),
       onCancel: () => (this.#resolutionListOpen ? this.#closeResolutionList() : this.#close()),
     });
     // Another scene (Pause's own inline Guide group) can change the same live prefs while this overlay is open
@@ -264,6 +290,7 @@ export class SettingsOverlay extends Phaser.Scene {
     this.sys.settings.data = {};
     const syncLink = data.syncLink;
     if (receive || syncLink) this.#openSaveData(receive, syncLink);
+    if (data.openControls === true) this.#openControls();
     if (hasDesktopWindow()) void refreshDesktopMonitor().then(() => this.#redrawIfOpen());
     // The Frame rate row names the screen's refresh rate once the Android app has said it.
     if (screenSettingsShown() && knownRefreshInfo() === null) void readRefreshInfo().then(() => this.#redrawIfOpen());
@@ -312,6 +339,15 @@ export class SettingsOverlay extends Phaser.Scene {
     });
   }
 
+  #openControls(): void {
+    if (this.scene.isActive(SCENES.controls)) return;
+    this.input.enabled = false;
+    this.scene.launch(SCENES.controls);
+    this.scene.get(SCENES.controls).events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.input.enabled = true;
+    });
+  }
+
   #openRules(): void {
     if (this.scene.isActive(SCENES.rules)) return;
     this.input.enabled = false;
@@ -349,6 +385,7 @@ export class SettingsOverlay extends Phaser.Scene {
     const { settings } = appSession();
     const next = nextSettingsAfterToggle(settings, row.id, globalThis.devicePixelRatio || 1);
     if (row.id === "sharper-text") setTextResolution(next.textResolution);
+    if (row.id === "discord-presence") syncDiscordPresence(next.discordPresence);
     if (row.id === "sound" || row.id === "music-shuffle") appSession().music?.syncSettings(next);
     appSession().settings = next;
     applyEarnedItems();
@@ -388,11 +425,15 @@ export class SettingsOverlay extends Phaser.Scene {
       gameVolume: followsWindowsMixer(),
       // Sound's own tab only where six fit with their names whole; a phone keeps five, Sound under Display.
       soundTab: settingsLayout({ x: 0, y: 0, width, height }, []).tabs.width / 6 >= SOUND_TAB_MIN_CELL,
+      couchMode: couchModeShown(settings),
       desktopWindow: hasDesktopWindow(),
+      discord: hasDesktopWindow(),
       steamDeck: onHandheldLinux(),
       powerSaving:
         canReadPowerSaving(detectPlatform(), globalThis.navigator?.userAgent ?? "") || powerSavingState().detected,
       screenSettings: screenSettingsShown(),
+      // The phone apps show Controls only once a controller is connected (the owner, 2026-10-24).
+      controls: detectPlatform() !== "capacitor" || padAvailable(),
     });
     const active = tabs.find((tab) => tab.id === lastTab) ?? tabs[0]!;
     const layout = settingsLayout(
@@ -480,6 +521,7 @@ export class SettingsOverlay extends Phaser.Scene {
     const items = new Map<SettingsItemId, SettingsItem>();
     for (const row of [
       ...settingsRowInfoOf(settings, powerSavingOn()),
+      ...(hasDesktopWindow() ? [discordRowInfoOf(settings)] : []),
       ...earnedItemRowInfoOf(settings, earnedItems()),
     ]) {
       items.set(row.id, {
@@ -568,6 +610,14 @@ export class SettingsOverlay extends Phaser.Scene {
         (v) => setScreen(nextSettingsAfterFrameRate(appSession().settings, v)),
       );
     }
+    if (couchModeShown(settings)) {
+      segmented("couch-mode", couchModeRowInfoOf(settings, window.innerWidth), COUCH_MODE_CONTROL_WIDTH, (v) => {
+        const next = nextSettingsAfterCouchMode(appSession().settings, v);
+        appSession().settings = next;
+        applyScreenSettings(this.game, next);
+        this.#draw();
+      });
+    }
     if (hasDesktopWindow()) {
       const monitor = desktopMonitor();
       const sizes = monitor === null ? [] : resolutionOptionsFor(monitor, settings.displayMode);
@@ -653,6 +703,7 @@ export class SettingsOverlay extends Phaser.Scene {
     };
     door(UNLOCKS_ROW, "Unlocks", unlocksSummaryOf(unlocks()), () => this.#openUnlocks());
     door(SAVE_DATA_ROW, SAVE_DATA_ROW_TITLE, SAVE_DATA_ROW_DETAIL, () => this.#openSaveData());
+    door(CONTROLS_ROW, "Controls", CONTROLS_ROW_DETAIL, () => this.#openControls());
     door(RULES_ROW, RULES_ROW_TITLE, RULES_ROW_DETAIL, () => this.#openRules());
     items.set("steam-deck", {
       spec: { kind: "toggle", id: "steam-deck", detail: STEAM_DECK_DETAIL },

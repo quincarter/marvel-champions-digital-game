@@ -49,6 +49,8 @@ import {
 } from "@mc/engine";
 import type { BackOutTrailEntry } from "../view/back-out.js";
 import { sealForTable } from "../view/hidden-reverse.js";
+import type { PresenceGame } from "../view/discord-presence.js";
+import { presenceGameOf } from "../view/discord-presence-game.js";
 import type { PaymentState } from "../view/payment-model.js";
 import { judgePayment, type JudgedPayment } from "../view/payment-verdict.js";
 import { actingPlayer } from "./acting-player.js";
@@ -660,8 +662,13 @@ export class EngineSessionCore {
       });
   }
 
+  /** The newest table-sealed state and the engine state it was made from. */
+  #sealed: { readonly source: GameState; readonly sealed: GameState } | null = null;
+
   #snapshot(events: readonly GameEvent[]): Snapshot {
     const { state } = this.#require();
+    const sealed = sealForTable(state);
+    this.#sealed = { source: state, sealed };
     const toAct = actingPlayer(state);
     return {
       version: this.#version,
@@ -669,13 +676,29 @@ export class EngineSessionCore {
       // by its stand-in (docs/phase7-wave9.md §3.54), a hidden pile is its size (§3.29 (a)) and the campaign log's
       // sealed values are emptied (§3.75), so none of it leaves the engine session. Legal actions are computed from
       // the full state, here.
-      state: stripSealedPool(sealForTable(state)),
+      state: stripSealedPool(sealed),
       events,
       legal: toAct ? { playerId: toAct, actions: queryLegalActions(state, toAct, POOL_DEPS) } : null,
       record: this.#record,
       saveError: this.#saveError,
       config: this.#config,
       gameId: this.#gameId,
+    };
+  }
+
+  /**
+   * What Discord Rich Presence says about the table (`view/discord-presence-game.ts`), read from the table-sealed state
+   * with the pool still on it. Computed here, in the engine worker, so the main thread never copies the state for it.
+   */
+  presenceGame(): { readonly game: PresenceGame; readonly gameKey: string } | null {
+    if (!this.#session) return null;
+    // The sealed state the last snapshot already made (every state change builds one); sealed again only if not.
+    const cached = this.#sealed;
+    const state = cached && cached.source === this.#session.state ? cached.sealed : sealForTable(this.#session.state);
+    const config = this.#config;
+    return {
+      game: presenceGameOf(state, config),
+      gameKey: this.#gameId ?? `${config?.scenarioId}:${config?.seed}`,
     };
   }
 

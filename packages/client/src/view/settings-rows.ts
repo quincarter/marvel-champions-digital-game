@@ -24,12 +24,16 @@ import {
   DISPLAY_MODE_VALUES,
   FIRST_PLAYER_TOKEN_MOTION_VALUES,
   FRAME_RATE_VALUES,
+  COUCH_MIN_GAME_WIDTH,
+  COUCH_MODE_VALUES,
+  couchModeFactor,
   RENDER_SCALE_VALUES,
   SHARP_TEXT_RESOLUTION_CEILING,
   clampMusicVolume,
   renderScaleFactorOf,
   resolutionPixelsOf,
   type FrameRate,
+  type CouchMode,
   type RenderScale,
   type AchievementPopupPlace,
   type AchievementPopupSize,
@@ -60,6 +64,7 @@ export type SettingsRowId =
   | "same-name-conflict"
   | "hover-hero"
   | "hover-villain"
+  | "discord-presence"
   | EarnedItemId;
 
 export interface SettingsRowInfo {
@@ -140,6 +145,16 @@ export function settingsRowInfoOf(settings: Settings, powerSaving = false): read
   ];
 }
 
+/** The desktop app's "Show my game on Discord" row. Drawn only there, so it is not in `settingsRowInfoOf` (shared with Pause). */
+export function discordRowInfoOf(settings: Settings): SettingsRowInfo {
+  return {
+    id: "discord-presence",
+    title: "Show my game on Discord",
+    detail: "Shows what you're playing on your Discord profile while Discord is open.",
+    on: settings.discordPresence,
+  };
+}
+
 /**
  * Settings ▸ More ▸ Earned items (issue #291): one toggle per earned item. One not earned yet is still listed, dim, and
  * says how to earn it instead of what it does.
@@ -187,6 +202,8 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
       return { ...settings, hoverHeroCard: !settings.hoverHeroCard };
     case "hover-villain":
       return { ...settings, hoverVillainCard: !settings.hoverVillainCard };
+    case "discord-presence":
+      return { ...settings, discordPresence: !settings.discordPresence };
     case "ultron-drone-art":
       return { ...settings, ultronDroneArt: !settings.ultronDroneArt };
   }
@@ -741,6 +758,25 @@ export function displayModeRowInfoOf(settings: Settings): DisplayModeRowInfo {
 /** `settings` with the window mode set; a value that is not one of the three changes nothing. */
 export function nextSettingsAfterDisplayMode(settings: Settings, value: DisplayMode): Settings {
   return DISPLAY_MODE_VALUES.includes(value) ? { ...settings, displayMode: value } : settings;
+}
+
+// "Couch mode": everything drawn bigger for a TV (`ui/render-resolution.ts`). Every build but a phone.
+export function couchModeRowInfoOf(settings: Settings, windowWidth = Infinity): ScreenChoiceRowInfo<CouchMode> {
+  return {
+    title: "Couch mode",
+    detail: "Makes everything bigger, for playing on a TV from across the room.",
+    // Only the sizes that keep the game wide enough for a tablet or desktop layout on this window (the saved one stays).
+    options: COUCH_MODE_VALUES.filter(
+      (value) =>
+        value === "off" || value === settings.couchMode || windowWidth / couchModeFactor(value) >= COUCH_MIN_GAME_WIDTH,
+    ).map((value) => ({ value, label: value === "off" ? "Off" : value })),
+    selected: settings.couchMode,
+  };
+}
+
+/** `settings` with couch mode set; a value that is not one of the five changes nothing. */
+export function nextSettingsAfterCouchMode(settings: Settings, value: CouchMode): Settings {
+  return COUCH_MODE_VALUES.includes(value) ? { ...settings, couchMode: value } : settings;
 }
 
 // ---------------------------------------------------------------------------

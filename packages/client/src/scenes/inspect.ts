@@ -350,7 +350,17 @@ export class InspectOverlay extends Phaser.Scene {
 
     // The same five intents the Board and the choice sheet speak, so a pad
     // works here too. Both of those are blocked while this sheet is open.
-    const binding = { blocked: () => false, onIntent: (intent: GamepadIntent) => this.#onIntent(intent) };
+    const binding = {
+      blocked: () => false,
+      onIntent: (intent: GamepadIntent) => this.#onIntent(intent),
+      // The right stick reads long rules text: the phone sheet's one scrolling body, or the card panel's own text when
+      // it overflowed. "View" has no meaning here (a card is already the whole screen), so it is left unhandled.
+      onScroll: (_dx: number, dy: number) => {
+        if (this.#motion.leaving) return;
+        if (this.#sheetRegion) this.#sheetRegion.scrollByPx(dy);
+        else for (const panel of this.#scrollPanels) panel.scrollByPx(dy);
+      },
+    };
     bindKeyboard(this, binding);
     bindGamepad(this, binding);
 

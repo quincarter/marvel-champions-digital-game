@@ -26,6 +26,7 @@ describe("settingsSectionsOf", () => {
       "villain-dock",
       "unlocks",
       "save-data",
+      "controls",
       "rules",
       "achievement-popup-time",
       "achievement-popup-place",
@@ -186,5 +187,16 @@ describe("the Screen section (#320)", () => {
   test("with ?renderscale=off it is left out", () => {
     const sections = settingsSectionsOf({ guideRowIds, cardHover: true, screenSettings: false });
     expect(sections.map((s) => s.id)).not.toContain("screen");
+  });
+});
+
+describe("the Controls row", () => {
+  const base = { guideRowIds: [], cardHover: true };
+  const more = (input: Parameters<typeof settingsSectionsOf>[0]) =>
+    settingsSectionsOf(input).find((section) => section.id === "more")!.items;
+
+  test("shows by default, and hides when the phone app has no controller", () => {
+    expect(more(base)).toContain("controls");
+    expect(more({ ...base, controls: false })).not.toContain("controls");
   });
 });

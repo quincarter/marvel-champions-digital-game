@@ -62,6 +62,7 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.pause,
   SCENES.rules,
   SCENES.settings,
+  SCENES.controls,
   SCENES.unlocks,
   SCENES.unlockConfirm,
   SCENES.nameConflict,
@@ -86,6 +87,8 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.syncSetupPrompt,
   // The achievement popup draws above the setup question (it takes no input; a stack's own tap target is its own).
   SCENES.achievementToast,
+  // The controller toast: a notice with one button, over everything but the sync prompts and the chrome.
+  SCENES.padToast,
   SCENES.syncConflict,
   SCENES.syncPrompt,
   SCENES.syncSetupNotice,
@@ -158,7 +161,14 @@ export const COMPANIONS: Readonly<Record<string, readonly string[]>> = {
     SCENES.syncData,
     SCENES.unlockConfirm,
   ],
-  [SCENES.settings]: [SCENES.unlocks, SCENES.saveData, SCENES.syncData, SCENES.rules, SCENES.unlockConfirm],
+  [SCENES.settings]: [
+    SCENES.controls,
+    SCENES.unlocks,
+    SCENES.saveData,
+    SCENES.syncData,
+    SCENES.rules,
+    SCENES.unlockConfirm,
+  ],
   [SCENES.saveData]: [SCENES.syncData],
   [SCENES.syncSetupPrompt]: [SCENES.syncData],
   [SCENES.setupDeal]: [SCENES.choice, SCENES.inspect],

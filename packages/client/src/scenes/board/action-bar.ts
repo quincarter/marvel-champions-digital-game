@@ -12,10 +12,19 @@ import { changeFormButtonLabel } from "../../view/change-form-label.js";
 import type { BasicAction } from "../../view/highlights.js";
 import type { Rect } from "../../view/layout.js";
 import type { BoardDrawContext } from "./context.js";
+import { glyphsFitLayout } from "../../view/glyph-placement.js";
+import type { ShortcutId } from "../../view/input-shortcuts.js";
 import { FORCED_ACTION_CODE } from "../../view/forced-actions.js";
 import { basicKindOf, focusKey } from "./selection.js";
 
 const BASICS: readonly BasicAction[] = ["attack", "thwart", "recover", "changeForm"];
+const BASIC_SHORTCUT: Readonly<Record<BasicAction, ShortcutId>> = {
+  endTurn: "endTurn",
+  attack: "attack",
+  thwart: "thwart",
+  recover: "recover",
+  changeForm: "changeForm",
+};
 
 /**
  * The action bar, parked at the thumb.
@@ -89,6 +98,9 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
   }
 
   const stacked = rect.height >= hit.target + hit.primary;
+  // Keys and base pad hints do not fit a phone's bar, but the LT layer's own buttons (A on Attack, LB on Undo, ...) are
+  // pad-only and do, so a phone still gets them while a trigger is held.
+  const hintOptions = glyphsFitLayout(ctx.tabbed) ? {} : { when: (set: string) => set === "pad" };
   // Spectrum's energy/density/mass forms, Ant-Man/Wasp's Giant form: more than one destination is legal, so the
   // button can no longer say *which* way the flip goes — it opens the "Which form?" picker instead
   // (`view/change-form-choice.ts`, `controller-bar.ts`'s own `drawFormBar`).
@@ -136,21 +148,21 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
     const choosingSource = selection.kind === "choosingSource" && selection.power === action;
     const choosingForm = action === "changeForm" && selection.kind === "choosingForm";
     const choosingStat = action === "thwart" && selection.kind === "choosingThwartStat";
-    ctx.frame.buttons.push(
-      new McButton(scene, {
-        kind: "onInk",
-        label: cancelledBy && allCancelled ? `${labels[action]} ✕` : labels[action],
-        ...(sources.length > 1 ? { value: `×${sources.length}` } : {}),
-        ...(action === "changeForm" && formSources.length > 1 ? { value: `×${formSources.length}` } : {}),
-        type: typeRole.label,
-        rect: cell,
-        enabled: button?.enabled ?? false,
-        selected: targeting || choosingSource || choosingForm || choosingStat,
-        ...(cancelledBy ? { hatch: cancelledBy.hex } : {}),
-        ...(button?.reason ? { reason: button.reason } : {}),
-        onClick: () => controller.chooseBasic(action),
-      }),
-    );
+    const basicButton = new McButton(scene, {
+      kind: "onInk",
+      label: cancelledBy && allCancelled ? `${labels[action]} ✕` : labels[action],
+      ...(sources.length > 1 ? { value: `×${sources.length}` } : {}),
+      ...(action === "changeForm" && formSources.length > 1 ? { value: `×${formSources.length}` } : {}),
+      type: typeRole.label,
+      rect: cell,
+      enabled: button?.enabled ?? false,
+      selected: targeting || choosingSource || choosingForm || choosingStat,
+      ...(cancelledBy ? { hatch: cancelledBy.hex } : {}),
+      ...(button?.reason ? { reason: button.reason } : {}),
+      onClick: () => controller.chooseBasic(action),
+    });
+    ctx.frame.buttons.push(basicButton);
+    ctx.hints.button(basicButton, [BASIC_SHORTCUT[action]], "ink", hintOptions);
   });
 
   // The one red fill in the bar: the forward action of the table.
@@ -167,38 +179,38 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
       : { x: endTurnRect.x - undoGap - undoWidth, y: rect.y + 4, width: undoWidth, height: hit.target - 8 };
     ctx.frame.focusRects.set(focusKey({ kind: "undo" }), undoRect);
     why = drawUndoWhy(scene, rect, undoRect, undo.kind === "unavailable" ? undo.reason : null, controller.undoWhy());
-    ctx.frame.buttons.push(
-      new McButton(scene, {
-        kind: "onInk",
-        label: "Undo",
-        type: typeRole.label,
-        rect: undoRect,
-        enabled: undo.kind === "available",
-        ...(undo.kind === "unavailable" ? { reason: undo.reason } : {}),
-        // A greyed Undo says why on hover (pointer), on focus (keyboard) and on press (touch, Enter, Z): the label
-        // below is drawn hidden when there is nothing to say and toggled here without a redraw.
-        onHover: (over) => {
-          controller.setUndoHover(over);
-          why?.setVisible(controller.undoWhy() !== null);
-        },
-        onUnavailablePress: () => void controller.undo(),
-        onClick: () => void controller.undo(),
-      }),
-    );
+    const undoButton = new McButton(scene, {
+      kind: "onInk",
+      label: "Undo",
+      type: typeRole.label,
+      rect: undoRect,
+      enabled: undo.kind === "available",
+      ...(undo.kind === "unavailable" ? { reason: undo.reason } : {}),
+      // A greyed Undo says why on hover (pointer), on focus (keyboard) and on press (touch, Enter, Z): the label
+      // below is drawn hidden when there is nothing to say and toggled here without a redraw.
+      onHover: (over) => {
+        controller.setUndoHover(over);
+        why?.setVisible(controller.undoWhy() !== null);
+      },
+      onUnavailablePress: () => void controller.undo(),
+      onClick: () => void controller.undo(),
+    });
+    ctx.frame.buttons.push(undoButton);
+    ctx.hints.button(undoButton, ["undo"], "ink", hintOptions);
   }
   ctx.frame.focusRects.set(focusKey({ kind: "basic", action: "endTurn" }), endTurnRect);
-  ctx.frame.buttons.push(
-    new McButton(scene, {
-      kind: "primary",
-      // A Forced Action still owed (a Trance, a Temptation): End turn waits for it, and says which card.
-      label: stacked && owedReason ? owedReason : "End turn",
-      type: typeRole.barTitle,
-      rect: endTurnRect,
-      enabled: endTurn?.enabled ?? false,
-      ...(endTurn?.reason ? { reason: endTurn.reason } : {}),
-      onClick: () => void controller.dispatchExample("endTurn"),
-    }),
-  );
+  const endTurnButton = new McButton(scene, {
+    kind: "primary",
+    // A Forced Action still owed (a Trance, a Temptation): End turn waits for it, and says which card.
+    label: stacked && owedReason ? owedReason : "End turn",
+    type: typeRole.barTitle,
+    rect: endTurnRect,
+    enabled: endTurn?.enabled ?? false,
+    ...(endTurn?.reason ? { reason: endTurn.reason } : {}),
+    onClick: () => void controller.dispatchExample("endTurn"),
+  });
+  ctx.frame.buttons.push(endTurnButton);
+  ctx.hints.button(endTurnButton, ["endTurn"], "ink", hintOptions);
 
   // The advisory line: a prompt while targeting, otherwise the engine's last
   // rejection. Caution yellow, never red — red is the action, not the alarm.

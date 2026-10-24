@@ -169,6 +169,8 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Discord Rich Presence's public application id, compiled in (src-tauri/src/discord_presence.rs); empty keeps the default.
+          MC_DISCORD_APP_ID: ${{ vars.DISCORD_APP_ID }}
           # The production save-transfer Worker (save-data/transfer-config.ts); empty until the variable is set.
           VITE_SYNC_URL: >-
             ${{ (vars.CLOUDFLARE_WORKERS_SUBDOMAIN || secrets.CLOUDFLARE_WORKERS_SUBDOMAIN) && format('https://mc-sync.{0}.workers.dev',

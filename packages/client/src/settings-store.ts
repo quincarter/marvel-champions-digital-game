@@ -18,17 +18,21 @@ import {
   DISPLAY_MODE_VALUES,
   FIRST_PLAYER_TOKEN_MOTION_VALUES,
   FRAME_RATE_VALUES,
+  COUCH_MODE_VALUES,
   RENDER_SCALE_VALUES,
   SHARP_TEXT_RESOLUTION_CEILING,
   VILLAIN_AUTO_ADVANCE_VALUES,
   VILLAIN_BEAT_SPEED_VALUES,
   FLIP_ENCOUNTER_SPEED_VALUES,
+  clampGlyphSize,
   clampMusicVolume,
   defaultSettings,
   resolutionPixelsOf,
   type Settings,
   type Resolution,
 } from "./settings.js";
+import { KEYBOARD_HAND_VALUES } from "./view/input-shortcuts.js";
+import { PAD_FAMILY_SETTING_VALUES } from "./view/pad-family.js";
 
 export const SETTINGS_KEY = "mc-settings";
 export const SETTINGS_VERSION = 1;
@@ -50,6 +54,9 @@ const BOOLEAN_FIELDS = [
   "hoverVillainCard",
   "ultronDroneArt",
   "powerSavingAdjust",
+  "nintendoLayout",
+  "inputGlyphs",
+  "discordPresence",
 ] as const;
 
 export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
@@ -91,10 +98,16 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   if (popupSizeValue !== undefined) out.achievementPopupSize = popupSizeValue;
   const renderScaleValue = RENDER_SCALE_VALUES.find((value) => value === source["renderScale"]);
   if (renderScaleValue !== undefined) out.renderScale = renderScaleValue;
+  const couchModeValue = COUCH_MODE_VALUES.find((value) => value === source["couchMode"]);
+  if (couchModeValue !== undefined) out.couchMode = couchModeValue;
   const frameRateValue = FRAME_RATE_VALUES.find((value) => value === source["frameRate"]);
   if (frameRateValue !== undefined) out.frameRate = frameRateValue;
   const displayModeValue = DISPLAY_MODE_VALUES.find((value) => value === source["displayMode"]);
   if (displayModeValue !== undefined) out.displayMode = displayModeValue;
+  const padFamilyValue = PAD_FAMILY_SETTING_VALUES.find((value) => value === source["padGlyphFamily"]);
+  if (padFamilyValue !== undefined) out.padGlyphFamily = padFamilyValue;
+  const keyboardHandValue = KEYBOARD_HAND_VALUES.find((value) => value === source["keyboardHand"]);
+  if (keyboardHandValue !== undefined) out.keyboardHand = keyboardHandValue;
   const drawResolution = source["resolution"];
   if (
     drawResolution === "native" ||
@@ -104,6 +117,8 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   }
   const musicVolume = source["musicVolume"];
   if (typeof musicVolume === "number" && Number.isFinite(musicVolume)) out.musicVolume = clampMusicVolume(musicVolume);
+  const glyphSize = source["glyphSize"];
+  if (typeof glyphSize === "number" && Number.isFinite(glyphSize)) out.glyphSize = clampGlyphSize(glyphSize);
   const effectsVolume = source["effectsVolume"];
   if (typeof effectsVolume === "number" && Number.isFinite(effectsVolume)) {
     out.effectsVolume = clampMusicVolume(effectsVolume);

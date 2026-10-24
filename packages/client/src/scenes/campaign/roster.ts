@@ -168,6 +168,7 @@ export class CampaignRosterScene extends Phaser.Scene {
       blocked: () => this.scene.isActive(SCENES.nameConflict) || (this.#pickerSearch?.focused ?? false),
       onCancel: () => this.#onCancel(),
       onPage: (direction) => this.#pickerList?.scrollByPage(direction),
+      onScroll: (_dx, dy) => this.#pickerList?.scrollByPx(dy),
       onHomeEnd: (edge) => (edge === "home" ? this.#pickerList?.scrollToStart() : this.#pickerList?.scrollToEnd()),
     });
     this.#campaignId = data.campaignId;

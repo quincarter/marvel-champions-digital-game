@@ -62,6 +62,7 @@ import {
   type ResolvedComicBeat,
 } from "../../view/comic-reader-model.js";
 import { appSession, campaignService } from "../../session.js";
+import { bindExtraInput } from "../extra-input.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
 import type { CampaignOpenerData } from "./routes.js";
@@ -140,6 +141,16 @@ export class CampaignOpenerScene extends Phaser.Scene {
       }
     };
     this.input.keyboard?.on("keydown", onArrow);
+    bindExtraInput(this, {
+      intents: {
+        right: () => {
+          if (this.#comicSteps.length > 0) this.#advanceComic();
+        },
+        left: () => {
+          if (this.#comicSteps.length > 0) this.#backComic();
+        },
+      },
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.input.keyboard?.off("keydown", onArrow));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.#panTween?.stop());
     this.#spotPan = new SpotlightAutoPan(this, () => this.#draw());

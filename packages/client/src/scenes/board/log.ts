@@ -15,6 +15,7 @@
 
 import type Phaser from "phaser";
 import { accent, border, ink, signal, status, surface, typeRole } from "../../tokens.js";
+import type { GlyphHints } from "../../ui/glyph-hints.js";
 import { caseOf, textStyle } from "../../ui/theme.js";
 import { dashedRect, fitText, label, paintPanel } from "../../ui/widgets.js";
 import type { Rect } from "../../view/layout.js";
@@ -92,6 +93,16 @@ export class LogPanel {
     this.#scrollBy(lines);
   }
 
+  /** The right stick while the log has focus: `dy` pixels (positive scrolls toward the newest line) at the wheel's pace. */
+  onPadScroll(dy: number): void {
+    if (!this.#rect) return;
+    this.#wheelCarry += dy;
+    const lines = Math.trunc(this.#wheelCarry / WHEEL_PX_PER_LINE);
+    if (lines === 0) return;
+    this.#wheelCarry -= lines * WHEEL_PX_PER_LINE;
+    this.#scrollBy(lines);
+  }
+
   /**
    * The desktop/tablet-landscape Log zone's own tutorial lock (guided mode G8 part 2, `docs/guided-mode.md` §3.11):
    * the same panel frame and "log" header as `draw`, but dashed, with `reason` in place of any real lines — "stay
@@ -114,11 +125,13 @@ export class LogPanel {
       .setWordWrapWidth(rect.width - PAD_X * 2);
   }
 
-  draw(scene: Phaser.Scene, rect: Rect, log: LogState): void {
+  draw(scene: Phaser.Scene, rect: Rect, log: LogState, hints?: GlyphHints): void {
     this.#rect = rect;
     const g = scene.add.graphics();
     paintPanel(g, rect, "rail", "rest");
     label(scene, rect.x + PAD_X, rect.y + 6, "log", typeRole.label, surface.ink.hex, ink.label);
+    // L / View, at the header's right edge (only where the board shows glyphs at all).
+    hints?.rightInRow(rect, rect.y, HEADER_HEIGHT, PAD_X, ["log"], 16);
 
     const x = rect.x + PAD_X;
     const textWidth = Math.max(40, rect.width - PAD_X * 2 - TRACK_GUTTER);

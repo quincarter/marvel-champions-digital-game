@@ -94,6 +94,7 @@ export class CampaignSagaScene extends Phaser.Scene {
       blocked: () => this.scene.isActive(SCENES.unlockConfirm),
       onCancel: () => goToScreen(this, SCENES.title),
       onPage: (direction) => this.#phoneList?.scrollByPage(direction),
+      onScroll: (_dx, dy) => this.#phoneList?.scrollByPx(dy),
       onHomeEnd: (edge) => (edge === "home" ? this.#phoneList?.scrollToStart() : this.#phoneList?.scrollToEnd()),
     });
     this.#rows = [];

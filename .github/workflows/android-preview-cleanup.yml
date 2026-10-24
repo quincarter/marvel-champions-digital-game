@@ -1,5 +1,6 @@
-# Deletes a pull request's Android preview pre-release and its tag (netlify-deploy.yml's android-preview job) once the
-# pull request closes, merged or not, so the Releases page only lists real releases and the previews still open.
+# Deletes a pull request's Android and Linux preview pre-releases and their tags (netlify-deploy.yml's android-preview
+# and linux-preview jobs) once the pull request closes, merged or not, so the Releases page only lists real releases
+# and the previews still open.
 name: Android preview cleanup
 
 on:
@@ -18,4 +19,9 @@ jobs:
       - env:
           GH_TOKEN: ${{ github.token }}
           TAG: android-preview-pr-${{ github.event.pull_request.number }}
+        run: gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || echo "No preview for $TAG."
+      # The Linux AppImage preview (netlify-deploy.yml's linux-preview job).
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: linux-preview-pr-${{ github.event.pull_request.number }}
         run: gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || echo "No preview for $TAG."

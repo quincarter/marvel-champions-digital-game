@@ -362,6 +362,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VSCMD_SKIP_SENDTELEMETRY: "1"
+          # Discord Rich Presence's public application id, compiled in (src-tauri/src/discord_presence.rs); empty keeps the default.
+          MC_DISCORD_APP_ID: ${{ vars.DISCORD_APP_ID }}
           # The production save-transfer Worker (save-data/transfer-config.ts). The Vite build bakes it in; without it
           # the desktop apps say online sync is unavailable (v0.36.2 and earlier).
           VITE_SYNC_URL: >-

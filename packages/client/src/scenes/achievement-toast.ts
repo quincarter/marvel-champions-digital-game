@@ -44,6 +44,7 @@ import {
 } from "../view/achievement-toast.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import { lerp } from "../view/motion-math.js";
+import { bindExtraInput } from "./extra-input.js";
 import { CHROME_SCENES, SCENES } from "./keys.js";
 
 /** How often it looks for something newly earned. */
@@ -110,6 +111,19 @@ export class AchievementToastScene extends Phaser.Scene {
     this.input.keyboard?.on("keydown-ESC", () => {
       if (this.#list) this.collapse();
     });
+    // B closes the open list as Escape does. A closed popup has nothing to answer, so the pad leaves it alone.
+    bindExtraInput(this, {
+      intents: {
+        cancel: () => {
+          if (this.#list) this.collapse();
+        },
+      },
+    });
+  }
+
+  /** The opened list of achievements is up: it owns B / Esc, so the Board holds its own input meanwhile. */
+  get listOpen(): boolean {
+    return this.#list?.phase === "open";
   }
 
   /** Read by the debug snapshot (`ui/debug-dump.ts`) and the e2e specs. */

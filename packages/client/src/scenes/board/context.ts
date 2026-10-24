@@ -12,6 +12,7 @@ import type { ReferenceCardView } from "../../view/reference-cards.js";
 import type Phaser from "phaser";
 import type { InstanceId, PlayerId } from "@mc/engine";
 import type { CardArt } from "../../art/card-art.js";
+import type { GlyphHints } from "../../ui/glyph-hints.js";
 import type { McButton, McSelectionRing } from "../../ui/widgets.js";
 import type { Highlights } from "../../view/highlights.js";
 import type { Rect } from "../../view/layout.js";
@@ -135,6 +136,8 @@ export interface BoardDrawContext {
   /** Called when the schemes column or the play area row scrolls without a redraw, so rings that follow its cards move with them. */
   readonly onRegionScroll: () => void;
   readonly frame: BoardFrame;
+  /** The key and button glyph hints for this draw (`ui/glyph-hints.ts`); they only show on the untabbed layouts. */
+  readonly hints: GlyphHints;
   /** Timed motions still live from the most recently landed state — status stamps, an exhaust turn, an HP/threat count, the defeat flash. */
   readonly motion: BoardMotion;
   /** Team-Up rings for the hero panels, when any Team-Up with a closeup is active. */

@@ -42,6 +42,8 @@ import { shortSeatName } from "../view/names.js";
 import { drawSeatAvatar } from "./seat-avatar.js";
 import { bindHoldTarget } from "./hold-target.js";
 import { textStyle } from "./theme.js";
+import type { ShortcutId } from "../view/input-shortcuts.js";
+import type { GlyphGround } from "./input-glyph.js";
 import { McButton, fitText, fitWrapped, label } from "./widgets.js";
 
 /** What the body shows: the encounter card being revealed (D2), or the activation / narration happening now (D1). */
@@ -139,6 +141,8 @@ export interface RailPanelArgs {
   readonly onFlip?: (() => void) | null;
   readonly autoAdvance: VillainAutoAdvance;
   readonly buttons: McButton[];
+  /** Gives a button its key / pad glyph where the layout has room (`ui/glyph-hints.ts`); absent where there are none. */
+  readonly hint?: (button: McButton, ids: readonly ShortcutId[], ground?: GlyphGround, primary?: string) => void;
   readonly onSkip: () => void;
   readonly onHide: () => void;
   readonly onToggle: () => void;
@@ -188,12 +192,14 @@ export function drawVillainRailPanel(scene: Phaser.Scene, args: RailPanelArgs): 
     .setLetterSpacing(1);
   fitText(title, layout.title.width, 40);
 
-  const button = (key: string, text: string, rect: Rect, onClick: () => void): void => {
-    args.buttons.push(new McButton(scene, { kind: "onInk", label: text, type: typeRole.label, rect, onClick }));
+  const button = (key: string, text: string, rect: Rect, onClick: () => void, glyph: ShortcutId): void => {
+    const made = new McButton(scene, { kind: "onInk", label: text, type: typeRole.label, rect, onClick });
+    args.buttons.push(made);
+    args.hint?.(made, [glyph], "ink");
     stops.set(key, { rect, activate: onClick });
   };
-  button("skip", "Skip", layout.skip, args.onSkip);
-  button("hide", layout.kind === "tab" ? "Peek at table ▾" : "Hide ▸", layout.hide, args.onHide);
+  button("skip", "Skip", layout.skip, args.onSkip, "cancel");
+  button("hide", layout.kind === "tab" ? "Peek at table ▾" : "Hide ▸", layout.hide, args.onHide, "peek");
 
   if (layout.subtitle.width > 0) drawSubtitle(scene, layout, args.subtitle);
 
@@ -1031,16 +1037,16 @@ function drawGate(
     ground.fillStyle(surface.ink.hex, 1).fillRect(rect.x - 8, rect.y - 6, rect.width + 16, rect.height + 12);
   }
   const key = gate.kind === "start" ? "start" : "answer";
-  args.buttons.push(
-    new McButton(scene, {
-      kind: "primary",
-      label: gate.kind === "start" ? "Start villain phase ▸" : "Answer ▸",
-      type: { ...typeRole.barTitle, size: args.layout.kind === "tab" ? 22 : 26 },
-      rect,
-      tint: { fill: signal.caution.hex, ink: surface.ink.hex },
-      onClick: gate.onPress,
-    }),
-  );
+  const gateButton = new McButton(scene, {
+    kind: "primary",
+    label: gate.kind === "start" ? "Start villain phase ▸" : "Answer ▸",
+    type: { ...typeRole.barTitle, size: args.layout.kind === "tab" ? 22 : 26 },
+    rect,
+    tint: { fill: signal.caution.hex, ink: surface.ink.hex },
+    onClick: gate.onPress,
+  });
+  args.buttons.push(gateButton);
+  args.hint?.(gateButton, ["activate"], "ink", key);
   stops.set(key, { rect, activate: gate.onPress });
 }
 

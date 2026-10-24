@@ -34,6 +34,8 @@ import type { LessonListEntry } from "../view/lesson-model.js";
 import type { RoundDebriefData } from "./round-debrief.js";
 import { instanceId, playerId, type GameEvent } from "@mc/engine";
 import { devAspectOf } from "../guide/aspects.js";
+import { notePadInput } from "../platform/input-device.js";
+import { detectPad } from "../view/pad-family.js";
 
 /**
  * Dev-only screenshot entry point: `?screen=…` jumps straight past Title, for
@@ -113,6 +115,34 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   const params = new URLSearchParams(location.search);
   const screen = params.get("screen");
   if (!screen) return null;
+  // `&boardpad=1` (any screen but controls): a fake Xbox pad was the last input, so the board shows pad glyphs.
+  if (params.get("boardpad") === "1")
+    notePadInput(detectPad("Xbox 360 Controller (STANDARD GAMEPAD Vendor: 045e Product: 028e)"));
+  // `&padhold=lt|rt` (with `boardpad=1`): the board draws that hold layer's sheet as if the trigger were held.
+  // `&padfake=1`: a connected standard pad whose buttons the page can press, for screenshots of a held trigger and a
+  // bumper press: `__fakePad.buttons[7].value = 1` holds RT, `[5]` is RB (set `pressed` and `value`, then back).
+  if (params.get("padfake") === "1") {
+    const button = () => ({ pressed: false, touched: false, value: 0 });
+    const pad = {
+      connected: true,
+      id: "Xbox 360 Controller (STANDARD GAMEPAD Vendor: 045e Product: 028e)",
+      index: 0,
+      mapping: "standard",
+      timestamp: 0,
+      buttons: Array.from({ length: 17 }, button),
+      axes: [0, 0, 0, 0],
+    };
+    (globalThis as { __fakePad?: unknown }).__fakePad = pad;
+    Object.defineProperty(navigator, "getGamepads", {
+      value: () => {
+        pad.timestamp = performance.now();
+        return [pad];
+      },
+      configurable: true,
+    });
+  }
+  const padHold = params.get("padhold");
+  if (padHold === "lt" || padHold === "rt") (globalThis as { __devPadHold?: string }).__devPadHold = padHold;
 
   if (screen === "scenario-select" || screen === "seats" || screen === "table-setup" || screen === "set-cards") {
     // `&scenario=<id>&deck=<precon deck id>`: which scenario/precon this dev jump seats, for screenshotting a
@@ -249,6 +279,25 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   }
   // `?screen=trophies`: the Trophy Room; seed saves into IndexedDB first to see earned rows.
   if (screen === "trophies") return { key: SCENES.trophyRoom, data: {} };
+  // `?screen=controls`: Settings ▸ Controls (`&pad=xbox|playstation|nintendo|handheld` fakes the last pad seen, for the drawing).
+  if (screen === "controls") {
+    const fakePads: Readonly<Record<string, string>> = {
+      xbox: "Xbox 360 Controller (STANDARD GAMEPAD Vendor: 045e Product: 028e)",
+      playstation: "DualSense Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 0ce6)",
+      nintendo: "Pro Controller (STANDARD GAMEPAD Vendor: 057e Product: 2009)",
+      handheld: "Steam Deck (STANDARD GAMEPAD Vendor: 28de Product: 1205)",
+    };
+    const fake = fakePads[params.get("pad") ?? ""];
+    if (fake) {
+      notePadInput(detectPad(fake));
+      // The status line reads the browser's connected pads: stand one in.
+      Object.defineProperty(navigator, "getGamepads", {
+        value: () => [{ connected: true, id: fake, index: 0, mapping: "standard", buttons: [], axes: [] }],
+        configurable: true,
+      });
+    }
+    return { key: SCENES.controls, data: {} };
+  }
   // `?screen=credits`: Art & Credits.
   if (screen === "credits") return { key: SCENES.credits, data: {} };
   // `?screen=extras-reader&book=book:rrg`: one rulebook in the Extras reader.
@@ -348,6 +397,17 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     if (!gameRunning(store)) {
       const { startCrowdedGame } = await import("../store/dev-crowded-game.js");
       await startCrowdedGame(store);
+    }
+    return { key: SCENES.board, data: {} };
+  }
+
+  // `&fixture=abilities`: Captain Marvel's turn with five or more usable abilities on the table, so the pad's RT layer
+  // has a second page (`store/dev-many-abilities-game.ts`).
+  if (screen === "board" && params.get("fixture") === "abilities") {
+    const { store } = appSession();
+    if (!gameRunning(store)) {
+      const { startManyAbilitiesGame } = await import("../store/dev-many-abilities-game.js");
+      await startManyAbilitiesGame(store);
     }
     return { key: SCENES.board, data: {} };
   }

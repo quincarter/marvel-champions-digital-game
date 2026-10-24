@@ -4,6 +4,8 @@ import {
   frameRateRowInfoOf,
   nextSettingsAfterFrameRate,
   nextSettingsAfterRenderScale,
+  nextSettingsAfterCouchMode,
+  couchModeRowInfoOf,
   renderScaleRowInfoOf,
   nextSettingsAfterDisplayMode,
   nextSettingsAfterResolution,
@@ -65,7 +67,14 @@ const BASE: Settings = {
   achievementPopupTime: "5s",
   achievementPopupPlace: "middle",
   achievementPopupSize: "medium",
+  padGlyphFamily: "auto",
+  nintendoLayout: true,
+  inputGlyphs: true,
+  discordPresence: true,
+  glyphSize: 130,
+  keyboardHand: "left",
   renderScale: "native",
+  couchMode: "off",
   frameRate: "screen",
 };
 
@@ -100,7 +109,14 @@ describe("settingsRowInfoOf", () => {
       achievementPopupTime: "5s",
       achievementPopupPlace: "middle",
       achievementPopupSize: "medium",
+      padGlyphFamily: "auto",
+      nintendoLayout: true,
+      inputGlyphs: true,
+      discordPresence: true,
+      glyphSize: 130,
+      keyboardHand: "left",
       renderScale: "1x",
+      couchMode: "125%",
       frameRate: "30",
     });
     expect(rows.find((r) => r.id === "reduced-motion")?.on).toBe(true);
@@ -498,5 +514,20 @@ describe("the Screen rows' recommendation", () => {
   test("Frame rate names the recommended rate", () => {
     expect(frameRateRowInfoOf(BASE, 120, false, advice).detail).toContain("Recommended for this device: 60 fps.");
     expect(frameRateRowInfoOf(BASE, 60, false, advice).detail).toContain("Recommended for this device: Screen.");
+  });
+});
+
+describe("couch mode row", () => {
+  test("it offers Off to 200% with the saved one selected, and ignores a value that is not offered", () => {
+    const info = couchModeRowInfoOf({ ...defaultSettings(), couchMode: "175%" });
+    expect(info.options.map((o) => o.label)).toEqual(["Off", "125%", "150%", "175%", "200%"]);
+    expect(info.selected).toBe("175%");
+    const base = defaultSettings();
+    expect(nextSettingsAfterCouchMode(base, "200%").couchMode).toBe("200%");
+    expect(nextSettingsAfterCouchMode(base, "300%" as never)).toBe(base);
+    // A 1280 wide window keeps the game at 768 or more: only 125% and 150% fit (and 175% when it is the saved one).
+    const narrow = couchModeRowInfoOf(base, 1280);
+    expect(narrow.options.map((o) => o.label)).toEqual(["Off", "125%", "150%"]);
+    expect(couchModeRowInfoOf({ ...base, couchMode: "200%" }, 1280).options.map((o) => o.label)).toContain("200%");
   });
 });

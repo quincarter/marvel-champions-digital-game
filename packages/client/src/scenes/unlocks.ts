@@ -77,6 +77,7 @@ export class UnlocksOverlay extends Phaser.Scene {
         if (this.#guide) this.#guideRegion?.scrollByPx(direction * 240);
         else this.#list?.scrollByPage(direction);
       },
+      onScroll: (_dx, dy) => (this.#guide ? this.#guideRegion : this.#list)?.scrollByPx(dy),
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);

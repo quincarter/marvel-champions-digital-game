@@ -48,6 +48,10 @@ import { playerName } from "../view/names.js";
 import { linearIntent, type GamepadIntent } from "../view/gamepad.js";
 import { spatialStep, type FocusDirection } from "../view/spatial-nav.js";
 import { sameTarget, stepFocus, type FocusTarget } from "../view/focus.js";
+import { rowScrollOf, scrollTargetOf, tabOfStop, zoneJump, type ZoneMembers } from "../view/board-zones.js";
+import { abilityInSlot, abilitySlotsOf } from "../view/ability-slots.js";
+import { boardKeyActionOf, choiceSlotOf, typingInTextField } from "../view/keyboard-intent.js";
+import { eventOnce } from "../view/event-once.js";
 import {
   PHONE_TABS,
   boardLayout,
@@ -57,7 +61,7 @@ import {
   type PhoneTab,
   type Rect,
 } from "../view/layout.js";
-import { cardSizeFactor } from "../settings.js";
+import { cardHoverFactor, cardSizeFactor } from "../settings.js";
 import { onTap, setTapOccluders } from "../ui/tap.js";
 import { TableDrag, clampScroll, fullyInWindow, revealScroll, wheelPixels } from "../view/table-scroll.js";
 import { choiceDock } from "../view/choice-dock.js";
@@ -74,6 +78,7 @@ import { CHROME_SCENES, SCENES } from "./keys.js";
 import { tableSoundsOf, type CardSoundInfo } from "../view/sound-effects.js";
 import { HoverPreview, isMousePointer } from "../ui/card-hover-preview.js";
 import { hoverArea } from "../view/card-hover.js";
+import { zoomCardOf } from "../view/inspect-hold.js";
 import { sheetIsCovered } from "../view/choice-sheet-sync.js";
 import { syncSceneClock } from "../ui/scene-clock.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
@@ -86,11 +91,22 @@ import { ASPECT_TRYIT_LESSONS } from "../guide/aspect-lessons.js";
 import { MECHANIC_TRYIT_LESSONS } from "../guide/mechanic-lessons.js";
 import { MECHANIC_TRYITS, mechanicLessonDoneKey } from "../guide/mechanic-tryits.js";
 import { drawActionBar } from "./board/action-bar.js";
+import { specsForShortcuts, type CustomSpecs } from "../ui/glyph-hints.js";
+import { abilityActionOfSlot, layerButtonGlyph, layerTriggerGlyph, type GlyphSpec } from "../view/input-glyph-model.js";
+import { abilityPageCount, abilityPageOf, layerActionOf, type PadLayer } from "../view/pad-layers.js";
+import type { LayerActionId } from "../view/pad-layer-bindings.js";
+import { layerMarkerSpot } from "../view/layer-marker.js";
+import { nextAbilityPage } from "../view/pad-layer-hold.js";
 import { drawCharacter } from "./board/character-panel.js";
 import { drawDealtPile } from "./board/dealt-pile.js";
 import { dealtCaption, dealtReasonsOf } from "../view/dealt-pile.js";
 import { drawChrome, drawPhoneTabs } from "./board/chrome.js";
 import { BoardFirstPlayerToken } from "./board/first-player-token.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
+import { glyphsFitLayout } from "../view/glyph-placement.js";
+import { escapeMeaning } from "../view/escape-meaning.js";
+import { guideHintText } from "../view/guide-hint.js";
+import { inputDevice, onInputDeviceChange } from "../platform/input-device.js";
 import { emptyFrame, type BoardDrawContext, type BoardFrame } from "./board/context.js";
 import { BoardController, type SourceChoiceView } from "./board/controller.js";
 import type { GuideGate } from "./board/guide-gate.js";
@@ -102,7 +118,13 @@ import type { LessonObservation } from "../view/lesson-model.js";
 import { drawHand, HandScroll } from "./board/hand.js";
 import type { RowDrag } from "../view/hand-scroll.js";
 import { PlayAreaScroll } from "../view/play-area-row.js";
-import { bindGamepad, bindKeyboard, type IntentBinding } from "./board/input.js";
+import {
+  bindGamepad,
+  bindKeyboard,
+  conflictPromptOwnsInput,
+  currentKeyboardHand,
+  type IntentBinding,
+} from "./board/input.js";
 import { BoardMotion } from "./board/motion.js";
 import { drawSchemes, SchemeScrollState } from "./board/schemes.js";
 import { drawTargetingPanel, type TargetingHover } from "./board/targeting-panel.js";
@@ -140,6 +162,7 @@ import { referenceCardViews, type ReferenceCardView } from "../view/reference-ca
 import { destroyChildren } from "../ui/destroy-children.js";
 import { campaignBeatFor } from "../view/campaign-beat-model.js";
 import type { CampaignBeatData } from "./campaign/routes.js";
+import type { AchievementToastScene } from "./achievement-toast.js";
 
 /** Every Team-Up pair the card pool names; built once, since the pool never changes under a running game. */
 const TEAM_UP_PAIRS = teamUpPairsOf(POOL_CARDS);
@@ -189,6 +212,8 @@ export class BoardScene extends Phaser.Scene {
   #cardHistory: CardHistoryLog = emptyCardHistoryLog();
   /** What the last draw left behind: hit rects, focus rects, and the widgets to destroy before the next one. */
   #frame: BoardFrame = emptyFrame();
+  /** The key and button glyphs, kept current in place between redraws. */
+  #hints!: GlyphHints;
   #version = -1;
   /** How much of the command trail the table's sounds have played; -1 until the first state, which is never played. */
   #soundTrail = -1;
@@ -200,6 +225,13 @@ export class BoardScene extends Phaser.Scene {
    */
   #logAt = new Map<number, { readonly log: LogState; readonly cardHistory: CardHistoryLog }>();
   #choiceOpen = false;
+  /** The hold layer LT / RT has the pad in (`view/pad-layers.ts`), its ability page, and the sheet drawn for it. */
+  #padLayer: PadLayer | null = null;
+  #layerPage = 0;
+  /** The page's abilities by card, for the RT layer's glyphs on the cards; rebuilt when the layer, page or table changes. */
+  #layerAssign: ReadonlyMap<InstanceId, readonly LayerActionId[]> | null = null;
+  /** The "page n/m" word beside the paging glyph, rewritten as the page turns. */
+  #pageWord: Phaser.GameObjects.Text | null = null;
   /** Set by `#openVillainWalkthrough`'s launch until the walkthrough is actually running (`#tableCoveredForBand`). */
   #walkthroughLaunching = false;
   #saveFailureAnnounced = false;
@@ -213,6 +245,13 @@ export class BoardScene extends Phaser.Scene {
   /** Keyboard focus: what is focused, not where — the "where" is re-derived each draw. */
   #focus: FocusTarget | null = null;
   #focusRing: McSelectionRing | null = null;
+  /**
+   * The game log has focus (View on a pad, L on a keyboard): the log is a scroll panel with no stops of its own, so this is
+   * what the right stick scrolls and what the ring is drawn round. Any move of the board's own focus ends it.
+   */
+  #logFocused = false;
+  /** Where the log panel was drawn last, or null while this layout is not showing it (another phone tab, a guided lock). */
+  #logRect: Rect | null = null;
   /**
    * Which surface keyboard/pad focus is currently in (§3.10, §7 accessibility fix — guided mode's rail/callout
    * and opportunistic tip toast were unreachable by keyboard/pad). "G"/the pad's X toggles between them
@@ -247,6 +286,8 @@ export class BoardScene extends Phaser.Scene {
    * guide level is "the main use" in an ordinary game (`scenes/board/tip-mount.ts`'s own header). */
   #tip: BoardTipMount | null = null;
   #hover: HoverPreview | null = null;
+  /** True while Inspect is held past the tap: the focused card shows enlarged (`#setZoom`). */
+  #zoomOn = false;
 
   readonly #controller = new BoardController({
     model: () => this.#model,
@@ -361,7 +402,20 @@ export class BoardScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.#hints = new GlyphHints(this, () => [
+      ...this.#frame.hitRects.values(),
+      ...this.#frame.focusRects.values(),
+      ...this.#frame.pileRects.values(),
+    ]);
+    this.#watchGuideHint();
     this.#walkthroughLaunching = false;
+    // Dev only: `?padhold=lt|rt` (`boot-dev-jump.ts`) shows a layer's sheet with no real trigger, for screenshots.
+    const devHold = import.meta.env.DEV ? (globalThis as { __devPadHold?: unknown }).__devPadHold : undefined;
+    this.#padLayer = devHold === "lt" || devHold === "rt" ? devHold : null;
+    this.#layerPage = 0;
+    this.#layerAssign = null;
+    this.#pageWord = null;
+    this.#hints.setLayer(this.#padLayer);
     this.#outcomeHeld = false;
     this.#villainReplay = null;
     holdTableGame(null);
@@ -391,6 +445,7 @@ export class BoardScene extends Phaser.Scene {
     this.#tabBadges.clear();
     this.#tabChanged.clear();
     this.#focus = null;
+    this.#zoomOn = false;
     this.#controller.setUndoFocus(false);
     this.#focusRegion = "board";
     this.#guideFocusOwner = null;
@@ -415,34 +470,7 @@ export class BoardScene extends Phaser.Scene {
     this.#hover = new HoverPreview(this, {
       cards: () => this.#frame.hitRects,
       facedown: () => this.#frame.facedownHovers,
-      area: (pointer) => {
-        const { width, height } = this.scale.gameSize;
-        // A choice sheet the docked villain phase covers is hidden and inert (`sheetIsCovered`): it is no overlay.
-        const manager = this.scene.manager;
-        const sheetCovered = sheetIsCovered({
-          coverActive: this.scene.isActive(SCENES.villainPhase),
-          coverIndex: manager.getIndex(SCENES.villainPhase),
-          sheetIndex: manager.getIndex(SCENES.choice),
-        });
-        const overlays = Object.values(SCENES).filter(
-          (key) =>
-            key !== SCENES.board &&
-            key !== SCENES.music &&
-            !CHROME_SCENES.has(key) &&
-            // Docked in the villain phase's panel, the sheet leaves the table beside it to read (#231).
-            !(key === SCENES.choice && (sheetCovered || choiceDock() !== null || choicePeeking())) &&
-            this.scene.isActive(key),
-        );
-        return hoverArea({
-          formFactor: formFactorFor(width, height),
-          mouse: isMousePointer(pointer),
-          scale: appSession().settings.cardHoverScale,
-          overlays,
-          villainPhaseKey: SCENES.villainPhase,
-          dockPanel: this.#villainDockRects?.panel ?? null,
-          viewport: { x: 0, y: 0, width, height },
-        });
-      },
+      area: (pointer) => this.#hoverArea(isMousePointer(pointer)),
     });
     // When the villain phase closes, the table draws again without it: its review handle (`#drawVillainReviewHandle`)
     // only shows once the phase is gone, and nothing else redraws the Board at that moment.
@@ -497,43 +525,23 @@ export class BoardScene extends Phaser.Scene {
         this.scene.isActive(SCENES.syncConflict) ||
         // "Hold on!" owns Escape (it dismisses with nothing sent); without this the board's own Escape opened Pause
         // on top of it.
-        this.scene.isActive(SCENES.holdOn),
+        this.scene.isActive(SCENES.holdOn) ||
+        // The "You can still…" question owns the keys too: a shortcut must not act on the table beneath it.
+        this.scene.isActive(SCENES.endTurnConfirm) ||
+        // The opened achievements list owns B (it collapses on it): the same press must not also reach the table. The
+        // toast scene itself runs all the time (boot.ts), so it is the open list that counts, not the scene.
+        (this.scene.get(SCENES.achievementToast) as AchievementToastScene | null)?.listOpen === true,
       onIntent: (intent) => this.#actOnIntent(intent),
+      onScroll: (dx, dy) => this.#scrollFocused(dx, dy),
+      onLayer: (layer) => this.#setPadLayer(layer),
+      onViewTap: () => this.#actOnIntent("recap"),
+      onInspectZoom: (zooming) => this.#setZoom(zooming),
+      // Card hover size "off" turns the zoom off with the mouse popover: a hold is then a tap.
+      zoomEnabled: () => cardHoverFactor(appSession().settings.cardHoverScale) !== null,
+      onLayerPress: (layer, index) => this.#pressLayer(layer, index),
     };
     bindKeyboard(this, binding);
-    // T opens the Team-Up panel for the first active pair: the keyboard route to the badge's click.
-    this.input.keyboard?.on("keydown-T", () => {
-      if (!binding.blocked() && this.#teamUps.length > 0) this.#openTeamUpInfo(this.#teamUps[0]!);
-    });
-    // E opens Baron Zemo's Evidence view, the keyboard route to the chrome's EVIDENCE button.
-    this.input.keyboard?.on("keydown-E", () => {
-      if (!binding.blocked() && this.#hasEvidence()) this.#openEvidence();
-    });
-    // Z (and Ctrl/Cmd+Z) is Undo (`view/undo.ts`), the keyboard route to the action bar's Undo button.
-    this.input.keyboard?.on("keydown-Z", () => {
-      if (!binding.blocked()) void this.#controller.undo();
-    });
-    // 1 to 3 answer "Which one?" (a played event with several usable Action abilities).
-    ["ONE", "TWO", "THREE"].forEach((key, index) => {
-      this.input.keyboard?.on(`keydown-${key}`, () => {
-        const option = this.#controller.abilityChoice()?.options[index];
-        if (option && !binding.blocked()) void this.#controller.chooseEventAbility(option.abilityId);
-      });
-    });
-    // 1 and 2 answer "Thwart with?" (THW or ATK against The Red House).
-    ["ONE", "TWO"].forEach((key, index) => {
-      this.input.keyboard?.on(`keydown-${key}`, () => {
-        const option = this.#controller.thwartStatChoice()?.options[index];
-        if (option && !binding.blocked()) void this.#controller.chooseThwartStat(option.useAtk);
-      });
-    });
-    // 1 and 2 answer "Where does it go?" (an ally that may enter the mission area as well as the player's own).
-    ["ONE", "TWO"].forEach((key, index) => {
-      this.input.keyboard?.on(`keydown-${key}`, () => {
-        const option = this.#controller.destinationChoice()?.options[index];
-        if (option && !binding.blocked()) void this.#controller.chooseDestination(option);
-      });
-    });
+    this.#bindBoardShortcuts(binding);
     bindGamepad(this, binding);
     // A wheel/trackpad gesture over the hand scrolls it, on any layout that
     // needs scrolling at all — the tabbed board is the only one that ever
@@ -558,6 +566,7 @@ export class BoardScene extends Phaser.Scene {
     // sheet reports which one was picked, and only the board ever dispatches.
     this.game.events.on("mc-use-ability", this.#onInspectUseAbility, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#zoomOn = false;
       this.#hover?.destroy();
       this.#hover = null;
       this.scale.off("resize", onResize, this);
@@ -615,6 +624,8 @@ export class BoardScene extends Phaser.Scene {
         focusRect: (key: string) => this.#frame.focusRects.get(key) ?? null,
         hitRect: (id: string) => this.#frame.hitRects.get(id as InstanceId) ?? null,
         hoverShown: () => this.#hover?.shownKey ?? null,
+        // The focus ring's key (keyboard or pad moved it), null when nothing is focused.
+        focusedKey: () => (this.#focus ? focusKey(this.#focus) : null),
         allFocusRects: () => [...this.#frame.focusRects.entries()],
         allPileRects: () => [...this.#frame.pileRects.entries()],
         handStrip: () => this.#frame.handStrip[0] ?? null,
@@ -1241,6 +1252,7 @@ export class BoardScene extends Phaser.Scene {
     this.#tabs?.destroy();
     this.#tabs = null;
     this.#frame = emptyFrame();
+    this.#hints.reset();
     destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
@@ -1286,8 +1298,13 @@ export class BoardScene extends Phaser.Scene {
       focusedCard: this.#focusRegion === "board" && this.#focus?.kind === "card" ? this.#focus.instanceId : null,
       playAreaScroll: this.#playAreaScroll,
       formFan: { open: this.#formFanOpen, t: this.#formFanT, setOpen: (open) => this.#setFormFan(open) },
-      onRegionScroll: () => this.#refreshRings(),
+      onRegionScroll: () => {
+        this.#refreshRings();
+        // The RT layer's glyphs sit on cards: they follow a scrolled row.
+        if (this.#padLayer === "rt") this.#hints.refresh();
+      },
       frame: this.#frame,
+      hints: this.#hints,
       motion: this.#motion,
       teamUpRings: this.#teamUpRings(layout.tabbed),
       teamUpRoles: this.#teamUpRoles(model),
@@ -1315,6 +1332,12 @@ export class BoardScene extends Phaser.Scene {
         ...(this.#hasEvidence() ? { onEvidence: () => this.#openEvidence() } : {}),
         buttons: this.#frame.buttons,
         motion: this.#motion,
+        ...(glyphsFitLayout(layout.tabbed)
+          ? {
+              hints: this.#hints,
+              menuHintWhen: (set: "keyboard" | "pad") => set === "pad" || this.#escapeMeaning() === "pause",
+            }
+          : {}),
       });
       if (zones.tabs) this.#drawTabs(zones.tabs, model);
     };
@@ -1354,8 +1377,15 @@ export class BoardScene extends Phaser.Scene {
     // is done. `logGate` is `{ locked: false }` off a guided run, so a plain game never takes this branch.
     const logGate = this.#guide?.logGate() ?? { locked: false, reason: null };
     if (zones.log && logGate.locked) this.#logPanel.drawLocked(this, setAside?.log ?? zones.log, logGate.reason ?? "");
-    else if (zones.log) this.#logPanel.draw(this, setAside?.log ?? zones.log, this.#tableLog());
+    else if (zones.log)
+      this.#logPanel.draw(
+        this,
+        setAside?.log ?? zones.log,
+        this.#tableLog(),
+        glyphsFitLayout(layout.tabbed) ? this.#hints : undefined,
+      );
     else this.#logPanel.hide();
+    this.#logRect = zones.log && !logGate.locked ? (setAside?.log ?? zones.log) : null;
     // Always the wide panel: the identity's attachments only show as chips
     // beside its card, and a tall window can give this slot a card-like shape.
     const compactRow = layout.compactPlayerRow === true;
@@ -1375,6 +1405,8 @@ export class BoardScene extends Phaser.Scene {
     }
     drawHand(ctx, zones.hand!, model);
     drawActionBar(ctx, zones.actionBar!, model);
+    this.#layerAssign = null;
+    this.#registerLayerHints(layout);
     this.#drawTargetingPanel(ctx, { x: 0, y: 0, width, height });
     const searchedPick = this.#controller.searchedPick();
     if (searchedPick) drawSearchedPickSheet(ctx, { x: 0, y: 0, width, height }, searchedPick);
@@ -1590,10 +1622,33 @@ export class BoardScene extends Phaser.Scene {
         break;
       case "activate":
         if (this.#focusRegion === "guide") this.#activateGuideFocus();
-        else if (this.#focus) this.#controller.activate(this.#focus);
+        else if (this.#focus && !this.#logFocused) this.#controller.activate(this.#focus);
         break;
       case "inspect":
-        if (this.#focus?.kind === "card") this.#inspect(this.#focus.instanceId);
+        if (this.#focus?.kind === "card" && !this.#logFocused) this.#inspect(this.#focus.instanceId);
+        break;
+      case "undo":
+        // The Undo button's own press (and Z): greyed with a reason, or a no-op, exactly as there.
+        if (this.#actionBarLive()) void this.#controller.undo();
+        break;
+      case "endTurn":
+        // The End turn button's own press, so its "You can still…" confirm and the guide gate apply unchanged.
+        if (this.#actionBarLive()) this.#controller.activate({ kind: "basic", action: "endTurn" });
+        break;
+      case "pause":
+        this.#openPause();
+        break;
+      case "recap":
+        this.#openVillainReview();
+        break;
+      case "view":
+        this.#toggleLogFocus();
+        break;
+      case "pageNext":
+        this.#jumpZone(1);
+        break;
+      case "pagePrevious":
+        this.#jumpZone(-1);
         break;
       case "toggleGuide":
         this.#toggleGuideFocus();
@@ -1615,6 +1670,12 @@ export class BoardScene extends Phaser.Scene {
         // A zone/choice-anchored step never sets a board gate at all (nothing to release above), but §3.10
         // still promises Escape always works there too — see `BoardGuideMount.handleEscape`'s own doc comment.
         if (this.#guide?.handleEscape()) break;
+        // Backing out of the log's focus comes before Pause, like backing out of any other mode.
+        if (this.#logFocused) {
+          this.#logFocused = false;
+          this.#draw();
+          break;
+        }
         // A visible tip toast dismisses on Escape, like its own "Got it" (guided mode G10e).
         if (this.#tip?.handleEscape()) break;
         // Escape/B backs out of a mode first, same as everywhere else in this
@@ -1626,6 +1687,378 @@ export class BoardScene extends Phaser.Scene {
         else this.#openPause();
         break;
     }
+  }
+
+  /**
+   * True while the action bar's buttons are on the table to press: no villain phase replay is holding the table, the seat
+   * is still in the game and it is the active hero's own turn (`drawActionBar` draws them under exactly these conditions).
+   */
+  #actionBarLive(): boolean {
+    return (
+      this.#model !== null &&
+      !this.#model.meOut &&
+      this.#villainReplay === null &&
+      appSession().store.state.offTurnSeat === null
+    );
+  }
+
+  /** The cards each zone holds right now, for the zone jumps and the right stick (`view/board-zones.ts`). */
+  #zoneMembers(): ZoneMembers | null {
+    const model = this.#model;
+    if (!model) return null;
+    const threat = new Set<InstanceId>([
+      model.mainScheme.instanceId,
+      ...model.extraMainSchemes.map((scheme) => scheme.instanceId),
+      ...model.sideSchemes.map((scheme) => scheme.instanceId),
+      // The pod's neutral area is on the phone's Threat tab, not Enemies (`splitNeutralTab`).
+      ...model.scenarioPlayAreas
+        .filter((area) => area.neutral)
+        .flatMap((area) => area.cards.map((card) => card.instanceId)),
+    ]);
+    return {
+      hand: new Set(model.hand.map((card) => card.instanceId)),
+      playArea: new Set([model.me.instanceId, ...model.myPlayArea.map((card) => card.instanceId)]),
+      villain: new Set<InstanceId>([
+        ...threat,
+        ...model.villains.map((villain) => villain.panel.instanceId),
+        ...model.minions.map((minion) => minion.instanceId),
+        ...model.environments.map((environment) => environment.instanceId),
+        ...model.scenarioPlayAreas.flatMap((area) => area.cards.map((card) => card.instanceId)),
+      ]),
+      threat,
+    };
+  }
+
+  /** LB / RB and [ / ]: focus lands on the first stop of the next (or previous) zone, switching the phone tab to it. */
+  #jumpZone(step: 1 | -1): void {
+    if (this.#focusRegion !== "board") return;
+    const members = this.#zoneMembers();
+    if (!members) return;
+    // From the log, the jump starts over from the top (or bottom) of the table.
+    const from = this.#logFocused ? null : this.#focus;
+    const stop = zoneJump(this.#controller.focusOrder(), members, from, step);
+    if (!stop) return;
+    const tab = tabOfStop(stop, members);
+    if (this.#layout?.tabbed && tab) this.switchToTab(tab);
+    this.#setFocus(stop.target);
+  }
+
+  /** View / L: the log takes focus (the right stick then scrolls it), or gives it back. */
+  #toggleLogFocus(): void {
+    if (this.#focusRegion !== "board") return;
+    if (this.#logFocused) {
+      this.#logFocused = false;
+      this.#draw();
+      return;
+    }
+    const layout = this.#layout;
+    // A guided run keeps the log locked until its last lesson; there is nothing to scroll then.
+    if (!layout || !this.#model || this.#guide?.logGate().locked) return;
+    if (layout.tabbed) this.switchToTab("log");
+    else if (!layout.zones.log) return;
+    this.#logFocused = true;
+    this.#draw();
+  }
+
+  /** The right stick: scrolls the log, the hand or play area row focus is in, or else the table (`view/board-zones.ts`). */
+  #scrollFocused(dx: number, dy: number): void {
+    const members = this.#zoneMembers();
+    if (!members) return;
+    switch (
+      scrollTargetOf(this.#logFocused, this.#focus, members, {
+        hand: this.#hand.canScroll,
+        playArea: this.#playAreaScroll.row.canScroll,
+      })
+    ) {
+      case "log":
+        this.#logPanel.onPadScroll(dy);
+        break;
+      case "hand":
+        this.#hand.padScroll(rowScrollOf(dx, dy));
+        break;
+      case "playArea":
+        this.#playAreaScroll.row.padScroll(rowScrollOf(dx, dy));
+        break;
+      case "table": {
+        const layout = this.#layout;
+        if (layout) this.#scrollTableTo(layout.scrollY + dy);
+        break;
+      }
+    }
+  }
+
+  /**
+   * The shortcuts that are not a pad intent too (`view/keyboard-intent.ts` over the table in `view/input-shortcuts.ts`,
+   * by physical key for the keyboard hand in use): the basic actions press that button, Shift+Space / Shift+Enter End
+   * turn, Ctrl+Z Undo, the zone jumps, the log, Team-Up, Evidence, and the numbered abilities; digits 1-3 answer a small
+   * choice bar first. All held while `binding.blocked()`, and never while typing in a text field.
+   */
+  #bindBoardShortcuts(binding: IntentBinding): void {
+    const firstDelivery = eventOnce();
+    this.input.keyboard?.on("keydown", (event: KeyboardEvent) => {
+      // Phaser replays a frame's queue on every key event, so a chord (Shift+Enter) arrives more than once.
+      if (!firstDelivery(event)) return;
+      if (binding.blocked() || conflictPromptOwnsInput(this) || typingInTextField(event)) return;
+      const hand = currentKeyboardHand();
+      const slot = choiceSlotOf(event, hand);
+      if (slot !== null && this.#answerChoiceBar(slot)) {
+        event.preventDefault();
+        return;
+      }
+      const shortcut = boardKeyActionOf(event, hand);
+      if (!shortcut) return;
+      switch (shortcut.kind) {
+        case "basic":
+          if (this.#actionBarLive()) this.#pressBasic(shortcut.action);
+          break;
+        case "endTurn":
+          event.preventDefault();
+          this.#actOnIntent("endTurn");
+          break;
+        case "undo":
+          event.preventDefault();
+          // The same press as LT + LB and the Undo button: greyed with its reason, or a no-op, exactly as there.
+          this.#actOnIntent("undo");
+          break;
+        case "recap":
+          this.#actOnIntent("recap");
+          break;
+        case "zone":
+          this.#actOnIntent(shortcut.step > 0 ? "pageNext" : "pagePrevious");
+          break;
+        case "log":
+          this.#actOnIntent("view");
+          break;
+        case "teamUp":
+          // The keyboard route to the badge's click: the first active pair's panel.
+          if (this.#teamUps.length > 0) this.#openTeamUpInfo(this.#teamUps[0]!);
+          break;
+        case "evidence":
+          // Baron Zemo's Evidence view, the keyboard route to the chrome's EVIDENCE button.
+          if (this.#hasEvidence()) this.#openEvidence();
+          break;
+        case "ability":
+          this.#useAbilityInSlot(shortcut.slot);
+          break;
+      }
+    });
+  }
+
+  /**
+   * Digits 1-3 answer whichever small choice bar is open: "Which one?" (a played event with several usable Action
+   * abilities), "Thwart with?" (THW or ATK against The Red House) or "Where does it go?" (an ally that may enter the
+   * mission area as well as the player's own). True when a bar was open, so the digit is spent on it and is never also
+   * an ability slot.
+   */
+  #answerChoiceBar(index: number): boolean {
+    const ability = this.#controller.abilityChoice();
+    if (ability) {
+      const option = ability.options[index];
+      if (option) void this.#controller.chooseEventAbility(option.abilityId);
+      return true;
+    }
+    const thwart = this.#controller.thwartStatChoice();
+    if (thwart) {
+      const option = thwart.options[index];
+      if (option) void this.#controller.chooseThwartStat(option.useAtk);
+      return true;
+    }
+    const destination = this.#controller.destinationChoice();
+    if (destination) {
+      const option = destination.options[index];
+      if (option) void this.#controller.chooseDestination(option);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * The Nth usable ability on your cards in play, in focus-route order (`view/ability-slots.ts`, the ordering the pad's
+   * RT layer shares). It goes through the same path as the Inspect sheet's ability button (targets, payment), and only
+   * while the board is idle: a decision in progress owns the keys.
+   */
+  #useAbilityInSlot(slot: number, page = 0): void {
+    const pick = abilityInSlot(this.#abilitySlots(), slot, page);
+    if (pick) this.#controller.useAbilityById(pick.instanceId, pick.abilityId);
+  }
+
+  /** The usable abilities the numbered slots (and the pad's RT layer) pick from; none while a decision is in progress. */
+  #abilitySlots(): readonly { readonly instanceId: InstanceId; readonly abilityId: AbilityId }[] {
+    if (this.#controller.selection.kind !== "idle") return [];
+    // A card scrolled out of the play area row still holds its slot: the pad's pages must not change as the row scrolls.
+    return abilitySlotsOf(
+      this.#controller.focusOrder((id) => this.#playAreaScroll.has(id)),
+      (id) =>
+        this.#controller.usableAbilitiesFor(id).map((entry) => ({ instanceId: id, abilityId: entry.action.abilityId })),
+    );
+  }
+
+  /**
+   * LT / RT went down or up (`scenes/board/input.ts`): the hints move onto what the layer's buttons press, or back to the
+   * base hints (`ui/glyph-hints.ts#setLayer`); the page starts over each hold.
+   */
+  #setPadLayer(layer: PadLayer | null): void {
+    if (layer === this.#padLayer) return;
+    this.#padLayer = layer;
+    this.#layerPage = 0;
+    this.#layerAssign = null;
+    this.#syncPageWord();
+    this.#hints.setLayer(layer);
+    this.#revealLayerCard();
+  }
+
+  /**
+   * Under RT on a row that scrolls (the phone's play area), brings the first card carrying one of the page's glyphs into
+   * view, so the page never opens on glyphs the player cannot see. The row redraws itself when it moves.
+   */
+  #revealLayerCard(): void {
+    if (this.#padLayer !== "rt") return;
+    for (const id of this.#layerAssignment().keys()) {
+      if (this.#playAreaScroll.has(id)) {
+        this.#playAreaScroll.revealCard(id);
+        return;
+      }
+    }
+  }
+
+  /** The "page n/m" word by the play area: the current page of the abilities. */
+  #syncPageWord(): void {
+    const word = this.#pageWord;
+    if (!word?.active) return;
+    const count = abilityPageCount(this.#abilitySlots());
+    word.setText(`page ${Math.min(this.#layerPage, count - 1) + 1}/${count}`);
+  }
+
+  /** The cards' RT glyphs: which of the four buttons does each card's abilities on the page showing. Cached until it changes. */
+  #layerAssignment(): ReadonlyMap<InstanceId, readonly LayerActionId[]> {
+    if (this.#layerAssign) return this.#layerAssign;
+    const slots = this.#abilitySlots();
+    const page = Math.min(this.#layerPage, abilityPageCount(slots) - 1);
+    const map = new Map<InstanceId, LayerActionId[]>();
+    abilityPageOf(slots, page).forEach((slot, index) => {
+      const action = abilityActionOfSlot(index);
+      if (action === null) return;
+      map.set(slot.instanceId, [...(map.get(slot.instanceId) ?? []), action]);
+    });
+    this.#layerAssign = map;
+    return map;
+  }
+
+  /**
+   * A face button or bumper pressed under a held layer. LT is the basic actions, Undo and End turn by the very paths the
+   * keyboard's keys take (so availability is the same); RT picks the Nth usable ability on the current page, and LB / RB
+   * turn the page.
+   */
+  #pressLayer(layer: PadLayer, meaningIndex: number): void {
+    const action = layerActionOf(layer, meaningIndex);
+    if (action === null) return;
+    switch (action) {
+      case "attack":
+      case "thwart":
+      case "recover":
+      case "changeForm":
+        if (this.#actionBarLive()) this.#pressBasic(action);
+        return;
+      case "undo":
+        this.#actOnIntent("undo");
+        return;
+      case "endTurn":
+        this.#actOnIntent("endTurn");
+        return;
+      case "pagePrevious":
+      case "pageNext": {
+        const count = abilityPageCount(this.#abilitySlots());
+        this.#layerPage = nextAbilityPage(this.#layerPage, count, action === "pageNext" ? 1 : -1);
+        this.#layerAssign = null;
+        this.#syncPageWord();
+        this.#revealLayerCard();
+        this.#hints.refresh();
+        return;
+      }
+      default: {
+        const slot = Number(action.slice("ability".length)) - 1;
+        const count = abilityPageCount(this.#abilitySlots());
+        this.#useAbilityInSlot(slot, Math.min(this.#layerPage, count - 1));
+      }
+    }
+  }
+
+  /**
+   * Registers the hold layers' own glyphs for this draw (the LT layer's A / X / Y / B / LB / RB are the action bar's own
+   * hints, `scenes/board/action-bar.ts`). At rest one LT glyph sits just above the action bar's left end and one RT glyph
+   * by the play area's caption; holding RT puts the page's four button glyphs on the cards that own those abilities, and
+   * LB / RB with "page n/m" where the RT glyph was. All of it is pad-only and asked of the input set on every apply, so it
+   * follows the same mode flips as the base hints.
+   */
+  #registerLayerHints(layout: BoardLayout): void {
+    const bar = layout.zones.actionBar;
+    const triggerAtRest =
+      (layer: PadLayer): CustomSpecs =>
+      (set, snapshot, held): readonly GlyphSpec[] | null => {
+        if (set !== "pad" || held !== null) return null;
+        const spec = layerTriggerGlyph(layer, snapshot.state, snapshot.settings);
+        return spec ? [spec] : null;
+      };
+    if (bar && this.#actionBarLive()) {
+      const height = 16;
+      this.#hints.custom(triggerAtRest("lt"), height, ({ height: shown }) => ({
+        x: bar.x + 8,
+        y: bar.y - shown / 2 - 3,
+      }));
+    }
+    const play = layout.zones.playArea;
+    if (!play) return;
+    const height = 14;
+    // Both sit in the zone's header row past its caption, or just above the zone where the scroll count is in the way
+    // (`view/layer-marker.ts`): the long table and the phone's tabbed board share it.
+    const spot = (width: number, shown: number) =>
+      layerMarkerSpot(play, { width, height: shown, countShown: this.#playAreaScroll.row.canScroll });
+    this.#hints.custom(triggerAtRest("rt"), height, ({ full, height: shown }) => spot(full, shown));
+    this.#pageWord = this.add.text(0, 0, "", textStyle(typeRole.label, surface.ink.hex)).setOrigin(0, 0.5);
+    this.#syncPageWord();
+    this.#hints.custom(
+      (set, snapshot, held) => {
+        if (set !== "pad" || held !== "rt" || abilityPageCount(this.#abilitySlots()) <= 1) return null;
+        const previous = layerButtonGlyph("pagePrevious", snapshot.state, snapshot.settings);
+        const next = layerButtonGlyph("pageNext", snapshot.state, snapshot.settings);
+        return previous && next ? [previous, next] : null;
+      },
+      height,
+      ({ full, height: shown }) => spot(full + 6 + (this.#pageWord?.width ?? 0), shown),
+      { ground: "paper", word: this.#pageWord },
+    );
+    // One glyph per card that has a usable ability: shown only under RT, only for the cards on the page showing.
+    for (const instanceId of new Set(this.#abilitySlots().map((slot) => slot.instanceId))) {
+      this.#hints.custom(
+        (set, snapshot, held) => {
+          if (set !== "pad" || held !== "rt") return null;
+          const specs = (this.#layerAssignment().get(instanceId) ?? []).flatMap((action) => {
+            const spec = layerButtonGlyph(action, snapshot.state, snapshot.settings);
+            return spec ? [spec] : [];
+          });
+          return specs.length > 0 ? specs : null;
+        },
+        18,
+        ({ width, height: shown }) => {
+          // Looked up as placed: a card scrolled out of the row has no rect, and the glyph waits for it.
+          const rect = this.#frame.focusRects.get(focusKey({ kind: "card", instanceId }));
+          if (!rect) return null;
+          return { x: Math.max(rect.x + 2, rect.x + rect.width - width - 4), y: rect.y + rect.height - 5 - shown / 2 };
+        },
+        { ground: "ink" },
+      );
+    }
+  }
+
+  /**
+   * Attack, Thwart, Recover, Change form: what Enter on that button does. A greyed button is a stop on the route as well, so focus moves onto it
+   * (its reason is on the button) instead of the key doing nothing.
+   */
+  #pressBasic(action: "attack" | "thwart" | "recover" | "changeForm"): void {
+    const target: FocusTarget = { kind: "basic", action };
+    const onRoute = this.#controller.focusOrder().some((stop) => sameTarget(stop, target));
+    if (onRoute && this.#focusRegion === "board" && !sameTarget(this.#focus, target)) this.#setFocus(target);
+    this.#controller.activate(target);
   }
 
   /** Opens Pause over the board — the MENU/≡ chrome button and Escape both land here. */
@@ -1689,8 +2122,58 @@ export class BoardScene extends Phaser.Scene {
     this.#setFocus(next === null ? null : (order[keys.indexOf(next)] ?? null));
   }
 
+  /**
+   * The area the card popover may use now, or null when it must not show. `mouse` is false for the held-Inspect zoom,
+   * which has no pointer and shows on any form factor (a pad is what holds Y on a handheld).
+   */
+  #hoverArea(mouse: boolean): Rect | null {
+    const { width, height } = this.scale.gameSize;
+    // A choice sheet the docked villain phase covers is hidden and inert (`sheetIsCovered`): it is no overlay.
+    const manager = this.scene.manager;
+    const sheetCovered = sheetIsCovered({
+      coverActive: this.scene.isActive(SCENES.villainPhase),
+      coverIndex: manager.getIndex(SCENES.villainPhase),
+      sheetIndex: manager.getIndex(SCENES.choice),
+    });
+    const overlays = Object.values(SCENES).filter(
+      (key) =>
+        key !== SCENES.board &&
+        key !== SCENES.music &&
+        !CHROME_SCENES.has(key) &&
+        // Docked in the villain phase's panel, the sheet leaves the table beside it to read (#231).
+        !(key === SCENES.choice && (sheetCovered || choiceDock() !== null || choicePeeking())) &&
+        this.scene.isActive(key),
+    );
+    return hoverArea({
+      formFactor: mouse ? formFactorFor(width, height) : "desktop",
+      mouse: true,
+      scale: appSession().settings.cardHoverScale,
+      overlays,
+      villainPhaseKey: SCENES.villainPhase,
+      dockPanel: this.#villainDockRects?.panel ?? null,
+      viewport: { x: 0, y: 0, width, height },
+    });
+  }
+
+  /** Hold Inspect (Y / E / O) opened or closed the enlarged focused card (`view/inspect-hold.ts`). */
+  #setZoom(zooming: boolean): void {
+    this.#zoomOn = zooming;
+    if (!zooming) {
+      this.#hover?.unpin();
+      return;
+    }
+    // Read live on every Board draw, so the popover follows the focus as it moves and goes when it is not on a card.
+    this.#hover?.pin(() => {
+      const card = zoomCardOf(this.#zoomOn, this.#focusRegion === "board" ? this.#focus : null, this.#logFocused);
+      const rect = card ? this.#cardRect(card.instanceId) : undefined;
+      const area = this.#hoverArea(false);
+      return card && rect && area ? { id: card.instanceId, rect, area } : null;
+    });
+  }
+
   #setFocus(focus: FocusTarget | null): void {
     this.#focus = focus;
+    this.#logFocused = false;
     // A greyed Undo says why while keyboard focus is on it (drawn by the next draw).
     this.#controller.setUndoFocus(this.#focus?.kind === "undo");
     this.#draw();
@@ -1820,26 +2303,80 @@ export class BoardScene extends Phaser.Scene {
   }
 
   #drawFocusRing(): void {
+    const card = this.#placeFocusRing();
+    // The legend strip above a focused card: what Select / Inspect / Esc do with it. Moved, not rebuilt, as focus steps.
+    const { width, height } = this.scale.gameSize;
+    // While a hold layer's sheet is up the legend strip gives way to it (they would share the same strip of table).
+    this.#hints.legend(card, { x: 0, y: 0, width, height }, this.#escapeMeaning());
+    // Whatever a hint's `when` reads (the Esc glyph under MENU) may have changed with the focus.
+    this.#hints.refresh();
+  }
+
+  /** What Esc / B does right now (`view/escape-meaning.ts`): back out of something, or open Pause. */
+  #escapeMeaning(): "back" | "pause" {
+    return escapeMeaning({
+      guideGateOpen: this.#controller.hasGuideGate(),
+      guideStepActive: this.#guide?.escapeActs() ?? false,
+      logFocused: this.#logFocused,
+      tipShown: this.#tip?.escapeActs() ?? false,
+      selectionIdle: this.#controller.selection.kind === "idle",
+    });
+  }
+
+  /** The guide's "Press G…" line names the key or button in use: redraw the guide when that changes. */
+  #watchGuideHint(): void {
+    let shown = guideHintText(inputDevice(), appSession().settings);
+    let hintRedrawQueued = false;
+    const off = onInputDeviceChange((state) => {
+      const next = guideHintText(state, appSession().settings);
+      if (next === shown) return;
+      shown = next;
+      if (!this.#guide && !this.#tip) return;
+      // Not from inside the window's capture listener: that runs before Phaser has handled the very press that changed
+      // the mode (a first touch after the mouse), and a redraw there destroys the zones the press is about to land on.
+      // The next update step is after the frame's queued input has been delivered.
+      if (hintRedrawQueued) return;
+      hintRedrawQueued = true;
+      this.events.once(Phaser.Scenes.Events.UPDATE, () => {
+        hintRedrawQueued = false;
+        if (this.#guide || this.#tip) this.requestGuideRedraw();
+      });
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, off);
+  }
+
+  /** Draws the focus ring; returns the focused card's rect when the legend strip belongs over it, else null. */
+  #placeFocusRing(): Rect | null {
     this.#focusRing?.destroy();
     this.#focusRing = null;
     // While focus is in the guide region (§3.10, §7 fix), the board's own ring stays hidden — the guide/tip
     // widget draws its own ring (`McGuidePanel`/`McGuideCallout`/`McTipToast#focusAt`) so there is never a
     // visible ring on both surfaces at once.
-    if (this.#focusRegion !== "board") return;
+    if (this.#focusRegion !== "board") return null;
+    // The log has no stop to ring, so the ring goes round the panel; a tab or layout that no longer shows it ends the focus.
+    if (this.#logFocused) {
+      if (this.#logRect) {
+        this.#focusRing = new McSelectionRing(this);
+        this.#focusRing.show(this.#logRect, "static", true);
+        return null;
+      }
+      this.#logFocused = false;
+    }
     const focus = this.#focus;
-    if (!focus) return;
+    if (!focus) return null;
     // Focus that has fallen off the route (the card was played) is dropped
     // rather than drawn somewhere stale.
     if (!this.#controller.focusOrder().some((target) => sameTarget(target, focus))) {
       this.#focus = null;
       this.#controller.setUndoFocus(false);
-      return;
+      return null;
     }
     const rect = this.#frame.focusRects.get(focusKey(focus));
-    if (!rect) return;
+    if (!rect) return null;
     this.#focusRing = new McSelectionRing(this);
     // Static, not pulsing: the ring says "here you are", not "act now".
     this.#focusRing.show(rect, "static", true);
+    return focus.kind === "card" && glyphsFitLayout(this.#layout?.tabbed ?? true) ? rect : null;
   }
 
   /**
@@ -2198,15 +2735,22 @@ export class BoardScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true })
       .setDepth(HANDLE_DEPTH);
     // A tap, not any release over it: a sideways swipe of the play area that lifted on the handle opened the recap (#227).
-    onTap(
-      zone,
-      () => {
-        if (this.scene.isActive(SCENES.villainPhase)) return;
-        this.scene.launch(SCENES.villainPhase, { before: null, review: review! } satisfies VillainPhaseLaunchData);
-      },
-      "villain-review",
-    );
+    onTap(zone, () => this.#openVillainReview(), "villain-review");
     this.#frame.focusRects.set("villain-review", rect);
+    // The key (B / N) or View button that does the same, on the handle's top edge (pad and keyboard only).
+    this.#hints.custom(
+      (set, snapshot, held) => specsForShortcuts(["recap"], snapshot, set === "pad" ? held : null),
+      16,
+      ({ width, height: shown }) => ({ x: rect.x + (rect.width - width) / 2, y: rect.y + 6 + shown / 2 }),
+      { ground: "ink" },
+    );
+  }
+
+  /** Reopens the last villain phase's recap over the table: the drawer handle's press, B / N and a tap of View. */
+  #openVillainReview(): void {
+    const review = appSession().villainReview;
+    if (!review || !this.#reviewHandleShown() || this.scene.isActive(SCENES.villainPhase)) return;
+    this.scene.launch(SCENES.villainPhase, { before: null, review } satisfies VillainPhaseLaunchData);
   }
 
   /** Whether the review handle is drawn this frame: the layout keeps a phone's play area out from under it. */

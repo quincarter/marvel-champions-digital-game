@@ -9,6 +9,7 @@ import { McButton, McTabs } from "../../ui/widgets.js";
 import type { BoardModel } from "../../view/board-model.js";
 import { lerp } from "../../view/motion-math.js";
 import { PHONE_TABS, type PhoneTab, type Rect } from "../../view/layout.js";
+import type { GlyphHints } from "../../ui/glyph-hints.js";
 import type { BoardMotion, StatusStampState } from "./motion.js";
 import { setReportSlot } from "../../ui/report-slot.js";
 import { setMusicSlot } from "../../ui/music-slot.js";
@@ -27,6 +28,10 @@ export interface ChromeOptions {
   readonly onEvidence?: () => void;
   /** Drives the round chip's pop and the phase toggle's fade-in when either just changed. */
   readonly motion: BoardMotion;
+  /** The glyph hints, on layouts that show them: Esc / Menu hangs just below the MENU button. */
+  readonly hints?: GlyphHints;
+  /** Whether the Menu glyph may show for the input in use: Esc only opens Pause when nothing else would take it. */
+  readonly menuHintWhen?: (set: "keyboard" | "pad") => boolean;
 }
 
 /**
@@ -61,6 +66,12 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, o
     width: menuWidth,
     height: rect.height - 10,
   };
+  if (options.hints && wide) {
+    options.hints.hang(menuRect, ["pause"], 16, {
+      ground: "paper",
+      ...(options.menuHintWhen ? { when: options.menuHintWhen } : {}),
+    });
+  }
   options.buttons.push(
     new McButton(scene, {
       kind: "onInk",
