@@ -6,15 +6,31 @@
  * rather than two that happen to agree today.
  */
 
-import type Phaser from "phaser";
+import Phaser from "phaser";
 import { eventOnce } from "../../view/event-once.js";
-import { gamepadIntentFor, type GamepadIntent } from "../../view/gamepad.js";
+import { gamepadIntentFor, GAMEPAD_AXIS, GAMEPAD_BUTTON, type GamepadIntent } from "../../view/gamepad.js";
+import {
+  detectPad,
+  physicalIndexOf,
+  resolvePadFamily,
+  usesNintendoSwap,
+  type PadIdentity,
+} from "../../view/pad-family.js";
+import { createPadRepeater, scrollDelta, stickDirection } from "../../view/pad-repeat.js";
+import type { FocusDirection } from "../../view/spatial-nav.js";
+import { notePadInput } from "../../platform/input-device.js";
+import { appSession } from "../../session.js";
 import { SCENES } from "../keys.js";
 
 export interface IntentBinding {
   /** True while something above the board (a decision overlay, Inspect) owns input. */
   blocked(): boolean;
   onIntent(intent: GamepadIntent): void;
+  /**
+   * The right stick, called every frame it is past its deadzone with the pixels to scroll (positive dx right,
+   * positive dy down) and the frame's time. Optional: a screen with nothing to scroll leaves it out.
+   */
+  onScroll?(dx: number, dy: number, dtMs: number): void;
 }
 
 /**
@@ -115,6 +131,29 @@ export function bindKeyboard(scene: Phaser.Scene, binding: IntentBinding): void 
 }
 
 /**
+ * A pad's identity does not change while it is connected: parse its id once, not every frame. Module-level so stacked
+ * scenes hand `notePadInput` the very same object for one pad (it compares by identity, and two objects would flip the
+ * input-mode state twice a frame).
+ */
+const identityCache = new Map<string, PadIdentity>();
+function padIdentityOf(id: string): PadIdentity {
+  let identity = identityCache.get(id);
+  if (!identity) {
+    identity = detectPad(id);
+    identityCache.set(id, identity);
+  }
+  return identity;
+}
+
+const DPAD_DIRECTION: ReadonlyArray<readonly [number, FocusDirection]> = [
+  [GAMEPAD_BUTTON.dpadUp, "up"],
+  [GAMEPAD_BUTTON.dpadDown, "down"],
+  [GAMEPAD_BUTTON.dpadLeft, "left"],
+  [GAMEPAD_BUTTON.dpadRight, "right"],
+];
+const DPAD_INDICES = new Set(DPAD_DIRECTION.map(([index]) => index));
+
+/**
  * Gamepad navigation, over the same route the keyboard walks.
  *
  * `phaser4-rex-plugins` is the widget layer's concern, not input's — this is
@@ -123,20 +162,93 @@ export function bindKeyboard(scene: Phaser.Scene, binding: IntentBinding): void 
  * knows a button index means "next" or "cancel"; this only listens and
  * forwards, exactly as `bindKeyboard` does for the keyboard's own keys.
  *
- * `Gamepad.on("down", ...)` (bound below via the plugin, not the pad
- * instance) fires once per press, not once per held frame, so there is no
- * repeat-rate to manage the way a keyboard's OS auto-repeat already handles
- * itself. Continuous analog-stick movement is not wired — a D-pad or the
- * face buttons cover every intent this board has, and a stick's constant
- * drift would need its own deadzone-and-repeat timer this pass doesn't
- * need to take on.
+ * Two paths, because Phaser's `down` event fires once per press and knows nothing of a held button or a leaning
+ * stick. Every button but the D-pad is a single press from `down`. The D-pad and the left stick are polled each frame
+ * (the scene's update event) through `view/pad-repeat.ts`, which owns the deadzone, the hysteresis and the hold-to-
+ * repeat timing, so a held direction walks the focus and the D-pad and stick share one repeater. The right stick
+ * scrolls through `binding.onScroll`. Everything, repeat and scroll included, is held while `blocked()` or the sync
+ * conflict prompt owns input, and a direction held when that begins does not repeat when it ends.
+ *
+ * Only pads the browser maps to the "standard" layout are used; any other is logged once and ignored, since the
+ * intent table is positional and a guess at an unknown layout would press the wrong things.
  */
 export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
   const gamepad = scene.input.gamepad;
   if (!gamepad) return;
-  gamepad.on("down", (_pad: Phaser.Input.Gamepad.Gamepad, button: Phaser.Input.Gamepad.Button) => {
-    if (binding.blocked() || conflictPromptOwnsInput(scene)) return;
-    const intent = gamepadIntentFor(button.index);
+
+  const identityOf = (pad: Phaser.Input.Gamepad.Gamepad): PadIdentity => padIdentityOf(pad.id);
+  const ignored = new Set<string>();
+  const usable = (pad: Phaser.Input.Gamepad.Gamepad): boolean => {
+    const mapping: unknown = pad.pad?.mapping;
+    if (typeof mapping !== "string" || mapping === "standard") return true;
+    if (!ignored.has(pad.id)) {
+      ignored.add(pad.id);
+      console.info(`Gamepad "${pad.id}" reports mapping "${mapping}", not "standard"; ignoring it.`);
+    }
+    return false;
+  };
+  const held = () => binding.blocked() || conflictPromptOwnsInput(scene);
+
+  gamepad.on("down", (pad: Phaser.Input.Gamepad.Gamepad, button: Phaser.Input.Gamepad.Button) => {
+    if (!usable(pad)) return;
+    const identity = identityOf(pad);
+    notePadInput(identity);
+    // The D-pad is polled below, so a press isn't delivered twice.
+    if (DPAD_INDICES.has(button.index)) return;
+    if (held()) return;
+    const settings = appSession().settings;
+    const swap = usesNintendoSwap(
+      resolvePadFamily(settings.padGlyphFamily, identity),
+      settings.nintendoLayout,
+      identity,
+    );
+    const intent = gamepadIntentFor(physicalIndexOf(button.index, swap));
     if (intent) binding.onIntent(intent);
   });
+
+  const repeater = createPadRepeater();
+  // Each pad's own left-stick hysteresis: one pad's lean must not hold another's engaged.
+  const leftSticks = new Map<number, FocusDirection | null>();
+  const onUpdate = (time: number, delta: number): void => {
+    let direction: FocusDirection | null = null;
+    let scroll: { dx: number; dy: number } | null = null;
+    let lean: FocusDirection | null = null;
+    for (const pad of gamepad.gamepads) {
+      if (!pad?.connected || !usable(pad)) continue;
+      const identity = identityOf(pad);
+      let touched = false;
+      for (const [index, dir] of DPAD_DIRECTION) {
+        if (pad.buttons[index]?.pressed) {
+          direction ??= dir;
+          touched = true;
+        }
+      }
+      const stick = stickDirection(
+        pad.axes[GAMEPAD_AXIS.leftX]?.getValue() ?? 0,
+        pad.axes[GAMEPAD_AXIS.leftY]?.getValue() ?? 0,
+        leftSticks.get(pad.index) ?? null,
+      );
+      leftSticks.set(pad.index, stick);
+      if (stick !== null) {
+        lean ??= stick;
+        touched = true;
+      }
+      const scrolled = scrollDelta(
+        pad.axes[GAMEPAD_AXIS.rightX]?.getValue() ?? 0,
+        pad.axes[GAMEPAD_AXIS.rightY]?.getValue() ?? 0,
+        delta,
+      );
+      if (scrolled !== null) {
+        scroll ??= scrolled;
+        touched = true;
+      }
+      if (touched) notePadInput(identity);
+    }
+    const blocked = held();
+    const fire = repeater.update(direction ?? lean, time, !blocked);
+    if (fire) binding.onIntent(fire);
+    if (scroll && !blocked) binding.onScroll?.(scroll.dx, scroll.dy, delta);
+  };
+  scene.events.on(Phaser.Scenes.Events.UPDATE, onUpdate);
+  scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => scene.events.off(Phaser.Scenes.Events.UPDATE, onUpdate));
 }
