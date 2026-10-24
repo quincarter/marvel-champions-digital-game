@@ -32,7 +32,8 @@ describe("controller drawings", () => {
 
     it(`${kind} picture drawings name an image that exists`, () => {
       for (const op of shape.ops)
-        if (op.k === "image") expect(existsSync(`public/assets/controllers/${op.src}.png`)).toBe(true);
+        if (op.k === "image")
+          expect(existsSync(new URL(`../../public/assets/controllers/${op.src}.png`, import.meta.url))).toBe(true);
     });
 
     it(`${kind} paths all parse to points`, () => {
