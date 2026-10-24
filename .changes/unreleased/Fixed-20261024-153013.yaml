@@ -1,0 +1,3 @@
+kind: Fixed
+body: A controller can always leave a search, seed, deck-name or paste field, and leaving a setup screen ignores further presses
+time: 2026-10-24T15:30:13.987489-04:00
