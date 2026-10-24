@@ -195,9 +195,19 @@ export class GlyphHints {
     custom: CustomSpecs,
     height: number,
     place: Entry["place"],
-    options: Pick<HintOptions, "ground" | "word"> = {},
+    options: Pick<HintOptions, "ground" | "word"> & {
+      /** Draw nothing when the glyph's rect would cover one of the scene's obstacles (as `button` and `hang` do). */
+      readonly avoidObstacles?: boolean;
+    } = {},
   ): void {
-    this.#add([], options.ground ?? "ink", height, { place, word: options.word ?? null, custom });
+    const placed: Entry["place"] = options.avoidObstacles
+      ? (size) => {
+          const point = place(size);
+          if (!point) return null;
+          return hangIsClear(glyphRect(point, size.width, size.height), this.#obstacles()) ? point : null;
+        }
+      : place;
+    this.#add([], options.ground ?? "ink", height, { place: placed, word: options.word ?? null, custom });
   }
 
   /** A glyph at a fixed left edge, vertically centered on `y`: the hand caption's "[ ] Zones". */
