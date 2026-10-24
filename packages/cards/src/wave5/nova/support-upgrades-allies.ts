@@ -134,9 +134,13 @@ const CONNECTION_TO_THE_WORLDMIND = query("resource", { name: "Connection to the
  * (`wave5/sm/ghost-spider/support-upgrades-allies.ts`). "Response: After you play Moon Girl from your hand, draw 1
  * card for each [mental] resource used to pay for her" is `on.youPlayThisFromHand()` (Eros' own precedent for "after you
  * play [this ally] … for each [mental] resource you used to pay for [it]", `wave4/nebu/nebula-pack-cards.ts`
- * `22011.eros-response`) with `draw(varOf("paid.mental"))` in place of Eros' `confuse` — `paid.mental` is read here
- * (unlike Honed Technique above) because this response lives in Moon Girl's *own* ability frame, seeded from Moon
- * Girl's *own* `playCard` frame (`playPaymentVars` matches by instance id).
+ * `22011.eros-response`) with `draw(varOf("paid.as.mental"))` in place of Eros' `confuse`. The payment vars are read
+ * here (unlike Honed Technique above) because this response lives in Moon Girl's *own* ability frame, seeded from
+ * Moon Girl's *own* `playCard` frame (`playPaymentVars` matches by instance id). A [wild] resource counts when its
+ * player declares it as [mental] (RRG 1.8 "Wild Resource", p. 48; issue #402), so the response is marked
+ * `readsPaidTypes: { amountOf: "mental" }` (so a payment with a wild asks what it is used as) and reads
+ * `paid.as.mental` rather than `paid.mental` (printed [mental] only). Overpaid resources were not used to pay for her
+ * (RRG 1.8 "Cost", p. 13) and are not counted.
  *
  * **Everyday Hero (28019)** — the card's single printed sentence, "While your identity has the [Civilian] trait,
  * this card can be spent for any player and gains the text: 'Response: After you spend this card for a player, heal
@@ -217,7 +221,11 @@ export const NOVA_SUPPORT_UPGRADES_ALLIES = defineAbilities({
   ),
 
   "28018.moon-girl-constant": constant(playOnlyIf(anyOf(youHaveTrait(CHAMPION), youHaveTrait(GENIUS)))),
-  "28018.moon-girl-response": response(on.youPlayThisFromHand(), draw(varOf("paid.mental"))),
+  "28018.moon-girl-response": response(
+    on.youPlayThisFromHand(),
+    { readsPaidTypes: { amountOf: "mental" } },
+    draw(varOf("paid.as.mental")),
+  ),
 
   "28019.everyday-hero-constant": constant(spendableForAnyPlayer(youHaveTrait(CIVILIAN))),
   "28019.everyday-hero-response": response(
