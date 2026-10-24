@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Online sync works in the desktop apps: the release builds for macOS, Windows and Linux now know where the sync service is, instead of saying online sync is unavailable.'
+time: 2026-10-23T21:40:32.6497396-04:00
