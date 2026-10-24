@@ -10,15 +10,7 @@ extension, as the other files are), and point the card's `image` / `images` at `
 `packages/content/src/data/<set>/cards.ts` (and the set's curation source in `packages/content/scripts/`, if it has one).
 A main scheme's stages each need their A and B sides. Send the scans in the PR thread and they will be converted and wired.
 
-**35 cards** are missing art.
-
-
-## Civil War main schemes (data set `synthezoid`, 57xxx)
-
-| Code | Card | Type | Faces |
-| --- | --- | --- | --- |
-| 57005a | Superhero Registration Act | Main scheme | stage 2A, stage 2B (1A and 1B added 2026-10-24) |
-| 57044a | Superhero Resistance | Main scheme | stage 1A, stage 1B, stage 2A, stage 2B |
+**33 cards** are missing art. (The two Civil War main schemes got their scans on 2026-10-24.)
 
 ## Shadowland (65xxx)
 
