@@ -222,7 +222,7 @@ function servedRoutes(): ReadonlyMap<string, readonly string[]> {
 
 type BundleMode = "pool" | "all" | "none";
 
-function bundleMode(): BundleMode {
+export function bundleMode(): BundleMode {
   const mode = process.env.MC_CARD_ART ?? "pool";
   if (mode === "pool" || mode === "all" || mode === "none") return mode;
   throw new Error(`MC_CARD_ART must be "pool", "all" or "none" (got "${mode}")`);

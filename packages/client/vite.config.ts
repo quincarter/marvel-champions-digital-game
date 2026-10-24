@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
 import { defineConfig } from "vite";
-import { cardArtPlugin, cardLanguageOf, carriedLanguagesOf, servedLanguages } from "./vite-card-art.js";
+import { bundleMode, cardArtPlugin, cardLanguageOf, carriedLanguagesOf, servedLanguages } from "./vite-card-art.js";
 import { marvelcdbImportPlugin } from "./vite-marvelcdb-import.js";
 
 /**
@@ -37,7 +37,15 @@ export default defineConfig(({ command }) => ({
   define: {
     __BUILD_COMMIT__: JSON.stringify(buildCommit()),
     __CARD_LANG__: JSON.stringify(cardLanguageOf()),
-    __CARD_LANGS__: JSON.stringify((command === "build" ? carriedLanguagesOf() : servedLanguages()).join(",")),
+    // Only a pool copy writes the other languages; `all` and `none` builds offer the build language alone.
+    __CARD_LANGS__: JSON.stringify(
+      (command !== "build"
+        ? servedLanguages()
+        : bundleMode() === "pool"
+          ? carriedLanguagesOf()
+          : [cardLanguageOf()]
+      ).join(","),
+    ),
   },
   plugins: [cardArtPlugin(), marvelcdbImportPlugin()],
   worker: { format: "es" },
