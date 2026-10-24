@@ -163,6 +163,7 @@ describe("the focused-card legend", () => {
   it("says what Esc does right now, and offers hold-to-zoom while the zoom is on", () => {
     expect(legendSegments("back").map((s) => s.text)).toEqual(["Select", "Inspect · hold to zoom", "Back"]);
     expect(legendSegments("pause").map((s) => s.text)).toEqual(["Select", "Inspect · hold to zoom", "Pause"]);
+    expect(legendSegments("back", true, "Inspect").map((s) => s.text)[0]).toBe("Inspect");
     expect(legendSegments("back", false).map((s) => s.text)).toEqual(["Select", "Inspect", "Back"]);
     expect(legendSegments("back").map((s) => s.id)).toEqual(["activate", "inspect", "cancel"]);
   });

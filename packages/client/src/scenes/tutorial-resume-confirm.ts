@@ -52,8 +52,8 @@ export class TutorialResumeConfirmOverlay extends Phaser.Scene {
     this.scale.on("resize", onResize, this);
     // Escape cancels back to Title (§3.10): neither `onResume` nor `onContinuePlain` fires.
     this.#hints = new GlyphHints(this);
-    // Start is "forward": it resumes the lesson, as A on the focused button does.
-    this.#route = new FocusRoute(this, { onCancel: () => this.scene.stop(), primary: () => "resume" });
+    // Start is "forward": it resumes the lesson. Not `primary`, so A with nothing focused never chooses for the player.
+    this.#route = new FocusRoute(this, { onCancel: () => this.scene.stop(), onPause: () => this.#choose("resume") });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#hints.dispose();
       this.scale.off("resize", onResize, this);

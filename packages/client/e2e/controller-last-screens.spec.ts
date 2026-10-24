@@ -96,6 +96,7 @@ interface SetupDebug {
   focus(): string | null;
   route(): string[];
   selected(): string[];
+  choiceId(): string | null;
 }
 const setup = <T>(page: Page, read: (debug: SetupDebug) => T): Promise<T | null> =>
   page.evaluate(
@@ -117,7 +118,7 @@ test.describe("the opening hand with a controller", () => {
     { name: "desktop", width: 1280, height: 800 },
     { name: "phone", width: 390, height: 844 },
   ]) {
-    test(`${size.name}: Down from any card reaches Mulligan or Keep, Up returns, Y / E inspect, A selects, Start keeps`, async ({
+    test(`${size.name}: Down from any card reaches Mulligan or Keep, Up returns, Y / E inspect, A selects, Start mulligans the marked cards`, async ({
       page,
     }) => {
       test.setTimeout(240_000);
@@ -156,16 +157,21 @@ test.describe("the opening hand with a controller", () => {
       await waitFor(sceneGone(page, "InspectOverlay"), "Escape closes Inspect", 10_000);
       await waitFor(sceneGone(page, "PadToast"), "the pad note is gone", 30_000);
 
-      // A marks the focused card for the mulligan.
+      // A marks the focused card for the mulligan, and a second one beside it.
       await press(page, A, async () => ((await setup(page, (d) => d.selected().length)) ?? 0) === 1);
       expect(await setup(page, (d) => d.selected())).toContain(last.slice("option:".length));
+      const beforeLeft = await setup(page, (d) => d.focus());
+      await press(page, LEFT, async () => (await setup(page, (d) => d.focus())) !== beforeLeft);
+      await press(page, A, async () => ((await setup(page, (d) => d.selected().length)) ?? 0) === 2);
+      expect(await setup(page, (d) => d.selected().length)).toBe(2);
 
-      // Start keeps the hand as dealt: the card marked above is dropped and the step moves on (the next seat's hand,
-      // or past setup), so nothing stays marked.
+      // Start with cards marked MULLIGANS them (the pending mulligan choice resolves), it does not keep the hand.
+      const choice = await setup(page, (d) => d.choiceId());
+      expect(choice).not.toBeNull();
       await press(page, START);
       await waitFor(
-        async () => !(await sceneIs(page, "SetupDeal")()) || (await setup(page, (d) => d.selected().length)) === 0,
-        "Start keeps the hand",
+        async () => !(await sceneIs(page, "SetupDeal")()) || (await setup(page, (d) => d.choiceId())) !== choice,
+        "Start with two cards marked resolves the mulligan",
         30_000,
       );
       expect(errors).toEqual([]);
@@ -237,5 +243,24 @@ test("the Rules reference: the glossary's terms are stops and LB / RB step the t
   expect(await focusOf(page, "RulesOverlay")).toBe("tab:glossary");
   await press(page, B, sceneGone(page, "RulesOverlay"));
   await waitFor(sceneGone(page, "RulesOverlay"), "B leaves the Rules reference", 30_000);
+  expect(errors).toEqual([]);
+});
+
+test("Start with nothing marked keeps the hand (the mulligan choice resolves with no cards)", async ({ page }) => {
+  test.setTimeout(180_000);
+  const errors = trackPageErrors(page);
+  await installPad(page);
+  await openApp(page, "screen=setup-deal", { landing: "SetupDeal" });
+  await waitFor(async () => ((await setup(page, (d) => d.route().length)) ?? 0) > 3, "the hand is dealt", 60_000);
+  await wake(page);
+  const choice = await setup(page, (d) => d.choiceId());
+  expect(choice).not.toBeNull();
+  expect(await setup(page, (d) => d.selected().length)).toBe(0);
+  await press(page, START);
+  await waitFor(
+    async () => !(await sceneIs(page, "SetupDeal")()) || (await setup(page, (d) => d.choiceId())) !== choice,
+    "Start keeps the hand",
+    30_000,
+  );
   expect(errors).toEqual([]);
 });

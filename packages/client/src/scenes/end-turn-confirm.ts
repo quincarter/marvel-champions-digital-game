@@ -42,8 +42,8 @@ export class EndTurnConfirmOverlay extends Phaser.Scene {
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     this.#hints = new GlyphHints(this);
-    // Start is "forward": it ends the turn, as A on the focused End turn does.
-    this.#route = new FocusRoute(this, { onCancel: () => this.#answer(false), primary: () => "ok" });
+    // Start is "forward" and ends the turn. Not `primary`: that would let A with nothing focused skip this confirm.
+    this.#route = new FocusRoute(this, { onCancel: () => this.#answer(false), onPause: () => this.#answer(true) });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#hints.dispose();
       this.scale.off("resize", onResize, this);

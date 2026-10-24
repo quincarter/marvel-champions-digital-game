@@ -93,7 +93,7 @@ export class SaveDataOverlay extends Phaser.Scene {
   #ticker: Phaser.Time.TimerEvent | null = null;
   #countdown: Phaser.GameObjects.Text | null = null;
   /** The stop Start presses on the step now showing, or null (the menu and the replace confirm have none). */
-  #primary: string | null = null;
+  #primary: (() => void) | null = null;
 
   constructor() {
     super(SCENES.saveData);
@@ -120,7 +120,7 @@ export class SaveDataOverlay extends Phaser.Scene {
       blocked: () => (this.#field?.focused ?? false) || this.scene.isActive(SCENES.syncData),
       onCancel: () => this.#cancel(),
       // Start is "forward": Receive on the code step, Copy code / New code on the Send step.
-      primary: () => this.#primary,
+      onPause: () => this.#primary?.(),
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#hints.dispose();
@@ -589,7 +589,7 @@ export class SaveDataOverlay extends Phaser.Scene {
     const first = left.expired
       ? { id: "new-code", label: "New code", onClick: () => void this.#send() }
       : { id: "copy", label: "Copy code", onClick: () => this.#copy(phase.code) };
-    this.#primary = first.id;
+    this.#primary = first.onClick;
     return Math.max(qrBottom, this.#drawPair(x, y, column, first, back, stops, order));
   }
 
@@ -630,7 +630,7 @@ export class SaveDataOverlay extends Phaser.Scene {
 
     const receive = { id: "receive", label: "Receive", onClick: () => void this.#receive() };
     const back = { id: "back-menu", label: "Back", onClick: () => this.#set({ kind: "menu" }, NO_STATUS) };
-    this.#primary = "receive";
+    this.#primary = receive.onClick;
     return this.#drawPair(x, fieldRect.y + fieldRect.height + 14, fieldRect.width, receive, back, stops, order);
   }
 

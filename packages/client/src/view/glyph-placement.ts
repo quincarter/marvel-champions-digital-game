@@ -183,9 +183,14 @@ export interface LegendSegment {
  * when the board is idle and it opens Pause. Inspect adds "hold to zoom" while the zoom is on (Card hover size is not
  * "off": `docs/controller-support.md` decision 8).
  */
-export function legendSegments(cancelMeans: "back" | "pause", zoom = true): readonly LegendSegment[] {
+export function legendSegments(
+  cancelMeans: "back" | "pause",
+  zoom = true,
+  /** What A does on this screen's cards: "Select" by default, "Inspect" where A opens the card (the pile fan). */
+  activateText = "Select",
+): readonly LegendSegment[] {
   return [
-    { id: "activate", text: "Select" },
+    { id: "activate", text: activateText },
     { id: "inspect", text: zoom ? "Inspect · hold to zoom" : "Inspect" },
     { id: "cancel", text: cancelMeans === "back" ? "Back" : "Pause" },
   ];

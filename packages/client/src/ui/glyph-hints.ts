@@ -105,7 +105,12 @@ export class GlyphHints {
   #legend: LegendStrip | null = null;
   /** The pad's hold layer (LT / RT), null at rest. Kept across `reset()`: a redraw does not release a trigger. */
   #layer: PadLayer | null = null;
-  #legendCard: { readonly rect: Rect; readonly viewport: Rect; readonly cancelMeans: "back" | "pause" } | null = null;
+  #legendCard: {
+    readonly rect: Rect;
+    readonly viewport: Rect;
+    readonly cancelMeans: "back" | "pause";
+    readonly activateText: string;
+  } | null = null;
   readonly #obstacles: () => readonly Rect[];
 
   /** `obstacles`: the rects a hanging glyph must not cover (cards, piles, panels), read when it is placed. */
@@ -239,8 +244,8 @@ export class GlyphHints {
    * Shows the legend strip beside `card` (where focus is), or hides it for `null`. `cancelMeans` is what Esc / B does
    * right now: "back" out of something, or "pause". An unchanged strip is only moved, never rebuilt.
    */
-  legend(card: Rect | null, viewport: Rect, cancelMeans: "back" | "pause" = "back"): void {
-    this.#legendCard = card ? { rect: card, viewport, cancelMeans } : null;
+  legend(card: Rect | null, viewport: Rect, cancelMeans: "back" | "pause" = "back", activateText = "Select"): void {
+    this.#legendCard = card ? { rect: card, viewport, cancelMeans, activateText } : null;
     if (!card) {
       this.#legend?.destroy();
       this.#legend = null;
@@ -354,10 +359,10 @@ export class GlyphHints {
       return;
     }
     const zoom = snapshot.settings.cardHoverScale !== "off";
-    const segments = legendSegments(target.cancelMeans, zoom);
+    const segments = legendSegments(target.cancelMeans, zoom, target.activateText);
     const specs = segments.map((segment) => glyphsForShortcut(segment.id, snapshot.state, snapshot.settings));
     const scale = snapshot.settings.glyphSize;
-    const signature = `${set}/${target.cancelMeans}/${zoom}/${scale}/${specs.map(specsSignature).join(";")}`;
+    const signature = `${set}/${target.cancelMeans}/${target.activateText}/${zoom}/${scale}/${specs.map(specsSignature).join(";")}`;
     if (!this.#legend || this.#legend.signature !== signature || !this.#legend.container.active) {
       this.#legend?.destroy();
       this.#legend = new LegendStrip(

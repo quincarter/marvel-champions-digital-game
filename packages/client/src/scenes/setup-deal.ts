@@ -66,6 +66,7 @@ import { McButton, McSelectionRing, dashedRect, fitText, label, paintDotGrid, pa
 import { cardArt, drawArt, type CardArt } from "../art/card-art.js";
 import { canConfirmChoice, cardChoiceDisplayOrder, initialChoiceSelection } from "../view/choice-focus.js";
 import { wrapChipsToRows } from "../view/chip-layout.js";
+import { commitStepDown, commitStepUp } from "../view/commit-row-nav.js";
 import { stepFocus } from "../view/focus.js";
 import { directionOf, type GamepadIntent } from "../view/gamepad.js";
 import { spatialStep } from "../view/spatial-nav.js";
@@ -242,6 +243,17 @@ export class SetupDealScene extends Phaser.Scene {
     this.#choiceId = null;
     this.#focus = null;
     this.#cameFrom = null;
+    this.#resolving = false;
+    // Dev-only e2e hook (never referenced by product code): the focused stop and the route, in order.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcSetupDealDebug?: unknown }).__mcSetupDealDebug = {
+        focus: () => this.#focus,
+        route: () => this.#route,
+        selected: () => this.#selected,
+        choiceId: () => this.#choiceId,
+        rects: () => [...this.#focusRects],
+      };
+    }
     this.#hints = new GlyphHints(this, () => [...this.#focusRects.values()]);
     this.#hand = new HandScroll(() => this.#draw());
     this.#bodyScroll = new VariableListScroll();
@@ -1042,8 +1054,17 @@ export class SetupDealScene extends Phaser.Scene {
     this.scene.launch(SCENES.inspect, { instanceId });
   }
 
+  /** True from a commit until the pending choice changes: a double press must not resolve twice. */
+  #resolving = false;
+
   async #confirm(): Promise<void> {
-    await appSession().store.resolveChoice(this.#selected);
+    if (this.#resolving) return;
+    this.#resolving = true;
+    try {
+      await appSession().store.resolveChoice(this.#selected);
+    } finally {
+      this.#resolving = false;
+    }
   }
 
   #onIntent(intent: GamepadIntent): void {
@@ -1057,19 +1078,14 @@ export class SetupDealScene extends Phaser.Scene {
       case "left":
       case "right": {
         const direction = directionOf(intent);
-        const commit = this.#focus === "confirm" || this.#focus === "decline";
-        if (direction === "down" && this.#focus?.startsWith("option:")) {
+        const down = direction === "down" ? commitStepDown(this.#focus, (key) => this.#focusRects.get(key)) : null;
+        const up = direction === "up" ? commitStepUp(this.#focus, this.#cameFrom, this.#route) : null;
+        if (down) {
           // The commit row sits under only the leftmost cards: Down from any card reaches the nearer button.
-          const from = this.#focusRects.get(this.#focus);
-          const mid = from ? from.x + from.width / 2 : 0;
-          const near = (key: string): number => {
-            const r = this.#focusRects.get(key);
-            return r ? Math.abs(r.x + r.width / 2 - mid) : Number.POSITIVE_INFINITY;
-          };
           this.#cameFrom = this.#focus;
-          this.#focus = near("confirm") <= near("decline") ? "confirm" : "decline";
-        } else if (direction === "up" && commit && this.#cameFrom && this.#route.includes(this.#cameFrom)) {
-          this.#focus = this.#cameFrom;
+          this.#focus = down;
+        } else if (up) {
+          this.#focus = up;
         } else if (direction) {
           // The arrows and the D-pad: the nearest card or button that way (issue #206).
           this.#focus = spatialStep(this.#route, (key) => this.#focusRects.get(key), this.#focus, direction);
@@ -1095,9 +1111,8 @@ export class SetupDealScene extends Phaser.Scene {
         }
         break;
       case "pause":
-        // Start is "forward": keep the hand as dealt.
-        this.#selected = [];
-        void this.#confirm();
+        // Start is "forward": mulligan the marked cards, or keep the hand as dealt when none is marked.
+        if (this.#selected.length === 0 || canConfirmChoice(choice, this.#selected.length)) void this.#confirm();
         break;
       case "cancel":
         this.#focus = null;
@@ -1127,15 +1142,6 @@ export class SetupDealScene extends Phaser.Scene {
     this.#focusRing?.destroy();
     this.#focusRing = null;
     const focus = this.#focus;
-    // Dev-only e2e hook (never referenced by product code): the focused stop and the route, in order.
-    if (import.meta.env.DEV) {
-      (window as unknown as { __mcSetupDealDebug?: unknown }).__mcSetupDealDebug = {
-        focus: () => this.#focus,
-        route: () => this.#route,
-        selected: () => this.#selected,
-        rects: () => [...this.#focusRects],
-      };
-    }
     this.#hints.refresh();
     const { width, height } = this.scale.gameSize;
     const cardRect = focus?.startsWith("option:") ? (this.#focusRects.get(focus) ?? null) : null;

@@ -56,6 +56,17 @@ export class PileViewOverlay extends Phaser.Scene {
   #hints!: GlyphHints;
   #stops: ReadonlyMap<string, FocusStop> = new Map();
   #focusKey: string | null = null;
+  #legendRect: Rect | null = null;
+
+  /** The legend follows the ring as the list scrolls (right stick, LB / RB, drag). */
+  override update(): void {
+    if (this.#focusKey === null) return;
+    const stop = this.#stops.get(this.#focusKey);
+    if (!stop) return;
+    const rect = typeof stop.rect === "function" ? stop.rect() : stop.rect;
+    const last = this.#legendRect;
+    if (!last || last.x !== rect.x || last.y !== rect.y) this.#legend();
+  }
 
   constructor() {
     super(SCENES.pileView);
@@ -146,7 +157,11 @@ export class PileViewOverlay extends Phaser.Scene {
     const stop = this.#focusKey?.startsWith("card:") ? this.#stops.get(this.#focusKey) : undefined;
     const { width, height } = this.scale.gameSize;
     const rect = stop ? (typeof stop.rect === "function" ? stop.rect() : stop.rect) : null;
-    this.#hints.legend(rect, { x: 0, y: 0, width, height }, "back");
+    // Scrolled out of the list's window: no strip floating over the header. A opens the card here, so it says Inspect.
+    const view = this.#layout?.list;
+    const shown = rect && view && rect.y + rect.height > view.y && rect.y < view.y + view.height ? rect : null;
+    this.#legendRect = rect;
+    this.#hints.legend(shown, { x: 0, y: 0, width, height }, "back", "Inspect");
   }
 
   /** The cards on screen right now, scroll applied; one scrolled out of the list's window has no hover. */

@@ -46,8 +46,8 @@ export class GamesListOverlay extends Phaser.Scene {
   #route: FocusRoute | null = null;
   #hints!: GlyphHints;
   #region: McScrollRegion | null = null;
-  /** The key of the first game that can be resumed, for Start. */
-  #firstGame: string | null = null;
+  /** Resumes the first game that can be resumed: what Start does (never A with nothing focused). */
+  #startResume: (() => void) | null = null;
   #scroll = new VariableListScroll();
   #confirming: string | null = null;
   #busy = false;
@@ -74,7 +74,7 @@ export class GamesListOverlay extends Phaser.Scene {
       onPage: (direction) => this.#region?.scrollByPx(direction * this.#region.rect.height * 0.9),
       onHomeEnd: (edge) => this.#region?.scrollByPx(edge === "home" ? -1e6 : 1e6),
       onScroll: (_dx, dy) => this.#region?.scrollByPx(dy),
-      primary: () => this.#firstGame,
+      onPause: () => this.#startResume?.(),
     });
     // Games a device sync brought in or took away while the list is open.
     const unsubscribeSync = onSyncApplied(() => {
@@ -97,6 +97,11 @@ export class GamesListOverlay extends Phaser.Scene {
       if (from) from.input.enabled = true;
     });
     this.#draw();
+  }
+
+  #resume(row: GameRow): void {
+    this.scene.stop();
+    this.#data.onResume(row.save);
   }
 
   #cancel(): void {
@@ -136,7 +141,7 @@ export class GamesListOverlay extends Phaser.Scene {
     destroyChildren(this);
     this.#hints.reset();
     this.#region = null;
-    this.#firstGame = null;
+    this.#startResume = null;
 
     const { width, height } = this.scale.gameSize;
     const { pad } = setupMetrics(width, height);
@@ -188,10 +193,7 @@ export class GamesListOverlay extends Phaser.Scene {
         enabled: !this.#busy,
         error: this.#error,
         hints: this.#hints,
-        onResume: (row) => {
-          this.scene.stop();
-          this.#data.onResume(row.save);
-        },
+        onResume: (row) => this.#resume(row),
         onAskRemove: (row) => {
           this.#confirming = row.id;
           this.#draw();
@@ -201,8 +203,8 @@ export class GamesListOverlay extends Phaser.Scene {
       });
       this.#buttons.push(...drawn.buttons);
       this.#region = drawn.region;
-      this.#firstGame = confirming ? null : (rows.find((row) => !row.needsUpdate)?.id ?? null);
-      if (this.#firstGame !== null) this.#firstGame = `game:${this.#firstGame}`;
+      const first = confirming ? null : (rows.find((row) => !row.needsUpdate) ?? null);
+      this.#startResume = first && !this.#busy ? () => this.#resume(first) : null;
       for (const [key, stop] of drawn.stops) stops.set(key, stop);
     }
     this.#route?.set(

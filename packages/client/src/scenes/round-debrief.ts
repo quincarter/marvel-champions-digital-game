@@ -88,8 +88,8 @@ export class RoundDebriefScene extends Phaser.Scene {
     const onResize = (): void => this.#rebuild();
     this.scale.on("resize", onResize, this);
     this.#hints = new GlyphHints(this);
-    // Start is "forward": it presses Round N+1, as Escape and B do.
-    this.#route = new FocusRoute(this, { onCancel: () => this.#nextRound(), primary: () => "next-round" });
+    // Start is "forward": Round N+1, as Escape and B do. Not `primary`, so A with nothing focused never skips the debrief.
+    this.#route = new FocusRoute(this, { onCancel: () => this.#nextRound(), onPause: () => this.#nextRound() });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#hints.dispose();
       this.scale.off("resize", onResize, this);
