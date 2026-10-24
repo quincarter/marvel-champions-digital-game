@@ -97,7 +97,7 @@ export class MusicButtonScene extends Phaser.Scene {
       if (!this.#pressed) return;
       this.#pressed = false;
       this.#setHovered(false);
-      this.#togglePlayer();
+      this.togglePlayer();
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#unsubscribe?.();
@@ -204,7 +204,8 @@ export class MusicButtonScene extends Phaser.Scene {
     );
   }
 
-  #togglePlayer(): void {
+  /** What a tap on the note does; pad and keyboard focus call it too (`scenes/focus-route.ts`). */
+  togglePlayer(): void {
     if (this.scene.isActive(SCENES.musicPlayer)) {
       this.scene.stop(SCENES.musicPlayer);
       return;

@@ -69,6 +69,8 @@ import {
   type VillainRowId,
   type VillainRowsInfo,
 } from "../view/settings-rows.js";
+import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
+import { glyphRightInRow } from "../view/glyph-placement.js";
 import { settingsTabsOf, type SettingsItemId, type SettingsTabId } from "../view/settings-sections.js";
 import type { GuideLevel } from "../guide/guide-prefs.js";
 import type {
@@ -241,6 +243,10 @@ export interface SettingsSceneData {
 export class SettingsOverlay extends Phaser.Scene {
   #buttons: McButton[] = [];
   #tabs: McTabs | null = null;
+  /** LB / RB glyphs beside the tab strip (pad only). */
+  #hints!: GlyphHints;
+  /** The tabs drawn now, in order, for LB / RB. */
+  #tabIds: SettingsTabId[] = [];
   #route: FocusRoute | null = null;
   #motion = new OverlayMotion();
   /** The active tab's own scroll region (docs/guided-mode.md §4 G2b): its sections all draw into it. */
@@ -268,7 +274,15 @@ export class SettingsOverlay extends Phaser.Scene {
       if (hasDesktopWindow()) void refreshDesktopMonitor().then(() => this.#redrawIfOpen());
     };
     this.scale.on("resize", onResize, this);
+    this.#hints = new GlyphHints(this);
     this.#route = new FocusRoute(this, {
+      // LB / RB (R / F on the keyboard) step through the tabs, wrapping at the ends.
+      onTab: (direction) => {
+        const ids = this.#tabIds;
+        if (ids.length === 0) return;
+        const at = Math.max(0, ids.indexOf(lastTab));
+        this.#setTab(ids[(at + direction + ids.length) % ids.length]!);
+      },
       blocked: () =>
         this.scene.isActive(SCENES.unlocks) ||
         this.scene.isActive(SCENES.saveData) ||
@@ -293,6 +307,7 @@ export class SettingsOverlay extends Phaser.Scene {
       this.#tabs = null;
       this.#bodyRegion?.destroy();
       this.#bodyRegion = null;
+      this.#hints.dispose();
     });
     this.#draw();
     // Phaser hands a later launch with no data this same object again, so take the code once.
@@ -509,6 +524,13 @@ export class SettingsOverlay extends Phaser.Scene {
       activeId: active.id,
       onSelect: (id) => this.#setTab(id as SettingsTabId),
     });
+    this.#tabIds = tabs.map((tab) => tab.id);
+    this.#hints.reset();
+    this.#hints.custom(
+      (set, snapshot) => (set === "pad" ? specsForShortcuts(["zonePrevious", "zoneNext"], snapshot) : null),
+      22,
+      ({ width }) => glyphRightInRow(layout.panel, layout.header.y, layout.header.height, width, closeSize + 32 + 12),
+    );
     const cellWidth = layout.tabs.width / tabs.length;
     tabs.forEach((tab, index) => {
       stops.set(`tab:${tab.id}`, {
