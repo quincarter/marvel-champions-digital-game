@@ -35,6 +35,7 @@ import { installDebugDump } from "./ui/debug-dump.js";
 import { installInputDeviceTracking } from "./platform/input-device.js";
 import { installVisibleArea } from "./platform/visible-area.js";
 import { installGamepadLive } from "./platform/gamepad-live.js";
+import { linuxAudioContext } from "./platform/linux-audio.js";
 import { startNativeGamepad } from "./platform/native-gamepad.js";
 import { installFrameGuard } from "./ui/frame-guard.js";
 import { installStartupWatchdog, probeWebgl } from "./ui/startup-watchdog.js";
@@ -91,6 +92,12 @@ const rendererOptions = rendererOptionsOf(
   renderScale,
 );
 
+// Linux desktop app: a 48 kHz, playback-latency context, so the Deck's audio stops crackling (`platform/linux-audio.ts`).
+const audioContext = linuxAudioContext(
+  (globalThis as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ !== undefined,
+  navigator.userAgent,
+);
+
 const game = new Phaser.Game({
   // `?renderer=canvas` and `?gl=…` test links for a device whose WebGL shows black (`platform/renderer-options.ts`).
   type: rendererOptions.canvas ? Phaser.CANVAS : Phaser.WEBGL,
@@ -107,6 +114,7 @@ const game = new Phaser.Game({
   // Off by default in Phaser 4; the Board's focus route is otherwise wired
   // for it already (`view/gamepad.ts`, `scenes/board/input.ts#bindGamepad`).
   input: { gamepad: true },
+  ...(audioContext ? { audio: { context: audioContext } } : {}),
   scale: {
     // RESIZE makes the canvas exactly its parent's size, so game coordinates
     // are CSS pixels and every layout rectangle is drawn at its real size.
