@@ -187,6 +187,11 @@ export class McScrollRegion {
     return x >= this.#rect.x + this.#rect.width - SCROLLBAR_HIT_WIDTH;
   }
 
+  /** A control under the press took it over (a slider's sideways drag): the rest of this press scrolls nothing. */
+  holdDrag(): void {
+    this.#drag.hold();
+  }
+
   #onPointerDown(pointer: Phaser.Input.Pointer): void {
     if (!this.#enabled() || !pointInRect(pointer.x, pointer.y, this.#rect) || this.#inScrollbarColumn(pointer.x))
       return;

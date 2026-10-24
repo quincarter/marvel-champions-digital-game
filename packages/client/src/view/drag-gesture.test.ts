@@ -1,6 +1,7 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it, test, vi } from "vitest";
 import { AxisDragGesture, DragGesture, Momentum, pointInRect } from "./drag-gesture.js";
 import { ListScroll } from "./list-scroll.js";
+import { INSPECT_HOLD_MS } from "./hold-gesture.js";
 
 describe("DragGesture", () => {
   test("a small movement below the threshold is a tap", () => {
@@ -256,5 +257,36 @@ describe("pointInRect", () => {
     // Documented via the type signature (no rect argument accepted as null); this test just
     // pins the contract that pointInRect itself always needs a concrete rect.
     expect(pointInRect(0, 0, { x: 0, y: 0, width: 0, height: 0 })).toBe(true);
+  });
+});
+
+describe("DragGesture held presses", () => {
+  it("stops scrolling once a control under the press takes it over", () => {
+    const drag = new DragGesture();
+    drag.start(1, 100, 0);
+    expect(drag.move(1, 80, 10)).toBe(20);
+    drag.hold();
+    expect(drag.move(1, 40, 20)).toBe(0);
+    expect(drag.end(1, 30)?.velocityPxPerMs).toBe(-0);
+  });
+
+  it("never scrolls after a long press that sat still: it was a hold, not a scroll", () => {
+    const now = vi.spyOn(performance, "now").mockReturnValue(1000);
+    const drag = new DragGesture();
+    drag.start(1, 100, 0);
+    now.mockReturnValue(1000 + INSPECT_HOLD_MS);
+    expect(drag.move(1, 104, 10)).toBe(0);
+    expect(drag.move(1, 40, 20)).toBe(0);
+    now.mockRestore();
+  });
+
+  it("keeps scrolling a drag that got going before the hold time", () => {
+    const now = vi.spyOn(performance, "now").mockReturnValue(1000);
+    const drag = new DragGesture();
+    drag.start(1, 100, 0);
+    expect(drag.move(1, 60, 10)).toBe(40);
+    now.mockReturnValue(1000 + INSPECT_HOLD_MS * 3);
+    expect(drag.move(1, 50, 20)).toBe(10);
+    now.mockRestore();
   });
 });

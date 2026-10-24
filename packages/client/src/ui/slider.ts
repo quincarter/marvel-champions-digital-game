@@ -38,6 +38,8 @@ export interface McStepSliderOptions {
   /** The scroll region's clip and drag guard, for a slider inside it. */
   readonly clip?: () => Rect | null;
   readonly suppressClick?: () => boolean;
+  /** The slider took a sideways drag: the scroll region it sits in stops following that press (`McScrollRegion#holdDrag`). */
+  readonly holdScroll?: () => void;
 }
 
 export class McStepSlider {
@@ -144,6 +146,7 @@ export class McStepSlider {
       if (dx <= SLOP && dy <= SLOP) return;
       // Up or down is the list's scroll; sideways is this slider's drag.
       press.mode = dy > dx ? "scroll" : "drag";
+      if (press.mode === "drag") this.#options.holdScroll?.();
     }
     if (press.mode === "drag") this.#set(this.#options.valueAt(pointer.x, this.track), false);
   }

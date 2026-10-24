@@ -12,6 +12,8 @@
  *   stops it there — see `Momentum.stop`).
  */
 
+import { INSPECT_HOLD_MS } from "./hold-gesture.js";
+
 export interface DragGestureOptions {
   /** Past this many pixels of total movement, the gesture is a drag, not a tap. RRG has no opinion here; a touch target's own slop is the usual web/mobile default. */
   readonly tapThresholdPx?: number;
@@ -40,6 +42,12 @@ export class DragGesture {
   #lastTimeMs = 0;
   #velocityPxPerMs = 0;
   #movedPastThreshold = false;
+  /**
+   * The press stopped being a scroll: it sat still for a long press (the finger is inspecting a card, not scrolling),
+   * or a control under it took the drag (a slider going sideways). A held press never scrolls again until it lifts.
+   */
+  #held = false;
+  #startedAt = 0;
 
   constructor(options: DragGestureOptions = {}) {
     this.#tapThresholdPx = options.tapThresholdPx ?? DEFAULT_TAP_THRESHOLD_PX;
@@ -64,7 +72,15 @@ export class DragGesture {
     this.#lastTimeMs = timeMs;
     this.#velocityPxPerMs = 0;
     this.#movedPastThreshold = false;
+    this.#held = false;
+    // Its own clock: callers hand `start` a pointer's down time and `move` the scene's clock.
+    this.#startedAt = performance.now();
     return true;
+  }
+
+  /** A control under the press takes it over (a slider's sideways drag): the list stops following it. */
+  hold(): void {
+    if (this.#active) this.#held = true;
   }
 
   /**
@@ -75,6 +91,13 @@ export class DragGesture {
    */
   move(pointerId: number, y: number, timeMs: number): number | null {
     if (!this.#active || pointerId !== this.#pointerId) return null;
+    // Still inside the tap slop when a long press has passed: it is a hold (Inspect), never a scroll after it.
+    if (!this.#movedPastThreshold && performance.now() - this.#startedAt >= INSPECT_HOLD_MS) this.#held = true;
+    if (this.#held) {
+      this.#velocityPxPerMs = 0;
+      this.#lastY = y;
+      return 0;
+    }
     const dy = y - this.#lastY;
     const dt = Math.max(1, timeMs - this.#lastTimeMs);
     this.#velocityPxPerMs = dy / dt;

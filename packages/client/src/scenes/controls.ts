@@ -627,6 +627,7 @@ export class ControlsOverlay extends Phaser.Scene {
       dimmed: info.dimmed,
       clip,
       suppressClick: suppress,
+      holdScroll: () => this.#region?.holdDrag(),
       onChange: (value) => {
         const current: Settings = appSession().settings;
         if (current.glyphSize !== value) appSession().settings = nextSettingsAfterHintSize(current, value);
