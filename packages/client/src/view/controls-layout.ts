@@ -34,6 +34,8 @@ const LIST_ROW_MIN = 44;
 const FOOTER_BUTTON_HEIGHT = 40;
 const BOTTOM_PADDING = 28;
 const SECTION_GAP = 18;
+/** The input test line under the caption, with its gap. */
+export const INPUT_TEST_HEIGHT = 20;
 /** The scroll mask's edge would clip a border drawn exactly on it. */
 const EDGE_INSET = 4;
 
@@ -62,6 +64,8 @@ export interface ControlsLayoutInput {
   readonly tab: ControlsTab;
   readonly drawing: DrawingKind;
   readonly caption: string;
+  /** A connected pad's input test line under the caption (`view/pad-input-test.ts`): one more line of room. */
+  readonly inputTest?: boolean;
   readonly groupRows: readonly ControlsGroupRowSpec[];
   readonly sections: readonly ControlsListSectionSpec[];
   /** Footer button count: 2 on the controller tab (Remap, Reset), 1 on the keyboard tab. */
@@ -169,7 +173,7 @@ function contentLayout(width: number, onDesktop: boolean, input: ControlsLayoutI
     const h = Math.round(w / CONTROLLER_ASPECT[input.drawing]);
     diagram = { x: Math.round((drawWidth - w) / 2), y: 0, width: w, height: h };
     const lines = estimateWrappedLines(input.caption, drawWidth, 5.8);
-    caption = { x: 0, y: h + 10, width: drawWidth, height: lines * 16 + 4 };
+    caption = { x: 0, y: h + 10, width: drawWidth, height: lines * 16 + 4 + (input.inputTest ? INPUT_TEST_HEIGHT : 0) };
     slots.push(diagram);
     leftBottom = caption.y + caption.height;
     if (!twoColumns) y = leftBottom + SECTION_GAP;

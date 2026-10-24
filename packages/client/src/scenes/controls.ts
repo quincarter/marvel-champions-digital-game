@@ -59,6 +59,8 @@ import {
 import type { Rect } from "../view/layout.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { detectPad } from "../view/pad-family.js";
+import { padInputNow, padInputTestLine } from "../view/pad-input-test.js";
+import { INPUT_TEST_HEIGHT } from "../view/controls-layout.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 
@@ -70,8 +72,12 @@ let lastTab: ControlsTab | null = null;
 
 /** The connected pad's `Gamepad.id`, or null when none is. */
 function connectedPadId(): string | null {
+  return connectedPad()?.id ?? null;
+}
+
+function connectedPad(): Gamepad | null {
   const pads = globalThis.navigator?.getGamepads?.() ?? [];
-  for (const pad of pads) if (pad?.connected) return pad.id;
+  for (const pad of pads) if (pad?.connected) return pad;
   return null;
 }
 
@@ -85,6 +91,9 @@ export class ControlsOverlay extends Phaser.Scene {
   #tab: ControlsTab = "controller";
   /** Dev-only e2e read of the Hint size slider as last drawn (`__mcControlsDebug`); null in a production build. */
   #hintSliderDebug: { slider: McStepSlider; reveal: () => void } | null = null;
+  /** The input test line under the caption while a pad is connected, and the last input it has seen. */
+  #inputTest: Phaser.GameObjects.Text | null = null;
+  #inputSeen: string | null = null;
 
   constructor() {
     super(SCENES.controls);
@@ -95,6 +104,18 @@ export class ControlsOverlay extends Phaser.Scene {
     this.input.enabled = true;
     this.#scroll = new VariableListScroll();
     this.#tab = lastTab ?? (inputDevice().mode === "keyboard" ? "keyboard" : "controller");
+    this.#inputSeen = null;
+    // The input test reads the browser's own pad each frame while this screen is up, and rewrites its line only on a
+    // new input.
+    const pollInput = (): void => {
+      if (!this.#inputTest) return;
+      const pads = globalThis.navigator?.getGamepads?.() ?? [];
+      const now = padInputNow(pads);
+      if (now === null || now === this.#inputSeen) return;
+      this.#inputSeen = now;
+      this.#inputTest.setText(padInputTestLine(now, connectedPad()?.mapping ?? null));
+    };
+    this.events.on(Phaser.Scenes.Events.UPDATE, pollInput);
     const redraw = (): void => {
       if (this.sys.isActive()) this.#draw();
     };
@@ -118,6 +139,8 @@ export class ControlsOverlay extends Phaser.Scene {
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", redraw, this);
+      this.events.off(Phaser.Scenes.Events.UPDATE, pollInput);
+      this.#inputTest = null;
       unsubscribe();
       window.removeEventListener("gamepadconnected", redraw);
       window.removeEventListener("gamepaddisconnected", redraw);
@@ -176,6 +199,7 @@ export class ControlsOverlay extends Phaser.Scene {
     this.#region?.destroy();
     this.#region = null;
     destroyChildren(this);
+    this.#inputTest = null;
 
     const { width, height } = this.scale.gameSize;
     const settings = appSession().settings;
@@ -218,9 +242,18 @@ export class ControlsOverlay extends Phaser.Scene {
           ]
         : keyGroups.map((group) => ({ id: group.id, title: group.title, notes: group.rows.map((row) => row.note) }));
     const caption = controllerCaptionOf(state.family, pad, state.swap);
+    const testPad = tab === "controller" ? connectedPad() : null;
     const layout = controlsLayout(
       { x: 0, y: 0, width, height },
-      { tab, drawing: state.kind, caption, groupRows, sections, footerButtons: tab === "controller" ? 2 : 1 },
+      {
+        tab,
+        drawing: state.kind,
+        caption,
+        inputTest: testPad !== null,
+        groupRows,
+        sections,
+        footerButtons: tab === "controller" ? 2 : 1,
+      },
     );
 
     // Swallows presses that land on no control, so a touch scroll over blank space can't reach the screen behind.
@@ -321,6 +354,18 @@ export class ControlsOverlay extends Phaser.Scene {
           .text(captionRect.x, captionRect.y + 12, caption, textStyle(typeRole.body, surface.paper.hex, 0.8))
           .setFontSize(12)
           .setWordWrapWidth(captionRect.width);
+        // What the browser reports from the pad, straight from `navigator.getGamepads()`: a pad that is detected but
+        // never moves the game shows here whether its presses reach the page at all.
+        this.#inputTest = testPad
+          ? this.add
+              .text(
+                captionRect.x,
+                captionRect.y + captionRect.height - INPUT_TEST_HEIGHT + 8,
+                padInputTestLine(this.#inputSeen, testPad.mapping),
+                textStyle(typeRole.label, surface.paper.hex, ink.secondary),
+              )
+              .setFontSize(12)
+          : null;
       });
     }
 
