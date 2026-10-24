@@ -17,7 +17,7 @@ A main scheme's stages each need their A and B sides. Send the scans in the PR t
 
 | Code | Card | Type | Faces |
 | --- | --- | --- | --- |
-| 57005a | Superhero Registration Act | Main scheme | stage 1A, stage 1B, stage 2A, stage 2B |
+| 57005a | Superhero Registration Act | Main scheme | stage 2A, stage 2B (1A and 1B added 2026-10-24) |
 | 57044a | Superhero Resistance | Main scheme | stage 1A, stage 1B, stage 2A, stage 2B |
 
 ## Shadowland (65xxx)

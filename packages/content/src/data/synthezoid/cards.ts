@@ -113,11 +113,13 @@ export const SYNTHEZOID_CARDS: readonly AnyCard[] = [
           { id: abilityId("57005b.enforce-the-law-constant") },
           { id: abilityId("57005b.enforce-the-law-constant-2") },
         ],
+        image: imageRef("/bundles/cards/57005b.png"),
         aSide: {
           text: {
             printed: "Contents: Chosen leader I and II (III and IV for expert mode). Chosen leader's set, Standard set, and 3–4 modular sets.\nSetup: In competitive mode, the enemy team finds the Choosing Sides side scheme and your team reveals it. In cooperative mode, find the chosen leader's side scheme and reveal it.",
             current: "Contents: Chosen leader I and II (III and IV for expert mode). Chosen leader's set, Standard set, and 3–4 modular sets.\nSetup: In competitive mode, the enemy team finds the Choosing Sides side scheme and your team reveals it. In cooperative mode, find the chosen leader's side scheme and reveal it.",
           },
+          image: imageRef("/bundles/cards/57005a.png"),
           abilities: [{ id: abilityId("57005a.setup") }],
         },
       },
