@@ -1,6 +1,7 @@
 mod app_volume;
 mod discord_presence;
 mod display_mode;
+mod gamepad_bridge;
 mod save_file;
 
 // The context (and with it all of dist/, embedded) is generated in main.rs, not
@@ -78,7 +79,8 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
       app_volume::stop_app_volume_watch,
       save_file::save_text_file,
       discord_presence::discord_set_activity,
-      discord_presence::discord_status
+      discord_presence::discord_status,
+      gamepad_bridge::gamepad_bridge_status
     ])
     // Exclusive fullscreen gives the monitor back while the game is in the background (display_mode.rs).
     .on_window_event(|_, event| {
