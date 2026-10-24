@@ -1,6 +1,6 @@
 # Controller support: audit and plan
 
-Status: building (owner answers 2026-10-24). Branch `feature/controller-support`. Follows issue #206, whose first part
+Status: building (owner answers 2026-10-24). Tracking issue #398. Branch `feature/controller-support`. Follows issue #206, whose first part
 (spatial navigation and ring alignment) landed in #207; parts 2 to 6 never did.
 
 ## Owner decisions (2026-10-24)
@@ -17,6 +17,12 @@ Status: building (owner answers 2026-10-24). Branch `feature/controller-support`
    (animated). A setting turns glyphs off altogether, in the keyboard and controller settings.
 6. **Glyph set follows the last input.** On desktop, using the mouse brings the keyboard glyphs back; any controller
    input (a button, the D-pad, a stick wiggle) switches them to the controller's (`view/input-mode.ts`).
+7. **Steam Deck system combos stay Steam's.** The guide / Steam button is never bound, and while it is held no other
+   button acts in the game, so Steam + X (Guide + X on a pad) opens Steam's on-screen keyboard without also toggling
+   the guide. A text field focused with a controller says "Steam + X for the on-screen keyboard" under Steam.
+8. **Hold Y to zoom.** A tap on Y inspects the focused card. Holding Y shows the focused card enlarged (the desktop
+   hover popover), and moving with the D-pad or stick while Y is held steps the focus with the enlarged card following
+   it. Its hint reads "Y Inspect · hold to zoom".
 
 ## What exists today
 
