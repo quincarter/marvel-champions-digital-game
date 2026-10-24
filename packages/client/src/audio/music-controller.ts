@@ -34,6 +34,7 @@ import { earnedSongsOf, musicGainOf, nextShuffled } from "../view/music-player.j
 import { SOUND_EFFECT_VOLUME, type SoundEffect } from "../view/sound-effects.js";
 import { onMixerChange, startMixerWatch, stopMixerWatch } from "../platform/app-volume.js";
 import { onAppBackgroundChange } from "../platform/app-background.js";
+import { NativeSound, nativeAudio, nativeAudioPending } from "./native-audio.js";
 import extrasUnlockedUrl from "./sfx/extras-unlocked.mp3?url";
 import achievementUnlockedUrl from "./sfx/achievement-unlocked.mp3?url";
 import handRefillUrl from "./sfx/hand-refill.mp3?url";
@@ -43,6 +44,9 @@ import cardPlayedUrl from "./sfx/card-played.mp3?url";
 import spellCastUrl from "./sfx/spell-cast.mp3?url";
 import cloakOfLevitationUrl from "./sfx/cloak-of-levitation.mp3?url";
 import shieldTossUrl from "./sfx/shield-toss.mp3?url";
+
+/** A sound that is playing: Phaser's Web Audio one, or the Linux app's native one (`native-audio.ts`). */
+type Voice = Phaser.Sound.BaseSound | NativeSound;
 
 /** The longest one sound effect holds the next back. */
 const EFFECT_GAP_MAX_MS = 600;
@@ -119,7 +123,7 @@ export interface MusicController {
 }
 
 export class MusicScene extends Phaser.Scene implements MusicController {
-  #currentSound: Phaser.Sound.BaseSound | null = null;
+  #currentSound: Voice | null = null;
   #currentKey: string | null = null;
   #targetKey: string | null = null;
   #lastTitleKey: string | null = null;
@@ -138,8 +142,6 @@ export class MusicScene extends Phaser.Scene implements MusicController {
   #ambient: (() => void) | null = null;
   readonly #listeners = new Set<(track: Track) => void>();
   readonly #pauseListeners = new Set<() => void>();
-  /** Sound effects handed to the loader already, so a second play while one loads does not queue it twice. */
-  readonly #effectsQueued = new Set<SoundEffect>();
 
   constructor() {
     super(SCENES.music);
@@ -164,8 +166,8 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     this.syncSettings(appSession().settings);
     // The sound effects are small (a few hundred KB in all): load them now, so the first punch or deal of a session is
     // not late while its file loads and decodes (the owner, 2026-10-17: "a bit delayed").
-    for (const effect of Object.keys(SOUND_EFFECT_URLS) as SoundEffect[]) this.#queueEffect(effect);
-    this.load.start();
+    for (const effect of Object.keys(SOUND_EFFECT_URLS) as SoundEffect[])
+      this.#fetch(`sfx:${effect}`, SOUND_EFFECT_URLS[effect]);
   }
 
   playTitle(): void {
@@ -339,7 +341,7 @@ export class MusicScene extends Phaser.Scene implements MusicController {
 
   progress(): { readonly seek: number; readonly duration: number } | null {
     // `seek` is on both of Phaser's real sound classes (Web Audio and HTML5), not on `BaseSound`.
-    const sound = this.#currentSound as (Phaser.Sound.BaseSound & { readonly seek?: number }) | null;
+    const sound = this.#currentSound as (Voice & { readonly seek?: number }) | null;
     if (!sound?.isPlaying && !sound?.isPaused) return null;
     return { seek: sound.seek ?? 0, duration: sound.duration };
   }
@@ -354,7 +356,7 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     const key = `sfx:${effect}`;
     const play = (): void => {
       const level = musicGainOf(appSession().settings.effectsVolume, SOUND_EFFECT_VOLUME[effect]);
-      const sound = this.sound.add(key, { volume: level });
+      const sound = this.#add(key, { volume: level });
       sound.once(Phaser.Sound.Events.COMPLETE, () => sound.destroy());
       sound.play();
       // The next one comes in as this one ends, or sooner for a long one: the card, then its attack.
@@ -363,19 +365,62 @@ export class MusicScene extends Phaser.Scene implements MusicController {
         this.time.delayedCall(gap, () => this.playEffects(rest));
       }
     };
-    if (this.cache.audio.exists(key)) {
+    if (this.#loaded(key)) {
       play();
       return;
     }
     // Still loading from `create`'s preload: play it the moment it arrives.
-    this.load.once(`filecomplete-audio-${key}`, play);
-    if (!this.#effectsQueued.has(effect)) this.#queueEffect(effect);
-    if (!this.load.isLoading()) this.load.start();
+    this.#fetch(key, SOUND_EFFECT_URLS[effect], play);
   }
 
-  #queueEffect(effect: SoundEffect): void {
-    this.#effectsQueued.add(effect);
-    this.load.audio(`sfx:${effect}`, SOUND_EFFECT_URLS[effect]);
+  /** Whether `key`'s audio is loaded, in the shell (the Linux app) or in Phaser's cache. */
+  #loaded(key: string): boolean {
+    return (nativeAudio()?.has(key) ?? false) || this.cache.audio.exists(key);
+  }
+
+  /** A sound for `key`: the native one when the shell holds the file, else Phaser's. */
+  #add(key: string, config: { loop?: boolean; volume?: number }): Voice {
+    const native = nativeAudio();
+    if (native?.has(key)) return native.add(key, { ...config, music: !key.startsWith("sfx:") });
+    return this.sound.add(key, config);
+  }
+
+  /**
+   * Loads `key`'s file and calls `done` once it can play. In the Linux app it goes to the shell's native audio
+   * (`native-audio.ts`); anywhere else, or if the shell refuses it, Phaser loads it for Web Audio.
+   */
+  #fetch(key: string, url: string, done?: () => void): void {
+    const wait = nativeAudioPending();
+    if (wait) {
+      void wait.then(() => this.#fetchNow(key, url, done));
+      return;
+    }
+    this.#fetchNow(key, url, done);
+  }
+
+  #fetchNow(key: string, url: string, done?: () => void): void {
+    const native = nativeAudio();
+    if (native) {
+      native.load(key, url).then(
+        () => done?.(),
+        (error: unknown) => {
+          console.warn("native audio load failed, using Web Audio:", error);
+          this.#phaserFetch(key, url, done);
+        },
+      );
+      return;
+    }
+    this.#phaserFetch(key, url, done);
+  }
+
+  #phaserFetch(key: string, url: string, done?: () => void): void {
+    if (this.cache.audio.exists(key)) {
+      done?.();
+      return;
+    }
+    this.load.audio(key, url);
+    if (done) this.load.once(`filecomplete-audio-${key}`, done);
+    if (!this.load.isLoading()) this.load.start();
   }
 
   onTrackStart(listener: (track: Track) => void): () => void {
@@ -385,11 +430,13 @@ export class MusicScene extends Phaser.Scene implements MusicController {
 
   syncSettings(settings: Settings): void {
     this.sound.mute = !settings.sound;
+    const native = nativeAudio();
+    if (native) native.muted = !settings.sound;
     const volume = musicGainOf(settings.musicVolume, DEFAULT_MUSIC_VOLUME);
     if (volume !== this.#targetVolume) {
       this.#targetVolume = volume;
       // The slider is heard as it moves: a fade still running into the old level gives way to the new one.
-      const sound = this.#currentSound as (Phaser.Sound.BaseSound & { volume?: number }) | null;
+      const sound = this.#currentSound as (Voice & { volume?: number }) | null;
       if (sound && "volume" in sound) {
         this.tweens.killTweensOf(sound);
         sound.volume = volume;
@@ -476,22 +523,17 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     this.#targetKey = track.key;
     this.#targetTrack = track;
 
-    if (this.cache.audio.exists(track.key)) {
+    if (this.#loaded(track.key)) {
       this.#startTrack(track);
       return;
     }
 
     // Audio needs loading.
-    this.load.audio(track.key, track.url);
-    this.load.once(`filecomplete-audio-${track.key}`, () => {
+    this.#fetch(track.key, track.url, () => {
       if (this.#targetKey === track.key) {
         this.#startTrack(track);
       }
     });
-
-    if (!this.load.isLoading()) {
-      this.load.start();
-    }
   }
 
   #startTrack(track: Track): void {
@@ -524,7 +566,7 @@ export class MusicScene extends Phaser.Scene implements MusicController {
 
     // Start new track. A shuffled song plays once and hands on to the next; any other loops.
     const shuffling = this.#mode === "shuffle";
-    const newSound = this.sound.add(track.key, { loop: !shuffling, volume: duration > 0 ? 0 : this.#targetVolume });
+    const newSound = this.#add(track.key, { loop: !shuffling, volume: duration > 0 ? 0 : this.#targetVolume });
     newSound.once(Phaser.Sound.Events.COMPLETE, () => {
       if (this.#currentSound !== newSound) return;
       // Shuffle was turned off while the song played: it loops on as the jukebox's.

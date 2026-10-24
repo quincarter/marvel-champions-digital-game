@@ -2,6 +2,9 @@ mod app_volume;
 mod discord_presence;
 mod display_mode;
 mod gamepad_bridge;
+mod native_audio;
+#[cfg(any(target_os = "linux", test))]
+mod native_audio_engine;
 mod save_file;
 
 // The context (and with it all of dist/, embedded) is generated in main.rs, not
@@ -80,7 +83,13 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
       save_file::save_text_file,
       discord_presence::discord_set_activity,
       discord_presence::discord_status,
-      gamepad_bridge::gamepad_bridge_status
+      gamepad_bridge::gamepad_bridge_status,
+      native_audio::native_audio_available,
+      native_audio::native_audio_load,
+      native_audio::native_audio_play,
+      native_audio::native_audio_set_volume,
+      native_audio::native_audio_set_paused,
+      native_audio::native_audio_stop
     ])
     // Exclusive fullscreen gives the monitor back while the game is in the background (display_mode.rs).
     .on_window_event(|_, event| {

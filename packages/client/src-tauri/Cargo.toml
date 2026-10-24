@@ -62,3 +62,13 @@ windows = { version = "0.61", features = [
 # through evdev with SDL_GameControllerDB mappings. Needs libudev-dev to build (libudev-sys).
 [target.'cfg(target_os = "linux")'.dependencies]
 gilrs = "0.11.2"
+
+# The Linux app plays its own music and effects (src/native_audio*.rs): WebKitGTK's Web Audio crackled on the Steam
+# Deck. symphonia decodes the mp3s; libpulse talks to PulseAudio / PipeWire's pulse server. Needs libpulse-dev to build.
+symphonia = { version = "0.5", default-features = false, features = ["mp3"] }
+libpulse-binding = "2.28"
+libpulse-simple-binding = "2.28"
+
+# The engine's tests run on every host (the engine itself is Linux-only in the app).
+[dev-dependencies]
+symphonia = { version = "0.5", default-features = false, features = ["mp3"] }

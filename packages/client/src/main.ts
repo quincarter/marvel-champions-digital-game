@@ -36,6 +36,7 @@ import { installInputDeviceTracking } from "./platform/input-device.js";
 import { installVisibleArea } from "./platform/visible-area.js";
 import { installGamepadLive } from "./platform/gamepad-live.js";
 import { linuxAudioContext } from "./platform/linux-audio.js";
+import { startNativeAudio } from "./audio/native-audio.js";
 import { startNativeGamepad } from "./platform/native-gamepad.js";
 import { installFrameGuard } from "./ui/frame-guard.js";
 import { installStartupWatchdog, probeWebgl } from "./ui/startup-watchdog.js";
@@ -94,10 +95,12 @@ const rendererOptions = rendererOptionsOf(
 );
 
 // Linux desktop app: a 48 kHz, playback-latency context, so the Deck's audio stops crackling (`platform/linux-audio.ts`).
-const audioContext = linuxAudioContext(
-  (globalThis as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ !== undefined,
-  navigator.userAgent,
-);
+const inTauri = (globalThis as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ !== undefined;
+const audioContext = linuxAudioContext(inTauri, navigator.userAgent);
+
+// The Linux app plays its music and effects natively (`audio/native-audio.ts`); the 48 kHz context above is what Phaser
+// falls back to if the shell cannot reach the audio server.
+void startNativeAudio(inTauri, navigator.userAgent);
 
 const game = new Phaser.Game({
   // `?renderer=canvas` and `?gl=…` test links for a device whose WebGL shows black (`platform/renderer-options.ts`).
