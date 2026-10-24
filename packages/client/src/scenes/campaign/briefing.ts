@@ -873,6 +873,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
         onCancel: back,
         blocked: () => this.scene.isActive(SCENES.inspect),
         onPage: (direction) => this.#briefingRegion?.scrollByPx(direction * 400),
+        onScroll: (_dx, dy) => this.#briefingRegion?.scrollByPx(dy),
       });
     this.#route.set([...stops.keys()], stops);
   }

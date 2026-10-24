@@ -316,6 +316,13 @@ export class McVirtualList {
       this.#redrawWindow(false);
   }
 
+  /** Scrolls by `amount` pixels (positive is down), clamped: the pad's right stick, a little each frame. */
+  scrollByPx(amount: number): void {
+    const { count, rowHeight } = this.#shape;
+    if (this.#scroll.scrollByPx(amount, count, rowHeight, this.#rect.height)) this.#redrawWindow(false);
+    this.#settleSoon();
+  }
+
   scrollToStart(): void {
     const { count, rowHeight } = this.#shape;
     if (this.#scroll.scrollToStart(count, rowHeight, this.#rect.height)) this.#redrawWindow(false);

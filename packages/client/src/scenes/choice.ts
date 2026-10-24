@@ -141,6 +141,8 @@ import {
 import { appSession } from "../session.js";
 import { backOutTargetOf } from "../view/back-out.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
+import { bindExtraInput, openPauseOverBoard } from "./extra-input.js";
+import type { VillainPhaseOverlay } from "./villain-phase.js";
 import type { BoardScene } from "./board.js";
 import { SCENES } from "./keys.js";
 import { bindHoldTarget } from "../ui/hold-target.js";
@@ -252,6 +254,14 @@ export class ChoiceOverlay extends Phaser.Scene {
   #idleSince: number | null = null;
   /** The decision whose sheet stepped aside for PEEK AT TABLE's banner (`view/choice-peek.ts`); a new one shows its sheet. */
   #peekingAt: string | null = null;
+  /**
+   * What the pad's View and R3 (and the P and X keys) do on the sheet drawn now: its PEEK AT TABLE and COLLAPSE
+   * controls, set by the draw that shows them. Null where the sheet has no such control, so the press does nothing.
+   * Over the docked villain phase they call the phase's own, since the phase draws those controls and this sheet owns
+   * the pad while it is up.
+   */
+  #padPeek: (() => void) | null = null;
+  #padExpand: (() => void) | null = null;
 
   constructor() {
     super({ key: SCENES.choice });
@@ -364,6 +374,11 @@ export class ChoiceOverlay extends Phaser.Scene {
     };
     bindKeyboard(this, binding);
     bindGamepad(this, binding);
+    // P and X are View and R3's keys; they go through the same two paths as the controls' own presses.
+    bindExtraInput(this, {
+      blocked: binding.blocked,
+      keys: { p: () => this.#padAction("peek"), x: () => this.#padAction("expand") },
+    });
     // The table's popover is off while this sheet is up, so the sheet has its own over the cards it draws. Off while
     // Inspect (opened from here) or the villain phase covers it; the villain phase running beneath it does not count.
     // The cards it reads were noted by the first draw, which `store.subscribe` above already ran: a reset here emptied
@@ -491,6 +506,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.#breakTick = null;
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
+    this.#padPeek = null;
+    this.#padExpand = null;
     this.#focusRing?.destroy();
     this.#focusRing = null;
     this.#focusRects.clear();
@@ -565,6 +582,12 @@ export class ChoiceOverlay extends Phaser.Scene {
     const canPeek = !docked && (!this.scene.isActive(SCENES.villainPhase) || host?.peek !== undefined);
     const collapse = host?.collapse ?? null;
     const peekingNow = canPeek && this.#peekingAt === key;
+    if (docked) {
+      const phase = (): VillainPhaseOverlay | null =>
+        this.scene.isActive(SCENES.villainPhase) ? (this.scene.get(SCENES.villainPhase) as VillainPhaseOverlay) : null;
+      this.#padPeek = () => phase()?.padPeek();
+      this.#padExpand = () => phase()?.padExpand();
+    }
     setChoicePeeking(peekingNow);
     if (peekingNow) {
       const question = choiceHeaderOf(
@@ -792,6 +815,7 @@ export class ChoiceOverlay extends Phaser.Scene {
           onClick: () => (host?.peek ? host.peek() : this.#setPeek(peekKey)),
         }),
       );
+      this.#padPeek = () => (host?.peek ? host.peek() : this.#setPeek(peekKey));
     }
     if (collapseRect && collapse) {
       this.#buttons.push(
@@ -803,6 +827,7 @@ export class ChoiceOverlay extends Phaser.Scene {
           onClick: collapse,
         }),
       );
+      this.#padExpand = collapse;
     }
 
     if (backOutRect) {
@@ -1114,6 +1139,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       .setOrigin(0, 0.5);
     fitWrapped(line, layout.text.width, 2, 14);
     const back = (): void => this.#setPeek(null);
+    this.#padPeek = back;
     const move = (): void => {
       flipPeekEdge();
       this.#rebuild();
@@ -1373,6 +1399,7 @@ export class ChoiceOverlay extends Phaser.Scene {
           onClick: () => peek(),
         }),
       );
+      this.#padPeek = peek;
     }
     if (headerControls.collapse && host?.collapse) {
       this.#buttons.push(
@@ -1384,6 +1411,7 @@ export class ChoiceOverlay extends Phaser.Scene {
           onClick: host.collapse,
         }),
       );
+      this.#padExpand = host.collapse;
     }
     if (import.meta.env.DEV) {
       (window as unknown as { __mcChoicePeekDebug?: unknown }).__mcChoicePeekDebug = {
@@ -2741,7 +2769,22 @@ export class ChoiceOverlay extends Phaser.Scene {
         this.#focus = null;
         this.#drawFocusRing();
         break;
+      case "pause":
+        openPauseOverBoard(this);
+        break;
+      case "view":
+        this.#padAction("peek");
+        break;
+      case "expand":
+        this.#padAction("expand");
+        break;
     }
+  }
+
+  /** View / P and R3 / X: what the sheet's PEEK AT TABLE (or BACK) and COLLAPSE controls do, only where drawn. */
+  #padAction(action: "peek" | "expand"): void {
+    if (this.#motion.leaving) return;
+    (action === "peek" ? this.#padPeek : this.#padExpand)?.();
   }
 
   #reveal(choice: PendingChoice): void {

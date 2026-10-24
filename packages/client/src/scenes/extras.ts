@@ -87,6 +87,7 @@ export class ExtrasScene extends Phaser.Scene {
       blocked: () => this.scene.isActive(SCENES.extrasViewer),
       onCancel: () => this.#back(),
       onPage: (direction) => this.#list?.scrollByPage(direction),
+      onScroll: (_dx, dy) => this.#list?.scrollByPx(dy),
     });
     // A new song (the shuffle moving on, or Next) redraws the Music tab's player and its playing row.
     this.#unsubscribe = appSession().music?.onTrackStart(() => this.#requestRedraw()) ?? null;

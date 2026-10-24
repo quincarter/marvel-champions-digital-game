@@ -206,6 +206,7 @@ import {
 import { villainDefendFocusOrder, villainPhaseFocusOrder, villainRailFocusOrder } from "../view/screen-focus.js";
 import { appSession } from "../session.js";
 import type { SessionState } from "../store/session-store.js";
+import { openPauseOverBoard } from "./extra-input.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { VILLAIN_DOCK_CHANGED, type BoardScene } from "./board.js";
 import { CHROME_SCENES, SCENES } from "./keys.js";
@@ -303,6 +304,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #closeTimer: Phaser.Time.TimerEvent | null = null;
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
+  /**
+   * What the pad's View and R3 (and the P and X keys) do on the docked decision this draw: its tuck / PEEK control and
+   * its EXPAND control. Set by the draw that shows those controls, so a press never reaches a control that is not there.
+   */
+  #padPeek: (() => void) | null = null;
+  #padExpand: (() => void) | null = null;
   #motion = new OverlayMotion();
   /** The game before the phase began, for the recap's "what changed" tiles. */
   #before: GameState | null = null;
@@ -431,6 +438,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       blocked: () =>
         (this.scene.isActive(SCENES.choice) && !this.#placement().recapOnTop) || this.scene.isActive(SCENES.inspect),
       onCancel: () => this.#skip(),
+      onPause: () => openPauseOverBoard(this),
+      onView: () => this.padPeek(),
+      onExpand: () => this.padExpand(),
     });
 
     // The desktop hover popover over the phase's own cards (the enemy, the revealed card, the interrupt card, the
@@ -588,6 +598,19 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       (playerId) => seatName(game, playerId, viewer),
       (instanceId) => cardName(game, instanceId),
     );
+  }
+
+  /**
+   * The pad's View (or P): PEEK AT TABLE / HIDE on the docked decision, the same call its control makes. The choice
+   * sheet forwards its own View here when the decision is docked, because it owns the pad while it is up.
+   */
+  padPeek(): void {
+    this.#padPeek?.();
+  }
+
+  /** The pad's R3 (or X): EXPAND on the docked decision, recap or defend, the same call its control makes. */
+  padExpand(): void {
+    this.#padExpand?.();
   }
 
   /** PEEK AT TABLE ▾ / BACK ▴ (P3). */
@@ -1287,6 +1310,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
+    this.#padPeek = null;
+    this.#padExpand = null;
     destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
@@ -1649,6 +1674,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     }
     const tuck = (): void => (kind === "tab" ? this.#setPeeking(true) : this.#setHidden(true));
     const expand = (): void => this.#expandDecision(choiceId);
+    this.#padPeek = tuck;
+    this.#padExpand = expand;
     this.#buttons.push(
       new McButton(this, {
         kind: "onInk",
@@ -1827,6 +1854,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     addPressShield(this, panel);
     if (layout.confirmInFooter && footer) addPressShield(this, footer);
     const choiceId = choice.choiceId;
+    this.#padPeek = () => this.#collapse(choiceId, true);
+    this.#padExpand = () => this.#expandDefend(choiceId);
     const stops = drawVillainDefendPanel(this, {
       layout,
       view,
@@ -1919,6 +1948,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         onExpand: () => this.#expandRecap(),
       },
     });
+    this.#padExpand = () => this.#expandRecap();
     this.#route?.set(villainPhaseFocusOrder(true, [], undefined, true, true), stops);
     if (import.meta.env.DEV) {
       (window as unknown as { __mcVillainPhaseDebug?: unknown }).__mcVillainPhaseDebug = {

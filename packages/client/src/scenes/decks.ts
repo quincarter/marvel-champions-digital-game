@@ -473,6 +473,7 @@ export class DecksScene extends Phaser.Scene {
         (this.#poolSearchInput?.focused ?? false),
       onPage: (direction) =>
         this.#activeTab === "cards" ? this.#poolList?.scrollByPage(direction) : this.#list?.scrollByPage(direction),
+      onScroll: (_dx, dy) => (this.#activeTab === "cards" ? this.#poolList : this.#list)?.scrollByPx(dy),
       onHomeEnd: (edge) => {
         const list = this.#activeTab === "cards" ? this.#poolList : this.#list;
         if (edge === "home") list?.scrollToStart();

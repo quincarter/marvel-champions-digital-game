@@ -81,6 +81,7 @@ export class HeroDecksSheet extends Phaser.Scene {
       blocked: () => this.scene.isActive(SCENES.inspect),
       onCancel: () => this.#close(),
       onPage: (direction) => this.#list?.scrollByPage(direction),
+      onScroll: (_dx, dy) => this.#list?.scrollByPx(dy),
     });
     const offBaked = cardFaces(this).onBaked(() => this.#list?.layout(this.#list.rect));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {

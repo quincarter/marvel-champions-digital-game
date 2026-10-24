@@ -73,6 +73,7 @@ export class ExtrasReaderScene extends Phaser.Scene {
       blocked: () => this.#search?.focused ?? false,
       onCancel: () => this.#back(),
       onPage: (direction) => this.#region?.scrollByPx(direction * 320),
+      onScroll: (_dx, dy) => this.#region?.scrollByPx(dy),
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;

@@ -22,6 +22,7 @@ import type { GamepadIntent } from "../view/gamepad.js";
 import type { Rect } from "../view/layout.js";
 import { spatialStep } from "../view/spatial-nav.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
+import { bindExtraInput } from "./extra-input.js";
 
 export interface FocusStop {
   /**
@@ -56,6 +57,17 @@ export interface FocusRouteOptions {
   readonly onHomeEnd?: (edge: "home" | "end") => void;
   /** Called whenever the focused stop changes by keyboard or pad (null when focus is dropped), so a screen can show what is in focus. */
   readonly onFocusChange?: (key: string | null) => void;
+  /**
+   * The right stick, forwarded as pixels to scroll (positive down) a frame at a time. A screen with a virtualized list
+   * or a scroll region passes its `scrollByPx`; no-op when omitted.
+   */
+  readonly onScroll?: (dx: number, dy: number, dtMs: number) => void;
+  /** Menu / Start / +, for a screen that has a pause or menu of its own. No-op when omitted. */
+  readonly onPause?: () => void;
+  /** View / Select / - and the P key, for a screen with a Peek-style control. No-op (and no P key) when omitted. */
+  readonly onView?: () => void;
+  /** R3 and the X key, for a screen with an Expand/Collapse control. No-op (and no X key) when omitted. */
+  readonly onExpand?: () => void;
 }
 
 export class FocusRoute {
@@ -64,6 +76,9 @@ export class FocusRoute {
   readonly #onPage: ((direction: 1 | -1) => void) | undefined;
   readonly #onHomeEnd: ((edge: "home" | "end") => void) | undefined;
   readonly #onFocusChange: ((key: string | null) => void) | undefined;
+  readonly #onPause: (() => void) | undefined;
+  readonly #onView: (() => void) | undefined;
+  readonly #onExpand: (() => void) | undefined;
   #order: readonly string[] = [];
   #stops: ReadonlyMap<string, FocusStop> = new Map();
   #focus: string | null = null;
@@ -81,12 +96,21 @@ export class FocusRoute {
     this.#onPage = options.onPage;
     this.#onHomeEnd = options.onHomeEnd;
     this.#onFocusChange = options.onFocusChange;
+    this.#onPause = options.onPause;
+    this.#onView = options.onView;
+    this.#onExpand = options.onExpand;
     const binding = {
       blocked: options.blocked ?? (() => false),
       onIntent: (intent: GamepadIntent) => this.#onIntent(intent),
+      ...(options.onScroll ? { onScroll: options.onScroll } : {}),
     };
     bindKeyboard(scene, binding);
     bindGamepad(scene, binding);
+    // View and R3 arrive as intents above; their keys have no intent in the shared keyboard binding.
+    const keys: Record<string, () => void> = {};
+    if (options.onView) keys["p"] = options.onView;
+    if (options.onExpand) keys["x"] = options.onExpand;
+    if (Object.keys(keys).length > 0) bindExtraInput(scene, { blocked: binding.blocked, keys });
   }
 
   get focused(): string | null {
@@ -153,6 +177,15 @@ export class FocusRoute {
       case "end":
         this.#onHomeEnd?.(intent);
         this.#drawRing();
+        break;
+      case "pause":
+        this.#onPause?.();
+        break;
+      case "view":
+        this.#onView?.();
+        break;
+      case "expand":
+        this.#onExpand?.();
         break;
       case "cancel":
         if (this.#onCancel) {

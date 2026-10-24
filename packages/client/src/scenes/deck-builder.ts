@@ -405,6 +405,7 @@ export class DeckBuilderScene extends Phaser.Scene {
         (this.#filterInput?.focused ?? false) ||
         (this.#identityInput?.focused ?? false),
       onPage: (direction) => this.#list?.scrollByPage(direction),
+      onScroll: (_dx, dy) => this.#list?.scrollByPx(dy),
       onHomeEnd: (edge) => (edge === "home" ? this.#list?.scrollToStart() : this.#list?.scrollToEnd()),
     });
     this.#rebuild();

@@ -48,6 +48,9 @@ import { playerName } from "../view/names.js";
 import { linearIntent, type GamepadIntent } from "../view/gamepad.js";
 import { spatialStep, type FocusDirection } from "../view/spatial-nav.js";
 import { sameTarget, stepFocus, type FocusTarget } from "../view/focus.js";
+import { rowScrollOf, scrollTargetOf, tabOfStop, zoneJump, type ZoneMembers } from "../view/board-zones.js";
+import { boardShortcutOf } from "../view/board-shortcuts.js";
+import { eventOnce } from "../view/event-once.js";
 import {
   PHONE_TABS,
   boardLayout,
@@ -102,7 +105,7 @@ import type { LessonObservation } from "../view/lesson-model.js";
 import { drawHand, HandScroll } from "./board/hand.js";
 import type { RowDrag } from "../view/hand-scroll.js";
 import { PlayAreaScroll } from "../view/play-area-row.js";
-import { bindGamepad, bindKeyboard, type IntentBinding } from "./board/input.js";
+import { bindGamepad, bindKeyboard, conflictPromptOwnsInput, type IntentBinding } from "./board/input.js";
 import { BoardMotion } from "./board/motion.js";
 import { drawSchemes, SchemeScrollState } from "./board/schemes.js";
 import { drawTargetingPanel, type TargetingHover } from "./board/targeting-panel.js";
@@ -213,6 +216,13 @@ export class BoardScene extends Phaser.Scene {
   /** Keyboard focus: what is focused, not where — the "where" is re-derived each draw. */
   #focus: FocusTarget | null = null;
   #focusRing: McSelectionRing | null = null;
+  /**
+   * The game log has focus (View on a pad, L on a keyboard): the log is a scroll panel with no stops of its own, so this is
+   * what the right stick scrolls and what the ring is drawn round. Any move of the board's own focus ends it.
+   */
+  #logFocused = false;
+  /** Where the log panel was drawn last, or null while this layout is not showing it (another phone tab, a guided lock). */
+  #logRect: Rect | null = null;
   /**
    * Which surface keyboard/pad focus is currently in (§3.10, §7 accessibility fix — guided mode's rail/callout
    * and opportunistic tip toast were unreachable by keyboard/pad). "G"/the pad's X toggles between them
@@ -497,8 +507,11 @@ export class BoardScene extends Phaser.Scene {
         this.scene.isActive(SCENES.syncConflict) ||
         // "Hold on!" owns Escape (it dismisses with nothing sent); without this the board's own Escape opened Pause
         // on top of it.
-        this.scene.isActive(SCENES.holdOn),
+        this.scene.isActive(SCENES.holdOn) ||
+        // The "You can still…" question owns the keys too: a shortcut must not act on the table beneath it.
+        this.scene.isActive(SCENES.endTurnConfirm),
       onIntent: (intent) => this.#actOnIntent(intent),
+      onScroll: (dx, dy) => this.#scrollFocused(dx, dy),
     };
     bindKeyboard(this, binding);
     // T opens the Team-Up panel for the first active pair: the keyboard route to the badge's click.
@@ -513,6 +526,7 @@ export class BoardScene extends Phaser.Scene {
     this.input.keyboard?.on("keydown-Z", () => {
       if (!binding.blocked()) void this.#controller.undo();
     });
+    this.#bindBoardShortcuts(binding);
     // 1 to 3 answer "Which one?" (a played event with several usable Action abilities).
     ["ONE", "TWO", "THREE"].forEach((key, index) => {
       this.input.keyboard?.on(`keydown-${key}`, () => {
@@ -1356,6 +1370,7 @@ export class BoardScene extends Phaser.Scene {
     if (zones.log && logGate.locked) this.#logPanel.drawLocked(this, setAside?.log ?? zones.log, logGate.reason ?? "");
     else if (zones.log) this.#logPanel.draw(this, setAside?.log ?? zones.log, this.#tableLog());
     else this.#logPanel.hide();
+    this.#logRect = zones.log && !logGate.locked ? (setAside?.log ?? zones.log) : null;
     // Always the wide panel: the identity's attachments only show as chips
     // beside its card, and a tall window can give this slot a card-like shape.
     const compactRow = layout.compactPlayerRow === true;
@@ -1590,10 +1605,30 @@ export class BoardScene extends Phaser.Scene {
         break;
       case "activate":
         if (this.#focusRegion === "guide") this.#activateGuideFocus();
-        else if (this.#focus) this.#controller.activate(this.#focus);
+        else if (this.#focus && !this.#logFocused) this.#controller.activate(this.#focus);
         break;
       case "inspect":
-        if (this.#focus?.kind === "card") this.#inspect(this.#focus.instanceId);
+        if (this.#focus?.kind === "card" && !this.#logFocused) this.#inspect(this.#focus.instanceId);
+        break;
+      case "undo":
+        // The Undo button's own press (and Z): greyed with a reason, or a no-op, exactly as there.
+        if (this.#actionBarLive()) void this.#controller.undo();
+        break;
+      case "endTurn":
+        // The End turn button's own press, so its "You can still…" confirm and the guide gate apply unchanged.
+        if (this.#actionBarLive()) this.#controller.activate({ kind: "basic", action: "endTurn" });
+        break;
+      case "pause":
+        this.#openPause();
+        break;
+      case "view":
+        this.#toggleLogFocus();
+        break;
+      case "pageNext":
+        this.#jumpZone(1);
+        break;
+      case "pagePrevious":
+        this.#jumpZone(-1);
         break;
       case "toggleGuide":
         this.#toggleGuideFocus();
@@ -1615,6 +1650,12 @@ export class BoardScene extends Phaser.Scene {
         // A zone/choice-anchored step never sets a board gate at all (nothing to release above), but §3.10
         // still promises Escape always works there too — see `BoardGuideMount.handleEscape`'s own doc comment.
         if (this.#guide?.handleEscape()) break;
+        // Backing out of the log's focus comes before Pause, like backing out of any other mode.
+        if (this.#logFocused) {
+          this.#logFocused = false;
+          this.#draw();
+          break;
+        }
         // A visible tip toast dismisses on Escape, like its own "Got it" (guided mode G10e).
         if (this.#tip?.handleEscape()) break;
         // Escape/B backs out of a mode first, same as everywhere else in this
@@ -1626,6 +1667,145 @@ export class BoardScene extends Phaser.Scene {
         else this.#openPause();
         break;
     }
+  }
+
+  /**
+   * True while the action bar's buttons are on the table to press: no villain phase replay is holding the table, the seat
+   * is still in the game and it is the active hero's own turn (`drawActionBar` draws them under exactly these conditions).
+   */
+  #actionBarLive(): boolean {
+    return (
+      this.#model !== null &&
+      !this.#model.meOut &&
+      this.#villainReplay === null &&
+      appSession().store.state.offTurnSeat === null
+    );
+  }
+
+  /** The cards each zone holds right now, for the zone jumps and the right stick (`view/board-zones.ts`). */
+  #zoneMembers(): ZoneMembers | null {
+    const model = this.#model;
+    if (!model) return null;
+    const threat = new Set<InstanceId>([
+      model.mainScheme.instanceId,
+      ...model.extraMainSchemes.map((scheme) => scheme.instanceId),
+      ...model.sideSchemes.map((scheme) => scheme.instanceId),
+      // The pod's neutral area is on the phone's Threat tab, not Enemies (`splitNeutralTab`).
+      ...model.scenarioPlayAreas
+        .filter((area) => area.neutral)
+        .flatMap((area) => area.cards.map((card) => card.instanceId)),
+    ]);
+    return {
+      hand: new Set(model.hand.map((card) => card.instanceId)),
+      playArea: new Set([model.me.instanceId, ...model.myPlayArea.map((card) => card.instanceId)]),
+      villain: new Set<InstanceId>([
+        ...threat,
+        ...model.villains.map((villain) => villain.panel.instanceId),
+        ...model.minions.map((minion) => minion.instanceId),
+        ...model.environments.map((environment) => environment.instanceId),
+        ...model.scenarioPlayAreas.flatMap((area) => area.cards.map((card) => card.instanceId)),
+      ]),
+      threat,
+    };
+  }
+
+  /** LB / RB and [ / ]: focus lands on the first stop of the next (or previous) zone, switching the phone tab to it. */
+  #jumpZone(step: 1 | -1): void {
+    if (this.#focusRegion !== "board") return;
+    const members = this.#zoneMembers();
+    if (!members) return;
+    // From the log, the jump starts over from the top (or bottom) of the table.
+    const from = this.#logFocused ? null : this.#focus;
+    const stop = zoneJump(this.#controller.focusOrder(), members, from, step);
+    if (!stop) return;
+    const tab = tabOfStop(stop, members);
+    if (this.#layout?.tabbed && tab) this.switchToTab(tab);
+    this.#setFocus(stop.target);
+  }
+
+  /** View / L: the log takes focus (the right stick then scrolls it), or gives it back. */
+  #toggleLogFocus(): void {
+    if (this.#focusRegion !== "board") return;
+    if (this.#logFocused) {
+      this.#logFocused = false;
+      this.#draw();
+      return;
+    }
+    const layout = this.#layout;
+    // A guided run keeps the log locked until its last lesson; there is nothing to scroll then.
+    if (!layout || !this.#model || this.#guide?.logGate().locked) return;
+    if (layout.tabbed) this.switchToTab("log");
+    else if (!layout.zones.log) return;
+    this.#logFocused = true;
+    this.#draw();
+  }
+
+  /** The right stick: scrolls the log, the hand or play area row focus is in, or else the table (`view/board-zones.ts`). */
+  #scrollFocused(dx: number, dy: number): void {
+    const members = this.#zoneMembers();
+    if (!members) return;
+    switch (
+      scrollTargetOf(this.#logFocused, this.#focus, members, {
+        hand: this.#hand.canScroll,
+        playArea: this.#playAreaScroll.row.canScroll,
+      })
+    ) {
+      case "log":
+        this.#logPanel.onPadScroll(dy);
+        break;
+      case "hand":
+        this.#hand.padScroll(rowScrollOf(dx, dy));
+        break;
+      case "playArea":
+        this.#playAreaScroll.row.padScroll(rowScrollOf(dx, dy));
+        break;
+      case "table": {
+        const layout = this.#layout;
+        if (layout) this.#scrollTableTo(layout.scrollY + dy);
+        break;
+      }
+    }
+  }
+
+  /**
+   * The shortcuts that are not a pad intent too (`view/board-shortcuts.ts`): A, H, R, F press that basic action's button,
+   * Shift+Enter End turn, [ and ] the zone jumps, L the log. All held while `binding.blocked()`, like Z and T.
+   */
+  #bindBoardShortcuts(binding: IntentBinding): void {
+    const firstDelivery = eventOnce();
+    this.input.keyboard?.on("keydown", (event: KeyboardEvent) => {
+      // Phaser replays a frame's queue on every key event, so a chord (Shift+Enter) arrives more than once.
+      if (!firstDelivery(event)) return;
+      const shortcut = boardShortcutOf(event);
+      if (!shortcut || binding.blocked() || conflictPromptOwnsInput(this)) return;
+      // A held key repeats: Shift+Enter would end the next hero turn too, and a held letter re-presses its button.
+      if (event.repeat && (shortcut.kind === "basic" || shortcut.kind === "endTurn")) return;
+      switch (shortcut.kind) {
+        case "basic":
+          if (this.#actionBarLive()) this.#pressBasic(shortcut.action);
+          break;
+        case "endTurn":
+          this.#actOnIntent("endTurn");
+          break;
+        case "zone":
+          this.#actOnIntent(shortcut.step > 0 ? "pageNext" : "pagePrevious");
+          break;
+        case "log":
+          this.#actOnIntent("view");
+          break;
+      }
+    });
+  }
+
+  /**
+   * A, H, R and F: what Enter on that button does. A greyed button is a stop on the route as well, so focus moves onto it
+   * (its reason is on the button) instead of the key doing nothing.
+   */
+  #pressBasic(action: "attack" | "thwart" | "recover" | "changeForm"): void {
+    const target: FocusTarget = { kind: "basic", action };
+    const onRoute = this.#controller.focusOrder().some((stop) => sameTarget(stop, target));
+    if (onRoute && this.#focusRegion === "board" && !sameTarget(this.#focus, target)) this.#setFocus(target);
+    this.#controller.activate(target);
   }
 
   /** Opens Pause over the board — the MENU/≡ chrome button and Escape both land here. */
@@ -1691,6 +1871,7 @@ export class BoardScene extends Phaser.Scene {
 
   #setFocus(focus: FocusTarget | null): void {
     this.#focus = focus;
+    this.#logFocused = false;
     // A greyed Undo says why while keyboard focus is on it (drawn by the next draw).
     this.#controller.setUndoFocus(this.#focus?.kind === "undo");
     this.#draw();
@@ -1826,6 +2007,15 @@ export class BoardScene extends Phaser.Scene {
     // widget draws its own ring (`McGuidePanel`/`McGuideCallout`/`McTipToast#focusAt`) so there is never a
     // visible ring on both surfaces at once.
     if (this.#focusRegion !== "board") return;
+    // The log has no stop to ring, so the ring goes round the panel; a tab or layout that no longer shows it ends the focus.
+    if (this.#logFocused) {
+      if (this.#logRect) {
+        this.#focusRing = new McSelectionRing(this);
+        this.#focusRing.show(this.#logRect, "static", true);
+        return;
+      }
+      this.#logFocused = false;
+    }
     const focus = this.#focus;
     if (!focus) return;
     // Focus that has fallen off the route (the card was played) is dropped

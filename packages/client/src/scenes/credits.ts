@@ -50,6 +50,7 @@ export class CreditsScene extends Phaser.Scene {
     this.#route = new FocusRoute(this, {
       onCancel: () => this.#back(),
       onPage: (direction) => this.#list?.scrollByPage(direction),
+      onScroll: (_dx, dy) => this.#list?.scrollByPx(dy),
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;

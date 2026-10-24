@@ -92,6 +92,16 @@ export class LogPanel {
     this.#scrollBy(lines);
   }
 
+  /** The right stick while the log has focus: `dy` pixels (positive scrolls toward the newest line) at the wheel's pace. */
+  onPadScroll(dy: number): void {
+    if (!this.#rect) return;
+    this.#wheelCarry += dy;
+    const lines = Math.trunc(this.#wheelCarry / WHEEL_PX_PER_LINE);
+    if (lines === 0) return;
+    this.#wheelCarry -= lines * WHEEL_PX_PER_LINE;
+    this.#scrollBy(lines);
+  }
+
   /**
    * The desktop/tablet-landscape Log zone's own tutorial lock (guided mode G8 part 2, `docs/guided-mode.md` §3.11):
    * the same panel frame and "log" header as `draw`, but dashed, with `reason` in place of any real lines — "stay

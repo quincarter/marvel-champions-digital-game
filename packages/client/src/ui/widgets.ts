@@ -1109,6 +1109,12 @@ export class McScrollPanel {
     this.panel.setText(text);
   }
 
+  /** Scrolls the text by `amount` pixels (positive is down), clamped: the pad's right stick. */
+  scrollByPx(amount: number): void {
+    // The content moves up as the view moves down, so the child offset runs the other way.
+    this.panel.addChildOY(-amount);
+  }
+
   /** Repositions and resizes in place, for a scene that redraws on every state change. */
   layout(rect: Rect): void {
     this.panel.setPosition(rect.x, rect.y);

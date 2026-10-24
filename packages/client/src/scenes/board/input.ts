@@ -6,7 +6,7 @@
  * rather than two that happen to agree today.
  */
 
-import Phaser from "phaser";
+import type Phaser from "phaser";
 import { eventOnce } from "../../view/event-once.js";
 import { gamepadIntentFor, GAMEPAD_AXIS, GAMEPAD_BUTTON, type GamepadIntent } from "../../view/gamepad.js";
 import {
@@ -89,6 +89,12 @@ export function bindKeyboard(scene: Phaser.Scene, binding: IntentBinding): void 
         binding.onIntent("up");
         break;
       case "Enter":
+        // Shift+Enter is End turn, on every screen that binds this: only the Board claims it (its own shortcut handler), so
+        // no other screen activates its focused stop on it either.
+        if (event.shiftKey) break;
+        event.preventDefault();
+        binding.onIntent("activate");
+        break;
       case " ":
         event.preventDefault();
         binding.onIntent("activate");
@@ -187,7 +193,13 @@ export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
     }
     return false;
   };
-  const held = () => binding.blocked() || conflictPromptOwnsInput(scene);
+  // A scene that froze its own input (Team-Up splash, achievement list, Report issue) leaves the pad plugin and the
+  // keyboard disabled while the per-frame poll still runs: it must not keep repeating a frozen direction or stick.
+  const held = () =>
+    binding.blocked() ||
+    conflictPromptOwnsInput(scene) ||
+    scene.input.enabled === false ||
+    scene.input.keyboard?.enabled === false;
 
   gamepad.on("down", (pad: Phaser.Input.Gamepad.Gamepad, button: Phaser.Input.Gamepad.Button) => {
     if (!usable(pad)) return;
@@ -249,6 +261,7 @@ export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
     if (fire) binding.onIntent(fire);
     if (scroll && !blocked) binding.onScroll?.(scroll.dx, scroll.dy, delta);
   };
-  scene.events.on(Phaser.Scenes.Events.UPDATE, onUpdate);
-  scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => scene.events.off(Phaser.Scenes.Events.UPDATE, onUpdate));
+  // The event names, not `Phaser.Scenes.Events`: a value import of Phaser would load it (and `window`) in unit tests.
+  scene.events.on("update", onUpdate);
+  scene.events.once("shutdown", () => scene.events.off("update", onUpdate));
 }

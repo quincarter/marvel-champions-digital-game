@@ -28,6 +28,7 @@ import {
 } from "../view/comic-reader-model.js";
 import type { Rect } from "../view/layout.js";
 import type { ExtrasSceneData } from "./extras.js";
+import { bindExtraInput } from "./extra-input.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 
@@ -83,6 +84,17 @@ export class SideStoryReaderScene extends Phaser.Scene {
       }
     };
     this.input.keyboard?.on("keydown", onArrow);
+    // The D-pad pages as the arrows do.
+    bindExtraInput(this, {
+      intents: {
+        right: () => {
+          this.#advance();
+        },
+        left: () => {
+          this.#back();
+        },
+      },
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.#draw, this);
       this.input.keyboard?.off("keydown", onArrow);
