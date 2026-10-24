@@ -59,4 +59,25 @@ describe("NativePads", () => {
     pads.apply({ kind: "state", pad: pad([3]) });
     expect(pads.snapshot()).not.toBe(first);
   });
+
+  it("leaves Steam's virtual pad out once the physical pad gives input, so a press doesn't land twice", () => {
+    const pads = new NativePads();
+    const steam = { index: 1, id: "Steam Virtual Gamepad (STANDARD GAMEPAD Vendor: 28de Product: 11ff)" };
+    pads.apply({ kind: "connected", pad: pad([]) });
+    pads.apply({ kind: "connected", pad: pad([], [], steam) });
+    expect(pads.snapshot()[1]).not.toBeNull();
+    pads.apply({ kind: "state", pad: pad([0], [0]) });
+    expect(pads.snapshot()[1]).toBeNull();
+    expect(pads.snapshot()[0]?.buttons[0]?.pressed).toBe(true);
+  });
+
+  it("keeps Steam's virtual pad when it is the only one giving input", () => {
+    const pads = new NativePads();
+    pads.apply({ kind: "connected", pad: pad([]) });
+    pads.apply({
+      kind: "state",
+      pad: pad([0], [0], { index: 1, id: "Steam (STANDARD GAMEPAD Vendor: 28de Product: 11ff)" }),
+    });
+    expect(pads.snapshot()[1]?.buttons[0]?.pressed).toBe(true);
+  });
 });

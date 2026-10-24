@@ -28,17 +28,55 @@ export function startNativeGamepad(): void {
 }
 
 async function begin(): Promise<void> {
+  let invoke: Invoke;
   let listen: typeof import("@tauri-apps/api/event").listen;
   try {
-    const { invoke } = (await import("@tauri-apps/api/core")) as { invoke: Invoke };
-    const status = await invoke<{ readonly enabled: boolean }>("gamepad_bridge_status");
-    if (!status.enabled) return;
+    ({ invoke } = (await import("@tauri-apps/api/core")) as { invoke: Invoke });
     ({ listen } = await import("@tauri-apps/api/event"));
   } catch {
     return;
   }
 
   const pads = new NativePads();
+  let live = false;
+  const announce = (kind: BridgeMessage["kind"], pad: BridgeMessage["pad"]): void => {
+    const event = new Event(kind === "disconnected" ? "gamepaddisconnected" : "gamepadconnected");
+    Object.defineProperty(event, "gamepad", { value: pads.eventPad(pad) });
+    Object.defineProperty(event, NATIVE, { value: true });
+    window.dispatchEvent(event);
+  };
+  // A tap stays down for a frame or two (`NativePads#endFrame`); the frames are counted only while one is held.
+  let counting = false;
+  const countFrame = (): void => {
+    pads.endFrame();
+    if (pads.latching) requestAnimationFrame(countFrame);
+    else counting = false;
+  };
+  // Listening starts before the bridge does: it announces the pads already plugged in as soon as its thread is up.
+  const known = new Map<number, BridgeMessage["pad"]>();
+  const unlisten = await listen<BridgeMessage>("mc-gamepad", ({ payload }) => {
+    const changed = pads.apply(payload);
+    if (payload.kind === "disconnected") known.delete(payload.pad.index);
+    else known.set(payload.pad.index, payload.pad);
+    if (!live) return;
+    if (pads.latching && !counting) {
+      counting = true;
+      requestAnimationFrame(countFrame);
+    }
+    if (changed && payload.kind !== "state") announce(payload.kind, payload.pad);
+  });
+
+  let enabled = false;
+  try {
+    enabled = (await invoke<{ readonly enabled: boolean }>("gamepad_bridge_status")).enabled;
+  } catch {
+    enabled = false;
+  }
+  if (!enabled) {
+    unlisten();
+    return;
+  }
+
   Object.defineProperty(navigator, "getGamepads", { configurable: true, value: () => pads.snapshot() });
   // The webview's own events would announce its misread pads: only the bridge's get through. On the window itself
   // the capture listener runs before Phaser's and the toast's.
@@ -47,25 +85,6 @@ async function begin(): Promise<void> {
   };
   window.addEventListener("gamepadconnected", holdBack, { capture: true });
   window.addEventListener("gamepaddisconnected", holdBack, { capture: true });
-
-  // A tap stays down for a frame or two (`NativePads#endFrame`); the frames are counted only while one is held.
-  let counting = false;
-  const countFrame = (): void => {
-    pads.endFrame();
-    if (pads.latching) requestAnimationFrame(countFrame);
-    else counting = false;
-  };
-
-  await listen<BridgeMessage>("mc-gamepad", ({ payload }) => {
-    const changed = pads.apply(payload);
-    if (pads.latching && !counting) {
-      counting = true;
-      requestAnimationFrame(countFrame);
-    }
-    if (!changed || payload.kind === "state") return;
-    const event = new Event(payload.kind === "disconnected" ? "gamepaddisconnected" : "gamepadconnected");
-    Object.defineProperty(event, "gamepad", { value: pads.eventPad(payload.pad) });
-    Object.defineProperty(event, NATIVE, { value: true });
-    window.dispatchEvent(event);
-  });
+  live = true;
+  for (const pad of known.values()) announce("connected", pad);
 }

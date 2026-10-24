@@ -5,6 +5,10 @@
  * The bridge pushes each pad's state as it changes, with the buttons that went down since its last message (`downs`).
  * The game only looks once a frame, so a tap shorter than a frame would be missed; a button in `downs` therefore reads
  * as pressed for `LATCH_FRAMES` frames even when it is already up again (`endFrame` counts them off).
+ *
+ * With Steam Input on, Steam's virtual pad (Valve's vendor id 28de, product 11ff) mirrors the physical one, so one
+ * controller would show up twice and every press would land twice. The virtual pad is left out once a pad of its own
+ * has given any input; a virtual pad that is the only one working (Steam's own remap of a pad the app can't read) stays.
  */
 
 export interface BridgeButton {
@@ -44,10 +48,21 @@ export const LATCH_FRAMES = 2;
 /** The slots a browser reports, empty ones as null. */
 const SLOTS = 4;
 
+/** Steam Input's virtual gamepad, as the bridge's id spells it. */
+export function isSteamVirtualPad(id: string): boolean {
+  return /Vendor: 28de Product: 11ff/i.test(id);
+}
+
+function hasInput(pad: BridgePad): boolean {
+  return pad.downs.length > 0 || pad.buttons.some((button) => button.pressed) || pad.axes.some((axis) => axis !== 0);
+}
+
 export class NativePads {
   readonly #pads = new Map<number, BridgePad>();
   /** Per pad, each tapped button and the frames it has left. */
   readonly #latched = new Map<number, Map<number, number>>();
+  /** The pads, by slot, that have given any input since they connected. */
+  readonly #active = new Set<number>();
   #cache: (ShimPad | null)[] | null = null;
 
   /** Takes one bridge message in; true when a pad came or went. */
@@ -57,10 +72,12 @@ export class NativePads {
     if (message.kind === "disconnected" || !pad.connected) {
       this.#pads.delete(pad.index);
       this.#latched.delete(pad.index);
+      this.#active.delete(pad.index);
       return true;
     }
     const known = this.#pads.has(pad.index);
     this.#pads.set(pad.index, pad);
+    if (hasInput(pad)) this.#active.add(pad.index);
     if (pad.downs.length > 0) {
       const latched = this.#latched.get(pad.index) ?? new Map<number, number>();
       for (const index of pad.downs) latched.set(index, LATCH_FRAMES);
@@ -91,8 +108,12 @@ export class NativePads {
   snapshot(): (ShimPad | null)[] {
     if (this.#cache) return this.#cache;
     const out: (ShimPad | null)[] = Array.from({ length: SLOTS }, () => null);
+    const ownPadActive = [...this.#pads.values()].some(
+      (pad) => !isSteamVirtualPad(pad.id) && this.#active.has(pad.index),
+    );
     for (const pad of this.#pads.values()) {
       if (pad.index < 0 || pad.index >= SLOTS) continue;
+      if (ownPadActive && isSteamVirtualPad(pad.id)) continue;
       const latched = this.#latched.get(pad.index);
       out[pad.index] = {
         id: pad.id,
