@@ -2,7 +2,7 @@
  * Glyph hints for the campaign screens (`ui/glyph-hints.ts`), so each screen asks for them in one line.
  *
  * The pad's Start is "forward" on a campaign screen (`FocusRoute`'s `primary`), so a screen's main Continue / Next /
- * Begin button carries Start on a pad and Enter on a keyboard (`forwardHint`). A page-skipping control (the comic's
+ * Begin button carries Start on a pad (`forwardHint`). A page-skipping control (the comic's
  * SKIP) carries the pause chord (`skipHint`): Start on a pad, Esc on a keyboard, both of which leave it. Touch shows
  * nothing: `GlyphHints` draws only while a pad or keyboard is the input in use.
  */
@@ -20,21 +20,19 @@ export function createHints(scene: Phaser.Scene, obstacles?: () => readonly Rect
   return hints;
 }
 
-/** Start (pad) or Enter (keyboard) beside a screen's main forward button. */
+/**
+ * Start beside a screen's main forward button, on a pad only. One hint per button on purpose: a second one on the same
+ * button (a keyboard one) hides itself while the pad is in use and slides the button's label back under the first one's
+ * glyph (`GlyphHints#hide` resets the shift). The keyboard's Enter / Space press the same button through the route's
+ * `primary`, so it needs no glyph of its own here.
+ */
 export function forwardHint(hints: GlyphHints | null, button: McButton, ground: GlyphGround): void {
-  if (!hints) return;
-  hints.button(button, ["pause"], ground, { when: (set) => set === "pad" });
-  hints.button(button, ["activate"], ground, { when: (set) => set === "keyboard" });
+  hints?.button(button, ["pause"], ground, { when: (set) => set === "pad" });
 }
 
 /** The pause chord (Start, Esc) beside a control that Start / Esc leaves through. */
 export function skipHint(hints: GlyphHints | null, button: McButton, ground: GlyphGround): void {
   hints?.button(button, ["pause"], ground);
-}
-
-/** LB / RB beside a tab strip's two ends, or `zoneUp` / `zoneDown` on a keyboard. */
-export function tabHint(hints: GlyphHints | null, button: McButton, direction: -1 | 1, ground: GlyphGround): void {
-  hints?.button(button, [direction === -1 ? "zoneUp" : "zoneDown"], ground);
 }
 
 /**
