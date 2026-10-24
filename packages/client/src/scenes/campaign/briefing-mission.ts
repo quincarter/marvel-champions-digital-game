@@ -50,7 +50,7 @@ function drawRow(
     ctx.buttons.push(
       new McButton(scene, { kind: "quiet", label: "Inspect", type: typeRole.label, rect: chip, onClick: open }),
     );
-    ctx.stops.set(`mission-${key}`, { rect: chip, activate: open });
+    ctx.stops.set(`mission-${key}`, { rect: chip, activate: open, inspect: open });
   }
   return top + ROW_HEIGHT;
 }

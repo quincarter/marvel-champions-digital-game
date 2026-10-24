@@ -133,6 +133,8 @@ import {
   type SeatHeaderView,
 } from "../../view/campaign-role-call-model.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
+import type { GlyphHints } from "../../ui/glyph-hints.js";
+import { createHints, forwardHint } from "./pad-hints.js";
 import { SCENES } from "../keys.js";
 import { routeUnfoldedGame } from "./unfolded-game-route.js";
 import { gameInProgressOf } from "../../campaign/unfolded-game.js";
@@ -154,6 +156,9 @@ const cardTypeOf = (name: string): { readonly type: string } | undefined => {
 
 const ENCOUNTER_SET_NAMES = new Map(POOL_ENCOUNTER_SETS.map((set) => [set.id as string, set.name] as const));
 const KNOWN_ENCOUNTER_SET_IDS: ReadonlySet<string> = new Set(ENCOUNTER_SET_NAMES.keys());
+
+/** The stops Start (and A with nothing focused) takes, best first: a confirm, or the issue's Open button. */
+const FORWARD_STOPS: readonly string[] = ["rb-confirm", "role-confirm", "call-confirm", "open"];
 
 export class CampaignBriefingScene extends Phaser.Scene {
   #data!: CampaignBriefingData;
@@ -205,6 +210,9 @@ export class CampaignBriefingScene extends Phaser.Scene {
   #deckProblemsFor: { readonly key: unknown; readonly problems: ReadonlyMap<number, string> } | null = null;
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
+  #hints: GlyphHints | null = null;
+  /** The focus stops of the last draw, for Start (the forward button) and LB / RB (the call's pages). */
+  #stopsNow: ReadonlyMap<string, FocusStop> = new Map();
 
   constructor() {
     super(SCENES.campaignBriefing);
@@ -227,8 +235,11 @@ export class CampaignBriefingScene extends Phaser.Scene {
   }
 
   create(): void {
+    // A new route each visit: the scene instance is reused, and its key and pad bindings die with every shutdown.
+    this.#route = null;
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#draw, this);
+    this.#hints = createHints(this);
     const artOff = cardArt(this).onArrived(() => this.#draw());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.#draw, this);
@@ -469,6 +480,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
     this.#briefingRegion = null;
     this.#columnRegion?.destroy();
     this.#columnRegion = null;
+    this.#hints?.reset();
     destroyChildren(this);
     if (!record) return;
 
@@ -488,6 +500,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
     const top = drawTopBar(this, {
       backLabel: "◂ ISSUES",
       onBack: back,
+      hints: this.#hints,
       title: `Briefing · Issue #${this.#issueNumber}${record.modes.campaign?.expertCampaign ? " · Expert" : ""}`,
       ...(hiddenEvidence
         ? {
@@ -799,23 +812,25 @@ export class CampaignBriefingScene extends Phaser.Scene {
       ? { x: 12 + editRect.width + 12, y: editRect.y, width: editRect.width, height: 48 }
       : { x: width - 16 - 425, y: editRect.y, width: 425, height: 62 };
     const openIssue = (): void => void this.#openIssue();
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "primary",
-        label: this.#starting
-          ? "Opening…"
-          : blocked
-            ? "Fix a deck first"
-            : this.#inProgress
-              ? `Continue issue #${this.#issueNumber} ▸`
-              : `Open issue #${this.#issueNumber} ▸`,
-        type: typeRole.barTitle,
-        rect: openRect,
-        onClick: openIssue,
-        enabled: canOpen,
-      }),
-    );
-    if (canOpen) stops.set("open", { rect: openRect, activate: openIssue });
+    const openButton = new McButton(this, {
+      kind: "primary",
+      label: this.#starting
+        ? "Opening…"
+        : blocked
+          ? "Fix a deck first"
+          : this.#inProgress
+            ? `Continue issue #${this.#issueNumber} ▸`
+            : `Open issue #${this.#issueNumber} ▸`,
+      type: typeRole.barTitle,
+      rect: openRect,
+      onClick: openIssue,
+      enabled: canOpen,
+    });
+    this.#buttons.push(openButton);
+    if (canOpen) {
+      stops.set("open", { rect: openRect, activate: openIssue });
+      forwardHint(this.#hints, openButton, "ink");
+    }
 
     if (blocked) {
       const seat = record.seats.find((candidate) => candidate.seatNumber === blockedSeat);
@@ -867,13 +882,24 @@ export class CampaignBriefingScene extends Phaser.Scene {
     }
     if (this.#seatPicker) this.#drawSeatPicker(record, width, height, stops);
 
+    this.#stopsNow = stops;
     this.#route =
       this.#route ??
       new FocusRoute(this, {
-        onCancel: back,
+        // B closes the "which deck?" chooser first, then leaves.
+        onCancel: () => {
+          if (this.#seatPicker) {
+            this.#seatPicker = false;
+            this.#draw();
+          } else back();
+        },
         blocked: () => this.scene.isActive(SCENES.inspect),
         onPage: (direction) => this.#briefingRegion?.scrollByPx(direction * 400),
         onScroll: (_dx, dy) => this.#briefingRegion?.scrollByPx(dy),
+        // LB / RB turn the options' pages when the call has them.
+        onTab: (direction) => this.#stopsNow.get(direction < 0 ? "call-prev" : "call-next")?.activate(),
+        // Start and A with nothing focused: the screen's one forward button (Open / Confirm), never an accept or decline.
+        primary: () => (this.#seatPicker ? null : (FORWARD_STOPS.find((key) => this.#stopsNow.has(key)) ?? null)),
       });
     this.#route.set([...stops.keys()], stops);
   }
@@ -1408,7 +1434,11 @@ export class CampaignBriefingScene extends Phaser.Scene {
           selected,
         }),
       );
-      stops.set(`call-option:${index}`, { rect: optionRect, activate: toggle });
+      stops.set(`call-option:${index}`, {
+        rect: optionRect,
+        activate: toggle,
+        ...(optionCard ? { inspect: () => this.#inspectCard(optionCard.cardId as string) } : {}),
+      });
     });
     let below = grid.bottom + 12;
     if (grid.pageCount > 1) {
@@ -1452,17 +1482,19 @@ export class CampaignBriefingScene extends Phaser.Scene {
     if (pending.count > 1) {
       const confirmRect: Rect = { x: rect.x, y: below, width: 160, height: 44 };
       const confirm = (): void => this.#answer(this.#picking);
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "primary",
-          label: "Confirm",
-          type: typeRole.label,
-          rect: confirmRect,
-          onClick: confirm,
-          enabled: this.#picking.length === pending.count,
-        }),
-      );
-      if (this.#picking.length === pending.count) stops.set("call-confirm", { rect: confirmRect, activate: confirm });
+      const confirmButton = new McButton(this, {
+        kind: "primary",
+        label: "Confirm",
+        type: typeRole.label,
+        rect: confirmRect,
+        onClick: confirm,
+        enabled: this.#picking.length === pending.count,
+      });
+      this.#buttons.push(confirmButton);
+      if (this.#picking.length === pending.count) {
+        stops.set("call-confirm", { rect: confirmRect, activate: confirm });
+        forwardHint(this.#hints, confirmButton, "ink");
+      }
     }
     if (pending.optional) {
       const declineRect: Rect = {
@@ -1882,6 +1914,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
         stops.set(`rb-card:${card.id}`, {
           rect: () => (row.kind === "grid" ? cellRectOf(list.rectFor(index), col) : recArtOf(list.rectFor(index))),
           activate: () => inspect(card.id),
+          inspect: () => inspect(card.id),
           ensureVisible: () => list.scrollIntoView(index),
         });
       });
@@ -1959,20 +1992,22 @@ export class CampaignBriefingScene extends Phaser.Scene {
       if (id !== null) this.#answer([id]);
     };
     const read = (): void => this.#inspectRoleBuildCard(card.id, false);
+    const rbConfirm = new McButton(this, {
+      kind: "primary",
+      label: "Confirm",
+      type: typeRole.label,
+      rect: confirmRect,
+      onClick: accept,
+    });
     this.#buttons.push(
       new McButton(this, { kind: "secondary", label: "Back", type: typeRole.label, rect: backRect, onClick: back }),
-      new McButton(this, {
-        kind: "primary",
-        label: "Confirm",
-        type: typeRole.label,
-        rect: confirmRect,
-        onClick: accept,
-      }),
+      rbConfirm,
       new McButton(this, { kind: "quiet", label: "Inspect", type: typeRole.label, rect: inspectRect, onClick: read }),
     );
+    forwardHint(this.#hints, rbConfirm, "ink");
     stops.set("rb-back", { rect: backRect, activate: back });
     stops.set("rb-confirm", { rect: confirmRect, activate: accept });
-    stops.set("rb-inspect", { rect: inspectRect, activate: read });
+    stops.set("rb-inspect", { rect: inspectRect, activate: read, inspect: read });
   }
 
   /** The seat's hero above its prompt: the roster's own portrait (`art/heroes`) and "SEAT 1 · COLOSSUS". */
@@ -2162,16 +2197,18 @@ export class CampaignBriefingScene extends Phaser.Scene {
       const role = confirmedRole(this.#roleState, view);
       if (role !== null) this.#answer([role]);
     };
+    const roleConfirm = new McButton(this, {
+      kind: "primary",
+      label: "Confirm",
+      type: typeRole.label,
+      rect: confirmRect,
+      onClick: accept,
+    });
     this.#buttons.push(
       new McButton(this, { kind: "secondary", label: "Back", type: typeRole.label, rect: backRect, onClick: back }),
-      new McButton(this, {
-        kind: "primary",
-        label: "Confirm",
-        type: typeRole.label,
-        rect: confirmRect,
-        onClick: accept,
-      }),
+      roleConfirm,
     );
+    forwardHint(this.#hints, roleConfirm, "ink");
     stops.set("role-back", { rect: backRect, activate: back });
     stops.set("role-confirm", { rect: confirmRect, activate: accept });
   }
