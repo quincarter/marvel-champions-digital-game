@@ -67,7 +67,7 @@ export const X23_PACK_CARDS: AbilityRegistry = defineAbilities({
           max: 1,
           chooser: thatPlayer,
         }),
-        putIntoPlay({ kind: "slot", slot: "taken" }, thatPlayer),
+        putIntoPlay({ kind: "slot", slot: "taken" }, thatPlayer, { controllerStated: true }),
       ]),
     ]),
   ),

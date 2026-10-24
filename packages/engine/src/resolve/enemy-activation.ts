@@ -636,7 +636,16 @@ function stepFaceupBoostCard(
     amplifyIconsInPlay(ctx.state, ctx.deps) +
     boostIconsEachOf(ctx, frame) +
     (boost.countAdjust ?? 0);
-  const icons = boost.iconsCancelled || boost.ignored ? 0 : Math.max(0, counted);
+  // Icons a "Boost" ability gave the card (step 3b) come after a step 3a cancel and still count (ruling May 10, 2024
+  // #173: the cancel covers printed, amplify and constant icons, not those "given to that card via a 'Boost' effect").
+  // Cards applied "as if it were a boost card" (`applyAsBoostCard`) add their own icons unless cancelled in their own
+  // turned-faceup window (ruling Sept 5, 2024 #8); a cancel of the resolving card's icons does not reach them.
+  const applied = (boost.appliedAsBoost ?? [])
+    .filter((a) => !a.iconsCancelled)
+    .reduce((sum, a) => sum + boostIconsFor(ctx.state, ctx.deps, a.instanceId, playerId), 0);
+  const icons = boost.ignored
+    ? 0
+    : Math.max(0, (boost.iconsCancelled ? 0 : counted) + (boost.boostAbilityAdjust ?? 0) + applied);
   // "After you resolve a boost card during Mysterio's activation, place that card in your discard pile" (§3.5 of wave
   // 5): a response window between the count and the discard, only when an ability listens.
   const resolved: TriggerEvent = {

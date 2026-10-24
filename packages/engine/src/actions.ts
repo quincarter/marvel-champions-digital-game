@@ -25,7 +25,7 @@ import {
   type Payment,
   type ResourceAbilityUse,
 } from "./commands.js";
-import { createCtx, emit, moveCard, setFrame, updateFrame, updateInstance, type Ctx } from "./ctx.js";
+import { createCtx, emit, moveCard, perilBarsTrigger, setFrame, updateFrame, updateInstance, type Ctx } from "./ctx.js";
 import {
   addCounters,
   areaCostReductionFor,
@@ -6440,6 +6440,11 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }, 
   }
   if (definition.trigger.firstPlayerOnly === true && command.playerId !== ctx.state.firstPlayerId) {
     return engineError("no_valid_target", "only the first player may trigger that ability", command);
+  }
+  // RRG 1.8 "Peril" (p. 32): "While this card is in a player's play area, other players cannot trigger abilities on
+  // this card", whoever its text says may trigger them.
+  if (perilBarsTrigger(ctx.state, ctx.deps, command.playerId, command.cardInstanceId)) {
+    return engineError("no_valid_target", "only the player resolving or holding that peril card can act", command);
   }
   const player = mustPlayer(ctx.state, command.playerId);
   if (definition.trigger.form && player.identity.form !== definition.trigger.form) {

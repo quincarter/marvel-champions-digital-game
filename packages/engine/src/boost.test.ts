@@ -370,7 +370,7 @@ describe("Ruling 173, May 10, 2024: boost icons added by a Boost ability (step 3
     return state;
   }
 
-  it.fails("Attacrobatics cancels the printed icon; the 2 icons its Boost ability adds still count", () => {
+  it("Attacrobatics cancels the printed icon; the 2 icons its Boost ability adds still count", () => {
     const toHero: Command = { type: "changeForm", playerId: p1 };
     const endTurn: Command = { type: "endTurn", playerId: p1 };
     const { state, events } = runCommands(boostGame(), gainDeps, toHero, endTurn);
@@ -379,7 +379,6 @@ describe("Ruling 173, May 10, 2024: boost icons added by a Boost ability (step 3
         e.type === "attackResolved" && e.enemyInstanceId === activeVillain(state).instanceId,
     );
     expect(events.some((e) => e.type === "boostCancelled" && e.scope === "icons")).toBe(true);
-    // Actual: boostIcons 0 (the Boost ability's +2 is zeroed with the printed icon).
     expect(attacks[0]).toEqual(expect.objectContaining({ boostIcons: 2 }));
   });
 });

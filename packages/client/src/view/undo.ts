@@ -227,6 +227,7 @@ export const UNDO_EVENT_VERDICTS: Readonly<Record<GameEvent["type"], readonly [V
   playerEliminated: [STOPS, "a seat is out"],
   playerSatOut: [STOPS, "a seat is out"],
   playerSideSchemeLimitDiscard: [STOPS, "the encounter's rule"],
+  playerThwartEnded: [ALLOWED, "the hero's own visible play"],
   podEffectRequested: [ALLOWED, "rules bookkeeping, nothing hidden"],
   preThenUnresolved: [ALLOWED, "rules bookkeeping, nothing hidden"],
   putIntoPlayRefused: [ALLOWED, "the hero's own visible play"],

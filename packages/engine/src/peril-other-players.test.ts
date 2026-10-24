@@ -11,17 +11,36 @@
  * to it. P2 also has an Alarm: a forced response to it, which places an alarm counter on the main scheme.
  */
 
-import { flat, type CardId } from "@mc/content";
+import { flat, type CardId, type KeywordInstance } from "@mc/content";
 import { describe, expect, it } from "vitest";
-import type { EngineDeps } from "./abilities.js";
-import type { PlayerId } from "./ids.js";
+import type { AbilityDefinition, EngineDeps } from "./abilities.js";
+import type { Command } from "./commands.js";
+import { applyCommand } from "./engine.js";
+import type { InstanceId, PlayerId } from "./ids.js";
+import { legalActions } from "./legal.js";
 import { mustInstance } from "./query.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { runCommandsPicking } from "./testing/drive.js";
 import { defaultPick, giveCard } from "./testing/scenario.js";
-import { stubAlly, stubEvent, stubMainScheme, stubSupport, stubTreachery, stubVillain } from "./testing/fixtures.js";
-import { copiesOf, gameAtFirstTurn, onTopOfEncounterDeck, P1, P2, playerCardIntoPlay } from "./testing/wave3.js";
+import {
+  stubAlly,
+  stubEvent,
+  stubMainScheme,
+  stubMinion,
+  stubSupport,
+  stubTreachery,
+  stubVillain,
+} from "./testing/fixtures.js";
+import {
+  copiesOf,
+  gameAtFirstTurn,
+  minionEngagedWith,
+  onTopOfEncounterDeck,
+  P1,
+  P2,
+  playerCardIntoPlay,
+} from "./testing/wave3.js";
 
 const one = { kind: "const", value: 1 } as const;
 const theVillain = { kind: "named", name: "villain" } as const;
@@ -196,5 +215,66 @@ describe("peril: other players cannot trigger abilities (RRG v1.8 p.32; ruling 2
     it("while P1 resolves a peril card, only P1's characters may defend", () => {
       expect(defendersOffered(PERILOUS_ASSAULT.id)).toEqual(["decline", "p1-ally"]);
     });
+  });
+});
+
+/**
+ * RRG 1.8 "Peril" (p. 32), its constant-ability form: "While this card is in a player's play area, other players cannot
+ * trigger abilities on this card." Synthetic minion engaged with P1, with an Action any player could otherwise use (an
+ * encounter card's Action, FFG ruling December 17, 2025, Ruling 1).
+ */
+describe("peril: a peril card in a player's play area (RRG v1.8 p.32)", () => {
+  const PERIL: readonly KeywordInstance[] = [{ name: "peril" }];
+  const POKE = stubAbility("lurker.action", {
+    trigger: { kind: "action" },
+    effects: [{ kind: "dealDamage", target: { kind: "self" }, amount: one }],
+  } as AbilityDefinition);
+  const lurker = (keywords: readonly KeywordInstance[]) =>
+    stubMinion({
+      id: keywords.length > 0 ? "peril-lurker" : "plain-lurker",
+      atk: 0,
+      sch: 0,
+      hp: 9,
+      boostIcons: 0,
+      keywords,
+      abilities: [POKE.ref],
+    });
+  const lurkerDeps = depsOf(POKE);
+
+  /** P1 passes with the lurker engaged; returns P2's turn. */
+  const lurkerGame = (keywords: readonly KeywordInstance[]) => {
+    const card = lurker(keywords);
+    const start = gameAtFirstTurn({
+      cards: [card, FILLER],
+      deps: lurkerDeps,
+      players: 2,
+      encounter: [card.id, ...copiesOf(FILLER.id, 20)],
+    });
+    const engaged = minionEngagedWith(start, card.id, P1);
+    const { state } = runCommandsPicking(engaged.state, lurkerDeps, defaultPick, { type: "endTurn", playerId: P1 });
+    return { state, id: engaged.id };
+  };
+  const use = (id: InstanceId): Command => ({
+    type: "useAbility",
+    playerId: P2,
+    cardInstanceId: id,
+    abilityId: POKE.ref.id,
+    payment: [],
+  });
+  const offered = (state: GameState, id: InstanceId): boolean => {
+    const legal = legalActions(state, P2, lurkerDeps);
+    return "legal" in legal && JSON.stringify(legal.legal).includes(id);
+  };
+
+  it("control: another player may trigger an encounter card's action in a player's play area", () => {
+    const { state, id } = lurkerGame([]);
+    expect(offered(state, id)).toBe(true);
+    expect(applyCommand(state, use(id), lurkerDeps).ok).toBe(true);
+  });
+
+  it("a peril card in a player's play area: other players cannot trigger its abilities", () => {
+    const { state, id } = lurkerGame(PERIL);
+    expect(offered(state, id)).toBe(false);
+    expect(applyCommand(state, use(id), lurkerDeps).ok).toBe(false);
   });
 });

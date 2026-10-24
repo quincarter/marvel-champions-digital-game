@@ -459,6 +459,10 @@ export function promptTitleOf(
   if (kind === "reportFact") {
     return prompt.fact === "minutesAway" ? "On a break" : "Did you talk this phase?";
   }
+  // An any-player-control card an effect puts into play (RRG 1.8 pp. 32-33): name the card being placed.
+  if (kind === "choosePlayer" && prompt.cardInstanceId !== undefined && state) {
+    return `Who controls ${cardName(state, prompt.cardInstanceId)}?`;
+  }
   if (kind === "discardRestricted") return `Discard to ${numberWord(prompt.limit)} restricted cards`;
   if (kind === "divideEvenlyRemainder") return "Place the leftover damage";
   const titles: Record<string, string> = {

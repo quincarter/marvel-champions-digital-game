@@ -256,7 +256,7 @@ function roleUpgradePut(id: string, citation: string, text: string, gate?: Campa
       effects: [
         forEachPlayer(eachPlayer, [
           selectCards("role-upgrade", campaignLogCards("roleUpgrade", { seat: thatPlayer })),
-          putIntoPlay(chosen("role-upgrade"), thatPlayer),
+          putIntoPlay(chosen("role-upgrade"), thatPlayer, { controllerStated: true }),
         ]),
       ],
     },

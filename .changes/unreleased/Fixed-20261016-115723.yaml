@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'An enemy targeted by an "(attack)" ability is attacked even when it takes no damage (Tackle''s stun, a confuse), so its Retaliate triggers (FFG ruling 197, May 30, 2024; RRG p. 10)'
+time: 2026-10-16T11:57:23.000000+00:00

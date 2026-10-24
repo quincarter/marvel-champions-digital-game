@@ -2648,6 +2648,14 @@ export type EffectSpec =
    */
   | { readonly kind: "replaceBoostCount"; readonly card: TargetRef }
   /**
+   * "Apply its boost icons for this activation as if it were a boost card" ("I Am Inevitable", Infinite Mischief): from
+   * a "Boost" ability, the first card `card` names is applied to the current activation as a boost card turned faceup.
+   * Its `boostCardTurnedFaceup` event opens the windows of abilities that affect boost cards (FFG ruling Sept 5, 2024
+   * #8: Preemptive Strike may cancel its icons), then its icons, unless cancelled, join the activation's count. Unlike
+   * `replaceBoostCount` (Chaos Control: count another card instead), the resolving boost card's own count stands.
+   */
+  | { readonly kind: "applyAsBoostCard"; readonly card: TargetRef }
+  /**
    * A card effect counting boost icons: "take damage equal to the number of boost icons on that card" (Taskmaster),
    * "for each boost icon discarded this way" (Molecular Decay, Machine Gun), "for each card discarded this way that
    * has boost icons equal to …" (Hex Bolt). Counts every card `cards` names, wherever it is now, and writes the total
@@ -4717,6 +4725,15 @@ export type EffectSpec =
       readonly controller: PlayerRef;
       readonly bind?: string;
       readonly facedown?: true;
+      /**
+       * The text names who controls the card ("put that ally into play under your control"). Without it, a card printed
+       * "Play under any player's control" enters under a player `controller` chooses, as playing it would (RRG 1.8
+       * "Play, Put into Play", pp. 32-33: "Unless otherwise stated by the 'put into play' effect …"; FFG ruling Nov
+       * 21, 2025: Build Support may put Boot Camp into play under another player's control; that `controller` chooses
+       * is an engine interpretation, as the ruling does not say who chooses). Prompt slot
+       * `putIntoPlayController`, asked before the host question; one player in the game is no choice.
+       */
+      readonly controllerStated?: true;
       /**
        * The card goes to an in-play scenario area instead (the mission area, MC45 p. 5; docs/phase7-wave8.md §3.33):
        * "in play but under no player's control". It is faceup there with no controller and no engaged player, and it

@@ -2176,6 +2176,11 @@ export const putIntoPlay = (
     readonly otherFace?: boolean;
     /** "Resolve the 'Setup' abilities on each of these cards" (MC60 p. 9 step 12), after the entries resolve. */
     readonly resolveSetup?: boolean;
+    /**
+     * The text states who controls it ("under your/their control"), so an any-player-control card asks no one (RRG
+     * 1.8 p. 32: "Unless otherwise stated by the 'put into play' effect").
+     */
+    readonly controllerStated?: boolean;
   } = {},
 ): EffectSpec => ({
   kind: "putIntoPlay",
@@ -2183,6 +2188,7 @@ export const putIntoPlay = (
   controller,
   ...withBind(opts.bind),
   ...(opts.facedown ? { facedown: true as const } : {}),
+  ...(opts.controllerStated ? { controllerStated: true as const } : {}),
   ...(opts.into ? { into: opts.into } : {}),
   ...(opts.otherFace ? { otherFace: true as const } : {}),
   ...(opts.resolveSetup ? { resolveSetup: true as const } : {}),
@@ -3641,6 +3647,13 @@ export const turnFacedown = (target: TargetRef): EffectSpec => ({ kind: "turnFac
 export const adjustBoostCount = (delta: Amount): EffectSpec => ({ kind: "adjustBoostCount", delta: amount(delta) });
 /** "…discard the top card of the encounter deck and count the number of boost icons on that card instead" (Chaos Control). */
 export const replaceBoostCount = (card: TargetRef): EffectSpec => ({ kind: "replaceBoostCount", card });
+/**
+ * "Apply its boost icons for this activation as if it were a boost card" ("I Am Inevitable"): from a Boost ability,
+ * the card is applied as a boost card turned faceup, so abilities that affect boost cards may be used on it (FFG ruling
+ * Sept 5, 2024, post-RRG 1.6 #8, Preemptive Strike; other cards with the same wording, such as Infinite Mischief,
+ * follow it by analogy, an engine interpretation).
+ */
+export const applyAsBoostCard = (card: TargetRef): EffectSpec => ({ kind: "applyAsBoostCard", card });
 /**
  * A card effect counting boost icons ("the number of boost icons on that card", "for each boost icon discarded this
  * way"): counts `cards` and writes the total to `<bind>.boostIcons`, which the effects after it read with

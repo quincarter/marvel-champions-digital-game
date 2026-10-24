@@ -522,8 +522,22 @@ export function perilBarsTrigger(
   const resolver = perilResolverId(state, deps);
   if (resolver !== null && resolver !== playerId) return true;
   if (!hasKeyword(state, instanceId, "peril", deps)) return false;
-  const area = state.players.find((player) => player.playArea.includes(instanceId));
-  return area !== undefined && area.playerId !== playerId;
+  const holder = playAreaHolderId(state, instanceId);
+  return holder !== null && holder !== playerId;
+}
+
+/**
+ * The player whose play area a card in play is in, else null: an engaged minion is in its player's (RRG 1.8 "Engage",
+ * p. 18; "Play Area", p. 33), an attachment in its host's (an identity is in its player's), anything else in the area
+ * that lists it.
+ */
+function playAreaHolderId(state: GameState, id: InstanceId, depth = 0): PlayerId | null {
+  const instance = state.instances[id];
+  if (!instance || depth > 8) return null;
+  if (instance.attachedTo !== null) return playAreaHolderId(state, instance.attachedTo, depth + 1);
+  if (instance.engagedWith !== null) return instance.engagedWith;
+  const owner = state.players.find((player) => player.identity.instanceId === id || player.playArea.includes(id));
+  return owner?.playerId ?? null;
 }
 
 /**

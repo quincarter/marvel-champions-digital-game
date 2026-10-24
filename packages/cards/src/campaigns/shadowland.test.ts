@@ -602,6 +602,32 @@ describe("scenario 2 setup (p. 14)", () => {
     expect(counters(left, 0)).toBe(0);
   });
 
+  it("asks nobody who controls a recorded any-player-control card: the text puts it into play under their control (RRG p. 32)", () => {
+    // Heroic Intuition (Core 65, Justice) prints "Play under any player's control"; a Build Support-style put into play would ask.
+    const INTUITION = "01065";
+    const [first, second] = SEATS as readonly [(typeof SEATS)[number], (typeof SEATS)[number]];
+    const withIntuition = {
+      ...first,
+      deck: { ...first.deck, cards: [...first.deck.cards, { cardId: cardId(INTUITION), quantity: 1 }] },
+    };
+    const seats = [withIntuition, second];
+    const log = compose(afterScenarioOne(STANDARD, seats, 4242, { recorded: [[INTUITION], []] }), declineAll).log;
+    expect(seatListOf(log, 0, "recordedCards")).toEqual([INTUITION]);
+    let controllerPrompts = 0;
+    const take = (state: GameState): readonly string[] => {
+      const choice = state.pendingChoice;
+      if (!choice) return [];
+      if (choice.prompt.kind === "choosePlayer" && choice.prompt.slot === "putIntoPlayController") controllerPrompts++;
+      const intuition = choice.options.filter((o) => o.label.includes(cardOf(INTUITION).name));
+      return intuition.length > 0 ? intuition.slice(0, 1).map((o) => o.optionId) : firstLegal(state);
+    };
+    const taken = settledStart(log, take);
+    expect(controllerPrompts).toBe(0);
+    expect(controlledBy(taken, 0)).toContain(INTUITION);
+    expect(controlledBy(taken, 1)).not.toContain(INTUITION);
+    expect(counters(taken, 0)).toBe(1);
+  });
+
   it("places an additional 3[per_hero] threat on the main scheme", () => {
     const log = compose(afterScenarioOne()).log;
     const state = settledStart(log);

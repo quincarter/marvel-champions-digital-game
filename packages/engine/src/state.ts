@@ -33,7 +33,7 @@ export interface StatusCounts {
 
 export const NO_STATUSES: StatusCounts = { stunned: 0, confused: 0, tough: 0 };
 
-/** Every status card type in the game, in RRG 1.8 "Status Cards" (p. 42) order. */
+/** Every status card type in the game, in RRG 1.8 "Status Cards" (p. 41) order. */
 export const STATUS_NAMES = ["confused", "stunned", "tough"] as const satisfies readonly (keyof StatusCounts)[];
 
 /**

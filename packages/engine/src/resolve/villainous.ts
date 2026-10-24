@@ -258,14 +258,11 @@ export function executeCharacterBoostFrame(ctx: Ctx, frame: Frame<"characterBoos
       return;
     }
   }
-  // The count: no window opens for it (no character's boost card is an enemy activation's to count).
-  const icons = boost.iconsCancelled
-    ? 0
-    : Math.max(
-        0,
-        boostIconsFor(ctx.state, ctx.deps, boost.countFrom ?? boost.instanceId, frame.playerId) +
-          (boost.countAdjust ?? 0),
-      );
+  // The count: no window opens for it (no character's boost card is an enemy activation's to count). A cancel of the
+  // card's icons does not reach those its "Boost" ability gave it (ruling May 10, 2024 #173), as in `enemy-activation.ts`.
+  const counted =
+    boostIconsFor(ctx.state, ctx.deps, boost.countFrom ?? boost.instanceId, frame.playerId) + (boost.countAdjust ?? 0);
+  const icons = Math.max(0, (boost.iconsCancelled ? 0 : counted) + (boost.boostAbilityAdjust ?? 0));
   setFrame(ctx, { ...frame, boost: null });
   if (icons <= 0 || locateCard(ctx.state, boost.instanceId)?.kind !== "boost") return;
   if (!ctx.state.stack.some((f) => f.frameId === record.useFrameId)) return;

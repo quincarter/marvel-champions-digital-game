@@ -1065,6 +1065,16 @@ export type GameEvent =
       readonly reason: "attackerLeftPlay" | "targetLeftPlay";
     }
   /**
+   * A basic thwart ended before removing any threat because its scheme left play first (RRG 1.8 "Consequential
+   * Damage", p. 13): the thwarter is not considered to have thwarted, and an ally takes no consequential damage.
+   */
+  | {
+      readonly type: "playerThwartEnded";
+      readonly thwarterInstanceId: InstanceId;
+      readonly schemeInstanceId: InstanceId;
+      readonly reason: "targetLeftPlay";
+    }
+  /**
    * `outsideActivation`: a card ability dealt this one, not the activation procedure ("give the villain 1 facedown
    * boost card"). RRG 1.8 "Boost, Boost Icon" (p. 11): it "remains facedown on that enemy until that enemy
    * activates", so it is expected *not* to be turned faceup in the villain phase it was dealt in.

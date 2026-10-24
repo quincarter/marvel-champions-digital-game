@@ -920,15 +920,18 @@ describe("Unlikely Duo (47022): Hero Action (attack), confuse an enemy, then 4 d
     expect(targets[0]!.options.sort()).toEqual([b.rhino, b.shocker].sort());
     expect(targets[1]!.options).toEqual([b.rhino]);
   });
-  it("is an attack: Jubilee's guard rule holds (a guard minion hides the villain as the confused target)", () => {
+  // RRG 1.8 p. 10, FFG ruling 197 (May 30, 2024: the enemy it confuses is attacked) and owner ruling Q49: guard keeps
+  // the villain off both choices, the confuse one included.
+  it("is an attack: Jubilee's guard rule holds (a guard minion hides the villain from both choices)", () => {
     const guard = engage(withWolverine(), MERCENARY);
     const rhino = villainOf(guard.state);
-    const probe = spy(picker(inOrder("chooseTarget", [rhino], [guard.id])));
+    const probe = spy(picker(inOrder("chooseTarget", [guard.id], [guard.id])));
     const staged = handOf(guard.state, "47022", E, M);
     const [id, ...paid] = staged.ids as [InstanceId, ...InstanceId[]];
     const { state } = driveEventsPicking(DEPS, staged.state, probe.pick, play(P1, id, paid));
-    expect(inst(state, rhino).statuses.confused).toBe(1);
-    const second = probe.seen.filter((p) => p.kind === "chooseTarget")[1];
+    expect(inst(state, rhino).statuses.confused).toBe(0);
+    const [first, second] = probe.seen.filter((p) => p.kind === "chooseTarget");
+    expect(first!.options).toEqual([guard.id]);
     expect(second === undefined || !second.options.includes(rhino)).toBe(true);
   });
   it("carries the Team-Up (Jubilee and Wolverine) keyword", () => {
