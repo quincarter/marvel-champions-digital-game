@@ -219,3 +219,47 @@ describe("scenarioSelectLayout: the second action (Customize this scenario)", ()
     });
   }
 });
+
+describe("scenarioSelectLayout with the chips behind the Filters button", () => {
+  const sizes = [...SIZES, { width: 900, height: 700 }, { width: 1280, height: 800 }];
+  for (const size of sizes) {
+    for (const open of [false, true]) {
+      test(`no overlap at ${size.width}x${size.height}, chips ${open ? "open" : "shut"}`, () => {
+        const layout = scenarioSelectLayout({
+          ...size,
+          chipRows: open ? 3 : 0,
+          detailLines: 8,
+          detailCollapsed: true,
+          filtersButton: true,
+          chipsShown: open,
+        });
+        expect(layout.filtersButton).not.toBeNull();
+        const rects = scenarioSelectLayoutRects(layout);
+        for (let i = 0; i < rects.length; i++)
+          for (let j = i + 1; j < rects.length; j++) expect(rectsOverlap(rects[i]!, rects[j]!)).toBe(false);
+      });
+    }
+  }
+
+  test("wide: the button sits right of the search field on its row; shut, the shelves take the chips' space", () => {
+    const shut = scenarioSelectLayout({ width: 1280, height: 800, chipRows: 0, detailLines: 8, filtersButton: true });
+    const always = scenarioSelectLayout({ width: 1280, height: 800, chipRows: 4, detailLines: 8 });
+    expect(shut.filtersButton!.y).toBe(shut.search.y);
+    expect(shut.filtersButton!.x).toBeGreaterThanOrEqual(shut.search.x + shut.search.width);
+    expect(shut.shelves.y).toBeLessThan(always.shelves.y);
+    expect(always.filtersButton).toBeNull();
+  });
+
+  test("narrow: the button takes the rail's place beside the search toggle; the rail is a second row only while open", () => {
+    const base = { width: 390, height: 844, chipRows: 1, detailLines: 4, detailCollapsed: true } as const;
+    const shut = scenarioSelectLayout({ ...base, filtersButton: true });
+    const open = scenarioSelectLayout({ ...base, filtersButton: true, chipsShown: true });
+    const rail = scenarioSelectLayout(base);
+    expect(shut.chips.height).toBe(0);
+    expect(shut.filtersButton!.y).toBe(shut.searchToggle!.y);
+    expect(open.chips.height).toBeGreaterThan(0);
+    expect(open.chips.y).toBeGreaterThan(open.filtersButton!.y);
+    expect(open.shelves.y).toBeGreaterThan(shut.shelves.y);
+    expect(shut.shelves.height).toBeGreaterThanOrEqual(rail.shelves.height);
+  });
+});

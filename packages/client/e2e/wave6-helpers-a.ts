@@ -136,6 +136,14 @@ export async function hasStop(page: Page, key: string, sceneKey?: string): Promi
 
 /** Clicks the center of a named control, with a real pointer click. Waits briefly for it to exist. */
 export async function clickStop(page: Page, key: string, sceneKey?: string, timeoutMs = 10000): Promise<void> {
+  // A filter chip folded behind the Filters button (a narrow screen, or a pad in use): open the button first.
+  if (
+    /^(scenario|hero)-chip:/.test(key) &&
+    !(await hasStop(page, key, sceneKey)) &&
+    (await hasStop(page, "filters-toggle", sceneKey))
+  ) {
+    await clickStop(page, "filters-toggle", sceneKey, timeoutMs);
+  }
   const stop = await waitFor(
     async () => (await routeStops(page, sceneKey))?.stops.find((s) => s.key === key) ?? null,
     `control "${key}" on ${sceneKey ?? "the current screen"}`,

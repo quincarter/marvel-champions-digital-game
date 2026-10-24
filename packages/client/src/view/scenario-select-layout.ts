@@ -32,6 +32,7 @@
  */
 import { hit } from "../tokens.js";
 import { chipStripHeight } from "./chip-layout.js";
+import { FILTERS_BUTTON_WIDTH } from "./filters-layout.js";
 import { formFactorFor, type FormFactor, type Rect } from "./layout.js";
 
 export const HEADER_HEIGHT = 64;
@@ -71,6 +72,13 @@ export interface ScenarioSelectLayoutInput {
    * and the shelves give up exactly that much. Defaults to one line (`FOOTER_HEIGHT`).
    */
   readonly footerHeight?: number;
+  /**
+   * The chips are behind the Filters button (`view/filters-layout.ts`): the button gets a place beside the search field
+   * (wide) or beside the search toggle (narrow). Off, the layout is as it always was.
+   */
+  readonly filtersButton?: boolean;
+  /** Narrow only, with `filtersButton`: the chip rail is open under the button's row. Shut, it takes no room. */
+  readonly chipsShown?: boolean;
   /** A second, quieter action above the CTA (Civil War's "Customize this scenario"): `secondary` gets a row. */
   readonly secondaryAction?: boolean;
 }
@@ -86,6 +94,8 @@ export interface ScenarioSelectLayout {
   /** Narrow only: the square toggle at the head of the chip row that shows/hides `search`. Null on wide. */
   readonly searchToggle: Rect | null;
   readonly chips: Rect;
+  /** The Filters button, when the chips are behind one: right of the search field (wide) or beside the search toggle (narrow). */
+  readonly filtersButton: Rect | null;
   /** True on narrow: draw the chips as one horizontally-scrolling rail (`ui/chip-rail.ts`) rather than wrapped rows. */
   readonly chipsScroll: boolean;
   /** The pack-shelf roster's own viewport. */
@@ -121,7 +131,8 @@ export function scenarioSelectLayoutRects(layout: ScenarioSelectLayout): readonl
     layout.step,
     ...(layout.search.height > 0 ? [layout.search] : []),
     ...(layout.searchToggle ? [layout.searchToggle] : []),
-    layout.chips,
+    ...(layout.filtersButton ? [layout.filtersButton] : []),
+    ...(layout.chips.height > 0 ? [layout.chips] : []),
     layout.shelves,
     layout.statStrip,
     layout.detail,
@@ -172,7 +183,16 @@ export function scenarioSelectLayout(input: ScenarioSelectLayoutInput): Scenario
   const ctaBlockHeight = hit.primary + 4 + footerHeight;
 
   if (wide) {
-    const search: Rect = { x: left, y: bodyTop, width: shelvesWidth, height: hit.target };
+    const behindButton = input.filtersButton ?? false;
+    const search: Rect = {
+      x: left,
+      y: bodyTop,
+      width: behindButton ? shelvesWidth - FILTERS_BUTTON_WIDTH - smallGap : shelvesWidth,
+      height: hit.target,
+    };
+    const filtersButton: Rect | null = behindButton
+      ? { x: left + shelvesWidth - FILTERS_BUTTON_WIDTH, y: bodyTop, width: FILTERS_BUTTON_WIDTH, height: hit.target }
+      : null;
     let y = bodyTop + hit.target + smallGap;
     const chipsHeight = chipStripHeight(input.chipRows);
     const chips: Rect = { x: left, y, width: shelvesWidth, height: chipsHeight };
@@ -206,6 +226,7 @@ export function scenarioSelectLayout(input: ScenarioSelectLayoutInput): Scenario
       search,
       searchToggle: null,
       chips,
+      filtersButton,
       chipsScroll: false,
       shelves,
       statStrip,
@@ -222,13 +243,32 @@ export function scenarioSelectLayout(input: ScenarioSelectLayoutInput): Scenario
   // search field only under it while the toggle is on. A phone's body is the roster's, and a 44px field that most
   // visits never type in was the one row it could give back (2026-09-21 owner note).
   const searchToggle: Rect = { x: left, y: bodyTop, width: hit.target, height: hit.target };
-  const chips: Rect = {
-    x: left + hit.target + smallGap,
-    y: bodyTop,
-    width: shelvesWidth - hit.target - smallGap,
-    height: chipStripHeight(1),
-  };
-  let y = bodyTop + chips.height + smallGap;
+  // Behind the Filters button: the button takes the rail's place beside the toggle, and the rail is a second row, only
+  // while open.
+  const behindButton = input.filtersButton ?? false;
+  const railShown = !behindButton || (input.chipsShown ?? false);
+  const filtersButton: Rect | null = behindButton
+    ? {
+        x: left + hit.target + smallGap,
+        y: bodyTop,
+        width: shelvesWidth - hit.target - smallGap,
+        height: hit.target,
+      }
+    : null;
+  const chips: Rect = behindButton
+    ? {
+        x: left,
+        y: bodyTop + hit.target + (railShown ? smallGap : 0),
+        width: shelvesWidth,
+        height: railShown ? chipStripHeight(1) : 0,
+      }
+    : {
+        x: left + hit.target + smallGap,
+        y: bodyTop,
+        width: shelvesWidth - hit.target - smallGap,
+        height: chipStripHeight(1),
+      };
+  let y = behindButton ? chips.y + chips.height + smallGap : bodyTop + chips.height + smallGap;
   const searchOpen = input.searchOpen ?? false;
   const search: Rect = { x: left, y, width: shelvesWidth, height: searchOpen ? hit.target : 0 };
   if (searchOpen) y += hit.target + smallGap;
@@ -262,6 +302,7 @@ export function scenarioSelectLayout(input: ScenarioSelectLayoutInput): Scenario
       search,
       searchToggle,
       chips,
+      filtersButton,
       chipsScroll: true,
       shelves,
       statStrip,
@@ -288,6 +329,7 @@ export function scenarioSelectLayout(input: ScenarioSelectLayoutInput): Scenario
     search,
     searchToggle,
     chips,
+    filtersButton,
     chipsScroll: true,
     shelves,
     statStrip,

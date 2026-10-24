@@ -74,6 +74,11 @@ async function startNewGameNoGuide(page: Page): Promise<void> {
 async function clickCivilWarChip(page: Page): Promise<void> {
   const size = page.viewportSize() ?? { width: 1440, height: 900 };
   const key = "scenario-chip:product:cw";
+  // The chips sit behind the Filters button on a phone: open it first.
+  if (!(await hasStop(page, key, "ScenarioSelect"))) {
+    await clickStop(page, "filters-toggle", "ScenarioSelect");
+    await settle(page);
+  }
   for (let step = 0; step < 60; step++) {
     const stop = (await routeStops(page, "ScenarioSelect"))?.stops.find((s) => s.key === key);
     if (!stop) throw new Error(`no "${key}" control on ScenarioSelect`);

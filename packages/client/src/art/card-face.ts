@@ -46,6 +46,11 @@ export interface CardFaceSpec {
   readonly desktop: boolean;
   /** An absolute URL to fetch the art from, or null for the plain parchment window. */
   readonly artUrl: string | null;
+  /**
+   * Another absolute URL to try when `artUrl` cannot be fetched or decoded (a hero's own picture failing on one
+   * platform's image decoder): the card's printed scan, so the tile is never a blank window. Null for none.
+   */
+  readonly artFallbackUrl?: string;
   readonly artFit: "cover" | "contain";
   /** Where a cover crop sits vertically, 0 top to 1 bottom (`drawArt`'s `focusY`). */
   readonly artFocusY: number;

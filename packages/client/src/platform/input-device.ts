@@ -12,11 +12,13 @@ import {
   type InputEvent,
   type InputModeState,
 } from "../view/input-mode.js";
+import { PadModeTracker } from "../view/pad-filters.js";
 import type { PadIdentity } from "../view/pad-family.js";
 
 type Listener = (state: InputModeState) => void;
 
 let state: InputModeState = INITIAL_INPUT_MODE;
+const padTracker = new PadModeTracker();
 const listeners = new Set<Listener>();
 let restTimer: ReturnType<typeof setTimeout> | null = null;
 let installed = false;
@@ -28,6 +30,7 @@ function dispatch(event: InputEvent): void {
   if (next === state) return;
   const changed = next.mode !== state.mode || next.pad !== state.pad || next.mouseMoving !== state.mouseMoving;
   state = next;
+  padTracker.note(event.kind);
   if (changed) queueNotify();
 }
 
@@ -47,6 +50,11 @@ function queueNotify(): void {
 
 export function inputDevice(): InputModeState {
   return state;
+}
+
+/** Whether the last real input was the controller's (a mouse move does not end it; a key or a touch does). */
+export function padInputTracked(): boolean {
+  return padTracker.active;
 }
 
 /** Called on every change of mode, pad or mouse movement. Returns the unsubscribe. */
@@ -90,6 +98,7 @@ export function installInputDeviceTracking(target: Window = window): void {
 /** Tests only: back to no input seen. */
 export function resetInputDeviceForTests(): void {
   state = INITIAL_INPUT_MODE;
+  padTracker.reset();
   listeners.clear();
 }
 

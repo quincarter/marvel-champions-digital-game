@@ -47,6 +47,7 @@
  */
 import { hit } from "../tokens.js";
 import { chipStripHeight } from "./chip-layout.js";
+import { FILTERS_BUTTON_WIDTH } from "./filters-layout.js";
 import { formFactorFor, type FormFactor, type Rect } from "./layout.js";
 
 export const MAX_SEATS = 4;
@@ -92,6 +93,10 @@ export interface SeatsLayoutInput {
   readonly searchOpen?: boolean;
   /** How many seated Team-Up pairs the strip under the seat cards shows (one row each). 0 draws no strip. */
   readonly pairRows?: number;
+  /** The chips are behind the Filters button (`view/filters-layout.ts`); see `ScenarioSelectLayoutInput.filtersButton`. */
+  readonly filtersButton?: boolean;
+  /** Narrow only, with `filtersButton`: the chip rail is open under the button's row. */
+  readonly chipsShown?: boolean;
   /** 1 draws the same-name conflict notice below the pair strip (`notice`); 0 or absent draws none. */
   readonly noticeRows?: number;
 }
@@ -119,6 +124,8 @@ export interface SeatsLayout {
   readonly searchToggle: Rect | null;
   /** The chip strip. On wide, `chipRows` wrapped rows tall; on narrow (`chipsScroll`), exactly one row that scrolls sideways. */
   readonly chips: Rect;
+  /** The Filters button, when the chips are behind one: right of the search field (wide) or beside the search toggle (narrow). */
+  readonly filtersButton: Rect | null;
   /** True on narrow: draw the chips as one horizontally-scrolling rail (`ui/chip-rail.ts`) rather than wrapped rows. */
   readonly chipsScroll: boolean;
   readonly shelves: Rect;
@@ -151,7 +158,8 @@ export function seatsLayoutRects(layout: SeatsLayout): readonly Rect[] {
     layout.rosterHeader,
     ...(layout.search.height > 0 ? [layout.search] : []),
     ...(layout.searchToggle ? [layout.searchToggle] : []),
-    layout.chips,
+    ...(layout.filtersButton ? [layout.filtersButton] : []),
+    ...(layout.chips.height > 0 ? [layout.chips] : []),
     layout.shelves,
     ...(layout.detail ? [layout.detail] : []),
     ...(layout.seatSummary ? [layout.seatSummary] : []),
@@ -240,7 +248,16 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
     };
     y += ROSTER_HEADER_HEIGHT + smallGap;
 
-    const search: Rect = { x: left, y, width: shelvesWidth, height: hit.target };
+    const behindButton = input.filtersButton ?? false;
+    const search: Rect = {
+      x: left,
+      y,
+      width: behindButton ? shelvesWidth - FILTERS_BUTTON_WIDTH - smallGap : shelvesWidth,
+      height: hit.target,
+    };
+    const filtersButton: Rect | null = behindButton
+      ? { x: left + shelvesWidth - FILTERS_BUTTON_WIDTH, y, width: FILTERS_BUTTON_WIDTH, height: hit.target }
+      : null;
     y += hit.target + smallGap;
     const chipsHeight = chipStripHeight(input.chipRows);
     const chips: Rect = { x: left, y, width: shelvesWidth, height: chipsHeight };
@@ -279,6 +296,7 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
       search,
       searchToggle: null,
       chips,
+      filtersButton,
       chipsScroll: false,
       shelves,
       detail,
@@ -344,13 +362,27 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
   // One chip row, whatever `chipRows` says: the search toggle at its head, then the rail, which scrolls sideways
   // instead of wrapping.
   const searchToggle: Rect = { x: left, y, width: hit.target, height: hit.target };
-  const chips: Rect = {
-    x: left + hit.target + smallGap,
-    y,
-    width: shelvesWidth - hit.target - smallGap,
-    height: chipStripHeight(1),
-  };
-  y += chips.height + smallGap;
+  // Behind the Filters button: the button takes the rail's place beside the toggle, and the rail is a second row, only
+  // while open.
+  const behindButton = input.filtersButton ?? false;
+  const railShown = !behindButton || (input.chipsShown ?? false);
+  const filtersButton: Rect | null = behindButton
+    ? { x: left + hit.target + smallGap, y, width: shelvesWidth - hit.target - smallGap, height: hit.target }
+    : null;
+  const chips: Rect = behindButton
+    ? {
+        x: left,
+        y: y + hit.target + (railShown ? smallGap : 0),
+        width: shelvesWidth,
+        height: railShown ? chipStripHeight(1) : 0,
+      }
+    : {
+        x: left + hit.target + smallGap,
+        y,
+        width: shelvesWidth - hit.target - smallGap,
+        height: chipStripHeight(1),
+      };
+  y = behindButton ? chips.y + chips.height + smallGap : y + chips.height + smallGap;
   const searchOpen = input.searchOpen ?? false;
   const search: Rect = { x: left, y, width: shelvesWidth, height: searchOpen ? hit.target : 0 };
   if (searchOpen) y += hit.target + smallGap;
@@ -393,6 +425,7 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
     search,
     searchToggle,
     chips,
+    filtersButton,
     chipsScroll: true,
     shelves,
     detail: null,

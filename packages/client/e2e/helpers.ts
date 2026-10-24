@@ -311,6 +311,9 @@ export async function pressAt(
   await verifiedPress(page, `click at ${Math.round(x)},${Math.round(y)}`, () => page.mouse.click(x, y, mouse));
 }
 
+/** A filter chip on Scenario select or Take your seats (folded behind the Filters button on a narrow screen or with a pad). */
+const CHIP_STOP = /^(scenario|hero)-chip:/;
+
 /** Controls that take focus and draw nothing new when pressed (a text field), so a press on them is not verified. */
 export const FOCUS_ONLY_STOP = /search|seed|field/i;
 
@@ -328,6 +331,25 @@ export async function pressHookStop(page: Page, hookName: string, key: string, t
       },
       [hookName, key] as const,
     );
+  // Below the width breakpoint, or with a pad, the filter chips sit behind a Filters button: open it for a chip.
+  if (CHIP_STOP.test(key) && (await read()) === null) {
+    const toggle = await waitFor(
+      () =>
+        page.evaluate(
+          ([n]) =>
+            (window as unknown as Record<string, { stops?: () => Stop[] } | undefined>)[n!]
+              ?.stops?.()
+              .find((s) => s.key === "filters-toggle") ?? null,
+          [hookName] as const,
+        ),
+      `control "${key}" or its Filters button on ${hookName}`,
+      timeoutMs,
+    ).catch(() => null);
+    if (toggle && (await read()) === null) {
+      await settle(page, { quietMs: 150, maxMs: 500 });
+      await pressAt(page, toggle.x + toggle.width / 2, toggle.y + toggle.height / 2);
+    }
+  }
   await waitFor(read, `control "${key}" on ${hookName}`, timeoutMs);
   await settle(page, { quietMs: 150, maxMs: 500 });
   const stop = (await read()) ?? (await waitFor(read, `control "${key}" on ${hookName}`, timeoutMs));

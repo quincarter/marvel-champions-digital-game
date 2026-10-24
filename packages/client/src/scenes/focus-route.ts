@@ -24,6 +24,7 @@ import { McSelectionRing } from "../ui/widgets.js";
 import { stepKey } from "../view/focus.js";
 import type { GamepadIntent } from "../view/gamepad.js";
 import type { Rect } from "../view/layout.js";
+import type { PadLayer } from "../view/pad-layer-bindings.js";
 import { activationTarget } from "../view/primary-activation.js";
 import { spatialStep } from "../view/spatial-nav.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
@@ -108,6 +109,16 @@ export interface FocusRouteOptions {
    * finds nothing in its 90 degree cone goes to the nearest stop strictly that way instead of staying put.
    */
   readonly reachAcross?: boolean;
+  /**
+   * Y / the Inspect key, ahead of the focused stop's own `inspect`. Return true when the screen took it (Y shows or
+   * hides the filters on Scenario select and Take your seats while a pad is in use). `source` is "key" for the keyboard.
+   */
+  readonly onInspect?: (source?: "key") => boolean;
+  /**
+   * LT or RT pulled (a trigger alone has no meaning on most screens; the Board uses them as hold layers): a screen
+   * whose rows page sideways pages the focused one. Called once per pull, not while the trigger stays down.
+   */
+  readonly onTrigger?: (trigger: "lt" | "rt") => void;
 }
 
 export class FocusRoute {
@@ -122,6 +133,7 @@ export class FocusRoute {
   readonly #primary: (() => string | null) | undefined;
   readonly #onTab: ((direction: 1 | -1) => void) | undefined;
   readonly #onToggle: (() => void) | undefined;
+  readonly #onInspect: ((source?: "key") => boolean) | undefined;
   readonly #reachAcross: boolean;
   /** The ring is hidden after the mouse takes over, until the next pad or keyboard input. */
   #ringHidden = false;
@@ -152,6 +164,7 @@ export class FocusRoute {
     this.#primary = options.primary;
     this.#onTab = options.onTab;
     this.#onToggle = options.onToggle;
+    this.#onInspect = options.onInspect;
     this.#reachAcross = options.reachAcross ?? false;
     // The mouse moving hides the ring (it comes back, on the same stop, at the next pad or keyboard input). The change
     // arrives deferred (platform/input-device.ts), never mid-press.
@@ -189,7 +202,9 @@ export class FocusRoute {
     };
     scene.events.once("shutdown", release);
     scene.events.once("destroy", release);
+    const onTrigger = options.onTrigger;
     const binding = {
+      ...(onTrigger ? { onLayer: (layer: PadLayer | null) => (layer === null ? undefined : onTrigger(layer)) } : {}),
       blocked: options.blocked ?? (() => false),
       onIntent: (intent: GamepadIntent, source?: "key") => this.#onIntent(intent, source),
       onScroll: (dx: number, dy: number, dtMs: number) => {
@@ -218,6 +233,11 @@ export class FocusRoute {
         },
       });
     }
+  }
+
+  /** Inspect on the focused stop, as Y would (View does it on screens where Y is taken). */
+  inspectFocused(): void {
+    if (this.#focus) this.#stopOf(this.#focus)?.inspect?.();
   }
 
   get focused(): string | null {
@@ -380,6 +400,7 @@ export class FocusRoute {
         }
         break;
       case "inspect":
+        if (this.#onInspect?.(source)) break;
         if (this.#focus) this.#stopOf(this.#focus)?.inspect?.();
         break;
       case "pageNext":

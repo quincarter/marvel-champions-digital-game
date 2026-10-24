@@ -45,6 +45,11 @@ export class AreaJump {
     return areas.entry;
   }
 
+  /** The list stop focus left (or the list's first stop): where a collapse of the filters returns focus to. */
+  toList(areas: FocusAreas): string | null {
+    return this.#listTarget(areas);
+  }
+
   #listTarget(areas: FocusAreas): string | null {
     if (this.#left !== null && areas.list.includes(this.#left)) return this.#left;
     return areas.list[0] ?? null;

@@ -223,6 +223,15 @@ test("X clears a seat, and an aspect's (i) opens only on a press", async ({ page
   // X clears the active seat (nothing is focused): the header counts one seat now.
   await press(page, X, () => filled("1 SEAT FILLED"));
   expect(await filled("1 SEAT FILLED")).toBe(true);
+  // A pad folds the filter chips away (the Filters button and Y bring them back): open them for the (i).
+  const hasInfo = (): Promise<boolean> =>
+    page.evaluate(() =>
+      (window as unknown as { __mcFocusRoutes: Record<string, () => { key: string }[]> }).__mcFocusRoutes[
+        "Seats"
+      ]!().some((one) => one.key === "hero-chip-info:justice"),
+    );
+  await press(page, Y, hasInfo);
+  expect(await hasInfo()).toBe(true);
   // The tip's text for Justice; the pointer resting on the (i) opens nothing.
   const info = await page.evaluate(() => {
     const stop = (
@@ -352,6 +361,9 @@ test("Take your seats: the pad's B and Y make the same jump", async ({ page }) =
     if (focus?.startsWith("hero:")) tile = focus;
   }
   expect(tile).not.toBeNull();
+  // The Tab presses were the keyboard's; a pad press puts the screen back in pad mode (chips folded), and B opens them.
+  await press(page, LT);
+  await page.waitForTimeout(800);
   await press(page, B, async () => ((await focusOf(page, "Seats")) ?? "").startsWith("hero-chip:"));
   expect(((await focusOf(page, "Seats")) ?? "").startsWith("hero-chip:")).toBe(true);
   await press(page, Y, async () => (await focusOf(page, "Seats")) === tile);

@@ -461,6 +461,8 @@ export interface ScenarioSelectFocusInput {
   readonly searchToggle?: boolean;
   /** The "Customize this scenario" button is drawn (a ready-made Civil War scenario is selected). */
   readonly customize?: boolean;
+  /** The pad-mode Filters button beside the search field is drawn (`view/pad-filters.ts`). */
+  readonly filtersToggle?: boolean;
 }
 
 /** Scenario select (D02): Back, the search field, its quick-filter chips, each scenario card (or "Clear"), then "Choose heroes ▸". */
@@ -471,6 +473,7 @@ export function scenarioSelectFocusOrder(input: ScenarioSelectFocusInput): reado
     // the search field. The route drops an id with no stop, so wide layouts (field always drawn) skip it.
     ...(input.searchToggle ? ["scenario-search-toggle"] : []),
     "scenario-search",
+    ...(input.filtersToggle ? ["filters-toggle"] : []),
     ...(input.scenarioChipIds ?? []).map((id) => `scenario-chip:${id}`),
     ...(input.scenarioIds.length > 0 ? input.scenarioIds.map((id) => `scenario:${id}`) : ["scenario-clear"]),
     // The phone's collapsible stages panel (absent on a wide layout, where the panel is always open).
@@ -495,6 +498,8 @@ export interface SeatsFocusInput {
   readonly hasRecommended?: boolean;
   /** The same-name conflict notice is drawn (`SeatsLayout.notice`): adds its "conflict-notice" stop right after the seats. */
   readonly hasConflictNotice?: boolean;
+  /** The pad-mode Filters button beside the search field is drawn (`view/pad-filters.ts`). */
+  readonly filtersToggle?: boolean;
 }
 
 /**
@@ -517,6 +522,7 @@ export function seatsFocusOrder(input: SeatsFocusInput): readonly string[] {
     // Narrow only, likewise: the search toggle at the head of the chip rail.
     ...(input.narrow ? ["hero-search-toggle"] : []),
     "hero-search",
+    ...(input.filtersToggle ? ["filters-toggle"] : []),
     ...(input.heroChipIds ?? []).map((id) => `hero-chip:${id}`),
     ...(input.hasRecommended ? ["rec-toggle"] : []),
     ...(input.recommendedIds ?? []).map((id) => `hero-rec:${id}`),

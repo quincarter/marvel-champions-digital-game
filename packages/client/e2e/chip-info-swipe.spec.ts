@@ -44,6 +44,10 @@ test("a swipe of the aspect chip rail that lifts over an (i) opens nothing; a ta
   test.setTimeout(120_000);
   await openApp(page, "screen=seats&unlock=all", { landing: "Seats" });
   await page.waitForTimeout(800);
+  // The chips sit behind the Filters button on a phone: open them.
+  const toggle = await waitFor(() => stopRect(page, "filters-toggle"), "the Filters button", 15_000);
+  await page.touchscreen.tap(toggle.x + toggle.width / 2, toggle.y + toggle.height / 2);
+  await page.waitForTimeout(500);
   const info = await waitFor(() => stopRect(page, "hero-chip-info:aggression"), "the first aspect's (i)", 15_000);
   const y = info.y + info.height / 2;
   const centre = info.x + info.width / 2;

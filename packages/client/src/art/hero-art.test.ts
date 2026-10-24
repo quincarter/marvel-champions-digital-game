@@ -3,7 +3,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
 import * as content from "@mc/content";
-import { HERO_ART, heroArtFor, parseFocus, parseHeroArt } from "./hero-art.js";
+import { artFor, artPathOf } from "./art-source.js";
+import { HERO_ART, heroArtFor, heroArtForIdentity, parseFocus, parseHeroArt } from "./hero-art.js";
 import { coverFit, focusedOffset } from "./pictures.js";
 
 describe("parseHeroArt", () => {
@@ -101,5 +102,92 @@ describe("the real art/heroes folder", () => {
 
   test("every folder (empty ones included) is named for a real hero identity card id", () => {
     expect(folders.filter((name) => !identityIds.has(name.split("-")[0]!))).toEqual([]);
+  });
+});
+
+/**
+ * Hero tiles on Take your seats (owner report, Steam Deck AppImage: Thor's tile and others blank). Linux and Netlify are
+ * case-sensitive and Windows is not, so every path a tile can ask for is checked here against the directory listing
+ * itself, letter for letter, and every picture is checked to be what its extension says it is and to be whole.
+ */
+describe("hero tile art is found and intact on a case-sensitive disk", () => {
+  const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "../../../..");
+  const heroRoot = join(repoRoot, "art/heroes");
+  const scanRoot = join(repoRoot, "assets/card-art");
+  const folders = readdirSync(heroRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name);
+
+  /** Whether `relative` exists under `root` with every segment spelled exactly as the listing spells it. */
+  const existsExactly = (root: string, relative: string): boolean => {
+    let dir = root;
+    for (const segment of relative.split("/")) {
+      if (!readdirSync(dir).includes(segment)) return false;
+      dir = join(dir, segment);
+    }
+    return true;
+  };
+
+  const identities: { id: string; name: string; type: string; setCode?: string }[] = [];
+  for (const [name, value] of Object.entries(content)) {
+    if (!name.endsWith("_CARDS") || !Array.isArray(value)) continue;
+    for (const card of value as { id: string; type: string; name: string; setCode?: string }[])
+      if (card.type === "hero_identity") identities.push(card);
+  }
+
+  test("every picture's folder and file are spelled exactly as the listing spells them, in lower case", () => {
+    const wrong: string[] = [];
+    for (const [id, pictures] of HERO_ART.heroes) {
+      for (const picture of pictures) {
+        const relative = picture.key.replace(/^scene-art:/, "");
+        if (!existsExactly(join(repoRoot, "art"), relative)) wrong.push(`${id}: ${relative}`);
+        if (relative !== relative.toLowerCase()) wrong.push(`${id}: ${relative} is not all lower case`);
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  test("every hero identity's printed-scan fallback is on disk under exactly the path the tile asks for", () => {
+    const wrong: string[] = [];
+    for (const card of identities) {
+      const scan = artFor(card as never, { kind: "hero" });
+      if (!scan) continue;
+      const relative = artPathOf(scan);
+      if (!existsExactly(scanRoot, relative)) wrong.push(`${card.id}: ${relative}`);
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  test("every hero identity draws a picture: its own art, or its scan behind it", () => {
+    const blank = identities.filter(
+      (card) =>
+        heroArtForIdentity(HERO_ART, card.id, identities, () => 0) === null && !artFor(card as never, { kind: "hero" }),
+    );
+    expect(blank.map((card) => card.id)).toEqual([]);
+  });
+
+  test("every picture is the format its extension names, and is whole", () => {
+    const bad: string[] = [];
+    for (const folder of folders) {
+      for (const file of readdirSync(join(heroRoot, folder))) {
+        const extension = file.slice(file.lastIndexOf(".") + 1);
+        if (!["png", "jpg", "jpeg", "webp", "avif"].includes(extension)) continue;
+        const bytes = readFileSync(join(heroRoot, folder, file));
+        const where = `${folder}/${file}`;
+        if (extension !== extension.toLowerCase()) bad.push(`${where}: extension not lower case`);
+        if (extension === "png") {
+          const png = [0x89, 0x50, 0x4e, 0x47].every((byte, i) => bytes[i] === byte);
+          if (!png || bytes.subarray(-8, -4).toString("ascii") !== "IEND") bad.push(`${where}: not a whole PNG`);
+        } else if (extension === "jpg" || extension === "jpeg") {
+          const jpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+          if (!jpeg || bytes[bytes.length - 2] !== 0xff || bytes[bytes.length - 1] !== 0xd9)
+            bad.push(`${where}: not a whole JPEG`);
+        } else if (extension === "webp") {
+          const webp = bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
+          if (!webp || bytes.readUInt32LE(4) + 8 !== bytes.length) bad.push(`${where}: not a whole WebP`);
+        }
+      }
+    }
+    expect(bad).toEqual([]);
   });
 });
