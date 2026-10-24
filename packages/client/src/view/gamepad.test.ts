@@ -39,8 +39,8 @@ describe("gamepadIntentFor", () => {
     const intents = Object.values(GAMEPAD_BUTTON)
       .map((index) => gamepadIntentFor(index))
       .filter((intent): intent is GamepadIntent => intent !== null);
-    // Every one of the ten named buttons now means something.
-    expect(intents).toHaveLength(10);
+    // Every named button but L3 and the home button means something.
+    expect(intents).toHaveLength(15);
     expect(new Set(intents)).toEqual(
       new Set<GamepadIntent>([
         "up",
@@ -53,6 +53,11 @@ describe("gamepadIntentFor", () => {
         "pagePrevious",
         "pageNext",
         "toggleGuide",
+        "undo",
+        "endTurn",
+        "pause",
+        "view",
+        "expand",
       ]),
     );
   });
