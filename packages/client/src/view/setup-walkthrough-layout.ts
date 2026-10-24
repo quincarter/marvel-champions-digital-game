@@ -80,9 +80,9 @@ export interface SetupWalkthroughLayoutInput {
    */
   readonly cardScale?: number;
   /**
-   * How many cards the deciding seat's opening hand has (none when not given: the usual layout). On desktop and tablet portrait at Fit to
-   * screen the hand grows into the free space (`wideHandHeightFor`): the band spans the full width and the cards take
-   * as much height as the room allows, up to half the screen.
+   * How many cards the deciding seat's opening hand has (none when not given: the usual layout). On desktop and
+   * tablet portrait at Fit to screen the hand grows into the free space (`wideHandHeightFor`): the band spans the full
+   * width and the cards take as much height as the room allows, up to half the screen.
    */
   readonly handCount?: number;
 }
@@ -234,8 +234,9 @@ function handFitHeight(rowWidth: number, count: number): number {
  * revealed card and the log move down beside the commit row and other seats. Null when that gains under 10% over the
  * cards as drawn now, so a short screen keeps its layout.
  */
-export function wideHandHeightFor(shared: FocusShared, current: SetupWalkthroughLayout): number | null {
-  if (shared.formFactor === "phone" || shared.cardScale > 1 || shared.handCount === null) return null;
+function wideHandHeightFor(shared: FocusShared, current: SetupWalkthroughLayout): number | null {
+  const wideForm = shared.formFactor === "desktop" || shared.formFactor === "tabletPortrait";
+  if (!wideForm || shared.cardScale > 1 || shared.handCount === null) return null;
   const { width, height, pad, gap, handCount, otherSeatCount, hasRevealedCard } = shared;
   const top = current.handRow.y;
   const bottom = height - pad;

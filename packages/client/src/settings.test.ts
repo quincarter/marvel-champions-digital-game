@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import {
   VILLAIN_RECAP_PAUSE_MS,
   achievementPopupHoldMs,
@@ -80,5 +80,16 @@ describe("couch mode", () => {
   test("it defaults to off and each choice is its scale factor", () => {
     expect(defaultSettings().couchMode).toBe("off");
     expect(COUCH_MODE_VALUES.map(couchModeFactor)).toEqual([1, 1.25, 1.5, 1.75, 2, 2.5, 3]);
+  });
+});
+
+describe("text resolution under couch mode", () => {
+  test("a pixel ratio of 1 defaults to the couch factor, capped at the sharp ceiling; power saving stays 1x", () => {
+    vi.stubGlobal("devicePixelRatio", 1);
+    expect(defaultSettings().textResolution).toBe(1);
+    expect(defaultSettings({ couchMode: "125%" }).textResolution).toBe(1.25);
+    expect(defaultSettings({ couchMode: "300%" }).textResolution).toBe(2);
+    expect(defaultSettings({ couchMode: "300%", powerSaving: true }).textResolution).toBe(1);
+    vi.unstubAllGlobals();
   });
 });

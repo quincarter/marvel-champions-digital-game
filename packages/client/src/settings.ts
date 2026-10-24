@@ -353,6 +353,11 @@ export function tableRulesOf(settings: Pick<Settings, "sameNameHeroAllyConflict"
 
 /** What the device says right now that some defaults follow. */
 export interface DeviceConditions {
+  /**
+   * The player's own couch mode choice. Everything is drawn that much bigger, so the text a player never set a
+   * resolution for defaults to match (`defaultSettings`): sharp, not 1x stretched.
+   */
+  readonly couchMode?: CouchMode;
   /** The device is in power saving mode (`platform/power-saving.ts`). */
   readonly powerSaving?: boolean;
   /**
@@ -373,9 +378,13 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
   return {
     reducedMotion: prefersReduced || powerSaving,
     // Capped at `SHARP_TEXT_RESOLUTION_CEILING`: beyond that the texture cost buys nothing visible.
+    // Couch mode draws at that many more pixels per game pixel, so its factor counts as density (power saving stays 1x).
     textResolution: powerSaving
       ? 1
-      : Math.min(SHARP_TEXT_RESOLUTION_CEILING, Math.max(1, globalThis.devicePixelRatio || 1)),
+      : Math.min(
+          SHARP_TEXT_RESOLUTION_CEILING,
+          Math.max(1, globalThis.devicePixelRatio || 1, couchModeFactor(device.couchMode ?? "off")),
+        ),
     largeCardText: false,
     sound: true,
     musicShuffle: false,

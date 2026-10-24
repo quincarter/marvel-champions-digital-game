@@ -175,7 +175,7 @@ const DISPLAY_MODE_CONTROL_WIDTH = 480;
 /** Resolution is a dropdown and an Apply button: up to seventeen sizes is too many segments. */
 const RESOLUTION_CONTROL_WIDTH = 320;
 const APPLY_WIDTH = 88;
-/** Couch mode's five short segments ("Off" to "300%"). */
+/** Couch mode's seven short segments ("Off" to "300%"). */
 const COUCH_MODE_CONTROL_WIDTH = 560;
 /** Resolution's and Frame rate's up to four short segments ("Native", "720p"; "Screen", "60 fps"). */
 const SCREEN_CONTROL_WIDTH = 300;

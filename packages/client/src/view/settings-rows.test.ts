@@ -518,7 +518,7 @@ describe("the Screen rows' recommendation", () => {
 });
 
 describe("couch mode row", () => {
-  test("it offers Off to 200% with the saved one selected, and ignores a value that is not offered", () => {
+  test("it offers Off to 300% with the saved one selected, and ignores a value that is not offered", () => {
     const info = couchModeRowInfoOf({ ...defaultSettings(), couchMode: "175%" });
     expect(info.options.map((o) => o.label)).toEqual(["Off", "125%", "150%", "175%", "200%", "250%", "300%"]);
     expect(info.selected).toBe("175%");

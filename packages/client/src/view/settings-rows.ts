@@ -555,7 +555,7 @@ export function cardHoverRowInfoOf(settings: Settings): CardHoverRowInfo {
   };
 }
 
-/** `settings` with the hover size set; a value that is not one of the five changes nothing. */
+/** `settings` with the hover size set; a value that is not one of the seven changes nothing. */
 export function nextSettingsAfterCardHover(settings: Settings, value: CardHoverScale): Settings {
   return CARD_HOVER_SCALE_VALUES.includes(value) ? { ...settings, cardHoverScale: value } : settings;
 }
@@ -648,7 +648,7 @@ export function tokenMotionRowInfoOf(settings: Settings): TokenMotionRowInfo {
   };
 }
 
-/** `settings` with the token's motion set; a value that is not one of the five changes nothing. */
+/** `settings` with the token's motion set; a value that is not one of the seven changes nothing. */
 export function nextSettingsAfterTokenMotion(settings: Settings, value: FirstPlayerTokenMotion): Settings {
   return FIRST_PLAYER_TOKEN_MOTION_VALUES.includes(value) ? { ...settings, firstPlayerTokenMotion: value } : settings;
 }
@@ -721,7 +721,7 @@ export function achievementPopupPlaceRowInfoOf(settings: Settings): AchievementP
   };
 }
 
-/** `settings` with the popup's time set; a value that is not one of the five changes nothing. */
+/** `settings` with the popup's time set; a value that is not one of the seven changes nothing. */
 export function nextSettingsAfterAchievementPopupTime(settings: Settings, value: AchievementPopupTime): Settings {
   return ACHIEVEMENT_POPUP_TIME_VALUES.includes(value) ? { ...settings, achievementPopupTime: value } : settings;
 }
@@ -780,7 +780,7 @@ export function couchModeRowInfoOf(
   };
 }
 
-/** `settings` with couch mode set; a value that is not one of the five changes nothing. */
+/** `settings` with couch mode set; a value that is not one of the seven changes nothing. */
 export function nextSettingsAfterCouchMode(settings: Settings, value: CouchMode): Settings {
   return COUCH_MODE_VALUES.includes(value) ? { ...settings, couchMode: value } : settings;
 }

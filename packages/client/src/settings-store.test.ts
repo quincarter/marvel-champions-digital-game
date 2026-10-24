@@ -291,6 +291,24 @@ describe("parseSettingsOverrides", () => {
 describe("couch mode in the saved record", () => {
   test("a known choice is read back and anything else falls to the default", () => {
     expect(parseSettingsOverrides(serializeSettingsOverrides({ couchMode: "150%" })).couchMode).toBe("150%");
-    expect(parseSettingsOverrides(JSON.stringify({ couchMode: "300%" })).couchMode).toBe(undefined);
+    expect(parseSettingsOverrides(JSON.stringify({ couchMode: "400%" })).couchMode).toBe(undefined);
+  });
+});
+
+describe("text resolution follows couch mode until the player sets it", () => {
+  const defaults = (overrides: { couchMode?: Settings["couchMode"] }) =>
+    defaultSettings({ ...(overrides.couchMode === undefined ? {} : { couchMode: overrides.couchMode }) });
+
+  test("turning couch mode up sharpens text the player never set, and an explicit Off stays off", () => {
+    vi.stubGlobal("devicePixelRatio", 1);
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    const store = new SettingsStore(new MapStorage(), defaults);
+    expect(store.current.textResolution).toBe(1);
+    store.set({ ...store.current, couchMode: "200%" });
+    expect(store.current.textResolution).toBe(2);
+    store.set({ ...store.current, textResolution: 1 });
+    store.set({ ...store.current, couchMode: "400%" });
+    expect(store.current.textResolution).toBe(1);
+    expect(store.current.couchMode).toBe("300%");
   });
 });

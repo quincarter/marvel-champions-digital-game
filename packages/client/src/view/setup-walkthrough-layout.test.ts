@@ -326,6 +326,11 @@ describe("the opening hand grows into the free space (desktop and tablet portrai
     expect(phone.handRow).toEqual(
       setupWalkthroughLayout({ width: 390, height: 844, otherSeatCount: 1, seatCount: 2 }).handRow,
     );
+    const landscape = at(900, 420);
+    expect(landscape.formFactor).toBe("phoneLandscape");
+    expect(landscape.handRow).toEqual(
+      setupWalkthroughLayout({ width: 900, height: 420, otherSeatCount: 1, seatCount: 2 }).handRow,
+    );
     const big = at(1920, 1080, { cardScale: 1.5 });
     expect(big.handRow).toEqual(
       setupWalkthroughLayout({ width: 1920, height: 1080, otherSeatCount: 1, seatCount: 2, cardScale: 1.5 }).handRow,

@@ -159,7 +159,8 @@ export class SettingsStore {
 
   constructor(
     private readonly storage: SettingsStorage | null = browserStorage(),
-    private readonly defaults: () => Settings = defaultSettings,
+    /** The device's defaults, given what the player has set (couch mode moves the default text resolution). */
+    private readonly defaults: (overrides: SettingsOverrides) => Settings = () => defaultSettings(),
   ) {
     let raw: string | null = null;
     try {
@@ -168,7 +169,7 @@ export class SettingsStore {
       raw = null;
     }
     this.#overrides = parseSettingsOverrides(raw);
-    this.#current = resolveSettings(this.#overrides, this.defaults());
+    this.#current = resolveSettings(this.#overrides, this.defaults(this.#overrides));
   }
 
   get current(): Settings {
@@ -180,7 +181,7 @@ export class SettingsStore {
    * never set follows them, and every field they did set stays as they set it. Saves nothing.
    */
   refreshDefaults(): Settings {
-    this.#current = resolveSettings(this.#overrides, this.defaults());
+    this.#current = resolveSettings(this.#overrides, this.defaults(this.#overrides));
     return this.#current;
   }
 
@@ -190,7 +191,8 @@ export class SettingsStore {
       if (next[key] !== this.#current[key]) (overrides as Record<string, unknown>)[key] = next[key];
     }
     this.#overrides = overrides;
-    this.#current = next;
+    // Fields the player never set follow the defaults for what they have set now (a new couch mode moves text).
+    this.#current = resolveSettings(overrides, this.defaults(overrides));
     try {
       this.storage?.setItem(SETTINGS_KEY, serializeSettingsOverrides(overrides));
     } catch {
