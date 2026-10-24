@@ -92,7 +92,9 @@ import { rulesCardListOf, type RulesCardListCard, type RulesCardListGroup } from
 import { rulesFocusOrder } from "../view/screen-focus.js";
 import { estimateWrappedLines, type Rect } from "../view/layout.js";
 import { appSession } from "../session.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
+import { bindTextFieldEscape } from "./text-field-escape.js";
 import type { InspectData } from "./inspect.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -148,6 +150,9 @@ export class RulesOverlay extends Phaser.Scene {
   #tabsWidget: McTabs | null = null;
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
+  #hints!: GlyphHints;
+  /** Where each glossary thumbnail sits inside its row (offset from the row's rect), by stop key, once drawn. */
+  #thumbOffsets = new Map<string, Rect>();
 
   // A `McVariableList`, not `McVirtualList`: rows are entry-card *grid rows*, and each needs only
   // as much height as its own tallest cell (no thumbnail strip vs. one) — a plain `McVirtualList`
@@ -183,9 +188,25 @@ export class RulesOverlay extends Phaser.Scene {
     // grid) is requested fresh on every `#draw`, so the fix is the same one-line subscription Decks and Inspect
     // already use, not a redraw loop of its own.
     const artOff = cardArt(this).onArrived(() => this.#draw());
+    this.#hints = new GlyphHints(this);
+    // Before the route: A, B or Start takes the caret out of the search field.
+    bindTextFieldEscape(
+      this,
+      () => this.#searchInput,
+      () => this.scene.isActive(SCENES.inspect),
+    );
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.inspect) || (this.#searchInput?.focused ?? false),
       onCancel: () => this.#close(),
+      // LB / RB step through the tabs (PageUp / PageDown still page the list); the right stick scrolls it.
+      onTab: (direction) => {
+        const at = TABS.findIndex((tab) => tab.id === this.#activeTab);
+        const next = TABS[Math.min(TABS.length - 1, Math.max(0, at + direction))]!;
+        if (next.id === this.#activeTab) return;
+        this.#setTab(next.id);
+        this.#route?.focusKey(`tab:${next.id}`);
+      },
+      onScroll: (_dx, dy) => this.#activeList()?.scrollByPx(dy),
       onPage: (direction) => this.#activeList()?.scrollByPage(direction),
       onHomeEnd: (edge) => (edge === "home" ? this.#activeList()?.scrollToStart() : this.#activeList()?.scrollToEnd()),
     });
@@ -197,6 +218,7 @@ export class RulesOverlay extends Phaser.Scene {
         screenHoverArea(this, pointer, { beneath: [SCENES.pause, SCENES.villainPhase, SCENES.roundDebrief] }),
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#hints.dispose();
       this.scale.off("resize", onResize, this);
       this.#hover?.destroy();
       this.#hover = null;
@@ -216,7 +238,12 @@ export class RulesOverlay extends Phaser.Scene {
     this.#motion.exit(this, () => this.scene.stop());
   }
 
-  #activeList(): { scrollByPage(direction: 1 | -1): void; scrollToStart(): void; scrollToEnd(): void } | null {
+  #activeList(): {
+    scrollByPage(direction: 1 | -1): void;
+    scrollByPx(amount: number): void;
+    scrollToStart(): void;
+    scrollToEnd(): void;
+  } | null {
     if (this.#activeTab === "glossary") return this.#glossaryList;
     if (this.#activeTab === "villainPhase") return this.#villainList;
     return this.#cardListList;
@@ -273,6 +300,8 @@ export class RulesOverlay extends Phaser.Scene {
     for (const node of kept) this.children.remove(node);
     destroyChildren(this);
     for (const node of kept) this.children.add(node);
+    this.#hints.reset();
+    this.#thumbOffsets = new Map();
 
     const { width, height } = this.scale.gameSize;
     const layout = rulesLayout({ x: 0, y: 0, width, height }, this.#activeTab);
@@ -320,6 +349,7 @@ export class RulesOverlay extends Phaser.Scene {
         onClick: () => this.#close(),
       }),
     );
+    this.#hints.button(this.#buttons.at(-1)!, ["cancel"], "ink");
     stops.set("back", { rect: backRect, activate: () => this.#close() });
     this.add
       .text(
@@ -427,7 +457,7 @@ export class RulesOverlay extends Phaser.Scene {
     } else if (this.#activeTab === "villainPhase") {
       this.#searchInput?.destroy();
       this.#searchInput = null;
-      rowIds = this.#drawVillainPhaseTab(layout.body, game);
+      rowIds = this.#drawVillainPhaseTab(layout.body, game, stops);
     } else {
       this.#searchInput?.destroy();
       this.#searchInput = null;
@@ -508,8 +538,10 @@ export class RulesOverlay extends Phaser.Scene {
       geometry.columns,
       geometry.cellWidth,
     );
+    // Every entry is a stop (so a term with no cards can still be reached and scrolled to), then its thumbnails.
     const rowIds: string[] = [];
     for (const entry of entries) {
+      rowIds.push(`entry:${entry.id}`);
       const { shown } = glossaryThumbSlots(
         entry.cardRefs,
         glossaryTextWidth(geometry.cellWidth, isStatusEntry(entry.id)),
@@ -528,9 +560,33 @@ export class RulesOverlay extends Phaser.Scene {
         entry.cardRefs,
         glossaryTextWidth(geometry.cellWidth, isStatusEntry(entry.id)),
       );
+      const column = entryIndex % geometry.columns;
+      const entryRect = (): Rect => {
+        const cell = glossaryCellRect(geometry, list.rectFor(rowIndex), column);
+        return { x: cell.x + 4, y: cell.y + 2, width: cell.width - 8, height: cell.height - 4 };
+      };
+      const first = shown[0];
+      const originBoxId = game === null && entry.originNote ? entry.originBoxId : undefined;
+      stops.set(`row:entry:${entry.id}`, {
+        rect: entryRect,
+        // The "Added in ... ▸" link when it has one (no game running), else the first card; a bare term does nothing.
+        activate: () => {
+          if (originBoxId) this.#openOriginBox(originBoxId);
+          else if (first) this.#inspectRef(first, game);
+        },
+        ...(first ? { inspect: () => this.#inspectRef(first, game) } : {}),
+        ensureVisible: () => list.scrollIntoView(rowIndex),
+      });
       shown.forEach((ref) => {
-        stops.set(`entry:${entry.id}:card:${ref.cardId}`, {
-          rect: () => list.rectFor(rowIndex),
+        const key = `entry:${entry.id}:card:${ref.cardId}`;
+        stops.set(`row:${key}`, {
+          // The thumbnail itself once its row has been drawn (it records where it sat); the entry's card until then.
+          rect: () => {
+            const offset = this.#thumbOffsets.get(key);
+            if (!offset) return entryRect();
+            const row = list.rectFor(rowIndex);
+            return { x: row.x + offset.x, y: row.y + offset.y, width: offset.width, height: offset.height };
+          },
           activate: () => this.#inspectRef(ref, game),
           inspect: () => this.#inspectRef(ref, game),
           ensureVisible: () => list.scrollIntoView(rowIndex),
@@ -646,6 +702,12 @@ export class RulesOverlay extends Phaser.Scene {
             width: GLOSSARY_THUMB_SIZE,
             height: Math.min(tileHeight, cardRect.y + cardRect.height - y - 4),
           };
+          this.#thumbOffsets.set(`entry:${entry.id}:card:${ref.cardId}`, {
+            x: tileRect.x - rowRect.x,
+            y: tileRect.y - rowRect.y,
+            width: tileRect.width,
+            height: tileRect.height,
+          });
           const source = artFor(this.#cardForRef(ref, game), this.#faceForRef(ref, game));
           const tile = new McCardTile(this, {
             rect: tileRect,
@@ -712,7 +774,7 @@ export class RulesOverlay extends Phaser.Scene {
   // Villain phase: the six RRG 1.8 p. 47 steps, in sequence, the live step highlighted, with the
   // main scheme's/villain's own scan or a bundled encounter card back illustrating a step that has one.
   // ------------------------------------------------------------------------------------------------------------
-  #drawVillainPhaseTab(rect: Rect, game: GameState | null): readonly string[] {
+  #drawVillainPhaseTab(rect: Rect, game: GameState | null, stops: Map<string, FocusStop>): readonly string[] {
     const citationRect: Rect = {
       x: rect.x,
       y: rect.y + rect.height - VILLAIN_PHASE_CITATION_HEIGHT,
@@ -745,14 +807,24 @@ export class RulesOverlay extends Phaser.Scene {
     );
     const renderRow = (index: number, rowRect: Rect): VirtualListRow =>
       this.#renderVillainStep(rowRect, steps[index]!, artColumnWidth, textWidth, game);
-    this.#villainList = new McVirtualList(this, {
+    const list = new McVirtualList(this, {
       rect: listRect,
       rowHeight,
       count: steps.length,
       renderRow,
       scroll: this.#villainScroll,
     });
-    return [];
+    this.#villainList = list;
+    // One stop per step, so the pad walks the steps and the list follows. Reading them is all there is to do.
+    return steps.map((_step, index) => {
+      const key = `step:${index}`;
+      stops.set(`row:${key}`, {
+        rect: () => list.rectFor(index),
+        activate: () => {},
+        ensureVisible: () => list.scrollIntoView(index),
+      });
+      return key;
+    });
   }
 
   #renderVillainStep(
@@ -938,9 +1010,10 @@ export class RulesOverlay extends Phaser.Scene {
       for (let col = 0; col < slot.count; col++) {
         const card = slot.group.cards[slot.startIndex + col]!;
         rowIds.push(`${slot.group.setId}:${card.cardId}`);
-        stops.set(`${slot.group.setId}:${card.cardId}`, {
+        stops.set(`row:${slot.group.setId}:${card.cardId}`, {
           rect: () => poolCellRect(geometry, list.rectFor(index), col),
           activate: () => this.#inspectPoolCard(card, game),
+          inspect: () => this.#inspectPoolCard(card, game),
           ensureVisible: () => list.scrollIntoView(index),
         });
       }
