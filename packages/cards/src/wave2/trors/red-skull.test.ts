@@ -210,6 +210,40 @@ describe("Red Skull scenario", () => {
       expect(characterProfile(after, villain, WAVE2_DEPS)?.atk).toBe(atkBefore - 1);
     });
 
+    // Issue #405: with the scheme thwarted to no threat (held in play by its first sentence), The Sleeper's defeat
+    // also ended the hold, and the held scheme was defeated into the side-scheme deck's discard pile, to come back.
+    it("thwarted to no threat first, it is still removed from the game when The Sleeper is defeated", () => {
+      const { state, sleeper, scheme } = sleeperAwake();
+      const held = settle(
+        runWave2(patchInstance(state, scheme, { threat: 1 }), {
+          type: "basicThwart",
+          playerId: P1,
+          thwarterInstanceId: identityOf(state),
+          schemeInstanceId: scheme,
+        }),
+        firstLegal,
+        undefined,
+        WAVE2_DEPS,
+      );
+      expect(cardsInPlay(held)).toContain(scheme);
+      const ready = patchInstance(held, identityOf(held), { exhausted: false });
+      const after = settle(
+        runWave2(ready, {
+          type: "basicAttack",
+          playerId: P1,
+          attackerInstanceId: identityOf(ready),
+          targetInstanceId: sleeper,
+        }),
+        firstLegal,
+        undefined,
+        WAVE2_DEPS,
+      );
+      expect(after.removedFromGame).toContain(sleeper);
+      expect(after.removedFromGame).toContain(scheme);
+      const pile = after.scenarioDecks["side-scheme deck"]!;
+      expect([...pile.deck, ...pile.discard]).not.toContain(scheme);
+    });
+
     // Issue #277: setup built a second Sleeper into the encounter deck, revealed in a later villain phase.
     it("once The Sleeper is defeated, no copy of it is left in the encounter deck or discard pile to come back", () => {
       const { state, sleeper } = sleeperAwake();
