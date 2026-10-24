@@ -18,7 +18,7 @@ export type SettingsItemId =
   | "token-motion"
   | "display-mode"
   | "resolution"
-  | "interface-size"
+  | "couch-mode"
   | "render-scale"
   | "frame-rate"
   | "steam-deck"
@@ -71,6 +71,8 @@ export function settingsSectionsOf(input: {
   readonly inspectCard?: boolean;
   readonly gameVolume?: boolean;
   readonly desktopWindow?: boolean;
+  /** Every build but a phone (or any build while couch mode is on): the Couch mode row, first under Animation and display. */
+  readonly couchMode?: boolean;
   /** SteamOS or Bazzite: a Steam Deck row in the Window section. */
   readonly steamDeck?: boolean;
   /** The Android app, which can read power saving mode, or a forced `?powersave=`: a "Lighter play" row under motion. */
@@ -109,12 +111,7 @@ export function settingsSectionsOf(input: {
           {
             id: "window",
             title: "Window",
-            items: [
-              "display-mode",
-              "resolution",
-              "interface-size",
-              ...(input.steamDeck ? (["steam-deck"] as const) : []),
-            ],
+            items: ["display-mode", "resolution", ...(input.steamDeck ? (["steam-deck"] as const) : [])],
           } satisfies SettingsSection,
         ]
       : []),
@@ -125,6 +122,7 @@ export function settingsSectionsOf(input: {
       id: "motion",
       title: "Animation and display",
       items: [
+        ...(input.couchMode ? (["couch-mode"] as const) : []),
         ...(input.powerSaving ? (["power-saving"] as const) : []),
         "reduced-motion",
         "token-motion",

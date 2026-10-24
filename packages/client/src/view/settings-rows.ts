@@ -24,14 +24,16 @@ import {
   DISPLAY_MODE_VALUES,
   FIRST_PLAYER_TOKEN_MOTION_VALUES,
   FRAME_RATE_VALUES,
-  INTERFACE_SIZE_VALUES,
+  COUCH_MIN_GAME_WIDTH,
+  COUCH_MODE_VALUES,
+  couchModeFactor,
   RENDER_SCALE_VALUES,
   SHARP_TEXT_RESOLUTION_CEILING,
   clampMusicVolume,
   renderScaleFactorOf,
   resolutionPixelsOf,
   type FrameRate,
-  type InterfaceSize,
+  type CouchMode,
   type RenderScale,
   type AchievementPopupPlace,
   type AchievementPopupSize,
@@ -758,19 +760,23 @@ export function nextSettingsAfterDisplayMode(settings: Settings, value: DisplayM
   return DISPLAY_MODE_VALUES.includes(value) ? { ...settings, displayMode: value } : settings;
 }
 
-// "Interface size": the desktop app's webview zoom (`platform/desktop-window.ts`), for a TV or 4K screen left at 100%.
-export function interfaceSizeRowInfoOf(settings: Settings): ScreenChoiceRowInfo<InterfaceSize> {
+// "Couch mode": everything drawn bigger for a TV (`ui/render-resolution.ts`). Every build but a phone.
+export function couchModeRowInfoOf(settings: Settings, windowWidth = Infinity): ScreenChoiceRowInfo<CouchMode> {
   return {
-    title: "Interface size",
-    detail: "Makes everything bigger, for a TV or a 4K screen. Ctrl + and Ctrl - work too.",
-    options: INTERFACE_SIZE_VALUES.map((value) => ({ value, label: value })),
-    selected: settings.interfaceSize,
+    title: "Couch mode",
+    detail: "Makes everything bigger, for playing on a TV from across the room.",
+    // Only the sizes that keep the game wide enough for a tablet or desktop layout on this window (the saved one stays).
+    options: COUCH_MODE_VALUES.filter(
+      (value) =>
+        value === "off" || value === settings.couchMode || windowWidth / couchModeFactor(value) >= COUCH_MIN_GAME_WIDTH,
+    ).map((value) => ({ value, label: value === "off" ? "Off" : value })),
+    selected: settings.couchMode,
   };
 }
 
-/** `settings` with the interface size set; a value that is not one of the five changes nothing. */
-export function nextSettingsAfterInterfaceSize(settings: Settings, value: InterfaceSize): Settings {
-  return INTERFACE_SIZE_VALUES.includes(value) ? { ...settings, interfaceSize: value } : settings;
+/** `settings` with couch mode set; a value that is not one of the five changes nothing. */
+export function nextSettingsAfterCouchMode(settings: Settings, value: CouchMode): Settings {
+  return COUCH_MODE_VALUES.includes(value) ? { ...settings, couchMode: value } : settings;
 }
 
 // ---------------------------------------------------------------------------

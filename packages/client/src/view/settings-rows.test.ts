@@ -4,8 +4,8 @@ import {
   frameRateRowInfoOf,
   nextSettingsAfterFrameRate,
   nextSettingsAfterRenderScale,
-  nextSettingsAfterInterfaceSize,
-  interfaceSizeRowInfoOf,
+  nextSettingsAfterCouchMode,
+  couchModeRowInfoOf,
   renderScaleRowInfoOf,
   nextSettingsAfterDisplayMode,
   nextSettingsAfterResolution,
@@ -74,7 +74,7 @@ const BASE: Settings = {
   glyphSize: 130,
   keyboardHand: "left",
   renderScale: "native",
-  interfaceSize: "100%",
+  couchMode: "off",
   frameRate: "screen",
 };
 
@@ -116,7 +116,7 @@ describe("settingsRowInfoOf", () => {
       glyphSize: 130,
       keyboardHand: "left",
       renderScale: "1x",
-      interfaceSize: "125%",
+      couchMode: "125%",
       frameRate: "30",
     });
     expect(rows.find((r) => r.id === "reduced-motion")?.on).toBe(true);
@@ -517,13 +517,17 @@ describe("the Screen rows' recommendation", () => {
   });
 });
 
-describe("interface size row", () => {
-  test("it offers 100% to 200% with the saved one selected, and ignores a value that is not offered", () => {
-    const info = interfaceSizeRowInfoOf({ ...defaultSettings(), interfaceSize: "175%" });
-    expect(info.options.map((o) => o.label)).toEqual(["100%", "125%", "150%", "175%", "200%"]);
+describe("couch mode row", () => {
+  test("it offers Off to 200% with the saved one selected, and ignores a value that is not offered", () => {
+    const info = couchModeRowInfoOf({ ...defaultSettings(), couchMode: "175%" });
+    expect(info.options.map((o) => o.label)).toEqual(["Off", "125%", "150%", "175%", "200%"]);
     expect(info.selected).toBe("175%");
     const base = defaultSettings();
-    expect(nextSettingsAfterInterfaceSize(base, "200%").interfaceSize).toBe("200%");
-    expect(nextSettingsAfterInterfaceSize(base, "300%" as never)).toBe(base);
+    expect(nextSettingsAfterCouchMode(base, "200%").couchMode).toBe("200%");
+    expect(nextSettingsAfterCouchMode(base, "300%" as never)).toBe(base);
+    // A 1280 wide window keeps the game at 768 or more: only 125% and 150% fit (and 175% when it is the saved one).
+    const narrow = couchModeRowInfoOf(base, 1280);
+    expect(narrow.options.map((o) => o.label)).toEqual(["Off", "125%", "150%"]);
+    expect(couchModeRowInfoOf({ ...base, couchMode: "200%" }, 1280).options.map((o) => o.label)).toContain("200%");
   });
 });

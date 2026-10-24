@@ -143,10 +143,10 @@ export interface Settings {
    */
   readonly renderScale: RenderScale;
   /**
-   * How big the desktop app draws everything (Settings > Window): the webview's zoom, for a 4K TV left at 100% OS
-   * scaling. Only the desktop app reads it; defaults to 100%.
+   * Couch mode: everything drawn bigger, for a TV across the room. The game lays out at the window's size divided by
+   * the factor and scales it up to fill (`ui/render-resolution.ts`). Defaults to off.
    */
-  readonly interfaceSize: InterfaceSize;
+  readonly couchMode: CouchMode;
   /**
    * The frame rate the game holds to: the screen's own refresh rate (120 Hz on a 120 Hz phone), or a 60 or 30 fps cap.
    * On Android the app also asks the OS for a matching refresh rate. Defaults to the screen's own, or 60 on a phone the
@@ -216,13 +216,34 @@ export function renderScaleFactorOf(choice: RenderScale, devicePixelRatio: numbe
   return choice === "native" ? native : Math.min(native, Number.parseFloat(choice));
 }
 
-/** The desktop app's interface size: the webview zoom (`platform/desktop-window.ts`). */
-export type InterfaceSize = "100%" | "125%" | "150%" | "175%" | "200%";
-export const INTERFACE_SIZE_VALUES: readonly InterfaceSize[] = ["100%", "125%", "150%", "175%", "200%"];
+/** Couch mode: "off", or how much bigger everything is drawn (`ui/render-resolution.ts`). */
+export type CouchMode = "off" | "125%" | "150%" | "175%" | "200%";
+export const COUCH_MODE_VALUES: readonly CouchMode[] = ["off", "125%", "150%", "175%", "200%"];
 
-/** The webview zoom factor an `interfaceSize` stands for: 1.5 for "150%". */
-export function interfaceSizeFactor(size: InterfaceSize): number {
-  return Number.parseInt(size, 10) / 100;
+/** The factor a `couchMode` stands for: 1 for "off", 1.5 for "150%". */
+export function couchModeFactor(mode: CouchMode): number {
+  return mode === "off" ? 1 : Number.parseInt(mode, 10) / 100;
+}
+
+/** The narrowest game width couch mode lays out at: under it the layout would switch to a phone's (`formFactorFor`). */
+export const COUCH_MIN_GAME_WIDTH = 768;
+
+/**
+ * The factor couch mode really uses on a window `width` wide: the choice, lowered so the game stays at least
+ * `COUCH_MIN_GAME_WIDTH` wide. The layout follows the game's size on purpose (it is a smaller window drawn bigger, so a
+ * 1080p TV at 200% lays out as a 960 x 540 window), but never as a phone's.
+ */
+export function couchFactorFor(factor: number, width: number): number {
+  return Math.max(1, Math.min(factor, width / COUCH_MIN_GAME_WIDTH));
+}
+
+/** The size the game lays out at under couch mode: the window's (or the fixed resolution's) divided by the factor. */
+export function couchSizeOf(
+  base: { readonly width: number; readonly height: number },
+  factor: number,
+): { readonly width: number; readonly height: number } {
+  if (factor <= 1) return base;
+  return { width: Math.max(1, Math.round(base.width / factor)), height: Math.max(1, Math.round(base.height / factor)) };
 }
 
 /** "screen": no cap, the screen's own refresh rate. */
@@ -401,7 +422,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     resolution: "native",
     powerSavingAdjust: true,
     renderScale: device.screen?.renderScale ?? "native",
-    interfaceSize: "100%",
+    couchMode: "off",
     frameRate: powerSaving ? "30" : (device.screen?.frameRate ?? "screen"),
     achievementPopupTime: "5s",
     achievementPopupPlace: "titleBar",

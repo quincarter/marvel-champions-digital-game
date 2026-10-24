@@ -14,7 +14,8 @@
  * slowest mode that covers a cap, so the panel slows down with the game.
  */
 import type Phaser from "phaser";
-import { fpsLimitOf, type FrameRate, type Settings } from "../settings.js";
+import { couchModeFactor, fpsLimitOf, type FrameRate, type Settings } from "../settings.js";
+import { applyCouchMode } from "../ui/render-resolution.js";
 import { setTextResolution } from "../ui/theme.js";
 import { currentRenderScale, setRenderScale } from "../ui/render-scale.js";
 import { drawsAtScreenDensity, renderScaleFor, screenEnvironment, textResolutionFor } from "./screen-density.js";
@@ -87,6 +88,8 @@ function requestRefreshRate(rate: FrameRate): void {
 export function applyScreenSettings(game: Phaser.Game, settings: Settings): void {
   const env = screenEnvironment();
   const densityOn = drawsAtScreenDensity(env.search);
+  // Couch mode first: the render scale below counts the layout size it sets.
+  applyCouchMode(game, couchModeFactor(settings.couchMode));
   const scale = renderScaleFor(settings, env);
   if (scale !== currentRenderScale()) setRenderScale(scale);
   setTextResolution(textResolutionFor(settings, currentRenderScale(), densityOn));
