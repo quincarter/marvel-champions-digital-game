@@ -239,3 +239,34 @@ describe("card size (the global Card size setting)", () => {
     expect(happening(1.5).bodyArt.width).toBeGreaterThan(happening(1).bodyArt.width);
   });
 });
+
+describe("the hit points line under the interrupt's card (#394)", () => {
+  it.each([
+    [
+      "rail, short",
+      () => villainRailLayout({ panel: SHORT, revealing: false, interruptOptions: 1, interruptHpLine: true }),
+    ],
+    [
+      "rail, tall",
+      () => villainRailLayout({ panel: TALL, revealing: false, interruptOptions: 2, interruptHpLine: true }),
+    ],
+    ["band", () => villainBandLayout({ panel: BAND, revealing: false, interruptOptions: 1, interruptHpLine: true })],
+    ["phone", () => villainTabLayout({ ...PHONE, revealing: false, interruptOptions: 1, interruptHpLine: true })],
+    ["portrait", () => villainTabLayout({ ...PORTRAIT, revealing: false, interruptOptions: 2, interruptHpLine: true })],
+  ] as const)("sits inside the window, clear of its card, text, other options and buttons (%s)", (_name, make) => {
+    const w = make().interrupt!;
+    const line = w.hpLine!;
+    expect(line).not.toBeNull();
+    expect(inside(line, w.frame)).toBe(true);
+    for (const other of [w.card, w.text, w.use, w.resolve, ...w.extraRows]) expect(overlaps(line, other)).toBe(false);
+  });
+
+  it("takes no room without one", () => {
+    expect(villainTabLayout({ ...PHONE, revealing: false, interruptOptions: 1 }).interrupt!.hpLine).toBeNull();
+    expect(layoutOf(SHORT, { interruptOptions: 1 }).interrupt!.hpLine).toBeNull();
+  });
+
+  it("folds the steps into chips on a short rail so the window keeps its full height", () => {
+    expect(layoutOf(SHORT, { interruptOptions: 1, interruptHpLine: true }).stepMode).toBe("chips");
+  });
+});

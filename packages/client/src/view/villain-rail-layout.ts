@@ -38,6 +38,9 @@ const INTERRUPT_HEIGHT_MIN = 240;
 /** Each further option adds a compact row. */
 const INTERRUPT_EXTRA_ROW = 56;
 const INTERRUPT_MAX_ROWS = 3;
+/** The hit points line under the interrupt's card (#394), and the room it takes with its gap. */
+export const INTERRUPT_HP_LINE = 20;
+const HP_LINE_ROOM = INTERRUPT_HP_LINE + 6;
 const BODY_MIN = 150;
 /** The revealed card never grows past this; the rest goes to the log. */
 const REVEAL_BODY_MAX = 330;
@@ -55,6 +58,8 @@ export interface VillainRailInput {
   readonly revealing: boolean;
   /** How many options the inline interrupt window offers; 0 when there is no window. */
   readonly interruptOptions: number;
+  /** The window says the hit points now and if it resolves (#394): it grows by that line. */
+  readonly interruptHpLine?: boolean;
   /**
    * The global Card size (`cardSizeFactor`: 1, 1.25, 1.5): the enemy, the revealed card and the interrupt card are
    * drawn that much larger where the panel has the room, the log giving way first. Defaults to 1.
@@ -74,6 +79,8 @@ export interface VillainRailInterruptLayout {
   readonly text: Rect;
   /** One row per further option, under the first (empty with one option). */
   readonly extraRows: readonly Rect[];
+  /** "Spider-Man: 10 HP now · 8 HP if it resolves" across the window, under the card; null without it (#394). */
+  readonly hpLine: Rect | null;
   /** The yellow USE / PLAY button. */
   readonly use: Rect;
   /** LET IT RESOLVE ▸. */
@@ -113,17 +120,25 @@ export interface VillainRailLayout {
 }
 
 /** The interrupt window's inner geometry for `frame`, with `options` options (at least one). */
-export function villainRailInterruptLayout(frame: Rect, options: number, cardScale = 1): VillainRailInterruptLayout {
+export function villainRailInterruptLayout(
+  frame: Rect,
+  options: number,
+  cardScale = 1,
+  withHpLine = false,
+): VillainRailInterruptLayout {
   const pad = 18;
   const inner = { x: frame.x + pad, width: frame.width - pad * 2 };
   const title: Rect = { x: inner.x, y: frame.y + 14, width: inner.width, height: 18 };
-  if (frame.height < INTERRUPT_HEIGHT_MIN) return shortInterruptLayout(frame, options, inner, title, pad, cardScale);
+  const hpRoom = withHpLine ? HP_LINE_ROOM : 0;
+  if (frame.height - hpRoom < INTERRUPT_HEIGHT_MIN) {
+    return shortInterruptLayout(frame, options, inner, title, pad, cardScale, withHpLine);
+  }
   const buttonHeight = hit.primary + 12;
   const buttonsY = frame.y + frame.height - pad - buttonHeight;
   const extras = Math.max(0, Math.min(INTERRUPT_MAX_ROWS, options - 1));
   const extraHeight = extras * INTERRUPT_EXTRA_ROW;
   const cardTop = title.y + title.height + 12;
-  const cardBottom = buttonsY - 14 - extraHeight;
+  const cardBottom = buttonsY - 14 - extraHeight - hpRoom;
   const cardHeight = Math.max(0, cardBottom - cardTop);
   const cardWidth = Math.min(
     Math.round(cardHeight * CARD_RATIO),
@@ -138,7 +153,7 @@ export function villainRailInterruptLayout(frame: Rect, options: number, cardSca
   };
   const extraRows = Array.from({ length: extras }, (_, i) => ({
     x: inner.x,
-    y: cardBottom + 6 + i * INTERRUPT_EXTRA_ROW,
+    y: cardBottom + hpRoom + 6 + i * INTERRUPT_EXTRA_ROW,
     width: inner.width,
     height: INTERRUPT_EXTRA_ROW - 8,
   }));
@@ -149,6 +164,7 @@ export function villainRailInterruptLayout(frame: Rect, options: number, cardSca
     card,
     text,
     extraRows,
+    hpLine: withHpLine ? { x: inner.x, y: cardBottom + 6, width: inner.width, height: INTERRUPT_HP_LINE } : null,
     use: { x: inner.x, y: buttonsY, width: inner.width - resolveWidth - 12, height: buttonHeight },
     resolve: { x: inner.x + inner.width - resolveWidth, y: buttonsY, width: resolveWidth, height: buttonHeight },
   };
@@ -165,6 +181,7 @@ function shortInterruptLayout(
   title: Rect,
   pad: number,
   cardScale: number,
+  withHpLine: boolean,
 ): VillainRailInterruptLayout {
   const cardTop = title.y + title.height + 10;
   const cardHeight = Math.max(0, frame.y + frame.height - pad - cardTop);
@@ -182,7 +199,11 @@ function shortInterruptLayout(
     width: right.width,
     height: hit.target - 4,
   }));
-  const textBottom = (extraRows[0]?.y ?? buttonsY) - 8;
+  const hpBottom = (extraRows[0]?.y ?? buttonsY) - 6;
+  const hpLine: Rect | null = withHpLine
+    ? { x: right.x, y: hpBottom - INTERRUPT_HP_LINE, width: right.width, height: INTERRUPT_HP_LINE }
+    : null;
+  const textBottom = hpLine ? hpLine.y - 6 : hpBottom - 2;
   const resolveWidth = Math.round(right.width * 0.4);
   return {
     frame,
@@ -190,6 +211,7 @@ function shortInterruptLayout(
     card,
     text: { x: right.x, y: cardTop, width: right.width, height: Math.max(0, textBottom - cardTop) },
     extraRows,
+    hpLine,
     use: { x: right.x, y: buttonsY, width: right.width - resolveWidth - 10, height: hit.primary },
     resolve: { x: right.x + right.width - resolveWidth, y: buttonsY, width: resolveWidth, height: hit.primary },
   };
@@ -218,9 +240,10 @@ export function villainRailLayout(input: VillainRailInput): VillainRailLayout {
 
   const extras = Math.max(0, Math.min(INTERRUPT_MAX_ROWS, input.interruptOptions - 1));
   const scale = input.cardScale ?? 1;
+  const hpRoom = input.interruptHpLine ? HP_LINE_ROOM : 0;
   const interruptPreferred =
-    input.interruptOptions > 0 ? Math.round(INTERRUPT_HEIGHT_ONE * scale) + extras * INTERRUPT_EXTRA_ROW : 0;
-  const interruptFloor = input.interruptOptions > 0 ? INTERRUPT_HEIGHT_MIN + extras * INTERRUPT_EXTRA_ROW : 0;
+    input.interruptOptions > 0 ? Math.round(INTERRUPT_HEIGHT_ONE * scale) + extras * INTERRUPT_EXTRA_ROW + hpRoom : 0;
+  const interruptFloor = input.interruptOptions > 0 ? INTERRUPT_HEIGHT_MIN + extras * INTERRUPT_EXTRA_ROW + hpRoom : 0;
   const stripHeight = revealing ? STRIP_LABEL_HEIGHT + 6 + STRIP_HEIGHT + SECTION_GAP : 0;
   const listHeight = 5 * STEP_ROW_HEIGHT + 4 * STEP_ROW_GAP + SECTION_GAP;
   const chipsHeight = CHIP_ROW_HEIGHT + SECTION_GAP;
@@ -228,8 +251,15 @@ export function villainRailLayout(input: VillainRailInput): VillainRailLayout {
   const roomAfter = (stepsHeight: number): number => footer.y - SECTION_GAP - stepsTop - stepsHeight - stripHeight;
   const interruptGap = interruptPreferred > 0 ? SECTION_GAP : 0;
   // The vertical list (D1) only while it leaves the body its floor; otherwise (and always while revealing, D2) chips.
+  // With the hit points line the window and the body ask for their full heights: short of them the card and rules text
+  // would shrink to make room for the line, so the steps fold into chips first.
+  const hpNeeds = input.interruptHpLine ? interruptPreferred + Math.round(HAPPENING_BODY_MAX * scale) : 0;
   const stepMode: "list" | "chips" =
-    revealing || roomAfter(listHeight) - interruptFloor - interruptGap < BODY_MIN ? "chips" : "list";
+    revealing ||
+    roomAfter(listHeight) - interruptFloor - interruptGap < BODY_MIN ||
+    roomAfter(listHeight) - interruptGap - SECTION_GAP < hpNeeds
+      ? "chips"
+      : "list";
   const room = roomAfter(stepMode === "list" ? listHeight : chipsHeight) - interruptGap;
 
   const steps: Rect[] = [];
@@ -285,6 +315,7 @@ export function villainRailLayout(input: VillainRailInput): VillainRailLayout {
       { x, y: cursor, width, height: interruptHeight },
       input.interruptOptions,
       scale,
+      input.interruptHpLine,
     );
     cursor += interruptHeight + SECTION_GAP;
   }
@@ -373,6 +404,7 @@ export function villainBandLayout(input: VillainRailInput): VillainRailLayout {
           { x: x + bodyWidth + 16, y: contentTop, width: interruptWidth, height: contentHeight },
           input.interruptOptions,
           input.cardScale ?? 1,
+          input.interruptHpLine,
         )
       : null;
 
@@ -464,7 +496,10 @@ export function villainTabLayout(input: VillainRailInput & { readonly footer: Re
   }
 
   const extras = Math.max(0, Math.min(INTERRUPT_MAX_ROWS, input.interruptOptions - 1));
-  const interruptHeight = input.interruptOptions > 0 ? (narrow ? 196 : 220) + extras * hit.target : 0;
+  // A phone's window is as tall as a tablet's: its tags stack beside the narrower card, and the rules text keeps its
+  // lines under them (#394).
+  const hpRoom = input.interruptHpLine ? HP_LINE_ROOM : 0;
+  const interruptHeight = input.interruptOptions > 0 ? 220 + extras * hit.target + hpRoom : 0;
   const room = Math.max(0, bottom - cursor - (interruptHeight > 0 ? interruptHeight + 10 : 0));
   const scale = input.cardScale ?? 1;
   const bodyMax = Math.round((revealing ? (narrow ? 250 : 380) : narrow ? PHONE_HAPPENING_MAX : 230) * scale);
@@ -490,7 +525,7 @@ export function villainTabLayout(input: VillainRailInput & { readonly footer: Re
     const pad = 14;
     const titleRect: Rect = { x: x + pad, y: frame.y + 12, width: width - pad * 2, height: 18 };
     const cardTop = titleRect.y + titleRect.height + 10;
-    const cardBottom = frame.y + frame.height - pad - extras * hit.target;
+    const cardBottom = frame.y + frame.height - pad - extras * hit.target - hpRoom;
     const cardWidth = Math.min(
       Math.round((cardBottom - cardTop) * CARD_RATIO),
       Math.round(width * scaledShare(0.3, scale, 0.42)),
@@ -504,9 +539,12 @@ export function villainTabLayout(input: VillainRailInput & { readonly footer: Re
       title: titleRect,
       card,
       text: { x: textX, y: cardTop, width: Math.max(0, x + width - pad - textX), height: cardBottom - cardTop },
+      hpLine: input.interruptHpLine
+        ? { x: x + pad, y: cardBottom + 6, width: width - pad * 2, height: INTERRUPT_HP_LINE }
+        : null,
       extraRows: Array.from({ length: extras }, (_, i) => ({
         x: x + pad,
-        y: cardBottom + i * hit.target,
+        y: cardBottom + hpRoom + i * hit.target,
         width: width - pad * 2,
         height: hit.target - 4,
       })),
