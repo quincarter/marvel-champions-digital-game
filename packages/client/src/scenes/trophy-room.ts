@@ -3,15 +3,19 @@
  * a header that shows the player's rank, lifetime points and the way to the next rank. Reached from Title and from
  * Extras; Back returns to Title.
  *
- * Read-only: no row is a control, so a swipe that ends over a row can fire nothing (CLAUDE.md, no tap on finger lift);
- * the only presses are the top bar's Back and the list's own scrolling. Rows and wording come from
- * `view/trophy-room-model.ts`; this scene draws them. State is a word as well as a look: EARNED, LOCKED or SOON.
+ * Read-only. A pad or keyboard walks the achievement rows (each a focus stop, the list follows the ring); A opens one
+ * in a sheet that spells out the whole line, B closes it, then B leaves. LB / RB jump between the families. A tap on a
+ * row opens the same sheet through the list's own tap path (a drag or a swipe that lifts over a row opens nothing).
+ * Rows and wording come from `view/trophy-room-model.ts`; this scene draws them. State is a word as well as a look:
+ * EARNED, LOCKED or SOON.
  */
 import Phaser from "phaser";
 import { accent, ink, surface, typeRole } from "../tokens.js";
 import { bangers, campaignFrame, drawTopBar } from "../ui/campaign-chrome.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { cssOf, textStyle } from "../ui/theme.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
+import { onTap } from "../ui/tap.js";
 import { McButton, fitText, fitWrapped } from "../ui/widgets.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
@@ -37,6 +41,13 @@ export class TrophyRoomScene extends Phaser.Scene {
   #list: McVirtualList | null = null;
   #route: FocusRoute | null = null;
   #alive = false;
+  #hints!: GlyphHints;
+  #rows: readonly TrophyRow[] = [];
+  /** The achievement row whose sheet is open, or null. */
+  #open: number | null = null;
+  /** The row that had focus, to give it back when the sheet closes. */
+  #lastRow: string | null = null;
+  #listHeight = 0;
   /** Kept across redraws and visits (Phaser reuses this scene instance). */
   readonly #scroll = new ListScroll();
 
@@ -48,13 +59,25 @@ export class TrophyRoomScene extends Phaser.Scene {
     this.#alive = true;
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#draw, this);
+    this.#open = null;
+    this.#lastRow = null;
+    this.#hints = new GlyphHints(this);
     this.#route = new FocusRoute(this, {
-      onCancel: () => this.#back(),
-      onPage: (direction) => this.#list?.scrollByPage(direction),
+      onCancel: () => (this.#open !== null ? this.#closeSheet() : this.#back()),
+      onPage: (direction) => this.#pageFocus(direction),
+      onTab: (direction) => this.#jumpFamily(direction),
+      onHomeEnd: (edge) => {
+        const all = this.#achievementIndexes();
+        this.#focusRow(edge === "home" ? all[0] : all.at(-1));
+      },
       onScroll: (_dx, dy) => this.#list?.scrollByPx(dy),
+      onFocusChange: (key) => {
+        if (key?.startsWith("row:")) this.#lastRow = key;
+      },
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
+      this.#hints.dispose();
       this.scale.off("resize", this.#draw, this);
       this.#destroyWidgets();
     });
@@ -69,6 +92,56 @@ export class TrophyRoomScene extends Phaser.Scene {
   #back(): void {
     this.scale.off("resize", this.#draw, this);
     goToScreen(this, SCENES.title);
+  }
+
+  #achievementIndexes(): number[] {
+    const out: number[] = [];
+    this.#rows.forEach((row, index) => {
+      if (row.kind === "achievement") out.push(index);
+    });
+    return out;
+  }
+
+  #focusRow(index: number | undefined): void {
+    if (index !== undefined && this.#open === null) this.#route?.focusKey(`row:${index}`);
+  }
+
+  /** The row index of the focused stop, or null when focus is on Back or nowhere. */
+  #focusedIndex(): number | null {
+    const key = this.#route?.focused;
+    return key?.startsWith("row:") ? Number(key.slice(4)) : null;
+  }
+
+  /** PageUp / PageDown: focus moves a screenful of rows. */
+  #pageFocus(direction: 1 | -1): void {
+    if (this.#open !== null) return;
+    const all = this.#achievementIndexes();
+    const at = this.#focusedIndex();
+    const here = at === null ? (direction === 1 ? -1 : all.length) : all.indexOf(at);
+    const step = Math.max(1, Math.floor((this.#listHeight || 300) / 70) - 1);
+    this.#focusRow(all[Math.min(all.length - 1, Math.max(0, here + direction * step))]);
+  }
+
+  /** LB / RB: the first row of the next family; back, the start of this one, then the previous. */
+  #jumpFamily(direction: 1 | -1): void {
+    if (this.#open !== null) return;
+    const starts = this.#achievementIndexes().filter((i) => this.#rows[i - 1]?.kind === "section");
+    const at = this.#focusedIndex() ?? -1;
+    if (direction === 1) this.#focusRow(starts.find((i) => i > at) ?? starts.at(-1));
+    else this.#focusRow([...starts].reverse().find((i) => i < at) ?? starts[0]);
+  }
+
+  #closeSheet(): void {
+    this.#open = null;
+    this.#draw();
+    if (this.#lastRow) this.#route?.focusKey(this.#lastRow);
+  }
+
+  #openSheet(index: number): void {
+    if (this.#rows[index]?.kind !== "achievement") return;
+    this.#lastRow = `row:${index}`;
+    this.#open = index;
+    this.#draw();
   }
 
   #destroyWidgets(): void {
@@ -88,6 +161,8 @@ export class TrophyRoomScene extends Phaser.Scene {
     const statuses = achievementStatuses(achievementHistory());
     const header = trophyHeaderOf(lifetimeChampionPoints(), statuses);
     const rows = trophyRowsOf(statuses);
+    this.#rows = rows;
+    this.#hints.reset();
     const heights = trophyRowHeightsOf(phone);
     const stops = new Map<string, FocusStop>();
 
@@ -95,6 +170,7 @@ export class TrophyRoomScene extends Phaser.Scene {
     const bar = drawTopBar(this, {
       backLabel: phone ? "◂" : "◂ TITLE",
       onBack: () => this.#back(),
+      hints: this.#open === null ? this.#hints : null,
       title: "Trophy Room",
       ...(phone ? {} : { right: header.earnedLabel }),
     });
@@ -124,10 +200,107 @@ export class TrophyRoomScene extends Phaser.Scene {
       scroll: this.#scroll,
       background: false,
       renderRow: (index, rect) => this.#renderRow(rows[index]!, rect, phone),
+      onRowActivate: (index) => (this.#open === null ? this.#openSheet(index) : undefined),
     });
     this.#list = list;
+    this.#listHeight = listRect.height;
 
-    this.#route?.set(bar.backRect ? ["back"] : [], stops);
+    const order: string[] = bar.backRect ? ["back"] : [];
+    rows.forEach((row, index) => {
+      if (row.kind !== "achievement") return;
+      const key = `row:${index}`;
+      order.push(key);
+      stops.set(key, {
+        rect: () => {
+          // Clipped to the list, so the ring never floats over the header while a row is scrolled partly out.
+          const r = list.rectFor(index);
+          const top = Math.max(r.y, listRect.y);
+          const bottom = Math.min(r.y + r.height, listRect.y + listRect.height);
+          return { x: r.x, y: top, width: r.width - GUTTER, height: Math.max(1, bottom - top) };
+        },
+        activate: () => this.#openSheet(index),
+        ensureVisible: () => list.scrollIntoView(index),
+      });
+    });
+
+    if (this.#open !== null) {
+      const row = rows[this.#open] as Extract<TrophyRow, { kind: "achievement" }>;
+      const closeStop = this.#drawSheet(row, width, height, phone);
+      this.#route?.set(["close"], new Map([["close", closeStop]]));
+      this.#route?.focusKey("close");
+    } else this.#route?.set(order, stops);
+  }
+
+  /** The sheet for one achievement: the whole line, unclipped. Returns its Close stop. */
+  #drawSheet(
+    row: Extract<TrophyRow, { kind: "achievement" }>,
+    width: number,
+    height: number,
+    phone: boolean,
+  ): FocusStop {
+    const depth = 800;
+    this.add.rectangle(0, 0, width, height, surface.ink.hex, 0.6).setOrigin(0, 0).setDepth(depth);
+    const panelW = Math.min(width - 24, 520);
+    const pad = 20;
+    const textW = panelW - pad * 2;
+    const earned = row.state === "earned";
+    const facts = [`${earned ? "✓ " : ""}${row.stateLabel}`];
+    if (row.reward) facts.push(row.reward);
+    if (row.progress) facts.push(`Progress ${row.progressLabel}`);
+    const name = this.add
+      .text(0, 0, row.name, textStyle(bangers(phone ? 24 : 28), surface.ink.hex))
+      .setWordWrapWidth(textW)
+      .setDepth(depth + 1);
+    const state = this.add
+      .text(0, 0, facts.join("   "), textStyle(typeRole.label, surface.ink.hex, 1))
+      .setWordWrapWidth(textW)
+      .setDepth(depth + 1);
+    const detail = this.add
+      .text(0, 0, row.detail, textStyle(typeRole.body, surface.ink.hex, 1))
+      .setFontSize(15)
+      .setWordWrapWidth(textW)
+      .setDepth(depth + 1);
+    const closeH = 48;
+    const panelH = pad + name.height + 8 + state.height + 12 + detail.height + 18 + closeH + pad;
+    const panel: Rect = {
+      x: (width - panelW) / 2,
+      y: Math.max(8, (height - panelH) / 2),
+      width: panelW,
+      height: panelH,
+    };
+    // Outside tap target first (below the panel), so a tap on the dimmed ground closes the sheet.
+    const outside = this.add
+      .zone(0, 0, width, height)
+      .setOrigin(0, 0)
+      .setInteractive()
+      .setDepth(depth + 0.2);
+    onTap(outside, () => this.#closeSheet(), "trophy-sheet-outside");
+    this.add
+      .rectangle(panel.x, panel.y, panel.width, panel.height, surface.paper.hex)
+      .setOrigin(0, 0)
+      .setStrokeStyle(3, surface.ink.hex)
+      .setInteractive()
+      .setDepth(depth + 0.5);
+    name.setPosition(panel.x + pad, panel.y + pad);
+    state.setPosition(panel.x + pad, name.y + name.height + 8);
+    detail.setPosition(panel.x + pad, state.y + state.height + 12);
+    const closeRect: Rect = {
+      x: panel.x + (panel.width - 160) / 2,
+      y: panel.y + panel.height - pad - closeH,
+      width: 160,
+      height: closeH,
+    };
+    const close = new McButton(this, {
+      kind: "primary",
+      label: "Close",
+      type: typeRole.menuButton,
+      rect: closeRect,
+      onClick: () => this.#closeSheet(),
+    });
+    close.container.setDepth(depth + 2);
+    this.#buttons.push(close);
+    this.#hints.button(close, ["cancel"], "paper");
+    return { rect: closeRect, activate: () => this.#closeSheet() };
   }
 
   #drawHeader(rect: Rect, header: TrophyHeader, phone: boolean): void {
