@@ -123,6 +123,11 @@ export class MusicPlayerOverlay extends Phaser.Scene {
     const songs = this.#songs;
     const music = appSession().music;
     if (!music || songs.length === 0) return;
+    // RB is the Next button's twin: with Shuffle on it takes the shuffle's own pick.
+    if (direction === 1 && appSession().settings.musicShuffle) {
+      music.next();
+      return;
+    }
     const at = songs.findIndex((song) => song.track.key === music.nowPlaying()?.key);
     const to = at < 0 ? (direction === 1 ? 0 : songs.length - 1) : (at + direction + songs.length) % songs.length;
     this.#play(songs[to]!);

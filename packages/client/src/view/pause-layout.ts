@@ -191,8 +191,12 @@ function wideLayout(
     report: { ...menuRect(5), x: title.x + (menuWidth + MENU_GAP) / 2, width: (menuWidth - MENU_GAP) / 2 },
   };
 
-  const guideStopTutorial: Rect | null = guidedRunActive ? menuRect(6) : null;
-  const guideTurnGuideOff: Rect | null = guidedRunActive ? menuRect(7) : null;
+  // A half-width pair on one row, so the whole menu still clears the concede confirm's Cancel above Concede.
+  const half = (menuWidth - MENU_GAP) / 2;
+  const guideStopTutorial: Rect | null = guidedRunActive ? { ...menuRect(6), width: half } : null;
+  const guideTurnGuideOff: Rect | null = guidedRunActive
+    ? { ...menuRect(6), x: title.x + half + MENU_GAP, width: half }
+    : null;
 
   const concede: Rect = {
     x: title.x,

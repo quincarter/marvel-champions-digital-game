@@ -19,6 +19,7 @@ import type Phaser from "phaser";
 import { onInputDeviceChange } from "../platform/input-device.js";
 import { shownReportButton } from "../ui/report-slot.js";
 import { shownMusicButton } from "../ui/music-slot.js";
+import { chromeStopsOf } from "../view/chrome-stops.js";
 import { McSelectionRing } from "../ui/widgets.js";
 import { stepKey } from "../view/focus.js";
 import type { GamepadIntent } from "../view/gamepad.js";
@@ -82,7 +83,8 @@ export interface FocusRouteOptions {
   readonly onScroll?: (dx: number, dy: number, dtMs: number) => void;
   /**
    * LB / RB (and the zone keys: R / F, P / ;, [ / ]) on a screen with tabs or a track list: step to the previous (-1) or
-   * next (1) one. Takes the place of `onPage` for the shoulder buttons when given.
+   * next (1) one. Takes the place of `onPage` for the shoulder buttons when given; PageUp / PageDown on the keyboard
+   * always go to `onPage`.
    */
   readonly onTab?: (direction: 1 | -1) => void;
   /** X (G / H on the keyboard), for a screen with one extra toggle (the music player's Shuffle). No-op when omitted. */
@@ -117,6 +119,8 @@ export class FocusRoute {
   readonly #onToggle: (() => void) | undefined;
   /** The ring is hidden after the mouse takes over, until the next pad or keyboard input. */
   #ringHidden = false;
+  #chromeFrame = -1;
+  #chromeStops: ReadonlyMap<string, FocusStop> = new Map();
   #ownOrder: readonly string[] = [];
   #ownStops: ReadonlyMap<string, FocusStop> = new Map();
   #focus: string | null = null;
@@ -152,24 +156,35 @@ export class FocusRoute {
     // A row inside a scrolling list moves when the list scrolls by touch, wheel or drag, not only when focus moves: the
     // ring follows its stop (a stale ring sat above and left of the button it marked, Settings on the Deck).
     const follow = (): void => {
-      const stop = this.#focus === null ? undefined : this.#stopOf(this.#focus);
-      if (!this.#ring || !stop || typeof stop.rect !== "function") return;
+      if (!this.#ring || this.#focus === null) return;
+      // Chrome rects are static: only a hidden one (the pad toast covers the bar for a moment) needs a look.
+      if (this.#focus === CHROME_MUSIC_STOP || this.#focus === CHROME_REPORT_STOP) {
+        const shown = this.#focus === CHROME_MUSIC_STOP ? shownMusicButton() : shownReportButton();
+        if (shown === null) this.#drawRing();
+        return;
+      }
+      const stop = this.#ownStops.get(this.#focus);
+      if (!stop || typeof stop.rect !== "function") return;
       const rect = stop.rect();
       const last = this.#ringRect;
       if (last && last.x === rect.x && last.y === rect.y && last.width === rect.width && last.height === rect.height)
         return;
-      this.#drawRing();
+      // Move the ring where it stands; no new graphics each frame while a list scrolls.
+      this.#ringRect = rect;
+      this.#ring.show(rect, "static", true);
     };
     scene.events.on("update", follow);
     const release = (): void => {
       unsubscribe();
       scene.events.off("update", follow);
+      scene.events.off("shutdown", release);
+      scene.events.off("destroy", release);
     };
     scene.events.once("shutdown", release);
     scene.events.once("destroy", release);
     const binding = {
       blocked: options.blocked ?? (() => false),
-      onIntent: (intent: GamepadIntent) => this.#onIntent(intent),
+      onIntent: (intent: GamepadIntent, source?: "key") => this.#onIntent(intent, source),
       onScroll: (dx: number, dy: number, dtMs: number) => {
         const stop = this.#focus === null ? undefined : this.#stopOf(this.#focus);
         if (stop?.scroll?.(dx, dy, dtMs)) return;
@@ -219,24 +234,30 @@ export class FocusRoute {
   set(order: readonly string[], stops: ReadonlyMap<string, FocusStop>, ringColor?: number): void {
     this.#ownOrder = order.filter((key) => stops.has(key));
     this.#ownStops = stops;
+    this.#chromeFrame = -1;
     this.#ringColor = ringColor;
     this.#drawRing();
     if (import.meta.env.DEV) this.#publishForE2e();
   }
 
   /**
-   * Dev-only e2e hooks (never referenced by product code): `window.__mcFocusState[sceneKey]()` is the focused key and whether the ring is drawn; `window.__mcFocusRoutes[sceneKey]()` lists this scene's
-   * current stops — key and on-screen rect, in route order — so a Playwright run can click a control by what it is
-   * rather than by pixel guesses, and read which controls exist right now (a disabled button has no stop).
+   * Dev-only e2e hooks (never referenced by product code): `window.__mcFocusState[sceneKey]()` is the focused key and
+   * whether the ring is drawn; `window.__mcFocusRoutes[sceneKey]()` lists this scene's current stops — key and
+   * on-screen rect, in route order — so a Playwright run can click a control by what it is rather than by pixel
+   * guesses, and read which controls exist right now (a disabled button has no stop).
    */
   #publishForE2e(): void {
     const w = window as unknown as { __mcFocusRoutes?: Record<string, () => { key: string; rect: Rect }[]> };
     w.__mcFocusRoutes ??= {};
     const state = window as unknown as {
-      __mcFocusState?: Record<string, () => { focus: string | null; ringShown: boolean }>;
+      __mcFocusState?: Record<string, () => { focus: string | null; ringShown: boolean; ringRect: Rect | null }>;
     };
     state.__mcFocusState ??= {};
-    state.__mcFocusState[this.#scene.sys.settings.key] = () => ({ focus: this.#focus, ringShown: this.#ring !== null });
+    state.__mcFocusState[this.#scene.sys.settings.key] = () => ({
+      focus: this.#focus,
+      ringShown: this.#ring !== null,
+      ringRect: this.#ringRect,
+    });
     w.__mcFocusRoutes[this.#scene.sys.settings.key] = () =>
       this.#order.map((key) => {
         const rect = this.#stopOf(key)!.rect;
@@ -250,42 +271,39 @@ export class FocusRoute {
    * them keeps its own.
    */
   #chrome(): ReadonlyMap<string, FocusStop> {
-    const out = new Map<string, FocusStop>();
+    // One answer per frame: a pad step asks for every stop's rect, and nothing here changes within a frame.
+    const frame = this.#scene.game.loop.frame;
+    if (this.#chromeFrame === frame) return this.#chromeStops;
     const manager = this.#scene.scene.manager;
     const key = this.#scene.sys.settings.key;
-    if (key === SCENES.reportIssue || key === SCENES.musicButton || key === SCENES.reportButton) return out;
     const top = manager
       .getScenes(true)
       .filter((one) => !CHROME_SCENES.has(one.scene.key) && one.scene.key !== SCENES.music)
       .at(-1);
-    if (top !== this.#scene) return out;
-    const covered = (rect: Rect): boolean =>
-      this.#ownOrder.some((own) => {
-        const r = this.#rectOfOwn(own);
-        return (
-          r !== null &&
-          r.x < rect.x + rect.width &&
-          rect.x < r.x + r.width &&
-          r.y < rect.y + rect.height &&
-          rect.y < r.y + r.height
-        );
-      });
-    const music = shownMusicButton();
-    if (music && !covered(music)) {
+    const found = chromeStopsOf({
+      isTop: top === this.#scene,
+      excluded: key === SCENES.reportIssue || key === SCENES.musicButton || key === SCENES.reportButton,
+      music: shownMusicButton(),
+      report: shownReportButton(),
+      own: this.#ownOrder.flatMap((own) => this.#rectOfOwn(own) ?? []),
+    });
+    const out = new Map<string, FocusStop>();
+    if (found.music) {
       out.set(CHROME_MUSIC_STOP, {
-        rect: music,
+        rect: found.music,
         activate: () => (manager.getScene(SCENES.musicButton) as MusicButtonScene | null)?.togglePlayer(),
       });
     }
-    const report = shownReportButton();
-    if (report && !covered(report)) {
+    if (found.report) {
       out.set(CHROME_REPORT_STOP, {
-        rect: report,
+        rect: found.report,
         activate: () => {
           if (!this.#scene.scene.isActive(SCENES.reportIssue)) this.#scene.scene.launch(SCENES.reportIssue);
         },
       });
     }
+    this.#chromeFrame = frame;
+    this.#chromeStops = out;
     return out;
   }
 
@@ -309,24 +327,23 @@ export class FocusRoute {
     this.#drawRing();
   }
 
-  #onIntent(intent: GamepadIntent): void {
+  #onIntent(intent: GamepadIntent, source?: "key"): void {
     // The mouse hid the ring: the first move, press or inspect only brings it back, on the stop it was on. A press
     // with the ring hidden acts as nothing focused (the primary), never on a stop the player cannot see.
     if (this.#ringHidden) {
-      const wasHidden = intent === "up" || intent === "down" || intent === "left" || intent === "right";
-      const steps = wasHidden || intent === "next" || intent === "previous" || intent === "inspect";
+      const reveals =
+        intent === "up" ||
+        intent === "down" ||
+        intent === "left" ||
+        intent === "right" ||
+        intent === "next" ||
+        intent === "previous" ||
+        intent === "inspect";
       this.#ringHidden = false;
-      if (steps) {
-        this.#drawRing();
-        return;
-      }
-      if (intent === "activate") {
-        const key = activationTarget(null, this.#primary?.() ?? null, true);
-        this.#drawRing();
-        if (key !== null) this.#stopOf(key)?.activate();
-        return;
-      }
       this.#drawRing();
+      // With a stop focused the press only brings the ring back; A never presses what the player cannot see, nor the
+      // screen's primary (Start covers "forward"). With nothing focused a direction moves as usual.
+      if (intent === "activate" || (reveals && this.#focus !== null)) return;
     }
     switch (intent) {
       case "next":
@@ -360,7 +377,8 @@ export class FocusRoute {
         break;
       case "pageNext":
       case "pagePrevious":
-        if (this.#onTab) this.#onTab(intent === "pageNext" ? 1 : -1);
+        // LB / RB are the tab buttons; the keyboard's PageUp / PageDown always page.
+        if (this.#onTab && source !== "key") this.#onTab(intent === "pageNext" ? 1 : -1);
         else this.#onPage?.(intent === "pageNext" ? 1 : -1);
         this.#drawRing();
         break;

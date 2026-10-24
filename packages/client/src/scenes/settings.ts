@@ -281,8 +281,12 @@ export class SettingsOverlay extends Phaser.Scene {
       onTab: (direction) => {
         const ids = this.#tabIds;
         if (ids.length === 0) return;
+        if (this.#resolutionListOpen) return;
         const at = Math.max(0, ids.indexOf(lastTab));
-        this.#setTab(ids[(at + direction + ids.length) % ids.length]!);
+        const next = ids[(at + direction + ids.length) % ids.length]!;
+        this.#setTab(next);
+        // The ring goes onto the new tab, as a press on it would leave it.
+        this.#route?.focusKey(`tab:${next}`);
       },
       blocked: () =>
         this.scene.isActive(SCENES.unlocks) ||

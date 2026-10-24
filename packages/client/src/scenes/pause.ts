@@ -513,7 +513,9 @@ export class PauseOverlay extends Phaser.Scene {
     );
     this.#menuButton(stops, "save-quit", "onInk", "Save & quit", layout.menu.saveQuit, () => this.#saveAndQuit());
     this.#menuButton(stops, "music", "onInk", "Music", layout.menu.music, () => this.#openMusic());
-    this.#menuButton(stops, "report", "onInk", "Report a problem", layout.menu.report, () => this.#openReport());
+    // Half a narrow sheet (tablet portrait) cannot hold the whole phrase.
+    const reportLabel = layout.menu.report.width < 130 ? "Report" : "Report a problem";
+    this.#menuButton(stops, "report", "onInk", reportLabel, layout.menu.report, () => this.#openReport());
 
     // §3.10 "Pause has 'Stop tutorial' and 'Turn guide off' whenever a guided run is active" (G5c part 3) —
     // `layout.guideStopTutorial`/`guideTurnGuideOff` are `null` unless `guidedRunActive` was true when this layout

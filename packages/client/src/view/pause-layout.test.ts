@@ -141,10 +141,17 @@ describe("pauseLayout", () => {
       expect(active.guideTurnGuideOff).not.toBeNull();
       expect(rectsOverlap(active.guideStopTutorial!, active.menu.saveQuit)).toBe(false);
       expect(rectsOverlap(active.guideTurnGuideOff!, active.guideStopTutorial!)).toBe(false);
+      // The concede confirm's Cancel and its question line sit above Concede and must clear the menu too.
+      expect(rectsOverlap(active.guideStopTutorial!, active.concedeConfirmCancel)).toBe(false);
+      expect(rectsOverlap(active.guideTurnGuideOff!, active.concedeConfirmCancel)).toBe(false);
+      expect(rectsOverlap(active.menu.music, active.concedeConfirmCancel)).toBe(false);
+      expect(active.guideTurnGuideOff!.y + active.guideTurnGuideOff!.height).toBeLessThanOrEqual(
+        active.concedeConfirmCancel.y - 34,
+      );
       expect(rectsOverlap(active.guideStopTutorial!, active.concede)).toBe(false);
       expect(rectsOverlap(active.guideTurnGuideOff!, active.concede)).toBe(false);
-      expect(active.guideTurnGuideOff!.y).toBeGreaterThan(active.guideStopTutorial!.y);
-      expect(active.guideStopTutorial!.y).toBeGreaterThan(active.menu.saveQuit.y);
+      expect(active.guideTurnGuideOff!.y).toBe(active.guideStopTutorial!.y);
+      expect(active.guideStopTutorial!.y).toBeGreaterThan(active.menu.report.y);
     });
   });
 

@@ -38,7 +38,8 @@ import { SCENES } from "../keys.js";
 export interface IntentBinding {
   /** True while something above the board (a decision overlay, Inspect) owns input. */
   blocked(): boolean;
-  onIntent(intent: GamepadIntent): void;
+  /** `source` is "key" for an intent the keyboard sent (PageUp / PageDown are the page keys, not the pad's LB / RB). */
+  onIntent(intent: GamepadIntent, source?: "key"): void;
   /**
    * The right stick, called every frame it is past its deadzone with the pixels to scroll (positive dx right,
    * positive dy down) and the frame's time. Optional: a screen with nothing to scroll leaves it out.
@@ -171,7 +172,7 @@ export function bindKeyboard(scene: Phaser.Scene, binding: IntentBinding): void 
       inspectHoldOf(scene, binding).press("key", scene.time.now);
       return;
     }
-    binding.onIntent(intent);
+    binding.onIntent(intent, "key");
   });
 }
 

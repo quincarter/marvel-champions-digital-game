@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { findText, installPageHelpers } from "./helpers.js";
 
 /**
  * Cross-screen controller and keyboard focus: the music note and the bug are D-pad stops on every screen, LB / RB switch
@@ -18,6 +19,7 @@ const DPAD_RIGHT = 15;
 interface FocusState {
   focus: string | null;
   ringShown: boolean;
+  ringRect: { x: number; y: number; width: number; height: number } | null;
 }
 
 async function installPad(page: Page): Promise<void> {
@@ -198,14 +200,12 @@ test("the music player: RB changes the track, B closes it", async ({ page }) => 
   await page.waitForTimeout(500);
   expect(await isActive(page, "MusicPlayerOverlay")).toBe(true);
   const playing = () =>
-    page.evaluate(() => {
-      const w = window as unknown as { __mcGame: { registry?: unknown } };
-      return (
+    page.evaluate(
+      () =>
         (
-          w as never as { __mcMusicPlayerDebug?: { nowPlaying?: () => string | null } }
-        ).__mcMusicPlayerDebug?.nowPlaying?.() ?? null
-      );
-    });
+          window as unknown as { __mcMusicPlayerDebug?: { nowPlaying?: () => string | null } }
+        ).__mcMusicPlayerDebug?.nowPlaying?.() ?? null,
+    );
   const first = await playing();
   await tap(page, RB, async () => (await playing()) !== first);
   const second = await playing();
@@ -249,7 +249,7 @@ test("LB / RB switch Settings' tabs, and the ring hides while the mouse moves", 
   await tap(page, LB, async () => (await rowsKey()) === a);
   expect(await rowsKey()).toBe(a);
 
-  // Focus a row by the pad, then move the mouse: the ring goes; the next pad press brings it back on the same stop.
+  // Focus a row (by the keyboard, which is exact), then move the mouse: the ring goes; the next pad press brings it back on the same stop.
   await page.keyboard.press("ArrowDown");
   await page.waitForTimeout(200);
   const focused = await stateOf(page, "SettingsOverlay");
@@ -263,5 +263,84 @@ test("LB / RB switch Settings' tabs, and the ring hides while the mouse moves", 
   const back = await stateOf(page, "SettingsOverlay");
   expect(back?.ringShown).toBe(true);
   expect(back?.focus).toBe(focused?.focus);
-  void START;
+});
+
+test("the first D-pad press after a mouse move only brings the ring back", async ({ page }) => {
+  await openTitle(page);
+  await waitForChrome(page, "Title");
+  await page.keyboard.press("ArrowDown");
+  await page.waitForTimeout(200);
+  const focus = (await stateOf(page, "Title"))?.focus;
+  expect(focus).not.toBeNull();
+  await page.mouse.move(300, 300);
+  await page.mouse.move(340, 340);
+  await page.waitForTimeout(300);
+  expect((await stateOf(page, "Title"))?.ringShown).toBe(false);
+  await tap(page, DPAD_DOWN, async () => (await stateOf(page, "Title"))?.ringShown === true);
+  const after = await stateOf(page, "Title");
+  expect(after?.ringShown).toBe(true);
+  expect(after?.focus).toBe(focus);
+});
+
+test("the ring follows a Settings row that scrolls under it", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 520 });
+  await openTitle(page);
+  const settings = await stopRect(page, "Title", "settings");
+  await page.mouse.click(settings.x + settings.width / 2, settings.y + settings.height / 2);
+  await page.waitForTimeout(800);
+  const tab = await stopRect(page, "SettingsOverlay", "tab:display");
+  await page.mouse.click(tab.x + 10, tab.y + 10);
+  await page.waitForTimeout(600);
+  for (let i = 0; i < 40 && (await stateOf(page, "SettingsOverlay"))?.focus !== "row:sharper-text"; i += 1) {
+    await page.keyboard.press("Tab");
+    await page.waitForTimeout(60);
+  }
+  expect((await stateOf(page, "SettingsOverlay"))?.focus).toBe("row:sharper-text");
+  // The wheel scrolls the body under the pointer; the keyboard then shows the ring again.
+  await page.mouse.move(640, 300);
+  await page.waitForTimeout(700);
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Shift+Tab");
+  await page.waitForTimeout(200);
+  const before = (await stateOf(page, "SettingsOverlay"))?.ringRect;
+  await page.mouse.wheel(0, -200);
+  await page.waitForTimeout(600);
+  const after = (await stateOf(page, "SettingsOverlay")) as FocusState;
+  expect(after.ringShown).toBe(true);
+  expect(after.ringRect).not.toEqual(before);
+  // Still on the row it marks, wherever the list has scrolled it to.
+  expect(after.ringRect).toEqual(await stopRect(page, "SettingsOverlay", after.focus!));
+});
+
+test("Start on Scenario select chooses heroes", async ({ page }) => {
+  await installPad(page);
+  await page.goto("/?screen=scenario-select&unlock=all");
+  await page.waitForFunction(() => (window as unknown as { __mcGame?: object }).__mcGame !== undefined, undefined, {
+    timeout: 30_000,
+  });
+  await page.waitForTimeout(2500);
+  await tap(page, DPAD_DOWN);
+  await tap(page, START, () => isActive(page, "Seats"));
+  expect(await isActive(page, "Seats")).toBe(true);
+});
+
+test("PageDown on Take your seats never moves the seat", async ({ page }) => {
+  await installPad(page);
+  await installPageHelpers(page);
+  await page.goto("/?screen=seats&unlock=all");
+  await page.waitForFunction(() => (window as unknown as { __mcGame?: object }).__mcGame !== undefined, undefined, {
+    timeout: 30_000,
+  });
+  await page.waitForTimeout(2500);
+  const picking = async () => (await findText(page, "PICKING", "Seats")).map((m) => m.text).join("|");
+  await tap(page, DPAD_DOWN); // the first press wakes the pad
+  // RB (the pad tab button) steps to the other seat.
+  await tap(page, RB, async () => (await picking()) !== "");
+  const start = await picking();
+  expect(start).toContain("SEAT");
+  await page.keyboard.press("PageDown");
+  await page.waitForTimeout(300);
+  await page.keyboard.press("PageDown");
+  await page.waitForTimeout(300);
+  expect(await picking()).toBe(start);
 });
