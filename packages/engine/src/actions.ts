@@ -238,6 +238,7 @@ import {
   canBePaidFor,
   declaredPool,
   paidSetsAsDeclared,
+  readsAnyPaidSet,
   paidTypesReading,
   poolOf,
   poolTotal,
@@ -5024,7 +5025,7 @@ function settlePaidTypes(
   // read of each: one reading is a payment settled; several are the player's to choose between.
   const setsOf = (types: readonly ResourceType[]): readonly ResourcePool[] =>
     wildDeclarationFault(pool, types, paidRequirement, only) === null
-      ? paidSetsAsDeclared(declaredPool(pool, types), paidRequirement)
+      ? paidSetsAsDeclared(declaredPool(pool, types), paidRequirement, readsAnyPaidSet(reads))
       : [];
   const readings = (sets: readonly ResourcePool[]): readonly string[] =>
     [...new Set(sets.map((paidAs) => paidTypesReading(paidAs, reads)))].sort();

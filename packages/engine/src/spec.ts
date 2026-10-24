@@ -1688,9 +1688,10 @@ export type Predicate =
   /** "The villain is on side A / B" (Shadows in the Night 65001b: "defeated on side A"): the side `of` has up. */
   | { readonly kind: "villainSide"; readonly of: TargetRef; readonly side: VillainSideLetter }
   /**
-   * "If you paid for this card using only [physical] resources" (Hulk Smash): something was paid, and every resource was
-   * that type or a wild declared as it. FAQ "Unstoppable Force (#6)" (p. 60): at a cost of 0 it fails. `of` as for
-   * `paidWith`.
+   * "If you paid for this card using only [physical] resources" (Hulk Smash): something was paid, and the resources the
+   * cost took (`paid.count`) can all be that type or wilds; overpaid ones do not count, the player naming which were
+   * overpaid (FFG ruling May 16, 2024, #187, Drop Kick). FAQ "Unstoppable Force (#6)" (p. 60): at a cost of 0 it fails.
+   * `of` as for `paidWith`.
    */
   | { readonly kind: "paidWithOnly"; readonly resource: TypedResource; readonly of?: TargetRef }
   /**

@@ -146,6 +146,37 @@ describe("Eros (ally, 22011)", () => {
     expect(inst(after, minion1).statuses.confused).toBe(1);
     expect(inst(after, minion2).statuses.confused).toBe(1);
   });
+
+  // RRG 1.8 "Wild Resource" (p. 48): a wild declared as [mental] is a [mental] resource used to pay for him (issue
+  // #402, the same reading as Moon Girl 28018). Lightspeed Flight (28004) is [mental]; Connection to the Worldmind
+  // (28007) is [wild]. Both are conjured into hand: neither is in Nebula's deck.
+  it.each([
+    ["mental", 1],
+    ["wild", 0],
+  ] as const)("22011.eros-response: a [wild] declared as %s confuses %i more minion", (declared, extra) => {
+    const hero = runWith(WAVE4_DEPS, nebulaVsRhino(1), toHero());
+    const { state: withMinion1, id: minion1 } = withSyntheticMinion(hero, "eros-minion-1");
+    const { state: withMinions, id: minion2 } = withSyntheticMinion(withMinion1, "eros-minion-2");
+    const given = moveToHand(withMinions, P1, "22011");
+    const [eros] = given.ids as [InstanceId];
+    const { state: withMental, id: mental } = putInHand(given.state, "28004", "eros-mental");
+    const { state: withWild, id: wild } = putInHand(withMental, "28007", "eros-wild");
+    let asked = 0;
+    const response = accepting("22011.eros-response", minion1, minion2);
+    const after = settle(
+      runWith(WAVE4_DEPS, withWild, play(P1, eros, [mental, wild])),
+      (s) => {
+        if (s.pendingChoice?.prompt.kind !== "declareWildTypes") return response(s);
+        asked += 1;
+        return [`0:${declared}`];
+      },
+      undefined,
+      WAVE4_DEPS,
+    );
+    expect(asked).toBe(1);
+    const confused = [minion1, minion2].filter((m) => inst(after, m).statuses.confused === 1);
+    expect(confused).toHaveLength(1 + extra);
+  });
 });
 
 describe("Wraith (ally, 22012)", () => {

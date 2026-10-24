@@ -48,7 +48,6 @@ import {
   self,
   shuffleDeck,
   stateCheckFromEntering,
-  sum,
   takesConsequentialDamage,
   teamUpCharacters,
   theVillain,
@@ -112,8 +111,10 @@ const eachPlayerMaySearchFor = (found: ReturnType<typeof query>) =>
  *   discards from the deck until an ally of one of the three X-teams, then adds it (nothing found: nothing added).
  *   Fantomex searches the deck and discard pile for E.V.A. (may find none), puts it into play and shuffles.
  * - **Sunspot (40016)**: "After you play Sunspot from your hand": the chosen player; 1 damage (not an attack) to the
- *   villain and each minion engaged with them per [energy] used. A wild resource is generated as the type its player
- *   names, even when overpaying (ruling January 17, 2026, Ruling 4), so wilds spent count as energy.
+ *   villain and each minion engaged with them per [energy] used to pay for him (`paid.as.energy`, read with
+ *   `readsPaidTypes: { amountOf: "energy" }`): a wild counts when its player declares it [energy] (RRG 1.8 "Wild
+ *   Resource", p. 48), and overpaid resources were not used to pay (RRG 1.8 "Cost", p. 13), the player naming which
+ *   were overpaid (FFG ruling May 16, 2024, #187). Issue #402.
  * - **Mission Planning (40017)**: play only if a side scheme is in the victory display (a constant, §7.1); Hero Action:
  *   until the end of the phase, your allies take no consequential damage.
  * - **Call for Backup, Establish Perimeter, Build Support (40018, 40020, 40027)**: Victory 0 is data; the starting
@@ -166,12 +167,10 @@ export const NEXT_EVOL_PRECON_CABLE_DECK: AbilityRegistry = defineAbilities({
 
   "40016.sunspot-response": response(
     after.youPlayThisFromHand(),
+    { readsPaidTypes: { amountOf: "energy" } },
     choosePlayer("player"),
-    dealDamage(sum(varOf("paid.energy"), varOf("paid.wild")), theVillain),
-    dealDamage(
-      sum(varOf("paid.energy"), varOf("paid.wild")),
-      each(query("minion", { engagedWithPlayer: chosenPlayer("player") })),
-    ),
+    dealDamage(varOf("paid.as.energy"), theVillain),
+    dealDamage(varOf("paid.as.energy"), each(query("minion", { engagedWithPlayer: chosenPlayer("player") }))),
   ),
 
   "40017.mission-planning-constant": constant(playOnlyIf(valueAtLeast(SIDE_SCHEMES_IN_VICTORY_DISPLAY, 1))),

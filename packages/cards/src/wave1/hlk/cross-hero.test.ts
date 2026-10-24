@@ -233,6 +233,16 @@ describe("Hulk pack aggression cards, from She-Hulk (Aggression)'s own deck", ()
     expect(playerOf(plain, P1).hand.length).toBe(handMixed - 1 - 3);
   });
 
+  it("10014.drop-kick-action: 3 [physical] and an overpaid other resource is still paid only with [physical]", () => {
+    // FFG ruling May 16, 2024 (#187): the player says the other resource was the overpaid one. Issue #402.
+    const { state: opened, id: dropKick } = openHandFor("10014", SHE_HULK);
+    const villain = activeVillain(opened).instanceId;
+    const phys = filler(opened, 3, [dropKick], physicalOnly);
+    const extra = filler(phys.state, 1, [dropKick, ...phys.ids], noPhysical);
+    const after = playCard(extra.state, dropKick, [...phys.ids, ...extra.ids]);
+    expect(inst(after, villain).statuses.stunned).toBe(1);
+  });
+
   it("10015.toe-to-toe-action: the chosen enemy attacks you, then takes 5 damage", () => {
     const { state: opened, id } = openHandFor("10015", SHE_HULK);
     const villain = activeVillain(opened).instanceId;

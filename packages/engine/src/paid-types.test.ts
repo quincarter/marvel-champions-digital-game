@@ -32,6 +32,8 @@ import {
   paidSetOptionId,
   paidSetsAsDeclared,
   paidTypeCountOf,
+  readOfPaidTypes,
+  readsAnyPaidSet,
   requirementOf,
   wildDeclarationFault,
   wildDeclarations,
@@ -484,6 +486,23 @@ describe("§3.62 the declared types of a payment (pure)", () => {
     expect(paidSetsAsDeclared(pool({ physical: 2 }), requirementOf(2))).toEqual([pool({ physical: 2 })]);
     expect(paidSetsAsDeclared(pool({ physical: 2 }), requirementOf(0))).toEqual([EMPTY_POOL]);
     expect(paidSetsAsDeclared(pool({ energy: 2 }), requirementOf({ physical: 1 }))).toEqual([]);
+  });
+
+  it("paidSetsAsDeclared everySet: every set of the cost's size, for readers of one type's amount (issue #402)", () => {
+    // Two [physical] and an [energy] toward 2: two [physical] is a candidate too (FFG ruling May 16, 2024 #187).
+    expect(paidSetsAsDeclared(pool({ physical: 2, energy: 1 }), requirementOf(2), true)).toEqual([
+      pool({ physical: 1, energy: 1 }),
+      pool({ physical: 2 }),
+    ]);
+    expect(readsAnyPaidSet([{ amountOf: "mental" }])).toBe(true);
+    expect(readsAnyPaidSet([{ amountOf: "mental" }, { count: true }])).toBe(false);
+    expect(readsAnyPaidSet([])).toBe(false);
+  });
+
+  it("readOfPaidTypes amountOf: how many paid resources are that type", () => {
+    expect(readOfPaidTypes(pool({ mental: 2, energy: 1 }), { amountOf: "mental" })).toBe("2");
+    expect(readOfPaidTypes(pool({ mental: 2, wild: 1 }), { amountOf: "mental" })).toBe("2");
+    expect(readOfPaidTypes(pool({ energy: 3 }), { amountOf: "mental" })).toBe("0");
   });
 
   it("wildDeclarations: every way to declare interchangeable wilds, all left wild first", () => {

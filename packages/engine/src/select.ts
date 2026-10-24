@@ -3559,10 +3559,12 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       return (paidVarsOf(state, predicate.of, context)[`${PAID_AS_PREFIX}${predicate.resource}`] ?? 0) > 0;
     case "paidWithOnly": {
       const vars = paidVarsOf(state, predicate.of, context);
-      if ((vars["paid.total"] ?? 0) <= 0) return false;
-      return (["physical", "mental", "energy"] as const).every(
-        (type) => type === predicate.resource || (vars[`paid.${type}`] ?? 0) === 0,
-      );
+      // The resources the cost took (`paid.count`); the rest were overpaid, and the player says which those were
+      // (FFG ruling May 16, 2024, #187: Drop Kick paid with 3 [physical] and an overpaid [energy] is paid only with
+      // [physical]). So it holds when the cost can be filled from that type and wilds alone. Issue #402.
+      const count = vars["paid.count"] ?? vars["paid.total"] ?? 0;
+      if (count <= 0) return false;
+      return (vars[`paid.${predicate.resource}`] ?? 0) + (vars["paid.wild"] ?? 0) >= count;
     }
     case "playedThisTurn": {
       const [playerId] = resolvePlayers(state, predicate.player, context);

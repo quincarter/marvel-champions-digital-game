@@ -436,15 +436,16 @@ describe("Sunspot (40016)", () => {
     expect(inst(state, villainOf(state)).damage).toBe(2);
     expect(inst(state, staged.id).damage).toBe(2);
   });
-  it("a wild resource used counts as energy (ruling January 17, 2026, Ruling 4)", () => {
+  it('a wild resource declared as energy counts (RRG 1.8 "Wild Resource", p. 48; the first option asked)', () => {
     const base = withoutTough(heroGame());
     const { state } = playSunspot(base, ["40022", "40021", "40017"], answer());
     expect(inst(state, villainOf(state)).damage).toBe(2);
   });
-  it("overpaying counts too: 4 cards, 4 energy are 4 damage", () => {
+  it("an overpaid resource was not used to pay for him: 4 cards for his cost of 3 deal 3 (issue #402)", () => {
+    // RRG 1.8 "Cost" (p. 13): overpaid resources were not paid for that cost.
     const base = withoutTough(heroGame());
     const { state } = playSunspot(base, ["40022", "40022", "40022", "40021"], answer());
-    expect(inst(state, villainOf(state)).damage).toBe(4);
+    expect(inst(state, villainOf(state)).damage).toBe(3);
   });
   it("with 0 energy used (3 mental) it deals no damage", () => {
     const base = withoutTough(heroGame());

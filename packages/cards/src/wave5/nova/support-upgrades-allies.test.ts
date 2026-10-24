@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { cardId, encounterSetId, trait, type EncounterSetId } from "@mc/content";
-import { applyCommand, cardsInPlay, handSize, statBonus, traitsOf, type GameState, type InstanceId } from "@mc/engine";
+import {
+  applyCommand,
+  cardsInPlay,
+  handSize,
+  statBonus,
+  traitsOf,
+  type Command,
+  type GameState,
+  type InstanceId,
+  type ResourceType,
+} from "@mc/engine";
 import {
   answer,
   endTurn,
@@ -348,12 +358,8 @@ describe("Honed Technique (upgrade, 28017)", () => {
 describe("Moon Girl (ally, 28018)", () => {
   it("28018.moon-girl-response: draws exactly 1 card per [mental] resource paid for her (3 [mental] cards)", () => {
     const state = run(novaVsRhino(1), toHero(P1)); // Nova (hero form) has the champion trait.
-    // Lightspeed Flight (28004, `resourceIcons: { mental: 1 }`, max 3 in this deck) is a genuine printed [mental]
-    // icon — unlike a wild-icon resource card (Connection to the Worldmind, 28007), which `printedResources`
-    // (`packages/engine/src/resources.ts`) puts in `pool.wild`, never `pool.mental`, regardless of what it's
-    // "declared as": a wild only ever fills a cost's own typed *requirement* slots (`resourceVars`,
-    // `packages/engine/src/actions.ts`), and Moon Girl's cost is a plain generic 3 with no typed requirement to
-    // fill, so a wild spent on her never counts as `paid.mental`.
+    // Lightspeed Flight (28004, `resourceIcons: { mental: 1 }`, max 3 in this deck) is a printed [mental] icon. With
+    // no wild in the payment every declaration reads the same, so nobody is asked.
     const given = moveToHand(state, P1, "28018", "28004", "28004", "28004");
     const [moonGirl, m1, m2, m3] = given.ids as [InstanceId, InstanceId, InstanceId, InstanceId];
     const beforeHand = playerOf(given.state, P1).hand.length;
@@ -385,6 +391,88 @@ describe("Moon Girl (ally, 28018)", () => {
     // 4 cards left hand to pay her cost of 3; her Response draws 0 (0 [mental] resources paid).
     expect(playerOf(after, P1).hand.length).toBe(beforeHand - 4);
     expect(playerOf(after, P1).playArea).toContain(moonGirl);
+  });
+
+  // Issue #402. RRG 1.8 "Wild Resource" (p. 48): the player specifies which type a wild resource is used as, so a
+  // wild declared as [mental] is a [mental] resource used to pay for her. Connection to the Worldmind (28007) is a
+  // [wild] resource card.
+  const payWithWild = (wildAs?: readonly ResourceType[]) => {
+    const state = run(novaVsRhino(1), toHero(P1));
+    const given = moveToHand(state, P1, "28018", "28004", "28004", "28007");
+    const [moonGirl, m1, m2, wild] = given.ids as [InstanceId, InstanceId, InstanceId, InstanceId];
+    const command = { ...play(P1, moonGirl, [m1, m2, wild]), ...(wildAs ? { wildAs } : {}) } as Command;
+    return { given, moonGirl, command, beforeHand: playerOf(given.state, P1).hand.length };
+  };
+
+  it("28018.moon-girl-response: a [wild] resource declared as [mental] counts (2 [mental] + 1 [wild] draws 3)", () => {
+    const { given, moonGirl, command, beforeHand } = payWithWild(["mental"]);
+    const after = settle(
+      runWith(WAVE5_DEPS, given.state, command),
+      accepting("28018.moon-girl-response"),
+      undefined,
+      WAVE5_DEPS,
+    );
+    expect(playerOf(after, P1).hand.length).toBe(beforeHand - 4 + 3);
+    expect(playerOf(after, P1).playArea).toContain(moonGirl);
+  });
+
+  it("28018.moon-girl-response: a [wild] resource left a [wild] does not count (draws 2)", () => {
+    const { given, command, beforeHand } = payWithWild(["wild"]);
+    const after = settle(
+      runWith(WAVE5_DEPS, given.state, command),
+      accepting("28018.moon-girl-response"),
+      undefined,
+      WAVE5_DEPS,
+    );
+    expect(playerOf(after, P1).hand.length).toBe(beforeHand - 4 + 2);
+  });
+
+  it("28018.moon-girl-response: undeclared, its player is asked what the wild is used as", () => {
+    const { given, command, beforeHand } = payWithWild();
+    const response = accepting("28018.moon-girl-response");
+    let asked = 0;
+    const after = settle(
+      runWith(WAVE5_DEPS, given.state, command),
+      (s) => {
+        if (s.pendingChoice?.prompt.kind !== "declareWildTypes") return response(s);
+        asked += 1;
+        return ["0:mental"];
+      },
+      undefined,
+      WAVE5_DEPS,
+    );
+    expect(asked).toBe(1);
+    expect(playerOf(after, P1).hand.length).toBe(beforeHand - 4 + 3);
+  });
+
+  // Overpaid resources were not used to pay for her (RRG 1.8 "Cost", p. 13), and the player names which ones were
+  // overpaid (FFG rulings May 16, 2024 #187 and November 14, 2025). 3 [mental] + 1 [energy] for her cost of 3: the
+  // paid set is either 3 [mental] or 2 [mental] and the [energy], so she asks.
+  it.each([
+    ["physical:0,mental:3,energy:0,wild:0", 3],
+    ["physical:0,mental:2,energy:1,wild:0", 2],
+  ] as const)("28018.moon-girl-response: overpaid, the player names the paid set (%s draws %i)", (paidSet, drawn) => {
+    const state = run(novaVsRhino(1), toHero(P1));
+    const given = moveToHand(state, P1, "28018", "28004", "28004", "28004", "28005");
+    const [moonGirl, m1, m2, m3, e1] = given.ids as [InstanceId, InstanceId, InstanceId, InstanceId, InstanceId];
+    const beforeHand = playerOf(given.state, P1).hand.length;
+    const response = accepting("28018.moon-girl-response");
+    const offered: string[][] = [];
+    const after = settle(
+      runWith(WAVE5_DEPS, given.state, play(P1, moonGirl, [m1, m2, m3, e1])),
+      (s) => {
+        if (s.pendingChoice?.prompt.kind !== "choosePaidResources") return response(s);
+        offered.push(s.pendingChoice.options.map((o) => o.optionId));
+        return [paidSet];
+      },
+      undefined,
+      WAVE5_DEPS,
+    );
+    expect(offered).toHaveLength(1);
+    expect([...offered[0]!].sort()).toEqual(
+      ["physical:0,mental:3,energy:0,wild:0", "physical:0,mental:2,energy:1,wild:0"].sort(),
+    );
+    expect(playerOf(after, P1).hand.length).toBe(beforeHand - 5 + drawn);
   });
 });
 

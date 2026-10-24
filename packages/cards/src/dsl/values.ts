@@ -1251,8 +1251,8 @@ export const paidWith = (resource: TypedResource, of?: TargetRef): Predicate => 
 });
 /**
  * "If you paid for this card using only [X] resources" (Behind Enemy Lines, Grasping Tendrils, Savage Attack,
- * `vnm`; docs/phase7-wave3.md §3.26): something was paid, and every resource paid was that type or a wild
- * declared as it. FAQ "Unstoppable Force (#6)" (RRG 1.8 p. 60): at a cost of 0 it fails. The engine `Predicate`
+ * `vnm`; docs/phase7-wave3.md §3.26): something was paid, and the resources the cost took can all be that type or
+ * wilds, overpaid ones not counting (FFG ruling May 16, 2024, #187). FAQ "Unstoppable Force (#6)" (RRG 1.8 p. 60): at a cost of 0 it fails. The engine `Predicate`
  * already existed (`play-restrictions.test.ts`'s own SMASH_ACTION); this is its first DSL wrapper. `of` as for `paidWith`.
  */
 export const paidWithOnly = (resource: TypedResource, of?: TargetRef): Predicate => ({
