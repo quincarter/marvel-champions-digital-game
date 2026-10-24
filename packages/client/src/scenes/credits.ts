@@ -17,6 +17,7 @@ import { GlyphHints } from "../ui/glyph-hints.js";
 import { McButton, fitText } from "../ui/widgets.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
+import { clipToView } from "../view/focus-list.js";
 import { ListScroll } from "../view/list-scroll.js";
 import type { Rect } from "../view/layout.js";
 import {
@@ -129,11 +130,7 @@ export class CreditsScene extends Phaser.Scene {
         rect: () => {
           // Clipped to the list, so the ring never floats over the top bar while a row is scrolled partly out.
           const r = list.rectFor(index);
-          const top = Math.max(r.y, listRect.y);
-          const bottom = Math.min(r.y + r.height, listRect.y + listRect.height);
-          // A row wholly out of the list keeps its true place (above or below it), so Up and Down still find the next one.
-          if (bottom <= top) return { x: r.x, y: r.y, width: r.width - GUTTER, height: r.height };
-          return { x: r.x, y: top, width: r.width - GUTTER, height: bottom - top };
+          return clipToView({ ...r, width: r.width - GUTTER }, listRect);
         },
         activate: () => undefined,
         ensureVisible: () => list.scrollIntoView(index),

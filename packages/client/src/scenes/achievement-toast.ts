@@ -127,6 +127,11 @@ export class AchievementToastScene extends Phaser.Scene {
     });
   }
 
+  /** An opened list is up, opening or closing: every other screen's keys and buttons are held meanwhile (`conflictPromptOwnsInput`). */
+  get listHeld(): boolean {
+    return this.#list !== null;
+  }
+
   /** The opened list of achievements is up: it owns B / Esc, so the Board holds its own input meanwhile. */
   get listOpen(): boolean {
     return this.#list?.phase === "open";

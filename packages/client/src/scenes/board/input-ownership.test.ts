@@ -35,3 +35,22 @@ describe("who owns the keyboard and pad while a sync question is up", () => {
     expect(conflictPromptOwnsInput(sceneIn(SCENES.syncSetupPrompt, running))).toBe(true);
   });
 });
+
+describe("the achievement popup's opened list", () => {
+  const withToast = (key: string, listHeld: boolean): Phaser.Scene =>
+    ({
+      scene: {
+        key,
+        manager: { isActive: () => false, getScene: () => ({ listHeld }) },
+      },
+    }) as unknown as Phaser.Scene;
+
+  test("holds every other screen while it is open, and not itself", () => {
+    expect(conflictPromptOwnsInput(withToast(SCENES.trophyRoom, true))).toBe(true);
+    expect(conflictPromptOwnsInput(withToast(SCENES.achievementToast, true))).toBe(false);
+  });
+
+  test("holds nothing once it is closed", () => {
+    expect(conflictPromptOwnsInput(withToast(SCENES.trophyRoom, false))).toBe(false);
+  });
+});

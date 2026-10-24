@@ -59,6 +59,7 @@ import { drawBetaTagBeside } from "../ui/beta-tag.js";
 import { isNativeShell, openExternal } from "../platform/platform.js";
 import { SYNC_INFO_LABEL, syncInfoUrl } from "../view/sync-info-link.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
+import { PressGuard } from "./press-guard.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import { SCENES } from "./keys.js";
 
@@ -92,6 +93,8 @@ export class SyncDataOverlay extends Phaser.Scene {
   #buttons: McButton[] = [];
   #field: McTextInput | null = null;
   #hints!: GlyphHints;
+  /** Holds the pad for a moment on every new step, so a press meant for the last one cannot join or unlink. */
+  #guard!: PressGuard;
   #route: FocusRoute | null = null;
   #motion = new OverlayMotion();
   #step: SyncStep = { kind: "home" };
@@ -119,10 +122,11 @@ export class SyncDataOverlay extends Phaser.Scene {
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     this.#hints = new GlyphHints(this);
+    this.#guard = new PressGuard(this);
     // B, A or Start take the caret out of the code field (before the route, so the same press cannot also back out).
     bindTextFieldEscape(this, () => this.#field);
     this.#route = new FocusRoute(this, {
-      blocked: () => this.#field?.focused ?? false,
+      blocked: () => (this.#field?.focused ?? false) || !this.#guard.armed,
       onCancel: () => this.#cancel(),
       // Start is "forward" on the steps that have one main button.
       primary: () => (this.#step.kind === "join" ? "join-go" : this.#step.kind === "join-link" ? "join-link" : null),
@@ -165,6 +169,7 @@ export class SyncDataOverlay extends Phaser.Scene {
   #set(step: SyncStep, status: SaveDataStatus): void {
     this.#step = step;
     this.#status = status;
+    this.#guard.restart();
     this.#draw();
   }
 

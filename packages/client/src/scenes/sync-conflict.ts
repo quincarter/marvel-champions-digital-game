@@ -23,6 +23,7 @@ import { syncSetupButtonSpan } from "../view/sync-setup-prompt.js";
 import type { PendingConflict } from "../sync/sync-service.js";
 import type { ConflictChoice } from "../sync/sync-types.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
+import { PressGuard } from "./press-guard.js";
 import { SCENES } from "./keys.js";
 
 const buttonType = { ...typeRole.label, size: 13 };
@@ -40,6 +41,8 @@ export class SyncConflictOverlay extends Phaser.Scene {
   #motion = new OverlayMotion();
   #peeking = false;
   #hints!: GlyphHints;
+  /** Holds the pad until the panel has opened and the buttons held when it popped up are let go. */
+  #guard!: PressGuard;
   /** The choice Start presses: the prompt's default (the peek banner has Back). */
   #defaultChoice: string | null = null;
   #answered = false;
@@ -57,7 +60,9 @@ export class SyncConflictOverlay extends Phaser.Scene {
     this.scale.on("resize", onResize, this);
     // Escape does nothing: the question has to be answered (the sync is waiting on it).
     this.#hints = new GlyphHints(this);
+    this.#guard = new PressGuard(this);
     this.#route = new FocusRoute(this, {
+      blocked: () => !this.#guard.armed,
       onCancel: () => (this.#peeking ? this.#setPeek(false) : undefined),
       // Start is "forward": the default choice, or Back out of the peek banner.
       primary: () => (this.#peeking ? "back" : this.#defaultChoice),
@@ -101,7 +106,8 @@ export class SyncConflictOverlay extends Phaser.Scene {
     this.#hints.reset();
     destroyChildren(this);
     const prompt = conflictPromptOf(this.#pending.conflict, Date.now());
-    this.#defaultChoice = prompt.defaultChoice;
+    // A campaign's default is Keep this device, which replaces the other copy: Start never presses it unasked.
+    this.#defaultChoice = this.#pending.conflict.campaign ? null : prompt.defaultChoice;
     const { width, height } = this.scale.gameSize;
     const stops = new Map<string, FocusStop>();
     const order: string[] = [];

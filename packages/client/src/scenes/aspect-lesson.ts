@@ -52,6 +52,7 @@ import {
 } from "../view/aspect-lesson-model.js";
 import { aspectStampOf } from "../view/aspect-stamp.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
+import { clipToView, revealDelta } from "../view/focus-list.js";
 import { CARD_ASPECT, cardRow, type Rect } from "../view/layout.js";
 import { CARDS_BY_ID } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
@@ -643,7 +644,6 @@ export class AspectLessonScene extends Phaser.Scene {
       },
     });
     this.#buttons.push(gotIt);
-    this.#hints.button(gotIt, ["cancel"], "paper");
 
     const stops = new Map<string, FocusStop>();
     const order = ["close"];
@@ -783,22 +783,10 @@ interface BodyHost {
  */
 function bodyStop(host: BodyHost, raw: () => Rect, activate: () => void): FocusStop {
   return {
-    rect: () => {
-      const r = raw();
-      const top = Math.max(r.y, host.viewport.y);
-      const bottom = Math.min(r.y + r.height, host.viewport.y + host.viewport.height);
-      return { x: r.x, y: top, width: r.width, height: Math.max(1, bottom - top) };
-    },
+    rect: () => clipToView(raw(), host.viewport),
     activate,
     ensureVisible: () => {
-      const r = raw();
-      const view = host.viewport;
-      const delta =
-        r.y < view.y || r.height > view.height
-          ? r.y - view.y
-          : r.y + r.height > view.y + view.height
-            ? r.y + r.height - (view.y + view.height)
-            : 0;
+      const delta = revealDelta(raw(), host.viewport);
       if (delta !== 0) host.region()?.scrollByPx(delta);
     },
     scroll: (_dx, dy) => {

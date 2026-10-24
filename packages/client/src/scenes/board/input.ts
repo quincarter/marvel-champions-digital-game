@@ -127,10 +127,16 @@ function releaseInspect(scene: Phaser.Scene, binding: IntentBinding, source: "pa
  * True while device sync's conflict prompt is up and `scene` is not it: the prompt owns the keyboard and the pad
  * (it is a question the sync is waiting on), so every other screen's keys and buttons are held, whatever its own
  * `blocked` says. Every route and the Board bind through `bindKeyboard` / `bindGamepad`, so this is the one place.
+ * The achievement popup's opened list owns them the same way (its A / Start / B must not also reach the screen under it).
  */
 export function conflictPromptOwnsInput(scene: Phaser.Scene): boolean {
   const manager = scene.scene.manager;
   const key = scene.scene.key;
+  if (
+    key !== SCENES.achievementToast &&
+    (manager.getScene?.(SCENES.achievementToast) as { listHeld?: boolean } | null | undefined)?.listHeld === true
+  )
+    return true;
   if (key !== SCENES.syncConflict && manager.isActive(SCENES.syncConflict) === true) return true;
   // The one-time "Set up cross-device sync?" question owns them the same way. The sync screen it opens is its own, and
   // so is a conflict prompt raised meanwhile (a Join can end in one): neither is held by it.
@@ -165,6 +171,8 @@ export function bindKeyboard(scene: Phaser.Scene, binding: IntentBinding): void 
     // and Shift+Space are End turn (the Board claims them) and never Select, on every screen bound here.
     const intent = navIntentOf(event, currentKeyboardHand());
     if (intent === null) return;
+    // A held Escape backs out once, not through every screen it uncovers.
+    if (intent === "cancel" && event.repeat) return;
     // Everything but Escape and the guide toggle stops the browser acting on the key too (Tab moving DOM focus, Space
     // scrolling the page, the arrows scrolling it).
     if (intent !== "cancel" && intent !== "inspect" && intent !== "toggleGuide") event.preventDefault();

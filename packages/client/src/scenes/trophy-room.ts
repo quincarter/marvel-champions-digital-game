@@ -19,6 +19,7 @@ import { onTap } from "../ui/tap.js";
 import { McButton, fitText, fitWrapped } from "../ui/widgets.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
+import { clipToView, familyTarget, pageTarget } from "../view/focus-list.js";
 import { ListScroll } from "../view/list-scroll.js";
 import type { Rect } from "../view/layout.js";
 import {
@@ -48,6 +49,8 @@ export class TrophyRoomScene extends Phaser.Scene {
   /** The row that had focus, to give it back when the sheet closes. */
   #lastRow: string | null = null;
   #listHeight = 0;
+  /** The sheet was opened from the route (its row had focus), so closing it gives focus back; a tap leaves none. */
+  #focusOnClose = false;
   /** Kept across redraws and visits (Phaser reuses this scene instance). */
   readonly #scroll = new ListScroll();
 
@@ -70,7 +73,7 @@ export class TrophyRoomScene extends Phaser.Scene {
         const all = this.#achievementIndexes();
         this.#focusRow(edge === "home" ? all[0] : all.at(-1));
       },
-      onScroll: (_dx, dy) => this.#list?.scrollByPx(dy),
+      onScroll: (_dx, dy) => (this.#open === null ? this.#list?.scrollByPx(dy) : undefined),
       onFocusChange: (key) => {
         if (key?.startsWith("row:")) this.#lastRow = key;
       },
@@ -115,30 +118,26 @@ export class TrophyRoomScene extends Phaser.Scene {
   /** PageUp / PageDown: focus moves a screenful of rows. */
   #pageFocus(direction: 1 | -1): void {
     if (this.#open !== null) return;
-    const all = this.#achievementIndexes();
-    const at = this.#focusedIndex();
-    const here = at === null ? (direction === 1 ? -1 : all.length) : all.indexOf(at);
     const step = Math.max(1, Math.floor((this.#listHeight || 300) / 70) - 1);
-    this.#focusRow(all[Math.min(all.length - 1, Math.max(0, here + direction * step))]);
+    this.#focusRow(pageTarget(this.#achievementIndexes(), this.#focusedIndex(), direction, step));
   }
 
   /** LB / RB: the first row of the next family; back, the start of this one, then the previous. */
   #jumpFamily(direction: 1 | -1): void {
     if (this.#open !== null) return;
     const starts = this.#achievementIndexes().filter((i) => this.#rows[i - 1]?.kind === "section");
-    const at = this.#focusedIndex() ?? -1;
-    if (direction === 1) this.#focusRow(starts.find((i) => i > at) ?? starts.at(-1));
-    else this.#focusRow([...starts].reverse().find((i) => i < at) ?? starts[0]);
+    this.#focusRow(familyTarget(starts, this.#focusedIndex(), direction));
   }
 
   #closeSheet(): void {
     this.#open = null;
     this.#draw();
-    if (this.#lastRow) this.#route?.focusKey(this.#lastRow);
+    if (this.#focusOnClose && this.#lastRow) this.#route?.focusKey(this.#lastRow);
   }
 
   #openSheet(index: number): void {
     if (this.#rows[index]?.kind !== "achievement") return;
+    this.#focusOnClose = this.#route?.focused === `row:${index}`;
     this.#lastRow = `row:${index}`;
     this.#open = index;
     this.#draw();
@@ -214,11 +213,7 @@ export class TrophyRoomScene extends Phaser.Scene {
         rect: () => {
           // Clipped to the list, so the ring never floats over the header while a row is scrolled partly out.
           const r = list.rectFor(index);
-          const top = Math.max(r.y, listRect.y);
-          const bottom = Math.min(r.y + r.height, listRect.y + listRect.height);
-          // A row wholly out of the list keeps its true place (above or below it), so Up and Down still find the next one.
-          if (bottom <= top) return { x: r.x, y: r.y, width: r.width - GUTTER, height: r.height };
-          return { x: r.x, y: top, width: r.width - GUTTER, height: bottom - top };
+          return clipToView({ ...r, width: r.width - GUTTER }, listRect);
         },
         activate: () => this.#openSheet(index),
         ensureVisible: () => list.scrollIntoView(index),

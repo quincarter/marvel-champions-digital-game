@@ -42,6 +42,15 @@ const BUTTON_TYPE: TypeSpec = { ...typeRole.label, size: 12 };
 /** How long "Hide for a screenshot" keeps the panel away. A tap anywhere brings it back sooner. */
 const HIDE_MS = 5_000;
 
+type Disabled = { readonly scene: Phaser.Scene; readonly pointer: boolean; readonly keyboard: boolean };
+
+/**
+ * The input a closed panel has not yet given back (it waits for the held pad button to be let go). One slot for the
+ * whole module: a panel opened meanwhile cancels the wait and takes the scenes over, so the old timer can never turn a
+ * screen's input back on under the new panel.
+ */
+let pendingRestore: { readonly cancel: () => void; readonly entries: readonly Disabled[] } | null = null;
+
 type StopId = "close" | "hide" | "copy" | "download" | "github" | "feature" | "deck";
 
 export class ReportIssueOverlay extends Phaser.Scene {
@@ -67,11 +76,15 @@ export class ReportIssueOverlay extends Phaser.Scene {
 
   create(): void {
     this.#feedback = "";
+    const inherited = pendingRestore?.entries ?? [];
+    pendingRestore?.cancel();
+    pendingRestore = null;
     this.#disabled = this.scene.manager
       .getScenes(true)
       .filter((scene) => scene !== this && scene.scene.key !== SCENES.reportButton && scene.input)
       .map((scene) => ({ scene, pointer: scene.input.enabled, keyboard: scene.input.keyboard?.enabled === true }))
       .filter(({ pointer, keyboard }) => pointer || keyboard);
+    this.#disabled.push(...inherited);
     for (const { scene, pointer, keyboard } of this.#disabled) {
       if (pointer) scene.input.enabled = false;
       if (keyboard && scene.input.keyboard) scene.input.keyboard.enabled = false;
@@ -107,12 +120,24 @@ export class ReportIssueOverlay extends Phaser.Scene {
       const padHeld = (): boolean =>
         [...(globalThis.navigator?.getGamepads?.() ?? [])].some((pad) => pad?.buttons.some((b) => b.pressed));
       let waited = 0;
+      let timer: ReturnType<typeof setTimeout> | null = null;
       const wait = (): void => {
         waited += 1;
-        if (padHeld() && waited < 40) setTimeout(wait, 25);
-        else restore();
+        if (padHeld() && waited < 40) {
+          timer = setTimeout(wait, 25);
+          return;
+        }
+        timer = null;
+        if (pendingRestore?.entries === disabled) pendingRestore = null;
+        restore();
       };
-      setTimeout(wait, 0);
+      pendingRestore = {
+        entries: disabled,
+        cancel: () => {
+          if (timer !== null) clearTimeout(timer);
+        },
+      };
+      timer = setTimeout(wait, 0);
       this.#disabled = [];
       this.scene.get(SCENES.reportButton)?.sys.setVisible(true);
     });
