@@ -6,6 +6,7 @@ import {
   declaredPool,
   paidSetOptionId,
   paidSetsAsDeclared,
+  readsAnyPaidSet,
   paidTypesReading,
   poolTotal,
   RESOURCE_TYPES,
@@ -55,7 +56,7 @@ export function declareWildTypes(
   const named = abilityId ? { instanceId: frame.instanceId, abilityId } : { instanceId: frame.instanceId };
   const setsOf = (types: readonly ResourceType[]): readonly ResourcePool[] =>
     wildDeclarationFault(pool, types, requirement, only) === null
-      ? paidSetsAsDeclared(declaredPool(pool, types), requirement)
+      ? paidSetsAsDeclared(declaredPool(pool, types), requirement, readsAnyPaidSet(reads))
       : [];
 
   // The wilds: as recorded, or this answer.

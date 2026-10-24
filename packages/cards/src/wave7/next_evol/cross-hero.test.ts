@@ -223,6 +223,15 @@ describe("NeXt Evolution aspect and basic cards, from a Core hero's deck", () =>
       const run = sunspot("physical");
       expect(dmg(run.state, villainOf(run.state))).toBe(0);
     });
+    it("an overpaid [energy] was not used to pay for him: his cost in damage, not one more (issue #402)", () => {
+      // RRG 1.8 "Cost" (p. 13): overpaid resources were not paid for that cost.
+      const base = openedHero("40016");
+      const given = moveToHand(base, P1, "40016");
+      const cost = printedCost("40016");
+      const icons = iconCards(given.state, "energy", cost + 1, { only: true, exclude: given.ids });
+      const run = drive(icons.state, accepting(["40016.sunspot-response"]), play(P1, given.ids[0]!, icons.ids));
+      expect(dmg(run.state, villainOf(run.state))).toBe(cost);
+    });
   });
 
   describe("40017 Mission Planning (leadership event)", () => {

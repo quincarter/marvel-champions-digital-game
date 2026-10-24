@@ -69,15 +69,16 @@ const GUARDIAN = trait("GUARDIAN");
  */
 export const NEBULA_PACK_CARDS = defineAbilities({
   // Eros (ally, 22011) — errata (RRG 1.8 p. 67): Response: After you play Eros from your hand, for each [mental]
-  // resource you used to pay for him, choose a minion and confuse it. `paid.mental` is the number of [mental]
-  // resources (wilds declared as mental included) spent on his cost (`packages/engine/src/actions.ts`); confuse is
-  // idempotent (RRG 1.8 "Status Cards", p. 42 — a character either has the confused status or doesn't), so
-  // "for each resource, choose a minion" collapses to "choose up to that many minions" with no behavioral gap: if
-  // fewer minions exist than resources spent, the errata'd repeated choice can only ever re-confuse one already
-  // chosen, which changes nothing.
+  // resource you used to pay for him, choose a minion and confuse it. `paid.as.mental` is the number of [mental]
+  // resources paid for him, a wild counted when its player declares it as [mental] (RRG 1.8 "Wild Resource", p. 48;
+  // issue #402), which `readsPaidTypes: { amountOf: "mental" }` asks for; confuse is idempotent (RRG 1.8 "Status
+  // Cards", p. 42 — a character either has the confused status or doesn't), so "for each resource, choose a minion"
+  // collapses to "choose up to that many minions" with no behavioral gap: if fewer minions exist than resources
+  // spent, the errata'd repeated choice can only ever re-confuse one already chosen, which changes nothing.
   "22011.eros-response": response(
     on.youPlayThisFromHand(),
-    chooseTarget("minions", query("minion"), { count: varOf("paid.mental"), upTo: true }),
+    { readsPaidTypes: { amountOf: "mental" } },
+    chooseTarget("minions", query("minion"), { count: varOf("paid.as.mental"), upTo: true }),
     confuse(chosen("minions")),
   ),
 
