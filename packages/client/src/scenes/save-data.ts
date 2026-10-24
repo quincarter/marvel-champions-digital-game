@@ -55,6 +55,8 @@ import { syncStatusDisplay, SYNC_ROW_TITLE } from "../view/sync-model.js";
 import type { SyncLinkAddress } from "../sync/sync-link.js";
 import type { SyncDataSceneData } from "./sync-data.js";
 import { drawBetaTagBeside } from "../ui/beta-tag.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
+import { bindTextFieldEscape } from "./text-field-escape.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 
@@ -83,12 +85,15 @@ export class SaveDataOverlay extends Phaser.Scene {
   #buttons: McButton[] = [];
   #field: McTextInput | null = null;
   #route: FocusRoute | null = null;
+  #hints!: GlyphHints;
   #motion = new OverlayMotion();
   #step: SaveDataStep = { kind: "menu" };
   #status: SaveDataStatus = NO_STATUS;
   /** Once a second while a code is showing; only the countdown line changes until the code runs out. */
   #ticker: Phaser.Time.TimerEvent | null = null;
   #countdown: Phaser.GameObjects.Text | null = null;
+  /** The stop Start presses on the step now showing, or null (the menu and the replace confirm have none). */
+  #primary: string | null = null;
 
   constructor() {
     super(SCENES.saveData);
@@ -104,11 +109,21 @@ export class SaveDataOverlay extends Phaser.Scene {
     this.#status = NO_STATUS;
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
+    this.#hints = new GlyphHints(this);
+    // Before the route: A, B or Start takes the caret out of the code field (the route is held while it has one).
+    bindTextFieldEscape(
+      this,
+      () => this.#field,
+      () => this.scene.isActive(SCENES.syncData),
+    );
     this.#route = new FocusRoute(this, {
       blocked: () => (this.#field?.focused ?? false) || this.scene.isActive(SCENES.syncData),
       onCancel: () => this.#cancel(),
+      // Start is "forward": Receive on the code step, Copy code / New code on the Send step.
+      primary: () => this.#primary,
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#hints.dispose();
       this.scale.off("resize", onResize, this);
       this.#clearControls();
     });
@@ -296,6 +311,8 @@ export class SaveDataOverlay extends Phaser.Scene {
     for (const object of kept) this.children.remove(object);
     destroyChildren(this);
     for (const object of kept) this.children.add(object);
+    this.#hints.reset();
+    this.#primary = null;
 
     const { width, height } = this.scale.gameSize;
     const { panel, header, body } = overlayPanelLayout({ x: 0, y: 0, width, height }, HEADER_HEIGHT, 0);
@@ -328,6 +345,7 @@ export class SaveDataOverlay extends Phaser.Scene {
         onClick: () => this.#close(),
       }),
     );
+    if (!working) this.#hints.button(this.#buttons.at(-1)!, ["cancel"], "ink");
     stops.set("back", { rect: closeRect, activate: () => this.#close() });
     this.add
       .text(header.x + 16, header.y + header.height / 2, caseOf(typeRole.barTitle, "Save data"), {
@@ -499,6 +517,7 @@ export class SaveDataOverlay extends Phaser.Scene {
       );
       stops.set(spec.id, { rect, activate: spec.onClick });
       order.push(spec.id);
+      if (spec.id === "back-menu") this.#hints.button(this.#buttons.at(-1)!, ["cancel"], "ink");
     }
     return y + hit.primary;
   }
@@ -570,6 +589,7 @@ export class SaveDataOverlay extends Phaser.Scene {
     const first = left.expired
       ? { id: "new-code", label: "New code", onClick: () => void this.#send() }
       : { id: "copy", label: "Copy code", onClick: () => this.#copy(phase.code) };
+    this.#primary = first.id;
     return Math.max(qrBottom, this.#drawPair(x, y, column, first, back, stops, order));
   }
 
@@ -610,6 +630,7 @@ export class SaveDataOverlay extends Phaser.Scene {
 
     const receive = { id: "receive", label: "Receive", onClick: () => void this.#receive() };
     const back = { id: "back-menu", label: "Back", onClick: () => this.#set({ kind: "menu" }, NO_STATUS) };
+    this.#primary = "receive";
     return this.#drawPair(x, fieldRect.y + fieldRect.height + 14, fieldRect.width, receive, back, stops, order);
   }
 
@@ -675,6 +696,7 @@ export class SaveDataOverlay extends Phaser.Scene {
         onClick: replace,
       }),
     );
+    this.#hints.button(this.#buttons.at(-2)!, ["cancel"], "ink");
     stops.set("cancel", { rect: cancelRect, activate: cancel });
     stops.set("replace", { rect: replaceRect, activate: replace });
     order.push("cancel", "replace");
