@@ -35,6 +35,7 @@ import { installDebugDump } from "./ui/debug-dump.js";
 import { installInputDeviceTracking } from "./platform/input-device.js";
 import { installVisibleArea } from "./platform/visible-area.js";
 import { installGamepadLive } from "./platform/gamepad-live.js";
+import { startNativeGamepad } from "./platform/native-gamepad.js";
 import { installFrameGuard } from "./ui/frame-guard.js";
 import { installStartupWatchdog, probeWebgl } from "./ui/startup-watchdog.js";
 import { installDesktopType, setDesktopType } from "./ui/desktop-type.js";
@@ -220,6 +221,8 @@ installDebugDump(game);
 // A reconnected controller works at once, and a webview whose pads keep their own clock still reads them
 // (`platform/gamepad-live.ts`).
 installGamepadLive(Phaser);
+// On Linux the desktop app reads controllers itself, in place of the webview's (`platform/native-gamepad.ts`).
+startNativeGamepad();
 // Which input is in use, for the key and button glyphs (`view/input-mode.ts`).
 installInputDeviceTracking();
 // Trims the game box to the visible area where a toolbar overlays the page (`platform/visible-area.ts`).
