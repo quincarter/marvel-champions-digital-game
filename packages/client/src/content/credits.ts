@@ -84,6 +84,18 @@ export const CREDITS: readonly CreditEntry[] = [
     notice: "Thank you.",
   },
   {
+    id: "controller-pictures",
+    group: "game",
+    title: "Controller pictures",
+    shownIn: "Settings ▸ Controls",
+    credit:
+      "Switch: \"nintendo switch\" by Sweet Farm, The Noun Project (CC BY 3.0). PlayStation: Vecteezy (contributor not recorded yet). Xbox: artist and source not recorded yet.",
+    notice: "The controllers are Microsoft's, Sony's and Nintendo's designs and trademarks; no ownership is claimed.",
+    url: "https://thenounproject.com/icon/694749/",
+    folders: ["packages/client/public/assets/controllers"],
+    gap: true,
+  },
+  {
     id: "original-game",
     group: "game",
     title: "Marvel Champions: The Card Game",
