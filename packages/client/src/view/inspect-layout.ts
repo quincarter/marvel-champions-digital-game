@@ -518,7 +518,7 @@ export function rulesPanelMode(
   sectionCount: number,
   historyCount: number,
   choiceOpen: boolean,
-  printedCard: boolean,
+  _printedCard: boolean,
 ): RulesPanelMode {
   if (sectionCount > 0 || historyCount > 0) return "full";
   return choiceOpen ? "compact" : "full";

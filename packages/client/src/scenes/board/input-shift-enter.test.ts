@@ -43,7 +43,7 @@ describe("Shift+Enter on any screen bound through bindKeyboard", () => {
     press({ code: "Space", key: " ", shiftKey: true });
     expect(onIntent).not.toHaveBeenCalled();
     press({ code: "Enter", key: "Enter" });
-    expect(onIntent).toHaveBeenCalledWith("activate");
+    expect(onIntent).toHaveBeenCalledWith("activate", "key");
   });
 });
 
@@ -52,12 +52,12 @@ describe("bindKeyboard's map", () => {
     const { onIntent, press } = bound();
     // AZERTY: the key at the QWERTY W position types "z".
     press({ code: "KeyW", key: "z" });
-    expect(onIntent).toHaveBeenLastCalledWith("up");
+    expect(onIntent).toHaveBeenLastCalledWith("up", "key");
     press({ code: "KeyI", key: "i" });
     expect(onIntent).toHaveBeenCalledTimes(1);
     session.hand = "right";
     press({ code: "KeyI", key: "i" });
-    expect(onIntent).toHaveBeenLastCalledWith("up");
+    expect(onIntent).toHaveBeenLastCalledWith("up", "key");
     press({ code: "KeyW", key: "w" });
     expect(onIntent).toHaveBeenCalledTimes(2);
   });
@@ -68,6 +68,6 @@ describe("bindKeyboard's map", () => {
     press({ code: "Space", key: " ", target: { tagName: "INPUT" } as unknown as EventTarget });
     expect(onIntent).not.toHaveBeenCalled();
     press({ code: "KeyE", key: "e" });
-    expect(onIntent).toHaveBeenCalledWith("inspect");
+    expect(onIntent).toHaveBeenCalledWith("inspect", "key");
   });
 });
