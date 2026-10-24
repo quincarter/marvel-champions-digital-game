@@ -17,6 +17,13 @@ export const printedCodeOf = (code: string): string => code.replace(/[a-z]$/, ""
 const SCAN_PATH = /\/cards\/(\d{5}[a-z]?)\.png$/;
 
 /**
+ * Printed cards MarvelCDB has no record of, so the catalog cannot count them: Peni Parker's separate alter-ego card
+ * (31002, `spdr/provenance.ts`). Its face is drawn from a bundled scan named for its own code, which must not read as a
+ * card outside the catalog.
+ */
+const UNLISTED_PRINTED_CODES: ReadonlySet<string> = new Set(["31002"]);
+
+/**
  * Every printed card `card` stands for: its own id, plus every face it carries a scan of (a villain's later stages, a
  * scheme's back), each as a catalog code — face letters dropped, and a reprint resolved to the card it reprints.
  */
@@ -24,6 +31,7 @@ export function printedCodesOfCard(card: AnyCard, reprints: Readonly<Record<stri
   const codes = new Set<string>();
   const add = (code: string): void => {
     const printed = printedCodeOf(code);
+    if (UNLISTED_PRINTED_CODES.has(printed)) return;
     codes.add(reprints[printed] ?? printed);
   };
   if (/^\d{5}[a-z]?$/.test(String(card.id))) add(String(card.id));
