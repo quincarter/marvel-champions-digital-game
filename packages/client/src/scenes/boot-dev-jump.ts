@@ -517,6 +517,17 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.board, data: {} };
   }
 
+  // `?screen=villain-damage-interrupt`: a real Spider-Man game paused on Backflip's window for the damage from Rhino's
+  // attack, with the attack's breakdown resolved: "happening now" must still show the damage total on a phone (#394).
+  if (screen === "villain-damage-interrupt") {
+    const { startDamageInterruptGame } = await import("../store/dev-damage-interrupt-game.js");
+    const { store } = appSession();
+    const finish = gameRunning(store) ? async () => {} : await startDamageInterruptGame(store);
+    // As with the threat window: the walkthrough only collects beats while Board is mounted.
+    window.setTimeout(() => void finish(), 1500);
+    return { key: SCENES.board, data: {} };
+  }
+
   // `?screen=villain-decision`: a real Spider-Man game whose round-one villain phase reveals an encounter card that asks
   // the player to choose (`chooseOption`, seed 17), for the decision docked beside the table (#231).
   if (screen === "villain-decision") {

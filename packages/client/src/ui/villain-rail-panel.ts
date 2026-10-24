@@ -20,6 +20,7 @@ import { abilityFaceOf } from "../view/board-model.js";
 import { abilityFirst } from "../view/choice-source-panel.js";
 import { inspectModel, triggerLabel } from "../view/inspect-model.js";
 import type { Rect } from "../view/layout.js";
+import { preventedAmountLine, type PreventionPreview } from "../view/interrupt-prevention.js";
 import { BOOST_THUMB_HEIGHT, boostThumbsLayout } from "../view/villain-phase-boosts.js";
 import { isLandscapeCard } from "../view/civil-war-builder-art.js";
 import type { RevealedStep } from "../view/villain-phase-reveal.js";
@@ -70,6 +71,8 @@ export type RailBody =
       readonly enemyFace?: CardFace;
       readonly headline: string;
       readonly text: string;
+      /** `text` with the breakdown's total first, drawn instead where `text` would be cut (#394); absent without one. */
+      readonly cutText?: string;
       /** Boost cards flipped so far, by name ("1 boost card, facedown — flips after interrupts" before any). */
       readonly boostLine: string | null;
       /** The faceup boost cards flipped so far, drawn as cards beside the boost line (issue #172). */
@@ -81,6 +84,8 @@ export type RailBody =
 export interface RailInterrupt {
   readonly options: readonly InlineInterruptOption[];
   readonly pause: Pause;
+  /** What the first option would prevent of the damage about to be dealt, for the green stamp (#394); null if none. */
+  readonly prevention?: PreventionPreview | null;
   readonly picks: readonly string[];
   readonly onPick: (optionId: string) => void;
   readonly onResolve: (optionIds: readonly string[]) => void;
@@ -153,7 +158,12 @@ export const happeningDebug: {
     readonly boosts: readonly Rect[];
     readonly body: Rect;
   } | null;
-} = { boosted: null };
+  /**
+   * The last "happening now" breakdown drawn, with or without boost cards (#394): the lines actually on screen (the
+   * full line's first lines, or its total-first form's when cut), whitespace collapsed.
+   */
+  breakdown: { readonly shown: string; readonly cut: boolean } | null;
+} = { boosted: null, breakdown: null };
 
 export function drawVillainRailPanel(scene: Phaser.Scene, args: RailPanelArgs): Map<string, FocusStop> {
   const { layout } = args;
@@ -447,6 +457,49 @@ function tag(scene: Phaser.Scene, x: number, y: number, text: string, filled: bo
   return width;
 }
 
+/** The stamp's tilt in degrees, rising to the right (the owner's pick, option D). */
+const STAMP_ANGLE = -10;
+/** The stamp's text and edge: white, as the owner asked, not the paper cream of the rest of the panel. */
+const STAMP_INK = 0xffffff;
+
+/**
+ * The green stamp across the interrupt window's top-right corner (#394): "PREVENTS" over "2 DAMAGE", so the player sees
+ * what the card saves before choosing. Built at the corner and returned with its left edge, which the window's title
+ * must stop short of.
+ */
+function drawPreventionStamp(scene: Phaser.Scene, frame: Rect, preview: PreventionPreview): number {
+  const small = scene.add
+    .text(0, 0, "PREVENTS", textStyle({ ...typeRole.label, size: 11 }, STAMP_INK))
+    .setOrigin(0.5, 1);
+  const big = scene.add
+    .text(0, 0, preventedAmountLine(preview).toUpperCase(), textStyle({ ...typeRole.barTitle, size: 22 }, STAMP_INK))
+    .setOrigin(0.5, 0);
+  const width = Math.max(small.width, big.width) + 24;
+  const height = small.height + big.height + 8;
+  small.setY(-height / 2 + 4 + small.height);
+  big.setY(small.y);
+  const ground = scene.add
+    .graphics()
+    .fillStyle(signal.heal.hex, 1)
+    .fillRect(-width / 2, -height / 2, width, height)
+    .lineStyle(border.detail, STAMP_INK, 1)
+    .strokeRect(-width / 2, -height / 2, width, height);
+  // Where the tilted stamp reaches, so it overhangs the window's corner by a little and never the panel's edge.
+  const angle = (Math.abs(STAMP_ANGLE) * Math.PI) / 180;
+  const reachX = (width * Math.cos(angle) + height * Math.sin(angle)) / 2;
+  const centerX = frame.x + frame.width + 6 - reachX;
+  scene.add.container(centerX, frame.y + 6, [ground, small, big]).setAngle(STAMP_ANGLE);
+  return centerX - reachX;
+}
+
+/** How wide `tag` draws `text`. */
+function tagWidth(scene: Phaser.Scene, text: string): number {
+  const t = scene.add.text(0, 0, text.toUpperCase(), textStyle({ ...typeRole.label, size: 10 }, surface.paper.hex));
+  const width = t.width + 16;
+  t.destroy();
+  return width;
+}
+
 function drawReveal(
   scene: Phaser.Scene,
   layout: VillainRailLayout,
@@ -638,6 +691,12 @@ function drawHappening(
     const room = y + height - cursor - boostRow;
     detailShown = Math.max(1, Math.floor(room / lineHeight));
     detail.setMaxLines(detailShown);
+    // Cut, the line would lose its end, the damage or threat total; the total-first wording keeps it (#394).
+    if (detailShown < detailLines && body.cutText) detail.setText(body.cutText);
+    happeningDebug.breakdown = {
+      shown: detail.getWrappedText(detail.text).slice(0, detailShown).join(" ").replace(/\s+/g, " ").trim(),
+      cut: detailShown < detailLines,
+    };
     cursor += detail.height + 8;
   }
   if (body.boostLine && cursor + 30 <= y + height) {
@@ -736,6 +795,10 @@ function drawInterrupt(
     ink.body,
   );
   fitText(windowTitle, layout.title.width, 11);
+  if (interrupt.prevention) {
+    const stampLeft = drawPreventionStamp(scene, frame, interrupt.prevention);
+    fitText(windowTitle, Math.min(layout.title.width, stampLeft - 8 - layout.title.x), 11);
+  }
 
   const { options } = interrupt;
   const multi = !inlineSingle(options);
@@ -782,6 +845,12 @@ function drawInterrupt(
       : first.abilityId
         ? "In play"
         : "Free";
+  // Where the two tags don't fit one row beside the card (a phone), the second stacks under the first rather than
+  // running off the panel (#394).
+  if (tx + tagWidth(scene, fromTag) > x + width) {
+    tx = x;
+    cursor += 24;
+  }
   tag(scene, tx, cursor, fromTag, false, surface.paper.hex);
   cursor += 30;
   const trigger = first.abilityId ? POOL_DEPS.abilities[first.abilityId]?.trigger : undefined;
@@ -795,6 +864,22 @@ function drawInterrupt(
   const lines = Math.floor((y + height - toggleHeight - cursor) / lineHeight);
   if (lines < 1) rules.setVisible(false);
   else if (rules.getWrappedText(rulesText).length > lines) rules.setMaxLines(lines);
+  const hp = interrupt.prevention?.hp;
+  if (layout.hpLine && hp) {
+    // What the player is choosing between, in hit points (#394): where the hero is, and where letting it resolve
+    // leaves them; with the interrupt too, when it would not keep them where they are (a partial prevention).
+    const parts = [`${hp.targetName}: ${hp.now} HP now`, `${hp.ifResolves} HP if it resolves`];
+    if (hp.withInterrupt !== hp.now) parts.push(`${hp.withInterrupt} HP with ${model.name}`);
+    const line = scene.add
+      .text(
+        layout.hpLine.x,
+        layout.hpLine.y + layout.hpLine.height / 2,
+        parts.join(" · "),
+        textStyle({ ...typeRole.label, size: 12 }, surface.paper.hex),
+      )
+      .setOrigin(0, 0.5);
+    fitText(line, layout.hpLine.width, 12);
+  }
 
   const pickButton = (option: InlineInterruptOption, rect: Rect): void => {
     const onClick = (): void => interrupt.onPick(option.optionId);

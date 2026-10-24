@@ -71,6 +71,26 @@ export function breakdownLineOf(activation: ActivationBeat, state: GameState): s
   return `${line} → ${cardName(state, activation.resolved.schemeInstanceId)}`;
 }
 
+/**
+ * The same breakdown with its result first, for where the line must be cut: "DAMAGE 3 = BASE 2 + BOOST 1 − DEFENSE 0",
+ * "THREAT 1 → The Break-In! = SCH 1 + BOOST 0". Cut from the end, the full line lost the total, which is the number an
+ * interrupt like Backflip is decided on (#394).
+ */
+export function breakdownTotalFirstOf(activation: ActivationBeat, state: GameState): string | null {
+  const breakdown = breakdownOf(activation);
+  if (!breakdown) return null;
+  const total = breakdown.cells.at(-1)!;
+  const terms = breakdown.cells
+    .slice(0, -1)
+    .map((cell, i) => `${cell.label} ${cell.value}${i < breakdown.ops.length - 1 ? ` ${breakdown.ops[i]}` : ""}`)
+    .join(" ");
+  const scheme =
+    activation.kind === "scheme" && activation.resolved
+      ? ` → ${cardName(state, activation.resolved.schemeInstanceId)}`
+      : "";
+  return `${total.label} ${total.value}${scheme} = ${terms}`;
+}
+
 /** "Klaw attacks Captain Marvel" / "Klaw schemes against Black Panther": the activation the events named, the hero short. */
 export function activationHeadline(activation: ActivationBeat, state: GameState, viewer: PlayerId | null): string {
   const enemy = activationEnemyName(activation, state);
