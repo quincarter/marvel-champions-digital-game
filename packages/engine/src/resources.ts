@@ -253,13 +253,16 @@ export const distinctTypes = (pool: ResourcePool): readonly ResourceType[] =>
  * What a card reads of the resource types that paid for it (docs/phase7-wave8.md §3.62; `AbilityDefinition
  * readsPaidTypes`, `RuleSpec readsPaymentTypesOf`): how many different types (`count`: "for each different resource
  * type used to pay"), whether at least that many ("using 2 different resource types"), or which of the named types
- * ("using at least 1 [physical] … [mental] … [energy]"). It says nothing about what the card then does: it is what the
- * engine compares to decide whether the player's declaration of a wild can matter (`readOfPaidTypes`).
+ * ("using at least 1 [physical] … [mental] … [energy]"), or how many paid resources were one type (`amountOf`: "for
+ * each [mental] resource used to pay for her", Moon Girl 28018, read as var `paid.as.<type>`). It says nothing about
+ * what the card then does: it is what the engine compares to decide whether the player's declaration of a wild can
+ * matter (`readOfPaidTypes`).
  */
 export type PaidTypesRead =
   | { readonly count: true }
   | { readonly atLeast: number }
-  | { readonly types: readonly TypedResource[] };
+  | { readonly types: readonly TypedResource[] }
+  | { readonly amountOf: TypedResource };
 
 /**
  * A payment's pool with each wild counted as the type its player declared (RRG 1.8 "Wild Resource", p. 48: "When a
@@ -371,6 +374,13 @@ export function paidAsDeclared(declared: ResourcePool, requirement: ResolvedRequ
 }
 
 /**
+ * Whether every reader of a payment counts one type (`amountOf`), so any cost-sized set can be the paid one
+ * (`paidSetsAsDeclared` `everySet`).
+ */
+export const readsAnyPaidSet = (reads: readonly PaidTypesRead[]): boolean =>
+  reads.length > 0 && reads.every((read) => "amountOf" in read);
+
+/**
  * Every set of resources that can be the **paid** ones out of a declared pool: as many as `requirement`, the cost's
  * typed and wild slots filled with their own type, and the most declared types any such set gives (§4.1 Q34 = A and
  * its follow-up). Each set once, by how many of each type it holds; `paidAsDeclared`'s set first, then the others in
@@ -380,8 +390,18 @@ export function paidAsDeclared(declared: ResourcePool, requirement: ResolvedRequ
  * cost", without saying which). Owner decision, 2026-10-08 (docs/phase7-wave8.md §4.1 row 79): the player says which
  * set was paid when the sets read differently to a reader of the payment (`readOfPaidTypes`), and is not asked when
  * they all read the same.
+ *
+ * `everySet`: every set of the cost's size is a candidate, not only those with the most types. For a payment read
+ * only by `amountOf` readers ("for each [mental] resource used to pay for her", Moon Girl 28018), where the player
+ * may name any resources as the overpaid ones: FFG rulings May 16, 2024 (#187, Drop Kick) and November 14, 2025
+ * (Firebird), "you choose which resources are paying versus overpaying". The most-types choice of Q34 = A is the
+ * player's best reading for a card that counts types, not a limit on which resources paid.
  */
-export function paidSetsAsDeclared(declared: ResourcePool, requirement: ResolvedRequirement): readonly ResourcePool[] {
+export function paidSetsAsDeclared(
+  declared: ResourcePool,
+  requirement: ResolvedRequirement,
+  everySet = false,
+): readonly ResourcePool[] {
   const first = paidAsDeclared(declared, requirement);
   if (!first) return [];
   const slots = { ...EMPTY_POOL };
@@ -404,7 +424,9 @@ export function paidSetsAsDeclared(declared: ResourcePool, requirement: Resolved
   fill(0, requirement.generic, slots);
   const most = paidTypeCountOf(first);
   const firstId = paidSetOptionId(first);
-  const others = found.filter((paid) => paidTypeCountOf(paid) === most && paidSetOptionId(paid) !== firstId);
+  const others = found.filter(
+    (paid) => (everySet || paidTypeCountOf(paid) === most) && paidSetOptionId(paid) !== firstId,
+  );
   return [first, ...others];
 }
 
@@ -422,6 +444,7 @@ export const paidTypeCountOf = (paid: ResourcePool): number => RESOURCE_TYPES.fi
 export function readOfPaidTypes(paid: ResourcePool, read: PaidTypesRead): string {
   if ("count" in read) return String(paidTypeCountOf(paid));
   if ("atLeast" in read) return String(paidTypeCountOf(paid) >= read.atLeast);
+  if ("amountOf" in read) return String(paid[read.amountOf]);
   return read.types.map((type) => (paid[type] > 0 ? "1" : "0")).join("");
 }
 
