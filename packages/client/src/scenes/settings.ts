@@ -208,6 +208,8 @@ export interface SettingsSceneData {
   readonly receive?: TransferCode;
   /** `syncLink` opens Save data, then Sync across devices, asking to join with a scanned `#link=` (device sync, #276). */
   readonly syncLink?: SyncLinkAddress;
+  /** Opens Controls straight away (the "Controller connected" toast's button), so it stacks over Settings as usual. */
+  readonly openControls?: boolean;
 }
 
 export class SettingsOverlay extends Phaser.Scene {
@@ -272,6 +274,7 @@ export class SettingsOverlay extends Phaser.Scene {
     this.sys.settings.data = {};
     const syncLink = data.syncLink;
     if (receive || syncLink) this.#openSaveData(receive, syncLink);
+    if (data.openControls === true) this.#openControls();
     if (hasDesktopWindow()) void refreshDesktopMonitor().then(() => this.#redrawIfOpen());
     // The Frame rate row names the screen's refresh rate once the Android app has said it.
     if (screenSettingsShown() && knownRefreshInfo() === null) void readRefreshInfo().then(() => this.#redrawIfOpen());

@@ -32,11 +32,8 @@ export class PadToastScene extends Phaser.Scene {
 
   create(): void {
     this.scale.on(Phaser.Scale.Events.RESIZE, this.#draw, this);
-    // Enter opens Controls while a connect toast is up; nothing else on the keyboard is taken.
-    this.input.keyboard?.on("keydown-ENTER", this.#openControls, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off(Phaser.Scale.Events.RESIZE, this.#draw, this);
-      this.input.keyboard?.off("keydown-ENTER", this.#openControls, this);
       this.#clear();
     });
     this.#startedAt = this.time.now;
@@ -61,7 +58,9 @@ export class PadToastScene extends Phaser.Scene {
   #openControls(): void {
     if (!this.#message?.controlsButton) return;
     this.scene.stop();
-    if (!this.scene.isActive(SCENES.controls)) this.scene.launch(SCENES.controls);
+    // Through Settings, which holds the screen underneath while it and Controls are up (the Board and the routes
+    // already block on Settings), and lands back on Settings when Controls closes.
+    if (!this.scene.isActive(SCENES.controls)) this.scene.launch(SCENES.settings, { openControls: true });
   }
 
   #clear(): void {

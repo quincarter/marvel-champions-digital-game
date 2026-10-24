@@ -377,7 +377,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     // (`BoardScene`'s `blocked`), so this is where they have to land — and
     // Inspect, opened from here, owns them in turn while it is open.
     const binding = {
-      blocked: () => this.scene.isActive(SCENES.inspect) || this.#covered(),
+      // Pause (Menu on a pad) owns input over the sheet too: its A must not also commit the decision underneath.
+      blocked: () => this.scene.isActive(SCENES.inspect) || this.scene.isActive(SCENES.pause) || this.#covered(),
       onIntent: (intent: GamepadIntent) => this.#onIntent(intent),
     };
     bindKeyboard(this, binding);

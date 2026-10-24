@@ -446,7 +446,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // walkthrough from under an open decision.
     this.#route = new FocusRoute(this, {
       blocked: () =>
-        (this.scene.isActive(SCENES.choice) && !this.#placement().recapOnTop) || this.scene.isActive(SCENES.inspect),
+        (this.scene.isActive(SCENES.choice) && !this.#placement().recapOnTop) ||
+        this.scene.isActive(SCENES.inspect) ||
+        this.scene.isActive(SCENES.pause),
       onCancel: () => this.#skip(),
       primary: () => this.#primaryStop,
       onFocusChange: () => this.#hints.refresh(),
