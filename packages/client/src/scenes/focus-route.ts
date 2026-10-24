@@ -10,7 +10,7 @@
  *
  * Same conventions as everywhere else: Tab walks the route, the arrows move to
  * the nearest stop that way on screen (`view/spatial-nav.ts`), Enter or
- * Space presses, `I` reads (where a stop has something to read), Escape backs
+ * Space (or the hand's Select key) presses, Inspect (E / O) reads (where a stop has something to read), Escape backs
  * out, and the ring is the selection ring drawn static — a pulse means "the game
  * is waiting for you", and focus is not a prompt.
  */
@@ -65,9 +65,9 @@ export interface FocusRouteOptions {
   readonly onScroll?: (dx: number, dy: number, dtMs: number) => void;
   /** Menu / Start / +, for a screen that has a pause or menu of its own. No-op when omitted. */
   readonly onPause?: () => void;
-  /** View / Select / - and the P key, for a screen with a Peek-style control. No-op (and no P key) when omitted. */
+  /** View / Select / - and the Peek key (R / P), for a screen with a Peek-style control. No-op (and no key) when omitted. */
   readonly onView?: () => void;
-  /** R3 and the X key, for a screen with an Expand/Collapse control. No-op (and no X key) when omitted. */
+  /** R3 and the Expand key (F / ;), for a screen with an Expand/Collapse control. No-op (and no key) when omitted. */
   readonly onExpand?: () => void;
   /**
    * The key of the screen's primary commit stop right now (Start, Continue), or null. With nothing focused, Enter / A
@@ -114,11 +114,17 @@ export class FocusRoute {
     };
     bindKeyboard(scene, binding);
     bindGamepad(scene, binding);
-    // View and R3 arrive as intents above; their keys have no intent in the shared keyboard binding.
-    const keys: Record<string, () => void> = {};
-    if (options.onView) keys["p"] = options.onView;
-    if (options.onExpand) keys["x"] = options.onExpand;
-    if (Object.keys(keys).length > 0) bindExtraInput(scene, { blocked: binding.blocked, keys });
+    // View and R3 arrive as intents above; their keys (Peek and Expand: R / F left-handed, P / ; right-handed) have no
+    // intent in the shared keyboard binding.
+    if (options.onView || options.onExpand) {
+      bindExtraInput(scene, {
+        blocked: binding.blocked,
+        peekExpand: {
+          ...(options.onView ? { peek: options.onView } : {}),
+          ...(options.onExpand ? { expand: options.onExpand } : {}),
+        },
+      });
+    }
   }
 
   get focused(): string | null {

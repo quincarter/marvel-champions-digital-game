@@ -16,6 +16,12 @@ describe("guideHintText", () => {
     expect(guideHintText(state, { ...settings, inputGlyphs: false })).toBe("Press G to use these buttons.");
   });
 
+  it("names the right hand's guide key", () => {
+    const right = { ...settings, keyboardHand: "right" } as const;
+    expect(guideHintText(INITIAL_INPUT_MODE, right)).toBe("Press H (or X on a gamepad) to use these buttons.");
+    expect(guideHintText({ ...INITIAL_INPUT_MODE, mode: "keyboard" }, right)).toBe("Press H to use these buttons.");
+  });
+
   it("names the pad's own button on a pad", () => {
     const pad = detectPad("Xbox 360 Controller (STANDARD GAMEPAD Vendor: 045e Product: 028e)");
     const text = guideHintText({ mode: "pad", pad, mouseMoving: false }, settings);

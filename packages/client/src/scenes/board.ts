@@ -49,7 +49,8 @@ import { linearIntent, type GamepadIntent } from "../view/gamepad.js";
 import { spatialStep, type FocusDirection } from "../view/spatial-nav.js";
 import { sameTarget, stepFocus, type FocusTarget } from "../view/focus.js";
 import { rowScrollOf, scrollTargetOf, tabOfStop, zoneJump, type ZoneMembers } from "../view/board-zones.js";
-import { boardShortcutOf } from "../view/board-shortcuts.js";
+import { abilityInSlot, abilitySlotsOf } from "../view/ability-slots.js";
+import { boardKeyActionOf, choiceSlotOf, typingInTextField } from "../view/keyboard-intent.js";
 import { eventOnce } from "../view/event-once.js";
 import {
   PHONE_TABS,
@@ -110,7 +111,13 @@ import type { LessonObservation } from "../view/lesson-model.js";
 import { drawHand, HandScroll } from "./board/hand.js";
 import type { RowDrag } from "../view/hand-scroll.js";
 import { PlayAreaScroll } from "../view/play-area-row.js";
-import { bindGamepad, bindKeyboard, conflictPromptOwnsInput, type IntentBinding } from "./board/input.js";
+import {
+  bindGamepad,
+  bindKeyboard,
+  conflictPromptOwnsInput,
+  currentKeyboardHand,
+  type IntentBinding,
+} from "./board/input.js";
 import { BoardMotion } from "./board/motion.js";
 import { drawSchemes, SchemeScrollState } from "./board/schemes.js";
 import { drawTargetingPanel, type TargetingHover } from "./board/targeting-panel.js";
@@ -527,40 +534,7 @@ export class BoardScene extends Phaser.Scene {
       onScroll: (dx, dy) => this.#scrollFocused(dx, dy),
     };
     bindKeyboard(this, binding);
-    // T opens the Team-Up panel for the first active pair: the keyboard route to the badge's click.
-    this.input.keyboard?.on("keydown-T", () => {
-      if (!binding.blocked() && this.#teamUps.length > 0) this.#openTeamUpInfo(this.#teamUps[0]!);
-    });
-    // E opens Baron Zemo's Evidence view, the keyboard route to the chrome's EVIDENCE button.
-    this.input.keyboard?.on("keydown-E", () => {
-      if (!binding.blocked() && this.#hasEvidence()) this.#openEvidence();
-    });
-    // Z (and Ctrl/Cmd+Z) is Undo (`view/undo.ts`), the keyboard route to the action bar's Undo button.
-    this.input.keyboard?.on("keydown-Z", () => {
-      if (!binding.blocked()) void this.#controller.undo();
-    });
     this.#bindBoardShortcuts(binding);
-    // 1 to 3 answer "Which one?" (a played event with several usable Action abilities).
-    ["ONE", "TWO", "THREE"].forEach((key, index) => {
-      this.input.keyboard?.on(`keydown-${key}`, () => {
-        const option = this.#controller.abilityChoice()?.options[index];
-        if (option && !binding.blocked()) void this.#controller.chooseEventAbility(option.abilityId);
-      });
-    });
-    // 1 and 2 answer "Thwart with?" (THW or ATK against The Red House).
-    ["ONE", "TWO"].forEach((key, index) => {
-      this.input.keyboard?.on(`keydown-${key}`, () => {
-        const option = this.#controller.thwartStatChoice()?.options[index];
-        if (option && !binding.blocked()) void this.#controller.chooseThwartStat(option.useAtk);
-      });
-    });
-    // 1 and 2 answer "Where does it go?" (an ally that may enter the mission area as well as the player's own).
-    ["ONE", "TWO"].forEach((key, index) => {
-      this.input.keyboard?.on(`keydown-${key}`, () => {
-        const option = this.#controller.destinationChoice()?.options[index];
-        if (option && !binding.blocked()) void this.#controller.chooseDestination(option);
-      });
-    });
     bindGamepad(this, binding);
     // A wheel/trackpad gesture over the hand scrolls it, on any layout that
     // needs scrolling at all — the tabbed board is the only one that ever
@@ -1795,24 +1769,36 @@ export class BoardScene extends Phaser.Scene {
   }
 
   /**
-   * The shortcuts that are not a pad intent too (`view/board-shortcuts.ts`): A, H, R, F press that basic action's button,
-   * Shift+Enter End turn, [ and ] the zone jumps, L the log. All held while `binding.blocked()`, like Z and T.
+   * The shortcuts that are not a pad intent too (`view/keyboard-intent.ts` over the table in `view/input-shortcuts.ts`,
+   * by physical key for the keyboard hand in use): the basic actions press that button, Shift+Space / Shift+Enter End
+   * turn, Ctrl+Z Undo, the zone jumps, the log, Team-Up, Evidence, and the numbered abilities; digits 1-3 answer a small
+   * choice bar first. All held while `binding.blocked()`, and never while typing in a text field.
    */
   #bindBoardShortcuts(binding: IntentBinding): void {
     const firstDelivery = eventOnce();
     this.input.keyboard?.on("keydown", (event: KeyboardEvent) => {
       // Phaser replays a frame's queue on every key event, so a chord (Shift+Enter) arrives more than once.
       if (!firstDelivery(event)) return;
-      const shortcut = boardShortcutOf(event);
-      if (!shortcut || binding.blocked() || conflictPromptOwnsInput(this)) return;
-      // A held key repeats: Shift+Enter would end the next hero turn too, and a held letter re-presses its button.
-      if (event.repeat && (shortcut.kind === "basic" || shortcut.kind === "endTurn")) return;
+      if (binding.blocked() || conflictPromptOwnsInput(this) || typingInTextField(event)) return;
+      const hand = currentKeyboardHand();
+      const slot = choiceSlotOf(event, hand);
+      if (slot !== null && this.#answerChoiceBar(slot)) {
+        event.preventDefault();
+        return;
+      }
+      const shortcut = boardKeyActionOf(event, hand);
+      if (!shortcut) return;
       switch (shortcut.kind) {
         case "basic":
           if (this.#actionBarLive()) this.#pressBasic(shortcut.action);
           break;
         case "endTurn":
+          event.preventDefault();
           this.#actOnIntent("endTurn");
+          break;
+        case "undo":
+          event.preventDefault();
+          void this.#controller.undo();
           break;
         case "zone":
           this.#actOnIntent(shortcut.step > 0 ? "pageNext" : "pagePrevious");
@@ -1820,12 +1806,65 @@ export class BoardScene extends Phaser.Scene {
         case "log":
           this.#actOnIntent("view");
           break;
+        case "teamUp":
+          // The keyboard route to the badge's click: the first active pair's panel.
+          if (this.#teamUps.length > 0) this.#openTeamUpInfo(this.#teamUps[0]!);
+          break;
+        case "evidence":
+          // Baron Zemo's Evidence view, the keyboard route to the chrome's EVIDENCE button.
+          if (this.#hasEvidence()) this.#openEvidence();
+          break;
+        case "ability":
+          this.#useAbilityInSlot(shortcut.slot);
+          break;
       }
     });
   }
 
   /**
-   * A, H, R and F: what Enter on that button does. A greyed button is a stop on the route as well, so focus moves onto it
+   * Digits 1-3 answer whichever small choice bar is open: "Which one?" (a played event with several usable Action
+   * abilities), "Thwart with?" (THW or ATK against The Red House) or "Where does it go?" (an ally that may enter the
+   * mission area as well as the player's own). True when a bar was open, so the digit is spent on it and is never also
+   * an ability slot.
+   */
+  #answerChoiceBar(index: number): boolean {
+    const ability = this.#controller.abilityChoice();
+    if (ability) {
+      const option = ability.options[index];
+      if (option) void this.#controller.chooseEventAbility(option.abilityId);
+      return true;
+    }
+    const thwart = this.#controller.thwartStatChoice();
+    if (thwart) {
+      const option = thwart.options[index];
+      if (option) void this.#controller.chooseThwartStat(option.useAtk);
+      return true;
+    }
+    const destination = this.#controller.destinationChoice();
+    if (destination) {
+      const option = destination.options[index];
+      if (option) void this.#controller.chooseDestination(option);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * The Nth usable ability on your cards in play, in focus-route order (`view/ability-slots.ts`, the ordering the pad's
+   * RT layer shares). It goes through the same path as the Inspect sheet's ability button (targets, payment), and only
+   * while the board is idle: a decision in progress owns the keys.
+   */
+  #useAbilityInSlot(slot: number): void {
+    if (this.#controller.selection.kind !== "idle") return;
+    const slots = abilitySlotsOf(this.#controller.focusOrder(), (id) =>
+      this.#controller.usableAbilitiesFor(id).map((entry) => ({ instanceId: id, abilityId: entry.action.abilityId })),
+    );
+    const pick = abilityInSlot(slots, slot);
+    if (pick) this.#controller.useAbilityById(pick.instanceId, pick.abilityId);
+  }
+
+  /**
+   * Attack, Thwart, Recover, Change form: what Enter on that button does. A greyed button is a stop on the route as well, so focus moves onto it
    * (its reason is on the button) instead of the key doing nothing.
    */
   #pressBasic(action: "attack" | "thwart" | "recover" | "changeForm"): void {

@@ -73,12 +73,12 @@ export interface LayerSheet {
 }
 
 /** The ability names on `page`, padded with nothing: fewer than four on the last page. */
-export function abilityPageOf(abilities: readonly string[], page: number): readonly string[] {
+export function abilityPageOf<T>(abilities: readonly T[], page: number): readonly T[] {
   return abilities.slice(page * ABILITIES_PER_PAGE, (page + 1) * ABILITIES_PER_PAGE);
 }
 
 /** The number of pages of abilities (at least one). */
-export function abilityPageCount(abilities: readonly string[]): number {
+export function abilityPageCount(abilities: readonly unknown[]): number {
   return Math.max(1, Math.ceil(abilities.length / ABILITIES_PER_PAGE));
 }
 

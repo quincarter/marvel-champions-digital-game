@@ -262,7 +262,7 @@ export class ChoiceOverlay extends Phaser.Scene {
   /** The decision whose sheet stepped aside for PEEK AT TABLE's banner (`view/choice-peek.ts`); a new one shows its sheet. */
   #peekingAt: string | null = null;
   /**
-   * What the pad's View and R3 (and the P and X keys) do on the sheet drawn now: its PEEK AT TABLE and COLLAPSE
+   * What the pad's View and R3 (and the Peek and Expand keys) do on the sheet drawn now: its PEEK AT TABLE and COLLAPSE
    * controls, set by the draw that shows them. Null where the sheet has no such control, so the press does nothing.
    * Over the docked villain phase they call the phase's own, since the phase draws those controls and this sheet owns
    * the pad while it is up.
@@ -382,10 +382,11 @@ export class ChoiceOverlay extends Phaser.Scene {
     };
     bindKeyboard(this, binding);
     bindGamepad(this, binding);
-    // P and X are View and R3's keys; they go through the same two paths as the controls' own presses.
+    // Peek and Expand are View and R3's keys (R / F left-handed, P / ; right-handed; the board beneath is blocked, so
+    // they are not zones here); they go through the same two paths as the controls' own presses.
     bindExtraInput(this, {
       blocked: binding.blocked,
-      keys: { p: () => this.#padAction("peek"), x: () => this.#padAction("expand") },
+      peekExpand: { peek: () => this.#padAction("peek"), expand: () => this.#padAction("expand") },
     });
     // The table's popover is off while this sheet is up, so the sheet has its own over the cards it draws. Off while
     // Inspect (opened from here) or the villain phase covers it; the villain phase running beneath it does not count.

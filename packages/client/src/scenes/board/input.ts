@@ -8,6 +8,8 @@
 
 import type Phaser from "phaser";
 import { eventOnce } from "../../view/event-once.js";
+import { navIntentOf, typingInTextField } from "../../view/keyboard-intent.js";
+import type { KeyboardHand } from "../../view/input-shortcuts.js";
 import { gamepadIntentFor, GAMEPAD_AXIS, GAMEPAD_BUTTON, type GamepadIntent } from "../../view/gamepad.js";
 import {
   detectPad,
@@ -37,8 +39,8 @@ export interface IntentBinding {
  * Keyboard navigation.
  *
  * Tab and Shift+Tab walk `focusOrder`, the arrows move to the nearest stop in
- * their direction (`view/spatial-nav.ts`), Enter and Space act on what is focused,
- * `I` inspects it, and Escape backs out of a mode. A canvas has no focus of
+ * their direction (`view/spatial-nav.ts`), Select (Space or Enter, the hand's own key) acts on what is
+ * focused, Inspect (E / O) inspects it, and Back (Q / U, Escape) backs out of a mode. WASD or IJKL move like the arrows. A canvas has no focus of
  * its own, so all of this is ours to state — including the visible ring,
  * which is the selection ring drawn static rather than pulsing (a pulse means
  * "the board is waiting for you", and focus is not a prompt).
@@ -58,6 +60,11 @@ export function conflictPromptOwnsInput(scene: Phaser.Scene): boolean {
   return manager.isActive(SCENES.syncSetupPrompt) === true;
 }
 
+/** The keyboard hand in use now, read live so a change on the Controls screen applies without a restart. */
+export function currentKeyboardHand(): KeyboardHand {
+  return appSession().settings.keyboardHand;
+}
+
 export function bindKeyboard(scene: Phaser.Scene, binding: IntentBinding): void {
   const keyboard = scene.input.keyboard;
   if (!keyboard) return;
@@ -66,73 +73,16 @@ export function bindKeyboard(scene: Phaser.Scene, binding: IntentBinding): void 
     // Phaser replays a frame's queue on every key event, so a chord (Shift+Tab) arrives more than once.
     if (!firstDelivery(event)) return;
     if (binding.blocked() || conflictPromptOwnsInput(scene)) return;
-    switch (event.key) {
-      case "Tab":
-        event.preventDefault();
-        binding.onIntent(event.shiftKey ? "previous" : "next");
-        break;
-      // The arrows move the way they point, to the nearest stop on screen (issue #206); Tab keeps the route order.
-      case "ArrowRight":
-        event.preventDefault();
-        binding.onIntent("right");
-        break;
-      case "ArrowLeft":
-        event.preventDefault();
-        binding.onIntent("left");
-        break;
-      case "ArrowDown":
-        event.preventDefault();
-        binding.onIntent("down");
-        break;
-      case "ArrowUp":
-        event.preventDefault();
-        binding.onIntent("up");
-        break;
-      case "Enter":
-        // Shift+Enter is End turn, on every screen that binds this: only the Board claims it (its own shortcut handler), so
-        // no other screen activates its focused stop on it either.
-        if (event.shiftKey) break;
-        event.preventDefault();
-        binding.onIntent("activate");
-        break;
-      case " ":
-        event.preventDefault();
-        binding.onIntent("activate");
-        break;
-      case "i":
-      case "I":
-        binding.onIntent("inspect");
-        break;
-      case "g":
-      case "G":
-        // Guided mode's own focus-region toggle (docs/guided-mode.md §3.10, §7): moves keyboard/pad focus into
-        // whatever guide surface is showing (the rail/callout, the villain-phase/defend guide strip, or an
-        // opportunistic tip toast) and back out to the board. A screen with nothing to focus there just ignores it
-        // (`IntentBinding.onIntent` implementations that never wire a "toggleGuide" case are a no-op).
-        binding.onIntent("toggleGuide");
-        break;
-      case "PageDown":
-        event.preventDefault();
-        binding.onIntent("pageNext");
-        break;
-      case "PageUp":
-        event.preventDefault();
-        binding.onIntent("pagePrevious");
-        break;
-      case "Home":
-        event.preventDefault();
-        binding.onIntent("home");
-        break;
-      case "End":
-        event.preventDefault();
-        binding.onIntent("end");
-        break;
-      case "Escape":
-        binding.onIntent("cancel");
-        break;
-      default:
-        break;
-    }
+    // Typing in a text field (`McTextInput`'s DOM input) is never a shortcut.
+    if (typingInTextField(event)) return;
+    // Matched by physical key through the shortcut table (`view/keyboard-intent.ts`), for the hand in use. Shift+Enter
+    // and Shift+Space are End turn (the Board claims them) and never Select, on every screen bound here.
+    const intent = navIntentOf(event, currentKeyboardHand());
+    if (intent === null) return;
+    // Everything but Escape and the guide toggle stops the browser acting on the key too (Tab moving DOM focus, Space
+    // scrolling the page, the arrows scrolling it).
+    if (intent !== "cancel" && intent !== "inspect" && intent !== "toggleGuide") event.preventDefault();
+    binding.onIntent(intent);
   });
 }
 
