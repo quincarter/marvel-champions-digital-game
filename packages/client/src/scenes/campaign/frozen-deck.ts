@@ -38,6 +38,8 @@ import {
 import { frozenDeckMarketCta, frozenDeckModelOf, type FrozenDeckModel } from "../../view/campaign-frozen-deck-model.js";
 import type { Rect } from "../../view/layout.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
+import type { GlyphHints } from "../../ui/glyph-hints.js";
+import { createHints, forwardHint } from "./pad-hints.js";
 import { SCENES } from "../keys.js";
 import type { CampaignFrozenDeckData } from "./routes.js";
 
@@ -52,6 +54,7 @@ export class CampaignFrozenDeckScene extends Phaser.Scene {
   #model: FrozenDeckModel | null = null;
   #status: string | null = null;
   #route: FocusRoute | null = null;
+  #hints: GlyphHints | null = null;
   #buttons: McButton[] = [];
 
   constructor() {
@@ -62,7 +65,9 @@ export class CampaignFrozenDeckScene extends Phaser.Scene {
     this.#data = data;
     this.#model = null;
     this.#status = "Loading…";
-    this.#route = new FocusRoute(this, { onCancel: () => this.#goBack() });
+    this.#hints = createHints(this);
+    // Start and A with nothing focused: Done.
+    this.#route = new FocusRoute(this, { onCancel: () => this.#goBack(), primary: () => "done" });
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -150,6 +155,7 @@ export class CampaignFrozenDeckScene extends Phaser.Scene {
   }
 
   #draw(): void {
+    this.#hints?.reset();
     destroyChildren(this);
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
@@ -158,15 +164,20 @@ export class CampaignFrozenDeckScene extends Phaser.Scene {
     const data = this.#data;
     const title = data ? `${data.title}'s deck` : "Deck";
 
-    drawTopBar(this, {
+    const top = drawTopBar(this, {
       backLabel: "◂ Back",
       onBack: () => this.#goBack(),
+      hints: this.#hints,
       title,
       right: "EXPERT CAMPAIGN",
     });
 
     const stops = new Map<string, FocusStop>();
     const order: string[] = [];
+    if (top.backRect) {
+      stops.set("back", { rect: top.backRect, activate: () => this.#goBack() });
+      order.push("back");
+    }
 
     if (this.#status) {
       this.add
@@ -413,6 +424,7 @@ export class CampaignFrozenDeckScene extends Phaser.Scene {
       onClick: done,
     });
     this.#buttons.push(doneButton);
+    forwardHint(this.#hints, doneButton, "ink");
     stops.set("done", { rect: doneRect, activate: done });
     order.push("done");
   }

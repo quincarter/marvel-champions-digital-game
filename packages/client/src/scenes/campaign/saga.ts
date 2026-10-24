@@ -42,6 +42,8 @@ import { SAGA_NOTE } from "../../campaign/story.js";
 import type { Rect } from "../../view/layout.js";
 import { ListScroll } from "../../view/list-scroll.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
+import type { GlyphHints } from "../../ui/glyph-hints.js";
+import { createHints, forwardHintAtEnd } from "./pad-hints.js";
 import { SCENES } from "../keys.js";
 import { refreshUnlocks, unlocks } from "../../progression/progression.js";
 import { unlockCostOf, unlockOrAsk } from "../unlock-confirm.js";
@@ -62,6 +64,7 @@ const finalScenarioIdOf = (campaignId: string): string =>
 
 export class CampaignSagaScene extends Phaser.Scene {
   #route: FocusRoute | null = null;
+  #hints: GlyphHints | null = null;
   #stops = new Map<string, FocusStop>();
   #rows: readonly SagaVolumeRow[] = [];
   #featured = 1;
@@ -90,7 +93,10 @@ export class CampaignSagaScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#rebuild, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", this.#rebuild, this));
+    this.#hints = createHints(this);
     this.#route = new FocusRoute(this, {
+      // Start and A with nothing focused: the featured volume's one big button.
+      primary: () => (this.#stops.has("cta") ? "cta" : null),
       blocked: () => this.scene.isActive(SCENES.unlockConfirm),
       onCancel: () => goToScreen(this, SCENES.title),
       onPage: (direction) => this.#phoneList?.scrollByPage(direction),
@@ -121,6 +127,7 @@ export class CampaignSagaScene extends Phaser.Scene {
   #rebuild(): void {
     this.#phoneList?.destroy();
     this.#phoneList = null;
+    this.#hints?.reset();
     destroyChildren(this);
     this.#stops = new Map();
     if (this.#rows.length === 0) return;
@@ -129,6 +136,7 @@ export class CampaignSagaScene extends Phaser.Scene {
     const top = drawTopBar(this, {
       backLabel: frame.phone ? "◂" : "◂ Title",
       onBack: () => goToScreen(this, SCENES.title),
+      hints: this.#hints,
       title: "The saga",
       right: `${doneVolumeCount(this.#rows)} OF ${this.#rows.length} COMPLETE · ${openVolumeCount(this.#rows)} OPEN`,
     });
@@ -298,6 +306,7 @@ export class CampaignSagaScene extends Phaser.Scene {
     });
     void button;
     this.#stops.set("cta", { rect: ctaRect, activate: cta.onClick });
+    forwardHintAtEnd(this.#hints, ctaRect, "ink", cta.enabled);
   }
 
   #drawPhoneVolumeRow(row: SagaVolumeRow, rect: Rect): { objects: readonly Phaser.GameObjects.GameObject[] } {
@@ -486,6 +495,7 @@ export class CampaignSagaScene extends Phaser.Scene {
         titleSize: 21,
       });
       this.#stops.set("cta", { rect: ctaRect, activate: cta.onClick });
+      forwardHintAtEnd(this.#hints, ctaRect, "ink", cta.enabled);
       y += ctaHeight + 8;
     }
 

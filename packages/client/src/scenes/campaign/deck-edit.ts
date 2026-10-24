@@ -36,9 +36,14 @@ import { cardDisplayName } from "../../view/hero-names.js";
 import { SCENES } from "../keys.js";
 import type { DeckBuilderCampaignData } from "../deck-builder.js";
 import type { CampaignDeckEditData } from "./routes.js";
+import { FocusRoute, type FocusStop } from "../focus-route.js";
+import type { GlyphHints } from "../../ui/glyph-hints.js";
+import { createHints } from "./pad-hints.js";
 
 export class CampaignDeckEditScene extends Phaser.Scene {
   #data: CampaignDeckEditData | null = null;
+  #hints: GlyphHints | null = null;
+  #route: FocusRoute | null = null;
 
   constructor() {
     super(SCENES.campaignDeckEdit);
@@ -46,6 +51,9 @@ export class CampaignDeckEditScene extends Phaser.Scene {
 
   create(data: CampaignDeckEditData): void {
     this.#data = data;
+    this.#hints = createHints(this);
+    // The status screens (loading, a run that is gone) have one control; B and A leave through it.
+    this.#route = new FocusRoute(this, { onCancel: () => this.#goBack(), primary: () => "back" });
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.#drawStatus("Loading…");
     fadeScreenIn(this);
@@ -58,9 +66,19 @@ export class CampaignDeckEditScene extends Phaser.Scene {
   }
 
   #drawStatus(message: string): void {
+    this.#hints?.reset();
     destroyChildren(this);
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
-    drawTopBar(this, { backLabel: "◂ Back", onBack: () => this.#goBack(), title: "Edit deck" });
+    const top = drawTopBar(this, {
+      backLabel: "◂ Back",
+      onBack: () => this.#goBack(),
+      hints: this.#hints,
+      title: "Edit deck",
+    });
+    if (top.backRect) {
+      const stops = new Map<string, FocusStop>([["back", { rect: top.backRect, activate: () => this.#goBack() }]]);
+      this.#route?.set(["back"], stops);
+    }
     this.add
       .text(0, 0, message, textStyle(typeRole.body, surface.ink.hex))
       .setPosition(24, 96)

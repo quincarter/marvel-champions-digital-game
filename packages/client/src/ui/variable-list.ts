@@ -142,6 +142,11 @@ export class McVariableList {
     if (this.#scroll.scrollByPage(direction, this.#heights, this.#rect.height)) this.#redrawWindow(false);
   }
 
+  /** The right stick: scroll by `deltaPx` (positive down). */
+  scrollByPx(deltaPx: number): void {
+    if (this.#scroll.scrollByPx(deltaPx, this.#heights, this.#rect.height)) this.#redrawWindow(false);
+  }
+
   scrollToStart(): void {
     if (this.#scroll.scrollToStart(this.#heights, this.#rect.height)) this.#redrawWindow(false);
   }

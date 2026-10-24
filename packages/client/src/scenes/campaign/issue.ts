@@ -32,6 +32,8 @@ import { campaignIssueModel, type CampaignIssueModel } from "../../view/campaign
 import { logWriteRowHeight, type Rect } from "../../view/layout.js";
 import { VariableListScroll } from "../../view/variable-list-scroll.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
+import type { GlyphHints } from "../../ui/glyph-hints.js";
+import { createHints, forwardHint } from "./pad-hints.js";
 import { SCENES } from "../keys.js";
 import type { CampaignIssueData } from "./routes.js";
 
@@ -43,6 +45,8 @@ export class CampaignIssueScene extends Phaser.Scene {
   #campaignId = "";
   #status = "";
   #route: FocusRoute | null = null;
+  #hints: GlyphHints | null = null;
+  #stopsNow: ReadonlyMap<string, FocusStop> = new Map();
   #buttons: McButton[] = [];
   #writesList: McVariableList | null = null;
   #writesScroll = new VariableListScroll();
@@ -56,7 +60,15 @@ export class CampaignIssueScene extends Phaser.Scene {
     this.#model = null;
     this.#status = "";
     this.#writesScroll.reset();
-    this.#route = new FocusRoute(this, { onCancel: () => this.#back() });
+    this.#hints = createHints(this);
+    this.#route = new FocusRoute(this, {
+      onCancel: () => this.#back(),
+      // LB / RB: the previous and next finished issue. Start and A with nothing focused: reread this one.
+      onTab: (direction) => this.#stopsNow.get(direction < 0 ? "prev" : "next")?.activate(),
+      primary: () => (this.#stopsNow.has("reread") ? "reread" : null),
+      onScroll: (_dx, dy) => this.#writesList?.scrollByPx(dy),
+      onPage: (direction) => this.#writesList?.scrollByPage(direction),
+    });
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -101,6 +113,7 @@ export class CampaignIssueScene extends Phaser.Scene {
     // listener (`ui/variable-list.ts`), which only its own `destroy()` removes.
     this.#writesList?.destroy();
     this.#writesList = null;
+    this.#hints?.reset();
     destroyChildren(this);
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
@@ -114,6 +127,7 @@ export class CampaignIssueScene extends Phaser.Scene {
     const top = drawTopBar(this, {
       backLabel: "◂ The run",
       onBack: () => this.#back(),
+      hints: this.#hints,
       title: model ? `Issue #${model.number}` : "Issue",
       right: model ? "FINISHED" : "",
     });
@@ -126,6 +140,7 @@ export class CampaignIssueScene extends Phaser.Scene {
       this.add
         .text(frame.width / 2, frame.height / 2, this.#status || "Loading…", textStyle(typeRole.body, surface.ink.hex))
         .setOrigin(0.5);
+      this.#stopsNow = stops;
       this.#route?.set(order, stops);
       return;
     }
@@ -148,16 +163,17 @@ export class CampaignIssueScene extends Phaser.Scene {
     };
     stops.set("reread", { rect: ctaRect, activate: () => this.#reread(model) });
     order.push("reread");
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "primary",
-        label: `REREAD ISSUE #${model.number} ▸`,
-        type: typeRole.barTitle,
-        rect: ctaRect,
-        onClick: () => this.#reread(model),
-      }),
-    );
+    const rereadButton = new McButton(this, {
+      kind: "primary",
+      label: `REREAD ISSUE #${model.number} ▸`,
+      type: typeRole.barTitle,
+      rect: ctaRect,
+      onClick: () => this.#reread(model),
+    });
+    this.#buttons.push(rereadButton);
+    forwardHint(this.#hints, rereadButton, "ink");
 
+    this.#stopsNow = stops;
     this.#route?.set(order, stops);
   }
 
