@@ -7,7 +7,8 @@ Supplied by the project owner on 2026-10-24.
   Noun Project free icons need the creator credited (CC BY 3.0).
 - `playstation.png`: "Gaming console vector, video game controller" from Vecteezy,
   https://www.vecteezy.com/vector-art/45388923-gaming-console-vector-video-game-controller. Background removed and
-  cropped. Vecteezy's free licence asks for a "Vecteezy" credit; the contributor's name is not recorded yet.
+  cropped. By Uttam Das. Vecteezy free licence: attribution required ("Uttam Das / Vecteezy"); marked Editorial Use
+  Only.
 - `xbox.png`: found on Pinterest (https://i.pinimg.com/736x/8d/db/1a/8ddb1a1236f82c4f6d08e3a24b9533f7.jpg); the
   original artist and licence are not recorded.
 
