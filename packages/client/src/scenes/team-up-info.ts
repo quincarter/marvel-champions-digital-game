@@ -18,6 +18,8 @@ import { destroyChildren } from "../ui/destroy-children.js";
 import type { Rect } from "../view/layout.js";
 import type { TeamUpDetail } from "../view/team-up-model.js";
 import { bakedBadge } from "./board/team-up-badge.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
+import { onTap } from "../ui/tap.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 
@@ -37,6 +39,7 @@ export class TeamUpInfoOverlay extends Phaser.Scene {
   #data!: TeamUpInfoData;
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
+  #hints!: GlyphHints;
   #masks: Phaser.GameObjects.Graphics[] = [];
   /** The cards list scrolls when the panel is taller than the screen; its position survives a redraw (a resize). */
   #region: McScrollRegion | null = null;
@@ -55,11 +58,15 @@ export class TeamUpInfoOverlay extends Phaser.Scene {
     }
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
+    this.#hints = new GlyphHints(this);
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.inspect),
       onCancel: () => this.scene.stop(),
+      // The right stick scrolls the card list, which also follows focus.
+      onScroll: (_dx, dy) => this.#region?.scrollByPx(dy),
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#hints.dispose();
       this.scale.off("resize", onResize, this);
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
@@ -88,6 +95,7 @@ export class TeamUpInfoOverlay extends Phaser.Scene {
     this.#region?.destroy();
     this.#region = null;
     destroyChildren(this);
+    this.#hints.reset();
     const { detail, picture } = this.#data;
     const { width, height } = this.scale.gameSize;
 
@@ -221,8 +229,9 @@ export class TeamUpInfoOverlay extends Phaser.Scene {
         const zone = this.add
           .zone(box.x + 6, regionRect.y + row.top - 4, box.width - 12, row.height)
           .setOrigin(0, 0)
-          .setInteractive({ useHandCursor: true })
-          .on("pointerup", () => this.#inspect(row.cardId));
+          .setInteractive({ useHandCursor: true });
+        // A tap, not a bare pointerup: the end of a swipe that lifts over a row must not open it (issue #227).
+        onTap(zone, () => this.#inspect(row.cardId), `team-up-card:${row.cardId}`);
         region.content.add(zone);
         const outline = this.add.graphics();
         outline
@@ -260,6 +269,7 @@ export class TeamUpInfoOverlay extends Phaser.Scene {
         onClick: () => this.scene.stop(),
       }),
     );
+    this.#hints.button(this.#buttons.at(-1)!, ["cancel"], "paper");
     stops.set("close", { rect: closeRect, activate: () => this.scene.stop() });
     order.push("close");
     this.#route?.set(order, stops);

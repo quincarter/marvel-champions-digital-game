@@ -16,6 +16,7 @@ import { hit, surface, typeRole } from "../tokens.js";
 import { textStyle } from "../ui/theme.js";
 import { McButton } from "../ui/widgets.js";
 import type { Rect } from "../view/layout.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
 import { FocusRoute } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -37,6 +38,7 @@ export class TutorialResumeConfirmOverlay extends Phaser.Scene {
   #data!: TutorialResumeConfirmData;
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
+  #hints!: GlyphHints;
 
   constructor() {
     super(SCENES.tutorialResumeConfirm);
@@ -49,8 +51,11 @@ export class TutorialResumeConfirmOverlay extends Phaser.Scene {
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     // Escape cancels back to Title (§3.10): neither `onResume` nor `onContinuePlain` fires.
-    this.#route = new FocusRoute(this, { onCancel: () => this.scene.stop() });
+    this.#hints = new GlyphHints(this);
+    // Start is "forward": it resumes the lesson, as A on the focused button does.
+    this.#route = new FocusRoute(this, { onCancel: () => this.scene.stop(), primary: () => "resume" });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#hints.dispose();
       this.scale.off("resize", onResize, this);
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
@@ -70,6 +75,7 @@ export class TutorialResumeConfirmOverlay extends Phaser.Scene {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     destroyChildren(this);
+    this.#hints.reset();
 
     const { width, height } = this.scale.gameSize;
     this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
