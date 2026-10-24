@@ -151,6 +151,15 @@ function padIdentityOf(id: string): PadIdentity {
   return identity;
 }
 
+/**
+ * The guide / Steam / PS button is held: the pad is in the middle of a system chord (Steam + X opens the Steam Deck's
+ * on-screen keyboard, Guide + X on a pad under Steam), so nothing it presses meanwhile belongs to the game
+ * (`docs/controller-support.md`, owner decision 7). The button itself is never bound.
+ */
+function systemChordHeld(pad: Phaser.Input.Gamepad.Gamepad): boolean {
+  return pad.buttons[GAMEPAD_BUTTON.home]?.pressed === true;
+}
+
 const DPAD_DIRECTION: ReadonlyArray<readonly [number, FocusDirection]> = [
   [GAMEPAD_BUTTON.dpadUp, "up"],
   [GAMEPAD_BUTTON.dpadDown, "down"],
@@ -205,6 +214,7 @@ export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
     if (!usable(pad)) return;
     const identity = identityOf(pad);
     notePadInput(identity);
+    if (systemChordHeld(pad)) return;
     // The D-pad is polled below, so a press isn't delivered twice.
     if (DPAD_INDICES.has(button.index)) return;
     if (held()) return;
@@ -228,6 +238,10 @@ export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
     for (const pad of gamepad.gamepads) {
       if (!pad?.connected || !usable(pad)) continue;
       const identity = identityOf(pad);
+      if (systemChordHeld(pad)) {
+        notePadInput(identity);
+        continue;
+      }
       let touched = false;
       for (const [index, dir] of DPAD_DIRECTION) {
         if (pad.buttons[index]?.pressed) {

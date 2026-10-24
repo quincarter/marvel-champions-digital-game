@@ -42,6 +42,7 @@ import { bindHoldTarget } from "./hold-target.js";
 import { addInputText, addTextArea, addTextAreaInput } from "./rex.js";
 import { caseOf, cssOf, fontFamilyOf, skin, textStyle, type WidgetKind, type WidgetState } from "./theme.js";
 import { CHROME_SCENES } from "../scenes/keys.js";
+import { inputDevice } from "../platform/input-device.js";
 
 /** Draws a rect with the design's border model into an existing Graphics. */
 export function paintPanel(g: Phaser.GameObjects.Graphics, rect: Rect, kind: WidgetKind, state: WidgetState): void {
@@ -1150,6 +1151,9 @@ export interface McTextInputOptions {
 /** Every live text field by scene, so a card hover popover can move the fields it covers aside (`fieldsOf`). */
 const FIELDS = new WeakMap<Phaser.Scene, Set<McTextInput>>();
 
+/** What an empty text field says when it is focused from a controller under Steam. */
+const STEAM_KEYBOARD_HINT = "Steam + X: on-screen keyboard";
+
 /** The scene's live text fields: the DOM elements a canvas popover can't draw over. */
 export const fieldsOf = (scene: Phaser.Scene): readonly McTextInput[] => [...(FIELDS.get(scene) ?? [])];
 
@@ -1221,6 +1225,18 @@ export class McTextInput {
      * top-left rects, so the origin has to be set on the object itself.
      */
     this.#input.setOrigin(0, 0);
+
+    // A controller can't type. Under Steam (the Steam Deck) Steam + X opens Steam's own on-screen keyboard, so an empty
+    // field focused from the pad says so in its placeholder (`docs/controller-support.md`, owner decision 7).
+    const node = this.#input.node as HTMLInputElement;
+    const placeholder = options.placeholder ?? "";
+    node.addEventListener("focus", () => {
+      const device = inputDevice();
+      if (device.mode === "pad" && device.pad?.steam === true) node.placeholder = STEAM_KEYBOARD_HINT;
+    });
+    node.addEventListener("blur", () => {
+      node.placeholder = placeholder;
+    });
 
     /**
      * A DOM element is not in the canvas, so it is not under anything drawn
