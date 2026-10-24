@@ -216,7 +216,9 @@ export class TrophyRoomScene extends Phaser.Scene {
           const r = list.rectFor(index);
           const top = Math.max(r.y, listRect.y);
           const bottom = Math.min(r.y + r.height, listRect.y + listRect.height);
-          return { x: r.x, y: top, width: r.width - GUTTER, height: Math.max(1, bottom - top) };
+          // A row wholly out of the list keeps its true place (above or below it), so Up and Down still find the next one.
+          if (bottom <= top) return { x: r.x, y: r.y, width: r.width - GUTTER, height: r.height };
+          return { x: r.x, y: top, width: r.width - GUTTER, height: bottom - top };
         },
         activate: () => this.#openSheet(index),
         ensureVisible: () => list.scrollIntoView(index),
