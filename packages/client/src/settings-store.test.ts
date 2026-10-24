@@ -307,7 +307,7 @@ describe("text resolution follows couch mode until the player sets it", () => {
     store.set({ ...store.current, couchMode: "200%" });
     expect(store.current.textResolution).toBe(2);
     store.set({ ...store.current, textResolution: 1 });
-    store.set({ ...store.current, couchMode: "400%" });
+    store.set({ ...store.current, couchMode: "300%" });
     expect(store.current.textResolution).toBe(1);
     expect(store.current.couchMode).toBe("300%");
   });
