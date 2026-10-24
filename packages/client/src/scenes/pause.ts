@@ -172,6 +172,15 @@ export class PauseOverlay extends Phaser.Scene {
     this.#draw();
   }
 
+  /** The music player, over this sheet (the same scene the top bar's note opens). */
+  #openMusic(): void {
+    if (!this.scene.isActive(SCENES.musicPlayer)) this.scene.launch(SCENES.musicPlayer);
+  }
+
+  #openReport(): void {
+    if (!this.scene.isActive(SCENES.reportIssue)) this.scene.launch(SCENES.reportIssue);
+  }
+
   #setConfirmingConcede(value: boolean): void {
     this.#confirmingConcede = value;
     this.#draw();
@@ -302,6 +311,18 @@ export class PauseOverlay extends Phaser.Scene {
         title: "Show all settings",
         detail: "Sound, card size, villain phase and more.",
         open: () => this.scene.launch(SCENES.settings),
+      },
+      {
+        id: "music",
+        title: "Music",
+        detail: "What is playing, and the songs you have earned.",
+        open: () => this.#openMusic(),
+      },
+      {
+        id: "report",
+        title: "Report a problem",
+        detail: "Tell us about a bug or a wrong ruling.",
+        open: () => this.#openReport(),
       },
       // The phone apps show Controls only once a controller is connected (the owner, 2026-10-24).
       ...(detectPlatform() !== "capacitor" || padAvailable()
@@ -491,6 +512,8 @@ export class PauseOverlay extends Phaser.Scene {
       this.scene.launch(SCENES.settings),
     );
     this.#menuButton(stops, "save-quit", "onInk", "Save & quit", layout.menu.saveQuit, () => this.#saveAndQuit());
+    this.#menuButton(stops, "music", "onInk", "Music", layout.menu.music, () => this.#openMusic());
+    this.#menuButton(stops, "report", "onInk", "Report a problem", layout.menu.report, () => this.#openReport());
 
     // §3.10 "Pause has 'Stop tutorial' and 'Turn guide off' whenever a guided run is active" (G5c part 3) —
     // `layout.guideStopTutorial`/`guideTurnGuideOff` are `null` unless `guidedRunActive` was true when this layout

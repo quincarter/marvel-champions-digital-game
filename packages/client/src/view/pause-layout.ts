@@ -93,6 +93,9 @@ export interface PauseMenuLayout {
   readonly settings: Rect;
   /** Not in D13, which has no way to leave a game without conceding it; the phone footer has always had one. */
   readonly saveQuit: Rect;
+  /** Music and Report a problem, side by side on one row under Save & quit: the chrome buttons' menu entries. */
+  readonly music: Rect;
+  readonly report: Rect;
 }
 
 export interface PauseWideLayout {
@@ -184,10 +187,12 @@ function wideLayout(
     rulesReference: menuRect(2),
     settings: menuRect(3),
     saveQuit: menuRect(4),
+    music: { ...menuRect(5), width: (menuWidth - MENU_GAP) / 2 },
+    report: { ...menuRect(5), x: title.x + (menuWidth + MENU_GAP) / 2, width: (menuWidth - MENU_GAP) / 2 },
   };
 
-  const guideStopTutorial: Rect | null = guidedRunActive ? menuRect(5) : null;
-  const guideTurnGuideOff: Rect | null = guidedRunActive ? menuRect(6) : null;
+  const guideStopTutorial: Rect | null = guidedRunActive ? menuRect(6) : null;
+  const guideTurnGuideOff: Rect | null = guidedRunActive ? menuRect(7) : null;
 
   const concede: Rect = {
     x: title.x,
@@ -587,6 +592,8 @@ export function pauseLayoutRects(layout: PauseLayout): readonly Rect[] {
       layout.menu.rulesReference,
       layout.menu.settings,
       layout.menu.saveQuit,
+      layout.menu.music,
+      layout.menu.report,
       layout.concede,
       ...(layout.guideStopTutorial ? [layout.guideStopTutorial] : []),
       ...(layout.guideTurnGuideOff ? [layout.guideTurnGuideOff] : []),

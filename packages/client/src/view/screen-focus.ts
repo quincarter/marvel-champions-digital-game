@@ -297,7 +297,7 @@ export function villainDefendFocusOrder(optionIds: readonly string[]): readonly 
  * `kind`:
  *
  * - **Wide** (desktop and tablet, D13): the left menu top to bottom — Resume,
- *   Full game log, Rules reference, Settings, then Concede pinned at the
+ *   Full game log, Rules reference, Settings, Save & quit, Music and Report a problem, then Concede pinned at the
  *   panel's own foot (or, while the concede confirm is open, its own Yes/
  *   Cancel pair in Concede's place) — then the keyword/status cards in the
  *   right panel's own grid order. There is no ✕ on this shape (D13 has none;
@@ -346,6 +346,8 @@ export function pauseFocusOrder(input: PauseFocusInput): readonly string[] {
       "rules-reference",
       "settings",
       "save-quit",
+      "music",
+      "report",
       ...(input.guidedRunActive ? GUIDE_RUN_IDS : []),
       ...(input.confirmingConcede ? ["concede-confirm-yes", "concede-confirm-cancel"] : ["concede"]),
       ...input.keywordIds.map((id) => `keyword:${id}`),

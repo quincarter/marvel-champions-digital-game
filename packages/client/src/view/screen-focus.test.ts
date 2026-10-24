@@ -454,6 +454,8 @@ describe("screen focus routes", () => {
       "rules-reference",
       "settings",
       "save-quit",
+      "music",
+      "report",
       "concede",
     ]);
     expect(pauseFocusOrder({ kind: "wide", keywordIds: ["guard", "stunned"], confirmingConcede: false })).toEqual([
@@ -462,6 +464,8 @@ describe("screen focus routes", () => {
       "rules-reference",
       "settings",
       "save-quit",
+      "music",
+      "report",
       "concede",
       "keyword:guard",
       "keyword:stunned",
@@ -477,6 +481,8 @@ describe("screen focus routes", () => {
       "rules-reference",
       "settings",
       "save-quit",
+      "music",
+      "report",
       "guide-stop-tutorial",
       "guide-turn-guide-off",
       "concede",
@@ -491,7 +497,7 @@ describe("screen focus routes", () => {
     const order = pauseFocusOrder({ kind: "wide", keywordIds: ["guard"], confirmingConcede: true });
     expect(order).not.toContain("concede");
     expect(order).toContain("resume");
-    expect(order.slice(5, 7)).toEqual(["concede-confirm-yes", "concede-confirm-cancel"]);
+    expect(order.slice(7, 9)).toEqual(["concede-confirm-yes", "concede-confirm-cancel"]);
     expect(order[order.length - 1]).toBe("keyword:guard");
   });
 
