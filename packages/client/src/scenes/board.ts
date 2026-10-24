@@ -61,7 +61,7 @@ import {
   type PhoneTab,
   type Rect,
 } from "../view/layout.js";
-import { cardSizeFactor } from "../settings.js";
+import { cardHoverFactor, cardSizeFactor } from "../settings.js";
 import { onTap, setTapOccluders } from "../ui/tap.js";
 import { TableDrag, clampScroll, fullyInWindow, revealScroll, wheelPixels } from "../view/table-scroll.js";
 import { choiceDock } from "../view/choice-dock.js";
@@ -78,6 +78,7 @@ import { CHROME_SCENES, SCENES } from "./keys.js";
 import { tableSoundsOf, type CardSoundInfo } from "../view/sound-effects.js";
 import { HoverPreview, isMousePointer } from "../ui/card-hover-preview.js";
 import { hoverArea } from "../view/card-hover.js";
+import { zoomCardOf } from "../view/inspect-hold.js";
 import { sheetIsCovered } from "../view/choice-sheet-sync.js";
 import { syncSceneClock } from "../ui/scene-clock.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
@@ -160,6 +161,7 @@ import { referenceCardViews, type ReferenceCardView } from "../view/reference-ca
 import { destroyChildren } from "../ui/destroy-children.js";
 import { campaignBeatFor } from "../view/campaign-beat-model.js";
 import type { CampaignBeatData } from "./campaign/routes.js";
+import type { AchievementToastScene } from "./achievement-toast.js";
 
 /** Every Team-Up pair the card pool names; built once, since the pool never changes under a running game. */
 const TEAM_UP_PAIRS = teamUpPairsOf(POOL_CARDS);
@@ -283,6 +285,8 @@ export class BoardScene extends Phaser.Scene {
    * guide level is "the main use" in an ordinary game (`scenes/board/tip-mount.ts`'s own header). */
   #tip: BoardTipMount | null = null;
   #hover: HoverPreview | null = null;
+  /** True while Inspect is held past the tap: the focused card shows enlarged (`#setZoom`). */
+  #zoomOn = false;
 
   readonly #controller = new BoardController({
     model: () => this.#model,
@@ -440,6 +444,7 @@ export class BoardScene extends Phaser.Scene {
     this.#tabBadges.clear();
     this.#tabChanged.clear();
     this.#focus = null;
+    this.#zoomOn = false;
     this.#controller.setUndoFocus(false);
     this.#focusRegion = "board";
     this.#guideFocusOwner = null;
@@ -464,34 +469,7 @@ export class BoardScene extends Phaser.Scene {
     this.#hover = new HoverPreview(this, {
       cards: () => this.#frame.hitRects,
       facedown: () => this.#frame.facedownHovers,
-      area: (pointer) => {
-        const { width, height } = this.scale.gameSize;
-        // A choice sheet the docked villain phase covers is hidden and inert (`sheetIsCovered`): it is no overlay.
-        const manager = this.scene.manager;
-        const sheetCovered = sheetIsCovered({
-          coverActive: this.scene.isActive(SCENES.villainPhase),
-          coverIndex: manager.getIndex(SCENES.villainPhase),
-          sheetIndex: manager.getIndex(SCENES.choice),
-        });
-        const overlays = Object.values(SCENES).filter(
-          (key) =>
-            key !== SCENES.board &&
-            key !== SCENES.music &&
-            !CHROME_SCENES.has(key) &&
-            // Docked in the villain phase's panel, the sheet leaves the table beside it to read (#231).
-            !(key === SCENES.choice && (sheetCovered || choiceDock() !== null || choicePeeking())) &&
-            this.scene.isActive(key),
-        );
-        return hoverArea({
-          formFactor: formFactorFor(width, height),
-          mouse: isMousePointer(pointer),
-          scale: appSession().settings.cardHoverScale,
-          overlays,
-          villainPhaseKey: SCENES.villainPhase,
-          dockPanel: this.#villainDockRects?.panel ?? null,
-          viewport: { x: 0, y: 0, width, height },
-        });
-      },
+      area: (pointer) => this.#hoverArea(isMousePointer(pointer)),
     });
     // When the villain phase closes, the table draws again without it: its review handle (`#drawVillainReviewHandle`)
     // only shows once the phase is gone, and nothing else redraws the Board at that moment.
@@ -549,12 +527,16 @@ export class BoardScene extends Phaser.Scene {
         this.scene.isActive(SCENES.holdOn) ||
         // The "You can still…" question owns the keys too: a shortcut must not act on the table beneath it.
         this.scene.isActive(SCENES.endTurnConfirm) ||
-        // The "Achievement unlocked" popup owns B (it dismisses on it): the same press must not also reach the table.
-        this.scene.isActive(SCENES.achievementToast),
+        // The opened achievements list owns B (it collapses on it): the same press must not also reach the table. The
+        // toast scene itself runs all the time (boot.ts), so it is the open list that counts, not the scene.
+        (this.scene.get(SCENES.achievementToast) as AchievementToastScene | null)?.listOpen === true,
       onIntent: (intent) => this.#actOnIntent(intent),
       onScroll: (dx, dy) => this.#scrollFocused(dx, dy),
       onLayer: (layer) => this.#setPadLayer(layer),
       onViewTap: () => this.#actOnIntent("recap"),
+      onInspectZoom: (zooming) => this.#setZoom(zooming),
+      // Card hover size "off" turns the zoom off with the mouse popover: a hold is then a tap.
+      zoomEnabled: () => cardHoverFactor(appSession().settings.cardHoverScale) !== null,
       onLayerPress: (layer, index) => this.#pressLayer(layer, index),
     };
     bindKeyboard(this, binding);
@@ -583,6 +565,7 @@ export class BoardScene extends Phaser.Scene {
     // sheet reports which one was picked, and only the board ever dispatches.
     this.game.events.on("mc-use-ability", this.#onInspectUseAbility, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#zoomOn = false;
       this.#hover?.destroy();
       this.#hover = null;
       this.scale.off("resize", onResize, this);
@@ -2103,6 +2086,55 @@ export class BoardScene extends Phaser.Scene {
       this.#focus && order.some((target) => sameTarget(target, this.#focus)) ? focusKey(this.#focus) : null;
     const next = spatialStep(keys, (key) => this.#frame.focusRects.get(key), current, direction);
     this.#setFocus(next === null ? null : (order[keys.indexOf(next)] ?? null));
+  }
+
+  /**
+   * The area the card popover may use now, or null when it must not show. `mouse` is false for the held-Inspect zoom,
+   * which has no pointer and shows on any form factor (a pad is what holds Y on a handheld).
+   */
+  #hoverArea(mouse: boolean): Rect | null {
+    const { width, height } = this.scale.gameSize;
+    // A choice sheet the docked villain phase covers is hidden and inert (`sheetIsCovered`): it is no overlay.
+    const manager = this.scene.manager;
+    const sheetCovered = sheetIsCovered({
+      coverActive: this.scene.isActive(SCENES.villainPhase),
+      coverIndex: manager.getIndex(SCENES.villainPhase),
+      sheetIndex: manager.getIndex(SCENES.choice),
+    });
+    const overlays = Object.values(SCENES).filter(
+      (key) =>
+        key !== SCENES.board &&
+        key !== SCENES.music &&
+        !CHROME_SCENES.has(key) &&
+        // Docked in the villain phase's panel, the sheet leaves the table beside it to read (#231).
+        !(key === SCENES.choice && (sheetCovered || choiceDock() !== null || choicePeeking())) &&
+        this.scene.isActive(key),
+    );
+    return hoverArea({
+      formFactor: mouse ? formFactorFor(width, height) : "desktop",
+      mouse: true,
+      scale: appSession().settings.cardHoverScale,
+      overlays,
+      villainPhaseKey: SCENES.villainPhase,
+      dockPanel: this.#villainDockRects?.panel ?? null,
+      viewport: { x: 0, y: 0, width, height },
+    });
+  }
+
+  /** Hold Inspect (Y / E / O) opened or closed the enlarged focused card (`view/inspect-hold.ts`). */
+  #setZoom(zooming: boolean): void {
+    this.#zoomOn = zooming;
+    if (!zooming) {
+      this.#hover?.unpin();
+      return;
+    }
+    // Read live on every Board draw, so the popover follows the focus as it moves and goes when it is not on a card.
+    this.#hover?.pin(() => {
+      const card = zoomCardOf(this.#zoomOn, this.#focusRegion === "board" ? this.#focus : null, this.#logFocused);
+      const rect = card ? this.#cardRect(card.instanceId) : undefined;
+      const area = this.#hoverArea(false);
+      return card && rect && area ? { id: card.instanceId, rect, area } : null;
+    });
   }
 
   #setFocus(focus: FocusTarget | null): void {

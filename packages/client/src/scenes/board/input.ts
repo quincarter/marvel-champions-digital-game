@@ -27,6 +27,7 @@ import {
   type TriggerHold,
 } from "../../view/pad-layer-hold.js";
 import type { PadLayer } from "../../view/pad-layer-bindings.js";
+import { createInspectHold, type InspectHold } from "../../view/inspect-hold.js";
 import { createHoldTap } from "../../view/pad-hold-tap.js";
 import { createPadRepeater, scrollDelta, stickDirection } from "../../view/pad-repeat.js";
 import type { FocusDirection } from "../../view/spatial-nav.js";
@@ -58,6 +59,57 @@ export interface IntentBinding {
    * `view` intent (the game log). Left out, View is the `view` intent the moment it is pressed, as on every other screen.
    */
   onViewTap?(): void;
+  /**
+   * Splits Inspect (Y, or E / O): a tap still sends the `inspect` intent, on release; a hold of about 300 ms calls this
+   * with true (the focused card shows enlarged, `view/inspect-hold.ts`) and the release then calls it with false and
+   * does not inspect. Called with false too when the screen is blocked mid-hold. Left out, or while `zoomEnabled`
+   * says no, Inspect is the `inspect` intent the moment it is pressed, as on every other screen.
+   */
+  onInspectZoom?(zooming: boolean): void;
+  /** False while the zoom is switched off (Card hover size "off"): a hold then behaves as a tap, Inspect at once. */
+  zoomEnabled?(): boolean;
+}
+
+/** One hold machine per binding, shared by its keyboard and pad paths so the first input to press owns the hold. */
+const inspectHolds = new WeakMap<IntentBinding, InspectHold>();
+
+function splitsInspect(binding: IntentBinding): boolean {
+  return binding.onInspectZoom !== undefined && binding.zoomEnabled?.() !== false;
+}
+
+function inspectHoldOf(scene: Phaser.Scene, binding: IntentBinding): InspectHold {
+  let hold = inspectHolds.get(binding);
+  if (hold) return hold;
+  hold = createInspectHold();
+  inspectHolds.set(binding, hold);
+  const machine = hold;
+  const owns = (): boolean =>
+    binding.blocked() ||
+    conflictPromptOwnsInput(scene) ||
+    scene.input.enabled === false ||
+    scene.input.keyboard?.enabled === false;
+  // Polled each frame by the scene's own update event, for both inputs: a hold fires without another key or button event.
+  const onUpdate = (): void => {
+    if (owns()) {
+      if (machine.cancel() === "close") binding.onInspectZoom?.(false);
+      return;
+    }
+    if (machine.poll(scene.time.now) === "zoom") binding.onInspectZoom?.(true);
+  };
+  scene.events.on("update", onUpdate);
+  scene.events.once("shutdown", () => {
+    scene.events.off("update", onUpdate);
+    if (machine.cancel() === "close") binding.onInspectZoom?.(false);
+    inspectHolds.delete(binding);
+  });
+  return hold;
+}
+
+/** An Inspect release from `source`: a tap inspects (unless something now owns input), a released hold closes the zoom. */
+function releaseInspect(scene: Phaser.Scene, binding: IntentBinding, source: "pad" | "key"): void {
+  const result = inspectHoldOf(scene, binding).release(source, scene.time.now);
+  if (result === "close") binding.onInspectZoom?.(false);
+  else if (result === "inspect" && !binding.blocked() && !conflictPromptOwnsInput(scene)) binding.onIntent("inspect");
 }
 
 /**
@@ -94,6 +146,14 @@ export function bindKeyboard(scene: Phaser.Scene, binding: IntentBinding): void 
   const keyboard = scene.input.keyboard;
   if (!keyboard) return;
   const firstDelivery = eventOnce();
+  const firstRelease = eventOnce();
+  if (binding.onInspectZoom) inspectHoldOf(scene, binding);
+  // Releasing E / O ends the Inspect hold: a tap opens Inspect, a held zoom just closes.
+  keyboard.on("keyup", (event: KeyboardEvent) => {
+    if (!binding.onInspectZoom || !firstRelease(event)) return;
+    if (navIntentOf(event, currentKeyboardHand()) !== "inspect") return;
+    releaseInspect(scene, binding, "key");
+  });
   keyboard.on("keydown", (event: KeyboardEvent) => {
     // Phaser replays a frame's queue on every key event, so a chord (Shift+Tab) arrives more than once.
     if (!firstDelivery(event)) return;
@@ -107,6 +167,10 @@ export function bindKeyboard(scene: Phaser.Scene, binding: IntentBinding): void 
     // Everything but Escape and the guide toggle stops the browser acting on the key too (Tab moving DOM focus, Space
     // scrolling the page, the arrows scrolling it).
     if (intent !== "cancel" && intent !== "inspect" && intent !== "toggleGuide") event.preventDefault();
+    if (intent === "inspect" && splitsInspect(binding)) {
+      inspectHoldOf(scene, binding).press("key", scene.time.now);
+      return;
+    }
     binding.onIntent(intent);
   });
 }
@@ -218,6 +282,7 @@ export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
     }
     return layer;
   };
+  if (binding.onInspectZoom) inspectHoldOf(scene, binding);
   const viewHold = createHoldTap();
   const VIEW_BUTTON = 8;
 
@@ -249,10 +314,24 @@ export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
       }
     }
     const intent = gamepadIntentFor(meaning);
+    if (intent === "inspect" && splitsInspect(binding)) {
+      inspectHoldOf(scene, binding).press("pad", scene.time.now);
+      return;
+    }
     if (intent) binding.onIntent(intent);
   });
 
   gamepad.on("up", (pad: Phaser.Input.Gamepad.Gamepad, button: Phaser.Input.Gamepad.Button) => {
+    if (binding.onInspectZoom && usable(pad) && !DPAD_INDICES.has(button.index)) {
+      const settings = appSession().settings;
+      const identity = identityOf(pad);
+      const swap = usesNintendoSwap(
+        resolvePadFamily(settings.padGlyphFamily, identity),
+        settings.nintendoLayout,
+        identity,
+      );
+      if (gamepadIntentFor(physicalIndexOf(button.index, swap)) === "inspect") releaseInspect(scene, binding, "pad");
+    }
     if (!binding.onViewTap || button.index !== VIEW_BUTTON || !usable(pad)) return;
     if (viewHold.release(scene.time.now) === "tap" && !held()) binding.onViewTap();
   });

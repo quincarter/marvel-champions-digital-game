@@ -164,12 +164,13 @@ export interface LegendSegment {
 /**
  * What the focused-card strip says: "A Select · Y Inspect · B Back" ("Enter Select · I Inspect · Esc Back" on a
  * keyboard). The last item says what Esc / B does right now: "Back" when there is something to back out of, "Pause"
- * when the board is idle and it opens Pause. ("hold to zoom" joins Inspect when hold-Y lands.)
+ * when the board is idle and it opens Pause. Inspect adds "hold to zoom" while the zoom is on (Card hover size is not
+ * "off": `docs/controller-support.md` decision 8).
  */
-export function legendSegments(cancelMeans: "back" | "pause"): readonly LegendSegment[] {
+export function legendSegments(cancelMeans: "back" | "pause", zoom = true): readonly LegendSegment[] {
   return [
     { id: "activate", text: "Select" },
-    { id: "inspect", text: "Inspect" },
+    { id: "inspect", text: zoom ? "Inspect · hold to zoom" : "Inspect" },
     { id: "cancel", text: cancelMeans === "back" ? "Back" : "Pause" },
   ];
 }

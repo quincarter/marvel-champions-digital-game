@@ -121,6 +121,11 @@ export class AchievementToastScene extends Phaser.Scene {
     });
   }
 
+  /** The opened list of achievements is up: it owns B / Esc, so the Board holds its own input meanwhile. */
+  get listOpen(): boolean {
+    return this.#list?.phase === "open";
+  }
+
   /** Read by the debug snapshot (`ui/debug-dump.ts`) and the e2e specs. */
   debugState(): Record<string, unknown> {
     return {

@@ -330,9 +330,10 @@ export class GlyphHints {
       this.#legend = null;
       return;
     }
-    const segments = legendSegments(target.cancelMeans);
+    const zoom = snapshot.settings.cardHoverScale !== "off";
+    const segments = legendSegments(target.cancelMeans, zoom);
     const specs = segments.map((segment) => glyphsForShortcut(segment.id, snapshot.state, snapshot.settings));
-    const signature = `${set}/${target.cancelMeans}/${specs.map(specsSignature).join(";")}`;
+    const signature = `${set}/${target.cancelMeans}/${zoom}/${specs.map(specsSignature).join(";")}`;
     if (!this.#legend || this.#legend.signature !== signature || !this.#legend.container.active) {
       this.#legend?.destroy();
       this.#legend = new LegendStrip(

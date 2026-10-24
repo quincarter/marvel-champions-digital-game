@@ -158,9 +158,10 @@ describe("the focused-card legend", () => {
     expect(legendRect({ x: 5, y: 10, width: 80, height: 110 }, { width: 200, height: 20 }, viewport).y).toBe(124);
   });
 
-  it("says what Esc does right now, and keeps hold-to-zoom out until it exists", () => {
-    expect(legendSegments("back").map((s) => s.text)).toEqual(["Select", "Inspect", "Back"]);
-    expect(legendSegments("pause").map((s) => s.text)).toEqual(["Select", "Inspect", "Pause"]);
+  it("says what Esc does right now, and offers hold-to-zoom while the zoom is on", () => {
+    expect(legendSegments("back").map((s) => s.text)).toEqual(["Select", "Inspect · hold to zoom", "Back"]);
+    expect(legendSegments("pause").map((s) => s.text)).toEqual(["Select", "Inspect · hold to zoom", "Pause"]);
+    expect(legendSegments("back", false).map((s) => s.text)).toEqual(["Select", "Inspect", "Back"]);
     expect(legendSegments("back").map((s) => s.id)).toEqual(["activate", "inspect", "cancel"]);
   });
 });

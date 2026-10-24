@@ -40,6 +40,7 @@ import {
 } from "../view/card-hover.js";
 import { cardInspectModel, inspectModel, type InspectModel } from "../view/inspect-model.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
+import { zoomPlacement } from "../view/inspect-hold.js";
 import { tableGame } from "../view/table-game.js";
 
 /** Above every other thing the Board draws (the phase band is 1150). */
@@ -143,7 +144,16 @@ export function screenHoverArea(
   });
 }
 
+/** What a pad or key zoom shows: the card, where it is drawn now, and the area the popover may use. */
+export interface PinnedHover {
+  readonly id: InstanceId;
+  readonly rect: Rect;
+  readonly area: Rect;
+}
+
 export class HoverPreview {
+  /** The held-Inspect zoom (decision 8): while set, the popover shows this card beside its table rect and the pointer does nothing. */
+  #pinned: (() => PinnedHover | null) | null = null;
   #pointer: Phaser.Input.Pointer | null = null;
   /** The card the delay is running for. */
   #pendingId: string | null = null;
@@ -180,7 +190,8 @@ export class HoverPreview {
       this.#waitingKey = null;
       const pointer = this.#pointer;
       this.#clear();
-      if (pointer) this.#update(pointer, true);
+      if (this.#pinned) this.#showPinned(true);
+      else if (pointer) this.#update(pointer, true);
     });
   }
 
@@ -195,9 +206,66 @@ export class HoverPreview {
     return this.#visual ? this.#shownId : null;
   }
 
+  /**
+   * Shows the card `resolve` names beside its rect, with no pointer: the held-Inspect zoom. Call it again (same or new
+   * resolver) when the focus moves; the popover follows. `resolve` is read on every call and every Board draw, so a card
+   * that moved is followed and one that left (or an area that closed) takes the popover down.
+   */
+  pin(resolve: () => PinnedHover | null): void {
+    if (this.#destroyed) return;
+    this.#pinned = resolve;
+    this.#showPinned(false);
+  }
+
+  /** Ends the zoom; the popover returns to following the pointer. */
+  unpin(): void {
+    if (!this.#pinned) return;
+    this.#pinned = null;
+    this.#clear();
+  }
+
+  get pinned(): boolean {
+    return this.#pinned !== null;
+  }
+
+  #showPinned(instant: boolean): void {
+    const target = this.#pinned?.() ?? null;
+    if (!target) {
+      this.#clear();
+      return;
+    }
+    if (this.#visual && this.#shownId === target.id) {
+      this.#visual.setPosition(...this.#pinnedAt(target));
+      this.#coverFields();
+      return;
+    }
+    this.#clear();
+    const built = this.#build(target.id, target.rect, target.area, null);
+    if (!built) return;
+    this.#shownId = target.id;
+    this.#waitingKey = built.waitingFor;
+    this.#visual = built.container;
+    this.#size = built.size;
+    built.container.setPosition(...this.#pinnedAt(target));
+    this.#coverFields();
+    if (instant || appSession().settings.reducedMotion) return;
+    built.container.setAlpha(0);
+    this.scene.tweens.add({ targets: built.container, alpha: 1, duration: FADE_MS });
+  }
+
+  #pinnedAt(target: PinnedHover): [number, number] {
+    const at = zoomPlacement(target.rect, this.#size, target.area);
+    return [at.x, at.y];
+  }
+
   /** Called at the end of every Board draw: the draw destroyed the popover with the rest of the scene, so it is rebuilt where the pointer still is. */
   onDraw(): void {
     if (this.#destroyed) return;
+    if (this.#pinned) {
+      this.#clear();
+      this.#showPinned(true);
+      return;
+    }
     const wasShown = this.#shownId !== null;
     this.#clear();
     const pointer = this.#pointer;
@@ -221,6 +289,7 @@ export class HoverPreview {
 
   #onMove(pointer: Phaser.Input.Pointer): void {
     this.#pointer = pointer;
+    if (this.#pinned) return;
     // A button held is a press or a drag in progress (a hand scroll, a card pulled): nothing to preview.
     if (pointer.isDown) {
       this.#clear();
@@ -231,22 +300,26 @@ export class HoverPreview {
 
   #onDown(pointer: Phaser.Input.Pointer): void {
     this.#pointer = pointer;
+    if (this.#pinned) return;
     this.#suppressed = this.#shownId ?? this.#pendingId ?? this.#suppressed;
     this.#clear();
   }
 
   #onWheel(): void {
+    if (this.#pinned) return;
     this.#suppressed = this.#shownId ?? this.#pendingId ?? this.#suppressed;
     this.#clear();
   }
 
   #onOut(): void {
+    if (this.#pinned) return;
     this.#suppressed = null;
     this.#clear();
   }
 
   /** An overlay opening over a popover that is already up (a choice sheet, Pause) takes it down at once. */
   #onUpdate(): void {
+    if (this.#pinned) return;
     if (this.#shownId === null && this.#pendingId === null) return;
     if (this.#area() === null) this.#clear();
   }
