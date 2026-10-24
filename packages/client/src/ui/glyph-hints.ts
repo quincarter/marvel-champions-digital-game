@@ -32,6 +32,7 @@ import {
 } from "../view/glyph-placement.js";
 import { glyphsForShortcut, type GlyphSpec } from "../view/input-glyph-model.js";
 import { glyphSetOf } from "../view/input-mode.js";
+import type { PadLayer } from "../view/pad-layer-bindings.js";
 import type { ShortcutId } from "../view/input-shortcuts.js";
 import type { Rect } from "../view/layout.js";
 import { McInputGlyph, type GlyphGround } from "./input-glyph.js";
@@ -50,8 +51,16 @@ interface Placed extends GlyphPoint {
   readonly labelShift?: number;
 }
 
+/** What a hint with no shortcut of its own draws: the specs for the input set and hold layer now, or null for none. */
+export type CustomSpecs = (
+  set: GlyphSet,
+  snapshot: InputHintsSnapshot,
+  layer: PadLayer | null,
+) => readonly GlyphSpec[] | null;
+
 interface Entry {
   readonly ids: readonly ShortcutId[];
+  readonly custom: CustomSpecs | null;
   readonly ground: GlyphGround;
   readonly height: number;
   glyph: McInputGlyph | null;
@@ -76,9 +85,10 @@ export interface HintOptions {
 export function specsForShortcuts(
   ids: readonly ShortcutId[],
   snapshot: InputHintsSnapshot,
+  layer: PadLayer | null = null,
 ): readonly GlyphSpec[] | null {
   const out: GlyphSpec[] = [];
-  for (const id of ids) out.push(...(glyphsForShortcut(id, snapshot.state, snapshot.settings) ?? []));
+  for (const id of ids) out.push(...(glyphsForShortcut(id, snapshot.state, snapshot.settings, layer) ?? []));
   return out.length > 0 ? out : null;
 }
 
@@ -89,6 +99,8 @@ export class GlyphHints {
   #snapshot: InputHintsSnapshot | null = null;
   readonly #binding: InputHints;
   #legend: LegendStrip | null = null;
+  /** The pad's hold layer (LT / RT), null at rest. Kept across `reset()`: a redraw does not release a trigger. */
+  #layer: PadLayer | null = null;
   #legendCard: { readonly rect: Rect; readonly viewport: Rect; readonly cancelMeans: "back" | "pause" } | null = null;
   readonly #obstacles: () => readonly Rect[];
 
@@ -107,6 +119,20 @@ export class GlyphHints {
     this.#entries = [];
     this.#listeners = [];
     this.#legend = null;
+  }
+
+  /**
+   * A trigger was pulled or let go. While one is held every base hint steps aside (the legend strip too) and only the
+   * layer's own glyphs show, each on what its button now presses; on release the base hints return.
+   */
+  setLayer(layer: PadLayer | null): void {
+    if (layer === this.#layer) return;
+    this.#layer = layer;
+    this.#binding.refresh();
+  }
+
+  get layer(): PadLayer | null {
+    return this.#layer;
   }
 
   /** Re-applies now (a setting, or something a `when` reads, changed). */
@@ -157,6 +183,19 @@ export class GlyphHints {
     });
   }
 
+  /**
+   * A glyph drawn from `custom` (no shortcut of its own: a trigger, a layer's button on a card) at `place`. `custom` is
+   * asked on every apply with the input set and the hold layer, and decides when the glyph shows. A `word` shows with it.
+   */
+  custom(
+    custom: CustomSpecs,
+    height: number,
+    place: Entry["place"],
+    options: Pick<HintOptions, "ground" | "word"> = {},
+  ): void {
+    this.#add([], options.ground ?? "ink", height, { place, word: options.word ?? null, custom });
+  }
+
   /** A glyph at a fixed left edge, vertically centered on `y`: the hand caption's "[ ] Zones". */
   inline(x: number, y: number, ids: readonly ShortcutId[], height: number, options: HintOptions = {}): void {
     this.#add(ids, options.ground ?? "ink", height, {
@@ -205,12 +244,14 @@ export class GlyphHints {
       readonly word?: Phaser.GameObjects.Text | null;
       readonly when?: Entry["when"];
       readonly shift?: Entry["shift"];
+      readonly custom?: CustomSpecs;
     },
   ): void {
     const word = parts.word ?? null;
     word?.setDepth(HINT_DEPTH).setVisible(false);
     const entry: Entry = {
       ids,
+      custom: parts.custom ?? null,
       ground,
       height,
       glyph: null,
@@ -242,7 +283,12 @@ export class GlyphHints {
     // Destroyed by a redraw that did not go through `reset()`: drop it quietly.
     if (entry.glyph && !entry.glyph.active) return;
     const set = glyphSetOf(snapshot.state, snapshot.settings.inputGlyphs);
-    const specs = set !== null && (entry.when?.(set) ?? true) ? specsForShortcuts(entry.ids, snapshot) : null;
+    const specs =
+      set !== null && (entry.when?.(set) ?? true)
+        ? entry.custom
+          ? entry.custom(set, snapshot, this.#layer)
+          : specsForShortcuts(entry.ids, snapshot, set === "pad" ? this.#layer : null)
+        : null;
     // Owner rule: while the mouse moves the glyph goes all the way to nothing (it narrows and fades as it goes),
     // rather than resting as a tab. At openness 0 it is hidden from here, so McInputGlyph's own tab look never shows.
     if (!specs || snapshot.openness <= 0.01) {
@@ -278,7 +324,8 @@ export class GlyphHints {
     const target = this.#legendCard;
     const snapshot = this.#snapshot;
     const set = snapshot ? glyphSetOf(snapshot.state, snapshot.settings.inputGlyphs) : null;
-    if (!target || !snapshot || set === null) {
+    // Under a held trigger the legend gives way (it would sit where the layer's glyphs go).
+    if (!target || !snapshot || set === null || (set === "pad" && this.#layer !== null)) {
       this.#legend?.destroy();
       this.#legend = null;
       return;

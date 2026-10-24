@@ -118,6 +118,9 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   // `&boardpad=1` (any screen but controls): a fake Xbox pad was the last input, so the board shows pad glyphs.
   if (params.get("boardpad") === "1")
     notePadInput(detectPad("Xbox 360 Controller (STANDARD GAMEPAD Vendor: 045e Product: 028e)"));
+  // `&padhold=lt|rt` (with `boardpad=1`): the board draws that hold layer's sheet as if the trigger were held.
+  const padHold = params.get("padhold");
+  if (padHold === "lt" || padHold === "rt") (globalThis as { __devPadHold?: string }).__devPadHold = padHold;
 
   if (screen === "scenario-select" || screen === "seats" || screen === "table-setup" || screen === "set-cards") {
     // `&scenario=<id>&deck=<precon deck id>`: which scenario/precon this dev jump seats, for screenshotting a

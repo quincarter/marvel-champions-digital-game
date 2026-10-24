@@ -16,6 +16,7 @@
  */
 
 import type { GamepadIntent } from "./gamepad.js";
+import { keyLabelOfCode } from "./key-labels.js";
 
 export type KeyboardHand = "left" | "right";
 export const KEYBOARD_HAND_VALUES: readonly KeyboardHand[] = ["left", "right"];
@@ -43,6 +44,8 @@ export type ShortcutId =
   | "undo"
   | "pause"
   | "log"
+  /** Reopens the last villain phase recap (the drawer handle's press); `log` is the game log. */
+  | "recap"
   | "zoneUp"
   | "zoneDown"
   /** Aliases of `zoneUp` / `zoneDown` (the board's Previous / Next zone). */
@@ -55,6 +58,8 @@ export type ShortcutId =
 
 /** One key chord: the caps to draw, and what a keydown must carry to match. */
 export interface KeyChord {
+  /** The printed key (`KeyboardEvent.key`, lower case) that also matches, for a chord people press by letter: Ctrl+Z. */
+  readonly printed?: string;
   /** Caps as drawn, modifier first: ["Shift", "Space"]. */
   readonly caps: readonly string[];
   /** `KeyboardEvent.code` of the main key. */
@@ -97,10 +102,19 @@ function capOf(code: string): string {
 }
 
 /** `chord("KeyE")`, `chord("Space", { shift: true })`, `chord("KeyZ", { ctrl: true })`. */
-function chord(code: string, mods: { readonly shift?: boolean; readonly ctrl?: boolean } = {}): KeyChord {
+function chord(
+  code: string,
+  mods: { readonly shift?: boolean; readonly ctrl?: boolean; readonly printed?: string } = {},
+): KeyChord {
   const shift = mods.shift === true;
   const ctrl = mods.ctrl === true;
-  return { caps: [...(ctrl ? ["Ctrl"] : []), ...(shift ? ["Shift"] : []), capOf(code)], code, shift, ctrl };
+  return {
+    caps: [...(ctrl ? ["Ctrl"] : []), ...(shift ? ["Shift"] : []), capOf(code)],
+    code,
+    shift,
+    ctrl,
+    ...(mods.printed ? { printed: mods.printed } : {}),
+  };
 }
 
 const ARROWS = { moveUp: "ArrowUp", moveDown: "ArrowDown", moveLeft: "ArrowLeft", moveRight: "ArrowRight" } as const;
@@ -134,9 +148,11 @@ function bindingsFor(hand: KeyboardHand): Readonly<Record<ShortcutId, readonly K
     endTurn: left
       ? [chord("Space", { shift: true }), chord("Enter", { shift: true })]
       : [chord("Enter", { shift: true })],
-    undo: [chord("KeyZ", { ctrl: true })],
+    // By the printed Z as well as the physical key: Ctrl+Z is a letter people press by name, on AZERTY too.
+    undo: [chord("KeyZ", { ctrl: true, printed: "z" })],
     pause: [chord("Escape")],
-    log: [chord(left ? "KeyB" : "KeyN")],
+    recap: [chord(left ? "KeyB" : "KeyN")],
+    log: [chord(left ? "KeyB" : "KeyN", { shift: true })],
     zoneUp,
     zoneDown,
     zonePrevious: zoneUp,
@@ -160,16 +176,30 @@ export function shortcutKeys(id: ShortcutId, hand: KeyboardHand): readonly KeyCh
 
 /** The caps to draw for a shortcut under this hand: its primary chord. */
 export function shortcutCaps(id: ShortcutId, hand: KeyboardHand): readonly string[] {
-  return BINDINGS[hand][id][0]!.caps;
+  const primary = BINDINGS[hand][id][0]!;
+  // The main key's cap follows the user's layout where the browser tells us (AZERTY reads Z Q S D, not W A S D).
+  // A chord pressed by its printed letter (Ctrl+Z) already says that letter.
+  const label = primary.printed ? null : keyLabelOfCode(primary.code);
+  if (label === null) return primary.caps;
+  return [...primary.caps.slice(0, -1), label];
 }
 
 /** True when a keydown (`code`, modifiers) is this chord. Shift and Ctrl/Cmd must match exactly. */
 export function chordMatches(
   chordToMatch: KeyChord,
-  event: { readonly code: string; readonly shiftKey: boolean; readonly ctrlKey: boolean; readonly metaKey?: boolean },
+  event: {
+    readonly code: string;
+    readonly key?: string;
+    readonly shiftKey: boolean;
+    readonly ctrlKey: boolean;
+    readonly metaKey?: boolean;
+  },
 ): boolean {
+  const keyMatches =
+    event.code === chordToMatch.code ||
+    (chordToMatch.printed !== undefined && event.key?.toLowerCase() === chordToMatch.printed);
   return (
-    event.code === chordToMatch.code &&
+    keyMatches &&
     event.shiftKey === chordToMatch.shift &&
     (event.ctrlKey || event.metaKey === true) === chordToMatch.ctrl
   );
@@ -177,7 +207,13 @@ export function chordMatches(
 
 /** The shortcut a keydown means under this hand, or null. Where two shortcuts share a chord (zones and Peek / Expand), the first listed wins; the caller picks by context. */
 export function shortcutsFor(
-  event: { readonly code: string; readonly shiftKey: boolean; readonly ctrlKey: boolean; readonly metaKey?: boolean },
+  event: {
+    readonly code: string;
+    readonly key?: string;
+    readonly shiftKey: boolean;
+    readonly ctrlKey: boolean;
+    readonly metaKey?: boolean;
+  },
   hand: KeyboardHand,
 ): readonly ShortcutId[] {
   return (Object.keys(BINDINGS[hand]) as ShortcutId[]).filter((id) =>
@@ -212,6 +248,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { id: "endTurn", keys: shortcutCaps("endTurn", "left"), padIntent: "endTurn", label: "End turn" },
   { id: "undo", keys: shortcutCaps("undo", "left"), padIntent: "undo", label: "Undo" },
   { id: "pause", keys: shortcutCaps("pause", "left"), padIntent: "pause", label: "Pause" },
+  { id: "recap", keys: shortcutCaps("recap", "left"), padIntent: "view", label: "Villain phase recap" },
   { id: "log", keys: shortcutCaps("log", "left"), padIntent: "view", label: "Game log" },
   { id: "zoneUp", keys: shortcutCaps("zoneUp", "left"), padIntent: "pagePrevious", label: "Previous zone" },
   { id: "zoneDown", keys: shortcutCaps("zoneDown", "left"), padIntent: "pageNext", label: "Next zone" },

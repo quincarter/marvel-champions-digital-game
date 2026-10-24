@@ -40,12 +40,28 @@ describe("glyphsForShortcut", () => {
     expect(glyphsForShortcut("inspect", keyboard, right)?.map((g) => g.label)).toEqual(["O"]);
   });
 
-  test("pad: a shortcut under a hold layer is the trigger plus the button", () => {
-    expect(glyphsForShortcut("attack", padState(XBOX), settings)?.map((g) => g.label)).toEqual(["LT", "A"]);
-    expect(glyphsForShortcut("undo", padState(XBOX), settings)?.map((g) => g.label)).toEqual(["LT", "LB"]);
-    expect(glyphsForShortcut("ability2", padState(PS), settings)?.map((g) => g.label)).toEqual(
-      ["L2", "□"].slice(0, 0).concat(["R2", "□"]),
-    );
+  test("pad: a layered action shows no glyph at rest, and only its button while its trigger is held", () => {
+    expect(glyphsForShortcut("attack", padState(XBOX), settings)).toBeNull();
+    expect(glyphsForShortcut("attack", padState(XBOX), settings, "lt")?.map((g) => g.label)).toEqual(["A"]);
+    expect(glyphsForShortcut("undo", padState(XBOX), settings, "lt")?.map((g) => g.label)).toEqual(["LB"]);
+    expect(glyphsForShortcut("attack", padState(XBOX), settings, "rt")).toBeNull();
+    expect(glyphsForShortcut("ability2", padState(PS), settings, "rt")?.map((g) => g.label)).toEqual(["□"]);
+  });
+
+  test("pad: while a trigger is held every base hint steps aside; the keyboard ignores layers", () => {
+    expect(glyphsForShortcut("activate", padState(XBOX), settings)?.map((g) => g.label)).toEqual(["A"]);
+    expect(glyphsForShortcut("activate", padState(XBOX), settings, "lt")).toBeNull();
+    expect(glyphsForShortcut("attack", keyboard, settings, "lt")?.map((g) => g.label)).toEqual(["Z"]);
+  });
+
+  test("the game log is a hold of View on a pad and Shift+B at the keyboard; the recap is View / B", () => {
+    expect(glyphsForShortcut("log", padState(XBOX), settings)?.map((g) => g.label)).toEqual([
+      "Hold",
+      expect.any(String),
+    ]);
+    expect(glyphsForShortcut("log", keyboard, settings)?.map((g) => g.label)).toEqual(["Shift", "B"]);
+    expect(glyphsForShortcut("recap", keyboard, settings)?.map((g) => g.label)).toEqual(["B"]);
+    expect(glyphsForShortcut("recap", padState(XBOX), settings)).toHaveLength(1);
   });
 
   test("pad: null for a keyboard-only shortcut", () => {

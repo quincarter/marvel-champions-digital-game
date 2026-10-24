@@ -50,6 +50,8 @@ export type GamepadIntent =
   | "pause"
   /** View / Select / −: the board's game log; on a decision popup, Peek at table. */
   | "view"
+  /** A tap of View on the Board: reopen the last villain phase recap (a hold is `view`, the log). */
+  | "recap"
   /** The right stick's press (R3): Expand / Collapse a decision popup. */
   | "expand";
 

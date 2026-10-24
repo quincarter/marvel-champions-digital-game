@@ -200,7 +200,12 @@ const PAD_ROWS: readonly PadRowDef[] = [
   { id: "inspect", index: 3, action: "Inspect · hold to zoom", note: "Where a card has focus" },
   { id: "pagePrevious", index: 4, action: "Previous zone · page", note: "Table: previous zone. Lists: previous page" },
   { id: "pageNext", index: 5, action: "Next zone · page", note: "Table: next zone. Lists: next page" },
-  { id: "view", index: 8, action: "Game log · Peek at table", note: "On the table; Peek on a decision popup" },
+  {
+    id: "view",
+    index: 8,
+    action: "Villain phase recap · hold for game log",
+    note: "On the table: tap reopens the last villain phase, hold opens the log. Peek on a decision popup",
+  },
   { id: "pause", index: 9, action: "Pause", note: "Anywhere in a game" },
   {
     id: "scroll",
@@ -324,6 +329,7 @@ export function keyboardGroupsOf(hand: KeyboardHand = "left"): readonly Keyboard
           action: "Zone up · down",
           note: "Jump between hand, play area, villain and actions",
         },
+        shortcutRow("recap", hand, "Reopens the last villain phase's recap"),
         shortcutRow("log", hand, "Opens the game log"),
         shortcutRow("teamUp", hand, "When a Team-Up is available"),
         shortcutRow("evidence", hand, "When evidence is on the table"),

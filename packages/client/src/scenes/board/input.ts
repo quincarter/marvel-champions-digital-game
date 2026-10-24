@@ -18,6 +18,16 @@ import {
   usesNintendoSwap,
   type PadIdentity,
 } from "../../view/pad-family.js";
+import {
+  NO_TRIGGERS,
+  TRIGGER_BUTTONS,
+  isLayerButton,
+  layerOfHolds,
+  triggerHoldAfter,
+  type TriggerHold,
+} from "../../view/pad-layer-hold.js";
+import type { PadLayer } from "../../view/pad-layer-bindings.js";
+import { createHoldTap } from "../../view/pad-hold-tap.js";
 import { createPadRepeater, scrollDelta, stickDirection } from "../../view/pad-repeat.js";
 import type { FocusDirection } from "../../view/spatial-nav.js";
 import { notePadInput } from "../../platform/input-device.js";
@@ -33,6 +43,21 @@ export interface IntentBinding {
    * positive dy down) and the frame's time. Optional: a screen with nothing to scroll leaves it out.
    */
   onScroll?(dx: number, dy: number, dtMs: number): void;
+  /**
+   * LT or RT is held (or let go: null), called on each change. A screen that wants the hold layers
+   * (`view/pad-layers.ts`) wires this with `onLayerPress`; one that does not keeps every button's base meaning.
+   */
+  onLayer?(layer: PadLayer | null): void;
+  /**
+   * A face button or bumper pressed while a layer is held, as its standard-layout meaning index (0-5, after the
+   * Nintendo swap). Left out, the press keeps its base intent.
+   */
+  onLayerPress?(layer: PadLayer, meaningIndex: number): void;
+  /**
+   * Splits View: a tap calls this (the Board reopens the villain phase recap) and a hold of about 400 ms sends the
+   * `view` intent (the game log). Left out, View is the `view` intent the moment it is pressed, as on every other screen.
+   */
+  onViewTap?(): void;
 }
 
 /**
@@ -160,6 +185,42 @@ export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
     scene.input.enabled === false ||
     scene.input.keyboard?.enabled === false;
 
+  // Each pad's own trigger hysteresis (`view/pad-layer-hold.ts`), and the layer last reported through `onLayer`.
+  const triggers = new Map<number, TriggerHold>();
+  // The trigger's value read from the browser's own Gamepad at the moment asked: Phaser's copy is only as fresh as its
+  // last poll, so a trigger pulled in the same frame as a face button would still read as up.
+  const rawTrigger = (pad: Phaser.Input.Gamepad.Gamepad, index: number): number => {
+    const browser = globalThis.navigator?.getGamepads?.()?.[pad.index] ?? pad.pad;
+    return browser?.buttons?.[index]?.value ?? pad.buttons[index]?.value ?? 0;
+  };
+  const readTriggers = (pad: Phaser.Input.Gamepad.Gamepad): TriggerHold => {
+    const next = triggerHoldAfter(
+      triggers.get(pad.index) ?? NO_TRIGGERS,
+      rawTrigger(pad, TRIGGER_BUTTONS.lt),
+      rawTrigger(pad, TRIGGER_BUTTONS.rt),
+    );
+    triggers.set(pad.index, next);
+    return next;
+  };
+  let reportedLayer: PadLayer | null = null;
+  /** The layer any usable pad holds now (the first pulled wins, across pads), reported through `onLayer` on change. */
+  const syncLayer = (blocked: boolean): PadLayer | null => {
+    const holds: TriggerHold[] = [];
+    for (const pad of gamepad.gamepads) {
+      if (!pad?.connected || !usable(pad) || systemChordHeld(pad)) continue;
+      holds.push(readTriggers(pad));
+    }
+    // A blocked screen has no layer to show: a trigger held through an overlay ends the layer at once.
+    const layer = blocked ? null : layerOfHolds(holds, reportedLayer);
+    if (layer !== reportedLayer) {
+      reportedLayer = layer;
+      binding.onLayer?.(layer);
+    }
+    return layer;
+  };
+  const viewHold = createHoldTap();
+  const VIEW_BUTTON = 8;
+
   gamepad.on("down", (pad: Phaser.Input.Gamepad.Gamepad, button: Phaser.Input.Gamepad.Button) => {
     if (!usable(pad)) return;
     const identity = identityOf(pad);
@@ -174,8 +235,26 @@ export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
       settings.nintendoLayout,
       identity,
     );
-    const intent = gamepadIntentFor(physicalIndexOf(button.index, swap));
+    const meaning = physicalIndexOf(button.index, swap);
+    if (binding.onViewTap && meaning === VIEW_BUTTON) {
+      viewHold.press(scene.time.now);
+      return;
+    }
+    if (binding.onLayerPress && isLayerButton(meaning)) {
+      // The layer across every pad, not only the one pressed: a trigger on one pad and a button on another still counts.
+      const layer = syncLayer(false);
+      if (layer !== null) {
+        binding.onLayerPress(layer, meaning);
+        return;
+      }
+    }
+    const intent = gamepadIntentFor(meaning);
     if (intent) binding.onIntent(intent);
+  });
+
+  gamepad.on("up", (pad: Phaser.Input.Gamepad.Gamepad, button: Phaser.Input.Gamepad.Button) => {
+    if (!binding.onViewTap || button.index !== VIEW_BUTTON || !usable(pad)) return;
+    if (viewHold.release(scene.time.now) === "tap" && !held()) binding.onViewTap();
   });
 
   const repeater = createPadRepeater();
@@ -221,6 +300,11 @@ export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
       if (touched) notePadInput(identity);
     }
     const blocked = held();
+    if (binding.onLayer || binding.onLayerPress) syncLayer(blocked);
+    if (binding.onViewTap) {
+      if (blocked) viewHold.cancel();
+      else if (viewHold.poll(scene.time.now) === "hold") binding.onIntent("view");
+    }
     const fire = repeater.update(direction ?? lean, time, !blocked);
     if (fire) binding.onIntent(fire);
     if (scroll && !blocked) binding.onScroll?.(scroll.dx, scroll.dy, delta);

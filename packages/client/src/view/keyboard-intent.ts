@@ -16,6 +16,8 @@ import type { BasicAction } from "./highlights.js";
 /** The parts of a `KeyboardEvent` the map reads. */
 export interface KeyEventLike {
   readonly code: string;
+  /** The printed key, for the chords matched by letter (Ctrl+Z). */
+  readonly key?: string;
   readonly shiftKey: boolean;
   readonly ctrlKey: boolean;
   readonly metaKey?: boolean;
@@ -52,6 +54,8 @@ export function navIntentOf(event: KeyEventLike, hand: KeyboardHand): GamepadInt
     const move = MOVES[id];
     if (move) return move;
   }
+  // A held key repeats and only the moves (and Tab) are meant to: a held Select would press the same thing again.
+  if (event.repeat === true) return null;
   if (ids.includes("activate")) return "activate";
   if (ids.includes("cancel")) return "cancel";
   if (ids.includes("inspect")) return "inspect";
@@ -65,6 +69,7 @@ export type BoardKeyAction =
   | { readonly kind: "undo" }
   | { readonly kind: "zone"; readonly step: 1 | -1 }
   | { readonly kind: "log" }
+  | { readonly kind: "recap" }
   | { readonly kind: "teamUp" }
   | { readonly kind: "evidence" }
   /** The `slot`th (0-based) usable ability on your cards in play (`view/ability-slots.ts`). */
@@ -81,6 +86,7 @@ const BOARD_IDS: Readonly<Partial<Record<ShortcutId, BoardKeyAction>>> = {
   endTurn: { kind: "endTurn" },
   undo: { kind: "undo" },
   log: { kind: "log" },
+  recap: { kind: "recap" },
   teamUp: { kind: "teamUp" },
   evidence: { kind: "evidence" },
   ability1: { kind: "ability", slot: 0 },

@@ -98,7 +98,9 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
   }
 
   const stacked = rect.height >= hit.target + hit.primary;
-  const showGlyphs = glyphsFitLayout(ctx.tabbed);
+  // Keys and base pad hints do not fit a phone's bar, but the LT layer's own buttons (A on Attack, LB on Undo, ...) are
+  // pad-only and do, so a phone still gets them while a trigger is held.
+  const hintOptions = glyphsFitLayout(ctx.tabbed) ? {} : { when: (set: string) => set === "pad" };
   // Spectrum's energy/density/mass forms, Ant-Man/Wasp's Giant form: more than one destination is legal, so the
   // button can no longer say *which* way the flip goes — it opens the "Which form?" picker instead
   // (`view/change-form-choice.ts`, `controller-bar.ts`'s own `drawFormBar`).
@@ -160,8 +162,7 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
       onClick: () => controller.chooseBasic(action),
     });
     ctx.frame.buttons.push(basicButton);
-    // The basic actions have keys (A, H, R, F) but no pad button, so `glyphsForShortcut` gives a pad no glyph here.
-    if (showGlyphs) ctx.hints.button(basicButton, [BASIC_SHORTCUT[action]], "ink");
+    ctx.hints.button(basicButton, [BASIC_SHORTCUT[action]], "ink", hintOptions);
   });
 
   // The one red fill in the bar: the forward action of the table.
@@ -195,7 +196,7 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
       onClick: () => void controller.undo(),
     });
     ctx.frame.buttons.push(undoButton);
-    if (showGlyphs) ctx.hints.button(undoButton, ["undo"], "ink");
+    ctx.hints.button(undoButton, ["undo"], "ink", hintOptions);
   }
   ctx.frame.focusRects.set(focusKey({ kind: "basic", action: "endTurn" }), endTurnRect);
   const endTurnButton = new McButton(scene, {
@@ -209,7 +210,7 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
     onClick: () => void controller.dispatchExample("endTurn"),
   });
   ctx.frame.buttons.push(endTurnButton);
-  if (showGlyphs) ctx.hints.button(endTurnButton, ["endTurn"], "ink");
+  ctx.hints.button(endTurnButton, ["endTurn"], "ink", hintOptions);
 
   // The advisory line: a prompt while targeting, otherwise the engine's last
   // rejection. Caution yellow, never red — red is the action, not the alarm.

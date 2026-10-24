@@ -13,6 +13,26 @@ function key(code: string, mods: Partial<KeyEventLike> = {}): KeyEventLike {
 }
 
 describe("navIntentOf", () => {
+  it("a held key repeats only the moves: Select, Back, Inspect and the guide fire once", () => {
+    const held = { repeat: true };
+    expect(navIntentOf(key("KeyW", held), "left")).toBe("up");
+    expect(navIntentOf(key("Tab", held), "left")).toBe("next");
+    expect(navIntentOf(key("Space", held), "left")).toBeNull();
+    expect(navIntentOf(key("Enter", held), "left")).toBeNull();
+    expect(navIntentOf(key("Escape", held), "left")).toBeNull();
+    expect(navIntentOf(key("KeyE", held), "left")).toBeNull();
+    expect(navIntentOf(key("KeyG", held), "left")).toBeNull();
+    expect(navIntentOf(key("Space"), "left")).toBe("activate");
+  });
+
+  it("Ctrl+Z is Undo by the printed Z as well as the physical key (AZERTY)", () => {
+    expect(boardKeyActionOf(key("KeyZ", { ctrlKey: true, key: "z" }), "left")).toEqual({ kind: "undo" });
+    // AZERTY: the printed Z is on the physical W key.
+    expect(boardKeyActionOf(key("KeyW", { ctrlKey: true, key: "z" }), "left")).toEqual({ kind: "undo" });
+    expect(boardKeyActionOf(key("KeyW", { ctrlKey: true, key: "w" }), "left")).toBeNull();
+    expect(boardKeyActionOf(key("KeyW", { key: "z" }), "left")).toBeNull();
+  });
+
   it("moves with WASD and the arrows left-handed, IJKL and the arrows right-handed", () => {
     expect(["KeyW", "KeyS", "KeyA", "KeyD"].map((c) => navIntentOf(key(c), "left"))).toEqual([
       "up",
@@ -131,8 +151,11 @@ describe("boardKeyActionOf", () => {
   });
 
   it("opens the log, Team-Up and Evidence by hand", () => {
-    expect(boardKeyActionOf(key("KeyB"), "left")).toEqual({ kind: "log" });
-    expect(boardKeyActionOf(key("KeyN"), "right")).toEqual({ kind: "log" });
+    // B / N reopen the villain phase recap; Shift+B / Shift+N are the log.
+    expect(boardKeyActionOf(key("KeyB"), "left")).toEqual({ kind: "recap" });
+    expect(boardKeyActionOf(key("KeyN"), "right")).toEqual({ kind: "recap" });
+    expect(boardKeyActionOf(key("KeyB", { shiftKey: true }), "left")).toEqual({ kind: "log" });
+    expect(boardKeyActionOf(key("KeyN", { shiftKey: true }), "right")).toEqual({ kind: "log" });
     expect(boardKeyActionOf(key("KeyT"), "left")).toEqual({ kind: "teamUp" });
     expect(boardKeyActionOf(key("KeyY"), "right")).toEqual({ kind: "teamUp" });
     expect(boardKeyActionOf(key("KeyE", { shiftKey: true }), "left")).toEqual({ kind: "evidence" });

@@ -25,15 +25,22 @@ Status: building (owner answers 2026-10-24). Tracking issue #398. Branch `featur
    it. Its hint reads "Y Inspect · hold to zoom".
 9. **LT and RT are hold-to-shift layers (the owner, 2026-10-24).** Hold LT: A Attack, X Thwart, Y Recover, B Change
    form (Xbox positions; other families use the same positions). Hold RT: A / X / Y / B are the first four abilities
-   usable right now on your cards in play, in table order; LB / RB page when there are more. While a layer is held a
-   sheet by the action bar shows each button's action, greyed when unavailable. Undo and End turn move into the LT
-   layer as LT+LB and LT+RB (default picked; End turn always takes two buttons).
+   usable right now on your cards in play, in table order; LB / RB page when there are more. At rest one LT glyph sits
+   at the action bar's left end (above it on small screens) and one RT glyph by the play area; while a trigger is held
+   the face-button glyphs move onto what they now press (the basic-action buttons for LT, the cards in play for RT,
+   with LB / RB by the play area when paging), and return to the base hints on release (the owner, 2026-10-24). Undo and End turn move into the LT
+   layer as LT+LB and LT+RB (default picked; End turn always takes two buttons). The first trigger pulled owns the
+   layer until it is released. On a Nintendo-layout pad with the Switch layout setting on, layer presses act by the
+   printed label (decision 2), not by position: the button labelled A is the one that means A.
 10. **Keyboard is one-handed, left hand by default (the owner, 2026-10-24).** Move WASD, select Space, back Q, inspect E
     (hold to zoom), Z X C V Attack / Thwart / Recover / Change form (the LT layer), 1-4 card abilities (the RT layer; 1-3
     still answer an open choice bar), End turn Shift+Space, Undo Ctrl+Z, zones R up / F down, game log B, guide G,
     Team-Up T, Evidence Shift+E; on a decision popup R Peek, F Expand / Collapse. Arrows, Enter and Esc keep working.
     A "Keyboard hand: Left / Right" setting mirrors it for left-handed mouse players: IJKL, Enter, U, O, M , . /,
     7-0, Shift+Enter, zones P / ;. Glyphs and the Controls screen show the active hand.
+11. **View / Select / Create / − reopens the villain phase recap (the owner, 2026-10-24),** the same as the table's
+    drawer handle; holding it opens the game log. On a decision popup it stays Peek at table. Keyboard: B / N recap,
+    Shift+B / Shift+N log.
 
 ## What exists today
 

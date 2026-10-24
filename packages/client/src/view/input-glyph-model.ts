@@ -9,7 +9,13 @@ import type { Settings } from "../settings.js";
 import { gamepadButtonFor } from "./gamepad.js";
 import { glyphSetOf, type InputModeState } from "./input-mode.js";
 import { shortcutCaps, shortcutOf, type KeyboardHand, type ShortcutId } from "./input-shortcuts.js";
-import { LAYER_TRIGGER_INDEX, layerBindingOf, type LayerActionId } from "./pad-layer-bindings.js";
+import {
+  LAYER_BUTTONS,
+  LAYER_TRIGGER_INDEX,
+  layerBindingOf,
+  type LayerActionId,
+  type PadLayer,
+} from "./pad-layer-bindings.js";
 import {
   faceColorOf,
   padGlyphOf,
@@ -79,11 +85,51 @@ export function padGlyphSpec(meaningIndex: number, family: PadFamily, swap: bool
   };
 }
 
-/** The glyphs for a shortcut right now, or null when none should be drawn (touch, setting off, no pad button). */
+/** The family and Nintendo swap this pad is drawn with (decision 2). */
+function padLook(state: InputModeState, settings: GlyphSettings): { family: PadFamily; swap: boolean } {
+  const family = resolvePadFamily(settings.padGlyphFamily, state.pad);
+  return { family, swap: usesNintendoSwap(family, settings.nintendoLayout, state.pad) };
+}
+
+/** The trigger that opens a layer, as this pad prints it: the glyph that sits at rest by the action bar or play area. */
+export function layerTriggerGlyph(
+  layer: PadLayer,
+  state: InputModeState,
+  settings: GlyphSettings,
+): PadGlyphSpec | null {
+  const { family } = padLook(state, settings);
+  return padGlyphSpec(LAYER_TRIGGER_INDEX[layer], family, false);
+}
+
+/** The button that does `action` under its layer, as this pad prints it (the glyph that moves onto a control). */
+export function layerButtonGlyph(
+  action: LayerActionId,
+  state: InputModeState,
+  settings: GlyphSettings,
+): PadGlyphSpec | null {
+  const binding = layerBindingOf(action);
+  if (binding === null) return null;
+  const { family, swap } = padLook(state, settings);
+  return padGlyphSpec(binding.index, family, swap);
+}
+
+/** The `LAYER_BUTTONS` entry for a layer's slot (0-3) of abilities: which action id the Nth card ability is. */
+export function abilityActionOfSlot(slot: number): LayerActionId | null {
+  return LAYER_BUTTONS.rt.filter(([, action]) => action.startsWith("ability"))[slot]?.[1] ?? null;
+}
+
+/**
+ * The glyphs for a shortcut right now, or null when none should be drawn (touch, setting off, no pad button).
+ *
+ * `layer` is the pad's hold layer (`view/pad-layers.ts`), null at rest. At rest a pad draws the base hints and none of
+ * the layered actions (the triggers' own glyphs mark where the layers are); while a trigger is held the base hints
+ * step aside and the layer's own buttons show alone, on whatever they now press. The keyboard ignores layers.
+ */
 export function glyphsForShortcut(
   id: ShortcutId,
   state: InputModeState,
   settings: GlyphSettings,
+  layer: PadLayer | null = null,
 ): readonly GlyphSpec[] | null {
   const set = glyphSetOf(state, settings.inputGlyphs);
   if (set === null) return null;
@@ -94,13 +140,18 @@ export function glyphsForShortcut(
   }
   const layered = LAYERED[id];
   if (layered !== undefined) {
+    if (layer === null) return null;
     const binding = layerBindingOf(layered);
-    if (binding === null) return null;
-    const family = resolvePadFamily(settings.padGlyphFamily, state.pad);
-    const swap = usesNintendoSwap(family, settings.nintendoLayout, state.pad);
-    const trigger = padGlyphSpec(LAYER_TRIGGER_INDEX[binding.layer], family, false);
-    const button = padGlyphSpec(binding.index, family, swap);
-    return trigger && button ? [trigger, button] : null;
+    if (binding === null || binding.layer !== layer) return null;
+    const button = layerButtonGlyph(layered, state, settings);
+    return button ? [button] : null;
+  }
+  // Under a held trigger every base hint steps aside.
+  if (layer !== null) return null;
+  if (id === "log") {
+    // The log is a hold of View (a tap is the recap): "Hold" then the button.
+    const view = padGlyphSpec(gamepadButtonFor("view") ?? 8, padLook(state, settings).family, false);
+    return view ? [{ kind: "key", label: "Hold", name: "Hold" }, view] : null;
   }
   if (shortcut.padIntent === null) return null;
   const index = gamepadButtonFor(shortcut.padIntent);

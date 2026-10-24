@@ -90,6 +90,11 @@ import { ASPECT_TRYIT_LESSONS } from "../guide/aspect-lessons.js";
 import { MECHANIC_TRYIT_LESSONS } from "../guide/mechanic-lessons.js";
 import { MECHANIC_TRYITS, mechanicLessonDoneKey } from "../guide/mechanic-tryits.js";
 import { drawActionBar } from "./board/action-bar.js";
+import { specsForShortcuts, type CustomSpecs } from "../ui/glyph-hints.js";
+import { abilityActionOfSlot, layerButtonGlyph, layerTriggerGlyph, type GlyphSpec } from "../view/input-glyph-model.js";
+import { abilityPageCount, abilityPageOf, layerActionOf, type PadLayer } from "../view/pad-layers.js";
+import type { LayerActionId } from "../view/pad-layer-bindings.js";
+import { nextAbilityPage } from "../view/pad-layer-hold.js";
 import { drawCharacter } from "./board/character-panel.js";
 import { drawDealtPile } from "./board/dealt-pile.js";
 import { dealtCaption, dealtReasonsOf } from "../view/dealt-pile.js";
@@ -217,6 +222,13 @@ export class BoardScene extends Phaser.Scene {
    */
   #logAt = new Map<number, { readonly log: LogState; readonly cardHistory: CardHistoryLog }>();
   #choiceOpen = false;
+  /** The hold layer LT / RT has the pad in (`view/pad-layers.ts`), its ability page, and the sheet drawn for it. */
+  #padLayer: PadLayer | null = null;
+  #layerPage = 0;
+  /** The page's abilities by card, for the RT layer's glyphs on the cards; rebuilt when the layer, page or table changes. */
+  #layerAssign: ReadonlyMap<InstanceId, readonly LayerActionId[]> | null = null;
+  /** The "page n/m" word beside the paging glyph, rewritten as the page turns. */
+  #pageWord: Phaser.GameObjects.Text | null = null;
   /** Set by `#openVillainWalkthrough`'s launch until the walkthrough is actually running (`#tableCoveredForBand`). */
   #walkthroughLaunching = false;
   #saveFailureAnnounced = false;
@@ -392,6 +404,13 @@ export class BoardScene extends Phaser.Scene {
     ]);
     this.#watchGuideHint();
     this.#walkthroughLaunching = false;
+    // Dev only: `?padhold=lt|rt` (`boot-dev-jump.ts`) shows a layer's sheet with no real trigger, for screenshots.
+    const devHold = import.meta.env.DEV ? (globalThis as { __devPadHold?: unknown }).__devPadHold : undefined;
+    this.#padLayer = devHold === "lt" || devHold === "rt" ? devHold : null;
+    this.#layerPage = 0;
+    this.#layerAssign = null;
+    this.#pageWord = null;
+    this.#hints.setLayer(this.#padLayer);
     this.#outcomeHeld = false;
     this.#villainReplay = null;
     holdTableGame(null);
@@ -529,9 +548,14 @@ export class BoardScene extends Phaser.Scene {
         // on top of it.
         this.scene.isActive(SCENES.holdOn) ||
         // The "You can still…" question owns the keys too: a shortcut must not act on the table beneath it.
-        this.scene.isActive(SCENES.endTurnConfirm),
+        this.scene.isActive(SCENES.endTurnConfirm) ||
+        // The "Achievement unlocked" popup owns B (it dismisses on it): the same press must not also reach the table.
+        this.scene.isActive(SCENES.achievementToast),
       onIntent: (intent) => this.#actOnIntent(intent),
       onScroll: (dx, dy) => this.#scrollFocused(dx, dy),
+      onLayer: (layer) => this.#setPadLayer(layer),
+      onViewTap: () => this.#actOnIntent("recap"),
+      onLayerPress: (layer, index) => this.#pressLayer(layer, index),
     };
     bindKeyboard(this, binding);
     this.#bindBoardShortcuts(binding);
@@ -1391,6 +1415,8 @@ export class BoardScene extends Phaser.Scene {
     }
     drawHand(ctx, zones.hand!, model);
     drawActionBar(ctx, zones.actionBar!, model);
+    this.#layerAssign = null;
+    this.#registerLayerHints(layout);
     this.#drawTargetingPanel(ctx, { x: 0, y: 0, width, height });
     const searchedPick = this.#controller.searchedPick();
     if (searchedPick) drawSearchedPickSheet(ctx, { x: 0, y: 0, width, height }, searchedPick);
@@ -1622,6 +1648,9 @@ export class BoardScene extends Phaser.Scene {
       case "pause":
         this.#openPause();
         break;
+      case "recap":
+        this.#openVillainReview();
+        break;
       case "view":
         this.#toggleLogFocus();
         break;
@@ -1798,7 +1827,11 @@ export class BoardScene extends Phaser.Scene {
           break;
         case "undo":
           event.preventDefault();
-          void this.#controller.undo();
+          // The same press as LT + LB and the Undo button: greyed with its reason, or a no-op, exactly as there.
+          this.#actOnIntent("undo");
+          break;
+        case "recap":
+          this.#actOnIntent("recap");
           break;
         case "zone":
           this.#actOnIntent(shortcut.step > 0 ? "pageNext" : "pagePrevious");
@@ -1854,13 +1887,150 @@ export class BoardScene extends Phaser.Scene {
    * RT layer shares). It goes through the same path as the Inspect sheet's ability button (targets, payment), and only
    * while the board is idle: a decision in progress owns the keys.
    */
-  #useAbilityInSlot(slot: number): void {
-    if (this.#controller.selection.kind !== "idle") return;
-    const slots = abilitySlotsOf(this.#controller.focusOrder(), (id) =>
+  #useAbilityInSlot(slot: number, page = 0): void {
+    const pick = abilityInSlot(this.#abilitySlots(), slot, page);
+    if (pick) this.#controller.useAbilityById(pick.instanceId, pick.abilityId);
+  }
+
+  /** The usable abilities the numbered slots (and the pad's RT layer) pick from; none while a decision is in progress. */
+  #abilitySlots(): readonly { readonly instanceId: InstanceId; readonly abilityId: AbilityId }[] {
+    if (this.#controller.selection.kind !== "idle") return [];
+    return abilitySlotsOf(this.#controller.focusOrder(), (id) =>
       this.#controller.usableAbilitiesFor(id).map((entry) => ({ instanceId: id, abilityId: entry.action.abilityId })),
     );
-    const pick = abilityInSlot(slots, slot);
-    if (pick) this.#controller.useAbilityById(pick.instanceId, pick.abilityId);
+  }
+
+  /**
+   * LT / RT went down or up (`scenes/board/input.ts`): the hints move onto what the layer's buttons press, or back to the
+   * base hints (`ui/glyph-hints.ts#setLayer`); the page starts over each hold.
+   */
+  #setPadLayer(layer: PadLayer | null): void {
+    if (layer === this.#padLayer) return;
+    this.#padLayer = layer;
+    this.#layerPage = 0;
+    this.#layerAssign = null;
+    this.#syncPageWord();
+    this.#hints.setLayer(layer);
+  }
+
+  /** The "page n/m" word by the play area: the current page of the abilities. */
+  #syncPageWord(): void {
+    const word = this.#pageWord;
+    if (!word?.active) return;
+    const count = abilityPageCount(this.#abilitySlots());
+    word.setText(`page ${Math.min(this.#layerPage, count - 1) + 1}/${count}`);
+  }
+
+  /** The cards' RT glyphs: which of the four buttons does each card's abilities on the page showing. Cached until it changes. */
+  #layerAssignment(): ReadonlyMap<InstanceId, readonly LayerActionId[]> {
+    if (this.#layerAssign) return this.#layerAssign;
+    const slots = this.#abilitySlots();
+    const page = Math.min(this.#layerPage, abilityPageCount(slots) - 1);
+    const map = new Map<InstanceId, LayerActionId[]>();
+    abilityPageOf(slots, page).forEach((slot, index) => {
+      const action = abilityActionOfSlot(index);
+      if (action === null) return;
+      map.set(slot.instanceId, [...(map.get(slot.instanceId) ?? []), action]);
+    });
+    this.#layerAssign = map;
+    return map;
+  }
+
+  /**
+   * A face button or bumper pressed under a held layer. LT is the basic actions, Undo and End turn by the very paths the
+   * keyboard's keys take (so availability is the same); RT picks the Nth usable ability on the current page, and LB / RB
+   * turn the page.
+   */
+  #pressLayer(layer: PadLayer, meaningIndex: number): void {
+    const action = layerActionOf(layer, meaningIndex);
+    if (action === null) return;
+    switch (action) {
+      case "attack":
+      case "thwart":
+      case "recover":
+      case "changeForm":
+        if (this.#actionBarLive()) this.#pressBasic(action);
+        return;
+      case "undo":
+        this.#actOnIntent("undo");
+        return;
+      case "endTurn":
+        this.#actOnIntent("endTurn");
+        return;
+      case "pagePrevious":
+      case "pageNext": {
+        const count = abilityPageCount(this.#abilitySlots());
+        this.#layerPage = nextAbilityPage(this.#layerPage, count, action === "pageNext" ? 1 : -1);
+        this.#layerAssign = null;
+        this.#syncPageWord();
+        this.#hints.refresh();
+        return;
+      }
+      default: {
+        const slot = Number(action.slice("ability".length)) - 1;
+        const count = abilityPageCount(this.#abilitySlots());
+        this.#useAbilityInSlot(slot, Math.min(this.#layerPage, count - 1));
+      }
+    }
+  }
+
+  /**
+   * Registers the hold layers' own glyphs for this draw (the LT layer's A / X / Y / B / LB / RB are the action bar's own
+   * hints, `scenes/board/action-bar.ts`). At rest one LT glyph sits just above the action bar's left end and one RT glyph
+   * by the play area's caption; holding RT puts the page's four button glyphs on the cards that own those abilities, and
+   * LB / RB with "page n/m" where the RT glyph was. All of it is pad-only and asked of the input set on every apply, so it
+   * follows the same mode flips as the base hints.
+   */
+  #registerLayerHints(layout: BoardLayout): void {
+    const bar = layout.zones.actionBar;
+    const triggerAtRest =
+      (layer: PadLayer): CustomSpecs =>
+      (set, snapshot, held): readonly GlyphSpec[] | null => {
+        if (set !== "pad" || held !== null) return null;
+        const spec = layerTriggerGlyph(layer, snapshot.state, snapshot.settings);
+        return spec ? [spec] : null;
+      };
+    if (bar && this.#actionBarLive()) {
+      const height = 16;
+      this.#hints.custom(triggerAtRest("lt"), height, () => ({ x: bar.x + 8, y: bar.y - height / 2 - 3 }));
+    }
+    const play = layout.zones.playArea;
+    if (!play) return;
+    const height = 14;
+    // The caption "YOUR PLAY AREA" is drawn at the zone's top-left (`drawPlayArea`); the glyph goes just past it.
+    const at = () => ({ x: play.x + 8 + 124, y: play.y + 12 });
+    this.#hints.custom(triggerAtRest("rt"), height, at);
+    this.#pageWord = this.add.text(0, 0, "", textStyle(typeRole.label, surface.ink.hex)).setOrigin(0, 0.5);
+    this.#syncPageWord();
+    this.#hints.custom(
+      (set, snapshot, held) => {
+        if (set !== "pad" || held !== "rt" || abilityPageCount(this.#abilitySlots()) <= 1) return null;
+        const previous = layerButtonGlyph("pagePrevious", snapshot.state, snapshot.settings);
+        const next = layerButtonGlyph("pageNext", snapshot.state, snapshot.settings);
+        return previous && next ? [previous, next] : null;
+      },
+      height,
+      at,
+      { ground: "paper", word: this.#pageWord },
+    );
+    // One glyph per card that has a usable ability: shown only under RT, only for the cards on the page showing.
+    for (const instanceId of new Set(this.#abilitySlots().map((slot) => slot.instanceId))) {
+      const rect = this.#frame.focusRects.get(focusKey({ kind: "card", instanceId }));
+      if (!rect) continue;
+      this.#hints.custom(
+        (set, snapshot, held) => {
+          if (set !== "pad" || held !== "rt") return null;
+          const specs = (this.#layerAssignment().get(instanceId) ?? []).flatMap((action) => {
+            const spec = layerButtonGlyph(action, snapshot.state, snapshot.settings);
+            return spec ? [spec] : [];
+          });
+          return specs.length > 0 ? specs : null;
+        },
+        18,
+        ({ width }) => ({ x: Math.max(rect.x + 2, rect.x + rect.width - width - 4), y: rect.y + rect.height - 14 }),
+        { ground: "ink" },
+      );
+    }
   }
 
   /**
@@ -2070,6 +2240,7 @@ export class BoardScene extends Phaser.Scene {
     const card = this.#placeFocusRing();
     // The legend strip above a focused card: what Select / Inspect / Esc do with it. Moved, not rebuilt, as focus steps.
     const { width, height } = this.scale.gameSize;
+    // While a hold layer's sheet is up the legend strip gives way to it (they would share the same strip of table).
     this.#hints.legend(card, { x: 0, y: 0, width, height }, this.#escapeMeaning());
     // Whatever a hint's `when` reads (the Esc glyph under MENU) may have changed with the focus.
     this.#hints.refresh();
@@ -2488,15 +2659,22 @@ export class BoardScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true })
       .setDepth(HANDLE_DEPTH);
     // A tap, not any release over it: a sideways swipe of the play area that lifted on the handle opened the recap (#227).
-    onTap(
-      zone,
-      () => {
-        if (this.scene.isActive(SCENES.villainPhase)) return;
-        this.scene.launch(SCENES.villainPhase, { before: null, review: review! } satisfies VillainPhaseLaunchData);
-      },
-      "villain-review",
-    );
+    onTap(zone, () => this.#openVillainReview(), "villain-review");
     this.#frame.focusRects.set("villain-review", rect);
+    // The key (B / N) or View button that does the same, on the handle's top edge (pad and keyboard only).
+    this.#hints.custom(
+      (set, snapshot, held) => specsForShortcuts(["recap"], snapshot, set === "pad" ? held : null),
+      16,
+      ({ width }) => ({ x: rect.x + (rect.width - width) / 2, y: rect.y + 14 }),
+      { ground: "ink" },
+    );
+  }
+
+  /** Reopens the last villain phase's recap over the table: the drawer handle's press, B / N and a tap of View. */
+  #openVillainReview(): void {
+    const review = appSession().villainReview;
+    if (!review || !this.#reviewHandleShown() || this.scene.isActive(SCENES.villainPhase)) return;
+    this.scene.launch(SCENES.villainPhase, { before: null, review } satisfies VillainPhaseLaunchData);
   }
 
   /** Whether the review handle is drawn this frame: the layout keeps a phone's play area out from under it. */
