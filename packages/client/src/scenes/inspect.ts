@@ -1164,13 +1164,13 @@ export class InspectOverlay extends Phaser.Scene {
   #drawRulesPanel(fullRect: Rect, model: InspectModel): void {
     // A card with nothing to say beside an open choice (a printed card in the Civil War builder) gets no heading and
     // no tall empty box: only the choice buttons, in a strip at the card's foot.
+    const sectionCount = this.#rulesSectionHeights(Math.max(1, fullRect.width - RULES_PAD * 2), model).length;
     const mode = rulesPanelMode(
-      this.#rulesSectionHeights(Math.max(1, fullRect.width - RULES_PAD * 2), model).length,
+      sectionCount,
       model.history.length,
       Boolean(this.#choice) && !this.#note,
       model.instanceId === ("" as InstanceId) && !this.#note,
     );
-    if (mode === "none") return;
     const compact = mode === "compact";
     const rect = compact ? compactRulesRect(fullRect, RULES_PAD, hit.primary) : fullRect;
     this.#drawShadow(rect);
@@ -1203,6 +1203,14 @@ export class InspectOverlay extends Phaser.Scene {
 
     const buttonsTop = rect.y + rect.height - pad - hit.primary;
     let y = rect.y + pad + RULES_TITLE_HEIGHT + RULES_SECTION_GAP;
+    // A printed card with nothing to add still gets its panel, saying so, so the sheet keeps one shape card to card.
+    if (!compact && sectionCount === 0 && model.history.length === 0)
+      this.add
+        .text(rect.x + pad, y, "No traits, keywords or rules notes on this card.", {
+          ...textStyle(typeRole.body, surface.paper.hex, 0.75),
+          fontSize: "13px",
+        })
+        .setWordWrapWidth(inner);
 
     // A main scheme's other side (issue #295): a secondary button, never the Enter default (`#primaryAction` below).
     const sideToggle = this.#sideToggle();
