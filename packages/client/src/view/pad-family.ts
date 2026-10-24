@@ -167,6 +167,17 @@ export function padGlyphOf(family: PadFamily, index: number): PadGlyph | null {
   }
 }
 
+/**
+ * The Xbox face buttons' letter colors, by standard-layout index (0 bottom A, 1 right B, 2 left X, 3 top Y). Only the
+ * Xbox family wears them; the letter sits on an ink disc. PlayStation, Switch and the handheld drawing stay plain.
+ */
+export const XBOX_FACE_COLORS: readonly [number, number, number, number] = [0x5cc451, 0xff5a4e, 0x4f9dff, 0xffd23f];
+
+/** The letter color for a face glyph, or null where the family has none. */
+export function faceColorOf(family: PadFamily, index: number): number | null {
+  return family === "xbox" && index >= 0 && index <= 3 ? XBOX_FACE_COLORS[index]! : null;
+}
+
 /** The family's display name for a toast or a Controls heading. */
 export function padFamilyName(family: PadFamily): string {
   return family === "xbox" ? "Xbox" : family === "playstation" ? "PlayStation" : "Nintendo Switch";

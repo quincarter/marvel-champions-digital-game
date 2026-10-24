@@ -34,6 +34,8 @@ import type { LessonListEntry } from "../view/lesson-model.js";
 import type { RoundDebriefData } from "./round-debrief.js";
 import { instanceId, playerId, type GameEvent } from "@mc/engine";
 import { devAspectOf } from "../guide/aspects.js";
+import { notePadInput } from "../platform/input-device.js";
+import { detectPad } from "../view/pad-family.js";
 
 /**
  * Dev-only screenshot entry point: `?screen=…` jumps straight past Title, for
@@ -113,6 +115,9 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   const params = new URLSearchParams(location.search);
   const screen = params.get("screen");
   if (!screen) return null;
+  // `&boardpad=1` (any screen but controls): a fake Xbox pad was the last input, so the board shows pad glyphs.
+  if (params.get("boardpad") === "1")
+    notePadInput(detectPad("Xbox 360 Controller (STANDARD GAMEPAD Vendor: 045e Product: 028e)"));
 
   if (screen === "scenario-select" || screen === "seats" || screen === "table-setup" || screen === "set-cards") {
     // `&scenario=<id>&deck=<precon deck id>`: which scenario/precon this dev jump seats, for screenshotting a
@@ -249,6 +254,25 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   }
   // `?screen=trophies`: the Trophy Room; seed saves into IndexedDB first to see earned rows.
   if (screen === "trophies") return { key: SCENES.trophyRoom, data: {} };
+  // `?screen=controls`: Settings ▸ Controls (`&pad=xbox|playstation|nintendo|handheld` fakes the last pad seen, for the drawing).
+  if (screen === "controls") {
+    const fakePads: Readonly<Record<string, string>> = {
+      xbox: "Xbox 360 Controller (STANDARD GAMEPAD Vendor: 045e Product: 028e)",
+      playstation: "DualSense Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 0ce6)",
+      nintendo: "Pro Controller (STANDARD GAMEPAD Vendor: 057e Product: 2009)",
+      handheld: "Steam Deck (STANDARD GAMEPAD Vendor: 28de Product: 1205)",
+    };
+    const fake = fakePads[params.get("pad") ?? ""];
+    if (fake) {
+      notePadInput(detectPad(fake));
+      // The status line reads the browser's connected pads: stand one in.
+      Object.defineProperty(navigator, "getGamepads", {
+        value: () => [{ connected: true, id: fake, index: 0, mapping: "standard", buttons: [], axes: [] }],
+        configurable: true,
+      });
+    }
+    return { key: SCENES.controls, data: {} };
+  }
   // `?screen=credits`: Art & Credits.
   if (screen === "credits") return { key: SCENES.credits, data: {} };
   // `?screen=extras-reader&book=book:rrg`: one rulebook in the Extras reader.

@@ -1,8 +1,9 @@
 /**
  * `McInputGlyph`: draws a key cap, a chord of key caps or a controller button (`view/input-glyph-model.ts` says
- * which). Face buttons are round discs with the label in Bangers; shoulders, triggers and system buttons are square
- * pills in Public Sans 800; key caps are squares with a thicker bottom edge. On ink chrome the glyph is paper-filled
- * with ink text; on paper it is ink-outlined white. `openness` 0 shrinks it to a 6px tab on the control's edge.
+ * which). Face buttons are round discs with the label in Public Sans 800; shoulders, triggers and system buttons are
+ * square pills in Public Sans 800; key caps are squares with a thicker bottom edge. On ink chrome the glyph is
+ * paper-filled with ink text; on paper it is ink-outlined white. `openness` 0 shrinks it to a 6px tab on the
+ * control's edge.
  *
  * The container's origin is the left edge, vertically centered, so a button lays its label out at `x + glyphWidth`.
  */
@@ -98,7 +99,7 @@ export class McInputGlyph extends Phaser.GameObjects.Container {
       const text = spec.symbol
         ? null
         : this.scene.add
-            .text(0, 0, spec.label, textStyle(type(font.display, Math.round(h * 0.7), 400), inkHex))
+            .text(0, 0, spec.label, textStyle(type(font.body, Math.round(h * 0.55), 800), spec.color ?? inkHex))
             .setOrigin(0.5);
       if (text) this.add(text);
       return { spec, width: h, height: h, round: true, symbol: spec.symbol, text };
@@ -131,8 +132,10 @@ export class McInputGlyph extends Phaser.GameObjects.Container {
       if (i > 0) x += gap;
       const w = cellsFull > 0 ? (cell.width / cellsFull) * cellsWidth : cell.width;
       const top = -cell.height / 2;
-      g.fillStyle(bodyFill, 1);
-      g.lineStyle(2, inkHex, 1);
+      // An Xbox face button is an ink disc with a colored letter; on ink chrome it gets a paper ring so it reads.
+      const colored = cell.spec.kind === "pad" && cell.spec.color !== undefined;
+      g.fillStyle(colored ? inkHex : bodyFill, 1);
+      g.lineStyle(2, colored && this.ground === "ink" ? surface.paper.hex : inkHex, 1);
       if (cell.round && o >= 1) {
         const r = cell.height / 2;
         g.fillCircle(x + r, 0, r);

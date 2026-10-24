@@ -32,6 +32,7 @@ export type SettingsItemId =
   | "unlocks"
   | "save-data"
   | "rules"
+  | "controls"
   | "achievement-popup-time"
   | "achievement-popup-place"
   | "achievement-popup-size";
@@ -129,7 +130,7 @@ export function settingsSectionsOf(input: {
       ],
     },
     { id: "guide", title: "Guide", items: input.guideRowIds },
-    { id: "more", title: "More", items: ["unlocks", "save-data", "rules"] },
+    { id: "more", title: "More", items: ["unlocks", "save-data", "controls", "rules"] },
     {
       id: "achievements",
       title: "Achievements",

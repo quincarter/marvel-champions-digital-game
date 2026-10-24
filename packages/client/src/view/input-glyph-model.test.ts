@@ -8,6 +8,7 @@ import {
   glyphsForShortcut,
   OpennessAnimator,
   type GlyphSettings,
+  type GlyphSpec,
 } from "./input-glyph-model.js";
 import { INITIAL_INPUT_MODE, type InputModeState } from "./input-mode.js";
 import { detectPad } from "./pad-family.js";
@@ -21,6 +22,8 @@ const SWITCH = "Pro Controller (STANDARD GAMEPAD Vendor: 057e Product: 2009)";
 const STEAM = "Steam Virtual Gamepad (Vendor: 28de Product: 11ff)";
 
 const first = (g: ReturnType<typeof glyphsForShortcut>) => g?.[0];
+
+const colorOf = (glyph: GlyphSpec | undefined): number | undefined => (glyph?.kind === "pad" ? glyph.color : undefined);
 
 describe("glyphsForShortcut", () => {
   test("none for touch, no input, or the setting off", () => {
@@ -48,6 +51,16 @@ describe("glyphsForShortcut", () => {
       label: "✕",
       symbol: "cross",
     });
+  });
+
+  test("Xbox face buttons carry their letter colors; no other glyph does", () => {
+    expect(colorOf(first(glyphsForShortcut("activate", padState(XBOX), settings)))).toBe(0x5cc451);
+    expect(colorOf(first(glyphsForShortcut("cancel", padState(XBOX), settings)))).toBe(0xff5a4e);
+    expect(colorOf(first(glyphsForShortcut("guide", padState(XBOX), settings)))).toBe(0x4f9dff);
+    expect(colorOf(first(glyphsForShortcut("inspect", padState(XBOX), settings)))).toBe(0xffd23f);
+    expect(colorOf(first(glyphsForShortcut("undo", padState(XBOX), settings)))).toBeUndefined();
+    expect(colorOf(first(glyphsForShortcut("activate", padState(PS), settings)))).toBeUndefined();
+    expect(colorOf(first(glyphsForShortcut("activate", padState(SWITCH), settings)))).toBeUndefined();
   });
 
   test("Nintendo swap: confirm is drawn on the right-hand A", () => {

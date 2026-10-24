@@ -13,8 +13,8 @@ Status: building (owner answers 2026-10-24). Tracking issue #398. Branch `featur
 3. **Remapping is a follow-on.** This pass stores bindings as data and draws the controllers read-only.
 4. **Keyboard shortcuts land in this pass.**
 5. **Glyphs on the board** for the keyboard and the controller, wherever a shortcut applies, only when a keyboard or
-   pad is in use (never for touch). While the mouse is moving the glyphs collapse; when it stops they expand again
-   (animated). A setting turns glyphs off altogether, in the keyboard and controller settings.
+   pad is in use (never for touch). While the mouse is moving the glyphs fold away completely (nothing drawn); when it
+   stops they animate open again. A setting turns glyphs off altogether, in the keyboard and controller settings.
 6. **Glyph set follows the last input.** On desktop, using the mouse brings the keyboard glyphs back; any controller
    input (a button, the D-pad, a stick wiggle) switches them to the controller's (`view/input-mode.ts`).
 7. **Steam Deck system combos stay Steam's.** The guide / Steam button is never bound, and while it is held no other
@@ -23,6 +23,17 @@ Status: building (owner answers 2026-10-24). Tracking issue #398. Branch `featur
 8. **Hold Y to zoom.** A tap on Y inspects the focused card. Holding Y shows the focused card enlarged (the desktop
    hover popover), and moving with the D-pad or stick while Y is held steps the focus with the enlarged card following
    it. Its hint reads "Y Inspect · hold to zoom".
+9. **LT and RT are hold-to-shift layers (the owner, 2026-10-24).** Hold LT: A Attack, X Thwart, Y Recover, B Change
+   form (Xbox positions; other families use the same positions). Hold RT: A / X / Y / B are the first four abilities
+   usable right now on your cards in play, in table order; LB / RB page when there are more. While a layer is held a
+   sheet by the action bar shows each button's action, greyed when unavailable. Undo and End turn move into the LT
+   layer as LT+LB and LT+RB (default picked; End turn always takes two buttons).
+10. **Keyboard is one-handed, left hand by default (the owner, 2026-10-24).** Move WASD, select Space, back Q, inspect E
+    (hold to zoom), Z X C V Attack / Thwart / Recover / Change form (the LT layer), 1-4 card abilities (the RT layer; 1-3
+    still answer an open choice bar), End turn Shift+Space, Undo Ctrl+Z, zones R up / F down, game log B, guide G,
+    Team-Up T, Evidence Shift+E; on a decision popup R Peek, F Expand / Collapse. Arrows, Enter and Esc keep working.
+    A "Keyboard hand: Left / Right" setting mirrors it for left-handed mouse players: IJKL, Enter, U, O, M , . /,
+    7-0, Shift+Enter, zones P / ;. Glyphs and the Controls screen show the active hand.
 
 ## What exists today
 

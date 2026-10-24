@@ -143,6 +143,10 @@ const RULES_ROW_TITLE = "Rules reference";
 const STEAM_DECK_DETAIL =
   "Fullscreen at the screen's own resolution (1280 × 800 on the Deck), what this device starts with.";
 
+/** The Controls row: a door to `scenes/controls.ts`, the drawn controller and the keyboard's keys. */
+const CONTROLS_ROW = "controls";
+const CONTROLS_ROW_DETAIL = "Your controller's buttons, the keyboard shortcuts and the on-screen hints.";
+
 const RULES_ROW_DETAIL = "Look up any keyword, rule or ruling, with the cards it applies to.";
 
 type GuideNonLevelRow = Extract<GuideRowInfo, { kind: "action" | "toggle" }>;
@@ -236,7 +240,10 @@ export class SettingsOverlay extends Phaser.Scene {
     };
     this.scale.on("resize", onResize, this);
     this.#route = new FocusRoute(this, {
-      blocked: () => this.scene.isActive(SCENES.unlocks) || this.scene.isActive(SCENES.saveData),
+      blocked: () =>
+        this.scene.isActive(SCENES.unlocks) ||
+        this.scene.isActive(SCENES.saveData) ||
+        this.scene.isActive(SCENES.controls),
       onCancel: () => (this.#resolutionListOpen ? this.#closeResolutionList() : this.#close()),
     });
     // Another scene (Pause's own inline Guide group) can change the same live prefs while this overlay is open
@@ -309,6 +316,15 @@ export class SettingsOverlay extends Phaser.Scene {
     this.scene.get(SCENES.saveData).events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.input.enabled = true;
       if (this.sys.isActive()) this.#draw();
+    });
+  }
+
+  #openControls(): void {
+    if (this.scene.isActive(SCENES.controls)) return;
+    this.input.enabled = false;
+    this.scene.launch(SCENES.controls);
+    this.scene.get(SCENES.controls).events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.input.enabled = true;
     });
   }
 
@@ -653,6 +669,7 @@ export class SettingsOverlay extends Phaser.Scene {
     };
     door(UNLOCKS_ROW, "Unlocks", unlocksSummaryOf(unlocks()), () => this.#openUnlocks());
     door(SAVE_DATA_ROW, SAVE_DATA_ROW_TITLE, SAVE_DATA_ROW_DETAIL, () => this.#openSaveData());
+    door(CONTROLS_ROW, "Controls", CONTROLS_ROW_DETAIL, () => this.#openControls());
     door(RULES_ROW, RULES_ROW_TITLE, RULES_ROW_DETAIL, () => this.#openRules());
     items.set("steam-deck", {
       spec: { kind: "toggle", id: "steam-deck", detail: STEAM_DECK_DETAIL },

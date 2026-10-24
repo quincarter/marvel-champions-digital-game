@@ -148,6 +148,7 @@ export class PauseOverlay extends Phaser.Scene {
       blocked: () =>
         this.scene.isActive(SCENES.rules) ||
         this.scene.isActive(SCENES.settings) ||
+        this.scene.isActive(SCENES.controls) ||
         this.scene.isActive(SCENES.inspect) ||
         (this.#searchInput?.focused ?? false),
       onCancel: () => (this.#confirmingConcede ? this.#setConfirmingConcede(false) : this.#resume()),
@@ -217,7 +218,14 @@ export class PauseOverlay extends Phaser.Scene {
     // done. `scene.start(SCENES.title)` stops this scene as part of starting
     // Title, so there is no separate `this.scene.stop()` for Pause itself.
     this.#motion.exit(this, () => {
-      for (const overlay of [SCENES.rules, SCENES.settings, SCENES.choice, SCENES.inspect, SCENES.villainPhase]) {
+      for (const overlay of [
+        SCENES.rules,
+        SCENES.settings,
+        SCENES.controls,
+        SCENES.choice,
+        SCENES.inspect,
+        SCENES.villainPhase,
+      ]) {
         if (this.scene.isActive(overlay) || this.scene.isSleeping(overlay)) this.scene.stop(overlay);
       }
       if (this.scene.isActive(SCENES.board)) this.scene.stop(SCENES.board);
@@ -291,6 +299,12 @@ export class PauseOverlay extends Phaser.Scene {
         title: "Show all settings",
         detail: "Sound, card size, villain phase and more.",
         open: () => this.scene.launch(SCENES.settings),
+      },
+      {
+        id: "controls",
+        title: "Controls",
+        detail: "Controller buttons, keyboard shortcuts and hints.",
+        open: () => this.scene.launch(SCENES.controls),
       },
     );
     return rows;
@@ -1401,7 +1415,14 @@ export class PauseOverlay extends Phaser.Scene {
    */
   #openHowToWin(): void {
     this.#motion.exit(this, () => {
-      for (const overlay of [SCENES.rules, SCENES.settings, SCENES.choice, SCENES.inspect, SCENES.villainPhase]) {
+      for (const overlay of [
+        SCENES.rules,
+        SCENES.settings,
+        SCENES.controls,
+        SCENES.choice,
+        SCENES.inspect,
+        SCENES.villainPhase,
+      ]) {
         if (this.scene.isActive(overlay) || this.scene.isSleeping(overlay)) this.scene.stop(overlay);
       }
       if (this.scene.isActive(SCENES.board)) this.scene.stop(SCENES.board);

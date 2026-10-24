@@ -1,0 +1,1 @@
+xbox.png, playstation.png (background removed, cropped) and switch.png (upscaled, cleaned) were supplied by the project owner on 2026-10-24 for the Controls screen. Source and licence: to be confirmed by the owner.

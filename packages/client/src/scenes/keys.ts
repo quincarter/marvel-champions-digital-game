@@ -97,6 +97,8 @@ export const SCENES = {
   settings: "SettingsOverlay",
   /** Settings ▸ Unlocks (`scenes/unlocks.ts`): unlock everything, or one hero at a time. Launched over Settings. */
   unlocks: "UnlocksOverlay",
+  /** Settings ▸ Controls (`scenes/controls.ts`): the controller drawn for the active family, and the keyboard's keys. */
+  controls: "ControlsOverlay",
   /** Settings ▸ Save data (`scenes/save-data.ts`): export or import every local save. Launched over Settings. */
   saveData: "SaveDataOverlay",
   /** Save data ▸ Sync across devices (`scenes/sync-data.ts`): set up, join, link, unlink. Launched over Save data. */

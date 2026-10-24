@@ -10,6 +10,7 @@ import { gamepadButtonFor } from "./gamepad.js";
 import { glyphSetOf, type InputModeState } from "./input-mode.js";
 import { shortcutOf, type ShortcutId } from "./input-shortcuts.js";
 import {
+  faceColorOf,
   padGlyphOf,
   physicalIndexOf,
   resolvePadFamily,
@@ -27,6 +28,8 @@ export interface PadGlyphSpec {
   readonly shape: GlyphShape;
   readonly symbol: FaceSymbol | null;
   readonly name: string;
+  /** Xbox face letters only: the letter's color, drawn on an ink disc. */
+  readonly color?: number;
 }
 
 export interface KeyGlyphSpec {
@@ -47,7 +50,15 @@ export function padGlyphSpec(meaningIndex: number, family: PadFamily, swap: bool
   const glyph = padGlyphOf(family, physicalIndexOf(meaningIndex, swap));
   if (!glyph) return null;
   const symbol = glyph.shape === "face" ? (SYMBOLS[glyph.label] ?? null) : null;
-  return { kind: "pad", label: glyph.label, shape: glyph.shape, symbol, name: glyph.name };
+  const color = glyph.shape === "face" ? faceColorOf(family, physicalIndexOf(meaningIndex, swap)) : null;
+  return {
+    kind: "pad",
+    label: glyph.label,
+    shape: glyph.shape,
+    symbol,
+    name: glyph.name,
+    ...(color === null ? {} : { color }),
+  };
 }
 
 /** The glyphs for a shortcut right now, or null when none should be drawn (touch, setting off, no pad button). */
