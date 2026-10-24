@@ -50,6 +50,7 @@ import { onPowerSavingChange, watchPowerSaving } from "./platform/power-saving.j
 import { gpuRendererName, installRenderScale } from "./ui/render-scale.js";
 import { installIdleRender } from "./ui/idle-render.js";
 import { fpsReadoutWanted, installFpsHotkey, installFpsReadout } from "./ui/fps-readout.js";
+import { holdDebugWanted, installHoldDebug } from "./ui/hold-debug.js";
 import { onHardwareChange, readHardware } from "./platform/device-hardware.js";
 import {
   drawsAtScreenDensity,
@@ -220,6 +221,21 @@ installIdleRender(game, Phaser, window.location.search);
 // `?fps=1` or Ctrl+Shift+F shows a frame-rate readout, for checking a slow screen on a real device (`ui/fps-readout.ts`).
 if (fpsReadoutWanted(window.location.search)) installFpsReadout(game);
 installFpsHotkey(game);
+const seenScenes = new Set<string>();
+// `?holddebug=1` logs what a long press does, for a phone where Inspect waits for the lift (`ui/hold-debug.ts`).
+if (holdDebugWanted(window.location.search))
+  installHoldDebug((listener) =>
+    game.events.on(Phaser.Core.Events.POST_STEP, () => {
+      for (const scene of game.scene.getScenes(true)) {
+        const key = scene.sys.settings.key;
+        if (!seenScenes.has(key)) {
+          seenScenes.add(key);
+          listener(key);
+        }
+      }
+      for (const key of [...seenScenes]) if (!game.scene.isActive(key)) seenScenes.delete(key);
+    }),
+  );
 
 // One bad frame must not end the game: a throwing tween is removed, anything else skips that frame (`ui/frame-guard.ts`).
 installFrameGuard(game);

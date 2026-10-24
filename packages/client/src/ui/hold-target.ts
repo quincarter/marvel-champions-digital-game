@@ -22,6 +22,7 @@
 
 import type Phaser from "phaser";
 import { HoldGesture, INSPECT_HOLD_MS } from "../view/hold-gesture.js";
+import { noteHold } from "./hold-debug.js";
 import { noteTapFired, registerTap, tapId } from "./tap.js";
 
 export interface HoldTargetHandlers {
@@ -71,6 +72,7 @@ export function bindHoldTarget(scene: Phaser.Scene, zone: Phaser.GameObjects.Zon
     own = gesture;
     livePresses.set(pointer, { downTime: pointer.downTime, key, gesture });
     const began = gesture.down(pointer.x, pointer.y, pointer.rightButtonDown());
+    noteHold(`phaser down (${began}${key ? `, ${key}` : ""})`);
     if (onDrag) followDrag(scene, pointer, gesture, onDrag, onDragEnd);
     if (began === "inspect") onInspect?.();
     if (began !== "arm") return;
@@ -81,12 +83,15 @@ export function bindHoldTarget(scene: Phaser.Scene, zone: Phaser.GameObjects.Zon
     const { downTime } = pointer;
     scene.time.delayedCall(INSPECT_HOLD_MS, () => {
       const stillDown = pointer.isDown && pointer.downTime === downTime;
-      if (gesture.holdElapsed(pointer.x, pointer.y, stillDown)) onInspect?.();
+      const held = gesture.holdElapsed(pointer.x, pointer.y, stillDown);
+      noteHold(`hold timer: down=${stillDown} inspect=${held} at ${Math.round(pointer.x)},${Math.round(pointer.y)}`);
+      if (held) onInspect?.();
     });
   });
   zone.on("pointerup", (pointer: Phaser.Input.Pointer) => {
     const gesture = claim(pointer);
     livePresses.delete(pointer);
+    noteHold(`phaser up (${gesture ? "claimed" : "not this zone's"})`);
     if (!gesture) return;
     // This zone judged the press (a tap, a hold, a drag): the scene's tap router must not judge it again.
     noteTapFired(scene, pointer);
