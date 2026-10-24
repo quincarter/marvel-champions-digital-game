@@ -139,6 +139,8 @@ export class TitleScene extends Phaser.Scene {
   /** "Rank up: <title>" while the badge shows the fanfare (a few seconds after the Title opens), else null. */
   #rankUp: string | null = null;
   #route: FocusRoute | null = null;
+  /** The Trophy Room hand-off drawn this rebuild (its button and the rank tile press it), for the View button. */
+  #openTrophies: (() => void) | null = null;
   #stops = new Map<string, FocusStop>();
 
   constructor() {
@@ -174,6 +176,10 @@ export class TitleScene extends Phaser.Scene {
         this.scene.isActive(SCENES.inspect) ||
         this.scene.isActive(SCENES.settings) ||
         this.scene.isActive(SCENES.gamesList),
+      // View / Back (and the Peek key) is the Trophy Room, the same as its button.
+      onView: () => {
+        if (!this.#starting) this.#openTrophies?.();
+      },
     });
     // Phaser reuses this scene instance across "back to title" round trips, so state from a previous visit
     // (a stuck "Starting…", a stale Continue) must not survive into this one.
@@ -538,6 +544,7 @@ export class TitleScene extends Phaser.Scene {
       this.scale.off("resize", this.#rebuild, this);
       goToScreen(this, SCENES.trophyRoom);
     };
+    this.#openTrophies = openTrophies;
     this.#buttons.push(
       new McButton(this, {
         kind: menuKind,
