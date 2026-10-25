@@ -4,8 +4,8 @@
  * - "deck photo": the Black Widow Deck title-card back, printed decklist
  *   (https://hallofheroeslcg.com/wp-content/uploads/2020/04/widowstarterdeck.jpg, linked from the Hall of Heroes
  *   Black Widow page), viewed for verification only — not downloaded into the repo.
- * - "RRG p.66": mc_rulesreference_v18_compressed.pdf Appendix V (errata).
- * - "ruling Feb 28 (2)": marvel-champions-rulings-post-rrg-1-7.md, the Feb 28, 2026 ruling entry #2.
+ * - "RRG p.66": docs/rules/mc_rulesreference_v18_compressed.pdf Appendix V (errata).
+ * - "ruling Feb 28 (2)": docs/rulings/marvel-champions-rulings-post-rrg-1-7.md, the Feb 28, 2026 ruling entry #2.
  */
 import type { PackCuration } from "./types.ts";
 

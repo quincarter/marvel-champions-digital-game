@@ -2,7 +2,7 @@
 
 Step 4 of docs/wave-definition-of-done.md for the `next_evol` box. Test file:
 `packages/cards/src/wave7/next_evol/qa-scenarios-2.qa.test.ts` (44 tests, about 46 s on a loaded machine). Sources:
-RRG 1.8 (pages cited), `marvel-champions-rulings-post-rrg-1-7.md` (dated), docs/phase7-wave7.md §4.1 (not re-opened).
+RRG 1.8 (pages cited), `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` (dated), docs/phase7-wave7.md §4.1 (not re-opened).
 
 ## Card-by-card audit
 

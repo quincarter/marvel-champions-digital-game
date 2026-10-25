@@ -11,7 +11,7 @@ that exercise their aspect/basic cards from a Core hero's deck.
 All 29 Ghost-Spider cards (27001a/b, 27002–27029) and all 31 Miles cards (27030a/b, 27031–27060, minus the
 never-printed 27051–27053 basic resources, which carry no ability and are data only) read against
 `packages/content/src/data/sm/cards.ts`'s printed text, the card scans under `assets/card-art/bundles/cards/`,
-RRG 1.8, and `marvel-champions-rulings-post-rrg-1-7.md` (grepped for "Ghost-Spider", "Gwen", "Miles Morales", "Venom
+RRG 1.8, and `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` (grepped for "Ghost-Spider", "Gwen", "Miles Morales", "Venom
 Blast", "Spider Camouflage", and every other card name in both kits — the transcript carries no ruling specific to
 either hero; every non-obvious call for these two heroes instead comes from the wave 5 spec's own decided questions,
 §2 below).

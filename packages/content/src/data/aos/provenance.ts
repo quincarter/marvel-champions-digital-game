@@ -611,7 +611,7 @@ export const AOS_PROVENANCE: readonly CardProvenance[] = [
     marvelcdbCodes: ["50153"],
     corrections: [
       "50153: Radiation Exposure prints a flat -1 ATK; MarvelCDB sends -1 for both attack and scheme, and the normalizer reads an attachment's -1 as a printed X unless the card is corrected. [evidence: Scan 50153.png (read 2026-10-09): -1 SCH and -1 ATK (ATK with a reminder star); text \"this attachment gives +1 ATK instead\" for a Gamma identity. Survey section 4.2. The scan prints the SCH badge the RRG 1.8 erratum changes to THW (see `thwart` below and the errata entry).]",
-      "50153: errata RRG 1.8 — Radiation Exposure: the \"SCH\" modifier on the card is now a \"THW\" modifier. The print is -1 SCH; the current card is -1 THW. The emitted modifier is the current one. [evidence: RRG 1.8, Agents of S.H.I.E.L.D. Expansion errata (mc_rulesreference_v18_compressed.md line 5124): \"RADIATION EXPOSURE (#171A) The \"SCH\" modifier on this card should be a \"THW\" modifier.\" The RRG prints the number as #171A although the box card is 153 (Power of the Atom 2/6, scan 50153.png); the title and the SCH badge match.]",
+      "50153: errata RRG 1.8 — Radiation Exposure: the \"SCH\" modifier on the card is now a \"THW\" modifier. The print is -1 SCH; the current card is -1 THW. The emitted modifier is the current one. [evidence: RRG 1.8, Agents of S.H.I.E.L.D. Expansion errata (docs/rules/mc_rulesreference_v18_compressed.md line 5124): \"RADIATION EXPOSURE (#171A) The \"SCH\" modifier on this card should be a \"THW\" modifier.\" The RRG prints the number as #171A although the box card is 153 (Power of the Atom 2/6, scan 50153.png); the title and the SCH badge match.]",
     ],
   },
   {
@@ -631,7 +631,7 @@ export const AOS_PROVENANCE: readonly CardProvenance[] = [
     cardSetCode: "supersonic",
     marvelcdbCodes: ["50156"],
     corrections: [
-      "50156: errata RRG 1.8 — MACH-IV: \"make basic defenses against\" became \"defend against\". [evidence: RRG 1.8, mc_rulesreference_v18_compressed.md lines 5128 to 5134: \"MACH-IV (#156)\" is followed, after the X-23 Hero Pack heading, by \"Should read: Each character without the Aerial trait cannot defend against MACH-IV's attacks. (Changed \"make basic defenses\" to \"defend\".)\". The markdown interleaves the MACH-IV entry with X-23's Front Line Specialist (#36) heading; the quoted sentence names MACH-IV, so it belongs to #156. Raw text is the print.]",
+      "50156: errata RRG 1.8 — MACH-IV: \"make basic defenses against\" became \"defend against\". [evidence: RRG 1.8, docs/rules/mc_rulesreference_v18_compressed.md lines 5128 to 5134: \"MACH-IV (#156)\" is followed, after the X-23 Hero Pack heading, by \"Should read: Each character without the Aerial trait cannot defend against MACH-IV's attacks. (Changed \"make basic defenses\" to \"defend\".)\". The markdown interleaves the MACH-IV entry with X-23's Front Line Specialist (#36) heading; the quoted sentence names MACH-IV, so it belongs to #156. Raw text is the print.]",
     ],
   },
   { cardId: cardId("50157"), cardSetCode: "supersonic", marvelcdbCodes: ["50157"], corrections: [] },

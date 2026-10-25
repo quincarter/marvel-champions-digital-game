@@ -2,7 +2,7 @@
  * Rules QA, the last "unit tests only" gaps of wave 9 (the `it.todo` lists of the scenario tests): Black Widow, Batroc,
  * M.O.D.O.K., Thunderbolts and Baron Zemo (the expert campaign path is qa-gaps-campaign.qa.test.ts), each card exercised inside a real
  * game state reached by commands. Sources: printed card text (packages/content/src/data/aos/cards.ts, from MC50 / MC55),
- * RRG 1.8 (mc_rulesreference_v18_compressed.pdf) by page, the post-1.7 rulings by date, and the MC50 rulebook. A FINDING
+ * RRG 1.8 (docs/rules/mc_rulesreference_v18_compressed.pdf) by page, the post-1.7 rulings by date, and the MC50 rulebook. A FINDING
  * comment marks where the game and its source disagree: the expected behavior is an `it.fails`, with a passing companion
  * that pins today's behavior.
  */

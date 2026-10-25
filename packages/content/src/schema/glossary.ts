@@ -9,11 +9,11 @@ import { KNOWN_KEYWORD_NAMES } from "./keywords.js";
  * reproducing the Rules Reference Guide's entries verbatim.
  *
  * Sourcing:
- * - `{ kind: "rrg", page }` cites a real page of `mc_rulesreference_v18_compressed.pdf`
+ * - `{ kind: "rrg", page }` cites a real page of `docs/rules/mc_rulesreference_v18_compressed.pdf`
  *   (71 pages total) that this repo actually read for this entry — see the module's own
  *   ingestion notes in git history for how each page was located (the RRG's own two-page
  *   INDEX on pp. 2-3 gives every glossary term's page).
- * - `{ kind: "ruling", date }` cites a dated heading in `marvel-champions-rulings-post-rrg-1-7.md`
+ * - `{ kind: "ruling", date }` cites a dated heading in `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`
  *   (e.g. `"February 28, 2026 - Ruling 4"`, matching that file's own `###` heading text
  *   verbatim so it's directly greppable) whose answer clarifies this keyword/status in a way
  *   that applies generally, not just to the one card the question happened to be about.

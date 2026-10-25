@@ -46,15 +46,15 @@ Reference; FFG rulings clarify both):
    conversion; its rules clarification on the same page survives and is quoted in §3.7.
    - **Not in the repo:** the Nebula, War Machine, Valkyrie, Vision and The Hood inserts (linked from their Hall of
      Heroes pages). Each is needed for its precon (§2.1) and The Hood's for Standard II / Expert II (§4 Q5).
-2. **FFG rulings, Dec 17, 2025 to Aug 13, 2026**, in `marvel-champions-rulings-post-rrg-1-7.md`, cited by date heading
+2. **FFG rulings, Dec 17, 2025 to Aug 13, 2026**, in `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`, cited by date heading
    (grep with the `**` markup stripped). The ones that touch cycle 3, each checked: Dec 17, 2025 (1) #3 (Beguiled is a
    status change), Dec 17, 2025 (4) #2 (Odin removed from the game), Jan 17, 2026 (4) #2 (two Gauntlet Guns, two ammo
    counters), Jan 17, 2026 (5) (Cosmic Entity events with several encounter decks), Jan 26, 2026 (4) #5 and #7 (a Drone's
    facedown side; Valkyrie hero vs. ally), Feb 28, 2026 (3) (swapping Lokis moves permanent attachments), Feb 28, 2026
    (8) #1 (Infinity Stones into The Collection), Mar 19, 2026 (4) (the Valkyrie ally in a Valkyrie deck), Jun 25, 2026
    (4) #1 and #5 (Old Rivals; Odin attached is not friendly), Aug 3, 2026 (4) #1 (Odin attached takes no attachments).
-3. **RRG 1.8 (Jul 2026)**, `mc_rulesreference_v18_compressed.pdf`, cited by printed page (PDF page index + 1, checked
-   with `pypdf`). The text is grepped in `mc_rulesreference_v18_compressed.md`, which has no page markers. Cycle 3's FAQ
+3. **RRG 1.8 (Jul 2026)**, `docs/rules/mc_rulesreference_v18_compressed.pdf`, cited by printed page (PDF page index + 1, checked
+   with `pypdf`). The text is grepped in `docs/rules/mc_rulesreference_v18_compressed.md`, which has no page markers. Cycle 3's FAQ
    is on p. 62 and its errata on p. 67. New or first-used entries: "Form, Change Form" (p. 21), "Alliance" (p. 6),
    "Steady" (p. 41), "'Swap'" (p. 42), "Flip" (p. 20), "Double-Sided Card" (p. 17), "Standard Set" / "Expert Set"
    (pp. 40, 19), "Villain Defeat" (p. 47).

@@ -53,7 +53,7 @@ vi.setConfig({ testTimeout: 120_000 });
  * played from real Wonder Man games against Core's Rhino, and 58031 Cameo resolved at setup step 16 of such a game.
  * 58032 Coordinated Effort is played in `coordinated-effort.test.ts` (two players). Cameo's rulings: March 19, 2026 -
  * Ruling 6 (the unique rule), January 26, 2026 - Ruling 2 and June 2, 2026 - Ruling 1 (the ally is any copy of its
- * card). No ruling in marvel-champions-rulings-post-rrg-1-7.md names the other scripted cards.
+ * card). No ruling in docs/rulings/marvel-champions-rulings-post-rrg-1-7.md names the other scripted cards.
  */
 const BOMBS_AWAY = "58017.bombs-away-action";
 const TOGETHER = "58019.stronger-together-interrupt";

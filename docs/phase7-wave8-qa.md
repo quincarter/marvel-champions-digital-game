@@ -17,7 +17,7 @@ Per-command invariants on every game, natural or staged: the engine accepts the 
 deck started with (the set-aside zone included) and every encounter card setup created is still somewhere, and the log replays to the identical final
 state. The scenario checks are in section 3; each is asserted on every occurrence, not only the first.
 
-Sources: the card text in `packages/content/src/data/aoa/cards.ts`, RRG 1.8 (`mc_rulesreference_v18_compressed.pdf`) as cited in the test comments (Defeat
+Sources: the card text in `packages/content/src/data/aoa/cards.ts`, RRG 1.8 (`docs/rules/mc_rulesreference_v18_compressed.pdf`) as cited in the test comments (Defeat
 p. 15, Villain Defeat p. 47, main scheme last stage p. 27, Standard Set p. 40), MC45 rulebook pages as cited in the scenario rows, and the owner rows of
 `docs/phase7-wave8.md` section 4.1 (Q5 the counter moves one place from the holder, Q10 Standard III, Q16 the stage keeps the form).
 

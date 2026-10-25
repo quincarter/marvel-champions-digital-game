@@ -70,7 +70,7 @@ export const WONDER_MAN_CURATION: PackCuration = {
       changedFields: ["text"],
       note: 'Ionic Physiology: the cost arrow before "heal 1 damage from your identity" became "Then" (tucking the event is no longer a cost). MarvelCDB and the card print the arrow; the printed text keeps it.',
       evidence:
-        'RRG 1.8 p. 70 (Wonder Man errata, IONIC PHYSIOLOGY (#2), mc_rulesreference_v18_compressed.md line 5150): "Should read: Response: After you play an event with a printed [energy] resource, tuck that event from your discard pile under this card. Then, heal 1 damage from your identity. (Changed cost arrow to “Then”.)"; ruling March 6, 2026 (3); scan 58002.png prints the arrow (scan check, "Known errata"). Raw text is the print.',
+        'RRG 1.8 p. 70 (Wonder Man errata, IONIC PHYSIOLOGY (#2), docs/rules/mc_rulesreference_v18_compressed.md line 5150): "Should read: Response: After you play an event with a printed [energy] resource, tuck that event from your discard pile under this card. Then, heal 1 damage from your identity. (Changed cost arrow to “Then”.)"; ruling March 6, 2026 (3); scan 58002.png prints the arrow (scan check, "Known errata"). Raw text is the print.',
       currentReplace: { find: " → heal 1 damage", replace: ". Then, heal 1 damage" },
     },
   ],

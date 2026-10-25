@@ -3,7 +3,7 @@
 > **Source:** [Hall of Heroes: Latest FFG Rulings (post RRG 1.6)](https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-6/#july2024)  
 > **Fetched:** 2026-10-21. Transcribed by script from Hall of Heroes; Hall of Heroes is the transcriber, not the authority.  
 > **OLDER FFG rulings, tier 4 in CLAUDE.md's rules authority order:** valid only where consistent with RRG v1.8, superseded where v1.8 contradicts them; FFG calls contact-form answers preliminary until a Rules Reference update includes them.  
-> **Newer rulings:** [marvel-champions-rulings-post-rrg-1-7.md](../../../marvel-champions-rulings-post-rrg-1-7.md). **Regenerate:** `uv run scripts/scrape_rulings_markdown.py` (do not edit by hand).
+> **Newer rulings:** [marvel-champions-rulings-post-rrg-1-7.md](../marvel-champions-rulings-post-rrg-1-7.md). **Regenerate:** `uv run scripts/scrape_rulings_markdown.py` (do not edit by hand).
 
 ---
 

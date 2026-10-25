@@ -58,15 +58,15 @@ expansion, the _Wonder Man Hero Pack_, and the _Hercules Hero Pack_." Packs: `cw
 
 ## 0. Sources
 
-| Source                                                             | What it is used for                                                                 |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| `docs/campaign-modes/mc56_rulebook-web_1.pdf` ("MC56 p. N")        | The box's rules. Pages 3–9, 14 and 20 read as text; 5 and 9–13 read as images       |
-| `docs/campaign-modes/markdown/mc56_civil_war.md`                   | A pointer only (the card callouts are jumbled); pages 15–17 skimmed for pass 1c     |
-| `packages/content/raw/marvelcdb/cw.json`                           | 214 records under `cards` (the top level is an object: `source`, `pack`, `cards`)   |
-| `mc_rulesreference_v18_compressed.pdf` / `.md` ("RRG p. N")        | Leader (p. 26), Teamwork (p. 43), Unique Icon (pp. 45–46), errata (p. 70), p. 71    |
-| `marvel-champions-rulings-post-rrg-1-7.md` (cited by date heading) | Dec 17, 2025 R2; Jan 11, 2026 R1 and R2; Jan 26, 2026 R5; Jun 2, 2026 R4; Jul 9 R3  |
-| `docs/phase7-wave2.md` §6.3                                        | The leader and competitive schema already landed (2026-09-18)                       |
-| `docs/phase7-wave10-sources.md`, `docs/competitive-mode-plan.md`   | Sibling pages: sources, ruling conflicts, owner questions 2–5; the competitive plan |
+| Source                                                                          | What it is used for                                                                 |
+| ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `docs/campaign-modes/mc56_rulebook-web_1.pdf` ("MC56 p. N")                     | The box's rules. Pages 3–9, 14 and 20 read as text; 5 and 9–13 read as images       |
+| `docs/campaign-modes/markdown/mc56_civil_war.md`                                | A pointer only (the card callouts are jumbled); pages 15–17 skimmed for pass 1c     |
+| `packages/content/raw/marvelcdb/cw.json`                                        | 214 records under `cards` (the top level is an object: `source`, `pack`, `cards`)   |
+| `docs/rules/mc_rulesreference_v18_compressed.pdf` / `.md` ("RRG p. N")          | Leader (p. 26), Teamwork (p. 43), Unique Icon (pp. 45–46), errata (p. 70), p. 71    |
+| `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` (cited by date heading) | Dec 17, 2025 R2; Jan 11, 2026 R1 and R2; Jan 26, 2026 R5; Jun 2, 2026 R4; Jul 9 R3  |
+| `docs/phase7-wave2.md` §6.3                                                     | The leader and competitive schema already landed (2026-09-18)                       |
+| `docs/phase7-wave10-sources.md`, `docs/competitive-mode-plan.md`                | Sibling pages: sources, ruling conflicts, owner questions 2–5; the competitive plan |
 
 - **How the PDF was read.** The Read tool's PDF renderer is not installed on this machine. Text came from
   `pdftotext -f N -l N` and page images from the repo's own `docs/extract_pages.py` (pymupdf through `uv`). Page

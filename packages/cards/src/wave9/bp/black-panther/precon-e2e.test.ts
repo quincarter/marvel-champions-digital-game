@@ -186,7 +186,7 @@ const attachedToMe = () => ({ attachToInstanceId: me() });
  * Specials), 4 alter ego (T'Challa, The Elephant's Trunk, Inventor for Sonic Rifle at a paid cost; T'Challa's Shadow is
  * dealt), 5 hero (T'Challa's response, Shuri's response, Clawed Strike at +1 cost defeats Rhino I).
  *
- * Rules the game leans on (RRG 1.8 = mc_rulesreference_v18_compressed.md):
+ * Rules the game leans on (RRG 1.8 = docs/rules/mc_rulesreference_v18_compressed.md):
  * - Labeled Ability (p. 26): a "(thwart)" or "(attack)" ability is a thwart or attack made by the identity, so Specials
  *   and Hero Actions count for T'Challa's Shadow ("after you thwart, attack, or defend") and an ally's thwart does not
  *   (You, Your, p. 49).

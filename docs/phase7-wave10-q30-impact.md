@@ -7,7 +7,7 @@ resolve first, then Quickstrike. This supersedes the February 28, 2026 ruling (H
 (question 2), which the engine follows today. A minion put into play without being revealed still triggers Quickstrike
 on engagement and has no When Revealed.
 
-How things were checked: RRG pages were rendered from `mc_rulesreference_v18_compressed.pdf` and read; engine code was
+How things were checked: RRG pages were rendered from `docs/rules/mc_rulesreference_v18_compressed.pdf` and read; engine code was
 read, not run; card lists come from a text scan of every `packages/content/src/data/*/cards.ts` (59 packs, 3729 card
 records). No test was run. Where a claim rests on reading code only, it says so.
 

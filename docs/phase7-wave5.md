@@ -47,7 +47,7 @@ Reference; FFG rulings clarify both):
      2026-09-26 (downloaded to the scratchpad, viewed, deleted; never stored) and quoted in §3.23 and §3.24.
    - **Not in the repo:** the Nova and Spider-Ham inserts, and all four hero packs' precon lists (image links in
      `docs/phase7-wave5-sources.md` §5). Every hero pack's `starterDecks.ts` is empty today (§2.1).
-2. **FFG rulings, Dec 17, 2025 to Aug 13, 2026**, in `marvel-champions-rulings-post-rrg-1-7.md`, cited by date heading.
+2. **FFG rulings, Dec 17, 2025 to Aug 13, 2026**, in `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`, cited by date heading.
    The eleven that touch cycle 4 are tabled in `docs/phase7-wave5-sources.md` §3.2 (checked against the file,
    2026-09-26): Dec 17, 2025 (3) (Concussive Bombs), Jan 11, 2026 (3) (Bring the War!, printed resources), Jan 11,
    2026 (4) (Bombshell ally vs guard), Jan 26, 2026 (1) (Ms. Marvel's cost under Go for Champions!), Jan 26, 2026 (2)
@@ -56,7 +56,7 @@ Reference; FFG rulings clarify both):
    2026 (6) and Jul 9, 2026 (2) (Clarity of Purpose's damage cost), Aug 3, 2026 (4) #2 (negative victory points mark
    no reputation nodes). Also used: **Jan 17, 2026 (1) #2** — the RRG "Leaves Play" bullets are "carried out
    simultaneously with the card leaving play", not an interrupt (§3.13).
-3. **RRG 1.8 (Jul 2026)**, `mc_rulesreference_v18_compressed.pdf`, cited by printed page (PDF page index + 1). Cycle 4's
+3. **RRG 1.8 (Jul 2026)**, `docs/rules/mc_rulesreference_v18_compressed.pdf`, cited by printed page (PDF page index + 1). Cycle 4's
    FAQ is on p. 62 (The Sinister Six, Venom Goblin, Across the Spider-Verse, Go for Champions!, Warrior of the Great
    Web, Spider-Man Noir) and its errata on pp. 67–68 (p. 67: MC27 p. 17 glider paragraph 4, MC27 p. 22 mulligan box, Worried
    Father, Venom I–III; p. 68: Manipulated Mind, Ms. Marvel, "Go for Champions!", SP//dr Suit 1B, M.O.R.B.I.U.S.). Entries

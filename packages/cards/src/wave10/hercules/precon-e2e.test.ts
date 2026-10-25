@@ -74,7 +74,7 @@ vi.setConfig({ testTimeout: 240_000 });
  * hero face only); Protect Humanity holds 0 to 3 labor counters; no payment, resource, counter, damage or threat is
  * negative ("Cost", p. 13).
  *
- * Authorities: the printed cards (59001a to 59045); RRG 1.8 (mc_rulesreference_v18_compressed.md) "Victory X" p. 46,
+ * Authorities: the printed cards (59001a to 59045); RRG 1.8 (docs/rules/mc_rulesreference_v18_compressed.md) "Victory X" p. 46,
  * "Find" p. 19, "Reveal" p. 38 (a revealed minion resolves When Revealed before Quickstrike), "Target" p. 42 (a scheme
  * with no threat is not a legal target of a thwart or a removal of threat), "Defend, Defense" pp. 14-15, "Team-Up" p. 43,
  * "Player Elimination" p. 33, FAQ p. 65 (Labor cards); the pack insert (the only source of the Labor and Gift rules,

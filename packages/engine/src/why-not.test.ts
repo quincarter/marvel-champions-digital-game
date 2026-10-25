@@ -3,7 +3,7 @@
  *
  * RRG 1.8 "Choose (Game Element)" (p. 13) and "Target" (p. 42): a choice is made among the elements an effect's own
  * wording admits, so the honest answer to "why not that one?" is the clause of that wording which rejected it.
- * Page numbers are the printed ones in `mc_rulesreference_v18_compressed.pdf`.
+ * Page numbers are the printed ones in `docs/rules/mc_rulesreference_v18_compressed.pdf`.
  */
 
 import { flat, type CardId } from "@mc/content";

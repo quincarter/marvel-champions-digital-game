@@ -97,7 +97,7 @@ import {
  * **58021 Heroic Conditioning.** "You get +3 hit points and your hero gets +1 THW." Played under any player's control;
  * "you" is the controller and "your hero" is that player's identity in hero form. Max 1 per player is card data.
  *
- * No ruling in marvel-champions-rulings-post-rrg-1-7.md (December 17, 2025 to August 13, 2026) names these cards.
+ * No ruling in docs/rulings/marvel-champions-rulings-post-rrg-1-7.md (December 17, 2025 to August 13, 2026) names these cards.
  * January 17, 2026 - Ruling 4 (1) (a wild resource may be named as any type, also when overpaying) is read by the
  * engine's overpayment, which these cards use.
  */

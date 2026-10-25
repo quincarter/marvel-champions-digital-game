@@ -136,7 +136,7 @@ Measured per step against this branch's HEAD in a clean copy (the other agent's 
 
 ### Open questions from groups (a)–(d) (game-rules-architect, 2026-09-26)
 
-Each is implemented as the reading closest to the RRG; none is settled by a ruling in `marvel-champions-rulings-post-rrg-1-7.md` (checked for "then", Held Hostage, Crowbar Toss, the cancel cards and Honor Among Thieves).
+Each is implemented as the reading closest to the RRG; none is settled by a ruling in `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` (checked for "then", Held Hostage, Crowbar Toss, the cancel cards and Honor Among Thieves).
 
 1. **A status-cancelled activation is not "fully resolved".** Held Hostage against a stunned villain removes the stun instead of attacking (RRG 1.8 "Stun", p. 41), and the engine then keeps Held Hostage attached; Crowbar Toss against a confused/stunned or defeated Wrecker leaves the active villain counter where it is. Reading: RRG 1.8 "Resolve" (p. 37), an ability all of whose effects are cancelled is not considered to have resolved. The other reading (the attack was "attempted", so discard Held Hostage anyway) would need only `enemyAttack` to stop marking `activationDidNotHappen` for a status.
 2. **"Each X attacks" with no X is vacuously resolved** (engine reading). A named enemy with no activation marks the frame; an `each` over nothing does not. No printed card in the pool yet has "Each … attacks. Then, …", so nothing depends on it today.

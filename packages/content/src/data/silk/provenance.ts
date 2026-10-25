@@ -24,7 +24,7 @@ export const SILK_PROVENANCE: readonly CardProvenance[] = [
     cardSetCode: "silk",
     marvelcdbCodes: ["52008"],
     corrections: [
-      "52008: errata RRG 1.8 — Eidetic Memory: \"Reveal the card that had been tucked under Silk instead.\" became \"... under your identity instead.\" The first sentence already prints \"your identity\"; only the last words change. [evidence: RRG 1.8, Silk Hero Pack errata (mc_rulesreference_v18_compressed.md line 5146, p. 70): \"Should read: ... Reveal the card that had been tucked under your identity instead.\" (Changed \"Silk\" to \"your identity\".) Scan 52008.png (read 2026-10-09): \"... a card tucked under your identity, exhaust Eidetic Memory -> swap those cards. Reveal the card that had been tucked under Silk instead.\" The spec says \"your identity\" twice; the scan shows it printed once already, so one replacement.]",
+      "52008: errata RRG 1.8 — Eidetic Memory: \"Reveal the card that had been tucked under Silk instead.\" became \"... under your identity instead.\" The first sentence already prints \"your identity\"; only the last words change. [evidence: RRG 1.8, Silk Hero Pack errata (docs/rules/mc_rulesreference_v18_compressed.md line 5146, p. 70): \"Should read: ... Reveal the card that had been tucked under your identity instead.\" (Changed \"Silk\" to \"your identity\".) Scan 52008.png (read 2026-10-09): \"... a card tucked under your identity, exhaust Eidetic Memory -> swap those cards. Reveal the card that had been tucked under Silk instead.\" The spec says \"your identity\" twice; the scan shows it printed once already, so one replacement.]",
     ],
   },
   { cardId: cardId("52009"), cardSetCode: "silk", marvelcdbCodes: ["52009"], corrections: [] },

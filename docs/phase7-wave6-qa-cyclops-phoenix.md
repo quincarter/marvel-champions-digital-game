@@ -7,7 +7,7 @@ and `packages/cards/src/wave6/phoenix/qa.test.ts`; no non-test code was touched.
 
 ## 1. Sources found
 
-Searches: `mc_rulesreference_v18_compressed.md` and `marvel-champions-rulings-post-rrg-1-7.md` for the hero names, Jean
+Searches: `docs/rules/mc_rulesreference_v18_compressed.md` and `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` for the hero names, Jean
 Grey, Scott Summers, Phoenix Force, power counters, Restrained/Unleashed and every card title in both packs (Cyclops
 pack: Exploit Weakness, Practiced Defense, Priority Target, Field Commander, Ruby Quartz Visor, Full Blast, Ricochet
 Beam, Coordinated Attack, Marked, Befuddle, Pinned Down, Lost Visor, Mister Sinister, Gene Therapy and so on; Phoenix

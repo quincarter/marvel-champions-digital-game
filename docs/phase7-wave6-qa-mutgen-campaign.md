@@ -74,7 +74,7 @@ Status: **covered** (a test asserts the rule's exact outcome), **new** (covered 
 | 40  | Ruling June 2, 2026 (Galaxy's Most Wanted Collector II): campaign setup finishes before a When Revealed resolves | MC32's campaign setup runs after the scenario's own When Revealed (RRG p. 51 step 13), the opposite order; row 4's test pins the order MC32 has | n/a     |
 | 41  | Errata p. 68, Steel Fist (#8) and Armor Up (#10); other rulings naming the box's heroes                          | Hero passes: `phase7-wave6-qa-colossus-shadowcat.md`                                                                                            | n/a     |
 
-The rulings file (`marvel-champions-rulings-post-rrg-1-7.md`) names no Mutant Genesis campaign card (grep for Frightened
+The rulings file (`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`) names no Mutant Genesis campaign card (grep for Frightened
 Police, Enemy of My Enemy, Find the Prisoners, Surprise Attack, Magneto's Fortress, Captive, Future Past, Compassion,
 Determined Defense, role: none), and the RRG 1.8 FAQ and errata pages name only Mutants at the Mall among the campaign
 cards.

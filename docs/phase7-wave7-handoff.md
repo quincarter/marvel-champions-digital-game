@@ -36,7 +36,7 @@ emitted (as wave 6 did in 391e11cd).
 
 The box (MC40): heroes Cable and Domino; five scenarios; 14 campaign cards (PLAN.md C3). Rulebook:
 `docs/campaign-modes/mc40_next_evolution_rulebook-web.pdf`, markdown `docs/campaign-modes/markdown/mc40_next_evolution.md`.
-The RRG has NeXt Evolution FAQ sections (`mc_rulesreference_v18_compressed.md` lines ~4652 and ~5086).
+The RRG has NeXt Evolution FAQ sections (`docs/rules/mc_rulesreference_v18_compressed.md` lines ~4652 and ~5086).
 
 Already in the repo:
 

@@ -437,7 +437,7 @@ describe("Red Skull scenario", () => {
 
 // "[star] Boost: Give the villain a tough status card and another boost card." Official source: FFG ruling February 28,
 // 2026 - Ruling 6 (Hall of Heroes, "Latest FFG Rulings (post-RRG 1.7 & 1.8)",
-// https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-7/; `marvel-champions-rulings-post-rrg-1-7.md`), on Pirate
+// https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-7/; `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`), on Pirate
 // Lackey, a boost card that gives the villain a boost card when a Villainous minion activates: "No. Because the villain
 // is not activating, do not give it a boost card." (pinned in `wave6/mut_gen/qa.test.ts`). The same reasoning applies
 // to Exo-Soldier's "another boost card" when a Villainous minion flips it: the tough status card still goes to the

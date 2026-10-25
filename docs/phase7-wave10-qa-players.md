@@ -8,8 +8,8 @@ client file was changed.
 
 Authorities, in order: the printed card (`packages/content/src/data/cw/cards.ts`, scan-checked in
 `docs/phase7-wave10-scan-check-cw-players.md`), MC56 (`docs/campaign-modes/mc56_rulebook-web_1.pdf`, p. 18 for the two
-starter decks), RRG 1.8 (`mc_rulesreference_v18_compressed.md`; page numbers below are the printed ones), the FFG
-rulings (`marvel-champions-rulings-post-rrg-1-7.md`), then the owner's answers (`docs/phase7-wave10-box-heroes.md` B4:
+starter decks), RRG 1.8 (`docs/rules/mc_rulesreference_v18_compressed.md`; page numbers below are the printed ones), the FFG
+rulings (`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`), then the owner's answers (`docs/phase7-wave10-box-heroes.md` B4:
 14A, 15B, 16A, 17A, 18A). Tests, all passing (`oxlint`, `oxfmt --check` clean):
 
 - `packages/cards/src/wave10/qa-players.qa.test.ts`: 35 tests, 6 `it.fails` for the findings below, 29 plain `it` for

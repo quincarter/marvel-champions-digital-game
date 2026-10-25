@@ -15,9 +15,9 @@ A diff, a commit range or a PR number, and usually a short note on what the chan
 
 Every rules judgment in a review follows the project's authority order (CLAUDE.md "Source of truth for rules"). When sources disagree, the higher one wins, and the change must flag the conflict in a code comment rather than silently pick one:
 
-1. **The latest Rules Reference (v1.8, July 2026)**, for general rules and timing: `mc_rulesreference_v18_compressed.pdf` in the repo root (read pages with the Read tool's `pages` parameter; `mc_rulesreference_v18_compressed.md` is a searchable transcription). Cite its page numbers.
+1. **The latest Rules Reference (v1.8, July 2026)**, for general rules and timing: `docs/rules/mc_rulesreference_v18_compressed.pdf` (read pages with the Read tool's `pages` parameter; `docs/rules/mc_rulesreference_v18_compressed.md` is a searchable transcription). Cite its page numbers.
 2. **Current official errata**, for individual cards (in the Rules Reference's errata section).
-3. **FFG rulings issued after v1.8**, unless a later rules update contradicts them: `marvel-champions-rulings-post-rrg-1-7.md`, cited by date heading with the Rules Reference page it clarifies.
+3. **FFG rulings issued after v1.8**, unless a later rules update contradicts them: `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`, cited by date heading with the Rules Reference page it clarifies.
 4. **Older FFG rulings**: valid where consistent with v1.8, superseded where v1.8 contradicts them. Contact-form answers are preliminary until a Rules Reference update includes them.
 5. **Engine-specific interpretations**, only where no official source answers. These must be marked as such in a comment, and should match any owner answer already recorded in the wave spec's §4 table.
 

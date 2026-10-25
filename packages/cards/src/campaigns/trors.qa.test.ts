@@ -2,8 +2,8 @@
  * The Rise of Red Skull (MC10) — rules-fidelity QA scenarios (docs/campaign-mode-design.md §11 step 9).
  *
  * Source of truth: `docs/campaign-modes/markdown/mc10_the_rise_of_red_skull.md` ("MC10 p. N"), RRG 1.8
- * `mc_rulesreference_v18_compressed.pdf` p. 11 and pp. 28–29 ("RRG p. N"), and
- * `marvel-champions-rulings-post-rrg-1-7.md` (cited by date). Every RRG quote in this file is copied verbatim from
+ * `docs/rules/mc_rulesreference_v18_compressed.pdf` p. 11 and pp. 28–29 ("RRG p. N"), and
+ * `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` (cited by date). Every RRG quote in this file is copied verbatim from
  * a citation `game-rules-architect` already embedded next to the code it verifies (`packages/engine/src/deck.ts`'s
  * `DeckProblemCode` doc comments, `packages/engine/src/campaign.ts`) — both read the PDF directly when they were
  * written, so this file reuses those already-sourced quotes rather than re-opening the PDF.

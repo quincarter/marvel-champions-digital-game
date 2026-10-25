@@ -256,7 +256,7 @@ export const CW_CURATION: PackCuration = {
       changedFields: ["name", "text"],
       note: 'Yellow Jacket (basic ally): the title and the Response text read "Yellowjacket". The print is "Yellow Jacket".',
       evidence:
-        'RRG 1.8 Appendix V, "Civil War Expansion" (p. 70, mc_rulesreference_v18_compressed.md line 5168): "YELLOW JACKET (#19) Title should read \\"Yellowjacket\\". Text should read: Response: After Yellowjacket enters play, search the top 5 cards of your deck for an upgrade and add it to your hand. (Changed \\"Yellow Jacket\\" to \\"Yellowjacket\\".)"',
+        'RRG 1.8 Appendix V, "Civil War Expansion" (p. 70, docs/rules/mc_rulesreference_v18_compressed.md line 5168): "YELLOW JACKET (#19) Title should read \\"Yellowjacket\\". Text should read: Response: After Yellowjacket enters play, search the top 5 cards of your deck for an upgrade and add it to your hand. (Changed \\"Yellow Jacket\\" to \\"Yellowjacket\\".)"',
       currentReplace: { find: "After Yellow Jacket enters play", replace: "After Yellowjacket enters play" },
     },
     {
@@ -265,7 +265,7 @@ export const CW_CURATION: PackCuration = {
       changedFields: ["name"],
       note: 'Yellow Jacket (Mighty Avengers minion): the title reads "Yellowjacket". The print is "Yellow Jacket"; the text names no one.',
       evidence:
-        'RRG 1.8 Appendix V, "Civil War Expansion" (p. 70, mc_rulesreference_v18_compressed.md line 5174): "YELLOW JACKET (#73) Title should read \\"Yellowjacket\\"."',
+        'RRG 1.8 Appendix V, "Civil War Expansion" (p. 70, docs/rules/mc_rulesreference_v18_compressed.md line 5174): "YELLOW JACKET (#73) Title should read \\"Yellowjacket\\"."',
     },
     {
       code: "56098",
@@ -273,7 +273,7 @@ export const CW_CURATION: PackCuration = {
       changedFields: ["text"],
       note: 'Energy Channel: the cost arrow after "remove all of them" is gone; Captain Marvel attacks as part of the effect ("and"). The print has "remove all of them → Captain Marvel attacks that character".',
       evidence:
-        'RRG 1.8 Appendix V, "Civil War Expansion" (p. 70, mc_rulesreference_v18_compressed.md line 5178): "ENERGY CHANNEL (#98) Should read: Forced Response: After a leader, hero, or ally attacks Captain Marvel, place 1 energy counter here. Then, if there are at least 4 energy counters here, remove all of them and Captain Marvel attacks that character. This attack gains overkill. (Changed \\u2192 to \\"and\\".)" Rulings Jan 26, 2026 (5) and Jun 2, 2026 (4).',
+        'RRG 1.8 Appendix V, "Civil War Expansion" (p. 70, docs/rules/mc_rulesreference_v18_compressed.md line 5178): "ENERGY CHANNEL (#98) Should read: Forced Response: After a leader, hero, or ally attacks Captain Marvel, place 1 energy counter here. Then, if there are at least 4 energy counters here, remove all of them and Captain Marvel attacks that character. This attack gains overkill. (Changed \\u2192 to \\"and\\".)" Rulings Jan 26, 2026 (5) and Jun 2, 2026 (4).',
       currentReplace: {
         find: "remove all of them → Captain Marvel attacks",
         replace: "remove all of them and Captain Marvel attacks",

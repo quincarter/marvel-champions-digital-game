@@ -96,7 +96,7 @@ How the packages fit together, and how to run the game locally, is in [Architect
 - **Bugs, feature ideas and deck requests:** open an issue from the
   [issue chooser](https://github.com/quincarter/marvel-champions-digital-game/issues/new/choose). In the game, the bug
   icon in the top bar (or on the Title screen) opens Report an issue, which copies the game log for your report.
-- **Rules questions:** check the [Rules Reference](mc_rulesreference_v18_compressed.pdf) and
+- **Rules questions:** check the [Rules Reference](docs/rules/mc_rulesreference_v18_compressed.pdf) and
   [FFG's rulings](https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-7/) before filing a rules bug.
 - **Discord:** _coming soon._ <!-- TODO: replace this line with the Discord invite link once the server exists. -->
 - **Contributing:** see [CONTRIBUTING.md](CONTRIBUTING.md) for setup, tests, conventions and the release flow.

@@ -45,7 +45,7 @@ vi.setConfig({ testTimeout: 240_000 });
  * play, ability and attack is a command the engine validates. Deterministic by seed (1). The dependencies are built
  * from `WAVE8_ABILITIES`, the box's aspect/basic cards and Maria Hill's own four modules only.
  *
- * Rules the game leans on (RRG 1.8 = mc_rulesreference_v18_compressed.md; page numbers as the modules cite them):
+ * Rules the game leans on (RRG 1.8 = docs/rules/mc_rulesreference_v18_compressed.md; page numbers as the modules cite them):
  * - "All-Purpose Counter" (p. 6): an all-purpose counter placed on, or moved to, a card that defines a counter type
  *   becomes that type (Reassignment, Nick Fury 50002, Reinforcements 50005, Special Funding 50007, Director 50011).
  * - "Uses" (p. 46): a card whose last Uses counter is removed is discarded (by an ability's cost, by Reassignment).

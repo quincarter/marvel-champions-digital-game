@@ -117,7 +117,7 @@ card title in the five caches against the RRG markdown found no other hit on a c
 - White Queen (#56) FAQ is the Mutant Genesis minion (32056), not the basic ally 49021.
 - Fabian Cortez (#159) FAQ is a Mutant Genesis card, not the Hellfire-adjacent minion 49030.
 
-Post-RRG-1.7 rulings, same script against `marvel-champions-rulings-post-rrg-1-7.md`:
+Post-RRG-1.7 rulings, same script against `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`:
 
 | Heading               | Card                       | Point                                                                                                                                                                                                                             |
 | --------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

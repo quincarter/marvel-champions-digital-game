@@ -42,7 +42,7 @@ vi.setConfig({ testTimeout: 240_000 });
  * `moveToHand`, as the other kit tests do; the encounter cards of a villain phase are stacked with `stackEncounterDeck`);
  * every play, ability and attack is a command the engine validates. Deterministic by seed (1).
  *
- * Rules the game leans on (RRG 1.8 = mc_rulesreference_v18_compressed.md):
+ * Rules the game leans on (RRG 1.8 = docs/rules/mc_rulesreference_v18_compressed.md):
  * - Villain phase (Appendix II, pp. 51-52): step 1 threat on the main scheme, step 2 the villain then the minions
  *   activate (an enemy attacks a hero-form identity and schemes against an alter-ego one, "Activation", p. 6), step 3
  *   deal, step 4 reveal. "End of Player Phase" (p. 18): discard, draw up to hand size, ready all cards, before the

@@ -2,7 +2,7 @@
  * `preview()` — what a command would do, and where it refuses to guess.
  *
  * Every test is tied to the RRG 1.8 page it is checking; page numbers are the printed ones in
- * `mc_rulesreference_v18_compressed.pdf` (they match the PDF's own page indexes).
+ * `docs/rules/mc_rulesreference_v18_compressed.pdf` (they match the PDF's own page indexes).
  */
 
 import { flat, type AnyCard, type CardId } from "@mc/content";
