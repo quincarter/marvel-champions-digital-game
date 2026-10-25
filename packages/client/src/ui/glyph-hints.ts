@@ -178,20 +178,24 @@ export class GlyphHints {
        * state: a commit button shows A while A would press it and Start while only Start would.
        */
       readonly idsNow?: (set: GlyphSet) => readonly ShortcutId[] | null;
+      /** Glyphs that are no shortcut of their own (a direct pick's RT + A, a digit): read on every apply, like `idsNow`. */
+      readonly specs?: CustomSpecs;
     } = {},
   ): void {
     const rect = button.rect;
     const baseHeight = glyphHeightFor(rect.height);
     const idsNow = options.idsNow;
     this.#add(ids, ground, baseHeight, {
-      ...(idsNow
-        ? {
-            custom: (set: GlyphSet, snapshot: InputHintsSnapshot, layer: PadLayer | null) => {
-              const now = idsNow(set);
-              return now ? specsForShortcuts(now, snapshot, set === "pad" ? layer : null) : null;
-            },
-          }
-        : {}),
+      ...(options.specs
+        ? { custom: options.specs }
+        : idsNow
+          ? {
+              custom: (set: GlyphSet, snapshot: InputHintsSnapshot, layer: PadLayer | null) => {
+                const now = idsNow(set);
+                return now ? specsForShortcuts(now, snapshot, set === "pad" ? layer : null) : null;
+              },
+            }
+          : {}),
       place: ({ width, full, openness, height }) => {
         const beside = glyphBesideLabel(rect, button.labelBox, full, width, openness);
         if (beside) return beside;

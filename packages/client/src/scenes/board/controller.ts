@@ -13,6 +13,7 @@ import type { Command, CostChoices, CostSelection, GameState, InstanceId, LegalA
 import { paymentFor, tryPayment } from "@mc/engine";
 import { appSession } from "../../session.js";
 import { abilityLabelOf, abilityShortLabelOf } from "../../view/ability-label.js";
+import { pagedOffset } from "../../view/pick-assign.js";
 import {
   assaultThwartSuffix,
   powerEntries,
@@ -340,6 +341,14 @@ export class BoardController {
   #shown: { readonly action: PaymentState["action"]; readonly verdict: PaymentVerdict } | null = null;
   /** Pay was pressed and is waiting for its verdict. */
   #committing = false;
+  /** The direct-pick page showing (`pickOffset`) and the candidates it was for; the targeting panel's ids for one selection and game. */
+  #pickOffset = 0;
+  #pickKey = "";
+  #pickCache: {
+    readonly selection: Selection;
+    readonly game: GameState | null;
+    readonly ids: readonly InstanceId[] | null;
+  } | null = null;
 
   constructor(host: BoardControllerHost, options: { readonly readOnly?: boolean } = {}) {
     this.#host = host;
@@ -737,6 +746,70 @@ export class BoardController {
   sourceChoice(): SourceChoiceView | null {
     if (this.#selection.kind !== "choosingSource") return null;
     return { power: this.#selection.power, sources: this.#selection.sources };
+  }
+
+  /**
+   * The candidates a direct pick (RT + A / X / Y / B, the digits; `view/pick-assign.ts`) chooses among right now, in the
+   * order they are drawn: the "Who attacks?" characters, or the targeting panel's tiles. Null when no such choice is
+   * open or it holds nothing. Read from the same data the bar and the panel draw, never recomputed.
+   */
+  pickIds(): readonly InstanceId[] | null {
+    const ids = this.#pickIdsNow();
+    // The page starts over with every new choice: once nothing is open, forget where the last one had got to.
+    if (ids === null) {
+      this.#pickKey = "";
+      this.#pickOffset = 0;
+    }
+    return ids;
+  }
+
+  #pickIdsNow(): readonly InstanceId[] | null {
+    if (this.#readOnly) return null;
+    const selection = this.#selection;
+    const kind = selection.kind;
+    if (kind === "choosingSource") return selection.sources.map((source) => source.instanceId);
+    if (
+      kind !== "targeting" &&
+      kind !== "choosingInPlayCost" &&
+      kind !== "dividingPower" &&
+      kind !== "choosingController"
+    )
+      return null;
+    // The panel is built from a preview per tile: once per selection and game, not once per glyph.
+    const { game } = appSession().store.state;
+    if (this.#pickCache?.selection !== selection || this.#pickCache.game !== game) {
+      const ids = this.targetingPanel()?.options.map((option) => option.instanceId) ?? [];
+      this.#pickCache = { selection, game, ids: ids.length > 0 ? ids : null };
+    }
+    return this.#pickCache.ids;
+  }
+
+  /** Which candidate the page showing starts at; starts over whenever the list of candidates changes. */
+  pickOffset(): number {
+    const ids = this.pickIds();
+    const key = ids === null ? "" : `${this.#selection.kind}:${ids.join(",")}`;
+    if (key !== this.#pickKey) {
+      this.#pickKey = key;
+      this.#pickOffset = 0;
+    }
+    return this.#pickOffset;
+  }
+
+  /** Pages the candidates a step (LB / RB under RT, the zone keys), cycling past the end. False when there is only one page. */
+  pagePicks(direction: 1 | -1, size: number): boolean {
+    const ids = this.pickIds();
+    if (ids === null || ids.length <= size) return false;
+    this.#pickOffset = pagedOffset(ids.length, this.pickOffset(), size, direction);
+    return true;
+  }
+
+  /** Answers the open choice with its `index`th candidate, as a tap on it would. */
+  pickByIndex(index: number): boolean {
+    const id = this.pickIds()?.[index];
+    if (id === undefined) return false;
+    if (this.#selection.kind === "choosingSource") this.chooseSource(id);
+    else this.tapInMode(id);
+    return true;
   }
 
   /** The forms the "Which form?" bar offers, or null when it isn't open. */

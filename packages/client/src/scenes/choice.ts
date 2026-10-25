@@ -852,15 +852,20 @@ export class ChoiceOverlay extends Phaser.Scene {
     }
 
     if (backOutRect) {
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "secondary",
-          label: takeback !== null ? "Nevermind" : "Back out",
-          type: typeRole.label,
-          rect: backOutRect,
-          onClick: () => void this.#backOut(backOutTarget!),
-        }),
-      );
+      const backOut = new McButton(this, {
+        kind: "secondary",
+        label: takeback !== null ? "Nevermind" : "Back out",
+        type: typeRole.label,
+        rect: backOutRect,
+        onClick: () => void this.#backOut(backOutTarget!),
+      });
+      this.#buttons.push(backOut);
+      // B takes the turn back only with nothing focused (a focused control drops its focus first), so the glyph says B
+      // only then; the plain Back out has no key and wears none.
+      const { width, height } = this.scale.gameSize;
+      if (takeback !== null && glyphsFitFormFactor(formFactorFor(width, height))) {
+        this.#hints.button(backOut, ["cancel"], "paper", { idsNow: () => (this.#focus === null ? ["cancel"] : null) });
+      }
     }
 
     // The compact strip (phone, phone landscape, tablet portrait): there's no width to spare beside the sheet at

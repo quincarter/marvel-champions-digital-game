@@ -355,6 +355,13 @@ export class FocusRoute {
     return stop !== undefined;
   }
 
+  /** Presses the stop `key` as a tap on it would (a screen's second answer, on X); false when it is not on screen. */
+  pressStop(key: string): boolean {
+    const stop = this.#ownStops.get(key);
+    stop?.activate();
+    return stop !== undefined;
+  }
+
   #stopOf(key: string): FocusStop | undefined {
     return this.#ownStops.get(key) ?? this.#chrome().get(key);
   }

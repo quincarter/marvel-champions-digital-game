@@ -121,6 +121,18 @@ export type RailGate =
       readonly onPress: () => void;
     };
 
+/**
+ * Gives a button its glyph. `primary` is the stop key when the button is what A / Enter presses with nothing focused (and
+ * what Start presses from anywhere); `enabled` is false for a primary that cannot be pressed now.
+ */
+export type RailHint = (
+  button: McButton,
+  ids: readonly ShortcutId[],
+  ground?: GlyphGround,
+  primary?: string,
+  enabled?: boolean,
+) => void;
+
 export interface RailPanelArgs {
   readonly layout: VillainRailLayout;
   readonly game: GameState;
@@ -147,7 +159,12 @@ export interface RailPanelArgs {
   readonly autoAdvance: VillainAutoAdvance;
   readonly buttons: McButton[];
   /** Gives a button its key / pad glyph where the layout has room (`ui/glyph-hints.ts`); absent where there are none. */
-  readonly hint?: (button: McButton, ids: readonly ShortcutId[], ground?: GlyphGround, primary?: string) => void;
+  readonly hint?: RailHint;
+  /**
+   * The panel's second answer, pressed with X (G on the keyboard): Let it resolve beside an interrupt's Use. `stop` is
+   * the focus key the press goes to.
+   */
+  readonly hintSecondary?: (button: McButton, stop: string) => void;
   readonly onSkip: () => void;
   readonly onHide: () => void;
   readonly onToggle: () => void;
@@ -580,9 +597,15 @@ function drawReveal(
   );
   if (next) {
     const rect: Rect = { x, y: y + height - nextHeight, width: Math.min(width, 200), height: nextHeight };
-    args.buttons.push(
-      new McButton(scene, { kind: "onInk", label: "Next card ▸", type: typeRole.label, rect, onClick: next }),
-    );
+    const nextButton = new McButton(scene, {
+      kind: "onInk",
+      label: "Next card ▸",
+      type: typeRole.label,
+      rect,
+      onClick: next,
+    });
+    args.buttons.push(nextButton);
+    args.hint?.(nextButton, ["activate"], "ink", "next");
     stops.set("next", { rect, activate: next });
   }
 }
@@ -642,16 +665,16 @@ function drawFacedownText(
   );
   if (flip && body.flip?.elapsedMs === null) {
     const rect: Rect = { x, y: y + height - flipHeight, width: Math.min(width, 240), height: flipHeight };
-    args.buttons.push(
-      new McButton(scene, {
-        kind: "primary",
-        label: flipLabel,
-        type: typeRole.label,
-        rect,
-        tint: { fill: signal.caution.hex, ink: surface.ink.hex },
-        onClick: flip,
-      }),
-    );
+    const flipButton = new McButton(scene, {
+      kind: "primary",
+      label: flipLabel,
+      type: typeRole.label,
+      rect,
+      tint: { fill: signal.caution.hex, ink: surface.ink.hex },
+      onClick: flip,
+    });
+    args.buttons.push(flipButton);
+    args.hint?.(flipButton, ["activate"], "ink", "flip");
     stops.set("flip", { rect, activate: flip });
   }
 }
@@ -777,9 +800,15 @@ function drawHappening(
   const next = args.onNext;
   if (next) {
     const rect: Rect = { x, y: y + height - hit.target, width: Math.min(width, 200), height: hit.target };
-    args.buttons.push(
-      new McButton(scene, { kind: "onInk", label: "Next card ▸", type: typeRole.label, rect, onClick: next }),
-    );
+    const nextButton = new McButton(scene, {
+      kind: "onInk",
+      label: "Next card ▸",
+      type: typeRole.label,
+      rect,
+      onClick: next,
+    });
+    args.buttons.push(nextButton);
+    args.hint?.(nextButton, ["activate"], "ink", "next");
     stops.set("next", { rect, activate: next });
   }
 }
@@ -928,6 +957,8 @@ function drawInterrupt(
 
   drawInterruptAnswer(scene, { use: layout.use, resolve: layout.resolve }, game, interrupt, args.buttons, stops, {
     thumb: args.layout.kind === "tab",
+    ...(args.hint ? { hint: args.hint } : {}),
+    ...(args.hintSecondary ? { hintSecondary: args.hintSecondary } : {}),
   });
 }
 
@@ -943,7 +974,11 @@ export function drawInterruptAnswer(
   interrupt: RailInterrupt,
   buttons: McButton[],
   stops: Map<string, FocusStop>,
-  options: { readonly thumb: boolean },
+  options: {
+    readonly thumb: boolean;
+    readonly hint?: RailHint;
+    readonly hintSecondary?: (button: McButton, stop: string) => void;
+  },
 ): void {
   const multi = !inlineSingle(interrupt.options);
   const picks = interrupt.picks;
@@ -959,29 +994,32 @@ export function drawInterruptAnswer(
   }
   const use = (): void => interrupt.onResolve(multi ? picks : [first.optionId]);
   const useLabel = multi ? inlineConfirmLabel(game, interrupt.options, picks) : interruptActionLabel(game, first);
-  buttons.push(
-    new McButton(scene, {
-      kind: "primary",
-      label: useLabel,
-      type: { ...typeRole.barTitle, size: options.thumb ? 22 : 26 },
-      rect: rects.use,
-      tint: { fill: signal.caution.hex, ink: surface.ink.hex },
-      enabled: !multi || picks.length > 0,
-      onClick: use,
-    }),
-  );
-  if (!multi) stops.set(`interrupt:${first.optionId}`, { rect: rects.use, activate: use });
-  else stops.set("confirm", { rect: rects.use, activate: use });
+  const useEnabled = !multi || picks.length > 0;
+  const useButton = new McButton(scene, {
+    kind: "primary",
+    label: useLabel,
+    type: { ...typeRole.barTitle, size: options.thumb ? 22 : 26 },
+    rect: rects.use,
+    tint: { fill: signal.caution.hex, ink: surface.ink.hex },
+    enabled: useEnabled,
+    onClick: use,
+  });
+  buttons.push(useButton);
+  const useStop = multi ? "confirm" : `interrupt:${first.optionId}`;
+  stops.set(useStop, { rect: rects.use, activate: use });
+  // Use (or the pick list's Confirm) is the window's forward answer: A with nothing focused, and Start from anywhere.
+  if (useEnabled) options.hint?.(useButton, ["activate"], "ink", useStop);
   const letItResolve = (): void => interrupt.onResolve([]);
-  buttons.push(
-    new McButton(scene, {
-      kind: options.thumb ? "primary" : "onInk",
-      label: options.thumb ? "Resolve ▸" : "Let it resolve ▸",
-      type: options.thumb ? { ...typeRole.barTitle, size: 22 } : { ...typeRole.label, size: 12 },
-      rect: rects.resolve,
-      onClick: letItResolve,
-    }),
-  );
+  const resolveButton = new McButton(scene, {
+    kind: options.thumb ? "primary" : "onInk",
+    label: options.thumb ? "Resolve ▸" : "Let it resolve ▸",
+    type: options.thumb ? { ...typeRole.barTitle, size: 22 } : { ...typeRole.label, size: 12 },
+    rect: rects.resolve,
+    onClick: letItResolve,
+  });
+  buttons.push(resolveButton);
+  // The other answer: X (G), so both of the window's answers carry a glyph.
+  options.hintSecondary?.(resolveButton, "resolve");
   stops.set("resolve", { rect: rects.resolve, activate: letItResolve });
 }
 

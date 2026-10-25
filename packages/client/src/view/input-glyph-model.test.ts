@@ -7,6 +7,8 @@ import {
   glyphOpenness,
   glyphsForShortcut,
   OpennessAnimator,
+  pickGlyphSpecs,
+  pickMoreGlyphSpecs,
   type GlyphSettings,
   type GlyphSpec,
 } from "./input-glyph-model.js";
@@ -135,5 +137,59 @@ describe("OpennessAnimator", () => {
     expect(a.animating(at, false)).toBe(true);
     expect(a.value(5000, false)).toBe(1);
     expect(a.animating(5000, false)).toBe(false);
+  });
+});
+
+describe("direct-pick glyphs", () => {
+  const labels = (specs: ReturnType<typeof pickGlyphSpecs>) => specs?.map((g) => g.label);
+
+  test("pad: RT then the slot's button at rest; the bare button once RT is held; nothing under LT", () => {
+    const xbox = padState(XBOX);
+    // The RT layer's order (A, X, Y, B) is the abilities' (`view/pad-layer-bindings.ts`).
+    expect([0, 1, 2, 3].map((slot) => labels(pickGlyphSpecs(slot, xbox, settings, null)))).toEqual([
+      ["RT", "A"],
+      ["RT", "X"],
+      ["RT", "Y"],
+      ["RT", "B"],
+    ]);
+    expect([0, 1, 2, 3].map((slot) => labels(pickGlyphSpecs(slot, xbox, settings, "rt")))).toEqual([
+      ["A"],
+      ["X"],
+      ["Y"],
+      ["B"],
+    ]);
+    expect(pickGlyphSpecs(0, xbox, settings, "lt")).toBeNull();
+    expect(pickGlyphSpecs(4, xbox, settings, null)).toBeNull();
+  });
+
+  test("pad: follows the family's own symbols and the Nintendo swap", () => {
+    expect(labels(pickGlyphSpecs(0, padState(PS), settings, "rt"))).toEqual(["✕"]);
+    expect(labels(pickGlyphSpecs(1, padState(PS), settings, "rt"))).toEqual(["□"]);
+    // The swap puts the confirm meaning on the Switch pad's own A, and the layout off leaves it on the bottom button, B.
+    expect(labels(pickGlyphSpecs(0, padState(SWITCH), settings, "rt"))).toEqual(["A"]);
+    expect(labels(pickGlyphSpecs(0, padState(SWITCH), { ...settings, nintendoLayout: false }, "rt"))).toEqual(["B"]);
+  });
+
+  test("keyboard: the digits 1 to 9, whatever the hand, and nothing past nine", () => {
+    expect([0, 4, 8].map((slot) => labels(pickGlyphSpecs(slot, keyboard, settings, null)))).toEqual([
+      ["1"],
+      ["5"],
+      ["9"],
+    ]);
+    expect(labels(pickGlyphSpecs(0, keyboard, { ...settings, keyboardHand: "right" }, null))).toEqual(["1"]);
+    expect(pickGlyphSpecs(9, keyboard, settings, null)).toBeNull();
+  });
+
+  test("none for touch or the setting off", () => {
+    expect(pickGlyphSpecs(0, { ...INITIAL_INPUT_MODE, mode: "touch" }, settings, null)).toBeNull();
+    expect(pickGlyphSpecs(0, padState(XBOX), { ...settings, inputGlyphs: false }, null)).toBeNull();
+  });
+
+  test("the more hint is RT then RB at rest, LB and RB under RT, and the zone key on a keyboard", () => {
+    const xbox = padState(XBOX);
+    expect(pickMoreGlyphSpecs(xbox, settings, null)?.map((g) => g.label)).toEqual(["RT", "RB"]);
+    expect(pickMoreGlyphSpecs(xbox, settings, "rt")?.map((g) => g.label)).toEqual(["LB", "RB"]);
+    expect(pickMoreGlyphSpecs(xbox, settings, "lt")).toBeNull();
+    expect(pickMoreGlyphSpecs(keyboard, settings, null)?.map((g) => g.label)).toEqual(["F"]);
   });
 });

@@ -30,6 +30,7 @@ import { drawSeatAvatar } from "./seat-avatar.js";
 import { bindHoldTarget } from "./hold-target.js";
 import { McScrollRegion } from "./scroll-region.js";
 import { textStyle } from "./theme.js";
+import type { RailHint } from "./villain-rail-panel.js";
 import { McButton, fitText, label } from "./widgets.js";
 
 export interface RecapPanelArgs {
@@ -45,6 +46,10 @@ export interface RecapPanelArgs {
   readonly onFullLog: () => void;
   readonly onToggle: () => void;
   readonly onStart: () => void;
+  /** Gives a button its key / pad glyph where the layout has room, and names the stop A / Start press (`ui/villain-rail-panel.ts#RailHint`). */
+  readonly hint?: RailHint;
+  /** The recap's second control, X (G): Full log. */
+  readonly hintSecondary?: (button: McButton, stop: string) => void;
   /** The primary button's label: "Start player phase ▸", or "Close" when the recap is reopened for review. */
   readonly ctaLabel?: string;
   /**
@@ -115,14 +120,31 @@ export function drawVillainRecapPanel(scene: Phaser.Scene, args: RecapPanelArgs)
     kind: "onInk" | "primary",
     type: TypeSpec,
     onClick: () => void,
-  ): void => {
-    args.buttons.push(new McButton(scene, { kind, label: text, type, rect, onClick }));
+  ): McButton => {
+    const made = new McButton(scene, { kind, label: text, type, rect, onClick });
+    args.buttons.push(made);
     stops.set(key, { rect, activate: onClick });
+    return made;
   };
-  if (args.docked)
-    button("expand", args.docked.expandLabel, layout.hide, "onInk", typeRole.label, args.docked.onExpand);
-  else button("skip", "Hide", layout.hide, "onInk", typeRole.label, args.onHide);
-  button("full-log", "Full log", layout.fullLog, "onInk", typeRole.label, args.onFullLog);
+  // Expand is R3 (the docked recap's `padExpand`); Hide is what B / Esc do (skip back to the table).
+  if (args.docked) {
+    const expand = button(
+      "expand",
+      args.docked.expandLabel,
+      layout.hide,
+      "onInk",
+      typeRole.label,
+      args.docked.onExpand,
+    );
+    args.hint?.(expand, ["expand"], "ink");
+  } else {
+    const hide = button("skip", "Hide", layout.hide, "onInk", typeRole.label, args.onHide);
+    args.hint?.(hide, ["cancel"], "ink");
+  }
+  args.hintSecondary?.(
+    button("full-log", "Full log", layout.fullLog, "onInk", typeRole.label, args.onFullLog),
+    "full-log",
+  );
 
   // What changed.
   if (layout.tilesLabel.height > 0) {
@@ -180,7 +202,16 @@ export function drawVillainRecapPanel(scene: Phaser.Scene, args: RecapPanelArgs)
       .setWordWrapWidth(layout.hint.width)
       .setMaxLines(2);
   }
-  button("continue", args.ctaLabel ?? "Start player phase ▸", layout.cta, "primary", typeRole.barTitle, args.onStart);
+  // The big red button: A with nothing focused, Start from anywhere.
+  const start = button(
+    "continue",
+    args.ctaLabel ?? "Start player phase ▸",
+    layout.cta,
+    "primary",
+    typeRole.barTitle,
+    args.onStart,
+  );
+  args.hint?.(start, ["activate"], "ink", "continue");
 
   return { layout, stops };
 }

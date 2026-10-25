@@ -314,6 +314,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #hints!: GlyphHints;
   /** The stop key of this draw's primary commit (Start, Answer, Continue, Resolve): what Enter / A presses unfocused. */
   #primaryStop: string | null = null;
+  /** The stop X (G) presses: the panel's second answer, or null when it has none right now. */
+  #secondaryStop: string | null = null;
   #route: FocusRoute | null = null;
   /**
    * What the pad's View and R3 (and the P and X keys) do on the docked decision this draw: its tuck / PEEK control and
@@ -457,6 +459,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       // Esc / B on the START gate is Nevermind when End turn can still be taken back; otherwise it hides the phase.
       onCancel: () => (this.#nevermindTarget() !== null ? void this.#nevermind() : this.#skip()),
       primary: () => this.#primaryStop,
+      onToggle: () => {
+        if (this.#secondaryStop !== null) this.#route?.pressStop(this.#secondaryStop);
+      },
       onFocusChange: () => this.#hints.refresh(),
       // Start is "forward": it starts the phase (or continues) when that gate is up, and opens Pause otherwise.
       onPause: () => {
@@ -1369,6 +1374,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#buttons = [];
     this.#hints.reset();
     this.#primaryStop = null;
+    this.#secondaryStop = null;
     this.#padPeek = null;
     this.#padExpand = null;
     destroyChildren(this);
@@ -2012,6 +2018,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       onFullLog: () => this.#openFullLog(),
       onToggle: () => this.#toggleAutoAdvance(),
       onStart: () => this.#close(),
+      hint: (button, ids, ground, primary, enabled) =>
+        this.#hintButton(button, ids, ground ?? "ink", primary ?? null, enabled ?? true),
+      hintSecondary: (button, stop) => this.#hintSecondary(button, stop),
       ...(this.#review ? { ctaLabel: "Close" } : {}),
       docked: {
         kind,
@@ -2048,6 +2057,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       onFullLog: () => this.#openFullLog(),
       onToggle: () => this.#toggleAutoAdvance(),
       onStart: () => this.#close(),
+      hint: (button, ids, ground, primary, enabled) =>
+        this.#hintButton(button, ids, ground ?? "ink", primary ?? null, enabled ?? true),
+      hintSecondary: (button, stop) => this.#hintSecondary(button, stop),
       ...(this.#review ? { ctaLabel: "Close" } : {}),
     });
     // The recap is finished by definition, so Start player phase is first in the route.
@@ -2308,7 +2320,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       width: Math.min(width, 240),
       height: hit.target,
     };
-    this.#buttons.push(
+    this.#pushHinted(
+      ["activate"],
+      "ink",
+      "flip",
       new McButton(this, {
         kind: "primary",
         label: flipLabel,
@@ -2835,17 +2850,18 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       }
       if (typeText.y + typeText.height > textY + textHeight) typeText.setVisible(false);
 
-      this.#buttons.push(
-        new McButton(this, {
-          kind: "primary",
-          label: multi
-            ? inlinePickLabel(interruptActionLabel(state, option), picks, option.optionId)
-            : interruptActionLabel(state, option),
-          type: typeRole.label,
-          rect: slot.button,
-          onClick: () => (multi ? toggle(option.optionId) : answer([option.optionId])),
-        }),
-      );
+      const optionButton = new McButton(this, {
+        kind: "primary",
+        label: multi
+          ? inlinePickLabel(interruptActionLabel(state, option), picks, option.optionId)
+          : interruptActionLabel(state, option),
+        type: typeRole.label,
+        rect: slot.button,
+        onClick: () => (multi ? toggle(option.optionId) : answer([option.optionId])),
+      });
+      this.#buttons.push(optionButton);
+      // The one card's Use is the window's forward answer: A with nothing focused, Start from anywhere.
+      if (!multi && i === 0) this.#hintButton(optionButton, ["activate"], "ink", `interrupt:${option.optionId}`);
       stops.set(`interrupt:${option.optionId}`, {
         rect: slot.button,
         activate: () => (multi ? toggle(option.optionId) : answer([option.optionId])),
@@ -2861,19 +2877,18 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         }
       : { x: rect.x + 14, y: rect.y + rect.height - 12 - resolveHeight, width: rect.width - 28, height: resolveHeight };
     const commits = multi && picks.length > 0;
-    // B / Esc skip the whole walkthrough here, not "Let it resolve": only the committing button carries a glyph.
-    this.#pushHinted(
-      commits ? ["activate"] : [],
-      "ink",
-      commits ? "resolve" : null,
-      new McButton(this, {
-        kind: multi && picks.length > 0 ? "primary" : "secondary",
-        label: multi ? inlineConfirmLabel(state, options, picks) : "Let it resolve",
-        type: typeRole.barTitle,
-        rect: resolveRect,
-        onClick: () => answer(multi ? picks : []),
-      }),
-    );
+    // B / Esc skip the whole walkthrough here, not "Let it resolve": the committing button carries A (Start), and a plain
+    // Let it resolve carries X (G).
+    const resolveButton = new McButton(this, {
+      kind: multi && picks.length > 0 ? "primary" : "secondary",
+      label: multi ? inlineConfirmLabel(state, options, picks) : "Let it resolve",
+      type: typeRole.barTitle,
+      rect: resolveRect,
+      onClick: () => answer(multi ? picks : []),
+    });
+    this.#buttons.push(resolveButton);
+    if (commits) this.#hintButton(resolveButton, ["activate"], "ink", "resolve");
+    else this.#hintSecondary(resolveButton, "resolve");
     stops.set("resolve", { rect: resolveRect, activate: () => answer(multi ? picks : []) });
   }
 
@@ -3004,7 +3019,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       onFlip: this.#flipGate() !== null ? () => this.#pressFlip() : null,
       autoAdvance: appSession().settings.villainAutoAdvance,
       buttons: this.#buttons,
-      hint: (button, ids, ground, primary) => this.#hintButton(button, ids, ground ?? "ink", primary ?? null),
+      hint: (button, ids, ground, primary, enabled) =>
+        this.#hintButton(button, ids, ground ?? "ink", primary ?? null, enabled ?? true),
+      hintSecondary: (button, stop) => this.#hintSecondary(button, stop),
       onSkip: () => this.#skip(),
       onHide: hide,
       onToggle: () => this.#toggleAutoAdvance(),
@@ -3327,7 +3344,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     primary: string | null = null,
     enabled = true,
   ): void {
-    if (primary !== null) this.#primaryStop = primary;
+    // Only a primary that can be pressed is what A and Start press: a greyed Confirm leaves them to the rest of the screen.
+    if (primary !== null && enabled) this.#primaryStop = primary;
     const { width, height } = this.scale.gameSize;
     if (!glyphsFitFormFactor(formFactorFor(width, height))) return;
     this.#hints.button(
@@ -3347,6 +3365,17 @@ export class VillainPhaseOverlay extends Phaser.Scene {
                   : null,
           },
     );
+  }
+
+  /**
+   * The panel's second answer (Let it resolve, Full log): X on a pad, G on the keyboard (the `guide` shortcut, which this
+   * screen has no other use for). It presses `stop` wherever focus is.
+   */
+  #hintSecondary(button: McButton, stop: string): void {
+    this.#secondaryStop = stop;
+    const { width, height } = this.scale.gameSize;
+    if (!glyphsFitFormFactor(formFactorFor(width, height))) return;
+    this.#hints.button(button, ["guide"], "ink");
   }
 
   /** Returns true when the phase is over and Continue is showing. */

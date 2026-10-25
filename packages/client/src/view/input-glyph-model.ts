@@ -198,3 +198,48 @@ export class OpennessAnimator {
     return this.value(now, reducedMotion) !== (this.expanded ? 1 : 0);
   }
 }
+
+/**
+ * The glyphs on a candidate of a direct pick (`view/pick-assign.ts`): on a pad the RT layer's button for its slot, drawn
+ * with the RT trigger itself at rest (hold it, then press) and as the bare button once RT is held; on a keyboard the
+ * digit. Null for a slot with no button, under the LT layer (it means the basic actions there), or with no glyphs in use.
+ */
+export function pickGlyphSpecs(
+  slot: number,
+  state: InputModeState,
+  settings: GlyphSettings,
+  layer: PadLayer | null,
+): readonly GlyphSpec[] | null {
+  const set = glyphSetOf(state, settings.inputGlyphs, settings.glyphSource ?? "auto");
+  if (set === null) return null;
+  if (set === "keyboard") {
+    return slot >= 0 && slot < 9 ? [{ kind: "key", label: String(slot + 1), name: `${slot + 1} key` }] : null;
+  }
+  if (layer === "lt") return null;
+  const action = abilityActionOfSlot(slot);
+  const button = action === null ? null : layerButtonGlyph(action, state, settings);
+  if (!button) return null;
+  if (layer === "rt") return [button];
+  const trigger = layerTriggerGlyph("rt", state, settings);
+  return trigger ? [trigger, button] : [button];
+}
+
+/** The glyphs of the "more" hint on a paged pick: how to turn the page, from rest and under a held RT (null when there is no glyph set). */
+export function pickMoreGlyphSpecs(
+  state: InputModeState,
+  settings: GlyphSettings,
+  layer: PadLayer | null,
+): readonly GlyphSpec[] | null {
+  const set = glyphSetOf(state, settings.inputGlyphs, settings.glyphSource ?? "auto");
+  if (set === null) return null;
+  if (set === "keyboard") return glyphsForShortcut("zoneNext", state, settings);
+  if (layer === "lt") return null;
+  const next = layerButtonGlyph("pageNext", state, settings);
+  if (!next) return null;
+  if (layer === "rt") {
+    const previous = layerButtonGlyph("pagePrevious", state, settings);
+    return previous ? [previous, next] : [next];
+  }
+  const trigger = layerTriggerGlyph("rt", state, settings);
+  return trigger ? [trigger, next] : [next];
+}

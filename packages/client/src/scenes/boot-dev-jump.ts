@@ -369,18 +369,24 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.board, data: {} };
   }
 
-  // `&fixture=drones`: a two-seat Ultron game at the first turn, each seat with its own facedown Drone, in hero form
-  // (the attack target picker's Drone labels, issue #357; `view/targeting-panel.test.ts` plays the same game).
+  // `&fixture=drones[&seats=N]`: a two-seat Ultron game at the first turn (up to four with `seats`), each seat with its own
+  // facedown Drone, in hero form (the attack target picker's Drone labels, issue #357; `view/targeting-panel.test.ts`
+  // plays the same game). Four seats give an attack five targets, one more than a page of the pad's direct picks.
   if (screen === "board" && params.get("fixture") === "drones") {
     const { store } = appSession();
     if (!gameRunning(store)) {
       await store.start({
         scenarioId: "ultron",
         difficulty: "standard",
-        players: [{ starterDeckId: "core-spider-man-justice" }, { starterDeckId: "core-she-hulk-aggression" }],
+        players: [
+          { starterDeckId: "core-spider-man-justice" },
+          { starterDeckId: "core-she-hulk-aggression" },
+          { starterDeckId: "core-iron-man-aggression" },
+          { starterDeckId: "core-captain-marvel-leadership" },
+        ].slice(0, Math.min(4, Math.max(2, intParam(params.get("seats"), 2)))),
         seed: 1,
       });
-      for (let step = 0; step < 12 && store.state.legal?.actions.kind === "choice"; step++) {
+      for (let step = 0; step < 24 && store.state.legal?.actions.kind === "choice"; step++) {
         const { choice } = store.state.legal.actions;
         await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((option) => option.optionId));
       }
@@ -397,6 +403,17 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     if (!gameRunning(store)) {
       const { startCrowdedGame } = await import("../store/dev-crowded-game.js");
       await startCrowdedGame(store);
+    }
+    return { key: SCENES.board, data: {} };
+  }
+
+  // `&fixture=attackers`: Captain Marvel's turn in hero form with three ready allies, so "Who attacks?" offers four characters
+  // (`store/dev-attackers-game.ts`).
+  if (screen === "board" && params.get("fixture") === "attackers") {
+    const { store } = appSession();
+    if (!gameRunning(store)) {
+      const { startAttackersGame } = await import("../store/dev-attackers-game.js");
+      await startAttackersGame(store);
     }
     return { key: SCENES.board, data: {} };
   }

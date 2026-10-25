@@ -158,7 +158,7 @@ export function drawVillainDefendPanel(scene: Phaser.Scene, args: DefendPanelArg
   args.buttons.push(confirm);
   // A while nothing is focused, Start from anywhere on the panel: the glyph on the commit says which one will do it.
   // Only a Confirm that can be pressed is the screen's primary: with nothing picked Start still opens Pause.
-  args.hint?.(confirm, ["activate"], picked !== null ? "confirm" : null, picked !== null);
+  args.hint?.(confirm, ["activate"], "confirm", picked !== null);
   stops.set("confirm", { rect: layout.confirm, activate: args.onConfirm });
   // After the footer's ink ground, which a phone's PEEK AT TABLE shares with CONFIRM.
   const tuck = new McButton(scene, {

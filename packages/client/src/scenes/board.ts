@@ -95,7 +95,7 @@ import { MECHANIC_TRYITS, mechanicLessonDoneKey } from "../guide/mechanic-tryits
 import { drawActionBar } from "./board/action-bar.js";
 import { specsForShortcuts, type CustomSpecs } from "../ui/glyph-hints.js";
 import { abilityActionOfSlot, layerButtonGlyph, layerTriggerGlyph, type GlyphSpec } from "../view/input-glyph-model.js";
-import { abilityPageCount, abilityPageOf, layerActionOf, type PadLayer } from "../view/pad-layers.js";
+import { abilityPageCount, abilityPageOf, abilitySlotOf, layerActionOf, type PadLayer } from "../view/pad-layers.js";
 import type { LayerActionId } from "../view/pad-layer-bindings.js";
 import { layerMarkerSpot } from "../view/layer-marker.js";
 import { nextAbilityPage } from "../view/pad-layer-hold.js";
@@ -106,6 +106,7 @@ import { drawChrome, drawPhoneTabs } from "./board/chrome.js";
 import { BoardFirstPlayerToken } from "./board/first-player-token.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
 import { glyphsFitLayout } from "../view/glyph-placement.js";
+import { KEY_PICK_SLOTS, PAD_PICK_SLOTS, pickIndexOfSlot, pickSlotOfDigit, pickWindow } from "../view/pick-assign.js";
 import { escapeMeaning } from "../view/escape-meaning.js";
 import { guideHintText } from "../view/guide-hint.js";
 import { inputDevice, onInputDeviceChange } from "../platform/input-device.js";
@@ -641,6 +642,11 @@ export class BoardScene extends Phaser.Scene {
         allPileRects: () => [...this.#frame.pileRects.entries()],
         handStrip: () => this.#frame.handStrip[0] ?? null,
         paymentView: () => this.paymentView(),
+        // The open choice's direct-pick candidates and the page showing (`view/pick-assign.ts`), null when none is open.
+        pickView: () => {
+          const ids = this.#controller.pickIds();
+          return ids === null ? null : { ids, offset: this.#controller.pickOffset() };
+        },
         phaseBand: () => this.#motion.debugPhaseBand(),
         phaseBandLog: () => this.#motion.debugPhaseBandLog(),
         pendingChoice: () => appSession().store.state.game?.pendingChoice ?? null,
@@ -1847,6 +1853,21 @@ export class BoardScene extends Phaser.Scene {
         event.preventDefault();
         return;
       }
+      // The digits pick an open choice's candidates outright (who attacks, which target); never with a modifier held.
+      const pickSlot = pickSlotOfDigit(event.code);
+      if (
+        pickSlot !== null &&
+        !event.shiftKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey &&
+        !event.repeat &&
+        this.#controller.pickIds() !== null
+      ) {
+        event.preventDefault();
+        this.#pickSlot(pickSlot, KEY_PICK_SLOTS);
+        return;
+      }
       const shortcut = boardKeyActionOf(event, hand);
       if (!shortcut) return;
       switch (shortcut.kind) {
@@ -1870,6 +1891,8 @@ export class BoardScene extends Phaser.Scene {
           this.#actOnIntent("recap");
           break;
         case "zone":
+          // Past nine candidates the zone keys turn the page of picks instead of jumping zones.
+          if (this.#pagePicks(shortcut.step, KEY_PICK_SLOTS)) break;
           this.#actOnIntent(shortcut.step > 0 ? "pageNext" : "pagePrevious");
           break;
         case "log":
@@ -1998,6 +2021,15 @@ export class BoardScene extends Phaser.Scene {
   #pressLayer(layer: PadLayer, meaningIndex: number): void {
     const action = layerActionOf(layer, meaningIndex);
     if (action === null) return;
+    // While the Board asks who attacks or which target, RT's buttons pick that candidate outright (`view/pick-assign.ts`).
+    if (layer === "rt" && this.#controller.pickIds() !== null) {
+      const slot = abilitySlotOf(action);
+      if (slot !== null) this.#pickSlot(slot, PAD_PICK_SLOTS);
+      else if (action === "pagePrevious" || action === "pageNext") {
+        this.#pagePicks(action === "pageNext" ? 1 : -1, PAD_PICK_SLOTS);
+      }
+      return;
+    }
     switch (action) {
       case "attack":
       case "thwart":
@@ -2027,6 +2059,21 @@ export class BoardScene extends Phaser.Scene {
         this.#useAbilityInSlot(slot, Math.min(this.#layerPage, count - 1));
       }
     }
+  }
+
+  /** The open choice's candidate on a slot of the page showing (A / X / Y / B under RT, a digit), as a tap on it. */
+  #pickSlot(slot: number, size: number): boolean {
+    const ids = this.#controller.pickIds();
+    if (ids === null) return false;
+    const index = pickIndexOfSlot(pickWindow(ids.length, this.#controller.pickOffset(), size), slot);
+    return index !== null && this.#controller.pickByIndex(index);
+  }
+
+  /** Turns the page of an open choice's candidates, and moves the glyphs onto it. False when everything fits one page. */
+  #pagePicks(direction: 1 | -1, size: number): boolean {
+    if (!this.#controller.pagePicks(direction, size)) return false;
+    this.#hints.refresh();
+    return true;
   }
 
   /**

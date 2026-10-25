@@ -10,6 +10,7 @@ import { McButton, fitText } from "../../ui/widgets.js";
 import { sourceFocusKey } from "../../view/guide-source-override.js";
 import type { Rect } from "../../view/layout.js";
 import { addBarButton, addBarCancel } from "./bar-stops.js";
+import { pickSpecsOf, registerPickMore } from "./pick-hints.js";
 import type { BoardDrawContext } from "./context.js";
 import type {
   AbilityChoiceView,
@@ -181,18 +182,19 @@ export function drawSourceBar(ctx: BoardDrawContext, rect: Rect, choice: SourceC
     const hatch = source.cancelledBy ? status[source.cancelledBy].hex : undefined;
     // The guide's `TRY THIS` rings a suggested character's button (`view/guide-source-override.ts`).
     ctx.frame.focusRects.set(sourceFocusKey(source.instanceId), { x, y: rect.y + 4, width, height: buttonHeight });
-    ctx.frame.buttons.push(
-      new McButton(scene, {
-        kind: "secondary",
-        label: source.name,
-        // On a phone the stat moves into the note, or it runs into a centered name.
-        ...(narrow ? {} : { value: source.stat }),
-        type: typeRole.label,
-        rect: { x, y: rect.y + 4, width, height: buttonHeight },
-        ...(hatch !== undefined ? { hatch } : {}),
-        onClick: () => controller.chooseSource(source.instanceId),
-      }),
-    );
+    const button = new McButton(scene, {
+      kind: "secondary",
+      label: source.name,
+      // On a phone the stat moves into the note, or it runs into a centered name.
+      ...(narrow ? {} : { value: source.stat }),
+      type: typeRole.label,
+      rect: { x, y: rect.y + 4, width, height: buttonHeight },
+      ...(hatch !== undefined ? { hatch } : {}),
+      onClick: () => controller.chooseSource(source.instanceId),
+    });
+    ctx.frame.buttons.push(button);
+    // The button (or number key) that picks this character outright, beside its name (`view/pick-assign.ts`).
+    if (!ctx.tabbed) ctx.hints.button(button, [], "paper", { specs: pickSpecsOf(ctx, source.instanceId) });
     const note = scene.add
       .text(
         x + 2,
@@ -203,6 +205,10 @@ export function drawSourceBar(ctx: BoardDrawContext, rect: Rect, choice: SourceC
       .setOrigin(0, 0);
     fitText(note, width - 4, typeRole.body.size);
   });
+  // More characters than one page of buttons: the hint that turns the page sits under the bar's title.
+  if (!narrow) {
+    registerPickMore(ctx, 16, () => ({ x: rect.x + 12, y: rect.y + 4 + buttonHeight + SOURCE_BAR_NOTE / 2 + 1 }));
+  }
   addBarCancel(ctx, {
     kind: "quiet",
     label: "Cancel",
