@@ -83,3 +83,51 @@ describe("`inPlayAreaOf` reads attachments by their host's area", () => {
     expect(explainQuery(state, idOf(state, "stake"), IN_YOUR_AREA, context)).toBe("notInPlayArea");
   });
 });
+
+// PR #416 review: the area is the host's, whoever controls the attachment, and it follows a host that is itself attached.
+describe("`inPlayAreaOf` follows the host across players", () => {
+  const PIN = stubUpgrade({ id: "pin", cost: 0 });
+  const inAreaOf = (state: GameState, id: InstanceId, playerId: typeof P1) =>
+    explainQuery(state, id, { inPlayAreaOf: { kind: "id", playerId } }, context);
+
+  it("a P1 attachment on P2's ally is in P2's area, not P1's; one attached to it too", () => {
+    const base = gameAtFirstTurn({
+      cards: [STAKE, HELPER, PIN],
+      deps,
+      deck: [STAKE.id, HELPER.id, PIN.id],
+      players: 2,
+    });
+    const [p1, p2] = base.players as [GameState["players"][number], GameState["players"][number]];
+    const first = (name: string) =>
+      Object.values(base.instances).find((instance) => (instance.cardId as string) === name)!.instanceId;
+    const helper = first("helper");
+    const stake = first("stake");
+    const pin = first("pin");
+    const moved = [helper, stake, pin];
+    const state: GameState = {
+      ...base,
+      players: base.players.map((p) => ({
+        ...p,
+        deck: p.deck.filter((i) => !moved.includes(i)),
+        hand: p.hand.filter((i) => !moved.includes(i)),
+        playArea: p.playerId === p2.playerId ? [...p.playArea, helper] : p.playArea,
+      })),
+      instances: {
+        ...base.instances,
+        [helper]: { ...base.instances[helper]!, controllerId: p2.playerId, faceup: true, attachments: [stake] },
+        [stake]: {
+          ...base.instances[stake]!,
+          controllerId: p1.playerId,
+          faceup: true,
+          attachedTo: helper,
+          attachments: [pin],
+        },
+        [pin]: { ...base.instances[pin]!, controllerId: p1.playerId, faceup: true, attachedTo: stake },
+      },
+    };
+    expect(inAreaOf(state, stake, p2.playerId)).toBeNull();
+    expect(inAreaOf(state, stake, p1.playerId)).toBe("notInPlayArea");
+    expect(inAreaOf(state, pin, p2.playerId)).toBeNull();
+    expect(inAreaOf(state, pin, p1.playerId)).toBe("notInPlayArea");
+  });
+});
