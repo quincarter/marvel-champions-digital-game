@@ -156,10 +156,14 @@ export function bindKeyboard(scene: Phaser.Scene, binding: IntentBinding): void 
   const firstDelivery = eventOnce();
   const firstRelease = eventOnce();
   if (binding.onInspectZoom) inspectHoldOf(scene, binding);
+  // The physical key that began the Inspect hold. Its keyup ends the hold whatever the modifiers now are: Shift
+  // pressed after E would otherwise make the release read as a different (or no) shortcut and leave the zoom open.
+  let inspectKey: string | null = null;
   // Releasing E / O ends the Inspect hold: a tap opens Inspect, a held zoom just closes.
   keyboard.on("keyup", (event: KeyboardEvent) => {
     if (!binding.onInspectZoom || !firstRelease(event)) return;
-    if (navIntentOf(event, currentKeyboardHand()) !== "inspect") return;
+    if (inspectKey !== null && event.code === inspectKey) inspectKey = null;
+    else if (navIntentOf(event, currentKeyboardHand()) !== "inspect") return;
     releaseInspect(scene, binding, "key");
   });
   keyboard.on("keydown", (event: KeyboardEvent) => {
@@ -178,7 +182,7 @@ export function bindKeyboard(scene: Phaser.Scene, binding: IntentBinding): void 
     // scrolling the page, the arrows scrolling it).
     if (intent !== "cancel" && intent !== "inspect" && intent !== "toggleGuide") event.preventDefault();
     if (intent === "inspect" && splitsInspect(binding)) {
-      inspectHoldOf(scene, binding).press("key", scene.time.now);
+      if (inspectHoldOf(scene, binding).press("key", scene.time.now)) inspectKey = event.code;
       return;
     }
     binding.onIntent(intent, "key");
