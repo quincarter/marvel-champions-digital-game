@@ -184,3 +184,62 @@ for (const inline of [false, true])
         });
       });
     }
+
+/**
+ * The owner's Linux build reported the physical Y as standard index 2 (X): X is the guide toggle, which neither screen
+ * uses (Seats clears a seat with it). Every way of pressing X and Y on a scrolled list keeps the page rendering.
+ */
+const X = 2;
+
+for (const screen of SCREENS) {
+  test(`${screen.name}: X and Y, tapped, held and together, on a scrolled list keep the page rendering`, async ({
+    page,
+  }) => {
+    test.setTimeout(240_000);
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    const errors = trackPageErrors(page);
+    await installPad(page);
+    await openApp(page, `screen=${screen.query}`, { landing: screen.scene });
+    await tap(page, LT);
+    await page.waitForTimeout(1000);
+    let last = "";
+    for (let i = 0; i < 120; i += 1) {
+      await tap(page, DPAD_DOWN);
+      const now = (await focusOf(page, screen.scene)) ?? "";
+      if (now === last && now.startsWith(screen.tile)) break;
+      last = now;
+    }
+    expect(last.startsWith(screen.tile)).toBe(true);
+    const alive = async (what: string): Promise<void> => {
+      const before = await beat(page);
+      await page.waitForTimeout(700);
+      expect(await beat(page), `frames keep coming after ${what}`).toBeGreaterThan(before + 5);
+    };
+    const hold = async (buttons: number[], ms: number): Promise<void> => {
+      for (const b of buttons) await setButton(page, b, true);
+      await page.waitForTimeout(ms);
+      for (const b of buttons) await setButton(page, b, false);
+    };
+    const chipsShown = async (): Promise<boolean> =>
+      (await stopsOf(page, screen.scene)).some((s) => s.key.startsWith(screen.chips));
+
+    await hold([X], 120);
+    await alive("X tapped");
+    expect(await chipsShown(), "X does not open the filters").toBe(false);
+    await hold([X], 600);
+    await alive("X held");
+    expect(await chipsShown()).toBe(false);
+    await hold([X, Y], 150);
+    await alive("X and Y together");
+    // Back to folded (the pair may or may not have opened them), then a held Y opens them once.
+    for (let i = 0; i < 4 && (await chipsShown()); i += 1) {
+      await hold([Y], 150);
+      await page.waitForTimeout(500);
+    }
+    expect(await chipsShown()).toBe(false);
+    await hold([Y], 600);
+    await alive("Y held");
+    await waitFor(async () => ((await chipsShown()) ? true : null), "a held Y opens the filters", 10_000);
+    expect(errors).toEqual([]);
+  });
+}
