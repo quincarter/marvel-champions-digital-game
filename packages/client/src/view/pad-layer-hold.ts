@@ -74,5 +74,7 @@ export const TRIGGER_BUTTONS = LAYER_TRIGGER_INDEX;
 /** The next ability page for a bumper press: wraps both ways, one page when there is nothing to page. */
 export function nextAbilityPage(page: number, count: number, step: 1 | -1): number {
   if (count <= 1) return 0;
-  return (((page + step) % count) + count) % count;
+  // From the page on screen: a used ability can drop a page while RT stays held, and the display clamps the same way.
+  const shown = Math.min(page, count - 1);
+  return (((shown + step) % count) + count) % count;
 }

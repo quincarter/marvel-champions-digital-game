@@ -163,10 +163,13 @@ export type PrimaryPress = { readonly kind: "bar"; readonly index: number } | { 
 export function primaryPressOf(
   selectionKind: string,
   stops: readonly { readonly primary: boolean; readonly enabled: boolean }[],
+  confirmReady = false,
 ): PrimaryPress {
   if (selectionKind === "idle") return null;
   const index = stops.findIndex((stop) => stop.primary);
   if (index >= 0) return stops[index]!.enabled ? { kind: "bar", index } : null;
-  if (selectionKind === "choosingInPlayCost" || selectionKind === "dividingPower") return { kind: "confirmPick" };
+  // The panel's Confirm only while it can be pressed, so a not-yet-ready pick leaves Start to open Pause.
+  if ((selectionKind === "choosingInPlayCost" || selectionKind === "dividingPower") && confirmReady)
+    return { kind: "confirmPick" };
   return null;
 }

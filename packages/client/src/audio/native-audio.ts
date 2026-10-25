@@ -87,8 +87,9 @@ export class NativeSound {
     this.#volume = config.volume ?? 1;
   }
 
+  /** False while paused, as Phaser's own sounds report it, so `music-controller.ts` branches the same on every build. */
   get isPlaying(): boolean {
-    return this.#playing;
+    return this.#playing && !this.#paused;
   }
 
   get isPaused(): boolean {

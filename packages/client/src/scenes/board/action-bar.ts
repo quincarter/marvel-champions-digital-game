@@ -7,6 +7,8 @@ import { appSession } from "../../session.js";
 import { hit, signal, status, surface, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
 import { McButton } from "../../ui/widgets.js";
+import { specsForShortcuts, type CustomSpecs } from "../../ui/glyph-hints.js";
+import { layerTriggerGlyph } from "../../view/input-glyph-model.js";
 import type { BoardModel } from "../../view/board-model.js";
 import { changeFormButtonLabel } from "../../view/change-form-label.js";
 import type { BasicAction } from "../../view/highlights.js";
@@ -122,6 +124,13 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
   const basicsWidth = stacked ? rect.width - 20 : rect.width - endTurnWidth - 30 - undoWidth - undoGap;
   const cellWidth = (basicsWidth - (BASICS.length - 1) * 6) / BASICS.length;
 
+  const attackSpecs: CustomSpecs = (set, snapshot, held) => {
+    const own = specsForShortcuts([BASIC_SHORTCUT.attack], snapshot, set === "pad" ? held : null);
+    if (own || set !== "pad" || held !== null) return own;
+    const trigger = layerTriggerGlyph("lt", snapshot.state, snapshot.settings);
+    return trigger ? [trigger] : null;
+  };
+
   BASICS.forEach((action, index) => {
     const button = marks?.basics.find((basic) => basic.action === action);
     const targeting =
@@ -162,7 +171,15 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
       onClick: () => controller.chooseBasic(action),
     });
     ctx.frame.buttons.push(basicButton);
-    ctx.hints.button(basicButton, [BASIC_SHORTCUT[action]], "ink", hintOptions);
+    ctx.hints.button(
+      basicButton,
+      [BASIC_SHORTCUT[action]],
+      "ink",
+      // Attack also carries the resting LT glyph, beside its word like any button glyph (the label moves over for it):
+      // above the bar it covered the leftmost hand pile. One entry, so the two never fight over the label's nudge; the
+      // pad's own Attack glyph only shows while LT is held, when the trigger glyph hides.
+      action === "attack" ? { ...hintOptions, specs: attackSpecs } : hintOptions,
+    );
   });
 
   // The one red fill in the bar: the forward action of the table.

@@ -216,8 +216,10 @@ describe("a decision's bar on the route", () => {
     expect(primaryPressOf("paying", stops)).toEqual({ kind: "bar", index: 1 });
     expect(primaryPressOf("paying", [{ primary: true, enabled: false }])).toBeNull();
     expect(primaryPressOf("idle", stops)).toBeNull();
-    expect(primaryPressOf("choosingInPlayCost", [])).toEqual({ kind: "confirmPick" });
-    expect(primaryPressOf("dividingPower", [])).toEqual({ kind: "confirmPick" });
+    expect(primaryPressOf("choosingInPlayCost", [], true)).toEqual({ kind: "confirmPick" });
+    expect(primaryPressOf("dividingPower", [], true)).toEqual({ kind: "confirmPick" });
+    expect(primaryPressOf("choosingInPlayCost", [], false)).toBeNull();
+    expect(primaryPressOf("dividingPower", [])).toBeNull();
     expect(primaryPressOf("targeting", [])).toBeNull();
   });
 });

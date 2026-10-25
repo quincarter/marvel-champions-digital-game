@@ -224,6 +224,14 @@ impl Engine {
       control.stopped.store(true, Ordering::Relaxed);
     }
   }
+
+  /// Stops every voice, without an ended call for any. The engine outlives the page: a reload starts the page's ids
+  /// over at 1, so the old page's voices would play on and their ended calls would land on the new page's sounds.
+  pub fn stop_all(&self) {
+    for (_, control) in self.voices.lock().expect("voices").drain() {
+      control.stopped.store(true, Ordering::Relaxed);
+    }
+  }
 }
 
 /// Plays one voice to its end on the calling thread. True when it ended on its own (not stopped, not failed).
@@ -327,5 +335,12 @@ mod tests {
     assert!(rx.recv_timeout(Duration::from_millis(600)).is_err());
     engine.stop(8);
     assert!(rx.recv_timeout(Duration::from_millis(600)).is_err());
+
+    // A page reload: every voice stops, and none reports an end.
+    engine.play(9, "fx", 1.0, true, Kind::Music).expect("plays");
+    engine.play(10, "fx", 1.0, false, Kind::Effect).expect("plays");
+    engine.stop_all();
+    assert!(rx.recv_timeout(Duration::from_millis(600)).is_err());
+    assert!(engine.voices.lock().unwrap().is_empty());
   }
 }

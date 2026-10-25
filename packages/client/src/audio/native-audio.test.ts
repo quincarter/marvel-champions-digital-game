@@ -153,9 +153,11 @@ describe("NativeAudio", () => {
     vi.advanceTimersByTime(10_000);
     sound.pause();
     expect(sound.isPaused).toBe(true);
+    expect(sound.isPlaying).toBe(false);
     vi.advanceTimersByTime(5_000);
     expect(sound.seek).toBeCloseTo(10, 0);
     sound.resume();
+    expect(sound.isPlaying).toBe(true);
     vi.advanceTimersByTime(115_000);
     // 125 s into a 120 s loop.
     expect(sound.seek).toBeCloseTo(5, 0);

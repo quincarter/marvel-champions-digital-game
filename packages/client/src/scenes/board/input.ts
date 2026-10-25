@@ -98,10 +98,17 @@ function inspectHoldOf(scene: Phaser.Scene, binding: IntentBinding): InspectHold
     }
     if (machine.poll(scene.time.now) === "zoom") binding.onInspectZoom?.(true);
   };
+  // Focus leaving the window mid-hold (Alt+Tab) means the release never arrives: drop the hold, so the zoom doesn't stay
+  // pinned and the pad's Y isn't refused as another input's hold.
+  const onLost = (): void => {
+    if (machine.cancel() === "close") binding.onInspectZoom?.(false);
+  };
   scene.events.on("update", onUpdate);
+  scene.game.events.on("blur", onLost);
   scene.events.once("shutdown", () => {
     scene.events.off("update", onUpdate);
-    if (machine.cancel() === "close") binding.onInspectZoom?.(false);
+    scene.game.events.off("blur", onLost);
+    onLost();
     inspectHolds.delete(binding);
   });
   return hold;

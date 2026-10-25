@@ -21,6 +21,8 @@ describe("detectPad", () => {
     ["DualSense Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 0ce6)", "playstation"],
     ["54c-9cc-Wireless Controller", "playstation"],
     ["Wireless Controller", "playstation"],
+    ["Wireless Controller (STANDARD GAMEPAD Vendor: 0079 Product: 181c)", "xbox"],
+    ["Wireless Controller (STANDARD GAMEPAD Vendor: 0000 Product: 0000)", "playstation"],
     ["Pro Controller (STANDARD GAMEPAD Vendor: 057e Product: 2009)", "nintendo"],
     ["57e-2009-Pro Controller", "nintendo"],
     // 8BitDo Ultimate in Switch mode reports as a Pro Controller; the Ultimate 2 in X-input mode as an Xbox 360 pad.

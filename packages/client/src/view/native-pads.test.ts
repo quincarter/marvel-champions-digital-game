@@ -93,6 +93,19 @@ describe("NativePads", () => {
     expect(pads.snapshot()[1]?.buttons[0]?.pressed).toBe(true);
   });
 
+  it("says which pads are shown, so a hidden virtual pad's mirrored press can't switch the glyphs", () => {
+    const pads = new NativePads();
+    pads.apply({ kind: "connected", pad: pad([]) });
+    pads.apply({ kind: "connected", pad: pad([0], [], STEAM) });
+    expect(pads.shows(1)).toBe(true);
+    pads.apply({ kind: "state", pad: pad([0], [0]) });
+    // Steam mirrors the same press on its virtual pad: hidden, so the caller doesn't note it as the pad in use.
+    pads.apply({ kind: "state", pad: pad([0], [0], STEAM) });
+    expect(pads.shows(0)).toBe(true);
+    expect(pads.shows(1)).toBe(false);
+    expect(pads.shows(2)).toBe(false);
+  });
+
   it("reads every pad as gone when the bridge stops", () => {
     const pads = new NativePads();
     pads.apply({ kind: "state", pad: pad([2]) });

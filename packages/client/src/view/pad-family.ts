@@ -49,6 +49,8 @@ const STEAM_DECK_PRODUCTS = new Set(["1205"]);
  */
 export function vendorProductOf(id: string): { readonly vendor: string; readonly product: string } | null {
   const chromium = /vendor:\s*([0-9a-f]{4})\s+product:\s*([0-9a-f]{4})/i.exec(id);
+  // Vendor 0000 is no id at all: the desktop app's Linux bridge writes it when the pad reports none.
+  if (chromium && chromium[1] === "0000") return null;
   if (chromium) return { vendor: chromium[1]!.toLowerCase(), product: chromium[2]!.toLowerCase() };
   const firefox = /^([0-9a-f]{1,4})-([0-9a-f]{1,4})-/i.exec(id);
   if (firefox)
@@ -68,7 +70,9 @@ export function detectPad(id: string): PadIdentity {
   if (ids?.vendor === "2dc8") return { family: EIGHTBITDO_SWITCH.test(name) ? "nintendo" : "xbox", steam, handheld };
   const byVendor = ids ? VENDOR_FAMILY[ids.vendor] : undefined;
   if (byVendor) return { family: byVendor, steam: false, handheld };
-  if (/dualsense|dualshock|playstation|^wireless controller/.test(name))
+  // A bare "Wireless Controller" is Sony's name only with no ids to go by (Safari); with another maker's vendor id it is
+  // just a generic Bluetooth pad.
+  if (/dualsense|dualshock|playstation/.test(name) || (ids === null && name.startsWith("wireless controller")))
     return { family: "playstation", steam, handheld };
   if (name.startsWith("8bitdo") && !EIGHTBITDO_SWITCH.test(name)) return { family: "xbox", steam, handheld };
   if (/pro controller|joy-con|nintendo|switch/.test(name)) return { family: "nintendo", steam, handheld };

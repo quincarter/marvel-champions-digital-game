@@ -11,9 +11,15 @@ function harness() {
   const down: Array<(e: KeyboardEvent) => void> = [];
   const up: Array<(e: KeyboardEvent) => void> = [];
   const frame: Array<() => void> = [];
+  const blur: Array<() => void> = [];
   const scene = {
     time: { now: 0 },
-    events: { on: (_n: string, fn: () => void) => frame.push(fn), once: () => undefined, off: () => undefined },
+    events: {
+      on: (name: string, fn: () => void) => name === "update" && frame.push(fn),
+      once: () => undefined,
+      off: () => undefined,
+    },
+    game: { events: { on: (name: string, fn: () => void) => name === "blur" && blur.push(fn), off: () => undefined } },
     input: {
       enabled: true,
       keyboard: {
@@ -33,6 +39,7 @@ function harness() {
       (scene as unknown as { time: { now: number } }).time.now += ms;
       frame.forEach((fn) => fn());
     },
+    blur: () => blur.forEach((fn) => fn()),
   };
 }
 
@@ -60,5 +67,24 @@ describe("releasing the Inspect hold", () => {
     h.keydown({ code: "KeyE", key: "e" });
     h.advance(400);
     expect(onInspectZoom).toHaveBeenLastCalledWith(true);
+  });
+
+  test("drops the hold when the window loses focus mid-hold, so the zoom closes and the next press works", () => {
+    const h = harness();
+    const onInspectZoom = vi.fn();
+    const onIntent = vi.fn();
+    bindKeyboard(h.scene, { blocked: () => false, onIntent, onInspectZoom });
+
+    h.keydown({ code: "KeyE", key: "e" });
+    h.advance(400);
+    expect(onInspectZoom).toHaveBeenLastCalledWith(true);
+    // Alt+Tab: the keyup goes to another window and never arrives here.
+    h.blur();
+    expect(onInspectZoom).toHaveBeenLastCalledWith(false);
+
+    // Back in the window, the next tap inspects at once.
+    h.keydown({ code: "KeyE", key: "e" });
+    h.keyup({ code: "KeyE", key: "e" });
+    expect(onIntent).toHaveBeenCalledWith("inspect");
   });
 });

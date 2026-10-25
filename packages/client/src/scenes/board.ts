@@ -1677,6 +1677,7 @@ export class BoardScene extends Phaser.Scene {
       case "activate":
         if (this.#focusRegion === "guide") this.#activateGuideFocus();
         else if (this.#focus && !this.#logFocused) this.#controller.activate(this.#focus);
+        else if (this.#focus === null && !this.#logFocused) this.#focusPrimary();
         break;
       case "inspect":
         if (this.#focus?.kind === "card" && !this.#logFocused) this.#inspect(this.#focus.instanceId);
@@ -1745,13 +1746,24 @@ export class BoardScene extends Phaser.Scene {
   }
 
   /**
+   * A with nothing focused (the card was picked with the mouse, then the pad picked up): the ring lands on the mode bar's
+   * forward button (Pay, Play it, Approve), so the next A presses it. A never commits on its own from no focus, as on the
+   * confirm sheets; Start still presses it at once.
+   */
+  #focusPrimary(): void {
+    const index = this.#frame.barStops.findIndex((stop) => stop.primary && stop.enabled);
+    if (index >= 0) this.#setFocus({ kind: "bar", index });
+  }
+
+  /**
    * Start / Menu (and the keyboard's Confirm key) while a decision is open: presses the bar's forward button (Pay, Play
    * it, Approve, Confirm), or the targeting panel's Confirm. False when there is nothing ready to press (no decision
    * open, or its forward button is greyed), so Start opens Pause.
    */
   #pressPrimary(): boolean {
     // A greyed forward button (Pay before the cost is met) leaves Start to open Pause, as on an idle table.
-    const press = primaryPressOf(this.#controller.selection.kind, this.#frame.barStops);
+    const confirmReady = this.#controller.targetingPanel()?.multi?.canConfirm ?? false;
+    const press = primaryPressOf(this.#controller.selection.kind, this.#frame.barStops, confirmReady);
     if (press === null) return false;
     if (press.kind === "bar") this.#frame.barStops[press.index]!.press();
     else void this.#controller.confirmPick();
@@ -2099,13 +2111,12 @@ export class BoardScene extends Phaser.Scene {
 
   /**
    * Registers the hold layers' own glyphs for this draw (the LT layer's A / X / Y / B / LB / RB are the action bar's own
-   * hints, `scenes/board/action-bar.ts`). At rest one LT glyph sits just above the action bar's left end and one RT glyph
+   * hints, `scenes/board/action-bar.ts`). At rest one LT glyph sits inside the action bar's left end and one RT glyph
    * by the play area's caption; holding RT puts the page's four button glyphs on the cards that own those abilities, and
    * LB / RB with "page n/m" where the RT glyph was. All of it is pad-only and asked of the input set on every apply, so it
    * follows the same mode flips as the base hints.
    */
   #registerLayerHints(layout: BoardLayout): void {
-    const bar = layout.zones.actionBar;
     const triggerAtRest =
       (layer: PadLayer): CustomSpecs =>
       (set, snapshot, held): readonly GlyphSpec[] | null => {
@@ -2113,13 +2124,6 @@ export class BoardScene extends Phaser.Scene {
         const spec = layerTriggerGlyph(layer, snapshot.state, snapshot.settings);
         return spec ? [spec] : null;
       };
-    if (bar && this.#actionBarLive()) {
-      const height = 16;
-      this.#hints.custom(triggerAtRest("lt"), height, ({ height: shown }) => ({
-        x: bar.x + 8,
-        y: bar.y - shown / 2 - 3,
-      }));
-    }
     const play = layout.zones.playArea;
     if (!play) return;
     const height = 14;

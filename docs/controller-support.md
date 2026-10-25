@@ -72,24 +72,28 @@ Status: building (owner answers 2026-10-24). Tracking issue #398. Branch `featur
 
 Positional names (Xbox letters; PlayStation and Switch glyphs are drawn at the same positions).
 
-| Button                 | Everywhere                                                         | On the board                                                              |
-| ---------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------- |
-| D-pad / left stick     | Move focus (stick: deadzone, then repeat; D-pad repeats when held) | same                                                                      |
-| A (bottom)             | Confirm / press                                                    | Play or use the focused card                                              |
-| B (right)              | Back / cancel                                                      | Cancel the current mode; with nothing open, Pause                         |
-| Y (top)                | Inspect the focused card                                           | same                                                                      |
-| X (left)               | Guide focus toggle (unchanged)                                     | same                                                                      |
-| LB / RB                | Previous / next page or tab                                        | Jump between zones: hand, your play area, villain and schemes, action bar |
-| LT                     |                                                                    | Undo                                                                      |
-| RT                     |                                                                    | End turn (through the existing "You can still…" confirm)                  |
-| Menu / Start / +       | Pause                                                              | Pause                                                                     |
-| View / Select / −      |                                                                    | Game log; on a decision popup, Peek at table                              |
-| Right stick            | Scroll the list or row under focus (hand, log, lists)              | same                                                                      |
-| R3 (right stick press) |                                                                    | Expand / Collapse a decision popup                                        |
-| L3                     | unbound (available to remap)                                       |                                                                           |
+| Button                 | Everywhere                                                                                               | On the board                                                                     |
+| ---------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| D-pad / left stick     | Move focus (stick: deadzone, then repeat; D-pad repeats when held)                                       | same                                                                             |
+| A (bottom)             | Confirm / press                                                                                          | Play or use the focused card; with nothing focused, focus the forward button     |
+| B (right)              | Back / cancel                                                                                            | Cancel the current mode; with nothing open, Pause                                |
+| Y (top)                | Inspect the focused card                                                                                 | same                                                                             |
+| X (left)               | Guide focus toggle (unchanged)                                                                           | same                                                                             |
+| LB / RB                | Previous / next page or tab                                                                              | Jump between zones: hand, your play area, villain and schemes, action bar        |
+| LT (hold)              |                                                                                                          | Action layer: A Attack, X Thwart, Y Recover, B Change form, LB Undo, RB End turn |
+| RT (hold)              |                                                                                                          | Ability layer: A / X / Y / B use the first four abilities in play, LB / RB page  |
+| Menu / Start / +       | Forward: press the screen's ready forward button (Confirm, Pay, Play it, Next); Pause when none is ready | same                                                                             |
+| View / Select / −      |                                                                                                          | Tap: villain recap; hold: game log; on a decision popup, Peek at table           |
+| Right stick            | Scroll the list or row under focus (hand, log, lists)                                                    | same                                                                             |
+| R3 (right stick press) |                                                                                                          | Expand / Collapse a decision popup                                               |
+| L3                     | unbound (available to remap)                                                                             |                                                                                  |
 
-Keyboard additions on the board (existing T, E, Z, 1 to 3 kept): **A** Attack, **H** Thwart, **R** Recover,
-**F** Change form, **Shift+Enter** End turn, **[ / ]** previous / next zone, **L** game log.
+Start as forward, on every screen: a forward button is only pressed while it is ready, so a greyed Pay or a pick that
+can't be confirmed yet leaves Start to open Pause. The glyph beside each forward button shows Start.
+
+Keyboard on the board (one-handed, by physical key; the Keyboard hand setting mirrors it onto IJKL): **WASD** move,
+**Space** select, **Q** back, **E** inspect, **Z X C V** Attack / Thwart / Recover / Change form, **1-4** abilities,
+**Shift+Space** End turn, **Ctrl+Z** Undo, **R / F** previous / next zone, **B** villain recap, **Shift+B** game log.
 
 ## Detection and glyph families
 

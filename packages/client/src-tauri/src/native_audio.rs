@@ -75,12 +75,19 @@ use imp::engine;
 #[cfg(not(target_os = "linux"))]
 const UNSUPPORTED: &str = "native audio is Linux-only";
 
-/// Whether the audio server can be reached. The page uses native playback only when this succeeds.
+/// Whether the audio server can be reached. The page uses native playback only when this succeeds. The page asks once as
+/// it starts, so this also stops whatever a page before a reload left playing.
 #[tauri::command]
 pub async fn native_audio_available(app: tauri::AppHandle) -> Result<bool, String> {
   #[cfg(target_os = "linux")]
   {
-    let probe = tauri::async_runtime::spawn_blocking(move || engine(&app).probe()).await.map_err(|e| e.to_string())?;
+    let probe = tauri::async_runtime::spawn_blocking(move || {
+      let engine = engine(&app);
+      engine.stop_all();
+      engine.probe()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
     if let Err(e) = &probe {
       eprintln!("native audio unavailable: {e}");
     }

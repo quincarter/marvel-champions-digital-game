@@ -59,6 +59,12 @@ describe("trigger hold", () => {
     expect(nextAbilityPage(0, 3, -1)).toBe(2);
     expect(nextAbilityPage(0, 1, 1)).toBe(0);
   });
+
+  it("pages from the page on screen when the page count dropped under it", () => {
+    // RT held on page 3 of 3, an ability used so two pages are left: "page 2/2" shows, LB goes to page 1.
+    expect(nextAbilityPage(2, 2, -1)).toBe(0);
+    expect(nextAbilityPage(2, 2, 1)).toBe(0);
+  });
 });
 
 describe("triggerPull", () => {

@@ -73,7 +73,8 @@ async function begin(game: Phaser.Game): Promise<void> {
     const changed = pads.apply(payload);
     const pad: BridgePad = payload.pad;
     // The bridge's own presses switch the glyphs to the pad's, whether or not the game's gamepad plugin has seen them.
-    if (isDeliberatePadInput(pad)) notePadInput(padIdentityOf(pad.id));
+    // Only a shown pad's: Steam's virtual pad mirrors the player's own, and once hidden it must not flip the glyphs back.
+    if (isDeliberatePadInput(pad) && pads.shows(pad.index)) notePadInput(padIdentityOf(pad.id));
     if (payload.kind === "disconnected" || !pad.connected) known.delete(pad.index);
     else known.add(pad.index);
     if (live && changed && payload.kind !== "state")

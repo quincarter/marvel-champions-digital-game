@@ -153,6 +153,11 @@ export class NativePads {
     return this.#out;
   }
 
+  /** True while the slot's pad is connected and shown (Steam's virtual pad hides once a pad of the player's own is used). */
+  shows(index: number): boolean {
+    return this.#out[index]?.connected === true;
+  }
+
   /** One pad as the browser would hand it to a `gamepadconnected` / `gamepaddisconnected` event. */
   eventPad(index: number): ShimPad | null {
     return this.#out[index] ?? null;
