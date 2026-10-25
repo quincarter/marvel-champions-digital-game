@@ -97,68 +97,90 @@ const VIEWS = [
   { name: "1440p, locked tiles", size: { width: 2560, height: 1440 }, scale: 1.5, unlock: "" },
 ] as const;
 
-for (const view of VIEWS)
-  for (const screen of SCREENS) {
-    test.describe(`${view.name}`, () => {
-      test.use({ viewport: view.size, deviceScaleFactor: view.scale });
-      test(`${screen.name}: Y with the list scrolled far down opens the Filters and the page keeps rendering`, async ({
-        page,
-      }) => {
-        test.setTimeout(240_000);
-        const errors = trackPageErrors(page);
-        await installPad(page);
-        await openApp(page, `screen=${screen.query}${view.unlock}`, { landing: screen.scene });
-        await tap(page, LT);
-        await page.waitForTimeout(1000);
-        // D-pad down until the focused tile is the last one (as far down the list as it goes).
-        let last = "";
-        for (let i = 0; i < 120; i += 1) {
-          await tap(page, DPAD_DOWN);
-          const now = (await focusOf(page, screen.scene)) ?? "";
-          if (now === last && now.startsWith(screen.tile)) break;
-          last = now;
-        }
-        if (screen.scene === "ScenarioSelect") {
-          // The owner's report had Nebula focused: back up the list to its row and across to the tile.
-          for (let i = 0; i < 80; i += 1) {
-            const stops = await stopsOf(page, screen.scene);
-            const nebula = stops.find((s) => s.key === "scenario:nebula");
-            const at = stops.find((s) => s.key === last);
-            if (last === "scenario:nebula") break;
-            if (!nebula || !at) {
-              await tap(page, 12);
-            } else if (Math.abs(at.y - nebula.y) < 20) {
-              await tap(page, at.x < nebula.x ? 15 : 14);
-            } else {
-              await tap(page, at.y > nebula.y ? 12 : DPAD_DOWN);
-            }
-            last = (await focusOf(page, screen.scene)) ?? "";
+/** WebKitGTK paints card faces on the main thread (no usable worker): make the baker's worker refuse to start. */
+async function refuseCardFaceWorker(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const Real = window.Worker;
+    window.Worker = class extends Real {
+      constructor(url: string | URL, options?: WorkerOptions) {
+        if (options?.name === "mc-card-faces") throw new Error("no worker (test)");
+        super(url, options);
+      }
+    } as typeof Worker;
+  });
+}
+
+for (const inline of [false, true])
+  for (const view of VIEWS)
+    for (const screen of SCREENS) {
+      if (inline && view.name === "1440p, locked tiles") continue;
+      test.describe(`${view.name}${inline ? ", card faces painted on the main thread" : ""}`, () => {
+        test.use({ viewport: view.size, deviceScaleFactor: view.scale });
+        test(`${screen.name}: Y with the list scrolled far down opens the Filters and the page keeps rendering`, async ({
+          page,
+        }) => {
+          test.setTimeout(240_000);
+          const errors = trackPageErrors(page);
+          await installPad(page);
+          const inlineNotices: string[] = [];
+          page.on("console", (message) => {
+            if (message.text().includes("Card faces: painting on the main thread")) inlineNotices.push(message.text());
+          });
+          if (inline) await refuseCardFaceWorker(page);
+          await openApp(page, `screen=${screen.query}${view.unlock}`, { landing: screen.scene });
+          await tap(page, LT);
+          await page.waitForTimeout(1000);
+          // D-pad down until the focused tile is the last one (as far down the list as it goes).
+          let last = "";
+          for (let i = 0; i < 120; i += 1) {
+            await tap(page, DPAD_DOWN);
+            const now = (await focusOf(page, screen.scene)) ?? "";
+            if (now === last && now.startsWith(screen.tile)) break;
+            last = now;
           }
-          expect(last).toBe("scenario:nebula");
-        }
-        expect(last.startsWith(screen.tile), `focus is on a tile (${last})`).toBe(true);
-        const stops = await stopsOf(page, screen.scene);
-        const size = await page.evaluate(() => ({ h: window.innerHeight }));
-        expect(
-          stops.some((s) => s.key.startsWith(screen.tile) && s.y + s.height < 0),
-          "the list is scrolled down: a tile has gone off the top",
-        ).toBe(true);
-        await setButton(page, Y, true);
-        await page.waitForTimeout(120);
-        await setButton(page, Y, false);
-        const before = await beat(page);
-        await page.waitForTimeout(800);
-        expect(await beat(page), "frames keep coming").toBeGreaterThan(before + 5);
-        await waitFor(
-          async () => (((await focusOf(page, screen.scene)) ?? "").startsWith(screen.chips) ? true : null),
-          "a chip is focused",
-          10_000,
-        );
-        const focused = (await focusOf(page, screen.scene))!;
-        const rect = (await stopsOf(page, screen.scene)).find((s) => s.key === focused)!;
-        expect(rect.y).toBeGreaterThanOrEqual(0);
-        expect(rect.y + rect.height).toBeLessThanOrEqual(size.h);
-        expect(errors).toEqual([]);
+          if (screen.scene === "ScenarioSelect") {
+            // The owner's report had Nebula focused: back up the list to its row and across to the tile.
+            for (let i = 0; i < 80; i += 1) {
+              const stops = await stopsOf(page, screen.scene);
+              const nebula = stops.find((s) => s.key === "scenario:nebula");
+              const at = stops.find((s) => s.key === last);
+              if (last === "scenario:nebula") break;
+              if (!nebula || !at) {
+                await tap(page, 12);
+              } else if (Math.abs(at.y - nebula.y) < 20) {
+                await tap(page, at.x < nebula.x ? 15 : 14);
+              } else {
+                await tap(page, at.y > nebula.y ? 12 : DPAD_DOWN);
+              }
+              last = (await focusOf(page, screen.scene)) ?? "";
+            }
+            expect(last).toBe("scenario:nebula");
+          }
+          expect(last.startsWith(screen.tile), `focus is on a tile (${last})`).toBe(true);
+          const stops = await stopsOf(page, screen.scene);
+          const size = await page.evaluate(() => ({ h: window.innerHeight }));
+          expect(
+            stops.some((s) => s.key.startsWith(screen.tile) && s.y + s.height < 0),
+            "the list is scrolled down: a tile has gone off the top",
+          ).toBe(true);
+          await setButton(page, Y, true);
+          await page.waitForTimeout(120);
+          await setButton(page, Y, false);
+          const before = await beat(page);
+          await page.waitForTimeout(800);
+          expect(await beat(page), "frames keep coming").toBeGreaterThan(before + 5);
+          await waitFor(
+            async () => (((await focusOf(page, screen.scene)) ?? "").startsWith(screen.chips) ? true : null),
+            "a chip is focused",
+            10_000,
+          );
+          const focused = (await focusOf(page, screen.scene))!;
+          const rect = (await stopsOf(page, screen.scene)).find((s) => s.key === focused)!;
+          expect(rect.y).toBeGreaterThanOrEqual(0);
+          expect(rect.y + rect.height).toBeLessThanOrEqual(size.h);
+          expect(errors).toEqual([]);
+          // The variant really did paint faces on the main thread; the ordinary run did not.
+          expect(inlineNotices.length > 0).toBe(inline);
+        });
       });
-    });
-  }
+    }

@@ -18,6 +18,8 @@ interface DecodedArt {
 
 /** How many decoded (already downscaled) art bitmaps one baker keeps. A shelf screen shows a dozen or two at once. */
 const ART_CACHE_SIZE = 32;
+/** How long an evicted art bitmap stays open, for bakes already holding it to finish painting. */
+export const EVICTED_ART_CLOSE_DELAY_MS = 10_000;
 
 export class ArtBitmaps {
   readonly #decoded = new Map<string, Promise<DecodedArt | null>>();
@@ -43,7 +45,12 @@ export class ArtBitmaps {
       const oldest = this.#decoded.keys().next().value as string;
       const evicted = this.#decoded.get(oldest);
       this.#decoded.delete(oldest);
-      void evicted?.then((art) => art?.source.close());
+      // Not at once: a bake that took this entry from the cache a moment ago is still awaiting it, and painting from a
+      // closed bitmap throws, which left that face failed for good (a mass re-request, such as a screen's relayout,
+      // turns over the whole cache while earlier bakes are still in flight).
+      void evicted?.then((art) => {
+        if (art) setTimeout(() => art.source.close(), EVICTED_ART_CLOSE_DELAY_MS);
+      });
     }
     return decoding;
   }
