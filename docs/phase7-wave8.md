@@ -107,7 +107,7 @@ Reference; FFG rulings clarify both):
      45085b and 45090. They confirm: Hunting Gene Traitors 1B is 0 starting threat, target 11[per_hero], acceleration
      of 1[per_hero] with a star; The Horsemen of Apocalypse 1B is 0, 12[per_hero] and 1[per_hero]; Gene Pool is 4
      starting threat with no icons; Golden Horse prints +1 SCH, +1 ATK and two boost icons.
-2. **RRG 1.8** (`mc_rulesreference_v18_compressed.md` for text, the PDF for page numbers). Entries this pass leans on:
+2. **RRG 1.8** (`docs/rules/mc_rulesreference_v18_compressed.md` for text, the PDF for page numbers). Entries this pass leans on:
    "Activation" (p. 6), "All-Purpose Counter" (p. 6), "Amplify Icon" (p. 7), "Attach To" (p. 8), "Attack (Enemy
    Activation)" (pp. 8–10), "Boost" (p. 11), "'Cannot'" (p. 11), "Choose (Option)" (p. 12), "Cost" (p. 13), "Defeat"
    (p. 15), "Find" (p. 19), "Guard" (p. 21), "Hit Points" (p. 22), "Nemesis Encounter Set" (p. 30), "Overkill"
@@ -120,7 +120,7 @@ Reference; FFG rulings clarify both):
    - The RRG's "Age of Apocalypse Expansion" FAQ (p. 64) is four entries on Magik (pass 2a). Its errata heading
      (p. 69) lists Rogue, Energy Transfer, Mystique's Manipulations and Bonebreaker, none a card of this pass. **No RRG
      FAQ or erratum names a card of pass 1a.**
-3. **FFG rulings** (`marvel-champions-rulings-post-rrg-1-7.md`, cited by date heading). Every title of the six sets was
+3. **FFG rulings** (`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`, cited by date heading). Every title of the six sets was
    matched against the file by script: no ruling names one. Rulings on the rules this pass uses:
    - December 17, 2025 – Ruling 4 (3): "The **Find** keyword can only search 'in game' areas" (RRG p. 19).
    - January 11, 2026 – Ruling 1 (1): a defeated side scheme "is considered in play until its When Defeated ability

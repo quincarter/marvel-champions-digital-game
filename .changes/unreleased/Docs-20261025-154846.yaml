@@ -1,0 +1,3 @@
+kind: Docs
+body: Moved the Rules Reference copies to docs/rules/ and the post-RRG 1.7 rulings transcript to docs/rulings/, with every link, script and agent brief pointing at the new paths.
+time: 2026-10-25T15:48:46.799088-04:00

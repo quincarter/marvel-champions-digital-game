@@ -68,7 +68,7 @@ Thunderbolts, Baron Zemo, A.I.M. Abduction, A.I.M. Science, Batroc's Brigade, Sc
 Hard Sound, Pale Little Spider, Power of the Atom, Supersonic, The Leaper, S.H.I.E.L.D., S.H.I.E.L.D. Executive Board,
 Executive Board Evidence, plus the two nemesis sets. New keyword per Hall of Heroes: Vulnerable. Rulebook:
 `docs/campaign-modes/mc50_rulebook-web.pdf`. The RRG has Agents of S.H.I.E.L.D. FAQ and errata sections
-(`mc_rulesreference_v18_compressed.md` lines ~4698 and ~5124).
+(`docs/rules/mc_rulesreference_v18_compressed.md` lines ~4698 and ~5124).
 
 **Hero packs:** each brings one hero, a nemesis set and one modular set: `bp` Extreme Risk, `silk` Growing Strong,
 `falcon` Techno, `winter` Whiteout. `bp` and `silk` carry player side schemes.

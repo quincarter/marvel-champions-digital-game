@@ -9,7 +9,7 @@ change to the client. Everything below is shaped by surveying all ten rulebooks 
 secretly shaped like The Rise of Red Skull (MC10), which is merely the first box we build.
 
 Sources: the ten rulebook conversions in `docs/campaign-modes/markdown/` (primary, cited as box code + page), RRG 1.8
-`mc_rulesreference_v18_compressed.pdf` pp. 11, 29, and `marvel-champions-rulings-post-rrg-1-7.md` (cited by date).
+`docs/rules/mc_rulesreference_v18_compressed.pdf` pp. 11, 29, and `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` (cited by date).
 
 ---
 
@@ -1616,7 +1616,7 @@ signature or hero-specific cards. **Sourcing: community.** The reading comes fro
 ("Aspect Advantage campaign bonus /Sinister Motives spoilers/", boardgamegeek.com/thread/2853322) that reports it as
 FAQ-backed. No such FAQ entry is in RRG 1.8's FAQ section (the Sinister Motives entries cover only The Sinister Six's
 overkill and active-counter questions), and none is among the rulings transcribed in
-`marvel-champions-rulings-post-rrg-1-7.md` (checked 2026-09-25). Cite the primary ruling in place of the thread if it
+`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` (checked 2026-09-25). Cite the primary ruling in place of the thread if it
 turns up.
 **As built:** `CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT = true`; `grantCard` gained an optional `copies: "maximum"`
 that grants `copiesUpToLimit` copies, the title's limit minus the copies the deck already holds (possibly none), so

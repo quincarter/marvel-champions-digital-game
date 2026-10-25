@@ -8,7 +8,7 @@ was touched.
 
 ## 1. Sources found
 
-Searches: `mc_rulesreference_v18_compressed.md` and `marvel-champions-rulings-post-rrg-1-7.md` for every card title in
+Searches: `docs/rules/mc_rulesreference_v18_compressed.md` and `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` for every card title in
 `packages/content/src/data/mut_gen/cards.ts` (198 titles), the six villains and sets by name, and Mutant Genesis. Page
 numbers are printed pages (the page number printed under an entry's text).
 

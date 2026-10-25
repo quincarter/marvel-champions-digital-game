@@ -62,7 +62,7 @@ word, cost vs. effect, keyword):
 
 ### Ruling-tied regression tests (task item 3)
 
-Searched `marvel-champions-rulings-post-rrg-1-7.md` for entries naming or clearly bearing on wave 2 content
+Searched `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` for entries naming or clearly bearing on wave 2 content
 (grepped every wave 2 hero/villain/pack name; did not read all 1139 lines end to end — see "not checked").
 
 | Ruling                                                                            | Bears on                                              | Result                                                                                                                                                                                                                                                                                                                                                |

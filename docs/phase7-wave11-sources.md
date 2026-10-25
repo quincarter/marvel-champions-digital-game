@@ -10,7 +10,7 @@
 > cannot render PDFs here (`pdftoppm` is not installed), so `docs/campaign-modes/mc60_rulebook-web.pdf` is read only
 > through its markdown transcription, and every rulebook page number is "[unchecked]" against the PDF. The Jessica Jones
 > and Luke Cage rules sheets came back from WebFetch as raw PDF bytes and could not be read. RRG pages come from the
-> footer markers in `mc_rulesreference_v18_compressed.md` (a line belongs to the page whose footer follows it).
+> footer markers in `docs/rules/mc_rulesreference_v18_compressed.md` (a line belongs to the page whose footer follows it).
 
 ---
 
@@ -52,7 +52,7 @@
 
 ## 1. Products and release order
 
-RRG 1.8 Appendix VI, "Game Environments", p. 71 (`mc_rulesreference_v18_compressed.md` lines 5196–5288) [checked]. The
+RRG 1.8 Appendix VI, "Game Environments", p. 71 (`docs/rules/mc_rulesreference_v18_compressed.md` lines 5196–5288) [checked]. The
 Current Environment lists "The _Fear No Evil_ campaign expansion (upon release)" (line 5222) and then "All products not
 listed above that were released since ... v1.8 (Jul 2026)" (line 5246), which covers Jessica Jones and Luke Cage. The
 "Limited Environment" waves list ends at wave 10 (lines 5262–5282), so cycle 11 is in no Limited Environment yet.
@@ -227,7 +227,7 @@ Discount, Starting" for Fear No Evil (index line 41) [checked] matches p. 3. Rep
 
 ## 5. FFG rulings after RRG 1.7 that touch these packs
 
-Source: `marvel-champions-rulings-post-rrg-1-7.md`, December 17, 2025 through August 13, 2026 (Hall of Heroes transcription;
+Source: `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`, December 17, 2025 through August 13, 2026 (Hall of Heroes transcription;
 the rulings specialist is Alex Werner) [checked]. Cite by date heading and ruling number. The file has no entries after
 August 13, 2026. **No ruling names a Jessica Jones card, and two name Luke Cage cards.**
 
@@ -440,8 +440,8 @@ Only the questions the authority order and the sources cannot settle, each with 
 Repo files (read this session):
 
 - `docs/phase7-wave10-sources.md` (outline and format), `docs/phase7-wave11-handoff.md`
-- `mc_rulesreference_v18_compressed.md` (RRG 1.8; page from footer markers)
-- `marvel-champions-rulings-post-rrg-1-7.md` (Hall of Heroes transcription of FFG rulings)
+- `docs/rules/mc_rulesreference_v18_compressed.md` (RRG 1.8; page from footer markers)
+- `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` (Hall of Heroes transcription of FFG rulings)
 - `docs/campaign-modes/markdown/mc60_fear_no_evil.md`, `docs/campaign-modes/markdown/index.md` (MC60 transcription)
 - `hallofheroes-llms.txt` lines 28, 32, 41, 49, 57, 61, 69, 113, 119
 - `packages/content/raw/marvelcdb/{fne,jj,luke_cage}.json`, and `spdr.json`, `mut_gen.json`, `wolv.json`, `falcon.json`,

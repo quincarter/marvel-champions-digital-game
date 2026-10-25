@@ -63,7 +63,7 @@ import { THOR_PACK_CARDS } from "../../wave1/thor/pack-cards.js";
  * **59024.avenge-me-interrupt**: "Interrupt: When attached ally is defeated, draw 2 cards." The identity-trait and one
  * per ally restrictions are card data. The controller of the upgrade draws.
  *
- * No ruling in marvel-champions-rulings-post-rrg-1-7.md (December 17, 2025 to August 13, 2026) names these cards.
+ * No ruling in docs/rulings/marvel-champions-rulings-post-rrg-1-7.md (December 17, 2025 to August 13, 2026) names these cards.
  *
  * **Reprints, aliased** to the original's script: 59021 Teamwork (reprint of `thor` 06032) and 59022 Call for Backup (reprint of 40018). Checked in the test.
  */

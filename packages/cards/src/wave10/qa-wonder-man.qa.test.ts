@@ -1,7 +1,7 @@
 /**
  * Rules QA, wave 10 part 5: the Wonder Man hero pack (58001a to 58034 less 58009 Mr. Hollywood, 58031 Cameo and 58032
  * Coordinated Effort, which are still skipped). Each test cites the printed card, RRG 1.8 (page numbers are the printed
- * ones), an FFG ruling (marvel-champions-rulings-post-rrg-1-7.md, by date) or an owner answer (docs/phase7-wave10.md
+ * ones), an FFG ruling (docs/rulings/marvel-champions-rulings-post-rrg-1-7.md, by date) or an owner answer (docs/phase7-wave10.md
  * section 4.0). `it.fails` records a bug found (the test states the printed behavior and fails today; flip it to `it`
  * when the script is fixed); a plain `it` pins behavior the audit confirmed beyond the module tests. Findings and the
  * full audit: docs/phase7-wave10-qa-wonder-man.md.

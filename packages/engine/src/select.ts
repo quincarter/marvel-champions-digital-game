@@ -167,6 +167,29 @@ import type { TriggerEvent } from "./trigger-events.js";
 import { COUNTED_AWAY_SUFFIX, damageTakenKey, eventSubjects } from "./trigger-events.js";
 
 /**
+ * Whether `id` is in `player`'s play area for `inPlayAreaOf`: one of its own cards there, or an attachment on its identity
+ * or on a card there (an upgrade with no "attach to" text, which a play puts on the identity). RRG 1.8 "Player's Play
+ * Area": upgrades are placed in a player's play area as they enter play, and an attachment on a card in the villain's
+ * play area is not in a player's (Stakeout `jj` 61014 once on a side scheme; #411). Engine readings (no current card
+ * needs otherwise): the identity itself is not counted, though the RRG puts it in its player's area, and neither is an
+ * engaged minion or an attachment on one, nor an attachment on a main scheme placed in a player's area.
+ */
+function inPlayerPlayArea(
+  state: GameState,
+  player: { readonly playArea: readonly InstanceId[]; readonly identity: { readonly instanceId: InstanceId } },
+  id: InstanceId,
+): boolean {
+  let current: InstanceId | null = id;
+  // Follows the host chain (an attachment on an attachment), bounded in case a malformed state ever loops.
+  for (let depth = 0; current !== null && depth < 8; depth++) {
+    if (current === player.identity.instanceId) return depth > 0;
+    if (player.playArea.includes(current)) return true;
+    current = getInstance(state, current)?.attachedTo ?? null;
+  }
+  return false;
+}
+
+/**
  * The hero identity cards of the players a ref names, read live from each player's identity instance: the source of
  * "your obligation" and "your nemesis set" (RRG 1.8 "Obligation" / "Nemesis Encounter Set", p. 30). A player whose
  * identity is not a hero identity contributes nothing.
@@ -1688,7 +1711,7 @@ export function explainQuery(
     // A main scheme placed in a player's play area is in it too (docs/phase7-wave11-scenarios.md §S3.1).
     const schemeArea = mainSchemePlayAreaOf(state, id);
     if (
-      !state.players.some((p) => owners.includes(p.playerId) && p.playArea.includes(id)) &&
+      !state.players.some((p) => owners.includes(p.playerId) && inPlayerPlayArea(state, p, id)) &&
       !(schemeArea !== null && owners.includes(schemeArea))
     )
       return "notInPlayArea";
@@ -3973,7 +3996,7 @@ export function referredToByName(state: GameState, name: string, sourceId: Insta
  *   "Identity-specific obligation cards are part of their associated identity's identity-specific set"; the data has
  *   `encounterSetIds: []` on an obligation and links it from the identity's `obligationCardId`, looked up among the
  *   identities in this game), and its nemesis set: FFG ruling June 25, 2026 (4) #1
- *   (marvel-champions-rulings-post-rrg-1-7.md): "Nemesis sets belong to that identity" (docs/phase7-wave5.md §4.1
+ *   (docs/rulings/marvel-champions-rulings-post-rrg-1-7.md): "Nemesis sets belong to that identity" (docs/phase7-wave5.md §4.1
  *   Q43). RRG 1.8 "Identity-Specific Card" (p. 23) lists identity-specific cards "along with obligation cards and
  *   nemesis encounter set cards" as if distinct; the ruling is the later clarification. A card is linked through the
  *   identity's `nemesisEncounterSetId`, the field setup sets the nemesis set aside by (`setup.ts`), looked up among

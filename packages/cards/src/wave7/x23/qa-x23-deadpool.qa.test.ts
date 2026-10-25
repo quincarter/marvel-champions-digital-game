@@ -45,7 +45,7 @@ vi.setConfig({ testTimeout: 120_000 });
  * Rules-QA pass over the X-23 (43001-43040) and Deadpool (44001-44058) packs, wave 7 step 4
  * (docs/phase7-wave7-qa-x23-deadpool.md). The module and precon tests prove each card in the conditions its author
  * thought of; these tests go after the places two cards, a keyword or a status meet. Every test names the rule it
- * proves. Citations: RRG 1.8 (the Markdown `mc_rulesreference_v18_compressed.md`, entries by name, page numbers from the
+ * proves. Citations: RRG 1.8 (the Markdown `docs/rules/mc_rulesreference_v18_compressed.md`, entries by name, page numbers from the
  * PDF's table of contents), the post-1.7 rulings by date, and owner decisions by their `docs/phase7-wave7.md` section
  * 4.1 Q number. `it.fails` pins a defect that is reported and not fixed here: it passes while the defect stands and
  * turns red the day it is fixed, which is the cue to delete the `.fails`. The one known bug, damaging abilities that
@@ -1429,7 +1429,7 @@ describe("Deadpool pack: 'Pool cards at the edges of their text", () => {
   // Warhead -> cancel that treachery's When Revealed effects." The 2 damage is a cost, and RRG 1.8 "Cost" (p. 14): "If
   // dealing damage is a cost, that cost is considered paid even if some or all of that damage is prevented" (as against
   // taking damage, which is not paid unless all of it was taken; that is the Focused Rage FAQ #27, p. 57, a "take 1
-  // damage" cost, and does not apply here). FFG ruling "June 25, 2026 - Ruling 6" (marvel-champions-rulings-post-rrg-1-7.md)
+  // damage" cost, and does not apply here). FFG ruling "June 25, 2026 - Ruling 6" (docs/rulings/marvel-champions-rulings-post-rrg-1-7.md)
   // says the same: damage dealt as a cost can be prevented and the cost remains paid. So with a tough status card the
   // Interrupt is offered, the tough card is discarded instead of the damage, and the cost is paid. (Finding F4 of the
   // first pass, withdrawn.)

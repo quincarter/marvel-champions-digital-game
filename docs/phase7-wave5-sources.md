@@ -68,7 +68,7 @@ MC27 p. 3 lists its featured keywords: Hinder X, Team-Up, Incite X, Patrol, Perm
 - **Web-Warrior** is a trait, not a keyword. It is printed in `sm`, `spiderham` and `spdr` (raw JSON hits: 36, 42, 18;
   none in `nova` or `ironheart`). Which cards reference it in their text is for the architect's card survey.
 
-### 3.2 FFG rulings in `marvel-champions-rulings-post-rrg-1-7.md` touching cycle 4 cards
+### 3.2 FFG rulings in `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` touching cycle 4 cards
 
 Found by matching every cycle 4 card name against the rulings file (with `**` stripped), then reading each hit; hits
 where the name belongs to a different card (Falcon's Aerial Evacuation, Daredevil's Raising Hell, "Energy" in other
@@ -165,11 +165,11 @@ this pass did not read the hero cards.
 
 ## Internal sources
 
-- `mc_rulesreference_v18_compressed.pdf` (July 2026), Appendix VI (p. 71)
-- `mc_rulesreference_v18_compressed.md` (searchable markdown conversion)
+- `docs/rules/mc_rulesreference_v18_compressed.pdf` (July 2026), Appendix VI (p. 71)
+- `docs/rules/mc_rulesreference_v18_compressed.md` (searchable markdown conversion)
 - `docs/campaign-modes/mc27_sinister_motives_rules_v5-compressed.pdf`
 - `docs/campaign-modes/markdown/mc27_sinister_motives.md`
-- `marvel-champions-rulings-post-rrg-1-7.md`
+- `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`
 - `packages/content/src/data/nova/starterDecks.ts`
 - `packages/content/src/data/ironheart/starterDecks.ts`
 - `packages/content/src/data/spiderham/starterDecks.ts`

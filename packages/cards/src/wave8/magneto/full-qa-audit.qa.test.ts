@@ -40,9 +40,9 @@ vi.setConfig({ testTimeout: 120_000 });
 
 /**
  * Full QA audit of the Magneto pack (wave 8, 2026-10-09): gaps the pack's own tests leave. Every test names its source.
- * Sources: the printed card text (`packages/content/src/data/magneto/cards.ts`), RRG 1.8 (`mc_rulesreference_v18_compressed.md`,
+ * Sources: the printed card text (`packages/content/src/data/magneto/cards.ts`), RRG 1.8 (`docs/rules/mc_rulesreference_v18_compressed.md`,
  * entries "Retaliate X", "Stun, Stunned", "Steady", "Attack (Enemy Activation)", "Blank"), FFG rulings in
- * `marvel-champions-rulings-post-rrg-1-7.md` (December 17, 2025 - Ruling 3; January 17, 2026 - Ruling 5) and the owner
+ * `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` (December 17, 2025 - Ruling 3; January 17, 2026 - Ruling 5) and the owner
  * decisions of docs/phase7-wave8.md section 4.1 (rows 41, 42, 81, 86).
  *
  * Magneto's real `magneto-leadership` deck against Rhino; a second seat is Spider-Man (Justice precon) when a card says

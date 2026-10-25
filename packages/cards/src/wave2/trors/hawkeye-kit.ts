@@ -13,12 +13,12 @@ import {
   chosenPlayer,
   confuse,
   constant,
+  countOf,
   dealDamage,
   defineAbilities,
   discard,
   discardFromHandCost,
   each,
-  exhaust,
   exhaustCardsCost,
   exhaustThis,
   gainsKeyword,
@@ -44,6 +44,7 @@ import {
   theVillain,
   thwart,
   totalPrintedResources,
+  valueAtLeast,
   when,
   you,
   YOUR_HERO,
@@ -199,19 +200,28 @@ export const HAWKEYE_KIT = defineAbilities({
   "04020.war-machine-constant": constant(gainsKeyword({ name: "ranged" }, query("ally", { self: true }))),
 
   // Earth's Mightiest Heroes — Hero Action: Exhaust an Avenger character you control → ready another Avenger
-  // character you control.
+  // character you control. The exhaust is the cost: with no ready Avenger to pay it the event cannot be played
+  // (RRG 1.8 "Cost", p. 13; "Initiating Abilities", p. 24, steps 3 and 5), and the exhausted card is not "another".
+  // The ready needs an exhausted Avenger as its target (RRG 1.8 "Target", p. 42: no valid target, no initiation), so
+  // the event is not spent to exhaust a character with nothing to ready. The engine's opening-target check skips a
+  // choice that reads the cost's picks (`excludeSlots`), so the condition says it here.
   "04022.earths-mightiest-heroes-action": heroAction(
     {
-      kind: "chooseTarget",
-      slot: "exhaust",
-      query: query("character", { controller: "you", trait: trait("AVENGER"), exhausted: false }),
-      chooser: you,
+      while: valueAtLeast(
+        countOf(query("character", { controller: "you", trait: trait("AVENGER"), exhausted: true })),
+        1,
+      ),
+      cost: exhaustCardsCost(query("character", { trait: trait("AVENGER") }), { slot: "exhaust" }),
     },
-    exhaust(chosen("exhaust")),
     {
       kind: "chooseTarget",
       slot: "ready",
-      query: query("character", { controller: "you", trait: trait("AVENGER"), excludeSlots: ["exhaust"] }),
+      query: query("character", {
+        controller: "you",
+        trait: trait("AVENGER"),
+        exhausted: true,
+        excludeSlots: ["exhaust"],
+      }),
       chooser: you,
     },
     ready(chosen("ready")),

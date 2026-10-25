@@ -221,8 +221,107 @@ describe("Agent of Thanos (21080)", () => {
     // Gated on hero form, dealing damage sized by the Spell-in-your-play-area count, with a surge fallback.
     expect(json).toContain('"form":"hero"');
     expect(json).toContain('"kind":"dealDamage"');
-    expect(json).toContain('"kind":"count","query":{"trait":"SPELL","inPlayAreaOf":{"kind":"controller"}}');
+    expect(json).toContain(
+      '"kind":"count","query":{"categories":["environment"],"trait":"SPELL","inPlayAreaOf":{"kind":"controller"}}',
+    );
     expect(json).toContain('"kind":"gainSurge"');
+  });
+});
+
+/**
+ * #411 follow-up (PR #416 review): a Spell upgrade on your identity is in your play area (`inPlayAreaOf` reads an
+ * attachment by its host), but it is no Spell *environment*, which is all Agent of Thanos and Channeling Trance count
+ * (printed text). The real cards are revealed, and what each one did is read from its own events.
+ */
+describe("Agent of Thanos and Channeling Trance with a Spell upgrade on your identity", () => {
+  /** Any Spell upgrade the pool holds (Magical Enhancements is the printed case). */
+  const spellUpgradeOf = (state: GameState) =>
+    Object.values(state.cardPool).find(
+      (card) => card.type === "upgrade" && card.traits.some((t) => (t as string).toUpperCase() === "SPELL"),
+    )!.id;
+  const spellEnvironmentsIn = (state: GameState) =>
+    playerOf(state, P1).playArea.filter(
+      (id) => cardOf(state, id)?.type === "environment" && traitsOf(state, id, WAVE4_DEPS).includes("SPELL" as never),
+    );
+
+  /** Ebony Maw with P1's setup Spell gone, `environment` (if any) in P1's area, and a Spell upgrade on her identity. */
+  function table(environment: string | null, hero = false): GameState {
+    let state = ebonyMawGame(9);
+    state = patchInstance(state, state.mainScheme.instanceId, { threat: 0 });
+    if (hero) state = settle(runWave4(state, toHero(P1)), firstLegal, undefined, WAVE4_DEPS);
+    const setup = spellEnvironmentsIn(state);
+    state = {
+      ...state,
+      players: state.players.map((p) =>
+        p.playerId === P1 ? { ...p, playArea: p.playArea.filter((id) => !setup.includes(id)) } : p,
+      ),
+      removedFromGame: [...state.removedFromGame, ...setup],
+    };
+    if (environment) state = encounterCardInPlayerArea(state, environment, P1, { invocation: 4 }).state;
+    const upgrade = playerOf(state, P1).deck[0]!;
+    const identity = identityOf(state, P1);
+    return {
+      ...state,
+      players: state.players.map((p) => (p.playerId === P1 ? { ...p, deck: p.deck.filter((i) => i !== upgrade) } : p)),
+      instances: {
+        ...state.instances,
+        [upgrade]: {
+          ...state.instances[upgrade]!,
+          cardId: spellUpgradeOf(state),
+          faceup: true,
+          controllerId: P1,
+          attachedTo: identity,
+        },
+        [identity]: {
+          ...state.instances[identity]!,
+          attachments: [...state.instances[identity]!.attachments, upgrade],
+        },
+      },
+    };
+  }
+
+  /** Reveals `code` to P1 in the villain phase; the instance that resolved, and the events. */
+  function reveal(state: GameState, code: string) {
+    const { state: after, events } = driveEvents(
+      WAVE4_DEPS,
+      stackEncounterDeck(state, "01186", code, "01186"),
+      endTurn(P1),
+    );
+    const resolved = events.find(
+      (event) => event.type === "abilityResolved" && (event.abilityId as string).startsWith(`${code}.`),
+    );
+    const id = resolved?.type === "abilityResolved" ? resolved.instanceId : null;
+    return { after, events, id };
+  }
+
+  it("Agent of Thanos (alter-ego), the upgrade alone: places no threat and gains surge", () => {
+    const { events, id } = reveal(table(null), "21080");
+    expect(id).not.toBeNull();
+    const threat = events.flatMap((e) => (e.type === "threatPlaced" && e.sourceInstanceId === id ? [e.amount] : []));
+    expect(threat).toEqual([]);
+    expect(events.some((e) => e.type === "surgeTriggered" && e.instanceId === id)).toBe(true);
+  });
+
+  it("Agent of Thanos (alter-ego), the upgrade and one Spell environment: exactly 1 threat, no surge", () => {
+    const { events, id } = reveal(table("21076"), "21080");
+    const threat = events.flatMap((e) => (e.type === "threatPlaced" && e.sourceInstanceId === id ? [e.amount] : []));
+    expect(threat.reduce((sum, n) => sum + n, 0)).toBe(1);
+    expect(events.some((e) => e.type === "surgeTriggered" && e.instanceId === id)).toBe(false);
+  });
+
+  it("Agent of Thanos (hero), the upgrade and one Spell environment: exactly 1 damage to your hero", () => {
+    const state = table("21076", true);
+    const { events, id } = reveal(state, "21080");
+    const damage = events.flatMap((e) => (e.type === "damageDealt" && e.sourceInstanceId === id ? [e.amount] : []));
+    expect(damage.reduce((sum, n) => sum + n, 0)).toBe(1);
+  });
+
+  it("Channeling Trance, the upgrade alone: you have no Spell environments, so one is found and put into play", () => {
+    const state = table(null);
+    expect(spellEnvironmentsIn(state)).toEqual([]);
+    const { after, id } = reveal(state, "21081");
+    expect(id).not.toBeNull();
+    expect(spellEnvironmentsIn(after).length).toBeGreaterThanOrEqual(1);
   });
 });
 

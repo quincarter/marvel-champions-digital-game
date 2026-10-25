@@ -50,7 +50,7 @@ export const NOVA_PROVENANCE: readonly CardProvenance[] = [
     cardSetCode: "nova_nemesis",
     marvelcdbCodes: ["28022"],
     corrections: [
-      "28022: MarvelCDB's `text`/`real_text` are both null for \"Bring the War!\" — transcribed verbatim from the card's own MarvelCDB bundle image. [evidence: https://marvelcdb.com/bundles/cards/28022.png, fetched via scripts/fetch_card_art.py grab and viewed directly 2026-09-26 (not stored — CLAUDE.md \"Content & IP boundaries\"); cross-checked against ruling Jan 11, 2026 (3) (\"Bring the War! vs Supernova Helmet\"), marvel-champions-rulings-post-rrg-1-7.md, which describes the same When Revealed discarding cards with a printed [wild] resource.]",
+      "28022: MarvelCDB's `text`/`real_text` are both null for \"Bring the War!\" — transcribed verbatim from the card's own MarvelCDB bundle image. [evidence: https://marvelcdb.com/bundles/cards/28022.png, fetched via scripts/fetch_card_art.py grab and viewed directly 2026-09-26 (not stored — CLAUDE.md \"Content & IP boundaries\"); cross-checked against ruling Jan 11, 2026 (3) (\"Bring the War! vs Supernova Helmet\"), docs/rulings/marvel-champions-rulings-post-rrg-1-7.md, which describes the same When Revealed discarding cards with a printed [wild] resource.]",
     ],
   },
   { cardId: cardId("28023"), cardSetCode: "nova_nemesis", marvelcdbCodes: ["28023"], corrections: [] },

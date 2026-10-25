@@ -96,7 +96,7 @@ export interface RulesEntry {
  * module's own header). Original paraphrases, not FFG's wording, matching
  * `schema/glossary.ts`'s own convention.
  *
- * Page check: this repo's copy of `mc_rulesreference_v18_compressed.pdf`, cross-checked
+ * Page check: this repo's copy of `docs/rules/mc_rulesreference_v18_compressed.pdf`, cross-checked
  * against its own two-page glossary INDEX (pp. 2-3) — "Exhausted" p. 19, "Ready" p. 36,
  * "Boost, Boost Icon" p. 11. docs/phase4-screen-gaps.md's W4 entry guessed "pp. 19, 36, 47"
  * for the three; 47 is where "Villainous" is cited (a keyword that *uses* a facedown boost

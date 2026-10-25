@@ -5,7 +5,6 @@ import {
   action,
   addCounters,
   alterEgoAction,
-  anyOf,
   atEndOfThwart,
   attachCard,
   changeForm,
@@ -48,7 +47,6 @@ import {
   valueAtLeast,
   YOUR_IDENTITY,
   you,
-  yourIdentity,
 } from "../../../dsl/index.js";
 
 const EVIDENCE = "evidence";
@@ -56,16 +54,6 @@ const ALIAS = named("Alias Investigations");
 const NON_ELITE_MINION = { ...query("minion"), withoutTrait: trait("Elite") };
 /** "2 less than that minion's remaining hit points" (a cost below 0 is 0). */
 const CAMCORDER_X = sum(remainingHpOf(chosen("minion")), -2);
-/**
- * Stakeout's "if this card is in your play area". It has no "attach to" text, so a play from hand puts it by your
- * identity as an extension of it (RRG 1.8 "Upgrade", p. 46), which the engine models as attached to your identity: it
- * is still in your play area there ("Player's Play Area": upgrades are placed in it as they enter play). Once it is
- * attached to a side scheme it is not, as an attachment on a card in the villain's play area (#411).
- */
-const STAKEOUT_IN_YOUR_PLAY_AREA = anyOf(
-  exists({ self: true, ...inPlayAreaOf() }),
-  exists({ self: true, host: yourIdentity }),
-);
 
 /**
  * Wave 11 scripting module `jj/jessica-jones/support-upgrades-allies` (docs/phase7-wave11-hero-packs.md H8.4).
@@ -89,8 +77,8 @@ const STAKEOUT_IN_YOUR_PLAY_AREA = anyOf(
  * RRG 1.8 pp. 24, 26: the (attack) label makes a stunned identity cancel the whole forced response, and the stun is
  * removed; a form change inside the ability is the identity changing form on the player's behalf (p. 24 "Initiating Abilities").
  * **61013**: "at least 3" is read from the pending damage.
- * **61014**: "in your play area" holds by your identity, where a play from hand puts it, until it is attached to a
- * scheme.
+ * **61014**: a play from hand puts it on your identity (no "attach to" text, RRG 1.8 "Upgrade", p. 46), which is in your
+ * play area until it is attached to a scheme in the villain's area (`inPlayAreaOf` reads an attachment by its host, #411).
  */
 export const JJ_JESSICA_JONES_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilities({
   "61003.luke-cage-action": action({ cost: [exhaustThis, damageThisCardCost(1)] }, giveTough(self)),
@@ -139,7 +127,7 @@ export const JJ_JESSICA_JONES_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineA
   ),
 
   "61014.stakeout-action": action(
-    { while: STAKEOUT_IN_YOUR_PLAY_AREA },
+    { while: exists({ self: true, ...inPlayAreaOf() }) },
     chooseTarget("scheme", { ...ENCOUNTER_SIDE_SCHEME, withoutKeyword: "permanent" }),
     attachCard(self, chosen("scheme")),
   ),

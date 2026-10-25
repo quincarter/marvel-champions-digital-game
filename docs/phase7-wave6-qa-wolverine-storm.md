@@ -8,7 +8,7 @@ touched.
 
 ## 1. Sources found
 
-Searches: `mc_rulesreference_v18_compressed.md` and `marvel-champions-rulings-post-rrg-1-7.md` for Wolverine, Logan,
+Searches: `docs/rules/mc_rulesreference_v18_compressed.md` and `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` for Wolverine, Logan,
 Storm, Ororo, Aggressive Energy, Berserker (Barrage, Frenzy), Jubilee, Omega Red, Deathstrike, Flash Freeze, Weather,
 Claustrophobia, Possessed, Shadow King, Gambit, Pixie, Magik, Adamantium and every card title of both packs.
 

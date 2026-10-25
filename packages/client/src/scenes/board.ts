@@ -78,6 +78,8 @@ import { sheetIsCovered } from "../view/choice-sheet-sync.js";
 import { syncSceneClock } from "../ui/scene-clock.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { askToEndTurn } from "./end-turn-confirm.js";
+import type { OptionNoticeData, OptionNoticeOverlay } from "./option-notice.js";
+import { optionNoticesOf, type OptionNotice } from "../view/option-notice.js";
 import { showHoldOn } from "./hold-on.js";
 import { markAspectLessonDone, silenceWarning } from "../guide/guide-prefs.js";
 import { guidePrefs, setGuidePrefs, setGuideRunLevelOverride } from "../guide/guide-store.js";
@@ -497,7 +499,8 @@ export class BoardScene extends Phaser.Scene {
         this.scene.isActive(SCENES.syncConflict) ||
         // "Hold on!" owns Escape (it dismisses with nothing sent); without this the board's own Escape opened Pause
         // on top of it.
-        this.scene.isActive(SCENES.holdOn),
+        this.scene.isActive(SCENES.holdOn) ||
+        this.scene.isActive(SCENES.optionNotice),
       onIntent: (intent) => this.#actOnIntent(intent),
     };
     bindKeyboard(this, binding);
@@ -813,6 +816,9 @@ export class BoardScene extends Phaser.Scene {
     // batch just finished is already reflected in the controller's state by the time this runs.
     if (fresh) this.#guide?.noteRoundEvents(state.lastEvents);
     this.#syncChoiceOverlay(state);
+    // A choose-one that took its only option says what the others were and why they could not be chosen (#412). Every
+    // seat is this player's (one person plays them all), so no viewer narrows it.
+    if (fresh) this.#openOptionNotices(optionNoticesOf(state.lastEvents, state.game, null, POOL_DEPS));
     this.#tryOpenCampaignBeat();
     // Guided mode G10e part 2: fed *after* the choice/campaign-beat overlays above have had their own chance to
     // open this frame, so `#tipBlocked()` already sees this command's own overlay, not last frame's. Gated on
@@ -846,6 +852,7 @@ export class BoardScene extends Phaser.Scene {
       this.scene.isActive(SCENES.teamUpSplash) ||
       this.scene.isActive(SCENES.teamUpInfo) ||
       this.scene.isActive(SCENES.holdOn) ||
+      this.scene.isActive(SCENES.optionNotice) ||
       (this.#guide?.hasCurrentStep() ?? false)
     );
   }
@@ -945,6 +952,19 @@ export class BoardScene extends Phaser.Scene {
     if (!state.game || !state.config) return;
     const beat = campaignBeatFor(state.lastEvents, state.game, state.config);
     if (beat) this.#pendingCampaignBeat = beat;
+  }
+
+  /**
+   * "Only one option" (`scenes/option-notice.ts`, #412): over whatever this command opened, until dismissed. Notices
+   * arriving while one is up join it.
+   */
+  #openOptionNotices(notices: readonly OptionNotice[]): void {
+    if (notices.length === 0) return;
+    if (this.scene.isActive(SCENES.optionNotice)) {
+      (this.scene.get(SCENES.optionNotice) as OptionNoticeOverlay).queueNotices(notices);
+      return;
+    }
+    this.scene.launch(SCENES.optionNotice, { notices } satisfies OptionNoticeData);
   }
 
   /**
@@ -1774,7 +1794,8 @@ export class BoardScene extends Phaser.Scene {
       this.scene.isActive(SCENES.teamUpInfo) ||
       this.scene.isActive(SCENES.evidence) ||
       this.scene.isActive(SCENES.pileView) ||
-      this.scene.isActive(SCENES.holdOn)
+      this.scene.isActive(SCENES.holdOn) ||
+      this.scene.isActive(SCENES.optionNotice)
     );
   }
 

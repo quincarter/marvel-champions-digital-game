@@ -2,8 +2,8 @@
 
 `rules-qa-engineer`, 2026-10-03. Scope: every engine or rules change made on 2026-10-03 that changed an existing
 card's behavior (the 13 commits below, plus the six wave 6 cards un-skipped that day). For each: the cited rule checked
-against the primary source (RRG 1.8 text in `mc_rulesreference_v18_compressed.md`, page numbers from the PDF; rulings by
-date heading in `marvel-champions-rulings-post-rrg-1-7.md`), the cards the change reached found by grepping the scripts
+against the primary source (RRG 1.8 text in `docs/rules/mc_rulesreference_v18_compressed.md`, page numbers from the PDF; rulings by
+date heading in `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`), the cards the change reached found by grepping the scripts
 (not only from the commit reports), and a real-game test on the real card where the commit had only a synthetic one.
 No non-test code was touched.
 

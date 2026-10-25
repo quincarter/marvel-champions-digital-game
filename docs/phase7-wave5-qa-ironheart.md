@@ -17,7 +17,7 @@ here only so a reader of both docs isn't left thinking the blocker is still open
 
 All 40 Ironheart cards (29001a/b–29040) read against `packages/content/src/data/ironheart/cards.ts`'s printed
 text, the card scans under `assets/card-art/bundles/cards/`, RRG 1.8, and
-`marvel-champions-rulings-post-rrg-1-7.md` (grepped for "Ironheart", "Riri", "Haywire", "Bombshell", "Go for
+`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` (grepped for "Ironheart", "Riri", "Haywire", "Bombshell", "Go for
 Champions!", "Snowguard", and every other card name in the pack).
 
 **Every card's own script (`identity.ts`, `events.ts`, `allies.ts`, `support-upgrades.ts`,
@@ -83,7 +83,7 @@ resolved) and pass.
    deep-equal against the live session state. Confirmed passing directly against `WAVE5_DEPS`.
 2. **`packages/cards/src/wave5/ironheart/zzzax.test.ts`, "retypes a card's printed resource without collapsing its
    icon count — a [physical][physical] card (Strength, 01090) still counts as 2"** — a regression test for the
-   April 30, 2026 (Ruling 3, #6) ruling (`marvel-champions-rulings-post-rrg-1-7.md` line 778/787): "With Haywire
+   April 30, 2026 (Ruling 3, #6) ruling (`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` line 778/787): "With Haywire
    attached, does the Energy resource card count as 1 or 2 energy icons? … Haywire does not affect resource icons;
    Energy still provides 2 icons." Before this pass, `29038.haywire-constant`'s own test only proved the retype
    itself, using hand cards each worth exactly 1 printed icon (`29013` Propulsion Jets, `[physical]` x1) — it could

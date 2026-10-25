@@ -5,8 +5,8 @@ Checked 2026-10-08 on `feature/wave-8`, at the owner's request (Q56 note): the "
 ## Sources, in order of authority
 
 1. The owner's own answers, `docs/phase7-wave8.md` §4.1 rows Q1 to Q56 and the two follow-ups (binding where they speak).
-2. RRG 1.8 (`mc_rulesreference_v18_compressed.pdf`), cited by entry and page. Pages come from the RRG's own index.
-3. FFG rulings since RRG 1.7 (`marvel-champions-rulings-post-rrg-1-7.md`), cited by date heading. No ruling and the RRG disagree in the points below.
+2. RRG 1.8 (`docs/rules/mc_rulesreference_v18_compressed.pdf`), cited by entry and page. Pages come from the RRG's own index.
+3. FFG rulings since RRG 1.7 (`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`), cited by date heading. No ruling and the RRG disagree in the points below.
 4. The Age of Apocalypse rulebook, cited "MC45 p. N", and the printed card text in `packages/content/src/data/<pack>/cards.ts`. The eight page images in `art/campaigns/aoa/rulebook/` are the box's comic pages, not its rules pages (see "Could not verify"), so the rules pages were read from the repo's transcription `docs/campaign-modes/markdown/mc45_age_of_apocalypse.md`. The log sheet (p. 24) was read as an image from `docs/campaign-modes/log-sheets/mc45_age_of_apocalypse_campaign_log.pdf`.
 
 ## How to read the verdicts

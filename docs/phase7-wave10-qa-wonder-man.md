@@ -10,8 +10,8 @@ nothing eligible in the discard pile. No script, existing test, engine, content 
 
 Authorities, in order: the printed card (`packages/content/raw/marvelcdb/wonder_man.json` and
 `packages/content/src/data/wonder_man/cards.ts`; Ionic Physiology 58002 as errata'd, RRG 1.8 p. 70), RRG 1.8
-(`mc_rulesreference_v18_compressed.md`; printed page numbers below), the FFG rulings
-(`marvel-champions-rulings-post-rrg-1-7.md`: January 17 Ruling 4, March 6 Rulings 3 and 4, June 19 Ruling 1 name these
+(`docs/rules/mc_rulesreference_v18_compressed.md`; printed page numbers below), the FFG rulings
+(`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`: January 17 Ruling 4, March 6 Rulings 3 and 4, June 19 Ruling 1 name these
 cards or their mechanics), the owner's answers (`docs/phase7-wave10.md` section 4.0: 20A and 21B concern the two skipped
 cards; 30B the reveal order), then the spec (`docs/phase7-wave10-hero-packs.md`). The file under test:
 `packages/cards/src/wave10/qa-wonder-man.qa.test.ts`: 48 tests, **48 pass, the three findings fixed (were `it.fails`), `oxlint`

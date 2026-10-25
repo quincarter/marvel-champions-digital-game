@@ -21,10 +21,10 @@ Authorities, in the order they win (RRG 1.8 "The Golden Rules", p. 4: card text 
    - Green Goblin Scenario Pack insert: `https://images-cdn.fantasyflightgames.com/filer_public/64/7f/647ffff6-141c-407d-af68-b44c683103de/mc02_green_goblin_rules_insert.pdf`
    - The Wrecking Crew Scenario Pack insert: `https://images-cdn.fantasyflightgames.com/filer_public/87/8c/878c0089-00d6-4485-9696-49e623936c6c/mc03_wrecking_crew_rules_insert-compressed.pdf`
    - Doctor Strange Hero Pack rules sheet: `https://images-cdn.fantasyflightgames.com/filer_public/6c/40/6c4068b6-00ee-4060-9855-335b826de33d/mc08_doctor_strange_rulesheet.pdf`
-2. **FFG rulings, Dec 17, 2025 to Aug 13, 2026**, transcribed by Hall of Heroes in `marvel-champions-rulings-post-rrg-1-7.md` at the repo root.
+2. **FFG rulings, Dec 17, 2025 to Aug 13, 2026**, transcribed by Hall of Heroes in `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`.
    - Cited by date heading.
    - Hall of Heroes is the transcriber, not the authority.
-3. **RRG 1.8 (Jul 2026)**, `mc_rulesreference_v18_compressed.pdf` at the repo root.
+3. **RRG 1.8 (Jul 2026)**, `docs/rules/mc_rulesreference_v18_compressed.pdf`.
    - Cited by printed page. The printed page equals the PDF page.
    - The FAQ (Appendix IV) is on pp. 57–64 and the errata (Appendix V) on pp. 65–70.
 

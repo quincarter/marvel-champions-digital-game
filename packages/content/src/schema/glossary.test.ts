@@ -12,7 +12,7 @@ import { CORE_CARDS } from "../data/core/cards.js";
 import type { AllyCard, HeroIdentityCard, MinionCard } from "./cards/index.js";
 
 /**
- * `mc_rulesreference_v18_compressed.pdf` (repo root) is 71 pages, confirmed by direct
+ * `docs/rules/mc_rulesreference_v18_compressed.pdf` is 71 pages, confirmed by direct
  * extraction of the PDF (this sandbox's `Read` tool couldn't render it — `pdftoppm`/poppler
  * isn't installed and couldn't be built here, no C compiler — so a local PyMuPDF script
  * read the real file's page count and per-page text instead of the Read tool's normal
@@ -88,7 +88,7 @@ describe("glossary entries", () => {
     }
   });
 
-  it("every ruling cite names a non-empty date/heading (so it's greppable in marvel-champions-rulings-post-rrg-1-7.md)", () => {
+  it("every ruling cite names a non-empty date/heading (so it's greppable in docs/rulings/marvel-champions-rulings-post-rrg-1-7.md)", () => {
     for (const entry of GLOSSARY_ENTRIES) {
       for (const source of entry.sources) {
         if (source.kind !== "ruling") continue;

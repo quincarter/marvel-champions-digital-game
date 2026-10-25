@@ -71,7 +71,7 @@ vi.setConfig({ testTimeout: 240_000 });
  * attack is refused ("Pacifism", 58025).
  *
  * Authorities: the printed cards (58001a to 58029, with the stand-in deck's caveat); RRG 1.8
- * (mc_rulesreference_v18_compressed.md) "Cost" and "Overpay" p. 13, "Tuck" p. 45, "Permanent" p. 32, "Quickstrike"
+ * (docs/rules/mc_rulesreference_v18_compressed.md) "Cost" and "Overpay" p. 13, "Tuck" p. 45, "Permanent" p. 32, "Quickstrike"
  * p. 36, "Defend, Defense" pp. 14-15, "Target" p. 42 (a scheme with no threat is not a legal target of a thwart),
  * "Reveal" p. 38 (a revealed minion resolves When Revealed before Quickstrike), errata p. 70 (Ionic Physiology); the
  * engine note of this week on Brother vs. Brother (an additional cost to attack Grim Reaper).

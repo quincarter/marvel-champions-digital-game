@@ -8,7 +8,7 @@ touched.
 
 ## 1. Sources found
 
-Searches: `mc_rulesreference_v18_compressed.md` and `marvel-champions-rulings-post-rrg-1-7.md` for Gambit, Remy, Rogue,
+Searches: `docs/rules/mc_rulesreference_v18_compressed.md` and `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` for Gambit, Remy, Rogue,
 Anna Marie, Touched, Med Lab, Exodus, Reavers, Bonebreaker, Mystique, Energy Transfer, Superpower, Royal Flush, Throw de
 Card, Charged Card, Skin Contact, Psionic Shield, Bulletproof Belle, Jacket and every card title of both packs, then
 every ruling that names a keyword these cards use (Piercing, Overkill, Tough, Quickstrike, Retaliate, Teamwork, Team-Up,

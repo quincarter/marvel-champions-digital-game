@@ -40,7 +40,7 @@ export const NOVA_CURATION: PackCuration = {
       reason:
         "MarvelCDB's `text`/`real_text` are both null for \"Bring the War!\" — transcribed verbatim from the card's own MarvelCDB bundle image.",
       evidence:
-        'https://marvelcdb.com/bundles/cards/28022.png, fetched via scripts/fetch_card_art.py grab and viewed directly 2026-09-26 (not stored — CLAUDE.md "Content & IP boundaries"); cross-checked against ruling Jan 11, 2026 (3) ("Bring the War! vs Supernova Helmet"), marvel-champions-rulings-post-rrg-1-7.md, which describes the same When Revealed discarding cards with a printed [wild] resource.',
+        'https://marvelcdb.com/bundles/cards/28022.png, fetched via scripts/fetch_card_art.py grab and viewed directly 2026-09-26 (not stored — CLAUDE.md "Content & IP boundaries"); cross-checked against ruling Jan 11, 2026 (3) ("Bring the War! vs Supernova Helmet"), docs/rulings/marvel-champions-rulings-post-rrg-1-7.md, which describes the same When Revealed discarding cards with a printed [wild] resource.',
       textReplace: {
         find: "",
         replace:

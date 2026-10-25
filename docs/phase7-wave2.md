@@ -25,8 +25,8 @@ Authorities, in the order they win (RRG 1.8 "The Golden Rules", p. 4: card text 
    - The Once and Future Kang insert: `https://hallofheroeslcg.com/wp-content/uploads/2020/09/kanginsert.pdf`. Cited as "Kang insert".
    - Ant-Man Hero Pack insert: `https://hallofheroeslcg.com/wp-content/uploads/2020/11/antmaninsert.jpg`.
    - Not read: the Wasp, Quicksilver and Scarlet Witch inserts, which are linked from their Hall of Heroes pages. Read them before scripting those packs.
-2. **FFG rulings, Dec 17, 2025 to Aug 13, 2026**, in `marvel-champions-rulings-post-rrg-1-7.md`, cited by date heading. Hall of Heroes is the transcriber, not the authority.
-3. **RRG 1.8 (Jul 2026)**, `mc_rulesreference_v18_compressed.pdf`, cited by printed page (the same as the PDF page).
+2. **FFG rulings, Dec 17, 2025 to Aug 13, 2026**, in `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`, cited by date heading. Hall of Heroes is the transcriber, not the authority.
+3. **RRG 1.8 (Jul 2026)**, `docs/rules/mc_rulesreference_v18_compressed.pdf`, cited by printed page (the same as the PDF page).
    - Cycle 1's FAQ entries are on pp. 60–61, and its errata on p. 66.
 
 `packages/content/raw/marvelcdb/{trors,toafk,ant,wsp,qsv,scw}.json` point to card text and stats. They are not an authority.
@@ -855,7 +855,7 @@ engine gap. The `boostIconsCounting` window exists only inside an activation's b
 `<bind>.boostIcons` reads by card effects _is_ choosing the reading that Chaos Control's "when boost icons on an
 encounter card would be counted" reaches those counts. The doc's own proposal (§4.8: "every count, since the text
 says 'an encounter card', not 'a boost card'") is marked unconfirmed, and there is no FFG ruling in
-`marvel-champions-rulings-post-rrg-1-7.md`. **Surfaced for the user rather than picked quietly.** Note that the
+`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`. **Surfaced for the user rather than picked quietly.** Note that the
 cards themselves are only blocked on the _interaction_: Hex Bolt's own counting already works through
 `<bind>.boostIcons`, and FAQ "Hex Bolt (#4)" (RRG 1.8 p. 61) settles its internal order. Scripting them is fine
 today; what is undecided is whether Chaos Control (`scw`, not started) can replace those counts.
@@ -2490,7 +2490,7 @@ stays readable. Expiry happens in `finishTurn`, beside `endOfTurn`'s (§13.2), a
 `lastingEffectEnded { reason: "expired" }` like every other duration.
 
 **The reading of "your next turn", which the RRG does not settle — recorded as a design choice.** The RRG defines no
-"next", and no FFG ruling covers these two cards (checked against `marvel-champions-rulings-post-rrg-1-7.md`, which
+"next", and no FFG ruling covers these two cards (checked against `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`, which
 has nothing on either card or on "next turn"). Two readings exist when the effect is created _during_ that player's
 own turn: "your next turn" is the current one, or the one after it. This engine takes **the one after it**, for
 three reasons:

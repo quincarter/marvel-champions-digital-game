@@ -28,14 +28,14 @@ Luke Cage (`luke_cage`, MC62). RRG 1.8 Appendix VI (p. 71) lists waves 1 to 10 o
 
 ## 0. Sources
 
-- **RRG 1.8**, `mc_rulesreference_v18_compressed.md` (pages from the footer markers): Acceleration Icon p. 5, Amplify
+- **RRG 1.8**, `docs/rules/mc_rulesreference_v18_compressed.md` (pages from the footer markers): Acceleration Icon p. 5, Amplify
   Icon p. 7, Attach To p. 8, Copy and Cost p. 13, Dash (Value) p. 15, Event p. 18, Find p. 19, Identity p. 23,
   "Cannot" p. 11, Interrupt p. 25, Labeled Ability p. 26, Leaves Play p. 27, Max p. 28, Obligation p. 30, Ownership and Control p. 31,
   Play, Put Into Play p. 32, Player Side Scheme p. 34, Response p. 38, Search p. 39, Shuffle and Setup p. 40, Star
   Icon p. 40, Team-Up p. 43, Temporary p. 44, Tuck and Unique Icon p. 45, "Would" and When Defeated p. 48, "You, Your"
   p. 49, Appendix I p. 50, Appendix II p. 51.
 - **Errata:** none for this box (RRG 1.8 Appendix V; data survey §0 item 6; sources §6).
-- **FFG rulings after 1.8** (`marvel-champions-rulings-post-rrg-1-7.md`): June 25, 2026 R2 and R3; July 9, 2026 R1;
+- **FFG rulings after 1.8** (`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`): June 25, 2026 R2 and R3; July 9, 2026 R1;
   August 3, 2026 R1, R5, R6; August 13, 2026 R1, R2 (§4.0).
 - **The MC60 rulebook**, read through `docs/campaign-modes/markdown/mc60_fear_no_evil.md`: Featured Keywords p. 3
   (Discount, Starting), Featured Terms p. 4 (Exactly Defeat, Player Side Schemes, Tuck), Starter Decks p. 25, Sense deck

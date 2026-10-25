@@ -5,7 +5,7 @@
  * plain `it` when the script is fixed. The plain tests are interactions the module tests do not assert, each with the
  * source that makes the expected result right. Findings: docs/phase7-wave10-qa-resistance.md (ids R1 and up).
  *
- * Page numbers are the RRG 1.8 printed pages (mc_rulesreference_v18_compressed.pdf).
+ * Page numbers are the RRG 1.8 printed pages (docs/rules/mc_rulesreference_v18_compressed.pdf).
  */
 import { activeEncounterDeckId, mainSchemeValue, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";

@@ -84,6 +84,8 @@ import type { PlayerRef, RuleSpec } from "@mc/engine";
 const SPELL = trait("SPELL");
 const BLACK_ORDER = trait("BLACK ORDER");
 const SPELLS_IN_YOUR_PLAY_AREA = query([], { trait: SPELL, ...inPlayAreaOf() });
+/** "Each Spell environment in your play area" (Agent of Thanos, Channeling Trance): not a Spell upgrade on your identity. */
+const SPELL_ENVIRONMENTS_IN_YOUR_PLAY_AREA = query("environment", { trait: SPELL, ...inPlayAreaOf() });
 
 /** MC21 p. 6: "When a player reveals a Spell environment, they place that card in front of them in their play area." */
 export const EBONY_MAW_SCENARIO_RULES: readonly RuleSpec[] = [
@@ -163,10 +165,18 @@ export const EBONY_MAW = defineAbilities({
   // Spell environment in your play area; if none, this card gains surge instead. When Revealed (Hero): the same as
   // damage to your hero.
   "21080.when-revealed-alter-ego": whenRevealedAlterEgo(
-    ifThen(exists(SPELLS_IN_YOUR_PLAY_AREA), placeThreat(countOf(SPELLS_IN_YOUR_PLAY_AREA), theMainScheme), surge()),
+    ifThen(
+      exists(SPELL_ENVIRONMENTS_IN_YOUR_PLAY_AREA),
+      placeThreat(countOf(SPELL_ENVIRONMENTS_IN_YOUR_PLAY_AREA), theMainScheme),
+      surge(),
+    ),
   ),
   "21080.when-revealed-hero": whenRevealedHero(
-    ifThen(exists(SPELLS_IN_YOUR_PLAY_AREA), dealDamage(countOf(SPELLS_IN_YOUR_PLAY_AREA), yourIdentity), surge()),
+    ifThen(
+      exists(SPELL_ENVIRONMENTS_IN_YOUR_PLAY_AREA),
+      dealDamage(countOf(SPELL_ENVIRONMENTS_IN_YOUR_PLAY_AREA), yourIdentity),
+      surge(),
+    ),
   ),
 
   // Channeling Trance (21081, treachery) — When Revealed: Remove 1 invocation counter from each Spell environment in
@@ -174,8 +184,8 @@ export const EBONY_MAW = defineAbilities({
   // deck until a Spell environment is discarded. Put that card into play in your play area. "If you have no" is read
   // after the removal (a Spell whose last counter went is discarded by its own forced response, which follows).
   "21081.when-revealed": whenRevealed(
-    removeCountersFrom(each(SPELLS_IN_YOUR_PLAY_AREA), "invocation", 1),
-    ifThen(not(exists(SPELLS_IN_YOUR_PLAY_AREA)), spellIntoPlayFor(you)),
+    removeCountersFrom(each(SPELL_ENVIRONMENTS_IN_YOUR_PLAY_AREA), "invocation", 1),
+    ifThen(not(exists(SPELL_ENVIRONMENTS_IN_YOUR_PLAY_AREA)), spellIntoPlayFor(you)),
   ),
 
   // Abjuration (21082, attachment; "Attach to Ebony Maw" is data-driven) — Prevent all damage to Ebony Maw. Forced

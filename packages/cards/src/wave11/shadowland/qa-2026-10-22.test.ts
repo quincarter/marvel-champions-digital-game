@@ -3,7 +3,7 @@
  * scenario builder (`wave11Scenario`, `createGame`) and driven through the engine's command loop (`sessionApply`, so the
  * session log is the evidence): every game ends by checking that `replay(log)` reproduces the final state exactly.
  *
- * Authorities, in the project's order: RRG 1.8 (mc_rulesreference_v18_compressed.pdf, cited by printed page), the
+ * Authorities, in the project's order: RRG 1.8 (docs/rules/mc_rulesreference_v18_compressed.pdf, cited by printed page), the
  * insert (docs/campaign-modes/markdown/mc65_shadowland.md, cited "insert p. N"), then the card text in the data. No
  * FFG ruling on Shadowland exists yet. Where a test stages state by surgery (a damage total, a counter count, a
  * position card flipped), the test says so; everything that follows the surgery is the real engine.

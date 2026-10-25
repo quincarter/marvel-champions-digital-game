@@ -6,8 +6,8 @@ obligation and nemesis sets, and each pack's aspect and basic cards) against RRG
 
 ## 1. Sources found
 
-Searches: `mc_rulesreference_v18_compressed.md` (page numbers are the end-of-page numbers in the Markdown) and
-`marvel-champions-rulings-post-rrg-1-7.md` for Psylocke, Angel, Archangel, Concussive Blow and Team-Up. **No ruling names a card of
+Searches: `docs/rules/mc_rulesreference_v18_compressed.md` (page numbers are the end-of-page numbers in the Markdown) and
+`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` for Psylocke, Angel, Archangel, Concussive Blow and Team-Up. **No ruling names a card of
 either hero** (the one hit for "Concussive Blow" is Drax's Concussive Bombs, December 17, 2025 - Ruling 3, unrelated). The rules
 used are general:
 

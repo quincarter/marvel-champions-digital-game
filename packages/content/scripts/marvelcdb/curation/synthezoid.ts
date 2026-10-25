@@ -156,7 +156,7 @@ export const SYNTHEZOID_CURATION: PackCuration = {
       changedFields: ["text"],
       note: 'Moon Knight (Moon Knight modular set minion): the When Revealed gains "(Limit once per phase.)". MarvelCDB still carries the printed wording.',
       evidence:
-        'RRG 1.8 Appendix V, "Synthezoid Smackdown Scenario Pack" (p. 70, mc_rulesreference_v18_compressed.md lines 5182 to 5186): "MOON KNIGHT (#65) Should read: When Revealed: Resolve the \\"When Revealed\\" ability of the topmost treachery in the encounter discard pile. (Limit once per phase.) (Added \\"(Limit once per phase.)\\")"',
+        'RRG 1.8 Appendix V, "Synthezoid Smackdown Scenario Pack" (p. 70, docs/rules/mc_rulesreference_v18_compressed.md lines 5182 to 5186): "MOON KNIGHT (#65) Should read: When Revealed: Resolve the \\"When Revealed\\" ability of the topmost treachery in the encounter discard pile. (Limit once per phase.) (Added \\"(Limit once per phase.)\\")"',
       currentReplace: {
         find: "topmost treachery in the encounter discard pile.",
         replace: "topmost treachery in the encounter discard pile. (Limit once per phase.)",
@@ -168,7 +168,7 @@ export const SYNTHEZOID_CURATION: PackCuration = {
       changedFields: ["text"],
       note: 'Phased Out (Vision basic event, competitive only): "Hero Interrupt" is "Hero Action". The card chooses an attachment with the text "Hero Action" or "Hero Response". MarvelCDB still carries the printed wording.',
       evidence:
-        'RRG 1.8 Appendix V, "Synthezoid Smackdown Scenario Pack" (p. 70, lines 5188 to 5190): "PHASED OUT (#76) Should read: Action: Choose an attachment on the enemy leader with the text \'Hero Action\' or \'Hero Response\' and discard it. (Changed \\"Hero Interrupt\\" to \\"Hero Action\\".)" FFG ruling March 19, 2026, Ruling 1 (marvel-champions-rulings-post-rrg-1-7.md lines 644 to 652): the card should have said "Hero Action". The two agree. Printed order is "Hero Response" or "Hero Interrupt"; the RRG lists the current pair as Hero Action then Hero Response.',
+        'RRG 1.8 Appendix V, "Synthezoid Smackdown Scenario Pack" (p. 70, lines 5188 to 5190): "PHASED OUT (#76) Should read: Action: Choose an attachment on the enemy leader with the text \'Hero Action\' or \'Hero Response\' and discard it. (Changed \\"Hero Interrupt\\" to \\"Hero Action\\".)" FFG ruling March 19, 2026, Ruling 1 (docs/rulings/marvel-champions-rulings-post-rrg-1-7.md lines 644 to 652): the card should have said "Hero Action". The two agree. Printed order is "Hero Response" or "Hero Interrupt"; the RRG lists the current pair as Hero Action then Hero Response.',
       currentReplace: {
         find: '"Hero Response" or "Hero Interrupt"',
         replace: '"Hero Action" or "Hero Response"',

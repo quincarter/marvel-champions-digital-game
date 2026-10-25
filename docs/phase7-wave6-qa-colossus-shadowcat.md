@@ -5,12 +5,12 @@ Homesick and the Juggernaut set; Shadowcat / Kitty Pryde 32030 with Solid / Phas
 Hellfire Club set) and the box's shared precon aspect and basic cards (32014 to 32018, 32021, 32050 to 32054) against RRG
 1.8 (FAQ pp. 63 to 64, errata p. 68) and the post-1.7 rulings. Tests:
 `packages/cards/src/wave6/mut_gen/colossus/qa.test.ts` and `packages/cards/src/wave6/mut_gen/shadowcat/qa.test.ts`; no
-non-test code was touched. Page numbers are PDF pages of `mc_rulesreference_v18_compressed.pdf` (they equal the printed
+non-test code was touched. Page numbers are PDF pages of `docs/rules/mc_rulesreference_v18_compressed.pdf` (they equal the printed
 page numbers).
 
 ## 1. Sources found
 
-Searches: `mc_rulesreference_v18_compressed.md` and `marvel-champions-rulings-post-rrg-1-7.md` for Colossus, Piotr,
+Searches: `docs/rules/mc_rulesreference_v18_compressed.md` and `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` for Colossus, Piotr,
 Shadowcat, Kitty Pryde, Phased, Solid, mass form, Permanently Phased, Juggernaut, tough, and every card title of both heroes'
 sets, nemesis sets and the shared precon cards (Powerful Punch, Bait and Switch, Perseverance, Mutant Protectors,
 Defensive Energy, Shadow and Steel, Ready to Rumble, Steel Fist, Armor Up, White Queen, Hellfire, Lockheed, Quick Shift,

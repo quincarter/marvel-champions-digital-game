@@ -5,7 +5,7 @@
  * Derives from content data, with no hand-kept id list:
  * - the playable encounter sets and scenarios (every scripted wave plus Core);
  * - which of those sets are modular, by the FAQ definition (RRG 1.8 "Modular Encounter Sets" FAQ, Galaxy's Most
- *   Wanted entry, mc_rulesreference_v18_compressed.md: "If an encounter set is not scenario-specific ... or
+ *   Wanted entry, docs/rules/mc_rulesreference_v18_compressed.md: "If an encounter set is not scenario-specific ... or
  *   campaign-specific ..., then it is modular") together with "Standard Set" (p. 40) / "Expert Set" (p. 19), the
  *   nemesis sets (a hero's own set, not modular) and the one-card "extra" sets (MojoMania insert p. 2);
  * - for a scenario and a set, the options that build that pairing, or why the pairing is restricted.

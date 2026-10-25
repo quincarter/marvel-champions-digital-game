@@ -3,8 +3,8 @@
  * Techno), the Whiteout set (Winter Soldier: 54034 Blizzard, 54035 Encased in Ice, 54036 Slippery Conditions, 54037
  * Whiteout) and Strength in Diversity 53019: the interactions the module tests (`techno.test.ts`, `../winter/whiteout.test.ts`,
  * `aspect-basic.test.ts`) and the scenario game (`../aos/thunderbolts-new-sets-scenario.test.ts`) do not assert, each tied to
- * an RRG 1.8 entry (`mc_rulesreference_v18_compressed.pdf`), an FFG ruling by its date heading
- * (marvel-champions-rulings-post-rrg-1-7.md), the box rulebook (MC50) or an owner answer (docs/phase7-wave9.md sections 3.48
+ * an RRG 1.8 entry (`docs/rules/mc_rulesreference_v18_compressed.pdf`), an FFG ruling by its date heading
+ * (docs/rulings/marvel-champions-rulings-post-rrg-1-7.md), the box rulebook (MC50) or an owner answer (docs/phase7-wave9.md sections 3.48
  * to 3.50 and 4.1). A `FINDING` comment marks a case where the game and its source disagree: the expected behavior is an
  * `it.fails`, with a passing companion that pins today's behavior. Findings are tabled in docs/phase7-wave9-qa.md.
  */
@@ -771,7 +771,7 @@ describe("Encased in Ice (54035) against 'after you attack' responses and attack
   //   minion" sits in the targeting sentence only (RRG "Attack (Player Ability Type)" p. 10 talks of "an enemy that can be
   //   attacked"). RRG "Attach To" p. 8 makes it an attachment.
   //   For: "as if it were a minion" with no stated limit could mean the whole attack procedure treats it as a minion, so
-  //   "after you attack a minion/an enemy" fires. No FFG ruling in marvel-champions-rulings-post-rrg-1-7.md names the card
+  //   "after you attack a minion/an enemy" fires. No FFG ruling in docs/rulings/marvel-champions-rulings-post-rrg-1-7.md names the card
   //   or the phrase; the nearest, December 17, 2025 - Ruling 1 (question 3, Beguiled), is about an ally becoming a minion by a status
   //   change (not applicable).
   it("Innocent Bystanders (50134, 'After you attack an enemy'): the identity's attack on the ice removes no bystander counter (pinned, today's reading)", () => {

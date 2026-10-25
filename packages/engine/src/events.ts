@@ -2,7 +2,7 @@ import type { AbilityId, CardId, CoreAspect, EvidenceCombination, Trait, Villain
 import type { CampaignCardFace, CampaignWindow, LogWrite } from "./campaign.js";
 import type { RulesCardType } from "./card-types.js";
 import type { ChoiceId, EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
-import type { CardPosition, ChoiceBehalf, PendingChoice } from "./choices.js";
+import type { CardPosition, ChoiceBehalf, PendingChoice, UnavailableOptions } from "./choices.js";
 import type { DelegableCostPart } from "./commands.js";
 import type { GroupId } from "./ids.js";
 import type { SharedEvent, SharedPodState, SharedResult } from "./pod.js";
@@ -1946,7 +1946,8 @@ export type GameEvent =
    * A "choose one" resolved. `onlyOption`: nobody was asked, because every other option could not be chosen (an
    * exhausted character cannot be exhausted, Security Cameras `aos` 50097; RRG 1.8 "Choose (Option)", p. 12), so the
    * log can say why the remaining one happened on its own (issue 182). `tag`: the option's name, when it has one
-   * (`EffectSpec chooseOne` option `tag`).
+   * (`EffectSpec chooseOne` option `tag`). `unavailable`: with `onlyOption`, the options that were not offered and why
+   * (#412).
    */
   | {
       readonly type: "optionChosen";
@@ -1954,6 +1955,7 @@ export type GameEvent =
       readonly index: number;
       readonly onlyOption?: true;
       readonly tag?: string;
+      readonly unavailable?: UnavailableOptions;
     }
   /**
    * `EffectSpec basicPowerBy` (docs/phase7-wave8.md §3.64): the card `sourceInstanceId` had `playerId` make a basic

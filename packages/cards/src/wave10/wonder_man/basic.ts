@@ -44,7 +44,7 @@ import {
  * - 58024 Jarvis (support)
  * - 58034 Avengers Compound (support)
  *
- * No ruling in marvel-champions-rulings-post-rrg-1-7.md names these cards.
+ * No ruling in docs/rulings/marvel-champions-rulings-post-rrg-1-7.md names these cards.
  *
  * **58022.swordsman-constant**: "Swordsman's basic attacks gain piercing." A grant to attacks made by him and only by
  * him (`attacker: self`, `basicOnly`): the keyword belongs to the attack, not to Swordsman as a character (RRG 1.8

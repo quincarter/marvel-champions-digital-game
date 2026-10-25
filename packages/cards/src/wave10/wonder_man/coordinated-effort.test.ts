@@ -40,7 +40,7 @@ vi.setConfig({ testTimeout: 120_000 });
  * Owner answer 21B (docs/phase7-wave10.md section 4.0), an interpretation: the words are the Rules Reference's for
  * Alliance (RRG 1.8 p. 6) and neither limits costs to resources, so other players may pay resources and any other part
  * their own cards can pay; a part that names the user's own card stays with the user. No ruling in
- * marvel-champions-rulings-post-rrg-1-7.md names the card.
+ * docs/rulings/marvel-champions-rulings-post-rrg-1-7.md names the card.
  *
  * - Appeal to Athena (`hercules` 59035): "Alter-Ego Action: Exhaust Hercules or spend [mental][mental] → remove this
  *   obligation from the game."

@@ -116,6 +116,12 @@ const answer = async (page: Page, key?: string): Promise<void> => {
   const before = JSON.stringify(await pending(page));
   for (let attempt = 0; attempt < 4; attempt++) {
     await settle(page, { quietMs: 500, maxMs: 2500 });
+    // A choose-one that took its only option opens the "only one option" notice (#412) over the sheet: OK it first.
+    const ok = (await visibleTexts(page)).find((t) => t.scene === "OptionNoticeOverlay" && /^ok$/i.test(t.text.trim()));
+    if (ok) {
+      await press(page, false, ok.x, ok.y);
+      await settle(page, { quietMs: 400, maxMs: 2000 });
+    }
     const target =
       key ?? ((await pending(page))?.options[0]?.[0] ? `option:${(await pending(page))!.options[0][0]}` : null);
     if (target) await pressChoice(page, target);

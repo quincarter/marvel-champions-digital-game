@@ -33,7 +33,7 @@ vi.setConfig({ testTimeout: 120_000 });
 /**
  * Wave 10 `wonder_man/justice` (docs/phase7-wave10-hero-packs.md H8.4, HS5): Firebird 58012, Hawkeye 58013, Scarlet
  * Witch 58014, Sentry 58015, Battlefield Benevolence 58016, Everywhere All at Once 58018 and Heroic Conditioning
- * 58021, played from real Wonder Man games against Core's Rhino. No ruling in marvel-champions-rulings-post-rrg-1-7.md
+ * 58021, played from real Wonder Man games against Core's Rhino. No ruling in docs/rulings/marvel-champions-rulings-post-rrg-1-7.md
  * names these cards.
  */
 const FIREBIRD_CONSTANT = "58012.firebird-constant";

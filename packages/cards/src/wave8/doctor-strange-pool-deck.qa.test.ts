@@ -15,7 +15,7 @@
  *    into play is not considered to have been played"), "Ready" p. 36 (an exhausted card returns to the ready state),
  *    "Resolve" p. 37 (an event is resolved when it is played; other card types are never "resolved", but their
  *    abilities can be), "Limit X per [period]" (per-instance limits). RRG 1.8 has no general infinite-loop rule
- *    (checked 2026-10-01, docs/custom-deck-testing.md), and marvel-champions-rulings-post-rrg-1-7.md has none either.
+ *    (checked 2026-10-01, docs/custom-deck-testing.md), and docs/rulings/marvel-champions-rulings-post-rrg-1-7.md has none either.
  *  - PRINTED TEXT: quoted beside each test from the card data.
  *  - OUR INTERPRETATION: marked "Interpretation:" where the RRG does not say outright (e.g. that resolving an
  *    Invocation's Special through Spell Mastery is not "playing" a card for Mulligan's restriction).

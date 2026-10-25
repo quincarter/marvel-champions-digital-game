@@ -13,7 +13,7 @@ templates for a bug report, a feature request and a tested deck request. In the 
 the top bar or on the Title screen) copies or downloads the game log, and the pause menu shows the game's seed, so a
 bug can be replayed exactly.
 
-Before filing a rules bug, check the [Rules Reference](mc_rulesreference_v18_compressed.pdf) and
+Before filing a rules bug, check the [Rules Reference](docs/rules/mc_rulesreference_v18_compressed.pdf) and
 [FFG's rulings](https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-7/).
 
 ## Setting up
@@ -141,9 +141,9 @@ code on the other device still works).
   Content, Docs) and commit the `.changes/unreleased/*.yaml` file with the code. Wait a second between two
   `changie new` calls: fragments are named by kind and timestamp to the second. `pnpm changelog:check` (also run by
   `pnpm check`, the pre-commit hook and CI's "Changelog fragments" check) parses them the way the release job does.
-- **Rules accuracy**: the [Rules Reference v1.8](mc_rulesreference_v18_compressed.pdf) in the repo root is the
+- **Rules accuracy**: the [Rules Reference v1.8](docs/rules/mc_rulesreference_v18_compressed.pdf) is the
   authority, then current errata, then FFG's rulings
-  ([transcribed here](marvel-champions-rulings-post-rrg-1-7.md)). Community sites are pointers, not authorities. Cite
+  ([transcribed here](docs/rulings/marvel-champions-rulings-post-rrg-1-7.md)). Community sites are pointers, not authorities. Cite
   the RRG page or ruling in a code comment when behavior is not obvious from the card text, and flag a conflict
   between sources in a comment rather than silently picking one.
 - **Architecture**: dependencies point one way, `client → cards → engine → content`. The engine never names a specific

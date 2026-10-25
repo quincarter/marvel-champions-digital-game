@@ -7,7 +7,7 @@
  * - "raw": `packages/content/raw/marvelcdb/gmw.json`.
  * - "MC16 p.N": `docs/campaign-modes/markdown/mc16_galaxys_most_wanted.md` (converted from
  *   `docs/campaign-modes/mc16_galaxys_most_wanted_rules_website-compressed.pdf`), cited by its printed page.
- * - "RRG 1.8 p.66/67": `mc_rulesreference_v18_compressed.pdf`'s printed errata page.
+ * - "RRG 1.8 p.66/67": `docs/rules/mc_rulesreference_v18_compressed.pdf`'s printed errata page.
  * - "wave3 §N": docs/phase7-wave3.md section N.
  *
  * **Cycle id.** `stld`/`gam`/`drax`/`vnm` (the four hero packs released alongside this box) are already emitted
@@ -48,7 +48,7 @@
  * scenario in its encounter set name area) or campaign-specific (containing the word 'Campaign' in its encounter
  * set name area), then it is modular. The eight modular encounter sets in the Galaxy's Most Wanted Expansion are:
  * Badoon Headhunter, Band of Badoon, Galactic Artifacts, Kree Militants, Menagerie Medley, Power Stone, Space
- * Pirates, and Ship Command." (Also in `mc_rulesreference_v18_compressed.md`, the plain-text conversion, ~line
+ * Pirates, and Ship Command." (Also in `docs/rules/mc_rulesreference_v18_compressed.md`, the plain-text conversion, ~line
  * 4492 — no page markers there, so the citation above is checked against the PDF directly.) MC16 p. 4 calls cards
  * #178–187 (Campaign Challenge *and* Badoon Headhunter) "campaign-specific encounter cards" — a looser, plain-
  * English use of the phrase than the FAQ's own defined term, which the FAQ answer itself resolves for the schema:

@@ -43,7 +43,7 @@ vi.setConfig({ testTimeout: 120_000 });
  * Rules-QA pass over the Psylocke (41001-41033) and Angel (42001-42032) hero packs, wave 7 step 4
  * (docs/phase7-wave7-qa-psylocke-angel.md). The module tests and precon games prove each card where its author looked;
  * these tests go after the places a status card, a keyword, a form change or a second seat meets a card. Citations: RRG
- * 1.8 (the Markdown `mc_rulesreference_v18_compressed.md`, entries by name), the post-1.7 rulings by date, and owner
+ * 1.8 (the Markdown `docs/rules/mc_rulesreference_v18_compressed.md`, entries by name), the post-1.7 rulings by date, and owner
  * decisions by their `docs/phase7-wave7.md` section 4.1 Q number. `it.fails` pins a defect that is reported and not
  * fixed here: it passes while the defect stands and turns red the day it is fixed, the cue to delete the `.fails`.
  */

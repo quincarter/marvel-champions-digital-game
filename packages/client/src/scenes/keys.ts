@@ -117,6 +117,8 @@ export const SCENES = {
   heroDecks: "HeroDecksSheet",
   /** "End your turn? You can still: …" (`scenes/end-turn-confirm.ts`), over the Board. */
   endTurnConfirm: "EndTurnConfirmOverlay",
+  /** "Only one option" (`scenes/option-notice.ts`, #412): a choose-one that took its only option, over the Board. */
+  optionNotice: "OptionNoticeOverlay",
   /** "In-progress games" full screen (`scenes/games-list.ts`): the phone's version of the Title's list, over Title. */
   gamesList: "GamesListOverlay",
   /** "Resume the tutorial at lesson N?" (guided mode §3.12, `scenes/tutorial-resume-confirm.ts`), over Title. */

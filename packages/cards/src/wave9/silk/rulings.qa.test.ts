@@ -1,7 +1,7 @@
 /**
  * Rules QA for the Silk pack `silk` (52001 to 52038): the interactions the module tests do not assert, each tied to
- * an RRG 1.8 section (`mc_rulesreference_v18_compressed.pdf`), an FFG ruling by its date heading
- * (marvel-champions-rulings-post-rrg-1-7.md) or an owner answer (docs/phase7-wave9.md section 4.1). A `FINDING` comment
+ * an RRG 1.8 section (`docs/rules/mc_rulesreference_v18_compressed.pdf`), an FFG ruling by its date heading
+ * (docs/rulings/marvel-champions-rulings-post-rrg-1-7.md) or an owner answer (docs/phase7-wave9.md section 4.1). A `FINDING` comment
  * marks a case where the game and its source disagree: the expected behavior is an `it.fails`, with a passing
  * companion that pins today's behavior. Findings are tabled in docs/phase7-wave9-qa.md.
  */

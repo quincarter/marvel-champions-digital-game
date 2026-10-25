@@ -30,7 +30,7 @@ MC56 p. 17 and MC57's last page point at each other.
 
 ## 0. Sources
 
-- **RRG 1.8**, `mc_rulesreference_v18_compressed.md` (pages from the footer markers): Amplify Icon p. 7, Attach To p. 8,
+- **RRG 1.8**, `docs/rules/mc_rulesreference_v18_compressed.md` (pages from the footer markers): Amplify Icon p. 7, Attach To p. 8,
   Crisis Icon p. 14, Find p. 19, Flip p. 20, Labeled Ability p. 26, Overkill p. 31, Patrol p. 32, Stalwart p. 40, Star Icon
   p. 40, Steady p. 41, Villainous p. 47, Appendix VI p. 71. The page numbers other than p. 70 are copied from the earlier
   wave specs and not re-read here; **checked this session:** Appendix V,
@@ -40,7 +40,7 @@ MC56 p. 17 and MC57's last page point at each other.
     encounter discard pile. (Limit once per phase.)" Added "(Limit once per phase.)".
   - **Phased Out #76 (57076):** "Action: Choose an attachment on the enemy leader with the text 'Hero Action' or 'Hero
     Response' and discard it." Changed "Hero Interrupt" to "Hero Action". Card is competitive only.
-- **FFG rulings after 1.8** (`marvel-champions-rulings-post-rrg-1-7.md`): **March 19, 2026, Ruling 1** (Phased Out is
+- **FFG rulings after 1.8** (`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`): **March 19, 2026, Ruling 1** (Phased Out is
   meant to discard "Hero Action", agreeing with the erratum; checked). January 11, 2026 R1 (no Registration modular set
   with a Resistance leader), the June 2 and July 9, 2026 rulings on "enemy leader" (outside Civil War the enemy leader is
   the villain; July 9 R3, checked at line 1026) and the Civil War leader rulings of wave 10 §3.22. None names another
