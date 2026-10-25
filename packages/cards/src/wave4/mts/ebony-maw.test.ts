@@ -1,14 +1,16 @@
-import { cardId } from "@mc/content";
+import { cardId, trait } from "@mc/content";
 import {
   activeEncounterDeckId,
   applyCommand,
   cardOf,
   cardsInPlay,
   printedResources,
+  selectTargets,
   traitsOf,
   type GameState,
   type InstanceId,
   type PlayerId,
+  type TargetQuery,
 } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
@@ -221,8 +223,49 @@ describe("Agent of Thanos (21080)", () => {
     // Gated on hero form, dealing damage sized by the Spell-in-your-play-area count, with a surge fallback.
     expect(json).toContain('"form":"hero"');
     expect(json).toContain('"kind":"dealDamage"');
-    expect(json).toContain('"kind":"count","query":{"trait":"SPELL","inPlayAreaOf":{"kind":"controller"}}');
+    expect(json).toContain(
+      '"kind":"count","query":{"categories":["environment"],"trait":"SPELL","inPlayAreaOf":{"kind":"controller"}}',
+    );
     expect(json).toContain('"kind":"gainSurge"');
+  });
+
+  // A Spell upgrade on your identity is in your play area (`inPlayAreaOf` reads an attachment by its host, #411), but
+  // it is no Spell *environment*: Agent of Thanos counts only those (printed text).
+  it("counts Spell environments only: a Spell upgrade on your identity is not one", () => {
+    const { state: staged, id: spell } = encounterCardInPlayerArea(ebonyMawGame(9), "21076", P1, { invocation: 4 });
+    const upgrade = playerOf(staged, P1).deck[0]!;
+    // Any Spell upgrade the game holds (Magical Enhancements is the printed case; RRG 1.8 "Upgrade", p. 46).
+    const spellUpgrade = Object.values(staged.cardPool).find(
+      (card) => card.type === "upgrade" && card.traits.some((t) => (t as string).toUpperCase() === "SPELL"),
+    )!.id;
+    const identity = identityOf(staged, P1);
+    const state: GameState = {
+      ...staged,
+      players: staged.players.map((p) => (p.playerId === P1 ? { ...p, deck: p.deck.filter((i) => i !== upgrade) } : p)),
+      instances: {
+        ...staged.instances,
+        [upgrade]: {
+          ...staged.instances[upgrade]!,
+          cardId: spellUpgrade,
+          faceup: true,
+          controllerId: P1,
+          attachedTo: identity,
+        },
+        [identity]: { ...staged.instances[identity]!, attachments: [upgrade] },
+      },
+    };
+    // The query the script counts, as the test above reads it from the definition.
+    const query: TargetQuery = {
+      categories: ["environment"],
+      trait: trait("SPELL"),
+      inPlayAreaOf: { kind: "controller" },
+    };
+    const { categories: _environment, ...anySpell } = query;
+    const context = { selfInstanceId: null, controllerId: P1, event: null, bindings: {}, deps: WAVE4_DEPS };
+    // The setup Spell environment is in your play area too.
+    expect(selectTargets(state, query, context)).toContain(spell);
+    expect(selectTargets(state, query, context)).not.toContain(upgrade);
+    expect(selectTargets(state, anySpell, context)).toEqual(expect.arrayContaining([spell, upgrade]));
   });
 });
 

@@ -34,6 +34,7 @@ import { encounterCardInVillainArea, withForm } from "../../../testing/staging.j
 import { engageMinion, stagedInPlay } from "../../../wave9/falcon/testing.js";
 import { WAVE11_CARDS } from "../../cards.js";
 import { WAVE11_DEPS } from "../../index.js";
+import { wave11Scenario } from "../../setup.js";
 import {
   JJ_JESSICA_JONES_SUPPORT_UPGRADES_ALLIES as REGISTRY,
   JJ_JESSICA_JONES_SUPPORT_UPGRADES_ALLIES_SKIPPED as SKIPPED,
@@ -487,7 +488,7 @@ describe(`${STAKEOUT_A} and ${STAKEOUT_I}: attach to a non-permanent encounter s
     expect(inst(after, g.scheme).attachments).toContain(g.id);
   });
 
-  it("played from hand (by her identity), it still attaches to a side scheme (#411: Consolidate Power, Power Struggle)", () => {
+  it("played from hand (by her identity), it still attaches to a side scheme (#411)", () => {
     const given = moveToHand(withForm(jessicaGame(STAKEOUT), { heroForm: 0 }), P1, STAKEOUT);
     const [stake] = given.ids as [InstanceId];
     const { state: played } = drive(given.state, play(P1, stake, payWith(given.state, P1, 0, [stake])));
@@ -497,6 +498,31 @@ describe(`${STAKEOUT_A} and ${STAKEOUT_I}: attach to a non-permanent encounter s
     expect(inst(after, stake).attachedTo).toBe(scheme.id);
     expect(inst(after, scheme.id).attachments).toContain(stake);
     expect(inst(after, identityOf(after)).attachments).not.toContain(stake);
+    expect(refused(after, use(P1, stake, STAKEOUT_A))).toBe(true);
+  });
+
+  // The side schemes #411 reported, in the scenario it was reported from: Art Museum Heist against Hammerhead.
+  it.each([
+    ["Consolidate Power", "60094"],
+    ["Power Struggle", "60095"],
+  ])("in Art Museum Heist, played from hand it attaches to %s (#411)", (_name, code) => {
+    const created = createGame(
+      wave11Scenario("art-museum-heist", {
+        villainSetId: "hammerhead",
+        players: [{ starterDeckId: "jj-justice" }],
+        seed: 1,
+        difficulty: "standard",
+      } as never),
+      WAVE11_DEPS,
+    );
+    if (!created.ok) throw new Error(created.error.message);
+    const ready = settle(created.state, firstLegal, (x) => x.step.phase === "player", WAVE11_DEPS);
+    const given = moveToHand(withForm(ready, { heroForm: 0 }), P1, STAKEOUT);
+    const [stake] = given.ids as [InstanceId];
+    const { state: played } = drive(given.state, play(P1, stake, payWith(given.state, P1, 0, [stake])));
+    const scheme = encounterCardInVillainArea(played, code, 5);
+    const { state: after } = drive(scheme.state, use(P1, stake, STAKEOUT_A), picks({ cards: [scheme.id] }));
+    expect(inst(after, stake).attachedTo).toBe(scheme.id);
     expect(refused(after, use(P1, stake, STAKEOUT_A))).toBe(true);
   });
 
