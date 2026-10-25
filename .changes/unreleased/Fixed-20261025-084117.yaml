@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Review fixes: Linux native audio starts muted when Sound is saved off; a keyboard Inspect hold closes on its key''s release even with Shift held; Discord presence comes back after Discord restarts while the game sits on one screen.'
+time: 2026-10-25T08:41:17.0086406-04:00
