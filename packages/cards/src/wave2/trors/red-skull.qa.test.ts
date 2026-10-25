@@ -3,7 +3,9 @@
  *
  * Printed text: "This scheme cannot leave play while The Sleeper is in play. When Revealed: Put The Sleeper into play
  * engaged with the first player. When The Sleeper is defeated, remove this card from the game."
- * Sources: RRG 1.8 "'Cannot'" p. 11 (a "cannot" is absolute); "Side Scheme" (a scheme with 0 threat is defeated).
+ * Sources: RRG 1.8 "'Cannot'" p. 11 (a "cannot" is absolute); Golden Rules p. 4 (card text over the rules); older FFG
+ * ruling (Caleb, Rise of Red Skull): "that side scheme cannot be defeated. It can only be removed from play". So the
+ * "Side Scheme" rule (a scheme with 0 threat is defeated) never takes it, even once The Sleeper is gone (issue #405).
  */
 import { cardsInPlay, type GameState, type InstanceId } from "@mc/engine";
 import {
@@ -102,19 +104,21 @@ const thwart = (state: GameState, scheme: InstanceId) => {
 };
 
 describe("The Sleeper Awakened (04140): leaving play without a defeat", () => {
-  it("RRG 'Cannot' p. 11: with The Sleeper gone (removed from the game), thwarting its last threat discards the scheme", () => {
+  // With The Sleeper gone the first sentence no longer holds it, but it still cannot be defeated: only its own text
+  // removes it. Nothing in the game takes The Sleeper out of play short of defeating it, so these are surgery.
+  it("with The Sleeper gone (removed from the game), thwarting its last threat does not defeat the scheme", () => {
     const { state, sleeper, scheme } = awake();
     const gone = patchInstance(sleeperLeaves(state, sleeper, "removed"), scheme, { threat: 1 });
     const after = thwart(gone, scheme);
     expect(inst(after, scheme).threat).toBe(0);
-    expect(cardsInPlay(after)).not.toContain(scheme);
+    expect(cardsInPlay(after)).toContain(scheme);
   });
 
   it("same with The Sleeper discarded by an effect instead", () => {
     const { state, sleeper, scheme } = awake();
     const gone = patchInstance(sleeperLeaves(state, sleeper, "discard"), scheme, { threat: 1 });
     const after = thwart(gone, scheme);
-    expect(cardsInPlay(after)).not.toContain(scheme);
+    expect(cardsInPlay(after)).toContain(scheme);
   });
 
   it("two-player table: the same scheme/Sleeper interaction holds (scheme survives 0 threat while The Sleeper stands)", () => {
@@ -126,16 +130,13 @@ describe("The Sleeper Awakened (04140): leaving play without a defeat", () => {
     expect(cardsInPlay(after)).toContain(scheme);
   });
 
-  // The scheme sits at 0 threat (held in play by the first sentence) and The Sleeper then leaves play without being
-  // defeated. Nothing removes the scheme any more: the first sentence has lapsed, but no state check re-evaluates
-  // "0 threat". Expected: a side scheme with no threat is not left lingering once nothing holds it.
-  it("The Sleeper Awakened at 0 threat is discarded once The Sleeper leaves play undefeated (not stuck forever)", () => {
+  it("at 0 threat, it is not defeated when The Sleeper leaves play undefeated", () => {
     const { state, sleeper, scheme } = awake();
     const held = thwart(patchInstance(state, scheme, { threat: 1 }), scheme);
     expect(cardsInPlay(held)).toContain(scheme);
     const gone = sleeperLeaves(held, sleeper, "removed");
     // Any later command re-runs the engine's state checks.
     const later = settle(runWave2(gone, endTurn()), firstLegal, undefined, WAVE2_DEPS);
-    expect(cardsInPlay(later)).not.toContain(scheme);
+    expect(cardsInPlay(later)).toContain(scheme);
   });
 });
