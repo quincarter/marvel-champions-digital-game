@@ -6,6 +6,7 @@ import {
   instancesOf,
   moveToHand,
   P1,
+  patchInstance,
   payWith,
   play,
   playerOf,
@@ -309,10 +310,19 @@ describe("Kang / Temporal encounter set (kang-encounter-set.ts)", () => {
       const blocked = applyCommand(withBow.state, play(P1, bow, []), WAVE2_DEPS);
       expect(blocked.ok, "expected Hawkeye's Bow to be blocked by Depowered").toBe(false);
 
-      const withBasic = moveToHand(revealed, P1, "04022");
-      const [heroesEvent] = withBasic.ids as [InstanceId];
+      // Earth's Mightiest Heroes needs a ready Avenger to exhaust and another, exhausted, to ready (#415): the
+      // U.S. Agent (leadership, not hero-specific) joins Hawkeye and is exhausted.
+      const withBasic = moveToHand(revealed, P1, "04022", "04014");
+      const [heroesEvent, usAgent] = withBasic.ids as [InstanceId, InstanceId];
       const inHeroForm = settle(runWave2(withBasic.state, toHero(P1)), firstLegal, undefined, WAVE2_DEPS);
-      const allowed = applyCommand(inHeroForm, play(P1, heroesEvent, []), WAVE2_DEPS);
+      const withAgent = settle(
+        runWave2(inHeroForm, play(P1, usAgent, payWith(inHeroForm, P1, 3, [heroesEvent, usAgent]))),
+        firstLegal,
+        undefined,
+        WAVE2_DEPS,
+      );
+      const agentTired = patchInstance(withAgent, usAgent, { exhausted: true });
+      const allowed = applyCommand(agentTired, play(P1, heroesEvent, []), WAVE2_DEPS);
       expect(allowed.ok, "expected a basic-aspect card to stay playable under Depowered").toBe(true);
     });
 
