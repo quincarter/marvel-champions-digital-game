@@ -211,9 +211,12 @@ export class CardFaceBaker {
     }
     const textures = this.#game.textures;
     if (textures.exists(entry.textureKey)) textures.remove(entry.textureKey);
+    // Read the size first: handing the bitmap to a canvas detaches it, and its width and height read 0 afterwards, which
+    // left every face counting as 0 bytes and the budget below never evicting anything.
+    const bytes = bitmap.width * bitmap.height * 4;
     textures.addImage(entry.textureKey, canvasOf(bitmap) as unknown as HTMLImageElement);
     entry.state = "ready";
-    entry.bytes = bitmap.width * bitmap.height * 4;
+    entry.bytes = bytes;
     this.#evict();
     this.#queueNotify();
   }

@@ -11,10 +11,9 @@
 /** The rate PipeWire (and PulseAudio's usual default) runs at. */
 export const LINUX_AUDIO_RATE = 48_000;
 
-/** True for the desktop app on Linux: a Tauri shell whose user agent names Linux and not Android. */
-export function isLinuxDesktopApp(isTauri: boolean, userAgent: string): boolean {
-  return isTauri && /Linux/i.test(userAgent) && !/Android/i.test(userAgent);
-}
+import { isLinuxDesktopApp } from "./linux-desktop.js";
+
+export { isLinuxDesktopApp };
 
 /** The audio context Phaser should use, or null to let it make its own. */
 export function linuxAudioContext(isTauri: boolean, userAgent: string): AudioContext | null {
