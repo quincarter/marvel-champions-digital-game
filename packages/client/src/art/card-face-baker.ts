@@ -35,6 +35,8 @@ interface Entry {
   bytes: number;
   lastUsed: number;
   holds: number;
+  /** Accepted or requested since the last `onBaked` notice: its scene hasn't drawn and held it yet. */
+  fresh: boolean;
   triedInline: boolean;
   readonly spec: CardFaceSpec;
 }
@@ -82,6 +84,7 @@ export class CardFaceBaker {
         bytes: 0,
         lastUsed: 0,
         holds: 0,
+        fresh: true,
         triedInline: false,
         spec,
       };
@@ -90,6 +93,7 @@ export class CardFaceBaker {
       this.#dispatch(entry);
     }
     entry.lastUsed = ++this.#tick;
+    entry.fresh = true;
     return entry.state === "ready" ? entry.textureKey : null;
   }
 
@@ -226,7 +230,9 @@ export class CardFaceBaker {
     for (const entry of this.#entries.values()) total += entry.bytes;
     if (total <= FACE_BUDGET_BYTES) return;
     const coldestFirst = [...this.#entries.entries()]
-      .filter(([, entry]) => entry.state === "ready" && entry.holds <= 0)
+      // Held faces stay, and so do ones asked for or just baked and not yet drawn (they'd be re-baked at once, forever);
+      // if nothing else is left the cache runs over budget.
+      .filter(([, entry]) => entry.state === "ready" && entry.holds <= 0 && !entry.fresh)
       .sort(([, a], [, b]) => a.lastUsed - b.lastUsed);
     for (const [specKey, entry] of coldestFirst) {
       if (total <= FACE_BUDGET_BYTES) break;
@@ -249,6 +255,7 @@ export class CardFaceBaker {
     this.#notifyQueued = true;
     requestAnimationFrame(() => {
       this.#notifyQueued = false;
+      for (const entry of this.#entries.values()) entry.fresh = false;
       for (const listener of [...this.#listeners]) listener();
     });
   }

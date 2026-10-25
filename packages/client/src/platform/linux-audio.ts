@@ -7,13 +7,12 @@
  * front, and `latencyHint: "playback"` asks for the larger output buffers a card game can afford (the shell also
  * lengthens PulseAudio's, `src-tauri/src/main.rs`). Everywhere else the browser's own default stays.
  */
-
-/** The rate PipeWire (and PulseAudio's usual default) runs at. */
-export const LINUX_AUDIO_RATE = 48_000;
-
 import { isLinuxDesktopApp } from "./linux-desktop.js";
 
 export { isLinuxDesktopApp };
+
+/** The rate PipeWire (and PulseAudio's usual default) runs at. */
+export const LINUX_AUDIO_RATE = 48_000;
 
 /** The audio context Phaser should use, or null to let it make its own. */
 export function linuxAudioContext(isTauri: boolean, userAgent: string): AudioContext | null {
