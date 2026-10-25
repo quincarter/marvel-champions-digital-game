@@ -149,6 +149,8 @@ export interface PinnedHover {
   readonly id: InstanceId;
   readonly rect: Rect;
   readonly area: Rect;
+  /** A plain card (a screen with no game: Set the table's modular tiles): `id` is then its card id and the face to show. */
+  readonly plain?: { readonly face?: CardFace };
 }
 
 export class HoverPreview {
@@ -240,7 +242,9 @@ export class HoverPreview {
       return;
     }
     this.#clear();
-    const built = this.#build(target.id, target.rect, target.area, null);
+    const built = target.plain
+      ? this.#buildPlain(target.id, target.plain.face, target.rect, target.area)
+      : this.#build(target.id, target.rect, target.area, null);
     if (!built) return;
     this.#shownId = target.id;
     this.#waitingKey = built.waitingFor;

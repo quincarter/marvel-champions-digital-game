@@ -77,6 +77,9 @@ export interface TopBar {
   readonly backRect: Rect | null;
 }
 
+/** Room a back button reserves for its Cancel glyph: the glyph (a keycap at the widest), its gap and edge padding. */
+const BACK_GLYPH_ROOM = 64;
+
 /** The ink top bar: boxed back button, Bangers title, right-aligned label. */
 export function drawTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBar {
   const frame = campaignFrame(scene);
@@ -87,7 +90,13 @@ export function drawTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBar 
   let back: McButton | null = null;
   let backRect: Rect | null = null;
   if (options.backLabel && options.onBack) {
-    const labelWidth = Math.max(frame.phone ? hit.target : 64, estimateBangersWidth(options.backLabel, 22) + 26);
+    // With hints the button also holds the Cancel glyph beside its word (B, or Esc as a keycap) inside its own edge,
+    // so it never hangs over the button's border; a phone layout carries no glyph.
+    const glyphRoom = options.hints && !frame.phone ? BACK_GLYPH_ROOM : 0;
+    const labelWidth = Math.max(
+      frame.phone ? hit.target : 64,
+      estimateBangersWidth(options.backLabel, 22) + 26 + glyphRoom,
+    );
     backRect = {
       x,
       y: (height - hit.target) / 2,

@@ -292,7 +292,7 @@ export class SettingsOverlay extends Phaser.Scene {
         this.scene.isActive(SCENES.unlocks) ||
         this.scene.isActive(SCENES.saveData) ||
         this.scene.isActive(SCENES.controls),
-      onCancel: () => (this.#resolutionListOpen ? this.#closeResolutionList() : this.#close()),
+      onCancel: () => (this.#resolutionListOpen ? this.#closeResolutionList(true) : this.#close()),
     });
     // Another scene (Pause's own inline Guide group) can change the same live prefs while this overlay is open
     // behind it — redraw so this one never shows a stale level/toggle.
@@ -545,8 +545,15 @@ export class SettingsOverlay extends Phaser.Scene {
     });
 
     const stopIds = this.#drawBody(layout.bodyViewport, layout.content, items, stops);
-    if (this.#resolutionListOpen) this.#drawResolutionList({ x: 0, y: 0, width, height });
-    this.#route?.set(["back", ...tabs.map((tab) => `tab:${tab.id}`), ...stopIds.map((id) => `row:${id}`)], stops);
+    if (this.#resolutionListOpen) {
+      // While the list is open it owns the pad and keyboard: the route holds only its sizes, so the d-pad never
+      // reaches the rows behind it. A picks and closes, B closes unchanged.
+      const listStops = new Map<string, FocusStop>();
+      const listIds = this.#drawResolutionList({ x: 0, y: 0, width, height }, listStops);
+      this.#route?.set(listIds, listStops);
+    } else {
+      this.#route?.set(["back", ...tabs.map((tab) => `tab:${tab.id}`), ...stopIds.map((id) => `row:${id}`)], stops);
+    }
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
   }
 
@@ -1081,7 +1088,13 @@ export class SettingsOverlay extends Phaser.Scene {
       .text(field.x + field.width - 12, field.y + field.height / 2, "▼", textStyle(typeRole.label, surface.ink.hex))
       .setFontSize(10)
       .setOrigin(1, 0.5);
-    stops.set("row:resolution:field", this.#bodyStop(field, item.slot, open));
+    stops.set(
+      "row:resolution:field",
+      this.#bodyStop(field, item.slot, () => {
+        open();
+        this.#route?.focusKey(`list:${this.#resolutionPickedIndex()}`);
+      }),
+    );
 
     const pending = this.#pendingResolution !== null && this.#pendingResolution !== info.selected;
     const activateApply = (): void => {
@@ -1105,9 +1118,22 @@ export class SettingsOverlay extends Phaser.Scene {
     stops.set("row:resolution:apply", this.#bodyStop(apply, item.slot, activateApply));
   }
 
-  #closeResolutionList(): void {
+  /** Index in the open list of the size shown as picked (the pending one, else the one in effect). */
+  #resolutionPickedIndex(): number {
+    const info = this.#resolutionInfo;
+    if (info === null) return 0;
+    const picked = this.#pendingResolution ?? info.selected;
+    return Math.max(
+      0,
+      info.options.findIndex((option) => option.value === picked),
+    );
+  }
+
+  /** Closes the list; `refocus` (pad or keyboard) puts the ring back on the field it opened from. */
+  #closeResolutionList(refocus = false): void {
     this.#resolutionListOpen = false;
     this.#draw();
+    if (refocus) this.#route?.focusKey("row:resolution:field");
   }
 
   /**
@@ -1115,10 +1141,10 @@ export class SettingsOverlay extends Phaser.Scene {
    * scrolling for the rest. A press anywhere else closes it without a change; picking a row makes it the pending
    * choice, which Apply then puts into effect.
    */
-  #drawResolutionList(bounds: Rect): void {
+  #drawResolutionList(bounds: Rect, stops: Map<string, FocusStop>): string[] {
     const field = this.#resolutionField;
     const info = this.#resolutionInfo;
-    if (field === null || info === null) return;
+    if (field === null || info === null) return [];
     this.add
       .zone(0, 0, bounds.width, bounds.height)
       .setOrigin(0, 0)
@@ -1147,11 +1173,26 @@ export class SettingsOverlay extends Phaser.Scene {
     });
     const region = this.#listRegion;
     const picked = this.#pendingResolution ?? info.selected;
-    const pickedIndex = Math.max(
-      0,
-      info.options.findIndex((option) => option.value === picked),
-    );
+    const pickedIndex = this.#resolutionPickedIndex();
+    const ids: string[] = [];
     info.options.forEach((option, i) => {
+      const pick = (): void => {
+        this.#pendingResolution = option.value === info.selected ? null : option.value;
+      };
+      ids.push(`list:${i}`);
+      stops.set(`list:${i}`, {
+        rect: () => ({
+          x: viewport.x,
+          y: viewport.y + i * LIST_ROW_HEIGHT - this.#resolutionListScroll.offsetPx,
+          width: viewport.width - 8,
+          height: LIST_ROW_HEIGHT,
+        }),
+        activate: () => {
+          pick();
+          this.#closeResolutionList(true);
+        },
+        ensureVisible: () => region.scrollIntoView(i),
+      });
       const row: Rect = {
         x: viewport.x,
         y: viewport.y + i * LIST_ROW_HEIGHT,
@@ -1168,7 +1209,7 @@ export class SettingsOverlay extends Phaser.Scene {
             rect: row,
             selected,
             onClick: () => {
-              this.#pendingResolution = option.value === info.selected ? null : option.value;
+              pick();
               this.#closeResolutionList();
             },
             clip: () => region.rect,
@@ -1179,6 +1220,7 @@ export class SettingsOverlay extends Phaser.Scene {
     });
     region.syncInteractivity();
     region.scrollIntoView(pickedIndex);
+    return ids;
   }
 
   #setTokenMotion(value: FirstPlayerTokenMotion): void {

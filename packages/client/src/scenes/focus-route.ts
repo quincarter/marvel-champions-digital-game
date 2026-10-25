@@ -119,6 +119,13 @@ export interface FocusRouteOptions {
    * whose rows page sideways pages the focused one. Called once per pull, not while the trigger stays down.
    */
   readonly onTrigger?: (trigger: "lt" | "rt") => void;
+  /**
+   * Hold Inspect (Y, or E / O): true when the hold starts, false when it ends. A tap still inspects. A screen with a
+   * card picture to enlarge shows the focused stop's card (`HoverPreview.pin`). Left out, Y is Inspect at once.
+   */
+  readonly onInspectZoom?: (zooming: boolean) => void;
+  /** False while the zoom is switched off (Card hover size "off"): a hold is then a tap. */
+  readonly zoomEnabled?: () => boolean;
 }
 
 export class FocusRoute {
@@ -204,6 +211,8 @@ export class FocusRoute {
     scene.events.once("destroy", release);
     const onTrigger = options.onTrigger;
     const binding = {
+      ...(options.onInspectZoom ? { onInspectZoom: options.onInspectZoom } : {}),
+      ...(options.zoomEnabled ? { zoomEnabled: options.zoomEnabled } : {}),
       ...(onTrigger ? { onLayer: (layer: PadLayer | null) => (layer === null ? undefined : onTrigger(layer)) } : {}),
       blocked: options.blocked ?? (() => false),
       onIntent: (intent: GamepadIntent, source?: "key") => this.#onIntent(intent, source),
@@ -336,6 +345,14 @@ export class FocusRoute {
 
   get #order(): readonly string[] {
     return [...this.#ownOrder, ...this.#chrome().keys()];
+  }
+
+  /** Presses the screen's primary stop (the Start gate, Continue) as Start does; false when it has none right now. */
+  pressPrimary(): boolean {
+    const key = activationTarget(null, this.#primary?.() ?? null, true);
+    const stop = key === null ? undefined : this.#stopOf(key);
+    stop?.activate();
+    return stop !== undefined;
   }
 
   #stopOf(key: string): FocusStop | undefined {
