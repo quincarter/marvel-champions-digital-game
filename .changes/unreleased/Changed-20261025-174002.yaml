@@ -1,0 +1,3 @@
+kind: Changed
+body: Make the Call now always shows the allies it can take, each tagged with whose discard pile it is in, and you pick one before paying, even when only one ally fits; on a phone a long list of allies pages instead of running off the screen (#419).
+time: 2026-10-25T17:40:02.9427027-04:00

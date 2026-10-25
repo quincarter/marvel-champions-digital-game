@@ -1797,6 +1797,32 @@ const mergeChoices = (auto: CostChoices | undefined, given: CostChoices | undefi
   return Object.keys(merged).length > 0 ? merged : undefined;
 };
 
+/**
+ * The cost-choice set a payment is priced with: the one for the pick the player made (`PaymentContext.target`), else
+ * the first one the engine can plan. With no pick, the first candidate is not necessarily one the cost may take: Make
+ * the Call (01071) lists every card in every discard pile, and pricing it on an event left the pay step with no
+ * requirement, so the board sent the engine's own sample payment instead of asking (#419).
+ */
+function chosenCostChoiceSet(
+  state: GameState,
+  deps: EngineDeps,
+  instanceId: InstanceId,
+  playerId: PlayerId,
+  cost: AbilityCost | undefined,
+  sets: readonly CostChoiceSet[],
+  options: PaymentContext,
+): CostChoiceSet | undefined {
+  const picked = sets.find((set) => set.target !== null && set.target === options.target);
+  if (picked || sets.length < 2) return picked ?? sets[0];
+  const plannable = sets.find((set) => {
+    const choices = mergeChoices(set.costChoices, options.costChoices) ?? {};
+    return (
+      "requirement" in planCost(state, deps, instanceId, playerId, cost, choices, NO_RESERVED, options.costSelection)
+    );
+  });
+  return plannable ?? sets[0];
+}
+
 /** The inverse of `paymentsFromOptionIds`: a repeated resource ability's n-th use is "…:<n>" (§3.25 of wave 5). */
 const optionIdsOf = (payment: readonly Payment[]): readonly string[] => {
   const uses = new Map<string, number>();
@@ -1842,7 +1868,7 @@ function payableFor(
     );
     const picks = options.costChoices?.discard ?? discardPicks(state, deps, playerId, id, cost);
     const sets = costChoiceSets(state, deps, playerId, id, cost, picks);
-    const chosen = sets.find((set) => set.target !== null && set.target === options.target) ?? sets[0];
+    const chosen = chosenCostChoiceSet(state, deps, id, playerId, cost, sets, options);
     const costChoices = mergeChoices(chosen?.costChoices, options.costChoices);
     const controllerId = options.controllerId;
     const context: EffectContext = {
@@ -1900,7 +1926,7 @@ function payableFor(
     const cost = costAsDetermined(state, deps, instanceId, playerId, deps.abilities[abilityId]?.cost);
     const picks = options.costChoices?.discard ?? discardPicks(state, deps, playerId, instanceId, cost);
     const sets = costChoiceSets(state, deps, playerId, instanceId, cost, picks);
-    const chosen = sets.find((set) => set.target !== null && set.target === options.target) ?? sets[0];
+    const chosen = chosenCostChoiceSet(state, deps, instanceId, playerId, cost, sets, options);
     const costChoices = mergeChoices(chosen?.costChoices, options.costChoices);
     const selection = options.costSelection;
     const chosenResources = resourcesChoiceOf(cost);

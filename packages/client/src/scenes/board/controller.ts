@@ -1018,16 +1018,46 @@ export class BoardController {
 
   /** The searched-minion list: the card being played and each minion the search found, with its area, or null. */
   searchedPick(): SearchedPickView | null {
-    return this.#selection.kind === "choosingSearched" ? this.#selection.pick : null;
+    if (this.#selection.kind !== "choosingSearched") return null;
+    const { pick, chosen, page } = this.#selection;
+    return { ...pick, page, ...(pick.confirm ? { chosen } : {}) };
   }
 
-  /** The list's answer: the play goes on with that minion in the cost's slot, as a board pick would. */
+  /**
+   * Previous / Next on a list longer than the sheet holds. The sheet passes the page it shows plus or minus one, so a
+   * page left past the end by a resize (fewer, larger pages) never takes a dead press to come back.
+   */
+  showSearchedPage(page: number): void {
+    if (this.#selection.kind !== "choosingSearched") return;
+    this.#selection = { ...this.#selection, page: Math.max(0, page) };
+    this.#host.redraw();
+  }
+
+  /**
+   * A tap on one of the list's cards. Hunted's list answers at once: the play goes on with that minion in the cost's
+   * slot, as a board pick would. Make the Call's selects the ally (a second tap clears it) and waits for Confirm.
+   */
   async chooseSearched(instanceId: InstanceId): Promise<void> {
     if (this.#readOnly || this.#selection.kind !== "choosingSearched") return;
-    const { entry, pick, controllerId, confirmFree } = this.#selection;
-    if (!pick.options.some((option) => option.instanceId === instanceId)) return;
+    const { entry, pick, chosen, controllerId, confirmFree } = this.#selection;
+    const option = pick.options.find((candidate) => candidate.instanceId === instanceId);
+    if (!option?.available) return;
+    if (pick.confirm) {
+      this.#selection = { ...this.#selection, chosen: chosen === instanceId ? null : instanceId };
+      this.#host.redraw();
+      return;
+    }
     this.#selection = { kind: "idle" };
     await this.#playAs(entry, controllerId, confirmFree, instanceId);
+  }
+
+  /** Confirm on a list that waits for it (Make the Call): the play goes on with the selected ally, to its payment. */
+  async confirmSearched(): Promise<void> {
+    if (this.#readOnly || this.#selection.kind !== "choosingSearched") return;
+    const { entry, chosen, controllerId, confirmFree } = this.#selection;
+    if (chosen === null) return;
+    this.#selection = { kind: "idle" };
+    await this.#playAs(entry, controllerId, confirmFree, chosen);
   }
 
   /** The "Where?" bar: the ally being played and each place it may go, with its price there, or null when not open. */
@@ -1119,14 +1149,15 @@ export class BoardController {
     destinationAsked = false,
   ): Promise<void> {
     const { game } = appSession().store.state;
+    // A search cost (Hunted) or an ally in a discard pile (Make the Call): the candidates are not on the board, so a
+    // list asks; Make the Call's asks even for one ally, so the player sees which it is before paying (#419).
+    const pick = target === null && game ? searchedPickFor(game, POOL_DEPS, entry) : null;
+    if (pick) {
+      this.#selection = { kind: "choosingSearched", entry, pick, chosen: null, page: 0, controllerId, confirmFree };
+      this.#host.redraw();
+      return;
+    }
     if (target === null && needsPlayAim(entry) && game) {
-      // A search cost (Hunted): its candidates are in the encounter deck, not on the board, so a list asks.
-      const pick = searchedPickFor(game, POOL_DEPS, entry);
-      if (pick) {
-        this.#selection = { kind: "choosingSearched", entry, pick, controllerId, confirmFree };
-        this.#host.redraw();
-        return;
-      }
       this.#selection = {
         kind: "targeting",
         action: entry,

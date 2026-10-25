@@ -115,6 +115,7 @@ export default defineConfig({
         "pause-undo-moment.spec.ts",
         "wave10-discard-sheet.spec.ts",
         "wave10-hunted-sheet.spec.ts",
+        "make-the-call-sheet.spec.ts",
         "wave10-x-stepper-phone.spec.ts",
         "x-cost.spec.ts",
         "wonder-man-overpay.spec.ts",

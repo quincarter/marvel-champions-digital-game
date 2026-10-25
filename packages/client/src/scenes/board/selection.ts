@@ -118,12 +118,17 @@ export type Selection =
    */
   | {
       /**
-       * A cost that searches the encounter deck and discard pile for a minion (Hunted) listed more than one: the cards
-       * are not on the board, so they are chosen from a list that names each one's area (`view/play-aim.ts`).
+       * A cost that searches the encounter deck and discard pile for a minion (Hunted) listed more than one, or the ally
+       * in a discard pile Make the Call pays for: the cards are not on the board, so they are chosen from a list that
+       * names each one's area (`view/play-aim.ts`).
        */
       readonly kind: "choosingSearched";
       readonly entry: LegalAction;
       readonly pick: SearchedPickView;
+      /** The option selected so far, for a list that waits for Confirm (Make the Call); null until a tap. */
+      readonly chosen: InstanceId | null;
+      /** The page of a list longer than the sheet holds (`view/searched-pick-layout.ts`); 0 until Next. */
+      readonly page: number;
       readonly controllerId: PlayerId | null;
       readonly confirmFree: boolean;
     }
