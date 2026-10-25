@@ -23,6 +23,18 @@ export const NO_TRIGGERS: TriggerHold = { lt: false, rt: false, owner: null };
 
 const step = (held: boolean, value: number): boolean => (held ? value > TRIGGER_RELEASE : value >= TRIGGER_ENGAGE);
 
+/**
+ * A trigger's pull, 0 to 1, from the browser's button: its analog `value`, or a full pull when it says `pressed` with
+ * no value (a pad whose trigger is a plain button, or a bridge message that carries the press but not the pull). The
+ * Controls screen's input test reads `pressed`, so a trigger that shows there must engage a layer here too.
+ */
+export function triggerPull(
+  button: { readonly pressed?: boolean; readonly value?: number } | null | undefined,
+): number {
+  const value = button?.value ?? 0;
+  return button?.pressed === true && value < TRIGGER_ENGAGE ? 1 : value;
+}
+
 /** The triggers held after reading `ltValue` and `rtValue`, given what was held before. */
 export function triggerHoldAfter(previous: TriggerHold, ltValue: number, rtValue: number): TriggerHold {
   const lt = step(previous.lt, ltValue);

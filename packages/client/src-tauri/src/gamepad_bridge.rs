@@ -117,6 +117,39 @@ pub fn pad_id(name: &str, vendor: Option<u16>, product: Option<u16>) -> String {
   )
 }
 
+/// Standard-mapping index of the left (2) and top (3) face buttons swap when `swap` is set, any other index stays.
+///
+/// gilrs names evdev's `BTN_NORTH` (0x133) North and `BTN_WEST` (0x134) West, but the kernel's xpad driver (every
+/// Xbox-layout pad) sends its X, the left button, as `BTN_X` = `BTN_NORTH` and its Y, the top one, as `BTN_Y` =
+/// `BTN_WEST`. A pad with an SDL mapping is read by the mapping's own x / y and comes out right; a pad gilrs falls
+/// back to its evdev defaults for comes out with X and Y traded (the owner's 8BitDo on Bazzite, 2026-10-24).
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub fn face_index(index: usize, swap: bool) -> usize {
+  match (swap, index) {
+    (true, 2) => 3,
+    (true, 3) => 2,
+    _ => index,
+  }
+}
+
+/// A trigger reported as a stick-style axis (gilrs's `LeftZ` / `RightZ`, evdev `ABS_Z` / `ABS_RZ`), -1 at rest to 1
+/// fully pulled, as the 0..1 button value the standard layout gives a trigger.
+///
+/// A pad gilrs has no SDL mapping for reads its triggers this way (an Xbox-layout pad on the xpad driver), and the
+/// bridge used to drop those events: LT and RT never reached the page, so the hold layers never opened (the owner's
+/// 8BitDo on Bazzite, 2026-10-24).
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub fn trigger_from_axis(value: f64) -> f64 {
+  ((value + 1.0) / 2.0).clamp(0.0, 1.0)
+}
+
+/// Whether a pad's North / West need trading: gilrs is on its evdev defaults (no SDL mapping), and the pad is not one
+/// of the makers whose drivers (hid-playstation, hid-nintendo) already put Triangle / X on `BTN_NORTH`.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub fn needs_face_swap(sdl_mapped: bool, vendor: Option<u16>) -> bool {
+  !sdl_mapped && !matches!(vendor, Some(0x054c) | Some(0x057e))
+}
+
 /// A pad's live state between emits, plus whether anything changed since the last one.
 #[derive(Clone, Debug)]
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
@@ -127,6 +160,8 @@ pub struct PadState {
   axes: [f64; AXES],
   downs: Vec<u32>,
   dirty: bool,
+  /// Left and top face buttons arrive traded (see `face_index`).
+  swap_faces: bool,
   /// Bridge time (ms) of the last emit for this pad.
   last_emit_ms: f64,
 }
@@ -141,8 +176,15 @@ impl PadState {
       axes: [0.0; AXES],
       downs: Vec::new(),
       dirty: false,
+      swap_faces: false,
       last_emit_ms: f64::NEG_INFINITY,
     }
+  }
+
+  /// Marks a pad whose North / West come in traded (see `face_index`).
+  pub fn with_face_swap(mut self, swap: bool) -> Self {
+    self.swap_faces = swap;
+    self
   }
 
   fn set(&mut self, button: usize, pressed: bool, value: f64) {
@@ -161,6 +203,7 @@ impl PadState {
   /// A digital press or release (gilrs's ButtonPressed / ButtonReleased). The triggers ignore it: their analog value
   /// decides, against our threshold rather than gilrs's own.
   pub fn press(&mut self, button: usize, pressed: bool) {
+    let button = face_index(button, self.swap_faces);
     if button == LEFT_TRIGGER || button == RIGHT_TRIGGER {
       return;
     }
@@ -170,9 +213,15 @@ impl PadState {
   /// A button's analog value, 0..1 (gilrs's ButtonChanged). Only the triggers take it; for every other button the
   /// press and release say the same thing.
   pub fn button_value(&mut self, button: usize, value: f64) {
+    let button = face_index(button, self.swap_faces);
     if button == LEFT_TRIGGER || button == RIGHT_TRIGGER {
       self.set(button, value > PRESS_THRESHOLD, value);
     }
+  }
+
+  /// A trigger that arrives as a -1..1 axis (see `trigger_from_axis`), as the button `LEFT_TRIGGER` / `RIGHT_TRIGGER`.
+  pub fn trigger_axis(&mut self, button: usize, value: f64) {
+    self.button_value(button, trigger_from_axis(value));
   }
 
   /// A stick axis in standard order, already with Y positive = down.
@@ -233,7 +282,7 @@ mod linux {
   use std::sync::OnceLock;
   use std::time::{Duration, Instant};
 
-  use gilrs::{Axis, Button, EventType, GamepadId, Gilrs, GilrsBuilder};
+  use gilrs::{Axis, Button, EventType, GamepadId, Gilrs, GilrsBuilder, MappingSource};
   use tauri::{AppHandle, Emitter};
 
   use super::*;
@@ -334,7 +383,18 @@ mod linux {
   fn connect(gilrs: &Gilrs, pads: &mut HashMap<GamepadId, PadState>, id: GamepadId) -> PadState {
     let gp = gilrs.gamepad(id);
     let slot = free_slot(pads.values().map(|p| p.index));
-    PadState::new(slot, pad_id(gp.name(), gp.vendor_id(), gp.product_id()))
+    // MC_GAMEPAD_SWAP_XY=1 / 0 forces the trade on / off for a pad whose layout the guess above gets wrong.
+    let swap = match std::env::var("MC_GAMEPAD_SWAP_XY").ok().as_deref() {
+      Some("1") => true,
+      Some("0") => false,
+      _ => needs_face_swap(gp.mapping_source() == MappingSource::SdlMappings, gp.vendor_id()),
+    };
+    fail(&format!(
+      "{} mapping: {:?}, North/West traded: {swap}",
+      gp.name(),
+      gp.mapping_source()
+    ));
+    PadState::new(slot, pad_id(gp.name(), gp.vendor_id(), gp.product_id())).with_face_swap(swap)
   }
 
   /// Polls until an emit fails; the caller clears `RUNNING` and sends `stopped`.
@@ -391,7 +451,9 @@ mod linux {
               // gilrs's default filters already turn a hat into D-pad buttons when it can; this covers the rest.
               EventType::AxisChanged(Axis::DPadX, v, _) => pad.dpad_axis(true, v as f64),
               EventType::AxisChanged(Axis::DPadY, v, _) => pad.dpad_axis(false, v as f64),
-              // LeftZ / RightZ only appear on pads with no SDL mapping, where nothing says what they are.
+              // Without an SDL mapping, gilrs's evdev defaults name the triggers' axes LeftZ / RightZ.
+              EventType::AxisChanged(Axis::LeftZ, v, _) => pad.trigger_axis(LEFT_TRIGGER, v as f64),
+              EventType::AxisChanged(Axis::RightZ, v, _) => pad.trigger_axis(RIGHT_TRIGGER, v as f64),
               _ => {}
             }
           }
@@ -488,6 +550,26 @@ mod tests {
   }
 
   #[test]
+  fn trigger_axes_land_as_buttons_6_and_7() {
+    // -1 at rest is up; fully pulled is 1.0; past half is pressed.
+    assert_eq!(trigger_from_axis(-1.0), 0.0);
+    assert_eq!(trigger_from_axis(1.0), 1.0);
+    assert_eq!(trigger_from_axis(5.0), 1.0);
+    let mut p = pad();
+    p.trigger_axis(LEFT_TRIGGER, -1.0);
+    assert!(!p.take_payload(0.0, true).buttons[LEFT_TRIGGER].pressed);
+    p.trigger_axis(LEFT_TRIGGER, 0.2);
+    let out = p.take_payload(10.0, true);
+    assert!(out.buttons[LEFT_TRIGGER].pressed && (out.buttons[LEFT_TRIGGER].value - 0.6).abs() < 1e-9);
+    p.trigger_axis(RIGHT_TRIGGER, 1.0);
+    let out = p.take_payload(20.0, true);
+    assert!(out.buttons[RIGHT_TRIGGER].pressed && out.buttons[RIGHT_TRIGGER].value == 1.0);
+    assert!(out.buttons[LEFT_TRIGGER].pressed, "the other trigger is untouched");
+    p.trigger_axis(LEFT_TRIGGER, -0.9);
+    assert!(!p.take_payload(30.0, true).buttons[LEFT_TRIGGER].pressed);
+  }
+
+  #[test]
   fn hat_axes_become_dpad_buttons() {
     let mut p = pad();
     p.dpad_axis(false, 1.0);
@@ -508,6 +590,42 @@ mod tests {
     p.axis(1, 1.0);
     let out = p.take_payload(0.0, false);
     assert!(!out.connected && !out.buttons[3].pressed && out.axes[1] == 0.0);
+  }
+
+  #[test]
+  fn face_buttons_follow_the_standard_positions() {
+    // 0 bottom, 1 right, 2 left, 3 top: an Xbox pad's X is the left button, Y the top one.
+    for i in 0..BUTTONS {
+      assert_eq!(face_index(i, false), i);
+    }
+    assert_eq!([0, 1, 2, 3].map(|i| face_index(i, true)), [0, 1, 3, 2]);
+    assert_eq!(face_index(4, true), 4);
+    assert_eq!(face_index(16, true), 16);
+  }
+
+  #[test]
+  fn an_unmapped_xbox_layout_pad_trades_north_and_west() {
+    // 8BitDo (2dc8) and Microsoft (045e) on gilrs's evdev defaults: swapped; with an SDL mapping: as it is.
+    assert!(needs_face_swap(false, Some(0x2dc8)));
+    assert!(needs_face_swap(false, Some(0x045e)));
+    assert!(needs_face_swap(false, None));
+    assert!(!needs_face_swap(true, Some(0x2dc8)));
+    // Sony and Nintendo drivers already name Triangle / X as North.
+    assert!(!needs_face_swap(false, Some(0x054c)));
+    assert!(!needs_face_swap(false, Some(0x057e)));
+  }
+
+  #[test]
+  fn a_swapped_pad_reports_left_as_2_and_top_as_3() {
+    // gilrs North (index 3 in button_index) on a swapped pad is the left button, standard index 2.
+    let mut p = PadState::new(0, "Pad".into()).with_face_swap(true);
+    p.press(3, true);
+    let out = p.take_payload(0.0, true);
+    assert!(out.buttons[2].pressed && !out.buttons[3].pressed);
+    assert_eq!(out.downs, [2]);
+    let mut q = PadState::new(0, "Pad".into());
+    q.press(3, true);
+    assert!(q.take_payload(0.0, true).buttons[3].pressed);
   }
 
   #[test]

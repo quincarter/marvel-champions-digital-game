@@ -9,6 +9,7 @@ import { cardOf, type GameState, type InstanceId } from "@mc/engine";
 import { CARD_BACKS, artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import type { FocusStop } from "../scenes/focus-route.js";
+import type { ShortcutId } from "../view/input-shortcuts.js";
 import { SCENES } from "../scenes/keys.js";
 import { noteHoverCard, type HoverHpPreview } from "./card-hover-preview.js";
 import { bindHoldTarget } from "./hold-target.js";
@@ -41,6 +42,16 @@ export interface DefendPanelArgs {
   readonly buttons: McButton[];
   /** The deciding seat, named in the header when more than one seat is playing (hot-seat: "your" is whoever holds the device). */
   readonly decider?: string | null;
+  /**
+   * Gives a button its key / pad glyph where the layout has room (`ui/glyph-hints.ts`); absent where there are none.
+   * `primary` is the stop key of the screen's primary commit, with whether it can be pressed now.
+   */
+  readonly hint?: (
+    button: McButton,
+    ids: readonly ShortcutId[],
+    primary: string | null,
+    primaryEnabled: boolean,
+  ) => void;
 }
 
 /** Below this a caption is not read at a glance across a phone; the tag then says less, larger. */
@@ -86,15 +97,15 @@ export function drawVillainDefendPanel(scene: Phaser.Scene, args: DefendPanelArg
     .setOrigin(0, 0)
     .setLetterSpacing(1);
   fitText(title, layout.title.width, compact ? 28 : 40);
-  args.buttons.push(
-    new McButton(scene, {
-      kind: "onInk",
-      label: args.expandLabel,
-      type: typeRole.label,
-      rect: layout.expand,
-      onClick: args.onExpand,
-    }),
-  );
+  const expand = new McButton(scene, {
+    kind: "onInk",
+    label: args.expandLabel,
+    type: typeRole.label,
+    rect: layout.expand,
+    onClick: args.onExpand,
+  });
+  args.buttons.push(expand);
+  args.hint?.(expand, ["expand"], null, false);
   stops.set("expand", { rect: layout.expand, activate: args.onExpand });
 
   if (layout.matchup.height > 0) drawMatchup(scene, layout, view, game);
@@ -135,28 +146,29 @@ export function drawVillainDefendPanel(scene: Phaser.Scene, args: DefendPanelArg
       .fillStyle(surface.ink.hex, 1)
       .fillRect(args.footer.x, args.footer.y, args.footer.width, args.footer.height);
   }
-  args.buttons.push(
-    new McButton(scene, {
-      kind: "primary",
-      label: picked ? `Confirm: ${picked.title} ▸` : "Confirm ▸",
-      type: typeRole.barTitle,
-      rect: layout.confirm,
-      enabled: picked !== null,
-      reason: "choose a defender to continue",
-      onClick: args.onConfirm,
-    }),
-  );
+  const confirm = new McButton(scene, {
+    kind: "primary",
+    label: picked ? `Confirm: ${picked.title} ▸` : "Confirm ▸",
+    type: typeRole.barTitle,
+    rect: layout.confirm,
+    enabled: picked !== null,
+    reason: "choose a defender to continue",
+    onClick: args.onConfirm,
+  });
+  args.buttons.push(confirm);
+  // A while nothing is focused, Start from anywhere on the panel: the glyph on the commit says which one will do it.
+  args.hint?.(confirm, ["activate"], "confirm", picked !== null);
   stops.set("confirm", { rect: layout.confirm, activate: args.onConfirm });
   // After the footer's ink ground, which a phone's PEEK AT TABLE shares with CONFIRM.
-  args.buttons.push(
-    new McButton(scene, {
-      kind: "onInk",
-      label: args.tuckLabel,
-      type: typeRole.label,
-      rect: layout.tuck,
-      onClick: args.onTuck,
-    }),
-  );
+  const tuck = new McButton(scene, {
+    kind: "onInk",
+    label: args.tuckLabel,
+    type: typeRole.label,
+    rect: layout.tuck,
+    onClick: args.onTuck,
+  });
+  args.buttons.push(tuck);
+  args.hint?.(tuck, ["peek"], null, false);
   stops.set("tuck", { rect: layout.tuck, activate: args.onTuck });
   return stops;
 }

@@ -12,7 +12,7 @@ import { navIntentOf, typingInTextField } from "../../view/keyboard-intent.js";
 import type { KeyboardHand } from "../../view/input-shortcuts.js";
 import { gamepadIntentFor, GAMEPAD_AXIS, GAMEPAD_BUTTON, type GamepadIntent } from "../../view/gamepad.js";
 import {
-  detectPad,
+  padIdentityOf,
   physicalIndexOf,
   resolvePadFamily,
   usesNintendoSwap,
@@ -24,6 +24,7 @@ import {
   isLayerButton,
   layerOfHolds,
   triggerHoldAfter,
+  triggerPull,
   type TriggerHold,
 } from "../../view/pad-layer-hold.js";
 import type { PadLayer } from "../../view/pad-layer-bindings.js";
@@ -185,21 +186,6 @@ export function bindKeyboard(scene: Phaser.Scene, binding: IntentBinding): void 
 }
 
 /**
- * A pad's identity does not change while it is connected: parse its id once, not every frame. Module-level so stacked
- * scenes hand `notePadInput` the very same object for one pad (it compares by identity, and two objects would flip the
- * input-mode state twice a frame).
- */
-const identityCache = new Map<string, PadIdentity>();
-function padIdentityOf(id: string): PadIdentity {
-  let identity = identityCache.get(id);
-  if (!identity) {
-    identity = detectPad(id);
-    identityCache.set(id, identity);
-  }
-  return identity;
-}
-
-/**
  * The guide / Steam / PS button is held: the pad is in the middle of a system chord (Steam + X opens the Steam Deck's
  * on-screen keyboard, Guide + X on a pad under Steam), so nothing it presses meanwhile belongs to the game
  * (`docs/controller-support.md`, owner decision 7). The button itself is never bound.
@@ -264,7 +250,8 @@ export function bindGamepad(scene: Phaser.Scene, binding: IntentBinding): void {
   // last poll, so a trigger pulled in the same frame as a face button would still read as up.
   const rawTrigger = (pad: Phaser.Input.Gamepad.Gamepad, index: number): number => {
     const browser = globalThis.navigator?.getGamepads?.()?.[pad.index] ?? pad.pad;
-    return browser?.buttons?.[index]?.value ?? pad.buttons[index]?.value ?? 0;
+    const own = triggerPull(browser?.buttons?.[index]);
+    return own > 0 ? own : triggerPull(pad.buttons[index]);
   };
   const readTriggers = (pad: Phaser.Input.Gamepad.Gamepad): TriggerHold => {
     const next = triggerHoldAfter(

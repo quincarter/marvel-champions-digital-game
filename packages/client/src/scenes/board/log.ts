@@ -23,11 +23,19 @@ import type { LogLine, LogState, LogVoice } from "../../view/log-lines.js";
 import { LogScroll, thumbOf, type LogMeasure } from "../../view/log-view.js";
 
 const HEADER_HEIGHT = 20;
+/**
+ * The row under the title that carries the Hold / View glyphs. They used to share the title's row and, in a narrow log
+ * column, covered the word "Log" (the owner's TV, 2026-10-24); on their own row they cover nothing.
+ */
+const HINT_ROW = 22;
+/** The lines' type: the log is read from across a room on a TV, so it runs larger than the table's 11 / 9. */
+const BODY_SIZE = 13;
+const REF_SIZE = 10;
 const PAD_X = 7;
 /** Room at the right for the scroll track. */
 const TRACK_GUTTER = 7;
-const REF_HEIGHT = 13;
-const TAG_ROW_HEIGHT = 16;
+const REF_HEIGHT = 15;
+const TAG_ROW_HEIGHT = 18;
 const LINE_GAP = 7;
 const NEWER_CHIP_HEIGHT = 22;
 /** Wheel pixels per line: a mouse notch (~100px) moves about three lines, and a trackpad glides. */
@@ -129,13 +137,14 @@ export class LogPanel {
     this.#rect = rect;
     const g = scene.add.graphics();
     paintPanel(g, rect, "rail", "rest");
-    label(scene, rect.x + PAD_X, rect.y + 6, "log", typeRole.label, surface.ink.hex, ink.label);
-    // L / View, at the header's right edge (only where the board shows glyphs at all).
-    hints?.rightInRow(rect, rect.y, HEADER_HEIGHT, PAD_X, ["log"], 16);
+    label(scene, rect.x + PAD_X, rect.y + 5, "log", typeRole.label, surface.ink.hex, ink.label).setFontSize(12);
+    // Hold / View, on their own row under the title (only where the board shows glyphs at all).
+    hints?.rightInRow(rect, rect.y + HEADER_HEIGHT, HINT_ROW, PAD_X, ["log"], 16);
+    const headerHeight = hints ? HEADER_HEIGHT + HINT_ROW : HEADER_HEIGHT;
 
     const x = rect.x + PAD_X;
     const textWidth = Math.max(40, rect.width - PAD_X * 2 - TRACK_GUTTER);
-    const listTop = rect.y + HEADER_HEIGHT;
+    const listTop = rect.y + headerHeight;
     const listBottom = rect.y + rect.height - 4;
     const following = this.#scroll.following;
     const viewHeight = Math.max(0, listBottom - listTop - (following ? 0 : NEWER_CHIP_HEIGHT + 4));
@@ -153,6 +162,7 @@ export class LogPanel {
           "What happens at the table is written here.",
           textStyle(typeRole.body, surface.ink.hex, ink.meta),
         )
+        .setFontSize(BODY_SIZE)
         .setWordWrapWidth(textWidth);
     }
     let y = listTop;
@@ -245,7 +255,10 @@ export class LogPanel {
     for (const line of lines) {
       let height = this.#heights.get(line.id);
       if (height === undefined) {
-        probe ??= scene.add.text(-10000, -10000, "", textStyle(typeRole.body, surface.ink.hex)).setWordWrapWidth(width);
+        probe ??= scene.add
+          .text(-10000, -10000, "", textStyle(typeRole.body, surface.ink.hex))
+          .setFontSize(BODY_SIZE)
+          .setWordWrapWidth(width);
         probe.setText(line.text);
         height = REF_HEIGHT + Math.ceil(probe.height) + (line.tags.length > 0 ? TAG_ROW_HEIGHT : 0) + LINE_GAP;
         this.#heights.set(line.id, height);
@@ -266,9 +279,10 @@ export class LogPanel {
     const rule = scene.add.graphics();
     rule.fillStyle(voice.color, voice.alpha).fillRect(x - 4, y + 1, 2, height - LINE_GAP - 1);
 
-    label(scene, x, y, line.ref, typeRole.mono, surface.ink.hex, ink.meta).setFontSize(9);
+    label(scene, x, y, line.ref, typeRole.mono, surface.ink.hex, ink.meta).setFontSize(REF_SIZE);
     const text = scene.add
       .text(x, y + REF_HEIGHT, line.text, textStyle(typeRole.body, surface.ink.hex, ink.secondary))
+      .setFontSize(BODY_SIZE)
       .setWordWrapWidth(width);
 
     // Statuses as chips in their own hue, named in words, struck through once spent.

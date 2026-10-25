@@ -75,6 +75,21 @@ export function detectPad(id: string): PadIdentity {
   return { family: "xbox", steam, handheld };
 }
 
+const identityCache = new Map<string, PadIdentity>();
+
+/**
+ * `detectPad`, parsed once per id and always the same object for one pad: the input-mode store compares the pad by
+ * identity, so two objects for one pad would flip it twice a frame (`platform/input-device.ts`).
+ */
+export function padIdentityOf(id: string): PadIdentity {
+  let identity = identityCache.get(id);
+  if (!identity) {
+    identity = detectPad(id);
+    identityCache.set(id, identity);
+  }
+  return identity;
+}
+
 /** The family glyphs are drawn in: the player's setting, else what was detected, else Xbox. */
 export function resolvePadFamily(setting: PadFamilySetting, detected: PadIdentity | null): PadFamily {
   return setting === "auto" ? (detected?.family ?? "xbox") : setting;

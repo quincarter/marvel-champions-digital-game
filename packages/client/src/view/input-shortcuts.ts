@@ -43,6 +43,8 @@ export type ShortcutId =
   | "endTurn"
   | "undo"
   | "pause"
+  /** The forward button of whatever decision is open on the Board (Pay, Play it, Confirm): Start on a pad. */
+  | "confirm"
   | "log"
   /** Reopens the last villain phase recap (the drawer handle's press); `log` is the game log. */
   | "recap"
@@ -151,6 +153,8 @@ function bindingsFor(hand: KeyboardHand): Readonly<Record<ShortcutId, readonly K
     // By the printed Z as well as the physical key: Ctrl+Z is a letter people press by name, on AZERTY too.
     undo: [chord("KeyZ", { ctrl: true, printed: "z" })],
     pause: [chord("Escape")],
+    // Not Enter: Enter is Select on the focused card, which in a payment spends it.
+    confirm: [chord(left ? "KeyP" : "KeyG")],
     recap: [chord(left ? "KeyB" : "KeyN")],
     log: [chord(left ? "KeyB" : "KeyN", { shift: true })],
     zoneUp,
@@ -248,6 +252,12 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { id: "endTurn", keys: shortcutCaps("endTurn", "left"), padIntent: "endTurn", label: "End turn" },
   { id: "undo", keys: shortcutCaps("undo", "left"), padIntent: "undo", label: "Undo" },
   { id: "pause", keys: shortcutCaps("pause", "left"), padIntent: "pause", label: "Pause" },
+  {
+    id: "confirm",
+    keys: shortcutCaps("confirm", "left"),
+    padIntent: "pause",
+    label: "Pay / confirm the open decision",
+  },
   { id: "recap", keys: shortcutCaps("recap", "left"), padIntent: "view", label: "Villain phase recap" },
   { id: "log", keys: shortcutCaps("log", "left"), padIntent: "view", label: "Game log" },
   { id: "zoneUp", keys: shortcutCaps("zoneUp", "left"), padIntent: "pagePrevious", label: "Previous zone" },

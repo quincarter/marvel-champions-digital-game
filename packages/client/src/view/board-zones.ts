@@ -43,8 +43,10 @@ export function zoneOfTarget(target: FocusTarget, members: ZoneMembers): BoardZo
     case "confirm":
     case "xLess":
     case "xMore":
+    case "bar":
       return "actionBar";
     case "teamUp":
+    case "music":
       return null;
   }
 }

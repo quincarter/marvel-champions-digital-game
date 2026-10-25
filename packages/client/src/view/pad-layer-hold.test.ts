@@ -6,6 +6,7 @@ import {
   layerOfHolds,
   nextAbilityPage,
   triggerHoldAfter,
+  triggerPull,
 } from "./pad-layer-hold.js";
 
 describe("trigger hold", () => {
@@ -57,5 +58,17 @@ describe("trigger hold", () => {
     expect(nextAbilityPage(2, 3, 1)).toBe(0);
     expect(nextAbilityPage(0, 3, -1)).toBe(2);
     expect(nextAbilityPage(0, 1, 1)).toBe(0);
+  });
+});
+
+describe("triggerPull", () => {
+  it("reads the analog value, and a press with no value as a full pull", () => {
+    expect(triggerPull({ pressed: true, value: 0.8 })).toBe(0.8);
+    expect(triggerPull({ pressed: false, value: 0.3 })).toBe(0.3);
+    expect(triggerPull({ pressed: true, value: 0 })).toBe(1);
+    expect(triggerPull({ pressed: true })).toBe(1);
+    expect(triggerPull({ pressed: false, value: 0 })).toBe(0);
+    expect(triggerPull(null)).toBe(0);
+    expect(triggerPull(undefined)).toBe(0);
   });
 });

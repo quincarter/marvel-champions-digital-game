@@ -14,7 +14,9 @@
  * and one check per game step while a tap is being held down for the game to see.
  */
 import Phaser from "phaser";
-import { NativePads, type BridgeMessage, type BridgePad } from "../view/native-pads.js";
+import { isDeliberatePadInput, NativePads, type BridgeMessage, type BridgePad } from "../view/native-pads.js";
+import { padIdentityOf } from "../view/pad-family.js";
+import { notePadInput } from "./input-device.js";
 import { detectPlatform } from "./platform.js";
 
 type Invoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
@@ -70,6 +72,8 @@ async function begin(game: Phaser.Game): Promise<void> {
     }
     const changed = pads.apply(payload);
     const pad: BridgePad = payload.pad;
+    // The bridge's own presses switch the glyphs to the pad's, whether or not the game's gamepad plugin has seen them.
+    if (isDeliberatePadInput(pad)) notePadInput(padIdentityOf(pad.id));
     if (payload.kind === "disconnected" || !pad.connected) known.delete(pad.index);
     else known.add(pad.index);
     if (live && changed && payload.kind !== "state")

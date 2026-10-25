@@ -273,7 +273,11 @@ export const focusKey = (target: FocusTarget): string =>
               ? "xLess"
               : target.kind === "xMore"
                 ? "xMore"
-                : "cancel";
+                : target.kind === "bar"
+                  ? `bar:${target.index}`
+                  : target.kind === "music"
+                    ? "music"
+                    : "cancel";
 
 /**
  * Re-aims the engine's example command at the target the player picked. Only

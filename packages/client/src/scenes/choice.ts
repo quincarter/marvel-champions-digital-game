@@ -2306,31 +2306,41 @@ export class ChoiceOverlay extends Phaser.Scene {
     const canDecline = canDeclineChoice(choice);
     const commitWidth = canDecline ? (sheet.width - 32) / 2 : sheet.width - 24;
 
-    this.#pushHinted(
-      ["activate"],
-      "ink",
-      new McButton(this, {
-        kind: "primary",
-        label: payment ? payment.confirmLabel : commitLabelOf(choice),
-        type: typeRole.barTitle,
-        rect: {
-          x: sheet.x + 12,
-          y: commitTop,
-          width: commitWidth,
-          height: hit.primary,
-        },
-        enabled: canCommit,
-        reason: payment ? payment.confirmLabel : `choose ${confirmMinimum(choice)} to continue`,
-        onClick: () => void this.#confirm(),
-      }),
-      // The A / Enter glyph shows only while Enter would press it: nothing focused, or this focused, and it is ready.
-      () =>
-        primaryGlyphShown(
-          this.#focus ? choiceFocusKey(this.#focus) : null,
-          choiceFocusKey({ kind: "confirm" }),
-          canCommit,
-        ),
-    );
+    const commit = new McButton(this, {
+      kind: "primary",
+      label: payment ? payment.confirmLabel : commitLabelOf(choice),
+      type: typeRole.barTitle,
+      rect: {
+        x: sheet.x + 12,
+        y: commitTop,
+        width: commitWidth,
+        height: hit.primary,
+      },
+      enabled: canCommit,
+      reason: payment ? payment.confirmLabel : `choose ${confirmMinimum(choice)} to continue`,
+      onClick: () => void this.#confirm(),
+    });
+    this.#buttons.push(commit);
+    {
+      const { width, height } = this.scale.gameSize;
+      if (glyphsFitFormFactor(formFactorFor(width, height))) {
+        // The A / Enter glyph shows only while Enter would press it: nothing focused, or this focused, and it is ready.
+        // With a tile focused A presses the tile, so a pad's glyph is Start, which commits from anywhere on the sheet
+        // (`#onIntent`'s "pause").
+        this.#hints.button(commit, ["activate"], "ink", {
+          idsNow: (set) =>
+            primaryGlyphShown(
+              this.#focus ? choiceFocusKey(this.#focus) : null,
+              choiceFocusKey({ kind: "confirm" }),
+              canCommit,
+            )
+              ? ["activate"]
+              : set === "pad" && canCommit
+                ? ["confirm"]
+                : null,
+        });
+      }
+    }
     if (canDecline) {
       // No glyph: B / Esc only clear focus on this sheet, so it must not promise Decline.
       this.#buttons.push(
@@ -2818,6 +2828,12 @@ export class ChoiceOverlay extends Phaser.Scene {
         this.#drawFocusRing();
         break;
       case "pause":
+        // Start is "forward": with the commit ready it presses Confirm from wherever focus is. Pause otherwise.
+        if (this.#primaryKey() !== null && this.#canCommit(choice)) {
+          this.#focus = { kind: "confirm" };
+          this.#activate(choice);
+          break;
+        }
         openPauseOverBoard(this);
         break;
       case "view":

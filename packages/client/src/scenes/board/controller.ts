@@ -143,6 +143,12 @@ export interface BoardControllerHost {
   /** True when the card has a tile or chip on screen right now (it has a focus rect). */
   hasTile?(id: InstanceId): boolean;
   openTeamUp?(pairKey: string): void;
+  /** How many mode-bar buttons the last draw made focus stops, and whether the bar has a Cancel; pressing one. */
+  barStops?(): { readonly count: number; readonly cancel: boolean };
+  pressBarStop?(index: number): void;
+  /** True while the top bar's music note is drawn (a stop at the end of the idle route), and what Enter on it does. */
+  hasMusicStop?(): boolean;
+  openMusic?(): void;
 }
 
 /** What the "Who attacks?" bar shows: every character that could make the power, in the engine's order. */
@@ -394,6 +400,21 @@ export class BoardController {
    * they have no tile this frame (a play area card scrolled out of its row), for a caller that must not depend on scroll.
    */
   focusOrder(alsoTiled?: (id: InstanceId) => boolean): readonly FocusTarget[] {
+    const route = this.#routeOf(alsoTiled);
+    if (this.#selection.kind === "idle") return route;
+    // The mode bar's own buttons (Pay, Play it, a form) come after the cards and before the way out, so a pad can reach
+    // and press every one of them (`board/bar-stops.ts`).
+    const bar = this.#host.barStops?.() ?? { count: 0, cancel: false };
+    const stops: FocusTarget[] = Array.from({ length: bar.count }, (_, index) => ({ kind: "bar", index }));
+    const hadCancel = route.some((target) => target.kind === "cancel");
+    return [
+      ...route.filter((target) => target.kind !== "cancel"),
+      ...stops,
+      ...(hadCancel || bar.cancel ? [{ kind: "cancel" as const }] : []),
+    ];
+  }
+
+  #routeOf(alsoTiled?: (id: InstanceId) => boolean): readonly FocusTarget[] {
     const model = this.#host.model();
     if (!model) return [];
     const marks = this.#host.marks();
@@ -438,6 +459,15 @@ export class BoardController {
       const { action } = this.#selection.entry;
       return focusOrder({ kind: "targeting", targets: action.kind === "playCard" ? [action.instanceId] : [] }, marks);
     }
+    // Bars whose answers are all buttons: nothing on the table to step through, only the bar (`focusOrder`).
+    if (
+      this.#selection.kind === "choosingForm" ||
+      this.#selection.kind === "choosingCostSelection" ||
+      this.#selection.kind === "choosingCostHelp" ||
+      this.#selection.kind === "confirmingAllianceHelp"
+    ) {
+      return [];
+    }
     if (this.#selection.kind === "confirmingPlay") {
       // The card itself (Enter on it is "Play it") and the way out, the same two stops targeting offers.
       const { action } = this.#selection.action;
@@ -448,6 +478,7 @@ export class BoardController {
         kind: "idle",
         hand: model.hand.map((card) => card.instanceId),
         teamUps: this.#host.teamUpKeys?.() ?? [],
+        ...(this.#host.hasMusicStop?.() ? { music: true as const } : {}),
         undo: this.undoOffer() !== null,
         ...(this.#host.hasTile
           ? { tiled: (id: InstanceId) => this.#host.hasTile!(id) || (alsoTiled?.(id) ?? false) }
@@ -505,6 +536,14 @@ export class BoardController {
     }
     if (focus.kind === "confirm") {
       void this.confirmPick();
+      return;
+    }
+    if (focus.kind === "music") {
+      this.#host.openMusic?.();
+      return;
+    }
+    if (focus.kind === "bar") {
+      this.#host.pressBarStop?.(focus.index);
       return;
     }
     if (focus.kind === "xLess" || focus.kind === "xMore") {

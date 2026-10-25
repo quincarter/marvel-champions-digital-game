@@ -29,7 +29,14 @@ export type FocusTarget =
   | { readonly kind: "undo" }
   /** The pay step's X picker (a card printed with an X cost): the minus and plus controls, after the sources. */
   | { readonly kind: "xLess" }
-  | { readonly kind: "xMore" };
+  | { readonly kind: "xMore" }
+  /**
+   * The `index`th button of the mode bar over the hand (Pay, Play it, a form, a seat's helper, Decline): drawn this
+   * frame, in the order the bar draws them (`scenes/board/bar-stops.ts`). Its Cancel is the `cancel` stop instead.
+   */
+  | { readonly kind: "bar"; readonly index: number }
+  /** The top bar's music note: Enter opens the music player. The last stop on the idle route. */
+  | { readonly kind: "music" };
 
 /** What the board is currently asking for, which changes what is worth focusing. */
 export type FocusMode =
@@ -37,6 +44,8 @@ export type FocusMode =
       readonly kind: "idle";
       readonly hand: readonly InstanceId[];
       readonly teamUps?: readonly string[];
+      /** True while the top bar's music note is drawn: the route's last stop. */
+      readonly music?: true;
       /** True while the action bar draws Undo, so it is a stop just before End turn. */
       readonly undo?: boolean;
       /** True when the card is drawn as a tile or chip right now; a usable card with none is not a stop. */
@@ -94,7 +103,7 @@ export function focusOrder(mode: FocusMode, marks: Highlights | null): readonly 
   const endTurnAt = basics.findIndex((target) => target.kind === "basic" && target.action === "endTurn");
   if (mode.undo) basics.splice(endTurnAt < 0 ? basics.length : endTurnAt, 0, { kind: "undo" });
   const teamUps: FocusTarget[] = (mode.teamUps ?? []).map((pairKey) => ({ kind: "teamUp", pairKey }));
-  return [...cards, ...abilityCards, ...basics, ...teamUps];
+  return [...cards, ...abilityCards, ...basics, ...teamUps, ...(mode.music ? [{ kind: "music" as const }] : [])];
 }
 
 /** Moves focus by `delta`, wrapping. Returns the new index, or -1 when there is nothing to focus. */
@@ -120,5 +129,6 @@ export function sameTarget(a: FocusTarget | null, b: FocusTarget | null): boolea
   if (a.kind === "card" && b.kind === "card") return a.instanceId === b.instanceId;
   if (a.kind === "basic" && b.kind === "basic") return a.action === b.action;
   if (a.kind === "teamUp" && b.kind === "teamUp") return a.pairKey === b.pairKey;
+  if (a.kind === "bar" && b.kind === "bar") return a.index === b.index;
   return a.kind === b.kind;
 }

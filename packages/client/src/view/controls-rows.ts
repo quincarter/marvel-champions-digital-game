@@ -267,7 +267,12 @@ const PAD_ROWS: readonly PadRowDef[] = [
     action: "Villain phase recap · hold for game log",
     note: "On the table: tap reopens the last villain phase, hold opens the log. Peek on a decision popup",
   },
-  { id: "pause", index: 9, action: "Pause", note: "Anywhere in a game" },
+  {
+    id: "pause",
+    index: 9,
+    action: "Pause · pay / confirm",
+    note: "Anywhere in a game; with a payment or other decision open, it pays or confirms",
+  },
   {
     id: "scroll",
     fixed: fixedGlyph("RS", "stick", "Right stick"),
@@ -392,6 +397,7 @@ export function keyboardGroupsOf(hand: KeyboardHand = "left"): readonly Keyboard
         },
         shortcutRow("recap", hand, "Reopens the last villain phase's recap"),
         shortcutRow("log", hand, "Opens the game log"),
+        shortcutRow("confirm", hand, "Pays, plays or confirms the decision open on the table"),
         shortcutRow("teamUp", hand, "When a Team-Up is available"),
         shortcutRow("evidence", hand, "When evidence is on the table"),
       ],

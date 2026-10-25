@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { LATCH_STEPS, NativePads, type BridgePad } from "./native-pads.js";
+import { LATCH_STEPS, NativePads, isDeliberatePadInput, type BridgePad } from "./native-pads.js";
+import { padIdentityOf } from "./pad-family.js";
+import { gamepadIntentFor } from "./gamepad.js";
 
 const pad = (pressed: number[], downs: number[] = [], extra: Partial<BridgePad> = {}): BridgePad => ({
   index: 0,
@@ -97,5 +99,47 @@ describe("NativePads", () => {
     pads.apply({ kind: "state", pad: pad([2]) });
     pads.clear();
     expect(pads.snapshot()[0]?.connected).toBe(false);
+  });
+});
+
+describe("bridge triggers and positions", () => {
+  const withTrigger = (index: number, value: number): BridgePad =>
+    pad([], [], {
+      buttons: Array.from({ length: 17 }, (_, i) =>
+        i === index ? { pressed: value > 0.5, value } : { pressed: false, value: 0 },
+      ),
+    });
+
+  it("hands a pulled trigger to the game as button 6 or 7 with its value and pressed", () => {
+    const pads = new NativePads();
+    pads.apply({ kind: "state", pad: withTrigger(6, 0.8) });
+    expect(pads.snapshot()[0]?.buttons[6]).toMatchObject({ pressed: true, value: 0.8 });
+    pads.apply({ kind: "state", pad: withTrigger(7, 0.3) });
+    expect(pads.snapshot()[0]?.buttons[7]).toMatchObject({ pressed: false, value: 0.3 });
+    expect(pads.snapshot()[0]?.buttons[6]).toMatchObject({ pressed: false, value: 0 });
+  });
+
+  it("keeps X on the left (2) and Y on the top (3): Y inspects, X is the guide toggle", () => {
+    expect(gamepadIntentFor(3)).toBe("inspect");
+    expect(gamepadIntentFor(2)).toBe("toggleGuide");
+    const pads = new NativePads();
+    pads.apply({ kind: "state", pad: pad([3]) });
+    expect(pads.snapshot()[0]?.buttons[3]?.pressed).toBe(true);
+    expect(pads.snapshot()[0]?.buttons[2]?.pressed).toBe(false);
+  });
+
+  it("counts a press, a held button or a pushed stick as the player using the pad, and a drifting stick as not", () => {
+    expect(isDeliberatePadInput(pad([], [0]))).toBe(true);
+    expect(isDeliberatePadInput(pad([7]))).toBe(true);
+    expect(isDeliberatePadInput(pad([], [], { axes: [0, 0.9, 0, 0] }))).toBe(true);
+    expect(isDeliberatePadInput(pad([], [], { axes: [0.08, -0.05, 0, 0] }))).toBe(false);
+    expect(isDeliberatePadInput(pad([], [], { connected: false }))).toBe(false);
+    expect(isDeliberatePadInput(pad([0], [0], { connected: false }))).toBe(false);
+  });
+
+  it("gives one pad one identity object, so the input mode flips once", () => {
+    const id = pad([]).id;
+    expect(padIdentityOf(id)).toBe(padIdentityOf(id));
+    expect(padIdentityOf(id).family).toBe("xbox");
   });
 });

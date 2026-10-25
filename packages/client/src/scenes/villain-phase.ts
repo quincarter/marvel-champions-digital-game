@@ -452,7 +452,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       onCancel: () => this.#skip(),
       primary: () => this.#primaryStop,
       onFocusChange: () => this.#hints.refresh(),
-      onPause: () => openPauseOverBoard(this),
+      // Start is "forward": it starts the phase (or continues) when that gate is up, and opens Pause otherwise.
+      onPause: () => {
+        if (!this.#route?.pressPrimary()) openPauseOverBoard(this);
+      },
       onView: () => this.padPeek(),
       onExpand: () => this.padExpand(),
     });
@@ -1897,6 +1900,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       footer,
       buttons: this.#buttons,
       decider: game.players.length > 1 ? seatHeadingName(playerName(game, choice.playerId)) : null,
+      hint: (button, ids, primary, enabled) => this.#hintButton(button, ids, "ink", primary, enabled),
     });
     this.#route?.set(villainDefendFocusOrder(view.options.map((option) => option.optionId)), stops);
     if (import.meta.env.DEV) {
@@ -3147,7 +3151,11 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       };
       const ground = this.add.graphics();
       ground.fillStyle(surface.ink.hex, 1).fillRect(footer.x, footer.y, footer.width, footer.height);
-      this.#buttons.push(
+      // A / Enter presses it with nothing focused, and its glyph says so (the docked rail's gate does the same).
+      this.#pushHinted(
+        ["activate"],
+        "ink",
+        gate.kind === "start" ? "start" : "answer",
         new McButton(this, {
           kind: "primary",
           label: gate.kind === "start" ? "Start villain phase ▸" : "Answer ▸",
@@ -3248,7 +3256,13 @@ export class VillainPhaseOverlay extends Phaser.Scene {
    * `primary` is the stop key when this is the screen's primary commit: Enter / A presses it while nothing is focused
    * (`FocusRoute`), so its glyph shows only while focus is null or on it (`view/primary-activation.ts`).
    */
-  #hintButton(button: McButton, ids: readonly ShortcutId[], ground: GlyphGround, primary: string | null = null): void {
+  #hintButton(
+    button: McButton,
+    ids: readonly ShortcutId[],
+    ground: GlyphGround,
+    primary: string | null = null,
+    enabled = true,
+  ): void {
     if (primary !== null) this.#primaryStop = primary;
     const { width, height } = this.scale.gameSize;
     if (!glyphsFitFormFactor(formFactorFor(width, height))) return;
@@ -3256,7 +3270,18 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       button,
       ids,
       ground,
-      primary === null ? {} : { when: () => primaryGlyphShown(this.#route?.focused ?? null, primary, true) },
+      primary === null
+        ? {}
+        : {
+            // A / Enter while it is what they would press; with a control focused A presses that, so a pad shows Start,
+            // which presses the primary from anywhere (`FocusRoute#pressPrimary`).
+            idsNow: (set) =>
+              primaryGlyphShown(this.#route?.focused ?? null, primary, enabled)
+                ? ids
+                : set === "pad" && enabled
+                  ? ["confirm"]
+                  : null,
+          },
     );
   }
 

@@ -75,6 +75,20 @@ function hasInput(pad: BridgePad): boolean {
   return pad.downs.length > 0 || pad.buttons.some((button) => button.pressed) || pad.axes.some((axis) => axis !== 0);
 }
 
+/**
+ * True when a bridge message shows the player using the pad: a button went down or is held, or a stick is pushed well
+ * past its rest (a resting stick drifts, so a small lean is not input). This is what switches the glyphs to the pad's,
+ * for a pad the bridge reads, without waiting for the game's own gamepad plugin to notice the press.
+ */
+export function isDeliberatePadInput(pad: BridgePad): boolean {
+  return (
+    pad.connected &&
+    (pad.downs.length > 0 ||
+      pad.buttons.some((button) => button.pressed) ||
+      pad.axes.some((axis) => Math.abs(axis) > 0.5))
+  );
+}
+
 export class NativePads {
   /** The last message per slot from a connected pad. */
   readonly #pads = new Map<number, BridgePad>();

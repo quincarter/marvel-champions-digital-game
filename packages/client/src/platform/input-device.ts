@@ -22,6 +22,7 @@ const padTracker = new PadModeTracker();
 const listeners = new Set<Listener>();
 let restTimer: ReturnType<typeof setTimeout> | null = null;
 let installed = false;
+let lastMouse: { x: number; y: number } | null = null;
 
 let notifyQueued = false;
 
@@ -77,6 +78,11 @@ export function installInputDeviceTracking(target: Window = window): void {
     "pointermove",
     (event: PointerEvent) => {
       if (event.pointerType !== "mouse") return;
+      // A pointermove the cursor did not make (the webview re-sends one when the page changes under a resting cursor,
+      // and a TV's remote or Steam's desktop layout can nudge by a pixel) must not end the pad's glyphs.
+      const moved = lastMouse === null || Math.hypot(event.clientX - lastMouse.x, event.clientY - lastMouse.y) >= 3;
+      if (!moved) return;
+      lastMouse = { x: event.clientX, y: event.clientY };
       dispatch({ kind: "mouseMove" });
       if (restTimer !== null) clearTimeout(restTimer);
       restTimer = setTimeout(() => {

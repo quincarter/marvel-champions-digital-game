@@ -57,6 +57,8 @@ export interface BoardFrame {
   readonly innerScroll: Rect[];
   /** The tabbed hand's clipped strip this draw (empty elsewhere): where a hand card shows and takes presses. */
   readonly handStrip: Rect[];
+  /** The buttons of the mode bar over the hand this draw, in draw order: pad and keyboard focus stops (`bar-stops.ts`). */
+  readonly barStops: BarStop[];
   /** Each pile of facedown encounter cards dealt to a player, drawn this draw: where the hover popover opens on the card back. */
   readonly facedownHovers: FacedownHover[];
 }
@@ -80,12 +82,23 @@ export interface FacedownHover {
   readonly caption: string;
 }
 
+/** One button of a mode bar, as a focus stop: where it is, what pressing it does, and whether it is the bar's forward action. */
+export interface BarStop {
+  readonly rect: Rect;
+  readonly press: () => void;
+  /** The bar's one forward button (Pay, Play it, Confirm, Approve): the pad's Start and its keyboard key press it. */
+  readonly primary: boolean;
+  /** False for a greyed button: Start on it does nothing, and the button itself says why. */
+  readonly enabled: boolean;
+}
+
 export const emptyFrame = (): BoardFrame => ({
   hitRects: new Map(),
   focusRects: new Map(),
   pileRects: new Map(),
   handStrip: [],
   facedownHovers: [],
+  barStops: [],
   buttons: [],
   rings: [],
   masks: [],

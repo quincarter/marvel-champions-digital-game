@@ -9,6 +9,7 @@ import type { Rect } from "../../view/layout.js";
 import { BAR_ROW, paymentBarLayout } from "../../view/payment-bar-layout.js";
 import type { PaymentView } from "../../view/payment-model.js";
 import type { BoardDrawContext } from "./context.js";
+import { addBarButton, addBarCancel } from "./bar-stops.js";
 import { focusKey } from "./selection.js";
 
 /**
@@ -81,15 +82,13 @@ export function drawPaymentBar(ctx: BoardDrawContext, rect: Rect, payment: Payme
     const active = payment.reductions.some(
       (r) => r.instanceId === option.instanceId && r.abilityId === option.abilityId,
     );
-    ctx.frame.buttons.push(
-      new McButton(scene, {
-        kind: active ? "primary" : "secondary",
-        label: active ? `Using ${option.label}` : `Use ${option.label}`,
-        type: typeRole.label,
-        rect: at(chip),
-        onClick: () => controller.toggleCostReduction(option),
-      }),
-    );
+    addBarButton(ctx, {
+      kind: active ? "primary" : "secondary",
+      label: active ? `Using ${option.label}` : `Use ${option.label}`,
+      type: typeRole.label,
+      rect: at(chip),
+      onClick: () => controller.toggleCostReduction(option),
+    });
   });
 
   // The X picker (a card printed with an X cost): minus, "X 2", plus.
@@ -149,8 +148,10 @@ export function drawPaymentBar(ctx: BoardDrawContext, rect: Rect, payment: Payme
   if (layout.order && orderNote) words(layout.order, orderNote, 3);
 
   const payRect = at(layout.pay);
-  ctx.frame.buttons.push(
-    new McButton(scene, {
+  // Pay and Cancel are focus stops (a pad's D-pad reaches them, A presses) and Start pays: `bar-stops.ts`.
+  addBarButton(
+    ctx,
+    {
       kind: "secondary",
       label: payment.payLabel ?? "Pay",
       type: typeRole.label,
@@ -158,21 +159,19 @@ export function drawPaymentBar(ctx: BoardDrawContext, rect: Rect, payment: Payme
       enabled: payment.payReady,
       ...(payment.blockedBy ? { reason: payment.blockedBy } : {}),
       onClick: () => void controller.commitPayment(),
-    }),
+    },
+    { primary: true },
   );
   const cancelRect = at(layout.cancel);
-  ctx.frame.buttons.push(
-    new McButton(scene, {
-      kind: "quiet",
-      label: "Cancel",
-      type: typeRole.label,
-      rect: cancelRect,
-      onClick: () => controller.cancel(),
-    }),
-  );
-  // Not keyboard-focusable rects (Pay/Cancel aren't in this bar's own Tab order today) — registered here purely
-  // so a headless click-through can find a real screen coordinate (`scenes/board.ts`'s own `__mcBoardDebug`)
-  // instead of a hardcoded pixel guess, the same reason `guide/tutorial-lessons.ts`'s own anchors exist.
+  addBarCancel(ctx, {
+    kind: "quiet",
+    label: "Cancel",
+    type: typeRole.label,
+    rect: cancelRect,
+    onClick: () => controller.cancel(),
+  });
+  // Also registered under their own names so a headless click-through can find a real screen coordinate
+  // (`scenes/board.ts`'s own `__mcBoardDebug`) instead of a hardcoded pixel guess.
   ctx.frame.focusRects.set("payment:pay", payRect);
   ctx.frame.focusRects.set("payment:cancel", cancelRect);
 }

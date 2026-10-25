@@ -67,6 +67,7 @@ export type BoardKeyAction =
   | { readonly kind: "basic"; readonly action: Exclude<BasicAction, "endTurn"> }
   | { readonly kind: "endTurn" }
   | { readonly kind: "undo" }
+  | { readonly kind: "confirm" }
   | { readonly kind: "zone"; readonly step: 1 | -1 }
   | { readonly kind: "log" }
   | { readonly kind: "recap" }
@@ -85,6 +86,7 @@ const BOARD_IDS: Readonly<Partial<Record<ShortcutId, BoardKeyAction>>> = {
   changeForm: { kind: "basic", action: "changeForm" },
   endTurn: { kind: "endTurn" },
   undo: { kind: "undo" },
+  confirm: { kind: "confirm" },
   log: { kind: "log" },
   recap: { kind: "recap" },
   teamUp: { kind: "teamUp" },

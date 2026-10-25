@@ -7,10 +7,11 @@
 
 import { accent, surface, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
-import { McButton, fitText } from "../../ui/widgets.js";
+import { fitText } from "../../ui/widgets.js";
 import type { CostChoicePrompt } from "../../view/cost-choice-model.js";
 import type { CostHelpPrompt } from "../../view/cost-help-model.js";
 import type { Rect } from "../../view/layout.js";
+import { addBarButton, addBarCancel } from "./bar-stops.js";
 import type { BoardDrawContext } from "./context.js";
 
 /** Framed exactly like the controller/payment bars — Hero Red, over the hand — for the same reason: the play is half-made and waiting on one more pick. */
@@ -37,42 +38,36 @@ export function drawCostChoiceBar(ctx: BoardDrawContext, rect: Rect, prompt: Cos
     const count = Math.max(1, prompt.options.length);
     const width = Math.max(60, (right - left - gap * (count - 1)) / count);
     prompt.options.forEach((option, index) => {
-      ctx.frame.buttons.push(
-        new McButton(scene, {
-          kind: "secondary",
-          label: option.label,
-          type: typeRole.label,
-          rect: { x: left + index * (width + gap), y: rect.y + 4, width, height: rect.height - 8 },
-          onClick: () => void controller.chooseCostBranch(option.branch),
-        }),
-      );
+      addBarButton(ctx, {
+        kind: "secondary",
+        label: option.label,
+        type: typeRole.label,
+        rect: { x: left + index * (width + gap), y: rect.y + 4, width, height: rect.height - 8 },
+        onClick: () => void controller.chooseCostBranch(option.branch),
+      });
     });
   } else {
     const values = Array.from({ length: prompt.max - prompt.min + 1 }, (_, i) => prompt.min + i);
     const count = Math.max(1, values.length);
     const width = Math.max(40, Math.min(56, (right - left - gap * (count - 1)) / count));
     values.forEach((value, index) => {
-      ctx.frame.buttons.push(
-        new McButton(scene, {
-          kind: value === prompt.max ? "primary" : "secondary",
-          label: String(value),
-          type: typeRole.label,
-          rect: { x: left + index * (width + gap), y: rect.y + 4, width, height: rect.height - 8 },
-          onClick: () => void controller.chooseCostCounters(value),
-        }),
-      );
+      addBarButton(ctx, {
+        kind: value === prompt.max ? "primary" : "secondary",
+        label: String(value),
+        type: typeRole.label,
+        rect: { x: left + index * (width + gap), y: rect.y + 4, width, height: rect.height - 8 },
+        onClick: () => void controller.chooseCostCounters(value),
+      });
     });
   }
 
-  ctx.frame.buttons.push(
-    new McButton(scene, {
-      kind: "quiet",
-      label: "Cancel",
-      type: typeRole.label,
-      rect: { x: rect.x + rect.width - cancelWidth - 10, y: rect.y + 4, width: cancelWidth, height: rect.height - 8 },
-      onClick: () => controller.cancel(),
-    }),
-  );
+  addBarCancel(ctx, {
+    kind: "quiet",
+    label: "Cancel",
+    type: typeRole.label,
+    rect: { x: rect.x + rect.width - cancelWidth - 10, y: rect.y + 4, width: cancelWidth, height: rect.height - 8 },
+    onClick: () => controller.cancel(),
+  });
 }
 
 /** Height of the line that gives the engine's reason a player cannot take a part (`drawCostHelpBar`). */
@@ -113,23 +108,19 @@ export function drawCostHelpBar(ctx: BoardDrawContext, rect: Rect, prompt: CostH
   const count = Math.max(1, prompt.options.length);
   const width = Math.max(60, (right - left - gap * (count - 1)) / count);
   prompt.options.forEach((option, index) => {
-    ctx.frame.buttons.push(
-      new McButton(scene, {
-        kind: "secondary",
-        label: option.label,
-        type: typeRole.label,
-        rect: { x: left + index * (width + gap), y: top + 4, width, height: row - 8 },
-        onClick: () => void controller.chooseCostHelper(option.playerId),
-      }),
-    );
-  });
-  ctx.frame.buttons.push(
-    new McButton(scene, {
-      kind: "quiet",
-      label: "Cancel",
+    addBarButton(ctx, {
+      kind: "secondary",
+      label: option.label,
       type: typeRole.label,
-      rect: { x: rect.x + rect.width - cancelWidth - 10, y: top + 4, width: cancelWidth, height: row - 8 },
-      onClick: () => controller.cancel(),
-    }),
-  );
+      rect: { x: left + index * (width + gap), y: top + 4, width, height: row - 8 },
+      onClick: () => void controller.chooseCostHelper(option.playerId),
+    });
+  });
+  addBarCancel(ctx, {
+    kind: "quiet",
+    label: "Cancel",
+    type: typeRole.label,
+    rect: { x: rect.x + rect.width - cancelWidth - 10, y: top + 4, width: cancelWidth, height: row - 8 },
+    onClick: () => controller.cancel(),
+  });
 }

@@ -13,9 +13,9 @@
 
 import { accent, surface, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
-import { McButton } from "../../ui/widgets.js";
 import type { DiscardChoiceView } from "../../view/discard-choice-model.js";
 import type { Rect } from "../../view/layout.js";
+import { addBarButton, addBarCancel } from "./bar-stops.js";
 import type { BoardDrawContext } from "./context.js";
 
 export function drawDiscardBar(ctx: BoardDrawContext, rect: Rect, discard: DiscardChoiceView): void {
@@ -55,8 +55,9 @@ export function drawDiscardBar(ctx: BoardDrawContext, rect: Rect, discard: Disca
       .setWordWrapWidth(headlineRoom)
       .setMaxLines(1);
   }
-  ctx.frame.buttons.push(
-    new McButton(scene, {
+  addBarButton(
+    ctx,
+    {
       kind: "secondary",
       label: "Confirm",
       type: typeRole.label,
@@ -64,15 +65,14 @@ export function drawDiscardBar(ctx: BoardDrawContext, rect: Rect, discard: Disca
       enabled: discard.command !== null,
       ...(discard.blockedBy ? { reason: discard.blockedBy } : {}),
       onClick: () => void controller.commitDiscardChoice(),
-    }),
+    },
+    { primary: true },
   );
-  ctx.frame.buttons.push(
-    new McButton(scene, {
-      kind: "quiet",
-      label: "Cancel",
-      type: typeRole.label,
-      rect: { x: rect.x + rect.width - buttonWidth - 10, y: rect.y + 4, width: buttonWidth, height: rect.height - 8 },
-      onClick: () => controller.cancel(),
-    }),
-  );
+  addBarCancel(ctx, {
+    kind: "quiet",
+    label: "Cancel",
+    type: typeRole.label,
+    rect: { x: rect.x + rect.width - buttonWidth - 10, y: rect.y + 4, width: buttonWidth, height: rect.height - 8 },
+    onClick: () => controller.cancel(),
+  });
 }

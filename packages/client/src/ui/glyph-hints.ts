@@ -172,11 +172,26 @@ export class GlyphHints {
     button: McButton,
     ids: readonly ShortcutId[],
     ground: GlyphGround = "ink",
-    options: Pick<HintOptions, "when"> = {},
+    options: Pick<HintOptions, "when"> & {
+      /**
+       * Which shortcuts the glyph shows right now, read on every apply (null: none), when that changes with the screen's
+       * state: a commit button shows A while A would press it and Start while only Start would.
+       */
+      readonly idsNow?: (set: GlyphSet) => readonly ShortcutId[] | null;
+    } = {},
   ): void {
     const rect = button.rect;
     const baseHeight = glyphHeightFor(rect.height);
+    const idsNow = options.idsNow;
     this.#add(ids, ground, baseHeight, {
+      ...(idsNow
+        ? {
+            custom: (set: GlyphSet, snapshot: InputHintsSnapshot, layer: PadLayer | null) => {
+              const now = idsNow(set);
+              return now ? specsForShortcuts(now, snapshot, set === "pad" ? layer : null) : null;
+            },
+          }
+        : {}),
       place: ({ width, full, openness, height }) => {
         const beside = glyphBesideLabel(rect, button.labelBox, full, width, openness);
         if (beside) return beside;

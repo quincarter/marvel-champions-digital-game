@@ -75,6 +75,8 @@ import { sameFacedown, withFacedownHeld, type TableHold } from "../view/villain-
 import { holdTableGame, tableGame } from "../view/table-game.js";
 import type { SessionState } from "../store/session-store.js";
 import { CHROME_SCENES, SCENES } from "./keys.js";
+import { musicSlots } from "../ui/music-slot.js";
+import type { MusicButtonScene } from "./music-button.js";
 import { tableSoundsOf, type CardSoundInfo } from "../view/sound-effects.js";
 import { HoverPreview, isMousePointer } from "../ui/card-hover-preview.js";
 import { hoverArea } from "../view/card-hover.js";
@@ -299,6 +301,13 @@ export class BoardScene extends Phaser.Scene {
     // A ring on the tab being shown is a stop at the end of the focus route; Enter opens its panel.
     teamUpKeys: () =>
       [...this.#frame.focusRects.keys()].filter((key) => key.startsWith("teamUp:")).map((key) => key.slice(7)),
+    barStops: () => ({ count: this.#frame.barStops.length, cancel: this.#frame.focusRects.has("cancel") }),
+    hasMusicStop: () => this.#frame.focusRects.has(focusKey({ kind: "music" })),
+    openMusic: () => (this.scene.manager.getScene(SCENES.musicButton) as MusicButtonScene | null)?.togglePlayer(),
+    pressBarStop: (index) => {
+      const stop = this.#frame.barStops[index];
+      if (stop?.enabled) stop.press();
+    },
     openTeamUp: (pairKey) => {
       const pair = this.#teamUps.find((candidate) => candidate.key === pairKey);
       if (pair) this.#openTeamUpInfo(pair);
@@ -1342,6 +1351,9 @@ export class BoardScene extends Phaser.Scene {
           : {}),
       });
       if (zones.tabs) this.#drawTabs(zones.tabs, model);
+      // The top bar's music note is a stop at the end of the focus route, so a pad can open the player (Pause has Music too).
+      const musicSlot = musicSlots().get(this.scene.key);
+      if (musicSlot) this.#frame.focusRects.set(focusKey({ kind: "music" }), musicSlot);
     };
     // Scrolled content runs under the chrome and the tab row, so on a scrolling table they are drawn after it, over a
     // ground; at Standard the order is what it always was.
@@ -1638,7 +1650,8 @@ export class BoardScene extends Phaser.Scene {
         if (this.#actionBarLive()) this.#controller.activate({ kind: "basic", action: "endTurn" });
         break;
       case "pause":
-        this.#openPause();
+        // With a mode bar's forward action on the table (Pay, Play it, Confirm), Start presses it; Pause is for the idle table.
+        if (!this.#pressPrimary()) this.#openPause();
         break;
       case "recap":
         this.#openVillainReview();
@@ -1689,6 +1702,26 @@ export class BoardScene extends Phaser.Scene {
         else this.#openPause();
         break;
     }
+  }
+
+  /**
+   * Start / Menu (and the keyboard's Confirm key) while a decision is open: presses the bar's forward button (Pay, Play
+   * it, Approve, Confirm), or the targeting panel's Confirm. True when a decision owns the press, even if its button is
+   * greyed (Pay before the cost is met): Pause must not open over a payment.
+   */
+  #pressPrimary(): boolean {
+    const kind = this.#controller.selection.kind;
+    if (kind === "idle") return false;
+    const stop = this.#frame.barStops.find((candidate) => candidate.primary);
+    if (stop) {
+      if (stop.enabled) stop.press();
+      return true;
+    }
+    if (kind === "choosingInPlayCost" || kind === "dividingPower") {
+      void this.#controller.confirmPick();
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -1816,6 +1849,10 @@ export class BoardScene extends Phaser.Scene {
         case "endTurn":
           event.preventDefault();
           this.#actOnIntent("endTurn");
+          break;
+        case "confirm":
+          event.preventDefault();
+          this.#pressPrimary();
           break;
         case "undo":
           event.preventDefault();
