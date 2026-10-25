@@ -57,6 +57,9 @@ import {
   type ChoiceList,
   type ChoiceOption,
   type ChoicePrompt,
+  type MissingTarget,
+  type OptionUnavailableReason,
+  type UnavailableOptions,
 } from "../choices.js";
 import {
   createCtx,
@@ -2382,6 +2385,31 @@ function requiredSpendPayable(ctx: Ctx, effect: EffectSpec, context: EffectConte
   return !playerId || canPaySpend(ctx.state, ctx.deps, playerId, effect.resources, effect.distinctTypes ?? 0);
 }
 
+/**
+ * What a `noTarget` option was missing, read now (`MissingTarget`): its opening required target choice's query, and, for
+ * one that asks for room for a stunned or confused card, the single card that would match without that and why it has
+ * none. Null when the option opens with no required target choice, or when that choice has a match (a later step barred it).
+ */
+function missingTargetOf(ctx: Ctx, effects: readonly EffectSpec[], context: EffectContext): MissingTarget | null {
+  const first = effects[0];
+  if (first?.kind !== "chooseTarget" || first.optional || first.upTo) return null;
+  if (typeof first.count === "number" && first.count < 1) return null;
+  // Only when this choice is what has nothing to choose: a later step can bar the option instead (a dead second choice,
+  // a move with no source), and the record must not blame a target that is there.
+  if (selectTargets(ctx.state, first.query, context).length > 0) return null;
+  const { canTakeStatus: status, ...rest } = first.query;
+  if (status !== "stunned" && status !== "confused") return { target: first.query };
+  const candidates = selectTargets(ctx.state, rest, context);
+  const only = candidates.length === 1 ? candidates[0]! : null;
+  if (only === null) return { target: first.query };
+  const cause = hasKeyword(ctx.state, only, "stalwart", ctx.deps)
+    ? "stalwart"
+    : (getInstance(ctx.state, only)?.statuses[status] ?? 0) > 0
+      ? "statusHeld"
+      : null;
+  return cause ? { target: first.query, blocked: { instanceId: only, status, cause } } : { target: first.query };
+}
+
 function executeChooseOne(
   ctx: Ctx,
   frame: Frame<"effects">,
@@ -2389,29 +2417,45 @@ function executeChooseOne(
   context: EffectContext,
 ): void {
   const [optionChooser] = resolvePlayers(ctx.state, effect.chooser, context);
-  const available = effect.options
-    .map((option, index) => ({ option, index }))
-    .filter(({ option }) => !option.condition || evaluate(ctx.state, option.condition, context))
+  /** Why this option is not offered, or null when it is; the first rule that bars it, in this order. */
+  const barredBy = (option: (typeof effect.options)[number]): OptionUnavailableReason | null => {
+    if (option.condition && !evaluate(ctx.state, option.condition, context)) return "condition";
     // "You cannot choose the 'Avoid' effect" (`RuleSpec cannotChooseOption`): never offered to that chooser.
-    .filter(
-      ({ option }) =>
-        !optionChooser || !cannotChooseOption(ctx.state, ctx.deps, optionChooser, context.selfInstanceId, option.tag),
-    )
+    if (optionChooser && cannotChooseOption(ctx.state, ctx.deps, optionChooser, context.selfInstanceId, option.tag))
+      return "cannotChoose";
     // An option to spend resources is offered only to a player who can pay it (`EffectSpec spendResources.required`).
     // Not for an encounter-side source card: its option is barred only for want of a target (p. 12; owner 2026-10-20).
-    .filter(
-      ({ option }) =>
-        isEncounterCardType(ctx.state, context.selfInstanceId) ||
-        option.effects.every((step) => requiredSpendPayable(ctx, step, context)),
+    if (
+      !isEncounterCardType(ctx.state, context.selfInstanceId) &&
+      !option.effects.every((step) => requiredSpendPayable(ctx, step, context))
     )
+      return "cannotPay";
     // RRG 1.8 "Choose (Option)" (p. 12): an option that requires a target and has no valid one cannot be chosen
     // ("Remove 2 threat from a scheme" with no threat on any scheme). Read once, before the choice is asked: the
     // answer is checked against the options that were offered.
-    .filter(
-      ({ option }) => frame.answer !== null || !optionLacksValidTarget(ctx.state, ctx.deps, option.effects, context),
-    );
+    if (frame.answer === null && optionLacksValidTarget(ctx.state, ctx.deps, option.effects, context))
+      return "noTarget";
+    return null;
+  };
+  const judged = effect.options.map((option, index) => ({ option, index, reason: barredBy(option) }));
+  const available = judged.filter(({ reason }) => reason === null);
+  // The options on the card that are not offered and why, so the player is told (#412). Absent when none is barred.
+  const barred = judged.flatMap(({ option, index, reason }) => {
+    if (reason === null) return [];
+    const missing = reason === "noTarget" ? missingTargetOf(ctx, option.effects, context) : null;
+    return [{ index, label: option.label, reason, ...(missing ? { missing } : {}) }];
+  });
+  const unavailable: UnavailableOptions | null =
+    barred.length > 0
+      ? {
+          chooserId: optionChooser ?? null,
+          sourceInstanceId: context.selfInstanceId,
+          abilityId: frame.abilityId ?? null,
+          options: barred,
+        }
+      : null;
   const count = effect.count ?? 1;
-  if (count > 1) return executeChooseSeveral(ctx, frame, effect, context, available, count);
+  if (count > 1) return executeChooseSeveral(ctx, frame, effect, context, available, count, unavailable);
   const pickedIndex =
     frame.answer !== null ? Number(frame.answer[0]) : available.length === 1 ? (available[0]?.index ?? -1) : null;
   if (pickedIndex === null) {
@@ -2421,7 +2465,7 @@ function executeChooseOne(
     }
     requestChoice(ctx, {
       playerId: optionChooser,
-      prompt: { kind: "chooseOption" },
+      prompt: { kind: "chooseOption", ...(unavailable ? { unavailable } : {}) },
       options: available.map(({ option, index }) => ({
         optionId: String(index),
         label: option.label,
@@ -2443,6 +2487,7 @@ function executeChooseOne(
     index: pickedIndex,
     ...(onlyOption ? { onlyOption: true as const } : {}),
     ...(chosen.tag !== undefined ? { tag: chosen.tag } : {}),
+    ...(onlyOption && unavailable ? { unavailable } : {}),
   });
   pushEffects(ctx, {
     effects: chosen.effects,
@@ -2500,6 +2545,7 @@ function executeChooseSeveral(
   context: EffectContext,
   available: readonly { readonly option: (typeof effect.options)[number]; readonly index: number }[],
   count: number,
+  unavailable: UnavailableOptions | null,
 ): void {
   const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
   const picks = effect.allowRepeat ? count : Math.min(count, available.length);
@@ -2511,7 +2557,7 @@ function executeChooseSeveral(
     }
     requestChoice(ctx, {
       playerId: chooser,
-      prompt: { kind: "chooseOption" },
+      prompt: { kind: "chooseOption", ...(unavailable ? { unavailable } : {}) },
       options: available.flatMap(({ option, index }) =>
         effect.allowRepeat
           ? Array.from({ length: count }, (_, n) => ({

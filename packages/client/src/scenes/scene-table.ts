@@ -70,6 +70,7 @@ export const SCENE_LOADERS: Readonly<Record<string, () => Promise<SceneClass>>> 
   [SCENES.syncPrompt]: () => import("./sync-prompt.js").then((m) => m.SyncPromptScene),
   [SCENES.gamesList]: () => import("./games-list.js").then((m) => m.GamesListOverlay),
   [SCENES.endTurnConfirm]: () => import("./end-turn-confirm.js").then((m) => m.EndTurnConfirmOverlay),
+  [SCENES.optionNotice]: () => import("./option-notice.js").then((m) => m.OptionNoticeOverlay),
   [SCENES.tutorialResumeConfirm]: () =>
     import("./tutorial-resume-confirm.js").then((m) => m.TutorialResumeConfirmOverlay),
   [SCENES.holdOn]: () => import("./hold-on.js").then((m) => m.HoldOnOverlay),

@@ -85,6 +85,9 @@ export type {
   ChoiceRef,
   DecisionAuthority,
   PendingChoice,
+  MissingTarget,
+  OptionUnavailableReason,
+  UnavailableOptions,
 } from "./choices.js";
 export {
   cardTotalFault,

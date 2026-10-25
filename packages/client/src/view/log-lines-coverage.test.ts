@@ -69,7 +69,6 @@ const SILENT: ReadonlySet<string> = new Set([
   "mainSchemeFlippedToOtherFace",
   "mainSchemeStageRemoved",
   "mainSchemeStageRevealed",
-  "optionChosen",
   "playDestinationSet",
   "playNoted",
   "playedEventReturned",

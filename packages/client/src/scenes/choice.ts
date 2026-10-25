@@ -41,6 +41,8 @@ import {
   type PlayerId,
 } from "@mc/engine";
 import { CARDS_BY_ID, POOL_DEPS } from "../content/pool.js";
+import { unavailableOptionReasons } from "../view/ability-refusal.js";
+import { choiceRowsOf } from "../view/choice-option-rows.js";
 import { accent, guideTag, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
@@ -380,7 +382,11 @@ export class ChoiceOverlay extends Phaser.Scene {
     // Inspect, opened from here, owns them in turn while it is open.
     const binding = {
       // Pause (Menu on a pad) owns input over the sheet too: its A must not also commit the decision underneath.
-      blocked: () => this.scene.isActive(SCENES.inspect) || this.scene.isActive(SCENES.pause) || this.#covered(),
+      blocked: () =>
+        this.scene.isActive(SCENES.inspect) ||
+        this.scene.isActive(SCENES.pause) ||
+        this.scene.isActive(SCENES.optionNotice) ||
+        this.#covered(),
       onIntent: (intent: GamepadIntent) => this.#onIntent(intent),
     };
     bindKeyboard(this, binding);
@@ -1056,7 +1062,18 @@ export class ChoiceOverlay extends Phaser.Scene {
       );
     // A long option (an evidence card's Setup runs to 140 characters) wraps over several lines instead of being cut off.
     const maxChars = Math.floor((sheet.width - 48) / (typeRole.rowTitle.size * 0.62));
-    const texts = choice.options.map((option) => wrapOptionLabel(optionText(option), maxChars));
+    // Every option on the card is listed: one the engine did not offer is drawn disabled, with why (#412).
+    const rows = choiceRowsOf(
+      choice,
+      choice.prompt.kind === "chooseOption" && choice.prompt.unavailable && state.game
+        ? unavailableOptionReasons(state.game, choice.prompt.unavailable, POOL_DEPS)
+        : [],
+    );
+    const texts = rows.map((row) =>
+      row.kind === "option"
+        ? wrapOptionLabel(optionText(choice.options[row.optionIndex]!), maxChars)
+        : `${wrapOptionLabel(row.label, maxChars)}\n${wrapOptionLabel(`Not available: ${row.why}.`, maxChars)}`,
+    );
     const heights = texts.map(
       (text) =>
         rowHeight +
@@ -1074,11 +1091,28 @@ export class ChoiceOverlay extends Phaser.Scene {
     );
 
     const rowButtons: McButton[] = [];
-    choice.options.forEach((option, index) => {
+    rows.forEach((row, index) => {
+      const rect: Rect = { x: sheet.x + 12, y: tops[index]!, width: rowWidth, height: heights[index]! };
+      if (row.kind === "unavailable") {
+        // Shown, never pressed, and out of the focus route: it says why it cannot be chosen.
+        const button = new McButton(this, {
+          kind: "secondary",
+          label: texts[index]!,
+          type: typeRole.rowTitle,
+          rect,
+          enabled: false,
+          reason: row.why,
+          ...(rowsLayout.scrolls ? { clip: () => viewport } : {}),
+          onClick: () => {},
+        });
+        this.#buttons.push(button);
+        rowButtons.push(button);
+        return;
+      }
+      const option = choice.options[row.optionIndex]!;
       const order = this.#selected.indexOf(option.optionId);
       const text = texts[index]!;
       const rowLabel = choice.ordered && order >= 0 ? `${order + 1}. ${text}` : text;
-      const rect: Rect = { x: sheet.x + 12, y: tops[index]!, width: rowWidth, height: heights[index]! };
       const button = new McButton(this, {
         kind: "secondary",
         label: rowLabel,
