@@ -1,16 +1,14 @@
-import { cardId, trait } from "@mc/content";
+import { cardId } from "@mc/content";
 import {
   activeEncounterDeckId,
   applyCommand,
   cardOf,
   cardsInPlay,
   printedResources,
-  selectTargets,
   traitsOf,
   type GameState,
   type InstanceId,
   type PlayerId,
-  type TargetQuery,
 } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
