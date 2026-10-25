@@ -487,6 +487,19 @@ describe(`${STAKEOUT_A} and ${STAKEOUT_I}: attach to a non-permanent encounter s
     expect(inst(after, g.scheme).attachments).toContain(g.id);
   });
 
+  it("played from hand (by her identity), it still attaches to a side scheme (#411: Consolidate Power, Power Struggle)", () => {
+    const given = moveToHand(withForm(jessicaGame(STAKEOUT), { heroForm: 0 }), P1, STAKEOUT);
+    const [stake] = given.ids as [InstanceId];
+    const { state: played } = drive(given.state, play(P1, stake, payWith(given.state, P1, 0, [stake])));
+    expect(inst(played, stake).attachedTo).toBe(identityOf(played));
+    const scheme = encounterCardInVillainArea(played, BREAKIN, 6);
+    const { state: after } = drive(scheme.state, use(P1, stake, STAKEOUT_A), picks({ cards: [scheme.id] }));
+    expect(inst(after, stake).attachedTo).toBe(scheme.id);
+    expect(inst(after, scheme.id).attachments).toContain(stake);
+    expect(inst(after, identityOf(after)).attachments).not.toContain(stake);
+    expect(refused(after, use(P1, stake, STAKEOUT_A))).toBe(true);
+  });
+
   it("is refused once it is attached (no longer in the play area)", () => {
     const g = setup(3);
     const { state: attached } = drive(g.state, use(P1, g.id, STAKEOUT_A), picks({ cards: [g.scheme] }));
