@@ -1,0 +1,164 @@
+import { expect, test, type Page } from "@playwright/test";
+import { trackPageErrors, waitFor } from "./helpers.js";
+import { openApp } from "./wave6-helpers-b.js";
+
+/**
+ * Y opens the Filters fold with the list scrolled far down (owner report, Linux AppImage: "froze at the villain
+ * screen ... had Nebula selected and pushed Y"). The page must keep rendering, the first chip must be focused and
+ * inside the screen.
+ */
+
+const PAD_ID = "Xbox 360 Controller (STANDARD GAMEPAD Vendor: 045e Product: 028e)";
+const Y = 3;
+const LT = 6;
+const DPAD_DOWN = 13;
+
+type StopRect = { key: string; x: number; y: number; width: number; height: number };
+
+async function installPad(page: Page): Promise<void> {
+  await page.addInitScript((id) => {
+    const button = () => ({ pressed: false, touched: false, value: 0 });
+    const pad = {
+      connected: true,
+      id,
+      index: 0,
+      mapping: "standard",
+      timestamp: 0,
+      buttons: Array.from({ length: 17 }, button),
+      axes: [0, 0, 0, 0],
+    };
+    (window as unknown as { __fakePad: unknown }).__fakePad = pad;
+    Object.defineProperty(navigator, "getGamepads", {
+      value: () => {
+        pad.timestamp = performance.now();
+        return [pad];
+      },
+      configurable: true,
+    });
+    // A frame heartbeat: a hung main thread stops it.
+    (window as unknown as { __beat: number }).__beat = 0;
+    const tick = (): void => {
+      (window as unknown as { __beat: number }).__beat += 1;
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, PAD_ID);
+}
+
+const setButton = (page: Page, index: number, on: boolean): Promise<void> =>
+  page.evaluate(
+    ([i, down]) => {
+      const pad = (window as unknown as { __fakePad: { buttons: unknown[] } }).__fakePad;
+      pad.buttons[i as number] = { pressed: down, touched: down, value: down ? 1 : 0 };
+    },
+    [index, on] as const,
+  );
+
+async function tap(page: Page, index: number): Promise<void> {
+  await setButton(page, index, true);
+  await page.waitForTimeout(250);
+  await setButton(page, index, false);
+  await page.waitForTimeout(250);
+}
+
+const stopsOf = (page: Page, scene: string): Promise<StopRect[]> =>
+  page.evaluate(
+    (key) =>
+      (window as unknown as { __mcFocusRoutes: Record<string, () => { key: string; rect: Omit<StopRect, "key"> }[]> })
+        .__mcFocusRoutes[key]!().map((stop) => ({ key: stop.key, ...stop.rect })),
+    scene,
+  );
+
+const focusOf = (page: Page, scene: string): Promise<string | null> =>
+  page.evaluate(
+    (key) =>
+      (window as unknown as { __mcFocusState: Record<string, () => { focus: string | null }> }).__mcFocusState[key]!()
+        .focus,
+    scene,
+  );
+
+const beat = (page: Page): Promise<number> => page.evaluate(() => (window as unknown as { __beat: number }).__beat);
+
+const SCREENS = [
+  {
+    name: "Scenario select",
+    query: "scenario-select",
+    scene: "ScenarioSelect",
+    tile: "scenario:",
+    chips: "scenario-chip:",
+  },
+  { name: "Take your seats", query: "seats", scene: "Seats", tile: "hero:", chips: "hero-chip:" },
+] as const;
+
+const VIEWS = [
+  { name: "desktop", size: { width: 1280, height: 720 }, scale: 1, unlock: "&unlock=all" },
+  { name: "4K TV, locked tiles", size: { width: 1920, height: 1080 }, scale: 2, unlock: "" },
+  { name: "3840 wide, locked tiles", size: { width: 3840, height: 2160 }, scale: 1, unlock: "" },
+  { name: "1440p, locked tiles", size: { width: 2560, height: 1440 }, scale: 1.5, unlock: "" },
+] as const;
+
+for (const view of VIEWS)
+  for (const screen of SCREENS) {
+    test.describe(`${view.name}`, () => {
+      test.use({ viewport: view.size, deviceScaleFactor: view.scale });
+      test(`${screen.name}: Y with the list scrolled far down opens the Filters and the page keeps rendering`, async ({
+        page,
+      }) => {
+        test.setTimeout(240_000);
+        const errors = trackPageErrors(page);
+        await installPad(page);
+        await openApp(page, `screen=${screen.query}${view.unlock}`, { landing: screen.scene });
+        await tap(page, LT);
+        await page.waitForTimeout(1000);
+        // D-pad down until the focused tile is the last one (as far down the list as it goes).
+        let last = "";
+        for (let i = 0; i < 120; i += 1) {
+          await tap(page, DPAD_DOWN);
+          const now = (await focusOf(page, screen.scene)) ?? "";
+          if (now === last && now.startsWith(screen.tile)) break;
+          last = now;
+        }
+        if (screen.scene === "ScenarioSelect") {
+          // The owner's report had Nebula focused: back up the list to its row and across to the tile.
+          for (let i = 0; i < 80; i += 1) {
+            const stops = await stopsOf(page, screen.scene);
+            const nebula = stops.find((s) => s.key === "scenario:nebula");
+            const at = stops.find((s) => s.key === last);
+            if (last === "scenario:nebula") break;
+            if (!nebula || !at) {
+              await tap(page, 12);
+            } else if (Math.abs(at.y - nebula.y) < 20) {
+              await tap(page, at.x < nebula.x ? 15 : 14);
+            } else {
+              await tap(page, at.y > nebula.y ? 12 : DPAD_DOWN);
+            }
+            last = (await focusOf(page, screen.scene)) ?? "";
+          }
+          expect(last).toBe("scenario:nebula");
+        }
+        expect(last.startsWith(screen.tile), `focus is on a tile (${last})`).toBe(true);
+        const stops = await stopsOf(page, screen.scene);
+        const size = await page.evaluate(() => ({ h: window.innerHeight }));
+        expect(
+          stops.some((s) => s.key.startsWith(screen.tile) && s.y + s.height < 0),
+          "the list is scrolled down: a tile has gone off the top",
+        ).toBe(true);
+        await setButton(page, Y, true);
+        await page.waitForTimeout(120);
+        await setButton(page, Y, false);
+        const before = await beat(page);
+        await page.waitForTimeout(800);
+        expect(await beat(page), "frames keep coming").toBeGreaterThan(before + 5);
+        await waitFor(
+          async () => (((await focusOf(page, screen.scene)) ?? "").startsWith(screen.chips) ? true : null),
+          "a chip is focused",
+          10_000,
+        );
+        const focused = (await focusOf(page, screen.scene))!;
+        const rect = (await stopsOf(page, screen.scene)).find((s) => s.key === focused)!;
+        expect(rect.y).toBeGreaterThanOrEqual(0);
+        expect(rect.y + rect.height).toBeLessThanOrEqual(size.h);
+        expect(errors).toEqual([]);
+      });
+    });
+  }
