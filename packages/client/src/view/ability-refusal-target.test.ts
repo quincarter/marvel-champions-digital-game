@@ -261,3 +261,17 @@ describe("unavailableOptionLines: each option not offered, and why (#412)", () =
     );
   });
 });
+
+describe("an option's own condition, worded from its shape (#412)", () => {
+  test("Plot Convenience's take option with nothing attached: no card is attached here", () => {
+    const unavailable = {
+      chooserId: me,
+      sourceInstanceId: null,
+      abilityId: "44050.plot-convenience-action" as AbilityId,
+      options: [{ index: 1, label: "Add 1 card attached here to your hand", reason: "condition" as const }],
+    };
+    expect(unavailableOptionLines(game, unavailable, DEPS)).toEqual([
+      "Add 1 card attached here to your hand: no card is attached here",
+    ]);
+  });
+});

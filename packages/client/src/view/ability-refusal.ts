@@ -197,6 +197,18 @@ function optionAt(node: unknown, index: number, label: string): ChooseOneOption 
  * from a scheme" while no scheme holds threat (Nick Fury `core` 01084) is "no scheme has threat on it".
  */
 function conditionClause(condition: Predicate | undefined): string | null {
+  // "At least 1 card attached here" (Plot Convenience `deadpool` 44050: "Add 1 card attached here to your hand").
+  if (
+    condition?.kind === "compare" &&
+    condition.op === "atLeast" &&
+    condition.right.kind === "const" &&
+    condition.right.value === 1 &&
+    condition.left.kind === "count"
+  ) {
+    const counted = condition.left.query as TargetQuery & { readonly host?: { readonly kind?: string } };
+    if (counted.host?.kind === "self" && Object.keys(counted).every((key) => key === "host" || key === "facedown"))
+      return "no card is attached here";
+  }
   if (condition?.kind !== "exists") return null;
   const query = condition.query as TargetQuery;
   const categories = query.categories ?? [];
