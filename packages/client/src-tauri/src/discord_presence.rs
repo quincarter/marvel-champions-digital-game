@@ -20,6 +20,10 @@ use serde::{Deserialize, Serialize};
 
 /// Discord allows 5 updates per 20 s; one per 4 s stays inside that with no burst.
 const MIN_SEND_INTERVAL_MS: u64 = 4_000;
+/// While idle with an activity showing, resend it this often: the send doubles as a health probe, so a Discord
+/// that restarted is noticed (and the reconnect/backoff path entered) even when nothing changes. One send a minute is
+/// far inside Discord's 5 per 20 s.
+const HEALTH_CHECK_MS: u64 = 60_000;
 /// How often to look for Discord again while it isn't reachable.
 const RECONNECT_MS: u64 = 15_000;
 /// Discord's limit for details, state and image text.
@@ -113,11 +117,38 @@ pub struct Scheduler<A: Clone> {
   pending: Option<Option<A>>,
   /// The last thing submitted, so a reconnect can resend it.
   latest: Option<Option<A>>,
+  /// Idle resend period (see `HEALTH_CHECK_MS`).
+  health_ms: u64,
 }
 
 impl<A: Clone> Scheduler<A> {
   pub fn new(interval_ms: u64) -> Self {
-    Scheduler { interval_ms, last_sent_ms: None, pending: None, latest: None }
+    Scheduler { interval_ms, last_sent_ms: None, pending: None, latest: None, health_ms: HEALTH_CHECK_MS }
+  }
+
+  /// Same, with a custom idle health-check period.
+  pub fn with_health_ms(mut self, health_ms: u64) -> Self {
+    self.health_ms = health_ms;
+    self
+  }
+
+  /// Milliseconds until the idle health check is due: `None` unless idle with a real activity that was sent.
+  /// A cleared presence needs no probe (there is nothing to lose).
+  pub fn health_wait_ms(&self, now_ms: u64) -> Option<u64> {
+    if self.pending.is_some() || !matches!(self.latest, Some(Some(_))) {
+      return None;
+    }
+    Some((self.last_sent_ms? + self.health_ms).saturating_sub(now_ms))
+  }
+
+  /// Queues the latest activity again when the health check is due; returns whether it did. The send that follows
+  /// either succeeds (Discord is alive) or fails and takes the normal reconnect path.
+  pub fn queue_health_check(&mut self, now_ms: u64) -> bool {
+    if self.health_wait_ms(now_ms) == Some(0) {
+      self.pending = self.latest.clone();
+      return true;
+    }
+    false
   }
 
   /// A new desired activity (or `None` to clear); replaces anything still waiting to be sent.
@@ -245,7 +276,7 @@ fn worker(app_id: String, rx: mpsc::Receiver<Msg>, connected: &AtomicBool) {
   loop {
     // Sleep until a message, or until something is due to send or the next connection attempt.
     let wait = match scheduler.wait_ms(now_ms()) {
-      None => Duration::from_secs(3600),
+      None => Duration::from_millis(scheduler.health_wait_ms(now_ms()).unwrap_or(3_600_000).max(50)),
       Some(send_wait) => {
         let connect_wait = if client.is_some() { 0 } else { next_connect_ms.saturating_sub(now_ms()) };
         Duration::from_millis(send_wait.max(connect_wait).max(50))
@@ -273,7 +304,7 @@ fn worker(app_id: String, rx: mpsc::Receiver<Msg>, connected: &AtomicBool) {
       });
     }
 
-    if scheduler.wait_ms(now_ms()).is_none() {
+    if scheduler.wait_ms(now_ms()).is_none() && !scheduler.queue_health_check(now_ms()) {
       continue;
     }
     if client.is_none() && now_ms() >= next_connect_ms {
@@ -438,6 +469,50 @@ mod tests {
     s.resend_latest();
     assert_eq!(s.take_due(8_000), Some(Some("b")));
     assert_eq!(s.take_due(12_000), None);
+  }
+
+  #[test]
+  fn idle_with_a_sent_activity_schedules_a_health_check() {
+    let mut s: Scheduler<&str> = Scheduler::new(4_000).with_health_ms(60_000);
+    assert_eq!(s.health_wait_ms(0), None, "nothing submitted");
+    s.submit(Some("a"));
+    assert_eq!(s.health_wait_ms(0), None, "still pending, the send itself is the I/O");
+    s.take_due(1_000);
+    assert_eq!(s.health_wait_ms(11_000), Some(50_000));
+    assert!(!s.queue_health_check(60_999));
+    assert_eq!(s.wait_ms(60_999), None);
+    assert!(s.queue_health_check(61_000));
+    assert_eq!(s.take_due(61_000), Some(Some("a")));
+    // The probe counts as a send: the next one is a minute later, not immediately.
+    assert_eq!(s.health_wait_ms(61_001), Some(59_999));
+    assert!(!s.queue_health_check(61_001));
+  }
+
+  #[test]
+  fn a_cleared_presence_is_not_probed() {
+    let mut s: Scheduler<&str> = Scheduler::new(4_000).with_health_ms(60_000);
+    s.submit(Some("a"));
+    s.take_due(0);
+    s.submit(None);
+    s.take_due(4_000);
+    assert_eq!(s.health_wait_ms(1_000_000), None);
+    assert!(!s.queue_health_check(1_000_000));
+  }
+
+  #[test]
+  fn a_failed_check_reconnects_and_resends_the_latest() {
+    let mut s: Scheduler<&str> = Scheduler::new(4_000).with_health_ms(60_000);
+    s.submit(Some("a"));
+    s.take_due(0);
+    assert!(s.queue_health_check(60_000));
+    assert_eq!(s.take_due(60_000), Some(Some("a")));
+    // The probe failed (the worker drops the client and calls resend_latest): the activity is queued again and
+    // goes out once the interval allows, after the reconnect backoff the worker enforces.
+    s.resend_latest();
+    assert_eq!(s.health_wait_ms(61_000), None, "pending now, so reconnect owns the timing");
+    assert_eq!(s.take_due(61_000), None);
+    assert_eq!(s.take_due(75_000), Some(Some("a")), "resent after reconnect");
+    assert_eq!(s.take_due(80_000), None);
   }
 
   #[test]
