@@ -296,6 +296,14 @@ export async function nativeAudioFor(
 
 let current: NativeAudio | null = null;
 let pending: Promise<NativeAudio | null> | null = null;
+/** The Sound setting as last synced, kept so an instance that is published after the sync still starts muted. */
+let wantMuted = false;
+
+/** The Sound setting changed (or was first read): applies it now, or to the instance once the probe publishes it. */
+export function setNativeMuted(muted: boolean): void {
+  wantMuted = muted;
+  if (current) current.muted = muted;
+}
 
 /**
  * Starts finding out whether this run plays natively (called once, from `main.ts`). Until it settles, the music
@@ -308,6 +316,8 @@ export function startNativeAudio(
 ): Promise<NativeAudio | null> {
   if (!isLinuxDesktopApp(isTauri, userAgent)) return Promise.resolve(null);
   pending = nativeAudioFor(isTauri, userAgent, bridge).then((audio) => {
+    // Before it is published, and so before any waiting load resumes: the saved Sound setting may have synced already.
+    if (audio) audio.muted = wantMuted;
     current = audio;
     pending = null;
     return audio;

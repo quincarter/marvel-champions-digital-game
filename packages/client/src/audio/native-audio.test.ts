@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { NativeAudio, nativeAudioFor, type NativeAudioBridge } from "./native-audio.js";
+import {
+  NativeAudio,
+  nativeAudio,
+  nativeAudioFor,
+  setNativeMuted,
+  startNativeAudio,
+  type NativeAudioBridge,
+} from "./native-audio.js";
 
 const LINUX = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko)";
 const ANDROID = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/152.0.0.0 Mobile Safari/537.36";
@@ -64,6 +71,24 @@ describe("nativeAudioFor", () => {
     };
     vi.spyOn(console, "warn").mockImplementation(() => {});
     expect(await nativeAudioFor(true, LINUX, broken)).toBeNull();
+  });
+});
+
+describe("startNativeAudio", () => {
+  it("starts muted when Sound was saved off and synced before the probe resolved", async () => {
+    const { bridge, calls } = fakeBridge();
+    let release: (available: boolean) => void = () => {};
+    bridge.available = () => new Promise<boolean>((resolve) => (release = resolve));
+    const started = startNativeAudio(true, LINUX, bridge);
+    // MusicScene.create() syncs the settings while the probe is still out.
+    expect(nativeAudio()).toBeNull();
+    setNativeMuted(true);
+    release(true);
+    const audio = (await started)!;
+    const sound = audio.add("sfx:x", { volume: 0.5 });
+    sound.play();
+    await vi.waitFor(() => expect(calls).toContain(`play ${sound.id} sfx:x 0 false false`));
+    setNativeMuted(false);
   });
 });
 

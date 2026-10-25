@@ -34,7 +34,7 @@ import { earnedSongsOf, musicGainOf, nextShuffled } from "../view/music-player.j
 import { SOUND_EFFECT_VOLUME, type SoundEffect } from "../view/sound-effects.js";
 import { onMixerChange, startMixerWatch, stopMixerWatch } from "../platform/app-volume.js";
 import { onAppBackgroundChange } from "../platform/app-background.js";
-import { NativeSound, nativeAudio, nativeAudioPending } from "./native-audio.js";
+import { NativeSound, nativeAudio, nativeAudioPending, setNativeMuted } from "./native-audio.js";
 import extrasUnlockedUrl from "./sfx/extras-unlocked.mp3?url";
 import achievementUnlockedUrl from "./sfx/achievement-unlocked.mp3?url";
 import handRefillUrl from "./sfx/hand-refill.mp3?url";
@@ -430,8 +430,7 @@ export class MusicScene extends Phaser.Scene implements MusicController {
 
   syncSettings(settings: Settings): void {
     this.sound.mute = !settings.sound;
-    const native = nativeAudio();
-    if (native) native.muted = !settings.sound;
+    setNativeMuted(!settings.sound);
     const volume = musicGainOf(settings.musicVolume, DEFAULT_MUSIC_VOLUME);
     if (volume !== this.#targetVolume) {
       this.#targetVolume = volume;
