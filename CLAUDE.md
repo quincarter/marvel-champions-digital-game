@@ -114,6 +114,38 @@ the owning specialist or the main session fixes what it finds. This applies to c
 - **Blockers and should-fixes are fixed before the commit is pushed**; a rules question the authority order cannot
   settle goes to the user as a multiple-choice question with a recommended default, like any other.
 
+#### Codex reviews open PRs, where Codex is available (the user, 2026-10-25)
+
+If the machine you work on has the Codex plugin for Claude Code (`openai-codex`) and a signed-in Codex CLI, Codex
+reviews each pull request as a second reviewer and posts its findings to the PR, where Claude acts on them. Without
+Codex, skip all of this and carry on as normal; nothing else in this file depends on it.
+
+- **When:** after a PR is opened, and again after each later push that changes code (not for a push of docs,
+  changelog fragments or a merge from `main` alone). Not before the PR exists: the per-change `code-reviewer` passes
+  above stay as they are. A PR opened from a session without Codex (a cloud session) gets its Codex pass the next
+  time a session with Codex touches it.
+- **How:** from a checkout of the PR's branch at its pushed head,
+
+  ```bash
+  node scripts/codex-pr-review.mjs <pr-number>
+  ```
+
+  It runs a read-only Codex review of the branch against the PR's base (the plugin's `adversarial-review`, told to
+  apply this file) and posts one review, as a COMMENT (never approve or request changes), with an inline comment per
+  finding at its file and lines. Each comment starts with `[Codex] <severity>` (`critical`, `high`, `medium`, `low`);
+  a finding on lines outside the diff goes in the review's body instead. With no findings it posts a one-line
+  `[Codex] No findings on <sha>.` review. `--dry-run` prints the review without posting it. Without the plugin or a
+  signed-in CLI it says so and exits 0; set up Codex with `/codex:setup`, then `!codex login`.
+
+- **Act on the comments like any other review comment.** Read `critical` and `high` as blockers, `medium` as
+  should-fixes and `low` as nits. Fix the finding, or reply on its thread saying why not, and resolve the thread once
+  it is addressed. A rules question a comment raises goes to the `rules-expert` first; Codex is not a rules
+  authority, and the authority order above beats it.
+- **Only the script posts for Codex.** Codex itself never comments on GitHub, and Codex's comments carry no
+  attribution footer beyond the `[Codex]` marker.
+- **The plugin's stop-time review gate stays off** (`/codex:setup --enable-review-gate`): it runs a Codex review on
+  every stop of a Claude turn, chat replies included, and the PR review covers the same ground.
+
 ### Rules questions go to the rules expert first (the user, 2026-10-19)
 
 The `rules-expert` agent (`.claude/agents/rules-expert.md`) answers a rules question by working it through the
