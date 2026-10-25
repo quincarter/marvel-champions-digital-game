@@ -249,7 +249,7 @@ is in `jj`, so emit `jj` before `luke_cage`.
 
 ## 8. FFG rulings that name these cards (post RRG 1.8)
 
-From `marvel-champions-rulings-post-rrg-1-7.md`. Cite by date heading with the RRG page. These feed `rules-qa-engineer`
+From `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`. Cite by date heading with the RRG page. These feed `rules-qa-engineer`
 and `ability-scripting-engineer`; none is an erratum.
 
 - June 25, 2026 R2: Raising Hell (60011) paid with Aggressive Energy adds +1 damage to each enemy damaged.

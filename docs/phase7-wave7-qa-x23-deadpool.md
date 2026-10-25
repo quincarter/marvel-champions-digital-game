@@ -7,8 +7,8 @@ of them `it.fails` pins, about 25 s). No non-test code was touched.
 
 ## 1. Sources found
 
-Searches: `mc_rulesreference_v18_compressed.md` (page numbers are the table-of-contents numbers) and
-`marvel-champions-rulings-post-rrg-1-7.md` for X-23, Deadpool, Dreadpool, Honey Badger, Laura, Wade and every card title of
+Searches: `docs/rules/mc_rulesreference_v18_compressed.md` (page numbers are the table-of-contents numbers) and
+`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` for X-23, Deadpool, Dreadpool, Honey Badger, Laura, Wade and every card title of
 both kits. **One ruling names a card of this slice**: June 2, 2026 - Ruling 5 (Exhausting Personality may exhaust any
 player's identity), already scripted and tested (`deadpool/events.test.ts`). The rest is general:
 

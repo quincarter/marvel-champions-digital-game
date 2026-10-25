@@ -13,7 +13,7 @@ encounter-attachments,guerrilla-tactics}.ts`, `packages/cards/src/wave5/sm/venom
 encounter-set}.ts`, `packages/cards/src/wave5/sm/modulars/{down-to-earth,whispers-of-paranoia,goblin-gear,
 osborn-tech,sinister-assault}.ts`, the matching slice of `packages/content/src/data/sm/cards.ts`, the card scans
 under `assets/card-art/bundles/cards/`, RRG 1.8, `docs/campaign-modes/markdown/mc27_sinister_motives.md`, and
-`marvel-champions-rulings-post-rrg-1-7.md` (grepped for "Sinister Six", "Venom Goblin", "Doctor Octopus", "Electro",
+`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` (grepped for "Sinister Six", "Venom Goblin", "Doctor Octopus", "Electro",
 "Hobgoblin", "Kraven", "Scorpion", "Vulture", "glider", "activation order" — no ruling specific to these cards
 beyond what `docs/phase7-wave5.md` §4.1 already cites, notably Q71's "All first" villain-phase step-one ordering,
 which this scenario pair is the _only_ place in the box that can observe the difference).

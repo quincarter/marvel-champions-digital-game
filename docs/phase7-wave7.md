@@ -134,7 +134,7 @@ Reference; FFG rulings clarify both):
        ATK 2, DEF 1, as emitted), and Wade Wilson's MUTANT trait carries a joke footnote and is an ordinary trait.
      - Scans read: 43001a/b, 43021, 43028, 44001a/b, 44009, 44013, 44021, 44024, 44032, 44046, 44053, 44055, 44056,
        44057, 44058. The Metagame cards' art is rules text; what each diagram shows is in §3.84 and §3.87.
-2. **FFG rulings, Dec 17, 2025 to Aug 13, 2026**, in `marvel-champions-rulings-post-rrg-1-7.md`, cited by date heading.
+2. **FFG rulings, Dec 17, 2025 to Aug 13, 2026**, in `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`, cited by date heading.
    The ones this pass leans on:
    - Aug 3, 2026 (5): Team Investigation's "printed cost scales with player count: In a 2-player game, printed cost is
      **4**" (§1.3, §3.4).
@@ -174,7 +174,7 @@ Reference; FFG rulings clarify both):
      25, 2026 - Ruling 4, answer 3 (Metaknowledge on a flipped environment: "**No.** Environments flip, they are not
      revealed", §3.87); August 3, 2026 - Ruling 4, answer 3 ("Linked cards cannot be included in decks", §3.75). The
      file was searched for every card title of both packs: no other ruling names one.
-3. **RRG 1.8 (Jul 2026)**, `mc_rulesreference_v18_compressed.pdf`, cited by printed page (every cite below checked
+3. **RRG 1.8 (Jul 2026)**, `docs/rules/mc_rulesreference_v18_compressed.pdf`, cited by printed page (every cite below checked
    against the PDF with pypdf: printed page = 1-based PDF page). Entries this pass leans on: "Alliance" (p. 6), "Ally
    Limit" (p. 7), "Assault" (p. 8), "Attacks Against Allies" and "Basic Power" (p. 10), "Card Types" and "Choose
    (Option)" (p. 12), "Cost" (p. 13), "Hinder X" and "Hit Points" (p. 22), "'Instead'" (p. 25), "Per Player Icon" and

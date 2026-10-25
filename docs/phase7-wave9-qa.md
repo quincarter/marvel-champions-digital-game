@@ -1,8 +1,8 @@
 # Phase 7 wave 9 rules-QA pass
 
 `rules-qa-engineer`, 2026-10-10, branch `feature/wave-9`. Definition of done step 4 ("Rules QA", `docs/wave-definition-of-done.md`):
-each pack audited against its card text, RRG 1.8 (`mc_rulesreference_v18_compressed.pdf`) and the FFG rulings
-(`marvel-champions-rulings-post-rrg-1-7.md`). Owner answers are `docs/phase7-wave9.md` section 4.1 and are not reopened here. No script,
+each pack audited against its card text, RRG 1.8 (`docs/rules/mc_rulesreference_v18_compressed.pdf`) and the FFG rulings
+(`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`). Owner answers are `docs/phase7-wave9.md` section 4.1 and are not reopened here. No script,
 engine or data file was changed; findings are reported for the owning specialist.
 
 ## Black Panther (bp)
@@ -200,7 +200,7 @@ One case is an open rules point rather than a finding (see below).
   **Answered: owner 37 = A (2026-10-10), built in the engine: the second copy does not enter play and stays where it was.** As found:
   RRG "Play, Put into Play" (p. 32): a card put into play bypasses "any restrictions or prohibitions regarding playing that card". RRG "Max":
   "A player cannot take control of another copy of a 'Max 1 per player' card they already control." The RRG does not say which wins, and no
-  ruling in `marvel-champions-rulings-post-rrg-1-7.md` names it. Today both copies end up attached to the identity (put into play wins).
+  ruling in `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` names it. Today both copies end up attached to the identity (put into play wins).
   Needs an owner answer; if the Max entry should win, the fix is in the engine's put-into-play path (one check), not in the script.
 
 ### Read against the card text, not covered by a new test
@@ -634,7 +634,7 @@ Proportions; the three Chief Officers' flip (owner Q1 = A) and Aids. No new test
 
 ### Thin coverage and open points
 
-- **Referential list (RRG p. 36).** `mc_rulesreference_v18_compressed.md` prints only item 1 of the "Referential Ability" priority list; items 2
+- **Referential list (RRG p. 36).** `docs/rules/mc_rulesreference_v18_compressed.md` prints only item 1 of the "Referential Ability" priority list; items 2
   onward are cut. Finding 4 and any other shared title ("Black Widow" is a Thunderbolt minion, the villain of scenario one, and a hero of the
   Black Widow pack; "Batroc" the minion and the villain) need the PDF's p. 36. Not tested: Pale Little Spider with the Black Widow hero or the
   Black Widow scenario, where `named("Black Widow")` has the same shape.
@@ -851,7 +851,7 @@ extends to the prohibition) produces a deadlock that no reading of the card's pu
 ### Source conflicts (flagged, not picked)
 
 - **"As if it were a minion" for "after you attack an enemy" and for divided damage.** See the two rows above: RRG "Enemy" p. 18 and "Attack (Player Ability
-  Type)" p. 10 point one way, the unqualified "as if it were a minion" can point the other. No ruling in `marvel-champions-rulings-post-rrg-1-7.md` names Encased
+  Type)" p. 10 point one way, the unqualified "as if it were a minion" can point the other. No ruling in `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` names Encased
   in Ice or the phrase (the nearest, December 17, 2025 - Ruling 1 question 3 on Beguiled, is about an ally becoming a minion by a status change).
 - **Fixer's redirect and RRG "Attach To" p. 8.** The last bullet keeps "attach to" and "another ability causes the attach" apart; it does not say whether the
   second is an attach for a response. The engine does not announce it as one.

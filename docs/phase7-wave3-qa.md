@@ -297,7 +297,7 @@ Star-Lord, Drax + Venom) live in whichever pack's folder was more natural, since
 
 ### Rulings skim
 
-Grepped `marvel-champions-rulings-post-rrg-1-7.md` (1139 lines) for every wave 3 hero/villain/pack/keyword name
+Grepped `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` (1139 lines) for every wave 3 hero/villain/pack/keyword name
 (35 hits across the file), read each hit's full ruling. Findings folded in above (Waylay, cross-checked against
 June 25, 2026 (4) #1's "nemesis sets belong to that identity"). Confirmed already correct, no new test needed:
 
@@ -528,7 +528,7 @@ s4/s5) — fixed.**
   ("...heal their identity to its printed hit point value"). Infiltrate the Museum's own Collector (II) (expert
   mode face, `16071`): "When Revealed: In player order, each player must choose to either put the top card of their
   deck faceup into The Collection or take 3 damage."
-- **Authority:** ruling June 2, 2026 (3) #2 (`marvel-champions-rulings-post-rrg-1-7.md`): "Campaign setup finishes
+- **Authority:** ruling June 2, 2026 (3) #2 (`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`): "Campaign setup finishes
   **before** resolving Collector II's When Revealed damage." `packages/engine/src/campaign.ts`'s own `CampaignWindow`
   docblock had already flagged this exact ruling as an open design question ("a box may override the affected
   instructions to `beforeScenarioSetup`") — the override was never made.

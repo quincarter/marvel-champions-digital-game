@@ -65,15 +65,15 @@ export const BOOKS: readonly BookSpec[] = [
     id: "book:rrg",
     title: "Rules Reference",
     subtitle: "Version 1.8 · July 2026",
-    source: "mc_rulesreference_v18_compressed.md",
+    source: "docs/rules/mc_rulesreference_v18_compressed.md",
     parse: { splitAt: [1, 2, 4, 5, 6], preamble: "Rules Reference" },
-    pdfs: [{ label: "Rules Reference PDF", path: "mc_rulesreference_v18_compressed.pdf" }],
+    pdfs: [{ label: "Rules Reference PDF", path: "docs/rules/mc_rulesreference_v18_compressed.pdf" }],
   },
   {
     id: "book:rulings",
     title: "FFG Rulings since RRG 1.7",
     subtitle: "December 2025 onward · transcribed by Hall of Heroes",
-    source: "marvel-champions-rulings-post-rrg-1-7.md",
+    source: "docs/rulings/marvel-champions-rulings-post-rrg-1-7.md",
     parse: { splitAt: [1, 2, 3], skipTitles: /^Table of Contents$/i },
     pdfs: [],
   },
@@ -149,8 +149,8 @@ export const BOOKS: readonly BookSpec[] = [
 // One lazy chunk per file; the key is the path from this module, so it's matched on the path from the repo root.
 const SOURCES = import.meta.glob(
   [
-    "../../../../mc_rulesreference_v18_compressed.md",
-    "../../../../marvel-champions-rulings-post-rrg-1-7.md",
+    "../../../../docs/rules/mc_rulesreference_v18_compressed.md",
+    "../../../../docs/rulings/marvel-champions-rulings-post-rrg-1-7.md",
     "../../../../docs/campaign-modes/markdown/mc*.md",
   ],
   { query: "?raw", import: "default" },

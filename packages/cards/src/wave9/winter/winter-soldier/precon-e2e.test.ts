@@ -46,7 +46,7 @@ vi.setConfig({ testTimeout: 240_000 });
  * command the engine validates. Deterministic by seed (1). Dependencies are `WAVE8_ABILITIES`, the pack's aspect/basic
  * cards and Winter Soldier's own four modules only.
  *
- * Rules the game leans on (RRG 1.8 = mc_rulesreference_v18_compressed.md):
+ * Rules the game leans on (RRG 1.8 = docs/rules/mc_rulesreference_v18_compressed.md):
  * - Guard (p. 24): a guard minion stops the engaged player attacking the villain only, so the Sandman (no guard) can
  *   be attacked while the Hydra Mercenary stands.
  * - Overkill, Piercing, Ranged, Stun, Confuse, Toughness, Quickstrike, Steady (Keywords, pp. 29-41): see each step.

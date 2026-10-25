@@ -41,7 +41,7 @@ import { SILK_OBLIGATION_NEMESIS_SKIPPED } from "./obligation-nemesis.js";
  * `tuckSetAside`: Hunting the Spider-Bride is staged already tucked in the game (it was written before the card's When
  * Revealed was scripted); a reveal of it through a real villain phase is the separate game at the end of this file.
  *
- * Rules the game leans on (RRG 1.8 = mc_rulesreference_v18_compressed.md; page numbers as the modules cite them):
+ * Rules the game leans on (RRG 1.8 = docs/rules/mc_rulesreference_v18_compressed.md; page numbers as the modules cite them):
  * - "Tuck" (p. 45): faceup, not in play; a card that leaves play discards the cards tucked under it. Silk's 4-card cap
  *   makes the player choose which 4 stay.
  * - "Cost" (p. 13): Cindy Moon's action, Organic Webbing and Albert's tuck-free half are costs paid before the effect.

@@ -3,8 +3,8 @@
 `rules-qa-engineer`, 2026-10-05. Scope: the three scenarios' own cards (Morlock Siege 40077-40089, On the Run
 40103-40111, Juggernaut 40118-40129), the Marauders set (40070-40076, both faces), the Mutant Slayers minions they use
 (40094-40102) and Hope Summers (40130, 40131) against the printed text in `packages/content/src/data/next_evol/`, RRG 1.8
-(`mc_rulesreference_v18_compressed.md`; page numbers are the printed pages given by its index) and
-`marvel-champions-rulings-post-rrg-1-7.md`. Owner rulings of `docs/phase7-wave7.md` section 4.1 were taken as given. Test
+(`docs/rules/mc_rulesreference_v18_compressed.md`; page numbers are the printed pages given by its index) and
+`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`. Owner rulings of `docs/phase7-wave7.md` section 4.1 were taken as given. Test
 file: `packages/cards/src/wave7/next_evol/qa-scenarios-1.qa.test.ts`; no engine, script or data file was touched.
 
 Not in this slice: Military Grade, Nasty Boys, Black Tom Cassidy (the other two QA agents), the other two scenarios, the

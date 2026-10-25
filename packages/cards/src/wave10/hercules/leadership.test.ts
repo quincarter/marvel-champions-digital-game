@@ -40,7 +40,7 @@ vi.setConfig({ testTimeout: 120_000 });
  * Wave 10 `hercules/leadership` (docs/phase7-wave10-hero-packs.md H3.10, H8.4 line HS14): the two reprints (59021
  * Teamwork, 59022 Call for Backup) and the five Hercules-pack cards scripted here (59018 Deathcry, 59019 Namora, 59020
  * Thor, 59023 Recruitment Drive, 59024 "Avenge Me!"), in real Hercules games against Core's Rhino. No ruling in
- * marvel-champions-rulings-post-rrg-1-7.md names these cards. Cards are staged straight into play (`stagedInPlay`) and
+ * docs/rulings/marvel-champions-rulings-post-rrg-1-7.md names these cards. Cards are staged straight into play (`stagedInPlay`) and
  * their abilities used for real.
  */
 const TEAMWORK = "59021.teamwork-interrupt";

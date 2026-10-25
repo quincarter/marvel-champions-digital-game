@@ -1,9 +1,9 @@
 # Phase 7, Wave 4: Cycle 3 – The Mad Titan's Shadow – Sources
 
 > **Verified by `game-rules-architect` (2026-09-24).** The draft (content-release-tracker, same day) cited line numbers
-> in `mc_rulesreference_v18_compressed.md` as "p. NNNN" and mixed older keywords in with cycle 3's. Every entry below
+> in `docs/rules/mc_rulesreference_v18_compressed.md` as "p. NNNN" and mixed older keywords in with cycle 3's. Every entry below
 > was re-checked against the RRG 1.8 PDF's printed page footers (PDF page index + 1 = printed page, checked with
-> `pypdf` on pp. 21, 42, 62, 67), the MC21 rulebook conversion and `marvel-champions-rulings-post-rrg-1-7.md`. Entries
+> `pypdf` on pp. 21, 42, 62, 67), the MC21 rulebook conversion and `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`. Entries
 > that were wrong are corrected in place, and each correction says what changed. `docs/phase7-wave4.md` §0 is the
 > authority list this file feeds.
 
@@ -136,7 +136,7 @@ Keywords", a reminder list.
 - Beguiled (#31, Valkyrie): Condition trait and the quoted When Revealed.
 - Machine Man (#22, Vision, an **ally**; the draft said upgrade): "for this use".
 
-## 5. FFG rulings touching cycle 3 (`marvel-champions-rulings-post-rrg-1-7.md`)
+## 5. FFG rulings touching cycle 3 (`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`)
 
 Replaced. The draft's list cited several rulings that do not touch these packs (Jan 11, 2026 (2) Cap's Shield; Jan 17,
 2026 (2); Mar 6, 2026 (3) Wonder Man; Jun 2, 2026 (3), a Galaxy's Most Wanted ruling) and missed several that do.

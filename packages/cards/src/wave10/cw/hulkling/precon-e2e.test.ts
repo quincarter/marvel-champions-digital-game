@@ -42,7 +42,7 @@ vi.setConfig({ testTimeout: 240_000 });
  * deep-equal from its own log. The board is quiet: the main scheme pair Homeland Security / No Going Back, Stark Tower put
  * back in the deck.
  *
- * Authorities: the printed cards; MC56 p. 18; RRG 1.8 (mc_rulesreference_v18_compressed.md): "Stun, Stunned" p. 41 (a
+ * Authorities: the printed cards; MC56 p. 18; RRG 1.8 (docs/rules/mc_rulesreference_v18_compressed.md): "Stun, Stunned" p. 41 (a
  * stunned character's attack is replaced by discarding the card), "Tough" p. 44, "Defend, Defense" pp. 14-15 (a
  * defense-labeled ability is not a basic defense), "Find" p. 19, "Cost" p. 13 (resources generated for a card are paid for
  * that card). FFG rulings: January 11, 2026 Ruling 1 (Teddy Altman bars a second Shapeshift upgrade; Armored Defense

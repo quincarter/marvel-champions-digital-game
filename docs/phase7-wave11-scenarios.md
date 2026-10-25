@@ -15,13 +15,13 @@ emitted (another agent is emitting `fne` now); `fne.ts` has `scenarios: []`.
 
 ## S0. Sources read
 
-- **RRG 1.8** (`mc_rulesreference_v18_compressed.md`, pages from the footer markers): Amplify Icon p. 7, "Cannot" p. 11,
+- **RRG 1.8** (`docs/rules/mc_rulesreference_v18_compressed.md`, pages from the footer markers): Amplify Icon p. 7, "Cannot" p. 11,
   Crisis Icon and Damage p. 14, Excess Damage p. 19, Flip p. 20, Main Scheme p. 27, Modes of Play p. 28–29, Overkill
   p. 31, Patrol p. 32, Play Area p. 33, Player Elimination p. 34, Set Aside p. 39, Setup p. 40, Steady p. 41, Teamwork
   p. 43, Toughness and Tuck p. 45, Unique Icon pp. 45–46, Uses p. 46, Villainous p. 47, Vulnerable p. 48, Appendix II
   p. 51.
 - **Errata:** none for this box (sources §6).
-- **FFG rulings** (`marvel-champions-rulings-post-rrg-1-7.md`): January 26, 2026 R4 (2), April 30, 2026 R3 (2, 3),
+- **FFG rulings** (`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`): January 26, 2026 R4 (2), April 30, 2026 R3 (2, 3),
   June 25, 2026 R4 (3) — environments flip, they are not revealed; a toughness ally entering play during campaign setup
   gains its tough card. February 28, 2026 R6 (a villainous minion's boost does not activate the villain). January 26,
   2026 R3 and March 6, 2026 R1 (excess damage dealt vs. overkill taken). None names an FNE encounter card.

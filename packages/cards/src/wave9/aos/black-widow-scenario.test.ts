@@ -47,7 +47,7 @@ vi.setConfig({ testTimeout: 300_000 });
  * A.I.M. Science, Standard, and Expert in expert mode), played through the engine's real commands, one decision at a
  * time, deterministic by seed (1). Only the encounter deck's order (`stackEncounterDeck`) and the cards a turn needs in
  * hand (`moveToHand`) are seeded; every attack, play, thwart and prompt answer is a command the engine validates.
- * RRG 1.8 = mc_rulesreference_v18_compressed.md; rulings = marvel-champions-rulings-post-rrg-1-7.md.
+ * RRG 1.8 = docs/rules/mc_rulesreference_v18_compressed.md; rulings = docs/rulings/marvel-champions-rulings-post-rrg-1-7.md.
  *
  * Games:
  * - A (solo, standard, Core Spider-Man, to a win): setup (the Scientist chosen); her Forced Interrupt on a basic attack

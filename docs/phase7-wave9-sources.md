@@ -5,7 +5,7 @@
 > **Check marks:** a claim is "checked" only if the main text was read in this session from the primary file or an
 > extracted PDF text layer. Everything else is "unchecked (from markdown/raw data)". The RRG PDF could not be rendered
 > in this session (`pdftoppm` is missing), so every RRG page number below is read from the footer markers in
-> `mc_rulesreference_v18_compressed.md` (unchecked against the PDF). Community pages are pointers, never authorities.
+> `docs/rules/mc_rulesreference_v18_compressed.md` (unchecked against the PDF). Community pages are pointers, never authorities.
 
 ---
 
@@ -321,7 +321,7 @@ status cards.
 
 ## 6. FFG rulings that touch these packs
 
-Source: `marvel-champions-rulings-post-rrg-1-7.md` (transcribed by Hall of Heroes; author of each ruling Alex Werner).
+Source: `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` (transcribed by Hall of Heroes; author of each ruling Alex Werner).
 Found by
 matching every card and villain name in the six raw caches against the file. Cite by date heading and number. Each entry
 was read.
@@ -410,7 +410,7 @@ read in full and are not listed.
 
 ## Internal sources
 
-- `mc_rulesreference_v18_compressed.md` (July 2026) and `.pdf` (not rendered this session)
+- `docs/rules/mc_rulesreference_v18_compressed.md` (July 2026) and `.pdf` (not rendered this session)
 - `docs/campaign-modes/mc50_rulebook-web.pdf` and `markdown/mc50_agents_of_shield.md`
-- `marvel-champions-rulings-post-rrg-1-7.md`
+- `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`
 - `packages/content/raw/marvelcdb/{aos,bp,silk,falcon,winter,tt}.json` (fetched 2026-09-13)

@@ -29,14 +29,14 @@ Double Agent 56211, Spider-Blast 56212, Hard to Hit 56213 and Secret Contact 562
   56015, 56018, 56042, 56044, 56049, 56051 and 56053.
 - **MC56 rulebook, as page images.** p. 18 (starter decks: both lists and both nemesis sets, read in full) and p. 20
   (FAQ: seven entries, none names a card of this pass).
-- **RRG 1.8** (`mc_rulesreference_v18_compressed.md`; pages from the footer that follows a line): Activation p. 6,
+- **RRG 1.8** (`docs/rules/mc_rulesreference_v18_compressed.md`; pages from the footer that follows a line): Activation p. 6,
   Attach To p. 8, Attack p. 10, Choose (Option) p. 12, Classifications p. 12, Copy p. 13, Cost p. 14, Defend, Defense
   p. 15, Engage p. 18, Find p. 19, Form and Guard p. 21, Identity-Specific Card p. 23, Labeled Ability p. 26, "Loses"
   p. 27, Max p. 28, Play, Put into Play p. 32, Quickstrike p. 36, Resource Ability p. 37, Retaliate X p. 38, Search
   p. 39, Status Cards, Steady and Stun p. 41, Triggering Condition and Tuck p. 45, Villainous p. 47, When Revealed
   p. 48; FAQ entries Tigra/Greer Grant Nelson (#51) p. 58, Wasp, Quicksilver and Hulk p. 61; errata Yellowjacket
   (#19) and Moon Knight (#65) p. 70.
-- **FFG rulings** (`marvel-champions-rulings-post-rrg-1-7.md`, by date heading, each read this session): January 11,
+- **FFG rulings** (`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`, by date heading, each read this session): January 11,
   2026 – Ruling 1 (Teddy Altman; Armored Defense); February 28, 2026 – Ruling 1 (abilities triggered by a cost
   resolve before the effect; quickstrike included) and Ruling 4 (quickstrike resolves on engagement); March 30, 2026 –
   Ruling 1 (On the Hunt's maximum); April 30, 2026 – Ruling 4 (Digging Deep, behind wave 7's Q32); July 9, 2026 –

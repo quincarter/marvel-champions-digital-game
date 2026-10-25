@@ -1,5 +1,5 @@
 /**
- * QA: FFG rulings (marvel-champions-rulings-post-rrg-1-7.md, cited by date heading) and the owner's answers
+ * QA: FFG rulings (docs/rulings/marvel-champions-rulings-post-rrg-1-7.md, cited by date heading) and the owner's answers
  * (docs/phase7-wave8.md section 4.1, cited by question number) that name a wave 8 card or a mechanic this cycle
  * introduced, replayed with shipped cards in real games. This file holds only what no other test of the wave proves;
  * the survey of what is proven where is in the QA hand-off. A `// FINDING` comment marks a case where the game and the

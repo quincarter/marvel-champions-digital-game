@@ -53,7 +53,7 @@ H8.2 queues 17 engine tasks, one primitive each.
     all of your Marvel Champions cards outside of the current game for an ally that belongs to another identity's set
     of cards." (3) Overpaying with different resource types: "Yes … you can allocate the [physical] resource to pay
     the cost of Ionic Blast and the [energy][energy] resources to overpay." Sidebar: "Wonder Man / Justice".
-- **RRG 1.8** (`mc_rulesreference_v18_compressed.md`; pages from the markdown's page footers, by script): "Assault"
+- **RRG 1.8** (`docs/rules/mc_rulesreference_v18_compressed.md`; pages from the markdown's page footers, by script): "Assault"
   (p. 8), "Attacks Against Allies" (p. 10), "Classifications" (p. 12), "Cost" (pp. 13–14), "Dash (Value)" (p. 15),
   "Deck" (p. 15), "Defend, Defense" (p. 15), "Find" (p. 19), "Hinder X" (p. 22), "Keywords" (p. 25), "Labeled
   Ability" (p. 26), "Leaves Play" (p. 27), "Obligation" (p. 30), "'Otherwise'" (p. 31), "'Overpay'" (p. 31: "See:
@@ -66,7 +66,7 @@ H8.2 queues 17 engine tasks, one primitive each.
   - **Errata, p. 70, "Wonder Man Hero Pack – Ionic Physiology (#2)"** (checked): "Should read: 'Response: After you
     play an event with a printed [energy] resource, tuck that event from your discard pile under this card. Then,
     heal 1 damage from your identity.' (Changed cost arrow to 'Then'.)" No errata for the Hercules pack.
-- **FFG rulings** (`marvel-champions-rulings-post-rrg-1-7.md`). Every card title and identity name of the two packs
+- **FFG rulings** (`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`). Every card title and identity name of the two packs
   was matched against the file by script and each hit read: January 17, 2026 – Ruling 4 (1); January 26, 2026 –
   Ruling 2; February 8, 2026 – Ruling 2; February 20, 2026 – Ruling 3; March 6, 2026 – Rulings 3 and 4; March 19, 2026
   – Ruling 6; June 2, 2026 – Rulings 1 and 2 (3, 4); June 19, 2026 – Ruling 1; July 9, 2026 – Ruling 3 (3). H3 says

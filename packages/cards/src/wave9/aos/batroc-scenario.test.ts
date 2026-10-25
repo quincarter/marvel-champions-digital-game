@@ -47,7 +47,7 @@ vi.setConfig({ testTimeout: 300_000 });
  * Science and Batroc's Brigade, Core Spider-Man starter deck) played through the engine's real commands, one decision at
  * a time, deterministic by seed (1). Only the encounter deck's order (`stackEncounterDeck`) and the cards a round needs
  * in hand (`moveToHand`) are seeded; every play, ability, attack, thwart and prompt answer is a command the engine
- * validates. RRG 1.8 = mc_rulesreference_v18_compressed.md; rulings = marvel-champions-rulings-post-rrg-1-7.md.
+ * validates. RRG 1.8 = docs/rules/mc_rulesreference_v18_compressed.md; rulings = docs/rulings/marvel-champions-rulings-post-rrg-1-7.md.
  *
  * Games:
  * - A (solo, to a win): setup; Batroc's attack placing threat on Alert Level; a Vulnerable Guard discarded by a stun

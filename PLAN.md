@@ -707,7 +707,7 @@ Owner: `card-data-pipeline` + `ability-scripting-engineer`, tracked by `content-
     - the dev-only `/api/marvelcdb-import/*` route;
     - view models for the deck list, import and builder.
     - No scenes yet.
-- **Local rules sources (2026-09-13).** The user added RRG 1.8 (`mc_rulesreference_v18_compressed.pdf`) and Hall of Heroes' transcription of official FFG rulings since RRG 1.7 (`marvel-champions-rulings-post-rrg-1-7.md`) to the repo root; CLAUDE.md now points at both. Entries that bear on current work:
+- **Local rules sources (2026-09-13).** The user added RRG 1.8 (`docs/rules/mc_rulesreference_v18_compressed.pdf`) and Hall of Heroes' transcription of official FFG rulings since RRG 1.7 (`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`) to the repo root; CLAUDE.md now points at both. Entries that bear on current work:
   - **Aug 3, 2026, ruling 4:** Linked cards cannot be included in decks. Confirms `validateDeck`'s `linked_card` problem.
   - **Jan 17, 2026, ruling 5 (Wrecking Crew):** only the active villain's encounter deck can be interacted with. A card shuffled into "the encounter deck" goes into the active villain's, and a defeated nemesis minion goes to the active villain's discard. This settles the multi-villain encounter-deck model.
   - **Jan 26, 2026, ruling 4, #3:** when several players are dealt encounter cards at once (Green Goblin II's When Revealed), the first player chooses the order and players receive their cards in blocks, AABB or BBAA, never ABAB.

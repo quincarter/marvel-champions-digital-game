@@ -6,8 +6,8 @@
 
 ## 1. Sources found
 
-Searches: `mc_rulesreference_v18_compressed.md` (RRG page numbers are the table-of-contents numbers) and
-`marvel-champions-rulings-post-rrg-1-7.md` for Cable, Domino, Stryfe, Topaz, Technovirus, Back to the Future, every card
+Searches: `docs/rules/mc_rulesreference_v18_compressed.md` (RRG page numbers are the table-of-contents numbers) and
+`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` for Cable, Domino, Stryfe, Topaz, Technovirus, Back to the Future, every card
 title of both kits, "victory display", "resource icon", "swap", "stunned". **No ruling names a card of either hero.**
 The rulings used are general:
 

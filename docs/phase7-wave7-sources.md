@@ -2,7 +2,7 @@
 
 > **Status:** In preparation for Phase 7 wave 7, cycle 7 (NeXt Evolution) card scripting.
 > **Scope:** Campaign box MC40, hero packs Psylocke/Angel/X-23/Deadpool; scenarios with Cable and Domino as campaign heroes.
-> **Note on RRG citations:** printed page = PDF page index + 1. Checked against `mc_rulesreference_v18_compressed.pdf` (July 2026).
+> **Note on RRG citations:** printed page = PDF page index + 1. Checked against `docs/rules/mc_rulesreference_v18_compressed.pdf` (July 2026).
 
 ---
 
@@ -62,7 +62,7 @@ Cycle 7 is one campaign box and four hero packs. Per **RRG 1.8 Appendix VI, "Lim
 ## 3. RRG 1.8 and official rulings for cycle 7
 
 Page numbers in this section were checked by the main session with pypdf against
-`mc_rulesreference_v18_compressed.pdf` (printed page = PDF index + 1).
+`docs/rules/mc_rulesreference_v18_compressed.pdf` (printed page = PDF index + 1).
 
 ### 3.1 Keywords and mechanics the cycle features
 
@@ -102,7 +102,7 @@ conversion puts them under NeXt Evolution because of the page's column order.
 ## 4. Post-RRG-1.7 rulings on cycle 7 cards
 
 Found by matching every card title in the five packs' raw data against
-`marvel-champions-rulings-post-rrg-1-7.md` (rewritten by the main session; the first draft listed one ruling of
+`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` (rewritten by the main session; the first draft listed one ruling of
 ten). Cite each by its date heading. **Read each ruling in full** before scripting its card.
 
 | Ruling (date heading)             | Card (our id, pack)                        | What it says                                                                                                                                                                                                                            |
@@ -183,9 +183,9 @@ searches "your collection", which the December 17, 2025 ruling bounds.
 
 ## Internal sources
 
-- `mc_rulesreference_v18_compressed.md` and `.pdf` (July 2026), Appendix VI (p. 71), Aspect Card and Assault (p. 8), Per Player Icon (p. 32), Player Side Scheme (p. 34), FAQ entries (p. 64), errata (p. 69)
+- `docs/rules/mc_rulesreference_v18_compressed.md` and `.pdf` (July 2026), Appendix VI (p. 71), Aspect Card and Assault (p. 8), Per Player Icon (p. 32), Player Side Scheme (p. 34), FAQ entries (p. 64), errata (p. 69)
 - `docs/campaign-modes/mc40_next_evolution_rulebook-web.pdf` and `markdown/mc40_next_evolution.md`
-- `marvel-champions-rulings-post-rrg-1-7.md` (the ten rulings in §4)
+- `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` (the ten rulings in §4)
 - `packages/content/raw/marvelcdb/{next_evol,psylocke,angel,x23,deadpool}.json` (card data)
 
 ## Corrections after the spec's first pass (main session, 2026-10-04)

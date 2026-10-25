@@ -19,7 +19,7 @@ cards via direct object references into `JUSTICE`/`VENOM_KIT`/`NEBULA_PACK_CARDS
 
 All 39 Spider-Ham cards (30001a/b–30038) read against `packages/content/src/data/spiderham/cards.ts`'s printed
 text, the card scans under `assets/card-art/bundles/cards/`, RRG 1.8, and
-`marvel-champions-rulings-post-rrg-1-7.md` (grepped for "Spider-Ham", "Peter Porker", "toon counter", "Green
+`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` (grepped for "Spider-Ham", "Peter Porker", "toon counter", "Green
 Gobbler", "Inheritor", "Gobbler Glider", "Feast on This", "Nefarious Trap", "Cartoon Physics", "Huge Wooden
 Hammer", "Organic Webbing", "The Daily Beagle", "Overwatch", "Lady Spider", "Scarlet Spider", "SP//dr", "Captain
 Americat", "Hunting the Spider").

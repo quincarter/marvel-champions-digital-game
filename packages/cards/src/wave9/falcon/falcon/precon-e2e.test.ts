@@ -41,7 +41,7 @@ vi.setConfig({ testTimeout: 240_000 });
  * "while ready" stand-in for the exhaust cost, Captain America's Shield (53034), the Techno module and Strength in
  * Diversity (53019).
  *
- * Rules the game leans on (RRG 1.8 = mc_rulesreference_v18_compressed.md):
+ * Rules the game leans on (RRG 1.8 = docs/rules/mc_rulesreference_v18_compressed.md):
  * - Search (p. 39): the deck is shuffled afterward. Response (p. 37): an optional response resolves after its trigger.
  * - Cost (p. 13): a card's printed cost is paid by resource icons; a wild counts as any type.
  * - Villain phase (Appendix II, pp. 51-52): step 1 threat, step 2 the villain then minions activate, step 4 reveal; a

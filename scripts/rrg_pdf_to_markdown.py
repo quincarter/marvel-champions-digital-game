@@ -5,12 +5,12 @@
 """
 Rules Reference PDF -> Markdown (mechanical transcription, one `<!-- PDF page N -->` marker per page).
 
-Used for mc_rulesreference_v16_compressed.md. The PDF is not committed; download it from Hall of Heroes (the link is
+Used for docs/rules/mc_rulesreference_v16_compressed.md. The PDF is not committed; download it from Hall of Heroes (the link is
 in docs/project/rules-authority.md) and pass its path. pymupdf4llm is pinned below 1.0 because the 2.0 release on
 PyPI ships no module.
 
 Usage:
-    uv run scripts/rrg_pdf_to_markdown.py <rrg.pdf> mc_rulesreference_v16_compressed.md
+    uv run scripts/rrg_pdf_to_markdown.py <rrg.pdf> docs/rules/mc_rulesreference_v16_compressed.md
 """
 
 import datetime as dt
@@ -24,10 +24,10 @@ HEADER = """# Marvel Champions Rules Reference, v1.6 (July 2024): Markdown trans
 > **Source:** [mc_rulesreference_v16_compressed.pdf](https://hallofheroeslcg.com/wp-content/uploads/2024/07/mc_rulesreference_v16_compressed.pdf)
 > (FFG, hosted by Hall of Heroes). Converted mechanically with pymupdf4llm on {date}; layout artifacts
 > (broken columns, index dot leaders) are left as converted.
-> **Historical, not current:** RRG v1.8 ([`mc_rulesreference_v18_compressed.md`](mc_rulesreference_v18_compressed.md))
+> **Historical, not current:** RRG v1.8 ([`docs/rules/mc_rulesreference_v18_compressed.md`](mc_rulesreference_v18_compressed.md))
 > is the current rules authority and wins wherever this version differs. This copy is kept for history and for
 > resolving conflicts, such as reading what the rules said when the post-RRG 1.6 rulings
-> ([`docs/rulings/post-rrg-1-6/`](docs/rulings/post-rrg-1-6/)) were issued.
+> ([`docs/rulings/post-rrg-1-6/`](../rulings/post-rrg-1-6/)) were issued.
 > Each `<!-- PDF page N -->` marker starts a page of the PDF; the printed page number appears near the end of it.
 
 """

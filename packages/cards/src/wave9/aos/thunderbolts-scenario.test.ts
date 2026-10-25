@@ -57,7 +57,7 @@ vi.setConfig({ testTimeout: 300_000 });
  * played through the engine's real commands, one decision at a time, deterministic by seed. Only the encounter deck's
  * order (`stackEncounterDeck`) and the cards a turn needs in hand (`moveToHand`) are seeded, with one exception named
  * where it happens (game C stages Citizen V's and one minion's damage with `patchInstance`). RRG 1.8 =
- * mc_rulesreference_v18_compressed.md; rulings = marvel-champions-rulings-post-rrg-1-7.md.
+ * docs/rules/mc_rulesreference_v18_compressed.md; rulings = docs/rulings/marvel-champions-rulings-post-rrg-1-7.md.
  *
  * Owner decisions in force: Q2 = A (a stunned or confused Citizen V who "would activate" against a player engaged with a
  * Thunderbolt minion discards the status card and does not heal; game C), Q25 = A (a minion already in play that

@@ -5,8 +5,8 @@ Checked 2026-10-08 on `feature/wave-8`, as the second half of the check the owne
 ## Sources, in order of authority
 
 1. The owner's answers, `docs/phase7-wave8.md` §4.1 rows 1 to 72 (binding where they speak).
-2. RRG 1.8 (`mc_rulesreference_v18_compressed.pdf`), cited "RRG p. N". Page numbers are the PDF's printed pages; entries are named as the RRG's index names them.
-3. FFG rulings since RRG 1.7 (`marvel-champions-rulings-post-rrg-1-7.md`), cited by date heading and ruling number.
+2. RRG 1.8 (`docs/rules/mc_rulesreference_v18_compressed.pdf`), cited "RRG p. N". Page numbers are the PDF's printed pages; entries are named as the RRG's index names them.
+3. FFG rulings since RRG 1.7 (`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`), cited by date heading and ruling number.
 4. The Age of Apocalypse rulebook ("MC45 p. N") and printed card text in `packages/content/src/data/<pack>/cards.ts`.
 
 Community pages are not used. The Wrecking Crew insert is not in the repo (see "Could not verify").

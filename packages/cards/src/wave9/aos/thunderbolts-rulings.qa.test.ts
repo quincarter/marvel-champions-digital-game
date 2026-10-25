@@ -5,8 +5,8 @@
  * the Atom 50152 to 50155, Supersonic 50156 to 50160, The Leaper 50161 to 50164; `bp`: Extreme Risk 51039 to 51042;
  * `silk`: Growing Strong 52035 to 52038) and the S.H.I.E.L.D. Executive Board (50181a to 50184c): the interactions
  * the module tests and the scenario games (`thunderbolts-scenario.test.ts`, `thunderbolts-new-sets-scenario.test.ts`)
- * do not assert, each tied to an RRG 1.8 entry (`mc_rulesreference_v18_compressed.pdf`), an FFG ruling by its date
- * heading (marvel-champions-rulings-post-rrg-1-7.md), the box rulebook (MC50) or an owner answer
+ * do not assert, each tied to an RRG 1.8 entry (`docs/rules/mc_rulesreference_v18_compressed.pdf`), an FFG ruling by its date
+ * heading (docs/rulings/marvel-champions-rulings-post-rrg-1-7.md), the box rulebook (MC50) or an owner answer
  * (docs/phase7-wave9.md section 4.1). A `FINDING` comment marks a case where the game and its source disagree: the
  * expected behavior is an `it.fails`, with a passing companion that pins today's behavior. Findings are tabled in
  * docs/phase7-wave9-qa.md.

@@ -100,7 +100,7 @@ Reference; FFG rulings clarify both):
      50165a, 50165b, 50167a, 50167b, 50168b, 50169b, 50171, 50181a, 50181b, 50184a, 50185. **A printed-card claim in
      this file is "checked" only for those faces**; every other card is "unchecked (raw data)". The scans disagree
      with the raw cache in the places §1.14 lists.
-2. **RRG 1.8** (`mc_rulesreference_v18_compressed.md` for text, the PDF for page numbers; PDF page = printed page,
+2. **RRG 1.8** (`docs/rules/mc_rulesreference_v18_compressed.md` for text, the PDF for page numbers; PDF page = printed page,
    confirmed on pp. 6, 48, 64, 65 and 69 through the text layer). Entries this pass leans on: "Activation" (p. 6),
    "All-Purpose Counter" (p. 6), "Attack (Enemy Activation)" (p. 8), "'Cannot'" (p. 11), "Confuse, Confused" (p. 13),
    "Crisis Icon" (p. 14), "Dash (Value)" (p. 15), "Defeat" (p. 15), "Engage" (p. 18), "Find" (p. 19), "First Player"
@@ -118,7 +118,7 @@ Reference; FFG rulings clarify both):
      - The "Your identity gets +4 hit points" line is Front Line Specialist (#36), X-23 Hero Pack, not this box.
      - **The RRG's collector number for Radiation Exposure is wrong.** The card is 153 (scan 50153, "Power of the Atom
        (2/6)"); 171 is Reluctant Foe, which has no stat box. The erratum is applied to 50153 (§3.34).
-3. **FFG rulings** (`marvel-champions-rulings-post-rrg-1-7.md`, cited by date heading). Every title of the box was
+3. **FFG rulings** (`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`, cited by date heading). Every title of the box was
    matched against the file by script. Rulings that name a card or rule of this pass:
    - December 17, 2025 – Ruling 3: "Stealth Suit only triggers when Nick Fury would be attacked" (not an ally he
      controls; §3.9).
@@ -255,7 +255,7 @@ between the RRG and the rulebook (§4.1 Q1, Q2 and Q5).
 - **The grid, a second reading.** The handoff's 27 rows by color (`docs/phase7-wave9-handoff.md`, "Evidence
   combinations", read by the main session) were read again from the 230 dpi render: all 27 agree (checked, two readers).
   By card id they are §1.16's table.
-- **Rulings.** `marvel-champions-rulings-post-rrg-1-7.md` was searched for "S.H.I.E.L.D.", "evidence", "Zemo", "Board
+- **Rulings.** `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` was searched for "S.H.I.E.L.D.", "evidence", "Zemo", "Board
   Member", "secret counter" and "campaign". **No ruling names this campaign, the evidence, a Board Member or Baron
   Zemo**, so none says a printed wording here is unintended. Two rulings on other boxes bear on it: August 3, 2026 –
   Ruling 4 (3), "Linked cards cannot be included in decks" (§3.77), and June 2, 2026 – Ruling 3 (2), "Campaign setup

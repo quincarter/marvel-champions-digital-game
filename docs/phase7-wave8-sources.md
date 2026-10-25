@@ -2,7 +2,7 @@
 
 > **Status:** In preparation for Phase 7 wave 8, cycle 8 (Age of Apocalypse) card scripting.
 > **Scope:** Campaign box MC45, hero packs Bishop/Magik/Iceman/Jubilee/Nightcrawler/Magneto; five scenarios and side missions.
-> **Note on RRG citations:** printed page = PDF page index + 1. Checked against `mc_rulesreference_v18_compressed.pdf` (July 2026).
+> **Note on RRG citations:** printed page = PDF page index + 1. Checked against `docs/rules/mc_rulesreference_v18_compressed.pdf` (July 2026).
 
 ---
 
@@ -68,7 +68,7 @@ Cycle 8 is one campaign box and four hero packs. Per **RRG 1.8 Appendix VI, "Lim
 
 ## 3. RRG 1.8 and official rulings for cycle 8
 
-Page numbers cited were checked by reading `mc_rulesreference_v18_compressed.pdf` (printed page = PDF index + 1).
+Page numbers cited were checked by reading `docs/rules/mc_rulesreference_v18_compressed.pdf` (printed page = PDF index + 1).
 
 ### 3.1 Keywords and mechanics the cycle features
 
@@ -102,7 +102,7 @@ FAQ entries are on RRG 1.8 p. 64 (marked "AGE OF APOCALYPSE EXPANSION" starting 
 
 ## 4. Post-RRG-1.7 rulings on cycle 8 cards
 
-Found by matching card names from the five raw caches against `marvel-champions-rulings-post-rrg-1-7.md`. **Read each ruling in full** before scripting its card.
+Found by matching card names from the five raw caches against `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`. **Read each ruling in full** before scripting its card.
 
 | Ruling (date heading)         | Card (hero pack or context)                | Summary                                                                                                                                                                           |
 | ----------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -175,7 +175,7 @@ Card counts and facts from `packages/content/raw/marvelcdb/` caches. Card mechan
 
 ## Internal sources
 
-- `mc_rulesreference_v18_compressed.md` and `.pdf` (July 2026), Appendix VI (p. 71), Amplify Icon (p. 3), FAQ entries (p. 64), errata (p. 69)
+- `docs/rules/mc_rulesreference_v18_compressed.md` and `.pdf` (July 2026), Appendix VI (p. 71), Amplify Icon (p. 3), FAQ entries (p. 64), errata (p. 69)
 - `docs/campaign-modes/mc45_age_of_apocalypse_rulebook.pdf` and `markdown/mc45_age_of_apocalypse.md`
-- `marvel-champions-rulings-post-rrg-1-7.md` (April 30, 2026 - Ruling 4 #2; June 2, 2026 - Ruling 1)
+- `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` (April 30, 2026 - Ruling 4 #2; June 2, 2026 - Ruling 1)
 - `packages/content/raw/marvelcdb/{aoa,iceman,jubilee,ncrawler,magneto}.json` (card data, fetched 2026-09-13)

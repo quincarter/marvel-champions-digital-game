@@ -3,7 +3,7 @@
  * it?"). These are separate questions with separate functions.
  *
  * Source: Marvel Champions Rules Reference, version 1.8 (Jul 2026; FFG PDF
- * `mc_rulesreference_v18_compressed.pdf`), Appendix I "Deck Customization", p. 50:
+ * `docs/rules/mc_rulesreference_v18_compressed.pdf`), Appendix I "Deck Customization", p. 50:
  *
  *   "• A player must choose exactly one identity card.
  *    • A player's deck consists of a minimum of 40 cards and a maximum of 50 cards. The
