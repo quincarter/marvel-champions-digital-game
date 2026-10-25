@@ -155,9 +155,11 @@ describe("the end-of-phase discard sheet", () => {
     expect(sheet(shuffled, discardChoice)).toBeNull();
   });
 
-  test("the gate that follows the discards still offers Nevermind, back to before End turn", () => {
-    const answered = entry(command("resolveChoice"), [...discard, ...refill(), toVillain, event("enemyActivated")]);
+  test("the gate that follows the discards offers Nevermind only when the refill drew nothing", () => {
+    const answered = entry(command("resolveChoice"), [...discard, toVillain, event("enemyActivated")]);
     expect(gate([...askedTrail, answered])).toBe(1);
+    const drew = entry(command("resolveChoice"), [...discard, ...refill(), toVillain, event("enemyActivated")]);
+    expect(gate([...askedTrail, drew])).toBe(TAKEBACK_AFTER_OWN_DRAW ? 1 : null);
     const revealed = entry(command("resolveChoice"), [event("deckShuffled"), toVillain]);
     expect(gate([...askedTrail, revealed])).toBeNull();
   });
