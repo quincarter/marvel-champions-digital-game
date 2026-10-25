@@ -18,7 +18,7 @@ import type { BoardDrawContext } from "./context.js";
 
 export function drawSearchedPickSheet(ctx: BoardDrawContext, viewport: Rect, pick: SearchedPickView): void {
   const { scene, controller } = ctx;
-  const layout = searchedPickLayout(viewport, pick.options.length, pick.confirm);
+  const layout = searchedPickLayout(viewport, pick.options.length, pick.confirm, pick.page ?? 0);
 
   // The scrim also swallows taps, so nothing on the table underneath answers while the sheet is up.
   scene.add
@@ -63,8 +63,42 @@ export function drawSearchedPickSheet(ctx: BoardDrawContext, viewport: Rect, pic
     );
   }
 
-  pick.options.forEach((option, index) => {
-    const rects = layout.tiles[index]!;
+  const { pager } = layout;
+  if (pager) {
+    // A list longer than the sheet holds (every ally in every discard pile, on a phone) pages instead of shrinking
+    // its faces past reading or running off the sheet (#420).
+    ctx.frame.buttons.push(
+      new McButton(scene, {
+        kind: "secondary",
+        label: "Previous",
+        type: typeRole.label,
+        rect: pager.previous,
+        enabled: pager.page > 0,
+        onClick: () => controller.showSearchedPage(pager.page - 1),
+      }),
+      new McButton(scene, {
+        kind: "secondary",
+        label: "Next",
+        type: typeRole.label,
+        rect: pager.next,
+        enabled: pager.page < pager.pages - 1,
+        onClick: () => controller.showSearchedPage(pager.page + 1),
+      }),
+    );
+    const pageText = scene.add
+      .text(
+        pager.label.x + pager.label.width / 2,
+        pager.label.y + pager.label.height / 2,
+        `Page ${pager.page + 1} of ${pager.pages}`,
+        textStyle(typeRole.label, surface.ink.hex),
+      )
+      .setOrigin(0.5);
+    fitText(pageText, pager.label.width, typeRole.label.size);
+  }
+
+  layout.tiles.forEach((rects, onPage) => {
+    const index = layout.first + onPage;
+    const option = pick.options[index]!;
     const { face, tag, caption, inspect } = rects;
     g.fillStyle(surface.parchment.hex, 1).fillRect(face.x, face.y, face.width, face.height);
     const drawn = drawArt(scene, ctx.art.request(scene, option.art), face, { fit: "contain" }) !== null;

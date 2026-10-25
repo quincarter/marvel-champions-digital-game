@@ -909,8 +909,18 @@ export class BoardController {
   /** The searched-minion list: the card being played and each minion the search found, with its area, or null. */
   searchedPick(): SearchedPickView | null {
     if (this.#selection.kind !== "choosingSearched") return null;
-    const { pick, chosen } = this.#selection;
-    return pick.confirm ? { ...pick, chosen } : pick;
+    const { pick, chosen, page } = this.#selection;
+    return { ...pick, page, ...(pick.confirm ? { chosen } : {}) };
+  }
+
+  /**
+   * Previous / Next on a list longer than the sheet holds. The sheet passes the page it shows plus or minus one, so a
+   * page left past the end by a resize (fewer, larger pages) never takes a dead press to come back.
+   */
+  showSearchedPage(page: number): void {
+    if (this.#selection.kind !== "choosingSearched") return;
+    this.#selection = { ...this.#selection, page: Math.max(0, page) };
+    this.#host.redraw();
   }
 
   /**
@@ -1033,7 +1043,7 @@ export class BoardController {
     // list asks; Make the Call's asks even for one ally, so the player sees which it is before paying (#419).
     const pick = target === null && game ? searchedPickFor(game, POOL_DEPS, entry) : null;
     if (pick) {
-      this.#selection = { kind: "choosingSearched", entry, pick, chosen: null, controllerId, confirmFree };
+      this.#selection = { kind: "choosingSearched", entry, pick, chosen: null, page: 0, controllerId, confirmFree };
       this.#host.redraw();
       return;
     }

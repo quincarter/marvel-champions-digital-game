@@ -167,6 +167,8 @@ export interface SearchedPickView {
   readonly confirm: boolean;
   /** The option selected so far, when `confirm`; filled in by the board controller, null until a tap. */
   readonly chosen?: InstanceId | null;
+  /** The page of the list shown, when it is longer than the sheet holds; filled in by the board controller. */
+  readonly page?: number;
 }
 
 const AREA_TAGS: Readonly<Record<string, string>> = {

@@ -127,6 +127,8 @@ export type Selection =
       readonly pick: SearchedPickView;
       /** The option selected so far, for a list that waits for Confirm (Make the Call); null until a tap. */
       readonly chosen: InstanceId | null;
+      /** The page of a list longer than the sheet holds (`view/searched-pick-layout.ts`); 0 until Next. */
+      readonly page: number;
       readonly controllerId: PlayerId | null;
       readonly confirmFree: boolean;
     }
