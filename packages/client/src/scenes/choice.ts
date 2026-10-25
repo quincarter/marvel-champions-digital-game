@@ -145,6 +145,8 @@ import {
 } from "../view/pair-cards-model.js";
 import { appSession } from "../session.js";
 import { backOutTargetOf } from "../view/back-out.js";
+import type { SessionState } from "../store/session-store.js";
+import { choiceTakebackOf } from "../view/end-turn-takeback.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
 import { bindExtraInput, openPauseOverBoard } from "./extra-input.js";
 import type { VillainPhaseOverlay } from "./villain-phase.js";
@@ -718,7 +720,11 @@ export class ChoiceOverlay extends Phaser.Scene {
     // own `playCard`/`useAbility` opened this very choice — offered only when that command's own resolution hasn't
     // yet taught anyone anything new. Placed in the title bar rather than beside Confirm/Decline: it belongs with
     // "how did I get here", not with the answer to the question the choice is actually asking.
-    const backOutTarget = state.perspectiveId ? backOutTargetOf(state.commandTrail, choice, state.perspectiveId) : null;
+    // The end-of-phase "discard any cards" sheet offers "Nevermind" instead (`view/end-turn-takeback.ts`): End turn has
+    // only asked it, so the whole turn end is taken back, and B on a pad does the same.
+    const takeback = this.#takebackOf(state, choice);
+    const backOutTarget =
+      takeback ?? (state.perspectiveId ? backOutTargetOf(state.commandTrail, choice, state.perspectiveId) : null);
     let backOutRect: Rect | null = null;
     // Everything else in the bar (the seat thumbnail, the title) stays clear of this reserved strip on its right,
     // whether or not a seat is also shown — the same way the seat's own thumbnail already carves out its own space.
@@ -849,7 +855,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       this.#buttons.push(
         new McButton(this, {
           kind: "secondary",
-          label: "Back out",
+          label: takeback !== null ? "Nevermind" : "Back out",
           type: typeRole.label,
           rect: backOutRect,
           onClick: () => void this.#backOut(backOutTarget!),
@@ -2824,6 +2830,14 @@ export class ChoiceOverlay extends Phaser.Scene {
         if (this.#focus?.kind === "option") this.#inspectOption(choice, this.#focus.optionId);
         break;
       case "cancel":
+        // B on the end-of-phase discard sheet is Nevermind (`#takebackOf`); anywhere else it only drops focus.
+        {
+          const takeback = this.#takebackOf(appSession().store.state, choice);
+          if (takeback !== null) {
+            void this.#backOut(takeback);
+            break;
+          }
+        }
         this.#focus = null;
         this.#drawFocusRing();
         break;
@@ -3065,6 +3079,12 @@ export class ChoiceOverlay extends Phaser.Scene {
       }
       this.#rebuild();
     }
+  }
+
+  /** Nevermind on the end-of-phase discard sheet (`view/end-turn-takeback.ts`): the count to rewind to, or null. */
+  #takebackOf(state: SessionState, choice: PendingChoice): number | null {
+    if (!state.perspectiveId || choice.playerId !== state.perspectiveId) return null;
+    return choiceTakebackOf(state.commandTrail, choice);
   }
 
   /**

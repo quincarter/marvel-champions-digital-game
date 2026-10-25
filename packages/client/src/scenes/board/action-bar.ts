@@ -181,7 +181,8 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
     why = drawUndoWhy(scene, rect, undoRect, undo.kind === "unavailable" ? undo.reason : null, controller.undoWhy());
     const undoButton = new McButton(scene, {
       kind: "onInk",
-      label: "Undo",
+      // Taking the previous hero's End turn back (`view/end-turn-takeback.ts`) reads as what it is.
+      label: undo.kind === "available" && undo.command.type === "endTurn" ? "Nevermind" : "Undo",
       type: typeRole.label,
       rect: undoRect,
       enabled: undo.kind === "available",

@@ -56,11 +56,10 @@ test("Undo takes back a hero's own move, and stops at the turn's start and at a 
   const start = await store(page, (s) => s.version as number);
   const startForm = await formOf();
 
-  // Nothing done yet this turn: Undo is on the bar and does nothing.
+  // Nothing done yet this turn: Undo is on the bar and offers only the previous hero's End turn back
+  // (`view/end-turn-takeback.ts`, "Nevermind"), which `end-turn-nevermind.spec.ts` presses; no move of this hero's own.
   expect(await focusRect(page, "undo"), "Undo sits beside End turn").not.toBeNull();
   if (SHOT) await page.screenshot({ path: `${SHOT}/undo-${info.project.name}-1-nothing.png` });
-  await pressFocus(page, phone, "undo");
-  expect(await store(page, (s) => s.version)).toBe(start);
 
   // Change form, then take it back.
   await pressFocus(page, phone, "basic:changeForm");

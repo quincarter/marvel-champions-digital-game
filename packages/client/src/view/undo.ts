@@ -430,6 +430,8 @@ export function undoneSummary(command: Command, cardName: (id: InstanceId) => st
       return "recover";
     case "changeForm":
       return "change of form";
+    case "endTurn":
+      return "end turn";
     default:
       return "last move";
   }

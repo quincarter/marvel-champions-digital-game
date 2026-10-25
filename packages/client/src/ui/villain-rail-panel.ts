@@ -93,6 +93,9 @@ export interface RailInterrupt {
   readonly onResolve: (optionIds: readonly string[]) => void;
 }
 
+/** The START gate's way back to the hero turn (`RailGate.onNevermind`). */
+export const NEVERMIND_LABEL = "Nevermind, back to my turn";
+
 /**
  * The window in the interrupt window's place while the phase waits on the player for something that is not an
  * interrupt (the owner's call, 2026-10-14): START VILLAIN PHASE before anything plays, or a decision someone has to make
@@ -104,6 +107,8 @@ export type RailGate =
       /** What ended the player phase ("You drew 3 cards: …"), said first; empty when nothing did. */
       readonly lead: string;
       readonly onPress: () => void;
+      /** Takes End turn back (`view/end-turn-takeback.ts`); absent once it can no longer be. */
+      readonly onNevermind?: () => void;
     }
   | {
       readonly kind: "decision";
@@ -192,13 +197,15 @@ export function drawVillainRailPanel(scene: Phaser.Scene, args: RailPanelArgs): 
     .setLetterSpacing(1);
   fitText(title, layout.title.width, 40);
 
-  const button = (key: string, text: string, rect: Rect, onClick: () => void, glyph: ShortcutId): void => {
+  const button = (key: string, text: string, rect: Rect, onClick: () => void, glyph: ShortcutId | null): void => {
     const made = new McButton(scene, { kind: "onInk", label: text, type: typeRole.label, rect, onClick });
     args.buttons.push(made);
-    args.hint?.(made, [glyph], "ink");
+    if (glyph !== null) args.hint?.(made, [glyph], "ink");
     stops.set(key, { rect, activate: onClick });
   };
-  button("skip", "Skip", layout.skip, args.onSkip, "cancel");
+  // B / Esc is Nevermind while the START gate offers it, so Skip does not wear that glyph then.
+  const takesBack = args.gate?.kind === "start" && args.gate.onNevermind !== undefined;
+  button("skip", "Skip", layout.skip, args.onSkip, takesBack ? null : "cancel");
   button("hide", layout.kind === "tab" ? "Peek at table ▾" : "Hide ▸", layout.hide, args.onHide, "peek");
 
   if (layout.subtitle.width > 0) drawSubtitle(scene, layout, args.subtitle);
@@ -1037,17 +1044,33 @@ function drawGate(
     ground.fillStyle(surface.ink.hex, 1).fillRect(rect.x - 8, rect.y - 6, rect.width + 16, rect.height + 12);
   }
   const key = gate.kind === "start" ? "start" : "answer";
+  // Nevermind sits where LET IT RESOLVE would, beside the wider START (the interrupt window's own two-button shape).
+  const onNevermind = gate.kind === "start" ? gate.onNevermind : undefined;
+  const goRect: Rect = onNevermind ? { ...rect, width: layout.use.width } : rect;
   const gateButton = new McButton(scene, {
     kind: "primary",
     label: gate.kind === "start" ? "Start villain phase ▸" : "Answer ▸",
     type: { ...typeRole.barTitle, size: args.layout.kind === "tab" ? 22 : 26 },
-    rect,
+    rect: goRect,
     tint: { fill: signal.caution.hex, ink: surface.ink.hex },
     onClick: gate.onPress,
   });
   args.buttons.push(gateButton);
   args.hint?.(gateButton, ["activate"], "ink", key);
-  stops.set(key, { rect, activate: gate.onPress });
+  stops.set(key, { rect: goRect, activate: gate.onPress });
+  if (onNevermind) {
+    const backButton = new McButton(scene, {
+      kind: "onInk",
+      label: NEVERMIND_LABEL,
+      type: { ...typeRole.label, size: 12 },
+      rect: layout.resolve,
+      wrap: true,
+      onClick: onNevermind,
+    });
+    args.buttons.push(backButton);
+    args.hint?.(backButton, ["cancel"], "ink");
+    stops.set("nevermind", { rect: layout.resolve, activate: onNevermind });
+  }
 }
 
 /** "Spider-Sense": the printed name of the ability on offer, else the card's. */

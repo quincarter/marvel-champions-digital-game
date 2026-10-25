@@ -254,11 +254,13 @@ import { encounterStripOf, type EncounterStrip } from "../view/villain-encounter
 import { villainHandTagsOf } from "../view/villain-hand-tags.js";
 import { SEAT_AVATAR_READY } from "../ui/seat-avatar.js";
 import { endOfTurnDrawsOf, endOfTurnLine, type EndOfTurnDraws } from "../view/villain-end-of-turn.js";
+import { gateTakebackOf } from "../view/end-turn-takeback.js";
 import {
   abilityName,
   drawInterruptAnswer,
   drawVillainRailPanel,
   happeningDebug,
+  NEVERMIND_LABEL,
   type RailBody,
   type RailGate,
 } from "../ui/villain-rail-panel.js";
@@ -344,6 +346,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
    * on its five steps and waits for the player before anything plays (`#gateEligible`).
    */
   #started = false;
+  /** Nevermind rewound the End turn that began this phase: closing it keeps no recap for a phase that never happened. */
+  #tookBack = false;
   /** Who drew what as the player phase ended, read off the command that began this phase. */
   #endOfTurn: EndOfTurnDraws | null = null;
   /** Decisions the player chose to answer from the phase's notice (ANSWER ▸): their sheet may come up. */
@@ -402,6 +406,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#slideStartedAt = null;
     this.#recapShownAt = null;
     this.#started = false;
+    this.#tookBack = false;
     this.#answered = new Set();
     this.#soleAnswered = new Set();
     this.#noticeShownAt = new Map();
@@ -449,7 +454,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         (this.scene.isActive(SCENES.choice) && !this.#placement().recapOnTop) ||
         this.scene.isActive(SCENES.inspect) ||
         this.scene.isActive(SCENES.pause),
-      onCancel: () => this.#skip(),
+      // Esc / B on the START gate is Nevermind when End turn can still be taken back; otherwise it hides the phase.
+      onCancel: () => (this.#nevermindTarget() !== null ? void this.#nevermind() : this.#skip()),
       primary: () => this.#primaryStop,
       onFocusChange: () => this.#hints.refresh(),
       // Start is "forward": it starts the phase (or continues) when that gate is up, and opens Pause otherwise.
@@ -586,7 +592,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   /** A finished phase, closing: kept for review on the Board's drawer handle through the next player phase. */
   #tuckAway(): void {
     const game = this.#latest?.game;
-    if (this.#review || !game || !this.#walkthrough.complete) return;
+    if (this.#review || this.#tookBack || !game || !this.#walkthrough.complete) return;
     appSession().villainReview = {
       round: this.#walkthrough.round,
       walkthrough: this.#walkthrough,
@@ -960,6 +966,27 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     return this.#answered.has(choice.choiceId) ? null : choice.choiceId;
   }
 
+  /**
+   * Nevermind, back to my turn (`view/end-turn-takeback.ts`): the command count to rewind to while this phase is still
+   * waiting on START and the End turn that began it is the last thing that happened; null from the moment START is
+   * pressed (the beats are being shown) or when anything else came after it.
+   */
+  #nevermindTarget(): number | null {
+    const state = this.#latest;
+    if (!state?.game || this.#review || this.#started || this.#motion.leaving || !this.#gateEligible()) return null;
+    if (state.inFlight || state.version !== state.commandTrail.length) return null;
+    return gateTakebackOf(state.commandTrail);
+  }
+
+  /** Rewinds to just before End turn and closes the phase as if it had not begun: no recap is kept for it. */
+  async #nevermind(): Promise<void> {
+    const target = this.#nevermindTarget();
+    if (target === null) return;
+    if (!(await appSession().store.rewindTo(target))) return;
+    this.#tookBack = true;
+    this.#close();
+  }
+
   /** START VILLAIN PHASE: the beats start playing and any decision already open gets its notice. */
   #start(): void {
     if (this.#started) return;
@@ -986,7 +1013,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     if (this.#waitingToStart()) {
       // "End of your turn: you drew 1 card: Energy." reads on from the gate's own lead-in.
       const lead = this.#endOfTurnText(game, viewer).replace(/^You /, "you ");
-      return { kind: "start", lead, onPress: () => this.#start() };
+      return {
+        kind: "start",
+        lead,
+        onPress: () => this.#start(),
+        ...(this.#nevermindTarget() !== null ? { onNevermind: () => void this.#nevermind() } : {}),
+      };
     }
     const held = this.#heldChoiceId();
     // Peeking at the table from a docked decision (#231): the banner keeps the decision, and ANSWER goes back to it.
@@ -2989,6 +3021,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         resolveRect: () => (inline ? (layout.interrupt?.resolve ?? null) : null),
         startRect: () => stops.get("start")?.rect ?? null,
         answerRect: () => stops.get("answer")?.rect ?? null,
+        nevermindRect: () => stops.get("nevermind")?.rect ?? null,
         boostedBeat: () => happeningDebug.boosted,
         breakdownBeat: () => happeningDebug.breakdown,
       };
@@ -3151,6 +3184,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       };
       const ground = this.add.graphics();
       ground.fillStyle(surface.ink.hex, 1).fillRect(footer.x, footer.y, footer.width, footer.height);
+      // Nevermind takes the right share of the bar while End turn can still be taken back.
+      const onNevermind = gate.kind === "start" ? gate.onNevermind : undefined;
+      const backWidth = onNevermind ? Math.round((rect.width - 12) * 0.38) : 0;
+      const goRect: Rect = onNevermind ? { ...rect, width: rect.width - backWidth - 12 } : rect;
       // A / Enter presses it with nothing focused, and its glyph says so (the docked rail's gate does the same).
       this.#pushHinted(
         ["activate"],
@@ -3160,12 +3197,29 @@ export class VillainPhaseOverlay extends Phaser.Scene {
           kind: "primary",
           label: gate.kind === "start" ? "Start villain phase ▸" : "Answer ▸",
           type: { ...typeRole.barTitle, size: 22 },
-          rect,
+          rect: goRect,
           tint: { fill: signal.caution.hex, ink: surface.ink.hex },
           onClick: gate.onPress,
         }),
       );
-      stops.set(gate.kind === "start" ? "start" : "answer", { rect, activate: gate.onPress });
+      stops.set(gate.kind === "start" ? "start" : "answer", { rect: goRect, activate: gate.onPress });
+      if (onNevermind) {
+        const backRect: Rect = { ...rect, x: rect.x + rect.width - backWidth, width: backWidth };
+        this.#pushHinted(
+          ["cancel"],
+          "ink",
+          null,
+          new McButton(this, {
+            kind: "onInk",
+            label: NEVERMIND_LABEL,
+            type: { ...typeRole.label, size: 12 },
+            rect: backRect,
+            wrap: true,
+            onClick: onNevermind,
+          }),
+        );
+        stops.set("nevermind", { rect: backRect, activate: onNevermind });
+      }
     } else if (inline && pause) {
       const resolveWidth = Math.round((footer.width - 24) * 0.38);
       const height = Math.max(hit.target, footer.height - 12);
@@ -3194,6 +3248,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         ),
         "start",
         "answer",
+        "nevermind",
         "move",
         "back",
       ],
@@ -3212,6 +3267,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         resolveRect: () => stops.get("resolve")?.rect ?? null,
         startRect: () => stops.get("start")?.rect ?? null,
         answerRect: () => stops.get("answer")?.rect ?? null,
+        nevermindRect: () => stops.get("nevermind")?.rect ?? null,
       };
     }
     this.#motion.enter(this, { scrim: [], panels: this.children.list.slice(panelsFrom) });

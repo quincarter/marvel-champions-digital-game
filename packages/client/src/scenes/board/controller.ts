@@ -58,6 +58,7 @@ import {
 } from "../../view/in-play-cost-choice.js";
 import { inPlayCostPanelOf, seatOptionsOf, seatPanelOf } from "../../view/pick-panels.js";
 import { BUTTON_ONLY_SELECTIONS, focusOrder, withBarStops, type FocusTarget } from "../../view/focus.js";
+import { handoverTakebackOf } from "../../view/end-turn-takeback.js";
 import { undoOf, undoTargetsOf, undoneSummary, UNDO_REASONS, type UndoOffer } from "../../view/undo.js";
 import {
   abilityActionsFor,
@@ -1765,7 +1766,16 @@ export class BoardController {
   undoOffer(): UndoOffer | null {
     const { game, perspectiveId, commandTrail, offTurnSeat } = appSession().store.state;
     if (!game || !perspectiveId || offTurnSeat !== null) return null;
-    const offer = undoOf(commandTrail, game, perspectiveId);
+    // Nevermind after End turn (`view/end-turn-takeback.ts`): the next hero's turn has just begun and nothing else has
+    // happened, so the same Undo button takes the End turn back to the hero who pressed it.
+    const handover = handoverTakebackOf(commandTrail, game);
+    const offer: UndoOffer | null =
+      handover &&
+      game.step.phase === "player" &&
+      game.step.kind === "turn" &&
+      game.step.activePlayerId === perspectiveId
+        ? { kind: "available", ...handover }
+        : undoOf(commandTrail, game, perspectiveId);
     if (offer && this.#selection.kind !== "idle") return { kind: "unavailable", reason: UNDO_REASONS.selecting };
     return offer;
   }
