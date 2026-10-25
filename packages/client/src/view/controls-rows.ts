@@ -271,7 +271,7 @@ const PAD_ROWS: readonly PadRowDef[] = [
     id: "pause",
     index: 9,
     action: "Pause · pay / confirm",
-    note: "Anywhere in a game; with a payment or other decision open, it pays or confirms",
+    note: "Anywhere in a game; with a payment or other decision ready to confirm, it pays or confirms",
   },
   {
     id: "scroll",

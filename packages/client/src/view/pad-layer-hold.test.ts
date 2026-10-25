@@ -67,6 +67,8 @@ describe("triggerPull", () => {
     expect(triggerPull({ pressed: false, value: 0.3 })).toBe(0.3);
     expect(triggerPull({ pressed: true, value: 0 })).toBe(1);
     expect(triggerPull({ pressed: true })).toBe(1);
+    // A light touch on Chromium: pressed from about 0.12, but the pull is only 0.3.
+    expect(triggerPull({ pressed: true, value: 0.3 })).toBe(0.3);
     expect(triggerPull({ pressed: false, value: 0 })).toBe(0);
     expect(triggerPull(null)).toBe(0);
     expect(triggerPull(undefined)).toBe(0);

@@ -47,7 +47,7 @@ import { tabKeysTouchedBy } from "../view/tab-badges.js";
 import { playerName } from "../view/names.js";
 import { linearIntent, type GamepadIntent } from "../view/gamepad.js";
 import { spatialStep, type FocusDirection } from "../view/spatial-nav.js";
-import { sameTarget, stepFocus, type FocusTarget } from "../view/focus.js";
+import { primaryPressOf, sameTarget, stepFocus, type FocusTarget } from "../view/focus.js";
 import { rowScrollOf, scrollTargetOf, tabOfStop, zoneJump, type ZoneMembers } from "../view/board-zones.js";
 import { abilityInSlot, abilitySlotsOf } from "../view/ability-slots.js";
 import { boardKeyActionOf, choiceSlotOf, typingInTextField } from "../view/keyboard-intent.js";
@@ -75,7 +75,7 @@ import { sameFacedown, withFacedownHeld, type TableHold } from "../view/villain-
 import { holdTableGame, tableGame } from "../view/table-game.js";
 import type { SessionState } from "../store/session-store.js";
 import { CHROME_SCENES, SCENES } from "./keys.js";
-import { musicSlots } from "../ui/music-slot.js";
+import { musicSlots, shownMusicButton } from "../ui/music-slot.js";
 import type { MusicButtonScene } from "./music-button.js";
 import { tableSoundsOf, type CardSoundInfo } from "../view/sound-effects.js";
 import { HoverPreview, isMousePointer } from "../ui/card-hover-preview.js";
@@ -1352,8 +1352,9 @@ export class BoardScene extends Phaser.Scene {
       });
       if (zones.tabs) this.#drawTabs(zones.tabs, model);
       // The top bar's music note is a stop at the end of the focus route, so a pad can open the player (Pause has Music too).
-      const musicSlot = musicSlots().get(this.scene.key);
-      if (musicSlot) this.#frame.focusRects.set(focusKey({ kind: "music" }), musicSlot);
+      // Where the note is drawn now; on the board's first draw it has not been placed yet, so its slot stands in.
+      const music = shownMusicButton() ?? musicSlots().get(this.scene.key);
+      if (music) this.#frame.focusRects.set(focusKey({ kind: "music" }), music);
     };
     // Scrolled content runs under the chrome and the tab row, so on a scrolling table they are drawn after it, over a
     // ground; at Standard the order is what it always was.
@@ -1706,22 +1707,16 @@ export class BoardScene extends Phaser.Scene {
 
   /**
    * Start / Menu (and the keyboard's Confirm key) while a decision is open: presses the bar's forward button (Pay, Play
-   * it, Approve, Confirm), or the targeting panel's Confirm. True when a decision owns the press, even if its button is
-   * greyed (Pay before the cost is met): Pause must not open over a payment.
+   * it, Approve, Confirm), or the targeting panel's Confirm. False when there is nothing ready to press (no decision
+   * open, or its forward button is greyed), so Start opens Pause.
    */
   #pressPrimary(): boolean {
-    const kind = this.#controller.selection.kind;
-    if (kind === "idle") return false;
-    const stop = this.#frame.barStops.find((candidate) => candidate.primary);
-    if (stop) {
-      if (stop.enabled) stop.press();
-      return true;
-    }
-    if (kind === "choosingInPlayCost" || kind === "dividingPower") {
-      void this.#controller.confirmPick();
-      return true;
-    }
-    return false;
+    // A greyed forward button (Pay before the cost is met) leaves Start to open Pause, as on an idle table.
+    const press = primaryPressOf(this.#controller.selection.kind, this.#frame.barStops);
+    if (press === null) return false;
+    if (press.kind === "bar") this.#frame.barStops[press.index]!.press();
+    else void this.#controller.confirmPick();
+    return true;
   }
 
   /**

@@ -143,6 +143,14 @@ pub fn trigger_from_axis(value: f64) -> f64 {
   ((value + 1.0) / 2.0).clamp(0.0, 1.0)
 }
 
+/// Whether gilrs's `LeftZ` / `RightZ` are triggers on this pad: only when it also has a real right stick on `RX` / `RY`
+/// (an xpad-style layout). A D-input pad has no such stick and puts its right stick on `ABS_Z` / `ABS_RZ`, centred at 0,
+/// so reading those as triggers would hold both layers open. Such a pad's own digital trigger buttons still work.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub fn z_axes_are_triggers(has_right_stick: bool) -> bool {
+  has_right_stick
+}
+
 /// Whether a pad's North / West need trading: gilrs is on its evdev defaults (no SDL mapping), and the pad is not one
 /// of the makers whose drivers (hid-playstation, hid-nintendo) already put Triangle / X on `BTN_NORTH`.
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
@@ -162,6 +170,8 @@ pub struct PadState {
   dirty: bool,
   /// Left and top face buttons arrive traded (see `face_index`).
   swap_faces: bool,
+  /// `LeftZ` / `RightZ` are this pad's triggers (see `z_axes_are_triggers`).
+  z_triggers: bool,
   /// Bridge time (ms) of the last emit for this pad.
   last_emit_ms: f64,
 }
@@ -177,8 +187,15 @@ impl PadState {
       downs: Vec::new(),
       dirty: false,
       swap_faces: false,
+      z_triggers: false,
       last_emit_ms: f64::NEG_INFINITY,
     }
+  }
+
+  /// Marks a pad whose `LeftZ` / `RightZ` axes are its triggers.
+  pub fn with_z_triggers(mut self, z_triggers: bool) -> Self {
+    self.z_triggers = z_triggers;
+    self
   }
 
   /// Marks a pad whose North / West come in traded (see `face_index`).
@@ -221,6 +238,9 @@ impl PadState {
 
   /// A trigger that arrives as a -1..1 axis (see `trigger_from_axis`), as the button `LEFT_TRIGGER` / `RIGHT_TRIGGER`.
   pub fn trigger_axis(&mut self, button: usize, value: f64) {
+    if !self.z_triggers {
+      return;
+    }
     self.button_value(button, trigger_from_axis(value));
   }
 
@@ -383,18 +403,23 @@ mod linux {
   fn connect(gilrs: &Gilrs, pads: &mut HashMap<GamepadId, PadState>, id: GamepadId) -> PadState {
     let gp = gilrs.gamepad(id);
     let slot = free_slot(pads.values().map(|p| p.index));
-    // MC_GAMEPAD_SWAP_XY=1 / 0 forces the trade on / off for a pad whose layout the guess above gets wrong.
+    // Unmapped D-input pads (right stick on ABS_Z / ABS_RZ) are only partly handled: their Z axes are not read as
+    // triggers, and their face buttons follow whatever codes the driver sends. MC_GAMEPAD_SWAP_XY=1 / 0 forces the X / Y
+    // trade on / off for a pad whose layout the guess below gets wrong.
     let swap = match std::env::var("MC_GAMEPAD_SWAP_XY").ok().as_deref() {
       Some("1") => true,
       Some("0") => false,
       _ => needs_face_swap(gp.mapping_source() == MappingSource::SdlMappings, gp.vendor_id()),
     };
-    fail(&format!(
-      "{} mapping: {:?}, North/West traded: {swap}",
+    let z_triggers = z_axes_are_triggers(gp.axis_code(Axis::RightStickX).is_some());
+    log::info!(
+      "Gamepad bridge: {} mapping {:?}, North/West traded: {swap}, Z axes are triggers: {z_triggers}",
       gp.name(),
       gp.mapping_source()
-    ));
-    PadState::new(slot, pad_id(gp.name(), gp.vendor_id(), gp.product_id())).with_face_swap(swap)
+    );
+    PadState::new(slot, pad_id(gp.name(), gp.vendor_id(), gp.product_id()))
+      .with_face_swap(swap)
+      .with_z_triggers(z_triggers)
   }
 
   /// Polls until an emit fails; the caller clears `RUNNING` and sends `stopped`.
@@ -555,7 +580,7 @@ mod tests {
     assert_eq!(trigger_from_axis(-1.0), 0.0);
     assert_eq!(trigger_from_axis(1.0), 1.0);
     assert_eq!(trigger_from_axis(5.0), 1.0);
-    let mut p = pad();
+    let mut p = pad().with_z_triggers(true);
     p.trigger_axis(LEFT_TRIGGER, -1.0);
     assert!(!p.take_payload(0.0, true).buttons[LEFT_TRIGGER].pressed);
     p.trigger_axis(LEFT_TRIGGER, 0.2);
@@ -567,6 +592,19 @@ mod tests {
     assert!(out.buttons[LEFT_TRIGGER].pressed, "the other trigger is untouched");
     p.trigger_axis(LEFT_TRIGGER, -0.9);
     assert!(!p.take_payload(30.0, true).buttons[LEFT_TRIGGER].pressed);
+  }
+
+  #[test]
+  fn z_axes_are_triggers_only_on_a_pad_with_a_real_right_stick() {
+    assert!(z_axes_are_triggers(true));
+    assert!(!z_axes_are_triggers(false));
+    // A D-input pad's right stick sits on Z, centred at 0: it must not read as a half-pulled trigger.
+    let mut p = pad().with_z_triggers(z_axes_are_triggers(false));
+    p.trigger_axis(LEFT_TRIGGER, 0.0);
+    p.trigger_axis(RIGHT_TRIGGER, 0.9);
+    let out = p.take_payload(0.0, true);
+    assert!(!out.buttons[LEFT_TRIGGER].pressed && !out.buttons[RIGHT_TRIGGER].pressed);
+    assert_eq!(out.buttons[LEFT_TRIGGER].value, 0.0);
   }
 
   #[test]

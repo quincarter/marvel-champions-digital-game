@@ -132,3 +132,41 @@ export function sameTarget(a: FocusTarget | null, b: FocusTarget | null): boolea
   if (a.kind === "bar" && b.kind === "bar") return a.index === b.index;
   return a.kind === b.kind;
 }
+
+/** The selections whose answers are all buttons on the mode bar: nothing on the table to step through. */
+export const BUTTON_ONLY_SELECTIONS: ReadonlySet<string> = new Set([
+  "choosingForm",
+  "choosingCostSelection",
+  "choosingCostHelp",
+  "confirmingAllianceHelp",
+]);
+
+/**
+ * A decision's route with its mode bar's buttons in it: the route's own stops, then one `bar` stop per button in draw
+ * order, then Cancel last, once however many times the route already had it (and only when the bar draws one).
+ */
+export function withBarStops(
+  route: readonly FocusTarget[],
+  bar: { readonly count: number; readonly cancel: boolean },
+): readonly FocusTarget[] {
+  const hadCancel = route.some((target) => target.kind === "cancel");
+  return [
+    ...route.filter((target) => target.kind !== "cancel"),
+    ...Array.from({ length: bar.count }, (_, index): FocusTarget => ({ kind: "bar", index })),
+    ...(hadCancel || bar.cancel ? [{ kind: "cancel" as const }] : []),
+  ];
+}
+
+/** What Start does with a decision open: press the bar's forward button, press the panel's Confirm, or nothing (Pause). */
+export type PrimaryPress = { readonly kind: "bar"; readonly index: number } | { readonly kind: "confirmPick" } | null;
+
+export function primaryPressOf(
+  selectionKind: string,
+  stops: readonly { readonly primary: boolean; readonly enabled: boolean }[],
+): PrimaryPress {
+  if (selectionKind === "idle") return null;
+  const index = stops.findIndex((stop) => stop.primary);
+  if (index >= 0) return stops[index]!.enabled ? { kind: "bar", index } : null;
+  if (selectionKind === "choosingInPlayCost" || selectionKind === "dividingPower") return { kind: "confirmPick" };
+  return null;
+}

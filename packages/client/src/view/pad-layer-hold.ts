@@ -32,7 +32,9 @@ export function triggerPull(
   button: { readonly pressed?: boolean; readonly value?: number } | null | undefined,
 ): number {
   const value = button?.value ?? 0;
-  return button?.pressed === true && value < TRIGGER_ENGAGE ? 1 : value;
+  // Chromium sets `pressed` at about 0.12 on an analog trigger, so a light touch reads { pressed: true, value: 0.2 }:
+  // `pressed` stands for a full pull only when no analog value is reported at all.
+  return button?.pressed === true && value === 0 ? 1 : value;
 }
 
 /** The triggers held after reading `ltValue` and `rtValue`, given what was held before. */

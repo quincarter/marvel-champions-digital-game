@@ -5,7 +5,15 @@
 
 import { describe, expect, test } from "vitest";
 import type { InstanceId } from "@mc/engine";
-import { focusOrder, sameTarget, stepFocus, type FocusTarget } from "./focus.js";
+import {
+  BUTTON_ONLY_SELECTIONS,
+  focusOrder,
+  primaryPressOf,
+  sameTarget,
+  stepFocus,
+  withBarStops,
+  type FocusTarget,
+} from "./focus.js";
 import type { BasicAction, Highlights } from "./highlights.js";
 
 const id = (value: string): InstanceId => value as InstanceId;
@@ -165,5 +173,51 @@ describe("the X picker's stops", () => {
   test("lead the paying route, before the sources", () => {
     const order = focusOrder({ kind: "paying", sources: [id("r1")], x: true }, marksWith(["attack"]));
     expect(order.map((target) => target.kind)).toEqual(["xLess", "xMore", "card"]);
+  });
+});
+
+describe("a decision's bar on the route", () => {
+  const card = (value: string): FocusTarget => ({ kind: "card", instanceId: id(value) });
+
+  test("the bar's buttons come after the route and before Cancel, which appears once", () => {
+    const route = [card("a"), { kind: "cancel" } as FocusTarget];
+    expect(withBarStops(route, { count: 2, cancel: true })).toEqual([
+      card("a"),
+      { kind: "bar", index: 0 },
+      { kind: "bar", index: 1 },
+      { kind: "cancel" },
+    ]);
+    // No Cancel on the route or the bar: none is added. One on the bar alone is.
+    expect(withBarStops([card("a")], { count: 1, cancel: false })).toEqual([card("a"), { kind: "bar", index: 0 }]);
+    expect(withBarStops([card("a")], { count: 0, cancel: true })).toEqual([card("a"), { kind: "cancel" }]);
+  });
+
+  test("the four button-only decisions have no table stops of their own", () => {
+    expect([...BUTTON_ONLY_SELECTIONS].sort()).toEqual([
+      "choosingCostHelp",
+      "choosingCostSelection",
+      "choosingForm",
+      "confirmingAllianceHelp",
+    ]);
+    expect(withBarStops([], { count: 2, cancel: true }).map((target) => target.kind)).toEqual(["bar", "bar", "cancel"]);
+  });
+
+  test("the music note ends the idle route", () => {
+    const route = focusOrder({ kind: "idle", hand: [id("a")], music: true }, marksWith([]));
+    expect(route.at(-1)).toEqual({ kind: "music" });
+    expect(focusOrder({ kind: "idle", hand: [id("a")] }, marksWith([])).some((t) => t.kind === "music")).toBe(false);
+  });
+
+  test("Start presses the forward button when it is ready, and falls back to Pause when it is not", () => {
+    const stops = [
+      { primary: false, enabled: true },
+      { primary: true, enabled: true },
+    ];
+    expect(primaryPressOf("paying", stops)).toEqual({ kind: "bar", index: 1 });
+    expect(primaryPressOf("paying", [{ primary: true, enabled: false }])).toBeNull();
+    expect(primaryPressOf("idle", stops)).toBeNull();
+    expect(primaryPressOf("choosingInPlayCost", [])).toEqual({ kind: "confirmPick" });
+    expect(primaryPressOf("dividingPower", [])).toEqual({ kind: "confirmPick" });
+    expect(primaryPressOf("targeting", [])).toBeNull();
   });
 });

@@ -49,12 +49,30 @@ async function setButton(page: Page, index: number, down: boolean): Promise<void
   );
 }
 
-/** One press of a pad button, held across a few frames so the game reads it. */
+/** Waits for `count` drawn frames, so the game has stepped over what the page just changed. */
+const frames = (page: Page, count: number): Promise<void> =>
+  page.evaluate(
+    (n) =>
+      new Promise<void>((resolve) => {
+        let seen = 0;
+        const tick = (): void => {
+          seen += 1;
+          if (seen >= n) resolve();
+          else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+    count,
+  );
+
+/** One press of a pad button: down until the page reads it and the game has stepped, then up and stepped again. */
 async function padTap(page: Page, index: number): Promise<void> {
   await setButton(page, index, true);
-  await page.waitForTimeout(160);
+  await page.waitForFunction((i) => navigator.getGamepads()[0]?.buttons[i]?.pressed === true, index);
+  await frames(page, 8);
   await setButton(page, index, false);
-  await page.waitForTimeout(220);
+  await page.waitForFunction((i) => navigator.getGamepads()[0]?.buttons[i]?.pressed === false, index);
+  await frames(page, 8);
 }
 
 const focusedKey = (page: Page): Promise<string | null> =>
@@ -271,6 +289,21 @@ test("A starts the villain phase, and the defend panel's Confirm wears its glyph
     async () => ((await villainDebugRect(page, "confirmRect")) ? null : true),
     "Start confirmed the defender",
     15_000,
+  );
+  expect(errors).toEqual([]);
+});
+
+test("Start with Pay greyed opens Pause instead of swallowing the press", async ({ page }) => {
+  test.setTimeout(150_000);
+  const errors = trackErrors(page);
+  await startBoard(page);
+  await openPayment(page);
+  expect(await paymentReady(page)).toBe(false);
+  await padTap(page, START);
+  await waitFor(
+    async () => ((await activeScenes(page)).includes("PauseOverlay") ? true : null),
+    "Start opened Pause over the unpayable payment",
+    10_000,
   );
   expect(errors).toEqual([]);
 });

@@ -57,7 +57,7 @@ import {
   type InPlayCostChoiceView,
 } from "../../view/in-play-cost-choice.js";
 import { inPlayCostPanelOf, seatOptionsOf, seatPanelOf } from "../../view/pick-panels.js";
-import { focusOrder, type FocusTarget } from "../../view/focus.js";
+import { BUTTON_ONLY_SELECTIONS, focusOrder, withBarStops, type FocusTarget } from "../../view/focus.js";
 import { undoOf, undoTargetsOf, undoneSummary, UNDO_REASONS, type UndoOffer } from "../../view/undo.js";
 import {
   abilityActionsFor,
@@ -405,13 +405,7 @@ export class BoardController {
     // The mode bar's own buttons (Pay, Play it, a form) come after the cards and before the way out, so a pad can reach
     // and press every one of them (`board/bar-stops.ts`).
     const bar = this.#host.barStops?.() ?? { count: 0, cancel: false };
-    const stops: FocusTarget[] = Array.from({ length: bar.count }, (_, index) => ({ kind: "bar", index }));
-    const hadCancel = route.some((target) => target.kind === "cancel");
-    return [
-      ...route.filter((target) => target.kind !== "cancel"),
-      ...stops,
-      ...(hadCancel || bar.cancel ? [{ kind: "cancel" as const }] : []),
-    ];
+    return withBarStops(route, bar);
   }
 
   #routeOf(alsoTiled?: (id: InstanceId) => boolean): readonly FocusTarget[] {
@@ -460,14 +454,7 @@ export class BoardController {
       return focusOrder({ kind: "targeting", targets: action.kind === "playCard" ? [action.instanceId] : [] }, marks);
     }
     // Bars whose answers are all buttons: nothing on the table to step through, only the bar (`focusOrder`).
-    if (
-      this.#selection.kind === "choosingForm" ||
-      this.#selection.kind === "choosingCostSelection" ||
-      this.#selection.kind === "choosingCostHelp" ||
-      this.#selection.kind === "confirmingAllianceHelp"
-    ) {
-      return [];
-    }
+    if (BUTTON_ONLY_SELECTIONS.has(this.#selection.kind)) return [];
     if (this.#selection.kind === "confirmingPlay") {
       // The card itself (Enter on it is "Play it") and the way out, the same two stops targeting offers.
       const { action } = this.#selection.action;

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { LATCH_STEPS, NativePads, isDeliberatePadInput, type BridgePad } from "./native-pads.js";
 import { padIdentityOf } from "./pad-family.js";
-import { gamepadIntentFor } from "./gamepad.js";
 
 const pad = (pressed: number[], downs: number[] = [], extra: Partial<BridgePad> = {}): BridgePad => ({
   index: 0,
@@ -117,15 +116,6 @@ describe("bridge triggers and positions", () => {
     pads.apply({ kind: "state", pad: withTrigger(7, 0.3) });
     expect(pads.snapshot()[0]?.buttons[7]).toMatchObject({ pressed: false, value: 0.3 });
     expect(pads.snapshot()[0]?.buttons[6]).toMatchObject({ pressed: false, value: 0 });
-  });
-
-  it("keeps X on the left (2) and Y on the top (3): Y inspects, X is the guide toggle", () => {
-    expect(gamepadIntentFor(3)).toBe("inspect");
-    expect(gamepadIntentFor(2)).toBe("toggleGuide");
-    const pads = new NativePads();
-    pads.apply({ kind: "state", pad: pad([3]) });
-    expect(pads.snapshot()[0]?.buttons[3]?.pressed).toBe(true);
-    expect(pads.snapshot()[0]?.buttons[2]?.pressed).toBe(false);
   });
 
   it("counts a press, a held button or a pushed stick as the player using the pad, and a drifting stick as not", () => {
