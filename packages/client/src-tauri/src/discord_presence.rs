@@ -127,6 +127,7 @@ impl<A: Clone> Scheduler<A> {
   }
 
   /// Same, with a custom idle health-check period.
+  #[cfg(test)]
   pub fn with_health_ms(mut self, health_ms: u64) -> Self {
     self.health_ms = health_ms;
     self
