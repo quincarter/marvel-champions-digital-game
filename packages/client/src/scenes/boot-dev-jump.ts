@@ -403,6 +403,21 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
 
   // `&fixture=grounded`: Jubilee on round 2 with Grounded in play, for Flip to hero's additional cost.
   // `?screen=board&fixture=jackpot`: Domino paused on Jackpot!'s response to Luck Be a Lady's discard (#222).
+  // `?screen=board&fixture=work-life-ally`: Work-Life Balance used with an ally while Jessica is stalwart; the log says
+  // why the confuse option was not offered (#412).
+  if (screen === "board" && params.get("fixture") === "work-life-ally") {
+    const { startDevWorkLifeAllyGame } = await import("../store/dev-work-life-game.js");
+    await startDevWorkLifeAllyGame();
+    return { key: SCENES.board, data: {} };
+  }
+
+  // `?screen=board&fixture=option-reasons`: Nick Fury's "choose one" with its threat option disabled, and why (#412).
+  if (screen === "board" && params.get("fixture") === "option-reasons") {
+    const { startDevOptionReasonsGame } = await import("../store/dev-option-reasons-game.js");
+    await startDevOptionReasonsGame();
+    return { key: SCENES.board, data: {} };
+  }
+
   if (screen === "board" && params.get("fixture") === "jackpot") {
     const { startDevJackpotGame } = await import("../store/dev-jackpot-game.js");
     await startDevJackpotGame();

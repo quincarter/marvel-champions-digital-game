@@ -5,7 +5,7 @@
  * Alter-Ego Action has no valid target and Inspect's "Right now" says why. Each turn: change to hero form and take the
  * Pottery while it is not on her, change back to alter-ego once Work-Life Balance has arrived, end the turn.
  */
-import type { InstanceId } from "@mc/engine";
+import type { GameEvent, InstanceId } from "@mc/engine";
 import { appSession } from "../session.js";
 import { codeOf, nextTurn } from "./dev-game-steps.js";
 import type { SessionStore } from "./session-store.js";
@@ -57,4 +57,44 @@ export async function playToWorkLifeRefusal(store: SessionStore, seed = 15): Pro
 
 export async function startDevWorkLifeGame(): Promise<InstanceId | null> {
   return playToWorkLifeRefusal(appSession().store);
+}
+
+/**
+ * The `?screen=board&fixture=work-life-ally` dev jump: the game above, then an ally played from hand and Work-Life
+ * Balance used, so the confuse option is barred while the ally option is taken on its own and the log says why (#412);
+ * `answer` false leaves the pick of which ally open.
+ * Returns the events of using it, or null when no ally could be played.
+ */
+export async function playWorkLifeWithAlly(
+  store: SessionStore,
+  seed = 15,
+  answer = true,
+): Promise<readonly GameEvent[] | null> {
+  const workLife = await playToWorkLifeRefusal(store, seed);
+  if (!workLife) return null;
+  const game = () => store.state.game!;
+  const turn = await nextTurn(store);
+  const ally = turn?.legal.find(
+    (entry) =>
+      entry.action.kind === "playCard" && game().cardPool[codeOf(game(), entry.action.instanceId)]?.type === "ally",
+  );
+  if (!ally) return null;
+  await store.dispatch(ally.example);
+  const after = await nextTurn(store);
+  const use = after?.legal.find((entry) => entry.action.kind === "useAbility" && entry.action.instanceId === workLife);
+  if (!use) return null;
+  await store.dispatch(use.example);
+  const events: GameEvent[] = [...store.state.lastEvents];
+  // The ally the remove option names is a choice of its own: answer it, keeping its events too.
+  for (let guard = 0; answer && guard < 10 && store.state.legal?.actions.kind === "choice"; guard++) {
+    const choice = store.state.legal.actions.choice;
+    await store.resolveChoice(choice.options.slice(0, Math.max(1, choice.minSelections)).map((o) => o.optionId));
+    events.push(...store.state.lastEvents);
+  }
+  return events;
+}
+
+export async function startDevWorkLifeAllyGame(): Promise<boolean> {
+  // Left on the pick of the ally to remove, so the board opens with the use's own events (its log line) as the last.
+  return (await playWorkLifeWithAlly(appSession().store, 15, false)) !== null;
 }

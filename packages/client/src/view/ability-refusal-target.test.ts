@@ -5,10 +5,19 @@
  * so with no ally the engine refuses the action, and Inspect's "Right now" says which target each option is missing.
  */
 import { JJ_STARTER_DECKS, cardId, type AbilityId } from "@mc/content";
-import { WAVE11_CARDS, WAVE11_DEPS, coreScenario } from "@mc/cards";
-import { applyCommand, createGame, legalActions, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import { WAVE11_CARDS, WAVE11_DEPS, constant, coreScenario, rule } from "@mc/cards";
+import {
+  applyCommand,
+  createGame,
+  legalActions,
+  type EngineDeps,
+  type GameState,
+  type InstanceId,
+  type PlayerId,
+} from "@mc/engine";
 import { beforeAll, describe, expect, test } from "vitest";
-import { targetRefusalReason } from "./ability-refusal.js";
+import { targetRefusalReason, unavailableOptionLines } from "./ability-refusal.js";
+import { logLine } from "./log-lines.js";
 import { inspectModel } from "./inspect-model.js";
 
 const DEPS = WAVE11_DEPS;
@@ -128,6 +137,127 @@ describe("targetRefusalReason (#412)", () => {
   test("already confused and no ally: says she is already confused", () => {
     expect(rightNow(confused(game))).toBe(
       `that ability has no valid target: ${NO_ALLY}, and Jessica Jones is already confused`,
+    );
+  });
+});
+
+describe("a status prohibition that is neither stalwart nor a status already held (#414 review)", () => {
+  // Inspiring Pottery's grant swapped for "attached character cannot be confused" (a `cannotHaveStatus` rule, as
+  // Ronan's): Jessica cannot be confused, but she is not stalwart and holds no confused card.
+  const deps: EngineDeps = {
+    ...DEPS,
+    abilities: {
+      ...DEPS.abilities,
+      "60123.inspiring-pottery-constant": constant(
+        rule({ kind: "cannotHaveStatus", target: { hostOfSelf: true }, statuses: ["confused"] }),
+      ),
+    },
+  };
+
+  test("the engine still refuses, and no reason it has not established is given", () => {
+    const state = withPottery(game);
+    expect(state.instances[identity]!.statuses.confused).toBe(0);
+    expect(targetRefusalReason(state, workLife, me, WORK_LIFE_A, deps)).toBeNull();
+    expect(inspectModel(state, workLife, legalActions(state, me, deps), me, deps).status.message).toBe(
+      "that ability has no valid target",
+    );
+  });
+});
+
+describe("unavailableOptionLines: each option not offered, and why (#412)", () => {
+  const confuseOption = (): { index: number; label: string } => {
+    const choice = DEPS.abilities[WORK_LIFE_A]!.effects.find((effect) => effect.kind === "chooseOne")!;
+    const options = choice.kind === "chooseOne" ? choice.options : [];
+    return { index: 1, label: options[1]!.label };
+  };
+
+  test("a missing target is worded from what the engine recorded, not from the state now", () => {
+    const { index, label } = confuseOption();
+    const missing = {
+      target: { categories: ["identity" as const], controller: "you" as const, canTakeStatus: "confused" as const },
+      blocked: { instanceId: identity, status: "confused" as const, cause: "stalwart" as const },
+    };
+    const unavailable = {
+      chooserId: me,
+      sourceInstanceId: workLife,
+      abilityId: WORK_LIFE_A,
+      options: [{ index, label, reason: "noTarget" as const, missing }],
+    };
+    // Read against a game where Pottery is gone and she holds a confused card (a resumed game's log): still the
+    // reason recorded when the option was barred.
+    expect(unavailableOptionLines(confused(game), unavailable, DEPS)).toEqual([
+      `${label}: Jessica Jones is stalwart and cannot be confused`,
+    ]);
+    const noAlly = {
+      ...unavailable,
+      options: [
+        {
+          index: 0,
+          label: "Remove an ally",
+          reason: "noTarget" as const,
+          missing: { target: { categories: ["ally" as const], controller: "you" as const } },
+        },
+      ],
+    };
+    expect(unavailableOptionLines(game, noAlly, DEPS)).toEqual(["Remove an ally: you control no ally"]);
+  });
+
+  test("any other rule is said in words, never guessed at", () => {
+    const unavailable = {
+      chooserId: me,
+      sourceInstanceId: null,
+      abilityId: null,
+      options: [
+        { index: 0, label: "Avoid", reason: "cannotChoose" as const },
+        { index: 1, label: "Pay up", reason: "cannotPay" as const },
+        { index: 2, label: "Campaign only", reason: "condition" as const },
+        { index: 3, label: "Hit a scheme", reason: "noTarget" as const },
+      ],
+    };
+    expect(unavailableOptionLines(game, unavailable, DEPS)).toEqual([
+      "Avoid: a card in play says you cannot choose it",
+      "Pay up: you cannot pay its cost",
+      "Campaign only: its condition is not met",
+      "Hit a scheme: it has no valid target",
+    ]);
+  });
+
+  test("with an ally and Jessica stalwart, the ally option is taken alone and the log says why confuse was not offered", () => {
+    const ally = game.players[0]!.deck[1]!;
+    const relabelled = {
+      ...game,
+      instances: { ...game.instances, [ally]: { ...game.instances[ally]!, cardId: cardId("01067") } },
+    };
+    const state = withPottery(intoPlay(relabelled, ally, me));
+    const result = applyCommand(
+      state,
+      { type: "useAbility", playerId: me, cardInstanceId: workLife, abilityId: WORK_LIFE_A, payment: [] },
+      DEPS,
+    );
+    if (!result.ok) throw new Error(result.error.message);
+    let settled = result.state;
+    const events = [...result.events];
+    for (let guard = 0; settled.pendingChoice && guard < 20; guard++) {
+      const choice = settled.pendingChoice;
+      const next = applyCommand(
+        settled,
+        {
+          type: "resolveChoice",
+          playerId: choice.playerId,
+          choiceId: choice.choiceId,
+          selectedOptionIds: choice.options.slice(0, Math.max(1, choice.minSelections)).map((o) => o.optionId),
+        },
+        DEPS,
+      );
+      if (!next.ok) throw new Error(next.error.message);
+      settled = next.state;
+      events.push(...next.events);
+    }
+    const chosen = events.find((event) => event.type === "optionChosen")!;
+    const line = logLine(chosen, settled, me, DEPS, false, undefined, { events, at: events.indexOf(chosen) });
+    const { label } = confuseOption();
+    expect(line?.text).toBe(
+      `Only option left: Remove an ally you control from the game. Not available: ${label}: Jessica Jones is stalwart and cannot be confused.`,
     );
   });
 });

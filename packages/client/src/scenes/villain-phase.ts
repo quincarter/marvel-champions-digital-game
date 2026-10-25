@@ -429,7 +429,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // walkthrough from under an open decision.
     this.#route = new FocusRoute(this, {
       blocked: () =>
-        (this.scene.isActive(SCENES.choice) && !this.#placement().recapOnTop) || this.scene.isActive(SCENES.inspect),
+        (this.scene.isActive(SCENES.choice) && !this.#placement().recapOnTop) ||
+        this.scene.isActive(SCENES.inspect) ||
+        // The only-option notice (#412) owns Escape: closing it must not also skip the walkthrough.
+        this.scene.isActive(SCENES.optionNotice),
       onCancel: () => this.#skip(),
     });
 

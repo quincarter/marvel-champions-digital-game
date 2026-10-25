@@ -20,9 +20,11 @@ import {
   type EngineDeps,
   type GameState,
   type InstanceId,
+  type OptionUnavailableReason,
   type Predicate,
   type PlayerId,
   type TargetQuery,
+  type UnavailableOptions,
   type ValueSpec,
 } from "@mc/engine";
 import type { AbilityId } from "@mc/content";
@@ -107,7 +109,8 @@ type TargetContext = { selfInstanceId: InstanceId; controllerId: PlayerId; deps:
 /**
  * Why a choice of target has nothing to choose, from the query's own data: "you control no ally", or, for a character
  * a status card cannot be placed on (`canTakeStatus`), "Jessica Jones is stalwart and cannot be confused" (RRG 1.8
- * "Stalwart", p. 40) or "Jessica Jones is already confused". Null while the query has a match, or for a shape not listed.
+ * "Stalwart", p. 40) or, when it holds one, "Jessica Jones is already confused". Null while the query has a match, for any
+ * other blocker, or for a shape not listed.
  */
 function noTargetClause(state: GameState, query: TargetQuery, context: TargetContext): string | null {
   const engineContext = { ...context, event: null, bindings: {} };
@@ -120,10 +123,16 @@ function noTargetClause(state: GameState, query: TargetQuery, context: TargetCon
     if (candidates.length !== 1) return null;
     const blocked = candidates[0]!;
     const name = cardName(state, blocked);
-    return hasKeyword(state, blocked, "stalwart", context.deps)
-      ? `${name} is stalwart and cannot be ${status}`
-      : `${name} is already ${status}`;
+    if (hasKeyword(state, blocked, "stalwart", context.deps)) return `${name} is stalwart and cannot be ${status}`;
+    // Said only when the card holds one: another rule ("cannot be stunned", `cannotHaveStatus`) is not worded here.
+    if ((state.instances[blocked]?.statuses[status] ?? 0) > 0) return `${name} is already ${status}`;
+    return null;
   }
+  return noMatchClause(query);
+}
+
+/** "You control no ally" from a query's shape alone (one known noun, `controller: "you"`, nothing else); null otherwise. */
+function noMatchClause(query: TargetQuery): string | null {
   const categories = query.categories ?? [];
   const noun = categories.length === 1 ? TARGET_NOUN[categories[0]!] : undefined;
   const fields = Object.values(query).filter((value) => value !== undefined).length;
@@ -168,6 +177,79 @@ export function targetRefusalReason(
   if (clauses.length === 0 || clauses.some((clause) => clause === null)) return null;
   return clauses.join(", and ");
 }
+
+type ChooseOneOption = Extract<EffectSpec, { kind: "chooseOne" }>["options"][number];
+
+/** The "choose one" option at `index` with this `label`, anywhere in the ability's plain-data tree. */
+function optionAt(node: unknown, index: number, label: string): ChooseOneOption | null {
+  if (typeof node !== "object" || node === null) return null;
+  const effect = node as Partial<Extract<EffectSpec, { kind: "chooseOne" }>>;
+  if (effect.kind === "chooseOne" && effect.options?.[index]?.label === label) return effect.options[index]!;
+  for (const child of Object.values(node)) {
+    const found = optionAt(child, index, label);
+    if (found) return found;
+  }
+  return null;
+}
+
+/**
+ * An option's own unmet condition, in words, for the shapes printed conditions use; null for any other. "Remove 2 threat
+ * from a scheme" while no scheme holds threat (Nick Fury `core` 01084) is "no scheme has threat on it".
+ */
+function conditionClause(condition: Predicate | undefined): string | null {
+  if (condition?.kind !== "exists") return null;
+  const query = condition.query as TargetQuery;
+  const categories = query.categories ?? [];
+  if (
+    categories.length === 1 &&
+    categories[0] === "scheme" &&
+    query.hasThreat === true &&
+    Object.keys(query).length === 2
+  )
+    return "no scheme has threat on it";
+  return null;
+}
+
+/** What each engine reason means, when nothing more specific can be said. */
+const OPTION_REASON_WORDS: Readonly<Record<OptionUnavailableReason, string>> = {
+  condition: "its condition is not met",
+  cannotChoose: "a card in play says you cannot choose it",
+  cannotPay: "you cannot pay its cost",
+  noTarget: "it has no valid target",
+};
+
+/**
+ * One line per option of a "choose one" that was not offered, and why (#412): "Confuse your identity → discard this card:
+ * Jessica Jones is stalwart and cannot be confused". The engine names the rule that barred each option; for a missing
+ * target this names which target, as `targetRefusalReason` does, and otherwise falls back to the rule in words.
+ */
+export function unavailableOptionReasons(
+  state: GameState,
+  unavailable: UnavailableOptions,
+  deps: EngineDeps,
+): { readonly index: number; readonly label: string; readonly why: string }[] {
+  const definition = unavailable.abilityId ? deps.abilities[unavailable.abilityId] : undefined;
+  return unavailable.options.map(({ index, label, reason, missing }) => {
+    let why: string | null = null;
+    // A condition is worded from its own shape; a missing target from what the engine recorded when it barred the
+    // option. Neither is re-judged against the state now, which a resumed game's log may read long after (#414 review).
+    if (reason === "condition") {
+      why = conditionClause(definition ? optionAt(definition.effects, index, label)?.condition : undefined);
+    }
+    if (reason === "noTarget" && missing?.blocked) {
+      const { instanceId, status, cause } = missing.blocked;
+      const name = cardName(state, instanceId);
+      why = cause === "stalwart" ? `${name} is stalwart and cannot be ${status}` : `${name} is already ${status}`;
+    } else if (reason === "noTarget" && missing) {
+      why = missing.target.canTakeStatus === undefined ? noMatchClause(missing.target) : null;
+    }
+    return { index, label, why: why ?? OPTION_REASON_WORDS[reason] };
+  });
+}
+
+/** `unavailableOptionReasons` as one "label: why" line each, for the log. */
+export const unavailableOptionLines = (state: GameState, unavailable: UnavailableOptions, deps: EngineDeps): string[] =>
+  unavailableOptionReasons(state, unavailable, deps).map(({ label, why }) => `${label}: ${why}`);
 
 /** The ability's printed name ("New Labors of Hercules"), or "This ability" when the card does not print one. */
 export function abilityNameOf(state: GameState, instanceId: InstanceId, abilityId: AbilityId): string {
