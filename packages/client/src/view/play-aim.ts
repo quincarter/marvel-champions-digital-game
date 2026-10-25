@@ -147,6 +147,10 @@ export interface SearchedPickOption {
   readonly copy: string | null;
   /** "Hellcat - in the encounter deck", numbered when two options would otherwise read the same. */
   readonly label: string;
+  /** False for a card shown but not choosable right now (an ally Make the Call cannot pay for): drawn dimmed. */
+  readonly available: boolean;
+  /** Why an unavailable card cannot be chosen, in a few words ("Can't afford"); null when it can. */
+  readonly unavailable: string | null;
 }
 
 /**
@@ -156,6 +160,13 @@ export interface SearchedPickOption {
 export interface SearchedPickView {
   readonly prompt: string;
   readonly options: readonly SearchedPickOption[];
+  /**
+   * True when a tap only selects and a Confirm button goes on (Make the Call: the player sees the ally they picked
+   * before the pay step opens); false when a tap chooses at once (Hunted).
+   */
+  readonly confirm: boolean;
+  /** The option selected so far, when `confirm`; filled in by the board controller, null until a tap. */
+  readonly chosen?: InstanceId | null;
 }
 
 const AREA_TAGS: Readonly<Record<string, string>> = {
@@ -186,23 +197,31 @@ function areaOf(state: GameState, instanceId: InstanceId): { readonly area: stri
 
 /**
  * The candidates of a pick that is not on the board, listed instead of highlighted, each with the area it is in; null
- * for every other play. Only cards the engine listed (`LegalAction.targets`) appear.
+ * for every other play. Only cards the engine listed (`LegalAction.targets`) can be chosen.
  *
  * - A cost that searches the encounter deck and discard pile (Hunted 56007), when the engine lists more than one.
  * - The card in a discard pile whose printed cost a play's cost pays ("Pay the printed cost of an ally in any player's
- *   discard pile", Make the Call 01071): asked even when only one can be chosen, so the player sees which ally it is
- *   and whose pile it comes from before paying for it (#419).
+ *   discard pile", Make the Call 01071): every card of that type in the discard piles it reaches is shown, the ones the
+ *   engine listed lit and the rest dimmed with why. The player selects one and confirms before the pay step opens,
+ *   even when only one can be chosen, so they see which ally it is and whose pile it comes from (#419).
  */
 export function searchedPickFor(state: GameState, deps: EngineDeps, entry: LegalAction): SearchedPickView | null {
   const { action } = entry;
   if (action.kind !== "playCard") return null;
-  if (additionalPlayCostOf(state, deps, action.instanceId)?.attachToSlot) {
+  let shown: readonly InstanceId[] = entry.targets;
+  const confirm = !additionalPlayCostOf(state, deps, action.instanceId)?.attachToSlot;
+  if (!confirm) {
     if (!needsPlayAim(entry)) return null;
   } else {
     const pay = actionAbilityCost(state, deps, entry.example.playerId, action)?.payPrintedCostOf;
     if (pay?.from.zone !== "discard" || entry.targets.length === 0) return null;
+    const type = cardOf(state, entry.targets[0]!)?.type;
+    const piles = state.players.filter((seat) => pay.from.player !== "you" || seat.playerId === entry.example.playerId);
+    shown = piles.flatMap((seat) => seat.discard.filter((id) => cardOf(state, id)?.type === type));
   }
-  const base = entry.targets.map((instanceId) => {
+  const base = shown.map((instanceId) => {
+    const available = entry.targets.includes(instanceId);
+    const blocked = entry.blockedTargets.find((target) => target.instanceId === instanceId);
     const name = cardOf(state, instanceId)?.name ?? "Card";
     const { area, areaTag } = areaOf(state, instanceId);
     const card = cardOf(state, instanceId);
@@ -215,6 +234,8 @@ export function searchedPickFor(state: GameState, deps: EngineDeps, entry: Legal
       areaTag,
       typeWord: card ? card.type.charAt(0).toUpperCase() + card.type.slice(1).replace(/_/g, " ") : "Card",
       text: `${name} - ${area}`,
+      available,
+      unavailable: available ? null : blocked?.reason === "insufficient_resources" ? "Can't afford" : "Can't choose",
     };
   });
   const total = new Map<string, number>();
@@ -226,5 +247,5 @@ export function searchedPickFor(state: GameState, deps: EngineDeps, entry: Legal
     const of = total.get(text) ?? 0;
     return { ...option, label: of > 1 ? `${text} (${nth})` : text, copy: of > 1 ? `copy ${nth} of ${of}` : null };
   });
-  return { prompt: playAimPrompt(state, deps, entry), options };
+  return { prompt: playAimPrompt(state, deps, entry), options, confirm };
 }

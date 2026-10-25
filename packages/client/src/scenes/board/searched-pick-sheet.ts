@@ -18,7 +18,7 @@ import type { BoardDrawContext } from "./context.js";
 
 export function drawSearchedPickSheet(ctx: BoardDrawContext, viewport: Rect, pick: SearchedPickView): void {
   const { scene, controller } = ctx;
-  const layout = searchedPickLayout(viewport, pick.options.length);
+  const layout = searchedPickLayout(viewport, pick.options.length, pick.confirm);
 
   // The scrim also swallows taps, so nothing on the table underneath answers while the sheet is up.
   scene.add
@@ -49,6 +49,19 @@ export function drawSearchedPickSheet(ctx: BoardDrawContext, viewport: Rect, pic
       onClick: () => controller.cancel(),
     }),
   );
+  if (layout.confirm) {
+    ctx.frame.buttons.push(
+      new McButton(scene, {
+        kind: "primary",
+        label: "Confirm",
+        type: typeRole.label,
+        rect: layout.confirm,
+        enabled: !!pick.chosen,
+        reason: "Choose an ally first",
+        onClick: () => void controller.confirmSearched(),
+      }),
+    );
+  }
 
   pick.options.forEach((option, index) => {
     const rects = layout.tiles[index]!;
@@ -82,10 +95,18 @@ export function drawSearchedPickSheet(ctx: BoardDrawContext, viewport: Rect, pic
     fitText(tagText, tag.width - 8, typeRole.stamp.size);
     const name = scene.add.text(caption.x, caption.y + 4, option.name, textStyle(typeRole.rowTitle, surface.ink.hex));
     fitText(name, caption.width, 15);
+    if (!option.available) {
+      // Shown but not choosable (an ally Make the Call cannot pay for): washed out, and the caption says why.
+      g.fillStyle(surface.paper.hex, 0.65).fillRect(face.x, face.y, face.width, face.height + tag.height);
+    }
+    if (pick.chosen === option.instanceId) {
+      const ring = { x: face.x - 4, y: face.y - 4, width: face.width + 8, height: face.height + tag.height + 8 };
+      g.lineStyle(6, accent.heroRed.hex, 1).strokeRect(ring.x, ring.y, ring.width, ring.height);
+    }
     const kind = scene.add.text(
       caption.x,
       name.y + name.height + 2,
-      [option.typeWord, option.copy].filter(Boolean).join(" · "),
+      [option.typeWord, option.copy, option.unavailable].filter(Boolean).join(" · "),
       textStyle(typeRole.label, surface.ink.hex, ink.label),
     );
     fitText(kind, caption.width, typeRole.label.size);

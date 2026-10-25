@@ -908,16 +908,36 @@ export class BoardController {
 
   /** The searched-minion list: the card being played and each minion the search found, with its area, or null. */
   searchedPick(): SearchedPickView | null {
-    return this.#selection.kind === "choosingSearched" ? this.#selection.pick : null;
+    if (this.#selection.kind !== "choosingSearched") return null;
+    const { pick, chosen } = this.#selection;
+    return pick.confirm ? { ...pick, chosen } : pick;
   }
 
-  /** The list's answer: the play goes on with that minion in the cost's slot, as a board pick would. */
+  /**
+   * A tap on one of the list's cards. Hunted's list answers at once: the play goes on with that minion in the cost's
+   * slot, as a board pick would. Make the Call's selects the ally (a second tap clears it) and waits for Confirm.
+   */
   async chooseSearched(instanceId: InstanceId): Promise<void> {
     if (this.#readOnly || this.#selection.kind !== "choosingSearched") return;
-    const { entry, pick, controllerId, confirmFree } = this.#selection;
-    if (!pick.options.some((option) => option.instanceId === instanceId)) return;
+    const { entry, pick, chosen, controllerId, confirmFree } = this.#selection;
+    const option = pick.options.find((candidate) => candidate.instanceId === instanceId);
+    if (!option?.available) return;
+    if (pick.confirm) {
+      this.#selection = { ...this.#selection, chosen: chosen === instanceId ? null : instanceId };
+      this.#host.redraw();
+      return;
+    }
     this.#selection = { kind: "idle" };
     await this.#playAs(entry, controllerId, confirmFree, instanceId);
+  }
+
+  /** Confirm on a list that waits for it (Make the Call): the play goes on with the selected ally, to its payment. */
+  async confirmSearched(): Promise<void> {
+    if (this.#readOnly || this.#selection.kind !== "choosingSearched") return;
+    const { entry, chosen, controllerId, confirmFree } = this.#selection;
+    if (chosen === null) return;
+    this.#selection = { kind: "idle" };
+    await this.#playAs(entry, controllerId, confirmFree, chosen);
   }
 
   /** The "Where?" bar: the ally being played and each place it may go, with its price there, or null when not open. */
@@ -1013,7 +1033,7 @@ export class BoardController {
     // list asks; Make the Call's asks even for one ally, so the player sees which it is before paying (#419).
     const pick = target === null && game ? searchedPickFor(game, POOL_DEPS, entry) : null;
     if (pick) {
-      this.#selection = { kind: "choosingSearched", entry, pick, controllerId, confirmFree };
+      this.#selection = { kind: "choosingSearched", entry, pick, chosen: null, controllerId, confirmFree };
       this.#host.redraw();
       return;
     }

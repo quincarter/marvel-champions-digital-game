@@ -22,6 +22,8 @@ export interface SearchedPickLayout {
   readonly sheet: Rect;
   readonly title: Rect;
   readonly cancel: Rect;
+  /** Confirm, beside Cancel, for a list that waits for it (Make the Call); null otherwise. */
+  readonly confirm: Rect | null;
   /**
    * How many lines the title may wrap to inside `title`. The prompt ("Hunted: choose the minion to search for and
    * attach it to") is longer than the room beside Cancel on a phone, where one line clipped it ("...SEARCH FOR AND AT").
@@ -44,7 +46,7 @@ const MAX_FACE_WIDTH = 170;
 const TITLE_LINES = 2;
 
 /** Lays `count` tiles out in `viewport`: as few rows as the width allows, each tile as large as the height then allows. */
-export function searchedPickLayout(viewport: Rect, count: number): SearchedPickLayout {
+export function searchedPickLayout(viewport: Rect, count: number, withConfirm = false): SearchedPickLayout {
   const margin = viewport.width < 600 ? 8 : 24;
   const sheet: Rect = {
     x: viewport.x + margin,
@@ -65,10 +67,13 @@ export function searchedPickLayout(viewport: Rect, count: number): SearchedPickL
     width: cancelWidth,
     height: hit.primary,
   };
+  const confirm: Rect | null = withConfirm
+    ? { x: cancel.x - GAP - cancelWidth, y: cancel.y, width: cancelWidth, height: hit.primary }
+    : null;
   const title: Rect = {
     x: sheet.x + PAD,
     y: sheet.y + PAD,
-    width: Math.max(0, cancel.x - GAP - (sheet.x + PAD)),
+    width: Math.max(0, (confirm ?? cancel).x - GAP - (sheet.x + PAD)),
     height: hit.primary,
   };
   // The tile is a face (5:7) over the tag, caption and Inspect rows. Pick the column count that gives the largest face.
@@ -100,5 +105,5 @@ export function searchedPickLayout(viewport: Rect, count: number): SearchedPickL
       inspect: { x, y: y + faceHeight + TAG_HEIGHT + CAPTION_HEIGHT + 4, width: faceWidth, height: hit.target },
     };
   });
-  return { sheet, title, cancel, titleLines: TITLE_LINES, tiles, columns: best.columns, rows: best.rows };
+  return { sheet, title, cancel, confirm, titleLines: TITLE_LINES, tiles, columns: best.columns, rows: best.rows };
 }

@@ -68,6 +68,19 @@ export async function playToMakeTheCall(store: SessionStore, seed = 5): Promise<
   return null;
 }
 
-export async function startDevMakeTheCallGame(): Promise<InstanceId | null> {
-  return playToMakeTheCall(appSession().store);
+/**
+ * The jump's game; `tight` (`&tight=1`) then plays one more card from hand at the engine's own smallest payment, so the
+ * hand left over cannot pay for every ally and the list dims the ones it cannot.
+ */
+export async function startDevMakeTheCallGame(tight = false): Promise<InstanceId | null> {
+  const store = appSession().store;
+  const call = await playToMakeTheCall(store);
+  if (!call || !tight) return call;
+  const turn = await nextTurn(store);
+  const spend = turn?.legal.find(
+    (entry) => entry.action.kind === "playCard" && entry.needsPayment && entry.action.instanceId !== call,
+  );
+  if (spend) await store.dispatch(spend.example);
+  await nextTurn(store);
+  return call;
 }

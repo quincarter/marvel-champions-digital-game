@@ -188,13 +188,12 @@ describe("Hunted (56007): the pick is a minion still in the encounter deck, sear
   });
 });
 
-describe("Make the Call (01071): the ally whose cost is paid is listed with its pile, even when it is the only one (#419)", () => {
-  async function callWithFuryDiscarded(): Promise<{
-    state: GameState;
-    me: PlayerId;
-    call: InstanceId;
-    fury: InstanceId;
-  }> {
+describe("Make the Call (01071): every ally in the discard piles is listed with its pile, lit when it can be paid for (#419)", () => {
+  /**
+   * Make the Call in hand with `payWith` single-resource cards (never The Power of Leadership, which doubles), and an
+   * event above Nick Fury (cost 4) and Mockingbird (cost 3) in Captain Marvel's discard pile.
+   */
+  async function callWithAlliesDiscarded(payWith: number) {
     const core = new EngineSessionCore();
     const started = await core.start({
       scenarioId: "rhino",
@@ -206,42 +205,63 @@ describe("Make the Call (01071): the ally whose cost is paid is listed with its 
     const me = state.players[0]!.playerId;
     const seat = state.players[0]!;
     const all = [...seat.deck, ...seat.hand];
-    const find = (code: string) => all.find((id) => state.instances[id]?.cardId === code)!;
-    const call = find("01071");
-    const fury = find("01084");
-    // An event above Nick Fury, so the first discarded card is not one the cost may take.
-    const getReady = find("01069");
-    const rest = all.filter((id) => id !== call && id !== fury && id !== getReady);
+    const code = (id: InstanceId) => state.instances[id]!.cardId as string;
+    const find = (wanted: string) => all.find((id) => code(id) === wanted)!;
+    const [call, fury, mockingbird, getReady] = ["01071", "01084", "01083", "01069"].map(find) as InstanceId[];
+    const used = new Set([call, fury, mockingbird, getReady]);
+    const icons = (id: InstanceId) => {
+      const card = state.cardPool[code(id)] as { resourceIcons?: Record<string, number> };
+      return Object.values(card.resourceIcons ?? {}).reduce((a, b) => a + b, 0);
+    };
+    const singles = all.filter((id) => !used.has(id) && code(id) !== "01072" && icons(id) === 1).slice(0, payWith);
+    const rest = all.filter((id) => !used.has(id) && !singles.includes(id));
     const players = [
-      { ...seat, hand: [call, ...rest.slice(0, 5)], deck: rest.slice(5), discard: [getReady, fury] },
+      { ...seat, hand: [call!, ...singles], deck: rest, discard: [getReady!, fury!, mockingbird!] },
       ...state.players.slice(1),
     ];
-    return { state: { ...state, players }, me, call, fury };
+    return { state: { ...state, players } as GameState, me, call: call!, fury: fury!, mockingbird: mockingbird! };
   }
 
-  test("one ally to choose still asks, naming whose discard pile it is in; the pay step then prices that ally", async () => {
-    const { state, me, call, fury } = await callWithFuryDiscarded();
+  function makeTheCall(state: GameState, me: PlayerId, call: InstanceId) {
     const legal = legalActions(state, me, POOL_DEPS);
     if (legal.kind !== "turn") throw new Error(`expected a turn, got ${legal.kind}`);
-    const entry = legal.legal.find((e) => e.action.kind === "playCard" && e.action.instanceId === call)!;
-    expect(entry.targets).toEqual([fury]);
+    return legal.legal.find((e) => e.action.kind === "playCard" && e.action.instanceId === call)!;
+  }
+
+  test("both allies shown with whose pile they are in; the one the hand cannot pay for is dimmed and says why", async () => {
+    const { state, me, call, fury, mockingbird } = await callWithAlliesDiscarded(3);
+    const entry = makeTheCall(state, me, call);
+    expect(entry.targets).toEqual([mockingbird]);
     expect(needsPlayAim(entry)).toBe(false);
 
     const pick = searchedPickFor(state, POOL_DEPS, entry)!;
     expect(pick.prompt).toBe("Make the Call: choose the ally whose cost you pay");
-    expect(pick.options).toHaveLength(1);
-    expect(pick.options[0]).toMatchObject({
-      instanceId: fury,
-      name: "Nick Fury",
+    expect(pick.confirm).toBe(true);
+    expect(pick.options.map((option) => [option.instanceId, option.available, option.unavailable])).toEqual([
+      [fury, false, "Can't afford"],
+      [mockingbird, true, null],
+    ]);
+    expect(pick.options[1]).toMatchObject({
+      name: "Mockingbird",
       typeWord: "Ally",
       area: "in Carol Danvers' discard pile",
       areaTag: "CAROL DANVERS' DISCARD",
     });
 
-    const aim = paymentAimOf(state, POOL_DEPS, entry.action, fury);
-    expect(aim).toEqual({ target: fury });
+    // Confirm opens the pay step for that ally, with nothing spent yet: the player picks the cards.
+    const aim = paymentAimOf(state, POOL_DEPS, entry.action, mockingbird);
+    expect(aim).toEqual({ target: mockingbird });
     const payment = beginPayment(state, me, entry.action, aim.target, POOL_DEPS)!;
-    expect(payment.query.requirement.generic).toBe(4);
+    expect(payment.query.requirement.generic).toBe(3);
     expect(payment.picked).toEqual([]);
+  });
+
+  test("with enough to pay for either, both are lit", async () => {
+    const { state, me, call, fury, mockingbird } = await callWithAlliesDiscarded(4);
+    const pick = searchedPickFor(state, POOL_DEPS, makeTheCall(state, me, call))!;
+    expect(pick.options.map((option) => [option.instanceId, option.available])).toEqual([
+      [fury, true],
+      [mockingbird, true],
+    ]);
   });
 });
