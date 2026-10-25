@@ -184,6 +184,28 @@ describe(`${WORK_LIFE_A}: Alter-Ego Action, choose one`, () => {
     expect(playerOf(confused, P1).playArea).toContain(g.id);
   });
 
+  // Inspiring Pottery (Art Museum Heist 60123) on her makes her stalwart (#412): she cannot be confused (RRG 1.8
+  // "Stalwart", p. 40), so the confuse option's cost cannot be paid (p. 13 "Cost Arrow Icon", p. 12 "Choose (Option)").
+  const withPottery = (codes: readonly string[]) => {
+    const g = stagedInPlay(withCodes(WORK_LIFE, "60123", ...codes), WORK_LIFE);
+    return { id: g.id, state: stagedInPlay(g.state, "60123", { attach: true }).state };
+  };
+
+  it("with Jessica stalwart and no ally, the action has no valid target and the card stays", () => {
+    const g = withPottery([]);
+    expect(sessionApply(startSession(g.state), use(P1, g.id, WORK_LIFE_A), WAVE11_DEPS).ok).toBe(false);
+    expect(playerOf(g.state, P1).playArea).toContain(g.id);
+  });
+
+  it("with Jessica stalwart and an ally, the ally is removed: the confuse option is never offered", () => {
+    const g = withPottery([ALLY]);
+    const ally = stagedInPlay(g.state, ALLY);
+    // Picking option "1" (confuse) when offered would leave the ally; only the ally option is there.
+    const after = drive(ally.state, use(P1, g.id, WORK_LIFE_A), optionIds("1"));
+    expect(playerOf(after, P1).playArea).not.toContain(ally.id);
+    expect(inst(after, identityOf(after)).statuses.confused).toBe(0);
+  });
+
   it("cannot be used in hero form", () => {
     const g = stagedInPlay(withCodes(WORK_LIFE), WORK_LIFE);
     const hero = withForm(g.state, { heroForm: 0 });

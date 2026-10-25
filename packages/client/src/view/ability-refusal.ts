@@ -12,15 +12,23 @@
  */
 import {
   activeAbilityRefs,
+  cardsInPlay,
+  hasKeyword,
+  matchesQuery,
   resolveValue,
+  type EffectSpec,
   type EngineDeps,
   type GameState,
   type InstanceId,
+  type OptionUnavailableReason,
   type Predicate,
   type PlayerId,
+  type TargetQuery,
+  type UnavailableOptions,
   type ValueSpec,
 } from "@mc/engine";
 import type { AbilityId } from "@mc/content";
+import { cardName } from "./names.js";
 
 /** The engine's refusal sentence for any ability whose condition is unmet: what a reason falls back to. */
 export const CONDITION_UNMET = "its condition is not met";
@@ -92,6 +100,168 @@ export function abilityRefusalReason(
   }
   return fallback;
 }
+
+/** The noun for a query of one category the target wording knows ("ally"); any other query is not worded. */
+const TARGET_NOUN: Readonly<Record<string, string>> = { ally: "ally", minion: "minion", support: "support" };
+
+type TargetContext = { selfInstanceId: InstanceId; controllerId: PlayerId; deps: EngineDeps };
+
+/**
+ * Why a choice of target has nothing to choose, from the query's own data: "you control no ally", or, for a character
+ * a status card cannot be placed on (`canTakeStatus`), "Jessica Jones is stalwart and cannot be confused" (RRG 1.8
+ * "Stalwart", p. 40) or, when it holds one, "Jessica Jones is already confused". Null while the query has a match, for any
+ * other blocker, or for a shape not listed.
+ */
+function noTargetClause(state: GameState, query: TargetQuery, context: TargetContext): string | null {
+  const engineContext = { ...context, event: null, bindings: {} };
+  const matches = (q: TargetQuery) => cardsInPlay(state).filter((id) => matchesQuery(state, id, q, engineContext));
+  if (matches(query).length > 0) return null;
+  const { canTakeStatus: status, ...rest } = query;
+  if (status === "confused" || status === "stunned") {
+    // Only a single candidate is named: with several, the first one's reason need not be every one's.
+    const candidates = matches(rest);
+    if (candidates.length !== 1) return null;
+    const blocked = candidates[0]!;
+    const name = cardName(state, blocked);
+    if (hasKeyword(state, blocked, "stalwart", context.deps)) return `${name} is stalwart and cannot be ${status}`;
+    // Said only when the card holds one: another rule ("cannot be stunned", `cannotHaveStatus`) is not worded here.
+    if ((state.instances[blocked]?.statuses[status] ?? 0) > 0) return `${name} is already ${status}`;
+    return null;
+  }
+  return noMatchClause(query);
+}
+
+/** "You control no ally" from a query's shape alone (one known noun, `controller: "you"`, nothing else); null otherwise. */
+function noMatchClause(query: TargetQuery): string | null {
+  const categories = query.categories ?? [];
+  const noun = categories.length === 1 ? TARGET_NOUN[categories[0]!] : undefined;
+  const fields = Object.values(query).filter((value) => value !== undefined).length;
+  if (noun && query.controller === "you" && fields === 2) return `you control no ${noun}`;
+  return null;
+}
+
+/**
+ * The query of the opening target choice among these effects, as the engine judges one (`isRequiredChoice` in its
+ * target validity: not optional, not "up to", at least one), or null when the effects open with anything else.
+ */
+function firstTargetQuery(effects: readonly EffectSpec[]): TargetQuery | null {
+  const first = effects[0];
+  if (first?.kind !== "chooseTarget" || first.optional || first.upTo) return null;
+  if (typeof first.count === "number" && first.count < 1) return null;
+  return first.query;
+}
+
+/**
+ * Why `abilityId` on `instanceId` has no valid target, in a few words, or null when it cannot be worded. A "Choose:"
+ * ability names each option's missing target ("you control no ally, and Jessica Jones is stalwart and cannot be
+ * confused": Work-Life Balance with Inspiring Pottery on her, #412); any other names its first choice of target. The
+ * engine decided the refusal; this only reads which target was missing, and words nothing unless every part is worded.
+ */
+export function targetRefusalReason(
+  state: GameState,
+  instanceId: InstanceId,
+  controllerId: PlayerId,
+  abilityId: AbilityId,
+  deps: EngineDeps,
+): string | null {
+  const definition = deps.abilities[abilityId];
+  if (!definition) return null;
+  const context = { selfInstanceId: instanceId, controllerId, deps };
+  const effects = definition.effects.slice(definition.costEffects ?? 0);
+  const choice = effects.find((effect) => effect.kind === "chooseOne");
+  const queries =
+    choice?.kind === "chooseOne"
+      ? choice.options.map((option) => firstTargetQuery(option.effects))
+      : [firstTargetQuery(effects)];
+  const clauses = queries.map((query) => (query ? noTargetClause(state, query, context) : null));
+  if (clauses.length === 0 || clauses.some((clause) => clause === null)) return null;
+  return clauses.join(", and ");
+}
+
+type ChooseOneOption = Extract<EffectSpec, { kind: "chooseOne" }>["options"][number];
+
+/** The "choose one" option at `index` with this `label`, anywhere in the ability's plain-data tree. */
+function optionAt(node: unknown, index: number, label: string): ChooseOneOption | null {
+  if (typeof node !== "object" || node === null) return null;
+  const effect = node as Partial<Extract<EffectSpec, { kind: "chooseOne" }>>;
+  if (effect.kind === "chooseOne" && effect.options?.[index]?.label === label) return effect.options[index]!;
+  for (const child of Object.values(node)) {
+    const found = optionAt(child, index, label);
+    if (found) return found;
+  }
+  return null;
+}
+
+/**
+ * An option's own unmet condition, in words, for the shapes printed conditions use; null for any other. "Remove 2 threat
+ * from a scheme" while no scheme holds threat (Nick Fury `core` 01084) is "no scheme has threat on it".
+ */
+function conditionClause(condition: Predicate | undefined): string | null {
+  // "At least 1 card attached here" (Plot Convenience `deadpool` 44050: "Add 1 card attached here to your hand").
+  if (
+    condition?.kind === "compare" &&
+    condition.op === "atLeast" &&
+    condition.right.kind === "const" &&
+    condition.right.value === 1 &&
+    condition.left.kind === "count"
+  ) {
+    const counted = condition.left.query as TargetQuery & { readonly host?: { readonly kind?: string } };
+    if (counted.host?.kind === "self" && Object.keys(counted).every((key) => key === "host" || key === "facedown"))
+      return "no card is attached here";
+  }
+  if (condition?.kind !== "exists") return null;
+  const query = condition.query as TargetQuery;
+  const categories = query.categories ?? [];
+  if (
+    categories.length === 1 &&
+    categories[0] === "scheme" &&
+    query.hasThreat === true &&
+    Object.keys(query).length === 2
+  )
+    return "no scheme has threat on it";
+  return null;
+}
+
+/** What each engine reason means, when nothing more specific can be said. */
+const OPTION_REASON_WORDS: Readonly<Record<OptionUnavailableReason, string>> = {
+  condition: "its condition is not met",
+  cannotChoose: "a card in play says you cannot choose it",
+  cannotPay: "you cannot pay its cost",
+  noTarget: "it has no valid target",
+};
+
+/**
+ * One line per option of a "choose one" that was not offered, and why (#412): "Confuse your identity → discard this card:
+ * Jessica Jones is stalwart and cannot be confused". The engine names the rule that barred each option; for a missing
+ * target this names which target, as `targetRefusalReason` does, and otherwise falls back to the rule in words.
+ */
+export function unavailableOptionReasons(
+  state: GameState,
+  unavailable: UnavailableOptions,
+  deps: EngineDeps,
+): { readonly index: number; readonly label: string; readonly why: string }[] {
+  const definition = unavailable.abilityId ? deps.abilities[unavailable.abilityId] : undefined;
+  return unavailable.options.map(({ index, label, reason, missing }) => {
+    let why: string | null = null;
+    // A condition is worded from its own shape; a missing target from what the engine recorded when it barred the
+    // option. Neither is re-judged against the state now, which a resumed game's log may read long after (#414 review).
+    if (reason === "condition") {
+      why = conditionClause(definition ? optionAt(definition.effects, index, label)?.condition : undefined);
+    }
+    if (reason === "noTarget" && missing?.blocked) {
+      const { instanceId, status, cause } = missing.blocked;
+      const name = cardName(state, instanceId);
+      why = cause === "stalwart" ? `${name} is stalwart and cannot be ${status}` : `${name} is already ${status}`;
+    } else if (reason === "noTarget" && missing) {
+      why = missing.target.canTakeStatus === undefined ? noMatchClause(missing.target) : null;
+    }
+    return { index, label, why: why ?? OPTION_REASON_WORDS[reason] };
+  });
+}
+
+/** `unavailableOptionReasons` as one "label: why" line each, for the log. */
+export const unavailableOptionLines = (state: GameState, unavailable: UnavailableOptions, deps: EngineDeps): string[] =>
+  unavailableOptionReasons(state, unavailable, deps).map(({ label, why }) => `${label}: ${why}`);
 
 /** The ability's printed name ("New Labors of Hercules"), or "This ability" when the card does not print one. */
 export function abilityNameOf(state: GameState, instanceId: InstanceId, abilityId: AbilityId): string {

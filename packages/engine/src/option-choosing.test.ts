@@ -78,7 +78,26 @@ const PANEL = stubSupport({
   abilities: [PANEL_CHOOSE.ref, PANEL_P2_CHOOSES.ref],
 });
 const PLAIN_CHOOSE = chooser("plain.choose", [red, blue, green]);
-const PLAIN = stubSupport({ id: "plain", cost: 0, abilities: [PLAIN_CHOOSE.ref] });
+/** Red and Blue, a target nobody has (a minion named Nobody) and a spend nobody can pay (9 energy), for the record of why (#412). */
+const NOBODY: TargetQuery = { categories: ["minion"], name: "Nobody" };
+const PLAIN_BARRED = chooser("plain.barred", [
+  red,
+  blue,
+  { label: "Hit Nobody", effects: [{ kind: "chooseTarget", slot: "nobody", query: NOBODY, chooser: you }] },
+  // A target that is there (this card), then one that is not: barred, but not for want of the first one.
+  {
+    label: "Pick this, then Nobody",
+    effects: [
+      { kind: "chooseTarget", slot: "this", query: { self: true }, chooser: you },
+      { kind: "chooseTarget", slot: "nobody", query: NOBODY, chooser: you },
+    ],
+  },
+  {
+    label: "Pay 9 energy",
+    effects: [{ kind: "spendResources", player: you, resources: { energy: 9 }, bind: "paid", required: true }],
+  },
+]);
+const PLAIN = stubSupport({ id: "plain", cost: 0, abilities: [PLAIN_CHOOSE.ref, PLAIN_BARRED.ref] });
 const DUO_CHOOSE = chooser("duo.choose", [red, green]);
 const DUO = stubSupport({ id: "duo", cost: 0, traits: [TRAP], abilities: [DUO_CHOOSE.ref] });
 /** Red, and a Green that is never available (outside a campaign): Red, tagged, is the only option. */
@@ -121,6 +140,7 @@ const deps: EngineDeps = depsOf(
   PANEL_CHOOSE,
   PANEL_P2_CHOOSES,
   PLAIN_CHOOSE,
+  PLAIN_BARRED,
   DUO_CHOOSE,
   SOLO_CHOOSE,
   WATCHER_ANSWER,
@@ -174,6 +194,7 @@ function table(
 /** Uses `ability` on `card`, answering the option prompt with the option whose label starts with `pick`. */
 function choose(at: Table, card: CardId, ability: StubAbility, pick: string) {
   const offered: string[][] = [];
+  const barred: unknown[] = [];
   const askedOf: PlayerId[] = [];
   const command: Command = {
     type: "useAbility",
@@ -188,13 +209,14 @@ function choose(at: Table, card: CardId, ability: StubAbility, pick: string) {
     if (choice.prompt.kind === "chooseOption") {
       askedOf.push(choice.playerId);
       offered.push(choice.options.map((o) => o.label.split(":")[0]!));
+      barred.push(choice.prompt.unavailable ?? null);
       const option = choice.options.find((o) => o.label.startsWith(pick));
       if (!option) throw new Error(`no option ${pick}`);
       return [option.optionId];
     }
     return defaultPick(current);
   });
-  return { state: session.state, events, offered, askedOf };
+  return { state: session.state, events, offered, askedOf, barred };
 }
 
 const identityDamage = (state: GameState, player: PlayerId = P1): number =>
@@ -219,6 +241,7 @@ describe("TriggerEvent optionChoosing: 'When you choose the Red effect on a TRAP
     const at = table();
     const after = choose(at, PANEL.id, PANEL_CHOOSE, "Red");
     expect(after.offered).toEqual([["Red", "Blue", "Green"]]);
+    expect(after.barred).toEqual([null]);
     expect(trace(after.events)).toEqual([
       `resolved ${PANEL_CHOOSE.ref.id}`,
       `resolved ${WATCHER_ANSWER.ref.id}`,
@@ -263,23 +286,43 @@ describe("RuleSpec cannotChooseOption: 'you cannot choose the Red effect on TRAP
   it("bars the tagged option for the player the monk is engaged with", () => {
     const after = choose(table({ watcher: false, monk: "engaged" }), PANEL.id, PANEL_CHOOSE, "Blue");
     expect(after.offered).toEqual([["Blue", "Green"]]);
+    // The prompt names the barred option and why, so the player is told (#412).
+    expect(after.barred).toEqual([
+      {
+        chooserId: P1,
+        sourceInstanceId: table({ watcher: false, monk: "engaged" }).ids[PANEL.id],
+        abilityId: PANEL_CHOOSE.ref.id,
+        options: [{ index: 0, label: red.label, reason: "cannotChoose" }],
+      },
+    ]);
   });
 
   it("does not bar it on a card its `sources` does not match", () => {
     const after = choose(table({ watcher: false, monk: "engaged" }), PLAIN.id, PLAIN_CHOOSE, "Red");
     expect(after.offered).toEqual([["Red", "Blue", "Green"]]);
+    expect(after.barred).toEqual([null]);
   });
 
   it("bars nobody while the monk is engaged with no player", () => {
     const after = choose(table({ watcher: false, monk: "unengaged" }), PANEL.id, PANEL_CHOOSE, "Red");
     expect(after.offered).toEqual([["Red", "Blue", "Green"]]);
+    expect(after.barred).toEqual([null]);
   });
 
   it("one option left resolves without asking (RRG 1.8 'Choose (Option)', p. 12), and the barred option is never heard", () => {
     const at = table({ monk: "engaged" });
     const after = choose(at, DUO.id, DUO_CHOOSE, "Green");
     expect(after.offered).toEqual([]);
-    expect(chosenLog(after.events)).toEqual([{ type: "optionChosen", label: green.label, index: 1, onlyOption: true }]);
+    // The barred option, and why, rides on the event so the log can say it (#412).
+    const unavailable = {
+      chooserId: P1,
+      sourceInstanceId: at.ids[DUO.id],
+      abilityId: DUO_CHOOSE.ref.id,
+      options: [{ index: 0, label: red.label, reason: "cannotChoose" }],
+    };
+    expect(chosenLog(after.events)).toEqual([
+      { type: "optionChosen", label: green.label, index: 1, onlyOption: true, unavailable },
+    ]);
     expect(counter(after.state, at.ids[DUO.id]!, "green")).toBe(1);
     expect(identityDamage(after.state)).toBe(0);
   });
@@ -291,7 +334,19 @@ describe("an only option that is tagged, and two players", () => {
     const after = choose(at, SOLO.id, SOLO_CHOOSE, "Red");
     expect(after.offered).toEqual([]);
     expect(chosenLog(after.events)).toEqual([
-      { type: "optionChosen", label: red.label, index: 0, onlyOption: true, tag: "red" },
+      {
+        type: "optionChosen",
+        label: red.label,
+        index: 0,
+        onlyOption: true,
+        tag: "red",
+        unavailable: {
+          chooserId: P1,
+          sourceInstanceId: at.ids[SOLO.id],
+          abilityId: SOLO_CHOOSE.ref.id,
+          options: [{ index: 1, label: green.label, reason: "condition" }],
+        },
+      },
     ]);
     expect(trace(after.events)).toEqual([
       `resolved ${SOLO_CHOOSE.ref.id}`,
@@ -318,5 +373,25 @@ describe("an only option that is tagged, and two players", () => {
     expect(after.askedOf).toEqual([P2]);
     expect(identityDamage(after.state, P2)).toBe(1);
     expect(identityDamage(after.state, P1)).toBe(0);
+  });
+});
+
+describe("the record of why an option is not offered (#412)", () => {
+  it("a missing target records the query that had nothing; a later dead step or an unpaid spend records only the rule", () => {
+    const at = table({ watcher: false });
+    const after = choose(at, PLAIN.id, PLAIN_BARRED, "Red");
+    expect(after.offered).toEqual([["Red", "Blue"]]);
+    expect(after.barred).toEqual([
+      {
+        chooserId: P1,
+        sourceInstanceId: at.ids[PLAIN.id],
+        abilityId: PLAIN_BARRED.ref.id,
+        options: [
+          { index: 2, label: "Hit Nobody", reason: "noTarget", missing: { target: NOBODY } },
+          { index: 3, label: "Pick this, then Nobody", reason: "noTarget" },
+          { index: 4, label: "Pay 9 energy", reason: "cannotPay" },
+        ],
+      },
+    ]);
   });
 });

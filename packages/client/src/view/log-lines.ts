@@ -33,6 +33,7 @@ import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
 import { abilityShortLabelOf } from "./ability-label.js";
 import { facedownRoleName, facedownUntilLater } from "./facedown-history.js";
 import { foeWord } from "./foe-words.js";
+import { unavailableOptionLines } from "./ability-refusal.js";
 import { cardName, faceUpName, formWords, optionLabelOf, playerName, seatName } from "./names.js";
 
 /** A line that opens with a card named only as far as the table may see it ("a facedown card") starts with a capital. */
@@ -1633,6 +1634,14 @@ function describe(
     // - `threatCostSettled`: the `threatRemoved` before it is the line.
     // - `damageBeyondZeroLost`: a dial correction; the damage was already logged in full and the card shows its hit points.
     // - `abilityGained.grantedByInstanceId`: rules bookkeeping on an event already skipped; Inspect shows the ability.
+
+    // A "choose one" that asked nobody because the other options could not be chosen: say why each was not offered, so
+    // nobody thinks an option was skipped by mistake (#412). One with every option offered is the answer, not a line.
+    case "optionChosen": {
+      if (!event.onlyOption || !event.unavailable) return null;
+      const why = unavailableOptionLines(state, event.unavailable, deps).map((line) => `${line}.`);
+      return { text: `Only option left: ${event.label}. Not available: ${why.join(" ")}`, voice: "player" };
+    }
 
     // Bookkeeping the player never reads: the stack, timing windows, trigger
     // announcements, per-card zone moves, and choice plumbing. The Inspect

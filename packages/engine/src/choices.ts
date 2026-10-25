@@ -3,7 +3,7 @@ import type { InPlayCostMode } from "./abilities.js";
 import type { ChoiceId, FrameId, InstanceId, PlayerId, TeamId } from "./ids.js";
 import type { ReportedFact, ReportedFactAnswer } from "./outside-facts.js";
 import type { ResourcePool, ResourceRequirement, ResourceType, TypedResource } from "./resources.js";
-import type { PairLimit, StatusName } from "./spec.js";
+import type { PairLimit, StatusName, TargetQuery } from "./spec.js";
 import type { Form, ZoneId } from "./state.js";
 import type { WindowTiming } from "./stack.js";
 import type { TriggerEvent } from "./trigger-events.js";
@@ -22,6 +22,42 @@ export interface AttackInProgress {
 export interface CardPosition {
   readonly zone: ZoneId;
   readonly index: number;
+}
+
+/**
+ * Why a "choose one" option is not offered (`EffectSpec chooseOne`, RRG 1.8 "Choose (Option)", p. 12): its own condition
+ * is unmet (`condition`), a rule says this player cannot choose it (`cannotChoose`, `RuleSpec cannotChooseOption`), its
+ * resource spend cannot be paid (`cannotPay`), or it needs a target and has no valid one (`noTarget`).
+ */
+export type OptionUnavailableReason = "condition" | "cannotChoose" | "cannotPay" | "noTarget";
+
+/**
+ * For a `noTarget` option, what was missing, read when the option was barred so a later reader never re-judges it
+ * against a different state: the option's opening target query (`target`), and, when that query asks for room for a
+ * status card and exactly one card would match without that, the card and why it had none (`blocked`: it is stalwart,
+ * RRG 1.8 "Stalwart" p. 40, or it already holds that status card). Absent when the option opens with no target choice.
+ */
+export interface MissingTarget {
+  readonly target: TargetQuery;
+  readonly blocked?: {
+    readonly instanceId: InstanceId;
+    readonly status: "stunned" | "confused";
+    readonly cause: "stalwart" | "statusHeld";
+  };
+}
+
+/** The options of one "choose one" not offered, by index into the effect's options, with the ability they belong to. */
+export interface UnavailableOptions {
+  /** The player making the choice. */
+  readonly chooserId: PlayerId | null;
+  readonly sourceInstanceId: InstanceId | null;
+  readonly abilityId: AbilityId | null;
+  readonly options: readonly {
+    readonly index: number;
+    readonly label: string;
+    readonly reason: OptionUnavailableReason;
+    readonly missing?: MissingTarget;
+  }[];
 }
 
 /** What a `chooseFromList` prompt enumerates. `cardType`: the fifteen card types (RRG 1.8 "Card Types", p. 12). */
@@ -146,8 +182,11 @@ export type ChoicePrompt =
    * their turn (docs/phase7-wave9.md §3.53). Each option is one such ability (`ref.kind === "ability"`, option id
    * `forcedActionOptionId`); exactly one is chosen and it is triggered at once, its cost paid as `legalActions` would
    * pay it. There is no declining. Absent on every other `chooseOption`.
+   *
+   * `unavailable`: the options of a "choose one" that are not offered, each with the rule that barred it, so a player
+   * is told why an option on the card is missing (#412). Absent when every option is offered.
    */
-  | { readonly kind: "chooseOption"; readonly forcedAction?: true }
+  | { readonly kind: "chooseOption"; readonly forcedAction?: true; readonly unavailable?: UnavailableOptions }
   /**
    * `cardInstanceId`: the card whose controller is being chosen, when an effect puts a "Play under any player's
    * control" card into play (`putIntoPlayController`), so the question can name it ("Who controls Boot Camp?").

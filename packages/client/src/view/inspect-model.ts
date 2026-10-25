@@ -55,6 +55,7 @@ import { artFor, type ArtSource, type CardFace } from "../art/art-source.js";
 import { abilityActionsFor } from "./highlights.js";
 import { qualifiedHeroName } from "./hero-names.js";
 import { abilityLabelOf } from "./ability-label.js";
+import { targetRefusalReason } from "./ability-refusal.js";
 import { cardHistoryOf, emptyCardHistoryLog, type CardHistoryLine, type CardHistoryLog } from "./card-history.js";
 import { cardName, faceUpName } from "./names.js";
 import { maskedStageInspect, type BlindReveal } from "./civil-war-blind.js";
@@ -1051,7 +1052,15 @@ function statusOf(
       (entry.action.kind === "playCard" || entry.action.kind === "useAbility") &&
       entry.action.instanceId === instanceId,
   );
-  if (illegal) return { playable: false, message: teamUpWhyNot(state, instanceId, illegal.message), targets: [] };
+  if (illegal) {
+    // "That ability has no valid target" alone does not say which target is missing (#412): name it when it can be worded.
+    const missing =
+      illegal.action.kind === "useAbility" && /no valid target/i.test(illegal.message)
+        ? targetRefusalReason(state, instanceId, perspectiveId, illegal.action.abilityId, deps)
+        : null;
+    const message = missing ? `${illegal.message}: ${missing}` : teamUpWhyNot(state, instanceId, illegal.message);
+    return { playable: false, message, targets: [] };
+  }
 
   // Not a card the player could play — but it may be something they can aim at.
   const aimedAt = legal.legal.filter((entry) => entry.targets.includes(instanceId));
