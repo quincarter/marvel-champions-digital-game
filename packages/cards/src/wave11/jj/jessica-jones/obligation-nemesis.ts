@@ -81,8 +81,9 @@ export const JJ_JESSICA_JONES_OBLIGATION_NEMESIS: AbilityRegistry = defineAbilit
         moveCards(cards(chosen("ally")), "removedFromGame"),
         moveCards(cards(self), "removedFromGame"),
       ),
-      // A target is valid only if the ability can affect it (RRG 1.8 "Target", p. 42): an identity that already holds a
-      // confused status card (or is stalwart) is not, so the option is barred then (p. 12).
+      // "Confuse your identity" is the option's cost (before the →). An identity that already holds a confused status
+      // card, or is stalwart (Inspiring Pottery, #412), cannot take one (RRG 1.8 "Stalwart", p. 40), so the cost cannot
+      // be paid and the option is barred (p. 13 "Cost Arrow Icon", p. 12 "Choose (Option)"; FAQ Focused Rage, p. 57).
       option(
         "Confuse your identity",
         chooseTarget("identity", query("identity", { controller: "you", ...canTakeStatus("confused") })),

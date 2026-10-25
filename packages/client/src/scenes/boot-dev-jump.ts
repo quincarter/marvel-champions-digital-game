@@ -456,6 +456,17 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.setupDeal, data: {} };
   }
 
+  // `?screen=inspect&fixture=work-life`: Inspect on Work-Life Balance while its action has no valid target (#412).
+  if (screen === "inspect" && params.get("fixture") === "work-life") {
+    const { startDevWorkLifeGame } = await import("../store/dev-work-life-game.js");
+    const instanceId = await startDevWorkLifeGame();
+    if (!instanceId) return { key: SCENES.board, data: {} };
+    return {
+      key: SCENES.inspect,
+      data: { instanceId, siblings: [instanceId] } satisfies InspectData,
+    };
+  }
+
   // `?screen=inspect[&card=N]`: the Inspect sheet over a live board, open on
   // the Nth card of the opening hand (default the first), for checking the
   // sheet against D08/P14/T06 at every size without clicking through a game.
