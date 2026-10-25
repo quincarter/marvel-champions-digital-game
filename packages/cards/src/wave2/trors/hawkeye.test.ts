@@ -632,14 +632,31 @@ describe("Hawkeye kit", () => {
     return legal.legal.some((e) => e.action.kind === "playCard" && e.action.instanceId === card);
   };
 
+  /** Hawkeye and the U.S. Agent, each ready or exhausted as given. */
+  const avengers = (hawkeyeTired: boolean, agentTired: boolean) => {
+    const { state, heroes, usAgent, identity } = mightiest(true);
+    const set = patchInstance(patchInstance(state, usAgent!, { exhausted: agentTired }), identity, {
+      exhausted: hawkeyeTired,
+    });
+    return { state: set, heroes, usAgent: usAgent!, identity };
+  };
+
+  it("Earth's Mightiest Heroes: playable with a ready Avenger to pay and an exhausted one to ready", () => {
+    const { state, heroes } = avengers(false, true);
+    expect(offered(state, heroes)).toBe(true);
+  });
+
   it("Earth's Mightiest Heroes: not playable while every Avenger you control is exhausted (#415)", () => {
     // Exhausting an Avenger is the cost (RRG 1.8 "Cost", p. 13): an exhausted Hawkeye cannot pay it, so the event is
     // never offered, and he cannot be the "another" Avenger readied by exhausting himself.
-    const { state, heroes, usAgent, identity } = mightiest(true);
-    const ready = patchInstance(patchInstance(state, usAgent!, { exhausted: false }), identity, { exhausted: false });
-    expect(offered(ready, heroes)).toBe(true);
-    const allTired = patchInstance(patchInstance(ready, usAgent!, { exhausted: true }), identity, { exhausted: true });
-    expect(offered(allTired, heroes)).toBe(false);
+    const { state, heroes } = avengers(true, true);
+    expect(offered(state, heroes)).toBe(false);
+  });
+
+  it("Earth's Mightiest Heroes: not playable while every Avenger is ready, with none to ready", () => {
+    // RRG 1.8 "Target" (p. 42): the ready needs an exhausted Avenger other than the one paying.
+    const { state, heroes } = avengers(false, false);
+    expect(offered(state, heroes)).toBe(false);
   });
 
   it("Earth's Mightiest Heroes: not playable by a lone Avenger, who would have no other Avenger to ready", () => {
@@ -649,30 +666,28 @@ describe("Hawkeye kit", () => {
   });
 
   it("Earth's Mightiest Heroes: exhausting a ready Avenger ally readies an exhausted Hawkeye", () => {
-    const { state, heroes, usAgent, identity } = mightiest(true);
-    const tired = patchInstance(patchInstance(state, usAgent!, { exhausted: false }), identity, { exhausted: true });
-    const after = settle(runWave2(tired, play(P1, heroes, [])), picking(identity), undefined, WAVE2_DEPS);
-    expect(inst(after, usAgent!).exhausted).toBe(true);
+    const { state, heroes, usAgent, identity } = avengers(true, false);
+    const after = settle(runWave2(state, play(P1, heroes, [])), picking(identity), undefined, WAVE2_DEPS);
+    expect(inst(after, usAgent).exhausted).toBe(true);
     expect(inst(after, identity).exhausted).toBe(false);
   });
 
   it("Earth's Mightiest Heroes: the Avenger exhausted to pay is never the one offered to ready", () => {
-    const { state, heroes, usAgent, identity } = mightiest(true);
-    const ready = patchInstance(patchInstance(state, usAgent!, { exhausted: false }), identity, { exhausted: false });
+    const { state, heroes, usAgent, identity } = avengers(false, true);
     const seen: string[] = [];
     const recording: typeof firstLegal = (s) => {
       seen.push(...(s.pendingChoice?.options.map((o) => o.optionId) ?? []));
       return picking(identity)(s);
     };
     const after = settle(
-      runWave2(ready, play(P1, heroes, [], { costChoices: { exhaust: [identity] } })),
+      runWave2(state, play(P1, heroes, [], { costChoices: { exhaust: [identity] } })),
       recording,
       undefined,
       WAVE2_DEPS,
     );
     expect(seen).not.toContain(identity);
     expect(inst(after, identity).exhausted).toBe(true);
-    expect(inst(after, usAgent!).exhausted).toBe(false);
+    expect(inst(after, usAgent).exhausted).toBe(false);
   });
 });
 
