@@ -10,10 +10,12 @@ import { hit, surface, typeRole } from "../tokens.js";
 import { textStyle } from "../ui/theme.js";
 import { McButton } from "../ui/widgets.js";
 import { destroyChildren } from "../ui/destroy-children.js";
+import { GlyphHints } from "../ui/glyph-hints.js";
 import type { Rect } from "../view/layout.js";
 import type { OptionNotice } from "../view/option-notice.js";
 import { FocusRoute } from "./focus-route.js";
 import { SCENES } from "./keys.js";
+import { anyPadButtonHeld } from "./press-guard.js";
 
 const buttonType = { ...typeRole.label, size: 13 };
 
@@ -24,10 +26,38 @@ export interface OptionNoticeData {
 /** The scenes under the notice whose pointer input it turns off while it is up. */
 const BENEATH = [SCENES.board, SCENES.choice] as const;
 
+/**
+ * Turns the scenes' input back on, but not while a pad button is down. Their pad plugins did not poll while input was
+ * off, so a button pressed to close the notice (Start, A, B) still reads as a fresh press to them the moment they poll
+ * again: Start would open Pause, A would press what the Board has focused. Waiting for the release makes that press
+ * the notice's alone. A click, or a key, has nothing held and gives the input back at once.
+ */
+function giveBack(scenes: readonly Phaser.Scene[]): void {
+  const first = scenes[0];
+  if (!first) return;
+  const enable = (): void => {
+    for (const scene of scenes) scene.input.enabled = true;
+  };
+  if (!anyPadButtonHeld()) {
+    enable();
+    return;
+  }
+  const timer = first.time.addEvent({
+    delay: 30,
+    loop: true,
+    callback: () => {
+      if (anyPadButtonHeld()) return;
+      enable();
+      timer.remove(false);
+    },
+  });
+}
+
 export class OptionNoticeOverlay extends Phaser.Scene {
   #notices: readonly OptionNotice[] = [];
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
+  #hints!: GlyphHints;
 
   constructor() {
     super(SCENES.optionNotice);
@@ -43,16 +73,16 @@ export class OptionNoticeOverlay extends Phaser.Scene {
     });
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
-    this.#route = new FocusRoute(this, { onCancel: () => this.#dismiss() });
-    // Enter is OK at once; once Tab has put the ring on OK, the route presses it instead (never both).
-    this.input.keyboard?.on("keydown-ENTER", () => {
-      if (this.#route?.focused === null) this.#dismiss();
-    });
+    this.#hints = new GlyphHints(this);
+    // A (or Enter) presses the focused OK, Start presses it from anywhere, B / Esc dismisses. A pad button still down
+    // when it opens fires nothing here: Phaser builds a held Button as pressed.
+    this.#route = new FocusRoute(this, { onCancel: () => this.#dismiss(), primary: () => "ok" });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#hints.dispose();
       this.scale.off("resize", onResize, this);
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
-      for (const scene of paused) scene.input.enabled = true;
+      giveBack(paused);
     });
     this.#draw();
   }
@@ -74,6 +104,7 @@ export class OptionNoticeOverlay extends Phaser.Scene {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     destroyChildren(this);
+    this.#hints.reset();
     const notice = this.#notices[0];
     if (!notice) return;
 
@@ -146,6 +177,12 @@ export class OptionNoticeOverlay extends Phaser.Scene {
         onClick: () => this.#dismiss(),
       }),
     );
+    // A on the focused OK; on a pad, Start too (it presses OK from anywhere).
+    this.#hints.button(this.#buttons[0]!, ["activate"], "ink", {
+      idsNow: (set) => (set === "pad" ? ["activate", "pause"] : ["activate"]),
+    });
     this.#route?.set(["ok"], new Map([["ok", { rect: okRect, activate: () => this.#dismiss() }]]));
+    // Opening (and each next notice) puts the ring on OK, so A answers at once.
+    this.#route?.focusKey("ok");
   }
 }

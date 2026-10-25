@@ -438,6 +438,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         allRects: () =>
           this.#covered() ? [] : [...this.#focusRects.keys()].map((key) => [key, this.#screenRect(key)] as const),
         scrollOffset: () => this.#optionScroll.offsetPx,
+        focusKey: () => (this.#focus ? choiceFocusKey(this.#focus) : null),
         hoverRects: () => [...this.#hoverCards()],
         hoverShown: () => this.#hover?.shownKey ?? null,
       };
