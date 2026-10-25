@@ -19,10 +19,10 @@ fn main() {
   }
   // Linux AppImage: the bundle carries its own GTK accessibility bridge (libatk-bridge), older than the AT-SPI service
   // on a current distro. The pair disagree ("atk-bridge: get_device_events_reply: unknown signature", the only line the
-  // app printed when the page froze for good on Bazzite with keys, pads and clicks all dead; the owner, 2026-10-25), and
-  // the bridge handles every key event, so it is the likeliest cause. The game is one canvas with nothing for a screen
-  // reader to read, so the bridge is off in the AppImage, unless the player set it themselves. The .deb and .rpm use the
-  // distro's own matching libraries and keep it.
+  // app printed when the page froze for good on Bazzite with keys, pads and clicks all dead; the owner, 2026-10-25),
+  // and the bridge handles every key event, so it is the likeliest cause. The game is one canvas with nothing for a
+  // screen reader to read, so the bridge is off in the AppImage, unless the player set it themselves. The .deb and .rpm
+  // use the distro's own matching libraries and keep it.
   #[cfg(target_os = "linux")]
   if std::env::var_os("APPIMAGE").is_some() && std::env::var_os("NO_AT_BRIDGE").is_none() {
     std::env::set_var("NO_AT_BRIDGE", "1");
