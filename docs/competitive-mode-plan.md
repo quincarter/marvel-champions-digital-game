@@ -9,7 +9,7 @@ the scaffolding in section 4 so that the mode is a matter of adding a second tea
 Sources. "MC56" is `docs/campaign-modes/mc56_rulebook-web_1.pdf` (20 pages; page numbers are PDF pages, which match the
 printed ones), read through the rough transcription `docs/campaign-modes/markdown/mc56_civil_war.md`. The transcription
 of p. 15 (the table diagram) is garbled and the PDF could not be rendered when this was written, so the table layout in
-1.2 is read from the labels and needs a look at the page. "Ruling" is `marvel-champions-rulings-post-rrg-1-7.md`. "RRG"
+1.2 is read from the labels and needs a look at the page. "Ruling" is `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`. "RRG"
 is RRG 1.8. Card text is from `packages/content/raw/marvelcdb/cw.json` (top level is an object, `{ source, fetchedAt,
 pack, cards: [...] }`; 214 records; a two-sided card's back face is the record's `linked_card`, so 234 faces).
 

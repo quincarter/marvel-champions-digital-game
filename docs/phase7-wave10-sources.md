@@ -7,7 +7,7 @@
 > MC56 markdown transcription, rulings markdown, raw caches, repo docs) or from an insert image. Everything else
 > is "unchecked". The MC56 PDF could not be rendered (`pdftoppm` is not installed), so rulebook pages come from
 > the transcription's "Page N of 20" headers (unchecked against the PDF). RRG pages come from the footer markers
-> in `mc_rulesreference_v18_compressed.md` (a line belongs to the page whose footer follows it). Hall of Heroes
+> in `docs/rules/mc_rulesreference_v18_compressed.md` (a line belongs to the page whose footer follows it). Hall of Heroes
 > and MarvelCDB are pointers, not authorities.
 
 ---
@@ -36,7 +36,7 @@
 
 ## 1. Products and release order
 
-RRG 1.8 Appendix VI, "Limited Environment", item 10, printed p. 71 (`mc_rulesreference_v18_compressed.md` line
+RRG 1.8 Appendix VI, "Limited Environment", item 10, printed p. 71 (`docs/rules/mc_rulesreference_v18_compressed.md` line
 5282, checked). The three products also appear in the Current Environment list on p. 71 (lines 5220, 5242,
 5244, checked).
 
@@ -253,7 +253,7 @@ or Gift deck support was found.
 
 ## 7. FFG rulings (post RRG 1.7) that name these products
 
-Source: `marvel-champions-rulings-post-rrg-1-7.md` (Hall of Heroes transcription of FFG's Game Rules Specialist).
+Source: `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` (Hall of Heroes transcription of FFG's Game Rules Specialist).
 Each entry was read this session. Lines are the heading lines unless noted.
 
 ### 7.1 Rulings that name a card, hero, leader or term from these packs
@@ -455,10 +455,10 @@ Hall of Heroes (pointers; fetched this session unless marked):
 
 Primary and internal:
 
-- `mc_rulesreference_v18_compressed.md` (RRG 1.8, July 2026), by line and footer page.
+- `docs/rules/mc_rulesreference_v18_compressed.md` (RRG 1.8, July 2026), by line and footer page.
 - `docs/campaign-modes/markdown/mc56_civil_war.md` (transcription of `docs/campaign-modes/mc56_rulebook-web_1.pdf`;
   PDF not rendered).
-- `marvel-champions-rulings-post-rrg-1-7.md`.
+- `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`.
 - `packages/content/raw/marvelcdb/{cw,wonder_man,hercules,synthezoid}.json`;
   `packages/content/src/data/wonder_man/`; `art/heroes/_pending/`; `assets/card-art/bundles/cards/`;
   `docs/cards_reference.md`.

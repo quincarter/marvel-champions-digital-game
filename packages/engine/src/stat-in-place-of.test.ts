@@ -3,7 +3,7 @@
  * to your THW and ATK.)" (The Best Offense..., `fne` 60052), as `RuleSpec statInPlaceOf { target, stats: ["thw",
  * "atk"], use: "def" }`, read inside `characterStat` / `characterProfile`.
  *
- * Sources: ruling June 25, 2026 - Ruling 3 (marvel-champions-rulings-post-rrg-1-7.md): with DEF 8, a basic thwart
+ * Sources: ruling June 25, 2026 - Ruling 3 (docs/rulings/marvel-champions-rulings-post-rrg-1-7.md): with DEF 8, a basic thwart
  * thwarts for 8, Go All Out uses 8 for its THW, ATK and DEF, As One! uses 8 in place of ATK. So every read of the
  * hero's THW and ATK, not only the basic powers. RRG 1.8 "Thwart" (p. 43), "Attack" (p. 8), "Modifiers" (p. 29).
  *

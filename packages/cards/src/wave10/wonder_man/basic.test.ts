@@ -35,7 +35,7 @@ vi.setConfig({ testTimeout: 120_000 });
 /**
  * Wave 10 `wonder_man/basic` (docs/phase7-wave10-hero-packs.md H8.4, HS7): 58022 Swordsman, 58024 Jarvis and 58034
  * Avengers Compound, played from real Wonder Man games against Core's Rhino. 58023 Energy prints no ability (a reprint
- * of 01088). No ruling in marvel-champions-rulings-post-rrg-1-7.md names these cards.
+ * of 01088). No ruling in docs/rulings/marvel-champions-rulings-post-rrg-1-7.md names these cards.
  */
 const SWORDSMAN = "58022";
 const SWORDSMAN_CONSTANT = "58022.swordsman-constant";

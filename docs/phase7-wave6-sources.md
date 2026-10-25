@@ -2,7 +2,7 @@
 
 > **Status:** In preparation for Phase 7 wave 6, cycle 6 (Mutant Genesis) card scripting.
 > **Scope:** Campaign box MC32, hero packs Cyclops/Phoenix/Wolverine/Storm/Gambit/Rogue; scenario pack MojoMania (MC39, FFG product code FFGMC39EN, UPC 841333116637; confirmed by the owner from the box and retailer listings, 2026-10-02).
-> **Note on RRG citations:** printed page = PDF page index + 1. Checked against `mc_rulesreference_v18_compressed.pdf` (July 2026).
+> **Note on RRG citations:** printed page = PDF page index + 1. Checked against `docs/rules/mc_rulesreference_v18_compressed.pdf` (July 2026).
 
 ---
 
@@ -76,7 +76,7 @@ MC32 p. 3 lists featured keywords: Hinder X, Team-Up, Villainous, Patrol, Perman
 
 The RRG's own FAQ has cycle 6 entries this doc first missed: Mutant Genesis Powerful Punch (#14), Mutant Protectors (#17), White Queen (#56), Operation Zero Tolerance (#104), Fabian Cortez (#159); Cyclops Ricochet Beam (#9); MojoMania Dial M for Mojo (#35), Wild Wild Mojo (#66); and Pixie (Storm #17) under Magik's entry. Errata for the cycle is on p. 68. Page numbers and each entry's use are in `docs/phase7-wave6.md` §0 and the sections that cite them.
 
-### 3.2 FFG rulings in `marvel-champions-rulings-post-rrg-1-7.md` touching cycle 6 cards
+### 3.2 FFG rulings in `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` touching cycle 6 cards
 
 Found by matching cycle 6 hero/villain card names and mechanics against the rulings file. Summaries below; **read each ruling in full** before scripting its card, as these are pointers only.
 
@@ -174,8 +174,8 @@ Grounded in the MC32 rulebook and cycle 6 rulings; hero-kit-specific mechanics a
 
 ## Internal sources
 
-- `mc_rulesreference_v18_compressed.pdf` (July 2026), Appendix VI (p. 71) and Appendix VII
+- `docs/rules/mc_rulesreference_v18_compressed.pdf` (July 2026), Appendix VI (p. 71) and Appendix VII
 - `docs/campaign-modes/mc32_mutant_genesis_rulebook_v5-compressed.pdf`
 - `docs/campaign-modes/markdown/mc32_mutant_genesis.md`
-- `marvel-champions-rulings-post-rrg-1-7.md` (December 17, 2025 through August 13, 2026)
+- `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` (December 17, 2025 through August 13, 2026)
 - `docs/phase7-wave6-handoff.md`

@@ -3973,7 +3973,7 @@ export function referredToByName(state: GameState, name: string, sourceId: Insta
  *   "Identity-specific obligation cards are part of their associated identity's identity-specific set"; the data has
  *   `encounterSetIds: []` on an obligation and links it from the identity's `obligationCardId`, looked up among the
  *   identities in this game), and its nemesis set: FFG ruling June 25, 2026 (4) #1
- *   (marvel-champions-rulings-post-rrg-1-7.md): "Nemesis sets belong to that identity" (docs/phase7-wave5.md §4.1
+ *   (docs/rulings/marvel-champions-rulings-post-rrg-1-7.md): "Nemesis sets belong to that identity" (docs/phase7-wave5.md §4.1
  *   Q43). RRG 1.8 "Identity-Specific Card" (p. 23) lists identity-specific cards "along with obligation cards and
  *   nemesis encounter set cards" as if distinct; the ruling is the later clarification. A card is linked through the
  *   identity's `nemesisEncounterSetId`, the field setup sets the nemesis set aside by (`setup.ts`), looked up among

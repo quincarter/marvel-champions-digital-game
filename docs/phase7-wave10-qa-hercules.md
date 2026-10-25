@@ -10,8 +10,8 @@ script, existing test, engine, content or client file was changed.
 
 Authorities, in order: the printed card (`packages/content/src/data/hercules/cards.ts`, scan-checked in
 `docs/phase7-wave10-scan-check.md`; the 59001b scan was re-read for the alter ego's traits), RRG 1.8
-(`mc_rulesreference_v18_compressed.md`; printed page numbers below), the FFG rulings
-(`marvel-champions-rulings-post-rrg-1-7.md`: February 8, February 20, March 6 and June 2, 2026 name these cards), the
+(`docs/rules/mc_rulesreference_v18_compressed.md`; printed page numbers below), the FFG rulings
+(`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`: February 8, February 20, March 6 and June 2, 2026 name these cards), the
 owner's answers (`docs/phase7-wave10.md` section 4.0: 3B, 19A, 22A, 30B, 31B), then the spec
 (`docs/phase7-wave10-hero-packs.md`). The file under test:
 `packages/cards/src/wave10/qa-hercules.qa.test.ts`: 48 tests, **46 pass, 2 `it.fails`** (one per finding), `oxlint` and

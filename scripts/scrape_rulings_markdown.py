@@ -23,13 +23,13 @@ as written), and writes one small file per top-level section of each page:
 These are tier-4 sources in CLAUDE.md's rules authority order.
 
 With `--target newer` it instead transcribes the post-RRG 1.7 rulings page into the single file
-marvel-champions-rulings-post-rrg-1-7.md at the repo root: one `### <date> - Ruling <n>` section per ruling
+docs/rulings/marvel-champions-rulings-post-rrg-1-7.md: one `### <date> - Ruling <n>` section per ruling
 (each ruling on the page ends with a signature line, "-Alex – <date>", which gives its date), grouped under
 `## <Month>, <Year>`, with the page's own question and answer text converted to Markdown and nothing edited.
 
 Usage:
     uv run scripts/scrape_rulings_markdown.py                         # older pages -> docs/rulings/
-    uv run scripts/scrape_rulings_markdown.py --target newer          # post-RRG 1.7 page -> repo-root file
+    uv run scripts/scrape_rulings_markdown.py --target newer          # post-RRG 1.7 page -> docs/rulings file
     uv run scripts/scrape_rulings_markdown.py --target all            # both
     uv run scripts/scrape_rulings_markdown.py --html-dir <dir>       # also save the raw HTML
     uv run scripts/scrape_rulings_markdown.py --from-html-dir <dir>  # convert saved HTML, no fetch
@@ -56,7 +56,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "docs" / "rulings"
 CARD_DATA_DIR = REPO_ROOT / "packages" / "content" / "raw" / "marvelcdb"
 SCRIPT_REL = "scripts/scrape_rulings_markdown.py"
-NEWER_RULINGS_FILE = "marvel-champions-rulings-post-rrg-1-7.md"
+NEWER_RULINGS_NAME = "marvel-champions-rulings-post-rrg-1-7.md"
+NEWER_RULINGS_FILE = f"docs/rulings/{NEWER_RULINGS_NAME}"
 USER_AGENT = "Mozilla/5.0 (compatible; mc-digital-rulings-scraper/1.0; fan project, non-commercial)"
 
 # Each section file aims for TARGET_BYTES and is never allowed past MAX_BYTES
@@ -411,7 +412,7 @@ def file_header(f: OutFile, fetched: str) -> str:
             f"> **Fetched:** {fetched}. Transcribed by script from Hall of Heroes; Hall of Heroes is the transcriber, "
             "not the authority.  ",
             authority_note("> ") + "  ",
-            f"> **Newer rulings:** [{NEWER_RULINGS_FILE}](../../../{NEWER_RULINGS_FILE}). "
+            f"> **Newer rulings:** [{NEWER_RULINGS_NAME}](../{NEWER_RULINGS_NAME}). "
             f"**Regenerate:** `uv run {SCRIPT_REL}` (do not edit by hand).",
             "",
             "---",
@@ -438,7 +439,7 @@ def write_outputs(output_dir: Path, page_files: Dict[str, List[OutFile]], fetche
         authority_note(""),
         "",
         "Hall of Heroes is the transcriber, not the authority. The newer rulings (December 2025 onward, post-RRG 1.7 "
-        f"and 1.8) are in [`{NEWER_RULINGS_FILE}`](../../{NEWER_RULINGS_FILE}) at the repo root; check them and "
+        f"and 1.8) are in [`{NEWER_RULINGS_NAME}`]({NEWER_RULINGS_NAME}) in this folder; check them and "
         "RRG v1.8 before relying on anything here.",
         "",
         "**How to use this folder:** grep it by card name or keyword (`rg -l \"Energy Barrier\" docs/rulings`), "
@@ -450,7 +451,7 @@ def write_outputs(output_dir: Path, page_files: Dict[str, List[OutFile]], fetche
         "",
         "## Newer rulings",
         "",
-        f"- [`{NEWER_RULINGS_FILE}`](../../{NEWER_RULINGS_FILE}): post-RRG 1.7 and 1.8 rulings, December 17, 2025 "
+        f"- [`{NEWER_RULINGS_NAME}`]({NEWER_RULINGS_NAME}): post-RRG 1.7 and 1.8 rulings, December 17, 2025 "
         "through October 9, 2026 (tier 3 where issued after v1.8). Not part of this folder.",
         "",
     ]
@@ -497,7 +498,7 @@ def write_outputs(output_dir: Path, page_files: Dict[str, List[OutFile]], fetche
 
 
 # ---------------------------------------------------------------------------
-# Newer rulings page (post-RRG 1.7) -> one repo-root file
+# Newer rulings page (post-RRG 1.7) -> one file in docs/rulings
 # ---------------------------------------------------------------------------
 
 

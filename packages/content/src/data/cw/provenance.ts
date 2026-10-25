@@ -60,7 +60,7 @@ export const CW_PROVENANCE: readonly CardProvenance[] = [
     marvelcdbCodes: ["56019"],
     corrections: [
       "56019: MarvelCDB carries the printed title \"Yellow Jacket\"; RRG 1.8 Appendix V (p. 70) corrects it to \"Yellowjacket\". The card has one `name` field, which the engine matches by title (the Yellowjacket villain, \"Attach to Yellowjacket\", the unique rule), so it holds the current title; the printed title is kept in the errata record (`errata` below) and the provenance note. [evidence: RRG 1.8 Appendix V, \"Civil War Expansion\", p. 70: \"YELLOW JACKET (#19): Title should read \\\"Yellowjacket\\\".\" Scan 56019.png prints \"Yellow Jacket\". The flavor of 56123b prints \"Yellowjacket\".]",
-      "56019: errata RRG 1.8 — Yellow Jacket (basic ally): the title and the Response text read \"Yellowjacket\". The print is \"Yellow Jacket\". [evidence: RRG 1.8 Appendix V, \"Civil War Expansion\" (p. 70, mc_rulesreference_v18_compressed.md line 5168): \"YELLOW JACKET (#19) Title should read \\\"Yellowjacket\\\". Text should read: Response: After Yellowjacket enters play, search the top 5 cards of your deck for an upgrade and add it to your hand. (Changed \\\"Yellow Jacket\\\" to \\\"Yellowjacket\\\".)\"]",
+      "56019: errata RRG 1.8 — Yellow Jacket (basic ally): the title and the Response text read \"Yellowjacket\". The print is \"Yellow Jacket\". [evidence: RRG 1.8 Appendix V, \"Civil War Expansion\" (p. 70, docs/rules/mc_rulesreference_v18_compressed.md line 5168): \"YELLOW JACKET (#19) Title should read \\\"Yellowjacket\\\". Text should read: Response: After Yellowjacket enters play, search the top 5 cards of your deck for an upgrade and add it to your hand. (Changed \\\"Yellow Jacket\\\" to \\\"Yellowjacket\\\".)\"]",
     ],
   },
   {
@@ -306,7 +306,7 @@ export const CW_PROVENANCE: readonly CardProvenance[] = [
     marvelcdbCodes: ["56073"],
     corrections: [
       "56073: MarvelCDB carries the printed title \"Yellow Jacket\"; RRG 1.8 Appendix V (p. 70) corrects it to \"Yellowjacket\". The card has one `name` field, which the engine matches by title (the Yellowjacket villain, \"Attach to Yellowjacket\", the unique rule), so it holds the current title; the printed title is kept in the errata record (`errata` below) and the provenance note. [evidence: RRG 1.8 Appendix V, \"Civil War Expansion\", p. 70: \"YELLOW JACKET (#73): Title should read \\\"Yellowjacket\\\".\" Scan 56073.png prints \"Yellow Jacket\". The flavor of 56123b prints \"Yellowjacket\".]",
-      "56073: errata RRG 1.8 — Yellow Jacket (Mighty Avengers minion): the title reads \"Yellowjacket\". The print is \"Yellow Jacket\"; the text names no one. [evidence: RRG 1.8 Appendix V, \"Civil War Expansion\" (p. 70, mc_rulesreference_v18_compressed.md line 5174): \"YELLOW JACKET (#73) Title should read \\\"Yellowjacket\\\".\"]",
+      "56073: errata RRG 1.8 — Yellow Jacket (Mighty Avengers minion): the title reads \"Yellowjacket\". The print is \"Yellow Jacket\"; the text names no one. [evidence: RRG 1.8 Appendix V, \"Civil War Expansion\" (p. 70, docs/rules/mc_rulesreference_v18_compressed.md line 5174): \"YELLOW JACKET (#73) Title should read \\\"Yellowjacket\\\".\"]",
     ],
   },
   {
@@ -436,7 +436,7 @@ export const CW_PROVENANCE: readonly CardProvenance[] = [
     marvelcdbCodes: ["56098"],
     corrections: [
       "56098: Energy Channel prints no \"Attach to\" sentence: Captain Marvel's Setup attaches it. Without the field the normalizer reports an attachment with no attach rule. Never applied to text. The host is the leader, a villain-kind host like \"Attach to Iron Man.\" (56065). [evidence: Scan 56098.png (read 2026-10-11): no host line, \"Permanent.\" then the Forced Response. Spec section 2.3 (Captain Marvel's Setup finds the permanent attachment and attaches it); survey gap G4.]",
-      "56098: errata RRG 1.8 — Energy Channel: the cost arrow after \"remove all of them\" is gone; Captain Marvel attacks as part of the effect (\"and\"). The print has \"remove all of them → Captain Marvel attacks that character\". [evidence: RRG 1.8 Appendix V, \"Civil War Expansion\" (p. 70, mc_rulesreference_v18_compressed.md line 5178): \"ENERGY CHANNEL (#98) Should read: Forced Response: After a leader, hero, or ally attacks Captain Marvel, place 1 energy counter here. Then, if there are at least 4 energy counters here, remove all of them and Captain Marvel attacks that character. This attack gains overkill. (Changed \\u2192 to \\\"and\\\".)\" Rulings Jan 26, 2026 (5) and Jun 2, 2026 (4).]",
+      "56098: errata RRG 1.8 — Energy Channel: the cost arrow after \"remove all of them\" is gone; Captain Marvel attacks as part of the effect (\"and\"). The print has \"remove all of them → Captain Marvel attacks that character\". [evidence: RRG 1.8 Appendix V, \"Civil War Expansion\" (p. 70, docs/rules/mc_rulesreference_v18_compressed.md line 5178): \"ENERGY CHANNEL (#98) Should read: Forced Response: After a leader, hero, or ally attacks Captain Marvel, place 1 energy counter here. Then, if there are at least 4 energy counters here, remove all of them and Captain Marvel attacks that character. This attack gains overkill. (Changed \\u2192 to \\\"and\\\".)\" Rulings Jan 26, 2026 (5) and Jun 2, 2026 (4).]",
     ],
   },
   {

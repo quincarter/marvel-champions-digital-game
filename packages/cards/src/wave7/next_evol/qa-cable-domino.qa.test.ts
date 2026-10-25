@@ -48,7 +48,7 @@ vi.setConfig({ testTimeout: 120_000 });
  * Rules-QA pass over Cable (40001-40036) and Domino (40037-40069), wave 7 step 4 (docs/phase7-wave7-qa-cable-domino.md).
  * The module and precon tests prove each card in the conditions its author thought of; these tests go after the
  * places two cards, a keyword or a status meet. Every test names the rule it proves. Citations: RRG 1.8 (the
- * Markdown `mc_rulesreference_v18_compressed.md`, entries by name), the post-1.7 rulings by date, and owner decisions
+ * Markdown `docs/rules/mc_rulesreference_v18_compressed.md`, entries by name), the post-1.7 rulings by date, and owner decisions
  * by their `docs/phase7-wave7.md` section 4.1 Q number. `it.fails` pins a defect that is reported and not fixed here:
  * it passes while the defect stands and turns red the day it is fixed, which is the cue to delete the `.fails`.
  */

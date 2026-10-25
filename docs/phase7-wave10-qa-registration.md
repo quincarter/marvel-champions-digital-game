@@ -7,8 +7,8 @@ Avengers, The Initiative, Maria Hill, Dangerous Recruits, Cape-Killer, Martial L
 
 Authorities, in order: the printed card (`packages/content/src/data/cw/cards.ts`, scan-checked in
 `docs/phase7-wave10-scan-check-cw-registration.md`), MC56 (`docs/campaign-modes/mc56_rulebook-web_1.pdf`, p. 6 for the
-cooperative reading, p. 20 FAQ), RRG 1.8 (`mc_rulesreference_v18_compressed.md`, page numbers below are the printed
-ones), the FFG rulings (`marvel-champions-rulings-post-rrg-1-7.md`), then the owner's answers (`docs/phase7-wave10.md`
+cooperative reading, p. 20 FAQ), RRG 1.8 (`docs/rules/mc_rulesreference_v18_compressed.md`, page numbers below are the printed
+ones), the FFG rulings (`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`), then the owner's answers (`docs/phase7-wave10.md`
 §4.0 and §4.1). Tests: `packages/cards/src/wave10/qa-registration.qa.test.ts` (22 tests: 7 `it.fails` for the findings
 below, 15 plain `it` for controls and pins) and `packages/cards/src/wave10/qa-games-registration.qa.test.ts` (12 greedy
 games). Both pass; `oxlint`, `oxfmt --check` and `pnpm --filter @mc/cards typecheck` are clean.

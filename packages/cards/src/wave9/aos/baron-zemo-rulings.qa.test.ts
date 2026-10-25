@@ -3,7 +3,7 @@
  * Manipulations / The Accusation / Fighting Zemo 50167a/b to 50169a/b, the encounter cards 50170 to 50177, the evidence
  * 50185 to 50193 as hidden cards) and how it uses the S.H.I.E.L.D. Executive Board: the interactions the module tests
  * (`baron-zemo.test.ts`, `baron-zemo-encounter.test.ts`) do not assert, each tied to an RRG 1.8 entry
- * (`mc_rulesreference_v18_compressed.pdf`), an FFG ruling by its date heading (marvel-champions-rulings-post-rrg-1-7.md),
+ * (`docs/rules/mc_rulesreference_v18_compressed.pdf`), an FFG ruling by its date heading (docs/rulings/marvel-champions-rulings-post-rrg-1-7.md),
  * the box rulebook (MC50) or an owner answer (docs/phase7-wave9.md section 4.1). A `FINDING` comment marks a case where
  * the game and its source disagree: the expected behavior is an `it.fails`, with a passing companion that pins today's
  * behavior. Findings are tabled in docs/phase7-wave9-qa.md. Reluctant Foe 50171 and Battle of Wits 50175 are not

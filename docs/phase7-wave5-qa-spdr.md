@@ -9,7 +9,7 @@ separated identity spanning four faces, plus 36 other cards: 31003–31037) and 
 
 All 37 SP//dr cards (31001a/b, 31002/31002b, 31003–31037) read against `packages/content/src/data/spdr/cards.ts`'s
 printed text, the card scans under `assets/card-art/bundles/cards/`, RRG 1.8 (including its own FAQ entries, e.g.
-"Spider-Man Noir (#15)", p. 63), and `marvel-champions-rulings-post-rrg-1-7.md` (grepped for "SP//dr", "Peni",
+"Spider-Man Noir (#15)", p. 63), and `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` (grepped for "SP//dr", "Peni",
 "Sync Ratio", "Interface", "M.O.R.B.I.U.S." and every other card name in the pack — the transcript carries no
 SP//dr-specific ruling beyond the Aug 3, 2026 surge/incite entry already cited below).
 

@@ -108,7 +108,7 @@ import { ANGEL_PACK_CARDS } from "../../wave7/angel/pack-cards.js";
  * player using the ability, and who may trigger the ability is unchanged (an obligation's holder, RRG 1.8 p. 30). The
  * attach line and Max 1 per encounter card are card data. With one player it changes nothing.
  *
- * No ruling in marvel-champions-rulings-post-rrg-1-7.md (December 17, 2025 to August 13, 2026) names 58019, 58020, 58030
+ * No ruling in docs/rulings/marvel-champions-rulings-post-rrg-1-7.md (December 17, 2025 to August 13, 2026) names 58019, 58020, 58030
  * or 58033.
  *
  * **Reprints, aliased** to the original's script: 58017 Bombs Away (reprint of 42029 `angel`). Checked in the test.

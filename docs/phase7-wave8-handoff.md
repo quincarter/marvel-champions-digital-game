@@ -59,7 +59,7 @@ checked by the data survey. Encounter sets named in the raw data: Age of Apocaly
 Tech, Clan Akkaba, Dark Beast, Dark Riders, Dystopian Nightmare, En Sabah Nur, Four Horsemen, Genosha, Hounds,
 Infinites, Mission, Overseer, Savage Land, Standard III, Unus, plus Campaign and the two nemesis sets. Rulebook:
 `docs/campaign-modes/mc45_age_of_apocalypse_rulebook.pdf`, markdown `docs/campaign-modes/markdown/mc45_age_of_apocalypse.md`.
-The RRG has Age of Apocalypse FAQ sections (`mc_rulesreference_v18_compressed.md` lines ~4682 and ~5058).
+The RRG has Age of Apocalypse FAQ sections (`docs/rules/mc_rulesreference_v18_compressed.md` lines ~4682 and ~5058).
 
 Already in the repo:
 

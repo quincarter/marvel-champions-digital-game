@@ -48,7 +48,7 @@ import {
  * **Q6 = A (docs/phase7-wave9.md section 4.1 row 6; the owner's answer of 2026-10-10).** When the top card is faceup
  * (Falcon's player phase) and prints no icon at all, the "you may discard the top card" option is NOT offered, so only
  * "Do not discard" remains (the chooseOne with one legal option is skipped and the plain 4 or 3 resolves). Ruling January
- * 26, 2026 - Ruling 6 (1) (marvel-champions-rulings-post-rrg-1-7.md), which names both cards: with no boost icons on the
+ * 26, 2026 - Ruling 6 (1) (docs/rulings/marvel-champions-rulings-post-rrg-1-7.md), which names both cards: with no boost icons on the
  * top card the optional discard has no effect and cannot be initiated. The star counts as an icon (the card says "icon
  * (star and boost)"), so a star-only top card still offers the discard, for 1 additional. A FACEDOWN top card is unknown
  * to the player, so `topOfEncounterDeckShowsNoIcons` is false for it and the discard is still offered (ruling March 19,

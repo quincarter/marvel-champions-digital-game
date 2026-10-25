@@ -61,7 +61,7 @@ pass, before commit `1367fa03` landed mid-session.
 
 All 32 Nova cards (28001a/b–28032) read against `packages/content/src/data/nova/cards.ts`'s printed text, the card
 scans under `assets/card-art/bundles/cards/`, RRG 1.8 (no errata for this pack, pp. 67–68), and
-`marvel-champions-rulings-post-rrg-1-7.md` (grepped for "Nova", "Sam Alexander", "Supernova", "Warbringer",
+`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` (grepped for "Nova", "Sam Alexander", "Supernova", "Warbringer",
 "Armadillo", "wild resource", "printed resource").
 
 **28001a/b Nova / Sam Alexander (identity), 28002 Ms. Marvel, 28003 Forcefield Projection, 28004 Lightspeed Flight,
@@ -83,7 +83,7 @@ original scripting pass (`wave5/nova/*.ts` docblocks), re-verified this pass aga
 
 - **"Bring the War!" (28022) and "The War's Been Brought" (28025): "a printed [wild] resource" is the card's own
   bottom-left icon, never an ability-generated resource.** Directly the January 11, 2026 (3) ruling
-  (`marvel-champions-rulings-post-rrg-1-7.md` line 235–238), named as the primary source in both
+  (`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` line 235–238), named as the primary source in both
   `obligation-nemesis.ts`'s docblock and used correctly: `anyPrintedResource`/`totalPrintedResources`, never
   `paidWith`. Correct.
 - **No Quarter (28013): "excess damage dealt to that enemy by this attack"** reads `strike.excessDealt` — damage
@@ -119,7 +119,7 @@ not do.
    against real `WAVE5_DEPS` impossible mid-pass.
 2. **`packages/cards/src/wave5/nova/support-upgrades-allies.test.ts`, "her own cost still exhausts her and returns
    the event even while she cannot take damage (Jan 26, 2026 ruling 1)"** — a regression test for the
-   January 26, 2026 (1) ruling (`marvel-champions-rulings-post-rrg-1-7.md` line 329–337), whose own named example
+   January 26, 2026 (1) ruling (`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` line 329–337), whose own named example
    _is_ Ms. Marvel (`nova` 28002): "Because Ms. Marvel's ability cost both deals damage **and** exhausts her,
    damage is not the _only_ effect on her. She remains a valid target for her cost even when _Go for Champions!_
    prevents her from taking damage." Before this pass, Ms. Marvel had two tests (fires normally; does not fire for

@@ -18,7 +18,7 @@ Scope read: `packages/cards/src/wave5/sm/{sandman,venom,mysterio}/{villain,main-
 symbiotic-strength,personal-nightmare}.ts`, the matching slice of `packages/content/src/data/sm/cards.ts`, the card
 scans under `assets/card-art/bundles/cards/`, RRG 1.8, `docs/campaign-modes/markdown/mc27_sinister_motives.md`
 (the MC27 rulebook transcript — page-numbered, used in place of rendering the PDF directly since `pdftoppm`/
-`pdftotext` are not installed in this worktree), and `marvel-champions-rulings-post-rrg-1-7.md` (grepped for
+`pdftotext` are not installed in this worktree), and `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` (grepped for
 "Sandman", "Venom", "Mysterio", "Rhino", "Bell Tower", "Shifting Apparition" and the other card names in scope — no
 ruling specific to these three villains beyond what `docs/phase7-wave5.md` §4.1 already cites).
 
@@ -116,7 +116,7 @@ only" (in which case this node is a dead draw during the Mysterio scenario and s
 to a Standard/modular side scheme), or does it search more broadly across the whole encounter deck/discard for any
 side scheme card that belongs to _some_ scenario's own set (in which case it could find, say, a City in Chaos or
 Symbiotic Strength side scheme left over from an earlier scenario's cards still shuffled into later decks per
-"Osborn Tech")? No ruling on this specific wording was found in `marvel-champions-rulings-post-rrg-1-7.md`.
+"Osborn Tech")? No ruling on this specific wording was found in `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`.
 **Recommended default if this ever needs to be built: read "scenario-specific" as "the current scenario's own
 required sets" (villain set + its two required non-modular sets, e.g. Mysterio + Personal Nightmare + Whispers of
 Paranoia), which still finds nothing for Mysterio and would need its own explicit no-op ruling** — flagging back to

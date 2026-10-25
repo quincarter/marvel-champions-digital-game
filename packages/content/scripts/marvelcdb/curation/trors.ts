@@ -2,7 +2,7 @@
  * The Rise of Red Skull curation. Evidence abbreviations:
  * - "raw": the pack's own cached raw record (`packages/content/raw/marvelcdb/trors.json`).
  * - "phase7 wave2 §N": docs/phase7-wave2.md section N, which researched this pack's rulebook and RRG errata.
- * - "RRG errata p.66": `mc_rulesreference_v18_compressed.pdf`'s printed errata page, cited there.
+ * - "RRG errata p.66": `docs/rules/mc_rulesreference_v18_compressed.pdf`'s printed errata page, cited there.
  * - "rulebook p.18": the Red Skull rulebook's spoiler edition
  *   (https://hallofheroeslcg.com/wp-content/uploads/2020/09/rorsrulesspoilers.pdf, linked from
  *   https://hallofheroeslcg.com/the-rise-of-red-skull/), printed page 18, "Starter Decks" — viewed as a page

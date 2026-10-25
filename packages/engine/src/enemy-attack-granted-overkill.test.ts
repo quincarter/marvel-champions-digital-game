@@ -133,7 +133,7 @@ describe("an overkill granted to enemy attacks by a constant rule (RRG 1.8 p. 31
 });
 
 /**
- * Ruling January 11, 2026 (2) (`marvel-champions-rulings-post-rrg-1-7.md`): "if Jigsaw attacks with overkill and damages
+ * Ruling January 11, 2026 (2) (`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`): "if Jigsaw attacks with overkill and damages
  * both an ally and an identity, his Forced Response triggers twice" (and Captain Marvel's "attacks and defeats" for an
  * ally and an identity). The engine resolves "after [enemy] attacks and damages ..." once per attack.
  */

@@ -9,7 +9,7 @@ reshaping card scripts (section 3).
 Sources. "Insert" is `docs/campaign-modes/markdown/mc55_trickster_takeover.md` (the Trickster Takeover insert, page
 numbers are the insert's own). "Reminder" is the Epic Multiplayer Reminder card and "Shatter" the Shatter the Illusion
 card, both transcribed in `docs/phase7-wave9-handoff.md`. "Ruling" is
-`marvel-champions-rulings-post-rrg-1-7.md`. Card text is in `packages/content/src/data/tt/cards.ts`.
+`docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`. Card text is in `packages/content/src/data/tt/cards.ts`.
 
 ## 1. The rules of Epic Multiplayer Mode
 

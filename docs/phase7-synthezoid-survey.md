@@ -25,7 +25,7 @@
   preconstructed scenarios, the competitive rules and the cooperative reading of "the enemy team".
 - **Phased Out and Moon Knight are errata, and Phased Out is also a ruling.** RRG 1.8 p. 70 (checked, lines 5182 to
   5190): Moon Knight #65 gains "(Limit once per phase.)"; Phased Out #76 reads "Hero Action" or "Hero Response". The
-  March 19, 2026 Ruling 1 (checked, `marvel-champions-rulings-post-rrg-1-7.md` lines 645 to 653) confirms "Hero
+  March 19, 2026 Ruling 1 (checked, `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` lines 645 to 653) confirms "Hero
   Action". The two agree; there is no conflict to flag.
 - **Two things the normalizer will get wrong on this pack** (§5): Dense and Intangible print "Mass form.", which the
   keyword parser already reads as the `form` keyword that gives an identity extra forms (`keywords.ts` line 200); and
@@ -46,7 +46,7 @@
   "Available Now: November 21"). The spec records `2025-12-05` with `releaseDateSource` naming both and the
   disagreement, as the Civil War curation does for its date. Either date falls between October 17, 2025 and February
   20, 2026, so the order does not depend on the choice.
-- **RRG 1.8 Appendix VI** (`mc_rulesreference_v18_compressed.md`, p. 71) lists waves 1 to 10 and does not name the
+- **RRG 1.8 Appendix VI** (`docs/rules/mc_rulesreference_v18_compressed.md`, p. 71) lists waves 1 to 10 and does not name the
   pack (`docs/phase7-wave10-sources.md` §1, §10). Scenario packs are in no Limited wave. Wave 9 also shipped Trickster
   Takeover without the list naming it.
 - **MC56's last page** (line 911, checked): "Continue the registration vs. resistance conflict with the Synthezoid
@@ -237,7 +237,7 @@ Cards that need it, by shape:
 - `packages/content/raw/marvelcdb/synthezoid.json` (81 records, all printed), `docs/cards/by_pack/synthezoid.md`,
   `packages/content/raw/marvelcdb/cw.json` (main scheme stages).
 - MC57 rulebook (downloaded to the scratch directory, `pdftotext -layout`, all pages). **Not in the repo.**
-- `mc_rulesreference_v18_compressed.md` lines 5180 to 5192 (the Synthezoid errata); `marvel-champions-rulings-post-rrg-1-7.md`
+- `docs/rules/mc_rulesreference_v18_compressed.md` lines 5180 to 5192 (the Synthezoid errata); `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`
   lines 645 to 653 (Phased Out), and a grep for "Synthezoid" and "enemy leader".
 - `docs/phase7-wave10.md` §1, §3, §4.1, §7.9, §8; `docs/phase7-wave10-sources.md`; `docs/phase7-wave10-data-survey.md`
   G2, G3, section 3.5, section 5; `docs/phase7-wave2-data.md` line 318 and line 852; `docs/campaign-modes/markdown/mc56_civil_war.md`

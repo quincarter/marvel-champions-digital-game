@@ -42,7 +42,7 @@ Reference; FFG rulings clarify both):
      every record read for this spec. Not an authority on its own. Scans read where the raw text was in doubt
      (`assets/card-art/bundles/cards/`, gitignored, never committed): 32153 (Electromagnetic Blast), 32172b (Magneto
      ally), 32174b (Reactivate Defenses), 32175a/b (Magneto's Fortress / Magneto's Power). Findings in §1.9.
-2. **FFG rulings, Dec 17, 2025 to Aug 13, 2026**, in `marvel-champions-rulings-post-rrg-1-7.md`, cited by date heading.
+2. **FFG rulings, Dec 17, 2025 to Aug 13, 2026**, in `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md`, cited by date heading.
    None names a Mutant Genesis card except through the RRG FAQ; the ones this pass leans on:
    - Jan 17, 2026 (3): keywords (piercing) have timing priority over triggered abilities; "prevent" prevents damage
      taken, not dealt (Colossus's tough cards, Phased).
@@ -54,7 +54,7 @@ Reference; FFG rulings clarify both):
    - Jun 2, 2026 (3) #1: GMW's expert rejoin is free (contrast for MC32, §4 Q11).
    - Jun 25, 2026 (4) #5: characters not under player control are not friendly (Robert Kelly while attached).
    - Jul 9, 2026 (3) #1: alter-ego Setup abilities resolve even after a setup form change (Piotr, Kitty).
-3. **RRG 1.8 (Jul 2026)**, `mc_rulesreference_v18_compressed.pdf`, cited by printed page (checked against the PDF:
+3. **RRG 1.8 (Jul 2026)**, `docs/rules/mc_rulesreference_v18_compressed.pdf`, cited by printed page (checked against the PDF:
    printed page = PDF page). Cycle 6's FAQ is on p. 63 (Powerful Punch, Mutant Protectors, White Queen, Operation Zero
    Tolerance) and p. 64 (Fabian Cortez); its errata on p. 68 (Steel Fist, Armor Up, Mutants at the Mall, Asteroid M,
    Factory Online, The Rule of Magnus). Entries this pass leans on: "Ally Limit" (p. 7), "Attach To" (p. 8),

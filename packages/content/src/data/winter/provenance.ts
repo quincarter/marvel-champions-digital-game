@@ -156,7 +156,7 @@ export const WINTER_PROVENANCE: readonly CardProvenance[] = [
     cardSetCode: "basic",
     marvelcdbCodes: ["54033"],
     corrections: [
-      "54033: errata RRG 1.8 — S.H.I.E.L.D. Deputy: \"Max 1 per character.\" was added after \"Attach to a friendly character.\" The print has no such line; the emitted `current` text and `playRestrictions.maxPerHost` carry it. [evidence: RRG 1.8, Winter Soldier Hero Pack errata (mc_rulesreference_v18_compressed.md line 5156 to 5158, p. 70): \"S.H.I.E.L.D. DEPUTY (#33) Should read: \"Attach to a friendly character. Max 1 per character.\" (Added \"Max 1 per character.\")\". Scan 54033.png (read 2026-10-09) prints \"Title. Play only if your identity has the S.H.I.E.L.D. trait. Attach to a friendly character. Attached character gets +1 hit point and gains the S.H.I.E.L.D. trait.\" with no max line; MarvelCDB's text is the print.]",
+      "54033: errata RRG 1.8 — S.H.I.E.L.D. Deputy: \"Max 1 per character.\" was added after \"Attach to a friendly character.\" The print has no such line; the emitted `current` text and `playRestrictions.maxPerHost` carry it. [evidence: RRG 1.8, Winter Soldier Hero Pack errata (docs/rules/mc_rulesreference_v18_compressed.md line 5156 to 5158, p. 70): \"S.H.I.E.L.D. DEPUTY (#33) Should read: \"Attach to a friendly character. Max 1 per character.\" (Added \"Max 1 per character.\")\". Scan 54033.png (read 2026-10-09) prints \"Title. Play only if your identity has the S.H.I.E.L.D. trait. Attach to a friendly character. Attached character gets +1 hit point and gains the S.H.I.E.L.D. trait.\" with no max line; MarvelCDB's text is the print.]",
     ],
   },
   { cardId: cardId("54034"), cardSetCode: "whiteout", marvelcdbCodes: ["54034"], corrections: [] },

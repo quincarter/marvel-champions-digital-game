@@ -1,7 +1,7 @@
 /**
  * Rules QA for the Black Panther (Shuri) pack `bp` (51001 to 51042): the interactions the module tests do not
- * assert, each tied to an RRG 1.8 section (`mc_rulesreference_v18_compressed.pdf`), an FFG ruling by its date heading
- * (marvel-champions-rulings-post-rrg-1-7.md) or an owner answer (docs/phase7-wave9.md section 4.1, or wave 3 Q16 in
+ * assert, each tied to an RRG 1.8 section (`docs/rules/mc_rulesreference_v18_compressed.pdf`), an FFG ruling by its date heading
+ * (docs/rulings/marvel-champions-rulings-post-rrg-1-7.md) or an owner answer (docs/phase7-wave9.md section 4.1, or wave 3 Q16 in
  * docs/phase7-wave3.md section 4). A `FINDING` comment marks a case where the game and its source disagree: the
  * expected behavior is an `it.fails`. Findings are tabled in docs/phase7-wave9-qa.md.
  */

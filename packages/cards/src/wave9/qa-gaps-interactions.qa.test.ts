@@ -2,7 +2,7 @@
  * Rules QA, gaps from the wave 9 scenario tests (their `it.todo` lists, "unit tests only"): cards whose behavior depends
  * on timing with other cards, played inside a real game state reached by commands (setup, an Advance or a boost stacked
  * ahead of a dealt card the way the scenario tests do it, then real attacks, thwarts and Hero Actions). Sources are the
- * printed card text (packages/content, transcribed from the MC50 / MC55 cards), RRG 1.8 (mc_rulesreference_v18_compressed.pdf)
+ * printed card text (packages/content, transcribed from the MC50 / MC55 cards), RRG 1.8 (docs/rules/mc_rulesreference_v18_compressed.pdf)
  * by page, and the MC50 rulebook. A FINDING comment marks where the game and its source disagree: the expected behavior
  * is an `it.fails`, with a passing companion that pins today's behavior.
  */
