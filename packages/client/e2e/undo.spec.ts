@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { focusRect, settle, waitFor } from "./helpers.js";
 import { installWave6Helpers } from "./wave6-helpers-a.js";
-import { openApp } from "./wave6-helpers-b.js";
+import { declineMulligans, openApp, startGame } from "./wave6-helpers-b.js";
 import { SHOT, boardUp, facts, press } from "./x-men-helpers.js";
 
 /**
@@ -136,4 +136,20 @@ test("Undo takes back a hero's own move, and stops at the turn's start and at a 
   await settle(page, { quietMs: 400, maxMs: 3000 });
   expect(await store(page, (s) => s.version), "Undo can't take back Deadpool's new hand").toBe(afterMulligan);
   expect(await formOf(), "nor Spider-Man's flip from before it").not.toBe(startForm);
+});
+
+test("Undo with nothing done does nothing at the first hero's turn of a round", async ({ page }, info) => {
+  test.setTimeout(180_000);
+  const phone = info.project.name === "phone";
+  await installWave6Helpers(page);
+  await openApp(page);
+  await startGame(page, { scenarioId: "rhino", decks: ["core-spider-man-justice"], seed: 3 });
+  await declineMulligans(page);
+  await settle(page, { quietMs: 600, maxMs: 5000 });
+  const start = await store(page, (s) => s.version as number);
+  expect(await focusRect(page, "undo"), "Undo sits beside End turn").not.toBeNull();
+  await pressFocus(page, phone, "undo");
+  await page.keyboard.press("Control+z");
+  await settle(page, { quietMs: 400, maxMs: 3000 });
+  expect(await store(page, (s) => s.version), "nothing was taken back, and no End turn is offered back").toBe(start);
 });

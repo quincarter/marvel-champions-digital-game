@@ -735,6 +735,15 @@ export class BoardScene extends Phaser.Scene {
       for (const version of [...this.#logAt.keys()]) if (version > state.version) this.#logAt.delete(version);
       this.#version = state.version;
       this.#controller.reset();
+      // Whatever the undone commands queued never happened (a Nevermind after End turn rewinds a whole villain phase,
+      // `view/end-turn-takeback.ts`): no hero-down, avatar or level-up banner, campaign beat, team-up splash, band or
+      // tab count may carry over onto the restored turn.
+      this.#motion.reset();
+      this.#pendingCampaignBeat = null;
+      this.#pendingSplashes = [];
+      this.#tabChanged.clear();
+      this.#tabBadges.clear();
+      this.#logBeforePhase = null;
     } else if (fresh) {
       // A resumed game arrives mid-round with no events saying which round, so
       // an empty log starts counting from the state's round rather than "R0".
@@ -752,7 +761,9 @@ export class BoardScene extends Phaser.Scene {
       logBefore = this.#log;
       this.#log = appendEvents(this.#log, latest, state.game, state.perspectiveId, POOL_DEPS);
       this.#cardHistory = appendCardHistory(this.#cardHistory, state.lastEvents);
-      // Mirrored for Pause's "Jump to a moment" (`session.ts`'s own doc comment on `gameLog`).
+      // Mirrored for Pause's "Jump to a moment" (`session.ts`'s own doc comment on `gameLog`). `#logBeforePhase` is set
+      // by `#openVillainWalkthrough` below, so the mirror is repeated there: while the rail holds the phase back the
+      // engine's lines about it stay out of Pause and the report.
       appSession().gameLog = this.#log;
       this.#noteTabChanges(state);
       this.#motion.land(state.lastEvents);
@@ -1118,6 +1129,7 @@ export class BoardScene extends Phaser.Scene {
     );
     if (!begins) return;
     this.#logBeforePhase = logBefore;
+    appSession().gameLog = this.#tableLog();
     this.scene.launch(SCENES.villainPhase, { before } satisfies VillainPhaseLaunchData);
     this.#walkthroughLaunching = true;
     // Cleared when the walkthrough has been created, not only when a draw happens to see it active: the Board's time
@@ -2663,6 +2675,8 @@ export class BoardScene extends Phaser.Scene {
     if (same) return;
     this.#villainReplay = replay;
     holdTableGame(replay?.hold?.game ?? null);
+    // Pause's log and the report read what the table shows: nothing of a phase the rail has not shown yet.
+    appSession().gameLog = this.#tableLog();
     this.#draw();
   }
 

@@ -21,16 +21,25 @@
  *   that press the player has been shown only the hand refill, so `gateTakebackOf` offers Nevermind there. Once START
  *   is pressed the phase has been revealed and the window is gone.
  *
- * The refill draw is the one thing a player has seen by the gate (the hand on the board, "you drew 3 cards: ..."): it
- * happens inside the command that begins the villain phase, so a gate that closed before it could not exist. Those
- * draws are the top of the deck, which a replay draws again unchanged (a deck that had to reshuffle spends the RNG
- * and closes the window), so the only thing learned is what the player was about to see anyway.
- * `TAKEBACK_AFTER_OWN_DRAW` closes the gate whenever a card was drawn instead, if the owner would rather have that;
- * the discard sheet is before every draw and is unaffected.
+ * The refill draw is the one thing a player has seen by the gate (the hand on the board, "you drew 3 cards: ..."), and it
+ * DOES reveal the top of the deck: a player who backs out knows the next cards and can play differently. It happens inside
+ * the command that begins the villain phase, so a gate that closed before it could not exist. A replay draws the same
+ * cards again (a deck that had to reshuffle spends the RNG and closes the window), so nothing is re-rolled, only
+ * previewed. Whether that preview is acceptable is an owner call, not an RRG one (RRG 1.8 has no take-back at all):
+ * `TAKEBACK_AFTER_OWN_DRAW` is the engine-specific default (open) and closes the gate whenever a card was drawn when
+ * false; the discard sheet is before every draw and is unaffected. Undecided as of 2026-10-24.
+ *
+ * The discard sheet and the gate are offered only to the seat that pressed End turn (`perspectiveId`): "back to my turn"
+ * is wrong from another seat, which would be rewinding someone else's decision. The handover is the exception by
+ * construction (it is the NEXT hero's bar that offers it, one person playing every seat), and it says "Nevermind", not
+ * "back to my turn". Every window also refuses a command that spent the
+ * RNG (`usedRandomness`, the same gate as Undo). The gate shares its last command with the villain phase, whose own
+ * RNG use (an encounter reshuffle, say) is hidden behind the gate and cannot be told apart from the refill's; that
+ * entry is therefore exempt, an engine-specific limitation. A replay reproduces that use identically either way.
  */
 import type { Command, GameEvent, GameState, PendingChoice, PlayerId } from "@mc/engine";
 import type { BackOutTrailEntry } from "./back-out.js";
-import { eventStopsUndo } from "./undo.js";
+import { eventStopsUndo, usedRandomness } from "./undo.js";
 
 /** Whether the gate stays open after the end-of-turn hand refill drew cards (see the file comment). */
 export const TAKEBACK_AFTER_OWN_DRAW = true;
@@ -93,7 +102,7 @@ export function handoverTakebackOf(
   const { step } = game;
   if (step.phase !== "player" || step.kind !== "turn" || step.ended) return null;
   const last = trail[trail.length - 1];
-  if (!last || !isEndTurn(last.command)) return null;
+  if (!last || !isEndTurn(last.command) || usedRandomness(last)) return null;
   const started = last.events.some((event) => event.type === "turnStarted" && event.playerId === step.activePlayerId);
   if (!started) return null;
   const quiet = last.events.every((event) => {
@@ -110,11 +119,16 @@ export function handoverTakebackOf(
  * that asked it, with any earlier seat's discards, is all that has happened since. Nothing has been drawn or revealed.
  * Returns the command count to rewind to, or null.
  */
-export function choiceTakebackOf(trail: readonly BackOutTrailEntry[], choice: PendingChoice): number | null {
+export function choiceTakebackOf(
+  trail: readonly BackOutTrailEntry[],
+  choice: PendingChoice,
+  perspectiveId: PlayerId,
+): number | null {
   if (choice.prompt.kind !== "discardDownToHandSize") return null;
   const at = endTurnIndexOf(trail);
-  if (at < 0) return null;
+  if (at < 0 || trail[at]!.playerId !== perspectiveId) return null;
   for (const entry of trail.slice(at)) {
+    if (usedRandomness(entry)) return null;
     if (entry.events.some((event) => beginsVillainPhase(event) || !endOfTurnEventOk(event, entry.playerId)))
       return null;
     if (entry.events.some((event) => event.type === "cardDrawn")) return null;
@@ -127,15 +141,21 @@ export function choiceTakebackOf(trail: readonly BackOutTrailEntry[], choice: Pe
  * all that has happened, and what they showed the player before the phase began was at most the hand refill. Returns
  * the command count to rewind to, or null. The caller still checks that START has not been pressed.
  */
-export function gateTakebackOf(trail: readonly BackOutTrailEntry[]): number | null {
+export function gateTakebackOf(
+  trail: readonly BackOutTrailEntry[],
+  perspectiveId: PlayerId,
+  game: Pick<GameState, "outcome">,
+): number | null {
+  if (game.outcome) return null;
   const at = endTurnIndexOf(trail);
-  if (at < 0) return null;
+  if (at < 0 || trail[at]!.playerId !== perspectiveId) return null;
   const tail = trail.slice(at);
   const last = tail[tail.length - 1]!;
   const begins = last.events.findIndex(beginsVillainPhase);
   if (begins < 0) return null;
   // The phase began in the last command only: an earlier one that began it was followed by the villain phase's own.
   for (const entry of tail.slice(0, -1)) {
+    if (usedRandomness(entry)) return null;
     if (entry.events.some((event) => beginsVillainPhase(event) || !endOfTurnEventOk(event, entry.playerId)))
       return null;
   }

@@ -24,6 +24,12 @@ const entry = (cmd: Command, events: readonly GameEvent[] = []): BackOutTrailEnt
 });
 const event = (type: string, extra: object = {}): GameEvent => ({ type, ...extra }) as unknown as GameEvent;
 
+const OPEN = { outcome: null } as Pick<GameState, "outcome">;
+const gate = (trail: readonly BackOutTrailEntry[], seat: PlayerId = P1, game = OPEN): number | null =>
+  gateTakebackOf(trail, seat, game);
+const sheet = (trail: readonly BackOutTrailEntry[], choice: PendingChoice, seat: PlayerId = P1): number | null =>
+  choiceTakebackOf(trail, choice, seat);
+
 const ended = event("turnEnded", { playerId: P1 });
 const started = event("turnStarted", { playerId: P2 });
 const toTurn = event("stepChanged", { to: { phase: "player", kind: "turn" } });
@@ -80,24 +86,24 @@ describe("gateTakebackOf (the villain phase is waiting on START)", () => {
 
   test("is open right after the End turn that began the phase, whatever the phase has dealt behind the gate", () => {
     const trail = [entry(command("playCard")), entry(command("endTurn"), [ended, toVillain, ...reveals])];
-    expect(gateTakebackOf(trail)).toBe(1);
+    expect(gate(trail)).toBe(1);
   });
 
   test("stays open over the end-of-turn hand refill (the one thing already shown), unless switched off", () => {
     const trail = [entry(command("endTurn"), [...refill, toVillain, ...reveals])];
-    expect(gateTakebackOf(trail)).toBe(TAKEBACK_AFTER_OWN_DRAW ? 0 : null);
+    expect(gate(trail)).toBe(TAKEBACK_AFTER_OWN_DRAW ? 0 : null);
   });
 
   test("closes when the end of the turn itself revealed something else or spent the RNG", () => {
     for (const extra of [event("deckShuffled"), event("cardsLookedAt"), event("encounterCardRevealed")]) {
-      expect(gateTakebackOf([entry(command("endTurn"), [ended, extra, toVillain])])).toBeNull();
+      expect(gate([entry(command("endTurn"), [ended, extra, toVillain])])).toBeNull();
     }
   });
 
   test("closes when the phase changed the hand after it began", () => {
-    expect(gateTakebackOf([entry(command("endTurn"), [ended, toVillain, drawn])])).toBeNull();
+    expect(gate([entry(command("endTurn"), [ended, toVillain, drawn])])).toBeNull();
     expect(
-      gateTakebackOf([
+      gate([
         entry(command("endTurn"), [
           ended,
           toVillain,
@@ -109,9 +115,9 @@ describe("gateTakebackOf (the villain phase is waiting on START)", () => {
 
   test("is shut when End turn is not the last command, or never began a villain phase", () => {
     const began = entry(command("endTurn"), [ended, toVillain]);
-    expect(gateTakebackOf([began, entry(command("resolveChoice"))])).toBeNull();
-    expect(gateTakebackOf([entry(command("endTurn"), [ended, started, toTurn])])).toBeNull();
-    expect(gateTakebackOf([])).toBeNull();
+    expect(gate([began, entry(command("resolveChoice"))])).toBeNull();
+    expect(gate([entry(command("endTurn"), [ended, started, toTurn])])).toBeNull();
+    expect(gate([])).toBeNull();
   });
 });
 
@@ -132,33 +138,73 @@ describe("the end-of-phase discard sheet", () => {
   ];
 
   test("offers Nevermind on the sheet End turn opened, back to the count before End turn", () => {
-    expect(choiceTakebackOf(askedTrail, discardChoice)).toBe(1);
+    expect(sheet(askedTrail, discardChoice)).toBe(1);
   });
 
   test("stays open over another seat's discards, but not on any other kind of choice", () => {
     const trail = [...askedTrail, entry(command("resolveChoice"), [...discard, asked])];
-    expect(choiceTakebackOf(trail, discardChoice)).toBe(1);
-    expect(
-      choiceTakebackOf(askedTrail, { ...discardChoice, prompt: { kind: "chooseOption" } } as PendingChoice),
-    ).toBeNull();
+    expect(sheet(trail, discardChoice)).toBe(1);
+    expect(sheet(askedTrail, { ...discardChoice, prompt: { kind: "chooseOption" } } as PendingChoice)).toBeNull();
   });
 
   test("is shut when End turn was not the last thing, or something was drawn or revealed", () => {
-    expect(choiceTakebackOf([entry(command("playCard"))], discardChoice)).toBeNull();
+    expect(sheet([entry(command("playCard"))], discardChoice)).toBeNull();
     const drew = [entry(command("endTurn"), [ended, drawn, asked])];
-    expect(choiceTakebackOf(drew, discardChoice)).toBeNull();
+    expect(sheet(drew, discardChoice)).toBeNull();
     const shuffled = [entry(command("endTurn"), [ended, event("deckShuffled"), asked])];
-    expect(choiceTakebackOf(shuffled, discardChoice)).toBeNull();
+    expect(sheet(shuffled, discardChoice)).toBeNull();
   });
 
   test("the gate that follows the discards still offers Nevermind, back to before End turn", () => {
     const answered = entry(command("resolveChoice"), [...discard, ...refill(), toVillain, event("enemyActivated")]);
-    expect(gateTakebackOf([...askedTrail, answered])).toBe(1);
+    expect(gate([...askedTrail, answered])).toBe(1);
     const revealed = entry(command("resolveChoice"), [event("deckShuffled"), toVillain]);
-    expect(gateTakebackOf([...askedTrail, revealed])).toBeNull();
+    expect(gate([...askedTrail, revealed])).toBeNull();
   });
 });
 
 function refill(): GameEvent[] {
   return [drawn, deckToHand, event("handRefilled", { playerId: P1, drawn: 1, handSize: 5 })];
 }
+
+describe("the shared gates", () => {
+  const rng = { before: 3, after: 4 };
+  const spent = (cmd: Command, events: readonly GameEvent[]): BackOutTrailEntry => ({
+    ...entry(cmd, events),
+    rngDraws: rng,
+  });
+  const discardChoice = { playerId: P1, prompt: { kind: "discardDownToHandSize" } } as unknown as PendingChoice;
+  const asked = event("choiceRequested", { choice: { playerId: P1, prompt: { kind: "discardDownToHandSize" } } });
+
+  test("a command that spent the RNG closes the handover and the discard sheet", () => {
+    expect(handoverTakebackOf([spent(command("endTurn"), [ended, started, toTurn])], turnOf(P2))).toBeNull();
+    expect(sheet([spent(command("endTurn"), [ended, asked])], discardChoice)).toBeNull();
+    expect(
+      sheet([entry(command("endTurn"), [ended, asked]), spent(command("resolveChoice"), [])], discardChoice),
+    ).toBeNull();
+  });
+
+  test("a handover that included the hero's own face-up discard stays open", () => {
+    const discards = [
+      event("cardDiscardedFromHand", { playerId: P1, instanceId: "c2" }),
+      event("cardMoved", { from: { kind: "hand", playerId: P1 }, to: { kind: "discard", playerId: P1 } }),
+    ];
+    const trail = [entry(command("endTurn"), [ended, ...discards, started, toTurn])];
+    expect(handoverTakebackOf(trail, turnOf(P2))).toMatchObject({ target: 0 });
+  });
+
+  test("a finished game closes the gate", () => {
+    const trail = [entry(command("endTurn"), [ended, toVillain])];
+    expect(gate(trail)).toBe(0);
+    expect(gate(trail, P1, { outcome: "won" } as unknown as Pick<GameState, "outcome">)).toBeNull();
+  });
+
+  test("another seat's End turn is not offered back from this seat, on the sheet or the gate", () => {
+    const trail = [entry(command("endTurn", P2), [ended, toVillain])];
+    expect(gate(trail, P1)).toBeNull();
+    expect(gate(trail, P2)).toBe(0);
+    const asking = [entry(command("endTurn", P2), [ended, asked])];
+    expect(sheet(asking, discardChoice, P1)).toBeNull();
+    expect(sheet(asking, discardChoice, P2)).toBe(0);
+  });
+});

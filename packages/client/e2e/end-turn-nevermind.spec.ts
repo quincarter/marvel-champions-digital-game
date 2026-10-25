@@ -86,6 +86,16 @@ const store = <T>(page: Page, read: (s: any) => T): Promise<T> =>
     return new Function("s", `return (${source})(s)`)(appSession().store.state);
   }, read.toString()) as Promise<T>;
 
+/** The whole game state (resources, counters, decks, hands), the log Pause and the report read, and the RNG position. */
+const snapshot = (page: Page): Promise<{ game: string; log: string }> =>
+  page.evaluate(async () => {
+    const { appSession } = (await import("/src/session.ts")) as unknown as {
+      appSession: () => { store: { state: { game: unknown } }; gameLog: unknown };
+    };
+    const session = appSession();
+    return { game: JSON.stringify(session.store.state.game), log: JSON.stringify(session.gameLog) };
+  });
+
 const onHeroTurn = (page: Page): Promise<boolean> =>
   store(page, (s) => s.game?.step?.phase === "player" && s.game?.step?.kind === "turn");
 
@@ -130,7 +140,12 @@ async function endTurnToGate(page: Page): Promise<void> {
   await settle(page, { quietMs: 500, maxMs: 4000 });
 }
 
-async function expectBackOnHeroTurn(page: Page, hand: readonly string[], version: number): Promise<void> {
+async function expectBackOnHeroTurn(
+  page: Page,
+  hand: readonly string[],
+  version: number,
+  before: { game: string; log: string },
+): Promise<void> {
   await waitFor(
     async () => {
       const up = await activeScenes(page);
@@ -143,6 +158,10 @@ async function expectBackOnHeroTurn(page: Page, hand: readonly string[], version
   expect(await onHeroTurn(page), "back on the hero turn").toBe(true);
   expect(await handOf(page), "the same hand").toEqual(hand);
   expect(await store(page, (s) => s.version as number), "as if End turn was never pressed").toBe(version);
+  const after = await snapshot(page);
+  expect(after.game === before.game, "every counter, resource and card is where it was").toBe(true);
+  expect(after.log === before.log, "no log line from the undone End turn or villain phase survives").toBe(true);
+  expect(await hasText(page, "VILLAIN PHASE", "Board"), "no phase band or banner from the undone phase").toBe(false);
 }
 
 test("Nevermind on the discard sheet and the START gate (mouse) puts the hero back on their turn with the same hand", async ({
@@ -153,24 +172,28 @@ test("Nevermind on the discard sheet and the START gate (mouse) puts the hero ba
   await startSolo(page);
   const hand = await handOf(page);
   const version = await store(page, (s) => s.version as number);
+  const before = await snapshot(page);
 
   // The discard sheet End turn opens.
   await endTurnToSheet(page);
   await page.screenshot({ path: "../../artifacts/qa/nevermind-discard-sheet.png" });
   await clickText(page, "Nevermind", { sceneKey: "ChoiceOverlay" });
-  await expectBackOnHeroTurn(page, hand, version);
+  await expectBackOnHeroTurn(page, hand, version, before);
   await page.screenshot({ path: "../../artifacts/qa/nevermind-back-on-turn.png" });
 
   // The gate, after the discard was declined.
   await endTurnToGate(page);
   const back = (await villainDebugRect(page, "nevermindRect"))!;
+  const firstGate = await snapshot(page);
+  expect(firstGate.log, "Pause and the report show nothing of the phase before START").not.toMatch(/Rhino|reveal/i);
   await page.screenshot({ path: "../../artifacts/qa/nevermind-gate.png" });
   await settle(page);
   await pressAt(page, back.x + back.width / 2, back.y + back.height / 2);
-  await expectBackOnHeroTurn(page, hand, version);
+  await expectBackOnHeroTurn(page, hand, version, before);
 
   // And End turn works again afterwards: the window comes back, and START closes it for good.
   await endTurnToGate(page);
+  expect((await snapshot(page)).game === firstGate.game, "End turn again deals the same villain phase").toBe(true);
   const start = (await villainDebugRect(page, "startRect"))!;
   await settle(page);
   await pressAt(page, start.x + start.width / 2, start.y + start.height / 2);
@@ -190,10 +213,11 @@ test("B on a pad is Nevermind on the discard sheet and the START gate, with its 
   await startSolo(page);
   const hand = await handOf(page);
   const version = await store(page, (s) => s.version as number);
+  const before = await snapshot(page);
 
   await endTurnToSheet(page);
   await padTap(page, B);
-  await expectBackOnHeroTurn(page, hand, version);
+  await expectBackOnHeroTurn(page, hand, version, before);
 
   await endTurnToGate(page);
   await padTap(page, RIGHT);
@@ -231,7 +255,7 @@ test("B on a pad is Nevermind on the discard sheet and the START gate, with its 
   await page.screenshot({ path: "../../artifacts/qa/nevermind-gate-pad.png" });
 
   await padTap(page, B);
-  await expectBackOnHeroTurn(page, hand, version);
+  await expectBackOnHeroTurn(page, hand, version, before);
   expect(errors).toEqual([]);
 });
 

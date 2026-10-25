@@ -973,17 +973,25 @@ export class VillainPhaseOverlay extends Phaser.Scene {
    */
   #nevermindTarget(): number | null {
     const state = this.#latest;
-    if (!state?.game || this.#review || this.#started || this.#motion.leaving || !this.#gateEligible()) return null;
+    if (!state?.game || state.perspectiveId === null || this.#review || this.#started || this.#motion.leaving)
+      return null;
+    if (!this.#gateEligible() || state.game.outcome) return null;
+    // Pause shows the game's log: once it has been opened over the gate the phase may have been read.
+    if (this.scene.isActive(SCENES.pause)) return null;
     if (state.inFlight || state.version !== state.commandTrail.length) return null;
-    return gateTakebackOf(state.commandTrail);
+    return gateTakebackOf(state.commandTrail, state.perspectiveId, state.game);
   }
 
   /** Rewinds to just before End turn and closes the phase as if it had not begun: no recap is kept for it. */
   async #nevermind(): Promise<void> {
     const target = this.#nevermindTarget();
     if (target === null) return;
-    if (!(await appSession().store.rewindTo(target))) return;
+    // Before the await: the rewound state reaches `#onState` and `#tuckAway` while it is still in flight.
     this.#tookBack = true;
+    if (!(await appSession().store.rewindTo(target))) {
+      this.#tookBack = false;
+      return;
+    }
     this.#close();
   }
 

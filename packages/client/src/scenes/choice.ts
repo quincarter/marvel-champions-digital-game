@@ -2832,7 +2832,8 @@ export class ChoiceOverlay extends Phaser.Scene {
       case "cancel":
         // B on the end-of-phase discard sheet is Nevermind (`#takebackOf`); anywhere else it only drops focus.
         {
-          const takeback = this.#takebackOf(appSession().store.state, choice);
+          // With a control focused, B first drops that focus; the next press takes the turn back.
+          const takeback = this.#focus === null ? this.#takebackOf(appSession().store.state, choice) : null;
           if (takeback !== null) {
             void this.#backOut(takeback);
             break;
@@ -3084,7 +3085,7 @@ export class ChoiceOverlay extends Phaser.Scene {
   /** Nevermind on the end-of-phase discard sheet (`view/end-turn-takeback.ts`): the count to rewind to, or null. */
   #takebackOf(state: SessionState, choice: PendingChoice): number | null {
     if (!state.perspectiveId || choice.playerId !== state.perspectiveId) return null;
-    return choiceTakebackOf(state.commandTrail, choice);
+    return choiceTakebackOf(state.commandTrail, choice, state.perspectiveId);
   }
 
   /**
