@@ -362,16 +362,32 @@ export function attackChoiceContext(rest: readonly EffectSpec[], slot: string, c
 const labeledAttacker = (state: GameState, context: EffectContext): InstanceId | null =>
   context.controllerId == null ? null : (getPlayer(state, context.controllerId)?.identity.instanceId ?? null);
 
+/** Every `attack` instruction inside `value`, whatever it targets (a branch, an option and post-"then" text too). */
+function attackInstructions(value: unknown, found: Extract<EffectSpec, { kind: "attack" }>[] = []) {
+  if (Array.isArray(value)) {
+    for (const item of value) attackInstructions(item, found);
+    return found;
+  }
+  if (value === null || typeof value !== "object") return found;
+  const record = value as Readonly<Record<string, unknown>>;
+  if (record.kind === "attack") found.push(value as Extract<EffectSpec, { kind: "attack" }>);
+  for (const item of Object.values(record)) attackInstructions(item, found);
+  return found;
+}
+
 /**
- * Whether the enemy `id` may be chosen for `slot` in an "(attack)" ability (`EffectContext.attackLabeled`), given the
- * effects that follow the choice (`rest`): when one of them attacks the chosen card (`attacksThroughSlot`), only an
+ * Whether the enemy `id` may be chosen for `slot` in an "(attack)" ability (`EffectContext.attackLabeled`): only an
  * enemy the attacking character may attack right now. RRG 1.8 "Attack (Player Ability Type)" (p. 10): "Hero and ally
  * attacks can target any enemy, unless a card ability (such as guard) is preventing that enemy from being attacked";
- * owner ruling Q49 (docs/phase7-wave8.md §4.1): guard is checked for every enemy the attack targets, as it would be
- * attacked, and a chosen-target instruction does not offer a guarded villain. Unlike `slotTargetValid` this is not
- * "valid if any effect can affect it": whatever else the ability does to the chosen enemy ("Confuse that enemy"), it
- * may not be attacked. Anything that is not an enemy, an unlabeled ability and a slot nothing attacks through are
- * always allowed.
+ * FFG ruling 197 (May 30, 2024): "Any enemy targeted by an Attack-labeled event or ability is considered 'attacked'",
+ * so an enemy the ability only stuns or confuses (Tackle, Flurry of Blades, Unlikely Duo) is attacked too; owner ruling
+ * Q49 (docs/phase7-wave8.md §4.1): guard is checked for every enemy the attack targets, and a chosen-target instruction
+ * does not offer a guarded villain. Unlike `slotTargetValid` this is not "valid if any effect can affect it": whatever
+ * the ability does to the chosen enemy, it may not be attacked. The attacker is the one an effect attacking through
+ * the slot names (`attacksThroughSlot`); for a slot nothing attacks through, the attacker of the ability's `attack`
+ * instructions that follow (the controller's identity while their attacker is not chosen yet), else the controller's
+ * identity (`labeledAttacker`, as `noteTargetedByAbility` records it).
+ * Anything that is not an enemy and an unlabeled ability are always allowed.
  */
 export function attackTargetAllowed(
   state: GameState,
@@ -382,10 +398,15 @@ export function attackTargetAllowed(
   context: EffectContext,
 ): boolean {
   if (!context.attackLabeled || !isAttackTarget(state, id, deps)) return true;
-  return attacksThroughSlot(rest, slot).every((effect) => {
-    const attacker = effect.kind === "attack" ? attackerOf(state, effect, context) : labeledAttacker(state, context);
-    return attacker === null || canAttack(state, attacker, id, deps);
-  });
+  const through = attacksThroughSlot(rest, slot);
+  const attackers =
+    through.length > 0
+      ? through.map((effect) =>
+          effect.kind === "attack" ? attackerOf(state, effect, context) : labeledAttacker(state, context),
+        )
+      : attackInstructions(rest).map((effect) => attackerOf(state, effect, context) ?? labeledAttacker(state, context));
+  if (attackers.length === 0) attackers.push(labeledAttacker(state, context));
+  return attackers.every((attacker) => attacker === null || canAttack(state, attacker, id, deps));
 }
 
 /** Whether this judged effect can affect `id`, the same check its event makes as it applies. */

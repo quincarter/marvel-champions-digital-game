@@ -148,7 +148,11 @@ export type ChoicePrompt =
    * pay it. There is no declining. Absent on every other `chooseOption`.
    */
   | { readonly kind: "chooseOption"; readonly forcedAction?: true }
-  | { readonly kind: "choosePlayer"; readonly slot: string }
+  /**
+   * `cardInstanceId`: the card whose controller is being chosen, when an effect puts a "Play under any player's
+   * control" card into play (`putIntoPlayController`), so the question can name it ("Who controls Boot Camp?").
+   */
+  | { readonly kind: "choosePlayer"; readonly slot: string; readonly cardInstanceId?: InstanceId }
   /**
    * `EffectSpec basicPowerBy` (docs/phase7-wave8.md §3.64): a card's effect has `playerId` make a basic attack or
    * thwart, and this asks with which character and which power. One option per legal pairing, its `optionId`

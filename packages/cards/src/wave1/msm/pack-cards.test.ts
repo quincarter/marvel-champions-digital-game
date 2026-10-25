@@ -316,7 +316,7 @@ describe("an enemy stunned by an attack-labeled event is attacked (ruling May 30
     });
     expect(inst(run.state, hero).damage).toBe(1);
   });
-  it.fails("Tackle paid without [physical] stuns the minion and still triggers its Retaliate", () => {
+  it("Tackle paid without [physical] stuns the minion and still triggers its Retaliate", () => {
     const { state, whiplash } = table();
     const hero = identityOf(state);
     const c = conjure(state, "05015");

@@ -4,7 +4,7 @@
  * Universal Weapon: "gains stalwart") — and `RuleSpec cannotHaveStatus` ("Ronan the Accuser cannot be stunned", Kree
  * Fanatic 90001).
  *
- * Sources: RRG 1.8 "Stalwart" (p. 40), "Status Cards" (p. 42), "Steady" (p. 41).
+ * Sources: RRG 1.8 "Stalwart" (p. 40), "Status Cards" (p. 41), "Steady" (p. 41).
  */
 
 import type { CardId } from "@mc/content";

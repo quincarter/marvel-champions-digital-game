@@ -488,7 +488,7 @@ function takeRecordedCards(id: string, citation: string, text: string, most: num
             max: most,
             chooser: thatPlayer,
           }),
-          putIntoPlay(chosen("taken"), thatPlayer, { bind: "put" }),
+          putIntoPlay(chosen("taken"), thatPlayer, { bind: "put", controllerStated: true }),
           placeThreat(totalPrintedCost(chosen("put")), theMainScheme),
         ),
       ],

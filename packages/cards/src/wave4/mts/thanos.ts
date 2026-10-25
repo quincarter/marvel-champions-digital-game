@@ -3,6 +3,7 @@ import type { EffectSpec, TargetRef } from "@mc/engine";
 import {
   after,
   amount,
+  applyAsBoostCard,
   type Amount,
   atEndOfActivation,
   atEndOfAttack,
@@ -35,7 +36,6 @@ import {
   preventDamage,
   putIntoPlay,
   query,
-  replaceBoostCount,
   response,
   rule,
   scaled,
@@ -110,10 +110,9 @@ import { cardName } from "../names.js";
  * })` right after it), not two separate abilities.
  *
  * **"Discard the top card of the infinity stone deck. Apply its boost icons … as if it were a boost card." (I Am
- * Inevitable, 21122's own Boost)** is `replaceBoostCount` (docs/phase7-wave4.md §3.6's own "not yet proven" item,
- * confirmed here): select the top card, move it to its own discard pile, then `replaceBoostCount(chosen)` — the
- * `packages/cards/src/wave2/scw/kit.ts` Chaos Control shape, over the Infinity Stone deck's own top card rather
- * than the encounter deck's.
+ * Inevitable, 21122's own Boost)**: select the top card, move it to its own discard pile, then
+ * `applyAsBoostCard(chosen)`. The stone is treated as a boost card turned faceup, so abilities that affect boost cards
+ * (Preemptive Strike) may be used on it (FFG ruling Sept 5, 2024 #8).
  */
 
 const INFINITY_STONE = trait("INFINITY STONE");
@@ -253,12 +252,12 @@ export const THANOS = defineAbilities({
 
   // "I Am Inevitable" (21122) — When Revealed: Give Thanos 1 facedown boost card. [star] Boost: Discard the top
   // card of the infinity stone deck. Apply its boost icons for this activation as if it were a boost card
-  // (`replaceBoostCount`, docs/phase7-wave4.md §3.6's own "not yet proven" item, confirmed here).
+  // (`applyAsBoostCard`: FFG ruling Sept 5, 2024 #8, Preemptive Strike may cancel the stone's icons).
   "21122.when-revealed": whenRevealed(giveBoostCard(theVillain)),
   "21122.boost": boost(
     selectCards("stone", scenarioDeck(STONE_DECK, { top: 1 })),
     moveCards(cards(chosen("stone")), "discard"),
-    replaceBoostCount(chosen("stone")),
+    applyAsBoostCard(chosen("stone")),
   ),
 
   // The Mad Titan (21123) — When Revealed: Put the top card of the infinity stone deck into play. [star] Boost: If

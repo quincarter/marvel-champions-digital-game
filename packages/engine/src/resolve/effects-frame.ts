@@ -170,7 +170,15 @@ import { executeReportFact } from "./report-fact.js";
 import { executeBasicPowerBy } from "./basic-power-by.js";
 import { resolveTeamwork } from "./enter-play.js";
 import { effectChoiceAuthority, isEncounterCardType, simultaneousOrderer } from "../villain/authority.js";
-import { applyEffect, pushEachPlayerPass, putIntoPlayHostSlot, threatRemoverOf } from "./apply-effect.js";
+import {
+  applyEffect,
+  pushEachPlayerPass,
+  putIntoPlayChosenController,
+  putIntoPlayControlIsChosen,
+  putIntoPlayControllerSlot,
+  putIntoPlayHostSlot,
+  threatRemoverOf,
+} from "./apply-effect.js";
 import { applyFindCard, findCandidates } from "./find.js";
 import { putIntoPlayHostCandidates } from "./reveal.js";
 import { controllerOfArea, joinGameArea } from "./game-areas.js";
@@ -442,6 +450,7 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
       return;
     }
   }
+  if (effect.kind === "putIntoPlay" && askPutIntoPlayController(ctx, frame, effect, context)) return;
   if (effect.kind === "putIntoPlay" && askPutIntoPlayHost(ctx, frame, effect, context)) return;
   // docs/phase7-wave9.md §3.6: which of a card's counters "1 all-purpose counter" is, where its types differ.
   if (
@@ -530,6 +539,57 @@ function statusAheadOfDamage(ctx: Ctx, frame: Frame<"effects">, effect: EffectSp
 }
 
 /**
+ * The control question of a `putIntoPlay`: a card printed "Play under any player's control" enters play under the
+ * player the one putting it in chooses, as playing it would (RRG 1.8 "Play, Put into Play", pp. 32-33; FFG ruling
+ * Nov 21, 2025; `putIntoPlayControlIsChosen`). The ruling does not say who chooses: the player putting it in is an
+ * engine interpretation. Asked before the host question, one card per pass, of every player
+ * still in the game; one such player is no choice. The answer is kept in the frame's bindings
+ * (`putIntoPlayControllerSlot`) as the chosen player's identity, as `choosePlayer` binds. Returns true while a question
+ * is open or was just answered.
+ */
+function askPutIntoPlayController(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "putIntoPlay" }>,
+  context: EffectContext,
+): boolean {
+  const [putter] = resolvePlayers(ctx.state, effect.controller, context);
+  if (!putter) return false;
+  // The player putting it in first (the default, as before this question existed), then the others in player order.
+  const players = [...playerOrder(ctx.state)].sort(
+    (a, b) => Number(b.playerId === putter) - Number(a.playerId === putter),
+  );
+  if (players.length < 2) return false;
+  for (const id of resolveRef(ctx.state, effect.card, context)) {
+    const slot = putIntoPlayControllerSlot(id);
+    if (frame.bindings[slot] || !putIntoPlayControlIsChosen(ctx.state, effect, id)) continue;
+    // A "[type] form only" card the effect will refuse (`admitFormOnly`) has no controller to ask about.
+    if (formOnlyFault(ctx.state, id, putter) !== null) continue;
+    if (frame.answer === null) {
+      requestChoice(ctx, {
+        playerId: putter,
+        prompt: { kind: "choosePlayer", slot: "putIntoPlayController", cardInstanceId: id },
+        options: players.map((p) => ({
+          optionId: p.playerId,
+          label: p.playerId,
+          ref: { kind: "player", playerId: p.playerId } as const,
+        })),
+        minSelections: 1,
+        maxSelections: 1,
+        frameId: frame.frameId,
+      });
+      return true;
+    }
+    const chosen =
+      players.find((p) => frame.answer?.includes(p.playerId)) ?? players.find((p) => p.playerId === putter);
+    const identity = (chosen ?? players[0]!).identity.instanceId;
+    setFrame(ctx, { ...frame, answer: null, bindings: { ...frame.bindings, [slot]: [identity] } });
+    return true;
+  }
+  return false;
+}
+
+/**
  * The host question of a `putIntoPlay`: a player's upgrade enters play attached as playing it would (RRG 1.8 "Play, Put
  * into Play", p. 32), and when its "attach to" text allows several hosts its controller chooses one (RRG 1.8 "Attach
  * To", p. 8), as for an upgrade an effect plays (`executePlayFromHand`). One upgrade is asked about per pass; the answer
@@ -551,7 +611,9 @@ function askPutIntoPlayHost(
     if (frame.bindings[slot] || inPlay.includes(id)) continue;
     // A "[type] form only" card the effect will refuse (`admitFormOnly`) has no host to ask about.
     if (formOnlyFault(ctx.state, id, controller) !== null) continue;
-    const hosts = putIntoPlayHostCandidates(ctx.state, ctx.deps, id, controller);
+    // Read under the player who will control it (`askPutIntoPlayController`); the player putting it in chooses.
+    const under = putIntoPlayChosenController(ctx.state, frame.bindings, id) ?? controller;
+    const hosts = putIntoPlayHostCandidates(ctx.state, ctx.deps, id, under);
     if (hosts.length < 2) continue;
     if (frame.answer === null) {
       requestChoice(ctx, {

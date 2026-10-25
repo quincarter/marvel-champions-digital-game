@@ -148,8 +148,9 @@ export function choiceExclusions(state: GameState, deps: EngineDeps = DEFAULT_DE
     ) {
       exclusions.push({ instanceId: id, reason: "cannotRemoveThreat" });
     }
-    // An enemy an "(attack)" ability would attack through this slot that its player's identity may not attack (guard;
-    // owner ruling Q49, `attackTargetAllowed`): the same code an `attackableBy` query gives.
+    // An enemy an "(attack)" ability's choice would target that its attacker may not attack (guard), whatever the
+    // ability then does to it (ruling 197; owner ruling Q49, `attackTargetAllowed`): the code an `attackableBy` query
+    // gives.
     else if (!attackTargetAllowed(state, deps, rest, effect.slot, id, context)) {
       exclusions.push({ instanceId: id, reason: "cannotBeAttacked" });
     }

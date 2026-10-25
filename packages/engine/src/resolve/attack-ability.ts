@@ -125,7 +125,8 @@
  *   (Alternative: before the choice too, when no such interrupt could hear the attack.)
  * - **The attack's target as it begins** (`attack.targetInstanceId`, what its interrupt window reads) is the first
  *   enemy the identity may attack that the ability's first damage instruction able to name one names, read ahead as
- *   the attack begins: the chosen enemy, "the villain", the first of "each enemy". When no instruction can name one
+ *   the attack begins: the chosen enemy, "the villain", the first of "each enemy"; failing that, the first enemy an
+ *   opening choice targeted (it is attacked, FFG ruling 197; `noteTargetedByAbility`). When no instruction can name one
  *   yet (its enemy is chosen after an earlier instruction resolves, or every enemy named is guarded) the attack
  *   begins with no target (`null`): an interrupt that asks nothing of the target hears it, one that names a target
  *   does not, and the event takes the first enemy an instruction attacks as its target then
@@ -145,8 +146,9 @@
  *   contributor's rules call 2026-10-15 (bluefireF5ran), which reverses upstream rows 61/73 and Q48's "with no damage
  *   there is no attack"). The attack begins as the ability begins resolving, whatever its instructions then do: one
  *   whose damage sits in a branch not taken ("if you paid with [physical], deal 2 damage to an enemy", paid otherwise),
- *   one whose damage names only its player's own characters, one whose every enemy is guarded or gone. It resolves with
- *   no target and an empty `attack.attacked`: nothing retaliates (no enemy was attacked, p. 10), "after you attack"
+ *   one whose damage names only its player's own characters, one whose every enemy is guarded or gone. Unless an enemy
+ *   its choices targeted is attacked anyway (`noteTargetedByAbility`, FFG ruling 197), it resolves with no target and
+ *   an empty `attack.attacked`: nothing retaliates (no enemy was attacked, p. 10), "after you attack"
  *   with no target clause answers it, "after you attack [an enemy]" does not, and "when you attack [an enemy]" did not
  *   hear its window. Damage to a card that is not an enemy is plain damage, never the attack's. The only "(attack)"
  *   abilities that make no attack are those a status card cancels (p. 26, `labelCancels`, `beginEffectAfterCost`: the
@@ -982,6 +984,7 @@ export function beginLabelAttack(
   effect: EffectSpec,
   context: EffectContext,
 ): boolean {
+  noteTargetedByAbility(ctx, frame, context);
   // An opening target choice is made before the attack begins, and an instruction being answered has begun.
   if (effect.kind === "chooseTarget" || frame.answer !== null) return false;
   if (frame.controllerId === null || frame.labelAttackMade || !isAttackLabeled(ctx.deps, frame)) return false;
@@ -1010,7 +1013,12 @@ export function beginLabelAttack(
   if (first?.attackEffect === true && !ahead.firstPreceded && !first.makesNoEvent) return false;
   // The first enemy the identity may attack that an instruction of the attack names, in order; none when no
   // instruction read ahead names one (its enemy is chosen later, it sits in a branch not decided yet, or there is none).
-  const target = ahead.makers.flatMap((maker) => maker.named.filter(mayAttack))[0] ?? null;
+  // Failing that, the first enemy the ability's opening choices targeted ("Stun an enemy. If you paid with [physical],
+  // deal 3 damage to that enemy", paid otherwise): that enemy is attacked (`noteTargetedByAbility`), so its window hears it.
+  const target =
+    ahead.makers.flatMap((maker) => maker.named.filter(mayAttack))[0] ??
+    chosenTargets(frame, frame.cursor, context).filter(mayAttack)[0] ??
+    null;
   const instruction = ahead.makers.find((maker) => maker.attackEffect);
   pushLabelAttack(
     ctx,
@@ -1022,6 +1030,50 @@ export function beginLabelAttack(
     labelOnly ? undefined : { overkill: instruction?.overkill === true, keywords: instruction?.keywords ?? [] },
   );
   return true;
+}
+
+/** The cards `frame`'s `chooseTarget` instructions before `cursor` chose, in order. */
+function chosenTargets(frame: Frame<"effects">, cursor: number, context: EffectContext): readonly InstanceId[] {
+  return frame.effects
+    .slice(0, cursor)
+    .flatMap((earlier) => (earlier.kind === "chooseTarget" ? (context.bindings[earlier.slot] ?? []) : []));
+}
+
+/**
+ * **An enemy an "(attack)" ability targets is attacked, damage or no damage.** FFG ruling 197, May 30, 2024 (post-RRG
+ * 1.5): "Any enemy targeted by an Attack-labeled event or ability is considered 'attacked,' even if that ability
+ * doesn't deal damage to that enemy … if you stun an enemy with Tackle but don't deal damage to that enemy, you are
+ * still considered to have attacked that enemy, and will trigger that enemy's Retaliate" (also Flurry of Blades'
+ * confuse); RRG 1.8 "Attack (Player Ability Type)" (p. 10): "resolving that ability is considered to attack the
+ * specified target". Called before each instruction of the ability's frames resolves: each enemy a `chooseTarget` of
+ * that frame has chosen so far is added to the waiting attack's attacked list (`noteAttackedByAbility`; the list is
+ * read once each, so an enemy also dealt damage is attacked once). Damage and defeat instructions record the enemies
+ * they name on their own (`abilityAttackDamage`); this covers the enemies a choice targets for anything else (a status
+ * card, a stat change). Such a choice does not offer an enemy the attacker may not attack (guard; RRG 1.8 p. 10,
+ * owner ruling Q49, `attackTargetAllowed`), so a chosen enemy that cannot be attacked is skipped here only if guard
+ * came into play after the choice. Interpretations: nothing is recorded while no attack waits (the attack's own
+ * `attack` instruction has not made it yet) or once it was cancelled; an enemy the attack's window moved it off is
+ * replaced by the character it was moved onto (`attackRetarget`). Enemies an instruction names without a choice ("stun
+ * the villain") are not covered: no shipped label-only instruction needs it.
+ */
+function noteTargetedByAbility(ctx: Ctx, frame: Frame<"effects">, context: EffectContext): void {
+  const attack = abilityAttackOf(ctx.state, ctx.deps, frame);
+  const waiting = attack?.waiting;
+  if (attack === undefined || waiting === undefined || attack.cancelled) return;
+  const already = new Set((waiting.attacked ?? []).map((event) => event.targetInstanceId));
+  const inPlay = cardsInPlay(ctx.state);
+  const attacked: Attacked[] = [];
+  for (const chosen of chosenTargets(frame, frame.cursor, context)) {
+    if (!inPlay.includes(chosen) || !isAttackTarget(ctx.state, chosen, ctx.deps)) continue;
+    const moved = movedAttackTarget(waiting, chosen);
+    const id = moved !== undefined && inPlay.includes(moved) ? moved : chosen;
+    if (already.has(id) || (moved === undefined && !mayAttackWith(ctx.state, ctx.deps, attack, id))) continue;
+    const made = abilityAttackDamage(ctx.state, ctx.deps, waiting, id, moved !== undefined);
+    if (made === null) continue;
+    already.add(id);
+    attacked.push(made.attacked);
+  }
+  noteAttackedByAbility(ctx, waiting.frameId, attacked);
 }
 
 /** The attack `rootId`'s ability began early that no `attack` instruction has taken over yet (`attackBegun`). */

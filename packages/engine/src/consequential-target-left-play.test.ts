@@ -147,6 +147,7 @@ describe("RRG v1.8 p.13: the target of an ally's basic power leaves play before 
     expect(mustInstance(after.state, ally).damage).toBe(0);
     expect(damageTo(after.events, ally)).toEqual([]);
     expect(mustInstance(after.state, ally).statuses.stunned).toBe(0);
+    expect(after.events.some((e) => e.type === "playerThwartEnded" && e.reason === "targetLeftPlay")).toBe(true);
   });
 
   it("thwart control: the side scheme stays in play; the ally removes threat and takes its consequential damage", () => {

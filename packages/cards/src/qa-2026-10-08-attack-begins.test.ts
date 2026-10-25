@@ -15,10 +15,10 @@
  * Every card is played from a real Core Spider-Man (Justice) hand in a real Rhino game (`testing/qa-bench.ts`).
  */
 import { cardId } from "@mc/content";
-import type { GameEvent, GameState, InstanceId } from "@mc/engine";
+import { applyCommand, choiceExclusions, type GameEvent, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { identityOf, inst, P1, patchInstance, payWith, play, playerOf } from "./testing/harness.js";
-import { conjure, drive, playOut, rhino, withTrait } from "./testing/qa-bench.js";
+import { conjure, DEPS, drive, picker, playOut, rhino, withTrait } from "./testing/qa-bench.js";
 import { engageMinion } from "./wave6/mut_gen/project-wideawake-testing.js";
 
 const MERCENARY = "01101"; // Hydra Mercenary: 3 hit points, Guard.
@@ -167,8 +167,9 @@ describe("Tackle (05015): 'Stun an enemy. If you paid for this card using a [phy
   });
 
   // the "Every (attack) ability is an attack" fix (contributor's rules call, RRG 1.8 p. 26): an "(attack)" ability is an attack from when it begins
-  // resolving, whether or not damage is dealt; here the attack is made with no damage and no target.
-  it("not paid with [physical]: the attack is still made (begun, no target, no damage); the enemy is stunned", () => {
+  // resolving, whether or not damage is dealt. FFG ruling 197 (May 30, 2024): the enemy Tackle stuns is attacked even
+  // with no damage, so the attack begins against it and its Retaliate triggers.
+  it("not paid with [physical]: the attack is still made against the stunned enemy, which retaliates", () => {
     const minion = withMinion(rhino(), { hp: 9, retaliate: 1 });
     const given = tackle(minion.state, false);
     const hero = identityOf(given.state);
@@ -179,12 +180,47 @@ describe("Tackle (05015): 'Stun an enemy. If you paid for this card using a [phy
     expect(begun(done.events)[0]).toMatchObject({
       begun: true,
       attackerInstanceId: hero,
-      targetInstanceId: null,
+      targetInstanceId: minion.id,
       amount: 0,
     });
     expect(takenBy(done.events, minion.id)).toEqual([]);
-    expect(takenBy(done.events, hero)).toEqual([]);
+    expect(attacked(done.events)).toEqual([minion.id]);
+    expect(takenBy(done.events, hero)).toEqual([1]);
     expect(inst(done.state, minion.id).statuses.stunned).toBe(1);
+  });
+
+  // Regression cover: Tackle's stun choice is already `anAttackableEnemy`, so this held before ruling 197's guard check;
+  // the Unlikely Duo case below is the one the check changes.
+  it("a guard minion engaged: the stun goes to the minion, the villain is no target (RRG 1.8 p. 10, Q49)", () => {
+    const engaged = engageMinion(rhino(), MERCENARY, P1);
+    const given = tackle(engaged.state, false);
+    const villain = villainOf(given.state);
+    const offered: InstanceId[][] = [];
+    const watch = (state: GameState) => {
+      const choice = state.pendingChoice;
+      if (choice?.prompt.kind === "chooseTarget") offered.push(choice.options.map((o) => o.optionId as InstanceId));
+      return picker({ target: villain })(state);
+    };
+    let current = applyCommand(given.state, play(P1, given.id, payWith(given.state, P1, 3, [given.id])), DEPS);
+    for (let guard = 0; current.ok && current.state.pendingChoice && guard < 100; guard++) {
+      const choice = current.state.pendingChoice;
+      current = applyCommand(
+        current.state,
+        {
+          type: "resolveChoice",
+          playerId: choice.playerId,
+          choiceId: choice.choiceId,
+          selectedOptionIds: watch(current.state),
+        },
+        DEPS,
+      );
+    }
+    expect(current.ok).toBe(true);
+    expect(offered[0]).toEqual([engaged.id]);
+    if (current.ok) {
+      expect(inst(current.state, villain).statuses.stunned).toBe(0);
+      expect(inst(current.state, engaged.id).statuses.stunned).toBe(1);
+    }
   });
 
   it("stunned: the whole ability is cancelled, so the enemy is not stunned either (RRG 1.8 p. 26)", () => {
@@ -270,8 +306,8 @@ describe("Toe to Toe (10015): 'Choose an enemy. That enemy attacks you. Deal 5 d
 
 describe("Unlikely Duo (47022): 'Confuse an enemy. Deal 4 damage to a confused enemy.'", () => {
   // Before: the enemy was confused and the target chosen, then the attack began. Now: the attack begins after the
-  // enemy to confuse is chosen (an opening target choice) and before the confused card is given. Its own target is
-  // chosen after that, so the attack begins naming no enemy and takes the enemy its instruction attacks.
+  // enemy to confuse is chosen (an opening target choice) and before the confused card is given. That enemy is targeted
+  // by the ability, so it is attacked and the attack begins against it (FFG ruling 197, May 30, 2024).
   /** Unlikely Duo reprinted for this game without Team-Up (Jubilee and Wolverine), which is not what is under test. */
   const withoutTeamUp = (state: GameState): GameState => {
     const printed = state.cardPool[cardId("47022")]!;
@@ -288,7 +324,7 @@ describe("Unlikely Duo (47022): 'Confuse an enemy. Deal 4 damage to a confused e
     expect(done.accepted).toBe(true);
     const [made, ...more] = begun(done.events);
     expect(more).toEqual([]);
-    expect(made).toMatchObject({ begun: true, attackerInstanceId: hero, targetInstanceId: null });
+    expect(made).toMatchObject({ begun: true, attackerInstanceId: hero, targetInstanceId: villain });
     const [firstChoice, secondChoice] = indexes(done.events, (e) => e.type === "targetChosen");
     const confused = index(done.events, statusGiven(villain, "confused"));
     expect(firstChoice!).toBeLessThan(index(done.events, begins));
@@ -301,6 +337,64 @@ describe("Unlikely Duo (47022): 'Confuse an enemy. Deal 4 damage to a confused e
     expect(resolved(done.events)[0]).toMatchObject({ targetInstanceId: villain, amount: 4 });
     expect(attacked(done.events)).toEqual([villain]);
     expect(done.state.stack).toEqual([]);
+  });
+
+  /**
+   * Plays the card like `playOut`, and records each `chooseTarget` prompt's options and the reasons `choiceExclusions`
+   * gives for what it leaves out, before the prompt is answered with `target` (the first option when not offered).
+   */
+  const playRecording = (state: GameState, id: InstanceId, target?: InstanceId) => {
+    const prompts: { options: InstanceId[]; excluded: { instanceId: InstanceId; reason: string }[] }[] = [];
+    const events: GameEvent[] = [];
+    const first = applyCommand(state, play(P1, id, payWith(state, P1, costOf(state, "47022"), [id])), DEPS);
+    if (!first.ok) throw new Error(first.error.message);
+    events.push(...first.events);
+    let current = first.state;
+    for (let guard = 0; current.pendingChoice && !current.outcome && guard < 100; guard++) {
+      const choice = current.pendingChoice;
+      if (choice.prompt.kind === "chooseTarget")
+        prompts.push({
+          options: choice.options.map((o) => o.optionId as InstanceId),
+          excluded: choiceExclusions(current, DEPS).map((e) => ({ instanceId: e.instanceId, reason: e.reason })),
+        });
+      const selectedOptionIds = picker(target ? { target } : {})(current);
+      const next = applyCommand(
+        current,
+        { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds },
+        DEPS,
+      );
+      if (!next.ok) throw new Error(next.error.message);
+      events.push(...next.events);
+      current = next.state;
+    }
+    return { state: current, events, prompts };
+  };
+
+  // Quin's review of PR #377: RRG 1.8 p. 10 ("Hero and ally attacks can target any enemy, unless a card ability (such
+  // as guard) is preventing that enemy from being attacked"), FFG ruling 197 (May 30, 2024: the enemy an (attack)
+  // ability only confuses is attacked) and owner ruling Q49 (guard is checked for every enemy the attack targets): the
+  // confuse choice does not offer the villain behind a guard minion, and says why it is greyed out.
+  it("a guard minion engaged: the confuse choice does not offer the villain (cannotBeAttacked)", () => {
+    const engaged = engageMinion(withoutTeamUp(rhino()), MERCENARY, P1);
+    const given = conjure(engaged.state, "47022");
+    const villain = villainOf(given.state);
+    const done = playRecording(given.state, given.id, villain);
+    const [confuseChoice] = done.prompts;
+    expect(confuseChoice!.options).toEqual([engaged.id]);
+    expect(confuseChoice!.excluded).toContainEqual({ instanceId: villain, reason: "cannotBeAttacked" });
+    expect(inst(done.state, villain).statuses.confused).toBe(0);
+    expect(attacked(done.events)).toEqual([engaged.id]);
+  });
+
+  it("no guard: the confuse choice offers the villain and the minion; the villain chosen is recorded as attacked", () => {
+    const minion = withMinion(withoutTeamUp(rhino()), { hp: 9 });
+    const given = conjure(minion.state, "47022");
+    const villain = villainOf(given.state);
+    const done = playRecording(given.state, given.id, villain);
+    const [confuseChoice] = done.prompts;
+    expect([...confuseChoice!.options].sort()).toEqual([villain, minion.id].sort());
+    expect(inst(done.state, villain).statuses.confused).toBe(1);
+    expect(attacked(done.events)).toEqual([villain]);
   });
 });
 

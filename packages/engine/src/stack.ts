@@ -135,8 +135,19 @@ export interface BoostInProgress {
   readonly turnedCancelled?: true;
   /** "Increase or decrease the number of boost icons on that card by 1 for this count" (`adjustBoostCount`). */
   readonly countAdjust?: number;
+  /**
+   * Boost icons given to the card by a "Boost" ability (its own, or a borrowed one joining this count) during step 3b.
+   * Kept apart from `countAdjust` because canceling the card's boost icons (step 3a) does not cancel them: "it doesn't
+   * cancel any boost icons given to that card via a 'Boost' effect" (ruling May 10, 2024 #173; RRG 1.8 p. 9).
+   */
+  readonly boostAbilityAdjust?: number;
   /** "Count the number of boost icons on that card instead" (`replaceBoostCount`): the card whose icons are counted. */
   readonly countFrom?: InstanceId;
+  /**
+   * Cards its "Boost" ability applied "as if it were a boost card" (`applyAsBoostCard`): each adds its own icons to the
+   * count unless they were cancelled in its own turned-faceup window (ruling Sept 5, 2024 #8).
+   */
+  readonly appliedAsBoost?: readonly { readonly instanceId: InstanceId; readonly iconsCancelled: boolean }[];
 }
 
 /** Effects waiting for a timing point ("at the end of this attack"), with the context that created them. */

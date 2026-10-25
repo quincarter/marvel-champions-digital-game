@@ -441,7 +441,7 @@ function takeRecordedCards(node: string, text: string, most: number): CampaignIn
           chooser: thatPlayer,
         },
       ),
-      putIntoPlay(chosen("taken"), thatPlayer, { bind: "put" }),
+      putIntoPlay(chosen("taken"), thatPlayer, { bind: "put", controllerStated: true }),
       addCounters(CORRUPTION, varOf("put.count"), creepingCorruptionOf(thatPlayer)),
     ),
   ]);

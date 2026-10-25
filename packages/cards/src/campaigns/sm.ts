@@ -270,7 +270,7 @@ function eachPlayerMayPutIntoPlay(
             max: 1,
             chooser: thatPlayer,
           }),
-          putIntoPlay(chosen(slot), thatPlayer),
+          putIntoPlay(chosen(slot), thatPlayer, { controllerStated: true }),
         ]),
       ],
     },

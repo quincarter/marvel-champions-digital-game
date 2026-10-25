@@ -68,7 +68,7 @@ import {
   type DelegableCostPart,
   type Payment,
 } from "./commands.js";
-import { createCtx } from "./ctx.js";
+import { createCtx, perilBarsTrigger } from "./ctx.js";
 import { areaCostReductionFor } from "./effects.js";
 import { applyCommand } from "./engine.js";
 import { attachCostCard, attachCostHosts, dealDamageCostChoices } from "./attach-cost.js";
@@ -1415,6 +1415,8 @@ function actionAbilities(
       if (!named && isCaptiveAlly(state, id)) continue;
       // "First Player Action" (docs/phase7-wave3.md §3.13).
       if (trigger.firstPlayerOnly === true && playerId !== state.firstPlayerId) continue;
+      // RRG 1.8 "Peril" (p. 32): nobody but the player whose play area holds a peril card triggers its abilities.
+      if (perilBarsTrigger(state, deps, playerId, id)) continue;
       found.push({ instanceId: id, abilityId: ref.id });
     }
   }

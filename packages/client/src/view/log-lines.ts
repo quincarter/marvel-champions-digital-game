@@ -788,6 +788,12 @@ function describe(
         text: `${card(event.attackerInstanceId)}'s attack on ${card(event.targetInstanceId)} ends — ${card(event.reason === "targetLeftPlay" ? event.targetInstanceId : event.attackerInstanceId)} left play first.`,
         voice: "player",
       };
+    // A basic thwart whose scheme left play first (RRG 1.8 p. 13): without this line the thwart silently does nothing.
+    case "playerThwartEnded":
+      return {
+        text: `${card(event.thwarterInstanceId)}'s thwart of ${card(event.schemeInstanceId)} ends — ${card(event.schemeInstanceId)} left play first.`,
+        voice: "player",
+      };
     // An "(attack)" ability's damage instruction skipped an enemy its player cannot attack (guard): without this line
     // the villain silently takes none of "each enemy"'s damage.
     case "attackTargetSkipped":
