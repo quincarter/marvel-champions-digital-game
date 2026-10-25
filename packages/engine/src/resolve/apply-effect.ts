@@ -283,6 +283,44 @@ import {
 export const putIntoPlayHostSlot = (id: InstanceId): string => `_putIntoPlay.host.${id}`;
 
 /**
+ * The frame binding holding the player (as their identity's instance id, as `choosePlayer` binds) chosen to control a
+ * "Play under any player's control" card a `putIntoPlay` is about to put into play (`askPutIntoPlayController` in
+ * `effects-frame.ts` asks, the effect reads it).
+ */
+export const putIntoPlayControllerSlot = (id: InstanceId): string => `_putIntoPlay.controller.${id}`;
+
+/**
+ * Whether the player putting `id` into play chooses which player controls it. RRG 1.8 "Play, Put into Play" (p. 32):
+ * "Unless otherwise stated by the 'put into play' effect, cards that are put into play must do so in a play area or
+ * state that matches the rules of playing the card"; so a card printed "Play under any player's control" (`playRestrictions
+ * .anyPlayerControl`) may enter under any player's control (FFG ruling Nov 21, 2025: Build Support finding
+ * Boot Camp). Not when the effect states the controller (`controllerStated`), puts the card into play facedown (no
+ * text shows) or into a scenario area (nobody controls it), nor for a card already in play.
+ */
+export function putIntoPlayControlIsChosen(
+  state: GameState,
+  effect: Extract<EffectSpec, { kind: "putIntoPlay" }>,
+  id: InstanceId,
+): boolean {
+  if (effect.controllerStated === true || effect.facedown === true || effect.into) return false;
+  const card = cardOf(state, id);
+  const restrictions = card && "playRestrictions" in card ? card.playRestrictions : undefined;
+  return restrictions?.anyPlayerControl === true && !cardsInPlay(state).includes(id);
+}
+
+/** The player chosen for `id` (`putIntoPlayControllerSlot`), when they are still in the game; else null. */
+export function putIntoPlayChosenController(
+  state: GameState,
+  bindings: Frame<"effects">["bindings"],
+  id: InstanceId,
+): PlayerId | null {
+  const [identity] = bindings[putIntoPlayControllerSlot(id)] ?? [];
+  if (identity === undefined) return null;
+  const player = state.players.find((p) => p.identity.instanceId === identity && !p.eliminated);
+  return player?.playerId ?? null;
+}
+
+/**
  * RRG 1.8 "Unique Icon" (pp. 45–46), the *put into play* half of the rule, quoted:
  *
  *   "A non-villain card in an out-of-play state that matches a card in play cannot enter
@@ -1501,6 +1539,29 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // The card's own "you", as at its count (`stepBoostCard`): an attack's defending player, a scheme's player.
       const activatedAgainst = procedure.kind === "enemyAttack" ? procedure.targetPlayerId : procedure.playerId;
       // (A villainous character's card: its controller, `characterBoost.playerId`.)
+      // In the turned-faceup window of a card applied "as if it were a boost card" (`applyAsBoostCard`), the cancel
+      // reaches that card's icons, not the resolving boost card's (ruling Sept 5, 2024 #8: Preemptive Strike on "I Am
+      // Inevitable"'s Infinity Stone).
+      const faceupWindow = ctx.state.stack.find(
+        (f): f is Frame<"event"> => f.kind === "event" && f.event.kind === "boostCardTurnedFaceup",
+      );
+      const windowCard =
+        faceupWindow?.event.kind === "boostCardTurnedFaceup" ? faceupWindow.event.boostInstanceId : null;
+      const applied = boost.appliedAsBoost?.find((a) => a.instanceId === windowCard);
+      if (applied && faceupWindow) {
+        const appliedIcons = applied.iconsCancelled
+          ? 0
+          : boostIconsFor(ctx.state, ctx.deps, applied.instanceId, activatedAgainst);
+        if (appliedIcons <= 0) return report(0);
+        const appliedAsBoost = (boost.appliedAsBoost ?? []).map((a) =>
+          a.instanceId === applied.instanceId ? { ...a, iconsCancelled: true } : a,
+        );
+        setFrame(ctx, { ...procedure, boost: { ...boost, appliedAsBoost } });
+        if (faceupWindow.event.kind === "boostCardTurnedFaceup")
+          setFrame(ctx, { ...faceupWindow, event: { ...faceupWindow.event, boostIcons: 0 } });
+        emit(ctx, { type: "boostCancelled", instanceId: applied.instanceId, scope: "icons" });
+        return report(1, appliedIcons);
+      }
       const icons = boost.iconsCancelled ? 0 : boostIconsFor(ctx.state, ctx.deps, boost.instanceId, activatedAgainst);
       if (icons <= 0) return report(0);
       setFrame(ctx, { ...procedure, boost: { ...boost, iconsCancelled: true } });
@@ -1556,9 +1617,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // "Boost:" ability (`step === "ability"`, before the count step is reached — docs/phase7-wave3.md's `gmw`
       // Badoon Warlord/Badoon Lieutenant, "[star] Boost: If this activation is an attack/scheme, this card gets +2
       // boost icons for this activation": a card's own Boost ability modifying its own count has to run while its
-      // effects are still on the stack, which is before the frame's `boost.step` becomes `"count"`. `countAdjust`
-      // is carried on the same procedure/boost object either way, so setting it early is equivalent to setting it
-      // at the count step itself.
+      // effects are still on the stack, which is before the frame's `boost.step` becomes `"count"`. Its change is
+      // carried on the same procedure/boost object (`boostAbilityAdjust`) and added at the count step.
       //
       // The innermost count in progress, which is the first one found from the top of the stack: a card effect's
       // count (`countBoostIcons`, an event frame with no enemy) records the change on its own event, so a count made
@@ -1598,14 +1658,60 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         // Icons a borrowed Boost ability gains (docs/phase7-wave10.md §3.11, question 10) join this count only when
         // its `resolveSpecials` named this boost card (`borrowedBoostIcons: "joinActivation"`); by default none.
         if (borrowedFor && !borrowedFor.includes(boost.instanceId)) return;
+        // At `ability` the change comes from a "Boost" ability (step 3b), which a step 3a cancel of the card's icons
+        // does not reach (ruling May 10, 2024 #173), so it is kept apart from the count's own `countAdjust`.
+        const delta = value(effect.delta);
         setFrame(ctx, {
           ...procedure,
-          boost: { ...boost, countAdjust: (boost.countAdjust ?? 0) + value(effect.delta) },
+          boost:
+            boost.step === "ability"
+              ? { ...boost, boostAbilityAdjust: (boost.boostAbilityAdjust ?? 0) + delta }
+              : { ...boost, countAdjust: (boost.countAdjust ?? 0) + delta },
         });
       } else {
         const [card] = resolveRef(ctx.state, effect.card, context);
         if (card) setFrame(ctx, { ...procedure, boost: { ...boost, countFrom: card } });
       }
+      return;
+    }
+    case "applyAsBoostCard": {
+      // From a "Boost" ability (step 3b, RRG 1.8 p. 9): the activation whose boost card is resolving its ability.
+      const procedure = ctx.state.stack.find(
+        (f): f is Frame<"enemyAttack"> | Frame<"enemyScheme"> =>
+          (f.kind === "enemyAttack" || f.kind === "enemyScheme") && f.boost?.step === "ability",
+      );
+      const boost = procedure?.boost;
+      const [card] = resolveRef(ctx.state, effect.card, context);
+      if (!procedure || !boost || !card) return;
+      // Inside a borrowed Boost ability, icons join only the counts it names (as `adjustBoostCount`).
+      const borrowedFor = context.bindings[BORROWED_BOOST_ICONS_SLOT];
+      if (borrowedFor && !borrowedFor.includes(boost.instanceId)) return;
+      const activatedAgainst = procedure.kind === "enemyAttack" ? procedure.targetPlayerId : procedure.playerId;
+      setFrame(ctx, {
+        ...procedure,
+        boost: {
+          ...boost,
+          appliedAsBoost: [...(boost.appliedAsBoost ?? []), { instanceId: card, iconsCancelled: false }],
+        },
+      });
+      // Treated as a boost card turned faceup: abilities that affect boost cards may be used on it (ruling Sept 5, 2024
+      // #8). Its icons are added at the count step (`stepBoostCard`) unless cancelled in this window.
+      const icons = boostIconsFor(ctx.state, ctx.deps, card, activatedAgainst);
+      emit(ctx, {
+        type: "boostCardFlipped",
+        enemyInstanceId: procedure.enemyInstanceId,
+        instanceId: card,
+        boostIcons: icons,
+      });
+      pushEvent(ctx, {
+        kind: "boostCardTurnedFaceup",
+        enemyInstanceId: procedure.enemyInstanceId,
+        boostInstanceId: card,
+        activation: procedure.kind === "enemyAttack" ? "attack" : "scheme",
+        boostIcons: icons,
+        playerId: activatedAgainst,
+        ...(procedure.kind === "enemyAttack" ? { targetInstanceId: procedure.targetInstanceId } : {}),
+      });
       return;
     }
     case "countBoostIcons": {
@@ -2126,11 +2232,25 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         afterEntry(entered);
         return;
       }
+      // `controller` is the player putting the cards into play. A "Play under any player's control" card enters under
+      // the player they chose for it (`putIntoPlayControlIsChosen`; RRG 1.8 pp. 32-33, ruling Nov 21, 2025), so the
+      // unique rule, "Max N per player" and the host it gets are read under that player.
+      const underOf = (id: InstanceId): PlayerId =>
+        putIntoPlayChosenController(ctx.state, frame.bindings, id) ?? controller;
       const named =
         effect.facedown === true ? targets(effect.card) : admitFormOnly(ctx, targets(effect.card), controller);
-      const unmatched = admitUniqueEntry(ctx, named, controller, frame.selfInstanceId);
-      // A card put into play facedown shows no title, so it is no copy of anything ("copies … by title", p. 28).
-      const admitted = effect.facedown === true ? unmatched : admitUnderPlayerMax(ctx, unmatched, controller);
+      const admitted: InstanceId[] = [];
+      for (const under of [...new Set(named.map(underOf))]) {
+        const unmatched = admitUniqueEntry(
+          ctx,
+          named.filter((id) => underOf(id) === under),
+          under,
+          frame.selfInstanceId,
+        );
+        // A card put into play facedown shows no title, so it is no copy of anything ("copies … by title", p. 28).
+        admitted.push(...(effect.facedown === true ? unmatched : admitUnderPlayerMax(ctx, unmatched, under)));
+      }
+      admitted.sort((a, b) => named.indexOf(a) - named.indexOf(b));
       const placed: InstanceId[] = [];
       for (const id of admitted) {
         const card = cardOf(ctx.state, id);
@@ -2145,13 +2265,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         ) {
           updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
           beforeEntry(id);
-          enterPlayOnReveal(ctx, id, controller);
+          enterPlayOnReveal(ctx, id, underOf(id));
           placed.push(id);
         } else if (card?.type === "player_side_scheme") {
           // A player's own player side scheme: the villain's play area, under `controller`'s control, with its
           // starting threat, as when it is played (docs/phase7-wave7.md §3.43).
           beforeEntry(id);
-          playerSideSchemeEntersPlay(ctx, id, controller);
+          playerSideSchemeEntersPlay(ctx, id, underOf(id));
           placed.push(id);
         }
       }
@@ -2166,40 +2286,43 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         if (effect.facedown === true) break;
         if (placed.includes(id) || cardOf(ctx.state, id)?.type !== "upgrade" || cardsInPlay(ctx.state).includes(id))
           continue;
-        const hosts = putIntoPlayHostCandidates(ctx.state, ctx.deps, id, controller);
+        const hosts = putIntoPlayHostCandidates(ctx.state, ctx.deps, id, underOf(id));
         const [picked] = frame.bindings[putIntoPlayHostSlot(id)] ?? [];
         const host = picked !== undefined && hosts.includes(picked) ? picked : hosts[0];
         placed.push(id);
         if (host === undefined) {
-          emit(ctx, { type: "putIntoPlayRefused", instanceId: id, playerId: controller, reason: "noLegalHost" });
+          emit(ctx, { type: "putIntoPlayRefused", instanceId: id, playerId: underOf(id), reason: "noLegalHost" });
           continue;
         }
-        updateInstance(ctx, id, (i) => ({ ...i, controllerId: controller, faceup: true }));
-        takeOwnership(ctx, id, controller);
+        updateInstance(ctx, id, (i) => ({ ...i, controllerId: underOf(id), faceup: true }));
+        takeOwnership(ctx, id, underOf(id));
         beforeEntry(id);
         moveCard(ctx, id, { kind: "attachment", hostInstanceId: host });
         // RRG 1.8 p. 31: on a card another player controls, that player controls it from the moment it is attached.
-        settleUpgradeControl(ctx, id, controller);
+        settleUpgradeControl(ctx, id, underOf(id));
         attached.push(id);
       }
-      // The host answers are spent: a later step of this frame asks again.
-      if (admitted.some((id) => frame.bindings[putIntoPlayHostSlot(id)]))
+      // The host and controller answers are spent: a later step of this frame asks again.
+      const answered = (id: InstanceId): readonly string[] => [putIntoPlayHostSlot(id), putIntoPlayControllerSlot(id)];
+      const asked = targets(effect.card);
+      if (asked.some((id) => answered(id).some((slot) => frame.bindings[slot])))
         updateFrame(ctx, frame.frameId, (f) => {
           if (f.kind !== "effects") return f;
-          const spent = new Set(admitted.map((id) => putIntoPlayHostSlot(id)));
+          const spent = new Set(asked.flatMap(answered));
           return { ...f, bindings: Object.fromEntries(Object.entries(f.bindings).filter(([key]) => !spent.has(key))) };
         });
       const entering = admitted.filter((id) => !placed.includes(id));
       for (const id of entering) {
         // A minion belongs to the encounter side even while it sits in a player's area.
         const isMinion = cardOf(ctx.state, id)?.type === "minion";
-        takeOwnership(ctx, id, controller);
+        const under = underOf(id);
+        takeOwnership(ctx, id, under);
         beforeEntry(id);
-        moveCard(ctx, id, { kind: "playArea", playerId: controller });
+        moveCard(ctx, id, { kind: "playArea", playerId: under });
         updateInstance(ctx, id, (instance) => ({
           ...instance,
-          controllerId: isMinion ? null : controller,
-          engagedWith: isMinion ? controller : instance.engagedWith,
+          controllerId: isMinion ? null : under,
+          engagedWith: isMinion ? under : instance.engagedWith,
           faceup: true,
         }));
       }
@@ -2208,7 +2331,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         .map((id) => ({
           kind: "cardEntersPlay",
           instanceId: id,
-          playerId: attached.includes(id) ? (controllerOf(ctx.state, id) ?? controller) : controller,
+          playerId: attached.includes(id) ? (controllerOf(ctx.state, id) ?? underOf(id)) : underOf(id),
         }));
       const frames: StackFrame[] = entered.map((event) => eventFrame(ctx, event));
       for (const id of entering) {

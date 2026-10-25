@@ -391,6 +391,33 @@ describe("promptTitleOf, reportFact", () => {
   });
 });
 
+describe("promptTitleOf, an any-player-control card's controller", () => {
+  async function realState(): Promise<GameState> {
+    const store = new SessionStore(new LocalEngineHost());
+    await store.start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 2026,
+    });
+    return store.state.game!;
+  }
+
+  test("names the card being put into play (RRG 1.8 pp. 32-33)", async () => {
+    const state = await realState();
+    const villain = activeVillain(state).instanceId;
+    const prompt = { kind: "choosePlayer", slot: "putIntoPlayController", cardInstanceId: villain } as ChoicePrompt;
+    expect(promptTitleOf(prompt, POOL_DEPS, undefined, state)).toBe(`Who controls ${cardName(state, villain)}?`);
+  });
+
+  test("any other player choice keeps the generic title", async () => {
+    const state = await realState();
+    expect(promptTitleOf({ kind: "choosePlayer", slot: "x" } as ChoicePrompt, POOL_DEPS, undefined, state)).toBe(
+      "Choose a player",
+    );
+  });
+});
+
 describe("promptTitleOf, restricted discard", () => {
   test("names the prompt's own limit rather than a fixed two", () => {
     expect(promptTitleOf({ kind: "discardRestricted", limit: 2 }, POOL_DEPS)).toBe("Discard to two restricted cards");

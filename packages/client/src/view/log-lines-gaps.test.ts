@@ -227,4 +227,14 @@ describe("a player's attack that ends early", () => {
     expect(ended("attackerLeftPlay").endsWith(`${target} left play first.`)).toBe(false);
     expect(ended("targetLeftPlay").endsWith(`— ${target} left play first.`)).toBe(true);
   });
+
+  test("a basic thwart whose scheme left play first names the scheme (RRG v1.8 p.13)", () => {
+    const text = logLine(
+      { type: "playerThwartEnded", thwarterInstanceId: handCard, schemeInstanceId: villain, reason: "targetLeftPlay" },
+      state,
+      me,
+      POOL_DEPS,
+    )!.text;
+    expect(text.endsWith(`— ${cardName(state, villain)} left play first.`)).toBe(true);
+  });
 });

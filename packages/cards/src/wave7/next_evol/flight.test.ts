@@ -95,6 +95,13 @@ describe("Flight as a modular set: Setup, Attach to the villain, Permanent", () 
   });
 });
 
+/**
+ * Ruling 165 (May 10, 2024, post-RRG 1.5; its follow-up answer) keeps Flight in play and attaches it to the next
+ * eligible villain that enters play. RRG 1.8 "Permanent" (p. 32) resolves the "attach to" text at once and removes the
+ * attachment from the game when it has no valid target. The engine re-attaches it when a legal host is in play and
+ * otherwise discards it (owner call, docs/phase7-wave5.md §4.1 row 26; `discardWithLeavingHost`). This proof stays
+ * `it.fails`: the older ruling is superseded by v1.8 where they conflict.
+ */
 describe("Ruling 165, 2024 + RRG 1.8 'Permanent' (p. 32): a permanent attachment re-resolves its 'attach to' when its host leaves play", () => {
   it.fails("Flight (40151) on a Morlock Siege villain: the next villain gets it, it is not discarded", () => {
     let s: GameState | null = null;

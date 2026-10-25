@@ -69,8 +69,13 @@ const bladesOf = (s: GameState, p = P1): InstanceId[] =>
   inst(s, identityOf(s, p)).attachments.filter((id) => codeOf(s, id) === "41002a");
 
 /** Psylocke in hero form (at `seat`; the other seat Spider-Man), Stryfe without his starting tough card. */
-function game(players: readonly Seat[] = [PSYLOCKE], seed = 1, seat: PlayerId = P1): GameState {
-  const config = wave7Scenario("stryfe", { players, seed, difficulty: "standard", modularSetIds: [] });
+function game(
+  players: readonly Seat[] = [PSYLOCKE],
+  seed = 1,
+  seat: PlayerId = P1,
+  modularSetIds: readonly string[] = [],
+): GameState {
+  const config = wave7Scenario("stryfe", { players, seed, difficulty: "standard", modularSetIds });
   const created = createGame(config, WAVE7_DEPS);
   if (!created.ok) throw new Error(created.error.message);
   const settled = settle(created.state, firstLegal, (s) => s.step.phase === "player", WAVE7_DEPS);
@@ -163,9 +168,13 @@ describe("Psylocke events registry", () => {
 
 describe("Flurry of Blades (41004)", () => {
   /** Stryfe plus Zero (engaged with P1), Psylocke's blades as given. */
-  function staged(faces: readonly [boolean, boolean], players: readonly Seat[] = [PSYLOCKE]) {
+  function staged(
+    faces: readonly [boolean, boolean],
+    players: readonly Seat[] = [PSYLOCKE],
+    modularSetIds: readonly string[] = [],
+  ) {
     // Zero guards, which would make Stryfe unattackable: it sits unengaged in the villain area, still an enemy in play.
-    const staged = encounterCardInVillainArea(game(players), "40174");
+    const staged = encounterCardInVillainArea(game(players, 1, P1, modularSetIds), "40174");
     return { state: blades(staged.state, faces), zero: staged.id };
   }
   it("two Psi-Knives: 2 damage to the attacked enemy, then two separate chosen enemies are confused", () => {
@@ -180,6 +189,34 @@ describe("Flurry of Blades (41004)", () => {
     expect(handCodes(run.state)).toHaveLength(handCodes(run.before).length - 1 - 3);
     // An attack by an event: Psylocke does not exhaust.
     expect(inst(run.state, identityOf(run.state)).exhausted).toBe(false);
+  });
+  // FFG ruling 197 (May 30, 2024) and RRG 1.8 "Attack (Player Ability Type)", p. 10: an enemy targeted by an
+  // Attack-labeled ability is attacked even if that ability deals it no damage, so Retaliate fires. The Knife's confuse
+  // names Arclight (retaliate 1) and deals it nothing.
+  describe("a Knife confusing a retaliate enemy (ruling 197, RRG p. 10)", () => {
+    const ARCLIGHT = "40094"; // minion, Retaliate 1
+    function withArclight() {
+      const base = staged(KNIVES, [PSYLOCKE], ["mutant_slayers"]);
+      const arclight = encounterCardInVillainArea(base.state, ARCLIGHT);
+      return { state: arclight.state, arclight: arclight.id };
+    }
+    it("the confused enemy takes no damage, yet it was attacked: its Retaliate 1 hurts Psylocke", () => {
+      const { state, arclight } = withArclight();
+      const v = stryfe(state);
+      const run = playEvent(state, "41004", 3, queue(v, arclight, arclight));
+      expect(damage(run.state, v)).toBe(2);
+      expect(damage(run.state, arclight)).toBe(0);
+      expect(statusOf(run.state, arclight, "confused")).toBe(1);
+      expect(damage(run.state, identityOf(run.state))).toBe(1);
+    });
+    it("control: with both Knives on Stryfe (no retaliate) and Arclight untouched, Psylocke takes no damage", () => {
+      const { state, arclight } = withArclight();
+      const v = stryfe(state);
+      const run = playEvent(state, "41004", 3, queue(v, v, v));
+      expect(damage(run.state, arclight)).toBe(0);
+      expect(statusOf(run.state, arclight, "confused")).toBe(0);
+      expect(damage(run.state, identityOf(run.state))).toBe(0);
+    });
   });
   it("two Psi-Katanas: 2 damage, then 2 damage to each of two chosen enemies (the same one may be chosen twice)", () => {
     const { state, zero } = staged(KATANAS);

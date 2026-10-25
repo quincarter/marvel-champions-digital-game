@@ -2815,6 +2815,12 @@ function applyPlayerThwart(
   // window aborts the thwart, as a basic attack's target leaving aborts the attack (`applyPlayerAttack`): no threat
   // removed, not considered to have thwarted, and no consequential damage.
   if (event.basic === true && !cardsInPlay(ctx.state).includes(event.schemeInstanceId)) {
+    emit(ctx, {
+      type: "playerThwartEnded",
+      thwarterInstanceId: event.thwarterInstanceId,
+      schemeInstanceId: event.schemeInstanceId,
+      reason: "targetLeftPlay",
+    });
     abortForLeftTarget(ctx, frameId, event.thwarterInstanceId, "thwart");
     return false;
   }
