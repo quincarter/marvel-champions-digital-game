@@ -1009,14 +1009,15 @@ export class BoardController {
     destinationAsked = false,
   ): Promise<void> {
     const { game } = appSession().store.state;
+    // A search cost (Hunted) or an ally in a discard pile (Make the Call): the candidates are not on the board, so a
+    // list asks; Make the Call's asks even for one ally, so the player sees which it is before paying (#419).
+    const pick = target === null && game ? searchedPickFor(game, POOL_DEPS, entry) : null;
+    if (pick) {
+      this.#selection = { kind: "choosingSearched", entry, pick, controllerId, confirmFree };
+      this.#host.redraw();
+      return;
+    }
     if (target === null && needsPlayAim(entry) && game) {
-      // A search cost (Hunted): its candidates are in the encounter deck, not on the board, so a list asks.
-      const pick = searchedPickFor(game, POOL_DEPS, entry);
-      if (pick) {
-        this.#selection = { kind: "choosingSearched", entry, pick, controllerId, confirmFree };
-        this.#host.redraw();
-        return;
-      }
       this.#selection = {
         kind: "targeting",
         action: entry,

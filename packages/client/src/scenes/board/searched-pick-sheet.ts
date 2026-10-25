@@ -1,8 +1,9 @@
 /**
- * Hunted's minion pick (Tigra, 56007) as a sheet of card faces: each candidate the engine found in the encounter deck or
- * discard pile is shown as its printed front with an area tag in words under it and an Inspect button. Tapping a face
- * chooses it; Cancel (or Escape) backs out. The candidates are the engine's `LegalAction.targets` and the faces are
- * read from them (`view/play-aim.ts`); this file only lays them out (`view/searched-pick-layout.ts`) and wires the taps.
+ * A pick of cards off the board as a sheet of card faces: Hunted's minion (Tigra, 56007) in the encounter deck or
+ * discard pile, or Make the Call's ally (01071) in a player's discard pile. Each candidate is shown as its printed front
+ * with an area tag in words under it and an Inspect button. Tapping a face chooses it; Cancel (or Escape) backs out. The
+ * candidates are the engine's `LegalAction.targets` and the faces are read from them (`view/play-aim.ts`); this file
+ * only lays them out (`view/searched-pick-layout.ts`) and wires the taps.
  */
 import { drawArt } from "../../art/card-art.js";
 import { accent, border, ink, surface, typeRole } from "../../tokens.js";

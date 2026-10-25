@@ -21,7 +21,7 @@ import {
 } from "@mc/engine";
 import { artFor, defaultFaceFor, type ArtSource } from "../art/art-source.js";
 import { actionAbilityCost } from "./cost-choice-model.js";
-import { cardName } from "./names.js";
+import { cardName, seatFormName } from "./names.js";
 
 /**
  * The cost-choice slot a cost's pick is sent in: an attach host, a chosen hand card, a card whose cost is paid, the
@@ -112,7 +112,10 @@ export function playAimPrompt(state: GameState, deps: EngineDeps, entry: LegalAc
     return `${name}: choose the minion to search for and attach it to`;
   if (cost?.attach) return `${name}: choose the character it attaches to`;
   if (cost?.chooseCard) return `${name}: choose a card for its cost`;
-  if (cost?.payPrintedCostOf) return `${name}: choose the card whose cost you pay`;
+  if (cost?.payPrintedCostOf) {
+    const allies = entry.targets.length > 0 && entry.targets.every((id) => cardOf(state, id)?.type === "ally");
+    return `${name}: choose the ${allies ? "ally" : "card"} whose cost you pay`;
+  }
   // "Deal 1 damage to another friendly character →": the target of the cost, any player's character.
   if (cost?.dealDamage?.choose) return `${name}: choose who takes the damage`;
   // "Heal 2 damage from an enemy →": the character the cost heals, an enemy or any player's character.
@@ -127,15 +130,18 @@ export function playAimPrompt(state: GameState, deps: EngineDeps, entry: LegalAc
 export interface SearchedPickOption {
   readonly instanceId: InstanceId;
   readonly name: string;
-  /** "in the encounter deck" or "in the encounter discard": the area as words, so it is read without colour. */
+  /**
+   * "in the encounter deck", "in the encounter discard" or "in Carol Danvers' discard pile": the area as words, so it
+   * is read without colour.
+   */
   readonly area: string;
   /** The card id, for Inspect: a card in the encounter deck is facedown on the table, but a search shows it. */
   readonly cardId: string;
   /** The printed front, shown because the search turned the candidates up (Inspect opens the same). Null without a scan. */
   readonly art: ArtSource | null;
-  /** "ENCOUNTER DECK" / "ENCOUNTER DISCARD": the area tag drawn on the face, in words. */
+  /** "ENCOUNTER DECK" / "ENCOUNTER DISCARD" / "CAROL DANVERS' DISCARD": the area tag drawn on the face, in words. */
   readonly areaTag: string;
-  /** "Minion", for the line under the name. */
+  /** "Minion" or "Ally", for the line under the name. */
   readonly typeWord: string;
   /** "copy 2 of 3" when the same card (name and area) is listed more than once, else null. */
   readonly copy: string | null;
@@ -143,7 +149,10 @@ export interface SearchedPickOption {
   readonly label: string;
 }
 
-/** The chooser a search cost's pick opens (Hunted): a list of the cards the engine found, each with its area. */
+/**
+ * The chooser a pick of cards off the board opens: a search cost's minion (Hunted), or the card in a discard pile whose
+ * printed cost is paid (Make the Call). A list of the cards the engine found, each with its area.
+ */
 export interface SearchedPickView {
   readonly prompt: string;
   readonly options: readonly SearchedPickOption[];
@@ -159,19 +168,43 @@ const AREA_WORDS: Readonly<Record<string, string>> = {
   encounterDiscard: "in the encounter discard",
 };
 
+/** "Carol Danvers'": a seat's current face, as the owner of a pile. */
+const possessive = (name: string): string => (name.endsWith("s") ? `${name}'` : `${name}'s`);
+
+/** Where a listed card is, as words and as the tag on its face. */
+function areaOf(state: GameState, instanceId: InstanceId): { readonly area: string; readonly areaTag: string } {
+  const zone = locateCard(state, instanceId);
+  if (zone?.kind === "discard") {
+    const owner = possessive(seatFormName(state, zone.playerId));
+    return { area: `in ${owner} discard pile`, areaTag: `${owner.toUpperCase()} DISCARD` };
+  }
+  return {
+    area: (zone && AREA_WORDS[zone.kind]) || "out of play",
+    areaTag: (zone && AREA_TAGS[zone.kind]) || "OUT OF PLAY",
+  };
+}
+
 /**
- * The candidates of a cost that searches the encounter deck and discard pile (Hunted 56007), when the engine lists
- * more than one: they are not on the board, so they cannot be highlighted there and are listed instead, each with the
- * area it was found in. Null for every other play. Only cards the engine listed (`LegalAction.targets`) appear.
+ * The candidates of a pick that is not on the board, listed instead of highlighted, each with the area it is in; null
+ * for every other play. Only cards the engine listed (`LegalAction.targets`) appear.
+ *
+ * - A cost that searches the encounter deck and discard pile (Hunted 56007), when the engine lists more than one.
+ * - The card in a discard pile whose printed cost a play's cost pays ("Pay the printed cost of an ally in any player's
+ *   discard pile", Make the Call 01071): asked even when only one can be chosen, so the player sees which ally it is
+ *   and whose pile it comes from before paying for it (#419).
  */
 export function searchedPickFor(state: GameState, deps: EngineDeps, entry: LegalAction): SearchedPickView | null {
   const { action } = entry;
-  if (action.kind !== "playCard" || !additionalPlayCostOf(state, deps, action.instanceId)?.attachToSlot) return null;
-  if (!needsPlayAim(entry)) return null;
+  if (action.kind !== "playCard") return null;
+  if (additionalPlayCostOf(state, deps, action.instanceId)?.attachToSlot) {
+    if (!needsPlayAim(entry)) return null;
+  } else {
+    const pay = actionAbilityCost(state, deps, entry.example.playerId, action)?.payPrintedCostOf;
+    if (pay?.from.zone !== "discard" || entry.targets.length === 0) return null;
+  }
   const base = entry.targets.map((instanceId) => {
     const name = cardOf(state, instanceId)?.name ?? "Card";
-    const zone = locateCard(state, instanceId);
-    const area = (zone && AREA_WORDS[zone.kind]) || "out of play";
+    const { area, areaTag } = areaOf(state, instanceId);
     const card = cardOf(state, instanceId);
     return {
       instanceId,
@@ -179,7 +212,7 @@ export function searchedPickFor(state: GameState, deps: EngineDeps, entry: Legal
       area,
       cardId: (card?.id as string | undefined) ?? "",
       art: card ? artFor(card, defaultFaceFor(card)) : null,
-      areaTag: (zone && AREA_TAGS[zone.kind]) || "OUT OF PLAY",
+      areaTag,
       typeWord: card ? card.type.charAt(0).toUpperCase() + card.type.slice(1).replace(/_/g, " ") : "Card",
       text: `${name} - ${area}`,
     };

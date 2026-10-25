@@ -411,6 +411,14 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.board, data: {} };
   }
 
+  // `?screen=board&fixture=make-the-call`: Captain Marvel with Make the Call in hand and an ally in her discard pile, so
+  // playing it lists the allies it can take and whose pile each is in (#419).
+  if (screen === "board" && params.get("fixture") === "make-the-call") {
+    const { startDevMakeTheCallGame } = await import("../store/dev-make-the-call-game.js");
+    await startDevMakeTheCallGame();
+    return { key: SCENES.board, data: {} };
+  }
+
   // `?screen=board&fixture=option-reasons`: Nick Fury's "choose one" with its threat option disabled, and why (#412).
   if (screen === "board" && params.get("fixture") === "option-reasons") {
     const { startDevOptionReasonsGame } = await import("../store/dev-option-reasons-game.js");
