@@ -53,6 +53,8 @@ No blocker. Four should-fix, two minor.
    removed from the game or discarded, a thwart to 0 correctly discards the scheme (passing tests), but a scheme already
    sitting at 0 threat (held by the first sentence) is never re-checked once the hold lapses, so it keeps feeding Red
    Skull's +1 ATK. Practically unreachable (nothing in the game removes The Sleeper short of defeat) but real.
+   **Reversed by #405:** FFG ruled the scheme "cannot be defeated. It can only be removed from play" (Caleb, Rise of
+   Red Skull), so staying at 0 threat is correct; releasing it is what defeated it ahead of its own removal.
 6. **Friends and Family (27132, `sm`)** has two ability refs (`27132.friends-and-family-constant`, `...-action`)
    that are not in the registry: its printed cost increase and Alter-Ego Action do nothing. It is linked from no identity
    I could find (`down-to-earth.ts` says it is scripted "with its owning hero's kit", which does not exist), so it is probably
