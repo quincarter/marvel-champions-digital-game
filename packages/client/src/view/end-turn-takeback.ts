@@ -26,8 +26,8 @@
  * the command that begins the villain phase, so a gate that closed before it could not exist. A replay draws the same
  * cards again (a deck that had to reshuffle spends the RNG and closes the window), so nothing is re-rolled, only
  * previewed. Whether that preview is acceptable is an owner call, not an RRG one (RRG 1.8 has no take-back at all):
- * `TAKEBACK_AFTER_OWN_DRAW` is the engine-specific default (open) and closes the gate whenever a card was drawn when
- * false; the discard sheet is before every draw and is unaffected. Undecided as of 2026-10-24.
+ * the owner chose strict (2026-10-24), so `TAKEBACK_AFTER_OWN_DRAW` is false and the gate closes whenever a card was
+ * drawn; the discard sheet is before every draw and is unaffected.
  *
  * The discard sheet and the gate are offered only to the seat that pressed End turn (`perspectiveId`): "back to my turn"
  * is wrong from another seat, which would be rewinding someone else's decision. The handover is the exception by
@@ -42,7 +42,7 @@ import type { BackOutTrailEntry } from "./back-out.js";
 import { eventStopsUndo, usedRandomness } from "./undo.js";
 
 /** Whether the gate stays open after the end-of-turn hand refill drew cards (see the file comment). */
-export const TAKEBACK_AFTER_OWN_DRAW = true;
+export const TAKEBACK_AFTER_OWN_DRAW = false;
 
 const isEndTurn = (command: Command): boolean => command.type === "endTurn";
 
