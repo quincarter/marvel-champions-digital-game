@@ -488,7 +488,10 @@ export interface TargetQuery {
   readonly engagedWithPlayer?: PlayerRef;
   /**
    * In one of these players' play areas, whoever controls it: "each Spell card in your play area" (Ebony Maw I–III, `mts`
-   * 21071–21073), which reaches encounter environments no player controls (docs/phase7-wave4.md §3.16).
+   * 21071–21073), which reaches encounter environments no player controls (docs/phase7-wave4.md §3.16). An attachment is
+   * in the area of the card it is attached to: one on the player's identity or on a card in their area is in it, one on a
+   * card in the villain's area is not ("if this card is in your play area", Stakeout `jj` 61014; RRG 1.8 "Player's Play
+   * Area"; #411).
    */
   readonly inPlayAreaOf?: PlayerRef;
   /** A villain's signature side scheme (true) or any other card (false): The Wrecking Crew insert, "Signature Side Schemes". */
