@@ -255,13 +255,14 @@ test("A starts the villain phase, and the defend panel's Confirm wears its glyph
   await installWave6Helpers(page);
   await page.goto("/?screen=villain-interrupt");
   const start = await waitFor(() => villainDebugRect(page, "startRect"), "START VILLAIN PHASE", 30_000);
-  // A pad press makes it a pad screen; the glyph then sits on START.
-  await padTap(page, RIGHT);
-  await waitFor(
-    async () => ((await glyphIn(page, "VillainPhaseOverlay", "A", start)) ? true : null),
-    "the A glyph on START",
-    8000,
-  );
+  // A pad press makes it a pad screen; the glyph then sits on START. A press in the first frames after the overlay held
+  // input is dropped on purpose (`view/pad-press-guard.ts`), so under a loaded suite press again rather than wait.
+  const aOnStart = async () => ((await glyphIn(page, "VillainPhaseOverlay", "A", start)) ? true : null);
+  for (let attempt = 0; attempt < 3 && !(await aOnStart()); attempt += 1) {
+    await padTap(page, RIGHT);
+    await page.waitForTimeout(800);
+  }
+  await waitFor(aOnStart, "the A glyph on START", 8000);
 
   // A starts it.
   await padTap(page, A);
@@ -270,7 +271,12 @@ test("A starts the villain phase, and the defend panel's Confirm wears its glyph
   await settle(page);
   await pressAt(page, resolve.x + resolve.width / 2, resolve.y + resolve.height / 2);
   const answer = await waitFor(() => villainDebugRect(page, "answerRect"), "the defend notice", 15_000);
-  await padTap(page, A);
+  // As above: the notice's first frames still hold input, so a press that lands there is pressed again.
+  for (let attempt = 0; attempt < 3 && !(await villainDebugRect(page, "confirmRect")); attempt += 1) {
+    await settle(page, { quietMs: 300, maxMs: 2000 });
+    await padTap(page, A);
+    await page.waitForTimeout(800);
+  }
   const confirm = await waitFor(() => villainDebugRect(page, "confirmRect"), "the docked defend panel", 15_000);
   expect(answer).not.toBeNull();
 
