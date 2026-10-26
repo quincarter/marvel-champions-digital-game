@@ -320,7 +320,11 @@ test("Start on Scenario select chooses heroes", async ({ page }) => {
   });
   await page.waitForTimeout(2500);
   await tap(page, DPAD_DOWN);
-  await tap(page, START, () => isActive(page, "Seats"));
+  // A press made in the first frames after the screen was held (the pad's own wake-up, a toast) is dropped on purpose
+  // (`view/pad-press-guard.ts`); under a loaded suite that can be this one, so press again rather than hold longer.
+  for (let attempt = 0; attempt < 3 && !(await isActive(page, "Seats")); attempt += 1) {
+    await tap(page, START, () => isActive(page, "Seats"));
+  }
   expect(await isActive(page, "Seats")).toBe(true);
 });
 
