@@ -62,50 +62,6 @@ Title: "Clear Skies Again"
 
 The six Fear No Evil scenarios and the campaign's two tracks. Five scenarios are named by their main scheme and take any of five underling villains (Bullseye, Electro, Hammerhead, Purple Man, Typhoid Mary), so each scenario's music follows the scheme, not the villain. Files go straight into `music/scenarios/<scenarioId>/`, and the campaign's into `music/campaigns/fne/`.
 
-## The Raft Breakout
-
-Folder: `music/scenarios/the-raft-breakout/`
-
-### Riot on the Raft (battle, `battle.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
-
-Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. Alarms howl across an island super-prison as a villain springs every cell, and the heroes fight inmates down steel corridors before the island empties. Prison-riot urgency: blaring alarm-like brass, clanging metallic percussion, a driving staccato string ostinato, distorted synth bass, a heroic horn line fighting through the chaos. About 140 BPM, B minor, loud and desperate.
-
-Title: "Riot on the Raft"
-```
-
-### Every Cell Open (villain wins, `villain-wins.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. Alarms howl across an island super-prison as a villain springs every cell, and the heroes fight inmates down steel corridors before the island empties. Prison-riot urgency: blaring alarm-like brass, clanging metallic percussion, a driving staccato string ostinato, distorted synth bass, a heroic horn line fighting through the chaos. About 140 BPM, B minor, loud and desperate.
-
-Title: "Every Cell Open"
-```
-
-### The Raft Holds (heroes win, `villain-loses.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. Alarms howl across an island super-prison as a villain springs every cell, and the heroes fight inmates down steel corridors before the island empties. Prison-riot urgency: blaring alarm-like brass, clanging metallic percussion, a driving staccato string ostinato, distorted synth bass, a heroic horn line fighting through the chaos. About 140 BPM, B minor, loud and desperate.
-
-Title: "The Raft Holds"
-```
-
 ## Stop the Presses!
 
 Folder: `music/scenarios/stop-the-presses/`
@@ -1056,10 +1012,10 @@ Title: "Friendly Neighborhood Heroes"
 
 # Already in the game
 
-These 60 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
+These 63 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
 
 <details>
-<summary>Show the 60 prompts already used</summary>
+<summary>Show the 63 prompts already used</summary>
 
 ## Black Widow
 
@@ -1923,6 +1879,50 @@ Use the same main melody and instruments as the battle track I just generated.
 Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. Gangsters squeeze every corner shop on the block for protection money while the heroes go door to door to stand up for the neighbors. Menacing mob swagger: a slow heavy swing in low strings and baritone sax, a smoky jazz piano, brass that leans in like a threat, a defiant rising string line for the shopkeepers fighting back. About 112 BPM, C minor, tough and smoky.
 
 Title: "Open for Business"
+```
+
+## The Raft Breakout
+
+Folder: `music/scenarios/the-raft-breakout/`
+
+### Riot on the Raft (battle, `battle.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
+
+Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. Alarms howl across an island super-prison as a villain springs every cell, and the heroes fight inmates down steel corridors before the island empties. Prison-riot urgency: blaring alarm-like brass, clanging metallic percussion, a driving staccato string ostinato, distorted synth bass, a heroic horn line fighting through the chaos. About 140 BPM, B minor, loud and desperate.
+
+Title: "Riot on the Raft"
+```
+
+### Every Cell Open (villain wins, `villain-wins.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. Alarms howl across an island super-prison as a villain springs every cell, and the heroes fight inmates down steel corridors before the island empties. Prison-riot urgency: blaring alarm-like brass, clanging metallic percussion, a driving staccato string ostinato, distorted synth bass, a heroic horn line fighting through the chaos. About 140 BPM, B minor, loud and desperate.
+
+Title: "Every Cell Open"
+```
+
+### The Raft Holds (heroes win, `villain-loses.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. Alarms howl across an island super-prison as a villain springs every cell, and the heroes fight inmates down steel corridors before the island empties. Prison-riot urgency: blaring alarm-like brass, clanging metallic percussion, a driving staccato string ostinato, distorted synth bass, a heroic horn line fighting through the chaos. About 140 BPM, B minor, loud and desperate.
+
+Title: "The Raft Holds"
 ```
 
 </details>

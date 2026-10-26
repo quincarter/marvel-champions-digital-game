@@ -1,6 +1,6 @@
 # Music prompts for every empty slot (2026-10-10, updated 2026-10-26)
 
-Every scenario and campaign slot in `music/` that has no track today: 43 tracks. The titles here are the ones to
+Every scenario and campaign slot in `music/` that has no track today: 40 tracks. The titles here are the ones to
 use for the files and the `TRACK_TITLES` entries, whatever name the generator gives the download. None repeats a
 title already in the jukebox. [music-prompts-ready.md](music-prompts-ready.md) has each of them as a whole request,
 ready to paste; the descriptions below are the same ones in the shorter form.
@@ -66,14 +66,6 @@ A cosmic-powered air force pilot and government agent who believes heroes must f
 ```
 
 # Wave 11: Fear No Evil
-
-## The Raft Breakout
-
-Tracks: **Riot on the Raft** (battle), **Every Cell Open** (villain wins), **The Raft Holds** (heroes win).
-
-```text
-Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. Alarms howl across an island super-prison as a villain springs every cell, and the heroes fight inmates down steel corridors before the island empties. Prison-riot urgency: blaring alarm-like brass, clanging metallic percussion, a driving staccato string ostinato, distorted synth bass, a heroic horn line fighting through the chaos. About 140 BPM, B minor, loud and desperate.
-```
 
 ## Stop the Presses!
 
@@ -229,7 +221,6 @@ Every scenario and campaign listed here is playable, so each track goes straight
 `music/campaigns/<campaignId>/`, with its `TRACK_TITLES` entry and a copy under its title in `music/soundtrack/`.
 
 - Captain Marvel (Registration): `scenarios/registration-captain-marvel/`
-- The Raft Breakout: `scenarios/the-raft-breakout/`
 - Stop the Presses!: `scenarios/stop-the-presses/`
 - Kingpin: `scenarios/kingpin/`
 - Fear No Evil campaign interlude: `campaigns/fne/interlude.mp3`
@@ -503,6 +494,14 @@ Tracks: **Pay Up or Else** (battle), **The Whole Block Pays** (villain wins), **
 
 ```text
 Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. Gangsters squeeze every corner shop on the block for protection money while the heroes go door to door to stand up for the neighbors. Menacing mob swagger: a slow heavy swing in low strings and baritone sax, a smoky jazz piano, brass that leans in like a threat, a defiant rising string line for the shopkeepers fighting back. About 112 BPM, C minor, tough and smoky.
+```
+
+## The Raft Breakout
+
+Tracks: **Riot on the Raft** (battle), **Every Cell Open** (villain wins), **The Raft Holds** (heroes win).
+
+```text
+Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. Alarms howl across an island super-prison as a villain springs every cell, and the heroes fight inmates down steel corridors before the island empties. Prison-riot urgency: blaring alarm-like brass, clanging metallic percussion, a driving staccato string ostinato, distorted synth bass, a heroic horn line fighting through the chaos. About 140 BPM, B minor, loud and desperate.
 ```
 
 </details>
