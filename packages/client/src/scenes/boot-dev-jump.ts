@@ -601,6 +601,17 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     };
   }
 
+  // `?screen=inspect&fixture=iron-lad`: Iron Lad's Inspect sheet after he attacked alone, so "Right now" says his
+  // interrupt has no other ready Avenger ally to exhaust (#431).
+  if (screen === "inspect" && params.get("fixture") === "iron-lad") {
+    const { IRON_LAD, playIronLadAttack } = await import("../store/dev-iron-lad-game.js");
+    const { store } = appSession();
+    await playIronLadAttack(store);
+    const lad = Object.values(store.state.game?.instances ?? {}).find((i) => i.cardId === IRON_LAD)?.instanceId;
+    if (!lad) return { key: SCENES.board, data: {} };
+    return { key: SCENES.inspect, data: { instanceId: lad, siblings: [lad] } satisfies InspectData };
+  }
+
   // `?screen=inspect[&card=N]`: the Inspect sheet over a live board, open on
   // the Nth card of the opening hand (default the first), for checking the
   // sheet against D08/P14/T06 at every size without clicking through a game.

@@ -14,6 +14,7 @@ import {
   type AbilityDefinition,
   activeAbilityRefs,
   cardsInPlay,
+  controllerOf,
   hasKeyword,
   matchesQuery,
   resolveValue,
@@ -283,6 +284,33 @@ function exhaustCostClause(cost: AbilityDefinition["cost"]): string | null {
   if (!noun || !known || query.controller !== "you") return null;
   const trait = query.trait ? `${titleCase(query.trait)} ` : "";
   return `you control no other ready ${trait}${noun}`;
+}
+
+/**
+ * Inspect's "Right now" for a card in play whose own optional interrupt or response exhausts other cards to pay
+ * ("exhaust another Avenger ally you control →", Iron Lad `cw` 56052, #431) while none of them is ready: "Interrupt
+ * can't be used right now: you control no other ready Avenger ally". Read from the cost's shape and the cards in play
+ * (`exhaustCostClause`), before anything triggers it, for whoever controls the card; empty when every such cost has a
+ * card to pay it.
+ */
+export function idleTriggerNotes(state: GameState, instanceId: InstanceId, deps: EngineDeps): string[] {
+  const controllerId = controllerOf(state, instanceId);
+  if (controllerId === null || !cardsInPlay(state).includes(instanceId)) return [];
+  const context = { selfInstanceId: instanceId, controllerId, deps, event: null, bindings: {} };
+  return activeAbilityRefs(state, instanceId).flatMap((ref) => {
+    const definition = deps.abilities[ref.id];
+    const trigger = definition?.trigger;
+    if (!trigger || (trigger.kind !== "interrupt" && trigger.kind !== "response") || trigger.forced) return [];
+    const clause = exhaustCostClause(definition.cost);
+    const picks = definition.cost?.exhaustCards;
+    const pick = Array.isArray(picks) ? picks[0] : picks;
+    if (!clause || !pick) return [];
+    const ready = cardsInPlay(state).filter(
+      (id) => id !== instanceId && !state.instances[id]?.exhausted && matchesQuery(state, id, pick.query, context),
+    );
+    if (ready.length >= pick.min) return [];
+    return [`${titleCase(trigger.kind)} can't be used right now: ${clause}`];
+  });
 }
 
 /** What each `abilityNotOffered` reason means, when nothing more specific can be said. */

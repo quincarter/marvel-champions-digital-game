@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { POOL_DEPS } from "../content/pool.js";
+import { idleTriggerNotes } from "../view/ability-refusal.js";
 import { logLine } from "../view/log-lines.js";
 import { unofferedNoticesOf } from "../view/option-notice.js";
 import { IRON_LAD, playIronLadAttack } from "./dev-iron-lad-game.js";
@@ -36,5 +37,11 @@ describe("the Iron Lad dev game (#431)", () => {
 
     const line = logLine(notOffered[0]!, game, game.players[0]!.playerId, POOL_DEPS);
     expect(line?.text).toBe("Iron Lad's interrupt was not offered: you control no other ready Avenger ally.");
+
+    // Inspect's "Right now" says it before anything triggers it, and the other cards say nothing.
+    expect(idleTriggerNotes(game, lad, POOL_DEPS)).toEqual([
+      "Interrupt can't be used right now: you control no other ready Avenger ally",
+    ]);
+    expect(idleTriggerNotes(game, game.players[0]!.identity.instanceId, POOL_DEPS)).toEqual([]);
   }, 120_000);
 });

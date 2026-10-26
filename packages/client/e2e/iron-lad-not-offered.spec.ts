@@ -36,3 +36,19 @@ test("Iron Lad attacks alone: the board says his interrupt was not offered, and 
   );
   expect(errors).toEqual([]);
 });
+
+test("Iron Lad's Inspect sheet says his interrupt has no other ready Avenger ally to exhaust", async ({ page }) => {
+  test.setTimeout(240_000);
+  const errors = trackErrors(page);
+  await installWave6Helpers(page);
+  await page.goto("/?screen=inspect&fixture=iron-lad");
+  await waitFor(
+    async () => ((await hasText(page, "can't be used right now")) ? true : null),
+    "Inspect's Right now note",
+    120_000,
+  );
+  await settle(page, { quietMs: 500, maxMs: 4000 });
+  expect(await hasText(page, "Interrupt can't be used right now: you control no other ready Avenger ally")).toBe(true);
+  await page.screenshot({ path: "../../artifacts/qa/iron-lad-inspect.png" });
+  expect(errors).toEqual([]);
+});

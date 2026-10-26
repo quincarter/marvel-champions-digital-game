@@ -55,7 +55,7 @@ import { artFor, type ArtSource, type CardFace } from "../art/art-source.js";
 import { abilityActionsFor } from "./highlights.js";
 import { qualifiedHeroName } from "./hero-names.js";
 import { abilityLabelOf } from "./ability-label.js";
-import { targetRefusalReason } from "./ability-refusal.js";
+import { idleTriggerNotes, targetRefusalReason } from "./ability-refusal.js";
 import { cardHistoryOf, emptyCardHistoryLog, type CardHistoryLine, type CardHistoryLog } from "./card-history.js";
 import { cardName, faceUpName } from "./names.js";
 import { maskedStageInspect, type BlindReveal } from "./civil-war-blind.js";
@@ -1083,6 +1083,10 @@ function statusOf(
         : target.message;
     return { playable: false, message, targets: [] };
   }
+
+  // An interrupt or response of its own that nothing could pay for now says so before it is missed (#431).
+  const idle = idleTriggerNotes(state, instanceId, deps);
+  if (idle.length > 0) return { playable: null, message: `${idle.join(". ")}.`, targets: [] };
 
   // In hand and named by no action at all: the engine had nothing to say, and
   // neither does this panel.
