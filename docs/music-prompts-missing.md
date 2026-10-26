@@ -1,6 +1,6 @@
 # Music prompts for every empty slot (2026-10-10, updated 2026-10-26)
 
-Every scenario and campaign slot in `music/` that has no track today: 55 tracks. The titles here are the ones to
+Every scenario and campaign slot in `music/` that has no track today: 52 tracks. The titles here are the ones to
 use for the files and the `TRACK_TITLES` entries, whatever name the generator gives the download. None repeats a
 title already in the jukebox. [music-prompts-ready.md](music-prompts-ready.md) has each of them as a whole request,
 ready to paste; the descriptions below are the same ones in the shorter form.
@@ -63,14 +63,6 @@ Tracks: **Chain of Command** (battle), **Grounded by Order** (villain wins), **C
 
 ```text
 A cosmic-powered air force pilot and government agent who believes heroes must follow orders, diving out of the sky with armored capture squads and soaking up energy until she blazes. Military and soaring at once: a strict snare cadence and marching low strings, bright heroic trumpets and horns climbing in wide leaps, glowing synth swells that build and build then burst, jet-like whooshes in the percussion. About 138 BPM, B-flat minor rising to major chords, disciplined and blazing.
-```
-
-## Spider-Woman (Resistance)
-
-Tracks: **Gone Underground** (battle), **Caught in the Web** (villain wins), **Neighborhood Watch** (heroes win).
-
-```text
-A former top spy with spider powers who has gone on the run, fighting with speed and finesse across city rooftops and back alleys beside street-level vigilantes, building up skill before one perfect strike. Nimble urban spy action: a slinky bass line and brushed breakbeat drums, quick pizzicato and plucked harp runs, wah guitar and muted trumpet, tension that winds up bar by bar then snaps into a sharp full-orchestra hit. About 120 BPM, C-sharp minor, agile and street-smart.
 ```
 
 # Wave 11: Fear No Evil
@@ -261,7 +253,6 @@ Every scenario and campaign listed here is playable, so each track goes straight
 `music/campaigns/<campaignId>/`, with its `TRACK_TITLES` entry and a copy under its title in `music/soundtrack/`.
 
 - Captain Marvel (Registration): `scenarios/registration-captain-marvel/`
-- Spider-Woman (Resistance): `scenarios/resistance-spider-woman/`
 - Art Museum Heist: `scenarios/art-museum-heist/`
 - The Getaway: `scenarios/the-getaway/`
 - Protection Racket: `scenarios/protection-racket/`
@@ -507,6 +498,14 @@ Tracks: **Not Without a Fight** (battle), **The Shield Falls** (villain wins), *
 
 ```text
 A veteran soldier and living symbol of freedom who refuses an unjust law and leads a band of outlaw heroes from the underground, blocking every blow with his shield and rallying friends who cover for one another. Noble but defiant, a rebel march: a steadfast horn and trumpet melody over galloping strings and field drums, metallic shield-like clangs in the percussion, gritty guitar and low piano for the fugitive underground, the full orchestra joining in waves as allies arrive. About 124 BPM, G minor, resolute and stirring.
+```
+
+## Spider-Woman (Resistance)
+
+Tracks: **Gone Underground** (battle), **Caught in the Web** (villain wins), **Neighborhood Watch** (heroes win).
+
+```text
+A former top spy with spider powers who has gone on the run, fighting with speed and finesse across city rooftops and back alleys beside street-level vigilantes, building up skill before one perfect strike. Nimble urban spy action: a slinky bass line and brushed breakbeat drums, quick pizzicato and plucked harp runs, wah guitar and muted trumpet, tension that winds up bar by bar then snaps into a sharp full-orchestra hit. About 120 BPM, C-sharp minor, agile and street-smart.
 ```
 
 </details>
