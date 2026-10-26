@@ -332,13 +332,12 @@ fi
 
 # --- Launch options --------------------------------------------------------------------------------------------------
 
-# The app sets these itself on Linux unless they're already set (src-tauri/src/main.rs, GDK_BACKEND only in the
-# AppImage); they're repeated here so the Steam entry shows them and a player can change them under the game's
-# Properties.
-options=(PULSE_LATENCY_MSEC=90 WEBKIT_DISABLE_DMABUF_RENDERER=1 GDK_BACKEND=x11)
-# Variables the script decides each run, so an earlier run's value doesn't linger in the entry. The first release of
-# this script set NO_AT_BRIDGE and, on request, WEBKIT_DISABLE_COMPOSITING_MODE; neither stopped the Bazzite freeze
-# that running under X11 did (#401), so a re-run takes them out.
+# The app sets these itself on Linux unless they're already set (src-tauri/src/main.rs); they're repeated here so the
+# Steam entry shows them and a player can change them under the game's Properties.
+options=(PULSE_LATENCY_MSEC=90 WEBKIT_DISABLE_DMABUF_RENDERER=1)
+# Variables the script decides each run, so an earlier run's value doesn't linger in the entry. The script's first
+# draft set NO_AT_BRIDGE and, on request, WEBKIT_DISABLE_COMPOSITING_MODE; neither stopped the Bazzite freeze (#401),
+# so a re-run takes them out.
 drop="APPIMAGE_EXTRACT_AND_RUN NO_AT_BRIDGE WEBKIT_DISABLE_COMPOSITING_MODE"
 
 # An AppImage mounts itself with FUSE 2. Without libfuse2 (newer Ubuntu and Debian, Flatpak Steam's sandbox) it can
