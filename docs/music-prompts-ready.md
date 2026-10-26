@@ -58,10 +58,6 @@ A cosmic-powered air force pilot and government agent who believes heroes must f
 Title: "Clear Skies Again"
 ```
 
-## Spider-Woman (Resistance)
-
-Folder: `music/scenarios/resistance-spider-woman/`
-
 ### Gone Underground (battle, `battle.mp3`)
 
 ```text
@@ -1924,5 +1920,9 @@ A veteran soldier and living symbol of freedom who refuses an unjust law and lea
 
 Title: "Standing Down Together"
 ```
+
+## Spider-Woman (Resistance)
+
+Folder: `music/scenarios/resistance-spider-woman/`
 
 </details>
