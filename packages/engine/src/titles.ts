@@ -18,7 +18,9 @@
  * - **"Hero/Alter-ego"** — "Black Panther/T'Challa and Black Panther/Shuri" (Heart of the Panther, `bp` 51025) — names
  *   one identity card by both of its sides, because the two Black Panthers share a hero title. It matches an identity
  *   whose hero face is the first half and whose alter-ego face is the second, whichever side is up. A reading of the
- *   printed disambiguation (§4 Q13): no rule text covers the slash.
+ *   printed disambiguation (§4 Q13): no rule text covers the slash. Any other character matches by its title or
+ *   subtitle against the second half: FFG ruled that Black Panther (Shuri) and the T'Challa ally (51002) in play let
+ *   Heart of the Panther be played (ruling November 21, 2025, on RRG 1.8 "Team-Up", p. 43; issue #425).
  */
 
 import type { AnyCard, HeroIdentityCard } from "@mc/content";
@@ -98,7 +100,10 @@ export function characterTitledAs(state: GameState, id: InstanceId, name: string
   if (!instance || !card || instance.facedownAs) return false;
   const isIdentity = card.type === "hero_identity" && state.players.some((p) => p.identity.instanceId === id);
   const both = slashName(name);
-  if (both) return isIdentity && card.type === "hero_identity" && identityCardTitledAs(card, name);
+  if (both) {
+    if (isIdentity) return card.type === "hero_identity" && identityCardTitledAs(card, name);
+    return titleShowing(state, id) === both[1] || ("subtitle" in card && card.subtitle === both[1]);
+  }
   if (isIdentity) return titleShowing(state, id) === name;
   return titleShowing(state, id) === name || ("subtitle" in card && card.subtitle === name);
 }
