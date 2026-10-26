@@ -9,6 +9,7 @@ import {
   hasStop,
   installWave6Helpers,
   screens,
+  scrollStopIntoView,
   trackErrors,
   visibleTexts,
   waitForScene,
@@ -107,6 +108,8 @@ for (const c of CASES) {
     // Scenario select: filter to the box, pick the scenario, on to the seats.
     await clickStop(page, `scenario-chip:product:${c.box}`, "ScenarioSelect");
     await settle(page);
+    // No villain is preselected now, so the tile sits where its shelf puts it: bring it on screen before pressing.
+    await scrollStopIntoView(page, `scenario:${c.scenario}`, "ScenarioSelect", 70, 1060);
     await clickStop(page, `scenario:${c.scenario}`, "ScenarioSelect");
     await settle(page);
     await clickStop(page, "next", "ScenarioSelect");

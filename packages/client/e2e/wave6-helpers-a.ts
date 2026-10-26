@@ -435,6 +435,8 @@ export async function scrollStopIntoView(
   sceneKey: string,
   // The y a control's top must clear: a screen with a fixed bar under its header (the Extras tabs) clips rows above it.
   top = 70,
+  // The x a control's centre must stay left of: a tile row clipped by a side panel (Scenario select) needs less than the viewport.
+  right?: number,
 ): Promise<void> {
   const size = page.viewportSize() ?? { width: 1440, height: 900 };
   for (let step = 0; step < 60; step++) {
@@ -442,7 +444,7 @@ export async function scrollStopIntoView(
     if (!stop) throw new Error(`no "${key}" control on ${sceneKey}`);
     const { x, y, width, height } = stop.rect;
     const inY = y >= top && y + height / 2 <= size.height - 90;
-    const inX = x >= 0 && x + width / 2 <= size.width - 10;
+    const inX = x >= 0 && x + width / 2 <= (right ?? size.width - 10);
     if (inY && inX) return;
     await page.mouse.move(size.width / 2, size.height / 2);
     if (!inY) await page.mouse.wheel(0, y < top ? -250 : 250);
