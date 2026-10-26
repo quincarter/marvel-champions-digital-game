@@ -11,5 +11,7 @@
 | Linux: any other distro                       | `MarvelChampions-VERSION-Linux-x64.AppImage`                                                                       |
 | Android phone or tablet                       | `MarvelChampions-VERSION-Android.apk`                                                                              |
 
+To play from Steam (library art, Big Picture, Steam Deck): run your system's `MarvelChampions-VERSION-*-Install-for-Steam`
+script after installing the game. [How](https://github.com/quincarter/marvel-champions-digital-game/blob/main/docs/project/downloads.md#play-it-from-steam).
 Not sure which Mac you have? Apple menu → About This Mac: "Chip" means Apple chip, "Processor" means Intel.
 `SHA256SUMS.txt` lists every file's checksum. The `.app.tar.gz` files are the bare macOS apps; most players want the `.dmg`.

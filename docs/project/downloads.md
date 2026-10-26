@@ -18,6 +18,28 @@ latest version and link straight to its installers; every release PR updates the
 The desktop and Android apps check GitHub for a newer release on launch and show an "Update available" banner on the
 Title screen when one exists. The web app always runs the latest version.
 
+## Play it from Steam
+
+Each release has an "Install for Steam" script for Windows, macOS and Linux. It adds the installed game to Steam as a
+non-Steam game, with its icon and library art (the grid, wide and Big Picture banners), so it plays from your library
+and Big Picture with a controller. Running it again updates the entry instead of adding a second one, and keeps its
+collections and play time. Steam has to be closed while it runs; the script offers to close it.
+
+- **Windows**: install the game, then download `-Windows-Install-for-Steam.ps1` and run, in PowerShell:
+  `powershell -ExecutionPolicy Bypass -File .\MarvelChampions-*-Windows-Install-for-Steam.ps1`
+- **macOS**: drag the game into Applications from the `.dmg`, then download `-macOS-Install-for-Steam.sh` and run
+  `bash ~/Downloads/MarvelChampions-*-macOS-Install-for-Steam.sh`.
+- **Linux, Steam Deck and Bazzite**: download the `.AppImage` and `-Linux-Install-for-Steam.sh` (on a Steam Deck, in
+  Desktop Mode), then run `bash ~/Downloads/MarvelChampions-*-Linux-Install-for-Steam.sh`. It takes the newest
+  AppImage from Downloads (or downloads the latest), installs it to `~/Applications/MarvelChampions/`, works with
+  native and Flatpak Steam on any distro, and sets the [launch options](#linux-launch-options) below in the Steam
+  entry. Add `--disable-compositing` to also set `WEBKIT_DISABLE_COMPOSITING_MODE=1`. Launch options you add in Steam
+  yourself are kept when you run it again for a new version.
+
+Every script takes `--help` (`-?` on Windows) and an uninstall option (`--uninstall`, or `-Uninstall` on Windows) that
+removes the Steam entry and its art. The scripts live in `scripts/linux/`, `scripts/macos/` and `scripts/windows/`;
+the art is in `scripts/linux/steam-art/`, built by `scripts/linux/make-steam-art.py` from the title screen pictures.
+
 ## Linux launch options
 
 The Linux app runs on WebKitGTK, and a few environment variables change how it behaves. The app sets the first three
@@ -39,7 +61,8 @@ WEBKIT_DISABLE_COMPOSITING_MODE=1 ./MarvelChampions-*-Linux-x64.AppImage
 ```
 
 Added to Steam as a non-Steam game (the way to play on a Steam Deck), set it in the game's Properties → Launch Options:
-`WEBKIT_DISABLE_COMPOSITING_MODE=1 %command%`.
+`WEBKIT_DISABLE_COMPOSITING_MODE=1 %command%`, or run the [Install for Steam](#play-it-from-steam) script with
+`--disable-compositing`.
 
 **If the game freezes for good** (nothing redraws and no input works, often after the display slept or the TV went off
 and on), the app restarts WebKit's stuck page process and reloads the game once the page has been unresponsive for 10
