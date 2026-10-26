@@ -297,7 +297,7 @@ export function idleTriggerNotes(state: GameState, instanceId: InstanceId, deps:
   const controllerId = controllerOf(state, instanceId);
   if (controllerId === null || !cardsInPlay(state).includes(instanceId)) return [];
   const context = { selfInstanceId: instanceId, controllerId, deps, event: null, bindings: {} };
-  return activeAbilityRefs(state, instanceId).flatMap((ref) => {
+  return activeAbilityRefs(state, instanceId, deps).flatMap((ref) => {
     const definition = deps.abilities[ref.id];
     const trigger = definition?.trigger;
     if (!trigger || (trigger.kind !== "interrupt" && trigger.kind !== "response") || trigger.forced) return [];

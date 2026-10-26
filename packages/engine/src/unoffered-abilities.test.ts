@@ -11,6 +11,7 @@ import { applyCommand } from "./engine.js";
 import type { GameEvent } from "./events.js";
 import type { InstanceId } from "./ids.js";
 import { mustInstance, mustPlayer } from "./query.js";
+import { unofferedAbilities } from "./resolve/triggers.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { stubResource, stubSupport } from "./testing/fixtures.js";
@@ -129,5 +130,16 @@ describe("abilityNotOffered (#431)", () => {
     expect(notOffered(events)).toEqual([{ abilityId: AIMED.ref.id, reason: "noTarget" }]);
     expect(offered.some((id) => id.includes(PAID.ref.id))).toBe(true);
     for (const { abilityId } of notOffered(events)) expect(offered.some((id) => id.includes(abilityId))).toBe(false);
+  });
+
+  it("during setup no player card's ability is reported: none can resolve then (RRG 1.8 'Ability', p. 4)", () => {
+    const t = table(false);
+    const noted = blast(t).events.find((e) => e.type === "abilityNotOffered");
+    if (noted?.type !== "abilityNotOffered") throw new Error("no abilityNotOffered to read the event from");
+    const reported = (state: GameState) =>
+      unofferedAbilities(state, deps, noted.event, "interrupt").map((u) => u.abilityId);
+    expect(reported(t.state)).toContain(PAID.ref.id);
+    const inSetup = { ...t.state, step: { ...t.state.step, phase: "setup" } } as GameState;
+    expect(reported(inSetup)).toEqual([]);
   });
 });

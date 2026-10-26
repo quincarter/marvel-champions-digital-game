@@ -152,16 +152,9 @@ import {
 import { finishTurn, pushPhaseEndDelayed } from "../flow.js";
 import { continueActivation } from "../villain/phase.js";
 import { applyEncounterCardBeingDealt, resolveSurge } from "./reveal.js";
-import {
-  answeredByNoResponse,
-  candidatesFor,
-  eachTimeEffectsFor,
-  hasCandidates,
-  heard,
-  unofferedAbilities,
-} from "./triggers.js";
+import { answeredByNoResponse, candidatesFor, eachTimeEffectsFor, hasCandidates, heard } from "./triggers.js";
 import { noteUnoffered, pushWindow } from "./window.js";
-import { holdResponsesForReveal } from "./reveal-hold.js";
+import { holdingReveal } from "./reveal-hold.js";
 import { markPreThenUnresolved } from "./then.js";
 import { mainSchemePlayAreaOf } from "../per-player-main-schemes.js";
 import {
@@ -519,12 +512,11 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         joined.some((other) => hasCandidates(ctx.state, ctx.deps, other, "response"))
       ) {
         pushWindow(ctx, event, "response", frame.frameId, joined);
-      } else {
-        // No window: a response that answered but cannot be used still says why (#431), once a reveal in progress has
-        // finished (its held conditions come back as this frame's joined responses, judged then: `reveal-hold.ts`).
-        const all = [event, ...joined];
-        const unoffered = all.some((each) => unofferedAbilities(ctx.state, ctx.deps, each, "response").length > 0);
-        if (unoffered && !holdResponsesForReveal(ctx, all)) noteUnoffered(ctx, all, "response");
+      } else if (!holdingReveal(ctx.state)) {
+        // No window: a response that answered but cannot be used still says why (#431). Not while a reveal is in
+        // progress: what it would answer is judged at the reveal's end (`reveal-hold.ts`), and a condition with nothing
+        // offered is not held for it (engine reading, unchanged), so nothing is said rather than something early.
+        noteUnoffered(ctx, [event, ...joined], "response");
       }
       // Lasting "each time …" effects resolve before the responses, so they are pushed on top (§3.17).
       for (const effect of [...eachTimeEffectsFor(ctx.state, ctx.deps, event)].reverse()) {
