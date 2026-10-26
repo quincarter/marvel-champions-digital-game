@@ -1,3 +1,0 @@
-kind: Added
-body: "Every option of a choice is shown: one that can't be chosen is listed disabled with why (no valid target, a cost you can't pay, an unmet condition, or a card forbidding it), and when only one option is left a notice lists the others and why (#412)"
-time: 2026-10-25T14:24:05.1279684-04:00
