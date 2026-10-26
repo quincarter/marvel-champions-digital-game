@@ -84,7 +84,7 @@ function inOwnersZone(state: GameState, id: InstanceId, zone: PlayerZone): boole
 import { hasCandidates } from "./triggers.js";
 import { tuckLeavingCard } from "./tuck.js";
 import { placeLeavingInSeparateDeck } from "./leave-to-separate-deck.js";
-import { pushWindow } from "./window.js";
+import { noteUnoffered, pushWindow } from "./window.js";
 import { heard } from "./triggers.js";
 import { cannotLeavePlay, staysInHand } from "../rules.js";
 import { shuffleSearchedDecks } from "./find.js";
@@ -1135,7 +1135,12 @@ export function openLeavingInterrupts(ctx: Ctx, frame: Frame<"event">): boolean 
       others.map((other) => other.event),
       others.map((other) => other.frameId),
     );
-  }
+  } else
+    noteUnoffered(
+      ctx,
+      batch.map((member) => member.event),
+      "interrupt",
+    );
   return true;
 }
 

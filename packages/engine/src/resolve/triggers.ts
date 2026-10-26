@@ -958,16 +958,21 @@ export function unofferedAbilities(
   timing: WindowTiming,
 ): readonly UnofferedAbility[] {
   if (unanswerable(state, event, timing)) return [];
+  // No player card ability resolves during setup (RRG 1.8 "Ability", p. 4; `gatherCandidates`), so none is "not offered".
+  const setup = state.step.phase === "setup";
   const found: UnofferedAbility[] = [];
   let noTriggers: readonly ActiveRule<"cannotResolveTriggeredAbilities">[] | undefined;
   for (const id of cardsInPlay(state)) {
     if (timing === "response" && enteredPlaySince(event, id)) continue;
+    if (setup && isPlayerCard(state, id)) continue;
     for (const ref of activeAbilityRefs(state, id, deps)) {
       const definition = deps.abilities[ref.id];
       if (!definition) continue;
       const trigger = definition.trigger;
       if (trigger.kind !== timing || trigger.forced) continue;
       if (definition.playCostReduction) continue;
+      // An exhausted card's "exhaust [this card] →" ability, whatever else stops it: the table shows why.
+      if (definition.cost?.exhaustSelf && getInstance(state, id)?.exhausted) continue;
       if (definition.activeIn === "hand" || definition.activeIn === "discard" || definition.activeIn === "tucked")
         continue;
       if (triggeringPlayers(state, deps, id, trigger, event)) continue;
@@ -989,7 +994,6 @@ export function unofferedAbilities(
           ? "cannotPay"
           : null;
       if (reason === null) continue;
-      if (reason === "cannotPay" && definition.cost?.exhaustSelf && getInstance(state, id)?.exhausted) continue;
       found.push({ instanceId: id, abilityId: ref.id, playerId: controllerId, reason });
     }
   }
@@ -1309,9 +1313,10 @@ export function hearersOf(
 }
 
 /**
- * Whether any ability could react to this event right now, in either window. Events on paths every game takes (a turn
- * ending, surge, an ability resolving, a minion engaging) go on the stack only when one could, so a game with nothing
- * listening resolves exactly as it did before those events existed.
+ * Whether any ability could react to this event right now, in either window, or answers it but cannot be used
+ * (`unofferedAbilities`, so the player is told why: #431). Events on paths every game takes (a turn ending, surge, an
+ * ability resolving, a minion engaging) go on the stack only when one does, so a game with nothing listening resolves
+ * exactly as it did before those events existed; a heard event nobody uses resolves as if every offer was declined.
  */
 export const heard = (state: GameState, deps: EngineDeps, event: TriggerEvent): boolean =>
   hasCandidates(state, deps, event, "interrupt") ||

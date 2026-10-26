@@ -43,7 +43,7 @@ import { simultaneousOrderer } from "../villain/authority.js";
 import { beginDefeat, whenDefeatedFrames } from "./event.js";
 import { base, eventFrame, type Frame } from "./frames.js";
 import { hasCandidates } from "./triggers.js";
-import { candidateOption, pushWindow } from "./window.js";
+import { candidateOption, noteUnoffered, pushWindow } from "./window.js";
 
 type Defeat = Extract<TriggerEvent, { kind: "characterDefeated" }>;
 type DefeatedTogether = Extract<EffectSpec, { kind: "defeatedTogether" }>;
@@ -169,7 +169,12 @@ export function openDefeatedTogetherInterrupts(ctx: Ctx, frame: Frame<"event">):
       others.map((other) => other.event),
       others.map((other): FrameId | null => other.frameId),
     );
-  }
+  } else
+    noteUnoffered(
+      ctx,
+      batch.map((member) => member.event),
+      "interrupt",
+    );
   return true;
 }
 

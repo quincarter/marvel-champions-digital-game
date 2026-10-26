@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { POOL_DEPS } from "../content/pool.js";
-import { idleTriggerNotes } from "../view/ability-refusal.js";
+import { idleTriggerNotes, unofferedReason } from "../view/ability-refusal.js";
 import { logLine } from "../view/log-lines.js";
 import { unofferedNoticesOf } from "../view/option-notice.js";
 import { IRON_LAD, playIronLadAttack } from "./dev-iron-lad-game.js";
@@ -44,4 +44,18 @@ describe("the Iron Lad dev game (#431)", () => {
     ]);
     expect(idleTriggerNotes(game, game.players[0]!.identity.instanceId, POOL_DEPS)).toEqual([]);
   }, 120_000);
+
+  test("a cost or target the wording does not know falls back to the engine's reason", () => {
+    const deps = {
+      ...POOL_DEPS,
+      abilities: { "x.paid": { cost: { resources: { energy: 1 } }, effects: [] } },
+    } as never;
+    const state = { instances: {}, players: [] } as never;
+    expect(unofferedReason(state, "i1" as never, "p1" as never, "x.paid" as never, "cannotPay", deps)).toBe(
+      "you cannot pay its cost",
+    );
+    expect(unofferedReason(state, "i1" as never, "p1" as never, "x.paid" as never, "noTarget", deps)).toBe(
+      "it has no valid target",
+    );
+  });
 });

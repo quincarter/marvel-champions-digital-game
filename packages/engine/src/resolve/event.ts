@@ -160,8 +160,8 @@ import {
   heard,
   unofferedAbilities,
 } from "./triggers.js";
-import type { WindowTiming } from "../stack.js";
-import { pushWindow } from "./window.js";
+import { noteUnoffered, pushWindow } from "./window.js";
+import { holdResponsesForReveal } from "./reveal-hold.js";
 import { markPreThenUnresolved } from "./then.js";
 import { mainSchemePlayAreaOf } from "../per-player-main-schemes.js";
 import {
@@ -319,11 +319,6 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       const opened =
         interrupts && frame.event.kind === "dealDamage" ? pierceBeforeInterrupts(ctx, frame.event) : frame.event;
       if (opened !== frame.event) setFrame(ctx, { ...frame, stage: "apply", event: opened });
-      noteUnoffered(
-        ctx,
-        [opened, ...companions.map((companion) => companion.event), ...(engaging ? [engaging] : [])],
-        "interrupt",
-      );
       if (interrupts)
         pushWindow(
           ctx,
@@ -333,6 +328,10 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
           [...companions.map((companion) => companion.event), ...(engaging ? [engaging] : [])],
           [...companions.map((companion) => companion.frameId), ...(engaging ? [null] : [])],
         );
+      // With no window, an interrupt that answered but cannot be used still says why (#431; `pushWindow` says it for a
+      // window), unless a tough status card stops the damage first, which no interrupt would have had a say in.
+      else if (opened.kind !== "dealDamage" || !toughResolvesFirst(ctx, opened, frame.frameId))
+        noteUnoffered(ctx, [opened, ...companions.map((companion) => companion.event)], "interrupt");
       return;
     }
     case "apply": {
@@ -515,13 +514,17 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       });
       if (joinLaterResponses(ctx, frame, event, spills)) {
         // Its responses wait for the later frame's window (`pushEventsSharingResponses`).
+      } else if (
+        hasCandidates(ctx.state, ctx.deps, event, "response") ||
+        joined.some((other) => hasCandidates(ctx.state, ctx.deps, other, "response"))
+      ) {
+        pushWindow(ctx, event, "response", frame.frameId, joined);
       } else {
-        noteUnoffered(ctx, [event, ...joined], "response");
-        if (
-          hasCandidates(ctx.state, ctx.deps, event, "response") ||
-          joined.some((other) => hasCandidates(ctx.state, ctx.deps, other, "response"))
-        )
-          pushWindow(ctx, event, "response", frame.frameId, joined);
+        // No window: a response that answered but cannot be used still says why (#431), once a reveal in progress has
+        // finished (its held conditions come back as this frame's joined responses, judged then: `reveal-hold.ts`).
+        const all = [event, ...joined];
+        const unoffered = all.some((each) => unofferedAbilities(ctx.state, ctx.deps, each, "response").length > 0);
+        if (unoffered && !holdResponsesForReveal(ctx, all)) noteUnoffered(ctx, all, "response");
       }
       // Lasting "each time …" effects resolve before the responses, so they are pushed on top (§3.17).
       for (const effect of [...eachTimeEffectsFor(ctx.state, ctx.deps, event)].reverse()) {
@@ -761,22 +764,6 @@ function overkillSpillConditions(frame: Frame<"event">, event: TriggerEvent): re
 }
 
 /**
- * Says which optional abilities on players' cards answered these conditions but cannot be initiated, and why
- * (`abilityNotOffered`, `unofferedAbilities`; #431). Once per ability, however many of the conditions it answers.
- */
-function noteUnoffered(ctx: Ctx, events: readonly TriggerEvent[], timing: WindowTiming): void {
-  const said = new Set<string>();
-  for (const event of events) {
-    for (const { instanceId, abilityId, playerId, reason } of unofferedAbilities(ctx.state, ctx.deps, event, timing)) {
-      const key = `${instanceId}:${abilityId}`;
-      if (said.has(key)) continue;
-      said.add(key);
-      emit(ctx, { type: "abilityNotOffered", instanceId, abilityId, playerId, timing, reason, event });
-    }
-  }
-}
-
-/**
  * Whether this event's *response* window waits for the activation it belongs to to finish.
  *
  * RRG 1.8 "Defend, Defense" (p. 16): "Abilities that trigger after a character defends an attack resolve after that
@@ -805,8 +792,10 @@ function openDeferredResponses(ctx: Ctx, frame: Frame<"event">, deferred: readon
   const [first, ...rest] = deferred.map((each) => withResults(each, frame.vars));
   // Triggering conditions are checked when the window opens, not when the defense happened.
   if (!first) return;
-  noteUnoffered(ctx, [first, ...rest], "response");
-  if (![first, ...rest].some((event) => hasCandidates(ctx.state, ctx.deps, event, "response"))) return;
+  if (![first, ...rest].some((event) => hasCandidates(ctx.state, ctx.deps, event, "response"))) {
+    noteUnoffered(ctx, [first, ...rest], "response");
+    return;
+  }
   // One window for all of them, tiered forced first (RRG 1.8 "Attack (Enemy Activation)" step 6, p. 9).
   pushWindow(ctx, first, "response", frame.frameId, rest);
 }
@@ -856,10 +845,9 @@ function openJoinedResponses(ctx: Ctx, frame: Frame<"event">): boolean {
   if (!first) return false;
   const { joinedResponses: _opened, ...unjoined } = frame;
   setFrame(ctx, unjoined);
-  noteUnoffered(ctx, [first, ...rest], "response");
   if ([first, ...rest].some((event) => hasCandidates(ctx.state, ctx.deps, event, "response"))) {
     pushWindow(ctx, first, "response", null, rest);
-  }
+  } else noteUnoffered(ctx, [first, ...rest], "response");
   return true;
 }
 
