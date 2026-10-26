@@ -10,15 +10,13 @@
 # again with a newer one updates the game in place and keeps the same Steam entry, art and play time.
 #
 # Options:
-#   --disable-compositing  also set WEBKIT_DISABLE_COMPOSITING_MODE=1 (try it if the game's page ever freezes for good)
-#   --enable-compositing   take WEBKIT_DISABLE_COMPOSITING_MODE back out
-#   --download             download the latest release's AppImage even if one is on disk
-#   --yes                  close Steam without asking when it is running
-#   --uninstall            remove the Steam entry, its art and the installed AppImage
-#   -h, --help             this text
+#   --download   download the latest release's AppImage even if one is on disk
+#   --yes        close Steam without asking when it is running
+#   --uninstall  remove the Steam entry, its art and the installed AppImage
+#   -h, --help   this text
 #
-# Running it again keeps any launch options you added in Steam yourself (and --disable-compositing's), and refreshes
-# the ones it manages.
+# Running it again keeps the launch options you added or changed in Steam yourself (your value of a variable wins over
+# the script's), and refreshes the rest.
 #
 # Needs bash, python3 and curl (curl only to download). Steam must be closed while its shortcut list is written; the
 # script offers to close it. On a Steam Deck run it from Desktop Mode, then go back to Game Mode.
@@ -36,7 +34,6 @@ INSTALLED="$INSTALL_DIR/MarvelChampions.AppImage"
 ART_FILES=(icon.png portrait.jpg wide.jpg hero.jpg logo.png)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-compositing=""
 force_download=0
 assume_yes=0
 uninstall=0
@@ -51,8 +48,6 @@ die() {
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --disable-compositing) compositing=off ;;
-    --enable-compositing) compositing=on ;;
     --download) force_download=1 ;;
     --yes | -y) assume_yes=1 ;;
     --uninstall) uninstall=1 ;;
@@ -213,10 +208,11 @@ if cmd == "add":
     start_dir, icon, launch, drop = rest
     if previous:
         before, sep, after = previous.get("LaunchOptions", "").partition("%command%")
-        given = launch.split("%command%")[0].split()
-        managed = {t.split("=", 1)[0] for t in given} | set(drop.split())
-        mine = [t for t in before.split() if t.split("=", 1)[0] not in managed]
-        launch = " ".join(given + mine + ["%command%"]) + (after if sep else "")
+        key = lambda t: t.split("=", 1)[0]
+        dropped = set(drop.split())
+        old = {key(t): t for t in before.split() if key(t) not in dropped}
+        given = [old.pop(key(t), t) for t in launch.split("%command%")[0].split()]
+        launch = " ".join(given + list(old.values()) + ["%command%"]) + (after if sep else "")
     entry = {
         "appid": signed_id,
         "AppName": name,
@@ -336,13 +332,14 @@ fi
 
 # --- Launch options --------------------------------------------------------------------------------------------------
 
-# The app sets the first three itself on Linux (src-tauri/src/main.rs, NO_AT_BRIDGE only in the AppImage); they're
-# repeated here so the Steam entry shows them and a player can change them under the game's Properties.
-options=(PULSE_LATENCY_MSEC=90 WEBKIT_DISABLE_DMABUF_RENDERER=1 NO_AT_BRIDGE=1)
-# Variables the script decides each run, so an earlier run's value doesn't linger in the entry.
-drop="APPIMAGE_EXTRACT_AND_RUN"
-[ "$compositing" = off ] && options+=(WEBKIT_DISABLE_COMPOSITING_MODE=1)
-[ "$compositing" = on ] && drop="$drop WEBKIT_DISABLE_COMPOSITING_MODE"
+# The app sets these itself on Linux unless they're already set (src-tauri/src/main.rs, GDK_BACKEND only in the
+# AppImage); they're repeated here so the Steam entry shows them and a player can change them under the game's
+# Properties.
+options=(PULSE_LATENCY_MSEC=90 WEBKIT_DISABLE_DMABUF_RENDERER=1 GDK_BACKEND=x11)
+# Variables the script decides each run, so an earlier run's value doesn't linger in the entry. The first release of
+# this script set NO_AT_BRIDGE and, on request, WEBKIT_DISABLE_COMPOSITING_MODE; neither stopped the Bazzite freeze
+# that running under X11 did (#401), so a re-run takes them out.
+drop="APPIMAGE_EXTRACT_AND_RUN NO_AT_BRIDGE WEBKIT_DISABLE_COMPOSITING_MODE"
 
 # An AppImage mounts itself with FUSE 2. Without libfuse2 (newer Ubuntu and Debian, Flatpak Steam's sandbox) it can
 # still run by unpacking itself to /tmp at each launch, which is a few seconds slower.
