@@ -1,6 +1,6 @@
 # Music prompts for every empty slot (2026-10-10, updated 2026-10-26)
 
-Every scenario and campaign slot in `music/` that has no track today: 52 tracks. The titles here are the ones to
+Every scenario and campaign slot in `music/` that has no track today: 49 tracks. The titles here are the ones to
 use for the files and the `TRACK_TITLES` entries, whatever name the generator gives the download. None repeats a
 title already in the jukebox. [music-prompts-ready.md](music-prompts-ready.md) has each of them as a whole request,
 ready to paste; the descriptions below are the same ones in the shorter form.
@@ -66,14 +66,6 @@ A cosmic-powered air force pilot and government agent who believes heroes must f
 ```
 
 # Wave 11: Fear No Evil
-
-## Art Museum Heist
-
-Tracks: **Gallery After Hours** (battle), **The Masterpiece Walks** (villain wins), **Returned to the Wall** (heroes win).
-
-```text
-Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. A crew of thieves strips a city art museum after hours, slipping priceless paintings out past laser grids while the heroes chase them through dark galleries. Sly heist energy: a walking upright bass and brushed snare under a sneaking clarinet and muted trumpet melody, harpsichord-like plucks for the gilded halls, sudden full-orchestra stabs when an alarm trips. About 124 BPM, A minor, cool and cunning.
-```
 
 ## The Getaway
 
@@ -253,7 +245,6 @@ Every scenario and campaign listed here is playable, so each track goes straight
 `music/campaigns/<campaignId>/`, with its `TRACK_TITLES` entry and a copy under its title in `music/soundtrack/`.
 
 - Captain Marvel (Registration): `scenarios/registration-captain-marvel/`
-- Art Museum Heist: `scenarios/art-museum-heist/`
 - The Getaway: `scenarios/the-getaway/`
 - Protection Racket: `scenarios/protection-racket/`
 - The Raft Breakout: `scenarios/the-raft-breakout/`
@@ -506,6 +497,14 @@ Tracks: **Gone Underground** (battle), **Caught in the Web** (villain wins), **N
 
 ```text
 A former top spy with spider powers who has gone on the run, fighting with speed and finesse across city rooftops and back alleys beside street-level vigilantes, building up skill before one perfect strike. Nimble urban spy action: a slinky bass line and brushed breakbeat drums, quick pizzicato and plucked harp runs, wah guitar and muted trumpet, tension that winds up bar by bar then snaps into a sharp full-orchestra hit. About 120 BPM, C-sharp minor, agile and street-smart.
+```
+
+## Art Museum Heist
+
+Tracks: **Gallery After Hours** (battle), **The Masterpiece Walks** (villain wins), **Returned to the Wall** (heroes win).
+
+```text
+Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. A crew of thieves strips a city art museum after hours, slipping priceless paintings out past laser grids while the heroes chase them through dark galleries. Sly heist energy: a walking upright bass and brushed snare under a sneaking clarinet and muted trumpet melody, harpsichord-like plucks for the gilded halls, sudden full-orchestra stabs when an alarm trips. About 124 BPM, A minor, cool and cunning.
 ```
 
 </details>
